@@ -43,6 +43,6 @@ import { SitesModule } from '../sites/sites.module.js';
     GeneratorsService,
     AutoFixService,
   ],
-  exports: [AuditService, AutoFixService],
+  exports: [AuditService, AutoFixService, GeoRunnerService],
 })
 export class AuditModule {}

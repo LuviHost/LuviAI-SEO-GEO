@@ -10,8 +10,15 @@ export class TopicsController {
     return this.topics.getLatestQueue(siteId);
   }
 
+  /** POST /sites/:siteId/topics/regenerate — queue'ya at */
   @Post('regenerate')
   regenerate(@Param('siteId') siteId: string) {
     return this.topics.queueGeneration(siteId);
+  }
+
+  /** POST /sites/:siteId/topics/run-now — senkron çalıştır (dev/test) */
+  @Post('run-now')
+  runNow(@Param('siteId') siteId: string) {
+    return this.topics.runEngine(siteId);
   }
 }
