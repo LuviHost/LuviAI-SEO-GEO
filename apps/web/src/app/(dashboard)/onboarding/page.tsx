@@ -15,10 +15,20 @@ const NICHES = [
 ];
 
 const PUBLISH_TARGETS = [
-  { value: 'markdown_zip', label: '📦 Markdown ZIP', desc: 'Manuel indir, kendin yükle' },
-  { value: 'wordpress_rest', label: '📝 WordPress REST', desc: 'Otomatik yayın (App Password)' },
-  { value: 'ftp', label: '🌐 FTP', desc: 'Static HTML + FTP upload' },
-  { value: 'sftp', label: '🔒 SFTP/SSH', desc: 'Static HTML + SSH key/password' },
+  { value: 'markdown_zip',     label: '📦 Markdown ZIP',        desc: 'Manuel indir, kendin yükle (test için ideal)' },
+  { value: 'wordpress_rest',   label: '📝 WordPress REST',      desc: 'Otomatik yayın (App Password)' },
+  { value: 'wordpress_xmlrpc', label: '📝 WordPress XML-RPC',   desc: 'Eski WP sürümleri (4.7 öncesi)' },
+  { value: 'ftp',              label: '🌐 FTP',                 desc: 'Static HTML + FTP upload' },
+  { value: 'sftp',             label: '🔒 SFTP / SSH',          desc: 'Static HTML + SSH key veya password' },
+  { value: 'cpanel_api',       label: '🎛️ cPanel API',          desc: 'cPanel File Manager (token auth)' },
+  { value: 'github',           label: '🐙 GitHub Repo',         desc: 'Hugo, Jekyll, Astro, MDX siteler' },
+  { value: 'webflow',          label: '🎨 Webflow CMS',         desc: 'Webflow CMS Collection' },
+  { value: 'sanity',           label: '✨ Sanity',              desc: 'Headless CMS (Portable Text)' },
+  { value: 'contentful',       label: '📚 Contentful',          desc: 'Management API + auto publish' },
+  { value: 'ghost',            label: '👻 Ghost',               desc: 'Ghost Admin API (JWT)' },
+  { value: 'whmcs_kb',         label: '🛠️ WHMCS Bilgi Bankası', desc: 'WHMCS Knowledgebase makalesi' },
+  { value: 'strapi',           label: '🚀 Strapi',              desc: 'Strapi 4+ REST API' },
+  { value: 'custom_php',       label: '🔧 Custom PHP',          desc: 'Kendi PHP API\'ınız + HMAC' },
 ];
 
 const LANGS = [

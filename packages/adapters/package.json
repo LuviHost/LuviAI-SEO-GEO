@@ -14,16 +14,19 @@
     "build": "tsc"
   },
   "dependencies": {
-    "basic-ftp": "^5.0.5",
-    "ssh2-sftp-client": "^11.0.0",
+    "@octokit/rest": "^22.0.1",
+    "@sanity/client": "^7.22.0",
     "archiver": "^7.0.0",
-    "node-fetch": "^3.3.0"
+    "basic-ftp": "^5.0.5",
+    "contentful-management": "^12.3.2",
+    "node-fetch": "^3.3.0",
+    "ssh2-sftp-client": "^11.0.0"
   },
   "devDependencies": {
     "@luviai/shared": "workspace:*",
+    "@types/archiver": "^6.0.3",
     "@types/node": "^22.10.0",
     "@types/ssh2-sftp-client": "^9.0.4",
-    "@types/archiver": "^6.0.3",
     "typescript": "^5.7.0"
   },
   "types": "./dist/index.d.ts"
