@@ -144,6 +144,7 @@ model Site {
   topicQueues      TopicQueue[]
   articles         Article[]
   jobs             Job[]
+  analyticsSnapshots AnalyticsSnapshot[]
 
   @@index([userId])
   @@index([status])
@@ -365,6 +366,40 @@ enum EditorVerdict {
   PASS
   REVIZE
   FAIL
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  ANALYTICS — GSC günlük snapshot'ları
+// ═══════════════════════════════════════════════════════════════
+
+model AnalyticsSnapshot {
+  id          String   @id @default(cuid())
+  siteId      String
+
+  // Hangi gün (UTC)
+  date        DateTime @db.Date
+
+  // Site-level toplam
+  totalClicks      Int
+  totalImpressions Int
+  avgCtr           Float
+  avgPosition      Float
+
+  // Per-page detail JSON: [{ page, query, clicks, impressions, ctr, position }]
+  // Top 50 sayfa, top 10 query
+  pageDetails  Json
+  queryDetails Json
+
+  // Trending: yükselen sorgular (son 7g vs önceki 7g)
+  trendingQueries Json?
+
+  createdAt DateTime @default(now())
+
+  site Site @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  @@unique([siteId, date])
+  @@index([siteId, date])
+  @@map("analytics_snapshots")
 }
 
 // ═══════════════════════════════════════════════════════════════

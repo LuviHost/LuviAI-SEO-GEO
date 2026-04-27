@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { AnalyticsTab } from '@/components/analytics-tab';
 
 export default function SitePage() {
   const params = useParams();
@@ -102,11 +103,13 @@ export default function SitePage() {
           <TabsTrigger value="audit">Sağlık Audit</TabsTrigger>
           <TabsTrigger value="topics">Topic Queue</TabsTrigger>
           <TabsTrigger value="articles">Makaleler ({articles.length})</TabsTrigger>
+          <TabsTrigger value="analytics">📊 Analytics</TabsTrigger>
         </TabsList>
 
         <TabsContent value="audit"><AuditTab audit={audit} siteId={id} onRefresh={refresh} /></TabsContent>
         <TabsContent value="topics"><TopicsTab queue={queue} siteId={id} onRefresh={refresh} /></TabsContent>
         <TabsContent value="articles"><ArticlesTab articles={articles} /></TabsContent>
+        <TabsContent value="analytics"><AnalyticsTab siteId={id} /></TabsContent>
       </Tabs>
     </div>
   );

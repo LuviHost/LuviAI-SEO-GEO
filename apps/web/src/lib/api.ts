@@ -65,4 +65,20 @@ export const api = {
 
   // Billing
   getPlans: () => request<any[]>('/billing/plans'),
+
+  // Analytics
+  getAnalyticsOverview: (siteId: string, days = 30) =>
+    request<any>(`/sites/${siteId}/analytics/overview?days=${days}`),
+
+  getTopArticles: (siteId: string, limit = 10) =>
+    request<any[]>(`/sites/${siteId}/analytics/top-articles?limit=${limit}`),
+
+  getTrendingQueries: (siteId: string) =>
+    request<any[]>(`/sites/${siteId}/analytics/trending`),
+
+  getImprovementSuggestions: (siteId: string) =>
+    request<any[]>(`/sites/${siteId}/analytics/suggestions`),
+
+  triggerSnapshotNow: (siteId: string) =>
+    request<any>(`/sites/${siteId}/analytics/snapshot-now`, { method: 'POST' }),
 };

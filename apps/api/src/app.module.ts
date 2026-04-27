@@ -12,6 +12,7 @@ import { ArticlesModule } from './articles/articles.module.js';
 import { BillingModule } from './billing/billing.module.js';
 import { AdminModule } from './admin/admin.module.js';
 import { JobsModule } from './jobs/jobs.module.js';
+import { AnalyticsModule } from './analytics/analytics.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 
 @Module({
@@ -31,6 +32,7 @@ import { PrismaModule } from './prisma/prisma.module.js';
     BillingModule,
     AdminModule,
     JobsModule,
+    AnalyticsModule,
   ],
 })
 export class AppModule {}
