@@ -8,15 +8,15 @@
   "type": "module",
   "engines": {
     "node": ">=20.0.0",
-    "pnpm": ">=9.0.0"
+    "pnpm": ">=10.0.0"
   },
   "scripts": {
     "dev": "pnpm -r --parallel run dev",
     "build": "pnpm -r run build",
     "lint": "pnpm -r run lint",
     "test": "pnpm -r run test",
-    "db:up": "docker-compose up -d mysql redis",
-    "db:down": "docker-compose down",
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down",
     "db:migrate": "cd apps/api && pnpm prisma migrate dev",
     "db:seed": "cd apps/api && pnpm prisma db seed",
     "db:studio": "cd apps/api && pnpm prisma studio"
@@ -25,5 +25,19 @@
     "typescript": "^5.7.0",
     "prettier": "^3.4.0",
     "eslint": "^9.20.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@nestjs/core",
+      "@prisma/client",
+      "@prisma/engines",
+      "cpu-features",
+      "esbuild",
+      "msgpackr-extract",
+      "prisma",
+      "protobufjs",
+      "sharp",
+      "ssh2"
+    ]
   }
 }

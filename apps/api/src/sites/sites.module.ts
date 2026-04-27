@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { SitesController } from './sites.controller.js';
 import { SitesService } from './sites.service.js';
 import { BrainGeneratorService } from './brain-generator.service.js';
+import { SiteCrawlerService } from './site-crawler.service.js';
 
 /**
  * Site CRUD + Brain (kullanıcı sitesinin AI bağlamı).
@@ -15,7 +16,7 @@ import { BrainGeneratorService } from './brain-generator.service.js';
  */
 @Module({
   controllers: [SitesController],
-  providers: [SitesService, BrainGeneratorService],
-  exports: [SitesService, BrainGeneratorService],
+  providers: [SitesService, BrainGeneratorService, SiteCrawlerService],
+  exports: [SitesService, BrainGeneratorService, SiteCrawlerService],
 })
 export class SitesModule {}

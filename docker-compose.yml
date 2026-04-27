@@ -1,7 +1,6 @@
 # LuviAI — Yerel geliştirme servisleri
 # pnpm db:up / pnpm db:down
 
-version: '3.9'
 
 services:
   mysql:
