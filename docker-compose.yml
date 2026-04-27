@@ -1,0 +1,42 @@
+# LuviAI — Yerel geliştirme servisleri
+# pnpm db:up / pnpm db:down
+
+version: '3.9'
+
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: luviai-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: luviai_root_dev
+      MYSQL_DATABASE: luviai
+      MYSQL_USER: luviai
+      MYSQL_PASSWORD: luviai_dev
+    ports:
+      - '3306:3306'
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ['CMD', 'mysqladmin', 'ping', '-h', 'localhost']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: luviai-redis
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  mysql_data:
+  redis_data:

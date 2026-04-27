@@ -1,0 +1,26 @@
+{
+  "name": "@luviai/adapters",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc"
+  },
+  "dependencies": {
+    "basic-ftp": "^5.0.5",
+    "ssh2-sftp-client": "^11.0.0",
+    "archiver": "^7.0.0",
+    "node-fetch": "^3.3.0"
+  },
+  "devDependencies": {
+    "@luviai/shared": "workspace:*",
+    "@types/node": "^22.10.0",
+    "@types/ssh2-sftp-client": "^9.0.4",
+    "@types/archiver": "^6.0.3",
+    "typescript": "^5.7.0"
+  }
+}
