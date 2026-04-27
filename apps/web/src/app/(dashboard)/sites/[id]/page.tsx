@@ -3,7 +3,14 @@
 import { useEffect, useState } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { toast } from 'sonner';
+import { ArrowLeft, ExternalLink, CheckCircle2, Circle } from 'lucide-react';
 import { api } from '@/lib/api';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 
 export default function SitePage() {
   const params = useParams();
@@ -14,7 +21,7 @@ export default function SitePage() {
   const [audit, setAudit] = useState<any>(null);
   const [queue, setQueue] = useState<any>(null);
   const [articles, setArticles] = useState<any[]>([]);
-  const [tab, setTab] = useState<'audit' | 'topics' | 'articles'>('audit');
+  const [loading, setLoading] = useState(true);
 
   const id = params.id as string;
 
@@ -30,7 +37,9 @@ export default function SitePage() {
       setAudit(a);
       setQueue(q);
       setArticles(ar);
-    } catch {}
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -41,77 +50,104 @@ export default function SitePage() {
     }
   }, [id, onboardingMode]);
 
-  if (!site) return <div className="p-8">Yükleniyor...</div>;
+  if (loading || !site) {
+    return (
+      <div className="space-y-6">
+        <Skeleton className="h-8 w-1/3" />
+        <Skeleton className="h-32" />
+        <Skeleton className="h-64" />
+      </div>
+    );
+  }
 
   return (
-    <div>
-      <div className="mb-6">
-        <Link href="/dashboard" className="text-sm text-slate-500 hover:text-brand">← Dashboard</Link>
+    <div className="space-y-6">
+      <div>
+        <Link href="/dashboard" className="text-sm text-muted-foreground hover:text-brand inline-flex items-center gap-1">
+          <ArrowLeft className="h-3 w-3" /> Dashboard
+        </Link>
         <h1 className="text-3xl font-bold mt-2">{site.name}</h1>
-        <p className="text-slate-600 text-sm">{site.url}</p>
+        <a
+          href={site.url}
+          target="_blank"
+          rel="noopener"
+          className="text-sm text-muted-foreground hover:text-brand inline-flex items-center gap-1 mt-1"
+        >
+          {site.url} <ExternalLink className="h-3 w-3" />
+        </a>
       </div>
 
       {onboardingMode && site.status !== 'ACTIVE' && (
-        <div className="mb-6 bg-brand/5 border border-brand/20 rounded-lg p-6">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-3 h-3 bg-brand rounded-full animate-pulse" />
-            <h3 className="font-bold text-brand">Onboarding çalışıyor</h3>
-          </div>
-          <p className="text-sm text-slate-600 mb-4">
-            Site analiz ediliyor → topic queue oluşturuluyor → ilk makale üretiliyor.
-            Bu işlem yaklaşık 5-10 dakika sürer. Bu sayfa otomatik yenilenir.
-          </p>
-          <div className="space-y-2 text-sm">
-            <Step done={!!site.brain} label="1. Brain (marka analizi)" />
-            <Step done={!!audit} label="2. Audit (sağlık kontrolü)" />
-            <Step done={!!queue} label="3. Topic Queue" />
-            <Step done={articles.length > 0} label="4. İlk makale" />
-          </div>
-        </div>
+        <Card className="border-brand/30 bg-brand/5">
+          <CardContent className="p-6">
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-3 h-3 bg-brand rounded-full animate-pulse" />
+              <h3 className="font-bold text-brand">Onboarding çalışıyor</h3>
+            </div>
+            <p className="text-sm text-muted-foreground mb-4">
+              Brain → Audit → Topic Queue → İlk makale. ~5-10 dk. Bu sayfa otomatik yenilenir.
+            </p>
+            <div className="space-y-2 text-sm">
+              <Step done={!!site.brain} label="1. Brain (marka analizi)" />
+              <Step done={!!audit} label="2. Audit (sağlık kontrolü)" />
+              <Step done={!!queue} label="3. Topic Queue" />
+              <Step done={articles.length > 0} label="4. İlk makale" />
+            </div>
+          </CardContent>
+        </Card>
       )}
 
-      <div className="border-b mb-6">
-        <div className="flex gap-1">
-          {(['audit', 'topics', 'articles'] as const).map(t => (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              className={`px-4 py-2 -mb-px border-b-2 ${tab === t ? 'border-brand text-brand' : 'border-transparent text-slate-600'}`}
-            >
-              {t === 'audit' ? 'Sağlık Audit' : t === 'topics' ? 'Topic Queue' : 'Makaleler'}
-            </button>
-          ))}
-        </div>
-      </div>
+      <Tabs defaultValue="audit">
+        <TabsList>
+          <TabsTrigger value="audit">Sağlık Audit</TabsTrigger>
+          <TabsTrigger value="topics">Topic Queue</TabsTrigger>
+          <TabsTrigger value="articles">Makaleler ({articles.length})</TabsTrigger>
+        </TabsList>
 
-      {tab === 'audit' && <AuditTab audit={audit} siteId={id} />}
-      {tab === 'topics' && <TopicsTab queue={queue} siteId={id} />}
-      {tab === 'articles' && <ArticlesTab articles={articles} />}
+        <TabsContent value="audit"><AuditTab audit={audit} siteId={id} onRefresh={refresh} /></TabsContent>
+        <TabsContent value="topics"><TopicsTab queue={queue} siteId={id} onRefresh={refresh} /></TabsContent>
+        <TabsContent value="articles"><ArticlesTab articles={articles} /></TabsContent>
+      </Tabs>
     </div>
   );
 }
 
 function Step({ done, label }: { done: boolean; label: string }) {
+  const Icon = done ? CheckCircle2 : Circle;
   return (
-    <div className="flex items-center gap-2">
-      <span className={done ? 'text-green-600' : 'text-slate-400'}>{done ? '✓' : '○'}</span>
-      <span className={done ? 'text-slate-700' : 'text-slate-400'}>{label}</span>
+    <div className="flex items-center gap-2 text-sm">
+      <Icon className={`h-4 w-4 ${done ? 'text-green-500' : 'text-muted-foreground/50'}`} />
+      <span className={done ? '' : 'text-muted-foreground'}>{label}</span>
     </div>
   );
 }
 
-function AuditTab({ audit, siteId }: { audit: any; siteId: string }) {
+function AuditTab({ audit, siteId, onRefresh }: { audit: any; siteId: string; onRefresh: () => void }) {
+  const [running, setRunning] = useState(false);
+
+  const run = async () => {
+    setRunning(true);
+    try {
+      await api.runAuditNow(siteId);
+      toast.success('Audit tamamlandı');
+      onRefresh();
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setRunning(false);
+    }
+  };
+
   if (!audit) {
     return (
-      <div className="bg-white border rounded-xl p-12 text-center">
-        <p className="text-slate-500 mb-4">Henüz audit çalıştırılmamış.</p>
-        <button
-          onClick={() => api.runAuditNow(siteId).then(() => location.reload())}
-          className="px-4 py-2 bg-brand text-white rounded-lg"
-        >
-          Audit Çalıştır
-        </button>
-      </div>
+      <Card>
+        <CardContent className="p-12 text-center">
+          <p className="text-muted-foreground mb-4">Henüz audit çalıştırılmamış.</p>
+          <Button onClick={run} disabled={running}>
+            {running ? 'Çalışıyor… (~30 sn)' : 'Audit Çalıştır'}
+          </Button>
+        </CardContent>
+      </Card>
     );
   }
 
@@ -119,88 +155,129 @@ function AuditTab({ audit, siteId }: { audit: any; siteId: string }) {
   const issues = audit.issues ?? [];
   const fixable = issues.filter((i: any) => i.fixable);
 
+  const applyFix = async () => {
+    try {
+      await api.applyAutoFix(siteId, ['sitemap', 'robots', 'llms']);
+      toast.success("Auto-fix queue'ya eklendi");
+      setTimeout(onRefresh, 3000);
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  };
+
   return (
-    <div>
-      <div className="grid grid-cols-3 gap-4 mb-6">
-        <div className="bg-white border rounded-xl p-6">
-          <div className="text-sm text-slate-500">Genel Skor</div>
-          <div className="text-4xl font-bold text-brand mt-2">{audit.overallScore}/100</div>
-        </div>
-        <div className="bg-white border rounded-xl p-6">
-          <div className="text-sm text-slate-500">GEO Skor</div>
-          <div className="text-4xl font-bold mt-2">{audit.geoScore ?? '-'}/100</div>
-        </div>
-        <div className="bg-white border rounded-xl p-6">
-          <div className="text-sm text-slate-500">Issues</div>
-          <div className="text-4xl font-bold mt-2 text-red-600">{issues.length}</div>
-        </div>
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card>
+          <CardContent className="p-5">
+            <div className="text-sm text-muted-foreground">Genel Skor</div>
+            <div className="text-4xl font-bold text-brand mt-1">{audit.overallScore}/100</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-5">
+            <div className="text-sm text-muted-foreground">GEO Skor</div>
+            <div className="text-4xl font-bold mt-1">{audit.geoScore ?? '-'}/100</div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-5">
+            <div className="text-sm text-muted-foreground">Issues</div>
+            <div className="text-4xl font-bold mt-1 text-red-500">{issues.length}</div>
+          </CardContent>
+        </Card>
       </div>
 
       {fixable.length > 0 && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 mb-6">
-          <p className="font-semibold mb-2">⚡ {fixable.length} sorun otomatik düzeltilebilir</p>
-          <button
-            onClick={() => api.applyAutoFix(siteId, ['sitemap', 'robots', 'llms']).then(() => alert('Auto-fix queue\'ya eklendi'))}
-            className="px-4 py-2 bg-brand text-white rounded text-sm"
-          >
-            Otomatik Düzelt
-          </button>
-        </div>
+        <Card className="border-yellow-500/30 bg-yellow-500/5">
+          <CardContent className="p-4 flex items-center justify-between flex-wrap gap-3">
+            <p className="font-semibold">⚡ {fixable.length} sorun otomatik düzeltilebilir</p>
+            <Button size="sm" onClick={applyFix}>Otomatik Düzelt</Button>
+          </CardContent>
+        </Card>
       )}
 
-      <div className="bg-white border rounded-xl overflow-hidden">
-        <div className="p-4 border-b font-semibold">14 Kontrol Noktası</div>
-        <div className="divide-y">
-          {Object.entries(checks).filter(([, v]: any) => v?.name).map(([k, v]: any) => (
-            <div key={k} className="p-3 flex items-center justify-between text-sm">
-              <span className="flex items-center gap-2">
-                {v.valid ? '✅' : '❌'} {v.name}
-              </span>
-              <span className="font-mono">{v.score}/100</span>
-            </div>
-          ))}
-        </div>
-      </div>
+      <Card>
+        <CardHeader>
+          <h3 className="font-semibold">14 Kontrol Noktası</h3>
+        </CardHeader>
+        <CardContent className="p-0">
+          <div className="divide-y">
+            {Object.entries(checks)
+              .filter(([, v]: any) => v?.name)
+              .map(([k, v]: any) => (
+                <div key={k} className="px-5 py-3 flex items-center justify-between text-sm">
+                  <span className="flex items-center gap-2">
+                    {v.valid ? <CheckCircle2 className="h-4 w-4 text-green-500" /> : <Circle className="h-4 w-4 text-red-500" />}
+                    {v.name}
+                  </span>
+                  <span className="font-mono text-muted-foreground">{v.score}/100</span>
+                </div>
+              ))}
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
 
-function TopicsTab({ queue, siteId }: { queue: any; siteId: string }) {
+function TopicsTab({ queue, siteId, onRefresh }: { queue: any; siteId: string; onRefresh: () => void }) {
+  const [running, setRunning] = useState(false);
+
+  const run = async () => {
+    setRunning(true);
+    try {
+      await api.runTopicEngineNow(siteId);
+      toast.success('Topic engine bitti');
+      onRefresh();
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  const generate = async (topic: string) => {
+    try {
+      await api.generateArticle(siteId, topic);
+      toast.success('Makale üretildi! Articles sekmesinde gör.');
+      onRefresh();
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  };
+
   if (!queue) {
     return (
-      <div className="bg-white border rounded-xl p-12 text-center">
-        <p className="text-slate-500 mb-4">Topic queue henüz oluşmadı.</p>
-        <button
-          onClick={() => api.runTopicEngineNow(siteId).then(() => location.reload())}
-          className="px-4 py-2 bg-brand text-white rounded-lg"
-        >
-          Topic Engine Çalıştır
-        </button>
-      </div>
+      <Card>
+        <CardContent className="p-12 text-center">
+          <p className="text-muted-foreground mb-4">Topic queue henüz oluşmadı.</p>
+          <Button onClick={run} disabled={running}>
+            {running ? 'Çalışıyor…' : 'Topic Engine Çalıştır'}
+          </Button>
+        </CardContent>
+      </Card>
     );
   }
 
   const tier1 = queue.tier1Topics ?? [];
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <h3 className="font-bold text-lg">🥇 Tier 1 — Hemen Yazılmalı</h3>
-      <div className="space-y-3">
+      <div className="grid gap-3">
         {tier1.map((t: any, i: number) => (
-          <div key={i} className="bg-white border rounded-xl p-4">
-            <div className="flex justify-between items-start mb-2">
-              <span className="text-xs text-brand font-semibold">SKOR {t.score}</span>
-              <span className="text-xs text-slate-500">{t.persona}</span>
-            </div>
-            <div className="font-semibold mb-1">{t.topic}</div>
-            <div className="text-xs text-slate-500 mb-3">{t.data_summary}</div>
-            <button
-              onClick={() => api.generateArticle(siteId, t.topic).then(() => alert('Üretildi! Articles sekmesinde gör.'))}
-              className="text-xs px-3 py-1 bg-brand text-white rounded"
-            >
-              Bu Konuyu Üret →
-            </button>
-          </div>
+          <Card key={i}>
+            <CardContent className="p-4">
+              <div className="flex justify-between items-start mb-2 gap-2">
+                <Badge>SKOR {t.score}</Badge>
+                <span className="text-xs text-muted-foreground">{t.persona}</span>
+              </div>
+              <h4 className="font-semibold mb-1">{t.topic}</h4>
+              <p className="text-xs text-muted-foreground mb-3">{t.data_summary}</p>
+              <Button size="sm" onClick={() => generate(t.topic)}>Bu konuyu üret →</Button>
+            </CardContent>
+          </Card>
         ))}
       </div>
     </div>
@@ -210,27 +287,31 @@ function TopicsTab({ queue, siteId }: { queue: any; siteId: string }) {
 function ArticlesTab({ articles }: { articles: any[] }) {
   if (articles.length === 0) {
     return (
-      <div className="bg-white border rounded-xl p-12 text-center">
-        <p className="text-slate-500">Henüz makale üretilmemiş.</p>
-      </div>
+      <Card>
+        <CardContent className="p-12 text-center text-muted-foreground">
+          Henüz makale üretilmemiş.
+        </CardContent>
+      </Card>
     );
   }
 
   return (
     <div className="space-y-3">
-      {articles.map(a => (
-        <div key={a.id} className="bg-white border rounded-xl p-4">
-          <div className="flex justify-between items-start mb-2">
-            <h4 className="font-semibold">{a.title}</h4>
-            <span className="text-xs px-2 py-1 bg-slate-100 rounded">{a.status}</span>
-          </div>
-          <div className="text-xs text-slate-500 flex gap-4">
-            <span>{a.wordCount} kelime</span>
-            <span>{a.readingTime} dk okuma</span>
-            <span>{a.persona ?? '-'}</span>
-            {a.editorScore && <span>Score: {a.editorScore}/60</span>}
-          </div>
-        </div>
+      {articles.map((a) => (
+        <Card key={a.id}>
+          <CardContent className="p-4">
+            <div className="flex justify-between items-start mb-2 gap-2 flex-wrap">
+              <h4 className="font-semibold">{a.title}</h4>
+              <Badge variant="secondary">{a.status}</Badge>
+            </div>
+            <div className="text-xs text-muted-foreground flex gap-4 flex-wrap">
+              <span>{a.wordCount} kelime</span>
+              <span>{a.readingTime} dk okuma</span>
+              {a.persona && <span>{a.persona}</span>}
+              {a.editorScore && <span>Score: {a.editorScore}/60</span>}
+            </div>
+          </CardContent>
+        </Card>
       ))}
     </div>
   );

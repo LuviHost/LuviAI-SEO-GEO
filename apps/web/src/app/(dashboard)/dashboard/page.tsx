@@ -3,108 +3,122 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { api } from '@/lib/api';
+import { useT } from '@/lib/i18n';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
+import { ExternalLink, Plus } from 'lucide-react';
+
+const STATUS_VARIANT: Record<string, any> = {
+  ONBOARDING: 'warning',
+  AUDIT_PENDING: 'secondary',
+  AUDIT_COMPLETE: 'default',
+  ACTIVE: 'success',
+  PAUSED: 'outline',
+  ERROR: 'destructive',
+};
 
 export default function DashboardPage() {
+  const { t } = useT();
   const [sites, setSites] = useState<any[]>([]);
   const [overview, setOverview] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    Promise.all([api.listSites(), api.getAdminOverview()])
-      .then(([s, o]) => { setSites(s); setOverview(o); })
-      .catch(() => {})
+    Promise.all([
+      api.listSites().catch(() => []),
+      api.getAdminOverview().catch(() => null),
+    ])
+      .then(([s, o]) => {
+        setSites(s);
+        setOverview(o);
+      })
       .finally(() => setLoading(false));
   }, []);
 
-  const statusBadge = (status: string) => {
-    const colors: Record<string, string> = {
-      ONBOARDING: 'bg-yellow-100 text-yellow-700',
-      AUDIT_PENDING: 'bg-blue-100 text-blue-700',
-      AUDIT_COMPLETE: 'bg-purple-100 text-purple-700',
-      ACTIVE: 'bg-green-100 text-green-700',
-      PAUSED: 'bg-slate-100 text-slate-700',
-      ERROR: 'bg-red-100 text-red-700',
-    };
-    return (
-      <span className={`px-2 py-1 rounded text-xs ${colors[status] ?? 'bg-slate-100'}`}>
-        {status}
-      </span>
-    );
-  };
-
   return (
-    <div>
-      <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold">Dashboard</h1>
-        <Link
-          href="/onboarding"
-          className="px-4 py-2 bg-brand text-white rounded-lg font-semibold hover:bg-brand/90"
-        >
-          + Yeni Site
-        </Link>
+    <div className="space-y-8">
+      <div className="flex justify-between items-center flex-wrap gap-4">
+        <h1 className="text-3xl font-bold">{t('dashboard.title')}</h1>
+        <Button asChild>
+          <Link href="/onboarding"><Plus className="h-4 w-4 mr-2" />{t('dashboard.new_site')}</Link>
+        </Button>
       </div>
 
-      {overview && (
-        <div className="grid grid-cols-4 gap-4 mb-8">
+      {loading ? (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-24" />)}
+        </div>
+      ) : overview ? (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Stat label="Sites" value={overview.sites} />
           <Stat label="Users" value={overview.users} />
           <Stat label="Published" value={overview.publishedArticles} />
-          <Stat label="Failed Jobs" value={overview.failedJobs} color={overview.failedJobs > 0 ? 'red' : 'slate'} />
+          <Stat label="Failed Jobs" value={overview.failedJobs} variant={overview.failedJobs > 0 ? 'destructive' : 'default'} />
         </div>
-      )}
+      ) : null}
 
-      <div className="bg-white rounded-xl border">
-        <div className="p-6 border-b">
-          <h2 className="font-bold">Sitelerim</h2>
-        </div>
-        {loading ? (
-          <div className="p-8 text-center text-slate-500">Yükleniyor...</div>
-        ) : sites.length === 0 ? (
-          <div className="p-12 text-center">
-            <p className="text-slate-500 mb-4">Henüz site eklenmemiş.</p>
-            <Link href="/onboarding" className="text-brand font-semibold">İlk siteni ekle →</Link>
-          </div>
-        ) : (
-          <table className="w-full">
-            <thead className="bg-slate-50 text-sm text-slate-600">
-              <tr>
-                <th className="text-left p-4">Site</th>
-                <th className="text-left p-4">URL</th>
-                <th className="text-left p-4">Status</th>
-                <th className="text-left p-4">Niş</th>
-                <th className="text-right p-4"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {sites.map(s => (
-                <tr key={s.id} className="border-t hover:bg-slate-50">
-                  <td className="p-4 font-semibold">{s.name}</td>
-                  <td className="p-4 text-sm text-slate-600">{s.url}</td>
-                  <td className="p-4">{statusBadge(s.status)}</td>
-                  <td className="p-4 text-sm">{s.niche ?? '-'}</td>
-                  <td className="p-4 text-right">
-                    <Link href={`/sites/${s.id}`} className="text-brand text-sm font-semibold">Aç →</Link>
-                  </td>
-                </tr>
+      <Card>
+        <CardHeader>
+          <h2 className="text-lg font-semibold">{t('dashboard.sites')}</h2>
+        </CardHeader>
+        <CardContent className="p-0">
+          {loading ? (
+            <div className="p-6 space-y-3">
+              {[1, 2, 3].map((i) => <Skeleton key={i} className="h-12" />)}
+            </div>
+          ) : sites.length === 0 ? (
+            <div className="p-12 text-center">
+              <p className="text-muted-foreground mb-4">{t('dashboard.empty')}</p>
+              <Button asChild variant="outline">
+                <Link href="/onboarding">{t('dashboard.add_first')}</Link>
+              </Button>
+            </div>
+          ) : (
+            <div className="divide-y">
+              {sites.map((s) => (
+                <div key={s.id} className="p-5 flex items-center justify-between hover:bg-muted/50 transition-colors gap-4 flex-wrap">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-3 mb-1 flex-wrap">
+                      <h3 className="font-semibold truncate">{s.name}</h3>
+                      <Badge variant={STATUS_VARIANT[s.status]}>{s.status}</Badge>
+                    </div>
+                    <a
+                      href={s.url}
+                      target="_blank"
+                      rel="noopener"
+                      className="text-sm text-muted-foreground hover:text-brand inline-flex items-center gap-1"
+                    >
+                      {s.url}
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                    {s.niche && (
+                      <span className="text-xs text-muted-foreground ml-3">· {s.niche}</span>
+                    )}
+                  </div>
+                  <Button asChild size="sm" variant="outline">
+                    <Link href={`/sites/${s.id}`}>Aç →</Link>
+                  </Button>
+                </div>
               ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }
 
-function Stat({ label, value, color = 'brand' }: { label: string; value: number; color?: string }) {
-  const colors: Record<string, string> = {
-    brand: 'bg-brand/10 text-brand',
-    red: 'bg-red-50 text-red-600',
-    slate: 'bg-slate-50 text-slate-600',
-  };
+function Stat({ label, value, variant = 'default' }: { label: string; value: number; variant?: string }) {
   return (
-    <div className={`rounded-xl p-4 ${colors[color]}`}>
-      <div className="text-3xl font-bold">{value}</div>
-      <div className="text-sm">{label}</div>
-    </div>
+    <Card>
+      <CardContent className="p-5">
+        <div className={`text-3xl font-bold ${variant === 'destructive' ? 'text-red-500' : 'text-brand'}`}>
+          {value}
+        </div>
+        <div className="text-sm text-muted-foreground mt-1">{label}</div>
+      </CardContent>
+    </Card>
   );
 }
