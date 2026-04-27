@@ -1,14 +1,16 @@
-import { Module } from '@nestjs/common';
+import { Global, Module } from '@nestjs/common';
 import { JobsController } from './jobs.controller.js';
 import { JobsService } from './jobs.service.js';
+import { JobQueueService } from './job-queue.service.js';
 
 /**
- * Job tracking — BullMQ kuyruğunun DB karşılığı.
- * Worker side ayrı: apps/worker/
+ * Job tracking + BullMQ producer.
+ * Global module — tüm app modüllerinden JobQueueService inject edilebilir.
  */
+@Global()
 @Module({
   controllers: [JobsController],
-  providers: [JobsService],
-  exports: [JobsService],
+  providers: [JobsService, JobQueueService],
+  exports: [JobsService, JobQueueService],
 })
 export class JobsModule {}

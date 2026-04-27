@@ -11,15 +11,20 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.71.0",
     "@google/genai": "^1.40.0",
+    "@nestjs/common": "^10.4.22",
+    "@nestjs/core": "^10.4.22",
     "@prisma/client": "^6.0.0",
     "bullmq": "^5.34.0",
+    "cheerio": "^1.2.0",
     "dotenv": "^17.0.0",
+    "google-auth-library": "^9.15.1",
     "googleapis": "^144.0.0",
-    "ioredis": "^5.4.0"
+    "ioredis": "^5.4.0",
+    "sharp": "^0.34.5"
   },
   "devDependencies": {
-    "@luviai/shared": "workspace:*",
     "@luviai/adapters": "workspace:*",
+    "@luviai/shared": "workspace:*",
     "@types/node": "^22.10.0",
     "tsx": "^4.20.0",
     "typescript": "^5.7.0"
