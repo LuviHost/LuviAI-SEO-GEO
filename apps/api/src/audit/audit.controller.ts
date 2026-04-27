@@ -15,7 +15,13 @@ export class AuditController {
     return this.audit.getLatest(siteId);
   }
 
-  /** POST /sites/:siteId/audit/run — yeni audit çalıştır (queue) */
+  /** POST /sites/:siteId/audit/run-now — şimdi çalıştır (synchronous, dev/test için) */
+  @Post('run-now')
+  async runNow(@Param('siteId') siteId: string) {
+    return this.audit.runAudit(siteId);
+  }
+
+  /** POST /sites/:siteId/audit/run — queue (production) */
   @Post('run')
   run(@Param('siteId') siteId: string) {
     return this.audit.queueAudit(siteId);
@@ -25,5 +31,11 @@ export class AuditController {
   @Post('auto-fix')
   autoFixApply(@Param('siteId') siteId: string, @Body() body: { fixes: string[] }) {
     return this.autoFix.applyFixes(siteId, body.fixes);
+  }
+
+  /** POST /sites/:siteId/audit/auto-fix-now — şimdi çalıştır */
+  @Post('auto-fix-now')
+  async autoFixNow(@Param('siteId') siteId: string, @Body() body: { fixes: string[] }) {
+    return this.autoFix.runAutoFix(siteId, body.fixes);
   }
 }
