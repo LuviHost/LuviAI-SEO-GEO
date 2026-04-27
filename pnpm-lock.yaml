@@ -62,6 +62,9 @@ importers:
       class-validator:
         specifier: ^0.14.1
         version: 0.14.4
+      crypto-js:
+        specifier: ^4.2.0
+        version: 4.2.0
       dotenv:
         specifier: ^17.0.0
         version: 17.4.2
@@ -80,6 +83,9 @@ importers:
       next-auth:
         specifier: 5.0.0-beta.31
         version: 5.0.0-beta.31(next@15.5.15(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(react@19.2.5)
+      node-fetch:
+        specifier: ^3.3.2
+        version: 3.3.2
       reflect-metadata:
         specifier: ^0.2.2
         version: 0.2.2
@@ -99,6 +105,9 @@ importers:
       '@nestjs/cli':
         specifier: ^10.4.0
         version: 10.4.9
+      '@types/crypto-js':
+        specifier: ^4.2.2
+        version: 4.2.2
       '@types/express':
         specifier: ^5.0.0
         version: 5.0.6
@@ -1753,6 +1762,9 @@ packages:
   '@types/connect@3.4.38':
     resolution: {integrity: sha512-K6uROf1LD88uDQqJCktA4yzL1YYAK6NgfsI0v/mTgyPKWsX1CnJ0XPSDhViejru1GcRkLWb8RlzFYJRqGUbaug==}
 
+  '@types/crypto-js@4.2.2':
+    resolution: {integrity: sha512-sDOLlVbHhXpAUAL0YHDUUwDZf3iN4Bwi4W6a0W0b+QcAezUbRtH4FVb+9J4h+XFPW7l/gQ9F8qC7P+Ec4k8QVQ==}
+
   '@types/eslint-scope@3.7.7':
     resolution: {integrity: sha512-MzMFlSLBqNF2gcHWO0G1vP/YQyfvrxZ0bF+u7mzUdZ1/xK4A4sru+nraZz5i3iEIk1l1uyicaDVTB4QbbEkAYg==}
 
@@ -2378,6 +2390,9 @@ packages:
   cross-spawn@7.0.6:
     resolution: {integrity: sha512-uV2QOWP2nWzsy2aMp8aRibhi9dlzF5Hgh5SHaB9OiTGEyDTiJJyx0uy51QXdyWbtAHNua4XJzUKca3OzKUd3vA==}
     engines: {node: '>= 8'}
+
+  crypto-js@4.2.0:
+    resolution: {integrity: sha512-KALDyEYgpY+Rlob/iriUtjV6d5Eq+Y191A5g4UqLAi8CyGP9N1+FdVbkc1SxKc2r4YAYqG8JzO2KGL+AizD70Q==}
 
   css-select@5.2.2:
     resolution: {integrity: sha512-TizTzUddG/xYLA3NXodFM0fSbNizXjOKhqiQQwvhlspadZokn1KDy0NZFS0wuEubIYAV5/c1/lAr0TaaFXEXzw==}
@@ -5673,6 +5688,8 @@ snapshots:
     dependencies:
       '@types/node': 22.19.17
 
+  '@types/crypto-js@4.2.2': {}
+
   '@types/eslint-scope@3.7.7':
     dependencies:
       '@types/eslint': 9.6.1
@@ -6389,6 +6406,8 @@ snapshots:
       path-key: 3.1.1
       shebang-command: 2.0.0
       which: 2.0.2
+
+  crypto-js@4.2.0: {}
 
   css-select@5.2.2:
     dependencies:

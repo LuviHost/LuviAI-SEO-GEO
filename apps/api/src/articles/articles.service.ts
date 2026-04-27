@@ -1,9 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { JobQueueService } from '../jobs/job-queue.service.js';
+import { QuotaService } from '../billing/quota.service.js';
 
 @Injectable()
 export class ArticlesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly jobQueue: JobQueueService,
+    private readonly quota: QuotaService,
+  ) {}
 
   list(siteId: string, status?: string) {
     return this.prisma.article.findMany({
@@ -18,14 +24,21 @@ export class ArticlesService {
 
   async queueGeneration(siteId: string, topic: string, targetIds?: string[]) {
     const site = await this.prisma.site.findUniqueOrThrow({ where: { id: siteId } });
-    return this.prisma.job.create({
-      data: {
-        userId: site.userId,
-        siteId,
-        type: 'GENERATE_ARTICLE',
-        payload: { topic, targetIds },
-      },
+
+    // Quota check (yetersizse 403 fırlatır)
+    await this.quota.enforceArticleQuota(site.userId);
+
+    const job = await this.jobQueue.enqueue({
+      type: 'GENERATE_ARTICLE',
+      userId: site.userId,
+      siteId,
+      payload: { siteId, topic, targetIds, autoPublish: !!targetIds?.length },
     });
+
+    // Quota'yı artır (job kuyruğa girdi sayılır)
+    await this.quota.incrementArticleUsage(site.userId);
+
+    return job;
   }
 
   async queuePublish(articleId: string, targetIds: string[]) {
@@ -33,13 +46,11 @@ export class ArticlesService {
       where: { id: articleId },
       include: { site: true },
     });
-    return this.prisma.job.create({
-      data: {
-        userId: article.site.userId,
-        siteId: article.siteId,
-        type: 'PUBLISH_ARTICLE',
-        payload: { articleId, targetIds },
-      },
+    return this.jobQueue.enqueue({
+      type: 'PUBLISH_ARTICLE',
+      userId: article.site.userId,
+      siteId: article.siteId,
+      payload: { articleId, targetIds },
     });
   }
 }
