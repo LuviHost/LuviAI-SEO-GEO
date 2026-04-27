@@ -1,6 +1,8 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import * as CryptoJS from 'crypto-js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { AffiliateService } from '../affiliate/affiliate.service.js';
+import { EmailService } from '../email/email.service.js';
 
 /**
  * PayTR iframe API + webhook entegrasyonu.
@@ -29,7 +31,11 @@ export class PaytrService {
   private readonly failUrl = process.env.PAYTR_FAIL_URL
     ?? 'https://ai.luvihost.com/billing/failure';
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly affiliate: AffiliateService,
+    private readonly email: EmailService,
+  ) {}
 
   /**
    * Iframe ödeme sayfası için token üret.
@@ -155,6 +161,26 @@ export class PaytrService {
         where: { id: invoice.id },
         data: { status: 'PAID', paidAt: new Date() },
       });
+
+      // Affiliate komisyon
+      await this.affiliate.recordCommission(invoice.userId, Number(invoice.amount));
+
+      // Welcome email
+      const user = await this.prisma.user.findUnique({ where: { id: invoice.userId } });
+      if (user) {
+        await this.email.send({
+          userId: user.id,
+          to: user.email,
+          template: 'plan_upgraded',
+          data: {
+            name: user.name ?? 'kullanıcı',
+            planName: parsed.planId.toUpperCase(),
+            articleQuota: parsed.planId === 'starter' ? 10 : parsed.planId === 'pro' ? 50 : 250,
+            siteQuota: parsed.planId === 'starter' ? 1 : parsed.planId === 'pro' ? 3 : 10,
+          },
+        });
+      }
+
       this.log.log(`[${merchant_oid}] ✅ Ödeme başarılı: ${invoice.userId} → ${parsed.planId}`);
     } else {
       await this.prisma.invoice.update({

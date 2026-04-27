@@ -13,6 +13,8 @@ import { BillingModule } from './billing/billing.module.js';
 import { AdminModule } from './admin/admin.module.js';
 import { JobsModule } from './jobs/jobs.module.js';
 import { AnalyticsModule } from './analytics/analytics.module.js';
+import { EmailModule } from './email/email.module.js';
+import { AffiliateModule } from './affiliate/affiliate.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 
 @Module({
@@ -33,6 +35,8 @@ import { PrismaModule } from './prisma/prisma.module.js';
     AdminModule,
     JobsModule,
     AnalyticsModule,
+    EmailModule,
+    AffiliateModule,
   ],
 })
 export class AppModule {}

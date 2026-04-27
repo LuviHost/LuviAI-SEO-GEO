@@ -29,6 +29,9 @@ model User {
   subscriptionId String?  @unique  // PayTR subscription ID
   subscriptionStatus SubscriptionStatus @default(TRIAL)
 
+  // Affiliate referral
+  referredByCode String?
+
   // Quota (aylık)
   articlesUsedThisMonth Int @default(0)
   articlesQuotaResetAt  DateTime @default(now())
@@ -504,6 +507,76 @@ model UsageEvent {
   @@index([type, createdAt])
   @@index([userId, createdAt])
   @@map("usage_events")
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  AFFILIATE PROGRAMı (Faz 2 Hafta 11)
+// ═══════════════════════════════════════════════════════════════
+
+model Affiliate {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  refCode         String   @unique          // luvi-emir-2026
+  commissionPct   Float    @default(30)     // %30 komisyon
+  active          Boolean  @default(true)
+
+  totalReferred   Int      @default(0)
+  totalRevenue    Decimal  @default(0) @db.Decimal(10, 2)
+  totalCommission Decimal  @default(0) @db.Decimal(10, 2)
+  totalPaid       Decimal  @default(0) @db.Decimal(10, 2)
+
+  payoutMethod    String?                   // "iban" | "papara"
+  payoutDetails   Json?                     // şifrelenmiş
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  referrals       AffiliateReferral[]
+
+  @@map("affiliates")
+}
+
+model AffiliateReferral {
+  id              String   @id @default(cuid())
+  affiliateId     String
+  referredUserId  String
+
+  clickedAt       DateTime @default(now())
+  signedUpAt      DateTime?
+  firstPaidAt     DateTime?
+
+  commissionUntil DateTime?                 // 3 ay sonra biter
+  totalCommissionEarned Decimal @default(0) @db.Decimal(10, 2)
+
+  status          String   @default("clicked")  // clicked | signed_up | paid | expired
+
+  affiliate       Affiliate @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
+
+  @@index([referredUserId])
+  @@index([affiliateId, status])
+  @@map("affiliate_referrals")
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  EMAIL OUTBOUND TRACKING
+// ═══════════════════════════════════════════════════════════════
+
+model EmailLog {
+  id          String   @id @default(cuid())
+  userId      String?
+  to          String
+  template    String                        // welcome_day0 | trial_expiry | weekly_report
+  subject     String
+  status      String   @default("sent")     // sent | delivered | opened | bounced
+
+  resendId    String?  @unique
+  metadata    Json?
+
+  createdAt   DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([template, createdAt])
+  @@map("email_logs")
 }
 
 // API Token kullanımı (Faz 3 — public API için)
