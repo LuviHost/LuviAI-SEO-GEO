@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { AnalyticsTab } from '@/components/analytics-tab';
+import { SettingsTab } from '@/components/settings-tab';
 import { PipelineProgress, PIPELINE_STEPS } from '@/components/pipeline-progress';
 
 export default function SitePage() {
@@ -105,12 +106,14 @@ export default function SitePage() {
           <TabsTrigger value="topics">Topic Queue</TabsTrigger>
           <TabsTrigger value="articles">Makaleler ({articles.length})</TabsTrigger>
           <TabsTrigger value="analytics">📊 Analytics</TabsTrigger>
+          <TabsTrigger value="settings">⚙️ Ayarlar</TabsTrigger>
         </TabsList>
 
         <TabsContent value="audit"><AuditTab audit={audit} siteId={id} onRefresh={refresh} /></TabsContent>
         <TabsContent value="topics"><TopicsTab queue={queue} siteId={id} onRefresh={refresh} /></TabsContent>
-        <TabsContent value="articles"><ArticlesTab articles={articles} /></TabsContent>
+        <TabsContent value="articles"><ArticlesTab articles={articles} siteId={id} /></TabsContent>
         <TabsContent value="analytics"><AnalyticsTab siteId={id} /></TabsContent>
+        <TabsContent value="settings"><SettingsTab siteId={id} /></TabsContent>
       </Tabs>
     </div>
   );
@@ -364,7 +367,7 @@ function TopicsTab({ queue, siteId, onRefresh }: { queue: any; siteId: string; o
   );
 }
 
-function ArticlesTab({ articles }: { articles: any[] }) {
+function ArticlesTab({ articles, siteId }: { articles: any[]; siteId: string }) {
   if (articles.length === 0) {
     return (
       <Card>
@@ -375,23 +378,37 @@ function ArticlesTab({ articles }: { articles: any[] }) {
     );
   }
 
+  const STATUS_VARIANT: Record<string, any> = {
+    DRAFT: 'secondary',
+    GENERATING: 'warning',
+    EDITING: 'warning',
+    REVIZE_NEEDED: 'destructive',
+    READY_TO_PUBLISH: 'default',
+    PUBLISHED: 'success',
+    FAILED: 'destructive',
+    ARCHIVED: 'outline',
+  };
+
   return (
     <div className="space-y-3">
       {articles.map((a) => (
-        <Card key={a.id}>
-          <CardContent className="p-4">
-            <div className="flex justify-between items-start mb-2 gap-2 flex-wrap">
-              <h4 className="font-semibold">{a.title}</h4>
-              <Badge variant="secondary">{a.status}</Badge>
-            </div>
-            <div className="text-xs text-muted-foreground flex gap-4 flex-wrap">
-              <span>{a.wordCount} kelime</span>
-              <span>{a.readingTime} dk okuma</span>
-              {a.persona && <span>{a.persona}</span>}
-              {a.editorScore && <span>Score: {a.editorScore}/60</span>}
-            </div>
-          </CardContent>
-        </Card>
+        <Link key={a.id} href={`/sites/${siteId}/articles/${a.id}` as any} className="block">
+          <Card className="hover:border-brand/50 hover:shadow-sm transition-all cursor-pointer">
+            <CardContent className="p-4">
+              <div className="flex justify-between items-start mb-2 gap-2 flex-wrap">
+                <h4 className="font-semibold flex-1 min-w-0">{a.title}</h4>
+                <Badge variant={STATUS_VARIANT[a.status] ?? 'secondary'}>{a.status}</Badge>
+              </div>
+              <div className="text-xs text-muted-foreground flex gap-4 flex-wrap items-center">
+                {a.wordCount && <span>{a.wordCount} kelime</span>}
+                {a.readingTime && <span>{a.readingTime} dk okuma</span>}
+                {a.persona && <span>{a.persona}</span>}
+                {a.editorScore != null && <span>Editör: {a.editorScore}/60</span>}
+                <span className="ml-auto text-brand font-medium">Aç →</span>
+              </div>
+            </CardContent>
+          </Card>
+        </Link>
       ))}
     </div>
   );

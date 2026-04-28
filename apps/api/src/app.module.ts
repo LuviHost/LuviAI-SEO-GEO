@@ -17,6 +17,7 @@ import { AnalyticsModule } from './analytics/analytics.module.js';
 import { EmailModule } from './email/email.module.js';
 import { AffiliateModule } from './affiliate/affiliate.module.js';
 import { MeModule } from './me/me.module.js';
+import { PublishTargetsModule } from './publish-targets/publish-targets.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 
 @Module({
@@ -40,6 +41,7 @@ import { PrismaModule } from './prisma/prisma.module.js';
     EmailModule,
     AffiliateModule,
     MeModule,
+    PublishTargetsModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: AuthGuard },

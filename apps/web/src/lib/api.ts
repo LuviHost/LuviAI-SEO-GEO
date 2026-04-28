@@ -118,11 +118,32 @@ export const api = {
   listArticles: (siteId: string, status?: string) =>
     request<any[]>(`/sites/${siteId}/articles${status ? `?status=${status}` : ''}`),
 
+  getArticle: (siteId: string, articleId: string) =>
+    request<any>(`/sites/${siteId}/articles/${articleId}`),
+
   generateArticle: (siteId: string, topic: string) =>
     request<any>(`/sites/${siteId}/articles/run-now`, {
       method: 'POST',
       body: JSON.stringify({ topic, skipImages: true }),
     }),
+
+  publishArticle: (siteId: string, articleId: string, targetIds: string[]) =>
+    request<any>(`/sites/${siteId}/articles/${articleId}/publish`, {
+      method: 'POST',
+      body: JSON.stringify({ targetIds }),
+    }),
+
+  // Publish Targets
+  getPublishTargetsCatalog: () => request<any[]>('/publish-targets/catalog'),
+  listPublishTargets: (siteId: string) => request<any[]>(`/sites/${siteId}/publish-targets`),
+  createPublishTarget: (siteId: string, body: any) =>
+    request<any>(`/sites/${siteId}/publish-targets`, { method: 'POST', body: JSON.stringify(body) }),
+  updatePublishTarget: (id: string, body: any) =>
+    request<any>(`/publish-targets/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
+  deletePublishTarget: (id: string) =>
+    request<any>(`/publish-targets/${id}`, { method: 'DELETE' }),
+  testPublishTarget: (id: string) =>
+    request<any>(`/publish-targets/${id}/test`, { method: 'POST' }),
 
   // Admin
   getAdminOverview: () => request<any>('/admin/overview'),
