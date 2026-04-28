@@ -22,10 +22,16 @@ export function middleware(req: NextRequest) {
 
   const hasSession = SESSION_COOKIE_NAMES.some((n) => req.cookies.has(n));
   if (!hasSession) {
-    const url = req.nextUrl.clone();
-    url.pathname = '/signin';
-    url.searchParams.set('callbackUrl', pathname);
-    return NextResponse.redirect(url);
+    // Relative Location — reverse proxy arkasinda req.nextUrl.host
+    // bazen upstream bind adresine (127.0.0.1:3000) duser ve absolute
+    // redirect localhost'a gider. Relative Location tarayicinin tasidigi
+    // origin'i kullanir, bu da production'da ai.luvihost.com olur.
+    const search = pathname + (req.nextUrl.search ?? '');
+    const location = `/signin?callbackUrl=${encodeURIComponent(search)}`;
+    return new NextResponse(null, {
+      status: 307,
+      headers: { Location: location },
+    });
   }
 
   return NextResponse.next();
