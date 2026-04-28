@@ -103,7 +103,10 @@ export class AdminService {
       this.prisma.site.count({ where: { userId } }),
       this.prisma.article.count({ where: { site: { userId }, status: 'PUBLISHED' } }),
       this.prisma.article.count({
-        where: { site: { userId }, status: { in: ['DRAFT', 'EDITING', 'REVIEW'] } as any },
+        where: {
+          site: { userId },
+          status: { in: ['DRAFT', 'GENERATING', 'EDITING', 'REVIZE_NEEDED', 'READY_TO_PUBLISH'] as any },
+        },
       }),
       this.prisma.invoice.findFirst({
         where: { userId, status: 'PAID' },

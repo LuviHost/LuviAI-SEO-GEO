@@ -12,7 +12,12 @@ import { existsSync } from 'node:fs';
 @Injectable()
 export class GeoRunnerService {
   private readonly log = new Logger(GeoRunnerService.name);
-  private readonly cliPath = process.env.GEO_CLI_PATH ?? this.findCli();
+  private readonly enabled = process.env.GEO_OPTIMIZER_ENABLED !== 'false';
+  private readonly cliPath = this.enabled
+    ? (process.env.GEO_CLI_PATH && existsSync(process.env.GEO_CLI_PATH)
+        ? process.env.GEO_CLI_PATH
+        : this.findCli())
+    : null;
 
   private findCli(): string | null {
     const candidates = [
@@ -34,7 +39,7 @@ export class GeoRunnerService {
     rawOutput?: string;
   }> {
     if (!this.cliPath) {
-      this.log.warn('Auriti GEO CLI bulunamadı — atlandı');
+      // GEO_OPTIMIZER_ENABLED=false veya CLI yoksa sessizce atla
       return { score: null, methods: [], queries: [] };
     }
 

@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { GscService } from './gsc.service.js';
 import { GeoService } from './geo.service.js';
@@ -44,7 +44,9 @@ export class TopicsService {
     });
 
     if (!site.brain) {
-      throw new Error(`Site ${siteId}: brain yok, önce brain üret`);
+      throw new BadRequestException(
+        'Bu site için henüz "brain" üretilmemiş. Önce site detay sayfasında "Audit Çalıştır" ile başla — audit tamamlanınca brain otomatik oluşur ve topic engine\'i kullanabilirsin.',
+      );
     }
 
     this.log.log(`[${siteId}] Topic engine başlıyor`);
