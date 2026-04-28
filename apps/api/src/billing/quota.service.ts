@@ -81,7 +81,7 @@ export class QuotaService {
   async enforceSiteQuota(userId: string) {
     const { allowed, current, limit } = await this.checkSiteQuota(userId);
     if (!allowed) {
-      throw new ForbiddenException(`Plan limit: ${limit} site. Şu an ${current} siteniz var. Pro veya Agency'ye yükseltin.`);
+      throw new ForbiddenException(`Plan limit: ${limit} site. Şu an ${current} siteniz var. Profesyonel veya Kurumsal'a yükseltin.`);
     }
   }
 

@@ -134,6 +134,7 @@ export default function PricingPage() {
                 <CardContent>
                   <ul className="space-y-2 text-sm mb-6">
                     <Feat>{p.articlesPerMonth} {t('pricing.articles_per_month')}</Feat>
+                    <Feat>{p.socialPostsPerMonth} {t('pricing.social_posts_per_month')}</Feat>
                     <Feat>{p.sites} {t('pricing.sites')}</Feat>
                     <Feat>{p.publishTargets === 'all' ? t('pricing.all_publish_targets') : t('pricing.markdown_only')}</Feat>
                     <Feat>{p.support}</Feat>

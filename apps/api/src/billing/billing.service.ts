@@ -7,6 +7,7 @@ export interface PlanDefinition {
   monthly: number;       // ₺
   annual: number;        // ₺
   articlesPerMonth: number;
+  socialPostsPerMonth: number;
   sites: number;
   publishTargets: 'limited' | 'all';
   support: string;
@@ -16,27 +17,30 @@ export interface PlanDefinition {
 export const PLANS: PlanDefinition[] = [
   {
     id: 'trial',
-    name: 'Ücretsiz (1 makale)',
+    name: 'Ücretsiz Deneme',
     monthly: 0, annual: 0,
     articlesPerMonth: 1,
+    socialPostsPerMonth: 1,
     sites: 1,
     publishTargets: 'limited',
     support: 'community',
   },
   {
     id: 'starter',
-    name: 'Starter',
-    monthly: 499, annual: 4799,
+    name: 'Başlangıç',
+    monthly: 3080, annual: 29568,
     articlesPerMonth: 10,
+    socialPostsPerMonth: 8,
     sites: 1,
     publishTargets: 'all',
     support: 'email 24h',
   },
   {
     id: 'pro',
-    name: 'Pro',
-    monthly: 1299, annual: 12499,
-    articlesPerMonth: 50,
+    name: 'Profesyonel',
+    monthly: 6980, annual: 67008,
+    articlesPerMonth: 40,
+    socialPostsPerMonth: 18,
     sites: 3,
     publishTargets: 'all',
     support: 'email 4h',
@@ -44,9 +48,10 @@ export const PLANS: PlanDefinition[] = [
   },
   {
     id: 'agency',
-    name: 'Agency',
-    monthly: 3299, annual: 31999,
-    articlesPerMonth: 250,
+    name: 'Kurumsal',
+    monthly: 13610, annual: 130656,
+    articlesPerMonth: 100,
+    socialPostsPerMonth: 30,
     sites: 10,
     publishTargets: 'all',
     support: 'priority + Slack',

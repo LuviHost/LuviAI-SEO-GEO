@@ -260,9 +260,9 @@ export class PaytrService {
 
   private getPlanDetails(planId: string, cycle: 'monthly' | 'annual') {
     const plans: Record<string, { name: string; monthly: number; annual: number }> = {
-      starter: { name: 'Starter', monthly: 499, annual: 4799 },
-      pro: { name: 'Pro', monthly: 1299, annual: 12499 },
-      agency: { name: 'Agency', monthly: 3299, annual: 31999 },
+      starter: { name: 'Başlangıç', monthly: 3080, annual: 29568 },
+      pro: { name: 'Profesyonel', monthly: 6980, annual: 67008 },
+      agency: { name: 'Kurumsal', monthly: 13610, annual: 130656 },
     };
     const p = plans[planId];
     if (!p) throw new BadRequestException(`Bilinmeyen plan: ${planId}`);

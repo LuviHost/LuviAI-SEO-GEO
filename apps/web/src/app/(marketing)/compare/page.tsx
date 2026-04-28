@@ -29,7 +29,7 @@ const FEATURES: Feature[] = [
   { name: 'Marka sesi (her tenant ayrı brain)', luviai: true, surfer: false, jasper: 'manuel', frase: false },
   { name: 'PayTR (TR ödeme)', luviai: true, surfer: false, jasper: false, frase: false },
   { name: 'KVKK + TR veri merkezi', luviai: true, surfer: false, jasper: false, frase: false },
-  { name: 'Aylık başlangıç fiyatı', luviai: '₺499', surfer: '$89 (~₺3.000)', jasper: '$49 (~₺1.700)', frase: '$45 (~₺1.500)' },
+  { name: 'Aylık başlangıç fiyatı', luviai: '₺3.080', surfer: '$89 (~₺3.500)', jasper: '$49 (~₺1.900)', frase: '$45 (~₺1.750)' },
 ];
 
 const Cell = ({ value }: { value: boolean | string }) => {

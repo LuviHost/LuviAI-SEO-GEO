@@ -117,7 +117,7 @@ export default function HomePage() {
             <ValueCard
               icon={<Calendar className="h-6 w-6" />}
               title="Takvimden planla"
-              desc="Plana göre haftada 1–3 sosyal post. PZT/SAL/CAR gibi günleri ve saati seç, X ve LinkedIn'e otomatik atılır."
+              desc="Plana göre ayda 8, 18 veya 30 sosyal post. PZT/SAL/CAR gibi günleri ve saati seç, X ve LinkedIn'e otomatik atılır."
               accent="from-green-500/10 to-green-500/5"
               iconColor="text-green-500"
             />
@@ -149,7 +149,7 @@ export default function HomePage() {
                 görüneceğini gör.
               </p>
               <ul className="space-y-3 text-sm">
-                <BenefitItem>Plana göre 1, 2 veya 3 post/hafta otomatik</BenefitItem>
+                <BenefitItem>Plana göre ayda 8, 18 veya 30 post otomatik</BenefitItem>
                 <BenefitItem>Saatleri PZT/SAL/CAR ızgarasında inline düzenle</BenefitItem>
                 <BenefitItem>Hashtag, mention, link otomatik renklendirilir</BenefitItem>
                 <BenefitItem>X için 280 karakter limiti gerçek zamanlı sayaç</BenefitItem>
@@ -221,7 +221,7 @@ export default function HomePage() {
             <FeatureBox icon={<Sparkles />} title="GEO + AEO optimizasyonu"
               desc="ChatGPT, Perplexity, Claude, Gemini'ın alıntılaması için Auriti GEO. Speakable schema, DefinedTerm, kapsayıcı sorgu listesi." />
             <FeatureBox icon={<Calendar />} title="Sosyal medya takvimi"
-              desc="X + LinkedIn. Plana göre haftada 1–3 otomatik post. Inline saat editörü, drag-feel UI, X-style preview kartı." />
+              desc="X + LinkedIn. Plana göre ayda 8-30 otomatik post. Inline saat editörü, drag-feel UI, X-style preview kartı." />
             <FeatureBox icon={<Globe />} title="14 yayın hedefi"
               desc="WordPress, FTP, SFTP, Webflow, Sanity, Ghost, GitHub, Strapi, Hashnode, Dev.to, Medium, RSS, Google Docs, Markdown ZIP." />
             <FeatureBox icon={<BarChart3 />} title="GSC + GA4 büyüme takibi"
@@ -369,7 +369,7 @@ function CalendarMockup() {
           </div>
           <div>
             <div className="font-semibold text-sm">Sosyal Takvim</div>
-            <div className="text-[11px] text-muted-foreground">PRO planı · 3 post/hafta</div>
+            <div className="text-[11px] text-muted-foreground">Profesyonel planı · 18 post/ay</div>
           </div>
         </div>
         <div className="flex items-center gap-1.5">

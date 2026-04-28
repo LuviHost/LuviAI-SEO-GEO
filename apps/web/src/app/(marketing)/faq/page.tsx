@@ -47,7 +47,7 @@ const FAQS = [
   },
   {
     q: 'Aylık makale kotamı aşarsam ne olur?',
-    a: 'Sistem makale üretmeyi durdurur ve plan yükseltme önerir. Ay sonunda kota otomatik sıfırlanır. Pro → Agency upgrade tek tık.',
+    a: 'Sistem makale üretmeyi durdurur ve plan yükseltme önerir. Ay sonunda kota otomatik sıfırlanır. Profesyonel → Kurumsal upgrade tek tık.',
   },
   {
     q: 'Affiliate programı nasıl çalışır?',
