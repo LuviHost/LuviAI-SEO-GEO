@@ -91,7 +91,13 @@ export class CpanelApiAdapter extends PublishAdapter {
         return { ok: false, error: `cPanel API hata: ${data.errors?.[0] ?? JSON.stringify(data).slice(0, 200)}` };
       }
 
-      const externalUrl = `https://${new URL(host).hostname.replace(':2083', '').replace(/^cpanel\./, '')}/${remotePath.replace(/^public_html\/?/, '')}/${filename}`;
+      // Public URL: configurable publicBaseUrl varsa onu kullan; yoksa host'tan tahmin et.
+      // .html uzantisi son URL'de gizlenir (Apache MultiViews / .htaccess rewrite varsayar).
+      const publicBase = String(this.config.publicBaseUrl ?? '').trim().replace(/\/+$/, '')
+        || `https://${new URL(host).hostname.replace(':2083', '').replace(/^cpanel\./, '')}`;
+      const cleanPath = remotePath.replace(/^public_html\/?/, '').replace(/\/+$/, '');
+      const slugOnly = filename.replace(/\.html?$/i, '');
+      const externalUrl = `${publicBase}${cleanPath ? '/' + cleanPath : ''}/${slugOnly}`;
       return { ok: true, externalUrl, externalId: filename };
     } catch (err: any) {
       // undici 'fetch failed' altinda gercek sebep err.cause'da

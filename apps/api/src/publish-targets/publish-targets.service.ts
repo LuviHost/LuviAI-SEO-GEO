@@ -259,6 +259,7 @@ export class PublishTargetsService {
         ],
         configFields: [
           { key: 'remotePath', label: 'Hedef klasör', type: 'text', placeholder: '/public_html/blog', required: true },
+          { key: 'publicBaseUrl', label: 'Public site URL', type: 'text', placeholder: 'https://luvihost.com', required: false, hint: 'Sosyal medya ve canli URL bu adresten uretilir. Bos birakirsan host alanindan tahmin edilir. .html uzantisi otomatik gizlenir — Apache .htaccess MultiViews aktif olmali.' },
         ],
       },
       {
