@@ -94,7 +94,7 @@ export class ReportsService {
         status: 'PUBLISHED' as any,
         publishedAt: { gte: rangeStart, lte: now },
       },
-      select: { channel: true },
+      select: { id: true, publishedAt: true, channel: { select: { type: true } } },
     });
     const prevSocialCount = await this.prisma.socialPost.count({
       where: {
@@ -104,7 +104,10 @@ export class ReportsService {
       },
     });
     const byChannel: Record<string, number> = {};
-    for (const p of socialPosts) byChannel[p.channel] = (byChannel[p.channel] ?? 0) + 1;
+    for (const p of socialPosts) {
+      const t = p.channel?.type ?? 'OTHER';
+      byChannel[t] = (byChannel[t] ?? 0) + 1;
+    }
 
     // ── GSC analytics ──────────────────────────────────────────
     const snapshots = await this.prisma.analyticsSnapshot.findMany({
@@ -166,7 +169,7 @@ export class ReportsService {
         publishedArticles.filter((a) => a.publishedAt && a.publishedAt >= dStart && a.publishedAt < dEnd).length,
       );
       socialSeries.push(
-        socialPosts.filter((p: any) => p.publishedAt >= dStart && p.publishedAt < dEnd).length,
+        socialPosts.filter((p: any) => p.publishedAt && p.publishedAt >= dStart && p.publishedAt < dEnd).length,
       );
       const bucketSnapshots = snapshots.filter((s) => s.date >= dStart && s.date < dEnd);
       clicksSeries.push(bucketSnapshots.reduce((a, s) => a + s.totalClicks, 0));
