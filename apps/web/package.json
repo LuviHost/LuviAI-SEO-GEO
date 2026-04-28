@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev -p 3000",
     "build": "next build",
+    "postbuild": "node -e \"const fs=require('fs'),p=require('path');const sd=p.join('.next','standalone','apps','web');if(!fs.existsSync(sd))process.exit(0);fs.cpSync(p.join('.next','static'),p.join(sd,'.next','static'),{recursive:true,force:true});if(fs.existsSync('public'))fs.cpSync('public',p.join(sd,'public'),{recursive:true,force:true});console.log('postbuild: standalone static + public synced');\"",
     "start": "next start -p 3000",
     "lint": "next lint"
   },
