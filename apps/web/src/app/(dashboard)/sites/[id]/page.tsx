@@ -19,6 +19,7 @@ export default function SitePage() {
   const params = useParams();
   const searchParams = useSearchParams();
   const onboardingMode = searchParams.get('onboarding') === 'running';
+  const initialTab = searchParams.get('tab');
 
   const [site, setSite] = useState<any>(null);
   const [audit, setAudit] = useState<any>(null);
@@ -54,14 +55,18 @@ export default function SitePage() {
     }
   }, [id, onboardingMode]);
 
-  // Tab varsayılanı: tamamlanmamış ilk adım
+  // Tab varsayılanı: ?tab= varsa onu, yoksa tamamlanmamış ilk adım
   useEffect(() => {
     if (loading || !site) return;
+    if (initialTab && ['audit', 'topics', 'articles', 'analytics', 'settings'].includes(initialTab)) {
+      setTab(initialTab);
+      return;
+    }
     if (!audit) setTab('audit');
     else if (!queue) setTab('topics');
     else if (articles.length === 0) setTab('topics');
     // Hepsi tamamsa kullanıcının seçimini koru
-  }, [loading, site, audit, queue, articles.length]);
+  }, [loading, site, audit, queue, articles.length, initialTab]);
 
   if (loading || !site) {
     return (

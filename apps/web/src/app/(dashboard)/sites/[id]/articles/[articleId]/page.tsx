@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
+import { marked } from 'marked';
 import { toast } from 'sonner';
 import { ArrowLeft, Download, Send, ExternalLink, Calendar, Clock, FileText, ImageIcon } from 'lucide-react';
 import { api } from '@/lib/api';
@@ -12,6 +13,39 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { PipelineProgress } from '@/components/pipeline-progress';
+
+/**
+ * "## Sıkça Sorulan Sorular" altındaki H3 sorularını ve cevap paragraflarını
+ * parse eder. Pipeline DB'ye `faqs` yazmadığı için fallback.
+ */
+function extractFaqsFromMarkdown(md: string): { q: string; a: string }[] {
+  if (!md) return [];
+  const faqHeader = md.match(/^##\s+(?:Sıkça\s+Sorulan\s+Sorular|S(?:S|Ş)S|FAQ)\s*$/im);
+  if (!faqHeader || faqHeader.index === undefined) return [];
+  const after = md.slice(faqHeader.index + faqHeader[0].length);
+  const nextH2 = after.search(/^##\s+/m);
+  const section = nextH2 === -1 ? after : after.slice(0, nextH2);
+
+  const faqs: { q: string; a: string }[] = [];
+  const re = /^###\s+(.+?)\s*$/gm;
+  const matches = [...section.matchAll(re)];
+  for (let i = 0; i < matches.length; i++) {
+    const q = matches[i][1].trim();
+    const start = matches[i].index! + matches[i][0].length;
+    const end = i + 1 < matches.length ? matches[i + 1].index! : section.length;
+    const a = section.slice(start, end).trim().replace(/\n{2,}/g, '\n\n');
+    if (q && a) faqs.push({ q, a });
+  }
+  return faqs;
+}
+
+/** Markdown -> HTML (front matter ve FAQ kapsam dahil). */
+function renderMarkdownToHtml(md: string): string {
+  if (!md) return '';
+  // Frontmatter blogunu (varsa) at — render etme
+  const stripped = md.replace(/^---\n[\s\S]+?\n---\n+/, '');
+  return marked.parse(stripped, { async: false }) as string;
+}
 
 const STATUS_VARIANT: Record<string, any> = {
   DRAFT: 'secondary',
@@ -64,6 +98,19 @@ export default function ArticleDetailPage() {
     refresh();
   }, [siteId, articleId]);
 
+  // Pipeline DB'ye bodyHtml/faqs yazmıyor — markdown'dan client-side türet.
+  const renderedHtml = useMemo<string>(() => {
+    if (article?.bodyHtml) return article.bodyHtml as string;
+    if (article?.bodyMd) return renderMarkdownToHtml(article.bodyMd as string);
+    return '';
+  }, [article?.bodyHtml, article?.bodyMd]);
+
+  const fallbackFaqs = useMemo<{ q: string; a: string }[]>(() => {
+    const dbFaqs = (article?.faqs as any[]) ?? [];
+    if (dbFaqs.length > 0) return dbFaqs as any;
+    return article?.bodyMd ? extractFaqsFromMarkdown(article.bodyMd as string) : [];
+  }, [article?.faqs, article?.bodyMd]);
+
   const downloadMarkdown = () => {
     if (!article?.bodyMd) {
       toast.error('Markdown içeriği yok');
@@ -88,8 +135,9 @@ export default function ArticleDetailPage() {
   };
 
   const downloadHtml = () => {
-    if (!article?.bodyHtml) {
-      toast.error('HTML içeriği henüz oluşmadı');
+    const body = renderedHtml;
+    if (!body) {
+      toast.error('İçerik henüz oluşmadı');
       return;
     }
     const html = `<!DOCTYPE html>
@@ -101,7 +149,7 @@ export default function ArticleDetailPage() {
 ${article.schemaMarkup ? `<script type="application/ld+json">${JSON.stringify(article.schemaMarkup)}</script>` : ''}
 </head>
 <body>
-${article.bodyHtml}
+${body}
 </body>
 </html>`;
     const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
@@ -233,12 +281,12 @@ ${article.bodyHtml}
               <Button variant="outline" onClick={downloadMarkdown} disabled={!article.bodyMd}>
                 <Download className="h-4 w-4 mr-2" /> Markdown
               </Button>
-              <Button variant="outline" onClick={downloadHtml} disabled={!article.bodyHtml}>
+              <Button variant="outline" onClick={downloadHtml} disabled={!renderedHtml}>
                 <Download className="h-4 w-4 mr-2" /> HTML
               </Button>
               {targets.length === 0 ? (
                 <Button asChild>
-                  <Link href={`/sites/${siteId}/settings` as any}>+ Yayın Hedefi Ekle</Link>
+                  <Link href={`/sites/${siteId}?tab=settings` as any}>+ Yayın Hedefi Ekle</Link>
                 </Button>
               ) : (
                 <Button onClick={publish} disabled={publishing || selectedTargets.size === 0}>
@@ -311,7 +359,7 @@ ${article.bodyHtml}
           <TabsList className="w-max sm:w-auto">
             <TabsTrigger value="content">📄 İçerik</TabsTrigger>
             <TabsTrigger value="meta">🔧 Meta + SEO</TabsTrigger>
-            <TabsTrigger value="faq">❓ FAQ ({(article.faqs as any[])?.length ?? 0})</TabsTrigger>
+            <TabsTrigger value="faq">❓ FAQ ({fallbackFaqs.length})</TabsTrigger>
             <TabsTrigger value="media">
               <ImageIcon className="h-3.5 w-3.5 mr-1.5" /> Görseller
             </TabsTrigger>
@@ -326,19 +374,13 @@ ${article.bodyHtml}
               </CardContent>
             </Card>
           )}
-          {article.bodyHtml ? (
+          {renderedHtml ? (
             <Card>
               <CardContent className="p-4 sm:p-8">
                 <div
                   className="prose prose-sm sm:prose dark:prose-invert max-w-none prose-headings:scroll-mt-20 prose-h2:mt-6 sm:prose-h2:mt-8 prose-img:rounded-lg break-words"
-                  dangerouslySetInnerHTML={{ __html: article.bodyHtml }}
+                  dangerouslySetInnerHTML={{ __html: renderedHtml }}
                 />
-              </CardContent>
-            </Card>
-          ) : article.bodyMd ? (
-            <Card>
-              <CardContent className="p-4 sm:p-8">
-                <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed break-words">{article.bodyMd}</pre>
               </CardContent>
             </Card>
           ) : (
@@ -400,13 +442,13 @@ ${article.bodyHtml}
         </TabsContent>
 
         <TabsContent value="faq">
-          {(article.faqs as any[])?.length > 0 ? (
+          {fallbackFaqs.length > 0 ? (
             <div className="space-y-3">
-              {(article.faqs as any[]).map((f, i) => (
+              {fallbackFaqs.map((f: any, i: number) => (
                 <Card key={i}>
                   <CardContent className="p-4">
                     <h4 className="font-semibold text-sm mb-2">Q: {f.q ?? f.question}</h4>
-                    <p className="text-sm text-muted-foreground">{f.a ?? f.answer}</p>
+                    <p className="text-sm text-muted-foreground whitespace-pre-wrap">{f.a ?? f.answer}</p>
                   </CardContent>
                 </Card>
               ))}
