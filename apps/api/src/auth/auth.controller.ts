@@ -30,7 +30,7 @@ export class AuthController {
     @Res() res: Response,
   ) {
     const result = await this.gsc.handleCallback(code, state);
-    return res.redirect(`${process.env.WEB_BASE_URL}/sites/${result.siteId}/settings?gsc=connected`);
+    return res.redirect(`${process.env.WEB_BASE_URL}/sites/${result.siteId}?tab=settings&gsc=connected`);
   }
 
   @Post('gsc/disconnect')

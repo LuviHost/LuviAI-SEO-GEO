@@ -175,4 +175,14 @@ export const api = {
 
   triggerSnapshotNow: (siteId: string) =>
     request<any>(`/sites/${siteId}/analytics/snapshot-now`, { method: 'POST' }),
+
+  // GSC OAuth
+  getGscAuthUrl: (siteId: string) =>
+    request<{ url: string }>(`/auth/gsc/start?siteId=${encodeURIComponent(siteId)}`),
+
+  disconnectGsc: (siteId: string) =>
+    request<{ ok: boolean }>(`/auth/gsc/disconnect`, {
+      method: 'POST',
+      body: JSON.stringify({ siteId }),
+    }),
 };

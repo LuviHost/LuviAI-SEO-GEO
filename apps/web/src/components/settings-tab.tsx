@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { Plus, Trash2, Edit2, CheckCircle2, XCircle, Star, Power, Loader2 } from 'lucide-react';
+import { useSearchParams } from 'next/navigation';
+import { Plus, Trash2, Edit2, CheckCircle2, XCircle, Star, Power, Loader2, BarChart3, Link2, Unlink } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -116,6 +117,8 @@ export function SettingsTab({ siteId }: { siteId: string }) {
 
   return (
     <div className="space-y-6">
+      <GscConnectionCard siteId={siteId} />
+
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between gap-3 flex-wrap">
@@ -489,5 +492,127 @@ function FormField({
         <p className="text-[11px] text-muted-foreground mt-1">{field.hint}</p>
       )}
     </div>
+  );
+}
+
+/**
+ * Google Search Console bağlama kartı.
+ * - GSC olmadan da pipeline çalışır (audit + brain + topic engine plan/GEO/rakip
+ *   katmanları + makale üretimi). Sadece "GSC fırsatları" katmanı ve analytics
+ *   sekmesindeki günlük snapshot çalışmaz.
+ * - Bağlanmak isteyen kullanıcı butona basar → backend OAuth state üretip
+ *   Google consent URL döner → kullanıcı Google'da onaylar →
+ *   /api/auth/gsc/callback bu sayfaya `?gsc=connected` ile döner.
+ */
+function GscConnectionCard({ siteId }: { siteId: string }) {
+  const search = useSearchParams();
+  const [site, setSite] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+
+  const refresh = async () => {
+    try {
+      const s = await api.getSite(siteId);
+      setSite(s);
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    refresh();
+  }, [siteId]);
+
+  // Callback'ten dönüldüyse kullanıcıya bilgi ver, URL'i temizle
+  useEffect(() => {
+    if (search.get('gsc') === 'connected') {
+      toast.success('Google Search Console bağlandı ✓');
+      window.history.replaceState({}, '', `/sites/${siteId}?tab=settings`);
+      refresh();
+    } else if (search.get('gsc') === 'error') {
+      toast.error('GSC bağlantısı tamamlanamadı, tekrar dene.');
+      window.history.replaceState({}, '', `/sites/${siteId}?tab=settings`);
+    }
+  }, [search, siteId]);
+
+  const connect = async () => {
+    setBusy(true);
+    try {
+      const { url } = await api.getGscAuthUrl(siteId);
+      window.location.href = url;
+    } catch (err: any) {
+      toast.error(err.message);
+      setBusy(false);
+    }
+  };
+
+  const disconnect = async () => {
+    if (!confirm('Google Search Console bağlantısını kesmek istediğine emin misin? Analytics verisi durdurulur.')) return;
+    setBusy(true);
+    try {
+      await api.disconnectGsc(siteId);
+      toast.success('GSC bağlantısı kesildi');
+      refresh();
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const connected = !!site?.gscConnectedAt;
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-3">
+            <BarChart3 className="h-5 w-5 text-brand" />
+            <div>
+              <h2 className="font-semibold">Google Search Console</h2>
+              <p className="text-xs text-muted-foreground mt-1">
+                Topic engine'e arama verisi besler ve Performans sekmesini açar. Opsiyonel — bağlamadığında pipeline yine çalışır.
+              </p>
+            </div>
+          </div>
+          {!loading && (
+            <Badge variant={connected ? ('success' as any) : ('outline' as any)}>
+              {connected ? 'Bağlı' : 'Bağlı değil'}
+            </Badge>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent>
+        {loading ? (
+          <Skeleton className="h-10 w-full" />
+        ) : connected ? (
+          <div className="flex items-center justify-between gap-3 flex-wrap text-sm">
+            <div>
+              <div className="font-medium">{site.gscPropertyUrl}</div>
+              <div className="text-xs text-muted-foreground mt-0.5">
+                Bağlandı: {new Date(site.gscConnectedAt).toLocaleString('tr-TR')}
+              </div>
+            </div>
+            <Button size="sm" variant="outline" onClick={disconnect} disabled={busy}>
+              <Unlink className="h-4 w-4 mr-2" />
+              {busy ? 'İşlem devam ediyor…' : 'Bağlantıyı Kes'}
+            </Button>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between gap-3 flex-wrap text-sm">
+            <p className="text-muted-foreground">
+              Sitenin Google Search Console hesabını bağla; LuviAI <strong>{site?.url}</strong> property'sinin
+              tıklama, gösterim ve sıralama verisini çeker.
+            </p>
+            <Button onClick={connect} disabled={busy}>
+              <Link2 className="h-4 w-4 mr-2" />
+              {busy ? 'Yönlendiriliyor…' : 'Google ile Bağla'}
+            </Button>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

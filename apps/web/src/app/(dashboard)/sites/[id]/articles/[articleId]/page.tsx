@@ -140,16 +140,93 @@ export default function ArticleDetailPage() {
       toast.error('İçerik henüz oluşmadı');
       return;
     }
+    const css = `
+*, *::before, *::after { box-sizing: border-box; }
+:root {
+  --bg: #ffffff;
+  --fg: #0f172a;
+  --muted: #475569;
+  --brand: #6c5ce7;
+  --border: #e2e8f0;
+  --code-bg: #f1f5f9;
+  --quote-bg: #faf9ff;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #0f172a; --fg: #f1f5f9; --muted: #94a3b8; --border: #1e293b; --code-bg: #1e293b; --quote-bg: #1e1b4b; }
+}
+html, body { margin: 0; padding: 0; background: var(--bg); color: var(--fg); }
+body { font: 16px/1.7 -apple-system, BlinkMacSystemFont, "Segoe UI", "SF Pro Text", system-ui, sans-serif; }
+.luvi-article { max-width: 720px; margin: 48px auto; padding: 0 20px; }
+.luvi-article h1 { font-size: 2.1rem; line-height: 1.2; margin: 0 0 1.2rem; letter-spacing: -0.01em; }
+.luvi-article h2 { font-size: 1.5rem; line-height: 1.25; margin: 2.6rem 0 0.8rem; padding-top: 0.4rem; }
+.luvi-article h3 { font-size: 1.18rem; line-height: 1.3; margin: 1.8rem 0 0.5rem; }
+.luvi-article h4 { font-size: 1.05rem; margin: 1.4rem 0 0.4rem; }
+.luvi-article p { margin: 0 0 1.1rem; }
+.luvi-article a { color: var(--brand); text-decoration: underline; text-underline-offset: 2px; }
+.luvi-article a:hover { text-decoration-thickness: 2px; }
+.luvi-article ul, .luvi-article ol { margin: 0 0 1.2rem; padding-left: 1.4rem; }
+.luvi-article li { margin: 0.35rem 0; }
+.luvi-article blockquote {
+  margin: 1.4rem 0; padding: 1rem 1.2rem; background: var(--quote-bg);
+  border-left: 4px solid var(--brand); border-radius: 8px; color: var(--fg);
+}
+.luvi-article blockquote p:last-child { margin-bottom: 0; }
+.luvi-article code {
+  font: 0.92em/1.5 ui-monospace, SFMono-Regular, "JetBrains Mono", Menlo, monospace;
+  background: var(--code-bg); padding: 2px 5px; border-radius: 4px;
+}
+.luvi-article pre {
+  background: var(--code-bg); padding: 1rem 1.2rem; border-radius: 10px;
+  overflow-x: auto; margin: 1.2rem 0;
+}
+.luvi-article pre code { background: transparent; padding: 0; }
+.luvi-article table {
+  width: 100%; border-collapse: collapse; margin: 1.4rem 0; font-size: 0.95rem;
+}
+.luvi-article th, .luvi-article td {
+  border: 1px solid var(--border); padding: 8px 12px; text-align: left;
+}
+.luvi-article th { background: var(--code-bg); font-weight: 600; }
+.luvi-article img { max-width: 100%; height: auto; border-radius: 10px; margin: 1.2rem 0; }
+.luvi-article hr { border: 0; border-top: 1px solid var(--border); margin: 2.4rem 0; }
+.luvi-meta {
+  font-size: 0.82rem; color: var(--muted); padding-bottom: 1.4rem;
+  margin-bottom: 1.8rem; border-bottom: 1px solid var(--border);
+}
+.luvi-meta span + span::before { content: " · "; margin: 0 0.4rem; }
+.luvi-footer {
+  margin-top: 4rem; padding-top: 1.4rem; border-top: 1px solid var(--border);
+  font-size: 0.78rem; color: var(--muted); text-align: center;
+}
+.luvi-footer a { color: var(--brand); text-decoration: none; }
+`.trim();
+
+    const meta = [
+      article.persona && `<span>👤 ${article.persona}</span>`,
+      article.wordCount && `<span>📄 ${article.wordCount} kelime</span>`,
+      article.readingTime && `<span>⏱ ${article.readingTime} dk okuma</span>`,
+      `<span>📅 ${new Date(article.createdAt).toLocaleDateString('tr-TR')}</span>`,
+    ].filter(Boolean).join('');
+
     const html = `<!DOCTYPE html>
 <html lang="${article.language || 'tr'}">
 <head>
 <meta charset="UTF-8">
-<title>${article.title}</title>
-<meta name="description" content="${article.metaDescription || ''}">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${article.metaTitle ?? article.title}</title>
+<meta name="description" content="${article.metaDescription ?? ''}">
+<meta property="og:title" content="${article.title}">
+<meta property="og:description" content="${article.metaDescription ?? ''}">
+<meta property="og:type" content="article">
 ${article.schemaMarkup ? `<script type="application/ld+json">${JSON.stringify(article.schemaMarkup)}</script>` : ''}
+<style>${css}</style>
 </head>
 <body>
+<article class="luvi-article">
+${meta ? `<div class="luvi-meta">${meta}</div>` : ''}
 ${body}
+<div class="luvi-footer">LuviAI tarafından üretildi · <a href="https://ai.luvihost.com">ai.luvihost.com</a></div>
+</article>
 </body>
 </html>`;
     const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
