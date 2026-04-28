@@ -97,6 +97,9 @@ export const api = {
 
   getSite: (id: string) => request<any>(`/sites/${id}`),
 
+  deleteSite: (id: string) =>
+    request<{ id: string }>(`/sites/${id}`, { method: 'DELETE' }),
+
   // Audit
   getLatestAudit: (siteId: string) =>
     request<any>(`/sites/${siteId}/audit/latest`),
