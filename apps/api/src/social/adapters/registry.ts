@@ -29,7 +29,7 @@ export function listSupportedTypes(): Array<{ type: string; label: string; statu
       type: 'LINKEDIN_COMPANY',
       label: 'LinkedIn (Şirket Sayfası)',
       status: 'soon',
-      note: 'LinkedIn Marketing Developer Platform onayı bekleniyor (review süreci 1-2 hafta).',
+      note: 'LinkedIn Community Management API onayı bekleniyor (Developer Apps → Products → Community Management API → Request access).',
     },
     { type: 'X_TWITTER', label: 'X / Twitter', status: 'soon' },
     { type: 'FACEBOOK_PAGE', label: 'Facebook Sayfa', status: 'soon' },

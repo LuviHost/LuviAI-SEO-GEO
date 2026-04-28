@@ -186,9 +186,10 @@ export class SocialChannelsService {
     } catch (err: any) {
       if (err?.message === 'LINKEDIN_NO_MDP_ACCESS') {
         throw new BadRequestException(
-          'LinkedIn sirket sayfasi listesi cekilemiyor: bu app icin Marketing Developer Platform onayi gerekli. ' +
-          'LinkedIn Developer Apps -> Products -> Marketing Developer Platform -> Apply for access yap, onaylanma sonrasi tekrar dene. ' +
-          'Onaysiz: sadece kisisel profile post atabilirsin.',
+          'LinkedIn sirket sayfasi listesi cekilemiyor: bu app icin Community Management API onayi gerekli. ' +
+          'LinkedIn Developer Apps -> Products -> Community Management API -> Request access yap. ' +
+          'Onaylanma 1-2 hafta surer; bu sirede sadece kisisel LinkedIn profili kullanilabilir. ' +
+          'Eski "Marketing Developer Platform" urunu LinkedIn tarafindan yeniden adlandirildi.',
         );
       }
       throw new BadRequestException(`LinkedIn sayfa listesi alinamadi: ${err.message}`);
