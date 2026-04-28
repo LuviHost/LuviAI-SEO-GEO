@@ -1,9 +1,13 @@
 import { Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { AnalyticsService } from './analytics.service.js';
+import { GaService } from './ga.service.js';
 
 @Controller('sites/:siteId/analytics')
 export class AnalyticsController {
-  constructor(private readonly analytics: AnalyticsService) {}
+  constructor(
+    private readonly analytics: AnalyticsService,
+    private readonly ga: GaService,
+  ) {}
 
   /** GET /sites/:siteId/analytics/overview?days=30 */
   @Get('overview')
@@ -34,5 +38,11 @@ export class AnalyticsController {
   async snapshotNow(@Param('siteId') siteId: string) {
     await this.analytics.captureSnapshot(siteId);
     return { ok: true };
+  }
+
+  /** GET /sites/:siteId/analytics/ga-summary?days=30 — GA4 davranış metrikleri */
+  @Get('ga-summary')
+  gaSummary(@Param('siteId') siteId: string, @Query('days') days?: string) {
+    return this.ga.fetchSiteSummary(siteId, days ? parseInt(days, 10) : 30);
   }
 }

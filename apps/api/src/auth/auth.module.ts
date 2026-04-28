@@ -5,6 +5,7 @@ import { AuthService } from './auth.service.js';
 import { AuthGuard } from './auth.guard.js';
 import { SiteAccessGuard } from './site-access.guard.js';
 import { GscOAuthService } from './gsc-oauth.service.js';
+import { GaOAuthService } from './ga-oauth.service.js';
 
 /**
  * Auth modülü:
@@ -20,7 +21,7 @@ import { GscOAuthService } from './gsc-oauth.service.js';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, AuthGuard, SiteAccessGuard, GscOAuthService],
-  exports: [AuthService, AuthGuard, SiteAccessGuard, GscOAuthService],
+  providers: [AuthService, AuthGuard, SiteAccessGuard, GscOAuthService, GaOAuthService],
+  exports: [AuthService, AuthGuard, SiteAccessGuard, GscOAuthService, GaOAuthService],
 })
 export class AuthModule {}

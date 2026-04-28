@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { TrendingUp, TrendingDown, Lightbulb, BarChart3, MousePointerClick, Eye } from 'lucide-react';
+import { TrendingUp, TrendingDown, Lightbulb, BarChart3, MousePointerClick, Eye, Activity, Target as TargetIcon, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -15,21 +15,24 @@ export function AnalyticsTab({ siteId }: { siteId: string }) {
   const [topArticles, setTopArticles] = useState<any[]>([]);
   const [trending, setTrending] = useState<any[]>([]);
   const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [gaSummary, setGaSummary] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const refresh = async () => {
     try {
-      const [o, t, tr, s] = await Promise.all([
+      const [o, t, tr, s, ga] = await Promise.all([
         api.getAnalyticsOverview(siteId, 30).catch(() => null),
         api.getTopArticles(siteId, 10).catch(() => []),
         api.getTrendingQueries(siteId).catch(() => []),
         api.getImprovementSuggestions(siteId).catch(() => []),
+        api.getGaSummary(siteId, 30).catch(() => null),
       ]);
       setOverview(o);
       setTopArticles(t);
       setTrending(tr);
       setSuggestions(s);
+      setGaSummary(ga);
     } finally {
       setLoading(false);
     }
@@ -120,6 +123,52 @@ export function AnalyticsTab({ siteId }: { siteId: string }) {
           </div>
         </CardContent>
       </Card>
+
+      {/* GA4 davranış metrikleri (opsiyonel) */}
+      {gaSummary && (
+        <>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <MetricCard icon={<Activity />} label="Oturum (30g)" value={gaSummary.totalSessions.toLocaleString('tr-TR')} />
+            <MetricCard icon={<TargetIcon />} label="Conversion (30g)" value={gaSummary.totalConversions.toLocaleString('tr-TR')} />
+            <MetricCard
+              icon={<Clock />}
+              label="Ort. etkileşim"
+              value={`${Math.round(gaSummary.avgEngagementSec)} sn`}
+            />
+            <MetricCard
+              label="Bounce rate"
+              value={`${(gaSummary.avgBounceRate * 100).toFixed(1)}%`}
+            />
+          </div>
+
+          {gaSummary.topPages?.length > 0 && (
+            <Card>
+              <CardHeader>
+                <h3 className="font-semibold">📈 GA4 — En çok ziyaret edilen sayfalar</h3>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="divide-y">
+                  {gaSummary.topPages.slice(0, 10).map((p: any, i: number) => (
+                    <div key={i} className="px-5 py-3 flex items-center justify-between gap-4 text-sm">
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium truncate">{p.pagePath}</div>
+                        <div className="text-xs text-muted-foreground flex gap-3 mt-0.5 flex-wrap">
+                          <span>{p.sessions} oturum</span>
+                          <span>{p.conversions} dönüşüm</span>
+                          <span>{Math.round(p.avgEngagementSec)} sn etkileşim</span>
+                          <span className={p.bounceRate >= 0.7 ? 'text-red-500 font-medium' : ''}>
+                            {(p.bounceRate * 100).toFixed(0)}% bounce
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </>
+      )}
 
       {/* Top articles */}
       <Card>

@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, ForbiddenException, Get, Param, Patch, Post, Req, UnauthorizedException } from '@nestjs/common';
+import { Body, Controller, Delete, ForbiddenException, Get, Param, Patch, Post, Put, Req, UnauthorizedException } from '@nestjs/common';
 import type { Request } from 'express';
 import { SitesService } from './sites.service.js';
 import { CreateSiteDto, UpdateSiteDto } from './sites.dto.js';
@@ -44,5 +44,21 @@ export class SitesController {
   @Post(':id/brain/regenerate')
   regenerateBrain(@Req() req: Request, @Param('id') id: string) {
     return this.sites.regenerateBrain(id, ensureUser(req));
+  }
+
+  /** GET /sites/:id/competitors — brain'deki rakip listesi */
+  @Get(':id/competitors')
+  listCompetitors(@Req() req: Request, @Param('id') id: string) {
+    return this.sites.listCompetitors(id, ensureUser(req));
+  }
+
+  /** PUT /sites/:id/competitors — tüm rakip listesini değiştir */
+  @Put(':id/competitors')
+  setCompetitors(
+    @Req() req: Request,
+    @Param('id') id: string,
+    @Body() body: { competitors: Array<{ name: string; url: string; strengths?: string[]; weaknesses?: string[] }> },
+  ) {
+    return this.sites.setCompetitors(id, body.competitors ?? [], ensureUser(req));
   }
 }

@@ -4,6 +4,7 @@ import { GscService } from './gsc.service.js';
 import { GeoService } from './geo.service.js';
 import { CompetitorService } from './competitor.service.js';
 import { ScorerService } from './scorer.service.js';
+import { GaService } from '../analytics/ga.service.js';
 import type { AgentContext } from '@luviai/shared';
 
 @Injectable()
@@ -16,6 +17,7 @@ export class TopicsService {
     private readonly geo: GeoService,
     private readonly competitor: CompetitorService,
     private readonly scorer: ScorerService,
+    private readonly ga: GaService,
   ) {}
 
   getLatestQueue(siteId: string) {
@@ -61,7 +63,10 @@ export class TopicsService {
     this.log.log(`[${siteId}] [3/4] GEO: ${geoResult.gaps.length} gap (skor ${geoResult.score})`);
 
     const competitorMoves = await this.competitor.scanCompetitors(siteId);
-    this.log.log(`[${siteId}] [4/4] Rakip: ${competitorMoves.length} hamle`);
+    this.log.log(`[${siteId}] [4/5] Rakip: ${competitorMoves.length} hamle`);
+
+    const gaUnderperforming = await this.ga.getUnderperformingPages(siteId).catch(() => []);
+    this.log.log(`[${siteId}] [5/5] GA: ${gaUnderperforming.length} underperforming sayfa`);
 
     const existingPages = site.articles.map(a => a.slug);
 
@@ -95,6 +100,18 @@ export class TopicsService {
       throw new Error('Topic ranker JSON parse hatası');
     }
 
+    // GA sinyali — yuksek bounce + sifir conversion sayfalari "improvements"
+    // listesinin basina ekle. Ranker prompt'u degistirilmedi; bu post-process.
+    const gaImprovements = gaUnderperforming.map((p) => ({
+      type: 'ga-low-engagement',
+      page: p.pagePath,
+      reason: `Yuksek bounce (${(p.bounceRate * 100).toFixed(0)}%) ve sifir conversion — icerigi yenile veya CTA guclendir.`,
+      sessions: p.sessions,
+      bounceRate: p.bounceRate,
+      avgEngagementSec: Math.round(p.avgEngagementSec),
+    }));
+    const mergedImprovements = [...gaImprovements, ...(ranked.improvements ?? [])];
+
     const expiresAt = new Date(Date.now() + 7 * 86400000);
 
     const queue = await this.prisma.topicQueue.create({
@@ -107,7 +124,7 @@ export class TopicsService {
         tier1Topics: ranked.tier_1_immediate ?? [],
         tier2Topics: ranked.tier_2_this_week ?? [],
         tier3Topics: ranked.tier_3_planned ?? [],
-        improvements: ranked.improvements ?? [],
+        improvements: mergedImprovements,
         totalEvaluated: ranked.summary?.total_evaluated ?? planTopics.length,
         expiresAt,
       },

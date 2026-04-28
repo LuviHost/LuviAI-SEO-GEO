@@ -101,6 +101,50 @@ export class SitesService {
     });
   }
 
+  async listCompetitors(siteId: string, user: RequestingUser) {
+    await this.assertOwnership(siteId, user);
+    const brain = await this.prisma.brain.findUnique({ where: { siteId } });
+    if (!brain) return [];
+    return Array.isArray(brain.competitors) ? brain.competitors : [];
+  }
+
+  async setCompetitors(
+    siteId: string,
+    competitors: Array<{ name: string; url: string; strengths?: string[]; weaknesses?: string[] }>,
+    user: RequestingUser,
+  ) {
+    await this.assertOwnership(siteId, user);
+    const brain = await this.prisma.brain.findUnique({ where: { siteId } });
+    if (!brain) {
+      throw new NotFoundException('Brain henuz olusturulmadi. Once site analizini bekle.');
+    }
+    // URL normalize + duplicate at
+    const seen = new Set<string>();
+    const cleaned: Array<{ name: string; url: string; strengths?: string[]; weaknesses?: string[] }> = [];
+    for (const c of competitors) {
+      if (!c?.url || !c?.name) continue;
+      let url: string;
+      try {
+        url = normalizeSiteUrl(c.url);
+      } catch {
+        continue;
+      }
+      if (seen.has(url)) continue;
+      seen.add(url);
+      cleaned.push({
+        name: String(c.name).trim().slice(0, 100),
+        url,
+        strengths: Array.isArray(c.strengths) ? c.strengths.slice(0, 5) : undefined,
+        weaknesses: Array.isArray(c.weaknesses) ? c.weaknesses.slice(0, 5) : undefined,
+      });
+    }
+    await this.prisma.brain.update({
+      where: { siteId },
+      data: { competitors: cleaned as any, generatedBy: 'hybrid' },
+    });
+    return cleaned;
+  }
+
   private async assertOwnership(siteId: string, user: RequestingUser) {
     const site = await this.prisma.site.findUnique({ where: { id: siteId } });
     if (!site) throw new NotFoundException();

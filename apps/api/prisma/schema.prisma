@@ -131,6 +131,11 @@ model Site {
   gscRefreshToken    String?  @db.Text // şifrelenmiş
   gscConnectedAt     DateTime?
 
+  // GA4 OAuth token (opsiyonel — bounce/conversion sinyali için)
+  gaPropertyId       String?  // 123456789 (numeric property id)
+  gaRefreshToken     String?  @db.Text // şifrelenmiş
+  gaConnectedAt      DateTime?
+
   // Otomatik üretim
   autoGenerationEnabled Boolean @default(false)
   autoGenerationCron    String? // "0 9 * * 1"  (Pazartesi 09:00)

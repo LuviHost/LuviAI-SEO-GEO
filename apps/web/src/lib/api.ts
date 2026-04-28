@@ -90,6 +90,9 @@ export const api = {
   createSite: (body: { url: string; name: string; niche?: string; language?: string }) =>
     request<any>('/sites', { method: 'POST', body: JSON.stringify(body) }),
 
+  regenerateBrain: (siteId: string) =>
+    request<any>(`/sites/${siteId}/brain/regenerate`, { method: 'POST' }),
+
   listSites: () => request<any[]>('/sites'),
 
   getSite: (id: string) => request<any>(`/sites/${id}`),
@@ -176,6 +179,9 @@ export const api = {
   triggerSnapshotNow: (siteId: string) =>
     request<any>(`/sites/${siteId}/analytics/snapshot-now`, { method: 'POST' }),
 
+  getGaSummary: (siteId: string, days = 30) =>
+    request<any>(`/sites/${siteId}/analytics/ga-summary?days=${days}`),
+
   // GSC OAuth
   getGscAuthUrl: (siteId: string) =>
     request<{ url: string }>(`/auth/gsc/start?siteId=${encodeURIComponent(siteId)}`),
@@ -184,5 +190,30 @@ export const api = {
     request<{ ok: boolean }>(`/auth/gsc/disconnect`, {
       method: 'POST',
       body: JSON.stringify({ siteId }),
+    }),
+
+  // GA4 OAuth
+  getGaAuthUrl: (siteId: string) =>
+    request<{ url: string }>(`/auth/ga/start?siteId=${encodeURIComponent(siteId)}`),
+
+  disconnectGa: (siteId: string) =>
+    request<{ ok: boolean }>(`/auth/ga/disconnect`, {
+      method: 'POST',
+      body: JSON.stringify({ siteId }),
+    }),
+
+  // Competitors (brain)
+  listCompetitors: (siteId: string) =>
+    request<Array<{ name: string; url: string; strengths?: string[]; weaknesses?: string[] }>>(
+      `/sites/${siteId}/competitors`,
+    ),
+
+  setCompetitors: (
+    siteId: string,
+    competitors: Array<{ name: string; url: string; strengths?: string[]; weaknesses?: string[] }>,
+  ) =>
+    request<typeof competitors>(`/sites/${siteId}/competitors`, {
+      method: 'PUT',
+      body: JSON.stringify({ competitors }),
     }),
 };

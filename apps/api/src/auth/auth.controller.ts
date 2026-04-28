@@ -3,12 +3,14 @@ import type { Response } from 'express';
 import { Public } from './public.decorator.js';
 import { AuthService } from './auth.service.js';
 import { GscOAuthService } from './gsc-oauth.service.js';
+import { GaOAuthService } from './ga-oauth.service.js';
 
 @Controller('auth')
 export class AuthController {
   constructor(
     private readonly auth: AuthService,
     private readonly gsc: GscOAuthService,
+    private readonly ga: GaOAuthService,
   ) {}
 
   /** GET /api/auth/gsc/start?siteId=xxx → Google OAuth consent URL üret */
@@ -36,5 +38,29 @@ export class AuthController {
   @Post('gsc/disconnect')
   async disconnectGsc(@Body() body: { siteId: string }) {
     return this.gsc.disconnect(body.siteId);
+  }
+
+  // ─── GA4 OAuth ─────────────────────────────────────────────
+
+  /** GET /api/auth/ga/start?siteId=xxx → Google OAuth consent URL üret */
+  @Get('ga/start')
+  async startGaOAuth(@Query('siteId') siteId: string) {
+    return { url: await this.ga.buildAuthorizationUrl(siteId) };
+  }
+
+  @Public()
+  @Get('ga/callback')
+  async gaCallback(
+    @Query('code') code: string,
+    @Query('state') state: string,
+    @Res() res: Response,
+  ) {
+    const result = await this.ga.handleCallback(code, state);
+    return res.redirect(`${process.env.WEB_BASE_URL}/sites/${result.siteId}?step=ga4&ga=connected`);
+  }
+
+  @Post('ga/disconnect')
+  async disconnectGa(@Body() body: { siteId: string }) {
+    return this.ga.disconnect(body.siteId);
   }
 }
