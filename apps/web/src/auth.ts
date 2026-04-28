@@ -38,22 +38,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(prisma),
   session: { strategy: 'jwt', maxAge: 30 * 24 * 60 * 60 },
   trustHost: true,
-  debug: true,
-  logger: {
-    error(error: any) {
-      console.error('[auth][error]', error?.type ?? error?.name, error?.message);
-      if (error?.cause) {
-        console.error('[auth][error.cause]', error.cause?.code, error.cause?.message, error.cause?.address);
-      }
-      if (error?.stack) console.error(error.stack);
-    },
-    warn(code: any) {
-      console.warn('[auth][warn]', code);
-    },
-    debug(message: any, metadata: any) {
-      console.log('[auth][debug]', message, metadata ?? '');
-    },
-  },
   secret: process.env.NEXTAUTH_SECRET ?? process.env.AUTH_SECRET,
   providers: [
     /**
