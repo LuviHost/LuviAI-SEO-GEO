@@ -45,11 +45,22 @@ export default function SitePage() {
 
   useEffect(() => {
     refresh();
-    if (onboardingMode) {
-      const interval = setInterval(refresh, 5000);
-      return () => clearInterval(interval);
-    }
-  }, [id, onboardingMode]);
+  }, [id]);
+
+  // Onboarding chain calisirken (site.status === 'ONBOARDING') veya URL flag varken
+  // ya da bir makale GENERATING/EDITING durumundayken arka planda 5sn'de bir refresh.
+  // Boylece X OAuth callback'inden donulduginde de gercek durum gorulur.
+  const isOnboardingActive = site?.status === 'ONBOARDING';
+  const hasInflightArticle = articles.some(
+    (a) => a?.status === 'GENERATING' || a?.status === 'EDITING',
+  );
+  const needsPolling = onboardingMode || isOnboardingActive || hasInflightArticle;
+
+  useEffect(() => {
+    if (!needsPolling) return;
+    const interval = setInterval(refresh, 5000);
+    return () => clearInterval(interval);
+  }, [needsPolling, id]);
 
   if (loading || !site) {
     return (
@@ -96,7 +107,7 @@ export default function SitePage() {
           queue={queue}
           articles={articles}
           onRefresh={refresh}
-          onboardingMode={onboardingMode}
+          onboardingMode={onboardingMode || isOnboardingActive}
         />
       )}
     </div>
