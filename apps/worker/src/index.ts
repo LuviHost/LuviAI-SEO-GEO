@@ -27,6 +27,9 @@ import { ArticleSchedulerService } from '../../api/dist/articles/article-schedul
 import { SocialPostsService } from '../../api/dist/social/social-posts.service.js';
 import { PrismaService } from '../../api/dist/prisma/prisma.service.js';
 import { PlatformDetectorService } from '../../api/dist/sites/platform-detector.service.js';
+import { LlmsFullBuilderService } from '../../api/dist/audit/llms-full-builder.service.js';
+import { AiCitationTrackerService } from '../../api/dist/audit/ai-citation-tracker.service.js';
+import { AiIndexingPingerService } from '../../api/dist/audit/ai-indexing-pinger.service.js';
 
 const log = new Logger('Worker');
 
@@ -46,6 +49,9 @@ async function bootstrap() {
     scheduler: app.get(ArticleSchedulerService),
     socialPosts: app.get(SocialPostsService),
     platformDetector: app.get(PlatformDetectorService),
+    llmsBuilder: app.get(LlmsFullBuilderService),
+    citationTracker: app.get(AiCitationTrackerService),
+    indexingPinger: app.get(AiIndexingPingerService),
     prisma: app.get(PrismaService),
   };
 
@@ -165,13 +171,21 @@ async function bootstrap() {
         count: autopilot ? 8 : 3,
       });
 
-      // Otopilot ON ise auto-fix (sitemap/robots/llms) tetikle
+      // Otopilot ON ise auto-fix (sitemap/robots/llms) tetikle + ilk citation snapshot
       if (autopilot) {
         try {
           await services.autoFix.runAutoFix(siteId, ['sitemap', 'robots', 'llms']);
           log.log(`[${siteId}] Auto-fix tetiklendi (otopilot)`);
         } catch (err: any) {
           log.warn(`[${siteId}] Auto-fix atlandi: ${err.message}`);
+        }
+
+        // Ilk AI citation snapshot — baseline gunluk takip icin
+        try {
+          await services.citationTracker.snapshotSite(siteId);
+          log.log(`[${siteId}] AI citation baseline snapshot kaydedildi`);
+        } catch (err: any) {
+          log.warn(`[${siteId}] Citation snapshot atlandi: ${err.message}`);
         }
       }
 
@@ -199,6 +213,38 @@ async function bootstrap() {
      */
     PROCESS_SCHEDULED: async () => {
       return services.scheduler.processDueArticles();
+    },
+
+    /**
+     * LLMS_FULL_BUILD — haftalik cron, tum aktif sitelerin llms-full.txt'ini
+     * regenerate eder. AI search engine'lerin sitenizi ezbere bilmesi icin.
+     */
+    LLMS_FULL_BUILD: async ({ siteId }: { siteId?: string }) => {
+      if (siteId) {
+        return services.llmsBuilder.build(siteId);
+      }
+      const sites = await services.prisma.site.findMany({
+        where: { status: { in: ['ACTIVE', 'AUDIT_COMPLETE'] as any[] } },
+        select: { id: true },
+      });
+      let total = 0;
+      for (const s of sites) {
+        try {
+          const r = await services.llmsBuilder.build(s.id);
+          total += r.bytes;
+        } catch (err: any) {
+          log.warn(`[${s.id}] llms-full build fail: ${err.message}`);
+        }
+      }
+      return { sites: sites.length, totalBytes: total };
+    },
+
+    /**
+     * AI_CITATION_DAILY — gunluk cron, tum aktif sitelerin AI gorunurlugunu olc.
+     * Claude/Gemini/OpenAI/Perplexity'de site URL alintilanma skorunu DB'ye yaz.
+     */
+    AI_CITATION_DAILY: async () => {
+      return services.citationTracker.snapshotAllActive();
     },
   };
 
@@ -256,20 +302,47 @@ async function bootstrap() {
     }
   });
 
-  // Cron-like repeat: PROCESS_SCHEDULED her 30 dakikada bir tetiklensin
+  // Cron-like repeats
   try {
     const queue = new Queue('luviai-jobs', { connection });
+
+    // 1) PROCESS_SCHEDULED — her 30 dk
     await queue.add(
       'PROCESS_SCHEDULED',
       { trigger: 'cron' },
       {
-        repeat: { every: 30 * 60 * 1000 }, // 30 dakika
+        repeat: { every: 30 * 60 * 1000 },
         jobId: 'cron:process-scheduled',
         removeOnComplete: { count: 50 },
         removeOnFail: { count: 50 },
       },
     );
-    log.log('⏰ Cron: PROCESS_SCHEDULED her 30dk tetiklenecek');
+
+    // 2) LLMS_FULL_BUILD — haftada 1 (Pazartesi 03:00 UTC)
+    await queue.add(
+      'LLMS_FULL_BUILD',
+      { trigger: 'cron' },
+      {
+        repeat: { pattern: '0 3 * * 1', tz: 'UTC' },
+        jobId: 'cron:llms-full-weekly',
+        removeOnComplete: { count: 20 },
+        removeOnFail: { count: 20 },
+      },
+    );
+
+    // 3) AI_CITATION_DAILY — her gun 04:00 UTC (Turkiye 07:00)
+    await queue.add(
+      'AI_CITATION_DAILY',
+      { trigger: 'cron' },
+      {
+        repeat: { pattern: '0 4 * * *', tz: 'UTC' },
+        jobId: 'cron:ai-citation-daily',
+        removeOnComplete: { count: 50 },
+        removeOnFail: { count: 20 },
+      },
+    );
+
+    log.log('⏰ Cron: PROCESS_SCHEDULED 30dk · LLMS_FULL_BUILD haftalik · AI_CITATION_DAILY gunluk');
   } catch (err: any) {
     log.warn(`Cron kurulumu basarisiz: ${err.message}`);
   }

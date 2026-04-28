@@ -1,7 +1,11 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Get, Header, Param, Post, Query, Res } from '@nestjs/common';
+import type { Response } from 'express';
 import { AuditService } from './audit.service.js';
 import { AutoFixService } from './auto-fix.service.js';
 import { AiCitationService } from './ai-citation.service.js';
+import { AiCitationTrackerService } from './ai-citation-tracker.service.js';
+import { AiIndexingPingerService } from './ai-indexing-pinger.service.js';
+import { LlmsFullBuilderService } from './llms-full-builder.service.js';
 import { SnippetGeneratorService } from './snippet-generator.service.js';
 import { SnippetApplierService } from './snippet-applier.service.js';
 import { StaticHtmlFixerService } from './static-html-fixer.service.js';
@@ -12,6 +16,9 @@ export class AuditController {
     private readonly audit: AuditService,
     private readonly autoFix: AutoFixService,
     private readonly citation: AiCitationService,
+    private readonly tracker: AiCitationTrackerService,
+    private readonly pinger: AiIndexingPingerService,
+    private readonly llmsBuilder: LlmsFullBuilderService,
     private readonly snippets: SnippetGeneratorService,
     private readonly applier: SnippetApplierService,
     private readonly staticFixer: StaticHtmlFixerService,
@@ -46,6 +53,39 @@ export class AuditController {
   async citationTest(@Param('siteId') siteId: string) {
     const results = await this.citation.runForSite(siteId, 5);
     return { results, runAt: new Date().toISOString() };
+  }
+
+  /** GET /sites/:siteId/audit/citation-history?days=30 — tarihsel AI gorunurluk */
+  @Get('citation-history')
+  citationHistory(@Param('siteId') siteId: string, @Query('days') days?: string) {
+    return this.tracker.getHistory(siteId, days ? parseInt(days, 10) : 30);
+  }
+
+  /** POST /sites/:siteId/audit/citation-snapshot — snapshot al ve DB'ye yaz */
+  @Post('citation-snapshot')
+  citationSnapshot(@Param('siteId') siteId: string) {
+    return this.tracker.snapshotSite(siteId);
+  }
+
+  /** POST /sites/:siteId/audit/llms-full/build — llms-full.txt yeniden olustur */
+  @Post('llms-full/build')
+  buildLlmsFull(@Param('siteId') siteId: string) {
+    return this.llmsBuilder.build(siteId);
+  }
+
+  /** GET /sites/:siteId/audit/llms-full.txt — AI'lar ve kullanicilar icin */
+  @Get('llms-full.txt')
+  @Header('Content-Type', 'text/plain; charset=utf-8')
+  async getLlmsFull(@Param('siteId') siteId: string, @Res() res: Response) {
+    const text = await this.llmsBuilder.getCached(siteId);
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.send(text);
+  }
+
+  /** POST /sites/:siteId/audit/index-ping — bir URL'i tum AI/search engine kanallarina bildir */
+  @Post('index-ping')
+  indexPing(@Param('siteId') siteId: string, @Body() body: { url: string }) {
+    return this.pinger.pingUrl(siteId, body.url);
   }
 
   @Get('snippets')

@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { decrypt, mdToHtml, parseFrontmatter } from '@luviai/shared';
 import { getAdapter } from '@luviai/adapters';
 import { SocialAutoDraftService } from '../social/social-auto-draft.service.js';
+import { AiIndexingPingerService } from '../audit/ai-indexing-pinger.service.js';
 
 /**
  * Markdown body'yi tam bir HTML sayfasi haline getir.
@@ -112,6 +113,7 @@ export class PublisherService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly socialAutoDraft: SocialAutoDraftService,
+    private readonly indexingPinger: AiIndexingPingerService,
   ) {}
 
   async publishArticle(articleId: string, targetIds: string[]): Promise<PublishResult[]> {
@@ -218,10 +220,17 @@ export class PublisherService {
       });
 
       // Sosyal kanallara DRAFT post hazirla — cron yayinlayacak.
-      // Hata olsa bile makale yayini etkilenmesin.
       this.socialAutoDraft.createDraftsForArticle(articleId).catch((err) => {
         this.log.warn(`[${articleId}] social auto-draft basarisiz: ${err.message}`);
       });
+
+      // GEO: yayinlanan URL'i tum AI/search engine kanallarina ping at (best-effort)
+      const firstPublicUrl = successful.find((r) => r.externalUrl)?.externalUrl;
+      if (firstPublicUrl) {
+        this.indexingPinger.pingUrl(article.siteId, firstPublicUrl).catch((err) => {
+          this.log.warn(`[${articleId}] index ping basarisiz: ${err.message}`);
+        });
+      }
     }
 
     return results;

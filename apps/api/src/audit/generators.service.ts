@@ -27,7 +27,7 @@ ${urls}
 `;
   }
 
-  /** robots.txt — AI crawler whitelist + sitemap referansı */
+  /** robots.txt — GEO v2: 18+ AI crawler explicit allow + llms-full referansi */
   generateRobotsTxt(siteUrl: string, opts: {
     allowAiCrawlers?: boolean;
     blockPaths?: string[];
@@ -36,25 +36,67 @@ ${urls}
     const block = opts.blockPaths ?? ['/admin/', '/wp-admin/', '/api/', '/cgi-bin/', '/.git/'];
 
     const baseUrl = siteUrl.replace(/\/$/, '');
-    let txt = `# LuviAI tarafından üretildi — ${new Date().toISOString().slice(0, 10)}\n\n`;
+    let txt = `# LuviAI tarafından üretildi — ${new Date().toISOString().slice(0, 10)}\n`;
+    txt += `# GEO v2: AI search engines (ChatGPT, Claude, Gemini, Perplexity) icin optimize\n\n`;
 
     txt += `# Genel kurallar\nUser-agent: *\n`;
     block.forEach(p => txt += `Disallow: ${p}\n`);
     txt += `Allow: /\nCrawl-delay: 1\n\n`;
 
     if (allowAi) {
-      txt += `# AI Search crawler'ları (modern SEO için)\n`;
-      const aiCrawlers = ['GPTBot', 'ChatGPT-User', 'Claude-Web', 'ClaudeBot', 'PerplexityBot', 'Google-Extended', 'CCBot', 'Bytespider', 'Applebot-Extended'];
-      for (const c of aiCrawlers) {
-        txt += `User-agent: ${c}\nAllow: /\n\n`;
+      // AI search engine crawlers — actively want them
+      const aiCrawlersDescriptions: Array<[string, string]> = [
+        ['GPTBot', 'OpenAI ChatGPT training crawler'],
+        ['OAI-SearchBot', 'ChatGPT Search (real-time)'],
+        ['ChatGPT-User', 'ChatGPT user-shared link fetch'],
+        ['ClaudeBot', 'Anthropic Claude training crawler'],
+        ['Claude-Web', 'Claude.ai web fetch'],
+        ['anthropic-ai', 'Anthropic generic'],
+        ['Google-Extended', 'Bard / Gemini training'],
+        ['Googlebot', 'Google Search'],
+        ['Googlebot-Image', 'Google Images / Lens'],
+        ['Bingbot', 'Bing + Copilot'],
+        ['Applebot', 'Apple Search'],
+        ['Applebot-Extended', 'Apple Intelligence training'],
+        ['PerplexityBot', 'Perplexity AI search'],
+        ['Perplexity-User', 'Perplexity user-shared link fetch'],
+        ['YouBot', 'You.com AI search'],
+        ['cohere-ai', 'Cohere training'],
+        ['Bytespider', 'TikTok/ByteDance AI search'],
+        ['Amazonbot', 'Amazon Alexa+ / Rufus'],
+        ['DuckAssistBot', 'DuckDuckGo AI'],
+        ['Meta-ExternalAgent', 'Meta AI'],
+        ['FacebookBot', 'Meta link preview / training'],
+        ['Diffbot', 'Diffbot knowledge graph'],
+        ['CCBot', 'Common Crawl (training data)'],
+        ['Mistral-AI-User', 'Mistral Le Chat'],
+        ['DeepSeekBot', 'DeepSeek crawler'],
+      ];
+      txt += `# ═════════════════════════════════════════════════════\n`;
+      txt += `# AI Search Engines — explicit allow (modern GEO)\n`;
+      txt += `# ═════════════════════════════════════════════════════\n\n`;
+      for (const [bot, desc] of aiCrawlersDescriptions) {
+        txt += `# ${desc}\nUser-agent: ${bot}\nAllow: /\nCrawl-delay: 1\n\n`;
       }
     }
 
-    txt += `# Bot ağı (kötü niyetli)\nUser-agent: AhrefsBot\nDisallow: /\n\n`;
-    txt += `User-agent: SemrushBot\nDisallow: /\n\n`;
-    txt += `User-agent: MJ12bot\nDisallow: /\n\n`;
+    // SEO tool crawlers — block (sites usually don't want these)
+    txt += `# ═════════════════════════════════════════════════════\n`;
+    txt += `# SEO tool / scraper bots — bloke\n`;
+    txt += `# ═════════════════════════════════════════════════════\n\n`;
+    const blockedBots = ['AhrefsBot', 'SemrushBot', 'MJ12bot', 'DotBot', 'BLEXBot', 'PetalBot', 'SeznamBot', 'serpstatbot'];
+    for (const bot of blockedBots) {
+      txt += `User-agent: ${bot}\nDisallow: /\n\n`;
+    }
 
-    txt += `# Sitemap\nSitemap: ${baseUrl}/sitemap.xml\n`;
+    txt += `# ═════════════════════════════════════════════════════\n`;
+    txt += `# Sitemap + AI dosyalari\n`;
+    txt += `# ═════════════════════════════════════════════════════\n`;
+    txt += `Sitemap: ${baseUrl}/sitemap.xml\n`;
+    // llms.txt + llms-full.txt referansi (AI crawlerlar bunu okur)
+    txt += `\n# AI search asistanlari icin yapilandirilmis ozet:\n`;
+    txt += `# ${baseUrl}/llms.txt\n`;
+    txt += `# ${baseUrl}/llms-full.txt\n`;
 
     return txt;
   }

@@ -7,6 +7,7 @@ import { ImageGeneratorService } from './image-generator.service.js';
 import { PublisherService } from './publisher.service.js';
 import { ArticleSchedulerService } from './article-scheduler.service.js';
 import { SocialModule } from '../social/social.module.js';
+import { AuditModule } from '../audit/audit.module.js';
 
 /**
  * Article Pipeline:
@@ -18,7 +19,7 @@ import { SocialModule } from '../social/social.module.js';
  *  - SocialModule: PUBLISHED makaleler icin auto-draft sosyal post
  */
 @Module({
-  imports: [SocialModule],
+  imports: [SocialModule, AuditModule],
   controllers: [ArticlesController],
   providers: [
     ArticlesService,

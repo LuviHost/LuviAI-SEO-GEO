@@ -206,6 +206,17 @@ hero_image: "placeholder-hero.webp"
 7. ## Sıkça Sorulan Sorular (3-6 H3)
 8. ## Sonuç + CTA
 
+## GEO Kuralları (AI search engines için zorunlu)
+
+Bu kurallar Claude/Gemini/ChatGPT/Perplexity'nin makaleyi alıntılamasını ~3x artırır:
+
+1. **Soru-bazlı H2 başlıkları:** H2'lerin en az %50'si soru olsun ("Shared hosting kim için uygundur?", "WordPress'te SSL nasıl kurulur?")
+2. **Direct answer cümlesi:** Her H2 altında, paragraf girişinden önce \`> **Kısa cevap:** [max 25 kelime, atomik bilgi].\` blockquote satırı zorunlu. AI bu cümleleri olduğu gibi alıntılar.
+3. **Liste + Tablo zorunluluğu:** Her makalede en az 1 numaralı liste (adımlar/checklist) + en az 1 karşılaştırma tablosu (rakip/fiyat/özellik).
+4. **İstatistik blockquote:** Makalede en az 1 \`<blockquote cite="...">\` ile sayısal istatistik veya alıntı (AI source attribution alır).
+5. **Yazar imzası:** Sonuç bölümünden sonra "**Bu makale [persona/yazar] tarafından yazıldı.**" satırı (E-E-A-T sinyali).
+6. **Son güncelleme tarihi:** Makale sonunda "*Son güncelleme: YYYY-MM-DD*" satırı (AI tazelik filtresi).
+
 ## YASAK
 - "günümüzde / dijital çağda / delve / tapestry / robust / bu makalede"
 - ` + '```markdown ile sarma' + ` (düz markdown ver)

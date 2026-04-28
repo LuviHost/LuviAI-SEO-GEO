@@ -148,6 +148,12 @@ model Site {
   platformConfidence Float?  // 0..1
   platformDetectedAt DateTime?
 
+  // GEO ek alanlar
+  llmsFullTxt       String?  @db.LongText // tum sitenin AI icin markdown ozeti
+  llmsFullTxtAt     DateTime?
+  // sameAs sosyal/web profilleri — Organization schema'da kullanilir
+  socialProfiles    Json?    // ["https://twitter.com/...", "https://linkedin.com/..."]
+
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -424,6 +430,32 @@ model AnalyticsSnapshot {
 }
 
 // ═══════════════════════════════════════════════════════════════
+//  AI CITATION SNAPSHOTS — gunluk LLM gorunurluk takibi
+// ═══════════════════════════════════════════════════════════════
+
+model AiCitationSnapshot {
+  id          String   @id @default(cuid())
+  siteId      String
+
+  date        DateTime @db.Date  // Hangi gun (UTC)
+  provider    String              // anthropic | gemini | openai | perplexity | grok | deepseek
+  available   Boolean
+  score       Int?                // 0..100, null = kullanilamaz / sorgu yok
+
+  // Probe detaylari (en fazla 5 sorgu)
+  probes      Json                // [{ query, cited, brandMentioned, excerpt }]
+  citedCount  Int      @default(0)
+  mentionedCount Int   @default(0)
+
+  createdAt   DateTime @default(now())
+
+  @@unique([siteId, date, provider])
+  @@index([siteId, date])
+  @@index([siteId, provider, date])
+  @@map("ai_citation_snapshots")
+}
+
+// ═══════════════════════════════════════════════════════════════
 //  JOBS (BullMQ — async work)
 // ═══════════════════════════════════════════════════════════════
 
@@ -470,6 +502,8 @@ enum JobType {
   ONBOARDING_CHAIN    // brain → audit → topics → ilk makale
   SOCIAL_PUBLISH      // tek bir SocialPost yayini (cron tetikler)
   PROCESS_SCHEDULED   // scheduledAt <= now olan SCHEDULED makaleleri uretime alir (cron)
+  LLMS_FULL_BUILD     // tum site icerigini llms-full.txt'e konsolide et (haftalik)
+  AI_CITATION_DAILY   // gunluk Claude/Gemini/OpenAI/Perplexity gorunurluk testi
 }
 
 enum JobStatus {

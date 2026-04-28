@@ -7,6 +7,9 @@ import { GeoRunnerService } from './geo-runner.service.js';
 import { GeneratorsService } from './generators.service.js';
 import { AutoFixService } from './auto-fix.service.js';
 import { AiCitationService } from './ai-citation.service.js';
+import { AiCitationTrackerService } from './ai-citation-tracker.service.js';
+import { AiIndexingPingerService } from './ai-indexing-pinger.service.js';
+import { LlmsFullBuilderService } from './llms-full-builder.service.js';
 import { SnippetGeneratorService } from './snippet-generator.service.js';
 import { SnippetApplierService } from './snippet-applier.service.js';
 import { StaticHtmlFixerService } from './static-html-fixer.service.js';
@@ -23,6 +26,9 @@ import { SitesModule } from '../sites/sites.module.js';
     GeneratorsService,
     AutoFixService,
     AiCitationService,
+    AiCitationTrackerService,
+    AiIndexingPingerService,
+    LlmsFullBuilderService,
     SnippetGeneratorService,
     SnippetApplierService,
     StaticHtmlFixerService,
@@ -32,6 +38,9 @@ import { SitesModule } from '../sites/sites.module.js';
     AutoFixService,
     GeoRunnerService,
     AiCitationService,
+    AiCitationTrackerService,
+    AiIndexingPingerService,
+    LlmsFullBuilderService,
     SnippetGeneratorService,
     SnippetApplierService,
     StaticHtmlFixerService,
