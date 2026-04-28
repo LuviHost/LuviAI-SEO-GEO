@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useSyncExternalStore } from 'react';
 
 export type Locale = 'tr' | 'en';
 
@@ -22,7 +22,7 @@ const dictionary = {
     'pricing.monthly': 'Aylık',
     'pricing.annual': 'Yıllık',
     'pricing.save': 'kazan',
-    'pricing.cta': '14 Gün Ücretsiz Başla',
+    'pricing.cta': '1 Makale Ücretsiz Dene',
     'pricing.popular': 'EN POPÜLER',
     'pricing.articles_per_month': 'makale/ay',
     'pricing.sites': 'site',
@@ -58,7 +58,7 @@ const dictionary = {
     'pricing.monthly': 'Monthly',
     'pricing.annual': 'Annual',
     'pricing.save': 'save',
-    'pricing.cta': 'Start 14-Day Free Trial',
+    'pricing.cta': 'Try 1 Article Free',
     'pricing.popular': 'MOST POPULAR',
     'pricing.articles_per_month': 'articles/mo',
     'pricing.sites': 'sites',
@@ -83,30 +83,43 @@ const dictionary = {
 type Key = keyof typeof dictionary['tr'];
 
 const LOCALE_KEY = 'luviai_locale';
+const LOCALE_EVENT = 'luviai:locale-change';
+
+function readLocale(): Locale {
+  if (typeof window === 'undefined') return 'tr';
+  const saved = window.localStorage.getItem(LOCALE_KEY);
+  if (saved === 'en' || saved === 'tr') return saved;
+  return navigator.language.startsWith('tr') ? 'tr' : 'en';
+}
 
 export function getLocale(): Locale {
-  if (typeof window === 'undefined') return 'tr';
-  const saved = localStorage.getItem(LOCALE_KEY);
-  if (saved === 'en' || saved === 'tr') return saved;
-  // Browser dilinden tahmin
-  return navigator.language.startsWith('tr') ? 'tr' : 'en';
+  return readLocale();
 }
 
 export function setLocale(locale: Locale) {
   if (typeof window === 'undefined') return;
-  localStorage.setItem(LOCALE_KEY, locale);
+  window.localStorage.setItem(LOCALE_KEY, locale);
   document.documentElement.lang = locale;
+  // Hem custom event (ayni tab) hem storage event (diger taplar) tetiklenir
+  window.dispatchEvent(new CustomEvent(LOCALE_EVENT, { detail: locale }));
 }
 
+function subscribe(callback: () => void) {
+  if (typeof window === 'undefined') return () => {};
+  window.addEventListener(LOCALE_EVENT, callback);
+  window.addEventListener('storage', callback);
+  return () => {
+    window.removeEventListener(LOCALE_EVENT, callback);
+    window.removeEventListener('storage', callback);
+  };
+}
+
+const getServerSnapshot = (): Locale => 'tr';
+
 export function useT() {
-  const [locale, setLoc] = useState<Locale>('tr');
-  useEffect(() => setLoc(getLocale()), []);
+  const locale = useSyncExternalStore<Locale>(subscribe, readLocale, getServerSnapshot);
 
   const t = (key: Key) => dictionary[locale][key] ?? key;
-  const change = (l: Locale) => {
-    setLocale(l);
-    setLoc(l);
-  };
 
-  return { t, locale, setLocale: change };
+  return { t, locale, setLocale };
 }

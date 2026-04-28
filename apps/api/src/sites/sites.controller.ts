@@ -1,39 +1,48 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Delete, ForbiddenException, Get, Param, Patch, Post, Req, UnauthorizedException } from '@nestjs/common';
+import type { Request } from 'express';
 import { SitesService } from './sites.service.js';
 import { CreateSiteDto, UpdateSiteDto } from './sites.dto.js';
+
+function ensureUser(req: Request) {
+  const user = (req as any).user;
+  if (!user) throw new UnauthorizedException();
+  return user as { id: string; role: 'USER' | 'ADMIN' | 'AGENCY_OWNER' };
+}
 
 @Controller('sites')
 export class SitesController {
   constructor(private readonly sites: SitesService) {}
 
   @Post()
-  create(@Body() dto: CreateSiteDto) {
-    return this.sites.create(dto);
+  create(@Req() req: Request, @Body() dto: CreateSiteDto) {
+    const user = ensureUser(req);
+    return this.sites.create(user.id, dto);
   }
 
   @Get()
-  list() {
-    return this.sites.list();
+  list(@Req() req: Request) {
+    const user = ensureUser(req);
+    return this.sites.list(user);
   }
 
   @Get(':id')
-  get(@Param('id') id: string) {
-    return this.sites.findOne(id);
+  get(@Req() req: Request, @Param('id') id: string) {
+    return this.sites.findOne(id, ensureUser(req));
   }
 
   @Patch(':id')
-  update(@Param('id') id: string, @Body() dto: UpdateSiteDto) {
-    return this.sites.update(id, dto);
+  update(@Req() req: Request, @Param('id') id: string, @Body() dto: UpdateSiteDto) {
+    return this.sites.update(id, dto, ensureUser(req));
   }
 
   @Delete(':id')
-  remove(@Param('id') id: string) {
-    return this.sites.remove(id);
+  remove(@Req() req: Request, @Param('id') id: string) {
+    return this.sites.remove(id, ensureUser(req));
   }
 
   /** POST /sites/:id/brain/regenerate */
   @Post(':id/brain/regenerate')
-  regenerateBrain(@Param('id') id: string) {
-    return this.sites.regenerateBrain(id);
+  regenerateBrain(@Req() req: Request, @Param('id') id: string) {
+    return this.sites.regenerateBrain(id, ensureUser(req));
   }
 }

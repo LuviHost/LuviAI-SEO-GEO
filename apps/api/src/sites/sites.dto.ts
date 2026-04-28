@@ -1,9 +1,6 @@
 import { IsOptional, IsString, IsUrl, MaxLength } from 'class-validator';
 
 export class CreateSiteDto {
-  @IsString()
-  userId!: string; // TODO: auth guard'tan al
-
   @IsUrl()
   url!: string;
 

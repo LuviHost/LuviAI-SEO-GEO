@@ -20,8 +20,8 @@ export default function TermsPage() {
           <section>
             <h2 className="text-xl font-bold mb-2">2. Üyelik & Trial</h2>
             <p className="text-muted-foreground">
-              14 günlük ücretsiz deneme süresi sunulur. Bu süre içinde 1 makale ücretsiz üretilir. Kart bilgisi
-              gerektirmez. Trial sonunda plan seçmezseniz hesap pasifleşir.
+              Kayıt olan herkes 1 makaleyi ücretsiz üretebilir. Süre sınırı yoktur, kart bilgisi gerekmez.
+              İkinci ve sonraki makaleler için bir plan seçilmesi gerekir.
             </p>
           </section>
 

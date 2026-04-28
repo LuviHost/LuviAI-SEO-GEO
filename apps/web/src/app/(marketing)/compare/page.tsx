@@ -118,7 +118,7 @@ export default function ComparePage() {
 
         <div className="mt-12 text-center">
           <Button asChild size="lg">
-            <Link href="/onboarding">14 Gün Ücretsiz Dene →</Link>
+            <Link href="/onboarding">1 Makale Ücretsiz Dene →</Link>
           </Button>
         </div>
       </main>

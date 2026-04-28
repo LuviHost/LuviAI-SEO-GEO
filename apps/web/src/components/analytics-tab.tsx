@@ -66,8 +66,8 @@ export function AnalyticsTab({ siteId }: { siteId: string }) {
           <BarChart3 className="h-12 w-12 text-muted-foreground/40 mx-auto mb-4" />
           <p className="text-muted-foreground mb-4">Henüz analytics verisi yok.</p>
           <p className="text-xs text-muted-foreground mb-6">
-            GSC bağlantısı kurulduktan ~24 saat sonra ilk veri görünür.<br />
-            Manuel test için "Şimdi Çek" butonuna basabilirsiniz.
+            Önce <strong>Ayarlar</strong> sekmesinden Google Search Console bağla.<br />
+            Bağlandıktan ~24 saat sonra ilk veri görünür; hemen test etmek için aşağıdaki butona bas.
           </p>
           <Button onClick={triggerSnapshot} disabled={refreshing}>
             {refreshing ? 'Çekiliyor…' : 'Şimdi Çek (test)'}

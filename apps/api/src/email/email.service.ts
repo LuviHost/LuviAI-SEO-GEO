@@ -115,10 +115,10 @@ export class EmailService {
         return wrapper(
           '🎉 LuviAI\'ye hoş geldiniz, ' + name,
           `<h2>Merhaba ${name},</h2>
-          <p>LuviAI hesabınız oluşturuldu! 14 gün ücretsiz deneme sürenizde:</p>
+          <p>LuviAI hesabın oluşturuldu! Kaydolan herkes 1 makaleyi ücretsiz üretebilir (süre sınırı yok). Hesabında:</p>
           <ul>
             <li>1 ücretsiz makale otomatik üretilir</li>
-            <li>Sitenizin SEO sağlık taraması yapılır</li>
+            <li>Sitenin SEO sağlık taraması yapılır</li>
             <li>AI search (GEO) optimizasyonu çalışır</li>
           </ul>
           <p><a href="${baseUrl}/onboarding" style="background:#6c5ce7;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;display:inline-block;">İlk siteni bağla →</a></p>`,

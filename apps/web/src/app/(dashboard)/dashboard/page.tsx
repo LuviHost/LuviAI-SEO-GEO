@@ -40,9 +40,9 @@ export default function DashboardPage() {
       .finally(() => setLoading(false));
   }, [status]);
 
-  const trialLeft = me?.trialEndsAt
-    ? Math.max(0, Math.ceil((new Date(me.trialEndsAt).getTime() - Date.now()) / 86_400_000))
-    : null;
+  const isTrial = me?.subscriptionStatus === 'TRIAL';
+  const articlesUsed = me?.articlesUsedThisMonth ?? 0;
+  const freeArticleRemaining = isTrial ? Math.max(0, 1 - articlesUsed) : null;
 
   return (
     <div className="space-y-8">
@@ -70,8 +70,8 @@ export default function DashboardPage() {
           <Stat label="Yayınlanan makale" value={me.articlesPublished ?? 0} />
           <Stat label="Bu ay üretilen" value={me.articlesUsedThisMonth ?? 0} />
           <Stat
-            label={me.subscriptionStatus === 'TRIAL' ? `Trial — ${trialLeft ?? 0} gün` : (me.plan ?? 'Plan')}
-            value={me.subscriptionStatus === 'TRIAL' ? '14 gün' : me.plan ?? '-'}
+            label={isTrial ? 'Ücretsiz makale hakkı' : (me.plan ?? 'Plan')}
+            value={isTrial ? `${freeArticleRemaining}/1 kaldı` : me.plan ?? '-'}
             variant="brand"
             stringValue
           />

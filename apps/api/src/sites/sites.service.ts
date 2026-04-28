@@ -1,7 +1,30 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { JobQueueService } from '../jobs/job-queue.service.js';
 import { CreateSiteDto, UpdateSiteDto } from './sites.dto.js';
+
+type RequestingUser = { id: string; role: 'USER' | 'ADMIN' | 'AGENCY_OWNER' };
+
+/**
+ * URL'leri tek standarda sokar (mukerrer site kontrolu icin).
+ *  - lowercase host
+ *  - trailing slash temizlenir
+ *  - query/fragment atilir
+ *  - protokol bos gelirse https zorlanir
+ */
+export function normalizeSiteUrl(raw: string): string {
+  if (!raw) throw new Error('URL bos olamaz');
+  let candidate = raw.trim();
+  if (!/^https?:\/\//i.test(candidate)) candidate = `https://${candidate}`;
+  const u = new URL(candidate);
+  u.protocol = u.protocol.toLowerCase();
+  u.hostname = u.hostname.toLowerCase();
+  u.search = '';
+  u.hash = '';
+  let pathname = u.pathname.replace(/\/+$/, '');
+  if (!pathname) pathname = '';
+  return `${u.protocol}//${u.hostname}${pathname}`;
+}
 
 @Injectable()
 export class SitesService {
@@ -10,8 +33,29 @@ export class SitesService {
     private readonly jobQueue: JobQueueService,
   ) {}
 
-  async create(dto: CreateSiteDto) {
-    const site = await this.prisma.site.create({ data: dto });
+  async create(userId: string, dto: CreateSiteDto) {
+    const normalizedUrl = normalizeSiteUrl(dto.url);
+
+    const duplicate = await this.prisma.site.findFirst({
+      where: { userId, url: normalizedUrl },
+      select: { id: true },
+    });
+    if (duplicate) {
+      throw new ConflictException('Bu site zaten ekli.');
+    }
+
+    let site;
+    try {
+      site = await this.prisma.site.create({
+        data: { ...dto, url: normalizedUrl, userId },
+      });
+    } catch (err: any) {
+      // Prisma unique constraint (race condition guard'i)
+      if (err?.code === 'P2002') {
+        throw new ConflictException('Bu site zaten ekli.');
+      }
+      throw err;
+    }
     // Wow-moment: brain → audit → topics → 1.makale tek job
     await this.jobQueue.enqueue({
       type: 'ONBOARDING_CHAIN',
@@ -23,31 +67,46 @@ export class SitesService {
     return site;
   }
 
-  list() {
-    return this.prisma.site.findMany({ orderBy: { createdAt: 'desc' } });
+  list(user: RequestingUser) {
+    const where = user.role === 'ADMIN' ? {} : { userId: user.id };
+    return this.prisma.site.findMany({ where, orderBy: { createdAt: 'desc' } });
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, user: RequestingUser) {
     const site = await this.prisma.site.findUnique({ where: { id }, include: { brain: true } });
     if (!site) throw new NotFoundException();
+    if (user.role !== 'ADMIN' && site.userId !== user.id) {
+      throw new ForbiddenException('Bu site sana ait degil');
+    }
     return site;
   }
 
-  update(id: string, dto: UpdateSiteDto) {
+  async update(id: string, dto: UpdateSiteDto, user: RequestingUser) {
+    await this.assertOwnership(id, user);
     return this.prisma.site.update({ where: { id }, data: dto });
   }
 
-  remove(id: string) {
+  async remove(id: string, user: RequestingUser) {
+    await this.assertOwnership(id, user);
     return this.prisma.site.delete({ where: { id } });
   }
 
-  async regenerateBrain(siteId: string) {
-    const site = await this.prisma.site.findUniqueOrThrow({ where: { id: siteId } });
+  async regenerateBrain(siteId: string, user: RequestingUser) {
+    const site = await this.assertOwnership(siteId, user);
     return this.jobQueue.enqueue({
       type: 'BRAIN_GENERATE',
       userId: site.userId,
       siteId,
       payload: { siteId, forceRegenerate: true },
     });
+  }
+
+  private async assertOwnership(siteId: string, user: RequestingUser) {
+    const site = await this.prisma.site.findUnique({ where: { id: siteId } });
+    if (!site) throw new NotFoundException();
+    if (user.role !== 'ADMIN' && site.userId !== user.id) {
+      throw new ForbiddenException('Bu site sana ait degil');
+    }
+    return site;
   }
 }

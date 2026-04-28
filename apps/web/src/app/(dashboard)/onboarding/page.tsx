@@ -64,7 +64,6 @@ export default function OnboardingPage() {
     setLoading(true);
     try {
       const site = await api.createSite({
-        userId: session.user.id,
         url: form.url,
         name: form.name,
         niche: form.niche,

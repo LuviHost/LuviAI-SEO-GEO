@@ -15,8 +15,8 @@ export class ArticlesController {
   }
 
   @Get(':id')
-  get(@Param('id') id: string) {
-    return this.articles.findOne(id);
+  get(@Param('siteId') siteId: string, @Param('id') id: string) {
+    return this.articles.findOne(id, siteId);
   }
 
   /** POST /sites/:siteId/articles/generate — queue */
@@ -38,7 +38,7 @@ export class ArticlesController {
 
   /** POST /sites/:siteId/articles/:id/publish */
   @Post(':id/publish')
-  publish(@Param('id') id: string, @Body() body: { targetIds: string[] }) {
-    return this.articles.queuePublish(id, body.targetIds);
+  publish(@Param('siteId') siteId: string, @Param('id') id: string, @Body() body: { targetIds: string[] }) {
+    return this.articles.queuePublish(siteId, id, body.targetIds);
   }
 }

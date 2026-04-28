@@ -78,7 +78,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             role: 'USER',
             plan: 'TRIAL',
             subscriptionStatus: 'TRIAL',
-            trialEndsAt: new Date(Date.now() + Number(process.env.PLAN_TRIAL_DAYS ?? 14) * 86_400_000),
+            // 1 makale ömür boyu ücretsiz — süre kapısı yok.
           },
         });
       }

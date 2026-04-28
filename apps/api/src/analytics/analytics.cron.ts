@@ -34,7 +34,7 @@ export class AnalyticsCron {
 
     for (const site of sites) {
       try {
-        await this.analytics.captureSnapshot(site.id);
+        await this.analytics.captureSnapshot(site.id, undefined, { silent: true });
         success++;
         // Rate limit yememek için 2 sn ara
         await new Promise(r => setTimeout(r, 2000));

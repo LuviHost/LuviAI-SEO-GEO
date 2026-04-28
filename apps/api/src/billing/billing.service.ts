@@ -16,7 +16,7 @@ export interface PlanDefinition {
 export const PLANS: PlanDefinition[] = [
   {
     id: 'trial',
-    name: 'Trial (14 gün)',
+    name: 'Ücretsiz (1 makale)',
     monthly: 0, annual: 0,
     articlesPerMonth: 1,
     sites: 1,

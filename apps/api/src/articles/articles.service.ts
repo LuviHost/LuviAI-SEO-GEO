@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { JobQueueService } from '../jobs/job-queue.service.js';
 import { QuotaService } from '../billing/quota.service.js';
@@ -18,8 +18,10 @@ export class ArticlesService {
     });
   }
 
-  findOne(id: string) {
-    return this.prisma.article.findUnique({ where: { id } });
+  findOne(id: string, siteId?: string) {
+    return this.prisma.article.findFirst({
+      where: { id, ...(siteId ? { siteId } : {}) },
+    });
   }
 
   async queueGeneration(siteId: string, topic: string, targetIds?: string[]) {
@@ -41,11 +43,14 @@ export class ArticlesService {
     return job;
   }
 
-  async queuePublish(articleId: string, targetIds: string[]) {
-    const article = await this.prisma.article.findUniqueOrThrow({
-      where: { id: articleId },
+  async queuePublish(siteId: string, articleId: string, targetIds: string[]) {
+    const article = await this.prisma.article.findFirst({
+      where: { id: articleId, siteId },
       include: { site: true },
     });
+    if (!article) {
+      throw new NotFoundException('Makale bulunamadi');
+    }
     return this.jobQueue.enqueue({
       type: 'PUBLISH_ARTICLE',
       userId: article.site.userId,

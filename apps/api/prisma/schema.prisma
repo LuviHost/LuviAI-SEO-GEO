@@ -149,6 +149,7 @@ model Site {
   jobs             Job[]
   analyticsSnapshots AnalyticsSnapshot[]
 
+  @@unique([userId, url])
   @@index([userId])
   @@index([status])
   @@map("sites")

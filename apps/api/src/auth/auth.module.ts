@@ -3,6 +3,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { AuthController } from './auth.controller.js';
 import { AuthService } from './auth.service.js';
 import { AuthGuard } from './auth.guard.js';
+import { SiteAccessGuard } from './site-access.guard.js';
 import { GscOAuthService } from './gsc-oauth.service.js';
 
 /**
@@ -19,7 +20,7 @@ import { GscOAuthService } from './gsc-oauth.service.js';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, AuthGuard, GscOAuthService],
-  exports: [AuthService, AuthGuard, GscOAuthService],
+  providers: [AuthService, AuthGuard, SiteAccessGuard, GscOAuthService],
+  exports: [AuthService, AuthGuard, SiteAccessGuard, GscOAuthService],
 })
 export class AuthModule {}

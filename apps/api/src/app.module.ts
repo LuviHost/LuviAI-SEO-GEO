@@ -6,6 +6,7 @@ import { ThrottlerModule } from '@nestjs/throttler';
 
 import { AuthModule } from './auth/auth.module.js';
 import { AuthGuard } from './auth/auth.guard.js';
+import { SiteAccessGuard } from './auth/site-access.guard.js';
 import { SitesModule } from './sites/sites.module.js';
 import { AuditModule } from './audit/audit.module.js';
 import { TopicsModule } from './topics/topics.module.js';
@@ -45,6 +46,7 @@ import { PrismaModule } from './prisma/prisma.module.js';
   ],
   providers: [
     { provide: APP_GUARD, useClass: AuthGuard },
+    { provide: APP_GUARD, useClass: SiteAccessGuard },
   ],
 })
 export class AppModule {}

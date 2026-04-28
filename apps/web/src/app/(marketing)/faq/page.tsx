@@ -18,8 +18,8 @@ const FAQS = [
     a: 'Türkçe ve İngilizce. Onboarding\'de seçersiniz, isterseniz "her ikisi" deyip her makale için ayrı ayrı seçebilirsiniz. Faz 3\'te 10 dil planlanıyor.',
   },
   {
-    q: '14 günlük trial\'da ne kadar kullanabilirim?',
-    a: '1 ücretsiz makale otomatik üretilir (onboarding sonu). Markdown ZIP olarak indirebilirsiniz. Plan seçince WordPress/FTP/SFTP gibi tüm yayın hedefleri açılır.',
+    q: 'Ücretsiz olarak ne kadar kullanabilirim?',
+    a: 'Kayıt olunca 1 makale tamamen ücretsiz üretilir (süre sınırı yok). Markdown ZIP olarak indirebilirsin. İkinci makaleden itibaren bir plan seçmen gerekir; plan seçince WordPress/FTP/SFTP gibi tüm yayın hedefleri açılır.',
   },
   {
     q: 'AI içeriği Google\'da cezalandırılır mı?',
@@ -51,7 +51,7 @@ const FAQS = [
   },
   {
     q: 'Affiliate programı nasıl çalışır?',
-    a: 'Trial sonrası dashboard\'dan affiliate enroll yaparsınız. Size özel link verilir. Davet ettiğiniz kullanıcıların 3 ay boyunca yaptığı ödemelerin %30\'u komisyonunuz olur. Aylık otomatik PayTR transfer ile ödenir.',
+    a: 'Plan seçtikten sonra dashboard\'dan affiliate enroll yaparsınız. Size özel link verilir. Davet ettiğiniz kullanıcıların 3 ay boyunca yaptığı ödemelerin %30\'u komisyonunuz olur. Aylık otomatik PayTR transfer ile ödenir.',
   },
   {
     q: 'Kendi geliştirici takımım API kullanabilir mi?',
@@ -104,7 +104,7 @@ export default function FaqPage() {
 
         <div className="mt-12 text-center">
           <Link href="/onboarding" className="inline-block px-6 py-3 bg-brand text-white rounded-lg font-semibold">
-            14 Gün Ücretsiz Başla
+            1 Makale Ücretsiz Dene
           </Link>
         </div>
       </main>

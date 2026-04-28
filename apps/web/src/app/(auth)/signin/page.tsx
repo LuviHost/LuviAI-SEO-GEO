@@ -38,7 +38,7 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
             <div className="text-center">
               <h1 className="text-2xl font-bold">Giriş yap veya kayıt ol</h1>
               <p className="text-sm text-muted-foreground mt-1">
-                14 gün ücretsiz deneme — kart bilgisi gerekmez
+                1 makale ücretsiz — kart bilgisi gerekmez
               </p>
             </div>
 

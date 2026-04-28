@@ -25,6 +25,7 @@ export default function SitePage() {
   const [queue, setQueue] = useState<any>(null);
   const [articles, setArticles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [tab, setTab] = useState<string>('audit');
 
   const id = params.id as string;
 
@@ -53,6 +54,15 @@ export default function SitePage() {
     }
   }, [id, onboardingMode]);
 
+  // Tab varsayılanı: tamamlanmamış ilk adım
+  useEffect(() => {
+    if (loading || !site) return;
+    if (!audit) setTab('audit');
+    else if (!queue) setTab('topics');
+    else if (articles.length === 0) setTab('topics');
+    // Hepsi tamamsa kullanıcının seçimini koru
+  }, [loading, site, audit, queue, articles.length]);
+
   if (loading || !site) {
     return (
       <div className="space-y-6">
@@ -80,33 +90,23 @@ export default function SitePage() {
         </a>
       </div>
 
-      {onboardingMode && site.status !== 'ACTIVE' && (
-        <Card className="border-brand/30 bg-brand/5">
-          <CardContent className="p-6">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-3 h-3 bg-brand rounded-full animate-pulse" />
-              <h3 className="font-bold text-brand">Onboarding çalışıyor</h3>
-            </div>
-            <p className="text-sm text-muted-foreground mb-4">
-              Brain → Audit → Topic Queue → İlk makale. ~5-10 dk. Bu sayfa otomatik yenilenir.
-            </p>
-            <div className="space-y-2 text-sm">
-              <Step done={!!site.brain} label="1. Brain (marka analizi)" />
-              <Step done={!!audit} label="2. Audit (sağlık kontrolü)" />
-              <Step done={!!queue} label="3. Topic Queue" />
-              <Step done={articles.length > 0} label="4. İlk makale" />
-            </div>
-          </CardContent>
-        </Card>
-      )}
+      <SiteFlowStepper
+        site={site}
+        audit={audit}
+        queue={queue}
+        articles={articles}
+        active={tab}
+        onJump={setTab}
+        onboardingMode={onboardingMode}
+      />
 
-      <Tabs defaultValue="audit">
+      <Tabs value={tab} onValueChange={setTab}>
         <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0 scrollbar-thin">
           <TabsList className="w-max sm:w-auto">
-            <TabsTrigger value="audit">Sağlık Audit</TabsTrigger>
-            <TabsTrigger value="topics">Topic Queue</TabsTrigger>
+            <TabsTrigger value="audit">Site Skoru</TabsTrigger>
+            <TabsTrigger value="topics">Önerilen Makaleler</TabsTrigger>
             <TabsTrigger value="articles">Makaleler ({articles.length})</TabsTrigger>
-            <TabsTrigger value="analytics">📊 Analytics</TabsTrigger>
+            <TabsTrigger value="analytics">📊 Performans</TabsTrigger>
             <TabsTrigger value="settings">⚙️ Ayarlar</TabsTrigger>
           </TabsList>
         </div>
@@ -131,6 +131,68 @@ function Step({ done, label }: { done: boolean; label: string }) {
   );
 }
 
+function SiteFlowStepper({
+  site, audit, queue, articles, active, onJump, onboardingMode,
+}: {
+  site: any;
+  audit: any;
+  queue: any;
+  articles: any[];
+  active: string;
+  onJump: (tab: string) => void;
+  onboardingMode: boolean;
+}) {
+  const steps = [
+    { key: 'audit',    n: 1, label: 'Site Skoru',          done: !!audit,            tab: 'audit',  hint: !audit ? 'Skor hesaplanmadı' : `${audit.overallScore ?? 0}/100` },
+    { key: 'topics',   n: 2, label: 'Önerilen Makaleler', done: !!queue,            tab: 'topics', hint: queue ? `${(queue.tier1Topics ?? []).length} öneri` : 'Henüz yok' },
+    { key: 'articles', n: 3, label: 'İlk Makale',          done: articles.length > 0, tab: 'articles', hint: articles.length > 0 ? `${articles.length} makale` : 'Bekleniyor' },
+  ];
+  const allDone = steps.every((s) => s.done);
+
+  return (
+    <Card className={onboardingMode && !allDone ? 'border-brand/30 bg-brand/5' : ''}>
+      <CardContent className="p-5">
+        <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
+          <div className="flex items-center gap-3">
+            {onboardingMode && !allDone && <div className="w-2.5 h-2.5 bg-brand rounded-full animate-pulse" />}
+            <h3 className="font-semibold">
+              {allDone ? 'Site hazır 🎉' : onboardingMode ? 'Akış çalışıyor — bu sayfa otomatik yenilenir' : 'Sıradaki adım'}
+            </h3>
+          </div>
+          {!allDone && site?.plan === 'TRIAL' && (
+            <Badge variant="warning">1 makale ücretsiz</Badge>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          {steps.map((s) => {
+            const isActive = active === s.tab;
+            return (
+              <button
+                key={s.key}
+                onClick={() => onJump(s.tab)}
+                className={`text-left p-3 rounded-lg border transition-colors ${
+                  isActive ? 'border-brand bg-brand/5' : 'border-border hover:border-brand/40'
+                }`}
+              >
+                <div className="flex items-center gap-2 mb-1">
+                  {s.done ? (
+                    <CheckCircle2 className="h-4 w-4 text-green-500" />
+                  ) : (
+                    <span className={`h-5 w-5 rounded-full text-[11px] grid place-items-center ${isActive ? 'bg-brand text-white' : 'bg-muted text-muted-foreground'}`}>{s.n}</span>
+                  )}
+                  <span className="font-medium text-sm">{s.label}</span>
+                </div>
+                <div className="text-xs text-muted-foreground pl-6">{s.hint}</div>
+              </button>
+            );
+          })}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function AuditTab({ audit, siteId, onRefresh }: { audit: any; siteId: string; onRefresh: () => void }) {
   const [running, setRunning] = useState(false);
   const [fixing, setFixing] = useState(false);
@@ -139,7 +201,7 @@ function AuditTab({ audit, siteId, onRefresh }: { audit: any; siteId: string; on
     setRunning(true);
     try {
       await api.runAuditNow(siteId);
-      toast.success('Audit tamamlandı');
+      toast.success('Site skoru güncellendi');
       onRefresh();
     } catch (err: any) {
       toast.error(err.message);
@@ -154,16 +216,16 @@ function AuditTab({ audit, siteId, onRefresh }: { audit: any; siteId: string; on
         {!running && (
           <Card>
             <CardContent className="p-12 text-center">
-              <p className="text-muted-foreground mb-4">Henüz audit çalıştırılmamış.</p>
-              <Button onClick={run}>Audit Çalıştır</Button>
+              <p className="text-muted-foreground mb-4">Henüz site skoru hesaplanmamış.</p>
+              <Button onClick={run}>Skoru Hesapla</Button>
               <p className="text-xs text-muted-foreground mt-3">
-                Yaklaşık 30 saniye sürer. Site sayfaları taranır, 14 SEO kontrolü yapılır.
+                Yaklaşık 30 saniye sürer. Site sayfaların taranır, 14 SEO + GEO kontrolü yapılır.
               </p>
             </CardContent>
           </Card>
         )}
         <PipelineProgress
-          title="Sağlık Audit çalışıyor"
+          title="Site skoru hesaplanıyor"
           steps={PIPELINE_STEPS.audit}
           running={running}
         />
@@ -194,7 +256,7 @@ function AuditTab({ audit, siteId, onRefresh }: { audit: any; siteId: string; on
     <div className="space-y-4">
       {(running || fixing) && (
         <PipelineProgress
-          title={running ? 'Audit yeniden çalışıyor' : 'Otomatik düzeltme uygulanıyor'}
+          title={running ? 'Site skoru yeniden hesaplanıyor' : 'Otomatik düzeltme uygulanıyor'}
           steps={running ? PIPELINE_STEPS.audit : PIPELINE_STEPS.autoFix}
           running={running || fixing}
         />
@@ -202,26 +264,26 @@ function AuditTab({ audit, siteId, onRefresh }: { audit: any; siteId: string; on
 
       <div className="flex justify-end">
         <Button size="sm" variant="outline" onClick={run} disabled={running || fixing}>
-          {running ? 'Çalışıyor…' : 'Audit\'i Yenile'}
+          {running ? 'Hesaplanıyor…' : 'Skoru Yenile'}
         </Button>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
           <CardContent className="p-5">
-            <div className="text-sm text-muted-foreground">Genel Skor</div>
+            <div className="text-sm text-muted-foreground">Site Skoru</div>
             <div className="text-4xl font-bold text-brand mt-1">{audit.overallScore}/100</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-5">
-            <div className="text-sm text-muted-foreground">GEO Skor</div>
+            <div className="text-sm text-muted-foreground">AI Search Skoru</div>
             <div className="text-4xl font-bold mt-1">{audit.geoScore ?? '-'}/100</div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-5">
-            <div className="text-sm text-muted-foreground">Issues</div>
+            <div className="text-sm text-muted-foreground">Bulunan Sorun</div>
             <div className="text-4xl font-bold mt-1 text-red-500">{issues.length}</div>
           </CardContent>
         </Card>

@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { google } from 'googleapis';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { GscOAuthService } from '../auth/gsc-oauth.service.js';
@@ -24,14 +24,19 @@ export class AnalyticsService {
   //  Daily snapshot — cron task çağırır
   // ─────────────────────────────────────────────
 
-  async captureSnapshot(siteId: string, date?: Date): Promise<void> {
+  async captureSnapshot(siteId: string, date?: Date, opts?: { silent?: boolean }): Promise<void> {
     const targetDate = date ?? this.yesterday();
     const dateStr = targetDate.toISOString().slice(0, 10);
 
     const site = await this.prisma.site.findUniqueOrThrow({ where: { id: siteId } });
     if (!site.gscPropertyUrl || !site.gscRefreshToken) {
-      this.log.log(`[${siteId}] GSC bağlı değil — snapshot atlandı`);
-      return;
+      if (opts?.silent) {
+        this.log.log(`[${siteId}] GSC bağlı değil — snapshot atlandı`);
+        return;
+      }
+      throw new BadRequestException(
+        'Bu site Google Search Console hesabına bağlı değil. Önce ayarlardan GSC bağlamalısın.',
+      );
     }
 
     const client = await this.gscOAuth.getAuthenticatedClient(siteId);

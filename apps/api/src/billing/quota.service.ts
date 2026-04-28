@@ -33,10 +33,7 @@ export class QuotaService {
     // Ay sonu otomatik reset (basit: bir önceki ay'a bakınca sıfırla)
     await this.maybeResetMonthlyQuota(user);
 
-    // Trial expired kontrolü
-    if (user.plan === 'TRIAL' && user.trialEndsAt && user.trialEndsAt < new Date()) {
-      throw new ForbiddenException('Trial süresi doldu — plan seçin');
-    }
+    // 1 makale ücretsiz modeli: TRIAL'da süre kontrolü yok, sadece kota.
 
     const limit = this.LIMITS[user.plan].articles;
     return {
@@ -47,9 +44,13 @@ export class QuotaService {
   }
 
   async enforceArticleQuota(userId: string) {
+    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { plan: true } });
     const { allowed, remaining, limit } = await this.checkArticleQuota(userId);
     if (!allowed) {
-      throw new ForbiddenException(`Aylık ${limit} makale kotanız doldu. Plan yükseltebilir veya ayın sonunu bekleyebilirsiniz.`);
+      if (user.plan === 'TRIAL') {
+        throw new ForbiddenException('Ücretsiz 1 makale hakkını kullandın. Devam etmek için plan seç.');
+      }
+      throw new ForbiddenException(`Aylık ${limit} makale kotan doldu. Plan yükseltebilir veya ayın sonunu bekleyebilirsin.`);
     }
     return { remaining };
   }
@@ -129,7 +130,10 @@ export class QuotaService {
   // ────────────────────────────────────────────
   //  Helpers
   // ────────────────────────────────────────────
-  private async maybeResetMonthlyQuota(user: { id: string; articlesQuotaResetAt: Date }) {
+  private async maybeResetMonthlyQuota(user: { id: string; plan: string; articlesQuotaResetAt: Date }) {
+    // TRIAL'da kota ömür boyu sayılır; ay başı reset YOK.
+    if (user.plan === 'TRIAL') return;
+
     const lastReset = new Date(user.articlesQuotaResetAt);
     const now = new Date();
     const sameMonth = lastReset.getFullYear() === now.getFullYear() && lastReset.getMonth() === now.getMonth();

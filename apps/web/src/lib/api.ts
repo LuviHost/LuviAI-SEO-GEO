@@ -87,7 +87,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 
 export const api = {
   // Sites
-  createSite: (body: { userId: string; url: string; name: string; niche?: string; language?: string }) =>
+  createSite: (body: { url: string; name: string; niche?: string; language?: string }) =>
     request<any>('/sites', { method: 'POST', body: JSON.stringify(body) }),
 
   listSites: () => request<any[]>('/sites'),
