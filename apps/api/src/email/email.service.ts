@@ -13,6 +13,7 @@ export type EmailTemplate =
   | 'weekly_report'
   | 'monthly_report'
   | 'first_article_published'
+  | 'article_ready'
   | 'plan_upgraded'
   | 'plan_canceled'
   | 'payment_failed';
@@ -171,16 +172,29 @@ export class EmailService {
 
       case 'first_article_published':
         return wrapper(
-          '🎊 İlk makaleniz yayında!',
+          '🎊 İlk makaleniz hazır!',
           `<h2>Tebrikler ${name}!</h2>
-          <p><strong>${data.title}</strong> adlı makaleniz yayınlandı.</p>
-          <p><a href="${data.publicUrl}" style="color:#6c5ce7;">Makaleyi gör →</a></p>
-          <p>Kontrol edebilirsiniz:</p>
+          <p>İlk makaleniz <strong>${data.title}</strong> editörden geçti ve yayına hazır.</p>
+          <p><a href="${data.publicUrl}" style="background:#6c5ce7;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;display:inline-block;">Makaleyi Aç →</a></p>
+          <p style="margin-top:24px;">Detaylar:</p>
           <ul>
             <li>${data.wordCount ?? '?'} kelime</li>
             <li>${data.faqs ?? 0} FAQ + Article schema</li>
             <li>Editör skoru: ${data.editorScore ?? '?'}/60</li>
-          </ul>`,
+          </ul>
+          <p style="font-size:13px;color:#666;margin-top:24px;">İndirebilirsin (Markdown / HTML) veya bir yayın hedefine gönderebilirsin (WordPress, FTP vb.)</p>`,
+        );
+
+      case 'article_ready':
+        return wrapper(
+          `✓ Yeni makale hazır: ${data.title}`,
+          `<h2>${name}, yeni makale yayına hazır</h2>
+          <p><strong>${data.title}</strong> editörden geçti.</p>
+          <p><a href="${data.publicUrl}" style="background:#6c5ce7;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;display:inline-block;">Makaleyi Aç →</a></p>
+          <p style="font-size:13px;color:#666;margin-top:16px;">
+            ${data.wordCount ?? '?'} kelime · ${data.faqs ?? 0} FAQ · Editör ${data.editorScore ?? '?'}/60
+            ${typeof data.articlesPublished === 'number' ? ` · Bu sitede ${data.articlesPublished}. makale` : ''}
+          </p>`,
         );
 
       case 'weekly_report':

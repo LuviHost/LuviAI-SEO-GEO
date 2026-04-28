@@ -3,10 +3,13 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
-  Users as UsersIcon, Globe2, FileText, Activity, CreditCard, TrendingUp, AlertCircle, Clock,
+  Users as UsersIcon, Globe2, FileText, Activity, CreditCard, TrendingUp, AlertCircle, Clock, Mail,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { api } from '@/lib/api';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export default function AdminOverviewPage() {
@@ -108,7 +111,109 @@ export default function AdminOverviewPage() {
         <QuickLink href="/admin/sites" label="Tüm siteler →" />
         <QuickLink href="/admin/jobs" label="Hatalı işler →" />
       </div>
+
+      <EmailTestCard />
     </div>
+  );
+}
+
+const TEMPLATE_OPTIONS = [
+  { value: 'welcome_day0', label: 'Welcome Day 0 (kayıt)' },
+  { value: 'welcome_day1', label: 'Welcome Day 1' },
+  { value: 'welcome_day3', label: 'Welcome Day 3 (GSC reminder)' },
+  { value: 'welcome_day7', label: 'Welcome Day 7 (feedback)' },
+  { value: 'first_article_published', label: 'First Article Published' },
+  { value: 'article_ready', label: 'Article Ready' },
+  { value: 'weekly_report', label: 'Weekly Report' },
+  { value: 'plan_upgraded', label: 'Plan Upgraded' },
+  { value: 'payment_failed', label: 'Payment Failed' },
+];
+
+function EmailTestCard() {
+  const [to, setTo] = useState('');
+  const [name, setName] = useState('');
+  const [template, setTemplate] = useState('first_article_published');
+  const [busy, setBusy] = useState(false);
+  const [last, setLast] = useState<{ ok: boolean; mode: string; resendId?: string } | null>(null);
+
+  const send = async () => {
+    if (!to) return;
+    setBusy(true);
+    try {
+      const res = await api.sendAdminEmailTest({ to, template, name: name || undefined });
+      setLast(res);
+      if (res.ok) {
+        toast.success(
+          res.mode === 'resend'
+            ? `Mail gönderildi (${res.resendId ?? 'no-id'})`
+            : 'Mail gönderildi (log-only — RESEND_API_KEY yok)',
+        );
+      } else {
+        toast.error('Mail gönderilemedi — sunucu loglarını kontrol et');
+      }
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Card className="border-amber-500/30 bg-amber-50/30 dark:bg-amber-950/10">
+      <CardHeader>
+        <h2 className="font-semibold flex items-center gap-2">
+          <Mail className="h-4 w-4 text-amber-600" /> Email Test (Resend)
+        </h2>
+        <p className="text-xs text-muted-foreground mt-1">
+          Resend.com entegrasyonunu canlıda test et. Seçtiğin template'i belirttiğin adrese gönderir.
+        </p>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div>
+            <label className="text-xs font-medium text-muted-foreground">Alıcı email</label>
+            <Input
+              type="email"
+              placeholder="test@email.com"
+              value={to}
+              onChange={(e) => setTo(e.target.value)}
+              autoComplete="off"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-muted-foreground">İsim (opsiyonel)</label>
+            <Input
+              placeholder="Test Kullanıcısı"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
+          </div>
+        </div>
+        <div>
+          <label className="text-xs font-medium text-muted-foreground">Template</label>
+          <select
+            value={template}
+            onChange={(e) => setTemplate(e.target.value)}
+            className="w-full bg-card border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/40"
+          >
+            {TEMPLATE_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+        </div>
+        <div className="flex items-center justify-between gap-3 pt-2">
+          {last ? (
+            <div className="text-xs text-muted-foreground">
+              Son gönderim: <strong>{last.mode}</strong>
+              {last.resendId ? ` · id ${last.resendId}` : ''}
+            </div>
+          ) : <span />}
+          <Button onClick={send} disabled={busy || !to}>
+            {busy ? 'Gönderiliyor…' : 'Test Maili Gönder'}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 

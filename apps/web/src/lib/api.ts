@@ -155,6 +155,11 @@ export const api = {
     request<any[]>(`/admin/invoices${status ? `?status=${status}` : ''}`),
   getAdminSites: () => request<any[]>('/admin/sites'),
   getAdminFailedJobs: () => request<any[]>('/admin/jobs/failed'),
+  sendAdminEmailTest: (body: { to: string; template?: string; name?: string }) =>
+    request<{ ok: boolean; resendId?: string; mode: string; template: string; to: string }>(
+      '/admin/email-test',
+      { method: 'POST', body: JSON.stringify(body) },
+    ),
 
   // Me (login olmuş kullanıcı)
   getMe: () => request<any>('/me'),

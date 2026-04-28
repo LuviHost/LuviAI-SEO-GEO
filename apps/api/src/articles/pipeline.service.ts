@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AgentRunnerService } from './agent-runner.service.js';
+import { EmailService } from '../email/email.service.js';
 import {
   AGENT_01_KEYWORD,
   AGENT_02_OUTLINE,
@@ -40,6 +41,7 @@ export class PipelineService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly runner: AgentRunnerService,
+    private readonly email: EmailService,
   ) {}
 
   async runPipeline(opts: {
@@ -200,6 +202,14 @@ export class PipelineService {
     const durationMs = Date.now() - t0;
     this.log.log(`[${opts.siteId}] ✅ Pipeline tamamlandı: ${slug} (${editorVerdict}, $${totalCost.toFixed(4)}, ${(durationMs / 1000).toFixed(0)}s, ${wordCount} kelime)`);
 
+    // Site sahibine "makale hazir" maili (PASS olduysa).
+    // Mail gonderimi pipeline'i blok etmez — fail olsa da makale kaydi tamam.
+    if (editorVerdict === 'PASS') {
+      this.notifyArticleReady(opts.siteId, article.id).catch((err) => {
+        this.log.warn(`[${opts.siteId}] Mail gonderilemedi: ${err.message}`);
+      });
+    }
+
     return {
       articleId: article.id,
       slug,
@@ -211,6 +221,52 @@ export class PipelineService {
       durationMs,
       agentOutputs,
     };
+  }
+
+  /**
+   * Makale PASS aldiginda site sahibine mail gonder.
+   * Kullanicinin daha onceki PUBLISHED makalesi yoksa "first_article_published",
+   * varsa daha basit bir bilgilendirme.
+   */
+  private async notifyArticleReady(siteId: string, articleId: string): Promise<void> {
+    const site = await this.prisma.site.findUnique({
+      where: { id: siteId },
+      include: { user: { select: { email: true, name: true, id: true } } },
+    });
+    if (!site?.user?.email) return;
+
+    const article = await this.prisma.article.findUnique({
+      where: { id: articleId },
+    });
+    if (!article) return;
+
+    const publicUrl = `${process.env.WEB_BASE_URL ?? 'https://ai.luvihost.com'}/sites/${siteId}/articles/${articleId}`;
+
+    // Daha onceki ready/published makale var mi?
+    const earlierCount = await this.prisma.article.count({
+      where: {
+        siteId,
+        id: { not: articleId },
+        status: { in: ['READY_TO_PUBLISH', 'PUBLISHED'] as any },
+      },
+    });
+
+    const template = earlierCount === 0 ? 'first_article_published' : 'article_ready';
+    await this.email.send({
+      userId: site.user.id,
+      to: site.user.email,
+      template,
+      data: {
+        name: site.user.name ?? 'kullanici',
+        title: article.title,
+        publicUrl,
+        wordCount: article.wordCount,
+        faqs: ((article.frontmatter as any)?.faqs as any[])?.length ?? 0,
+        editorScore: article.editorScore,
+        articlesPublished: earlierCount + 1,
+      },
+    });
+    this.log.log(`[${siteId}] Mail gonderildi: ${site.user.email} (${template})`);
   }
 
   private extractEditorVerdict(output: string): {
