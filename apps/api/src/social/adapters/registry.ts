@@ -1,5 +1,6 @@
 import type { SocialAdapter } from './types.js';
 import { LinkedInAdapter } from './linkedin.adapter.js';
+import { TwitterAdapter } from './twitter.adapter.js';
 
 /**
  * Adapter registry — tum kayitli sosyal kanal adaptorleri burada toplanir.
@@ -8,10 +9,12 @@ import { LinkedInAdapter } from './linkedin.adapter.js';
  * Anahtar: SocialChannelType enum value (ornek: 'LINKEDIN_PERSONAL').
  */
 const linkedinAdapter = new LinkedInAdapter();
+const twitterAdapter = new TwitterAdapter();
 
 const REGISTRY: Record<string, SocialAdapter> = {
   LINKEDIN_PERSONAL: linkedinAdapter,
   LINKEDIN_COMPANY: linkedinAdapter, // ayni adapter, author URN farki
+  X_TWITTER: twitterAdapter,
 };
 
 export function getAdapter(channelType: string): SocialAdapter {
@@ -31,7 +34,7 @@ export function listSupportedTypes(): Array<{ type: string; label: string; statu
       status: 'soon',
       note: 'LinkedIn Community Management API onayı bekleniyor (Developer Apps → Products → Community Management API → Request access).',
     },
-    { type: 'X_TWITTER', label: 'X / Twitter', status: 'soon' },
+    { type: 'X_TWITTER', label: 'X / Twitter', status: 'live' },
     { type: 'FACEBOOK_PAGE', label: 'Facebook Sayfa', status: 'soon' },
     { type: 'INSTAGRAM_BUSINESS', label: 'Instagram Business', status: 'soon' },
     { type: 'TIKTOK', label: 'TikTok', status: 'soon' },

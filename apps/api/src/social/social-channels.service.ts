@@ -122,7 +122,9 @@ export class SocialChannelsService {
     if (!adapter.oauth) throw new BadRequestException(`${type} icin OAuth desteklenmiyor`);
 
     const redirectUri = `${process.env.API_BASE_URL}/api/social/oauth/callback`;
-    const tokens = await adapter.oauth.exchange(code, redirectUri);
+    // PKCE iceren adapter'lar (X) state icindeki code_verifier'i gerek;
+    // bu yuzden state'i exchange'e iletiyoruz. LinkedIn icin zararsiz.
+    const tokens = await (adapter.oauth as any).exchange(code, redirectUri, state);
     const profile = await adapter.oauth.fetchProfile(tokens.accessToken);
 
     const credentialsObj = {
