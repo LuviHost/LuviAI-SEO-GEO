@@ -224,7 +224,17 @@ export class EmailService {
           '💳 Ödeme başarısız',
           `<h2>${name}, ödemenizi alamadık</h2>
           <p>Kart bilgilerinizi kontrol edip tekrar deneyebilir veya başka bir kart kullanabilirsiniz.</p>
+          ${data.reasonMsg ? `<p style="font-size:13px;color:#888;">Hata: ${data.reasonMsg}${data.reasonCode ? ` (kod: ${data.reasonCode})` : ''}</p>` : ''}
           <p><a href="${baseUrl}/billing" style="background:#6c5ce7;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;display:inline-block;">Tekrar dene →</a></p>`,
+        );
+
+      case 'plan_canceled':
+        return wrapper(
+          'Aboneliğiniz iptal edildi',
+          `<h2>${name}, ${data.planName ? `<strong>${data.planName}</strong> ` : ''}aboneliğiniz iptal edildi</h2>
+          <p>Mevcut dönem sonuna kadar erişiminiz devam eder. Sonra üretilen makalelerinizi indirip saklayabilir veya tekrar abone olarak kaldığınız yerden devam edebilirsiniz.</p>
+          <p><a href="${baseUrl}/pricing" style="color:#6c5ce7;">Plan seçeneklerini gör →</a></p>
+          <p style="font-size:13px;color:#888;margin-top:16px;">Sorun mu yaşadın? Yanıt verirsen bize ulaşır, çözmeye çalışırız.</p>`,
         );
 
       default:

@@ -215,12 +215,24 @@ export class PaytrService {
 
   /** Subscription iptal — kullanıcı tarafından çağrılır */
   async cancelSubscription(userId: string) {
-    return this.prisma.user.update({
+    const user = await this.prisma.user.update({
       where: { id: userId },
       data: {
         subscriptionStatus: 'CANCELED',
       },
     });
+    if (user?.email) {
+      this.email.send({
+        userId: user.id,
+        to: user.email,
+        template: 'plan_canceled',
+        data: {
+          name: user.name ?? 'kullanıcı',
+          planName: user.plan,
+        },
+      }).catch((err) => this.log.warn(`plan_canceled mail: ${err.message}`));
+    }
+    return user;
   }
 
   private async activateSubscription(
