@@ -101,13 +101,15 @@ export default function SitePage() {
       )}
 
       <Tabs defaultValue="audit">
-        <TabsList>
-          <TabsTrigger value="audit">Sağlık Audit</TabsTrigger>
-          <TabsTrigger value="topics">Topic Queue</TabsTrigger>
-          <TabsTrigger value="articles">Makaleler ({articles.length})</TabsTrigger>
-          <TabsTrigger value="analytics">📊 Analytics</TabsTrigger>
-          <TabsTrigger value="settings">⚙️ Ayarlar</TabsTrigger>
-        </TabsList>
+        <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0 scrollbar-thin">
+          <TabsList className="w-max sm:w-auto">
+            <TabsTrigger value="audit">Sağlık Audit</TabsTrigger>
+            <TabsTrigger value="topics">Topic Queue</TabsTrigger>
+            <TabsTrigger value="articles">Makaleler ({articles.length})</TabsTrigger>
+            <TabsTrigger value="analytics">📊 Analytics</TabsTrigger>
+            <TabsTrigger value="settings">⚙️ Ayarlar</TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="audit"><AuditTab audit={audit} siteId={id} onRefresh={refresh} /></TabsContent>
         <TabsContent value="topics"><TopicsTab queue={queue} siteId={id} onRefresh={refresh} /></TabsContent>

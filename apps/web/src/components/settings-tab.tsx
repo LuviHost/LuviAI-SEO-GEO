@@ -206,7 +206,7 @@ export function SettingsTab({ siteId }: { siteId: string }) {
           <p className="text-xs text-muted-foreground">14 farklı yayın hedefi destekleniyor</p>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
             {catalog.map((c) => (
               <button
                 key={c.type}
@@ -344,8 +344,8 @@ function TargetForm({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-      <Card className="w-full max-w-xl my-8">
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-start sm:items-center justify-center p-2 sm:p-4 overflow-y-auto">
+      <Card className="w-full max-w-xl my-4 sm:my-8 max-h-[95vh] flex flex-col overflow-hidden">
         <CardHeader className="pb-3">
           <div className="flex items-start justify-between gap-3">
             <div className="flex items-start gap-3">
@@ -362,7 +362,7 @@ function TargetForm({
             </button>
           </div>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-4 overflow-y-auto flex-1">
           <div>
             <label className="block text-xs font-medium mb-1">Hedef adı *</label>
             <Input
@@ -427,7 +427,7 @@ function TargetForm({
             />
           </label>
         </CardContent>
-        <div className="px-6 pb-6 flex justify-end gap-2">
+        <div className="px-4 sm:px-6 py-4 flex justify-end gap-2 border-t bg-muted/30 shrink-0">
           <Button variant="outline" onClick={onClose} disabled={saving}>
             İptal
           </Button>

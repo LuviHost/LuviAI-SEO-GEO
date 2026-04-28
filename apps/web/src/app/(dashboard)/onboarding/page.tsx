@@ -80,7 +80,7 @@ export default function OnboardingPage() {
   };
 
   return (
-    <div className="max-w-2xl mx-auto py-8">
+    <div className="max-w-2xl mx-auto py-4 sm:py-8">
       <div className="mb-6">
         <div className="flex justify-between text-xs text-muted-foreground mb-2">
           <span>Adım {step}/5</span>

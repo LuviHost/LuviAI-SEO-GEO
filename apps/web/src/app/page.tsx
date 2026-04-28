@@ -21,17 +21,17 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-br from-brand via-brand-light to-brand/30">
-      <header className="container flex justify-between items-center py-6">
-        <div className="text-2xl font-bold text-white">LuviAI</div>
-        <div className="flex items-center gap-3">
+      <header className="container flex justify-between items-center py-4 sm:py-6 px-4">
+        <div className="text-xl sm:text-2xl font-bold text-white">LuviAI</div>
+        <div className="flex items-center gap-2 sm:gap-3">
           <LocaleSwitch />
-          <Link href="/pricing" className="text-white text-sm hover:underline">{t('nav.pricing')}</Link>
+          <Link href="/pricing" className="text-white text-xs sm:text-sm hover:underline">{t('nav.pricing')}</Link>
           {isAuthed ? (
-            <Link href="/dashboard" className="text-white text-sm font-medium hover:underline">
+            <Link href="/dashboard" className="text-white text-xs sm:text-sm font-medium hover:underline">
               Dashboard
             </Link>
           ) : (
-            <Link href="/signin" className="text-white text-sm font-medium hover:underline">
+            <Link href="/signin" className="text-white text-xs sm:text-sm font-medium hover:underline">
               Giriş yap
             </Link>
           )}
@@ -39,18 +39,18 @@ export default function HomePage() {
         </div>
       </header>
 
-      <main className="flex-1 flex items-center justify-center container">
+      <main className="flex-1 flex items-center justify-center container px-4 py-8">
         <div className="max-w-3xl text-center text-white">
           <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur px-3 py-1 rounded-full text-xs font-medium mb-6">
             <Sparkles className="h-3 w-3" />
             {t('hero.beta_note')}
           </div>
 
-          <h1 className="text-6xl md:text-7xl font-bold mb-6 tracking-tight">
+          <h1 className="text-4xl sm:text-5xl md:text-7xl font-bold mb-6 tracking-tight leading-tight">
             {t('hero.title')}
           </h1>
 
-          <p className="text-xl md:text-2xl mb-10 text-white/90 max-w-2xl mx-auto leading-relaxed">
+          <p className="text-base sm:text-xl md:text-2xl mb-8 sm:mb-10 text-white/90 max-w-2xl mx-auto leading-relaxed">
             {t('hero.subtitle')}
           </p>
 
@@ -63,7 +63,7 @@ export default function HomePage() {
             </Button>
           </div>
 
-          <div className="mt-20 grid md:grid-cols-3 gap-6 text-left">
+          <div className="mt-12 sm:mt-20 grid sm:grid-cols-2 md:grid-cols-3 gap-4 sm:gap-6 text-left">
             <Feature icon={<Zap className="h-5 w-5" />} title="Otopilotta blog büyüme" desc="Onboarding sonu ilk makale otomatik üretilir. Kotanız boyunca Claude + Gemini çalışır." />
             <Feature icon={<Globe className="h-5 w-5" />} title="14 yayın hedefi" desc="WordPress, FTP, SFTP, Webflow, Sanity, Ghost, GitHub… İstediğin yere yayınla." />
             <Feature icon={<Sparkles className="h-5 w-5" />} title="GEO + SEO + AEO" desc="ChatGPT/Perplexity/Claude AI alıntılanması için Auriti GEO ile optimize." />

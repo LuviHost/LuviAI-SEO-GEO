@@ -70,18 +70,18 @@ export default function PricingPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted">
-      <header className="container flex justify-between items-center py-6">
-        <Link href="/" className="text-2xl font-bold text-foreground">LuviAI</Link>
-        <div className="flex items-center gap-3">
+      <header className="container flex justify-between items-center py-4 sm:py-6 px-4">
+        <Link href="/" className="text-xl sm:text-2xl font-bold text-foreground">LuviAI</Link>
+        <div className="flex items-center gap-2 sm:gap-3">
           <LocaleSwitch />
           <ThemeToggle />
         </div>
       </header>
 
-      <main className="container py-12">
-        <div className="text-center mb-12">
-          <h1 className="text-4xl md:text-5xl font-bold mb-3">{t('pricing.title')}</h1>
-          <p className="text-muted-foreground text-lg">{t('pricing.subtitle')}</p>
+      <main className="container py-8 sm:py-12 px-4">
+        <div className="text-center mb-8 sm:mb-12">
+          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-3">{t('pricing.title')}</h1>
+          <p className="text-muted-foreground text-base sm:text-lg px-2">{t('pricing.subtitle')}</p>
         </div>
 
         <div className="flex justify-center mb-10">
@@ -106,21 +106,21 @@ export default function PricingPage() {
           </div>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-6 max-w-5xl mx-auto">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 max-w-5xl mx-auto">
           {realPlans.map((p) => {
             const price = cycle === 'annual' ? p.annual : p.monthly;
             const monthlyEq = cycle === 'annual' ? Math.round(p.annual / 12) : p.monthly;
             return (
-              <Card key={p.id} className={`relative ${p.popular ? 'ring-2 ring-brand shadow-xl' : ''}`}>
+              <Card key={p.id} className={`relative ${p.popular ? 'ring-2 ring-brand shadow-xl sm:col-span-2 lg:col-span-1' : ''}`}>
                 {p.popular && (
                   <div className="absolute -top-3 left-1/2 -translate-x-1/2">
                     <Badge>{t('pricing.popular')}</Badge>
                   </div>
                 )}
                 <CardHeader>
-                  <h2 className="text-2xl font-bold">{p.name}</h2>
+                  <h2 className="text-xl sm:text-2xl font-bold">{p.name}</h2>
                   <div className="mt-2">
-                    <span className="text-4xl font-bold">₺{price.toLocaleString('tr-TR')}</span>
+                    <span className="text-3xl sm:text-4xl font-bold">₺{price.toLocaleString('tr-TR')}</span>
                     <span className="text-muted-foreground text-sm ml-2">
                       /{cycle === 'annual' ? 'yıl' : 'ay'}
                     </span>

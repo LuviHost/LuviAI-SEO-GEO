@@ -171,7 +171,7 @@ ${article.bodyHtml}
   const publishedTo = (article.publishedTo as any[]) ?? [];
 
   return (
-    <div className="space-y-6 max-w-5xl mx-auto">
+    <div className="space-y-5 sm:space-y-6 max-w-5xl mx-auto">
       <div>
         <Link
           href={`/sites/${siteId}` as any}
@@ -182,7 +182,7 @@ ${article.bodyHtml}
         </Link>
         <div className="flex items-start justify-between gap-4 flex-wrap mt-3">
           <div className="flex-1 min-w-0">
-            <h1 className="text-3xl font-bold leading-tight">{article.title}</h1>
+            <h1 className="text-2xl sm:text-3xl font-bold leading-tight">{article.title}</h1>
             <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground flex-wrap">
               <Badge variant={STATUS_VARIANT[article.status] ?? 'outline'}>{article.status}</Badge>
               {article.persona && <span>👤 {article.persona}</span>}
@@ -307,14 +307,16 @@ ${article.bodyHtml}
       )}
 
       <Tabs defaultValue="content" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="content">📄 İçerik</TabsTrigger>
-          <TabsTrigger value="meta">🔧 Meta + SEO</TabsTrigger>
-          <TabsTrigger value="faq">❓ FAQ ({(article.faqs as any[])?.length ?? 0})</TabsTrigger>
-          <TabsTrigger value="media">
-            <ImageIcon className="h-3.5 w-3.5 mr-1.5" /> Görseller
-          </TabsTrigger>
-        </TabsList>
+        <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
+          <TabsList className="w-max sm:w-auto">
+            <TabsTrigger value="content">📄 İçerik</TabsTrigger>
+            <TabsTrigger value="meta">🔧 Meta + SEO</TabsTrigger>
+            <TabsTrigger value="faq">❓ FAQ ({(article.faqs as any[])?.length ?? 0})</TabsTrigger>
+            <TabsTrigger value="media">
+              <ImageIcon className="h-3.5 w-3.5 mr-1.5" /> Görseller
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         <TabsContent value="content" className="space-y-4">
           {article.heroImageUrl && (
@@ -326,17 +328,17 @@ ${article.bodyHtml}
           )}
           {article.bodyHtml ? (
             <Card>
-              <CardContent className="p-8">
+              <CardContent className="p-4 sm:p-8">
                 <div
-                  className="prose dark:prose-invert max-w-none prose-headings:scroll-mt-20 prose-h2:mt-8 prose-img:rounded-lg"
+                  className="prose prose-sm sm:prose dark:prose-invert max-w-none prose-headings:scroll-mt-20 prose-h2:mt-6 sm:prose-h2:mt-8 prose-img:rounded-lg break-words"
                   dangerouslySetInnerHTML={{ __html: article.bodyHtml }}
                 />
               </CardContent>
             </Card>
           ) : article.bodyMd ? (
             <Card>
-              <CardContent className="p-8">
-                <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed">{article.bodyMd}</pre>
+              <CardContent className="p-4 sm:p-8">
+                <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed break-words">{article.bodyMd}</pre>
               </CardContent>
             </Card>
           ) : (

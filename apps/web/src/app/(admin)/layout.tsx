@@ -2,6 +2,7 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { auth, signOut } from '@/auth';
 import { ThemeToggle } from '@/components/theme-toggle';
+import { AdminMobileNav } from '@/components/admin-mobile-nav';
 
 const ADMIN_NAV = [
   { href: '/admin', label: 'Genel Bakış' },
@@ -18,10 +19,11 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950">
-      <header className="bg-slate-900 text-slate-100 border-b border-slate-800">
-        <div className="container mx-auto flex items-center justify-between h-14 px-4">
-          <div className="flex items-center gap-6">
-            <Link href="/admin" className="text-lg font-bold">
+      <header className="bg-slate-900 text-slate-100 border-b border-slate-800 sticky top-0 z-30">
+        <div className="container mx-auto flex items-center justify-between h-14 px-3 sm:px-4 gap-2">
+          <div className="flex items-center gap-2 sm:gap-6 min-w-0">
+            <AdminMobileNav />
+            <Link href="/admin" className="text-base sm:text-lg font-bold truncate">
               LuviAI <span className="text-xs text-amber-400 font-normal ml-1">Admin</span>
             </Link>
             <nav className="hidden md:flex items-center gap-1">
@@ -36,10 +38,13 @@ export default async function AdminLayout({ children }: { children: React.ReactN
               ))}
             </nav>
           </div>
-          <div className="flex items-center gap-3 text-sm">
-            <span className="text-slate-400 hidden sm:inline">{session.user.email}</span>
-            <Link href="/dashboard" className="text-xs text-slate-400 hover:text-white">
-              ← Kullanıcı paneline dön
+          <div className="flex items-center gap-2 sm:gap-3 text-sm shrink-0">
+            <span className="text-slate-400 hidden lg:inline truncate max-w-[180px]">{session.user.email}</span>
+            <Link
+              href="/dashboard"
+              className="text-xs text-slate-400 hover:text-white whitespace-nowrap hidden sm:inline"
+            >
+              ← Panel
             </Link>
             <ThemeToggle />
             <form
@@ -59,7 +64,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         </div>
       </header>
 
-      <main className="flex-1 container mx-auto py-8 px-4">{children}</main>
+      <main className="flex-1 container mx-auto py-6 sm:py-8 px-3 sm:px-4">{children}</main>
     </div>
   );
 }

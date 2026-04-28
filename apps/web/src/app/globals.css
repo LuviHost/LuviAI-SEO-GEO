@@ -44,8 +44,35 @@
   * {
     @apply border-border;
   }
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
   body {
     @apply bg-background text-foreground;
     font-feature-settings: 'rlig' 1, 'calt' 1;
+    -webkit-tap-highlight-color: transparent;
+  }
+  /* Mobile-friendly scrollbar (subtle, non-intrusive) */
+  .scrollbar-thin::-webkit-scrollbar {
+    height: 4px;
+    width: 4px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background: hsl(var(--muted-foreground) / 0.3);
+    border-radius: 2px;
+  }
+  /* Inputlar 16px altı iOS'ta otomatik zoom yapar — bunu engelle */
+  input,
+  select,
+  textarea {
+    font-size: max(16px, 0.875rem);
+  }
+  @media (min-width: 640px) {
+    input,
+    select,
+    textarea {
+      font-size: 0.875rem;
+    }
   }
 }
