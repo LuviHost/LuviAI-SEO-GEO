@@ -5,6 +5,7 @@ import { AgentRunnerService } from './agent-runner.service.js';
 import { PipelineService } from './pipeline.service.js';
 import { ImageGeneratorService } from './image-generator.service.js';
 import { PublisherService } from './publisher.service.js';
+import { ArticleSchedulerService } from './article-scheduler.service.js';
 import { SocialModule } from '../social/social.module.js';
 
 /**
@@ -25,6 +26,7 @@ import { SocialModule } from '../social/social.module.js';
     PipelineService,
     ImageGeneratorService,
     PublisherService,
+    ArticleSchedulerService,
   ],
   exports: [
     ArticlesService,
@@ -32,6 +34,7 @@ import { SocialModule } from '../social/social.module.js';
     PipelineService,
     ImageGeneratorService,
     PublisherService,
+    ArticleSchedulerService,
   ],
 })
 export class ArticlesModule {}

@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import {
   CheckCircle2, ChevronDown, Circle, ExternalLink, Plus, Trash2,
-  BarChart3, Link2, Unlink, Activity, Sparkles, FileText, Send, Share2,
+  BarChart3, Link2, Unlink, Activity, Sparkles, FileText, Send, Share2, Calendar,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
@@ -1315,6 +1315,7 @@ function TopicsStepBody({
 // ──────────────────────────────────────────────────────────────────────
 const ARTICLE_STATUS_VARIANT: Record<string, any> = {
   DRAFT: 'secondary',
+  SCHEDULED: 'outline',
   GENERATING: 'warning',
   EDITING: 'warning',
   REVIZE_NEEDED: 'destructive',
@@ -1326,6 +1327,7 @@ const ARTICLE_STATUS_VARIANT: Record<string, any> = {
 
 const ARTICLE_STATUS_LABEL: Record<string, string> = {
   DRAFT: 'Taslak',
+  SCHEDULED: 'Takvimde',
   GENERATING: 'Hazırlanıyor',
   EDITING: 'Editör',
   REVIZE_NEEDED: 'Revize gerekli',
@@ -1351,6 +1353,12 @@ function ArticlesStepBody({
     return () => clearInterval(t);
   }, [articles, onRefresh]);
 
+  // SCHEDULED makaleleri ust ust ay
+  const scheduled = articles
+    .filter((a) => a?.status === 'SCHEDULED' && a?.scheduledAt)
+    .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime());
+  const otherArticles = articles.filter((a) => a?.status !== 'SCHEDULED');
+
   if (articles.length === 0) {
     return (
       <div className="text-center py-8 text-sm text-muted-foreground">
@@ -1360,8 +1368,19 @@ function ArticlesStepBody({
   }
 
   return (
-    <div className="space-y-3">
-      {articles.map((a) => {
+    <div className="space-y-4">
+      {scheduled.length > 0 && (
+        <ContentCalendarPanel scheduled={scheduled} otherArticlesCount={otherArticles.length} />
+      )}
+
+      {otherArticles.length > 0 && (
+        <div className="space-y-3">
+          {scheduled.length > 0 && (
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide pt-2">
+              Üretilen Makaleler ({otherArticles.length})
+            </p>
+          )}
+          {otherArticles.map((a) => {
         const isGenerating = a.status === 'GENERATING' || a.status === 'EDITING';
         const card = (
           <div
@@ -1409,7 +1428,83 @@ function ArticlesStepBody({
             {card}
           </Link>
         );
-      })}
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// İçerik Takvimi — SCHEDULED makaleleri haftalik gosterir
+// ──────────────────────────────────────────────────────────────────────
+function ContentCalendarPanel({
+  scheduled,
+  otherArticlesCount,
+}: {
+  scheduled: any[];
+  otherArticlesCount: number;
+}) {
+  const fmt = (iso: string) => {
+    const d = new Date(iso);
+    const days = ['Pzr', 'Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cts'];
+    return {
+      day: days[d.getDay()],
+      date: `${d.getDate()}.${(d.getMonth() + 1).toString().padStart(2, '0')}`,
+      time: `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`,
+      isPast: d.getTime() < Date.now(),
+    };
+  };
+
+  return (
+    <div className="rounded-lg border border-brand/30 bg-gradient-to-br from-brand/5 to-transparent p-4">
+      <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
+        <div>
+          <p className="text-sm font-semibold flex items-center gap-2">
+            <Calendar className="h-4 w-4 text-brand" />
+            İçerik Takvimi
+          </p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {scheduled.length} makale planlandı · GEO öncelikli (Claude · Gemini · ChatGPT için optimize)
+          </p>
+        </div>
+        {otherArticlesCount === 0 && (
+          <span className="text-[11px] uppercase tracking-wide bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 rounded px-2 py-1 font-semibold">
+            TRIAL · 1.makale ücretsiz, kalanlar için paket
+          </span>
+        )}
+      </div>
+
+      <div className="space-y-2">
+        {scheduled.map((a, idx) => {
+          const t = fmt(a.scheduledAt);
+          const isFirst = idx === 0;
+          const locked = !isFirst && otherArticlesCount === 0; // TRIAL ise 1.den sonrakiler kilitli
+          return (
+            <div
+              key={a.id}
+              className={`flex items-center gap-3 rounded-md border p-2.5 ${
+                locked ? 'bg-muted/30 opacity-60' : 'bg-card hover:border-brand/40'
+              }`}
+            >
+              <div className="flex flex-col items-center justify-center bg-brand/10 text-brand rounded-md px-2.5 py-1.5 min-w-[64px] text-center">
+                <span className="text-[10px] font-bold tracking-wide">{t.day}</span>
+                <span className="text-sm font-bold leading-tight">{t.date}</span>
+                <span className="text-[10px] font-mono">{t.time}</span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium truncate">{a.title || a.topic}</p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  {locked ? '🔒 Paket alındığında otomatik üretilir' : t.isPast ? '⏳ Üretim sırada bekliyor' : '📅 Planlandı'}
+                </p>
+              </div>
+              <Badge variant={locked ? 'outline' : 'secondary'} className="shrink-0 text-[10px]">
+                {locked ? 'PAKET' : 'TAKVİMDE'}
+              </Badge>
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }

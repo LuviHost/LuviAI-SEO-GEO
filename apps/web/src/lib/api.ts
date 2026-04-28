@@ -139,6 +139,15 @@ export const api = {
   listArticles: (siteId: string, status?: string) =>
     request<any[]>(`/sites/${siteId}/articles${status ? `?status=${status}` : ''}`),
 
+  listScheduledArticles: (siteId: string) =>
+    request<any[]>(`/sites/${siteId}/articles/scheduled`),
+
+  scheduleArticleBatch: (siteId: string, count = 5) =>
+    request<any>(`/sites/${siteId}/articles/schedule-batch`, {
+      method: 'POST',
+      body: JSON.stringify({ count }),
+    }),
+
   getArticle: (siteId: string, articleId: string) =>
     request<any>(`/sites/${siteId}/articles/${articleId}`),
 

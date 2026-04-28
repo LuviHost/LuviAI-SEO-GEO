@@ -9,7 +9,7 @@ try {
   // older Node — sessizce geç
 }
 
-import { Worker } from 'bullmq';
+import { Worker, Queue } from 'bullmq';
 import IORedis from 'ioredis';
 import { NestFactory } from '@nestjs/core';
 import { Logger } from '@nestjs/common';
@@ -23,6 +23,7 @@ import { AutoFixService } from '../../api/dist/audit/auto-fix.service.js';
 import { TopicsService } from '../../api/dist/topics/topics.service.js';
 import { PipelineService } from '../../api/dist/articles/pipeline.service.js';
 import { PublisherService } from '../../api/dist/articles/publisher.service.js';
+import { ArticleSchedulerService } from '../../api/dist/articles/article-scheduler.service.js';
 import { SocialPostsService } from '../../api/dist/social/social-posts.service.js';
 import { PrismaService } from '../../api/dist/prisma/prisma.service.js';
 
@@ -41,6 +42,7 @@ async function bootstrap() {
     topics: app.get(TopicsService),
     pipeline: app.get(PipelineService),
     publisher: app.get(PublisherService),
+    scheduler: app.get(ArticleSchedulerService),
     socialPosts: app.get(SocialPostsService),
     prisma: app.get(PrismaService),
   };
@@ -120,37 +122,50 @@ async function bootstrap() {
 
     /**
      * ONBOARDING_CHAIN — wow-moment
-     * brain → audit → topics. Sonra DUR — kullanici GSC/GA/Sosyal hesaplarini
-     * baglar ve "Onerilen Makaleler" listesinden istedigi konuyu manuel secer.
-     * Boylece ilk makale kullanicinin onayi ile (gercek niyetle) uretilir.
+     * brain → audit → topics → ilk 5 makaleyi takvime yerlestir + 1.yi hemen uret
+     * GEO oncelikli: AI Citation testi audit icinde otomatik calistiyor,
+     * llms.txt + schema markup auto-fix ile yazilmaya hazir.
      */
     ONBOARDING_CHAIN: async ({ siteId }) => {
       log.log(`[${siteId}] Onboarding chain başlıyor`);
 
-      log.log(`[${siteId}] [1/3] Brain üretiliyor`);
+      log.log(`[${siteId}] [1/4] Brain üretiliyor`);
       await services.brainGen.runGeneration(siteId);
 
-      log.log(`[${siteId}] [2/3] Audit`);
+      log.log(`[${siteId}] [2/4] Audit (AI citation otomatik)`);
       const audit = await services.audit.runAudit(siteId);
 
-      log.log(`[${siteId}] [3/3] Topic engine`);
+      log.log(`[${siteId}] [3/4] Topic engine`);
       const queue = await services.topics.runEngine(siteId);
-
       const tier1Count = ((queue.tier1Topics as any[]) ?? []).length;
 
-      // Site'i ACTIVE'e al — artik kullanici gormeli
+      log.log(`[${siteId}] [4/4] Tier-1 takvim yerlesimi (5 makale)`);
+      const scheduleResult = await services.scheduler.scheduleInitialBatch(siteId, { count: 5 });
+
+      // Site'i ACTIVE'e al
       await services.prisma.site.update({
         where: { id: siteId },
         data: { status: 'ACTIVE' },
       });
 
-      log.log(`[${siteId}] ✅ Onboarding tamamlandi (audit + ${tier1Count} tier-1 konu hazir)`);
+      log.log(`[${siteId}] ✅ Onboarding tamamlandi — audit, ${tier1Count} tier-1, ${scheduleResult.scheduled} makale takvimde${scheduleResult.isTrial ? ' (TRIAL: 1.makale uretiliyor, kalanlar paket bekliyor)' : ''}`);
       return {
         onboarded: true,
         audit: audit.id,
         queue: queue.id,
         tier1Count,
+        scheduledArticles: scheduleResult.scheduled,
+        immediateArticleId: scheduleResult.immediate,
+        isTrial: scheduleResult.isTrial,
       };
+    },
+
+    /**
+     * PROCESS_SCHEDULED — saatlik tetiklenir, scheduledAt <= now olan
+     * SCHEDULED makaleleri kotasi yetenler icin uretime alir.
+     */
+    PROCESS_SCHEDULED: async () => {
+      return services.scheduler.processDueArticles();
     },
   };
 
@@ -207,6 +222,24 @@ async function bootstrap() {
       });
     }
   });
+
+  // Cron-like repeat: PROCESS_SCHEDULED her 30 dakikada bir tetiklensin
+  try {
+    const queue = new Queue('luviai-jobs', { connection });
+    await queue.add(
+      'PROCESS_SCHEDULED',
+      { trigger: 'cron' },
+      {
+        repeat: { every: 30 * 60 * 1000 }, // 30 dakika
+        jobId: 'cron:process-scheduled',
+        removeOnComplete: { count: 50 },
+        removeOnFail: { count: 50 },
+      },
+    );
+    log.log('⏰ Cron: PROCESS_SCHEDULED her 30dk tetiklenecek');
+  } catch (err: any) {
+    log.warn(`Cron kurulumu basarisiz: ${err.message}`);
+  }
 
   log.log('🔧 LuviAI Worker dinliyor (queue: luviai-jobs)');
 

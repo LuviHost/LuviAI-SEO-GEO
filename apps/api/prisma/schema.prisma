@@ -343,6 +343,7 @@ model Article {
 
   // Yayın
   status        ArticleStatus @default(DRAFT)
+  scheduledAt   DateTime?                              // Planlanan üretim/yayın zamanı
   publishedAt   DateTime?
   publishedTo   Json?         // [{ targetId, url, externalId }]
 
@@ -358,12 +359,14 @@ model Article {
 
   @@unique([siteId, slug])
   @@index([siteId, status])
+  @@index([siteId, scheduledAt])
   @@index([publishedAt])
   @@map("articles")
 }
 
 enum ArticleStatus {
   DRAFT
+  SCHEDULED
   GENERATING
   EDITING
   REVIZE_NEEDED
@@ -459,6 +462,7 @@ enum JobType {
   PERFORMANCE_CHECK   // 30 gün sonra GSC
   ONBOARDING_CHAIN    // brain → audit → topics → ilk makale
   SOCIAL_PUBLISH      // tek bir SocialPost yayini (cron tetikler)
+  PROCESS_SCHEDULED   // scheduledAt <= now olan SCHEDULED makaleleri uretime alir (cron)
 }
 
 enum JobStatus {
