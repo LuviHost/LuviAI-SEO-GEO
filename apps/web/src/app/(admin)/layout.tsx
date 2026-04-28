@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { auth, signOut } from '@/auth';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { AdminMobileNav } from '@/components/admin-mobile-nav';
+import { clearAdminUnlockCookie, isAdminUnlocked } from '@/lib/admin-unlock';
 
 const ADMIN_NAV = [
   { href: '/admin', label: 'Genel Bakış' },
@@ -16,6 +17,11 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const session = await auth();
   if (!session?.user) redirect('/signin?callbackUrl=/admin');
   if (session.user.role !== 'ADMIN') redirect('/dashboard');
+
+  // 2FA: Admin paneli icin ek PIN katmani (env'de ADMIN_PIN set ise)
+  if (!(await isAdminUnlocked(session.user.id))) {
+    redirect('/admin-unlock?next=/admin');
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950">
@@ -50,6 +56,21 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             <form
               action={async () => {
                 'use server';
+                await clearAdminUnlockCookie();
+              }}
+            >
+              <button
+                type="submit"
+                className="text-xs text-slate-400 hover:text-white px-2 py-1 rounded hover:bg-slate-800 hidden sm:inline"
+                title="Admin oturumunu kilitle"
+              >
+                🔒 Kilitle
+              </button>
+            </form>
+            <form
+              action={async () => {
+                'use server';
+                await clearAdminUnlockCookie();
                 await signOut({ redirectTo: '/' });
               }}
             >
