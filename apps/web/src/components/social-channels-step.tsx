@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 
-type Catalog = Array<{ type: string; label: string; status: 'live' | 'soon'; note?: string }>;
+type Catalog = Array<{ type: string; label: string; status: 'live' | 'soon'; note?: string; recommended?: boolean }>;
 
 export function SocialChannelsStep({ siteId }: { siteId: string }) {
   const search = useSearchParams();
@@ -93,11 +93,16 @@ export function SocialChannelsStep({ siteId }: { siteId: string }) {
 
   return (
     <div className="space-y-4">
-      <p className="text-sm text-muted-foreground">
-        <strong>Opsiyonel.</strong> Bağladığın kanallara makaleden türetilen postlar otomatik gönderilebilir
-        (sonraki sprint) veya manuel post yazıp zamanlayabilirsin. LinkedIn şu an aktif; X, Facebook, Instagram
-        çok yakında.
-      </p>
+      <div className="rounded-lg border border-brand/20 bg-brand/5 p-3">
+        <p className="text-sm">
+          <strong>💡 Önerimiz: LinkedIn ile başla.</strong> Ücretsiz, anında yayın yapabilirsin ve
+          B2B / hosting içerikleri için en yüksek etkileşimi alır.
+        </p>
+        <p className="text-xs text-muted-foreground mt-1.5">
+          X (Twitter) artık her tweet için <em>ücretli kredi</em> istiyor (Pay Per Use). Önce
+          kredi yüklemen gerekiyor — bu yüzden LinkedIn'i ön plana aldık.
+        </p>
+      </div>
 
       {/* Bağlı kanallar */}
       {channels.length > 0 && (
@@ -173,18 +178,25 @@ export function SocialChannelsStep({ siteId }: { siteId: string }) {
               disabled={item.status === 'soon' || busy === item.type}
               onClick={() => connect(item.type)}
               title={item.note ?? ''}
-              className={`flex flex-col items-start gap-1 px-4 py-3 rounded-lg border text-left transition-colors ${
+              className={`flex flex-col items-start gap-1.5 px-4 py-3 rounded-lg border text-left transition-colors ${
                 item.status === 'soon'
                   ? 'opacity-60 cursor-not-allowed bg-muted/40'
-                  : 'hover:border-brand bg-card cursor-pointer'
+                  : item.recommended
+                    ? 'border-brand/60 ring-2 ring-brand/20 hover:border-brand bg-brand/5 cursor-pointer'
+                    : 'hover:border-brand bg-card cursor-pointer'
               }`}
             >
               <div className="flex items-center justify-between gap-2 w-full">
-                <span className="text-sm font-medium">{item.label}</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium">{item.label}</span>
+                  {item.recommended && (
+                    <Badge variant={'success' as any} className="text-[9px] uppercase">Önerilen</Badge>
+                  )}
+                </div>
                 {item.status === 'soon' ? (
                   <Badge variant="outline" className="text-[10px]">Yakında</Badge>
                 ) : (
-                  <span className="inline-flex items-center gap-1 text-xs text-brand">
+                  <span className={`inline-flex items-center gap-1 text-xs ${item.recommended ? 'font-semibold text-brand' : 'text-brand'}`}>
                     <Link2 className="h-3.5 w-3.5" /> {busy === item.type ? '…' : 'Bağla'}
                   </span>
                 )}

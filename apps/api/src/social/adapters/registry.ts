@@ -25,16 +25,33 @@ export function getAdapter(channelType: string): SocialAdapter {
   return adapter;
 }
 
-export function listSupportedTypes(): Array<{ type: string; label: string; status: 'live' | 'soon'; note?: string }> {
+export function listSupportedTypes(): Array<{
+  type: string;
+  label: string;
+  status: 'live' | 'soon';
+  note?: string;
+  recommended?: boolean;
+}> {
   return [
-    { type: 'LINKEDIN_PERSONAL', label: 'LinkedIn (Kişisel)', status: 'live' },
+    {
+      type: 'LINKEDIN_PERSONAL',
+      label: 'LinkedIn (Kişisel)',
+      status: 'live',
+      recommended: true,
+      note: '✓ Ücretsiz · Hemen yayın yapabilirsin · B2B ve hosting/teknik içerik için en yüksek etkileşim',
+    },
     {
       type: 'LINKEDIN_COMPANY',
       label: 'LinkedIn (Şirket Sayfası)',
       status: 'soon',
       note: 'LinkedIn Community Management API onayı bekleniyor (Developer Apps → Products → Community Management API → Request access).',
     },
-    { type: 'X_TWITTER', label: 'X / Twitter', status: 'live' },
+    {
+      type: 'X_TWITTER',
+      label: 'X / Twitter',
+      status: 'live',
+      note: '⚠ Ücretli — X API artık tweet başına kredi istiyor (Pay Per Use). Önce Developer Portal → Billing → Credits bölümünden kredi yüklemen gerek.',
+    },
     { type: 'FACEBOOK_PAGE', label: 'Facebook Sayfa', status: 'soon' },
     { type: 'INSTAGRAM_BUSINESS', label: 'Instagram Business', status: 'soon' },
     { type: 'TIKTOK', label: 'TikTok', status: 'soon' },
