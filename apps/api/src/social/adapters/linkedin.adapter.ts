@@ -30,16 +30,31 @@ export class LinkedInAdapter implements SocialAdapter {
   type = 'linkedin';
   variants = ['personal', 'company'];
 
+  /**
+   * Tip-bazli scope listesi.
+   * LINKEDIN_COMPANY icin organization scope'lar gerek (Marketing Developer
+   * Platform onayi sart — onaysiz LinkedIn app'leri sayfaya post atamaz,
+   * ama organizationAcls endpoint'i icin r_organization_social yeterli).
+   */
+  static scopesFor(type: string): string[] {
+    const base = ['openid', 'profile', 'email', 'w_member_social'];
+    if (type === 'LINKEDIN_COMPANY') {
+      return [...base, 'r_organization_social', 'w_organization_social', 'rw_organization_admin'];
+    }
+    return base;
+  }
+
   oauth = {
     scopes: ['openid', 'profile', 'email', 'w_member_social'],
 
-    buildAuthUrl(state: string, redirectUri: string): string {
+    buildAuthUrl(state: string, redirectUri: string, type?: string): string {
+      const scopes = type ? LinkedInAdapter.scopesFor(type) : this.scopes;
       const params = new URLSearchParams({
         response_type: 'code',
         client_id: process.env.LINKEDIN_CLIENT_ID ?? '',
         redirect_uri: redirectUri,
         state,
-        scope: this.scopes.join(' '),
+        scope: scopes.join(' '),
       });
       return `https://www.linkedin.com/oauth/v2/authorization?${params.toString()}`;
     },
@@ -151,6 +166,55 @@ export class LinkedInAdapter implements SocialAdapter {
     const externalUrl = `https://www.linkedin.com/feed/update/${encodeURIComponent(externalId)}/`;
 
     return { externalId, externalUrl, raw: data };
+  }
+
+  /**
+   * Kullanicinin admin oldugu LinkedIn sirket sayfalari.
+   * organizationAcls endpoint'i — `r_organization_social` veya `rw_organization_admin`
+   * scope gerekir. Marketing Developer Platform onayli olmayan app'lerde
+   * 403 doner — kullaniciya net mesaj gosteririz.
+   */
+  static async listAdminOrgs(accessToken: string): Promise<Array<{
+    organizationUrn: string;
+    organizationId: string;
+    name: string;
+    vanityName?: string;
+    logoUrl?: string;
+  }>> {
+    // Onceden yonetici olunan organizasyonlari listele
+    const url = `${LINKEDIN_API}/organizationAcls?q=roleAssignee&role=ADMINISTRATOR&projection=(elements*(*,organization~(localizedName,vanityName,logoV2(original~:playableStreams))))`;
+    const res = await fetch(url, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'X-Restli-Protocol-Version': '2.0.0',
+      },
+    });
+    if (!res.ok) {
+      const body = await res.text();
+      if (res.status === 403 || /not enough permissions|insufficient permissions|access_denied/i.test(body)) {
+        throw new Error('LINKEDIN_NO_MDP_ACCESS');
+      }
+      throw new Error(`LinkedIn organizationAcls failed: ${res.status} ${body}`);
+    }
+    const data = (await res.json()) as { elements?: any[] };
+    const out: Array<any> = [];
+    for (const el of data.elements ?? []) {
+      const orgUrn = el.organization;
+      if (!orgUrn) continue;
+      const orgIdMatch = orgUrn.match(/urn:li:organization:(\d+)/);
+      const orgId = orgIdMatch ? orgIdMatch[1] : null;
+      if (!orgId) continue;
+      const expanded = el['organization~'];
+      out.push({
+        organizationUrn: orgUrn,
+        organizationId: orgId,
+        name: expanded?.localizedName ?? `Organization ${orgId}`,
+        vanityName: expanded?.vanityName,
+        // logoUrl extraction left simple
+        logoUrl: undefined,
+      });
+    }
+    return out;
   }
 
   /**

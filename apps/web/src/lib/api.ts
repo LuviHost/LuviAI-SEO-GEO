@@ -264,6 +264,17 @@ export const api = {
   startSocialOAuth: (siteId: string, type: string) =>
     request<{ url: string }>(`/sites/${siteId}/social/${type}/oauth/start`),
 
+  listLinkedInPages: (channelId: string) =>
+    request<Array<{ organizationUrn: string; organizationId: string; name: string; vanityName?: string; logoUrl?: string }>>(
+      `/social/channels/${channelId}/linkedin/pages`,
+    ),
+
+  setLinkedInPage: (channelId: string, body: { organizationUrn: string; organizationName: string }) =>
+    request<any>(`/social/channels/${channelId}/linkedin/page`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+
   // Social — posts
   listSocialPosts: (siteId: string, params?: { channelId?: string; status?: string }) => {
     const qs = new URLSearchParams();

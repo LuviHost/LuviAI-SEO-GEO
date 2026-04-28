@@ -154,6 +154,11 @@ export function SocialChannelsStep({ siteId }: { siteId: string }) {
               </li>
             ))}
           </ul>
+
+          {/* LinkedIn Şirket kanalları için sayfa seçici */}
+          {channels.filter((c) => c.type === 'LINKEDIN_COMPANY').map((c) => (
+            <LinkedInPageSelector key={`pgsel-${c.id}`} channelId={c.id} currentExternalId={c.externalId} onChanged={refresh} />
+          ))}
         </div>
       )}
 
@@ -188,6 +193,98 @@ export function SocialChannelsStep({ siteId }: { siteId: string }) {
           Bağlanma sonrası Google'a benzer şekilde LinkedIn izin sayfasına gidersin, onaylarsın ve geri dönersin.
         </p>
       </div>
+    </div>
+  );
+}
+
+function LinkedInPageSelector({
+  channelId, currentExternalId, onChanged,
+}: {
+  channelId: string;
+  currentExternalId: string | null;
+  onChanged: () => void;
+}) {
+  const [pages, setPages] = useState<Array<{ organizationUrn: string; organizationId: string; name: string; vanityName?: string }> | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const load = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const list = await api.listLinkedInPages(channelId);
+      setPages(list);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    load();
+  }, [channelId]);
+
+  const select = async (urn: string, name: string) => {
+    setSaving(true);
+    try {
+      await api.setLinkedInPage(channelId, { organizationUrn: urn, organizationName: name });
+      toast.success(`Sayfa seçildi: ${name}`);
+      onChanged();
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const isOrgSet = currentExternalId?.startsWith('urn:li:organization:');
+
+  return (
+    <div className="rounded-lg border border-amber-500/30 bg-amber-50/30 dark:bg-amber-950/10 p-3 space-y-2">
+      <div className="text-xs font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-400">
+        🔗 LinkedIn Şirket Sayfası — sayfa seç
+      </div>
+
+      {loading ? (
+        <Skeleton className="h-9 w-full" />
+      ) : error ? (
+        <div className="text-xs text-red-600 dark:text-red-400 leading-relaxed whitespace-pre-wrap">
+          {error}
+          <Button size="sm" variant="outline" onClick={load} className="mt-2 ml-0">
+            Tekrar dene
+          </Button>
+        </div>
+      ) : pages && pages.length > 0 ? (
+        <>
+          <select
+            value={isOrgSet ? currentExternalId! : ''}
+            onChange={(e) => {
+              const found = pages.find((p) => p.organizationUrn === e.target.value);
+              if (found) select(found.organizationUrn, found.name);
+            }}
+            disabled={saving}
+            className="w-full bg-card border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500/40"
+          >
+            {!isOrgSet && <option value="">— Şirket sayfası seç —</option>}
+            {pages.map((p) => (
+              <option key={p.organizationUrn} value={p.organizationUrn}>
+                {p.name} {p.vanityName ? `(${p.vanityName})` : ''} · ID {p.organizationId}
+              </option>
+            ))}
+          </select>
+          {!isOrgSet && (
+            <p className="text-xs text-amber-700 dark:text-amber-400">
+              ⚠ Henüz sayfa seçmedin — bu kanal şu an kişisel profil URN'iyle kayıtlı, post atılırsa kişisel olarak gider.
+            </p>
+          )}
+        </>
+      ) : pages && pages.length === 0 ? (
+        <p className="text-xs text-amber-700 dark:text-amber-400">
+          Bu Google hesabı LinkedIn'de hiçbir sayfanın admin'i değil.
+        </p>
+      ) : null}
     </div>
   );
 }

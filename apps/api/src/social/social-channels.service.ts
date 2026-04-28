@@ -2,6 +2,7 @@ import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundEx
 import { encrypt, decrypt } from '@luviai/shared';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { getAdapter, listSupportedTypes } from './adapters/registry.js';
+import { LinkedInAdapter } from './adapters/linkedin.adapter.js';
 
 type RequestingUser = { id: string; role: 'USER' | 'ADMIN' | 'AGENCY_OWNER' };
 
@@ -100,7 +101,8 @@ export class SocialChannelsService {
     if (!adapter.oauth) throw new BadRequestException(`${channelType} icin OAuth desteklenmiyor`);
     const state = Buffer.from(JSON.stringify({ siteId, type: channelType, n: Date.now() })).toString('base64url');
     const redirectUri = `${process.env.API_BASE_URL}/api/social/oauth/callback`;
-    const url = adapter.oauth.buildAuthUrl(state, redirectUri);
+    // LinkedIn icin tip-bazli scope (Personal vs Company) — type'i adapter'a aktar
+    const url = (adapter.oauth as any).buildAuthUrl.call(adapter.oauth, state, redirectUri, channelType);
     return { url };
   }
 
@@ -167,6 +169,49 @@ export class SocialChannelsService {
   }
 
   // ─── Publish helper (cron + manuel) ───────────────────────
+
+  // ─── LinkedIn şirket sayfa seçimi ──────────────────────────
+
+  async listLinkedInPages(channelId: string, user: RequestingUser) {
+    const channel = await this.assertChannelOwner(channelId, user);
+    if (channel.type !== 'LINKEDIN_PERSONAL' && channel.type !== 'LINKEDIN_COMPANY') {
+      throw new BadRequestException('Sadece LinkedIn kanallari icin sayfa secimi yapilir');
+    }
+    const { ctx } = await this.getDecryptedContext(channelId);
+    const accessToken = ctx.credentials?.accessToken;
+    if (!accessToken) throw new BadRequestException('Kanal token yok');
+    try {
+      const orgs = await LinkedInAdapter.listAdminOrgs(accessToken);
+      return orgs;
+    } catch (err: any) {
+      if (err?.message === 'LINKEDIN_NO_MDP_ACCESS') {
+        throw new BadRequestException(
+          'LinkedIn sirket sayfasi listesi cekilemiyor: bu app icin Marketing Developer Platform onayi gerekli. ' +
+          'LinkedIn Developer Apps -> Products -> Marketing Developer Platform -> Apply for access yap, onaylanma sonrasi tekrar dene. ' +
+          'Onaysiz: sadece kisisel profile post atabilirsin.',
+        );
+      }
+      throw new BadRequestException(`LinkedIn sayfa listesi alinamadi: ${err.message}`);
+    }
+  }
+
+  async setLinkedInPage(channelId: string, organizationUrn: string, organizationName: string, user: RequestingUser) {
+    const channel = await this.assertChannelOwner(channelId, user);
+    if (channel.type !== 'LINKEDIN_COMPANY') {
+      throw new BadRequestException('Sayfa secimi sadece LinkedIn Sirket kanallari icin');
+    }
+    if (!organizationUrn?.startsWith('urn:li:organization:')) {
+      throw new BadRequestException('organizationUrn formati: urn:li:organization:{id}');
+    }
+    return this.prisma.socialChannel.update({
+      where: { id: channelId },
+      data: {
+        externalId: organizationUrn,
+        externalName: organizationName,
+        name: organizationName,
+      },
+    });
+  }
 
   /** Kanal credentials'ini decrypt edip publish'e hazirla */
   async getDecryptedContext(channelId: string) {

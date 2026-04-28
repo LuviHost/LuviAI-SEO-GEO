@@ -46,6 +46,22 @@ export class SocialController {
     return this.channels.remove(channelId, ensureUser(req));
   }
 
+  // ─── LinkedIn org seçimi (LINKEDIN_COMPANY için) ────
+
+  @Get('social/channels/:channelId/linkedin/pages')
+  listLinkedInPages(@Req() req: Request, @Param('channelId') channelId: string) {
+    return this.channels.listLinkedInPages(channelId, ensureUser(req));
+  }
+
+  @Patch('social/channels/:channelId/linkedin/page')
+  setLinkedInPage(
+    @Req() req: Request,
+    @Param('channelId') channelId: string,
+    @Body() body: { organizationUrn: string; organizationName: string },
+  ) {
+    return this.channels.setLinkedInPage(channelId, body.organizationUrn, body.organizationName, ensureUser(req));
+  }
+
   // ─── OAuth ──────────────────────────────────────────
 
   @Get('sites/:siteId/social/:type/oauth/start')
