@@ -62,6 +62,15 @@ export const api = {
 
   // Admin
   getAdminOverview: () => request<any>('/admin/overview'),
+  getAdminUsers: () => request<any[]>('/admin/users'),
+  getAdminInvoices: (status?: string) =>
+    request<any[]>(`/admin/invoices${status ? `?status=${status}` : ''}`),
+  getAdminSites: () => request<any[]>('/admin/sites'),
+  getAdminFailedJobs: () => request<any[]>('/admin/jobs/failed'),
+
+  // Me (login olmuş kullanıcı)
+  getMe: () => request<any>('/me'),
+  getMyDashboard: () => request<any>('/me/dashboard'),
 
   // Billing
   getPlans: () => request<any[]>('/billing/plans'),

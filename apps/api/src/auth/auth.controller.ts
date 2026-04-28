@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Post, Query, Res } from '@nestjs/common';
 import type { Response } from 'express';
+import { Public } from './public.decorator.js';
 import { AuthService } from './auth.service.js';
 import { GscOAuthService } from './gsc-oauth.service.js';
 
@@ -16,7 +17,12 @@ export class AuthController {
     return { url: await this.gsc.buildAuthorizationUrl(siteId) };
   }
 
-  /** GET /api/auth/gsc/callback?code=...&state=... */
+  /**
+   * GET /api/auth/gsc/callback?code=...&state=...
+   * Browser'dan gelen Google OAuth redirect — cookie/session yok, public.
+   * State token'ı GscOAuthService kendi içinde doğrular.
+   */
+  @Public()
   @Get('gsc/callback')
   async gscCallback(
     @Query('code') code: string,
@@ -27,7 +33,6 @@ export class AuthController {
     return res.redirect(`${process.env.WEB_BASE_URL}/sites/${result.siteId}/settings?gsc=connected`);
   }
 
-  /** POST /api/auth/gsc/disconnect */
   @Post('gsc/disconnect')
   async disconnectGsc(@Body() body: { siteId: string }) {
     return this.gsc.disconnect(body.siteId);

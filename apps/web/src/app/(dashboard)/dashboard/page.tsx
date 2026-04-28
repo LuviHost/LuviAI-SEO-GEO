@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useSession } from 'next-auth/react';
 import { api } from '@/lib/api';
 import { useT } from '@/lib/i18n';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -21,26 +22,39 @@ const STATUS_VARIANT: Record<string, any> = {
 
 export default function DashboardPage() {
   const { t } = useT();
+  const { data: session, status } = useSession();
   const [sites, setSites] = useState<any[]>([]);
-  const [overview, setOverview] = useState<any>(null);
+  const [me, setMe] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (status === 'loading') return;
     Promise.all([
       api.listSites().catch(() => []),
-      api.getAdminOverview().catch(() => null),
+      api.getMyDashboard().catch(() => null),
     ])
-      .then(([s, o]) => {
+      .then(([s, m]) => {
         setSites(s);
-        setOverview(o);
+        setMe(m);
       })
       .finally(() => setLoading(false));
-  }, []);
+  }, [status]);
+
+  const trialLeft = me?.trialEndsAt
+    ? Math.max(0, Math.ceil((new Date(me.trialEndsAt).getTime() - Date.now()) / 86_400_000))
+    : null;
 
   return (
     <div className="space-y-8">
       <div className="flex justify-between items-center flex-wrap gap-4">
-        <h1 className="text-3xl font-bold">{t('dashboard.title')}</h1>
+        <div>
+          <h1 className="text-3xl font-bold">{t('dashboard.title')}</h1>
+          {session?.user?.name && (
+            <p className="text-sm text-muted-foreground mt-1">
+              Hoş geldin, <strong>{session.user.name}</strong>
+            </p>
+          )}
+        </div>
         <Button asChild>
           <Link href="/onboarding"><Plus className="h-4 w-4 mr-2" />{t('dashboard.new_site')}</Link>
         </Button>
@@ -50,12 +64,17 @@ export default function DashboardPage() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-24" />)}
         </div>
-      ) : overview ? (
+      ) : me ? (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Stat label="Sites" value={overview.sites} />
-          <Stat label="Users" value={overview.users} />
-          <Stat label="Published" value={overview.publishedArticles} />
-          <Stat label="Failed Jobs" value={overview.failedJobs} variant={overview.failedJobs > 0 ? 'destructive' : 'default'} />
+          <Stat label="Sitelerim" value={me.sitesCount ?? 0} />
+          <Stat label="Yayınlanan makale" value={me.articlesPublished ?? 0} />
+          <Stat label="Bu ay üretilen" value={me.articlesUsedThisMonth ?? 0} />
+          <Stat
+            label={me.subscriptionStatus === 'TRIAL' ? `Trial — ${trialLeft ?? 0} gün` : (me.plan ?? 'Plan')}
+            value={me.subscriptionStatus === 'TRIAL' ? '14 gün' : me.plan ?? '-'}
+            variant="brand"
+            stringValue
+          />
         </div>
       ) : null}
 
@@ -110,11 +129,21 @@ export default function DashboardPage() {
   );
 }
 
-function Stat({ label, value, variant = 'default' }: { label: string; value: number; variant?: string }) {
+function Stat({
+  label,
+  value,
+  variant = 'default',
+  stringValue = false,
+}: {
+  label: string;
+  value: number | string;
+  variant?: string;
+  stringValue?: boolean;
+}) {
   return (
     <Card>
       <CardContent className="p-5">
-        <div className={`text-3xl font-bold ${variant === 'destructive' ? 'text-red-500' : 'text-brand'}`}>
+        <div className={`${stringValue ? 'text-2xl' : 'text-3xl'} font-bold ${variant === 'destructive' ? 'text-red-500' : 'text-brand'}`}>
           {value}
         </div>
         <div className="text-sm text-muted-foreground mt-1">{label}</div>

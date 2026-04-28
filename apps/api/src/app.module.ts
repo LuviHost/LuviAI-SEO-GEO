@@ -1,10 +1,11 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerModule } from '@nestjs/throttler';
 
-// Modules (her biri kendi klasöründe — Faz 1'de iskeleti, içerikleri sonra)
 import { AuthModule } from './auth/auth.module.js';
+import { AuthGuard } from './auth/auth.guard.js';
 import { SitesModule } from './sites/sites.module.js';
 import { AuditModule } from './audit/audit.module.js';
 import { TopicsModule } from './topics/topics.module.js';
@@ -15,6 +16,7 @@ import { JobsModule } from './jobs/jobs.module.js';
 import { AnalyticsModule } from './analytics/analytics.module.js';
 import { EmailModule } from './email/email.module.js';
 import { AffiliateModule } from './affiliate/affiliate.module.js';
+import { MeModule } from './me/me.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 
 @Module({
@@ -37,6 +39,10 @@ import { PrismaModule } from './prisma/prisma.module.js';
     AnalyticsModule,
     EmailModule,
     AffiliateModule,
+    MeModule,
+  ],
+  providers: [
+    { provide: APP_GUARD, useClass: AuthGuard },
   ],
 })
 export class AppModule {}

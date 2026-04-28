@@ -1,8 +1,17 @@
-import { Body, Controller, Get, HttpCode, Param, Post, Req } from '@nestjs/common';
+import { Body, Controller, ForbiddenException, Get, HttpCode, Param, Post, Req } from '@nestjs/common';
 import type { Request } from 'express';
+import { Public } from '../auth/public.decorator.js';
 import { BillingService } from './billing.service.js';
 import { PaytrService } from './paytr.service.js';
 import { QuotaService } from './quota.service.js';
+
+function ensureSelf(req: Request, requestedUserId: string) {
+  const user = (req as any).user;
+  if (!user) throw new ForbiddenException('Auth required');
+  if (user.role === 'ADMIN') return user;
+  if (user.id !== requestedUserId) throw new ForbiddenException('Bu kullanıcının verisine erişim yok');
+  return user;
+}
 
 @Controller('billing')
 export class BillingController {
@@ -12,27 +21,28 @@ export class BillingController {
     private readonly quota: QuotaService,
   ) {}
 
-  /** GET /api/billing/plans — public */
+  /** GET /api/billing/plans — herkes plan listesini görebilir */
+  @Public()
   @Get('plans')
   plans() {
     return this.billing.getPlans();
   }
 
-  /** GET /api/billing/users/:userId/current */
   @Get('users/:userId/current')
-  current(@Param('userId') userId: string) {
+  current(@Req() req: Request, @Param('userId') userId: string) {
+    ensureSelf(req, userId);
     return this.billing.getCurrentPlan(userId);
   }
 
-  /** GET /api/billing/users/:userId/invoices */
   @Get('users/:userId/invoices')
-  invoices(@Param('userId') userId: string) {
+  invoices(@Req() req: Request, @Param('userId') userId: string) {
+    ensureSelf(req, userId);
     return this.billing.getInvoices(userId);
   }
 
-  /** GET /api/billing/users/:userId/quota */
   @Get('users/:userId/quota')
-  async getQuota(@Param('userId') userId: string) {
+  async getQuota(@Req() req: Request, @Param('userId') userId: string) {
+    ensureSelf(req, userId);
     const [articles, sites] = await Promise.all([
       this.quota.checkArticleQuota(userId),
       this.quota.checkSiteQuota(userId),
@@ -42,8 +52,7 @@ export class BillingController {
 
   /**
    * POST /api/billing/subscribe
-   * Body: { userId, planId, cycle, userEmail, userName, userPhone? }
-   * Response: { token, iframeUrl }
+   * Body'de userId varsa session.user.id ile eşleşmeli (cross-user koruması).
    */
   @Post('subscribe')
   async subscribe(
@@ -58,6 +67,7 @@ export class BillingController {
       userAddress?: string;
     },
   ) {
+    ensureSelf(req, body.userId);
     const userIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]
       ?? req.socket.remoteAddress
       ?? '127.0.0.1';
@@ -65,16 +75,14 @@ export class BillingController {
     return this.paytr.createPaymentToken({ ...body, userIp });
   }
 
-  /** POST /api/billing/users/:userId/cancel */
   @Post('users/:userId/cancel')
-  cancel(@Param('userId') userId: string) {
+  cancel(@Req() req: Request, @Param('userId') userId: string) {
+    ensureSelf(req, userId);
     return this.paytr.cancelSubscription(userId);
   }
 
-  /**
-   * POST /api/billing/webhooks/paytr
-   * Response: "OK" string (PayTR handshake)
-   */
+  /** PayTR webhook — body signature ile doğrulanır, public olmalı */
+  @Public()
   @Post('webhooks/paytr')
   @HttpCode(200)
   async webhook(@Body() body: any) {
