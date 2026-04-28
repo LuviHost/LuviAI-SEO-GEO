@@ -108,24 +108,32 @@ export class ArticleSchedulerService {
   }
 
   /**
-   * Cron tarafindan cagrilir. ScheduledAt <= now ve status = SCHEDULED olan
-   * makaleleri yakalar, kotasi yetenler icin GENERATE_ARTICLE job kuyruga atar.
-   * Kotasi yeten yoksa makale SCHEDULED kalir, kullanici upgrade ederse devam eder.
+   * Cron tarafindan cagrilir. scheduledAt - 15dk <= now olan SCHEDULED makaleleri
+   * yakalar, kotasi yetenler icin uretime alir. autoPublish=true ile uretim
+   * bitince varsayilan publish target uzerinden direkt yayinlanir.
    */
   async processDueArticles(): Promise<{ processed: number; skippedQuota: number }> {
     const now = new Date();
+    // 15 dk onceden uret ki tam saat geldiginde yayina hazir olsun
+    const threshold = new Date(now.getTime() + 15 * 60 * 1000);
     const due = await this.prisma.article.findMany({
       where: {
         status: 'SCHEDULED' as any,
-        scheduledAt: { lte: now },
+        scheduledAt: { lte: threshold },
       },
-      include: { site: { include: { user: { select: { id: true, plan: true, articlesUsedThisMonth: true } } } } },
+      include: {
+        site: {
+          include: {
+            user: { select: { id: true, plan: true, articlesUsedThisMonth: true } },
+            publishTargets: { where: { isActive: true, isDefault: true }, select: { id: true } },
+          },
+        },
+      },
       take: 50,
     });
 
     if (due.length === 0) return { processed: 0, skippedQuota: 0 };
 
-    // Plan limit lookup
     const PLAN_LIMITS: Record<string, number> = {
       TRIAL: 1, STARTER: 10, PRO: 40, AGENCY: 100, ENTERPRISE: 9999,
     };
@@ -137,7 +145,6 @@ export class ArticleSchedulerService {
       const u = a.site.user;
       const limit = PLAN_LIMITS[u.plan] ?? 0;
       if (u.articlesUsedThisMonth >= limit) {
-        // Kota dolu — makale SCHEDULED kalsin, frontend "paket gerekli" gosterir
         skippedQuota++;
         continue;
       }
@@ -145,6 +152,7 @@ export class ArticleSchedulerService {
         where: { id: a.id },
         data: { status: 'GENERATING' as any },
       });
+      const defaultTargetIds = (a.site as any).publishTargets?.map((t: any) => t.id) ?? [];
       await this.jobQueue.enqueue({
         type: 'GENERATE_ARTICLE',
         userId: u.id,
@@ -154,16 +162,71 @@ export class ArticleSchedulerService {
           topic: a.topic,
           articleId: a.id,
           skipImages: false,
-          autoPublish: false,
+          autoPublish: defaultTargetIds.length > 0,
+          targetIds: defaultTargetIds,
         },
       });
       processed++;
     }
 
     if (processed > 0 || skippedQuota > 0) {
-      this.log.log(`[scheduler] ${processed} makale uretime alindi, ${skippedQuota} kota dolu nedeniyle bekliyor`);
+      this.log.log(`[scheduler] ${processed} makale uretime alindi (15dk pre-publish), ${skippedQuota} kota dolu`);
     }
     return { processed, skippedQuota };
+  }
+
+  /**
+   * Tek bir Tier-1 konuyu manuel olarak takvime ekler (drag-drop).
+   * Frontend'den scheduledAt + topic + slug + pillar gelir.
+   */
+  async scheduleTopic(siteId: string, args: { topic: string; scheduledAt: string; slug?: string; pillar?: string }) {
+    const site = await this.prisma.site.findUniqueOrThrow({ where: { id: siteId } });
+    const at = new Date(args.scheduledAt);
+    if (isNaN(at.getTime())) throw new Error('Gecersiz scheduledAt');
+
+    const slug = `scheduled-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+    const article = await this.prisma.article.create({
+      data: {
+        siteId,
+        topic: args.topic,
+        slug,
+        title: args.topic,
+        pillar: args.pillar,
+        language: site.language ?? 'tr',
+        status: 'SCHEDULED' as any,
+        scheduledAt: at,
+      },
+    });
+    this.log.log(`[${siteId}] Konu takvime eklendi: '${args.topic}' @ ${at.toISOString()}`);
+    return article;
+  }
+
+  /**
+   * Mevcut bir SCHEDULED makaleyi yeni saate tasi (drag-drop ile yer degistirme).
+   */
+  async rescheduleArticle(articleId: string, newScheduledAt: string) {
+    const at = new Date(newScheduledAt);
+    if (isNaN(at.getTime())) throw new Error('Gecersiz scheduledAt');
+    const a = await this.prisma.article.findUniqueOrThrow({ where: { id: articleId } });
+    if (a.status !== 'SCHEDULED' && a.status !== 'DRAFT') {
+      throw new Error(`Bu makale tasinamaz (status=${a.status})`);
+    }
+    return this.prisma.article.update({
+      where: { id: articleId },
+      data: { scheduledAt: at, status: 'SCHEDULED' as any },
+    });
+  }
+
+  /**
+   * Takvimden kaldir (article'i siler).
+   */
+  async unscheduleArticle(articleId: string) {
+    const a = await this.prisma.article.findUniqueOrThrow({ where: { id: articleId } });
+    if (a.status !== 'SCHEDULED') {
+      throw new Error(`Sadece SCHEDULED makaleler kaldirilabilir (status=${a.status})`);
+    }
+    await this.prisma.article.delete({ where: { id: articleId } });
+    return { ok: true };
   }
 
   /**

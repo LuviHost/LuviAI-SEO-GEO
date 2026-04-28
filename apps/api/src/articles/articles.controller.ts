@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put, Query } from '@nestjs/common';
 import { ArticlesService } from './articles.service.js';
 import { ArticleSchedulerService } from './article-scheduler.service.js';
 
@@ -24,6 +24,30 @@ export class ArticlesController {
   @Post('schedule-batch')
   scheduleBatch(@Param('siteId') siteId: string, @Body() body: { count?: number }) {
     return this.scheduler.scheduleInitialBatch(siteId, { count: body?.count });
+  }
+
+  /** POST /sites/:siteId/articles/schedule-topic — drag-drop: bir tier-1 konuyu takvime ekle */
+  @Post('schedule-topic')
+  scheduleTopic(
+    @Param('siteId') siteId: string,
+    @Body() body: { topic: string; scheduledAt: string; slug?: string; pillar?: string },
+  ) {
+    return this.scheduler.scheduleTopic(siteId, body);
+  }
+
+  /** PUT /sites/:siteId/articles/:id/reschedule — drag-drop: takvimde mevcut makaleyi tasi */
+  @Put(':id/reschedule')
+  reschedule(
+    @Param('id') id: string,
+    @Body() body: { scheduledAt: string },
+  ) {
+    return this.scheduler.rescheduleArticle(id, body.scheduledAt);
+  }
+
+  /** DELETE /sites/:siteId/articles/scheduled/:id — takvimden kaldir */
+  @Delete('scheduled/:id')
+  unschedule(@Param('id') id: string) {
+    return this.scheduler.unscheduleArticle(id);
   }
 
   @Get(':id')

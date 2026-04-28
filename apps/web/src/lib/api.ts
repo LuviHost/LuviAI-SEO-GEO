@@ -148,6 +148,23 @@ export const api = {
       body: JSON.stringify({ count }),
     }),
 
+  scheduleTopicToCalendar: (siteId: string, payload: { topic: string; scheduledAt: string; slug?: string; pillar?: string }) =>
+    request<any>(`/sites/${siteId}/articles/schedule-topic`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
+  rescheduleArticle: (siteId: string, articleId: string, scheduledAt: string) =>
+    request<any>(`/sites/${siteId}/articles/${articleId}/reschedule`, {
+      method: 'PUT',
+      body: JSON.stringify({ scheduledAt }),
+    }),
+
+  unscheduleArticle: (siteId: string, articleId: string) =>
+    request<any>(`/sites/${siteId}/articles/scheduled/${articleId}`, {
+      method: 'DELETE',
+    }),
+
   getArticle: (siteId: string, articleId: string) =>
     request<any>(`/sites/${siteId}/articles/${articleId}`),
 

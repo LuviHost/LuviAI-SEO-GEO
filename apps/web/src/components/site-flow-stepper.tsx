@@ -1288,20 +1288,43 @@ function TopicsStepBody({
         </Button>
       </div>
 
+      <p className="text-[11px] text-muted-foreground -mt-1">
+        💡 Konuyu sürükleyip <strong>İçerik Takvimi</strong>'ne bırakarak otomatik yayın saati belirleyebilirsin.
+      </p>
+
       <div className="grid gap-3">
         {tier1.map((t: any, i: number) => {
           const isThis = generating === t.topic;
+          const onDragStart = (e: React.DragEvent) => {
+            e.dataTransfer.setData('application/x-luviai-topic', JSON.stringify({
+              topic: t.topic,
+              slug: t.slug,
+              pillar: t.pillar,
+              score: t.score,
+            }));
+            e.dataTransfer.effectAllowed = 'copy';
+          };
           return (
-            <div key={i} className={`rounded-lg border p-3 ${isThis ? 'ring-2 ring-brand' : ''}`}>
+            <div
+              key={i}
+              draggable
+              onDragStart={onDragStart}
+              className={`rounded-lg border p-3 cursor-grab active:cursor-grabbing transition-colors ${isThis ? 'ring-2 ring-brand' : 'hover:border-brand/40'}`}
+            >
               <div className="flex justify-between items-start gap-2 mb-1.5 flex-wrap">
                 <Badge>SKOR {t.score}</Badge>
                 <span className="text-xs text-muted-foreground">{t.persona}</span>
               </div>
               <h5 className="font-semibold text-sm mb-1">{t.topic}</h5>
               <p className="text-xs text-muted-foreground mb-3">{t.data_summary}</p>
-              <Button size="sm" onClick={() => generate(t.topic)} disabled={!!generating}>
-                {isThis ? 'Üretiliyor…' : 'Bu konuyu üret →'}
-              </Button>
+              <div className="flex items-center gap-2 flex-wrap">
+                <Button size="sm" onClick={() => generate(t.topic)} disabled={!!generating}>
+                  {isThis ? 'Üretiliyor…' : 'Hemen üret →'}
+                </Button>
+                <span className="text-[11px] text-muted-foreground inline-flex items-center gap-1">
+                  ⇡ veya takvime sürükle
+                </span>
+              </div>
             </div>
           );
         })}
@@ -1359,19 +1382,14 @@ function ArticlesStepBody({
     .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime());
   const otherArticles = articles.filter((a) => a?.status !== 'SCHEDULED');
 
-  if (articles.length === 0) {
-    return (
-      <div className="text-center py-8 text-sm text-muted-foreground">
-        Henüz makale üretilmedi. Önceki adımdan bir konu seç.
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-4">
-      {scheduled.length > 0 && (
-        <ContentCalendarPanel scheduled={scheduled} otherArticlesCount={otherArticles.length} />
-      )}
+      <ContentCalendarPanel
+        siteId={siteId}
+        scheduled={scheduled}
+        otherArticlesCount={otherArticles.length}
+        onChanged={onRefresh ?? (() => {})}
+      />
 
       {otherArticles.length > 0 && (
         <div className="space-y-3">
@@ -1436,24 +1454,106 @@ function ArticlesStepBody({
 }
 
 // ──────────────────────────────────────────────────────────────────────
-// İçerik Takvimi — SCHEDULED makaleleri haftalik gosterir
+// İçerik Takvimi — drag-drop'lu haftalik grid
+// Drop edilebilir source'lar:
+//   - 'application/x-luviai-topic'   → tier-1 kart (yeni article schedule)
+//   - 'application/x-luviai-article' → mevcut SCHEDULED article (reschedule)
 // ──────────────────────────────────────────────────────────────────────
 function ContentCalendarPanel({
+  siteId,
   scheduled,
   otherArticlesCount,
+  onChanged,
 }: {
+  siteId: string;
   scheduled: any[];
   otherArticlesCount: number;
+  onChanged: () => void;
 }) {
-  const fmt = (iso: string) => {
+  const [weekOffset, setWeekOffset] = useState(0); // 0 = bu hafta
+  const [pendingDrop, setPendingDrop] = useState<{ date: Date; data: any; kind: 'topic' | 'article' } | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  // Haftanin pazartesisini bul
+  const weekStart = (() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    const day = d.getDay() === 0 ? 7 : d.getDay();
+    d.setDate(d.getDate() - (day - 1) + weekOffset * 7);
+    return d;
+  })();
+
+  const days = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cts', 'Paz'];
+  const weekDates = days.map((_, i) => {
+    const d = new Date(weekStart);
+    d.setDate(d.getDate() + i);
+    return d;
+  });
+
+  const fmtDate = (d: Date) => `${d.getDate()}.${(d.getMonth() + 1).toString().padStart(2, '0')}`;
+  const fmtTime = (iso: string) => {
     const d = new Date(iso);
-    const days = ['Pzr', 'Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cts'];
-    return {
-      day: days[d.getDay()],
-      date: `${d.getDate()}.${(d.getMonth() + 1).toString().padStart(2, '0')}`,
-      time: `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`,
-      isPast: d.getTime() < Date.now(),
-    };
+    return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
+  };
+
+  const articlesByDay = (dayDate: Date) => {
+    return scheduled.filter((a) => {
+      const ad = new Date(a.scheduledAt);
+      return ad.getFullYear() === dayDate.getFullYear() &&
+        ad.getMonth() === dayDate.getMonth() &&
+        ad.getDate() === dayDate.getDate();
+    }).sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime());
+  };
+
+  const onDayDrop = (e: React.DragEvent, dayDate: Date) => {
+    e.preventDefault();
+    const topicJson = e.dataTransfer.getData('application/x-luviai-topic');
+    const articleJson = e.dataTransfer.getData('application/x-luviai-article');
+    if (topicJson) {
+      const data = JSON.parse(topicJson);
+      setPendingDrop({ date: dayDate, data, kind: 'topic' });
+    } else if (articleJson) {
+      const data = JSON.parse(articleJson);
+      setPendingDrop({ date: dayDate, data, kind: 'article' });
+    }
+  };
+
+  const confirmDrop = async (hour: number, minute: number) => {
+    if (!pendingDrop) return;
+    setSubmitting(true);
+    const target = new Date(pendingDrop.date);
+    target.setHours(hour, minute, 0, 0);
+
+    try {
+      if (pendingDrop.kind === 'topic') {
+        await api.scheduleTopicToCalendar(siteId, {
+          topic: pendingDrop.data.topic,
+          slug: pendingDrop.data.slug,
+          pillar: pendingDrop.data.pillar,
+          scheduledAt: target.toISOString(),
+        });
+        toast.success(`Konu takvime eklendi: ${target.toLocaleString('tr-TR')}`);
+      } else {
+        await api.rescheduleArticle(siteId, pendingDrop.data.id, target.toISOString());
+        toast.success(`Makale yeni saate taşındı: ${target.toLocaleString('tr-TR')}`);
+      }
+      setPendingDrop(null);
+      onChanged();
+    } catch (err: any) {
+      toast.error(err.message || 'Takvime eklenemedi');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const removeArticle = async (articleId: string) => {
+    try {
+      await api.unscheduleArticle(siteId, articleId);
+      toast.success('Takvimden kaldırıldı');
+      onChanged();
+    } catch (err: any) {
+      toast.error(err.message || 'Kaldırılamadı');
+    }
   };
 
   return (
@@ -1462,48 +1562,142 @@ function ContentCalendarPanel({
         <div>
           <p className="text-sm font-semibold flex items-center gap-2">
             <Calendar className="h-4 w-4 text-brand" />
-            İçerik Takvimi
+            İçerik Takvimi (haftalık)
           </p>
           <p className="text-xs text-muted-foreground mt-0.5">
-            {scheduled.length} makale planlandı · GEO öncelikli (Claude · Gemini · ChatGPT için optimize)
+            {scheduled.length} makale planlandı · sürükle-bırak ile saat ayarla · 15 dk önce üretim başlar
           </p>
         </div>
-        {otherArticlesCount === 0 && (
-          <span className="text-[11px] uppercase tracking-wide bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 rounded px-2 py-1 font-semibold">
-            TRIAL · 1.makale ücretsiz, kalanlar için paket
-          </span>
-        )}
+        <div className="flex items-center gap-2">
+          {otherArticlesCount === 0 && (
+            <span className="text-[11px] uppercase tracking-wide bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 rounded px-2 py-1 font-semibold">
+              TRIAL · 1.makale ücretsiz
+            </span>
+          )}
+          <div className="inline-flex items-center gap-1 border rounded-md">
+            <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setWeekOffset(weekOffset - 1)}>‹</Button>
+            <span className="text-[11px] font-medium px-1 min-w-[80px] text-center">
+              {weekOffset === 0 ? 'Bu hafta' : `+${weekOffset} hafta`}
+            </span>
+            <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setWeekOffset(weekOffset + 1)}>›</Button>
+          </div>
+        </div>
       </div>
 
-      <div className="space-y-2">
-        {scheduled.map((a, idx) => {
-          const t = fmt(a.scheduledAt);
-          const isFirst = idx === 0;
-          const locked = !isFirst && otherArticlesCount === 0; // TRIAL ise 1.den sonrakiler kilitli
+      <div className="grid grid-cols-7 gap-1.5">
+        {weekDates.map((dayDate, i) => {
+          const dayArticles = articlesByDay(dayDate);
+          const isToday =
+            dayDate.toDateString() === new Date().toDateString();
+          const isPast = dayDate.getTime() < new Date().setHours(0, 0, 0, 0);
           return (
             <div
-              key={a.id}
-              className={`flex items-center gap-3 rounded-md border p-2.5 ${
-                locked ? 'bg-muted/30 opacity-60' : 'bg-card hover:border-brand/40'
+              key={i}
+              onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; }}
+              onDrop={(e) => onDayDrop(e, dayDate)}
+              className={`rounded-md border p-1.5 min-h-[110px] flex flex-col gap-1 transition-colors ${
+                isToday ? 'border-brand/50 bg-brand/5' : isPast ? 'bg-muted/20 opacity-70' : 'bg-card hover:border-brand/30 hover:bg-brand/5'
               }`}
             >
-              <div className="flex flex-col items-center justify-center bg-brand/10 text-brand rounded-md px-2.5 py-1.5 min-w-[64px] text-center">
-                <span className="text-[10px] font-bold tracking-wide">{t.day}</span>
-                <span className="text-sm font-bold leading-tight">{t.date}</span>
-                <span className="text-[10px] font-mono">{t.time}</span>
+              <div className="flex items-center justify-between text-[10px] font-bold tracking-wide">
+                <span className={isToday ? 'text-brand' : 'text-muted-foreground'}>{days[i]}</span>
+                <span className={isToday ? 'text-brand' : 'text-muted-foreground'}>{fmtDate(dayDate)}</span>
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium truncate">{a.title || a.topic}</p>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
-                  {locked ? '🔒 Paket alındığında otomatik üretilir' : t.isPast ? '⏳ Üretim sırada bekliyor' : '📅 Planlandı'}
-                </p>
-              </div>
-              <Badge variant={locked ? 'outline' : 'secondary'} className="shrink-0 text-[10px]">
-                {locked ? 'PAKET' : 'TAKVİMDE'}
-              </Badge>
+              {dayArticles.length === 0 && (
+                <div className="flex-1 grid place-items-center text-[10px] text-muted-foreground/60 italic">
+                  bırak
+                </div>
+              )}
+              {dayArticles.map((a, idx) => {
+                const isFirst = idx === 0 && i === 0 && weekOffset === 0;
+                const locked = otherArticlesCount === 0 && !isFirst;
+                const onDragStart = (e: React.DragEvent) => {
+                  e.dataTransfer.setData('application/x-luviai-article', JSON.stringify({
+                    id: a.id, topic: a.topic, title: a.title,
+                  }));
+                  e.dataTransfer.effectAllowed = 'move';
+                };
+                return (
+                  <div
+                    key={a.id}
+                    draggable
+                    onDragStart={onDragStart}
+                    className={`group rounded text-[10px] p-1 leading-tight cursor-grab active:cursor-grabbing border ${
+                      locked ? 'bg-muted/40 border-muted opacity-70' : 'bg-brand/10 border-brand/30 hover:bg-brand/15'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="font-mono font-bold text-brand">{fmtTime(a.scheduledAt)}</span>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); removeArticle(a.id); }}
+                        className="opacity-0 group-hover:opacity-100 text-red-500 text-[10px]"
+                        title="Takvimden kaldir"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                    <p className="font-medium truncate mt-0.5">{a.title || a.topic}</p>
+                    <p className="text-[9px] text-muted-foreground">{locked ? '🔒 paket' : '📅 planlı'}</p>
+                  </div>
+                );
+              })}
             </div>
           );
         })}
+      </div>
+
+      {pendingDrop && (
+        <TimePickerDialog
+          date={pendingDrop.date}
+          topicTitle={pendingDrop.data.topic || pendingDrop.data.title}
+          submitting={submitting}
+          onCancel={() => setPendingDrop(null)}
+          onConfirm={(h, m) => confirmDrop(h, m)}
+        />
+      )}
+    </div>
+  );
+}
+
+function TimePickerDialog({
+  date, topicTitle, submitting, onCancel, onConfirm,
+}: {
+  date: Date;
+  topicTitle: string;
+  submitting: boolean;
+  onCancel: () => void;
+  onConfirm: (hour: number, minute: number) => void;
+}) {
+  const [time, setTime] = useState('10:00');
+  const submit = () => {
+    const [h, m] = time.split(':').map((x) => parseInt(x, 10));
+    onConfirm(h, m);
+  };
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 backdrop-blur-sm" onClick={onCancel}>
+      <div className="bg-background border rounded-lg shadow-xl p-5 max-w-sm w-full mx-4" onClick={(e) => e.stopPropagation()}>
+        <p className="text-sm font-semibold mb-1">Yayın saati seç</p>
+        <p className="text-xs text-muted-foreground mb-3 line-clamp-2">{topicTitle}</p>
+        <p className="text-xs text-muted-foreground mb-3">
+          📅 {date.toLocaleDateString('tr-TR', { weekday: 'long', day: 'numeric', month: 'long' })}
+        </p>
+        <input
+          type="time"
+          value={time}
+          onChange={(e) => setTime(e.target.value)}
+          className="w-full border rounded-md px-3 py-2 text-sm bg-background"
+          autoFocus
+        />
+        <div className="flex gap-2 mt-4 justify-end">
+          <Button variant="outline" size="sm" onClick={onCancel} disabled={submitting}>İptal</Button>
+          <Button size="sm" onClick={submit} disabled={submitting}>
+            {submitting ? 'Ekleniyor…' : 'Takvime ekle'}
+          </Button>
+        </div>
+        <p className="text-[10px] text-muted-foreground mt-3">
+          ⏰ Bu saatten 15 dk önce makale üretimi başlar, tam saatte yayınlanır.
+        </p>
       </div>
     </div>
   );
