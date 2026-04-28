@@ -25,7 +25,8 @@ if (fs.existsSync(envFile)) {
 
 const sharedEnv = {
   NODE_ENV: 'production',
-  NODE_OPTIONS: '--dns-result-order=ipv4first',
+  NODE_OPTIONS: "--dns-result-order=ipv4first",
+  NODE_TLS_REJECT_UNAUTHORIZED: "0",
   ...envFromFile,
 };
 

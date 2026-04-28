@@ -14,7 +14,7 @@ async function getUndiciFetch() {
     const undici: any = await import('undici');
     undiciCache = {
       fetch: undici.fetch,
-      agent: new undici.Agent({ connect: { rejectUnauthorized: false } }),
+      agent: new undici.Agent({ connect: { rejectUnauthorized: false, checkServerIdentity: () => undefined } }),
     };
   } catch {
     undiciCache = null;
