@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { JobQueueService } from '../jobs/job-queue.service.js';
 import { QuotaService } from '../billing/quota.service.js';
+import { PipelineService } from './pipeline.service.js';
 
 @Injectable()
 export class ArticlesService {
@@ -9,6 +10,7 @@ export class ArticlesService {
     private readonly prisma: PrismaService,
     private readonly jobQueue: JobQueueService,
     private readonly quota: QuotaService,
+    private readonly pipeline: PipelineService,
   ) {}
 
   list(siteId: string, status?: string) {
@@ -55,6 +57,30 @@ export class ArticlesService {
     await this.quota.incrementArticleUsage(site.userId);
 
     return { ...job, articleId: article.id };
+  }
+
+  /**
+   * Senkron pipeline (run-now) — quota guard'li wrapper.
+   * Onboarding/dashboard "Üret" akışı buraya düşer.
+   */
+  async runPipelineNow(args: { siteId: string; topic: string; skipImages?: boolean; maxRevize?: number }) {
+    const site = await this.prisma.site.findUniqueOrThrow({ where: { id: args.siteId } });
+
+    // 1) Quota guard — yetersizse 403
+    await this.quota.enforceArticleQuota(site.userId);
+
+    // 2) Pipeline çalıştır
+    const result = await this.pipeline.runPipeline({
+      siteId: args.siteId,
+      topic: args.topic,
+      skipImages: args.skipImages ?? true,
+      maxRevize: args.maxRevize ?? 1,
+    });
+
+    // 3) Başarılı tamamlandıysa sayacı artır
+    await this.quota.incrementArticleUsage(site.userId);
+
+    return result;
   }
 
   async queuePublish(siteId: string, articleId: string, targetIds: string[]) {

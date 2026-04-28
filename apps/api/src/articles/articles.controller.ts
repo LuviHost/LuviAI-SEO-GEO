@@ -1,12 +1,10 @@
 import { Body, Controller, Get, Param, Post, Query } from '@nestjs/common';
 import { ArticlesService } from './articles.service.js';
-import { PipelineService } from './pipeline.service.js';
 
 @Controller('sites/:siteId/articles')
 export class ArticlesController {
   constructor(
     private readonly articles: ArticlesService,
-    private readonly pipeline: PipelineService,
   ) {}
 
   @Get()
@@ -25,14 +23,14 @@ export class ArticlesController {
     return this.articles.queueGeneration(siteId, body.topic, body.targetIds);
   }
 
-  /** POST /sites/:siteId/articles/run-now — senkron pipeline (dev/test) */
+  /** POST /sites/:siteId/articles/run-now — senkron pipeline (quota'li) */
   @Post('run-now')
   runNow(@Param('siteId') siteId: string, @Body() body: { topic: string; skipImages?: boolean; maxRevize?: number }) {
-    return this.pipeline.runPipeline({
+    return this.articles.runPipelineNow({
       siteId,
       topic: body.topic,
-      skipImages: body.skipImages ?? true,
-      maxRevize: body.maxRevize ?? 1,
+      skipImages: body.skipImages,
+      maxRevize: body.maxRevize,
     });
   }
 
