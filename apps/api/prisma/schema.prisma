@@ -141,6 +141,13 @@ model Site {
   autoGenerationCron    String? // "0 9 * * 1"  (Pazartesi 09:00)
   autoGenerationCount   Int     @default(5)
 
+  // Otopilot — varsayilan AÇIK, tum akisi otomatik yapar
+  autopilot         Boolean @default(true)
+  // Platform tahmini (auto-detect): wordpress | webflow | wix | ghost | shopify | cpanel-static | unknown
+  platform          String?
+  platformConfidence Float?  // 0..1
+  platformDetectedAt DateTime?
+
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 

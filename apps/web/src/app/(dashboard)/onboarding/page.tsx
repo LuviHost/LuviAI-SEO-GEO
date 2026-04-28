@@ -26,6 +26,7 @@ export default function OnboardingPage() {
     name: '',
     niche: '',
     language: 'tr', // varsayilan, sonra Ayarlar'dan degistirilebilir
+    autopilot: true, // OTOPILOT: varsayilan acik
   });
 
   const next = () => setStep((s) => Math.min(s + 1, 2));
@@ -48,7 +49,8 @@ export default function OnboardingPage() {
         name: form.name,
         niche: form.niche,
         language: form.language,
-      });
+        autopilot: form.autopilot,
+      } as any);
       toast.success('Site eklendi! Site sayfasında akış otomatik başlar.');
       router.push(`/sites/${site.id}?onboarding=running`);
     } catch (err: any) {
@@ -129,6 +131,26 @@ export default function OnboardingPage() {
                   "Bitir" sonrası site sayfanda akış otomatik çalışır: marka analizi → site skoru → rakip tespiti → önerilen makaleler.
                   GSC/GA bağlamak istersen orada bir tıkla.
                 </p>
+              </div>
+
+              {/* Otopilot toggle */}
+              <div className={`mt-4 rounded-lg border-2 p-4 cursor-pointer transition-colors ${
+                form.autopilot ? 'border-brand bg-brand/5' : 'border-muted'
+              }`} onClick={() => setForm({ ...form, autopilot: !form.autopilot })}>
+                <div className="flex items-start gap-3">
+                  <div className={`mt-0.5 h-5 w-5 rounded-full border-2 grid place-items-center shrink-0 ${
+                    form.autopilot ? 'border-brand bg-brand' : 'border-muted-foreground'
+                  }`}>
+                    {form.autopilot && <span className="h-2 w-2 bg-white rounded-full" />}
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-semibold text-sm">🤖 Otopilot Modu (önerilen)</p>
+                    <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+                      LuviAI tüm akışı senin için yapar: site denetimi → otomatik düzeltme (sitemap, robots.txt, llms.txt) →
+                      8 makale takvime yerleştir → sırayla üret → yayınla. Sen sadece özet raporu maille okursun.
+                    </p>
+                  </div>
+                </div>
               </div>
             </>
           )}

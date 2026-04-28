@@ -165,6 +165,25 @@ export const api = {
       method: 'DELETE',
     }),
 
+  // Otopilot + platform
+  setAutopilot: (siteId: string, enabled: boolean) =>
+    request<any>(`/sites/${siteId}/autopilot`, {
+      method: 'PATCH',
+      body: JSON.stringify({ enabled }),
+    }),
+
+  detectPlatform: (siteId: string) =>
+    request<any>(`/sites/${siteId}/detect-platform`, { method: 'POST' }),
+
+  // Reports
+  getReport: (siteId: string, range: 'week' | 'month' | 'year' = 'month') =>
+    request<any>(`/sites/${siteId}/analytics/report?range=${range}`),
+
+  getReportCsvUrl: (siteId: string, range: 'week' | 'month' | 'year' = 'month') => {
+    const apiBase = process.env.NEXT_PUBLIC_API_URL ?? '';
+    return `${apiBase}/api/sites/${siteId}/analytics/report.csv?range=${range}`;
+  },
+
   getArticle: (siteId: string, articleId: string) =>
     request<any>(`/sites/${siteId}/articles/${articleId}`),
 

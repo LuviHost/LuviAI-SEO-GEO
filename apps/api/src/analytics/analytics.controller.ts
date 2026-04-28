@@ -1,12 +1,15 @@
-import { Controller, Get, Param, Post, Query } from '@nestjs/common';
+import { Controller, Get, Header, Param, Post, Query, Res } from '@nestjs/common';
+import type { Response } from 'express';
 import { AnalyticsService } from './analytics.service.js';
 import { GaService } from './ga.service.js';
+import { ReportsService, ReportRange } from './reports.service.js';
 
 @Controller('sites/:siteId/analytics')
 export class AnalyticsController {
   constructor(
     private readonly analytics: AnalyticsService,
     private readonly ga: GaService,
+    private readonly reports: ReportsService,
   ) {}
 
   /** GET /sites/:siteId/analytics/overview?days=30 */
@@ -44,5 +47,31 @@ export class AnalyticsController {
   @Get('ga-summary')
   gaSummary(@Param('siteId') siteId: string, @Query('days') days?: string) {
     return this.ga.fetchSiteSummary(siteId, days ? parseInt(days, 10) : 30);
+  }
+
+  /** GET /sites/:siteId/analytics/report?range=week|month|year — kapsamli rapor */
+  @Get('report')
+  report(
+    @Param('siteId') siteId: string,
+    @Query('range') range?: string,
+  ) {
+    const r: ReportRange = (range === 'week' || range === 'year') ? range : 'month';
+    return this.reports.overview(siteId, r);
+  }
+
+  /** GET /sites/:siteId/analytics/report.csv?range=month — Excel'e direkt acilabilir */
+  @Get('report.csv')
+  @Header('Content-Type', 'text/csv; charset=utf-8')
+  async reportCsv(
+    @Param('siteId') siteId: string,
+    @Query('range') range: string | undefined,
+    @Res() res: Response,
+  ) {
+    const r: ReportRange = (range === 'week' || range === 'year') ? range : 'month';
+    const data = await this.reports.overview(siteId, r);
+    const csv = this.reports.toCsv(data);
+    const filename = `luviai-report-${siteId.slice(0, 8)}-${r}-${new Date().toISOString().slice(0, 10)}.csv`;
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(csv);
   }
 }

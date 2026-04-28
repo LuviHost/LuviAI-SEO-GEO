@@ -3,6 +3,7 @@ import { SitesController } from './sites.controller.js';
 import { SitesService } from './sites.service.js';
 import { BrainGeneratorService } from './brain-generator.service.js';
 import { SiteCrawlerService } from './site-crawler.service.js';
+import { PlatformDetectorService } from './platform-detector.service.js';
 import { AuthModule } from '../auth/auth.module.js';
 
 /**
@@ -18,7 +19,7 @@ import { AuthModule } from '../auth/auth.module.js';
 @Module({
   imports: [AuthModule],
   controllers: [SitesController],
-  providers: [SitesService, BrainGeneratorService, SiteCrawlerService],
-  exports: [SitesService, BrainGeneratorService, SiteCrawlerService],
+  providers: [SitesService, BrainGeneratorService, SiteCrawlerService, PlatformDetectorService],
+  exports: [SitesService, BrainGeneratorService, SiteCrawlerService, PlatformDetectorService],
 })
 export class SitesModule {}

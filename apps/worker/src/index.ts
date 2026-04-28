@@ -26,6 +26,7 @@ import { PublisherService } from '../../api/dist/articles/publisher.service.js';
 import { ArticleSchedulerService } from '../../api/dist/articles/article-scheduler.service.js';
 import { SocialPostsService } from '../../api/dist/social/social-posts.service.js';
 import { PrismaService } from '../../api/dist/prisma/prisma.service.js';
+import { PlatformDetectorService } from '../../api/dist/sites/platform-detector.service.js';
 
 const log = new Logger('Worker');
 
@@ -44,6 +45,7 @@ async function bootstrap() {
     publisher: app.get(PublisherService),
     scheduler: app.get(ArticleSchedulerService),
     socialPosts: app.get(SocialPostsService),
+    platformDetector: app.get(PlatformDetectorService),
     prisma: app.get(PrismaService),
   };
 
@@ -121,34 +123,64 @@ async function bootstrap() {
     },
 
     /**
-     * ONBOARDING_CHAIN — wow-moment
-     * brain → audit → topics → ilk 5 makaleyi takvime yerlestir + 1.yi hemen uret
-     * GEO oncelikli: AI Citation testi audit icinde otomatik calistiyor,
-     * llms.txt + schema markup auto-fix ile yazilmaya hazir.
+     * ONBOARDING_CHAIN — Otopilot
+     * brain → audit → topics → platform detect → tier-1 takvim
+     * Otopilot ON ise: 8 makale schedule + auto-fix tetikle (sitemap/robots/llms)
+     * Otopilot OFF ise: sadece audit + topics, kullanici manuel surucler.
      */
     ONBOARDING_CHAIN: async ({ siteId }) => {
       log.log(`[${siteId}] Onboarding chain başlıyor`);
 
-      log.log(`[${siteId}] [1/4] Brain üretiliyor`);
+      const site = await services.prisma.site.findUniqueOrThrow({ where: { id: siteId } });
+      const autopilot = (site as any).autopilot !== false;
+
+      log.log(`[${siteId}] [1/5] Brain üretiliyor`);
       await services.brainGen.runGeneration(siteId);
 
-      log.log(`[${siteId}] [2/4] Audit (AI citation otomatik)`);
+      log.log(`[${siteId}] [2/5] Audit (AI citation otomatik)`);
       const audit = await services.audit.runAudit(siteId);
 
-      log.log(`[${siteId}] [3/4] Topic engine`);
+      log.log(`[${siteId}] [3/5] Topic engine`);
       const queue = await services.topics.runEngine(siteId);
       const tier1Count = ((queue.tier1Topics as any[]) ?? []).length;
 
-      log.log(`[${siteId}] [4/4] Tier-1 takvim yerlesimi (5 makale)`);
-      const scheduleResult = await services.scheduler.scheduleInitialBatch(siteId, { count: 5 });
+      log.log(`[${siteId}] [4/5] Platform tespiti`);
+      try {
+        const detection = await services.platformDetector.detect(site.url);
+        await services.prisma.site.update({
+          where: { id: siteId },
+          data: {
+            platform: detection.platform,
+            platformConfidence: detection.confidence,
+            platformDetectedAt: new Date(),
+          } as any,
+        });
+        log.log(`[${siteId}] Platform: ${detection.platform} (${(detection.confidence * 100).toFixed(0)}%)`);
+      } catch (err: any) {
+        log.warn(`[${siteId}] Platform detect fail: ${err.message}`);
+      }
 
-      // Site'i ACTIVE'e al
+      log.log(`[${siteId}] [5/5] Tier-1 takvim yerlesimi (${autopilot ? 8 : 3} makale)`);
+      const scheduleResult = await services.scheduler.scheduleInitialBatch(siteId, {
+        count: autopilot ? 8 : 3,
+      });
+
+      // Otopilot ON ise auto-fix (sitemap/robots/llms) tetikle
+      if (autopilot) {
+        try {
+          await services.autoFix.runAutoFix(siteId, ['sitemap', 'robots', 'llms']);
+          log.log(`[${siteId}] Auto-fix tetiklendi (otopilot)`);
+        } catch (err: any) {
+          log.warn(`[${siteId}] Auto-fix atlandi: ${err.message}`);
+        }
+      }
+
       await services.prisma.site.update({
         where: { id: siteId },
         data: { status: 'ACTIVE' },
       });
 
-      log.log(`[${siteId}] ✅ Onboarding tamamlandi — audit, ${tier1Count} tier-1, ${scheduleResult.scheduled} makale takvimde${scheduleResult.isTrial ? ' (TRIAL: 1.makale uretiliyor, kalanlar paket bekliyor)' : ''}`);
+      log.log(`[${siteId}] ✅ Onboarding tamamlandi — audit, ${tier1Count} tier-1, ${scheduleResult.scheduled} makale takvimde${scheduleResult.isTrial ? ' (TRIAL: 1.makale uretiliyor, kalanlar paket bekliyor)' : ''}${autopilot ? ' [OTOPILOT]' : ''}`);
       return {
         onboarded: true,
         audit: audit.id,
@@ -157,6 +189,7 @@ async function bootstrap() {
         scheduledArticles: scheduleResult.scheduled,
         immediateArticleId: scheduleResult.immediate,
         isTrial: scheduleResult.isTrial,
+        autopilot,
       };
     },
 

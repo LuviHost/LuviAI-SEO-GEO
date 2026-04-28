@@ -4,6 +4,8 @@ import { SitesService } from './sites.service.js';
 import { CreateSiteDto, UpdateSiteDto } from './sites.dto.js';
 import { GscOAuthService } from '../auth/gsc-oauth.service.js';
 import { GaOAuthService } from '../auth/ga-oauth.service.js';
+import { PlatformDetectorService } from './platform-detector.service.js';
+import { PrismaService } from '../prisma/prisma.service.js';
 
 function ensureUser(req: Request) {
   const user = (req as any).user;
@@ -17,6 +19,8 @@ export class SitesController {
     private readonly sites: SitesService,
     private readonly gsc: GscOAuthService,
     private readonly ga: GaOAuthService,
+    private readonly platformDetector: PlatformDetectorService,
+    private readonly prisma: PrismaService,
   ) {}
 
   @Post()
@@ -102,5 +106,35 @@ export class SitesController {
   ) {
     await this.sites.findOne(id, ensureUser(req));
     return this.ga.setProperty(id, body.propertyId);
+  }
+
+  /** POST /sites/:id/detect-platform — manuel platform tespiti */
+  @Post(':id/detect-platform')
+  async detectPlatform(@Req() req: Request, @Param('id') id: string) {
+    const site = await this.sites.findOne(id, ensureUser(req));
+    const detection = await this.platformDetector.detect(site.url);
+    await this.prisma.site.update({
+      where: { id },
+      data: {
+        platform: detection.platform,
+        platformConfidence: detection.confidence,
+        platformDetectedAt: new Date(),
+      } as any,
+    });
+    return detection;
+  }
+
+  /** PATCH /sites/:id/autopilot body { enabled: boolean } */
+  @Patch(':id/autopilot')
+  async setAutopilot(
+    @Req() req: Request,
+    @Param('id') id: string,
+    @Body() body: { enabled: boolean },
+  ) {
+    await this.sites.findOne(id, ensureUser(req));
+    return this.prisma.site.update({
+      where: { id },
+      data: { autopilot: !!body.enabled } as any,
+    });
   }
 }

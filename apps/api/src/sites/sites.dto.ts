@@ -15,6 +15,9 @@ export class CreateSiteDto {
   @IsOptional()
   @IsString()
   language?: string;
+
+  @IsOptional()
+  autopilot?: boolean;
 }
 
 export class UpdateSiteDto {

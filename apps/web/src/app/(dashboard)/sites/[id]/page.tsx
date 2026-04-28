@@ -10,6 +10,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { AnalyticsTab } from '@/components/analytics-tab';
 import { SettingsTab } from '@/components/settings-tab';
 import { SiteFlowStepper } from '@/components/site-flow-stepper';
+import { SiteOverviewDashboard } from '@/components/site-overview-dashboard';
+import { SiteReportPanel } from '@/components/site-report-panel';
 
 export default function SitePage() {
   const params = useParams();
@@ -89,18 +91,39 @@ export default function SitePage() {
         </a>
       </div>
 
-      {tab === 'analytics' || tab === 'settings' ? (
-        <div className="space-y-4">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => router.push(`/sites/${id}` as any)}
-          >
-            <ChevronLeft className="h-4 w-4 mr-1" /> Akışa dön
-          </Button>
-          {tab === 'analytics' ? <AnalyticsTab siteId={id} /> : <SettingsTab siteId={id} />}
-        </div>
-      ) : (
+      {/* Sekme cubugu */}
+      <div className="flex items-center gap-1 border-b">
+        {[
+          { id: '', label: 'Özet' },
+          { id: 'flow', label: 'Detaylı Akış' },
+          { id: 'report', label: 'Rapor' },
+          { id: 'analytics', label: 'Analytics' },
+          { id: 'settings', label: 'Ayarlar' },
+        ].map((t) => {
+          const active = (t.id === '' && !tab) || tab === t.id;
+          return (
+            <button
+              key={t.id || 'overview'}
+              onClick={() => router.push(`/sites/${id}${t.id ? `?tab=${t.id}` : ''}` as any)}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                active ? 'border-brand text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              {t.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {!tab && (
+        <SiteOverviewDashboard
+          site={site}
+          audit={audit}
+          articles={articles}
+          onRefresh={refresh}
+        />
+      )}
+      {tab === 'flow' && (
         <SiteFlowStepper
           site={site}
           audit={audit}
@@ -110,6 +133,9 @@ export default function SitePage() {
           onboardingMode={onboardingMode || isOnboardingActive}
         />
       )}
+      {tab === 'report' && <SiteReportPanel siteId={id} site={site} />}
+      {tab === 'analytics' && <AnalyticsTab siteId={id} />}
+      {tab === 'settings' && <SettingsTab siteId={id} />}
     </div>
   );
 }
