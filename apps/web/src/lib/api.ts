@@ -246,4 +246,50 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify({ competitors }),
     }),
+
+  // Social — catalog
+  getSocialCatalog: () =>
+    request<Array<{ type: string; label: string; status: 'live' | 'soon' }>>('/social/catalog'),
+
+  // Social — channels
+  listSocialChannels: (siteId: string) =>
+    request<Array<any>>(`/sites/${siteId}/social/channels`),
+
+  updateSocialChannel: (channelId: string, body: { name?: string; isActive?: boolean; isDefault?: boolean; config?: any }) =>
+    request<any>(`/social/channels/${channelId}`, { method: 'PATCH', body: JSON.stringify(body) }),
+
+  deleteSocialChannel: (channelId: string) =>
+    request<{ ok: boolean }>(`/social/channels/${channelId}`, { method: 'DELETE' }),
+
+  startSocialOAuth: (siteId: string, type: string) =>
+    request<{ url: string }>(`/sites/${siteId}/social/${type}/oauth/start`),
+
+  // Social — posts
+  listSocialPosts: (siteId: string, params?: { channelId?: string; status?: string }) => {
+    const qs = new URLSearchParams();
+    if (params?.channelId) qs.set('channelId', params.channelId);
+    if (params?.status) qs.set('status', params.status);
+    const tail = qs.toString() ? `?${qs.toString()}` : '';
+    return request<Array<any>>(`/sites/${siteId}/social/posts${tail}`);
+  },
+
+  createSocialPost: (body: {
+    channelId: string;
+    text: string;
+    mediaUrls?: any[];
+    metadata?: any;
+    scheduledFor?: string | null;
+    articleId?: string;
+    status?: 'DRAFT' | 'QUEUED';
+  }) =>
+    request<any>('/social/posts', { method: 'POST', body: JSON.stringify(body) }),
+
+  updateSocialPost: (postId: string, body: any) =>
+    request<any>(`/social/posts/${postId}`, { method: 'PATCH', body: JSON.stringify(body) }),
+
+  deleteSocialPost: (postId: string) =>
+    request<{ ok: boolean }>(`/social/posts/${postId}`, { method: 'DELETE' }),
+
+  publishSocialPostNow: (postId: string) =>
+    request<any>(`/social/posts/${postId}/publish-now`, { method: 'POST' }),
 };

@@ -153,6 +153,7 @@ model Site {
   articles         Article[]
   jobs             Job[]
   analyticsSnapshots AnalyticsSnapshot[]
+  socialChannels   SocialChannel[]
 
   @@unique([userId, url])
   @@index([userId])
@@ -353,6 +354,7 @@ model Article {
   updatedAt   DateTime       @updatedAt
 
   site Site @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  socialPosts SocialPost[]
 
   @@unique([siteId, slug])
   @@index([siteId, status])
@@ -601,4 +603,127 @@ model ApiKey {
 
   @@index([userId])
   @@map("api_keys")
+}
+
+// ─────────────────────────────────────────────────────────────────
+// Sosyal Medya — kanal + post + recurring slot
+// PublishTarget'a paralel ama sosyal kanal bazli (LI/X/FB/IG/TT/YT/Threads/BS/Pin/GMB)
+// ─────────────────────────────────────────────────────────────────
+
+model SocialChannel {
+  id          String   @id @default(cuid())
+  siteId      String
+  type        SocialChannelType
+  name        String                              // "LuviHost LinkedIn" gibi kullanici etiketi
+  isActive    Boolean  @default(true)
+  isDefault   Boolean  @default(false)            // makale yayini sonrasi otomatik dagit (opt-in)
+
+  // OAuth + credentials (sifrelenmis JSON)
+  credentials String   @db.Text                   // encrypt(JSON.stringify({ accessToken, refreshToken, expiresAt, ... }))
+  config      Json?                               // kanal-bazli ek ayar: pageId, ugcUrn, accountId
+
+  // Account metadata (UI'da gostermek icin)
+  externalId      String?                         // LI URN, FB Page ID, IG Business Account ID
+  externalName    String?                         // "Emirhan Burgazli" / "LuviHost Co."
+  externalAvatar  String?
+
+  lastUsedAt  DateTime?
+  lastError   String?  @db.Text
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  site            Site                  @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  posts           SocialPost[]
+  recurringSlots  SocialRecurringSlot[]
+
+  @@unique([siteId, type, externalId])           // ayni site icin ayni kanal+hesap iki kez eklenmesin
+  @@index([siteId])
+  @@index([type])
+  @@map("social_channels")
+}
+
+enum SocialChannelType {
+  LINKEDIN_PERSONAL
+  LINKEDIN_COMPANY
+  X_TWITTER
+  FACEBOOK_PAGE
+  INSTAGRAM_BUSINESS
+  TIKTOK
+  YOUTUBE
+  THREADS
+  BLUESKY
+  PINTEREST
+  GMB                 // Google Business Profile
+  MASTODON
+}
+
+model SocialPost {
+  id          String   @id @default(cuid())
+  channelId   String
+  articleId   String?                              // makaleden tureyense bagli, bagimsizsa null
+
+  // Icerik (kanal-formati uygulanmis)
+  text        String   @db.Text                    // ana metin
+  mediaUrls   Json?                                // [{url, type:'image'|'video', altText}]
+  metadata    Json?                                // hashtags, mentions, link, threadParts
+
+  // Scheduling
+  status      SocialPostStatus @default(DRAFT)
+  scheduledFor DateTime?                           // null = "hemen" veya manuel
+  publishedAt DateTime?
+
+  // Yayin sonucu
+  externalId  String?                              // LI urn, X tweet id, FB post id
+  externalUrl String?                              // public URL (https://linkedin.com/feed/update/urn:li:...)
+  errorMsg    String?  @db.Text
+  retryCount  Int      @default(0)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  channel  SocialChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  article  Article?      @relation(fields: [articleId], references: [id], onDelete: SetNull)
+
+  @@index([channelId, status])
+  @@index([scheduledFor])
+  @@index([articleId])
+  @@map("social_posts")
+}
+
+enum SocialPostStatus {
+  DRAFT                // taslak — kullanici onaylamadi
+  QUEUED               // zamanlanmis, scheduledFor bekleniyor
+  PUBLISHING           // yayina gonderiliyor
+  PUBLISHED            // basariyla yayinlandi
+  FAILED               // yayin basarisiz, retry edilebilir
+  CANCELED             // kullanici iptal etti
+}
+
+// Haftalik recurring slot — "her Pazartesi 09:00 LI'ye queue'dan 1 post"
+model SocialRecurringSlot {
+  id          String   @id @default(cuid())
+  channelId   String
+
+  dayOfWeek   Int                                  // 0 (Pazar) - 6 (Cumartesi)
+  hour        Int                                  // 0-23
+  minute      Int                                  // 0-59
+  timezone    String   @default("Europe/Istanbul")
+
+  // Slot ne yapsin?
+  source      SocialSlotSource @default(QUEUE)    // QUEUE: kullanici taslagindan ilk siradakini cek; AUTO: 09-social-writer ile yeni uret
+  isActive    Boolean  @default(true)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  channel  SocialChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@index([channelId])
+  @@map("social_recurring_slots")
+}
+
+enum SocialSlotSource {
+  QUEUE                // kullanici draft'larindan al
+  AUTO                 // 09-social-writer ile yeni uret
 }

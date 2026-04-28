@@ -6,7 +6,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import {
   CheckCircle2, ChevronDown, Circle, ExternalLink, Plus, Trash2,
-  BarChart3, Link2, Unlink, Activity, Sparkles, FileText, Send,
+  BarChart3, Link2, Unlink, Activity, Sparkles, FileText, Send, Share2,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
@@ -15,6 +15,7 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { PipelineProgress, PIPELINE_STEPS } from '@/components/pipeline-progress';
+import { SocialChannelsStep } from '@/components/social-channels-step';
 
 type StepStatus = 'pending' | 'auto-running' | 'done' | 'skipped';
 
@@ -65,12 +66,18 @@ export function SiteFlowStepper({
       optional: true,
     },
     {
-      id: 'topics', n: 5, title: 'Önerilen Makaleler',
+      id: 'social', n: 5, title: 'Sosyal Kanallar',
+      status: 'skipped', // bu step opsiyonel; gerçek durumu kart kendi içinde gösterir
+      hint: 'LinkedIn (X/FB/IG çok yakında)',
+      optional: true,
+    },
+    {
+      id: 'topics', n: 6, title: 'Önerilen Makaleler',
       status: queue ? 'done' : (onboardingMode ? 'auto-running' : 'pending'),
       hint: queue ? `${(queue.tier1Topics ?? []).length} öneri` : 'Topic engine bekleniyor',
     },
     {
-      id: 'articles', n: 6, title: 'Makaleler',
+      id: 'articles', n: 7, title: 'Makaleler',
       status: articles.length > 0 ? 'done' : 'pending',
       hint: articles.length > 0 ? `${articles.length} makale` : 'İlk makale ücretsiz',
     },
@@ -107,6 +114,7 @@ export function SiteFlowStepper({
           {s.id === 'competitors' && <CompetitorsStepBody siteId={site.id} initial={site.brain?.competitors ?? []} onChanged={onRefresh} />}
           {s.id === 'gsc' && <GscStepBody site={site} onChanged={onRefresh} />}
           {s.id === 'ga4' && <Ga4StepBody site={site} onChanged={onRefresh} />}
+          {s.id === 'social' && <SocialChannelsStep siteId={site.id} />}
           {s.id === 'topics' && <TopicsStepBody queue={queue} siteId={site.id} onRefresh={onRefresh} />}
           {s.id === 'articles' && <ArticlesStepBody articles={articles} siteId={site.id} />}
         </StepCard>
