@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { decrypt, mdToHtml } from '@luviai/shared';
 import { getAdapter } from '@luviai/adapters';
+import { SocialAutoDraftService } from '../social/social-auto-draft.service.js';
 
 export interface PublishResult {
   targetId: string;
@@ -22,7 +23,10 @@ export interface PublishResult {
 export class PublisherService {
   private readonly log = new Logger(PublisherService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly socialAutoDraft: SocialAutoDraftService,
+  ) {}
 
   async publishArticle(articleId: string, targetIds: string[]): Promise<PublishResult[]> {
     const article = await this.prisma.article.findUniqueOrThrow({
@@ -113,6 +117,12 @@ export class PublisherService {
           bodyHtml,
           publishedTo: successful as any,
         },
+      });
+
+      // Sosyal kanallara DRAFT post hazirla — cron yayinlayacak.
+      // Hata olsa bile makale yayini etkilenmesin.
+      this.socialAutoDraft.createDraftsForArticle(articleId).catch((err) => {
+        this.log.warn(`[${articleId}] social auto-draft basarisiz: ${err.message}`);
       });
     }
 

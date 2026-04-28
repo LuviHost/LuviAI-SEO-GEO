@@ -303,4 +303,61 @@ export const api = {
 
   publishSocialPostNow: (postId: string) =>
     request<any>(`/social/posts/${postId}/publish-now`, { method: 'POST' }),
+
+  // Social — calendar / plan / slots
+  getSocialCalendar: (siteId: string, params?: { from?: string; to?: string }) => {
+    const qs = new URLSearchParams();
+    if (params?.from) qs.set('from', params.from);
+    if (params?.to) qs.set('to', params.to);
+    const tail = qs.toString() ? `?${qs.toString()}` : '';
+    return request<{
+      plan: string;
+      postsPerWeek: number;
+      timezone: string;
+      channels: Array<any>;
+      slots: Array<any>;
+      defaultSlots: Array<{ dayOfWeek: number; hour: number; minute: number; label: string }>;
+      stats: { draftCount: number; queuedCount: number; publishedCount: number; total: number };
+      posts: Array<any>;
+    }>(`/sites/${siteId}/social/calendar${tail}`);
+  },
+
+  getSocialPlanInfo: (siteId: string) =>
+    request<{
+      plan: string;
+      postsPerWeek: number;
+      timezone: string;
+      defaultSlots: Array<{ dayOfWeek: number; hour: number; minute: number; label: string }>;
+      tiers: Array<{ plan: string; postsPerWeek: number }>;
+    }>(`/sites/${siteId}/social/plan`),
+
+  listSocialSlots: (siteId: string) =>
+    request<Array<any>>(`/sites/${siteId}/social/slots`),
+
+  seedSocialSlots: (siteId: string, body: { replace?: boolean } = {}) =>
+    request<{ created: number; channelId: string; total: number }>(
+      `/sites/${siteId}/social/slots/seed`,
+      { method: 'POST', body: JSON.stringify(body) },
+    ),
+
+  createSocialSlot: (
+    channelId: string,
+    body: { dayOfWeek: number; hour: number; minute: number; source?: 'QUEUE' | 'AUTO'; isActive?: boolean },
+  ) =>
+    request<any>(`/social/channels/${channelId}/slots`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+
+  updateSocialSlot: (
+    slotId: string,
+    body: { dayOfWeek?: number; hour?: number; minute?: number; source?: 'QUEUE' | 'AUTO'; isActive?: boolean },
+  ) =>
+    request<any>(`/social/slots/${slotId}`, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    }),
+
+  deleteSocialSlot: (slotId: string) =>
+    request<{ ok: boolean }>(`/social/slots/${slotId}`, { method: 'DELETE' }),
 };

@@ -23,6 +23,7 @@ import { AutoFixService } from '../../api/dist/audit/auto-fix.service.js';
 import { TopicsService } from '../../api/dist/topics/topics.service.js';
 import { PipelineService } from '../../api/dist/articles/pipeline.service.js';
 import { PublisherService } from '../../api/dist/articles/publisher.service.js';
+import { SocialPostsService } from '../../api/dist/social/social-posts.service.js';
 import { PrismaService } from '../../api/dist/prisma/prisma.service.js';
 
 const log = new Logger('Worker');
@@ -40,6 +41,7 @@ async function bootstrap() {
     topics: app.get(TopicsService),
     pipeline: app.get(PipelineService),
     publisher: app.get(PublisherService),
+    socialPosts: app.get(SocialPostsService),
     prisma: app.get(PrismaService),
   };
 
@@ -88,6 +90,15 @@ async function bootstrap() {
 
     PUBLISH_ARTICLE: async ({ articleId, targetIds }) => {
       return services.publisher.publishArticle(articleId, targetIds ?? []);
+    },
+
+    /**
+     * SOCIAL_PUBLISH — SocialSchedulerService cron tarafindan tetiklenir.
+     * Tek bir SocialPost'u alip kanala (X / LinkedIn) yayinlar.
+     */
+    SOCIAL_PUBLISH: async ({ postId }) => {
+      const result = await services.socialPosts.runPublish(postId);
+      return { postId, externalId: result.externalId, externalUrl: result.externalUrl };
     },
 
     IMPROVE_PAGE: async (data) => {

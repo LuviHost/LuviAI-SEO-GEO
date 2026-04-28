@@ -5,6 +5,7 @@ import { AgentRunnerService } from './agent-runner.service.js';
 import { PipelineService } from './pipeline.service.js';
 import { ImageGeneratorService } from './image-generator.service.js';
 import { PublisherService } from './publisher.service.js';
+import { SocialModule } from '../social/social.module.js';
 
 /**
  * Article Pipeline:
@@ -13,8 +14,10 @@ import { PublisherService } from './publisher.service.js';
  *  - PipelineService: zincir orchestration
  *  - ImageGenerator: Gemini 2.5 Flash Image
  *  - Publisher: adapter framework (WP/FTP/SFTP/Markdown)
+ *  - SocialModule: PUBLISHED makaleler icin auto-draft sosyal post
  */
 @Module({
+  imports: [SocialModule],
   controllers: [ArticlesController],
   providers: [
     ArticlesService,

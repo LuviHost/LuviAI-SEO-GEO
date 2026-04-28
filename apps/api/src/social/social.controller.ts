@@ -1,8 +1,10 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, Res, UnauthorizedException } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, Req, Res, UnauthorizedException } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { Public } from '../auth/public.decorator.js';
 import { SocialChannelsService } from './social-channels.service.js';
 import { SocialPostsService } from './social-posts.service.js';
+import { SocialSlotsService } from './social-slots.service.js';
+import { SocialCalendarService } from './social-calendar.service.js';
 
 function ensureUser(req: Request) {
   const user = (req as any).user;
@@ -15,6 +17,8 @@ export class SocialController {
   constructor(
     private readonly channels: SocialChannelsService,
     private readonly posts: SocialPostsService,
+    private readonly slots: SocialSlotsService,
+    private readonly calendar: SocialCalendarService,
   ) {}
 
   // ─── Catalog ─────────────────────────────────────────
@@ -128,5 +132,66 @@ export class SocialController {
   @Post('social/posts/:postId/publish-now')
   publishNow(@Req() req: Request, @Param('postId') postId: string) {
     return this.posts.publishNow(postId, ensureUser(req));
+  }
+
+  // ─── Calendar / scheduling ──────────────────────────
+
+  @Get('sites/:siteId/social/calendar')
+  calendarOverview(
+    @Req() req: Request,
+    @Param('siteId') siteId: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    return this.calendar.getOverview(
+      siteId,
+      {
+        from: from ? new Date(from) : undefined,
+        to: to ? new Date(to) : undefined,
+      },
+      ensureUser(req),
+    );
+  }
+
+  @Get('sites/:siteId/social/plan')
+  planInfo(@Req() req: Request, @Param('siteId') siteId: string) {
+    return this.slots.getSitePlanInfo(siteId, ensureUser(req));
+  }
+
+  @Get('sites/:siteId/social/slots')
+  listSlots(@Req() req: Request, @Param('siteId') siteId: string) {
+    return this.slots.listSlots(siteId, ensureUser(req));
+  }
+
+  @Post('sites/:siteId/social/slots/seed')
+  seedSlots(
+    @Req() req: Request,
+    @Param('siteId') siteId: string,
+    @Body() body: { replace?: boolean } = {},
+  ) {
+    return this.slots.seedDefaults(siteId, { replace: body.replace }, ensureUser(req));
+  }
+
+  @Post('social/channels/:channelId/slots')
+  createSlot(
+    @Req() req: Request,
+    @Param('channelId') channelId: string,
+    @Body() body: { dayOfWeek: number; hour: number; minute: number; source?: 'QUEUE' | 'AUTO'; isActive?: boolean },
+  ) {
+    return this.slots.createSlot(channelId, body, ensureUser(req));
+  }
+
+  @Put('social/slots/:slotId')
+  updateSlot(
+    @Req() req: Request,
+    @Param('slotId') slotId: string,
+    @Body() body: { dayOfWeek?: number; hour?: number; minute?: number; source?: 'QUEUE' | 'AUTO'; isActive?: boolean },
+  ) {
+    return this.slots.updateSlot(slotId, body, ensureUser(req));
+  }
+
+  @Delete('social/slots/:slotId')
+  deleteSlot(@Req() req: Request, @Param('slotId') slotId: string) {
+    return this.slots.deleteSlot(slotId, ensureUser(req));
   }
 }

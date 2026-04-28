@@ -458,6 +458,7 @@ enum JobType {
   WEEKLY_BATCH
   PERFORMANCE_CHECK   // 30 gün sonra GSC
   ONBOARDING_CHAIN    // brain → audit → topics → ilk makale
+  SOCIAL_PUBLISH      // tek bir SocialPost yayini (cron tetikler)
 }
 
 enum JobStatus {

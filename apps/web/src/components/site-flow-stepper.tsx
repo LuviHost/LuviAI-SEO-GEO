@@ -16,6 +16,7 @@ import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { PipelineProgress, PIPELINE_STEPS } from '@/components/pipeline-progress';
 import { SocialChannelsStep } from '@/components/social-channels-step';
+import { SocialCalendarStep } from '@/components/social-calendar-step';
 
 type StepStatus = 'pending' | 'auto-running' | 'done' | 'skipped';
 
@@ -68,16 +69,22 @@ export function SiteFlowStepper({
     {
       id: 'social', n: 5, title: 'Sosyal Kanallar',
       status: 'skipped', // bu step opsiyonel; gerçek durumu kart kendi içinde gösterir
-      hint: 'LinkedIn (X/FB/IG çok yakında)',
+      hint: 'LinkedIn + X (Twitter)',
       optional: true,
     },
     {
-      id: 'topics', n: 6, title: 'Önerilen Makaleler',
+      id: 'social-calendar', n: 6, title: 'Sosyal Takvim',
+      status: 'skipped',
+      hint: 'Plana göre haftalık otomatik post',
+      optional: true,
+    },
+    {
+      id: 'topics', n: 7, title: 'Önerilen Makaleler',
       status: queue ? 'done' : (onboardingMode ? 'auto-running' : 'pending'),
       hint: queue ? `${(queue.tier1Topics ?? []).length} öneri` : 'Topic engine bekleniyor',
     },
     {
-      id: 'articles', n: 7, title: 'Makaleler',
+      id: 'articles', n: 8, title: 'Makaleler',
       status: articles.length > 0 ? 'done' : 'pending',
       hint: articles.length > 0 ? `${articles.length} makale` : 'İlk makale ücretsiz',
     },
@@ -115,6 +122,7 @@ export function SiteFlowStepper({
           {s.id === 'gsc' && <GscStepBody site={site} onChanged={onRefresh} />}
           {s.id === 'ga4' && <Ga4StepBody site={site} onChanged={onRefresh} />}
           {s.id === 'social' && <SocialChannelsStep siteId={site.id} />}
+          {s.id === 'social-calendar' && <SocialCalendarStep siteId={site.id} />}
           {s.id === 'topics' && <TopicsStepBody queue={queue} siteId={site.id} onRefresh={onRefresh} />}
           {s.id === 'articles' && <ArticlesStepBody articles={articles} siteId={site.id} />}
         </StepCard>
