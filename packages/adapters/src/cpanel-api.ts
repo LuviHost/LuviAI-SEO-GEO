@@ -1,22 +1,25 @@
 import { PublishAdapter } from './base.js';
 import type { PublishPayload, PublishResult } from './base.js';
 
-// undici dispatcher: cPanel sunuculari cogu zaman IP veya self-signed
-// sertifika ile sunulur. Default Node fetch hostname-cert eslesmesini zorlar
-// ('SSL: no alternative certificate subject name'). cPanel API'si icin
-// rejectUnauthorized:false yaygin pratik (HTTPS Basic auth + token zaten
-// sifreli, MITM riski sinirli host icindeyiz).
-let insecureDispatcher: any = null;
-async function getInsecureDispatcher() {
-  if (insecureDispatcher) return insecureDispatcher;
+// undici.fetch + Agent({ rejectUnauthorized: false })
+// Node'un native fetch'i (Web Fetch standardina sadik) `dispatcher` option'i
+// kabul ETMIYOR -> ayar sessizce ignore ediliyordu, TLS dogrulamasi devam ediyordu.
+// Bu yuzden undici'yi DOGRUDAN import edip onun fetch'ini kullaniyoruz —
+// dispatcher option'i sadece undici.fetch'te calisir.
+let undiciCache: { fetch: any; agent: any } | null = null;
+async function getUndiciFetch() {
+  if (undiciCache) return undiciCache;
   try {
-    // @ts-ignore — undici Node 18+ ile birlikte gelen built-in modul, @types/node tip tanimi vermiyor
+    // @ts-ignore — undici Node 18+ built-in modul, @types/node tip tanimi vermiyor
     const undici: any = await import('undici');
-    insecureDispatcher = new undici.Agent({ connect: { rejectUnauthorized: false } });
+    undiciCache = {
+      fetch: undici.fetch,
+      agent: new undici.Agent({ connect: { rejectUnauthorized: false } }),
+    };
   } catch {
-    insecureDispatcher = null;
+    undiciCache = null;
   }
-  return insecureDispatcher;
+  return undiciCache;
 }
 
 /**
@@ -63,16 +66,18 @@ export class CpanelApiAdapter extends PublishAdapter {
     ].join('\r\n');
 
     try {
-      const dispatcher = await getInsecureDispatcher();
-      const res = await fetch(url, {
+      const undici = await getUndiciFetch();
+      const fetchFn = undici?.fetch ?? fetch;
+      const fetchOpts: any = {
         method: 'POST',
         headers: {
           'Authorization': `cpanel ${username}:${apiToken}`,
           'Content-Type': `multipart/form-data; boundary=${boundary}`,
         },
         body,
-        ...(dispatcher ? { dispatcher } as any : {}),
-      });
+      };
+      if (undici?.agent) fetchOpts.dispatcher = undici.agent;
+      const res = await fetchFn(url, fetchOpts);
 
       if (!res.ok) {
         const txt = await res.text().catch(() => '');
@@ -104,13 +109,13 @@ export class CpanelApiAdapter extends PublishAdapter {
     const host = this.credentials.host ?? this.credentials.cpanelUrl;
     const { username, apiToken } = this.credentials;
     if (!host || !username || !apiToken) return false;
-    const dispatcher = await getInsecureDispatcher();
-    const res = await fetch(
+    const undici = await getUndiciFetch();
+    const fetchFn = undici?.fetch ?? fetch;
+    const opts: any = { headers: { 'Authorization': `cpanel ${username}:${apiToken}` } };
+    if (undici?.agent) opts.dispatcher = undici.agent;
+    const res = await fetchFn(
       `${host.replace(/\/$/, '')}/execute/Variables/get_user_information`,
-      {
-        headers: { 'Authorization': `cpanel ${username}:${apiToken}` },
-        ...(dispatcher ? { dispatcher } as any : {}),
-      },
+      opts,
     ).catch(() => null);
     return !!res?.ok;
   }
