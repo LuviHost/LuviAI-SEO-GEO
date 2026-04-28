@@ -625,7 +625,7 @@ model SocialChannel {
   // Account metadata (UI'da gostermek icin)
   externalId      String?                         // LI URN, FB Page ID, IG Business Account ID
   externalName    String?                         // "Emirhan Burgazli" / "LuviHost Co."
-  externalAvatar  String?
+  externalAvatar  String?  @db.VarChar(1000)      // LinkedIn CDN URL'leri 500+ karakter olabiliyor
 
   lastUsedAt  DateTime?
   lastError   String?  @db.Text
