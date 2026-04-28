@@ -44,10 +44,24 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   },
   secret: process.env.NEXTAUTH_SECRET ?? process.env.AUTH_SECRET,
   providers: [
+    /**
+     * Google OAuth2 — manuel endpoint config (OIDC discovery yapmadan).
+     * Sebep: bazı sunucularda Node undici "well-known" fetch'i ETIMEDOUT
+     * veriyor (IPv6 routing eksik vb.); manuel config ile bağımsız.
+     */
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
       allowDangerousEmailAccountLinking: true,
+      authorization: {
+        url: 'https://accounts.google.com/o/oauth2/v2/auth',
+        params: { scope: 'openid email profile', prompt: 'select_account' },
+      },
+      token: 'https://oauth2.googleapis.com/token',
+      userinfo: 'https://openidconnect.googleapis.com/v1/userinfo',
+      issuer: 'https://accounts.google.com',
+      wellKnown: undefined,
+      checks: ['pkce', 'state'],
     }),
   ],
   pages: {
