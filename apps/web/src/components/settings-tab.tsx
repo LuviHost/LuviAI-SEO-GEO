@@ -510,6 +510,9 @@ function GscConnectionCard({ siteId }: { siteId: string }) {
   const [site, setSite] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [properties, setProperties] = useState<Array<{ siteUrl: string; permissionLevel: string | null }> | null>(null);
+  const [loadingProps, setLoadingProps] = useState(false);
+  const [savingProp, setSavingProp] = useState(false);
 
   const refresh = async () => {
     try {
@@ -522,9 +525,41 @@ function GscConnectionCard({ siteId }: { siteId: string }) {
     }
   };
 
+  const loadProperties = async () => {
+    setLoadingProps(true);
+    try {
+      const list = await api.listGscProperties(siteId);
+      setProperties(list);
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setLoadingProps(false);
+    }
+  };
+
   useEffect(() => {
     refresh();
   }, [siteId]);
+
+  useEffect(() => {
+    if (site?.gscConnectedAt && properties === null) {
+      loadProperties();
+    }
+  }, [site?.gscConnectedAt]);
+
+  const selectProperty = async (propertyUrl: string) => {
+    if (propertyUrl === site?.gscPropertyUrl) return;
+    setSavingProp(true);
+    try {
+      await api.setGscProperty(siteId, propertyUrl);
+      toast.success('Property güncellendi');
+      refresh();
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setSavingProp(false);
+    }
+  };
 
   // Callback'ten dönüldüyse kullanıcıya bilgi ver, URL'i temizle
   useEffect(() => {
@@ -589,17 +624,47 @@ function GscConnectionCard({ siteId }: { siteId: string }) {
         {loading ? (
           <Skeleton className="h-10 w-full" />
         ) : connected ? (
-          <div className="flex items-center justify-between gap-3 flex-wrap text-sm">
-            <div>
-              <div className="font-medium">{site.gscPropertyUrl}</div>
-              <div className="text-xs text-muted-foreground mt-0.5">
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Aktif property
+              </div>
+              {loadingProps ? (
+                <Skeleton className="h-9 w-full" />
+              ) : properties && properties.length > 0 ? (
+                <select
+                  value={site.gscPropertyUrl ?? ''}
+                  onChange={(e) => selectProperty(e.target.value)}
+                  disabled={savingProp}
+                  className="w-full bg-card border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/40"
+                >
+                  {!site.gscPropertyUrl && <option value="">— Property seç —</option>}
+                  {properties.map((p) => (
+                    <option key={p.siteUrl} value={p.siteUrl}>
+                      {p.siteUrl}{p.permissionLevel ? ` · ${p.permissionLevel}` : ''}
+                    </option>
+                  ))}
+                </select>
+              ) : properties && properties.length === 0 ? (
+                <p className="text-xs text-red-500">
+                  Bu Google hesabı GSC'de hiçbir property'e erişim sahibi değil.
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground">Yükleniyor…</p>
+              )}
+              <div className="text-xs text-muted-foreground">
                 Bağlandı: {new Date(site.gscConnectedAt).toLocaleString('tr-TR')}
               </div>
             </div>
-            <Button size="sm" variant="outline" onClick={disconnect} disabled={busy}>
-              <Unlink className="h-4 w-4 mr-2" />
-              {busy ? 'İşlem devam ediyor…' : 'Bağlantıyı Kes'}
-            </Button>
+            <div className="flex justify-end gap-2">
+              <Button size="sm" variant="outline" onClick={loadProperties} disabled={loadingProps || savingProp}>
+                Listeyi Yenile
+              </Button>
+              <Button size="sm" variant="outline" onClick={disconnect} disabled={busy}>
+                <Unlink className="h-4 w-4 mr-2" />
+                {busy ? 'İşlem devam ediyor…' : 'Bağlantıyı Kes'}
+              </Button>
+            </div>
           </div>
         ) : (
           <div className="flex items-center justify-between gap-3 flex-wrap text-sm">
@@ -628,6 +693,9 @@ function Ga4ConnectionCard({ siteId }: { siteId: string }) {
   const [site, setSite] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [properties, setProperties] = useState<Array<{ propertyId: string; displayName: string; accountName: string }> | null>(null);
+  const [loadingProps, setLoadingProps] = useState(false);
+  const [savingProp, setSavingProp] = useState(false);
 
   const refresh = async () => {
     try {
@@ -640,9 +708,41 @@ function Ga4ConnectionCard({ siteId }: { siteId: string }) {
     }
   };
 
+  const loadProperties = async () => {
+    setLoadingProps(true);
+    try {
+      const list = await api.listGaProperties(siteId);
+      setProperties(list);
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setLoadingProps(false);
+    }
+  };
+
   useEffect(() => {
     refresh();
   }, [siteId]);
+
+  useEffect(() => {
+    if (site?.gaConnectedAt && properties === null) {
+      loadProperties();
+    }
+  }, [site?.gaConnectedAt]);
+
+  const selectProperty = async (propertyId: string) => {
+    if (propertyId === site?.gaPropertyId) return;
+    setSavingProp(true);
+    try {
+      await api.setGaProperty(siteId, propertyId);
+      toast.success('Property güncellendi');
+      refresh();
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setSavingProp(false);
+    }
+  };
 
   useEffect(() => {
     if (search.get('ga') === 'connected') {
@@ -706,17 +806,47 @@ function Ga4ConnectionCard({ siteId }: { siteId: string }) {
         {loading ? (
           <Skeleton className="h-10 w-full" />
         ) : connected ? (
-          <div className="flex items-center justify-between gap-3 flex-wrap text-sm">
-            <div>
-              <div className="font-medium">Property ID: {site.gaPropertyId}</div>
-              <div className="text-xs text-muted-foreground mt-0.5">
+          <div className="space-y-3">
+            <div className="space-y-2">
+              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Aktif property
+              </div>
+              {loadingProps ? (
+                <Skeleton className="h-9 w-full" />
+              ) : properties && properties.length > 0 ? (
+                <select
+                  value={site.gaPropertyId ?? ''}
+                  onChange={(e) => selectProperty(e.target.value)}
+                  disabled={savingProp}
+                  className="w-full bg-card border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/40"
+                >
+                  {!site.gaPropertyId && <option value="">— Property seç —</option>}
+                  {properties.map((p) => (
+                    <option key={p.propertyId} value={p.propertyId}>
+                      {p.displayName} · {p.accountName} ({p.propertyId})
+                    </option>
+                  ))}
+                </select>
+              ) : properties && properties.length === 0 ? (
+                <p className="text-xs text-red-500">
+                  Bu Google hesabı GA4'te hiçbir property'e erişim sahibi değil.
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground">Yükleniyor…</p>
+              )}
+              <div className="text-xs text-muted-foreground">
                 Bağlandı: {new Date(site.gaConnectedAt).toLocaleString('tr-TR')}
               </div>
             </div>
-            <Button size="sm" variant="outline" onClick={disconnect} disabled={busy}>
-              <Unlink className="h-4 w-4 mr-2" />
-              {busy ? 'İşlem devam ediyor…' : 'Bağlantıyı Kes'}
-            </Button>
+            <div className="flex justify-end gap-2">
+              <Button size="sm" variant="outline" onClick={loadProperties} disabled={loadingProps || savingProp}>
+                Listeyi Yenile
+              </Button>
+              <Button size="sm" variant="outline" onClick={disconnect} disabled={busy}>
+                <Unlink className="h-4 w-4 mr-2" />
+                {busy ? 'İşlem devam ediyor…' : 'Bağlantıyı Kes'}
+              </Button>
+            </div>
           </div>
         ) : (
           <div className="flex items-center justify-between gap-3 flex-wrap text-sm">

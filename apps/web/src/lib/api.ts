@@ -192,6 +192,17 @@ export const api = {
       body: JSON.stringify({ siteId }),
     }),
 
+  listGscProperties: (siteId: string) =>
+    request<Array<{ siteUrl: string; permissionLevel: string | null }>>(
+      `/sites/${siteId}/gsc/properties`,
+    ),
+
+  setGscProperty: (siteId: string, propertyUrl: string) =>
+    request<{ siteUrl: string }>(`/sites/${siteId}/gsc/property`, {
+      method: 'PATCH',
+      body: JSON.stringify({ propertyUrl }),
+    }),
+
   // GA4 OAuth
   getGaAuthUrl: (siteId: string) =>
     request<{ url: string }>(`/auth/ga/start?siteId=${encodeURIComponent(siteId)}`),
@@ -201,6 +212,20 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ siteId }),
     }),
+
+  listGaProperties: (siteId: string) =>
+    request<Array<{ propertyId: string; displayName: string; accountName: string }>>(
+      `/sites/${siteId}/ga/properties`,
+    ),
+
+  setGaProperty: (siteId: string, propertyId: string) =>
+    request<{ propertyId: string; displayName: string; accountName: string }>(
+      `/sites/${siteId}/ga/property`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify({ propertyId }),
+      },
+    ),
 
   // Competitors (brain)
   listCompetitors: (siteId: string) =>

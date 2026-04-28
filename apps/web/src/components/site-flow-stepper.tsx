@@ -420,16 +420,37 @@ function CompetitorsStepBody({
 function GscStepBody({ site, onChanged }: { site: any; onChanged: () => void }) {
   const search = useSearchParams();
   const [busy, setBusy] = useState(false);
+  const [properties, setProperties] = useState<Array<{ siteUrl: string; permissionLevel: string | null }> | null>(null);
+  const [loadingProps, setLoadingProps] = useState(false);
+  const [savingProp, setSavingProp] = useState(false);
 
   useEffect(() => {
     if (search.get('gsc') === 'connected') {
-      toast.success('Google Search Console bağlandı ✓');
+      toast.success('Google Search Console bağlandı ✓ — şimdi doğru property\'yi seç');
       const url = new URL(window.location.href);
       url.searchParams.delete('gsc');
       window.history.replaceState({}, '', url.toString());
       onChanged();
     }
   }, [search, onChanged]);
+
+  const loadProperties = async () => {
+    setLoadingProps(true);
+    try {
+      const list = await api.listGscProperties(site.id);
+      setProperties(list);
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setLoadingProps(false);
+    }
+  };
+
+  useEffect(() => {
+    if (site.gscConnectedAt && properties === null) {
+      loadProperties();
+    }
+  }, [site.gscConnectedAt]);
 
   const connect = async () => {
     setBusy(true);
@@ -448,11 +469,26 @@ function GscStepBody({ site, onChanged }: { site: any; onChanged: () => void }) 
     try {
       await api.disconnectGsc(site.id);
       toast.success('GSC bağlantısı kesildi');
+      setProperties(null);
       onChanged();
     } catch (err: any) {
       toast.error(err.message);
     } finally {
       setBusy(false);
+    }
+  };
+
+  const selectProperty = async (propertyUrl: string) => {
+    if (propertyUrl === site.gscPropertyUrl) return;
+    setSavingProp(true);
+    try {
+      await api.setGscProperty(site.id, propertyUrl);
+      toast.success('Property güncellendi');
+      onChanged();
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setSavingProp(false);
     }
   };
 
@@ -463,16 +499,46 @@ function GscStepBody({ site, onChanged }: { site: any; onChanged: () => void }) 
         Bağlarsan topic engine "gerçek arama verisi" katmanını da kullanır ve Performans sekmesi açılır.
       </p>
       {site.gscConnectedAt ? (
-        <div className="rounded-lg border p-3 flex items-center justify-between gap-3 flex-wrap">
-          <div>
-            <div className="font-medium text-sm">{site.gscPropertyUrl}</div>
+        <div className="space-y-3">
+          <div className="rounded-lg border p-3 space-y-2">
+            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Aktif property
+            </div>
+            {loadingProps ? (
+              <Skeleton className="h-9 w-full" />
+            ) : properties && properties.length > 0 ? (
+              <select
+                value={site.gscPropertyUrl ?? ''}
+                onChange={(e) => selectProperty(e.target.value)}
+                disabled={savingProp}
+                className="w-full bg-card border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/40"
+              >
+                {!site.gscPropertyUrl && <option value="">— Property seç —</option>}
+                {properties.map((p) => (
+                  <option key={p.siteUrl} value={p.siteUrl}>
+                    {p.siteUrl}{p.permissionLevel ? ` · ${p.permissionLevel}` : ''}
+                  </option>
+                ))}
+              </select>
+            ) : properties && properties.length === 0 ? (
+              <p className="text-xs text-red-500">
+                Bu Google hesabı GSC'de hiçbir property'e erişim sahibi değil.
+              </p>
+            ) : (
+              <p className="text-xs text-muted-foreground">Property listesi yükleniyor…</p>
+            )}
             <div className="text-xs text-muted-foreground">
               Bağlandı: {new Date(site.gscConnectedAt).toLocaleString('tr-TR')}
             </div>
           </div>
-          <Button size="sm" variant="outline" onClick={disconnect} disabled={busy}>
-            <Unlink className="h-4 w-4 mr-1" /> Bağlantıyı Kes
-          </Button>
+          <div className="flex justify-end gap-2">
+            <Button size="sm" variant="outline" onClick={loadProperties} disabled={loadingProps || savingProp}>
+              Listeyi Yenile
+            </Button>
+            <Button size="sm" variant="outline" onClick={disconnect} disabled={busy}>
+              <Unlink className="h-4 w-4 mr-1" /> Bağlantıyı Kes
+            </Button>
+          </div>
         </div>
       ) : (
         <div className="rounded-lg border border-dashed p-4 flex items-center justify-between gap-3 flex-wrap">
@@ -495,16 +561,37 @@ function GscStepBody({ site, onChanged }: { site: any; onChanged: () => void }) 
 function Ga4StepBody({ site, onChanged }: { site: any; onChanged: () => void }) {
   const search = useSearchParams();
   const [busy, setBusy] = useState(false);
+  const [properties, setProperties] = useState<Array<{ propertyId: string; displayName: string; accountName: string }> | null>(null);
+  const [loadingProps, setLoadingProps] = useState(false);
+  const [savingProp, setSavingProp] = useState(false);
 
   useEffect(() => {
     if (search.get('ga') === 'connected') {
-      toast.success('Google Analytics bağlandı ✓');
+      toast.success('Google Analytics bağlandı ✓ — şimdi doğru property\'yi seç');
       const url = new URL(window.location.href);
       url.searchParams.delete('ga');
       window.history.replaceState({}, '', url.toString());
       onChanged();
     }
   }, [search, onChanged]);
+
+  const loadProperties = async () => {
+    setLoadingProps(true);
+    try {
+      const list = await api.listGaProperties(site.id);
+      setProperties(list);
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setLoadingProps(false);
+    }
+  };
+
+  useEffect(() => {
+    if (site.gaConnectedAt && properties === null) {
+      loadProperties();
+    }
+  }, [site.gaConnectedAt]);
 
   const connect = async () => {
     setBusy(true);
@@ -523,11 +610,26 @@ function Ga4StepBody({ site, onChanged }: { site: any; onChanged: () => void }) 
     try {
       await api.disconnectGa(site.id);
       toast.success('GA4 bağlantısı kesildi');
+      setProperties(null);
       onChanged();
     } catch (err: any) {
       toast.error(err.message);
     } finally {
       setBusy(false);
+    }
+  };
+
+  const selectProperty = async (propertyId: string) => {
+    if (propertyId === site.gaPropertyId) return;
+    setSavingProp(true);
+    try {
+      await api.setGaProperty(site.id, propertyId);
+      toast.success('Property güncellendi');
+      onChanged();
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setSavingProp(false);
     }
   };
 
@@ -538,16 +640,46 @@ function Ga4StepBody({ site, onChanged }: { site: any; onChanged: () => void }) 
         topic ranker'a sinyal olarak girer ve Performans sekmesinde davranış metrikleri görünür.
       </p>
       {site.gaConnectedAt ? (
-        <div className="rounded-lg border p-3 flex items-center justify-between gap-3 flex-wrap">
-          <div>
-            <div className="font-medium text-sm">Property: {site.gaPropertyId}</div>
+        <div className="space-y-3">
+          <div className="rounded-lg border p-3 space-y-2">
+            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Aktif property
+            </div>
+            {loadingProps ? (
+              <Skeleton className="h-9 w-full" />
+            ) : properties && properties.length > 0 ? (
+              <select
+                value={site.gaPropertyId ?? ''}
+                onChange={(e) => selectProperty(e.target.value)}
+                disabled={savingProp}
+                className="w-full bg-card border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand/40"
+              >
+                {!site.gaPropertyId && <option value="">— Property seç —</option>}
+                {properties.map((p) => (
+                  <option key={p.propertyId} value={p.propertyId}>
+                    {p.displayName} · {p.accountName} ({p.propertyId})
+                  </option>
+                ))}
+              </select>
+            ) : properties && properties.length === 0 ? (
+              <p className="text-xs text-red-500">
+                Bu Google hesabı GA4'te hiçbir property'e erişim sahibi değil.
+              </p>
+            ) : (
+              <p className="text-xs text-muted-foreground">Property listesi yükleniyor…</p>
+            )}
             <div className="text-xs text-muted-foreground">
               Bağlandı: {new Date(site.gaConnectedAt).toLocaleString('tr-TR')}
             </div>
           </div>
-          <Button size="sm" variant="outline" onClick={disconnect} disabled={busy}>
-            <Unlink className="h-4 w-4 mr-1" /> Bağlantıyı Kes
-          </Button>
+          <div className="flex justify-end gap-2">
+            <Button size="sm" variant="outline" onClick={loadProperties} disabled={loadingProps || savingProp}>
+              Listeyi Yenile
+            </Button>
+            <Button size="sm" variant="outline" onClick={disconnect} disabled={busy}>
+              <Unlink className="h-4 w-4 mr-1" /> Bağlantıyı Kes
+            </Button>
+          </div>
         </div>
       ) : (
         <div className="rounded-lg border border-dashed p-4 flex items-center justify-between gap-3 flex-wrap">

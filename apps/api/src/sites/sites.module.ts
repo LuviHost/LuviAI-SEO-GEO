@@ -3,6 +3,7 @@ import { SitesController } from './sites.controller.js';
 import { SitesService } from './sites.service.js';
 import { BrainGeneratorService } from './brain-generator.service.js';
 import { SiteCrawlerService } from './site-crawler.service.js';
+import { AuthModule } from '../auth/auth.module.js';
 
 /**
  * Site CRUD + Brain (kullanıcı sitesinin AI bağlamı).
@@ -15,6 +16,7 @@ import { SiteCrawlerService } from './site-crawler.service.js';
  *  - DB'ye Brain kaydet
  */
 @Module({
+  imports: [AuthModule],
   controllers: [SitesController],
   providers: [SitesService, BrainGeneratorService, SiteCrawlerService],
   exports: [SitesService, BrainGeneratorService, SiteCrawlerService],

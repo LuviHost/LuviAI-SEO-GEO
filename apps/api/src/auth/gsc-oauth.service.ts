@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { OAuth2Client } from 'google-auth-library';
 import { google } from 'googleapis';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -76,6 +76,37 @@ export class GscOAuthService {
     const refreshToken = decrypt(site.gscRefreshToken);
     client.setCredentials({ refresh_token: refreshToken });
     return client;
+  }
+
+  /** Kullanicinin baglandigi Google hesabinda erisilebilen tum GSC property'leri */
+  async listProperties(siteId: string): Promise<Array<{ siteUrl: string; permissionLevel: string | null }>> {
+    const client = await this.getAuthenticatedClient(siteId);
+    if (!client) throw new BadRequestException('GSC bagli degil');
+
+    const webmasters = google.webmasters({ version: 'v3', auth: client as any });
+    const list = await webmasters.sites.list();
+    return (list.data.siteEntry ?? [])
+      .filter((s) => !!s.siteUrl)
+      .map((s) => ({
+        siteUrl: s.siteUrl as string,
+        permissionLevel: (s as any).permissionLevel ?? null,
+      }));
+  }
+
+  /** Aktif property'i degistir (kullanici dropdown'dan secer) */
+  async setProperty(siteId: string, propertyUrl: string) {
+    if (!propertyUrl) throw new BadRequestException('propertyUrl zorunlu');
+    // Kullanicinin gercekten o property'e erisimi var mi kontrol et
+    const properties = await this.listProperties(siteId);
+    const found = properties.find((p) => p.siteUrl === propertyUrl);
+    if (!found) {
+      throw new BadRequestException('Bu property bagli Google hesabinda bulunamadi');
+    }
+    await this.prisma.site.update({
+      where: { id: siteId },
+      data: { gscPropertyUrl: propertyUrl },
+    });
+    return { siteUrl: propertyUrl };
   }
 
   async disconnect(siteId: string) {

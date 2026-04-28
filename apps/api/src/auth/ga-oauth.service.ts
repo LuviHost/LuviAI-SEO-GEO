@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { OAuth2Client } from 'google-auth-library';
 import { google } from 'googleapis';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -94,6 +94,49 @@ export class GaOAuthService {
     const refreshToken = decrypt(site.gaRefreshToken);
     client.setCredentials({ refresh_token: refreshToken });
     return client;
+  }
+
+  /**
+   * Kullanicinin baglandigi Google hesabinda erisilebilen tum GA4
+   * property'leri (account + property hierarchy ile).
+   */
+  async listProperties(siteId: string): Promise<Array<{
+    propertyId: string;
+    displayName: string;
+    accountName: string;
+  }>> {
+    const client = await this.getAuthenticatedClient(siteId);
+    if (!client) throw new BadRequestException('GA bagli degil');
+
+    const admin = google.analyticsadmin({ version: 'v1beta', auth: client as any });
+    const accounts = await admin.accountSummaries.list({ pageSize: 200 });
+    const out: Array<{ propertyId: string; displayName: string; accountName: string }> = [];
+    for (const a of accounts.data.accountSummaries ?? []) {
+      const accountName = a.displayName ?? a.account ?? '?';
+      for (const p of a.propertySummaries ?? []) {
+        if (!p.property) continue;
+        out.push({
+          propertyId: p.property.replace(/^properties\//, ''),
+          displayName: p.displayName ?? p.property,
+          accountName,
+        });
+      }
+    }
+    return out;
+  }
+
+  async setProperty(siteId: string, propertyId: string) {
+    if (!propertyId) throw new BadRequestException('propertyId zorunlu');
+    const properties = await this.listProperties(siteId);
+    const found = properties.find((p) => p.propertyId === propertyId);
+    if (!found) {
+      throw new BadRequestException('Bu property bagli Google hesabinda bulunamadi');
+    }
+    await this.prisma.site.update({
+      where: { id: siteId },
+      data: { gaPropertyId: propertyId },
+    });
+    return found;
   }
 
   async disconnect(siteId: string) {
