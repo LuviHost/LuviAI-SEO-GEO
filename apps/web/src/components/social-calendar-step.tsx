@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
-import { Calendar, Clock, Plus, Trash2, RefreshCw, Send, AlertCircle, Sparkles } from 'lucide-react';
+import { Calendar, Clock, Plus, Trash2, RefreshCw, Send, AlertCircle, Sparkles, Check, X as XIcon, Eye, EyeOff } from 'lucide-react';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -78,6 +78,55 @@ export function SocialCalendarStep({ siteId }: { siteId: string }) {
     setBusy(true);
     try {
       await api.updateSocialSlot(slot.id, { isActive: !slot.isActive });
+      await refresh();
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const updateSlotTime = async (slot: any, hour: number, minute: number) => {
+    if (hour < 0 || hour > 23 || minute < 0 || minute > 59) {
+      toast.error('Saat 00-23, dakika 00-59 araliginda olmali');
+      return;
+    }
+    if (hour === slot.hour && minute === slot.minute) return;
+    setBusy(true);
+    try {
+      await api.updateSocialSlot(slot.id, { hour, minute });
+      toast.success(`Saat guncellendi: ${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`);
+      await refresh();
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const addSlot = async (dayOfWeek: number) => {
+    if (!data || data.channels.length === 0) {
+      toast.error('Once kanal bagla');
+      return;
+    }
+    const channelId = data.channels[0].id;
+    const input = prompt('Saat (HH:MM, ornek 14:30):', '10:00');
+    if (!input) return;
+    const m = input.trim().match(/^(\d{1,2}):(\d{1,2})$/);
+    if (!m) {
+      toast.error('Format HH:MM olmali');
+      return;
+    }
+    const hour = parseInt(m[1], 10);
+    const minute = parseInt(m[2], 10);
+    if (hour < 0 || hour > 23 || minute < 0 || minute > 59) {
+      toast.error('Saat 00-23, dakika 00-59');
+      return;
+    }
+    setBusy(true);
+    try {
+      await api.createSocialSlot(channelId, { dayOfWeek, hour, minute, isActive: true });
+      toast.success(`${DAY_LABELS_SHORT[dayOfWeek]} ${input} eklendi`);
       await refresh();
     } catch (err: any) {
       toast.error(err.message);
@@ -173,7 +222,14 @@ export function SocialCalendarStep({ siteId }: { siteId: string }) {
           </div>
 
           {hasSlots ? (
-            <WeekGrid slots={data.slots} onToggle={toggleSlot} onRemove={removeSlot} busy={busy} />
+            <WeekGrid
+              slots={data.slots}
+              onToggle={toggleSlot}
+              onRemove={removeSlot}
+              onEditTime={updateSlotTime}
+              onAddSlot={addSlot}
+              busy={busy}
+            />
           ) : (
             <Card>
               <CardContent className="p-6 text-center text-sm text-muted-foreground">
@@ -197,11 +253,13 @@ export function SocialCalendarStep({ siteId }: { siteId: string }) {
 // ─── Hafta gridi (7 gun x 24 saat ozet) ──────────────────────────────
 
 function WeekGrid({
-  slots, onToggle, onRemove, busy,
+  slots, onToggle, onRemove, onEditTime, onAddSlot, busy,
 }: {
   slots: any[];
   onToggle: (slot: any) => void;
   onRemove: (slotId: string) => void;
+  onEditTime: (slot: any, hour: number, minute: number) => void;
+  onAddSlot: (dayOfWeek: number) => void;
   busy: boolean;
 }) {
   return (
@@ -211,50 +269,151 @@ function WeekGrid({
         return (
           <div
             key={dow}
-            className="rounded-lg border bg-card p-3 min-h-[80px]"
+            className="rounded-lg border bg-card p-3 min-h-[100px] flex flex-col"
           >
-            <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-2">
-              <span className="hidden sm:inline">{DAY_LABELS_SHORT[dow]}</span>
-              <span className="sm:hidden">{DAY_LABELS[dow]}</span>
+            <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground mb-2 flex items-center justify-between">
+              <span>
+                <span className="hidden sm:inline">{DAY_LABELS_SHORT[dow]}</span>
+                <span className="sm:hidden">{DAY_LABELS[dow]}</span>
+              </span>
+              <button
+                type="button"
+                onClick={() => onAddSlot(dow)}
+                disabled={busy}
+                className="opacity-50 hover:opacity-100 text-brand transition-opacity"
+                title="Saat ekle"
+              >
+                <Plus className="h-3 w-3" />
+              </button>
             </div>
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 flex-1">
               {daySlots.length === 0 ? (
-                <div className="text-xs text-muted-foreground/60 italic">—</div>
+                <button
+                  type="button"
+                  onClick={() => onAddSlot(dow)}
+                  disabled={busy}
+                  className="w-full text-xs text-muted-foreground/60 italic hover:text-brand hover:bg-muted/30 rounded py-2 transition-colors"
+                >
+                  + Saat ekle
+                </button>
               ) : (
                 daySlots.map((s) => (
-                  <div
+                  <SlotChip
                     key={s.id}
-                    className={`group rounded-md px-2 py-1.5 text-xs flex items-center justify-between gap-1 transition-colors ${
-                      s.isActive
-                        ? 'bg-brand/10 text-foreground border border-brand/30'
-                        : 'bg-muted/40 text-muted-foreground border border-transparent'
-                    }`}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => onToggle(s)}
-                      disabled={busy}
-                      className="font-mono text-xs tracking-tight"
-                      title={s.isActive ? 'Pasiflestir' : 'Aktiflestir'}
-                    >
-                      {String(s.hour).padStart(2, '0')}:{String(s.minute).padStart(2, '0')}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onRemove(s.id)}
-                      disabled={busy}
-                      className="opacity-0 group-hover:opacity-100 text-red-500 transition-opacity"
-                      title="Sil"
-                    >
-                      <Trash2 className="h-3 w-3" />
-                    </button>
-                  </div>
+                    slot={s}
+                    onToggle={() => onToggle(s)}
+                    onRemove={() => onRemove(s.id)}
+                    onEditTime={(h, m) => onEditTime(s, h, m)}
+                    busy={busy}
+                  />
                 ))
               )}
             </div>
           </div>
         );
       })}
+    </div>
+  );
+}
+
+function SlotChip({
+  slot, onToggle, onRemove, onEditTime, busy,
+}: {
+  slot: any;
+  onToggle: () => void;
+  onRemove: () => void;
+  onEditTime: (hour: number, minute: number) => void;
+  busy: boolean;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(`${String(slot.hour).padStart(2, '0')}:${String(slot.minute).padStart(2, '0')}`);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const startEdit = () => {
+    setDraft(`${String(slot.hour).padStart(2, '0')}:${String(slot.minute).padStart(2, '0')}`);
+    setEditing(true);
+    setTimeout(() => inputRef.current?.focus(), 0);
+  };
+
+  const commit = () => {
+    const m = draft.trim().match(/^(\d{1,2}):(\d{1,2})$/);
+    if (!m) {
+      toast.error('Format HH:MM olmali');
+      setEditing(false);
+      return;
+    }
+    onEditTime(parseInt(m[1], 10), parseInt(m[2], 10));
+    setEditing(false);
+  };
+
+  const cancel = () => setEditing(false);
+
+  return (
+    <div
+      className={`group rounded-md px-2 py-1.5 text-xs flex items-center justify-between gap-1 transition-colors ${
+        slot.isActive
+          ? 'bg-brand/10 text-foreground border border-brand/30'
+          : 'bg-muted/40 text-muted-foreground border border-transparent'
+      }`}
+    >
+      {editing ? (
+        <>
+          <input
+            ref={inputRef}
+            type="text"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') commit();
+              if (e.key === 'Escape') cancel();
+            }}
+            placeholder="HH:MM"
+            disabled={busy}
+            className="bg-transparent border-b border-brand/40 outline-none font-mono text-xs w-14 px-1"
+          />
+          <div className="flex items-center gap-0.5">
+            <button type="button" onClick={commit} disabled={busy} className="text-green-600 hover:text-green-700" title="Kaydet">
+              <Check className="h-3 w-3" />
+            </button>
+            <button type="button" onClick={cancel} disabled={busy} className="text-muted-foreground hover:text-foreground" title="Iptal">
+              <XIcon className="h-3 w-3" />
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          <button
+            type="button"
+            onDoubleClick={startEdit}
+            onClick={startEdit}
+            disabled={busy}
+            className="font-mono text-xs tracking-tight hover:text-brand"
+            title="Saati duzenle"
+          >
+            {String(slot.hour).padStart(2, '0')}:{String(slot.minute).padStart(2, '0')}
+          </button>
+          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button
+              type="button"
+              onClick={onToggle}
+              disabled={busy}
+              className={slot.isActive ? 'text-brand' : 'text-muted-foreground'}
+              title={slot.isActive ? 'Pasiflestir' : 'Aktiflestir'}
+            >
+              {slot.isActive ? <Eye className="h-3 w-3" /> : <EyeOff className="h-3 w-3" />}
+            </button>
+            <button
+              type="button"
+              onClick={onRemove}
+              disabled={busy}
+              className="text-red-500"
+              title="Sil"
+            >
+              <Trash2 className="h-3 w-3" />
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -320,6 +479,8 @@ function PostRow({
   onPublishNow: (id: string) => void;
   busy: boolean;
 }) {
+  const [showPreview, setShowPreview] = useState(false);
+
   const statusBadge = (() => {
     switch (post.status) {
       case 'DRAFT': return <Badge variant="outline" className="text-[10px]">Taslak</Badge>;
@@ -337,46 +498,155 @@ function PostRow({
       ? `Planlandi: ${new Date(post.scheduledFor).toLocaleString('tr-TR')}`
       : `Olusturuldu: ${new Date(post.createdAt).toLocaleDateString('tr-TR')}`;
 
+  const channelType = post.channel?.type;
   const channelLabel = (() => {
-    const t = post.channel?.type;
-    if (t === 'X_TWITTER') return 'X';
-    if (t === 'LINKEDIN_PERSONAL') return 'LinkedIn';
-    if (t === 'LINKEDIN_COMPANY') return 'LinkedIn Sirket';
-    return t ?? 'Kanal';
+    if (channelType === 'X_TWITTER') return 'X';
+    if (channelType === 'LINKEDIN_PERSONAL') return 'LinkedIn';
+    if (channelType === 'LINKEDIN_COMPANY') return 'LinkedIn Sirket';
+    return channelType ?? 'Kanal';
   })();
 
   return (
-    <li className="px-4 py-3 flex items-start justify-between gap-3 flex-wrap">
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 flex-wrap mb-1">
-          {statusBadge}
-          <Badge variant="outline" className="text-[10px]">{channelLabel}</Badge>
-          {post.article && (
-            <span className="text-[11px] text-muted-foreground truncate max-w-[240px]">
-              {post.article.title}
-            </span>
+    <li className="px-4 py-3">
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap mb-1">
+            {statusBadge}
+            <Badge variant="outline" className="text-[10px]">{channelLabel}</Badge>
+            {post.article && (
+              <span className="text-[11px] text-muted-foreground truncate max-w-[240px]">
+                {post.article.title}
+              </span>
+            )}
+          </div>
+          <div className="text-xs text-foreground/80 line-clamp-2 whitespace-pre-wrap">{post.text}</div>
+          <div className="text-[11px] text-muted-foreground mt-1">{when}</div>
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setShowPreview((v) => !v)}
+            title="Onizleme"
+          >
+            <Eye className="h-3.5 w-3.5" />
+          </Button>
+          {post.externalUrl ? (
+            <a
+              href={post.externalUrl}
+              target="_blank"
+              rel="noopener"
+              className="text-xs text-brand hover:underline px-2"
+            >
+              Ac
+            </a>
+          ) : ['DRAFT', 'QUEUED'].includes(post.status) ? (
+            <Button size="sm" variant="outline" onClick={() => onPublishNow(post.id)} disabled={busy}>
+              <Send className="h-3 w-3 mr-1" />
+              Simdi
+            </Button>
+          ) : null}
+        </div>
+      </div>
+
+      {showPreview && (
+        <div className="mt-3">
+          <SocialPostPreview post={post} channelType={channelType} />
+        </div>
+      )}
+    </li>
+  );
+}
+
+// ─── Sosyal medya post onizleme (X/LinkedIn gorunumu) ────────────────
+
+function SocialPostPreview({ post, channelType }: { post: any; channelType?: string }) {
+  const username = post.channel?.externalName ?? '@kullanici';
+  const displayName = post.channel?.config?.displayName ?? post.channel?.name ?? 'LuviHost';
+  const avatar = post.channel?.externalAvatar;
+  const charCount = post.text?.length ?? 0;
+  const limit = channelType === 'X_TWITTER' ? 280 : 3000;
+  const overLimit = charCount > limit;
+
+  // Metni hashtag/link/mention vurgulu render et
+  const renderText = (text: string) => {
+    const parts = text.split(/(\s+)/);
+    return parts.map((p, i) => {
+      if (/^#\w+/.test(p)) return <span key={i} className="text-[#1d9bf0]">{p}</span>;
+      if (/^@\w+/.test(p)) return <span key={i} className="text-[#1d9bf0]">{p}</span>;
+      if (/^https?:\/\//.test(p)) return <span key={i} className="text-[#1d9bf0]">{p}</span>;
+      return <span key={i}>{p}</span>;
+    });
+  };
+
+  if (channelType === 'X_TWITTER') {
+    return (
+      <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-black p-4 max-w-[560px]">
+        <div className="flex gap-3">
+          <div className="h-10 w-10 rounded-full bg-zinc-200 dark:bg-zinc-800 overflow-hidden shrink-0 grid place-items-center">
+            {avatar ? (
+              <img src={avatar} alt="" className="h-full w-full object-cover" />
+            ) : (
+              <span className="text-sm font-bold text-zinc-500">{displayName.charAt(0)}</span>
+            )}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1 text-sm">
+              <span className="font-bold text-zinc-900 dark:text-zinc-100">{displayName}</span>
+              <span className="text-zinc-500">{username}</span>
+              <span className="text-zinc-500">·</span>
+              <span className="text-zinc-500 text-xs">simdi</span>
+            </div>
+            <div className="mt-1 text-[15px] leading-relaxed whitespace-pre-wrap text-zinc-900 dark:text-zinc-100 break-words">
+              {renderText(post.text ?? '')}
+            </div>
+            {Array.isArray(post.mediaUrls) && post.mediaUrls.length > 0 && (
+              <div className="mt-3 rounded-2xl overflow-hidden border border-zinc-200 dark:border-zinc-800">
+                <img src={post.mediaUrls[0]} alt="" className="w-full max-h-80 object-cover" />
+              </div>
+            )}
+            <div className="mt-3 flex items-center justify-between text-xs text-zinc-500">
+              <span>X Onizleme</span>
+              <span className={overLimit ? 'text-red-500 font-semibold' : ''}>
+                {charCount}/{limit}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // LinkedIn / diger
+  return (
+    <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-4 max-w-[560px]">
+      <div className="flex items-center gap-3 mb-3">
+        <div className="h-12 w-12 rounded-full bg-zinc-200 dark:bg-zinc-800 overflow-hidden shrink-0 grid place-items-center">
+          {avatar ? (
+            <img src={avatar} alt="" className="h-full w-full object-cover" />
+          ) : (
+            <span className="text-sm font-bold text-zinc-500">{displayName.charAt(0)}</span>
           )}
         </div>
-        <div className="text-xs text-foreground/80 line-clamp-2 whitespace-pre-wrap">{post.text}</div>
-        <div className="text-[11px] text-muted-foreground mt-1">{when}</div>
+        <div className="min-w-0">
+          <div className="font-bold text-sm text-zinc-900 dark:text-zinc-100">{displayName}</div>
+          <div className="text-xs text-zinc-500">simdi · LinkedIn</div>
+        </div>
       </div>
-      <div className="flex items-center gap-1 shrink-0">
-        {post.externalUrl ? (
-          <a
-            href={post.externalUrl}
-            target="_blank"
-            rel="noopener"
-            className="text-xs text-brand hover:underline"
-          >
-            Ac
-          </a>
-        ) : ['DRAFT', 'QUEUED'].includes(post.status) ? (
-          <Button size="sm" variant="outline" onClick={() => onPublishNow(post.id)} disabled={busy}>
-            <Send className="h-3 w-3 mr-1" />
-            Simdi
-          </Button>
-        ) : null}
+      <div className="text-sm leading-relaxed whitespace-pre-wrap text-zinc-900 dark:text-zinc-100 break-words">
+        {renderText(post.text ?? '')}
       </div>
-    </li>
+      {Array.isArray(post.mediaUrls) && post.mediaUrls.length > 0 && (
+        <div className="mt-3 rounded-md overflow-hidden border border-zinc-200 dark:border-zinc-800">
+          <img src={post.mediaUrls[0]} alt="" className="w-full max-h-80 object-cover" />
+        </div>
+      )}
+      <div className="mt-3 text-xs text-zinc-500 flex items-center justify-between">
+        <span>LinkedIn Onizleme</span>
+        <span className={overLimit ? 'text-red-500 font-semibold' : ''}>
+          {charCount}/{limit}
+        </span>
+      </div>
+    </div>
   );
 }

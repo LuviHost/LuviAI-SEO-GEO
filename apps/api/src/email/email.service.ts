@@ -172,10 +172,11 @@ export class EmailService {
 
       case 'first_article_published':
         return wrapper(
-          '🎊 İlk makaleniz hazır!',
+          '✓ İlk makaleniz yayına hazır — onayınızı bekliyor',
           `<h2>Tebrikler ${name}!</h2>
-          <p>İlk makaleniz <strong>${data.title}</strong> editörden geçti ve yayına hazır.</p>
-          <p><a href="${data.publicUrl}" style="background:#6c5ce7;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;display:inline-block;">Makaleyi Aç →</a></p>
+          <p>İlk makaleniz <strong>${data.title}</strong> editörden geçti ve <strong>yayına hazır durumda</strong>.</p>
+          <p style="font-size:14px;color:#444;">Henüz yayında değil — incelemen ve onayın gerekiyor. Düzenleyebilir, yayın hedefini seçebilir ve yayına alabilirsin.</p>
+          <p><a href="${data.publicUrl}" style="background:#6c5ce7;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;display:inline-block;">Makaleyi Aç ve İncele →</a></p>
           <p style="margin-top:24px;">Detaylar:</p>
           <ul>
             <li>${data.wordCount ?? '?'} kelime</li>
@@ -187,10 +188,11 @@ export class EmailService {
 
       case 'article_ready':
         return wrapper(
-          `✓ Yeni makale hazır: ${data.title}`,
-          `<h2>${name}, yeni makale yayına hazır</h2>
-          <p><strong>${data.title}</strong> editörden geçti.</p>
-          <p><a href="${data.publicUrl}" style="background:#6c5ce7;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;display:inline-block;">Makaleyi Aç →</a></p>
+          `✓ Makaleniz yayına hazır: ${data.title}`,
+          `<h2>${name}, yeni makaleniz yayına hazır</h2>
+          <p><strong>${data.title}</strong> editörden geçti ve onayını bekliyor.</p>
+          <p style="font-size:14px;color:#444;">Henüz yayında değil — incelemen ve onayın gerekiyor.</p>
+          <p><a href="${data.publicUrl}" style="background:#6c5ce7;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;display:inline-block;">Makaleyi İncele →</a></p>
           <p style="font-size:13px;color:#666;margin-top:16px;">
             ${data.wordCount ?? '?'} kelime · ${data.faqs ?? 0} FAQ · Editör ${data.editorScore ?? '?'}/60
             ${typeof data.articlesPublished === 'number' ? ` · Bu sitede ${data.articlesPublished}. makale` : ''}

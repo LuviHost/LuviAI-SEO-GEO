@@ -30,17 +30,31 @@ export class ArticlesService {
     // Quota check (yetersizse 403 fırlatır)
     await this.quota.enforceArticleQuota(site.userId);
 
+    // Placeholder Article (GENERATING) — pipeline tamamlandiginda bu kayit doldurulur.
+    // Boylece "Uret" tiklanir tiklanmaz makale "Hazirlaniyor" rozetiyle listede gorunur.
+    const placeholderSlug = `generating-${Date.now().toString(36)}`;
+    const article = await this.prisma.article.create({
+      data: {
+        siteId,
+        topic,
+        slug: placeholderSlug,
+        title: topic,
+        status: 'GENERATING' as any,
+        language: site.language ?? 'tr',
+      },
+    });
+
     const job = await this.jobQueue.enqueue({
       type: 'GENERATE_ARTICLE',
       userId: site.userId,
       siteId,
-      payload: { siteId, topic, targetIds, autoPublish: !!targetIds?.length },
+      payload: { siteId, topic, articleId: article.id, targetIds, autoPublish: !!targetIds?.length },
     });
 
     // Quota'yı artır (job kuyruğa girdi sayılır)
     await this.quota.incrementArticleUsage(site.userId);
 
-    return job;
+    return { ...job, articleId: article.id };
   }
 
   async queuePublish(siteId: string, articleId: string, targetIds: string[]) {

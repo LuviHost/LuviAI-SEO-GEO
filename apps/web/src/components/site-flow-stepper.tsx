@@ -153,7 +153,7 @@ export function SiteFlowStepper({
           {s.id === 'social' && <SocialChannelsStep siteId={site.id} />}
           {s.id === 'social-calendar' && <SocialCalendarStep siteId={site.id} />}
           {s.id === 'topics' && <TopicsStepBody queue={queue} siteId={site.id} onRefresh={onRefresh} onboardingMode={onboardingMode} />}
-          {s.id === 'articles' && <ArticlesStepBody articles={articles} siteId={site.id} />}
+          {s.id === 'articles' && <ArticlesStepBody articles={articles} siteId={site.id} onRefresh={onRefresh} />}
         </StepCard>
       ))}
 
@@ -246,11 +246,11 @@ function StepCard({
           />
         </div>
       </button>
-      {isOpen && (
-        <CardContent className="pt-0 px-4 pb-5 border-t border-border/60 mt-1">
-          <div className="pt-4">{children}</div>
-        </CardContent>
-      )}
+      <CardContent
+        className={`pt-0 px-4 pb-5 border-t border-border/60 mt-1 ${isOpen ? '' : 'hidden'}`}
+      >
+        <div className="pt-4">{children}</div>
+      </CardContent>
     </Card>
   );
 }
@@ -827,7 +827,7 @@ function TopicsStepBody({
     setGenerating(topic);
     try {
       await api.generateArticle(siteId, topic);
-      toast.success('Makale üretildi! "Makaleler" adımında gör.');
+      toast.success('Makale hazırlanıyor — "Makaleler" adımında takip edebilirsin.');
       onRefresh();
     } catch (err: any) {
       toast.error(err.message);
@@ -912,7 +912,33 @@ const ARTICLE_STATUS_VARIANT: Record<string, any> = {
   ARCHIVED: 'outline',
 };
 
-function ArticlesStepBody({ articles, siteId }: { articles: any[]; siteId: string }) {
+const ARTICLE_STATUS_LABEL: Record<string, string> = {
+  DRAFT: 'Taslak',
+  GENERATING: 'Hazırlanıyor',
+  EDITING: 'Editör',
+  REVIZE_NEEDED: 'Revize gerekli',
+  READY_TO_PUBLISH: 'Yayına hazır',
+  PUBLISHED: 'Yayında',
+  FAILED: 'Başarısız',
+  ARCHIVED: 'Arşiv',
+};
+
+function ArticlesStepBody({
+  articles, siteId, onRefresh,
+}: {
+  articles: any[];
+  siteId: string;
+  onRefresh?: () => void;
+}) {
+  // Hazirlanan makaleler varsa 8 sn'de bir auto-refresh
+  useEffect(() => {
+    if (!onRefresh) return;
+    const hasGenerating = articles.some((a) => a.status === 'GENERATING' || a.status === 'EDITING');
+    if (!hasGenerating) return;
+    const t = setInterval(() => onRefresh(), 8000);
+    return () => clearInterval(t);
+  }, [articles, onRefresh]);
+
   if (articles.length === 0) {
     return (
       <div className="text-center py-8 text-sm text-muted-foreground">
@@ -923,24 +949,55 @@ function ArticlesStepBody({ articles, siteId }: { articles: any[]; siteId: strin
 
   return (
     <div className="space-y-3">
-      {articles.map((a) => (
-        <Link key={a.id} href={`/sites/${siteId}/articles/${a.id}` as any} className="block">
-          <div className="rounded-lg border p-3 hover:border-brand/40 hover:shadow-sm transition-all">
+      {articles.map((a) => {
+        const isGenerating = a.status === 'GENERATING' || a.status === 'EDITING';
+        const card = (
+          <div
+            className={`rounded-lg border p-3 transition-all ${
+              isGenerating
+                ? 'border-amber-500/40 bg-amber-50/30 dark:bg-amber-950/10'
+                : 'hover:border-brand/40 hover:shadow-sm'
+            }`}
+          >
             <div className="flex justify-between items-start gap-2 mb-1.5 flex-wrap">
-              <h5 className="font-semibold text-sm flex-1 min-w-0">{a.title}</h5>
-              <Badge variant={ARTICLE_STATUS_VARIANT[a.status] ?? 'secondary'}>{a.status}</Badge>
+              <h5 className="font-semibold text-sm flex-1 min-w-0 flex items-center gap-2">
+                {isGenerating && (
+                  <span className="inline-block h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
+                )}
+                {a.title}
+              </h5>
+              <Badge variant={ARTICLE_STATUS_VARIANT[a.status] ?? 'secondary'}>
+                {ARTICLE_STATUS_LABEL[a.status] ?? a.status}
+              </Badge>
             </div>
             <div className="text-xs text-muted-foreground flex gap-3 flex-wrap items-center">
-              {a.wordCount && <span>{a.wordCount} kelime</span>}
-              {a.readingTime && <span>{a.readingTime} dk</span>}
-              {a.editorScore != null && <span>Editör: {a.editorScore}/60</span>}
-              <span className="ml-auto text-brand font-medium inline-flex items-center gap-1">
-                <FileText className="h-3 w-3" /> Aç →
-              </span>
+              {isGenerating ? (
+                <span className="text-amber-700 dark:text-amber-400">
+                  6 ajan zinciri çalışıyor (~2-4 dk)
+                </span>
+              ) : (
+                <>
+                  {a.wordCount && <span>{a.wordCount} kelime</span>}
+                  {a.readingTime && <span>{a.readingTime} dk</span>}
+                  {a.editorScore != null && <span>Editör: {a.editorScore}/60</span>}
+                </>
+              )}
+              {!isGenerating && (
+                <span className="ml-auto text-brand font-medium inline-flex items-center gap-1">
+                  <FileText className="h-3 w-3" /> Aç →
+                </span>
+              )}
             </div>
           </div>
-        </Link>
-      ))}
+        );
+        return isGenerating ? (
+          <div key={a.id}>{card}</div>
+        ) : (
+          <Link key={a.id} href={`/sites/${siteId}/articles/${a.id}` as any} className="block">
+            {card}
+          </Link>
+        );
+      })}
     </div>
   );
 }

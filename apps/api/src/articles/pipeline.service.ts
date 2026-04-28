@@ -49,6 +49,7 @@ export class PipelineService {
     topic: string;
     skipImages?: boolean;
     maxRevize?: number;
+    articleId?: string;
   }): Promise<PipelineResult> {
     const t0 = Date.now();
 
@@ -174,30 +175,39 @@ export class PipelineService {
     const slug = (fm.slug as string) || turkishSlug((fm.title as string) ?? opts.topic).slice(0, 60);
     const wordCount = body.split(/\s+/).length;
 
-    const article = await this.prisma.article.create({
-      data: {
-        siteId: opts.siteId,
-        topic: opts.topic,
-        slug,
-        title: (fm.title as string) ?? opts.topic,
-        metaTitle: (fm.meta_title as string) ?? null,
-        metaDescription: (fm.meta_description as string) ?? null,
-        category: (fm.category as string) ?? 'Hosting',
-        language: brainContext.language === 'both' ? 'tr' : brainContext.language,
-        persona: (fm.persona as string) ?? null,
-        pillar: (fm.pillar as string) ?? null,
-        bodyMd: cleaned,
-        frontmatter: fm as any,
-        agentOutputs: agentOutputs as any,
-        wordCount,
-        readingTime: Math.max(1, Math.round(wordCount / 200)),
-        editorScore,
-        editorVerdict: editorVerdict as any,
-        totalCost: totalCost,
-        status: editorVerdict === 'PASS' ? 'READY_TO_PUBLISH' : 'REVIZE_NEEDED',
-        internalLinks: (fm.internal_links as any) ?? null,
-      },
-    });
+    const articleData = {
+      siteId: opts.siteId,
+      topic: opts.topic,
+      slug,
+      title: (fm.title as string) ?? opts.topic,
+      metaTitle: (fm.meta_title as string) ?? null,
+      metaDescription: (fm.meta_description as string) ?? null,
+      category: (fm.category as string) ?? 'Hosting',
+      language: brainContext.language === 'both' ? 'tr' : brainContext.language,
+      persona: (fm.persona as string) ?? null,
+      pillar: (fm.pillar as string) ?? null,
+      bodyMd: cleaned,
+      frontmatter: fm as any,
+      agentOutputs: agentOutputs as any,
+      wordCount,
+      readingTime: Math.max(1, Math.round(wordCount / 200)),
+      editorScore,
+      editorVerdict: editorVerdict as any,
+      totalCost: totalCost,
+      status: editorVerdict === 'PASS' ? 'READY_TO_PUBLISH' : 'REVIZE_NEEDED',
+      internalLinks: (fm.internal_links as any) ?? null,
+    } as const;
+
+    // Eger queueGeneration() placeholder Article olusturmussa onu guncelle,
+    // yoksa yeni kayit olustur (geriye uyumluluk).
+    const article = opts.articleId
+      ? await this.prisma.article.update({
+          where: { id: opts.articleId },
+          data: articleData,
+        })
+      : await this.prisma.article.create({
+          data: articleData,
+        });
 
     const durationMs = Date.now() - t0;
     this.log.log(`[${opts.siteId}] ✅ Pipeline tamamlandı: ${slug} (${editorVerdict}, $${totalCost.toFixed(4)}, ${(durationMs / 1000).toFixed(0)}s, ${wordCount} kelime)`);

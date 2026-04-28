@@ -71,21 +71,33 @@ async function bootstrap() {
       return { queueId: queue.id, tier1Count: (queue.tier1Topics as any[])?.length ?? 0 };
     },
 
-    GENERATE_ARTICLE: async ({ siteId, topic, skipImages, autoPublish, targetIds }) => {
-      const result = await services.pipeline.runPipeline({
-        siteId,
-        topic,
-        skipImages: skipImages ?? false,
-        maxRevize: 1,
-      });
-      if (autoPublish && result.editorVerdict === 'PASS') {
-        const publishResults = await services.publisher.publishArticle(
-          result.articleId,
-          targetIds ?? [],
-        );
-        return { ...result, publishResults };
+    GENERATE_ARTICLE: async ({ siteId, topic, skipImages, autoPublish, targetIds, articleId }) => {
+      try {
+        const result = await services.pipeline.runPipeline({
+          siteId,
+          topic,
+          skipImages: skipImages ?? false,
+          maxRevize: 1,
+          articleId,
+        });
+        if (autoPublish && result.editorVerdict === 'PASS') {
+          const publishResults = await services.publisher.publishArticle(
+            result.articleId,
+            targetIds ?? [],
+          );
+          return { ...result, publishResults };
+        }
+        return result;
+      } catch (err: any) {
+        // Pipeline patlarsa placeholder Article'i FAILED'a cek (kullanici listede gorebilir)
+        if (articleId) {
+          await services.prisma.article.update({
+            where: { id: articleId },
+            data: { status: 'FAILED' as any },
+          }).catch(() => {});
+        }
+        throw err;
       }
-      return result;
     },
 
     PUBLISH_ARTICLE: async ({ articleId, targetIds }) => {
