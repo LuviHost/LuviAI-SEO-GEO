@@ -3,6 +3,7 @@ import { encrypt, decrypt } from '@luviai/shared';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { getAdapter, listSupportedTypes } from './adapters/registry.js';
 import { LinkedInAdapter } from './adapters/linkedin.adapter.js';
+import { SocialAutoDraftService } from './social-auto-draft.service.js';
 
 type RequestingUser = { id: string; role: 'USER' | 'ADMIN' | 'AGENCY_OWNER' };
 
@@ -10,7 +11,10 @@ type RequestingUser = { id: string; role: 'USER' | 'ADMIN' | 'AGENCY_OWNER' };
 export class SocialChannelsService {
   private readonly log = new Logger(SocialChannelsService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly autoDraft: SocialAutoDraftService,
+  ) {}
 
   // ─── Site ownership helper ─────────────────────────────────
 
@@ -151,6 +155,9 @@ export class SocialChannelsService {
           lastError: null,
         },
       });
+      this.backfillDraftsForSite(siteId).catch((err) =>
+        this.log.warn(`[${siteId}] backfill draft basarisiz: ${err.message}`),
+      );
       return { siteId, channelId: existing.id, type };
     }
 
@@ -167,6 +174,9 @@ export class SocialChannelsService {
         isActive: true,
       },
     });
+    this.backfillDraftsForSite(siteId).catch((err) =>
+      this.log.warn(`[${siteId}] backfill draft basarisiz: ${err.message}`),
+    );
     return { siteId, channelId: created.id, type };
   }
 
@@ -214,6 +224,28 @@ export class SocialChannelsService {
         name: organizationName,
       },
     });
+  }
+
+  /**
+   * Yeni kanal baglandiginda gecmis PUBLISHED makaleler icin DRAFT yoksa olustur.
+   * createDraftsForArticle idempotent — sadece eksik kanallar icin yeni post acar.
+   * Son 20 PUBLISHED makale ile sinirli (eski makaleleri sosyalde tekrar dolastirmamak icin).
+   */
+  private async backfillDraftsForSite(siteId: string): Promise<void> {
+    const recent = await this.prisma.article.findMany({
+      where: { siteId, status: 'PUBLISHED' as any },
+      orderBy: { publishedAt: 'desc' },
+      take: 20,
+      select: { id: true },
+    });
+    let total = 0;
+    for (const a of recent) {
+      const r = await this.autoDraft.createDraftsForArticle(a.id);
+      total += r.created;
+    }
+    if (total > 0) {
+      this.log.log(`[${siteId}] backfill: ${total} yeni draft olusturuldu (${recent.length} makale)`);
+    }
   }
 
   /** Kanal credentials'ini decrypt edip publish'e hazirla */
