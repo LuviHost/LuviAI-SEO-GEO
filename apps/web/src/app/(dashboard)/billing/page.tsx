@@ -2,40 +2,51 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useSession } from 'next-auth/react';
 import { toast } from 'sonner';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 
-const USER_ID = 'cmohpuxgi0001lzwklj3ijs7l';
-
 export default function BillingPage() {
+  const { data: session, status } = useSession();
+  const userId = session?.user?.id;
   const [current, setCurrent] = useState<any>(null);
   const [invoices, setInvoices] = useState<any[]>([]);
   const [quota, setQuota] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (status === 'loading') return;
+    if (!userId) {
+      setLoading(false);
+      return;
+    }
     const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
     Promise.all([
-      fetch(`${apiBase}/api/billing/users/${USER_ID}/current`).then((r) => r.json()),
-      fetch(`${apiBase}/api/billing/users/${USER_ID}/invoices`).then((r) => r.json()),
-      fetch(`${apiBase}/api/billing/users/${USER_ID}/quota`).then((r) => r.json()),
+      fetch(`${apiBase}/api/billing/users/${userId}/current`, { credentials: 'include' }).then((r) => r.json()),
+      fetch(`${apiBase}/api/billing/users/${userId}/invoices`, { credentials: 'include' }).then((r) => r.json()),
+      fetch(`${apiBase}/api/billing/users/${userId}/quota`, { credentials: 'include' }).then((r) => r.json()),
     ])
       .then(([c, i, q]) => {
         setCurrent(c);
-        setInvoices(i);
+        setInvoices(Array.isArray(i) ? i : []);
         setQuota(q);
       })
+      .catch(() => toast.error('Veri yüklenemedi'))
       .finally(() => setLoading(false));
-  }, []);
+  }, [userId, status]);
 
   const cancel = async () => {
+    if (!userId) return;
     if (!confirm('Aboneliği iptal etmek istediğine emin misin?')) return;
     const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
     try {
-      await fetch(`${apiBase}/api/billing/users/${USER_ID}/cancel`, { method: 'POST' });
+      await fetch(`${apiBase}/api/billing/users/${userId}/cancel`, {
+        method: 'POST',
+        credentials: 'include',
+      });
       toast.success('Abonelik iptal edildi');
       location.reload();
     } catch (err: any) {

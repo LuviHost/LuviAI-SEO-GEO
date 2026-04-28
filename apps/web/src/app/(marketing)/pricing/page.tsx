@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { useT } from '@/lib/i18n';
@@ -14,6 +16,8 @@ import { Check } from 'lucide-react';
 
 export default function PricingPage() {
   const { t } = useT();
+  const { data: session, status } = useSession();
+  const router = useRouter();
   const [plans, setPlans] = useState<any[]>([]);
   const [cycle, setCycle] = useState<'monthly' | 'annual'>('monthly');
   const [loading, setLoading] = useState<string | null>(null);
@@ -25,14 +29,28 @@ export default function PricingPage() {
   }, []);
 
   const subscribe = async (planId: string) => {
+    if (status === 'loading') return;
+
+    if (!session?.user?.id) {
+      toast.message('Devam etmek için giriş yapın');
+      router.push(`/signin?callbackUrl=${encodeURIComponent('/pricing')}`);
+      return;
+    }
+
     setLoading(planId);
     try {
-      const userId = 'cmohpuxgi0001lzwklj3ijs7l';
       const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
       const res = await fetch(`${apiBase}/api/billing/subscribe`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId, planId, cycle, userEmail: 'beta@luviai.test', userName: 'Beta Tester' }),
+        credentials: 'include',
+        body: JSON.stringify({
+          userId: session.user.id,
+          planId,
+          cycle,
+          userEmail: session.user.email,
+          userName: session.user.name ?? session.user.email,
+        }),
       });
       const data = await res.json();
       if (data.iframeUrl) {

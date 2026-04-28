@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { useSession } from 'next-auth/react';
 import { useT } from '@/lib/i18n';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/theme-toggle';
@@ -9,6 +10,14 @@ import { Sparkles, Zap, Globe } from 'lucide-react';
 
 export default function HomePage() {
   const { t } = useT();
+  const { data: session, status } = useSession();
+  const isAuthed = !!session?.user;
+  const primaryHref = isAuthed ? '/dashboard' : '/signin?callbackUrl=/onboarding';
+  const primaryLabel = isAuthed
+    ? `Dashboard'a git`
+    : status === 'loading'
+      ? '...'
+      : `Erken Erişime Katıl`;
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-br from-brand via-brand-light to-brand/30">
@@ -17,6 +26,15 @@ export default function HomePage() {
         <div className="flex items-center gap-3">
           <LocaleSwitch />
           <Link href="/pricing" className="text-white text-sm hover:underline">{t('nav.pricing')}</Link>
+          {isAuthed ? (
+            <Link href="/dashboard" className="text-white text-sm font-medium hover:underline">
+              Dashboard
+            </Link>
+          ) : (
+            <Link href="/signin" className="text-white text-sm font-medium hover:underline">
+              Giriş yap
+            </Link>
+          )}
           <ThemeToggle />
         </div>
       </header>
@@ -38,7 +56,7 @@ export default function HomePage() {
 
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <Button asChild size="lg" className="bg-white text-brand hover:bg-white/95 shadow-xl">
-              <Link href="/onboarding">{t('hero.cta_primary')} →</Link>
+              <Link href={primaryHref}>{primaryLabel} →</Link>
             </Button>
             <Button asChild size="lg" variant="outline" className="border-white text-white hover:bg-white/10">
               <Link href="/pricing">{t('hero.cta_secondary')}</Link>

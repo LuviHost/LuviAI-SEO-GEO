@@ -3,16 +3,18 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useState } from 'react';
-import { Home, Plus, CreditCard, Menu, X } from 'lucide-react';
+import { Home, Plus, CreditCard, Menu, X, Users as UsersIcon } from 'lucide-react';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { LocaleSwitch } from '@/components/locale-switch';
+import { UserMenu } from '@/components/user-menu';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
 const NAV = [
-  { href: '/dashboard', label: 'Sites', icon: Home },
+  { href: '/dashboard', label: 'Sitelerim', icon: Home },
   { href: '/onboarding', label: 'Yeni Site', icon: Plus },
   { href: '/billing', label: 'Abonelik', icon: CreditCard },
+  { href: '/affiliate', label: 'Affiliate', icon: UsersIcon },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -65,9 +67,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           })}
         </nav>
 
-        <div className="absolute bottom-4 left-4 right-4 flex justify-between items-center">
-          <LocaleSwitch />
-          <ThemeToggle />
+        <div className="absolute bottom-4 left-4 right-4 space-y-3">
+          <UserMenu />
+          <div className="flex justify-between items-center">
+            <LocaleSwitch />
+            <ThemeToggle />
+          </div>
         </div>
       </aside>
 

@@ -23,7 +23,6 @@ export class AuthGuard implements CanActivate {
   ) {}
 
   async canActivate(ctx: ExecutionContext): Promise<boolean> {
-    // @Public() decorator varsa atla
     const isPublic = this.reflector.getAllAndOverride<boolean>('isPublic', [
       ctx.getHandler(),
       ctx.getClass(),
@@ -31,15 +30,16 @@ export class AuthGuard implements CanActivate {
     if (isPublic) return true;
 
     const req = ctx.switchToHttp().getRequest<Request>();
+    const extracted = this.extractToken(req);
+    if (!extracted) throw new UnauthorizedException('Token yok');
 
-    const token = this.extractToken(req);
-    if (!token) throw new UnauthorizedException('Token yok');
+    const secret = process.env.NEXTAUTH_SECRET ?? process.env.AUTH_SECRET ?? '';
 
     try {
       const decoded = await decode({
-        token,
-        secret: process.env.NEXTAUTH_SECRET ?? '',
-        salt: 'authjs.session-token', // next-auth v5 default salt
+        token: extracted.token,
+        secret,
+        salt: extracted.salt,
       });
       if (!decoded?.sub) throw new UnauthorizedException('Geçersiz token');
 
@@ -53,14 +53,30 @@ export class AuthGuard implements CanActivate {
     }
   }
 
-  private extractToken(req: Request): string | null {
-    // Authorization: Bearer xxx
-    const auth = req.headers.authorization;
-    if (auth?.startsWith('Bearer ')) return auth.slice(7);
+  /**
+   * Cookie veya Authorization header'dan token + salt çıkartır.
+   * NextAuth v5'te cookie name'i (`authjs.session-token` veya
+   * `__Secure-authjs.session-token`) decode salt'ı olarak da kullanılır.
+   * Backwards-compat için v4 isimleri (`next-auth.session-token`) de kabul edilir.
+   */
+  private extractToken(req: Request): { token: string; salt: string } | null {
+    const authHeader = req.headers.authorization;
+    if (authHeader?.startsWith('Bearer ')) {
+      return { token: authHeader.slice(7), salt: 'authjs.session-token' };
+    }
 
-    // Cookie: next-auth.session-token=xxx
     const cookies = req.headers.cookie ?? '';
-    const m = cookies.match(/(?:next-auth\.session-token|__Secure-next-auth\.session-token)=([^;]+)/);
-    return m ? decodeURIComponent(m[1]) : null;
+    const candidates = [
+      'authjs.session-token',
+      '__Secure-authjs.session-token',
+      'next-auth.session-token',
+      '__Secure-next-auth.session-token',
+    ];
+    for (const name of candidates) {
+      const re = new RegExp(`(?:^|;\\s*)${name.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&')}=([^;]+)`);
+      const m = cookies.match(re);
+      if (m) return { token: decodeURIComponent(m[1]), salt: name };
+    }
+    return null;
   }
 }

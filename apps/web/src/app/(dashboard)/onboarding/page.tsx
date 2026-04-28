@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
@@ -39,6 +40,7 @@ const LANGS = [
 
 export default function OnboardingPage() {
   const router = useRouter();
+  const { data: session } = useSession();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
 
@@ -54,11 +56,15 @@ export default function OnboardingPage() {
   const prev = () => setStep((s) => Math.max(s - 1, 1));
 
   const submit = async () => {
+    if (!session?.user?.id) {
+      toast.error('Oturumun süresi doldu, lütfen tekrar giriş yapın.');
+      router.push('/signin?callbackUrl=/onboarding');
+      return;
+    }
     setLoading(true);
     try {
-      const userId = 'cmohpuxgi0001lzwklj3ijs7l';
       const site = await api.createSite({
-        userId,
+        userId: session.user.id,
         url: form.url,
         name: form.name,
         niche: form.niche,

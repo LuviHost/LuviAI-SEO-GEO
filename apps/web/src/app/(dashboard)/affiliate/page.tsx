@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useSession } from 'next-auth/react';
 import { toast } from 'sonner';
 import { Copy, Users, TrendingUp, Wallet } from 'lucide-react';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
@@ -8,16 +9,20 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 
-const USER_ID = 'cmohpuxgi0001lzwklj3ijs7l';
-
 export default function AffiliatePage() {
+  const { data: session, status } = useSession();
+  const userId = session?.user?.id;
   const [stats, setStats] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
   const refresh = async () => {
+    if (!userId) {
+      setLoading(false);
+      return;
+    }
     const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
     try {
-      const res = await fetch(`${apiBase}/api/affiliate/users/${USER_ID}/stats`);
+      const res = await fetch(`${apiBase}/api/affiliate/users/${userId}/stats`, { credentials: 'include' });
       const data = await res.json();
       setStats(data);
     } finally {
@@ -25,15 +30,19 @@ export default function AffiliatePage() {
     }
   };
 
-  useEffect(() => { refresh(); }, []);
+  useEffect(() => {
+    if (status !== 'loading') refresh();
+  }, [userId, status]);
 
   const enroll = async () => {
+    if (!userId) return;
     const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
     try {
       await fetch(`${apiBase}/api/affiliate/enroll`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: USER_ID }),
+        credentials: 'include',
+        body: JSON.stringify({ userId }),
       });
       toast.success('Affiliate programına kayıt oldunuz!');
       refresh();
