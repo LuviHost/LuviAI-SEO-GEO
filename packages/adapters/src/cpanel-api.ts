@@ -11,18 +11,22 @@ import type { PublishPayload, PublishResult } from './base.js';
  */
 export class CpanelApiAdapter extends PublishAdapter {
   async publish(payload: PublishPayload): Promise<PublishResult> {
-    const { cpanelUrl, username, apiToken } = this.credentials;
-    const { remotePath = 'public_html/blog' } = this.config;
+    // host (catalog formundaki ad) veya cpanelUrl (eski docstring adi) — ikisini de kabul et
+    const host = this.credentials.host ?? this.credentials.cpanelUrl;
+    const { username, apiToken } = this.credentials;
+    // Path: hem 'public_html/blog' hem '/public_html/blog' kabul edilebilir
+    let remotePath = String(this.config.remotePath ?? 'public_html/blog').replace(/^\/+/, '').replace(/\/+$/, '');
+    if (!remotePath) remotePath = 'public_html/blog';
 
-    if (!cpanelUrl || !username || !apiToken) {
+    if (!host || !username || !apiToken) {
       return {
         ok: false,
-        error: `cPanel credentials eksik: cpanelUrl=${!!cpanelUrl}, username=${!!username}, apiToken=${!!apiToken}. PublishTarget yeniden olusturup credentials gir.`,
+        error: `cPanel credentials eksik: host=${!!host}, username=${!!username}, apiToken=${!!apiToken}. PublishTarget formundaki "cPanel host" alanini kontrol et (orn: https://cpanel.example.com:2083).`,
       };
     }
 
     const filename = `${payload.slug}.html`;
-    const url = `${cpanelUrl.replace(/\/$/, '')}/execute/Fileman/upload_files`;
+    const url = `${host.replace(/\/$/, '')}/execute/Fileman/upload_files`;
 
     // multipart/form-data
     const boundary = `----LuviAIBoundary${Date.now()}`;
@@ -55,7 +59,7 @@ export class CpanelApiAdapter extends PublishAdapter {
         return { ok: false, error: data.errors?.[0] ?? 'cPanel upload failed' };
       }
 
-      const externalUrl = `https://${new URL(cpanelUrl).hostname.replace(':2083', '').replace(/^cpanel\./, '')}/${remotePath.replace(/^public_html\/?/, '')}/${filename}`;
+      const externalUrl = `https://${new URL(host).hostname.replace(':2083', '').replace(/^cpanel\./, '')}/${remotePath.replace(/^public_html\/?/, '')}/${filename}`;
       return { ok: true, externalUrl, externalId: filename };
     } catch (err: any) {
       return { ok: false, error: err.message };
@@ -63,9 +67,10 @@ export class CpanelApiAdapter extends PublishAdapter {
   }
 
   async test(): Promise<boolean> {
-    const { cpanelUrl, username, apiToken } = this.credentials;
-    if (!cpanelUrl || !username || !apiToken) return false;
-    const res = await fetch(`${cpanelUrl.replace(/\/$/, '')}/execute/Variables/get_user_information`, {
+    const host = this.credentials.host ?? this.credentials.cpanelUrl;
+    const { username, apiToken } = this.credentials;
+    if (!host || !username || !apiToken) return false;
+    const res = await fetch(`${host.replace(/\/$/, '')}/execute/Variables/get_user_information`, {
       headers: { 'Authorization': `cpanel ${username}:${apiToken}` },
     }).catch(() => null);
     return !!res?.ok;
