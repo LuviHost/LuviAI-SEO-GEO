@@ -3,6 +3,18 @@ import Google from 'next-auth/providers/google';
 import { PrismaAdapter } from '@auth/prisma-adapter';
 import { PrismaClient } from '@prisma/client';
 
+// Bazı sunucular (örn. public IPv6'sız VM'ler) Node 20 fetch IPv6'ya
+// timeout veriyor (ETIMEDOUT). undici (Node built-in) global dispatcher'ı
+// IPv4'e kilitle. undici Node 20'nin parçası ama npm'de listelenmediği için
+// TS bilmiyor → require ile yükle.
+try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const undici = require('undici') as { setGlobalDispatcher: (d: unknown) => void; Agent: new (opts: unknown) => unknown };
+  undici.setGlobalDispatcher(new undici.Agent({ connect: { family: 4 } }));
+} catch {
+  // older Node — sessizce geç
+}
+
 declare module 'next-auth' {
   interface Session {
     user: DefaultSession['user'] & {
