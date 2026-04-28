@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { AnalyticsTab } from '@/components/analytics-tab';
+import { PipelineProgress, PIPELINE_STEPS } from '@/components/pipeline-progress';
 
 export default function SitePage() {
   const params = useParams();
@@ -127,6 +128,7 @@ function Step({ done, label }: { done: boolean; label: string }) {
 
 function AuditTab({ audit, siteId, onRefresh }: { audit: any; siteId: string; onRefresh: () => void }) {
   const [running, setRunning] = useState(false);
+  const [fixing, setFixing] = useState(false);
 
   const run = async () => {
     setRunning(true);
@@ -143,14 +145,24 @@ function AuditTab({ audit, siteId, onRefresh }: { audit: any; siteId: string; on
 
   if (!audit) {
     return (
-      <Card>
-        <CardContent className="p-12 text-center">
-          <p className="text-muted-foreground mb-4">Henüz audit çalıştırılmamış.</p>
-          <Button onClick={run} disabled={running}>
-            {running ? 'Çalışıyor… (~30 sn)' : 'Audit Çalıştır'}
-          </Button>
-        </CardContent>
-      </Card>
+      <div className="space-y-4">
+        {!running && (
+          <Card>
+            <CardContent className="p-12 text-center">
+              <p className="text-muted-foreground mb-4">Henüz audit çalıştırılmamış.</p>
+              <Button onClick={run}>Audit Çalıştır</Button>
+              <p className="text-xs text-muted-foreground mt-3">
+                Yaklaşık 30 saniye sürer. Site sayfaları taranır, 14 SEO kontrolü yapılır.
+              </p>
+            </CardContent>
+          </Card>
+        )}
+        <PipelineProgress
+          title="Sağlık Audit çalışıyor"
+          steps={PIPELINE_STEPS.audit}
+          running={running}
+        />
+      </div>
     );
   }
 
@@ -159,17 +171,36 @@ function AuditTab({ audit, siteId, onRefresh }: { audit: any; siteId: string; on
   const fixable = issues.filter((i: any) => i.fixable);
 
   const applyFix = async () => {
+    setFixing(true);
     try {
       await api.applyAutoFix(siteId, ['sitemap', 'robots', 'llms']);
-      toast.success("Auto-fix queue'ya eklendi");
-      setTimeout(onRefresh, 3000);
+      toast.success("Auto-fix queue'ya eklendi — yayın hedefine yükleniyor");
+      setTimeout(() => {
+        onRefresh();
+        setFixing(false);
+      }, 25000);
     } catch (err: any) {
       toast.error(err.message);
+      setFixing(false);
     }
   };
 
   return (
     <div className="space-y-4">
+      {(running || fixing) && (
+        <PipelineProgress
+          title={running ? 'Audit yeniden çalışıyor' : 'Otomatik düzeltme uygulanıyor'}
+          steps={running ? PIPELINE_STEPS.audit : PIPELINE_STEPS.autoFix}
+          running={running || fixing}
+        />
+      )}
+
+      <div className="flex justify-end">
+        <Button size="sm" variant="outline" onClick={run} disabled={running || fixing}>
+          {running ? 'Çalışıyor…' : 'Audit\'i Yenile'}
+        </Button>
+      </div>
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
           <CardContent className="p-5">
@@ -240,26 +271,41 @@ function TopicsTab({ queue, siteId, onRefresh }: { queue: any; siteId: string; o
     }
   };
 
+  const [generating, setGenerating] = useState<string | null>(null);
+
   const generate = async (topic: string) => {
+    setGenerating(topic);
     try {
       await api.generateArticle(siteId, topic);
       toast.success('Makale üretildi! Articles sekmesinde gör.');
       onRefresh();
     } catch (err: any) {
       toast.error(err.message);
+    } finally {
+      setGenerating(null);
     }
   };
 
   if (!queue) {
     return (
-      <Card>
-        <CardContent className="p-12 text-center">
-          <p className="text-muted-foreground mb-4">Topic queue henüz oluşmadı.</p>
-          <Button onClick={run} disabled={running}>
-            {running ? 'Çalışıyor…' : 'Topic Engine Çalıştır'}
-          </Button>
-        </CardContent>
-      </Card>
+      <div className="space-y-4">
+        {!running && (
+          <Card>
+            <CardContent className="p-12 text-center">
+              <p className="text-muted-foreground mb-4">Topic queue henüz oluşmadı.</p>
+              <Button onClick={run}>Topic Engine Çalıştır</Button>
+              <p className="text-xs text-muted-foreground mt-3">
+                Yaklaşık 60 saniye sürer. Plan + GSC + AI search + rakip analizinden konu sıralanır.
+              </p>
+            </CardContent>
+          </Card>
+        )}
+        <PipelineProgress
+          title="Topic Engine çalışıyor"
+          steps={PIPELINE_STEPS.topicEngine}
+          running={running}
+        />
+      </div>
     );
   }
 
@@ -267,21 +313,52 @@ function TopicsTab({ queue, siteId, onRefresh }: { queue: any; siteId: string; o
 
   return (
     <div className="space-y-4">
-      <h3 className="font-bold text-lg">🥇 Tier 1 — Hemen Yazılmalı</h3>
+      {generating && (
+        <PipelineProgress
+          title={`Makale üretiliyor: "${generating.slice(0, 60)}${generating.length > 60 ? '…' : ''}"`}
+          steps={PIPELINE_STEPS.article}
+          running={true}
+        />
+      )}
+
+      <div className="flex justify-between items-center flex-wrap gap-3">
+        <h3 className="font-bold text-lg">🥇 Tier 1 — Hemen Yazılmalı</h3>
+        <Button size="sm" variant="outline" onClick={run} disabled={running}>
+          {running ? 'Yenileniyor…' : 'Topic Engine\'i Yenile'}
+        </Button>
+      </div>
+
+      {running && (
+        <PipelineProgress
+          title="Topic Engine yeniden çalışıyor"
+          steps={PIPELINE_STEPS.topicEngine}
+          running={running}
+        />
+      )}
+
       <div className="grid gap-3">
-        {tier1.map((t: any, i: number) => (
-          <Card key={i}>
-            <CardContent className="p-4">
-              <div className="flex justify-between items-start mb-2 gap-2">
-                <Badge>SKOR {t.score}</Badge>
-                <span className="text-xs text-muted-foreground">{t.persona}</span>
-              </div>
-              <h4 className="font-semibold mb-1">{t.topic}</h4>
-              <p className="text-xs text-muted-foreground mb-3">{t.data_summary}</p>
-              <Button size="sm" onClick={() => generate(t.topic)}>Bu konuyu üret →</Button>
-            </CardContent>
-          </Card>
-        ))}
+        {tier1.map((t: any, i: number) => {
+          const isThis = generating === t.topic;
+          return (
+            <Card key={i} className={isThis ? 'ring-2 ring-brand' : ''}>
+              <CardContent className="p-4">
+                <div className="flex justify-between items-start mb-2 gap-2">
+                  <Badge>SKOR {t.score}</Badge>
+                  <span className="text-xs text-muted-foreground">{t.persona}</span>
+                </div>
+                <h4 className="font-semibold mb-1">{t.topic}</h4>
+                <p className="text-xs text-muted-foreground mb-3">{t.data_summary}</p>
+                <Button
+                  size="sm"
+                  onClick={() => generate(t.topic)}
+                  disabled={!!generating}
+                >
+                  {isThis ? 'Üretiliyor…' : 'Bu konuyu üret →'}
+                </Button>
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
     </div>
   );
