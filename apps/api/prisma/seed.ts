@@ -41,7 +41,7 @@ async function main() {
     create: {
       id: 'demo-luvihost',
       userId: admin.id,
-      url: 'https://luvihost.com.tr',
+      url: 'https://luvihost.com',
       name: 'LuviHost',
       niche: 'web hosting',
       language: 'tr',
