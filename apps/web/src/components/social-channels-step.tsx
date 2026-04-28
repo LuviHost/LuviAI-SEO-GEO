@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 
-type Catalog = Array<{ type: string; label: string; status: 'live' | 'soon' }>;
+type Catalog = Array<{ type: string; label: string; status: 'live' | 'soon'; note?: string }>;
 
 export function SocialChannelsStep({ siteId }: { siteId: string }) {
   const search = useSearchParams();
@@ -172,19 +172,25 @@ export function SocialChannelsStep({ siteId }: { siteId: string }) {
               type="button"
               disabled={item.status === 'soon' || busy === item.type}
               onClick={() => connect(item.type)}
-              className={`flex items-center justify-between gap-2 px-4 py-3 rounded-lg border text-left transition-colors ${
+              title={item.note ?? ''}
+              className={`flex flex-col items-start gap-1 px-4 py-3 rounded-lg border text-left transition-colors ${
                 item.status === 'soon'
-                  ? 'opacity-50 cursor-not-allowed bg-muted/40'
+                  ? 'opacity-60 cursor-not-allowed bg-muted/40'
                   : 'hover:border-brand bg-card cursor-pointer'
               }`}
             >
-              <span className="text-sm font-medium">{item.label}</span>
-              {item.status === 'soon' ? (
-                <Badge variant="outline" className="text-[10px]">Yakında</Badge>
-              ) : (
-                <span className="inline-flex items-center gap-1 text-xs text-brand">
-                  <Link2 className="h-3.5 w-3.5" /> {busy === item.type ? '…' : 'Bağla'}
-                </span>
+              <div className="flex items-center justify-between gap-2 w-full">
+                <span className="text-sm font-medium">{item.label}</span>
+                {item.status === 'soon' ? (
+                  <Badge variant="outline" className="text-[10px]">Yakında</Badge>
+                ) : (
+                  <span className="inline-flex items-center gap-1 text-xs text-brand">
+                    <Link2 className="h-3.5 w-3.5" /> {busy === item.type ? '…' : 'Bağla'}
+                  </span>
+                )}
+              </div>
+              {item.note && (
+                <span className="text-[11px] text-muted-foreground leading-snug">{item.note}</span>
               )}
             </button>
           ))}

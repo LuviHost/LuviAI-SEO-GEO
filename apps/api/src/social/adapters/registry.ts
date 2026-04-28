@@ -22,10 +22,15 @@ export function getAdapter(channelType: string): SocialAdapter {
   return adapter;
 }
 
-export function listSupportedTypes(): Array<{ type: string; label: string; status: 'live' | 'soon' }> {
+export function listSupportedTypes(): Array<{ type: string; label: string; status: 'live' | 'soon'; note?: string }> {
   return [
     { type: 'LINKEDIN_PERSONAL', label: 'LinkedIn (Kişisel)', status: 'live' },
-    { type: 'LINKEDIN_COMPANY', label: 'LinkedIn (Şirket Sayfası)', status: 'live' },
+    {
+      type: 'LINKEDIN_COMPANY',
+      label: 'LinkedIn (Şirket Sayfası)',
+      status: 'soon',
+      note: 'LinkedIn Marketing Developer Platform onayı bekleniyor (review süreci 1-2 hafta).',
+    },
     { type: 'X_TWITTER', label: 'X / Twitter', status: 'soon' },
     { type: 'FACEBOOK_PAGE', label: 'Facebook Sayfa', status: 'soon' },
     { type: 'INSTAGRAM_BUSINESS', label: 'Instagram Business', status: 'soon' },
