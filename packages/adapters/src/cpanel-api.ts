@@ -10,7 +10,8 @@ let insecureDispatcher: any = null;
 async function getInsecureDispatcher() {
   if (insecureDispatcher) return insecureDispatcher;
   try {
-    const undici = await import('undici');
+    // @ts-ignore — undici Node 18+ ile birlikte gelen built-in modul, @types/node tip tanimi vermiyor
+    const undici: any = await import('undici');
     insecureDispatcher = new undici.Agent({ connect: { rejectUnauthorized: false } });
   } catch {
     insecureDispatcher = null;
