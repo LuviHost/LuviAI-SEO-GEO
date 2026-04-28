@@ -148,21 +148,62 @@ export class SocialPostsService {
       this.log.log(`[social] PUBLISHED ${channel.type} ${result.externalId}`);
       return updated;
     } catch (err: any) {
-      const msg = err?.message ?? String(err);
+      const raw = err?.message ?? String(err);
+      const friendly = humanizeSocialError(raw, channel.type);
       await this.prisma.socialPost.update({
         where: { id: postId },
         data: {
           status: 'FAILED' as any,
-          errorMsg: msg,
+          errorMsg: friendly,
           retryCount: { increment: 1 },
         },
       });
       await this.prisma.socialChannel.update({
         where: { id: channel.id },
-        data: { lastError: msg.slice(0, 500) },
+        data: { lastError: friendly.slice(0, 500) },
       });
-      this.log.error(`[social] FAIL ${channel.type}: ${msg}`);
-      throw new BadRequestException(`Sosyal yayin basarisiz: ${msg}`);
+      this.log.error(`[social] FAIL ${channel.type}: ${raw}`);
+      throw new BadRequestException(friendly);
     }
   }
+}
+
+/**
+ * X / LinkedIn API hatalarini kullanici dostu Turkce mesaja cevir.
+ * Ham hatayi ekleyip teknik detay log'da kalsin.
+ */
+function humanizeSocialError(raw: string, channelType: string): string {
+  const lower = raw.toLowerCase();
+
+  // X (Twitter) — yaygin durumlar
+  if (channelType === 'X_TWITTER') {
+    if (lower.includes('creditsdepleted') || lower.includes('does not have any credits')) {
+      return 'X hesabınızda kredi kalmadı. X Developer Portal → Billing → Credits bölümünden kredi yükleyin (Pay Per Use planı). Tweet başına ücret çok düşük; küçük yükleme uzun süre yetiyor.';
+    }
+    if (lower.includes('rate limit') || lower.includes('429')) {
+      return 'X rate limit aşıldı. 15 dakika içinde tekrar denenecek (cron otomatik tekrar atar).';
+    }
+    if (lower.includes('401') || lower.includes('unauthorized') || lower.includes('invalid token')) {
+      return 'X erişim token geçersiz / yenilenmesi gerekiyor. Sosyal Kanallar → X kanalını sil ve yeniden bağla.';
+    }
+    if (lower.includes('403') || lower.includes('forbidden')) {
+      return 'X yazma izni yok. Bağladığın hesabın X uygulamasında "Read and write" izni olduğundan ve OAuth scope\'larında tweet.write bulunduğundan emin ol.';
+    }
+    if (lower.includes('duplicate')) {
+      return 'X aynı içeriği tekrar tweet atmaya izin vermez. Metni biraz değiştir veya yarın tekrar dene.';
+    }
+  }
+
+  // LinkedIn
+  if (channelType.startsWith('LINKEDIN')) {
+    if (lower.includes('401') || lower.includes('invalid_token') || lower.includes('expired')) {
+      return 'LinkedIn token süresi doldu. Sosyal Kanallar → LinkedIn kanalını yeniden bağla.';
+    }
+    if (lower.includes('403')) {
+      return 'LinkedIn yazma izni yok. Şirket sayfası için Page Admin yetkisi gerekiyor.';
+    }
+  }
+
+  // Generic
+  return `Sosyal yayın başarısız: ${raw.slice(0, 280)}`;
 }
