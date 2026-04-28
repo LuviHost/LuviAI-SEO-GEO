@@ -1,23 +1,87 @@
 /**
  * LuviAI API client.
- * Faz 1: basit fetch wrapper. Faz 2'de NextAuth session cookie auto-include.
+ * NextAuth session cookie otomatik include edilir (credentials: 'include').
  */
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
-async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
-  const res = await fetch(`${API_BASE}/api${path}`, {
-    ...init,
-    headers: {
-      'Content-Type': 'application/json',
-      ...init.headers,
-    },
-    credentials: 'include',
-  });
-  if (!res.ok) {
-    const error = await res.text();
-    throw new Error(`API ${res.status}: ${error}`);
+export class ApiError extends Error {
+  constructor(
+    public readonly status: number,
+    /** Kullanıcıya gösterilebilir Türkçe mesaj */
+    public readonly userMessage: string,
+    /** Backend'in dönüş gövdesi (debug için) */
+    public readonly rawBody?: unknown,
+  ) {
+    super(userMessage);
+    this.name = 'ApiError';
   }
+}
+
+function toUserMessage(status: number, body: unknown): string {
+  // Backend zaten anlamlı bir Türkçe mesaj dönmüşse onu kullan
+  if (body && typeof body === 'object') {
+    const b = body as { message?: unknown; error?: unknown };
+    const msg =
+      typeof b.message === 'string'
+        ? b.message
+        : Array.isArray(b.message) && b.message.length > 0 && typeof b.message[0] === 'string'
+          ? b.message.join(', ')
+          : null;
+
+    if (msg && msg !== 'Internal server error' && msg !== 'Bad Request') {
+      return msg;
+    }
+  }
+
+  if (status === 0) return 'Bağlantı kurulamadı. İnternet bağlantını kontrol et.';
+  if (status === 400) return 'Gönderdiğin bilgilerde bir sorun var, lütfen kontrol et.';
+  if (status === 401) return 'Oturumun süresi dolmuş, lütfen tekrar giriş yap.';
+  if (status === 403) return 'Bu işlem için yetkin yok.';
+  if (status === 404) return 'İstenen kayıt bulunamadı.';
+  if (status === 409) return 'Bu kayıt zaten mevcut.';
+  if (status === 413) return 'Gönderilen dosya çok büyük.';
+  if (status === 422) return 'Girilen değerler geçersiz.';
+  if (status === 429) return 'Çok fazla istek attın. Birkaç saniye bekleyip tekrar dene.';
+  if (status === 502 || status === 503 || status === 504) {
+    return 'Sunucu şu an cevap vermiyor. Birkaç saniye sonra tekrar dene.';
+  }
+  if (status >= 500) return 'Sunucu tarafında beklenmeyen bir sorun oluştu. Tekrar dene.';
+  return 'Beklenmeyen bir hata oluştu, lütfen tekrar dene.';
+}
+
+async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}/api${path}`, {
+      ...init,
+      headers: {
+        'Content-Type': 'application/json',
+        ...init.headers,
+      },
+      credentials: 'include',
+    });
+  } catch (err: unknown) {
+    throw new ApiError(0, toUserMessage(0, null), (err as Error)?.message);
+  }
+
+  if (!res.ok) {
+    let body: unknown = null;
+    try {
+      body = await res.json();
+    } catch {
+      try {
+        body = await res.text();
+      } catch {
+        body = null;
+      }
+    }
+    if (process.env.NODE_ENV !== 'production') {
+      console.error(`[API ${res.status}] ${path}`, body);
+    }
+    throw new ApiError(res.status, toUserMessage(res.status, body), body);
+  }
+
   return res.json();
 }
 
