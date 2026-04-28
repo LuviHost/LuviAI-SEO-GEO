@@ -109,20 +109,39 @@ export class GaOAuthService {
     if (!client) throw new BadRequestException('GA bagli degil');
 
     const admin = google.analyticsadmin({ version: 'v1beta', auth: client as any });
-    const accounts = await admin.accountSummaries.list({ pageSize: 200 });
-    const out: Array<{ propertyId: string; displayName: string; accountName: string }> = [];
-    for (const a of accounts.data.accountSummaries ?? []) {
-      const accountName = a.displayName ?? a.account ?? '?';
-      for (const p of a.propertySummaries ?? []) {
-        if (!p.property) continue;
-        out.push({
-          propertyId: p.property.replace(/^properties\//, ''),
-          displayName: p.displayName ?? p.property,
-          accountName,
-        });
+    try {
+      const accounts = await admin.accountSummaries.list({ pageSize: 200 });
+      const out: Array<{ propertyId: string; displayName: string; accountName: string }> = [];
+      for (const a of accounts.data.accountSummaries ?? []) {
+        const accountName = a.displayName ?? a.account ?? '?';
+        for (const p of a.propertySummaries ?? []) {
+          if (!p.property) continue;
+          out.push({
+            propertyId: p.property.replace(/^properties\//, ''),
+            displayName: p.displayName ?? p.property,
+            accountName,
+          });
+        }
       }
+      return out;
+    } catch (err: any) {
+      const msg = String(err?.message ?? '');
+      if (/has not been used|is disabled|SERVICE_DISABLED|analyticsadmin\.googleapis\.com/i.test(msg)) {
+        const projectMatch = msg.match(/project (\d+)/);
+        const project = projectMatch ? projectMatch[1] : null;
+        const link = project
+          ? `https://console.developers.google.com/apis/api/analyticsadmin.googleapis.com/overview?project=${project}`
+          : 'https://console.developers.google.com/apis/library/analyticsadmin.googleapis.com';
+        throw new BadRequestException(
+          `Google Analytics Admin API etkin degil. Sunucudaki Google Cloud projesinde su sayfadan API'yi etkinlestir: ${link} (etkinlestirdikten 1-2 dk sonra "Listeyi Yenile" butonuna bas).`,
+        );
+      }
+      if (err?.code === 401 || /invalid_grant|unauthorized/i.test(msg)) {
+        throw new BadRequestException('GA OAuth token gecerli degil. "Baglantiyi Kes" yapip yeniden bagla.');
+      }
+      this.log.error(`GA listProperties error: ${msg}`);
+      throw new BadRequestException(`Google Analytics property listesi alinamadi: ${msg}`);
     }
-    return out;
   }
 
   async setProperty(siteId: string, propertyId: string) {
