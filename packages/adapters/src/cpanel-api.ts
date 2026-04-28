@@ -1,6 +1,23 @@
 import { PublishAdapter } from './base.js';
 import type { PublishPayload, PublishResult } from './base.js';
 
+// undici dispatcher: cPanel sunuculari cogu zaman IP veya self-signed
+// sertifika ile sunulur. Default Node fetch hostname-cert eslesmesini zorlar
+// ('SSL: no alternative certificate subject name'). cPanel API'si icin
+// rejectUnauthorized:false yaygin pratik (HTTPS Basic auth + token zaten
+// sifreli, MITM riski sinirli host icindeyiz).
+let insecureDispatcher: any = null;
+async function getInsecureDispatcher() {
+  if (insecureDispatcher) return insecureDispatcher;
+  try {
+    const undici = await import('undici');
+    insecureDispatcher = new undici.Agent({ connect: { rejectUnauthorized: false } });
+  } catch {
+    insecureDispatcher = null;
+  }
+  return insecureDispatcher;
+}
+
 /**
  * cPanel API Token + File Manager API ile static HTML upload.
  * credentials: { cpanelUrl, username, apiToken }
@@ -45,6 +62,7 @@ export class CpanelApiAdapter extends PublishAdapter {
     ].join('\r\n');
 
     try {
+      const dispatcher = await getInsecureDispatcher();
       const res = await fetch(url, {
         method: 'POST',
         headers: {
@@ -52,17 +70,32 @@ export class CpanelApiAdapter extends PublishAdapter {
           'Content-Type': `multipart/form-data; boundary=${boundary}`,
         },
         body,
+        ...(dispatcher ? { dispatcher } as any : {}),
       });
 
+      if (!res.ok) {
+        const txt = await res.text().catch(() => '');
+        return {
+          ok: false,
+          error: `cPanel HTTP ${res.status} (${url}): ${txt.slice(0, 200)}`,
+        };
+      }
       const data: any = await res.json();
       if (data.status !== 1) {
-        return { ok: false, error: data.errors?.[0] ?? 'cPanel upload failed' };
+        return { ok: false, error: `cPanel API hata: ${data.errors?.[0] ?? JSON.stringify(data).slice(0, 200)}` };
       }
 
       const externalUrl = `https://${new URL(host).hostname.replace(':2083', '').replace(/^cpanel\./, '')}/${remotePath.replace(/^public_html\/?/, '')}/${filename}`;
       return { ok: true, externalUrl, externalId: filename };
     } catch (err: any) {
-      return { ok: false, error: err.message };
+      // undici 'fetch failed' altinda gercek sebep err.cause'da
+      const cause = err?.cause;
+      const causeMsg = cause?.code ? `${cause.code}: ${cause.message ?? ''}` : (cause?.message ?? '');
+      const detail = [err.message, causeMsg].filter(Boolean).join(' | ');
+      return {
+        ok: false,
+        error: `cPanel baglanti hatasi (${url}): ${detail}. Kontrol et: host URL https:// + port 2083 ile mi? SSL gecerli mi? cPanel servisine ulasilabiliyor mu?`,
+      };
     }
   }
 
@@ -70,9 +103,14 @@ export class CpanelApiAdapter extends PublishAdapter {
     const host = this.credentials.host ?? this.credentials.cpanelUrl;
     const { username, apiToken } = this.credentials;
     if (!host || !username || !apiToken) return false;
-    const res = await fetch(`${host.replace(/\/$/, '')}/execute/Variables/get_user_information`, {
-      headers: { 'Authorization': `cpanel ${username}:${apiToken}` },
-    }).catch(() => null);
+    const dispatcher = await getInsecureDispatcher();
+    const res = await fetch(
+      `${host.replace(/\/$/, '')}/execute/Variables/get_user_information`,
+      {
+        headers: { 'Authorization': `cpanel ${username}:${apiToken}` },
+        ...(dispatcher ? { dispatcher } as any : {}),
+      },
+    ).catch(() => null);
     return !!res?.ok;
   }
 }
