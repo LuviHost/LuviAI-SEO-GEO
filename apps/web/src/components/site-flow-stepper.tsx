@@ -354,15 +354,42 @@ function AuditStepBody({
         </div>
       </div>
 
-      {fixable.length > 0 && (
-        <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/5 p-3 flex items-center justify-between flex-wrap gap-3">
-          <div>
-            <p className="text-sm font-semibold">⚡ {fixable.length} sorun otomatik düzeltilebilir</p>
-            <p className="text-xs text-muted-foreground mt-0.5">sitemap.xml · robots.txt · llms.txt — varsayılan publish target üzerinden site root'una yazılır</p>
+      {/* Kritik bulgular — açık liste (artık accordion'a saklanmıyor) */}
+      {issues.length > 0 && (() => {
+        const critical = issues.filter((i: any) => i.severity === 'critical');
+        const warnings = issues.filter((i: any) => i.severity === 'warning');
+        const top = [...critical, ...warnings].slice(0, 6);
+        return (
+          <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-3 space-y-2">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <p className="text-sm font-semibold">
+                🔴 {critical.length} kritik · ⚠ {warnings.length} uyarı bulundu
+              </p>
+              {fixable.length > 0 && (
+                <Button size="sm" onClick={applyFix} disabled={fixing}>
+                  ⚡ {fixable.length} sorunu otomatik düzelt
+                </Button>
+              )}
+            </div>
+            <ul className="space-y-1.5 text-xs">
+              {top.map((i: any, idx: number) => (
+                <li key={idx} className="flex items-start gap-2 leading-relaxed">
+                  <span className={i.severity === 'critical' ? 'text-red-500' : 'text-yellow-500'}>
+                    {i.severity === 'critical' ? '●' : '○'}
+                  </span>
+                  <span className="flex-1">
+                    {i.description}
+                    {i.fixable && <span className="ml-1.5 text-[10px] uppercase tracking-wide bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 rounded px-1 py-0.5 font-semibold">otomatik</span>}
+                  </span>
+                </li>
+              ))}
+              {issues.length > top.length && (
+                <li className="text-muted-foreground italic pl-4">+{issues.length - top.length} ek bulgu…</li>
+              )}
+            </ul>
           </div>
-          <Button size="sm" onClick={applyFix} disabled={fixing}>Otomatik Düzelt</Button>
-        </div>
-      )}
+        );
+      })()}
 
       <details className="text-sm">
         <summary className="cursor-pointer font-medium py-2">Detaylı kontrol listesi (14 nokta)</summary>
@@ -378,6 +405,38 @@ function AuditStepBody({
           ))}
         </div>
       </details>
+
+      {/* AI Citation: artık otomatik audit'te çalışıyor — eski paneli de manuel re-run için bırakıyoruz */}
+      {checks.aiCitations?.providers && (
+        <div className="rounded-lg border p-4">
+          <div className="flex items-center justify-between mb-2">
+            <div>
+              <p className="text-sm font-semibold">AI Arama Görünürlüğü (otomatik)</p>
+              <p className="text-xs text-muted-foreground">Claude · Gemini · ChatGPT · Perplexity</p>
+            </div>
+            <span className="text-2xl font-bold text-brand">{checks.aiCitations.score ?? 0}/100</span>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+            {(checks.aiCitations.providers as any[]).map((p) => (
+              <div key={p.provider} className="rounded-md border p-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium truncate">{p.label}</span>
+                  <span className={`text-sm font-bold ${
+                    p.score === null ? 'text-muted-foreground' :
+                    p.score >= 60 ? 'text-green-500' :
+                    p.score >= 30 ? 'text-yellow-500' : 'text-red-500'
+                  }`}>
+                    {p.available && p.score !== null ? p.score : '—'}
+                  </span>
+                </div>
+                {!p.available && p.reason && (
+                  <p className="text-[10px] text-muted-foreground mt-1 leading-snug">{p.reason}</p>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <CitationPanel siteId={siteId} />
 

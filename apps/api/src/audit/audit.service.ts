@@ -4,6 +4,7 @@ import { SiteCrawlerService } from '../sites/site-crawler.service.js';
 import { AuditChecksService } from './audit-checks.service.js';
 import { PageSpeedService } from './pagespeed.service.js';
 import { GeoRunnerService } from './geo-runner.service.js';
+import { AiCitationService } from './ai-citation.service.js';
 import type { CheckResult } from './audit-checks.service.js';
 
 @Injectable()
@@ -16,6 +17,7 @@ export class AuditService {
     private readonly checks: AuditChecksService,
     private readonly pagespeed: PageSpeedService,
     private readonly geo: GeoRunnerService,
+    private readonly aiCitation: AiCitationService,
   ) {}
 
   async getLatest(siteId: string) {
@@ -57,14 +59,39 @@ export class AuditService {
     // 3) PageSpeed (asenkron — başarısızsa null)
     const pagespeedResult = await this.pagespeed.runAudit(site.url, 'mobile');
 
-    // 4) Auriti GEO
-    const geoResult = await this.geo.runAudit(site.url);
+    // 4) Auriti GEO + AI Citation (Claude/Gemini/OpenAI/Perplexity) — paralel
+    const [geoResult, citationResults] = await Promise.all([
+      this.geo.runAudit(site.url),
+      this.aiCitation.runForSite(siteId, 5).catch((err) => {
+        this.log.warn(`[${siteId}] AI Citation testi basarisiz: ${err.message}`);
+        return [] as Awaited<ReturnType<AiCitationService['runForSite']>>;
+      }),
+    ]);
+
+    // AI Citation ortalama skoru (sadece available + skor olanlar)
+    const validCitationScores = citationResults
+      .filter((r) => r.available && typeof r.score === 'number')
+      .map((r) => r.score as number);
+    const aiCitationAvg = validCitationScores.length > 0
+      ? Math.round(validCitationScores.reduce((a, b) => a + b, 0) / validCitationScores.length)
+      : null;
 
     // 5) Issues consolidate
     const allIssues = checkResults.flatMap(r => r.issues.map(i => ({
       ...i,
       checkId: r.id,
     })));
+
+    // AI Citation skor 0/dusuk ise issue olarak ekle
+    if (aiCitationAvg !== null && aiCitationAvg < 30) {
+      allIssues.push({
+        severity: 'warning' as const,
+        type: 'ai_citation_low',
+        description: `AI arama görünürlüğü düşük (${aiCitationAvg}/100) — ChatGPT/Claude/Gemini sorgularinda site URL'in nadiren geçiyor. llms.txt + schema markup + GEO içerik üretimi öner.`,
+        fixable: true,
+        checkId: 'ai_citation',
+      } as any);
+    }
 
     // PageSpeed opportunities → issue
     if (pagespeedResult?.opportunities) {
@@ -89,6 +116,13 @@ export class AuditService {
           ...Object.fromEntries(checkResults.map(r => [r.id, r])),
           pagespeed: pagespeedResult,
           geo: geoResult as any,
+          aiCitations: {
+            id: 'ai_citations',
+            name: 'AI arama gorunurlugu (Claude · Gemini · ChatGPT · Perplexity)',
+            score: aiCitationAvg ?? 0,
+            providers: citationResults,
+            ranAt: new Date().toISOString(),
+          } as any,
         },
         issues: allIssues,
         durationMs: Date.now() - t0,
@@ -101,7 +135,7 @@ export class AuditService {
       data: { status: 'AUDIT_COMPLETE' },
     });
 
-    this.log.log(`[${siteId}] Audit bitti — skor: ${overallScore}/100, ${allIssues.length} issue, ${(Date.now() - t0) / 1000}s`);
+    this.log.log(`[${siteId}] Audit bitti — skor: ${overallScore}/100, GEO: ${geoResult.score ?? '-'}/100, AI citation: ${aiCitationAvg ?? '-'}/100, ${allIssues.length} issue, ${(Date.now() - t0) / 1000}s`);
 
     return audit;
   }
