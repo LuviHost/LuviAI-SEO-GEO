@@ -1,4 +1,14 @@
 import 'dotenv/config';
+
+// IPv4'e zorla (sunucularda public IPv6 yoksa Node fetch ETIMEDOUT verir)
+try {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const undici = require('undici') as { setGlobalDispatcher: (d: unknown) => void; Agent: new (opts: unknown) => unknown };
+  undici.setGlobalDispatcher(new undici.Agent({ connect: { family: 4 } }));
+} catch {
+  // older Node — sessizce geç
+}
+
 import { Worker } from 'bullmq';
 import IORedis from 'ioredis';
 import { NestFactory } from '@nestjs/core';
