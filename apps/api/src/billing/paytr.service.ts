@@ -191,6 +191,22 @@ export class PaytrService {
           description: `${invoice.description} — ${failed_reason_code}: ${failed_reason_msg}`,
         },
       });
+
+      // Payment failed mail (fire-and-forget; webhook'u blok etme)
+      const failedUser = await this.prisma.user.findUnique({ where: { id: invoice.userId } });
+      if (failedUser?.email) {
+        this.email.send({
+          userId: failedUser.id,
+          to: failedUser.email,
+          template: 'payment_failed',
+          data: {
+            name: failedUser.name ?? 'kullanıcı',
+            reasonMsg: failed_reason_msg,
+            reasonCode: failed_reason_code,
+          },
+        }).catch((err) => this.log.warn(`payment_failed mail: ${err.message}`));
+      }
+
       this.log.warn(`[${merchant_oid}] ❌ Ödeme başarısız: ${failed_reason_msg}`);
     }
 

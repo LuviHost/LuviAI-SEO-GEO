@@ -81,6 +81,20 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             // 1 makale ömür boyu ücretsiz — süre kapısı yok.
           },
         });
+
+        // Welcome maili — fire-and-forget; signIn'i blok etmez
+        const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+        const internalKey = process.env.INTERNAL_API_KEY ?? process.env.NEXTAUTH_SECRET ?? '';
+        if (internalKey) {
+          fetch(`${apiBase}/api/auth/welcome-hook`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-internal-key': internalKey },
+            body: JSON.stringify({ email: user.email }),
+          }).catch((err) => {
+            // sessizce log — kullaniciyi blok etme
+            console.warn('[auth] welcome-hook error:', err?.message);
+          });
+        }
       }
       return true;
     },
