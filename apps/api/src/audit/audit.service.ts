@@ -88,7 +88,7 @@ export class AuditService {
         checks: {
           ...Object.fromEntries(checkResults.map(r => [r.id, r])),
           pagespeed: pagespeedResult,
-          geo: geoResult,
+          geo: geoResult as any,
         },
         issues: allIssues,
         durationMs: Date.now() - t0,

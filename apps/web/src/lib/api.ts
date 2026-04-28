@@ -107,6 +107,21 @@ export const api = {
   runAuditNow: (siteId: string) =>
     request<any>(`/sites/${siteId}/audit/run-now`, { method: 'POST' }),
 
+  previewStaticWrite: (siteId: string, pageUrl: string, snippets: any[]) =>
+    request<any>(`/sites/${siteId}/audit/snippets/static-preview`, { method: 'POST', body: JSON.stringify({ pageUrl, snippets }) }),
+
+  writeStatic: (siteId: string, pageUrl: string, snippets: any[]) =>
+    request<any>(`/sites/${siteId}/audit/snippets/static-write`, { method: 'POST', body: JSON.stringify({ pageUrl, snippets }) }),
+
+  applySnippets: (siteId: string, snippets: any[]) =>
+    request<any>(`/sites/${siteId}/audit/snippets/apply`, { method: 'POST', body: JSON.stringify({ snippets }) }),
+
+  getSnippets: (siteId: string, pageUrl?: string) =>
+    request<any>(`/sites/${siteId}/audit/snippets${pageUrl ? `?pageUrl=${encodeURIComponent(pageUrl)}` : ""}`),
+
+  runCitationTest: (siteId: string) =>
+    request<any>(`/sites/${siteId}/audit/citation-test`, { method: 'POST' }),
+
   applyAutoFix: (siteId: string, fixes: string[]) =>
     request<any>(`/sites/${siteId}/audit/auto-fix-now`, {
       method: 'POST',

@@ -341,14 +341,25 @@ function AuditStepBody({
           <div className="text-xs text-muted-foreground mt-0.5">AI Search / 100</div>
         </div>
         <div className="rounded-lg border p-3 text-center">
-          <div className="text-3xl font-bold text-red-500">{issues.length}</div>
-          <div className="text-xs text-muted-foreground mt-0.5">Bulunan Sorun</div>
+          {(() => {
+            const failedCount = Object.values(checks).filter((v: any) => v?.name && (v?.score ?? 0) < 100).length;
+            const totalCount = Object.values(checks).filter((v: any) => v?.name).length;
+            return (
+              <>
+                <div className="text-3xl font-bold text-red-500">{failedCount}<span className="text-base text-muted-foreground font-normal">/{totalCount}</span></div>
+                <div className="text-xs text-muted-foreground mt-0.5">Sorunlu Kontrol ({issues.length} bulgu)</div>
+              </>
+            );
+          })()}
         </div>
       </div>
 
       {fixable.length > 0 && (
         <div className="rounded-lg border border-yellow-500/30 bg-yellow-500/5 p-3 flex items-center justify-between flex-wrap gap-3">
-          <p className="text-sm font-semibold">⚡ {fixable.length} sorun otomatik düzeltilebilir</p>
+          <div>
+            <p className="text-sm font-semibold">⚡ {fixable.length} sorun otomatik düzeltilebilir</p>
+            <p className="text-xs text-muted-foreground mt-0.5">sitemap.xml · robots.txt · llms.txt — varsayılan publish target üzerinden site root'una yazılır</p>
+          </div>
           <Button size="sm" onClick={applyFix} disabled={fixing}>Otomatik Düzelt</Button>
         </div>
       )}
@@ -368,11 +379,315 @@ function AuditStepBody({
         </div>
       </details>
 
+      <CitationPanel siteId={siteId} />
+
+      <SnippetPanel siteId={siteId} />
+
       <div className="flex justify-end pt-2">
         <Button size="sm" variant="outline" onClick={run} disabled={running || fixing}>
           {running ? 'Hesaplanıyor…' : 'Skoru Yenile'}
         </Button>
       </div>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// AI Citation Panel — gerçek LLM probe sonuçları
+// ──────────────────────────────────────────────────────────────────────
+function CitationPanel({ siteId }: { siteId: string }) {
+  const [running, setRunning] = useState(false);
+  const [results, setResults] = useState<any[] | null>(null);
+  const [runAt, setRunAt] = useState<string | null>(null);
+
+  const run = async () => {
+    setRunning(true);
+    try {
+      const res = await api.runCitationTest(siteId);
+      setResults(res.results ?? []);
+      setRunAt(res.runAt ?? null);
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  const colorFor = (s: number | null) => {
+    if (s === null) return 'text-muted-foreground';
+    if (s >= 60) return 'text-green-500';
+    if (s >= 30) return 'text-yellow-500';
+    return 'text-red-500';
+  };
+
+  return (
+    <div className="rounded-lg border p-4">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div>
+          <p className="text-sm font-semibold">AI Citation Testi</p>
+          <p className="text-xs text-muted-foreground mt-0.5">Site brain AEO/GEO sorularını LLM'lere sorar — cevapta site URL'i veya marka adı geçiyor mu? URL geçerse 100 puan, sadece marka adı geçerse 50 puan/probe.</p>
+        </div>
+        <Button size="sm" variant="outline" onClick={run} disabled={running}>
+          {running ? 'Test ediliyor…' : 'AI Testini Çalıştır'}
+        </Button>
+      </div>
+
+      {results && (
+        <div className="mt-3 space-y-2">
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+            {results.map((r: any) => (
+              <div key={r.provider} className="rounded-md border p-2.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium">{r.label}</span>
+                  <span className={`text-lg font-bold ${colorFor(r.score)}`}>
+                    {r.score === null ? '—' : `${r.score}`}
+                  </span>
+                </div>
+                {r.reason && <p className="text-[11px] text-muted-foreground mt-1 leading-snug">{r.reason}</p>}
+                {r.probes?.length > 0 && (
+                  <details className="mt-1.5">
+                    <summary className="text-[11px] cursor-pointer text-muted-foreground">{r.probes.length} probe</summary>
+                    <ul className="mt-1.5 space-y-1.5 text-[11px]">
+                      {r.probes.map((p: any, i: number) => (
+                        <li key={i} className="border-l-2 pl-2" style={{ borderColor: p.cited ? '#22c55e' : p.brandMentioned ? '#eab308' : '#ef4444' }}>
+                          <p className="font-medium truncate">{p.cited ? '✓ URL' : p.brandMentioned ? '~ marka' : '✗ yok'} — {p.query}</p>
+                          {p.excerpt && <p className="text-muted-foreground mt-0.5 line-clamp-2">{p.excerpt}</p>}
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                )}
+              </div>
+            ))}
+          </div>
+          {runAt && <p className="text-[11px] text-muted-foreground">Son test: {new Date(runAt).toLocaleString('tr-TR')}</p>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// Snippet Panel — D1 (AI üretip kullanıcıya copy-paste verir)
+// ──────────────────────────────────────────────────────────────────────
+function SnippetPanel({ siteId }: { siteId: string }) {
+  const [loading, setLoading] = useState(false);
+  const [pageUrl, setPageUrl] = useState('');
+  const [snippets, setSnippets] = useState<any[] | null>(null);
+  const [resolvedUrl, setResolvedUrl] = useState<string | null>(null);
+  const [copied, setCopied] = useState<number | null>(null);
+  const [applying, setApplying] = useState(false);
+  const [applyResult, setApplyResult] = useState<any | null>(null);
+  const [staticPreview, setStaticPreview] = useState<any | null>(null);
+  const [previewing, setPreviewing] = useState(false);
+  const [writing, setWriting] = useState(false);
+  const [writeResult, setWriteResult] = useState<any | null>(null);
+
+  const generate = async () => {
+    setLoading(true);
+    setApplyResult(null);
+    try {
+      const res = await api.getSnippets(siteId, pageUrl || undefined);
+      setSnippets(res.snippets ?? []);
+      setResolvedUrl(res.pageUrl ?? null);
+      if ((res.snippets ?? []).length === 0) toast.info('Bu sayfa için eksik on-page tag bulunamadı');
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const apply = async () => {
+    if (!snippets || snippets.length === 0) return;
+    setApplying(true);
+    try {
+      const res = await api.applySnippets(siteId, snippets);
+      setApplyResult(res);
+      if (res.ok) toast.success(`${res.applied.length} alan WP'ye yazıldı (${res.adapter})`);
+      else toast.error(res.skipped?.[0]?.reason ?? 'Otomatik yazma başarısız');
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setApplying(false);
+    }
+  };
+
+  const previewStatic = async () => {
+    if (!snippets || snippets.length === 0 || !resolvedUrl) return;
+    setPreviewing(true);
+    setWriteResult(null);
+    try {
+      const res = await api.previewStaticWrite(siteId, resolvedUrl, snippets);
+      setStaticPreview(res);
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setPreviewing(false);
+    }
+  };
+
+  const writeStatic = async () => {
+    if (!snippets || !resolvedUrl) return;
+    if (!confirm('Sayfa HTML\'i overwrite edilecek. Devam edilsin mi?')) return;
+    setWriting(true);
+    try {
+      const res = await api.writeStatic(siteId, resolvedUrl, snippets);
+      setWriteResult(res);
+      if (res.ok) toast.success(`${res.applied?.length ?? 0} değişiklik yazıldı (${res.adapter})`);
+      else toast.error(res.error ?? 'Yazılamadı');
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setWriting(false);
+    }
+  };
+
+  const copy = async (idx: number, text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(idx);
+      setTimeout(() => setCopied(null), 1500);
+    } catch {
+      toast.error('Kopyalanamadı');
+    }
+  };
+
+  const labelFor = (type: string) => ({
+    meta_title: 'Meta Title',
+    meta_description: 'Meta Description',
+    canonical: 'Canonical URL',
+    open_graph: 'Open Graph',
+    twitter_card: 'Twitter Card',
+    jsonld_article: 'JSON-LD Article',
+    jsonld_organization: 'JSON-LD Organization',
+    jsonld_breadcrumb: 'JSON-LD Breadcrumb',
+    h1: 'H1 Etiketi',
+  } as Record<string, string>)[type] ?? type;
+
+  return (
+    <div className="rounded-lg border p-4">
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold">On-Page Snippet Üretici</p>
+          <p className="text-xs text-muted-foreground mt-0.5">Eksik canonical, meta description, OG tag, JSON-LD vb. için AI ile snippet üretir. Sayfanı bozmadan kendi panelinden yapıştırırsın (Yoast custom field, Webflow Page Settings, statik HTML <code>&lt;head&gt;</code> vb.).</p>
+        </div>
+      </div>
+      <div className="mt-3 flex gap-2 flex-wrap">
+        <Input placeholder="Sayfa URL (boşsa anasayfa)" value={pageUrl} onChange={e => setPageUrl(e.target.value)} className="flex-1 min-w-[260px]" />
+        <Button size="sm" onClick={generate} disabled={loading}>
+          {loading ? 'Üretiliyor…' : 'Snippet Üret'}
+        </Button>
+      </div>
+
+      {snippets && snippets.length > 0 && (
+        <div className="mt-3 flex items-center justify-between gap-2 rounded-md border border-blue-500/30 bg-blue-500/5 p-2.5">
+          <div className="text-xs">
+            <p className="font-medium">Otomatik yazım (deneysel)</p>
+            <p className="text-muted-foreground mt-0.5">
+              WordPress (Yoast/RankMath), Webflow veya Shopify default target'ı varsa otomatik yazar.{' '}
+              <Link href={`/sites/${siteId}?tab=settings`} className="underline text-blue-600 hover:text-blue-700">
+                Publish target ekle/düzenle →
+              </Link>
+            </p>
+          </div>
+          <Button size="sm" variant="secondary" onClick={apply} disabled={applying}>
+            {applying ? 'Yazılıyor…' : 'Otomatik Yaz'}
+          </Button>
+        </div>
+      )}
+
+      {applyResult && (
+        <div className={`mt-2 rounded-md border p-2.5 text-xs ${applyResult.ok ? 'border-green-500/30 bg-green-500/5' : 'border-red-500/30 bg-red-500/5'}`}>
+          <p className="font-medium">{applyResult.ok ? '✓ Yazıldı' : '✗ Yazılamadı'} — adapter: {applyResult.adapter}</p>
+          {applyResult.applied?.length > 0 && (
+            <p className="text-muted-foreground mt-1">Uygulanan: {applyResult.applied.join(', ')}</p>
+          )}
+          {applyResult.skipped?.length > 0 && (
+            <ul className="text-muted-foreground mt-1 list-disc list-inside">
+              {applyResult.skipped.map((s: any, i: number) => (<li key={i}>{s.field}: {s.reason}</li>))}
+            </ul>
+          )}
+        </div>
+      )}
+
+      {snippets && snippets.length > 0 && resolvedUrl && (
+        <div className="mt-3 rounded-md border border-orange-500/30 bg-orange-500/5 p-2.5">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <div className="text-xs">
+              <p className="font-medium">Statik HTML auto-write (FTP/SFTP/cPanel için)</p>
+              <p className="text-muted-foreground mt-0.5">
+                Önce "Önizle" — sayfanın <code>&lt;head&gt;</code>'ine snippet'ler ekleniyor, diff gösterilir. Onay sonrası canlı dosya overwrite.{' '}
+                <Link href={`/sites/${siteId}?tab=settings`} className="underline text-orange-700 hover:text-orange-800">
+                  FTP/SFTP/cPanel target ekle →
+                </Link>
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" onClick={previewStatic} disabled={previewing || writing}>
+                {previewing ? 'Önizleniyor…' : 'Önizle'}
+              </Button>
+              <Button size="sm" onClick={writeStatic} disabled={!staticPreview || writing}>
+                {writing ? 'Yazılıyor…' : 'Onayla ve Yaz'}
+              </Button>
+            </div>
+          </div>
+
+          {staticPreview && (
+            <div className="mt-2 space-y-2">
+              <p className="text-[11px]">
+                Uygulanacak: <span className="font-mono text-green-600">{staticPreview.applied?.join(', ') || '(yok)'}</span>
+                {staticPreview.skipped?.length > 0 && <> · atlanacak: <span className="font-mono text-yellow-600">{staticPreview.skipped.map((s: any) => s.type).join(', ')}</span></>}
+              </p>
+              <details className="text-[11px]">
+                <summary className="cursor-pointer">Head diff göster</summary>
+                <div className="grid grid-cols-2 gap-2 mt-1.5">
+                  <div>
+                    <p className="font-medium mb-1">Eski &lt;head&gt;</p>
+                    <pre className="bg-muted/50 p-2 rounded overflow-auto max-h-60 whitespace-pre-wrap break-all">{staticPreview.diff?.before?.slice(0, 2500) || '—'}</pre>
+                  </div>
+                  <div>
+                    <p className="font-medium mb-1">Yeni &lt;head&gt;</p>
+                    <pre className="bg-green-500/5 p-2 rounded overflow-auto max-h-60 whitespace-pre-wrap break-all">{staticPreview.diff?.after?.slice(0, 2500) || '—'}</pre>
+                  </div>
+                </div>
+              </details>
+            </div>
+          )}
+
+          {writeResult && (
+            <div className={`mt-2 text-[11px] rounded p-2 ${writeResult.ok ? 'bg-green-500/10' : 'bg-red-500/10'}`}>
+              {writeResult.ok ? '✓' : '✗'} {writeResult.ok
+                ? `Dosya yazıldı: ${writeResult.remoteDir}/${writeResult.filename} — uygulanan: ${writeResult.applied?.join(', ')}`
+                : (writeResult.error ?? 'Bilinmeyen hata')}
+            </div>
+          )}
+        </div>
+      )}
+
+      {snippets && (
+        <div className="mt-3 space-y-2">
+          {resolvedUrl && <p className="text-[11px] text-muted-foreground">Hedef: <span className="font-mono">{resolvedUrl}</span></p>}
+          {snippets.length === 0 && <p className="text-xs text-muted-foreground">Bu sayfa için eksik tag yok ✓</p>}
+          {snippets.map((s: any, i: number) => (
+            <div key={i} className="rounded-md border">
+              <div className="flex items-center justify-between gap-2 px-3 py-2 border-b bg-muted/30">
+                <div>
+                  <span className="text-xs font-semibold">{labelFor(s.type)}</span>
+                  <span className="text-[11px] text-muted-foreground ml-2">{s.insertLocation}</span>
+                </div>
+                <Button size="sm" variant="ghost" onClick={() => copy(i, s.generatedSnippet)}>
+                  {copied === i ? '✓ Kopyalandı' : 'Kopyala'}
+                </Button>
+              </div>
+              <div className="px-3 py-2">
+                <p className="text-[11px] text-muted-foreground mb-1.5">{s.reason}</p>
+                <pre className="text-[11px] bg-muted/50 rounded p-2 overflow-x-auto whitespace-pre-wrap break-all font-mono">{s.generatedSnippet}</pre>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
