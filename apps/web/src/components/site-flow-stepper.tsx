@@ -391,20 +391,58 @@ function AuditStepBody({
         );
       })()}
 
-      <details className="text-sm">
-        <summary className="cursor-pointer font-medium py-2">Detaylı kontrol listesi (14 nokta)</summary>
-        <div className="divide-y border rounded-lg mt-2">
-          {Object.entries(checks).filter(([, v]: any) => v?.name).map(([k, v]: any) => (
-            <div key={k} className="px-4 py-2 flex items-center justify-between text-sm">
-              <span className="flex items-center gap-2">
-                {v.valid ? <CheckCircle2 className="h-4 w-4 text-green-500" /> : <Circle className="h-4 w-4 text-red-500" />}
-                {v.name}
-              </span>
-              <span className="font-mono text-xs text-muted-foreground">{v.score}/100</span>
-            </div>
-          ))}
+      {/* 14 nokta kontrol listesi — varsayilan olarak acik, her satirda durum */}
+      <div className="rounded-lg border">
+        <div className="px-4 py-2 border-b bg-muted/30 flex items-center justify-between">
+          <span className="text-sm font-semibold">14 SEO + GEO kontrol noktası</span>
+          <span className="text-[11px] text-muted-foreground">
+            ✓ Var · ✗ Yok / Eksik
+          </span>
         </div>
-      </details>
+        <div className="divide-y text-sm">
+          {Object.entries(checks).filter(([, v]: any) => v?.name && v?.id !== 'ai_citations').map(([k, v]: any) => {
+            const firstIssue = Array.isArray(v.issues) && v.issues.length > 0 ? v.issues[0] : null;
+            const fixable = Array.isArray(v.issues) && v.issues.some((i: any) => i.fixable);
+            const statusColor = v.score >= 80 ? 'text-green-500' : v.score >= 50 ? 'text-yellow-500' : 'text-red-500';
+            return (
+              <div key={k} className="px-4 py-2.5">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-2 flex-1 min-w-0">
+                    {v.found && v.valid ? (
+                      <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0 mt-0.5" />
+                    ) : v.found ? (
+                      <Circle className="h-4 w-4 text-yellow-500 shrink-0 mt-0.5" />
+                    ) : (
+                      <Circle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-medium">{v.name}</span>
+                        <span className={`text-[11px] uppercase tracking-wide font-semibold ${
+                          v.found && v.valid ? 'text-green-600' : v.found ? 'text-yellow-600' : 'text-red-600'
+                        }`}>
+                          {v.found && v.valid ? 'VAR' : v.found ? 'EKSİK' : 'YOK'}
+                        </span>
+                        {fixable && (
+                          <span className="text-[10px] uppercase tracking-wide bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 rounded px-1.5 py-0.5 font-semibold">
+                            otomatik
+                          </span>
+                        )}
+                      </div>
+                      {firstIssue && (
+                        <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">
+                          {firstIssue.description}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <span className={`font-mono text-xs font-bold shrink-0 ${statusColor}`}>{v.score}/100</span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
 
       {/* AI Citation: artık otomatik audit'te çalışıyor — eski paneli de manuel re-run için bırakıyoruz */}
       {checks.aiCitations?.providers && (
