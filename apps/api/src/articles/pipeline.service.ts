@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AgentRunnerService } from './agent-runner.service.js';
 import { EmailService } from '../email/email.service.js';
+import { SocialAutoDraftService } from '../social/social-auto-draft.service.js';
 import {
   AGENT_01_KEYWORD,
   AGENT_02_OUTLINE,
@@ -42,6 +43,7 @@ export class PipelineService {
     private readonly prisma: PrismaService,
     private readonly runner: AgentRunnerService,
     private readonly email: EmailService,
+    private readonly socialAutoDraft: SocialAutoDraftService,
   ) {}
 
   async runPipeline(opts: {
@@ -217,6 +219,13 @@ export class PipelineService {
     if (editorVerdict === 'PASS') {
       this.notifyArticleReady(opts.siteId, article.id).catch((err) => {
         this.log.warn(`[${opts.siteId}] Mail gonderilemedi: ${err.message}`);
+      });
+
+      // Sosyal medya: makale yayina hazir oldugunda her aktif kanal icin
+      // DRAFT post olustur. Cron, slot zamani gelince DRAFT'i QUEUED'a ceker
+      // ve X/LinkedIn'e atar. Yayin hedefine publish gerek yok.
+      this.socialAutoDraft.createDraftsForArticle(article.id).catch((err) => {
+        this.log.warn(`[${opts.siteId}] Sosyal draft olusturulamadi: ${err.message}`);
       });
     }
 
