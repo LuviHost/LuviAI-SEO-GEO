@@ -13,8 +13,15 @@ export class CpanelApiAdapter extends PublishAdapter {
   async publish(payload: PublishPayload): Promise<PublishResult> {
     const { cpanelUrl, username, apiToken } = this.credentials;
     const { remotePath = 'public_html/blog' } = this.config;
-    const filename = `${payload.slug}.html`;
 
+    if (!cpanelUrl || !username || !apiToken) {
+      return {
+        ok: false,
+        error: `cPanel credentials eksik: cpanelUrl=${!!cpanelUrl}, username=${!!username}, apiToken=${!!apiToken}. PublishTarget yeniden olusturup credentials gir.`,
+      };
+    }
+
+    const filename = `${payload.slug}.html`;
     const url = `${cpanelUrl.replace(/\/$/, '')}/execute/Fileman/upload_files`;
 
     // multipart/form-data
@@ -57,7 +64,8 @@ export class CpanelApiAdapter extends PublishAdapter {
 
   async test(): Promise<boolean> {
     const { cpanelUrl, username, apiToken } = this.credentials;
-    const res = await fetch(`${cpanelUrl}/execute/Variables/get_user_information`, {
+    if (!cpanelUrl || !username || !apiToken) return false;
+    const res = await fetch(`${cpanelUrl.replace(/\/$/, '')}/execute/Variables/get_user_information`, {
       headers: { 'Authorization': `cpanel ${username}:${apiToken}` },
     }).catch(() => null);
     return !!res?.ok;

@@ -130,6 +130,21 @@ export class PublisherService {
   }
 
   private decryptCredentials(creds: Record<string, any>): Record<string, any> {
+    if (!creds || typeof creds !== 'object') return {};
+
+    // Yeni format: { enc: "iv:tag:ciphertext" } — tum credentials tek JSON
+    // string'inde sifrelenmis. Decrypt + JSON.parse yapip alanlari ust seviyeye yay.
+    if (typeof creds.enc === 'string' && creds.enc.includes(':')) {
+      try {
+        const decrypted = decrypt(creds.enc);
+        const parsed = JSON.parse(decrypted);
+        if (parsed && typeof parsed === 'object') return parsed;
+      } catch {
+        // duser fallback yola
+      }
+    }
+
+    // Eski format: her alan ayri ayri encrypted (geriye uyumluluk)
     const out: Record<string, any> = {};
     for (const [k, v] of Object.entries(creds)) {
       if (typeof v === 'string' && v.includes(':')) {
