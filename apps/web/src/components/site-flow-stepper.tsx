@@ -92,24 +92,53 @@ export function SiteFlowStepper({
 
   const firstIncomplete = steps.find((s) => s.status !== 'done' && !s.optional)?.id ?? 'audit';
   const [open, setOpen] = useState<string>(initialStep && steps.find((s) => s.id === initialStep) ? initialStep : firstIncomplete);
+  const [userTouched, setUserTouched] = useState<boolean>(!!initialStep);
 
   useEffect(() => {
     if (initialStep && steps.find((s) => s.id === initialStep)) {
       setOpen(initialStep);
+      setUserTouched(true);
     }
   }, [initialStep]);
+
+  // Auto-advance: kullanici manuel toggle yapmadiysa ve onboarding modundaysa,
+  // tamamlanmis adimdan bir sonrakine otomatik gec.
+  useEffect(() => {
+    if (userTouched) return;
+    if (!onboardingMode) return;
+    if (open === firstIncomplete) return;
+    setOpen(firstIncomplete);
+  }, [firstIncomplete, onboardingMode, userTouched, open]);
 
   const toggle = (id: string) => {
     const next = open === id ? '' : id;
     setOpen(next);
+    setUserTouched(true);
     const url = new URL(window.location.href);
     if (next) url.searchParams.set('step', next);
     else url.searchParams.delete('step');
     window.history.replaceState({}, '', url.toString());
   };
 
+  // Hesap baglama daveti: audit + brain hazir, ama hicbir hesap (GSC/GA/Sosyal) bagli degilse
+  const noAccountsConnected =
+    !site.gscConnectedAt && !site.gaConnectedAt;
+  const showConnectInvite =
+    audit && site.brain?.competitors?.length && noAccountsConnected;
+
   return (
     <div className="space-y-3">
+      {showConnectInvite && (
+        <ConnectAccountsInvite
+          onOpenStep={(id) => {
+            setUserTouched(true);
+            setOpen(id);
+            const url = new URL(window.location.href);
+            url.searchParams.set('step', id);
+            window.history.replaceState({}, '', url.toString());
+          }}
+        />
+      )}
       {steps.map((s) => (
         <StepCard
           key={s.id}
@@ -117,18 +146,48 @@ export function SiteFlowStepper({
           isOpen={open === s.id}
           onToggle={() => toggle(s.id)}
         >
-          {s.id === 'audit' && <AuditStepBody audit={audit} siteId={site.id} onRefresh={onRefresh} />}
-          {s.id === 'competitors' && <CompetitorsStepBody siteId={site.id} initial={site.brain?.competitors ?? []} onChanged={onRefresh} />}
+          {s.id === 'audit' && <AuditStepBody audit={audit} siteId={site.id} onRefresh={onRefresh} onboardingMode={onboardingMode} />}
+          {s.id === 'competitors' && <CompetitorsStepBody siteId={site.id} initial={site.brain?.competitors ?? []} onChanged={onRefresh} onboardingMode={onboardingMode} />}
           {s.id === 'gsc' && <GscStepBody site={site} onChanged={onRefresh} />}
           {s.id === 'ga4' && <Ga4StepBody site={site} onChanged={onRefresh} />}
           {s.id === 'social' && <SocialChannelsStep siteId={site.id} />}
           {s.id === 'social-calendar' && <SocialCalendarStep siteId={site.id} />}
-          {s.id === 'topics' && <TopicsStepBody queue={queue} siteId={site.id} onRefresh={onRefresh} />}
+          {s.id === 'topics' && <TopicsStepBody queue={queue} siteId={site.id} onRefresh={onRefresh} onboardingMode={onboardingMode} />}
           {s.id === 'articles' && <ArticlesStepBody articles={articles} siteId={site.id} />}
         </StepCard>
       ))}
 
       <DigerSection siteId={site.id} />
+    </div>
+  );
+}
+
+function ConnectAccountsInvite({ onOpenStep }: { onOpenStep: (id: string) => void }) {
+  return (
+    <div className="rounded-xl border border-brand/30 bg-gradient-to-br from-brand/5 to-transparent p-4 space-y-3">
+      <div className="flex items-start gap-3">
+        <div className="h-9 w-9 rounded-full bg-brand/10 grid place-items-center shrink-0">
+          <Link2 className="h-4 w-4 text-brand" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="font-semibold text-sm">Hesaplarini bagla — opsiyonel ama tavsiye edilir</div>
+          <div className="text-xs text-muted-foreground mt-0.5">
+            Site analizin hazir. Makale uretmeden once GSC/GA bagla → topic engine gercek arama verini kullansin.
+            Sosyal kanal ekle → makaleler otomatik LinkedIn/X'te paylasilsin.
+          </div>
+        </div>
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        <Button size="sm" variant="outline" onClick={() => onOpenStep('gsc')}>
+          <BarChart3 className="h-3.5 w-3.5 mr-1.5" /> GSC
+        </Button>
+        <Button size="sm" variant="outline" onClick={() => onOpenStep('ga4')}>
+          <Activity className="h-3.5 w-3.5 mr-1.5" /> GA4
+        </Button>
+        <Button size="sm" variant="outline" onClick={() => onOpenStep('social')}>
+          <Share2 className="h-3.5 w-3.5 mr-1.5" /> Sosyal
+        </Button>
+      </div>
     </div>
   );
 }
@@ -199,7 +258,14 @@ function StepCard({
 // ──────────────────────────────────────────────────────────────────────
 // Step 1 — Site Skoru
 // ──────────────────────────────────────────────────────────────────────
-function AuditStepBody({ audit, siteId, onRefresh }: { audit: any; siteId: string; onRefresh: () => void }) {
+function AuditStepBody({
+  audit, siteId, onRefresh, onboardingMode,
+}: {
+  audit: any;
+  siteId: string;
+  onRefresh: () => void;
+  onboardingMode?: boolean;
+}) {
   const [running, setRunning] = useState(false);
   const [fixing, setFixing] = useState(false);
 
@@ -217,17 +283,24 @@ function AuditStepBody({ audit, siteId, onRefresh }: { audit: any; siteId: strin
   };
 
   if (!audit) {
+    // Onboarding modunda chain otomatik calisiyor — manuel buton kafa karistirir,
+    // direkt progress goster.
+    if (onboardingMode || running) {
+      return (
+        <PipelineProgress
+          title="Site skoru otomatik hesaplaniyor"
+          steps={PIPELINE_STEPS.audit}
+          running
+        />
+      );
+    }
     return (
       <div className="space-y-3">
-        {!running ? (
-          <div className="text-center py-6">
-            <p className="text-sm text-muted-foreground mb-3">Henüz site skoru hesaplanmadı.</p>
-            <Button onClick={run}>Skoru Hesapla</Button>
-            <p className="text-xs text-muted-foreground mt-3">~30 sn — 14 SEO + GEO kontrolü</p>
-          </div>
-        ) : (
-          <PipelineProgress title="Site skoru hesaplanıyor" steps={PIPELINE_STEPS.audit} running={running} />
-        )}
+        <div className="text-center py-6">
+          <p className="text-sm text-muted-foreground mb-3">Henüz site skoru hesaplanmadı.</p>
+          <Button onClick={run}>Skoru Hesapla</Button>
+          <p className="text-xs text-muted-foreground mt-3">~30 sn — 14 SEO + GEO kontrolü</p>
+        </div>
       </div>
     );
   }
@@ -310,11 +383,12 @@ function AuditStepBody({ audit, siteId, onRefresh }: { audit: any; siteId: strin
 type Competitor = { name: string; url: string; strengths?: string[]; weaknesses?: string[] };
 
 function CompetitorsStepBody({
-  siteId, initial, onChanged,
+  siteId, initial, onChanged, onboardingMode,
 }: {
   siteId: string;
   initial: Competitor[];
   onChanged: () => void;
+  onboardingMode?: boolean;
 }) {
   const [list, setList] = useState<Competitor[]>(initial ?? []);
   const [draftName, setDraftName] = useState('');
@@ -372,6 +446,16 @@ function CompetitorsStepBody({
       setRegenerating(false);
     }
   };
+
+  if (onboardingMode && list.length === 0 && !regenerating) {
+    return (
+      <PipelineProgress
+        title="AI rakipleri otomatik tespit ediyor"
+        steps={PIPELINE_STEPS.brain}
+        running
+      />
+    );
+  }
 
   return (
     <div className="space-y-4">
@@ -715,7 +799,14 @@ function Ga4StepBody({ site, onChanged }: { site: any; onChanged: () => void }) 
 // ──────────────────────────────────────────────────────────────────────
 // Step 5 — Önerilen Makaleler
 // ──────────────────────────────────────────────────────────────────────
-function TopicsStepBody({ queue, siteId, onRefresh }: { queue: any; siteId: string; onRefresh: () => void }) {
+function TopicsStepBody({
+  queue, siteId, onRefresh, onboardingMode,
+}: {
+  queue: any;
+  siteId: string;
+  onRefresh: () => void;
+  onboardingMode?: boolean;
+}) {
   const [running, setRunning] = useState(false);
   const [generating, setGenerating] = useState<string | null>(null);
 
@@ -746,17 +837,22 @@ function TopicsStepBody({ queue, siteId, onRefresh }: { queue: any; siteId: stri
   };
 
   if (!queue) {
+    if (onboardingMode || running) {
+      return (
+        <PipelineProgress
+          title="Topic Engine otomatik calisiyor"
+          steps={PIPELINE_STEPS.topicEngine}
+          running
+        />
+      );
+    }
     return (
       <div className="space-y-3">
-        {!running ? (
-          <div className="text-center py-6">
-            <p className="text-sm text-muted-foreground mb-3">Topic queue henüz oluşmadı.</p>
-            <Button onClick={run}>Topic Engine Çalıştır</Button>
-            <p className="text-xs text-muted-foreground mt-3">~60 sn — Plan + GSC + GEO + Rakip + AI ranker</p>
-          </div>
-        ) : (
-          <PipelineProgress title="Topic Engine çalışıyor" steps={PIPELINE_STEPS.topicEngine} running={running} />
-        )}
+        <div className="text-center py-6">
+          <p className="text-sm text-muted-foreground mb-3">Topic queue henüz oluşmadı.</p>
+          <Button onClick={run}>Topic Engine Çalıştır</Button>
+          <p className="text-xs text-muted-foreground mt-3">~60 sn — Plan + GSC + GEO + Rakip + AI ranker</p>
+        </div>
       </div>
     );
   }

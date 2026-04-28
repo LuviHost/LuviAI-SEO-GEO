@@ -108,46 +108,36 @@ async function bootstrap() {
 
     /**
      * ONBOARDING_CHAIN — wow-moment
-     * brain → audit → topics → tier 1 #1 makale (ücretsiz)
+     * brain → audit → topics. Sonra DUR — kullanici GSC/GA/Sosyal hesaplarini
+     * baglar ve "Onerilen Makaleler" listesinden istedigi konuyu manuel secer.
+     * Boylece ilk makale kullanicinin onayi ile (gercek niyetle) uretilir.
      */
     ONBOARDING_CHAIN: async ({ siteId }) => {
       log.log(`[${siteId}] Onboarding chain başlıyor`);
 
-      log.log(`[${siteId}] [1/4] Brain üretiliyor`);
+      log.log(`[${siteId}] [1/3] Brain üretiliyor`);
       await services.brainGen.runGeneration(siteId);
 
-      log.log(`[${siteId}] [2/4] Audit`);
+      log.log(`[${siteId}] [2/3] Audit`);
       const audit = await services.audit.runAudit(siteId);
 
-      log.log(`[${siteId}] [3/4] Topic engine`);
+      log.log(`[${siteId}] [3/3] Topic engine`);
       const queue = await services.topics.runEngine(siteId);
 
-      const tier1 = (queue.tier1Topics as any[]) ?? [];
-      if (tier1.length === 0) {
-        log.warn(`[${siteId}] Tier 1 boş, ilk makale atlandı`);
-        return { onboarded: true, audit: audit.id, queue: queue.id, firstArticle: null };
-      }
+      const tier1Count = ((queue.tier1Topics as any[]) ?? []).length;
 
-      const firstTopic = tier1[0].topic;
-      log.log(`[${siteId}] [4/4] İlk makale: "${firstTopic}"`);
-      const article = await services.pipeline.runPipeline({
-        siteId,
-        topic: firstTopic,
-        skipImages: true, // ücretsiz makale = görsel yok (cost saving)
-        maxRevize: 1,
-      });
-
+      // Site'i ACTIVE'e al — artik kullanici gormeli
       await services.prisma.site.update({
         where: { id: siteId },
         data: { status: 'ACTIVE' },
       });
 
-      log.log(`[${siteId}] ✅ Onboarding tamamlandı`);
+      log.log(`[${siteId}] ✅ Onboarding tamamlandi (audit + ${tier1Count} tier-1 konu hazir)`);
       return {
         onboarded: true,
         audit: audit.id,
         queue: queue.id,
-        firstArticle: { id: article.articleId, slug: article.slug, verdict: article.editorVerdict },
+        tier1Count,
       };
     },
   };
@@ -174,10 +164,19 @@ async function bootstrap() {
     },
   );
 
+  worker.on('active', async (job) => {
+    if (job.id) {
+      await services.prisma.job.updateMany({
+        where: { bullJobId: String(job.id), status: { in: ['QUEUED', 'FAILED'] } },
+        data: { status: 'PROCESSING', startedAt: new Date() },
+      });
+    }
+  });
+
   worker.on('completed', async (job) => {
     if (job.id) {
       await services.prisma.job.updateMany({
-        where: { bullJobId: job.id },
+        where: { bullJobId: String(job.id) },
         data: { status: 'COMPLETED', finishedAt: new Date(), result: job.returnvalue ?? {} },
       });
     }
@@ -186,7 +185,7 @@ async function bootstrap() {
   worker.on('failed', async (job, err) => {
     if (job?.id) {
       await services.prisma.job.updateMany({
-        where: { bullJobId: job.id },
+        where: { bullJobId: String(job.id) },
         data: {
           status: 'FAILED',
           finishedAt: new Date(),
