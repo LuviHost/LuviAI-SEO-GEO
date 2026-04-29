@@ -651,6 +651,13 @@ function Step4({ state, update }: any) {
     const def = catalog?.find((c) => c.type === adding);
     if (!def) return;
 
+    // Cift ekleme engelle (UI race condition'a karsı)
+    if (targets.some((t: any) => t.type === adding)) {
+      toast.info(`${def.label} zaten eklenmiş`);
+      setAdding(null);
+      return;
+    }
+
     // Required field check
     for (const f of def.fields ?? []) {
       if (f.required && !creds[f.key]?.trim()) {
@@ -685,6 +692,10 @@ function Step4({ state, update }: any) {
   // Markdown ZIP fallback — adapter olmadan hızlı kayıt
   const useMarkdownZip = async () => {
     if (!state.siteId) return;
+    if (targets.some((t: any) => t.type === 'MARKDOWN_ZIP')) {
+      toast.info('Markdown ZIP zaten eklenmiş');
+      return;
+    }
     setSaving(true);
     try {
       await api.createPublishTarget(state.siteId, {
@@ -730,28 +741,50 @@ function Step4({ state, update }: any) {
         <>
           <p className="text-sm font-medium mb-2">Hedef ekle:</p>
           <div className="grid grid-cols-2 gap-2">
-            {(catalog ?? []).filter((c) => c.type !== 'MARKDOWN_ZIP').map((c) => (
-              <button
-                key={c.type}
-                type="button"
-                onClick={() => startAdd(c.type)}
-                className="rounded-md border p-3 text-left hover:border-brand transition-colors"
-              >
-                <p className="text-sm font-medium">{c.label}</p>
-                <p className="text-[11px] text-muted-foreground mt-0.5">{c.type}</p>
-              </button>
-            ))}
+            {(catalog ?? []).filter((c) => c.type !== 'MARKDOWN_ZIP').map((c) => {
+              const alreadyAdded = targets.some((t: any) => t.type === c.type);
+              return (
+                <button
+                  key={c.type}
+                  type="button"
+                  onClick={() => !alreadyAdded && startAdd(c.type)}
+                  disabled={alreadyAdded}
+                  className={cn(
+                    'rounded-md border p-3 text-left transition-colors',
+                    alreadyAdded ? 'opacity-50 cursor-not-allowed bg-muted/30' : 'hover:border-brand',
+                  )}
+                  title={alreadyAdded ? 'Bu hedef zaten eklendi' : undefined}
+                >
+                  <p className="text-sm font-medium flex items-center gap-2">
+                    {c.label}
+                    {alreadyAdded && <span className="text-[10px] text-green-600 font-bold">✓ Eklendi</span>}
+                  </p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">{c.type}</p>
+                </button>
+              );
+            })}
           </div>
 
-          <div className="mt-4 rounded-md border-2 border-dashed p-3 flex items-center justify-between gap-2">
-            <div>
-              <p className="text-sm font-medium">📦 Manuel: Markdown ZIP</p>
-              <p className="text-[11px] text-muted-foreground">Entegrasyon yok. Yazılar ZIP olarak hazır olur, manuel indirip yüklersin.</p>
-            </div>
-            <Button size="sm" variant="outline" onClick={useMarkdownZip} disabled={saving}>
-              Bunu seç
-            </Button>
-          </div>
+          {(() => {
+            const zipAdded = targets.some((t: any) => t.type === 'MARKDOWN_ZIP');
+            return (
+              <div className={cn(
+                'mt-4 rounded-md border-2 border-dashed p-3 flex items-center justify-between gap-2',
+                zipAdded && 'opacity-60 bg-muted/30',
+              )}>
+                <div>
+                  <p className="text-sm font-medium flex items-center gap-2">
+                    📦 Manuel: Markdown ZIP
+                    {zipAdded && <span className="text-[10px] text-green-600 font-bold">✓ Eklendi</span>}
+                  </p>
+                  <p className="text-[11px] text-muted-foreground">Entegrasyon yok. Yazılar ZIP olarak hazır olur, manuel indirip yüklersin.</p>
+                </div>
+                <Button size="sm" variant="outline" onClick={useMarkdownZip} disabled={saving || zipAdded}>
+                  {zipAdded ? 'Eklendi' : 'Bunu seç'}
+                </Button>
+              </div>
+            );
+          })()}
         </>
       )}
 
