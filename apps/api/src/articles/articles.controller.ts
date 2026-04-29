@@ -1,12 +1,15 @@
-import { Body, Controller, Delete, Get, Param, Post, Put, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Header, Param, Post, Put, Query, Res } from '@nestjs/common';
+import type { Response } from 'express';
 import { ArticlesService } from './articles.service.js';
 import { ArticleSchedulerService } from './article-scheduler.service.js';
+import { MediaGeneratorService } from './media-generator.service.js';
 
 @Controller('sites/:siteId/articles')
 export class ArticlesController {
   constructor(
     private readonly articles: ArticlesService,
     private readonly scheduler: ArticleSchedulerService,
+    private readonly media: MediaGeneratorService,
   ) {}
 
   @Get()
@@ -76,5 +79,20 @@ export class ArticlesController {
   @Post(':id/publish')
   publish(@Param('siteId') siteId: string, @Param('id') id: string, @Body() body: { targetIds: string[] }) {
     return this.articles.queuePublish(siteId, id, body.targetIds);
+  }
+
+  /** POST /sites/:siteId/articles/:id/audio — TTS audio uret (multi-modal GEO) */
+  @Post(':id/audio')
+  generateAudio(@Param('id') id: string) {
+    return this.media.generateAudio(id);
+  }
+
+  /** GET /sites/:siteId/articles/podcast.rss — podcast feed (Spotify/Apple Podcasts ready) */
+  @Get('podcast.rss')
+  @Header('Content-Type', 'application/rss+xml; charset=utf-8')
+  async podcastRss(@Param('siteId') siteId: string, @Res() res: Response) {
+    const xml = await this.media.generatePodcastRss(siteId);
+    res.setHeader('Cache-Control', 'public, max-age=1800');
+    res.send(xml);
   }
 }

@@ -196,6 +196,21 @@ export const api = {
       body: JSON.stringify({ url }),
     }),
 
+  runGeoHeatmap: (siteId: string, maxQueries = 10) =>
+    request<any>(`/sites/${siteId}/audit/geo-heatmap`, {
+      method: 'POST',
+      body: JSON.stringify({ maxQueries }),
+    }),
+
+  getWikidataDraft: (siteId: string) =>
+    request<any>(`/sites/${siteId}/audit/knowledge/wikidata`),
+
+  getWikipediaDraft: (siteId: string) =>
+    request<any>(`/sites/${siteId}/audit/knowledge/wikipedia`),
+
+  generateArticleAudio: (siteId: string, articleId: string) =>
+    request<any>(`/sites/${siteId}/articles/${articleId}/audio`, { method: 'POST' }),
+
   // Reports
   getReport: (siteId: string, range: 'week' | 'month' | 'year' = 'month') =>
     request<any>(`/sites/${siteId}/analytics/report?range=${range}`),

@@ -10,6 +10,8 @@ import { AiCitationService } from './ai-citation.service.js';
 import { AiCitationTrackerService } from './ai-citation-tracker.service.js';
 import { AiIndexingPingerService } from './ai-indexing-pinger.service.js';
 import { LlmsFullBuilderService } from './llms-full-builder.service.js';
+import { GeoHeatmapService } from './geo-heatmap.service.js';
+import { KnowledgeGraphBuilderService } from './knowledge-graph-builder.service.js';
 import { SnippetGeneratorService } from './snippet-generator.service.js';
 import { SnippetApplierService } from './snippet-applier.service.js';
 import { StaticHtmlFixerService } from './static-html-fixer.service.js';
@@ -29,6 +31,8 @@ import { SitesModule } from '../sites/sites.module.js';
     AiCitationTrackerService,
     AiIndexingPingerService,
     LlmsFullBuilderService,
+    GeoHeatmapService,
+    KnowledgeGraphBuilderService,
     SnippetGeneratorService,
     SnippetApplierService,
     StaticHtmlFixerService,
@@ -41,6 +45,8 @@ import { SitesModule } from '../sites/sites.module.js';
     AiCitationTrackerService,
     AiIndexingPingerService,
     LlmsFullBuilderService,
+    GeoHeatmapService,
+    KnowledgeGraphBuilderService,
     SnippetGeneratorService,
     SnippetApplierService,
     StaticHtmlFixerService,

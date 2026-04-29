@@ -8,6 +8,7 @@ import { PublisherService } from './publisher.service.js';
 import { ArticleSchedulerService } from './article-scheduler.service.js';
 import { SchemaClassifierService } from './schema-classifier.service.js';
 import { ContentPivotService } from './content-pivot.service.js';
+import { MediaGeneratorService } from './media-generator.service.js';
 import { SocialModule } from '../social/social.module.js';
 import { AuditModule } from '../audit/audit.module.js';
 
@@ -32,6 +33,7 @@ import { AuditModule } from '../audit/audit.module.js';
     ArticleSchedulerService,
     SchemaClassifierService,
     ContentPivotService,
+    MediaGeneratorService,
   ],
   exports: [
     ArticlesService,
@@ -42,6 +44,7 @@ import { AuditModule } from '../audit/audit.module.js';
     ArticleSchedulerService,
     SchemaClassifierService,
     ContentPivotService,
+    MediaGeneratorService,
   ],
 })
 export class ArticlesModule {}

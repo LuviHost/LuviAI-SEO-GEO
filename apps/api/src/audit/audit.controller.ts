@@ -6,6 +6,8 @@ import { AiCitationService } from './ai-citation.service.js';
 import { AiCitationTrackerService } from './ai-citation-tracker.service.js';
 import { AiIndexingPingerService } from './ai-indexing-pinger.service.js';
 import { LlmsFullBuilderService } from './llms-full-builder.service.js';
+import { GeoHeatmapService } from './geo-heatmap.service.js';
+import { KnowledgeGraphBuilderService } from './knowledge-graph-builder.service.js';
 import { SnippetGeneratorService } from './snippet-generator.service.js';
 import { SnippetApplierService } from './snippet-applier.service.js';
 import { StaticHtmlFixerService } from './static-html-fixer.service.js';
@@ -19,6 +21,8 @@ export class AuditController {
     private readonly tracker: AiCitationTrackerService,
     private readonly pinger: AiIndexingPingerService,
     private readonly llmsBuilder: LlmsFullBuilderService,
+    private readonly heatmap: GeoHeatmapService,
+    private readonly knowledge: KnowledgeGraphBuilderService,
     private readonly snippets: SnippetGeneratorService,
     private readonly applier: SnippetApplierService,
     private readonly staticFixer: StaticHtmlFixerService,
@@ -86,6 +90,24 @@ export class AuditController {
   @Post('index-ping')
   indexPing(@Param('siteId') siteId: string, @Body() body: { url: string }) {
     return this.pinger.pingUrl(siteId, body.url);
+  }
+
+  /** POST /sites/:siteId/audit/geo-heatmap — sektor sorularini AI'lara test et + rakiplerle karsilastir */
+  @Post('geo-heatmap')
+  geoHeatmap(@Param('siteId') siteId: string, @Body() body: { maxQueries?: number }) {
+    return this.heatmap.runForSite(siteId, { maxQueries: body?.maxQueries });
+  }
+
+  /** GET /sites/:siteId/audit/knowledge/wikidata — Wikidata stub draft */
+  @Get('knowledge/wikidata')
+  wikidataDraft(@Param('siteId') siteId: string) {
+    return this.knowledge.buildWikidata(siteId);
+  }
+
+  /** GET /sites/:siteId/audit/knowledge/wikipedia — Wikipedia article draft */
+  @Get('knowledge/wikipedia')
+  wikipediaDraft(@Param('siteId') siteId: string) {
+    return this.knowledge.buildWikipedia(siteId);
   }
 
   @Get('snippets')
