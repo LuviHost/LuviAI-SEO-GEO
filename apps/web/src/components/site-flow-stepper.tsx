@@ -91,12 +91,19 @@ export function SiteFlowStepper({
   ];
 
   const firstIncomplete = steps.find((s) => s.status !== 'done' && !s.optional)?.id ?? 'audit';
-  const [open, setOpen] = useState<string>(initialStep && steps.find((s) => s.id === initialStep) ? initialStep : firstIncomplete);
+  // Multi-open: aktif step ID'leri set olarak tutulur — birini acmak digerini kapatmaz.
+  // Boylece "Makaleler" + "Sosyal Takvim" ikisi birden acik kalip drag-drop calisir.
+  const [openSet, setOpenSet] = useState<Set<string>>(() => new Set([
+    initialStep && steps.find((s) => s.id === initialStep) ? initialStep : firstIncomplete,
+  ]));
   const [userTouched, setUserTouched] = useState<boolean>(!!initialStep);
+  // Drag aktifken tum step'leri zorla aciyoruz (drop hedefi DOM'da olmali).
+  // Drop bitince eski state'e geri donuyoruz.
+  const [draggingPreOpen, setDraggingPreOpen] = useState<Set<string> | null>(null);
 
   useEffect(() => {
     if (initialStep && steps.find((s) => s.id === initialStep)) {
-      setOpen(initialStep);
+      setOpenSet((prev) => new Set([...prev, initialStep]));
       setUserTouched(true);
     }
   }, [initialStep]);
@@ -106,18 +113,50 @@ export function SiteFlowStepper({
   useEffect(() => {
     if (userTouched) return;
     if (!onboardingMode) return;
-    if (open === firstIncomplete) return;
-    setOpen(firstIncomplete);
-  }, [firstIncomplete, onboardingMode, userTouched, open]);
+    if (openSet.has(firstIncomplete)) return;
+    setOpenSet(new Set([firstIncomplete]));
+  }, [firstIncomplete, onboardingMode, userTouched, openSet]);
+
+  // Drag-aware: makale veya kuyruk kartı surukluyorsa tum panelleri zorla ac.
+  // Drop bitince eski state'e gec.
+  useEffect(() => {
+    const onDragStart = (e: DragEvent) => {
+      const t = e.dataTransfer?.types ?? [];
+      // Sadece bizim drag'lerimiz (article/queue) — image/text dragi tetiklemesin
+      if (!Array.from(t).some((tt) => tt === 'application/json' || tt === 'text/plain')) return;
+      setDraggingPreOpen(new Set(openSet));
+      const allIds = new Set(steps.map((s) => s.id));
+      setOpenSet(allIds);
+    };
+    const onDragEnd = () => {
+      if (draggingPreOpen) {
+        setOpenSet(draggingPreOpen);
+        setDraggingPreOpen(null);
+      }
+    };
+    document.addEventListener('dragstart', onDragStart);
+    document.addEventListener('dragend', onDragEnd);
+    document.addEventListener('drop', onDragEnd);
+    return () => {
+      document.removeEventListener('dragstart', onDragStart);
+      document.removeEventListener('dragend', onDragEnd);
+      document.removeEventListener('drop', onDragEnd);
+    };
+  }, [openSet, draggingPreOpen, steps]);
 
   const toggle = (id: string) => {
-    const next = open === id ? '' : id;
-    setOpen(next);
+    setOpenSet((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      // URL state — son acilan id'yi yaz (geriye uyumluluk)
+      const url = new URL(window.location.href);
+      const last = Array.from(next).pop();
+      if (last) url.searchParams.set('step', last);
+      else url.searchParams.delete('step');
+      window.history.replaceState({}, '', url.toString());
+      return next;
+    });
     setUserTouched(true);
-    const url = new URL(window.location.href);
-    if (next) url.searchParams.set('step', next);
-    else url.searchParams.delete('step');
-    window.history.replaceState({}, '', url.toString());
   };
 
   // Hesap baglama daveti: audit + brain hazir, ama hicbir hesap (GSC/GA/Sosyal) bagli degilse
@@ -132,7 +171,7 @@ export function SiteFlowStepper({
         <ConnectAccountsInvite
           onOpenStep={(id) => {
             setUserTouched(true);
-            setOpen(id);
+            setOpenSet((prev) => new Set([...prev, id]));
             const url = new URL(window.location.href);
             url.searchParams.set('step', id);
             window.history.replaceState({}, '', url.toString());
@@ -143,7 +182,7 @@ export function SiteFlowStepper({
         <StepCard
           key={s.id}
           step={s}
-          isOpen={open === s.id}
+          isOpen={openSet.has(s.id)}
           onToggle={() => toggle(s.id)}
         >
           {s.id === 'audit' && <AuditStepBody audit={audit} siteId={site.id} onRefresh={onRefresh} onboardingMode={onboardingMode} />}

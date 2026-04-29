@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { GoogleAdsOAuthCard, MetaAdsOAuthCard } from '@/components/ads-lab-panel';
 
 type CatalogField = {
   key: string;
@@ -119,6 +120,7 @@ export function SettingsTab({ siteId }: { siteId: string }) {
     <div className="space-y-6">
       <GscConnectionCard siteId={siteId} />
       <Ga4ConnectionCard siteId={siteId} />
+      <AdsAccountsCard siteId={siteId} />
 
       <Card>
         <CardHeader>
@@ -858,6 +860,60 @@ function Ga4ConnectionCard({ siteId }: { siteId: string }) {
               {busy ? 'Yönlendiriliyor…' : 'Google ile Bağla'}
             </Button>
           </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * Reklam Hesapları (Google Ads + Meta Ads) — Ayarlar > Entegrasyonlar altına taşındı.
+ * Ads Lab paneli artık bu kartı tekrar göstermiyor — kullanıcı tek bir yerden hepsini yönetir.
+ */
+function AdsAccountsCard({ siteId }: { siteId: string }) {
+  const [site, setSite] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [conn, setConn] = useState<{ google: boolean; meta: boolean }>({ google: false, meta: false });
+
+  const refresh = async () => {
+    try {
+      const [s, c] = await Promise.all([
+        api.getSite(siteId),
+        api.getAdsConnections(siteId).catch(() => ({ google: false, meta: false })),
+      ]);
+      setSite(s);
+      setConn(c as any);
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { refresh(); }, [siteId]);
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div>
+            <h2 className="font-semibold">Reklam Hesapları</h2>
+            <p className="text-xs text-muted-foreground mt-1">
+              Google Ads + Meta Ads — tek tıkla bağla, otomatik kampanya yönetimi için kullanılır.
+              <br />
+              Bu hesaplar bağlandığında <strong>Ads Lab</strong> sekmesindeki kampanya wizard'ı aktif olur.
+            </p>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {loading || !site ? (
+          <Skeleton className="h-24 w-full" />
+        ) : (
+          <>
+            <GoogleAdsOAuthCard site={site} connected={conn.google} onChanged={refresh} />
+            <MetaAdsOAuthCard site={site} connected={conn.meta} onChanged={refresh} />
+          </>
         )}
       </CardContent>
     </Card>

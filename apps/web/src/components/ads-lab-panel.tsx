@@ -11,10 +11,20 @@ import { InfoTooltip } from '@/components/info-tooltip';
 
 /**
  * Ads Lab — Faz 11.2. Google Ads + Meta Marketing API (direkt entegrasyon).
- * 5 sekme: Yeni Kampanya / Aktifler / Performans / Otopilot / Reklam Hesapları
+ * 4 sekme: Yeni Kampanya / Aktifler / Performans / Otopilot Geçmişi
+ *
+ * Reklam Hesapları (Google + Meta OAuth bağlama) artık burada DEĞIL —
+ * Ayarlar > Entegrasyonlar altına taşındı (Faz 11.6 UX birleşik hub).
  */
 export function AdsLabPanel({ site }: { site: any }) {
-  const [tab, setTab] = useState<'builder' | 'active' | 'performance' | 'autopilot' | 'settings'>('builder');
+  const [tab, setTab] = useState<'builder' | 'active' | 'performance' | 'autopilot'>('builder');
+  const [conn, setConn] = useState<{ google: boolean; meta: boolean } | null>(null);
+
+  useEffect(() => {
+    api.getAdsConnections(site.id).then(setConn).catch(() => setConn({ google: false, meta: false }));
+  }, [site.id]);
+
+  const noAccounts = conn !== null && !conn.google && !conn.meta;
 
   return (
     <div className="rounded-lg border border-orange-500/30 bg-gradient-to-br from-orange-500/5 to-transparent p-4 space-y-3">
@@ -27,13 +37,30 @@ export function AdsLabPanel({ site }: { site: any }) {
         </p>
       </div>
 
+      {noAccounts && (
+        <div className="rounded-md border border-amber-500/40 bg-amber-500/5 p-3 flex items-start gap-3">
+          <Link2 className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+          <div className="flex-1 text-xs">
+            <p className="font-semibold text-amber-700 dark:text-amber-400">Önce reklam hesabı bağla</p>
+            <p className="text-muted-foreground mt-0.5">
+              Kampanya kurmak için en az bir Google Ads veya Meta Ads hesabına ihtiyacın var.
+            </p>
+            <a
+              href={`/sites/${site.id}?tab=settings#ads-accounts`}
+              className="mt-2 inline-flex items-center gap-1 text-amber-700 dark:text-amber-400 font-semibold hover:underline"
+            >
+              Ayarlar → Reklam Hesapları'na git →
+            </a>
+          </div>
+        </div>
+      )}
+
       <div className="inline-flex border rounded-md overflow-hidden flex-wrap">
         {([
           ['builder', 'Yeni Kampanya', <Plus key="b" className="h-3 w-3" />],
           ['active', 'Aktifler', <Play key="a" className="h-3 w-3" />],
           ['performance', 'Performans', <Target key="p" className="h-3 w-3" />],
           ['autopilot', 'Otopilot Geçmişi', <Zap key="ap" className="h-3 w-3" />],
-          ['settings', 'Reklam Hesapları', <Link2 key="s" className="h-3 w-3" />],
         ] as const).map(([id, label, icon]) => (
           <button
             key={id}
@@ -49,8 +76,41 @@ export function AdsLabPanel({ site }: { site: any }) {
       {tab === 'active' && <ActiveTab siteId={site.id} />}
       {tab === 'performance' && <PerformanceTab siteId={site.id} />}
       {tab === 'autopilot' && <AutopilotHistoryTab siteId={site.id} />}
-      {tab === 'settings' && <SettingsTab site={site} />}
+
+      {!noAccounts && conn && (
+        <AutopilotToggle site={site} disabled={!conn.google && !conn.meta} />
+      )}
     </div>
+  );
+}
+
+function AutopilotToggle({ site, disabled }: { site: any; disabled: boolean }) {
+  const [autopilot, setAutopilot] = useState(!!site.adsAutopilot);
+  const [saving, setSaving] = useState(false);
+
+  const save = async (next: boolean) => {
+    setSaving(true);
+    setAutopilot(next);
+    try {
+      await api.updateAdsSettings(site.id, { adsAutopilot: next });
+      toast.success(`Ads Otopilot ${next ? 'açıldı' : 'kapatıldı'}`);
+    } catch (err: any) { toast.error(err.message); setAutopilot(!next); }
+    finally { setSaving(false); }
+  };
+
+  return (
+    <label className="flex items-center gap-2 text-xs cursor-pointer p-3 rounded-md border bg-orange-500/5">
+      <input
+        type="checkbox"
+        checked={autopilot}
+        disabled={disabled || saving}
+        onChange={(e) => save(e.target.checked)}
+      />
+      <span>
+        <strong>Ads Otopilot</strong> — Her 6 saatte bir aktif kampanyaları analiz eder.
+        ROAS &lt; 1.5 → pause, ROAS &gt; 5 + CTR &gt; 3% → bütçe %20 artır.
+      </span>
+    </label>
   );
 }
 
@@ -438,73 +498,6 @@ function PerformanceTab({ siteId }: { siteId: string }) {
   );
 }
 
-// ──────────────────────────────────────────────────────────────────
-// Reklam Hesapları (Faz 11.2 — direkt resmi API'ler, Ryze AI MCP kaldırıldı)
-// ──────────────────────────────────────────────────────────────────
-function SettingsTab({ site }: { site: any }) {
-  const [conn, setConn] = useState<{ google: boolean; meta: boolean }>({
-    google: !!site.googleAdsRefreshToken && !!site.googleAdsCustomerId,
-    meta: !!site.metaAdsAccessToken && !!site.metaAdsAccountId,
-  });
-  const [autopilot, setAutopilot] = useState(site.adsAutopilot ?? false);
-  const [savingAutopilot, setSavingAutopilot] = useState(false);
-
-  useEffect(() => {
-    api.getAdsConnections(site.id).then(setConn).catch(() => {});
-  }, [site.id]);
-
-  const refresh = async () => {
-    try { setConn(await api.getAdsConnections(site.id)); } catch {}
-  };
-
-  const saveAutopilot = async (next: boolean) => {
-    setSavingAutopilot(true);
-    setAutopilot(next);
-    try {
-      await api.updateAdsSettings(site.id, { adsAutopilot: next });
-      toast.success(`Otopilot ${next ? 'açıldı' : 'kapatıldı'}`);
-    } catch (err: any) { toast.error(err.message); setAutopilot(!next); }
-    finally { setSavingAutopilot(false); }
-  };
-
-  return (
-    <div className="space-y-3">
-      <div className="rounded-md border bg-muted/20 p-3 text-xs">
-        <p className="font-semibold mb-1">Reklam Hesapları — Direkt Entegrasyon</p>
-        <p className="text-muted-foreground">
-          Resmi Google Ads + Meta Marketing API'lerine kendi credential'larınla bağlan.
-          3. parti SaaS yok, ek aylık ücret yok. Sadece kendi Google + Meta hesaplarının normal kullanım maliyeti.
-        </p>
-      </div>
-
-      <GoogleAdsOAuthCard
-        site={site}
-        connected={conn.google}
-        onChanged={refresh}
-      />
-
-      <MetaAdsOAuthCard
-        site={site}
-        connected={conn.meta}
-        onChanged={refresh}
-      />
-
-      <label className="flex items-center gap-2 text-xs cursor-pointer p-3 rounded-md border bg-orange-500/5">
-        <input
-          type="checkbox"
-          checked={autopilot}
-          disabled={savingAutopilot || (!conn.google && !conn.meta)}
-          onChange={(e) => saveAutopilot(e.target.checked)}
-        />
-        <span>
-          <strong>Ads Otopilot</strong> — Her 6 saatte bir aktif kampanyaları analiz eder.
-          ROAS &lt; 1.5 → pause, ROAS &gt; 5 + CTR &gt; 3% → bütçe %20 artır.
-          {(!conn.google && !conn.meta) && <em className="block text-muted-foreground mt-1">Önce en az bir reklam hesabı bağla.</em>}
-        </span>
-      </label>
-    </div>
-  );
-}
 
 // ──────────────────────────────────────────────────────────────────
 //  OAuth popup-based connection cards (Faz 11.5)
@@ -563,7 +556,7 @@ function useOAuthPopup(provider: 'google-ads' | 'meta-ads', siteId: string) {
   return { busy, start };
 }
 
-function GoogleAdsOAuthCard({ site, connected, onChanged }: { site: any; connected: boolean; onChanged: () => void }) {
+export function GoogleAdsOAuthCard({ site, connected, onChanged }: { site: any; connected: boolean; onChanged: () => void }) {
   const oauth = useOAuthPopup('google-ads', site.id);
   const [picker, setPicker] = useState<{ id: string; resourceName: string }[] | null>(null);
   const [savingPick, setSavingPick] = useState(false);
@@ -665,7 +658,7 @@ function GoogleAdsOAuthCard({ site, connected, onChanged }: { site: any; connect
   );
 }
 
-function MetaAdsOAuthCard({ site, connected, onChanged }: { site: any; connected: boolean; onChanged: () => void }) {
+export function MetaAdsOAuthCard({ site, connected, onChanged }: { site: any; connected: boolean; onChanged: () => void }) {
   const oauth = useOAuthPopup('meta-ads', site.id);
   const [opts, setOpts] = useState<{ adAccounts: any[]; pages: any[] } | null>(null);
   const [showOpts, setShowOpts] = useState(false);
@@ -849,118 +842,3 @@ function MetaIcon() {
   );
 }
 
-function ConnectionCard({
-  title, connected, connectedAt, accountLabel, accountField, accountPlaceholder,
-  secretField, secretPlaceholder, helpUrl, helpText, extraFields, onSave, onDisconnect,
-}: {
-  title: string;
-  connected: boolean;
-  connectedAt?: string | Date | null;
-  accountLabel?: string | null;
-  accountField: string;
-  accountPlaceholder: string;
-  secretField: string;
-  secretPlaceholder: string;
-  helpUrl: string;
-  helpText: string;
-  extraFields?: { key: string; label: string; placeholder?: string; defaultValue?: string; help?: string }[];
-  onSave: (v: { account: string; secret: string; extras?: Record<string, string> }) => Promise<void>;
-  onDisconnect: () => Promise<void>;
-}) {
-  const [editing, setEditing] = useState(false);
-  const [account, setAccount] = useState('');
-  const [secret, setSecret] = useState('');
-  const [extras, setExtras] = useState<Record<string, string>>(() =>
-    Object.fromEntries((extraFields ?? []).map((f) => [f.key, f.defaultValue ?? '']))
-  );
-  const [saving, setSaving] = useState(false);
-
-  const handleSave = async () => {
-    if (!account || !secret) { toast.error(`${accountField} ve ${secretField} gerekli`); return; }
-    setSaving(true);
-    try {
-      await onSave({ account, secret, extras });
-      setEditing(false); setAccount(''); setSecret('');
-    } catch (err: any) { toast.error(err.message); }
-    finally { setSaving(false); }
-  };
-
-  const handleDisconnect = async () => {
-    if (!confirm(`${title} bağlantısı kaldırılacak. Emin misin?`)) return;
-    setSaving(true);
-    try { await onDisconnect(); } catch (err: any) { toast.error(err.message); }
-    finally { setSaving(false); }
-  };
-
-  return (
-    <div className={`rounded-md border p-3 ${connected ? 'border-green-500/40 bg-green-500/5' : 'bg-muted/10'}`}>
-      <div className="flex items-start justify-between gap-2 mb-2">
-        <div className="flex items-center gap-2">
-          {connected
-            ? <span className="h-7 w-7 rounded-full bg-green-500/20 grid place-items-center"><Check className="h-4 w-4 text-green-600" /></span>
-            : <span className="h-7 w-7 rounded-full bg-muted grid place-items-center"><X className="h-4 w-4 text-muted-foreground" /></span>}
-          <div>
-            <p className="text-sm font-semibold">{title}</p>
-            <p className="text-[11px] text-muted-foreground">
-              {connected
-                ? <>Bağlı {accountLabel && <>· <span className="font-mono">{accountLabel}</span></>} {connectedAt && <>· {new Date(connectedAt).toLocaleDateString('tr-TR')}</>}</>
-                : 'Bağlı değil'}
-            </p>
-          </div>
-        </div>
-        {connected ? (
-          <Button size="sm" variant="outline" onClick={handleDisconnect} disabled={saving}>Kaldır</Button>
-        ) : (
-          <Button size="sm" onClick={() => setEditing(!editing)}>
-            {editing ? 'İptal' : 'Bağla'}
-          </Button>
-        )}
-      </div>
-
-      {editing && !connected && (
-        <div className="space-y-2 mt-2 pt-2 border-t">
-          <p className="text-[11px] text-muted-foreground">
-            {helpText} <a href={helpUrl} target="_blank" rel="noopener" className="text-brand hover:underline">Dokümantasyon</a>
-          </p>
-          <label className="block">
-            <span className="text-xs font-medium">{accountField}</span>
-            <input
-              value={account}
-              onChange={(e) => setAccount(e.target.value)}
-              className="w-full mt-1 px-3 py-2 border rounded text-sm bg-background font-mono"
-              placeholder={accountPlaceholder}
-            />
-          </label>
-          <label className="block">
-            <span className="text-xs font-medium">{secretField}</span>
-            <input
-              type="password"
-              value={secret}
-              onChange={(e) => setSecret(e.target.value)}
-              className="w-full mt-1 px-3 py-2 border rounded text-sm bg-background font-mono"
-              placeholder={secretPlaceholder}
-            />
-            <span className="text-[10px] text-muted-foreground mt-0.5 block">
-              AES-256 ile şifrelenir, ham haliyle saklanmaz.
-            </span>
-          </label>
-          {(extraFields ?? []).map((f) => (
-            <label key={f.key} className="block">
-              <span className="text-xs font-medium">{f.label}</span>
-              <input
-                value={extras[f.key] ?? ''}
-                onChange={(e) => setExtras({ ...extras, [f.key]: e.target.value })}
-                className="w-full mt-1 px-3 py-2 border rounded text-sm bg-background font-mono"
-                placeholder={f.placeholder}
-              />
-              {f.help && <span className="text-[10px] text-muted-foreground mt-0.5 block">{f.help}</span>}
-            </label>
-          ))}
-          <Button size="sm" onClick={handleSave} disabled={saving} className="w-full">
-            {saving ? 'Kaydediliyor…' : 'Bağlantıyı Kaydet'}
-          </Button>
-        </div>
-      )}
-    </div>
-  );
-}
