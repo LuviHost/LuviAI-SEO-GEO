@@ -175,6 +175,13 @@ export const api = {
   createDemoSite: () =>
     request<{ siteId: string; articles: number }>(`/sites/demo`, { method: 'POST' }),
 
+  // Sprint B — Agency
+  getAgencyOverview: () => request<any>(`/agency/overview`),
+  inviteAgencyClient: (payload: { email: string; name?: string }) =>
+    request<any>(`/agency/invite`, { method: 'POST', body: JSON.stringify(payload) }),
+  updateWhitelabel: (payload: any) =>
+    request<any>(`/agency/whitelabel`, { method: 'PATCH', body: JSON.stringify(payload) }),
+
   detectPlatform: (siteId: string) =>
     request<any>(`/sites/${siteId}/detect-platform`, { method: 'POST' }),
 

@@ -36,6 +36,16 @@ model User {
   articlesUsedThisMonth Int @default(0)
   articlesQuotaResetAt  DateTime @default(now())
 
+  // Whitelabel / Agency (AGENCY_OWNER icin doldurulur)
+  whitelabelEnabled    Boolean @default(false)
+  whitelabelBrandName  String?  // ornek "Webmasters Ajansı"
+  whitelabelLogoUrl    String?
+  whitelabelPrimaryColor String? // #6c5ce7
+  whitelabelDomain     String?  // ai.ajansadi.com.tr (CNAME)
+  whitelabelEmailFrom  String?  // "noreply@ajansadi.com.tr"
+  // Agency owner'in altinda calisan client kullanicilar parentAgencyId ile referans
+  parentAgencyId       String?
+
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -45,6 +55,8 @@ model User {
   sites         Site[]
   jobs          Job[]
   invoices      Invoice[]
+  parentAgency  User?    @relation("AgencyClients", fields: [parentAgencyId], references: [id], onDelete: SetNull)
+  clients       User[]   @relation("AgencyClients")
 
   @@index([email])
   @@index([plan, subscriptionStatus])
