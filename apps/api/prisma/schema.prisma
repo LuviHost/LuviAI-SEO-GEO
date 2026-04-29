@@ -57,6 +57,7 @@ model User {
   invoices      Invoice[]
   parentAgency  User?    @relation("AgencyClients", fields: [parentAgencyId], references: [id], onDelete: SetNull)
   clients       User[]   @relation("AgencyClients")
+  apiKeys       ApiKey[]
 
   @@index([email])
   @@index([plan, subscriptionStatus])
@@ -98,6 +99,8 @@ model ApiKey {
   expiresAt   DateTime?
   createdAt   DateTime  @default(now())
   revokedAt   DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([keyHash])
