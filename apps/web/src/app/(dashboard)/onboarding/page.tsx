@@ -9,6 +9,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
+import { UpgradePlanModal } from '@/components/upgrade-plan-modal';
 
 const NICHES = [
   'web hosting', 'e-ticaret', 'SaaS', 'eğitim', 'sağlık',
@@ -839,6 +840,15 @@ function Step5({ state, update }: any) {
   const { data: session } = useSession();
   const router = useRouter();
   const [quota, setQuota] = useState<{ remaining: number; limit: number } | null>(null);
+  const [upgradeOpen, setUpgradeOpen] = useState(false);
+
+  const refetchQuota = () => {
+    const userId = (session?.user as any)?.id;
+    if (!userId) return;
+    api.getUserQuota(userId).then((q) => {
+      setQuota({ remaining: q.articles.remaining, limit: q.articles.limit });
+    }).catch(() => { /* noop */ });
+  };
 
   useEffect(() => {
     const userId = (session?.user as any)?.id;
@@ -886,11 +896,18 @@ function Step5({ state, update }: any) {
                 : 'Plan limitini aşan sıklıklar otomatik kilitli — istersen plan yükseltebilirsin.'}
             </p>
           </div>
-          <Button size="sm" variant="outline" onClick={() => router.push('/pricing')}>
+          <Button size="sm" variant="outline" onClick={() => setUpgradeOpen(true)}>
             Plan yükselt
           </Button>
         </div>
       )}
+
+      <UpgradePlanModal
+        open={upgradeOpen}
+        onClose={() => setUpgradeOpen(false)}
+        onSuccess={refetchQuota}
+        reason="Otomatik üretim sıklığı için daha yüksek bir plan gerekiyor."
+      />
 
       <p className="text-sm font-medium mb-2">Sıklık</p>
       <div className="space-y-2 mb-6">
@@ -1127,7 +1144,16 @@ function Step7({ state, update }: any) {
   const [scheduling, setScheduling] = useState(false);
   const [scheduledIds, setScheduledIds] = useState<string[]>([]);
   const [quota, setQuota] = useState<{ remaining: number; limit: number } | null>(null);
+  const [upgradeOpen, setUpgradeOpen] = useState(false);
   const router = useRouter();
+
+  const refetchQuota = () => {
+    const userId = (session?.user as any)?.id;
+    if (!userId) return;
+    api.getUserQuota(userId).then((q) => {
+      setQuota({ remaining: q.articles.remaining, limit: q.articles.limit });
+    }).catch(() => { /* noop */ });
+  };
 
   // Kalan makale kotasini cek
   useEffect(() => {
@@ -1260,6 +1286,12 @@ function Step7({ state, update }: any) {
 
   return (
     <>
+      <UpgradePlanModal
+        open={upgradeOpen}
+        onClose={() => setUpgradeOpen(false)}
+        onSuccess={refetchQuota}
+        reason="Daha fazla başlık seçmek için plan yükselt."
+      />
       <h2 className="text-2xl font-bold mb-2">İçerik Takvimi</h2>
       <p className="text-muted-foreground mb-6">
         AI senin için ilk içerik fikirlerini hazırladı. Yazılmasını istediklerini seç —
@@ -1306,7 +1338,7 @@ function Step7({ state, update }: any) {
                 </p>
               </div>
               {(quota.limit === 1 || selected.size >= quota.remaining) && (
-                <Button size="sm" variant="outline" onClick={() => router.push('/pricing')}>
+                <Button size="sm" variant="outline" onClick={() => setUpgradeOpen(true)}>
                   Plan yükselt
                 </Button>
               )}
