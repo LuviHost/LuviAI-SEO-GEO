@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { Sparkles, Network, Globe, Check, X, AlertCircle, Copy, ExternalLink, Play, MessageSquare, Link2, Download } from 'lucide-react';
+import { Sparkles, Network, Globe, Check, X, AlertCircle, Copy, ExternalLink, Play, MessageSquare, Link2, Download, Code, Activity } from 'lucide-react';
 import { api } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -15,7 +15,7 @@ import { Badge } from '@/components/ui/badge';
  *  3. Wikipedia article draft
  */
 export function GeoLabPanel({ siteId }: { siteId: string }) {
-  const [tab, setTab] = useState<'heatmap' | 'wikidata' | 'wikipedia' | 'community' | 'cross-link' | 'training'>('heatmap');
+  const [tab, setTab] = useState<'heatmap' | 'wikidata' | 'wikipedia' | 'community' | 'cross-link' | 'training' | 'schema-validate' | 'tracker'>('heatmap');
 
   return (
     <div className="rounded-lg border p-4 space-y-3">
@@ -36,6 +36,8 @@ export function GeoLabPanel({ siteId }: { siteId: string }) {
           ['community', 'Reddit', <MessageSquare key="r" className="h-3 w-3" />],
           ['cross-link', 'Cross-Link', <Link2 key="c" className="h-3 w-3" />],
           ['training', 'Training Data', <Download key="t" className="h-3 w-3" />],
+          ['schema-validate', 'Schema Doğrula', <Code key="sv" className="h-3 w-3" />],
+          ['tracker', 'Bot Tracker', <Activity key="tr" className="h-3 w-3" />],
         ] as const).map(([id, label, icon]) => (
           <button
             key={id}
@@ -55,6 +57,155 @@ export function GeoLabPanel({ siteId }: { siteId: string }) {
       {tab === 'community' && <CommunityTab siteId={siteId} />}
       {tab === 'cross-link' && <CrossLinkTab siteId={siteId} />}
       {tab === 'training' && <TrainingDataTab siteId={siteId} />}
+      {tab === 'schema-validate' && <SchemaValidateTab siteId={siteId} />}
+      {tab === 'tracker' && <TrackerEmbedTab siteId={siteId} />}
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────
+// Schema Validator
+// ──────────────────────────────────────────────────────────────────
+function SchemaValidateTab({ siteId }: { siteId: string }) {
+  const [url, setUrl] = useState('');
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+
+  const validate = async () => {
+    if (!url.startsWith('http')) {
+      toast.error('Geçerli URL girin (https://...)');
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await api.validateSchema(siteId, url);
+      setData(res);
+      if (res.valid) toast.success('Schema markup geçerli');
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      <p className="text-xs text-muted-foreground">
+        Yayınlanmış makalenizin URL'ini verin. Schema.org JSON-LD'leri çıkarılıp validate edilir. Google rich results + AI search citation için kritik.
+      </p>
+      <div className="flex items-center gap-2">
+        <input
+          type="url"
+          placeholder="https://siteniz.com/blog/makale.html"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          className="flex-1 px-3 py-2 border rounded text-sm bg-background"
+        />
+        <Button size="sm" onClick={validate} disabled={loading}>
+          {loading ? 'Tarıyor…' : 'Validate'}
+        </Button>
+      </div>
+
+      {data && (
+        <div className="space-y-3">
+          <div className="grid grid-cols-3 gap-2">
+            <div className="rounded-md border p-3 text-center">
+              <p className={`text-2xl font-bold ${data.valid ? 'text-green-500' : 'text-red-500'}`}>
+                {data.valid ? '✓' : '✗'}
+              </p>
+              <p className="text-[11px] text-muted-foreground">{data.valid ? 'Geçerli' : 'Sorunlu'}</p>
+            </div>
+            <div className="rounded-md border p-3 text-center">
+              <p className="text-2xl font-bold">{data.schemaCount}</p>
+              <p className="text-[11px] text-muted-foreground">JSON-LD blok</p>
+            </div>
+            <div className="rounded-md border p-3 text-center">
+              <p className="text-2xl font-bold">{data.types.length}</p>
+              <p className="text-[11px] text-muted-foreground">Schema tipi</p>
+            </div>
+          </div>
+
+          {data.types.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {data.types.map((t: string) => (
+                <Badge key={t} variant="outline" className="text-[10px]">{t}</Badge>
+              ))}
+            </div>
+          )}
+
+          {data.errors.length > 0 && (
+            <div className="rounded-md border border-red-500/30 bg-red-500/5 p-3">
+              <p className="text-xs font-semibold text-red-700 dark:text-red-400 mb-1.5">❌ Hatalar ({data.errors.length})</p>
+              <ul className="space-y-0.5 text-xs">
+                {data.errors.map((e: string, i: number) => <li key={i}>• {e}</li>)}
+              </ul>
+            </div>
+          )}
+
+          {data.warnings.length > 0 && (
+            <div className="rounded-md border border-yellow-500/30 bg-yellow-500/5 p-3">
+              <p className="text-xs font-semibold text-yellow-700 dark:text-yellow-400 mb-1.5">⚠ Uyarılar ({data.warnings.length})</p>
+              <ul className="space-y-0.5 text-xs">
+                {data.warnings.map((w: string, i: number) => <li key={i}>• {w}</li>)}
+              </ul>
+            </div>
+          )}
+
+          {data.recommendations.length > 0 && (
+            <div className="rounded-md border border-blue-500/30 bg-blue-500/5 p-3">
+              <p className="text-xs font-semibold text-blue-700 dark:text-blue-400 mb-1.5">💡 Öneriler ({data.recommendations.length})</p>
+              <ul className="space-y-0.5 text-xs">
+                {data.recommendations.map((r: string, i: number) => <li key={i}>• {r}</li>)}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────
+// Tracker Embed
+// ──────────────────────────────────────────────────────────────────
+function TrackerEmbedTab({ siteId }: { siteId: string }) {
+  const url = api.getTrackerEmbedUrl(siteId);
+  const snippet = `<script async src="${url}"></script>`;
+
+  return (
+    <div className="space-y-3">
+      <p className="text-xs text-muted-foreground">
+        Sitenizdeki <strong>her sayfaya</strong> bu script tag'ini ekleyin. AI bot trafiğini <strong>gerçek zamanlı</strong> izler — manuel log upload gerekmez. GPTBot/ClaudeBot/PerplexityBot ziyaret ettiğinde otomatik yakalanır.
+      </p>
+
+      <div className="rounded-md border">
+        <div className="px-3 py-2 border-b bg-muted/30 flex items-center justify-between">
+          <p className="text-xs font-semibold">Embed Script</p>
+          <button
+            onClick={() => { navigator.clipboard.writeText(snippet); toast.success('Kopyalandı'); }}
+            className="text-xs text-brand hover:underline inline-flex items-center gap-1"
+          >
+            <Copy className="h-3 w-3" /> Kopyala
+          </button>
+        </div>
+        <pre className="p-3 text-[11px] font-mono whitespace-pre-wrap break-all">{snippet}</pre>
+      </div>
+
+      <div className="rounded-md border bg-muted/20 p-3">
+        <p className="text-xs font-semibold mb-2">Nereye yapıştır?</p>
+        <ul className="space-y-1 text-xs text-muted-foreground">
+          <li>• <strong>WordPress:</strong> Tema &gt; Theme File Editor &gt; header.php (&lt;/head&gt; tag'inden hemen önce)</li>
+          <li>• <strong>Webflow:</strong> Project Settings &gt; Custom Code &gt; Head Code</li>
+          <li>• <strong>cPanel/HTML:</strong> Her sayfanın &lt;head&gt; bölümüne ekleyin</li>
+          <li>• <strong>Otopilot ON:</strong> LuviAI'ın yayınladığı yeni makalelere <strong>otomatik</strong> eklenir</li>
+        </ul>
+      </div>
+
+      <div className="rounded-md border border-blue-500/30 bg-blue-500/5 p-3">
+        <p className="text-xs">
+          <strong>📊 Veri akışı:</strong> Bot ziyaret ettiğinde tracker.js çalışır → beacon.gif fetch eder → API middleware bot UA'sını yakalar → 60sn'de bir DB'ye flush eder. <strong>AI Crawler Trafiği</strong> paneli bu verilerle dolar.
+        </p>
+      </div>
     </div>
   );
 }

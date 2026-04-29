@@ -58,9 +58,13 @@ export class AiMentionAlarmService {
     for (const [siteId, siteAlerts] of bySite) {
       const first = siteAlerts[0];
       try {
-        // EmailService.send template-based; biz direct dispatch icin internal client kullanmiyoruz, Resend dispatchini bypass ediyoruz.
-        // Pratik: log + DB persist (gercek emaili gondermek icin EmailService'e generic.html template eklenmeli — Faz 6.1)
-        this.log.log(`[ALARM ${siteId}] ${first.userEmail} icin ${siteAlerts.length} trigger: ${siteAlerts.map(a => a.message).join('; ')}`);
+        await this.email.sendRaw({
+          userId: first.userId,
+          to: first.userEmail,
+          subject: `🚨 ${first.siteName}: AI görünürlük değişikliği`,
+          html: this.renderAlertEmail(siteAlerts),
+        });
+        this.log.log(`[ALARM ${siteId}] Email gonderildi: ${first.userEmail} (${siteAlerts.length} trigger)`);
       } catch (err: any) {
         this.log.warn(`[${siteId}] Email fail: ${err.message}`);
       }

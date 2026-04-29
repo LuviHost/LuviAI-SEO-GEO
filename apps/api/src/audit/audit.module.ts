@@ -17,8 +17,11 @@ import { CommunityOutreachService } from './community-outreach.service.js';
 import { CrossLinkingService } from './cross-linking.service.js';
 import { TrainingDataExporterService } from './training-data-exporter.service.js';
 import { CrawlerAnalyticsService } from './crawler-analytics.service.js';
+import { CrawlerTrackingMiddleware } from './crawler-tracking.middleware.js';
+import { TrackerController } from './tracker.controller.js';
 import { AiMentionAlarmService } from './ai-mention-alarm.service.js';
 import { GeoScoreCardService } from './geo-score-card.service.js';
+import { SchemaValidatorService } from './schema-validator.service.js';
 import { EmailModule } from '../email/email.module.js';
 import { SnippetGeneratorService } from './snippet-generator.service.js';
 import { SnippetApplierService } from './snippet-applier.service.js';
@@ -27,7 +30,7 @@ import { SitesModule } from '../sites/sites.module.js';
 
 @Module({
   imports: [SitesModule, EmailModule],
-  controllers: [AuditController],
+  controllers: [AuditController, TrackerController],
   providers: [
     AuditService,
     AuditChecksService,
@@ -46,8 +49,10 @@ import { SitesModule } from '../sites/sites.module.js';
     CrossLinkingService,
     TrainingDataExporterService,
     CrawlerAnalyticsService,
+    CrawlerTrackingMiddleware,
     AiMentionAlarmService,
     GeoScoreCardService,
+    SchemaValidatorService,
     SnippetGeneratorService,
     SnippetApplierService,
     StaticHtmlFixerService,
@@ -69,6 +74,7 @@ import { SitesModule } from '../sites/sites.module.js';
     CrawlerAnalyticsService,
     AiMentionAlarmService,
     GeoScoreCardService,
+    SchemaValidatorService,
     SnippetGeneratorService,
     SnippetApplierService,
     StaticHtmlFixerService,

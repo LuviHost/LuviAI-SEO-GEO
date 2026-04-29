@@ -20,6 +20,9 @@ function renderArticleHtml(opts: {
   canonical?: string | null;
   heroImageUrl?: string | null;
   siteName?: string | null;
+  schemaJsonLd?: any[] | null;
+  audioUrl?: string | null;
+  trackerSiteId?: string | null;
 }): string {
   const parsed = parseFrontmatter(opts.bodyMd ?? '');
   const inner = mdToHtml((parsed.content || opts.bodyMd || '').trim());
@@ -30,6 +33,23 @@ function renderArticleHtml(opts: {
   const hero = opts.heroImageUrl ? `<img src="${esc(opts.heroImageUrl)}" alt="" class="hero">` : '';
   const brand = esc(opts.siteName || 'Blog');
   const year = new Date().getFullYear();
+
+  // GEO: Schema.org JSON-LD <script> tag'leri
+  const schemaTags = Array.isArray(opts.schemaJsonLd) && opts.schemaJsonLd.length > 0
+    ? opts.schemaJsonLd.map((s) => `<script type="application/ld+json">${JSON.stringify(s)}</script>`).join('\n')
+    : '';
+
+  // GEO: Audio player + AudioObject schema
+  const audioBlock = opts.audioUrl ? `
+<audio controls preload="metadata" style="width:100%;margin:1rem 0">
+  <source src="${esc(opts.audioUrl)}" type="audio/mpeg">
+  Tarayıcınız HTML5 audio desteklemiyor.
+</audio>` : '';
+
+  // AI Crawler tracker
+  const trackerScript = opts.trackerSiteId
+    ? `<script async src="${process.env.NEXT_PUBLIC_API_URL ?? 'https://ai.luvihost.com'}/api/tracker.js?site=${esc(opts.trackerSiteId)}"></script>`
+    : '';
   return `<!DOCTYPE html>
 <html lang="tr">
 <head>
@@ -43,6 +63,8 @@ ${desc ? `<meta property="og:description" content="${desc}">` : ''}
 <meta property="og:type" content="article">
 ${canonical ? `<meta property="og:url" content="${canonical}">` : ''}
 ${opts.heroImageUrl ? `<meta property="og:image" content="${esc(opts.heroImageUrl)}">` : ''}
+${schemaTags}
+${trackerScript}
 <style>
 :root{--ink:#0f172a;--muted:#475569;--brand:#6366f1;--brand-d:#4f46e5;--line:#e2e8f0;--bg:#fff;--soft:#f8fafc}
 *{box-sizing:border-box}
@@ -83,6 +105,7 @@ footer.site{margin-top:3rem;padding:1.5rem 0;border-top:1px solid var(--line);co
 <header class="brand"><a class="logo" href="/">${brand}</a><a href="/blog">Blog</a></header>
 <main>
 ${hero}
+${audioBlock}
 ${inner}
 </main>
 <footer class="site">© ${brand} — ${year}</footer>
@@ -140,6 +163,16 @@ export class PublisherService {
       const base = (article.site as any).url ? String((article.site as any).url).replace(/\/+$/, '') : '';
       return base ? `${base}/blog/${article.slug}` : null;
     })();
+    // GEO v7: schema JSON-LD + audio + tracker injection
+    const schemaJsonLd: any[] = (() => {
+      const sm: any = (article as any).schemaMarkup;
+      return Array.isArray(sm?.jsonLd) ? sm.jsonLd : [];
+    })();
+    const audioUrl: string | null = (() => {
+      const fm: any = (article as any).frontmatter ?? {};
+      return fm?.audio_url ?? null;
+    })();
+
     const bodyHtml = renderArticleHtml({
       bodyMd: article.bodyMd ?? '',
       title: article.title,
@@ -148,6 +181,9 @@ export class PublisherService {
       canonical,
       heroImageUrl: article.heroImageUrl,
       siteName: article.site.name,
+      schemaJsonLd,
+      audioUrl,
+      trackerSiteId: article.siteId,
     });
 
     const results: PublishResult[] = [];

@@ -66,6 +66,57 @@ export class EmailService {
     }
   }
 
+  /**
+   * Generic raw HTML email — template sistemini bypass eder.
+   * AI alarm, custom bildirim gibi adhoc mailler icin.
+   */
+  async sendRaw(opts: {
+    userId?: string;
+    to: string;
+    subject: string;
+    html: string;
+  }): Promise<{ ok: boolean; resendId?: string }> {
+    if (!this.client) {
+      this.log.log(`[EMAIL RAW] → ${opts.to}: ${opts.subject}`);
+      try {
+        await this.prisma.emailLog.create({
+          data: {
+            userId: opts.userId,
+            to: opts.to,
+            template: 'weekly_report' as EmailTemplate,
+            subject: opts.subject,
+            status: 'sent',
+            metadata: { kind: 'raw' } as any,
+          },
+        });
+      } catch {}
+      return { ok: true };
+    }
+    try {
+      const result = await this.client.emails.send({
+        from: this.from,
+        to: opts.to,
+        subject: opts.subject,
+        html: opts.html,
+      });
+      await this.prisma.emailLog.create({
+        data: {
+          userId: opts.userId,
+          to: opts.to,
+          template: 'weekly_report' as EmailTemplate,
+          subject: opts.subject,
+          status: 'sent',
+          resendId: result.data?.id ?? null,
+          metadata: { kind: 'raw' } as any,
+        },
+      });
+      return { ok: true, resendId: result.data?.id };
+    } catch (err: any) {
+      this.log.error(`Raw email fail: ${err.message}`);
+      return { ok: false };
+    }
+  }
+
   private async logEmail(
     opts: { userId?: string; to: string; template: EmailTemplate; data?: any },
     subject: string,

@@ -255,6 +255,17 @@ export const api = {
   getGeoScoreCard: (siteId: string) =>
     request<any>(`/sites/${siteId}/audit/score-card`),
 
+  validateSchema: (siteId: string, url: string) =>
+    request<any>(`/sites/${siteId}/audit/schema-validate`, {
+      method: 'POST',
+      body: JSON.stringify({ url }),
+    }),
+
+  getTrackerEmbedUrl: (siteId: string) => {
+    const apiBase = process.env.NEXT_PUBLIC_API_URL ?? '';
+    return `${apiBase}/api/tracker.js?site=${siteId}`;
+  },
+
   // Reports
   getReport: (siteId: string, range: 'week' | 'month' | 'year' = 'month') =>
     request<any>(`/sites/${siteId}/analytics/report?range=${range}`),

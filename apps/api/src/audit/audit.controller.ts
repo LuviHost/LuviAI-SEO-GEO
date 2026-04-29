@@ -15,6 +15,7 @@ import { TrainingDataExporterService } from './training-data-exporter.service.js
 import { CrawlerAnalyticsService } from './crawler-analytics.service.js';
 import { AiMentionAlarmService } from './ai-mention-alarm.service.js';
 import { GeoScoreCardService } from './geo-score-card.service.js';
+import { SchemaValidatorService } from './schema-validator.service.js';
 import { SnippetGeneratorService } from './snippet-generator.service.js';
 import { SnippetApplierService } from './snippet-applier.service.js';
 import { StaticHtmlFixerService } from './static-html-fixer.service.js';
@@ -37,6 +38,7 @@ export class AuditController {
     private readonly crawler: CrawlerAnalyticsService,
     private readonly alarm: AiMentionAlarmService,
     private readonly scoreCard: GeoScoreCardService,
+    private readonly schemaValidator: SchemaValidatorService,
     private readonly snippets: SnippetGeneratorService,
     private readonly applier: SnippetApplierService,
     private readonly staticFixer: StaticHtmlFixerService,
@@ -191,6 +193,12 @@ export class AuditController {
   @Get('score-card')
   scoreCardGet(@Param('siteId') siteId: string) {
     return this.scoreCard.build(siteId);
+  }
+
+  /** POST /sites/:siteId/audit/schema-validate — bir URL'in schema markup'ini validate et */
+  @Post('schema-validate')
+  validateSchema(@Param('siteId') siteId: string, @Body() body: { url: string }) {
+    return this.schemaValidator.validate(body.url);
   }
 
   @Get('snippets')

@@ -1,9 +1,10 @@
-import { Module } from '@nestjs/common';
+import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerModule } from '@nestjs/throttler';
 
+import { CrawlerTrackingMiddleware } from './audit/crawler-tracking.middleware.js';
 import { AuthModule } from './auth/auth.module.js';
 import { AuthGuard } from './auth/auth.guard.js';
 import { SiteAccessGuard } from './auth/site-access.guard.js';
@@ -51,4 +52,9 @@ import { PrismaModule } from './prisma/prisma.module.js';
     { provide: APP_GUARD, useClass: SiteAccessGuard },
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    // Tum API request'lerini AI bot tracking icin gec
+    consumer.apply(CrawlerTrackingMiddleware).forRoutes('*');
+  }
+}
