@@ -189,14 +189,16 @@ export class PipelineService {
           persona: fm.persona as string,
           pillar: fm.pillar as string,
         });
-        const site = await this.prisma.site.findUniqueOrThrow({
+        const siteRaw = await this.prisma.site.findUniqueOrThrow({
           where: { id: opts.siteId },
-          select: { name: true, url: true, socialProfiles: true } as any,
         });
-        const baseUrl = site.url.replace(/\/+$/, '');
+        const siteAny: any = siteRaw;
+        const siteName: string = String(siteAny.name ?? 'Site');
+        const siteUrl: string = String(siteAny.url ?? '');
+        const baseUrl = siteUrl.replace(/\/+$/, '');
         const articleUrl = `${baseUrl}/blog/${slug}.html`;
-        const sameAs = Array.isArray((site as any).socialProfiles)
-          ? ((site as any).socialProfiles as string[])
+        const sameAs = Array.isArray(siteAny.socialProfiles)
+          ? (siteAny.socialProfiles as string[])
           : [];
 
         const jsonLd = this.schemaClassifier.buildJsonLd({
@@ -213,7 +215,7 @@ export class PipelineService {
             author: fm.persona ? { name: fm.persona as string } : null,
           },
           site: {
-            name: site.name,
+            name: siteName,
             url: baseUrl,
             sameAs,
           },
