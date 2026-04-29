@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { Megaphone, Settings, Play, Pause, Plus, Sparkles, Wallet, Target, Image as ImageIcon, AlertCircle, Check } from 'lucide-react';
+import { Megaphone, Settings, Play, Pause, Plus, Sparkles, Wallet, Target, Image as ImageIcon, AlertCircle, Check, Activity, Zap } from 'lucide-react';
 import { api } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -13,7 +13,7 @@ import { Badge } from '@/components/ui/badge';
  * 4 sekme: Yeni Kampanya / Aktifler / Performans / MCP Ayarları
  */
 export function AdsLabPanel({ site }: { site: any }) {
-  const [tab, setTab] = useState<'builder' | 'active' | 'performance' | 'settings'>('builder');
+  const [tab, setTab] = useState<'builder' | 'active' | 'performance' | 'autopilot' | 'settings'>('builder');
 
   return (
     <div className="rounded-lg border border-orange-500/30 bg-gradient-to-br from-orange-500/5 to-transparent p-4 space-y-3">
@@ -31,6 +31,7 @@ export function AdsLabPanel({ site }: { site: any }) {
           ['builder', 'Yeni Kampanya', <Plus key="b" className="h-3 w-3" />],
           ['active', 'Aktifler', <Play key="a" className="h-3 w-3" />],
           ['performance', 'Performans', <Target key="p" className="h-3 w-3" />],
+          ['autopilot', 'Otopilot Geçmişi', <Zap key="ap" className="h-3 w-3" />],
           ['settings', 'MCP Ayarları', <Settings key="s" className="h-3 w-3" />],
         ] as const).map(([id, label, icon]) => (
           <button
@@ -46,7 +47,91 @@ export function AdsLabPanel({ site }: { site: any }) {
       {tab === 'builder' && <BuilderTab site={site} />}
       {tab === 'active' && <ActiveTab siteId={site.id} />}
       {tab === 'performance' && <PerformanceTab siteId={site.id} />}
+      {tab === 'autopilot' && <AutopilotHistoryTab siteId={site.id} />}
       {tab === 'settings' && <SettingsTab site={site} />}
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────
+// Otopilot Geçmişi (Faz 11.1) — autopilotActions JSON akışı
+// ──────────────────────────────────────────────────────────────────
+function AutopilotHistoryTab({ siteId }: { siteId: string }) {
+  const [campaigns, setCampaigns] = useState<any[]>([]);
+
+  useEffect(() => { api.listAdCampaigns(siteId).then(setCampaigns).catch(() => {}); }, [siteId]);
+
+  const allActions = campaigns.flatMap((c) =>
+    (Array.isArray(c.autopilotActions) ? c.autopilotActions : []).map((a: any) => ({
+      ...a,
+      campaignName: c.name,
+      campaignId: c.id,
+      platform: c.platform,
+    }))
+  ).sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
+
+  const ICONS: Record<string, string> = {
+    'pause-low-roas': '⏸',
+    'budget-up-20%': '🚀',
+    'ab-test-winner': '🏆',
+    'add-negative-keywords': '🚫',
+  };
+
+  const COLORS: Record<string, string> = {
+    'pause-low-roas': 'border-red-500/30 bg-red-500/5',
+    'budget-up-20%': 'border-green-500/30 bg-green-500/5',
+    'ab-test-winner': 'border-blue-500/30 bg-blue-500/5',
+    'add-negative-keywords': 'border-yellow-500/30 bg-yellow-500/5',
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="rounded-md border bg-muted/20 p-3 text-xs">
+        <p className="font-semibold mb-1">🤖 Otopilot her 6 saatte bir 6 kontrol çalıştırır:</p>
+        <ul className="space-y-0.5 text-muted-foreground">
+          <li>1. <strong>Performans Sync</strong> — gerçek metrikler MCP'den DB'ye akar</li>
+          <li>2. <strong>ROAS Pause</strong> — ROAS &lt; 1.5 + 100 TL+ harcama → otomatik pause</li>
+          <li>3. <strong>Budget Up</strong> — CTR &gt; 3% + ROAS &gt; 5 → bütçe %20 artır</li>
+          <li>4. <strong>A/B Winner</strong> — 7+ gün eski varyantların kazananını seç</li>
+          <li>5. <strong>Negative Keywords</strong> — search terms'den alakasız kelimeleri sil</li>
+          <li>6. <strong>Budget Shift</strong> — Google ↔ Meta arasında ROAS'a göre kaydır</li>
+          <li>7. <strong>Auto-Boost</strong> — viral organik post'u Meta'da $50 ile boost</li>
+          <li>8. <strong>GA4 Cross-Validate</strong> — fraud/sahte tıklama tespit</li>
+        </ul>
+      </div>
+
+      {allActions.length === 0 ? (
+        <p className="text-sm text-muted-foreground p-6 text-center">Henüz otopilot aksiyonu yok. Otopilot aktif olunca buraya 6 saatte bir karar geçmişi gelecek.</p>
+      ) : (
+        <div className="space-y-2">
+          {allActions.slice(0, 30).map((a, i) => {
+            const action = a.action ?? a.actions?.[0] ?? 'unknown';
+            return (
+              <div key={i} className={`rounded-md border p-2.5 ${COLORS[action] ?? ''}`}>
+                <div className="flex items-start gap-2">
+                  <span className="text-lg shrink-0">{ICONS[action] ?? '•'}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-semibold truncate">{a.campaignName}</p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      {action} · {new Date(a.time).toLocaleString('tr-TR')}
+                    </p>
+                    {a.reason && <p className="text-[11px] mt-1 italic">"{a.reason}"</p>}
+                    {a.winnerCtr && (
+                      <p className="text-[11px] mt-1">Winner CTR: {(a.winnerCtr * 100).toFixed(2)}% · {a.pausedCount} loser pause</p>
+                    )}
+                    {a.keywords && (
+                      <p className="text-[11px] mt-1">{a.keywords.length} negatif: {a.keywords.slice(0, 5).join(', ')}…</p>
+                    )}
+                    {a.ctr !== undefined && a.roas !== undefined && (
+                      <p className="text-[11px] mt-1 font-mono">CTR: {(a.ctr * 100).toFixed(2)}% · ROAS: {a.roas.toFixed(2)}x</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

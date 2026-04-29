@@ -4,6 +4,7 @@ import { AdGeneratorService } from './ad-generator.service.js';
 import { AdImageGeneratorService } from './ad-image-generator.service.js';
 import { AudienceBuilderService } from './audience-builder.service.js';
 import { AdsMcpClientService } from './mcp-client.service.js';
+import { WebhookNotifierService } from '../audit/webhook-notifier.service.js';
 
 export interface CampaignBuildRequest {
   siteId: string;
@@ -48,6 +49,7 @@ export class CampaignOrchestratorService {
     private readonly imgGen: AdImageGeneratorService,
     private readonly audience: AudienceBuilderService,
     private readonly mcp: AdsMcpClientService,
+    private readonly webhook: WebhookNotifierService,
   ) {}
 
   async buildCampaign(req: CampaignBuildRequest): Promise<CampaignBuildResult> {
@@ -215,6 +217,16 @@ Kampanyayi DRAFT statusunde kur (manual review icin), conversion tracking aktif 
             where: { id: c.id },
             data: { status: 'PAUSED' },
           });
+          // Webhook bildirim
+          this.webhook.notify({
+            siteId: site.id,
+            siteName: site.name,
+            event: 'ai_citation_drop' as any,
+            title: '⚠ Kampanya Pause Edildi',
+            message: `${c.name} (${c.platform}) ROAS ${c.roas.toFixed(2)} olduğu için otomatik pause edildi. ${Number(c.spend).toFixed(0)} TL harcanmıştı.`,
+            url: `https://ai.luvihost.com/sites/${site.id}`,
+            meta: { roas: c.roas, spend: Number(c.spend) },
+          }).catch(() => {});
           actions++;
         }
 
@@ -227,6 +239,16 @@ Kampanyayi DRAFT statusunde kur (manual review icin), conversion tracking aktif 
             where: { id: c.id },
             data: { budgetAmount: newBudget },
           });
+          // Webhook bildirim — pozitif event
+          this.webhook.notify({
+            siteId: site.id,
+            siteName: site.name,
+            event: 'ai_citation_rise' as any,
+            title: '🚀 Kampanya Bütçesi Artırıldı',
+            message: `${c.name} mükemmel performans gösteriyor (CTR ${(c.ctr * 100).toFixed(1)}%, ROAS ${c.roas.toFixed(2)}x). Bütçe ${c.budgetAmount} → ${newBudget.toFixed(0)} TL.`,
+            url: `https://ai.luvihost.com/sites/${site.id}`,
+            meta: { ctr: c.ctr, roas: c.roas, oldBudget: Number(c.budgetAmount), newBudget },
+          }).catch(() => {});
           actions++;
         }
 

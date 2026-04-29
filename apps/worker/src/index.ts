@@ -33,6 +33,11 @@ import { AiIndexingPingerService } from '../../api/dist/audit/ai-indexing-pinger
 import { ContentPivotService } from '../../api/dist/articles/content-pivot.service.js';
 import { AiMentionAlarmService } from '../../api/dist/audit/ai-mention-alarm.service.js';
 import { CampaignOrchestratorService } from '../../api/dist/ads/campaign-orchestrator.service.js';
+import { PerformanceSyncService } from '../../api/dist/ads/performance-sync.service.js';
+import { AbTestManagerService } from '../../api/dist/ads/ab-test-manager.service.js';
+import { KeywordOptimizerService } from '../../api/dist/ads/keyword-optimizer.service.js';
+import { BudgetShifterService } from '../../api/dist/ads/budget-shifter.service.js';
+import { AutoBoostService } from '../../api/dist/ads/auto-boost.service.js';
 
 const log = new Logger('Worker');
 
@@ -58,6 +63,11 @@ async function bootstrap() {
     contentPivot: app.get(ContentPivotService),
     aiAlarm: app.get(AiMentionAlarmService),
     adsOrchestrator: app.get(CampaignOrchestratorService),
+    adsPerformance: app.get(PerformanceSyncService),
+    adsAbTest: app.get(AbTestManagerService),
+    adsKeyword: app.get(KeywordOptimizerService),
+    adsBudgetShift: app.get(BudgetShifterService),
+    adsAutoBoost: app.get(AutoBoostService),
     prisma: app.get(PrismaService),
   };
 
@@ -272,7 +282,14 @@ async function bootstrap() {
      * ADS_AUTOPILOT — 6 saat'te bir aktif kampanyalari ROAS'a gore optimize.
      */
     ADS_AUTOPILOT: async () => {
-      return services.adsOrchestrator.optimizeAutopilotCampaigns();
+      // Faz 11.1 — multi-step orchestration
+      const perf = await services.adsPerformance.syncAllActive();
+      const main = await services.adsOrchestrator.optimizeAutopilotCampaigns();
+      const ab = await services.adsAbTest.pickWinners();
+      const keyword = await services.adsKeyword.optimizeAllGoogleCampaigns();
+      const budget = await services.adsBudgetShift.shiftBudgets();
+      const boost = await services.adsAutoBoost.findAndBoost();
+      return { perf, main, ab, keyword, budget, boost };
     },
   };
 
