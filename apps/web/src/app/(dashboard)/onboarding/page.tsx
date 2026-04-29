@@ -204,7 +204,7 @@ function OnboardingInner() {
       await api.completeOnboarding(state.siteId);
       localStorage.removeItem(STORAGE_KEY);
       toast.success('Hazır! Site dashboard\'una yönlendiriliyorsun…');
-      router.push(`/sites/${state.siteId}?onboarding=done`);
+      router.push(`/sites/${state.siteId}?tab=flow&onboarding=done`);
     } catch (err: any) { toast.error(err.message); }
     finally { setLoading(false); }
   };
