@@ -1,5 +1,5 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
-import * as CryptoJS from 'crypto-js';
+import { createHmac } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AffiliateService } from '../affiliate/affiliate.service.js';
 import { EmailService } from '../email/email.service.js';
@@ -69,7 +69,7 @@ export class PaytrService {
     const currency = 'TL';
 
     const hashStr = `${this.merchantId}${opts.userIp}${merchantOid}${opts.userEmail}${paymentAmount}${userBasket}${noInstallment}${maxInstallment}${currency}${this.testMode}${this.merchantSalt}`;
-    const paytrToken = CryptoJS.HmacSHA256(hashStr, this.merchantKey).toString(CryptoJS.enc.Base64);
+    const paytrToken = createHmac('sha256', this.merchantKey).update(hashStr).digest('base64');
 
     const formData = new URLSearchParams({
       merchant_id: this.merchantId,
@@ -137,7 +137,7 @@ export class PaytrService {
     }
 
     const hashStr = `${merchant_oid}${this.merchantSalt}${status}${total_amount}`;
-    const expected = CryptoJS.HmacSHA256(hashStr, this.merchantKey).toString(CryptoJS.enc.Base64);
+    const expected = createHmac('sha256', this.merchantKey).update(hashStr).digest('base64');
 
     if (hash !== expected) {
       this.log.error(`[${merchant_oid}] Webhook hash mismatch — sahte istek?`);
