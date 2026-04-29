@@ -9,6 +9,7 @@ import { ArticleSchedulerService } from './article-scheduler.service.js';
 import { SchemaClassifierService } from './schema-classifier.service.js';
 import { ContentPivotService } from './content-pivot.service.js';
 import { MediaGeneratorService } from './media-generator.service.js';
+import { ProgrammaticSeoService } from './programmatic-seo.service.js';
 import { SocialModule } from '../social/social.module.js';
 import { AuditModule } from '../audit/audit.module.js';
 
@@ -34,6 +35,7 @@ import { AuditModule } from '../audit/audit.module.js';
     SchemaClassifierService,
     ContentPivotService,
     MediaGeneratorService,
+    ProgrammaticSeoService,
   ],
   exports: [
     ArticlesService,
@@ -45,6 +47,7 @@ import { AuditModule } from '../audit/audit.module.js';
     SchemaClassifierService,
     ContentPivotService,
     MediaGeneratorService,
+    ProgrammaticSeoService,
   ],
 })
 export class ArticlesModule {}

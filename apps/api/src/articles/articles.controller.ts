@@ -3,6 +3,7 @@ import type { Response } from 'express';
 import { ArticlesService } from './articles.service.js';
 import { ArticleSchedulerService } from './article-scheduler.service.js';
 import { MediaGeneratorService } from './media-generator.service.js';
+import { ProgrammaticSeoService } from './programmatic-seo.service.js';
 
 @Controller('sites/:siteId/articles')
 export class ArticlesController {
@@ -10,6 +11,7 @@ export class ArticlesController {
     private readonly articles: ArticlesService,
     private readonly scheduler: ArticleSchedulerService,
     private readonly media: MediaGeneratorService,
+    private readonly programmatic: ProgrammaticSeoService,
   ) {}
 
   @Get()
@@ -85,6 +87,15 @@ export class ArticlesController {
   @Post(':id/audio')
   generateAudio(@Param('id') id: string) {
     return this.media.generateAudio(id);
+  }
+
+  /** POST /sites/:siteId/articles/programmatic/cities — 81 il icin bulk schedule */
+  @Post('programmatic/cities')
+  programmaticCities(
+    @Param('siteId') siteId: string,
+    @Body() body: { template: string; cities?: string[]; spreadDays?: number; maxQuota?: number },
+  ) {
+    return this.programmatic.generateCityPages(siteId, body);
   }
 
   /** GET /sites/:siteId/articles/podcast.rss — podcast feed (Spotify/Apple Podcasts ready) */

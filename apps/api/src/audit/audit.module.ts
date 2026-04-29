@@ -22,6 +22,9 @@ import { TrackerController } from './tracker.controller.js';
 import { AiMentionAlarmService } from './ai-mention-alarm.service.js';
 import { GeoScoreCardService } from './geo-score-card.service.js';
 import { SchemaValidatorService } from './schema-validator.service.js';
+import { AiSitemapService } from './ai-sitemap.service.js';
+import { AuthorProfileService } from './author-profile.service.js';
+import { HaroParserService } from './haro-parser.service.js';
 import { EmailModule } from '../email/email.module.js';
 import { SnippetGeneratorService } from './snippet-generator.service.js';
 import { SnippetApplierService } from './snippet-applier.service.js';
@@ -53,6 +56,9 @@ import { SitesModule } from '../sites/sites.module.js';
     AiMentionAlarmService,
     GeoScoreCardService,
     SchemaValidatorService,
+    AiSitemapService,
+    AuthorProfileService,
+    HaroParserService,
     SnippetGeneratorService,
     SnippetApplierService,
     StaticHtmlFixerService,
@@ -75,6 +81,9 @@ import { SitesModule } from '../sites/sites.module.js';
     AiMentionAlarmService,
     GeoScoreCardService,
     SchemaValidatorService,
+    AiSitemapService,
+    AuthorProfileService,
+    HaroParserService,
     SnippetGeneratorService,
     SnippetApplierService,
     StaticHtmlFixerService,

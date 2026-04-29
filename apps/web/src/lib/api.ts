@@ -266,6 +266,26 @@ export const api = {
     return `${apiBase}/api/tracker.js?site=${siteId}`;
   },
 
+  getAiSitemapUrl: (siteId: string) => {
+    const apiBase = process.env.NEXT_PUBLIC_API_URL ?? '';
+    return `${apiBase}/api/sites/${siteId}/audit/sitemap-ai.xml`;
+  },
+
+  getAuthorProfile: (siteId: string, persona: string) =>
+    request<any>(`/sites/${siteId}/audit/author-profile?persona=${encodeURIComponent(persona)}`),
+
+  parseHaroDigest: (siteId: string, emailContent: string) =>
+    request<any[]>(`/sites/${siteId}/audit/haro/parse`, {
+      method: 'POST',
+      body: JSON.stringify({ emailContent }),
+    }),
+
+  generateProgrammaticCities: (siteId: string, payload: { template: string; cities?: string[]; spreadDays?: number; maxQuota?: number }) =>
+    request<any>(`/sites/${siteId}/articles/programmatic/cities`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+
   // Reports
   getReport: (siteId: string, range: 'week' | 'month' | 'year' = 'month') =>
     request<any>(`/sites/${siteId}/analytics/report?range=${range}`),

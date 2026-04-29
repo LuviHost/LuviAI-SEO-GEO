@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { Sparkles, Network, Globe, Check, X, AlertCircle, Copy, ExternalLink, Play, MessageSquare, Link2, Download, Code, Activity } from 'lucide-react';
+import { Sparkles, Network, Globe, Check, X, AlertCircle, Copy, ExternalLink, Play, MessageSquare, Link2, Download, Code, Activity, MapPin, Mail, User } from 'lucide-react';
 import { api } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -15,7 +15,7 @@ import { Badge } from '@/components/ui/badge';
  *  3. Wikipedia article draft
  */
 export function GeoLabPanel({ siteId }: { siteId: string }) {
-  const [tab, setTab] = useState<'heatmap' | 'wikidata' | 'wikipedia' | 'community' | 'cross-link' | 'training' | 'schema-validate' | 'tracker'>('heatmap');
+  const [tab, setTab] = useState<'heatmap' | 'wikidata' | 'wikipedia' | 'community' | 'cross-link' | 'training' | 'schema-validate' | 'tracker' | 'sitemap-ai' | 'haro' | 'programmatic'>('heatmap');
 
   return (
     <div className="rounded-lg border p-4 space-y-3">
@@ -38,6 +38,9 @@ export function GeoLabPanel({ siteId }: { siteId: string }) {
           ['training', 'Training Data', <Download key="t" className="h-3 w-3" />],
           ['schema-validate', 'Schema Doğrula', <Code key="sv" className="h-3 w-3" />],
           ['tracker', 'Bot Tracker', <Activity key="tr" className="h-3 w-3" />],
+          ['sitemap-ai', 'AI Sitemap', <Globe key="sa" className="h-3 w-3" />],
+          ['haro', 'HARO', <Mail key="ha" className="h-3 w-3" />],
+          ['programmatic', '81 İl', <MapPin key="pg" className="h-3 w-3" />],
         ] as const).map(([id, label, icon]) => (
           <button
             key={id}
@@ -59,6 +62,220 @@ export function GeoLabPanel({ siteId }: { siteId: string }) {
       {tab === 'training' && <TrainingDataTab siteId={siteId} />}
       {tab === 'schema-validate' && <SchemaValidateTab siteId={siteId} />}
       {tab === 'tracker' && <TrackerEmbedTab siteId={siteId} />}
+      {tab === 'sitemap-ai' && <AiSitemapTab siteId={siteId} />}
+      {tab === 'haro' && <HaroTab siteId={siteId} />}
+      {tab === 'programmatic' && <ProgrammaticTab siteId={siteId} />}
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────
+// AI Sitemap
+// ──────────────────────────────────────────────────────────────────
+function AiSitemapTab({ siteId }: { siteId: string }) {
+  const url = api.getAiSitemapUrl(siteId);
+  const robotsLine = `Sitemap: ${url}`;
+
+  return (
+    <div className="space-y-3">
+      <p className="text-xs text-muted-foreground">
+        Standart <code className="bg-muted px-1 rounded">sitemap.xml</code>'in yanına <strong>AI-optimize sitemap</strong> ekler. Custom <code className="bg-muted px-1 rounded">ai:summary</code> namespace ile her URL için 200 kelimelik AI özet, <code className="bg-muted px-1 rounded">ai:topics</code> ile AEO sorguları, editor skoruna göre priority. AI search engines bu sitemap'i okuyup içeriği daha hızlı öğrenir.
+      </p>
+
+      <div className="rounded-md border">
+        <div className="px-3 py-2 border-b bg-muted/30 flex items-center justify-between">
+          <p className="text-xs font-semibold">Sitemap URL</p>
+          <button
+            onClick={() => { navigator.clipboard.writeText(url); toast.success('Kopyalandı'); }}
+            className="text-xs text-brand hover:underline inline-flex items-center gap-1"
+          >
+            <Copy className="h-3 w-3" /> Kopyala
+          </button>
+        </div>
+        <pre className="p-3 text-[11px] font-mono whitespace-pre-wrap break-all">{url}</pre>
+      </div>
+
+      <div className="flex items-center gap-2">
+        <a href={url} target="_blank" rel="noopener" className="text-xs text-brand hover:underline inline-flex items-center gap-1">
+          Sitemap'i aç <ExternalLink className="h-3 w-3" />
+        </a>
+        <span className="text-xs text-muted-foreground">·</span>
+        <a href={`https://search.google.com/search-console/sitemaps?siteUrl=`} target="_blank" rel="noopener" className="text-xs text-brand hover:underline inline-flex items-center gap-1">
+          Google Search Console'a submit <ExternalLink className="h-3 w-3" />
+        </a>
+      </div>
+
+      <div className="rounded-md border bg-muted/20 p-3">
+        <p className="text-xs font-semibold mb-2">robots.txt'e ekleyin</p>
+        <pre className="text-[11px] font-mono">{robotsLine}</pre>
+      </div>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────
+// HARO Parser
+// ──────────────────────────────────────────────────────────────────
+function HaroTab({ siteId }: { siteId: string }) {
+  const [emailContent, setEmailContent] = useState('');
+  const [queries, setQueries] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const parse = async () => {
+    if (!emailContent.trim()) {
+      toast.error('HARO email içeriğini yapıştırın');
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await api.parseHaroDigest(siteId, emailContent);
+      setQueries(res);
+      toast.success(`${res.length} HARO sorusu bulundu`);
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      <p className="text-xs text-muted-foreground">
+        HARO (Help A Reporter Out) gazetecilerin sektör soruları için kaynak aradığı bir e-mail servisi. Aldığınız HARO digest'ini buraya yapıştırın — AI sektörle ilgili olanları bulur, marka tonunda <strong>taslak pitch</strong> hazırlar. Yanıtlanan her HARO = backlink + AI authority signal.
+      </p>
+
+      <textarea
+        value={emailContent}
+        onChange={(e) => setEmailContent(e.target.value)}
+        placeholder="HARO email içeriğini buraya yapıştırın..."
+        className="w-full min-h-[120px] px-3 py-2 border rounded text-xs font-mono bg-background"
+      />
+
+      <Button size="sm" onClick={parse} disabled={loading}>
+        {loading ? 'Parse ediliyor (~30s)…' : '📧 HARO Parse + Pitch Üret'}
+      </Button>
+
+      {queries.length > 0 && (
+        <div className="space-y-2">
+          {queries.map((q, i) => (
+            <div key={i} className="rounded-md border p-3 space-y-2">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-sm">{q.publication}</p>
+                  <p className="text-[11px] text-muted-foreground">{q.reporter} · {q.category} · Deadline: {q.deadline}</p>
+                </div>
+                <Badge variant={q.brandFitScore >= 70 ? 'default' : 'outline'}>{q.brandFitScore}/100</Badge>
+              </div>
+              <p className="text-xs italic">"{q.query.slice(0, 200)}…"</p>
+              <div className="rounded bg-muted/30 p-2 border-l-2 border-brand">
+                <p className="text-[10px] uppercase font-semibold text-muted-foreground mb-1">AI taslak pitch:</p>
+                <p className="text-xs whitespace-pre-wrap">{q.draftPitch}</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="outline" onClick={() => { navigator.clipboard.writeText(q.draftPitch); toast.success('Kopyalandı'); }}>
+                  <Copy className="h-3 w-3 mr-1" /> Kopyala
+                </Button>
+                {q.email && (
+                  <a href={`mailto:${q.email}?subject=HARO Response: ${encodeURIComponent(q.publication)}`} className="text-xs text-brand hover:underline inline-flex items-center gap-1">
+                    Gazeteciye yaz <ExternalLink className="h-3 w-3" />
+                  </a>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────
+// Programmatic SEO (81 İl)
+// ──────────────────────────────────────────────────────────────────
+function ProgrammaticTab({ siteId }: { siteId: string }) {
+  const [template, setTemplate] = useState('{location} için {niche} öneri rehberi');
+  const [spreadDays, setSpreadDays] = useState(30);
+  const [maxQuota, setMaxQuota] = useState(20);
+  const [result, setResult] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+
+  const generate = async () => {
+    if (!template.includes('{location}')) {
+      toast.error('Şablonda {location} yer tutucusu olmalı');
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await api.generateProgrammaticCities(siteId, { template, spreadDays, maxQuota });
+      setResult(res);
+      toast.success(`${res.scheduled} sehir takvime eklendi`);
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      <p className="text-xs text-muted-foreground">
+        Programmatic SEO: tek şablon, 81 il = 81 makale. <code className="bg-muted px-1 rounded">{'{location}'}</code> ve <code className="bg-muted px-1 rounded">{'{niche}'}</code> yer tutucuları desteklenir. Plan kotasına göre N şehir yayılır, takvime eklenir, otopilot ON ise sırayla üretilip yayınlanır.
+      </p>
+
+      <div className="space-y-2">
+        <label className="block">
+          <span className="text-xs font-medium">Şablon</span>
+          <input
+            value={template}
+            onChange={(e) => setTemplate(e.target.value)}
+            className="w-full mt-1 px-3 py-2 border rounded text-sm bg-background"
+            placeholder="{location} için shared hosting önerileri"
+          />
+        </label>
+
+        <div className="grid grid-cols-2 gap-2">
+          <label className="block">
+            <span className="text-xs font-medium">Yayılma süresi (gün)</span>
+            <input
+              type="number"
+              value={spreadDays}
+              onChange={(e) => setSpreadDays(parseInt(e.target.value, 10) || 30)}
+              className="w-full mt-1 px-3 py-2 border rounded text-sm bg-background"
+              min={1}
+              max={365}
+            />
+          </label>
+          <label className="block">
+            <span className="text-xs font-medium">Maks şehir (kotaya göre)</span>
+            <input
+              type="number"
+              value={maxQuota}
+              onChange={(e) => setMaxQuota(parseInt(e.target.value, 10) || 1)}
+              className="w-full mt-1 px-3 py-2 border rounded text-sm bg-background"
+              min={1}
+              max={81}
+            />
+          </label>
+        </div>
+      </div>
+
+      <Button size="sm" onClick={generate} disabled={loading}>
+        {loading ? 'Şehirler ekleniyor…' : `🗺️ ${maxQuota} Şehri Takvime Ekle`}
+      </Button>
+
+      {result && (
+        <div className="rounded-md border p-3 bg-green-500/5 space-y-2">
+          <p className="text-sm font-semibold">✓ {result.scheduled} şehir takvime eklendi</p>
+          <details>
+            <summary className="text-xs cursor-pointer text-muted-foreground">Eklenen başlıklar</summary>
+            <ul className="mt-2 space-y-0.5 text-[11px]">
+              {(result.topics ?? []).map((t: string, i: number) => (
+                <li key={i}>• {t}</li>
+              ))}
+            </ul>
+          </details>
+        </div>
+      )}
     </div>
   );
 }

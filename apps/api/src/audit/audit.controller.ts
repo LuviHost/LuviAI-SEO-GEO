@@ -16,6 +16,9 @@ import { CrawlerAnalyticsService } from './crawler-analytics.service.js';
 import { AiMentionAlarmService } from './ai-mention-alarm.service.js';
 import { GeoScoreCardService } from './geo-score-card.service.js';
 import { SchemaValidatorService } from './schema-validator.service.js';
+import { AiSitemapService } from './ai-sitemap.service.js';
+import { AuthorProfileService } from './author-profile.service.js';
+import { HaroParserService } from './haro-parser.service.js';
 import { SnippetGeneratorService } from './snippet-generator.service.js';
 import { SnippetApplierService } from './snippet-applier.service.js';
 import { StaticHtmlFixerService } from './static-html-fixer.service.js';
@@ -39,6 +42,9 @@ export class AuditController {
     private readonly alarm: AiMentionAlarmService,
     private readonly scoreCard: GeoScoreCardService,
     private readonly schemaValidator: SchemaValidatorService,
+    private readonly aiSitemap: AiSitemapService,
+    private readonly authorProfile: AuthorProfileService,
+    private readonly haro: HaroParserService,
     private readonly snippets: SnippetGeneratorService,
     private readonly applier: SnippetApplierService,
     private readonly staticFixer: StaticHtmlFixerService,
@@ -199,6 +205,27 @@ export class AuditController {
   @Post('schema-validate')
   validateSchema(@Param('siteId') siteId: string, @Body() body: { url: string }) {
     return this.schemaValidator.validate(body.url);
+  }
+
+  /** GET /sites/:siteId/audit/sitemap-ai.xml — AI optimize sitemap */
+  @Get('sitemap-ai.xml')
+  @Header('Content-Type', 'application/xml; charset=utf-8')
+  async aiSitemapXml(@Param('siteId') siteId: string, @Res() res: Response) {
+    const result = await this.aiSitemap.build(siteId);
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.send(result.xml);
+  }
+
+  /** GET /sites/:siteId/audit/author-profile?persona=Mert */
+  @Get('author-profile')
+  authorProfileGet(@Param('siteId') siteId: string, @Query('persona') persona: string) {
+    return this.authorProfile.buildForPersona(siteId, persona ?? 'Yazar');
+  }
+
+  /** POST /sites/:siteId/audit/haro/parse — HARO email digest parse + draft pitch */
+  @Post('haro/parse')
+  haroParse(@Param('siteId') siteId: string, @Body() body: { emailContent: string }) {
+    return this.haro.parseDigest(siteId, body.emailContent);
   }
 
   @Get('snippets')

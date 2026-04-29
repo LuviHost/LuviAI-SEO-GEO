@@ -62,7 +62,7 @@ export class SchemaClassifierService {
    */
   async classify(markdown: string, hints: { hasFaqs?: boolean; persona?: string; pillar?: string } = {}): Promise<ClassificationResult> {
     // Heuristic: AI cagrilmadan bazi tipleri kesin koy
-    const primary = new Set<SchemaType>(['Article', 'BlogPosting', 'BreadcrumbList', 'Speakable']);
+    const primary = new Set<SchemaType>(['Article', 'BlogPosting', 'BreadcrumbList', 'Speakable', 'WebSite', 'Organization']);
 
     const md = (markdown ?? '').slice(0, 6000);
     const lower = md.toLowerCase();
@@ -308,6 +308,24 @@ export class SchemaClassifierService {
         url: baseUrl,
         ...(s.logo ? { logo: s.logo } : {}),
         ...(s.sameAs && s.sameAs.length > 0 ? { sameAs: s.sameAs } : {}),
+      });
+    }
+
+    // WebSite + SearchAction — AI'in "burada nasıl ararim" sorusuna cevap
+    if (args.types.includes('WebSite')) {
+      schemas.push({
+        '@context': 'https://schema.org',
+        '@type': 'WebSite',
+        name: s.name,
+        url: baseUrl,
+        potentialAction: {
+          '@type': 'SearchAction',
+          target: {
+            '@type': 'EntryPoint',
+            urlTemplate: `${baseUrl}/?s={search_term_string}`,
+          },
+          'query-input': 'required name=search_term_string',
+        },
       });
     }
 
