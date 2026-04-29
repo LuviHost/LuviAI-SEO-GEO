@@ -787,22 +787,7 @@ model EmailLog {
   @@map("email_logs")
 }
 
-// API Token kullanımı (Faz 3 — public API için)
-model ApiKey {
-  id          String   @id @default(cuid())
-  userId      String
-  name        String
-  hashedKey   String   @unique
-  prefix      String                              // luvi_live_abc123...
-  scopes      Json                                // ["articles:write", "topics:read"]
-  lastUsedAt  DateTime?
-  expiresAt   DateTime?
-  createdAt   DateTime @default(now())
-  revokedAt   DateTime?
-
-  @@index([userId])
-  @@map("api_keys")
-}
+// (Eski Faz 3 ApiKey placeholder modeli kaldirildi — Sprint C'de yukaridaki ApiKey modeli kullaniliyor)
 
 // ─────────────────────────────────────────────────────────────────
 // Sosyal Medya — kanal + post + recurring slot
