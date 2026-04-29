@@ -199,6 +199,13 @@ model Site {
   autoGenerationCron    String? // "0 9 * * 1"  (Pazartesi 09:00)
   autoGenerationCount   Int     @default(5)
 
+  // Sprint Onboarding — Hibrit yayin akisi
+  publishApprovalMode    String  @default("manual_approve") // manual_approve | auto_publish
+  autoGenerationFrequency String @default("weekly")          // daily | three_per_week | weekly
+  autoGenerationHour      Int    @default(9)                  // 0-23 (yerel TR saati)
+  onboardingStep          Int    @default(1)                  // 1-6 (kaldigi yer)
+  onboardingCompletedAt   DateTime?
+
   // Otopilot — varsayilan AÇIK, tum akisi otomatik yapar
   autopilot         Boolean @default(true)
   // Platform tahmini (auto-detect): wordpress | webflow | wix | ghost | shopify | cpanel-static | unknown

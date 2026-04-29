@@ -27,4 +27,11 @@ export class UpdateSiteDto {
   @IsOptional() autoGenerationEnabled?: boolean;
   @IsOptional() autoGenerationCron?: string;
   @IsOptional() autoGenerationCount?: number;
+
+  // Sprint Onboarding
+  @IsOptional() @IsString() publishApprovalMode?: string;       // manual_approve | auto_publish
+  @IsOptional() @IsString() autoGenerationFrequency?: string;   // daily | three_per_week | weekly
+  @IsOptional() autoGenerationHour?: number;                    // 0-23
+  @IsOptional() onboardingStep?: number;                        // 1-6
+  @IsOptional() autopilot?: boolean;
 }

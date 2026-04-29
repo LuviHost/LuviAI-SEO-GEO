@@ -91,6 +91,48 @@ export class SitesService {
     return this.prisma.site.delete({ where: { id } });
   }
 
+  // ──────────────────────────────────────────────────────────
+  //  Sprint Onboarding — wizard helpers
+  // ──────────────────────────────────────────────────────────
+
+  /**
+   * Frequency stringini cron expression'a cevir.
+   * - daily          → '0 H * * *'           (her gun saat H)
+   * - three_per_week → '0 H * * 1,3,5'       (Pzt/Çrş/Cum saat H)
+   * - weekly         → '0 H * * 1'           (Pzt saat H)
+   */
+  private frequencyToCron(frequency: string, hour: number): string {
+    const h = Math.max(0, Math.min(23, hour | 0));
+    switch (frequency) {
+      case 'daily':          return `0 ${h} * * *`;
+      case 'three_per_week': return `0 ${h} * * 1,3,5`;
+      case 'weekly':
+      default:               return `0 ${h} * * 1`;
+    }
+  }
+
+  /** Onboarding wizard'ı tamamla (son adım 'Kaydet' butonu) */
+  async completeOnboarding(siteId: string, user: RequestingUser) {
+    const site = await this.assertOwnership(siteId, user);
+
+    // autoGenerationCron'u frequency + hour'dan turetsin
+    const cron = this.frequencyToCron(
+      (site as any).autoGenerationFrequency ?? 'weekly',
+      (site as any).autoGenerationHour ?? 9,
+    );
+
+    return this.prisma.site.update({
+      where: { id: siteId },
+      data: {
+        onboardingStep: 6,
+        onboardingCompletedAt: new Date(),
+        autoGenerationEnabled: true,
+        autoGenerationCron: cron,
+        status: 'ACTIVE' as any,
+      },
+    });
+  }
+
   async regenerateBrain(siteId: string, user: RequestingUser) {
     const site = await this.assertOwnership(siteId, user);
     return this.jobQueue.enqueue({

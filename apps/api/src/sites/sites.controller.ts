@@ -147,6 +147,12 @@ export class SitesController {
     });
   }
 
+  /** POST /sites/:id/complete-onboarding — wizard sonu. Site ACTIVE, cron olusturulur. */
+  @Post(':id/complete-onboarding')
+  async completeOnboarding(@Req() req: Request, @Param('id') id: string) {
+    return this.sites.completeOnboarding(id, ensureUser(req));
+  }
+
   /** PATCH /sites/:id/webhook body { url, kind } */
   @Patch(':id/webhook')
   async setWebhook(

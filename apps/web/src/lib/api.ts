@@ -93,6 +93,13 @@ export const api = {
   createSite: (body: { url: string; name: string; niche?: string; language?: string }) =>
     request<any>('/sites', { method: 'POST', body: JSON.stringify(body) }),
 
+  // Sprint Onboarding
+  updateSite: (id: string, body: any) =>
+    request<any>(`/sites/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+
+  completeOnboarding: (siteId: string) =>
+    request<any>(`/sites/${siteId}/complete-onboarding`, { method: 'POST' }),
+
   regenerateBrain: (siteId: string) =>
     request<any>(`/sites/${siteId}/brain/regenerate`, { method: 'POST' }),
 
