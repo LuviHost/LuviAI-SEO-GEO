@@ -121,13 +121,17 @@ export class SitesService {
       (site as any).autoGenerationHour ?? 9,
     );
 
+    // Yayin hedefi var mi kontrol et — yoksa autopilot'u kapat (uretsek de yayinlayamayiz)
+    const targetCount = await this.prisma.publishTarget.count({ where: { siteId } });
+
     return this.prisma.site.update({
       where: { id: siteId },
       data: {
-        onboardingStep: 6,
+        onboardingStep: 7,
         onboardingCompletedAt: new Date(),
-        autoGenerationEnabled: true,
+        autoGenerationEnabled: targetCount > 0,
         autoGenerationCron: cron,
+        autopilot: targetCount > 0, // yayın hedefi yoksa otopilot baslamasin
         status: 'ACTIVE' as any,
       },
     });

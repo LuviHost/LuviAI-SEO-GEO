@@ -23,11 +23,12 @@ import { AdsLabPanel } from '@/components/ads-lab-panel';
  * 4 kart + son aktivite ozeti gormesi icin. Detaylar 'Detayli Akis' sekmesinde.
  */
 export function SiteOverviewDashboard({
-  site, audit, articles, onRefresh,
+  site, audit, articles, publishTargets, onRefresh,
 }: {
   site: any;
   audit: any;
   articles: any[];
+  publishTargets?: any[];
   onRefresh: () => void;
 }) {
   const [autopilotBusy, setAutopilotBusy] = useState(false);
@@ -64,7 +65,7 @@ export function SiteOverviewDashboard({
   return (
     <div className="space-y-5">
       {/* Sprint 6 — Saglik / hata banner */}
-      <HealthBanner site={site} audit={audit} articles={articles} />
+      <HealthBanner site={site} audit={audit} articles={articles} publishTargets={publishTargets ?? []} />
 
       {/* Otopilot bandi */}
       <div className={`rounded-xl border-2 p-4 transition-colors ${
@@ -88,7 +89,9 @@ export function SiteOverviewDashboard({
               </p>
               <p className="text-xs text-muted-foreground mt-1 max-w-xl">
                 {autopilot
-                  ? 'LuviAI senin için audit, takvim, üretim, yayın ve sosyal post — hepsini otomatik yönetiyor. Detayları görmek için "Detaylı Akış" sekmesine geç.'
+                  ? (site?.publishApprovalMode === 'manual_approve'
+                      ? 'LuviAI audit + takvim + üretim akışını yönetiyor. Yazılar tamamlandığında yayınlamadan önce ONAYINA gelecek (manuel onay modu seçili).'
+                      : 'LuviAI senin için audit, takvim, üretim, yayın ve sosyal post — hepsini otomatik yönetiyor. Detayları görmek için "Detaylı Akış" sekmesine geç.')
                   : 'Manuel modda. Her makale için kendin onay/üretim/yayın yapacaksın. Otomatik akışı açmak istersen sağdaki butona tıkla.'}
               </p>
             </div>
@@ -432,11 +435,11 @@ function NextActionWidget({ site, audit, articles, onRefresh }: {
 // ──────────────────────────────────────────────────────────────────────
 // HEALTH BANNER — Sprint 6 (kritik hatalari gosterir)
 // ──────────────────────────────────────────────────────────────────────
-function HealthBanner({ site, audit, articles }: { site: any; audit: any; articles: any[] }) {
+function HealthBanner({ site, audit, articles, publishTargets }: { site: any; audit: any; articles: any[]; publishTargets: any[] }) {
   const issues: { kind: 'error' | 'warning'; title: string; desc: string; cta?: { label: string; href: string } }[] = [];
 
   // 1) Yayin hedefi yok mu?
-  const hasPublishTarget = audit?.publishTargetCount > 0 || (site as any)?.publishTargets?.length > 0;
+  const hasPublishTarget = (publishTargets?.length ?? 0) > 0;
   if (!hasPublishTarget && site?.onboardingCompletedAt) {
     issues.push({
       kind: 'error',

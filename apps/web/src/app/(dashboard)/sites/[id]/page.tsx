@@ -27,22 +27,25 @@ export default function SitePage() {
   const [audit, setAudit] = useState<any>(null);
   const [queue, setQueue] = useState<any>(null);
   const [articles, setArticles] = useState<any[]>([]);
+  const [publishTargets, setPublishTargets] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   const id = params.id as string;
 
   const refresh = async () => {
     try {
-      const [s, a, q, ar] = await Promise.all([
+      const [s, a, q, ar, pt] = await Promise.all([
         api.getSite(id),
         api.getLatestAudit(id).catch(() => null),
         api.getTopicQueue(id).catch(() => null),
         api.listArticles(id).catch(() => []),
+        api.listPublishTargets(id).catch(() => []),
       ]);
       setSite(s);
       setAudit(a);
       setQueue(q);
       setArticles(ar);
+      setPublishTargets(pt ?? []);
     } finally {
       setLoading(false);
     }
@@ -123,6 +126,7 @@ export default function SitePage() {
           site={site}
           audit={audit}
           articles={articles}
+          publishTargets={publishTargets}
           onRefresh={refresh}
         />
       )}
