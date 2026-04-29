@@ -106,8 +106,18 @@ function OnboardingInner() {
     if (!hydrated) return;
     const sid = params.get('siteId');
     const sp = params.get('step');
+    const upgraded = params.get('upgraded');
     if (sid && sid !== state.siteId) setState((s) => ({ ...s, siteId: sid }));
     if (sp) setState((s) => ({ ...s, step: Math.max(1, Math.min(7, parseInt(sp, 10) || 1)) }));
+    if (upgraded === '1') {
+      toast.success('Plan yükseltildi! Yeni hakların aktif.');
+      // URL'den parametreyi temizle
+      try {
+        const url = new URL(window.location.href);
+        url.searchParams.delete('upgraded');
+        window.history.replaceState({}, '', url.toString());
+      } catch (_e) { /* noop */ }
+    }
   }, [hydrated, params]);
 
   const update = (patch: Partial<LocalState>) => setState((s) => ({ ...s, ...patch }));
