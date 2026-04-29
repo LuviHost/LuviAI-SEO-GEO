@@ -31,6 +31,7 @@ import { LlmsFullBuilderService } from '../../api/dist/audit/llms-full-builder.s
 import { AiCitationTrackerService } from '../../api/dist/audit/ai-citation-tracker.service.js';
 import { AiIndexingPingerService } from '../../api/dist/audit/ai-indexing-pinger.service.js';
 import { ContentPivotService } from '../../api/dist/articles/content-pivot.service.js';
+import { AiMentionAlarmService } from '../../api/dist/audit/ai-mention-alarm.service.js';
 
 const log = new Logger('Worker');
 
@@ -54,6 +55,7 @@ async function bootstrap() {
     citationTracker: app.get(AiCitationTrackerService),
     indexingPinger: app.get(AiIndexingPingerService),
     contentPivot: app.get(ContentPivotService),
+    aiAlarm: app.get(AiMentionAlarmService),
     prisma: app.get(PrismaService),
   };
 
@@ -256,6 +258,13 @@ async function bootstrap() {
     CONTENT_PIVOT_CHECK: async () => {
       return services.contentPivot.scanAllSites();
     },
+
+    /**
+     * AI_MENTION_ALARM — gunluk citation drop tespit + email bildirim.
+     */
+    AI_MENTION_ALARM: async () => {
+      return services.aiAlarm.scanAndAlert();
+    },
   };
 
   const worker = new Worker(
@@ -364,7 +373,19 @@ async function bootstrap() {
       },
     );
 
-    log.log('⏰ Cron: PROCESS_SCHEDULED 30dk · LLMS_FULL_BUILD haftalik · AI_CITATION_DAILY gunluk · CONTENT_PIVOT_CHECK haftalik');
+    // 5) AI_MENTION_ALARM — gunluk 05:00 UTC (citation snapshot'tan 1 saat sonra)
+    await queue.add(
+      'AI_MENTION_ALARM',
+      { trigger: 'cron' },
+      {
+        repeat: { pattern: '0 5 * * *', tz: 'UTC' },
+        jobId: 'cron:ai-mention-alarm',
+        removeOnComplete: { count: 30 },
+        removeOnFail: { count: 20 },
+      },
+    );
+
+    log.log('⏰ Cron: PROCESS_SCHEDULED 30dk · LLMS_FULL_BUILD haftalik · AI_CITATION_DAILY gunluk · CONTENT_PIVOT_CHECK haftalik · AI_MENTION_ALARM gunluk');
   } catch (err: any) {
     log.warn(`Cron kurulumu basarisiz: ${err.message}`);
   }

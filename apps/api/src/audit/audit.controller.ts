@@ -12,6 +12,9 @@ import { KnowledgeSubmitterService } from './knowledge-submitter.service.js';
 import { CommunityOutreachService } from './community-outreach.service.js';
 import { CrossLinkingService } from './cross-linking.service.js';
 import { TrainingDataExporterService } from './training-data-exporter.service.js';
+import { CrawlerAnalyticsService } from './crawler-analytics.service.js';
+import { AiMentionAlarmService } from './ai-mention-alarm.service.js';
+import { GeoScoreCardService } from './geo-score-card.service.js';
 import { SnippetGeneratorService } from './snippet-generator.service.js';
 import { SnippetApplierService } from './snippet-applier.service.js';
 import { StaticHtmlFixerService } from './static-html-fixer.service.js';
@@ -31,6 +34,9 @@ export class AuditController {
     private readonly outreach: CommunityOutreachService,
     private readonly crossLink: CrossLinkingService,
     private readonly trainingExport: TrainingDataExporterService,
+    private readonly crawler: CrawlerAnalyticsService,
+    private readonly alarm: AiMentionAlarmService,
+    private readonly scoreCard: GeoScoreCardService,
     private readonly snippets: SnippetGeneratorService,
     private readonly applier: SnippetApplierService,
     private readonly staticFixer: StaticHtmlFixerService,
@@ -161,6 +167,30 @@ export class AuditController {
     const result = await this.trainingExport.exportSite(siteId);
     res.setHeader('Content-Disposition', `attachment; filename="${siteId.slice(0, 8)}-training-${result.records}r.jsonl"`);
     res.send(result.jsonl);
+  }
+
+  /** POST /sites/:siteId/audit/crawler/ingest — Apache log parse + DB save */
+  @Post('crawler/ingest')
+  ingestCrawlerLog(@Param('siteId') siteId: string, @Body() body: { logContent: string }) {
+    return this.crawler.ingestLog(siteId, body.logContent);
+  }
+
+  /** GET /sites/:siteId/audit/crawler/history?days=30 — bot trafigi tarihcesi */
+  @Get('crawler/history')
+  crawlerHistory(@Param('siteId') siteId: string, @Query('days') days?: string) {
+    return this.crawler.getHistory(siteId, days ? parseInt(days, 10) : 30);
+  }
+
+  /** POST /audit/alarm/scan — admin: tum sitelerde alarm tarama (cron disinda manuel) */
+  @Post('alarm/scan')
+  alarmScan() {
+    return this.alarm.scanAndAlert();
+  }
+
+  /** GET /sites/:siteId/audit/score-card — kapsamli GEO saglik skoru */
+  @Get('score-card')
+  scoreCardGet(@Param('siteId') siteId: string) {
+    return this.scoreCard.build(siteId);
   }
 
   @Get('snippets')

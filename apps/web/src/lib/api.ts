@@ -243,6 +243,18 @@ export const api = {
     return `${apiBase}/api/sites/${siteId}/audit/training-data.jsonl`;
   },
 
+  ingestCrawlerLog: (siteId: string, logContent: string) =>
+    request<any>(`/sites/${siteId}/audit/crawler/ingest`, {
+      method: 'POST',
+      body: JSON.stringify({ logContent }),
+    }),
+
+  getCrawlerHistory: (siteId: string, days = 30) =>
+    request<any>(`/sites/${siteId}/audit/crawler/history?days=${days}`),
+
+  getGeoScoreCard: (siteId: string) =>
+    request<any>(`/sites/${siteId}/audit/score-card`),
+
   // Reports
   getReport: (siteId: string, range: 'week' | 'month' | 'year' = 'month') =>
     request<any>(`/sites/${siteId}/analytics/report?range=${range}`),

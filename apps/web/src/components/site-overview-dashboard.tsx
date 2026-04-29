@@ -12,6 +12,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { CitationHistoryChart } from '@/components/citation-history-chart';
 import { GeoLabPanel } from '@/components/geo-lab-panel';
+import { GeoScoreCard } from '@/components/geo-score-card';
+import { CrawlerHitsPanel } from '@/components/crawler-hits-panel';
 
 /**
  * Site detay sayfasinin VARSAYILAN gorunumu — kisanin tum panelin onunde
@@ -129,10 +131,16 @@ export function SiteOverviewDashboard({
         />
       </div>
 
+      {/* GEO Score Card — kapsamli saglik skoru */}
+      <GeoScoreCard siteId={site.id} />
+
       {/* AI Görünürlük Trendi (otomatik gunluk takip) */}
       <CitationHistoryChart siteId={site.id} />
 
-      {/* GEO Lab — Heatmap + Wikidata + Wikipedia */}
+      {/* AI Crawler Trafigi (sunucu log analitigi) */}
+      <CrawlerHitsPanel siteId={site.id} />
+
+      {/* GEO Lab — Heatmap + Wikidata + Wikipedia + Reddit + Cross-Link + Training */}
       <GeoLabPanel siteId={site.id} />
 
       {/* Sirada Yayinlanacaklar */}

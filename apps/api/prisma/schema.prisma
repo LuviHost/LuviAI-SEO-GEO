@@ -456,6 +456,32 @@ model AiCitationSnapshot {
 }
 
 // ═══════════════════════════════════════════════════════════════
+//  AI CRAWLER HITS — Sunucu loglarindan bot trafigi
+// ═══════════════════════════════════════════════════════════════
+
+model AiCrawlerHit {
+  id          String   @id @default(cuid())
+  siteId      String
+
+  date        DateTime @db.Date
+  bot         String   // GPTBot | ClaudeBot | PerplexityBot | Google-Extended | ...
+  hits        Int      @default(0)         // gunluk istek sayisi
+  uniqueUrls  Int      @default(0)         // farkli URL sayisi
+  topUrls     Json     // [{ url, count }] top 10
+  status2xx   Int      @default(0)         // basarili istek
+  status4xx   Int      @default(0)         // hatali istek
+  status5xx   Int      @default(0)
+  bytesServed Int      @default(0)
+
+  createdAt   DateTime @default(now())
+
+  @@unique([siteId, date, bot])
+  @@index([siteId, date])
+  @@index([siteId, bot, date])
+  @@map("ai_crawler_hits")
+}
+
+// ═══════════════════════════════════════════════════════════════
 //  JOBS (BullMQ — async work)
 // ═══════════════════════════════════════════════════════════════
 
@@ -505,6 +531,7 @@ enum JobType {
   LLMS_FULL_BUILD     // tum site icerigini llms-full.txt'e konsolide et (haftalik)
   AI_CITATION_DAILY   // gunluk Claude/Gemini/OpenAI/Perplexity gorunurluk testi
   CONTENT_PIVOT_CHECK // 30 gun sonra dusuk performans tespit + revize tetikle (haftalik)
+  AI_MENTION_ALARM    // gunluk: AI citation drop tespit + email
 }
 
 enum JobStatus {

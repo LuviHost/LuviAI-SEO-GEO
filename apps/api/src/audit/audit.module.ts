@@ -16,13 +16,17 @@ import { KnowledgeSubmitterService } from './knowledge-submitter.service.js';
 import { CommunityOutreachService } from './community-outreach.service.js';
 import { CrossLinkingService } from './cross-linking.service.js';
 import { TrainingDataExporterService } from './training-data-exporter.service.js';
+import { CrawlerAnalyticsService } from './crawler-analytics.service.js';
+import { AiMentionAlarmService } from './ai-mention-alarm.service.js';
+import { GeoScoreCardService } from './geo-score-card.service.js';
+import { EmailModule } from '../email/email.module.js';
 import { SnippetGeneratorService } from './snippet-generator.service.js';
 import { SnippetApplierService } from './snippet-applier.service.js';
 import { StaticHtmlFixerService } from './static-html-fixer.service.js';
 import { SitesModule } from '../sites/sites.module.js';
 
 @Module({
-  imports: [SitesModule],
+  imports: [SitesModule, EmailModule],
   controllers: [AuditController],
   providers: [
     AuditService,
@@ -41,6 +45,9 @@ import { SitesModule } from '../sites/sites.module.js';
     CommunityOutreachService,
     CrossLinkingService,
     TrainingDataExporterService,
+    CrawlerAnalyticsService,
+    AiMentionAlarmService,
+    GeoScoreCardService,
     SnippetGeneratorService,
     SnippetApplierService,
     StaticHtmlFixerService,
@@ -59,6 +66,9 @@ import { SitesModule } from '../sites/sites.module.js';
     CommunityOutreachService,
     CrossLinkingService,
     TrainingDataExporterService,
+    CrawlerAnalyticsService,
+    AiMentionAlarmService,
+    GeoScoreCardService,
     SnippetGeneratorService,
     SnippetApplierService,
     StaticHtmlFixerService,
