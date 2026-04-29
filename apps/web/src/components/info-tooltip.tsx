@@ -82,7 +82,7 @@ export function InfoTooltip({
 
       {open && (
         <div
-          className={`absolute z-50 w-64 max-w-[calc(100vw-2rem)] rounded-lg border bg-popover text-popover-foreground shadow-lg p-3 text-xs leading-relaxed ${sidePos[side]} pointer-events-auto`}
+          className={`absolute z-50 w-64 max-w-[calc(100vw-2rem)] rounded-lg border bg-card text-card-foreground shadow-lg p-3 text-xs leading-relaxed ${sidePos[side]} pointer-events-auto`}
           onMouseEnter={() => setOpen(true)}
           onMouseLeave={() => {
             if (!('ontouchstart' in window)) setOpen(false);
@@ -102,7 +102,7 @@ export function InfoTooltip({
           )}
           {/* Pointer arrow */}
           <div
-            className={`absolute h-2 w-2 bg-popover border-l border-t rotate-45 ${
+            className={`absolute h-2 w-2 bg-card border-l border-t rotate-45 ${
               side === 'top' ? 'bottom-[-5px] left-1/2 -translate-x-1/2' :
               side === 'bottom' ? 'top-[-5px] left-1/2 -translate-x-1/2' :
               side === 'left' ? 'right-[-5px] top-1/2 -translate-y-1/2' :
