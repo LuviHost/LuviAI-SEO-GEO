@@ -1,54 +1,48 @@
-# Dependencies
-node_modules/
-.pnpm-store/
 
-# Build outputs
-dist/
+*~
+*.bak-*
+*.bak.*
 build/
-.next/
-out/
-*.tsbuildinfo
-
-# Environment
-.env
-.env.local
-.env.*.local
-!.env.example
-
-# Prisma
+# Build outputs
+.cache/
+coverage/
 *.db
 *.db-journal
-
-# Logs
-logs/
-*.log
-npm-debug.log*
-pnpm-debug.log*
-
-# Testing
-coverage/
-.nyc_output/
-
-# Editor
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
+# Dependencies
+dist/
 .DS_Store
-
-# OS
-Thumbs.db
+# Editor
 ehthumbs.db
-
-# Storage (local dev)
-storage/
-uploads/
-
-# Temporary
-tmp/
-temp/
-.cache/
-
+.env
+.env.backup-*
+!.env.example
+# Environment
+.env.*.local
+.env.local
+.idea/
+*.log
+logs/
+# Logs
+.next/
+node_modules/
+npm-debug.log*
+.nyc_output/
+# OS
+out/
+pnpm-debug.log*
+.pnpm-store/
+# Prisma
 # Sentry
 .sentryclirc
+storage/
+# Storage (local dev)
+*.swo
+*.swp
+temp/
+# Temporary
+# Testing
+Thumbs.db
+tmp/
+*.tsbuildinfo
+uploads/
+.vscode/

@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import Anthropic from '@anthropic-ai/sdk';
+import { safeParseJson } from '../common/safe-json.js';
 
 export type SchemaType =
   | 'Article'
@@ -117,7 +118,7 @@ export class SchemaClassifierService {
           .join('');
         const match = text.match(/\{[\s\S]*\}/);
         if (match) {
-          const parsed = JSON.parse(match[0]);
+          const parsed = safeParseJson(match[0]);
           for (const t of (parsed.add ?? []) as string[]) primary.add(t as SchemaType);
           for (const t of (parsed.remove ?? []) as string[]) primary.delete(t as SchemaType);
           reasoning = parsed.reason ?? 'ai-refined';

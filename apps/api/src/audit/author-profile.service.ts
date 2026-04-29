@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import Anthropic from '@anthropic-ai/sdk';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { safeParseJson } from '../common/safe-json.js';
 
 export interface AuthorProfile {
   name: string;
@@ -64,7 +65,7 @@ export class AuthorProfileService {
         const text = resp.content.filter((b: any) => b.type === 'text').map((b: any) => b.text).join('');
         const match = text.match(/\{[\s\S]*\}/);
         if (match) {
-          const parsed = JSON.parse(match[0]);
+          const parsed = safeParseJson(match[0]);
           bio = parsed.bio ?? bio;
           expertise = parsed.expertise ?? expertise;
           years = parsed.years ?? years;

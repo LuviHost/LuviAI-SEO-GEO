@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import Anthropic from '@anthropic-ai/sdk';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { safeParseJson } from '../common/safe-json.js';
 
 export interface SnippetOptimization {
   articleId: string;
@@ -53,7 +54,7 @@ export class SnippetOptimizerService {
     const text = resp.content.filter((b: any) => b.type === 'text').map((b: any) => b.text).join('');
     const match = text.match(/\{[\s\S]*\}/);
     if (!match) throw new Error('JSON parse fail');
-    const parsed = JSON.parse(match[0]);
+    const parsed = safeParseJson(match[0]);
 
     return {
       articleId,

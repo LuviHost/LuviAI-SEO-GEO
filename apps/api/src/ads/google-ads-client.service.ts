@@ -76,7 +76,7 @@ export class GoogleAdsClientService {
       headers['login-customer-id'] = process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID;
     }
 
-    const res = await fetch(`https://googleads.googleapis.com/v18/customers/${customerId}/googleAds:search`, {
+    const res = await fetch(`https://googleads.googleapis.com/v21/customers/${customerId}/googleAds:search`, {
       method: 'POST',
       headers,
       body: JSON.stringify({ query: gaqlQuery }),
@@ -159,7 +159,7 @@ export class GoogleAdsClientService {
     }));
 
     try {
-      const res = await fetch(`https://googleads.googleapis.com/v18/customers/${customerId}/campaignCriteria:mutate`, {
+      const res = await fetch(`https://googleads.googleapis.com/v21/customers/${customerId}/campaignCriteria:mutate`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${accessToken}`,
@@ -186,7 +186,7 @@ export class GoogleAdsClientService {
     const customerId = (site.googleAdsCustomerId ?? '').replace(/-/g, '');
 
     try {
-      const res = await fetch(`https://googleads.googleapis.com/v18/customers/${customerId}/campaigns:mutate`, {
+      const res = await fetch(`https://googleads.googleapis.com/v21/customers/${customerId}/campaigns:mutate`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${accessToken}`,
@@ -227,7 +227,7 @@ export class GoogleAdsClientService {
 
       // 2. budget'u guncelle (micros)
       const micros = Math.round(dailyBudgetTRY * 1_000_000);
-      const res = await fetch(`https://googleads.googleapis.com/v18/customers/${customerId}/campaignBudgets:mutate`, {
+      const res = await fetch(`https://googleads.googleapis.com/v21/customers/${customerId}/campaignBudgets:mutate`, {
         method: 'POST',
         headers: this.headers(accessToken),
         body: JSON.stringify({
@@ -277,7 +277,7 @@ export class GoogleAdsClientService {
     try {
       // 1) Budget
       const budgetMicros = Math.round(payload.dailyBudgetTRY * 1_000_000);
-      const budgetRes = await fetch(`https://googleads.googleapis.com/v18/customers/${customerId}/campaignBudgets:mutate`, {
+      const budgetRes = await fetch(`https://googleads.googleapis.com/v21/customers/${customerId}/campaignBudgets:mutate`, {
         method: 'POST', headers,
         body: JSON.stringify({
           operations: [{
@@ -294,7 +294,7 @@ export class GoogleAdsClientService {
       const budgetResourceName = budgetData.results[0].resourceName;
 
       // 2) Campaign
-      const campaignRes = await fetch(`https://googleads.googleapis.com/v18/customers/${customerId}/campaigns:mutate`, {
+      const campaignRes = await fetch(`https://googleads.googleapis.com/v21/customers/${customerId}/campaigns:mutate`, {
         method: 'POST', headers,
         body: JSON.stringify({
           operations: [{
@@ -320,7 +320,7 @@ export class GoogleAdsClientService {
       const campaignId = campaignResourceName.split('/').pop()!;
 
       // 3) Ad group
-      const adGroupRes = await fetch(`https://googleads.googleapis.com/v18/customers/${customerId}/adGroups:mutate`, {
+      const adGroupRes = await fetch(`https://googleads.googleapis.com/v21/customers/${customerId}/adGroups:mutate`, {
         method: 'POST', headers,
         body: JSON.stringify({
           operations: [{
@@ -344,7 +344,7 @@ export class GoogleAdsClientService {
       while (headlineAssets.length < 3) headlineAssets.push({ text: payload.name.slice(0, 30) });
       while (descAssets.length < 2) descAssets.push({ text: payload.name.slice(0, 90) });
 
-      const adRes = await fetch(`https://googleads.googleapis.com/v18/customers/${customerId}/adGroupAds:mutate`, {
+      const adRes = await fetch(`https://googleads.googleapis.com/v21/customers/${customerId}/adGroupAds:mutate`, {
         method: 'POST', headers,
         body: JSON.stringify({
           operations: [{
@@ -373,7 +373,7 @@ export class GoogleAdsClientService {
             keyword: { text: kw, matchType: 'BROAD' },
           },
         }));
-        await fetch(`https://googleads.googleapis.com/v18/customers/${customerId}/adGroupCriteria:mutate`, {
+        await fetch(`https://googleads.googleapis.com/v21/customers/${customerId}/adGroupCriteria:mutate`, {
           method: 'POST', headers,
           body: JSON.stringify({ operations: kwOps, partialFailure: true }),
         });
@@ -400,7 +400,7 @@ export class GoogleAdsClientService {
         });
       }
       if (campaignCriteriaOps.length > 0) {
-        await fetch(`https://googleads.googleapis.com/v18/customers/${customerId}/campaignCriteria:mutate`, {
+        await fetch(`https://googleads.googleapis.com/v21/customers/${customerId}/campaignCriteria:mutate`, {
           method: 'POST', headers,
           body: JSON.stringify({ operations: campaignCriteriaOps, partialFailure: true }),
         });
@@ -460,7 +460,7 @@ export class GoogleAdsClientService {
     const site: any = await this.prisma.site.findUniqueOrThrow({ where: { id: siteId } });
     const customerId = (site.googleAdsCustomerId ?? '').replace(/-/g, '');
     try {
-      const res = await fetch(`https://googleads.googleapis.com/v18/customers/${customerId}/adGroupAds:mutate`, {
+      const res = await fetch(`https://googleads.googleapis.com/v21/customers/${customerId}/adGroupAds:mutate`, {
         method: 'POST', headers: this.headers(accessToken),
         body: JSON.stringify({
           operations: [{

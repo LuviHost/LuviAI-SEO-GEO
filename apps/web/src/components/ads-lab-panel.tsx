@@ -558,7 +558,7 @@ function useOAuthPopup(provider: 'google-ads' | 'meta-ads', siteId: string) {
 
 export function GoogleAdsOAuthCard({ site, connected, onChanged }: { site: any; connected: boolean; onChanged: () => void }) {
   const oauth = useOAuthPopup('google-ads', site.id);
-  const [picker, setPicker] = useState<{ id: string; resourceName: string }[] | null>(null);
+  const [picker, setPicker] = useState<{ id: string; resourceName: string; descriptiveName?: string; currencyCode?: string; isManager?: boolean }[] | null>(null);
   const [savingPick, setSavingPick] = useState(false);
 
   const connect = () => {
@@ -644,10 +644,13 @@ export function GoogleAdsOAuthCard({ site, connected, onChanged }: { site: any; 
                 key={c.id}
                 onClick={() => pick(c.id)}
                 disabled={savingPick}
-                className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded border text-xs hover:border-brand/40 hover:bg-brand/5 transition-colors ${site.googleAdsCustomerId === c.id ? 'border-green-500/40 bg-green-500/5' : ''}`}
+                className={`w-full flex items-start justify-between gap-2 px-3 py-2 rounded border text-xs hover:border-brand/40 hover:bg-brand/5 transition-colors ${site.googleAdsCustomerId === c.id ? 'border-green-500/40 bg-green-500/5' : ''}`}
               >
-                <span className="font-mono">{c.id.replace(/(\d{3})(\d{3})(\d{4})/, '$1-$2-$3')}</span>
-                {site.googleAdsCustomerId === c.id && <Check className="h-3 w-3 text-green-600" />}
+                <div className="flex flex-col items-start gap-0.5 min-w-0">
+                  <span className="font-medium truncate">{c.descriptiveName || (c.isManager ? 'Manager hesabı' : 'İsimsiz hesap')}</span>
+                  <span className="text-muted-foreground font-mono text-[10px]">{c.id.replace(/(\d{3})(\d{3})(\d{4})/, '$1-$2-$3')}{c.currencyCode ? ` · ${c.currencyCode}` : ''}{c.isManager ? ' · Manager' : ''}</span>
+                </div>
+                {site.googleAdsCustomerId === c.id && <Check className="h-3 w-3 text-green-600 mt-0.5 shrink-0" />}
               </button>
             ))
           )}

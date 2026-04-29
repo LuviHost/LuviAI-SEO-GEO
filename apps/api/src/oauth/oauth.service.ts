@@ -1,5 +1,5 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
-import { createHmac, randomBytes } from 'crypto';
+import { createHmac, randomBytes, createHash } from 'crypto';
 
 /**
  * OAuth helper — Google Ads + Meta Marketing API icin popup-based connect akisi.
@@ -77,14 +77,14 @@ export class OAuthService {
   /**
    * Bu access token ile hangi Google Ads hesaplarina erisilebiliyor — listeyi getir.
    */
-  async listGoogleAdsCustomers(accessToken: string): Promise<{ id: string; resourceName: string }[]> {
+  async listGoogleAdsCustomers(accessToken: string): Promise<{ id: string; resourceName: string; descriptiveName?: string; currencyCode?: string; isManager?: boolean }[]> {
     const devToken = process.env.GOOGLE_ADS_DEV_TOKEN;
     if (!devToken) {
       this.log.warn('GOOGLE_ADS_DEV_TOKEN env yok — customer listesi alinamiyor');
       return [];
     }
     try {
-      const res = await fetch('https://googleads.googleapis.com/v18/customers:listAccessibleCustomers', {
+      const res = await fetch('https://googleads.googleapis.com/v21/customers:listAccessibleCustomers', {
         headers: {
           'Authorization': `Bearer ${accessToken}`,
           'developer-token': devToken,
@@ -93,10 +93,39 @@ export class OAuthService {
       if (!res.ok) throw new Error(`${res.status}: ${(await res.text()).slice(0, 200)}`);
       const data = await res.json() as any;
       const resourceNames: string[] = data.resourceNames ?? [];
-      return resourceNames.map((rn) => ({
-        id: rn.split('/').pop() ?? '',
-        resourceName: rn,
+      const ids = resourceNames.map((rn) => ({ id: rn.split('/').pop() ?? '', resourceName: rn })).filter(c => c.id);
+
+      // Her customer için descriptive_name + currency_code çek (Manager Account ise ayrıca işaretle)
+      const enriched = await Promise.all(ids.map(async (c) => {
+        try {
+          const sr = await fetch(`https://googleads.googleapis.com/v21/customers/${c.id}/googleAds:search`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+              'developer-token': devToken,
+              'login-customer-id': c.id,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ query: 'SELECT customer.id, customer.descriptive_name, customer.currency_code, customer.manager FROM customer LIMIT 1' }),
+          });
+          if (!sr.ok) {
+            this.log.warn(`google-ads search ${c.id} HTTP ${sr.status}: ${(await sr.text()).slice(0, 250)}`);
+            return c;
+          }
+          const sd = await sr.json() as any;
+          const row = sd.results?.[0]?.customer;
+          if (!row) return c;
+          return {
+            ...c,
+            descriptiveName: row.descriptiveName ?? row.descriptive_name ?? undefined,
+            currencyCode: row.currencyCode ?? row.currency_code ?? undefined,
+            isManager: row.manager === true,
+          };
+        } catch {
+          return c;
+        }
       }));
+      return enriched;
     } catch (err: any) {
       this.log.warn(`listGoogleAdsCustomers fail: ${err.message}`);
       return [];
@@ -110,18 +139,17 @@ export class OAuthService {
     const appId = process.env.META_APP_ID;
     if (!appId) throw new BadRequestException('META_APP_ID env yok');
 
+    // Dev mode: Admin/Developer/Tester rolündeki kullanıcılar için tüm ads scope'ları aktif.
+    // Production (Live mode) için bunlar App Review'dan geçmeli.
     const scope = [
-      'ads_management',
+      'public_profile',
+      'email',
       'ads_read',
+      'ads_management',
       'business_management',
       'pages_show_list',
       'pages_read_engagement',
-      'pages_manage_ads',
-      'pages_manage_posts',
       'instagram_basic',
-      'instagram_content_publish',
-      'public_profile',
-      'email',
     ].join(',');
 
     const params = new URLSearchParams({
@@ -184,6 +212,44 @@ export class OAuthService {
       this.log.warn(`listMetaPages fail: ${err.message}`);
       return [];
     }
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  //  Meta signed_request parser (Deauthorize + Data Deletion webhook)
+  // ─────────────────────────────────────────────────────────────
+  /**
+   * Meta deauthorize/data-deletion webhook'lari `signed_request` POST eder.
+   * Format: base64url(sig) + "." + base64url(payload), HMAC-SHA256(payload, app_secret).
+   * https://developers.facebook.com/docs/facebook-login/guides/advanced/existing-system
+   */
+  parseMetaSignedRequest(signedRequest: string): { user_id: string; algorithm: string; issued_at: number } {
+    const appSecret = process.env.META_APP_SECRET;
+    if (!appSecret) throw new BadRequestException('META_APP_SECRET env yok');
+    const [encodedSig, payload] = (signedRequest ?? '').split('.');
+    if (!encodedSig || !payload) throw new BadRequestException('signed_request format hatali');
+
+    const sig = Buffer.from(encodedSig, 'base64url');
+    const expected = createHmac('sha256', appSecret).update(payload).digest();
+    if (sig.length !== expected.length || !sig.equals(expected)) {
+      throw new BadRequestException('signed_request imza gecersiz');
+    }
+    const data = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+    if (data.algorithm !== 'HMAC-SHA256') throw new BadRequestException('Algoritma desteklenmiyor');
+    return data;
+  }
+
+  /**
+   * Data Deletion Request URL response — Meta dokumantasyonuna gore JSON bekleniyor:
+   *   { url: "<status sayfasi>", confirmation_code: "<takip kodu>" }
+   * confirmation_code: Meta user_id'nin SHA-256 hash'i (deterministik, idempotent).
+   */
+  buildMetaDataDeletionResponse(userId: string): { url: string; confirmation_code: string } {
+    const code = createHash('sha256').update(`${userId}:${process.env.META_APP_SECRET ?? ''}`).digest('hex').slice(0, 32);
+    const webBase = process.env.WEB_BASE_URL ?? 'https://ai.luvihost.com';
+    return {
+      url: `${webBase}/legal/data-deletion?code=${code}`,
+      confirmation_code: code,
+    };
   }
 
   // ─────────────────────────────────────────────────────────────

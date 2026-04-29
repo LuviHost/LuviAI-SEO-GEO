@@ -355,7 +355,7 @@ export class AiCitationService {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            model: 'grok-4-fast',
+            model: 'grok-4-fast-non-reasoning',
             max_tokens: 400,
             messages: [
               { role: 'system', content: systemPrompt },

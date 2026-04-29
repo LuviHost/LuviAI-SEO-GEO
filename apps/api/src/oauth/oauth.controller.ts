@@ -69,12 +69,12 @@ export class OAuthController {
 
       await this.prisma.site.update({ where: { id: decoded.siteId }, data: updateData });
 
-      return res.send(this.oauth.buildCallbackHtml('google-ads', {
+      res.setHeader('Cross-Origin-Opener-Policy', 'unsafe-none'); res.setHeader('Content-Type', 'text/html; charset=utf-8'); return res.send(this.oauth.buildCallbackHtml('google-ads', {
         autoSelected: customers.length === 1,
         customers,
       }));
     } catch (err: any) {
-      return res.send(this.oauth.buildCallbackHtml('google-ads', null, err.message));
+      res.setHeader('Cross-Origin-Opener-Policy', 'unsafe-none'); res.setHeader('Content-Type', 'text/html; charset=utf-8'); return res.send(this.oauth.buildCallbackHtml('google-ads', null, err.message));
     }
   }
 
@@ -168,13 +168,13 @@ export class OAuthController {
 
       await this.prisma.site.update({ where: { id: decoded.siteId }, data: updateData });
 
-      return res.send(this.oauth.buildCallbackHtml('meta-ads', {
+      res.setHeader('Cross-Origin-Opener-Policy', 'unsafe-none'); res.setHeader('Content-Type', 'text/html; charset=utf-8'); return res.send(this.oauth.buildCallbackHtml('meta-ads', {
         autoSelected: adAccounts.length === 1 && pages.length === 1,
         adAccounts,
         pages,
       }));
     } catch (err: any) {
-      return res.send(this.oauth.buildCallbackHtml('meta-ads', null, err.message));
+      res.setHeader('Cross-Origin-Opener-Policy', 'unsafe-none'); res.setHeader('Content-Type', 'text/html; charset=utf-8'); return res.send(this.oauth.buildCallbackHtml('meta-ads', null, err.message));
     }
   }
 
@@ -222,6 +222,66 @@ export class OAuthController {
 
     await this.prisma.site.update({ where: { id: siteId }, data });
     return { ok: true };
+  }
+
+  // ──────────────────────────────────────────────────────────
+  //  META — Deauthorize + Data Deletion webhook'lari (App Review zorunlu)
+  // ──────────────────────────────────────────────────────────
+
+  /**
+   * POST /api/oauth/meta-ads/deauthorize
+   * Kullanici Meta'da app yetkisini cekince Meta bu URL'i HTTPS POST ile cagirir.
+   * Body: signed_request (form-urlencoded). Tokeni temizler, baglantiyi kopar.
+   * Response: 200 OK (Meta sadece status bekliyor).
+   */
+  @Public()
+  @Post('meta-ads/deauthorize')
+  async metaDeauthorize(@Body() body: any, @Res() res: Response) {
+    try {
+      const signed = body?.signed_request;
+      if (!signed) {
+        res.status(400).json({ ok: false, error: 'signed_request eksik' });
+        return;
+      }
+      const data = this.oauth.parseMetaSignedRequest(signed);
+      // Meta user_id ile eslesen tum site kayitlarinda Meta tokenlarini temizle.
+      // user_id Meta'nin App-Scoped User ID'si — biz bunu Site uzerinde tutmuyoruz,
+      // bu yuzden tum site'larda token'i null'lamak yerine token suresi dolmus gibi
+      // davraniyoruz. Pratik: deauth event'i logla, sonraki API call 401 doninca
+      // zaten temizlenecek. Yine de log + audit trail.
+      // TODO: Eger SocialIdentity tablosunda metaUserId tutuluyorsa, oradan eslesen siteleri bul.
+      // eslint-disable-next-line no-console
+      console.warn(`[meta-deauthorize] user_id=${data.user_id} issued_at=${data.issued_at}`);
+      res.status(200).json({ ok: true });
+    } catch (err: any) {
+      res.status(400).json({ ok: false, error: err.message });
+    }
+  }
+
+  /**
+   * POST /api/oauth/meta-ads/data-deletion
+   * Kullanici Facebook hesabindan veri silme talep edince Meta bu URL'i cagirir.
+   * Format: signed_request POST.
+   * Response (zorunlu format): { url, confirmation_code }
+   */
+  @Public()
+  @Post('meta-ads/data-deletion')
+  async metaDataDeletion(@Body() body: any, @Res() res: Response) {
+    try {
+      const signed = body?.signed_request;
+      if (!signed) {
+        res.status(400).json({ error: 'signed_request eksik' });
+        return;
+      }
+      const data = this.oauth.parseMetaSignedRequest(signed);
+      const response = this.oauth.buildMetaDataDeletionResponse(data.user_id);
+      // TODO: Bu user_id ile eslesen tum kullanici verisini kuyruga at (async sil).
+      // eslint-disable-next-line no-console
+      console.warn(`[meta-data-deletion] user_id=${data.user_id} code=${response.confirmation_code}`);
+      res.status(200).json(response);
+    } catch (err: any) {
+      res.status(400).json({ error: err.message });
+    }
   }
 
   // ──────────────────────────────────────────────────────────

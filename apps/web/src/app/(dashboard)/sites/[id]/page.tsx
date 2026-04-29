@@ -18,7 +18,10 @@ export default function SitePage() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const onboardingMode = searchParams.get('onboarding') === 'running';
-  const tab = searchParams.get('tab'); // 'analytics' | 'settings' | null (null = stepper)
+  const tabParam = searchParams.get('tab'); // 'analytics' | 'settings' | null
+  // Onboarding sirasinda varsayilan = flow (tarama akisini gorebilsin)
+  const onboardingFlowDefault = !tabParam && searchParams.get('onboarding') === 'running';
+  const tab = tabParam ?? (onboardingFlowDefault ? 'flow' : null);
 
   const [site, setSite] = useState<any>(null);
   const [audit, setAudit] = useState<any>(null);

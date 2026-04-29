@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import Anthropic from '@anthropic-ai/sdk';
+import { jsonrepair } from 'jsonrepair';
 import { PrismaService } from '../prisma/prisma.service.js';
 
 export interface AudienceSuggestion {
@@ -111,7 +112,20 @@ JSON dondur:
 
     const text = resp.content.filter((b: any) => b.type === 'text').map((b: any) => b.text).join('');
     const match = text.match(/\{[\s\S]*\}/);
-    if (!match) throw new Error('JSON parse fail');
-    return JSON.parse(match[0]) as AudienceSuggestion;
+    if (!match) throw new Error('Audience LLM cevabinda JSON bulunamadi');
+    const raw = match[0];
+    try {
+      return JSON.parse(raw) as AudienceSuggestion;
+    } catch (e1: any) {
+      // LLM bozuk JSON dondurdu — jsonrepair ile onar
+      try {
+        const repaired = jsonrepair(raw);
+        this.log.warn(`Audience JSON repair uygulandi (${e1.message})`);
+        return JSON.parse(repaired) as AudienceSuggestion;
+      } catch (e2: any) {
+        this.log.error(`Audience JSON parse + repair fail: ${e2.message}; raw[0..400]=${raw.slice(0, 400)}`);
+        throw new Error('Audience builder LLM cevabi parse edilemedi: ' + e1.message);
+      }
+    }
   }
 }
