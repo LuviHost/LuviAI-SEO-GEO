@@ -9,6 +9,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
+import { InfoTooltip } from '@/components/info-tooltip';
 
 const NICHES = [
   'web hosting', 'e-ticaret', 'SaaS', 'eğitim', 'sağlık',
@@ -165,10 +166,15 @@ export default function OnboardingPage() {
                     {form.autopilot && <span className="h-2 w-2 bg-white rounded-full" />}
                   </div>
                   <div className="flex-1">
-                    <p className="font-semibold text-sm">🤖 Otopilot Modu (önerilen)</p>
+                    <p className="font-semibold text-sm">
+                      🤖 <InfoTooltip term="Otopilot">Otopilot Modu</InfoTooltip> (önerilen)
+                    </p>
                     <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
-                      LuviAI tüm akışı senin için yapar: site denetimi → otomatik düzeltme (sitemap, robots.txt, llms.txt) →
-                      8 makale takvime yerleştir → sırayla üret → yayınla. Sen sadece özet raporu maille okursun.
+                      LuviAI tüm akışı senin için yapar: site denetimi → otomatik düzeltme (
+                      <InfoTooltip term="Sitemap"><span className="underline decoration-dotted cursor-help">sitemap</span></InfoTooltip>
+                      ,{' '}
+                      <InfoTooltip term="llms.txt"><span className="underline decoration-dotted cursor-help">llms.txt</span></InfoTooltip>
+                      ) → 8 makale takvime yerleştir → sırayla üret → yayınla. Sen sadece özet raporu maille okursun.
                     </p>
                   </div>
                 </div>

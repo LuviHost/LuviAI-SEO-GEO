@@ -13,6 +13,8 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { PipelineProgress } from '@/components/pipeline-progress';
+import { MultiModalPanel } from '@/components/multi-modal-panel';
+import { InfoTooltip } from '@/components/info-tooltip';
 
 /**
  * "## Sıkça Sorulan Sorular" altındaki H3 sorularını ve cevap paragraflarını
@@ -328,7 +330,9 @@ ${body}
                 {new Date(article.createdAt).toLocaleDateString('tr-TR')}
               </span>
               {article.editorScore != null && (
-                <span>📊 Editör skoru: {article.editorScore}/100</span>
+                <span className="inline-flex items-center gap-1">
+                  📊 <InfoTooltip term="Editor Score">Editör skoru</InfoTooltip>: {article.editorScore}/100
+                </span>
               )}
             </div>
           </div>
@@ -567,6 +571,14 @@ ${body}
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* Multi-Modal Panel — Audio/Video/Yayın/Çeviri */}
+      <MultiModalPanel
+        siteId={siteId}
+        articleId={articleId}
+        article={article}
+        onChanged={refresh}
+      />
     </div>
   );
 }

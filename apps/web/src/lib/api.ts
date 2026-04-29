@@ -86,6 +86,9 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 }
 
 export const api = {
+  // Generic raw request (custom endpoints icin)
+  request: <T = any>(path: string, options?: RequestInit) => request<T>(path, options),
+
   // Sites
   createSite: (body: { url: string; name: string; niche?: string; language?: string }) =>
     request<any>('/sites', { method: 'POST', body: JSON.stringify(body) }),

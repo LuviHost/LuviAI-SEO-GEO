@@ -7,6 +7,7 @@ import { api } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { InfoTooltip } from '@/components/info-tooltip';
 
 /**
  * Ads Lab — Faz 11. Google + Meta + GA4 MCP entegrasyonu.
@@ -368,10 +369,28 @@ function ActiveTab({ siteId }: { siteId: string }) {
             <Badge variant={c.status === 'ACTIVE' ? 'default' : c.status === 'PAUSED' ? 'outline' : 'secondary'}>{c.status}</Badge>
           </div>
           <div className="grid grid-cols-4 gap-2 text-xs mb-2">
-            <div><p className="text-muted-foreground">İmpr</p><p className="font-mono font-bold">{c.impressions}</p></div>
-            <div><p className="text-muted-foreground">Tıkl</p><p className="font-mono font-bold">{c.clicks}</p></div>
-            <div><p className="text-muted-foreground">CTR</p><p className="font-mono font-bold">{(c.ctr * 100).toFixed(1)}%</p></div>
-            <div><p className="text-muted-foreground">ROAS</p><p className={`font-mono font-bold ${c.roas >= 2 ? 'text-green-500' : c.roas > 0 ? 'text-yellow-500' : ''}`}>{c.roas.toFixed(1)}x</p></div>
+            <div>
+              <p className="text-muted-foreground">
+                <InfoTooltip term="Impression">İmpr</InfoTooltip>
+              </p>
+              <p className="font-mono font-bold">{c.impressions}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">Tıkl</p>
+              <p className="font-mono font-bold">{c.clicks}</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">
+                <InfoTooltip term="CTR">CTR</InfoTooltip>
+              </p>
+              <p className="font-mono font-bold">{(c.ctr * 100).toFixed(1)}%</p>
+            </div>
+            <div>
+              <p className="text-muted-foreground">
+                <InfoTooltip term="ROAS">ROAS</InfoTooltip>
+              </p>
+              <p className={`font-mono font-bold ${c.roas >= 2 ? 'text-green-500' : c.roas > 0 ? 'text-yellow-500' : ''}`}>{c.roas.toFixed(1)}x</p>
+            </div>
           </div>
           <div className="flex items-center gap-2">
             {c.status === 'DRAFT' && <Button size="sm" onClick={() => launch(c.id)}><Play className="h-3 w-3 mr-1" /> Yayına Al</Button>}

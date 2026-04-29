@@ -6,6 +6,7 @@ import { Award, Check, X, AlertTriangle, RefreshCw } from 'lucide-react';
 import { api } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { InfoTooltip } from '@/components/info-tooltip';
 
 const STATUS_COLOR: Record<string, string> = {
   great: 'text-green-500 bg-green-500/10 border-green-500/30',
@@ -55,10 +56,15 @@ export function GeoScoreCard({ siteId }: { siteId: string }) {
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
             <p className="text-sm font-semibold inline-flex items-center gap-2">
-              <Award className="h-4 w-4 text-brand" /> GEO Score Card
+              <Award className="h-4 w-4 text-brand" />
+              <InfoTooltip term="GEO Score">GEO Score Card</InfoTooltip>
             </p>
             <p className="text-xs text-muted-foreground mt-0.5">
-              Sitenin AI search engine'lerde görünürlük seviyesi · 6 pillar · ağırlıklı ortalama
+              Sitenin{' '}
+              <InfoTooltip term="GEO">
+                <span className="underline decoration-dotted cursor-help">AI search engine</span>
+              </InfoTooltip>
+              'lerde görünürlük seviyesi · 6 pillar · ağırlıklı ortalama
             </p>
           </div>
           <Button size="sm" variant="outline" onClick={load}>

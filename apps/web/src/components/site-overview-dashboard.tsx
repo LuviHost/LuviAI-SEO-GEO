@@ -10,6 +10,7 @@ import { api } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { InfoTooltip } from '@/components/info-tooltip';
 import { CitationHistoryChart } from '@/components/citation-history-chart';
 import { GeoLabPanel } from '@/components/geo-lab-panel';
 import { GeoScoreCard } from '@/components/geo-score-card';
@@ -74,7 +75,7 @@ export function SiteOverviewDashboard({
             </div>
             <div>
               <p className="font-bold text-base flex items-center gap-2">
-                Otopilot {autopilot ? 'AÇIK' : 'KAPALI'}
+                <InfoTooltip term="Otopilot">Otopilot</InfoTooltip> {autopilot ? 'AÇIK' : 'KAPALI'}
                 {autopilot && (
                   <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wide bg-brand/20 text-brand rounded-full px-2 py-0.5 font-bold">
                     <Activity className="h-3 w-3 animate-pulse" /> Çalışıyor
@@ -111,7 +112,7 @@ export function SiteOverviewDashboard({
         />
         <ScoreCard
           icon={<Sparkles className="h-4 w-4" />}
-          label="AI Görünürlük"
+          label={<InfoTooltip term="Citation">AI Görünürlük</InfoTooltip>}
           value={aiScore !== null ? `${aiScore}` : '—'}
           subtext="Claude · Gemini · ChatGPT"
           color={aiScore === null ? 'muted' : aiScore >= 60 ? 'green' : aiScore >= 30 ? 'yellow' : 'red'}
@@ -227,7 +228,7 @@ function ScoreCard({
   icon, label, value, subtext, color,
 }: {
   icon: React.ReactNode;
-  label: string;
+  label: React.ReactNode;
   value: string;
   subtext: string;
   color: 'green' | 'yellow' | 'red' | 'brand' | 'muted';
