@@ -1027,12 +1027,24 @@ function AuditProgressBadge({ siteId }: { siteId: string }) {
 // ADIM 7 — İçerik Takvimi (Topic Backlog)
 // ──────────────────────────────────────────────────────────────────────
 function Step7({ state, update }: any) {
+  const { data: session } = useSession();
   const [queue, setQueue] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [scheduling, setScheduling] = useState(false);
   const [scheduledIds, setScheduledIds] = useState<string[]>([]);
+  const [quota, setQuota] = useState<{ remaining: number; limit: number } | null>(null);
+  const router = useRouter();
+
+  // Kalan makale kotasini cek
+  useEffect(() => {
+    const userId = (session?.user as any)?.id;
+    if (!userId) return;
+    api.getUserQuota(userId).then((q) => {
+      setQuota({ remaining: q.articles.remaining, limit: q.articles.limit });
+    }).catch(() => { /* noop */ });
+  }, [session]);
 
   const fetchQueue = async () => {
     if (!state.siteId) return;
@@ -1095,8 +1107,18 @@ function Step7({ state, update }: any) {
 
   const toggle = (topic: string) => {
     const next = new Set(selected);
-    if (next.has(topic)) next.delete(topic);
-    else next.add(topic);
+    if (next.has(topic)) {
+      next.delete(topic);
+    } else {
+      // Kota kontrolu — eklemeden once limit asilmiyor mu?
+      if (quota && next.size >= quota.remaining) {
+        toast.error(
+          `Mevcut planinda ${quota.limit} makale hakkin var (${next.size}/${quota.remaining} sectin). Daha fazla secmek icin plani yukselt.`,
+        );
+        return;
+      }
+      next.add(topic);
+    }
     setSelected(next);
     update({ selectedTopicCount: next.size });
   };
@@ -1177,21 +1199,47 @@ function Step7({ state, update }: any) {
 
       {!generating && allTopics.length > 0 && (
         <>
+          {quota && (
+            <div className={cn(
+              'rounded-lg border p-3 mb-3 flex items-center justify-between gap-3',
+              quota.remaining > 0 ? 'border-blue-500/30 bg-blue-500/5' : 'border-yellow-500/40 bg-yellow-500/5',
+            )}>
+              <div>
+                <p className="text-sm font-medium">
+                  {quota.limit === 1 ? '🎁 Ücretsiz deneme: 1 makale hakkın var' : `📊 Plan kotanı: ${quota.limit} makale/ay`}
+                </p>
+                <p className="text-[11px] text-muted-foreground mt-0.5">
+                  Bu ay <strong>{quota.remaining}</strong> hakkın kaldı · {selected.size}/{quota.remaining} seçildi
+                  {quota.remaining > 0 && selected.size === quota.remaining && ' · maksimuma ulaşıldı'}
+                </p>
+              </div>
+              {(quota.limit === 1 || selected.size >= quota.remaining) && (
+                <Button size="sm" variant="outline" onClick={() => router.push('/pricing')}>
+                  Plan yükselt
+                </Button>
+              )}
+            </div>
+          )}
           <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1">
             {allTopics.map((t: any, idx: number) => {
               const topic = t.topic ?? t.title ?? String(t);
               const checked = selected.has(topic);
               const tierColor = t.tier === 1 ? 'text-red-500' : t.tier === 2 ? 'text-yellow-500' : 'text-muted-foreground';
               const tierLabel = t.tier === 1 ? 'Hemen' : t.tier === 2 ? 'Bu hafta' : 'Planlı';
+              const limitReached = !!(quota && !checked && selected.size >= quota.remaining);
               return (
                 <button
                   key={idx}
                   type="button"
                   onClick={() => toggle(topic)}
+                  disabled={limitReached}
                   className={cn(
                     'w-full rounded-lg border-2 p-3 text-left transition-colors flex items-start gap-3',
-                    checked ? 'border-brand bg-brand/5' : 'hover:border-brand/40',
+                    checked ? 'border-brand bg-brand/5' :
+                    limitReached ? 'opacity-50 cursor-not-allowed' :
+                    'hover:border-brand/40',
                   )}
+                  title={limitReached ? 'Kota dolu — plan yükselt' : undefined}
                 >
                   <div className={cn(
                     'mt-0.5 h-5 w-5 rounded border-2 grid place-items-center shrink-0',

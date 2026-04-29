@@ -100,6 +100,9 @@ export const api = {
   completeOnboarding: (siteId: string) =>
     request<any>(`/sites/${siteId}/complete-onboarding`, { method: 'POST' }),
 
+  getUserQuota: (userId: string) =>
+    request<{ articles: { allowed: boolean; remaining: number; limit: number }; sites: any }>(`/users/${userId}/quota`),
+
   regenerateBrain: (siteId: string) =>
     request<any>(`/sites/${siteId}/brain/regenerate`, { method: 'POST' }),
 
