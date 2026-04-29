@@ -35,10 +35,10 @@ export class MediaGeneratorService {
   constructor(private readonly prisma: PrismaService) {}
 
   async generateAudio(articleId: string): Promise<AudioResult> {
-    const article = await this.prisma.article.findUniqueOrThrow({
+    const articleRaw = await this.prisma.article.findUniqueOrThrow({
       where: { id: articleId },
-      select: { id: true, slug: true, title: true, bodyMd: true, siteId: true } as any,
     });
+    const article: any = articleRaw;
 
     // Markdown'i temiz, sesli okunabilir metne donustur
     const text = this.toSpeechText(article.bodyMd ?? '', article.title);
