@@ -1,0 +1,25 @@
+{
+  "name": "@luviai/sdk",
+  "version": "0.1.0",
+  "description": "Official Node.js SDK for LuviAI — SEO + GEO + Ads automation",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": ["dist", "README.md"],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "keywords": ["luviai", "seo", "geo", "ai-search", "ads", "automation", "turkish"],
+  "author": "LuviHost",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

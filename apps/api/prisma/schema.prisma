@@ -85,6 +85,25 @@ enum SubscriptionStatus {
   EXPIRED
 }
 
+// Public API key (Sprint C — public REST API icin)
+model ApiKey {
+  id          String    @id @default(cuid())
+  userId      String
+  name        String                          // "Production server" gibi etiket
+  keyHash     String    @unique               // sha256 of token
+  prefix      String                          // ilk 8 char gosterim icin
+  scopes      Json                            // ["articles:read", "articles:write", "ads:read", ...]
+  rateLimit   Int       @default(60)          // istek/dk
+  lastUsedAt  DateTime?
+  expiresAt   DateTime?
+  createdAt   DateTime  @default(now())
+  revokedAt   DateTime?
+
+  @@index([userId])
+  @@index([keyHash])
+  @@map("api_keys")
+}
+
 // NextAuth tabloları
 model Account {
   id                String  @id @default(cuid())

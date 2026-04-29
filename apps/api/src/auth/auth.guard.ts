@@ -3,6 +3,7 @@ import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
 import { decode } from 'next-auth/jwt';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { ApiKeysService } from '../api-keys/api-keys.service.js';
 
 /**
  * NextAuth session JWT'sini doğrular.
@@ -20,6 +21,7 @@ export class AuthGuard implements CanActivate {
   constructor(
     private readonly prisma: PrismaService,
     private readonly reflector: Reflector,
+    private readonly apiKeys: ApiKeysService,
   ) {}
 
   async canActivate(ctx: ExecutionContext): Promise<boolean> {
@@ -30,6 +32,20 @@ export class AuthGuard implements CanActivate {
     if (isPublic) return true;
 
     const req = ctx.switchToHttp().getRequest<Request>();
+
+    // ── API Key check (Authorization: Bearer luvi_xxx) ──
+    const authHeader = req.headers.authorization;
+    if (authHeader?.startsWith('Bearer ') && authHeader.slice(7).startsWith('luvi_')) {
+      const token = authHeader.slice(7);
+      const apiKey = await this.apiKeys.validate(token);
+      if (!apiKey) throw new UnauthorizedException('API key gecersiz');
+      const user = await this.prisma.user.findUnique({ where: { id: apiKey.userId } });
+      if (!user) throw new UnauthorizedException('User bulunamadi');
+      (req as any).user = user;
+      (req as any).apiKey = apiKey;
+      return true;
+    }
+
     const extracted = this.extractToken(req);
     if (!extracted) throw new UnauthorizedException('Token yok');
 

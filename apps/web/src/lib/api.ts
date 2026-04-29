@@ -182,6 +182,12 @@ export const api = {
   updateWhitelabel: (payload: any) =>
     request<any>(`/agency/whitelabel`, { method: 'PATCH', body: JSON.stringify(payload) }),
 
+  // Sprint C — API Keys
+  listApiKeys: () => request<any[]>(`/api-keys`),
+  createApiKey: (payload: { name: string; scopes?: string[]; expiresInDays?: number; rateLimit?: number }) =>
+    request<any>(`/api-keys`, { method: 'POST', body: JSON.stringify(payload) }),
+  revokeApiKey: (id: string) => request<any>(`/api-keys/${id}`, { method: 'DELETE' }),
+
   detectPlatform: (siteId: string) =>
     request<any>(`/sites/${siteId}/detect-platform`, { method: 'POST' }),
 
