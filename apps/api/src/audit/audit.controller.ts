@@ -8,6 +8,10 @@ import { AiIndexingPingerService } from './ai-indexing-pinger.service.js';
 import { LlmsFullBuilderService } from './llms-full-builder.service.js';
 import { GeoHeatmapService } from './geo-heatmap.service.js';
 import { KnowledgeGraphBuilderService } from './knowledge-graph-builder.service.js';
+import { KnowledgeSubmitterService } from './knowledge-submitter.service.js';
+import { CommunityOutreachService } from './community-outreach.service.js';
+import { CrossLinkingService } from './cross-linking.service.js';
+import { TrainingDataExporterService } from './training-data-exporter.service.js';
 import { SnippetGeneratorService } from './snippet-generator.service.js';
 import { SnippetApplierService } from './snippet-applier.service.js';
 import { StaticHtmlFixerService } from './static-html-fixer.service.js';
@@ -23,6 +27,10 @@ export class AuditController {
     private readonly llmsBuilder: LlmsFullBuilderService,
     private readonly heatmap: GeoHeatmapService,
     private readonly knowledge: KnowledgeGraphBuilderService,
+    private readonly knowledgeSubmitter: KnowledgeSubmitterService,
+    private readonly outreach: CommunityOutreachService,
+    private readonly crossLink: CrossLinkingService,
+    private readonly trainingExport: TrainingDataExporterService,
     private readonly snippets: SnippetGeneratorService,
     private readonly applier: SnippetApplierService,
     private readonly staticFixer: StaticHtmlFixerService,
@@ -108,6 +116,51 @@ export class AuditController {
   @Get('knowledge/wikipedia')
   wikipediaDraft(@Param('siteId') siteId: string) {
     return this.knowledge.buildWikipedia(siteId);
+  }
+
+  /** POST /sites/:siteId/audit/knowledge/submit — Wikidata/Wikipedia auto-submit */
+  @Post('knowledge/submit')
+  async submitKnowledge(
+    @Param('siteId') siteId: string,
+    @Body() body: { target: 'wikidata' | 'wikipedia'; draft: any; lang?: 'tr' | 'en' },
+  ) {
+    if (body.target === 'wikidata') return this.knowledgeSubmitter.submitWikidata(body.draft);
+    return this.knowledgeSubmitter.submitWikipedia(body.draft, body.lang);
+  }
+
+  /** POST /sites/:siteId/audit/community/find — Reddit/Quora/HARO firsatlari */
+  @Post('community/find')
+  findCommunity(@Param('siteId') siteId: string, @Body() body: { limit?: number }) {
+    return this.outreach.findOpportunities(siteId, { limit: body?.limit });
+  }
+
+  /** POST /sites/:siteId/audit/cross-link/suggest — bir makale icin cross-link onerileri */
+  @Post('cross-link/suggest')
+  crossLinkSuggest(@Param('siteId') siteId: string, @Body() body: { articleId: string; limit?: number }) {
+    return this.crossLink.suggestForArticle(body.articleId, { limit: body?.limit });
+  }
+
+  /** POST /sites/:siteId/audit/cross-link/apply — onaylanan oneriyi uygula */
+  @Post('cross-link/apply')
+  crossLinkApply(@Param('siteId') siteId: string, @Body() body: { suggestion: any }) {
+    return this.crossLink.applyLinkSuggestion(body.suggestion);
+  }
+
+  /** GET /sites/:siteId/audit/training-data — JSONL HuggingFace export */
+  @Get('training-data')
+  @Header('Content-Type', 'application/json; charset=utf-8')
+  async trainingDataMetadata(@Param('siteId') siteId: string) {
+    const result = await this.trainingExport.exportSite(siteId);
+    return { ...result, jsonl: undefined, sample: result.jsonl.slice(0, 2000) };
+  }
+
+  /** GET /sites/:siteId/audit/training-data.jsonl — direct download */
+  @Get('training-data.jsonl')
+  @Header('Content-Type', 'application/jsonl; charset=utf-8')
+  async trainingDataDownload(@Param('siteId') siteId: string, @Res() res: Response) {
+    const result = await this.trainingExport.exportSite(siteId);
+    res.setHeader('Content-Disposition', `attachment; filename="${siteId.slice(0, 8)}-training-${result.records}r.jsonl"`);
+    res.send(result.jsonl);
   }
 
   @Get('snippets')

@@ -12,6 +12,10 @@ import { AiIndexingPingerService } from './ai-indexing-pinger.service.js';
 import { LlmsFullBuilderService } from './llms-full-builder.service.js';
 import { GeoHeatmapService } from './geo-heatmap.service.js';
 import { KnowledgeGraphBuilderService } from './knowledge-graph-builder.service.js';
+import { KnowledgeSubmitterService } from './knowledge-submitter.service.js';
+import { CommunityOutreachService } from './community-outreach.service.js';
+import { CrossLinkingService } from './cross-linking.service.js';
+import { TrainingDataExporterService } from './training-data-exporter.service.js';
 import { SnippetGeneratorService } from './snippet-generator.service.js';
 import { SnippetApplierService } from './snippet-applier.service.js';
 import { StaticHtmlFixerService } from './static-html-fixer.service.js';
@@ -33,6 +37,10 @@ import { SitesModule } from '../sites/sites.module.js';
     LlmsFullBuilderService,
     GeoHeatmapService,
     KnowledgeGraphBuilderService,
+    KnowledgeSubmitterService,
+    CommunityOutreachService,
+    CrossLinkingService,
+    TrainingDataExporterService,
     SnippetGeneratorService,
     SnippetApplierService,
     StaticHtmlFixerService,
@@ -47,6 +55,10 @@ import { SitesModule } from '../sites/sites.module.js';
     LlmsFullBuilderService,
     GeoHeatmapService,
     KnowledgeGraphBuilderService,
+    KnowledgeSubmitterService,
+    CommunityOutreachService,
+    CrossLinkingService,
+    TrainingDataExporterService,
     SnippetGeneratorService,
     SnippetApplierService,
     StaticHtmlFixerService,

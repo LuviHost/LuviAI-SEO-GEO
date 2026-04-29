@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { Sparkles, Network, Globe, Check, X, AlertCircle, Copy, ExternalLink, Play } from 'lucide-react';
+import { Sparkles, Network, Globe, Check, X, AlertCircle, Copy, ExternalLink, Play, MessageSquare, Link2, Download } from 'lucide-react';
 import { api } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -15,7 +15,7 @@ import { Badge } from '@/components/ui/badge';
  *  3. Wikipedia article draft
  */
 export function GeoLabPanel({ siteId }: { siteId: string }) {
-  const [tab, setTab] = useState<'heatmap' | 'wikidata' | 'wikipedia'>('heatmap');
+  const [tab, setTab] = useState<'heatmap' | 'wikidata' | 'wikipedia' | 'community' | 'cross-link' | 'training'>('heatmap');
 
   return (
     <div className="rounded-lg border p-4 space-y-3">
@@ -24,15 +24,18 @@ export function GeoLabPanel({ siteId }: { siteId: string }) {
           <Sparkles className="h-4 w-4 text-brand" /> GEO Lab — Gelişmiş AI Görünürlük Araçları
         </p>
         <p className="text-xs text-muted-foreground mt-0.5">
-          Heatmap'te rakipleri görün · Wikidata + Wikipedia ile kalıcı Knowledge Graph etkisi yaratın
+          Heatmap · Wikidata · Wikipedia · Reddit · Cross-link · AI Training Data
         </p>
       </div>
 
-      <div className="inline-flex border rounded-md overflow-hidden">
+      <div className="inline-flex border rounded-md overflow-hidden flex-wrap">
         {([
           ['heatmap', 'Heatmap', <Network key="h" className="h-3 w-3" />],
           ['wikidata', 'Wikidata', <Globe key="d" className="h-3 w-3" />],
           ['wikipedia', 'Wikipedia', <Globe key="w" className="h-3 w-3" />],
+          ['community', 'Reddit', <MessageSquare key="r" className="h-3 w-3" />],
+          ['cross-link', 'Cross-Link', <Link2 key="c" className="h-3 w-3" />],
+          ['training', 'Training Data', <Download key="t" className="h-3 w-3" />],
         ] as const).map(([id, label, icon]) => (
           <button
             key={id}
@@ -49,6 +52,255 @@ export function GeoLabPanel({ siteId }: { siteId: string }) {
       {tab === 'heatmap' && <HeatmapTab siteId={siteId} />}
       {tab === 'wikidata' && <WikidataTab siteId={siteId} />}
       {tab === 'wikipedia' && <WikipediaTab siteId={siteId} />}
+      {tab === 'community' && <CommunityTab siteId={siteId} />}
+      {tab === 'cross-link' && <CrossLinkTab siteId={siteId} />}
+      {tab === 'training' && <TrainingDataTab siteId={siteId} />}
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────
+// Reddit / Community Outreach
+// ──────────────────────────────────────────────────────────────────
+function CommunityTab({ siteId }: { siteId: string }) {
+  const [opportunities, setOpportunities] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const find = async () => {
+    setLoading(true);
+    try {
+      const res = await api.findCommunity(siteId, 10);
+      setOpportunities(res);
+      toast.success(`${res.length} fırsat bulundu`);
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const copy = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast.success('Taslak panoya kopyalandı');
+  };
+
+  return (
+    <div className="space-y-3">
+      <p className="text-xs text-muted-foreground">
+        AI'lar (özellikle ChatGPT ve Perplexity) Reddit'i <strong>birinci kaynak</strong> olarak kullanıyor. LuviAI sektör sorularınızla ilgili Reddit postlarını tarayıp marka sesinizde taslak cevap önerir. Spam değil — gerçek değer.
+        <strong className="text-yellow-700 dark:text-yellow-400"> Manuel onay zorunlu</strong>, otomatik post YOK.
+      </p>
+      <Button size="sm" onClick={find} disabled={loading}>
+        {loading ? 'Reddit taranıyor (~30s)…' : '🔍 Fırsat Bul'}
+      </Button>
+      {opportunities.length > 0 && (
+        <div className="space-y-2">
+          {opportunities.map((op, i) => (
+            <div key={i} className="rounded-md border p-3 space-y-2">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-sm">{op.title}</p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    r/{op.subreddit ?? 'unknown'} · {op.publishedAt ? new Date(op.publishedAt).toLocaleDateString('tr-TR') : ''}
+                  </p>
+                </div>
+                <Badge variant={op.brandFitScore >= 70 ? 'default' : 'outline'}>{op.brandFitScore}/100 fit</Badge>
+              </div>
+              <p className="text-xs text-muted-foreground line-clamp-2">{op.snippet}</p>
+              <div className="rounded bg-muted/30 p-2 border-l-2 border-brand">
+                <p className="text-[10px] uppercase font-semibold text-muted-foreground mb-1">AI taslak yanıt:</p>
+                <p className="text-xs whitespace-pre-wrap">{op.draftReply}</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button size="sm" variant="outline" onClick={() => copy(op.draftReply)}>
+                  <Copy className="h-3 w-3 mr-1" /> Kopyala
+                </Button>
+                <a href={op.url} target="_blank" rel="noopener" className="text-xs text-brand hover:underline inline-flex items-center gap-1">
+                  Reddit'te aç <ExternalLink className="h-3 w-3" />
+                </a>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────
+// Cross-Linking (multi-tenant network effect)
+// ──────────────────────────────────────────────────────────────────
+function CrossLinkTab({ siteId }: { siteId: string }) {
+  const [articles, setArticles] = useState<any[]>([]);
+  const [selectedArticle, setSelectedArticle] = useState<string>('');
+  const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [applying, setApplying] = useState<string | null>(null);
+
+  // Site'in published makalelerini cek
+  const loadArticles = async () => {
+    try {
+      const res = await api.listArticles(siteId, 'PUBLISHED');
+      setArticles(res);
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  };
+
+  const suggest = async (articleId: string) => {
+    if (!articleId) return;
+    setLoading(true);
+    setSelectedArticle(articleId);
+    try {
+      const res = await api.suggestCrossLinks(siteId, articleId, 5);
+      setSuggestions(res);
+      toast.success(`${res.length} cross-link önerisi`);
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const apply = async (suggestion: any) => {
+    setApplying(suggestion.toArticleId);
+    try {
+      await api.applyCrossLink(siteId, suggestion);
+      toast.success(`Cross-link uygulandı: ${suggestion.toSiteName}`);
+      setSuggestions(suggestions.filter((s) => s.toArticleId !== suggestion.toArticleId));
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setApplying(null);
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      <p className="text-xs text-muted-foreground">
+        LuviAI ekosistemindeki diğer sitelerle <strong>akıllı cross-link</strong> kurar. AI'lar bu bağlantıları "ekosistem" olarak öğrenir → tüm siteler birden alıntılanır. Sadece <strong>Otopilot ON</strong> olan siteler dahil edilir (consent).
+      </p>
+      <div className="flex items-center gap-2 flex-wrap">
+        <Button size="sm" variant="outline" onClick={loadArticles}>
+          Makaleleri Yükle
+        </Button>
+        {articles.length > 0 && (
+          <select
+            value={selectedArticle}
+            onChange={(e) => suggest(e.target.value)}
+            className="px-2 py-1.5 border rounded text-xs bg-background flex-1 max-w-md"
+          >
+            <option value="">— Bir makale seç —</option>
+            {articles.map((a) => (
+              <option key={a.id} value={a.id}>{a.title}</option>
+            ))}
+          </select>
+        )}
+        {loading && <span className="text-xs text-muted-foreground">Öneriler bulunuyor…</span>}
+      </div>
+
+      {suggestions.length > 0 && (
+        <div className="space-y-2">
+          {suggestions.map((s, i) => (
+            <div key={i} className="rounded-md border p-3 space-y-2">
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <p className="text-sm font-semibold">{s.toArticleTitle}</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    {s.toSiteName} · {s.insertionPoint}
+                  </p>
+                </div>
+                <Badge>{s.relevanceScore}/100</Badge>
+              </div>
+              <p className="text-xs text-muted-foreground italic">"{s.contextSnippet}"</p>
+              <div className="flex items-center gap-2">
+                <Button size="sm" onClick={() => apply(s)} disabled={applying === s.toArticleId}>
+                  {applying === s.toArticleId ? 'Uygulanıyor…' : '✓ Cross-link Ekle'}
+                </Button>
+                <a href={s.toArticleUrl} target="_blank" rel="noopener" className="text-xs text-brand hover:underline inline-flex items-center gap-1">
+                  Hedef makale <ExternalLink className="h-3 w-3" />
+                </a>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────
+// Training Data (Hugging Face JSONL export)
+// ──────────────────────────────────────────────────────────────────
+function TrainingDataTab({ siteId }: { siteId: string }) {
+  const [data, setData] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const res = await api.getTrainingDataMetadata(siteId);
+      setData(res);
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const downloadUrl = api.getTrainingDataDownloadUrl(siteId);
+
+  return (
+    <div className="space-y-3">
+      <p className="text-xs text-muted-foreground">
+        AI'ların eğitim verisinin <strong>%30+'ı</strong> public dataset'lerden geliyor. Sitenizin makalelerini Hugging Face'e <strong>CC-BY-4.0</strong> lisansla yüklerseniz Mistral, Llama, Claude bir sonraki eğitiminde markanızı öğrenir.
+        <strong className="text-green-700 dark:text-green-400"> Kalıcı GEO etkisi</strong> — içerik silinse bile AI hatırlar.
+      </p>
+      {!data && (
+        <Button size="sm" onClick={load} disabled={loading}>
+          {loading ? 'Hazırlanıyor…' : '📦 Training Data Hazırla'}
+        </Button>
+      )}
+      {data && (
+        <div className="space-y-3">
+          <div className="grid grid-cols-3 gap-2">
+            <div className="rounded-md border p-3 text-center">
+              <p className="text-2xl font-bold">{data.records}</p>
+              <p className="text-[11px] text-muted-foreground">Kayıt</p>
+            </div>
+            <div className="rounded-md border p-3 text-center">
+              <p className="text-2xl font-bold">{(data.bytes / 1024).toFixed(1)} <span className="text-sm text-muted-foreground">KB</span></p>
+              <p className="text-[11px] text-muted-foreground">Boyut</p>
+            </div>
+            <div className="rounded-md border p-3 text-center">
+              <p className="text-sm font-bold">CC-BY-4.0</p>
+              <p className="text-[11px] text-muted-foreground">Lisans</p>
+            </div>
+          </div>
+
+          <a href={downloadUrl} target="_blank" download className="inline-flex items-center gap-2 rounded-md bg-brand text-white px-4 py-2 text-sm font-medium hover:bg-brand/90">
+            <Download className="h-4 w-4" /> JSONL İndir
+          </a>
+
+          <div className="rounded-md border">
+            <div className="px-3 py-2 border-b bg-muted/30">
+              <p className="text-xs font-semibold">Hugging Face'e Yükleme Adımları</p>
+            </div>
+            <ol className="p-3 space-y-1 text-xs text-muted-foreground">
+              {(data.metadata.submitInstructions ?? []).map((s: string, i: number) => (
+                <li key={i}>{s}</li>
+              ))}
+            </ol>
+          </div>
+
+          <details className="rounded-md border">
+            <summary className="px-3 py-2 cursor-pointer text-xs font-semibold bg-muted/30">
+              Örnek Kayıt (ilk 2 KB)
+            </summary>
+            <pre className="p-3 text-[10px] font-mono whitespace-pre-wrap max-h-[300px] overflow-y-auto">{data.sample}</pre>
+          </details>
+        </div>
+      )}
     </div>
   );
 }
@@ -284,9 +536,27 @@ function WikidataTab({ siteId }: { siteId: string }) {
             </div>
           </div>
 
-          <a href={data.createUrl} target="_blank" rel="noopener" className="inline-flex items-center gap-1 text-sm text-brand hover:underline">
-            🌐 Wikidata'da Yeni Item Oluştur <ExternalLink className="h-3 w-3" />
-          </a>
+          <div className="flex items-center gap-3 flex-wrap">
+            <a href={data.createUrl} target="_blank" rel="noopener" className="inline-flex items-center gap-1 text-sm text-brand hover:underline">
+              🌐 Manuel: Wikidata'da Yeni Item Oluştur <ExternalLink className="h-3 w-3" />
+            </a>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={async () => {
+                try {
+                  const res = await api.submitKnowledge(siteId, 'wikidata', data);
+                  if (res.ok) toast.success(`✓ Wikidata item oluşturuldu: ${res.itemId}`);
+                  else if (res.warning) toast.warning(res.warning);
+                  else toast.error(res.error ?? 'Bilinmeyen hata');
+                } catch (err: any) {
+                  toast.error(err.message);
+                }
+              }}
+            >
+              🤖 Otomatik Submit (Bot)
+            </Button>
+          </div>
         </div>
       )}
     </div>

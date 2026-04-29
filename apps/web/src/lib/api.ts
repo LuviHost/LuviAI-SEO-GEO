@@ -211,6 +211,38 @@ export const api = {
   generateArticleAudio: (siteId: string, articleId: string) =>
     request<any>(`/sites/${siteId}/articles/${articleId}/audio`, { method: 'POST' }),
 
+  submitKnowledge: (siteId: string, target: 'wikidata' | 'wikipedia', draft: any, lang?: 'tr' | 'en') =>
+    request<any>(`/sites/${siteId}/audit/knowledge/submit`, {
+      method: 'POST',
+      body: JSON.stringify({ target, draft, lang }),
+    }),
+
+  findCommunity: (siteId: string, limit = 10) =>
+    request<any[]>(`/sites/${siteId}/audit/community/find`, {
+      method: 'POST',
+      body: JSON.stringify({ limit }),
+    }),
+
+  suggestCrossLinks: (siteId: string, articleId: string, limit = 5) =>
+    request<any[]>(`/sites/${siteId}/audit/cross-link/suggest`, {
+      method: 'POST',
+      body: JSON.stringify({ articleId, limit }),
+    }),
+
+  applyCrossLink: (siteId: string, suggestion: any) =>
+    request<any>(`/sites/${siteId}/audit/cross-link/apply`, {
+      method: 'POST',
+      body: JSON.stringify({ suggestion }),
+    }),
+
+  getTrainingDataMetadata: (siteId: string) =>
+    request<any>(`/sites/${siteId}/audit/training-data`),
+
+  getTrainingDataDownloadUrl: (siteId: string) => {
+    const apiBase = process.env.NEXT_PUBLIC_API_URL ?? '';
+    return `${apiBase}/api/sites/${siteId}/audit/training-data.jsonl`;
+  },
+
   // Reports
   getReport: (siteId: string, range: 'week' | 'month' | 'year' = 'month') =>
     request<any>(`/sites/${siteId}/analytics/report?range=${range}`),
