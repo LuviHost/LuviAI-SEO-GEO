@@ -15,11 +15,11 @@ export class QuotaService {
   private readonly log = new Logger(QuotaService.name);
 
   private readonly LIMITS = {
-    TRIAL:      { articles: 1,    sites: 1,  publishTargets: ['MARKDOWN_ZIP'] as string[] },
-    STARTER:    { articles: 10,   sites: 1,  publishTargets: 'all' as const },
-    PRO:        { articles: 50,   sites: 3,  publishTargets: 'all' as const },
-    AGENCY:     { articles: 250,  sites: 10, publishTargets: 'all' as const },
-    ENTERPRISE: { articles: 9999, sites: 999, publishTargets: 'all' as const },
+    TRIAL:      { articles: 1,    sites: 1,  publishTargets: ['MARKDOWN_ZIP'] as string[], citationTests: 3,   pool: ['gemini'] as string[] },
+    STARTER:    { articles: 10,   sites: 1,  publishTargets: 'all' as const,                citationTests: 15,  pool: ['gemini', 'anthropic'] },
+    PRO:        { articles: 50,   sites: 3,  publishTargets: 'all' as const,                citationTests: 50,  pool: ['gemini', 'anthropic', 'xai'] },
+    AGENCY:     { articles: 250,  sites: 10, publishTargets: 'all' as const,                citationTests: 200, pool: ['gemini', 'anthropic', 'xai', 'openai', 'deepseek', 'perplexity'] },
+    ENTERPRISE: { articles: 9999, sites: 999, publishTargets: 'all' as const,               citationTests: 500, pool: ['gemini', 'anthropic', 'xai', 'openai', 'deepseek', 'perplexity'] },
   };
 
   constructor(private readonly prisma: PrismaService) {}
@@ -128,6 +128,49 @@ export class QuotaService {
   }
 
   // ────────────────────────────────────────────
+  //  AI Citation testi kotasi (Sprint BYOK)
+  // ────────────────────────────────────────────
+  async checkCitationQuota(userId: string): Promise<{ allowed: boolean; remaining: number; limit: number; used: number }> {
+    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    await this.maybeResetCitationQuota(user);
+    const fresh = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    const limit = this.LIMITS[fresh.plan].citationTests;
+    const used = fresh.aiCitationTestsThisMonth;
+    return {
+      allowed: used < limit,
+      remaining: Math.max(0, limit - used),
+      limit,
+      used,
+    };
+  }
+
+  async enforceCitationQuota(userId: string): Promise<{ remaining: number; limit: number }> {
+    const { allowed, remaining, limit, used } = await this.checkCitationQuota(userId);
+    if (!allowed) {
+      throw new ForbiddenException(
+        `Aylık ${limit} AI Citation testi hakkın doldu (${used}/${limit}). Plan yükseltebilir veya kendi API key'lerini bağlayıp BYOK ile sınırsız kullanabilirsin.`,
+      );
+    }
+    return { remaining, limit };
+  }
+
+  async incrementCitationUsage(userId: string): Promise<void> {
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { aiCitationTestsThisMonth: { increment: 1 } },
+    });
+  }
+
+  /** Plan'in havuzdan saglayicilari (kullanicinin BYOK gerekmeden testleyebilecegi) */
+  getPlanPool(plan: string): string[] {
+    return (this.LIMITS as any)[plan]?.pool ?? [];
+  }
+
+  getPlanCitationLimit(plan: string): number {
+    return (this.LIMITS as any)[plan]?.citationTests ?? 0;
+  }
+
+  // ────────────────────────────────────────────
   //  Helpers
   // ────────────────────────────────────────────
   private async maybeResetMonthlyQuota(user: { id: string; plan: string; articlesQuotaResetAt: Date }) {
@@ -147,6 +190,19 @@ export class QuotaService {
         },
       });
       this.log.log(`[${user.id}] Aylık kota sıfırlandı`);
+    }
+  }
+
+  private async maybeResetCitationQuota(user: { id: string; plan: string; aiCitationQuotaResetAt: Date }) {
+    const lastReset = new Date(user.aiCitationQuotaResetAt);
+    const now = new Date();
+    const sameMonth = lastReset.getFullYear() === now.getFullYear() && lastReset.getMonth() === now.getMonth();
+    if (!sameMonth) {
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: { aiCitationTestsThisMonth: 0, aiCitationQuotaResetAt: now },
+      });
+      this.log.log(`[${user.id}] Citation kotasi ay basinda sifirlandi`);
     }
   }
 }

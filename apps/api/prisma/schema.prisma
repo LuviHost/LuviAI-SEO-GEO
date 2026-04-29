@@ -36,6 +36,10 @@ model User {
   articlesUsedThisMonth Int @default(0)
   articlesQuotaResetAt  DateTime @default(now())
 
+  // AI Citation testi kotasi (Sprint BYOK)
+  aiCitationTestsThisMonth Int      @default(0)
+  aiCitationQuotaResetAt   DateTime @default(now())
+
   // Whitelabel / Agency (AGENCY_OWNER icin doldurulur)
   whitelabelEnabled    Boolean @default(false)
   whitelabelBrandName  String?  // ornek "Webmasters Ajansı"
@@ -84,6 +88,26 @@ enum SubscriptionStatus {
   PAST_DUE
   CANCELED
   EXPIRED
+}
+
+// Site bazli BYOK — kullanicinin OpenAI/xAI/DeepSeek/Perplexity vs API key'leri (Sprint BYOK)
+model SiteAiProviderKey {
+  id         String   @id @default(cuid())
+  siteId     String
+  provider   String   // openai | anthropic | gemini | xai | deepseek | perplexity
+  enc        String   @db.Text  // AES-256 encrypted (@luviai/shared.encrypt)
+  prefix     String   // ilk 8 char gosterim icin
+  verified   Boolean  @default(false)
+  verifiedAt DateTime?
+  lastError  String?  @db.Text
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  site       Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  @@unique([siteId, provider])
+  @@index([siteId])
+  @@map("site_ai_provider_keys")
 }
 
 // Public API key (Sprint C — public REST API icin)
@@ -220,6 +244,7 @@ model Site {
   analyticsSnapshots AnalyticsSnapshot[]
   socialChannels   SocialChannel[]
   adCampaigns      AdCampaign[]
+  aiProviderKeys   SiteAiProviderKey[]
 
   @@unique([userId, url])
   @@index([userId])

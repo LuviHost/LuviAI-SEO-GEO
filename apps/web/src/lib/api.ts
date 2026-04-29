@@ -125,6 +125,22 @@ export const api = {
   runCitationTest: (siteId: string) =>
     request<any>(`/sites/${siteId}/audit/citation-test`, { method: 'POST' }),
 
+  // ── BYOK (Bring Your Own Key) — Sprint BYOK ──
+  getAiKeysStatus: (siteId: string) =>
+    request<any>(`/sites/${siteId}/ai-keys`),
+
+  upsertAiKey: (siteId: string, provider: string, key: string) =>
+    request<any>(`/sites/${siteId}/ai-keys`, {
+      method: 'POST',
+      body: JSON.stringify({ provider, key }),
+    }),
+
+  deleteAiKey: (siteId: string, provider: string) =>
+    request<any>(`/sites/${siteId}/ai-keys/${provider}`, { method: 'DELETE' }),
+
+  retestAiKey: (siteId: string, provider: string) =>
+    request<any>(`/sites/${siteId}/ai-keys/${provider}/test`, { method: 'POST' }),
+
   applyAutoFix: (siteId: string, fixes: string[]) =>
     request<any>(`/sites/${siteId}/audit/auto-fix-now`, {
       method: 'POST',

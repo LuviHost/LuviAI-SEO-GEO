@@ -17,6 +17,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { PipelineProgress, PIPELINE_STEPS } from '@/components/pipeline-progress';
 import { SocialChannelsStep } from '@/components/social-channels-step';
 import { SocialCalendarStep } from '@/components/social-calendar-step';
+import { AiKeysPanel } from '@/components/ai-keys-panel';
 
 type StepStatus = 'pending' | 'auto-running' | 'done' | 'skipped';
 
@@ -516,6 +517,8 @@ function AuditStepBody({
       )}
 
       <CitationPanel siteId={siteId} />
+
+      <AiKeysPanel siteId={siteId} />
 
       <SnippetPanel siteId={siteId} />
 
