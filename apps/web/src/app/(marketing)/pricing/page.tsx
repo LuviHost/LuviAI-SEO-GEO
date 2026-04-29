@@ -82,6 +82,13 @@ export default function PricingPage() {
         <div className="text-center mb-8 sm:mb-12">
           <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-3">{t('pricing.title')}</h1>
           <p className="text-muted-foreground text-base sm:text-lg px-2">{t('pricing.subtitle')}</p>
+          <div className="mt-6 inline-flex items-center gap-2 bg-brand/5 border border-brand/20 rounded-full px-4 py-1.5">
+            <span className="text-xs font-bold text-brand">14 GÜN ÜCRETSİZ DENEME</span>
+            <span className="text-muted-foreground">·</span>
+            <span className="text-xs">Kart bilgisi yok</span>
+            <span className="text-muted-foreground">·</span>
+            <span className="text-xs">İlk makale hediye</span>
+          </div>
         </div>
 
         <div className="flex justify-center mb-10">

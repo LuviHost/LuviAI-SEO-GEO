@@ -172,6 +172,9 @@ export const api = {
       body: JSON.stringify({ enabled }),
     }),
 
+  createDemoSite: () =>
+    request<{ siteId: string; articles: number }>(`/sites/demo`, { method: 'POST' }),
+
   detectPlatform: (siteId: string) =>
     request<any>(`/sites/${siteId}/detect-platform`, { method: 'POST' }),
 

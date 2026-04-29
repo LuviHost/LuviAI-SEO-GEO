@@ -5,6 +5,7 @@ import { CreateSiteDto, UpdateSiteDto } from './sites.dto.js';
 import { GscOAuthService } from '../auth/gsc-oauth.service.js';
 import { GaOAuthService } from '../auth/ga-oauth.service.js';
 import { PlatformDetectorService } from './platform-detector.service.js';
+import { DemoSeederService } from './demo-seeder.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 
 function ensureUser(req: Request) {
@@ -20,6 +21,7 @@ export class SitesController {
     private readonly gsc: GscOAuthService,
     private readonly ga: GaOAuthService,
     private readonly platformDetector: PlatformDetectorService,
+    private readonly demoSeeder: DemoSeederService,
     private readonly prisma: PrismaService,
   ) {}
 
@@ -27,6 +29,13 @@ export class SitesController {
   create(@Req() req: Request, @Body() dto: CreateSiteDto) {
     const user = ensureUser(req);
     return this.sites.create(user.id, dto);
+  }
+
+  /** POST /sites/demo — yeni kullaniciya demo site + 5 makale + audit + AI snapshot */
+  @Post('demo')
+  async createDemo(@Req() req: Request) {
+    const user = ensureUser(req);
+    return this.demoSeeder.createDemoSiteForUser(user.id);
   }
 
   @Get()

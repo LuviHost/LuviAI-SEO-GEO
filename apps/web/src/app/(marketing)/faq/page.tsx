@@ -57,6 +57,30 @@ const FAQS = [
     q: 'Kendi geliştirici takımım API kullanabilir mi?',
     a: 'Faz 3\'te (Q3 2026) public REST API + npm/pip SDK + Zapier/Make/n8n integration\'ları gelir. Şu an dashboard üzerinden manuel/otomatik kullanıyorsunuz.',
   },
+  {
+    q: 'Reklam (Google Ads + Meta) yönetimi nasıl çalışıyor?',
+    a: 'Ryze AI MCP entegrasyonu ile Google Ads + Meta + GA4 bağlanır. AI hedef kitle önerir (interest + keyword + lookalike), reklam metni yazar (Google RSA + Meta primaryText), 3 format görsel hazırlar (square/portrait/landscape), bütçe ayarlar. Otopilot her 6 saatte ROAS analizi yapar — düşükse pause, yüksekse bütçe %20 artır, alakasız search term\'leri negative keyword olarak ekler.',
+  },
+  {
+    q: 'AI Citation testi tam olarak ne ölçüyor?',
+    a: 'Site brain\'inizdeki AEO/GEO sorgularını her gün 04:00 UTC\'de Claude · Gemini · ChatGPT · Perplexity\'e sorar. Cevapta site URL\'iniz alıntılanırsa 100, sadece marka adı geçerse 50, hiç geçmezse 0 puan. Trend grafiği 7/30/90/365 gün. %30+ düşüş tespit edilirse otomatik email gelir.',
+  },
+  {
+    q: 'GEO Score nedir, nasıl hesaplanır?',
+    a: '6 pillar üzerinden ağırlıklı ortalama: (1) Crawler Erişimi — robots.txt + llms.txt + llms-full.txt + sitemap, (2) Yapısal Veri — schema kapsama + Speakable + FAQPage, (3) AI Citation — 4 sağlayıcı son 7 gün ortalama, (4) Otorite — sameAs + competitive landscape + sosyal kanal + GSC, (5) Tazelik — son 7/30 gün yayın, (6) Multi-Modal — TTS audio + podcast + hero görseller. Sonuç: A+ → F harf notu.',
+  },
+  {
+    q: 'Otopilot tam olarak ne yapıyor?',
+    a: 'Site eklediğinizde varsayılan AÇIK gelir. Otopilot ON ise: (1) Site denetimi → otomatik düzeltme (sitemap/robots/llms cPanel\'e yazılır), (2) 8 makale takvime yerleşir, (3) İlk makale hemen üretilir, (4) Sonraki makaleler 15dk öncesinden üretime girer, yayın saatinde otomatik publish, (5) AI Citation günlük + içerik 30 gün sonra performansa göre revize, (6) Reklam autopilot 6 saatte ROAS optimize. Sen sadece raporu maille okursun.',
+  },
+  {
+    q: 'Türkçe SEO uzmanı maaşına vermek yerine LuviAI almak gerçekten mantıklı mı?',
+    a: 'Bir Türkçe SEO uzmanı 35-60k ₺/ay. Bir içerik yazarı 10-20k ₺/ay. Sosyal medya yöneticisi 15-25k ₺/ay. Reklam uzmanı 20-40k ₺/ay. Toplam ~100k ₺/ay. LuviAI Profesyonel paket 6.980 ₺/ay ve hepsini yapıyor. Üstelik AI search optimizasyonu (Türkçe pazarda yok) + 7/24 çalışıyor + tatil yapmıyor + ayrılmıyor.',
+  },
+  {
+    q: 'Demo görmek istiyorum, nasıl?',
+    a: 'Onboarding ekranında "Demo Aç" butonuna tıkla. 30 saniyede tam dolu örnek site açılır: 5 dummy makale (1 yayında, 1 üretiliyor, 3 takvimde) + audit raporu + AI Citation 14 günlük trend + GEO Score Card. Tek tıkla LuviAI\'ı keşfedebilirsin, kendi siteni bağlamadan.',
+  },
 ];
 
 export default function FaqPage() {

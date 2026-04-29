@@ -9,6 +9,7 @@ import { LocaleSwitch } from '@/components/locale-switch';
 import {
   Sparkles, Zap, Globe, Calendar, Bot, FileText, BarChart3, CheckCircle2,
   ArrowRight, Send, Search, Layers, Clock, ShieldCheck, Repeat,
+  Megaphone, Award, Network, MessageSquare, Star, TrendingUp, Mic, Map,
 } from 'lucide-react';
 
 export default function HomePage() {
@@ -64,8 +65,13 @@ export default function HomePage() {
               {t('hero.title')}
             </h1>
 
-            <p className="text-base sm:text-lg md:text-xl mb-8 sm:mb-10 text-white/90 max-w-2xl mx-auto leading-relaxed">
+            <p className="text-base sm:text-lg md:text-xl mb-3 sm:mb-4 text-white/90 max-w-2xl mx-auto leading-relaxed">
               {t('hero.subtitle')}
+            </p>
+
+            <p className="text-sm sm:text-base mb-8 sm:mb-10 text-white/70 max-w-2xl mx-auto">
+              SEO + GEO + Reklam + Sosyal Medya · Tek panelden, otopilotla.
+              <strong className="text-white"> 57 özellik · 4 AI sağlayıcı · Türkiye için yapıldı.</strong>
             </p>
 
             <div className="flex flex-col sm:flex-row gap-3 justify-center mb-8">
@@ -236,6 +242,114 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* ─── AI SEARCH OPTIMIZATION (GEO STACK) ─── */}
+      <section className="bg-background border-b">
+        <div className="container px-4 py-16 sm:py-24">
+          <div className="max-w-3xl mx-auto text-center mb-12">
+            <span className="inline-block bg-brand/10 text-brand text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full mb-3">
+              Türkiye'de bir ilk
+            </span>
+            <h2 className="text-3xl sm:text-4xl font-bold tracking-tight mb-4">
+              AI Search Optimization Stack
+            </h2>
+            <p className="text-muted-foreground text-base sm:text-lg">
+              ChatGPT, Claude, Gemini, Perplexity sizin için yazıyor mu? <strong>32 GEO özelliği</strong> sayesinde sitenizi AI'lara öğretin.
+            </p>
+          </div>
+
+          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4 max-w-6xl mx-auto">
+            <GeoCard icon={<Sparkles />} title="AI Citation Test" desc="Claude · Gemini · ChatGPT · Perplexity'de günlük alıntılanma skoru. Drop tespit + email." />
+            <GeoCard icon={<Network />} title="GEO Heatmap" desc="Sektör soruları × 4 AI = canlı matrix. Rakipler hangi sorularda kazanıyor görün." />
+            <GeoCard icon={<Award />} title="GEO Score Card" desc="6 pillar (crawler, schema, citation, otorite, tazelik, multi-modal). Harf notu A+ → F." />
+            <GeoCard icon={<Globe />} title="llms-full.txt" desc="Tüm site içeriği AI için tek dosyada. Anthropic, Stripe gibi firmalar kullanıyor." />
+            <GeoCard icon={<FileText />} title="15+ Schema Tipi" desc="Article, FAQPage, HowTo, Product, Organization, sameAs, Speakable — otomatik." />
+            <GeoCard icon={<Mic />} title="TTS + Podcast RSS" desc="Her makaleyi sesli okur, Spotify'a uygun feed. Siri/Alexa multi-modal alıntı." />
+            <GeoCard icon={<MessageSquare />} title="Reddit + HARO" desc="Sektör sorularına AI taslak yanıt. Backlink + AI authority sinyali." />
+            <GeoCard icon={<Zap />} title="Wikidata + Wikipedia" desc="Knowledge Graph stub'ı + AI bot Wikipedia draft'ı. Kalıcı GEO etkisi." />
+          </div>
+
+          <div className="text-center mt-10">
+            <Link href="/pricing" className="text-brand hover:underline text-sm font-medium inline-flex items-center gap-1">
+              Tam liste için fiyatlandırmayı görün <ArrowRight className="h-3 w-3" />
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* ─── PAID ADS STACK (FAZ 11) ─── */}
+      <section className="bg-gradient-to-b from-orange-500/5 to-transparent border-b">
+        <div className="container px-4 py-16 sm:py-24">
+          <div className="max-w-3xl mx-auto text-center mb-12">
+            <span className="inline-block bg-orange-500/10 text-orange-500 text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full mb-3">
+              Yeni
+            </span>
+            <h2 className="text-3xl sm:text-4xl font-bold tracking-tight mb-4">
+              Reklam Otopilot — Google + Meta + GA4
+            </h2>
+            <p className="text-muted-foreground text-base sm:text-lg">
+              AI hedef kitle önerir, reklam metni yazar, görsel hazırlar, bütçe ayarlar, yayınlar.
+              <strong> 6 saatte 1 ROAS analiz, otomatik optimize.</strong>
+            </p>
+          </div>
+
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 max-w-6xl mx-auto">
+            <AdsCard icon={<Bot />} title="AI Reklam Üretici" desc="Google RSA (15 headline + 4 desc) + Meta (5 primaryText + CTA) tek seferde." />
+            <AdsCard icon={<Layers />} title="Audience Builder" desc="Brain'den persona + niş → keyword + interest + lookalike önerileri." />
+            <AdsCard icon={<TrendingUp />} title="Otopilot ROAS Optimize" desc="ROAS<1.5 → pause · CTR>3%+ROAS>5 → bütçe %20 artır. 6 saatte bir cron." />
+            <AdsCard icon={<Award />} title="A/B Test Winner" desc="7+ gün eski ad varyantlarını AI karşılaştırır, kazananı seçer." />
+            <AdsCard icon={<Search />} title="Negative Keyword AI" desc="Search terms'den alakasız kelime tespit + Google'a otomatik ekleme." />
+            <AdsCard icon={<Network />} title="Cross-Platform Shift" desc="Meta iyi, Google kötü → bütçe otomatik kaydır. ROAS optimize." />
+          </div>
+
+          <div className="text-center mt-10 max-w-xl mx-auto">
+            <p className="text-sm text-muted-foreground">
+              <strong className="text-orange-500">Etki:</strong> Ortalama bir KOBİ Google + Meta'ya ayda 5-15k ₺ harcıyor.
+              Kötü yönetilirse %30-50'si israf olur. <strong>LuviAI bunu otomatik kapatır → ayda 1.5-7.5k ₺ tasarruf.</strong>
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* ─── DEĞER KARŞILAŞTIRMA — TASARRUF TABLOSU ─── */}
+      <section className="bg-muted/20 border-b">
+        <div className="container px-4 py-16 sm:py-24">
+          <div className="max-w-3xl mx-auto text-center mb-10">
+            <h2 className="text-3xl sm:text-4xl font-bold tracking-tight mb-4">
+              Klasik ekibe göre %93 tasarruf
+            </h2>
+            <p className="text-muted-foreground">
+              Her şey Profesyonel pakete dahil — <strong>aylık 6.980 ₺</strong>.
+            </p>
+          </div>
+
+          <div className="max-w-2xl mx-auto rounded-2xl border bg-card overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b bg-muted/30">
+                  <th className="text-left px-4 py-3 font-semibold">İhtiyaç</th>
+                  <th className="text-right px-4 py-3 font-semibold">Klasik</th>
+                  <th className="text-right px-4 py-3 font-semibold text-brand">LuviAI</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                <tr><td className="px-4 py-2.5">SEO uzmanı</td><td className="text-right px-4 text-muted-foreground">35-60k ₺/ay</td><td className="text-right px-4 text-brand">✓</td></tr>
+                <tr><td className="px-4 py-2.5">İçerik yazarı</td><td className="text-right px-4 text-muted-foreground">10-20k ₺/ay</td><td className="text-right px-4 text-brand">✓</td></tr>
+                <tr><td className="px-4 py-2.5">Sosyal medya yöneticisi</td><td className="text-right px-4 text-muted-foreground">15-25k ₺/ay</td><td className="text-right px-4 text-brand">✓</td></tr>
+                <tr><td className="px-4 py-2.5">Reklam uzmanı (Google + Meta)</td><td className="text-right px-4 text-muted-foreground">20-40k ₺/ay</td><td className="text-right px-4 text-brand">✓</td></tr>
+                <tr><td className="px-4 py-2.5">A/B test analist</td><td className="text-right px-4 text-muted-foreground">3-5k ₺/ay</td><td className="text-right px-4 text-brand">✓</td></tr>
+                <tr><td className="px-4 py-2.5">GA4 expert</td><td className="text-right px-4 text-muted-foreground">5-10k ₺/ay</td><td className="text-right px-4 text-brand">✓</td></tr>
+                <tr><td className="px-4 py-2.5">AI Search optimizasyonu</td><td className="text-right px-4 text-muted-foreground">yok</td><td className="text-right px-4 text-brand">✓</td></tr>
+                <tr className="bg-muted/20 font-bold">
+                  <td className="px-4 py-3">TOPLAM</td>
+                  <td className="text-right px-4">~100k ₺</td>
+                  <td className="text-right px-4 text-brand text-base">6.980 ₺</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
       {/* ─── FİNAL CTA ─── */}
       <section className="bg-gradient-to-br from-brand via-brand-light to-brand/40 text-white">
         <div className="container px-4 py-16 sm:py-24 text-center">
@@ -344,6 +458,30 @@ function FeatureBox({ icon, title, desc }: { icon: React.ReactNode; title: strin
       </div>
       <h3 className="font-semibold text-base mb-1.5">{title}</h3>
       <p className="text-sm text-muted-foreground leading-relaxed">{desc}</p>
+    </div>
+  );
+}
+
+function GeoCard({ icon, title, desc }: { icon: React.ReactNode; title: string; desc: string }) {
+  return (
+    <div className="rounded-xl border-2 border-brand/20 bg-gradient-to-br from-brand/5 to-transparent p-4 hover:border-brand/50 transition-all">
+      <div className="h-9 w-9 rounded-lg bg-brand/15 text-brand grid place-items-center mb-3">
+        {icon}
+      </div>
+      <h3 className="font-semibold text-sm mb-1">{title}</h3>
+      <p className="text-xs text-muted-foreground leading-relaxed">{desc}</p>
+    </div>
+  );
+}
+
+function AdsCard({ icon, title, desc }: { icon: React.ReactNode; title: string; desc: string }) {
+  return (
+    <div className="rounded-xl border-2 border-orange-500/20 bg-gradient-to-br from-orange-500/5 to-transparent p-4 hover:border-orange-500/50 transition-all">
+      <div className="h-9 w-9 rounded-lg bg-orange-500/15 text-orange-500 grid place-items-center mb-3">
+        {icon}
+      </div>
+      <h3 className="font-semibold text-sm mb-1">{title}</h3>
+      <p className="text-xs text-muted-foreground leading-relaxed">{desc}</p>
     </div>
   );
 }

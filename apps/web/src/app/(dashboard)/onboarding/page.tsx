@@ -88,6 +88,27 @@ export default function OnboardingPage() {
               <p className="text-xs text-muted-foreground mt-3">
                 GSC ve Google Analytics entegrasyonu opsiyoneldir; site eklendikten sonra istersen Akış üzerinden bağlarsın.
               </p>
+
+              <div className="mt-4 rounded-lg border border-brand/30 bg-brand/5 p-3 flex items-center justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold">🎁 Önce LuviAI'ı tanımak ister misin?</p>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">Tek tıkla örnek site oluştur — 5 dummy makale + audit + AI snapshot. URL bağlamadan önce hayrete düşmen için.</p>
+                </div>
+                <Button size="sm" variant="outline" type="button" onClick={async () => {
+                  try {
+                    setLoading(true);
+                    const r = await api.createDemoSite();
+                    toast.success('Demo site hazır');
+                    router.push(`/sites/${r.siteId}`);
+                  } catch (err: any) { toast.error(err.message); setLoading(false); }
+                }} disabled={loading}>
+                  Demo Aç
+                </Button>
+              </div>
+
+              <p className="hidden text-xs text-muted-foreground mt-3">
+                _
+              </p>
             </>
           )}
 
