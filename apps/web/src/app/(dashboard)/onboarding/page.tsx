@@ -47,6 +47,9 @@ type LocalState = {
   selectedTopicCount: number;
   brainReady: boolean; // Sprint 3 — AI brain hazir mi
   step2WaitedAt?: number; // kullanici 'beklemeden devam' tikladi mi
+  topicsReady: boolean; // Sprint 4 — AI baslık onerileri hazir mi
+  topicsScheduledCount: number; // takvime alinan baslık sayisi
+  step7WaitedAt?: number; // kullanici Step7'de 'AI baslık beklemeden bitir' tikladi mi
 };
 
 const STORAGE_KEY = 'luviai-onboarding-v2';
@@ -65,6 +68,8 @@ const DEFAULT_STATE: LocalState = {
   socialChannelCount: 0,
   selectedTopicCount: 0,
   brainReady: false,
+  topicsReady: false,
+  topicsScheduledCount: 0,
 };
 
 function OnboardingInner() {
@@ -313,9 +318,33 @@ function OnboardingInner() {
               </div>
             )}
             {state.step === 7 && (
-              <Button onClick={handleFinish} disabled={loading}>
-                {loading ? 'Bitiriliyor…' : 'Bitir 🚀'}
-              </Button>
+              <div className="flex flex-col items-end gap-1">
+                <div className="flex gap-2">
+                  {!state.topicsReady && !state.step7WaitedAt && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => update({ step7WaitedAt: Date.now() })}
+                      disabled={loading}
+                    >
+                      Beklemeden bitir
+                    </Button>
+                  )}
+                  <Button
+                    onClick={handleFinish}
+                    disabled={
+                      loading ||
+                      (!state.topicsReady && !state.step7WaitedAt)
+                    }
+                    title={!state.topicsReady && !state.step7WaitedAt ? 'AI baslık onerileri bekleniyor' : undefined}
+                  >
+                    {loading ? 'Bitiriliyor…' : !state.topicsReady && !state.step7WaitedAt ? 'AI bekleniyor…' : 'Bitir 🚀'}
+                  </Button>
+                </div>
+                {!state.topicsReady && !state.step7WaitedAt && (
+                  <p className="text-[10px] text-muted-foreground">Baslıklar hazır olunca dashboard'da gorulebilir; istersen beklemeden bitirebilirsin.</p>
+                )}
+              </div>
             )}
           </div>
         </CardContent>
@@ -1011,6 +1040,8 @@ function Step7({ state, update }: any) {
       const q = await api.getTopicQueue(state.siteId);
       setQueue(q);
       setLoading(false);
+      const hasTopics = !!(q && (q.tier1Topics?.length || q.tier2Topics?.length));
+      if (hasTopics && !state.topicsReady) update({ topicsReady: true });
       return q;
     } catch (_e) {
       setLoading(false);
