@@ -32,6 +32,7 @@ import { AiCitationTrackerService } from '../../api/dist/audit/ai-citation-track
 import { AiIndexingPingerService } from '../../api/dist/audit/ai-indexing-pinger.service.js';
 import { ContentPivotService } from '../../api/dist/articles/content-pivot.service.js';
 import { AiMentionAlarmService } from '../../api/dist/audit/ai-mention-alarm.service.js';
+import { CampaignOrchestratorService } from '../../api/dist/ads/campaign-orchestrator.service.js';
 
 const log = new Logger('Worker');
 
@@ -56,6 +57,7 @@ async function bootstrap() {
     indexingPinger: app.get(AiIndexingPingerService),
     contentPivot: app.get(ContentPivotService),
     aiAlarm: app.get(AiMentionAlarmService),
+    adsOrchestrator: app.get(CampaignOrchestratorService),
     prisma: app.get(PrismaService),
   };
 
@@ -265,6 +267,13 @@ async function bootstrap() {
     AI_MENTION_ALARM: async () => {
       return services.aiAlarm.scanAndAlert();
     },
+
+    /**
+     * ADS_AUTOPILOT — 6 saat'te bir aktif kampanyalari ROAS'a gore optimize.
+     */
+    ADS_AUTOPILOT: async () => {
+      return services.adsOrchestrator.optimizeAutopilotCampaigns();
+    },
   };
 
   const worker = new Worker(
@@ -385,7 +394,19 @@ async function bootstrap() {
       },
     );
 
-    log.log('⏰ Cron: PROCESS_SCHEDULED 30dk · LLMS_FULL_BUILD haftalik · AI_CITATION_DAILY gunluk · CONTENT_PIVOT_CHECK haftalik · AI_MENTION_ALARM gunluk');
+    // 6) ADS_AUTOPILOT — her 6 saat
+    await queue.add(
+      'ADS_AUTOPILOT',
+      { trigger: 'cron' },
+      {
+        repeat: { every: 6 * 60 * 60 * 1000 },
+        jobId: 'cron:ads-autopilot',
+        removeOnComplete: { count: 30 },
+        removeOnFail: { count: 20 },
+      },
+    );
+
+    log.log('⏰ Cron: PROCESS_SCHEDULED 30dk · LLMS_FULL_BUILD haftalik · AI_CITATION_DAILY gunluk · CONTENT_PIVOT_CHECK haftalik · AI_MENTION_ALARM gunluk · ADS_AUTOPILOT 6saat');
   } catch (err: any) {
     log.warn(`Cron kurulumu basarisiz: ${err.message}`);
   }

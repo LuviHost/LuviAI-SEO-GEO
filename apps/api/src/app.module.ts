@@ -21,6 +21,7 @@ import { AffiliateModule } from './affiliate/affiliate.module.js';
 import { MeModule } from './me/me.module.js';
 import { PublishTargetsModule } from './publish-targets/publish-targets.module.js';
 import { SocialModule } from './social/social.module.js';
+import { AdsModule } from './ads/ads.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 
 @Module({
@@ -46,6 +47,7 @@ import { PrismaModule } from './prisma/prisma.module.js';
     MeModule,
     PublishTargetsModule,
     SocialModule,
+    AdsModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: AuthGuard },

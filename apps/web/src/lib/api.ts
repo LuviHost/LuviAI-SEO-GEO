@@ -306,6 +306,34 @@ export const api = {
       body: JSON.stringify({ videoPath }),
     }),
 
+  // Faz 11 — Ads Manager
+  listAdCampaigns: (siteId: string, status?: string) =>
+    request<any[]>(`/sites/${siteId}/ads/campaigns${status ? `?status=${status}` : ''}`),
+
+  buildAudience: (siteId: string, payload: { objective: string; productOrService: string; budget: number }) =>
+    request<any>(`/sites/${siteId}/ads/audience`, { method: 'POST', body: JSON.stringify(payload) }),
+
+  buildAdCopy: (siteId: string, payload: any) =>
+    request<any>(`/sites/${siteId}/ads/copy`, { method: 'POST', body: JSON.stringify(payload) }),
+
+  buildAdImages: (siteId: string, payload: { prompt: string; brandColor?: string; formats?: any[] }) =>
+    request<any[]>(`/sites/${siteId}/ads/images`, { method: 'POST', body: JSON.stringify(payload) }),
+
+  buildCampaign: (siteId: string, payload: any) =>
+    request<any>(`/sites/${siteId}/ads/build`, { method: 'POST', body: JSON.stringify(payload) }),
+
+  launchCampaign: (siteId: string, campaignId: string) =>
+    request<any>(`/sites/${siteId}/ads/${campaignId}/launch`, { method: 'POST' }),
+
+  pauseCampaign: (siteId: string, campaignId: string) =>
+    request<any>(`/sites/${siteId}/ads/${campaignId}/pause`, { method: 'POST' }),
+
+  pingMcp: (siteId: string) =>
+    request<any>(`/sites/${siteId}/ads/mcp/ping`, { method: 'POST' }),
+
+  updateAdsSettings: (siteId: string, payload: { adsMcpEndpoint?: string; adsMcpToken?: string; adsAutopilot?: boolean }) =>
+    request<any>(`/sites/${siteId}/ads/settings`, { method: 'PATCH', body: JSON.stringify(payload) }),
+
   // Reports
   getReport: (siteId: string, range: 'week' | 'month' | 'year' = 'month') =>
     request<any>(`/sites/${siteId}/analytics/report?range=${range}`),

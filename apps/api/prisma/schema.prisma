@@ -158,6 +158,11 @@ model Site {
   notifyWebhookUrl  String?  // Slack/Discord incoming webhook URL
   notifyWebhookKind String?  // slack | discord
 
+  // Ads Manager (Faz 11) — Google + Meta + GA4 MCP endpoint
+  adsMcpEndpoint    String?  // Ryze AI MCP URL (https://...)
+  adsMcpToken       String?  // Bearer token
+  adsAutopilot      Boolean @default(false) // performansa gore otomatik optimize
+
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -171,6 +176,7 @@ model Site {
   jobs             Job[]
   analyticsSnapshots AnalyticsSnapshot[]
   socialChannels   SocialChannel[]
+  adCampaigns      AdCampaign[]
 
   @@unique([userId, url])
   @@index([userId])
@@ -484,6 +490,65 @@ model AiReferrerHit {
   @@map("ai_referrer_hits")
 }
 
+// ═══════════════════════════════════════════════════════════════
+//  ADS MANAGER (Faz 11) — Google Ads + Meta Ads campaign tracking
+// ═══════════════════════════════════════════════════════════════
+
+model AdCampaign {
+  id            String   @id @default(cuid())
+  siteId        String
+
+  platform      String   // google_ads | meta_ads
+  externalId    String?  // platform-side campaign ID (Google: 123, Meta: act_123)
+  name          String
+  objective     String   // traffic | leads | conversions | brand_awareness | sales
+  status        String   @default("DRAFT") // DRAFT | PAUSED | ACTIVE | ENDED | FAILED
+
+  // Targeting
+  audience      Json?    // { interests, demographics, lookalikes, keywords (Google) }
+  locations     Json?    // ["TR", "İstanbul", ...]
+  languages     Json?    // ["tr", "en"]
+
+  // Creatives
+  headlines     Json?    // [{ text, length }] — Google RSA
+  descriptions  Json?    // [{ text }]
+  primaryTexts  Json?    // Meta primary text variants
+  ctaButton     String?  // SHOP_NOW | LEARN_MORE | SIGN_UP
+
+  // Images / Videos
+  creativeAssets Json?   // [{ url, format: square|portrait|landscape, type: image|video }]
+
+  // Budget
+  budgetType    String?  // daily | lifetime
+  budgetAmount  Decimal? @db.Decimal(10, 2) // TL
+  budgetCurrency String  @default("TRY")
+  startDate     DateTime?
+  endDate       DateTime?
+
+  // Performance (cron her 6 saat update)
+  impressions   Int      @default(0)
+  clicks        Int      @default(0)
+  spend         Decimal  @default(0) @db.Decimal(10, 2)
+  conversions   Int      @default(0)
+  ctr           Float    @default(0)
+  cpc           Float    @default(0)
+  roas          Float    @default(0)
+  performanceCheckedAt DateTime?
+  performanceMetrics Json?
+
+  // Otopilot kararlari
+  autopilotActions Json? // [{ time, action, reason }]
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  site Site @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  @@index([siteId, platform])
+  @@index([siteId, status])
+  @@map("ad_campaigns")
+}
+
 model AiCrawlerHit {
   id          String   @id @default(cuid())
   siteId      String
@@ -557,6 +622,7 @@ enum JobType {
   AI_CITATION_DAILY   // gunluk Claude/Gemini/OpenAI/Perplexity gorunurluk testi
   CONTENT_PIVOT_CHECK // 30 gun sonra dusuk performans tespit + revize tetikle (haftalik)
   AI_MENTION_ALARM    // gunluk: AI citation drop tespit + email
+  ADS_AUTOPILOT       // 6 saatte bir: aktif kampanyalari ROAS'a gore optimize
 }
 
 enum JobStatus {

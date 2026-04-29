@@ -14,6 +14,7 @@ import { CitationHistoryChart } from '@/components/citation-history-chart';
 import { GeoLabPanel } from '@/components/geo-lab-panel';
 import { GeoScoreCard } from '@/components/geo-score-card';
 import { CrawlerHitsPanel } from '@/components/crawler-hits-panel';
+import { AdsLabPanel } from '@/components/ads-lab-panel';
 
 /**
  * Site detay sayfasinin VARSAYILAN gorunumu — kisanin tum panelin onunde
@@ -142,6 +143,9 @@ export function SiteOverviewDashboard({
 
       {/* GEO Lab — Heatmap + Wikidata + Wikipedia + Reddit + Cross-Link + Training */}
       <GeoLabPanel siteId={site.id} />
+
+      {/* Faz 11: Ads Lab — Google + Meta + GA4 */}
+      <AdsLabPanel site={site} />
 
       {/* Sirada Yayinlanacaklar */}
       {nextScheduled.length > 0 && (
