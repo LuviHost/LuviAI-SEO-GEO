@@ -67,40 +67,68 @@ export function SiteOverviewDashboard({
       {/* Sprint 6 — Saglik / hata banner */}
       <HealthBanner site={site} audit={audit} articles={articles} publishTargets={publishTargets ?? []} />
 
-      {/* Otopilot bandi */}
-      <div className={`rounded-xl border-2 p-4 transition-colors ${
-        autopilot ? 'border-brand/40 bg-gradient-to-br from-brand/10 to-brand/5' : 'border-muted bg-muted/20'
-      }`}>
-        <div className="flex items-start justify-between gap-3 flex-wrap">
-          <div className="flex items-start gap-3">
-            <div className={`h-11 w-11 rounded-full grid place-items-center shrink-0 ${
-              autopilot ? 'bg-brand text-white' : 'bg-muted-foreground/20 text-muted-foreground'
-            }`}>
-              <Bot className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="font-bold text-base flex items-center gap-2">
-                <InfoTooltip term="Otopilot">Otopilot</InfoTooltip> {autopilot ? 'AÇIK' : 'KAPALI'}
-                {autopilot && (
-                  <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wide bg-brand/20 text-brand rounded-full px-2 py-0.5 font-bold">
-                    <Activity className="h-3 w-3 animate-pulse" /> Çalışıyor
-                  </span>
-                )}
-              </p>
-              <p className="text-xs text-muted-foreground mt-1 max-w-xl">
-                {autopilot
-                  ? (site?.publishApprovalMode === 'manual_approve'
-                      ? 'LuviAI audit + takvim + üretim akışını yönetiyor. Yazılar tamamlandığında yayınlamadan önce ONAYINA gelecek (manuel onay modu seçili).'
-                      : 'LuviAI senin için audit, takvim, üretim, yayın ve sosyal post — hepsini otomatik yönetiyor. Detayları görmek için "Detaylı Akış" sekmesine geç.')
-                  : 'Manuel modda. Her makale için kendin onay/üretim/yayın yapacaksın. Otomatik akışı açmak istersen sağdaki butona tıkla.'}
-              </p>
-            </div>
-          </div>
+      {/* Otomatik akış bandi - kullanıcının publishApprovalMode + autopilot kombinasyonu */}
+      {(() => {
+        const approvalMode = site?.publishApprovalMode ?? 'manual_approve';
+        // 3 mod: durduruldu | manuel_onay | tam_otomatik
+        const mode = !autopilot ? 'paused' : (approvalMode === 'auto_publish' ? 'auto' : 'manual');
+        const config = {
+          paused: {
+            label: 'DURDURULDU',
+            icon: '⏸️',
+            ringClass: 'border-muted bg-muted/20',
+            badgeBg: 'bg-muted-foreground/20 text-muted-foreground',
+            badgeText: 'text-muted-foreground',
+            desc: 'Otomatik akış kapalı. Yeni yazı üretilmiyor — açmak için sağdaki butona tıkla.',
+          },
+          manual: {
+            label: 'YARI OTOMATİK',
+            icon: '👁️',
+            ringClass: 'border-blue-500/40 bg-gradient-to-br from-blue-500/10 to-blue-500/5',
+            badgeBg: 'bg-blue-500 text-white',
+            badgeText: 'text-blue-600 dark:text-blue-400',
+            desc: 'AI yazıları senin için takvime alıp üretiyor. Her yazı YAYINLANMADAN önce onayını bekler — email/dashboard\'dan haber alırsın.',
+          },
+          auto: {
+            label: 'TAM OTOMATİK',
+            icon: '🚀',
+            ringClass: 'border-brand/40 bg-gradient-to-br from-brand/10 to-brand/5',
+            badgeBg: 'bg-brand text-white',
+            badgeText: 'text-brand',
+            desc: 'AI tüm akışı yönetiyor: üretim, görsel, schema, yayın ve sosyal post. Sen sadece haftalık raporu okursun.',
+          },
+        }[mode];
+        return (
+          <div className={`rounded-xl border-2 p-4 transition-colors ${config.ringClass}`}>
+            <div className="flex items-start justify-between gap-3 flex-wrap">
+              <div className="flex items-start gap-3">
+                <div className={`h-11 w-11 rounded-full grid place-items-center shrink-0 text-xl ${config.badgeBg}`}>
+                  {config.icon}
+                </div>
+                <div>
+                  <p className="font-bold text-base flex items-center gap-2">
+                    <span className={config.badgeText}>{config.label}</span>
+                    {autopilot && (
+                      <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wide bg-foreground/10 rounded-full px-2 py-0.5 font-bold">
+                        <Activity className="h-3 w-3 animate-pulse" /> Çalışıyor
+                      </span>
+                    )}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1 max-w-xl">{config.desc}</p>
+                  {autopilot && approvalMode === 'manual_approve' && (
+                    <Link href={`/sites/${site.id}/settings`} className="text-[11px] text-brand hover:underline mt-1 inline-block">
+                      Tam otomatik moda geç →
+                    </Link>
+                  )}
+                </div>
+              </div>
           <Button onClick={toggleAutopilot} disabled={autopilotBusy} variant={autopilot ? 'outline' : 'default'}>
-            {autopilotBusy ? '...' : autopilot ? 'Kapat' : '🤖 Otopilotu Aç'}
+            {autopilotBusy ? '...' : autopilot ? 'Durdur' : '▶️ Akışı Aç'}
           </Button>
         </div>
       </div>
+      );
+      })()}
 
       {/* Sıradaki Aksiyon — kullanıcıyı yönlendiren widget */}
       <NextActionWidget site={site} audit={audit} articles={articles} onRefresh={onRefresh} />
