@@ -5,6 +5,9 @@ import { ArticleSchedulerService } from './article-scheduler.service.js';
 import { MediaGeneratorService } from './media-generator.service.js';
 import { ProgrammaticSeoService } from './programmatic-seo.service.js';
 import { VideoGeneratorService } from './video-generator.service.js';
+import { TiktokPublisherService } from './tiktok-publisher.service.js';
+import { InstagramPublisherService } from './instagram-publisher.service.js';
+import { TranslatorService } from './translator.service.js';
 
 @Controller('sites/:siteId/articles')
 export class ArticlesController {
@@ -14,6 +17,9 @@ export class ArticlesController {
     private readonly media: MediaGeneratorService,
     private readonly programmatic: ProgrammaticSeoService,
     private readonly video: VideoGeneratorService,
+    private readonly tiktok: TiktokPublisherService,
+    private readonly instagram: InstagramPublisherService,
+    private readonly translator: TranslatorService,
   ) {}
 
   @Get()
@@ -101,6 +107,30 @@ export class ArticlesController {
   @Post(':id/video/youtube')
   uploadYouTube(@Param('id') id: string, @Body() body: { videoPath: string }) {
     return this.video.uploadToYouTube(id, body.videoPath);
+  }
+
+  /** POST /sites/:siteId/articles/:id/video/tiktok — TikTok upload */
+  @Post(':id/video/tiktok')
+  uploadTikTok(@Param('id') id: string, @Body() body: { videoPath: string }) {
+    return this.tiktok.uploadVideo(id, body.videoPath);
+  }
+
+  /** POST /sites/:siteId/articles/:id/video/instagram — Instagram Reels upload */
+  @Post(':id/video/instagram')
+  uploadInstagram(@Param('id') id: string, @Body() body: { publicVideoUrl: string; caption?: string }) {
+    return this.instagram.uploadReel(id, body.publicVideoUrl, body.caption);
+  }
+
+  /** POST /sites/:siteId/articles/:id/translate — makaleyi farkli dile cevir */
+  @Post(':id/translate')
+  translate(@Param('id') id: string, @Body() body: { toLanguage: string }) {
+    return this.translator.translate(id, body.toLanguage);
+  }
+
+  /** POST /sites/:siteId/articles/translate-bulk — site icin bulk cevir */
+  @Post('translate-bulk')
+  translateBulk(@Param('siteId') siteId: string, @Body() body: { languages: string[] }) {
+    return this.translator.bulkTranslateSite(siteId, body.languages ?? ['en']);
   }
 
   /** POST /sites/:siteId/articles/programmatic/cities — 81 il icin bulk schedule */

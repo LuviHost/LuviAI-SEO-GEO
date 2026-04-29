@@ -11,6 +11,9 @@ import { ContentPivotService } from './content-pivot.service.js';
 import { MediaGeneratorService } from './media-generator.service.js';
 import { ProgrammaticSeoService } from './programmatic-seo.service.js';
 import { VideoGeneratorService } from './video-generator.service.js';
+import { TiktokPublisherService } from './tiktok-publisher.service.js';
+import { InstagramPublisherService } from './instagram-publisher.service.js';
+import { TranslatorService } from './translator.service.js';
 import { SocialModule } from '../social/social.module.js';
 import { AuditModule } from '../audit/audit.module.js';
 
@@ -38,6 +41,9 @@ import { AuditModule } from '../audit/audit.module.js';
     MediaGeneratorService,
     ProgrammaticSeoService,
     VideoGeneratorService,
+    TiktokPublisherService,
+    InstagramPublisherService,
+    TranslatorService,
   ],
   exports: [
     ArticlesService,
@@ -51,6 +57,9 @@ import { AuditModule } from '../audit/audit.module.js';
     MediaGeneratorService,
     ProgrammaticSeoService,
     VideoGeneratorService,
+    TiktokPublisherService,
+    InstagramPublisherService,
+    TranslatorService,
   ],
 })
 export class ArticlesModule {}

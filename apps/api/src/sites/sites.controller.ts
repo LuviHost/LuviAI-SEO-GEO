@@ -137,4 +137,21 @@ export class SitesController {
       data: { autopilot: !!body.enabled } as any,
     });
   }
+
+  /** PATCH /sites/:id/webhook body { url, kind } */
+  @Patch(':id/webhook')
+  async setWebhook(
+    @Req() req: Request,
+    @Param('id') id: string,
+    @Body() body: { url: string; kind?: 'slack' | 'discord' },
+  ) {
+    await this.sites.findOne(id, ensureUser(req));
+    return this.prisma.site.update({
+      where: { id },
+      data: {
+        notifyWebhookUrl: body.url || null,
+        notifyWebhookKind: body.kind ?? null,
+      } as any,
+    });
+  }
 }

@@ -21,6 +21,8 @@ import { AuthorProfileService } from './author-profile.service.js';
 import { HaroParserService } from './haro-parser.service.js';
 import { AiReferrerService } from './ai-referrer.service.js';
 import { PersonaChatService } from './persona-chat.service.js';
+import { SnippetOptimizerService } from './snippet-optimizer.service.js';
+import { WebhookNotifierService } from './webhook-notifier.service.js';
 import { Public } from '../auth/public.decorator.js';
 import { SnippetGeneratorService } from './snippet-generator.service.js';
 import { SnippetApplierService } from './snippet-applier.service.js';
@@ -50,6 +52,8 @@ export class AuditController {
     private readonly haro: HaroParserService,
     private readonly aiReferrer: AiReferrerService,
     private readonly personaChat: PersonaChatService,
+    private readonly snippetOpt: SnippetOptimizerService,
+    private readonly webhook: WebhookNotifierService,
     private readonly snippets: SnippetGeneratorService,
     private readonly applier: SnippetApplierService,
     private readonly staticFixer: StaticHtmlFixerService,
@@ -237,6 +241,27 @@ export class AuditController {
   @Get('ai-referrer/history')
   aiReferrerHistory(@Param('siteId') siteId: string, @Query('days') days?: string) {
     return this.aiReferrer.getHistory(siteId, days ? parseInt(days, 10) : 30);
+  }
+
+  /** POST /sites/:siteId/audit/snippet/optimize — AI cevap kutucugu icin meta+snippet refine */
+  @Post('snippet/optimize')
+  snippetOptimize(@Param('siteId') siteId: string, @Body() body: { articleId: string }) {
+    return this.snippetOpt.optimize(body.articleId);
+  }
+
+  /** POST /sites/:siteId/audit/snippet/optimize/apply — onerileri uygula */
+  @Post('snippet/optimize/apply')
+  snippetOptimizeApply(
+    @Param('siteId') siteId: string,
+    @Body() body: { articleId: string; optimized: any },
+  ) {
+    return this.snippetOpt.apply(body.articleId, body.optimized);
+  }
+
+  /** POST /sites/:siteId/audit/webhook/test — Slack/Discord webhook testi */
+  @Post('webhook/test')
+  webhookTest(@Param('siteId') siteId: string) {
+    return this.webhook.test(siteId);
   }
 
   /** POST /sites/:siteId/audit/persona/chat — Public widget endpoint */

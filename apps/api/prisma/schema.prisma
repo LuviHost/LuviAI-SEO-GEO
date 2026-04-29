@@ -154,6 +154,10 @@ model Site {
   // sameAs sosyal/web profilleri — Organization schema'da kullanilir
   socialProfiles    Json?    // ["https://twitter.com/...", "https://linkedin.com/..."]
 
+  // Webhook bildirimleri (Slack/Discord)
+  notifyWebhookUrl  String?  // Slack/Discord incoming webhook URL
+  notifyWebhookKind String?  // slack | discord
+
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
