@@ -803,6 +803,34 @@ function Step4({ state, update }: any) {
 // ADIM 5 — Otomatik Üretim Takvimi + Onay Modu
 // ──────────────────────────────────────────────────────────────────────
 function Step5({ state, update }: any) {
+  const { data: session } = useSession();
+  const router = useRouter();
+  const [quota, setQuota] = useState<{ remaining: number; limit: number } | null>(null);
+
+  useEffect(() => {
+    const userId = (session?.user as any)?.id;
+    if (!userId) return;
+    api.getUserQuota(userId).then((q) => {
+      setQuota({ remaining: q.articles.remaining, limit: q.articles.limit });
+    }).catch(() => { /* noop */ });
+  }, [session]);
+
+  const monthlyLimit = quota?.limit ?? null;
+  const allFrequenciesBlocked = monthlyLimit !== null && monthlyLimit < 4; // weekly bile sigmaz
+
+  // Mevcut secim plan'i asiyor mu? Otomatik dusur
+  useEffect(() => {
+    if (monthlyLimit === null) return;
+    const cur = FREQUENCIES.find(f => f.value === state.autoGenerationFrequency);
+    if (cur && cur.articlesPerMonth > monthlyLimit) {
+      // Plan'a sigan en yuksek frequency'e dusur
+      const fit = [...FREQUENCIES].reverse().find(f => f.articlesPerMonth <= monthlyLimit);
+      if (fit && fit.value !== state.autoGenerationFrequency) {
+        update({ autoGenerationFrequency: fit.value });
+      }
+    }
+  }, [monthlyLimit]);
+
   return (
     <>
       <h2 className="text-2xl font-bold mb-2">Otomatik Üretim</h2>
@@ -810,27 +838,58 @@ function Step5({ state, update }: any) {
         AI yazıları hangi sıklıkta ve saatte üretsin? Yayınlamadan önce sana onaylatabilir.
       </p>
 
+      {monthlyLimit !== null && (
+        <div className={cn(
+          'rounded-lg border p-3 mb-4 flex items-center justify-between gap-3',
+          allFrequenciesBlocked ? 'border-yellow-500/40 bg-yellow-500/5' : 'border-blue-500/30 bg-blue-500/5',
+        )}>
+          <div>
+            <p className="text-sm font-medium">
+              {monthlyLimit === 1 ? '🎁 Ücretsiz deneme: ayda 1 makale hakkın var' : `📊 Plan kotası: ${monthlyLimit} makale/ay`}
+            </p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              {allFrequenciesBlocked
+                ? 'Otomatik üretim için en az haftada 1 yazı (4/ay) gerekir. Plan yükseltmen önerilir.'
+                : 'Plan limitini aşan sıklıklar otomatik kilitli — istersen plan yükseltebilirsin.'}
+            </p>
+          </div>
+          <Button size="sm" variant="outline" onClick={() => router.push('/pricing')}>
+            Plan yükselt
+          </Button>
+        </div>
+      )}
+
       <p className="text-sm font-medium mb-2">Sıklık</p>
       <div className="space-y-2 mb-6">
-        {FREQUENCIES.map((f) => (
-          <button
-            key={f.value}
-            type="button"
-            onClick={() => update({ autoGenerationFrequency: f.value })}
-            className={cn(
-              'w-full rounded-lg border-2 p-3 text-left transition-colors',
-              state.autoGenerationFrequency === f.value ? 'border-brand bg-brand/5' : 'hover:border-brand/40',
-            )}
-          >
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="font-medium text-sm">{f.label}</p>
-                <p className="text-xs text-muted-foreground mt-0.5">{f.hint}</p>
+        {FREQUENCIES.map((f) => {
+          const overLimit = monthlyLimit !== null && f.articlesPerMonth > monthlyLimit;
+          return (
+            <button
+              key={f.value}
+              type="button"
+              onClick={() => !overLimit && update({ autoGenerationFrequency: f.value })}
+              disabled={overLimit}
+              className={cn(
+                'w-full rounded-lg border-2 p-3 text-left transition-colors',
+                state.autoGenerationFrequency === f.value && !overLimit ? 'border-brand bg-brand/5' :
+                overLimit ? 'opacity-50 cursor-not-allowed' :
+                'hover:border-brand/40',
+              )}
+              title={overLimit ? `Bu sıklık ${f.articlesPerMonth} yazı/ay gerektirir, planın ${monthlyLimit}/ay` : undefined}
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="font-medium text-sm flex items-center gap-2">
+                    {f.label}
+                    {overLimit && <span className="text-[10px] uppercase tracking-wide bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 rounded-full px-2 py-0.5 font-bold">🔒 Üst plan</span>}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">{f.hint}</p>
+                </div>
+                <span className="text-xs text-muted-foreground">~{f.articlesPerMonth} yazı/ay</span>
               </div>
-              <span className="text-xs text-muted-foreground">~{f.articlesPerMonth} yazı/ay</span>
-            </div>
-          </button>
-        ))}
+            </button>
+          );
+        })}
       </div>
 
       <p className="text-sm font-medium mb-2">Saat (Türkiye)</p>
