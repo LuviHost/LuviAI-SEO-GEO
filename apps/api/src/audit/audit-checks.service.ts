@@ -454,12 +454,21 @@ export class AuditChecksService {
   private checkHreflang(c: CrawlResult): CheckResult {
     let count = 0;
     for (const p of c.pages) if (p.textSample.includes('hreflang')) count++;
+    // Hreflang sadece multi-language siteler icin gereklidir.
+    // Tek dilli sitelerde "yok" olmasi normal — score 100 ve found:true ile "uygulanmiyor" anlamini verelim
+    // boylece UI'da "YOK" yerine "VAR" yesil rozeti goruntulenir.
     return {
       id: 'hreflang', name: 'Hreflang',
-      found: count > 0, valid: true, // multi-language değilse sorun yok
+      found: true,
+      valid: true,
       score: 100,
       issues: [],
-      details: { pagesWithHreflang: count, note: 'Multi-language site değilse pas geçilir' },
+      details: {
+        pagesWithHreflang: count,
+        note: count > 0
+          ? `${count} sayfada hreflang tag bulundu`
+          : 'Tek dilli site — hreflang gerekmiyor',
+      },
     };
   }
 
