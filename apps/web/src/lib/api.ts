@@ -347,10 +347,17 @@ export const api = {
   pauseCampaign: (siteId: string, campaignId: string) =>
     request<any>(`/sites/${siteId}/ads/${campaignId}/pause`, { method: 'POST' }),
 
-  pingMcp: (siteId: string) =>
-    request<any>(`/sites/${siteId}/ads/mcp/ping`, { method: 'POST' }),
+  // Faz 11.2 — Direkt API entegrasyonu (Ryze AI MCP kaldırıldı)
+  getAdsConnections: (siteId: string) =>
+    request<{ google: boolean; meta: boolean }>(`/sites/${siteId}/ads/connections`),
 
-  updateAdsSettings: (siteId: string, payload: { adsMcpEndpoint?: string; adsMcpToken?: string; adsAutopilot?: boolean }) =>
+  connectGoogleAds: (siteId: string, payload: { customerId?: string; refreshToken?: string }) =>
+    request<any>(`/sites/${siteId}/ads/google-ads`, { method: 'PATCH', body: JSON.stringify(payload) }),
+
+  connectMetaAds: (siteId: string, payload: { accountId?: string; accessToken?: string; pageId?: string; instagramActorId?: string }) =>
+    request<any>(`/sites/${siteId}/ads/meta-ads`, { method: 'PATCH', body: JSON.stringify(payload) }),
+
+  updateAdsSettings: (siteId: string, payload: { adsAutopilot?: boolean }) =>
     request<any>(`/sites/${siteId}/ads/settings`, { method: 'PATCH', body: JSON.stringify(payload) }),
 
   // Reports

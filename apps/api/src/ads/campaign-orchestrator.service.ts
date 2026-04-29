@@ -3,7 +3,9 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { AdGeneratorService } from './ad-generator.service.js';
 import { AdImageGeneratorService } from './ad-image-generator.service.js';
 import { AudienceBuilderService } from './audience-builder.service.js';
-import { AdsMcpClientService } from './mcp-client.service.js';
+import { AdsClientService } from './ads-client.service.js';
+import { GoogleAdsClientService } from './google-ads-client.service.js';
+import { MetaAdsClientService } from './meta-ads-client.service.js';
 import { WebhookNotifierService } from '../audit/webhook-notifier.service.js';
 
 export interface CampaignBuildRequest {
@@ -26,7 +28,7 @@ export interface CampaignBuildResult {
   adCopy: any;
   images: any[];
   estimatedCostUsd: number;
-  mcpResults: any[];
+  launchResults: any[];
 }
 
 /**
@@ -48,7 +50,9 @@ export class CampaignOrchestratorService {
     private readonly adGen: AdGeneratorService,
     private readonly imgGen: AdImageGeneratorService,
     private readonly audience: AudienceBuilderService,
-    private readonly mcp: AdsMcpClientService,
+    private readonly adsClient: AdsClientService,
+    private readonly google: GoogleAdsClientService,
+    private readonly meta: MetaAdsClientService,
     private readonly webhook: WebhookNotifierService,
   ) {}
 
@@ -129,24 +133,71 @@ export class CampaignOrchestratorService {
       campaigns.push(campaign);
     }
 
-    // 5) Otomatik yayina alma (autoLaunch + autopilot)
-    const mcpResults: any[] = [];
-    if (req.autoLaunch && site.adsMcpEndpoint) {
+    // 5) autoLaunch — Google Ads + Meta Marketing API ile direkt kampanya olustur
+    const launchResults: any[] = [];
+    if (req.autoLaunch) {
       for (const c of campaigns) {
-        const command = this.buildMcpLaunchCommand(c, site);
-        const result = await this.mcp.runMcpCommand(req.siteId, command);
-        mcpResults.push({ campaignId: c.id, ...result });
+        try {
+          if (c.platform === 'google_ads') {
+            const headlines = (adCopy.google?.headlines ?? []).map((h: any) => h.text ?? h);
+            const descriptions = (adCopy.google?.descriptions ?? []).map((d: any) => d.text ?? d);
+            const keywords = (audience.google?.keywords ?? []).map((k: any) => k.text ?? k);
+            const result = await this.google.createCampaign(req.siteId, {
+              name: c.name,
+              dailyBudgetTRY: req.budgetType === 'daily' ? req.budgetAmount : Math.round(req.budgetAmount / 30),
+              headlines,
+              descriptions,
+              finalUrl: req.landingUrl,
+              keywords,
+            });
+            launchResults.push({ campaignId: c.id, platform: 'google_ads', ...result });
+            if (result.ok && result.campaignId) {
+              await this.prisma.adCampaign.update({
+                where: { id: c.id },
+                data: { status: 'PAUSED', externalId: result.campaignId }, // Google'da PAUSED olarak yaratiyor
+              });
+            }
+          } else {
+            // Meta — Page ID ve image gerekli
+            const pageId = (site as any).metaPageId ?? undefined;
+            const firstImage = images[0]?.publicUrl;
+            const baseUrl = (site.url as string).replace(/\/+$/, '');
+            const fullImageUrl = firstImage?.startsWith('http') ? firstImage : `${baseUrl}${firstImage}`;
 
-        if (result.ok) {
-          // Output'tan campaign ID parse et (best-effort)
-          const idMatch = result.output.match(/campaign_id[":\s]+([a-zA-Z0-9_]+)/i);
-          await this.prisma.adCampaign.update({
-            where: { id: c.id },
-            data: {
-              status: 'ACTIVE',
-              externalId: idMatch?.[1] ?? null,
-            },
-          });
+            if (!pageId || !fullImageUrl) {
+              launchResults.push({
+                campaignId: c.id, platform: 'meta_ads', ok: false,
+                error: !pageId ? 'Site.metaPageId yok — Reklam Hesaplari sekmesinden Page ID gir.' : 'Reklam gorseli yok.',
+              });
+              continue;
+            }
+
+            const result = await this.meta.createCampaign(req.siteId, {
+              name: c.name,
+              objective: req.objective,
+              dailyBudgetTRY: req.budgetType === 'daily' ? req.budgetAmount : Math.round(req.budgetAmount / 30),
+              primaryText: adCopy.meta?.primaryTexts?.[0] ?? req.productOrService,
+              headline: adCopy.meta?.headlines?.[0] ?? c.name,
+              description: adCopy.meta?.descriptions?.[0],
+              imageUrl: fullImageUrl,
+              landingUrl: req.landingUrl,
+              cta: adCopy.meta?.callToAction,
+              pageId,
+              instagramActorId: (site as any).metaInstagramActorId ?? undefined,
+              countries: ['TR'],
+              interests: (audience.meta?.interests ?? []).slice(0, 10).map((i: any) => ({ id: i.id, name: i.name })).filter((i: any) => i.id),
+            });
+            launchResults.push({ campaignId: c.id, platform: 'meta_ads', ...result });
+            if (result.ok && result.campaignId) {
+              await this.prisma.adCampaign.update({
+                where: { id: c.id },
+                data: { status: 'PAUSED', externalId: result.campaignId },
+              });
+            }
+          }
+        } catch (err: any) {
+          this.log.error(`[${req.siteId}] autoLaunch ${c.platform} fail: ${err.message}`);
+          launchResults.push({ campaignId: c.id, platform: c.platform, ok: false, error: err.message });
         }
       }
     }
@@ -160,32 +211,8 @@ export class CampaignOrchestratorService {
       adCopy,
       images,
       estimatedCostUsd: totalCost,
-      mcpResults,
+      launchResults,
     };
-  }
-
-  private buildMcpLaunchCommand(campaign: any, site: any): string {
-    const isGoogle = campaign.platform === 'google_ads';
-    const platform = isGoogle ? 'Google Ads' : 'Meta Ads';
-
-    return `${platform}'da yeni bir kampanya olustur:
-
-Kampanya adi: ${campaign.name}
-Hedef: ${campaign.objective}
-Gunluk butce: ${campaign.budgetAmount} TL
-Lokasyon: ${JSON.stringify(campaign.locations)}
-Dil: ${JSON.stringify(campaign.languages)}
-
-${isGoogle ? `Headlines (Google RSA): ${JSON.stringify(campaign.headlines)}
-Descriptions: ${JSON.stringify(campaign.descriptions)}
-Hedef anahtar kelimeler: ${JSON.stringify(campaign.audience?.keywords ?? [])}` : `Primary Texts: ${JSON.stringify(campaign.primaryTexts)}
-Headlines: ${JSON.stringify(campaign.headlines)}
-Hedef kitleyi (interest+demografi): ${JSON.stringify(campaign.audience)}
-CTA: ${campaign.ctaButton}`}
-
-Creative gorseller: ${JSON.stringify(campaign.creativeAssets?.map((c: any) => c.url) ?? [])}
-
-Kampanyayi DRAFT statusunde kur (manual review icin), conversion tracking aktif et, basarili oldugunda campaign_id dondur.`;
   }
 
   /**
@@ -212,7 +239,9 @@ Kampanyayi DRAFT statusunde kur (manual review icin), conversion tracking aktif 
         // ROAS < 1.5 -> pause
         if (c.roas !== null && c.roas < 1.5 && c.spend && Number(c.spend) > 100) {
           decisions.push('pause-low-roas');
-          await this.mcp.runMcpCommand(site.id, `Kampanya ${c.externalId} ROAS ${c.roas.toFixed(2)} (cok dusuk). Pause et ve nedenini logla.`);
+          if (c.externalId) {
+            await this.adsClient.setStatus(site.id, c.platform as any, c.externalId, true).catch(() => {});
+          }
           await this.prisma.adCampaign.update({
             where: { id: c.id },
             data: { status: 'PAUSED' },
@@ -234,7 +263,9 @@ Kampanyayi DRAFT statusunde kur (manual review icin), conversion tracking aktif 
         if (c.ctr > 0.03 && c.roas > 5) {
           const newBudget = Number(c.budgetAmount) * 1.2;
           decisions.push('budget-up-20%');
-          await this.mcp.runMcpCommand(site.id, `Kampanya ${c.externalId} cok iyi performans gosteriyor (CTR ${(c.ctr * 100).toFixed(1)}%, ROAS ${c.roas.toFixed(2)}). Gunluk butceyi ${c.budgetAmount} TL'den ${newBudget.toFixed(0)} TL'ye yukselt.`);
+          if (c.externalId) {
+            await this.adsClient.updateBudget(site.id, c.platform as any, c.externalId, newBudget).catch(() => {});
+          }
           await this.prisma.adCampaign.update({
             where: { id: c.id },
             data: { budgetAmount: newBudget },

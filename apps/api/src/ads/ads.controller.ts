@@ -4,7 +4,8 @@ import { AdGeneratorService } from './ad-generator.service.js';
 import { AdImageGeneratorService } from './ad-image-generator.service.js';
 import { AudienceBuilderService } from './audience-builder.service.js';
 import { CampaignOrchestratorService } from './campaign-orchestrator.service.js';
-import { AdsMcpClientService } from './mcp-client.service.js';
+import { AdsClientService } from './ads-client.service.js';
+import { encrypt } from '@luviai/shared';
 
 @Controller('sites/:siteId/ads')
 export class AdsController {
@@ -14,7 +15,7 @@ export class AdsController {
     private readonly imgGen: AdImageGeneratorService,
     private readonly audience: AudienceBuilderService,
     private readonly orchestrator: CampaignOrchestratorService,
-    private readonly mcp: AdsMcpClientService,
+    private readonly adsClient: AdsClientService,
   ) {}
 
   /** GET /sites/:siteId/ads/campaigns */
@@ -66,19 +67,35 @@ export class AdsController {
     return this.orchestrator.buildCampaign({ ...body, siteId });
   }
 
-  /** POST /sites/:siteId/ads/:campaignId/launch — DRAFT'ı MCP araciligiyla canli yayina */
+  /**
+   * POST /sites/:siteId/ads/:campaignId/launch
+   *
+   * Eger campaign'in zaten externalId'si varsa (manuel olarak Ads Manager'da
+   * olusturulup ID'si yapistirildiysa) direkt ENABLE eder. Yoksa kullaniciya
+   * Ads Manager'da olusturup ID'yi `externalId` field'ina yapistirma talimati doner.
+   */
   @Post(':campaignId/launch')
-  async launch(@Param('siteId') siteId: string, @Param('campaignId') campaignId: string) {
+  async launch(
+    @Param('siteId') siteId: string,
+    @Param('campaignId') campaignId: string,
+    @Body() body: { externalId?: string } = {},
+  ) {
     const c = await this.prisma.adCampaign.findFirstOrThrow({ where: { id: campaignId, siteId } });
-    const site: any = await this.prisma.site.findUniqueOrThrow({ where: { id: siteId } });
-    const command = `Bu DRAFT kampanyayi yayina al: ${c.name}, platform: ${c.platform}, butce: ${c.budgetAmount} TL/${c.budgetType}, hedef: ${c.objective}. Tum konfigurasyon DB'de hazir, MCP tool'lari kullanip platform-side kampanya olustur ve external_id dondur.`;
-    const result = await this.mcp.runMcpCommand(siteId, command);
+    const externalId = body.externalId ?? c.externalId;
+
+    if (!externalId) {
+      return {
+        ok: false,
+        error: 'Bu kampanyanin platform tarafinda external_id\'si yok. Once Google Ads / Meta Ads Manager\'da DRAFT konfigurasyonunu kullanarak kampanyayi olustur, sonra ID\'yi externalId alanina yapistirip launch et.',
+      };
+    }
+
+    const result = await this.adsClient.setStatus(siteId, c.platform as any, externalId, false);
 
     if (result.ok) {
-      const idMatch = result.output.match(/campaign[_\s]id[":\s]+([a-zA-Z0-9_-]+)/i);
       await this.prisma.adCampaign.update({
         where: { id: campaignId },
-        data: { status: 'ACTIVE', externalId: idMatch?.[1] ?? null },
+        data: { status: 'ACTIVE', externalId },
       });
     }
     return result;
@@ -88,28 +105,58 @@ export class AdsController {
   @Post(':campaignId/pause')
   async pause(@Param('siteId') siteId: string, @Param('campaignId') campaignId: string) {
     const c = await this.prisma.adCampaign.findFirstOrThrow({ where: { id: campaignId, siteId } });
-    const result = await this.mcp.runMcpCommand(siteId, `Kampanya ${c.externalId ?? c.name} (${c.platform}) pause et.`);
+    if (c.externalId) {
+      await this.adsClient.setStatus(siteId, c.platform as any, c.externalId, true);
+    }
     await this.prisma.adCampaign.update({ where: { id: campaignId }, data: { status: 'PAUSED' } });
-    return result;
+    return { ok: true };
   }
 
-  /** POST /sites/:siteId/ads/mcp/ping — MCP endpoint healthcheck */
-  @Post('mcp/ping')
-  ping(@Param('siteId') siteId: string) {
-    return this.mcp.ping(siteId);
+  /** GET /sites/:siteId/ads/connections — Google + Meta baglanti durumu */
+  @Get('connections')
+  connections(@Param('siteId') siteId: string) {
+    return this.adsClient.getConnectedPlatforms(siteId);
   }
 
-  /** POST /sites/:siteId/ads/mcp/run — manuel komut */
-  @Post('mcp/run')
-  runMcp(@Param('siteId') siteId: string, @Body() body: { command: string }) {
-    return this.mcp.runMcpCommand(siteId, body.command);
+  /** PATCH /sites/:siteId/ads/google-ads — Google Ads OAuth manuel kayit */
+  @Patch('google-ads')
+  async setGoogleAds(
+    @Param('siteId') siteId: string,
+    @Body() body: { customerId?: string; refreshToken?: string },
+  ) {
+    return this.prisma.site.update({
+      where: { id: siteId },
+      data: {
+        googleAdsCustomerId: body.customerId ?? null,
+        googleAdsRefreshToken: body.refreshToken ? encrypt(body.refreshToken) : null,
+        googleAdsConnectedAt: body.refreshToken ? new Date() : null,
+      } as any,
+    });
   }
 
-  /** PATCH /sites/:siteId/ads/settings — MCP endpoint + token + autopilot */
+  /** PATCH /sites/:siteId/ads/meta-ads — Meta Ads access token manuel kayit */
+  @Patch('meta-ads')
+  async setMetaAds(
+    @Param('siteId') siteId: string,
+    @Body() body: { accountId?: string; accessToken?: string; pageId?: string; instagramActorId?: string },
+  ) {
+    return this.prisma.site.update({
+      where: { id: siteId },
+      data: {
+        metaAdsAccountId: body.accountId ?? null,
+        metaAdsAccessToken: body.accessToken ? encrypt(body.accessToken) : null,
+        metaAdsConnectedAt: body.accessToken ? new Date() : null,
+        metaPageId: body.pageId ?? null,
+        metaInstagramActorId: body.instagramActorId ?? null,
+      } as any,
+    });
+  }
+
+  /** PATCH /sites/:siteId/ads/settings — autopilot toggle */
   @Patch('settings')
   async updateSettings(
     @Param('siteId') siteId: string,
-    @Body() body: { adsMcpEndpoint?: string; adsMcpToken?: string; adsAutopilot?: boolean },
+    @Body() body: { adsAutopilot?: boolean },
   ) {
     return this.prisma.site.update({
       where: { id: siteId },

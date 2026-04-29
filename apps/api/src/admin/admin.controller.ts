@@ -2,6 +2,7 @@ import { BadRequestException, Body, Controller, ForbiddenException, Get, Post, Q
 import type { Request } from 'express';
 import { AdminService } from './admin.service.js';
 import { EmailService, type EmailTemplate } from '../email/email.service.js';
+import { AiCitationService } from '../audit/ai-citation.service.js';
 
 function assertAdmin(req: Request) {
   const user = (req as any).user;
@@ -15,7 +16,18 @@ export class AdminController {
   constructor(
     private readonly admin: AdminService,
     private readonly email: EmailService,
+    private readonly aiCitation: AiCitationService,
   ) {}
+
+  /**
+   * GET /admin/ai-costs
+   * Bugunku AI provider harcama + cap durumu (citation tracking icin).
+   */
+  @Get('ai-costs')
+  async aiCosts(@Req() req: Request) {
+    assertAdmin(req);
+    return this.aiCitation.getTodayCosts();
+  }
 
   @Get('overview')
   overview(@Req() req: Request) {

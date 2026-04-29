@@ -4,7 +4,9 @@ import { AdGeneratorService } from './ad-generator.service.js';
 import { AdImageGeneratorService } from './ad-image-generator.service.js';
 import { AudienceBuilderService } from './audience-builder.service.js';
 import { CampaignOrchestratorService } from './campaign-orchestrator.service.js';
-import { AdsMcpClientService } from './mcp-client.service.js';
+import { AdsClientService } from './ads-client.service.js';
+import { GoogleAdsClientService } from './google-ads-client.service.js';
+import { MetaAdsClientService } from './meta-ads-client.service.js';
 import { PerformanceSyncService } from './performance-sync.service.js';
 import { AbTestManagerService } from './ab-test-manager.service.js';
 import { KeywordOptimizerService } from './keyword-optimizer.service.js';
@@ -13,13 +15,16 @@ import { AutoBoostService } from './auto-boost.service.js';
 import { AuditModule } from '../audit/audit.module.js';
 
 /**
- * Faz 11: Ads Manager
+ * Faz 11.2: Ads Manager — direkt resmi API entegrasyonu
  *
- * Google Ads + Meta Ads + GA4 entegrasyonu:
- *   - irinabuht12-oss/google-meta-ads-ga4-mcp uzerinden 250+ tool
- *   - Anthropic Claude SDK 'mcp_servers' parametresi ile baglanir
- *   - Site bazli endpoint + token (Site.adsMcpEndpoint / adsMcpToken)
+ * Google Ads + Meta Marketing API:
+ *   - GoogleAdsClientService: GAQL + REST v18, OAuth refresh token
+ *   - MetaAdsClientService: Marketing API v21.0, long-lived access token
+ *   - AdsClientService: platform router
+ *   - Site bazli credential'lar (googleAdsRefreshToken / metaAdsAccessToken)
  *   - Otopilot: cron her 6 saat performans tarayip ROAS-bazli optimize
+ *
+ * 3. parti SaaS yok (Ryze AI MCP kaldirildi). Sifir aboneligi.
  */
 @Module({
   imports: [AuditModule],
@@ -29,7 +34,9 @@ import { AuditModule } from '../audit/audit.module.js';
     AdImageGeneratorService,
     AudienceBuilderService,
     CampaignOrchestratorService,
-    AdsMcpClientService,
+    AdsClientService,
+    GoogleAdsClientService,
+    MetaAdsClientService,
     PerformanceSyncService,
     AbTestManagerService,
     KeywordOptimizerService,
@@ -41,7 +48,9 @@ import { AuditModule } from '../audit/audit.module.js';
     AdImageGeneratorService,
     AudienceBuilderService,
     CampaignOrchestratorService,
-    AdsMcpClientService,
+    AdsClientService,
+    GoogleAdsClientService,
+    MetaAdsClientService,
     PerformanceSyncService,
     AbTestManagerService,
     KeywordOptimizerService,

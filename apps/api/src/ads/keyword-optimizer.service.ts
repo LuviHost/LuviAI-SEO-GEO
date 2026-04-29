@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import Anthropic from '@anthropic-ai/sdk';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { AdsMcpClientService } from './mcp-client.service.js';
+import { AdsClientService } from './ads-client.service.js';
 
 /**
  * Keyword Optimizer — Google Ads search terms report'undan alakasiz aramalari
@@ -22,7 +22,7 @@ export class KeywordOptimizerService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly mcp: AdsMcpClientService,
+    private readonly adsClient: AdsClientService,
   ) {}
 
   async optimizeAllGoogleCampaigns(): Promise<{ analyzed: number; addedKeywords: number }> {
@@ -40,15 +40,10 @@ export class KeywordOptimizerService {
 
       for (const c of campaigns) {
         analyzed++;
+        if (!c.externalId) continue;
         try {
-          // 1. Search terms report
-          const cmd = `Google Ads kampanyasi ${c.externalId} icin son 30 gunluk search terms report'u getir. Sadece impressions > 50 olanlari listele. Format:
-[{"term": "...", "impressions": N, "clicks": N, "conversions": N, "cost": F}]`;
-
-          const result = await this.mcp.runMcpCommand(site.id, cmd);
-          if (!result.ok) continue;
-
-          const terms = this.parseTermsArray(result.output);
+          // 1. Search terms report (direkt Google Ads API)
+          const terms = await this.adsClient.getSearchTerms(site.id, c.externalId);
           if (!terms || terms.length === 0) continue;
 
           // 2. AI ile alakasiz olanlari tespit
@@ -78,16 +73,11 @@ Bu listede ${niche} alaninda alakasiz, conversion uretmeyecek (free, ucretsiz, i
           const negatives: string[] = aiData.negativeKeywords ?? [];
           if (negatives.length === 0) continue;
 
-          // 3. MCP'ye negative keyword ekleme komutu
-          const addCmd = `Google Ads kampanyasi ${c.externalId} icin asagidaki kelimeleri NEGATIVE KEYWORD olarak ekle (BROAD match):
-${JSON.stringify(negatives)}
-
-Sebep: ${aiData.reason}`;
-
-          const addRes = await this.mcp.runMcpCommand(site.id, addCmd);
+          // 3. Direkt Google Ads API ile negative keyword ekle
+          const addRes = await this.adsClient.addNegativeKeywords(site.id, c.externalId, negatives);
           if (addRes.ok) {
-            addedKeywords += negatives.length;
-            this.log.log(`[${c.id}] ${negatives.length} negative keyword eklendi`);
+            addedKeywords += addRes.added ?? negatives.length;
+            this.log.log(`[${c.id}] ${addRes.added ?? negatives.length} negative keyword eklendi`);
 
             const history: any[] = Array.isArray(c.autopilotActions) ? (c.autopilotActions as any[]) : [];
             history.push({
@@ -109,15 +99,5 @@ Sebep: ${aiData.reason}`;
 
     this.log.log(`Negative keyword optimizer: ${analyzed} kampanya, ${addedKeywords} negative eklendi`);
     return { analyzed, addedKeywords };
-  }
-
-  private parseTermsArray(text: string): any[] | null {
-    try {
-      const match = text.match(/\[[\s\S]*?\]/);
-      if (!match) return null;
-      return JSON.parse(match[0]);
-    } catch {
-      return null;
-    }
   }
 }

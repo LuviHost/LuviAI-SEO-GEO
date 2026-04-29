@@ -1,17 +1,17 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { AdsMcpClientService } from './mcp-client.service.js';
+import { AdsClientService } from './ads-client.service.js';
 
 /**
- * A/B Test Manager — bir kampanyada N farkli ad copy varyanti calistirildiysa
- * ilk 7 gun istatistiksel anlamli kazanani secip digerlerini pause eder.
+ * A/B Test Manager — kampanya icindeki ad varyantlarinin son 7 gunluk
+ * performansini karsilastirir, kazanani belirler, kalanlari pause eder.
  *
  * Karar kriterleri:
  *   - Min 100 impression / varyant (yeterli veri)
  *   - CTR'de en az 0.3 puan fark (gercekten anlamli)
  *   - Conversion rate (varsa) onceligi
  *
- * Otopilot ON ise her gun cron tarafindan tetiklenir.
+ * Direkt resmi API entegrasyonu (Faz 11.3).
  */
 @Injectable()
 export class AbTestManagerService {
@@ -19,7 +19,7 @@ export class AbTestManagerService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly mcp: AdsMcpClientService,
+    private readonly adsClient: AdsClientService,
   ) {}
 
   async pickWinners(): Promise<{ analyzed: number; winnersChosen: number; pausedAds: number }> {
@@ -38,31 +38,21 @@ export class AbTestManagerService {
           siteId: site.id,
           status: 'ACTIVE',
           startDate: { lte: oneWeekAgo },
-          // 7+ gun aktif olanlari incele
         },
       });
 
       for (const c of campaigns) {
+        if (!c.externalId) continue;
         analyzed++;
         try {
-          const cmd = `${c.platform === 'google_ads' ? 'Google Ads' : 'Meta Ads'} kampanyasi ${c.externalId} icindeki tum ad varyantlarinin metriklerini getir. Format:
-[
-  { "adId": "...", "headline": "...", "impressions": N, "clicks": N, "ctr": F, "conversions": N, "convRate": F }
-]
-En az 100 impression alanlari listele.`;
-
-          const result = await this.mcp.runMcpCommand(site.id, cmd);
-          if (!result.ok) continue;
-
-          const ads = this.parseAdsArray(result.output);
+          const ads = await this.adsClient.getAdVariants(site.id, c.platform as any, c.externalId);
           if (!ads || ads.length < 2) continue;
 
-          // Yeterli veri olanlari filtrele
-          const eligible = ads.filter((a) => a.impressions >= 100);
+          const eligible = ads.filter((a: any) => a.impressions >= 100);
           if (eligible.length < 2) continue;
 
-          // Winner sec — once conversion rate, sonra CTR
-          const sorted = eligible.sort((a, b) => {
+          // Skor — once conversion rate, sonra CTR
+          const sorted = [...eligible].sort((a: any, b: any) => {
             const aScore = (a.convRate ?? 0) * 100 + a.ctr;
             const bScore = (b.convRate ?? 0) * 100 + b.ctr;
             return bScore - aScore;
@@ -70,20 +60,21 @@ En az 100 impression alanlari listele.`;
           const winner = sorted[0];
           const losers = sorted.slice(1);
 
-          // Anlamli farki kontrol et
-          const significantDiff = (winner.ctr - losers[0].ctr) > 0.003; // 0.3 puan
+          // Anlamli farki kontrol et (CTR >= 0.3 puan, yani 0.003 absolute)
+          const significantDiff = (winner.ctr - losers[0].ctr) > 0.003;
           if (!significantDiff) continue;
 
           // Loser'lari pause
           for (const loser of losers) {
-            await this.mcp.runMcpCommand(site.id, `Ad ${loser.adId} pause et — A/B test kaybetti (CTR ${(loser.ctr * 100).toFixed(2)}% vs winner ${(winner.ctr * 100).toFixed(2)}%).`);
-            pausedAds++;
+            const target = c.platform === 'google_ads' ? loser.resourceName : loser.adId;
+            if (!target) continue;
+            const r = await this.adsClient.setAdStatus(site.id, c.platform as any, target, true).catch(() => ({ ok: false }));
+            if (r.ok) pausedAds++;
           }
 
           winnersChosen++;
           this.log.log(`[${c.id}] A/B winner: ad ${winner.adId} (CTR ${(winner.ctr * 100).toFixed(2)}%), ${losers.length} loser pause`);
 
-          // History'ye yaz
           const history: any[] = Array.isArray(c.autopilotActions) ? (c.autopilotActions as any[]) : [];
           history.push({
             time: new Date().toISOString(),
@@ -104,15 +95,5 @@ En az 100 impression alanlari listele.`;
 
     this.log.log(`A/B test analyzer: ${analyzed} kampanya, ${winnersChosen} winner, ${pausedAds} ad pause`);
     return { analyzed, winnersChosen, pausedAds };
-  }
-
-  private parseAdsArray(text: string): any[] | null {
-    try {
-      const match = text.match(/\[[\s\S]*?\]/);
-      if (!match) return null;
-      return JSON.parse(match[0]);
-    } catch {
-      return null;
-    }
   }
 }

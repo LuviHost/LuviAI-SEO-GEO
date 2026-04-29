@@ -40,8 +40,82 @@ export class AiCitationService {
   private readonly gemini = this.geminiKey ? new GoogleGenAI({ apiKey: this.geminiKey }) : null;
   private readonly openaiKey = process.env.OPENAI_API_KEY ?? null;
   private readonly perplexityKey = process.env.PERPLEXITY_API_KEY ?? null;
+  private readonly grokKey = process.env.XAI_API_KEY ?? null;
+  private readonly deepseekKey = process.env.DEEPSEEK_API_KEY ?? null;
+
+  // Cost guard — gunluk per-provider hard cap (USD).
+  // Asilirsa o provider o gun icin probe atmaz, "available:false" doner.
+  private readonly DAILY_BUDGET_USD: Record<string, number> = {
+    anthropic: parseFloat(process.env.AI_BUDGET_ANTHROPIC_USD ?? '5'),
+    gemini:    parseFloat(process.env.AI_BUDGET_GEMINI_USD    ?? '5'),  // free tier zaten
+    openai:    parseFloat(process.env.AI_BUDGET_OPENAI_USD    ?? '5'),
+    perplexity:parseFloat(process.env.AI_BUDGET_PERPLEXITY_USD?? '5'),
+    grok:      parseFloat(process.env.AI_BUDGET_GROK_USD      ?? '3'),
+    deepseek:  parseFloat(process.env.AI_BUDGET_DEEPSEEK_USD  ?? '3'),
+  };
+
+  // Approx cost per probe (input ~150 tok + output ~400 tok) — gercek fiyatlardan turetildi
+  private readonly COST_PER_PROBE_USD: Record<string, number> = {
+    anthropic: 0.0024, // Haiku 4.5
+    gemini:    0,      // free tier yetiyor
+    openai:    0.0004, // gpt-4o-mini
+    perplexity:0.0006, // sonar
+    grok:      0.0003, // grok-4-fast
+    deepseek:  0.0006, // V3 standard
+  };
 
   constructor(private readonly prisma: PrismaService) {}
+
+  /**
+   * Bu gun icin provider butcesi asildi mi?
+   * Asilirsa probe iptal — "available:false, reason: Bütçe asildi" doner.
+   */
+  private async isOverBudget(provider: string, plannedProbes: number): Promise<boolean> {
+    const cap = this.DAILY_BUDGET_USD[provider];
+    if (!cap) return false;
+    const today = new Date().toISOString().slice(0, 10);
+    const key = `ai-cost:${provider}:${today}`;
+
+    const row = await this.prisma.kvStore.findUnique({ where: { key } }).catch(() => null);
+    const spentToday = parseFloat(((row as any)?.value as string) ?? '0');
+    const projected = spentToday + (this.COST_PER_PROBE_USD[provider] ?? 0) * plannedProbes;
+    return projected > cap;
+  }
+
+  /**
+   * Probe sonrasi bugunku harcamayi increment et.
+   */
+  private async addCost(provider: string, probeCount: number): Promise<void> {
+    if (probeCount === 0) return;
+    const today = new Date().toISOString().slice(0, 10);
+    const key = `ai-cost:${provider}:${today}`;
+    const cost = (this.COST_PER_PROBE_USD[provider] ?? 0) * probeCount;
+    try {
+      const existing = await this.prisma.kvStore.findUnique({ where: { key } }).catch(() => null);
+      const prev = parseFloat(((existing as any)?.value as string) ?? '0');
+      await this.prisma.kvStore.upsert({
+        where: { key },
+        create: { key, value: String(prev + cost) },
+        update: { value: String(prev + cost) },
+      });
+    } catch (err: any) {
+      this.log.warn(`addCost(${provider}) fail: ${err.message}`);
+    }
+  }
+
+  /**
+   * Bugunku tum provider harcamalarini getir (dashboard widget icin).
+   */
+  async getTodayCosts(): Promise<Record<string, { spent: number; cap: number }>> {
+    const today = new Date().toISOString().slice(0, 10);
+    const out: Record<string, { spent: number; cap: number }> = {};
+    for (const provider of Object.keys(this.DAILY_BUDGET_USD)) {
+      const row = await this.prisma.kvStore.findUnique({ where: { key: `ai-cost:${provider}:${today}` } }).catch(() => null);
+      const spent = parseFloat(((row as any)?.value as string) ?? '0');
+      out[provider] = { spent, cap: this.DAILY_BUDGET_USD[provider] };
+    }
+    return out;
+  }
 
   async runForSite(siteId: string, maxProbes = 5): Promise<CitationResult[]> {
     const site = await this.prisma.site.findUnique({
@@ -68,21 +142,16 @@ export class AiCitationService {
     const probeQueries = Array.from(new Set(queries)).slice(0, maxProbes);
 
     // Tum saglayicilari paralel calistir — toplam suresi en yavas saglayici kadar
-    const [anthropic, gemini, openai, perplexity] = await Promise.all([
+    const [anthropic, gemini, openai, perplexity, grok, deepseek] = await Promise.all([
       this.testAnthropic(brand, url, probeQueries),
       this.testGemini(brand, url, probeQueries),
       this.testOpenAI(brand, url, probeQueries),
       this.testPerplexity(brand, url, probeQueries),
+      this.testGrok(brand, url, probeQueries),
+      this.testDeepseek(brand, url, probeQueries),
     ]);
 
-    return [
-      anthropic,
-      gemini,
-      openai,
-      perplexity,
-      this.unavailable('grok', 'xAI Grok', 'XAI_API_KEY env yok'),
-      this.unavailable('deepseek', 'DeepSeek', 'DEEPSEEK_API_KEY env yok'),
-    ];
+    return [anthropic, gemini, openai, perplexity, grok, deepseek];
   }
 
   // ────────────────────────────────────────────────────────────
@@ -120,6 +189,7 @@ export class AiCitationService {
   private async testAnthropic(brand: string, url: string, queries: string[]): Promise<CitationResult> {
     if (!this.anthropic) return this.unavailable('anthropic', 'Anthropic Claude', 'ANTHROPIC_API_KEY env yok');
     if (queries.length === 0) return this.noQueries('anthropic', 'Anthropic Claude');
+    if (await this.isOverBudget('anthropic', queries.length)) return this.budgetExceeded('anthropic', 'Anthropic Claude');
 
     const host = this.extractHost(url);
     const probes: CitationProbe[] = [];
@@ -141,6 +211,7 @@ export class AiCitationService {
         probes.push({ query: q, cited: false, brandMentioned: false, excerpt: `HATA: ${err.message}` });
       }
     }
+    await this.addCost('anthropic', probes.filter((p) => !p.excerpt?.startsWith('HATA:')).length);
     return { provider: 'anthropic', label: 'Anthropic Claude', available: true, score: this.scoreFromProbes(probes), probes };
   }
 
@@ -150,6 +221,7 @@ export class AiCitationService {
   private async testGemini(brand: string, url: string, queries: string[]): Promise<CitationResult> {
     if (!this.gemini) return this.unavailable('gemini', 'Google Gemini', 'GOOGLE_AI_API_KEY env yok');
     if (queries.length === 0) return this.noQueries('gemini', 'Google Gemini');
+    if (await this.isOverBudget('gemini', queries.length)) return this.budgetExceeded('gemini', 'Google Gemini');
 
     const host = this.extractHost(url);
     const probes: CitationProbe[] = [];
@@ -169,6 +241,7 @@ export class AiCitationService {
         probes.push({ query: q, cited: false, brandMentioned: false, excerpt: `HATA: ${err.message}` });
       }
     }
+    await this.addCost('gemini', probes.filter((p) => !p.excerpt?.startsWith('HATA:')).length);
     return { provider: 'gemini', label: 'Google Gemini', available: true, score: this.scoreFromProbes(probes), probes };
   }
 
@@ -178,6 +251,7 @@ export class AiCitationService {
   private async testOpenAI(brand: string, url: string, queries: string[]): Promise<CitationResult> {
     if (!this.openaiKey) return this.unavailable('openai', 'OpenAI ChatGPT', 'OPENAI_API_KEY env yok');
     if (queries.length === 0) return this.noQueries('openai', 'OpenAI ChatGPT');
+    if (await this.isOverBudget('openai', queries.length)) return this.budgetExceeded('openai', 'OpenAI ChatGPT');
 
     const host = this.extractHost(url);
     const probes: CitationProbe[] = [];
@@ -209,6 +283,7 @@ export class AiCitationService {
         probes.push({ query: q, cited: false, brandMentioned: false, excerpt: `HATA: ${err.message}` });
       }
     }
+    await this.addCost('openai', probes.filter((p) => !p.excerpt?.startsWith('HATA:')).length);
     return { provider: 'openai', label: 'OpenAI ChatGPT', available: true, score: this.scoreFromProbes(probes), probes };
   }
 
@@ -218,6 +293,7 @@ export class AiCitationService {
   private async testPerplexity(brand: string, url: string, queries: string[]): Promise<CitationResult> {
     if (!this.perplexityKey) return this.unavailable('perplexity', 'Perplexity', 'PERPLEXITY_API_KEY env yok — web-search-citation testi icin onerilen kaynak');
     if (queries.length === 0) return this.noQueries('perplexity', 'Perplexity');
+    if (await this.isOverBudget('perplexity', queries.length)) return this.budgetExceeded('perplexity', 'Perplexity');
 
     const host = this.extractHost(url);
     const probes: CitationProbe[] = [];
@@ -254,7 +330,92 @@ export class AiCitationService {
         probes.push({ query: q, cited: false, brandMentioned: false, excerpt: `HATA: ${err.message}` });
       }
     }
+    await this.addCost('perplexity', probes.filter((p) => !p.excerpt?.startsWith('HATA:')).length);
     return { provider: 'perplexity', label: 'Perplexity', available: true, score: this.scoreFromProbes(probes), probes };
+  }
+
+  // ────────────────────────────────────────────────────────────
+  //  xAI Grok (grok-4-fast — OpenAI-uyumlu /chat/completions)
+  // ────────────────────────────────────────────────────────────
+  private async testGrok(brand: string, url: string, queries: string[]): Promise<CitationResult> {
+    if (!this.grokKey) return this.unavailable('grok', 'xAI Grok', 'XAI_API_KEY env yok');
+    if (queries.length === 0) return this.noQueries('grok', 'xAI Grok');
+    if (await this.isOverBudget('grok', queries.length)) return this.budgetExceeded('grok', 'xAI Grok');
+
+    const host = this.extractHost(url);
+    const probes: CitationProbe[] = [];
+    const systemPrompt = this.buildSystemPrompt();
+
+    for (const q of queries) {
+      try {
+        const res = await fetch('https://api.x.ai/v1/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${this.grokKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'grok-4-fast',
+            max_tokens: 400,
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: q },
+            ],
+          }),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text().catch(() => '')}`.slice(0, 200));
+        const data = await res.json() as any;
+        const text = data?.choices?.[0]?.message?.content ?? '';
+        probes.push(this.buildProbe(q, text, host, brand));
+      } catch (err: any) {
+        this.log.warn(`Grok probe failed (${q}): ${err.message}`);
+        probes.push({ query: q, cited: false, brandMentioned: false, excerpt: `HATA: ${err.message}` });
+      }
+    }
+    await this.addCost('grok', probes.filter((p) => !p.excerpt?.startsWith('HATA:')).length);
+    return { provider: 'grok', label: 'xAI Grok', available: true, score: this.scoreFromProbes(probes), probes };
+  }
+
+  // ────────────────────────────────────────────────────────────
+  //  DeepSeek (deepseek-chat — OpenAI-uyumlu /chat/completions)
+  // ────────────────────────────────────────────────────────────
+  private async testDeepseek(brand: string, url: string, queries: string[]): Promise<CitationResult> {
+    if (!this.deepseekKey) return this.unavailable('deepseek', 'DeepSeek', 'DEEPSEEK_API_KEY env yok');
+    if (queries.length === 0) return this.noQueries('deepseek', 'DeepSeek');
+    if (await this.isOverBudget('deepseek', queries.length)) return this.budgetExceeded('deepseek', 'DeepSeek');
+
+    const host = this.extractHost(url);
+    const probes: CitationProbe[] = [];
+    const systemPrompt = this.buildSystemPrompt();
+
+    for (const q of queries) {
+      try {
+        const res = await fetch('https://api.deepseek.com/chat/completions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${this.deepseekKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'deepseek-chat',
+            max_tokens: 400,
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: q },
+            ],
+          }),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text().catch(() => '')}`.slice(0, 200));
+        const data = await res.json() as any;
+        const text = data?.choices?.[0]?.message?.content ?? '';
+        probes.push(this.buildProbe(q, text, host, brand));
+      } catch (err: any) {
+        this.log.warn(`DeepSeek probe failed (${q}): ${err.message}`);
+        probes.push({ query: q, cited: false, brandMentioned: false, excerpt: `HATA: ${err.message}` });
+      }
+    }
+    await this.addCost('deepseek', probes.filter((p) => !p.excerpt?.startsWith('HATA:')).length);
+    return { provider: 'deepseek', label: 'DeepSeek', available: true, score: this.scoreFromProbes(probes), probes };
   }
 
   private noQueries(provider: string, label: string): CitationResult {
@@ -266,5 +427,12 @@ export class AiCitationService {
 
   private unavailable(provider: string, label: string, reason: string): CitationResult {
     return { provider, label, available: false, score: null, probes: [], reason };
+  }
+
+  private budgetExceeded(provider: string, label: string): CitationResult {
+    return {
+      provider, label, available: false, score: null, probes: [],
+      reason: `Günlük bütçe aşıldı (${this.DAILY_BUDGET_USD[provider]?.toFixed(2)} USD). 24 saat sonra tekrar dener.`,
+    };
   }
 }

@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { AdsMcpClientService } from './mcp-client.service.js';
+import { AdsClientService } from './ads-client.service.js';
 
 /**
  * Cross-Platform Budget Shifter — Google ile Meta arasinda butce kaydirir.
@@ -18,7 +18,7 @@ export class BudgetShifterService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly mcp: AdsMcpClientService,
+    private readonly adsClient: AdsClientService,
   ) {}
 
   async shiftBudgets(): Promise<{ pairsAnalyzed: number; shifts: number }> {
@@ -62,9 +62,13 @@ export class BudgetShifterService {
         const newWinnerBudget = Number(winner.budgetAmount) + shiftAmount;
         const newLoserBudget = Number(loser.budgetAmount) - shiftAmount;
 
-        // MCP komutlari
-        await this.mcp.runMcpCommand(site.id, `Kampanya ${winner.externalId} (${winner.platform}) butcesini ${winner.budgetAmount} TL'den ${newWinnerBudget.toFixed(0)} TL'ye yukselt. Sebep: ROAS ${winner.roas.toFixed(2)} vs rakip platform ${loser.roas.toFixed(2)}.`);
-        await this.mcp.runMcpCommand(site.id, `Kampanya ${loser.externalId} (${loser.platform}) butcesini ${loser.budgetAmount} TL'den ${newLoserBudget.toFixed(0)} TL'ye dusur. Bu butce daha iyi performans veren ${winner.platform}'a kaydirildi.`);
+        // Direkt API ile butce guncelle
+        if (winner.externalId) {
+          await this.adsClient.updateBudget(site.id, winner.platform as any, winner.externalId, newWinnerBudget).catch(() => {});
+        }
+        if (loser.externalId) {
+          await this.adsClient.updateBudget(site.id, loser.platform as any, loser.externalId, newLoserBudget).catch(() => {});
+        }
 
         // DB
         await this.prisma.adCampaign.update({

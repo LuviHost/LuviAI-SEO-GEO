@@ -192,10 +192,19 @@ model Site {
   notifyWebhookUrl  String?  // Slack/Discord incoming webhook URL
   notifyWebhookKind String?  // slack | discord
 
-  // Ads Manager (Faz 11) — Google + Meta + GA4 MCP endpoint
-  adsMcpEndpoint    String?  // Ryze AI MCP URL (https://...)
-  adsMcpToken       String?  // Bearer token
-  adsAutopilot      Boolean @default(false) // performansa gore otomatik optimize
+  // Ads Manager (Faz 11.2 — direkt resmi API'ler, Ryze AI kaldırıldı)
+  // Google Ads OAuth
+  googleAdsCustomerId    String?  // 123-456-7890
+  googleAdsRefreshToken  String?  @db.Text  // sifrelenmis
+  googleAdsConnectedAt   DateTime?
+  // Meta Ads OAuth
+  metaAdsAccountId       String?  // act_1234567890
+  metaAdsAccessToken     String?  @db.Text  // sifrelenmis (long-lived)
+  metaAdsConnectedAt     DateTime?
+  metaPageId             String?  // FB Page ID — campaign creation + auto-boost icin
+  metaInstagramActorId   String?  // IG Business Account ID — opsiyonel, IG placement icin
+  // Otopilot
+  adsAutopilot           Boolean @default(false)
 
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -910,4 +919,15 @@ model SocialRecurringSlot {
 enum SocialSlotSource {
   QUEUE                // kullanici draft'larindan al
   AUTO                 // 09-social-writer ile yeni uret
+}
+
+// Faz 11.4 — Generic key-value store (AI cost counter, daily quota, vb.)
+model KvStore {
+  key       String   @id
+  value     String   @db.Text
+  expiresAt DateTime?
+  updatedAt DateTime @updatedAt
+
+  @@index([expiresAt])
+  @@map("kv_store")
 }
