@@ -1,6 +1,7 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { JobQueueService } from '../jobs/job-queue.service.js';
+import { QuotaService } from '../billing/quota.service.js';
 
 /**
  * Article scheduler — ONBOARDING_CHAIN sonunda tier-1 konulari otomatik
@@ -24,6 +25,7 @@ export class ArticleSchedulerService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jobQueue: JobQueueService,
+    private readonly quota: QuotaService,
   ) {}
 
   /**
@@ -183,6 +185,22 @@ export class ArticleSchedulerService {
     const site = await this.prisma.site.findUniqueOrThrow({ where: { id: siteId } });
     const at = new Date(args.scheduledAt);
     if (isNaN(at.getTime())) throw new Error('Gecersiz scheduledAt');
+
+    // Kota check: SCHEDULED + GENERATING + EDITING + READY_TO_PUBLISH + PUBLISHED toplami
+    // articlesUsedThisMonth icindedir; ayrica zaten takvimde bekleyen var mi diye sayalim
+    const { allowed, remaining, limit } = await this.quota.checkArticleQuota(site.userId);
+    const pendingCount = await this.prisma.article.count({
+      where: {
+        siteId,
+        status: { in: ['SCHEDULED', 'GENERATING', 'EDITING', 'READY_TO_PUBLISH'] as any },
+      },
+    });
+    // Hem aylik kota hem takvimde bekleyenler kotaya dahil
+    if (!allowed || pendingCount >= remaining) {
+      throw new ForbiddenException(
+        `Plan kotan dolu (${limit} makale/ay). ${pendingCount} yazi zaten takvimde. Yeni yazi takvime almak icin plani yukselt.`,
+      );
+    }
 
     const slug = `scheduled-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
     const article = await this.prisma.article.create({
