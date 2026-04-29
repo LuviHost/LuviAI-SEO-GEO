@@ -6,6 +6,7 @@ import { Download, TrendingUp, TrendingDown, Minus, BarChart3, Bot, FileText, Se
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { CitationHistoryChart } from '@/components/citation-history-chart';
 
 type Range = 'week' | 'month' | 'year';
 
@@ -127,6 +128,9 @@ export function SiteReportPanel({ siteId, site }: { siteId: string; site: any })
           </div>
         </CardContent>
       </Card>
+
+      {/* AI Citation tarihsel trend (yeni!) */}
+      <CitationHistoryChart siteId={siteId} />
 
       {/* AI Provider breakdown */}
       {Array.isArray(data.ai.providers) && data.ai.providers.length > 0 && (

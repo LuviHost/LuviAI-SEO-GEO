@@ -30,6 +30,7 @@ import { PlatformDetectorService } from '../../api/dist/sites/platform-detector.
 import { LlmsFullBuilderService } from '../../api/dist/audit/llms-full-builder.service.js';
 import { AiCitationTrackerService } from '../../api/dist/audit/ai-citation-tracker.service.js';
 import { AiIndexingPingerService } from '../../api/dist/audit/ai-indexing-pinger.service.js';
+import { ContentPivotService } from '../../api/dist/articles/content-pivot.service.js';
 
 const log = new Logger('Worker');
 
@@ -52,6 +53,7 @@ async function bootstrap() {
     llmsBuilder: app.get(LlmsFullBuilderService),
     citationTracker: app.get(AiCitationTrackerService),
     indexingPinger: app.get(AiIndexingPingerService),
+    contentPivot: app.get(ContentPivotService),
     prisma: app.get(PrismaService),
   };
 
@@ -246,6 +248,14 @@ async function bootstrap() {
     AI_CITATION_DAILY: async () => {
       return services.citationTracker.snapshotAllActive();
     },
+
+    /**
+     * CONTENT_PIVOT_CHECK — haftalik cron, dusuk performansli/AI'da gorunmeyen
+     * makaleleri tespit edip otopilot kullanicilari icin yeniden yazma kuyruga at.
+     */
+    CONTENT_PIVOT_CHECK: async () => {
+      return services.contentPivot.scanAllSites();
+    },
   };
 
   const worker = new Worker(
@@ -342,7 +352,19 @@ async function bootstrap() {
       },
     );
 
-    log.log('⏰ Cron: PROCESS_SCHEDULED 30dk · LLMS_FULL_BUILD haftalik · AI_CITATION_DAILY gunluk');
+    // 4) CONTENT_PIVOT_CHECK — Pazartesi 02:30 UTC haftalik
+    await queue.add(
+      'CONTENT_PIVOT_CHECK',
+      { trigger: 'cron' },
+      {
+        repeat: { pattern: '30 2 * * 1', tz: 'UTC' },
+        jobId: 'cron:content-pivot',
+        removeOnComplete: { count: 20 },
+        removeOnFail: { count: 20 },
+      },
+    );
+
+    log.log('⏰ Cron: PROCESS_SCHEDULED 30dk · LLMS_FULL_BUILD haftalik · AI_CITATION_DAILY gunluk · CONTENT_PIVOT_CHECK haftalik');
   } catch (err: any) {
     log.warn(`Cron kurulumu basarisiz: ${err.message}`);
   }

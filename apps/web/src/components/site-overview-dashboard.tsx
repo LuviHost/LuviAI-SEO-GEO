@@ -10,6 +10,7 @@ import { api } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { CitationHistoryChart } from '@/components/citation-history-chart';
 
 /**
  * Site detay sayfasinin VARSAYILAN gorunumu — kisanin tum panelin onunde
@@ -126,6 +127,9 @@ export function SiteOverviewDashboard({
           color="brand"
         />
       </div>
+
+      {/* AI Görünürlük Trendi (otomatik gunluk takip) */}
+      <CitationHistoryChart siteId={site.id} />
 
       {/* Sirada Yayinlanacaklar */}
       {nextScheduled.length > 0 && (

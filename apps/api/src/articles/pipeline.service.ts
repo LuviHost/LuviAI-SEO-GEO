@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { AgentRunnerService } from './agent-runner.service.js';
 import { EmailService } from '../email/email.service.js';
 import { SocialAutoDraftService } from '../social/social-auto-draft.service.js';
+import { SchemaClassifierService } from './schema-classifier.service.js';
 import {
   AGENT_01_KEYWORD,
   AGENT_02_OUTLINE,
@@ -44,6 +45,7 @@ export class PipelineService {
     private readonly runner: AgentRunnerService,
     private readonly email: EmailService,
     private readonly socialAutoDraft: SocialAutoDraftService,
+    private readonly schemaClassifier: SchemaClassifierService,
   ) {}
 
   async runPipeline(opts: {
@@ -177,6 +179,54 @@ export class PipelineService {
     const slug = (fm.slug as string) || turkishSlug((fm.title as string) ?? opts.topic).slice(0, 60);
     const wordCount = body.split(/\s+/).length;
 
+    // ── Schema Classifier — 15+ schema tipini otomatik karara bagla ──
+    let schemaMarkup: any = null;
+    if (editorVerdict === 'PASS') {
+      try {
+        const faqs = (fm.faqs as any[]) ?? [];
+        const classification = await this.schemaClassifier.classify(cleaned, {
+          hasFaqs: faqs.length > 0,
+          persona: fm.persona as string,
+          pillar: fm.pillar as string,
+        });
+        const site = await this.prisma.site.findUniqueOrThrow({
+          where: { id: opts.siteId },
+          select: { name: true, url: true, socialProfiles: true } as any,
+        });
+        const baseUrl = site.url.replace(/\/+$/, '');
+        const articleUrl = `${baseUrl}/blog/${slug}.html`;
+        const sameAs = Array.isArray((site as any).socialProfiles)
+          ? ((site as any).socialProfiles as string[])
+          : [];
+
+        const jsonLd = this.schemaClassifier.buildJsonLd({
+          types: classification.primary,
+          article: {
+            title: (fm.title as string) ?? opts.topic,
+            url: articleUrl,
+            slug,
+            metaDescription: (fm.meta_description as string) ?? null,
+            datePublished: new Date().toISOString(),
+            dateModified: new Date().toISOString(),
+            heroImage: ((fm as any).hero_image as string) ?? null,
+            faqs: faqs as any,
+            author: fm.persona ? { name: fm.persona as string } : null,
+          },
+          site: {
+            name: site.name,
+            url: baseUrl,
+            sameAs,
+          },
+        });
+
+        schemaMarkup = { types: classification.primary, reasoning: classification.reasoning, jsonLd };
+        agentOutputs.schema = { types: classification.primary, count: jsonLd.length, reasoning: classification.reasoning };
+        this.log.log(`[${opts.siteId}] Schema: ${classification.primary.length} tip (${classification.primary.join(', ')})`);
+      } catch (err: any) {
+        this.log.warn(`[${opts.siteId}] Schema classifier fail: ${err.message}`);
+      }
+    }
+
     const articleData = {
       siteId: opts.siteId,
       topic: opts.topic,
@@ -191,6 +241,8 @@ export class PipelineService {
       bodyMd: cleaned,
       frontmatter: fm as any,
       agentOutputs: agentOutputs as any,
+      schemaMarkup: schemaMarkup as any,
+      faqs: (fm.faqs as any) ?? null,
       wordCount,
       readingTime: Math.max(1, Math.round(wordCount / 200)),
       editorScore,

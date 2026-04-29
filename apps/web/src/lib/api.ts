@@ -175,6 +175,27 @@ export const api = {
   detectPlatform: (siteId: string) =>
     request<any>(`/sites/${siteId}/detect-platform`, { method: 'POST' }),
 
+  // GEO
+  getCitationHistory: (siteId: string, days = 30) =>
+    request<any>(`/sites/${siteId}/audit/citation-history?days=${days}`),
+
+  triggerCitationSnapshot: (siteId: string) =>
+    request<any>(`/sites/${siteId}/audit/citation-snapshot`, { method: 'POST' }),
+
+  buildLlmsFull: (siteId: string) =>
+    request<any>(`/sites/${siteId}/audit/llms-full/build`, { method: 'POST' }),
+
+  getLlmsFullUrl: (siteId: string) => {
+    const apiBase = process.env.NEXT_PUBLIC_API_URL ?? '';
+    return `${apiBase}/api/sites/${siteId}/audit/llms-full.txt`;
+  },
+
+  pingIndex: (siteId: string, url: string) =>
+    request<any>(`/sites/${siteId}/audit/index-ping`, {
+      method: 'POST',
+      body: JSON.stringify({ url }),
+    }),
+
   // Reports
   getReport: (siteId: string, range: 'week' | 'month' | 'year' = 'month') =>
     request<any>(`/sites/${siteId}/analytics/report?range=${range}`),

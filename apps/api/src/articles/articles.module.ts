@@ -6,6 +6,8 @@ import { PipelineService } from './pipeline.service.js';
 import { ImageGeneratorService } from './image-generator.service.js';
 import { PublisherService } from './publisher.service.js';
 import { ArticleSchedulerService } from './article-scheduler.service.js';
+import { SchemaClassifierService } from './schema-classifier.service.js';
+import { ContentPivotService } from './content-pivot.service.js';
 import { SocialModule } from '../social/social.module.js';
 import { AuditModule } from '../audit/audit.module.js';
 
@@ -28,6 +30,8 @@ import { AuditModule } from '../audit/audit.module.js';
     ImageGeneratorService,
     PublisherService,
     ArticleSchedulerService,
+    SchemaClassifierService,
+    ContentPivotService,
   ],
   exports: [
     ArticlesService,
@@ -36,6 +40,8 @@ import { AuditModule } from '../audit/audit.module.js';
     ImageGeneratorService,
     PublisherService,
     ArticleSchedulerService,
+    SchemaClassifierService,
+    ContentPivotService,
   ],
 })
 export class ArticlesModule {}
