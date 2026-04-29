@@ -32,6 +32,18 @@ export default function SitePage() {
 
   const id = params.id as string;
 
+  // Tab degistiginde data'yi tazele (ozellikle settings -> ozet gecişinde site state guncellensin)
+
+  // tab degistiginde data refresh (settings'ten ozet'e donunce site state guncel olsun)
+  useEffect(() => {
+    if (tab === null || tab === '' || tab === undefined) {
+      // Sadece ozet'e donerken refresh — settings'te zaten kullanici degistirir, ana sayfaya gelince guncellesin
+      // refresh declaration'i asagida; burada sadece flag set edebiliriz, ama refresh closure
+      // uzerine bagimli oldugu icin tab change'de refresh cagrılması icin asagidaki useEffect dogru sirayla calismaz.
+      // Cozum: refresh'i yukari tasiyamayacagimiz icin, alttaki useEffect'i [tab] dependency ile yapacagiz.
+    }
+  }, [tab]);
+
   const refresh = async () => {
     try {
       const [s, a, q, ar, pt] = await Promise.all([
@@ -54,6 +66,12 @@ export default function SitePage() {
   useEffect(() => {
     refresh();
   }, [id]);
+
+  // Tab degistiginde de refresh — settings'ten Ozet'e donunce site state guncel olsun
+  useEffect(() => {
+    refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tab]);
 
   // Onboarding chain calisirken (site.status === 'ONBOARDING') veya URL flag varken
   // ya da bir makale GENERATING/EDITING durumundayken arka planda 5sn'de bir refresh.
@@ -142,7 +160,7 @@ export default function SitePage() {
       )}
       {tab === 'report' && <SiteReportPanel siteId={id} site={site} />}
       {tab === 'analytics' && <AnalyticsTab siteId={id} />}
-      {tab === 'settings' && <SettingsTab siteId={id} />}
+      {tab === 'settings' && <SettingsTab siteId={id} onRefresh={refresh} />}
     </div>
   );
 }

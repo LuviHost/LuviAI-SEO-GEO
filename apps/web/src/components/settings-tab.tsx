@@ -42,7 +42,7 @@ type Target = {
   lastUsedAt?: string | null;
 };
 
-export function SettingsTab({ siteId }: { siteId: string }) {
+export function SettingsTab({ siteId, onRefresh }: { siteId: string; onRefresh?: () => void }) {
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
   const [targets, setTargets] = useState<Target[]>([]);
   const [loading, setLoading] = useState(true);
@@ -118,7 +118,7 @@ export function SettingsTab({ siteId }: { siteId: string }) {
 
   return (
     <div className="space-y-6">
-      <ApprovalModeCard siteId={siteId} />
+      <ApprovalModeCard siteId={siteId} onRefresh={onRefresh} />
       <GscConnectionCard siteId={siteId} />
       <Ga4ConnectionCard siteId={siteId} />
       <AdsAccountsCard siteId={siteId} />
@@ -925,7 +925,7 @@ function AdsAccountsCard({ siteId }: { siteId: string }) {
 // ──────────────────────────────────────────────────────────────────────
 //  Yayin Onay Modu — manuel onay vs tam otomatik
 // ──────────────────────────────────────────────────────────────────────
-function ApprovalModeCard({ siteId }: { siteId: string }) {
+function ApprovalModeCard({ siteId, onRefresh }: { siteId: string; onRefresh?: () => void }) {
   const [mode, setMode] = useState<'manual_approve' | 'auto_publish' | null>(null);
   const [autopilot, setAutopilot] = useState<boolean | null>(null);
   const [saving, setSaving] = useState(false);
@@ -944,6 +944,7 @@ function ApprovalModeCard({ siteId }: { siteId: string }) {
       await api.updateSite(siteId, { publishApprovalMode: newMode });
       setMode(newMode);
       toast.success(newMode === 'auto_publish' ? 'Tam otomatik moda alindi' : 'Manuel onay moduna alindi');
+      onRefresh?.();
     } catch (err: any) {
       toast.error(err.message);
     } finally {
