@@ -45,6 +45,8 @@ type LocalState = {
   publishTargetCount: number;
   socialChannelCount: number;
   selectedTopicCount: number;
+  brainReady: boolean; // Sprint 3 — AI brain hazir mi
+  step2WaitedAt?: number; // kullanici 'beklemeden devam' tikladi mi
 };
 
 const STORAGE_KEY = 'luviai-onboarding-v2';
@@ -62,6 +64,7 @@ const DEFAULT_STATE: LocalState = {
   publishTargetCount: 0,
   socialChannelCount: 0,
   selectedTopicCount: 0,
+  brainReady: false,
 };
 
 function OnboardingInner() {
@@ -245,9 +248,35 @@ function OnboardingInner() {
               </Button>
             )}
             {state.step === 2 && (
-              <Button onClick={handleStep2Continue} disabled={loading || !state.name || !state.niche}>
-                {loading ? 'Kaydediliyor…' : 'Devam →'}
-              </Button>
+              <div className="flex flex-col items-end gap-1">
+                <div className="flex gap-2">
+                  {!state.brainReady && !state.step2WaitedAt && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => update({ step2WaitedAt: Date.now() })}
+                      disabled={loading}
+                    >
+                      AI'sız devam et
+                    </Button>
+                  )}
+                  <Button
+                    onClick={handleStep2Continue}
+                    disabled={
+                      loading ||
+                      !state.name ||
+                      !state.niche ||
+                      (!state.brainReady && !state.step2WaitedAt)
+                    }
+                    title={!state.brainReady && !state.step2WaitedAt ? 'AI analizi bekleniyor' : undefined}
+                  >
+                    {loading ? 'Kaydediliyor…' : !state.brainReady && !state.step2WaitedAt ? 'AI bekleniyor…' : 'Devam →'}
+                  </Button>
+                </div>
+                {!state.brainReady && !state.step2WaitedAt && (
+                  <p className="text-[10px] text-muted-foreground">AI 10-30 saniye içinde önerilerini hazırlar</p>
+                )}
+              </div>
             )}
             {state.step === 3 && (
               <div className="flex gap-2">
@@ -370,6 +399,7 @@ function Step2({ state, update }: any) {
         if (!stopped && b) {
           setBrain(b);
           setLoadingBrain(false);
+          if (!state.brainReady) update({ brainReady: true });
         } else if (!stopped) {
           // Brain henüz yok, 5sn sonra tekrar
           setTimeout(tick, 5000);
