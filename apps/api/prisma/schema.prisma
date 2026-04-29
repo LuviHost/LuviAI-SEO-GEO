@@ -459,6 +459,27 @@ model AiCitationSnapshot {
 //  AI CRAWLER HITS — Sunucu loglarindan bot trafigi
 // ═══════════════════════════════════════════════════════════════
 
+// ═══════════════════════════════════════════════════════════════
+//  AI REFERRER HITS — ChatGPT/Perplexity'den gelen kullanici trafigi
+// ═══════════════════════════════════════════════════════════════
+
+model AiReferrerHit {
+  id          String   @id @default(cuid())
+  siteId      String
+
+  date        DateTime @db.Date
+  referrer    String   // chatgpt | perplexity | claude | gemini | bing-copilot | unknown
+  hits        Int      @default(0)
+  uniqueUrls  Int      @default(0)
+  topUrls     Json     // [{ url, count }]
+
+  createdAt   DateTime @default(now())
+
+  @@unique([siteId, date, referrer])
+  @@index([siteId, date])
+  @@map("ai_referrer_hits")
+}
+
 model AiCrawlerHit {
   id          String   @id @default(cuid())
   siteId      String

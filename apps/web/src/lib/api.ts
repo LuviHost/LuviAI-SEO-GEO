@@ -286,6 +286,26 @@ export const api = {
       body: JSON.stringify(payload),
     }),
 
+  getAiReferrerHistory: (siteId: string, days = 30) =>
+    request<any>(`/sites/${siteId}/audit/ai-referrer/history?days=${days}`),
+
+  getWidgetEmbedUrl: (siteId: string) => {
+    const apiBase = process.env.NEXT_PUBLIC_API_URL ?? '';
+    return `${apiBase}/api/widget.js?site=${siteId}`;
+  },
+
+  generateArticleVideo: (siteId: string, articleId: string, format: 'horizontal' | 'vertical' = 'vertical') =>
+    request<any>(`/sites/${siteId}/articles/${articleId}/video`, {
+      method: 'POST',
+      body: JSON.stringify({ format }),
+    }),
+
+  uploadVideoToYouTube: (siteId: string, articleId: string, videoPath: string) =>
+    request<any>(`/sites/${siteId}/articles/${articleId}/video/youtube`, {
+      method: 'POST',
+      body: JSON.stringify({ videoPath }),
+    }),
+
   // Reports
   getReport: (siteId: string, range: 'week' | 'month' | 'year' = 'month') =>
     request<any>(`/sites/${siteId}/analytics/report?range=${range}`),

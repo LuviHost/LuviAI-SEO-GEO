@@ -19,6 +19,9 @@ import { SchemaValidatorService } from './schema-validator.service.js';
 import { AiSitemapService } from './ai-sitemap.service.js';
 import { AuthorProfileService } from './author-profile.service.js';
 import { HaroParserService } from './haro-parser.service.js';
+import { AiReferrerService } from './ai-referrer.service.js';
+import { PersonaChatService } from './persona-chat.service.js';
+import { Public } from '../auth/public.decorator.js';
 import { SnippetGeneratorService } from './snippet-generator.service.js';
 import { SnippetApplierService } from './snippet-applier.service.js';
 import { StaticHtmlFixerService } from './static-html-fixer.service.js';
@@ -45,6 +48,8 @@ export class AuditController {
     private readonly aiSitemap: AiSitemapService,
     private readonly authorProfile: AuthorProfileService,
     private readonly haro: HaroParserService,
+    private readonly aiReferrer: AiReferrerService,
+    private readonly personaChat: PersonaChatService,
     private readonly snippets: SnippetGeneratorService,
     private readonly applier: SnippetApplierService,
     private readonly staticFixer: StaticHtmlFixerService,
@@ -226,6 +231,22 @@ export class AuditController {
   @Post('haro/parse')
   haroParse(@Param('siteId') siteId: string, @Body() body: { emailContent: string }) {
     return this.haro.parseDigest(siteId, body.emailContent);
+  }
+
+  /** GET /sites/:siteId/audit/ai-referrer/history?days=30 — AI Search Console */
+  @Get('ai-referrer/history')
+  aiReferrerHistory(@Param('siteId') siteId: string, @Query('days') days?: string) {
+    return this.aiReferrer.getHistory(siteId, days ? parseInt(days, 10) : 30);
+  }
+
+  /** POST /sites/:siteId/audit/persona/chat — Public widget endpoint */
+  @Public()
+  @Post('persona/chat')
+  personaChat(
+    @Param('siteId') siteId: string,
+    @Body() body: { history: { role: 'user' | 'assistant'; content: string }[] },
+  ) {
+    return this.personaChat.ask(siteId, body.history ?? []);
   }
 
   @Get('snippets')

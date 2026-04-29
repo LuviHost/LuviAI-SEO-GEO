@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { Sparkles, Network, Globe, Check, X, AlertCircle, Copy, ExternalLink, Play, MessageSquare, Link2, Download, Code, Activity, MapPin, Mail, User } from 'lucide-react';
+import { Sparkles, Network, Globe, Check, X, AlertCircle, Copy, ExternalLink, Play, MessageSquare, Link2, Download, Code, Activity, MapPin, Mail, User, BarChart3, Bot } from 'lucide-react';
 import { api } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -15,7 +15,7 @@ import { Badge } from '@/components/ui/badge';
  *  3. Wikipedia article draft
  */
 export function GeoLabPanel({ siteId }: { siteId: string }) {
-  const [tab, setTab] = useState<'heatmap' | 'wikidata' | 'wikipedia' | 'community' | 'cross-link' | 'training' | 'schema-validate' | 'tracker' | 'sitemap-ai' | 'haro' | 'programmatic'>('heatmap');
+  const [tab, setTab] = useState<'heatmap' | 'wikidata' | 'wikipedia' | 'community' | 'cross-link' | 'training' | 'schema-validate' | 'tracker' | 'sitemap-ai' | 'haro' | 'programmatic' | 'ai-console' | 'chat-widget'>('heatmap');
 
   return (
     <div className="rounded-lg border p-4 space-y-3">
@@ -41,6 +41,8 @@ export function GeoLabPanel({ siteId }: { siteId: string }) {
           ['sitemap-ai', 'AI Sitemap', <Globe key="sa" className="h-3 w-3" />],
           ['haro', 'HARO', <Mail key="ha" className="h-3 w-3" />],
           ['programmatic', '81 İl', <MapPin key="pg" className="h-3 w-3" />],
+          ['ai-console', 'AI Search Console', <BarChart3 key="ac" className="h-3 w-3" />],
+          ['chat-widget', 'Chat Widget', <Bot key="cw" className="h-3 w-3" />],
         ] as const).map(([id, label, icon]) => (
           <button
             key={id}
@@ -65,6 +67,116 @@ export function GeoLabPanel({ siteId }: { siteId: string }) {
       {tab === 'sitemap-ai' && <AiSitemapTab siteId={siteId} />}
       {tab === 'haro' && <HaroTab siteId={siteId} />}
       {tab === 'programmatic' && <ProgrammaticTab siteId={siteId} />}
+      {tab === 'ai-console' && <AiSearchConsoleTab siteId={siteId} />}
+      {tab === 'chat-widget' && <ChatWidgetTab siteId={siteId} />}
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────
+// AI Search Console (ChatGPT/Perplexity'den gelen kullanici trafigi)
+// ──────────────────────────────────────────────────────────────────
+function AiSearchConsoleTab({ siteId }: { siteId: string }) {
+  const [data, setData] = useState<any>(null);
+  const [days, setDays] = useState(30);
+  const [loading, setLoading] = useState(true);
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const res = await api.getAiReferrerHistory(siteId, days);
+      setData(res);
+    } catch (err: any) { toast.error(err.message); }
+    finally { setLoading(false); }
+  };
+
+  useEffect(() => { load(); }, [days, siteId]);
+
+  if (loading || !data) return <div className="text-sm text-muted-foreground p-6 text-center">Yükleniyor…</div>;
+
+  const sortedReferrers = Object.entries(data.byReferrer ?? {}).sort((a, b) => (b[1] as number) - (a[1] as number));
+
+  return (
+    <div className="space-y-3">
+      <p className="text-xs text-muted-foreground">
+        Bu sayfa <strong>AI cevap kutucuklarından gelen kullanıcı trafiği</strong>nı gösterir. ChatGPT/Perplexity/Claude'da sitenizin URL'i alıntılandığında, kullanıcı linke tıkladıkça referer header'ı yakalanır. <strong>Bot trafiği değil — gerçek satın alma niyetli ziyaretçi.</strong>
+      </p>
+
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="inline-flex border rounded-md overflow-hidden">
+          {[7, 30, 90].map((d) => (
+            <button key={d} onClick={() => setDays(d)} className={`px-2.5 py-1 text-xs font-medium ${days === d ? 'bg-brand text-white' : 'bg-card text-muted-foreground hover:bg-muted'}`}>{d}g</button>
+          ))}
+        </div>
+        <span className="text-xs text-muted-foreground">Toplam: <strong>{data.totalHits.toLocaleString('tr-TR')}</strong> tıklama</span>
+      </div>
+
+      {data.totalHits === 0 ? (
+        <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
+          Henüz AI referrer trafiği yok. Tracker.js sitenize embed edildikten sonra (Bot Tracker sekmesi) kullanıcılar AI'dan tıklayınca buradan görürsün.
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {sortedReferrers.map(([key, hits]) => {
+            const reg = (data.registry ?? []).find((r: any) => r.key === key);
+            const label = reg?.label ?? key;
+            const pct = (data.totalHits > 0 ? (hits as number) / data.totalHits * 100 : 0);
+            return (
+              <div key={key} className="rounded-md border p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-semibold text-sm">{label}</span>
+                  <span className="font-mono text-xs">{(hits as number).toLocaleString('tr-TR')} ({pct.toFixed(1)}%)</span>
+                </div>
+                <div className="h-2 bg-muted rounded-full overflow-hidden">
+                  <div className="h-full bg-brand" style={{ width: `${pct}%` }} />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────
+// Chat Widget (Persona)
+// ──────────────────────────────────────────────────────────────────
+function ChatWidgetTab({ siteId }: { siteId: string }) {
+  const url = api.getWidgetEmbedUrl(siteId);
+  const snippet = `<script async src="${url}"></script>`;
+  return (
+    <div className="space-y-3">
+      <p className="text-xs text-muted-foreground">
+        Sitenizin sağ alt köşesine <strong>AI chat widget</strong> ekler. Ziyaretçi soru sorar, AI marka tonunda cevap verir, ilgili makaleye link verir. Brand voice + persona ile <strong>satış asistanı</strong> gibi çalışır.
+      </p>
+
+      <div className="rounded-md border">
+        <div className="px-3 py-2 border-b bg-muted/30 flex items-center justify-between">
+          <p className="text-xs font-semibold">Embed Script</p>
+          <button onClick={() => { navigator.clipboard.writeText(snippet); toast.success('Kopyalandı'); }} className="text-xs text-brand hover:underline inline-flex items-center gap-1">
+            <Copy className="h-3 w-3" /> Kopyala
+          </button>
+        </div>
+        <pre className="p-3 text-[11px] font-mono whitespace-pre-wrap break-all">{snippet}</pre>
+      </div>
+
+      <div className="rounded-md border bg-muted/20 p-3">
+        <p className="text-xs font-semibold mb-2">Özellikler</p>
+        <ul className="space-y-1 text-xs text-muted-foreground">
+          <li>✓ Otomatik FAB (sağ alt köşe, tıklanınca açılır)</li>
+          <li>✓ Marka rengi + LuviAI gradient</li>
+          <li>✓ AI brain context'i + son 30 makale ile cevap üretir</li>
+          <li>✓ Cevap içinde ilgili makale linki otomatik</li>
+          <li>✓ Mobil uyumlu, responsive</li>
+        </ul>
+      </div>
+
+      <div className="rounded-md border border-blue-500/30 bg-blue-500/5 p-3">
+        <p className="text-xs">
+          🎯 <strong>SEO ve GEO etkisi:</strong> Widget'ta sorulan sorular Google'a "kullanıcı niyeti" sinyali gönderir. Ayrıca cevap içindeki internal link'ler crawler'lar için bonus erişim noktası.
+        </p>
+      </div>
     </div>
   );
 }

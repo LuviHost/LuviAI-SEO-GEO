@@ -4,6 +4,7 @@ import { ArticlesService } from './articles.service.js';
 import { ArticleSchedulerService } from './article-scheduler.service.js';
 import { MediaGeneratorService } from './media-generator.service.js';
 import { ProgrammaticSeoService } from './programmatic-seo.service.js';
+import { VideoGeneratorService } from './video-generator.service.js';
 
 @Controller('sites/:siteId/articles')
 export class ArticlesController {
@@ -12,6 +13,7 @@ export class ArticlesController {
     private readonly scheduler: ArticleSchedulerService,
     private readonly media: MediaGeneratorService,
     private readonly programmatic: ProgrammaticSeoService,
+    private readonly video: VideoGeneratorService,
   ) {}
 
   @Get()
@@ -87,6 +89,18 @@ export class ArticlesController {
   @Post(':id/audio')
   generateAudio(@Param('id') id: string) {
     return this.media.generateAudio(id);
+  }
+
+  /** POST /sites/:siteId/articles/:id/video — TTS audio + hero gorseli birlestir, MP4 uret */
+  @Post(':id/video')
+  generateVideo(@Param('id') id: string, @Body() body: { format?: 'horizontal' | 'vertical' }) {
+    return this.video.generate(id, { format: body?.format });
+  }
+
+  /** POST /sites/:siteId/articles/:id/video/youtube — uretilmis video YouTube'a yukle */
+  @Post(':id/video/youtube')
+  uploadYouTube(@Param('id') id: string, @Body() body: { videoPath: string }) {
+    return this.video.uploadToYouTube(id, body.videoPath);
   }
 
   /** POST /sites/:siteId/articles/programmatic/cities — 81 il icin bulk schedule */

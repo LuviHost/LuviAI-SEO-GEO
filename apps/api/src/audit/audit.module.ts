@@ -25,6 +25,8 @@ import { SchemaValidatorService } from './schema-validator.service.js';
 import { AiSitemapService } from './ai-sitemap.service.js';
 import { AuthorProfileService } from './author-profile.service.js';
 import { HaroParserService } from './haro-parser.service.js';
+import { AiReferrerService } from './ai-referrer.service.js';
+import { PersonaChatService } from './persona-chat.service.js';
 import { EmailModule } from '../email/email.module.js';
 import { SnippetGeneratorService } from './snippet-generator.service.js';
 import { SnippetApplierService } from './snippet-applier.service.js';
@@ -59,6 +61,8 @@ import { SitesModule } from '../sites/sites.module.js';
     AiSitemapService,
     AuthorProfileService,
     HaroParserService,
+    AiReferrerService,
+    PersonaChatService,
     SnippetGeneratorService,
     SnippetApplierService,
     StaticHtmlFixerService,
@@ -84,6 +88,8 @@ import { SitesModule } from '../sites/sites.module.js';
     AiSitemapService,
     AuthorProfileService,
     HaroParserService,
+    AiReferrerService,
+    PersonaChatService,
     SnippetGeneratorService,
     SnippetApplierService,
     StaticHtmlFixerService,
