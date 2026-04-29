@@ -118,6 +118,7 @@ export function SettingsTab({ siteId }: { siteId: string }) {
 
   return (
     <div className="space-y-6">
+      <ApprovalModeCard siteId={siteId} />
       <GscConnectionCard siteId={siteId} />
       <Ga4ConnectionCard siteId={siteId} />
       <AdsAccountsCard siteId={siteId} />
@@ -915,6 +916,79 @@ function AdsAccountsCard({ siteId }: { siteId: string }) {
             <MetaAdsOAuthCard site={site} connected={conn.meta} onChanged={refresh} />
           </>
         )}
+      </CardContent>
+    </Card>
+  );
+}
+
+
+// ──────────────────────────────────────────────────────────────────────
+//  Yayin Onay Modu — manuel onay vs tam otomatik
+// ──────────────────────────────────────────────────────────────────────
+function ApprovalModeCard({ siteId }: { siteId: string }) {
+  const [mode, setMode] = useState<'manual_approve' | 'auto_publish' | null>(null);
+  const [autopilot, setAutopilot] = useState<boolean | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    api.getSite(siteId).then((s: any) => {
+      setMode(s.publishApprovalMode ?? 'manual_approve');
+      setAutopilot(s.autopilot ?? true);
+    }).catch(() => { /* noop */ });
+  }, [siteId]);
+
+  const change = async (newMode: 'manual_approve' | 'auto_publish') => {
+    if (mode === newMode) return;
+    setSaving(true);
+    try {
+      await api.updateSite(siteId, { publishApprovalMode: newMode });
+      setMode(newMode);
+      toast.success(newMode === 'auto_publish' ? 'Tam otomatik moda alindi' : 'Manuel onay moduna alindi');
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (mode === null) return null;
+
+  return (
+    <Card>
+      <CardHeader>
+        <h2 className="font-semibold">Otomatik Yayin Modu</h2>
+        <p className="text-xs text-muted-foreground mt-1">
+          AI yazdiktan sonra yayinlama davranisi. Istediginde degistirebilirsin.
+        </p>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        <button
+          type="button"
+          onClick={() => change('manual_approve')}
+          disabled={saving}
+          className={`w-full rounded-lg border-2 p-3 text-left transition-colors ${
+            mode === 'manual_approve' ? 'border-blue-500 bg-blue-500/5' : 'hover:border-blue-500/40'
+          }`}
+        >
+          <p className="font-medium text-sm">👁️ Yari Otomatik (Onerilen)</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            AI yazsin → DRAFT olarak dursun → sen onaylayinca yayinlansin. Email/dashboard'dan haber alirsin.
+          </p>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => change('auto_publish')}
+          disabled={saving}
+          className={`w-full rounded-lg border-2 p-3 text-left transition-colors ${
+            mode === 'auto_publish' ? 'border-brand bg-brand/5' : 'hover:border-brand/40'
+          }`}
+        >
+          <p className="font-medium text-sm">🚀 Tam Otomatik</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            AI yazsin ve direkt yayinlansin. Hizli icin ideal — sen sadece haftalik raporu okursun.
+          </p>
+        </button>
       </CardContent>
     </Card>
   );

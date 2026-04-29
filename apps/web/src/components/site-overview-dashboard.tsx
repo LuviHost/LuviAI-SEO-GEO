@@ -116,7 +116,7 @@ export function SiteOverviewDashboard({
                   </p>
                   <p className="text-xs text-muted-foreground mt-1 max-w-xl">{config.desc}</p>
                   {autopilot && approvalMode === 'manual_approve' && (
-                    <Link href={`/sites/${site.id}/settings`} className="text-[11px] text-brand hover:underline mt-1 inline-block">
+                    <Link href={`/sites/${site.id}?tab=settings`} className="text-[11px] text-brand hover:underline mt-1 inline-block">
                       Tam otomatik moda geç →
                     </Link>
                   )}
