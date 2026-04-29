@@ -45,6 +45,14 @@ export class DemoSeederService {
           tone: 'profesyonel ama samimi',
           summary: 'Türkiye merkezli web hosting çözümleri sunan örnek demo site.',
         } as any,
+        personas: [
+          { name: 'Mert (KOBİ)', age: 35, expertise: ['Web hosting', 'KOBİ teknoloji'], bio: 'KOBİ sahibi, kendi sitesini yönetiyor.' },
+        ] as any,
+        competitors: [
+          { name: 'Hostinger Turkey', url: 'https://hostinger.com.tr' },
+          { name: 'Natro', url: 'https://natro.com' },
+          { name: 'Turhost', url: 'https://turhost.com' },
+        ] as any,
         seoStrategy: {
           aeoQueries: ['shared hosting nedir?', 'hangi hosting paketi uygun?', 'WordPress için en iyi hosting'],
           geoQueries: ['Türkiye\'de en iyi hosting hangisi?', 'Hosting önerisi 2026'],
@@ -53,13 +61,9 @@ export class DemoSeederService {
             { name: 'VDS', url: '/vds' },
           ],
         } as any,
-        personas: [
-          { name: 'Mert (KOBİ)', age: 35, expertise: ['Web hosting', 'KOBİ teknoloji'], bio: 'KOBİ sahibi, kendi sitesini yönetiyor.' },
-        ] as any,
-        competitors: [
-          { name: 'Hostinger Turkey', url: 'https://hostinger.com.tr' },
-          { name: 'Natro', url: 'https://natro.com' },
-          { name: 'Turhost', url: 'https://turhost.com' },
+        glossary: [
+          { term: 'shared hosting', translation: 'paylaşımlı hosting', note: 'birden fazla site tek sunucu paylaşır' },
+          { term: 'VDS', translation: 'Sanal Sunucu', note: 'Virtual Dedicated Server' },
         ] as any,
         generatedBy: 'demo-seed',
       },
