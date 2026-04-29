@@ -360,6 +360,19 @@ export const api = {
   updateAdsSettings: (siteId: string, payload: { adsAutopilot?: boolean }) =>
     request<any>(`/sites/${siteId}/ads/settings`, { method: 'PATCH', body: JSON.stringify(payload) }),
 
+  // Faz 11.5 — OAuth popup flow
+  getOAuthStartUrl: (provider: 'google-ads' | 'meta-ads', siteId: string) =>
+    request<{ url: string }>(`/oauth/${provider}/start?siteId=${siteId}`),
+
+  getOAuthOptions: (provider: 'google-ads' | 'meta-ads', siteId: string) =>
+    request<any>(`/oauth/${provider}/options?siteId=${siteId}`),
+
+  selectOAuthAccount: (provider: 'google-ads' | 'meta-ads', siteId: string, body: any) =>
+    request<any>(`/oauth/${provider}/select?siteId=${siteId}`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+
   // Reports
   getReport: (siteId: string, range: 'week' | 'month' | 'year' = 'month') =>
     request<any>(`/sites/${siteId}/analytics/report?range=${range}`),

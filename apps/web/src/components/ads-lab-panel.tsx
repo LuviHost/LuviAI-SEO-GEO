@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { Megaphone, Play, Pause, Plus, Target, Activity, Zap, Link2, Check, X } from 'lucide-react';
+import { Megaphone, Play, Pause, Plus, Target, Activity, Zap, Link2, Check, X, Loader2 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -477,59 +477,16 @@ function SettingsTab({ site }: { site: any }) {
         </p>
       </div>
 
-      <ConnectionCard
-        title="Google Ads"
+      <GoogleAdsOAuthCard
+        site={site}
         connected={conn.google}
-        connectedAt={site.googleAdsConnectedAt}
-        accountLabel={site.googleAdsCustomerId}
-        accountField="Customer ID"
-        accountPlaceholder="123-456-7890"
-        secretField="Refresh Token"
-        secretPlaceholder="1//0g..."
-        helpUrl="https://developers.google.com/google-ads/api/docs/oauth/overview"
-        helpText="Google Ads API + OAuth 2.0 Refresh Token gerekli. developers.google.com/google-ads üzerinden geliştirici tokenı al."
-        onSave={async ({ account, secret }) => {
-          await api.connectGoogleAds(site.id, { customerId: account, refreshToken: secret });
-          toast.success('Google Ads bağlandı');
-          refresh();
-        }}
-        onDisconnect={async () => {
-          await api.connectGoogleAds(site.id, { customerId: undefined, refreshToken: undefined });
-          toast.success('Google Ads bağlantısı kaldırıldı');
-          refresh();
-        }}
+        onChanged={refresh}
       />
 
-      <ConnectionCard
-        title="Meta Ads (Facebook + Instagram)"
+      <MetaAdsOAuthCard
+        site={site}
         connected={conn.meta}
-        connectedAt={site.metaAdsConnectedAt}
-        accountLabel={site.metaAdsAccountId}
-        accountField="Ad Account ID"
-        accountPlaceholder="act_1234567890"
-        secretField="Access Token"
-        secretPlaceholder="EAAB..."
-        helpUrl="https://developers.facebook.com/docs/marketing-api/get-started"
-        helpText="Meta Marketing API access token gerekli. developers.facebook.com → Business uygulaması → Long-lived token."
-        extraFields={[
-          { key: 'pageId', label: 'Facebook Page ID', placeholder: '102345...', defaultValue: site.metaPageId ?? '', help: 'Otomatik kampanya + boost için zorunlu' },
-          { key: 'instagramActorId', label: 'Instagram Business Account ID', placeholder: '17841...', defaultValue: site.metaInstagramActorId ?? '', help: 'IG placement için (opsiyonel)' },
-        ]}
-        onSave={async ({ account, secret, extras }) => {
-          await api.connectMetaAds(site.id, {
-            accountId: account,
-            accessToken: secret,
-            pageId: extras?.pageId || undefined,
-            instagramActorId: extras?.instagramActorId || undefined,
-          });
-          toast.success('Meta Ads bağlandı');
-          refresh();
-        }}
-        onDisconnect={async () => {
-          await api.connectMetaAds(site.id, { accountId: undefined, accessToken: undefined, pageId: undefined, instagramActorId: undefined });
-          toast.success('Meta Ads bağlantısı kaldırıldı');
-          refresh();
-        }}
+        onChanged={refresh}
       />
 
       <label className="flex items-center gap-2 text-xs cursor-pointer p-3 rounded-md border bg-orange-500/5">
@@ -546,6 +503,349 @@ function SettingsTab({ site }: { site: any }) {
         </span>
       </label>
     </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────
+//  OAuth popup-based connection cards (Faz 11.5)
+// ──────────────────────────────────────────────────────────────────
+
+/**
+ * OAuth popup'i acar, bitince postMessage bekler.
+ * Provider: 'google-ads' | 'meta-ads'
+ */
+function useOAuthPopup(provider: 'google-ads' | 'meta-ads', siteId: string) {
+  const [busy, setBusy] = useState(false);
+
+  const start = async (onResult: (data: any) => void) => {
+    setBusy(true);
+    try {
+      const { url } = await api.getOAuthStartUrl(provider, siteId);
+      const w = 600, h = 700;
+      const left = window.screenX + (window.outerWidth - w) / 2;
+      const top = window.screenY + (window.outerHeight - h) / 2;
+      const popup = window.open(url, 'oauth-popup', `width=${w},height=${h},left=${left},top=${top},toolbar=no,location=no,status=no,menubar=no,scrollbars=yes`);
+      if (!popup) throw new Error('Popup engellendi — tarayıcı izni ver');
+
+      let resolved = false;
+      const handler = (e: MessageEvent) => {
+        if (e.origin !== window.location.origin) return;
+        const msg = e.data;
+        if (!msg || (msg.type !== 'oauth-success' && msg.type !== 'oauth-error')) return;
+        if (msg.provider !== provider) return;
+        resolved = true;
+        window.removeEventListener('message', handler);
+        if (msg.type === 'oauth-error') {
+          toast.error(msg.message ?? 'Bağlantı hatası');
+        } else {
+          onResult(msg.data ?? {});
+        }
+        setBusy(false);
+      };
+      window.addEventListener('message', handler);
+
+      // Popup kapanmasi watchdog
+      const timer = setInterval(() => {
+        if (popup.closed) {
+          clearInterval(timer);
+          if (!resolved) {
+            window.removeEventListener('message', handler);
+            setBusy(false);
+          }
+        }
+      }, 500);
+    } catch (err: any) {
+      toast.error(err.message);
+      setBusy(false);
+    }
+  };
+
+  return { busy, start };
+}
+
+function GoogleAdsOAuthCard({ site, connected, onChanged }: { site: any; connected: boolean; onChanged: () => void }) {
+  const oauth = useOAuthPopup('google-ads', site.id);
+  const [picker, setPicker] = useState<{ id: string; resourceName: string }[] | null>(null);
+  const [savingPick, setSavingPick] = useState(false);
+
+  const connect = () => {
+    oauth.start(async (data) => {
+      onChanged();
+      if (data.autoSelected) {
+        toast.success('Google Ads bağlandı ✓');
+      } else if (data.customers?.length > 1) {
+        setPicker(data.customers);
+        toast.message('Birden fazla hesap bulundu — birini seç');
+      } else if (!data.customers?.length) {
+        toast.warning('Google Ads hesabı bulunamadı — bu Google hesabında reklam hesabı yok mu?');
+      }
+    });
+  };
+
+  const disconnect = async () => {
+    if (!confirm('Google Ads bağlantısı kaldırılacak. Emin misin?')) return;
+    try {
+      await api.connectGoogleAds(site.id, { customerId: undefined, refreshToken: undefined });
+      toast.success('Bağlantı kaldırıldı');
+      onChanged();
+    } catch (err: any) { toast.error(err.message); }
+  };
+
+  const pick = async (customerId: string) => {
+    setSavingPick(true);
+    try {
+      await api.selectOAuthAccount('google-ads', site.id, { customerId });
+      toast.success('Hesap seçildi ✓');
+      setPicker(null);
+      onChanged();
+    } catch (err: any) { toast.error(err.message); }
+    finally { setSavingPick(false); }
+  };
+
+  const showPicker = async () => {
+    try {
+      const r = await api.getOAuthOptions('google-ads', site.id);
+      setPicker(r.customers ?? []);
+    } catch (err: any) { toast.error(err.message); }
+  };
+
+  return (
+    <div className={`rounded-md border p-3 ${connected ? 'border-green-500/40 bg-green-500/5' : 'bg-muted/10'}`}>
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <span className={`h-7 w-7 rounded-full grid place-items-center ${connected ? 'bg-green-500/20' : 'bg-muted'}`}>
+            {connected ? <Check className="h-4 w-4 text-green-600" /> : <X className="h-4 w-4 text-muted-foreground" />}
+          </span>
+          <div>
+            <p className="text-sm font-semibold flex items-center gap-2">
+              <GoogleIcon /> Google Ads
+            </p>
+            <p className="text-[11px] text-muted-foreground">
+              {connected
+                ? <>Bağlı{site.googleAdsCustomerId && <> · <span className="font-mono">{site.googleAdsCustomerId}</span></>} · {site.googleAdsConnectedAt && new Date(site.googleAdsConnectedAt).toLocaleDateString('tr-TR')}</>
+                : 'Tek tık bağlan — Google izin ekranı'}
+            </p>
+          </div>
+        </div>
+        {connected ? (
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={showPicker}>Hesap Değiştir</Button>
+            <Button size="sm" variant="outline" onClick={disconnect}>Kaldır</Button>
+          </div>
+        ) : (
+          <Button size="sm" onClick={connect} disabled={oauth.busy} className="gap-1.5">
+            {oauth.busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <GoogleIcon />}
+            {oauth.busy ? 'Açılıyor…' : 'Google ile Bağla'}
+          </Button>
+        )}
+      </div>
+
+      {picker && (
+        <div className="mt-3 pt-3 border-t space-y-2">
+          <p className="text-xs font-medium">Hangi Google Ads hesabı?</p>
+          {picker.length === 0 ? (
+            <p className="text-xs text-muted-foreground">Bu Google hesabıyla erişilebilir Google Ads hesabı yok.</p>
+          ) : (
+            picker.map((c) => (
+              <button
+                key={c.id}
+                onClick={() => pick(c.id)}
+                disabled={savingPick}
+                className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded border text-xs hover:border-brand/40 hover:bg-brand/5 transition-colors ${site.googleAdsCustomerId === c.id ? 'border-green-500/40 bg-green-500/5' : ''}`}
+              >
+                <span className="font-mono">{c.id.replace(/(\d{3})(\d{3})(\d{4})/, '$1-$2-$3')}</span>
+                {site.googleAdsCustomerId === c.id && <Check className="h-3 w-3 text-green-600" />}
+              </button>
+            ))
+          )}
+          <Button size="sm" variant="ghost" onClick={() => setPicker(null)} className="w-full">İptal</Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MetaAdsOAuthCard({ site, connected, onChanged }: { site: any; connected: boolean; onChanged: () => void }) {
+  const oauth = useOAuthPopup('meta-ads', site.id);
+  const [opts, setOpts] = useState<{ adAccounts: any[]; pages: any[] } | null>(null);
+  const [showOpts, setShowOpts] = useState(false);
+
+  const connect = () => {
+    oauth.start(async (data) => {
+      onChanged();
+      if (data.autoSelected) {
+        toast.success('Meta Ads bağlandı ✓');
+      } else {
+        // birden fazla varsa picker'i hemen ac
+        setOpts({ adAccounts: data.adAccounts ?? [], pages: data.pages ?? [] });
+        setShowOpts(true);
+      }
+    });
+  };
+
+  const disconnect = async () => {
+    if (!confirm('Meta Ads bağlantısı kaldırılacak. Emin misin?')) return;
+    try {
+      await api.connectMetaAds(site.id, { accountId: undefined, accessToken: undefined, pageId: undefined, instagramActorId: undefined });
+      toast.success('Bağlantı kaldırıldı');
+      onChanged();
+    } catch (err: any) { toast.error(err.message); }
+  };
+
+  const loadOpts = async () => {
+    try {
+      const r = await api.getOAuthOptions('meta-ads', site.id);
+      setOpts({ adAccounts: r.adAccounts ?? [], pages: r.pages ?? [] });
+      setShowOpts(true);
+    } catch (err: any) { toast.error(err.message); }
+  };
+
+  const save = async (selection: { adAccountId?: string; pageId?: string; instagramActorId?: string }) => {
+    try {
+      await api.selectOAuthAccount('meta-ads', site.id, selection);
+      toast.success('Seçim kaydedildi ✓');
+      setShowOpts(false);
+      onChanged();
+    } catch (err: any) { toast.error(err.message); }
+  };
+
+  return (
+    <div className={`rounded-md border p-3 ${connected ? 'border-green-500/40 bg-green-500/5' : 'bg-muted/10'}`}>
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <span className={`h-7 w-7 rounded-full grid place-items-center ${connected ? 'bg-green-500/20' : 'bg-muted'}`}>
+            {connected ? <Check className="h-4 w-4 text-green-600" /> : <X className="h-4 w-4 text-muted-foreground" />}
+          </span>
+          <div>
+            <p className="text-sm font-semibold flex items-center gap-2">
+              <MetaIcon /> Meta Ads (Facebook + Instagram)
+            </p>
+            <p className="text-[11px] text-muted-foreground">
+              {connected
+                ? <>Bağlı{site.metaAdsAccountId && <> · <span className="font-mono">{site.metaAdsAccountId}</span></>}{site.metaPageId && <> · Page {site.metaPageId}</>}</>
+                : 'Tek tık bağlan — Facebook izin ekranı'}
+            </p>
+          </div>
+        </div>
+        {connected ? (
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={loadOpts}>Hesap/Sayfa Değiştir</Button>
+            <Button size="sm" variant="outline" onClick={disconnect}>Kaldır</Button>
+          </div>
+        ) : (
+          <Button size="sm" onClick={connect} disabled={oauth.busy} className="gap-1.5">
+            {oauth.busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <MetaIcon />}
+            {oauth.busy ? 'Açılıyor…' : 'Facebook ile Bağla'}
+          </Button>
+        )}
+      </div>
+
+      {showOpts && opts && (
+        <MetaPicker
+          opts={opts}
+          current={{ adAccountId: site.metaAdsAccountId, pageId: site.metaPageId, instagramActorId: site.metaInstagramActorId }}
+          onCancel={() => setShowOpts(false)}
+          onSave={save}
+        />
+      )}
+    </div>
+  );
+}
+
+function MetaPicker({ opts, current, onCancel, onSave }: {
+  opts: { adAccounts: any[]; pages: any[] };
+  current: { adAccountId?: string; pageId?: string; instagramActorId?: string };
+  onCancel: () => void;
+  onSave: (s: { adAccountId?: string; pageId?: string; instagramActorId?: string }) => Promise<void>;
+}) {
+  const [adAccountId, setAdAccountId] = useState(current.adAccountId ?? '');
+  const [pageId, setPageId] = useState(current.pageId ?? '');
+  const [saving, setSaving] = useState(false);
+
+  const selectedPage = opts.pages.find((p) => p.id === pageId);
+  const igId = selectedPage?.instagramId ?? '';
+
+  const submit = async () => {
+    if (!adAccountId) { toast.error('Reklam hesabı seç'); return; }
+    if (!pageId) { toast.error('Facebook Page seç'); return; }
+    setSaving(true);
+    try {
+      await onSave({ adAccountId, pageId, instagramActorId: igId || undefined });
+    } finally { setSaving(false); }
+  };
+
+  return (
+    <div className="mt-3 pt-3 border-t space-y-3">
+      <div>
+        <p className="text-xs font-medium mb-1.5">Reklam Hesabı (Ad Account)</p>
+        {opts.adAccounts.length === 0 ? (
+          <p className="text-[11px] text-muted-foreground p-2 border rounded">Aktif reklam hesabı bulunamadı.</p>
+        ) : (
+          <div className="space-y-1">
+            {opts.adAccounts.map((a) => (
+              <button
+                key={a.id}
+                onClick={() => setAdAccountId(a.id)}
+                className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded border text-xs hover:border-brand/40 transition-colors ${adAccountId === a.id ? 'border-brand bg-brand/5' : ''}`}
+              >
+                <span className="truncate"><strong>{a.name}</strong> · <span className="font-mono text-muted-foreground">{a.id}</span></span>
+                {adAccountId === a.id && <Check className="h-3 w-3 text-brand shrink-0" />}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div>
+        <p className="text-xs font-medium mb-1.5">Facebook Page (zorunlu — kampanya + boost için)</p>
+        {opts.pages.length === 0 ? (
+          <p className="text-[11px] text-muted-foreground p-2 border rounded">Sayfa bulunamadı. Facebook'ta sayfa kur, sonra tekrar bağla.</p>
+        ) : (
+          <div className="space-y-1">
+            {opts.pages.map((p) => (
+              <button
+                key={p.id}
+                onClick={() => setPageId(p.id)}
+                className={`w-full flex items-center justify-between gap-2 px-3 py-2 rounded border text-xs hover:border-brand/40 transition-colors ${pageId === p.id ? 'border-brand bg-brand/5' : ''}`}
+              >
+                <span className="truncate">
+                  <strong>{p.name}</strong>
+                  {p.instagramId && <span className="ml-1.5 text-[10px] inline-flex items-center gap-0.5 text-pink-500">📷 IG bağlı</span>}
+                </span>
+                {pageId === p.id && <Check className="h-3 w-3 text-brand shrink-0" />}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="flex items-center gap-2">
+        <Button size="sm" onClick={submit} disabled={saving} className="flex-1">
+          {saving ? 'Kaydediliyor…' : 'Seçimi Kaydet'}
+        </Button>
+        <Button size="sm" variant="ghost" onClick={onCancel}>İptal</Button>
+      </div>
+    </div>
+  );
+}
+
+function GoogleIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" aria-hidden>
+      <path fill="#EA4335" d="M12 5c1.6 0 3 .55 4.13 1.62l3.07-3.07A11.92 11.92 0 0 0 12 0C7.31 0 3.26 2.69 1.28 6.6l3.58 2.78A7.02 7.02 0 0 1 12 5Z" />
+      <path fill="#4285F4" d="M23.5 12.27c0-.85-.08-1.68-.22-2.47H12v4.68h6.46a5.53 5.53 0 0 1-2.39 3.63l3.69 2.86c2.16-1.99 3.4-4.92 3.4-8.7Z" />
+      <path fill="#FBBC05" d="M4.86 14.62a7.04 7.04 0 0 1 0-5.24L1.28 6.6a11.97 11.97 0 0 0 0 10.8l3.58-2.78Z" />
+      <path fill="#34A853" d="M12 24c3.24 0 5.96-1.07 7.95-2.92l-3.69-2.86a7.16 7.16 0 0 1-10.4-3.6L1.28 17.4C3.26 21.31 7.31 24 12 24Z" />
+    </svg>
+  );
+}
+
+function MetaIcon() {
+  return (
+    <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" aria-hidden>
+      <circle cx="12" cy="12" r="12" fill="#1877F2" />
+      <path fill="#fff" d="M14.7 12.5h-2.2v7H9.6v-7H8v-2.5h1.6V8.4c0-1.7 1-2.9 3.1-2.9.9 0 1.6.1 1.6.1v2.1h-1c-.9 0-1.2.5-1.2 1.1v1.7h2.4l-.4 2.5Z" />
+    </svg>
   );
 }
 
