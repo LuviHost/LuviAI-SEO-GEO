@@ -107,6 +107,8 @@ export const api = {
 
   getSite: (id: string) => request<any>(`/sites/${id}`),
 
+  getBrain: (siteId: string) => request<any>(`/sites/${siteId}/brain`),
+
   deleteSite: (id: string) =>
     request<{ id: string }>(`/sites/${id}`, { method: 'DELETE' }),
 
@@ -157,6 +159,12 @@ export const api = {
   // Topics
   getTopicQueue: (siteId: string) =>
     request<any>(`/sites/${siteId}/topics/queue`),
+
+  regenerateTopics: (siteId: string) =>
+    request<any>(`/sites/${siteId}/topics/regenerate`, { method: 'POST' }),
+
+  runTopicsNow: (siteId: string) =>
+    request<any>(`/sites/${siteId}/topics/run-now`, { method: 'POST' }),
 
   runTopicEngineNow: (siteId: string) =>
     request<any>(`/sites/${siteId}/topics/run-now`, { method: 'POST' }),

@@ -59,6 +59,13 @@ export class SitesController {
     return this.sites.remove(id, ensureUser(req));
   }
 
+  /** GET /sites/:id/brain — Brain'i dondurur (Sprint Onboarding 3 — smart prefill) */
+  @Get(':id/brain')
+  async getBrain(@Req() req: Request, @Param('id') id: string) {
+    await this.sites.findOne(id, ensureUser(req));
+    return this.prisma.brain.findUnique({ where: { siteId: id } });
+  }
+
   /** POST /sites/:id/brain/regenerate */
   @Post(':id/brain/regenerate')
   regenerateBrain(@Req() req: Request, @Param('id') id: string) {
