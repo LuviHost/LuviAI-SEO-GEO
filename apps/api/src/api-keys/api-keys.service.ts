@@ -64,8 +64,13 @@ export class ApiKeysService {
   }
 
   async revoke(userId: string, keyId: string) {
+    // Ensure ownership
+    const key = await this.prisma.apiKey.findUnique({ where: { id: keyId } });
+    if (!key || key.userId !== userId) {
+      throw new Error('API key bulunamadi');
+    }
     return this.prisma.apiKey.update({
-      where: { id: keyId, userId } as any,
+      where: { id: keyId },
       data: { revokedAt: new Date() },
     });
   }
