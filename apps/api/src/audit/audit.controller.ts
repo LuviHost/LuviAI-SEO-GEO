@@ -242,7 +242,7 @@ export class AuditController {
   /** POST /sites/:siteId/audit/persona/chat — Public widget endpoint */
   @Public()
   @Post('persona/chat')
-  personaChat(
+  personaChatAsk(
     @Param('siteId') siteId: string,
     @Body() body: { history: { role: 'user' | 'assistant'; content: string }[] },
   ) {
