@@ -120,6 +120,10 @@ export function UpgradePlanModal({
       const data = await res.json();
       if (data.iframeUrl) {
         setIframeUrl(data.iframeUrl);
+        // Test mode dev-confirm icin merchantOid'i sakla
+        if (data.merchantOid) {
+          try { localStorage.setItem('luviai-pending-merchantOid', data.merchantOid); } catch (_e) { /* noop */ }
+        }
         toast.info('Ödeme penceresi açıldı');
       } else {
         toast.error(data.message ?? 'Ödeme başlatılamadı');

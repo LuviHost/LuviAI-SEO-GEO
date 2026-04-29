@@ -81,6 +81,14 @@ export class BillingController {
     return this.paytr.cancelSubscription(userId);
   }
 
+  /** DEV/TEST mode: PayTR webhook gelmiyorsa user kendi tetikler */
+  @Post('dev-confirm/:merchantOid')
+  async devConfirm(@Req() req: Request, @Param('merchantOid') merchantOid: string) {
+    const user = (req as any).user;
+    if (!user?.id) throw new ForbiddenException('Auth required');
+    return this.paytr.devConfirmPayment(user.id, merchantOid);
+  }
+
   /** PayTR webhook — body signature ile doğrulanır, public olmalı */
   @Public()
   @Post('webhooks/paytr')

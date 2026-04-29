@@ -50,7 +50,7 @@ export class PaytrService {
     userName: string;
     userPhone?: string;
     userAddress?: string;
-  }): Promise<{ token: string; iframeUrl: string }> {
+  }): Promise<{ token: string; iframeUrl: string; merchantOid: string }> {
     if (!this.merchantId) {
       throw new BadRequestException('PayTR Merchant credentials .env\'de tanımlı değil');
     }
@@ -119,7 +119,36 @@ export class PaytrService {
     return {
       token: data.token,
       iframeUrl: `https://www.paytr.com/odeme/guvenli/${data.token}`,
+      merchantOid,
     };
+  }
+
+  /**
+   * DEV / TEST mode kisayolu: PayTR webhook gelmeden invoice'i PAID yap +
+   * plani aktive et. Sadece testMode=1 iken calisir.
+   */
+  async devConfirmPayment(userId: string, merchantOid: string) {
+    if (this.testMode !== '1') {
+      throw new BadRequestException('Bu endpoint sadece test modunda kullanilabilir');
+    }
+    const invoice = await this.prisma.invoice.findUnique({
+      where: { paytrTransactionId: merchantOid },
+    });
+    if (!invoice) throw new BadRequestException('Invoice bulunamadi');
+    if (invoice.userId !== userId) throw new BadRequestException('Bu fatura sana ait degil');
+    if (invoice.status === 'PAID') return { ok: true, message: 'Zaten odenmis' };
+
+    const parsed = this.parseOrderId(merchantOid);
+    if (!parsed) throw new BadRequestException('Gecersiz merchantOid');
+
+    await this.activateSubscription(invoice.userId, parsed.planId, merchantOid);
+    await this.prisma.invoice.update({
+      where: { id: invoice.id },
+      data: { status: 'PAID', paidAt: new Date() },
+    });
+
+    this.log.log(`[${merchantOid}] DEV-CONFIRM: ${invoice.userId} → ${parsed.planId}`);
+    return { ok: true, planId: parsed.planId };
   }
 
   /**

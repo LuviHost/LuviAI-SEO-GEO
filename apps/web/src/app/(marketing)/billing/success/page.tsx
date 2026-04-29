@@ -24,6 +24,27 @@ export default function SuccessPage() {
     } catch (_e) { /* noop */ }
   }, []);
 
+  // PayTR test mode webhook gondermiyor — kendimiz dev-confirm cagiralim
+  useEffect(() => {
+    let cancelled = false;
+    const sync = async () => {
+      try {
+        const oid = localStorage.getItem('luviai-pending-merchantOid');
+        if (!oid) return;
+        const apiBase = process.env.NEXT_PUBLIC_API_URL ?? '';
+        await fetch(`${apiBase}/api/billing/dev-confirm/${oid}`, {
+          method: 'POST',
+          credentials: 'include',
+        });
+        if (!cancelled) {
+          localStorage.removeItem('luviai-pending-merchantOid');
+        }
+      } catch (_e) { /* noop */ }
+    };
+    sync();
+    return () => { cancelled = true; };
+  }, []);
+
   // Onboarding state varsa 3 saniyede otomatik geri dön
   useEffect(() => {
     if (!returnTo?.siteId) return;
