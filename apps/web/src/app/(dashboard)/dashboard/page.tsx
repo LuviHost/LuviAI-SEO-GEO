@@ -1,24 +1,25 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { useT } from '@/lib/i18n';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ExternalLink, Plus, Trash2, AlertTriangle } from 'lucide-react';
+import {
+  ExternalLink, Plus, Trash2, AlertTriangle,
+  Globe2, FileText, Zap, Crown, Sparkles, ChevronRight, Activity,
+} from 'lucide-react';
 
-const STATUS_VARIANT: Record<string, any> = {
-  ONBOARDING: 'warning',
-  AUDIT_PENDING: 'secondary',
-  AUDIT_COMPLETE: 'default',
-  ACTIVE: 'success',
-  PAUSED: 'outline',
-  ERROR: 'destructive',
+const STATUS_CLASS: Record<string, string> = {
+  ONBOARDING: 'bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30',
+  AUDIT_PENDING: 'bg-blue-500/15 text-blue-700 dark:text-blue-400 border-blue-500/30',
+  AUDIT_COMPLETE: 'bg-violet-500/15 text-violet-700 dark:text-violet-400 border-violet-500/30',
+  ACTIVE: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30',
+  PAUSED: 'bg-muted text-muted-foreground border-border',
+  ERROR: 'bg-red-500/15 text-red-700 dark:text-red-400 border-red-500/30',
 };
 
 export default function DashboardPage() {
@@ -63,99 +64,113 @@ export default function DashboardPage() {
   const isTrial = me?.subscriptionStatus === 'TRIAL';
   const articlesUsed = me?.articlesUsedThisMonth ?? 0;
   const freeArticleRemaining = isTrial ? Math.max(0, 1 - articlesUsed) : null;
+  const planLabel = isTrial ? `${freeArticleRemaining}/1 kaldı` : (me?.plan ?? '-');
 
   return (
-    <div className="space-y-8">
-      <div className="flex justify-between items-center flex-wrap gap-4">
+    <div className="relative space-y-10">
+      {/* Subtle background gradient orb */}
+      <div className="pointer-events-none absolute -top-32 -right-20 h-72 w-72 rounded-full bg-brand/15 blur-[120px]" />
+      <div className="pointer-events-none absolute top-40 -left-32 h-72 w-72 rounded-full bg-violet-500/10 blur-[120px]" />
+
+      {/* Header */}
+      <div className="relative flex justify-between items-end flex-wrap gap-4 animate-[fadeInUp_500ms_ease-out_both]">
         <div>
-          <h1 className="text-3xl font-bold">{t('dashboard.title')}</h1>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="h-1.5 w-1.5 rounded-full bg-brand animate-pulse" />
+            <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-brand font-semibold">
+              Mission Control
+            </span>
+          </div>
+          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">
+            {t('dashboard.title')}
+          </h1>
           {session?.user?.name && (
-            <p className="text-sm text-muted-foreground mt-1">
-              Hoş geldin, <strong>{session.user.name}</strong>
+            <p className="text-sm text-muted-foreground mt-1.5">
+              Hoş geldin, <strong className="text-foreground">{session.user.name}</strong>
             </p>
           )}
         </div>
-        <Button asChild>
-          <Link href="/onboarding"><Plus className="h-4 w-4 mr-2" />{t('dashboard.new_site')}</Link>
+        <Button asChild size="lg" className="group relative overflow-hidden bg-gradient-to-r from-brand to-brand/85 shadow-[0_0_0_1px_rgb(124_58_237/0.3),0_8px_24px_-6px_rgb(124_58_237/0.5)] hover:shadow-[0_0_0_1px_rgb(124_58_237/0.5),0_12px_36px_-6px_rgb(124_58_237/0.7)] transition-shadow duration-300">
+          <Link href="/onboarding" className="font-mono text-xs uppercase tracking-widest">
+            <Plus className="h-4 w-4 mr-2 group-hover:rotate-90 transition-transform duration-300" />
+            {t('dashboard.new_site')}
+            <span aria-hidden className="absolute inset-y-0 -left-1/2 w-1/2 bg-gradient-to-r from-transparent via-white/25 to-transparent skew-x-12 group-hover:translate-x-[400%] transition-transform duration-700" />
+          </Link>
         </Button>
       </div>
 
+      {/* KPI grid */}
       {loading ? (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {[1, 2, 3, 4].map((i) => <Skeleton key={i} className="h-24" />)}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-28 rounded-xl" />)}
         </div>
       ) : me ? (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <Stat label="Sitelerim" value={me.sitesCount ?? 0} />
-          <Stat label="Yayınlanan makale" value={me.articlesPublished ?? 0} />
-          <Stat label="Bu ay üretilen" value={me.articlesUsedThisMonth ?? 0} />
-          <Stat
-            label={isTrial ? 'Ücretsiz makale hakkı' : (me.plan ?? 'Plan')}
-            value={isTrial ? `${freeArticleRemaining}/1 kaldı` : me.plan ?? '-'}
-            variant="brand"
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 relative">
+          <StatCard
+            icon={Globe2}
+            label="Sitelerim"
+            value={me.sitesCount ?? 0}
+            accent="brand"
+            delay={80}
+          />
+          <StatCard
+            icon={FileText}
+            label="Yayınlanan makale"
+            value={me.articlesPublished ?? 0}
+            accent="emerald"
+            delay={160}
+          />
+          <StatCard
+            icon={Zap}
+            label="Bu ay üretilen"
+            value={me.articlesUsedThisMonth ?? 0}
+            accent="amber"
+            delay={240}
+          />
+          <StatCard
+            icon={Crown}
+            label={isTrial ? 'Ücretsiz hak' : (me.plan ?? 'Plan')}
+            value={planLabel}
+            accent="violet"
             stringValue
+            delay={320}
           />
         </div>
       ) : null}
 
-      <Card>
-        <CardHeader>
-          <h2 className="text-lg font-semibold">{t('dashboard.sites')}</h2>
-        </CardHeader>
-        <CardContent className="p-0">
-          {loading ? (
-            <div className="p-6 space-y-3">
-              {[1, 2, 3].map((i) => <Skeleton key={i} className="h-12" />)}
-            </div>
-          ) : sites.length === 0 ? (
-            <div className="p-12 text-center">
-              <p className="text-muted-foreground mb-4">{t('dashboard.empty')}</p>
-              <Button asChild variant="outline">
-                <Link href="/onboarding">{t('dashboard.add_first')}</Link>
-              </Button>
-            </div>
-          ) : (
-            <div className="divide-y">
-              {sites.map((s) => (
-                <div key={s.id} className="p-5 flex items-center justify-between hover:bg-muted/50 transition-colors gap-4 flex-wrap">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-3 mb-1 flex-wrap">
-                      <h3 className="font-semibold truncate">{s.name}</h3>
-                      <Badge variant={STATUS_VARIANT[s.status]}>{s.status}</Badge>
-                    </div>
-                    <a
-                      href={s.url}
-                      target="_blank"
-                      rel="noopener"
-                      className="text-sm text-muted-foreground hover:text-brand inline-flex items-center gap-1"
-                    >
-                      {s.url}
-                      <ExternalLink className="h-3 w-3" />
-                    </a>
-                    {s.niche && (
-                      <span className="text-xs text-muted-foreground ml-3">· {s.niche}</span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <Button asChild size="sm" variant="outline">
-                      <Link href={`/sites/${s.id}`}>Aç →</Link>
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => setDeleteTarget(s)}
-                      title="Siteyi sil"
-                      className="text-muted-foreground hover:text-red-500 hover:bg-red-500/10"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      {/* Sites */}
+      <section className="relative animate-[fadeInUp_500ms_ease-out_400ms_both]">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Activity className="h-4 w-4 text-brand" />
+            <h2 className="text-lg font-semibold">{t('dashboard.sites')}</h2>
+            {!loading && sites.length > 0 && (
+              <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
+                · {sites.length} {sites.length === 1 ? 'site' : 'site'}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {loading ? (
+          <div className="space-y-2">
+            {[0, 1, 2].map((i) => <Skeleton key={i} className="h-20 rounded-xl" />)}
+          </div>
+        ) : sites.length === 0 ? (
+          <EmptyState />
+        ) : (
+          <div className="space-y-2">
+            {sites.map((s, idx) => (
+              <SiteCard
+                key={s.id}
+                site={s}
+                index={idx}
+                onDelete={() => setDeleteTarget(s)}
+              />
+            ))}
+          </div>
+        )}
+      </section>
 
       {deleteTarget && (
         <DeleteSiteDialog
@@ -165,6 +180,171 @@ export default function DashboardPage() {
           onConfirm={confirmDelete}
         />
       )}
+
+      {/* Local keyframes (Tailwind-extended olmadan da çalışır) */}
+      <style jsx global>{`
+        @keyframes fadeInUp {
+          from { opacity: 0; transform: translateY(12px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes scaleIn {
+          from { opacity: 0; transform: scale(0.96); }
+          to { opacity: 1; transform: scale(1); }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+const ACCENT_CLASSES: Record<string, { ring: string; iconBg: string; iconText: string; bar: string; hoverBorder: string }> = {
+  brand:    { ring: 'ring-brand/0',         iconBg: 'bg-brand/15',         iconText: 'text-brand',                    bar: 'from-brand to-brand/40',                       hoverBorder: 'hover:border-brand/40' },
+  emerald:  { ring: 'ring-emerald-500/0',   iconBg: 'bg-emerald-500/15',   iconText: 'text-emerald-600 dark:text-emerald-400',  bar: 'from-emerald-500 to-emerald-500/40',  hoverBorder: 'hover:border-emerald-500/40' },
+  amber:    { ring: 'ring-amber-500/0',     iconBg: 'bg-amber-500/15',     iconText: 'text-amber-600 dark:text-amber-400',      bar: 'from-amber-500 to-amber-500/40',      hoverBorder: 'hover:border-amber-500/40' },
+  violet:   { ring: 'ring-violet-500/0',    iconBg: 'bg-violet-500/15',    iconText: 'text-violet-600 dark:text-violet-400',    bar: 'from-violet-500 to-violet-500/40',    hoverBorder: 'hover:border-violet-500/40' },
+};
+
+function StatCard({
+  icon: Icon, label, value, accent = 'brand', stringValue = false, delay = 0,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  value: number | string;
+  accent?: keyof typeof ACCENT_CLASSES;
+  stringValue?: boolean;
+  delay?: number;
+}) {
+  const cls = ACCENT_CLASSES[accent];
+  const numericValue = typeof value === 'number' ? value : null;
+  const displayed = numericValue !== null ? <CountUp to={numericValue} /> : value;
+
+  return (
+    <div
+      className={`group relative rounded-xl border bg-card p-5 transition-all duration-300 hover:-translate-y-0.5 ${cls.hoverBorder} hover:shadow-[0_8px_28px_-12px_rgb(0_0_0/0.18)] dark:hover:shadow-[0_8px_28px_-12px_rgb(0_0_0/0.5)] overflow-hidden`}
+      style={{ animation: `fadeInUp 500ms ease-out ${delay}ms both` }}
+    >
+      {/* Top accent bar */}
+      <div className={`absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r ${cls.bar} opacity-60 group-hover:opacity-100 transition-opacity`} />
+      {/* Subtle accent glow on hover */}
+      <div className={`absolute -inset-px rounded-xl bg-gradient-to-br ${cls.bar} opacity-0 group-hover:opacity-[0.04] transition-opacity duration-300 pointer-events-none`} />
+
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <div className={`h-9 w-9 rounded-lg ${cls.iconBg} grid place-items-center transition-transform duration-300 group-hover:scale-110`}>
+          <Icon className={`h-4 w-4 ${cls.iconText}`} />
+        </div>
+      </div>
+      <div className={`${stringValue ? 'text-xl sm:text-2xl' : 'text-3xl sm:text-4xl'} font-bold tracking-tight ${cls.iconText} font-mono tabular-nums leading-none`}>
+        {displayed}
+      </div>
+      <div className="text-[11px] sm:text-xs text-muted-foreground mt-2 font-medium">{label}</div>
+    </div>
+  );
+}
+
+function CountUp({ to, durationMs = 700 }: { to: number; durationMs?: number }) {
+  const [val, setVal] = useState(0);
+  const startedRef = useRef(false);
+  useEffect(() => {
+    if (startedRef.current) { setVal(to); return; }
+    startedRef.current = true;
+    if (to === 0) { setVal(0); return; }
+    const t0 = performance.now();
+    let raf = 0;
+    const tick = (now: number) => {
+      const p = Math.min(1, (now - t0) / durationMs);
+      // easeOutCubic
+      const eased = 1 - Math.pow(1 - p, 3);
+      setVal(Math.round(to * eased));
+      if (p < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [to, durationMs]);
+  return <>{val}</>;
+}
+
+function SiteCard({ site, index, onDelete }: { site: any; index: number; onDelete: () => void }) {
+  const statusCls = STATUS_CLASS[site.status] ?? 'bg-muted text-muted-foreground border-border';
+  return (
+    <div
+      className="group relative rounded-xl border bg-card overflow-hidden transition-all duration-300 hover:-translate-y-0.5 hover:border-brand/30 hover:shadow-[0_8px_28px_-12px_rgb(124_58_237/0.25)]"
+      style={{ animation: `fadeInUp 450ms ease-out ${index * 60 + 120}ms both` }}
+    >
+      {/* Hover glow */}
+      <div className="absolute inset-0 bg-gradient-to-r from-brand/0 via-brand/[0.04] to-brand/0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+
+      <div className="relative p-5 flex items-center gap-4 flex-wrap">
+        {/* Site avatar/initial */}
+        <div className="shrink-0 h-11 w-11 rounded-lg bg-gradient-to-br from-brand/20 to-violet-500/20 grid place-items-center font-semibold text-brand text-sm border border-brand/20 transition-transform duration-300 group-hover:scale-105">
+          {site.name?.slice(0, 2).toUpperCase() ?? '??'}
+        </div>
+
+        {/* Title + url */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
+            <h3 className="font-semibold truncate text-foreground">{site.name}</h3>
+            <span className={`inline-flex items-center gap-1 px-1.5 h-5 rounded text-[10px] font-mono uppercase tracking-wider border ${statusCls}`}>
+              {site.status === 'ACTIVE' && <span className="h-1 w-1 rounded-full bg-current animate-pulse" />}
+              {site.status}
+            </span>
+          </div>
+          <a
+            href={site.url}
+            target="_blank"
+            rel="noopener"
+            onClick={(e) => e.stopPropagation()}
+            className="text-xs text-muted-foreground hover:text-brand inline-flex items-center gap-1 truncate max-w-full"
+          >
+            <span className="truncate">{site.url}</span>
+            <ExternalLink className="h-3 w-3 shrink-0" />
+          </a>
+          {site.niche && (
+            <span className="text-[10px] text-muted-foreground/70 ml-2 font-mono uppercase tracking-wider">· {site.niche}</span>
+          )}
+        </div>
+
+        {/* Actions */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          <Button asChild size="sm" variant="outline" className="group/btn relative overflow-hidden">
+            <Link href={`/sites/${site.id}`} className="font-mono text-[10px] uppercase tracking-widest">
+              Aç
+              <ChevronRight className="h-3 w-3 ml-1 group-hover/btn:translate-x-0.5 transition-transform" />
+            </Link>
+          </Button>
+          <button
+            onClick={onDelete}
+            className="h-8 w-8 grid place-items-center rounded-md text-muted-foreground hover:text-red-500 hover:bg-red-500/10 transition-colors"
+            title="Siteyi sil"
+            aria-label="Siteyi sil"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EmptyState() {
+  const { t } = useT();
+  return (
+    <div className="relative rounded-2xl border-2 border-dashed border-brand/20 bg-card overflow-hidden animate-[scaleIn_500ms_ease-out_both]">
+      <div className="absolute inset-0 bg-gradient-to-br from-brand/[0.04] via-transparent to-violet-500/[0.04] pointer-events-none" />
+      <div className="relative p-12 text-center">
+        <div className="mx-auto mb-5 h-16 w-16 rounded-2xl bg-gradient-to-br from-brand/20 to-violet-500/20 grid place-items-center border border-brand/20">
+          <Sparkles className="h-7 w-7 text-brand animate-pulse" />
+        </div>
+        <h3 className="text-lg font-semibold mb-1">İlk sitenizi ekleyin</h3>
+        <p className="text-sm text-muted-foreground mb-6 max-w-md mx-auto">
+          {t('dashboard.empty')}
+        </p>
+        <Button asChild size="lg" className="group relative overflow-hidden">
+          <Link href="/onboarding" className="font-mono text-xs uppercase tracking-widest">
+            <Plus className="h-4 w-4 mr-2 group-hover:rotate-90 transition-transform duration-300" />
+            {t('dashboard.add_first')}
+            <span aria-hidden className="absolute inset-y-0 -left-1/2 w-1/2 bg-gradient-to-r from-transparent via-white/20 to-transparent skew-x-12 group-hover:translate-x-[400%] transition-transform duration-700" />
+          </Link>
+        </Button>
+      </div>
     </div>
   );
 }
@@ -183,10 +363,10 @@ function DeleteSiteDialog({
 
   return (
     <div
-      className="fixed inset-0 z-50 grid place-items-center bg-black/60 backdrop-blur-sm p-4"
+      className="fixed inset-0 z-50 grid place-items-center bg-black/60 backdrop-blur-sm p-4 animate-[fadeInUp_200ms_ease-out_both]"
       onClick={(e) => { if (e.target === e.currentTarget) onCancel(); }}
     >
-      <div className="bg-card border border-red-500/30 rounded-xl p-6 max-w-md w-full shadow-2xl">
+      <div className="bg-card border border-red-500/30 rounded-xl p-6 max-w-md w-full shadow-2xl animate-[scaleIn_200ms_ease-out_both]">
         <div className="flex items-start gap-3 mb-4">
           <div className="h-10 w-10 rounded-full bg-red-500/10 grid place-items-center shrink-0">
             <AlertTriangle className="h-5 w-5 text-red-500" />
@@ -198,7 +378,7 @@ function DeleteSiteDialog({
             </p>
           </div>
         </div>
-        <ul className="text-xs text-muted-foreground space-y-1 mb-4 ml-13 pl-13" style={{ paddingLeft: '52px' }}>
+        <ul className="text-xs text-muted-foreground space-y-1 mb-4 ml-13" style={{ paddingLeft: '52px' }}>
           <li>• Brain (rakipler, persona, SEO stratejisi)</li>
           <li>• Tüm denetim (audit) kayıtları</li>
           <li>• Topic queue + üretilmiş & yayınlanmış makaleler</li>
@@ -235,28 +415,5 @@ function DeleteSiteDialog({
         </div>
       </div>
     </div>
-  );
-}
-
-function Stat({
-  label,
-  value,
-  variant = 'default',
-  stringValue = false,
-}: {
-  label: string;
-  value: number | string;
-  variant?: string;
-  stringValue?: boolean;
-}) {
-  return (
-    <Card>
-      <CardContent className="p-5">
-        <div className={`${stringValue ? 'text-2xl' : 'text-3xl'} font-bold ${variant === 'destructive' ? 'text-red-500' : 'text-brand'}`}>
-          {value}
-        </div>
-        <div className="text-sm text-muted-foreground mt-1">{label}</div>
-      </CardContent>
-    </Card>
   );
 }
