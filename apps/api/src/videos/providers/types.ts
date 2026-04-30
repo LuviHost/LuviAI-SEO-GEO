@@ -22,6 +22,24 @@ export interface VideoBrief {
   imageUrls?: string[];
 }
 
+export interface VideoCredit {
+  /** Fotoğrafçı / kaynak adı (ör. "Brett Sayles") */
+  name: string;
+  /** Fotoğrafçının profil sayfası URL'i (Pexels'in zorunlu kıldığı atıf linki) */
+  profileUrl?: string;
+  /** Kullanılan görselin orijinal sayfa URL'i */
+  photoUrl?: string;
+  /** Kaynak platform: "Pexels" | "Unsplash" | "Custom" vb. */
+  source: string;
+}
+
+export interface VideoCredits {
+  /** Description'a / yayın metnine eklenecek hazır atıf metni */
+  text: string;
+  /** Atıf yapılan tüm öğeler — analiz/UI için */
+  items: VideoCredit[];
+}
+
 export interface VideoGenerationResult {
   /** Sunucudaki/CDN'deki final video URL */
   videoUrl: string;
@@ -37,6 +55,11 @@ export interface VideoGenerationResult {
   costUsd?: number;
   /** Ham response */
   raw?: any;
+  /**
+   * Yayın açıklamasına eklenmesi GEREKEN atıf bilgisi (Pexels Terms of Service madde 4 zorunlu).
+   * Slideshow gibi 3. parti görsel kullanan provider'lar mutlaka doldurur; AI video provider'ları boş bırakabilir.
+   */
+  credits?: VideoCredits;
 }
 
 export interface VideoProviderInfo {

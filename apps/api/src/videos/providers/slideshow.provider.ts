@@ -2,7 +2,24 @@ import { spawn } from 'node:child_process';
 import { mkdir, writeFile, unlink } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
-import type { VideoBrief, VideoGenerationResult, VideoProvider, VideoProviderInfo } from './types.js';
+import type {
+  VideoBrief,
+  VideoCredit,
+  VideoCredits,
+  VideoGenerationResult,
+  VideoProvider,
+  VideoProviderInfo,
+} from './types.js';
+
+/**
+ * Stok görsel kaynağından dönen tek bir foto.
+ * Pexels: photographer + photographer_url + source URL gerekiyor (Terms of Service madde 4).
+ * Unsplash fallback'ta photographer bilgisi olmaz, sadece "Unsplash.com" kaynağı yazılır.
+ */
+interface StockImage {
+  url: string;
+  credit: VideoCredit;
+}
 
 /**
  * Slideshow provider — sunucuda ücretsiz çalışır.
@@ -66,16 +83,19 @@ export class SlideshowVideoProvider implements VideoProvider {
       await this.generateTTS(brief.scriptText, audioPath, brief.voiceId, brief.language);
 
       // 3) Görselleri hazırla — verilen imageUrls veya Pexels'ten çek
-      const imageUrls = brief.imageUrls?.length
-        ? brief.imageUrls
+      const stockImages: StockImage[] = brief.imageUrls?.length
+        ? brief.imageUrls.map((url) => ({
+            url,
+            credit: { name: 'Custom', source: 'Custom' },
+          }))
         : await this.fetchStockImages(brief.title, beatCount);
 
       // 4) Görselleri indir
       const localImages: string[] = [];
       for (let i = 0; i < beatCount; i++) {
-        const imgUrl = imageUrls[i % imageUrls.length];
+        const img = stockImages[i % stockImages.length];
         const localPath = path.join(workDir, `img-${i}.jpg`);
-        await this.downloadFile(imgUrl, localPath);
+        await this.downloadFile(img.url, localPath);
         localImages.push(localPath);
       }
 
@@ -83,15 +103,17 @@ export class SlideshowVideoProvider implements VideoProvider {
       const outputPath = path.join(OUTPUT_DIR, `${id}.mp4`);
       await this.composeSlideshow(localImages, audioPath, brief.aspectRatio, beatDuration, outputPath);
 
-      // 6) Public URL
+      // 6) Public URL + atıf metni (Pexels Terms of Service madde 4 zorunlu)
       const videoUrl = `${PUBLIC_BASE}/${id}.mp4`;
       const fileSize = await this.statSize(outputPath);
+      const credits = this.buildCredits(stockImages.map((s) => s.credit));
 
       return {
         videoUrl,
         durationSec: brief.durationSec,
         fileSize,
         costUsd: 0, // TTS hariç
+        credits,
       };
     } finally {
       // workDir'i sil (best-effort)
@@ -171,13 +193,14 @@ export class SlideshowVideoProvider implements VideoProvider {
     await writeFile(outputPath, buf);
   }
 
-  private async fetchStockImages(query: string, count: number): Promise<string[]> {
+  private async fetchStockImages(query: string, count: number): Promise<StockImage[]> {
     const key = process.env.PEXELS_API_KEY;
     if (!key) {
-      // Fallback: Unsplash source URL'leri (random görsel)
-      return Array.from({ length: count }, (_, i) =>
-        `https://source.unsplash.com/1080x1920/?${encodeURIComponent(query)}&sig=${i}`,
-      );
+      // Fallback: Unsplash source URL'leri (random görsel) — atıf zorunluluğu daha gevşek ama yine ekliyoruz
+      return Array.from({ length: count }, (_, i) => ({
+        url: `https://source.unsplash.com/1080x1920/?${encodeURIComponent(query)}&sig=${i}`,
+        credit: { name: 'Unsplash', source: 'Unsplash', profileUrl: 'https://unsplash.com' },
+      }));
     }
     const res = await fetch(
       `https://api.pexels.com/v1/search?query=${encodeURIComponent(query)}&per_page=${count}&orientation=portrait`,
@@ -185,13 +208,65 @@ export class SlideshowVideoProvider implements VideoProvider {
     );
     if (!res.ok) {
       // Fallback
-      return Array.from({ length: count }, (_, i) =>
-        `https://source.unsplash.com/1080x1920/?${encodeURIComponent(query)}&sig=${i}`,
-      );
+      return Array.from({ length: count }, (_, i) => ({
+        url: `https://source.unsplash.com/1080x1920/?${encodeURIComponent(query)}&sig=${i}`,
+        credit: { name: 'Unsplash', source: 'Unsplash', profileUrl: 'https://unsplash.com' },
+      }));
     }
-    const data = (await res.json()) as { photos?: Array<{ src: { large2x?: string; portrait?: string; original?: string } }> };
+    const data = (await res.json()) as {
+      photos?: Array<{
+        url?: string;
+        photographer?: string;
+        photographer_url?: string;
+        src: { large2x?: string; portrait?: string; original?: string };
+      }>;
+    };
     const photos = data.photos ?? [];
-    return photos.map((p) => p.src.portrait ?? p.src.large2x ?? p.src.original ?? '').filter(Boolean);
+    return photos
+      .map<StockImage | null>((p) => {
+        const url = p.src.portrait ?? p.src.large2x ?? p.src.original ?? '';
+        if (!url) return null;
+        return {
+          url,
+          credit: {
+            name: p.photographer ?? 'Pexels Contributor',
+            profileUrl: p.photographer_url ?? 'https://www.pexels.com',
+            photoUrl: p.url,
+            source: 'Pexels',
+          },
+        };
+      })
+      .filter((x): x is StockImage => x !== null);
+  }
+
+  /**
+   * Çekilen tüm görsellerin atıflarını birleştirir.
+   * Pexels Terms of Service madde 4: fotoğrafçı adı + Pexels.com linki yayın metninde geçmek zorunda.
+   * Aynı fotoğrafçı birden fazla kez geçerse tek sefer listelenir.
+   */
+  private buildCredits(items: VideoCredit[]): VideoCredits {
+    const seen = new Set<string>();
+    const unique: VideoCredit[] = [];
+    for (const it of items) {
+      const k = `${it.source}|${it.name}`;
+      if (seen.has(k)) continue;
+      seen.add(k);
+      unique.push(it);
+    }
+    const bySource = new Map<string, VideoCredit[]>();
+    for (const it of unique) {
+      const arr = bySource.get(it.source) ?? [];
+      arr.push(it);
+      bySource.set(it.source, arr);
+    }
+    const lines: string[] = [];
+    for (const [source, arr] of bySource) {
+      if (source === 'Custom') continue;
+      const names = arr.map((c) => c.name).join(', ');
+      const sourceUrl = source === 'Pexels' ? 'https://www.pexels.com' : 'https://unsplash.com';
+      lines.push(`Photos: ${names} via ${source} (${sourceUrl})`);
+    }
+    return { text: lines.join('\n'), items: unique };
   }
 
   private async downloadFile(url: string, localPath: string): Promise<void> {

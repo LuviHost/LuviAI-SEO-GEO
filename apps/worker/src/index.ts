@@ -431,6 +431,10 @@ async function bootstrap() {
         const { getVideoProvider } = await import('../../api/dist/videos/providers/registry.js');
         const provider_ = getVideoProvider(provider);
         const result = await provider_.generate(brief);
+        // providerRaw içine credits'i de yerleştir (UI bunu okuyup yayın description'ına basabilir)
+        const rawWithCredits = result.credits
+          ? { ...(result.raw ?? {}), credits: result.credits }
+          : result.raw;
         await services.prisma.video.update({
           where: { id: videoId },
           data: {
@@ -440,8 +444,11 @@ async function bootstrap() {
             durationSec: result.durationSec,
             fileSize: result.fileSize,
             providerJobId: result.providerJobId,
-            providerRaw: result.raw as any,
+            providerRaw: rawWithCredits as any,
             costUsd: result.costUsd as any,
+            // Pexels Terms of Service: atıf metni Video.description'a yazılır.
+            // Yayın akışı bunu okuyup YouTube/TikTok description'ına otomatik append eder.
+            description: result.credits?.text ?? null,
             completedAt: new Date(),
           },
         });
