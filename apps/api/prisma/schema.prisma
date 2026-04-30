@@ -703,6 +703,7 @@ enum JobType {
   CONTENT_PIVOT_CHECK // 30 gun sonra dusuk performans tespit + revize tetikle (haftalik)
   AI_MENTION_ALARM    // gunluk: AI citation drop tespit + email
   ADS_AUTOPILOT       // 6 saatte bir: aktif kampanyalari ROAS'a gore optimize
+  VIDEO_GENERATE      // Faz 12: SLIDESHOW/VEO/RUNWAY/HEYGEN/SORA video uretim job tipi
 }
 
 enum JobStatus {
