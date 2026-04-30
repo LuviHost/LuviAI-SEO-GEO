@@ -7,6 +7,8 @@ import { toast } from 'sonner';
 import {
   CheckCircle2, ChevronDown, Circle, ExternalLink, Plus, Trash2,
   BarChart3, Link2, Unlink, Activity, Sparkles, FileText, Send, Share2, Calendar,
+  Twitter as TwitterIcon, Linkedin as LinkedinIcon, Instagram as InstagramIcon,
+  Facebook as FacebookIcon, Youtube as YoutubeIcon, Globe as GlobeIcon,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
@@ -27,6 +29,67 @@ interface StepDef {
   status: StepStatus;
   hint: string;
   optional?: boolean;
+}
+
+
+// ──────────────────────────────────────────────────────────────────────
+// Sosyal kanal tip → ikon + isim haritası. Backend channel.type değerleri
+// (LINKEDIN_PERSONAL, X_TWITTER, INSTAGRAM_BUSINESS vb.) kart UI'sinde
+// kullanıcı dostu Türkçe ifadelere ve gerçek logolara dönüşür.
+// ──────────────────────────────────────────────────────────────────────
+function getChannelMeta(type: string): {
+  Icon: any;
+  shortName: string;
+  shareLabel: string;
+  brandClass: string;
+} {
+  const t = (type || '').toUpperCase();
+  if (t.startsWith('LINKEDIN')) {
+    return {
+      Icon: LinkedinIcon,
+      shortName: 'LinkedIn',
+      shareLabel: "LinkedIn'de paylaşılsın",
+      brandClass: 'text-[#0A66C2]',
+    };
+  }
+  if (t.startsWith('X_') || t === 'X' || t.startsWith('TWITTER')) {
+    return {
+      Icon: TwitterIcon,
+      shortName: 'X',
+      shareLabel: "X'te (Twitter) paylaşılsın",
+      brandClass: 'text-foreground',
+    };
+  }
+  if (t.startsWith('INSTAGRAM')) {
+    return {
+      Icon: InstagramIcon,
+      shortName: 'Instagram',
+      shareLabel: "Instagram'da paylaşılsın",
+      brandClass: 'text-[#E4405F]',
+    };
+  }
+  if (t.startsWith('FACEBOOK')) {
+    return {
+      Icon: FacebookIcon,
+      shortName: 'Facebook',
+      shareLabel: "Facebook'ta paylaşılsın",
+      brandClass: 'text-[#1877F2]',
+    };
+  }
+  if (t.startsWith('YOUTUBE')) {
+    return {
+      Icon: YoutubeIcon,
+      shortName: 'YouTube',
+      shareLabel: "YouTube'da paylaşılsın",
+      brandClass: 'text-[#FF0000]',
+    };
+  }
+  return {
+    Icon: GlobeIcon,
+    shortName: type || 'Kanal',
+    shareLabel: "Bu kanalda paylaşılsın",
+    brandClass: 'text-muted-foreground',
+  };
 }
 
 export function SiteFlowStepper({
@@ -1580,20 +1643,22 @@ function ArticlesStepBody({
                     <div className="flex items-center gap-2 flex-wrap">
                       {socialChannels.map((ch: any) => {
                         const on = isChannelOn(a.id, ch.id);
-                        const channelLabel = (ch.type ?? '').toUpperCase();
+                        const meta = getChannelMeta(ch.type ?? '');
+                        const Icon = meta.Icon;
                         return (
                           <button
                             key={ch.id}
                             type="button"
                             onClick={() => toggleChannel(a.id, ch.id, a.title || a.topic)}
-                            title={`Bu makale için ${ch.type} ${on ? 'kanalını kapat' : 'kanalını aç'}`}
-                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-[11px] font-medium transition-all ${
+                            title={`${meta.shortName}: ${on ? 'paylaşımdan kaldır' : 'paylaşıma ekle'}`}
+                            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-[12px] font-medium transition-all ${
                               on
                                 ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/20'
                                 : 'bg-muted border-muted-foreground/20 text-muted-foreground/60 hover:bg-muted/80 line-through'
                             }`}
                           >
-                            {on ? '✓' : '○'} {channelLabel}
+                            <Icon className={`h-3.5 w-3.5 ${on ? meta.brandClass : ''}`} />
+                            {on ? meta.shareLabel : `${meta.shortName} kapalı`}
                           </button>
                         );
                       })}
@@ -1668,7 +1733,8 @@ function ArticlesStepBody({
                 <div className="flex items-center gap-2 flex-wrap">
                   {socialChannels.map((ch: any) => {
                     const on = isChannelOn(a.id, ch.id);
-                    const channelLabel = (ch.type ?? '').toUpperCase();
+                    const meta = getChannelMeta(ch.type ?? '');
+                    const Icon = meta.Icon;
                     return (
                       <button
                         key={ch.id}
@@ -1678,14 +1744,15 @@ function ArticlesStepBody({
                           e.stopPropagation();
                           toggleChannel(a.id, ch.id, a.title || a.topic);
                         }}
-                        title={`Bu makale için ${ch.type} ${on ? 'kanalını kapat' : 'kanalını aç'}`}
-                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-[11px] font-medium transition-all ${
+                        title={`${meta.shortName}: ${on ? 'paylaşımdan kaldır' : 'paylaşıma ekle'}`}
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[11px] font-medium transition-all ${
                           on
                             ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/20'
                             : 'bg-muted border-muted-foreground/20 text-muted-foreground/60 hover:bg-muted/80 line-through'
                         }`}
                       >
-                        {on ? '✓' : '○'} {channelLabel}
+                        <Icon className={`h-3 w-3 ${on ? meta.brandClass : ''}`} />
+                        {on ? meta.shareLabel : `${meta.shortName} kapalı`}
                       </button>
                     );
                   })}
@@ -1979,20 +2046,22 @@ export function ContentCalendarPanel({
                       <div className="flex flex-wrap gap-0.5 mt-1" onClick={(e) => e.stopPropagation()}>
                         {socialChannels.map((ch: any) => {
                           const on = isChannelEnabledForArticle(a.id, ch.id);
-                          const label = (ch.type ?? '').toUpperCase().slice(0, 2) || 'CH';
+                          const meta = getChannelMeta(ch.type ?? '');
+                          const Icon = meta.Icon;
                           return (
                             <button
                               key={ch.id}
                               type="button"
                               onClick={(e) => { e.stopPropagation(); toggleChannelForArticle(a.id, ch.id); }}
-                              title={`Bu makale icin ${ch.type} ${on ? 'kanalini kapat' : 'kanalini ac'}`}
-                              className={`text-[9px] font-bold px-1.5 py-0.5 rounded border transition-colors ${
+                              title={`${meta.shortName}: ${on ? 'paylaşımdan kaldır' : 'paylaşıma ekle'}`}
+                              className={`inline-flex items-center justify-center h-5 w-5 rounded border transition-colors ${
                                 on
-                                  ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/30'
-                                  : 'bg-muted border-muted-foreground/20 text-muted-foreground/60 line-through hover:bg-muted/80'
+                                  ? `bg-emerald-500/15 border-emerald-500/40 ${meta.brandClass} hover:bg-emerald-500/25`
+                                  : 'bg-muted border-muted-foreground/20 text-muted-foreground/40 hover:bg-muted/80 opacity-60'
                               }`}
+                              aria-label={meta.shortName}
                             >
-                              {on ? '✓' : '○'}{label}
+                              <Icon className="h-3 w-3" />
                             </button>
                           );
                         })}
