@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
@@ -1742,6 +1742,22 @@ export function ContentCalendarPanel({
   const [monthOffset, setMonthOffset] = useState(0); // 0 = bu ay
   const [pendingDrop, setPendingDrop] = useState<{ date: Date; data: any; kind: 'topic' | 'article' } | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [rescheduling, setRescheduling] = useState<any | null>(null); // article tikla -> yeniden planla dialog
+  const navTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Ay nav butonu drag-hover: 600ms tutup duruyorsa ay değiştir.
+  const navDragEnter = (delta: number) => {
+    if (navTimerRef.current) clearTimeout(navTimerRef.current);
+    navTimerRef.current = setTimeout(() => {
+      setMonthOffset((cur) => cur + delta);
+    }, 600);
+  };
+  const navDragLeave = () => {
+    if (navTimerRef.current) {
+      clearTimeout(navTimerRef.current);
+      navTimerRef.current = null;
+    }
+  };
 
   // Ay matrisini hesapla — Google Calendar gibi 6 satır x 7 sütun (42 hücre).
   // Pazartesi haftanın ilk günü.
@@ -1847,13 +1863,40 @@ export function ContentCalendarPanel({
               TRIAL · 1.makale ücretsiz
             </span>
           )}
-          <Button size="sm" variant="outline" className="h-7 text-[11px]" onClick={() => setMonthOffset(0)}>Bugün</Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 text-[11px]"
+            onClick={() => setMonthOffset(0)}
+            onDragOver={(e) => e.preventDefault()}
+            onDragEnter={() => { setMonthOffset(0); }}
+          >
+            Bugün
+          </Button>
           <div className="inline-flex items-center gap-1 border rounded-md">
-            <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setMonthOffset(monthOffset - 1)}>‹</Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 w-7 p-0 hover:bg-brand/15"
+              onClick={() => setMonthOffset(monthOffset - 1)}
+              onDragOver={(e) => e.preventDefault()}
+              onDragEnter={() => navDragEnter(-1)}
+              onDragLeave={navDragLeave}
+              title="Sürüklerken üzerinde 0.6sn bekle → önceki ay"
+            >‹</Button>
             <span className="text-[11px] font-medium px-2 min-w-[120px] text-center capitalize">
               {monthLabel}
             </span>
-            <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setMonthOffset(monthOffset + 1)}>›</Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 w-7 p-0 hover:bg-brand/15"
+              onClick={() => setMonthOffset(monthOffset + 1)}
+              onDragOver={(e) => e.preventDefault()}
+              onDragEnter={() => navDragEnter(1)}
+              onDragLeave={navDragLeave}
+              title="Sürüklerken üzerinde 0.6sn bekle → sonraki ay"
+            >›</Button>
           </div>
         </div>
       </div>
@@ -1916,7 +1959,9 @@ export function ContentCalendarPanel({
                     key={a.id}
                     draggable
                     onDragStart={onDragStart}
-                    className={`group rounded text-[10px] p-1 leading-tight cursor-grab active:cursor-grabbing border ${
+                    onClick={() => setRescheduling(a)}
+                    title="Tıkla → gün ve saat seç (yeniden planla)"
+                    className={`group rounded text-[10px] p-1 leading-tight cursor-pointer active:cursor-grabbing border ${
                       locked ? 'bg-muted/40 border-muted opacity-70' : 'bg-brand/10 border-brand/30 hover:bg-brand/15'
                     }`}
                   >
@@ -1988,6 +2033,27 @@ export function ContentCalendarPanel({
           submitting={submitting}
           onCancel={() => setPendingDrop(null)}
           onConfirm={(h, m) => confirmDrop(h, m)}
+        />
+      )}
+
+      {rescheduling && (
+        <RescheduleDialog
+          article={rescheduling}
+          submitting={submitting}
+          onCancel={() => setRescheduling(null)}
+          onConfirm={async (newDateIso) => {
+            setSubmitting(true);
+            try {
+              await api.rescheduleArticle(siteId, rescheduling.id, newDateIso);
+              toast.success('Makale yeni tarihe taşındı');
+              setRescheduling(null);
+              onChanged();
+            } catch (err: any) {
+              toast.error(err.message || 'Yeniden planlanamadı');
+            } finally {
+              setSubmitting(false);
+            }
+          }}
         />
       )}
     </div>
@@ -2065,6 +2131,66 @@ function DigerSection({ siteId }: { siteId: string }) {
           </CardContent>
         </Card>
       </Link>
+    </div>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// RescheduleDialog — Article karta tikla, gun + saat sec, yeniden planla.
+// Drag-drop yerine alternatif (ozellikle ay disina tasimak isteyenler icin).
+// ──────────────────────────────────────────────────────────────────────
+function RescheduleDialog({
+  article, submitting, onCancel, onConfirm,
+}: {
+  article: any;
+  submitting: boolean;
+  onCancel: () => void;
+  onConfirm: (isoDate: string) => void;
+}) {
+  const cur = article?.scheduledAt ? new Date(article.scheduledAt) : new Date();
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  const initialDate = `${cur.getFullYear()}-${pad(cur.getMonth() + 1)}-${pad(cur.getDate())}`;
+  const initialTime = `${pad(cur.getHours())}:${pad(cur.getMinutes())}`;
+  const [date, setDate] = useState(initialDate);
+  const [time, setTime] = useState(initialTime);
+
+  const submit = () => {
+    const [y, mo, d] = date.split('-').map((x) => parseInt(x, 10));
+    const [h, mi] = time.split(':').map((x) => parseInt(x, 10));
+    const target = new Date(y, mo - 1, d, h, mi, 0, 0);
+    onConfirm(target.toISOString());
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-black/40 backdrop-blur-sm" onClick={onCancel}>
+      <div className="bg-background border rounded-lg shadow-xl p-5 max-w-sm w-full mx-4" onClick={(e) => e.stopPropagation()}>
+        <p className="text-sm font-semibold mb-1">Yeniden planla</p>
+        <p className="text-xs text-muted-foreground mb-3 line-clamp-2">{article?.title || article?.topic}</p>
+        <label className="block text-[11px] text-muted-foreground mb-1">Tarih</label>
+        <input
+          type="date"
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
+          className="w-full border rounded-md px-3 py-2 text-sm bg-background mb-3"
+          autoFocus
+        />
+        <label className="block text-[11px] text-muted-foreground mb-1">Saat</label>
+        <input
+          type="time"
+          value={time}
+          onChange={(e) => setTime(e.target.value)}
+          className="w-full border rounded-md px-3 py-2 text-sm bg-background"
+        />
+        <div className="flex gap-2 mt-4 justify-end">
+          <Button variant="outline" size="sm" onClick={onCancel} disabled={submitting}>İptal</Button>
+          <Button size="sm" onClick={submit} disabled={submitting}>
+            {submitting ? 'Kaydediliyor…' : 'Kaydet'}
+          </Button>
+        </div>
+        <p className="text-[10px] text-muted-foreground mt-3">
+          📅 İstediğin ay ve günü seçebilirsin — sürükle-bırak gerekmez.
+        </p>
+      </div>
     </div>
   );
 }
