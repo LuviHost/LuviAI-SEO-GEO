@@ -21,6 +21,15 @@ export function AnalyticsTab({ siteId, site }: { siteId: string; site?: any }) {
 
   const refresh = async () => {
     try {
+      // GSC property bağlı değilse hiç API call atma — backend toast hatası vermesin
+      if (!site?.gscPropertyUrl) {
+        setOverview(null);
+        setTopArticles([]);
+        setTrending([]);
+        setSuggestions([]);
+        setGaSummary(null);
+        return;
+      }
       const [o, t, tr, s, ga] = await Promise.all([
         api.getAnalyticsOverview(siteId, 30).catch(() => null),
         api.getTopArticles(siteId, 10).catch(() => []),
@@ -38,7 +47,7 @@ export function AnalyticsTab({ siteId, site }: { siteId: string; site?: any }) {
     }
   };
 
-  useEffect(() => { refresh(); }, [siteId]);
+  useEffect(() => { refresh(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [siteId, site?.gscPropertyUrl]);
 
   const triggerSnapshot = async () => {
     setRefreshing(true);
@@ -62,7 +71,7 @@ export function AnalyticsTab({ siteId, site }: { siteId: string; site?: any }) {
     );
   }
 
-  if (!overview || overview.timeSeries?.length === 0) {
+  if (!site?.gscPropertyUrl || !overview || overview.timeSeries?.length === 0) {
     return <AnalyticsEmptyState site={site} siteId={siteId} refreshing={refreshing} onTriggerSnapshot={triggerSnapshot} />;
   }
 
@@ -272,11 +281,9 @@ function AnalyticsEmptyState({
   onTriggerSnapshot: () => void;
 }) {
   const [connecting, setConnecting] = useState(false);
-  const [connectingGa, setConnectingGa] = useState(false);
 
   const isGscConnected = !!site?.gscConnectedAt;
   const hasGscProperty = !!site?.gscPropertyUrl;
-  const isGaConnected = !!site?.gaConnectedAt;
 
   const connectGsc = async () => {
     setConnecting(true);
@@ -286,17 +293,6 @@ function AnalyticsEmptyState({
     } catch (err: any) {
       toast.error(err.message);
       setConnecting(false);
-    }
-  };
-
-  const connectGa = async () => {
-    setConnectingGa(true);
-    try {
-      const { url } = await api.getGaAuthUrl(siteId);
-      window.location.href = url;
-    } catch (err: any) {
-      toast.error(err.message);
-      setConnectingGa(false);
     }
   };
 
@@ -313,17 +309,12 @@ function AnalyticsEmptyState({
             Performans verisini görmek için önce Google Search Console'u bağla.
             Bağlandıktan ~24 saat sonra ilk veri görünür.
           </p>
-          <div className="flex flex-col sm:flex-row gap-2 justify-center max-w-lg mx-auto">
+          <div className="flex justify-center">
             <Button onClick={connectGsc} disabled={connecting} size="lg" className="font-mono text-xs uppercase tracking-widest">
               <span aria-hidden className="mr-2">🔍</span>
               {connecting ? 'Yönlendiriliyor…' : 'Google Search Console Bağla'}
             </Button>
-            {!isGaConnected && (
-              <Button onClick={connectGa} disabled={connectingGa} size="lg" variant="outline" className="font-mono text-xs uppercase tracking-widest">
-                <span aria-hidden className="mr-2">📊</span>
-                {connectingGa ? 'Yönlendiriliyor…' : 'Google Analytics 4 Bağla'}
-              </Button>
-            )}
+
           </div>
           <p className="text-[10px] text-muted-foreground/70 font-mono uppercase tracking-wider mt-5">
             OAuth · sadece okuma izni · istediğin zaman bağlantıyı kesebilirsin
