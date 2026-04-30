@@ -215,9 +215,9 @@ async function bootstrap() {
       }
 
       let audit: any = null;
-      if (aiGlobalOff) {
-        log.warn(`[${siteId}] [2/5] Audit MOCK (sahne icin 30sn bekleniyor — AI_GLOBAL_DISABLED=1)`);
-        await new Promise((r) => setTimeout(r, 30000));
+      if (false /* audit her zaman gerçek çalışır — AI Citation içeride AI_GLOBAL_DISABLED guard'ı ile atlanır, kalan 14 SEO check + PageSpeed + GEO LLM gerektirmez */) {
+        log.warn(`[${siteId}] [2/5] Audit MOCK (skip)`);
+        await new Promise((r) => setTimeout(r, 0));
         audit = await services.prisma.audit.create({
           data: {
             siteId,

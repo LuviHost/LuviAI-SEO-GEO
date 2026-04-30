@@ -212,6 +212,15 @@ export class AiCitationService {
   //  ANA GIRIS NOKTASI
   // ────────────────────────────────────────────────────────────
   async runForSite(siteId: string, maxProbes = 5): Promise<CitationResult[]> {
+    // Guard: AI_GLOBAL_DISABLED admin flag — ücretli LLM call'larini durdur
+    try {
+      const flag = await this.prisma.appSetting.findUnique({ where: { key: 'AI_GLOBAL_DISABLED' } });
+      if (flag && (flag.value === '1' || flag.value === 'true')) {
+        this.log.warn(`[${siteId}] AI Citation atlandi: AI_GLOBAL_DISABLED=1`);
+        return [];
+      }
+    } catch (_err) { /* tablo yoksa devam et */ }
+
     const site = await this.prisma.site.findUnique({
       where: { id: siteId },
       include: { brain: true, user: { select: { id: true, plan: true } } },
