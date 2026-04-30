@@ -17,7 +17,6 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { PipelineProgress, PIPELINE_STEPS } from '@/components/pipeline-progress';
-import { SocialChannelsStep } from '@/components/social-channels-step';
 import { AiKeysPanel } from '@/components/ai-keys-panel';
 
 type StepStatus = 'pending' | 'auto-running' | 'done' | 'skipped';
@@ -120,21 +119,15 @@ export function SiteFlowStepper({
     // NOT: GSC + Google Analytics step'leri buradan kaldirildi — yukaridaki
     // "Hesaplarini bagla" tavsiye banner'i ayni baglanti islerini zaten icerir,
     // alt akis kalabaligi yapmasin diye burada tekrar gosterilmiyor.
+    // NOT: 'social' (Sosyal Kanallar) adımı Ayarlar sekmesine taşındı.
+    // 'social-calendar' kaldırıldı — kanal seçimi artık takvim hücresindeki ikonlarla.
     {
-      id: 'social', n: 3, title: 'Sosyal Kanallar',
-      status: 'skipped', // bu step opsiyonel; gerçek durumu kart kendi içinde gösterir
-      hint: 'LinkedIn + X (Twitter) — makale yayınlanınca seçili kanallarda otomatik paylaşılır',
-      optional: true,
-    },
-    // NOT: 'social-calendar' adımı kaldırıldı. Paylaşma seçimi artık her makale
-    // kartının altındaki kanal toggle rozetleriyle yapılıyor (daha az step, daha kolay UX).
-    {
-      id: 'topics', n: 4, title: 'Önerilen Makaleler',
+      id: 'topics', n: 3, title: 'Önerilen Makaleler',
       status: queue ? 'done' : (onboardingMode ? 'auto-running' : 'pending'),
       hint: queue ? `${(queue.tier1Topics ?? []).length} öneri` : 'Topic engine bekleniyor',
     },
     {
-      id: 'articles', n: 5, title: 'Makaleler',
+      id: 'articles', n: 4, title: 'Makaleler',
       status: articles.length > 0 ? 'done' : 'pending',
       hint: articles.length > 0 ? `${articles.length} makale` : 'İlk makale ücretsiz',
     },
@@ -275,7 +268,6 @@ export function SiteFlowStepper({
           {s.id === 'competitors' && <CompetitorsStepBody siteId={site.id} initial={site.brain?.competitors ?? []} onChanged={onRefresh} onboardingMode={onboardingMode} />}
           {s.id === 'gsc' && <GscStepBody site={site} onChanged={onRefresh} />}
           {s.id === 'ga4' && <Ga4StepBody site={site} onChanged={onRefresh} />}
-          {s.id === 'social' && <SocialChannelsStep siteId={site.id} />}
           {s.id === 'topics' && <TopicsStepBody queue={queue} articles={articles} siteId={site.id} onRefresh={onRefresh} onboardingMode={onboardingMode} />}
           {s.id === 'articles' && <ArticlesStepBody articles={articles} siteId={site.id} onRefresh={onRefresh} />}
         </StepCard>
@@ -1593,87 +1585,6 @@ function ArticlesStepBody({
         toggleChannelForArticle={(articleId, channelId, articleTitle) => toggleChannel(articleId, channelId, articleTitle)}
       />
 
-      {scheduled.length > 0 && (
-        <div className="space-y-2">
-          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide pt-2">
-            Planlı Makaleler — paylaşım kanalı seçimi ({scheduled.length})
-          </p>
-          {socialChannels.length === 0 && (
-            <Link
-              href={`/sites/${siteId}?tab=flow&step=social` as any}
-              className="block rounded-md border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-xs text-amber-700 dark:text-amber-400 hover:bg-amber-500/10"
-            >
-              ⚠ Henüz aktif sosyal kanal yok. <span className="underline">Sosyal Kanal ekle →</span>
-            </Link>
-          )}
-          {scheduled.map((a) => {
-            const fmtTime = (iso: string) => {
-              const d = new Date(iso);
-              return `${d.getDate()}.${(d.getMonth() + 1).toString().padStart(2, '0')} ${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
-            };
-            const cur = articlePrePlan[a.id];
-            const onCount = (cur === null || cur === undefined)
-              ? socialChannels.length
-              : socialChannels.filter((c: any) => cur.has(c.id)).length;
-            return (
-              <div
-                key={a.id}
-                className="rounded-lg border p-3 hover:border-brand/40 transition-colors"
-              >
-                <div className="flex items-start justify-between gap-2 flex-wrap mb-2">
-                  <div className="min-w-0 flex-1">
-                    <h5 className="font-semibold text-sm">{a.title || a.topic}</h5>
-                    <p className="text-[11px] text-muted-foreground mt-0.5">
-                      📅 {fmtTime(a.scheduledAt)} · Takvimde
-                    </p>
-                  </div>
-                  <Badge variant="outline" className="text-[10px]">Takvimde</Badge>
-                </div>
-                {socialChannels.length > 0 ? (
-                  <div className="border-t border-border/40 pt-2 mt-1">
-                    <div className="flex items-baseline justify-between gap-2 flex-wrap mb-1.5">
-                      <span className="text-[11px] font-medium text-foreground/80">
-                        Bu makale için paylaşım kanalları
-                      </span>
-                      <span className="text-[10px] text-muted-foreground/70">
-                        {onCount === 0
-                          ? '⚠ Hiçbir kanalda paylaşılmayacak'
-                          : onCount === socialChannels.length
-                          ? 'Tüm kanallarda paylaşılacak'
-                          : `Sadece ${onCount}/${socialChannels.length} kanalda`}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      {socialChannels.map((ch: any) => {
-                        const on = isChannelOn(a.id, ch.id);
-                        const meta = getChannelMeta(ch.type ?? '');
-                        const Icon = meta.Icon;
-                        return (
-                          <button
-                            key={ch.id}
-                            type="button"
-                            onClick={() => toggleChannel(a.id, ch.id, a.title || a.topic)}
-                            title={`${meta.shortName}: ${on ? 'paylaşımdan kaldır' : 'paylaşıma ekle'}`}
-                            className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full border text-[12px] font-medium transition-all ${
-                              on
-                                ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/20'
-                                : 'bg-muted border-muted-foreground/20 text-muted-foreground/60 hover:bg-muted/80 line-through'
-                            }`}
-                          >
-                            <Icon className={`h-3.5 w-3.5 ${on ? meta.brandClass : ''}`} />
-                            {on ? meta.shareLabel : `${meta.shortName} kapalı`}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-            );
-          })}
-        </div>
-      )}
-
       {otherArticles.length > 0 && (
         <div className="space-y-3">
           {scheduled.length > 0 && (
@@ -1828,25 +1739,29 @@ export function ContentCalendarPanel({
   isChannelEnabledForArticle?: (articleId: string, channelId: string) => boolean;
   toggleChannelForArticle?: (articleId: string, channelId: string, articleTitle?: string) => void;
 }) {
-  const [weekOffset, setWeekOffset] = useState(0); // 0 = bu hafta
+  const [monthOffset, setMonthOffset] = useState(0); // 0 = bu ay
   const [pendingDrop, setPendingDrop] = useState<{ date: Date; data: any; kind: 'topic' | 'article' } | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  // Haftanin pazartesisini bul
-  const weekStart = (() => {
-    const d = new Date();
-    d.setHours(0, 0, 0, 0);
-    const day = d.getDay() === 0 ? 7 : d.getDay();
-    d.setDate(d.getDate() - (day - 1) + weekOffset * 7);
-    return d;
-  })();
+  // Ay matrisini hesapla — Google Calendar gibi 6 satır x 7 sütun (42 hücre).
+  // Pazartesi haftanın ilk günü.
+  const today = new Date();
+  const focusYear = today.getFullYear();
+  const focusMonth = today.getMonth() + monthOffset;
+  const firstOfMonth = new Date(focusYear, focusMonth, 1);
+  const firstWeekday = firstOfMonth.getDay() === 0 ? 7 : firstOfMonth.getDay(); // Mon=1..Sun=7
+  const gridStart = new Date(firstOfMonth);
+  gridStart.setDate(firstOfMonth.getDate() - (firstWeekday - 1));
+  gridStart.setHours(0, 0, 0, 0);
 
   const days = ['Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cts', 'Paz'];
-  const weekDates = days.map((_, i) => {
-    const d = new Date(weekStart);
-    d.setDate(d.getDate() + i);
-    return d;
-  });
+  const monthDates: Date[] = [];
+  for (let i = 0; i < 42; i++) {
+    const d = new Date(gridStart);
+    d.setDate(gridStart.getDate() + i);
+    monthDates.push(d);
+  }
+  const monthLabel = firstOfMonth.toLocaleDateString('tr-TR', { month: 'long', year: 'numeric' });
 
   const fmtDate = (d: Date) => `${d.getDate()}.${(d.getMonth() + 1).toString().padStart(2, '0')}`;
   const fmtTime = (iso: string) => {
@@ -1920,10 +1835,10 @@ export function ContentCalendarPanel({
         <div>
           <p className="text-sm font-semibold flex items-center gap-2">
             <Calendar className="h-4 w-4 text-brand" />
-            İçerik Takvimi (haftalık)
+            İçerik Takvimi
           </p>
           <p className="text-xs text-muted-foreground mt-0.5">
-            {scheduled.length} makale planlandı · sürükle-bırak ile saat ayarla · 15 dk önce üretim başlar
+            {scheduled.length} makale planlandı · sürükle-bırak ile gün/saat ayarla
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -1932,48 +1847,62 @@ export function ContentCalendarPanel({
               TRIAL · 1.makale ücretsiz
             </span>
           )}
+          <Button size="sm" variant="outline" className="h-7 text-[11px]" onClick={() => setMonthOffset(0)}>Bugün</Button>
           <div className="inline-flex items-center gap-1 border rounded-md">
-            <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setWeekOffset(weekOffset - 1)}>‹</Button>
-            <span className="text-[11px] font-medium px-1 min-w-[80px] text-center">
-              {weekOffset === 0 ? 'Bu hafta' : `+${weekOffset} hafta`}
+            <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setMonthOffset(monthOffset - 1)}>‹</Button>
+            <span className="text-[11px] font-medium px-2 min-w-[120px] text-center capitalize">
+              {monthLabel}
             </span>
-            <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setWeekOffset(weekOffset + 1)}>›</Button>
+            <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setMonthOffset(monthOffset + 1)}>›</Button>
           </div>
         </div>
       </div>
 
+      {/* Hafta günü başlıkları */}
+      <div className="grid grid-cols-7 gap-1.5 mb-1">
+        {days.map((d) => (
+          <div key={d} className="text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wide text-center py-1">
+            {d}
+          </div>
+        ))}
+      </div>
+
       <div className="grid grid-cols-7 gap-1.5">
-        {weekDates.map((dayDate, i) => {
+        {monthDates.map((dayDate, i) => {
           const dayArticles = articlesByDay(dayDate);
           const isToday =
             dayDate.toDateString() === new Date().toDateString();
           const isPast = dayDate.getTime() < new Date().setHours(0, 0, 0, 0);
+          const inFocusMonth = dayDate.getMonth() === firstOfMonth.getMonth();
           return (
             <div
               key={i}
               onDragOver={(e) => {
                 e.preventDefault();
-                // Tip bilinmiyor onDragOver'da (Chrome data'yı drop'a kadar gizler);
-                // 'move' kullanılır — 'copyMove' kaynaklı her iki tipi de kabul eder.
                 const types = e.dataTransfer.types;
                 e.dataTransfer.dropEffect = types.includes('application/x-luviai-topic') ? 'copy' : 'move';
               }}
               onDrop={(e) => onDayDrop(e, dayDate)}
-              className={`rounded-md border p-1.5 min-h-[110px] flex flex-col gap-1 transition-colors ${
-                isToday ? 'border-brand/50 bg-brand/5' : isPast ? 'bg-muted/20 opacity-70' : 'bg-card hover:border-brand/30 hover:bg-brand/5'
+              className={`rounded-md border p-1.5 min-h-[88px] flex flex-col gap-1 transition-colors ${
+                isToday
+                  ? 'border-brand/50 bg-brand/5'
+                  : !inFocusMonth
+                  ? 'bg-muted/10 opacity-50'
+                  : isPast
+                  ? 'bg-muted/20 opacity-70'
+                  : 'bg-card hover:border-brand/30 hover:bg-brand/5'
               }`}
             >
               <div className="flex items-center justify-between text-[10px] font-bold tracking-wide">
-                <span className={isToday ? 'text-brand' : 'text-muted-foreground'}>{days[i]}</span>
-                <span className={isToday ? 'text-brand' : 'text-muted-foreground'}>{fmtDate(dayDate)}</span>
+                <span className={isToday ? 'text-brand' : inFocusMonth ? 'text-foreground/70' : 'text-muted-foreground/40'}>
+                  {dayDate.getDate()}
+                </span>
+                {dayArticles.length > 0 && (
+                  <span className="text-[9px] text-brand/70 font-normal">{dayArticles.length}</span>
+                )}
               </div>
-              {dayArticles.length === 0 && (
-                <div className="flex-1 grid place-items-center text-[10px] text-muted-foreground/60 italic">
-                  bırak
-                </div>
-              )}
               {dayArticles.map((a, idx) => {
-                const isFirst = idx === 0 && i === 0 && weekOffset === 0;
+                const isFirst = idx === 0 && i === 0 && monthOffset === 0;
                 const locked = otherArticlesCount === 0 && !isFirst;
                 const onDragStart = (e: React.DragEvent) => {
                   e.dataTransfer.setData('application/x-luviai-article', JSON.stringify({
@@ -2036,12 +1965,12 @@ export function ContentCalendarPanel({
                       </div>
                     ) : (
                       <Link
-                        href={`/sites/${siteId}?tab=flow&step=social` as any}
+                        href={`/sites/${siteId}?tab=settings#social-channels` as any}
                         draggable={false}
                         onClick={(e) => e.stopPropagation()}
-                        className="block mt-1 text-[9px] text-amber-600 dark:text-amber-400 hover:underline"
+                        className="block mt-1 text-[9px] text-amber-600 dark:text-amber-400 hover:underline font-medium"
                       >
-                        + Sosyal kanal ekle
+                        + Sosyal medya paylaşımına aç
                       </Link>
                     )}
                   </div>
