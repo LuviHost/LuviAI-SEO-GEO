@@ -74,7 +74,7 @@ export class TikTokAdapter implements SocialAdapter {
     },
 
     async fetchProfile(accessToken: string) {
-      const res = await fetch(`${TIKTOK_API}/user/info/?fields=open_id,union_id,avatar_url,display_name,username`, {
+      const res = await fetch(`${TIKTOK_API}/user/info/?fields=open_id,union_id,avatar_url,display_name`, {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
       if (!res.ok) {
@@ -85,7 +85,7 @@ export class TikTokAdapter implements SocialAdapter {
       const u = data.data.user;
       return {
         externalId: u.open_id,
-        externalName: u.display_name ?? u.username ?? 'TikTok user',
+        externalName: u.display_name ?? "TikTok user",
         externalAvatar: u.avatar_url,
         extra: { unionId: u.union_id, username: u.username },
       };
@@ -126,11 +126,24 @@ export class TikTokAdapter implements SocialAdapter {
     const video = (input.mediaUrls ?? []).find((m) => m.type === 'video');
     if (!video) throw new Error('TikTok publish için video URL gerek');
 
-    // 1) init upload — videoyu URL'den çekme modunda
+    // 1) init upload — videoyu URL'den çekme modunda.
+    //
+    // privacy_level oncelik sirasi:
+    //   1. ctx.config.privacyLevel (kanal-bazli ayar)
+    //   2. process.env.TIKTOK_DEFAULT_PRIVACY (.env override — audit sonrasi PUBLIC_TO_EVERYONE)
+    //   3. 'SELF_ONLY' (sandbox/audit-edilmemis app icin GUVENLI default)
+    //
+    // TikTok unaudited app sadece SELF_ONLY ve MUTUAL_FOLLOW_FRIENDS kabul eder.
+    // PUBLIC_TO_EVERYONE icin app review onayi gerekir (Developer Portal).
+    const privacyLevel =
+      (ctx.config as any)?.privacyLevel ??
+      process.env.TIKTOK_DEFAULT_PRIVACY ??
+      'SELF_ONLY';
+
     const initBody = {
       post_info: {
         title: this.formatTitle(input),
-        privacy_level: (ctx.config as any)?.privacyLevel ?? 'PUBLIC_TO_EVERYONE',
+        privacy_level: privacyLevel,
         disable_duet: false,
         disable_comment: false,
         disable_stitch: false,

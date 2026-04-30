@@ -237,6 +237,41 @@ function humanizeSocialError(raw: string, channelType: string): string {
     }
   }
 
+  // TikTok
+  if (channelType === 'TIKTOK') {
+    if (lower.includes('unaudited_client_can_only_post_to_private_accounts') || lower.includes('unaudited_client')) {
+      return 'TikTok uygulaması henüz audit\'lenmedi. Yayın "SELF_ONLY" (sadece sen görürsün) modunda yapılır. Herkese açık yayın için TikTok Developer Portal → Apps → Audit Submission tamamlanması şart (1-2 hafta süre).';
+    }
+    if (lower.includes('spam_risk') || lower.includes('spam_risk_too_many_posts')) {
+      return 'TikTok spam koruma: kısa sürede çok fazla post atıldı. Birkaç saat sonra tekrar dene.';
+    }
+    if (lower.includes('401') || lower.includes('access_token_invalid') || lower.includes('invalid_token')) {
+      return 'TikTok token geçersiz / süresi doldu. Sosyal Kanallar → TikTok kanalını yeniden bağla.';
+    }
+    if (lower.includes('video_pull_failed') || lower.includes('url_ownership_unverified')) {
+      return 'TikTok video URL\'ini çekemedi. URL public erişimli + 4MB-1GB arası + MP4/MOV formatında olmalı; ayrıca domain TikTok\'ta verified olmalı.';
+    }
+  }
+
+  // YouTube (Google OAuth)
+  if (channelType === 'YOUTUBE') {
+    if (lower.includes('401') || lower.includes('invalid authentication credentials') || lower.includes('invalid_token')) {
+      return 'YouTube token geçersiz / süresi doldu. Sosyal Kanallar → YouTube kanalını yeniden bağla.';
+    }
+    if (lower.includes('quotaexceeded') || lower.includes('quota_exceeded')) {
+      return 'YouTube Data API v3 günlük kotası doldu (varsayılan 10.000 birim/gün, video upload ~1.600 birim). Yarın sıfırlanır veya Google Cloud Console\'da kota artışı talep et.';
+    }
+    if (lower.includes('youtubesignuprequired')) {
+      return 'Bu Google hesabıyla bir YouTube kanalı oluşturulmamış. youtube.com\'a giriş yap, kanal aç, sonra tekrar bağla.';
+    }
+    if (lower.includes('403') || lower.includes('forbidden')) {
+      return 'YouTube yazma izni yok. OAuth scope\'larında youtube.upload olduğundan emin ol; kanalı silip yeniden bağla.';
+    }
+    if (lower.includes('service_disabled') || lower.includes('youtube data api v3 has not been used')) {
+      return 'YouTube Data API v3 Google Cloud projende aktif değil. https://console.developers.google.com/apis/api/youtube.googleapis.com/overview adresinden ENABLE et.';
+    }
+  }
+
   // Generic
   return `Sosyal yayın başarısız: ${raw.slice(0, 280)}`;
 }

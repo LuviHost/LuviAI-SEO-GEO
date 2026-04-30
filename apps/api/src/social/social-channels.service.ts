@@ -248,7 +248,11 @@ export class SocialChannelsService {
     }
   }
 
-  /** Kanal credentials'ini decrypt edip publish'e hazirla */
+  /**
+   * Kanal credentials'ini decrypt edip publish'e hazirla.
+   * Token expire olmus / olmak uzere ise adapter.refreshTokens cagrilir;
+   * basarili ise yeni credentials DB'ye yazilir.
+   */
   async getDecryptedContext(channelId: string) {
     const channel = await this.prisma.socialChannel.findUniqueOrThrow({ where: { id: channelId } });
     if (!channel.isActive) throw new BadRequestException('Kanal aktif degil');
@@ -258,6 +262,42 @@ export class SocialChannelsService {
     } catch {
       throw new BadRequestException('Kanal credentials decrypt edilemedi — yeniden bagla');
     }
+
+    // ── Token refresh: adapter destekliyorsa ve token expire olmak uzere ise ──
+    const adapter = getAdapter(channel.type);
+    const expiresAt = credentials.expiresAt ? new Date(credentials.expiresAt) : null;
+    // 60sn buffer: tam o anda gonderirken expire etmesin
+    const expiringSoon = expiresAt && expiresAt.getTime() < Date.now() + 60_000;
+
+    if (expiringSoon && typeof adapter.refreshTokens === 'function') {
+      try {
+        const refreshed = await adapter.refreshTokens({
+          credentials,
+          config: (channel.config as Record<string, any>) ?? null,
+          externalId: channel.externalId,
+        });
+        if (refreshed) {
+          credentials = refreshed;
+          const encrypted = encrypt(JSON.stringify(refreshed));
+          await this.prisma.socialChannel.update({
+            where: { id: channelId },
+            data: { credentials: encrypted, lastError: null },
+          });
+          this.log.log(`[${channel.type}] token refreshed for channel ${channelId}`);
+        }
+      } catch (err: any) {
+        this.log.warn(`[${channel.type}] token refresh failed: ${err.message}`);
+        // Refresh basarisiz oldu — kullaniciya net mesaj
+        await this.prisma.socialChannel.update({
+          where: { id: channelId },
+          data: { lastError: `Token refresh failed: ${err.message?.slice(0, 250) ?? 'unknown'}` },
+        });
+        throw new BadRequestException(
+          `${channel.type} token suresi doldu ve yenilenemedi. Sosyal Kanallar → kanali silip yeniden bagla.`,
+        );
+      }
+    }
+
     return {
       channel,
       ctx: {
