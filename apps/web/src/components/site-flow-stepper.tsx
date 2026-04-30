@@ -1527,6 +1527,85 @@ function ArticlesStepBody({
         onChanged={onRefresh ?? (() => {})}
       />
 
+      {scheduled.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide pt-2">
+            Planlı Makaleler — paylaşım kanalı seçimi ({scheduled.length})
+          </p>
+          {socialChannels.length === 0 && (
+            <Link
+              href={`/sites/${siteId}?tab=flow&step=social` as any}
+              className="block rounded-md border border-amber-500/40 bg-amber-500/5 px-3 py-2 text-xs text-amber-700 dark:text-amber-400 hover:bg-amber-500/10"
+            >
+              ⚠ Henüz aktif sosyal kanal yok. <span className="underline">Sosyal Kanal ekle →</span>
+            </Link>
+          )}
+          {scheduled.map((a) => {
+            const fmtTime = (iso: string) => {
+              const d = new Date(iso);
+              return `${d.getDate()}.${(d.getMonth() + 1).toString().padStart(2, '0')} ${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`;
+            };
+            const cur = articlePrePlan[a.id];
+            const onCount = (cur === null || cur === undefined)
+              ? socialChannels.length
+              : socialChannels.filter((c: any) => cur.has(c.id)).length;
+            return (
+              <div
+                key={a.id}
+                className="rounded-lg border p-3 hover:border-brand/40 transition-colors"
+              >
+                <div className="flex items-start justify-between gap-2 flex-wrap mb-2">
+                  <div className="min-w-0 flex-1">
+                    <h5 className="font-semibold text-sm">{a.title || a.topic}</h5>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      📅 {fmtTime(a.scheduledAt)} · Takvimde
+                    </p>
+                  </div>
+                  <Badge variant="outline" className="text-[10px]">Takvimde</Badge>
+                </div>
+                {socialChannels.length > 0 ? (
+                  <div className="border-t border-border/40 pt-2 mt-1">
+                    <div className="flex items-baseline justify-between gap-2 flex-wrap mb-1.5">
+                      <span className="text-[11px] font-medium text-foreground/80">
+                        Bu makale için paylaşım kanalları
+                      </span>
+                      <span className="text-[10px] text-muted-foreground/70">
+                        {onCount === 0
+                          ? '⚠ Hiçbir kanalda paylaşılmayacak'
+                          : onCount === socialChannels.length
+                          ? 'Tüm kanallarda paylaşılacak'
+                          : `Sadece ${onCount}/${socialChannels.length} kanalda`}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {socialChannels.map((ch: any) => {
+                        const on = isChannelOn(a.id, ch.id);
+                        const channelLabel = (ch.type ?? '').toUpperCase();
+                        return (
+                          <button
+                            key={ch.id}
+                            type="button"
+                            onClick={() => toggleChannel(a.id, ch.id, a.title || a.topic)}
+                            title={`Bu makale için ${ch.type} ${on ? 'kanalını kapat' : 'kanalını aç'}`}
+                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-[11px] font-medium transition-all ${
+                              on
+                                ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/20'
+                                : 'bg-muted border-muted-foreground/20 text-muted-foreground/60 hover:bg-muted/80 line-through'
+                            }`}
+                          >
+                            {on ? '✓' : '○'} {channelLabel}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       {otherArticles.length > 0 && (
         <div className="space-y-3">
           {scheduled.length > 0 && (
@@ -1896,7 +1975,7 @@ export function ContentCalendarPanel({
                     </div>
                     <p className="font-medium truncate mt-0.5">{a.title || a.topic}</p>
                     <p className="text-[9px] text-muted-foreground">{locked ? '🔒 paket' : '📅 planlı'}</p>
-                    {socialChannels.length > 0 && !locked && (
+                    {socialChannels.length > 0 ? (
                       <div className="flex flex-wrap gap-0.5 mt-1" onClick={(e) => e.stopPropagation()}>
                         {socialChannels.map((ch: any) => {
                           const on = isChannelEnabledForArticle(a.id, ch.id);
@@ -1906,18 +1985,26 @@ export function ContentCalendarPanel({
                               key={ch.id}
                               type="button"
                               onClick={(e) => { e.stopPropagation(); toggleChannelForArticle(a.id, ch.id); }}
-                              title={`${on ? 'Yayindan kaldir' : 'Yayina ekle'}: ${ch.type}`}
-                              className={`text-[8px] font-bold px-1 py-0.5 rounded border transition-colors ${
+                              title={`Bu makale icin ${ch.type} ${on ? 'kanalini kapat' : 'kanalini ac'}`}
+                              className={`text-[9px] font-bold px-1.5 py-0.5 rounded border transition-colors ${
                                 on
-                                  ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-700 dark:text-emerald-400'
-                                  : 'bg-muted border-muted-foreground/20 text-muted-foreground/60 line-through'
+                                  ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/30'
+                                  : 'bg-muted border-muted-foreground/20 text-muted-foreground/60 line-through hover:bg-muted/80'
                               }`}
                             >
-                              {label}
+                              {on ? '✓' : '○'}{label}
                             </button>
                           );
                         })}
                       </div>
+                    ) : (
+                      <Link
+                        href={`/sites/${siteId}?tab=flow&step=social` as any}
+                        onClick={(e) => e.stopPropagation()}
+                        className="block mt-1 text-[9px] text-amber-600 dark:text-amber-400 hover:underline"
+                      >
+                        + Sosyal kanal ekle
+                      </Link>
                     )}
                   </div>
                 );
