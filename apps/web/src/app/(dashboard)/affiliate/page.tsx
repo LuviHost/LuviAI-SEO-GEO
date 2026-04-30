@@ -23,7 +23,7 @@ import { Skeleton } from '@/components/ui/skeleton';
  */
 
 const W = 900;
-const H = 600;
+const H = 660;
 const CX = W / 2;
 const CY = H / 2;
 const TIER1_R = 175;
@@ -278,7 +278,7 @@ function AffiliateDashboard({
 
       {/* SVG network */}
       <div className="relative z-10 max-w-5xl mx-auto">
-        <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" style={{ maxHeight: '600px' }}>
+        <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" style={{ maxHeight: '660px' }}>
           <defs>
             <radialGradient id="centerGlow" cx="50%" cy="50%" r="50%">
               <stop offset="0%" stopColor="#fb923c" stopOpacity="0.7" />
