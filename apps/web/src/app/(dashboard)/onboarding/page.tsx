@@ -10,6 +10,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { UpgradePlanModal } from '@/components/upgrade-plan-modal';
+import { MissionShell, MissionMap, ConsolePanel } from '@/components/ai-scan';
+import { ChevronLeft, ChevronRight, Rocket } from 'lucide-react';
 
 const NICHES = [
   'web hosting', 'e-ticaret', 'SaaS', 'eğitim', 'sağlık',
@@ -213,39 +215,40 @@ function OnboardingInner() {
     return <div className="max-w-2xl mx-auto py-8 text-center text-sm text-muted-foreground">Yükleniyor…</div>;
   }
 
-  return (
-    <div className="max-w-2xl mx-auto py-4 sm:py-8">
-      {/* Progress bar */}
-      <div className="mb-6">
-        <div className="flex justify-between text-xs text-muted-foreground mb-2">
-          <span>Adım {state.step}/7 · {STEPS[state.step - 1]?.label}</span>
-          <span>{Math.round((state.step / 7) * 100)}%</span>
-        </div>
-        <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
-          <div className="h-full bg-brand transition-all duration-300" style={{ width: `${(state.step / 7) * 100}%` }} />
-        </div>
-        <div className="flex gap-1 mt-2 text-[10px]">
-          {STEPS.map((s) => (
-            <button
-              key={s.num}
-              type="button"
-              onClick={() => goStep(s.num)}
-              className={cn(
-                'flex-1 py-1 px-1 rounded transition-colors text-center',
-                s.num === state.step ? 'bg-brand text-white' :
-                s.num < state.step ? 'bg-muted hover:bg-muted/70 cursor-pointer' :
-                'text-muted-foreground/50 cursor-not-allowed',
-              )}
-              disabled={s.num > state.step}
-            >
-              {s.label}
-            </button>
-          ))}
-        </div>
-      </div>
+  const currentLabel = STEPS[state.step - 1]?.label ?? '';
+  const pct = Math.round((state.step / 7) * 100);
 
-      <Card>
-        <CardContent className="p-6 sm:p-8">
+  return (
+    <MissionShell>
+      <div className="max-w-4xl mx-auto px-3 sm:px-6 py-6 sm:py-10">
+        {/* === MISSION HEADER === */}
+        <div className="mb-6 flex items-end justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <Rocket className="h-3.5 w-3.5 text-brand" />
+              <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-brand font-semibold">
+                Mission Console · Site Agent
+              </span>
+            </div>
+            <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">
+              {currentLabel}
+            </h1>
+            <p className="text-xs text-muted-foreground mt-1 font-mono">
+              <span className="text-brand">{String(state.step).padStart(2, '0')}</span>
+              <span className="opacity-50"> / 07</span>
+              <span className="opacity-30 mx-2">·</span>
+              <span className="opacity-60">{pct}% complete</span>
+            </p>
+          </div>
+        </div>
+
+        {/* === MISSION MAP === */}
+        <div className="mb-7">
+          <MissionMap steps={STEPS} current={state.step} onJump={goStep} />
+        </div>
+
+        {/* === CONSOLE PANEL === */}
+        <ConsolePanel step={state.step} total={7} label={currentLabel}>
           {state.step === 1 && <Step1 state={state} update={update} loading={loading} onContinue={handleStep1Continue} router={router} setLoading={setLoading} />}
           {state.step === 2 && <Step2 state={state} update={update} />}
           {state.step === 3 && <Step3 state={state} />}
@@ -253,18 +256,28 @@ function OnboardingInner() {
           {state.step === 5 && <Step5 state={state} update={update} />}
           {state.step === 6 && <Step6 state={state} update={update} />}
           {state.step === 7 && <Step7 state={state} update={update} />}
+        </ConsolePanel>
 
-          <div className="mt-8 flex justify-between gap-3 pt-4 border-t">
-            <Button variant="outline" onClick={goPrev} disabled={state.step === 1 || loading}>
-              ← Geri
-            </Button>
+        {/* === FOOTER CONTROLS === */}
+        <div className="mt-6 flex items-center justify-between gap-3 px-1">
+          <Button
+            variant="outline"
+            onClick={goPrev}
+            disabled={state.step === 1 || loading}
+            className="font-mono text-xs uppercase tracking-widest border-brand/30 hover:border-brand/60 hover:bg-brand/5"
+          >
+            <ChevronLeft className="h-3.5 w-3.5 mr-1" />
+            Geri
+          </Button>
+
+          <div className="flex items-end gap-2">
             {state.step === 1 && (
-              <Button onClick={handleStep1Continue} disabled={loading || !state.url.startsWith('http')}>
-                {loading ? 'Oluşturuluyor…' : 'Devam →'}
-              </Button>
+              <ConsoleNextBtn onClick={handleStep1Continue} disabled={loading || !state.url.startsWith('http')}>
+                {loading ? 'Bağlanılıyor…' : 'Devam'}
+              </ConsoleNextBtn>
             )}
             {state.step === 2 && (
-              <div className="flex flex-col items-end gap-1">
+              <div className="flex flex-col items-end gap-1.5">
                 <div className="flex gap-2">
                   {!state.brainReady && !state.step2WaitedAt && (
                     <Button
@@ -272,64 +285,56 @@ function OnboardingInner() {
                       size="sm"
                       onClick={() => update({ step2WaitedAt: Date.now() })}
                       disabled={loading}
+                      className="font-mono text-[10px] uppercase tracking-widest"
                     >
                       AI'sız devam et
                     </Button>
                   )}
-                  <Button
+                  <ConsoleNextBtn
                     onClick={handleStep2Continue}
-                    disabled={
-                      loading ||
-                      !state.name ||
-                      !state.niche ||
-                      (!state.brainReady && !state.step2WaitedAt)
-                    }
+                    disabled={loading || !state.name || !state.niche || (!state.brainReady && !state.step2WaitedAt)}
                     title={!state.brainReady && !state.step2WaitedAt ? 'AI analizi bekleniyor' : undefined}
                   >
-                    {loading ? 'Kaydediliyor…' : !state.brainReady && !state.step2WaitedAt ? 'AI bekleniyor…' : 'Devam →'}
-                  </Button>
+                    {loading ? 'Kaydediliyor…' : !state.brainReady && !state.step2WaitedAt ? 'AI bekleniyor' : 'Devam'}
+                  </ConsoleNextBtn>
                 </div>
                 {!state.brainReady && !state.step2WaitedAt && (
-                  <p className="text-[10px] text-muted-foreground">AI 10-30 saniye içinde önerilerini hazırlar</p>
+                  <p className="text-[10px] text-muted-foreground font-mono">AI 10–30sn içinde önerileri hazırlar</p>
                 )}
               </div>
             )}
             {state.step === 3 && (
               <div className="flex gap-2">
-                <Button variant="ghost" onClick={() => { update({ step: 4 }); }}>
+                <Button variant="ghost" onClick={() => update({ step: 4 })} className="font-mono text-[10px] uppercase tracking-widest">
                   Şimdilik atla
                 </Button>
-                <Button onClick={() => update({ step: 4 })}>
-                  Devam →
-                </Button>
+                <ConsoleNextBtn onClick={() => update({ step: 4 })}>Devam</ConsoleNextBtn>
               </div>
             )}
             {state.step === 4 && (
-              <Button
+              <ConsoleNextBtn
                 onClick={() => update({ step: 5 })}
                 disabled={state.publishTargetCount === 0}
                 title={state.publishTargetCount === 0 ? 'En az 1 yayın hedefi seç' : undefined}
               >
-                Devam →
-              </Button>
+                Devam
+              </ConsoleNextBtn>
             )}
             {state.step === 5 && (
-              <Button onClick={handleStep5Continue} disabled={loading}>
-                {loading ? 'Kaydediliyor…' : 'Devam →'}
-              </Button>
+              <ConsoleNextBtn onClick={handleStep5Continue} disabled={loading}>
+                {loading ? 'Kaydediliyor…' : 'Devam'}
+              </ConsoleNextBtn>
             )}
             {state.step === 6 && (
               <div className="flex gap-2">
-                <Button variant="ghost" onClick={() => update({ step: 7 })} disabled={loading}>
-                  Sosyal medyayı sonra ekle
+                <Button variant="ghost" onClick={() => update({ step: 7 })} disabled={loading} className="font-mono text-[10px] uppercase tracking-widest">
+                  Sonra ekle
                 </Button>
-                <Button onClick={() => update({ step: 7 })} disabled={loading}>
-                  Devam →
-                </Button>
+                <ConsoleNextBtn onClick={() => update({ step: 7 })} disabled={loading}>Devam</ConsoleNextBtn>
               </div>
             )}
             {state.step === 7 && (
-              <div className="flex flex-col items-end gap-1">
+              <div className="flex flex-col items-end gap-1.5">
                 <div className="flex gap-2">
                   {!state.topicsReady && !state.step7WaitedAt && (
                     <Button
@@ -337,48 +342,87 @@ function OnboardingInner() {
                       size="sm"
                       onClick={() => update({ step7WaitedAt: Date.now() })}
                       disabled={loading}
+                      className="font-mono text-[10px] uppercase tracking-widest"
                     >
                       Beklemeden bitir
                     </Button>
                   )}
-                  <Button
+                  <ConsoleNextBtn
                     onClick={handleFinish}
-                    disabled={
-                      loading ||
-                      (!state.topicsReady && !state.step7WaitedAt)
-                    }
-                    title={!state.topicsReady && !state.step7WaitedAt ? 'AI baslık onerileri bekleniyor' : undefined}
+                    disabled={loading || (!state.topicsReady && !state.step7WaitedAt)}
+                    title={!state.topicsReady && !state.step7WaitedAt ? 'AI başlık önerileri bekleniyor' : undefined}
+                    finish
                   >
-                    {loading ? 'Bitiriliyor…' : !state.topicsReady && !state.step7WaitedAt ? 'AI bekleniyor…' : 'Bitir 🚀'}
-                  </Button>
+                    {loading ? 'Bitiriliyor…' : !state.topicsReady && !state.step7WaitedAt ? 'AI bekleniyor' : 'Görevi Başlat'}
+                  </ConsoleNextBtn>
                 </div>
                 {!state.topicsReady && !state.step7WaitedAt && (
-                  <p className="text-[10px] text-muted-foreground">Baslıklar hazır olunca dashboard'da gorulebilir; istersen beklemeden bitirebilirsin.</p>
+                  <p className="text-[10px] text-muted-foreground font-mono">Başlıklar hazır olunca dashboard'da görünür; istersen beklemeden bitirebilirsin.</p>
                 )}
               </div>
             )}
           </div>
-        </CardContent>
-      </Card>
+        </div>
 
-      {/* "Sıfırla" — geliştirme/test için */}
-      {state.siteId && (
-        <p className="text-center mt-4 text-[10px] text-muted-foreground">
-          Site ID: {state.siteId} ·{' '}
-          <button
-            className="underline"
-            onClick={() => {
-              if (confirm('Onboarding state sıfırlansın mı? (siteyi silmez)')) {
-                localStorage.removeItem(STORAGE_KEY);
-                window.location.reload();
-              }
-            }}
-          >
-            wizard'ı sıfırla
-          </button>
-        </p>
+        {/* === STATUS BAR === */}
+        {state.siteId && (
+          <div className="mt-6 flex items-center justify-center gap-3 text-[10px] font-mono uppercase tracking-widest text-muted-foreground">
+            <span className="h-1 w-1 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="opacity-70">SITE_ID: {state.siteId}</span>
+            <span className="opacity-40">·</span>
+            <button
+              className="underline-offset-2 hover:text-foreground transition-colors hover:underline"
+              onClick={() => {
+                if (confirm('Onboarding state sıfırlansın mı? (siteyi silmez)')) {
+                  localStorage.removeItem(STORAGE_KEY);
+                  window.location.reload();
+                }
+              }}
+            >
+              wizard'ı sıfırla
+            </button>
+          </div>
+        )}
+      </div>
+    </MissionShell>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────────
+// HUD-styled "Devam" button — brand glow + sweep + chevron
+// ──────────────────────────────────────────────────────────────────────
+function ConsoleNextBtn({
+  children,
+  onClick,
+  disabled,
+  title,
+  finish,
+}: {
+  children: React.ReactNode;
+  onClick: () => void;
+  disabled?: boolean;
+  title?: string;
+  finish?: boolean;
+}) {
+  return (
+    <Button
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      className={cn(
+        'font-mono text-xs uppercase tracking-[0.18em] px-5 group relative overflow-hidden',
+        'bg-gradient-to-r from-brand to-brand/80 hover:from-brand hover:to-brand',
+        'shadow-[0_0_0_1px_rgb(124_58_237_/_0.4),0_8px_28px_-6px_rgb(124_58_237_/_0.5)]',
+        'hover:shadow-[0_0_0_1px_rgb(124_58_237_/_0.6),0_12px_40px_-6px_rgb(124_58_237_/_0.7)]',
+        'transition-all duration-300',
       )}
-    </div>
+    >
+      <span className="relative z-10 flex items-center gap-1.5">
+        {children}
+        {finish ? <Rocket className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />}
+      </span>
+      <span className="absolute inset-y-0 -left-1/2 w-1/2 bg-gradient-to-r from-transparent via-white/20 to-transparent skew-x-12 group-hover:translate-x-[400%] transition-transform duration-700" />
+    </Button>
   );
 }
 
