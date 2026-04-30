@@ -1485,7 +1485,7 @@ function ArticlesStepBody({
     return cur.has(channelId);
   };
 
-  const toggleChannel = async (articleId: string, channelId: string) => {
+  const toggleChannel = async (articleId: string, channelId: string, articleTitle?: string) => {
     const allActive = socialChannels.map((c) => c.id);
     const cur = articlePrePlan[articleId];
     const set = cur ? new Set(cur) : new Set<string>(allActive);
@@ -1500,9 +1500,11 @@ function ArticlesStepBody({
       await api.setArticleSocialPrePlan(siteId, articleId, isAll ? null : arr);
       const ch = socialChannels.find((c) => c.id === channelId);
       const channelName = (ch?.type ?? 'kanal').toUpperCase();
+      const tShort = (articleTitle ?? '').slice(0, 40) + ((articleTitle ?? '').length > 40 ? '…' : '');
+      const titlePart = tShort ? `"${tShort}" → ` : '';
       toast.success(set.has(channelId)
-        ? `${channelName}'da paylaşılacak`
-        : `${channelName}'dan kaldırıldı`);
+        ? `${titlePart}${channelName}'da paylaşılacak`
+        : `${titlePart}${channelName}'dan kaldırıldı`);
     } catch (err: any) {
       toast.error(err.message || 'Kanal tercihi kaydedilemedi');
     }
@@ -1573,36 +1575,67 @@ function ArticlesStepBody({
             </div>
             {!isGenerating && socialChannels.length > 0 && (
               <div
-                className="mt-2 pt-2 border-t border-border/40 flex items-center gap-2 flex-wrap text-[11px]"
+                className="mt-2 pt-2 border-t border-border/40"
                 onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
               >
-                <span className="text-muted-foreground">Paylaş:</span>
-                {socialChannels.map((ch: any) => {
-                  const on = isChannelOn(a.id, ch.id);
-                  const channelLabel = (ch.type ?? '').toUpperCase();
-                  return (
-                    <button
-                      key={ch.id}
-                      type="button"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        toggleChannel(a.id, ch.id);
-                      }}
-                      title={`${on ? 'Paylaşımdan kaldır' : 'Paylaşıma ekle'} — ${ch.type}`}
-                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border transition-all ${
-                        on
-                          ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/20'
-                          : 'bg-muted border-muted-foreground/20 text-muted-foreground/60 hover:bg-muted/80 line-through'
-                      }`}
-                    >
-                      {on ? '✓' : '○'} {channelLabel}
-                    </button>
-                  );
-                })}
-                <span className="text-[10px] text-muted-foreground/70 ml-auto">
-                  {a.status === 'PUBLISHED' ? 'Yayında — sonraki güncellemede' : 'Yayınlanınca paylaşılır'}
-                </span>
+                <div className="flex items-baseline justify-between gap-2 flex-wrap mb-1.5">
+                  <span className="text-[11px] font-medium text-foreground/80">
+                    Bu makale için paylaşım kanalları
+                  </span>
+                  <span className="text-[10px] text-muted-foreground/70">
+                    {a.status === 'PUBLISHED' ? 'Yayında — sonraki güncellemede uygulanır' : 'Yayınlanınca seçili kanallarda paylaşılır'}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  {socialChannels.map((ch: any) => {
+                    const on = isChannelOn(a.id, ch.id);
+                    const channelLabel = (ch.type ?? '').toUpperCase();
+                    return (
+                      <button
+                        key={ch.id}
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          toggleChannel(a.id, ch.id, a.title || a.topic);
+                        }}
+                        title={`Bu makale için ${ch.type} ${on ? 'kanalını kapat' : 'kanalını aç'}`}
+                        className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full border text-[11px] font-medium transition-all ${
+                          on
+                            ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/20'
+                            : 'bg-muted border-muted-foreground/20 text-muted-foreground/60 hover:bg-muted/80 line-through'
+                        }`}
+                      >
+                        {on ? '✓' : '○'} {channelLabel}
+                      </button>
+                    );
+                  })}
+                  {(() => {
+                    const cur = articlePrePlan[a.id];
+                    const onCount = (cur === null || cur === undefined)
+                      ? socialChannels.length
+                      : socialChannels.filter((c: any) => cur.has(c.id)).length;
+                    if (onCount === 0) {
+                      return (
+                        <span className="text-[10px] text-amber-600 dark:text-amber-400 ml-auto">
+                          Hiçbir kanalda paylaşılmayacak
+                        </span>
+                      );
+                    }
+                    if (onCount === socialChannels.length) {
+                      return (
+                        <span className="text-[10px] text-muted-foreground/70 ml-auto">
+                          Tüm kanallarda paylaşılacak
+                        </span>
+                      );
+                    }
+                    return (
+                      <span className="text-[10px] text-muted-foreground/70 ml-auto">
+                        Sadece {onCount}/{socialChannels.length} kanalda
+                      </span>
+                    );
+                  })()}
+                </div>
               </div>
             )}
           </div>
