@@ -73,10 +73,12 @@ export default function SitePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab]);
 
-  // Onboarding chain calisirken (site.status === 'ONBOARDING') veya URL flag varken
-  // ya da bir makale GENERATING/EDITING durumundayken arka planda 5sn'de bir refresh.
-  // Boylece X OAuth callback'inden donulduginde de gercek durum gorulur.
-  const isOnboardingActive = site?.status === 'ONBOARDING';
+  // Onboarding chain calisirken (status: ONBOARDING -> AUDIT_PENDING -> AUDIT_COMPLETE -> ACTIVE)
+  // veya URL flag varken ya da bir makale GENERATING/EDITING durumundayken arka planda 5sn'de bir refresh.
+  // Boylece X OAuth callback'inden donulduginde ve wizard'dan atla denildiginde de gercek durum gorulur.
+  const isOnboardingActive = site
+    ? !['ACTIVE', 'PAUSED', 'ERROR'].includes(site.status)
+    : false;
   const hasInflightArticle = articles.some(
     (a) => a?.status === 'GENERATING' || a?.status === 'EDITING',
   );
