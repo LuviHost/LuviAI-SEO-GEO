@@ -24,14 +24,13 @@ export function middleware(req: NextRequest) {
     const url = req.nextUrl.clone();
     url.searchParams.delete('ref');
     const res = NextResponse.redirect(url);
-    if (!req.cookies.has('luvi_ref')) {
-      res.cookies.set('luvi_ref', refParam, {
-        maxAge: 60 * 24 * 60 * 60,
-        path: '/',
-        sameSite: 'lax',
-        httpOnly: false, // signIn callback Server Component'tan da okuyabilsin
-      });
-    }
+    // Last-touch attribution — yeni ref linki her zaman override eder
+    res.cookies.set('luvi_ref', refParam, {
+      maxAge: 60 * 24 * 60 * 60,
+      path: '/',
+      sameSite: 'lax',
+      httpOnly: false, // signIn callback Server Component'tan da okuyabilsin
+    });
     return res;
   }
 

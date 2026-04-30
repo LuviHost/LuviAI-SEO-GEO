@@ -12,8 +12,9 @@ import { useEffect } from 'react';
  * Set edilen cookie'yi NextAuth signIn callback (server) cookies() API ile
  * okuyup affiliate attribute endpoint'ini çağırır.
  *
- * Mevcut cookie varsa override etmez — ilk gelen ref kazanır (affiliate
- * attribution standart yaklaşım).
+ * Last-touch attribution: yeni ref linki tıklandığında eski cookie üzerine yazar.
+ * (Kullanıcı niyeti son linktedir; first-touch testing'de yanlış attribution
+ * üretiyordu.)
  */
 export function RefTracker() {
   useEffect(() => {
@@ -24,16 +25,13 @@ export function RefTracker() {
     if (!ref) return;
     if (!/^[a-z0-9-_]{4,64}$/i.test(ref)) return;
 
-    // Mevcut cookie'yi okuduğumuz hızlı kontrol
-    const hasExisting = document.cookie
-      .split('; ')
-      .some((c) => c.startsWith('luvi_ref='));
-
-    if (!hasExisting) {
-      const maxAge = 60 * 24 * 60 * 60; // 60 gün
-      // Production: HTTPS + Secure flag eklenebilir, ama lax + path=/ yeterli
-      document.cookie = `luvi_ref=${encodeURIComponent(ref)}; max-age=${maxAge}; path=/; samesite=lax`;
-    }
+    // Last-touch attribution: yeni ref linki her zaman cookie'yi günceller.
+    // Sebep: kullanıcı bilinçli olarak başka bir linke tıklıyorsa niyetinin
+    // son linkte olduğunu varsayıyoruz. Eski cookie korumak (first-touch)
+    // testing'de ve real-world'de kullanıcıyı şaşırtıyor (önceden tıklanan
+    // bir linkten kalma cookie ile yanlış affiliate'a atfedilme riski).
+    const maxAge = 60 * 24 * 60 * 60; // 60 gün
+    document.cookie = `luvi_ref=${encodeURIComponent(ref)}; max-age=${maxAge}; path=/; samesite=lax`;
 
     // URL temizle — adres çubuğundan ?ref kaybolsun
     url.searchParams.delete('ref');
