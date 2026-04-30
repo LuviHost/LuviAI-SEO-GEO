@@ -384,7 +384,7 @@ function StepCard({
 // ──────────────────────────────────────────────────────────────────────
 // Step 1 — Site Skoru
 // ──────────────────────────────────────────────────────────────────────
-function AuditStepBody({
+export function AuditStepBody({
   audit, siteId, onRefresh, onboardingMode,
 }: {
   audit: any;
@@ -620,7 +620,7 @@ function AuditStepBody({
 // ──────────────────────────────────────────────────────────────────────
 // AI Citation Panel — gerçek LLM probe sonuçları
 // ──────────────────────────────────────────────────────────────────────
-function CitationPanel({ siteId }: { siteId: string }) {
+export function CitationPanel({ siteId }: { siteId: string }) {
   const [running, setRunning] = useState(false);
   const [results, setResults] = useState<any[] | null>(null);
   const [runAt, setRunAt] = useState<string | null>(null);
@@ -695,7 +695,7 @@ function CitationPanel({ siteId }: { siteId: string }) {
 // ──────────────────────────────────────────────────────────────────────
 // Snippet Panel — D1 (AI üretip kullanıcıya copy-paste verir)
 // ──────────────────────────────────────────────────────────────────────
-function SnippetPanel({ siteId }: { siteId: string }) {
+export function SnippetPanel({ siteId }: { siteId: string }) {
   const [loading, setLoading] = useState(false);
   const [pageUrl, setPageUrl] = useState('');
   const [snippets, setSnippets] = useState<any[] | null>(null);
@@ -922,7 +922,7 @@ function SnippetPanel({ siteId }: { siteId: string }) {
 // ──────────────────────────────────────────────────────────────────────
 type Competitor = { name: string; url: string; strengths?: string[]; weaknesses?: string[] };
 
-function CompetitorsStepBody({
+export function CompetitorsStepBody({
   siteId, initial, onChanged, onboardingMode,
 }: {
   siteId: string;
@@ -1057,7 +1057,7 @@ function CompetitorsStepBody({
 // ──────────────────────────────────────────────────────────────────────
 // Step 3 — GSC bağla
 // ──────────────────────────────────────────────────────────────────────
-function GscStepBody({ site, onChanged }: { site: any; onChanged: () => void }) {
+export function GscStepBody({ site, onChanged }: { site: any; onChanged: () => void }) {
   const search = useSearchParams();
   const [busy, setBusy] = useState(false);
   const [properties, setProperties] = useState<Array<{ siteUrl: string; permissionLevel: string | null }> | null>(null);
@@ -1198,7 +1198,7 @@ function GscStepBody({ site, onChanged }: { site: any; onChanged: () => void }) 
 // ──────────────────────────────────────────────────────────────────────
 // Step 4 — GA4 bağla
 // ──────────────────────────────────────────────────────────────────────
-function Ga4StepBody({ site, onChanged }: { site: any; onChanged: () => void }) {
+export function Ga4StepBody({ site, onChanged }: { site: any; onChanged: () => void }) {
   const search = useSearchParams();
   const [busy, setBusy] = useState(false);
   const [properties, setProperties] = useState<Array<{ propertyId: string; displayName: string; accountName: string }> | null>(null);
@@ -1339,7 +1339,7 @@ function Ga4StepBody({ site, onChanged }: { site: any; onChanged: () => void }) 
 // ──────────────────────────────────────────────────────────────────────
 // Step 5 — Önerilen Makaleler
 // ──────────────────────────────────────────────────────────────────────
-function TopicsStepBody({
+export function TopicsStepBody({
   queue, articles = [], siteId, onRefresh, onboardingMode,
 }: {
   queue: any;
@@ -1501,7 +1501,7 @@ const ARTICLE_STATUS_LABEL: Record<string, string> = {
   ARCHIVED: 'Arşiv',
 };
 
-function ArticlesStepBody({
+export function ArticlesStepBody({
   articles, siteId, onRefresh,
 }: {
   articles: any[];
