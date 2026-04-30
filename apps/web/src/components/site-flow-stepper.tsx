@@ -1443,7 +1443,7 @@ function TopicsStepBody({
               pillar: t.pillar,
               score: t.score,
             }));
-            e.dataTransfer.effectAllowed = 'copy';
+            e.dataTransfer.effectAllowed = 'copyMove';
           };
           return (
             <div
@@ -1951,7 +1951,13 @@ export function ContentCalendarPanel({
           return (
             <div
               key={i}
-              onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; }}
+              onDragOver={(e) => {
+                e.preventDefault();
+                // Tip bilinmiyor onDragOver'da (Chrome data'yı drop'a kadar gizler);
+                // 'move' kullanılır — 'copyMove' kaynaklı her iki tipi de kabul eder.
+                const types = e.dataTransfer.types;
+                e.dataTransfer.dropEffect = types.includes('application/x-luviai-topic') ? 'copy' : 'move';
+              }}
               onDrop={(e) => onDayDrop(e, dayDate)}
               className={`rounded-md border p-1.5 min-h-[110px] flex flex-col gap-1 transition-colors ${
                 isToday ? 'border-brand/50 bg-brand/5' : isPast ? 'bg-muted/20 opacity-70' : 'bg-card hover:border-brand/30 hover:bg-brand/5'
@@ -1973,7 +1979,8 @@ export function ContentCalendarPanel({
                   e.dataTransfer.setData('application/x-luviai-article', JSON.stringify({
                     id: a.id, topic: a.topic, title: a.title,
                   }));
-                  e.dataTransfer.effectAllowed = 'move';
+                  // copyMove → cell dropEffect 'copy' veya 'move' kabul eder (browser reddetmesin)
+                  e.dataTransfer.effectAllowed = 'copyMove';
                 };
                 return (
                   <div
