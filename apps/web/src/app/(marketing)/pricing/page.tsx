@@ -54,6 +54,11 @@ export default function PricingPage() {
       });
       const data = await res.json();
       if (data.iframeUrl) {
+        // Test mode dev-confirm için merchantOid'i sakla; success sayfası bunu okuyup
+        // PayTR webhook gelmeden invoice'ı PAID + plan'ı upgrade eder.
+        if (data.merchantOid) {
+          try { localStorage.setItem('luviai-pending-merchantOid', data.merchantOid); } catch (_e) { /* noop */ }
+        }
         toast.success('Yönlendiriliyor...');
         window.location.href = data.iframeUrl;
       } else {
