@@ -205,6 +205,8 @@ export function VideoLab({ siteId }: { siteId: string }) {
       status = 'DRAFT';
     }
     setScheduling(true);
+    const selectedChannel = channels.find((c) => c.id === scheduleChannelId);
+    const isTikTok = selectedChannel?.type === 'TIKTOK';
     try {
       const created = await api.createSocialPost({
         channelId: scheduleChannelId,
@@ -216,9 +218,24 @@ export function VideoLab({ siteId }: { siteId: string }) {
       if (scheduleMode === 'now') {
         // QUEUED + scheduledFor=null + publish-now ile hemen yayinla
         await api.publishSocialPostNow(created.id);
-        toast.success('Video yayinlandi');
+        if (isTikTok) {
+          toast.success(
+            'TikTok\'a yüklendi — privacy: SELF_ONLY (sadece sen görürsün). TikTok app → Profil → 🔒 sekmesi. App audit sonrası public açılır.',
+            { duration: 9000 },
+          );
+        } else {
+          toast.success('Video yayınlandı');
+        }
       } else if (scheduleMode === 'later') {
-        toast.success(`Takvime eklendi: ${new Date(scheduledFor!).toLocaleString('tr-TR')}`);
+        const when = new Date(scheduledFor!).toLocaleString('tr-TR');
+        if (isTikTok) {
+          toast.success(
+            `Takvime eklendi: ${when} — TikTok yayını SELF_ONLY (sadece sen görürsün) modunda olacak (app henüz audit'lenmedi).`,
+            { duration: 9000 },
+          );
+        } else {
+          toast.success(`Takvime eklendi: ${when}`);
+        }
       } else {
         toast.success('Taslak olarak kaydedildi');
       }
@@ -602,6 +619,13 @@ function SchedulePanel({
             </option>
           ))}
         </select>
+        {channels.find((c) => c.id === channelId)?.type === 'TIKTOK' && (
+          <div className="mt-2 rounded border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-700 dark:text-amber-400 leading-relaxed">
+            <strong>TikTok audit beklemede.</strong> Yayın <strong>SELF_ONLY</strong> (sadece sen görürsün) modunda yapılacak.
+            Video TikTok hesabınıza yüklenir ama Profil → 🔒 sekmesinde, başkalarına kapalı görünür.
+            Public yayın için TikTok Developer Portal → Apps → Audit Submission gerekli (1-2 hafta).
+          </div>
+        )}
       </div>
 
       {/* Yayın tarihi (sadece later modda) */}
