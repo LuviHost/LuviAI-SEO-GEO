@@ -4,6 +4,7 @@ import { ThemeProvider } from '@/components/theme-provider';
 import { CookieConsent } from '@/components/cookie-consent';
 import { AppSessionProvider } from '@/components/session-provider';
 import { Toaster } from 'sonner';
+import { RefTracker } from '@/components/ref-tracker';
 
 export const metadata: Metadata = {
   title: 'LuviAI — SEO + GEO Otomasyonu',
@@ -25,6 +26,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="tr" suppressHydrationWarning>
       <body className="antialiased min-h-screen bg-background text-foreground">
+        <RefTracker />
         <AppSessionProvider>
           <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
             {children}
