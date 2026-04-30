@@ -82,6 +82,29 @@ export function SiteFlowStepper({
     },
   ];
 
+  // Drag-drop tutorial: 3 koşul birden bittiğinde bir kez göster.
+  //   - Site Skoru tamamlandı (audit dolu)
+  //   - AI Rakipler tespit edildi (brain.competitors >= 1)
+  //   - Önerilen Makaleler hazır (queue.tier1Topics >= 1)
+  // localStorage flag: luviai_drag_drop_tutorial_seen:<siteId> — bir kez görülünce tekrar açılmaz.
+  const [tutorialOpen, setTutorialOpen] = useState(false);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const flagKey = `luviai_drag_drop_tutorial_seen:${site.id}`;
+    if (window.localStorage.getItem(flagKey) === '1') return;
+    const auditDone = !!audit;
+    const competitorsDone = (site?.brain?.competitors?.length ?? 0) > 0;
+    const topicsDone = ((queue?.tier1Topics as any[] | undefined)?.length ?? 0) > 0;
+    if (auditDone && competitorsDone && topicsDone) setTutorialOpen(true);
+  }, [audit, site?.brain?.competitors, queue?.tier1Topics, site.id]);
+
+  const closeTutorial = () => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(`luviai_drag_drop_tutorial_seen:${site.id}`, '1');
+    }
+    setTutorialOpen(false);
+  };
+
   const firstIncomplete = steps.find((s) => s.status !== 'done' && !s.optional)?.id ?? 'audit';
   // Multi-open: aktif step ID'leri set olarak tutulur — birini acmak digerini kapatmaz.
   // Boylece "Makaleler" + "Sosyal Takvim" ikisi birden acik kalip drag-drop calisir.
@@ -202,6 +225,8 @@ export function SiteFlowStepper({
       ))}
 
       <DigerSection siteId={site.id} />
+
+      <DragDropTutorialModal open={tutorialOpen} onClose={closeTutorial} />
     </div>
   );
 }
@@ -1273,6 +1298,7 @@ function TopicsStepBody({
       .map((a) => String(a?.topic ?? a?.title ?? '').trim().toLowerCase())
       .filter(Boolean),
   );
+
   const [running, setRunning] = useState(false);
   const [generating, setGenerating] = useState<string | null>(null);
 
@@ -1434,24 +1460,7 @@ function ArticlesStepBody({
     return () => clearInterval(t);
   }, [articles, onRefresh]);
 
-  // Drag-drop tutorial: ilk makale tamamlanir tamamlanmaz bir kez goster.
-  const [tutorialOpen, setTutorialOpen] = useState(false);
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const flagKey = `luviai_drag_drop_tutorial_seen:${siteId}`;
-    if (window.localStorage.getItem(flagKey) === '1') return;
-    const hasReady = articles.some((a) =>
-      a?.status === 'PUBLISHED' || a?.status === 'READY_TO_PUBLISH'
-    );
-    if (hasReady) setTutorialOpen(true);
-  }, [articles, siteId]);
 
-  const closeTutorial = () => {
-    if (typeof window !== 'undefined') {
-      window.localStorage.setItem(`luviai_drag_drop_tutorial_seen:${siteId}`, '1');
-    }
-    setTutorialOpen(false);
-  };
 
   // SCHEDULED makaleleri ust ust ay
   const scheduled = articles
@@ -1526,8 +1535,6 @@ function ArticlesStepBody({
           })}
         </div>
       )}
-
-      <DragDropTutorialModal open={tutorialOpen} onClose={closeTutorial} />
     </div>
   );
 }
