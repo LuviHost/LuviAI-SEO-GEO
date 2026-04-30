@@ -32,6 +32,8 @@ const TIER2_R = 295;
 type Referral = {
   id: string;
   referredUserId?: string | null;
+  referredName?: string | null;
+  referredEmail?: string | null;
   parentUserId?: string;
   status: string;
   clickedAt: string;
@@ -532,10 +534,16 @@ function FlowParticleOnLine({ x1, y1, x2, y2 }: { x1: number; y1: number; x2: nu
 // ──────────────────────────────────────────────────────────────────
 
 function refLabel(r: Referral, idx: number): string {
-  // Kullanıcı email'i yok elimizde — kısaltılmış userId veya idx
-  if (r.referredUserId) {
-    return r.referredUserId.slice(-4);
+  if (r.referredName && r.referredName.trim()) {
+    const n = r.referredName.trim();
+    return n.length > 14 ? n.slice(0, 12) + '…' : n;
   }
+  if (r.referredEmail) {
+    const at = r.referredEmail.indexOf('@');
+    const local = at > 0 ? r.referredEmail.slice(0, at) : r.referredEmail;
+    return local.length > 14 ? local.slice(0, 12) + '…' : local;
+  }
+  if (r.referredUserId) return r.referredUserId.slice(-4);
   return String(idx);
 }
 

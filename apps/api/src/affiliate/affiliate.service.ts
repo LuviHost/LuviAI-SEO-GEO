@@ -42,7 +42,6 @@ export class AffiliateService {
     const tier1UserIds = tier1.map((r) => r.referredUserId).filter((id): id is string => !!id);
 
     // Tier 2 — tier 1'deki kullanicilarin kendi affiliate hesaplarinin referrals'i
-    // (multi-level network: davetlim de affiliate olduysa, onun davetlileri benim 2. seviyem)
     let tier2: any[] = [];
     if (tier1UserIds.length > 0) {
       const subAffiliates = await this.prisma.affiliate.findMany({
@@ -58,6 +57,31 @@ export class AffiliateService {
       }
     }
 
+    // Tier 1 + tier 2'deki tüm referredUserId'ler için tek batch query —
+    // her referral entry'sine name/email ekle (UI label için)
+    const allRefUserIds = [
+      ...tier1.map((r) => r.referredUserId),
+      ...tier2.map((r) => r.referredUserId),
+    ].filter((id): id is string => !!id);
+    let userMap: Record<string, { name: string | null; email: string }> = {};
+    if (allRefUserIds.length > 0) {
+      const users = await this.prisma.user.findMany({
+        where: { id: { in: Array.from(new Set(allRefUserIds)) } },
+        select: { id: true, name: true, email: true },
+      });
+      userMap = Object.fromEntries(users.map((u) => [u.id, { name: u.name, email: u.email }]));
+    }
+    const enrich = (arr: any[]) => arr.map((r) => {
+      const u = r.referredUserId ? userMap[r.referredUserId] : null;
+      return {
+        ...r,
+        referredName: u?.name ?? null,
+        referredEmail: u?.email ?? null,
+      };
+    });
+    const tier1Enriched = enrich(tier1.map((r) => ({ ...r, tier: 1 })));
+    const tier2Enriched = enrich(tier2);
+
     return {
       enrolled: true,
       refCode: affiliate.refCode,
@@ -67,8 +91,8 @@ export class AffiliateService {
       totalCommission: affiliate.totalCommission,
       totalPaid: affiliate.totalPaid,
       pendingPayout: Number(affiliate.totalCommission) - Number(affiliate.totalPaid),
-      referrals: tier1.map((r) => ({ ...r, tier: 1 })),
-      tier2Referrals: tier2,
+      referrals: tier1Enriched,
+      tier2Referrals: tier2Enriched,
       networkSize: tier1.length + tier2.length,
       networkLevels: tier2.length > 0 ? 2 : (tier1.length > 0 ? 1 : 0),
     };
