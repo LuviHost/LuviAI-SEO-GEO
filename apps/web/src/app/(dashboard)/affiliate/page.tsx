@@ -391,12 +391,12 @@ function AffiliateDashboard({
 
           {/* Paid line akan parçacıklar — komisyon akışı görseli */}
           {tier1Pos.filter((p) => p.ref.status === 'paid').map((p, i) => (
-            <FlowParticleOnLine key={`fp1-${i}`} x1={CX} y1={CY} x2={p.x} y2={p.y} />
+            <FlowParticleOnLine key={`fp1-${i}`} x1={p.x} y1={p.y} x2={CX} y2={CY} />
           ))}
           {tier2Pos.filter((p) => p.ref.status === 'paid').map((p, i) => {
             const parent = tier1Pos[p.parentIdx];
             return (
-              <FlowParticleOnLine key={`fp2-${i}`} x1={parent.x} y1={parent.y} x2={p.x} y2={p.y} />
+              <FlowParticleOnLine key={`fp2-${i}`} x1={p.x} y1={p.y} x2={parent.x} y2={parent.y} />
             );
           })}
         </svg>
