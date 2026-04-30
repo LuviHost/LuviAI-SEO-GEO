@@ -18,6 +18,7 @@ import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { PipelineProgress, PIPELINE_STEPS } from '@/components/pipeline-progress';
 import { AiKeysPanel } from '@/components/ai-keys-panel';
+import { ScanOrb } from '@/components/ai-scan';
 
 type StepStatus = 'pending' | 'auto-running' | 'done' | 'skipped';
 
@@ -324,7 +325,14 @@ function StepCard({
   const statusIcon = (() => {
     if (step.status === 'done') return <CheckCircle2 className="h-5 w-5 text-green-500" />;
     if (step.status === 'auto-running') {
-      return <span className="h-5 w-5 grid place-items-center"><span className="h-2.5 w-2.5 bg-brand rounded-full animate-pulse" /></span>;
+      // AI tarama HUD — mini radar, animejs.com referansı
+      return (
+        <div className="text-brand">
+          <ScanOrb size="sm" state="scanning">
+            <span className="text-[10px] font-bold tabular-nums text-brand">{step.n}</span>
+          </ScanOrb>
+        </div>
+      );
     }
     if (step.status === 'skipped') return <Circle className="h-5 w-5 text-muted-foreground/40" />;
     return (
