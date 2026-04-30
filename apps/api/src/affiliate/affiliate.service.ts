@@ -37,6 +37,27 @@ export class AffiliateService {
       return { enrolled: false };
     }
 
+    // Tier 1 — kullanicinin dogrudan davet ettigi kullanicilar
+    const tier1 = affiliate.referrals;
+    const tier1UserIds = tier1.map((r) => r.referredUserId).filter((id): id is string => !!id);
+
+    // Tier 2 — tier 1'deki kullanicilarin kendi affiliate hesaplarinin referrals'i
+    // (multi-level network: davetlim de affiliate olduysa, onun davetlileri benim 2. seviyem)
+    let tier2: any[] = [];
+    if (tier1UserIds.length > 0) {
+      const subAffiliates = await this.prisma.affiliate.findMany({
+        where: { userId: { in: tier1UserIds } },
+        include: {
+          referrals: { orderBy: { clickedAt: 'desc' }, take: 30 },
+        },
+      });
+      for (const sub of subAffiliates) {
+        for (const r of sub.referrals) {
+          tier2.push({ ...r, tier: 2, parentUserId: sub.userId });
+        }
+      }
+    }
+
     return {
       enrolled: true,
       refCode: affiliate.refCode,
@@ -46,7 +67,10 @@ export class AffiliateService {
       totalCommission: affiliate.totalCommission,
       totalPaid: affiliate.totalPaid,
       pendingPayout: Number(affiliate.totalCommission) - Number(affiliate.totalPaid),
-      referrals: affiliate.referrals,
+      referrals: tier1.map((r) => ({ ...r, tier: 1 })),
+      tier2Referrals: tier2,
+      networkSize: tier1.length + tier2.length,
+      networkLevels: tier2.length > 0 ? 2 : (tier1.length > 0 ? 1 : 0),
     };
   }
 
