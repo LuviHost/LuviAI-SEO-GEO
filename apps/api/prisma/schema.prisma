@@ -963,3 +963,35 @@ model KvStore {
   @@index([expiresAt])
   @@map("kv_store")
 }
+
+// AppSetting — runtime degistirilebilen operasyonel/plan/model ayarlari.
+// Secret olmayan, admin panelden yonetilen anahtarlar. Settings cache i 30sn TTL,
+// degisiklik audit log a yazilir. Eski .env degerlerinden goc edildi.
+model AppSetting {
+  key         String   @id           // ARTICLE_GENERATION_DISABLED, PLAN_PRO_PRICE, vb.
+  value       String   @db.Text      // hep string olarak saklanir, type alanı kasti yorumla
+  type        String                  // "boolean" | "int" | "string" | "enum"
+  category    String                  // "toggle" | "plan" | "model" | "limit"
+  description String?  @db.Text      // admin panelde gosterilen aciklama
+  updatedAt   DateTime @updatedAt
+  updatedBy   String?                // user id
+
+  @@index([category])
+  @@map("app_settings")
+}
+
+// SettingAuditLog — kim, hangi anahtari, ne zaman, neye degistirdi.
+model SettingAuditLog {
+  id         String   @id @default(cuid())
+  key        String                            // AppSetting.key
+  oldValue   String?  @db.Text
+  newValue   String   @db.Text
+  changedBy  String                            // user id
+  changedAt  DateTime @default(now())
+  userAgent  String?  @db.Text
+  ipAddress  String?
+
+  @@index([key, changedAt])
+  @@index([changedBy, changedAt])
+  @@map("setting_audit_logs")
+}

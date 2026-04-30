@@ -456,6 +456,19 @@ export const api = {
       { method: 'POST', body: JSON.stringify(body) },
     ),
 
+  // Admin -> Settings (runtime ayar yönetimi)
+  getAdminSettings: () => request<any[]>('/admin/settings'),
+  getAdminSettingsGrouped: () => request<Record<string, any[]>>('/admin/settings?grouped=1'),
+  updateAdminSetting: (key: string, value: string | number | boolean) =>
+    request<{ key: string; value: string; unchanged: boolean; oldValue?: string }>(
+      `/admin/settings/${encodeURIComponent(key)}`,
+      { method: 'PUT', body: JSON.stringify({ value }) },
+    ),
+  getAdminSettingsAudit: (limit = 100) =>
+    request<any[]>(`/admin/settings/audit?limit=${limit}`),
+  getAdminSettingAudit: (key: string) =>
+    request<any[]>(`/admin/settings/${encodeURIComponent(key)}/audit`),
+
   // Me (login olmuş kullanıcı)
   getMe: () => request<any>('/me'),
   getMyDashboard: () => request<any>('/me/dashboard'),

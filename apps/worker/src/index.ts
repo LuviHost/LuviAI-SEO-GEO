@@ -38,6 +38,7 @@ import { AbTestManagerService } from '../../api/dist/ads/ab-test-manager.service
 import { KeywordOptimizerService } from '../../api/dist/ads/keyword-optimizer.service.js';
 import { BudgetShifterService } from '../../api/dist/ads/budget-shifter.service.js';
 import { AutoBoostService } from '../../api/dist/ads/auto-boost.service.js';
+import { SettingsService } from '../../api/dist/settings/settings.service.js';
 
 const log = new Logger('Worker');
 
@@ -69,6 +70,7 @@ async function bootstrap() {
     adsBudgetShift: app.get(BudgetShifterService),
     adsAutoBoost: app.get(AutoBoostService),
     prisma: app.get(PrismaService),
+    settings: app.get(SettingsService),
   };
 
   log.log('🔧 Worker DI hazır, BullMQ bağlanıyor');
@@ -100,7 +102,7 @@ async function bootstrap() {
     GENERATE_ARTICLE: async ({ siteId, topic, skipImages, autoPublish, targetIds, articleId }) => {
       // TEST GUARD — ARTICLE_GENERATION_DISABLED=1 oldugunda LLM/imaj API'lerine hic gitme.
       // Article kaydı SCHEDULED’da kalır, kullanıcı flag’ı kapatınca tekrar işlenir.
-      if (process.env.ARTICLE_GENERATION_DISABLED === '1') {
+      if (await services.settings.getBoolean('ARTICLE_GENERATION_DISABLED')) {
         log.warn(`[${siteId}] GENERATE_ARTICLE atlandı (ARTICLE_GENERATION_DISABLED=1) topic=${topic}`);
         if (articleId) {
           await services.prisma.article.update({
@@ -194,7 +196,7 @@ async function bootstrap() {
         log.warn(`[${siteId}] Platform detect fail: ${err.message}`);
       }
 
-      const articleGenDisabled = process.env.ARTICLE_GENERATION_DISABLED === '1';
+      const articleGenDisabled = await services.settings.getBoolean('ARTICLE_GENERATION_DISABLED');
       let scheduleResult: any;
       if (articleGenDisabled) {
         log.warn(`[${siteId}] [5/5] Tier-1 takvim atlandı (ARTICLE_GENERATION_DISABLED=1)`);
@@ -247,7 +249,7 @@ async function bootstrap() {
      * SCHEDULED makaleleri kotasi yetenler icin uretime alir.
      */
     PROCESS_SCHEDULED: async () => {
-      if (process.env.ARTICLE_GENERATION_DISABLED === '1') {
+      if (await services.settings.getBoolean('ARTICLE_GENERATION_DISABLED')) {
         log.warn('PROCESS_SCHEDULED atlandı (ARTICLE_GENERATION_DISABLED=1)');
         return { processed: 0, skippedQuota: 0, disabled: true };
       }

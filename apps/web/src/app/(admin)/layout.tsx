@@ -11,6 +11,7 @@ const ADMIN_NAV = [
   { href: '/admin/invoices', label: 'Faturalar' },
   { href: '/admin/sites', label: 'Siteler' },
   { href: '/admin/jobs', label: 'Hatalı İşler' },
+  { href: '/admin/settings', label: 'Ayarlar' },
 ];
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
