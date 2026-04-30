@@ -32,4 +32,21 @@ export class AffiliateController {
   check(@Param('refCode') refCode: string) {
     return this.affiliate.trackClick(refCode);
   }
+
+  /**
+   * Internal — NextAuth signIn callback'inden çağrılır.
+   * Yeni user oluşturulduktan sonra luvi_ref cookie değeri ile bağlantıyı kurar.
+   */
+  @Public()
+  @Post('attribute')
+  async attribute(@Req() req: Request, @Body() body: { userId: string; refCode: string }) {
+    const internalKey = req.headers['x-internal-key'];
+    const expected = process.env.INTERNAL_API_KEY ?? process.env.NEXTAUTH_SECRET ?? process.env.AUTH_SECRET;
+    if (!expected || internalKey !== expected) {
+      throw new ForbiddenException('Internal key mismatch');
+    }
+    if (!body?.userId || !body?.refCode) return { ok: false };
+    await this.affiliate.linkUserOnSignup(body.userId, body.refCode);
+    return { ok: true };
+  }
 }

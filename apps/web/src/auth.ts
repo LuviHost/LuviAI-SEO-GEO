@@ -69,7 +69,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (!user.email) return false;
       const existing = await prisma.user.findUnique({ where: { email: user.email } });
       if (!existing) {
-        await prisma.user.create({
+        const created = await prisma.user.create({
           data: {
             email: user.email,
             name: user.name ?? null,
@@ -82,18 +82,38 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           },
         });
 
-        // Welcome maili — fire-and-forget; signIn'i blok etmez
         const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
         const internalKey = process.env.INTERNAL_API_KEY ?? process.env.NEXTAUTH_SECRET ?? '';
+
+        // Welcome maili — fire-and-forget; signIn'i blok etmez
         if (internalKey) {
           fetch(`${apiBase}/api/auth/welcome-hook`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'x-internal-key': internalKey },
             body: JSON.stringify({ email: user.email }),
           }).catch((err) => {
-            // sessizce log — kullaniciyi blok etme
             console.warn('[auth] welcome-hook error:', err?.message);
           });
+        }
+
+        // Affiliate attribution — luvi_ref cookie varsa yeni user'ı affiliate'a bağla
+        if (internalKey) {
+          try {
+            const { cookies } = await import('next/headers');
+            const cookieStore = await cookies();
+            const refCode = cookieStore.get('luvi_ref')?.value;
+            if (refCode) {
+              fetch(`${apiBase}/api/affiliate/attribute`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-internal-key': internalKey },
+                body: JSON.stringify({ userId: created.id, refCode }),
+              }).catch((err) => {
+                console.warn('[auth] affiliate attribute error:', err?.message);
+              });
+            }
+          } catch (err: any) {
+            console.warn('[auth] affiliate cookie read fail:', err?.message);
+          }
         }
       }
       return true;

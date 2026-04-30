@@ -15,6 +15,27 @@ const SESSION_COOKIE_NAMES = [
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
+  // Affiliate ref tracking — ?ref=CODE query parametresi varsa cookie set et.
+  // 60 gün TTL. Mevcut cookie varsa override etme (ilk gelen ref kazanır).
+  // URL'den ref'i temizleyip clean URL'e rewrite et (kullanıcı paylaşırsa
+  // ref kodu kazara dağılmasın).
+  const refParam = req.nextUrl.searchParams.get('ref');
+  if (refParam && /^[a-z0-9-_]{4,64}$/i.test(refParam)) {
+    const url = req.nextUrl.clone();
+    url.searchParams.delete('ref');
+    const res = NextResponse.redirect(url);
+    if (!req.cookies.has('luvi_ref')) {
+      res.cookies.set('luvi_ref', refParam, {
+        maxAge: 60 * 24 * 60 * 60,
+        path: '/',
+        sameSite: 'lax',
+        httpOnly: false, // signIn callback Server Component'tan da okuyabilsin
+      });
+    }
+    return res;
+  }
+
+
   const needsAuth = PROTECTED_PREFIXES.some(
     (p) => pathname === p || pathname.startsWith(p + '/'),
   );
