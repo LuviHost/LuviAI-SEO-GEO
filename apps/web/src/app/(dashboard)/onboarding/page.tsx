@@ -10,7 +10,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { UpgradePlanModal } from '@/components/upgrade-plan-modal';
-import { MissionMap } from '@/components/ai-scan';
 
 const NICHES = [
   'web hosting', 'e-ticaret', 'SaaS', 'eğitim', 'sağlık',
@@ -215,10 +214,34 @@ function OnboardingInner() {
   }
 
   return (
-    <div className="max-w-3xl mx-auto py-4 sm:py-8">
-      {/* Mission Map — 7-adım takımyıldız navigatörü */}
+    <div className="max-w-2xl mx-auto py-4 sm:py-8">
+      {/* Progress bar */}
       <div className="mb-6">
-        <MissionMap steps={STEPS} current={state.step} onJump={goStep} />
+        <div className="flex justify-between text-xs text-muted-foreground mb-2">
+          <span>Adım {state.step}/7 · {STEPS[state.step - 1]?.label}</span>
+          <span>{Math.round((state.step / 7) * 100)}%</span>
+        </div>
+        <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
+          <div className="h-full bg-brand transition-all duration-300" style={{ width: `${(state.step / 7) * 100}%` }} />
+        </div>
+        <div className="flex gap-1 mt-2 text-[10px]">
+          {STEPS.map((s) => (
+            <button
+              key={s.num}
+              type="button"
+              onClick={() => goStep(s.num)}
+              className={cn(
+                'flex-1 py-1 px-1 rounded transition-colors text-center',
+                s.num === state.step ? 'bg-brand text-white' :
+                s.num < state.step ? 'bg-muted hover:bg-muted/70 cursor-pointer' :
+                'text-muted-foreground/50 cursor-not-allowed',
+              )}
+              disabled={s.num > state.step}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       <Card>

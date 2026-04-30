@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { ScanOverlay } from '@/components/ai-scan';
+import { cn } from '@/lib/utils';
 
 export type PipelineStep = {
   label: string;
@@ -15,8 +15,6 @@ export type PipelineStep = {
  * Backend'in gerçek progress bilgisi yok (synchronous API call),
  * bu yüzden tahmin sürelerine göre simüle ediyoruz.
  * "running" prop'u kapatılınca otomatik gizlenir.
- *
- * Görsel: linear bar yerine "AI Scan" HUD radar (ScanOverlay).
  */
 export function PipelineProgress({
   steps,
@@ -53,16 +51,140 @@ export function PipelineProgress({
     acc += steps[i].durationMs;
     currentIdx = i + 1;
   }
+  const safeIdx = Math.min(currentIdx, steps.length - 1);
+  const current = steps[safeIdx];
+  const pct = Math.min(98, (elapsed / totalMs) * 100);
+  const remainingSec = Math.max(1, Math.ceil((totalMs - elapsed) / 1000));
+
   return (
-    <ScanOverlay
-      steps={steps}
-      elapsed={elapsed}
-      totalMs={totalMs}
-      currentIdx={currentIdx}
-      title={title}
-      className={className}
-    />
+    <div
+      className={cn(
+        'space-y-4 p-6 rounded-xl border bg-card shadow-sm',
+        className,
+      )}
+    >
+      {title && (
+        <div className="flex items-center gap-2 pb-2 border-b">
+          <Spinner />
+          <h3 className="font-semibold text-sm">{title}</h3>
+        </div>
+      )}
+
+      <div className="space-y-3">
+        <div>
+          <div className="flex items-baseline justify-between gap-2">
+            <span className="text-xs uppercase tracking-wide text-muted-foreground font-medium">
+              Adım {Math.min(safeIdx + 1, steps.length)} / {steps.length}
+            </span>
+            <span className="text-xs font-mono text-muted-foreground tabular-nums">
+              ~{remainingSec}sn kaldı
+            </span>
+          </div>
+          <div className="text-base font-semibold mt-1">{current.label}</div>
+          {current.sublabel && (
+            <div className="text-xs text-muted-foreground mt-0.5">
+              {current.sublabel}
+            </div>
+          )}
+        </div>
+
+        <div className="relative h-2 bg-muted rounded-full overflow-hidden">
+          <div
+            className="absolute inset-y-0 left-0 bg-gradient-to-r from-brand to-brand-light transition-all duration-300"
+            style={{ width: `${pct}%` }}
+          />
+          <div
+            className="absolute inset-y-0 w-20 -translate-x-full opacity-60 bg-white/50 dark:bg-white/10 blur-sm animate-[shimmer_1.6s_ease-in-out_infinite]"
+            style={{
+              left: `${pct}%`,
+            }}
+          />
+        </div>
+
+        <ol className="space-y-1.5 mt-4">
+          {steps.map((step, i) => {
+            const done = i < safeIdx;
+            const active = i === safeIdx;
+            return (
+              <li
+                key={i}
+                className={cn(
+                  'flex items-center gap-2 text-xs transition-colors',
+                  done && 'text-foreground/70',
+                  active && 'text-foreground font-medium',
+                  !done && !active && 'text-muted-foreground/50',
+                )}
+              >
+                <StepIcon done={done} active={active} />
+                <span className="truncate">{step.label}</span>
+              </li>
+            );
+          })}
+        </ol>
+      </div>
+
+      <style jsx>{`
+        @keyframes shimmer {
+          0% {
+            transform: translateX(-100%);
+          }
+          100% {
+            transform: translateX(200%);
+          }
+        }
+      `}</style>
+    </div>
   );
+}
+
+function Spinner() {
+  return (
+    <svg
+      className="h-4 w-4 animate-spin text-brand shrink-0"
+      viewBox="0 0 24 24"
+      fill="none"
+    >
+      <circle
+        cx="12"
+        cy="12"
+        r="10"
+        stroke="currentColor"
+        strokeOpacity="0.2"
+        strokeWidth="4"
+      />
+      <path
+        d="M22 12a10 10 0 0 1-10 10"
+        stroke="currentColor"
+        strokeWidth="4"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function StepIcon({ done, active }: { done: boolean; active: boolean }) {
+  if (done) {
+    return (
+      <svg className="h-3.5 w-3.5 text-green-500 shrink-0" viewBox="0 0 24 24" fill="none">
+        <path
+          d="M5 13l4 4L19 7"
+          stroke="currentColor"
+          strokeWidth="3"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    );
+  }
+  if (active) {
+    return (
+      <span className="relative h-3.5 w-3.5 shrink-0 flex items-center justify-center">
+        <span className="absolute inset-0 rounded-full bg-brand animate-ping opacity-75" />
+        <span className="relative h-2 w-2 rounded-full bg-brand" />
+      </span>
+    );
+  }
+  return <span className="h-3.5 w-3.5 rounded-full border-2 border-muted-foreground/30 shrink-0" />;
 }
 
 // Önceden tanımlı pipeline step şablonları
