@@ -1588,6 +1588,9 @@ function ArticlesStepBody({
         scheduled={scheduled}
         otherArticlesCount={otherArticles.length}
         onChanged={onRefresh ?? (() => {})}
+        socialChannels={socialChannels}
+        isChannelEnabledForArticle={(articleId, channelId) => isChannelOn(articleId, channelId)}
+        toggleChannelForArticle={(articleId, channelId, articleTitle) => toggleChannel(articleId, channelId, articleTitle)}
       />
 
       {scheduled.length > 0 && (
@@ -1811,71 +1814,23 @@ export function ContentCalendarPanel({
   scheduled,
   otherArticlesCount,
   onChanged,
+  socialChannels = [],
+  isChannelEnabledForArticle,
+  toggleChannelForArticle,
 }: {
   siteId: string;
   scheduled: any[];
   otherArticlesCount: number;
   onChanged: () => void;
+  // Per-article social pre-plan — parent'tan gelir, ortak state.
+  // socialChannels listesi yoksa rozetler yerine "Sosyal Kanal ekle" linki.
+  socialChannels?: any[];
+  isChannelEnabledForArticle?: (articleId: string, channelId: string) => boolean;
+  toggleChannelForArticle?: (articleId: string, channelId: string, articleTitle?: string) => void;
 }) {
   const [weekOffset, setWeekOffset] = useState(0); // 0 = bu hafta
   const [pendingDrop, setPendingDrop] = useState<{ date: Date; data: any; kind: 'topic' | 'article' } | null>(null);
   const [submitting, setSubmitting] = useState(false);
-
-  // Per-article social pre-plan UI — aktif sosyal kanal listesi.
-  const [socialChannels, setSocialChannels] = useState<any[]>([]);
-  // articleId -> set<channelId> (null = bilinmiyor; default = tum aktifler)
-  const [articlePrePlan, setArticlePrePlan] = useState<Record<string, Set<string> | null>>({});
-
-  useEffect(() => {
-    let cancelled = false;
-    api.listSocialChannels(siteId)
-      .then((rows) => { if (!cancelled) setSocialChannels(Array.isArray(rows) ? rows.filter((c: any) => c?.isActive) : []); })
-      .catch(() => { if (!cancelled) setSocialChannels([]); });
-    return () => { cancelled = true; };
-  }, [siteId]);
-
-  // Article'lardan baslangic pre-plan map'i kur (article.socialPrePlanChannelIds varsa onu, yoksa default = tum aktifler).
-  useEffect(() => {
-    setArticlePrePlan((prev) => {
-      const next = { ...prev };
-      for (const a of scheduled) {
-        if (next[a.id] !== undefined) continue;
-        const raw = (a as any).socialPrePlanChannelIds;
-        if (Array.isArray(raw)) next[a.id] = new Set<string>(raw as string[]);
-        else next[a.id] = null;
-      }
-      return next;
-    });
-  }, [scheduled]);
-
-  const toggleChannelForArticle = async (articleId: string, channelId: string) => {
-    const allActive = socialChannels.map((c) => c.id);
-    setArticlePrePlan((prev) => {
-      const cur = prev[articleId];
-      const set = cur ? new Set(cur) : new Set<string>(allActive); // null = default = tum aktifler
-      if (set.has(channelId)) set.delete(channelId);
-      else set.add(channelId);
-      return { ...prev, [articleId]: set };
-    });
-    // Debounced gerek yok — kart sayisi kucuk; direkt API.
-    try {
-      const cur = articlePrePlan[articleId];
-      const set = cur ? new Set(cur) : new Set<string>(allActive);
-      if (set.has(channelId)) set.delete(channelId); else set.add(channelId);
-      const arr = Array.from(set);
-      // Tum aktifler ise null gonder (default davranis)
-      const isAll = arr.length === allActive.length && allActive.every((id) => arr.includes(id));
-      await api.setArticleSocialPrePlan(siteId, articleId, isAll ? null : arr);
-    } catch (err: any) {
-      toast.error(err.message || 'Kanal tercihi kaydedilemedi');
-    }
-  };
-
-  const isChannelEnabledForArticle = (articleId: string, channelId: string): boolean => {
-    const cur = articlePrePlan[articleId];
-    if (cur === undefined || cur === null) return true; // default: tum aktiflerde acik
-    return cur.has(channelId);
-  };
 
   // Haftanin pazartesisini bul
   const weekStart = (() => {
@@ -2045,14 +2000,14 @@ export function ContentCalendarPanel({
                     {socialChannels.length > 0 ? (
                       <div className="flex flex-wrap gap-0.5 mt-1" onClick={(e) => e.stopPropagation()}>
                         {socialChannels.map((ch: any) => {
-                          const on = isChannelEnabledForArticle(a.id, ch.id);
+                          const on = isChannelEnabledForArticle ? isChannelEnabledForArticle(a.id, ch.id) : true;
                           const meta = getChannelMeta(ch.type ?? '');
                           const Icon = meta.Icon;
                           return (
                             <button
                               key={ch.id}
                               type="button"
-                              onClick={(e) => { e.stopPropagation(); toggleChannelForArticle(a.id, ch.id); }}
+                              onClick={(e) => { e.stopPropagation(); toggleChannelForArticle?.(a.id, ch.id, a.title || a.topic); }}
                               title={`${meta.shortName}: ${on ? 'paylaşımdan kaldır' : 'paylaşıma ekle'}`}
                               className={`inline-flex items-center justify-center h-5 w-5 rounded border transition-colors ${
                                 on
