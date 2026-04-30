@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 
-export function AnalyticsTab({ siteId }: { siteId: string }) {
+export function AnalyticsTab({ siteId, site }: { siteId: string; site?: any }) {
   const [overview, setOverview] = useState<any>(null);
   const [topArticles, setTopArticles] = useState<any[]>([]);
   const [trending, setTrending] = useState<any[]>([]);
@@ -63,21 +63,7 @@ export function AnalyticsTab({ siteId }: { siteId: string }) {
   }
 
   if (!overview || overview.timeSeries?.length === 0) {
-    return (
-      <Card>
-        <CardContent className="p-12 text-center">
-          <BarChart3 className="h-12 w-12 text-muted-foreground/40 mx-auto mb-4" />
-          <p className="text-muted-foreground mb-4">Henüz analytics verisi yok.</p>
-          <p className="text-xs text-muted-foreground mb-6">
-            Önce <strong>Ayarlar</strong> sekmesinden Google Search Console bağla.<br />
-            Bağlandıktan ~24 saat sonra ilk veri görünür; hemen test etmek için aşağıdaki butona bas.
-          </p>
-          <Button onClick={triggerSnapshot} disabled={refreshing}>
-            {refreshing ? 'Çekiliyor…' : 'Şimdi Çek (test)'}
-          </Button>
-        </CardContent>
-      </Card>
-    );
+    return <AnalyticsEmptyState site={site} siteId={siteId} refreshing={refreshing} onTriggerSnapshot={triggerSnapshot} />;
   }
 
   const totals = overview.totals;
@@ -265,6 +251,126 @@ function MetricCard({ icon, label, value }: { icon?: React.ReactNode; label: str
           {label}
         </div>
         <div className="text-2xl font-bold">{value}</div>
+      </CardContent>
+    </Card>
+  );
+}
+
+
+/**
+ * Analytics empty state — siteye ait GSC durumunu okur ve uygun aksiyonu gösterir.
+ *   - GSC hiç bağlı değil    → "Google Search Console Bağla" butonu (OAuth başlatır)
+ *   - GSC bağlı, veri yok    → "Şimdi Çek (test)" — manual snapshot tetikler
+ *   - GSC bağlı, property seçilmedi → "Property seç" mesajı + Ayarlar linkine yönlendirir
+ */
+function AnalyticsEmptyState({
+  site, siteId, refreshing, onTriggerSnapshot,
+}: {
+  site?: any;
+  siteId: string;
+  refreshing: boolean;
+  onTriggerSnapshot: () => void;
+}) {
+  const [connecting, setConnecting] = useState(false);
+  const [connectingGa, setConnectingGa] = useState(false);
+
+  const isGscConnected = !!site?.gscConnectedAt;
+  const hasGscProperty = !!site?.gscPropertyUrl;
+  const isGaConnected = !!site?.gaConnectedAt;
+
+  const connectGsc = async () => {
+    setConnecting(true);
+    try {
+      const { url } = await api.getGscAuthUrl(siteId);
+      window.location.href = url;
+    } catch (err: any) {
+      toast.error(err.message);
+      setConnecting(false);
+    }
+  };
+
+  const connectGa = async () => {
+    setConnectingGa(true);
+    try {
+      const { url } = await api.getGaAuthUrl(siteId);
+      window.location.href = url;
+    } catch (err: any) {
+      toast.error(err.message);
+      setConnectingGa(false);
+    }
+  };
+
+  // Hiç bağlı değil → birincil aksiyon: GSC bağla
+  if (!isGscConnected) {
+    return (
+      <Card>
+        <CardContent className="p-10 sm:p-12 text-center">
+          <div className="mx-auto mb-5 h-14 w-14 rounded-2xl bg-gradient-to-br from-brand/15 to-violet-500/15 grid place-items-center border border-brand/20">
+            <BarChart3 className="h-6 w-6 text-brand" />
+          </div>
+          <h3 className="text-lg font-semibold mb-1">Analytics henüz aktif değil</h3>
+          <p className="text-sm text-muted-foreground mb-6 max-w-md mx-auto">
+            Performans verisini görmek için önce Google Search Console'u bağla.
+            Bağlandıktan ~24 saat sonra ilk veri görünür.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-2 justify-center max-w-lg mx-auto">
+            <Button onClick={connectGsc} disabled={connecting} size="lg" className="font-mono text-xs uppercase tracking-widest">
+              <span aria-hidden className="mr-2">🔍</span>
+              {connecting ? 'Yönlendiriliyor…' : 'Google Search Console Bağla'}
+            </Button>
+            {!isGaConnected && (
+              <Button onClick={connectGa} disabled={connectingGa} size="lg" variant="outline" className="font-mono text-xs uppercase tracking-widest">
+                <span aria-hidden className="mr-2">📊</span>
+                {connectingGa ? 'Yönlendiriliyor…' : 'Google Analytics 4 Bağla'}
+              </Button>
+            )}
+          </div>
+          <p className="text-[10px] text-muted-foreground/70 font-mono uppercase tracking-wider mt-5">
+            OAuth · sadece okuma izni · istediğin zaman bağlantıyı kesebilirsin
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Bağlı ama property seçilmemiş
+  if (isGscConnected && !hasGscProperty) {
+    return (
+      <Card>
+        <CardContent className="p-10 sm:p-12 text-center">
+          <div className="mx-auto mb-5 h-14 w-14 rounded-2xl bg-amber-500/10 grid place-items-center border border-amber-500/20">
+            <BarChart3 className="h-6 w-6 text-amber-600 dark:text-amber-400" />
+          </div>
+          <h3 className="text-lg font-semibold mb-1">GSC bağlandı — şimdi property seç</h3>
+          <p className="text-sm text-muted-foreground mb-6 max-w-md mx-auto">
+            Google Search Console hesabın bağlı, ama hangi property'nin verisinin çekileceğini henüz seçmedin.
+            Veri tab'ına gidip property'yi seç, sonra geri gel.
+          </p>
+          <Button asChild size="lg" className="font-mono text-xs uppercase tracking-widest">
+            <a href={`/sites/${siteId}?tab=data#gsc`}>Property Seç →</a>
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // Bağlı + property var, ama henüz veri çekilmedi (snapshot bekleniyor)
+  return (
+    <Card>
+      <CardContent className="p-10 sm:p-12 text-center">
+        <div className="mx-auto mb-5 h-14 w-14 rounded-2xl bg-emerald-500/10 grid place-items-center border border-emerald-500/20">
+          <BarChart3 className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
+        </div>
+        <h3 className="text-lg font-semibold mb-1">GSC bağlı — ilk veri yolda</h3>
+        <p className="text-sm text-muted-foreground mb-1 max-w-md mx-auto">
+          Google Search Console aktif. İlk snapshot otomatik olarak ~24 saat içinde alınır.
+        </p>
+        <p className="text-xs text-muted-foreground mb-6 max-w-md mx-auto">
+          Beklemek istemezsen aşağıdaki butona basıp anlık snapshot tetikleyebilirsin.
+        </p>
+        <Button onClick={onTriggerSnapshot} disabled={refreshing} size="lg" className="font-mono text-xs uppercase tracking-widest">
+          {refreshing ? 'Çekiliyor…' : 'Şimdi Çek (test)'}
+        </Button>
       </CardContent>
     </Card>
   );

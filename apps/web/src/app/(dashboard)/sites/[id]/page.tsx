@@ -218,7 +218,7 @@ export default function SitePage() {
 
       {tab === "videos" && <VideoLab siteId={id} />}
       {tab === "report" && <SiteReportPanel siteId={id} site={site} />}
-      {tab === "analytics" && <AnalyticsTab siteId={id} />}
+      {tab === "analytics" && <AnalyticsTab siteId={id} site={site} />}
       {tab === "settings" && <SettingsTab siteId={id} onRefresh={refresh} />}
     </div>
   );
