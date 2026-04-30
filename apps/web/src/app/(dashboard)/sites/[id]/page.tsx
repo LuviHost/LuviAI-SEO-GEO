@@ -75,10 +75,20 @@ export default function SitePage() {
 
   // Onboarding chain calisirken (status: ONBOARDING -> AUDIT_PENDING -> AUDIT_COMPLETE -> ACTIVE)
   // veya URL flag varken ya da bir makale GENERATING/EDITING durumundayken arka planda 5sn'de bir refresh.
-  // Boylece X OAuth callback'inden donulduginde ve wizard'dan atla denildiginde de gercek durum gorulur.
-  const isOnboardingActive = site
+  // Boylece X OAuth callback'inden donulduginde ve wizard'dan atla/Beklemeden bitir denildiginde
+  // de gercek durum gorulur. NOT: Wizard 'Beklemeden bitir' status'u erken ACTIVE'e ceker ama
+  // chain (brain/audit/topics) arkada devam eder — bu yuzden recentlyCreated + missing-data sezgisi
+  // ile polling'i ACTIVE durumda da aciyoruz.
+  const statusOnboarding = site
     ? !['ACTIVE', 'PAUSED', 'ERROR'].includes(site.status)
     : false;
+  const recentlyCreated = site?.createdAt
+    ? Date.now() - new Date(site.createdAt).getTime() < 10 * 60_000
+    : false;
+  const auditMissing = !audit;
+  const brainCompetitorsMissing = !site?.brain || !(site.brain?.competitors?.length);
+  const chainStillRunning = recentlyCreated && (auditMissing || brainCompetitorsMissing);
+  const isOnboardingActive = statusOnboarding || chainStillRunning;
   const hasInflightArticle = articles.some(
     (a) => a?.status === 'GENERATING' || a?.status === 'EDITING',
   );
