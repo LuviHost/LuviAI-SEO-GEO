@@ -1,70 +1,68 @@
 'use client';
 
+import { Rocket } from 'lucide-react';
+
 /**
  * Next.js App Router otomatik loading boundary.
- * /sites/[id] sayfasi yuklenirken gosterilir.
- * Dashboard'daki SiteCard "leaving" animasyonu ile uyumlu — brand glow + skeleton.
+ * /sites/[id] yuklenirken gosterilir.
+ * Dashboard'daki PageTransitionOverlay ile gorsel sureklilik (orbital + brand orb)
+ * sagladigindan kullanici sahnenin kesintisiz devam ettigini hisseder.
  */
 export default function SitesIdLoading() {
   return (
-    <div className="relative min-h-[60vh] space-y-8 animate-[fadeInUp_300ms_ease-out_both]">
-      {/* Background brand glow */}
-      <div className="pointer-events-none absolute -top-20 left-1/2 -translate-x-1/2 h-72 w-[600px] rounded-full bg-brand/15 blur-[120px]" />
-      <div className="pointer-events-none absolute top-40 right-0 h-72 w-72 rounded-full bg-violet-500/10 blur-[120px]" />
+    <div className="relative min-h-[80vh] grid place-items-center">
+      {/* Background gradient mesh */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+        <div
+          className="absolute -top-1/4 left-1/2 -translate-x-1/2 h-[120vh] w-[120vh] rounded-full bg-brand/15 blur-[120px]"
+          style={{ animation: 'orbBreathe 2.4s ease-in-out infinite' }}
+        />
+        <div
+          className="absolute top-1/3 left-1/4 h-72 w-72 rounded-full bg-violet-500/20 blur-[100px]"
+          style={{ animation: 'orbBreathe 3s ease-in-out infinite 0.4s' }}
+        />
+        <div
+          className="absolute bottom-1/4 right-1/4 h-72 w-72 rounded-full bg-fuchsia-500/15 blur-[100px]"
+          style={{ animation: 'orbBreathe 2.6s ease-in-out infinite 0.8s' }}
+        />
+      </div>
 
-      {/* Header skeleton */}
-      <div className="relative">
-        <div className="flex items-center gap-2 mb-2">
-          <span className="h-1.5 w-1.5 rounded-full bg-brand animate-pulse" />
-          <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-brand font-semibold">
-            Site agent yükleniyor…
-          </span>
+      {/* Merkez orbital sistem */}
+      <div className="relative flex flex-col items-center gap-8" style={{ animation: 'fadeInUp 500ms ease-out both' }}>
+        <div className="relative h-44 w-44 sm:h-56 sm:w-56">
+          {/* Pulse rings */}
+          <div className="absolute inset-0 rounded-full border-2 border-brand/50" style={{ animation: 'pulseRing 1.6s ease-out infinite' }} />
+          <div className="absolute inset-0 rounded-full border-2 border-violet-500/40" style={{ animation: 'pulseRing 1.6s ease-out infinite 0.5s' }} />
+          <div className="absolute inset-0 rounded-full border-2 border-fuchsia-500/30" style={{ animation: 'pulseRing 1.6s ease-out infinite 1s' }} />
+
+          {/* Orbital rings */}
+          <div className="absolute inset-2 rounded-full border border-dashed border-brand/40" style={{ animation: 'orbitalSpin 8s linear infinite' }}>
+            <div className="absolute -top-1.5 left-1/2 -translate-x-1/2 h-3 w-3 rounded-full bg-brand shadow-[0_0_20px_rgb(124_58_237/0.8)]" />
+          </div>
+          <div className="absolute inset-6 rounded-full border border-violet-400/30" style={{ animation: 'orbitalSpinReverse 5s linear infinite' }}>
+            <div className="absolute top-1/2 -right-1 -translate-y-1/2 h-2 w-2 rounded-full bg-violet-400 shadow-[0_0_12px_rgb(167_139_250/0.9)]" />
+          </div>
+
+          {/* Merkez orb */}
+          <div
+            className="absolute inset-12 rounded-full bg-gradient-to-br from-brand via-violet-500 to-fuchsia-500 shadow-[0_0_60px_rgba(124,58,237,0.7),0_0_120px_rgba(217,70,239,0.4)] grid place-items-center"
+            style={{ animation: 'orbBreathe 1.8s ease-in-out infinite' }}
+          >
+            <Rocket className="h-7 w-7 sm:h-9 sm:w-9 text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.4)]" />
+          </div>
         </div>
-        <div className="h-9 w-72 max-w-full rounded-md bg-muted/40 animate-pulse" />
-        <div className="h-4 w-48 max-w-full rounded bg-muted/40 animate-pulse mt-3" />
-      </div>
 
-      {/* Tabs skeleton */}
-      <div className="flex gap-3 border-b">
-        {[60, 90, 60, 75, 90, 60].map((w, i) => (
-          <div
-            key={i}
-            className="h-9 rounded-t bg-muted/30 animate-pulse"
-            style={{ width: `${w}px`, animationDelay: `${i * 50}ms` }}
-          />
-        ))}
-      </div>
-
-      {/* Content skeleton — KPI grid + content blocks */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        {[0, 1, 2, 3].map((i) => (
-          <div
-            key={i}
-            className="h-28 rounded-xl border bg-card relative overflow-hidden"
-            style={{ animation: `fadeInUp 400ms ease-out ${i * 60 + 100}ms both` }}
-          >
-            <div className="absolute inset-0 -translate-x-full animate-[shimmer_1.6s_infinite] bg-gradient-to-r from-transparent via-white/[0.05] to-transparent" />
+        <div className="text-center" style={{ animation: 'fadeInUp 600ms ease-out 200ms both' }}>
+          <div className="flex items-center justify-center gap-2 mb-3">
+            <span className="h-1.5 w-1.5 rounded-full bg-brand animate-pulse" />
+            <span className="font-mono text-[10px] uppercase tracking-[0.4em] text-brand font-semibold">
+              Site Agent · Booting
+            </span>
+            <span className="h-1.5 w-1.5 rounded-full bg-brand animate-pulse" />
           </div>
-        ))}
-      </div>
-
-      <div className="space-y-3">
-        {[0, 1, 2].map((i) => (
-          <div
-            key={i}
-            className="h-20 rounded-xl border bg-card relative overflow-hidden"
-            style={{ animation: `fadeInUp 400ms ease-out ${i * 80 + 240}ms both` }}
-          >
-            <div className="absolute inset-0 -translate-x-full animate-[shimmer_1.6s_infinite] bg-gradient-to-r from-transparent via-white/[0.05] to-transparent" />
+          <div className="font-mono text-xs uppercase tracking-[0.25em] text-foreground/70" style={{ animation: 'textShimmer 1.4s ease-in-out infinite' }}>
+            Brain · Topic engine · Channels
           </div>
-        ))}
-      </div>
-
-      {/* Center pulsating brand orb (extra polish) */}
-      <div className="pointer-events-none absolute inset-0 grid place-items-center">
-        <div className="relative">
-          <span className="absolute inset-0 rounded-full bg-brand/30 blur-2xl animate-ping" />
-          <span className="relative block h-10 w-10 rounded-full bg-gradient-to-br from-brand to-violet-500 shadow-[0_0_40px_rgb(124_58_237/0.6)]" />
         </div>
       </div>
 
@@ -73,8 +71,26 @@ export default function SitesIdLoading() {
           from { opacity: 0; transform: translateY(8px); }
           to { opacity: 1; transform: translateY(0); }
         }
-        @keyframes shimmer {
-          100% { transform: translateX(100%); }
+        @keyframes orbitalSpin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+        @keyframes orbitalSpinReverse {
+          from { transform: rotate(360deg); }
+          to { transform: rotate(0deg); }
+        }
+        @keyframes pulseRing {
+          0%   { transform: scale(0.6); opacity: 0.7; }
+          80%  { opacity: 0; }
+          100% { transform: scale(2.4); opacity: 0; }
+        }
+        @keyframes orbBreathe {
+          0%, 100% { transform: scale(1);   filter: brightness(1); }
+          50%      { transform: scale(1.08); filter: brightness(1.25); }
+        }
+        @keyframes textShimmer {
+          0%, 100% { opacity: 0.55; }
+          50%      { opacity: 1; }
         }
       `}</style>
     </div>
