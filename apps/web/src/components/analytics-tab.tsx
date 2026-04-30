@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { TrendingUp, TrendingDown, Lightbulb, BarChart3, MousePointerClick, Eye, Activity, Target as TargetIcon, Clock } from 'lucide-react';
 import { toast } from 'sonner';
@@ -48,6 +48,30 @@ export function AnalyticsTab({ siteId, site }: { siteId: string; site?: any }) {
   };
 
   useEffect(() => { refresh(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [siteId, site?.gscPropertyUrl]);
+
+  // Auto-trigger snapshot: GSC bağlı + property seçili + veri yok → otomatik çek (kullanıcı buton tıklamasın).
+  // autoTriggeredRef ile aynı session'da tekrar tetiklemeyi engelle (StrictMode + re-render guard).
+  const autoTriggeredRef = useRef(false);
+  useEffect(() => {
+    if (loading) return;
+    if (!site?.gscPropertyUrl) return;
+    if (overview && overview.timeSeries?.length > 0) return;
+    if (autoTriggeredRef.current) return;
+    if (refreshing) return;
+    autoTriggeredRef.current = true;
+    (async () => {
+      setRefreshing(true);
+      try {
+        await api.triggerSnapshotNow(siteId);
+        await refresh();
+      } catch (_err) {
+        // Sessizce yut — empty state'te kullanıcıya 'veri ~24 saat sonra' mesajı gösterilir
+      } finally {
+        setRefreshing(false);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, site?.gscPropertyUrl, overview]);
 
   const triggerSnapshot = async () => {
     setRefreshing(true);
@@ -345,23 +369,28 @@ function AnalyticsEmptyState({
     );
   }
 
-  // Bağlı + property var, ama henüz veri çekilmedi (snapshot bekleniyor)
+  // Bağlı + property var, ama henüz veri çekilmedi (snapshot otomatik tetiklenir)
   return (
     <Card>
       <CardContent className="p-10 sm:p-12 text-center">
-        <div className="mx-auto mb-5 h-14 w-14 rounded-2xl bg-emerald-500/10 grid place-items-center border border-emerald-500/20">
+        <div className="mx-auto mb-5 h-14 w-14 rounded-2xl bg-emerald-500/10 grid place-items-center border border-emerald-500/20 relative">
           <BarChart3 className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
+          {refreshing && (
+            <span className="absolute -inset-1 rounded-2xl border-2 border-emerald-500/40 animate-pulse" />
+          )}
         </div>
-        <h3 className="text-lg font-semibold mb-1">GSC bağlı — ilk veri yolda</h3>
-        <p className="text-sm text-muted-foreground mb-1 max-w-md mx-auto">
-          Google Search Console aktif. İlk snapshot otomatik olarak ~24 saat içinde alınır.
+        <h3 className="text-lg font-semibold mb-1">
+          {refreshing ? 'Snapshot alınıyor…' : 'GSC bağlı — ilk veri yolda'}
+        </h3>
+        <p className="text-sm text-muted-foreground max-w-md mx-auto">
+          {refreshing
+            ? 'Google Search Console\'dan veri otomatik çekiliyor. Bu birkaç saniye sürebilir.'
+            : 'Property\'inde henüz indekslenmiş veri olmayabilir. Veri görünmeye başladığında otomatik gelir (~24 saat).'}
         </p>
-        <p className="text-xs text-muted-foreground mb-6 max-w-md mx-auto">
-          Beklemek istemezsen aşağıdaki butona basıp anlık snapshot tetikleyebilirsin.
-        </p>
-        <Button onClick={onTriggerSnapshot} disabled={refreshing} size="lg" className="font-mono text-xs uppercase tracking-widest">
-          {refreshing ? 'Çekiliyor…' : 'Şimdi Çek (test)'}
-        </Button>
+        <div className="flex items-center justify-center gap-2 mt-5 font-mono text-[10px] uppercase tracking-widest text-muted-foreground/70">
+          <span className={`h-1.5 w-1.5 rounded-full ${refreshing ? 'bg-emerald-500 animate-pulse' : 'bg-muted-foreground/40'}`} />
+          {refreshing ? 'Snapshot · running' : 'GSC · connected'}
+        </div>
       </CardContent>
     </Card>
   );
