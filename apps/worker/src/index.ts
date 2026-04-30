@@ -81,6 +81,10 @@ async function bootstrap() {
 
   const handlers: Record<string, (data: any) => Promise<any>> = {
     BRAIN_GENERATE: async ({ siteId }) => {
+      if (await services.settings.getBoolean('AI_GLOBAL_DISABLED')) {
+        log.warn(`[${siteId}] BRAIN_GENERATE atlandı (AI_GLOBAL_DISABLED=1)`);
+        return { skipped: true, reason: 'AI_GLOBAL_DISABLED' };
+      }
       await services.brainGen.runGeneration(siteId);
       return { ok: true };
     },
@@ -95,22 +99,29 @@ async function bootstrap() {
     },
 
     TOPIC_ENGINE: async ({ siteId }) => {
+      if (await services.settings.getBoolean('AI_GLOBAL_DISABLED')) {
+        log.warn(`[${siteId}] TOPIC_ENGINE atlandı (AI_GLOBAL_DISABLED=1)`);
+        return { skipped: true, reason: 'AI_GLOBAL_DISABLED' };
+      }
       const queue = await services.topics.runEngine(siteId);
       return { queueId: queue.id, tier1Count: (queue.tier1Topics as any[])?.length ?? 0 };
     },
 
     GENERATE_ARTICLE: async ({ siteId, topic, skipImages, autoPublish, targetIds, articleId }) => {
-      // TEST GUARD — ARTICLE_GENERATION_DISABLED=1 oldugunda LLM/imaj API'lerine hic gitme.
-      // Article kaydı SCHEDULED’da kalır, kullanıcı flag’ı kapatınca tekrar işlenir.
-      if (await services.settings.getBoolean('ARTICLE_GENERATION_DISABLED')) {
-        log.warn(`[${siteId}] GENERATE_ARTICLE atlandı (ARTICLE_GENERATION_DISABLED=1) topic=${topic}`);
+      // TEST GUARD — ARTICLE_GENERATION_DISABLED veya AI_GLOBAL_DISABLED ise LLM/imaj API'lerine hic gitme.
+      // Article kaydı SCHEDULED'da kalır, kullanıcı flag'ı kapatınca tekrar işlenir.
+      const aiOff = await services.settings.getBoolean('AI_GLOBAL_DISABLED');
+      const articleOff = await services.settings.getBoolean('ARTICLE_GENERATION_DISABLED');
+      if (aiOff || articleOff) {
+        const reason = aiOff ? 'AI_GLOBAL_DISABLED' : 'ARTICLE_GENERATION_DISABLED';
+        log.warn(`[${siteId}] GENERATE_ARTICLE atlandı (${reason}=1) topic=${topic}`);
         if (articleId) {
           await services.prisma.article.update({
             where: { id: articleId },
             data: { status: 'SCHEDULED' as any },
           }).catch(() => {});
         }
-        return { skipped: true, reason: 'ARTICLE_GENERATION_DISABLED' };
+        return { skipped: true, reason };
       }
       try {
         const result = await services.pipeline.runPipeline({
@@ -170,15 +181,31 @@ async function bootstrap() {
       const site = await services.prisma.site.findUniqueOrThrow({ where: { id: siteId } });
       const autopilot = (site as any).autopilot !== false;
 
-      log.log(`[${siteId}] [1/5] Brain üretiliyor`);
-      await services.brainGen.runGeneration(siteId);
+      const aiGlobalOff = await services.settings.getBoolean('AI_GLOBAL_DISABLED');
 
-      log.log(`[${siteId}] [2/5] Audit (AI citation otomatik)`);
-      const audit = await services.audit.runAudit(siteId);
+      if (aiGlobalOff) {
+        log.warn(`[${siteId}] [1/5] Brain atlandı (AI_GLOBAL_DISABLED=1)`);
+      } else {
+        log.log(`[${siteId}] [1/5] Brain üretiliyor`);
+        await services.brainGen.runGeneration(siteId);
+      }
 
-      log.log(`[${siteId}] [3/5] Topic engine`);
-      const queue = await services.topics.runEngine(siteId);
-      const tier1Count = ((queue.tier1Topics as any[]) ?? []).length;
+      let audit: any = null;
+      if (aiGlobalOff) {
+        log.warn(`[${siteId}] [2/5] Audit atlandı (AI_GLOBAL_DISABLED=1)`);
+      } else {
+        log.log(`[${siteId}] [2/5] Audit (AI citation otomatik)`);
+        audit = await services.audit.runAudit(siteId);
+      }
+
+      let queue: any = { id: null, tier1Topics: [] };
+      if (aiGlobalOff) {
+        log.warn(`[${siteId}] [3/5] Topic engine atlandı (AI_GLOBAL_DISABLED=1)`);
+      } else {
+        log.log(`[${siteId}] [3/5] Topic engine`);
+        queue = await services.topics.runEngine(siteId);
+      }
+      const tier1Count = ((queue?.tier1Topics as any[]) ?? []).length;
 
       log.log(`[${siteId}] [4/5] Platform tespiti`);
       try {
@@ -196,7 +223,7 @@ async function bootstrap() {
         log.warn(`[${siteId}] Platform detect fail: ${err.message}`);
       }
 
-      const articleGenDisabled = await services.settings.getBoolean('ARTICLE_GENERATION_DISABLED');
+      const articleGenDisabled = aiGlobalOff || await services.settings.getBoolean('ARTICLE_GENERATION_DISABLED');
       let scheduleResult: any;
       if (articleGenDisabled) {
         log.warn(`[${siteId}] [5/5] Tier-1 takvim atlandı (ARTICLE_GENERATION_DISABLED=1)`);
@@ -217,12 +244,16 @@ async function bootstrap() {
           log.warn(`[${siteId}] Auto-fix atlandi: ${err.message}`);
         }
 
-        // Ilk AI citation snapshot — baseline gunluk takip icin
-        try {
-          await services.citationTracker.snapshotSite(siteId);
-          log.log(`[${siteId}] AI citation baseline snapshot kaydedildi`);
-        } catch (err: any) {
-          log.warn(`[${siteId}] Citation snapshot atlandi: ${err.message}`);
+        // Ilk AI citation snapshot — baseline gunluk takip icin (AI_GLOBAL_DISABLED ise atla)
+        if (aiGlobalOff) {
+          log.warn(`[${siteId}] Citation snapshot atlandi (AI_GLOBAL_DISABLED=1)`);
+        } else {
+          try {
+            await services.citationTracker.snapshotSite(siteId);
+            log.log(`[${siteId}] AI citation baseline snapshot kaydedildi`);
+          } catch (err: any) {
+            log.warn(`[${siteId}] Citation snapshot atlandi: ${err.message}`);
+          }
         }
       }
 
@@ -234,8 +265,8 @@ async function bootstrap() {
       log.log(`[${siteId}] ✅ Onboarding tamamlandi — audit, ${tier1Count} tier-1, ${scheduleResult.scheduled} makale takvimde${scheduleResult.isTrial ? ' (TRIAL: 1.makale uretiliyor, kalanlar paket bekliyor)' : ''}${autopilot ? ' [OTOPILOT]' : ''}`);
       return {
         onboarded: true,
-        audit: audit.id,
-        queue: queue.id,
+        audit: audit?.id ?? null,
+        queue: queue?.id ?? null,
         tier1Count,
         scheduledArticles: scheduleResult.scheduled,
         immediateArticleId: scheduleResult.immediate,
@@ -261,6 +292,10 @@ async function bootstrap() {
      * regenerate eder. AI search engine'lerin sitenizi ezbere bilmesi icin.
      */
     LLMS_FULL_BUILD: async ({ siteId }: { siteId?: string }) => {
+      if (await services.settings.getBoolean('AI_GLOBAL_DISABLED')) {
+        log.warn('LLMS_FULL_BUILD atlandı (AI_GLOBAL_DISABLED=1)');
+        return { skipped: true, reason: 'AI_GLOBAL_DISABLED' };
+      }
       if (siteId) {
         return services.llmsBuilder.build(siteId);
       }
@@ -285,6 +320,10 @@ async function bootstrap() {
      * Claude/Gemini/OpenAI/Perplexity'de site URL alintilanma skorunu DB'ye yaz.
      */
     AI_CITATION_DAILY: async () => {
+      if (await services.settings.getBoolean('AI_GLOBAL_DISABLED')) {
+        log.warn('AI_CITATION_DAILY atlandı (AI_GLOBAL_DISABLED=1)');
+        return { skipped: true, reason: 'AI_GLOBAL_DISABLED' };
+      }
       return services.citationTracker.snapshotAllActive();
     },
 

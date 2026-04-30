@@ -29,6 +29,15 @@ export interface SettingMeta {
 export const SETTINGS_CATALOG: SettingMeta[] = [
   // Operasyonel toggle
   {
+    key: 'AI_GLOBAL_DISABLED',
+    type: 'boolean',
+    category: 'toggle',
+    default: '0',
+    description: 'TEST: 1 = TUM AI cagrilari (Anthropic / OpenAI / Gemini) kapanir. Brain, Topic engine, Article generation, AI citation, LLMS-full build hepsi no-op olur. UI mock veriyle calisir.',
+    envFallback: true,
+    hot: true,
+  },
+  {
     key: 'ARTICLE_GENERATION_DISABLED',
     type: 'boolean',
     category: 'toggle',
