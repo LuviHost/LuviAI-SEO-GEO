@@ -122,6 +122,39 @@ function OnboardingInner() {
     }
   }, [hydrated, params]);
 
+  // ────────────────────────────────────────────────────────────────────
+  // Stale siteId guard — gating render
+  // localStorage'a kayitli siteId backend'de SİLİNMİŞ olabilir; bu durumda
+  // step component'leri 404 fetch'leri yapip toast'a düşürüyor. Cözüm:
+  // hidrasyondan SONRA siteId varsa once dogrula; valid degilse state'i
+  // sifirla. Validation suresince OnboardingInner govdesini render etme,
+  // boylelikle Step1/2/.../7 useEffect'leri hic tetiklenmez.
+  // ────────────────────────────────────────────────────────────────────
+  const [siteValidating, setSiteValidating] = useState(false);
+  useEffect(() => {
+    if (!hydrated) return;
+    if (!state.siteId) { setSiteValidating(false); return; }
+    setSiteValidating(true);
+    let cancelled = false;
+    (async () => {
+      try {
+        await api.getSite(state.siteId!);
+        if (!cancelled) setSiteValidating(false);
+      } catch (e: any) {
+        if (cancelled) return;
+        const status = e?.status ?? 0;
+        const msg = (e?.message ?? '').toString().toLowerCase();
+        if (status === 404 || msg.includes('not found') || msg.includes('bulunam')) {
+          try { localStorage.removeItem(STORAGE_KEY); } catch (_) { /* noop */ }
+          toast.dismiss();
+          setState({ ...DEFAULT_STATE });
+        }
+        if (!cancelled) setSiteValidating(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [hydrated, state.siteId]);
+
   const update = (patch: Partial<LocalState>) => setState((s) => ({ ...s, ...patch }));
 
   const goNext = () => update({ step: Math.min(7, state.step + 1) });
@@ -211,8 +244,17 @@ function OnboardingInner() {
     finally { setLoading(false); }
   };
 
-  if (!hydrated) {
-    return <div className="max-w-2xl mx-auto py-8 text-center text-sm text-muted-foreground">Yükleniyor…</div>;
+  if (!hydrated || siteValidating) {
+    return (
+      <MissionShell>
+        <div className="max-w-2xl mx-auto py-16 text-center">
+          <div className="inline-flex items-center gap-3 font-mono text-xs uppercase tracking-[0.2em] text-brand">
+            <span className="h-1.5 w-1.5 rounded-full bg-brand animate-pulse" />
+            <span>Bağlantı kuruluyor…</span>
+          </div>
+        </div>
+      </MissionShell>
+    );
   }
 
   const currentLabel = STEPS[state.step - 1]?.label ?? '';
