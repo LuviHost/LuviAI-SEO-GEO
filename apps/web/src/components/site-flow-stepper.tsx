@@ -55,37 +55,28 @@ export function SiteFlowStepper({
       status: site.brain?.competitors?.length ? 'done' : (onboardingMode ? 'auto-running' : 'pending'),
       hint: site.brain?.competitors?.length ? `${site.brain.competitors.length} rakip` : 'AI tespit ediyor',
     },
+    // NOT: GSC + Google Analytics step'leri buradan kaldirildi — yukaridaki
+    // "Hesaplarini bagla" tavsiye banner'i ayni baglanti islerini zaten icerir,
+    // alt akis kalabaligi yapmasin diye burada tekrar gosterilmiyor.
     {
-      id: 'gsc', n: 3, title: 'Google Search Console',
-      status: site.gscConnectedAt ? 'done' : 'skipped',
-      hint: site.gscConnectedAt ? 'Bağlı' : 'Atlandı (opsiyonel)',
-      optional: true,
-    },
-    {
-      id: 'ga4', n: 4, title: 'Google Analytics',
-      status: site.gaConnectedAt ? 'done' : 'skipped',
-      hint: site.gaConnectedAt ? 'Bağlı' : 'Atlandı (opsiyonel)',
-      optional: true,
-    },
-    {
-      id: 'social', n: 5, title: 'Sosyal Kanallar',
+      id: 'social', n: 3, title: 'Sosyal Kanallar',
       status: 'skipped', // bu step opsiyonel; gerçek durumu kart kendi içinde gösterir
       hint: 'LinkedIn + X (Twitter)',
       optional: true,
     },
     {
-      id: 'social-calendar', n: 6, title: 'Sosyal Takvim',
+      id: 'social-calendar', n: 4, title: 'Sosyal Takvim',
       status: 'skipped',
       hint: 'Plana göre haftalık otomatik post',
       optional: true,
     },
     {
-      id: 'topics', n: 7, title: 'Önerilen Makaleler',
+      id: 'topics', n: 5, title: 'Önerilen Makaleler',
       status: queue ? 'done' : (onboardingMode ? 'auto-running' : 'pending'),
       hint: queue ? `${(queue.tier1Topics ?? []).length} öneri` : 'Topic engine bekleniyor',
     },
     {
-      id: 'articles', n: 8, title: 'Makaleler',
+      id: 'articles', n: 6, title: 'Makaleler',
       status: articles.length > 0 ? 'done' : 'pending',
       hint: articles.length > 0 ? `${articles.length} makale` : 'İlk makale ücretsiz',
     },
@@ -106,6 +97,7 @@ export function SiteFlowStepper({
     if (onboardingMode) {
       initial.add('audit');
       initial.add('competitors');
+      initial.add('topics');
     }
     return initial;
   });
@@ -126,8 +118,8 @@ export function SiteFlowStepper({
   useEffect(() => {
     if (userTouched) return;
     if (!onboardingMode) return;
-    if (openSet.has(firstIncomplete) && openSet.has('audit') && openSet.has('competitors')) return;
-    setOpenSet(new Set([firstIncomplete, 'audit', 'competitors']));
+    if (openSet.has(firstIncomplete) && openSet.has('audit') && openSet.has('competitors') && openSet.has('topics')) return;
+    setOpenSet(new Set([firstIncomplete, 'audit', 'competitors', 'topics']));
   }, [firstIncomplete, onboardingMode, userTouched, openSet]);
 
   // Drag-aware: makale veya kuyruk kartı surukluyorsa tum panelleri zorla ac.
