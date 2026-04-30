@@ -184,7 +184,30 @@ async function bootstrap() {
       const aiGlobalOff = await services.settings.getBoolean('AI_GLOBAL_DISABLED');
 
       if (aiGlobalOff) {
-        log.warn(`[${siteId}] [1/5] Brain atlandı (AI_GLOBAL_DISABLED=1)`);
+        // TEST modu — sahte Brain yaz ki UI "Rakipler tespit edildi" görsün ve tutorial popup
+        // 3 koşulun da tamamlandığını anlasın. Gerçek AI çağrısı yok.
+        log.warn(`[${siteId}] [1/5] Brain MOCK yazılıyor (AI_GLOBAL_DISABLED=1)`);
+        await services.prisma.brain.upsert({
+          where: { siteId },
+          create: {
+            siteId,
+            brandVoice: { tone: 'Profesyonel ve sıcak', banned_words: [], examples: [] } as any,
+            personas: [
+              { name: 'KOBİ Sahibi', age: '35-50', expertise: 'orta', search_intent: 'çözüm', cta: 'iletişime geç' },
+            ] as any,
+            competitors: [
+              { name: 'Rakip A', url: 'https://example-a.com', strengths: ['SEO', 'içerik'], weaknesses: ['fiyat'] },
+              { name: 'Rakip B', url: 'https://example-b.com', strengths: ['marka'], weaknesses: ['UX'] },
+              { name: 'Rakip C', url: 'https://example-c.com', strengths: ['fiyat'], weaknesses: ['içerik'] },
+            ] as any,
+            seoStrategy: { pillars: [] } as any,
+            glossary: [] as any,
+            generatedBy: 'mock',
+          },
+          update: {
+            // Onceki gercek brain'i bozma
+          },
+        });
       } else {
         log.log(`[${siteId}] [1/5] Brain üretiliyor`);
         await services.brainGen.runGeneration(siteId);
@@ -192,7 +215,21 @@ async function bootstrap() {
 
       let audit: any = null;
       if (aiGlobalOff) {
-        log.warn(`[${siteId}] [2/5] Audit atlandı (AI_GLOBAL_DISABLED=1)`);
+        log.warn(`[${siteId}] [2/5] Audit MOCK yazılıyor (AI_GLOBAL_DISABLED=1)`);
+        audit = await services.prisma.audit.create({
+          data: {
+            siteId,
+            overallScore: 70,
+            geoScore: 50,
+            checks: { mock: true } as any,
+            issues: [] as any,
+            durationMs: 100,
+          },
+        });
+        await services.prisma.site.update({
+          where: { id: siteId },
+          data: { status: 'AUDIT_COMPLETE' as any },
+        }).catch(() => {});
       } else {
         log.log(`[${siteId}] [2/5] Audit (AI citation otomatik)`);
         audit = await services.audit.runAudit(siteId);
@@ -200,7 +237,30 @@ async function bootstrap() {
 
       let queue: any = { id: null, tier1Topics: [] };
       if (aiGlobalOff) {
-        log.warn(`[${siteId}] [3/5] Topic engine atlandı (AI_GLOBAL_DISABLED=1)`);
+        log.warn(`[${siteId}] [3/5] Topic engine MOCK yazılıyor (AI_GLOBAL_DISABLED=1)`);
+        const mockTier1 = [
+          { topic: 'Web Hosting Nedir? Yeni Başlayanlar İçin Rehber', score: 92, persona: 'KOBİ Sahibi', pillar: 'temel', slug: 'web-hosting-nedir', data_summary: 'Yüksek arama hacmi · KOBİ niyeti' },
+          { topic: 'En İyi Shared Hosting Karşılaştırması 2026', score: 88, persona: 'Karar Verici', pillar: 'karşılaştırma', slug: 'shared-hosting-karsilastirma', data_summary: 'Karar aşaması · ticari niyet' },
+          { topic: 'cPanel Kullanımı Adım Adım', score: 84, persona: 'Geliştirici', pillar: 'nasıl-yapılır', slug: 'cpanel-kullanimi', data_summary: 'How-to · evergreen' },
+          { topic: 'WordPress Hosting Seçim Kriterleri', score: 81, persona: 'KOBİ Sahibi', pillar: 'rehber', slug: 'wordpress-hosting-secimi', data_summary: 'Bilgi niyeti · WP odaklı' },
+          { topic: 'SSL Sertifikası Nasıl Kurulur?', score: 78, persona: 'Geliştirici', pillar: 'nasıl-yapılır', slug: 'ssl-sertifikasi-kurulum', data_summary: 'How-to · güvenlik' },
+          { topic: 'Domain Transferi Yapılırken Dikkat Edilmesi Gerekenler', score: 75, persona: 'KOBİ Sahibi', pillar: 'rehber', slug: 'domain-transferi', data_summary: 'Risk azaltma · ticari' },
+        ];
+        queue = await services.prisma.topicQueue.create({
+          data: {
+            siteId,
+            planTopics: [] as any,
+            gscOpportunities: [] as any,
+            geoGaps: [] as any,
+            competitorMoves: [] as any,
+            tier1Topics: mockTier1 as any,
+            tier2Topics: [] as any,
+            tier3Topics: [] as any,
+            improvements: [] as any,
+            totalEvaluated: mockTier1.length,
+            expiresAt: new Date(Date.now() + 7 * 24 * 3600 * 1000),
+          },
+        });
       } else {
         log.log(`[${siteId}] [3/5] Topic engine`);
         queue = await services.topics.runEngine(siteId);
