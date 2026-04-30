@@ -1988,6 +1988,7 @@ export function ContentCalendarPanel({
                       <span className="font-mono font-bold text-brand">{fmtTime(a.scheduledAt)}</span>
                       <button
                         type="button"
+                        draggable={false}
                         onClick={(e) => { e.stopPropagation(); removeArticle(a.id); }}
                         className="opacity-0 group-hover:opacity-100 text-red-500 text-[10px]"
                         title="Takvimden kaldir"
@@ -1998,7 +1999,11 @@ export function ContentCalendarPanel({
                     <p className="font-medium truncate mt-0.5">{a.title || a.topic}</p>
                     <p className="text-[9px] text-muted-foreground">{locked ? '🔒 paket' : '📅 planlı'}</p>
                     {socialChannels.length > 0 ? (
-                      <div className="flex flex-wrap gap-0.5 mt-1" onClick={(e) => e.stopPropagation()}>
+                      <div
+                        className="flex flex-wrap gap-0.5 mt-1"
+                        onClick={(e) => e.stopPropagation()}
+                        draggable={false}
+                      >
                         {socialChannels.map((ch: any) => {
                           const on = isChannelEnabledForArticle ? isChannelEnabledForArticle(a.id, ch.id) : true;
                           const meta = getChannelMeta(ch.type ?? '');
@@ -2007,6 +2012,7 @@ export function ContentCalendarPanel({
                             <button
                               key={ch.id}
                               type="button"
+                              draggable={false}
                               onClick={(e) => { e.stopPropagation(); toggleChannelForArticle?.(a.id, ch.id, a.title || a.topic); }}
                               title={`${meta.shortName}: ${on ? 'paylaşımdan kaldır' : 'paylaşıma ekle'}`}
                               className={`inline-flex items-center justify-center h-5 w-5 rounded border transition-colors ${
@@ -2024,6 +2030,7 @@ export function ContentCalendarPanel({
                     ) : (
                       <Link
                         href={`/sites/${siteId}?tab=flow&step=social` as any}
+                        draggable={false}
                         onClick={(e) => e.stopPropagation()}
                         className="block mt-1 text-[9px] text-amber-600 dark:text-amber-400 hover:underline"
                       >
