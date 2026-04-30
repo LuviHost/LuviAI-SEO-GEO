@@ -16,7 +16,6 @@ import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { PipelineProgress, PIPELINE_STEPS } from '@/components/pipeline-progress';
 import { SocialChannelsStep } from '@/components/social-channels-step';
-import { SocialCalendarStep } from '@/components/social-calendar-step';
 import { AiKeysPanel } from '@/components/ai-keys-panel';
 
 type StepStatus = 'pending' | 'auto-running' | 'done' | 'skipped';
@@ -61,22 +60,18 @@ export function SiteFlowStepper({
     {
       id: 'social', n: 3, title: 'Sosyal Kanallar',
       status: 'skipped', // bu step opsiyonel; gerçek durumu kart kendi içinde gösterir
-      hint: 'LinkedIn + X (Twitter)',
+      hint: 'LinkedIn + X (Twitter) — makale yayınlanınca seçili kanallarda otomatik paylaşılır',
       optional: true,
     },
+    // NOT: 'social-calendar' adımı kaldırıldı. Paylaşma seçimi artık her makale
+    // kartının altındaki kanal toggle rozetleriyle yapılıyor (daha az step, daha kolay UX).
     {
-      id: 'social-calendar', n: 4, title: 'Sosyal Takvim',
-      status: 'skipped',
-      hint: 'Plana göre haftalık otomatik post',
-      optional: true,
-    },
-    {
-      id: 'topics', n: 5, title: 'Önerilen Makaleler',
+      id: 'topics', n: 4, title: 'Önerilen Makaleler',
       status: queue ? 'done' : (onboardingMode ? 'auto-running' : 'pending'),
       hint: queue ? `${(queue.tier1Topics ?? []).length} öneri` : 'Topic engine bekleniyor',
     },
     {
-      id: 'articles', n: 6, title: 'Makaleler',
+      id: 'articles', n: 5, title: 'Makaleler',
       status: articles.length > 0 ? 'done' : 'pending',
       hint: articles.length > 0 ? `${articles.length} makale` : 'İlk makale ücretsiz',
     },
@@ -218,7 +213,6 @@ export function SiteFlowStepper({
           {s.id === 'gsc' && <GscStepBody site={site} onChanged={onRefresh} />}
           {s.id === 'ga4' && <Ga4StepBody site={site} onChanged={onRefresh} />}
           {s.id === 'social' && <SocialChannelsStep siteId={site.id} />}
-          {s.id === 'social-calendar' && <SocialCalendarStep siteId={site.id} articles={articles} onRefresh={onRefresh} />}
           {s.id === 'topics' && <TopicsStepBody queue={queue} articles={articles} siteId={site.id} onRefresh={onRefresh} onboardingMode={onboardingMode} />}
           {s.id === 'articles' && <ArticlesStepBody articles={articles} siteId={site.id} onRefresh={onRefresh} />}
         </StepCard>
@@ -1460,6 +1454,60 @@ function ArticlesStepBody({
     return () => clearInterval(t);
   }, [articles, onRefresh]);
 
+  // Aktif sosyal kanallar — her makalenin altında "X'te paylaş / LinkedIn'de paylaş"
+  // toggle rozetleri için.
+  const [socialChannels, setSocialChannels] = useState<any[]>([]);
+  const [articlePrePlan, setArticlePrePlan] = useState<Record<string, Set<string> | null>>({});
+
+  useEffect(() => {
+    let cancelled = false;
+    api.listSocialChannels(siteId)
+      .then((rows) => { if (!cancelled) setSocialChannels(Array.isArray(rows) ? rows.filter((c: any) => c?.isActive) : []); })
+      .catch(() => { if (!cancelled) setSocialChannels([]); });
+    return () => { cancelled = true; };
+  }, [siteId]);
+
+  useEffect(() => {
+    setArticlePrePlan((prev) => {
+      const next = { ...prev };
+      for (const a of articles) {
+        if (next[a.id] !== undefined) continue;
+        const raw = (a as any).socialPrePlanChannelIds;
+        next[a.id] = Array.isArray(raw) ? new Set<string>(raw as string[]) : null;
+      }
+      return next;
+    });
+  }, [articles]);
+
+  const isChannelOn = (articleId: string, channelId: string): boolean => {
+    const cur = articlePrePlan[articleId];
+    if (cur === undefined || cur === null) return true;
+    return cur.has(channelId);
+  };
+
+  const toggleChannel = async (articleId: string, channelId: string) => {
+    const allActive = socialChannels.map((c) => c.id);
+    const cur = articlePrePlan[articleId];
+    const set = cur ? new Set(cur) : new Set<string>(allActive);
+    if (set.has(channelId)) set.delete(channelId);
+    else set.add(channelId);
+
+    setArticlePrePlan((prev) => ({ ...prev, [articleId]: set }));
+
+    const arr = Array.from(set);
+    const isAll = arr.length === allActive.length && allActive.every((id) => arr.includes(id));
+    try {
+      await api.setArticleSocialPrePlan(siteId, articleId, isAll ? null : arr);
+      const ch = socialChannels.find((c) => c.id === channelId);
+      const channelName = (ch?.type ?? 'kanal').toUpperCase();
+      toast.success(set.has(channelId)
+        ? `${channelName}'da paylaşılacak`
+        : `${channelName}'dan kaldırıldı`);
+    } catch (err: any) {
+      toast.error(err.message || 'Kanal tercihi kaydedilemedi');
+    }
+  };
+
 
 
   // SCHEDULED makaleleri ust ust ay
@@ -1523,6 +1571,40 @@ function ArticlesStepBody({
                 </span>
               )}
             </div>
+            {!isGenerating && socialChannels.length > 0 && (
+              <div
+                className="mt-2 pt-2 border-t border-border/40 flex items-center gap-2 flex-wrap text-[11px]"
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
+              >
+                <span className="text-muted-foreground">Paylaş:</span>
+                {socialChannels.map((ch: any) => {
+                  const on = isChannelOn(a.id, ch.id);
+                  const channelLabel = (ch.type ?? '').toUpperCase();
+                  return (
+                    <button
+                      key={ch.id}
+                      type="button"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        toggleChannel(a.id, ch.id);
+                      }}
+                      title={`${on ? 'Paylaşımdan kaldır' : 'Paylaşıma ekle'} — ${ch.type}`}
+                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border transition-all ${
+                        on
+                          ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/20'
+                          : 'bg-muted border-muted-foreground/20 text-muted-foreground/60 hover:bg-muted/80 line-through'
+                      }`}
+                    >
+                      {on ? '✓' : '○'} {channelLabel}
+                    </button>
+                  );
+                })}
+                <span className="text-[10px] text-muted-foreground/70 ml-auto">
+                  {a.status === 'PUBLISHED' ? 'Yayında — sonraki güncellemede' : 'Yayınlanınca paylaşılır'}
+                </span>
+              </div>
+            )}
           </div>
         );
         return isGenerating ? (
