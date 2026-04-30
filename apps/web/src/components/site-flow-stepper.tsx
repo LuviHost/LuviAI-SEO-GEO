@@ -204,7 +204,7 @@ export function SiteFlowStepper({
           {s.id === 'ga4' && <Ga4StepBody site={site} onChanged={onRefresh} />}
           {s.id === 'social' && <SocialChannelsStep siteId={site.id} />}
           {s.id === 'social-calendar' && <SocialCalendarStep siteId={site.id} />}
-          {s.id === 'topics' && <TopicsStepBody queue={queue} siteId={site.id} onRefresh={onRefresh} onboardingMode={onboardingMode} />}
+          {s.id === 'topics' && <TopicsStepBody queue={queue} articles={articles} siteId={site.id} onRefresh={onRefresh} onboardingMode={onboardingMode} />}
           {s.id === 'articles' && <ArticlesStepBody articles={articles} siteId={site.id} onRefresh={onRefresh} />}
         </StepCard>
       ))}
@@ -1266,13 +1266,21 @@ function Ga4StepBody({ site, onChanged }: { site: any; onChanged: () => void }) 
 // Step 5 — Önerilen Makaleler
 // ──────────────────────────────────────────────────────────────────────
 function TopicsStepBody({
-  queue, siteId, onRefresh, onboardingMode,
+  queue, articles = [], siteId, onRefresh, onboardingMode,
 }: {
   queue: any;
+  articles?: any[];
   siteId: string;
   onRefresh: () => void;
   onboardingMode?: boolean;
 }) {
+  // Bir konu Article olarak yaratildiysa (SCHEDULED/GENERATING/PUBLISHED vs.) onerilenden cikar.
+  // Boylece kullanici "bunu surukledim, kullandim" hissini kaybetmesin.
+  const usedTopics = new Set(
+    (articles ?? [])
+      .map((a) => String(a?.topic ?? a?.title ?? '').trim().toLowerCase())
+      .filter(Boolean),
+  );
   const [running, setRunning] = useState(false);
   const [generating, setGenerating] = useState<string | null>(null);
 
@@ -1323,7 +1331,11 @@ function TopicsStepBody({
     );
   }
 
-  const tier1 = queue.tier1Topics ?? [];
+  const tier1All = queue.tier1Topics ?? [];
+  const tier1 = tier1All.filter((t: any) => {
+    const k = String(t?.topic ?? t?.title ?? t?.slug ?? '').trim().toLowerCase();
+    return k && !usedTopics.has(k);
+  });
 
   return (
     <div className="space-y-3">
@@ -1430,6 +1442,25 @@ function ArticlesStepBody({
     return () => clearInterval(t);
   }, [articles, onRefresh]);
 
+  // Drag-drop tutorial: ilk makale tamamlanir tamamlanmaz bir kez goster.
+  const [tutorialOpen, setTutorialOpen] = useState(false);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const flagKey = `luviai_drag_drop_tutorial_seen:${siteId}`;
+    if (window.localStorage.getItem(flagKey) === '1') return;
+    const hasReady = articles.some((a) =>
+      a?.status === 'PUBLISHED' || a?.status === 'READY_TO_PUBLISH'
+    );
+    if (hasReady) setTutorialOpen(true);
+  }, [articles, siteId]);
+
+  const closeTutorial = () => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(`luviai_drag_drop_tutorial_seen:${siteId}`, '1');
+    }
+    setTutorialOpen(false);
+  };
+
   // SCHEDULED makaleleri ust ust ay
   const scheduled = articles
     .filter((a) => a?.status === 'SCHEDULED' && a?.scheduledAt)
@@ -1503,6 +1534,8 @@ function ArticlesStepBody({
           })}
         </div>
       )}
+
+      <DragDropTutorialModal open={tutorialOpen} onClose={closeTutorial} />
     </div>
   );
 }
@@ -1788,3 +1821,114 @@ function DigerSection({ siteId }: { siteId: string }) {
     </div>
   );
 }
+
+// ──────────────────────────────────────────────────────────────────────
+// DragDropTutorialModal — ilk makale bittikten sonra bir kez gosterilir.
+// Kullaniciya "Onerilen Makaleler" karti surukleyip Icerik Takvimi'ne nasil
+// birakacagini animasyonla gosterir.
+// ──────────────────────────────────────────────────────────────────────
+function DragDropTutorialModal({
+  open, onClose,
+}: {
+  open: boolean;
+  onClose: () => void;
+}) {
+  if (!open) return null;
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/80 backdrop-blur-sm"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+    >
+      <style>{`
+        @keyframes luviai-drag-step {
+          0%   { transform: translate(0, 0) scale(1);    opacity: 1; }
+          25%  { transform: translate(20px, -4px) scale(1.04); opacity: 1; }
+          55%  { transform: translate(180px, 110px) scale(1.04); opacity: 1; }
+          70%  { transform: translate(180px, 110px) scale(0.9);  opacity: 0.6; }
+          85%  { transform: translate(180px, 110px) scale(0.9);  opacity: 0; }
+          100% { transform: translate(0, 0) scale(1);    opacity: 1; }
+        }
+        @keyframes luviai-target-pulse {
+          0%, 60%   { background-color: transparent; }
+          55%, 70% { background-color: rgba(124, 92, 252, 0.18); }
+          100%      { background-color: transparent; }
+        }
+        @keyframes luviai-time-show {
+          0%, 65% { opacity: 0; transform: translateY(4px); }
+          80%, 95% { opacity: 1; transform: translateY(0); }
+          100%    { opacity: 0; transform: translateY(0); }
+        }
+        .luviai-drag-card { animation: luviai-drag-step 4.5s ease-in-out infinite; }
+        .luviai-drag-target { animation: luviai-target-pulse 4.5s ease-in-out infinite; }
+        .luviai-drag-time   { animation: luviai-time-show 4.5s ease-in-out infinite; }
+      `}</style>
+
+      <div
+        className="w-full max-w-lg rounded-xl border bg-card shadow-2xl p-6"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3 mb-3">
+          <div>
+            <h3 className="text-lg font-semibold">İlk makalen hazır! 🎉</h3>
+            <p className="text-sm text-muted-foreground mt-1">
+              Sıradakiler için sürükle-bırak ile takvim oluşturabilirsin.
+              Önerilen makale kartını <strong>İçerik Takvimi</strong>'ne bırak,
+              saat aç ve yayın programına ekle.
+            </p>
+          </div>
+        </div>
+
+        {/* Animasyon sahnesi */}
+        <div className="relative h-56 rounded-lg border bg-muted/30 overflow-hidden mb-4">
+          {/* Sürüklenen örnek kart */}
+          <div
+            className="luviai-drag-card absolute top-3 left-3 w-44 rounded-md border bg-card shadow-md p-2.5 z-20"
+            style={{ willChange: 'transform' }}
+          >
+            <div className="flex items-center gap-1 mb-1">
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-brand text-brand-foreground">
+                SKOR 92
+              </span>
+            </div>
+            <div className="text-xs font-semibold leading-tight">
+              Shared Hosting Nedir?
+            </div>
+            <div className="text-[10px] text-muted-foreground mt-0.5">
+              ⇡ veya takvime sürükle
+            </div>
+          </div>
+
+          {/* Takvim grid */}
+          <div className="absolute inset-x-3 bottom-3 grid grid-cols-3 gap-2 z-10">
+            {['Pzt', 'Sal', 'Çar'].map((d, i) => (
+              <div
+                key={d}
+                className={`h-20 rounded border border-dashed border-border/60 p-1.5 text-[10px] text-muted-foreground ${i === 1 ? 'luviai-drag-target' : ''}`}
+              >
+                <div className="font-semibold mb-0.5">{d}</div>
+                {i === 1 && (
+                  <div className="luviai-drag-time mt-2 inline-block px-1.5 py-0.5 rounded bg-brand/15 text-brand font-medium text-[10px]">
+                    10:00 ✓
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <ul className="text-sm space-y-1.5 mb-4">
+          <li className="flex gap-2"><span className="text-brand font-bold">1.</span> Önerilen kartı tut, sürükle.</li>
+          <li className="flex gap-2"><span className="text-brand font-bold">2.</span> Takvimde istediğin güne bırak.</li>
+          <li className="flex gap-2"><span className="text-brand font-bold">3.</span> Saat seç → otomatik yayın programına eklenir.</li>
+        </ul>
+
+        <div className="flex justify-end">
+          <Button onClick={onClose}>Anladım</Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
