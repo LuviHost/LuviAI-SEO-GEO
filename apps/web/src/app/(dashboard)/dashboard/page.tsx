@@ -66,6 +66,9 @@ export default function DashboardPage() {
   const freeArticleRemaining = isTrial ? Math.max(0, 1 - articlesUsed) : null;
   const planLabel = isTrial ? `${freeArticleRemaining}/1 kaldı` : (me?.plan ?? '-');
 
+  // Hangi karta tıklandığında "leaving" animasyonu çalışıyor
+  const [leavingId, setLeavingId] = useState<string | null>(null);
+
   return (
     <div className="relative space-y-10">
       {/* Subtle background gradient orb */}
@@ -166,6 +169,9 @@ export default function DashboardPage() {
                 site={s}
                 index={idx}
                 onDelete={() => setDeleteTarget(s)}
+                isLeaving={leavingId === s.id}
+                isAnyLeaving={!!leavingId}
+                onNavigate={() => setLeavingId(s.id)}
               />
             ))}
           </div>
@@ -262,19 +268,47 @@ function CountUp({ to, durationMs = 700 }: { to: number; durationMs?: number }) 
   return <>{val}</>;
 }
 
-function SiteCard({ site, index, onDelete }: { site: any; index: number; onDelete: () => void }) {
+function SiteCard({
+  site, index, onDelete, isLeaving, isAnyLeaving, onNavigate,
+}: {
+  site: any;
+  index: number;
+  onDelete: () => void;
+  isLeaving: boolean;
+  isAnyLeaving: boolean;
+  onNavigate: () => void;
+}) {
   const statusCls = STATUS_CLASS[site.status] ?? 'bg-muted text-muted-foreground border-border';
   return (
-    <div
-      className="group relative rounded-xl border bg-card overflow-hidden transition-all duration-300 hover:-translate-y-0.5 hover:border-brand/30 hover:shadow-[0_8px_28px_-12px_rgb(124_58_237/0.25)]"
+    <Link
+      href={`/sites/${site.id}`}
+      onClick={onNavigate}
+      className={[
+        'block group relative rounded-xl border bg-card overflow-hidden cursor-pointer',
+        'transition-all duration-300 will-change-transform',
+        isLeaving
+          ? 'scale-[1.02] border-brand/60 shadow-[0_0_0_1px_rgb(124_58_237/0.5),0_24px_60px_-12px_rgb(124_58_237/0.6)] z-10'
+          : isAnyLeaving
+            ? 'opacity-40 scale-[0.98]'
+            : 'hover:-translate-y-0.5 hover:border-brand/30 hover:shadow-[0_8px_28px_-12px_rgb(124_58_237/0.25)]',
+      ].join(' ')}
       style={{ animation: `fadeInUp 450ms ease-out ${index * 60 + 120}ms both` }}
+      aria-label={`${site.name} sitesini aç`}
     >
       {/* Hover glow */}
       <div className="absolute inset-0 bg-gradient-to-r from-brand/0 via-brand/[0.04] to-brand/0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
+      {/* Leaving glow — sayfa gecisi sirasinda parlama */}
+      {isLeaving && (
+        <div className="absolute inset-0 bg-gradient-to-r from-brand/20 via-violet-500/15 to-brand/20 pointer-events-none animate-pulse" />
+      )}
 
       <div className="relative p-5 flex items-center gap-4 flex-wrap">
         {/* Site avatar/initial */}
-        <div className="shrink-0 h-11 w-11 rounded-lg bg-gradient-to-br from-brand/20 to-violet-500/20 grid place-items-center font-semibold text-brand text-sm border border-brand/20 transition-transform duration-300 group-hover:scale-105">
+        <div className={[
+          'shrink-0 h-11 w-11 rounded-lg bg-gradient-to-br from-brand/20 to-violet-500/20 grid place-items-center font-semibold text-brand text-sm border border-brand/20',
+          'transition-transform duration-300',
+          isLeaving ? 'scale-110 rotate-3' : 'group-hover:scale-105',
+        ].join(' ')}>
           {site.name?.slice(0, 2).toUpperCase() ?? '??'}
         </div>
 
@@ -291,8 +325,8 @@ function SiteCard({ site, index, onDelete }: { site: any; index: number; onDelet
             href={site.url}
             target="_blank"
             rel="noopener"
-            onClick={(e) => e.stopPropagation()}
-            className="text-xs text-muted-foreground hover:text-brand inline-flex items-center gap-1 truncate max-w-full"
+            onClick={(e) => { e.stopPropagation(); }}
+            className="text-xs text-muted-foreground hover:text-brand inline-flex items-center gap-1 truncate max-w-full relative z-10"
           >
             <span className="truncate">{site.url}</span>
             <ExternalLink className="h-3 w-3 shrink-0" />
@@ -304,15 +338,20 @@ function SiteCard({ site, index, onDelete }: { site: any; index: number; onDelet
 
         {/* Actions */}
         <div className="flex items-center gap-1.5 shrink-0">
-          <Button asChild size="sm" variant="outline" className="group/btn relative overflow-hidden">
-            <Link href={`/sites/${site.id}`} className="font-mono text-[10px] uppercase tracking-widest">
-              Aç
-              <ChevronRight className="h-3 w-3 ml-1 group-hover/btn:translate-x-0.5 transition-transform" />
-            </Link>
-          </Button>
+          <span className={[
+            'inline-flex items-center gap-1 h-8 px-3 rounded-md border bg-background/50 font-mono text-[10px] uppercase tracking-widest text-foreground/80',
+            'transition-all duration-300',
+            isLeaving ? 'border-brand bg-brand text-white' : 'group-hover:border-brand/40 group-hover:bg-brand/5',
+          ].join(' ')}>
+            Aç
+            <ChevronRight className={[
+              'h-3 w-3 transition-transform duration-300',
+              isLeaving ? 'translate-x-1' : 'group-hover:translate-x-0.5',
+            ].join(' ')} />
+          </span>
           <button
-            onClick={onDelete}
-            className="h-8 w-8 grid place-items-center rounded-md text-muted-foreground hover:text-red-500 hover:bg-red-500/10 transition-colors"
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDelete(); }}
+            className="h-8 w-8 grid place-items-center rounded-md text-muted-foreground hover:text-red-500 hover:bg-red-500/10 transition-colors relative z-10"
             title="Siteyi sil"
             aria-label="Siteyi sil"
           >
@@ -320,7 +359,7 @@ function SiteCard({ site, index, onDelete }: { site: any; index: number; onDelet
           </button>
         </div>
       </div>
-    </div>
+    </Link>
   );
 }
 
