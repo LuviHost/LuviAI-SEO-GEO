@@ -94,9 +94,21 @@ export function SiteFlowStepper({
   const firstIncomplete = steps.find((s) => s.status !== 'done' && !s.optional)?.id ?? 'audit';
   // Multi-open: aktif step ID'leri set olarak tutulur — birini acmak digerini kapatmaz.
   // Boylece "Makaleler" + "Sosyal Takvim" ikisi birden acik kalip drag-drop calisir.
-  const [openSet, setOpenSet] = useState<Set<string>>(() => new Set([
-    initialStep && steps.find((s) => s.id === initialStep) ? initialStep : firstIncomplete,
-  ]));
+  // Onboarding modunda Site Skoru + Rakipler default acik geliyor (ikisi de chain calisirken
+  // ilk gosterilmesi gereken kartlar).
+  const [openSet, setOpenSet] = useState<Set<string>>(() => {
+    const initial = new Set<string>();
+    if (initialStep && steps.find((s) => s.id === initialStep)) {
+      initial.add(initialStep);
+    } else {
+      initial.add(firstIncomplete);
+    }
+    if (onboardingMode) {
+      initial.add('audit');
+      initial.add('competitors');
+    }
+    return initial;
+  });
   const [userTouched, setUserTouched] = useState<boolean>(!!initialStep);
   // Drag aktifken tum step'leri zorla aciyoruz (drop hedefi DOM'da olmali).
   // Drop bitince eski state'e geri donuyoruz.
@@ -110,12 +122,12 @@ export function SiteFlowStepper({
   }, [initialStep]);
 
   // Auto-advance: kullanici manuel toggle yapmadiysa ve onboarding modundaysa,
-  // tamamlanmis adimdan bir sonrakine otomatik gec.
+  // tamamlanmis adimdan bir sonrakine otomatik gec — Site Skoru + Rakipler her zaman acik kalir.
   useEffect(() => {
     if (userTouched) return;
     if (!onboardingMode) return;
-    if (openSet.has(firstIncomplete)) return;
-    setOpenSet(new Set([firstIncomplete]));
+    if (openSet.has(firstIncomplete) && openSet.has('audit') && openSet.has('competitors')) return;
+    setOpenSet(new Set([firstIncomplete, 'audit', 'competitors']));
   }, [firstIncomplete, onboardingMode, userTouched, openSet]);
 
   // Drag-aware: makale veya kuyruk kartı surukluyorsa tum panelleri zorla ac.
