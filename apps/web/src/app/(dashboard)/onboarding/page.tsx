@@ -1,1524 +1,374 @@
 'use client';
 
-import { Suspense, useEffect, useState } from 'react';
+/*
+ * QUICK MISSION — Tek sayfa, sıfır soru onboarding.
+ *
+ * Akış:
+ *   Stage A (input)   — kullanıcı sadece site URL'ini girer
+ *   Stage B (mission) — backend'in ONBOARDING_CHAIN job'u koşar:
+ *                       brain → audit → topics → platform → schedule
+ *                       Frontend 4sn'de bir polling yapar; site.status === 'ACTIVE'
+ *                       olunca veya brain+audit+queue üçü hazır olunca
+ *                       /sites/{id}?tab=flow&onboarding=done sayfasına yönlendirir.
+ *
+ * Defaultlar (Brain analizi iyileştirir; kullanıcı sonra ayarlardan değiştirebilir):
+ *   name      → URL hostname kökü
+ *   niche     → 'diğer'   (Brain → real niche)
+ *   language  → 'tr'
+ *   autopilot → true
+ */
+
+import { Suspense, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { toast } from 'sonner';
+import { Rocket, ChevronRight, Globe } from 'lucide-react';
 import { api } from '@/lib/api';
-import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
-import { UpgradePlanModal } from '@/components/upgrade-plan-modal';
-import { MissionShell, MissionMap, ConsolePanel } from '@/components/ai-scan';
-import { ChevronLeft, ChevronRight, Rocket } from 'lucide-react';
+import {
+  MissionShell,
+  MissionWheel,
+  type MissionTask,
+} from '@/components/ai-scan';
 
-const NICHES = [
-  'web hosting', 'e-ticaret', 'SaaS', 'eğitim', 'sağlık',
-  'finans', 'gayrimenkul', 'turizm', 'restoran', 'ajans', 'diğer',
-];
+const POLL_INTERVAL_MS = 4000;
+const ESTIMATED_TOTAL_MS = 90_000;
+const RESUME_KEY = 'luviai-quickmission-active-site';
 
-const STEPS = [
-  { num: 1, label: 'Site Adresi' },
-  { num: 2, label: 'Marka & Niş' },
-  { num: 3, label: 'Bağlantılar' },
-  { num: 4, label: 'Yayın Hedefi' },
-  { num: 5, label: 'Otomatik Üretim' },
-  { num: 6, label: 'Sosyal Medya' },
-  { num: 7, label: 'İçerik Takvimi' },
-];
-
-const FREQUENCIES = [
-  { value: 'weekly',          label: 'Haftada 1 yazı',  hint: 'Pazartesi günleri',          articlesPerMonth: 4 },
-  { value: 'three_per_week',  label: 'Haftada 3 yazı',  hint: 'Pzt / Çrş / Cum günleri',    articlesPerMonth: 12 },
-  { value: 'daily',           label: 'Her gün',         hint: 'Yoğun içerik üretimi',       articlesPerMonth: 30 },
-];
-
-type LocalState = {
-  siteId?: string;
-  step: number;
-  url: string;
-  name: string;
-  niche: string;
-  language: string;
-  publishApprovalMode: 'manual_approve' | 'auto_publish';
-  autoGenerationFrequency: 'daily' | 'three_per_week' | 'weekly';
-  autoGenerationHour: number;
-  autopilot: boolean;
-  publishTargetCount: number;
-  socialChannelCount: number;
-  selectedTopicCount: number;
-  brainReady: boolean; // Sprint 3 — AI brain hazir mi
-  step2WaitedAt?: number; // kullanici 'beklemeden devam' tikladi mi
-  topicsReady: boolean; // Sprint 4 — AI baslık onerileri hazir mi
-  topicsScheduledCount: number; // takvime alinan baslık sayisi
-  step7WaitedAt?: number; // kullanici Step7'de 'AI baslık beklemeden bitir' tikladi mi
-};
-
-const STORAGE_KEY = 'luviai-onboarding-v2';
-
-const DEFAULT_STATE: LocalState = {
-  step: 1,
-  url: '',
-  name: '',
-  niche: '',
-  language: 'tr',
-  publishApprovalMode: 'manual_approve',
-  autoGenerationFrequency: 'weekly',
-  autoGenerationHour: 9,
-  autopilot: true,
-  publishTargetCount: 0,
-  socialChannelCount: 0,
-  selectedTopicCount: 0,
-  brainReady: false,
-  topicsReady: false,
-  topicsScheduledCount: 0,
-};
+export default function OnboardingPage() {
+  return (
+    <Suspense fallback={null}>
+      <OnboardingInner />
+    </Suspense>
+  );
+}
 
 function OnboardingInner() {
   const router = useRouter();
   const params = useSearchParams();
-  const { data: session } = useSession();
+  const { data: session, status: sessionStatus } = useSession();
 
-  const [state, setState] = useState<LocalState>(DEFAULT_STATE);
-  const [loading, setLoading] = useState(false);
-  const [hydrated, setHydrated] = useState(false);
+  // ?siteId=X ile devam edilebilir (kullanıcı sayfayı yenilerse)
+  const queryId = params.get('siteId');
+  const [resumeId, setResumeId] = useState<string | null>(queryId);
+  const [hydratedResume, setHydratedResume] = useState(false);
 
-  // Hydrate from localStorage
   useEffect(() => {
+    if (resumeId) { setHydratedResume(true); return; }
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        setState({ ...DEFAULT_STATE, ...parsed });
-      }
+      const sid = localStorage.getItem(RESUME_KEY);
+      if (sid) setResumeId(sid);
     } catch (_e) { /* noop */ }
-    setHydrated(true);
+    setHydratedResume(true);
   }, []);
 
-  // Save to localStorage
-  useEffect(() => {
-    if (!hydrated) return;
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
-    catch (_e) { /* noop */ }
-  }, [state, hydrated]);
-
-  // Resume from URL ?siteId=...&step=N
-  useEffect(() => {
-    if (!hydrated) return;
-    const sid = params.get('siteId');
-    const sp = params.get('step');
-    const upgraded = params.get('upgraded');
-    if (sid && sid !== state.siteId) setState((s) => ({ ...s, siteId: sid }));
-    if (sp) setState((s) => ({ ...s, step: Math.max(1, Math.min(7, parseInt(sp, 10) || 1)) }));
-    if (upgraded === '1') {
-      toast.success('Plan yükseltildi! Yeni hakların aktif.');
-      // URL'den parametreyi temizle
-      try {
-        const url = new URL(window.location.href);
-        url.searchParams.delete('upgraded');
-        window.history.replaceState({}, '', url.toString());
-      } catch (_e) { /* noop */ }
-    }
-  }, [hydrated, params]);
-
-  // ────────────────────────────────────────────────────────────────────
-  // Stale siteId guard — gating render
-  // localStorage'a kayitli siteId backend'de SİLİNMİŞ olabilir; bu durumda
-  // step component'leri 404 fetch'leri yapip toast'a düşürüyor. Cözüm:
-  // hidrasyondan SONRA siteId varsa once dogrula; valid degilse state'i
-  // sifirla. Validation suresince OnboardingInner govdesini render etme,
-  // boylelikle Step1/2/.../7 useEffect'leri hic tetiklenmez.
-  // ────────────────────────────────────────────────────────────────────
-  const [siteValidating, setSiteValidating] = useState(false);
-  useEffect(() => {
-    if (!hydrated) return;
-    if (!state.siteId) { setSiteValidating(false); return; }
-    setSiteValidating(true);
-    let cancelled = false;
-    (async () => {
-      try {
-        await api.getSite(state.siteId!);
-        if (!cancelled) setSiteValidating(false);
-      } catch (e: any) {
-        if (cancelled) return;
-        const status = e?.status ?? 0;
-        const msg = (e?.message ?? '').toString().toLowerCase();
-        if (status === 404 || msg.includes('not found') || msg.includes('bulunam')) {
-          try { localStorage.removeItem(STORAGE_KEY); } catch (_) { /* noop */ }
-          toast.dismiss();
-          setState({ ...DEFAULT_STATE });
-        }
-        if (!cancelled) setSiteValidating(false);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [hydrated, state.siteId]);
-
-  const update = (patch: Partial<LocalState>) => setState((s) => ({ ...s, ...patch }));
-
-  const goNext = () => update({ step: Math.min(7, state.step + 1) });
-  const goPrev = () => update({ step: Math.max(1, state.step - 1) });
-  const goStep = (n: number) => {
-    if (n <= state.step || state.siteId) update({ step: n });
-  };
-
-  // ─── ADIM 1 → siteyi olustur veya devam et
-  const handleStep1Continue = async () => {
-    if (!state.url.startsWith('http')) {
-      toast.error('Geçerli bir URL gir (https:// ile başlamalı)');
-      return;
-    }
-    if (!session?.user?.id) {
-      router.push('/signin?callbackUrl=/onboarding');
-      return;
-    }
-    setLoading(true);
-    try {
-      let siteId = state.siteId;
-      if (!siteId) {
-        // Site'i hemen olustur (placeholder name + niche)
-        const guessedName = (() => {
-          try { return new URL(state.url).hostname.replace(/^www\./, '').split('.')[0]; }
-          catch { return 'My Site'; }
-        })();
-        const created = await api.createSite({
-          url: state.url,
-          name: guessedName,
-          niche: 'diğer',
-          language: state.language,
-        } as any);
-        siteId = created.id;
-        update({ siteId, name: guessedName });
-        toast.success('Site oluşturuldu — arka planda tarama başlatıldı');
-      } else {
-        await api.updateSite(siteId, { onboardingStep: 2 });
-      }
-      goNext();
-    } catch (err: any) {
-      toast.error(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // ─── ADIM 2 → marka/nis kaydet
-  const handleStep2Continue = async () => {
-    if (!state.siteId) return;
-    if (!state.name.trim()) { toast.error('Marka adı zorunlu'); return; }
-    if (!state.niche) { toast.error('Sektör seç'); return; }
-    setLoading(true);
-    try {
-      await api.updateSite(state.siteId, { name: state.name, niche: state.niche, onboardingStep: 3 });
-      goNext();
-    } catch (err: any) { toast.error(err.message); }
-    finally { setLoading(false); }
-  };
-
-  // ─── ADIM 5 → takvim/onay kaydet
-  const handleStep5Continue = async () => {
-    if (!state.siteId) return;
-    setLoading(true);
-    try {
-      await api.updateSite(state.siteId, {
-        publishApprovalMode: state.publishApprovalMode,
-        autoGenerationFrequency: state.autoGenerationFrequency,
-        autoGenerationHour: state.autoGenerationHour,
-        onboardingStep: 6,
-      });
-      goNext();
-    } catch (err: any) { toast.error(err.message); }
-    finally { setLoading(false); }
-  };
-
-  // ─── BITIR
-  const handleFinish = async () => {
-    if (!state.siteId) return;
-    setLoading(true);
-    try {
-      await api.completeOnboarding(state.siteId);
-      localStorage.removeItem(STORAGE_KEY);
-      toast.success('Hazır! Site dashboard\'una yönlendiriliyorsun…');
-      router.push(`/sites/${state.siteId}?tab=flow&onboarding=done`);
-    } catch (err: any) { toast.error(err.message); }
-    finally { setLoading(false); }
-  };
-
-  if (!hydrated || siteValidating) {
+  if (!hydratedResume) {
     return (
       <MissionShell>
-        <div className="max-w-2xl mx-auto py-16 text-center">
-          <div className="inline-flex items-center gap-3 font-mono text-xs uppercase tracking-[0.2em] text-brand">
-            <span className="h-1.5 w-1.5 rounded-full bg-brand animate-pulse" />
-            <span>Bağlantı kuruluyor…</span>
-          </div>
-        </div>
+        <BootingNote />
       </MissionShell>
     );
   }
 
-  const currentLabel = STEPS[state.step - 1]?.label ?? '';
-  const pct = Math.round((state.step / 7) * 100);
+  if (resumeId) {
+    return (
+      <MissionShell>
+        <MissionStage
+          siteId={resumeId}
+          onComplete={(id) => {
+            try { localStorage.removeItem(RESUME_KEY); } catch (_e) { /* noop */ }
+            router.push(`/sites/${id}?tab=flow&onboarding=done`);
+          }}
+          onAbort={() => {
+            try { localStorage.removeItem(RESUME_KEY); } catch (_e) { /* noop */ }
+            setResumeId(null);
+          }}
+        />
+      </MissionShell>
+    );
+  }
 
   return (
     <MissionShell>
-      <div className="max-w-4xl mx-auto px-3 sm:px-6 py-6 sm:py-10">
-        {/* === MISSION HEADER === */}
-        <div className="mb-6 flex items-end justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <Rocket className="h-3.5 w-3.5 text-brand" />
-              <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-brand font-semibold">
-                Mission Console · Site Agent
-              </span>
-            </div>
-            <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">
-              {currentLabel}
-            </h1>
-            <p className="text-xs text-muted-foreground mt-1 font-mono">
-              <span className="text-brand">{String(state.step).padStart(2, '0')}</span>
-              <span className="opacity-50"> / 07</span>
-              <span className="opacity-30 mx-2">·</span>
-              <span className="opacity-60">{pct}% complete</span>
-            </p>
-          </div>
-        </div>
-
-        {/* === MISSION MAP === */}
-        <div className="mb-7">
-          <MissionMap steps={STEPS} current={state.step} onJump={goStep} />
-        </div>
-
-        {/* === CONSOLE PANEL === */}
-        <ConsolePanel step={state.step} total={7} label={currentLabel}>
-          {state.step === 1 && <Step1 state={state} update={update} loading={loading} onContinue={handleStep1Continue} router={router} setLoading={setLoading} />}
-          {state.step === 2 && <Step2 state={state} update={update} />}
-          {state.step === 3 && <Step3 state={state} />}
-          {state.step === 4 && <Step4 state={state} update={update} />}
-          {state.step === 5 && <Step5 state={state} update={update} />}
-          {state.step === 6 && <Step6 state={state} update={update} />}
-          {state.step === 7 && <Step7 state={state} update={update} />}
-        </ConsolePanel>
-
-        {/* === FOOTER CONTROLS === */}
-        <div className="mt-6 flex items-center justify-between gap-3 px-1">
-          <Button
-            variant="outline"
-            onClick={goPrev}
-            disabled={state.step === 1 || loading}
-            className="font-mono text-xs uppercase tracking-widest border-brand/30 hover:border-brand/60 hover:bg-brand/5"
-          >
-            <ChevronLeft className="h-3.5 w-3.5 mr-1" />
-            Geri
-          </Button>
-
-          <div className="flex items-end gap-2">
-            {state.step === 1 && (
-              <ConsoleNextBtn onClick={handleStep1Continue} disabled={loading || !state.url.startsWith('http')}>
-                {loading ? 'Bağlanılıyor…' : 'Devam'}
-              </ConsoleNextBtn>
-            )}
-            {state.step === 2 && (
-              <div className="flex flex-col items-end gap-1.5">
-                <div className="flex gap-2">
-                  {!state.brainReady && !state.step2WaitedAt && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => update({ step2WaitedAt: Date.now() })}
-                      disabled={loading}
-                      className="font-mono text-[10px] uppercase tracking-widest"
-                    >
-                      AI'sız devam et
-                    </Button>
-                  )}
-                  <ConsoleNextBtn
-                    onClick={handleStep2Continue}
-                    disabled={loading || !state.name || !state.niche || (!state.brainReady && !state.step2WaitedAt)}
-                    title={!state.brainReady && !state.step2WaitedAt ? 'AI analizi bekleniyor' : undefined}
-                  >
-                    {loading ? 'Kaydediliyor…' : !state.brainReady && !state.step2WaitedAt ? 'AI bekleniyor' : 'Devam'}
-                  </ConsoleNextBtn>
-                </div>
-                {!state.brainReady && !state.step2WaitedAt && (
-                  <p className="text-[10px] text-muted-foreground font-mono">AI 10–30sn içinde önerileri hazırlar</p>
-                )}
-              </div>
-            )}
-            {state.step === 3 && (
-              <div className="flex gap-2">
-                <Button variant="ghost" onClick={() => update({ step: 4 })} className="font-mono text-[10px] uppercase tracking-widest">
-                  Şimdilik atla
-                </Button>
-                <ConsoleNextBtn onClick={() => update({ step: 4 })}>Devam</ConsoleNextBtn>
-              </div>
-            )}
-            {state.step === 4 && (
-              <ConsoleNextBtn
-                onClick={() => update({ step: 5 })}
-                disabled={state.publishTargetCount === 0}
-                title={state.publishTargetCount === 0 ? 'En az 1 yayın hedefi seç' : undefined}
-              >
-                Devam
-              </ConsoleNextBtn>
-            )}
-            {state.step === 5 && (
-              <ConsoleNextBtn onClick={handleStep5Continue} disabled={loading}>
-                {loading ? 'Kaydediliyor…' : 'Devam'}
-              </ConsoleNextBtn>
-            )}
-            {state.step === 6 && (
-              <div className="flex gap-2">
-                <Button variant="ghost" onClick={() => update({ step: 7 })} disabled={loading} className="font-mono text-[10px] uppercase tracking-widest">
-                  Sonra ekle
-                </Button>
-                <ConsoleNextBtn onClick={() => update({ step: 7 })} disabled={loading}>Devam</ConsoleNextBtn>
-              </div>
-            )}
-            {state.step === 7 && (
-              <div className="flex flex-col items-end gap-1.5">
-                <div className="flex gap-2">
-                  {!state.topicsReady && !state.step7WaitedAt && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => update({ step7WaitedAt: Date.now() })}
-                      disabled={loading}
-                      className="font-mono text-[10px] uppercase tracking-widest"
-                    >
-                      Beklemeden bitir
-                    </Button>
-                  )}
-                  <ConsoleNextBtn
-                    onClick={handleFinish}
-                    disabled={loading || (!state.topicsReady && !state.step7WaitedAt)}
-                    title={!state.topicsReady && !state.step7WaitedAt ? 'AI başlık önerileri bekleniyor' : undefined}
-                    finish
-                  >
-                    {loading ? 'Bitiriliyor…' : !state.topicsReady && !state.step7WaitedAt ? 'AI bekleniyor' : 'Görevi Başlat'}
-                  </ConsoleNextBtn>
-                </div>
-                {!state.topicsReady && !state.step7WaitedAt && (
-                  <p className="text-[10px] text-muted-foreground font-mono">Başlıklar hazır olunca dashboard'da görünür; istersen beklemeden bitirebilirsin.</p>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* === STATUS BAR === */}
-        {state.siteId && (
-          <div className="mt-6 flex items-center justify-center gap-3 text-[10px] font-mono uppercase tracking-widest text-muted-foreground">
-            <span className="h-1 w-1 rounded-full bg-emerald-500 animate-pulse" />
-            <span className="opacity-70">SITE_ID: {state.siteId}</span>
-            <span className="opacity-40">·</span>
-            <button
-              className="underline-offset-2 hover:text-foreground transition-colors hover:underline"
-              onClick={() => {
-                if (confirm('Onboarding state sıfırlansın mı? (siteyi silmez)')) {
-                  localStorage.removeItem(STORAGE_KEY);
-                  window.location.reload();
-                }
-              }}
-            >
-              wizard'ı sıfırla
-            </button>
-          </div>
-        )}
-      </div>
+      <InputStage
+        sessionUserId={session?.user?.id ?? null}
+        sessionStatus={sessionStatus}
+        onCreated={(siteId) => {
+          try { localStorage.setItem(RESUME_KEY, siteId); } catch (_e) { /* noop */ }
+          setResumeId(siteId);
+        }}
+      />
     </MissionShell>
   );
 }
 
 // ──────────────────────────────────────────────────────────────────────
-// HUD-styled "Devam" button — brand glow + sweep + chevron
+// Stage A — URL Input
 // ──────────────────────────────────────────────────────────────────────
-function ConsoleNextBtn({
-  children,
-  onClick,
-  disabled,
-  title,
-  finish,
+function InputStage({
+  sessionUserId,
+  sessionStatus,
+  onCreated,
 }: {
-  children: React.ReactNode;
-  onClick: () => void;
-  disabled?: boolean;
-  title?: string;
-  finish?: boolean;
+  sessionUserId: string | null;
+  sessionStatus: 'authenticated' | 'unauthenticated' | 'loading';
+  onCreated: (siteId: string) => void;
 }) {
-  return (
-    <Button
-      onClick={onClick}
-      disabled={disabled}
-      title={title}
-      className={cn(
-        'font-mono text-xs uppercase tracking-[0.18em] px-5 group relative overflow-hidden',
-        'bg-gradient-to-r from-brand to-brand/80 hover:from-brand hover:to-brand',
-        'shadow-[0_0_0_1px_rgb(124_58_237_/_0.4),0_8px_28px_-6px_rgb(124_58_237_/_0.5)]',
-        'hover:shadow-[0_0_0_1px_rgb(124_58_237_/_0.6),0_12px_40px_-6px_rgb(124_58_237_/_0.7)]',
-        'transition-all duration-300',
-      )}
-    >
-      <span className="relative z-10 flex items-center gap-1.5">
-        {children}
-        {finish ? <Rocket className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />}
-      </span>
-      <span className="absolute inset-y-0 -left-1/2 w-1/2 bg-gradient-to-r from-transparent via-white/20 to-transparent skew-x-12 group-hover:translate-x-[400%] transition-transform duration-700" />
-    </Button>
-  );
-}
-
-// ──────────────────────────────────────────────────────────────────────
-// ADIM 1 — Site URL
-// ──────────────────────────────────────────────────────────────────────
-function Step1({ state, update, loading, onContinue, router, setLoading }: any) {
-  return (
-    <>
-      <h2 className="text-2xl font-bold mb-2">Sitenizin URL'i</h2>
-      <p className="text-muted-foreground mb-6">Hangi siteyi büyütelim? Tam URL gir.</p>
-      <Input
-        type="url"
-        placeholder="https://siteniz.com"
-        value={state.url}
-        onChange={(e) => update({ url: e.target.value })}
-        onKeyDown={(e) => { if (e.key === 'Enter') onContinue(); }}
-        autoFocus
-      />
-      <p className="text-xs text-muted-foreground mt-3">
-        URL'i girip Devam'a basınca site oluşturulur ve arka planda tarama başlar.
-        Sonraki adımları doldururken tarama biter; 4. adımda sonucu göreceksin.
-      </p>
-
-      <div className="mt-6 rounded-lg border border-brand/30 bg-brand/5 p-3 flex items-center justify-between gap-3">
-        <div className="flex-1 min-w-0">
-          <p className="text-xs font-semibold">🎁 Önce LuviAI'ı tanımak ister misin?</p>
-          <p className="text-[11px] text-muted-foreground mt-0.5">Tek tıkla örnek site oluştur — 5 dummy makale + audit + AI snapshot.</p>
-        </div>
-        <Button size="sm" variant="outline" type="button" onClick={async () => {
-          try {
-            setLoading(true);
-            const r = await api.createDemoSite();
-            toast.success('Demo site hazır');
-            router.push(`/sites/${r.siteId}`);
-          } catch (err: any) { toast.error(err.message); setLoading(false); }
-        }} disabled={loading}>
-          Demo Aç
-        </Button>
-      </div>
-    </>
-  );
-}
-
-// ──────────────────────────────────────────────────────────────────────
-// ADIM 2 — Marka & Niş
-// ──────────────────────────────────────────────────────────────────────
-function Step2({ state, update }: any) {
-  const [brain, setBrain] = useState<any | null>(null);
-  const [loadingBrain, setLoadingBrain] = useState(true);
-
-  useEffect(() => {
-    if (!state.siteId) { setLoadingBrain(false); return; }
-    let stopped = false;
-    const tick = async () => {
-      try {
-        const b = await api.getBrain(state.siteId);
-        if (!stopped && b) {
-          setBrain(b);
-          setLoadingBrain(false);
-          if (!state.brainReady) update({ brainReady: true });
-        } else if (!stopped) {
-          // Brain henüz yok, 5sn sonra tekrar
-          setTimeout(tick, 5000);
-        }
-      } catch (_e) {
-        if (!stopped) setTimeout(tick, 5000);
-      }
-    };
-    tick();
-    return () => { stopped = true; };
-  }, [state.siteId]);
-
-  // AI'ın tahmin ettiği niş'i NICHES listesi içinde eşleştir
-  const aiNicheGuess = (() => {
-    if (!brain?.brandVoice) return null;
-    const v = brain.brandVoice as any;
-    const candidate = (v.niche ?? v.industry ?? v.sector ?? '').toLowerCase();
-    return NICHES.find((n) => candidate.includes(n.toLowerCase())) ?? null;
-  })();
-  const aiBrandGuess = (brain?.brandVoice as any)?.brand_name ?? null;
-
-  const applyAi = () => {
-    if (aiBrandGuess) update({ name: aiBrandGuess });
-    if (aiNicheGuess) update({ niche: aiNicheGuess });
-    toast.success('AI önerisi uygulandı');
-  };
-
-  return (
-    <>
-      <h2 className="text-2xl font-bold mb-2">Marka ve sektör</h2>
-      <p className="text-muted-foreground mb-6">AI marka sesini buna göre ayarlar. URL'den tahmin edildi — onaylayabilir veya düzeltebilirsin.</p>
-
-      <label className="block text-sm font-medium mb-1">Marka adı</label>
-      <Input
-        placeholder="Örn: LuviHost"
-        value={state.name}
-        onChange={(e) => update({ name: e.target.value })}
-        autoFocus
-      />
-
-      <div className="mt-5">
-        <label className="block text-sm font-medium mb-2">Sektör / Niş</label>
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-          {NICHES.map((n) => (
-            <button
-              key={n}
-              type="button"
-              onClick={() => update({ niche: n })}
-              className={cn(
-                'px-3 py-2 border rounded-lg text-sm transition-colors',
-                state.niche === n
-                  ? 'bg-brand text-white border-brand'
-                  : 'bg-card hover:border-brand',
-              )}
-            >
-              {n}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="mt-6 bg-brand/5 border border-brand/20 rounded-lg p-4 text-sm">
-        {loadingBrain && !brain && (
-          <>
-            <div className="flex items-center gap-2">
-              <div className="animate-spin rounded-full border-2 border-brand border-t-transparent h-4 w-4" />
-              <p className="font-semibold text-brand">🧠 AI marka analizi devam ediyor…</p>
-            </div>
-            <p className="text-muted-foreground text-xs leading-relaxed mt-2">
-              Site eklendi ve AI şu an markanın tonunu, hedef kitleni ve rakiplerini analiz ediyor. Birkaç saniye içinde önerileri buraya göreceksin.
-            </p>
-          </>
-        )}
-        {brain && (aiBrandGuess || aiNicheGuess) && (
-          <>
-            <p className="font-semibold text-brand mb-2">✨ AI önerisi hazır</p>
-            <div className="text-xs space-y-1 text-muted-foreground">
-              {aiBrandGuess && <p><strong>Marka adı:</strong> <span className="text-foreground">{aiBrandGuess}</span></p>}
-              {aiNicheGuess && <p><strong>Niş:</strong> <span className="text-foreground">{aiNicheGuess}</span></p>}
-            </div>
-            <Button size="sm" variant="outline" className="mt-3" onClick={applyAi} type="button">
-              AI önerisini uygula
-            </Button>
-          </>
-        )}
-        {brain && !aiBrandGuess && !aiNicheGuess && (
-          <>
-            <p className="font-semibold text-brand">🧠 Brain hazır</p>
-            <p className="text-muted-foreground text-xs leading-relaxed mt-1">
-              AI marka tonunu ve rakipleri analiz etti — kendi alanları boş bırakırsan default'lar kullanılır, kendin doldurabilirsin.
-            </p>
-          </>
-        )}
-      </div>
-    </>
-  );
-}
-
-// ──────────────────────────────────────────────────────────────────────
-// ADIM 3 — GSC + GA4 (Opsiyonel)
-// ──────────────────────────────────────────────────────────────────────
-function Step3({ state }: { state: LocalState }) {
-  const [gscConnecting, setGscConnecting] = useState(false);
-  const [gaConnecting, setGaConnecting] = useState(false);
-  const [gscConnected, setGscConnected] = useState(false);
-  const [gaConnected, setGaConnected] = useState(false);
-
-  // Site bilgisini fetch et — bağlanmış mı bak
-  useEffect(() => {
-    if (!state.siteId) return;
-    (async () => {
-      try {
-        const site = await api.getSite(state.siteId!);
-        setGscConnected(!!site.gscPropertyUrl || !!site.gscRefreshToken);
-        setGaConnected(!!site.gaPropertyId || !!site.gaRefreshToken);
-      } catch (_e) { /* noop */ }
-    })();
-  }, [state.siteId]);
-
-  const connectGsc = async () => {
-    if (!state.siteId) return;
-    setGscConnecting(true);
-    try {
-      const { url } = await api.getGscAuthUrl(state.siteId);
-      window.open(url, '_blank', 'width=600,height=700');
-      toast.info('Yeni pencerede GSC\'ye bağlan, sonra bu sekmeye geri dön');
-    } catch (err: any) { toast.error(err.message); }
-    finally { setGscConnecting(false); }
-  };
-
-  const connectGa = async () => {
-    if (!state.siteId) return;
-    setGaConnecting(true);
-    try {
-      const { url } = await api.getGaAuthUrl(state.siteId);
-      window.open(url, '_blank', 'width=600,height=700');
-      toast.info('Yeni pencerede GA\'ya bağlan, sonra bu sekmeye geri dön');
-    } catch (err: any) { toast.error(err.message); }
-    finally { setGaConnecting(false); }
-  };
-
-  return (
-    <>
-      <h2 className="text-2xl font-bold mb-2">Bağlantılar (opsiyonel)</h2>
-      <p className="text-muted-foreground mb-6">
-        Bu entegrasyonlar olmadan da çalışır, ama GSC + GA4 verisi içerik kalitesini ciddi artırır.
-      </p>
-
-      <div className="space-y-3">
-        <div className={cn('rounded-lg border p-4 flex items-center justify-between gap-3', gscConnected && 'border-green-500/50 bg-green-500/5')}>
-          <div className="flex-1">
-            <div className="flex items-center gap-2">
-              <p className="font-semibold text-sm">Google Search Console</p>
-              {gscConnected && <span className="text-xs text-green-600">✓ Bağlı</span>}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">Hangi sorgulardan trafik geliyor, low-CTR fırsatları bul.</p>
-          </div>
-          <Button size="sm" variant={gscConnected ? 'outline' : 'default'} onClick={connectGsc} disabled={gscConnecting}>
-            {gscConnecting ? '…' : gscConnected ? 'Yeniden bağla' : 'Bağla'}
-          </Button>
-        </div>
-
-        <div className={cn('rounded-lg border p-4 flex items-center justify-between gap-3', gaConnected && 'border-green-500/50 bg-green-500/5')}>
-          <div className="flex-1">
-            <div className="flex items-center gap-2">
-              <p className="font-semibold text-sm">Google Analytics 4</p>
-              {gaConnected && <span className="text-xs text-green-600">✓ Bağlı</span>}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1">Bounce, conversion, session signal'i — yazıların gerçek performansı.</p>
-          </div>
-          <Button size="sm" variant={gaConnected ? 'outline' : 'default'} onClick={connectGa} disabled={gaConnecting}>
-            {gaConnecting ? '…' : gaConnected ? 'Yeniden bağla' : 'Bağla'}
-          </Button>
-        </div>
-      </div>
-
-      <p className="mt-6 text-xs text-muted-foreground">
-        💡 Bunları sonra Ayarlar → Entegrasyonlar'dan da bağlayabilirsin.
-      </p>
-    </>
-  );
-}
-
-// ──────────────────────────────────────────────────────────────────────
-// ADIM 4 — Yayın Hedefi (ZORUNLU, en az 1)
-// ──────────────────────────────────────────────────────────────────────
-function Step4({ state, update }: any) {
-  const [catalog, setCatalog] = useState<any[] | null>(null);
-  const [targets, setTargets] = useState<any[]>([]);
-  const [adding, setAdding] = useState<string | null>(null);
-  const [creds, setCreds] = useState<Record<string, string>>({});
-  const [saving, setSaving] = useState(false);
-
-  const refresh = async () => {
-    if (!state.siteId) return;
-    try {
-      const list = await api.listPublishTargets(state.siteId);
-      setTargets(list ?? []);
-      update({ publishTargetCount: (list ?? []).length });
-    } catch (_e) { /* noop */ }
-  };
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const c = await api.getPublishTargetsCatalog();
-        setCatalog(c ?? []);
-      } catch (_e) { /* noop */ }
-      await refresh();
-    })();
-  }, [state.siteId]);
-
-  const startAdd = (type: string) => {
-    setAdding(type);
-    setCreds({});
-  };
-
-  const save = async () => {
-    if (!state.siteId || !adding) return;
-    const def = catalog?.find((c) => c.type === adding);
-    if (!def) return;
-
-    // Cift ekleme engelle (UI race condition'a karsı)
-    if (targets.some((t: any) => t.type === adding)) {
-      toast.info(`${def.label} zaten eklenmiş`);
-      setAdding(null);
-      return;
-    }
-
-    // Required field check
-    for (const f of def.fields ?? []) {
-      if (f.required && !creds[f.key]?.trim()) {
-        toast.error(`"${f.label}" zorunlu`); return;
-      }
-    }
-
-    setSaving(true);
-    try {
-      await api.createPublishTarget(state.siteId, {
-        type: adding,
-        name: def.label,
-        credentials: creds,
-        config: {},
-      });
-      toast.success(`${def.label} eklendi`);
-      setAdding(null);
-      setCreds({});
-      await refresh();
-    } catch (err: any) { toast.error(err.message); }
-    finally { setSaving(false); }
-  };
-
-  const remove = async (id: string) => {
-    if (!confirm('Bu yayın hedefi silinsin mi?')) return;
-    try {
-      await api.deletePublishTarget(id);
-      await refresh();
-    } catch (err: any) { toast.error(err.message); }
-  };
-
-  // Markdown ZIP fallback — adapter olmadan hızlı kayıt
-  const useMarkdownZip = async () => {
-    if (!state.siteId) return;
-    if (targets.some((t: any) => t.type === 'MARKDOWN_ZIP')) {
-      toast.info('Markdown ZIP zaten eklenmiş');
-      return;
-    }
-    setSaving(true);
-    try {
-      await api.createPublishTarget(state.siteId, {
-        type: 'MARKDOWN_ZIP',
-        name: 'Markdown ZIP (manuel indir)',
-        credentials: {},
-        config: {},
-      });
-      toast.success('Markdown ZIP eklendi — yazıları sunucu üzerinden ZIP olarak indirebilirsin');
-      await refresh();
-    } catch (err: any) { toast.error(err.message); }
-    finally { setSaving(false); }
-  };
-
-  const addingDef = catalog?.find((c) => c.type === adding);
-
-  return (
-    <>
-      <h2 className="text-2xl font-bold mb-2">Yayın Hedefi</h2>
-      <p className="text-muted-foreground mb-6">
-        AI yazıları nereye koysun? En az 1 hedef ekle — entegrasyon istemiyorsan ZIP olarak indirebilirsin.
-      </p>
-
-      {/* Sprint 2 — Background audit durumu */}
-      {state.siteId && <AuditProgressBadge siteId={state.siteId} />}
-
-      {/* Mevcut hedefler */}
-      {targets.length > 0 && (
-        <div className="space-y-2 mb-4">
-          {targets.map((t) => (
-            <div key={t.id} className="rounded-md border p-3 flex items-center justify-between gap-2 bg-green-500/5 border-green-500/30">
-              <div>
-                <p className="text-sm font-medium">✓ {t.name ?? t.type}</p>
-                <p className="text-[11px] text-muted-foreground">{t.type}</p>
-              </div>
-              <Button size="sm" variant="ghost" onClick={() => remove(t.id)}>Kaldır</Button>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {!adding && (
-        <>
-          <p className="text-sm font-medium mb-2">Hedef ekle:</p>
-          <div className="grid grid-cols-2 gap-2">
-            {(catalog ?? []).filter((c) => c.type !== 'MARKDOWN_ZIP').map((c) => {
-              const alreadyAdded = targets.some((t: any) => t.type === c.type);
-              return (
-                <button
-                  key={c.type}
-                  type="button"
-                  onClick={() => !alreadyAdded && startAdd(c.type)}
-                  disabled={alreadyAdded}
-                  className={cn(
-                    'rounded-md border p-3 text-left transition-colors',
-                    alreadyAdded ? 'opacity-50 cursor-not-allowed bg-muted/30' : 'hover:border-brand',
-                  )}
-                  title={alreadyAdded ? 'Bu hedef zaten eklendi' : undefined}
-                >
-                  <p className="text-sm font-medium flex items-center gap-2">
-                    {c.label}
-                    {alreadyAdded && <span className="text-[10px] text-green-600 font-bold">✓ Eklendi</span>}
-                  </p>
-                  <p className="text-[11px] text-muted-foreground mt-0.5">{c.type}</p>
-                </button>
-              );
-            })}
-          </div>
-
-          {(() => {
-            const zipAdded = targets.some((t: any) => t.type === 'MARKDOWN_ZIP');
-            return (
-              <div className={cn(
-                'mt-4 rounded-md border-2 border-dashed p-3 flex items-center justify-between gap-2',
-                zipAdded && 'opacity-60 bg-muted/30',
-              )}>
-                <div>
-                  <p className="text-sm font-medium flex items-center gap-2">
-                    📦 Manuel: Markdown ZIP
-                    {zipAdded && <span className="text-[10px] text-green-600 font-bold">✓ Eklendi</span>}
-                  </p>
-                  <p className="text-[11px] text-muted-foreground">Entegrasyon yok. Yazılar ZIP olarak hazır olur, manuel indirip yüklersin.</p>
-                </div>
-                <Button size="sm" variant="outline" onClick={useMarkdownZip} disabled={saving || zipAdded}>
-                  {zipAdded ? 'Eklendi' : 'Bunu seç'}
-                </Button>
-              </div>
-            );
-          })()}
-        </>
-      )}
-
-      {adding && addingDef && (
-        <div className="rounded-md border p-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <p className="font-semibold text-sm">{addingDef.label} bilgileri</p>
-            <button type="button" className="text-xs text-muted-foreground hover:underline" onClick={() => setAdding(null)}>
-              ← Geri
-            </button>
-          </div>
-          {(addingDef.fields ?? []).map((f: any) => (
-            <div key={f.key}>
-              <label className="block text-xs font-medium mb-1">
-                {f.label} {f.required && <span className="text-red-500">*</span>}
-              </label>
-              {f.type === 'select' ? (
-                <select
-                  className="w-full px-3 py-2 border rounded-md text-sm bg-background"
-                  value={creds[f.key] ?? f.default ?? ''}
-                  onChange={(e) => setCreds({ ...creds, [f.key]: e.target.value })}
-                >
-                  <option value="">Seç…</option>
-                  {f.options?.map((o: any) => (
-                    <option key={o.value} value={o.value}>{o.label}</option>
-                  ))}
-                </select>
-              ) : (
-                <Input
-                  type={f.type === 'password' ? 'password' : f.type === 'number' ? 'number' : 'text'}
-                  placeholder={f.placeholder}
-                  value={creds[f.key] ?? f.default ?? ''}
-                  onChange={(e) => setCreds({ ...creds, [f.key]: e.target.value })}
-                />
-              )}
-              {f.hint && <p className="text-[10px] text-muted-foreground mt-1">{f.hint}</p>}
-            </div>
-          ))}
-          <Button size="sm" onClick={save} disabled={saving}>
-            {saving ? 'Kaydediliyor…' : 'Kaydet ve Test Et'}
-          </Button>
-        </div>
-      )}
-    </>
-  );
-}
-
-// ──────────────────────────────────────────────────────────────────────
-// ADIM 5 — Otomatik Üretim Takvimi + Onay Modu
-// ──────────────────────────────────────────────────────────────────────
-function Step5({ state, update }: any) {
-  const { data: session } = useSession();
   const router = useRouter();
-  const [quota, setQuota] = useState<{ remaining: number; limit: number } | null>(null);
-  const [upgradeOpen, setUpgradeOpen] = useState(false);
+  const [url, setUrl] = useState('');
+  const [creating, setCreating] = useState(false);
+  const [demoLoading, setDemoLoading] = useState(false);
 
-  const refetchQuota = () => {
-    const userId = (session?.user as any)?.id;
-    if (!userId) return;
-    api.getUserQuota(userId).then((q) => {
-      setQuota({ remaining: q.articles.remaining, limit: q.articles.limit });
-    }).catch(() => { /* noop */ });
+  const valid = (() => {
+    try {
+      const u = new URL(url);
+      return u.protocol === 'http:' || u.protocol === 'https:';
+    } catch { return false; }
+  })();
+
+  const submit = async () => {
+    if (!valid) { toast.error('Geçerli bir URL gir (https:// ile başlamalı)'); return; }
+    if (sessionStatus !== 'authenticated' || !sessionUserId) {
+      router.push('/signin?callbackUrl=/onboarding');
+      return;
+    }
+    setCreating(true);
+    try {
+      const guessedName = (() => {
+        try { return new URL(url).hostname.replace(/^www\./, '').split('.')[0]; }
+        catch { return 'Site'; }
+      })();
+      const created = await api.createSite({
+        url,
+        name: guessedName,
+        niche: 'diğer',
+        language: 'tr',
+      } as any);
+      toast.success('Görev başlatıldı — AI çalışıyor');
+      onCreated(created.id);
+    } catch (err: any) {
+      toast.error(err.message);
+      setCreating(false);
+    }
   };
 
-  useEffect(() => {
-    const userId = (session?.user as any)?.id;
-    if (!userId) return;
-    api.getUserQuota(userId).then((q) => {
-      setQuota({ remaining: q.articles.remaining, limit: q.articles.limit });
-    }).catch(() => { /* noop */ });
-  }, [session]);
-
-  const monthlyLimit = quota?.limit ?? null;
-  const allFrequenciesBlocked = monthlyLimit !== null && monthlyLimit < 4; // weekly bile sigmaz
-
-  // Mevcut secim plan'i asiyor mu? Otomatik dusur
-  useEffect(() => {
-    if (monthlyLimit === null) return;
-    const cur = FREQUENCIES.find(f => f.value === state.autoGenerationFrequency);
-    if (cur && cur.articlesPerMonth > monthlyLimit) {
-      // Plan'a sigan en yuksek frequency'e dusur
-      const fit = [...FREQUENCIES].reverse().find(f => f.articlesPerMonth <= monthlyLimit);
-      if (fit && fit.value !== state.autoGenerationFrequency) {
-        update({ autoGenerationFrequency: fit.value });
-      }
+  const launchDemo = async () => {
+    if (sessionStatus !== 'authenticated') {
+      router.push('/signin?callbackUrl=/onboarding');
+      return;
     }
-  }, [monthlyLimit]);
+    setDemoLoading(true);
+    try {
+      const r = await api.createDemoSite();
+      toast.success('Demo site hazır');
+      router.push(`/sites/${r.siteId}`);
+    } catch (err: any) {
+      toast.error(err.message);
+      setDemoLoading(false);
+    }
+  };
 
   return (
-    <>
-      <h2 className="text-2xl font-bold mb-2">Otomatik Üretim</h2>
-      <p className="text-muted-foreground mb-6">
-        AI yazıları hangi sıklıkta ve saatte üretsin? Yayınlamadan önce sana onaylatabilir.
-      </p>
-
-      {monthlyLimit !== null && (
-        <div className={cn(
-          'rounded-lg border p-3 mb-4 flex items-center justify-between gap-3',
-          allFrequenciesBlocked ? 'border-yellow-500/40 bg-yellow-500/5' : 'border-blue-500/30 bg-blue-500/5',
-        )}>
-          <div>
-            <p className="text-sm font-medium">
-              {monthlyLimit === 1 ? '🎁 Ücretsiz deneme: ayda 1 makale hakkın var' : `📊 Plan kotası: ${monthlyLimit} makale/ay`}
-            </p>
-            <p className="text-[11px] text-muted-foreground mt-0.5">
-              {allFrequenciesBlocked
-                ? 'Otomatik üretim için en az haftada 1 yazı (4/ay) gerekir. Plan yükseltmen önerilir.'
-                : 'Plan limitini aşan sıklıklar otomatik kilitli — istersen plan yükseltebilirsin.'}
-            </p>
-          </div>
-          <Button size="sm" variant="outline" onClick={() => setUpgradeOpen(true)}>
-            Plan yükselt
-          </Button>
-        </div>
-      )}
-
-      <UpgradePlanModal
-        open={upgradeOpen}
-        onClose={() => setUpgradeOpen(false)}
-        onSuccess={refetchQuota}
-        reason="Otomatik üretim sıklığı için daha yüksek bir plan gerekiyor."
-      />
-
-      <p className="text-sm font-medium mb-2">Sıklık</p>
-      <div className="space-y-2 mb-6">
-        {FREQUENCIES.map((f) => {
-          const overLimit = monthlyLimit !== null && f.articlesPerMonth > monthlyLimit;
-          return (
-            <button
-              key={f.value}
-              type="button"
-              onClick={() => !overLimit && update({ autoGenerationFrequency: f.value })}
-              disabled={overLimit}
-              className={cn(
-                'w-full rounded-lg border-2 p-3 text-left transition-colors',
-                state.autoGenerationFrequency === f.value && !overLimit ? 'border-brand bg-brand/5' :
-                overLimit ? 'opacity-50 cursor-not-allowed' :
-                'hover:border-brand/40',
-              )}
-              title={overLimit ? `Bu sıklık ${f.articlesPerMonth} yazı/ay gerektirir, planın ${monthlyLimit}/ay` : undefined}
-            >
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-medium text-sm flex items-center gap-2">
-                    {f.label}
-                    {overLimit && <span className="text-[10px] uppercase tracking-wide bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 rounded-full px-2 py-0.5 font-bold">🔒 Üst plan</span>}
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-0.5">{f.hint}</p>
-                </div>
-                <span className="text-xs text-muted-foreground">~{f.articlesPerMonth} yazı/ay</span>
-              </div>
-            </button>
-          );
-        })}
-      </div>
-
-      <p className="text-sm font-medium mb-2">Saat (Türkiye)</p>
-      <div className="flex items-center gap-3 mb-6">
-        <input
-          type="range"
-          min={0}
-          max={23}
-          value={state.autoGenerationHour}
-          onChange={(e) => update({ autoGenerationHour: parseInt(e.target.value, 10) })}
-          className="flex-1"
-        />
-        <span className="text-sm font-mono w-16 text-right">
-          {String(state.autoGenerationHour).padStart(2, '0')}:00
+    <div className="relative max-w-2xl mx-auto px-4 sm:px-6 py-12 sm:py-20">
+      {/* mission badge */}
+      <div className="flex items-center justify-center gap-2 mb-4">
+        <Rocket className="h-3.5 w-3.5 text-brand" />
+        <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-brand font-semibold">
+          Mission Console · Yeni Görev
         </span>
       </div>
-      <p className="text-[11px] text-muted-foreground mb-6">
-        💡 Önerilen saat: 09:00 (sabah trafiği) veya 14:00 (öğleden sonra)
+
+      {/* hero */}
+      <h1 className="text-center text-4xl sm:text-5xl font-bold tracking-tight mb-3">
+        Tek tek adımları unut.
+      </h1>
+      <p className="text-center text-base sm:text-lg text-muted-foreground mb-8 max-w-lg mx-auto">
+        Sadece site URL'ini gir. AI; markanı, rakiplerini, hedef kitleni tespit edip
+        SEO + GEO skorunu hesaplar ve içerik takvimini hazırlar — ortalama <span className="font-semibold text-foreground">60–90 sn</span>.
       </p>
 
-      <div className="border-t pt-4">
-        <p className="text-sm font-medium mb-3">Yayın onayı</p>
-        <div className="space-y-2">
-          <button
-            type="button"
-            onClick={() => update({ publishApprovalMode: 'manual_approve' })}
+      {/* input panel */}
+      <div className="relative rounded-2xl border-2 border-brand/30 bg-card/70 backdrop-blur-sm p-1 shadow-[0_0_0_1px_rgb(124_58_237/0.05),0_20px_60px_-20px_rgb(124_58_237/0.3)]">
+        <div className="relative flex items-center gap-2 p-1">
+          <Globe className="h-5 w-5 text-brand/70 ml-3 shrink-0" />
+          <Input
+            type="url"
+            placeholder="https://siteniz.com"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter' && valid && !creating) submit(); }}
+            autoFocus
+            className="border-0 bg-transparent text-lg font-mono h-14 focus-visible:ring-0 focus-visible:ring-offset-0 px-2"
+          />
+          <Button
+            onClick={submit}
+            disabled={!valid || creating}
             className={cn(
-              'w-full rounded-lg border-2 p-3 text-left transition-colors',
-              state.publishApprovalMode === 'manual_approve' ? 'border-brand bg-brand/5' : 'hover:border-brand/40',
+              'h-12 px-6 mr-1 font-mono text-xs uppercase tracking-[0.18em] group relative overflow-hidden shrink-0',
+              'bg-gradient-to-r from-brand to-brand/85 hover:from-brand hover:to-brand',
+              'shadow-[0_0_0_1px_rgb(124_58_237/0.4),0_8px_28px_-6px_rgb(124_58_237/0.5)]',
+              'hover:shadow-[0_0_0_1px_rgb(124_58_237/0.6),0_12px_40px_-6px_rgb(124_58_237/0.7)]',
+              'disabled:shadow-none transition-all duration-300',
             )}
           >
-            <p className="font-medium text-sm">👁️ Önce göster, sonra yayınla (önerilen)</p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              AI yazsın → DRAFT olarak dursun → sen onaylayınca yayınlansın. Email/dashboard'dan haber gelir.
-            </p>
-          </button>
-          <button
-            type="button"
-            onClick={() => update({ publishApprovalMode: 'auto_publish' })}
-            className={cn(
-              'w-full rounded-lg border-2 p-3 text-left transition-colors',
-              state.publishApprovalMode === 'auto_publish' ? 'border-brand bg-brand/5' : 'hover:border-brand/40',
-            )}
+            <span className="relative z-10 flex items-center gap-1.5">
+              {creating ? 'Başlatılıyor…' : 'Görevi Başlat'}
+              {!creating && <ChevronRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />}
+            </span>
+            <span className="absolute inset-y-0 -left-1/2 w-1/2 bg-gradient-to-r from-transparent via-white/20 to-transparent skew-x-12 group-hover:translate-x-[400%] transition-transform duration-700" />
+          </Button>
+        </div>
+      </div>
+
+      {/* mini features */}
+      <ul className="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-3 text-center">
+        {[
+          { title: 'Otomatik AI Brain', sub: 'Marka sesi, persona, rakip analizi' },
+          { title: 'Audit + GEO skor', sub: '14 SEO kontrolü + AI alıntı analizi' },
+          { title: 'Hazır içerik takvimi', sub: 'AI tier-1 başlıkları otomatik planlar' },
+        ].map((f) => (
+          <li
+            key={f.title}
+            className="rounded-xl border border-brand/15 bg-card/40 backdrop-blur-sm p-3"
           >
-            <p className="font-medium text-sm">🚀 Direkt yayınla (tam otomatik)</p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              AI yazsın ve otomatik yayınlasın. Hız için ideal — sen sadece haftalık raporu okursun.
-            </p>
-          </button>
-        </div>
+            <p className="text-xs font-semibold">{f.title}</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">{f.sub}</p>
+          </li>
+        ))}
+      </ul>
+
+      {/* demo CTA */}
+      <div className="mt-8 flex items-center justify-center gap-3 text-sm">
+        <span className="text-muted-foreground font-mono text-xs">veya</span>
+        <Button
+          variant="outline"
+          size="sm"
+          type="button"
+          onClick={launchDemo}
+          disabled={demoLoading}
+          className="border-brand/30 hover:border-brand/60 hover:bg-brand/5 font-mono text-[11px] uppercase tracking-widest"
+        >
+          {demoLoading ? 'Demo hazırlanıyor…' : '🎁 Demo Site Aç (5 makale + audit + AI snapshot)'}
+        </Button>
       </div>
-    </>
-  );
-}
-
-// ──────────────────────────────────────────────────────────────────────
-// ADIM 6 — Sosyal Medya (Opsiyonel)
-// ──────────────────────────────────────────────────────────────────────
-function Step6({ state, update }: any) {
-  const [catalog, setCatalog] = useState<any[] | null>(null);
-  const [channels, setChannels] = useState<any[]>([]);
-  const [connecting, setConnecting] = useState<string | null>(null);
-
-  const refresh = async () => {
-    if (!state.siteId) return;
-    try {
-      const list = await api.listSocialChannels(state.siteId);
-      setChannels(list ?? []);
-      update({ socialChannelCount: (list ?? []).length });
-    } catch (_e) { /* noop */ }
-  };
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const c = await api.getSocialCatalog();
-        setCatalog((c ?? []).filter((s: any) => s.status === 'live'));
-      } catch (_e) { /* noop */ }
-      await refresh();
-    })();
-  }, [state.siteId]);
-
-  const connect = async (type: string) => {
-    if (!state.siteId) return;
-    setConnecting(type);
-    try {
-      const { url } = await api.startSocialOAuth(state.siteId, type);
-      window.open(url, '_blank', 'width=600,height=700');
-      toast.info('Yeni pencerede izin ver, sonra bu sekmeye dön ve yenile');
-    } catch (err: any) { toast.error(err.message); }
-    finally { setConnecting(null); }
-  };
-
-  return (
-    <>
-      <h2 className="text-2xl font-bold mb-2">Sosyal Medya (opsiyonel)</h2>
-      <p className="text-muted-foreground mb-6">
-        Yazılar yayınlandığında otomatik sosyal post atalım mı? Her hesabı tek tıkla bağla.
-      </p>
-
-      {(catalog ?? []).length === 0 && (
-        <p className="text-sm text-muted-foreground">Sosyal kanal yüklenemedi — sonra Ayarlar'dan bağlayabilirsin.</p>
-      )}
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-        {(catalog ?? []).map((c) => {
-          const connected = channels.some((ch: any) => ch.type === c.type && ch.isActive);
-          return (
-            <div key={c.type} className={cn('rounded-md border p-3 flex items-center justify-between gap-2', connected && 'border-green-500/50 bg-green-500/5')}>
-              <div className="min-w-0">
-                <p className="text-sm font-medium truncate">{c.label}</p>
-                {connected && <p className="text-[11px] text-green-600">✓ Bağlı</p>}
-              </div>
-              <Button size="sm" variant={connected ? 'outline' : 'default'} onClick={() => connect(c.type)} disabled={connecting === c.type}>
-                {connecting === c.type ? '…' : connected ? 'Yeniden' : 'Bağla'}
-              </Button>
-            </div>
-          );
-        })}
-      </div>
-
-      <p className="mt-6 text-xs text-muted-foreground">
-        💡 Sosyal kanalları sonra Ayarlar → Sosyal'dan da bağlayabilirsin. Şimdilik atlayabilirsin.
-      </p>
-    </>
-  );
-}
-
-// ──────────────────────────────────────────────────────────────────────
-// SPRINT 2 — Arka plan audit durumu (Adim 4'te gosterilir)
-// ──────────────────────────────────────────────────────────────────────
-function AuditProgressBadge({ siteId }: { siteId: string }) {
-  const [audit, setAudit] = useState<any | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  const fetchAudit = async () => {
-    try {
-      const a = await api.getLatestAudit(siteId);
-      setAudit(a);
-    } catch (_e) { /* noop */ }
-    finally { setLoading(false); }
-  };
-
-  useEffect(() => {
-    fetchAudit();
-    const t = setInterval(fetchAudit, 8000);
-    return () => clearInterval(t);
-  }, [siteId]);
-
-  if (loading) {
-    return (
-      <div className="rounded-lg border bg-muted/20 p-3 mb-4 flex items-center gap-3">
-        <div className="animate-spin rounded-full border-2 border-brand border-t-transparent h-4 w-4" />
-        <span className="text-xs text-muted-foreground">Audit durumu kontrol ediliyor…</span>
-      </div>
-    );
-  }
-
-  if (!audit) {
-    return (
-      <div className="rounded-lg border border-brand/30 bg-brand/5 p-3 mb-4 flex items-center gap-3">
-        <div className="animate-spin rounded-full border-2 border-brand border-t-transparent h-4 w-4" />
-        <div>
-          <p className="text-xs font-semibold">🔎 Site taraması arka planda çalışıyor…</p>
-          <p className="text-[11px] text-muted-foreground mt-0.5">Sen bilgileri girerken biz 14 SEO + GEO kontrolü yapıyoruz. Sonuç birkaç saniye içinde gelecek.</p>
-        </div>
-      </div>
-    );
-  }
-
-  const score = audit.overallScore ?? 0;
-  const color = score >= 70 ? 'text-green-600 border-green-500/40 bg-green-500/5' :
-                score >= 40 ? 'text-yellow-600 border-yellow-500/40 bg-yellow-500/5' :
-                              'text-red-600 border-red-500/40 bg-red-500/5';
-  const issuesCount = Array.isArray(audit.issues) ? audit.issues.length : 0;
-
-  return (
-    <div className={cn('rounded-lg border-2 p-3 mb-4 flex items-center justify-between gap-3', color)}>
-      <div className="flex items-center gap-3">
-        <span className="text-2xl">{score >= 70 ? '✅' : score >= 40 ? '⚠️' : '🔴'}</span>
-        <div>
-          <p className="text-sm font-semibold">Tarama tamam: {score}/100</p>
-          <p className="text-[11px] opacity-80 mt-0.5">
-            {issuesCount} sorun tespit edildi · auto-fix bekliyor
-          </p>
-        </div>
-      </div>
-      <p className="text-[10px] opacity-70 hidden sm:block">Detayları "Bitir" sonrası dashboard'da görürsün.</p>
     </div>
   );
 }
 
 // ──────────────────────────────────────────────────────────────────────
-// ADIM 7 — İçerik Takvimi (Topic Backlog)
+// Stage B — Mission progress (HUD wheel + polling)
 // ──────────────────────────────────────────────────────────────────────
-function Step7({ state, update }: any) {
-  const { data: session } = useSession();
-  const [queue, setQueue] = useState<any | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [generating, setGenerating] = useState(false);
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [scheduling, setScheduling] = useState(false);
-  const [scheduledIds, setScheduledIds] = useState<string[]>([]);
-  const [quota, setQuota] = useState<{ remaining: number; limit: number } | null>(null);
-  const [upgradeOpen, setUpgradeOpen] = useState(false);
-  const router = useRouter();
+function MissionStage({
+  siteId,
+  onComplete,
+  onAbort,
+}: {
+  siteId: string;
+  onComplete: (id: string) => void;
+  onAbort: () => void;
+}) {
+  const startedAtRef = useRef<number>(Date.now());
+  const [tasks, setTasks] = useState<MissionTask[]>([
+    { key: 'brain', label: 'Marka beyni', done: false },
+    { key: 'audit', label: 'Site audit', done: false },
+    { key: 'topics', label: 'İçerik konuları', done: false },
+    { key: 'platform', label: 'Platform tespiti', done: false },
+    { key: 'schedule', label: 'Yayın takvimi', done: false },
+  ]);
 
-  const refetchQuota = () => {
-    const userId = (session?.user as any)?.id;
-    if (!userId) return;
-    api.getUserQuota(userId).then((q) => {
-      setQuota({ remaining: q.articles.remaining, limit: q.articles.limit });
-    }).catch(() => { /* noop */ });
-  };
-
-  // Kalan makale kotasini cek
+  // Polling effect
   useEffect(() => {
-    const userId = (session?.user as any)?.id;
-    if (!userId) return;
-    api.getUserQuota(userId).then((q) => {
-      setQuota({ remaining: q.articles.remaining, limit: q.articles.limit });
-    }).catch(() => { /* noop */ });
-  }, [session]);
+    let cancelled = false;
+    let timeoutId: any;
 
-  const fetchQueue = async () => {
-    if (!state.siteId) return;
-    try {
-      const q = await api.getTopicQueue(state.siteId);
-      setQueue(q);
-      setLoading(false);
-      const hasTopics = !!(q && (q.tier1Topics?.length || q.tier2Topics?.length));
-      if (hasTopics && !state.topicsReady) update({ topicsReady: true });
-      return q;
-    } catch (_e) {
-      setLoading(false);
-      return null;
-    }
-  };
-
-  // Ilk yukleme + auto-generate
-  useEffect(() => {
-    (async () => {
-      const q = await fetchQueue();
-      if (!q || (!q.tier1Topics?.length && !q.tier2Topics?.length)) {
-        // Queue yok — generate et
-        setGenerating(true);
-        try {
-          await api.regenerateTopics(state.siteId);
-          toast.info('AI içerik başlıkları üretiliyor… (~2 dakika)');
-          // Poll: her 10sn'de bir kontrol et, max 5 dk
-          let attempts = 0;
-          const maxAttempts = 30;
-          const poll = setInterval(async () => {
-            attempts++;
-            const refreshed = await fetchQueue();
-            if (refreshed && (refreshed.tier1Topics?.length || refreshed.tier2Topics?.length)) {
-              clearInterval(poll);
-              setGenerating(false);
-              toast.success('İçerik başlıkları hazır');
-            } else if (attempts >= maxAttempts) {
-              clearInterval(poll);
-              setGenerating(false);
-              toast.error('Başlık üretimi uzun sürdü — sonra tekrar deneyebilirsin');
-            }
-          }, 10000);
-          return () => clearInterval(poll);
-        } catch (err: any) {
-          setGenerating(false);
-          toast.error(err.message);
-        }
-      }
-    })();
-  }, [state.siteId]);
-
-  const allTopics = (() => {
-    if (!queue) return [] as any[];
-    return [
-      ...((queue.tier1Topics ?? []) as any[]).map((t) => ({ ...t, tier: 1 })),
-      ...((queue.tier2Topics ?? []) as any[]).map((t) => ({ ...t, tier: 2 })),
-      ...((queue.tier3Topics ?? []) as any[]).map((t) => ({ ...t, tier: 3 })),
-    ].slice(0, 12);
-  })();
-
-  const toggle = (topic: string) => {
-    const next = new Set(selected);
-    if (next.has(topic)) {
-      next.delete(topic);
-    } else {
-      // Kota kontrolu — eklemeden once limit asilmiyor mu?
-      if (quota && next.size >= quota.remaining) {
-        toast.error(
-          `Mevcut planinda ${quota.limit} makale hakkin var (${next.size}/${quota.remaining} sectin). Daha fazla secmek icin plani yukselt.`,
-        );
-        return;
-      }
-      next.add(topic);
-    }
-    setSelected(next);
-    update({ selectedTopicCount: next.size });
-  };
-
-  // Frequency'e göre slot saati hesapla
-  const computeSlots = (count: number): Date[] => {
-    const out: Date[] = [];
-    const now = new Date();
-    let next = new Date(now);
-    next.setHours(state.autoGenerationHour, 0, 0, 0);
-    if (next.getTime() <= now.getTime()) next.setDate(next.getDate() + 1);
-
-    const stepDays =
-      state.autoGenerationFrequency === 'daily'           ? 1 :
-      state.autoGenerationFrequency === 'three_per_week'  ? 2 : 7;
-
-    for (let i = 0; i < count; i++) {
-      out.push(new Date(next));
-      next.setDate(next.getDate() + stepDays);
-    }
-    return out;
-  };
-
-  const scheduleSelected = async () => {
-    if (!state.siteId || selected.size === 0) return;
-    setScheduling(true);
-    const slots = computeSlots(selected.size);
-    const items = Array.from(selected);
-    const ids: string[] = [];
-    let i = 0;
-    for (const topic of items) {
+    const poll = async () => {
       try {
-        const r = await api.scheduleTopicToCalendar(state.siteId, {
-          topic,
-          scheduledAt: slots[i].toISOString(),
-        });
-        if (r?.id) ids.push(r.id);
-      } catch (err: any) {
-        toast.error(`"${topic}" planlanamadı: ${err.message}`);
+        const [siteR, brainR, auditR, queueR] = await Promise.allSettled([
+          api.getSite(siteId),
+          api.getBrain(siteId).catch(() => null),
+          api.getLatestAudit(siteId).catch(() => null),
+          api.getTopicQueue(siteId).catch(() => null),
+        ]);
+        if (cancelled) return;
+
+        const site: any = siteR.status === 'fulfilled' ? siteR.value : null;
+        const brain: any = brainR.status === 'fulfilled' ? brainR.value : null;
+        const audit: any = auditR.status === 'fulfilled' ? auditR.value : null;
+        const queue: any = queueR.status === 'fulfilled' ? queueR.value : null;
+
+        // Site missing → silinmiş
+        if (siteR.status === 'rejected' && (siteR.reason?.status === 404)) {
+          toast.error('Site bulunamadı — yeniden başlatın');
+          onAbort();
+          return;
+        }
+
+        const brainDone = !!brain;
+        const auditDone = !!audit;
+        const topicsDone = !!(queue?.tier1Topics?.length);
+        const platformDone = !!(site?.platform);
+        const scheduleDone = site?.status === 'ACTIVE';
+
+        setTasks([
+          { key: 'brain', label: 'Marka beyni', done: brainDone },
+          { key: 'audit', label: 'Site audit', done: auditDone },
+          { key: 'topics', label: 'İçerik konuları', done: topicsDone },
+          { key: 'platform', label: 'Platform tespiti', done: platformDone },
+          { key: 'schedule', label: 'Yayın takvimi', done: scheduleDone },
+        ]);
+
+        // Tamamlandı → yönlendir
+        if (scheduleDone || (brainDone && auditDone && topicsDone)) {
+          // Kısa bir gösterim için 1.4sn bekle (HUD "done" state'i dönsün)
+          setTimeout(() => { if (!cancelled) onComplete(siteId); }, 1400);
+          return;
+        }
+      } catch (_e) {
+        // polling hatası — sessizce yeniden dene
       }
-      i++;
-    }
-    setScheduledIds(ids);
-    setScheduling(false);
-    toast.success(`${ids.length} yazı takvime eklendi`);
-  };
+      if (!cancelled) timeoutId = setTimeout(poll, POLL_INTERVAL_MS);
+    };
+
+    poll();
+    return () => { cancelled = true; if (timeoutId) clearTimeout(timeoutId); };
+  }, [siteId, onComplete, onAbort]);
 
   return (
-    <>
-      <UpgradePlanModal
-        open={upgradeOpen}
-        onClose={() => setUpgradeOpen(false)}
-        onSuccess={refetchQuota}
-        reason="Daha fazla başlık seçmek için plan yükselt."
-      />
-      <h2 className="text-2xl font-bold mb-2">İçerik Takvimi</h2>
-      <p className="text-muted-foreground mb-6">
-        AI senin için ilk içerik fikirlerini hazırladı. Yazılmasını istediklerini seç —
-        seçilen başlıklar belirlediğin sıklıkta otomatik üretilip yayınlanır.
-      </p>
+    <div className="relative max-w-3xl mx-auto px-4 sm:px-6 py-8 sm:py-14">
+      <div className="flex items-center justify-center gap-2 mb-2">
+        <span className="h-1.5 w-1.5 rounded-full bg-brand animate-pulse" />
+        <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-brand font-semibold">
+          Mission #1 · Site Agent v0.7
+        </span>
+      </div>
 
-      {generating && (
-        <div className="rounded-lg border border-brand/30 bg-brand/5 p-6 text-center">
-          <div className="inline-block animate-spin rounded-full border-2 border-brand border-t-transparent h-6 w-6 mb-3" />
-          <p className="text-sm font-semibold">AI başlık önerileri hazırlanıyor…</p>
-          <p className="text-xs text-muted-foreground mt-1">~2 dakika · GSC + GEO + rakip analizi</p>
-        </div>
-      )}
+      <MissionWheel tasks={tasks} startedAt={startedAtRef.current} estimatedMs={ESTIMATED_TOTAL_MS} />
 
-      {!generating && allTopics.length === 0 && !loading && (
-        <div className="rounded-lg border p-4 text-sm">
-          <p className="text-muted-foreground mb-3">Henüz başlık önerisi üretilmedi. Şimdi başlatalım:</p>
-          <Button size="sm" onClick={async () => {
-            setGenerating(true);
-            try {
-              await api.regenerateTopics(state.siteId);
-              toast.info('Başlatıldı — birkaç dakika bekle');
-            } catch (err: any) { toast.error(err.message); setGenerating(false); }
-          }}>
-            Başlık üretimini başlat
-          </Button>
-        </div>
-      )}
-
-      {!generating && allTopics.length > 0 && (
-        <>
-          {quota && (
-            <div className={cn(
-              'rounded-lg border p-3 mb-3 flex items-center justify-between gap-3',
-              quota.remaining > 0 ? 'border-blue-500/30 bg-blue-500/5' : 'border-yellow-500/40 bg-yellow-500/5',
-            )}>
-              <div>
-                <p className="text-sm font-medium">
-                  {quota.limit === 1 ? '🎁 Ücretsiz deneme: 1 makale hakkın var' : `📊 Plan kotanı: ${quota.limit} makale/ay`}
-                </p>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
-                  Bu ay <strong>{quota.remaining}</strong> hakkın kaldı · {selected.size}/{quota.remaining} seçildi
-                  {quota.remaining > 0 && selected.size === quota.remaining && ' · maksimuma ulaşıldı'}
-                </p>
-              </div>
-              {(quota.limit === 1 || selected.size >= quota.remaining) && (
-                <Button size="sm" variant="outline" onClick={() => setUpgradeOpen(true)}>
-                  Plan yükselt
-                </Button>
-              )}
-            </div>
-          )}
-          <div className="space-y-2 max-h-[400px] overflow-y-auto pr-1">
-            {allTopics.map((t: any, idx: number) => {
-              const topic = t.topic ?? t.title ?? String(t);
-              const checked = selected.has(topic);
-              const tierColor = t.tier === 1 ? 'text-red-500' : t.tier === 2 ? 'text-yellow-500' : 'text-muted-foreground';
-              const tierLabel = t.tier === 1 ? 'Hemen' : t.tier === 2 ? 'Bu hafta' : 'Planlı';
-              const limitReached = !!(quota && !checked && selected.size >= quota.remaining);
-              return (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={() => toggle(topic)}
-                  disabled={limitReached}
-                  className={cn(
-                    'w-full rounded-lg border-2 p-3 text-left transition-colors flex items-start gap-3',
-                    checked ? 'border-brand bg-brand/5' :
-                    limitReached ? 'opacity-50 cursor-not-allowed' :
-                    'hover:border-brand/40',
-                  )}
-                  title={limitReached ? 'Kota dolu — plan yükselt' : undefined}
-                >
-                  <div className={cn(
-                    'mt-0.5 h-5 w-5 rounded border-2 grid place-items-center shrink-0',
-                    checked ? 'border-brand bg-brand' : 'border-muted-foreground',
-                  )}>
-                    {checked && <span className="text-white text-xs">✓</span>}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium">{topic}</p>
-                    <p className="text-[10px] text-muted-foreground mt-1">
-                      <span className={tierColor}>● {tierLabel}</span>
-                      {t.score && <> · skor: {Math.round(t.score)}</>}
-                      {t.persona && <> · {t.persona}</>}
-                      {t.pillar && <> · pillar: {t.pillar}</>}
-                    </p>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="mt-4 rounded-lg border border-brand/20 bg-brand/5 p-3 text-sm">
-            <div className="flex items-center justify-between gap-3">
-              <p>
-                <strong>{selected.size}</strong> başlık seçildi.
-                {selected.size > 0 && (
-                  <span className="text-xs text-muted-foreground ml-2">
-                    İlki: {(() => {
-                      const slot = computeSlots(1)[0];
-                      return slot.toLocaleString('tr-TR', { weekday: 'long', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
-                    })()}
-                  </span>
-                )}
-              </p>
-              {selected.size > 0 && scheduledIds.length === 0 && (
-                <Button size="sm" onClick={scheduleSelected} disabled={scheduling}>
-                  {scheduling ? 'Takvime ekleniyor…' : 'Takvime al'}
-                </Button>
-              )}
-              {scheduledIds.length > 0 && (
-                <span className="text-xs text-green-600">✓ {scheduledIds.length} yazı planlandı</span>
-              )}
-            </div>
-          </div>
-        </>
-      )}
-
-      <p className="mt-4 text-[11px] text-muted-foreground">
-        💡 Sonradan dashboard → Detaylı Akış'tan başlık ekleyebilir/değiştirebilirsin. Şimdi seçmesen de "Bitir" sonrası AI sırayla üretmeye başlar.
-      </p>
-    </>
+      <div className="mt-10 flex items-center justify-center gap-3 text-[10px] font-mono uppercase tracking-widest text-muted-foreground">
+        <span className="opacity-70">SITE_ID: {siteId}</span>
+        <span className="opacity-40">·</span>
+        <button
+          className="underline-offset-2 hover:text-foreground transition-colors hover:underline"
+          onClick={() => {
+            if (confirm('Görevi iptal et ve sıfırdan başla? Site backend\'de kalır.')) onAbort();
+          }}
+        >
+          görevi iptal et
+        </button>
+      </div>
+    </div>
   );
 }
 
-// Next.js 15 — useSearchParams Suspense gerektirir
-export default function OnboardingPage() {
+function BootingNote() {
   return (
-    <Suspense fallback={<div className="max-w-2xl mx-auto py-8 text-center text-sm text-muted-foreground">Yükleniyor…</div>}>
-      <OnboardingInner />
-    </Suspense>
+    <div className="max-w-2xl mx-auto py-16 text-center">
+      <div className="inline-flex items-center gap-3 font-mono text-xs uppercase tracking-[0.2em] text-brand">
+        <span className="h-1.5 w-1.5 rounded-full bg-brand animate-pulse" />
+        <span>Mission console hazırlanıyor…</span>
+      </div>
+    </div>
   );
 }

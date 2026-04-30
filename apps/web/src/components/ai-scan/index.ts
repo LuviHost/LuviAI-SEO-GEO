@@ -4,4 +4,6 @@ export type { PipelineStep } from './scan-overlay';
 export { MissionMap } from './mission-map';
 export { MissionShell } from './mission-shell';
 export { ConsolePanel } from './console-panel';
+export { MissionWheel } from './mission-wheel';
+export type { MissionTask, MissionTaskKey } from './mission-wheel';
 export { useReducedMotion } from './use-reduced-motion';
