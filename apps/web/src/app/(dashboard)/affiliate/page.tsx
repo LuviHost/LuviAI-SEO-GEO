@@ -361,7 +361,7 @@ function AffiliateDashboard({
                   stroke={isPaid ? '#fde68a' : '#93c5fd'}
                   strokeWidth={2.5}
                   style={{ filter: `drop-shadow(0 0 12px ${isPaid ? 'rgba(250,204,21,0.7)' : 'rgba(59,130,246,0.6)'})` }} />
-                <text x={p.x} y={p.y + (p.y < CY ? -28 : 36)}
+                <text x={p.x} y={clampLabelY(p.y, p.y < CY, 28, 36)}
                   textAnchor="middle" fontSize={10} fill="#bfdbfe" fontWeight={500}>
                   T1 · {refLabel(p.ref, i + 1)}
                 </text>
@@ -381,7 +381,7 @@ function AffiliateDashboard({
                   stroke={isPaid ? '#fde68a' : '#86efac'}
                   strokeWidth={2}
                   style={{ filter: `drop-shadow(0 0 8px ${isPaid ? 'rgba(250,204,21,0.6)' : 'rgba(34,197,94,0.5)'})` }} />
-                <text x={p.x} y={p.y + (p.y < CY ? -16 : 22)}
+                <text x={p.x} y={clampLabelY(p.y, p.y < CY, 16, 22)}
                   textAnchor="middle" fontSize={9} fill="#bbf7d0" fontWeight={500}>
                   T2 · {refLabel(p.ref, i + 1)}
                 </text>
@@ -532,6 +532,18 @@ function FlowParticleOnLine({ x1, y1, x2, y2 }: { x1: number; y1: number; x2: nu
 // ──────────────────────────────────────────────────────────────────
 //  Helpers
 // ──────────────────────────────────────────────────────────────────
+
+function clampLabelY(nodeY: number, above: boolean, aboveOffset: number, belowOffset: number): number {
+  // Label SVG viewBox'ının (0..H) üst/alt kenarına taşıyorsa otomatik öbür tarafa çevir.
+  if (above) {
+    const proposed = nodeY - aboveOffset;
+    if (proposed < 14) return nodeY + belowOffset;
+    return proposed;
+  }
+  const proposed = nodeY + belowOffset;
+  if (proposed > H - 8) return nodeY - aboveOffset;
+  return proposed;
+}
 
 function refLabel(r: Referral, idx: number): string {
   if (r.referredName && r.referredName.trim()) {
