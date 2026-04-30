@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent } from '@/components/ui/card';
+import { ContentCalendarPanel } from '@/components/site-flow-stepper';
 
 const DAY_LABELS = ['Pazar', 'Pazartesi', 'Sali', 'Carsamba', 'Persembe', 'Cuma', 'Cumartesi'];
 const DAY_LABELS_SHORT = ['Paz', 'Pzt', 'Sal', 'Car', 'Per', 'Cum', 'Cts'];
@@ -23,7 +24,15 @@ type CalendarPayload = {
   posts: Array<any>;
 };
 
-export function SocialCalendarStep({ siteId }: { siteId: string }) {
+export function SocialCalendarStep({
+  siteId,
+  articles = [],
+  onRefresh,
+}: {
+  siteId: string;
+  articles?: any[];
+  onRefresh?: () => void;
+}) {
   const [data, setData] = useState<CalendarPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -156,6 +165,56 @@ export function SocialCalendarStep({ siteId }: { siteId: string }) {
 
   return (
     <div className="space-y-5">
+      {/* Içerik takvimi (eşzamanlı) — aynı haftada planlanmış makaleler.
+          Sosyal Takvim'in altında ContentCalendarPanel mount ediliyor — yeni
+          bir slot eklemek yerine kullanıcı doğrudan makaleyi başka güne sürükleyebiliyor. */}
+      {(() => {
+        const scheduled = (articles ?? [])
+          .filter((a) => a?.status === 'SCHEDULED' && a?.scheduledAt)
+          .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime());
+        const otherArticlesCount = (articles ?? []).filter((a) => a?.status !== 'SCHEDULED').length;
+        if (scheduled.length === 0) return null;
+        return (
+          <Card className="border-brand/20">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 mb-2 flex-wrap">
+                <Calendar className="h-4 w-4 text-brand" />
+                <p className="text-sm font-semibold">İçerik takvimi (senkron)</p>
+                <Badge variant="outline" className="text-[10px]">{scheduled.length} makale planlı</Badge>
+              </div>
+              <p className="text-xs text-muted-foreground mb-3">
+                Aşağıdaki makaleler haftalık takvimde planlandı. <strong>Farklı bir güne sürükleyip</strong> saatini değiştirebilirsin —
+                yayınlandığında bu sayfanın üstündeki aktif sosyal kanallarda otomatik paylaşılır.
+              </p>
+              <ContentCalendarPanel
+                siteId={siteId}
+                scheduled={scheduled}
+                otherArticlesCount={otherArticlesCount}
+                onChanged={onRefresh ?? (() => {})}
+              />
+              {/* Aktif sosyal kanal rozetleri — kullanıcı paylaşılacak yerleri görsün */}
+              {data && data.channels && data.channels.length > 0 && (
+                <div className="mt-3 flex items-center gap-2 flex-wrap text-[11px] text-muted-foreground">
+                  <span>Yayınlanınca otomatik paylaşılacak:</span>
+                  {data.channels
+                    .filter((c: any) => c?.isActive)
+                    .map((c: any) => (
+                      <Badge key={c.id} variant="outline" className="text-[10px] gap-1">
+                        <Check className="h-3 w-3 text-emerald-500" /> {c.type?.toUpperCase?.() ?? c.type}
+                      </Badge>
+                    ))}
+                  {data.channels.filter((c: any) => c?.isActive).length === 0 && (
+                    <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-500/40">
+                      Aktif kanal yok — yukarıdan ekle
+                    </Badge>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        );
+      })()}
+
       {/* Plan ozet */}
       <div className="rounded-lg border bg-gradient-to-br from-brand/5 to-transparent p-4">
         <div className="flex items-center justify-between gap-3 flex-wrap">

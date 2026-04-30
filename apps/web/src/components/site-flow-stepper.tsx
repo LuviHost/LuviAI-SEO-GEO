@@ -195,7 +195,7 @@ export function SiteFlowStepper({
           {s.id === 'gsc' && <GscStepBody site={site} onChanged={onRefresh} />}
           {s.id === 'ga4' && <Ga4StepBody site={site} onChanged={onRefresh} />}
           {s.id === 'social' && <SocialChannelsStep siteId={site.id} />}
-          {s.id === 'social-calendar' && <SocialCalendarStep siteId={site.id} />}
+          {s.id === 'social-calendar' && <SocialCalendarStep siteId={site.id} articles={articles} onRefresh={onRefresh} />}
           {s.id === 'topics' && <TopicsStepBody queue={queue} articles={articles} siteId={site.id} onRefresh={onRefresh} onboardingMode={onboardingMode} />}
           {s.id === 'articles' && <ArticlesStepBody articles={articles} siteId={site.id} onRefresh={onRefresh} />}
         </StepCard>
@@ -1538,7 +1538,7 @@ function ArticlesStepBody({
 //   - 'application/x-luviai-topic'   → tier-1 kart (yeni article schedule)
 //   - 'application/x-luviai-article' → mevcut SCHEDULED article (reschedule)
 // ──────────────────────────────────────────────────────────────────────
-function ContentCalendarPanel({
+export function ContentCalendarPanel({
   siteId,
   scheduled,
   otherArticlesCount,
