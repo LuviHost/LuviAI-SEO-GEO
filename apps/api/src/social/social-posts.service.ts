@@ -99,6 +99,34 @@ export class SocialPostsService {
   }
 
   /**
+   * Post.mediaUrls'da geçen video URL'leri için Video tablosundaki atıf
+   * metnini (Pexels: "Photos: <isim> via Pexels (https://www.pexels.com)")
+   * yayın metnine append eder. Çoğul video varsa her birinin atfı tek satırda
+   * birleştirilir; idempotent — atıf zaten metinde varsa tekrar eklemez.
+   */
+  private async appendVideoCredits(text: string, mediaUrls: any[]): Promise<string> {
+    if (!Array.isArray(mediaUrls) || mediaUrls.length === 0) return text;
+    const videoUrls = mediaUrls
+      .filter((m) => m && m.type === 'video' && typeof m.url === 'string' && m.url.length > 0)
+      .map((m) => m.url as string);
+    if (videoUrls.length === 0) return text;
+
+    const videos = await this.prisma.video.findMany({
+      where: { videoUrl: { in: videoUrls } },
+      select: { description: true },
+    });
+
+    const lines: string[] = [];
+    for (const v of videos) {
+      const d = v.description?.trim();
+      if (d && !lines.includes(d) && !text.includes(d)) lines.push(d);
+    }
+    if (lines.length === 0) return text;
+
+    return `${text}\n\n${lines.join('\n')}`;
+  }
+
+  /**
    * Manuel "Simdi yayinla" — adapter'i cagir, sonucu DB'ye yaz.
    * Cron tabanli yayin icin de bu method kullanilir (cron status=PUBLISHING set
    * ettikten sonra cagirir).
@@ -122,10 +150,15 @@ export class SocialPostsService {
     });
 
     try {
+      // Pexels Terms of Service madde 4: stok görsel kullanan video'larda
+      // fotoğrafçı atfı yayın metninde geçmek zorunda. Video.description'a
+      // worker tarafından yazılan atıf metnini post.text sonuna append ediyoruz.
+      const publishText = await this.appendVideoCredits(post.text, (post.mediaUrls as any) ?? []);
+
       const adapter = getAdapter(channel.type);
       const result = await adapter.publish(
         {
-          text: post.text,
+          text: publishText,
           mediaUrls: (post.mediaUrls as any) ?? undefined,
           metadata: (post.metadata as any) ?? undefined,
         },
