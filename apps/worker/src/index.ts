@@ -98,6 +98,18 @@ async function bootstrap() {
     },
 
     GENERATE_ARTICLE: async ({ siteId, topic, skipImages, autoPublish, targetIds, articleId }) => {
+      // TEST GUARD — ARTICLE_GENERATION_DISABLED=1 oldugunda LLM/imaj API'lerine hic gitme.
+      // Article kaydı SCHEDULED’da kalır, kullanıcı flag’ı kapatınca tekrar işlenir.
+      if (process.env.ARTICLE_GENERATION_DISABLED === '1') {
+        log.warn(`[${siteId}] GENERATE_ARTICLE atlandı (ARTICLE_GENERATION_DISABLED=1) topic=${topic}`);
+        if (articleId) {
+          await services.prisma.article.update({
+            where: { id: articleId },
+            data: { status: 'SCHEDULED' as any },
+          }).catch(() => {});
+        }
+        return { skipped: true, reason: 'ARTICLE_GENERATION_DISABLED' };
+      }
       try {
         const result = await services.pipeline.runPipeline({
           siteId,
@@ -182,10 +194,17 @@ async function bootstrap() {
         log.warn(`[${siteId}] Platform detect fail: ${err.message}`);
       }
 
-      log.log(`[${siteId}] [5/5] Tier-1 takvim yerlesimi (${autopilot ? 8 : 3} makale)`);
-      const scheduleResult = await services.scheduler.scheduleInitialBatch(siteId, {
-        count: autopilot ? 8 : 3,
-      });
+      const articleGenDisabled = process.env.ARTICLE_GENERATION_DISABLED === '1';
+      let scheduleResult: any;
+      if (articleGenDisabled) {
+        log.warn(`[${siteId}] [5/5] Tier-1 takvim atlandı (ARTICLE_GENERATION_DISABLED=1)`);
+        scheduleResult = { scheduled: 0, immediate: null, isTrial: false, skipped: true };
+      } else {
+        log.log(`[${siteId}] [5/5] Tier-1 takvim yerlesimi (${autopilot ? 8 : 3} makale)`);
+        scheduleResult = await services.scheduler.scheduleInitialBatch(siteId, {
+          count: autopilot ? 8 : 3,
+        });
+      }
 
       // Otopilot ON ise auto-fix (sitemap/robots/llms) tetikle + ilk citation snapshot
       if (autopilot) {
@@ -228,6 +247,10 @@ async function bootstrap() {
      * SCHEDULED makaleleri kotasi yetenler icin uretime alir.
      */
     PROCESS_SCHEDULED: async () => {
+      if (process.env.ARTICLE_GENERATION_DISABLED === '1') {
+        log.warn('PROCESS_SCHEDULED atlandı (ARTICLE_GENERATION_DISABLED=1)');
+        return { processed: 0, skippedQuota: 0, disabled: true };
+      }
       return services.scheduler.processDueArticles();
     },
 
