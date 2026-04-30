@@ -1901,6 +1901,38 @@ export function ContentCalendarPanel({
         </div>
       </div>
 
+      {socialChannels.length === 0 && (
+        <Link
+          href={`/sites/${siteId}?tab=settings#social-channels` as any}
+          className="flex items-center justify-between gap-3 mb-3 rounded-md border border-amber-500/40 bg-gradient-to-r from-amber-500/10 to-amber-500/5 px-3 py-2.5 hover:from-amber-500/15 hover:to-amber-500/10 transition-colors group"
+        >
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="flex -space-x-1.5">
+              <span className="inline-flex items-center justify-center h-7 w-7 rounded-full bg-background border border-amber-500/30 ring-2 ring-amber-500/5">
+                <LinkedinIcon className="h-3.5 w-3.5 text-muted-foreground/60" />
+              </span>
+              <span className="inline-flex items-center justify-center h-7 w-7 rounded-full bg-background border border-amber-500/30 ring-2 ring-amber-500/5">
+                <TwitterIcon className="h-3.5 w-3.5 text-muted-foreground/60" />
+              </span>
+              <span className="inline-flex items-center justify-center h-7 w-7 rounded-full bg-background border border-amber-500/30 ring-2 ring-amber-500/5">
+                <InstagramIcon className="h-3.5 w-3.5 text-muted-foreground/60" />
+              </span>
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-amber-700 dark:text-amber-400 leading-tight">
+                Sosyal medya hesabı bağlı değil
+              </p>
+              <p className="text-[11px] text-amber-700/80 dark:text-amber-400/80 mt-0.5 truncate">
+                Yayınlanan makaleler otomatik paylaşılsın — LinkedIn, X (Twitter) bağla
+              </p>
+            </div>
+          </div>
+          <span className="shrink-0 inline-flex items-center gap-1 px-3 py-1.5 rounded-md bg-amber-500/90 hover:bg-amber-600 text-white text-xs font-semibold transition-colors group-hover:scale-105">
+            Bağla →
+          </span>
+        </Link>
+      )}
+
       {/* Hafta günü başlıkları */}
       <div className="grid grid-cols-7 gap-1.5 mb-1">
         {days.map((d) => (
@@ -2009,14 +2041,16 @@ export function ContentCalendarPanel({
                         })}
                       </div>
                     ) : (
-                      <Link
-                        href={`/sites/${siteId}?tab=settings#social-channels` as any}
-                        draggable={false}
-                        onClick={(e) => e.stopPropagation()}
-                        className="block mt-1 text-[9px] text-amber-600 dark:text-amber-400 hover:underline font-medium"
-                      >
-                        + Sosyal medya paylaşımına aç
-                      </Link>
+                      // Aktif sosyal kanal yok — hücrede minimal gri ikon stack.
+                      // Detayli CTA banner zaten takvimin ustunde; burda kalabalik yapmasin.
+                      <div className="flex gap-0.5 mt-1 opacity-50" aria-label="Sosyal medya kanalı yok">
+                        <span className="inline-flex h-4 w-4 items-center justify-center rounded border border-dashed border-muted-foreground/30">
+                          <LinkedinIcon className="h-2.5 w-2.5 text-muted-foreground/50" />
+                        </span>
+                        <span className="inline-flex h-4 w-4 items-center justify-center rounded border border-dashed border-muted-foreground/30">
+                          <TwitterIcon className="h-2.5 w-2.5 text-muted-foreground/50" />
+                        </span>
+                      </div>
                     )}
                   </div>
                 );
