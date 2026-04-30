@@ -673,4 +673,48 @@ export const api = {
 
   deleteSocialSlot: (slotId: string) =>
     request<{ ok: boolean }>(`/social/slots/${slotId}`, { method: 'DELETE' }),
+
+  // ──────────────────────────────────────────────────────────────────
+  // Video Factory (Faz 12)
+  // ──────────────────────────────────────────────────────────────────
+
+  listVideoProviders: () => request<Array<{
+    key: 'SLIDESHOW' | 'VEO' | 'RUNWAY' | 'HEYGEN' | 'SORA';
+    label: string;
+    description: string;
+    estTime: string;
+    costBand: string;
+    quality: number;
+    requiredEnvKeys: string[];
+    ready: boolean;
+    note?: string;
+    bestFor?: string[];
+  }>>('/videos/providers'),
+
+  listVideos: (siteId: string) => request<any[]>(`/sites/${siteId}/videos`),
+
+  createVideo: (
+    siteId: string,
+    body: {
+      title: string;
+      scriptText: string;
+      provider: 'SLIDESHOW' | 'VEO' | 'RUNWAY' | 'HEYGEN' | 'SORA';
+      durationSec?: number;
+      aspectRatio?: '9:16' | '16:9' | '1:1';
+      voiceId?: string;
+      language?: string;
+      style?: string;
+      imageUrls?: string[];
+      articleId?: string;
+    },
+  ) =>
+    request<any>(`/sites/${siteId}/videos`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+
+  getVideo: (id: string) => request<any>(`/videos/${id}`),
+
+  deleteVideo: (id: string) =>
+    request<{ id: string }>(`/videos/${id}`, { method: 'DELETE' }),
 };

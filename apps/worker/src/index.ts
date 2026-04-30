@@ -415,6 +415,51 @@ async function bootstrap() {
       const boost = await services.adsAutoBoost.findAndBoost();
       return { perf, main, ab, keyword, budget, boost };
     },
+
+    /**
+     * VIDEO_GENERATE — Faz 12: çoklu provider video factory.
+     * payload: { videoId, provider, brief: { title, scriptText, durationSec, aspectRatio, voiceId, language, style, imageUrls } }
+     */
+    VIDEO_GENERATE: async ({ videoId, provider, brief }) => {
+      log.log(`[video:${videoId}] generate (${provider})`);
+      const startedAt = new Date();
+      try {
+        await services.prisma.video.update({
+          where: { id: videoId },
+          data: { status: 'GENERATING' as any, startedAt },
+        });
+        const { getVideoProvider } = await import('../../api/dist/videos/providers/registry.js');
+        const provider_ = getVideoProvider(provider);
+        const result = await provider_.generate(brief);
+        await services.prisma.video.update({
+          where: { id: videoId },
+          data: {
+            status: 'READY' as any,
+            videoUrl: result.videoUrl,
+            thumbnailUrl: result.thumbnailUrl,
+            durationSec: result.durationSec,
+            fileSize: result.fileSize,
+            providerJobId: result.providerJobId,
+            providerRaw: result.raw as any,
+            costUsd: result.costUsd as any,
+            completedAt: new Date(),
+          },
+        });
+        log.log(`[video:${videoId}] READY ${result.videoUrl}`);
+        return { videoId, videoUrl: result.videoUrl };
+      } catch (err: any) {
+        log.error(`[video:${videoId}] FAILED ${err.message}`);
+        await services.prisma.video.update({
+          where: { id: videoId },
+          data: {
+            status: 'FAILED' as any,
+            errorMsg: err.message?.slice(0, 4000) ?? 'Unknown error',
+            completedAt: new Date(),
+          },
+        });
+        throw err;
+      }
+    },
   };
 
   const worker = new Worker(

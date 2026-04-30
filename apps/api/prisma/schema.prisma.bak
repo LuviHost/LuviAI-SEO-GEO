@@ -252,7 +252,6 @@ model Site {
   socialChannels   SocialChannel[]
   adCampaigns      AdCampaign[]
   aiProviderKeys   SiteAiProviderKey[]
-  videos           Video[]
 
   @@unique([userId, url])
   @@index([userId])
@@ -458,7 +457,6 @@ model Article {
 
   site Site @relation(fields: [siteId], references: [id], onDelete: Cascade)
   socialPosts SocialPost[]
-  videos      Video[]
 
   @@unique([siteId, slug])
   @@index([siteId, status])
@@ -999,69 +997,4 @@ model SettingAuditLog {
   @@index([key, changedAt])
   @@index([changedBy, changedAt])
   @@map("setting_audit_logs")
-}
-
-// ═══════════════════════════════════════════════════════════════
-//  VIDEO FACTORY (Faz 12 — çoklu sağlayıcı video üretim hattı)
-// ═══════════════════════════════════════════════════════════════
-
-model Video {
-  id          String        @id @default(cuid())
-  siteId      String
-  articleId   String?
-
-  // Source content
-  title       String
-  description String?       @db.Text
-  scriptText  String?       @db.LongText  // TTS için kullanılan senaryo
-
-  // Generation params
-  provider    VideoProvider
-  status      VideoStatus   @default(PENDING)
-  durationSec Int?
-  aspectRatio String        @default("9:16")  // 9:16 | 16:9 | 1:1
-  voiceId     String?                          // ElevenLabs voice id veya OpenAI voice
-  language    String        @default("tr")
-
-  // Output
-  videoUrl     String?      @db.VarChar(1000)
-  thumbnailUrl String?      @db.VarChar(1000)
-  fileSize     Int?
-
-  // Job tracking
-  jobId         String?     // BullMQ job id
-  errorMsg      String?     @db.Text
-  costUsd       Decimal?    @db.Decimal(10, 4)
-
-  // Provider-specific raw data
-  providerJobId String?     // Veo operation name, Runway task id, etc.
-  providerRaw   Json?
-
-  startedAt   DateTime?
-  completedAt DateTime?
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
-
-  site    Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
-  article Article? @relation(fields: [articleId], references: [id], onDelete: SetNull)
-
-  @@index([siteId, status])
-  @@index([articleId])
-  @@map("videos")
-}
-
-enum VideoStatus {
-  PENDING
-  GENERATING
-  READY
-  FAILED
-  PUBLISHED
-}
-
-enum VideoProvider {
-  SLIDESHOW   // ffmpeg + stock görseller + TTS — sunucuda, ücretsiz
-  VEO         // Google Veo 3 (Vertex AI / Gemini)
-  RUNWAY      // Runway Gen-3 / Gen-4
-  HEYGEN      // HeyGen avatar video
-  SORA        // OpenAI Sora
 }

@@ -1,0 +1,367 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { toast } from 'sonner';
+import {
+  Sparkles, Film, Mic, Wand2, Bot, Layers, Loader2,
+  CheckCircle2, AlertCircle, Play, Trash2, ExternalLink,
+} from 'lucide-react';
+import { api } from '@/lib/api';
+import { cn } from '@/lib/utils';
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+
+type Provider = {
+  key: 'SLIDESHOW' | 'VEO' | 'RUNWAY' | 'HEYGEN' | 'SORA';
+  label: string;
+  description: string;
+  estTime: string;
+  costBand: string;
+  quality: number;
+  requiredEnvKeys: string[];
+  ready: boolean;
+  note?: string;
+  bestFor?: string[];
+};
+
+type Video = {
+  id: string;
+  title: string;
+  status: 'PENDING' | 'GENERATING' | 'READY' | 'FAILED' | 'PUBLISHED';
+  provider: string;
+  videoUrl?: string | null;
+  thumbnailUrl?: string | null;
+  durationSec?: number | null;
+  errorMsg?: string | null;
+  costUsd?: number | null;
+  createdAt: string;
+};
+
+const PROVIDER_ICON: Record<string, React.ComponentType<{ className?: string }>> = {
+  SLIDESHOW: Layers,
+  VEO: Sparkles,
+  RUNWAY: Film,
+  HEYGEN: Bot,
+  SORA: Wand2,
+};
+
+const QUALITY_DOTS = (n: number) =>
+  Array.from({ length: 5 }, (_, i) => (
+    <span
+      key={i}
+      className={cn('h-1.5 w-1.5 rounded-full', i < n ? 'bg-brand' : 'bg-muted-foreground/20')}
+    />
+  ));
+
+export function VideoLab({ siteId }: { siteId: string }) {
+  const [providers, setProviders] = useState<Provider[]>([]);
+  const [videos, setVideos] = useState<Video[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [creating, setCreating] = useState(false);
+  const [picked, setPicked] = useState<Provider['key'] | null>(null);
+  const [title, setTitle] = useState('');
+  const [scriptText, setScriptText] = useState('');
+  const [aspect, setAspect] = useState<'9:16' | '16:9' | '1:1'>('9:16');
+  const [duration, setDuration] = useState(30);
+
+  const refresh = async () => {
+    try {
+      const [pList, vList] = await Promise.all([
+        api.listVideoProviders().catch(() => []),
+        api.listVideos(siteId).catch(() => []),
+      ]);
+      setProviders(pList);
+      setVideos(vList);
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    refresh();
+    // Generating videolar var ise her 8sn'de bir refresh et
+    const id = setInterval(() => {
+      setVideos((curr) => {
+        const hasActive = curr.some((v) => v.status === 'PENDING' || v.status === 'GENERATING');
+        if (hasActive) refresh();
+        return curr;
+      });
+    }, 8000);
+    return () => clearInterval(id);
+  }, [siteId]);
+
+  const submit = async () => {
+    if (!picked) { toast.error('Önce bir provider seç'); return; }
+    if (!title.trim()) { toast.error('Başlık gerekli'); return; }
+    if (scriptText.trim().length < 30) { toast.error('Senaryo en az 30 karakter olmalı'); return; }
+    setCreating(true);
+    try {
+      await api.createVideo(siteId, {
+        title: title.trim(),
+        scriptText: scriptText.trim(),
+        provider: picked,
+        durationSec: duration,
+        aspectRatio: aspect,
+        language: 'tr',
+      });
+      toast.success('Video üretimi kuyruğa alındı — birkaç dakika içinde hazır');
+      setTitle('');
+      setScriptText('');
+      setPicked(null);
+      refresh();
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const removeVideo = async (id: string) => {
+    if (!confirm('Bu videoyu sil?')) return;
+    try {
+      await api.deleteVideo(id);
+      toast.success('Video silindi');
+      refresh();
+    } catch (err: any) { toast.error(err.message); }
+  };
+
+  if (loading) {
+    return <div className="text-center py-12 text-sm text-muted-foreground font-mono">Video factory yükleniyor…</div>;
+  }
+
+  return (
+    <div className="space-y-8">
+      {/* Header */}
+      <div>
+        <div className="flex items-center gap-2 mb-1">
+          <Film className="h-3.5 w-3.5 text-brand" />
+          <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-brand font-semibold">
+            Video Factory · 5 sağlayıcı
+          </span>
+        </div>
+        <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">Video Üret</h2>
+        <p className="text-sm text-muted-foreground mt-1">
+          Senaryonu yapıştır — istediğin sağlayıcı seç — üretim arka planda. TikTok / YouTube Shorts / Reels formatında 9:16.
+        </p>
+      </div>
+
+      {/* Provider grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        {providers.map((p) => {
+          const Icon = PROVIDER_ICON[p.key] ?? Sparkles;
+          const isPicked = picked === p.key;
+          return (
+            <button
+              key={p.key}
+              type="button"
+              onClick={() => p.ready && setPicked(p.key)}
+              disabled={!p.ready}
+              className={cn(
+                'relative text-left rounded-xl border p-4 transition-all duration-200',
+                isPicked
+                  ? 'border-brand shadow-[0_0_0_1px_rgb(124_58_237/0.4),0_8px_32px_-6px_rgb(124_58_237/0.4)] bg-brand/5'
+                  : p.ready
+                    ? 'border-brand/15 bg-card hover:border-brand/40'
+                    : 'border-muted bg-muted/20 opacity-60 cursor-not-allowed',
+              )}
+            >
+              <div className="flex items-start justify-between gap-2 mb-2">
+                <div className="flex items-center gap-2">
+                  <Icon className={cn('h-5 w-5', isPicked ? 'text-brand' : 'text-foreground/70')} />
+                  <span className="font-semibold">{p.label}</span>
+                </div>
+                {p.ready ? (
+                  <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-0 text-[10px] font-mono">
+                    HAZIR
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="text-[10px] font-mono border-amber-500/40 text-amber-700 dark:text-amber-400">
+                    KEY GEREK
+                  </Badge>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground line-clamp-3 min-h-[3em]">{p.description}</p>
+              <div className="mt-3 flex items-center gap-3 text-[11px] font-mono">
+                <span className="text-muted-foreground">{p.estTime}</span>
+                <span className="opacity-30">·</span>
+                <span className="text-muted-foreground">{p.costBand}</span>
+              </div>
+              <div className="mt-2 flex items-center gap-1">
+                {QUALITY_DOTS(p.quality)}
+                <span className="ml-1.5 text-[10px] text-muted-foreground font-mono">kalite</span>
+              </div>
+              {!p.ready && p.note && (
+                <p className="mt-2 text-[10px] text-amber-700 dark:text-amber-400 leading-snug">
+                  ⚠ {p.note}
+                </p>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Form */}
+      {picked && (
+        <Card className="border-brand/30">
+          <CardContent className="p-5 space-y-4">
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-brand">
+                &gt;&gt; YENİ VİDEO · {picked}
+              </span>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium mb-1.5">Başlık</label>
+              <Input
+                placeholder="Örn: Shared hosting nedir? 60 saniyede"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium mb-1.5">Senaryo / Anlatım metni</label>
+              <textarea
+                rows={6}
+                placeholder="TTS bunu seslendirecek. Slideshow için her cümle bir sahne olur. AI provider'lar prompt olarak kullanır."
+                value={scriptText}
+                onChange={(e) => setScriptText(e.target.value)}
+                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand/40"
+              />
+              <div className="text-[10px] text-muted-foreground mt-1 font-mono">
+                {scriptText.trim().length} karakter · ~{Math.ceil(scriptText.trim().split(/\s+/).filter(Boolean).length / 2.5)}sn TTS
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium mb-1.5">Aspect</label>
+                <div className="flex gap-1">
+                  {(['9:16', '1:1', '16:9'] as const).map((a) => (
+                    <button
+                      key={a}
+                      type="button"
+                      onClick={() => setAspect(a)}
+                      className={cn(
+                        'flex-1 px-3 py-2 rounded-md border text-xs font-mono transition-colors',
+                        aspect === a ? 'bg-brand text-white border-brand' : 'bg-card hover:border-brand/40',
+                      )}
+                    >
+                      {a}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1.5">Süre (sn)</label>
+                <Input
+                  type="number"
+                  min={5}
+                  max={120}
+                  value={duration}
+                  onChange={(e) => setDuration(Math.max(5, Math.min(120, parseInt(e.target.value) || 30)))}
+                />
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between gap-3 pt-2 border-t">
+              <Button variant="ghost" onClick={() => setPicked(null)} disabled={creating}>
+                İptal
+              </Button>
+              <Button
+                onClick={submit}
+                disabled={creating}
+                className="font-mono text-xs uppercase tracking-widest bg-gradient-to-r from-brand to-brand/85 shadow-[0_0_0_1px_rgb(124_58_237/0.3),0_8px_24px_-6px_rgb(124_58_237/0.5)]"
+              >
+                {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <Sparkles className="h-3.5 w-3.5 mr-1.5" />}
+                {creating ? 'Kuyrukta…' : 'Video Üret'}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Recent videos */}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="text-sm font-semibold">Son Videolar</h3>
+          <span className="text-xs text-muted-foreground font-mono">{videos.length} adet</span>
+        </div>
+        {videos.length === 0 ? (
+          <p className="text-center text-xs text-muted-foreground py-8">Henüz video yok. Yukarıdan bir provider seç + üret.</p>
+        ) : (
+          <div className="space-y-2">
+            {videos.map((v) => (
+              <div key={v.id} className="rounded-lg border bg-card p-3 flex items-center gap-3">
+                <div className="shrink-0 h-12 w-12 rounded bg-muted grid place-items-center">
+                  {v.thumbnailUrl ? (
+                    <img src={v.thumbnailUrl} alt="" className="h-full w-full object-cover rounded" />
+                  ) : (
+                    <Film className="h-5 w-5 text-muted-foreground" />
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium truncate">{v.title}</p>
+                  <div className="flex items-center gap-2 mt-0.5 text-[10px] text-muted-foreground font-mono uppercase">
+                    <span>{v.provider}</span>
+                    <span className="opacity-30">·</span>
+                    <StatusBadge status={v.status} />
+                    {v.durationSec && (
+                      <>
+                        <span className="opacity-30">·</span>
+                        <span>{v.durationSec}sn</span>
+                      </>
+                    )}
+                  </div>
+                  {v.status === 'FAILED' && v.errorMsg && (
+                    <p className="text-[10px] text-red-600 dark:text-red-400 mt-1 line-clamp-2">{v.errorMsg}</p>
+                  )}
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  {v.videoUrl && (
+                    <a
+                      href={v.videoUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="h-8 w-8 grid place-items-center rounded hover:bg-muted text-foreground/70"
+                      title="Aç"
+                    >
+                      <ExternalLink className="h-4 w-4" />
+                    </a>
+                  )}
+                  <button
+                    onClick={() => removeVideo(v.id)}
+                    className="h-8 w-8 grid place-items-center rounded hover:bg-red-500/10 text-red-500"
+                    title="Sil"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function StatusBadge({ status }: { status: Video['status'] }) {
+  if (status === 'READY') {
+    return <span className="text-emerald-600 dark:text-emerald-400 inline-flex items-center gap-1"><CheckCircle2 className="h-3 w-3" /> HAZIR</span>;
+  }
+  if (status === 'PUBLISHED') {
+    return <span className="text-blue-600 dark:text-blue-400 inline-flex items-center gap-1"><Play className="h-3 w-3" /> YAYINDA</span>;
+  }
+  if (status === 'FAILED') {
+    return <span className="text-red-600 dark:text-red-400 inline-flex items-center gap-1"><AlertCircle className="h-3 w-3" /> HATA</span>;
+  }
+  if (status === 'GENERATING') {
+    return <span className="text-brand inline-flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" /> ÜRETİLİYOR</span>;
+  }
+  return <span className="text-muted-foreground inline-flex items-center gap-1"><Loader2 className="h-3 w-3" /> KUYRUKTA</span>;
+}

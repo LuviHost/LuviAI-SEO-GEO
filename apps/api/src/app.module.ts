@@ -26,6 +26,7 @@ import { AgencyModule } from './agency/agency.module.js';
 import { ApiKeysModule } from './api-keys/api-keys.module.js';
 import { OAuthModule } from './oauth/oauth.module.js';
 import { SettingsModule } from './settings/settings.module.js';
+import { VideosModule } from './videos/videos.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 
 @Module({
@@ -56,6 +57,7 @@ import { PrismaModule } from './prisma/prisma.module.js';
     ApiKeysModule,
     OAuthModule,
     SettingsModule,
+    VideosModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: AuthGuard },

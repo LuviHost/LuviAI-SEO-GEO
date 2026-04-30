@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
 import { AnalyticsTab } from '@/components/analytics-tab';
 import { SettingsTab } from '@/components/settings-tab';
+import { VideoLab } from '@/components/video-lab';
 import { SiteFlowStepper } from '@/components/site-flow-stepper';
 import { SiteOverviewDashboard } from '@/components/site-overview-dashboard';
 import { SiteReportPanel } from '@/components/site-report-panel';
@@ -134,6 +135,7 @@ export default function SitePage() {
           { id: 'flow', label: 'Detaylı Akış' },
           { id: 'report', label: 'Rapor' },
           { id: 'analytics', label: 'Analytics' },
+          { id: 'videos', label: 'Video Factory' },
           { id: 'settings', label: 'Ayarlar' },
         ].map((t) => {
           const active = (t.id === '' && !tab) || tab === t.id;
@@ -172,6 +174,7 @@ export default function SitePage() {
       )}
       {tab === 'report' && <SiteReportPanel siteId={id} site={site} />}
       {tab === 'analytics' && <AnalyticsTab siteId={id} />}
+      {tab === 'videos' && <VideoLab siteId={id} />}
       {tab === 'settings' && <SettingsTab siteId={id} onRefresh={refresh} />}
     </div>
   );
