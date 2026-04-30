@@ -186,7 +186,8 @@ async function bootstrap() {
       if (aiGlobalOff) {
         // TEST modu — sahte Brain yaz ki UI "Rakipler tespit edildi" görsün ve tutorial popup
         // 3 koşulun da tamamlandığını anlasın. Gerçek AI çağrısı yok.
-        log.warn(`[${siteId}] [1/5] Brain MOCK yazılıyor (AI_GLOBAL_DISABLED=1)`);
+        log.warn(`[${siteId}] [1/5] Brain MOCK (sahne icin 30sn bekleniyor — AI_GLOBAL_DISABLED=1)`);
+        await new Promise((r) => setTimeout(r, 30000));
         await services.prisma.brain.upsert({
           where: { siteId },
           create: {
@@ -215,7 +216,8 @@ async function bootstrap() {
 
       let audit: any = null;
       if (aiGlobalOff) {
-        log.warn(`[${siteId}] [2/5] Audit MOCK yazılıyor (AI_GLOBAL_DISABLED=1)`);
+        log.warn(`[${siteId}] [2/5] Audit MOCK (sahne icin 30sn bekleniyor — AI_GLOBAL_DISABLED=1)`);
+        await new Promise((r) => setTimeout(r, 30000));
         audit = await services.prisma.audit.create({
           data: {
             siteId,
@@ -237,7 +239,8 @@ async function bootstrap() {
 
       let queue: any = { id: null, tier1Topics: [] };
       if (aiGlobalOff) {
-        log.warn(`[${siteId}] [3/5] Topic engine MOCK yazılıyor (AI_GLOBAL_DISABLED=1)`);
+        log.warn(`[${siteId}] [3/5] Topic engine MOCK (sahne icin 30sn bekleniyor — AI_GLOBAL_DISABLED=1)`);
+        await new Promise((r) => setTimeout(r, 30000));
         const mockTier1 = [
           { topic: 'Web Hosting Nedir? Yeni Başlayanlar İçin Rehber', score: 92, persona: 'KOBİ Sahibi', pillar: 'temel', slug: 'web-hosting-nedir', data_summary: 'Yüksek arama hacmi · KOBİ niyeti' },
           { topic: 'En İyi Shared Hosting Karşılaştırması 2026', score: 88, persona: 'Karar Verici', pillar: 'karşılaştırma', slug: 'shared-hosting-karsilastirma', data_summary: 'Karar aşaması · ticari niyet' },

@@ -194,7 +194,7 @@ export function SiteOverviewDashboard({
               <p className="text-sm font-semibold inline-flex items-center gap-2">
                 <Zap className="h-4 w-4 text-brand" /> Sırada Yayınlanacaklar
               </p>
-              <Link href={`/sites/${site.id}?tab=flow#articles`} className="text-xs text-brand hover:underline">
+              <Link href={`/sites/${site.id}?tab=content`} className="text-xs text-brand hover:underline">
                 Takvimi aç →
               </Link>
             </div>
@@ -242,7 +242,7 @@ export function SiteOverviewDashboard({
                   <span className="h-2 w-2 rounded-full bg-green-500" />
                   <strong>{ready.length}</strong> makale yayına hazır
                 </p>
-                <Link href={`/sites/${site.id}?tab=flow#articles`} className="text-xs text-brand hover:underline">
+                <Link href={`/sites/${site.id}?tab=content`} className="text-xs text-brand hover:underline">
                   İncele →
                 </Link>
               </div>
@@ -253,7 +253,7 @@ export function SiteOverviewDashboard({
 
       {/* Hizli linkler */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-        <QuickLink href={`/sites/${site.id}?tab=flow`} icon={<FileText className="h-4 w-4" />} label="Detaylı Akış" />
+        <QuickLink href={`/sites/${site.id}?tab=content`} icon={<FileText className="h-4 w-4" />} label="Içerik" />
         <QuickLink href={`/sites/${site.id}?tab=report`} icon={<TrendingUp className="h-4 w-4" />} label="Rapor" />
         <QuickLink href={`/sites/${site.id}?tab=analytics`} icon={<Search className="h-4 w-4" />} label="Analytics" />
         <QuickLink href={`/sites/${site.id}?tab=settings`} icon={<ShieldCheck className="h-4 w-4" />} label="Ayarlar" />
@@ -370,14 +370,7 @@ function NextActionWidget({ site, audit, articles, onRefresh }: {
       title: 'AI görünürlüğünü ölç',
       desc: 'ChatGPT, Claude, Gemini, Perplexity senin siteni biliyor mu? Test et.',
       cta: 'AI testini çalıştır',
-      onClick: async () => {
-        try {
-          toast.info('AI testi başlatıldı (1-2 dk)…');
-          await api.runCitationTest(site.id);
-          toast.success('AI testi tamam');
-          onRefresh();
-        } catch (err: any) { toast.error(err.message); }
-      },
+      href: `/sites/${site.id}?tab=data#citation`,
     });
   }
 
@@ -389,7 +382,7 @@ function NextActionWidget({ site, audit, articles, onRefresh }: {
       title: 'İçerik takvimi oluştur',
       desc: 'AI başlık önerileri ile ilk yazıları takvime al — otomatik üretim ve yayın için.',
       cta: 'Başlık seç',
-      href: `/sites/${site.id}?tab=flow`,
+      href: `/sites/${site.id}?tab=content`,
     });
   }
 
@@ -401,7 +394,7 @@ function NextActionWidget({ site, audit, articles, onRefresh }: {
       title: `${ready.length} yazı onayını bekliyor`,
       desc: 'AI yazdı ama henüz yayınlanmadı — önizle ve onayla.',
       cta: 'Onaya git',
-      href: `/sites/${site.id}?tab=flow`,
+      href: `/sites/${site.id}?tab=content`,
     });
   }
 
@@ -416,7 +409,7 @@ function NextActionWidget({ site, audit, articles, onRefresh }: {
       title: `Sıradaki yazı: "${nextScheduled.title?.slice(0, 50) ?? 'Başlıksız'}"`,
       desc: `${dt.toLocaleString('tr-TR', { weekday: 'long', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} tarihinde otomatik üretilecek.`,
       cta: 'Takvimi gör',
-      href: `/sites/${site.id}?tab=flow`,
+      href: `/sites/${site.id}?tab=content`,
     });
   }
 
@@ -493,7 +486,7 @@ function HealthBanner({ site, audit, articles, publishTargets }: { site: any; au
       kind: 'error',
       title: `${failedArticles.length} yazı üretiminde hata`,
       desc: 'Yazı üretimi başarısız oldu — AI key bakiyesi bitmiş veya yayın hedefi düşmüş olabilir.',
-      cta: { label: 'Detayları gör', href: `/sites/${site.id}?tab=flow` },
+      cta: { label: 'Detayları gör', href: `/sites/${site.id}?tab=data` },
     });
   }
 
@@ -508,7 +501,7 @@ function HealthBanner({ site, audit, articles, publishTargets }: { site: any; au
       kind: 'warning',
       title: `${oldReady.length} yazı 3 günden uzun süredir onay bekliyor`,
       desc: 'AI yazdı ama yayınlanmadı. Onaya gitmek istersen Detaylı Akış sekmesine geç.',
-      cta: { label: 'Onaya git', href: `/sites/${site.id}?tab=flow` },
+      cta: { label: 'Onaya git', href: `/sites/${site.id}?tab=content` },
     });
   }
 

@@ -115,6 +115,22 @@ export default function SitePage() {
     return () => clearInterval(interval);
   }, [needsPolling, id]);
 
+  // Hash scroll: ?tab=data#citation gibi URL'lerde sayfa yüklenince ilgili section'a kaydır.
+  useEffect(() => {
+    if (loading) return;
+    const hash = typeof window !== "undefined" ? window.location.hash.slice(1) : "";
+    if (!hash) return;
+    const t1 = window.setTimeout(() => {
+      const el = document.getElementById(hash);
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 200);
+    const t2 = window.setTimeout(() => {
+      const el = document.getElementById(hash);
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 700);
+    return () => { window.clearTimeout(t1); window.clearTimeout(t2); };
+  }, [loading, tab]);
+
   const switchTab = (next: TabId) => {
     router.push(`/sites/${id}${next ? `?tab=${next}` : ""}` as any);
   };
@@ -271,7 +287,7 @@ function DataTab({
 }) {
   return (
     <div className="space-y-8">
-      <section>
+      <section id="audit" className="scroll-mt-24">
         <SectionHeader
           title="Site Skoru"
           subtitle="Audit raporu ve auto-fix onerileri."
@@ -285,7 +301,7 @@ function DataTab({
         />
       </section>
 
-      <section>
+      <section id="competitors" className="scroll-mt-24">
         <SectionHeader
           title="Rakipler"
           subtitle="AI ile tespit edilen rakipler. SERP+icerik analizi icin."
@@ -299,7 +315,7 @@ function DataTab({
         />
       </section>
 
-      <section>
+      <section id="gsc" className="scroll-mt-24">
         <SectionHeader
           title="Google Search Console"
           subtitle="Arama performansi, impressions, CTR — direkt GSC den cekilir."
@@ -308,7 +324,7 @@ function DataTab({
         <GscStepBody site={site} onChanged={onRefresh} />
       </section>
 
-      <section>
+      <section id="ga4" className="scroll-mt-24">
         <SectionHeader
           title="Google Analytics 4"
           subtitle="Trafik, oturum, edinim kanali — GA4 property si."
@@ -317,7 +333,7 @@ function DataTab({
         <Ga4StepBody site={site} onChanged={onRefresh} />
       </section>
 
-      <section>
+      <section id="citation" className="scroll-mt-24">
         <SectionHeader
           title="AI Gorunurluk"
           subtitle="Claude / Gemini / OpenAI / Perplexity senin markani aniyor mu?"
@@ -326,7 +342,7 @@ function DataTab({
         <CitationPanel siteId={siteId} />
       </section>
 
-      <section>
+      <section id="snippet" className="scroll-mt-24">
         <SectionHeader
           title="Snippet Iyilestir"
           subtitle="Bir sayfa URL si gir, AI snippet onerileri uret + uygula."
