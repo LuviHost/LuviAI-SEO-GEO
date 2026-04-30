@@ -98,4 +98,22 @@ export class ArticlesService {
       payload: { articleId, targetIds },
     });
   }
+
+
+  /**
+   * Article'in social pre-plan listesini set eder. Article PUBLISHED olunca
+   * SocialAutoDraftService bu liste'yi kullanir.
+   */
+  async setSocialPrePlan(siteId: string, articleId: string, channelIds: string[] | null) {
+    const article = await this.prisma.article.findFirst({
+      where: { id: articleId, siteId },
+      select: { id: true },
+    });
+    if (!article) throw new Error('Article bulunamadi');
+    return this.prisma.article.update({
+      where: { id: articleId },
+      data: { socialPrePlanChannelIds: (channelIds ?? null) as any },
+      select: { id: true, socialPrePlanChannelIds: true },
+    });
+  }
 }

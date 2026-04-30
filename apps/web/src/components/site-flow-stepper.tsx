@@ -1553,6 +1553,62 @@ export function ContentCalendarPanel({
   const [pendingDrop, setPendingDrop] = useState<{ date: Date; data: any; kind: 'topic' | 'article' } | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
+  // Per-article social pre-plan UI — aktif sosyal kanal listesi.
+  const [socialChannels, setSocialChannels] = useState<any[]>([]);
+  // articleId -> set<channelId> (null = bilinmiyor; default = tum aktifler)
+  const [articlePrePlan, setArticlePrePlan] = useState<Record<string, Set<string> | null>>({});
+
+  useEffect(() => {
+    let cancelled = false;
+    api.listSocialChannels(siteId)
+      .then((rows) => { if (!cancelled) setSocialChannels(Array.isArray(rows) ? rows.filter((c: any) => c?.isActive) : []); })
+      .catch(() => { if (!cancelled) setSocialChannels([]); });
+    return () => { cancelled = true; };
+  }, [siteId]);
+
+  // Article'lardan baslangic pre-plan map'i kur (article.socialPrePlanChannelIds varsa onu, yoksa default = tum aktifler).
+  useEffect(() => {
+    setArticlePrePlan((prev) => {
+      const next = { ...prev };
+      for (const a of scheduled) {
+        if (next[a.id] !== undefined) continue;
+        const raw = (a as any).socialPrePlanChannelIds;
+        if (Array.isArray(raw)) next[a.id] = new Set<string>(raw as string[]);
+        else next[a.id] = null;
+      }
+      return next;
+    });
+  }, [scheduled]);
+
+  const toggleChannelForArticle = async (articleId: string, channelId: string) => {
+    const allActive = socialChannels.map((c) => c.id);
+    setArticlePrePlan((prev) => {
+      const cur = prev[articleId];
+      const set = cur ? new Set(cur) : new Set<string>(allActive); // null = default = tum aktifler
+      if (set.has(channelId)) set.delete(channelId);
+      else set.add(channelId);
+      return { ...prev, [articleId]: set };
+    });
+    // Debounced gerek yok — kart sayisi kucuk; direkt API.
+    try {
+      const cur = articlePrePlan[articleId];
+      const set = cur ? new Set(cur) : new Set<string>(allActive);
+      if (set.has(channelId)) set.delete(channelId); else set.add(channelId);
+      const arr = Array.from(set);
+      // Tum aktifler ise null gonder (default davranis)
+      const isAll = arr.length === allActive.length && allActive.every((id) => arr.includes(id));
+      await api.setArticleSocialPrePlan(siteId, articleId, isAll ? null : arr);
+    } catch (err: any) {
+      toast.error(err.message || 'Kanal tercihi kaydedilemedi');
+    }
+  };
+
+  const isChannelEnabledForArticle = (articleId: string, channelId: string): boolean => {
+    const cur = articlePrePlan[articleId];
+    if (cur === undefined || cur === null) return true; // default: tum aktiflerde acik
+    return cur.has(channelId);
+  };
+
   // Haftanin pazartesisini bul
   const weekStart = (() => {
     const d = new Date();
@@ -1718,6 +1774,29 @@ export function ContentCalendarPanel({
                     </div>
                     <p className="font-medium truncate mt-0.5">{a.title || a.topic}</p>
                     <p className="text-[9px] text-muted-foreground">{locked ? '🔒 paket' : '📅 planlı'}</p>
+                    {socialChannels.length > 0 && !locked && (
+                      <div className="flex flex-wrap gap-0.5 mt-1" onClick={(e) => e.stopPropagation()}>
+                        {socialChannels.map((ch: any) => {
+                          const on = isChannelEnabledForArticle(a.id, ch.id);
+                          const label = (ch.type ?? '').toUpperCase().slice(0, 2) || 'CH';
+                          return (
+                            <button
+                              key={ch.id}
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); toggleChannelForArticle(a.id, ch.id); }}
+                              title={`${on ? 'Yayindan kaldir' : 'Yayina ekle'}: ${ch.type}`}
+                              className={`text-[8px] font-bold px-1 py-0.5 rounded border transition-colors ${
+                                on
+                                  ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-700 dark:text-emerald-400'
+                                  : 'bg-muted border-muted-foreground/20 text-muted-foreground/60 line-through'
+                              }`}
+                            >
+                              {label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 );
               })}

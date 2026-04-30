@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Header, Param, Post, Put, Query, Res } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Header, Param, Patch, Post, Put, Query, Res } from '@nestjs/common';
 import type { Response } from 'express';
 import { ArticlesService } from './articles.service.js';
 import { ArticleSchedulerService } from './article-scheduler.service.js';
@@ -61,6 +61,23 @@ export class ArticlesController {
   @Delete('scheduled/:id')
   unschedule(@Param('id') id: string) {
     return this.scheduler.unscheduleArticle(id);
+  }
+
+  /**
+   * PATCH /sites/:siteId/articles/:id/social-pre-plan
+   * Body: { channelIds: string[] | null }
+   * Article PUBLISHED olunca SocialAutoDraftService bu listeyi kullanir:
+   *   - null/undefined => tum aktif kanallar (default)
+   *   - []             => hicbir kanalda paylasma
+   *   - ['ch1','ch2']  => sadece bu iki kanalda DRAFT olusur
+   */
+  @Patch(':id/social-pre-plan')
+  setSocialPrePlan(
+    @Param('siteId') siteId: string,
+    @Param('id') id: string,
+    @Body() body: { channelIds: string[] | null },
+  ) {
+    return this.articles.setSocialPrePlan(siteId, id, body?.channelIds ?? null);
   }
 
   @Get(':id')

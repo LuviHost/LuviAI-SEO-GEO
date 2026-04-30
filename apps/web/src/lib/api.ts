@@ -191,6 +191,11 @@ export const api = {
       body: JSON.stringify(payload),
     }),
 
+  setArticleSocialPrePlan: (siteId: string, articleId: string, channelIds: string[] | null) =>
+    request<any>(`/sites/${siteId}/articles/${articleId}/social-pre-plan`, {
+      method: 'PATCH', body: JSON.stringify({ channelIds }),
+    }),
+
   rescheduleArticle: (siteId: string, articleId: string, scheduledAt: string) =>
     request<any>(`/sites/${siteId}/articles/${articleId}/reschedule`, {
       method: 'PUT',

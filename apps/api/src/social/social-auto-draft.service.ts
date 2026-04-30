@@ -36,10 +36,27 @@ export class SocialAutoDraftService {
       return { created: 0, skipped: 0 };
     }
 
+    // Per-article pre-plan: kullanici belirli kanallar sectiyse sadece onlari kullan.
+    // null/undefined => tum aktif kanallar (default). [] => hicbir kanal.
+    const prePlan = (article as any).socialPrePlanChannelIds as string[] | null | undefined;
+    let candidateChannels = article.site.socialChannels;
+    if (Array.isArray(prePlan)) {
+      if (prePlan.length === 0) {
+        this.log.log(`[${article.siteId}] Article ${articleId} pre-plan = [] (hicbir kanal), draft atlandi`);
+        return { created: 0, skipped: 0 };
+      }
+      const allow = new Set(prePlan);
+      candidateChannels = article.site.socialChannels.filter((c) => allow.has(c.id));
+      if (candidateChannels.length === 0) {
+        this.log.log(`[${article.siteId}] Article ${articleId} pre-plan kanallari aktif degil, draft atlandi`);
+        return { created: 0, skipped: 0 };
+      }
+    }
+
     let created = 0;
     let skipped = 0;
 
-    for (const channel of article.site.socialChannels) {
+    for (const channel of candidateChannels) {
       // Idempotent: ayni article + channel kombinasyonu varsa yeni post acma
       const existing = await this.prisma.socialPost.findFirst({
         where: { channelId: channel.id, articleId: article.id },

@@ -444,6 +444,9 @@ model Article {
   scheduledAt   DateTime?                              // Planlanan üretim/yayın zamanı
   publishedAt   DateTime?
   publishedTo   Json?         // [{ targetId, url, externalId }]
+  // Per-article social pre-plan: kullanici hangi sosyal kanallarda paylasacagini sec.
+  // null veya undefined = tum aktif kanallar (default davranis). [] = hicbir kanalda paylasma.
+  socialPrePlanChannelIds Json? // string[]
 
   // 30 gün sonra performans
   performanceCheckedAt DateTime?
