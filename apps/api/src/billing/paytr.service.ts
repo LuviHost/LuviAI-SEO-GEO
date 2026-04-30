@@ -147,6 +147,13 @@ export class PaytrService {
       data: { status: 'PAID', paidAt: new Date() },
     });
 
+    // Affiliate komisyonu — gerçek webhook akışıyla aynı behavior (test mode parity)
+    try {
+      await this.affiliate.recordCommission(invoice.userId, Number(invoice.amount));
+    } catch (err: any) {
+      this.log.warn(`[${merchantOid}] dev-confirm affiliate commission fail: ${err.message}`);
+    }
+
     this.log.log(`[${merchantOid}] DEV-CONFIRM: ${invoice.userId} → ${parsed.planId}`);
     return { ok: true, planId: parsed.planId };
   }
