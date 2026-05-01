@@ -8,13 +8,13 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
  *    ragmen `/admin/*` rotalarina ek bir PIN ile girer.
  *  - PIN env'de tutulur (ADMIN_PIN). Env'de PIN yoksa unlock devre disi —
  *    sadece role kontrolu yapilir (geriye uyumluluk).
- *  - Dogru PIN girince signed httpOnly cookie set edilir, varsayilan 60dk.
+ *  - Dogru PIN/OTP girince signed httpOnly cookie set edilir, varsayilan 24 saat (gunde 1 kez kod istenir).
  *  - HMAC SHA-256 ile imzalanir; gizli anahtar ADMIN_UNLOCK_SECRET (yoksa
  *    NEXTAUTH_SECRET).
  */
 
 const COOKIE_NAME = 'luviai_admin_unlocked';
-const DEFAULT_TTL_MS = 60 * 60 * 1000; // 60dk
+const DEFAULT_TTL_MS = 24 * 60 * 60 * 1000; // 24 saat
 
 function getSecret(): string {
   return process.env.ADMIN_UNLOCK_SECRET ?? process.env.NEXTAUTH_SECRET ?? process.env.AUTH_SECRET ?? '';
