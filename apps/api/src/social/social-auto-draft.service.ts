@@ -22,6 +22,7 @@ export class SocialAutoDraftService {
         site: {
           include: {
             socialChannels: { where: { isActive: true } },
+            brain: true,
           },
         },
       },
@@ -70,6 +71,11 @@ export class SocialAutoDraftService {
       const publishedUrls = (article.publishedTo as Array<{ externalUrl?: string }> | null) ?? [];
       const liveUrl = publishedUrls.find((p) => p?.externalUrl)?.externalUrl;
 
+      // voice-aware + hook-aware metin uretimi
+      const brain = (article.site as any).brain;
+      const brandVoice = brain?.brandVoice ?? null;
+      const hookVariations = (article as any).hookVariations ?? null;
+
       const { text, metadata } = buildSocialTextFor(channel.type, {
         title: article.title,
         metaDescription: article.metaDescription,
@@ -78,6 +84,8 @@ export class SocialAutoDraftService {
         siteName: article.site.name,
         pillar: article.pillar,
         fullUrl: !!liveUrl,
+        brandVoice,
+        hookVariations,
       });
 
       await this.prisma.socialPost.create({

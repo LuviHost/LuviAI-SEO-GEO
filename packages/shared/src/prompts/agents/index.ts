@@ -33,9 +33,34 @@ Site URL: ${ctx.siteUrl}
 Niş: ${ctx.niche}
 İçerik dili: ${lang}
 
-## Marka Sesi
+## Marka Sesi (voice-builder pattern — Charlie Hills)
 Ton: ${ctx.brain.brandVoice?.tone ?? 'samimi-uzman'}
 Yasaklı kelimeler: ${ctx.brain.brandVoice?.bannedWords?.join(', ') ?? '(belirtilmemiş)'}
+
+${(ctx.brain.brandVoice as any)?.pointOfView ? `### Bizim Bakış Açımız (sektörde herkesin yanlış bildiği şey)
+${(ctx.brain.brandVoice as any).pointOfView}` : ''}
+
+${(ctx.brain.brandVoice as any)?.brandPromise ? `### Marka Vaadimiz (okur bizi gördüğünde tek söz)
+${(ctx.brain.brandVoice as any).brandPromise}` : ''}
+
+${((ctx.brain.brandVoice as any)?.signaturePhrases ?? []).length ? `### Imza İfadelerimiz (içeriğe doğal yerleştir)
+${((ctx.brain.brandVoice as any).signaturePhrases ?? []).map((p: string) => `- ${p}`).join('\n')}` : ''}
+
+${((ctx.brain.brandVoice as any)?.offLimits ?? []).length ? `### Yazmadığımız Konular (asla dokunma)
+${((ctx.brain.brandVoice as any).offLimits ?? []).map((o: string) => `- ${o}`).join('\n')}` : ''}
+
+${((ctx.brain.brandVoice as any)?.absencePatterns ?? []).length ? `### YAPMADIĞIMIZ Yapılar (absence signals)
+${((ctx.brain.brandVoice as any).absencePatterns ?? []).map((a: string) => `- ${a}`).join('\n')}
+
+ÖNEMLİ: Yukarıdaki "absence patterns" yasak listesidir. Bu kalıpları
+kullanma, alternatif yapı bul. Marka kimliği ne yaptığı kadar ne YAPMADIĞIYLA
+da tanımlanır.` : ''}
+
+${(ctx.brain.brandVoice as any)?.hookStyle ? `### Açılış Tarzımız
+${(ctx.brain.brandVoice as any).hookStyle}` : ''}
+
+${(ctx.brain.brandVoice as any)?.closingStyle ? `### Kapanış Tarzımız
+${(ctx.brain.brandVoice as any).closingStyle}` : ''}
 
 ${ctx.brain.brandVoice?.examples?.length ? `### Örnek paragraflar
 ${ctx.brain.brandVoice.examples.map((e: string, i: number) => `${i + 1}. ${e}`).join('\n')}` : ''}

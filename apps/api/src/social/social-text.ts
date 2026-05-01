@@ -195,12 +195,23 @@ function buildLinkedInText(art: ArticleSnippet): {
 } {
   const url = buildPublicUrl(art);
   const summary = (art.metaDescription ?? '').trim();
-  const lines: string[] = [art.title.trim()];
+
+  // post-writer pattern: hook varsa başa koy
+  const hookOpening = pickHookOpening(art);
+  const lines: string[] = [];
+  if (hookOpening) {
+    lines.push(hookOpening, '');
+  }
+  lines.push(art.title.trim());
   if (summary && summary !== art.title.trim()) {
     lines.push('', summary);
   }
   lines.push('', url);
   let text = lines.join('\n');
+
+  // voice-aware filtreleme: bannedWords + em-dash + klişe temizliği
+  text = applyVoiceFilters(text, art.brandVoice ?? null);
+
   if (text.length > LI_LIMIT) text = text.slice(0, LI_LIMIT - 3) + '...';
   return { text, metadata: { link: url } };
 }
