@@ -240,7 +240,9 @@ function humanizeSocialError(raw: string, channelType: string): string {
   // TikTok
   if (channelType === 'TIKTOK') {
     if (lower.includes('unaudited_client_can_only_post_to_private_accounts') || lower.includes('unaudited_client')) {
-      return 'TikTok uygulaması henüz audit\'lenmedi → audit\'lenmiş olana kadar TikTok yalnızca "Private account" ayarı AÇIK olan hesaplara post atılmasına izin veriyor. ÇÖZÜM: TikTok app → Profil → ☰ → Settings and privacy → Privacy → "Private account" toggle\'ını AÇ, sonra tekrar dene. Kalıcı çözüm için TikTok Developer Portal → Apps → Audit Submission (1-2 hafta süre).';
+      // LuviAI app artık Production Live (1 May 2026). Bu hata sadece eski
+      // sandbox token ile yapılan call'larda gelir. Çözüm: kanalı yeniden bağla.
+      return 'TikTok kanal token süresi dolmuş veya eski sandbox token ile bağlı. Sosyal Kanallar → TikTok kanalını sil ve yeniden bağla, sorun çözülür.';
     }
     if (lower.includes('spam_risk') || lower.includes('spam_risk_too_many_posts')) {
       return 'TikTok spam koruma: kısa sürede çok fazla post atıldı. Birkaç saat sonra tekrar dene.';
