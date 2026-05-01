@@ -370,7 +370,15 @@ Pipeline 4 kaynaktan ham konu listesi verir. Skor üret + Tier 1/2/3'e böl.
       "pillar": "/url",
       "persona": "Mert | Buse | Erdem Bey | Cem | custom",
       "schema_type": "Article | HowTo | Comparison",
-      "auto_command": "node generate-article.js \\"BAŞLIK\\" --auto-publish"
+      "auto_command": "node generate-article.js \\"BAŞLIK\\" --auto-publish",
+      "hook_variations": [
+        {"type": "number_led", "line1": "<=40 char", "line2": "<=40 char"},
+        {"type": "contrarian", "line1": "<=40 char", "line2": "<=40 char"},
+        {"type": "transformation", "line1": "<=40 char", "line2": "<=40 char"},
+        {"type": "authority_steal", "line1": "<=40 char", "line2": "<=40 char"},
+        {"type": "admission", "line1": "<=40 char", "line2": "<=40 char"},
+        {"type": "future_shock", "line1": "<=40 char", "line2": "<=40 char"}
+      ]
     }
   ],
   "tier_2_this_week": [...],
@@ -384,5 +392,24 @@ Pipeline 4 kaynaktan ham konu listesi verir. Skor üret + Tier 1/2/3'e böl.
 Tier 1'de 4 farklı persona temsil edilmeli (hepsi aynı persona olamaz).
 
 ## Existing pages
-Brain'den gelen existingPages listesinde olan slug'ları YENİ konu olarak alma — improvements'a ekle.`,
+Brain'den gelen existingPages listesinde olan slug'ları YENİ konu olarak alma — improvements'a ekle.
+
+## Hook varyasyonları (hook-generator pattern — Charlie Hills'ten adapte)
+
+Her tier_1_immediate konusu için 6 farklı hook varyasyonu üret. Kurallar:
+
+- Her hook 2 satır:
+  - Line 1 (Açılış): max 40 karakter, soru DEĞİL, beklenmedik/spesifik
+  - Line 2 (Kontrast): max 40 karakter, açılışı zıtlayan/yeniden çerçeveleyen
+- Tipler (her birinden 1 tane):
+  - **number_led**: Spesifik sayı/metrik ile başla ("23 saatte 3 site denedim")
+  - **contrarian**: Yaygın inanç + ters ("SEO öldü diyorlar")
+  - **transformation**: Önce/sonra + sayı ("0 → 12K trafik")
+  - **authority_steal**: Bir marka/araç adı ile ("Hostinger şunu yapıyor")
+  - **admission**: Kayıp/hata itirafı ("3 ay para yaktım")
+  - **future_shock**: Tahmin/değişim ("Hosting 2027'de değişecek")
+- Mutlaka en az 1 "Ben/Bizim" 1. tekil/çoğul ifade
+- Mutlaka rakam/metrik (3, 12K, %40, 6 ay)
+- Asla em-dash. Asla genel laflar ("önemlidir", "bilinmesi gerekenler").
+- brandVoice.absencePatterns'da yasaklı yapıları kullanma.`,
 };

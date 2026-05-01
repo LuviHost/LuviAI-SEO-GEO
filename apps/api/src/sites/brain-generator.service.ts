@@ -94,14 +94,30 @@ export class BrainGeneratorService {
       `## ${p.title}\nURL: ${p.url}\nMeta: ${p.metaDescription}\nH1: ${p.h1}\nH2: ${p.h2s.slice(0, 3).join(' | ')}\nText: ${p.textSample.slice(0, 300)}`
     ).join('\n\n---\n\n');
 
-    const prompt = `Aşağıda bir web sitesinin ${crawl.pages.length} sayfasının özeti var. Bu siteyi analiz edip JSON formatında "brain" çıktısı ver:
+    const prompt = `Aşağıda bir web sitesinin ${crawl.pages.length} sayfasının özeti var. Bu siteyi analiz edip JSON formatında "brain" çıktısı ver.
+
+KRİTİK voice-builder prensipleri (Charlie Hills social-media-skills'ten adapte):
+- Marka sesi sadece "tone" değil; aynı zamanda **ne YAPMADIĞI** ile tanımlanır.
+- pointOfView: markanın sektörde herkesten farklı düşündüğü şey. Boş geçme.
+- offLimits + absencePatterns: markanın asla kullanmadığı yapılar. Site içeriğinde
+  hangi ifade/yapı 0 kez geçiyorsa onu listele (örn: em-dash 0/10 sayfada → absence).
+- signaturePhrases: site içeriğinde tekrar eden kelimeler/ifadeler. Boş bırakma.
+
+Yukarıdaki prensiplere göre brandVoice'u doldur. Mock değer yazma:
 
 \`\`\`json
 {
   "brandVoice": {
     "tone": "samimi-uzman | profesyonel-resmi | eğlenceli | akademik",
     "bannedWords": ["...","..."],
-    "examples": ["1-2 örnek paragraf marka sesini gösteren"]
+    "examples": ["1-2 örnek paragraf marka sesini gösteren"],
+    "pointOfView": "Sektörde herkesin yanlış bildiği şey — bu marka neye karşı, ne savunuyor (1 cümle, kontrarian/distinctive)",
+    "brandPromise": "Bu markayı gördüklerinde okurun aklına gelmesi gereken TEK düşünce (1 cümle)",
+    "offLimits": ["Asla yazmadığımız konular — örn: politika, rakip kötüleme, kişisel hayat"],
+    "signaturePhrases": ["Markanın tekrar tekrar kullandığı 2-4 ifade/kelime"],
+    "absencePatterns": ["Asla kullanmadığımız yapılar — örn: 'günümüz dünyasında', 'unutmayalım', em-dash, hashtag, generic başlangıçlar"],
+    "hookStyle": "Marka açılışta nasıl hook atar? (kontrarian | data | hikaye | itiraf | gözlem | merak boşluğu)",
+    "closingStyle": "Yazıyı nasıl kapatır? (motivasyonel | soru | CTA | gözlem)"
   },
   "personas": [
     {
@@ -171,7 +187,7 @@ ${pageSummaries}`;
       this.log.error(`JSON parse hatası: ${err.message}`);
       // Boş brain ile devam et — kullanıcı manual doldurabilir
       return {
-        brandVoice: { tone: 'samimi-uzman', bannedWords: [], examples: [] },
+        brandVoice: { tone: 'samimi-uzman', bannedWords: [], examples: [], pointOfView: '', brandPromise: '', offLimits: [], signaturePhrases: [], absencePatterns: [], hookStyle: '', closingStyle: '' },
         personas: [],
         competitors: [],
         seoStrategy: { pillars: [] },
