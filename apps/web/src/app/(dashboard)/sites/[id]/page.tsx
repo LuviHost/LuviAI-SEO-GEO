@@ -14,8 +14,6 @@ import { SiteReportPanel } from "@/components/site-report-panel";
 import {
   AuditStepBody,
   CompetitorsStepBody,
-  GscStepBody,
-  Ga4StepBody,
   TopicsStepBody,
   ArticlesStepBody,
   CitationPanel,
@@ -285,12 +283,15 @@ function DataTab({
   onRefresh: () => void;
   onboardingMode: boolean;
 }) {
+  const gscConnected = !!site?.gscConnectedAt && !!site?.gscPropertyUrl;
+  const ga4Connected = !!site?.gaConnectedAt && !!site?.gaPropertyId;
+
   return (
     <div className="space-y-8">
       <section id="audit" className="scroll-mt-24">
         <SectionHeader
-          title="Site Skoru"
-          subtitle="Audit raporu ve auto-fix onerileri."
+          title="Site Skoru (14 SEO + GEO Kontrol)"
+          subtitle="HTTPS, robots.txt, sitemap, schema, meta, h1, alt, hreflang... Otomatik düzeltilebilenler one-click."
           icon={BarChart3}
         />
         <AuditStepBody
@@ -301,10 +302,28 @@ function DataTab({
         />
       </section>
 
+      <section id="citation" className="scroll-mt-24">
+        <SectionHeader
+          title="AI Görünürlük Testi (Manuel)"
+          subtitle="Claude / Gemini / ChatGPT / Perplexity'de 'sitenizi' soran sorgular — şimdi test et."
+          icon={Activity}
+        />
+        <CitationPanel siteId={siteId} />
+      </section>
+
+      <section id="snippet" className="scroll-mt-24">
+        <SectionHeader
+          title="Snippet Üretici (Sayfa Bazlı)"
+          subtitle="Bir URL gir, AI title/description/FAQ önerileri üretip uygula."
+          icon={FileText}
+        />
+        <SnippetPanel siteId={siteId} />
+      </section>
+
       <section id="competitors" className="scroll-mt-24">
         <SectionHeader
           title="Rakipler"
-          subtitle="AI ile tespit edilen rakipler. SERP+icerik analizi icin."
+          subtitle="AI ile tespit edilen rakipler. SERP + içerik analizi için."
           icon={Activity}
         />
         <CompetitorsStepBody
@@ -315,40 +334,66 @@ function DataTab({
         />
       </section>
 
-      <section id="gsc" className="scroll-mt-24">
+      {/* GSC / GA4 — sadece bağlantı durumu özet kartı, yönetim Ayarlar'da */}
+      <section id="connections" className="scroll-mt-24">
         <SectionHeader
-          title="Google Search Console"
-          subtitle="Arama performansi, impressions, CTR — direkt GSC den cekilir."
+          title="Bağlı Veri Kaynakları"
+          subtitle="Detaylı yönetim için Ayarlar > Veri Bağlantıları sekmesine git."
           icon={BarChart3}
         />
-        <GscStepBody site={site} onChanged={onRefresh} />
-      </section>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className={`rounded-xl border p-4 ${gscConnected ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-amber-500/30 bg-amber-500/5'}`}>
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className={`h-2 w-2 rounded-full ${gscConnected ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                  <span className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">Google Search Console</span>
+                </div>
+                <p className="text-sm font-semibold mt-0.5">
+                  {gscConnected ? 'Bağlı ✓' : 'Bağlı değil'}
+                </p>
+                {gscConnected && (
+                  <p className="text-[11px] text-muted-foreground mt-1 truncate">{site.gscPropertyUrl}</p>
+                )}
+                {!gscConnected && (
+                  <p className="text-[11px] text-muted-foreground mt-1">Arama trafiği + impression + CTR için bağla.</p>
+                )}
+              </div>
+              <a
+                href={`/sites/${siteId}?tab=settings`}
+                className="text-xs text-brand hover:underline whitespace-nowrap"
+              >
+                {gscConnected ? 'Yönet →' : 'Bağla →'}
+              </a>
+            </div>
+          </div>
 
-      <section id="ga4" className="scroll-mt-24">
-        <SectionHeader
-          title="Google Analytics 4"
-          subtitle="Trafik, oturum, edinim kanali — GA4 property si."
-          icon={BarChart3}
-        />
-        <Ga4StepBody site={site} onChanged={onRefresh} />
-      </section>
-
-      <section id="citation" className="scroll-mt-24">
-        <SectionHeader
-          title="AI Gorunurluk"
-          subtitle="Claude / Gemini / OpenAI / Perplexity senin markani aniyor mu?"
-          icon={Activity}
-        />
-        <CitationPanel siteId={siteId} />
-      </section>
-
-      <section id="snippet" className="scroll-mt-24">
-        <SectionHeader
-          title="Snippet Iyilestir"
-          subtitle="Bir sayfa URL si gir, AI snippet onerileri uret + uygula."
-          icon={FileText}
-        />
-        <SnippetPanel siteId={siteId} />
+          <div className={`rounded-xl border p-4 ${ga4Connected ? 'border-emerald-500/30 bg-emerald-500/5' : 'border-amber-500/30 bg-amber-500/5'}`}>
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <span className={`h-2 w-2 rounded-full ${ga4Connected ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                  <span className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">Google Analytics 4</span>
+                </div>
+                <p className="text-sm font-semibold mt-0.5">
+                  {ga4Connected ? 'Bağlı ✓' : 'Bağlı değil'}
+                </p>
+                {ga4Connected && (
+                  <p className="text-[11px] text-muted-foreground mt-1 truncate">Property: {site.gaPropertyId}</p>
+                )}
+                {!ga4Connected && (
+                  <p className="text-[11px] text-muted-foreground mt-1">Bounce, oturum, conversion için bağla.</p>
+                )}
+              </div>
+              <a
+                href={`/sites/${siteId}?tab=settings`}
+                className="text-xs text-brand hover:underline whitespace-nowrap"
+              >
+                {ga4Connected ? 'Yönet →' : 'Bağla →'}
+              </a>
+            </div>
+          </div>
+        </div>
       </section>
     </div>
   );
