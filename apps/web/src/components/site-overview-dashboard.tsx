@@ -67,6 +67,44 @@ export function SiteOverviewDashboard({
       {/* Sprint 6 — Saglik / hata banner */}
       <HealthBanner site={site} audit={audit} articles={articles} publishTargets={publishTargets ?? []} />
 
+      {/* 4 buyuk kart — Skor / Takvim / Yayinlar / AI Citation */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <ScoreCard
+          icon={<ShieldCheck className="h-4 w-4" />}
+          label="Site Skoru"
+          value={overallScore !== null ? `${overallScore}` : '—'}
+          subtext={
+            criticalIssues.length > 0
+              ? `${criticalIssues.length} kritik sorun`
+              : issues.length > 0
+                ? `${issues.length} bulgu`
+                : 'sorun yok'
+          }
+          color={overallScore === null ? 'muted' : overallScore >= 80 ? 'green' : overallScore >= 60 ? 'yellow' : 'red'}
+        />
+        <ScoreCard
+          icon={<Sparkles className="h-4 w-4" />}
+          label={<InfoTooltip term="Citation">AI Görünürlük</InfoTooltip>}
+          value={aiScore !== null ? `${aiScore}` : '—'}
+          subtext="Claude · Gemini · ChatGPT"
+          color={aiScore === null ? 'muted' : aiScore >= 60 ? 'green' : aiScore >= 30 ? 'yellow' : 'red'}
+        />
+        <ScoreCard
+          icon={<Calendar className="h-4 w-4" />}
+          label="Takvimde"
+          value={`${scheduled.length}`}
+          subtext={`${generating.length} üretiliyor · ${ready.length} hazır`}
+          color="brand"
+        />
+        <ScoreCard
+          icon={<Send className="h-4 w-4" />}
+          label="Yayında"
+          value={`${published.length}`}
+          subtext="toplam yayınlanan"
+          color="brand"
+        />
+      </div>
+
       {/* Otomatik akış bandi - kullanıcının publishApprovalMode + autopilot kombinasyonu */}
       {(() => {
         const approvalMode = site?.publishApprovalMode ?? 'manual_approve';
@@ -133,59 +171,6 @@ export function SiteOverviewDashboard({
       {/* Sıradaki Aksiyon — kullanıcıyı yönlendiren widget */}
       <NextActionWidget site={site} audit={audit} articles={articles} onRefresh={onRefresh} />
 
-      {/* 4 buyuk kart — Skor / Takvim / Yayinlar / AI Citation */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        <ScoreCard
-          icon={<ShieldCheck className="h-4 w-4" />}
-          label="Site Skoru"
-          value={overallScore !== null ? `${overallScore}` : '—'}
-          subtext={
-            criticalIssues.length > 0
-              ? `${criticalIssues.length} kritik sorun`
-              : issues.length > 0
-                ? `${issues.length} bulgu`
-                : 'sorun yok'
-          }
-          color={overallScore === null ? 'muted' : overallScore >= 80 ? 'green' : overallScore >= 60 ? 'yellow' : 'red'}
-        />
-        <ScoreCard
-          icon={<Sparkles className="h-4 w-4" />}
-          label={<InfoTooltip term="Citation">AI Görünürlük</InfoTooltip>}
-          value={aiScore !== null ? `${aiScore}` : '—'}
-          subtext="Claude · Gemini · ChatGPT"
-          color={aiScore === null ? 'muted' : aiScore >= 60 ? 'green' : aiScore >= 30 ? 'yellow' : 'red'}
-        />
-        <ScoreCard
-          icon={<Calendar className="h-4 w-4" />}
-          label="Takvimde"
-          value={`${scheduled.length}`}
-          subtext={`${generating.length} üretiliyor · ${ready.length} hazır`}
-          color="brand"
-        />
-        <ScoreCard
-          icon={<Send className="h-4 w-4" />}
-          label="Yayında"
-          value={`${published.length}`}
-          subtext="toplam yayınlanan"
-          color="brand"
-        />
-      </div>
-
-      {/* GEO Score Card — kapsamli saglik skoru */}
-      <GeoScoreCard siteId={site.id} />
-
-      {/* AI Görünürlük Trendi (otomatik gunluk takip) */}
-      <CitationHistoryChart siteId={site.id} />
-
-      {/* AI Crawler Trafigi (sunucu log analitigi) */}
-      <CrawlerHitsPanel siteId={site.id} />
-
-      {/* GEO Lab — Heatmap + Wikidata + Wikipedia + Reddit + Cross-Link + Training */}
-      <GeoLabPanel siteId={site.id} />
-
-      {/* Faz 11: Ads Lab — Google + Meta + GA4 */}
-      <AdsLabPanel site={site} />
-
       {/* Sirada Yayinlanacaklar */}
       {nextScheduled.length > 0 && (
         <Card>
@@ -222,6 +207,23 @@ export function SiteOverviewDashboard({
           </CardContent>
         </Card>
       )}
+
+      {/* GEO Score Card — kapsamli saglik skoru */}
+      <GeoScoreCard siteId={site.id} />
+
+      {/* AI Görünürlük Trendi (otomatik gunluk takip) */}
+      <CitationHistoryChart siteId={site.id} />
+
+      {/* AI Crawler Trafigi (sunucu log analitigi) */}
+      <CrawlerHitsPanel siteId={site.id} />
+
+      {/* GEO Lab — Heatmap + Wikidata + Wikipedia + Reddit + Cross-Link + Training */}
+      <GeoLabPanel siteId={site.id} />
+
+      {/* Faz 11: Ads Lab — Google + Meta + GA4 */}
+      <AdsLabPanel site={site} />
+
+      
 
       {/* Generating / Ready bandi */}
       {(generating.length > 0 || ready.length > 0) && (
@@ -359,6 +361,31 @@ function NextActionWidget({ site, audit, articles, onRefresh }: {
         } catch (err: any) { toast.error(err.message); }
         finally { setAutoFixing(false); }
       },
+    });
+  }
+
+  // 2.5) GEO Score düşük — manuel sayfa iyileştirmesi gerek
+  const geoScore = audit?.geoScore ?? null;
+  if (geoScore !== null && geoScore < 50 && autoFixable.length === 0) {
+    actions.push({
+      id: 'geo-improve',
+      icon: '🔍',
+      title: `GEO görünürlüğü zayıf (${geoScore}/100)`,
+      desc: 'Schema markup, FAQ, llms.txt, speakable content eksik. Sayfa bazlı snippet üreticisi ile iyileştir.',
+      cta: 'Snippet Üretici',
+      href: `/sites/${site.id}?tab=data#snippet`,
+    });
+  }
+
+  // 2.7) Site skoru düşük + autofix yok = manuel issue listesi göster
+  if (overallScore !== null && overallScore < 60 && autoFixable.length === 0 && issues.length > 0) {
+    actions.push({
+      id: 'manual-issues',
+      icon: '⚠️',
+      title: `${issues.length} sorun manuel düzeltme bekliyor`,
+      desc: 'Otomatik düzeltilmeyen sorunları Site Skoru kartında satır satır gör — her birinin ne demek + nasıl düzelteceği yazılı.',
+      cta: 'Detayları gör',
+      href: `/sites/${site.id}?tab=data#audit`,
     });
   }
 
