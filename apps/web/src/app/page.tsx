@@ -70,8 +70,8 @@ export default function HomePage() {
             </p>
 
             <p className="text-sm sm:text-base mb-8 sm:mb-10 text-white/70 max-w-2xl mx-auto">
-              SEO + GEO + Reklam + Sosyal Medya · Tek panelden, otopilotla.
-              <strong className="text-white"> 57 özellik · 4 AI sağlayıcı · Türkiye için yapıldı.</strong>
+              SEO, içerik üretimi, sosyal medya ve reklamlar — tek panelden, otopilotla.
+              <strong className="text-white"> Saatlerce uğraşacağın işi dakikalara indirir.</strong>
             </p>
 
             <div className="flex flex-col sm:flex-row gap-3 justify-center mb-8">
@@ -84,9 +84,9 @@ export default function HomePage() {
             </div>
 
             <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-xs sm:text-sm text-white/80">
-              <span className="inline-flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5" /> 14 gün ücretsiz</span>
-              <span className="inline-flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5" /> Kart bilgisi yok</span>
               <span className="inline-flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5" /> İlk makale ücretsiz</span>
+              <span className="inline-flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5" /> Kart bilgisi gerekmez</span>
+              <span className="inline-flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5" /> İstediğin zaman iptal</span>
             </div>
           </div>
         </section>
@@ -209,32 +209,32 @@ export default function HomePage() {
         <div className="container px-4 py-16 sm:py-24">
           <div className="max-w-3xl mx-auto text-center mb-12">
             <h2 className="text-3xl sm:text-4xl font-bold tracking-tight mb-4">
-              Tüm özellikler
+              İşinin büyümesi için ihtiyacın olan her şey
             </h2>
             <p className="text-muted-foreground text-base sm:text-lg">
-              SEO + GEO + AEO uyumlu, otomatik, ölçeklenebilir.
+              Tek panelde, otomatik, sen sadece onaylarsın.
             </p>
           </div>
 
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5 max-w-6xl mx-auto">
-            <FeatureBox icon={<Search />} title="14 noktada SEO + GEO denetimi"
-              desc="Title, meta, H1, schema, sitemap, robots, llms.txt, Core Web Vitals, hreflang, canonical, internal linking — tek tıkla rapor + auto-fix." />
-            <FeatureBox icon={<FileText />} title="6 ajanlı içerik üretimi"
-              desc="Anahtar kelime → taslak → yazar (Claude Sonnet 4.6) → editör → görsel (Gemini) → şema. 1800-2500 kelime, FAQ + Article + Breadcrumb." />
-            <FeatureBox icon={<Sparkles />} title="GEO + AEO optimizasyonu"
-              desc="ChatGPT, Perplexity, Claude, Gemini'ın alıntılaması için Auriti GEO. Speakable schema, DefinedTerm, kapsayıcı sorgu listesi." />
+            <FeatureBox icon={<Search />} title="Site sağlık denetimi"
+              desc="Sitenin Google ve AI motorlarındaki görünürlüğünü dakikalar içinde tarar. Sorunlu noktaları gösterir, çoğunu tek tıkla düzeltir." />
+            <FeatureBox icon={<FileText />} title="Hazır makale, hazır görsel"
+              desc="Marka tonuna uygun, 1800-2500 kelime kapsamlı yazılar. AI önce taslak çıkarır, kalite kontrolünden geçirir, görsellerini de hazır verir." />
+            <FeatureBox icon={<Sparkles />} title="ChatGPT ve Gemini'da görün"
+              desc="Yapay zeka asistanları cevap üretirken senin sitendeki içeriği kaynak göstersin. Görünürlük skoru gün gün takip edilir." />
             <FeatureBox icon={<Calendar />} title="Sosyal medya takvimi"
-              desc="X + LinkedIn. Plana göre ayda 8-30 otomatik post. Inline saat editörü, drag-feel UI, X-style preview kartı." />
-            <FeatureBox icon={<Globe />} title="14 yayın hedefi"
-              desc="WordPress, FTP, SFTP, Webflow, Sanity, Ghost, GitHub, Strapi, Hashnode, Dev.to, Medium, RSS, Google Docs, Markdown ZIP." />
-            <FeatureBox icon={<BarChart3 />} title="GSC + GA4 büyüme takibi"
-              desc="Yayınlanan makalenin 30 günlük performansı: impression, CTR, position. Düşük CTR'li meta'yı yeniden yazma önerisi." />
-            <FeatureBox icon={<Bot />} title="Çok dilli (TR + EN)"
-              desc="Türkçe ana dil + İngilizce. Tek site iki dilde içerik üretebilir. hreflang otomatik kurulur." />
-            <FeatureBox icon={<ShieldCheck />} title="Editör kalite kapısı"
-              desc="Her makale, yayınlanmadan önce AI editör ajanından geçer. PASS skoru ≥ 48/60 olmadan yayına çıkmaz." />
-            <FeatureBox icon={<Repeat />} title="İyileştirme döngüsü"
-              desc="30 gün sonra GSC'den geri çek: impression yüksek CTR düşükse → meta yeniden yaz. Otomatik improve döngüsü." />
+              desc="X ve LinkedIn için otomatik post taslağı. Saatini takvimden seç, beğen ya da düzenle, kanallarına otomatik gider." />
+            <FeatureBox icon={<Globe />} title="Tek tıkla yayın"
+              desc="WordPress, Webflow, Shopify, Ghost ve diğer popüler platformlar — kullandığın sisteme direkt gönderir. Manuel kopyala-yapıştır yok." />
+            <FeatureBox icon={<BarChart3 />} title="Gerçek performans takibi"
+              desc="Yayınlanan her makalenin Google'da kaç gösterim aldığını, kaç tıklama getirdiğini gör. Performansı düşük olanlara otomatik iyileştirme önerisi." />
+            <FeatureBox icon={<Bot />} title="Türkçe + İngilizce"
+              desc="Aynı siteyi iki dilde de yönet. Yurtdışı kullanıcına İngilizce makale, yerele Türkçe — tek panelden, ayar gerekmez." />
+            <FeatureBox icon={<ShieldCheck />} title="Yayından önce kalite kontrolü"
+              desc="Her makale yayına çıkmadan editör ajanı tarafından gözden geçirilir. Klişe, yanlış bilgi ve marka tonu uyumsuzluğu varsa düzeltilir." />
+            <FeatureBox icon={<Repeat />} title="Otomatik iyileştirme"
+              desc="Eski makalelerin performansını izler. Düşüş görünce başlık, açıklama veya içeriğe öneriler getirir — site büyümeye devam eder." />
           </div>
         </div>
       </section>

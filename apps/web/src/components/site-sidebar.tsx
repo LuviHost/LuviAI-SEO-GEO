@@ -51,7 +51,6 @@ type SiteOption = { id: string; name: string; url: string };
 
 const GLOBAL_NAV = [
   { href: '/dashboard', label: 'Sitelerim', icon: Home },
-  { href: '/onboarding', label: 'Yeni Site', icon: Plus },
   { href: '/billing', label: 'Abonelik', icon: CreditCard },
   { href: '/affiliate', label: 'Affiliate', icon: UsersIcon },
 ];

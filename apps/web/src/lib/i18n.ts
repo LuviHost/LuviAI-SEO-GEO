@@ -27,14 +27,14 @@ const dictionary = {
     // Value cards (4 sütun)
     'value.title': 'Her şeyi tek panelden yönet',
     'value.subtitle': "Site analizinden makale üretimine, sosyal takvimden otomatik yayına — 4 işi tek dashboard'dan otomatikleştirir.",
-    'value.v1.title': 'Sitesini AI denetler',
-    'value.v1.desc': '14 SEO + GEO kontrolü. Eksikleri otomatik düzeltir (sitemap, robots.txt, llms.txt). GSC ile büyümeyi izler.',
-    'value.v2.title': 'İçeriği AI üretir',
-    'value.v2.desc': '6 ajanlı yazım zinciri: anahtar kelime → taslak → yazar → editör → görsel → şema. Türkçe, 1800–2500 kelime, FAQ + Article schema.',
+    'value.v1.title': 'Siteni AI denetler',
+    'value.v1.desc': "Sitenin SEO + AI görünürlük sağlığını dakikalar içinde tarar. Sorunları gösterir, çoğunu tek tıkla düzeltir. Google'da büyümeni takip eder.",
+    'value.v2.title': 'Senin yerine yazar',
+    'value.v2.desc': 'Marka sesinde, kapsamlı, 1800-2500 kelime makaleler. AI önce konu önerir, sen onaylarsın; içerik kalite kontrolünden geçer ve görsellerle birlikte hazır gelir.',
     'value.v3.title': 'Takvimden planla',
-    'value.v3.desc': "Plana göre ayda 8, 18 veya 30 sosyal post. PZT/SAL/CAR gibi günleri ve saati seç, X ve LinkedIn'e otomatik atılır.",
+    'value.v3.desc': "Haftalık post takviminden gün ve saati sürükle-bırak seç, X ve LinkedIn'e otomatik gönderilir. Sen sadece onaylarsın.",
     'value.v4.title': 'Otomatik yayınla',
-    'value.v4.desc': 'WordPress, FTP, GitHub, Webflow, Sanity, Ghost… 14 yayın hedefi. Onay bekleyen makaleyi tek tıkla canlıya al.',
+    'value.v4.desc': "WordPress, Webflow, Shopify, Ghost ve daha fazlası — kullandığın platforma direkt gönderir. Manuel kopyala-yapıştır yok.",
 
     // Features section
     'features.eyebrow': 'Tek panelde 6 büyük iş',
@@ -56,22 +56,22 @@ const dictionary = {
     // Social schedule strip
     'social.eyebrow': 'Sosyal Medya Takvimi',
     'social.title': 'X ve LinkedIn için haftalık post takvimi',
-    'social.desc': 'Makale yayınlandığında otomatik post draft\'ı oluşturulur. Sen sadece beğen, düzenle ya da onayla.',
-    'social.b1': 'Plana göre ayda 8, 18 veya 30 post otomatik',
-    'social.b2': 'Saatleri PZT/SAL/CAR ızgarasında inline düzenle',
-    'social.b3': 'Hashtag, mention, link otomatik renklendirilir',
-    'social.b4': 'X için 280 karakter limiti gerçek zamanlı sayaç',
-    'social.b5': 'Yetersiz içerik varsa slot atlanır, eklenince yayınlanır',
+    'social.desc': "Makale yayınlandığında otomatik post taslağı oluşturulur. Beğen, düzenle ya da olduğu gibi onayla — kanallarına otomatik gider.",
+    'social.b1': 'Aboneliğine göre aylık otomatik post sayısı',
+    'social.b2': 'Hangi gün hangi saatte gideceğini takvimden tek tıkla seç',
+    'social.b3': 'Hashtag, etiket ve linkler otomatik vurgulanır',
+    'social.b4': "X için karakter sayacı, görsel önizleme — yayından önce nasıl görüneceğini gör",
+    'social.b5': "İçerik yetmediği gün slot atlanır, hazır olunca otomatik gönderilir",
 
     // How it works
     'how.eyebrow': 'Akış',
-    'how.title': 'Site eklediğinden 90 saniye sonra ilk makalen yayında',
-    'how.s1.title': '1. Site URL\'ini gir',
-    'how.s1.desc': 'Sadece domain — gerisini AI yapar. Otomatik tarama → marka sesi tespiti → niş analizi.',
-    'how.s2.title': '2. AI 6 konu önerir',
-    'how.s2.desc': 'Plan + GSC + GEO + rakip analizi → tier-1 öneriler. Sürükle-bırak ile takvime al.',
-    'how.s3.title': '3. Otomatik üret + yayınla',
-    'how.s3.desc': 'Yayın saati gelir → 14 saniyede mock veya 90sn gerçek pipeline → WordPress\'e gider.',
+    'how.title': 'Site eklediğinden dakikalar sonra ilk makalen hazır',
+    'how.s1.title': '1. Site adresini gir',
+    'how.s1.desc': 'Sadece domain yaz. AI sitenin sektörünü, marka sesini ve eksiklerini otomatik analiz eder.',
+    'how.s2.title': '2. AI sana konular önerir',
+    'how.s2.desc': "Sektörün, rekabetin ve Google'da aranan sorularına göre yüksek potansiyelli konuları sıralar. Sen onaylarsın.",
+    'how.s3.title': '3. Üretir ve yayınlar',
+    'how.s3.desc': 'Saatini söyle, AI yazsın, kontrol etsin, görselleri eklesin ve sitenle sosyal medyana otomatik göndersin.',
 
     // GEO section
     'geo.eyebrow': 'AI Search optimizasyonu',
@@ -113,7 +113,7 @@ const dictionary = {
 
     // Final CTA
     'final.title': 'Saatlerce uğraşmaktan kurtul. Bugün başla.',
-    'final.subtitle': '14 günlük deneme. Kredi kartı gerekmez. İstediğin zaman iptal et.',
+    'final.subtitle': 'İlk makalen ücretsiz. Kredi kartı gerekmez. İstediğin zaman iptal et.',
     'final.cta_primary': 'Ücretsiz Dene',
     'final.cta_secondary': 'Plan ve fiyatları gör',
 
@@ -188,13 +188,13 @@ const dictionary = {
     'value.title': 'Manage everything from a single panel',
     'value.subtitle': 'From site audits to article generation, social calendar to auto-publishing — 4 jobs automated from one dashboard.',
     'value.v1.title': 'AI audits your site',
-    'value.v1.desc': '14 SEO + GEO checks. Auto-fixes the gaps (sitemap, robots.txt, llms.txt). Tracks growth via GSC.',
-    'value.v2.title': 'AI writes your content',
-    'value.v2.desc': '6-agent writing chain: keyword → outline → writer → editor → visuals → schema. 1800–2500 words, FAQ + Article schema.',
+    'value.v1.desc': "Scans your SEO + AI-search health in minutes. Shows the issues, fixes most of them with one click. Tracks your growth on Google.",
+    'value.v2.title': 'Writes for you',
+    'value.v2.desc': "Comprehensive 1800-2500 word articles in your brand voice. AI suggests topics first, you approve; content goes through quality control and arrives ready with images.",
     'value.v3.title': 'Plan from the calendar',
-    'value.v3.desc': '8, 18 or 30 social posts/month based on plan. Pick days like MON/WED/FRI and times — auto-posts to X and LinkedIn.',
+    'value.v3.desc': "Pick the day and time from a weekly post calendar — it auto-publishes to X and LinkedIn. You only approve.",
     'value.v4.title': 'Auto-publish',
-    'value.v4.desc': 'WordPress, FTP, GitHub, Webflow, Sanity, Ghost… 14 publish targets. Approve articles with a single click.',
+    'value.v4.desc': "WordPress, Webflow, Shopify, Ghost and more — sends straight to the platform you use. No manual copy-paste.",
 
     // Features section
     'features.eyebrow': 'One panel, six big jobs',
@@ -217,21 +217,21 @@ const dictionary = {
     'social.eyebrow': 'Social Media Calendar',
     'social.title': 'Weekly post calendar for X and LinkedIn',
     'social.desc': 'When an article publishes, a draft post is created automatically. You just like, edit or approve.',
-    'social.b1': '8, 18 or 30 posts/month auto-scheduled depending on plan',
-    'social.b2': 'Inline edit times in the MON/TUE/WED grid',
-    'social.b3': 'Hashtags, mentions, links auto-highlighted',
-    'social.b4': 'Real-time 280-char counter for X',
-    'social.b5': 'If content is short, slot is skipped and reused later',
+    'social.b1': 'Auto monthly post count based on your plan',
+    'social.b2': 'Pick day and time from the calendar with one click',
+    'social.b3': 'Hashtags, mentions and links highlighted automatically',
+    'social.b4': "Character counter and visual preview for X — see how it'll look before posting",
+    'social.b5': "Slots skipped on days when content isn't ready, sent automatically when it is",
 
     // How it works
     'how.eyebrow': 'Flow',
-    'how.title': 'Your first article goes live 90 seconds after you add the site',
+    'how.title': 'Your first article is ready minutes after adding your site',
     'how.s1.title': '1. Enter your site URL',
-    'how.s1.desc': 'Just the domain — AI does the rest. Auto-crawl → brand voice → niche analysis.',
-    'how.s2.title': '2. AI suggests 6 topics',
-    'how.s2.desc': 'Plan + GSC + GEO + competitor analysis → tier-1 suggestions. Drag-and-drop into the calendar.',
-    'how.s3.title': '3. Auto-generate + publish',
-    'how.s3.desc': 'Time arrives → 14sec mock or 90sec real pipeline → ships to WordPress.',
+    'how.s1.desc': "Just type your domain. AI automatically analyzes your industry, brand voice and what's missing.",
+    'how.s2.title': '2. AI suggests topics',
+    'how.s2.desc': 'High-potential topics ranked by your industry, competition and Google search demand. You approve them.',
+    'how.s3.title': '3. Generate and publish',
+    'how.s3.desc': 'Tell it the time — AI writes, reviews, adds visuals and ships to your site and social channels automatically.',
 
     // GEO
     'geo.eyebrow': 'AI Search optimization',
@@ -273,7 +273,7 @@ const dictionary = {
 
     // Final CTA
     'final.title': 'Stop spending hours on it. Start today.',
-    'final.subtitle': '14-day trial. No credit card required. Cancel anytime.',
+    'final.subtitle': "Your first article is free. No credit card required. Cancel anytime.",
     'final.cta_primary': 'Try Free',
     'final.cta_secondary': 'See plans & pricing',
 
