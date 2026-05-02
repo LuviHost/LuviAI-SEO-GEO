@@ -5,8 +5,9 @@ import Link from 'next/link';
 import { toast } from 'sonner';
 import {
   Activity, Bot, Calendar, FileText, Sparkles, Zap, Search, Send, ShieldCheck, TrendingUp, ChevronRight,
-  AlertTriangle, AlertCircle, CheckCircle2, Power,
+  AlertTriangle, AlertCircle, CheckCircle2, Power, FileBarChart, ArrowRight,
 } from 'lucide-react';
+import { AnalyticsRow, RecentActivity } from '@/components/analytics-row';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { Card, CardContent } from '@/components/ui/card';
@@ -56,46 +57,11 @@ export function SiteOverviewDashboard({
       {/* Sıradaki Aksiyon — kullanıcı sayfaya inince ilk gördüğü öğe (KPI'lerin üstünde) */}
       <NextActionWidget site={site} audit={audit} articles={articles} publishTargets={publishTargets ?? []} onRefresh={onRefresh} />
 
+      {/* Cloudflare-inspired analytics row: 3 stat cards with animated sparklines */}
+      <AnalyticsRow siteId={site.id} audit={audit} articles={articles} />
+
       {/* Site Skoru özeti — onboarding sonrası kullanıcı detayı doğrudan görsün */}
       <AuditSummaryInline site={site} audit={audit} />
-
-      {/* 4 buyuk kart — Skor / Takvim / Yayinlar / AI Citation */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        <ScoreCard
-          icon={<ShieldCheck className="h-4 w-4" />}
-          label="Site Skoru"
-          value={overallScore !== null ? `${overallScore}` : '—'}
-          subtext={
-            criticalIssues.length > 0
-              ? `${criticalIssues.length} kritik sorun`
-              : issues.length > 0
-                ? `${issues.length} bulgu`
-                : 'sorun yok'
-          }
-          color={overallScore === null ? 'muted' : overallScore >= 80 ? 'green' : overallScore >= 60 ? 'yellow' : 'red'}
-        />
-        <ScoreCard
-          icon={<Sparkles className="h-4 w-4" />}
-          label={<InfoTooltip term="Citation">AI Görünürlük</InfoTooltip>}
-          value={aiScore !== null ? `${aiScore}` : '—'}
-          subtext="Claude · Gemini · ChatGPT"
-          color={aiScore === null ? 'muted' : aiScore >= 60 ? 'green' : aiScore >= 30 ? 'yellow' : 'red'}
-        />
-        <ScoreCard
-          icon={<Calendar className="h-4 w-4" />}
-          label="Takvimde"
-          value={`${scheduled.length}`}
-          subtext={`${generating.length} üretiliyor · ${ready.length} hazır`}
-          color="brand"
-        />
-        <ScoreCard
-          icon={<Send className="h-4 w-4" />}
-          label="Yayında"
-          value={`${published.length}`}
-          subtext="toplam yayınlanan"
-          color="brand"
-        />
-      </div>
 
       {/* Otomatik akış banner — İçerik tab'ına taşındı (yayın akışı = içerik kontrolü) */}
 
@@ -136,8 +102,8 @@ export function SiteOverviewDashboard({
         </Card>
       )}
 
-      {/* GEO Score Card — kapsamli saglik skoru */}
-      <GeoScoreCard siteId={site.id} />
+      {/* Recent Activity — son 6 olay (Cloudflare audit log pattern) */}
+      <RecentActivity articles={articles} audit={audit} siteId={site.id} />
 
       {/* AI Görünürlük Trendi (otomatik gunluk takip) */}
       <CitationHistoryChart siteId={site.id} />
@@ -145,11 +111,39 @@ export function SiteOverviewDashboard({
       {/* AI Crawler Trafigi (sunucu log analitigi) */}
       <CrawlerHitsPanel siteId={site.id} />
 
-      {/* GEO Lab — Heatmap + Wikidata + Wikipedia + Reddit + Cross-Link + Training */}
-      <GeoLabPanel siteId={site.id} />
-
-      {/* Faz 11: Ads Lab — Google + Meta + GA4 */}
-      <AdsLabPanel site={site} />
+      {/* Quick links to deep-dive panels — GeoLab, Ads, Report (artık ayrı route'larda) */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <Link href={`/sites/${site.id}/geo-lab`} className="group rounded-xl border bg-card p-4 hover:border-brand/40 hover:shadow-md transition-all">
+          <div className="flex items-center justify-between mb-2">
+            <div className="h-8 w-8 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 grid place-items-center">
+              <Sparkles className="h-4 w-4" />
+            </div>
+            <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/40 group-hover:text-brand group-hover:translate-x-0.5 transition-all" />
+          </div>
+          <p className="text-sm font-semibold mb-0.5">GEO Lab</p>
+          <p className="text-xs text-muted-foreground">6 pillar AI search optimizasyonu — heatmap, Wikidata, training.</p>
+        </Link>
+        <Link href={`/sites/${site.id}/ads`} className="group rounded-xl border bg-card p-4 hover:border-brand/40 hover:shadow-md transition-all">
+          <div className="flex items-center justify-between mb-2">
+            <div className="h-8 w-8 rounded-lg bg-orange-500/10 text-orange-500 grid place-items-center">
+              <TrendingUp className="h-4 w-4" />
+            </div>
+            <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/40 group-hover:text-brand group-hover:translate-x-0.5 transition-all" />
+          </div>
+          <p className="text-sm font-semibold mb-0.5">Reklam Autopilot</p>
+          <p className="text-xs text-muted-foreground">Google + Meta ads ROAS optimize — 6 saatte bir bütçe ayarı.</p>
+        </Link>
+        <Link href={`/sites/${site.id}/report`} className="group rounded-xl border bg-card p-4 hover:border-brand/40 hover:shadow-md transition-all">
+          <div className="flex items-center justify-between mb-2">
+            <div className="h-8 w-8 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 grid place-items-center">
+              <FileBarChart className="h-4 w-4" />
+            </div>
+            <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/40 group-hover:text-brand group-hover:translate-x-0.5 transition-all" />
+          </div>
+          <p className="text-sm font-semibold mb-0.5">Detaylı Rapor</p>
+          <p className="text-xs text-muted-foreground">Toplam performans, makale-bazlı metrikler, 30 günlük özet.</p>
+        </Link>
+      </div>
 
       
 
