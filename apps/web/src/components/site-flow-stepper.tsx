@@ -944,9 +944,16 @@ export function CitationPanel({ siteId }: { siteId: string }) {
 // ──────────────────────────────────────────────────────────────────────
 // Snippet Panel — D1 (AI üretip kullanıcıya copy-paste verir)
 // ──────────────────────────────────────────────────────────────────────
-export function SnippetPanel({ siteId }: { siteId: string }) {
+export function SnippetPanel({ siteId, initialUrl }: { siteId: string; initialUrl?: string }) {
   const [loading, setLoading] = useState(false);
-  const [pageUrl, setPageUrl] = useState('');
+  const [pageUrl, setPageUrl] = useState(initialUrl ?? '');
+  // Bulk scan'den URL gelince auto-trigger generate
+  useEffect(() => {
+    if (initialUrl && initialUrl !== pageUrl) {
+      setPageUrl(initialUrl);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialUrl]);
   const [snippets, setSnippets] = useState<any[] | null>(null);
   const [resolvedUrl, setResolvedUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState<number | null>(null);

@@ -298,6 +298,21 @@ export class AuditController {
     return this.applier.applyToTarget(siteId, body.snippets ?? []);
   }
 
+  /**
+   * GET /sites/:siteId/audit/snippets/bulk-scan?rootUrl=...&maxPages=30
+   * Toplu tarama — root URL'den başlayıp tüm alt sayfaların SEO durumunu çıkarır.
+   * AI çağrısı yapmaz, sadece HTML parse + score. Ücretsiz + hızlı (~10-30sn / 30 sayfa).
+   */
+  @Get('snippets/bulk-scan')
+  async bulkScanSnippets(
+    @Param('siteId') siteId: string,
+    @Query('rootUrl') rootUrl?: string,
+    @Query('maxPages') maxPages?: string,
+  ) {
+    const max = Math.min(50, Math.max(1, parseInt(maxPages ?? '30', 10) || 30));
+    return this.snippets.bulkScan(siteId, rootUrl, max);
+  }
+
   /** D4 — Statik HTML preview (FTP/SFTP/cPanel için) */
   @Post('snippets/static-preview')
   async staticPreview(

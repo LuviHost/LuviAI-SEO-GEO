@@ -46,6 +46,124 @@ export class SnippetGeneratorService {
     private readonly crawler: SiteCrawlerService,
   ) {}
 
+  /**
+   * Toplu tarama — site root URL'inden başlayıp tüm alt sayfalar için SEO durumunu çıkarır.
+   * AI çağrısı yapmaz (hızlı + ücretsiz). Her sayfa için: title var mı, metaDesc uzunluğu,
+   * canonical/OG/Twitter/Schema/H1 durumu. Frontend tablo halinde gösterir.
+   *
+   * Sonra kullanıcı tablodaki her sayfa için tek tek "Üret" tıklayabilir veya bulk run.
+   */
+  async bulkScan(siteId: string, rootUrl?: string, maxPages = 30): Promise<{
+    pages: Array<{
+      url: string;
+      title: string | null;
+      titleLength: number;
+      metaDescription: string | null;
+      metaDescriptionLength: number;
+      h1: string | null;
+      hasCanonical: boolean;
+      hasOG: boolean;
+      hasTwitter: boolean;
+      hasSchema: boolean;
+      hasFAQ: boolean;
+      score: number; // 0-100
+      issues: string[];
+    }>;
+    totalScanned: number;
+    averageScore: number;
+  }> {
+    const site = await this.prisma.site.findUniqueOrThrow({ where: { id: siteId } });
+    const base = rootUrl ?? site.url;
+
+    // Crawler zaten 30 sayfaya kadar dolaşıp HTML'leri topluyor
+    const crawl = await this.crawler.crawl(base, maxPages);
+
+    const results = await Promise.all(
+      crawl.pages.map(async (p) => {
+        // Crawl edilen page metadata yetersiz → her sayfa için ham HTML çek
+        const html = await this.fetch(p.url);
+        if (!html) {
+          return {
+            url: p.url,
+            title: p.title || null,
+            titleLength: (p.title || '').length,
+            metaDescription: null,
+            metaDescriptionLength: 0,
+            h1: p.h1 || null,
+            hasCanonical: false,
+            hasOG: false,
+            hasTwitter: false,
+            hasSchema: false,
+            hasFAQ: false,
+            score: 0,
+            issues: ['Sayfa indirilemedi'],
+          };
+        }
+
+        const $ = cheerio.load(html);
+        const title = $('title').text().trim() || null;
+        const metaDescription = $('meta[name="description"]').attr('content')?.trim() ?? null;
+        const h1 = $('h1').first().text().trim() || null;
+        const hasCanonical = $('link[rel="canonical"]').length > 0;
+        const hasOG = $('meta[property^="og:"]').length >= 3; // en az og:type, og:title, og:url
+        const hasTwitter = $('meta[name^="twitter:"]').length >= 2;
+        const schemaScripts = $('script[type="application/ld+json"]');
+        const hasSchema = schemaScripts.length > 0;
+        let hasFAQ = false;
+        schemaScripts.each((_i, el) => {
+          try {
+            const json = JSON.parse($(el).html() ?? '{}');
+            const types = Array.isArray(json) ? json.map((j) => j['@type']) : [json['@type']];
+            if (types.some((t) => t === 'FAQPage' || t === 'Question')) hasFAQ = true;
+          } catch {/* noop */}
+        });
+
+        const issues: string[] = [];
+        let score = 0;
+        // Scoring (toplam 100)
+        if (title && title.length >= 20 && title.length <= 65) score += 15;
+        else if (title) { score += 5; issues.push(title.length < 20 ? 'Title çok kısa' : 'Title çok uzun'); }
+        else issues.push('Title yok');
+
+        if (metaDescription && metaDescription.length >= 140 && metaDescription.length <= 160) score += 20;
+        else if (metaDescription) {
+          score += 8;
+          issues.push(metaDescription.length < 140 ? 'Meta description çok kısa' : 'Meta description çok uzun');
+        } else issues.push('Meta description yok');
+
+        if (h1) score += 10; else issues.push('H1 yok');
+        if (hasCanonical) score += 10; else issues.push('Canonical yok');
+        if (hasOG) score += 15; else issues.push('Open Graph yok');
+        if (hasTwitter) score += 10; else issues.push('Twitter Card yok');
+        if (hasSchema) score += 15; else issues.push('Schema markup yok');
+        if (hasFAQ) score += 5;
+
+        return {
+          url: p.url,
+          title,
+          titleLength: title?.length ?? 0,
+          metaDescription,
+          metaDescriptionLength: metaDescription?.length ?? 0,
+          h1,
+          hasCanonical,
+          hasOG,
+          hasTwitter,
+          hasSchema,
+          hasFAQ,
+          score,
+          issues,
+        };
+      }),
+    );
+
+    const totalScanned = results.length;
+    const averageScore = totalScanned > 0
+      ? Math.round(results.reduce((s, r) => s + r.score, 0) / totalScanned)
+      : 0;
+
+    return { pages: results, totalScanned, averageScore };
+  }
+
   /** Belirli sayfa için tüm eksik snippet'leri üret */
   async generateForPage(siteId: string, pageUrl: string): Promise<PageSnippet[]> {
     const site = await this.prisma.site.findUniqueOrThrow({ where: { id: siteId } });

@@ -131,6 +131,28 @@ export const api = {
   applySnippets: (siteId: string, snippets: any[]) =>
     request<any>(`/sites/${siteId}/audit/snippets/apply`, { method: 'POST', body: JSON.stringify({ snippets }) }),
 
+  // Toplu snippet tarama — root URL'den alt sayfaları tara, SEO durumlarını çıkar (AI çağrısı yok)
+  bulkScanSnippets: (siteId: string, rootUrl?: string, maxPages = 30) =>
+    request<{
+      pages: Array<{
+        url: string;
+        title: string | null;
+        titleLength: number;
+        metaDescription: string | null;
+        metaDescriptionLength: number;
+        h1: string | null;
+        hasCanonical: boolean;
+        hasOG: boolean;
+        hasTwitter: boolean;
+        hasSchema: boolean;
+        hasFAQ: boolean;
+        score: number;
+        issues: string[];
+      }>;
+      totalScanned: number;
+      averageScore: number;
+    }>(`/sites/${siteId}/audit/snippets/bulk-scan?${rootUrl ? `rootUrl=${encodeURIComponent(rootUrl)}&` : ''}maxPages=${maxPages}`),
+
   getSnippets: (siteId: string, pageUrl?: string) =>
     request<any>(`/sites/${siteId}/audit/snippets${pageUrl ? `?pageUrl=${encodeURIComponent(pageUrl)}` : ""}`),
 
