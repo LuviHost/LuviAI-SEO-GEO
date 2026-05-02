@@ -25,6 +25,7 @@ import {
   Settings as SettingsIcon,
   Plug,
   Check,
+  Target,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { ThemeToggle } from '@/components/theme-toggle';
@@ -89,6 +90,7 @@ const SITE_GROUPS = (siteId: string) => [
     items: [
       { href: `/sites/${siteId}/analytics`, label: 'Analytics', icon: BarChart3 },
       { href: `/sites/${siteId}/ads`, label: 'Reklam', icon: TrendingUp },
+      { href: `/sites/${siteId}/ads-health`, label: 'Kampanya Skoru', icon: Target },
       { href: `/sites/${siteId}/report`, label: 'Rapor', icon: FileBarChart },
     ],
   },

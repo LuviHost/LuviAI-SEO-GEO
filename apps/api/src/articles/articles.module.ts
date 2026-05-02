@@ -15,6 +15,7 @@ import { TiktokPublisherService } from './tiktok-publisher.service.js';
 import { InstagramPublisherService } from './instagram-publisher.service.js';
 import { TranslatorService } from './translator.service.js';
 import { SocialModule } from '../social/social.module.js';
+import { LLMModule } from '../llm/llm.module.js';
 import { AuditModule } from '../audit/audit.module.js';
 
 /**
@@ -27,7 +28,7 @@ import { AuditModule } from '../audit/audit.module.js';
  *  - SocialModule: PUBLISHED makaleler icin auto-draft sosyal post
  */
 @Module({
-  imports: [SocialModule, AuditModule],
+  imports: [SocialModule, AuditModule, LLMModule],
   controllers: [ArticlesController],
   providers: [
     ArticlesService,

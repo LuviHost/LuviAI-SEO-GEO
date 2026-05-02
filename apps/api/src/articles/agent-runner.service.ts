@@ -1,8 +1,8 @@
 import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
-import Anthropic from '@anthropic-ai/sdk';
 import { buildBrainContext } from '@luviai/shared';
 import type { AgentContext } from '@luviai/shared';
 import { SettingsService } from '../settings/settings.service.js';
+import { LLMProviderService } from '../llm/llm-provider.service.js';
 
 export interface RunAgentParams {
   agentName: '01-keyword' | '02-outline' | '03-writer' | '04-editor' | '05-visuals' | 'topic-ranker';
@@ -11,6 +11,9 @@ export interface RunAgentParams {
   input: string;
   maxTokens?: number;
   preferredModel?: 'opus' | 'sonnet' | 'haiku' | string;
+  /** Token usage kaydında kullanılır */
+  siteId?: string;
+  conversationId?: string;
 }
 
 export interface AgentResult {
@@ -32,12 +35,7 @@ const MODEL_MAP: Record<string, string> = {
   haiku: 'claude-haiku-4-5-20251001',
 };
 
-// USD per 1M tokens (Anthropic pricing — Nisan 2026)
-const PRICING: Record<string, { input: number; output: number; cacheRead: number; cacheWrite: number }> = {
-  'claude-opus-4-7': { input: 15, output: 75, cacheRead: 1.5, cacheWrite: 18.75 },
-  'claude-sonnet-4-6': { input: 3, output: 15, cacheRead: 0.3, cacheWrite: 3.75 },
-  'claude-haiku-4-5-20251001': { input: 1, output: 5, cacheRead: 0.1, cacheWrite: 1.25 },
-};
+// Pricing artık LLMProviderService/AnthropicProvider içinde merkezi.
 
 /**
  * Tek ajan çağrısı.
@@ -54,10 +52,13 @@ const PRICING: Record<string, { input: number; output: number; cacheRead: number
 export class AgentRunnerService {
   private readonly log = new Logger(AgentRunnerService.name);
 
-  constructor(private readonly settings: SettingsService) {}
+  constructor(
+    private readonly settings: SettingsService,
+    private readonly llm: LLMProviderService,
+  ) {}
 
   async run(params: RunAgentParams): Promise<AgentResult> {
-    // AI_GLOBAL_DISABLED guard — admin panelden test modu açıldıysa Anthropic çağrısı yapma.
+    // AI_GLOBAL_DISABLED guard burada da var (LLMProviderService içinde de var; defansif)
     if (await this.settings.getBoolean('AI_GLOBAL_DISABLED')) {
       this.log.warn(`AI_GLOBAL_DISABLED=1 — agent çağrısı atlandı (${params.agentName})`);
       throw new ServiceUnavailableException(
@@ -67,75 +68,45 @@ export class AgentRunnerService {
 
     const model = this.resolveModel(params.preferredModel, params.agentName);
     const brainSystem = buildBrainContext(params.brainContext);
-
-    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
     const t0 = Date.now();
 
-    let response;
     try {
-      response = await client.messages.create({
+      const response = await this.llm.chat({
+        context: `agent-${params.agentName}`,
+        siteId: params.siteId,
+        conversationId: params.conversationId,
         model,
-        max_tokens: params.maxTokens ?? 16384,
-        system: [
-          {
-            type: 'text',
-            text: brainSystem,
-            cache_control: { type: 'ephemeral' },
-          },
-          {
-            type: 'text',
-            text: params.agentSystemSuffix,
-          },
-        ],
+        systemPrompt: `${brainSystem}\n\n${params.agentSystemSuffix}`,
+        cacheSystemPrompt: true,
         messages: [{ role: 'user', content: params.input }],
+        maxTokens: params.maxTokens ?? 16384,
       });
+
+      this.log.log(`[${params.agentName}] ${model} — ${((Date.now() - t0) / 1000).toFixed(1)}s, $${response.costUsd.toFixed(4)} (in:${response.usage.inputTokens}+${response.usage.cacheReadTokens}/cache, out:${response.usage.outputTokens})`);
+
+      return {
+        agent: params.agentName,
+        model: response.model,
+        output: response.output,
+        usage: response.usage,
+        costUsd: response.costUsd,
+      };
     } catch (err: any) {
-      // Anthropic API hatalarını user-friendly mesajla 503 ServiceUnavailable'a çevir.
       const msg = String(err?.message ?? '');
       if (/credit balance is too low/i.test(msg) || /insufficient_quota/i.test(msg)) {
-        this.log.error(`Anthropic kredisi tükendi: ${msg}`);
+        this.log.error(`AI kredisi tükendi: ${msg}`);
         throw new ServiceUnavailableException(
-          'AI sağlayıcı kredisi tükendi. Yöneticinin Anthropic hesabına kredi yüklemesi gerek (console.anthropic.com → Plans & Billing).',
+          'AI sağlayıcı kredisi tükendi. Yönetici hesabına kredi yüklemeli (console.anthropic.com → Plans & Billing).',
         );
       }
       if (/rate.?limit/i.test(msg) || err?.status === 429) {
-        throw new ServiceUnavailableException(
-          'AI sağlayıcı rate limit\'e takıldı. Birkaç saniye bekleyip tekrar dene.',
-        );
+        throw new ServiceUnavailableException('AI sağlayıcı rate limit\'e takıldı. Birkaç saniye bekleyip tekrar dene.');
       }
       if (err?.status === 401 || /api.?key/i.test(msg)) {
-        throw new ServiceUnavailableException(
-          'AI sağlayıcı kimlik doğrulaması başarısız (API key geçersiz). Yöneticiye haber ver.',
-        );
+        throw new ServiceUnavailableException('AI sağlayıcı kimlik doğrulaması başarısız (API key geçersiz).');
       }
-      // Diğer hataları olduğu gibi geçir (NestJS 500 yapar)
       throw err;
     }
-
-    const text = response.content
-      .filter((b: any) => b.type === 'text')
-      .map((b: any) => b.text)
-      .join('\n');
-
-    const usage = {
-      inputTokens: response.usage.input_tokens,
-      outputTokens: response.usage.output_tokens,
-      cacheReadTokens: (response.usage as any).cache_read_input_tokens ?? 0,
-      cacheWriteTokens: (response.usage as any).cache_creation_input_tokens ?? 0,
-    };
-
-    const costUsd = this.estimateCost(model, usage);
-
-    this.log.log(`[${params.agentName}] ${model} — ${((Date.now() - t0) / 1000).toFixed(1)}s, $${costUsd.toFixed(4)} (in:${usage.inputTokens}+${usage.cacheReadTokens}/cache, out:${usage.outputTokens})`);
-
-    return {
-      agent: params.agentName,
-      model,
-      output: text,
-      usage,
-      costUsd,
-    };
   }
 
   private resolveModel(preferred: string | undefined, agentName: string): string {
@@ -146,14 +117,4 @@ export class AgentRunnerService {
     return process.env.ROUTING_MODEL ?? 'claude-sonnet-4-6';
   }
 
-  private estimateCost(model: string, usage: AgentResult['usage']): number {
-    const p = PRICING[model] ?? PRICING['claude-sonnet-4-6'];
-    return (
-      (usage.inputTokens * p.input +
-        usage.outputTokens * p.output +
-        usage.cacheReadTokens * p.cacheRead +
-        usage.cacheWriteTokens * p.cacheWrite) /
-      1_000_000
-    );
-  }
 }

@@ -253,6 +253,8 @@ model Site {
   adCampaigns      AdCampaign[]
   aiProviderKeys   SiteAiProviderKey[]
   videos           Video[]
+  adsAudits        AdsAudit[]
+  tokenUsage       TokenUsageRecord[]
 
   @@unique([userId, url])
   @@index([userId])
@@ -1065,4 +1067,62 @@ enum VideoProvider {
   RUNWAY      // Runway Gen-3 / Gen-4
   HEYGEN      // HeyGen avatar video
   SORA        // OpenAI Sora
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  ADS AUDIT — claude-ads (MIT) port'u
+// ═══════════════════════════════════════════════════════════════
+
+model AdsAudit {
+  id          String   @id @default(cuid())
+  siteId      String
+  platform    String   // 'google' | 'meta'
+  industry    String   @default("saas")
+
+  totalScore  Int      // 0-100
+  grade       String   // 'A' | 'B' | 'C' | 'D' | 'F'
+  byCategory  Json     // { conversion: { score, weight }, waste: {...}, ... }
+  findings    Json     // [{ ruleId, name, category, severity, verdict, finding, recommendation, isQuickWin, fixTimeMinutes }]
+  summary     Json     // { pass, warning, fail, na, total }
+  ranAt       DateTime @default(now())
+  durationMs  Int?
+
+  site Site @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  @@index([siteId, platform, ranAt])
+  @@map("ads_audits")
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  TOKEN USAGE — LibreChat Transaction modelinin Prisma karşılığı
+// ═══════════════════════════════════════════════════════════════
+
+model TokenUsageRecord {
+  id              String   @id @default(cuid())
+  siteId          String?
+  userId          String?
+  provider        String   // 'anthropic' | 'openai' | 'gemini'
+  model           String   // 'claude-opus-4-7' | 'gpt-4o' | 'gemini-2.5-pro'
+  tokenType       String   // 'prompt' | 'completion' | 'cache_read' | 'cache_write'
+  context         String?  // 'article-writer' | 'snippet-optimizer' | 'ads-audit-llm' | ...
+
+  inputTokens     Int      @default(0)
+  outputTokens    Int      @default(0)
+  cacheReadTokens Int      @default(0)
+  cacheWriteTokens Int     @default(0)
+
+  rate            Decimal  @db.Decimal(18, 8) // USD per 1M tokens (active rate)
+  costUsd         Decimal  @db.Decimal(18, 8) // Σ(tokens × rate)
+
+  conversationId  String?  // article id, audit id vs.
+  messageId       String?
+
+  createdAt       DateTime @default(now())
+
+  site Site? @relation(fields: [siteId], references: [id], onDelete: SetNull)
+
+  @@index([siteId, createdAt])
+  @@index([userId, createdAt])
+  @@index([provider, model, createdAt])
+  @@map("token_usage_records")
 }

@@ -8,6 +8,7 @@ import {
   AlertTriangle, AlertCircle, CheckCircle2, Power, FileBarChart, ArrowRight,
 } from 'lucide-react';
 import { AnalyticsRow, RecentActivity } from '@/components/analytics-row';
+import { AiCostStrip } from '@/components/ai-cost-strip';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import { Card, CardContent } from '@/components/ui/card';
@@ -59,6 +60,7 @@ export function SiteOverviewDashboard({
 
       {/* Cloudflare-inspired analytics row: 3 stat cards with animated sparklines */}
       <AnalyticsRow siteId={site.id} audit={audit} articles={articles} />
+      <AiCostStrip siteId={site.id} />
 
       {/* Site Skoru özeti — onboarding sonrası kullanıcı detayı doğrudan görsün */}
       <AuditSummaryInline site={site} audit={audit} />

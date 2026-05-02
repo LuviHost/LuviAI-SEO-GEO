@@ -5,6 +5,8 @@ import { AdImageGeneratorService } from './ad-image-generator.service.js';
 import { AudienceBuilderService } from './audience-builder.service.js';
 import { CampaignOrchestratorService } from './campaign-orchestrator.service.js';
 import { AdsClientService } from './ads-client.service.js';
+import { AdsAuditService } from './ads-audit.service.js';
+import type { Industry, Platform } from './rules/types.js';
 import { encrypt } from '@luviai/shared';
 
 @Controller('sites/:siteId/ads')
@@ -16,7 +18,28 @@ export class AdsController {
     private readonly audience: AudienceBuilderService,
     private readonly orchestrator: CampaignOrchestratorService,
     private readonly adsClient: AdsClientService,
+    private readonly adsAudit: AdsAuditService,
   ) {}
+
+  // ─── ADS AUDIT (Kampanya Skoru) ─────────────────────────────
+  /** POST /sites/:siteId/ads/audit/run-now?platform=google&industry=saas */
+  @Post('audit/run-now')
+  async runAudit(
+    @Param('siteId') siteId: string,
+    @Query('platform') platform: Platform = 'google',
+    @Query('industry') industry: Industry = 'saas',
+  ) {
+    return this.adsAudit.run(siteId, platform, industry);
+  }
+
+  /** GET /sites/:siteId/ads/audit/latest?platform=google */
+  @Get('audit/latest')
+  async getLatestAudit(
+    @Param('siteId') siteId: string,
+    @Query('platform') platform: Platform = 'google',
+  ) {
+    return this.adsAudit.getLatest(siteId, platform);
+  }
 
   /** GET /sites/:siteId/ads/campaigns */
   @Get('campaigns')

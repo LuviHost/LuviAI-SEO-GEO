@@ -11,6 +11,7 @@ const ADMIN_NAV = [
   { href: '/admin/invoices', label: 'Faturalar' },
   { href: '/admin/sites', label: 'Siteler' },
   { href: '/admin/queue', label: 'Queue Monitor' },
+  { href: '/admin/spend', label: 'AI Spend' },
   { href: '/admin/jobs', label: 'Hatalı İşler' },
   { href: '/admin/settings', label: 'Ayarlar' },
 ];

@@ -421,6 +421,13 @@ export const api = {
   updateAdsSettings: (siteId: string, payload: { adsAutopilot?: boolean }) =>
     request<any>(`/sites/${siteId}/ads/settings`, { method: 'PATCH', body: JSON.stringify(payload) }),
 
+  // Faz 12 — Ads Audit (Kampanya Skoru, claude-ads port'u)
+  runAdsAudit: (siteId: string, platform: 'google' | 'meta' = 'google', industry: string = 'saas') =>
+    request<any>(`/sites/${siteId}/ads/audit/run-now?platform=${platform}&industry=${industry}`, { method: 'POST' }),
+
+  getLatestAdsAudit: (siteId: string, platform: 'google' | 'meta' = 'google') =>
+    request<any>(`/sites/${siteId}/ads/audit/latest?platform=${platform}`),
+
   // Faz 11.5 — OAuth popup flow
   getOAuthStartUrl: (provider: 'google-ads' | 'meta-ads', siteId: string) =>
     request<{ url: string }>(`/oauth/${provider}/start?siteId=${siteId}`),
@@ -485,6 +492,25 @@ export const api = {
     request<any[]>(`/admin/invoices${status ? `?status=${status}` : ''}`),
   getAdminSites: () => request<any[]>('/admin/sites'),
   getAdminFailedJobs: () => request<any[]>('/admin/jobs/failed'),
+
+  // Faz 12 — LLM Spend (LibreChat tx pattern)
+  getAdminSpend: (days = 30) =>
+    request<{
+      totalUsd: number;
+      byProvider: Record<string, number>;
+      byContext: Record<string, number>;
+      byDate: Record<string, number>;
+      requestCount: number;
+    }>(`/admin/spend?days=${days}`),
+
+  getSiteSpend: (siteId: string, days = 30) =>
+    request<{
+      totalUsd: number;
+      byProvider: Record<string, number>;
+      byContext: Record<string, number>;
+      byDate: Record<string, number>;
+      requestCount: number;
+    }>(`/sites/${siteId}/spend?days=${days}`),
 
   // Admin Queue Monitor (BullMQ)
   adminQueueStats: () => request<{ counts: Record<string, number>; paused: boolean }>('/admin/queue/stats'),

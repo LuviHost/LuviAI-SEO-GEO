@@ -12,7 +12,10 @@ import { AbTestManagerService } from './ab-test-manager.service.js';
 import { KeywordOptimizerService } from './keyword-optimizer.service.js';
 import { BudgetShifterService } from './budget-shifter.service.js';
 import { AutoBoostService } from './auto-boost.service.js';
+import { AdsAuditService } from './ads-audit.service.js';
+import { AdsSnapshotCollectorService } from './snapshot-collector.service.js';
 import { AuditModule } from '../audit/audit.module.js';
+import { ArticlesModule } from '../articles/articles.module.js';
 
 /**
  * Faz 11.2: Ads Manager — direkt resmi API entegrasyonu
@@ -27,7 +30,7 @@ import { AuditModule } from '../audit/audit.module.js';
  * 3. parti SaaS yok (Ryze AI MCP kaldirildi). Sifir aboneligi.
  */
 @Module({
-  imports: [AuditModule],
+  imports: [AuditModule, ArticlesModule],
   controllers: [AdsController],
   providers: [
     AdGeneratorService,
@@ -42,6 +45,8 @@ import { AuditModule } from '../audit/audit.module.js';
     KeywordOptimizerService,
     BudgetShifterService,
     AutoBoostService,
+    AdsAuditService,
+    AdsSnapshotCollectorService,
   ],
   exports: [
     AdGeneratorService,
@@ -56,6 +61,7 @@ import { AuditModule } from '../audit/audit.module.js';
     KeywordOptimizerService,
     BudgetShifterService,
     AutoBoostService,
+    AdsAuditService,
   ],
 })
 export class AdsModule {}
