@@ -211,11 +211,9 @@ export class AuditChecksService {
     let tooLong = 0;
     let missing = 0;
 
+    const missingPages: string[] = [];
     for (const p of c.pages) {
-      if (!p.title) { missing++; issues.push({
-        severity: 'critical', type: 'meta_title_missing', page: p.url,
-        description: '<title> tag yok', fixable: true,
-      }); continue; }
+      if (!p.title) { missing++; missingPages.push(p.url); continue; }
       if (p.title.length < 30) tooShort++;
       else if (p.title.length > 60) tooLong++;
       else valid++;
@@ -224,6 +222,13 @@ export class AuditChecksService {
     const total = c.pages.length;
     const score = total > 0 ? Math.round(((valid + tooLong * 0.7) / total) * 100) : 0;
 
+    if (missing > 0) issues.push({
+      severity: 'critical', type: 'meta_title_missing',
+      description: `${missing} sayfada <title> tag yok`,
+      fixable: true,
+      // İlk eksik sayfanın URL'ini page'e koy — auto-fix bunu hedefler
+      page: missingPages[0],
+    });
     if (tooShort > 0) issues.push({
       severity: 'warning', type: 'meta_title_short',
       description: `${tooShort} sayfada title 30 karakterden kısa`,
@@ -239,7 +244,7 @@ export class AuditChecksService {
       id: 'meta_title', name: 'Meta Title',
       found: missing === 0, valid: valid === total,
       score, issues,
-      details: { valid, tooShort, tooLong, missing, total },
+      details: { valid, tooShort, tooLong, missing, total, missingPages },
     };
   }
 
