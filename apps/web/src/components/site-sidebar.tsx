@@ -116,6 +116,21 @@ export function SiteSidebar({ onClose }: { onClose?: () => void }) {
   const [sites, setSites] = useState<SiteOption[] | null>(null);
   const [switcherOpen, setSwitcherOpen] = useState(false);
   const switcherRef = useRef<HTMLDivElement>(null);
+  // Collapsible groups (mobile + persistence in localStorage)
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem('luviai_sidebar_collapsed');
+      if (saved) setCollapsed(JSON.parse(saved));
+    } catch {/* noop */}
+  }, []);
+  const toggleGroup = (id: string) => {
+    setCollapsed((prev) => {
+      const next = { ...prev, [id]: !prev[id] };
+      try { window.localStorage.setItem('luviai_sidebar_collapsed', JSON.stringify(next)); } catch {/* noop */}
+      return next;
+    });
+  };
 
   useEffect(() => {
     if (!inSiteContext || sites !== null) return;
@@ -269,41 +284,61 @@ export function SiteSidebar({ onClose }: { onClose?: () => void }) {
         </div>
       </div>
 
-      {/* Grouped nav */}
-      <nav className="px-3 pb-6 space-y-4">
-        {groups.map((group) => (
-          <div key={group.id}>
-            {group.label && (
-              <div className="px-3 mb-1.5 text-[10px] font-bold uppercase tracking-widest text-slate-500">
-                {group.label}
-              </div>
-            )}
-            <div className="space-y-0.5">
-              {group.items.map((item: any) => {
-                const active = item.exact
-                  ? path === item.href
-                  : path === item.href || path.startsWith(item.href + '/');
-                const Icon = item.icon;
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href as any}
-                    onClick={onClose}
+      {/* Grouped nav — collapsible (label tıklanınca açılır/kapanır) */}
+      <nav className="px-3 pb-6 space-y-3">
+        {groups.map((group) => {
+          const isCollapsed = group.label ? collapsed[group.id] : false;
+          // Eğer aktif route bu group içindeyse otomatik aç
+          const hasActive = group.items.some((item: any) =>
+            item.exact ? path === item.href : path === item.href || path.startsWith(item.href + '/'),
+          );
+          const expanded = group.label ? !isCollapsed || hasActive : true;
+          return (
+            <div key={group.id}>
+              {group.label && (
+                <button
+                  type="button"
+                  onClick={() => toggleGroup(group.id)}
+                  className="w-full px-3 mb-1.5 flex items-center justify-between text-[10px] font-bold uppercase tracking-widest text-slate-500 hover:text-slate-300 transition-colors"
+                >
+                  <span>{group.label}</span>
+                  <ChevronDown
                     className={cn(
-                      'flex items-center gap-2.5 px-3 py-1.5 rounded-md text-[13px] font-medium transition-colors',
-                      active
-                        ? 'bg-brand text-white shadow-sm'
-                        : 'text-slate-300 hover:bg-slate-800 hover:text-white',
+                      'h-3 w-3 transition-transform',
+                      !expanded && '-rotate-90',
                     )}
-                  >
-                    <Icon className="h-3.5 w-3.5 shrink-0" />
-                    <span className="truncate">{item.label}</span>
-                  </Link>
-                );
-              })}
+                  />
+                </button>
+              )}
+              {expanded && (
+                <div className="space-y-0.5">
+                  {group.items.map((item: any) => {
+                    const active = item.exact
+                      ? path === item.href
+                      : path === item.href || path.startsWith(item.href + '/');
+                    const Icon = item.icon;
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href as any}
+                        onClick={onClose}
+                        className={cn(
+                          'flex items-center gap-2.5 px-3 py-1.5 rounded-md text-[13px] font-medium transition-colors',
+                          active
+                            ? 'bg-brand text-white shadow-sm'
+                            : 'text-slate-300 hover:bg-slate-800 hover:text-white',
+                        )}
+                      >
+                        <Icon className="h-3.5 w-3.5 shrink-0" />
+                        <span className="truncate">{item.label}</span>
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
             </div>
-          </div>
-        ))}
+          );
+        })}
       </nav>
     </>
   );

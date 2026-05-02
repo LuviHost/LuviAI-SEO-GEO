@@ -1,8 +1,9 @@
 'use client';
 import { useSiteContext } from '../site-context';
 import { AuditStepBody } from '@/components/site-flow-stepper';
+import { RelatedLinks } from '@/components/empty-state';
 import { Card, CardContent } from '@/components/ui/card';
-import { ShieldCheck, Sparkles } from 'lucide-react';
+import { ShieldCheck, Sparkles, FileText, Send, Award } from 'lucide-react';
 
 export default function AuditPage() {
   const { site, audit, refresh, onboardingMode } = useSiteContext();
@@ -22,6 +23,14 @@ export default function AuditPage() {
           <AuditStepBody audit={audit} siteId={site.id} onRefresh={refresh} onboardingMode={onboardingMode} />
         </CardContent>
       </Card>
+      <RelatedLinks
+        links={[
+          { href: `/sites/${site.id}/snippet`, label: 'Snippet Üretici', description: 'On-page meta + FAQ otomatik düzeltme', icon: FileText },
+          { href: `/sites/${site.id}/geo-lab`, label: 'GEO Lab', description: 'AI search optimization (6 pillar)', icon: Award },
+          { href: `/sites/${site.id}/visibility`, label: 'AI Görünürlük', description: 'ChatGPT/Claude/Gemini citation tracking', icon: Sparkles },
+          { href: `/sites/${site.id}/publish-targets`, label: 'Yayın Hedefleri', description: 'Auto-fix dosyaları buraya yüklenir', icon: Send },
+        ]}
+      />
     </div>
   );
 }

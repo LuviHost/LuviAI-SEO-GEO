@@ -9,6 +9,7 @@ import { UserMenu } from '@/components/user-menu';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { SiteSidebar } from '@/components/site-sidebar';
+import { CommandPalette } from '@/components/command-palette';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
@@ -55,6 +56,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       )}
 
       <main className="flex-1 p-4 sm:p-6 md:p-10 overflow-x-hidden pt-16 md:pt-10">{children}</main>
+
+      {/* Cmd+K command palette */}
+      <CommandPalette />
     </div>
   );
 }

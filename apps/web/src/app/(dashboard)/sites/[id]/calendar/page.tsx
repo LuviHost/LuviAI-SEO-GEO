@@ -1,7 +1,8 @@
 'use client';
 import { useSiteContext } from '../site-context';
 import { ContentCalendarPanel } from '@/components/site-flow-stepper';
-import { Calendar } from 'lucide-react';
+import { EmptyState, RelatedLinks } from '@/components/empty-state';
+import { Calendar, Sparkles, FileText } from 'lucide-react';
 
 export default function CalendarPage() {
   const { site, articles, refresh } = useSiteContext();
@@ -23,11 +24,28 @@ export default function CalendarPage() {
           <p className="text-sm text-muted-foreground">Planlanmış makaleler. Sürükleyip günü değiştir, saatini ayarla.</p>
         </div>
       </div>
-      <ContentCalendarPanel
-        siteId={site.id}
-        scheduled={scheduled}
-        otherArticlesCount={otherCount}
-        onChanged={refresh}
+      {scheduled.length === 0 ? (
+        <EmptyState
+          icon={Calendar}
+          accent="sky"
+          title="Takvim boş"
+          description="Önerilen Konular sayfasından bir konuyu sürükleyip buraya bırak veya bir makaleyi takvime al. Yayın saati gelir, otomatik üretim başlar, WordPress'e gider."
+          primary={{ label: 'Önerilen Konulara git', href: `/sites/${site.id}/topics` }}
+          secondary={{ label: 'Makaleler', href: `/sites/${site.id}/articles` }}
+        />
+      ) : (
+        <ContentCalendarPanel
+          siteId={site.id}
+          scheduled={scheduled}
+          otherArticlesCount={otherCount}
+          onChanged={refresh}
+        />
+      )}
+      <RelatedLinks
+        links={[
+          { href: `/sites/${site.id}/topics`, label: 'Önerilen Konular', description: 'Yeni öneri al, takvime sürükle', icon: Sparkles },
+          { href: `/sites/${site.id}/articles`, label: 'Makaleler', description: 'Tüm pipeline durumlarını gör', icon: FileText },
+        ]}
       />
     </div>
   );
