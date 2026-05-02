@@ -85,8 +85,8 @@ export default function HomePage() {
 
             <div className="flex flex-wrap justify-center gap-x-6 gap-y-2 text-xs sm:text-sm text-white/80">
               <span className="inline-flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5" /> İlk makale ücretsiz</span>
-              <span className="inline-flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5" /> Kart bilgisi gerekmez</span>
-              <span className="inline-flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5" /> İstediğin zaman iptal</span>
+              <span className="inline-flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5" /> PayTR güvenli ödeme</span>
+              <span className="inline-flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5" /> Aylık iptal — taahhüt yok</span>
             </div>
           </div>
         </section>

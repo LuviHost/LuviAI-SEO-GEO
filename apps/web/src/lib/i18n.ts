@@ -113,7 +113,7 @@ const dictionary = {
 
     // Final CTA
     'final.title': 'Saatlerce uğraşmaktan kurtul. Bugün başla.',
-    'final.subtitle': 'İlk makalen ücretsiz. Kredi kartı gerekmez. İstediğin zaman iptal et.',
+    'final.subtitle': 'İlk makalen ücretsiz dene. PayTR güvenli ödeme. Aylık iptal, taahhüt yok.',
     'final.cta_primary': 'Ücretsiz Dene',
     'final.cta_secondary': 'Plan ve fiyatları gör',
 
@@ -273,7 +273,7 @@ const dictionary = {
 
     // Final CTA
     'final.title': 'Stop spending hours on it. Start today.',
-    'final.subtitle': "Your first article is free. No credit card required. Cancel anytime.",
+    'final.subtitle': "Try your first article free. Secure PayTR payment. Monthly cancel, no commitment.",
     'final.cta_primary': 'Try Free',
     'final.cta_secondary': 'See plans & pricing',
 
