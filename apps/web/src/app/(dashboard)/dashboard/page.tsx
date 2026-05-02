@@ -116,13 +116,15 @@ export default function DashboardPage() {
             </p>
           )}
         </div>
-        <Button asChild size="lg" className="group relative overflow-hidden bg-gradient-to-r from-brand to-brand/85 shadow-[0_0_0_1px_rgb(124_58_237/0.3),0_8px_24px_-6px_rgb(124_58_237/0.5)] hover:shadow-[0_0_0_1px_rgb(124_58_237/0.5),0_12px_36px_-6px_rgb(124_58_237/0.7)] transition-shadow duration-300">
-          <Link href="/onboarding" className="font-mono text-xs uppercase tracking-widest">
-            <Plus className="h-4 w-4 mr-2 group-hover:rotate-90 transition-transform duration-300" />
-            {t('dashboard.new_site')}
-            <span aria-hidden className="absolute inset-y-0 -left-1/2 w-1/2 bg-gradient-to-r from-transparent via-white/25 to-transparent skew-x-12 group-hover:translate-x-[400%] transition-transform duration-700" />
-          </Link>
-        </Button>
+        {sites.length > 0 && (
+          <Button asChild size="lg" className="group relative overflow-hidden bg-gradient-to-r from-brand to-brand/85 shadow-[0_0_0_1px_rgb(124_58_237/0.3),0_8px_24px_-6px_rgb(124_58_237/0.5)] hover:shadow-[0_0_0_1px_rgb(124_58_237/0.5),0_12px_36px_-6px_rgb(124_58_237/0.7)] transition-shadow duration-300">
+            <Link href="/onboarding" className="font-mono text-xs uppercase tracking-widest">
+              <Plus className="h-4 w-4 mr-2 group-hover:rotate-90 transition-transform duration-300" />
+              {t('dashboard.new_site')}
+              <span aria-hidden className="absolute inset-y-0 -left-1/2 w-1/2 bg-gradient-to-r from-transparent via-white/25 to-transparent skew-x-12 group-hover:translate-x-[400%] transition-transform duration-700" />
+            </Link>
+          </Button>
+        )}
       </div>
 
       {/* KPI grid */}
