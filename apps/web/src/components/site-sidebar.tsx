@@ -70,7 +70,7 @@ const SITE_GROUPS = (siteId: string) => [
       { href: `/sites/${siteId}/visibility`, label: 'AI Görünürlük', icon: Sparkles },
       { href: `/sites/${siteId}/geo-lab`, label: 'GEO Lab', icon: Award },
       { href: `/sites/${siteId}/competitors`, label: 'Rakipler', icon: Network },
-      { href: `/sites/${siteId}/snippet`, label: 'Snippet Üretici', icon: FileText },
+      { href: `/sites/${siteId}/snippet`, label: 'Sayfa SEO İyileştir', icon: FileText },
     ],
   },
   {

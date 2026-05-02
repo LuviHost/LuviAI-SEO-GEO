@@ -73,6 +73,7 @@ export function ContentFlowTable({
   const [triggeringSet, setTriggeringSet] = useState<Set<string>>(new Set());
   // Tarih atama modali (Sırada-tarihsiz article'ları takvime al)
   const [scheduleTarget, setScheduleTarget] = useState<{ articleId: string; title: string } | null>(null);
+  const [scheduleTopicTarget, setScheduleTopicTarget] = useState<{ topic: string; slug?: string; pillar?: string; title: string } | null>(null);
   const [scheduleSubmitting, setScheduleSubmitting] = useState(false);
 
   const inflightArticle = (articles ?? []).find((a) => a?.status === 'GENERATING' || a?.status === 'EDITING');
@@ -455,13 +456,31 @@ export function ContentFlowTable({
                                   Üretiliyor…
                                 </span>
                               ) : (
-                                <Button
-                                  size="sm"
-                                  onClick={() => generate(row.topic)}
-                                  disabled={isThisGenerating}
-                                >
-                                  Üret →
-                                </Button>
+                                <>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() =>
+                                      setScheduleTopicTarget({
+                                        topic: row.topic,
+                                        slug: row.slug ?? undefined,
+                                        pillar: row.pillar ?? undefined,
+                                        title: row.topic,
+                                      })
+                                    }
+                                    title="Takvime ekle (yayın saati gelince üret + yayınla)"
+                                  >
+                                    <Calendar className="h-3.5 w-3.5 mr-1" /> Takvime
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    onClick={() => generate(row.topic)}
+                                    disabled={isThisGenerating}
+                                    title="Şimdi üret (anında pipeline)"
+                                  >
+                                    Üret →
+                                  </Button>
+                                </>
                               )}
                             </div>
                           )}
@@ -591,6 +610,34 @@ export function ContentFlowTable({
               onRefresh();
             } catch (err: any) {
               toast.error(err.message || 'Tarih atanamadı');
+            } finally {
+              setScheduleSubmitting(false);
+            }
+          }}
+        />
+      )}
+
+      {/* Tarih atama modali — Önerilen Konu'yu doğrudan takvime al (yeni article schedule) */}
+      {scheduleTopicTarget && (
+        <ScheduleModal
+          title={scheduleTopicTarget.title}
+          submitting={scheduleSubmitting}
+          onClose={() => setScheduleTopicTarget(null)}
+          onConfirm={async (iso) => {
+            if (!scheduleTopicTarget) return;
+            setScheduleSubmitting(true);
+            try {
+              await api.scheduleTopicToCalendar(siteId, {
+                topic: scheduleTopicTarget.topic,
+                slug: scheduleTopicTarget.slug,
+                pillar: scheduleTopicTarget.pillar,
+                scheduledAt: iso,
+              });
+              toast.success('Konu takvime eklendi — saatinde otomatik üretilecek');
+              setScheduleTopicTarget(null);
+              onRefresh();
+            } catch (err: any) {
+              toast.error(err.message || 'Takvime eklenemedi');
             } finally {
               setScheduleSubmitting(false);
             }

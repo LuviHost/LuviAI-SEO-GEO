@@ -90,7 +90,7 @@ export function CommandPalette() {
       { id: 'site:visibility', label: 'AI Görünürlük', hint: 'Citation tracking', group: 'navigate', icon: Sparkles, href: `/sites/${siteId}/visibility`, keywords: ['ai', 'citation', 'görünürlük'] },
       { id: 'site:geo', label: 'GEO Lab', hint: '6 pillar AI search', group: 'navigate', icon: Award, href: `/sites/${siteId}/geo-lab`, keywords: ['geo', 'pillar', 'optimization'] },
       { id: 'site:competitors', label: 'Rakipler', group: 'navigate', icon: Network, href: `/sites/${siteId}/competitors`, keywords: ['competitor', 'rakip'] },
-      { id: 'site:snippet', label: 'Snippet Üretici', group: 'navigate', icon: FileText, href: `/sites/${siteId}/snippet`, keywords: ['snippet', 'meta', 'title'] },
+      { id: 'site:snippet', label: 'Sayfa SEO İyileştir', hint: 'Title/meta/FAQ üret + uygula', group: 'navigate', icon: FileText, href: `/sites/${siteId}/snippet`, keywords: ['snippet', 'meta', 'title', 'on-page', 'seo', 'sayfa', 'faq'] },
       { id: 'site:topics', label: 'Önerilen Konular', hint: 'AI topic engine', group: 'navigate', icon: Sparkles, href: `/sites/${siteId}/topics`, keywords: ['topic', 'konu', 'öneri'] },
       { id: 'site:articles', label: 'Makaleler', group: 'navigate', icon: FileText, href: `/sites/${siteId}/articles`, keywords: ['article', 'makale'] },
       { id: 'site:calendar', label: 'Takvim', group: 'navigate', icon: Calendar, href: `/sites/${siteId}/calendar`, keywords: ['calendar', 'takvim', 'schedule'] },
