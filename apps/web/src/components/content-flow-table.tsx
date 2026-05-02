@@ -303,7 +303,15 @@ export function ContentFlowTable({
         <CardHeader>
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div>
-              <h2 className="font-semibold">İçerik Akışı</h2>
+              <h2 className="font-semibold flex items-center gap-2">
+                İçerik Akışı
+                <span className="inline-flex items-center gap-1 text-[10px] font-normal text-amber-600 dark:text-amber-400">
+                  <span className="h-2 w-0.5 bg-amber-400/70 rounded" /> AI önerisi
+                </span>
+                <span className="inline-flex items-center gap-1 text-[10px] font-normal text-brand">
+                  <span className="h-2 w-0.5 bg-brand rounded" /> üretilen
+                </span>
+              </h2>
               <p className="text-xs text-muted-foreground mt-1">
                 Önerilen konular, üretilenler ve yayında olanlar tek tabloda. Önerilenleri sürükleyip takvime alabilir veya direkt üretime gönderebilirsin.
               </p>
@@ -342,14 +350,30 @@ export function ContentFlowTable({
                     const Icon = cfg.Icon;
                     const isInflight = row.state === 'generating' || row.state === 'editing';
                     const isThisGenerating = generatingTopics.has(row.topic);
+                    // Görsel ayrım: AI önerisi mi yoksa üretilmiş/üretiliyor article mı?
+                    // Sol border accent kullanılır — kullanıcı tek bakışta anlasın.
+                    const isAISuggestion = row.state === 'suggested';
+                    const leftAccent = isAISuggestion
+                      ? 'border-l-4 border-l-amber-400/70'
+                      : isInflight
+                        ? 'border-l-4 border-l-brand'
+                        : row.state === 'published'
+                          ? 'border-l-4 border-l-emerald-500/70'
+                          : row.state === 'scheduled'
+                            ? 'border-l-4 border-l-blue-500/50'
+                            : row.state === 'ready'
+                              ? 'border-l-4 border-l-emerald-400/70'
+                              : 'border-l-4 border-l-transparent';
 
                     return (
                       <tr
                         key={row.key}
                         className={cn(
                           'transition-colors',
+                          leftAccent,
                           isInflight && 'bg-brand/5',
-                          row.state === 'suggested' && 'hover:bg-muted/30',
+                          isAISuggestion && 'bg-amber-500/[0.025] hover:bg-amber-500/5',
+                          !isAISuggestion && !isInflight && 'hover:bg-muted/30',
                         )}
                       >
                         <td className="px-4 py-3 align-top">

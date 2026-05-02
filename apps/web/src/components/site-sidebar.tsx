@@ -77,8 +77,7 @@ const SITE_GROUPS = (siteId: string) => [
     id: 'content',
     label: 'CONTENT STUDIO',
     items: [
-      { href: `/sites/${siteId}/topics`, label: 'Önerilen Konular', icon: Sparkles },
-      { href: `/sites/${siteId}/articles`, label: 'Makaleler', icon: FileText },
+      { href: `/sites/${siteId}/articles`, label: 'İçerikler', icon: FileText },
       { href: `/sites/${siteId}/calendar`, label: 'Takvim', icon: Calendar },
       { href: `/sites/${siteId}/videos`, label: 'Video Factory', icon: Film },
       { href: `/sites/${siteId}/publish-targets`, label: 'Yayın Hedefleri', icon: Send },
