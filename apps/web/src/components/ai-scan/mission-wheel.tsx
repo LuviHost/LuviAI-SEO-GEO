@@ -2,9 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { animate } from 'animejs';
-import { CheckCircle2, Brain, Search, Sparkles, Compass, Calendar } from 'lucide-react';
+import { Check, Brain, Search, Sparkles, Compass, Calendar } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { ScanOrb } from './scan-orb';
+import { FuturisticGauge } from './futuristic-gauge';
 import { useReducedMotion } from './use-reduced-motion';
 
 export type MissionTaskKey = 'brain' | 'audit' | 'topics' | 'platform' | 'schedule';
@@ -28,12 +28,22 @@ const ROTATING_MESSAGES = [
   'Yayın takvimi planlanıyor',
 ];
 
-const TASK_ICON: Record<MissionTaskKey, React.ComponentType<{ className?: string }>> = {
+const TASK_ICON: Record<MissionTaskKey, React.ComponentType<React.SVGProps<SVGSVGElement>>> = {
   brain: Brain,
   audit: Search,
   topics: Sparkles,
   platform: Compass,
   schedule: Calendar,
+};
+
+// Gauge fazlarının pastel tonları — sırasıyla mavi · mor · kırmızı · sarı · yeşil
+// soft = gauge arc rengi (300), mid = label/ring için biraz koyu (400) okunaklılık için
+const TASK_COLOR: Record<MissionTaskKey, { soft: string; mid: string }> = {
+  brain: { soft: '#7dd3fc', mid: '#38bdf8' }, // sky-300 / sky-400
+  audit: { soft: '#c4b5fd', mid: '#a78bfa' }, // violet-300 / violet-400
+  topics: { soft: '#fda4af', mid: '#fb7185' }, // rose-300 / rose-400
+  platform: { soft: '#fcd34d', mid: '#fbbf24' }, // amber-300 / amber-400
+  schedule: { soft: '#86efac', mid: '#4ade80' }, // green-300 / green-400
 };
 
 export function MissionWheel({
@@ -89,72 +99,96 @@ export function MissionWheel({
 
   return (
     <div className={cn('relative w-full', className)}>
-      {/* center wheel */}
-      <div className="relative grid place-items-center py-6">
-        <div className="text-brand">
-          <ScanOrb
-            size="xl"
-            state={allDone ? 'done' : 'scanning'}
-            percent={pct}
-          >
-            <Sparkles className="h-7 w-7 text-brand mb-1" />
-          </ScanOrb>
-        </div>
+      {/* center wheel — futuristic HUD gauge */}
+      <div className="relative grid place-items-center py-2 sm:py-4">
+        <FuturisticGauge progressPercent={pct} done={allDone} />
       </div>
 
       {/* dynamic status */}
-      <div ref={labelRef} className="text-center mt-2 mb-1">
-        <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-brand/80">
-          &gt;&gt; AI ÇALIŞIYOR
-        </div>
+      <div ref={labelRef} className="text-center mt-6 mb-1">
         <div className="text-2xl sm:text-3xl font-bold tracking-tight mt-1.5">
           {allDone ? 'Hazır! Yönlendiriliyorsun…' : ROTATING_MESSAGES[msgIdx]}
           <span className="inline-block w-3 text-brand animate-pulse ml-0.5">…</span>
         </div>
-        <div className="text-xs text-muted-foreground font-mono mt-2">
-          <span className="text-brand">%{Math.round(pct)}</span>
-          <span className="opacity-30 mx-2">·</span>
-          <span>{elapsedSec}sn geçti</span>
-          <span className="opacity-30 mx-2">·</span>
-          <span>~{remainingSec}sn kaldı</span>
-        </div>
       </div>
 
-      {/* task bullets */}
-      <div className="mt-8 grid grid-cols-2 sm:grid-cols-5 gap-3 max-w-3xl mx-auto">
-        {tasks.map((t) => {
-          const Icon = TASK_ICON[t.key];
-          return (
-            <div
-              key={t.key}
-              className={cn(
-                'rounded-xl border p-3 flex flex-col items-center gap-2 text-center transition-all duration-500',
-                t.done
-                  ? 'border-emerald-500/40 bg-emerald-500/5 shadow-[0_0_0_1px_rgb(16_185_129/0.15)]'
-                  : 'border-brand/20 bg-card/60 backdrop-blur-sm',
-              )}
-            >
-              <div className="relative">
-                {t.done ? (
-                  <CheckCircle2 className="h-6 w-6 text-emerald-500" />
-                ) : (
-                  <Icon className="h-6 w-6 text-brand/70 animate-pulse" />
-                )}
-              </div>
-              <span
-                className={cn(
-                  'text-[10px] font-mono uppercase tracking-widest leading-tight',
-                  t.done ? 'text-emerald-600 dark:text-emerald-400 font-semibold' : 'text-foreground/70',
-                )}
-              >
-                {t.label}
-              </span>
-              <span className={cn('text-[9px] font-mono', t.done ? 'text-emerald-500/80' : 'text-brand/70 animate-pulse')}>
-                {t.done ? '✓ TAMAM' : '... işleniyor'}
-              </span>
-            </div>
-          );
-        })}
+      {/* task pipeline — 5 düğüm, gauge fazlarıyla aynı 5 renk */}
+      <div className="mt-12 max-w-2xl mx-auto px-2 sm:px-6">
+        <div className="relative">
+          {/* Track — arka plan: pastel renklerin yatay geçişi (low opacity) */}
+          <div
+            className="absolute top-5 left-[10%] right-[10%] h-[2px] rounded-full"
+            style={{
+              background: `linear-gradient(to right, ${TASK_COLOR.brain.soft}40, ${TASK_COLOR.audit.soft}40, ${TASK_COLOR.topics.soft}40, ${TASK_COLOR.platform.soft}40, ${TASK_COLOR.schedule.soft}40)`,
+            }}
+          />
+          {/* Track — dolu kısım: pastel-soft gradient (gauge ile aynı ton) */}
+          <div
+            className="absolute top-5 left-[10%] h-[2px] rounded-full transition-all duration-1000 ease-out"
+            style={{
+              width: tasks.length > 1
+                ? `${(doneCount / (tasks.length - 1)) * 80}%`
+                : '0%',
+              maxWidth: '80%',
+              background: `linear-gradient(to right, ${TASK_COLOR.brain.soft}, ${TASK_COLOR.audit.soft}, ${TASK_COLOR.topics.soft}, ${TASK_COLOR.platform.soft}, ${TASK_COLOR.schedule.soft})`,
+              boxShadow: `0 0 6px ${TASK_COLOR.audit.soft}88`,
+            }}
+          />
+
+          {/* Nodes */}
+          <div className="relative flex justify-between items-start">
+            {tasks.map((t) => {
+              const Icon = TASK_ICON[t.key];
+              const c = TASK_COLOR[t.key];
+              return (
+                <div key={t.key} className="flex flex-col items-center gap-2.5 text-center w-1/5">
+                  <div className="relative">
+                    {/* Pulse ring (sadece pending) — task'in pastel rengi */}
+                    {!t.done && (
+                      <span
+                        className="absolute inset-0 rounded-full border-2 animate-ping"
+                        style={{ borderColor: `${c.soft}88` }}
+                      />
+                    )}
+                    <div
+                      className={cn(
+                        'relative h-10 w-10 rounded-full grid place-items-center transition-all duration-500',
+                        t.done ? 'scale-105' : '',
+                      )}
+                      style={
+                        t.done
+                          ? {
+                              background: `linear-gradient(135deg, ${c.soft} 0%, ${c.mid} 100%)`,
+                              boxShadow: `0 4px 16px ${c.soft}88`,
+                            }
+                          : {
+                              backgroundColor: 'white',
+                              border: `1.5px solid ${c.soft}aa`,
+                              boxShadow: `0 2px 10px ${c.soft}33`,
+                            }
+                      }
+                    >
+                      {t.done ? (
+                        <Check className="h-5 w-5 text-white" strokeWidth={3} />
+                      ) : (
+                        <Icon className="h-[18px] w-[18px]" style={{ color: c.mid }} />
+                      )}
+                    </div>
+                  </div>
+                  <span
+                    className={cn(
+                      'text-[10px] font-mono uppercase tracking-[0.12em] leading-tight max-w-[80px] transition-colors duration-500',
+                      t.done ? 'font-semibold' : 'text-muted-foreground',
+                    )}
+                    style={t.done ? { color: c.mid } : undefined}
+                  >
+                    {t.label}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
       </div>
 
       {/* footer note */}

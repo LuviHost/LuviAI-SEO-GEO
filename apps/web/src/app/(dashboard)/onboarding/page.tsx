@@ -269,7 +269,31 @@ function MissionStage({
   onComplete: (id: string) => void;
   onAbort: () => void;
 }) {
-  const startedAtRef = useRef<number>(Date.now());
+  // startedAt — siteId başına localStorage'da persist; F5'de sayaç sıfırlanmasın.
+  const startedAtRef = useRef<number>(0);
+  if (startedAtRef.current === 0) {
+    const key = `luviai-mission-startedAt-${siteId}`;
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = window.localStorage.getItem(key);
+        if (stored) {
+          const v = parseInt(stored, 10);
+          // Sadece son 30 dakika içinde başlamış görevleri kabul et
+          if (!isNaN(v) && Date.now() - v < 30 * 60_000) {
+            startedAtRef.current = v;
+          }
+        }
+        if (startedAtRef.current === 0) {
+          startedAtRef.current = Date.now();
+          window.localStorage.setItem(key, String(startedAtRef.current));
+        }
+      } catch {
+        startedAtRef.current = Date.now();
+      }
+    } else {
+      startedAtRef.current = Date.now();
+    }
+  }
   const [tasks, setTasks] = useState<MissionTask[]>([
     { key: 'brain', label: 'Marka beyni', done: false },
     { key: 'audit', label: 'Site audit', done: false },
@@ -301,6 +325,7 @@ function MissionStage({
         // Site missing → silinmiş
         if (siteR.status === 'rejected' && (siteR.reason?.status === 404)) {
           toast.error('Site bulunamadı — yeniden başlatın');
+          try { window.localStorage.removeItem(`luviai-mission-startedAt-${siteId}`); } catch (_e) { /* noop */ }
           onAbort();
           return;
         }
@@ -322,7 +347,12 @@ function MissionStage({
         // Tamamlandı → yönlendir
         if (scheduleDone || (brainDone && auditDone && topicsDone)) {
           // Kısa bir gösterim için 1.4sn bekle (HUD "done" state'i dönsün)
-          setTimeout(() => { if (!cancelled) onComplete(siteId); }, 1400);
+          setTimeout(() => {
+            if (!cancelled) {
+              try { window.localStorage.removeItem(`luviai-mission-startedAt-${siteId}`); } catch (_e) { /* noop */ }
+              onComplete(siteId);
+            }
+          }, 1400);
           return;
         }
       } catch (_e) {
@@ -352,7 +382,10 @@ function MissionStage({
         <button
           className="underline-offset-2 hover:text-foreground transition-colors hover:underline"
           onClick={() => {
-            if (confirm('Görevi iptal et ve sıfırdan başla? Site backend\'de kalır.')) onAbort();
+            if (confirm('Görevi iptal et ve sıfırdan başla? Site backend\'de kalır.')) {
+              try { window.localStorage.removeItem(`luviai-mission-startedAt-${siteId}`); } catch (_e) { /* noop */ }
+              onAbort();
+            }
           }}
         >
           görevi iptal et

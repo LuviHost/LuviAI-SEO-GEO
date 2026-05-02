@@ -7,3 +7,4 @@ export { ConsolePanel } from './console-panel';
 export { MissionWheel } from './mission-wheel';
 export type { MissionTask, MissionTaskKey } from './mission-wheel';
 export { useReducedMotion } from './use-reduced-motion';
+export { FuturisticGauge } from './futuristic-gauge';

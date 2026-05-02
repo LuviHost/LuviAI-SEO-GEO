@@ -3,7 +3,6 @@
 import { useEffect, useRef } from 'react';
 import { animate, stagger } from 'animejs';
 import { cn } from '@/lib/utils';
-import { ScanOrb } from './scan-orb';
 import { useReducedMotion } from './use-reduced-motion';
 
 /**
@@ -83,11 +82,6 @@ export function MissionShell({
             />
           );
         })}
-      </div>
-
-      {/* corner decorative HUD — top right */}
-      <div className="absolute top-6 right-6 hidden lg:block opacity-50 pointer-events-none text-brand">
-        <ScanOrb size="lg" state="scanning" />
       </div>
 
       <div className="relative z-10">{children}</div>
