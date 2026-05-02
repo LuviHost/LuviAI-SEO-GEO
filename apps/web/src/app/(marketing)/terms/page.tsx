@@ -60,14 +60,29 @@ export default function TermsPage() {
           </section>
 
           <section>
-            <h2 className="text-xl font-bold mb-2">7. Hesap Sonlandırma</h2>
+            <h2 className="text-xl font-bold mb-2">7. Sosyal Medya Entegrasyonları</h2>
             <p className="text-muted-foreground">
-              Yasak kullanım tespit edilirse hesap askıya alınabilir. Veriler 30 gün saklanır, sonra silinir.
+              LuviAI; LinkedIn, X (Twitter), Bluesky, TikTok, YouTube, Facebook, Instagram, Threads ve Pinterest
+              gibi platformlara OAuth 2.0 ile bağlanır. Her bağlantı kullanıcının açık rızasıyla yapılır;
+              kullanıcı her zaman dashboard'dan bağlantıyı koparıp yetkiyi geri alabilir. LuviAI yalnızca
+              kullanıcının onayladığı içerikleri kullanıcı adına yayınlar; otomatik yayın seçeneği bile
+              kullanıcının önceden tanımladığı kurallar çerçevesinde çalışır. Yayınlanan tüm içeriğin sorumluluğu
+              kullanıcıya aittir; ilgili platformların topluluk kurallarına uyum kullanıcının yükümlülüğüdür.
+              Bir platformla yapılan entegrasyon, o platformun geliştirici politikalarına ve kullanım koşullarına
+              tabidir.
             </p>
           </section>
 
           <section>
-            <h2 className="text-xl font-bold mb-2">8. Yetkili Mahkeme</h2>
+            <h2 className="text-xl font-bold mb-2">8. Hesap Sonlandırma</h2>
+            <p className="text-muted-foreground">
+              Yasak kullanım tespit edilirse hesap askıya alınabilir. Veriler 30 gün saklanır, sonra silinir.
+              Sosyal medya OAuth token'ları hesap sonlandırılmasından sonra 30 gün içinde geri dönüşsüz silinir.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-bold mb-2">9. Yetkili Mahkeme</h2>
             <p className="text-muted-foreground">
               Türkiye Cumhuriyeti hukuku geçerlidir. İstanbul Mahkemeleri yetkilidir.
             </p>

@@ -97,40 +97,39 @@ export default function HomePage() {
         <div className="container px-4 py-16 sm:py-24">
           <div className="max-w-3xl mx-auto text-center mb-12">
             <h2 className="text-3xl sm:text-4xl font-bold tracking-tight mb-4">
-              Her şeyi tek panelden yönet
+              {t('value.title')}
             </h2>
             <p className="text-muted-foreground text-base sm:text-lg">
-              Site analizinden makale üretimine, sosyal takvimden otomatik yayına — 4 işi
-              tek dashboard'dan otomatikleştirir.
+              {t('value.subtitle')}
             </p>
           </div>
 
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-5 max-w-6xl mx-auto">
             <ValueCard
               icon={<Search className="h-6 w-6" />}
-              title="Sitesini AI denetler"
-              desc="14 SEO + GEO kontrolü. Eksikleri otomatik düzeltir (sitemap, robots.txt, llms.txt). GSC ile büyümeyi izler."
+              title={t('value.v1.title')}
+              desc={t('value.v1.desc')}
               accent="from-blue-500/10 to-blue-500/5"
               iconColor="text-blue-500"
             />
             <ValueCard
               icon={<Bot className="h-6 w-6" />}
-              title="İçeriği AI üretir"
-              desc="6 ajanlı yazım zinciri: anahtar kelime → taslak → yazar → editör → görsel → şema. Türkçe, 1800–2500 kelime, FAQ + Article schema."
+              title={t('value.v2.title')}
+              desc={t('value.v2.desc')}
               accent="from-purple-500/10 to-purple-500/5"
               iconColor="text-purple-500"
             />
             <ValueCard
               icon={<Calendar className="h-6 w-6" />}
-              title="Takvimden planla"
-              desc="Plana göre ayda 8, 18 veya 30 sosyal post. PZT/SAL/CAR gibi günleri ve saati seç, X ve LinkedIn'e otomatik atılır."
+              title={t('value.v3.title')}
+              desc={t('value.v3.desc')}
               accent="from-green-500/10 to-green-500/5"
               iconColor="text-green-500"
             />
             <ValueCard
               icon={<Send className="h-6 w-6" />}
-              title="Otomatik yayınla"
-              desc="WordPress, FTP, GitHub, Webflow, Sanity, Ghost… 14 yayın hedefi. Onay bekleyen makaleyi tek tıkla canlıya al."
+              title={t('value.v4.title')}
+              desc={t('value.v4.desc')}
               accent="from-orange-500/10 to-orange-500/5"
               iconColor="text-orange-500"
             />
@@ -144,22 +143,20 @@ export default function HomePage() {
           <div className="max-w-6xl mx-auto grid lg:grid-cols-2 gap-12 items-center">
             <div>
               <div className="inline-flex items-center gap-2 bg-brand/10 text-brand text-xs font-semibold px-3 py-1 rounded-full mb-4">
-                <Calendar className="h-3.5 w-3.5" /> SOSYAL TAKVİM
+                <Calendar className="h-3.5 w-3.5" /> {t('social.eyebrow')}
               </div>
               <h2 className="text-3xl sm:text-4xl font-bold tracking-tight mb-4">
-                Haftalık takvim. Sürükle, ayarla, gönder.
+                {t('social.title')}
               </h2>
               <p className="text-muted-foreground text-base sm:text-lg mb-6">
-                X (Twitter) ve LinkedIn'i bağla. Her makale yayınlandığında otomatik post taslağı
-                oluşur. Saatine tıkla, istediğin zamana çek. Önizleme ile X ve LinkedIn'de nasıl
-                görüneceğini gör.
+                {t('social.desc')}
               </p>
               <ul className="space-y-3 text-sm">
-                <BenefitItem>Plana göre ayda 8, 18 veya 30 post otomatik</BenefitItem>
-                <BenefitItem>Saatleri PZT/SAL/CAR ızgarasında inline düzenle</BenefitItem>
-                <BenefitItem>Hashtag, mention, link otomatik renklendirilir</BenefitItem>
-                <BenefitItem>X için 280 karakter limiti gerçek zamanlı sayaç</BenefitItem>
-                <BenefitItem>Yetersiz içerik varsa slot atlanır, eklenince yayınlanır</BenefitItem>
+                <BenefitItem>{t('social.b1')}</BenefitItem>
+                <BenefitItem>{t('social.b2')}</BenefitItem>
+                <BenefitItem>{t('social.b3')}</BenefitItem>
+                <BenefitItem>{t('social.b4')}</BenefitItem>
+                <BenefitItem>{t('social.b5')}</BenefitItem>
               </ul>
             </div>
 
@@ -175,10 +172,10 @@ export default function HomePage() {
         <div className="container px-4 py-16 sm:py-24">
           <div className="max-w-3xl mx-auto text-center mb-12">
             <h2 className="text-3xl sm:text-4xl font-bold tracking-tight mb-4">
-              Nasıl çalışır?
+              {t('how.title')}
             </h2>
             <p className="text-muted-foreground text-base sm:text-lg">
-              4 adımda kurulum. Toplam ~3 dakika.
+              {t('how.eyebrow')}
             </p>
           </div>
 
@@ -354,17 +351,17 @@ export default function HomePage() {
       <section className="bg-gradient-to-br from-brand via-brand-light to-brand/40 text-white">
         <div className="container px-4 py-16 sm:py-24 text-center">
           <h2 className="text-3xl sm:text-5xl font-bold tracking-tight mb-4 max-w-3xl mx-auto leading-tight">
-            14 gün ücretsiz dene. Kart yok, taahhüt yok.
+            {t('final.title')}
           </h2>
           <p className="text-white/90 text-base sm:text-lg mb-8 max-w-2xl mx-auto">
-            Onboarding 60 saniye. İlk makaleyi onboarding sonu otomatik üretir.
+            {t('final.subtitle')}
           </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <Button asChild size="lg" className="bg-white text-brand hover:bg-white/95 shadow-xl">
               <Link href={primaryHref}>{primaryLabel} <ArrowRight className="ml-1 h-4 w-4" /></Link>
             </Button>
             <Button asChild size="lg" variant="outline" className="border-white text-white hover:bg-white/10">
-              <Link href="/pricing">Plan ve fiyatları gör</Link>
+              <Link href="/pricing">{t('final.cta_secondary')}</Link>
             </Button>
           </div>
         </div>
@@ -376,29 +373,29 @@ export default function HomePage() {
           <div>
             <div className="font-bold text-lg mb-2">LuviAI</div>
             <p className="text-muted-foreground text-xs">
-              LuviHost ürünü. SEO + GEO + sosyal medya otomasyon platformu.
+              {t('footer.tagline')}
             </p>
           </div>
           <div>
-            <div className="font-semibold mb-2">Ürün</div>
+            <div className="font-semibold mb-2">{t('footer.product')}</div>
             <ul className="space-y-1 text-muted-foreground">
-              <li><Link href="#nasil" className="hover:text-brand">Nasıl çalışır</Link></li>
-              <li><Link href="#ozellikler" className="hover:text-brand">Özellikler</Link></li>
-              <li><Link href="/pricing" className="hover:text-brand">Fiyatlar</Link></li>
-              <li><Link href="/faq" className="hover:text-brand">SSS</Link></li>
+              <li><Link href="#nasil" className="hover:text-brand">{t('footer.product.how')}</Link></li>
+              <li><Link href="#ozellikler" className="hover:text-brand">{t('footer.product.features')}</Link></li>
+              <li><Link href="/pricing" className="hover:text-brand">{t('footer.product.pricing')}</Link></li>
+              <li><Link href="/faq" className="hover:text-brand">{t('footer.product.faq')}</Link></li>
             </ul>
           </div>
           <div>
-            <div className="font-semibold mb-2">Hukuk</div>
+            <div className="font-semibold mb-2">{t('footer.legal')}</div>
             <ul className="space-y-1 text-muted-foreground">
-              <li><Link href="/terms" className="hover:text-brand">Kullanım koşulları</Link></li>
-              <li><Link href="/privacy" className="hover:text-brand">Gizlilik politikası</Link></li>
-              <li><Link href="/kvkk" className="hover:text-brand">KVKK</Link></li>
+              <li><Link href="/terms" className="hover:text-brand">{t('footer.legal.terms')}</Link></li>
+              <li><Link href="/privacy" className="hover:text-brand">{t('footer.legal.privacy')}</Link></li>
+              <li><Link href="/kvkk" className="hover:text-brand">{t('footer.legal.kvkk')}</Link></li>
             </ul>
           </div>
         </div>
         <div className="border-t py-4 text-center text-xs text-muted-foreground">
-          © 2026 LuviHost · A LuviAI experiment
+          {t('footer.copyright')}
         </div>
       </footer>
     </div>

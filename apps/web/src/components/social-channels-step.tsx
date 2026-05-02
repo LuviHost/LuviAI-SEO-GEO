@@ -171,7 +171,9 @@ export function SocialChannelsStep({ siteId }: { siteId: string }) {
       <div className="space-y-2">
         <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Yeni kanal bağla</div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-          {catalog.map((item) => (
+          {catalog.map((item) => {
+            const isConnected = channels.some((c: any) => c.type === item.type);
+            return (
             <button
               key={item.type}
               type="button"
@@ -181,23 +183,27 @@ export function SocialChannelsStep({ siteId }: { siteId: string }) {
               className={`flex flex-col items-start gap-1.5 px-4 py-3 rounded-lg border text-left transition-colors ${
                 item.status === 'soon'
                   ? 'opacity-60 cursor-not-allowed bg-muted/40'
-                  : item.recommended
-                    ? 'border-brand/60 ring-2 ring-brand/20 hover:border-brand bg-brand/5 cursor-pointer'
-                    : 'hover:border-brand bg-card cursor-pointer'
+                  : isConnected
+                    ? 'border-emerald-500/40 bg-emerald-500/5 hover:border-emerald-500 cursor-pointer'
+                    : item.recommended
+                      ? 'border-brand/60 ring-2 ring-brand/20 hover:border-brand bg-brand/5 cursor-pointer'
+                      : 'hover:border-brand bg-card cursor-pointer'
               }`}
             >
               <div className="flex items-center justify-between gap-2 w-full">
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-medium">{item.label}</span>
-                  {item.recommended && (
+                  {isConnected ? (
+                    <Badge variant={'success' as any} className="text-[9px] uppercase">Bağlı</Badge>
+                  ) : item.recommended ? (
                     <Badge variant={'success' as any} className="text-[9px] uppercase">Önerilen</Badge>
-                  )}
+                  ) : null}
                 </div>
                 {item.status === 'soon' ? (
                   <Badge variant="outline" className="text-[10px]">Yakında</Badge>
                 ) : (
-                  <span className={`inline-flex items-center gap-1 text-xs ${item.recommended ? 'font-semibold text-brand' : 'text-brand'}`}>
-                    <Link2 className="h-3.5 w-3.5" /> {busy === item.type ? '…' : 'Bağla'}
+                  <span className={`inline-flex items-center gap-1 text-xs ${isConnected ? 'font-semibold text-emerald-600 dark:text-emerald-400' : item.recommended ? 'font-semibold text-brand' : 'text-brand'}`}>
+                    <Link2 className="h-3.5 w-3.5" /> {busy === item.type ? '…' : (isConnected ? '+ Başka hesap ekle' : 'Bağla')}
                   </span>
                 )}
               </div>
@@ -205,7 +211,8 @@ export function SocialChannelsStep({ siteId }: { siteId: string }) {
                 <span className="text-[11px] text-muted-foreground leading-snug">{item.note}</span>
               )}
             </button>
-          ))}
+          );
+          })}
         </div>
         <p className="text-xs text-muted-foreground">
           Bağlanma sonrası Google'a benzer şekilde LinkedIn izin sayfasına gidersin, onaylarsın ve geri dönersin.
