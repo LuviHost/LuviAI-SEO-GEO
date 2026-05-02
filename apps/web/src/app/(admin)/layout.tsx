@@ -10,6 +10,7 @@ const ADMIN_NAV = [
   { href: '/admin/users', label: 'Kullanıcılar' },
   { href: '/admin/invoices', label: 'Faturalar' },
   { href: '/admin/sites', label: 'Siteler' },
+  { href: '/admin/queue', label: 'Queue Monitor' },
   { href: '/admin/jobs', label: 'Hatalı İşler' },
   { href: '/admin/settings', label: 'Ayarlar' },
 ];

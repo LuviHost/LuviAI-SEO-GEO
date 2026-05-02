@@ -424,16 +424,24 @@ export const api = {
   getArticle: (siteId: string, articleId: string) =>
     request<any>(`/sites/${siteId}/articles/${articleId}`),
 
+  // Async queue (placeholder Article = GENERATING + worker job).
+  // F5 yenilense bile Article DB'de inflight kalır → progress UI persist eder.
   generateArticle: (siteId: string, topic: string) =>
-    request<any>(`/sites/${siteId}/articles/run-now`, {
+    request<any>(`/sites/${siteId}/articles/generate`, {
       method: 'POST',
-      body: JSON.stringify({ topic, skipImages: true }),
+      body: JSON.stringify({ topic }),
     }),
 
   publishArticle: (siteId: string, articleId: string, targetIds: string[]) =>
     request<any>(`/sites/${siteId}/articles/${articleId}/publish`, {
       method: 'POST',
       body: JSON.stringify({ targetIds }),
+    }),
+
+  // SCHEDULED article'ı şimdi üretime al (cron'u bekleme).
+  triggerArticleNow: (siteId: string, articleId: string) =>
+    request<any>(`/sites/${siteId}/articles/${articleId}/trigger-now`, {
+      method: 'POST',
     }),
 
   // Publish Targets
@@ -455,6 +463,19 @@ export const api = {
     request<any[]>(`/admin/invoices${status ? `?status=${status}` : ''}`),
   getAdminSites: () => request<any[]>('/admin/sites'),
   getAdminFailedJobs: () => request<any[]>('/admin/jobs/failed'),
+
+  // Admin Queue Monitor (BullMQ)
+  adminQueueStats: () => request<{ counts: Record<string, number>; paused: boolean }>('/admin/queue/stats'),
+  adminQueueJobs: (state: string, limit = 50) =>
+    request<any[]>(`/admin/queue/jobs?state=${state}&limit=${limit}`),
+  adminQueueRetryJob: (jobId: string) =>
+    request<{ ok: boolean }>(`/admin/queue/jobs/${encodeURIComponent(jobId)}/retry`, { method: 'POST' }),
+  adminQueuePromoteJob: (jobId: string) =>
+    request<{ ok: boolean }>(`/admin/queue/jobs/${encodeURIComponent(jobId)}/promote`, { method: 'POST' }),
+  adminQueueRemoveJob: (jobId: string) =>
+    request<{ ok: boolean }>(`/admin/queue/jobs/${encodeURIComponent(jobId)}/remove`, { method: 'POST' }),
+  adminQueuePause: () => request<{ ok: boolean; paused: boolean }>('/admin/queue/pause', { method: 'POST' }),
+  adminQueueResume: () => request<{ ok: boolean; paused: boolean }>('/admin/queue/resume', { method: 'POST' }),
   sendAdminEmailTest: (body: { to: string; template?: string; name?: string }) =>
     request<{ ok: boolean; resendId?: string; mode: string; template: string; to: string }>(
       '/admin/email-test',

@@ -1,8 +1,9 @@
-import { BadRequestException, Body, Controller, ForbiddenException, Get, Post, Query, Req } from '@nestjs/common';
+import { BadRequestException, Body, Controller, ForbiddenException, Get, Param, Post, Query, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import { AdminService } from './admin.service.js';
 import { EmailService, type EmailTemplate } from '../email/email.service.js';
 import { AiCitationService } from '../audit/ai-citation.service.js';
+import { JobQueueService } from '../jobs/job-queue.service.js';
 
 function assertAdmin(req: Request) {
   const user = (req as any).user;
@@ -17,7 +18,66 @@ export class AdminController {
     private readonly admin: AdminService,
     private readonly email: EmailService,
     private readonly aiCitation: AiCitationService,
+    private readonly jobQueue: JobQueueService,
   ) {}
+
+  // ──────────────────────────────────────────────────────────────────────
+  // Queue Monitoring (BullMQ)
+  // ──────────────────────────────────────────────────────────────────────
+
+  @Get('queue/stats')
+  async queueStats(@Req() req: Request) {
+    assertAdmin(req);
+    const [counts, paused] = await Promise.all([
+      this.jobQueue.getQueueCounts(),
+      this.jobQueue.getQueueIsPaused(),
+    ]);
+    return { counts, paused };
+  }
+
+  @Get('queue/jobs')
+  async queueJobs(@Req() req: Request, @Query('state') state?: string, @Query('limit') limit?: string) {
+    assertAdmin(req);
+    const validStates = ['waiting', 'active', 'delayed', 'completed', 'failed', 'paused'] as const;
+    const s = validStates.includes(state as any) ? (state as typeof validStates[number]) : 'delayed';
+    const lim = Math.min(200, Math.max(1, parseInt(limit ?? '50', 10) || 50));
+    return this.jobQueue.listJobs(s, lim);
+  }
+
+  @Post('queue/jobs/:jobId/retry')
+  async queueRetryJob(@Req() req: Request, @Param('jobId') jobId: string) {
+    assertAdmin(req);
+    const ok = await this.jobQueue.retryJob(jobId);
+    return { ok };
+  }
+
+  @Post('queue/jobs/:jobId/promote')
+  async queuePromoteJob(@Req() req: Request, @Param('jobId') jobId: string) {
+    assertAdmin(req);
+    const ok = await this.jobQueue.promoteJob(jobId);
+    return { ok };
+  }
+
+  @Post('queue/jobs/:jobId/remove')
+  async queueRemoveJob(@Req() req: Request, @Param('jobId') jobId: string) {
+    assertAdmin(req);
+    const ok = await this.jobQueue.removeJob(jobId);
+    return { ok };
+  }
+
+  @Post('queue/pause')
+  async queuePause(@Req() req: Request) {
+    assertAdmin(req);
+    await this.jobQueue.pauseQueue();
+    return { ok: true, paused: true };
+  }
+
+  @Post('queue/resume')
+  async queueResume(@Req() req: Request) {
+    assertAdmin(req);
+    await this.jobQueue.resumeQueue();
+    return { ok: true, paused: false };
+  }
 
   /**
    * GET /admin/ai-costs

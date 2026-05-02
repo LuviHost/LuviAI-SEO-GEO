@@ -254,18 +254,34 @@ function SettingRow({
         )}
       </div>
 
-      <div className="flex items-center gap-2 shrink-0">
-        {s.type === 'boolean' ? (
-          <Button
-            variant={isTruthy(s.value) ? 'default' : 'outline'}
-            size="sm"
-            onClick={onToggle}
-            disabled={saving}
-            className="min-w-[90px]"
-          >
-            {saving ? '…' : isTruthy(s.value) ? 'AÇIK' : 'KAPALI'}
-          </Button>
-        ) : s.type === 'enum' ? (
+      <div className="flex items-center gap-3 shrink-0">
+        {s.type === 'boolean' ? (() => {
+          const on = isTruthy(s.value);
+          return (
+            <>
+              <span className={`text-[10px] font-mono uppercase tracking-widest font-semibold transition-colors ${on ? 'text-brand' : 'text-muted-foreground/60'}`}>
+                {saving ? '…' : on ? 'açık' : 'kapalı'}
+              </span>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={on}
+                aria-label={s.key}
+                onClick={onToggle}
+                disabled={saving}
+                className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors duration-300 ease-out focus:outline-none focus:ring-2 focus:ring-brand/40 focus:ring-offset-2 ${
+                  saving ? 'opacity-60 cursor-wait' : 'cursor-pointer'
+                } ${on ? 'bg-brand shadow-[0_0_0_1px_rgb(124_58_237/0.3),0_4px_12px_rgb(124_58_237/0.35)]' : 'bg-muted-foreground/25 hover:bg-muted-foreground/35'}`}
+              >
+                <span
+                  className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-md transition-transform duration-300 ease-out ${
+                    on ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+            </>
+          );
+        })() : s.type === 'enum' ? (
           <select
             value={draft ?? s.value}
             onChange={(e) => setDraft(e.target.value)}
