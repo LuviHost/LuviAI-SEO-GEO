@@ -13,6 +13,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { GoogleAdsOAuthCard, MetaAdsOAuthCard } from '@/components/ads-lab-panel';
 import { AiKeysPanel } from '@/components/ai-keys-panel';
+import { BrandIcon } from '@/components/brand-icon';
 
 type CatalogField = {
   key: string;
@@ -180,7 +181,7 @@ export function PublishTargetsManager({
                   className="p-4 flex items-center justify-between gap-3 flex-wrap hover:bg-muted/30"
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <span className="text-2xl">{meta?.icon ?? '📤'}</span>
+                    <BrandIcon type={meta?.type ?? t.type} fallback={meta?.icon} className="h-6 w-6" />
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-medium">{t.name}</span>
@@ -245,7 +246,7 @@ export function PublishTargetsManager({
                   onClick={() => setAdding(c)}
                   className="text-left p-3 border rounded-lg bg-card hover:border-brand hover:bg-brand/5 transition-colors flex items-start gap-3"
                 >
-                  <span className="text-2xl shrink-0">{c.icon}</span>
+                  <BrandIcon type={c.type} fallback={c.icon} className="h-7 w-7 shrink-0" />
                   <div className="min-w-0">
                     <div className="font-medium text-sm">{c.label}</div>
                     <div className="text-[11px] text-muted-foreground line-clamp-2 leading-snug">
