@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { ScanOverlay } from '@/components/ai-scan';
+import { PipelineGauge } from '@/components/pipeline-gauge';
+import { Sparkles, CheckCircle2 } from 'lucide-react';
 
 export type PipelineStep = {
   label: string;
@@ -51,15 +52,72 @@ export function PipelineProgress({
     acc += steps[i].durationMs;
     currentIdx = i + 1;
   }
+  const percent = totalMs > 0 ? Math.min(99, (elapsed / totalMs) * 100) : 0;
+  const totalSec = Math.max(1, Math.ceil((totalMs - elapsed) / 1000));
+  const safeIdx = Math.min(currentIdx, steps.length - 1);
+
   return (
-    <ScanOverlay
-      steps={steps}
-      elapsed={elapsed}
-      totalMs={totalMs}
-      currentIdx={currentIdx}
-      title={title}
-      className={className}
-    />
+    <div
+      className={`rounded-2xl border bg-gradient-to-br from-violet-50/40 via-white to-fuchsia-50/30 dark:from-violet-950/20 dark:via-card dark:to-fuchsia-950/10 p-5 ${className ?? ''}`}
+    >
+      <div className="flex items-center justify-between gap-3 mb-2">
+        <div className="flex items-center gap-2">
+          <Sparkles className="h-4 w-4 text-brand animate-pulse" />
+          <p className="text-sm font-semibold">{title ?? 'Pipeline çalışıyor'}</p>
+        </div>
+        <span className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">
+          ~{totalSec}sn
+        </span>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-[auto_1fr] items-center gap-6 py-2">
+        <PipelineGauge
+          activeIdx={safeIdx}
+          totalSteps={steps.length}
+          percent={percent}
+        />
+
+        <div className="space-y-2">
+          <div>
+            <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-brand/70 mb-1">
+              Adım {Math.min(currentIdx + 1, steps.length)} / {steps.length}
+            </p>
+            <p className="text-base sm:text-lg font-semibold leading-snug">
+              {steps[safeIdx]?.label}
+            </p>
+            {steps[safeIdx]?.sublabel && (
+              <p className="text-xs text-muted-foreground mt-1">
+                {steps[safeIdx].sublabel}
+              </p>
+            )}
+          </div>
+
+          <ul className="space-y-1 mt-3">
+            {steps.map((s, i) => {
+              const done = i < currentIdx;
+              const active = i === currentIdx;
+              return (
+                <li
+                  key={s.label}
+                  className={`flex items-center gap-2 text-xs ${
+                    done ? 'text-emerald-600 dark:text-emerald-400' : active ? 'text-foreground' : 'text-muted-foreground/60'
+                  }`}
+                >
+                  {done ? (
+                    <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                  ) : active ? (
+                    <span className="h-1.5 w-1.5 rounded-full bg-brand animate-pulse shrink-0 ml-1" />
+                  ) : (
+                    <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/40 shrink-0 ml-1" />
+                  )}
+                  <span className={done ? 'line-through opacity-70' : ''}>{s.label}</span>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      </div>
+    </div>
   );
 }
 
