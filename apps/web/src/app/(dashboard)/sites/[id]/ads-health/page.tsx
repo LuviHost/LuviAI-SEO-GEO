@@ -127,7 +127,7 @@ export default function AdsHealthPage() {
         <div className="flex-1">
           <h2 className="text-2xl font-bold">Kampanya Skoru</h2>
           <p className="text-sm text-muted-foreground">
-            250+ Google Ads + Meta Ads kontrol noktasından oluşan denetim. Quick Wins tek tıkla aksiyon.
+            <strong>124</strong> Google Ads + Meta Ads kontrol noktasından oluşan kapsamlı denetim. Quick Wins tek tıkla aksiyon.
           </p>
         </div>
         <Button onClick={run} disabled={running} variant="default" size="sm" className="shrink-0">
@@ -182,8 +182,10 @@ export default function AdsHealthPage() {
             </div>
             <p className="font-semibold">Kampanya Skoru henüz hesaplanmadı</p>
             <p className="text-sm text-muted-foreground max-w-md mx-auto">
-              İlk taramada {platform === 'google' ? '20+' : '18+'} Google/Meta Ads kontrol noktası analiz edilir.
-              Quick Wins (5-15 dakikalık aksiyonlar) listesi çıkarılır.
+              İlk taramada {platform === 'google' ? '74' : '50'} {platform === 'google' ? 'Google' : 'Meta'} Ads kontrol noktası analiz edilir
+              (deterministik metrik kontrolü + AI judge ile yargı). Quick Wins (15 dk altı kritik aksiyonlar) listesi çıkar.
+              <br /><br />
+              <em className="text-xs">Snapshot taramaları 30-90 saniye sürebilir.</em>
             </p>
             <Button onClick={run} disabled={running}>
               <RefreshCw className={`h-4 w-4 mr-1.5 ${running ? 'animate-spin' : ''}`} />

@@ -4,6 +4,7 @@ import { AgentRunnerService } from '../articles/agent-runner.service.js';
 import { AdsSnapshotCollectorService } from './snapshot-collector.service.js';
 import { GOOGLE_RULES } from './rules/google-rules.js';
 import { META_RULES } from './rules/meta-rules.js';
+import { buildFullRuleSet } from './rules/rule-factory.js';
 import { scoreAudit } from './scoring/scorer.js';
 import type { AuditRule, AccountSnapshot, AuditScore, Industry, Platform, Verdict } from './rules/types.js';
 
@@ -37,7 +38,11 @@ export class AdsAuditService {
     const t0 = Date.now();
 
     const snapshot = await this.collector.collect(siteId, platform);
-    const rules = platform === 'google' ? GOOGLE_RULES : META_RULES;
+    // Tam kural seti: deterministik manuel kurallar + claude-ads JSON'dan üretilen LLM kuralları
+    const rules = platform === 'google'
+      ? buildFullRuleSet<any>(GOOGLE_RULES, 'google')
+      : buildFullRuleSet<any>(META_RULES, 'meta');
+    this.log.log(`[${siteId}] ${rules.length} kural değerlendirilecek (det: ${rules.filter(r => !r.llm).length}, llm: ${rules.filter(r => r.llm).length})`);
 
     // 1) Deterministik kurallar — paralel
     const detResults: RawResult[] = [];
@@ -115,20 +120,34 @@ export class AdsAuditService {
   private async runLlmRules(rules: AuditRule[], snap: AccountSnapshot): Promise<RawResult[]> {
     if (rules.length === 0) return [];
 
-    // Eğer ad copy / naming hiç yoksa LLM'e atmaya gerek yok
-    const hasContent = (snap.campaignNamingSamples?.length ?? 0) + (snap.adCopySamples?.length ?? 0) + (snap.landingPageThemes?.length ?? 0) > 0;
-    if (!hasContent) {
-      return rules.map(r => ({ rule: r, verdict: 'na' as Verdict, finding: 'İçerik analizi için yeterli veri yok', recommendation: '' }));
+    // Snapshot'ın kullanışlı içerik düzeyini ölç — boş hesapsa LLM'e bedava sormaya gerek yok
+    const totalDataPoints =
+      (snap.campaigns?.length ?? 0) +
+      (snap.metaCampaigns?.length ?? 0) +
+      (snap.searchTerms?.length ?? 0) +
+      (snap.campaignNamingSamples?.length ?? 0) +
+      (snap.adCopySamples?.length ?? 0) +
+      (snap.pmaxCampaigns?.length ?? 0) +
+      (snap.landingPageThemes?.length ?? 0);
+
+    if (totalDataPoints < 3) {
+      this.log.warn(`Snapshot çok seyrek (${totalDataPoints} data point) — tüm LLM kuralları "na" döndürülüyor`);
+      return rules.map(r => ({
+        rule: r,
+        verdict: 'na' as Verdict,
+        finding: 'Hesap snapshot\'ı yetersiz — değerlendirme atlandı',
+        recommendation: 'Google Ads / Meta hesabını bağla, performance sync 6 saat sonra veriyi getirir.',
+      }));
     }
 
     const out: RawResult[] = [];
-    // Paralel max 3
-    const chunks: AuditRule[][] = [];
-    for (let i = 0; i < rules.length; i += 3) chunks.push(rules.slice(i, i + 3));
-
-    for (const chunk of chunks) {
+    // Paralel batch: 5'erli (Anthropic rate limit'e dikkat)
+    const BATCH_SIZE = 5;
+    for (let i = 0; i < rules.length; i += BATCH_SIZE) {
+      const chunk = rules.slice(i, i + BATCH_SIZE);
       const results = await Promise.all(chunk.map(r => this.judgeOne(r, snap)));
       out.push(...results);
+      this.log.debug(`LLM batch ${i / BATCH_SIZE + 1}/${Math.ceil(rules.length / BATCH_SIZE)} tamamlandı`);
     }
     return out;
   }
