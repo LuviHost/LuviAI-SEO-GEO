@@ -17,7 +17,6 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { PipelineProgress, PIPELINE_STEPS } from '@/components/pipeline-progress';
-import { AiKeysPanel } from '@/components/ai-keys-panel';
 import { ScanOrb } from '@/components/ai-scan';
 
 type StepStatus = 'pending' | 'auto-running' | 'done' | 'skipped';
@@ -384,6 +383,36 @@ function StepCard({
 // ──────────────────────────────────────────────────────────────────────
 // Step 1 — Site Skoru
 // ──────────────────────────────────────────────────────────────────────
+// Auto-fix dosyalarının kök URL haritası (well-known paths)
+const AUTOFIX_PUBLIC_PATH: Record<string, string> = {
+  sitemap: 'sitemap.xml',
+  sitemap_xml: 'sitemap.xml',
+  robots: 'robots.txt',
+  robots_txt: 'robots.txt',
+  llms: 'llms.txt',
+  llms_txt: 'llms.txt',
+};
+
+const AUTOFIX_LABEL: Record<string, string> = {
+  sitemap: 'Sitemap',
+  sitemap_xml: 'Sitemap',
+  robots: 'Robots.txt',
+  robots_txt: 'Robots.txt',
+  llms: 'llms.txt',
+  llms_txt: 'llms.txt',
+};
+
+function publicUrlForFix(siteUrl: string | undefined, fix: string): string | null {
+  const path = AUTOFIX_PUBLIC_PATH[fix];
+  if (!path || !siteUrl) return null;
+  try {
+    const u = new URL(siteUrl);
+    return `${u.protocol}//${u.host}/${path}`;
+  } catch {
+    return null;
+  }
+}
+
 export function AuditStepBody({
   audit, siteId, onRefresh, onboardingMode,
 }: {
@@ -394,6 +423,33 @@ export function AuditStepBody({
 }) {
   const [running, setRunning] = useState(false);
   const [fixing, setFixing] = useState(false);
+  const [hasPublishTarget, setHasPublishTarget] = useState<boolean | null>(null);
+  const [siteUrl, setSiteUrl] = useState<string | undefined>(undefined);
+  const [lastApplied, setLastApplied] = useState<Array<{ fix: string; url: string | null; filename?: string; content?: string }>>([]);
+  const [previewFile, setPreviewFile] = useState<{ filename: string; content: string } | null>(null);
+
+  // Yayın hedefi var mı? Auto-fix için zorunlu. + site URL'i (public link kurmak için)
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all([api.listPublishTargets(siteId), api.getSite(siteId).catch(() => null)])
+      .then(([targets, site]: any[]) => {
+        if (cancelled) return;
+        const active = (targets ?? []).find((t: any) => t?.isDefault && t?.isActive);
+        setHasPublishTarget(!!active);
+        setSiteUrl(site?.url);
+      })
+      .catch(() => { if (!cancelled) setHasPublishTarget(false); });
+    return () => { cancelled = true; };
+  }, [siteId]);
+
+  // audit.fixesApplied varsa onu da göster (sayfa yenilendiğinde geçmiş kalsın)
+  useEffect(() => {
+    const applied: string[] = Array.isArray(audit?.fixesApplied) ? audit.fixesApplied : [];
+    if (applied.length > 0 && lastApplied.length === 0) {
+      setLastApplied(applied.map((f) => ({ fix: f, url: publicUrlForFix(siteUrl, f) })));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [audit?.fixesApplied, siteUrl]);
 
   const run = async () => {
     setRunning(true);
@@ -436,11 +492,50 @@ export function AuditStepBody({
   const checks = audit.checks ?? {};
 
   const applyFix = async () => {
+    if (hasPublishTarget === false) {
+      toast.error('Önce yayın hedefi (FTP/SFTP/WordPress) ekle — İçerik tab > Yayın Hedefleri.', {
+        duration: 8000,
+      });
+      return;
+    }
     setFixing(true);
     try {
-      await api.applyAutoFix(siteId, ['sitemap', 'robots', 'llms']);
-      toast.success("Auto-fix queue'ya eklendi");
-      setTimeout(() => { onRefresh(); setFixing(false); }, 25000);
+      const fixIds = fixable.map((i: any) => i.checkId).filter(Boolean);
+      const ids = fixIds.length > 0 ? fixIds : ['sitemap', 'robots', 'llms'];
+      const result: any = await api.applyAutoFix(siteId, ids);
+      if (result?.reason === 'no-publish-target') {
+        toast.error('Yayın hedefi bağlı değil — İçerik tab > Yayın Hedefleri sekmesinden ekle.', {
+          duration: 9000,
+        });
+        setFixing(false);
+        return;
+      }
+      const applied: string[] = Array.isArray(result?.applied) ? result.applied : [];
+      const errors: any[] = Array.isArray(result?.errors) ? result.errors : [];
+      if (applied.length > 0) {
+        const labels = applied.map((f) => AUTOFIX_LABEL[f] ?? f).join(', ');
+        toast.success(`${applied.length} düzeltme uygulandı: ${labels}`, { duration: 7000 });
+        // Backend'den gelen files[] varsa — content + filename'i state'e yaz (blob indirme için)
+        const filesFromApi: Array<{ fix: string; filename: string; content: string; externalUrl?: string }> =
+          Array.isArray(result?.files) ? result.files : [];
+        const filesByFix = new Map(filesFromApi.map((f) => [f.fix, f]));
+        setLastApplied(applied.map((f) => {
+          const file = filesByFix.get(f);
+          return {
+            fix: f,
+            url: file?.externalUrl ?? publicUrlForFix(siteUrl, f),
+            filename: file?.filename,
+            content: file?.content,
+          };
+        }));
+      }
+      if (errors.length > 0) {
+        toast.error(`${errors.length} düzeltme başarısız`, { duration: 8000 });
+      }
+      if (applied.length === 0 && errors.length === 0) {
+        toast.message("Auto-fix queue'ya eklendi");
+      }
+      setTimeout(() => { onRefresh(); setFixing(false); }, 5000);
     } catch (err: any) {
       toast.error(err.message);
       setFixing(false);
@@ -492,9 +587,17 @@ export function AuditStepBody({
                 🔴 {critical.length} kritik · ⚠ {warnings.length} uyarı bulundu
               </p>
               {fixable.length > 0 && (
-                <Button size="sm" onClick={applyFix} disabled={fixing}>
-                  ⚡ {fixable.length} sorunu otomatik düzelt
-                </Button>
+                hasPublishTarget === false ? (
+                  <Link href={`/sites/${siteId}?tab=content#publish-targets`}>
+                    <Button size="sm" variant="outline">
+                      🔌 Yayın hedefi ekle ({fixable.length} otomatik düzeltme bekliyor)
+                    </Button>
+                  </Link>
+                ) : (
+                  <Button size="sm" onClick={applyFix} disabled={fixing}>
+                    ⚡ {fixable.length} sorunu otomatik düzelt
+                  </Button>
+                )
               )}
             </div>
             <ul className="space-y-1.5 text-xs">
@@ -516,6 +619,158 @@ export function AuditStepBody({
           </div>
         );
       })()}
+
+      {/* Son düzeltilenler — auto-fix sonrası dosyaların public URL'leri */}
+      {lastApplied.length > 0 && (
+        <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-4">
+          <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
+            <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">
+              ✓ Son düzeltilenler ({lastApplied.length})
+            </p>
+            <span className="text-[11px] text-muted-foreground font-mono">
+              dosyalar yayın hedefine yüklendi
+            </span>
+          </div>
+          <ul className="space-y-2">
+            {lastApplied.map((item) => {
+              const label = AUTOFIX_LABEL[item.fix] ?? item.fix;
+              const filename = AUTOFIX_PUBLIC_PATH[item.fix] ?? item.fix;
+              return (
+                <li
+                  key={item.fix}
+                  className="flex items-center justify-between gap-3 flex-wrap rounded-md bg-card border p-2.5"
+                >
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <span className="text-lg">📄</span>
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium">{label}</div>
+                      <div className="text-[11px] text-muted-foreground font-mono truncate">
+                        {item.url ?? `/${filename}`}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {/* Görüntüle: backend content varsa modal, yoksa public URL'i yeni tab */}
+                    {item.content ? (
+                      <button
+                        type="button"
+                        onClick={() => setPreviewFile({
+                          filename: item.filename ?? filename,
+                          content: item.content!,
+                        })}
+                        className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded border hover:border-brand hover:text-brand transition-colors"
+                      >
+                        🔍 Görüntüle
+                      </button>
+                    ) : item.url ? (
+                      <a
+                        href={item.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded border hover:border-brand hover:text-brand transition-colors"
+                      >
+                        🔗 Yayınlanan dosya
+                      </a>
+                    ) : null}
+
+                    {/* İndir: backend content varsa Blob download (cross-origin sorununu çözer) */}
+                    {item.content ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const blob = new Blob([item.content!], {
+                            type: filename.endsWith('.xml') ? 'application/xml' : 'text/plain;charset=utf-8',
+                          });
+                          const blobUrl = URL.createObjectURL(blob);
+                          const a = document.createElement('a');
+                          a.href = blobUrl;
+                          a.download = item.filename ?? filename;
+                          document.body.appendChild(a);
+                          a.click();
+                          a.remove();
+                          setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+                          toast.success(`${item.filename ?? filename} indirildi`);
+                        }}
+                        className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded border hover:border-brand hover:text-brand transition-colors"
+                      >
+                        ⬇ İndir
+                      </button>
+                    ) : null}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+          <p className="text-[11px] text-muted-foreground mt-3">
+            ⓘ Görüntüle/İndir → backend'in ürettiği gerçek dosya. "Yayınlanan dosya" → yayın hedefindeki canlı sürüm (cross-origin nedeniyle indirilemez, sadece açılır).
+          </p>
+        </div>
+      )}
+
+      {/* Preview Modal — generated file content */}
+      {previewFile && (
+        <div
+          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm grid place-items-center p-4"
+          onClick={() => setPreviewFile(null)}
+        >
+          <div
+            className="bg-card border rounded-2xl shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-3 px-5 py-3 border-b bg-muted/30">
+              <div className="flex items-center gap-2 min-w-0">
+                <span className="text-lg">📄</span>
+                <span className="font-mono text-sm font-semibold truncate">{previewFile.filename}</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPreviewFile(null)}
+                className="text-muted-foreground hover:text-foreground transition-colors text-sm font-mono"
+              >
+                ✕ Kapat
+              </button>
+            </div>
+            <pre className="flex-1 overflow-auto p-5 text-xs font-mono whitespace-pre-wrap break-all bg-card">
+              {previewFile.content}
+            </pre>
+            <div className="flex items-center justify-end gap-2 px-5 py-3 border-t bg-muted/20">
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(previewFile.content);
+                    toast.success('Kopyalandı');
+                  } catch {
+                    toast.error('Kopyalanamadı');
+                  }
+                }}
+                className="text-xs px-3 py-1.5 rounded border hover:border-brand hover:text-brand transition-colors"
+              >
+                📋 Kopyala
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const blob = new Blob([previewFile.content], {
+                    type: previewFile.filename.endsWith('.xml') ? 'application/xml' : 'text/plain;charset=utf-8',
+                  });
+                  const blobUrl = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = blobUrl;
+                  a.download = previewFile.filename;
+                  document.body.appendChild(a);
+                  a.click();
+                  a.remove();
+                  setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+                }}
+                className="text-xs px-3 py-1.5 rounded bg-brand text-white font-medium hover:bg-brand/90 transition-colors"
+              >
+                ⬇ İndir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 14 nokta kontrol listesi — varsayilan olarak acik, her satirda durum */}
       <div className="rounded-lg border">
@@ -601,12 +856,6 @@ export function AuditStepBody({
           </div>
         </div>
       )}
-
-      <CitationPanel siteId={siteId} />
-
-      <AiKeysPanel siteId={siteId} />
-
-      <SnippetPanel siteId={siteId} />
 
       <div className="flex justify-end pt-2">
         <Button size="sm" variant="outline" onClick={run} disabled={running || fixing}>
@@ -1359,6 +1608,14 @@ export function TopicsStepBody({
   const [running, setRunning] = useState(false);
   const [generating, setGenerating] = useState<string | null>(null);
 
+  // Backend'de in-flight bir makale varsa (GENERATING/EDITING), local state'e bağlı kalmadan göster.
+  // Sayfa yenilenince state kaybolmasın diye articles prop'undan türet.
+  const inflightArticle = (articles ?? []).find((a) => a?.status === 'GENERATING' || a?.status === 'EDITING');
+  const inflightTopic: string | null = inflightArticle
+    ? String(inflightArticle.topic ?? inflightArticle.title ?? '')
+    : null;
+  const isAnythingGenerating = !!generating || !!inflightTopic;
+
   const run = async () => {
     setRunning(true);
     try {
@@ -1414,17 +1671,21 @@ export function TopicsStepBody({
 
   return (
     <div className="space-y-3">
-      {(running || generating) && (
+      {(running || generating || inflightTopic) && (
         <PipelineProgress
-          title={generating ? `Makale üretiliyor: "${generating.slice(0, 60)}…"` : 'Topic Engine yenileniyor'}
-          steps={generating ? PIPELINE_STEPS.article : PIPELINE_STEPS.topicEngine}
-          running={!!(running || generating)}
+          title={
+            generating || inflightTopic
+              ? `Makale üretiliyor: "${(generating ?? inflightTopic ?? '').slice(0, 60)}…"`
+              : 'Topic Engine yenileniyor'
+          }
+          steps={generating || inflightTopic ? PIPELINE_STEPS.article : PIPELINE_STEPS.topicEngine}
+          running
         />
       )}
 
       <div className="flex items-center justify-between">
         <h4 className="font-semibold text-sm">🥇 Tier 1 — En önemli {tier1.length} konu</h4>
-        <Button size="sm" variant="outline" onClick={run} disabled={running || !!generating}>
+        <Button size="sm" variant="outline" onClick={run} disabled={running || isAnythingGenerating}>
           {running ? 'Yenileniyor…' : 'Yenile'}
         </Button>
       </div>
@@ -1435,7 +1696,11 @@ export function TopicsStepBody({
 
       <div className="grid gap-3">
         {tier1.map((t: any, i: number) => {
-          const isThis = generating === t.topic;
+          // Local click feedback VEYA backend'de bu topic için inflight makale var mı?
+          const inflightForThis = inflightTopic
+            ? inflightTopic.trim().toLowerCase() === String(t.topic ?? '').trim().toLowerCase()
+            : false;
+          const isThis = generating === t.topic || inflightForThis;
           const onDragStart = (e: React.DragEvent) => {
             e.dataTransfer.setData('application/x-luviai-topic', JSON.stringify({
               topic: t.topic,
@@ -1459,7 +1724,7 @@ export function TopicsStepBody({
               <h5 className="font-semibold text-sm mb-1">{t.topic}</h5>
               <p className="text-xs text-muted-foreground mb-3">{t.data_summary}</p>
               <div className="flex items-center gap-2 flex-wrap">
-                <Button size="sm" onClick={() => generate(t.topic)} disabled={!!generating}>
+                <Button size="sm" onClick={() => generate(t.topic)} disabled={isAnythingGenerating}>
                   {isThis ? 'Üretiliyor…' : 'Hemen üret →'}
                 </Button>
                 <span className="text-[11px] text-muted-foreground inline-flex items-center gap-1">

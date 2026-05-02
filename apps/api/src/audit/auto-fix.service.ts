@@ -59,6 +59,8 @@ export class AutoFixService {
 
     const applied: string[] = [];
     const errors: Array<{ fix: string; error: string }> = [];
+    // Frontend'in indirip görüntüleyebilmesi için üretilen dosya içerikleri
+    const files: Array<{ fix: string; filename: string; content: string; externalUrl?: string }> = [];
 
     for (const fix of fixes) {
       try {
@@ -70,6 +72,7 @@ export class AutoFixService {
 
         if (result.ok) {
           applied.push(fix);
+          files.push({ fix, filename, content, externalUrl: result.externalUrl });
           this.log.log(`[${siteId}] ✓ ${fix} → ${result.externalUrl}`);
         } else {
           errors.push({ fix, error: result.error ?? 'unknown' });
@@ -95,7 +98,7 @@ export class AutoFixService {
       });
     }
 
-    return { applied, errors };
+    return { applied, errors, files };
   }
 
   private generateContent(fix: string, site: any, crawl: any): string | null {
