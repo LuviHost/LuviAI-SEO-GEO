@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import Anthropic from '@anthropic-ai/sdk';
 import { GoogleGenAI } from '@google/genai';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { SettingsService } from '../settings/settings.service.js';
 
 export interface HeatmapCell {
   query: string;
@@ -50,9 +51,13 @@ export class GeoHeatmapService {
   private readonly openaiKey = process.env.OPENAI_API_KEY ?? null;
   private readonly perplexityKey = process.env.PERPLEXITY_API_KEY ?? null;
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly settings: SettingsService,
+  ) {}
 
   async runForSite(siteId: string, opts: { maxQueries?: number } = {}): Promise<HeatmapResult> {
+    await this.settings.assertAiEnabled('GEO heatmap');
     const max = opts.maxQueries ?? 10;
     const site = await this.prisma.site.findUniqueOrThrow({
       where: { id: siteId },

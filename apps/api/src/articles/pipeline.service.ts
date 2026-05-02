@@ -4,6 +4,7 @@ import { AgentRunnerService } from './agent-runner.service.js';
 import { EmailService } from '../email/email.service.js';
 import { SocialAutoDraftService } from '../social/social-auto-draft.service.js';
 import { SchemaClassifierService } from './schema-classifier.service.js';
+import { SettingsService } from '../settings/settings.service.js';
 import {
   AGENT_01_KEYWORD,
   AGENT_02_OUTLINE,
@@ -46,7 +47,115 @@ export class PipelineService {
     private readonly email: EmailService,
     private readonly socialAutoDraft: SocialAutoDraftService,
     private readonly schemaClassifier: SchemaClassifierService,
+    private readonly settings: SettingsService,
   ) {}
+
+  /**
+   * Mock pipeline — AI_GLOBAL_DISABLED=1 iken gerçek API yerine simulasyon çalışır.
+   * Article DB'de doldurulup status READY_TO_PUBLISH yapılır. UI akışını test etmek için.
+   */
+  private async runMockPipeline(opts: {
+    siteId: string;
+    topic: string;
+    articleId?: string;
+  }): Promise<PipelineResult> {
+    this.log.warn(`[${opts.siteId}] MOCK pipeline (AI_GLOBAL_DISABLED=1) — topic: "${opts.topic}"`);
+
+    // Realistik UX için kısa bir bekleme (kullanıcı "üretiliyor" UI'ında pipeline akışını görür)
+    const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+    if (opts.articleId) {
+      await this.prisma.article.update({ where: { id: opts.articleId }, data: { status: 'GENERATING' as any } });
+    }
+    await sleep(8000);
+    if (opts.articleId) {
+      await this.prisma.article.update({ where: { id: opts.articleId }, data: { status: 'EDITING' as any } });
+    }
+    await sleep(6000);
+
+    const slug = opts.topic
+      .toLowerCase()
+      .replace(/[^a-z0-9çğıöşü]+/gi, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 80);
+
+    const bodyMd = [
+      `# ${opts.topic}`,
+      '',
+      `> **MOCK ARTICLE — AI_GLOBAL_DISABLED=1 iken üretilen dummy içerik.** Gerçek pipeline çalıştırmak için admin panelden flag'i kapat.`,
+      '',
+      '## Giriş',
+      '',
+      `Bu makale "${opts.topic}" konusunda dummy bir test içeriğidir. Gerçek üretim için Anthropic, OpenAI ve Gemini API kredilerinizin aktif olması gerekir. Şu an admin panelde \`AI_GLOBAL_DISABLED=1\` ayarı aktif olduğu için gerçek AI çağrıları yapılmadı.`,
+      '',
+      'Aşağıdaki içerik tamamen şablon — UI akışını ve yayın hedefine yükleme mantığını test etmek için kullanılır.',
+      '',
+      '## Hızlı Cevap',
+      '',
+      `${opts.topic} hakkında kısa özet: bu konu hakkında detaylı bilgi gerçek pipeline çalıştırıldığında 1800-2500 kelimelik kapsamlı bir rehberle sağlanır. Şu an gördüğünüz mock veri sadece test amaçlıdır.`,
+      '',
+      '## Ne, Neden, Nasıl?',
+      '',
+      `### Ne?\n\nMock pipeline, gerçek AI çağrılarını atlatıp şablon içerik üreten bir test moduydur. Bu modda Anthropic Claude, OpenAI veya Google Gemini API'lerine hiç istek gitmez.\n\n### Neden?\n\nGeliştirme/test aşamasında UI akışını, schema markup'ı, sosyal medya entegrasyonunu ve yayın hedefini gerçek para harcamadan test edebilmek için.\n\n### Nasıl?\n\nAdmin panelden \`AI_GLOBAL_DISABLED\` toggle'ını **AÇIK** yaparsın → tüm paid AI servisleri otomatik mock moda düşer.`,
+      '',
+      '## Sıkça Sorulan Sorular',
+      '',
+      `### Mock makale yayınlanır mı?\n\nEvet, gerçek pipeline'la aynı yolları izler — yayın hedefine yüklenir, sosyal medya draft'ı oluşturulur, schema markup eklenir.\n\n### Gerçek içerik nasıl üretirim?\n\nAdmin panel → \`AI_GLOBAL_DISABLED\` toggle'ını **KAPALI** yap. Sonraki "Şimdi üret" çağrısı gerçek pipeline'ı tetikler.\n\n### Mock makaleler kalıcı mı?\n\nDB'de durur, kullanıcı isterse silebilir. Gerçek üretime geçtiğinde topluca silmek için admin panel batch tools eklenebilir.`,
+      '',
+      '## Sonuç',
+      '',
+      `Bu mock makale şu konuyu işliyor: **${opts.topic}**. Gerçek üretim için yukarıdaki talimatları takip et. Test amaçlı oluşturuldu, yayın için uygun değil.`,
+    ].join('\n');
+
+    const wordCount = bodyMd.split(/\s+/).filter(Boolean).length;
+    const faqs = [
+      { q: 'Mock makale yayınlanır mı?', a: 'Evet, pipeline yollarını izler.' },
+      { q: 'Gerçek içerik nasıl üretirim?', a: 'AI_GLOBAL_DISABLED toggle\'ını KAPALI yap.' },
+      { q: 'Mock makaleler kalıcı mı?', a: 'DB\'de durur, manuel silinebilir.' },
+    ];
+    const heroPrompt = `Mock hero image for "${opts.topic}"`;
+
+    const baseData: any = {
+      slug,
+      title: opts.topic,
+      metaTitle: `${opts.topic} — Mock Test`,
+      metaDescription: `${opts.topic} hakkında dummy test makalesi. AI_GLOBAL_DISABLED aktif.`,
+      bodyMd,
+      bodyHtml: `<article><h1>${opts.topic}</h1>${bodyMd.split('\n').filter(Boolean).map((p) => p.startsWith('#') ? '' : `<p>${p}</p>`).join('')}</article>`,
+      wordCount,
+      faqs,
+      schemaMarkup: [
+        { '@context': 'https://schema.org', '@type': 'Article', headline: opts.topic, datePublished: new Date().toISOString() },
+      ],
+      agentOutputs: { mock: true, generatedAt: new Date().toISOString(), heroPrompt },
+      status: 'READY_TO_PUBLISH' as any,
+    };
+
+    let articleId: string;
+    if (opts.articleId) {
+      const updated = await this.prisma.article.update({ where: { id: opts.articleId }, data: baseData });
+      articleId = updated.id;
+    } else {
+      const created = await this.prisma.article.create({
+        data: { ...baseData, siteId: opts.siteId, topic: opts.topic, language: 'tr' },
+      });
+      articleId = created.id;
+    }
+
+    return {
+      articleId,
+      slug,
+      title: opts.topic,
+      bodyMd,
+      bodyHtml: baseData.bodyHtml,
+      faqs,
+      heroPrompt,
+      schemaMarkup: baseData.schemaMarkup,
+      durationMs: Date.now() - 14000, // sleeps included
+      totalCostUsd: 0,
+      editorVerdict: 'PASS', // mock olsa da autoPublish path'i tetiklensin
+      mock: true,
+    } as any;
+  }
 
   async runPipeline(opts: {
     siteId: string;
@@ -55,6 +164,11 @@ export class PipelineService {
     maxRevize?: number;
     articleId?: string;
   }): Promise<PipelineResult> {
+    // AI_GLOBAL_DISABLED=1 → mock pipeline (dummy article üret, gerçek API çağrısı yapma)
+    if (await this.settings.getBoolean('AI_GLOBAL_DISABLED')) {
+      return this.runMockPipeline({ siteId: opts.siteId, topic: opts.topic, articleId: opts.articleId });
+    }
+
     const t0 = Date.now();
 
     const site = await this.prisma.site.findUniqueOrThrow({

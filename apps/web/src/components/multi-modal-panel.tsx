@@ -85,6 +85,12 @@ function AudioTab({ siteId, articleId, article, onChanged }: any) {
   const audioUrl = article?.frontmatter?.audio_url ?? null;
   const existingUrl = result?.publicUrl ?? audioUrl;
 
+  // Body var mı? TTS için minimum 100 kelime gerek (backend threshold).
+  const bodyText = String(article?.bodyMd ?? '').trim();
+  const wordCount = article?.wordCount ?? (bodyText ? bodyText.split(/\s+/).length : 0);
+  const hasContent = wordCount >= 100;
+  const isPending = ['SCHEDULED', 'GENERATING', 'EDITING'].includes(article?.status);
+
   const generate = async () => {
     setLoading(true);
     try {
@@ -132,6 +138,20 @@ function AudioTab({ siteId, articleId, article, onChanged }: any) {
               {loading ? <><Loader2 className="h-3 w-3 mr-1 animate-spin" /> Yenileniyor</> : 'Yeniden Üret'}
             </Button>
           </div>
+        </div>
+      ) : !hasContent ? (
+        <div className="rounded-md border border-dashed border-amber-500/40 bg-amber-500/5 p-4 text-center">
+          <p className="text-sm font-medium text-amber-700 dark:text-amber-400 mb-1">
+            Önce makale içeriği üretilmeli
+          </p>
+          <p className="text-xs text-muted-foreground mb-3">
+            {isPending
+              ? 'Bu makale şu an "' + (article?.status ?? '') + '" durumunda — content pipeline henüz çalışmadı (' + wordCount + ' kelime).'
+              : 'Makale gövdesi boş ya da çok kısa (' + wordCount + ' kelime). TTS için minimum 100 kelime gerekli.'}
+          </p>
+          <p className="text-[10px] text-muted-foreground">
+            Pipeline tamamlanınca (Yazar AI → Editör → Görsel) audio üretebilirsin.
+          </p>
         </div>
       ) : (
         <div className="rounded-md border border-dashed p-4 text-center">

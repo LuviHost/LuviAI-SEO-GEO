@@ -3,6 +3,7 @@ import { GoogleGenAI } from '@google/genai';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { SettingsService } from '../settings/settings.service.js';
 
 export interface AudioResult {
   ok: boolean;
@@ -32,9 +33,13 @@ export class MediaGeneratorService {
   private readonly gemini = this.geminiKey ? new GoogleGenAI({ apiKey: this.geminiKey }) : null;
   private readonly openaiKey = process.env.OPENAI_API_KEY ?? null;
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly settings: SettingsService,
+  ) {}
 
   async generateAudio(articleId: string): Promise<AudioResult> {
+    await this.settings.assertAiEnabled('TTS audio generation');
     const articleRaw = await this.prisma.article.findUniqueOrThrow({
       where: { id: articleId },
     });

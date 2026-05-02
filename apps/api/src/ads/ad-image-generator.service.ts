@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { GoogleGenAI } from '@google/genai';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { SettingsService } from '../settings/settings.service.js';
 
 export interface AdImage {
   format: 'square' | 'portrait' | 'landscape';
@@ -24,12 +25,15 @@ export interface AdImage {
 export class AdImageGeneratorService {
   private readonly log = new Logger(AdImageGeneratorService.name);
 
+  constructor(private readonly settings: SettingsService) {}
+
   async generateSet(opts: {
     prompt: string;
     siteSlug: string;
     formats?: Array<'square' | 'portrait' | 'landscape'>;
     brandColor?: string;
   }): Promise<AdImage[]> {
+    await this.settings.assertAiEnabled('ad image generation');
     if (!process.env.GOOGLE_AI_API_KEY) {
       throw new Error('GOOGLE_AI_API_KEY yok');
     }

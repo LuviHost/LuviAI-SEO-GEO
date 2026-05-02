@@ -1,7 +1,8 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import Anthropic from '@anthropic-ai/sdk';
 import { buildBrainContext } from '@luviai/shared';
 import type { AgentContext } from '@luviai/shared';
+import { SettingsService } from '../settings/settings.service.js';
 
 export interface RunAgentParams {
   agentName: '01-keyword' | '02-outline' | '03-writer' | '04-editor' | '05-visuals' | 'topic-ranker';
@@ -53,7 +54,17 @@ const PRICING: Record<string, { input: number; output: number; cacheRead: number
 export class AgentRunnerService {
   private readonly log = new Logger(AgentRunnerService.name);
 
+  constructor(private readonly settings: SettingsService) {}
+
   async run(params: RunAgentParams): Promise<AgentResult> {
+    // AI_GLOBAL_DISABLED guard — admin panelden test modu açıldıysa Anthropic çağrısı yapma.
+    if (await this.settings.getBoolean('AI_GLOBAL_DISABLED')) {
+      this.log.warn(`AI_GLOBAL_DISABLED=1 — agent çağrısı atlandı (${params.agentName})`);
+      throw new ServiceUnavailableException(
+        'AI test modu aktif (admin panelden AI_GLOBAL_DISABLED kapalı). Gerçek üretim için admin panelden kapatmalısın.',
+      );
+    }
+
     const model = this.resolveModel(params.preferredModel, params.agentName);
     const brainSystem = buildBrainContext(params.brainContext);
 
@@ -61,22 +72,46 @@ export class AgentRunnerService {
 
     const t0 = Date.now();
 
-    const response = await client.messages.create({
-      model,
-      max_tokens: params.maxTokens ?? 16384,
-      system: [
-        {
-          type: 'text',
-          text: brainSystem,
-          cache_control: { type: 'ephemeral' },
-        },
-        {
-          type: 'text',
-          text: params.agentSystemSuffix,
-        },
-      ],
-      messages: [{ role: 'user', content: params.input }],
-    });
+    let response;
+    try {
+      response = await client.messages.create({
+        model,
+        max_tokens: params.maxTokens ?? 16384,
+        system: [
+          {
+            type: 'text',
+            text: brainSystem,
+            cache_control: { type: 'ephemeral' },
+          },
+          {
+            type: 'text',
+            text: params.agentSystemSuffix,
+          },
+        ],
+        messages: [{ role: 'user', content: params.input }],
+      });
+    } catch (err: any) {
+      // Anthropic API hatalarını user-friendly mesajla 503 ServiceUnavailable'a çevir.
+      const msg = String(err?.message ?? '');
+      if (/credit balance is too low/i.test(msg) || /insufficient_quota/i.test(msg)) {
+        this.log.error(`Anthropic kredisi tükendi: ${msg}`);
+        throw new ServiceUnavailableException(
+          'AI sağlayıcı kredisi tükendi. Yöneticinin Anthropic hesabına kredi yüklemesi gerek (console.anthropic.com → Plans & Billing).',
+        );
+      }
+      if (/rate.?limit/i.test(msg) || err?.status === 429) {
+        throw new ServiceUnavailableException(
+          'AI sağlayıcı rate limit\'e takıldı. Birkaç saniye bekleyip tekrar dene.',
+        );
+      }
+      if (err?.status === 401 || /api.?key/i.test(msg)) {
+        throw new ServiceUnavailableException(
+          'AI sağlayıcı kimlik doğrulaması başarısız (API key geçersiz). Yöneticiye haber ver.',
+        );
+      }
+      // Diğer hataları olduğu gibi geçir (NestJS 500 yapar)
+      throw err;
+    }
 
     const text = response.content
       .filter((b: any) => b.type === 'text')

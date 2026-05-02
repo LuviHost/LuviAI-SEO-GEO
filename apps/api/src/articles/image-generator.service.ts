@@ -3,6 +3,7 @@ import { GoogleGenAI } from '@google/genai';
 import sharp from 'sharp';
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { SettingsService } from '../settings/settings.service.js';
 
 export interface ImageRequest {
   prompt: string;
@@ -39,7 +40,10 @@ Mood: technical, contemporary, premium brand.`;
 export class ImageGeneratorService {
   private readonly log = new Logger(ImageGeneratorService.name);
 
+  constructor(private readonly settings: SettingsService) {}
+
   async generate(req: ImageRequest, opts: { provider?: string; brandColor?: string } = {}): Promise<ImageResult> {
+    await this.settings.assertAiEnabled('image generation');
     const provider = opts.provider ?? process.env.IMAGE_PROVIDER ?? 'gemini-flash';
     const model = provider === 'gemini-flash' ? 'gemini-2.5-flash-image' : 'gemini-3-pro-image';
 

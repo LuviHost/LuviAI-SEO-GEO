@@ -5,6 +5,7 @@ import { GeoService } from './geo.service.js';
 import { CompetitorService } from './competitor.service.js';
 import { ScorerService } from './scorer.service.js';
 import { GaService } from '../analytics/ga.service.js';
+import { SettingsService } from '../settings/settings.service.js';
 import type { AgentContext } from '@luviai/shared';
 
 @Injectable()
@@ -18,7 +19,47 @@ export class TopicsService {
     private readonly competitor: CompetitorService,
     private readonly scorer: ScorerService,
     private readonly ga: GaService,
+    private readonly settings: SettingsService,
   ) {}
+
+  /** Mock topics — AI_GLOBAL_DISABLED iken dummy 6 öneri yazar */
+  private async runMockEngine(siteId: string) {
+    this.log.warn(`[${siteId}] MOCK topic engine (AI_GLOBAL_DISABLED=1)`);
+    const personas = ['KOBİ Sahibi', 'Karar Verici', 'Geliştirici', 'KOBİ Sahibi', 'Geliştirici', 'Karar Verici'];
+    const titles = [
+      'Mock Konu — Web Hosting Karşılaştırması',
+      'Mock Konu — SSL Sertifikası Rehberi',
+      'Mock Konu — Domain Transferi Adımları',
+      'Mock Konu — WordPress Hız Optimizasyonu',
+      'Mock Konu — cPanel Kullanım Kılavuzu',
+      'Mock Konu — Cloud vs Shared Hosting',
+    ];
+    const tier1 = titles.map((topic, i) => ({
+      topic,
+      slug: topic.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, ''),
+      pillar: '/blog',
+      score: 92 - i * 4,
+      persona: personas[i],
+      data_summary: 'Mock test verisi — AI_GLOBAL_DISABLED aktif.',
+    }));
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    const queue = await this.prisma.topicQueue.create({
+      data: {
+        siteId,
+        planTopics: [] as any,
+        gscOpportunities: [] as any,
+        geoGaps: [] as any,
+        competitorMoves: [] as any,
+        tier1Topics: tier1 as any,
+        tier2Topics: [] as any,
+        tier3Topics: [] as any,
+        improvements: [] as any,
+        totalEvaluated: tier1.length,
+        expiresAt,
+      },
+    });
+    return queue;
+  }
 
   getLatestQueue(siteId: string) {
     return this.prisma.topicQueue.findFirst({
@@ -38,6 +79,11 @@ export class TopicsService {
    * 4 katman + AI sıralama orkestrasyonu.
    */
   async runEngine(siteId: string) {
+    // AI_GLOBAL_DISABLED → mock topic queue üret (gerçek API çağrısı yok)
+    if (await this.settings.getBoolean('AI_GLOBAL_DISABLED')) {
+      return this.runMockEngine(siteId);
+    }
+
     const t0 = Date.now();
 
     const site = await this.prisma.site.findUniqueOrThrow({

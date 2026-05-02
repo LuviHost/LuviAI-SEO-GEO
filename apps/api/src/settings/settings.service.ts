@@ -1,4 +1,4 @@
-import { Injectable, Logger, OnModuleInit, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit, BadRequestException, ServiceUnavailableException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
   SETTINGS_BY_KEY,
@@ -72,6 +72,20 @@ export class SettingsService implements OnModuleInit {
   async getBoolean(key: string): Promise<boolean> {
     const raw = (await this.getRaw(key)).trim().toLowerCase();
     return raw === '1' || raw === 'true' || raw === 'yes' || raw === 'on';
+  }
+
+  /**
+   * AI servisleri (Anthropic / OpenAI / Gemini / Perplexity / Sora) için merkezi guard.
+   * AI_GLOBAL_DISABLED=1 iken çağrıyı engeller — admin panelden test modu.
+   * Throws ServiceUnavailableException — frontend kullanıcıya net mesaj gösterir.
+   */
+  async assertAiEnabled(reason?: string): Promise<void> {
+    if (await this.getBoolean('AI_GLOBAL_DISABLED')) {
+      this.log.warn(`AI çağrısı atlandı (AI_GLOBAL_DISABLED=1)${reason ? ` — ${reason}` : ''}`);
+      throw new ServiceUnavailableException(
+        'AI test modu aktif (admin panelden AI_GLOBAL_DISABLED kapalı). Gerçek üretim için admin panelden kapatmalısın.',
+      );
+    }
   }
 
   async getInt(key: string): Promise<number> {
