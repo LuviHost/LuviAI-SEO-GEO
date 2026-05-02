@@ -1,0 +1,54 @@
+# LuviAI
+
+> Türkiye için yapılmış, SEO + AI görünürlük + içerik üretimi + sosyal medya + reklam denetimi tek panelden otomatikleştiren SaaS platformu. Site sahipleri ve dijital ajanslar için. PayTR ile güvenli ödeme.
+
+## Ne yapar
+
+- **Site sağlık denetimi**: Sitenin SEO + AI search görünürlüğünü dakikalar içinde tarar. 14 SEO + GEO kontrolü, sorunlu noktaları gösterir, çoğunu tek tıkla düzeltir (sitemap, robots.txt, llms.txt, schema markup).
+- **AI içerik üretimi**: 1800-2500 kelimelik kapsamlı, marka sesinde Türkçe makaleler. 6 ajanlı zincir (anahtar kelime → outline → yazar → editör → görsel → şema). FAQ + Article + Breadcrumb schema otomatik eklenir.
+- **AI Search optimizasyonu (GEO)**: ChatGPT, Claude, Gemini, Perplexity'in cevaplarda site içeriğini alıntılaması için speakable schema, DefinedTerm, llms.txt, AI crawler izinleri otomatik ayarlanır. Citation skoru günlük takip edilir.
+- **Otomatik yayın**: WordPress, Webflow, Shopify, Ghost, Strapi, FTP, SFTP, GitHub, Sanity, Contentful — 14 yayın hedefi. Manuel kopyala-yapıştır yok.
+- **Sosyal medya planlayıcı**: X (Twitter) + LinkedIn için haftalık post takvimi. Aboneliğe göre aylık 8-30 otomatik post, görsel önizleme, karakter sayacı.
+- **Kampanya skoru (Reklam denetimi)**: Google Ads + Meta Ads hesabı için 124 kontrol noktasından oluşan denetim. Quick Wins (15 dk altı kritik düzeltmeler), industry-spesifik benchmarklar (12 sektör), 0-100 sağlık skoru.
+- **AI crawler trafiği**: Tek satır snippet ile sitenize gelen GPTBot, ClaudeBot, PerplexityBot ve diğer AI bot ziyaretlerini izleyin. Yeni bot ilk geldiğinde alarm.
+
+## Kim için
+
+- **KOBİ ve startup'lar**: Saatlerce uğraşmadan SEO + içerik + sosyal medya yönetimi
+- **Dijital ajanslar**: Tek panelden 10+ müşteri sitesini yönetme (Agency planı)
+- **WordPress site sahipleri**: Otomatik makale üretimi + yayın
+- **E-ticaret**: Webflow, Shopify entegrasyonu + AI SEO
+- **Reklam veren KOBİ'ler**: Google Ads + Meta Ads hesabını uzman gibi denetleme
+
+## Fiyatlandırma
+
+- **Starter**: 1 site, 10 makale/ay, 499 TL/ay
+- **Pro**: 3 site, 50 makale/ay, 1.299 TL/ay
+- **Agency**: 10 site, 250 makale/ay, 3.299 TL/ay
+- İlk makale ücretsiz · Aylık iptal, taahhüt yok · PayTR güvenli ödeme
+
+## Önemli sayfalar
+
+- [Ana sayfa](https://ai.luvihost.com/)
+- [Fiyatlar](https://ai.luvihost.com/pricing)
+- [Sıkça sorulan sorular](https://ai.luvihost.com/faq)
+- [Kullanım senaryoları](https://ai.luvihost.com/use-cases)
+- [Karşılaştırma](https://ai.luvihost.com/compare)
+- [Yardım](https://ai.luvihost.com/help)
+- [Gizlilik politikası](https://ai.luvihost.com/privacy)
+- [Kullanım şartları](https://ai.luvihost.com/terms)
+- [KVKK](https://ai.luvihost.com/kvkk)
+- [Sistem durumu](https://ai.luvihost.com/status)
+
+## Optional
+
+- [İletişim](https://ai.luvihost.com/help): Yardım merkezi ve destek
+
+## Teknik bilgi
+
+- **Konum**: Türkiye
+- **Diller**: Türkçe (ana), İngilizce
+- **Ödeme**: PayTR (Türkiye'nin TCMB lisanslı ödeme sağlayıcısı)
+- **Veri merkezi**: Türkiye lokasyonlu, KVKK uyumlu
+- **Yapay zeka modelleri**: Anthropic Claude (yazar/editör), Google Gemini (görsel), OpenAI GPT (yedek)
+- **Yayın hedefleri**: 14 platform (WordPress REST + XML-RPC, Webflow, Shopify Liquid, Ghost, Strapi, Sanity, Contentful, FTP, SFTP, cPanel API, GitHub, Custom PHP, Markdown ZIP)

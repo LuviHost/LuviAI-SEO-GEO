@@ -83,11 +83,45 @@ const FAQS = [
   },
 ];
 
+// FAQPage + Speakable + BreadcrumbList JSON-LD — AI search ve Google rich result için
+const faqJsonLd = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'FAQPage',
+      '@id': 'https://ai.luvihost.com/faq#faqpage',
+      mainEntity: FAQS.map((item) => ({
+        '@type': 'Question',
+        name: item.q,
+        acceptedAnswer: {
+          '@type': 'Answer',
+          text: item.a,
+        },
+      })),
+      speakable: {
+        '@type': 'SpeakableSpecification',
+        cssSelector: ['.faq-question', '.faq-answer'],
+      },
+    },
+    {
+      '@type': 'BreadcrumbList',
+      itemListElement: [
+        { '@type': 'ListItem', position: 1, name: 'Ana Sayfa', item: 'https://ai.luvihost.com/' },
+        { '@type': 'ListItem', position: 2, name: 'Sıkça Sorulan Sorular', item: 'https://ai.luvihost.com/faq' },
+      ],
+    },
+  ],
+};
+
 export default function FaqPage() {
   const [open, setOpen] = useState<number | null>(0);
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
+      />
       <header className="container flex justify-between items-center py-6">
         <Link href="/" className="text-2xl font-bold">LuviAI</Link>
         <div className="flex items-center gap-3">
@@ -114,11 +148,11 @@ export default function FaqPage() {
                 onClick={() => setOpen(open === i ? null : i)}
                 className="w-full text-left p-5 flex items-center justify-between gap-4"
               >
-                <span className="font-semibold">{item.q}</span>
+                <span className="font-semibold faq-question">{item.q}</span>
                 <ChevronDown className={cn('h-5 w-5 transition-transform shrink-0', open === i && 'rotate-180')} />
               </button>
               {open === i && (
-                <CardContent className="pt-0 text-sm text-muted-foreground leading-relaxed">
+                <CardContent className="pt-0 text-sm text-muted-foreground leading-relaxed faq-answer">
                   {item.a}
                 </CardContent>
               )}

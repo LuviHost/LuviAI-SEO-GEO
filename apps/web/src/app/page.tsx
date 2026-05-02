@@ -25,6 +25,58 @@ export default function HomePage() {
 
   return (
     <div className="min-h-screen flex flex-col">
+      {/* Page-spesifik JSON-LD: Product (offers) + BreadcrumbList */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify({
+          '@context': 'https://schema.org',
+          '@graph': [
+            {
+              '@type': 'Product',
+              '@id': 'https://ai.luvihost.com/#product',
+              name: 'LuviAI',
+              description: 'SEO, AI içerik üretimi, sosyal medya ve reklam denetimi tek panelden otomatikleştiren Türkiye merkezli SaaS.',
+              brand: { '@type': 'Brand', name: 'LuviAI' },
+              offers: [
+                {
+                  '@type': 'Offer',
+                  name: 'Starter',
+                  price: '499',
+                  priceCurrency: 'TRY',
+                  availability: 'https://schema.org/InStock',
+                  url: 'https://ai.luvihost.com/pricing',
+                  description: '1 site, ayda 10 makale',
+                },
+                {
+                  '@type': 'Offer',
+                  name: 'Pro',
+                  price: '1299',
+                  priceCurrency: 'TRY',
+                  availability: 'https://schema.org/InStock',
+                  url: 'https://ai.luvihost.com/pricing',
+                  description: '3 site, ayda 50 makale',
+                },
+                {
+                  '@type': 'Offer',
+                  name: 'Agency',
+                  price: '3299',
+                  priceCurrency: 'TRY',
+                  availability: 'https://schema.org/InStock',
+                  url: 'https://ai.luvihost.com/pricing',
+                  description: '10 site, ayda 250 makale',
+                },
+              ],
+            },
+            {
+              '@type': 'BreadcrumbList',
+              itemListElement: [
+                { '@type': 'ListItem', position: 1, name: 'Ana Sayfa', item: 'https://ai.luvihost.com/' },
+              ],
+            },
+          ],
+        }) }}
+      />
+
       {/* ─── HEADER ─── */}
       <header className="bg-gradient-to-br from-brand via-brand-light to-brand/30">
         <div className="container flex justify-between items-center py-4 sm:py-6 px-4">
