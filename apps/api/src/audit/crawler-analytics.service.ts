@@ -236,6 +236,17 @@ export class CrawlerAnalyticsService {
       orderBy: { date: 'asc' },
     });
 
+    // Bu site icin her bot'un TUM zamanlardaki ilk kayit tarihi (firstSeen alarmi icin)
+    const firstSeenRows = await this.prisma.aiCrawlerHit.groupBy({
+      by: ['bot'],
+      where: { siteId },
+      _min: { date: true },
+    });
+    const firstSeen: Record<string, string> = {};
+    for (const r of firstSeenRows) {
+      if (r._min.date) firstSeen[r.bot] = r._min.date.toISOString();
+    }
+
     // Kategoriye gore grupla
     const byCategory: Record<string, number> = {
       'ai-search': 0,
@@ -262,6 +273,7 @@ export class CrawlerAnalyticsService {
       byCategory,
       byBot,
       byDate,
+      firstSeen,
       registry: Object.fromEntries(Object.entries(BOT_REGISTRY).map(([k, v]) => [k, { label: v.label, category: v.category }])),
     };
   }

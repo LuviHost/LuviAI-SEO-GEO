@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { animate, stagger } from 'animejs';
 import {
@@ -14,7 +14,9 @@ import {
   Activity,
   Calendar,
   Send,
+  Bot,
 } from 'lucide-react';
+import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
 
 /*
@@ -228,12 +230,30 @@ export function AnalyticsRow({
   const generating = articles.filter((a) => a.status === 'GENERATING' || a.status === 'EDITING').length;
 
   const aiScore = audit?.checks?.aiCitations?.score ?? null;
-  const crawlerHits = audit?.checks?.crawlerHits?.total ?? 0;
+
+  // Crawler trafigi — son 30g; bugünkü ve son 7g sparkline icin byDate kullaniyoruz
+  const [crawlerHistory, setCrawlerHistory] = useState<any>(null);
+  useEffect(() => {
+    let cancelled = false;
+    api.getCrawlerHistory(siteId, 30)
+      .then((res) => { if (!cancelled) setCrawlerHistory(res); })
+      .catch(() => { /* sessizce gec — yeni site = veri yok */ });
+    return () => { cancelled = true; };
+  }, [siteId]);
+
+  const crawlerTotal30d = crawlerHistory?.totalHits ?? audit?.checks?.crawlerHits?.total ?? 0;
+  const today = new Date().toISOString().slice(0, 10);
+  const todayBots = crawlerHistory?.byDate?.[today]
+    ? Object.values(crawlerHistory.byDate[today]).reduce((a: number, b: any) => a + (b as number), 0)
+    : 0;
+  const crawlerSparkline = buildCrawlerSparkline(crawlerHistory?.byDate, 7);
+
+  // 7 gün içinde ilk kez gelen bot var mı?
+  const newBots = countNewBots(crawlerHistory?.firstSeen, 7);
 
   // Mock sparklines (in real app, would come from history endpoints)
   const seoSparkline = mockTrendUp(24);
   const contentSparkline = mockTrendStable(24, published);
-  const aiSparkline = mockTrendDown(24);
 
   const cards: StatCardData[] = [
     {
@@ -259,14 +279,31 @@ export function AnalyticsRow({
       icon: Sparkles,
       accent: aiScore !== null && aiScore >= 60 ? 'sky' : 'amber',
       primary: { label: 'Citation', value: aiScore !== null ? `${aiScore}` : '—', delta: -2.4, deltaSuffix: '' },
-      secondary: { label: 'Crawler', value: formatNum(crawlerHits), hint: 'AI bot trafiği' },
-      sparkline: aiSparkline,
+      secondary: { label: 'Crawler 30g', value: formatNum(crawlerTotal30d), hint: 'AI bot toplam' },
+      sparkline: mockTrendDown(24),
+      href: `/sites/${siteId}/visibility`,
+    },
+    {
+      title: 'AI BOT TRAFİĞİ',
+      icon: Bot,
+      accent: newBots > 0 ? 'brand' : todayBots > 0 ? 'sky' : 'amber',
+      primary: {
+        label: 'Bugün',
+        value: formatNum(todayBots as number),
+        delta: undefined,
+      },
+      secondary: {
+        label: 'Yeni Bot',
+        value: newBots,
+        hint: newBots > 0 ? '7g içinde ilk ziyaret' : 'son 7gün stabil',
+      },
+      sparkline: crawlerSparkline ?? mockTrendStable(7, 4),
       href: `/sites/${siteId}/visibility`,
     },
   ];
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
       {cards.map((c, i) => (
         <StatCard key={c.title} data={c} idx={i} />
       ))}
@@ -294,6 +331,30 @@ function mockTrendDown(len: number): number[] {
 function mockTrendStable(len: number, base: number): number[] {
   const b = Math.max(base, 5);
   return Array.from({ length: len }, (_, i) => b + Math.sin(i * 0.6) * (b * 0.4) + Math.random() * 2);
+}
+
+/** byDate (YYYY-MM-DD → bot → hits) → son N günün bot toplam serisi. Veri yoksa null. */
+function buildCrawlerSparkline(byDate: Record<string, Record<string, number>> | undefined, days: number): number[] | null {
+  if (!byDate || Object.keys(byDate).length === 0) return null;
+  const series: number[] = [];
+  for (let i = days - 1; i >= 0; i--) {
+    const d = new Date(Date.now() - i * 86400000).toISOString().slice(0, 10);
+    const dayBots = byDate[d];
+    series.push(dayBots ? Object.values(dayBots).reduce((a, b) => a + b, 0) : 0);
+  }
+  // Hep sıfırsa anlamsız → null
+  return series.some((v) => v > 0) ? series : null;
+}
+
+/** firstSeen kayıtları içinde son N gün içinde keşfedilen bot sayısı. */
+function countNewBots(firstSeen: Record<string, string> | undefined, withinDays: number): number {
+  if (!firstSeen) return 0;
+  const cutoff = Date.now() - withinDays * 86400000;
+  let n = 0;
+  for (const iso of Object.values(firstSeen)) {
+    if (new Date(iso).getTime() >= cutoff) n++;
+  }
+  return n;
 }
 
 // ──────────────────────────────────────────────────────────────────────

@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { Bot, Upload, RefreshCw } from 'lucide-react';
+import { Bot, Upload, RefreshCw, Sparkle } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { api } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -62,7 +63,18 @@ export function CrawlerHitsPanel({ siteId }: { siteId: string }) {
   const totalHits = data.totalHits ?? 0;
   const byCategory = data.byCategory ?? {};
   const byBot = data.byBot ?? {};
+  const firstSeen: Record<string, string> = data.firstSeen ?? {};
   const sortedBots = Object.entries(byBot).sort((a, b) => (b[1] as number) - (a[1] as number));
+
+  // 7 gün içinde ilk görülen bot'lar (alarm bandı için)
+  const NEW_THRESHOLD_DAYS = 7;
+  const newBotIds = Object.entries(firstSeen)
+    .filter(([, iso]) => Date.now() - new Date(iso).getTime() < NEW_THRESHOLD_DAYS * 86400000)
+    .map(([bot]) => bot);
+  const newBotLabels = newBotIds
+    .map((bot) => data.registry?.[bot]?.label ?? bot)
+    .slice(0, 4);
+  const isNew = (bot: string) => newBotIds.includes(bot);
 
   return (
     <Card>
@@ -99,6 +111,25 @@ export function CrawlerHitsPanel({ siteId }: { siteId: string }) {
           </div>
         ) : (
           <>
+            {/* İlk ziyaret alarmı */}
+            {newBotIds.length > 0 && (
+              <div className="rounded-md border border-emerald-500/40 bg-emerald-500/[0.06] p-3 flex items-start gap-2.5">
+                <div className="h-7 w-7 rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 grid place-items-center shrink-0">
+                  <Sparkle className="h-4 w-4" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">
+                    {newBotIds.length === 1 ? 'Yeni AI bot ziyareti!' : `${newBotIds.length} yeni AI bot ziyareti!`}
+                  </p>
+                  <p className="text-xs text-foreground/80 mt-0.5">
+                    Son {NEW_THRESHOLD_DAYS} gün içinde sitenizi <strong>ilk kez</strong> taramaya başladılar:{' '}
+                    <span className="font-semibold">{newBotLabels.join(', ')}</span>
+                    {newBotIds.length > newBotLabels.length && ` ve ${newBotIds.length - newBotLabels.length} bot daha`}.
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* Toplam ozet */}
             <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
               <div className="rounded-md border p-3 text-center">
@@ -123,14 +154,26 @@ export function CrawlerHitsPanel({ siteId }: { siteId: string }) {
                 {sortedBots.map(([bot, hits]) => {
                   const info = data.registry?.[bot];
                   const pct = totalHits > 0 ? ((hits as number) / totalHits) * 100 : 0;
+                  const recent = isNew(bot);
                   return (
-                    <div key={bot} className="px-3 py-2">
+                    <div
+                      key={bot}
+                      className={cn(
+                        'px-3 py-2 transition-colors',
+                        recent && 'bg-emerald-500/[0.05]',
+                      )}
+                    >
                       <div className="flex items-center justify-between gap-2 mb-1">
-                        <div className="flex items-center gap-2">
-                          <span className={`h-2 w-2 rounded-full ${CATEGORY_COLOR[info?.category] ?? 'bg-muted'}`} />
-                          <span className="font-medium">{info?.label ?? bot}</span>
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className={`h-2 w-2 rounded-full shrink-0 ${CATEGORY_COLOR[info?.category] ?? 'bg-muted'}`} />
+                          <span className="font-medium truncate">{info?.label ?? bot}</span>
+                          {recent && (
+                            <span className="inline-flex items-center gap-0.5 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 shrink-0">
+                              <Sparkle className="h-2.5 w-2.5" /> Yeni
+                            </span>
+                          )}
                         </div>
-                        <span className="font-mono text-[11px]">{(hits as number).toLocaleString('tr-TR')} ({pct.toFixed(1)}%)</span>
+                        <span className="font-mono text-[11px] shrink-0">{(hits as number).toLocaleString('tr-TR')} ({pct.toFixed(1)}%)</span>
                       </div>
                       <div className="h-1 bg-muted rounded-full overflow-hidden">
                         <div className={`h-full ${CATEGORY_COLOR[info?.category] ?? 'bg-muted-foreground'}`} style={{ width: `${pct}%` }} />
