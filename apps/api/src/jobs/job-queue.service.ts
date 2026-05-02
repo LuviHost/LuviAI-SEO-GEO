@@ -40,6 +40,8 @@ export class JobQueueService implements OnModuleInit, OnModuleDestroy {
     payload: Record<string, any>;
     priority?: number;
     delay?: number;
+    /** Custom BullMQ jobId — idempotent reschedule için. Aynı jobId ile add'lerse mevcut silinir. */
+    jobId?: string;
   }) {
     // 1) DB Job kaydı
     const dbJob = await this.prisma.job.create({
@@ -53,8 +55,17 @@ export class JobQueueService implements OnModuleInit, OnModuleDestroy {
       },
     });
 
-    // 2) BullMQ
+    // 2) BullMQ — custom jobId verilmişse önce eskisini sil (reschedule)
+    if (opts.jobId) {
+      const existing = await this.queue.getJob(opts.jobId);
+      if (existing) {
+        try { await existing.remove(); }
+        catch (err: any) { this.log.warn(`Eski delayed job silinemedi (${opts.jobId}): ${err.message}`); }
+      }
+    }
+
     const bullJob = await this.queue.add(opts.type, opts.payload, {
+      jobId: opts.jobId,
       priority: opts.priority,
       delay: opts.delay,
       attempts: 3,
@@ -72,7 +83,72 @@ export class JobQueueService implements OnModuleInit, OnModuleDestroy {
     return { dbJobId: dbJob.id, bullJobId: bullJob.id };
   }
 
+  /** Bekleyen delayed job'ı sil (article unschedule veya reschedule). */
+  async removeJob(jobId: string): Promise<boolean> {
+    const job = await this.queue.getJob(jobId);
+    if (!job) return false;
+    try { await job.remove(); return true; }
+    catch (err: any) { this.log.warn(`Job silinemedi (${jobId}): ${err.message}`); return false; }
+  }
+
   async getJobStatus(dbJobId: string) {
     return this.prisma.job.findUnique({ where: { id: dbJobId } });
+  }
+
+  // ──────────────────────────────────────────────────────────────────────
+  // Admin queue monitoring — BullMQ introspection
+  // ──────────────────────────────────────────────────────────────────────
+
+  async getQueueCounts() {
+    return this.queue.getJobCounts('waiting', 'active', 'delayed', 'completed', 'failed', 'paused');
+  }
+
+  async getQueueIsPaused() {
+    return this.queue.isPaused();
+  }
+
+  async pauseQueue() { return this.queue.pause(); }
+  async resumeQueue() { return this.queue.resume(); }
+
+  /**
+   * Belirli bir state'teki job'ları listele.
+   * BullMQ states: waiting | active | delayed | completed | failed | paused
+   */
+  async listJobs(state: 'waiting' | 'active' | 'delayed' | 'completed' | 'failed' | 'paused', limit = 50) {
+    const jobs = await this.queue.getJobs([state], 0, limit - 1, false);
+    return Promise.all(jobs.map(async (j) => {
+      const fullState = await j.getState().catch(() => state);
+      return {
+        id: j.id,
+        name: j.name,
+        data: j.data,
+        opts: { delay: j.opts.delay, priority: j.opts.priority, attempts: j.opts.attempts },
+        attemptsMade: j.attemptsMade,
+        timestamp: j.timestamp,
+        processedOn: j.processedOn,
+        finishedOn: j.finishedOn,
+        delay: j.delay,
+        // delayedAt = timestamp + delay (ne zaman tetiklenir)
+        fireAt: j.delay ? j.timestamp + j.delay : null,
+        failedReason: (j as any).failedReason ?? null,
+        returnvalue: (j as any).returnvalue ?? null,
+        state: fullState,
+      };
+    }));
+  }
+
+  async retryJob(jobId: string): Promise<boolean> {
+    const job = await this.queue.getJob(jobId);
+    if (!job) return false;
+    try { await job.retry(); return true; }
+    catch (err: any) { this.log.warn(`Retry fail ${jobId}: ${err.message}`); return false; }
+  }
+
+  async promoteJob(jobId: string): Promise<boolean> {
+    // Delayed job'ı hemen waiting'e al (bekleme süresini atla)
+    const job = await this.queue.getJob(jobId);
+    if (!job) return false;
+    try { await job.promote(); return true; }
+    catch (err: any) { this.log.warn(`Promote fail ${jobId}: ${err.message}`); return false; }
   }
 }

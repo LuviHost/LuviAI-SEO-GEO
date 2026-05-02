@@ -108,6 +108,12 @@ export class ArticlesController {
     return this.articles.queuePublish(siteId, id, body.targetIds);
   }
 
+  /** POST /sites/:siteId/articles/:id/trigger-now — SCHEDULED article'ı şimdi üretime al */
+  @Post(':id/trigger-now')
+  triggerNow(@Param('siteId') siteId: string, @Param('id') id: string) {
+    return this.articles.triggerNow(siteId, id);
+  }
+
   /** POST /sites/:siteId/articles/:id/audio — TTS audio uret (multi-modal GEO) */
   @Post(':id/audio')
   generateAudio(@Param('id') id: string) {

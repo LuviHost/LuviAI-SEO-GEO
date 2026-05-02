@@ -108,20 +108,18 @@ async function bootstrap() {
     },
 
     GENERATE_ARTICLE: async ({ siteId, topic, skipImages, autoPublish, targetIds, articleId }) => {
-      // TEST GUARD — ARTICLE_GENERATION_DISABLED veya AI_GLOBAL_DISABLED ise LLM/imaj API'lerine hic gitme.
-      // Article kaydı SCHEDULED'da kalır, kullanıcı flag'ı kapatınca tekrar işlenir.
-      const aiOff = await services.settings.getBoolean('AI_GLOBAL_DISABLED');
+      // ARTICLE_GENERATION_DISABLED → article üretimini tamamen atla (SCHEDULED'da kalır).
+      // AI_GLOBAL_DISABLED → pipeline mock moda düşer (içeride yönetilir, dosya yine WordPress/FTP'ye yüklenir).
       const articleOff = await services.settings.getBoolean('ARTICLE_GENERATION_DISABLED');
-      if (aiOff || articleOff) {
-        const reason = aiOff ? 'AI_GLOBAL_DISABLED' : 'ARTICLE_GENERATION_DISABLED';
-        log.warn(`[${siteId}] GENERATE_ARTICLE atlandı (${reason}=1) topic=${topic}`);
+      if (articleOff) {
+        log.warn(`[${siteId}] GENERATE_ARTICLE atlandı (ARTICLE_GENERATION_DISABLED=1) topic=${topic}`);
         if (articleId) {
           await services.prisma.article.update({
             where: { id: articleId },
             data: { status: 'SCHEDULED' as any },
           }).catch(() => {});
         }
-        return { skipped: true, reason };
+        return { skipped: true, reason: 'ARTICLE_GENERATION_DISABLED' };
       }
       try {
         const result = await services.pipeline.runPipeline({
@@ -131,7 +129,9 @@ async function bootstrap() {
           maxRevize: 1,
           articleId,
         });
-        if (autoPublish && result.editorVerdict === 'PASS') {
+        // Mock veya gerçek pipeline — autoPublish çalıştır (mock 'editorVerdict' yok, mock=true var)
+        const editorOk = (result as any).mock || result.editorVerdict === 'PASS';
+        if (autoPublish && editorOk) {
           const publishResults = await services.publisher.publishArticle(
             result.articleId,
             targetIds ?? [],
@@ -530,12 +530,14 @@ async function bootstrap() {
   try {
     const queue = new Queue('luviai-jobs', { connection });
 
-    // 1) PROCESS_SCHEDULED — her 30 dk
+    // 1) PROCESS_SCHEDULED — SAFETY NET cron (her 60 dk).
+    //    Asıl tetikleme: ArticleSchedulerService delayed BullMQ jobs (saniyesinde tetiklenir).
+    //    Bu cron sadece backup — Redis çöktüyse, eski schedule'lar varsa, bullJobId ile eşleşmeyenler için.
     await queue.add(
       'PROCESS_SCHEDULED',
       { trigger: 'cron' },
       {
-        repeat: { every: 30 * 60 * 1000 },
+        repeat: { every: 60 * 60 * 1000 },
         jobId: 'cron:process-scheduled',
         removeOnComplete: { count: 50 },
         removeOnFail: { count: 50 },

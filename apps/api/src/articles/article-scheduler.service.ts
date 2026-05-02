@@ -22,11 +22,57 @@ import { QuotaService } from '../billing/quota.service.js';
 export class ArticleSchedulerService {
   private readonly log = new Logger(ArticleSchedulerService.name);
 
+  // BullMQ jobId şeması — article başına unique, reschedule sırasında override için
+  private static genJobId(articleId: string) {
+    return `gen:article:${articleId}`;
+  }
+
+  // scheduledAt'ten 15dk önce trigger et — yayın saatine kadar pipeline tamamlansın
+  private static readonly LEAD_TIME_MS = 15 * 60 * 1000;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly jobQueue: JobQueueService,
     private readonly quota: QuotaService,
   ) {}
+
+  /**
+   * SCHEDULED bir article için BullMQ delayed job ayarla.
+   * scheduledAt - 15dk anında çalışacak şekilde delay hesaplanır.
+   * Aynı article için tekrar çağrılırsa eski job override edilir (reschedule).
+   * scheduledAt geçmişteyse hemen kuyruğa atar.
+   */
+  private async scheduleArticleJob(article: { id: string; siteId: string; topic: string; scheduledAt: Date | null }) {
+    if (!article.scheduledAt) return;
+    const site = await this.prisma.site.findUniqueOrThrow({
+      where: { id: article.siteId },
+      include: { publishTargets: { where: { isActive: true, isDefault: true }, select: { id: true } } },
+    });
+    const triggerAt = article.scheduledAt.getTime() - ArticleSchedulerService.LEAD_TIME_MS;
+    const delay = Math.max(0, triggerAt - Date.now());
+    const targetIds = site.publishTargets.map((t) => t.id);
+
+    await this.jobQueue.enqueue({
+      type: 'GENERATE_ARTICLE',
+      userId: site.userId,
+      siteId: article.siteId,
+      jobId: ArticleSchedulerService.genJobId(article.id),
+      delay,
+      payload: {
+        siteId: article.siteId,
+        topic: article.topic,
+        articleId: article.id,
+        skipImages: false,
+        autoPublish: targetIds.length > 0,
+        targetIds,
+      },
+    });
+
+    const fireTime = new Date(Date.now() + delay).toISOString();
+    this.log.log(
+      `[${article.siteId}] Article ${article.id} delayed job — fires at ${fireTime} (${Math.round(delay / 60000)}dk sonra, scheduledAt - 15dk)`,
+    );
+  }
 
   /**
    * Onboarding sonrasi cagrilir. Tier-1 ilk 5 konuyu Article olarak
@@ -216,6 +262,10 @@ export class ArticleSchedulerService {
       },
     });
     this.log.log(`[${siteId}] Konu takvime eklendi: '${args.topic}' @ ${at.toISOString()}`);
+
+    // Delayed BullMQ job ayarla — saat geldiğinde otomatik tetiklenir (polling beklemez)
+    await this.scheduleArticleJob({ id: article.id, siteId, topic: args.topic, scheduledAt: at });
+
     return article;
   }
 
@@ -229,10 +279,15 @@ export class ArticleSchedulerService {
     if (a.status !== 'SCHEDULED' && a.status !== 'DRAFT') {
       throw new Error(`Bu makale tasinamaz (status=${a.status})`);
     }
-    return this.prisma.article.update({
+    const updated = await this.prisma.article.update({
       where: { id: articleId },
       data: { scheduledAt: at, status: 'SCHEDULED' as any },
     });
+
+    // Delayed BullMQ job'ı yeni saate göre yeniden kur (eskisi otomatik silinir)
+    await this.scheduleArticleJob({ id: updated.id, siteId: updated.siteId, topic: updated.topic, scheduledAt: at });
+
+    return updated;
   }
 
   /**
@@ -243,6 +298,10 @@ export class ArticleSchedulerService {
     if (a.status !== 'SCHEDULED') {
       throw new Error(`Sadece SCHEDULED makaleler kaldirilabilir (status=${a.status})`);
     }
+
+    // Bekleyen BullMQ job'ını sil (silmezsek delayed job yine ateşler ama article yok → fail)
+    await this.jobQueue.removeJob(ArticleSchedulerService.genJobId(articleId));
+
     await this.prisma.article.delete({ where: { id: articleId } });
     return { ok: true };
   }

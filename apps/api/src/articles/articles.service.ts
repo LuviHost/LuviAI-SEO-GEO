@@ -83,6 +83,47 @@ export class ArticlesService {
     return result;
   }
 
+  /**
+   * Mevcut bir SCHEDULED article'ı (veya boş gövdeli herhangi bir article'ı)
+   * şimdi üretime al. Cron'u beklemeden manuel tetikler.
+   */
+  async triggerNow(siteId: string, articleId: string) {
+    const article = await this.prisma.article.findFirst({
+      where: { id: articleId, siteId },
+      include: { site: { include: { user: { select: { id: true } }, publishTargets: { where: { isActive: true, isDefault: true }, select: { id: true } } } } },
+    });
+    if (!article) throw new NotFoundException('Makale bulunamadi');
+
+    // Quota guard
+    await this.quota.enforceArticleQuota(article.site.user.id);
+
+    // Status'u GENERATING'e çek
+    await this.prisma.article.update({
+      where: { id: article.id },
+      data: { status: 'GENERATING' as any },
+    });
+
+    const defaultTargetIds = (article.site as any).publishTargets?.map((t: any) => t.id) ?? [];
+
+    const job = await this.jobQueue.enqueue({
+      type: 'GENERATE_ARTICLE',
+      userId: article.site.user.id,
+      siteId,
+      payload: {
+        siteId,
+        topic: article.topic,
+        articleId: article.id,
+        skipImages: false,
+        autoPublish: defaultTargetIds.length > 0,
+        targetIds: defaultTargetIds,
+      },
+    });
+
+    await this.quota.incrementArticleUsage(article.site.user.id);
+
+    return { ...job, articleId: article.id };
+  }
+
   async queuePublish(siteId: string, articleId: string, targetIds: string[]) {
     const article = await this.prisma.article.findFirst({
       where: { id: articleId, siteId },
