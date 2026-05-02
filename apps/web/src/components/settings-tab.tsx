@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { GoogleAdsOAuthCard, MetaAdsOAuthCard } from '@/components/ads-lab-panel';
+import { AiKeysPanel } from '@/components/ai-keys-panel';
 
 type CatalogField = {
   key: string;
@@ -43,12 +44,23 @@ type Target = {
   lastUsedAt?: string | null;
 };
 
-export function SettingsTab({ siteId, onRefresh }: { siteId: string; onRefresh?: () => void }) {
+// ──────────────────────────────────────────────────────────────────────
+// PUBLISH TARGETS MANAGER — Ayarlar'dan çıkarıldı, İçerik tab'ında render ediliyor
+// (Yayın hedefleri ayar değil, içerik destinasyonudur)
+// ──────────────────────────────────────────────────────────────────────
+export function PublishTargetsManager({
+  siteId,
+  defaultSiteUrl,
+}: {
+  siteId: string;
+  defaultSiteUrl?: string;
+}) {
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
   const [targets, setTargets] = useState<Target[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<Target | null>(null);
   const [adding, setAdding] = useState<CatalogItem | null>(null);
+  const [showCatalog, setShowCatalog] = useState(false);
 
   const refresh = async () => {
     try {
@@ -67,7 +79,21 @@ export function SettingsTab({ siteId, onRefresh }: { siteId: string; onRefresh?:
 
   useEffect(() => {
     refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [siteId]);
+
+  // hash watcher — #publish-targets ile bu section'a scroll
+  useEffect(() => {
+    if (loading) return;
+    if (typeof window === 'undefined') return;
+    const hash = window.location.hash?.replace('#', '');
+    if (!hash) return;
+    const t = setTimeout(() => {
+      const el = document.getElementById(hash);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 120);
+    return () => clearTimeout(t);
+  }, [loading]);
 
   const remove = async (id: string, name: string) => {
     if (!confirm(`"${name}" yayın hedefini silmek istediğine emin misin?`)) return;
@@ -75,9 +101,7 @@ export function SettingsTab({ siteId, onRefresh }: { siteId: string; onRefresh?:
       await api.deletePublishTarget(id);
       toast.success('Yayın hedefi silindi');
       refresh();
-    } catch (err: any) {
-      toast.error(err.message);
-    }
+    } catch (err: any) { toast.error(err.message); }
   };
 
   const setDefault = async (id: string) => {
@@ -85,9 +109,7 @@ export function SettingsTab({ siteId, onRefresh }: { siteId: string; onRefresh?:
       await api.updatePublishTarget(id, { isDefault: true });
       toast.success('Varsayılan hedef güncellendi');
       refresh();
-    } catch (err: any) {
-      toast.error(err.message);
-    }
+    } catch (err: any) { toast.error(err.message); }
   };
 
   const toggleActive = async (target: Target) => {
@@ -95,9 +117,7 @@ export function SettingsTab({ siteId, onRefresh }: { siteId: string; onRefresh?:
       await api.updatePublishTarget(target.id, { isActive: !target.isActive });
       toast.success(target.isActive ? 'Pasifleştirildi' : 'Aktifleştirildi');
       refresh();
-    } catch (err: any) {
-      toast.error(err.message);
-    }
+    } catch (err: any) { toast.error(err.message); }
   };
 
   const test = async (target: Target) => {
@@ -106,9 +126,7 @@ export function SettingsTab({ siteId, onRefresh }: { siteId: string; onRefresh?:
       const res = await api.testPublishTarget(target.id);
       if (res.ok) toast.success(res.message ?? 'Bağlantı başarılı ✓');
       else toast.error(res.message ?? 'Bağlantı başarısız');
-    } catch (err: any) {
-      toast.error(err.message);
-    }
+    } catch (err: any) { toast.error(err.message); }
   };
 
   const catalogByType = useMemo(() => {
@@ -118,11 +136,155 @@ export function SettingsTab({ siteId, onRefresh }: { siteId: string; onRefresh?:
   }, [catalog]);
 
   return (
+    <Card id="publish-targets" className="scroll-mt-24">
+      <CardHeader>
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div>
+            <h2 className="font-semibold">Yayın Hedefleri</h2>
+            <p className="text-xs text-muted-foreground mt-1">
+              Üretilen makaleler buraya yayınlanır. Birden fazla hedef ekleyebilir,
+              bir tanesini varsayılan yapabilirsin.
+            </p>
+          </div>
+          {!loading && targets.length > 0 && !showCatalog && (
+            <Button size="sm" variant="outline" onClick={() => setShowCatalog(true)}>
+              <Plus className="h-4 w-4 mr-1" /> Yeni Hedef
+            </Button>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent className="p-0">
+        {loading ? (
+          <div className="p-6 space-y-3">
+            <Skeleton className="h-12" />
+            <Skeleton className="h-12" />
+          </div>
+        ) : targets.length === 0 && !showCatalog ? (
+          <div className="p-10 text-center border-t">
+            <p className="text-muted-foreground mb-4 text-sm">
+              Henüz yayın hedefi yok.
+            </p>
+            <Button onClick={() => setShowCatalog(true)} size="lg">
+              <Plus className="h-4 w-4 mr-1.5" /> Yayın hedefi ekle
+            </Button>
+          </div>
+        ) : null}
+
+        {!loading && targets.length > 0 && (
+          <ul className="divide-y border-t">
+            {targets.map((t) => {
+              const meta = catalogByType.get(t.type);
+              return (
+                <li
+                  key={t.id}
+                  className="p-4 flex items-center justify-between gap-3 flex-wrap hover:bg-muted/30"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className="text-2xl">{meta?.icon ?? '📤'}</span>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-medium">{t.name}</span>
+                        {t.isDefault && (
+                          <Badge className="text-[10px]">VARSAYILAN</Badge>
+                        )}
+                        {!t.isActive && (
+                          <Badge variant="outline" className="text-[10px]">PASİF</Badge>
+                        )}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {meta?.label ?? t.type}
+                        {t.lastUsedAt && ` · son kullanım ${new Date(t.lastUsedAt).toLocaleDateString('tr-TR')}`}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex gap-1.5 flex-wrap">
+                    <Button size="sm" variant="outline" onClick={() => test(t)}>Test Et</Button>
+                    {!t.isDefault && (
+                      <Button size="sm" variant="outline" onClick={() => setDefault(t.id)} title="Varsayılan yap">
+                        <Star className="h-4 w-4" />
+                      </Button>
+                    )}
+                    <Button size="sm" variant="outline" onClick={() => toggleActive(t)} title={t.isActive ? 'Pasifleştir' : 'Aktifleştir'}>
+                      <Power className="h-4 w-4" />
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => setEditing(t)} title="Düzenle">
+                      <Edit2 className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => remove(t.id, t.name)}
+                      className="text-red-500 hover:bg-red-50 dark:hover:bg-red-950"
+                      title="Sil"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+
+        {/* Catalog — collapse panel, "+ Yeni Hedef" tıklayınca açılır */}
+        {showCatalog && !loading && (
+          <div className="border-t bg-muted/20 p-4 space-y-3">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <div>
+                <p className="text-sm font-semibold">Hedef tipini seç</p>
+                <p className="text-[11px] text-muted-foreground">14 farklı yayın hedefi destekleniyor</p>
+              </div>
+              <Button size="sm" variant="ghost" onClick={() => setShowCatalog(false)}>
+                <XCircle className="h-4 w-4 mr-1" /> Kapat
+              </Button>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+              {catalog.map((c) => (
+                <button
+                  key={c.type}
+                  onClick={() => setAdding(c)}
+                  className="text-left p-3 border rounded-lg bg-card hover:border-brand hover:bg-brand/5 transition-colors flex items-start gap-3"
+                >
+                  <span className="text-2xl shrink-0">{c.icon}</span>
+                  <div className="min-w-0">
+                    <div className="font-medium text-sm">{c.label}</div>
+                    <div className="text-[11px] text-muted-foreground line-clamp-2 leading-snug">
+                      {c.description}
+                    </div>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </CardContent>
+
+      {(adding || editing) && (
+        <TargetForm
+          siteId={siteId}
+          defaultSiteUrl={defaultSiteUrl}
+          catalog={adding ?? catalogByType.get(editing!.type) ?? null}
+          existing={editing}
+          onClose={() => { setAdding(null); setEditing(null); }}
+          onSaved={() => {
+            setAdding(null);
+            setEditing(null);
+            setShowCatalog(false); // form kayıt sonrası catalog'u kapat
+            refresh();
+          }}
+        />
+      )}
+    </Card>
+  );
+}
+
+export function SettingsTab({ siteId, onRefresh }: { siteId: string; onRefresh?: () => void }) {
+  return (
     <div className="space-y-6">
-      <ApprovalModeCard siteId={siteId} onRefresh={onRefresh} />
       <GscConnectionCard siteId={siteId} />
       <Ga4ConnectionCard siteId={siteId} />
       <AdsAccountsCard siteId={siteId} />
+      <AiKeysPanel siteId={siteId} />
 
       <Card id="social-channels">
         <CardHeader>
@@ -138,153 +300,148 @@ export function SettingsTab({ siteId, onRefresh }: { siteId: string; onRefresh?:
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between gap-3 flex-wrap">
-            <div>
-              <h2 className="font-semibold">Yayın Hedefleri</h2>
-              <p className="text-xs text-muted-foreground mt-1">
-                Üretilen makaleler buraya yayınlanır. Birden fazla hedef ekleyebilir,
-                bir tanesini varsayılan yapabilirsin.
-              </p>
-            </div>
-          </div>
-        </CardHeader>
-        <CardContent className="p-0">
-          {loading ? (
-            <div className="p-6 space-y-3">
-              <Skeleton className="h-12" />
-              <Skeleton className="h-12" />
-            </div>
-          ) : targets.length === 0 ? (
-            <div className="p-12 text-center">
-              <p className="text-muted-foreground mb-4 text-sm">
-                Henüz yayın hedefi yok. Aşağıdan birini seçip kurabilirsin.
-              </p>
-            </div>
-          ) : (
-            <ul className="divide-y">
-              {targets.map((t) => {
-                const meta = catalogByType.get(t.type);
-                return (
-                  <li
-                    key={t.id}
-                    className="p-4 flex items-center justify-between gap-3 flex-wrap hover:bg-muted/30"
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <span className="text-2xl">{meta?.icon ?? '📤'}</span>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-medium">{t.name}</span>
-                          {t.isDefault && (
-                            <Badge className="text-[10px]">VARSAYILAN</Badge>
-                          )}
-                          {!t.isActive && (
-                            <Badge variant="outline" className="text-[10px]">PASİF</Badge>
-                          )}
-                        </div>
-                        <div className="text-xs text-muted-foreground">
-                          {meta?.label ?? t.type}
-                          {t.lastUsedAt && ` · son kullanım ${new Date(t.lastUsedAt).toLocaleDateString('tr-TR')}`}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex gap-1.5 flex-wrap">
-                      <Button size="sm" variant="outline" onClick={() => test(t)}>
-                        Test Et
-                      </Button>
-                      {!t.isDefault && (
-                        <Button size="sm" variant="outline" onClick={() => setDefault(t.id)} title="Varsayılan yap">
-                          <Star className="h-4 w-4" />
-                        </Button>
-                      )}
-                      <Button size="sm" variant="outline" onClick={() => toggleActive(t)} title={t.isActive ? 'Pasifleştir' : 'Aktifleştir'}>
-                        <Power className="h-4 w-4" />
-                      </Button>
-                      <Button size="sm" variant="outline" onClick={() => setEditing(t)} title="Düzenle">
-                        <Edit2 className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => remove(t.id, t.name)}
-                        className="text-red-500 hover:bg-red-50 dark:hover:bg-red-950"
-                        title="Sil"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader>
-          <h3 className="font-semibold">Yeni Hedef Ekle</h3>
-          <p className="text-xs text-muted-foreground">14 farklı yayın hedefi destekleniyor</p>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
-            {catalog.map((c) => (
-              <button
-                key={c.type}
-                onClick={() => setAdding(c)}
-                className="text-left p-3 border rounded-lg hover:border-brand hover:bg-brand/5 transition-colors flex items-start gap-3"
-              >
-                <span className="text-2xl shrink-0">{c.icon}</span>
-                <div className="min-w-0">
-                  <div className="font-medium text-sm">{c.label}</div>
-                  <div className="text-[11px] text-muted-foreground line-clamp-2 leading-snug">
-                    {c.description}
-                  </div>
-                </div>
-              </button>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
-      {(adding || editing) && (
-        <TargetForm
-          siteId={siteId}
-          catalog={
-            adding ?? catalogByType.get(editing!.type) ?? null
-          }
-          existing={editing}
-          onClose={() => {
-            setAdding(null);
-            setEditing(null);
-          }}
-          onSaved={() => {
-            setAdding(null);
-            setEditing(null);
-            refresh();
-          }}
-        />
-      )}
     </div>
   );
 }
 
+// Per-target adım adım kurulum rehberi (ilk açıldığında popup'ta gösterilir)
+const TARGET_GUIDES: Record<string, { title: string; steps: string[]; tip?: string }> = {
+  WORDPRESS_REST: {
+    title: 'WordPress (REST API) Kurulumu',
+    steps: [
+      'WordPress yönetici paneline (wp-admin) giriş yap',
+      'Sol menüden Kullanıcılar → Profil ekranına git',
+      'Sayfanın altında "Application Passwords" bölümünü bul',
+      'Etiket olarak "LuviAI" yaz (sadece şifreyi tanımak için, kullanıcı oluşturmaz) → "Add New Application Password" tıkla',
+      'Çıkan xxxx xxxx xxxx xxxx formatlı parolayı kopyala (boşluklarla beraber)',
+      'Bu pencerede: Site URL = sadece domain (örn https://ai.luvihost.com — /wp-admin veya /wp-json EKLEME, backend otomatik ekler. Bağlandığın site varsa otomatik gelir) · Kullanıcı adı = SENİN WP login\'in (admin/email vb., "LuviAI" DEĞİL) · App Password = az önce kopyaladığın 24 haneli parola',
+      '"Yayın durumu": Taslak → sen WP\'de inceleyip yayınlarsın · Yayında → otomatik canlıya çıkar',
+    ],
+    tip: '"LuviAI" sadece şifrenin etiketi — gerçek WP kullanıcısı oluşturmaz. Kullanıcı adı alanına kendi WP login\'ini yaz.',
+  },
+  WORDPRESS_XMLRPC: {
+    title: 'WordPress (XML-RPC) Kurulumu',
+    steps: [
+      'Sadece WP 4.7 öncesi sürümler için — güncel WP\'de REST API kullan',
+      'XML-RPC\'nin açık olduğunu doğrula: wp-admin > Settings > Writing veya plugin gerekebilir',
+      'Site URL = WP site adresin (xmlrpc.php otomatik eklenir)',
+      'Kullanıcı + Şifre = WP login bilgilerin (App Password değil!)',
+    ],
+    tip: 'Güvenlik için modern WP\'de REST API tercih edilir.',
+  },
+  FTP: {
+    title: 'FTP Kurulumu (Static HTML)',
+    steps: [
+      'Hosting sağlayıcının cPanel/Plesk panelinden FTP hesap bilgilerini al',
+      'Host = ftp.alanadi.com (veya server IP)',
+      'Port: 21 (default)',
+      'Kullanıcı + Şifre = FTP hesabın',
+      'Remote path: /public_html/blog gibi makalelerin yükleneceği klasör (önceden oluşturulmuş olmalı)',
+    ],
+    tip: 'Şifrelenmemiş bağlantı — mümkünse SFTP tercih et.',
+  },
+  SFTP: {
+    title: 'SFTP / SSH Kurulumu',
+    steps: [
+      'Sunucunda SSH erişimi olmalı (cPanel SSH Access bölümünden aktif et)',
+      'Host = sunucu IP veya domain',
+      'Port: 22 (default)',
+      'Kullanıcı + Şifre veya Private Key (key tercih edilir)',
+      'Remote path: /home/user/public_html/blog gibi tam path',
+    ],
+    tip: 'Private key kullanıyorsan: ~/.ssh/id_rsa içeriğini yapıştır.',
+  },
+  CPANEL_API: {
+    title: 'cPanel API Kurulumu',
+    steps: [
+      'cPanel hesabına gir → Security → Manage API Tokens',
+      'Yeni token oluştur ("LuviAI" adıyla)',
+      'Host = cpanel.alanadi.com (genelde)',
+      'Kullanıcı = cPanel username',
+      'API Token = az önce kopyaladığın token',
+    ],
+    tip: 'cPanel 11+ gerek. Eski cPanel için FTP/SFTP kullan.',
+  },
+  WEBHOOK: {
+    title: 'Webhook (Custom HTTP)',
+    steps: [
+      'Kendi sunucunda makaleyi alacak bir endpoint hazırla (POST kabul eden)',
+      'URL = https://your-server.com/api/articles',
+      'Secret = endpoint\'in beklediği authorization header (opsiyonel)',
+      'Payload: makale title, slug, body_html, body_md, faqs olarak gelir',
+    ],
+    tip: 'Custom Headless CMS, Notion, Airtable, Webflow için.',
+  },
+  GITHUB_PAGES: {
+    title: 'GitHub Pages Kurulumu',
+    steps: [
+      'GitHub\'da Personal Access Token oluştur (Settings > Developer > Tokens > "repo" izni)',
+      'Owner = GitHub kullanıcı adın',
+      'Repo = pages repo adı (kullanici.github.io)',
+      'Branch = main (veya gh-pages)',
+      'Path = makalenin gideceği klasör (örn /blog)',
+    ],
+    tip: 'Jekyll/Hugo gibi static site generator kullanıyorsan _posts/ path\'ine yaz.',
+  },
+  STATIC_LOCAL: {
+    title: 'Local Static (Bu sunucuya yaz)',
+    steps: [
+      'Makale dosyaları LuviAI sunucusunun /var/www/published/<slug>/ klasörüne yazılır',
+      'Sonradan rsync veya manuel kopyalayabilirsin',
+      'Path = base klasör adı (örn "luvihost")',
+    ],
+    tip: 'Geliştirme veya manuel deploy senaryoları için.',
+  },
+};
+
 function TargetForm({
   siteId,
+  defaultSiteUrl,
   catalog,
   existing,
   onClose,
   onSaved,
 }: {
   siteId: string;
+  defaultSiteUrl?: string;
   catalog: CatalogItem | null;
   existing: Target | null;
   onClose: () => void;
   onSaved: () => void;
 }) {
   const [name, setName] = useState(existing?.name ?? catalog?.label ?? '');
+
+  // Info popup — sadece ilk açılışta (yeni hedef ekleniyorken) ve seen olmamışsa göster
+  const guide = catalog ? TARGET_GUIDES[catalog.type] : null;
+  const seenKey = catalog ? `luviai-target-guide-seen:${catalog.type}` : null;
+  const [showGuide, setShowGuide] = useState(() => {
+    if (!catalog || !guide || existing) return false;
+    if (typeof window === 'undefined') return false;
+    try {
+      return !window.localStorage.getItem(`luviai-target-guide-seen:${catalog.type}`);
+    } catch { return false; }
+  });
+  const dismissGuide = () => {
+    if (seenKey) {
+      try { window.localStorage.setItem(seenKey, '1'); } catch {/* noop */}
+    }
+    setShowGuide(false);
+  };
   const [credentials, setCredentials] = useState<Record<string, string>>({});
+
+  // siteUrl alanını parent site'tan otomatik doldur (yeni hedef için)
+  useEffect(() => {
+    if (existing) return; // mevcut hedefi düzenliyorsa dokunma
+    if (!catalog || !defaultSiteUrl) return;
+    const hasSiteUrlField = catalog.fields.some((f) => f.key === 'siteUrl');
+    if (!hasSiteUrlField) return;
+    setCredentials((prev) => {
+      if (prev.siteUrl) return prev; // user zaten yazdıysa override etme
+      return { ...prev, siteUrl: defaultSiteUrl };
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [catalog?.type, defaultSiteUrl]);
+
   const [config, setConfig] = useState<Record<string, string>>(() => {
     const initial: Record<string, string> = {};
     if (existing?.config) {
@@ -379,12 +536,86 @@ function TargetForm({
                 <p className="text-xs text-muted-foreground">{catalog.description}</p>
               </div>
             </div>
-            <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
-              <XCircle className="h-5 w-5" />
-            </button>
+            <div className="flex items-center gap-1.5">
+              {guide && (
+                <button
+                  type="button"
+                  onClick={() => setShowGuide(true)}
+                  className="text-xs px-2.5 py-1 rounded-full border border-brand/30 bg-brand/5 text-brand hover:bg-brand/10 transition-colors inline-flex items-center gap-1"
+                  title="Adım adım rehber"
+                >
+                  <Activity className="h-3 w-3" /> Rehber
+                </button>
+              )}
+              <button onClick={onClose} className="text-muted-foreground hover:text-foreground">
+                <XCircle className="h-5 w-5" />
+              </button>
+            </div>
           </div>
         </CardHeader>
-        <CardContent className="space-y-4 overflow-y-auto flex-1">
+        <CardContent className="space-y-4 overflow-y-auto flex-1 relative">
+          {/* Step-by-step rehber overlay — ilk açılışta otomatik */}
+          {showGuide && guide && (
+            <div
+              className="absolute inset-0 z-10 bg-card/95 backdrop-blur-sm overflow-y-auto p-5 animate-[fadeInUp_320ms_ease-out]"
+              style={{ animation: 'fadeInUp 320ms ease-out' }}
+            >
+              <style>{`@keyframes fadeInUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } } @keyframes stepIn { from { opacity: 0; transform: translateX(-12px); } to { opacity: 1; transform: translateX(0); } }`}</style>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl">{catalog.icon}</span>
+                  <div>
+                    <p className="font-bold text-sm">{guide.title}</p>
+                    <p className="text-[11px] text-muted-foreground">Adım adım kurulum</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={dismissGuide}
+                  className="text-muted-foreground hover:text-foreground text-xs"
+                  title="Kapat"
+                >
+                  <XCircle className="h-5 w-5" />
+                </button>
+              </div>
+
+              <ol className="space-y-2.5 mb-4">
+                {guide.steps.map((step, i) => (
+                  <li
+                    key={i}
+                    className="flex items-start gap-3"
+                    style={{
+                      animation: `stepIn 360ms ease-out ${i * 80}ms both`,
+                    }}
+                  >
+                    <span className="grid place-items-center h-6 w-6 rounded-full bg-brand text-white text-[11px] font-bold shrink-0">
+                      {i + 1}
+                    </span>
+                    <span className="text-sm leading-relaxed text-foreground/90 pt-0.5">{step}</span>
+                  </li>
+                ))}
+              </ol>
+
+              {guide.tip && (
+                <div
+                  className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-400 mb-4"
+                  style={{ animation: `stepIn 360ms ease-out ${guide.steps.length * 80}ms both` }}
+                >
+                  💡 <strong>İpucu:</strong> {guide.tip}
+                </div>
+              )}
+
+              <div className="flex items-center justify-end gap-2">
+                <Button variant="outline" size="sm" onClick={dismissGuide}>
+                  Atla
+                </Button>
+                <Button size="sm" onClick={dismissGuide}>
+                  Anladım, devam et →
+                </Button>
+              </div>
+            </div>
+          )}
+
           <div>
             <label className="block text-xs font-medium mb-1">Hedef adı *</label>
             <Input

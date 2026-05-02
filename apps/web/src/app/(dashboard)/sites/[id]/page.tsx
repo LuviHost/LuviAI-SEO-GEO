@@ -7,18 +7,18 @@ import { ArrowLeft, ExternalLink, Activity, FileText, BarChart3, Film, Clipboard
 import { api } from "@/lib/api";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AnalyticsTab } from "@/components/analytics-tab";
-import { SettingsTab } from "@/components/settings-tab";
+import { SettingsTab, PublishTargetsManager } from "@/components/settings-tab";
 import { VideoLab } from "@/components/video-lab";
-import { SiteOverviewDashboard } from "@/components/site-overview-dashboard";
+import { SiteOverviewDashboard, AutopilotControl } from "@/components/site-overview-dashboard";
 import { SiteReportPanel } from "@/components/site-report-panel";
 import {
   AuditStepBody,
   CompetitorsStepBody,
-  TopicsStepBody,
-  ArticlesStepBody,
   CitationPanel,
   SnippetPanel,
+  ContentCalendarPanel,
 } from "@/components/site-flow-stepper";
+import { ContentFlowTable } from "@/components/content-flow-table";
 
 /**
  * Operations Panel — Faz 2 daily-use UI.
@@ -239,31 +239,41 @@ function ContentTab({
 }) {
   return (
     <div className="space-y-8">
+      {/* Otomatik akış kontrolü — Sağlık'tan taşındı (yayın akışı = içerik kontrolü) */}
       <section>
-        <SectionHeader
-          title="Onerilen Konular"
-          subtitle="AI topic engine taraf indan uretilen makale onerileri. Surukleyerek takvime al."
-          icon={FileText}
+        <AutopilotControl site={site} onRefresh={onRefresh} />
+      </section>
+
+      {/* Yayın Hedefleri — içerik destinasyonu */}
+      <section>
+        <PublishTargetsManager siteId={siteId} defaultSiteUrl={site?.url} />
+      </section>
+
+      {/* İçerik Takvimi — sadece scheduledAt'i geçerli olan SCHEDULED makaleler */}
+      <section>
+        <ContentCalendarPanel
+          siteId={siteId}
+          scheduled={(articles ?? []).filter((a: any) => {
+            if (a?.status !== 'SCHEDULED') return false;
+            if (!a?.scheduledAt) return false;
+            const d = new Date(a.scheduledAt);
+            return !isNaN(d.getTime());
+          })}
+          otherArticlesCount={
+            (articles ?? []).filter((a: any) => a?.status && a.status !== 'SCHEDULED').length
+          }
+          onChanged={onRefresh}
         />
-        <TopicsStepBody
+      </section>
+
+      {/* İçerik Akışı — birleşik tablo: önerilen konular + üretilen makaleler tek listede */}
+      <section>
+        <ContentFlowTable
           queue={queue}
           articles={articles}
           siteId={siteId}
           onRefresh={onRefresh}
           onboardingMode={onboardingMode}
-        />
-      </section>
-
-      <section>
-        <SectionHeader
-          title="Makaleler & Takvim"
-          subtitle="Uretilen ve planlanmis makaleler. Takvimde sosyal kanal toggle u var."
-          icon={ClipboardList}
-        />
-        <ArticlesStepBody
-          articles={articles}
-          siteId={siteId}
-          onRefresh={onRefresh}
         />
       </section>
     </div>
