@@ -1,11 +1,73 @@
 'use client';
+import { useEffect, useState } from 'react';
+import { toast } from 'sonner';
 import { useSiteContext } from '../site-context';
 import { ContentCalendarPanel } from '@/components/site-flow-stepper';
 import { EmptyState, RelatedLinks } from '@/components/empty-state';
 import { Calendar, Sparkles, FileText } from 'lucide-react';
+import { api } from '@/lib/api';
 
 export default function CalendarPage() {
   const { site, articles, refresh } = useSiteContext();
+
+  // Sosyal kanal listesi (kullanıcının bağladıkları)
+  const [socialChannels, setSocialChannels] = useState<any[]>([]);
+  // Per-article social pre-plan: hangi makalede hangi kanalda paylaşılacak
+  const [articlePrePlan, setArticlePrePlan] = useState<Record<string, Set<string> | null>>({});
+
+  useEffect(() => {
+    let cancelled = false;
+    api.listSocialChannels(site.id)
+      .then((rows) => {
+        if (!cancelled) setSocialChannels(Array.isArray(rows) ? rows.filter((c: any) => c?.isActive) : []);
+      })
+      .catch(() => { if (!cancelled) setSocialChannels([]); });
+    return () => { cancelled = true; };
+  }, [site.id]);
+
+  useEffect(() => {
+    setArticlePrePlan((prev) => {
+      const next = { ...prev };
+      for (const a of (articles ?? [])) {
+        if (next[a.id] !== undefined) continue;
+        const raw = (a as any).socialPrePlanChannelIds;
+        next[a.id] = Array.isArray(raw) ? new Set<string>(raw as string[]) : null;
+      }
+      return next;
+    });
+  }, [articles]);
+
+  const isChannelEnabledForArticle = (articleId: string, channelId: string): boolean => {
+    const cur = articlePrePlan[articleId];
+    if (cur === undefined || cur === null) return true;
+    return cur.has(channelId);
+  };
+
+  const toggleChannelForArticle = async (articleId: string, channelId: string, articleTitle?: string) => {
+    const allActive = socialChannels.map((c) => c.id);
+    const cur = articlePrePlan[articleId];
+    const set = cur ? new Set(cur) : new Set<string>(allActive);
+    if (set.has(channelId)) set.delete(channelId);
+    else set.add(channelId);
+
+    setArticlePrePlan((prev) => ({ ...prev, [articleId]: set }));
+
+    const arr = Array.from(set);
+    const isAll = arr.length === allActive.length && allActive.every((id) => arr.includes(id));
+    try {
+      await api.setArticleSocialPrePlan(site.id, articleId, isAll ? null : arr);
+      const ch = socialChannels.find((c) => c.id === channelId);
+      const channelName = (ch?.type ?? 'kanal').toUpperCase();
+      const tShort = (articleTitle ?? '').slice(0, 40) + ((articleTitle ?? '').length > 40 ? '…' : '');
+      const titlePart = tShort ? `"${tShort}" → ` : '';
+      toast.success(set.has(channelId)
+        ? `${titlePart}${channelName}'da paylaşılacak`
+        : `${titlePart}${channelName}'dan kaldırıldı`);
+    } catch (err: any) {
+      toast.error(err.message || 'Kanal tercihi kaydedilemedi');
+    }
+  };
+
   const scheduled = (articles ?? []).filter((a: any) => {
     if (a?.status !== 'SCHEDULED') return false;
     if (!a?.scheduledAt) return false;
@@ -13,6 +75,7 @@ export default function CalendarPage() {
     return !isNaN(d.getTime());
   });
   const otherCount = (articles ?? []).filter((a: any) => a?.status && a.status !== 'SCHEDULED').length;
+
   return (
     <div className="space-y-5">
       <div className="flex items-start gap-3">
@@ -39,6 +102,9 @@ export default function CalendarPage() {
           scheduled={scheduled}
           otherArticlesCount={otherCount}
           onChanged={refresh}
+          socialChannels={socialChannels}
+          isChannelEnabledForArticle={isChannelEnabledForArticle}
+          toggleChannelForArticle={toggleChannelForArticle}
         />
       )}
       <RelatedLinks

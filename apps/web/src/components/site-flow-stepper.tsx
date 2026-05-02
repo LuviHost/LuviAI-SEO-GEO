@@ -41,6 +41,8 @@ function getChannelMeta(type: string): {
   shortName: string;
   shareLabel: string;
   brandClass: string;
+  /** Simple Icons CDN slug — kanalın gerçek brand SVG'si */
+  cdnSlug?: string;
 } {
   const t = (type || '').toUpperCase();
   if (t.startsWith('LINKEDIN')) {
@@ -49,6 +51,7 @@ function getChannelMeta(type: string): {
       shortName: 'LinkedIn',
       shareLabel: "LinkedIn'de paylaşılsın",
       brandClass: 'text-[#0A66C2]',
+      cdnSlug: 'linkedin/0A66C2',
     };
   }
   if (t.startsWith('X_') || t === 'X' || t.startsWith('TWITTER')) {
@@ -57,6 +60,7 @@ function getChannelMeta(type: string): {
       shortName: 'X',
       shareLabel: "X'te (Twitter) paylaşılsın",
       brandClass: 'text-foreground',
+      cdnSlug: 'x/000000',
     };
   }
   if (t.startsWith('INSTAGRAM')) {
@@ -65,6 +69,7 @@ function getChannelMeta(type: string): {
       shortName: 'Instagram',
       shareLabel: "Instagram'da paylaşılsın",
       brandClass: 'text-[#E4405F]',
+      cdnSlug: 'instagram/E4405F',
     };
   }
   if (t.startsWith('FACEBOOK')) {
@@ -73,6 +78,7 @@ function getChannelMeta(type: string): {
       shortName: 'Facebook',
       shareLabel: "Facebook'ta paylaşılsın",
       brandClass: 'text-[#1877F2]',
+      cdnSlug: 'facebook/1877F2',
     };
   }
   if (t.startsWith('YOUTUBE')) {
@@ -81,6 +87,16 @@ function getChannelMeta(type: string): {
       shortName: 'YouTube',
       shareLabel: "YouTube'da paylaşılsın",
       brandClass: 'text-[#FF0000]',
+      cdnSlug: 'youtube/FF0000',
+    };
+  }
+  if (t.startsWith('TIKTOK')) {
+    return {
+      Icon: GlobeIcon,
+      shortName: 'TikTok',
+      shareLabel: "TikTok'ta paylaşılsın",
+      brandClass: 'text-foreground',
+      cdnSlug: 'tiktok/000000',
     };
   }
   return {
@@ -89,6 +105,37 @@ function getChannelMeta(type: string): {
     shareLabel: "Bu kanalda paylaşılsın",
     brandClass: 'text-muted-foreground',
   };
+}
+
+/** Sosyal kanal logosu — gerçek brand SVG (Simple Icons CDN, CC0).
+ *  CDN ulaşılamazsa Lucide ikon fallback'i. */
+function SocialBrandIcon({
+  meta,
+  size = 12,
+  active = true,
+}: {
+  meta: ReturnType<typeof getChannelMeta>;
+  size?: number;
+  active?: boolean;
+}) {
+  if (meta.cdnSlug) {
+    return (
+      <img
+        src={`https://cdn.simpleicons.org/${meta.cdnSlug}`}
+        alt={meta.shortName}
+        width={size}
+        height={size}
+        loading="lazy"
+        className={active ? '' : 'opacity-50 grayscale'}
+        onError={(e) => {
+          const img = e.currentTarget;
+          img.style.display = 'none';
+        }}
+      />
+    );
+  }
+  const Icon = meta.Icon;
+  return <Icon className={`${active ? meta.brandClass : 'text-muted-foreground/50'}`} style={{ width: size, height: size }} />;
 }
 
 export function SiteFlowStepper({
@@ -1928,7 +1975,6 @@ export function ArticlesStepBody({
                   {socialChannels.map((ch: any) => {
                     const on = isChannelOn(a.id, ch.id);
                     const meta = getChannelMeta(ch.type ?? '');
-                    const Icon = meta.Icon;
                     return (
                       <button
                         key={ch.id}
@@ -1945,7 +1991,7 @@ export function ArticlesStepBody({
                             : 'bg-muted border-muted-foreground/20 text-muted-foreground/60 hover:bg-muted/80 line-through'
                         }`}
                       >
-                        <Icon className={`h-3 w-3 ${on ? meta.brandClass : ''}`} />
+                        <SocialBrandIcon meta={meta} size={12} active={on} />
                         {on ? meta.shareLabel : `${meta.shortName} kapalı`}
                       </button>
                     );
@@ -2183,19 +2229,19 @@ export function ContentCalendarPanel({
 
       {socialChannels.length === 0 && (
         <Link
-          href={`/sites/${siteId}?tab=settings#social-channels` as any}
+          href={`/sites/${siteId}/connections` as any}
           className="flex items-center justify-between gap-3 mb-3 rounded-md border border-amber-500/40 bg-gradient-to-r from-amber-500/10 to-amber-500/5 px-3 py-2.5 hover:from-amber-500/15 hover:to-amber-500/10 transition-colors group"
         >
           <div className="flex items-center gap-3 min-w-0">
             <div className="flex -space-x-1.5">
               <span className="inline-flex items-center justify-center h-7 w-7 rounded-full bg-background border border-amber-500/30 ring-2 ring-amber-500/5">
-                <LinkedinIcon className="h-3.5 w-3.5 text-muted-foreground/60" />
+                <SocialBrandIcon meta={getChannelMeta('LINKEDIN')} size={14} active={false} />
               </span>
               <span className="inline-flex items-center justify-center h-7 w-7 rounded-full bg-background border border-amber-500/30 ring-2 ring-amber-500/5">
-                <TwitterIcon className="h-3.5 w-3.5 text-muted-foreground/60" />
+                <SocialBrandIcon meta={getChannelMeta('X')} size={14} active={false} />
               </span>
               <span className="inline-flex items-center justify-center h-7 w-7 rounded-full bg-background border border-amber-500/30 ring-2 ring-amber-500/5">
-                <InstagramIcon className="h-3.5 w-3.5 text-muted-foreground/60" />
+                <SocialBrandIcon meta={getChannelMeta('INSTAGRAM')} size={14} active={false} />
               </span>
             </div>
             <div className="min-w-0">
@@ -2300,7 +2346,6 @@ export function ContentCalendarPanel({
                         {socialChannels.map((ch: any) => {
                           const on = isChannelEnabledForArticle ? isChannelEnabledForArticle(a.id, ch.id) : true;
                           const meta = getChannelMeta(ch.type ?? '');
-                          const Icon = meta.Icon;
                           return (
                             <button
                               key={ch.id}
@@ -2310,26 +2355,42 @@ export function ContentCalendarPanel({
                               title={`${meta.shortName}: ${on ? 'paylaşımdan kaldır' : 'paylaşıma ekle'}`}
                               className={`inline-flex items-center justify-center h-5 w-5 rounded border transition-colors ${
                                 on
-                                  ? `bg-emerald-500/15 border-emerald-500/40 ${meta.brandClass} hover:bg-emerald-500/25`
-                                  : 'bg-muted border-muted-foreground/20 text-muted-foreground/40 hover:bg-muted/80 opacity-60'
+                                  ? `bg-emerald-500/15 border-emerald-500/40 hover:bg-emerald-500/25`
+                                  : 'bg-muted border-muted-foreground/20 hover:bg-muted/80'
                               }`}
                               aria-label={meta.shortName}
                             >
-                              <Icon className="h-3 w-3" />
+                              <SocialBrandIcon meta={meta} size={12} active={on} />
                             </button>
                           );
                         })}
                       </div>
                     ) : (
-                      // Aktif sosyal kanal yok — hücrede minimal gri ikon stack.
-                      // Detayli CTA banner zaten takvimin ustunde; burda kalabalik yapmasin.
-                      <div className="flex gap-0.5 mt-1 opacity-50" aria-label="Sosyal medya kanalı yok">
-                        <span className="inline-flex h-4 w-4 items-center justify-center rounded border border-dashed border-muted-foreground/30">
-                          <LinkedinIcon className="h-2.5 w-2.5 text-muted-foreground/50" />
-                        </span>
-                        <span className="inline-flex h-4 w-4 items-center justify-center rounded border border-dashed border-muted-foreground/30">
-                          <TwitterIcon className="h-2.5 w-2.5 text-muted-foreground/50" />
-                        </span>
+                      // Aktif sosyal kanal yok — tıklanabilir CTA (bağlantılar sayfasına yönlendir)
+                      <div
+                        className="flex gap-0.5 mt-1"
+                        onClick={(e) => e.stopPropagation()}
+                        draggable={false}
+                      >
+                        {[
+                          { type: 'LINKEDIN', label: "LinkedIn'i bağla" },
+                          { type: 'X', label: 'X (Twitter) bağla' },
+                        ].map((item) => {
+                          const meta = getChannelMeta(item.type);
+                          return (
+                            <a
+                              key={item.type}
+                              href={`/sites/${siteId}/connections`}
+                              onClick={(e) => e.stopPropagation()}
+                              draggable={false}
+                              title={item.label}
+                              className="inline-flex h-5 w-5 items-center justify-center rounded border border-dashed border-muted-foreground/40 hover:border-emerald-500/60 hover:bg-emerald-500/10 transition-colors"
+                              aria-label={item.label}
+                            >
+                              <SocialBrandIcon meta={meta} size={11} active={false} />
+                            </a>
+                          );
+                        })}
                       </div>
                     )}
                   </div>
