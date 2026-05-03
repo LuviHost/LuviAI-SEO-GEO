@@ -257,6 +257,44 @@ export const SETTINGS_CATALOG: SettingMeta[] = [
     envFallback: true,
     enumValues: ['gemini', 'dalle', 'midjourney', 'none'],
   },
+
+  // ── Faz B+C: Cost guard, mock pipeline, fallback chain ─────────
+  {
+    key: 'MOCK_PIPELINE_DEFAULT',
+    type: 'boolean',
+    category: 'toggle',
+    default: '0',
+    description: 'TEST: 1 = Yeni makale uretiminde gercek AI cagrisi yapilmaz, mock veri donulur. Demo, gelistirme, ucretsiz onboarding icin. AI_GLOBAL_DISABLED ile farkli: bu sadece pipeline icin, single chat hala calisir.',
+    envFallback: true,
+    hot: true,
+  },
+  {
+    key: 'PROMPT_CACHE_ENABLED',
+    type: 'boolean',
+    category: 'toggle',
+    default: '1',
+    description: 'Anthropic prompt cache (cache_control: ephemeral). Brain context tekrar tekrar ayni gonderildigi icin %90 indirim saglar. Sadece debug icin kapatilmali.',
+    envFallback: true,
+  },
+  {
+    key: 'MONTHLY_SPEND_LIMIT_USD',
+    type: 'int',
+    category: 'limit',
+    default: '100',
+    description: 'Cost guard: Aylik AI maliyeti USD cinsinden bu limiti asarsa tum AI cagrilari durur (TokenUsageRecord toplamina bakar). 0 = limit yok.',
+    envFallback: true,
+    hot: true,
+  },
+  {
+    key: 'LLM_FALLBACK_CHAIN',
+    type: 'enum',
+    category: 'model',
+    default: 'anthropic-only',
+    description: 'Provider fallback stratejisi. anthropic-only: sadece Claude (rate limit / kredi tukenince hata). anthropic-then-deepseek: Claude basarisiz olursa DeepSeek dener (20x ucuz). anthropic-then-gemini: Gemini fallback. all: anthropic -> deepseek -> gemini siralamasi.',
+    envFallback: true,
+    enumValues: ['anthropic-only', 'anthropic-then-deepseek', 'anthropic-then-gemini', 'all'],
+    hot: true,
+  },
 ];
 
 export const SETTINGS_KEYS = SETTINGS_CATALOG.map((s) => s.key);

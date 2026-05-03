@@ -7,7 +7,7 @@
  * geçecek. Tek noktadan provider seçimi + token spend kaydı + cost guard.
  */
 
-export type ProviderName = 'anthropic' | 'openai' | 'gemini';
+export type ProviderName = 'anthropic' | 'openai' | 'gemini' | 'deepseek';
 export type TokenType = 'prompt' | 'completion' | 'cache_read' | 'cache_write';
 
 export interface ChatMessage {
