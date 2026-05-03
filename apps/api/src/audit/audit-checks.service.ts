@@ -154,17 +154,14 @@ export class AuditChecksService {
     const samples: any[] = [];
 
     for (const page of c.pages) {
-      // Sayfa text'inde "application/ld+json" arama yapamıyoruz çünkü
-      // Crawler sadece text içeriği saklıyor — bunu ileride detaylı parse'da
-      // çözeriz. Şimdilik basit kontrol: cheerio ile orijinal HTML üzerinden
-      // çağırılıyor olsaydı buradan extract ederdik. Faz 1'de heuristic:
-      // textSample içinde "@type" geçiyorsa schema var sayalım.
-      if (page.textSample.includes('@type')) {
+      // Crawler her sayfa için JSON-LD bloklarını parse edip schemaTypes[] olarak saklıyor
+      const types = page.schemaTypes ?? [];
+      if (types.length > 0) {
         pagesWithSchema++;
-        if (page.textSample.includes('"Article"') || page.textSample.includes('"BlogPosting"')) {
+        if (types.some(t => t === 'Article' || t === 'BlogPosting' || t === 'NewsArticle')) {
           pagesWithArticle++;
         }
-        if (page.textSample.includes('"BreadcrumbList"')) {
+        if (types.includes('BreadcrumbList')) {
           pagesWithBreadcrumb++;
         }
       }
@@ -292,7 +289,9 @@ export class AuditChecksService {
     const issues: AuditIssue[] = [];
     let pagesWithOg = 0;
     for (const p of c.pages) {
-      if (p.textSample.includes('og:title') || p.textSample.includes('og:image')) pagesWithOg++;
+      const og = p.ogTags ?? {};
+      // En az og:title VEYA og:image varsa "OG var" sayalım
+      if (og['og:title'] || og['og:image']) pagesWithOg++;
     }
     const total = c.pages.length;
     const coverage = total > 0 ? (pagesWithOg / total) * 100 : 0;
@@ -315,7 +314,10 @@ export class AuditChecksService {
   // ───────────────────────────────────────────────────────────
   private checkTwitterCard(c: CrawlResult): CheckResult {
     let count = 0;
-    for (const p of c.pages) if (p.textSample.includes('twitter:card')) count++;
+    for (const p of c.pages) {
+      const tw = p.twitterTags ?? {};
+      if (tw['twitter:card']) count++;
+    }
     const total = c.pages.length;
     const coverage = total > 0 ? (count / total) * 100 : 0;
     return {
@@ -335,7 +337,9 @@ export class AuditChecksService {
   // ───────────────────────────────────────────────────────────
   private checkCanonical(c: CrawlResult): CheckResult {
     let count = 0;
-    for (const p of c.pages) if (p.textSample.includes('rel="canonical"') || p.textSample.includes("rel='canonical'")) count++;
+    for (const p of c.pages) {
+      if (p.canonical) count++;
+    }
     const total = c.pages.length;
     const coverage = total > 0 ? (count / total) * 100 : 0;
     return {
@@ -411,16 +415,46 @@ export class AuditChecksService {
   //  12. Image alt text
   // ───────────────────────────────────────────────────────────
   private checkImageAltText(c: CrawlResult): CheckResult {
-    // textSample'da img alt heuristic kontrolü mümkün değil — ileride
-    // crawler bunu da output'a eklesin. Şimdilik info-level pass.
+    let totalImages = 0;
+    let withAlt = 0;
+    let emptyAlt = 0;
+    let pagesScanned = 0;
+
+    for (const p of c.pages) {
+      const stats = p.imageAltStats;
+      if (!stats) continue;
+      pagesScanned++;
+      totalImages += stats.total;
+      withAlt += stats.withAlt;
+      emptyAlt += stats.emptyAlt;
+    }
+
+    if (totalImages === 0) {
+      return {
+        id: 'image_alt', name: 'Image alt text',
+        found: true, valid: true, score: 100,
+        issues: [],
+        details: { totalImages: 0, withAlt: 0, emptyAlt: 0 },
+      };
+    }
+
+    const coverage = (withAlt / totalImages) * 100;
+    const issues: AuditIssue[] = [];
+    const missing = totalImages - withAlt - emptyAlt;
+    if (coverage < 80) {
+      issues.push({
+        severity: missing > totalImages * 0.5 ? 'warning' : 'info',
+        type: 'image_alt_low',
+        description: `${totalImages} resimden ${withAlt}'sinde alt text var (${coverage.toFixed(0)}% kapsama). Erişilebilirlik + SEO için 90%+ hedefle.`,
+        fixable: false,
+      });
+    }
+
     return {
       id: 'image_alt', name: 'Image alt text',
-      found: true, valid: true, score: 75,
-      issues: [{
-        severity: 'info', type: 'alt_check_partial',
-        description: 'Image alt kapsamı detaylı kontrol için manual review gerekir',
-        fixable: false,
-      }],
+      found: withAlt > 0, valid: coverage >= 90,
+      score: Math.round(coverage), issues,
+      details: { totalImages, withAlt, emptyAlt, missing, pagesScanned },
     };
   }
 
@@ -458,7 +492,7 @@ export class AuditChecksService {
   // ───────────────────────────────────────────────────────────
   private checkHreflang(c: CrawlResult): CheckResult {
     let count = 0;
-    for (const p of c.pages) if (p.textSample.includes('hreflang')) count++;
+    for (const p of c.pages) if (p.hreflangs && p.hreflangs.length > 0) count++;
     // Hreflang sadece multi-language siteler icin gereklidir.
     // Tek dilli sitelerde "yok" olmasi normal — score 100 ve found:true ile "uygulanmiyor" anlamini verelim
     // boylece UI'da "YOK" yerine "VAR" yesil rozeti goruntulenir.
