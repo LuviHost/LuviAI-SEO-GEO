@@ -82,6 +82,14 @@ export const metadata: Metadata = {
     apple: '/apple-touch-icon.png',
   },
   category: 'technology',
+  // Search Console / Webmaster verification — gerçek tokenları .env'den oku
+  verification: {
+    google: process.env.NEXT_PUBLIC_GSC_VERIFICATION,
+    other: {
+      'msvalidate.01': process.env.NEXT_PUBLIC_BING_VERIFICATION ?? '',
+      'yandex-verification': process.env.NEXT_PUBLIC_YANDEX_VERIFICATION ?? '',
+    },
+  },
 };
 
 export const viewport: Viewport = {

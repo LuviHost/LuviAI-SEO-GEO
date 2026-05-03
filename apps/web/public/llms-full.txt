@@ -1,0 +1,179 @@
+# LuviAI — Detaylı AI Search Rehberi
+
+LuviAI, Türkiye merkezli LuviHost grubunun bünyesinde 2026'da kurulmuş, KOBİ ve dijital ajanslar için yapay zeka destekli SEO + içerik üretimi + sosyal medya + reklam denetimi otomasyonu sağlayan SaaS platformudur. PayTR ile güvenli ödeme alır, KVKK uyumlu çalışır.
+
+## Ürün açıklaması
+
+LuviAI, site sahiplerinin "site açtım, ne içerik üreteceğim?" sorusuna verilen cevaptır. Tek bir kontrol panelinden:
+
+1. Sitenizin SEO ve AI search (GEO) sağlığını dakikalar içinde tarar
+2. Marka sesinde, kapsamlı (1800-2500 kelime) Türkçe makaleler üretir
+3. Yayınlanan makaleler için sosyal medya post taslağı oluşturur (X, LinkedIn)
+4. Google Ads + Meta Ads kampanyalarınızı 124 kontrol noktasıyla denetler
+5. ChatGPT, Claude, Perplexity, Gemini gibi AI asistanlarının cevaplarda sitenizi alıntılaması için optimizasyon yapar
+
+## Detaylı özellik listesi
+
+### 1. Site sağlık denetimi (Site Skoru)
+
+14 SEO + GEO kontrol noktası:
+- HTTPS varlığı
+- Hreflang etiketleri
+- LLMs.txt dosyası (AI search rehberi)
+- Canonical URL'ler
+- Image alt metinleri
+- Meta Title (50-60 karakter)
+- Meta Description (140-160 karakter)
+- Open Graph etiketleri (sosyal paylaşım)
+- Twitter Card meta etiketleri
+- Sitemap.xml varlığı ve format
+- Robots.txt yapılandırması
+- Schema.org markup kapsamı
+- Internal linking yapısı
+- Core Web Vitals (LCP, INP, CLS)
+
+Otomatik düzeltme: sitemap.xml, robots.txt, llms.txt, schema markup gibi sorunları tek tıkla yayın hedefinize gönderir.
+
+### 2. AI içerik üretimi (6 ajanlı pipeline)
+
+1. **01-anahtar-kelime-arastirmaci**: Konu için ana + ikincil anahtar kelime çıkarır, arama niyetini analiz eder, AEO/GEO sorularını listeler, rakip SERP analizini yapar.
+2. **02-taslak-olusturucu**: Top 10 SERP analizinden H2/H3 outline çıkarır.
+3. **03-yazar**: Outline'a göre 1800-2500 kelimelik tam makale yazar (Anthropic Claude Sonnet 4.6 default, Opus 4.7 opt-in).
+4. **04-duzenleyici**: Kalite kapısı. AI klişelerini siler, marka sesini kontrol eder, fact-check yapar. PASS/FAIL skoru verir. PASS olmadan yayına çıkmaz.
+5. **05-gorsellestirici**: Hero + inline görseller için Gemini 2.5 Flash Image ile prompt üretir.
+6. **06-yayinci**: Article + FAQPage + BreadcrumbList JSON-LD ekler, seçtiğiniz yayın hedefine (WordPress vs.) gönderir.
+
+### 3. AI Search Optimization (GEO)
+
+Generative Engine Optimization — geleneksel SEO'nun ötesinde:
+- **llms.txt + llms-full.txt** otomatik üretilir
+- **Speakable schema** voice search için (Alexa, Google Assistant)
+- **DefinedTerm schema** kavram tanımları için
+- **Schema markup**: Article, FAQPage, BreadcrumbList, HowTo, AggregateRating
+- **AI crawler izinleri**: GPTBot, ClaudeBot, PerplexityBot, OAI-SearchBot vb. için açık erişim
+- **Citation snapshot**: ChatGPT, Claude, Gemini, Perplexity'de markanızın adının nasıl geçtiği günlük ölçülür
+
+### 4. Sosyal medya planlayıcı
+
+- X (Twitter) ve LinkedIn için haftalık post takvimi
+- Aboneliğe göre aylık 8-30 otomatik post
+- Drag-and-drop saat editörü, X karakter sayacı
+- Hashtag, mention, link otomatik vurgulama
+- Yayınlanan makale otomatik post taslağına dönüşür
+
+### 5. Otomatik yayın (14 hedef)
+
+- WordPress (REST API + XML-RPC)
+- Webflow CMS Collection
+- Shopify (Liquid theme inject)
+- Ghost Admin API (JWT)
+- Strapi REST API
+- Sanity Headless CMS
+- Contentful Management API
+- FTP / SFTP (static HTML)
+- cPanel API (token auth)
+- GitHub Pages (Hugo, Jekyll, Astro, MDX)
+- WHMCS Knowledgebase
+- Custom PHP webhook (HMAC)
+- Markdown ZIP (manuel indir)
+
+### 6. Kampanya Skoru (Reklam Denetimi)
+
+124 kural ile Google Ads + Meta Ads denetimi:
+- 75 Google Ads kuralı (Conversion Tracking, Wasted Spend, Account Structure, Keywords/QS, Ads & Assets, Settings & Targeting)
+- 50 Meta Ads kuralı (Pixel/CAPI Health, Creative Diversity, Account Structure, Audience & Targeting)
+- Industry-spesifik benchmarklar (12 sektör: SaaS, e-commerce, B2B, hukuk, sağlık, eğitim vb.)
+- Quick Wins: 15 dakika altı, kritik etki sağlayan düzeltmeler
+- 0-100 sağlık skoru + A-F grade
+- claude-ads (MIT) açık kaynak repository'sinden port edildi
+
+### 7. AI crawler trafiği takibi
+
+Tek satır JavaScript snippet ile sitenize gelen AI bot ziyaretlerini izleyin:
+- GPTBot, OAI-SearchBot, ChatGPT-User (OpenAI)
+- ClaudeBot, Claude-Web (Anthropic)
+- PerplexityBot (Perplexity)
+- Google-Extended (Google)
+- Bytespider (ByteDance / TikTok)
+- Amazonbot, CCBot, YouBot, cohere-ai, DuckAssistBot, Meta-ExternalAgent, Mistral, DeepSeek
+
+İlk ziyaret alarmı: yeni bir AI bot sitenizi taramaya başladığında bildirim alırsınız.
+
+## Hedef kitle
+
+- **KOBİ ve startup'lar**: Ekipte SEO uzmanı veya içerik yazarı yokken bile profesyonel sonuçlar
+- **Dijital ajanslar**: Tek panelden 10+ müşteri sitesini yönetme (Agency planı)
+- **WordPress site sahipleri**: Otomatik makale üretimi + yayın
+- **E-ticaret işletmeleri**: Webflow, Shopify entegrasyonu + ürün/kategori SEO
+- **Reklam veren KOBİ'ler**: Google Ads / Meta hesabını uzman gibi denetleme
+- **Freelancer / blog yazarları**: İçerik üretim hızını 5-10x artırma
+
+## Fiyatlandırma
+
+| Plan | Site | Aylık makale | Fiyat | Özellikler |
+|------|------|--------------|-------|------------|
+| **Starter** | 1 | 10 | 499 TL/ay | Tüm ana özellikler |
+| **Pro** | 3 | 50 | 1.299 TL/ay | + Multi-site dashboard, öncelikli destek |
+| **Agency** | 10 | 250 | 3.299 TL/ay | + White-label, ajans araçları, takım üyeleri |
+
+- **İlk makale ücretsiz**: Kayıt sonrası 1 makale tamamen ücretsiz üretilir
+- **Aylık iptal**: Yıllık taahhüt yoktur, istediğiniz ay iptal edebilirsiniz
+- **PayTR güvenli ödeme**: Türkiye'nin TCMB lisanslı ödeme sağlayıcısı
+- **KDV dahil**: Tüm fiyatlar KDV dahildir
+
+## Teknik altyapı
+
+- **Frontend**: Next.js 15 App Router, React 19, Tailwind CSS, shadcn/ui
+- **Backend**: NestJS (Node.js), TypeScript
+- **Veritabanı**: MySQL 8, Prisma ORM
+- **Job Queue**: BullMQ + Redis (delayed jobs, retries, idempotency)
+- **AI sağlayıcıları**: Anthropic Claude (Opus 4.7, Sonnet 4.6, Haiku 4.5), Google Gemini (2.5 Pro, 2.5 Flash), OpenAI (GPT-4o, GPT-4.1)
+- **Şifreleme**: AES-256-GCM (credentials, API keys)
+- **Hosting**: Türkiye lokasyonlu sunucu, KVKK uyumlu
+- **Ödeme**: PayTR (3D Secure)
+- **E-posta**: Resend (transactional)
+- **Hata izleme**: Sentry
+
+## Önemli URL'ler
+
+- Ana sayfa: https://ai.luvihost.com/
+- Fiyatlandırma: https://ai.luvihost.com/pricing
+- Sıkça sorulan sorular: https://ai.luvihost.com/faq
+- Kullanım senaryoları: https://ai.luvihost.com/use-cases
+- Karşılaştırma (vs Jasper, Surfer, Frase): https://ai.luvihost.com/compare
+- Hakkımızda: https://ai.luvihost.com/about
+- Yardım merkezi: https://ai.luvihost.com/help
+- Sistem durumu: https://ai.luvihost.com/status
+- Gizlilik politikası: https://ai.luvihost.com/privacy
+- Kullanım şartları: https://ai.luvihost.com/terms
+- KVKK aydınlatma metni: https://ai.luvihost.com/kvkk
+
+## İletişim
+
+- E-posta: destek@luvihost.com
+- Ana grup: https://luvihost.com (LuviHost — Türkiye'nin yerel hosting ve domain markası)
+- X (Twitter): https://x.com/luvihost
+- LinkedIn: https://www.linkedin.com/company/luvihost
+
+## Sıkça Sorulan Sorular (kısaltılmış)
+
+**LuviAI nasıl çalışır?**
+Sitenizin URL'ini bağlarsınız. AI sitenizi crawl edip "marka beyni" oluşturur. GSC verisi + AI analiziyle Tier 1/2/3 konu listesi çıkarır. Her makale 6-ajan zincirinden geçer ve seçtiğiniz hedefe yayınlanır.
+
+**Hangi dilleri destekliyor?**
+Türkçe ve İngilizce. Tek site iki dilde içerik üretebilir, hreflang otomatik kurulur.
+
+**Ücretsiz olarak ne kadar kullanabilirim?**
+Kayıt olunca 1 makale tamamen ücretsiz üretilir. İkinci makaleden itibaren bir plan seçilir.
+
+**AI içeriği Google'da cezalandırılır mı?**
+Hayır. Google AI içerik politikası "kalite" odaklıdır, yöntem odaklı değil. LuviAI editör katmanı klişeleri siler, marka tutarlılığını sağlar, FAQ + Schema markup ekler.
+
+**WordPress'e nasıl bağlarım?**
+WordPress'te Users → Profile → Application Passwords altından bir App Password oluşturursunuz. LuviAI onboarding sırasında bunu girersiniz.
+
+**Aboneliği iptal edebilir miyim?**
+Evet, istediğiniz zaman. Dashboard → Abonelik → İptal Et. Aylık planda ay sonuna kadar erişiminiz devam eder.
+
+**Verilerim güvende mi?**
+Tüm credentials AES-256-GCM ile şifrelenir, KVKK uyumlu çalışırız. Hesabınızı silerseniz veriler 30 gün saklanır, sonra geri dönüşsüz silinir.

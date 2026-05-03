@@ -73,6 +73,49 @@ export default function HomePage() {
                 { '@type': 'ListItem', position: 1, name: 'Ana Sayfa', item: 'https://ai.luvihost.com/' },
               ],
             },
+            {
+              '@type': 'HowTo',
+              '@id': 'https://ai.luvihost.com/#howto',
+              name: 'LuviAI ile siteye AI içerik yayınlama',
+              description: 'Sitenizin URL\'ini girip dakikalar içinde ilk AI makaleyi yayına almak için 3 adım.',
+              estimatedCost: { '@type': 'MonetaryAmount', currency: 'TRY', value: '0' },
+              totalTime: 'PT5M',
+              step: [
+                {
+                  '@type': 'HowToStep',
+                  position: 1,
+                  name: 'Site adresini gir',
+                  text: 'Sadece domain yaz. AI sitenin sektörünü, marka sesini ve eksikleri otomatik analiz eder.',
+                  url: 'https://ai.luvihost.com/onboarding',
+                },
+                {
+                  '@type': 'HowToStep',
+                  position: 2,
+                  name: 'AI sana konular önerir',
+                  text: 'Sektörün, rekabetin ve Google\'da aranan sorulara göre yüksek potansiyelli konuları sıralar. Onaylarsın.',
+                  url: 'https://ai.luvihost.com/onboarding',
+                },
+                {
+                  '@type': 'HowToStep',
+                  position: 3,
+                  name: 'Üretir ve yayınlar',
+                  text: 'Saatini söyle, AI yazsın, kontrol etsin, görselleri eklesin ve sitene + sosyal medyana otomatik göndersin.',
+                  url: 'https://ai.luvihost.com/onboarding',
+                },
+              ],
+            },
+            {
+              '@type': 'WebPage',
+              '@id': 'https://ai.luvihost.com/#webpage',
+              url: 'https://ai.luvihost.com/',
+              name: 'LuviAI — Ana Sayfa',
+              isPartOf: { '@id': 'https://ai.luvihost.com/#website' },
+              speakable: {
+                '@type': 'SpeakableSpecification',
+                cssSelector: ['h1', '.hero-subtitle', '.value-card-title'],
+              },
+              inLanguage: 'tr-TR',
+            },
           ],
         }) }}
       />
