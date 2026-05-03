@@ -117,21 +117,11 @@ export default function FaqPage() {
   const [open, setOpen] = useState<number | null>(0);
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-muted">
+    <div className="bg-gradient-to-b from-background to-muted">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
       />
-      <header className="container flex justify-between items-center py-6">
-        <Link href="/" className="text-2xl font-bold">LuviAI</Link>
-        <div className="flex items-center gap-3">
-          <Link href="/pricing" className="text-sm hover:text-brand">Fiyatlar</Link>
-          <Link href="/compare" className="text-sm hover:text-brand">Karşılaştırma</Link>
-          <LocaleSwitch />
-          <ThemeToggle />
-        </div>
-      </header>
-
       <main className="container max-w-3xl py-12">
         <h1 className="text-4xl md:text-5xl font-bold mb-3 text-center">Sık Sorulan Sorular</h1>
         <p className="text-muted-foreground text-center mb-12">

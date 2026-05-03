@@ -74,25 +74,17 @@ export default function PricingPage() {
   const realPlans = plans.filter((p) => p.id !== 'trial');
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-muted">
-      <header className="container flex justify-between items-center py-4 sm:py-6 px-4">
-        <Link href="/" className="text-xl sm:text-2xl font-bold text-foreground">LuviAI</Link>
-        <div className="flex items-center gap-2 sm:gap-3">
-          <LocaleSwitch />
-          <ThemeToggle />
-        </div>
-      </header>
-
+    <div className="bg-gradient-to-b from-background to-muted">
       <main className="container py-8 sm:py-12 px-4">
         <div className="text-center mb-8 sm:mb-12">
           <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-3">{t('pricing.title')}</h1>
           <p className="text-muted-foreground text-base sm:text-lg px-2">{t('pricing.subtitle')}</p>
           <div className="mt-6 inline-flex items-center gap-2 bg-brand/5 border border-brand/20 rounded-full px-4 py-1.5">
-            <span className="text-xs font-bold text-brand">14 GÜN ÜCRETSİZ DENEME</span>
+            <span className="text-xs font-bold text-brand">İLK MAKALE ÜCRETSİZ</span>
             <span className="text-muted-foreground">·</span>
-            <span className="text-xs">Kart bilgisi yok</span>
+            <span className="text-xs">PayTR güvenli ödeme</span>
             <span className="text-muted-foreground">·</span>
-            <span className="text-xs">İlk makale hediye</span>
+            <span className="text-xs">Aylık iptal</span>
           </div>
         </div>
 

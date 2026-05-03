@@ -123,29 +123,44 @@ export default function HomePage() {
       {/* ─── HEADER ─── */}
       <header className="bg-gradient-to-br from-brand via-brand-light to-brand/30">
         <div className="container flex justify-between items-center py-4 sm:py-6 px-4">
-          <div className="text-xl sm:text-2xl font-bold text-white">LuviAI</div>
-          <div className="flex items-center gap-2 sm:gap-3">
-            <LocaleSwitch />
-            <Link href="#nasil" className="text-white text-xs sm:text-sm hover:underline hidden sm:inline">
-              Nasıl çalışır?
-            </Link>
-            <Link href="#ozellikler" className="text-white text-xs sm:text-sm hover:underline hidden sm:inline">
-              Özellikler
-            </Link>
-            <Link href="/pricing" className="text-white text-xs sm:text-sm hover:underline">
+          <Link href="/" className="text-xl sm:text-2xl font-bold text-white inline-flex items-center gap-2">
+            <img src="/favicon.svg" alt="LuviAI" className="h-7 w-7" />
+            LuviAI
+          </Link>
+          <nav className="flex items-center gap-2 sm:gap-3 lg:gap-5">
+            <Link href="/pricing" className="text-white/90 text-xs sm:text-sm hover:text-white hover:underline">
               {t('nav.pricing')}
             </Link>
+            <Link href="/use-cases" className="text-white/90 text-xs sm:text-sm hover:text-white hover:underline hidden sm:inline">
+              Kullanım Senaryoları
+            </Link>
+            <Link href="/compare" className="text-white/90 text-xs sm:text-sm hover:text-white hover:underline hidden md:inline">
+              Karşılaştır
+            </Link>
+            <Link href="/about" className="text-white/90 text-xs sm:text-sm hover:text-white hover:underline hidden md:inline">
+              Hakkımızda
+            </Link>
+            <Link href="/faq" className="text-white/90 text-xs sm:text-sm hover:text-white hover:underline hidden lg:inline">
+              SSS
+            </Link>
+            <span className="hidden sm:inline w-px h-4 bg-white/30" />
+            <LocaleSwitch />
+            <ThemeToggle />
             {isAuthed ? (
-              <Link href="/dashboard" className="text-white text-xs sm:text-sm font-medium hover:underline">
+              <Link href="/dashboard" className="text-white text-xs sm:text-sm font-medium px-3 py-1.5 rounded-md bg-white/15 hover:bg-white/25 transition-colors">
                 Dashboard
               </Link>
             ) : (
-              <Link href="/signin" className="text-white text-xs sm:text-sm font-medium hover:underline">
-                Giriş yap
-              </Link>
+              <>
+                <Link href="/signin" className="text-white/90 text-xs sm:text-sm hover:text-white hover:underline hidden sm:inline">
+                  Giriş yap
+                </Link>
+                <Link href="/signin?callbackUrl=/onboarding" className="text-brand text-xs sm:text-sm font-semibold px-3 py-1.5 rounded-md bg-white hover:bg-white/90 transition-colors">
+                  Ücretsiz dene
+                </Link>
+              </>
             )}
-            <ThemeToggle />
-          </div>
+          </nav>
         </div>
 
         {/* ─── HERO ─── */}

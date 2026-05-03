@@ -19,17 +19,7 @@ const SERVICES = [
 
 export default function StatusPage() {
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-muted">
-      <header className="container flex justify-between items-center py-6">
-        <Link href="/" className="text-2xl font-bold">LuviAI</Link>
-        <div className="flex items-center gap-3">
-          <Link href="/help" className="text-sm hover:text-brand">Yardım</Link>
-          <Link href="/faq" className="text-sm hover:text-brand">SSS</Link>
-          <LocaleSwitch />
-          <ThemeToggle />
-        </div>
-      </header>
-
+    <div className="bg-gradient-to-b from-background to-muted">
       <main className="container max-w-3xl py-12">
         <div className="text-center mb-10">
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-green-500/10 text-green-600 dark:text-green-400 rounded-full mb-4">

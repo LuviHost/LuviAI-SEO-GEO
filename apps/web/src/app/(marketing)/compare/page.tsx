@@ -40,17 +40,7 @@ const Cell = ({ value }: { value: boolean | string }) => {
 
 export default function ComparePage() {
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-muted">
-      <header className="container flex justify-between items-center py-6">
-        <Link href="/" className="text-2xl font-bold">LuviAI</Link>
-        <div className="flex items-center gap-3">
-          <Link href="/pricing" className="text-sm hover:text-brand">Fiyatlar</Link>
-          <Link href="/faq" className="text-sm hover:text-brand">SSS</Link>
-          <LocaleSwitch />
-          <ThemeToggle />
-        </div>
-      </header>
-
+    <div className="bg-gradient-to-b from-background to-muted">
       <main className="container max-w-5xl py-12">
         <h1 className="text-4xl md:text-5xl font-bold text-center mb-3">
           LuviAI vs Surfer vs Jasper vs Frase
