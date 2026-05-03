@@ -59,16 +59,21 @@ export class SiteCrawlerService {
           const href = $(el).attr('href');
           if (!href) return;
           try {
-            const abs = new URL(href, origin).href;
-            const cleaned = abs.split('#')[0]; // fragment temizle
-            if (cleaned.startsWith(origin) && !urls.includes(cleaned)) urls.push(cleaned);
+            const cleaned = this.normalizeUrl(href, origin);
+            if (cleaned && cleaned.startsWith(origin) && !urls.includes(cleaned) && !this.isExcludedPath(cleaned, origin)) {
+              urls.push(cleaned);
+            }
           } catch {}
         });
       }
     }
 
-    // 3) Origin'i her zaman ekle ve deduplicate et
-    const targetUrls = Array.from(new Set([origin, ...urls])).slice(0, maxPages);
+    // 3) Origin'i her zaman ekle, normalize et, exclude'ları filtrele, deduplicate et
+    const allUrls = [origin, ...urls]
+      .map(u => this.normalizeUrl(u, origin))
+      .filter((u): u is string => !!u)
+      .filter(u => !this.isExcludedPath(u, origin));
+    const targetUrls = Array.from(new Set(allUrls)).slice(0, maxPages);
 
     // 4) Paralel fetch (5'erli batch — rate limit + memory dengeli)
     const pages: CrawledPage[] = [];
@@ -101,6 +106,36 @@ export class SiteCrawlerService {
       llmsTxt,
       totalPages: urls.length,
     };
+  }
+
+  /**
+   * URL normalize: fragment + tracking query'leri temizle, trailing slash standardize et.
+   * Aynı sayfaya farklı URL'lerle gelen istekleri tek hale getirir.
+   */
+  private normalizeUrl(href: string, origin: string): string | null {
+    try {
+      const u = new URL(href, origin);
+      // Fragment temizle
+      u.hash = '';
+      // Tracking ve auth callback query parametrelerini temizle
+      const TRACKING_PARAMS = ['callbackUrl', 'utm_source', 'utm_medium', 'utm_campaign', 'utm_term', 'utm_content', 'fbclid', 'gclid', 'ref', 'referrer'];
+      for (const p of TRACKING_PARAMS) u.searchParams.delete(p);
+      // Trailing slash normalize: anasayfa hariç sondaki / silinsin
+      let pathname = u.pathname;
+      if (pathname.length > 1 && pathname.endsWith('/')) pathname = pathname.slice(0, -1);
+      u.pathname = pathname;
+      return u.toString();
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Auth-protected veya SEO için faydasız path'leri crawl dışı bırak.
+   */
+  private isExcludedPath(url: string, origin: string): boolean {
+    const path = url.replace(origin, '');
+    return /^\/(api|admin|admin-unlock|onboarding|sites|dashboard|billing|affiliate|api-keys|agency|signin|signup|auth)(\/|$|\?)/.test(path);
   }
 
   private async fetchPage(url: string): Promise<string | null> {

@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Kullanım Senaryoları',
+  title: 'Kullanım Senaryoları — KOBİ, e-ticaret, ajans için AI otomasyon',
   description: 'KOBİ, e-ticaret, dijital ajans, freelancer, blog yazarı için LuviAI nasıl kullanılır — gerçek senaryolar, beklenen sonuçlar, ROI tahmini.',
   alternates: { canonical: 'https://ai.luvihost.com/use-cases' },
   openGraph: {

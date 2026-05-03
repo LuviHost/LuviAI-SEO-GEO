@@ -9,8 +9,8 @@ type SignInPageProps = {
 };
 
 export const metadata = {
-  title: 'Giriş — LuviAI',
-  description: 'LuviAI hesabınla giriş yapın veya hızlıca kayıt olun.',
+  title: 'Giriş yap veya hesap oluştur — LuviAI panele eriş',
+  description: 'LuviAI hesabınla giriş yap veya yeni hesap aç. İlk makale ücretsiz, kredi kartı gerekmez. PayTR güvenli ödeme, aylık iptal hakkı.',
 };
 
 export default async function SignInPage({ searchParams }: SignInPageProps) {

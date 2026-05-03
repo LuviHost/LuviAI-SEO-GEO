@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Hakkımızda',
+  title: 'Hakkımızda — Türkiye merkezli AI içerik ve SEO platformu',
   description: 'LuviAI, Türkiye merkezli LuviHost grubunun AI içerik + SEO + sosyal medya + reklam denetimi otomasyon platformudur. Kuruluş, vizyon, ekip ve neden güvenmeli sorusunun cevabı.',
   alternates: { canonical: 'https://ai.luvihost.com/about' },
   openGraph: {

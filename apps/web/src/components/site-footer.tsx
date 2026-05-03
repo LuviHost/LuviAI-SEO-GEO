@@ -32,7 +32,7 @@ export function SiteFooter() {
                 aria-label="X (Twitter)"
                 className="h-8 w-8 rounded-md border bg-background hover:border-brand inline-flex items-center justify-center"
               >
-                <img src="https://cdn.simpleicons.org/x/000000" alt="" width="14" height="14" className="dark:invert" />
+                <img src="https://cdn.simpleicons.org/x/000000" alt="X (Twitter)" width="14" height="14" className="dark:invert" />
               </a>
               <a
                 href={`https://www.linkedin.com/company/${LINKEDIN_HANDLE}`}
@@ -40,7 +40,7 @@ export function SiteFooter() {
                 aria-label="LinkedIn"
                 className="h-8 w-8 rounded-md border bg-background hover:border-brand inline-flex items-center justify-center"
               >
-                <img src="https://cdn.simpleicons.org/linkedin/0A66C2" alt="" width="16" height="16" />
+                <img src="https://cdn.simpleicons.org/linkedin/0A66C2" alt="LinkedIn" width="16" height="16" />
               </a>
               <a
                 href={`mailto:${SUPPORT_EMAIL}`}
