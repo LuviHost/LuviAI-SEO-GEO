@@ -12,6 +12,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${SITE_URL}/faq`,         lastModified: now, changeFrequency: 'monthly', priority: 0.8 },
     { url: `${SITE_URL}/use-cases`,   lastModified: now, changeFrequency: 'monthly', priority: 0.7 },
     { url: `${SITE_URL}/compare`,     lastModified: now, changeFrequency: 'monthly', priority: 0.7 },
+    { url: `${SITE_URL}/about`,       lastModified: now, changeFrequency: 'monthly', priority: 0.7 },
     { url: `${SITE_URL}/help`,        lastModified: now, changeFrequency: 'monthly', priority: 0.5 },
     { url: `${SITE_URL}/privacy`,     lastModified: now, changeFrequency: 'yearly',  priority: 0.3 },
     { url: `${SITE_URL}/terms`,       lastModified: now, changeFrequency: 'yearly',  priority: 0.3 },
