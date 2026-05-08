@@ -30,6 +30,12 @@ export class AnalyticsController {
     return this.analytics.getTrendingQueries(siteId);
   }
 
+  /** GET /sites/:siteId/analytics/rankings?days=30 — GSC tabanlı keyword rank tracking */
+  @Get('rankings')
+  rankings(@Param('siteId') siteId: string, @Query('days') days?: string) {
+    return this.analytics.getRankings(siteId, days ? parseInt(days, 10) : 30);
+  }
+
   /** GET /sites/:siteId/analytics/suggestions */
   @Get('suggestions')
   suggestions(@Param('siteId') siteId: string) {

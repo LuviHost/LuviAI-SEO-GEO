@@ -315,6 +315,140 @@ export class AnalyticsService {
   }
 
   // ─────────────────────────────────────────────
+  //  Rank Tracking — GSC tabanlı keyword rank takibi (sıfır ek maliyet)
+  // ─────────────────────────────────────────────
+
+  /**
+   * Her keyword için son N gündeki avg position + N gün öncesine göre delta + sparkline.
+   * Rakip yok (DataForSEO'ya gerek yok), sadece kendi sitenin ranking trendi.
+   */
+  async getRankings(siteId: string, days = 30) {
+    const now = new Date();
+    const periodStart = new Date(now.getTime() - days * 86400000);
+    const prevPeriodStart = new Date(now.getTime() - 2 * days * 86400000);
+
+    // Son 2*days gün için tüm snapshot'ları çek
+    const snapshots = await this.prisma.analyticsSnapshot.findMany({
+      where: { siteId, date: { gte: prevPeriodStart, lte: now } },
+      orderBy: { date: 'asc' },
+    });
+
+    if (snapshots.length === 0) {
+      return { keywords: [], summary: null, hasData: false };
+    }
+
+    // Her query için: günlük pozisyon dizisi, toplam click/impression
+    type KwAcc = {
+      query: string;
+      page: string;
+      currentPositions: number[];
+      previousPositions: number[];
+      clicks: number;
+      impressions: number;
+      sparkline: { date: string; position: number }[];
+    };
+
+    const acc = new Map<string, KwAcc>();
+
+    for (const snap of snapshots) {
+      const isCurrentPeriod = snap.date >= periodStart;
+      const queries = (snap.queryDetails as any[]) ?? [];
+      for (const q of queries) {
+        if (!q.query) continue;
+        const key = q.query;
+        if (!acc.has(key)) {
+          acc.set(key, {
+            query: q.query,
+            page: q.page ?? '',
+            currentPositions: [],
+            previousPositions: [],
+            clicks: 0,
+            impressions: 0,
+            sparkline: [],
+          });
+        }
+        const a = acc.get(key)!;
+        if (isCurrentPeriod) {
+          a.currentPositions.push(q.position ?? 0);
+          a.clicks += q.clicks ?? 0;
+          a.impressions += q.impressions ?? 0;
+          a.sparkline.push({
+            date: snap.date.toISOString().slice(0, 10),
+            position: q.position ?? 0,
+          });
+          // Page güncel kalsın (en son ranking eden URL)
+          if (q.page) a.page = q.page;
+        } else {
+          a.previousPositions.push(q.position ?? 0);
+        }
+      }
+    }
+
+    // Aggregate
+    const keywords = Array.from(acc.values())
+      .filter(k => k.currentPositions.length > 0) // bu periyotta görünenler
+      .map(k => {
+        const avg = (arr: number[]) =>
+          arr.length > 0 ? arr.reduce((s, x) => s + x, 0) / arr.length : 0;
+        const currentPos = avg(k.currentPositions);
+        const previousPos = avg(k.previousPositions);
+        // Delta: previousPos - currentPos (pozitif = iyileşti, çünkü pos düştü)
+        const delta = k.previousPositions.length > 0
+          ? Math.round((previousPos - currentPos) * 10) / 10
+          : null;
+        const ctr = k.impressions > 0 ? k.clicks / k.impressions : 0;
+        return {
+          query: k.query,
+          page: k.page,
+          position: Math.round(currentPos * 10) / 10,
+          previousPosition: previousPos > 0 ? Math.round(previousPos * 10) / 10 : null,
+          delta, // null = ilk dönem, yok karşılaştırma
+          clicks: k.clicks,
+          impressions: k.impressions,
+          ctr: Math.round(ctr * 10000) / 100, // 0-100 arası yüzde
+          sparkline: k.sparkline.slice(-30), // son 30 nokta
+          tier: this.classifyTier(currentPos),
+        };
+      })
+      .sort((a, b) => b.impressions - a.impressions);
+
+    // Summary
+    const winning = keywords.filter(k => k.tier === 'top3').length;
+    const top10 = keywords.filter(k => ['top3', 'top10'].includes(k.tier)).length;
+    const opportunities = keywords.filter(k => k.tier === 'near').length;
+    const improving = keywords.filter(k => k.delta !== null && k.delta > 0.5).length;
+    const declining = keywords.filter(k => k.delta !== null && k.delta < -0.5).length;
+    const avgPosition =
+      keywords.length > 0
+        ? Math.round((keywords.reduce((s, k) => s + k.position, 0) / keywords.length) * 10) / 10
+        : 0;
+
+    return {
+      keywords,
+      summary: {
+        total: keywords.length,
+        winning,
+        top10,
+        opportunities,
+        improving,
+        declining,
+        avgPosition,
+        totalClicks: keywords.reduce((s, k) => s + k.clicks, 0),
+        totalImpressions: keywords.reduce((s, k) => s + k.impressions, 0),
+      },
+      hasData: true,
+      period: { days, startDate: periodStart.toISOString().slice(0, 10), endDate: now.toISOString().slice(0, 10) },
+    };
+  }
+
+  private classifyTier(position: number): 'top3' | 'top10' | 'near' | 'low' {
+    if (position > 0 && position <= 3) return 'top3';
+    if (position > 0 && position <= 10) return 'top10';
+    if (position > 0 && position <= 20) return 'near';
+    return 'low';
+  }
+
+  // ─────────────────────────────────────────────
   //  Helpers
   // ─────────────────────────────────────────────
 

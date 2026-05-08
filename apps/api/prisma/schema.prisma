@@ -57,6 +57,7 @@ model User {
   accounts      Account[]
   sessions      Session[]
   sites         Site[]
+  promptTemplates PromptTemplate[]
   jobs          Job[]
   invoices      Invoice[]
   parentAgency  User?    @relation("AgencyClients", fields: [parentAgencyId], references: [id], onDelete: SetNull)
@@ -252,6 +253,7 @@ model Site {
   socialChannels   SocialChannel[]
   adCampaigns      AdCampaign[]
   aiProviderKeys   SiteAiProviderKey[]
+  promptTemplates  PromptTemplate[]
   videos           Video[]
   adsAudits        AdsAudit[]
   tokenUsage       TokenUsageRecord[]
@@ -1125,4 +1127,69 @@ model TokenUsageRecord {
   @@index([userId, createdAt])
   @@index([provider, model, createdAt])
   @@map("token_usage_records")
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  PROMPT LIBRARY — Kullanıcı + sistem prompt template'leri
+//  Public template marketplace + private kullanıcı prompt'ları
+// ═══════════════════════════════════════════════════════════════
+
+model PromptTemplate {
+  id          String   @id @default(cuid())
+
+  // Sahip — userId zorunlu, siteId opsiyonel (null = user-global)
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  siteId      String?
+  site        Site?    @relation(fields: [siteId], references: [id], onDelete: SetNull)
+
+  // Display
+  name        String
+  description String?  @db.Text
+  category    PromptCategory @default(GENERAL)
+  icon        String?  // lucide icon name (örn. "FileText")
+
+  // Body — {{variable}} placeholder'ları destekler
+  body        String   @db.Text
+
+  // Variables that this template uses (extracted from body)
+  // [{ name: "topic", label: "Konu", defaultValue: "", type: "text" | "textarea" | "select", options?: [] }]
+  variables   Json?
+
+  // Sharing & marketplace
+  isPublic    Boolean  @default(false)
+  isFeatured  Boolean  @default(false) // admin tarafından öne çıkarılan
+  upvotes     Int      @default(0)
+
+  // Usage stats
+  usageCount  Int      @default(0)
+  lastUsedAt  DateTime?
+
+  // Metadata
+  tags        Json     @default("[]")
+  language    String   @default("tr") // tr | en
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId, category])
+  @@index([siteId])
+  @@index([isPublic, category, isFeatured])
+  @@map("prompt_templates")
+}
+
+enum PromptCategory {
+  GENERAL
+  TITLE
+  META_DESCRIPTION
+  OUTLINE
+  ARTICLE
+  SOCIAL_POST
+  EMAIL
+  PRODUCT_DESCRIPTION
+  COMPARISON
+  HOWTO
+  FAQ
+  AD_COPY
+  LANDING_PAGE
 }

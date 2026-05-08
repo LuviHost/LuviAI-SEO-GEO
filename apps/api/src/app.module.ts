@@ -28,6 +28,7 @@ import { OAuthModule } from './oauth/oauth.module.js';
 import { SettingsModule } from './settings/settings.module.js';
 import { VideosModule } from './videos/videos.module.js';
 import { LLMModule } from './llm/llm.module.js';
+import { PromptsModule } from './prompts/prompts.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 
 @Module({
@@ -60,6 +61,7 @@ import { PrismaModule } from './prisma/prisma.module.js';
     SettingsModule,
     VideosModule,
     LLMModule,
+    PromptsModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: AuthGuard },

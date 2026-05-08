@@ -26,6 +26,8 @@ import {
   Plug,
   Check,
   Target,
+  LineChart,
+  Library,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { ThemeToggle } from '@/components/theme-toggle';
@@ -67,6 +69,7 @@ const SITE_GROUPS = (siteId: string) => [
     label: 'SEO HEALTH',
     items: [
       { href: `/sites/${siteId}/audit`, label: 'Site Skoru', icon: ShieldCheck },
+      { href: `/sites/${siteId}/rank-tracking`, label: 'Sıralama Takibi', icon: LineChart },
       { href: `/sites/${siteId}/visibility`, label: 'AI Görünürlük', icon: Sparkles },
       { href: `/sites/${siteId}/geo-lab`, label: 'GEO Lab', icon: Award },
       { href: `/sites/${siteId}/competitors`, label: 'Rakipler', icon: Network },
@@ -78,6 +81,7 @@ const SITE_GROUPS = (siteId: string) => [
     label: 'CONTENT STUDIO',
     items: [
       { href: `/sites/${siteId}/articles`, label: 'İçerikler', icon: FileText },
+      { href: `/sites/${siteId}/prompts`, label: 'Prompt Kütüphanesi', icon: Library },
       { href: `/sites/${siteId}/calendar`, label: 'Takvim', icon: Calendar },
       { href: `/sites/${siteId}/videos`, label: 'Video Factory', icon: Film },
       { href: `/sites/${siteId}/publish-targets`, label: 'Yayın Hedefleri', icon: Send },
