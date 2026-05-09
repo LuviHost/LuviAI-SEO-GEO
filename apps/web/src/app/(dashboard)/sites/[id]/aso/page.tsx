@@ -563,6 +563,9 @@ function AppDetailModal({ app, siteId, onClose, onChanged }: {
   const [optimizing, setOptimizing] = useState(false);
   const [optimizeResult, setOptimizeResult] = useState<any>(null);
 
+  // Link store (ikinci store ekleme) state
+  const [showLinkStore, setShowLinkStore] = useState(false);
+
   // Auto-load review stats on Reviews tab open (persist across modal reopens)
   useEffect(() => {
     if (tab !== 'reviews' || reviewStats) return;
@@ -773,8 +776,22 @@ function AppDetailModal({ app, siteId, onClose, onChanged }: {
           <div className="flex items-center gap-3">
             {app.iconUrl && <img src={app.iconUrl} alt="" className="h-12 w-12 rounded-xl" />}
             <div>
-              <h3 className="font-bold">{app.name}</h3>
+              <h3 className="font-bold flex items-center gap-2 flex-wrap">
+                {app.name}
+                {app.appStoreId && <Badge variant="outline" className="text-[10px]"><Apple className="h-2.5 w-2.5 mr-1" />iOS</Badge>}
+                {app.playStoreId && <Badge variant="outline" className="text-[10px]">Android</Badge>}
+                <Badge variant="outline" className="text-[10px]"><Globe className="h-2.5 w-2.5 mr-1" />{app.country.toUpperCase()}</Badge>
+              </h3>
               <p className="text-xs text-muted-foreground">{app.developer} · {app.category}</p>
+              {(!app.appStoreId || !app.playStoreId) && (
+                <button
+                  onClick={() => setShowLinkStore(true)}
+                  className="text-xs text-brand hover:underline mt-1 inline-flex items-center gap-1"
+                >
+                  <Plus className="h-3 w-3" />
+                  {!app.appStoreId ? 'iOS App Store versiyonunu ekle' : 'Android Play Store versiyonunu ekle'}
+                </button>
+              )}
             </div>
           </div>
           <Button size="sm" variant="ghost" onClick={onClose}><X className="h-4 w-4" /></Button>
@@ -1391,6 +1408,171 @@ function AppDetailModal({ app, siteId, onClose, onChanged }: {
             )}
           </div>
         )}
+      </div>
+
+      {/* LINK SECOND STORE MODAL */}
+      {showLinkStore && (
+        <LinkStoreModal
+          siteId={siteId}
+          app={app}
+          onClose={() => setShowLinkStore(false)}
+          onLinked={() => { setShowLinkStore(false); onChanged(); }}
+        />
+      )}
+    </div>
+  );
+}
+
+function LinkStoreModal({ siteId, app, onClose, onLinked }: {
+  siteId: string;
+  app: AppDetail;
+  onClose: () => void;
+  onLinked: () => void;
+}) {
+  // Hangi store eksikse onu ekleyeceğiz
+  const missingStore: 'IOS' | 'ANDROID' = !app.appStoreId ? 'IOS' : 'ANDROID';
+  const [query, setQuery] = useState(app.name); // app adıyla başlat — kullanıcı zahmet etmesin
+  const [debouncedQuery, setDebouncedQuery] = useState('');
+  const [results, setResults] = useState<SearchResult[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [picked, setPicked] = useState<SearchResult | null>(null);
+  const [linking, setLinking] = useState(false);
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(query), 350);
+    return () => clearTimeout(t);
+  }, [query]);
+
+  useEffect(() => {
+    if (!debouncedQuery.trim() || debouncedQuery.length < 2) {
+      setResults([]);
+      return;
+    }
+    let cancelled = false;
+    setSearching(true);
+    const params = new URLSearchParams({
+      term: debouncedQuery,
+      store: missingStore,
+      country: app.country,
+    });
+    api.request<{ results: SearchResult[] }>(`/sites/${siteId}/aso/search?${params}`)
+      .then(r => { if (!cancelled) setResults(r.results || []); })
+      .catch(err => { if (!cancelled) toast.error(err.message); })
+      .finally(() => { if (!cancelled) setSearching(false); });
+    return () => { cancelled = true; };
+  }, [debouncedQuery, missingStore, app.country, siteId]);
+
+  // İlk açılışta otomatik ara
+  useEffect(() => {
+    setDebouncedQuery(app.name);
+  }, [app.name]);
+
+  const submit = async () => {
+    if (!picked) {
+      toast.error('Bir uygulama seç veya manuel ID gir');
+      return;
+    }
+    setLinking(true);
+    try {
+      const body: any = {};
+      if (missingStore === 'IOS') body.appStoreId = picked.id;
+      else body.playStoreId = picked.id;
+      await api.request(`/sites/${siteId}/aso/apps/${app.id}/link-store`, {
+        method: 'POST',
+        body: JSON.stringify(body),
+      });
+      toast.success(`${missingStore === 'IOS' ? 'iOS' : 'Android'} versiyonu eklendi`);
+      onLinked();
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setLinking(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[60] bg-black/60 flex items-start justify-center p-4 overflow-y-auto" onClick={onClose}>
+      <div className="bg-background border rounded-lg max-w-xl w-full my-8 shadow-xl" onClick={e => e.stopPropagation()}>
+        <div className="p-5 border-b flex items-center justify-between">
+          <div>
+            <h3 className="font-bold flex items-center gap-2">
+              {missingStore === 'IOS' ? <><Apple className="h-4 w-4" /> iOS versiyonunu ekle</> : <>🤖 Android versiyonunu ekle</>}
+            </h3>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              "{app.name}" için {missingStore === 'IOS' ? 'App Store' : 'Play Store'} versiyonunu bul ve mevcut takibe bağla.
+            </p>
+          </div>
+          <Button size="sm" variant="ghost" onClick={onClose}><X className="h-4 w-4" /></Button>
+        </div>
+
+        <div className="p-5 space-y-3">
+          <div>
+            <label className="text-xs font-medium mb-1 block">App ara veya URL yapıştır</label>
+            <div className="relative">
+              <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                value={query}
+                onChange={e => setQuery(e.target.value)}
+                placeholder={missingStore === 'IOS' ? 'apps.apple.com/.../id...' : 'play.google.com/store/apps/details?id=...'}
+                className="pl-8"
+                autoFocus
+              />
+            </div>
+          </div>
+
+          <div className="min-h-[200px] max-h-[360px] overflow-y-auto -mx-1 px-1">
+            {searching && (
+              <div className="space-y-2">
+                {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-16" />)}
+              </div>
+            )}
+            {!searching && results.length === 0 && query.length >= 2 && (
+              <div className="text-center py-10 text-sm text-muted-foreground">
+                Sonuç yok. App'in {missingStore === 'IOS' ? 'iOS' : 'Android'} versiyonu olmayabilir.
+              </div>
+            )}
+            {!searching && results.length > 0 && (
+              <div className="space-y-1.5">
+                {results.map(r => (
+                  <button
+                    key={r.id}
+                    onClick={() => setPicked(picked?.id === r.id ? null : r)}
+                    className={`w-full text-left flex items-center gap-3 p-2.5 rounded-md border transition-colors ${
+                      picked?.id === r.id
+                        ? 'border-brand bg-brand/5'
+                        : 'border-border hover:border-foreground/30 hover:bg-muted/40'
+                    }`}
+                  >
+                    {r.icon ? (
+                      <img src={r.icon} alt="" className="h-12 w-12 rounded-lg shrink-0" />
+                    ) : (
+                      <div className="h-12 w-12 rounded-lg bg-muted shrink-0" />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className="font-medium text-sm truncate">{r.name}</div>
+                      <div className="text-xs text-muted-foreground truncate">{r.developer ?? '—'}</div>
+                      {r.rating != null && (
+                        <span className="text-xs flex items-center gap-0.5 mt-0.5"><Star className="h-2.5 w-2.5 fill-amber-400 text-amber-400" />{r.rating.toFixed(1)}</span>
+                      )}
+                    </div>
+                    {picked?.id === r.id && (
+                      <div className="h-6 w-6 rounded-full bg-brand text-white grid place-items-center shrink-0">
+                        <Check className="h-3 w-3" />
+                      </div>
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="p-4 border-t flex justify-end gap-2 bg-muted/20">
+          <Button size="sm" variant="outline" onClick={onClose}>İptal</Button>
+          <Button size="sm" onClick={submit} disabled={linking || !picked}>
+            {linking ? 'Bağlanıyor...' : 'Bağla'}
+          </Button>
+        </div>
       </div>
     </div>
   );

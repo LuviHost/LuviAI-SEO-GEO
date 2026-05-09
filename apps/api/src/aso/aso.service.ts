@@ -252,6 +252,69 @@ export class AsoService {
     });
   }
 
+  /**
+   * Mevcut TrackedApp'e ikinci store'u (iOS veya Android) ekle.
+   * Yeni record yaratmak yerine var olanı update eder.
+   */
+  async linkStore(opts: {
+    trackedAppId: string;
+    appStoreId?: string;
+    playStoreId?: string;
+  }) {
+    const app = await this.prisma.trackedApp.findUniqueOrThrow({
+      where: { id: opts.trackedAppId },
+    });
+
+    if (!opts.appStoreId && !opts.playStoreId) {
+      throw new BadRequestException('appStoreId veya playStoreId gerekli');
+    }
+
+    // Hangi store ekleniyor?
+    if (opts.appStoreId && app.appStoreId) {
+      throw new BadRequestException('Bu app\'in zaten App Store versiyonu bağlı');
+    }
+    if (opts.playStoreId && app.playStoreId) {
+      throw new BadRequestException('Bu app\'in zaten Play Store versiyonu bağlı');
+    }
+
+    // Yeni store metadata'sını fetch et
+    const country = app.country;
+    const newIos = opts.appStoreId
+      ? await this.scrapers.getIosApp({ id: opts.appStoreId, country })
+      : null;
+    const newAndroid = opts.playStoreId
+      ? await this.scrapers.getAndroidApp({ appId: opts.playStoreId, country })
+      : null;
+
+    if (opts.appStoreId && !newIos) {
+      throw new BadRequestException('App Store\'da bulunamadı. ID veya country yanlış olabilir.');
+    }
+    if (opts.playStoreId && !newAndroid) {
+      throw new BadRequestException('Play Store\'da bulunamadı. Package adı veya country yanlış olabilir.');
+    }
+
+    // Mevcut metadata'yı koru, yeni store'u ekle
+    const currentMeta: any = app.metadata ?? {};
+    const updatedMeta = {
+      ios: newIos ?? currentMeta.ios ?? null,
+      android: newAndroid ?? currentMeta.android ?? null,
+    };
+
+    return this.prisma.trackedApp.update({
+      where: { id: opts.trackedAppId },
+      data: {
+        appStoreId: opts.appStoreId ?? app.appStoreId,
+        playStoreId: opts.playStoreId ?? app.playStoreId,
+        metadata: updatedMeta as any,
+        lastFetchedAt: new Date(),
+        iosRating: newIos ? (newIos as any).score ?? null : app.iosRating,
+        iosReviewCount: newIos ? (newIos as any).reviews ?? null : app.iosReviewCount,
+        androidRating: newAndroid ? (newAndroid as any).score ?? null : app.androidRating,
+        androidReviewCount: newAndroid ? (newAndroid as any).reviews ?? null : app.androidReviewCount,
+      },
+    });
+  }
+
   // ─────────────────────────────────────────────
   //  Keyword management
   // ─────────────────────────────────────────────

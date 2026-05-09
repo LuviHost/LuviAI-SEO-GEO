@@ -51,6 +51,19 @@ export class AsoController {
     return this.aso.refreshMetadata(appId);
   }
 
+  /**
+   * POST /aso/apps/:appId/link-store
+   * Body: { appStoreId?: string, playStoreId?: string }
+   * Mevcut app'e ikinci store'u ekle (iOS-only app'e Android, veya tersi).
+   */
+  @Post('apps/:appId/link-store')
+  linkStore(
+    @Param('appId') appId: string,
+    @Body() body: { appStoreId?: string; playStoreId?: string },
+  ) {
+    return this.aso.linkStore({ trackedAppId: appId, ...body });
+  }
+
   // ─── Keywords ───────────────────────────────
 
   @Post('apps/:appId/keywords')
