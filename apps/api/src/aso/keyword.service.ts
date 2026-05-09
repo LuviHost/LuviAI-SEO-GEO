@@ -26,10 +26,16 @@ export class AsoKeywordService {
       const scores: any = await fn(opts.keyword, {
         country: opts.country ?? 'tr',
       } as any);
+      // aso-v2 response: { difficulty: { score, ...nested }, traffic: { score, suggest, ranked, installs, length } }
+      // popularity field yok → traffic.suggest.score (autocomplete prominence) proxy
+      const difficultyRaw = scores?.difficulty?.score ?? 0;
+      const trafficRaw = scores?.traffic?.score ?? 0;
+      const popularityRaw = scores?.traffic?.suggest?.score ?? scores?.traffic?.installs?.score ?? 0;
+      this.log.debug(`Score "${opts.keyword}": pop=${popularityRaw} diff=${difficultyRaw} traffic=${trafficRaw}`);
       return {
-        popularity: this.normalizeScore(scores?.popularity?.value ?? scores?.popularity ?? 0),
-        difficulty: this.normalizeScore(scores?.difficulty?.value ?? scores?.difficulty ?? 0),
-        traffic: this.normalizeScore(scores?.traffic?.value ?? scores?.traffic ?? 0),
+        popularity: this.normalizeScore(popularityRaw),
+        difficulty: this.normalizeScore(difficultyRaw),
+        traffic: this.normalizeScore(trafficRaw),
       };
     } catch (err: any) {
       this.log.warn(`Score "${opts.keyword}": ${err.message}`);

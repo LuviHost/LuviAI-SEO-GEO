@@ -326,6 +326,39 @@ export class AsoService {
     return { ok: true };
   }
 
+  /** Mevcut keyword'lerin skorunu yeniden hesapla (aso-v2 score parsing fix sonrası).  */
+  async refreshScoresForApp(trackedAppId: string) {
+    const app = await this.prisma.trackedApp.findUniqueOrThrow({
+      where: { id: trackedAppId },
+    });
+    const keywords = await this.prisma.trackedAppKeyword.findMany({
+      where: { trackedAppId, isActive: true },
+    });
+    let updated = 0;
+    for (const kw of keywords) {
+      try {
+        const s = await this.keywords.scoreKeyword({
+          keyword: kw.keyword,
+          store: kw.store as 'IOS' | 'ANDROID',
+          country: app.country,
+        });
+        await this.prisma.trackedAppKeyword.update({
+          where: { id: kw.id },
+          data: {
+            popularity: s.popularity,
+            difficulty: s.difficulty,
+            traffic: s.traffic,
+          },
+        });
+        updated++;
+        await new Promise(r => setTimeout(r, 600)); // rate limit
+      } catch (err: any) {
+        this.log.warn(`[${kw.id}] score refresh: ${err.message}`);
+      }
+    }
+    return { ok: true, updated, total: keywords.length };
+  }
+
   async getKeywordHistory(keywordId: string, days = 30) {
     const since = new Date(Date.now() - days * 86400000);
     return this.prisma.appRanking.findMany({

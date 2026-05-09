@@ -523,6 +523,19 @@ function AppDetailModal({ app, siteId, onClose, onChanged }: {
   const [reviewStats, setReviewStats] = useState<any>(null);
   const [fetchingReviews, setFetchingReviews] = useState(false);
 
+  // Per-keyword loading state during rank check (id'ler set'te)
+  const [checkingKeywords, setCheckingKeywords] = useState<Set<string>>(new Set());
+  const [refreshingScores, setRefreshingScores] = useState(false);
+  const [bulkRankProgress, setBulkRankProgress] = useState<{ done: number; total: number } | null>(null);
+
+  // Auto-load review stats on Reviews tab open (persist across modal reopens)
+  useEffect(() => {
+    if (tab !== 'reviews' || reviewStats) return;
+    api.request(`/sites/${siteId}/aso/apps/${app.id}/reviews/stats`)
+      .then(setReviewStats)
+      .catch(() => { /* silent — first time has no data yet */ });
+  }, [tab, app.id, siteId]);
+
   const addKeyword = async () => {
     if (!newKeyword.trim()) return;
     setAdding(true);
@@ -570,23 +583,56 @@ function AppDetailModal({ app, siteId, onClose, onChanged }: {
   };
 
   const checkRank = async (id: string) => {
+    setCheckingKeywords(prev => new Set(prev).add(id));
     try {
       await api.request(`/sites/${siteId}/aso/keywords/${id}/check-rank`, { method: 'POST' });
       onChanged();
       toast.success('Rank kontrol edildi');
     } catch (err: any) {
       toast.error(err.message);
+    } finally {
+      setCheckingKeywords(prev => {
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
     }
   };
 
   const checkAllRanks = async () => {
+    if (!app.keywords || app.keywords.length === 0) {
+      toast.error('Önce keyword ekle');
+      return;
+    }
+    const total = app.keywords.length;
+    setBulkRankProgress({ done: 0, total });
+    // Tüm keyword'leri "checking" state'ine al
+    setCheckingKeywords(new Set(app.keywords.map(k => k.id)));
     try {
-      toast.info('Tüm keyword\'ler için rank check başlatıldı (1-2 dk sürer)');
+      toast.info(`${total} keyword için rank check başladı (~${Math.ceil(total * 1.5)} sn)`);
       await api.request(`/sites/${siteId}/aso/apps/${app.id}/check-all-ranks`, { method: 'POST' });
       onChanged();
-      toast.success('Tamamlandı');
+      toast.success('Tüm rank check tamamlandı');
     } catch (err: any) {
       toast.error(err.message);
+    } finally {
+      setCheckingKeywords(new Set());
+      setBulkRankProgress(null);
+    }
+  };
+
+  const refreshScores = async () => {
+    if (!app.keywords || app.keywords.length === 0) return;
+    setRefreshingScores(true);
+    try {
+      toast.info(`${app.keywords.length} keyword için skor yeniden hesaplanıyor (~${Math.ceil(app.keywords.length * 0.6)} sn)`);
+      const r = await api.request<{ updated: number; total: number }>(`/sites/${siteId}/aso/apps/${app.id}/refresh-scores`, { method: 'POST' });
+      onChanged();
+      toast.success(`${r.updated}/${r.total} keyword skoru güncellendi`);
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setRefreshingScores(false);
     }
   };
 
@@ -685,10 +731,30 @@ function AppDetailModal({ app, siteId, onClose, onChanged }: {
               <Button size="sm" onClick={addKeyword} disabled={adding}>
                 <Plus className="h-4 w-4 mr-1" />Ekle
               </Button>
-              <Button size="sm" variant="outline" onClick={checkAllRanks}>
-                <RefreshCw className="h-4 w-4 mr-1" />Tüm Rank'leri Çek
+              <Button size="sm" variant="outline" onClick={checkAllRanks} disabled={!!bulkRankProgress || (app.keywords?.length ?? 0) === 0}>
+                <RefreshCw className={`h-4 w-4 mr-1 ${bulkRankProgress ? 'animate-spin' : ''}`} />
+                {bulkRankProgress ? 'Çekiliyor...' : "Tüm Rank'leri Çek"}
+              </Button>
+              <Button size="sm" variant="outline" onClick={refreshScores} disabled={refreshingScores || (app.keywords?.length ?? 0) === 0} title="aso-v2 ile Pop/Diff/Traffic skorlarını yeniden hesaplar">
+                <Sparkles className={`h-4 w-4 mr-1 ${refreshingScores ? 'animate-spin' : ''}`} />
+                {refreshingScores ? 'Hesaplanıyor...' : 'Skorları Yenile'}
               </Button>
             </div>
+
+            {/* Progress bar — bulk işlemlerde */}
+            {(bulkRankProgress || refreshingScores) && (
+              <div className="bg-blue-500/10 border border-blue-500/30 rounded-md p-3 flex items-center gap-3">
+                <RefreshCw className="h-4 w-4 animate-spin text-blue-600 shrink-0" />
+                <div className="flex-1 text-xs">
+                  <div className="font-medium">
+                    {bulkRankProgress ? `Rank check çalışıyor — ${app.keywords?.length} keyword için ~${Math.ceil((app.keywords?.length ?? 0) * 1.5)} sn` : 'Skor hesaplanıyor — her keyword için ~600ms'}
+                  </div>
+                  <div className="text-muted-foreground">
+                    Modal'ı kapatma — işlem arka planda devam eder ama UI güncelleme kaybolur.
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div>
               <label className="text-xs font-medium mb-1 block">Toplu Ekle (her satır 1 keyword)</label>
@@ -723,17 +789,20 @@ function AppDetailModal({ app, siteId, onClose, onChanged }: {
                   <tbody className="divide-y divide-border/40">
                     {app.keywords.map(kw => {
                       const delta = kw.previousRank != null && kw.currentRank != null ? kw.previousRank - kw.currentRank : null;
+                      const isChecking = checkingKeywords.has(kw.id);
                       return (
-                        <tr key={kw.id} className="hover:bg-muted/30">
+                        <tr key={kw.id} className={`hover:bg-muted/30 ${isChecking ? 'bg-blue-500/5' : ''}`}>
                           <td className="px-3 py-2 font-medium max-w-[200px] truncate">{kw.keyword}</td>
                           <td className="px-2 py-2 text-center">
                             <Badge variant="outline" className="text-[10px]">{kw.store === 'IOS' ? 'iOS' : 'Android'}</Badge>
                           </td>
-                          <td className="px-2 py-2 text-center tabular-nums">{kw.popularity?.toFixed(0) ?? '—'}</td>
-                          <td className="px-2 py-2 text-center tabular-nums">{kw.difficulty?.toFixed(0) ?? '—'}</td>
-                          <td className="px-2 py-2 text-center tabular-nums">{kw.traffic?.toFixed(0) ?? '—'}</td>
+                          <td className="px-2 py-2 text-center tabular-nums">{kw.popularity != null && kw.popularity > 0 ? kw.popularity.toFixed(0) : '—'}</td>
+                          <td className="px-2 py-2 text-center tabular-nums">{kw.difficulty != null && kw.difficulty > 0 ? kw.difficulty.toFixed(0) : '—'}</td>
+                          <td className="px-2 py-2 text-center tabular-nums">{kw.traffic != null && kw.traffic > 0 ? kw.traffic.toFixed(0) : '—'}</td>
                           <td className="px-2 py-2 text-center font-bold">
-                            {kw.currentRank != null ? `#${kw.currentRank}` : <span className="text-muted-foreground">—</span>}
+                            {isChecking ? (
+                              <RefreshCw className="h-3.5 w-3.5 animate-spin inline text-blue-600" />
+                            ) : kw.currentRank != null ? `#${kw.currentRank}` : <span className="text-muted-foreground">—</span>}
                           </td>
                           <td className="px-2 py-2 text-center">
                             {delta == null ? '—' : delta > 0 ? (
@@ -746,10 +815,10 @@ function AppDetailModal({ app, siteId, onClose, onChanged }: {
                           </td>
                           <td className="px-2 py-2 text-center">
                             <div className="flex gap-1 justify-end">
-                              <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => checkRank(kw.id)} title="Rank check">
-                                <RefreshCw className="h-3 w-3" />
+                              <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => checkRank(kw.id)} title="Rank check" disabled={isChecking}>
+                                <RefreshCw className={`h-3 w-3 ${isChecking ? 'animate-spin' : ''}`} />
                               </Button>
-                              <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-rose-600 hover:bg-rose-500/10" onClick={() => removeKw(kw.id)}>
+                              <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-rose-600 hover:bg-rose-500/10" onClick={() => removeKw(kw.id)} disabled={isChecking}>
                                 <Trash2 className="h-3 w-3" />
                               </Button>
                             </div>

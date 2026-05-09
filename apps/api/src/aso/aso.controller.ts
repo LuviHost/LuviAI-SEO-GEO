@@ -98,6 +98,11 @@ export class AsoController {
     return this.aso.checkAllRanks(appId);
   }
 
+  @Post('apps/:appId/refresh-scores')
+  refreshScores(@Param('appId') appId: string) {
+    return this.aso.refreshScoresForApp(appId);
+  }
+
   // ─── Reviews ────────────────────────────────
 
   @Post('apps/:appId/reviews/fetch')
