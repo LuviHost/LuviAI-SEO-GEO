@@ -15,17 +15,27 @@ import {
 } from 'lucide-react';
 
 /** Hover tooltip — küçük (i) ikonu + çıkan açıklama balonu. */
-function HelpTip({ text, side = 'top' }: { text: string; side?: 'top' | 'bottom' }) {
+function HelpTip({ text, side = 'bottom' }: { text: string; side?: 'top' | 'bottom' }) {
   return (
     <span className="relative group inline-flex items-center align-middle">
       <Info className="h-3 w-3 text-muted-foreground/70 hover:text-foreground cursor-help ml-1" />
       <span
+        role="tooltip"
         className={`invisible opacity-0 group-hover:visible group-hover:opacity-100 transition-opacity duration-150
-                    absolute left-1/2 -translate-x-1/2 ${side === 'top' ? 'bottom-full mb-1.5' : 'top-full mt-1.5'}
-                    px-3 py-2 bg-popover text-popover-foreground text-[11px] rounded-md shadow-lg
-                    border w-60 z-50 whitespace-normal leading-snug font-normal text-left pointer-events-none`}
+                    absolute left-1/2 -translate-x-1/2 ${side === 'top' ? 'bottom-full mb-2' : 'top-full mt-2'}
+                    px-3 py-2 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200
+                    text-[11px] rounded-md shadow-2xl ring-1 ring-slate-200 dark:ring-slate-700
+                    w-64 z-[100] whitespace-normal leading-snug font-normal text-left pointer-events-none`}
+        style={{ backgroundColor: undefined }}
       >
-        {text}
+        {/* Pointer arrow */}
+        <span
+          className={`absolute left-1/2 -translate-x-1/2 ${side === 'top' ? 'top-full' : 'bottom-full'}
+                      h-2 w-2 rotate-45 bg-white dark:bg-slate-900
+                      ring-1 ring-slate-200 dark:ring-slate-700`}
+          style={{ marginTop: side === 'top' ? -4 : undefined, marginBottom: side === 'bottom' ? -4 : undefined }}
+        />
+        <span className="relative">{text}</span>
       </span>
     </span>
   );
@@ -769,6 +779,68 @@ function AppDetailModal({ app, siteId, onClose, onChanged }: {
                   <div className="text-muted-foreground">
                     Modal'ı kapatma — işlem arka planda devam eder ama UI güncelleme kaybolur.
                   </div>
+                </div>
+              </div>
+            )}
+
+            {/* AI öneri paneli — uygulamaya göre keyword önerir */}
+            {aiResults.length === 0 ? (
+              <div className="bg-gradient-to-r from-purple-500/5 via-purple-500/10 to-transparent border border-purple-500/20 rounded-lg p-4 flex items-center gap-3 flex-wrap">
+                <div className="h-9 w-9 rounded-lg bg-purple-500/15 text-purple-600 grid place-items-center shrink-0">
+                  <Sparkles className="h-4 w-4" />
+                </div>
+                <div className="flex-1 min-w-[200px]">
+                  <div className="text-sm font-semibold flex items-center gap-1.5">
+                    Hangi keyword'leri ekleyeceğini bilmiyor musun?
+                    <HelpTip text="AI uygulamanın açıklamasını + rakip metadata'larını analiz eder, sana özel 30-50 keyword önerisi çıkarır. Her birinin yanındaki + ile direkt takibe ekleyebilirsin." side="bottom" />
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-0.5">
+                    AI uygulamana göre keyword önersin — rakipleri analiz eder, en alakalı 30+ öneri çıkarır.
+                  </div>
+                </div>
+                <Button size="sm" onClick={aiResearch} disabled={aiResearching}>
+                  <Sparkles className={`h-4 w-4 mr-1.5 ${aiResearching ? 'animate-spin' : ''}`} />
+                  {aiResearching ? 'AI çalışıyor (~30 sn)...' : 'AI önerisi al'}
+                </Button>
+              </div>
+            ) : (
+              <div className="border border-purple-500/20 rounded-lg overflow-hidden">
+                <div className="bg-purple-500/5 px-4 py-2.5 flex items-center justify-between gap-2">
+                  <div className="text-sm font-semibold flex items-center gap-1.5">
+                    <Sparkles className="h-4 w-4 text-purple-600" />
+                    AI önerisi {' · '}<span className="text-muted-foreground font-normal">{aiResults.length} keyword</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setTab('ai')}>
+                      Tümünü gör →
+                    </Button>
+                    <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setAiResults([])} title="Önerileri kapat">
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </div>
+                </div>
+                <div className="p-3 flex flex-wrap gap-1.5 max-h-[140px] overflow-y-auto">
+                  {aiResults.slice(0, 12).map(r => (
+                    <button
+                      key={r.keyword}
+                      onClick={() => addAiKeyword(r.keyword)}
+                      className="group inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs border border-border hover:border-purple-500/50 hover:bg-purple-500/5 transition-colors"
+                      title={`Relevance: ${r.relevance}/10 — Kaynak: ${r.source === 'competitor' ? 'rakipten' : 'AI'}`}
+                    >
+                      <span className="font-medium">{r.keyword}</span>
+                      <span className="text-muted-foreground/70">·</span>
+                      <span className="text-purple-600/80 font-medium">{r.relevance}/10</span>
+                      <Plus className="h-3 w-3 text-muted-foreground group-hover:text-purple-600" />
+                    </button>
+                  ))}
+                  {aiResults.length > 12 && (
+                    <button
+                      onClick={() => setTab('ai')}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs text-purple-600 hover:bg-purple-500/5"
+                    >
+                      +{aiResults.length - 12} daha...
+                    </button>
+                  )}
                 </div>
               </div>
             )}
