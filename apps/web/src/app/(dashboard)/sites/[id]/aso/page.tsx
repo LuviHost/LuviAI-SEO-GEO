@@ -11,8 +11,25 @@ import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   Smartphone, Plus, Trash2, RefreshCw, Star, MessageSquare, TrendingUp,
-  Apple, Bot, Search, Globe, Trophy, ArrowUp, ArrowDown, Minus, X, Sparkles, Check,
+  Apple, Bot, Search, Globe, Trophy, ArrowUp, ArrowDown, Minus, X, Sparkles, Check, Info,
 } from 'lucide-react';
+
+/** Hover tooltip — küçük (i) ikonu + çıkan açıklama balonu. */
+function HelpTip({ text, side = 'top' }: { text: string; side?: 'top' | 'bottom' }) {
+  return (
+    <span className="relative group inline-flex items-center align-middle">
+      <Info className="h-3 w-3 text-muted-foreground/70 hover:text-foreground cursor-help ml-1" />
+      <span
+        className={`invisible opacity-0 group-hover:visible group-hover:opacity-100 transition-opacity duration-150
+                    absolute left-1/2 -translate-x-1/2 ${side === 'top' ? 'bottom-full mb-1.5' : 'top-full mt-1.5'}
+                    px-3 py-2 bg-popover text-popover-foreground text-[11px] rounded-md shadow-lg
+                    border w-60 z-50 whitespace-normal leading-snug font-normal text-left pointer-events-none`}
+      >
+        {text}
+      </span>
+    </span>
+  );
+}
 
 interface TrackedApp {
   id: string;
@@ -776,13 +793,48 @@ function AppDetailModal({ app, siteId, onClose, onChanged }: {
                 <table className="w-full text-sm">
                   <thead className="bg-muted/30 text-xs">
                     <tr>
-                      <th className="text-left px-3 py-2 font-semibold">Keyword</th>
-                      <th className="text-center px-2 py-2 font-semibold">Store</th>
-                      <th className="text-center px-2 py-2 font-semibold">Pop.</th>
-                      <th className="text-center px-2 py-2 font-semibold">Diff.</th>
-                      <th className="text-center px-2 py-2 font-semibold">Traffic</th>
-                      <th className="text-center px-2 py-2 font-semibold">Rank</th>
-                      <th className="text-center px-2 py-2 font-semibold">Δ</th>
+                      <th className="text-left px-3 py-2 font-semibold">
+                        <span className="inline-flex items-center">
+                          Keyword
+                          <HelpTip text="Takip ettiğin arama terimi. Kullanıcılar App Store / Play Store'da bunu yazınca senin app'in çıkmasını istiyorsun." side="bottom" />
+                        </span>
+                      </th>
+                      <th className="text-center px-2 py-2 font-semibold">
+                        <span className="inline-flex items-center justify-center">
+                          Store
+                          <HelpTip text="Hangi store'da takip ediliyor: iOS = Apple App Store, Android = Google Play. Bir keyword'ü iki store için ayrı ayrı ekleyebilirsin." side="bottom" />
+                        </span>
+                      </th>
+                      <th className="text-center px-2 py-2 font-semibold">
+                        <span className="inline-flex items-center justify-center">
+                          Pop.
+                          <HelpTip text="Popularity (0-100): Bu keyword'ün autocomplete önerilerinde ne kadar görünür olduğu. Yüksek = çok aranıyor. aso-v2 traffic.suggest skorundan üretilir." side="bottom" />
+                        </span>
+                      </th>
+                      <th className="text-center px-2 py-2 font-semibold">
+                        <span className="inline-flex items-center justify-center">
+                          Diff.
+                          <HelpTip text="Difficulty (0-100): Bu keyword'de ranklenmek ne kadar zor. 5 alt-faktörün ortalaması: title eşleşmeleri, rakip sayısı, install hacmi, rating ortalaması, son güncellemeden geçen gün. Yüksek = rakipler güçlü." side="bottom" />
+                        </span>
+                      </th>
+                      <th className="text-center px-2 py-2 font-semibold">
+                        <span className="inline-flex items-center justify-center">
+                          Traffic
+                          <HelpTip text="Traffic (0-100): Bu keyword'den potansiyel ne kadar trafik gelir. autocomplete + ranked apps + install ortalaması + keyword uzunluğu kombine edilir. Yüksek = ranklenince çok install gelir." side="bottom" />
+                        </span>
+                      </th>
+                      <th className="text-center px-2 py-2 font-semibold">
+                        <span className="inline-flex items-center justify-center">
+                          Rank
+                          <HelpTip text="Bu keyword için arama sonuçlarında app'inin gerçek sırası (1-100). 'Tüm Rank'leri Çek' butonuna basınca güncellenir. — = top 100 dışında." side="bottom" />
+                        </span>
+                      </th>
+                      <th className="text-center px-2 py-2 font-semibold">
+                        <span className="inline-flex items-center justify-center">
+                          Δ
+                          <HelpTip text="Delta = sıra değişimi (önceki check'e göre). Yeşil ↑ = sıralaman yükseldi (iyi). Kırmızı ↓ = düştü (kötü). İlk check sonrası gelir." side="bottom" />
+                        </span>
+                      </th>
                       <th className="px-2 py-2"></th>
                     </tr>
                   </thead>
