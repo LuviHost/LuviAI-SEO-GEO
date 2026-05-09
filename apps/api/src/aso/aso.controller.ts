@@ -140,4 +140,9 @@ export class AsoController {
   ) {
     return this.aso.optimizeMetadata({ trackedAppId: appId, ...body });
   }
+
+  @Get('apps/:appId/audit')
+  audit(@Param('appId') appId: string) {
+    return this.aso.auditMetadata(appId);
+  }
 }

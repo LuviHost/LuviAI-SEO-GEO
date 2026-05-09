@@ -540,7 +540,7 @@ function ConnectAppModal({ siteId, onClose, onAdded }: { siteId: string; onClose
 function AppDetailModal({ app, siteId, onClose, onChanged }: {
   app: AppDetail; siteId: string; onClose: () => void; onChanged: () => void;
 }) {
-  const [tab, setTab] = useState<'keywords' | 'ai' | 'reviews'>('keywords');
+  const [tab, setTab] = useState<'keywords' | 'ai' | 'reviews' | 'optimize'>('keywords');
   const [newKeyword, setNewKeyword] = useState('');
   const [keywordStore, setKeywordStore] = useState<'IOS' | 'ANDROID'>(app.appStoreId ? 'IOS' : 'ANDROID');
   const [adding, setAdding] = useState(false);
@@ -555,12 +555,30 @@ function AppDetailModal({ app, siteId, onClose, onChanged }: {
   const [refreshingScores, setRefreshingScores] = useState(false);
   const [bulkRankProgress, setBulkRankProgress] = useState<{ done: number; total: number } | null>(null);
 
+  // ASO Audit + Optimize state
+  const [auditData, setAuditData] = useState<any>(null);
+  const [auditLoading, setAuditLoading] = useState(false);
+  const [optimizeStore, setOptimizeStore] = useState<'IOS' | 'ANDROID'>(app.appStoreId ? 'IOS' : 'ANDROID');
+  const [selectedKwForOptimize, setSelectedKwForOptimize] = useState<Set<string>>(new Set());
+  const [optimizing, setOptimizing] = useState(false);
+  const [optimizeResult, setOptimizeResult] = useState<any>(null);
+
   // Auto-load review stats on Reviews tab open (persist across modal reopens)
   useEffect(() => {
     if (tab !== 'reviews' || reviewStats) return;
     api.request(`/sites/${siteId}/aso/apps/${app.id}/reviews/stats`)
       .then(setReviewStats)
       .catch(() => { /* silent — first time has no data yet */ });
+  }, [tab, app.id, siteId]);
+
+  // Auto-load audit on Optimize tab open
+  useEffect(() => {
+    if (tab !== 'optimize' || auditData) return;
+    setAuditLoading(true);
+    api.request(`/sites/${siteId}/aso/apps/${app.id}/audit`)
+      .then(setAuditData)
+      .catch((err: any) => toast.error(err.message))
+      .finally(() => setAuditLoading(false));
   }, [tab, app.id, siteId]);
 
   const addKeyword = async () => {
@@ -710,6 +728,43 @@ function AppDetailModal({ app, siteId, onClose, onChanged }: {
     }
   };
 
+  const runOptimize = async () => {
+    const targetKeywords = (app.keywords ?? [])
+      .filter(k => selectedKwForOptimize.has(k.id))
+      .map(k => k.keyword);
+    if (targetKeywords.length === 0) {
+      toast.error('En az 1 keyword seç (Keywords tab\'ından)');
+      return;
+    }
+    setOptimizing(true);
+    try {
+      toast.info(`AI ${targetKeywords.length} keyword için ${optimizeStore} metadata öneriyor (~30 sn)`);
+      const result = await api.request<any>(`/sites/${siteId}/aso/apps/${app.id}/optimize-metadata`, {
+        method: 'POST',
+        body: JSON.stringify({
+          targetKeywords,
+          store: optimizeStore,
+          locale: app.country === 'tr' ? 'tr' : 'en',
+        }),
+      });
+      setOptimizeResult(result);
+      toast.success('AI metadata önerisi hazır');
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setOptimizing(false);
+    }
+  };
+
+  const copyToClipboard = async (text: string, label: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success(`${label} panoya kopyalandı`);
+    } catch {
+      toast.error('Kopyalanamadı');
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-start justify-center p-4 overflow-y-auto" onClick={onClose}>
       <div className="bg-background border rounded-lg max-w-4xl w-full my-8 shadow-xl" onClick={e => e.stopPropagation()}>
@@ -726,16 +781,19 @@ function AppDetailModal({ app, siteId, onClose, onChanged }: {
         </div>
 
         {/* TABS */}
-        <div className="border-b flex">
-          {(['keywords', 'ai', 'reviews'] as const).map(t => (
+        <div className="border-b flex overflow-x-auto">
+          {(['keywords', 'optimize', 'ai', 'reviews'] as const).map(t => (
             <button
               key={t}
               onClick={() => setTab(t)}
-              className={`px-5 py-3 text-sm font-medium border-b-2 transition-colors ${
+              className={`px-5 py-3 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
                 tab === t ? 'border-brand text-brand' : 'border-transparent text-muted-foreground hover:text-foreground'
               }`}
             >
-              {t === 'keywords' ? `Keywords (${app.keywords?.length ?? 0})` : t === 'ai' ? 'AI Asistan' : 'Reviews'}
+              {t === 'keywords' ? `Keywords (${app.keywords?.length ?? 0})` :
+               t === 'optimize' ? '⚡ Optimize' :
+               t === 'ai' ? 'AI Asistan' :
+               'Reviews'}
             </button>
           ))}
         </div>
@@ -1058,7 +1116,340 @@ function AppDetailModal({ app, siteId, onClose, onChanged }: {
             )}
           </div>
         )}
+
+        {/* OPTIMIZE TAB */}
+        {tab === 'optimize' && (
+          <div className="p-5 space-y-5 max-h-[75vh] overflow-y-auto">
+            {auditLoading && (
+              <div className="space-y-3">
+                <Skeleton className="h-32" /><Skeleton className="h-48" /><Skeleton className="h-64" />
+              </div>
+            )}
+
+            {!auditLoading && auditData && (
+              <>
+                {/* AUDIT SCORE BANNER */}
+                <Card className="bg-gradient-to-r from-brand/5 via-transparent to-transparent border-brand/20">
+                  <CardContent className="p-5 flex items-center gap-4 flex-wrap">
+                    <div className="text-center min-w-[80px]">
+                      <div className={`text-4xl font-bold ${
+                        auditData.score >= 80 ? 'text-emerald-600' :
+                        auditData.score >= 60 ? 'text-amber-600' :
+                        'text-rose-600'
+                      }`}>{auditData.grade}</div>
+                      <div className="text-xs text-muted-foreground mt-0.5">{auditData.score}/100</div>
+                    </div>
+                    <div className="flex-1 min-w-[200px]">
+                      <h4 className="font-semibold mb-1">ASO Sağlık Skoru</h4>
+                      <p className="text-xs text-muted-foreground">
+                        Mevcut metadata'nın ASO best practices uyumu. Kötü gelirse aşağıdaki listede ne yapılması gerektiği yazıyor.
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-3 gap-3 text-center">
+                      <div>
+                        <div className="text-2xl font-bold text-emerald-600">{auditData.summary.ok}</div>
+                        <div className="text-[10px] uppercase tracking-wide text-muted-foreground">İyi</div>
+                      </div>
+                      <div>
+                        <div className="text-2xl font-bold text-amber-600">{auditData.summary.warning}</div>
+                        <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Uyarı</div>
+                      </div>
+                      <div>
+                        <div className="text-2xl font-bold text-rose-600">{auditData.summary.error}</div>
+                        <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Hata</div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* CURRENT METADATA + AUDIT FINDINGS */}
+                <Card>
+                  <CardHeader>
+                    <h4 className="font-semibold flex items-center gap-2">
+                      📋 Mevcut Metadata + Bulgular
+                      <HelpTip text="Apple App Store ve Google Play Store'da app sayfanın şu anki halini ve hatalarını gösterir. Yeşil ✓ = iyi, sarı ⚠ = iyileşebilir, kırmızı ✗ = kritik düzelt." side="bottom" />
+                    </h4>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {auditData.findings.map((f: any, i: number) => (
+                      <div key={i} className={`flex items-start gap-3 p-3 rounded-md border ${
+                        f.severity === 'ok' ? 'border-emerald-500/20 bg-emerald-500/5' :
+                        f.severity === 'warning' ? 'border-amber-500/20 bg-amber-500/5' :
+                        f.severity === 'error' ? 'border-rose-500/20 bg-rose-500/5' :
+                        'border-blue-500/20 bg-blue-500/5'
+                      }`}>
+                        <div className={`shrink-0 h-6 w-6 rounded grid place-items-center text-sm font-bold ${
+                          f.severity === 'ok' ? 'bg-emerald-500 text-white' :
+                          f.severity === 'warning' ? 'bg-amber-500 text-white' :
+                          f.severity === 'error' ? 'bg-rose-500 text-white' :
+                          'bg-blue-500 text-white'
+                        }`}>
+                          {f.severity === 'ok' ? '✓' : f.severity === 'warning' ? '!' : f.severity === 'error' ? '✗' : 'i'}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-0.5 flex-wrap">
+                            <Badge variant="outline" className="text-[10px]">
+                              {f.store === 'IOS' ? <><Apple className="h-2.5 w-2.5 mr-1" />iOS</> : f.store === 'ANDROID' ? 'Android' : 'Hepsi'}
+                            </Badge>
+                            <span className="font-medium text-sm">{f.label}</span>
+                            {f.current != null && f.current !== '' && (
+                              <span className="text-xs text-muted-foreground">· {f.current}</span>
+                            )}
+                          </div>
+                          {f.message && <div className="text-xs text-foreground/80 mb-1">{f.message}</div>}
+                          {f.recommendation && (
+                            <div className="text-xs text-muted-foreground">
+                              <span className="font-medium">→ Öneri:</span> {f.recommendation}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </CardContent>
+                </Card>
+
+                {/* CURRENT METADATA PREVIEW */}
+                {auditData.currentMetadata.ios && (
+                  <Card>
+                    <CardHeader>
+                      <h4 className="font-semibold flex items-center gap-2">
+                        <Apple className="h-4 w-4" /> iOS — Şu anki metadata
+                      </h4>
+                    </CardHeader>
+                    <CardContent className="space-y-2 text-sm">
+                      <FieldDisplay label="Title" value={auditData.currentMetadata.ios.title} limit={30} />
+                      <FieldDisplay label="Subtitle" value={auditData.currentMetadata.ios.subtitle} limit={30} />
+                      <FieldDisplay label="Description" value={auditData.currentMetadata.ios.description} limit={4000} multiline />
+                      <FieldDisplay label="Promo Text" value={auditData.currentMetadata.ios.releaseNotes} limit={170} />
+                    </CardContent>
+                  </Card>
+                )}
+
+                {auditData.currentMetadata.android && (
+                  <Card>
+                    <CardHeader>
+                      <h4 className="font-semibold flex items-center gap-2">
+                        🤖 Android — Şu anki metadata
+                      </h4>
+                    </CardHeader>
+                    <CardContent className="space-y-2 text-sm">
+                      <FieldDisplay label="Title" value={auditData.currentMetadata.android.title} limit={50} />
+                      <FieldDisplay label="Short Description" value={auditData.currentMetadata.android.summary} limit={80} />
+                      <FieldDisplay label="Long Description" value={auditData.currentMetadata.android.description} limit={4000} multiline />
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* AI OPTIMIZE PANEL */}
+                <Card className="border-purple-500/20 bg-gradient-to-b from-purple-500/5 to-transparent">
+                  <CardHeader>
+                    <h4 className="font-semibold flex items-center gap-2">
+                      <Sparkles className="h-4 w-4 text-purple-600" />
+                      AI ile Yeni Metadata Yazdır
+                      <HelpTip text="Hedef keyword'leri seç, AI sana yeni title + subtitle + description + keywords field önerir. Char limit'lerine uyar. Sonra App Store Connect / Play Console'a kopyala-yapıştır." side="bottom" />
+                    </h4>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Hedef keyword'leri seç + store seç → AI Claude Sonnet ile yeni metadata yazsın.
+                    </p>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {/* Keyword multi-select */}
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="text-xs font-medium">Hedef keyword'ler ({selectedKwForOptimize.size} seçili)</label>
+                        <button onClick={() => setSelectedKwForOptimize(new Set())} className="text-xs text-muted-foreground hover:text-foreground">
+                          Temizle
+                        </button>
+                      </div>
+                      {(app.keywords?.length ?? 0) === 0 ? (
+                        <div className="text-xs text-muted-foreground italic p-3 border border-dashed rounded">
+                          Önce Keywords tab'ından keyword ekle.
+                        </div>
+                      ) : (
+                        <div className="flex flex-wrap gap-1.5 max-h-[120px] overflow-y-auto p-1">
+                          {app.keywords?.filter(k => k.store === optimizeStore).map(k => {
+                            const isSelected = selectedKwForOptimize.has(k.id);
+                            return (
+                              <button
+                                key={k.id}
+                                onClick={() => {
+                                  const next = new Set(selectedKwForOptimize);
+                                  if (isSelected) next.delete(k.id); else next.add(k.id);
+                                  setSelectedKwForOptimize(next);
+                                }}
+                                className={`text-xs px-2.5 py-1 rounded-full border transition-colors ${
+                                  isSelected
+                                    ? 'bg-purple-600 text-white border-purple-600'
+                                    : 'bg-background border-border hover:border-purple-500/40'
+                                }`}
+                              >
+                                {isSelected && <Check className="h-3 w-3 inline mr-1" />}
+                                {k.keyword}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Store selector */}
+                    <div>
+                      <label className="text-xs font-medium mb-1 block">Store</label>
+                      <div className="flex border rounded-md overflow-hidden h-9 w-fit">
+                        {app.appStoreId && (
+                          <button
+                            onClick={() => setOptimizeStore('IOS')}
+                            className={`px-4 text-xs ${optimizeStore === 'IOS' ? 'bg-purple-600 text-white' : 'bg-background hover:bg-muted'}`}
+                          >
+                            <Apple className="h-3 w-3 inline mr-1" />iOS
+                          </button>
+                        )}
+                        {app.playStoreId && (
+                          <button
+                            onClick={() => setOptimizeStore('ANDROID')}
+                            className={`px-4 text-xs ${optimizeStore === 'ANDROID' ? 'bg-purple-600 text-white' : 'bg-background hover:bg-muted'}`}
+                          >
+                            Android
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    <Button onClick={runOptimize} disabled={optimizing || selectedKwForOptimize.size === 0}>
+                      <Sparkles className={`h-4 w-4 mr-2 ${optimizing ? 'animate-spin' : ''}`} />
+                      {optimizing ? 'AI çalışıyor (~30 sn)...' : 'AI ile metadata yazdır'}
+                    </Button>
+
+                    {/* RESULT */}
+                    {optimizeResult && (
+                      <div className="space-y-3 mt-4 pt-4 border-t">
+                        <h5 className="text-sm font-bold text-purple-600 mb-2">✨ AI Önerisi (App Store Connect/Play Console'a yapıştır)</h5>
+                        <FieldResult label="Title" value={optimizeResult.title} limit={optimizeStore === 'IOS' ? 30 : 50} onCopy={(v) => copyToClipboard(v, 'Title')} />
+                        {optimizeResult.subtitle && (
+                          <FieldResult label={optimizeStore === 'IOS' ? 'Subtitle' : 'Short Description'} value={optimizeResult.subtitle} limit={optimizeStore === 'IOS' ? 30 : 80} onCopy={(v) => copyToClipboard(v, 'Subtitle')} />
+                        )}
+                        {optimizeResult.keywordField && (
+                          <FieldResult label="Keywords field (sadece iOS)" value={optimizeResult.keywordField} limit={100} onCopy={(v) => copyToClipboard(v, 'Keywords')} hint="Apple App Store Connect'te 'App Information → Localizable Information → Keywords' alanına. SPACE YOK, sadece virgül." />
+                        )}
+                        <FieldResult label="Description" value={optimizeResult.description} limit={4000} multiline onCopy={(v) => copyToClipboard(v, 'Description')} />
+                        {Array.isArray(optimizeResult.suggestions) && optimizeResult.suggestions.length > 0 && (
+                          <div className="bg-muted/30 rounded p-3 mt-3">
+                            <div className="text-xs font-semibold mb-2">💡 AI ek önerileri:</div>
+                            <ul className="text-xs space-y-1.5">
+                              {optimizeResult.suggestions.map((s: string, i: number) => (
+                                <li key={i} className="flex gap-1.5"><span className="text-purple-600">•</span><span>{s}</span></li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* STEP-BY-STEP GUIDE */}
+                <Card className="border-blue-500/20 bg-blue-500/5">
+                  <CardHeader>
+                    <h4 className="font-semibold flex items-center gap-2">📘 Adım Adım — Nasıl uygulayacaksın?</h4>
+                  </CardHeader>
+                  <CardContent>
+                    <ol className="space-y-2.5 text-sm">
+                      <li className="flex gap-2.5">
+                        <span className="shrink-0 h-5 w-5 rounded-full bg-blue-500 text-white grid place-items-center text-xs font-bold">1</span>
+                        <span>Yukarıdaki <strong>"AI ile metadata yazdır"</strong> butonuna bas. AI 30 saniye içinde title/subtitle/description/keywords önerir.</span>
+                      </li>
+                      <li className="flex gap-2.5">
+                        <span className="shrink-0 h-5 w-5 rounded-full bg-blue-500 text-white grid place-items-center text-xs font-bold">2</span>
+                        <span>Her satırın yanındaki <strong>"Kopyala"</strong> butonuyla metni al.</span>
+                      </li>
+                      <li className="flex gap-2.5">
+                        <span className="shrink-0 h-5 w-5 rounded-full bg-blue-500 text-white grid place-items-center text-xs font-bold">3</span>
+                        <span>
+                          {optimizeStore === 'IOS' ? (
+                            <><a href="https://appstoreconnect.apple.com/" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline font-medium">App Store Connect</a> → <strong>{app.name}</strong> → <strong>App Information</strong> → <strong>Localizable Information (Turkish)</strong></>
+                          ) : (
+                            <><a href="https://play.google.com/console" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline font-medium">Google Play Console</a> → <strong>{app.name}</strong> → <strong>Main store listing</strong> → <strong>Türkçe</strong></>
+                          )}
+                        </span>
+                      </li>
+                      <li className="flex gap-2.5">
+                        <span className="shrink-0 h-5 w-5 rounded-full bg-blue-500 text-white grid place-items-center text-xs font-bold">4</span>
+                        <span>Her alanı <strong>yapıştır</strong> ve <strong>Save</strong>. {optimizeStore === 'IOS' ? 'Sonra "Submit for Review" — Apple 1-2 gün inceler.' : 'Play Console anında yayına alır (review yok).'}</span>
+                      </li>
+                      <li className="flex gap-2.5">
+                        <span className="shrink-0 h-5 w-5 rounded-full bg-blue-500 text-white grid place-items-center text-xs font-bold">5</span>
+                        <span><strong>Yayına çıktıktan 1-2 hafta sonra</strong> Keywords tab'ına dön, "Tüm Rank'leri Çek" tıkla. Δ kolonu yeşil ↑ ise başarı.</span>
+                      </li>
+                      <li className="flex gap-2.5">
+                        <span className="shrink-0 h-5 w-5 rounded-full bg-amber-500 text-white grid place-items-center text-xs font-bold">!</span>
+                        <span className="text-muted-foreground"><strong>Önemli:</strong> Apple/Google güvenlik nedeniyle 3rd-party tool'ların direkt store'a yazmasını yasaklıyor. Kopyala-yapıştır şu an tek yol.</span>
+                      </li>
+                    </ol>
+                  </CardContent>
+                </Card>
+              </>
+            )}
+          </div>
+        )}
       </div>
+    </div>
+  );
+}
+
+function FieldDisplay({ label, value, limit, multiline }: { label: string; value: string | null | undefined; limit?: number; multiline?: boolean }) {
+  const v = value ?? '';
+  const len = v.length;
+  const overLimit = limit ? len > limit : false;
+  const empty = len === 0;
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1">
+        <span className="text-xs font-medium text-muted-foreground">{label}</span>
+        {limit && (
+          <span className={`text-[10px] ${overLimit ? 'text-rose-600 font-bold' : empty ? 'text-rose-600' : 'text-muted-foreground'}`}>
+            {len}/{limit} char
+          </span>
+        )}
+      </div>
+      {empty ? (
+        <div className="text-xs italic text-rose-500 p-2 border border-dashed border-rose-500/30 rounded">— boş —</div>
+      ) : multiline ? (
+        <div className="text-xs bg-muted/30 rounded p-2 max-h-[120px] overflow-y-auto whitespace-pre-wrap">{v.slice(0, 600)}{v.length > 600 ? '...' : ''}</div>
+      ) : (
+        <div className="text-xs bg-muted/30 rounded p-2">{v}</div>
+      )}
+    </div>
+  );
+}
+
+function FieldResult({ label, value, limit, multiline, hint, onCopy }: { label: string; value: string; limit?: number; multiline?: boolean; hint?: string; onCopy: (v: string) => void }) {
+  const len = value.length;
+  const overLimit = limit ? len > limit : false;
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1 flex-wrap gap-1">
+        <span className="text-xs font-semibold flex items-center gap-1.5">
+          {label}
+          {limit && (
+            <span className={`text-[10px] font-normal ${overLimit ? 'text-rose-600' : 'text-emerald-600'}`}>
+              {len}/{limit}{overLimit ? ' ⚠️ aşıyor' : ' ✓'}
+            </span>
+          )}
+        </span>
+        <Button size="sm" variant="outline" className="h-6 text-[10px] px-2" onClick={() => onCopy(value)}>
+          📋 Kopyala
+        </Button>
+      </div>
+      {multiline ? (
+        <textarea
+          readOnly
+          value={value}
+          className="w-full text-xs px-3 py-2 rounded-md border bg-muted/20 font-mono min-h-[120px] max-h-[300px] resize-y"
+        />
+      ) : (
+        <div className="text-xs bg-muted/20 rounded p-2.5 border font-mono break-all">{value}</div>
+      )}
+      {hint && <p className="text-[10px] text-muted-foreground mt-1">💡 {hint}</p>}
     </div>
   );
 }
