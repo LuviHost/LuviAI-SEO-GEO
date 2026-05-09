@@ -28,6 +28,120 @@ export class AsoService {
   ) {}
 
   // ─────────────────────────────────────────────
+  //  App search — name → store result list
+  // ─────────────────────────────────────────────
+
+  /**
+   * Hem App Store hem Play Store'da arar.
+   * URL parse fallback: kullanıcı URL yapıştırırsa, ID/package'ı çıkarır + tek app döner.
+   */
+  async searchApps(opts: {
+    term: string;
+    store?: 'IOS' | 'ANDROID' | 'BOTH';
+    country?: string;
+  }) {
+    const term = opts.term.trim();
+    if (!term) return { results: [] as any[] };
+
+    // URL detection
+    const urlInfo = this.parseAppUrl(term);
+    if (urlInfo) {
+      const country = opts.country ?? urlInfo.country ?? 'tr';
+      const app: any = urlInfo.store === 'IOS'
+        ? await this.scrapers.getIosApp({ id: urlInfo.id, country })
+        : await this.scrapers.getAndroidApp({ appId: urlInfo.id, country });
+      if (!app) return { results: [], parsedUrl: urlInfo };
+      return {
+        parsedUrl: urlInfo,
+        results: [{
+          id: urlInfo.id,
+          store: urlInfo.store,
+          name: app.title,
+          developer: app.developer,
+          icon: app.icon,
+          rating: app.score ?? null,
+          reviewCount: app.reviews ?? null,
+          category: app.primaryGenre ?? app.genre ?? null,
+        }],
+      };
+    }
+
+    // Regular search
+    const country = opts.country ?? 'tr';
+    const store = opts.store ?? 'BOTH';
+    const promises: Promise<any[]>[] = [];
+
+    if (store === 'IOS' || store === 'BOTH') {
+      promises.push(
+        this.scrapers.iosSearch({ term, country, num: 15 })
+          .then(arr => arr.map((a: any) => ({
+            id: String(a.id ?? a.appId),
+            store: 'IOS' as const,
+            name: a.title,
+            developer: a.developer,
+            icon: a.icon,
+            rating: a.score ?? null,
+            reviewCount: a.reviews ?? null,
+            category: a.primaryGenre ?? null,
+          })))
+          .catch(() => [])
+      );
+    }
+    if (store === 'ANDROID' || store === 'BOTH') {
+      promises.push(
+        this.scrapers.androidSearch({ term, country, num: 15 })
+          .then(arr => arr.map((a: any) => ({
+            id: a.appId,
+            store: 'ANDROID' as const,
+            name: a.title,
+            developer: a.developer,
+            icon: a.icon,
+            rating: a.score ?? null,
+            reviewCount: a.reviews ?? null,
+            category: a.genre ?? null,
+          })))
+          .catch(() => [])
+      );
+    }
+
+    const results = (await Promise.all(promises)).flat();
+    return { results };
+  }
+
+  /**
+   * URL'den iOS app id veya Android package çıkarır.
+   * Desteklenen formatlar:
+   * - https://apps.apple.com/tr/app/luvihost/id6444904356
+   * - https://apps.apple.com/app/id6444904356
+   * - https://play.google.com/store/apps/details?id=com.example.app
+   */
+  parseAppUrl(input: string): { store: 'IOS' | 'ANDROID'; id: string; country?: string } | null {
+    const s = input.trim();
+    if (!s.includes('://')) return null;
+    try {
+      const url = new URL(s);
+      const host = url.hostname.toLowerCase();
+      if (host.includes('apple.com')) {
+        const m = url.pathname.match(/\/id(\d+)/);
+        if (m) {
+          const cc = url.pathname.match(/^\/([a-z]{2})\//);
+          return { store: 'IOS', id: m[1], country: cc ? cc[1] : undefined };
+        }
+      }
+      if (host.includes('play.google.com')) {
+        const id = url.searchParams.get('id');
+        if (id) {
+          const gl = url.searchParams.get('gl');
+          return { store: 'ANDROID', id, country: gl ? gl.toLowerCase() : undefined };
+        }
+      }
+    } catch {
+      // ignore
+    }
+    return null;
+  }
+
+  // ─────────────────────────────────────────────
   //  App connect / list / delete
   // ─────────────────────────────────────────────
 

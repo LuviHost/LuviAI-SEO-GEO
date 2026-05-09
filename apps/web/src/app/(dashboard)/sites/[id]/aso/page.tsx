@@ -11,7 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   Smartphone, Plus, Trash2, RefreshCw, Star, MessageSquare, TrendingUp,
-  Apple, Bot, Search, Globe, Trophy, ArrowUp, ArrowDown, Minus, X, Sparkles,
+  Apple, Bot, Search, Globe, Trophy, ArrowUp, ArrowDown, Minus, X, Sparkles, Check,
 } from 'lucide-react';
 
 interface TrackedApp {
@@ -208,73 +208,302 @@ export default function AsoPage() {
   );
 }
 
-function ConnectAppModal({ siteId, onClose, onAdded }: { siteId: string; onClose: () => void; onAdded: (app: TrackedApp) => void }) {
-  const [appStoreId, setAppStoreId] = useState('');
-  const [playStoreId, setPlayStoreId] = useState('');
-  const [country, setCountry] = useState('tr');
-  const [loading, setLoading] = useState(false);
+interface SearchResult {
+  id: string;
+  store: 'IOS' | 'ANDROID';
+  name: string;
+  developer?: string;
+  icon?: string;
+  rating?: number | null;
+  reviewCount?: number | null;
+  category?: string | null;
+}
 
-  const submit = async () => {
-    if (!appStoreId.trim() && !playStoreId.trim()) {
-      toast.error('App Store ID veya Play Store ID gerekli');
+function ConnectAppModal({ siteId, onClose, onAdded }: { siteId: string; onClose: () => void; onAdded: (app: TrackedApp) => void }) {
+  const [tab, setTab] = useState<'search' | 'manual'>('search');
+  const [country, setCountry] = useState('tr');
+  const [storeFilter, setStoreFilter] = useState<'BOTH' | 'IOS' | 'ANDROID'>('BOTH');
+  const [query, setQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
+  const [results, setResults] = useState<SearchResult[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [pickedIos, setPickedIos] = useState<SearchResult | null>(null);
+  const [pickedAndroid, setPickedAndroid] = useState<SearchResult | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  // Manual fallback
+  const [manualIos, setManualIos] = useState('');
+  const [manualAndroid, setManualAndroid] = useState('');
+
+  // Debounce search input (350ms)
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQuery(query), 350);
+    return () => clearTimeout(t);
+  }, [query]);
+
+  // Trigger search
+  useEffect(() => {
+    if (!debouncedQuery.trim() || debouncedQuery.length < 2) {
+      setResults([]);
       return;
     }
-    setLoading(true);
+    let cancelled = false;
+    setSearching(true);
+    const params = new URLSearchParams({
+      term: debouncedQuery,
+      store: storeFilter,
+      country,
+    });
+    api.request<{ results: SearchResult[]; parsedUrl?: any }>(`/sites/${siteId}/aso/search?${params}`)
+      .then(res => {
+        if (cancelled) return;
+        setResults(res.results || []);
+      })
+      .catch(err => {
+        if (!cancelled) toast.error(err.message);
+      })
+      .finally(() => {
+        if (!cancelled) setSearching(false);
+      });
+    return () => { cancelled = true; };
+  }, [debouncedQuery, storeFilter, country, siteId]);
+
+  const pick = (r: SearchResult) => {
+    if (r.store === 'IOS') {
+      setPickedIos(pickedIos?.id === r.id ? null : r);
+    } else {
+      setPickedAndroid(pickedAndroid?.id === r.id ? null : r);
+    }
+  };
+
+  const isPicked = (r: SearchResult) =>
+    (r.store === 'IOS' && pickedIos?.id === r.id) ||
+    (r.store === 'ANDROID' && pickedAndroid?.id === r.id);
+
+  const submit = async () => {
+    let appStoreId: string | undefined;
+    let playStoreId: string | undefined;
+
+    if (tab === 'search') {
+      appStoreId = pickedIos?.id;
+      playStoreId = pickedAndroid?.id;
+    } else {
+      appStoreId = manualIos.trim() || undefined;
+      playStoreId = manualAndroid.trim() || undefined;
+    }
+
+    if (!appStoreId && !playStoreId) {
+      toast.error('En az 1 app seç veya manuel ID gir');
+      return;
+    }
+    setSubmitting(true);
     try {
       const app = await api.request<TrackedApp>(`/sites/${siteId}/aso/apps`, {
         method: 'POST',
-        body: JSON.stringify({
-          appStoreId: appStoreId.trim() || undefined,
-          playStoreId: playStoreId.trim() || undefined,
-          country,
-        }),
+        body: JSON.stringify({ appStoreId, playStoreId, country }),
       });
       toast.success('App eklendi');
       onAdded(app);
     } catch (err: any) {
       toast.error(err.message);
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   };
 
+  const isUrl = query.trim().startsWith('http');
+  const totalPicked = (pickedIos ? 1 : 0) + (pickedAndroid ? 1 : 0);
+
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-start justify-center p-4 overflow-y-auto" onClick={onClose}>
-      <div className="bg-background border rounded-lg max-w-lg w-full my-8 shadow-xl" onClick={e => e.stopPropagation()}>
+      <div className="bg-background border rounded-lg max-w-2xl w-full my-8 shadow-xl" onClick={e => e.stopPropagation()}>
         <div className="p-5 border-b flex items-center justify-between">
-          <h3 className="font-bold">Yeni App Ekle</h3>
+          <h3 className="font-bold">App Bağla</h3>
           <Button size="sm" variant="ghost" onClick={onClose}><X className="h-4 w-4" /></Button>
         </div>
-        <div className="p-5 space-y-4">
-          <div>
-            <label className="text-xs font-medium mb-1 block flex items-center gap-1.5"><Apple className="h-3 w-3" /> App Store ID (iOS)</label>
-            <Input value={appStoreId} onChange={e => setAppStoreId(e.target.value)} placeholder="örn: 6444904356" />
-            <p className="text-xs text-muted-foreground mt-1">App Store URL'inde id sonrası: apps.apple.com/.../id<strong>6444904356</strong></p>
-          </div>
-          <div>
-            <label className="text-xs font-medium mb-1 block">Play Store Package (Android)</label>
-            <Input value={playStoreId} onChange={e => setPlayStoreId(e.target.value)} placeholder="örn: com.example.app" />
-            <p className="text-xs text-muted-foreground mt-1">Play Store URL'inde id=...: play.google.com/store/apps/details?id=<strong>com.example.app</strong></p>
-          </div>
-          <div>
-            <label className="text-xs font-medium mb-1 block">Ülke</label>
-            <select value={country} onChange={e => setCountry(e.target.value)} className="w-full h-9 px-2 rounded-md border border-input text-sm bg-background">
-              <option value="tr">Türkiye</option>
-              <option value="us">USA</option>
-              <option value="gb">UK</option>
-              <option value="de">Germany</option>
-              <option value="fr">France</option>
-            </select>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            En az birini doldurman yeter. İkisini de eklersen hem iOS hem Android için tracking aktif olur.
-          </p>
+
+        {/* TABS */}
+        <div className="border-b flex">
+          <button
+            onClick={() => setTab('search')}
+            className={`px-5 py-3 text-sm font-medium border-b-2 transition-colors ${tab === 'search' ? 'border-brand text-brand' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+          >
+            <Search className="h-3.5 w-3.5 inline mr-1.5" />
+            Ara / URL Yapıştır
+          </button>
+          <button
+            onClick={() => setTab('manual')}
+            className={`px-5 py-3 text-sm font-medium border-b-2 transition-colors ${tab === 'manual' ? 'border-brand text-brand' : 'border-transparent text-muted-foreground hover:text-foreground'}`}
+          >
+            Manuel ID
+          </button>
         </div>
-        <div className="p-4 border-t flex justify-end gap-2 bg-muted/20">
-          <Button size="sm" variant="outline" onClick={onClose}>İptal</Button>
-          <Button size="sm" onClick={submit} disabled={loading}>
-            {loading ? 'Ekleniyor...' : 'Ekle'}
-          </Button>
+
+        <div className="p-5 space-y-4">
+          {/* COUNTRY + STORE FILTER (her tab'de) */}
+          <div className="flex items-end gap-2 flex-wrap">
+            <div>
+              <label className="text-xs font-medium mb-1 block">Ülke</label>
+              <select value={country} onChange={e => setCountry(e.target.value)} className="h-9 px-2 rounded-md border border-input text-sm bg-background">
+                <option value="tr">🇹🇷 Türkiye</option>
+                <option value="us">🇺🇸 USA</option>
+                <option value="gb">🇬🇧 UK</option>
+                <option value="de">🇩🇪 Germany</option>
+                <option value="fr">🇫🇷 France</option>
+                <option value="ar">🇦🇪 BAE/Arapça</option>
+                <option value="ru">🇷🇺 Russia</option>
+              </select>
+            </div>
+            {tab === 'search' && (
+              <div>
+                <label className="text-xs font-medium mb-1 block">Store</label>
+                <div className="flex border rounded-md overflow-hidden h-9">
+                  {(['BOTH', 'IOS', 'ANDROID'] as const).map(s => (
+                    <button
+                      key={s}
+                      onClick={() => setStoreFilter(s)}
+                      className={`px-3 text-xs ${storeFilter === s ? 'bg-brand text-white' : 'bg-background hover:bg-muted'}`}
+                    >
+                      {s === 'BOTH' ? 'Hepsi' : s === 'IOS' ? 'iOS' : 'Android'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {tab === 'search' && (
+            <>
+              <div>
+                <label className="text-xs font-medium mb-1 block">App ara veya URL yapıştır</label>
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                  <Input
+                    value={query}
+                    onChange={e => setQuery(e.target.value)}
+                    placeholder="örn: spotify  /  https://apps.apple.com/.../id..."
+                    className="pl-8"
+                    autoFocus
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {isUrl ? '🔗 URL algılandı — direkt çekiliyor' : 'En az 2 harf yaz, sonuçlar otomatik gelir'}
+                </p>
+              </div>
+
+              {/* SEARCH RESULTS */}
+              <div className="min-h-[200px] max-h-[420px] overflow-y-auto -mx-1 px-1">
+                {searching && (
+                  <div className="space-y-2">
+                    {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-16" />)}
+                  </div>
+                )}
+                {!searching && results.length === 0 && query.length >= 2 && (
+                  <div className="text-center py-10 text-sm text-muted-foreground">
+                    Sonuç bulunamadı.
+                  </div>
+                )}
+                {!searching && results.length === 0 && query.length < 2 && (
+                  <div className="text-center py-10 text-sm text-muted-foreground">
+                    Yukarı kutuya app adı yaz.
+                  </div>
+                )}
+                {!searching && results.length > 0 && (
+                  <div className="space-y-1.5">
+                    {results.map(r => (
+                      <button
+                        key={`${r.store}-${r.id}`}
+                        onClick={() => pick(r)}
+                        className={`w-full text-left flex items-center gap-3 p-2.5 rounded-md border transition-colors ${
+                          isPicked(r)
+                            ? 'border-brand bg-brand/5'
+                            : 'border-border hover:border-foreground/30 hover:bg-muted/40'
+                        }`}
+                      >
+                        {r.icon ? (
+                          <img src={r.icon} alt="" className="h-12 w-12 rounded-lg shrink-0" />
+                        ) : (
+                          <div className="h-12 w-12 rounded-lg bg-muted shrink-0" />
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5 mb-0.5">
+                            <span className="font-medium text-sm truncate">{r.name}</span>
+                            <Badge variant="outline" className="text-[10px] shrink-0">
+                              {r.store === 'IOS' ? <><Apple className="h-2.5 w-2.5 mr-1" />iOS</> : 'Android'}
+                            </Badge>
+                          </div>
+                          <div className="text-xs text-muted-foreground truncate">{r.developer ?? '—'}</div>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            {r.rating != null && (
+                              <span className="text-xs flex items-center gap-0.5"><Star className="h-2.5 w-2.5 fill-amber-400 text-amber-400" />{r.rating.toFixed(1)}</span>
+                            )}
+                            {r.category && (
+                              <span className="text-xs text-muted-foreground">· {r.category}</span>
+                            )}
+                          </div>
+                        </div>
+                        {isPicked(r) && (
+                          <div className="h-6 w-6 rounded-full bg-brand text-white grid place-items-center shrink-0">
+                            <Check className="h-3 w-3" />
+                          </div>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* SEÇİLENLER ÖZETİ */}
+              {totalPicked > 0 && (
+                <div className="flex items-center gap-2 p-3 bg-brand/5 border border-brand/20 rounded-md">
+                  <Check className="h-4 w-4 text-brand shrink-0" />
+                  <div className="text-xs flex-1">
+                    <strong>{totalPicked}</strong> app seçildi:
+                    {pickedIos && <span className="ml-1 text-brand"> iOS · {pickedIos.name}</span>}
+                    {pickedAndroid && <span className="ml-1 text-brand"> Android · {pickedAndroid.name}</span>}
+                  </div>
+                  <button
+                    onClick={() => { setPickedIos(null); setPickedAndroid(null); }}
+                    className="text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    Temizle
+                  </button>
+                </div>
+              )}
+            </>
+          )}
+
+          {tab === 'manual' && (
+            <>
+              <div>
+                <label className="text-xs font-medium mb-1 block flex items-center gap-1.5"><Apple className="h-3 w-3" /> App Store ID (iOS)</label>
+                <Input value={manualIos} onChange={e => setManualIos(e.target.value)} placeholder="örn: 6444904356" />
+                <p className="text-xs text-muted-foreground mt-1">App Store URL'inde id sonrası: apps.apple.com/.../id<strong>6444904356</strong></p>
+              </div>
+              <div>
+                <label className="text-xs font-medium mb-1 block">Play Store Package (Android)</label>
+                <Input value={manualAndroid} onChange={e => setManualAndroid(e.target.value)} placeholder="örn: com.example.app" />
+                <p className="text-xs text-muted-foreground mt-1">Play Store URL'inde id=...: play.google.com/store/apps/details?id=<strong>com.example.app</strong></p>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                En az birini doldurman yeter.
+              </p>
+            </>
+          )}
+        </div>
+
+        <div className="p-4 border-t flex justify-between items-center gap-2 bg-muted/20">
+          <span className="text-xs text-muted-foreground">
+            {tab === 'search'
+              ? (totalPicked > 0 ? `${totalPicked} app seçili` : 'En az 1 app seç')
+              : 'iOS veya Android ID gir'}
+          </span>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={onClose}>İptal</Button>
+            <Button size="sm" onClick={submit} disabled={submitting || (tab === 'search' && totalPicked === 0)}>
+              {submitting ? 'Ekleniyor...' : 'Bağla'}
+            </Button>
+          </div>
         </div>
       </div>
     </div>

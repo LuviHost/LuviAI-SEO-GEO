@@ -6,6 +6,21 @@ import { AppStore, KeywordSource } from '@prisma/client';
 export class AsoController {
   constructor(private readonly aso: AsoService) {}
 
+  // ─── Search ─────────────────────────────────
+
+  /**
+   * GET /sites/:siteId/aso/search?term=spotify&store=BOTH&country=tr
+   * Hem name search hem URL paste destekler.
+   */
+  @Get('search')
+  searchApps(
+    @Query('term') term: string,
+    @Query('store') store?: 'IOS' | 'ANDROID' | 'BOTH',
+    @Query('country') country?: string,
+  ) {
+    return this.aso.searchApps({ term, store, country });
+  }
+
   // ─── Apps ───────────────────────────────────
 
   @Get('apps')
