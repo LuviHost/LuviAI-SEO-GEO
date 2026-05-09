@@ -254,6 +254,7 @@ model Site {
   adCampaigns      AdCampaign[]
   aiProviderKeys   SiteAiProviderKey[]
   promptTemplates  PromptTemplate[]
+  trackedApps      TrackedApp[]
   videos           Video[]
   adsAudits        AdsAudit[]
   tokenUsage       TokenUsageRecord[]
@@ -1193,3 +1194,147 @@ enum PromptCategory {
   AD_COPY
   LANDING_PAGE
 }
+
+// ═══════════════════════════════════════════════════════════════
+//  ASO — App Store Optimization
+//  Kullanılan kütüphaneler: aso-v2, google-play-scraper, app-store-scraper
+//  Algoritma esinlenmesi: asolytics, app-agent (AI patterns)
+// ═══════════════════════════════════════════════════════════════
+
+model TrackedApp {
+  id            String   @id @default(cuid())
+  siteId        String
+  site          Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  // App identifiers — en az birinin dolu olması gerek
+  appStoreId    String?  // iTunes app id (örn. "6444904356")
+  playStoreId   String?  // Google Play package (örn. "com.example.app")
+
+  // Display
+  name          String
+  category      String?
+  iconUrl       String?  @db.Text
+  developer     String?
+
+  // Country / locale
+  country       String   @default("tr") // tr | us | de | ...
+
+  // Latest metadata (snapshot from last fetch)
+  metadata      Json?    // { ios: {...}, android: {...} }
+  lastFetchedAt DateTime?
+
+  // Stats (latest)
+  iosRating     Float?
+  iosReviewCount Int?
+  androidRating Float?
+  androidReviewCount Int?
+
+  isActive      Boolean  @default(true)
+
+  // Relations
+  keywords      TrackedAppKeyword[]
+  reviews       AppReview[]
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([siteId, appStoreId, playStoreId, country])
+  @@index([siteId])
+  @@map("tracked_apps")
+}
+
+model TrackedAppKeyword {
+  id            String   @id @default(cuid())
+  trackedAppId  String
+  trackedApp    TrackedApp @relation(fields: [trackedAppId], references: [id], onDelete: Cascade)
+
+  keyword       String
+  store         AppStore // IOS | ANDROID
+
+  // aso-v2 scoring (0-100)
+  popularity    Float?   // search volume proxy
+  difficulty    Float?   // competition score
+  traffic       Float?   // popularity / difficulty heuristic
+  // Ek skor: bizim hesapladığımız (app-agent pattern: AI relevance)
+  relevance     Float?
+
+  // Latest rank (cron tarafından güncellenir)
+  currentRank   Int?     // 1-100, null = top 100 dışı
+  previousRank  Int?
+  bestRank      Int?     // ever achieved
+  lastCheckedAt DateTime?
+
+  // Source — kullanıcı manuel mi, AI öneri mi
+  source        KeywordSource @default(MANUAL)
+
+  isActive      Boolean  @default(true)
+
+  rankings      AppRanking[]
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([trackedAppId, keyword, store])
+  @@index([trackedAppId, isActive])
+  @@map("tracked_app_keywords")
+}
+
+enum AppStore {
+  IOS
+  ANDROID
+}
+
+enum KeywordSource {
+  MANUAL          // Kullanıcı ekledi
+  AI_SUGGESTED    // app-agent pattern — AI önerdi
+  COMPETITOR      // Rakip metadata'sından çıkarıldı
+  AUTOCOMPLETE    // Store suggestions'dan
+}
+
+model AppRanking {
+  id                  String   @id @default(cuid())
+  trackedAppKeywordId String
+  trackedAppKeyword   TrackedAppKeyword @relation(fields: [trackedAppKeywordId], references: [id], onDelete: Cascade)
+
+  position            Int?     // 1-100, null = top 100 dışı
+  totalResults        Int?     // toplam kaç sonuç vardı
+
+  checkedAt           DateTime @default(now())
+
+  @@index([trackedAppKeywordId, checkedAt])
+  @@map("app_rankings")
+}
+
+model AppReview {
+  id            String   @id @default(cuid())
+  trackedAppId  String
+  trackedApp    TrackedApp @relation(fields: [trackedAppId], references: [id], onDelete: Cascade)
+
+  store         AppStore
+  externalId    String   // store-side review id
+  rating        Int      // 1-5
+  title         String?  @db.Text
+  text          String   @db.Text
+  author        String?
+  reviewDate    DateTime?
+
+  // LLM analysis
+  sentiment     ReviewSentiment? // POSITIVE | NEUTRAL | NEGATIVE
+  topics        Json?            // ["bug", "ui", "pricing", ...]
+  aiSummary     String?  @db.Text
+
+  fetchedAt     DateTime @default(now())
+
+  @@unique([trackedAppId, store, externalId])
+  @@index([trackedAppId, sentiment])
+  @@map("app_reviews")
+}
+
+enum ReviewSentiment {
+  POSITIVE
+  NEUTRAL
+  NEGATIVE
+}
+
+// ASO-spesifik prompt kategorisi (PromptCategory enum'a ekleme yapmadık,
+// PromptTemplate kullanır, kategori = GENERAL ama tag ile filtrelenebilir)

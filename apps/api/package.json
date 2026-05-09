@@ -22,6 +22,8 @@
     "@nestjs/throttler": "^6.3.0",
     "@prisma/client": "^6.0.0",
     "@sentry/node": "^10.51.0",
+    "app-store-scraper": "^0.18.0",
+    "aso-v2": "^2.0.14",
     "bullmq": "^5.34.0",
     "cheerio": "^1.2.0",
     "class-transformer": "^0.5.1",
@@ -29,6 +31,7 @@
     "crypto-js": "^4.2.0",
     "dotenv": "^17.0.0",
     "google-auth-library": "^9.15.0",
+    "google-play-scraper": "^10.1.2",
     "googleapis": "^144.0.0",
     "ioredis": "^5.4.0",
     "jsonrepair": "^3.14.0",
@@ -38,7 +41,8 @@
     "reflect-metadata": "^0.2.2",
     "resend": "^6.12.2",
     "rxjs": "^7.8.0",
-    "sharp": "^0.34.5"
+    "sharp": "^0.34.5",
+    "undici": "6.21.0"
   },
   "devDependencies": {
     "@luviai/adapters": "workspace:*",

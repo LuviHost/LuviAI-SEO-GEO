@@ -312,6 +312,122 @@ Sorular hem alıcının itirazlarını hem de pratik kullanım sorularını kaps
 
 Her cevap 60-120 kelime. Doğal Türkçe. Anahtar kelime: {{keyword}}.`,
       },
+      {
+        name: 'ASO — Metadata Optimize (App Store)',
+        description: 'iOS App Store için title + subtitle + description + keywords field optimize.',
+        category: PromptCategory.PRODUCT_DESCRIPTION,
+        icon: 'Smartphone',
+        tags: ['aso', 'app-store', 'ios', 'metadata'],
+        body: `Sen bir ASO (App Store Optimization) uzmanısın. Apple App Store için aşağıdaki app'in metadata'sını optimize et.
+
+App: {{app_name}}
+Kategori: {{category}}
+Mevcut açıklama: {{current_description}}
+Hedef keyword'ler: {{target_keywords}}
+Hedef ülke: {{country}}
+
+Türkçe optimize et. Apple'ın char limit'lerine uy:
+- TITLE (max 30 char) — en güçlü 1-2 keyword
+- SUBTITLE (max 30 char) — destekleyici keyword'ler
+- KEYWORDS field (max 100 char, virgül ayırıcı) — title/subtitle'da olmayan keyword'ler
+- DESCRIPTION ilk 3 satırı CTA + en önemli faydalar (uygulama önce bu kısmı gösterir)
+- DESCRIPTION devamı: özellik listesi, sosyal kanıt, kullanım senaryoları
+
+3 farklı title varyantı + 1 final paket ver.`,
+      },
+      {
+        name: 'ASO — Play Store Description',
+        description: 'Google Play için indexed description + short description.',
+        category: PromptCategory.PRODUCT_DESCRIPTION,
+        icon: 'Smartphone',
+        tags: ['aso', 'play-store', 'android', 'metadata'],
+        body: `Google Play Store için "{{app_name}}" app'inin description'ını optimize et. Türkçe.
+
+Mevcut açıklama: {{current_description}}
+Hedef keyword'ler: {{target_keywords}}
+Kategori: {{category}}
+
+Google Play kuralları:
+- TITLE (max 50 char)
+- SHORT DESCRIPTION (max 80 char) — kullanıcı genişletmeden gördüğü
+- LONG DESCRIPTION (max 4000 char) — Play algoritması TAMAMINI tarar
+- Long description'da hedef keyword'ler doğal şekilde 3-5 kez geçsin
+- Bullet point'ler kullan (kullanıcı taraması kolay)
+- Sonuna emoji ile özet (Android kullanıcıları emoji'ye yanıt verir)
+
+Çıktı: Title + Short + Long (3 versiyon: agresif keyword stuffing, dengeli, narrative).`,
+      },
+      {
+        name: 'ASO — Screenshot Stratejisi',
+        description: '10 slot screenshot tasarım brief\'i (App Store + Play).',
+        category: PromptCategory.GENERAL,
+        icon: 'Smartphone',
+        tags: ['aso', 'screenshots', 'creative', 'design'],
+        body: `"{{app_name}}" için 10 slotlu screenshot stratejisi yaz.
+
+App tipi: {{app_type}}
+Hedef kitle: {{audience}}
+Ana fayda: {{key_benefit}}
+Rakip yaklaşımları (varsa): {{competitors}}
+
+Her slot için:
+1. Slot No
+2. Hook başlığı (üst, 3-5 kelime)
+3. Visual brief (ne göstermeli)
+4. Ana fayda mesajı
+5. Renkkullanım önerisi
+
+Screenshot stratejisi pattern'leri:
+- Slot 1-2: En güçlü hook + ana fayda
+- Slot 3-5: Özellik vitrin (en görsel olanlar)
+- Slot 6-7: Sosyal kanıt + güvenlik
+- Slot 8-10: Kullanım senaryosu + CTA
+
+Her slot Türkçe + İngilizce versiyon.`,
+      },
+      {
+        name: 'ASO — Review Yanıt Stratejisi',
+        description: 'HEAR framework ile 5 yıldızlı / negatif yorumlara yanıt.',
+        category: PromptCategory.GENERAL,
+        icon: 'MessageSquare',
+        tags: ['aso', 'reviews', 'support'],
+        body: `App store review'larına HEAR framework (Hear, Empathize, Apologize, Resolve) ile yanıt yaz.
+
+Review içeriği: {{review_text}}
+Review yıldız: {{rating}}
+App ismi: {{app_name}}
+
+Yanıt kuralları:
+- Türkçe, dostane ama profesyonel
+- 350 karakteri geçme (Apple ve Google sınırı)
+- Negatif review'da: önce empati, sonra çözüm önerisi (mümkünse direkt aksiyon)
+- Pozitif review'da: teşekkür + bir sonraki feature için ilgi uyandır
+- Asla "ekibimize ileteceğiz" gibi vacuum cevap verme
+
+3 yanıt varyantı: kısa (150 char), orta (250 char), tam (350 char).`,
+      },
+      {
+        name: 'ASO — Localization Brief',
+        description: 'App\'i farklı pazarlar için çevir + kültürel adapte et.',
+        category: PromptCategory.GENERAL,
+        icon: 'Globe',
+        tags: ['aso', 'localization', 'translation', 'i18n'],
+        body: `"{{app_name}}" app'inin metadata'sını {{target_market}} pazarına lokalize et.
+
+Kaynak (TR):
+- Title: {{tr_title}}
+- Subtitle: {{tr_subtitle}}
+- Description (ilk 250 char): {{tr_description}}
+
+Lokalizasyon kuralları:
+1. Direkt çeviri YAPMA — kültürel adapte
+2. Hedef pazarın aramada kullandığı keyword'leri tahmin et + öner
+3. Para birimi, ölçü birimi, kültürel referansları yerelleştir
+4. {{target_market}} pazarındaki popüler app'lerin tonunu yansıt (formal/casual)
+5. App Store char limit'lerine uy
+
+Çıktı: Lokalize Title + Subtitle + Description + 10 hedef pazar keyword'ü + cultural notes.`,
+      },
     ];
 
     for (const t of templates) {

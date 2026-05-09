@@ -28,6 +28,7 @@ import {
   Target,
   LineChart,
   Library,
+  Smartphone,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { ThemeToggle } from '@/components/theme-toggle';
@@ -70,6 +71,7 @@ const SITE_GROUPS = (siteId: string) => [
     items: [
       { href: `/sites/${siteId}/audit`, label: 'Site Skoru', icon: ShieldCheck },
       { href: `/sites/${siteId}/rank-tracking`, label: 'Sıralama Takibi', icon: LineChart },
+      { href: `/sites/${siteId}/aso`, label: 'ASO (Mobil App)', icon: Smartphone },
       { href: `/sites/${siteId}/visibility`, label: 'AI Görünürlük', icon: Sparkles },
       { href: `/sites/${siteId}/geo-lab`, label: 'GEO Lab', icon: Award },
       { href: `/sites/${siteId}/competitors`, label: 'Rakipler', icon: Network },

@@ -1,0 +1,642 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useSiteContext } from '../site-context';
+import { api } from '@/lib/api';
+import { toast } from 'sonner';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Smartphone, Plus, Trash2, RefreshCw, Star, MessageSquare, TrendingUp,
+  Apple, Bot, Search, Globe, Trophy, ArrowUp, ArrowDown, Minus, X, Sparkles,
+} from 'lucide-react';
+
+interface TrackedApp {
+  id: string;
+  name: string;
+  appStoreId: string | null;
+  playStoreId: string | null;
+  country: string;
+  iconUrl: string | null;
+  developer: string | null;
+  category: string | null;
+  iosRating: number | null;
+  iosReviewCount: number | null;
+  androidRating: number | null;
+  androidReviewCount: number | null;
+  lastFetchedAt: string | null;
+  createdAt: string;
+  _count?: { keywords: number; reviews: number };
+}
+
+interface TrackedKeyword {
+  id: string;
+  keyword: string;
+  store: 'IOS' | 'ANDROID';
+  popularity: number | null;
+  difficulty: number | null;
+  traffic: number | null;
+  currentRank: number | null;
+  previousRank: number | null;
+  bestRank: number | null;
+  source: string;
+  lastCheckedAt: string | null;
+}
+
+interface AppDetail extends TrackedApp {
+  keywords: TrackedKeyword[];
+}
+
+export default function AsoPage() {
+  const { site } = useSiteContext();
+  const [apps, setApps] = useState<TrackedApp[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showConnect, setShowConnect] = useState(false);
+  const [selected, setSelected] = useState<AppDetail | null>(null);
+
+  const loadApps = async () => {
+    try {
+      const data = await api.request<TrackedApp[]>(`/sites/${site.id}/aso/apps`);
+      setApps(data);
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadApps();
+  }, [site.id]);
+
+  const openApp = async (id: string) => {
+    try {
+      const data = await api.request<AppDetail>(`/sites/${site.id}/aso/apps/${id}`);
+      setSelected(data);
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  };
+
+  const removeApp = async (id: string) => {
+    if (!confirm('Bu app\'i izlemekten çıkar — tüm keyword ve review verileri silinir.')) return;
+    try {
+      await api.request(`/sites/${site.id}/aso/apps/${id}`, { method: 'DELETE' });
+      setApps(apps.filter(a => a.id !== id));
+      if (selected?.id === id) setSelected(null);
+      toast.success('Silindi');
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  };
+
+  return (
+    <div className="space-y-5">
+      {/* HEADER */}
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div className="flex items-start gap-3">
+          <div className="h-10 w-10 rounded-xl bg-orange-500/10 text-orange-600 dark:text-orange-400 grid place-items-center">
+            <Smartphone className="h-5 w-5" />
+          </div>
+          <div>
+            <h2 className="text-2xl font-bold flex items-center gap-2">
+              ASO — Mobil App Optimization
+              <Badge variant="outline" className="text-xs">Yeni</Badge>
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              App Store + Play Store. Keyword sıralama, rakip takibi, AI metadata optimize, review sentiment.
+            </p>
+          </div>
+        </div>
+        <Button size="sm" onClick={() => setShowConnect(true)}>
+          <Plus className="h-4 w-4 mr-2" />
+          App Ekle
+        </Button>
+      </div>
+
+      {loading ? (
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-44" />)}
+        </div>
+      ) : apps.length === 0 ? (
+        <Card className="border-dashed">
+          <CardContent className="p-10 text-center">
+            <Smartphone className="h-10 w-10 mx-auto mb-3 text-muted-foreground/50" />
+            <h3 className="font-semibold mb-2">Henüz takip edilen app yok</h3>
+            <p className="text-sm text-muted-foreground mb-5 max-w-md mx-auto">
+              App Store ID'si veya Play Store package adı ekleyerek başla.
+              Hem keyword sıralama hem AI keyword araştırma + review sentiment otomatik aktif olur.
+            </p>
+            <Button onClick={() => setShowConnect(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              İlk app'i ekle
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {apps.map(app => (
+            <Card key={app.id} className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => openApp(app.id)}>
+              <CardContent className="p-4">
+                <div className="flex items-start gap-3 mb-3">
+                  {app.iconUrl ? (
+                    <img src={app.iconUrl} alt="" className="h-14 w-14 rounded-xl shrink-0" />
+                  ) : (
+                    <div className="h-14 w-14 rounded-xl bg-muted grid place-items-center shrink-0">
+                      <Smartphone className="h-6 w-6 text-muted-foreground" />
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-semibold text-sm truncate">{app.name}</h3>
+                    <p className="text-xs text-muted-foreground truncate">{app.developer ?? ''}</p>
+                    <div className="flex gap-1 mt-1">
+                      {app.appStoreId && <Badge variant="outline" className="text-[10px]"><Apple className="h-2.5 w-2.5 mr-1" />iOS</Badge>}
+                      {app.playStoreId && <Badge variant="outline" className="text-[10px]">Android</Badge>}
+                      <Badge variant="outline" className="text-[10px]"><Globe className="h-2.5 w-2.5 mr-1" />{app.country.toUpperCase()}</Badge>
+                    </div>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2 text-xs mt-3 border-t border-border/40 pt-3">
+                  {app.iosRating != null && (
+                    <div>
+                      <div className="text-muted-foreground">iOS rating</div>
+                      <div className="font-bold flex items-center gap-1"><Star className="h-3 w-3 fill-amber-400 text-amber-400" /> {app.iosRating.toFixed(1)}</div>
+                    </div>
+                  )}
+                  {app.androidRating != null && (
+                    <div>
+                      <div className="text-muted-foreground">Android rating</div>
+                      <div className="font-bold flex items-center gap-1"><Star className="h-3 w-3 fill-amber-400 text-amber-400" /> {app.androidRating.toFixed(1)}</div>
+                    </div>
+                  )}
+                  <div>
+                    <div className="text-muted-foreground">Keywords</div>
+                    <div className="font-bold">{app._count?.keywords ?? 0}</div>
+                  </div>
+                  <div>
+                    <div className="text-muted-foreground">Reviews</div>
+                    <div className="font-bold">{app._count?.reviews ?? 0}</div>
+                  </div>
+                </div>
+                <div className="flex gap-1.5 pt-3 mt-3 border-t border-border/40" onClick={e => e.stopPropagation()}>
+                  <Button size="sm" className="flex-1 h-8 text-xs" onClick={() => openApp(app.id)}>
+                    Aç
+                  </Button>
+                  <Button size="sm" variant="outline" className="h-8 px-2 text-rose-600 hover:bg-rose-500/10" onClick={() => removeApp(app.id)}>
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {/* CONNECT MODAL */}
+      {showConnect && (
+        <ConnectAppModal siteId={site.id} onClose={() => setShowConnect(false)} onAdded={(app) => { setApps([app, ...apps]); setShowConnect(false); openApp(app.id); }} />
+      )}
+
+      {/* APP DETAIL MODAL */}
+      {selected && (
+        <AppDetailModal app={selected} siteId={site.id} onClose={() => setSelected(null)} onChanged={() => { loadApps(); openApp(selected.id); }} />
+      )}
+    </div>
+  );
+}
+
+function ConnectAppModal({ siteId, onClose, onAdded }: { siteId: string; onClose: () => void; onAdded: (app: TrackedApp) => void }) {
+  const [appStoreId, setAppStoreId] = useState('');
+  const [playStoreId, setPlayStoreId] = useState('');
+  const [country, setCountry] = useState('tr');
+  const [loading, setLoading] = useState(false);
+
+  const submit = async () => {
+    if (!appStoreId.trim() && !playStoreId.trim()) {
+      toast.error('App Store ID veya Play Store ID gerekli');
+      return;
+    }
+    setLoading(true);
+    try {
+      const app = await api.request<TrackedApp>(`/sites/${siteId}/aso/apps`, {
+        method: 'POST',
+        body: JSON.stringify({
+          appStoreId: appStoreId.trim() || undefined,
+          playStoreId: playStoreId.trim() || undefined,
+          country,
+        }),
+      });
+      toast.success('App eklendi');
+      onAdded(app);
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-start justify-center p-4 overflow-y-auto" onClick={onClose}>
+      <div className="bg-background border rounded-lg max-w-lg w-full my-8 shadow-xl" onClick={e => e.stopPropagation()}>
+        <div className="p-5 border-b flex items-center justify-between">
+          <h3 className="font-bold">Yeni App Ekle</h3>
+          <Button size="sm" variant="ghost" onClick={onClose}><X className="h-4 w-4" /></Button>
+        </div>
+        <div className="p-5 space-y-4">
+          <div>
+            <label className="text-xs font-medium mb-1 block flex items-center gap-1.5"><Apple className="h-3 w-3" /> App Store ID (iOS)</label>
+            <Input value={appStoreId} onChange={e => setAppStoreId(e.target.value)} placeholder="örn: 6444904356" />
+            <p className="text-xs text-muted-foreground mt-1">App Store URL'inde id sonrası: apps.apple.com/.../id<strong>6444904356</strong></p>
+          </div>
+          <div>
+            <label className="text-xs font-medium mb-1 block">Play Store Package (Android)</label>
+            <Input value={playStoreId} onChange={e => setPlayStoreId(e.target.value)} placeholder="örn: com.example.app" />
+            <p className="text-xs text-muted-foreground mt-1">Play Store URL'inde id=...: play.google.com/store/apps/details?id=<strong>com.example.app</strong></p>
+          </div>
+          <div>
+            <label className="text-xs font-medium mb-1 block">Ülke</label>
+            <select value={country} onChange={e => setCountry(e.target.value)} className="w-full h-9 px-2 rounded-md border border-input text-sm bg-background">
+              <option value="tr">Türkiye</option>
+              <option value="us">USA</option>
+              <option value="gb">UK</option>
+              <option value="de">Germany</option>
+              <option value="fr">France</option>
+            </select>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            En az birini doldurman yeter. İkisini de eklersen hem iOS hem Android için tracking aktif olur.
+          </p>
+        </div>
+        <div className="p-4 border-t flex justify-end gap-2 bg-muted/20">
+          <Button size="sm" variant="outline" onClick={onClose}>İptal</Button>
+          <Button size="sm" onClick={submit} disabled={loading}>
+            {loading ? 'Ekleniyor...' : 'Ekle'}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AppDetailModal({ app, siteId, onClose, onChanged }: {
+  app: AppDetail; siteId: string; onClose: () => void; onChanged: () => void;
+}) {
+  const [tab, setTab] = useState<'keywords' | 'ai' | 'reviews'>('keywords');
+  const [newKeyword, setNewKeyword] = useState('');
+  const [keywordStore, setKeywordStore] = useState<'IOS' | 'ANDROID'>(app.appStoreId ? 'IOS' : 'ANDROID');
+  const [adding, setAdding] = useState(false);
+  const [bulkText, setBulkText] = useState('');
+  const [aiResearching, setAiResearching] = useState(false);
+  const [aiResults, setAiResults] = useState<Array<{ keyword: string; source: string; relevance: number }>>([]);
+  const [reviewStats, setReviewStats] = useState<any>(null);
+  const [fetchingReviews, setFetchingReviews] = useState(false);
+
+  const addKeyword = async () => {
+    if (!newKeyword.trim()) return;
+    setAdding(true);
+    try {
+      await api.request(`/sites/${siteId}/aso/apps/${app.id}/keywords`, {
+        method: 'POST',
+        body: JSON.stringify({ keyword: newKeyword.trim(), store: keywordStore }),
+      });
+      setNewKeyword('');
+      onChanged();
+      toast.success('Eklendi (skor hesaplanıyor)');
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  const addBulk = async () => {
+    const lines = bulkText.split('\n').map(l => l.trim()).filter(Boolean);
+    if (lines.length === 0) return;
+    setAdding(true);
+    try {
+      const r = await api.request<{ count: number }>(`/sites/${siteId}/aso/apps/${app.id}/keywords`, {
+        method: 'POST',
+        body: JSON.stringify({ keywords: lines, store: keywordStore }),
+      });
+      setBulkText('');
+      onChanged();
+      toast.success(`${r.count} keyword eklendi`);
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  const removeKw = async (id: string) => {
+    try {
+      await api.request(`/sites/${siteId}/aso/keywords/${id}`, { method: 'DELETE' });
+      onChanged();
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  };
+
+  const checkRank = async (id: string) => {
+    try {
+      await api.request(`/sites/${siteId}/aso/keywords/${id}/check-rank`, { method: 'POST' });
+      onChanged();
+      toast.success('Rank kontrol edildi');
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  };
+
+  const checkAllRanks = async () => {
+    try {
+      toast.info('Tüm keyword\'ler için rank check başlatıldı (1-2 dk sürer)');
+      await api.request(`/sites/${siteId}/aso/apps/${app.id}/check-all-ranks`, { method: 'POST' });
+      onChanged();
+      toast.success('Tamamlandı');
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  };
+
+  const aiResearch = async () => {
+    setAiResearching(true);
+    try {
+      const r = await api.request<Array<{ keyword: string; source: string; relevance: number }>>(`/sites/${siteId}/aso/apps/${app.id}/ai-keyword-research`, {
+        method: 'POST',
+        body: JSON.stringify({ locale: app.country === 'tr' ? 'tr' : 'en' }),
+      });
+      setAiResults(r);
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setAiResearching(false);
+    }
+  };
+
+  const addAiKeyword = async (kw: string) => {
+    try {
+      await api.request(`/sites/${siteId}/aso/apps/${app.id}/keywords`, {
+        method: 'POST',
+        body: JSON.stringify({ keyword: kw, store: keywordStore, source: 'AI_SUGGESTED' }),
+      });
+      onChanged();
+      setAiResults(aiResults.filter(r => r.keyword !== kw));
+      toast.success('Eklendi');
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  };
+
+  const fetchReviews = async () => {
+    setFetchingReviews(true);
+    try {
+      toast.info('Review fetch + sentiment analizi başladı (LLM kullanır)');
+      await api.request(`/sites/${siteId}/aso/apps/${app.id}/reviews/fetch`, {
+        method: 'POST',
+        body: JSON.stringify({ limit: 50, analyzeSentiment: true }),
+      });
+      const stats = await api.request(`/sites/${siteId}/aso/apps/${app.id}/reviews/stats`);
+      setReviewStats(stats);
+      toast.success('Tamamlandı');
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setFetchingReviews(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/50 flex items-start justify-center p-4 overflow-y-auto" onClick={onClose}>
+      <div className="bg-background border rounded-lg max-w-4xl w-full my-8 shadow-xl" onClick={e => e.stopPropagation()}>
+        {/* HEADER */}
+        <div className="p-5 border-b flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            {app.iconUrl && <img src={app.iconUrl} alt="" className="h-12 w-12 rounded-xl" />}
+            <div>
+              <h3 className="font-bold">{app.name}</h3>
+              <p className="text-xs text-muted-foreground">{app.developer} · {app.category}</p>
+            </div>
+          </div>
+          <Button size="sm" variant="ghost" onClick={onClose}><X className="h-4 w-4" /></Button>
+        </div>
+
+        {/* TABS */}
+        <div className="border-b flex">
+          {(['keywords', 'ai', 'reviews'] as const).map(t => (
+            <button
+              key={t}
+              onClick={() => setTab(t)}
+              className={`px-5 py-3 text-sm font-medium border-b-2 transition-colors ${
+                tab === t ? 'border-brand text-brand' : 'border-transparent text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              {t === 'keywords' ? `Keywords (${app.keywords?.length ?? 0})` : t === 'ai' ? 'AI Asistan' : 'Reviews'}
+            </button>
+          ))}
+        </div>
+
+        {/* KEYWORDS TAB */}
+        {tab === 'keywords' && (
+          <div className="p-5 space-y-4">
+            <div className="flex gap-2 items-end flex-wrap">
+              <div className="flex-1 min-w-[200px]">
+                <label className="text-xs font-medium mb-1 block">Tek Keyword Ekle</label>
+                <Input value={newKeyword} onChange={e => setNewKeyword(e.target.value)} placeholder="örn: hosting" onKeyDown={e => e.key === 'Enter' && addKeyword()} />
+              </div>
+              <div>
+                <label className="text-xs font-medium mb-1 block">Store</label>
+                <select value={keywordStore} onChange={e => setKeywordStore(e.target.value as any)} className="h-9 px-2 rounded-md border border-input text-sm bg-background">
+                  {app.appStoreId && <option value="IOS">iOS</option>}
+                  {app.playStoreId && <option value="ANDROID">Android</option>}
+                </select>
+              </div>
+              <Button size="sm" onClick={addKeyword} disabled={adding}>
+                <Plus className="h-4 w-4 mr-1" />Ekle
+              </Button>
+              <Button size="sm" variant="outline" onClick={checkAllRanks}>
+                <RefreshCw className="h-4 w-4 mr-1" />Tüm Rank'leri Çek
+              </Button>
+            </div>
+
+            <div>
+              <label className="text-xs font-medium mb-1 block">Toplu Ekle (her satır 1 keyword)</label>
+              <textarea
+                value={bulkText}
+                onChange={e => setBulkText(e.target.value)}
+                rows={3}
+                className="w-full text-sm px-3 py-2 rounded-md border border-input bg-background"
+                placeholder="hosting&#10;cloud hosting&#10;ucuz hosting"
+              />
+              <Button size="sm" variant="outline" className="mt-1" onClick={addBulk} disabled={adding || !bulkText.trim()}>
+                Toplu Ekle
+              </Button>
+            </div>
+
+            {/* Keyword listesi */}
+            {app.keywords && app.keywords.length > 0 && (
+              <div className="overflow-x-auto border rounded-md">
+                <table className="w-full text-sm">
+                  <thead className="bg-muted/30 text-xs">
+                    <tr>
+                      <th className="text-left px-3 py-2 font-semibold">Keyword</th>
+                      <th className="text-center px-2 py-2 font-semibold">Store</th>
+                      <th className="text-center px-2 py-2 font-semibold">Pop.</th>
+                      <th className="text-center px-2 py-2 font-semibold">Diff.</th>
+                      <th className="text-center px-2 py-2 font-semibold">Traffic</th>
+                      <th className="text-center px-2 py-2 font-semibold">Rank</th>
+                      <th className="text-center px-2 py-2 font-semibold">Δ</th>
+                      <th className="px-2 py-2"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/40">
+                    {app.keywords.map(kw => {
+                      const delta = kw.previousRank != null && kw.currentRank != null ? kw.previousRank - kw.currentRank : null;
+                      return (
+                        <tr key={kw.id} className="hover:bg-muted/30">
+                          <td className="px-3 py-2 font-medium max-w-[200px] truncate">{kw.keyword}</td>
+                          <td className="px-2 py-2 text-center">
+                            <Badge variant="outline" className="text-[10px]">{kw.store === 'IOS' ? 'iOS' : 'Android'}</Badge>
+                          </td>
+                          <td className="px-2 py-2 text-center tabular-nums">{kw.popularity?.toFixed(0) ?? '—'}</td>
+                          <td className="px-2 py-2 text-center tabular-nums">{kw.difficulty?.toFixed(0) ?? '—'}</td>
+                          <td className="px-2 py-2 text-center tabular-nums">{kw.traffic?.toFixed(0) ?? '—'}</td>
+                          <td className="px-2 py-2 text-center font-bold">
+                            {kw.currentRank != null ? `#${kw.currentRank}` : <span className="text-muted-foreground">—</span>}
+                          </td>
+                          <td className="px-2 py-2 text-center">
+                            {delta == null ? '—' : delta > 0 ? (
+                              <span className="inline-flex items-center text-emerald-600 text-xs font-medium"><ArrowUp className="h-3 w-3" />{delta}</span>
+                            ) : delta < 0 ? (
+                              <span className="inline-flex items-center text-rose-600 text-xs font-medium"><ArrowDown className="h-3 w-3" />{Math.abs(delta)}</span>
+                            ) : (
+                              <Minus className="h-3 w-3 inline text-muted-foreground" />
+                            )}
+                          </td>
+                          <td className="px-2 py-2 text-center">
+                            <div className="flex gap-1 justify-end">
+                              <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => checkRank(kw.id)} title="Rank check">
+                                <RefreshCw className="h-3 w-3" />
+                              </Button>
+                              <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-rose-600 hover:bg-rose-500/10" onClick={() => removeKw(kw.id)}>
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* AI ASSISTANT TAB */}
+        {tab === 'ai' && (
+          <div className="p-5 space-y-4">
+            <Card className="bg-purple-500/5 border-purple-500/20">
+              <CardContent className="p-4">
+                <h4 className="font-semibold mb-2 flex items-center gap-2">
+                  <Bot className="h-4 w-4 text-purple-600" />
+                  AI Keyword Research
+                </h4>
+                <p className="text-xs text-muted-foreground mb-3">
+                  Otomatik rakip keşif + rakip metadata analizi + AI öneri kombinasyonu.
+                  app-agent pattern'i kullanır.
+                </p>
+                <Button size="sm" onClick={aiResearch} disabled={aiResearching}>
+                  <Sparkles className="h-4 w-4 mr-2" />
+                  {aiResearching ? 'AI çalışıyor (~30 sn)...' : 'AI Keyword Research Başlat'}
+                </Button>
+              </CardContent>
+            </Card>
+
+            {aiResults.length > 0 && (
+              <div className="space-y-2">
+                <h4 className="text-sm font-semibold">{aiResults.length} keyword önerisi</h4>
+                <div className="grid sm:grid-cols-2 gap-2 max-h-[400px] overflow-y-auto pr-2">
+                  {aiResults.map(r => (
+                    <Card key={r.keyword}>
+                      <CardContent className="p-3 flex items-center justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <div className="font-medium text-sm truncate">{r.keyword}</div>
+                          <div className="flex items-center gap-1 mt-1">
+                            <Badge variant="outline" className="text-[10px]">{r.source === 'competitor' ? 'Rakipten' : 'AI'}</Badge>
+                            <Badge variant="outline" className="text-[10px]">Rel: {r.relevance}/10</Badge>
+                          </div>
+                        </div>
+                        <Button size="sm" className="h-7" onClick={() => addAiKeyword(r.keyword)}>
+                          <Plus className="h-3 w-3" />
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* REVIEWS TAB */}
+        {tab === 'reviews' && (
+          <div className="p-5 space-y-4">
+            <Card className="bg-blue-500/5 border-blue-500/20">
+              <CardContent className="p-4">
+                <h4 className="font-semibold mb-2 flex items-center gap-2">
+                  <MessageSquare className="h-4 w-4 text-blue-600" />
+                  Review Fetch + LLM Sentiment
+                </h4>
+                <p className="text-xs text-muted-foreground mb-3">
+                  Son 50 review'ı her store'dan çeker, Claude Haiku ile sentiment + topic analizi yapar.
+                </p>
+                <Button size="sm" onClick={fetchReviews} disabled={fetchingReviews}>
+                  <RefreshCw className={`h-4 w-4 mr-2 ${fetchingReviews ? 'animate-spin' : ''}`} />
+                  {fetchingReviews ? 'Çekiliyor + analiz...' : 'Review Çek + Analiz'}
+                </Button>
+              </CardContent>
+            </Card>
+
+            {reviewStats?.recentReviews?.length > 0 && (
+              <div className="space-y-2 max-h-[400px] overflow-y-auto pr-2">
+                <h4 className="text-sm font-semibold">{reviewStats.recentReviews.length} son review</h4>
+                {reviewStats.recentReviews.map((r: any) => (
+                  <Card key={r.id}>
+                    <CardContent className="p-3">
+                      <div className="flex items-center gap-2 mb-2 flex-wrap">
+                        <Badge variant="outline" className="text-[10px]">{r.store === 'IOS' ? 'iOS' : 'Android'}</Badge>
+                        <span className="text-xs flex items-center gap-1">
+                          {Array.from({ length: 5 }).map((_, i) => (
+                            <Star key={i} className={`h-3 w-3 ${i < r.rating ? 'fill-amber-400 text-amber-400' : 'text-muted'}`} />
+                          ))}
+                        </span>
+                        {r.sentiment && (
+                          <Badge variant="outline" className={`text-[10px] ${
+                            r.sentiment === 'POSITIVE' ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30' :
+                            r.sentiment === 'NEGATIVE' ? 'bg-rose-500/10 text-rose-600 border-rose-500/30' :
+                            'bg-muted text-muted-foreground'
+                          }`}>
+                            {r.sentiment}
+                          </Badge>
+                        )}
+                        {Array.isArray(r.topics) && r.topics.map((t: string) => (
+                          <Badge key={t} variant="outline" className="text-[10px] bg-muted/50">{t}</Badge>
+                        ))}
+                        <span className="text-xs text-muted-foreground ml-auto">{r.author ?? 'Anonim'}</span>
+                      </div>
+                      {r.title && <div className="font-medium text-xs mb-1">{r.title}</div>}
+                      <p className="text-xs text-muted-foreground line-clamp-3">{r.text}</p>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
