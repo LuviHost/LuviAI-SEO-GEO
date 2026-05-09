@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useSiteContext } from '../site-context';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
@@ -12,6 +13,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import {
   Smartphone, Plus, Trash2, RefreshCw, Star, MessageSquare, TrendingUp,
   Apple, Bot, Search, Globe, Trophy, ArrowUp, ArrowDown, Minus, X, Sparkles, Check, Info,
+  Image as ImageIcon,
 } from 'lucide-react';
 
 /** Hover tooltip — küçük (i) ikonu + çıkan açıklama balonu. */
@@ -79,6 +81,7 @@ interface AppDetail extends TrackedApp {
 
 export default function AsoPage() {
   const { site } = useSiteContext();
+  const router = useRouter();
   const [apps, setApps] = useState<TrackedApp[]>([]);
   const [loading, setLoading] = useState(true);
   const [showConnect, setShowConnect] = useState(false);
@@ -211,6 +214,9 @@ export default function AsoPage() {
                 <div className="flex gap-1.5 pt-3 mt-3 border-t border-border/40" onClick={e => e.stopPropagation()}>
                   <Button size="sm" className="flex-1 h-8 text-xs" onClick={() => openApp(app.id)}>
                     Aç
+                  </Button>
+                  <Button size="sm" variant="outline" className="h-8 px-2 text-xs" onClick={() => router.push(`/sites/${site.id}/aso/${app.id}/screenshots`)} title="Screenshot Studio">
+                    <ImageIcon className="h-3 w-3 mr-1" />Studio
                   </Button>
                   <Button size="sm" variant="outline" className="h-8 px-2 text-rose-600 hover:bg-rose-500/10" onClick={() => removeApp(app.id)}>
                     <Trash2 className="h-3 w-3" />

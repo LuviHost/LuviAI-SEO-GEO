@@ -1,10 +1,14 @@
 import { Body, Controller, Delete, Get, Param, Post, Query } from '@nestjs/common';
 import { AsoService } from './aso.service.js';
+import { AsoScreenshotService } from './screenshot.service.js';
 import { AppStore, KeywordSource } from '@prisma/client';
 
 @Controller('sites/:siteId/aso')
 export class AsoController {
-  constructor(private readonly aso: AsoService) {}
+  constructor(
+    private readonly aso: AsoService,
+    private readonly screenshots: AsoScreenshotService,
+  ) {}
 
   // ─── Search ─────────────────────────────────
 
@@ -157,5 +161,40 @@ export class AsoController {
   @Get('apps/:appId/audit')
   audit(@Param('appId') appId: string) {
     return this.aso.auditMetadata(appId);
+  }
+
+  // ─── Screenshot Studio ──────────────────────
+
+  /** POST /aso/apps/:appId/screenshots/background — Gemini Imagen ile arkaplan üret */
+  @Post('apps/:appId/screenshots/background')
+  generateBackground(
+    @Param('appId') appId: string,
+    @Body() body: {
+      style?: 'minimalist' | 'bold' | 'illustrative' | 'gradient' | 'mesh';
+      brandColor?: string;
+      customPrompt?: string;
+      width?: number;
+      height?: number;
+    },
+  ) {
+    return this.screenshots.generateBackground({ trackedAppId: appId, ...body });
+  }
+
+  /** POST /aso/apps/:appId/screenshots/captions — AI caption text önerileri (10 slot) */
+  @Post('apps/:appId/screenshots/captions')
+  generateCaptions(
+    @Param('appId') appId: string,
+    @Body() body: { targetKeywords?: string[]; locale?: 'tr' | 'en'; slotCount?: number },
+  ) {
+    return this.screenshots.generateCaptions({ trackedAppId: appId, ...body });
+  }
+
+  /** POST /aso/apps/:appId/screenshots/save — final PNG'i sunucuda sakla */
+  @Post('apps/:appId/screenshots/save')
+  saveScreenshot(
+    @Param('appId') appId: string,
+    @Body() body: { base64Png: string; slotIndex: number; store: 'IOS' | 'ANDROID' },
+  ) {
+    return this.screenshots.saveScreenshot({ trackedAppId: appId, ...body });
   }
 }

@@ -97,7 +97,7 @@ importers:
         version: 0.24.0(@nestjs/common@10.4.22(class-transformer@0.5.1)(class-validator@0.14.4)(reflect-metadata@0.2.2)(rxjs@7.8.2))(@prisma/client@6.19.3(prisma@6.19.3(typescript@5.9.3))(typescript@5.9.3))(chokidar@3.6.0)(prisma@6.19.3(typescript@5.9.3))
       next-auth:
         specifier: 5.0.0-beta.31
-        version: 5.0.0-beta.31(next@15.5.15(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(react@19.2.5)
+        version: 5.0.0-beta.31(next@15.5.15(@opentelemetry/api@1.9.1)(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(react@19.2.5)
       node-fetch:
         specifier: ^3.3.2
         version: 3.3.2
@@ -189,6 +189,9 @@ importers:
       clsx:
         specifier: ^2.1.0
         version: 2.1.1
+      konva:
+        specifier: ^10.3.0
+        version: 10.3.0
       lucide-react:
         specifier: ^0.469.0
         version: 0.469.0(react@19.2.5)
@@ -200,7 +203,7 @@ importers:
         version: 15.5.15(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       next-auth:
         specifier: ^5.0.0-beta.25
-        version: 5.0.0-beta.31(next@15.5.15(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(react@19.2.5)
+        version: 5.0.0-beta.31(next@15.5.15(@opentelemetry/api@1.9.1)(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(react@19.2.5)
       next-intl:
         specifier: ^3.26.0
         version: 3.26.5(next@15.5.15(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(react@19.2.5)
@@ -213,6 +216,9 @@ importers:
       react-dom:
         specifier: ^19.0.0
         version: 19.2.5(react@19.2.5)
+      react-konva:
+        specifier: ^19.2.4
+        version: 19.2.4(@types/react@19.2.14)(konva@10.3.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
       recharts:
         specifier: ^3.8.1
         version: 3.8.1(@types/react@19.2.14)(react-dom@19.2.5(react@19.2.5))(react-is@19.2.5)(react@19.2.5)(redux@5.0.1)
@@ -2440,6 +2446,16 @@ packages:
     peerDependencies:
       '@types/react': ^19.2.0
 
+  '@types/react-reconciler@0.28.9':
+    resolution: {integrity: sha512-HHM3nxyUZ3zAylX8ZEyrDNd2XZOnQ0D5XfunJF5FLQnZbHHYq4UWvW1QfelQNXv1ICNkwYhfxjwfnqivYB6bFg==}
+    peerDependencies:
+      '@types/react': '*'
+
+  '@types/react-reconciler@0.33.0':
+    resolution: {integrity: sha512-HZOXsKT0tGI9LlUw2LuedXsVeB88wFa536vVL0M6vE8zN63nI+sSr1ByxmPToP5K5bukaVscyeCJcF9guVNJ1g==}
+    peerDependencies:
+      '@types/react': '*'
+
   '@types/react@19.2.14':
     resolution: {integrity: sha512-ilcTH/UniCkMdtexkoCN0bI7pMcJDvmQFPvuPvmEaYA/NSfFTAgdUSLAoVjaRJm7+6PvcM+q1zYOwS4wTYMF9w==}
 
@@ -4053,6 +4069,11 @@ packages:
     resolution: {integrity: sha512-RKYVTCjAnRthyJes037NX/IiqeidgN1xc3j1RjFfECFp28A1GVwK9nA+i0rJPaHqSZwygLzRnFlzUuHFoWWy+Q==}
     engines: {node: '>=6'}
 
+  its-fine@2.0.0:
+    resolution: {integrity: sha512-KLViCmWx94zOvpLwSlsx6yOCeMhZYaxrJV87Po5k/FoZzcPSahvK5qJ7fYhS61sZi5ikmh2S3Hz55A2l3U69ng==}
+    peerDependencies:
+      react: ^19.0.0
+
   jackspeak@3.4.3:
     resolution: {integrity: sha512-OGlZQpz2yfahA/Rd1Y8Cd9SIEsqvXkLVoSw/cgwhnhFMDbsQFeZYoJJ7bIZBS9BcamUW96asq/npPWugM+RQBw==}
 
@@ -4172,6 +4193,9 @@ packages:
   kind-of@6.0.3:
     resolution: {integrity: sha512-dcS1ul+9tmeD95T+x28/ehLgd9mENa3LsvDTtzm3vyBEO7RPptvAD+t44WVXaUjTBRcrpFeFlC8WCruUR456hw==}
     engines: {node: '>=0.10.0'}
+
+  konva@10.3.0:
+    resolution: {integrity: sha512-gt19K2gzY4lHbnkvsku7eSmB+A9PTS2jG4F9coBMsdjM1UKfJNxJbDbXVpeCW1wjEGRwBD3nBamcHnqJhAeKlg==}
 
   lazystream@1.0.1:
     resolution: {integrity: sha512-b94GiNHQNy6JNTrt5w6zNyffMrNkXZb3KTkCZJb2V1xaEGCk093vkZ2jk3tpaeP33/OiXC+WvK9AxUebnf5nbw==}
@@ -4915,6 +4939,19 @@ packages:
 
   react-is@19.2.5:
     resolution: {integrity: sha512-Dn0t8IQhCmeIT3wu+Apm1/YVsJXsGWi6k4sPdnBIdqMVtHtv0IGi6dcpNpNkNac0zB2uUAqNX3MHzN8c+z2rwQ==}
+
+  react-konva@19.2.4:
+    resolution: {integrity: sha512-AjRT4CwGprm/DV7fTXAjLCjYgNKZlwL+ghhw1pb1RSL7E0BKOlXeiiUSfF/ajd7OdSJOhkf9iuVUNlFk1PvlzQ==}
+    peerDependencies:
+      konva: ^8.0.1 || ^7.2.5 || ^9.0.0 || ^10.0.0
+      react: ^19.2.0
+      react-dom: ^19.2.0
+
+  react-reconciler@0.33.0:
+    resolution: {integrity: sha512-KetWRytFv1epdpJc3J4G75I4WrplZE5jOL7Yq0p34+OVOKF4Se7WrdIdVC45XsSSmUTlht2FM/fM1FZb1mfQeA==}
+    engines: {node: '>=0.10.0'}
+    peerDependencies:
+      react: ^19.2.0
 
   react-redux@9.2.0:
     resolution: {integrity: sha512-ROY9fvHhwOD9ySfrF0wmvu//bKCQ6AeZZq1nJNtbDC+kk5DuSuNX/n6YWYF/SYy7bSba4D4FSz8DJeKY/S/r+g==}
@@ -7830,6 +7867,14 @@ snapshots:
     dependencies:
       '@types/react': 19.2.14
 
+  '@types/react-reconciler@0.28.9(@types/react@19.2.14)':
+    dependencies:
+      '@types/react': 19.2.14
+
+  '@types/react-reconciler@0.33.0(@types/react@19.2.14)':
+    dependencies:
+      '@types/react': 19.2.14
+
   '@types/react@19.2.14':
     dependencies:
       csstype: 3.2.3
@@ -9741,6 +9786,13 @@ snapshots:
 
   iterare@1.2.1: {}
 
+  its-fine@2.0.0(@types/react@19.2.14)(react@19.2.5):
+    dependencies:
+      '@types/react-reconciler': 0.28.9(@types/react@19.2.14)
+      react: 19.2.5
+    transitivePeerDependencies:
+      - '@types/react'
+
   jackspeak@3.4.3:
     dependencies:
       '@isaacs/cliui': 8.0.2
@@ -9864,6 +9916,8 @@ snapshots:
   keyword-extractor@0.0.25: {}
 
   kind-of@6.0.3: {}
+
+  konva@10.3.0: {}
 
   lazystream@1.0.1:
     dependencies:
@@ -10103,7 +10157,7 @@ snapshots:
     transitivePeerDependencies:
       - chokidar
 
-  next-auth@5.0.0-beta.31(next@15.5.15(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(react@19.2.5):
+  next-auth@5.0.0-beta.31(next@15.5.15(@opentelemetry/api@1.9.1)(react-dom@19.2.5(react@19.2.5))(react@19.2.5))(react@19.2.5):
     dependencies:
       '@auth/core': 0.41.2
       next: 15.5.15(@babel/core@7.29.0)(@opentelemetry/api@1.9.1)(react-dom@19.2.5(react@19.2.5))(react@19.2.5)
@@ -10520,6 +10574,23 @@ snapshots:
       scheduler: 0.27.0
 
   react-is@19.2.5: {}
+
+  react-konva@19.2.4(@types/react@19.2.14)(konva@10.3.0)(react-dom@19.2.5(react@19.2.5))(react@19.2.5):
+    dependencies:
+      '@types/react-reconciler': 0.33.0(@types/react@19.2.14)
+      its-fine: 2.0.0(@types/react@19.2.14)(react@19.2.5)
+      konva: 10.3.0
+      react: 19.2.5
+      react-dom: 19.2.5(react@19.2.5)
+      react-reconciler: 0.33.0(react@19.2.5)
+      scheduler: 0.27.0
+    transitivePeerDependencies:
+      - '@types/react'
+
+  react-reconciler@0.33.0(react@19.2.5):
+    dependencies:
+      react: 19.2.5
+      scheduler: 0.27.0
 
   react-redux@9.2.0(@types/react@19.2.14)(react@19.2.5)(redux@5.0.1):
     dependencies:

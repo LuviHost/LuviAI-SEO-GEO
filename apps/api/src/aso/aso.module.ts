@@ -6,6 +6,7 @@ import { AsoKeywordService } from './keyword.service.js';
 import { AsoTrackerService } from './tracker.service.js';
 import { AsoReviewsService } from './reviews.service.js';
 import { AsoAiAgentService } from './ai-agent.service.js';
+import { AsoScreenshotService } from './screenshot.service.js';
 import { PrismaModule } from '../prisma/prisma.module.js';
 import { LLMModule } from '../llm/llm.module.js';
 
@@ -19,7 +20,8 @@ import { LLMModule } from '../llm/llm.module.js';
     AsoTrackerService,
     AsoReviewsService,
     AsoAiAgentService,
+    AsoScreenshotService,
   ],
-  exports: [AsoService, AsoTrackerService],
+  exports: [AsoService, AsoTrackerService, AsoScreenshotService],
 })
 export class AsoModule {}
