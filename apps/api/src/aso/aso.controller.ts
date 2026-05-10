@@ -209,4 +209,16 @@ export class AsoController {
   ) {
     return this.screenshots.generateHandPhotoWithScreenshot({ trackedAppId: appId, ...body });
   }
+
+  /** GET /aso/apps/:appId/screenshots/library — bu app için üretilmiş tüm AI background'lar */
+  @Get('apps/:appId/screenshots/library')
+  listScreenshotLibrary(@Param('appId') appId: string) {
+    return this.screenshots.listLibrary(appId);
+  }
+
+  /** DELETE /aso/apps/:appId/screenshots/library/:filename — galeriden sil */
+  @Delete('apps/:appId/screenshots/library/:filename')
+  deleteFromLibrary(@Param('appId') appId: string, @Param('filename') filename: string) {
+    return this.screenshots.deleteFromLibrary(appId, filename);
+  }
 }

@@ -12,7 +12,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   ArrowLeft, Sparkles, Download, Image as ImageIcon, Type, Palette,
-  Smartphone, RotateCw, Loader2, Upload,
+  Smartphone, RotateCw, Loader2, Upload, Trash2,
 } from 'lucide-react';
 import { PHONE_FRAMES } from './phone-frames';
 import { TEMPLATES } from './templates';
@@ -164,7 +164,54 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
 
   const [sidebar, setSidebar] = useState<'ai' | 'templates' | 'layout' | 'phone' | 'background' | 'text'>('ai');
 
+  // AI screenshot library — daha önce üretilmiş background'lar
+  const [library, setLibrary] = useState<Array<{ filename: string; url: string; timestamp: number; type: 'standard' | 'hand' }>>([]);
+  const [libraryLoading, setLibraryLoading] = useState(false);
+
   const stageRef = useRef<Konva.Stage>(null);
+
+  const loadLibrary = async () => {
+    setLibraryLoading(true);
+    try {
+      const r = await api.request<{ items: typeof library }>(`/sites/${siteId}/aso/apps/${appId}/screenshots/library`);
+      setLibrary(r.items);
+    } catch {
+      // silent — first time has no items
+    } finally {
+      setLibraryLoading(false);
+    }
+  };
+
+  const applyLibraryItem = (url: string) => {
+    const fullUrl = process.env.NEXT_PUBLIC_API_URL ? `${process.env.NEXT_PUBLIC_API_URL}${url}` : url;
+    const img = new window.Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      const patch: Partial<SlotState> = { background: { type: 'image', value: fullUrl, image: img } };
+      if (url.includes('/hand-')) patch.phoneScale = 0; // hand photo: kullanicinin phone frame'i gizle
+      updateSlot(patch);
+      toast.success('Bu slota uygulandı');
+    };
+    img.onerror = () => toast.error('Image yüklenemedi');
+    img.src = fullUrl;
+  };
+
+  const deleteLibraryItem = async (filename: string) => {
+    if (!confirm('Bu üretimi silmek istediğine emin misin?')) return;
+    try {
+      await api.request(`/sites/${siteId}/aso/apps/${appId}/screenshots/library/${encodeURIComponent(filename)}`, { method: 'DELETE' });
+      setLibrary(prev => prev.filter(i => i.filename !== filename));
+      toast.success('Silindi');
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  };
+
+  // Auto-load library on AI tab open
+  useEffect(() => {
+    if (sidebar !== 'ai') return;
+    loadLibrary();
+  }, [sidebar, appId]);
 
   // Load app
   useEffect(() => {
@@ -264,6 +311,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
       toast.error(err.message);
     } finally {
       setGeneratingBg(false);
+      loadLibrary(); // refresh gallery
     }
   };
 
@@ -481,6 +529,52 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                     ))}
                   </div>
                 </div>
+
+                {/* Galeri — daha önce üretilmiş AI background'lar */}
+                {library.length > 0 && (
+                  <div className="border-t pt-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <h3 className="text-sm font-semibold flex items-center gap-1.5">
+                        <ImageIcon className="h-4 w-4 text-emerald-600" />
+                        Galeri · {library.length}
+                      </h3>
+                      <button onClick={loadLibrary} className="text-[10px] text-muted-foreground hover:text-foreground">
+                        Yenile
+                      </button>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground mb-2">
+                      Bu app için üretilmiş AI background'lar — token harcama, tıkla tekrar kullan.
+                    </p>
+                    <div className="grid grid-cols-3 gap-1.5 max-h-[260px] overflow-y-auto">
+                      {library.map(item => {
+                        const fullUrl = (process.env.NEXT_PUBLIC_API_URL ?? '') + item.url;
+                        return (
+                          <div key={item.filename} className="relative group">
+                            <button
+                              onClick={() => applyLibraryItem(item.url)}
+                              className="block w-full aspect-[9/19.5] rounded border-2 border-border hover:border-brand overflow-hidden bg-muted"
+                              title={`${item.type === 'hand' ? '🖐️ Hand Photo' : 'Background'} — ${new Date(item.timestamp).toLocaleString('tr-TR')}`}
+                            >
+                              <img src={fullUrl} alt="" className="w-full h-full object-cover" loading="lazy" />
+                              {item.type === 'hand' && (
+                                <span className="absolute top-1 left-1 text-[8px] bg-purple-600 text-white px-1 py-0.5 rounded">
+                                  🖐️
+                                </span>
+                              )}
+                            </button>
+                            <button
+                              onClick={() => deleteLibraryItem(item.filename)}
+                              className="absolute top-1 right-1 h-5 w-5 rounded bg-rose-600 text-white grid place-items-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-rose-700"
+                              title="Sil"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
 
                 <div className="border-t pt-3">
                   <h3 className="text-sm font-semibold mb-1 flex items-center gap-1.5">🖐️ AI Hand Photo</h3>

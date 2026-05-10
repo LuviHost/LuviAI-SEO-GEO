@@ -263,6 +263,49 @@ JSON formatında dön:
   }
 
   /**
+   * Bu app için daha önce üretilmiş AI background'ları listele.
+   * Filename pattern: bg-{appId}-* (standard) veya hand-{appId}-* (multimodal hand).
+   * Filesystem-based (DB'de tracking yok — basit MVP).
+   */
+  async listLibrary(trackedAppId: string) {
+    try {
+      const files = await fs.readdir(this.STORAGE_DIR);
+      const filtered = files
+        .filter(f => (f.startsWith(`bg-${trackedAppId}-`) || f.startsWith(`hand-${trackedAppId}-`)) && f.endsWith('.png'))
+        .map(f => {
+          // Extract timestamp from filename: bg-{appId}-{timestamp}-{rand}.png
+          const m = f.match(/-(\d{13})-/);
+          const timestamp = m ? parseInt(m[1], 10) : 0;
+          const type: 'standard' | 'hand' = f.startsWith('hand-') ? 'hand' : 'standard';
+          return { filename: f, url: `/screenshots/${f}`, timestamp, type };
+        })
+        .sort((a, b) => b.timestamp - a.timestamp);
+      return { items: filtered };
+    } catch (err: any) {
+      this.log.warn(`listLibrary error: ${err.message}`);
+      return { items: [] };
+    }
+  }
+
+  /** Galeri'den bir background'u sil. */
+  async deleteFromLibrary(trackedAppId: string, filename: string) {
+    // Security: filename'in trackedAppId'i içerdiğini doğrula
+    if (!filename.includes(trackedAppId)) {
+      throw new BadRequestException('Yetki yok — başka app\'e ait dosya');
+    }
+    if (filename.includes('..') || filename.includes('/')) {
+      throw new BadRequestException('Geçersiz filename');
+    }
+    const filepath = path.join(this.STORAGE_DIR, filename);
+    try {
+      await fs.unlink(filepath);
+      return { ok: true };
+    } catch (err: any) {
+      throw new BadRequestException(`Silinemedi: ${err.message}`);
+    }
+  }
+
+  /**
    * Final screenshot kaydet (frontend'den export edilen PNG'i sunucuda sakla).
    */
   async saveScreenshot(opts: {
