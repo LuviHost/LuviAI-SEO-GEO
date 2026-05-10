@@ -337,34 +337,44 @@ export const PANORAMA_THEMES: PanoramaTheme[] = [
  * Bir slot için, panorama temasından kendi penceresine düşen dekorasyonları üretir.
  * Slot sınırını aşan şekiller (cx < 0 veya cx > canvasWidth) komşu slotlarda da yarım görünür.
  *
- * @param theme — seçilen panorama teması
- * @param slotIndex — 0-9
+ * @param theme — seçilen panorama teması (vx 0-1000 koordinat aralığı)
+ * @param slotIndexInGroup — bu slotun grubundaki konumu (0 to groupSize-1)
+ * @param groupSize — panorama grubu kaç slottan oluşuyor (1, 2, 5, 10 vb.)
  * @param canvasWidth — slot canvas genişliği (örn. 1290)
  * @param canvasHeight — slot canvas yüksekliği (örn. 2796)
  * @returns canvas-space koordinatlarında Decoration listesi
  */
 export function computeSlotDecorations(
   theme: PanoramaTheme,
-  slotIndex: number,
+  slotIndexInGroup: number,
+  groupSize: number,
   canvasWidth: number,
   canvasHeight: number,
 ): Decoration[] {
-  const slotVirtualStart = slotIndex * 100;       // örn slot 0: 0-100, slot 1: 100-200
+  // Tema 0-1000 vx aralığı, ama grup yalnızca groupSize × 100 birimi kaplar.
+  // Scale factor: groupSize 10 → 1.0 (default), groupSize 5 → 0.5 (sıkıştır), groupSize 2 → 0.2 (daha sıkı)
+  const groupVirtualSpan = groupSize * 100;
+  const scale = groupVirtualSpan / 1000;
+
+  const slotVirtualStart = slotIndexInGroup * 100;
   const slotVirtualEnd   = slotVirtualStart + 100;
   const out: Decoration[] = [];
 
   for (const s of theme.shapes) {
-    // Şeklin etkilediği aralık: [vx - vsize, vx + vsize] (yarıçap mantığı)
-    const shapeStart = s.vx - s.vsize;
-    const shapeEnd   = s.vx + s.vsize;
-    // Bu slot'a görünür mü?
+    // Şekli grup penceresine ölçekle: vx 0-1000 → 0-groupVirtualSpan
+    const scaledVx = s.vx * scale;
+    const scaledVsize = s.vsize * scale;
+
+    // Şeklin etkilediği aralık (yarıçap mantığı)
+    const shapeStart = scaledVx - scaledVsize;
+    const shapeEnd   = scaledVx + scaledVsize;
     if (shapeEnd < slotVirtualStart || shapeStart > slotVirtualEnd) continue;
 
-    // Slot'a göre relatif konum: vx - slotVirtualStart (0-100 aralığı slot'un içi)
-    const relVx = s.vx - slotVirtualStart;          // 0-100 slot içi, negatif/100+ taşma
+    // Slot'a göre relatif konum
+    const relVx = scaledVx - slotVirtualStart;       // 0-100 slot içi, negatif/100+ taşma
     const cx = (relVx / 100) * canvasWidth;
     const cy = (s.vy / 100) * canvasHeight;
-    const size = (s.vsize / 100) * canvasWidth;
+    const size = (scaledVsize / 100) * canvasWidth;
 
     out.push({
       type: s.type,
@@ -372,8 +382,7 @@ export function computeSlotDecorations(
       rotation: s.rotation,
       fill: s.fill,
       stroke: s.stroke,
-      // strokeWidth theme'de "canvasWidth=1290 için raw pixel" varsayar, linear ölçek
-      strokeWidth: s.strokeWidth ? s.strokeWidth * (canvasWidth / 1290) : undefined,
+      strokeWidth: s.strokeWidth ? s.strokeWidth * (canvasWidth / 1290) * Math.max(scale, 0.4) : undefined,
       opacity: s.opacity,
     });
   }

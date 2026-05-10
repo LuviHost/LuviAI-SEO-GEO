@@ -352,6 +352,9 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
 
   const [sidebar, setSidebar] = useState<'ai' | 'templates' | 'layout' | 'phone' | 'background' | 'text'>('ai');
 
+  // Panorama slot grubu: 1=tek slot, 2=ikili, 5=beşli, 10=tek büyük (10 slot stitched)
+  const [panoramaSpan, setPanoramaSpan] = useState<1 | 2 | 5 | 10>(10);
+
   // Store preview modal
   const [showPreview, setShowPreview] = useState(false);
   const [previewStore, setPreviewStore] = useState<'IOS' | 'ANDROID'>('IOS');
@@ -437,18 +440,25 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
     }));
   };
 
-  // PANORAMA: hazır temayı tüm slotlara uygular. Dekoratif şekiller slot sınırlarını aşarak birleşik tasarım hissi verir.
-  // Layout PANORAMA_LAYOUT_PATTERN kullanır — phone'lar dikey ortada sabit, sadece tilt+scale+sayı değişir.
+  // PANORAMA: hazır temayı 10 slota uygular. panoramaSpan'a göre grupla:
+  //  - 10 = tek büyük panorama (10 slot stitched)
+  //  - 5  = iki panorama (5+5)
+  //  - 2  = beş ikili panorama (2+2+2+2+2)
+  //  - 1  = her slot kendi mini-panoraması (tema 1 slota sıkışmış)
+  // Dekoratif şekiller grup sınırlarını aşarak birleşik tasarım hissi verir.
   const applyPanoramaTheme = (themeId: string) => {
     const theme = PANORAMA_THEMES.find(t => t.id === themeId);
     if (!theme) return;
-    setSlots(prev => prev.map((s, i) => ({
-      ...s,
-      background: { type: theme.bgType, value: theme.bg },
-      backgroundIsHand: false,
-      decorations: computeSlotDecorations(theme, i, preset.width, preset.height),
-      ...PANORAMA_LAYOUT_PATTERN[i % PANORAMA_LAYOUT_PATTERN.length],
-    })));
+    setSlots(prev => prev.map((s, i) => {
+      const slotInGroup = i % panoramaSpan;   // 0 to panoramaSpan-1
+      return {
+        ...s,
+        background: { type: theme.bgType, value: theme.bg },
+        backgroundIsHand: false,
+        decorations: computeSlotDecorations(theme, slotInGroup, panoramaSpan, preset.width, preset.height),
+        ...PANORAMA_LAYOUT_PATTERN[i % PANORAMA_LAYOUT_PATTERN.length],
+      };
+    }));
   };
 
   // SET TASARIMI: AI bg üret → 10 slota uygula → auto-layout dağıt. Tek hamlede tüm slotlar uyumlu hâle gelir.
@@ -906,8 +916,43 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                     <h3 className="text-sm font-semibold">Panorama Setleri</h3>
                   </div>
                   <p className="text-[11px] text-muted-foreground mb-2 leading-snug">
-                    Dekoratif şekiller 10 slot boyunca uzanır — Vatan/Amazon stilinde birleşik tasarım.
+                    Dekoratif şekiller slot sınırlarını aşar — Vatan/Akakçe stilinde birleşik tasarım.
                   </p>
+
+                  {/* Slot grubu seçici — kaç slotluk panorama? */}
+                  <div className="mb-2.5 rounded border bg-muted/30 p-2">
+                    <label className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1.5 block">
+                      Grup boyutu
+                    </label>
+                    <div className="grid grid-cols-4 gap-1">
+                      {([
+                        { v: 10, label: '10 (Tek)', sub: '1×10' },
+                        { v: 5,  label: '5+5',       sub: '2×5'  },
+                        { v: 2,  label: '2-li',      sub: '5×2'  },
+                        { v: 1,  label: 'Tekli',     sub: '10×1' },
+                      ] as const).map(opt => (
+                        <button
+                          key={opt.v}
+                          onClick={() => setPanoramaSpan(opt.v)}
+                          className={`py-1.5 rounded text-center transition-colors ${
+                            panoramaSpan === opt.v
+                              ? 'bg-brand text-white'
+                              : 'bg-background hover:bg-muted border border-border'
+                          }`}
+                        >
+                          <div className="text-[11px] font-bold leading-tight">{opt.label}</div>
+                          <div className={`text-[9px] leading-tight ${panoramaSpan === opt.v ? 'text-white/80' : 'text-muted-foreground'}`}>{opt.sub}</div>
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-[10px] text-muted-foreground mt-1.5 leading-snug">
+                      {panoramaSpan === 10 && 'Tek büyük panorama — şekiller 10 slot boyunca uzanır'}
+                      {panoramaSpan === 5  && '2 ayrı panorama — slot 1-5 ve 6-10 her biri kendi içinde stitched'}
+                      {panoramaSpan === 2  && '5 ayrı ikili panorama — her 2 slot kendi içinde birleşik'}
+                      {panoramaSpan === 1  && 'Her slot kendi mini-panoraması — tema tek slota sıkışır'}
+                    </p>
+                  </div>
+
                   <div className="grid grid-cols-2 gap-2">
                     {PANORAMA_THEMES.map(t => (
                       <button
@@ -917,7 +962,6 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                         title={t.description}
                       >
                         <div className="aspect-[9/16] relative" style={{ background: t.preview }}>
-                          {/* mini önizleme: birkaç temsili şekil */}
                           <PanoramaPreview theme={t} />
                         </div>
                         <div className="px-2 py-1.5 bg-background">
