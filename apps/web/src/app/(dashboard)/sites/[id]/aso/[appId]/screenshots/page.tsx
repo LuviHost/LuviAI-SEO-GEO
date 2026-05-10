@@ -186,50 +186,9 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
     }
   };
 
-  // Multimodal: yüklü screenshot'ı AI hand-photo'nun içine yerleştirip yeni tek bütünleşik bg üretir.
-  const bakeScreenshotIntoHandPhoto = async (screenshotUrl: string) => {
-    setGeneratingBg(true);
-    try {
-      const blob = await fetch(screenshotUrl).then(r => r.blob());
-      const base64 = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(String(reader.result));
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
-      });
-      const result = await api.request<{ url: string }>(
-        `/sites/${siteId}/aso/apps/${appId}/screenshots/hand-photo-with-screenshot`,
-        { method: 'POST', body: JSON.stringify({ screenshotBase64: base64, width: preset.width, height: preset.height }) },
-      );
-      const fullUrl = process.env.NEXT_PUBLIC_API_URL ? `${process.env.NEXT_PUBLIC_API_URL}${result.url}` : result.url;
-      const img = new window.Image();
-      img.crossOrigin = 'anonymous';
-      img.onload = () => {
-        updateSlot({
-          background: { type: 'image', value: fullUrl, image: img },
-          phoneScale: 0,
-          backgroundIsHand: true,
-        });
-      };
-      img.onerror = () => toast.error('Background image yüklenemedi');
-      img.src = fullUrl;
-    } catch (err: any) {
-      toast.error(err.message);
-    } finally {
-      setGeneratingBg(false);
-      loadLibrary();
-    }
-  };
-
   const applyLibraryItem = (item: { url: string; type: 'standard' | 'hand' }) => {
     const fullUrl = process.env.NEXT_PUBLIC_API_URL ? `${process.env.NEXT_PUBLIC_API_URL}${item.url}` : item.url;
     const isHand = item.type === 'hand';
-    // Hand photo seçilip screenshot'ı zaten yüklüyse — AI fresh bir hand+screenshot bake etsin
-    // (galeri'deki blank-screen telefonu, yüklenen screenshot ile birleştirir).
-    if (isHand && slot.screenshotUrl) {
-      bakeScreenshotIntoHandPhoto(slot.screenshotUrl);
-      return;
-    }
     const img = new window.Image();
     img.crossOrigin = 'anonymous';
     img.onload = () => {
@@ -279,14 +238,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
     const url = URL.createObjectURL(file);
     const img = new window.Image();
     img.crossOrigin = 'anonymous';
-    img.onload = () => {
-      updateSlot({ screenshot: img, screenshotUrl: url });
-      // Hand-photo bg aktifse — screenshot yüklenince ayrı küçük telefon overlay yerine
-      // AI multimodal ile screenshot'ı hand fotoğrafının içine yerleştir.
-      if (slot.backgroundIsHand) {
-        bakeScreenshotIntoHandPhoto(url);
-      }
-    };
+    img.onload = () => updateSlot({ screenshot: img, screenshotUrl: url });
     img.src = url;
   };
 
@@ -319,12 +271,6 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
   };
 
   const generateBackground = async (style: 'gradient' | 'mesh' | 'minimalist' | 'bold' | 'illustrative' | 'hand-photo') => {
-    // AI Hand Photo + screenshot uploaded → multimodal helper ile screenshot'ı AI fotoğrafına göm
-    if (style === 'hand-photo' && slot.screenshotUrl) {
-      bakeScreenshotIntoHandPhoto(slot.screenshotUrl);
-      return;
-    }
-
     setGeneratingBg(true);
     try {
       const result = await api.request<{ url: string; width: number; height: number }>(
@@ -608,33 +554,13 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
 
                 <div className="border-t pt-3">
                   <h3 className="text-sm font-semibold mb-1 flex items-center gap-1.5">🖐️ AI Hand Photo</h3>
-                  {slot.screenshotUrl ? (
-                    <>
-                      <p className="text-xs text-muted-foreground mb-2">
-                        ✓ Screenshot yüklü — AI <strong>screenshot'ı el+telefon fotoğrafının içine yerleştirecek</strong> (multimodal Gemini, ~15 sn).
-                      </p>
-                      <Button size="sm" className="w-full" onClick={() => generateBackground('hand-photo')} disabled={generatingBg}>
-                        <Sparkles className={`h-4 w-4 mr-1 ${generatingBg ? 'animate-spin' : ''}`} />
-                        {generatingBg ? 'AI çalışıyor (~15 sn)...' : 'AI ile El + Screenshot Birleştir'}
-                      </Button>
-                      <p className="text-[10px] text-muted-foreground mt-1.5">
-                        Sonuç tek bütünleşik fotoğraf — phone frame otomatik gizlenir. Tek karede gerçek el + telefon + senin app screenshot'ın.
-                      </p>
-                    </>
-                  ) : (
-                    <>
-                      <p className="text-xs text-muted-foreground mb-2">
-                        ⚠️ Önce <strong>Telefon sekmesinden app screenshot yükle</strong>. Sonra AI screenshot'ı el+telefon fotoğrafının içine yerleştirir.
-                      </p>
-                      <Button size="sm" className="w-full" variant="outline" onClick={() => generateBackground('hand-photo')} disabled={generatingBg}>
-                        <Sparkles className={`h-4 w-4 mr-1 ${generatingBg ? 'animate-spin' : ''}`} />
-                        {generatingBg ? 'Üretiliyor (~10 sn)...' : 'Sadece El Background Üret (boş ekran)'}
-                      </Button>
-                      <p className="text-[10px] text-muted-foreground mt-1.5">
-                        Bu seçenekte AI'in telefonu boş kalır — screenshot yüklersen yukarıdaki multimodal versiyon aktif olur.
-                      </p>
-                    </>
-                  )}
+                  <p className="text-xs text-muted-foreground mb-2">
+                    Gemini Imagen 3 ile el + telefon fotoğrafı üretir (boş ekranlı). Sonra Telefon sekmesinden screenshot ekleyebilirsin.
+                  </p>
+                  <Button size="sm" className="w-full" variant="outline" onClick={() => generateBackground('hand-photo')} disabled={generatingBg}>
+                    <Sparkles className={`h-4 w-4 mr-1 ${generatingBg ? 'animate-spin' : ''}`} />
+                    {generatingBg ? 'Üretiliyor (~10 sn)...' : 'El Background Üret (boş ekran)'}
+                  </Button>
                 </div>
               </div>
             )}
@@ -760,17 +686,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                 {/* Screenshot uploads — duo/trio için 3 ayrı upload */}
                 <div className="border-t pt-3">
                   <label className="text-xs font-medium mb-1.5 block">App Screenshot{(slot.phoneLayout ?? 'single') !== 'single' ? ' #1' : ''}</label>
-                  {slot.backgroundIsHand && (
-                    <div className="mb-2 rounded border border-purple-300 bg-purple-50 dark:bg-purple-950/30 dark:border-purple-800 p-2 text-[11px] leading-snug">
-                      🖐️ Hand photo aktif — yüklediğin screenshot AI ile fotoğrafın içindeki telefonun ekranına yerleştirilecek (~15 sn).
-                    </div>
-                  )}
-                  <input type="file" accept="image/*" disabled={generatingBg} onChange={e => e.target.files?.[0] && handleScreenshotUpload(e.target.files[0])} className="text-xs w-full" />
-                  {generatingBg && slot.backgroundIsHand && (
-                    <p className="text-[11px] text-purple-600 dark:text-purple-400 mt-1.5 flex items-center gap-1">
-                      <Loader2 className="h-3 w-3 animate-spin" /> AI screenshot'ı hand photo içine yerleştiriyor...
-                    </p>
-                  )}
+                  <input type="file" accept="image/*" onChange={e => e.target.files?.[0] && handleScreenshotUpload(e.target.files[0])} className="text-xs w-full" />
                   {slot.screenshotUrl && (
                     <div className="mt-2 flex items-center gap-2">
                       <img src={slot.screenshotUrl} alt="" className="h-16 rounded border" />
