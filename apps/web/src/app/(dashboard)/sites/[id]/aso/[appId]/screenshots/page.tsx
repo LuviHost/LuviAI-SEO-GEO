@@ -441,21 +441,22 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
   };
 
   // PANORAMA: hazır temayı 10 slota uygular. panoramaSpan'a göre grupla:
-  //  - 10 = tek büyük panorama (10 slot stitched)
-  //  - 5  = iki panorama (5+5)
-  //  - 2  = beş ikili panorama (2+2+2+2+2)
-  //  - 1  = her slot kendi mini-panoraması (tema 1 slota sıkışmış)
-  // Dekoratif şekiller grup sınırlarını aşarak birleşik tasarım hissi verir.
+  //  - 10 = tek büyük panorama (10 slot stitched, theme vx 0-1000 hep birden)
+  //  - 5  = iki panorama (slot 1-5 → theme 0-500, slot 6-10 → theme 500-1000)
+  //  - 2  = beş ikili panorama (her grup farklı 200 vx'lik tema slice'ı alır)
+  //  - 1  = 10 mini panorama (her slot kendi 100 vx'lik bölümü)
+  // Dekoratif şekiller grup içinde slot sınırını aşar ama grup sınırını aşmaz.
   const applyPanoramaTheme = (themeId: string) => {
     const theme = PANORAMA_THEMES.find(t => t.id === themeId);
     if (!theme) return;
     setSlots(prev => prev.map((s, i) => {
-      const slotInGroup = i % panoramaSpan;   // 0 to panoramaSpan-1
+      const groupIndex = Math.floor(i / panoramaSpan);
+      const slotInGroup = i % panoramaSpan;
       return {
         ...s,
         background: { type: theme.bgType, value: theme.bg },
         backgroundIsHand: false,
-        decorations: computeSlotDecorations(theme, slotInGroup, panoramaSpan, preset.width, preset.height),
+        decorations: computeSlotDecorations(theme, slotInGroup, panoramaSpan, groupIndex, preset.width, preset.height),
         ...PANORAMA_LAYOUT_PATTERN[i % PANORAMA_LAYOUT_PATTERN.length],
       };
     }));
