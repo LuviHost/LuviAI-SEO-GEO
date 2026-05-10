@@ -948,9 +948,9 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                     </div>
                     <p className="text-[10px] text-muted-foreground mt-1.5 leading-snug">
                       {panoramaSpan === 10 && 'Tek büyük panorama — şekiller 10 slot boyunca uzanır'}
-                      {panoramaSpan === 5  && '2 ayrı panorama — slot 1-5 ve 6-10 her biri kendi içinde stitched'}
-                      {panoramaSpan === 2  && '5 ayrı ikili panorama — her 2 slot kendi içinde birleşik'}
-                      {panoramaSpan === 1  && 'Her slot kendi mini-panoraması — tema tek slota sıkışır'}
+                      {panoramaSpan === 5  && '2 ayrı panorama (5+5) — her grup tema bir tam tur, gruplar farklı başlangıç noktalarından döner'}
+                      {panoramaSpan === 2  && '5 ayrı ikili panorama — her grup farklı rotation, sıkıştırılmış mini panorama'}
+                      {panoramaSpan === 1  && 'Her slot kendi mini-panoraması — 10 farklı rotation noktası'}
                     </p>
                   </div>
 

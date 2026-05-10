@@ -363,29 +363,40 @@ export function computeSlotDecorations(
 ): Decoration[] {
   const TOTAL_SLOTS = 10;
   const numGroups = Math.max(1, Math.floor(TOTAL_SLOTS / groupSize));
-  const groupVxSpan = 1000 / numGroups;          // örn. groupSize=2 → 200
-  const groupVxStart = groupIndex * groupVxSpan;
-  const groupVxEnd = groupVxStart + groupVxSpan;
-  const slotVxStart = groupVxStart + slotIndexInGroup * 100;
-  const slotVxEnd = slotVxStart + 100;
 
+  // groupSize 10: scale 1.0, rotation 0 (default)
+  // groupSize 5:  scale 0.5, group 0 → rotation 0, group 1 → rotation 500 (yarı kaydır)
+  // groupSize 2:  scale 0.2, gruplar 0, 200, 400, 600, 800 rotation
+  // groupSize 1:  scale 0.1, gruplar 0, 100, 200, ..., 900 rotation
+  const groupVirtualSpan = groupSize * 100;
+  const scale = groupVirtualSpan / 1000;
+  const rotationStep = 1000 / numGroups;
+  const rotation = groupIndex * rotationStep;
+
+  // Şekil boyutu çok küçülmesin — sqrt ile yumuşak ölçek (min 0.55)
+  const sizeScale = Math.max(0.55, Math.sqrt(scale));
+
+  const slotVxStart = slotIndexInGroup * 100;
+  const slotVxEnd   = slotVxStart + 100;
   const out: Decoration[] = [];
 
   for (const s of theme.shapes) {
-    // Şekil hangi gruba ait? (merkezine bak)
-    const shapeGroupIndex = Math.min(numGroups - 1, Math.floor(s.vx / groupVxSpan));
-    if (shapeGroupIndex !== groupIndex) continue;   // başka grubun şekli, atlat
+    // 1) Rotation: vx'yi grup başlangıcına göre kaydır, 1000'de wrap
+    const rotatedVx = (s.vx + rotation) % 1000;
+    // 2) Compression: rotated vx'yi grubun virtual aralığına sıkıştır
+    const scaledVx = rotatedVx * scale;
+    const scaledVsize = s.vsize * sizeScale;
 
-    // Slot penceresine giriyor mu?
-    const shapeStart = s.vx - s.vsize;
-    const shapeEnd   = s.vx + s.vsize;
+    // Slot penceresine giriyor mu? (grup içi slot sınırını aşan şekiller komşuda yarım görünür)
+    const shapeStart = scaledVx - scaledVsize;
+    const shapeEnd   = scaledVx + scaledVsize;
     if (shapeEnd < slotVxStart || shapeStart > slotVxEnd) continue;
 
     // Canvas koordinatlarına çevir
-    const relVx = s.vx - slotVxStart;             // 0-100 slot içi, negatif/100+ taşma (komşu slota uzanır)
+    const relVx = scaledVx - slotVxStart;
     const cx = (relVx / 100) * canvasWidth;
     const cy = (s.vy / 100) * canvasHeight;
-    const size = (s.vsize / 100) * canvasWidth;
+    const size = (scaledVsize / 100) * canvasWidth;
 
     out.push({
       type: s.type,
@@ -393,7 +404,7 @@ export function computeSlotDecorations(
       rotation: s.rotation,
       fill: s.fill,
       stroke: s.stroke,
-      strokeWidth: s.strokeWidth ? s.strokeWidth * (canvasWidth / 1290) : undefined,
+      strokeWidth: s.strokeWidth ? s.strokeWidth * (canvasWidth / 1290) * sizeScale : undefined,
       opacity: s.opacity,
     });
   }
