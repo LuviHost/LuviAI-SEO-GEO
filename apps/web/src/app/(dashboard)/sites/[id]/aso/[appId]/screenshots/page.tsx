@@ -190,7 +190,6 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
       const patch: Partial<SlotState> = { background: { type: 'image', value: fullUrl, image: img } };
       if (url.includes('/hand-')) patch.phoneScale = 0; // hand photo: kullanicinin phone frame'i gizle
       updateSlot(patch);
-      toast.success('Bu slota uygulandı');
     };
     img.onerror = () => toast.error('Image yüklenemedi');
     img.src = fullUrl;
@@ -201,7 +200,6 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
     try {
       await api.request(`/sites/${siteId}/aso/apps/${appId}/screenshots/library/${encodeURIComponent(filename)}`, { method: 'DELETE' });
       setLibrary(prev => prev.filter(i => i.filename !== filename));
-      toast.success('Silindi');
     } catch (err: any) {
       toast.error(err.message);
     }
@@ -266,7 +264,6 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
     try {
       // AI Hand Photo + screenshot uploaded → use multimodal endpoint to bake screenshot into AI image
       if (style === 'hand-photo' && slot.screenshotUrl) {
-        toast.info('Gemini multimodal: screenshot AI fotoğrafının içine yerleştiriliyor (~15 sn)...');
         // Read screenshot blob → base64
         const blob = await fetch(slot.screenshotUrl).then(r => r.blob());
         const base64 = await new Promise<string>((resolve, reject) => {
@@ -290,12 +287,10 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
         };
         img.onerror = () => toast.error('Background image yüklenemedi');
         img.src = fullUrl;
-        toast.success('Hand photo + screenshot hazır — phone frame gizlendi');
         return;
       }
 
       // Standard background generation (no screenshot embedding)
-      toast.info('Gemini Imagen 3 background üretiyor (~10 sn)...');
       const result = await api.request<{ url: string; width: number; height: number }>(
         `/sites/${siteId}/aso/apps/${appId}/screenshots/background`,
         { method: 'POST', body: JSON.stringify({ style, width: preset.width, height: preset.height }) },
@@ -306,7 +301,6 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
       img.onload = () => updateSlot({ background: { type: 'image', value: fullUrl, image: img } });
       img.onerror = () => toast.error('Background image yüklenemedi');
       img.src = fullUrl;
-      toast.success('Background hazır');
     } catch (err: any) {
       toast.error(err.message);
     } finally {
@@ -318,7 +312,6 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
   const generateCaptions = async () => {
     setGeneratingCaptions(true);
     try {
-      toast.info('AI tüm slotlar için caption üretiyor (~20 sn)...');
       const result = await api.request<{ captions: Array<{ slot: number; hook: string; subtitle: string }> }>(
         `/sites/${siteId}/aso/apps/${appId}/screenshots/captions`,
         { method: 'POST', body: JSON.stringify({ slotCount: 10, locale: app?.country === 'tr' ? 'tr' : 'en' }) },
@@ -327,7 +320,6 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
         const cap = result.captions.find(c => c.slot === i + 1);
         return cap ? { ...s, hook: cap.hook, subtitle: cap.subtitle } : s;
       }));
-      toast.success(`${result.captions.length} caption üretildi`);
     } catch (err: any) {
       toast.error(err.message);
     } finally {
@@ -346,7 +338,6 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
       link.download = `${app?.name ?? 'app'}-slot${activeSlot + 1}-${preset.width}x${preset.height}.png`;
       link.href = dataUrl;
       link.click();
-      toast.success(`Slot ${activeSlot + 1} indirildi`);
     } catch (err: any) {
       toast.error(`Export hatası: ${err.message}`);
     } finally {
@@ -356,7 +347,6 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
 
   const exportAll = async () => {
     setBulkExporting(true);
-    toast.info(`10 slot tek tek indirilecek (~${slots.length * 0.5} sn)`);
     try {
       const originalActive = activeSlot;
       for (let i = 0; i < slots.length; i++) {
@@ -373,7 +363,6 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
         await new Promise(r => setTimeout(r, 200));
       }
       setActiveSlot(originalActive);
-      toast.success('10 slot indirildi');
     } catch (err: any) {
       toast.error(err.message);
     } finally {
