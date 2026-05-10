@@ -125,6 +125,57 @@ const AUTO_LAYOUT_PATTERN = [
   'hero', 'comparison', 'tilted-right', 'tilted-left', 'showcase',
 ];
 
+// AI suggestion alanı — label + value + char counter + tek-tık kopyala.
+function SuggestionField({ label, value, limit, multiline }: {
+  label: string; value: string; limit: number; multiline?: boolean;
+}) {
+  const [copied, setCopied] = useState(false);
+  const len = value.length;
+  const overLimit = len > limit;
+  const handleCopy = () => {
+    navigator.clipboard.writeText(value).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  };
+  return (
+    <div className="rounded-md border bg-background p-2.5">
+      <div className="flex items-center justify-between mb-1">
+        <div className="text-[11px] font-semibold flex items-center gap-1.5">
+          {label}
+          <span className={`text-[10px] font-normal ${overLimit ? 'text-rose-600' : 'text-muted-foreground'}`}>
+            ({len}/{limit})
+          </span>
+        </div>
+        <button
+          onClick={handleCopy}
+          className={`text-[10px] px-2 py-0.5 rounded border transition-colors flex items-center gap-1 ${
+            copied ? 'border-emerald-500 text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30' : 'border-border hover:border-brand hover:text-brand'
+          }`}
+        >
+          {copied ? <><CheckCircle2 className="h-3 w-3" /> Kopyalandı</> : <><Copy className="h-3 w-3" /> Kopyala</>}
+        </button>
+      </div>
+      {multiline ? (
+        <textarea
+          readOnly
+          value={value}
+          onFocus={e => e.target.select()}
+          className="w-full text-[11px] leading-relaxed bg-transparent resize-none max-h-32 outline-none cursor-text"
+          rows={Math.min(6, value.split('\n').length + 1)}
+        />
+      ) : (
+        <input
+          readOnly
+          value={value}
+          onFocus={e => e.target.select()}
+          className="w-full text-[11px] bg-transparent outline-none cursor-text"
+        />
+      )}
+    </div>
+  );
+}
+
 // Layout preset preview — config'e göre minik SVG mockup. Telefon, yazı bloğu pozisyonu görünür.
 function LayoutPreview({ config }: { config: typeof LAYOUT_PRESETS[number]['config'] }) {
   const W = 60, H = 100;
@@ -1315,28 +1366,54 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                 {/* AI suggestion preview */}
                 {aiSuggestion && (
                   <div className="mt-4 rounded-lg border-2 border-brand bg-brand/5 p-4">
-                    <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
                       <div className="text-xs font-bold flex items-center gap-1.5">
-                        <Sparkles className="h-3.5 w-3.5 text-brand" /> AI Önerisi (yukarıdaki önizleme bununla güncellendi)
+                        <Sparkles className="h-3.5 w-3.5 text-brand" /> AI Önerisi (önizleme yukarıda güncellendi)
                       </div>
-                      <button onClick={() => setAiSuggestion(null)} className="text-[11px] text-muted-foreground hover:text-foreground">
-                        Geri Al
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 text-[11px]"
+                          onClick={() => {
+                            const fields = [
+                              aiSuggestion.title && `Title (${aiSuggestion.title.length}/30):\n${aiSuggestion.title}`,
+                              aiSuggestion.subtitle && `Subtitle (${aiSuggestion.subtitle.length}/30):\n${aiSuggestion.subtitle}`,
+                              aiSuggestion.keywords && `Keywords (${aiSuggestion.keywords.length}/100):\n${aiSuggestion.keywords}`,
+                              aiSuggestion.promotionalText && `Promotional Text (${aiSuggestion.promotionalText.length}/170):\n${aiSuggestion.promotionalText}`,
+                              aiSuggestion.description && `Description (${aiSuggestion.description.length}/4000):\n${aiSuggestion.description}`,
+                            ].filter(Boolean).join('\n\n');
+                            navigator.clipboard.writeText(fields).then(() => toast.success('Tüm öneriler panoya kopyalandı'));
+                          }}
+                        >
+                          <Copy className="h-3 w-3 mr-1" /> Tümünü Kopyala
+                        </Button>
+                        <button onClick={() => setAiSuggestion(null)} className="text-[11px] text-muted-foreground hover:text-foreground">
+                          Geri Al
+                        </button>
+                      </div>
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                      {aiSuggestion.title && <div><span className="font-semibold">Title:</span> {aiSuggestion.title}</div>}
-                      {aiSuggestion.subtitle && <div><span className="font-semibold">Subtitle:</span> {aiSuggestion.subtitle}</div>}
-                      {aiSuggestion.keywords && <div className="sm:col-span-2"><span className="font-semibold">Keywords:</span> {aiSuggestion.keywords}</div>}
-                      {aiSuggestion.promotionalText && <div className="sm:col-span-2"><span className="font-semibold">Promo:</span> {aiSuggestion.promotionalText}</div>}
+
+                    <div className="space-y-2 text-xs">
+                      {aiSuggestion.title && (
+                        <SuggestionField label="Title" value={aiSuggestion.title} limit={30} />
+                      )}
+                      {aiSuggestion.subtitle && (
+                        <SuggestionField label="Subtitle" value={aiSuggestion.subtitle} limit={30} />
+                      )}
+                      {aiSuggestion.keywords && (
+                        <SuggestionField label="Keywords" value={aiSuggestion.keywords} limit={100} />
+                      )}
+                      {aiSuggestion.promotionalText && (
+                        <SuggestionField label="Promotional Text" value={aiSuggestion.promotionalText} limit={170} />
+                      )}
+                      {aiSuggestion.description && (
+                        <SuggestionField label="Description" value={aiSuggestion.description} limit={4000} multiline />
+                      )}
                     </div>
-                    {aiSuggestion.description && (
-                      <details className="mt-2">
-                        <summary className="text-xs font-semibold cursor-pointer">Description (klik)</summary>
-                        <div className="text-xs mt-1 whitespace-pre-wrap max-h-40 overflow-y-auto">{aiSuggestion.description}</div>
-                      </details>
-                    )}
-                    <p className="text-[10px] text-muted-foreground mt-2">
-                      Bu öneri sadece önizleme — kaydetmek için ASO sayfasındaki metadata editörüne kopyala.
+
+                    <p className="text-[10px] text-muted-foreground mt-3">
+                      Kaydetmek için kopyala → App Store Connect / Play Console / ASO sayfasındaki metadata editörüne yapıştır.
                     </p>
                   </div>
                 )}
