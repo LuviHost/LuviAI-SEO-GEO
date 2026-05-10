@@ -357,7 +357,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
     img.src = url;
   };
 
-  const generateBackground = async (style: 'gradient' | 'mesh' | 'minimalist' | 'bold' | 'illustrative' | 'hand-photo') => {
+  const generateBackground = async (style: 'gradient' | 'mesh' | 'minimalist' | 'bold' | 'illustrative') => {
     setGeneratingBg(true);
     try {
       const result = await api.request<{ url: string; width: number; height: number }>(
@@ -367,11 +367,10 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
       const fullUrl = process.env.NEXT_PUBLIC_API_URL ? `${process.env.NEXT_PUBLIC_API_URL}${result.url}` : result.url;
       const img = new window.Image();
       img.crossOrigin = 'anonymous';
-      const isHand = style === 'hand-photo';
       img.onload = () => updateSlot({
         background: { type: 'image', value: fullUrl, image: img },
-        phoneScale: isHand ? 0 : (slot.phoneScale === 0 ? 0.7 : slot.phoneScale),
-        backgroundIsHand: isHand,
+        phoneScale: slot.phoneScale === 0 ? 0.7 : slot.phoneScale,
+        backgroundIsHand: false,
       });
       img.onerror = () => toast.error('Background image yüklenemedi');
       img.src = fullUrl;
@@ -639,16 +638,6 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                   </div>
                 )}
 
-                <div className="border-t pt-3">
-                  <h3 className="text-sm font-semibold mb-1 flex items-center gap-1.5">🖐️ AI Hand Photo</h3>
-                  <p className="text-xs text-muted-foreground mb-2">
-                    Gemini Imagen 3 ile el + telefon fotoğrafı üretir (boş ekranlı). Sonra Telefon sekmesinden screenshot ekleyebilirsin.
-                  </p>
-                  <Button size="sm" className="w-full" variant="outline" onClick={() => generateBackground('hand-photo')} disabled={generatingBg}>
-                    <Sparkles className={`h-4 w-4 mr-1 ${generatingBg ? 'animate-spin' : ''}`} />
-                    {generatingBg ? 'Üretiliyor (~10 sn)...' : 'El Background Üret (boş ekran)'}
-                  </Button>
-                </div>
               </div>
             )}
 
