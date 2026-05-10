@@ -82,25 +82,25 @@ const LAYOUT_PRESETS = [
   {
     id: 'hero',
     name: 'Hero',
-    description: 'Tek telefon ortada, üstte güçlü hook',
+    description: 'Tek telefon ortada, üstte hook',
     config: { phoneLayout: 'single' as const, textPosition: 'top' as const, phoneVerticalAlign: 'center' as const, phoneScale: 0.75, phoneTilt: 0 },
   },
   {
     id: 'showcase',
     name: 'Showcase',
-    description: '2 telefon yan yana, premium look',
+    description: '2 telefon yan yana',
     config: { phoneLayout: 'duo' as const, textPosition: 'top' as const, phoneVerticalAlign: 'center' as const, phoneScale: 0.7, phoneTilt: 0 },
   },
   {
     id: 'comparison',
     name: 'Comparison',
-    description: '3 telefon kademeli, feature showcase',
+    description: '3 telefon kademeli',
     config: { phoneLayout: 'trio' as const, textPosition: 'top' as const, phoneVerticalAlign: 'center' as const, phoneScale: 0.75, phoneTilt: 0 },
   },
   {
     id: 'tilted-right',
     name: 'Tilted Right',
-    description: 'Sağa eğik tek telefon — Media Markt style',
+    description: 'Sağa eğik tek telefon',
     config: { phoneLayout: 'single' as const, textPosition: 'top' as const, phoneVerticalAlign: 'bottom' as const, phoneScale: 0.85, phoneTilt: 12 },
   },
   {
@@ -116,6 +116,83 @@ const LAYOUT_PRESETS = [
     config: { phoneLayout: 'single' as const, textPosition: 'bottom' as const, phoneVerticalAlign: 'top' as const, phoneScale: 0.7, phoneTilt: 0 },
   },
 ];
+
+// 10 slot için kanıtlanmış sıralama — App Store top app'lerinde yaygın akış:
+// hero (intro) → tilted variations (feature highlight) → multi-phone (depth) → variety
+const AUTO_LAYOUT_PATTERN = [
+  'hero', 'tilted-right', 'showcase', 'tilted-left', 'phone-top',
+  'hero', 'comparison', 'tilted-right', 'tilted-left', 'showcase',
+];
+
+// Layout preset preview — config'e göre minik SVG mockup. Telefon, yazı bloğu pozisyonu görünür.
+function LayoutPreview({ config }: { config: typeof LAYOUT_PRESETS[number]['config'] }) {
+  const W = 60, H = 100;
+  const textY = config.textPosition === 'top' ? 6 : H - 16;
+
+  const phoneCount = config.phoneLayout === 'single' ? 1 : config.phoneLayout === 'duo' ? 2 : 3;
+  const baseW = config.phoneLayout === 'single' ? 22 : config.phoneLayout === 'duo' ? 16 : 13;
+  const baseH = baseW * 2.05;
+  const scaleMul = Math.min(config.phoneScale / 0.75, 1.15);
+  const phoneW = baseW * scaleMul;
+  const phoneH = baseH * scaleMul;
+
+  // phoneCenterY hesabı — gerçek render'a yakın
+  let phoneCenterY: number;
+  if (config.textPosition === 'top') {
+    const top = 22, bottom = H - 6;
+    phoneCenterY = config.phoneVerticalAlign === 'top' ? top + (bottom - top) * 0.3
+                 : config.phoneVerticalAlign === 'bottom' ? top + (bottom - top) * 0.7
+                 : (top + bottom) / 2;
+  } else {
+    const top = 6, bottom = H - 22;
+    phoneCenterY = config.phoneVerticalAlign === 'top' ? top + (bottom - top) * 0.3
+                 : config.phoneVerticalAlign === 'bottom' ? top + (bottom - top) * 0.7
+                 : (top + bottom) / 2;
+  }
+
+  const phones: Array<{ cx: number; cy: number; tilt: number; w: number; h: number; opacity: number }> = [];
+  if (phoneCount === 1) {
+    phones.push({ cx: W / 2, cy: phoneCenterY, tilt: config.phoneTilt, w: phoneW, h: phoneH, opacity: 1 });
+  } else if (phoneCount === 2) {
+    phones.push({ cx: W / 2 - 10, cy: phoneCenterY, tilt: config.phoneTilt - 8, w: phoneW * 0.9, h: phoneH * 0.9, opacity: 1 });
+    phones.push({ cx: W / 2 + 10, cy: phoneCenterY + 3, tilt: config.phoneTilt + 8, w: phoneW * 0.9, h: phoneH * 0.9, opacity: 1 });
+  } else {
+    phones.push({ cx: W / 2 - 14, cy: phoneCenterY + 4, tilt: config.phoneTilt - 12, w: phoneW * 0.78, h: phoneH * 0.78, opacity: 0.7 });
+    phones.push({ cx: W / 2,      cy: phoneCenterY,     tilt: config.phoneTilt,       w: phoneW,        h: phoneH,        opacity: 1 });
+    phones.push({ cx: W / 2 + 14, cy: phoneCenterY + 4, tilt: config.phoneTilt + 12, w: phoneW * 0.78, h: phoneH * 0.78, opacity: 0.7 });
+  }
+
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto rounded" preserveAspectRatio="xMidYMid meet">
+      {/* canvas bg */}
+      <rect width={W} height={H} fill="#f1f1f4" rx={2} />
+      {/* text bars */}
+      <rect x={8} y={textY} width={44} height={3} rx={1} fill="#333" opacity={0.55} />
+      <rect x={8} y={textY + 5} width={32} height={2} rx={1} fill="#333" opacity={0.3} />
+      {/* phones */}
+      {phones.map((p, i) => (
+        <g key={i} transform={`rotate(${p.tilt} ${p.cx} ${p.cy})`} opacity={p.opacity}>
+          <rect
+            x={p.cx - p.w / 2} y={p.cy - p.h / 2}
+            width={p.w} height={p.h}
+            rx={2.2}
+            fill="#ffffff"
+            stroke="#1a1a1a"
+            strokeOpacity={0.7}
+            strokeWidth={0.6}
+          />
+          <rect
+            x={p.cx - p.w / 2 + 1} y={p.cy - p.h / 2 + 1.5}
+            width={p.w - 2} height={p.h - 3}
+            rx={1.5}
+            fill="#6c5ce7"
+            opacity={0.28}
+          />
+        </g>
+      ))}
+    </svg>
+  );
+}
 
 const GRADIENTS = [
   'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
@@ -232,6 +309,16 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
 
   const updateAllSlots = (patch: Partial<SlotState>) => {
     setSlots(prev => prev.map(s => ({ ...s, ...patch })));
+  };
+
+  // 10 slot için AUTO_LAYOUT_PATTERN'a göre her slota farklı preset uygular.
+  // App Store'da yaygın akış: hero → tilted → multi-phone → variety. Token harcamaz, anlık.
+  const applyAutoLayout = () => {
+    setSlots(prev => prev.map((s, i) => {
+      const presetId = AUTO_LAYOUT_PATTERN[i % AUTO_LAYOUT_PATTERN.length];
+      const preset = LAYOUT_PRESETS.find(p => p.id === presetId);
+      return preset ? { ...s, ...preset.config } : s;
+    }));
   };
 
   const handleScreenshotUpload = (file: File) => {
@@ -598,24 +685,50 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
 
             {sidebar === 'layout' && (
               <div className="space-y-3">
-                <h3 className="text-sm font-semibold">Layout Preset'leri</h3>
-                <p className="text-xs text-muted-foreground mb-2">Tek tıkla telefon + yazı kompozisyonu — bu slot için</p>
-                <div className="grid grid-cols-2 gap-2">
-                  {LAYOUT_PRESETS.map(p => (
-                    <button
-                      key={p.id}
-                      onClick={() => updateSlot(p.config)}
-                      className={`p-3 rounded border-2 text-left transition-colors ${
-                        slot.phoneLayout === p.config.phoneLayout && slot.phoneTilt === (p.config.phoneTilt ?? 0) && slot.textPosition === p.config.textPosition
-                          ? 'border-brand bg-brand/5'
-                          : 'border-border hover:border-foreground/30'
-                      }`}
-                    >
-                      <div className="text-xs font-bold mb-0.5">{p.name}</div>
-                      <div className="text-[10px] text-muted-foreground leading-tight">{p.description}</div>
-                    </button>
-                  ))}
+                {/* Auto-layout — 10 slot için akıllı dağıtım */}
+                <div className="rounded-lg border border-brand/40 bg-brand/5 p-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Sparkles className="h-4 w-4 text-brand" />
+                    <h3 className="text-sm font-semibold">Auto-Layout</h3>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground mb-2 leading-snug">
+                    10 slota App Store'da yaygın akışı uygula: hero → tilted → multi-phone → variety. Anlık, ücretsiz.
+                  </p>
+                  <Button size="sm" className="w-full" onClick={applyAutoLayout}>
+                    <Sparkles className="h-3.5 w-3.5 mr-1" />
+                    10 Slot Otomatik Dağıt
+                  </Button>
                 </div>
+
+                <div>
+                  <h3 className="text-sm font-semibold mb-1">Layout Preset'leri</h3>
+                  <p className="text-xs text-muted-foreground mb-2">Aktif slota uygulanır — preview'a tıkla</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {LAYOUT_PRESETS.map(p => {
+                      const isActive = slot.phoneLayout === p.config.phoneLayout
+                        && slot.phoneTilt === (p.config.phoneTilt ?? 0)
+                        && slot.textPosition === p.config.textPosition
+                        && slot.phoneVerticalAlign === p.config.phoneVerticalAlign;
+                      return (
+                        <button
+                          key={p.id}
+                          onClick={() => updateSlot(p.config)}
+                          className={`p-2 rounded border-2 text-left transition-colors ${
+                            isActive ? 'border-brand bg-brand/5' : 'border-border hover:border-foreground/30'
+                          }`}
+                          title={p.description}
+                        >
+                          <div className="mb-1.5">
+                            <LayoutPreview config={p.config} />
+                          </div>
+                          <div className="text-[11px] font-bold leading-tight">{p.name}</div>
+                          <div className="text-[9.5px] text-muted-foreground leading-tight mt-0.5">{p.description}</div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
                 <div className="border-t pt-3">
                   <button
                     onClick={() => updateAllSlots(slot.phoneLayout && slot.textPosition ? {
