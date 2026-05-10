@@ -217,6 +217,37 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
   const generateBackground = async (style: 'gradient' | 'mesh' | 'minimalist' | 'bold' | 'illustrative' | 'hand-photo') => {
     setGeneratingBg(true);
     try {
+      // AI Hand Photo + screenshot uploaded → use multimodal endpoint to bake screenshot into AI image
+      if (style === 'hand-photo' && slot.screenshotUrl) {
+        toast.info('Gemini multimodal: screenshot AI fotoğrafının içine yerleştiriliyor (~15 sn)...');
+        // Read screenshot blob → base64
+        const blob = await fetch(slot.screenshotUrl).then(r => r.blob());
+        const base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(String(reader.result));
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        });
+        const result = await api.request<{ url: string }>(
+          `/sites/${siteId}/aso/apps/${appId}/screenshots/hand-photo-with-screenshot`,
+          { method: 'POST', body: JSON.stringify({ screenshotBase64: base64, width: preset.width, height: preset.height }) },
+        );
+        const fullUrl = process.env.NEXT_PUBLIC_API_URL ? `${process.env.NEXT_PUBLIC_API_URL}${result.url}` : result.url;
+        const img = new window.Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => {
+          updateSlot({
+            background: { type: 'image', value: fullUrl, image: img },
+            phoneScale: 0,  // Hide own phone frame — screenshot is already inside AI image
+          });
+        };
+        img.onerror = () => toast.error('Background image yüklenemedi');
+        img.src = fullUrl;
+        toast.success('Hand photo + screenshot hazır — phone frame gizlendi');
+        return;
+      }
+
+      // Standard background generation (no screenshot embedding)
       toast.info('Gemini Imagen 3 background üretiyor (~10 sn)...');
       const result = await api.request<{ url: string; width: number; height: number }>(
         `/sites/${siteId}/aso/apps/${appId}/screenshots/background`,
@@ -453,16 +484,33 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
 
                 <div className="border-t pt-3">
                   <h3 className="text-sm font-semibold mb-1 flex items-center gap-1.5">🖐️ AI Hand Photo</h3>
-                  <p className="text-xs text-muted-foreground mb-2">
-                    Photorealistic el+telefon fotoğrafı (Gemini Imagen 3) — background olarak kullan, üstüne kendi telefonu da yerleştir.
-                  </p>
-                  <Button size="sm" className="w-full" variant="outline" onClick={() => generateBackground('hand-photo')} disabled={generatingBg}>
-                    <Sparkles className={`h-4 w-4 mr-1 ${generatingBg ? 'animate-spin' : ''}`} />
-                    {generatingBg ? 'Üretiliyor (~10 sn)...' : 'AI Hand Photo Üret'}
-                  </Button>
-                  <p className="text-[10px] text-muted-foreground mt-1.5">
-                    Tip: Üretildikten sonra Telefon tab'da boyutu küçülterek (60-65%) hand'in içindeymiş gibi göster.
-                  </p>
+                  {slot.screenshotUrl ? (
+                    <>
+                      <p className="text-xs text-muted-foreground mb-2">
+                        ✓ Screenshot yüklü — AI <strong>screenshot'ı el+telefon fotoğrafının içine yerleştirecek</strong> (multimodal Gemini, ~15 sn).
+                      </p>
+                      <Button size="sm" className="w-full" onClick={() => generateBackground('hand-photo')} disabled={generatingBg}>
+                        <Sparkles className={`h-4 w-4 mr-1 ${generatingBg ? 'animate-spin' : ''}`} />
+                        {generatingBg ? 'AI çalışıyor (~15 sn)...' : 'AI ile El + Screenshot Birleştir'}
+                      </Button>
+                      <p className="text-[10px] text-muted-foreground mt-1.5">
+                        Sonuç tek bütünleşik fotoğraf — phone frame otomatik gizlenir. Tek karede gerçek el + telefon + senin app screenshot'ın.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-xs text-muted-foreground mb-2">
+                        ⚠️ Önce <strong>Telefon sekmesinden app screenshot yükle</strong>. Sonra AI screenshot'ı el+telefon fotoğrafının içine yerleştirir.
+                      </p>
+                      <Button size="sm" className="w-full" variant="outline" onClick={() => generateBackground('hand-photo')} disabled={generatingBg}>
+                        <Sparkles className={`h-4 w-4 mr-1 ${generatingBg ? 'animate-spin' : ''}`} />
+                        {generatingBg ? 'Üretiliyor (~10 sn)...' : 'Sadece El Background Üret (boş ekran)'}
+                      </Button>
+                      <p className="text-[10px] text-muted-foreground mt-1.5">
+                        Bu seçenekte AI'in telefonu boş kalır — screenshot yüklersen yukarıdaki multimodal versiyon aktif olur.
+                      </p>
+                    </>
+                  )}
                 </div>
               </div>
             )}

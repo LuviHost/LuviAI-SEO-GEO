@@ -114,6 +114,91 @@ Strict: NO text, NO words, NO letters, NO logos, NO photorealistic faces. Pure a
   }
 
   /**
+   * AI Hand Photo with screenshot baked in.
+   * Multimodal Gemini call: kullanıcının app screenshot'ını input olarak alır,
+   * onu hand-holding-phone scene'in İÇİNE composit eder.
+   * Sonuç: tek bütünleşik PNG (hand + phone + screenshot embedded).
+   */
+  async generateHandPhotoWithScreenshot(opts: {
+    trackedAppId: string;
+    screenshotBase64: string;     // base64 PNG (data:image/...;base64,XXX or raw)
+    brandColor?: string;
+    width?: number;
+    height?: number;
+  }) {
+    const app = await this.prisma.trackedApp.findUniqueOrThrow({
+      where: { id: opts.trackedAppId },
+    });
+
+    if (!process.env.GOOGLE_AI_API_KEY) {
+      throw new BadRequestException('GOOGLE_AI_API_KEY .env\'de tanımlı değil');
+    }
+
+    const width = opts.width ?? 1290;
+    const height = opts.height ?? 2796;
+    const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_AI_API_KEY });
+
+    // Strip data URL prefix if present
+    const base64 = opts.screenshotBase64.replace(/^data:image\/\w+;base64,/, '');
+
+    const prompt = `Create a photorealistic professional product photograph for an App Store screenshot.
+
+CRITICAL: Take the provided phone screenshot image and place it INSIDE a smartphone screen. Show a person's hand holding the smartphone vertically. The screenshot must be clearly visible and unmodified inside the phone screen.
+
+Composition:
+- Vertical 9:19.5 aspect ratio (mobile portrait)
+- Smartphone in center, held naturally by a hand
+- The provided image fills the phone's screen area precisely
+- Soft studio lighting, professional, premium aesthetic
+- Background: vivid colorful blurred bokeh in ${opts.brandColor ? opts.brandColor : 'modern complementary color tones'}, out of focus
+- Hand: natural ${app.country === 'tr' ? 'mediterranean' : 'diverse'} skin tone, well-manicured
+
+App context for color/mood: ${app.name} — ${app.category ?? 'app'}
+
+STRICT requirements:
+- The provided screenshot MUST be visible in the phone's screen — do not replace it with placeholder content
+- NO text overlay on the image, NO logos, NO watermarks
+- Phone screen edges align naturally with the bezel
+- Final image should look like real product photography from an Apple/Google promotional shoot`;
+
+    try {
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash-image',
+        contents: [
+          {
+            parts: [
+              { text: prompt },
+              { inlineData: { mimeType: 'image/png', data: base64 } },
+            ],
+          },
+        ],
+      } as any);
+
+      const parts = (response as any)?.candidates?.[0]?.content?.parts ?? [];
+      const imagePart = parts.find((p: any) => p.inlineData);
+      if (!imagePart?.inlineData?.data) {
+        throw new Error('Gemini response\'unda image data yok');
+      }
+
+      const buffer = Buffer.from(imagePart.inlineData.data, 'base64');
+      const resized = await sharp(buffer).resize(width, height, { fit: 'cover' }).png().toBuffer();
+
+      const filename = `hand-${opts.trackedAppId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.png`;
+      const filepath = path.join(this.STORAGE_DIR, filename);
+      await fs.writeFile(filepath, resized);
+
+      const url = `/screenshots/${filename}`;
+      const costUsd = 0.030;
+
+      this.log.log(`[${opts.trackedAppId}] hand-photo-with-screenshot generated: ${url}`);
+      return { url, width, height, costUsd, style: 'hand-photo-composited' };
+    } catch (err: any) {
+      this.log.error(`Hand-photo-with-screenshot failed: ${err.message}`);
+      throw new BadRequestException(`Gemini multimodal hatası: ${err.message}`);
+    }
+  }
+
+  /**
    * Caption text önerileri üret (Claude Haiku ile).
    * 10 slot için hook + alt başlık.
    */

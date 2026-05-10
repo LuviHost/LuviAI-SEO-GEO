@@ -197,4 +197,16 @@ export class AsoController {
   ) {
     return this.screenshots.saveScreenshot({ trackedAppId: appId, ...body });
   }
+
+  /**
+   * POST /aso/apps/:appId/screenshots/hand-photo-with-screenshot
+   * Multimodal Gemini: screenshot → AI hand+phone scene with screenshot embedded.
+   */
+  @Post('apps/:appId/screenshots/hand-photo-with-screenshot')
+  generateHandPhotoWithScreenshot(
+    @Param('appId') appId: string,
+    @Body() body: { screenshotBase64: string; brandColor?: string; width?: number; height?: number },
+  ) {
+    return this.screenshots.generateHandPhotoWithScreenshot({ trackedAppId: appId, ...body });
+  }
 }
