@@ -12,7 +12,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   ArrowLeft, Sparkles, Download, Image as ImageIcon, Type, Palette,
-  Smartphone, RotateCw, Loader2, Upload, Trash2, Copy,
+  Smartphone, RotateCw, Loader2, Upload, Trash2, Copy, Eye,
+  Star, AlertCircle, CheckCircle2, X as XIcon, Wand2,
 } from 'lucide-react';
 import { PHONE_FRAMES } from './phone-frames';
 import { TEMPLATES } from './templates';
@@ -245,6 +246,14 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
 
   const [sidebar, setSidebar] = useState<'ai' | 'templates' | 'layout' | 'phone' | 'background' | 'text'>('ai');
 
+  // Store preview modal
+  const [showPreview, setShowPreview] = useState(false);
+  const [previewStore, setPreviewStore] = useState<'IOS' | 'ANDROID'>('IOS');
+  const [audit, setAudit] = useState<{ findings: Array<{ severity: string; store: string; field: string; label: string; current: any; message?: string; recommendation?: string }>; score?: number } | null>(null);
+  const [auditLoading, setAuditLoading] = useState(false);
+  const [optimizing, setOptimizing] = useState(false);
+  const [aiSuggestion, setAiSuggestion] = useState<{ title?: string; subtitle?: string; description?: string; keywords?: string; promotionalText?: string } | null>(null);
+
   // AI screenshot library — daha önce üretilmiş background'lar
   const [library, setLibrary] = useState<Array<{ filename: string; url: string; timestamp: number; type: 'standard' | 'hand' }>>([]);
   const [libraryLoading, setLibraryLoading] = useState(false);
@@ -334,6 +343,43 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
       phoneScale: targetPhoneScale,
     })));
   };
+
+  // Modal açıldığında app audit verisini çeker.
+  const loadAudit = async () => {
+    setAuditLoading(true);
+    try {
+      const r = await api.request<any>(`/sites/${siteId}/aso/apps/${appId}/audit`);
+      setAudit(r);
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setAuditLoading(false);
+    }
+  };
+
+  // Audit'teki eksikleri AI ile düzeltir (Claude/Gemini → metadata önerisi).
+  const aiOptimizeMetadata = async () => {
+    setOptimizing(true);
+    setAiSuggestion(null);
+    try {
+      const keywords = (app?.keywords ?? []).map((k: any) => k.keyword).filter(Boolean).slice(0, 5);
+      const r = await api.request<any>(
+        `/sites/${siteId}/aso/apps/${appId}/optimize-metadata`,
+        { method: 'POST', body: JSON.stringify({ targetKeywords: keywords, store: previewStore, locale: app?.country === 'tr' ? 'tr' : 'en' }) },
+      );
+      setAiSuggestion(r?.optimized ?? r ?? null);
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setOptimizing(false);
+    }
+  };
+
+  useEffect(() => {
+    if (showPreview && !audit && !auditLoading) {
+      loadAudit();
+    }
+  }, [showPreview]);
 
   // Galeri'den bir item'ı doğrudan 10 slota uygular.
   const applyLibraryItemToAllSlots = (item: { url: string; type: 'standard' | 'hand' }) => {
@@ -498,6 +544,10 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
           <select value={presetId} onChange={e => setPresetId(e.target.value)} className="h-9 px-2 rounded-md border border-input text-sm bg-background">
             {PRESETS.map(p => <option key={p.id} value={p.id}>{p.label} · {p.width}×{p.height}</option>)}
           </select>
+          <Button size="sm" variant="outline" onClick={() => setShowPreview(true)}>
+            <Eye className="h-4 w-4 mr-1" />
+            Store'da Önizle
+          </Button>
           <Button size="sm" variant="outline" onClick={exportPng} disabled={exporting}>
             <Download className="h-4 w-4 mr-1" />
             {exporting ? 'İndiriliyor...' : 'Bu slotu indir'}
@@ -1046,6 +1096,255 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
           </div>
         </div>
       </div>
+
+      {/* STORE PREVIEW MODAL */}
+      {showPreview && (
+        <div
+          className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-start justify-center p-4 overflow-y-auto"
+          onClick={() => setShowPreview(false)}
+        >
+          <div
+            className="bg-background rounded-2xl max-w-6xl w-full my-6 shadow-2xl"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Modal header */}
+            <div className="sticky top-0 z-10 bg-background rounded-t-2xl border-b px-6 py-4 flex items-center justify-between gap-4 flex-wrap">
+              <div className="flex items-center gap-3 min-w-0">
+                {app?.iconUrl && <img src={app.iconUrl} alt="" className="h-12 w-12 rounded-xl shadow shrink-0" />}
+                <div className="min-w-0">
+                  <h2 className="text-base font-bold truncate">{app?.name ?? 'App'} · Store Önizleme</h2>
+                  <p className="text-xs text-muted-foreground">Yayınlamadan önce nasıl gözüktüğünü gör</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="flex border rounded-md overflow-hidden h-9">
+                  <button
+                    onClick={() => setPreviewStore('IOS')}
+                    className={`px-3 text-xs font-medium ${previewStore === 'IOS' ? 'bg-brand text-white' : 'bg-background hover:bg-muted'}`}
+                  >
+                    iOS App Store
+                  </button>
+                  <button
+                    onClick={() => setPreviewStore('ANDROID')}
+                    className={`px-3 text-xs font-medium ${previewStore === 'ANDROID' ? 'bg-brand text-white' : 'bg-background hover:bg-muted'}`}
+                  >
+                    Play Store
+                  </button>
+                </div>
+                <button
+                  onClick={() => setShowPreview(false)}
+                  className="h-9 w-9 rounded-md border hover:bg-muted grid place-items-center"
+                  title="Kapat"
+                >
+                  <XIcon className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+
+            <div className="p-6 space-y-6">
+              {/* Store-style app header card */}
+              {(() => {
+                const meta: any = app?.metadata ?? {};
+                const storeMeta = previewStore === 'IOS' ? meta.ios : meta.android;
+                const displayTitle = aiSuggestion?.title ?? storeMeta?.title ?? app?.name ?? '—';
+                const displaySubtitle = aiSuggestion?.subtitle ?? storeMeta?.subtitle ?? '';
+                const rating = storeMeta?.rating ?? app?.rating ?? null;
+                const ratingCount = storeMeta?.ratingCount ?? app?.ratingCount ?? null;
+                const category = app?.category ?? '—';
+
+                if (previewStore === 'IOS') {
+                  return (
+                    <div className="rounded-xl bg-gradient-to-b from-muted/40 to-muted/10 p-5 border">
+                      <div className="flex gap-4">
+                        {app?.iconUrl
+                          ? <img src={app.iconUrl} alt="" className="h-24 w-24 rounded-2xl shadow-md shrink-0" />
+                          : <div className="h-24 w-24 rounded-2xl bg-muted shrink-0" />
+                        }
+                        <div className="flex-1 min-w-0">
+                          <div className="text-lg font-bold leading-tight truncate">{displayTitle}</div>
+                          {displaySubtitle && (
+                            <div className="text-sm text-muted-foreground truncate">{displaySubtitle}</div>
+                          )}
+                          <div className="text-xs text-muted-foreground mt-1">{category}</div>
+                          <div className="flex items-center justify-between mt-3">
+                            <div className="text-xs text-muted-foreground">
+                              {rating ? (
+                                <span className="flex items-center gap-1">
+                                  <Star className="h-3 w-3 fill-amber-500 text-amber-500" />
+                                  <span className="font-semibold text-foreground">{Number(rating).toFixed(1)}</span>
+                                  {ratingCount && <span>· {Number(ratingCount).toLocaleString('tr-TR')}</span>}
+                                </span>
+                              ) : 'Yeni'}
+                            </div>
+                            <button className="px-4 py-1 rounded-full bg-blue-600 text-white text-xs font-semibold">
+                              EDİN
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
+                return (
+                  <div className="rounded-xl bg-gradient-to-b from-emerald-50 to-background dark:from-emerald-950/30 p-5 border">
+                    <div className="flex gap-4">
+                      {app?.iconUrl
+                        ? <img src={app.iconUrl} alt="" className="h-20 w-20 rounded-2xl shadow shrink-0" />
+                        : <div className="h-20 w-20 rounded-2xl bg-muted shrink-0" />
+                      }
+                      <div className="flex-1 min-w-0">
+                        <div className="text-lg font-bold leading-tight">{displayTitle}</div>
+                        {displaySubtitle && (
+                          <div className="text-xs text-muted-foreground line-clamp-2">{displaySubtitle}</div>
+                        )}
+                        <div className="flex items-center gap-3 mt-2 text-xs">
+                          {rating && (
+                            <span className="flex items-center gap-1">
+                              <span className="font-semibold">{Number(rating).toFixed(1)}</span>
+                              <Star className="h-3 w-3 fill-foreground" />
+                            </span>
+                          )}
+                          {ratingCount && <span className="text-muted-foreground">{Number(ratingCount).toLocaleString('tr-TR')} yorum</span>}
+                          <span className="text-muted-foreground">{category}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="mt-4 flex gap-2">
+                      <button className="flex-1 py-2 rounded-md bg-emerald-600 text-white text-sm font-semibold">Yükle</button>
+                      <button className="px-4 py-2 rounded-md border text-sm">Liste</button>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Screenshots strip */}
+              <div>
+                <h3 className="text-sm font-semibold mb-2 flex items-center gap-2">
+                  <ImageIcon className="h-4 w-4" /> Ekran Görüntüleri ({slots.length})
+                </h3>
+                <div className="overflow-x-auto pb-2 -mx-2 px-2">
+                  <div className="flex gap-3">
+                    {slots.map((s, i) => {
+                      const thumbW = previewStore === 'IOS' ? 130 : 120;
+                      const thumbH = (thumbW * preset.height) / preset.width;
+                      return (
+                        <div
+                          key={i}
+                          className={`shrink-0 ${previewStore === 'IOS' ? 'rounded-[18px]' : 'rounded-lg'} overflow-hidden bg-muted shadow-md ring-1 ring-black/5`}
+                          style={{ width: thumbW, height: thumbH }}
+                        >
+                          <ScreenshotStage slot={s} width={preset.width} height={preset.height} viewWidth={thumbW} />
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+                <p className="text-[11px] text-muted-foreground mt-1">Soldan sağa kaydır — 10 slot arka arkaya gösterilir, kullanıcı app sayfasında bu sırada görür.</p>
+              </div>
+
+              {/* Description preview */}
+              {(() => {
+                const meta: any = app?.metadata ?? {};
+                const storeMeta = previewStore === 'IOS' ? meta.ios : meta.android;
+                const displayDesc = aiSuggestion?.description ?? storeMeta?.description ?? '';
+                if (!displayDesc) return null;
+                return (
+                  <div>
+                    <h3 className="text-sm font-semibold mb-2 flex items-center gap-2">
+                      <Type className="h-4 w-4" /> Açıklama (ilk paragraf)
+                    </h3>
+                    <div className="rounded-lg border p-4 text-sm leading-relaxed whitespace-pre-wrap max-h-40 overflow-y-auto">
+                      {displayDesc.slice(0, 350)}{displayDesc.length > 350 ? '…' : ''}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Analiz + AI Fix */}
+              <div className="border-t pt-6">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="text-sm font-semibold flex items-center gap-2">
+                    <AlertCircle className="h-4 w-4 text-amber-500" /> Analiz · Eksikler & Sorunlar
+                  </h3>
+                  <Button size="sm" onClick={aiOptimizeMetadata} disabled={optimizing}>
+                    <Wand2 className={`h-3.5 w-3.5 mr-1 ${optimizing ? 'animate-spin' : ''}`} />
+                    {optimizing ? 'AI çalışıyor...' : 'AI ile Düzelt'}
+                  </Button>
+                </div>
+
+                {auditLoading && (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
+                    <Loader2 className="h-4 w-4 animate-spin" /> Audit yükleniyor…
+                  </div>
+                )}
+
+                {!auditLoading && audit && (
+                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                    {audit.findings
+                      .filter(f => f.store === previewStore || f.store === 'BOTH')
+                      .filter(f => f.severity !== 'ok')
+                      .map((f, i) => {
+                        const color = f.severity === 'error' ? 'border-rose-300 bg-rose-50 dark:bg-rose-950/30'
+                                    : f.severity === 'warning' ? 'border-amber-300 bg-amber-50 dark:bg-amber-950/30'
+                                    : 'border-blue-300 bg-blue-50 dark:bg-blue-950/30';
+                        return (
+                          <div key={i} className={`rounded-lg border ${color} p-3`}>
+                            <div className="flex items-start gap-2">
+                              {f.severity === 'error'
+                                ? <AlertCircle className="h-4 w-4 text-rose-600 shrink-0 mt-0.5" />
+                                : <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                              }
+                              <div className="flex-1 min-w-0">
+                                <div className="text-xs font-semibold">{f.label} <span className="text-muted-foreground font-normal">({String(f.current)})</span></div>
+                                {f.message && <div className="text-xs text-muted-foreground mt-0.5">{f.message}</div>}
+                                {f.recommendation && <div className="text-[11px] mt-1 opacity-80">{f.recommendation}</div>}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    {audit.findings.filter(f => (f.store === previewStore || f.store === 'BOTH') && f.severity !== 'ok').length === 0 && (
+                      <div className="rounded-lg border border-emerald-300 bg-emerald-50 dark:bg-emerald-950/30 p-3 text-sm flex items-center gap-2">
+                        <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                        Tüm metadata alanları temiz görünüyor.
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* AI suggestion preview */}
+                {aiSuggestion && (
+                  <div className="mt-4 rounded-lg border-2 border-brand bg-brand/5 p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="text-xs font-bold flex items-center gap-1.5">
+                        <Sparkles className="h-3.5 w-3.5 text-brand" /> AI Önerisi (yukarıdaki önizleme bununla güncellendi)
+                      </div>
+                      <button onClick={() => setAiSuggestion(null)} className="text-[11px] text-muted-foreground hover:text-foreground">
+                        Geri Al
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                      {aiSuggestion.title && <div><span className="font-semibold">Title:</span> {aiSuggestion.title}</div>}
+                      {aiSuggestion.subtitle && <div><span className="font-semibold">Subtitle:</span> {aiSuggestion.subtitle}</div>}
+                      {aiSuggestion.keywords && <div className="sm:col-span-2"><span className="font-semibold">Keywords:</span> {aiSuggestion.keywords}</div>}
+                      {aiSuggestion.promotionalText && <div className="sm:col-span-2"><span className="font-semibold">Promo:</span> {aiSuggestion.promotionalText}</div>}
+                    </div>
+                    {aiSuggestion.description && (
+                      <details className="mt-2">
+                        <summary className="text-xs font-semibold cursor-pointer">Description (klik)</summary>
+                        <div className="text-xs mt-1 whitespace-pre-wrap max-h-40 overflow-y-auto">{aiSuggestion.description}</div>
+                      </details>
+                    )}
+                    <p className="text-[10px] text-muted-foreground mt-2">
+                      Bu öneri sadece önizleme — kaydetmek için ASO sayfasındaki metadata editörüne kopyala.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
