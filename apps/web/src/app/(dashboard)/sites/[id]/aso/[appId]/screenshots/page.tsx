@@ -12,7 +12,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   ArrowLeft, Sparkles, Download, Image as ImageIcon, Type, Palette,
-  Smartphone, RotateCw, Loader2, Upload, Trash2,
+  Smartphone, RotateCw, Loader2, Upload, Trash2, Copy,
 } from 'lucide-react';
 import { PHONE_FRAMES } from './phone-frames';
 import { TEMPLATES } from './templates';
@@ -321,6 +321,38 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
     }));
   };
 
+  // Aktif slot'un background'unu (image/solid/gradient) 10 slota uygular.
+  // backgroundIsHand + phoneScale de senkronlanır.
+  const applyCurrentBackgroundToAllSlots = () => {
+    const bg = slot.background;
+    const isHand = slot.backgroundIsHand;
+    const targetPhoneScale = isHand ? 0 : (slot.phoneScale === 0 ? 0.7 : slot.phoneScale);
+    setSlots(prev => prev.map(s => ({
+      ...s,
+      background: bg,
+      backgroundIsHand: isHand,
+      phoneScale: targetPhoneScale,
+    })));
+  };
+
+  // Galeri'den bir item'ı doğrudan 10 slota uygular.
+  const applyLibraryItemToAllSlots = (item: { url: string; type: 'standard' | 'hand' }) => {
+    const fullUrl = process.env.NEXT_PUBLIC_API_URL ? `${process.env.NEXT_PUBLIC_API_URL}${item.url}` : item.url;
+    const isHand = item.type === 'hand';
+    const img = new window.Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      setSlots(prev => prev.map(s => ({
+        ...s,
+        background: { type: 'image', value: fullUrl, image: img },
+        backgroundIsHand: isHand,
+        phoneScale: isHand ? 0 : (s.phoneScale === 0 ? 0.7 : s.phoneScale),
+      })));
+    };
+    img.onerror = () => toast.error('Image yüklenemedi');
+    img.src = fullUrl;
+  };
+
   const handleScreenshotUpload = (file: File) => {
     const url = URL.createObjectURL(file);
     const img = new window.Image();
@@ -590,6 +622,14 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                       </Button>
                     ))}
                   </div>
+                  {slot.background.type === 'image' && (
+                    <button
+                      onClick={applyCurrentBackgroundToAllSlots}
+                      className="w-full mt-2 text-[11px] py-1.5 px-2 rounded border border-dashed border-foreground/30 hover:border-brand hover:bg-brand/5 transition-colors flex items-center justify-center gap-1"
+                    >
+                      <Copy className="h-3 w-3" /> Bu BG'yi 10 slota uygula
+                    </button>
+                  )}
                 </div>
 
                 {/* Galeri — daha önce üretilmiş AI background'lar */}
@@ -605,7 +645,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                       </button>
                     </div>
                     <p className="text-[10px] text-muted-foreground mb-2">
-                      Bu app için üretilmiş AI background'lar — token harcama, tıkla tekrar kullan.
+                      Tıkla = aktif slota uygula · <Copy className="h-2.5 w-2.5 inline" /> ikonu = 10 slota uygula
                     </p>
                     <div className="grid grid-cols-3 gap-1.5 max-h-[260px] overflow-y-auto">
                       {library.map(item => {
@@ -623,6 +663,13 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                                   🖐️
                                 </span>
                               )}
+                            </button>
+                            <button
+                              onClick={() => applyLibraryItemToAllSlots(item)}
+                              className="absolute bottom-1 right-1 h-5 w-5 rounded bg-brand text-white grid place-items-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-brand/80"
+                              title="10 slota uygula"
+                            >
+                              <Copy className="h-3 w-3" />
                             </button>
                             <button
                               onClick={() => deleteLibraryItem(item.filename)}
@@ -847,6 +894,13 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
 
             {sidebar === 'background' && (
               <div className="space-y-3">
+                <button
+                  onClick={applyCurrentBackgroundToAllSlots}
+                  className="w-full text-xs py-2 px-3 rounded border border-dashed border-foreground/30 hover:border-brand hover:bg-brand/5 transition-colors flex items-center justify-center gap-1.5"
+                >
+                  <Copy className="h-3.5 w-3.5" /> Aktif slot BG'sini 10 slota uygula
+                </button>
+
                 <div>
                   <label className="text-xs font-medium mb-1.5 block">Solid Renkler (Media Markt-style)</label>
                   <div className="grid grid-cols-4 gap-1.5">
