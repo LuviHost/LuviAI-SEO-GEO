@@ -616,6 +616,48 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                   <label className="text-xs font-medium mb-1.5 block">Boyut: {Math.round(slot.phoneScale * 100)}%</label>
                   <input type="range" min="0.4" max="1.2" step="0.05" value={slot.phoneScale} onChange={e => updateSlot({ phoneScale: parseFloat(e.target.value) })} className="w-full" />
                 </div>
+
+                {/* Phone drop shadow intensity */}
+                <div>
+                  <label className="text-xs font-medium mb-1.5 block">Telefon gölgesi: {slot.phoneShadow ?? 70}%</label>
+                  <input type="range" min="0" max="100" step="5" value={slot.phoneShadow ?? 70} onChange={e => updateSlot({ phoneShadow: parseInt(e.target.value) })} className="w-full" />
+                </div>
+
+                {/* Hand-holding mockup */}
+                <div className="border-t pt-3">
+                  <label className="text-xs font-medium mb-1.5 block">El Mockup (telefon tutuyor görünümü)</label>
+                  <div className="grid grid-cols-2 gap-1">
+                    {([
+                      { id: 'none', label: 'Yok' },
+                      { id: 'bottom', label: 'Alttan tut' },
+                      { id: 'right', label: 'Sağdan tut' },
+                      { id: 'left', label: 'Soldan tut' },
+                    ] as const).map(h => (
+                      <button
+                        key={h.id}
+                        onClick={() => updateSlot({ handMockup: h.id })}
+                        className={`text-[11px] py-1.5 rounded border ${(slot.handMockup ?? 'none') === h.id ? 'border-brand bg-brand/5' : 'border-border'}`}
+                      >
+                        {h.label}
+                      </button>
+                    ))}
+                  </div>
+                  {slot.handMockup && slot.handMockup !== 'none' && (
+                    <div className="mt-2">
+                      <label className="text-[10px] text-muted-foreground mb-1 block">Cilt tonu</label>
+                      <div className="flex gap-1">
+                        {['#f4d4b8', '#d4a577', '#b08362', '#825d3c', '#5d3e22', '#2d1b0e'].map(tone => (
+                          <button
+                            key={tone}
+                            onClick={() => updateSlot({ handSkinTone: tone })}
+                            className={`flex-1 aspect-square rounded border-2 ${(slot.handSkinTone ?? '#d4a577') === tone ? 'border-brand' : 'border-border'}`}
+                            style={{ background: tone }}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
                 <div>
                   <label className="text-xs font-medium mb-1.5 block">Eğim: {slot.phoneTilt}°</label>
                   <input type="range" min="-30" max="30" step="1" value={slot.phoneTilt} onChange={e => updateSlot({ phoneTilt: parseInt(e.target.value) })} className="w-full" />
@@ -741,6 +783,13 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                 <div>
                   <label className="text-xs font-medium mb-1 block">Hook font: {slot.hookFontSize}px</label>
                   <input type="range" min="40" max="180" step="4" value={slot.hookFontSize} onChange={e => updateSlot({ hookFontSize: parseInt(e.target.value) })} className="w-full" />
+                </div>
+                <div>
+                  <label className="text-xs font-medium mb-1 block">Yazı gölgesi: {slot.textShadow ?? 30}%</label>
+                  <input type="range" min="0" max="100" step="5" value={slot.textShadow ?? 30} onChange={e => updateSlot({ textShadow: parseInt(e.target.value) })} className="w-full" />
+                  <p className="text-[10px] text-muted-foreground mt-0.5">
+                    Açık yazı + parlak background'da %50+ ile okunaklılık artar.
+                  </p>
                 </div>
               </div>
             )}

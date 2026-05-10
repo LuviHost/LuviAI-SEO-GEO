@@ -17,10 +17,16 @@ export interface SlotData {
   phoneFrameId: string;
   phoneTilt: number;
   phoneScale: number;
-  phoneLayout?: 'single' | 'duo' | 'trio';        // multi-phone composition
-  phoneVerticalAlign?: 'top' | 'center' | 'bottom'; // vertical position
+  phoneLayout?: 'single' | 'duo' | 'trio';
+  phoneVerticalAlign?: 'top' | 'center' | 'bottom';
+  // Drop shadow per element (0-100)
+  phoneShadow?: number;       // default 70
+  textShadow?: number;        // default 30
+  // Hand-holding-phone mockup
+  handMockup?: 'none' | 'left' | 'right' | 'bottom';  // hand silhouette behind phone
+  handSkinTone?: string;       // hex color, default natural skin
   screenshot?: HTMLImageElement;
-  screenshot2?: HTMLImageElement;  // for duo/trio
+  screenshot2?: HTMLImageElement;
   screenshot3?: HTMLImageElement;
 }
 
@@ -123,6 +129,19 @@ export const ScreenshotStage = forwardRef<Konva.Stage, ScreenshotStageProps>(({ 
           <BackgroundOverlay overlay={slot.bgOverlay} width={width} height={height} />
         )}
 
+        {/* Hand-holding-phone — phone'un altında veya yanında render edilir */}
+        {slot.handMockup && slot.handMockup !== 'none' && phonePositions[0] && (
+          <HandMockup
+            position={slot.handMockup}
+            phoneX={phonePositions[0].x}
+            phoneY={phonePositions[0].y}
+            phoneScale={phonePositions[0].scale}
+            phoneTilt={phonePositions[0].tilt}
+            canvasWidth={width}
+            skinTone={slot.handSkinTone ?? '#d4a577'}
+          />
+        )}
+
         {/* Phones — multi-layout composition */}
         {phonePositions.map((p, i) => {
           const screenshotIdx = i === 0 ? slot.screenshot : i === 1 ? slot.screenshot2 : slot.screenshot3;
@@ -137,6 +156,7 @@ export const ScreenshotStage = forwardRef<Konva.Stage, ScreenshotStageProps>(({ 
               opacity={p.opacity}
               screenshot={screenshotIdx ?? slot.screenshot}
               canvasWidth={width}
+              shadowIntensity={slot.phoneShadow ?? 70}
             />
           );
         })}
@@ -154,9 +174,10 @@ export const ScreenshotStage = forwardRef<Konva.Stage, ScreenshotStageProps>(({ 
             fill={slot.textColor}
             align={align}
             lineHeight={lineHeightMul}
-            shadowColor="rgba(0,0,0,0.3)"
-            shadowBlur={6}
-            shadowOffsetY={2}
+            shadowColor={`rgba(0,0,0,${(slot.textShadow ?? 30) / 100})`}
+            shadowBlur={Math.max(0, (slot.textShadow ?? 30) / 100 * 20)}
+            shadowOffsetY={Math.max(0, (slot.textShadow ?? 30) / 100 * 6)}
+            shadowOpacity={1}
           />
         )}
 
@@ -173,6 +194,10 @@ export const ScreenshotStage = forwardRef<Konva.Stage, ScreenshotStageProps>(({ 
             align={align}
             opacity={0.9}
             lineHeight={subtitleLineHeight}
+            shadowColor={`rgba(0,0,0,${(slot.textShadow ?? 30) / 100 * 0.7})`}
+            shadowBlur={Math.max(0, (slot.textShadow ?? 30) / 100 * 12)}
+            shadowOffsetY={Math.max(0, (slot.textShadow ?? 30) / 100 * 4)}
+            shadowOpacity={1}
           />
         )}
       </Layer>
@@ -246,7 +271,7 @@ function BackgroundOverlay({ overlay, width, height }: { overlay: string; width:
   return null;
 }
 
-function PhoneFrame({ frameId, x, y, scale, tilt, opacity, screenshot, canvasWidth }: {
+function PhoneFrame({ frameId, x, y, scale, tilt, opacity, screenshot, canvasWidth, shadowIntensity = 70 }: {
   frameId: string;
   x: number; y: number;
   scale: number;
@@ -254,20 +279,27 @@ function PhoneFrame({ frameId, x, y, scale, tilt, opacity, screenshot, canvasWid
   opacity: number;
   screenshot?: HTMLImageElement;
   canvasWidth: number;
+  shadowIntensity?: number; // 0-100
 }) {
   const frame = PHONE_FRAMES.find(f => f.id === frameId) ?? PHONE_FRAMES[0];
   const w = canvasWidth * scale * frame.aspectRatio;
   const h = w * (frame.height / frame.width);
+
+  // Shadow intensity 0-100 → blur 0-100, opacity 0-0.7, offset 0-40
+  const shadowOpacity = (shadowIntensity / 100) * 0.7;
+  const shadowBlur = (shadowIntensity / 100) * 100;
+  const shadowOffsetY = (shadowIntensity / 100) * 40;
+
   return (
     <Group x={x} y={y} rotation={tilt} offsetX={w / 2} offsetY={h / 2} opacity={opacity}>
       <Rect
         x={0} y={0} width={w} height={h}
         cornerRadius={w * 0.13}
         fill={frame.bodyColor}
-        shadowColor="rgba(0,0,0,0.4)"
-        shadowBlur={60}
-        shadowOpacity={0.5}
-        shadowOffset={{ x: 0, y: 30 }}
+        shadowColor="rgba(0,0,0,1)"
+        shadowBlur={shadowBlur}
+        shadowOpacity={shadowOpacity}
+        shadowOffset={{ x: 0, y: shadowOffsetY }}
       />
       <Rect
         x={w * 0.012} y={h * 0.008} width={w * 0.976} height={h * 0.984}
@@ -307,6 +339,144 @@ function PhoneFrame({ frameId, x, y, scale, tilt, opacity, screenshot, canvasWid
       )}
     </Group>
   );
+}
+
+/**
+ * Hand-holding-phone mockup — Konva-rendered hand silhouette behind phone.
+ * Stylized "hand from below" or "fingers from side" — programmatically drawn.
+ */
+function HandMockup({ position, phoneX, phoneY, phoneScale, phoneTilt, canvasWidth, skinTone }: {
+  position: 'left' | 'right' | 'bottom';
+  phoneX: number;
+  phoneY: number;
+  phoneScale: number;
+  phoneTilt: number;
+  canvasWidth: number;
+  skinTone: string;
+}) {
+  const phoneWidth = canvasWidth * phoneScale * 0.45;
+  const phoneHeight = phoneWidth * (852 / 393);
+
+  // Darker skin tone for shadow
+  const skinDark = darkenColor(skinTone, 15);
+
+  if (position === 'bottom') {
+    // Wrist + thumb peeking from bottom
+    const wristW = phoneWidth * 1.4;
+    const wristH = phoneHeight * 0.4;
+    return (
+      <Group>
+        {/* Wrist (bottom blob) */}
+        <Rect
+          x={phoneX - wristW / 2}
+          y={phoneY + phoneHeight * 0.3}
+          width={wristW}
+          height={wristH}
+          cornerRadius={[wristW * 0.4, wristW * 0.4, 0, 0]}
+          fill={skinTone}
+          shadowColor="rgba(0,0,0,0.3)"
+          shadowBlur={30}
+          shadowOpacity={0.4}
+          shadowOffsetY={10}
+        />
+        {/* Thumb (right side peeking) */}
+        <Rect
+          x={phoneX + phoneWidth * 0.35}
+          y={phoneY - phoneHeight * 0.05}
+          width={phoneWidth * 0.18}
+          height={phoneHeight * 0.45}
+          cornerRadius={phoneWidth * 0.09}
+          fill={skinDark}
+          rotation={-15}
+          shadowColor="rgba(0,0,0,0.2)"
+          shadowBlur={20}
+          shadowOpacity={0.3}
+        />
+      </Group>
+    );
+  }
+
+  if (position === 'right') {
+    // Fingers wrapping from right side
+    const fingerCount = 3;
+    const fingerW = phoneWidth * 0.2;
+    const fingerH = phoneHeight * 0.55;
+    const fingerXBase = phoneX + phoneWidth * 0.4;
+    return (
+      <Group>
+        {Array.from({ length: fingerCount }).map((_, i) => (
+          <Rect
+            key={i}
+            x={fingerXBase + i * (fingerW * 0.6)}
+            y={phoneY - phoneHeight * 0.2 + i * (phoneHeight * 0.08)}
+            width={fingerW}
+            height={fingerH}
+            cornerRadius={fingerW * 0.5}
+            fill={i % 2 === 0 ? skinTone : skinDark}
+            rotation={5 + i * 3}
+            shadowColor="rgba(0,0,0,0.25)"
+            shadowBlur={20}
+            shadowOpacity={0.3}
+          />
+        ))}
+        {/* Wrist behind */}
+        <Rect
+          x={fingerXBase - fingerW * 0.3}
+          y={phoneY + phoneHeight * 0.1}
+          width={phoneWidth * 0.6}
+          height={phoneHeight * 0.5}
+          cornerRadius={phoneWidth * 0.2}
+          fill={skinTone}
+          opacity={0.7}
+          rotation={15}
+        />
+      </Group>
+    );
+  }
+
+  // left
+  const fingerCount = 3;
+  const fingerW = phoneWidth * 0.2;
+  const fingerH = phoneHeight * 0.55;
+  const fingerXBase = phoneX - phoneWidth * 0.4 - fingerW * 2;
+  return (
+    <Group>
+      {Array.from({ length: fingerCount }).map((_, i) => (
+        <Rect
+          key={i}
+          x={fingerXBase + i * (fingerW * 0.6)}
+          y={phoneY - phoneHeight * 0.2 + (fingerCount - 1 - i) * (phoneHeight * 0.08)}
+          width={fingerW}
+          height={fingerH}
+          cornerRadius={fingerW * 0.5}
+          fill={i % 2 === 0 ? skinTone : skinDark}
+          rotation={-(5 + (fingerCount - 1 - i) * 3)}
+          shadowColor="rgba(0,0,0,0.25)"
+          shadowBlur={20}
+          shadowOpacity={0.3}
+        />
+      ))}
+      <Rect
+        x={fingerXBase + fingerW * 0.3}
+        y={phoneY + phoneHeight * 0.1}
+        width={phoneWidth * 0.6}
+        height={phoneHeight * 0.5}
+        cornerRadius={phoneWidth * 0.2}
+        fill={skinTone}
+        opacity={0.7}
+        rotation={-15}
+      />
+    </Group>
+  );
+}
+
+function darkenColor(hex: string, amount: number): string {
+  const m = hex.replace('#', '').match(/^([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i);
+  if (!m) return hex;
+  const r = Math.max(0, parseInt(m[1], 16) - amount);
+  const g = Math.max(0, parseInt(m[2], 16) - amount);
+  const b = Math.max(0, parseInt(m[3], 16) - amount);
+  return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
 }
 
 function parseGradient(css: string): (number | string)[] {
