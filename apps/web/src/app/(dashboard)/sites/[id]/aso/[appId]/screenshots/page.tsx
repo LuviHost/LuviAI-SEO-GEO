@@ -34,32 +34,84 @@ const PRESETS = [
 interface SlotState {
   index: number;
   background: { type: 'gradient' | 'solid' | 'image'; value: string; image?: HTMLImageElement };
+  bgOverlay?: 'none' | 'dark' | 'light' | 'top-fade' | 'bottom-fade';
   hook: string;
   subtitle: string;
   hookFontSize: number;
   textColor: string;
   textPosition: 'top' | 'bottom';
+  textAlign?: 'left' | 'center' | 'right';
   phoneFrameId: string;
   phoneTilt: number;
   phoneScale: number;
+  phoneLayout?: 'single' | 'duo' | 'trio';
+  phoneVerticalAlign?: 'top' | 'center' | 'bottom';
   screenshot?: HTMLImageElement;
   screenshotUrl?: string;
+  screenshot2?: HTMLImageElement;
+  screenshot2Url?: string;
+  screenshot3?: HTMLImageElement;
+  screenshot3Url?: string;
 }
 
 function makeSlot(i: number): SlotState {
   return {
     index: i,
     background: { type: 'gradient', value: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' },
+    bgOverlay: 'none',
     hook: '',
     subtitle: '',
     hookFontSize: 110,
     textColor: '#ffffff',
     textPosition: 'top',
+    textAlign: 'center',
     phoneFrameId: 'iphone-15-pro-black',
     phoneTilt: 0,
     phoneScale: 0.7,
+    phoneLayout: 'single',
+    phoneVerticalAlign: 'center',
   };
 }
+
+// Layout presets — Hero (text top + single phone), Showcase (2 phones), Comparison (3 phones)
+const LAYOUT_PRESETS = [
+  {
+    id: 'hero',
+    name: 'Hero',
+    description: 'Tek telefon ortada, üstte güçlü hook',
+    config: { phoneLayout: 'single' as const, textPosition: 'top' as const, phoneVerticalAlign: 'center' as const, phoneScale: 0.75, phoneTilt: 0 },
+  },
+  {
+    id: 'showcase',
+    name: 'Showcase',
+    description: '2 telefon yan yana, premium look',
+    config: { phoneLayout: 'duo' as const, textPosition: 'top' as const, phoneVerticalAlign: 'center' as const, phoneScale: 0.7, phoneTilt: 0 },
+  },
+  {
+    id: 'comparison',
+    name: 'Comparison',
+    description: '3 telefon kademeli, feature showcase',
+    config: { phoneLayout: 'trio' as const, textPosition: 'top' as const, phoneVerticalAlign: 'center' as const, phoneScale: 0.75, phoneTilt: 0 },
+  },
+  {
+    id: 'tilted-right',
+    name: 'Tilted Right',
+    description: 'Sağa eğik tek telefon — Media Markt style',
+    config: { phoneLayout: 'single' as const, textPosition: 'top' as const, phoneVerticalAlign: 'bottom' as const, phoneScale: 0.85, phoneTilt: 12 },
+  },
+  {
+    id: 'tilted-left',
+    name: 'Tilted Left',
+    description: 'Sola eğik tek telefon',
+    config: { phoneLayout: 'single' as const, textPosition: 'top' as const, phoneVerticalAlign: 'bottom' as const, phoneScale: 0.85, phoneTilt: -12 },
+  },
+  {
+    id: 'phone-top',
+    name: 'Phone Top',
+    description: 'Telefon üstte, yazı altta',
+    config: { phoneLayout: 'single' as const, textPosition: 'bottom' as const, phoneVerticalAlign: 'top' as const, phoneScale: 0.7, phoneTilt: 0 },
+  },
+];
 
 const GRADIENTS = [
   'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
@@ -110,7 +162,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
   const [exporting, setExporting] = useState(false);
   const [bulkExporting, setBulkExporting] = useState(false);
 
-  const [sidebar, setSidebar] = useState<'ai' | 'templates' | 'phone' | 'background' | 'text'>('ai');
+  const [sidebar, setSidebar] = useState<'ai' | 'templates' | 'layout' | 'phone' | 'background' | 'text'>('ai');
 
   const stageRef = useRef<Konva.Stage>(null);
 
@@ -135,6 +187,22 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
     const img = new window.Image();
     img.crossOrigin = 'anonymous';
     img.onload = () => updateSlot({ screenshot: img, screenshotUrl: url });
+    img.src = url;
+  };
+
+  const handleScreenshot2Upload = (file: File) => {
+    const url = URL.createObjectURL(file);
+    const img = new window.Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => updateSlot({ screenshot2: img, screenshot2Url: url });
+    img.src = url;
+  };
+
+  const handleScreenshot3Upload = (file: File) => {
+    const url = URL.createObjectURL(file);
+    const img = new window.Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => updateSlot({ screenshot3: img, screenshot3Url: url });
     img.src = url;
   };
 
@@ -337,10 +405,11 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
 
         {/* SIDEBAR */}
         <div className="w-96 bg-background border-l overflow-y-auto">
-          <div className="border-b grid grid-cols-5 text-xs sticky top-0 bg-background z-10">
+          <div className="border-b grid grid-cols-6 text-xs sticky top-0 bg-background z-10">
             {[
               { id: 'ai', label: 'AI', icon: Sparkles },
               { id: 'templates', label: 'Tema', icon: ImageIcon },
+              { id: 'layout', label: 'Layout', icon: RotateCw },
               { id: 'phone', label: 'Telefon', icon: Smartphone },
               { id: 'background', label: 'BG', icon: Palette },
               { id: 'text', label: 'Yazı', icon: Type },
@@ -414,11 +483,81 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
               </div>
             )}
 
+            {sidebar === 'layout' && (
+              <div className="space-y-3">
+                <h3 className="text-sm font-semibold">Layout Preset'leri</h3>
+                <p className="text-xs text-muted-foreground mb-2">Tek tıkla telefon + yazı kompozisyonu — bu slot için</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {LAYOUT_PRESETS.map(p => (
+                    <button
+                      key={p.id}
+                      onClick={() => updateSlot(p.config)}
+                      className={`p-3 rounded border-2 text-left transition-colors ${
+                        slot.phoneLayout === p.config.phoneLayout && slot.phoneTilt === (p.config.phoneTilt ?? 0) && slot.textPosition === p.config.textPosition
+                          ? 'border-brand bg-brand/5'
+                          : 'border-border hover:border-foreground/30'
+                      }`}
+                    >
+                      <div className="text-xs font-bold mb-0.5">{p.name}</div>
+                      <div className="text-[10px] text-muted-foreground leading-tight">{p.description}</div>
+                    </button>
+                  ))}
+                </div>
+                <div className="border-t pt-3">
+                  <button
+                    onClick={() => updateAllSlots(slot.phoneLayout && slot.textPosition ? {
+                      phoneLayout: slot.phoneLayout,
+                      textPosition: slot.textPosition,
+                      phoneVerticalAlign: slot.phoneVerticalAlign,
+                      phoneScale: slot.phoneScale,
+                      phoneTilt: slot.phoneTilt,
+                    } : {})}
+                    className="w-full text-xs py-2 px-3 rounded border border-dashed border-foreground/30 hover:border-brand hover:bg-brand/5 transition-colors"
+                  >
+                    Bu layout'u 10 slota uygula
+                  </button>
+                </div>
+              </div>
+            )}
+
             {sidebar === 'phone' && (
               <div className="space-y-3">
+                {/* Multi-phone composition */}
                 <div>
+                  <label className="text-xs font-medium mb-1.5 block">Telefon Sayısı</label>
+                  <div className="flex border rounded-md overflow-hidden h-9">
+                    {(['single', 'duo', 'trio'] as const).map(layout => (
+                      <button
+                        key={layout}
+                        onClick={() => updateSlot({ phoneLayout: layout })}
+                        className={`flex-1 text-xs ${(slot.phoneLayout ?? 'single') === layout ? 'bg-brand text-white' : 'bg-background hover:bg-muted'}`}
+                      >
+                        {layout === 'single' ? '1 telefon' : layout === 'duo' ? '2 telefon' : '3 telefon'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Phone vertical position */}
+                <div>
+                  <label className="text-xs font-medium mb-1.5 block">Dikey Pozisyon</label>
+                  <div className="flex border rounded-md overflow-hidden h-9">
+                    {(['top', 'center', 'bottom'] as const).map(va => (
+                      <button
+                        key={va}
+                        onClick={() => updateSlot({ phoneVerticalAlign: va })}
+                        className={`flex-1 text-xs ${(slot.phoneVerticalAlign ?? 'center') === va ? 'bg-brand text-white' : 'bg-background hover:bg-muted'}`}
+                      >
+                        {va === 'top' ? 'Üst' : va === 'center' ? 'Orta' : 'Alt'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Phone Frame */}
+                <div className="border-t pt-3">
                   <label className="text-xs font-medium mb-1.5 block">Phone Frame</label>
-                  <div className="grid grid-cols-2 gap-1.5 max-h-[280px] overflow-y-auto">
+                  <div className="grid grid-cols-2 gap-1.5 max-h-[200px] overflow-y-auto">
                     {PHONE_FRAMES.map(f => (
                       <button
                         key={f.id}
@@ -430,8 +569,10 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                     ))}
                   </div>
                 </div>
+
+                {/* Screenshot uploads — duo/trio için 3 ayrı upload */}
                 <div className="border-t pt-3">
-                  <label className="text-xs font-medium mb-1.5 block">App Screenshot Yükle</label>
+                  <label className="text-xs font-medium mb-1.5 block">App Screenshot{(slot.phoneLayout ?? 'single') !== 'single' ? ' #1' : ''}</label>
                   <input type="file" accept="image/*" onChange={e => e.target.files?.[0] && handleScreenshotUpload(e.target.files[0])} className="text-xs w-full" />
                   {slot.screenshotUrl && (
                     <div className="mt-2 flex items-center gap-2">
@@ -442,6 +583,35 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                     </div>
                   )}
                 </div>
+                {(slot.phoneLayout === 'duo' || slot.phoneLayout === 'trio') && (
+                  <div>
+                    <label className="text-xs font-medium mb-1.5 block">Screenshot #2</label>
+                    <input type="file" accept="image/*" onChange={e => e.target.files?.[0] && handleScreenshot2Upload(e.target.files[0])} className="text-xs w-full" />
+                    {slot.screenshot2Url && (
+                      <div className="mt-2 flex items-center gap-2">
+                        <img src={slot.screenshot2Url} alt="" className="h-16 rounded border" />
+                        <button onClick={() => updateSlot({ screenshot2: undefined, screenshot2Url: undefined })} className="text-xs text-rose-600 hover:underline">
+                          Sil
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+                {slot.phoneLayout === 'trio' && (
+                  <div>
+                    <label className="text-xs font-medium mb-1.5 block">Screenshot #3</label>
+                    <input type="file" accept="image/*" onChange={e => e.target.files?.[0] && handleScreenshot3Upload(e.target.files[0])} className="text-xs w-full" />
+                    {slot.screenshot3Url && (
+                      <div className="mt-2 flex items-center gap-2">
+                        <img src={slot.screenshot3Url} alt="" className="h-16 rounded border" />
+                        <button onClick={() => updateSlot({ screenshot3: undefined, screenshot3Url: undefined })} className="text-xs text-rose-600 hover:underline">
+                          Sil
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <div className="border-t pt-3">
                   <label className="text-xs font-medium mb-1.5 block">Boyut: {Math.round(slot.phoneScale * 100)}%</label>
                   <input type="range" min="0.4" max="1.2" step="0.05" value={slot.phoneScale} onChange={e => updateSlot({ phoneScale: parseFloat(e.target.value) })} className="w-full" />
@@ -506,6 +676,31 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                     </div>
                   )}
                 </div>
+
+                {/* Background overlay — text legibility için */}
+                <div className="border-t pt-3">
+                  <label className="text-xs font-medium mb-1.5 block">Background Overlay (yazı okunaklılığı için)</label>
+                  <div className="grid grid-cols-3 gap-1">
+                    {([
+                      { id: 'none', label: 'Yok' },
+                      { id: 'dark', label: 'Koyu %35' },
+                      { id: 'light', label: 'Açık %35' },
+                      { id: 'top-fade', label: 'Üst Fade' },
+                      { id: 'bottom-fade', label: 'Alt Fade' },
+                    ] as const).map(o => (
+                      <button
+                        key={o.id}
+                        onClick={() => updateSlot({ bgOverlay: o.id })}
+                        className={`text-[10px] py-1.5 rounded border ${(slot.bgOverlay ?? 'none') === o.id ? 'border-brand bg-brand/5' : 'border-border'}`}
+                      >
+                        {o.label}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-muted-foreground mt-1.5">
+                    Background image kullandığında yazı netleşmiyor mu? Overlay ekle.
+                  </p>
+                </div>
               </div>
             )}
 
@@ -525,6 +720,16 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                     {(['top', 'bottom'] as const).map(p => (
                       <button key={p} onClick={() => updateSlot({ textPosition: p })} className={`flex-1 text-xs py-1.5 rounded border ${slot.textPosition === p ? 'border-brand bg-brand/5' : 'border-border'}`}>
                         {p === 'top' ? 'Üstte' : 'Altta'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs font-medium mb-1 block">Yazı hizalaması</label>
+                  <div className="flex gap-1">
+                    {(['left', 'center', 'right'] as const).map(a => (
+                      <button key={a} onClick={() => updateSlot({ textAlign: a })} className={`flex-1 text-xs py-1.5 rounded border ${(slot.textAlign ?? 'center') === a ? 'border-brand bg-brand/5' : 'border-border'}`}>
+                        {a === 'left' ? 'Sol' : a === 'center' ? 'Orta' : 'Sağ'}
                       </button>
                     ))}
                   </div>
