@@ -360,17 +360,14 @@ export function computeSlotDecorations(
   groupIndex: number,
   canvasWidth: number,
   canvasHeight: number,
+  totalGroups: number = 1,
 ): Decoration[] {
-  const TOTAL_SLOTS = 10;
-  const numGroups = Math.max(1, Math.floor(TOTAL_SLOTS / groupSize));
-
-  // groupSize 10: scale 1.0, rotation 0 (default)
-  // groupSize 5:  scale 0.5, group 0 → rotation 0, group 1 → rotation 500 (yarı kaydır)
-  // groupSize 2:  scale 0.2, gruplar 0, 200, 400, 600, 800 rotation
-  // groupSize 1:  scale 0.1, gruplar 0, 100, 200, ..., 900 rotation
+  // groupSize her grup için farklı olabilir (karma pattern)
+  // scale: tema 1000vx aralığı bu grubun aralığına sıkışır
   const groupVirtualSpan = groupSize * 100;
   const scale = groupVirtualSpan / 1000;
-  const rotationStep = 1000 / numGroups;
+  // rotation: her grup farklı starting offset — totalGroups'a göre eşit dağılım
+  const rotationStep = totalGroups > 1 ? 1000 / totalGroups : 0;
   const rotation = groupIndex * rotationStep;
 
   // Şekil boyutu çok küçülmesin — sqrt ile yumuşak ölçek (min 0.55)
