@@ -52,6 +52,9 @@ interface SlotState {
   screenshot2Url?: string;
   screenshot3?: HTMLImageElement;
   screenshot3Url?: string;
+  // Hand-photo bg seçildi mi — true ise üst-üste telefon olmaması için phoneScale=0 ve
+  // screenshot upload edilince AI multimodal ile içine yerleştirilir.
+  backgroundIsHand?: boolean;
 }
 
 function makeSlot(i: number): SlotState {
@@ -70,6 +73,7 @@ function makeSlot(i: number): SlotState {
     phoneScale: 0.7,
     phoneLayout: 'single',
     phoneVerticalAlign: 'center',
+    backgroundIsHand: false,
   };
 }
 
@@ -182,14 +186,58 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
     }
   };
 
-  const applyLibraryItem = (url: string) => {
-    const fullUrl = process.env.NEXT_PUBLIC_API_URL ? `${process.env.NEXT_PUBLIC_API_URL}${url}` : url;
+  // Multimodal: yüklü screenshot'ı AI hand-photo'nun içine yerleştirip yeni tek bütünleşik bg üretir.
+  const bakeScreenshotIntoHandPhoto = async (screenshotUrl: string) => {
+    setGeneratingBg(true);
+    try {
+      const blob = await fetch(screenshotUrl).then(r => r.blob());
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(String(reader.result));
+        reader.onerror = reject;
+        reader.readAsDataURL(blob);
+      });
+      const result = await api.request<{ url: string }>(
+        `/sites/${siteId}/aso/apps/${appId}/screenshots/hand-photo-with-screenshot`,
+        { method: 'POST', body: JSON.stringify({ screenshotBase64: base64, width: preset.width, height: preset.height }) },
+      );
+      const fullUrl = process.env.NEXT_PUBLIC_API_URL ? `${process.env.NEXT_PUBLIC_API_URL}${result.url}` : result.url;
+      const img = new window.Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        updateSlot({
+          background: { type: 'image', value: fullUrl, image: img },
+          phoneScale: 0,
+          backgroundIsHand: true,
+        });
+      };
+      img.onerror = () => toast.error('Background image yüklenemedi');
+      img.src = fullUrl;
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setGeneratingBg(false);
+      loadLibrary();
+    }
+  };
+
+  const applyLibraryItem = (item: { url: string; type: 'standard' | 'hand' }) => {
+    const fullUrl = process.env.NEXT_PUBLIC_API_URL ? `${process.env.NEXT_PUBLIC_API_URL}${item.url}` : item.url;
+    const isHand = item.type === 'hand';
+    // Hand photo seçilip screenshot'ı zaten yüklüyse — AI fresh bir hand+screenshot bake etsin
+    // (galeri'deki blank-screen telefonu, yüklenen screenshot ile birleştirir).
+    if (isHand && slot.screenshotUrl) {
+      bakeScreenshotIntoHandPhoto(slot.screenshotUrl);
+      return;
+    }
     const img = new window.Image();
     img.crossOrigin = 'anonymous';
     img.onload = () => {
-      const patch: Partial<SlotState> = { background: { type: 'image', value: fullUrl, image: img } };
-      if (url.includes('/hand-')) patch.phoneScale = 0; // hand photo: kullanicinin phone frame'i gizle
-      updateSlot(patch);
+      updateSlot({
+        background: { type: 'image', value: fullUrl, image: img },
+        phoneScale: isHand ? 0 : (slot.phoneScale === 0 ? 0.7 : slot.phoneScale),
+        backgroundIsHand: isHand,
+      });
     };
     img.onerror = () => toast.error('Image yüklenemedi');
     img.src = fullUrl;
@@ -231,7 +279,14 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
     const url = URL.createObjectURL(file);
     const img = new window.Image();
     img.crossOrigin = 'anonymous';
-    img.onload = () => updateSlot({ screenshot: img, screenshotUrl: url });
+    img.onload = () => {
+      updateSlot({ screenshot: img, screenshotUrl: url });
+      // Hand-photo bg aktifse — screenshot yüklenince ayrı küçük telefon overlay yerine
+      // AI multimodal ile screenshot'ı hand fotoğrafının içine yerleştir.
+      if (slot.backgroundIsHand) {
+        bakeScreenshotIntoHandPhoto(url);
+      }
+    };
     img.src = url;
   };
 
@@ -255,42 +310,23 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
     const url = URL.createObjectURL(file);
     const img = new window.Image();
     img.crossOrigin = 'anonymous';
-    img.onload = () => updateSlot({ background: { type: 'image', value: url, image: img } });
+    img.onload = () => updateSlot({
+      background: { type: 'image', value: url, image: img },
+      backgroundIsHand: false,
+      phoneScale: slot.phoneScale === 0 ? 0.7 : slot.phoneScale,
+    });
     img.src = url;
   };
 
   const generateBackground = async (style: 'gradient' | 'mesh' | 'minimalist' | 'bold' | 'illustrative' | 'hand-photo') => {
+    // AI Hand Photo + screenshot uploaded → multimodal helper ile screenshot'ı AI fotoğrafına göm
+    if (style === 'hand-photo' && slot.screenshotUrl) {
+      bakeScreenshotIntoHandPhoto(slot.screenshotUrl);
+      return;
+    }
+
     setGeneratingBg(true);
     try {
-      // AI Hand Photo + screenshot uploaded → use multimodal endpoint to bake screenshot into AI image
-      if (style === 'hand-photo' && slot.screenshotUrl) {
-        // Read screenshot blob → base64
-        const blob = await fetch(slot.screenshotUrl).then(r => r.blob());
-        const base64 = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onloadend = () => resolve(String(reader.result));
-          reader.onerror = reject;
-          reader.readAsDataURL(blob);
-        });
-        const result = await api.request<{ url: string }>(
-          `/sites/${siteId}/aso/apps/${appId}/screenshots/hand-photo-with-screenshot`,
-          { method: 'POST', body: JSON.stringify({ screenshotBase64: base64, width: preset.width, height: preset.height }) },
-        );
-        const fullUrl = process.env.NEXT_PUBLIC_API_URL ? `${process.env.NEXT_PUBLIC_API_URL}${result.url}` : result.url;
-        const img = new window.Image();
-        img.crossOrigin = 'anonymous';
-        img.onload = () => {
-          updateSlot({
-            background: { type: 'image', value: fullUrl, image: img },
-            phoneScale: 0,  // Hide own phone frame — screenshot is already inside AI image
-          });
-        };
-        img.onerror = () => toast.error('Background image yüklenemedi');
-        img.src = fullUrl;
-        return;
-      }
-
-      // Standard background generation (no screenshot embedding)
       const result = await api.request<{ url: string; width: number; height: number }>(
         `/sites/${siteId}/aso/apps/${appId}/screenshots/background`,
         { method: 'POST', body: JSON.stringify({ style, width: preset.width, height: preset.height }) },
@@ -298,7 +334,12 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
       const fullUrl = process.env.NEXT_PUBLIC_API_URL ? `${process.env.NEXT_PUBLIC_API_URL}${result.url}` : result.url;
       const img = new window.Image();
       img.crossOrigin = 'anonymous';
-      img.onload = () => updateSlot({ background: { type: 'image', value: fullUrl, image: img } });
+      const isHand = style === 'hand-photo';
+      img.onload = () => updateSlot({
+        background: { type: 'image', value: fullUrl, image: img },
+        phoneScale: isHand ? 0 : (slot.phoneScale === 0 ? 0.7 : slot.phoneScale),
+        backgroundIsHand: isHand,
+      });
       img.onerror = () => toast.error('Background image yüklenemedi');
       img.src = fullUrl;
     } catch (err: any) {
@@ -540,7 +581,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                         return (
                           <div key={item.filename} className="relative group">
                             <button
-                              onClick={() => applyLibraryItem(item.url)}
+                              onClick={() => applyLibraryItem(item)}
                               className="block w-full aspect-[9/19.5] rounded border-2 border-border hover:border-brand overflow-hidden bg-muted"
                               title={`${item.type === 'hand' ? '🖐️ Hand Photo' : 'Background'} — ${new Date(item.timestamp).toLocaleString('tr-TR')}`}
                             >
@@ -613,6 +654,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                         textColor: t.textColor,
                         hookFontSize: t.hookFontSize,
                         textPosition: t.textPosition,
+                        backgroundIsHand: false,
                       })}
                       className="aspect-[9/16] rounded border-2 border-border hover:border-brand relative overflow-hidden group"
                       style={{ background: t.solid ?? t.gradient }}
@@ -718,7 +760,17 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                 {/* Screenshot uploads — duo/trio için 3 ayrı upload */}
                 <div className="border-t pt-3">
                   <label className="text-xs font-medium mb-1.5 block">App Screenshot{(slot.phoneLayout ?? 'single') !== 'single' ? ' #1' : ''}</label>
-                  <input type="file" accept="image/*" onChange={e => e.target.files?.[0] && handleScreenshotUpload(e.target.files[0])} className="text-xs w-full" />
+                  {slot.backgroundIsHand && (
+                    <div className="mb-2 rounded border border-purple-300 bg-purple-50 dark:bg-purple-950/30 dark:border-purple-800 p-2 text-[11px] leading-snug">
+                      🖐️ Hand photo aktif — yüklediğin screenshot AI ile fotoğrafın içindeki telefonun ekranına yerleştirilecek (~15 sn).
+                    </div>
+                  )}
+                  <input type="file" accept="image/*" disabled={generatingBg} onChange={e => e.target.files?.[0] && handleScreenshotUpload(e.target.files[0])} className="text-xs w-full" />
+                  {generatingBg && slot.backgroundIsHand && (
+                    <p className="text-[11px] text-purple-600 dark:text-purple-400 mt-1.5 flex items-center gap-1">
+                      <Loader2 className="h-3 w-3 animate-spin" /> AI screenshot'ı hand photo içine yerleştiriyor...
+                    </p>
+                  )}
                   {slot.screenshotUrl && (
                     <div className="mt-2 flex items-center gap-2">
                       <img src={slot.screenshotUrl} alt="" className="h-16 rounded border" />
@@ -783,7 +835,11 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                     {SOLID_COLORS.map(c => (
                       <button
                         key={c.value}
-                        onClick={() => updateSlot({ background: { type: 'solid', value: c.value } })}
+                        onClick={() => updateSlot({
+                          background: { type: 'solid', value: c.value },
+                          backgroundIsHand: false,
+                          phoneScale: slot.phoneScale === 0 ? 0.7 : slot.phoneScale,
+                        })}
                         title={c.name}
                         className="aspect-square rounded border-2 border-border hover:border-brand"
                         style={{ background: c.value }}
@@ -797,7 +853,11 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                     {GRADIENTS.map(g => (
                       <button
                         key={g}
-                        onClick={() => updateSlot({ background: { type: 'gradient', value: g } })}
+                        onClick={() => updateSlot({
+                          background: { type: 'gradient', value: g },
+                          backgroundIsHand: false,
+                          phoneScale: slot.phoneScale === 0 ? 0.7 : slot.phoneScale,
+                        })}
                         className="aspect-square rounded border-2 border-border hover:border-brand"
                         style={{ background: g }}
                       />
@@ -809,7 +869,11 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                   <input
                     type="color"
                     value={slot.background.type === 'solid' ? slot.background.value : '#667eea'}
-                    onChange={e => updateSlot({ background: { type: 'solid', value: e.target.value } })}
+                    onChange={e => updateSlot({
+                      background: { type: 'solid', value: e.target.value },
+                      backgroundIsHand: false,
+                      phoneScale: slot.phoneScale === 0 ? 0.7 : slot.phoneScale,
+                    })}
                     className="w-full h-10 cursor-pointer rounded border border-input"
                   />
                 </div>
@@ -822,7 +886,11 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                   {slot.background.type === 'image' && (
                     <div className="mt-2 flex items-center gap-2">
                       <img src={slot.background.value} alt="" className="h-16 rounded border" />
-                      <button onClick={() => updateSlot({ background: { type: 'gradient', value: GRADIENTS[0] } })} className="text-xs text-rose-600 hover:underline">
+                      <button onClick={() => updateSlot({
+                        background: { type: 'gradient', value: GRADIENTS[0] },
+                        backgroundIsHand: false,
+                        phoneScale: slot.phoneScale === 0 ? 0.7 : slot.phoneScale,
+                      })} className="text-xs text-rose-600 hover:underline">
                         Kaldır
                       </button>
                     </div>
