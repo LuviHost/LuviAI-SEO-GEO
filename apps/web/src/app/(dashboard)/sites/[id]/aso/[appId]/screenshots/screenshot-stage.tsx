@@ -25,9 +25,74 @@ interface ScreenshotStageProps {
   viewWidth: number;   // displayed width (e.g. 320)
 }
 
+/**
+ * Hook'un kaç satıra wrap olacağını text length + max width + font size'a göre tahmin et.
+ * Bu Konva'nın iç wrap mantığıyla %95 örtüşür — ek render gerek yok.
+ */
+function estimateTextLines(text: string, fontSize: number, maxWidth: number): number {
+  if (!text) return 0;
+  // Average char width ≈ fontSize * 0.55 (Inter font için)
+  const avgCharWidth = fontSize * 0.55;
+  const charsPerLine = Math.max(1, Math.floor(maxWidth / avgCharWidth));
+  // Word-wrap respecting words: split by space, simulate
+  const words = text.split(/\s+/);
+  let lines = 1;
+  let currentLineLen = 0;
+  for (const word of words) {
+    const wordLen = word.length + 1;
+    if (currentLineLen + wordLen > charsPerLine) {
+      lines++;
+      currentLineLen = wordLen;
+    } else {
+      currentLineLen += wordLen;
+    }
+  }
+  return Math.max(1, lines);
+}
+
 export const ScreenshotStage = forwardRef<Konva.Stage, ScreenshotStageProps>(({ slot, width, height, viewWidth }, ref) => {
   const viewHeight = (viewWidth * height) / width;
   const scale = viewWidth / width;
+
+  // Dynamic layout calculation
+  const hookFontSize = slot.hookFontSize;
+  const subtitleFontSize = Math.max(28, hookFontSize * 0.4);
+  const lineHeightMul = 1.15;
+  const subtitleLineHeight = 1.35;
+
+  const hookMaxWidth = width * 0.9;
+  const subtitleMaxWidth = width * 0.8;
+
+  const hookLines = estimateTextLines(slot.hook, hookFontSize, hookMaxWidth);
+  const subtitleLines = estimateTextLines(slot.subtitle, subtitleFontSize, subtitleMaxWidth);
+
+  const hookHeight = slot.hook ? hookLines * hookFontSize * lineHeightMul : 0;
+  const subtitleHeight = slot.subtitle ? subtitleLines * subtitleFontSize * subtitleLineHeight : 0;
+
+  const padding = height * 0.025; // 2.5% padding
+  const topMargin = height * 0.06;
+  const bottomMargin = height * 0.04;
+
+  // Compute text block + phone Y depending on position
+  let hookY: number, subtitleY: number, phoneCenterY: number;
+
+  if (slot.textPosition === 'top') {
+    hookY = topMargin;
+    subtitleY = hookY + hookHeight + padding;
+    const textBlockBottom = subtitleY + subtitleHeight + padding;
+    // Phone center: between text block bottom and canvas bottom
+    const remainingSpace = height - textBlockBottom - bottomMargin;
+    phoneCenterY = textBlockBottom + remainingSpace / 2;
+  } else {
+    // text on bottom
+    const textBlockHeight = hookHeight + (slot.subtitle ? padding + subtitleHeight : 0);
+    hookY = height - bottomMargin - textBlockHeight;
+    subtitleY = hookY + hookHeight + padding;
+    // Phone center: between top margin and text block top
+    const phoneAreaTop = topMargin;
+    const phoneAreaBottom = hookY - padding;
+    phoneCenterY = (phoneAreaTop + phoneAreaBottom) / 2;
+  }
 
   return (
     <Stage ref={ref} width={viewWidth} height={viewHeight} scaleX={scale} scaleY={scale}>
@@ -46,89 +111,48 @@ export const ScreenshotStage = forwardRef<Konva.Stage, ScreenshotStageProps>(({ 
           />
         )}
 
-        {/* Hook + subtitle — top */}
-        {slot.textPosition === 'top' && (
-          <>
-            {slot.hook && (
-              <KonvaText
-                text={slot.hook}
-                x={width * 0.05}
-                y={height * 0.06}
-                width={width * 0.9}
-                fontSize={slot.hookFontSize}
-                fontStyle="bold"
-                fontFamily="Inter, system-ui, -apple-system, sans-serif"
-                fill={slot.textColor}
-                align="center"
-                lineHeight={1.1}
-                shadowColor="rgba(0,0,0,0.3)"
-                shadowBlur={6}
-                shadowOffsetY={2}
-              />
-            )}
-            {slot.subtitle && (
-              <KonvaText
-                text={slot.subtitle}
-                x={width * 0.1}
-                y={height * 0.06 + slot.hookFontSize * 1.4 + 30}
-                width={width * 0.8}
-                fontSize={Math.max(28, slot.hookFontSize * 0.4)}
-                fontFamily="Inter, system-ui, sans-serif"
-                fill={slot.textColor}
-                align="center"
-                opacity={0.9}
-                lineHeight={1.3}
-              />
-            )}
-          </>
-        )}
-
-        {/* Phone frame + screenshot */}
+        {/* Phone frame + screenshot — once, position computed above */}
         <PhoneFrame
           frameId={slot.phoneFrameId}
           x={width / 2}
-          y={height / 2 + (slot.textPosition === 'top' ? 250 : -200)}
+          y={phoneCenterY}
           scale={slot.phoneScale}
           tilt={slot.phoneTilt}
           screenshot={slot.screenshot}
           canvasWidth={width}
         />
 
-        {/* Hook + subtitle — bottom */}
-        {slot.textPosition === 'bottom' && (
-          <>
-            {slot.hook && (
-              <KonvaText
-                text={slot.hook}
-                x={width * 0.05}
-                y={height * 0.78}
-                width={width * 0.9}
-                fontSize={slot.hookFontSize}
-                fontStyle="bold"
-                fontFamily="Inter, system-ui, sans-serif"
-                fill={slot.textColor}
-                align="center"
-                lineHeight={1.1}
-                shadowColor="rgba(0,0,0,0.3)"
-                shadowBlur={6}
-                shadowOffsetY={2}
-              />
-            )}
-            {slot.subtitle && (
-              <KonvaText
-                text={slot.subtitle}
-                x={width * 0.1}
-                y={height * 0.78 + slot.hookFontSize * 1.4 + 30}
-                width={width * 0.8}
-                fontSize={Math.max(28, slot.hookFontSize * 0.4)}
-                fontFamily="Inter, system-ui, sans-serif"
-                fill={slot.textColor}
-                align="center"
-                opacity={0.9}
-                lineHeight={1.3}
-              />
-            )}
-          </>
+        {/* Hook + subtitle */}
+        {slot.hook && (
+          <KonvaText
+            text={slot.hook}
+            x={width * 0.05}
+            y={hookY}
+            width={hookMaxWidth}
+            fontSize={hookFontSize}
+            fontStyle="bold"
+            fontFamily="Inter, system-ui, -apple-system, sans-serif"
+            fill={slot.textColor}
+            align="center"
+            lineHeight={lineHeightMul}
+            shadowColor="rgba(0,0,0,0.3)"
+            shadowBlur={6}
+            shadowOffsetY={2}
+          />
+        )}
+        {slot.subtitle && (
+          <KonvaText
+            text={slot.subtitle}
+            x={width * 0.1}
+            y={subtitleY}
+            width={subtitleMaxWidth}
+            fontSize={subtitleFontSize}
+            fontFamily="Inter, system-ui, sans-serif"
+            fill={slot.textColor}
+            align="center"
+            opacity={0.9}
+            lineHeight={subtitleLineHeight}
+          />
         )}
       </Layer>
     </Stage>

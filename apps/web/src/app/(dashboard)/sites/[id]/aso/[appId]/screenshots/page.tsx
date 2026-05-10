@@ -289,11 +289,26 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                               s.background.image ? `url(${s.background.value}) center/cover` : '#888'
                 }}
               >
+                {/* Hook text — sadece text 'top'taysa üstte, 'bottom'taysa altta */}
                 {s.hook && (
-                  <div className="absolute inset-0 flex items-center justify-center p-1">
-                    <span className="text-[8px] font-bold text-center leading-tight line-clamp-2 drop-shadow" style={{ color: s.textColor }}>
+                  <div className={`absolute left-0 right-0 px-1 ${s.textPosition === 'top' ? 'top-1' : 'bottom-1'}`}>
+                    <span className="text-[7px] font-bold text-center leading-tight line-clamp-2 drop-shadow block" style={{ color: s.textColor }}>
                       {s.hook}
                     </span>
+                  </div>
+                )}
+                {/* Phone screenshot mini preview — center */}
+                {s.screenshotUrl && (
+                  <div
+                    className={`absolute left-1/4 right-1/4 ${s.textPosition === 'top' ? 'bottom-1' : 'top-1'} aspect-[9/19] rounded-sm overflow-hidden border border-black/40 shadow-md`}
+                  >
+                    <img src={s.screenshotUrl} alt="" className="w-full h-full object-cover" />
+                  </div>
+                )}
+                {/* No screenshot placeholder */}
+                {!s.screenshotUrl && (
+                  <div className={`absolute left-1/3 right-1/3 ${s.textPosition === 'top' ? 'bottom-1' : 'top-1'} aspect-[9/19] rounded-sm border border-dashed border-white/40 flex items-center justify-center`}>
+                    <span className="text-[6px] text-white/60 text-center">No img</span>
                   </div>
                 )}
               </div>
@@ -473,7 +488,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                     type="color"
                     value={slot.background.type === 'solid' ? slot.background.value : '#667eea'}
                     onChange={e => updateSlot({ background: { type: 'solid', value: e.target.value } })}
-                    className="w-full h-10 cursor-pointer rounded"
+                    className="w-full h-10 cursor-pointer rounded border border-input"
                   />
                 </div>
                 <div className="border-t pt-3">
@@ -516,7 +531,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                 </div>
                 <div>
                   <label className="text-xs font-medium mb-1 block">Yazı rengi</label>
-                  <input type="color" value={slot.textColor} onChange={e => updateSlot({ textColor: e.target.value })} className="w-full h-10 cursor-pointer rounded" />
+                  <input type="color" value={slot.textColor} onChange={e => updateSlot({ textColor: e.target.value })} className="w-full h-10 cursor-pointer rounded border border-input" />
                 </div>
                 <div>
                   <label className="text-xs font-medium mb-1 block">Hook font: {slot.hookFontSize}px</label>
