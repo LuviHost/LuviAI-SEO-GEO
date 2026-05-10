@@ -30,7 +30,7 @@ export class AsoScreenshotService {
    */
   async generateBackground(opts: {
     trackedAppId: string;
-    style?: 'minimalist' | 'bold' | 'illustrative' | 'gradient' | 'mesh';
+    style?: 'minimalist' | 'bold' | 'illustrative' | 'gradient' | 'mesh' | 'hand-photo';
     brandColor?: string;
     customPrompt?: string;
     width?: number;
@@ -55,14 +55,27 @@ export class AsoScreenshotService {
       illustrative: 'soft illustrative background with subtle vector shapes, friendly approachable mood, slight 3D depth',
       gradient: 'smooth multi-color gradient mesh background, premium feel, blended pastel-to-saturated colors',
       mesh: 'colorful mesh gradient background, abstract organic shapes, modern dribbble-style aesthetic',
+      'hand-photo': 'photorealistic photograph of a person\'s hand holding a modern smartphone vertically, the phone screen is BLANK black or white (will be replaced), professional studio lighting, soft natural shadow, vivid colorful blurred bokeh background, premium app store screenshot aesthetic',
     };
 
-    const prompt = opts.customPrompt ?? `App store screenshot background for "${app.name}" — ${category} category app.
+    const isHandPhoto = style === 'hand-photo';
+
+    const prompt = opts.customPrompt ?? (isHandPhoto
+      ? `Photorealistic professional product photograph for App Store screenshot.
+Subject: A person's hand holding a modern smartphone vertically in portrait orientation.
+The phone is the visual focus, centered with proper breathing room.
+The phone screen MUST be a plain solid color (black or pure white) - it will be replaced with app UI later.
+Lighting: soft studio lighting, professional, premium feel.
+Background: vivid colorful gradient bokeh (suggest ${opts.brandColor ? opts.brandColor : 'modern color'}), out of focus, premium look.
+Hand: natural human hand, ${app.country === 'tr' ? 'mediterranean' : 'diverse'} skin tone, well-manicured, holding phone naturally.
+Style: high-end commercial photography, 8k, professional, no overlay text.
+STRICT: NO text on screen, NO logos, NO watermarks, blank phone screen, vertical 9:19.5 aspect ratio.`
+      : `App store screenshot background for "${app.name}" — ${category} category app.
 App context: ${description}
 Style: ${stylePrompts[style]}.
 Color palette: ${opts.brandColor ? `${opts.brandColor} as accent color` : 'cohesive harmonious palette'}.
 Composition: vertical 9:19.5 aspect ratio (mobile), centered with breathing room for phone mockup overlay.
-Strict: NO text, NO words, NO letters, NO logos, NO photorealistic faces. Pure abstract design background.`;
+Strict: NO text, NO words, NO letters, NO logos, NO photorealistic faces. Pure abstract design background.`);
 
     const width = opts.width ?? 1290;
     const height = opts.height ?? 2796;

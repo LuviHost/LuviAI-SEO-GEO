@@ -214,7 +214,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
     img.src = url;
   };
 
-  const generateBackground = async (style: 'gradient' | 'mesh' | 'minimalist' | 'bold' | 'illustrative') => {
+  const generateBackground = async (style: 'gradient' | 'mesh' | 'minimalist' | 'bold' | 'illustrative' | 'hand-photo') => {
     setGeneratingBg(true);
     try {
       toast.info('Gemini Imagen 3 background üretiyor (~10 sn)...');
@@ -441,7 +441,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                 </div>
                 <div className="border-t pt-3">
                   <h3 className="text-sm font-semibold mb-1">AI Background</h3>
-                  <p className="text-xs text-muted-foreground mb-2">Gemini Imagen 3 ile bu slot için background</p>
+                  <p className="text-xs text-muted-foreground mb-2">Gemini Imagen 3 ile bu slot için background (~10 sn)</p>
                   <div className="grid grid-cols-2 gap-1.5">
                     {(['gradient', 'mesh', 'minimalist', 'bold', 'illustrative'] as const).map(s => (
                       <Button key={s} size="sm" variant="outline" onClick={() => generateBackground(s)} disabled={generatingBg} className="text-xs h-8">
@@ -449,6 +449,20 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                       </Button>
                     ))}
                   </div>
+                </div>
+
+                <div className="border-t pt-3">
+                  <h3 className="text-sm font-semibold mb-1 flex items-center gap-1.5">🖐️ AI Hand Photo</h3>
+                  <p className="text-xs text-muted-foreground mb-2">
+                    Photorealistic el+telefon fotoğrafı (Gemini Imagen 3) — background olarak kullan, üstüne kendi telefonu da yerleştir.
+                  </p>
+                  <Button size="sm" className="w-full" variant="outline" onClick={() => generateBackground('hand-photo')} disabled={generatingBg}>
+                    <Sparkles className={`h-4 w-4 mr-1 ${generatingBg ? 'animate-spin' : ''}`} />
+                    {generatingBg ? 'Üretiliyor (~10 sn)...' : 'AI Hand Photo Üret'}
+                  </Button>
+                  <p className="text-[10px] text-muted-foreground mt-1.5">
+                    Tip: Üretildikten sonra Telefon tab'da boyutu küçülterek (60-65%) hand'in içindeymiş gibi göster.
+                  </p>
                 </div>
               </div>
             )}
@@ -623,41 +637,6 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                   <input type="range" min="0" max="100" step="5" value={slot.phoneShadow ?? 70} onChange={e => updateSlot({ phoneShadow: parseInt(e.target.value) })} className="w-full" />
                 </div>
 
-                {/* Hand-holding mockup */}
-                <div className="border-t pt-3">
-                  <label className="text-xs font-medium mb-1.5 block">El Mockup (telefon tutuyor görünümü)</label>
-                  <div className="grid grid-cols-2 gap-1">
-                    {([
-                      { id: 'none', label: 'Yok' },
-                      { id: 'bottom', label: 'Alttan tut' },
-                      { id: 'right', label: 'Sağdan tut' },
-                      { id: 'left', label: 'Soldan tut' },
-                    ] as const).map(h => (
-                      <button
-                        key={h.id}
-                        onClick={() => updateSlot({ handMockup: h.id })}
-                        className={`text-[11px] py-1.5 rounded border ${(slot.handMockup ?? 'none') === h.id ? 'border-brand bg-brand/5' : 'border-border'}`}
-                      >
-                        {h.label}
-                      </button>
-                    ))}
-                  </div>
-                  {slot.handMockup && slot.handMockup !== 'none' && (
-                    <div className="mt-2">
-                      <label className="text-[10px] text-muted-foreground mb-1 block">Cilt tonu</label>
-                      <div className="flex gap-1">
-                        {['#f4d4b8', '#d4a577', '#b08362', '#825d3c', '#5d3e22', '#2d1b0e'].map(tone => (
-                          <button
-                            key={tone}
-                            onClick={() => updateSlot({ handSkinTone: tone })}
-                            className={`flex-1 aspect-square rounded border-2 ${(slot.handSkinTone ?? '#d4a577') === tone ? 'border-brand' : 'border-border'}`}
-                            style={{ background: tone }}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
                 <div>
                   <label className="text-xs font-medium mb-1.5 block">Eğim: {slot.phoneTilt}°</label>
                   <input type="range" min="-30" max="30" step="1" value={slot.phoneTilt} onChange={e => updateSlot({ phoneTilt: parseInt(e.target.value) })} className="w-full" />
