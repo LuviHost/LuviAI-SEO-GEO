@@ -1,9 +1,10 @@
 'use client';
 
 import { forwardRef } from 'react';
-import { Stage, Layer, Rect, Image as KonvaImage, Text as KonvaText, Group } from 'react-konva';
+import { Stage, Layer, Rect, Image as KonvaImage, Text as KonvaText, Group, Circle, RegularPolygon } from 'react-konva';
 import type Konva from 'konva';
 import { PHONE_FRAMES } from './phone-frames';
+import type { Decoration } from './panorama-themes';
 
 export interface SlotData {
   background: { type: 'gradient' | 'solid' | 'image'; value: string; image?: HTMLImageElement };
@@ -28,6 +29,7 @@ export interface SlotData {
   screenshot?: HTMLImageElement;
   screenshot2?: HTMLImageElement;
   screenshot3?: HTMLImageElement;
+  decorations?: Decoration[];
 }
 
 interface ScreenshotStageProps {
@@ -126,6 +128,33 @@ export const ScreenshotStage = forwardRef<Konva.Stage, ScreenshotStageProps>(({ 
             fillLinearGradientColorStops={parseGradient(slot.background.value)}
           />
         )}
+
+        {/* Panorama decorations — slot sınırlarını aşar, komşu slotlarda yarım yarım görünür */}
+        {slot.decorations && slot.decorations.length > 0 && slot.decorations.map((d, i) => {
+          if (d.type === 'circle') {
+            return <Circle key={`dec-${i}`} x={d.cx} y={d.cy} radius={d.size} fill={d.fill} opacity={d.opacity ?? 1} />;
+          }
+          if (d.type === 'ring') {
+            return <Circle key={`dec-${i}`} x={d.cx} y={d.cy} radius={d.size} stroke={d.stroke ?? d.fill} strokeWidth={d.strokeWidth ?? 4} fillEnabled={false} opacity={d.opacity ?? 1} />;
+          }
+          if (d.type === 'triangle') {
+            return <RegularPolygon key={`dec-${i}`} sides={3} x={d.cx} y={d.cy} radius={d.size} rotation={d.rotation ?? 0} fill={d.fill} opacity={d.opacity ?? 1} />;
+          }
+          if (d.type === 'rect') {
+            return (
+              <Rect
+                key={`dec-${i}`}
+                x={d.cx} y={d.cy}
+                width={d.size * 2} height={d.size * 2}
+                offsetX={d.size} offsetY={d.size}
+                rotation={d.rotation ?? 0}
+                fill={d.fill}
+                opacity={d.opacity ?? 1}
+              />
+            );
+          }
+          return null;
+        })}
 
         {/* Background overlay (for text legibility on busy backgrounds) */}
         {slot.bgOverlay && slot.bgOverlay !== 'none' && (

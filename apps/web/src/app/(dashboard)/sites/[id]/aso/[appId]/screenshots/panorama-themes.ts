@@ -1,0 +1,236 @@
+/**
+ * Panorama temaları — 10 slotluk virtual canvas üzerinde dekoratif şekiller.
+ *
+ * Koordinat sistemi:
+ *   vx = 0-1000 → 10 slot'un birleşik panorama'sında yatay konum (her slot = 100 birim)
+ *   vy = 0-100 → slot yüksekliğinin yüzdesi
+ *   vsize = virtual panorama birimi (100 = bir slot genişliği)
+ *
+ * Slot sınırlarını aşan şekiller komşu slotlarda yarım yarım görünür → "birleşik" his.
+ */
+
+export type DecorationShape = 'circle' | 'rect' | 'triangle' | 'ring';
+
+export interface VirtualShape {
+  type: DecorationShape;
+  vx: number;       // 0-1000 panorama horizontal
+  vy: number;       // 0-100 slot vertical %
+  vsize: number;    // size in virtual units (slot width = 100)
+  rotation?: number;
+  fill: string;
+  stroke?: string;
+  strokeWidth?: number;
+  opacity?: number;
+}
+
+export interface Decoration {
+  type: DecorationShape;
+  cx: number;       // canvas-space center X (can be negative or > canvasWidth — Konva clips)
+  cy: number;       // canvas-space center Y
+  size: number;     // canvas-space size
+  rotation?: number;
+  fill: string;
+  stroke?: string;
+  strokeWidth?: number;
+  opacity?: number;
+}
+
+export interface PanoramaTheme {
+  id: string;
+  name: string;
+  description: string;
+  bg: string;       // gradient or solid color (used as background.value)
+  bgType: 'gradient' | 'solid';
+  preview: string;  // CSS background for swatch
+  shapes: VirtualShape[];
+}
+
+export const PANORAMA_THEMES: PanoramaTheme[] = [
+  // ─── Vatan-style: Mavi geometrik ────────────────────────────────
+  {
+    id: 'vatan-blue',
+    name: 'Mavi Geometrik',
+    description: 'Sarı üçgenler, cyan halkalar, mavi zemin',
+    bg: 'linear-gradient(180deg, #1e5fb8 0%, #0a3a8c 100%)',
+    bgType: 'gradient',
+    preview: 'linear-gradient(135deg, #1e5fb8, #0a3a8c)',
+    shapes: [
+      // Sarı üçgenler (slot sınırlarını aşar)
+      { type: 'triangle', vx: 95,  vy: 18, vsize: 38, rotation: 25,  fill: '#ffd400' },
+      { type: 'triangle', vx: 195, vy: 82, vsize: 30, rotation: -35, fill: '#ffd400' },
+      { type: 'triangle', vx: 305, vy: 12, vsize: 42, rotation: 15,  fill: '#ffd400' },
+      { type: 'triangle', vx: 495, vy: 88, vsize: 36, rotation: -20, fill: '#ffd400' },
+      { type: 'triangle', vx: 605, vy: 22, vsize: 40, rotation: 30,  fill: '#ffd400' },
+      { type: 'triangle', vx: 795, vy: 78, vsize: 32, rotation: -25, fill: '#ffd400' },
+      { type: 'triangle', vx: 905, vy: 15, vsize: 38, rotation: 20,  fill: '#ffd400' },
+      // Cyan halkalar
+      { type: 'ring', vx: 50,  vy: 50, vsize: 65, stroke: '#00d4ff', strokeWidth: 22, fill: 'transparent', opacity: 0.7 },
+      { type: 'ring', vx: 250, vy: 50, vsize: 55, stroke: '#00d4ff', strokeWidth: 18, fill: 'transparent', opacity: 0.7 },
+      { type: 'ring', vx: 450, vy: 50, vsize: 70, stroke: '#00d4ff', strokeWidth: 22, fill: 'transparent', opacity: 0.7 },
+      { type: 'ring', vx: 650, vy: 50, vsize: 60, stroke: '#00d4ff', strokeWidth: 18, fill: 'transparent', opacity: 0.7 },
+      { type: 'ring', vx: 850, vy: 50, vsize: 68, stroke: '#00d4ff', strokeWidth: 22, fill: 'transparent', opacity: 0.7 },
+      // Küçük dolu daireler
+      { type: 'circle', vx: 145, vy: 40, vsize: 6, fill: '#ffd400', opacity: 0.9 },
+      { type: 'circle', vx: 355, vy: 65, vsize: 5, fill: '#00d4ff', opacity: 0.8 },
+      { type: 'circle', vx: 555, vy: 35, vsize: 7, fill: '#ffd400', opacity: 0.9 },
+      { type: 'circle', vx: 745, vy: 60, vsize: 6, fill: '#00d4ff', opacity: 0.8 },
+      { type: 'circle', vx: 945, vy: 45, vsize: 8, fill: '#ffd400', opacity: 0.9 },
+    ],
+  },
+
+  // ─── Amazon-style: Koyu lacivert ────────────────────────────────
+  {
+    id: 'amazon-navy',
+    name: 'Premium Lacivert',
+    description: 'Koyu zemin, parlak vurgu noktaları',
+    bg: 'linear-gradient(180deg, #0f1c33 0%, #1a2845 100%)',
+    bgType: 'gradient',
+    preview: 'linear-gradient(135deg, #0f1c33, #1a2845)',
+    shapes: [
+      // Geniş yumuşak halkalar (radial glow gibi)
+      { type: 'ring', vx: 100, vy: 30, vsize: 80, stroke: '#fbbf24', strokeWidth: 14, fill: 'transparent', opacity: 0.25 },
+      { type: 'ring', vx: 300, vy: 70, vsize: 90, stroke: '#fbbf24', strokeWidth: 14, fill: 'transparent', opacity: 0.2 },
+      { type: 'ring', vx: 500, vy: 25, vsize: 75, stroke: '#fbbf24', strokeWidth: 14, fill: 'transparent', opacity: 0.25 },
+      { type: 'ring', vx: 700, vy: 75, vsize: 85, stroke: '#fbbf24', strokeWidth: 14, fill: 'transparent', opacity: 0.2 },
+      { type: 'ring', vx: 900, vy: 35, vsize: 80, stroke: '#fbbf24', strokeWidth: 14, fill: 'transparent', opacity: 0.25 },
+      // Vurgu noktaları (parlak sarı dots)
+      { type: 'circle', vx: 50,  vy: 15, vsize: 4, fill: '#fbbf24', opacity: 0.8 },
+      { type: 'circle', vx: 180, vy: 85, vsize: 5, fill: '#fbbf24', opacity: 0.7 },
+      { type: 'circle', vx: 350, vy: 20, vsize: 3, fill: '#fbbf24', opacity: 0.9 },
+      { type: 'circle', vx: 480, vy: 80, vsize: 5, fill: '#fbbf24', opacity: 0.7 },
+      { type: 'circle', vx: 620, vy: 18, vsize: 4, fill: '#fbbf24', opacity: 0.8 },
+      { type: 'circle', vx: 780, vy: 82, vsize: 6, fill: '#fbbf24', opacity: 0.7 },
+      { type: 'circle', vx: 950, vy: 25, vsize: 4, fill: '#fbbf24', opacity: 0.9 },
+    ],
+  },
+
+  // ─── Stripe-style: Mor blob ────────────────────────────────────
+  {
+    id: 'stripe-purple',
+    name: 'Mor Bulut',
+    description: 'Yumuşak mor blob\'lar, premium fintech görünüm',
+    bg: 'linear-gradient(180deg, #6c5ce7 0%, #a855f7 100%)',
+    bgType: 'gradient',
+    preview: 'linear-gradient(135deg, #6c5ce7, #a855f7)',
+    shapes: [
+      // Büyük yumuşak daireler (blob etkisi)
+      { type: 'circle', vx: 80,  vy: 25, vsize: 60, fill: '#ec4899', opacity: 0.35 },
+      { type: 'circle', vx: 220, vy: 75, vsize: 70, fill: '#ec4899', opacity: 0.3 },
+      { type: 'circle', vx: 380, vy: 30, vsize: 65, fill: '#ec4899', opacity: 0.35 },
+      { type: 'circle', vx: 540, vy: 80, vsize: 75, fill: '#ec4899', opacity: 0.3 },
+      { type: 'circle', vx: 700, vy: 35, vsize: 60, fill: '#ec4899', opacity: 0.35 },
+      { type: 'circle', vx: 860, vy: 75, vsize: 70, fill: '#ec4899', opacity: 0.3 },
+      // Beyaz parlamalar
+      { type: 'circle', vx: 150, vy: 55, vsize: 30, fill: '#ffffff', opacity: 0.2 },
+      { type: 'circle', vx: 450, vy: 50, vsize: 35, fill: '#ffffff', opacity: 0.2 },
+      { type: 'circle', vx: 750, vy: 55, vsize: 30, fill: '#ffffff', opacity: 0.2 },
+      // Beyaz halkalar
+      { type: 'ring', vx: 300, vy: 50, vsize: 50, stroke: '#ffffff', strokeWidth: 16, fill: 'transparent', opacity: 0.4 },
+      { type: 'ring', vx: 600, vy: 50, vsize: 55, stroke: '#ffffff', strokeWidth: 16, fill: 'transparent', opacity: 0.4 },
+      { type: 'ring', vx: 900, vy: 50, vsize: 50, stroke: '#ffffff', strokeWidth: 16, fill: 'transparent', opacity: 0.4 },
+    ],
+  },
+
+  // ─── Modern-orange: Sıcak gün batımı ──────────────────────────
+  {
+    id: 'modern-orange',
+    name: 'Sıcak Gün Batımı',
+    description: 'Turuncu gradient, kremsi vurgular',
+    bg: 'linear-gradient(180deg, #ff6b35 0%, #f7c873 100%)',
+    bgType: 'gradient',
+    preview: 'linear-gradient(135deg, #ff6b35, #f7c873)',
+    shapes: [
+      // Kremsi halkalar
+      { type: 'ring', vx: 60,  vy: 50, vsize: 70, stroke: '#fff5e0', strokeWidth: 18, fill: 'transparent', opacity: 0.55 },
+      { type: 'ring', vx: 260, vy: 50, vsize: 60, stroke: '#fff5e0', strokeWidth: 18, fill: 'transparent', opacity: 0.55 },
+      { type: 'ring', vx: 460, vy: 50, vsize: 75, stroke: '#fff5e0', strokeWidth: 18, fill: 'transparent', opacity: 0.55 },
+      { type: 'ring', vx: 660, vy: 50, vsize: 65, stroke: '#fff5e0', strokeWidth: 18, fill: 'transparent', opacity: 0.55 },
+      { type: 'ring', vx: 860, vy: 50, vsize: 70, stroke: '#fff5e0', strokeWidth: 18, fill: 'transparent', opacity: 0.55 },
+      // Beyaz noktalar (yıldız efekti)
+      { type: 'circle', vx: 130, vy: 25, vsize: 4, fill: '#ffffff', opacity: 0.8 },
+      { type: 'circle', vx: 200, vy: 75, vsize: 3, fill: '#ffffff', opacity: 0.7 },
+      { type: 'circle', vx: 330, vy: 30, vsize: 5, fill: '#ffffff', opacity: 0.9 },
+      { type: 'circle', vx: 410, vy: 70, vsize: 3, fill: '#ffffff', opacity: 0.7 },
+      { type: 'circle', vx: 530, vy: 20, vsize: 4, fill: '#ffffff', opacity: 0.8 },
+      { type: 'circle', vx: 630, vy: 80, vsize: 5, fill: '#ffffff', opacity: 0.9 },
+      { type: 'circle', vx: 730, vy: 28, vsize: 3, fill: '#ffffff', opacity: 0.7 },
+      { type: 'circle', vx: 830, vy: 75, vsize: 4, fill: '#ffffff', opacity: 0.8 },
+      { type: 'circle', vx: 930, vy: 22, vsize: 5, fill: '#ffffff', opacity: 0.9 },
+      // Üçgen aksanlar
+      { type: 'triangle', vx: 175, vy: 92, vsize: 25, rotation: 0,   fill: '#fff5e0', opacity: 0.5 },
+      { type: 'triangle', vx: 380, vy: 8,  vsize: 22, rotation: 180, fill: '#fff5e0', opacity: 0.5 },
+      { type: 'triangle', vx: 580, vy: 92, vsize: 28, rotation: 0,   fill: '#fff5e0', opacity: 0.5 },
+      { type: 'triangle', vx: 780, vy: 8,  vsize: 24, rotation: 180, fill: '#fff5e0', opacity: 0.5 },
+    ],
+  },
+
+  // ─── Mint Fresh: Yeşilimsi modern ─────────────────────────────
+  {
+    id: 'mint-fresh',
+    name: 'Mint Tazeliği',
+    description: 'Yeşil-cyan gradient, soft mint vurgular',
+    bg: 'linear-gradient(180deg, #10b981 0%, #06b6d4 100%)',
+    bgType: 'gradient',
+    preview: 'linear-gradient(135deg, #10b981, #06b6d4)',
+    shapes: [
+      { type: 'circle', vx: 90,  vy: 35, vsize: 55, fill: '#ffffff', opacity: 0.18 },
+      { type: 'circle', vx: 280, vy: 70, vsize: 65, fill: '#ffffff', opacity: 0.18 },
+      { type: 'circle', vx: 470, vy: 30, vsize: 60, fill: '#ffffff', opacity: 0.18 },
+      { type: 'circle', vx: 660, vy: 75, vsize: 70, fill: '#ffffff', opacity: 0.18 },
+      { type: 'circle', vx: 850, vy: 35, vsize: 58, fill: '#ffffff', opacity: 0.18 },
+      { type: 'ring', vx: 180, vy: 60, vsize: 45, stroke: '#fff', strokeWidth: 16, fill: 'transparent', opacity: 0.45 },
+      { type: 'ring', vx: 380, vy: 60, vsize: 50, stroke: '#fff', strokeWidth: 16, fill: 'transparent', opacity: 0.45 },
+      { type: 'ring', vx: 580, vy: 60, vsize: 45, stroke: '#fff', strokeWidth: 16, fill: 'transparent', opacity: 0.45 },
+      { type: 'ring', vx: 780, vy: 60, vsize: 50, stroke: '#fff', strokeWidth: 16, fill: 'transparent', opacity: 0.45 },
+      { type: 'ring', vx: 980, vy: 60, vsize: 45, stroke: '#fff', strokeWidth: 16, fill: 'transparent', opacity: 0.45 },
+    ],
+  },
+];
+
+/**
+ * Bir slot için, panorama temasından kendi penceresine düşen dekorasyonları üretir.
+ * Slot sınırını aşan şekiller (cx < 0 veya cx > canvasWidth) komşu slotlarda da yarım görünür.
+ *
+ * @param theme — seçilen panorama teması
+ * @param slotIndex — 0-9
+ * @param canvasWidth — slot canvas genişliği (örn. 1290)
+ * @param canvasHeight — slot canvas yüksekliği (örn. 2796)
+ * @returns canvas-space koordinatlarında Decoration listesi
+ */
+export function computeSlotDecorations(
+  theme: PanoramaTheme,
+  slotIndex: number,
+  canvasWidth: number,
+  canvasHeight: number,
+): Decoration[] {
+  const slotVirtualStart = slotIndex * 100;       // örn slot 0: 0-100, slot 1: 100-200
+  const slotVirtualEnd   = slotVirtualStart + 100;
+  const out: Decoration[] = [];
+
+  for (const s of theme.shapes) {
+    // Şeklin etkilediği aralık: [vx - vsize, vx + vsize] (yarıçap mantığı)
+    const shapeStart = s.vx - s.vsize;
+    const shapeEnd   = s.vx + s.vsize;
+    // Bu slot'a görünür mü?
+    if (shapeEnd < slotVirtualStart || shapeStart > slotVirtualEnd) continue;
+
+    // Slot'a göre relatif konum: vx - slotVirtualStart (0-100 aralığı slot'un içi)
+    const relVx = s.vx - slotVirtualStart;          // 0-100 slot içi, negatif/100+ taşma
+    const cx = (relVx / 100) * canvasWidth;
+    const cy = (s.vy / 100) * canvasHeight;
+    const size = (s.vsize / 100) * canvasWidth;
+
+    out.push({
+      type: s.type,
+      cx, cy, size,
+      rotation: s.rotation,
+      fill: s.fill,
+      stroke: s.stroke,
+      // strokeWidth theme'de "canvasWidth=1290 için raw pixel" varsayar, linear ölçek
+      strokeWidth: s.strokeWidth ? s.strokeWidth * (canvasWidth / 1290) : undefined,
+      opacity: s.opacity,
+    });
+  }
+
+  return out;
+}

@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { PHONE_FRAMES } from './phone-frames';
 import { TEMPLATES } from './templates';
+import { PANORAMA_THEMES, computeSlotDecorations, type Decoration } from './panorama-themes';
 import type Konva from 'konva';
 
 // Tüm Konva component'leri tek dynamic import ile (proper Next.js + react-konva pattern)
@@ -56,6 +57,9 @@ interface SlotState {
   // Hand-photo bg seçildi mi — true ise üst-üste telefon olmaması için phoneScale=0 ve
   // screenshot upload edilince AI multimodal ile içine yerleştirilir.
   backgroundIsHand?: boolean;
+  // Panorama temasından üretilmiş dekoratif şekiller. Slot sınırlarını aşan şekiller
+  // komşu slotlarda da yarım yarım görünür → birleşik tasarım hissi.
+  decorations?: Decoration[];
 }
 
 function makeSlot(i: number): SlotState {
@@ -124,6 +128,35 @@ const AUTO_LAYOUT_PATTERN = [
   'hero', 'tilted-right', 'showcase', 'tilted-left', 'phone-top',
   'hero', 'comparison', 'tilted-right', 'tilted-left', 'showcase',
 ];
+
+// Panorama theme preview — temsili 1 slot'luk mini SVG, ilk 6 shape'i gösterir.
+function PanoramaPreview({ theme }: { theme: typeof PANORAMA_THEMES[number] }) {
+  const W = 100, H = 178;
+  // Tema'nın orta slot'una düşen shape'leri al (vx 400-600 → slot ~5)
+  const sample = theme.shapes
+    .filter(s => s.vx >= 350 && s.vx <= 650)
+    .slice(0, 6);
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="absolute inset-0 w-full h-full" preserveAspectRatio="xMidYMid slice">
+      {sample.map((s, i) => {
+        const cx = ((s.vx - 400) / 200) * W;        // 400-600 range → 0-W
+        const cy = (s.vy / 100) * H;
+        const size = (s.vsize / 100) * W * 0.6;     // hafif küçültülmüş
+        if (s.type === 'circle') return <circle key={i} cx={cx} cy={cy} r={size} fill={s.fill} opacity={s.opacity ?? 1} />;
+        if (s.type === 'ring')   return <circle key={i} cx={cx} cy={cy} r={size} fill="none" stroke={s.stroke ?? s.fill} strokeWidth={(s.strokeWidth ?? 4) / 4} opacity={s.opacity ?? 1} />;
+        if (s.type === 'triangle') {
+          const pts = [
+            [cx, cy - size],
+            [cx + size * 0.866, cy + size * 0.5],
+            [cx - size * 0.866, cy + size * 0.5],
+          ].map(p => p.join(',')).join(' ');
+          return <polygon key={i} points={pts} fill={s.fill} opacity={s.opacity ?? 1} transform={`rotate(${s.rotation ?? 0} ${cx} ${cy})`} />;
+        }
+        return null;
+      })}
+    </svg>
+  );
+}
 
 // AI suggestion alanı — label + value + char counter + tek-tık kopyala.
 function SuggestionField({ label, value, limit, multiline }: {
@@ -333,6 +366,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
         background: { type: 'image', value: fullUrl, image: img },
         phoneScale: isHand ? 0 : (slot.phoneScale === 0 ? 0.7 : slot.phoneScale),
         backgroundIsHand: isHand,
+        decorations: undefined,
       });
     };
     img.onerror = () => toast.error('Image yüklenemedi');
@@ -376,9 +410,58 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
   const applyAutoLayout = () => {
     setSlots(prev => prev.map((s, i) => {
       const presetId = AUTO_LAYOUT_PATTERN[i % AUTO_LAYOUT_PATTERN.length];
-      const preset = LAYOUT_PRESETS.find(p => p.id === presetId);
-      return preset ? { ...s, ...preset.config } : s;
+      const lp = LAYOUT_PRESETS.find(p => p.id === presetId);
+      return lp ? { ...s, ...lp.config } : s;
     }));
+  };
+
+  // PANORAMA: hazır temayı tüm slotlara uygular. Dekoratif şekiller slot sınırlarını aşarak birleşik tasarım hissi verir.
+  const applyPanoramaTheme = (themeId: string) => {
+    const theme = PANORAMA_THEMES.find(t => t.id === themeId);
+    if (!theme) return;
+    setSlots(prev => prev.map((s, i) => ({
+      ...s,
+      background: { type: theme.bgType, value: theme.bg },
+      backgroundIsHand: false,
+      decorations: computeSlotDecorations(theme, i, preset.width, preset.height),
+      // Auto-layout pattern de uygula — set tasarım hissi tamamlansın
+      ...((LAYOUT_PRESETS.find(p => p.id === AUTO_LAYOUT_PATTERN[i % AUTO_LAYOUT_PATTERN.length]))?.config ?? {}),
+    })));
+  };
+
+  // SET TASARIMI: AI bg üret → 10 slota uygula → auto-layout dağıt. Tek hamlede tüm slotlar uyumlu hâle gelir.
+  const generateSetDesign = async (style: 'gradient' | 'mesh' | 'illustrative' | 'bold' | 'minimalist') => {
+    setGeneratingBg(true);
+    try {
+      const result = await api.request<{ url: string; width: number; height: number }>(
+        `/sites/${siteId}/aso/apps/${appId}/screenshots/background`,
+        { method: 'POST', body: JSON.stringify({ style, width: preset.width, height: preset.height }) },
+      );
+      const fullUrl = process.env.NEXT_PUBLIC_API_URL ? `${process.env.NEXT_PUBLIC_API_URL}${result.url}` : result.url;
+      const img = new window.Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => {
+        // Tek setState ile bg + layout 10 slota birden uygulanır — flicker olmaz
+        setSlots(prev => prev.map((s, i) => {
+          const presetId = AUTO_LAYOUT_PATTERN[i % AUTO_LAYOUT_PATTERN.length];
+          const lp = LAYOUT_PRESETS.find(p => p.id === presetId);
+          return {
+            ...s,
+            background: { type: 'image', value: fullUrl, image: img },
+            backgroundIsHand: false,
+            decorations: undefined,
+            ...(lp ? lp.config : {}),
+          };
+        }));
+      };
+      img.onerror = () => toast.error('Background image yüklenemedi');
+      img.src = fullUrl;
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setGeneratingBg(false);
+      loadLibrary();
+    }
   };
 
   // Aktif slot'un background'unu (image/solid/gradient) 10 slota uygular.
@@ -444,6 +527,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
         background: { type: 'image', value: fullUrl, image: img },
         backgroundIsHand: isHand,
         phoneScale: isHand ? 0 : (s.phoneScale === 0 ? 0.7 : s.phoneScale),
+        decorations: undefined,
       })));
     };
     img.onerror = () => toast.error('Image yüklenemedi');
@@ -482,6 +566,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
       background: { type: 'image', value: url, image: img },
       backgroundIsHand: false,
       phoneScale: slot.phoneScale === 0 ? 0.7 : slot.phoneScale,
+      decorations: undefined,
     });
     img.src = url;
   };
@@ -500,6 +585,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
         background: { type: 'image', value: fullUrl, image: img },
         phoneScale: slot.phoneScale === 0 ? 0.7 : slot.phoneScale,
         backgroundIsHand: false,
+        decorations: undefined,
       });
       img.onerror = () => toast.error('Background image yüklenemedi');
       img.src = fullUrl;
@@ -790,51 +876,101 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
             )}
 
             {sidebar === 'templates' && (
-              <div className="space-y-2">
-                <h3 className="text-sm font-semibold">Hazır Şablonlar</h3>
-                <p className="text-xs text-muted-foreground mb-2">Tüm slotlara uygulanır (background + yazı stili)</p>
-                <div className="grid grid-cols-2 gap-2">
-                  {TEMPLATES.map(t => (
-                    <button
-                      key={t.id}
-                      onClick={() => updateAllSlots({
-                        background: t.solid
-                          ? { type: 'solid', value: t.solid }
-                          : { type: 'gradient', value: t.gradient },
-                        textColor: t.textColor,
-                        hookFontSize: t.hookFontSize,
-                        textPosition: t.textPosition,
-                        backgroundIsHand: false,
-                      })}
-                      className="aspect-[9/16] rounded border-2 border-border hover:border-brand relative overflow-hidden group"
-                      style={{ background: t.solid ?? t.gradient }}
-                    >
-                      <div className="absolute inset-0 flex items-center justify-center p-2">
-                        <span className="text-[10px] font-bold text-center leading-tight" style={{ color: t.textColor }}>
-                          {t.name}
-                        </span>
-                      </div>
-                    </button>
-                  ))}
+              <div className="space-y-4">
+                {/* Panorama setleri — dekoratif şekiller slot sınırlarını aşar, birleşik tasarım */}
+                <div>
+                  <div className="flex items-center gap-1.5 mb-1">
+                    <Sparkles className="h-3.5 w-3.5 text-brand" />
+                    <h3 className="text-sm font-semibold">Panorama Setleri</h3>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground mb-2 leading-snug">
+                    Dekoratif şekiller 10 slot boyunca uzanır — Vatan/Amazon stilinde birleşik tasarım.
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {PANORAMA_THEMES.map(t => (
+                      <button
+                        key={t.id}
+                        onClick={() => applyPanoramaTheme(t.id)}
+                        className="rounded border-2 border-border hover:border-brand transition-colors text-left overflow-hidden"
+                        title={t.description}
+                      >
+                        <div className="aspect-[9/16] relative" style={{ background: t.preview }}>
+                          {/* mini önizleme: birkaç temsili şekil */}
+                          <PanoramaPreview theme={t} />
+                        </div>
+                        <div className="px-2 py-1.5 bg-background">
+                          <div className="text-[11px] font-bold leading-tight">{t.name}</div>
+                          <div className="text-[9px] text-muted-foreground leading-tight mt-0.5 line-clamp-1">{t.description}</div>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="border-t pt-3">
+                  <h3 className="text-sm font-semibold mb-1">Renk + Yazı Şablonları</h3>
+                  <p className="text-xs text-muted-foreground mb-2">Sadece bg + yazı stili, layout korunur</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    {TEMPLATES.map(t => (
+                      <button
+                        key={t.id}
+                        onClick={() => updateAllSlots({
+                          background: t.solid
+                            ? { type: 'solid', value: t.solid }
+                            : { type: 'gradient', value: t.gradient },
+                          textColor: t.textColor,
+                          hookFontSize: t.hookFontSize,
+                          textPosition: t.textPosition,
+                          backgroundIsHand: false,
+                          decorations: undefined,
+                        })}
+                        className="aspect-[9/16] rounded border-2 border-border hover:border-brand relative overflow-hidden group"
+                        style={{ background: t.solid ?? t.gradient }}
+                      >
+                        <div className="absolute inset-0 flex items-center justify-center p-2">
+                          <span className="text-[10px] font-bold text-center leading-tight" style={{ color: t.textColor }}>
+                            {t.name}
+                          </span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
             )}
 
             {sidebar === 'layout' && (
               <div className="space-y-3">
-                {/* Auto-layout — 10 slot için akıllı dağıtım */}
+                {/* Set Tasarımı — AI bg üret + 10 slota uygula + layout dağıt */}
                 <div className="rounded-lg border border-brand/40 bg-brand/5 p-3">
                   <div className="flex items-center gap-2 mb-1">
                     <Sparkles className="h-4 w-4 text-brand" />
-                    <h3 className="text-sm font-semibold">Auto-Layout</h3>
+                    <h3 className="text-sm font-semibold">Set Tasarımı (10 Slot Birlikte)</h3>
                   </div>
                   <p className="text-[11px] text-muted-foreground mb-2 leading-snug">
-                    10 slota App Store'da yaygın akışı uygula: hero → tilted → multi-phone → variety. Anlık, ücretsiz.
+                    AI bg üret + 10 slota uygula + App Store akışıyla layout dağıt. Tüm slotlar aynı tasarım dünyasında.
                   </p>
-                  <Button size="sm" className="w-full" onClick={applyAutoLayout}>
-                    <Sparkles className="h-3.5 w-3.5 mr-1" />
-                    10 Slot Otomatik Dağıt
-                  </Button>
+                  <div className="grid grid-cols-3 gap-1.5 mb-2">
+                    {(['gradient', 'mesh', 'illustrative'] as const).map(s => (
+                      <Button
+                        key={s}
+                        size="sm"
+                        variant="outline"
+                        onClick={() => generateSetDesign(s)}
+                        disabled={generatingBg}
+                        className="text-[11px] h-8"
+                      >
+                        {generatingBg ? <Loader2 className="h-3 w-3 animate-spin" /> : s}
+                      </Button>
+                    ))}
+                  </div>
+                  <button
+                    onClick={applyAutoLayout}
+                    disabled={generatingBg}
+                    className="w-full text-[11px] py-1.5 px-2 rounded border border-dashed border-foreground/30 hover:border-brand hover:bg-brand/5 transition-colors flex items-center justify-center gap-1 disabled:opacity-50"
+                  >
+                    <Sparkles className="h-3 w-3" /> Sadece layout dağıt (BG'yi koru)
+                  </button>
                 </div>
 
                 <div>
