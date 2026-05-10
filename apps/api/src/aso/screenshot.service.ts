@@ -50,11 +50,11 @@ export class AsoScreenshotService {
     const style = opts.style ?? 'gradient';
 
     const stylePrompts: Record<string, string> = {
-      minimalist: 'clean minimalist abstract background, lots of white space, single accent gradient, professional Apple-style aesthetic',
-      bold: 'bold vibrant gradient background with geometric shapes, dynamic composition, eye-catching modern design',
-      illustrative: 'soft illustrative background with subtle vector shapes, friendly approachable mood, slight 3D depth',
-      gradient: 'smooth multi-color gradient mesh background, premium feel, blended pastel-to-saturated colors',
-      mesh: 'colorful mesh gradient background, abstract organic shapes, modern dribbble-style aesthetic',
+      minimalist: 'clean minimalist abstract pattern filling the entire canvas edge-to-edge, lots of soft negative space, single accent gradient, professional Apple-style aesthetic',
+      bold: 'bold vibrant gradient pattern with abstract geometric shapes distributed evenly across the entire canvas, dynamic composition, eye-catching modern design, edge-to-edge fill',
+      illustrative: 'soft illustrative pattern with subtle vector shapes spread evenly across the canvas, friendly approachable mood, slight 3D depth, no central focal object',
+      gradient: 'smooth multi-color gradient mesh covering the full canvas edge-to-edge, premium feel, blended pastel-to-saturated colors, no objects',
+      mesh: 'colorful mesh gradient with abstract organic blobs filling the whole canvas, modern dribbble-style aesthetic, no central subject, no devices',
       'hand-photo': 'photorealistic photograph of a person\'s hand holding a modern smartphone vertically, the phone screen is BLANK black or white (will be replaced), professional studio lighting, soft natural shadow, vivid colorful blurred bokeh background, premium app store screenshot aesthetic',
     };
 
@@ -70,12 +70,12 @@ Background: vivid colorful gradient bokeh (suggest ${opts.brandColor ? opts.bran
 Hand: natural human hand, ${app.country === 'tr' ? 'mediterranean' : 'diverse'} skin tone, well-manicured, holding phone naturally.
 Style: high-end commercial photography, 8k, professional, no overlay text.
 STRICT: NO text on screen, NO logos, NO watermarks, blank phone screen, vertical 9:19.5 aspect ratio.`
-      : `App store screenshot background for "${app.name}" — ${category} category app.
+      : `Pure abstract decorative background pattern for "${app.name}" — ${category} category app.
 App context: ${description}
 Style: ${stylePrompts[style]}.
 Color palette: ${opts.brandColor ? `${opts.brandColor} as accent color` : 'cohesive harmonious palette'}.
-Composition: vertical 9:19.5 aspect ratio (mobile), centered with breathing room for phone mockup overlay.
-Strict: NO text, NO words, NO letters, NO logos, NO photorealistic faces. Pure abstract design background.`);
+Composition: vertical 9:19.5 aspect ratio, the pattern must fill the entire canvas evenly edge-to-edge like a wallpaper. No empty central area, no central focal subject — color and shapes flow continuously through the middle so a phone mockup placed on top later still looks good.
+STRICT NEGATIVE: NO text, NO words, NO letters, NO numbers, NO logos, NO photorealistic faces, NO phones, NO smartphones, NO devices, NO mockups, NO phone silhouettes, NO phone outlines, NO rectangular frames in the center, NO screen-shaped placeholders, NO UI elements, NO app icons. Pure decorative wallpaper-style abstract design only.`);
 
     const width = opts.width ?? 1290;
     const height = opts.height ?? 2796;
