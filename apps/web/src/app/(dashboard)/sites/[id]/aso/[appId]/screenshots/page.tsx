@@ -129,6 +129,28 @@ const AUTO_LAYOUT_PATTERN = [
   'hero', 'comparison', 'tilted-right', 'tilted-left', 'showcase',
 ];
 
+// Panorama için: tüm telefonlar dikey ortada (kayıklık yok), sadece tilt + scale + sayı değişir.
+// Hareket hissini scale/tilt verir, vertical baseline sabit kalır.
+type PanoramaSlotLayout = {
+  phoneLayout: 'single' | 'duo' | 'trio';
+  phoneTilt: number;
+  phoneScale: number;
+  phoneVerticalAlign: 'top' | 'center' | 'bottom';
+  textPosition: 'top' | 'bottom';
+};
+const PANORAMA_LAYOUT_PATTERN: PanoramaSlotLayout[] = [
+  { phoneLayout: 'single', phoneTilt: -8,  phoneScale: 0.78, phoneVerticalAlign: 'center', textPosition: 'top' },
+  { phoneLayout: 'single', phoneTilt: 12,  phoneScale: 0.72, phoneVerticalAlign: 'center', textPosition: 'top' },
+  { phoneLayout: 'duo',    phoneTilt: 0,   phoneScale: 0.68, phoneVerticalAlign: 'center', textPosition: 'top' },
+  { phoneLayout: 'single', phoneTilt: -12, phoneScale: 0.78, phoneVerticalAlign: 'center', textPosition: 'top' },
+  { phoneLayout: 'single', phoneTilt: 0,   phoneScale: 0.82, phoneVerticalAlign: 'center', textPosition: 'top' },
+  { phoneLayout: 'single', phoneTilt: 8,   phoneScale: 0.74, phoneVerticalAlign: 'center', textPosition: 'top' },
+  { phoneLayout: 'trio',   phoneTilt: 0,   phoneScale: 0.58, phoneVerticalAlign: 'center', textPosition: 'top' },
+  { phoneLayout: 'single', phoneTilt: -15, phoneScale: 0.78, phoneVerticalAlign: 'center', textPosition: 'top' },
+  { phoneLayout: 'single', phoneTilt: 14,  phoneScale: 0.72, phoneVerticalAlign: 'center', textPosition: 'top' },
+  { phoneLayout: 'single', phoneTilt: 0,   phoneScale: 0.85, phoneVerticalAlign: 'center', textPosition: 'top' },
+];
+
 // Panorama theme preview — temsili 1 slot'luk mini SVG, ilk 6 shape'i gösterir.
 function PanoramaPreview({ theme }: { theme: typeof PANORAMA_THEMES[number] }) {
   const W = 100, H = 178;
@@ -416,6 +438,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
   };
 
   // PANORAMA: hazır temayı tüm slotlara uygular. Dekoratif şekiller slot sınırlarını aşarak birleşik tasarım hissi verir.
+  // Layout PANORAMA_LAYOUT_PATTERN kullanır — phone'lar dikey ortada sabit, sadece tilt+scale+sayı değişir.
   const applyPanoramaTheme = (themeId: string) => {
     const theme = PANORAMA_THEMES.find(t => t.id === themeId);
     if (!theme) return;
@@ -424,8 +447,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
       background: { type: theme.bgType, value: theme.bg },
       backgroundIsHand: false,
       decorations: computeSlotDecorations(theme, i, preset.width, preset.height),
-      // Auto-layout pattern de uygula — set tasarım hissi tamamlansın
-      ...((LAYOUT_PRESETS.find(p => p.id === AUTO_LAYOUT_PATTERN[i % AUTO_LAYOUT_PATTERN.length]))?.config ?? {}),
+      ...PANORAMA_LAYOUT_PATTERN[i % PANORAMA_LAYOUT_PATTERN.length],
     })));
   };
 
