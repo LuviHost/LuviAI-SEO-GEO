@@ -104,8 +104,11 @@ export const ScreenshotStage = forwardRef<Konva.Stage, ScreenshotStageProps>(({ 
 
   const layout = slot.phoneLayout ?? 'single';
 
+  // Phone canvas'a sığsın: max 1.0 — eski slot kayıtlarındaki >1.0 değerler de clamp edilir.
+  const safePhoneScale = Math.min(Math.max(slot.phoneScale, 0), 1.0);
+
   // Compute phone positions based on layout
-  const phonePositions = computePhonePositions(layout, width, phoneCenterY, slot.phoneScale, slot.phoneTilt);
+  const phonePositions = computePhonePositions(layout, width, phoneCenterY, safePhoneScale, slot.phoneTilt);
 
   return (
     <Stage ref={ref} width={viewWidth} height={viewHeight} scaleX={scale} scaleY={scale}>

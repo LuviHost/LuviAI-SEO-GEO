@@ -810,8 +810,8 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                 )}
 
                 <div className="border-t pt-3">
-                  <label className="text-xs font-medium mb-1.5 block">Boyut: {Math.round(slot.phoneScale * 100)}%</label>
-                  <input type="range" min="0.4" max="1.2" step="0.05" value={slot.phoneScale} onChange={e => updateSlot({ phoneScale: parseFloat(e.target.value) })} className="w-full" />
+                  <label className="text-xs font-medium mb-1.5 block">Boyut: {Math.round(Math.min(slot.phoneScale, 1.0) * 100)}%</label>
+                  <input type="range" min="0.4" max="1.0" step="0.05" value={Math.min(slot.phoneScale, 1.0)} onChange={e => updateSlot({ phoneScale: parseFloat(e.target.value) })} className="w-full" />
                 </div>
 
                 {/* Phone drop shadow intensity */}
