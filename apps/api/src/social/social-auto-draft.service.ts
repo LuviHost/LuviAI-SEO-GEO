@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { buildSocialTextFor } from './social-text.js';
+import { mediaDefaultFor } from './social-media-policy.js';
 
 /**
  * Article PUBLISHED → her aktif sosyal kanal icin DRAFT SocialPost olustur.
@@ -88,12 +89,21 @@ export class SocialAutoDraftService {
         hookVariations,
       });
 
+      // Kanal tipine göre varsayılan medya formatı (TikTok/YouTube → video, IG → image, X → text, vb.)
+      // Kullanıcı UI'dan değiştirebilir + generate-media endpoint'i ile üretir.
+      const defaultMediaType = mediaDefaultFor(channel.type);
+      const mergedMetadata = {
+        ...(metadata as any),
+        mediaType: defaultMediaType,
+        mediaGenStatus: 'pending',
+      };
+
       await this.prisma.socialPost.create({
         data: {
           channelId: channel.id,
           articleId: article.id,
           text,
-          metadata: metadata as any,
+          metadata: mergedMetadata as any,
           status: 'DRAFT',
         },
       });

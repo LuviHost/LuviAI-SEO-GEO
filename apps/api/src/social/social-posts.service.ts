@@ -139,6 +139,28 @@ export class SocialPostsService {
     return this.runPublish(postId);
   }
 
+  /**
+   * DRAFT → QUEUED. scheduledFor verilirse o zamana, verilmezse hemen yayına.
+   * Sosyal medya takvim akışında kullanıcı "Onayla" butonuna bastığında çağırılır.
+   */
+  async approve(postId: string, user: RequestingUser, scheduledFor?: Date) {
+    const post = await this.assertPostOwner(postId, user);
+    if (post.status !== 'DRAFT') {
+      throw new BadRequestException(`Sadece DRAFT post onaylanabilir (mevcut: ${post.status})`);
+    }
+    // scheduledFor verilmemişse anında yayınla (publishNow gibi)
+    if (!scheduledFor) {
+      return this.runPublish(postId);
+    }
+    return this.prisma.socialPost.update({
+      where: { id: postId },
+      data: {
+        status: 'QUEUED' as any,
+        scheduledFor,
+      },
+    });
+  }
+
   /** internal — cron + publishNow ortak yol */
   async runPublish(postId: string) {
     const post = await this.prisma.socialPost.findUniqueOrThrow({ where: { id: postId } });

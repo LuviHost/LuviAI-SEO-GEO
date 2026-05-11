@@ -5,6 +5,8 @@ import { SocialChannelsService } from './social-channels.service.js';
 import { SocialPostsService } from './social-posts.service.js';
 import { SocialSlotsService } from './social-slots.service.js';
 import { SocialCalendarService } from './social-calendar.service.js';
+import { SocialMediaGeneratorService } from './social-media-generator.service.js';
+import { MEDIA_POLICY, type MediaType } from './social-media-policy.js';
 
 function ensureUser(req: Request) {
   const user = (req as any).user;
@@ -19,6 +21,7 @@ export class SocialController {
     private readonly posts: SocialPostsService,
     private readonly slots: SocialSlotsService,
     private readonly calendar: SocialCalendarService,
+    private readonly mediaGen: SocialMediaGeneratorService,
   ) {}
 
   // ─── Catalog ─────────────────────────────────────────
@@ -132,6 +135,35 @@ export class SocialController {
   @Post('social/posts/:postId/publish-now')
   publishNow(@Req() req: Request, @Param('postId') postId: string) {
     return this.posts.publishNow(postId, ensureUser(req));
+  }
+
+  // ─── Medya politikası + generation ─────────────────
+
+  /** Channel.type için izinli medya tiplerini ve varsayılanı döner. */
+  @Get('social/media-policy')
+  mediaPolicy() {
+    return MEDIA_POLICY;
+  }
+
+  /** Bir post için medya (image/video) üretir. mediaType opsiyonel; verilmezse mevcut tip kullanılır. */
+  @Post('social/posts/:postId/generate-media')
+  async generateMedia(
+    @Req() req: Request,
+    @Param('postId') postId: string,
+    @Body() body: { mediaType?: MediaType },
+  ) {
+    ensureUser(req);
+    return this.mediaGen.generateForPost(postId, body?.mediaType);
+  }
+
+  /** DRAFT → QUEUED. scheduledFor body'den (yoksa hemen yayına). */
+  @Post('social/posts/:postId/approve')
+  async approvePost(
+    @Req() req: Request,
+    @Param('postId') postId: string,
+    @Body() body: { scheduledFor?: string },
+  ) {
+    return this.posts.approve(postId, ensureUser(req), body?.scheduledFor ? new Date(body.scheduledFor) : undefined);
   }
 
   // ─── Calendar / scheduling ──────────────────────────

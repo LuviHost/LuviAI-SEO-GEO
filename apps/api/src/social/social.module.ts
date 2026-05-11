@@ -6,12 +6,17 @@ import { SocialSlotsService } from './social-slots.service.js';
 import { SocialCalendarService } from './social-calendar.service.js';
 import { SocialAutoDraftService } from './social-auto-draft.service.js';
 import { SocialSchedulerService } from './social-scheduler.service.js';
+import { SocialMediaGeneratorService } from './social-media-generator.service.js';
+import { ImageGeneratorService } from '../articles/image-generator.service.js';
+import { VideoGeneratorService } from '../articles/video-generator.service.js';
 
 /**
  * Sosyal medya — kanal yonetimi + post yayini + plan-bazli takvim/cron.
- * - Kanal: LinkedIn (personal/company), X / Twitter.
+ * - Kanal: LinkedIn, X, FB, IG, TikTok, YouTube, Pinterest, Threads, Bluesky, GMB, Mastodon.
+ * - Media: SocialMediaGeneratorService kanal tipine gore image/video uretir
+ *   (ImageGenerator + VideoGenerator wrap'i).
  * - Cron: SocialSchedulerService her 5 dk slot'lari isler.
- * - Auto-draft: makale PUBLISHED olunca DRAFT post olusturur.
+ * - Auto-draft: makale PUBLISHED olunca DRAFT post olusturur (kanal basina default mediaType).
  */
 @Module({
   controllers: [SocialController],
@@ -22,11 +27,15 @@ import { SocialSchedulerService } from './social-scheduler.service.js';
     SocialCalendarService,
     SocialAutoDraftService,
     SocialSchedulerService,
+    SocialMediaGeneratorService,
+    ImageGeneratorService,
+    VideoGeneratorService,
   ],
   exports: [
     SocialChannelsService,
     SocialPostsService,
     SocialAutoDraftService,
+    SocialMediaGeneratorService,
   ],
 })
 export class SocialModule {}

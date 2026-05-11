@@ -85,6 +85,7 @@ const SITE_GROUPS = (siteId: string) => [
       { href: `/sites/${siteId}/articles`, label: 'İçerikler', icon: FileText },
       { href: `/sites/${siteId}/prompts`, label: 'Prompt Kütüphanesi', icon: Library },
       { href: `/sites/${siteId}/calendar`, label: 'Takvim', icon: Calendar },
+      { href: `/sites/${siteId}/social-calendar`, label: 'Sosyal Takvim', icon: Calendar },
       { href: `/sites/${siteId}/videos`, label: 'Video Factory', icon: Film },
       { href: `/sites/${siteId}/publish-targets`, label: 'Yayın Hedefleri', icon: Send },
     ],

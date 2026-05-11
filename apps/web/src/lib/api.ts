@@ -548,7 +548,10 @@ export const api = {
   getMyDashboard: () => request<any>('/me/dashboard'),
 
   // Billing
-  getPlans: () => request<any[]>('/billing/plans'),
+  getPlans: (locale?: string) => request<any[]>(`/billing/plans${locale ? '?locale=' + locale : ''}`),
+  enterpriseInquiry: (body: { name: string; email: string; company?: string; phone?: string; message?: string; source?: string }) =>
+    request<{ ok: true }>('/billing/enterprise-inquiry', { method: 'POST', body: JSON.stringify(body) }),
+  getCurrentFxRate: () => request<{ usdToTry: number; source: string; cachedFor: string }>('/billing/fx-rate'),
 
   // Analytics
   getAnalyticsOverview: (siteId: string, days = 30) =>
@@ -685,6 +688,22 @@ export const api = {
 
   publishSocialPostNow: (postId: string) =>
     request<any>(`/social/posts/${postId}/publish-now`, { method: 'POST' }),
+
+  // Social — media generation + approval
+  socialMediaPolicy: () =>
+    request<Record<string, { default: 'text' | 'image' | 'video'; options: Array<'text' | 'image' | 'video'>; editable: boolean }>>(`/social/media-policy`),
+
+  generateSocialPostMedia: (postId: string, mediaType?: 'text' | 'image' | 'video') =>
+    request<{ ok: boolean; mediaType: string; mediaUrls: Array<{ url: string; type: 'image' | 'video'; altText?: string }>; error?: string }>(
+      `/social/posts/${postId}/generate-media`,
+      { method: 'POST', body: JSON.stringify({ mediaType }) },
+    ),
+
+  approveSocialPost: (postId: string, scheduledFor?: string) =>
+    request<any>(`/social/posts/${postId}/approve`, {
+      method: 'POST',
+      body: JSON.stringify({ scheduledFor }),
+    }),
 
   // Social — calendar / plan / slots
   getSocialCalendar: (siteId: string, params?: { from?: string; to?: string }) => {
