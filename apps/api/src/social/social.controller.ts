@@ -6,6 +6,7 @@ import { SocialPostsService } from './social-posts.service.js';
 import { SocialSlotsService } from './social-slots.service.js';
 import { SocialCalendarService } from './social-calendar.service.js';
 import { SocialMediaGeneratorService } from './social-media-generator.service.js';
+import { SocialAutoDraftService } from './social-auto-draft.service.js';
 import { MEDIA_POLICY, type MediaType } from './social-media-policy.js';
 
 function ensureUser(req: Request) {
@@ -22,6 +23,7 @@ export class SocialController {
     private readonly slots: SocialSlotsService,
     private readonly calendar: SocialCalendarService,
     private readonly mediaGen: SocialMediaGeneratorService,
+    private readonly autoDraft: SocialAutoDraftService,
   ) {}
 
   // ─── Catalog ─────────────────────────────────────────
@@ -164,6 +166,20 @@ export class SocialController {
     @Body() body: { scheduledFor?: string },
   ) {
     return this.posts.approve(postId, ensureUser(req), body?.scheduledFor ? new Date(body.scheduledFor) : undefined);
+  }
+
+  /**
+   * Backfill: son N günde yayınlanmış makaleler için eksik kanallara draft üret.
+   * Kanallar sonradan bağlandığında geçmiş makaleler için draft üretmek üzere.
+   */
+  @Post('sites/:siteId/social/posts/backfill')
+  async backfillDrafts(
+    @Req() req: Request,
+    @Param('siteId') siteId: string,
+    @Body() body: { daysAgo?: number },
+  ) {
+    ensureUser(req);
+    return this.autoDraft.backfillForSite(siteId, body?.daysAgo ?? 30);
   }
 
   // ─── Calendar / scheduling ──────────────────────────

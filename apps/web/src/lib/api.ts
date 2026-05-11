@@ -705,6 +705,12 @@ export const api = {
       body: JSON.stringify({ scheduledFor }),
     }),
 
+  backfillSocialDrafts: (siteId: string, daysAgo = 30) =>
+    request<{ articleCount: number; created: number; skipped: number }>(
+      `/sites/${siteId}/social/posts/backfill`,
+      { method: 'POST', body: JSON.stringify({ daysAgo }) },
+    ),
+
   // Social — calendar / plan / slots
   getSocialCalendar: (siteId: string, params?: { from?: string; to?: string }) => {
     const qs = new URLSearchParams();

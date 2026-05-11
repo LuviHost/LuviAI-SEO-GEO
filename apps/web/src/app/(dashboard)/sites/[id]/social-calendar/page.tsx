@@ -51,6 +51,7 @@ export default function SocialCalendarPage() {
   const [policy, setPolicy] = useState<Record<string, { default: MediaType; options: MediaType[]; editable: boolean }>>({});
   const [loading, setLoading] = useState(true);
   const [busyById, setBusyById] = useState<Record<string, 'generating' | 'approving' | null>>({});
+  const [backfilling, setBackfilling] = useState(false);
 
   const refresh = async () => {
     setLoading(true);
@@ -86,6 +87,23 @@ export default function SocialCalendarPage() {
       toast.error(err.message || 'Medya üretim hatası');
     } finally {
       setBusyById(prev => ({ ...prev, [post.id]: null }));
+    }
+  };
+
+  const handleBackfill = async () => {
+    setBackfilling(true);
+    try {
+      const r = await api.backfillSocialDrafts(site.id, 30);
+      if (r.created > 0) {
+        toast.success(`${r.created} yeni draft üretildi (${r.articleCount} makale tarandı)`);
+      } else {
+        toast.info(`Tüm makaleler için draft zaten var (${r.articleCount} makale tarandı)`);
+      }
+      await refresh();
+    } catch (err: any) {
+      toast.error(err.message || 'Backfill hatası');
+    } finally {
+      setBackfilling(false);
     }
   };
 
@@ -129,9 +147,32 @@ export default function SocialCalendarPage() {
             </p>
           </div>
         </div>
-        <Button size="sm" variant="outline" onClick={refresh}>
-          <RefreshCw className="h-4 w-4 mr-1" /> Yenile
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleBackfill}
+            disabled={backfilling}
+            title="Son 30 günün makaleleri için eksik kanallara draft üret"
+          >
+            {backfilling ? (
+              <><Loader2 className="h-4 w-4 mr-1 animate-spin" /> Taranıyor</>
+            ) : (
+              <><Sparkles className="h-4 w-4 mr-1" /> Eksik Draft'ları Üret</>
+            )}
+          </Button>
+          <Button size="sm" variant="outline" onClick={refresh}>
+            <RefreshCw className="h-4 w-4 mr-1" /> Yenile
+          </Button>
+        </div>
+      </div>
+
+      {/* Info banner: idempotent davranışı açıkla */}
+      <div className="rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800 p-3 text-xs">
+        <strong className="font-semibold">İpucu:</strong> Draft'lar makale yayınlandığı an
+        aktif olan kanallar için üretilir. Sonradan kanal bağladıysan
+        (TikTok / YouTube / X vb.) <strong>Eksik Draft'ları Üret</strong> butonuna bas — son 30 günün
+        makaleleri için eksik kanallara retroactive draft üretir.
       </div>
 
       {posts.length === 0 ? (

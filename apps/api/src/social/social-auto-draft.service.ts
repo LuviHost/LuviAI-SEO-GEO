@@ -115,4 +115,33 @@ export class SocialAutoDraftService {
     );
     return { created, skipped };
   }
+
+  /**
+   * Site için backfill: son `daysAgo` günde yayınlanmış makaleler için eksik draft'ları üretir.
+   * Kanallar sonradan bağlandığında geçmiş makaleler için draft üretmek için.
+   * Idempotent — zaten draft'ı olan article+channel kombinasyonu atlanır.
+   */
+  async backfillForSite(siteId: string, daysAgo = 30): Promise<{ articleCount: number; created: number; skipped: number }> {
+    const since = new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000);
+    const articles = await this.prisma.article.findMany({
+      where: {
+        siteId,
+        status: 'PUBLISHED',
+        publishedAt: { gte: since },
+      },
+      select: { id: true },
+      orderBy: { publishedAt: 'desc' },
+      take: 50,
+    });
+
+    let totalCreated = 0;
+    let totalSkipped = 0;
+    for (const a of articles) {
+      const r = await this.createDraftsForArticle(a.id);
+      totalCreated += r.created;
+      totalSkipped += r.skipped;
+    }
+    this.log.log(`[${siteId}] Backfill: ${articles.length} makale tarandı, ${totalCreated} yeni draft, ${totalSkipped} atlandı`);
+    return { articleCount: articles.length, created: totalCreated, skipped: totalSkipped };
+  }
 }
