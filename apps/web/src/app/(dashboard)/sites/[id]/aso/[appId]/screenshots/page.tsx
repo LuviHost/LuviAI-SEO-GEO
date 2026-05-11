@@ -776,7 +776,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
       </div>
 
       <div className="flex-1 flex overflow-hidden">
-        {/* SLOT NAVIGATOR */}
+        {/* SLOT NAVIGATOR — her slot için mini Konva render (decorations + phone + text birebir) */}
         <div className="w-32 bg-background border-r overflow-y-auto p-2 space-y-1">
           <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold mb-2 px-1">{slotCount} SLOT</div>
           {slots.map((s, i) => (
@@ -788,34 +788,11 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
               }`}
             >
               <div className="text-xs font-bold mb-1">#{i + 1}</div>
-              <div
-                className="aspect-[9/19.5] rounded mb-1 overflow-hidden relative"
-                style={{
-                  background: s.background.type === 'gradient' ? s.background.value :
-                              s.background.type === 'solid' ? s.background.value :
-                              s.background.image ? `url(${s.background.value}) center/cover` : '#888'
-                }}
-              >
-                {/* Hook text — sadece text 'top'taysa üstte, 'bottom'taysa altta */}
-                {s.hook && (
-                  <div className={`absolute left-0 right-0 px-1 ${s.textPosition === 'top' ? 'top-1' : 'bottom-1'}`}>
-                    <span className="text-[7px] font-bold text-center leading-tight line-clamp-2 drop-shadow block" style={{ color: s.textColor }}>
-                      {s.hook}
-                    </span>
-                  </div>
-                )}
-                {/* Phone screenshot mini preview — center */}
-                {s.screenshotUrl && (
-                  <div
-                    className={`absolute left-1/4 right-1/4 ${s.textPosition === 'top' ? 'bottom-1' : 'top-1'} aspect-[9/19] rounded-sm overflow-hidden border border-black/40 shadow-md`}
-                  >
-                    <img src={s.screenshotUrl} alt="" className="w-full h-full object-cover" />
-                  </div>
-                )}
-                {/* No screenshot placeholder */}
+              <div className="rounded overflow-hidden bg-muted mb-1 relative" style={{ width: '100%' }}>
+                <ScreenshotStage slot={s} width={preset.width} height={preset.height} viewWidth={104} />
                 {!s.screenshotUrl && (
-                  <div className={`absolute left-1/3 right-1/3 ${s.textPosition === 'top' ? 'bottom-1' : 'top-1'} aspect-[9/19] rounded-sm border border-dashed border-white/40 flex items-center justify-center`}>
-                    <span className="text-[6px] text-white/60 text-center">No img</span>
+                  <div className="absolute inset-0 grid place-items-center pointer-events-none">
+                    <span className="text-[7px] text-white/70 bg-black/30 px-1 rounded">No img</span>
                   </div>
                 )}
               </div>
