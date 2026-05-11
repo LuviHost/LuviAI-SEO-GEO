@@ -341,9 +341,11 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
 
   const [presetId, setPresetId] = useState<string>('ios-67');
   const preset = PRESETS.find(p => p.id === presetId)!;
-  const [slots, setSlots] = useState<SlotState[]>(() => Array.from({ length: 10 }, (_, i) => makeSlot(i)));
+  // Slot sayısı: 5 (App Store typical), 8 (Play Store max), 10 (Apple max)
+  const [slotCount, setSlotCount] = useState<5 | 8 | 10>(5);
+  const [slots, setSlots] = useState<SlotState[]>(() => Array.from({ length: 5 }, (_, i) => makeSlot(i)));
   const [activeSlot, setActiveSlot] = useState(0);
-  const slot = slots[activeSlot];
+  const slot = slots[activeSlot] ?? slots[0];
 
   const [generatingBg, setGeneratingBg] = useState(false);
   const [generatingCaptions, setGeneratingCaptions] = useState(false);
@@ -352,10 +354,26 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
 
   const [sidebar, setSidebar] = useState<'ai' | 'templates' | 'layout' | 'phone' | 'background' | 'text'>('ai');
 
-  // Panorama slot pattern — toplamı 10 olan grup boyutları array'i.
-  // Örn: [10] = tek panorama, [5,5] = iki panorama, [2,1,2,1,2,1,1] = karma.
-  const [panoramaPattern, setPanoramaPattern] = useState<number[]>([10]);
+  // Panorama slot pattern — toplamı slotCount olan grup boyutları array'i.
+  // Örn (slotCount=5): [5] = tek panorama, [2,1,1,1] = ikili+tekli karma.
+  const [panoramaPattern, setPanoramaPattern] = useState<number[]>([5]);
   const [customPatternInput, setCustomPatternInput] = useState<string>('');
+
+  // Slot sayısı değişince slots array'i yeniden boyutlandır (mevcut slot verileri korunur)
+  // ve default pattern'i [slotCount] yap (tek büyük panorama).
+  useEffect(() => {
+    setSlots(prev => {
+      if (prev.length === slotCount) return prev;
+      if (prev.length > slotCount) return prev.slice(0, slotCount);
+      const extras = Array.from({ length: slotCount - prev.length }, (_, i) => makeSlot(prev.length + i));
+      return [...prev, ...extras];
+    });
+    setPanoramaPattern(p => {
+      const sum = p.reduce((a, b) => a + b, 0);
+      return sum === slotCount ? p : [slotCount];
+    });
+    setActiveSlot(a => Math.min(a, slotCount - 1));
+  }, [slotCount]);
 
   // Store preview modal
   const [showPreview, setShowPreview] = useState(false);
@@ -456,7 +474,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
     return { groupIndex: 0, slotInGroup: 0, groupSize: 10 };
   };
 
-  // PANORAMA: hazır temayı 10 slota uygular. panoramaPattern'a göre grupla.
+  // PANORAMA: hazır temayı {slotCount} slota uygular. panoramaPattern'a göre grupla.
   // Her grup kendi içinde sıkıştırılmış mini panorama, gruplar arası rotation farkı var.
   // Dekoratif şekiller grup içinde slot sınırını aşar, grup sınırını aşmaz.
   const applyPanoramaTheme = (themeId: string) => {
@@ -474,7 +492,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
     }));
   };
 
-  // SET TASARIMI: AI bg üret → 10 slota uygula → auto-layout dağıt. Tek hamlede tüm slotlar uyumlu hâle gelir.
+  // SET TASARIMI: AI bg üret → {slotCount} slota uygula → auto-layout dağıt. Tek hamlede tüm slotlar uyumlu hâle gelir.
   const generateSetDesign = async (style: 'gradient' | 'mesh' | 'illustrative' | 'bold' | 'minimalist') => {
     setGeneratingBg(true);
     try {
@@ -509,7 +527,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
     }
   };
 
-  // Aktif slot'un background'unu (image/solid/gradient) 10 slota uygular.
+  // Aktif slot'un background'unu (image/solid/gradient) {slotCount} slota uygular.
   // backgroundIsHand + phoneScale de senkronlanır.
   const applyCurrentBackgroundToAllSlots = () => {
     const bg = slot.background;
@@ -560,7 +578,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
     }
   }, [showPreview]);
 
-  // Galeri'den bir item'ı doğrudan 10 slota uygular.
+  // Galeri'den bir item'ı doğrudan {slotCount} slota uygular.
   const applyLibraryItemToAllSlots = (item: { url: string; type: 'standard' | 'hand' }) => {
     const fullUrl = process.env.NEXT_PUBLIC_API_URL ? `${process.env.NEXT_PUBLIC_API_URL}${item.url}` : item.url;
     const isHand = item.type === 'hand';
@@ -647,7 +665,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
     try {
       const result = await api.request<{ captions: Array<{ slot: number; hook: string; subtitle: string }> }>(
         `/sites/${siteId}/aso/apps/${appId}/screenshots/captions`,
-        { method: 'POST', body: JSON.stringify({ slotCount: 10, locale: app?.country === 'tr' ? 'tr' : 'en' }) },
+        { method: 'POST', body: JSON.stringify({ slotCount, locale: app?.country === 'tr' ? 'tr' : 'en' }) },
       );
       setSlots(prev => prev.map((s, i) => {
         const cap = result.captions.find(c => c.slot === i + 1);
@@ -719,7 +737,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
           {app?.iconUrl && <img src={app.iconUrl} alt="" className="h-8 w-8 rounded-lg" />}
           <div>
             <h1 className="text-sm font-bold">{app?.name} · Screenshot Studio</h1>
-            <p className="text-xs text-muted-foreground">10 slot · App Store/Play Store dimensions · AI-generated</p>
+            <p className="text-xs text-muted-foreground">{slotCount} slot · App Store/Play Store dimensions · AI-generated</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -736,7 +754,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
           </Button>
           <Button size="sm" onClick={exportAll} disabled={bulkExporting}>
             <Download className={`h-4 w-4 mr-1 ${bulkExporting ? 'animate-spin' : ''}`} />
-            {bulkExporting ? 'Render...' : '10 slotu indir'}
+            {bulkExporting ? 'Render...' : `${slotCount} slotu indir`}
           </Button>
         </div>
       </div>
@@ -744,7 +762,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
       <div className="flex-1 flex overflow-hidden">
         {/* SLOT NAVIGATOR */}
         <div className="w-32 bg-background border-r overflow-y-auto p-2 space-y-1">
-          <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold mb-2 px-1">10 SLOT</div>
+          <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold mb-2 px-1">{slotCount} SLOT</div>
           {slots.map((s, i) => (
             <button
               key={i}
@@ -838,10 +856,10 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
               <div className="space-y-3">
                 <div>
                   <h3 className="text-sm font-semibold mb-1">AI Caption Generator</h3>
-                  <p className="text-xs text-muted-foreground mb-2">10 slot için Türkçe hook + subtitle üretir (Claude Haiku)</p>
+                  <p className="text-xs text-muted-foreground mb-2">{slotCount} slot için Türkçe hook + subtitle üretir (Claude Haiku)</p>
                   <Button size="sm" className="w-full" onClick={generateCaptions} disabled={generatingCaptions}>
                     <Sparkles className={`h-4 w-4 mr-1 ${generatingCaptions ? 'animate-spin' : ''}`} />
-                    {generatingCaptions ? 'AI çalışıyor...' : '10 Caption Üret'}
+                    {generatingCaptions ? 'AI çalışıyor...' : `${slotCount} Caption Üret`}
                   </Button>
                 </div>
                 <div className="border-t pt-3">
@@ -859,7 +877,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                       onClick={applyCurrentBackgroundToAllSlots}
                       className="w-full mt-2 text-[11px] py-1.5 px-2 rounded border border-dashed border-foreground/30 hover:border-brand hover:bg-brand/5 transition-colors flex items-center justify-center gap-1"
                     >
-                      <Copy className="h-3 w-3" /> Bu BG'yi 10 slota uygula
+                      <Copy className="h-3 w-3" /> Bu BG'yi {slotCount} slota uygula
                     </button>
                   )}
                 </div>
@@ -877,7 +895,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                       </button>
                     </div>
                     <p className="text-[10px] text-muted-foreground mb-2">
-                      Tıkla = aktif slota uygula · <Copy className="h-2.5 w-2.5 inline" /> ikonu = 10 slota uygula
+                      Tıkla = aktif slota uygula · <Copy className="h-2.5 w-2.5 inline" /> ikonu = {slotCount} slota uygula
                     </p>
                     <div className="grid grid-cols-3 gap-1.5 max-h-[260px] overflow-y-auto">
                       {library.map(item => {
@@ -899,7 +917,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                             <button
                               onClick={() => applyLibraryItemToAllSlots(item)}
                               className="absolute bottom-1 right-1 h-5 w-5 rounded bg-brand text-white grid place-items-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-brand/80"
-                              title="10 slota uygula"
+                              title={`${slotCount} slota uygula`}
                             >
                               <Copy className="h-3 w-3" />
                             </button>
@@ -932,21 +950,55 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                     Dekoratif şekiller slot sınırlarını aşar — Vatan/Akakçe stilinde birleşik tasarım.
                   </p>
 
-                  {/* Slot pattern seçici — karma pattern destekli */}
+                  {/* Slot sayısı + pattern seçici */}
                   <div className="mb-2.5 rounded border bg-muted/30 p-2">
+                    {/* Slot sayısı */}
                     <label className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1.5 block">
-                      Slot pattern (toplam 10)
+                      Slot sayısı
+                    </label>
+                    <div className="grid grid-cols-3 gap-1 mb-2.5">
+                      {([5, 8, 10] as const).map(n => (
+                        <button
+                          key={n}
+                          onClick={() => setSlotCount(n)}
+                          className={`py-1.5 rounded text-center transition-colors ${
+                            slotCount === n ? 'bg-brand text-white' : 'bg-background hover:bg-muted border border-border'
+                          }`}
+                        >
+                          <div className="text-[11px] font-bold leading-tight">{n} slot</div>
+                          <div className={`text-[9px] leading-tight ${slotCount === n ? 'text-white/80' : 'text-muted-foreground'}`}>
+                            {n === 5 ? 'App Store typical' : n === 8 ? 'Play Store max' : 'Apple max'}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Pattern seçici — slot sayısına göre dinamik preset'ler */}
+                    <label className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1.5 block">
+                      Pattern (toplam {slotCount})
                     </label>
                     <div className="grid grid-cols-2 gap-1 mb-2">
-                      {([
-                        { p: [10],                         label: 'Tek (10)' },
-                        { p: [5, 5],                       label: '5+5' },
-                        { p: [2, 2, 2, 2, 2],              label: 'Beş ikili' },
-                        { p: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1], label: 'Tümü tekli' },
-                        { p: [2, 1, 2, 1, 2, 1, 1],        label: 'İkili+Tekli (Vatan)' },
-                        { p: [2, 1, 1, 1, 2, 1, 1, 1],     label: 'İkili+3-Tekli' },
-                        { p: [3, 1, 3, 1, 1, 1],           label: '3-lü+Tekli' },
-                        { p: [3, 2, 2, 3],                 label: '3-2-2-3' },
+                      {(slotCount === 5 ? [
+                        { p: [5],                  label: 'Tek panorama (Vatan)' },
+                        { p: [1, 1, 1, 1, 1],      label: 'Tümü tekli (Teknosa)' },
+                        { p: [2, 1, 1, 1],         label: 'İkili+3 Tekli (Koçtaş)' },
+                        { p: [3, 1, 1],            label: '3-lü+2 Tekli (Akakçe)' },
+                        { p: [1, 1, 3],            label: '2 Tekli+3-lü (Mudo)' },
+                        { p: [1, 1, 2, 1],         label: 'Tekli-Tekli-2-Tekli (M.Coco)' },
+                      ] : slotCount === 8 ? [
+                        { p: [8],                              label: 'Tek panorama' },
+                        { p: [1, 1, 1, 1, 1, 1, 1, 1],         label: 'Tümü tekli' },
+                        { p: [2, 1, 1, 1, 1, 1, 1],            label: 'İkili+6 Tekli' },
+                        { p: [3, 1, 1, 1, 1, 1],               label: '3-lü+5 Tekli' },
+                        { p: [4, 4],                           label: '4+4' },
+                        { p: [2, 2, 2, 2],                     label: '4 ikili' },
+                      ] : [
+                        { p: [10],                            label: 'Tek (10)' },
+                        { p: [5, 5],                          label: '5+5' },
+                        { p: [2, 2, 2, 2, 2],                 label: 'Beş ikili' },
+                        { p: [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],  label: 'Tümü tekli' },
+                        { p: [2, 1, 1, 1, 2, 1, 1, 1],        label: 'İkili+3-Tekli x2' },
+                        { p: [3, 1, 1, 3, 1, 1],              label: '3-lü+Tekli x2' },
                       ] as const).map((opt, idx) => {
                         const isActive = JSON.stringify(panoramaPattern) === JSON.stringify(opt.p);
                         return (
@@ -958,7 +1010,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                             }`}
                           >
                             <div className="text-[11px] font-bold leading-tight">{opt.label}</div>
-                            <div className={`text-[9px] leading-tight ${isActive ? 'text-white/80' : 'text-muted-foreground'}`}>
+                            <div className={`text-[9px] leading-tight font-mono ${isActive ? 'text-white/80' : 'text-muted-foreground'}`}>
                               {opt.p.join('-')}
                             </div>
                           </button>
@@ -969,24 +1021,24 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                     {/* Custom pattern input */}
                     <details className="mb-2">
                       <summary className="text-[10px] font-semibold cursor-pointer text-muted-foreground hover:text-foreground">
-                        Özel pattern yaz (örn. 2,1,2,1,1,3)
+                        Özel pattern yaz (toplam {slotCount} olmalı)
                       </summary>
                       <div className="mt-1.5 flex gap-1">
                         <input
                           type="text"
-                          placeholder="2,1,2,1,1,3"
+                          placeholder={slotCount === 5 ? '2,1,1,1' : slotCount === 8 ? '2,1,1,1,1,1,1' : '2,1,2,1,1,3'}
                           value={customPatternInput}
                           onChange={e => setCustomPatternInput(e.target.value)}
                           className="flex-1 px-2 py-1 text-[11px] rounded border border-input bg-background"
                         />
                         <button
                           onClick={() => {
-                            const parts = customPatternInput.split(/[,\s]+/).map(s => parseInt(s, 10)).filter(n => Number.isInteger(n) && n >= 1 && n <= 10);
+                            const parts = customPatternInput.split(/[,\s]+/).map(s => parseInt(s, 10)).filter(n => Number.isInteger(n) && n >= 1 && n <= slotCount);
                             const sum = parts.reduce((a, b) => a + b, 0);
-                            if (sum === 10 && parts.length > 0) {
+                            if (sum === slotCount && parts.length > 0) {
                               setPanoramaPattern(parts);
                             } else {
-                              toast.error(`Toplam 10 olmalı (şu an ${sum}). Örn: 2,1,2,1,1,3`);
+                              toast.error(`Toplam ${slotCount} olmalı (şu an ${sum})`);
                             }
                           }}
                           className="px-2 py-1 text-[11px] rounded border border-input hover:bg-muted"
@@ -1069,14 +1121,14 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
 
             {sidebar === 'layout' && (
               <div className="space-y-3">
-                {/* Set Tasarımı — AI bg üret + 10 slota uygula + layout dağıt */}
+                {/* Set Tasarımı — AI bg üret + {slotCount} slota uygula + layout dağıt */}
                 <div className="rounded-lg border border-brand/40 bg-brand/5 p-3">
                   <div className="flex items-center gap-2 mb-1">
                     <Sparkles className="h-4 w-4 text-brand" />
                     <h3 className="text-sm font-semibold">Set Tasarımı (10 Slot Birlikte)</h3>
                   </div>
                   <p className="text-[11px] text-muted-foreground mb-2 leading-snug">
-                    AI bg üret + 10 slota uygula + App Store akışıyla layout dağıt. Tüm slotlar aynı tasarım dünyasında.
+                    AI bg üret + {slotCount} slota uygula + App Store akışıyla layout dağıt. Tüm slotlar aynı tasarım dünyasında.
                   </p>
                   <div className="grid grid-cols-3 gap-1.5 mb-2">
                     {(['gradient', 'mesh', 'illustrative'] as const).map(s => (
@@ -1141,7 +1193,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                     } : {})}
                     className="w-full text-xs py-2 px-3 rounded border border-dashed border-foreground/30 hover:border-brand hover:bg-brand/5 transition-colors"
                   >
-                    Bu layout'u 10 slota uygula
+                    Bu layout'u {slotCount} slota uygula
                   </button>
                 </div>
               </div>
@@ -1263,7 +1315,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                   onClick={applyCurrentBackgroundToAllSlots}
                   className="w-full text-xs py-2 px-3 rounded border border-dashed border-foreground/30 hover:border-brand hover:bg-brand/5 transition-colors flex items-center justify-center gap-1.5"
                 >
-                  <Copy className="h-3.5 w-3.5" /> Aktif slot BG'sini 10 slota uygula
+                  <Copy className="h-3.5 w-3.5" /> Aktif slot BG'sini {slotCount} slota uygula
                 </button>
 
                 <div>

@@ -362,6 +362,47 @@ export function computeSlotDecorations(
   canvasHeight: number,
   totalGroups: number = 1,
 ): Decoration[] {
+  // SOLO MODE: groupSize=1 olunca slot kendi başına. Panorama şekilleri yerine
+  // tema paletinden tek bir merkezi accent shape döner — temayla uyumlu ama
+  // self-contained (komşu slotla bağ yok).
+  if (groupSize === 1) {
+    // Tema'nın ana accent rengini bul: ilk solid-fill (transparent değil) shape'ten al
+    const accentShape = theme.shapes.find(s => s.fill && s.fill !== 'transparent') ?? theme.shapes[0];
+    const accentFill = accentShape?.fill ?? '#ffffff';
+    // Her solo slot için aynı kompozisyon: phone arkasına büyük yumuşak daire,
+    // alt-üst köşelere küçük vurgular. Slot bağımsız ama tema palette tutarlı.
+    return [
+      // Büyük arka plan dairesi (phone arkasında, opacity düşük)
+      {
+        type: 'circle',
+        cx: canvasWidth * 0.5,
+        cy: canvasHeight * 0.55,
+        size: canvasWidth * 0.55,
+        fill: accentFill,
+        opacity: 0.16,
+      },
+      // Üst-sol köşe küçük accent
+      {
+        type: 'circle',
+        cx: canvasWidth * 0.12,
+        cy: canvasHeight * 0.1,
+        size: canvasWidth * 0.04,
+        fill: accentFill,
+        opacity: 0.7,
+      },
+      // Alt-sağ köşe küçük accent
+      {
+        type: 'circle',
+        cx: canvasWidth * 0.88,
+        cy: canvasHeight * 0.92,
+        size: canvasWidth * 0.05,
+        fill: accentFill,
+        opacity: 0.6,
+      },
+    ];
+  }
+
+  // PANORAMA MODE: groupSize >= 2 — şekiller grup içinde slot sınırlarını aşar
   // groupSize her grup için farklı olabilir (karma pattern)
   // scale: tema 1000vx aralığı bu grubun aralığına sıkışır
   const groupVirtualSpan = groupSize * 100;
