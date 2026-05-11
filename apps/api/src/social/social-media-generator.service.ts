@@ -5,6 +5,7 @@ import fs from 'node:fs/promises';
 import type { SocialChannelType } from '@prisma/client';
 import { ImageGeneratorService } from '../articles/image-generator.service.js';
 import { VideoGeneratorService } from '../articles/video-generator.service.js';
+import { MediaGeneratorService } from '../articles/media-generator.service.js';
 import {
   isMediaTypeAllowed,
   mediaDefaultFor,
@@ -58,6 +59,7 @@ export class SocialMediaGeneratorService {
     private readonly prisma: PrismaService,
     private readonly imageGen: ImageGeneratorService,
     private readonly videoGen: VideoGeneratorService,
+    private readonly mediaGen: MediaGeneratorService,
   ) {}
 
   /**
@@ -177,12 +179,25 @@ export class SocialMediaGeneratorService {
   /**
    * Article için FFmpeg slideshow video üretir.
    * TIKTOK/INSTAGRAM/YOUTUBE → vertical 1080x1920, diğerleri horizontal 1920x1080.
-   * Audio gerekli (TTS) — yoksa video-generator hata döner.
+   * Audio yoksa otomatik TTS üretir, sonra video oluşturur.
    */
   private async generateVideoFor(
     articleId: string,
     channelType: SocialChannelType,
   ): Promise<string> {
+    // 1) Audio kontrol — yoksa TTS üret
+    const article = await this.prisma.article.findUniqueOrThrow({ where: { id: articleId } });
+    const fm: any = article.frontmatter ?? {};
+    if (!fm.audio_url) {
+      this.log.log(`Article ${articleId} audio yok, TTS üretiliyor...`);
+      const audioResult = await this.mediaGen.generateAudio(articleId);
+      if (!audioResult.ok) {
+        throw new Error(`TTS audio üretilemedi: ${audioResult.error ?? 'bilinmeyen hata'}`);
+      }
+      this.log.log(`Article ${articleId} TTS hazır ($${audioResult.costUsd.toFixed(4)})`);
+    }
+
+    // 2) Video gen
     const format = videoFormatFor(channelType);
     const result = await this.videoGen.generate(articleId, { format });
     if (!result.ok || !result.publicUrl) {

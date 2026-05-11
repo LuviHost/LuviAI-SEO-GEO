@@ -6,9 +6,11 @@ import { SocialSlotsService } from './social-slots.service.js';
 import { SocialCalendarService } from './social-calendar.service.js';
 import { SocialAutoDraftService } from './social-auto-draft.service.js';
 import { SocialSchedulerService } from './social-scheduler.service.js';
+import { forwardRef } from '@nestjs/common';
 import { SocialMediaGeneratorService } from './social-media-generator.service.js';
 import { ImageGeneratorService } from '../articles/image-generator.service.js';
 import { VideoGeneratorService } from '../articles/video-generator.service.js';
+import { ArticlesModule } from '../articles/articles.module.js';
 
 /**
  * Sosyal medya — kanal yonetimi + post yayini + plan-bazli takvim/cron.
@@ -19,6 +21,9 @@ import { VideoGeneratorService } from '../articles/video-generator.service.js';
  * - Auto-draft: makale PUBLISHED olunca DRAFT post olusturur (kanal basina default mediaType).
  */
 @Module({
+  // ArticlesModule MediaGeneratorService + ImageGeneratorService + VideoGeneratorService export ediyor.
+  // forwardRef ile circular dependency korumalı (articles → social → articles olabilir).
+  imports: [forwardRef(() => ArticlesModule)],
   controllers: [SocialController],
   providers: [
     SocialChannelsService,
@@ -28,8 +33,6 @@ import { VideoGeneratorService } from '../articles/video-generator.service.js';
     SocialAutoDraftService,
     SocialSchedulerService,
     SocialMediaGeneratorService,
-    ImageGeneratorService,
-    VideoGeneratorService,
   ],
   exports: [
     SocialChannelsService,
