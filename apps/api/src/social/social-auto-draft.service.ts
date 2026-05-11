@@ -117,8 +117,12 @@ export class SocialAutoDraftService {
   }
 
   /**
-   * Site için backfill: son `daysAgo` günde yayınlanmış makaleler için eksik draft'ları üretir.
-   * Kanallar sonradan bağlandığında geçmiş makaleler için draft üretmek için.
+   * Site için backfill: son `daysAgo` günde oluşturulmuş ve yayına yakın makaleler için
+   * eksik draft'ları üretir. Kanallar sonradan bağlandığında geçmiş makaleler için draft üretmek için.
+   *
+   * Kapsam: PUBLISHED + SCHEDULED + READY_TO_PUBLISH article'lar. DRAFT article'lar dahil değil
+   * (henüz içerik kesinleşmemiş, draft social post üretmek erken).
+   *
    * Idempotent — zaten draft'ı olan article+channel kombinasyonu atlanır.
    */
   async backfillForSite(siteId: string, daysAgo = 30): Promise<{ articleCount: number; created: number; skipped: number }> {
@@ -126,11 +130,11 @@ export class SocialAutoDraftService {
     const articles = await this.prisma.article.findMany({
       where: {
         siteId,
-        status: 'PUBLISHED',
-        publishedAt: { gte: since },
+        status: { in: ['PUBLISHED', 'SCHEDULED', 'READY_TO_PUBLISH'] as any },
+        createdAt: { gte: since },
       },
       select: { id: true },
-      orderBy: { publishedAt: 'desc' },
+      orderBy: { createdAt: 'desc' },
       take: 50,
     });
 
