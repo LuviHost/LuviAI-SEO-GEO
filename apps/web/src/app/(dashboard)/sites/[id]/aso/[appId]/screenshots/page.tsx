@@ -358,6 +358,10 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
   // Örn (slotCount=5): [5] = tek panorama, [2,1,1,1] = ikili+tekli karma.
   const [panoramaPattern, setPanoramaPattern] = useState<number[]>([5]);
   const [customPatternInput, setCustomPatternInput] = useState<string>('');
+  // Son uygulanan panorama teması — pattern/slotCount değişince otomatik re-apply için.
+  const [lastAppliedTheme, setLastAppliedTheme] = useState<string | null>(null);
+  // applyPanoramaTheme'ı ref'le tutuyoruz ki useEffect içinden stale closure olmadan çağrılabilsin.
+  const applyPanoramaThemeRef = useRef<((id: string) => void) | null>(null);
 
   // Slot sayısı değişince slots array'i yeniden boyutlandır (mevcut slot verileri korunur)
   // ve default pattern'i [slotCount] yap (tek büyük panorama).
@@ -480,6 +484,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
   const applyPanoramaTheme = (themeId: string) => {
     const theme = PANORAMA_THEMES.find(t => t.id === themeId);
     if (!theme) return;
+    setLastAppliedTheme(themeId);  // pattern/slotCount değişince otomatik re-apply için
     setSlots(prev => prev.map((s, i) => {
       const { groupIndex, slotInGroup, groupSize } = getSlotGroupInfo(panoramaPattern, i);
       return {
@@ -491,6 +496,17 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
       };
     }));
   };
+  // Ref'i her render'da güncelle ki useEffect içinden her zaman güncel closure'a sahip versiyon çağrılsın
+  applyPanoramaThemeRef.current = applyPanoramaTheme;
+
+  // Pattern veya slotCount değişince mevcut tema otomatik yeniden uygulanır.
+  // Kullanıcı pattern butonuna bastığında tekrar tema seçmek zorunda kalmaz.
+  useEffect(() => {
+    if (lastAppliedTheme && applyPanoramaThemeRef.current) {
+      applyPanoramaThemeRef.current(lastAppliedTheme);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [panoramaPattern, slotCount]);
 
   // SET TASARIMI: AI bg üret → {slotCount} slota uygula → auto-layout dağıt. Tek hamlede tüm slotlar uyumlu hâle gelir.
   const generateSetDesign = async (style: 'gradient' | 'mesh' | 'illustrative' | 'bold' | 'minimalist') => {
