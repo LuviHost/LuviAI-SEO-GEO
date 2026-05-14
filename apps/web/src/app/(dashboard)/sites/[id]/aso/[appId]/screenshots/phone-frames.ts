@@ -1,4 +1,6 @@
 /** Phone frame metadata. Konva ile rounded rect olarak çizilir (SVG değil — perf). */
+export type FrameStyle = 'solid' | 'glass' | 'outline';
+
 export interface PhoneFrame {
   id: string;
   label: string;
@@ -10,6 +12,13 @@ export interface PhoneFrame {
   hasNotch: boolean;
   store: 'IOS' | 'ANDROID' | 'BOTH';
 }
+
+/** Glass style accent colors — frame body bu renkten %35 opacity ile çizilir, screenshot etrafına glow eklenir. */
+export const FRAME_STYLE_OPTIONS: Array<{ id: FrameStyle; label: string; description: string }> = [
+  { id: 'solid',   label: 'Solid',   description: 'Klasik telefon gövdesi (default)' },
+  { id: 'glass',   label: 'Glass',   description: 'Frosted glass — şeffaf body + glow' },
+  { id: 'outline', label: 'Outline', description: 'Sadece kontur — gövde transparan' },
+];
 
 export const PHONE_FRAMES: PhoneFrame[] = [
   // iOS

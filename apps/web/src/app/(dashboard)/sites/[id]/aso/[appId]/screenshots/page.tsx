@@ -15,7 +15,7 @@ import {
   Smartphone, RotateCw, Loader2, Upload, Trash2, Copy, Eye,
   Star, AlertCircle, CheckCircle2, X as XIcon, Wand2,
 } from 'lucide-react';
-import { PHONE_FRAMES } from './phone-frames';
+import { PHONE_FRAMES, FRAME_STYLE_OPTIONS } from './phone-frames';
 import { TEMPLATES } from './templates';
 import { PANORAMA_THEMES, computeSlotDecorations, type Decoration } from './panorama-themes';
 import type Konva from 'konva';
@@ -33,6 +33,25 @@ const PRESETS = [
   { id: 'ipad', label: 'iPad Pro 13"', width: 2048, height: 2732, store: 'IOS' as const },
 ];
 
+// shots.so'da olan 15 Google Font seçeneği — Konva PNG export için tarayıcıya yüklenmesi şart.
+const FONT_FAMILIES = [
+  { id: 'Inter',        label: 'Inter (default)' },
+  { id: 'Poppins',      label: 'Poppins' },
+  { id: 'Montserrat',   label: 'Montserrat' },
+  { id: 'Roboto',       label: 'Roboto' },
+  { id: 'Open Sans',    label: 'Open Sans' },
+  { id: 'Lato',         label: 'Lato' },
+  { id: 'Raleway',      label: 'Raleway' },
+  { id: 'Nunito',       label: 'Nunito' },
+  { id: 'Oswald',       label: 'Oswald (condensed)' },
+  { id: 'Bebas Neue',   label: 'Bebas Neue (display)' },
+  { id: 'Playfair Display', label: 'Playfair Display (serif)' },
+  { id: 'Merriweather', label: 'Merriweather (serif)' },
+  { id: 'DM Sans',      label: 'DM Sans' },
+  { id: 'Space Grotesk', label: 'Space Grotesk' },
+  { id: 'Manrope',      label: 'Manrope' },
+];
+
 interface SlotState {
   index: number;
   background: { type: 'gradient' | 'solid' | 'image'; value: string; image?: HTMLImageElement };
@@ -44,10 +63,17 @@ interface SlotState {
   textPosition: 'top' | 'bottom';
   textAlign?: 'left' | 'center' | 'right';
   phoneFrameId: string;
+  phoneFrameStyle?: 'solid' | 'glass' | 'outline';
   phoneTilt: number;
   phoneScale: number;
   phoneLayout?: 'single' | 'duo' | 'trio';
   phoneVerticalAlign?: 'top' | 'center' | 'bottom';
+  // Reflection (shots.so polish)
+  phoneReflection?: boolean;
+  phoneReflectionOpacity?: number;
+  // Typography
+  fontFamily?: string;
+  textGradient?: { from: string; to: string };
   screenshot?: HTMLImageElement;
   screenshotUrl?: string;
   screenshot2?: HTMLImageElement;
@@ -351,6 +377,8 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
   const [generatingCaptions, setGeneratingCaptions] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [bulkExporting, setBulkExporting] = useState(false);
+  const [bulkExportingAllPresets, setBulkExportingAllPresets] = useState(false);
+  const [bulkExportProgress, setBulkExportProgress] = useState<{ current: number; total: number; label: string } | null>(null);
 
   const [sidebar, setSidebar] = useState<'ai' | 'templates' | 'layout' | 'phone' | 'background' | 'text'>('ai');
 
@@ -362,6 +390,19 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
   const [lastAppliedTheme, setLastAppliedTheme] = useState<string | null>(null);
   // applyPanoramaTheme'ı ref'le tutuyoruz ki useEffect içinden stale closure olmadan çağrılabilsin.
   const applyPanoramaThemeRef = useRef<((id: string) => void) | null>(null);
+
+  // Google Fonts yükle — Konva canvas font'un DOM'da yüklü olmasını şart koşar.
+  // Tek bir <link> tag ile tüm seçenekleri preload eder; tekrar bağlanmasın diye id ile guard.
+  useEffect(() => {
+    const id = 'aso-google-fonts';
+    if (document.getElementById(id)) return;
+    const families = FONT_FAMILIES.map(f => `family=${encodeURIComponent(f.id)}:wght@400;600;700;800`).join('&');
+    const link = document.createElement('link');
+    link.id = id;
+    link.rel = 'stylesheet';
+    link.href = `https://fonts.googleapis.com/css2?${families}&display=swap`;
+    document.head.appendChild(link);
+  }, []);
 
   // Slot sayısı değişince slots array'i yeniden boyutlandır (mevcut slot verileri korunur)
   // ve default pattern'i [slotCount] yap (tek büyük panorama).
@@ -737,6 +778,46 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
     }
   };
 
+  // Auto-resize per store — tek tasarımı tüm PRESETS boyutlarına batch export.
+  // shots.so'da bu "Export all sizes" diye geçer; tek tıkla App Store + Play Store + iPad varyantlarını üretir.
+  const exportAllPresets = async () => {
+    setBulkExportingAllPresets(true);
+    const originalPreset = presetId;
+    const originalActive = activeSlot;
+    const total = PRESETS.length * slots.length;
+    let done = 0;
+    try {
+      for (const p of PRESETS) {
+        setPresetId(p.id);
+        // preset değişimi sonrası stage yeniden boyutlanmalı
+        await new Promise(r => setTimeout(r, 800));
+        for (let i = 0; i < slots.length; i++) {
+          setActiveSlot(i);
+          await new Promise(r => setTimeout(r, 450));
+          setBulkExportProgress({ current: done + 1, total, label: `${p.label} · slot ${i + 1}` });
+          if (stageRef.current) {
+            const scale = p.width / canvasViewWidth;
+            const dataUrl = stageRef.current.toDataURL({ pixelRatio: scale, mimeType: 'image/png' });
+            const link = document.createElement('a');
+            link.download = `${app?.name ?? 'app'}-${p.id}-${p.width}x${p.height}-slot${i + 1}.png`;
+            link.href = dataUrl;
+            link.click();
+            await new Promise(r => setTimeout(r, 180));
+          }
+          done++;
+        }
+      }
+      setPresetId(originalPreset);
+      setActiveSlot(originalActive);
+      toast.success(`${total} görsel indirildi — ${PRESETS.length} store × ${slots.length} slot`);
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setBulkExportProgress(null);
+      setBulkExportingAllPresets(false);
+    }
+  };
+
   const canvasViewWidth = 320;
   const canvasViewHeight = (canvasViewWidth * preset.height) / preset.width;
 
@@ -768,12 +849,31 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
             <Download className="h-4 w-4 mr-1" />
             {exporting ? 'İndiriliyor...' : 'Bu slotu indir'}
           </Button>
-          <Button size="sm" onClick={exportAll} disabled={bulkExporting}>
+          <Button size="sm" onClick={exportAll} disabled={bulkExporting || bulkExportingAllPresets}>
             <Download className={`h-4 w-4 mr-1 ${bulkExporting ? 'animate-spin' : ''}`} />
             {bulkExporting ? 'Render...' : `${slotCount} slotu indir`}
           </Button>
+          <Button size="sm" variant="default" onClick={exportAllPresets} disabled={bulkExporting || bulkExportingAllPresets} title={`${PRESETS.length} store × ${slotCount} slot = ${PRESETS.length * slotCount} görsel`}>
+            <Download className={`h-4 w-4 mr-1 ${bulkExportingAllPresets ? 'animate-spin' : ''}`} />
+            {bulkExportingAllPresets
+              ? (bulkExportProgress ? `${bulkExportProgress.current}/${bulkExportProgress.total}` : 'Render...')
+              : `Tüm storeları indir (${PRESETS.length}×${slotCount})`}
+          </Button>
         </div>
       </div>
+      {bulkExportingAllPresets && bulkExportProgress && (
+        <div className="bg-brand/10 border-b border-brand/30 px-4 py-1.5 text-xs flex items-center gap-2">
+          <div className="flex-1 h-1.5 bg-background rounded overflow-hidden">
+            <div
+              className="h-full bg-brand transition-all"
+              style={{ width: `${(bulkExportProgress.current / bulkExportProgress.total) * 100}%` }}
+            />
+          </div>
+          <span className="text-muted-foreground tabular-nums">
+            {bulkExportProgress.current}/{bulkExportProgress.total} · {bulkExportProgress.label}
+          </span>
+        </div>
+      )}
 
       <div className="flex-1 flex overflow-hidden">
         {/* SLOT NAVIGATOR — her slot için mini Konva render (decorations + phone + text birebir) */}
@@ -1242,6 +1342,24 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                   </div>
                 </div>
 
+                {/* Frame style — Solid / Glass / Outline (shots.so polish) */}
+                <div className="border-t pt-3">
+                  <label className="text-xs font-medium mb-1.5 block">Frame stili</label>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {FRAME_STYLE_OPTIONS.map(opt => (
+                      <button
+                        key={opt.id}
+                        onClick={() => updateSlot({ phoneFrameStyle: opt.id })}
+                        title={opt.description}
+                        className={`p-2 rounded border text-xs transition-colors text-center ${(slot.phoneFrameStyle ?? 'solid') === opt.id ? 'border-brand bg-brand/5' : 'border-border hover:border-foreground/20'}`}
+                      >
+                        <div className="text-[11px] font-medium">{opt.label}</div>
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-muted-foreground mt-1">Glass = şeffaf gövde + glow · Outline = sadece kontur</p>
+                </div>
+
                 {/* Screenshot uploads — duo/trio için 3 ayrı upload */}
                 <div className="border-t pt-3">
                   <label className="text-xs font-medium mb-1.5 block">App Screenshot{(slot.phoneLayout ?? 'single') !== 'single' ? ' #1' : ''}</label>
@@ -1293,6 +1411,30 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                 <div>
                   <label className="text-xs font-medium mb-1.5 block">Telefon gölgesi: {slot.phoneShadow ?? 70}%</label>
                   <input type="range" min="0" max="100" step="5" value={slot.phoneShadow ?? 70} onChange={e => updateSlot({ phoneShadow: parseInt(e.target.value) })} className="w-full" />
+                </div>
+
+                {/* Reflection (shots.so polish) */}
+                <div className="border border-input rounded-md p-2 space-y-2">
+                  <label className="flex items-center justify-between text-xs font-medium">
+                    <span>Yansıma (reflection)</span>
+                    <input
+                      type="checkbox"
+                      checked={!!slot.phoneReflection}
+                      onChange={e => updateSlot({ phoneReflection: e.target.checked })}
+                    />
+                  </label>
+                  {slot.phoneReflection && (
+                    <div>
+                      <label className="text-[10px] text-muted-foreground block">Yansıma yoğunluğu: {slot.phoneReflectionOpacity ?? 40}%</label>
+                      <input
+                        type="range" min="10" max="80" step="5"
+                        value={slot.phoneReflectionOpacity ?? 40}
+                        onChange={e => updateSlot({ phoneReflectionOpacity: parseInt(e.target.value) })}
+                        className="w-full"
+                      />
+                    </div>
+                  )}
+                  <p className="text-[10px] text-muted-foreground">Telefon altında ayna yansıması — premium görünüm için.</p>
                 </div>
 
                 <div>
@@ -1439,6 +1581,57 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                 <div>
                   <label className="text-xs font-medium mb-1 block">Yazı rengi</label>
                   <input type="color" value={slot.textColor} onChange={e => updateSlot({ textColor: e.target.value })} className="w-full h-10 cursor-pointer rounded border border-input" />
+                </div>
+                <div>
+                  <label className="text-xs font-medium mb-1 block">Font ailesi</label>
+                  <select
+                    value={slot.fontFamily ?? 'Inter'}
+                    onChange={e => updateSlot({ fontFamily: e.target.value })}
+                    className="w-full h-9 px-2 rounded-md border border-input text-sm bg-background"
+                  >
+                    {FONT_FAMILIES.map(f => (
+                      <option key={f.id} value={f.id} style={{ fontFamily: `${f.id}, sans-serif` }}>
+                        {f.label}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">Google Fonts &mdash; Konva canvas'a font yüklenir, PNG'de doğru render edilir.</p>
+                </div>
+                <div className="border border-input rounded-md p-2 space-y-2">
+                  <label className="flex items-center justify-between text-xs font-medium">
+                    <span>Hook'a gradient yazı</span>
+                    <input
+                      type="checkbox"
+                      checked={!!slot.textGradient}
+                      onChange={e =>
+                        updateSlot({
+                          textGradient: e.target.checked ? { from: '#ffffff', to: '#ffd166' } : undefined,
+                        })
+                      }
+                    />
+                  </label>
+                  {slot.textGradient && (
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-[10px] text-muted-foreground block">Üst renk</label>
+                        <input
+                          type="color"
+                          value={slot.textGradient.from}
+                          onChange={e => updateSlot({ textGradient: { from: e.target.value, to: slot.textGradient!.to } })}
+                          className="w-full h-8 cursor-pointer rounded border border-input"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-[10px] text-muted-foreground block">Alt renk</label>
+                        <input
+                          type="color"
+                          value={slot.textGradient.to}
+                          onChange={e => updateSlot({ textGradient: { from: slot.textGradient!.from, to: e.target.value } })}
+                          className="w-full h-8 cursor-pointer rounded border border-input"
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <div>
                   <label className="text-xs font-medium mb-1 block">Hook font: {slot.hookFontSize}px</label>
