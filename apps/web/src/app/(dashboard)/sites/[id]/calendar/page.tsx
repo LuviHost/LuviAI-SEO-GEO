@@ -83,8 +83,8 @@ export default function CalendarPage() {
           <Calendar className="h-5 w-5" />
         </div>
         <div>
-          <h2 className="text-2xl font-bold">Takvim</h2>
-          <p className="text-sm text-muted-foreground">Planlanmış makaleler. Sürükleyip günü değiştir, saatini ayarla.</p>
+          <h2 className="text-2xl font-bold">Makale Takvimi</h2>
+          <p className="text-sm text-muted-foreground">Planlanmış makaleler + hangi sosyal kanallarda paylaşılacağı. Sürükleyip günü değiştir, saatini ayarla.</p>
         </div>
       </div>
       {scheduled.length === 0 ? (

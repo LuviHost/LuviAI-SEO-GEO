@@ -138,12 +138,12 @@ export default function SocialCalendarPage() {
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div className="flex items-start gap-3">
           <div className="h-10 w-10 rounded-xl bg-violet-500/10 text-violet-600 dark:text-violet-400 grid place-items-center">
-            <Calendar className="h-5 w-5" />
+            <Send className="h-5 w-5" />
           </div>
           <div>
-            <h2 className="text-2xl font-bold">Sosyal Takvim</h2>
+            <h2 className="text-2xl font-bold">Sosyal Post Takvimi</h2>
             <p className="text-sm text-muted-foreground">
-              Makale yayınlanınca her kanal için draft otomatik üretilir. Medyayı oluştur, onayla, takvime al.
+              Sosyal medya postları (DRAFT → QUEUED → PUBLISHED). Makaleden veya manuel oluştur, medyayı üret, onayla, takvime al.
             </p>
           </div>
         </div>

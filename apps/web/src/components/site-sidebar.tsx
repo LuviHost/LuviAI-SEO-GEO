@@ -87,10 +87,10 @@ const SITE_GROUPS = (siteId: string) => [
     items: [
       { href: `/sites/${siteId}/articles`, label: 'İçerikler', icon: FileText },
       { href: `/sites/${siteId}/prompts`, label: 'Prompt Kütüphanesi', icon: Library },
-      { href: `/sites/${siteId}/calendar`, label: 'Takvim', icon: Calendar },
-      { href: `/sites/${siteId}/social-calendar`, label: 'Sosyal Takvim', icon: Calendar },
+      { href: `/sites/${siteId}/calendar`, label: 'Makale Takvimi', icon: Calendar },
+      { href: `/sites/${siteId}/social-calendar`, label: 'Sosyal Post Takvimi', icon: Send },
       { href: `/sites/${siteId}/social-ideas`, label: 'Fikir Panosu', icon: Lightbulb },
-      { href: `/sites/${siteId}/social-inbox`, label: 'Social Inbox', icon: Mail },
+      { href: `/sites/${siteId}/social-inbox`, label: 'Sosyal Inbox', icon: Mail },
       { href: `/sites/${siteId}/media-library`, label: 'Media Library', icon: ImageIcon },
       { href: `/sites/${siteId}/videos`, label: 'Video Factory', icon: Film },
       { href: `/sites/${siteId}/publish-targets`, label: 'Yayın Hedefleri', icon: Send },
