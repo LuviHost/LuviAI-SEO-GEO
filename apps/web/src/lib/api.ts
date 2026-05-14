@@ -947,4 +947,43 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ names, country }),
     }),
+
+  // ──────────────────────────────────────────────────────────────────
+  // Studio — multi-modal AI content (image / video / text) — DB-backed
+  // ──────────────────────────────────────────────────────────────────
+
+  listStudioImageProviders: () =>
+    request<Array<{ key: string; label: string; description: string; estTime: string; costBand: string }>>(
+      '/studio/image/providers',
+    ),
+
+  generateStudioImage: (siteId: string, body: { prompt: string; provider?: string; width?: number; height?: number; brandColor?: string }) =>
+    request<{ ok: boolean; assetId?: string; url?: string; costUsd?: number; error?: string }>(
+      `/sites/${siteId}/studio/image`,
+      { method: 'POST', body: JSON.stringify(body) },
+    ),
+
+  generateStudioText: (siteId: string, body: { prompt: string; format?: 'short' | 'medium' | 'long'; tone?: string; language?: 'tr' | 'en' }) =>
+    request<{ ok: boolean; assetId?: string; text?: string; costUsd?: number; tokens?: number }>(
+      `/sites/${siteId}/studio/text`,
+      { method: 'POST', body: JSON.stringify(body) },
+    ),
+
+  listStudioAssets: (siteId: string, params: { type?: 'IMAGE' | 'VIDEO' | 'TEXT'; favorite?: boolean } = {}) => {
+    const q = new URLSearchParams();
+    if (params.type) q.set('type', params.type);
+    if (params.favorite) q.set('favorite', '1');
+    const tail = q.toString() ? `?${q.toString()}` : '';
+    return request<Array<{
+      id: string; siteId: string; userId?: string; type: 'IMAGE' | 'VIDEO' | 'TEXT';
+      prompt: string; provider: string; url?: string; text?: string;
+      metadata?: any; favorite: boolean; createdAt: string;
+    }>>(`/sites/${siteId}/studio/assets${tail}`);
+  },
+
+  updateStudioAsset: (assetId: string, body: { favorite?: boolean }) =>
+    request<any>(`/studio/assets/${assetId}`, { method: 'PATCH', body: JSON.stringify(body) }),
+
+  deleteStudioAsset: (assetId: string) =>
+    request<{ ok: boolean }>(`/studio/assets/${assetId}`, { method: 'DELETE' }),
 };
