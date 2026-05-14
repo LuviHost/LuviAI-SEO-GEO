@@ -117,42 +117,72 @@ export default function FaqPage() {
   const [open, setOpen] = useState<number | null>(0);
 
   return (
-    <div className="bg-gradient-to-b from-background to-muted">
+    <div className="relative">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
       />
-      <main className="container max-w-3xl py-12">
-        <h1 className="text-4xl md:text-5xl font-bold mb-3 text-center">Sık Sorulan Sorular</h1>
-        <p className="text-muted-foreground text-center mb-12">
-          Cevabını bulamadığın bir soru varsa{' '}
-          <a href="mailto:destek@luvihost.com" className="text-brand hover:underline">
-            destek@luvihost.com
-          </a>
-        </p>
+      {/* gradient blob */}
+      <div className="absolute inset-0 -z-10 overflow-hidden pointer-events-none">
+        <div className="absolute top-20 -left-20 w-96 h-96 bg-orange-500/10 rounded-full blur-3xl" />
+        <div className="absolute top-40 -right-20 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl" />
+      </div>
+
+      <main className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+        <div className="text-center mb-12">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-500/10 border border-orange-500/20 text-orange-600 text-xs font-semibold mb-5">
+            ❓ SSS
+          </div>
+          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-tight mb-4">
+            Sıkça{' '}
+            <span className="bg-gradient-to-r from-orange-500 via-orange-600 to-red-600 bg-clip-text text-transparent">
+              sorulan
+            </span>{' '}
+            sorular
+          </h1>
+          <p className="text-lg text-muted-foreground">
+            Cevabını bulamadığın bir soru varsa{' '}
+            <a href="mailto:destek@luvihost.com" className="text-orange-600 hover:underline">
+              destek@luvihost.com
+            </a>
+          </p>
+        </div>
 
         <div className="space-y-3">
           {FAQS.map((item, i) => (
-            <Card key={i}>
+            <div
+              key={i}
+              className={`rounded-2xl border bg-background transition-all ${
+                open === i ? 'border-orange-500/30 shadow-md' : 'hover:border-orange-500/20'
+              }`}
+            >
               <button
                 onClick={() => setOpen(open === i ? null : i)}
                 className="w-full text-left p-5 flex items-center justify-between gap-4"
               >
                 <span className="font-semibold faq-question">{item.q}</span>
-                <ChevronDown className={cn('h-5 w-5 transition-transform shrink-0', open === i && 'rotate-180')} />
+                <ChevronDown className={cn('h-5 w-5 transition-transform shrink-0 text-muted-foreground', open === i && 'rotate-180 text-orange-600')} />
               </button>
               {open === i && (
-                <CardContent className="pt-0 text-sm text-muted-foreground leading-relaxed faq-answer">
+                <div className="px-5 pb-5 text-sm text-muted-foreground leading-relaxed faq-answer">
                   {item.a}
-                </CardContent>
+                </div>
               )}
-            </Card>
+            </div>
           ))}
         </div>
 
-        <div className="mt-12 text-center">
-          <Link href="/onboarding" className="inline-block px-6 py-3 bg-brand text-white rounded-lg font-semibold">
-            1 Makale Ücretsiz Dene
+        {/* CTA */}
+        <div className="rounded-2xl bg-gradient-to-br from-orange-500 via-orange-600 to-red-600 text-white p-10 text-center mt-12">
+          <h2 className="text-2xl sm:text-3xl font-extrabold mb-3">Sorunu çözemedik mi?</h2>
+          <p className="text-white/90 mb-6">
+            Hemen dene, sonra karar ver. İlk makale ücretsiz.
+          </p>
+          <Link
+            href="/onboarding"
+            className="inline-flex items-center gap-2 bg-white text-orange-600 hover:bg-white/90 px-8 py-3 rounded-lg font-bold shadow-xl"
+          >
+            1 Makale Ücretsiz Dene →
           </Link>
         </div>
       </main>

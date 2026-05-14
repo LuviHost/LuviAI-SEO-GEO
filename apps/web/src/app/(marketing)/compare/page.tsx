@@ -164,15 +164,25 @@ export default function ComparePage() {
         }) }}
       />
 
-      <main className="container max-w-6xl py-10 sm:py-16 px-4">
+      <main className="relative">
+        <div className="absolute inset-0 -z-10 overflow-hidden pointer-events-none">
+          <div className="absolute top-20 -left-20 w-96 h-96 bg-orange-500/10 rounded-full blur-3xl" />
+          <div className="absolute top-60 -right-20 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl" />
+        </div>
+
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         {/* HERO */}
-        <div className="text-center max-w-3xl mx-auto mb-10 sm:mb-14">
-          <Badge variant="outline" className="mb-4">Detaylı feature karşılaştırma</Badge>
-          <h1 className="text-3xl sm:text-5xl md:text-6xl font-bold tracking-tight mb-4">
-            LuviAI vs<br className="sm:hidden" />{' '}
-            <span className="text-brand">tüm rakipleri</span>
+        <div className="text-center max-w-3xl mx-auto mb-12">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-500/10 border border-orange-500/20 text-orange-600 text-xs font-semibold mb-5">
+            ⚖️ Detaylı karşılaştırma
+          </div>
+          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-tight mb-4">
+            LuviAI vs{' '}
+            <span className="bg-gradient-to-r from-orange-500 via-orange-600 to-red-600 bg-clip-text text-transparent">
+              tüm rakipleri
+            </span>
           </h1>
-          <p className="text-base sm:text-lg text-muted-foreground mb-6">
+          <p className="text-lg text-muted-foreground mb-6">
             <strong className="text-foreground">{luviaiCount}+ özellik</strong> tek panelde. SEO + AI Search + Reklam + Sosyal yayın
             — diğerleri tek bir alanda iyi, LuviAI hepsini birleştiren tek Türk platform.
           </p>
@@ -303,21 +313,22 @@ export default function ComparePage() {
         </div>
 
         {/* FINAL CTA */}
-        <div className="mt-12 text-center">
-          <h3 className="text-2xl sm:text-3xl font-bold mb-3">
+        <div className="mt-16 rounded-2xl bg-gradient-to-br from-orange-500 via-orange-600 to-red-600 text-white p-10 text-center">
+          <h3 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold mb-3">
             14 günde 1 sayfa yerine 14 makale yayınla
           </h3>
-          <p className="text-muted-foreground mb-6 max-w-xl mx-auto text-sm">
+          <p className="text-white/90 mb-6 max-w-xl mx-auto">
             İlk makale ücretsiz. Saatler süren işi dakikalara indir. AI Search'te de görün — 6 ay sonra gelen değişimi şimdi yakala.
           </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <Button asChild size="lg" className="bg-brand hover:bg-brand/90">
+            <Button asChild size="lg" className="bg-white text-orange-600 hover:bg-white/90 shadow-xl">
               <Link href="/onboarding">İlk makaleni ücretsiz al →</Link>
             </Button>
-            <Button asChild size="lg" variant="outline">
+            <Button asChild size="lg" variant="outline" className="bg-transparent border-white/30 text-white hover:bg-white/10">
               <Link href="/pricing">Fiyatlandırmayı incele</Link>
             </Button>
           </div>
+        </div>
         </div>
       </main>
     </div>

@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { LocaleSwitch } from '@/components/locale-switch';
-import { Check } from 'lucide-react';
+import { CheckCircle2, Sparkles, ShieldCheck, ArrowRight } from 'lucide-react';
 
 export default function PricingPage() {
   const { t } = useT();
@@ -74,103 +74,137 @@ export default function PricingPage() {
   const realPlans = plans.filter((p) => p.id !== 'trial');
 
   return (
-    <div className="bg-gradient-to-b from-background to-muted">
-      <main className="container py-8 sm:py-12 px-4">
-        <div className="text-center mb-8 sm:mb-12">
-          <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-3">{t('pricing.title')}</h1>
-          <p className="text-muted-foreground text-base sm:text-lg px-2">{t('pricing.subtitle')}</p>
-          <div className="mt-6 inline-flex items-center gap-2 bg-brand/5 border border-brand/20 rounded-full px-4 py-1.5">
-            <span className="text-xs font-bold text-brand">İLK MAKALE ÜCRETSİZ</span>
-            <span className="text-muted-foreground">·</span>
-            <span className="text-xs">PayTR güvenli ödeme</span>
-            <span className="text-muted-foreground">·</span>
-            <span className="text-xs">Aylık iptal</span>
+    <div className="relative">
+      {/* gradient blob accents */}
+      <div className="absolute inset-0 -z-10 overflow-hidden pointer-events-none">
+        <div className="absolute top-10 -left-20 w-96 h-96 bg-orange-500/10 rounded-full blur-3xl" />
+        <div className="absolute top-40 -right-20 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl" />
+      </div>
+
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-24">
+        <div className="max-w-3xl mx-auto text-center mb-12">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-500/10 border border-orange-500/20 text-orange-600 text-xs font-semibold mb-5">
+            <Sparkles className="h-3 w-3" />
+            <span>14 gün ücretsiz · Kredi kartı yok</span>
           </div>
+          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-tight">
+            Şeffaf fiyat,{' '}
+            <span className="bg-gradient-to-r from-orange-500 via-orange-600 to-red-600 bg-clip-text text-transparent">
+              ölçeklenebilir plan
+            </span>
+          </h1>
+          <p className="mt-5 text-lg text-muted-foreground">
+            {t('pricing.subtitle')}
+          </p>
         </div>
 
-        <div className="flex justify-center mb-10">
-          <div className="inline-flex bg-card border rounded-lg p-1">
+        <div className="flex justify-center mb-12">
+          <div className="inline-flex bg-background border rounded-full p-1 shadow-sm">
             <button
               onClick={() => setCycle('monthly')}
-              className={`px-5 py-2 text-sm font-medium rounded-md transition-colors ${
-                cycle === 'monthly' ? 'bg-brand text-white' : 'text-muted-foreground'
+              className={`px-6 py-2 text-sm font-medium rounded-full transition-all ${
+                cycle === 'monthly'
+                  ? 'bg-gradient-to-br from-orange-500 to-orange-600 text-white shadow-md'
+                  : 'text-muted-foreground hover:text-foreground'
               }`}
             >
               {t('pricing.monthly')}
             </button>
             <button
               onClick={() => setCycle('annual')}
-              className={`px-5 py-2 text-sm font-medium rounded-md transition-colors flex items-center gap-2 ${
-                cycle === 'annual' ? 'bg-brand text-white' : 'text-muted-foreground'
+              className={`px-6 py-2 text-sm font-medium rounded-full transition-all flex items-center gap-2 ${
+                cycle === 'annual'
+                  ? 'bg-gradient-to-br from-orange-500 to-orange-600 text-white shadow-md'
+                  : 'text-muted-foreground hover:text-foreground'
               }`}
             >
               {t('pricing.annual')}
-              <Badge variant="secondary" className="text-[10px]">-20%</Badge>
+              <span className="text-[10px] bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 px-1.5 py-0.5 rounded-full font-bold">-20%</span>
             </button>
           </div>
         </div>
 
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 max-w-5xl mx-auto">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
           {realPlans.map((p) => {
             const price = cycle === 'annual' ? p.annual : p.monthly;
             const monthlyEq = cycle === 'annual' ? Math.round(p.annual / 12) : p.monthly;
+            const highlighted = p.popular;
             return (
-              <Card key={p.id} className={`relative ${p.popular ? 'ring-2 ring-brand shadow-xl sm:col-span-2 lg:col-span-1' : ''}`}>
-                {p.popular && (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2">
-                    <Badge>{t('pricing.popular')}</Badge>
+              <div
+                key={p.id}
+                className={`p-8 rounded-2xl border flex flex-col relative ${
+                  highlighted
+                    ? 'bg-gradient-to-br from-orange-500/10 to-orange-500/5 border-orange-500/30 shadow-xl shadow-orange-500/10 lg:scale-105'
+                    : 'bg-background hover:border-orange-500/30 transition-colors'
+                }`}
+              >
+                {highlighted && (
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-gradient-to-br from-orange-500 to-orange-600 text-white text-[10px] font-bold uppercase tracking-wider shadow-md">
+                    {t('pricing.popular')}
                   </div>
                 )}
-                <CardHeader>
-                  <h2 className="text-xl sm:text-2xl font-bold">{p.name}</h2>
-                  <div className="mt-2">
-                    <span className="text-3xl sm:text-4xl font-bold">₺{price.toLocaleString('tr-TR')}</span>
-                    <span className="text-muted-foreground text-sm ml-2">
-                      /{cycle === 'annual' ? 'yıl' : 'ay'}
-                    </span>
-                  </div>
-                  {cycle === 'annual' && (
-                    <p className="text-xs text-muted-foreground">
-                      aylık ortalama ₺{monthlyEq}
-                    </p>
+
+                <h2 className="text-xl font-bold">{p.name}</h2>
+                <div className="mt-4">
+                  <span className="text-4xl sm:text-5xl font-extrabold">
+                    ₺{price.toLocaleString('tr-TR')}
+                  </span>
+                  <span className="text-muted-foreground text-sm ml-2">
+                    /{cycle === 'annual' ? 'yıl' : 'ay'}
+                  </span>
+                </div>
+                {cycle === 'annual' && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Aylık ortalama ₺{monthlyEq.toLocaleString('tr-TR')}
+                  </p>
+                )}
+
+                <ul className="space-y-3 text-sm mt-6 mb-8 flex-1">
+                  <Feat highlight={highlighted}>{p.articlesPerMonth} {t('pricing.articles_per_month')}</Feat>
+                  <Feat highlight={highlighted}>{p.socialPostsPerMonth} {t('pricing.social_posts_per_month')}</Feat>
+                  <Feat highlight={highlighted}>{p.sites} {t('pricing.sites')}</Feat>
+                  <Feat highlight={highlighted}>{p.publishTargets === 'all' ? t('pricing.all_publish_targets') : t('pricing.markdown_only')}</Feat>
+                  <Feat highlight={highlighted}>{p.support}</Feat>
+                  <Feat highlight={highlighted}>TR + EN içerik</Feat>
+                  <Feat highlight={highlighted}>GEO/AEO optimizasyon</Feat>
+                </ul>
+
+                <Button
+                  onClick={() => subscribe(p.id)}
+                  disabled={loading === p.id}
+                  className={`w-full ${
+                    highlighted
+                      ? 'bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white shadow-md'
+                      : ''
+                  }`}
+                  variant={highlighted ? 'default' : 'outline'}
+                >
+                  {loading === p.id ? t('common.loading') : (
+                    <>
+                      {t('pricing.cta')}
+                      <ArrowRight className="ml-2 h-4 w-4" />
+                    </>
                   )}
-                </CardHeader>
-                <CardContent>
-                  <ul className="space-y-2 text-sm mb-6">
-                    <Feat>{p.articlesPerMonth} {t('pricing.articles_per_month')}</Feat>
-                    <Feat>{p.socialPostsPerMonth} {t('pricing.social_posts_per_month')}</Feat>
-                    <Feat>{p.sites} {t('pricing.sites')}</Feat>
-                    <Feat>{p.publishTargets === 'all' ? t('pricing.all_publish_targets') : t('pricing.markdown_only')}</Feat>
-                    <Feat>{p.support}</Feat>
-                    <Feat>TR + EN içerik</Feat>
-                    <Feat>GEO/AEO optimizasyon</Feat>
-                  </ul>
-                  <Button
-                    onClick={() => subscribe(p.id)}
-                    disabled={loading === p.id}
-                    variant={p.popular ? 'default' : 'outline'}
-                    className="w-full"
-                  >
-                    {loading === p.id ? t('common.loading') : t('pricing.cta')}
-                  </Button>
-                </CardContent>
-              </Card>
+                </Button>
+              </div>
             );
           })}
         </div>
 
-        <div className="mt-12 text-center text-sm text-muted-foreground">
-          <p>{t('pricing.security_note')}</p>
+        <div className="mt-12 max-w-2xl mx-auto text-center text-sm text-muted-foreground">
+          <p className="inline-flex items-center gap-2">
+            <ShieldCheck className="h-4 w-4" /> {t('pricing.security_note')}
+          </p>
         </div>
       </main>
     </div>
   );
 }
 
-function Feat({ children }: { children: React.ReactNode }) {
+function Feat({ children, highlight }: { children: React.ReactNode; highlight?: boolean }) {
   return (
-    <li className="flex items-center gap-2 text-foreground/80">
-      <Check className="h-4 w-4 text-brand shrink-0" />
+    <li className="flex items-start gap-2 text-foreground/90">
+      <CheckCircle2 className={`h-4 w-4 mt-0.5 shrink-0 ${highlight ? 'text-orange-600' : 'text-emerald-600'}`} />
       <span>{children}</span>
     </li>
   );
