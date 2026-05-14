@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { LocaleSwitch } from '@/components/locale-switch';
 import {
-  Sparkles, Zap, Globe, Calendar, Bot, FileText, BarChart3, CheckCircle2,
+  Sparkles, Globe, Calendar, Bot, FileText, BarChart3, CheckCircle2,
   ArrowRight, Send, Search, Layers, Clock, ShieldCheck, Repeat,
   Megaphone, Award, Network, MessageSquare, Star, TrendingUp, Mic, Map,
 } from 'lucide-react';

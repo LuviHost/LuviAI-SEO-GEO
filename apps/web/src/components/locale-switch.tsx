@@ -1,7 +1,6 @@
 'use client';
 
 import { useT } from '@/lib/i18n';
-import { Button } from './ui/button';
 
 export function LocaleSwitch() {
   const { locale, setLocale } = useT();
