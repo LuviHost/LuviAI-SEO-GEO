@@ -1,10 +1,15 @@
 import './globals.css';
+import Script from 'next/script';
 import type { Metadata, Viewport } from 'next';
 import { ThemeProvider } from '@/components/theme-provider';
 import { CookieConsent } from '@/components/cookie-consent';
 import { AppSessionProvider } from '@/components/session-provider';
 import { Toaster } from 'sonner';
 import { RefTracker } from '@/components/ref-tracker';
+
+// Microsoft Clarity project ID — heatmap + session recording.
+// Default to LuviAI production project; .env'den override edilebilir (staging için ayrı ID).
+const CLARITY_PROJECT_ID = process.env.NEXT_PUBLIC_CLARITY_PROJECT_ID ?? 'wr4kuo9zhi';
 
 const SITE_URL = 'https://ai.luvihost.com';
 const TITLE = 'LuviAI — SEO, içerik üretimi, sosyal medya ve reklam tek panelden';
@@ -188,6 +193,16 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body className="antialiased min-h-screen bg-background text-foreground">
+        {/* Microsoft Clarity — session replay + heatmap. afterInteractive: ana içerikten sonra. */}
+        {CLARITY_PROJECT_ID && (
+          <Script id="ms-clarity" strategy="afterInteractive">
+            {`(function(c,l,a,r,i,t,y){
+              c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+              t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+              y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+            })(window, document, "clarity", "script", "${CLARITY_PROJECT_ID}");`}
+          </Script>
+        )}
         <RefTracker />
         <AppSessionProvider>
           <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>

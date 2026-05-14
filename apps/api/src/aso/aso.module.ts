@@ -7,6 +7,8 @@ import { AsoTrackerService } from './tracker.service.js';
 import { AsoReviewsService } from './reviews.service.js';
 import { AsoAiAgentService } from './ai-agent.service.js';
 import { AsoScreenshotService } from './screenshot.service.js';
+import { ASOScorerService } from './aso-scorer.service.js';
+import { ItunesApiClient } from './itunes-api.client.js';
 import { PrismaModule } from '../prisma/prisma.module.js';
 import { LLMModule } from '../llm/llm.module.js';
 
@@ -21,7 +23,9 @@ import { LLMModule } from '../llm/llm.module.js';
     AsoReviewsService,
     AsoAiAgentService,
     AsoScreenshotService,
+    ASOScorerService,
+    ItunesApiClient,
   ],
-  exports: [AsoService, AsoTrackerService, AsoScreenshotService],
+  exports: [AsoService, AsoTrackerService, AsoScreenshotService, ASOScorerService, ItunesApiClient],
 })
 export class AsoModule {}
