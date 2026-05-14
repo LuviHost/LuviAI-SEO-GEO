@@ -889,4 +889,62 @@ export const api = {
 
   deleteVideo: (id: string) =>
     request<{ id: string }>(`/videos/${id}`, { method: 'DELETE' }),
+
+  // ──────────────────────────────────────────────────────────────────
+  // ASO Health (claude-code-aso-skill port) — score gauge + competitors
+  // ──────────────────────────────────────────────────────────────────
+
+  asoCalculateScore: (
+    siteId: string,
+    appId: string,
+    body: {
+      targetKeywords?: string[];
+      keywordPerformance?: { top_10?: number; top_50?: number; top_100?: number; improving_keywords?: number };
+      conversion?: { impression_to_install?: number; downloads_last_30_days?: number; downloads_trend?: 'up' | 'stable' | 'down' };
+    } = {},
+  ) =>
+    request<{
+      appId: string;
+      appName: string;
+      computedAt: string;
+      overall_score: number;
+      grade: 'A' | 'B' | 'C' | 'D' | 'F';
+      breakdown: Record<string, { score: number; weight: number; weighted_contribution: number }>;
+      recommendations: Array<{ category: string; priority: 'high' | 'medium' | 'low'; action: string; details: string; expected_impact: string }>;
+      strengths: string[];
+      weaknesses: string[];
+    }>(`/sites/${siteId}/aso/apps/${appId}/score`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+
+  asoListCompetitors: (siteId: string, category: string, country = 'tr', limit = 10) =>
+    request<{
+      category: string;
+      country: string;
+      count: number;
+      results: Array<{
+        app_id?: number;
+        app_name?: string;
+        developer?: string;
+        category?: string;
+        rating: number;
+        ratings_count: number;
+        description: string;
+        icon_url?: string;
+        app_store_url?: string;
+        price: string;
+        screenshots: string[];
+      }>;
+    }>(`/sites/${siteId}/aso/competitors?category=${encodeURIComponent(category)}&country=${country}&limit=${limit}`),
+
+  asoCompareCompetitors: (siteId: string, names: string[], country = 'tr') =>
+    request<{
+      country: string;
+      count: number;
+      results: Array<any>;
+    }>(`/sites/${siteId}/aso/competitors/compare`, {
+      method: 'POST',
+      body: JSON.stringify({ names, country }),
+    }),
 };

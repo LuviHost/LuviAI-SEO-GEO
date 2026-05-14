@@ -5,6 +5,16 @@ import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { VendorLogo, type VendorName } from '@/components/vendor-logo';
+
+const PROVIDER_TO_VENDOR: Record<string, VendorName> = {
+  anthropic:  'anthropic',
+  gemini:     'gemini',
+  openai:     'openai',
+  perplexity: 'perplexity',
+  xai:        'grok',
+  deepseek:   'deepseek',
+};
 
 type ProviderInfo = {
   provider: 'anthropic' | 'gemini' | 'openai' | 'perplexity' | 'xai' | 'deepseek';
@@ -142,9 +152,12 @@ export function AiKeysPanel({ siteId }: { siteId: string }) {
           return (
             <div key={p.provider} className="rounded-md border p-3 space-y-2">
               <div className="flex items-center justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="text-sm font-medium truncate">{p.label}</p>
-                  <p className={`text-[11px] ${sourceBadge.cls}`}>{sourceBadge.text}</p>
+                <div className="flex items-center gap-2 min-w-0">
+                  <VendorLogo name={PROVIDER_TO_VENDOR[p.provider] ?? 'openai'} size={24} className="shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium truncate">{p.label}</p>
+                    <p className={`text-[11px] ${sourceBadge.cls}`}>{sourceBadge.text}</p>
+                  </div>
                 </div>
                 {p.hasByok && (
                   <span className="text-[10px] font-mono text-muted-foreground">{p.byokPrefix}***</span>

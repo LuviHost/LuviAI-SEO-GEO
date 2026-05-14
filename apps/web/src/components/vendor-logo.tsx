@@ -15,16 +15,17 @@ import { cn } from '@/lib/utils';
  * perplexity, grok (xai), gemini, mistral, ghost, webflow, shopify
  */
 export type VendorName =
-  // AI providers
+  // AI providers (8)
   | 'anthropic' | 'claude-ai' | 'chatgpt' | 'openai' | 'deepseek'
-  // Search engines
+  | 'perplexity' | 'grok' | 'gemini' | 'mistral'
+  // Search engines (2)
   | 'google' | 'bing'
-  // Tech stack
+  // Tech stack (8)
   | 'nextjs' | 'tailwindcss' | 'shadcnui' | 'nestjs' | 'prisma' | 'mysql'
   | 'vercel-dark' | 'vercel-light'
-  // Platforms
-  | 'wordpress' | 'cloudflare'
-  // Social
+  // CMS / Platforms (5)
+  | 'wordpress' | 'cloudflare' | 'webflow' | 'shopify' | 'ghost'
+  // Social (9)
   | 'linkedin' | 'twitter' | 'facebook' | 'instagram' | 'tiktok'
   | 'youtube' | 'pinterest' | 'threads' | 'bluesky';
 
@@ -34,6 +35,10 @@ const VENDOR_TO_FILE: Record<VendorName, string> = {
   'chatgpt':     '/brands/chatgpt.svg',
   'openai':      '/brands/openai.svg',
   'deepseek':    '/brands/deepseek.svg',
+  'perplexity':  '/brands/perplexity.svg',
+  'grok':        '/brands/grok.svg',
+  'gemini':      '/brands/gemini.svg',
+  'mistral':     '/brands/mistral.svg',
   'google':      '/brands/google.svg',
   'bing':        '/brands/bing.svg',
   'nextjs':      '/brands/nextjs.svg',
@@ -46,6 +51,9 @@ const VENDOR_TO_FILE: Record<VendorName, string> = {
   'vercel-light':'/brands/vercel-light.svg',
   'wordpress':   '/brands/wordpress.svg',
   'cloudflare':  '/brands/cloudflare.svg',
+  'webflow':     '/brands/webflow.svg',
+  'shopify':     '/brands/shopify.svg',
+  'ghost':       '/brands/ghost.svg',
   'linkedin':    '/brands/linkedin.svg',
   'twitter':     '/brands/twitter.svg',
   'facebook':    '/brands/facebook.svg',
@@ -64,6 +72,10 @@ export const VENDOR_LABEL: Record<VendorName, string> = {
   'chatgpt':     'ChatGPT',
   'openai':      'OpenAI',
   'deepseek':    'DeepSeek',
+  'perplexity':  'Perplexity',
+  'grok':        'xAI Grok',
+  'gemini':      'Gemini',
+  'mistral':     'Mistral AI',
   'google':      'Google',
   'bing':        'Bing',
   'nextjs':      'Next.js',
@@ -76,6 +88,9 @@ export const VENDOR_LABEL: Record<VendorName, string> = {
   'vercel-light':'Vercel',
   'wordpress':   'WordPress',
   'cloudflare':  'Cloudflare',
+  'webflow':     'Webflow',
+  'shopify':     'Shopify',
+  'ghost':       'Ghost',
   'linkedin':    'LinkedIn',
   'twitter':     'X (Twitter)',
   'facebook':    'Facebook',

@@ -11,6 +11,9 @@ import { RefTracker } from '@/components/ref-tracker';
 // Default to LuviAI production project; .env'den override edilebilir (staging için ayrı ID).
 const CLARITY_PROJECT_ID = process.env.NEXT_PUBLIC_CLARITY_PROJECT_ID ?? 'wr4kuo9zhi';
 
+// Google Tag Manager container ID — analytics + remarketing + conversion tracking.
+const GTM_ID = process.env.NEXT_PUBLIC_GTM_ID ?? 'GTM-TSH8KWCC';
+
 const SITE_URL = 'https://ai.luvihost.com';
 const TITLE = 'LuviAI — SEO, içerik üretimi, sosyal medya ve reklam tek panelden';
 const DESCRIPTION = 'Sitenin SEO + AI görünürlük denetimini dakikalar içinde yapar, marka sesinde kapsamlı makaleler üretir, sosyal medyaya ve sitene otomatik yayınlar. Türkiye için yapıldı, PayTR ile güvenli ödeme.';
@@ -187,12 +190,33 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="tr" suppressHydrationWarning>
       <head>
+        {/* Google Tag Manager — GA4, conversion, remarketing. En üst konumda (head). */}
+        {GTM_ID && (
+          <Script id="gtm-head" strategy="afterInteractive">
+            {`(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+              new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+              j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+              'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+              })(window,document,'script','dataLayer','${GTM_ID}');`}
+          </Script>
+        )}
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(orgJsonLd) }}
         />
       </head>
       <body className="antialiased min-h-screen bg-background text-foreground">
+        {/* GTM noscript fallback — body açılışının hemen sonrası (resmi öneri) */}
+        {GTM_ID && (
+          <noscript>
+            <iframe
+              src={`https://www.googletagmanager.com/ns.html?id=${GTM_ID}`}
+              height="0"
+              width="0"
+              style={{ display: 'none', visibility: 'hidden' }}
+            />
+          </noscript>
+        )}
         {/* Microsoft Clarity — session replay + heatmap. afterInteractive: ana içerikten sonra. */}
         {CLARITY_PROJECT_ID && (
           <Script id="ms-clarity" strategy="afterInteractive">
