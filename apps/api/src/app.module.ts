@@ -31,6 +31,7 @@ import { LLMModule } from './llm/llm.module.js';
 import { PromptsModule } from './prompts/prompts.module.js';
 import { AsoModule } from './aso/aso.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
+import { NotificationsModule } from './notifications/notifications.module.js';
 
 @Module({
   imports: [
@@ -64,6 +65,7 @@ import { PrismaModule } from './prisma/prisma.module.js';
     LLMModule,
     PromptsModule,
     AsoModule,
+    NotificationsModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: AuthGuard },

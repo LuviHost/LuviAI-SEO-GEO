@@ -145,9 +145,14 @@ export class SocialPostsService {
    */
   async approve(postId: string, user: RequestingUser, scheduledFor?: Date) {
     const post = await this.assertPostOwner(postId, user);
-    if (post.status !== 'DRAFT') {
-      throw new BadRequestException(`Sadece DRAFT post onaylanabilir (mevcut: ${post.status})`);
+    if (post.status !== 'DRAFT' && post.status !== 'NEEDS_APPROVAL') {
+      throw new BadRequestException(`Onaylanabilen statüler: DRAFT, NEEDS_APPROVAL (mevcut: ${post.status})`);
     }
+    // Audit alanlarını set et (NEEDS_APPROVAL flow'unda dolar)
+    await this.prisma.socialPost.update({
+      where: { id: postId },
+      data: { approvedBy: user.id, approvedAt: new Date() },
+    });
     // scheduledFor verilmemişse anında yayınla (publishNow gibi)
     if (!scheduledFor) {
       return this.runPublish(postId);
@@ -157,6 +162,36 @@ export class SocialPostsService {
       data: {
         status: 'QUEUED' as any,
         scheduledFor,
+      },
+    });
+  }
+
+  /** Brightbean parity — post'u onay sürecine sok (DRAFT → NEEDS_APPROVAL) */
+  async submitForApproval(postId: string, user: RequestingUser) {
+    const post = await this.assertPostOwner(postId, user);
+    if (post.status !== 'DRAFT') {
+      throw new BadRequestException(`Sadece DRAFT post onaya gönderilebilir (mevcut: ${post.status})`);
+    }
+    // TODO: Notification.create({ type: SOCIAL_POST_NEEDS_APPROVAL, ... })
+    return this.prisma.socialPost.update({
+      where: { id: postId },
+      data: { status: 'NEEDS_APPROVAL' as any },
+    });
+  }
+
+  /** Brightbean parity — onayı reddet, post REJECTED'a düşer */
+  async reject(postId: string, user: RequestingUser, reason?: string) {
+    const post = await this.assertPostOwner(postId, user);
+    if (post.status !== 'NEEDS_APPROVAL' && post.status !== 'DRAFT') {
+      throw new BadRequestException(`Reddedilebilen statüler: DRAFT, NEEDS_APPROVAL (mevcut: ${post.status})`);
+    }
+    return this.prisma.socialPost.update({
+      where: { id: postId },
+      data: {
+        status: 'REJECTED' as any,
+        rejectedBy: user.id,
+        rejectedAt: new Date(),
+        rejectReason: reason ?? null,
       },
     });
   }

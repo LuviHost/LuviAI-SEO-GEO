@@ -63,6 +63,10 @@ model User {
   parentAgency  User?    @relation("AgencyClients", fields: [parentAgencyId], references: [id], onDelete: SetNull)
   clients       User[]   @relation("AgencyClients")
   apiKeys       ApiKey[]
+  // Brightbean parity back-relations
+  notifications    Notification[]
+  socialMediaAssets SocialMediaAsset[]
+  socialIdeas      SocialIdea[]
 
   @@index([email])
   @@index([plan, subscriptionStatus])
@@ -258,6 +262,9 @@ model Site {
   videos           Video[]
   adsAudits        AdsAudit[]
   tokenUsage       TokenUsageRecord[]
+  // Brightbean parity back-relations
+  socialMediaAssets SocialMediaAsset[]
+  socialIdeas       SocialIdea[]
 
   @@unique([userId, url])
   @@index([userId])
@@ -872,6 +879,7 @@ model SocialChannel {
   site            Site                  @relation(fields: [siteId], references: [id], onDelete: Cascade)
   posts           SocialPost[]
   recurringSlots  SocialRecurringSlot[]
+  inboxMessages   SocialInboxMessage[]
 
   @@unique([siteId, type, externalId])           // ayni site icin ayni kanal+hesap iki kez eklenmesin
   @@index([siteId])
@@ -915,6 +923,13 @@ model SocialPost {
   errorMsg    String?  @db.Text
   retryCount  Int      @default(0)
 
+  // Approval workflow (Brightbean parity) — opsiyonel; sadece NEEDS_APPROVAL flow'unda kullanilir
+  approvedBy  String?                              // user id (approve eden)
+  approvedAt  DateTime?
+  rejectedBy  String?
+  rejectedAt  DateTime?
+  rejectReason String?  @db.Text
+
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -929,11 +944,14 @@ model SocialPost {
 
 enum SocialPostStatus {
   DRAFT                // taslak — kullanici onaylamadi
+  NEEDS_APPROVAL       // takim icindeki onaylayicilar bekleniyor
+  APPROVED             // onaylandi, scheduledFor varsa QUEUED'a gecer
   QUEUED               // zamanlanmis, scheduledFor bekleniyor
   PUBLISHING           // yayina gonderiliyor
   PUBLISHED            // basariyla yayinlandi
   FAILED               // yayin basarisiz, retry edilebilir
   CANCELED             // kullanici iptal etti
+  REJECTED             // approval reddedildi
 }
 
 // Haftalik recurring slot — "her Pazartesi 09:00 LI'ye queue'dan 1 post"
@@ -1338,3 +1356,196 @@ enum ReviewSentiment {
 
 // ASO-spesifik prompt kategorisi (PromptCategory enum'a ekleme yapmadık,
 // PromptTemplate kullanır, kategori = GENERAL ama tag ile filtrelenebilir)
+
+// ─────────────────────────────────────────────────────────────────────────
+//  BRIGHTBEAN PARITY — Social Inbox + Media Library + Idea Board + Notifications
+// ─────────────────────────────────────────────────────────────────────────
+
+/// Sosyal Inbox — DM/mention/comment'leri tek yerde toplar. Background job
+/// (SOCIAL_INBOX_SYNC) channel adapter'larından senkronize eder.
+model SocialInboxMessage {
+  id          String   @id @default(cuid())
+  channelId   String
+  externalId  String                                 // platform side message id
+  type        SocialInboxType                         // DM | MENTION | COMMENT | REPLY
+  status      SocialInboxStatus @default(UNREAD)
+
+  // Sender (platform user)
+  senderId    String?                                // platform user id
+  senderName  String?
+  senderHandle String?
+  senderAvatar String?
+
+  // Content
+  text        String?  @db.Text
+  mediaUrls   Json?                                  // [{url, type}]
+  postId      String?                                // referenced SocialPost.id (yorum/reply'sa)
+
+  // Sentiment (AI analizinden)
+  sentiment   ReviewSentiment?
+  aiTags      Json?                                  // ["complaint","question","praise"]
+
+  // User actions
+  reply       String?  @db.Text                       // operator cevap yazdiysa
+  replyAt     DateTime?
+  replyExternalId String?                              // gönderilen cevabın platform id'si
+  archivedAt  DateTime?
+  resolvedBy  String?
+
+  receivedAt  DateTime                                // platform'da olustugu zaman
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  channel     SocialChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@unique([channelId, externalId])
+  @@index([channelId, status])
+  @@index([status, receivedAt])
+  @@map("social_inbox_messages")
+}
+
+enum SocialInboxType {
+  DM
+  MENTION
+  COMMENT
+  REPLY
+}
+
+enum SocialInboxStatus {
+  UNREAD
+  READ
+  REPLIED
+  ARCHIVED
+  RESOLVED
+}
+
+/// Media Library — yeniden kullanılabilir görseller/videolar (slot-bağımsız).
+/// Adapter'lar farklı boyut/format gerektirdiği için variants[] otomatik üretilir.
+model SocialMediaAsset {
+  id          String   @id @default(cuid())
+  userId      String
+  siteId      String?                                // site-spesifik veya kullanici geneli (null)
+
+  // Storage
+  url         String                                 // public URL (local /public/social-media veya S3)
+  thumbnail   String?                                // 256x256 küçük preview
+  variants    Json?                                  // [{label:"og-1200x630", url, w, h}]
+  filename    String
+  mimeType    String                                 // image/png, video/mp4
+  sizeBytes   Int
+  width       Int?
+  height      Int?
+  durationMs  Int?                                   // video icin
+
+  // Organization
+  folder      String?  @db.VarChar(255)              // "campaigns/q1-2026" gibi nested path
+  altText     String?  @db.Text
+  tags        Json?                                  // ["product","lifestyle","ugc"]
+
+  // Source
+  source      MediaSource @default(UPLOAD)            // UPLOAD | UNSPLASH | AI_GENERATED | URL_IMPORT
+  externalRef String?                                // unsplash id, prompt id vs
+
+  // Usage
+  usageCount  Int      @default(0)                   // kac postta kullanildi
+  lastUsedAt  DateTime?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  site        Site?   @relation(fields: [siteId], references: [id], onDelete: SetNull)
+
+  @@index([userId, folder])
+  @@index([siteId, folder])
+  @@index([siteId, source])
+  @@map("social_media_assets")
+}
+
+enum MediaSource {
+  UPLOAD
+  UNSPLASH
+  AI_GENERATED
+  URL_IMPORT
+}
+
+/// Idea Board / Kanban — Unassigned / ToDo / InProgress / Done dört kolon
+model SocialIdea {
+  id          String   @id @default(cuid())
+  userId      String
+  siteId      String?
+  workspaceColumn SocialIdeaColumn @default(UNASSIGNED)
+
+  title       String
+  notes       String?  @db.Text
+  hashtags    Json?                                  // ["#tag", "#brand"]
+  refUrls     Json?                                  // inspiration url array
+  attachments Json?                                  // [{assetId, url, type}]
+
+  // Kanban
+  position    Int      @default(0)                   // kolon icindeki siralama (drag-drop)
+  dueAt       DateTime?
+  assigneeId  String?
+
+  // Lifecycle
+  convertedPostId String?                            // bu fikirden uretilen SocialPost id
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  site        Site?   @relation(fields: [siteId], references: [id], onDelete: SetNull)
+
+  @@index([userId, workspaceColumn, position])
+  @@index([siteId, workspaceColumn])
+  @@map("social_ideas")
+}
+
+enum SocialIdeaColumn {
+  UNASSIGNED
+  TODO
+  IN_PROGRESS
+  DONE
+}
+
+/// In-app + email notification — onay bekleyen post, gelen DM, yayın başarısızlığı vb.
+model Notification {
+  id          String   @id @default(cuid())
+  userId      String
+
+  type        NotificationType
+  title       String
+  body        String?  @db.Text
+  link        String?                                // tıklanınca gidilecek route
+
+  // Polymorphic ref
+  refKind     String?                                // "social_post" | "social_inbox" | "social_idea"
+  refId       String?
+
+  // Channel selection
+  channels    Json     @default("[\"inapp\"]")       // ["inapp","email"]
+
+  readAt      DateTime?
+  emailSentAt DateTime?
+
+  createdAt   DateTime @default(now())
+
+  user        User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+  @@index([userId, type])
+  @@map("notifications")
+}
+
+enum NotificationType {
+  SOCIAL_POST_NEEDS_APPROVAL
+  SOCIAL_POST_PUBLISHED
+  SOCIAL_POST_FAILED
+  SOCIAL_INBOX_NEW_DM
+  SOCIAL_INBOX_NEW_MENTION
+  SOCIAL_INBOX_NEW_COMMENT
+  SOCIAL_IDEA_ASSIGNED
+  AUDIT_COMPLETE
+  AI_CITATION_DROP
+  SYSTEM
+}
