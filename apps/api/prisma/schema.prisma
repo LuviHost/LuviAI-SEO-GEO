@@ -265,6 +265,8 @@ model Site {
   // Brightbean parity back-relations
   socialMediaAssets SocialMediaAsset[]
   socialIdeas       SocialIdea[]
+  // Studio back-relation
+  studioAssets     StudioAsset[]
 
   @@unique([userId, url])
   @@index([userId])
@@ -1548,4 +1550,36 @@ enum NotificationType {
   AUDIT_COMPLETE
   AI_CITATION_DROP
   SYSTEM
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+//  STUDIO — multi-modal AI içerik üretim history (image / video / text)
+// ─────────────────────────────────────────────────────────────────────────
+
+/// Studio modülünde üretilen her image/video/text taslak burada saklanır.
+/// Geçmiş listesi, favoriler, tekrar kullanma için kalıcı history.
+model StudioAsset {
+  id        String          @id @default(cuid())
+  siteId    String
+  userId    String?                                        // owner; null olabilir (admin/system üretimi)
+  type      StudioAssetType                                 // IMAGE | VIDEO | TEXT
+  prompt    String          @db.Text
+  provider  String                                          // gemini-flash | gpt-image-1 | flux-pro | claude-haiku-4-5 ...
+  url       String?                                         // image/video için public URL
+  text      String?         @db.Text                        // TEXT tipinde generated content
+  metadata  Json?                                           // { width, height, sizeBytes, costUsd, tokens, brandColor, format, ... }
+  favorite  Boolean         @default(false)
+  createdAt DateTime        @default(now())
+
+  site Site @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  @@index([siteId, type, createdAt])
+  @@index([siteId, favorite])
+  @@map("studio_assets")
+}
+
+enum StudioAssetType {
+  IMAGE
+  VIDEO
+  TEXT
 }
