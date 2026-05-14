@@ -13,6 +13,9 @@ export type SnippetType =
   | 'jsonld_article'
   | 'jsonld_organization'
   | 'jsonld_breadcrumb'
+  | 'jsonld_faq'
+  | 'jsonld_defined_term'
+  | 'citation_format'
   | 'h1';
 
 export interface PageSnippet {
@@ -242,6 +245,31 @@ export class SnippetGeneratorService {
       snippets.push(await this.aiJsonLdArticle(pageUrl, title || h1, metaDesc, bodyText, site.name, site.url));
     }
 
+    // FAQ schema (Q-A çiftleri yoksa AI ile üret)
+    const hasFAQSchema = $('script[type="application/ld+json"]').toArray()
+      .some(el => /"@type"\s*:\s*"(FAQPage|Question)"/i.test($(el).html() ?? ''));
+    if (!hasFAQSchema) {
+      const faq = await this.aiJsonLdFAQ(pageUrl, title || h1, bodyText);
+      if (faq) snippets.push(faq);
+    }
+
+    // DefinedTerm — "X nedir?" tanım yoğunluğu için
+    const hasDefinedTerm = $('script[type="application/ld+json"]').toArray()
+      .some(el => /"@type"\s*:\s*"DefinedTerm"/i.test($(el).html() ?? ''));
+    const hasDefinitionInBody = /(nedir\?|tanım|terim|olarak tanımlan)/i.test(bodyText.slice(0, 1500));
+    if (!hasDefinedTerm && !hasDefinitionInBody) {
+      const def = await this.aiDefinedTerm(pageUrl, title || h1, bodyText, site.name);
+      if (def) snippets.push(def);
+    }
+
+    // Citation format — liste/tablo eksikse AI ile özet liste önerir
+    const hasList = $('body ul li, body ol li').length >= 3;
+    const hasTable = $('body table').length > 0;
+    if (!hasList && !hasTable && bodyText.length > 800) {
+      const cit = await this.aiCitationFormat(pageUrl, title || h1, bodyText);
+      if (cit) snippets.push(cit);
+    }
+
     return snippets;
   }
 
@@ -366,6 +394,106 @@ export class SnippetGeneratorService {
       insertLocation: 'Sayfanın <head> bölümüne',
       generatedSnippet: `<script type="application/ld+json">\n${JSON.stringify(obj, null, 2)}\n</script>`,
       language: 'json-ld',
+    };
+  }
+
+  private async aiJsonLdFAQ(url: string, heading: string, bodyText: string): Promise<PageSnippet | null> {
+    const prompt = `Bu sayfa için 3-5 adet soru-cevap üret. Cevaplar 1-3 cümle, doğal Türkçe, sayfa konusuyla doğrudan ilgili. Sadece JSON array döndür, başka açıklama yok:
+[{"q":"soru?","a":"cevap."},{"q":"...","a":"..."}]
+
+Başlık: ${heading}
+İçerik: ${bodyText.slice(0, 1200)}`;
+    const raw = await this.ask(prompt);
+    if (!raw) return null;
+    let pairs: Array<{ q: string; a: string }> = [];
+    try {
+      const start = raw.indexOf('[');
+      const end = raw.lastIndexOf(']');
+      if (start < 0 || end < 0) return null;
+      pairs = JSON.parse(raw.slice(start, end + 1));
+    } catch {
+      return null;
+    }
+    if (!Array.isArray(pairs) || pairs.length === 0) return null;
+
+    const obj = {
+      '@context': 'https://schema.org',
+      '@type': 'FAQPage',
+      mainEntity: pairs.slice(0, 6).map(p => ({
+        '@type': 'Question',
+        name: String(p.q ?? '').trim().slice(0, 200),
+        acceptedAnswer: {
+          '@type': 'Answer',
+          text: String(p.a ?? '').trim().slice(0, 800),
+        },
+      })),
+    };
+
+    return {
+      pageUrl: url,
+      type: 'jsonld_faq',
+      reason: `FAQ schema yok — GEO için ağırlık 12. ${pairs.length} soru-cevap önerildi.`,
+      insertLocation: 'Sayfanın <head> bölümüne (Article schema varsa onun yanına)',
+      generatedSnippet: `<script type="application/ld+json">\n${JSON.stringify(obj, null, 2)}\n</script>`,
+      language: 'json-ld',
+    };
+  }
+
+  private async aiDefinedTerm(url: string, heading: string, bodyText: string, brand: string): Promise<PageSnippet | null> {
+    const prompt = `Bu sayfanın ana terimi nedir, kısa bir tanımı yaz. Format JSON, sadece bunu döndür:
+{"term":"terim adı","definition":"1-2 cümle tanım"}
+
+Başlık: ${heading}
+İçerik: ${bodyText.slice(0, 800)}`;
+    const raw = await this.ask(prompt);
+    if (!raw) return null;
+    let pair: { term?: string; definition?: string } = {};
+    try {
+      const start = raw.indexOf('{');
+      const end = raw.lastIndexOf('}');
+      if (start < 0 || end < 0) return null;
+      pair = JSON.parse(raw.slice(start, end + 1));
+    } catch {
+      return null;
+    }
+    if (!pair.term || !pair.definition) return null;
+
+    const obj = {
+      '@context': 'https://schema.org',
+      '@type': 'DefinedTerm',
+      name: pair.term.trim().slice(0, 120),
+      description: pair.definition.trim().slice(0, 500),
+      inDefinedTermSet: brand,
+      url,
+    };
+
+    return {
+      pageUrl: url,
+      type: 'jsonld_defined_term',
+      reason: 'Tanım yoğunluğu düşük — AI Overview "X nedir?" sorgularında atıf için DefinedTerm schema önerilir',
+      insertLocation: 'Sayfanın <head> bölümüne',
+      generatedSnippet: `<script type="application/ld+json">\n${JSON.stringify(obj, null, 2)}\n</script>`,
+      language: 'json-ld',
+    };
+  }
+
+  private async aiCitationFormat(url: string, heading: string, bodyText: string): Promise<PageSnippet | null> {
+    const prompt = `Bu sayfa içeriğinden 4-6 maddelik özet liste çıkar. Maddeler kısa (5-12 kelime), eyleme dönük veya gerçek. Sadece HTML <ul><li> blok döndür, başka açıklama yok.
+
+Başlık: ${heading}
+İçerik: ${bodyText.slice(0, 1500)}`;
+    const raw = await this.ask(prompt);
+    if (!raw) return null;
+    const cleaned = raw.replace(/^```html\s*|\s*```$/g, '').trim();
+    if (!/<ul/i.test(cleaned)) return null;
+
+    return {
+      pageUrl: url,
+      type: 'citation_format',
+      reason: 'Liste/tablo eksik — AI motorları (Perplexity/SearchGPT) madde işaretli özetleri atıf olarak tercih ediyor',
+      insertLocation: 'Sayfanın giriş paragrafından sonra, ana içeriğin başına',
+      generatedSnippet: cleaned,
+      language: 'html',
     };
   }
 

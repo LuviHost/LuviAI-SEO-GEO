@@ -114,19 +114,22 @@ export class AiCitationService {
       this.log.warn(`BYOK lookup fail (${siteId}/${provider}): ${err.message}`);
     }
 
-    // 2) Pool
-    const inPool = this.quota.getPlanPool(plan).includes(provider);
-    if (inPool) {
-      const envKey = process.env[POOL_ENV_KEY[provider]];
-      if (envKey) return { key: envKey, source: 'pool' };
+    // 2) ENV key varsa pool olarak kullan (operatör ENV'e koyduysa bu provider'ı havuza dahil etmiş demektir).
+    // Plan pool kontrolü hâlâ getProviderStatus'ta inPool sinyali olarak kullanılır,
+    // ama runtime'da bir ENV key varsa kotaya tabi şekilde çalıştırılır.
+    const envKey = process.env[POOL_ENV_KEY[provider]];
+    if (envKey) return { key: envKey, source: 'pool' };
+
+    // 3) Plan pool'da ama ENV yok → açık mesaj
+    if (this.quota.getPlanPool(plan).includes(provider)) {
       return { key: null, source: 'none', reason: `${POOL_ENV_KEY[provider]} env yok` };
     }
 
-    // 3) None — kullanici BYOK girmeli ya da plan yukseltmeli
+    // 4) None — kullanici BYOK girmeli
     return {
       key: null,
       source: 'none',
-      reason: `${PROVIDER_LABELS[provider]} bu plana dahil degil — kendi API anahtarini bagla veya plani yukselt`,
+      reason: `${PROVIDER_LABELS[provider]} icin API anahtari yok — kendi API anahtarini bagla (BYOK)`,
     };
   }
 
@@ -150,7 +153,9 @@ export class AiCitationService {
     const providers: Provider[] = ['anthropic', 'gemini', 'openai', 'perplexity', 'xai', 'deepseek'];
     return providers.map(provider => {
       const byok = byokMap.get(provider);
-      const inPool = pool.includes(provider);
+      const hasEnvKey = !!process.env[POOL_ENV_KEY[provider]];
+      // ENV key varsa effectively havuzdadır; planın sembolik pool listesini de dikkate al.
+      const inPool = pool.includes(provider) || hasEnvKey;
       const effective: 'pool' | 'byok' | 'none' = byok ? 'byok' : (inPool ? 'pool' : 'none');
       return {
         provider,
