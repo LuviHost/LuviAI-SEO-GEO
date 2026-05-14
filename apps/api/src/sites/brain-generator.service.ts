@@ -37,14 +37,14 @@ export class BrainGeneratorService {
   }
 
   /** Worker'dan çağrılan asıl iş */
-  async runGeneration(siteId: string): Promise<void> {
+  async runGeneration(siteId: string, opts: { forceRegenerate?: boolean } = {}): Promise<void> {
     const site = await this.prisma.site.findUniqueOrThrow({
       where: { id: siteId },
       include: { brain: true },
     });
 
-    if (site.brain && !this.shouldRegenerate(site.brain.updatedAt)) {
-      this.log.log(`${siteId}: Brain mevcut ve fresh, atlanıyor`);
+    if (!opts.forceRegenerate && site.brain && !this.shouldRegenerate(site.brain.updatedAt)) {
+      this.log.log(`${siteId}: Brain mevcut ve fresh, atlanıyor (forceRegenerate=false)`);
       return;
     }
 

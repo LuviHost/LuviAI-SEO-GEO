@@ -80,12 +80,12 @@ async function bootstrap() {
   });
 
   const handlers: Record<string, (data: any) => Promise<any>> = {
-    BRAIN_GENERATE: async ({ siteId }) => {
+    BRAIN_GENERATE: async ({ siteId, forceRegenerate }) => {
       if (await services.settings.getBoolean('AI_GLOBAL_DISABLED')) {
         log.warn(`[${siteId}] BRAIN_GENERATE atlandı (AI_GLOBAL_DISABLED=1)`);
         return { skipped: true, reason: 'AI_GLOBAL_DISABLED' };
       }
-      await services.brainGen.runGeneration(siteId);
+      await services.brainGen.runGeneration(siteId, { forceRegenerate: !!forceRegenerate });
       return { ok: true };
     },
 
