@@ -286,6 +286,9 @@ export function ContentFlowTable({
       {(running || anyInflight) && (() => {
         const firstGen = Array.from(generatingTopics)[0];
         const showTopic = firstGen ?? inflightTopic;
+        // Article generation başlangıç zamanı — F5 sonrası bile doğru pozisyondan devam.
+        // Inflight article'ın updatedAt'i GENERATING'e geçtiği an = pipeline başlangıcı.
+        const startedAt = inflightArticle?.updatedAt ?? inflightArticle?.createdAt;
         return (
           <PipelineProgress
             title={
@@ -295,6 +298,7 @@ export function ContentFlowTable({
             }
             steps={showTopic ? PIPELINE_STEPS.article : PIPELINE_STEPS.topicEngine}
             running
+            startedAt={startedAt}
           />
         );
       })()}
