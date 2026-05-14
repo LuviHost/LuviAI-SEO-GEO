@@ -253,7 +253,14 @@ export class AiCitationService {
     if (Array.isArray(seo?.geoQueries)) queries.push(...seo.geoQueries);
     if (Array.isArray(seo?.topQuestions)) queries.push(...seo.topQuestions);
 
-    if (queries.length === 0 && site.niche) {
+    // Eski brain'lerde aeo/geo/topQuestions yok → pillars + personas.searchIntent'ten türet
+    if (queries.length === 0) {
+      const derived = this.deriveQueriesFromBrain(site.brain);
+      queries.push(...derived);
+    }
+
+    // Son çare: niş bazlı generic sorgu (en zayıf seçenek)
+    if (queries.length === 0 && site.niche && site.niche !== 'diğer') {
       queries.push(
         `${site.niche} alaninda en iyi siteler hangileri?`,
         `${site.niche} icin onerilebilecek Turkiye merkezli kaynaklar nelerdir?`,
@@ -548,5 +555,37 @@ export class AiCitationService {
       brandMentioned: lower.includes(brand.toLowerCase()),
       excerpt: text.slice(0, 220),
     };
+  }
+
+  /**
+   * Eski/eksik brain'lerde aeo/geo/topQuestions yoksa pillars + personas.searchIntent'ten
+   * AI'a sorulabilir anlamlı query türetir. Niş fallback'inden çok daha hedefli.
+   */
+  private deriveQueriesFromBrain(brain: any): string[] {
+    if (!brain) return [];
+    const out: string[] = [];
+
+    const pillars: any[] = Array.isArray(brain.seoStrategy?.pillars) ? brain.seoStrategy.pillars : [];
+    for (const p of pillars.slice(0, 3)) {
+      if (typeof p?.name === 'string' && p.name.trim()) {
+        out.push(`${p.name.trim()} icin en iyi cozumler nelerdir?`);
+      }
+      const clusters: any[] = Array.isArray(p?.clusters) ? p.clusters : [];
+      for (const c of clusters.slice(0, 2)) {
+        const phrase = String(c).replace(/[-_]+/g, ' ').trim();
+        if (phrase.length > 4) out.push(`${phrase}?`);
+      }
+    }
+
+    const personas: any[] = Array.isArray(brain.personas) ? brain.personas : [];
+    for (const persona of personas.slice(0, 2)) {
+      const intents: any[] = Array.isArray(persona?.searchIntent) ? persona.searchIntent : [];
+      for (const intent of intents.slice(0, 2)) {
+        const s = String(intent).trim();
+        if (s.length > 5) out.push(s);
+      }
+    }
+
+    return Array.from(new Set(out));
   }
 }
