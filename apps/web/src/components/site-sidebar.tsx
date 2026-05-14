@@ -29,6 +29,9 @@ import {
   LineChart,
   Library,
   Smartphone,
+  Lightbulb,
+  Mail,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { ThemeToggle } from '@/components/theme-toggle';
@@ -86,6 +89,9 @@ const SITE_GROUPS = (siteId: string) => [
       { href: `/sites/${siteId}/prompts`, label: 'Prompt Kütüphanesi', icon: Library },
       { href: `/sites/${siteId}/calendar`, label: 'Takvim', icon: Calendar },
       { href: `/sites/${siteId}/social-calendar`, label: 'Sosyal Takvim', icon: Calendar },
+      { href: `/sites/${siteId}/social-ideas`, label: 'Fikir Panosu', icon: Lightbulb },
+      { href: `/sites/${siteId}/social-inbox`, label: 'Social Inbox', icon: Mail },
+      { href: `/sites/${siteId}/media-library`, label: 'Media Library', icon: ImageIcon },
       { href: `/sites/${siteId}/videos`, label: 'Video Factory', icon: Film },
       { href: `/sites/${siteId}/publish-targets`, label: 'Yayın Hedefleri', icon: Send },
     ],

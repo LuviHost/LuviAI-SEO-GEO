@@ -769,6 +769,84 @@ export const api = {
     request<{ ok: boolean }>(`/social/slots/${slotId}`, { method: 'DELETE' }),
 
   // ──────────────────────────────────────────────────────────────────
+  // Brightbean parity — Approval workflow + Inbox + Media Library + Ideas
+  // ──────────────────────────────────────────────────────────────────
+
+  submitPostForApproval: (postId: string) =>
+    request<any>(`/social/posts/${postId}/submit-for-approval`, { method: 'POST' }),
+
+  rejectPost: (postId: string, reason?: string) =>
+    request<any>(`/social/posts/${postId}/reject`, { method: 'POST', body: JSON.stringify({ reason }) }),
+
+  // Inbox
+  listInbox: (siteId: string, params: { status?: string; type?: string; channelId?: string; limit?: number; cursor?: string } = {}) => {
+    const q = new URLSearchParams();
+    if (params.status) q.set('status', params.status);
+    if (params.type) q.set('type', params.type);
+    if (params.channelId) q.set('channelId', params.channelId);
+    if (params.limit) q.set('limit', String(params.limit));
+    if (params.cursor) q.set('cursor', params.cursor);
+    const tail = q.toString() ? `?${q.toString()}` : '';
+    return request<Array<any>>(`/sites/${siteId}/social/inbox${tail}`);
+  },
+  inboxUnreadCount: (siteId: string) => request<number>(`/sites/${siteId}/social/inbox/unread-count`),
+  inboxMarkRead: (messageId: string) => request<any>(`/social/inbox/${messageId}/read`, { method: 'PATCH' }),
+  inboxReply: (messageId: string, reply: string) =>
+    request<any>(`/social/inbox/${messageId}/reply`, { method: 'POST', body: JSON.stringify({ reply }) }),
+  inboxArchive: (messageId: string) => request<any>(`/social/inbox/${messageId}/archive`, { method: 'POST' }),
+  inboxResolve: (messageId: string) => request<any>(`/social/inbox/${messageId}/resolve`, { method: 'POST' }),
+
+  // Media Library
+  listMediaLibrary: (params: { siteId?: string; folder?: string; source?: string; limit?: number; cursor?: string } = {}) => {
+    const q = new URLSearchParams();
+    if (params.siteId) q.set('siteId', params.siteId);
+    if (params.folder) q.set('folder', params.folder);
+    if (params.source) q.set('source', params.source);
+    if (params.limit) q.set('limit', String(params.limit));
+    if (params.cursor) q.set('cursor', params.cursor);
+    const tail = q.toString() ? `?${q.toString()}` : '';
+    return request<Array<any>>(`/social/media-library${tail}`);
+  },
+  listMediaFolders: (siteId?: string) =>
+    request<string[]>(`/social/media-library/folders${siteId ? `?siteId=${siteId}` : ''}`),
+  createMediaAsset: (body: any) =>
+    request<any>('/social/media-library', { method: 'POST', body: JSON.stringify(body) }),
+  updateMediaAsset: (assetId: string, body: any) =>
+    request<any>(`/social/media-library/${assetId}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  deleteMediaAsset: (assetId: string) =>
+    request<{ ok: boolean }>(`/social/media-library/${assetId}`, { method: 'DELETE' }),
+
+  // Idea Board (kanban)
+  ideaBoard: (siteId?: string) =>
+    request<Record<'UNASSIGNED' | 'TODO' | 'IN_PROGRESS' | 'DONE', any[]>>(`/social/ideas/board${siteId ? `?siteId=${siteId}` : ''}`),
+  createIdea: (body: { title: string; notes?: string; siteId?: string; column?: 'UNASSIGNED' | 'TODO' | 'IN_PROGRESS' | 'DONE'; hashtags?: string[]; refUrls?: string[]; dueAt?: string }) =>
+    request<any>('/social/ideas', { method: 'POST', body: JSON.stringify(body) }),
+  updateIdea: (ideaId: string, body: any) =>
+    request<any>(`/social/ideas/${ideaId}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  moveIdea: (ideaId: string, column: 'UNASSIGNED' | 'TODO' | 'IN_PROGRESS' | 'DONE', position: number) =>
+    request<any>(`/social/ideas/${ideaId}/move`, { method: 'POST', body: JSON.stringify({ column, position }) }),
+  convertIdeaToPost: (ideaId: string, channelId: string) =>
+    request<any>(`/social/ideas/${ideaId}/convert`, { method: 'POST', body: JSON.stringify({ channelId }) }),
+  deleteIdea: (ideaId: string) =>
+    request<{ ok: boolean }>(`/social/ideas/${ideaId}`, { method: 'DELETE' }),
+
+  // Notifications
+  listNotifications: (params: { unreadOnly?: boolean; type?: string; limit?: number; cursor?: string } = {}) => {
+    const q = new URLSearchParams();
+    if (params.unreadOnly) q.set('unread', '1');
+    if (params.type) q.set('type', params.type);
+    if (params.limit) q.set('limit', String(params.limit));
+    if (params.cursor) q.set('cursor', params.cursor);
+    const tail = q.toString() ? `?${q.toString()}` : '';
+    return request<Array<any>>(`/notifications${tail}`);
+  },
+  notificationsUnreadCount: () => request<number>('/notifications/unread-count'),
+  markNotificationRead: (id: string) => request<any>(`/notifications/${id}/read`, { method: 'PATCH' }),
+  markAllNotificationsRead: () => request<number>('/notifications/read-all', { method: 'POST' }),
+  deleteNotification: (id: string) =>
+    request<{ ok: boolean }>(`/notifications/${id}`, { method: 'DELETE' }),
+
+  // ──────────────────────────────────────────────────────────────────
   // Video Factory (Faz 12)
   // ──────────────────────────────────────────────────────────────────
 

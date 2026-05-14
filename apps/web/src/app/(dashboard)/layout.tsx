@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { SiteSidebar } from '@/components/site-sidebar';
 import { CommandPalette } from '@/components/command-palette';
+import { NotificationBell } from '@/components/notification-bell';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
@@ -45,7 +46,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <UserMenu />
           <div className="flex justify-between items-center">
             <LocaleSwitch />
-            <ThemeToggle />
+            <div className="flex items-center gap-1">
+              <NotificationBell />
+              <ThemeToggle />
+            </div>
           </div>
         </div>
       </aside>
