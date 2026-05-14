@@ -28,9 +28,10 @@ const config: Config = {
         border: 'hsl(var(--border))',
         ring: 'hsl(var(--ring))',
         brand: {
-          DEFAULT: '#6c5ce7',
-          light: '#a29bfe',
-          dark: '#4834d4',
+          // Landing tasarım dili — orange-500 → orange-700 gradient
+          DEFAULT: '#f97316',  // orange-500
+          light:   '#fb923c',  // orange-400
+          dark:    '#c2410c',  // orange-700
         },
       },
       borderRadius: {

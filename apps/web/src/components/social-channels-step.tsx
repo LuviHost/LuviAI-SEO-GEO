@@ -8,6 +8,20 @@ import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { VendorLogo, type VendorName } from '@/components/vendor-logo';
+
+const CHANNEL_TO_VENDOR: Record<string, VendorName> = {
+  LINKEDIN_PERSONAL: 'linkedin',
+  LINKEDIN_COMPANY:  'linkedin',
+  X_TWITTER:         'twitter',
+  FACEBOOK_PAGE:     'facebook',
+  INSTAGRAM_BUSINESS:'instagram',
+  TIKTOK:            'tiktok',
+  YOUTUBE:           'youtube',
+  THREADS:           'threads',
+  BLUESKY:           'bluesky',
+  PINTEREST:         'pinterest',
+};
 
 type Catalog = Array<{ type: string; label: string; status: 'live' | 'soon'; note?: string; recommended?: boolean }>;
 
@@ -122,7 +136,12 @@ export function SocialChannelsStep({ siteId }: { siteId: string }) {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-medium text-sm">{c.externalName ?? c.name}</span>
-                      <Badge variant="outline" className="text-[10px]">{prettyType(c.type)}</Badge>
+                      <Badge variant="outline" className="text-[10px] inline-flex items-center gap-1.5 pl-1.5">
+                        {CHANNEL_TO_VENDOR[c.type] && (
+                          <VendorLogo name={CHANNEL_TO_VENDOR[c.type]} size={12} />
+                        )}
+                        {prettyType(c.type)}
+                      </Badge>
                       {c.isDefault && <Badge variant={'success' as any} className="text-[10px]">Varsayılan</Badge>}
                       {!c.isActive && <Badge variant="outline" className="text-[10px] opacity-60">Pasif</Badge>}
                     </div>
