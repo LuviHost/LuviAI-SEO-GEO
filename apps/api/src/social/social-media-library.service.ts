@@ -64,7 +64,7 @@ export class SocialMediaLibraryService {
         durationMs: dto.durationMs,
         folder: dto.folder,
         altText: dto.altText,
-        tags: dto.tags ?? null,
+        tags: dto.tags ?? undefined,
         source: (dto.source ?? 'UPLOAD') as any,
         externalRef: dto.externalRef,
       },
