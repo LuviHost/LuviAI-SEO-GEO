@@ -103,6 +103,18 @@ export const api = {
   getUserQuota: (userId: string) =>
     request<{ articles: { allowed: boolean; remaining: number; limit: number }; sites: any }>(`/billing/users/${userId}/quota`),
 
+  detectNiche: (url: string) =>
+    request<{
+      niche: string;
+      customNiche?: string;
+      confidence: number;
+      reasoning: string;
+      alternatives: Array<{ niche: string; confidence: number }>;
+    }>('/sites/detect-niche', {
+      method: 'POST',
+      body: JSON.stringify({ url }),
+    }),
+
   regenerateBrain: (siteId: string) =>
     request<any>(`/sites/${siteId}/brain/regenerate`, { method: 'POST' }),
 

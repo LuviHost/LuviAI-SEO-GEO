@@ -140,10 +140,31 @@ function InputStage({
         try { return new URL(url).hostname.replace(/^www\./, '').split('.')[0]; }
         catch { return 'Site'; }
       })();
+
+      // AI ile niş tespit — site oluşturmadan önce paralel başlat.
+      // Başarısız olursa 'diğer' fallback, akış kesilmez.
+      let detectedNiche = 'diğer';
+      try {
+        const detection = await Promise.race([
+          api.detectNiche(url),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 12_000)), // 12sn cap
+        ]);
+        if (detection && (detection as any).niche) {
+          const d = detection as any;
+          // Confidence yüksekse customNiche varsa onu, yoksa standardı kullan
+          if (d.confidence >= 0.5) {
+            detectedNiche = (d.niche === 'diğer' && d.customNiche)
+              ? d.customNiche
+              : d.niche;
+            toast.success(`Niş tespit edildi: ${detectedNiche}`);
+          }
+        }
+      } catch (_e) { /* fallback to 'diğer' */ }
+
       const created = await api.createSite({
         url,
         name: guessedName,
-        niche: 'diğer',
+        niche: detectedNiche,
         language: 'tr',
       } as any);
       toast.success('Görev başlatıldı — AI çalışıyor');
