@@ -367,7 +367,7 @@ export class AsoController {
 
   /** POST /aso/metadata/optimize — title + description + keyword field auto-build */
   @Post('metadata/optimize')
-  optimizeMetadata(@Body() body: {
+  optimizeMetadataFromInputs(@Body() body: {
     platform: 'apple' | 'google';
     brand: string;
     keywords: string[];
