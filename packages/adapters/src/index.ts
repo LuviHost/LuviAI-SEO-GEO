@@ -18,6 +18,7 @@ export { CustomPhpAdapter } from './custom-php.js';
 export { MarkdownZipAdapter } from './markdown-zip.js';
 export { ShopifyAdapter } from './shopify.js';
 export { WixAdapter } from './wix.js';
+export { KobipratikAdapter } from './kobipratik.js';
 
 import type { PublishAdapter } from './base.js';
 import { WordPressRestAdapter } from './wordpress-rest.js';
@@ -36,6 +37,7 @@ import { CustomPhpAdapter } from './custom-php.js';
 import { MarkdownZipAdapter } from './markdown-zip.js';
 import { ShopifyAdapter } from './shopify.js';
 import { WixAdapter } from './wix.js';
+import { KobipratikAdapter } from './kobipratik.js';
 
 export function getAdapter(type: string): typeof PublishAdapter | null {
   const map: Record<string, any> = {
@@ -55,6 +57,7 @@ export function getAdapter(type: string): typeof PublishAdapter | null {
     MARKDOWN_ZIP:      MarkdownZipAdapter,
     SHOPIFY:           ShopifyAdapter,
     WIX:               WixAdapter,
+    KOBIPRATIK:        KobipratikAdapter,
   };
   return map[type] ?? null;
 }
@@ -76,4 +79,5 @@ export const ADAPTERS_CATALOG = [
   { type: 'MARKDOWN_ZIP',     label: 'Markdown ZIP indir',  description: 'Manuel yayın için ZIP export',              fields: [] },
   { type: 'SHOPIFY',          label: 'Shopify Admin API',   description: 'Blog post + product/page meta (title_tag/description_tag)', fields: ['storeDomain', 'accessToken', 'blogId?'] },
   { type: 'WIX',              label: 'Wix (rehberli)',      description: 'Snippet panelinden manuel yapıştırma',      fields: ['apiKey', 'siteId'] },
+  { type: 'KOBIPRATIK',       label: 'KobiPratik (Luvihost içi)', description: 'Luvihost grubu özel adapter — admin only', fields: ['baseUrl', 'apiKey'] },
 ] as const;

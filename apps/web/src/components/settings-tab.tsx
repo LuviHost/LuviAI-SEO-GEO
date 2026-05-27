@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import { Plus, Trash2, Edit2, CheckCircle2, XCircle, Star, Power, Loader2, BarChart3, Link2, Unlink, Activity } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
@@ -33,6 +34,7 @@ type CatalogItem = {
   description: string;
   fields: CatalogField[];
   configFields: CatalogField[];
+  adminOnly?: boolean;
 };
 
 type Target = {
@@ -56,6 +58,8 @@ export function PublishTargetsManager({
   siteId: string;
   defaultSiteUrl?: string;
 }) {
+  const { data: session } = useSession();
+  const isAdmin = session?.user?.role === 'ADMIN';
   const [catalog, setCatalog] = useState<CatalogItem[]>([]);
   const [targets, setTargets] = useState<Target[]>([]);
   const [loading, setLoading] = useState(true);
@@ -69,7 +73,10 @@ export function PublishTargetsManager({
         api.getPublishTargetsCatalog(),
         api.listPublishTargets(siteId),
       ]);
-      setCatalog(c);
+      // Defensive client-side filter — backend de zaten role'e gore filter ediyor,
+      // bu sadece bir double-check (admin-only hedef yanlislikla gelirse gizle).
+      const filtered = isAdmin ? c : (c as CatalogItem[]).filter((item) => !item.adminOnly);
+      setCatalog(filtered);
       setTargets(t);
     } catch (err: any) {
       toast.error(err.message);
@@ -81,7 +88,7 @@ export function PublishTargetsManager({
   useEffect(() => {
     refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [siteId]);
+  }, [siteId, isAdmin]);
 
   // hash watcher — #publish-targets ile bu section'a scroll
   useEffect(() => {

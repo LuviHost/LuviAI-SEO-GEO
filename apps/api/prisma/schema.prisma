@@ -347,6 +347,7 @@ enum PublishTargetType {
   WHMCS_KB
   CUSTOM_PHP
   MARKDOWN_ZIP
+  KOBIPRATIK
 }
 
 // ═══════════════════════════════════════════════════════════════

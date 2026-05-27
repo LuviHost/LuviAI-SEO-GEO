@@ -1,6 +1,5 @@
 import { Body, Controller, Delete, Get, Param, Post, Put, Req, UnauthorizedException } from '@nestjs/common';
 import type { Request } from 'express';
-import { Public } from '../auth/public.decorator.js';
 import { PublishTargetsService } from './publish-targets.service.js';
 
 function ensureUser(req: Request) {
@@ -13,11 +12,14 @@ function ensureUser(req: Request) {
 export class PublishTargetsController {
   constructor(private readonly service: PublishTargetsService) {}
 
-  /** GET /api/publish-targets/catalog — desteklenen 14 hedef tipi (form alanları ile) */
-  @Public()
+  /**
+   * GET /api/publish-targets/catalog — desteklenen hedef tipleri (form alanları ile).
+   * Auth required: session/user role'üne göre admin-only hedefler (KOBIPRATIK) filtrelenir.
+   */
   @Get('publish-targets/catalog')
-  catalog() {
-    return PublishTargetsService.getTypeCatalog();
+  catalog(@Req() req: Request) {
+    const user = ensureUser(req);
+    return PublishTargetsService.getTypeCatalog({ isAdmin: user.role === 'ADMIN' });
   }
 
   /** GET /api/sites/:siteId/publish-targets */
