@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import {
   Activity, Bot, Calendar, FileText, Sparkles, Zap, Search, Send, ShieldCheck, TrendingUp, ChevronRight,
   AlertTriangle, AlertCircle, CheckCircle2, Power, FileBarChart, ArrowRight,
+  Wrench,
 } from 'lucide-react';
 import { AnalyticsRow, RecentActivity } from '@/components/analytics-row';
 import { AiCostStrip } from '@/components/ai-cost-strip';
@@ -74,6 +75,9 @@ export function SiteOverviewDashboard({
 
       {/* Site Skoru özeti — onboarding sonrası kullanıcı detayı doğrudan görsün */}
       <AuditSummaryInline site={site} audit={audit} />
+
+      {/* ENH#5: Stuck Pages KPI — DETECTED durumdaki sayfa varsa goster */}
+      <StuckPagesKpiCard siteId={site.id} />
 
       {/* Otomatik akış banner — İçerik tab'ına taşındı (yayın akışı = içerik kontrolü) */}
 
@@ -837,5 +841,57 @@ export function AutopilotControl({
         </button>
       </div>
     </div>
+  );
+}
+
+// ENH#5 — Stuck Pages KPI card. Genel Bakis'ta DETECTED durumdaki sayfa
+// varsa otomatik kart goster. Sifir ise hic gosterme.
+function StuckPagesKpiCard({ siteId }: { siteId: string }) {
+  const [count, setCount] = useState<number | null>(null);
+  const [latestUrl, setLatestUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    api.listStuckPages(siteId, 'DETECTED')
+      .then((rows) => {
+        if (cancelled) return;
+        setCount(rows.length);
+        if (rows.length > 0) setLatestUrl(rows[0].title ?? rows[0].url);
+      })
+      .catch(() => {
+        if (!cancelled) setCount(0);
+      });
+    return () => { cancelled = true; };
+  }, [siteId]);
+
+  if (count === null || count === 0) return null;
+
+  return (
+    <Card className="rounded-2xl shadow-sm border-amber-500/40 bg-amber-500/5">
+      <CardContent className="p-5">
+        <div className="flex items-center gap-4">
+          <div className="h-11 w-11 rounded-xl bg-amber-500/15 text-amber-600 grid place-items-center shrink-0">
+            <Wrench className="h-5 w-5" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-semibold">{count} stuck sayfa tespit edildi</p>
+              <Badge variant="outline" className="text-[10px] border-amber-500/40 text-amber-700">
+                Auto-Pilot uygun
+              </Badge>
+            </div>
+            <p className="text-xs text-muted-foreground mt-1 truncate">
+              Örn: {latestUrl} — pozisyon ilk sayfada ama top 3 değil.
+            </p>
+          </div>
+          <Link
+            href={`/sites/${siteId}/stuck-pages`}
+            className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-amber-500 text-white hover:bg-amber-600 shrink-0"
+          >
+            Kurtar <ArrowRight className="h-3.5 w-3.5" />
+          </Link>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

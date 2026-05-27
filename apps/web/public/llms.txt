@@ -11,7 +11,7 @@
 - **AI Studio**: Görsel (DALL-E 3, GPT Image), video (Sora 2, Google Veo 3, Runway Gen-4, HeyGen, Slideshow), metin (GPT-4o, Claude Sonnet) üretimi. Kalıcı kütüphane, favori sistemi.
 - **Sosyal Medya Planlayıcı**: 5 kanal — LinkedIn, X (Twitter), Instagram, TikTok, Facebook. AI ile post + görsel + video üretimi, çoklu kanal paylaşımı, takvim, OAuth tek tık bağlantı.
 - **İçerik (AI Makale)**: 1800-2500 kelimelik kapsamlı, marka sesinde Türkçe makaleler. 6 ajanlı zincir (keyword → outline → yazar → editör → görsel → schema). WordPress, Webflow, Shopify, Ghost, FTP/SFTP, GitHub'a otomatik yayın.
-- **Site Audit + Auto-Fix**: 14 SEO + GEO kontrolü, sorunları tek tıkla düzeltme (sitemap.xml, robots.txt, llms.txt, schema markup).
+- **Site Audit + Auto-Fix**: 14 SEO + GEO kontrolü, sorunları tek tıkla düzeltme. Sitemap.xml, robots.txt, schema markup (Google için), llms.txt + llms-full.txt (Perplexity / ChatGPT browse / Claude.ai gibi non-Google AI motorları için — Google AI Overviews'da resmi olarak gerekli değil, ancak diğer AI motorları için net fayda).
 - **Auto-Pilot Otomasyon**: ASA kampanya optimizasyonu, AI Visibility günlük snapshot, ASC release alarm, AI keyword recommendation — sen uyurken çalışır.
 
 ## Bonus özellikler

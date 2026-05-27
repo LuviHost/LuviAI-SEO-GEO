@@ -37,6 +37,8 @@ Türkiye'deki KOBİ, e-ticaret ve mobil app sahipleri **5 farklı SaaS aboneliğ
 
 **Ne yapar:** Kullanıcılar artık Google yerine AI'lara soruyor. "En iyi muhasebe yazılımı?" diye soran biri ChatGPT'den senin markanı duyacak mı duymayacak mı — onu ölçer ve geliştirir.
 
+**İki pist anlayışı (kritik):** GEO tek bir teknik trick değildir. (a) **Google AI Overviews** için resmi öneri klasik teknik SEO + benzersiz bakış açısı + E-E-A-T sinyalleri (Google bunu Aralık 2025 rehberinde açıkça yazmıştır — özel "AI dosyaları" gerekli değildir). (b) **Non-Google AI motorları** (Perplexity, ChatGPT browse, Claude.ai) için llms.txt + structured data + FAQ formatları net fayda sağlar. LuviAI iki pisti de aynı anda optimize eder.
+
 **Özellikler:**
 - 6 AI provider'da paralel test: ChatGPT (OpenAI), Claude (Anthropic), Gemini (Google), Perplexity, Grok (xAI), DeepSeek
 - Her testte 5 hedeflenmiş sorgu (sektörüne göre AI tarafından üretilir)
@@ -135,13 +137,15 @@ Türkiye'deki KOBİ, e-ticaret ve mobil app sahipleri **5 farklı SaaS aboneliğ
 **Ne yapar:** 14 SEO + GEO kontrolü, sorunları tek tıkla düzeltme.
 
 **Özellikler:**
-- Sitemap.xml otomatik üretim
+- Sitemap.xml otomatik üretim (Google + tüm arama motorları için)
 - robots.txt template
-- **llms.txt** üretim (AI search için kritik)
-- Schema markup (FAQ, Article, BreadcrumbList, HowTo, Speakable, Organization)
-- Meta tag denetimi
+- **llms.txt + llms-full.txt** üretim — Perplexity, ChatGPT browse modu, Claude.ai web erişimi gibi non-Google AI motorları için içerik parse edilebilirliği artırır. Google AI Overviews için resmi olarak gerekli değildir (Google bunu Aralık 2025 rehberinde netleştirmiştir), ancak diğer AI motorlarında net fayda sağlar.
+- Schema markup (FAQ, Article, BreadcrumbList, HowTo, Speakable, Organization) — Google rich result ve non-Google AI motorları için
+- Meta tag denetimi (title + description + canonical)
 - AI crawler izinleri (GPTBot, ClaudeBot, PerplexityBot, ChatGPT-User, Google-Extended)
-- PageSpeed kontrolü
+- PageSpeed kontrolü (Core Web Vitals — Google'ın aktif ranking sinyali)
+- E-E-A-T sinyali tarayıcı: sameAs (sosyal kanallar), author bio, organization schema — Google'ın AI Overviews için resmi olarak vurguladığı sinyaller
+- **Stuck Pages tespiti**: Google'da ilk sayfada ama top 3 değil olan sayfaları algılar, AI ile cümle-seviyesinde kurtarır (başlık + slug + yapı korunur)
 
 ### 9. Auto-Pilot Otomasyon
 

@@ -261,6 +261,7 @@ model Site {
   adCampaigns      AdCampaign[]
   aiProviderKeys   SiteAiProviderKey[]
   trackedApps      TrackedApp[]
+  stuckPages       StuckPage[]
 
   // ASO Faz 1/2/3 — Apple Search Ads + App Store Connect + LuviAI SDK
   asaAccounts      AsaAccount[]
@@ -479,6 +480,7 @@ model Article {
   site Site @relation(fields: [siteId], references: [id], onDelete: Cascade)
   socialPosts SocialPost[]
   videos      Video[]
+  stuckPages  StuckPage[]
 
   @@unique([siteId, slug])
   @@index([siteId, status])
@@ -503,6 +505,98 @@ enum EditorVerdict {
   PASS
   REVIZE
   FAIL
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  STUCK PAGES — On-page.ai Recipe 1 "Recover Stuck Page" karsiligi
+//  Indekslenmis ama yeterince ranklamayan sayfalari tespit + AI ile
+//  cumle-seviyesinde duzeltme. Auto-Pilot ON ise otomatik uygulanir,
+//  kullanici audit trail uzerinden revert edebilir.
+// ═══════════════════════════════════════════════════════════════
+
+model StuckPage {
+  id           String   @id @default(cuid())
+  siteId       String
+  articleId    String?
+
+  url          String
+  title        String?
+  impressions  Int
+  clicks       Int
+  position     Float
+  ctr          Float
+  stuckScore   Int
+
+  entityScoreBefore  Int?
+  topMissingEntities Json?
+  topQueries         Json?
+
+  status       StuckPageStatus @default(DETECTED)
+  detectedAt   DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  site         Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  article      Article? @relation(fields: [articleId], references: [id], onDelete: SetNull)
+  recoveries   StuckPageRecovery[]
+
+  @@index([siteId, status])
+  @@index([siteId, detectedAt])
+  @@map("stuck_pages")
+}
+
+model StuckPageRecovery {
+  id              String   @id @default(cuid())
+  stuckPageId     String
+
+  bodyHtmlBefore  String?  @db.LongText
+  bodyHtmlAfter   String?  @db.LongText
+  bodyMdBefore    String?  @db.LongText
+  bodyMdAfter     String?  @db.LongText
+
+  edits           Json
+  entitiesAdded   Json
+  alttextsUpdated Json?
+  paragraphAdded  String?  @db.Text
+
+  entityScoreAfter Int
+  scorePassedComp  Boolean
+
+  llmModel        String
+  totalCost       Decimal? @db.Decimal(10, 4)
+  promptTokens    Int?
+  completionTokens Int?
+
+  appliedAt       DateTime @default(now())
+  appliedBy       String
+  revertedAt      DateTime?
+  revertedBy      String?
+
+  // ENH#1: Auriti GEO rescan — gercek skor before/after (LLM tahmin yerine)
+  geoScoreBefore  Int?
+  geoScoreAfter   Int?
+
+  // ENH#4: Performance feedback loop — 30 gun sonra GSC re-check
+  effectivenessCheckAt DateTime?           // ne zaman olculdu
+  positionBefore       Float?              // recovery aninda position (referans)
+  positionAfter        Float?              // 30g sonra GSC'den
+  positionImprovement  Float?              // positionBefore - positionAfter (pozitif = iyilesti)
+  ctrBefore            Float?
+  ctrAfter             Float?
+  effectivenessScore   Int?                // 0-100: gercekte ise yaradi mi
+
+  stuckPage StuckPage @relation(fields: [stuckPageId], references: [id], onDelete: Cascade)
+
+  @@index([stuckPageId, appliedAt])
+  @@map("stuck_page_recoveries")
+}
+
+enum StuckPageStatus {
+  DETECTED
+  RECOVERING
+  RECOVERED
+  FAILED
+  REVERTED
+  IGNORED
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -724,6 +818,11 @@ enum JobType {
   AI_MENTION_ALARM    // gunluk: AI citation drop tespit + email
   ADS_AUTOPILOT       // 6 saatte bir: aktif kampanyalari ROAS'a gore optimize
   VIDEO_GENERATE      // Faz 12: SLIDESHOW/VEO/RUNWAY/HEYGEN/SORA video uretim job tipi
+  STUCK_PAGE_DETECT       // Tek site: GSC bazli stuck page tarama
+  STUCK_PAGE_DETECT_ALL   // Cron: tum autopilot sitelerinde tarama + otomatik recovery dispatch
+  STUCK_PAGE_RECOVER             // Tek stuck sayfa icin LLM tabanli recovery
+  STUCK_PAGE_PERFORMANCE_CHECK   // 30 gun sonra GSC re-check + recovery effectiveness olcumu
+  STUCK_PAGE_EXTERNAL_RECOVER    // LuviAI disinda yazilan sayfa icin HTML fetch + LLM + adapter publish
 }
 
 enum JobStatus {

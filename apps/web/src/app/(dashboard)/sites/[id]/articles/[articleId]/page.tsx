@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { marked } from 'marked';
 import { toast } from 'sonner';
-import { ArrowLeft, Download, Send, ExternalLink, Calendar, Clock, FileText, ImageIcon } from 'lucide-react';
+import { ArrowLeft, Download, Send, ExternalLink, Calendar, Clock, FileText, ImageIcon, Wrench } from 'lucide-react';
 import { api } from '@/lib/api';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -77,6 +77,7 @@ export default function ArticleDetailPage() {
   const [loading, setLoading] = useState(true);
   const [publishing, setPublishing] = useState(false);
   const [selectedTargets, setSelectedTargets] = useState<Set<string>>(new Set());
+  const [stuckPage, setStuckPage] = useState<any | null>(null);
 
   const refresh = async () => {
     try {
@@ -89,6 +90,13 @@ export default function ArticleDetailPage() {
       // Default target'ı önceden seç
       const defaultTarget = t.find((x: any) => x.isDefault);
       if (defaultTarget) setSelectedTargets(new Set([defaultTarget.id]));
+
+      // ENH#6 — Bu article icin stuck page kaydi var mi?
+      try {
+        const stuckList = await api.listStuckPages(siteId);
+        const match = stuckList.find((s: any) => s.articleId === articleId && (s.status === 'DETECTED' || s.status === 'FAILED'));
+        setStuckPage(match ?? null);
+      } catch {/* sessizce gec */}
     } catch (err: any) {
       toast.error(err.message);
     } finally {
@@ -345,6 +353,32 @@ ${body}
           steps={PUBLISH_STEPS}
           running={publishing}
         />
+      )}
+
+      {/* ENH#6 — Stuck page banner: bu makale Google'da #4-15 araliginda kaldi */}
+      {stuckPage && (
+        <Card className="border-amber-500/40 bg-amber-500/5">
+          <CardContent className="p-4">
+            <div className="flex items-start gap-3 flex-wrap">
+              <div className="h-9 w-9 rounded-xl bg-amber-500/15 text-amber-600 grid place-items-center shrink-0">
+                <Wrench className="h-4 w-4" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold">Bu sayfa Google'da #{Math.round(stuckPage.position)}. sırada — kurtarmaya uygun.</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Son 30 gün: {stuckPage.impressions.toLocaleString('tr-TR')} gösterim, CTR %{(stuckPage.ctr * 100).toFixed(2)}.
+                  AI ile cümle-seviyesinde tamir başlık ve yapıyı bozmaz; etki 24-48 saat.
+                </p>
+              </div>
+              <Link
+                href={`/sites/${siteId}/stuck-pages` as any}
+                className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-amber-500 text-white hover:bg-amber-600 shrink-0"
+              >
+                Stuck Pages →
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       <Card>

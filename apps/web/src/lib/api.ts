@@ -285,6 +285,71 @@ export const api = {
       runAt: string;
     }>(`/sites/${siteId}/audit/citation-per-page`, { method: 'POST' }),
 
+  // ── Stuck Pages (On-page.ai Recipe 1) ──
+  listStuckPages: (siteId: string, status?: string) =>
+    request<Array<{
+      id: string;
+      siteId: string;
+      articleId: string | null;
+      url: string;
+      title: string | null;
+      impressions: number;
+      clicks: number;
+      ctr: number;
+      position: number;
+      stuckScore: number;
+      status: string;
+      topQueries: string[] | null;
+      detectedAt: string;
+      recoveries: Array<{
+        id: string;
+        appliedAt: string;
+        entitiesAdded: string[];
+        edits: any[];
+        revertedAt: string | null;
+      }>;
+    }>>(
+      `/sites/${siteId}/audit/stuck-pages${status ? `?status=${status}` : ''}`,
+    ),
+
+  detectStuckPages: (siteId: string) =>
+    request<{ found: number; created: number; updated: number; skipped: number }>(
+      `/sites/${siteId}/audit/stuck-pages/detect`,
+      { method: 'POST' },
+    ),
+
+  getStuckPage: (siteId: string, id: string) =>
+    request<any>(`/sites/${siteId}/audit/stuck-pages/${id}`),
+
+  recoverStuckPage: (siteId: string, id: string) =>
+    request<{
+      success: boolean;
+      recoveryId?: string;
+      editsCount?: number;
+      reason?: string;
+    }>(`/sites/${siteId}/audit/stuck-pages/${id}/recover`, {
+      method: 'POST',
+      body: JSON.stringify({ triggeredBy: 'manual' }),
+    }),
+
+  recoverStuckPagesBatch: (siteId: string, stuckPageIds: string[]) =>
+    request<{ siteId: string; results: Array<{ id: string; ok: boolean; recoveryId?: string; error?: string }> }>(
+      `/sites/${siteId}/audit/stuck-pages/recover-batch`,
+      { method: 'POST', body: JSON.stringify({ stuckPageIds, triggeredBy: 'manual' }) },
+    ),
+
+  revertStuckPageRecovery: (siteId: string, recoveryId: string) =>
+    request<{ ok: boolean }>(
+      `/sites/${siteId}/audit/stuck-pages/recovery/${recoveryId}/revert`,
+      { method: 'POST', body: JSON.stringify({}) },
+    ),
+
+  ignoreStuckPage: (siteId: string, id: string) =>
+    request<{ ok: boolean }>(
+      `/sites/${siteId}/audit/stuck-pages/${id}/ignore`,
+      { method: 'POST' },
+    ),
+
   // ── BYOK (Bring Your Own Key) — Sprint BYOK ──
   getAiKeysStatus: (siteId: string) =>
     request<any>(`/sites/${siteId}/ai-keys`),

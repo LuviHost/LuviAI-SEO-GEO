@@ -27,6 +27,9 @@ import { Public } from '../auth/public.decorator.js';
 import { SnippetGeneratorService } from './snippet-generator.service.js';
 import { SnippetApplierService } from './snippet-applier.service.js';
 import { StaticHtmlFixerService } from './static-html-fixer.service.js';
+import { StuckPageDetectorService } from './stuck-page-detector.service.js';
+import { StuckPageRecoveryService } from './stuck-page-recovery.service.js';
+import { StuckPageExternalRecoveryService } from './stuck-page-external-recovery.service.js';
 
 @Controller('sites/:siteId/audit')
 export class AuditController {
@@ -57,6 +60,9 @@ export class AuditController {
     private readonly snippets: SnippetGeneratorService,
     private readonly applier: SnippetApplierService,
     private readonly staticFixer: StaticHtmlFixerService,
+    private readonly stuckDetector: StuckPageDetectorService,
+    private readonly stuckRecovery: StuckPageRecoveryService,
+    private readonly stuckExternalRecovery: StuckPageExternalRecoveryService,
   ) {}
 
   @Get('latest')
@@ -82,6 +88,86 @@ export class AuditController {
   @Post('auto-fix-now')
   async autoFixNow(@Param('siteId') siteId: string, @Body() body: { fixes: string[] }) {
     return this.autoFix.runAutoFix(siteId, body.fixes);
+  }
+
+  // ──────────────────────────────────────────────────────────────
+  //  Stuck Pages — On-page.ai Recipe 1 esleyicisi
+  // ──────────────────────────────────────────────────────────────
+
+  @Get('stuck-pages')
+  async listStuckPages(
+    @Param('siteId') siteId: string,
+    @Query('status') status?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.stuckDetector.list(siteId, {
+      status,
+      limit: limit ? Number(limit) : undefined,
+    });
+  }
+
+  @Post('stuck-pages/detect')
+  async detectStuckPages(@Param('siteId') siteId: string) {
+    return this.stuckDetector.detect(siteId);
+  }
+
+  @Get('stuck-pages/:id')
+  async stuckPageDetail(@Param('id') id: string) {
+    return this.stuckDetector.getDetail(id);
+  }
+
+  @Post('stuck-pages/:id/recover')
+  async recoverStuckPage(@Param('id') id: string, @Body() body: { triggeredBy?: string } = {}) {
+    // articleId varsa Article-based recovery, yoksa external (URL fetch)
+    const sp = await this.stuckDetector.getDetail(id);
+    if (!sp) throw new Error('Stuck page bulunamadi');
+    if (sp.articleId) {
+      return this.stuckRecovery.recover(id, {
+        triggeredBy: body.triggeredBy || 'manual',
+      });
+    }
+    return this.stuckExternalRecovery.recover(id, {
+      triggeredBy: body.triggeredBy || 'manual',
+    });
+  }
+
+  @Post('stuck-pages/recover-batch')
+  async recoverBatch(
+    @Param('siteId') siteId: string,
+    @Body() body: { stuckPageIds: string[]; triggeredBy?: string },
+  ) {
+    const results: Array<{ id: string; ok: boolean; error?: string; recoveryId?: string }> = [];
+    for (const id of body.stuckPageIds ?? []) {
+      try {
+        const sp = await this.stuckDetector.getDetail(id);
+        if (!sp) {
+          results.push({ id, ok: false, error: 'Stuck page bulunamadi' });
+          continue;
+        }
+        const r = sp.articleId
+          ? await this.stuckRecovery.recover(id, { triggeredBy: body.triggeredBy || 'manual' })
+          : await this.stuckExternalRecovery.recover(id, { triggeredBy: body.triggeredBy || 'manual' });
+        results.push({ id, ok: r.success, recoveryId: r.recoveryId });
+      } catch (err: any) {
+        results.push({ id, ok: false, error: err.message });
+      }
+    }
+    return { siteId, results };
+  }
+
+  @Post('stuck-pages/recovery/:recoveryId/revert')
+  async revertRecovery(
+    @Param('recoveryId') recoveryId: string,
+    @Body() body: { userId?: string } = {},
+  ) {
+    await this.stuckRecovery.revert(recoveryId, body.userId || 'manual');
+    return { ok: true };
+  }
+
+  @Post('stuck-pages/:id/ignore')
+  async ignoreStuckPage(@Param('id') id: string) {
+    await this.stuckDetector.ignore(id);
+    return { ok: true };
   }
 
   @Post('citation-test')

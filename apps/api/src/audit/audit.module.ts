@@ -33,10 +33,15 @@ import { EmailModule } from '../email/email.module.js';
 import { SnippetGeneratorService } from './snippet-generator.service.js';
 import { SnippetApplierService } from './snippet-applier.service.js';
 import { StaticHtmlFixerService } from './static-html-fixer.service.js';
+import { StuckPageDetectorService } from './stuck-page-detector.service.js';
+import { StuckPageRecoveryService } from './stuck-page-recovery.service.js';
+import { StuckPagePerformanceCheckService } from './stuck-page-performance-check.service.js';
+import { StuckPageExternalRecoveryService } from './stuck-page-external-recovery.service.js';
 import { SitesModule } from '../sites/sites.module.js';
+import { AuthModule } from '../auth/auth.module.js';
 
 @Module({
-  imports: [SitesModule, EmailModule],
+  imports: [SitesModule, EmailModule, AuthModule],
   controllers: [AuditController, TrackerController],
   providers: [
     AuditService,
@@ -70,6 +75,10 @@ import { SitesModule } from '../sites/sites.module.js';
     SnippetGeneratorService,
     SnippetApplierService,
     StaticHtmlFixerService,
+    StuckPageDetectorService,
+    StuckPageRecoveryService,
+    StuckPagePerformanceCheckService,
+    StuckPageExternalRecoveryService,
   ],
   exports: [
     AuditService,

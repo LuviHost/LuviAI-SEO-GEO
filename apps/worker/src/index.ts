@@ -39,6 +39,11 @@ import { KeywordOptimizerService } from '../../api/dist/ads/keyword-optimizer.se
 import { BudgetShifterService } from '../../api/dist/ads/budget-shifter.service.js';
 import { AutoBoostService } from '../../api/dist/ads/auto-boost.service.js';
 import { SettingsService } from '../../api/dist/settings/settings.service.js';
+import { StuckPageDetectorService } from '../../api/dist/audit/stuck-page-detector.service.js';
+import { StuckPageRecoveryService } from '../../api/dist/audit/stuck-page-recovery.service.js';
+import { StuckPagePerformanceCheckService } from '../../api/dist/audit/stuck-page-performance-check.service.js';
+import { StuckPageExternalRecoveryService } from '../../api/dist/audit/stuck-page-external-recovery.service.js';
+import { JobQueueService } from '../../api/dist/jobs/job-queue.service.js';
 
 const log = new Logger('Worker');
 
@@ -71,6 +76,11 @@ async function bootstrap() {
     adsAutoBoost: app.get(AutoBoostService),
     prisma: app.get(PrismaService),
     settings: app.get(SettingsService),
+    stuckDetector: app.get(StuckPageDetectorService),
+    stuckRecovery: app.get(StuckPageRecoveryService),
+    stuckPerfCheck: app.get(StuckPagePerformanceCheckService),
+    stuckExternal: app.get(StuckPageExternalRecoveryService),
+    jobs: app.get(JobQueueService),
   };
 
   log.log('🔧 Worker DI hazır, BullMQ bağlanıyor');
@@ -417,6 +427,82 @@ async function bootstrap() {
     },
 
     /**
+     * STUCK_PAGE_DETECT — tek site icin GSC tabanli stuck page tarama.
+     * Cron tarafindan haftalik tetiklenir veya manuel API'den.
+     */
+    STUCK_PAGE_DETECT: async ({ siteId }) => {
+      return services.stuckDetector.detect(siteId);
+    },
+
+    /**
+     * STUCK_PAGE_DETECT_ALL — haftalik cron: tum autopilot ON sitelerde tarama.
+     * Bulunanlardan autopilot ON ise otomatik recover dispatch.
+     */
+    STUCK_PAGE_DETECT_ALL: async () => {
+      const sites = await services.prisma.site.findMany({
+        where: { status: { in: ['ACTIVE', 'AUDIT_COMPLETE'] as any[] } },
+        select: { id: true, name: true, autopilot: true, userId: true },
+      });
+      const summary = { totalSites: sites.length, totalDetected: 0, autoRecoveryQueued: 0 };
+      for (const site of sites) {
+        try {
+          const result = await services.stuckDetector.detect(site.id);
+          summary.totalDetected += result.found;
+          if (site.autopilot && result.found > 0) {
+            const newStuck = await services.prisma.stuckPage.findMany({
+              where: { siteId: site.id, status: 'DETECTED' as any, articleId: { not: null } },
+              orderBy: { stuckScore: 'desc' },
+              take: 5,
+            });
+            for (const sp of newStuck) {
+              await services.jobs.enqueue({
+                type: 'STUCK_PAGE_RECOVER',
+                userId: site.userId,
+                siteId: site.id,
+                payload: { stuckPageId: sp.id, triggeredBy: 'autopilot' },
+                priority: 5,
+              }).catch(() => null);
+              summary.autoRecoveryQueued++;
+            }
+          }
+        } catch (err: any) {
+          log.warn(`[${site.id}] stuck detect hata: ${err.message}`);
+        }
+      }
+      log.log(`STUCK_PAGE_DETECT_ALL: ${summary.totalSites} site, ${summary.totalDetected} stuck, ${summary.autoRecoveryQueued} otomatik recovery`);
+      return summary;
+    },
+
+    /**
+     * STUCK_PAGE_RECOVER — tek stuck sayfa icin LLM tabanli recovery.
+     * Basarili olursa otomatik PUBLISH_ARTICLE kuyruga atilir (recovery service icinde).
+     */
+    STUCK_PAGE_RECOVER: async ({ stuckPageId, triggeredBy }) => {
+      if (await services.settings.getBoolean('AI_GLOBAL_DISABLED')) {
+        log.warn(`[stuck:${stuckPageId}] atlandi (AI_GLOBAL_DISABLED=1)`);
+        return { skipped: true, reason: 'AI_GLOBAL_DISABLED' };
+      }
+      // Article varsa normal recovery, yoksa external
+      const sp = await services.stuckDetector.getDetail(stuckPageId);
+      if (sp?.articleId) {
+        return services.stuckRecovery.recover(stuckPageId, {
+          triggeredBy: triggeredBy || 'autopilot',
+        });
+      }
+      return services.stuckExternal.recover(stuckPageId, {
+        triggeredBy: triggeredBy || 'autopilot',
+      });
+    },
+
+    /**
+     * STUCK_PAGE_PERFORMANCE_CHECK — ENH#4: 30 gun sonra GSC re-check.
+     * Recovery anindan 30 gun sonra delayed olarak tetiklenir.
+     */
+    STUCK_PAGE_PERFORMANCE_CHECK: async ({ recoveryId }) => {
+      return services.stuckPerfCheck.check(recoveryId);
+    },
+
+    /**
      * VIDEO_GENERATE — Faz 12: çoklu provider video factory.
      * payload: { videoId, provider, brief: { title, scriptText, durationSec, aspectRatio, voiceId, language, style, imageUrls } }
      */
@@ -608,7 +694,19 @@ async function bootstrap() {
       },
     );
 
-    log.log('⏰ Cron: PROCESS_SCHEDULED 30dk · LLMS_FULL_BUILD haftalik · AI_CITATION_DAILY gunluk · CONTENT_PIVOT_CHECK haftalik · AI_MENTION_ALARM gunluk · ADS_AUTOPILOT 6saat');
+    // 7) STUCK_PAGE_DETECT_ALL — Pazartesi 06:00 UTC haftalik
+    await queue.add(
+      'STUCK_PAGE_DETECT_ALL',
+      { trigger: 'cron' },
+      {
+        repeat: { pattern: '0 6 * * 1', tz: 'UTC' },
+        jobId: 'cron:stuck-page-detect-weekly',
+        removeOnComplete: { count: 20 },
+        removeOnFail: { count: 20 },
+      },
+    );
+
+    log.log('⏰ Cron: PROCESS_SCHEDULED 30dk · LLMS_FULL_BUILD haftalik · AI_CITATION_DAILY gunluk · CONTENT_PIVOT_CHECK haftalik · AI_MENTION_ALARM gunluk · ADS_AUTOPILOT 6saat · STUCK_PAGE_DETECT_ALL haftalik');
   } catch (err: any) {
     log.warn(`Cron kurulumu basarisiz: ${err.message}`);
   }

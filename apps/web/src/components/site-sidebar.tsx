@@ -32,6 +32,7 @@ import {
   Smartphone,
   Lightbulb,
   Mail,
+  Wrench,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { ThemeToggle } from '@/components/theme-toggle';
@@ -79,6 +80,7 @@ const SITE_GROUPS = (siteId: string) => [
       { href: `/sites/${siteId}/geo-lab`, label: 'GEO Lab', icon: Award },
       { href: `/sites/${siteId}/competitors`, label: 'Rakipler', icon: Network },
       { href: `/sites/${siteId}/snippet`, label: 'Sayfa SEO İyileştir', icon: FileText },
+      { href: `/sites/${siteId}/stuck-pages`, label: 'Stuck Pages', icon: Wrench },
     ],
   },
   {
