@@ -1,11 +1,13 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { toast } from 'sonner';
 import { useSiteContext } from '../site-context';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { InfoTooltip } from '@/components/info-tooltip';
 import { api } from '@/lib/api';
 import {
   Wrench,
@@ -19,6 +21,10 @@ import {
   AlertTriangle,
   CheckCircle2,
   Loader2,
+  ChevronDown,
+  X,
+  Lightbulb,
+  Send,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -32,6 +38,29 @@ const STATUS_LABEL: Record<string, { text: string; cls: string }> = {
   REVERTED:   { text: 'Geri alındı',   cls: 'bg-zinc-500/10 text-zinc-600 border-zinc-500/30' },
   IGNORED:    { text: 'Gözardı',       cls: 'bg-zinc-500/10 text-zinc-600 border-zinc-500/30' },
 };
+
+// Status icin hover hint (title attribute)
+function getStatusHint(status: string): string {
+  switch (status) {
+    case 'DETECTED':   return 'AI henüz dokunmadı. AI Düzelt tıklayarak recovery başlatabilirsin.';
+    case 'RECOVERING': return 'AI şu an çalışıyor. ~30 saniye sürer.';
+    case 'RECOVERED':  return 'AI ile iyileştirildi ve yeniden yayınlandı. 24-48 saatte Google etkisi başlar, 30 gün sonra otomatik performans ölçümü.';
+    case 'FAILED':     return 'Recovery uygulanamadı. Sebep: içerik çok ince, LLM önerisi üretemedi VEYA external sayfa için publish target eksik.';
+    case 'REVERTED':   return 'AI iyileştirmesi geri alındı, sayfanın eski hali tekrar yayında.';
+    case 'IGNORED':    return 'Bu sayfa "dokunma" işaretiyle gözardı edildi.';
+    default: return '';
+  }
+}
+
+// Pozisyon icin beklenen CTR (Sistrix ortalamasi) — tooltip'lerde kullaniliyor
+function expectedCtrFor(position: number): number {
+  const map: Record<number, number> = {
+    1: 27, 2: 15, 3: 11, 4: 8, 5: 6, 6: 4.5, 7: 3.5, 8: 3, 9: 2.5, 10: 2.5,
+    11: 2, 12: 1.8, 13: 1.5, 14: 1.2, 15: 1,
+  };
+  const r = Math.max(1, Math.min(15, Math.round(position)));
+  return map[r] ?? 1;
+}
 
 function ScoreBadge({ score }: { score: number }) {
   const cls = score >= 70
@@ -90,12 +119,20 @@ function StuckPageCard({
           )}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-              <span className={cn('inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-xs font-medium', status.cls)}>
+              <span
+                className={cn('inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-xs font-medium', status.cls)}
+                title={getStatusHint(page.status)}
+              >
                 {status.text}
               </span>
-              <ScoreBadge score={page.stuckScore} />
+              <span title={`Öncelik skoru (0-100): ${page.stuckScore}. Yüksek = daha çok kurtarmaya değer. Formül: impressions × CTR boşluğu × pozisyon.`}>
+                <ScoreBadge score={page.stuckScore} />
+              </span>
               {page.articleId === null && (
-                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-xs font-medium bg-zinc-500/10 text-zinc-600 border-zinc-500/30">
+                <span
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-xs font-medium bg-zinc-500/10 text-zinc-600 border-zinc-500/30"
+                  title="Bu sayfa LuviAI ile değil, sitende elle yazılmış. Recovery için site'ne WordPress / FTP / SFTP / cPanel publish target bağlamalısın."
+                >
                   <AlertTriangle className="h-3 w-3" /> LuviAI dışı
                 </span>
               )}
@@ -106,38 +143,68 @@ function StuckPageCard({
             </a>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3 text-xs">
               <div>
-                <div className="text-muted-foreground">Pozisyon</div>
+                <div className="text-muted-foreground inline-flex items-center gap-1">
+                  Pozisyon
+                  <InfoTooltip text={`Google'da ortalama sıralama. Şu an #${Math.round(page.position)}. Top 3'e çıkması hedefleniyor — biraz iyileştirmeyle ulaşılabilir mesafede.`} />
+                </div>
                 <div className="font-semibold">#{Math.round(page.position)}</div>
               </div>
               <div>
-                <div className="text-muted-foreground">Gösterim (30g)</div>
+                <div className="text-muted-foreground inline-flex items-center gap-1">
+                  Gösterim (30g)
+                  <InfoTooltip text="Son 30 günde Google arama sonuçlarında bu sayfa kaç kez gösterildi. Yüksek = sayfa zaten görünüyor, sadece tıklama almıyor." />
+                </div>
                 <div className="font-semibold">{page.impressions.toLocaleString('tr-TR')}</div>
               </div>
               <div>
-                <div className="text-muted-foreground">CTR</div>
+                <div className="text-muted-foreground inline-flex items-center gap-1">
+                  CTR
+                  <InfoTooltip text={`Görenlerin yüzde kaçı tıkladı. Pozisyon #${Math.round(page.position)} için beklenen CTR ~%${expectedCtrFor(page.position).toFixed(1)}. Şu anki: %${(page.ctr * 100).toFixed(2)}. Aradaki fark = kayıp potansiyel.`} />
+                </div>
                 <div className="font-semibold">%{(page.ctr * 100).toFixed(2)}</div>
               </div>
               <div>
-                <div className="text-muted-foreground">Tıklama</div>
+                <div className="text-muted-foreground inline-flex items-center gap-1">
+                  Tıklama
+                  <InfoTooltip text="Son 30 günde gerçek tıklama sayısı. AI ile recovery sonrası 24-48 saatte artış başlar, asıl etki 2-4 hafta sonra." />
+                </div>
                 <div className="font-semibold">{page.clicks}</div>
               </div>
             </div>
             {Array.isArray(page.topQueries) && page.topQueries.length > 0 && (
-              <div className="mt-3 flex flex-wrap gap-1.5">
-                {page.topQueries.slice(0, 5).map((q) => (
-                  <span key={q} className="text-[11px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
-                    {q}
-                  </span>
-                ))}
+              <div className="mt-3">
+                <div className="flex items-center gap-1 text-[11px] text-muted-foreground mb-1.5">
+                  <span>Top sorgular</span>
+                  <InfoTooltip text="Bu sayfanın çıktığı arama terimleri (GSC son 30 gün). AI recovery bu sorgulara optimize cümle önerileri üretir." />
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {page.topQueries.slice(0, 5).map((q) => (
+                    <span key={q} className="text-[11px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+                      {q}
+                    </span>
+                  ))}
+                </div>
               </div>
             )}
           </div>
           <div className="flex flex-col gap-1.5 shrink-0">
             {canRecover && page.articleId && (
-              <Button onClick={onRecover} disabled={busy} size="sm" className="gap-1.5">
+              <Button
+                onClick={onRecover} disabled={busy} size="sm" className="gap-1.5"
+                title="Claude Sonnet 4.6 ile cümle-seviye edit. ~30 saniye. Başlık, slug ve yapı korunur — sadece eksik anahtar kelimeler doğal akışta eklenir."
+              >
                 {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
                 AI Düzelt
               </Button>
+            )}
+            {canRecover && !page.articleId && (
+              <Link
+                href={`/sites/${page.siteId}/publish-targets` as any}
+                title="External sayfaları (LuviAI dışı) kurtarmak için WordPress / FTP / SFTP / cPanel publish target bağlamak gerek."
+                className="inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-md text-xs font-medium border border-dashed border-brand-500/40 text-brand-600 hover:bg-brand-500/10 transition-colors"
+              >
+                <Send className="h-3.5 w-3.5" /> Target bağla
+              </Link>
             )}
             {isRecovering && (
               <Button disabled size="sm" variant="outline" className="gap-1.5">
@@ -145,17 +212,26 @@ function StuckPageCard({
               </Button>
             )}
             {canRevert && (
-              <Button onClick={() => onRevert(lastRecovery!.id)} disabled={busy} size="sm" variant="outline" className="gap-1.5">
+              <Button
+                onClick={() => onRevert(lastRecovery!.id)} disabled={busy} size="sm" variant="outline" className="gap-1.5"
+                title="AI edit'leri sil, sayfanın recovery öncesi haline yeniden publish et."
+              >
                 <Undo2 className="h-3.5 w-3.5" /> Geri Al
               </Button>
             )}
             {page.status === 'DETECTED' && (
-              <Button onClick={onIgnore} disabled={busy} size="sm" variant="ghost" className="gap-1.5 text-muted-foreground">
+              <Button
+                onClick={onIgnore} disabled={busy} size="sm" variant="ghost" className="gap-1.5 text-muted-foreground"
+                title="Bu sayfayı bir daha öneri listesinde gösterme. Detay'dan tekrar açabilirsin."
+              >
                 <EyeOff className="h-3.5 w-3.5" /> Gözardı
               </Button>
             )}
             {(page.recoveries?.length ?? 0) > 0 && (
-              <Button onClick={onToggle} size="sm" variant="ghost" className="gap-1.5">
+              <Button
+                onClick={onToggle} size="sm" variant="ghost" className="gap-1.5"
+                title="Audit trail: hangi cümleler değişti, eklenen entity'ler, before/after — hepsi burada."
+              >
                 <Eye className="h-3.5 w-3.5" /> {expanded ? 'Detay Kapat' : 'Detay'}
               </Button>
             )}
@@ -206,6 +282,30 @@ function StuckPageCard({
   );
 }
 
+// Guide content — kullanici bu sayfayi anlamak icin
+const GUIDE_STEPS = [
+  {
+    icon: TrendingDown,
+    title: 'Stuck sayfa nedir?',
+    body: 'Google\'da ilk sayfada (pozisyon 4-15) ama top 3\'te değil. Yarı yolda kalmış, biraz iyileştirmeyle yukarı çıkabilir.',
+  },
+  {
+    icon: Sparkles,
+    title: 'AI ne yapıyor?',
+    body: 'Claude Sonnet 4.6 cümle-seviye edit yapar: eksik anahtar kelimeleri doğal akışta ekler, thin paragraf varsa genişletir. Başlık + slug + yapı dokunulmaz.',
+  },
+  {
+    icon: Send,
+    title: 'Etki ne zaman?',
+    body: 'AI Düzelt sonrası ~30 sn'+'de yayın güncellenir. Google 24-48 saatte yeniden tarar. 30 gün sonra otomatik performans ölçümü yapılır.',
+  },
+  {
+    icon: AlertTriangle,
+    title: '"LuviAI dışı" rozeti?',
+    body: 'Bu sayfa LuviAI ile yazılmadı, sitende elle yazılmış. Recovery için WordPress / FTP / SFTP / cPanel publish target bağlı olmalı.',
+  },
+];
+
 export default function StuckPagesPage() {
   const { site } = useSiteContext();
   const [rows, setRows] = useState<StuckPageRow[]>([]);
@@ -216,6 +316,22 @@ export default function StuckPagesPage() {
   const [filter, setFilter] = useState<'all' | 'DETECTED' | 'RECOVERED' | 'FAILED' | 'IGNORED'>('all');
   // ENH#3 — Bulk recovery: multi-select
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  // Guide visibility — localStorage persist
+  const [showGuide, setShowGuide] = useState(true);
+  useEffect(() => {
+    try {
+      const dismissed = window.localStorage.getItem('luviai_stuck_guide_dismissed');
+      if (dismissed === '1') setShowGuide(false);
+    } catch {/* noop */}
+  }, []);
+  const dismissGuide = () => {
+    setShowGuide(false);
+    try { window.localStorage.setItem('luviai_stuck_guide_dismissed', '1'); } catch {/* noop */}
+  };
+  const restoreGuide = () => {
+    setShowGuide(true);
+    try { window.localStorage.removeItem('luviai_stuck_guide_dismissed'); } catch {/* noop */}
+  };
   const [bulkBusy, setBulkBusy] = useState(false);
 
   const refresh = useCallback(async () => {
@@ -369,9 +485,20 @@ export default function StuckPagesPage() {
           <Wrench className="h-5 w-5" />
         </div>
         <div className="flex-1">
-          <h2 className="text-2xl font-bold">Stuck Pages</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-2xl font-bold">Stuck Pages</h2>
+            <InfoTooltip text="Google'da ilk sayfada (pozisyon 4-15) ama top 3'te değil olan sayfaların listesi. Yeniden tarama her hafta otomatik (Pazartesi 06:00 UTC) yapılır; manuel tetiklemek için sağ üstte 'Yeniden Tara'." />
+          </div>
           <p className="text-sm text-muted-foreground">
             Google'da ilk sayfada ama ilk 3'te değil — AI ile cümle seviyesinde tamir, başlık ve yapı korunur.
+            {!showGuide && (
+              <>
+                {' · '}
+                <button onClick={restoreGuide} className="text-brand-600 hover:underline">
+                  Nasıl çalışır?
+                </button>
+              </>
+            )}
           </p>
         </div>
         <Button onClick={handleDetect} disabled={detecting} variant="outline" size="sm" className="shrink-0">
@@ -380,22 +507,90 @@ export default function StuckPagesPage() {
         </Button>
       </div>
 
-      {/* KPI cards */}
+      {/* "Nasıl çalışır" guide — dismissible, localStorage persist */}
+      {showGuide && (
+        <Card className="border-brand-500/30 bg-gradient-to-br from-brand-500/[0.04] to-transparent">
+          <CardContent className="p-5">
+            <div className="flex items-start gap-3 mb-4">
+              <Lightbulb className="h-5 w-5 text-brand-600 dark:text-brand-400 shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="font-semibold text-sm">Nasıl çalışır?</p>
+                <p className="text-xs text-muted-foreground mt-0.5">4 adımda Stuck Page Recovery sistemi</p>
+              </div>
+              <button
+                onClick={dismissGuide}
+                className="h-7 w-7 rounded-full grid place-items-center text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors"
+                aria-label="Rehberi kapat"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {GUIDE_STEPS.map((s, i) => {
+                const Icon = s.icon;
+                return (
+                  <div key={i} className="flex flex-col gap-2">
+                    <div className="flex items-center gap-2">
+                      <div className="h-7 w-7 rounded-lg bg-brand-500/10 text-brand-600 dark:text-brand-400 grid place-items-center shrink-0">
+                        <Icon className="h-3.5 w-3.5" />
+                      </div>
+                      <span className="text-xs font-semibold text-muted-foreground">0{i + 1}</span>
+                      <p className="text-sm font-medium tracking-[-0.01em]">{s.title}</p>
+                    </div>
+                    <p className="text-xs text-muted-foreground leading-[1.55]">{s.body}</p>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="mt-4 pt-4 border-t border-border/60 flex items-center justify-between text-xs">
+              <span className="text-muted-foreground">
+                💡 İlk önce <strong className="text-foreground">en yüksek gösterim alan</strong> sayfayı dene — etki orada daha hızlı görünür.
+              </span>
+              <Link href={`/sites/${site.id}/publish-targets` as any} className="text-brand-600 hover:underline font-medium inline-flex items-center gap-1">
+                <Send className="h-3 w-3" /> Yayın hedefi ekle
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* KPI cards — InfoTooltip ile her durum aciklamali */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        <KpiCard label="Toplam" value={counts.total} active={filter === 'all'} onClick={() => setFilter('all')} />
-        <KpiCard label="Tespit" value={counts.detected} active={filter === 'DETECTED'} onClick={() => setFilter('DETECTED')} accent="amber" />
-        <KpiCard label="Düzeltildi" value={counts.recovered} active={filter === 'RECOVERED'} onClick={() => setFilter('RECOVERED')} accent="emerald" />
-        <KpiCard label="Başarısız" value={counts.failed} active={filter === 'FAILED'} onClick={() => setFilter('FAILED')} accent="red" />
-        <KpiCard label="Gözardı" value={counts.ignored} active={filter === 'IGNORED'} onClick={() => setFilter('IGNORED')} accent="zinc" />
+        <KpiCard
+          label="Toplam"
+          tooltip="Algılanan tüm stuck sayfalar — DETECTED + RECOVERED + FAILED + IGNORED toplamı."
+          value={counts.total} active={filter === 'all'} onClick={() => setFilter('all')}
+        />
+        <KpiCard
+          label="Tespit"
+          tooltip="AI henüz dokunmadı. 'AI Düzelt' tıklayarak recovery başlatabilirsin. Auto-Pilot ON ise her hafta otomatik düzeltilir."
+          value={counts.detected} active={filter === 'DETECTED'} onClick={() => setFilter('DETECTED')} accent="amber"
+        />
+        <KpiCard
+          label="Düzeltildi"
+          tooltip="AI ile cümle-seviye iyileştirme uygulandı. 24-48 saat sonra Google ranking'i yansır. 30 gün sonra otomatik performans ölçümü yapılır."
+          value={counts.recovered} active={filter === 'RECOVERED'} onClick={() => setFilter('RECOVERED')} accent="emerald"
+        />
+        <KpiCard
+          label="Başarısız"
+          tooltip="Recovery uygulanamadı. Genelde 2 sebep: (1) içerik çok ince, AI tamir önerisi üretemedi (2) external sayfa için uygun publish target (WP/FTP/SFTP/cPanel) bağlı değil."
+          value={counts.failed} active={filter === 'FAILED'} onClick={() => setFilter('FAILED')} accent="red"
+        />
+        <KpiCard
+          label="Gözardı"
+          tooltip="'Bu sayfaya dokunulmasın' diye işaretledin. Listede bir daha öneri olarak çıkmaz, ama Detay'dan tekrar açabilirsin."
+          value={counts.ignored} active={filter === 'IGNORED'} onClick={() => setFilter('IGNORED')} accent="zinc"
+        />
       </div>
 
       {/* ENH#3 — Bulk toolbar: DETECTED durumdaki secilecek sayfa varsa goster */}
       {filteredRows.some((r) => r.status === 'DETECTED' && r.articleId) && (
         <Card className="border-brand/30 bg-brand/5">
           <CardContent className="p-3 flex items-center gap-3 flex-wrap">
-            <div className="text-sm flex-1 min-w-0">
+            <div className="text-sm flex-1 min-w-0 inline-flex items-center gap-1.5">
               <span className="font-semibold">{selectedIds.size}</span>{' '}
               sayfa seçili
+              <InfoTooltip text="Sadece DETECTED durumdaki + LuviAI içi sayfalar bulk seçilebilir. External (LuviAI dışı) sayfalar publish target gerektirdiği için tek tek elle yapılmalı." />
               {selectedIds.size > 0 && (
                 <button onClick={clearSelection} className="ml-2 text-xs text-muted-foreground hover:text-foreground underline">
                   temizle
@@ -408,6 +603,7 @@ export default function StuckPagesPage() {
               onClick={() => selectAllVisible(
                 filteredRows.filter((r) => r.status === 'DETECTED' && r.articleId).map((r) => r.id),
               )}
+              title="Görünür listedeki tüm DETECTED + LuviAI içi sayfaları seç (filter aktifse sadece filtreli olanlar)"
             >
               Tümünü seç (DETECTED)
             </Button>
@@ -416,6 +612,7 @@ export default function StuckPagesPage() {
               onClick={handleBulkRecover}
               disabled={selectedIds.size === 0 || bulkBusy}
               className="gap-1.5"
+              title={`Seçili ${selectedIds.size} sayfa için AI Düzelt'i sırayla çalıştır. Her biri ~30 sn, toplam yaklaşık ${Math.max(1, selectedIds.size * 30)} sn.`}
             >
               {bulkBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
               Seçilenleri AI ile Düzelt ({selectedIds.size})
@@ -480,12 +677,14 @@ function KpiCard({
   active,
   onClick,
   accent = 'brand',
+  tooltip,
 }: {
   label: string;
   value: number;
   active: boolean;
   onClick: () => void;
   accent?: 'brand' | 'amber' | 'emerald' | 'red' | 'zinc';
+  tooltip?: string;
 }) {
   const ring = active
     ? 'ring-2 ring-offset-1 ring-brand/30'
@@ -498,8 +697,15 @@ function KpiCard({
     zinc: 'text-zinc-600',
   };
   return (
-    <button onClick={onClick} className={cn('rounded-xl border bg-card p-3 text-left transition-all', ring)}>
-      <div className="text-xs text-muted-foreground">{label}</div>
+    <button onClick={onClick} className={cn('rounded-xl border bg-card p-3 text-left transition-all relative group', ring)}>
+      <div className="text-xs text-muted-foreground inline-flex items-center gap-1">
+        {label}
+        {tooltip && (
+          <span onClick={(e) => e.stopPropagation()} className="inline-block">
+            <InfoTooltip text={tooltip} iconClassName="opacity-60 group-hover:opacity-100" />
+          </span>
+        )}
+      </div>
       <div className={cn('text-xl font-bold', colorMap[accent])}>{value}</div>
     </button>
   );
