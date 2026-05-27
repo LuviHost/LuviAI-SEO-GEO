@@ -42,11 +42,15 @@ export class AnalyticsController {
     return this.analytics.getImprovementSuggestions(siteId);
   }
 
-  /** POST /sites/:siteId/analytics/snapshot-now (test/manuel tetik) */
+  /**
+   * POST /sites/:siteId/analytics/snapshot-now?days=14
+   * Manuel tetik — son N günün GSC verisini DB'ye yazar (default 14).
+   * Yeni bağlanan siteler için ilk doldurma + günlük cron eksiği yakalama.
+   */
   @Post('snapshot-now')
-  async snapshotNow(@Param('siteId') siteId: string) {
-    await this.analytics.captureSnapshot(siteId);
-    return { ok: true };
+  async snapshotNow(@Param('siteId') siteId: string, @Query('days') daysStr?: string) {
+    const days = daysStr ? Math.max(1, Math.min(90, parseInt(daysStr, 10))) : 14;
+    return this.analytics.backfillSnapshots(siteId, days);
   }
 
   /** GET /sites/:siteId/analytics/ga-summary?days=30 — GA4 davranış metrikleri */

@@ -4,6 +4,7 @@ import { forwardRef } from 'react';
 import { Stage, Layer, Rect, Image as KonvaImage, Text as KonvaText, Group, Circle, RegularPolygon } from 'react-konva';
 import type Konva from 'konva';
 import { PHONE_FRAMES } from './phone-frames';
+import type { FrameStyle } from './phone-frames';
 import type { Decoration } from './panorama-themes';
 
 export interface SlotData {
@@ -16,6 +17,7 @@ export interface SlotData {
   textPosition: 'top' | 'bottom';
   textAlign?: 'left' | 'center' | 'right';
   phoneFrameId: string;
+  phoneFrameStyle?: FrameStyle;  // 'solid' (default) | 'glass' | 'outline'
   phoneTilt: number;
   phoneScale: number;
   phoneLayout?: 'single' | 'duo' | 'trio';
@@ -26,10 +28,16 @@ export interface SlotData {
   // Hand-holding-phone mockup
   handMockup?: 'none' | 'left' | 'right' | 'bottom';  // hand silhouette behind phone
   handSkinTone?: string;       // hex color, default natural skin
+  // Reflection — telefon altında ayna yansıması (shots.so polish)
+  phoneReflection?: boolean;
+  phoneReflectionOpacity?: number;  // 0-100, default 40
   screenshot?: HTMLImageElement;
   screenshot2?: HTMLImageElement;
   screenshot3?: HTMLImageElement;
   decorations?: Decoration[];
+  // Typography
+  fontFamily?: string;              // e.g. "Poppins", "Montserrat" — default "Inter"
+  textGradient?: { from: string; to: string };  // hook'a gradient fill (her ikisi varsa textColor override)
 }
 
 interface ScreenshotStageProps {
@@ -168,6 +176,7 @@ export const ScreenshotStage = forwardRef<Konva.Stage, ScreenshotStageProps>(({ 
             <PhoneFrame
               key={i}
               frameId={slot.phoneFrameId}
+              frameStyle={slot.phoneFrameStyle ?? 'solid'}
               x={p.x}
               y={p.y}
               scale={p.scale}
@@ -176,6 +185,8 @@ export const ScreenshotStage = forwardRef<Konva.Stage, ScreenshotStageProps>(({ 
               screenshot={screenshotIdx ?? slot.screenshot}
               canvasWidth={width}
               shadowIntensity={slot.phoneShadow ?? 70}
+              reflection={slot.phoneReflection ?? false}
+              reflectionOpacity={slot.phoneReflectionOpacity ?? 40}
             />
           );
         })}
@@ -189,8 +200,14 @@ export const ScreenshotStage = forwardRef<Konva.Stage, ScreenshotStageProps>(({ 
             width={hookMaxWidth}
             fontSize={hookFontSize}
             fontStyle="bold"
-            fontFamily="Inter, system-ui, -apple-system, sans-serif"
-            fill={slot.textColor}
+            fontFamily={`${slot.fontFamily ?? 'Inter'}, system-ui, -apple-system, sans-serif`}
+            {...(slot.textGradient
+              ? {
+                  fillLinearGradientStartPoint: { x: 0, y: 0 },
+                  fillLinearGradientEndPoint: { x: hookMaxWidth, y: hookFontSize * 1.4 },
+                  fillLinearGradientColorStops: [0, slot.textGradient.from, 1, slot.textGradient.to],
+                }
+              : { fill: slot.textColor })}
             align={align}
             lineHeight={lineHeightMul}
             shadowColor={`rgba(0,0,0,${(slot.textShadow ?? 30) / 100})`}
@@ -208,7 +225,7 @@ export const ScreenshotStage = forwardRef<Konva.Stage, ScreenshotStageProps>(({ 
             y={subtitleY}
             width={subtitleMaxWidth}
             fontSize={subtitleFontSize}
-            fontFamily="Inter, system-ui, sans-serif"
+            fontFamily={`${slot.fontFamily ?? 'Inter'}, system-ui, sans-serif`}
             fill={slot.textColor}
             align={align}
             opacity={0.9}
@@ -290,8 +307,9 @@ function BackgroundOverlay({ overlay, width, height }: { overlay: string; width:
   return null;
 }
 
-function PhoneFrame({ frameId, x, y, scale, tilt, opacity, screenshot, canvasWidth, shadowIntensity = 70 }: {
+function PhoneFrame({ frameId, frameStyle = 'solid', x, y, scale, tilt, opacity, screenshot, canvasWidth, shadowIntensity = 70, reflection = false, reflectionOpacity = 40 }: {
   frameId: string;
+  frameStyle?: FrameStyle;
   x: number; y: number;
   scale: number;
   tilt: number;
@@ -299,32 +317,49 @@ function PhoneFrame({ frameId, x, y, scale, tilt, opacity, screenshot, canvasWid
   screenshot?: HTMLImageElement;
   canvasWidth: number;
   shadowIntensity?: number; // 0-100
+  reflection?: boolean;
+  reflectionOpacity?: number; // 0-100
 }) {
   const frame = PHONE_FRAMES.find(f => f.id === frameId) ?? PHONE_FRAMES[0];
   const w = canvasWidth * scale * frame.aspectRatio;
   const h = w * (frame.height / frame.width);
 
   // Shadow intensity 0-100 → blur 0-100, opacity 0-0.7, offset 0-40
-  const shadowOpacity = (shadowIntensity / 100) * 0.7;
-  const shadowBlur = (shadowIntensity / 100) * 100;
+  // Glass style ekstra glow için shadow opacity'i artırır (cam efekti hissi).
+  const isGlass = frameStyle === 'glass';
+  const isOutline = frameStyle === 'outline';
+  const shadowOpacity = (shadowIntensity / 100) * (isGlass ? 0.85 : 0.7);
+  const shadowBlur = (shadowIntensity / 100) * (isGlass ? 130 : 100);
   const shadowOffsetY = (shadowIntensity / 100) * 40;
+
+  // Body color: solid → frame.bodyColor; glass → frame.bodyColor + alpha; outline → transparent (stroke ile çizilir)
+  const bodyFill = isGlass
+    ? hexToRgba(frame.bodyColor, 0.35)
+    : isOutline
+      ? 'rgba(0,0,0,0)'
+      : frame.bodyColor;
 
   return (
     <Group x={x} y={y} rotation={tilt} offsetX={w / 2} offsetY={h / 2} opacity={opacity}>
       <Rect
         x={0} y={0} width={w} height={h}
         cornerRadius={w * 0.13}
-        fill={frame.bodyColor}
-        shadowColor="rgba(0,0,0,1)"
+        fill={bodyFill}
+        stroke={isOutline ? frame.bodyColor : isGlass ? hexToRgba(frame.bodyColor, 0.9) : undefined}
+        strokeWidth={isOutline ? w * 0.018 : isGlass ? w * 0.006 : 0}
+        shadowColor={isGlass ? hexToRgba(frame.bodyColor, 0.9) : 'rgba(0,0,0,1)'}
         shadowBlur={shadowBlur}
         shadowOpacity={shadowOpacity}
         shadowOffset={{ x: 0, y: shadowOffsetY }}
       />
-      <Rect
-        x={w * 0.012} y={h * 0.008} width={w * 0.976} height={h * 0.984}
-        cornerRadius={w * 0.12}
-        fill="#0a0a0a"
-      />
+      {/* Screen bezel — outline modunda gizli, glass modunda ince */}
+      {!isOutline && (
+        <Rect
+          x={w * 0.012} y={h * 0.008} width={w * 0.976} height={h * 0.984}
+          cornerRadius={w * 0.12}
+          fill={isGlass ? 'rgba(10,10,10,0.4)' : '#0a0a0a'}
+        />
+      )}
       {screenshot ? (
         <KonvaImage
           image={screenshot}
@@ -337,7 +372,7 @@ function PhoneFrame({ frameId, x, y, scale, tilt, opacity, screenshot, canvasWid
           x={w * 0.025} y={h * 0.014}
           width={w * 0.95} height={h * 0.972}
           cornerRadius={w * 0.108}
-          fill="#1a1a1a"
+          fill={isOutline ? 'rgba(255,255,255,0.05)' : '#1a1a1a'}
         />
       )}
       {frame.hasDynamicIsland && (
@@ -356,8 +391,56 @@ function PhoneFrame({ frameId, x, y, scale, tilt, opacity, screenshot, canvasWid
           fill="#000000"
         />
       )}
+      {/* Reflection — telefon altında ayna yansıması (üst opaque, alt transparan fade) */}
+      {reflection && (
+        <Group y={h + h * 0.015}>
+          {/* Body silüeti (flipped) */}
+          <Rect
+            x={0} y={0} width={w} height={h * 0.45}
+            cornerRadius={w * 0.13}
+            fill={bodyFill}
+            opacity={(reflectionOpacity / 100) * 0.8}
+          />
+          {/* Screen ekran (flipped) — sadece üst kısmı (gerçek yansıma kısa olur) */}
+          {!isOutline && (
+            <Rect
+              x={w * 0.012} y={h * 0.008} width={w * 0.976} height={h * 0.42}
+              cornerRadius={w * 0.12}
+              fill={isGlass ? 'rgba(10,10,10,0.3)' : '#0a0a0a'}
+              opacity={reflectionOpacity / 100}
+            />
+          )}
+          {screenshot && !isOutline && (
+            <KonvaImage
+              image={screenshot}
+              x={w * 0.025} y={h * 0.014}
+              width={w * 0.95} height={h * 0.4}
+              cornerRadius={w * 0.108}
+              opacity={(reflectionOpacity / 100) * 0.6}
+            />
+          )}
+          {/* Alpha fade overlay — üstte sıfır maske (yansıma görünür), altta tam maske (yansıma gizlenir) */}
+          <Rect
+            x={-w * 0.05} y={0}
+            width={w * 1.1} height={h * 0.5}
+            fillLinearGradientStartPoint={{ x: 0, y: 0 }}
+            fillLinearGradientEndPoint={{ x: 0, y: h * 0.5 }}
+            fillLinearGradientColorStops={[0, 'rgba(255,255,255,0)', 1, 'rgba(255,255,255,1)']}
+            globalCompositeOperation="destination-out"
+          />
+        </Group>
+      )}
     </Group>
   );
+}
+
+function hexToRgba(hex: string, alpha: number): string {
+  const clean = hex.replace('#', '');
+  const full = clean.length === 3 ? clean.split('').map(c => c + c).join('') : clean;
+  const r = parseInt(full.slice(0, 2), 16);
+  const g = parseInt(full.slice(2, 4), 16);
+  const b = parseInt(full.slice(4, 6), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
 }
 
 function parseGradient(css: string): (number | string)[] {

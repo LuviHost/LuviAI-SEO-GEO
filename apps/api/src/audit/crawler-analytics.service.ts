@@ -266,15 +266,68 @@ export class CrawlerAnalyticsService {
       byDate[d][h.bot] = (byDate[d][h.bot] ?? 0) + h.hits;
     }
 
+    // Clarity-style metrikler:
+    // 1) AI search purpose split — "AI Search %X vs general %Y"
+    const totalHits = hits.reduce((a, h) => a + h.hits, 0);
+    const aiSearchHits = byCategory['ai-search'] ?? 0;
+    const trainingHits = byCategory['training'] ?? 0;
+    const aiTotalHits = aiSearchHits + trainingHits;
+    const purposeSplit = {
+      aiSearchPct: totalHits > 0 ? Math.round((aiSearchHits / totalHits) * 1000) / 10 : 0,
+      trainingPct: totalHits > 0 ? Math.round((trainingHits / totalHits) * 1000) / 10 : 0,
+      classicSearchPct: totalHits > 0 ? Math.round(((byCategory['classic-search'] ?? 0) / totalHits) * 1000) / 10 : 0,
+      otherPct: totalHits > 0 ? Math.round(((byCategory['social'] ?? 0) / totalHits) * 1000) / 10 : 0,
+    };
+
+    // 2) Pages crawled coverage — topUrls'den unique URL listesi çıkar
+    const uniquePathSet = new Set<string>();
+    for (const h of hits) {
+      const topUrls = (h.topUrls as any[]) ?? [];
+      for (const u of topUrls) {
+        if (u?.url) {
+          try {
+            const path = new URL(u.url, 'https://_dummy').pathname;
+            uniquePathSet.add(path);
+          } catch { /* skip invalid */ }
+        }
+      }
+    }
+
+    // Sitemap pages count — site'in sitemap.xml'ini fetch et (varsa)
+    let sitePagesTotal: number | null = null;
+    let pagesCrawledPct: number | null = null;
+    try {
+      const site = await this.prisma.site.findUnique({ where: { id: siteId }, select: { url: true } });
+      if (site?.url) {
+        const sitemapUrl = `${site.url.replace(/\/+$/, '')}/sitemap.xml`;
+        const res = await fetch(sitemapUrl, { signal: AbortSignal.timeout(5000) }).catch(() => null);
+        if (res?.ok) {
+          const xml = await res.text();
+          const urlMatches = xml.match(/<loc>/gi) ?? [];
+          sitePagesTotal = urlMatches.length;
+          if (sitePagesTotal > 0) {
+            pagesCrawledPct = Math.min(100, Math.round((uniquePathSet.size / sitePagesTotal) * 1000) / 10);
+          }
+        }
+      }
+    } catch { /* sitemap fail, sessiz geç */ }
+
     return {
       days,
       since: since.toISOString(),
-      totalHits: hits.reduce((a, h) => a + h.hits, 0),
+      totalHits,
       byCategory,
       byBot,
       byDate,
       firstSeen,
       registry: Object.fromEntries(Object.entries(BOT_REGISTRY).map(([k, v]) => [k, { label: v.label, category: v.category }])),
+      // Yeni — Clarity-style
+      purposeSplit,
+      coverage: {
+        uniquePathsVisited: uniquePathSet.size,
+        sitePagesTotal,
+        pagesCrawledPct,
+      },
     };
   }
 }

@@ -1,5 +1,11 @@
 import 'dotenv/config';
 
+// IPv4 once DNS resolution — sunucuda IPv6 calismadigi icin happy-eyeballs IPv6'yi
+// once denerse "request to oauth2.googleapis.com failed" hatasi verir (googleapis,
+// gaxios, vb. libraries undici'den bagimsiz Node DNS kullanir).
+import * as dns from 'node:dns';
+dns.setDefaultResultOrder('ipv4first');
+
 // Sentry — error tracking. En basta init edilmeli ki sonraki cagrilari yakalasin.
 import * as Sentry from '@sentry/node';
 if (process.env.SENTRY_DSN) {
@@ -11,14 +17,14 @@ if (process.env.SENTRY_DSN) {
   });
 }
 
-// IPv4'e zorla (sunucularda public IPv6 yoksa Node fetch ETIMEDOUT verir)
-try {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const undici = require('undici') as { setGlobalDispatcher: (d: unknown) => void; Agent: new (opts: unknown) => unknown };
-  undici.setGlobalDispatcher(new undici.Agent({ connect: { family: 4 } }));
-} catch {
-  // older Node — sessizce geç
-}
+// IPv4'e zorla (sunucularda public IPv6 yoksa Node fetch ETIMEDOUT verir).
+// ESM uyumlu top-level import — eski require() versiyonu ESNext modunda silently fail ediyordu.
+import { setGlobalDispatcher as undiciSetGlobalDispatcher, Agent as UndiciAgent } from 'undici';
+undiciSetGlobalDispatcher(new UndiciAgent({
+  connect: { family: 4 } as any,
+  keepAliveTimeout: 60_000,
+  keepAliveMaxTimeout: 600_000,
+}));
 
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, Catch, ArgumentsHost, ExceptionFilter, HttpException } from '@nestjs/common';

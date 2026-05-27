@@ -40,6 +40,11 @@ model User {
   aiCitationTestsThisMonth Int      @default(0)
   aiCitationQuotaResetAt   DateTime @default(now())
 
+  // Video Studio kotası (Sora 2 / Veo 3 / Runway — pahalı)
+  videosUsedThisMonth     Int      @default(0)
+  // Aylık AI cost tracking (USD)
+  aiCostThisMonthUsd      Float    @default(0)
+
   // Whitelabel / Agency (AGENCY_OWNER icin doldurulur)
   whitelabelEnabled    Boolean @default(false)
   whitelabelBrandName  String?  // ornek "Webmasters Ajansı"
@@ -57,12 +62,14 @@ model User {
   accounts      Account[]
   sessions      Session[]
   sites         Site[]
-  promptTemplates PromptTemplate[]
   jobs          Job[]
   invoices      Invoice[]
   parentAgency  User?    @relation("AgencyClients", fields: [parentAgencyId], references: [id], onDelete: SetNull)
   clients       User[]   @relation("AgencyClients")
   apiKeys       ApiKey[]
+  // Brightbean parity back-relations
+  notifications    Notification[]
+  socialMediaAssets SocialMediaAsset[]
 
   @@index([email])
   @@index([plan, subscriptionStatus])
@@ -253,11 +260,19 @@ model Site {
   socialChannels   SocialChannel[]
   adCampaigns      AdCampaign[]
   aiProviderKeys   SiteAiProviderKey[]
-  promptTemplates  PromptTemplate[]
   trackedApps      TrackedApp[]
+
+  // ASO Faz 1/2/3 — Apple Search Ads + App Store Connect + LuviAI SDK
+  asaAccounts      AsaAccount[]
+  ascAccounts      AscAccount[]
+  sdkConfigs       SdkAppConfig[]
   videos           Video[]
   adsAudits        AdsAudit[]
   tokenUsage       TokenUsageRecord[]
+  // Brightbean parity back-relations
+  socialMediaAssets SocialMediaAsset[]
+  // Studio back-relation
+  studioAssets     StudioAsset[]
 
   @@unique([userId, url])
   @@index([userId])
@@ -769,6 +784,48 @@ model UsageEvent {
   @@map("usage_events")
 }
 
+/// Gerçek müşteri testimonial'ı — dashboard'dan toplanır, admin onaylar, landing'de gösterilir.
+model Testimonial {
+  id          String   @id @default(cuid())
+  userId      String                                // hangi user yazdı
+  siteId      String?                               // hangi siteden (opsiyonel)
+  rating      Int                                   // 1-5
+  body        String   @db.Text                     // 1-500 karakter
+  role        String?                               // "Kurucu", "Pazarlama Müdürü" — user'ın kendi yazdığı
+  company     String?                               // şirket / site adı
+  metric      String?                               // "ASA CPI %40 düştü" gibi spesifik kazanım (opsiyonel)
+  approved    Boolean  @default(false)              // admin onaylamadan landing'de gözükmez
+  approvedAt  DateTime?
+  approvedBy  String?                               // hangi admin onayladı (userId)
+  rejected    Boolean  @default(false)
+  featured    Boolean  @default(false)              // landing'de öne çıkanlar arasında mı
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([approved, featured, createdAt])
+  @@index([userId])
+  @@map("testimonials")
+}
+
+/// Landing page + onboarding funnel için anonim event tracking.
+/// PostHog/Plausible yerine kendi datamızı tutuyoruz (KVKK uyumlu, IP yok).
+model LandingEvent {
+  id          String   @id @default(cuid())
+  type        String                              // pageview, cta_click, section_view, scroll_depth, signup_complete
+  path        String?                             // / , /pricing, /signin vs
+  sessionId   String                              // anonymous session (cookie/localStorage)
+  meta        Json?                               // { ctaId, sectionId, scrollPct, ... }
+  referrer    String?  @db.Text
+  ua          String?  @db.Text                   // user agent
+  utm         Json?                               // { source, medium, campaign }
+  createdAt   DateTime @default(now())
+
+  @@index([type, createdAt])
+  @@index([sessionId])
+  @@index([createdAt])
+  @@map("landing_events")
+}
+
 // ═══════════════════════════════════════════════════════════════
 //  AFFILIATE PROGRAMı (Faz 2 Hafta 11)
 // ═══════════════════════════════════════════════════════════════
@@ -915,6 +972,13 @@ model SocialPost {
   errorMsg    String?  @db.Text
   retryCount  Int      @default(0)
 
+  // Approval workflow (Brightbean parity) — opsiyonel; sadece NEEDS_APPROVAL flow'unda kullanilir
+  approvedBy  String?                              // user id (approve eden)
+  approvedAt  DateTime?
+  rejectedBy  String?
+  rejectedAt  DateTime?
+  rejectReason String?  @db.Text
+
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -929,11 +993,14 @@ model SocialPost {
 
 enum SocialPostStatus {
   DRAFT                // taslak — kullanici onaylamadi
+  NEEDS_APPROVAL       // takim icindeki onaylayicilar bekleniyor
+  APPROVED             // onaylandi, scheduledFor varsa QUEUED'a gecer
   QUEUED               // zamanlanmis, scheduledFor bekleniyor
   PUBLISHING           // yayina gonderiliyor
   PUBLISHED            // basariyla yayinlandi
   FAILED               // yayin basarisiz, retry edilebilir
   CANCELED             // kullanici iptal etti
+  REJECTED             // approval reddedildi
 }
 
 // Haftalik recurring slot — "her Pazartesi 09:00 LI'ye queue'dan 1 post"
@@ -1130,70 +1197,6 @@ model TokenUsageRecord {
   @@map("token_usage_records")
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  PROMPT LIBRARY — Kullanıcı + sistem prompt template'leri
-//  Public template marketplace + private kullanıcı prompt'ları
-// ═══════════════════════════════════════════════════════════════
-
-model PromptTemplate {
-  id          String   @id @default(cuid())
-
-  // Sahip — userId zorunlu, siteId opsiyonel (null = user-global)
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  siteId      String?
-  site        Site?    @relation(fields: [siteId], references: [id], onDelete: SetNull)
-
-  // Display
-  name        String
-  description String?  @db.Text
-  category    PromptCategory @default(GENERAL)
-  icon        String?  // lucide icon name (örn. "FileText")
-
-  // Body — {{variable}} placeholder'ları destekler
-  body        String   @db.Text
-
-  // Variables that this template uses (extracted from body)
-  // [{ name: "topic", label: "Konu", defaultValue: "", type: "text" | "textarea" | "select", options?: [] }]
-  variables   Json?
-
-  // Sharing & marketplace
-  isPublic    Boolean  @default(false)
-  isFeatured  Boolean  @default(false) // admin tarafından öne çıkarılan
-  upvotes     Int      @default(0)
-
-  // Usage stats
-  usageCount  Int      @default(0)
-  lastUsedAt  DateTime?
-
-  // Metadata
-  tags        Json     @default("[]")
-  language    String   @default("tr") // tr | en
-
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  @@index([userId, category])
-  @@index([siteId])
-  @@index([isPublic, category, isFeatured])
-  @@map("prompt_templates")
-}
-
-enum PromptCategory {
-  GENERAL
-  TITLE
-  META_DESCRIPTION
-  OUTLINE
-  ARTICLE
-  SOCIAL_POST
-  EMAIL
-  PRODUCT_DESCRIPTION
-  COMPARISON
-  HOWTO
-  FAQ
-  AD_COPY
-  LANDING_PAGE
-}
 
 // ═══════════════════════════════════════════════════════════════
 //  ASO — App Store Optimization
@@ -1336,5 +1339,413 @@ enum ReviewSentiment {
   NEGATIVE
 }
 
+// ─────────────────────────────────────────────────────────────────
+//  ASO Faz 1 — Apple Search Ads (ASA) Entegrasyonu
+// ─────────────────────────────────────────────────────────────────
+//
+//  Apple'in Search Ads API'si: https://developer.apple.com/documentation/apple_search_ads
+//  Auth: ES256 JWT (Issuer ID + Key ID + .p8 private key) → Bearer token
+//  Endpoint: https://api.searchads.apple.com/api/v5
+//
+//  AsaAccount: kullanıcının App Store Connect → Keys'den oluşturduğu Search Ads API key.
+//  Bir site birden fazla ASA hesabına sahip olabilir (örn. iOS + iPad ayrı Apple ID).
+//
+
+model AsaAccount {
+  id              String   @id @default(cuid())
+  siteId          String
+  site            Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  // Apple Search Ads API credentials (encrypted at rest)
+  orgId           String   // Apple Organization ID (numeric)
+  keyId           String   // Apple Key ID
+  encryptedKey    String   @db.Text  // .p8 private key, AES-256-GCM encrypted
+  teamId          String?  // opsiyonel — multi-team hesaplar için
+
+  // Auth state
+  tokenCacheValue String?  @db.Text  // last issued JWT (cache; 180 day expiry)
+  tokenCacheExpAt DateTime?
+
+  // Status
+  isActive        Boolean  @default(true)
+  lastSyncAt      DateTime?
+  lastError       String?  @db.Text
+
+  // ── Auto-Pilot (Seviye 2) ─────────────────────────
+  autoPilotEnabled    Boolean  @default(false)
+  autoPilotBudgetCap  Float?   // USD/ay — aşılırsa yeni kampanya açılmaz
+  autoPilotLastRunAt  DateTime?
+  autoPilotLastResult String?  @db.Text  // JSON: { added: [...], paused: [...], skipped: [...] }
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  campaigns       AsaCampaign[]
+
+  @@index([siteId])
+  @@map("asa_accounts")
+}
+
+model AsaCampaign {
+  id              String   @id @default(cuid())
+  accountId       String
+  account         AsaAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  // Apple-side identifiers
+  asaCampaignId   String   @unique  // Apple'ın verdiği numeric ID (string olarak tutuyoruz)
+  name            String
+  budget          Float    // daily budget USD
+  totalBudget     Float?   // opsiyonel — toplam kampanya bütçesi
+  status          String   // ENABLED | PAUSED | DELETED | DRAFT
+  countriesOrRegions Json  // ["US", "TR", ...]
+  supplySources   Json     // ["APPSTORE_SEARCH_RESULTS", "APPSTORE_SEARCH_TAB", "APPSTORE_TODAY_TAB", "APPSTORE_PRODUCT_PAGES"]
+  appAdamId       String?  // hedef Apple App ID (TrackedApp.appleId ile bağlantı)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  adGroups        AsaAdGroup[]
+  performance     AsaPerformanceDaily[]
+
+  @@index([accountId])
+  @@map("asa_campaigns")
+}
+
+model AsaAdGroup {
+  id              String   @id @default(cuid())
+  campaignId      String
+  campaign        AsaCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  asaAdGroupId    String   @unique  // Apple'ın verdiği ID
+  name            String
+  defaultBidAmount Float   // adgroup default bid USD
+  status          String   // ENABLED | PAUSED
+  targetingType   String?  // EXACT | BROAD (Apple)
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  keywords        AsaKeywordBid[]
+
+  @@index([campaignId])
+  @@map("asa_ad_groups")
+}
+
+model AsaKeywordBid {
+  id              String   @id @default(cuid())
+  adGroupId       String
+  adGroup         AsaAdGroup @relation(fields: [adGroupId], references: [id], onDelete: Cascade)
+
+  asaKeywordId    String   @unique
+  keyword         String
+  bidAmount       Float    // USD CPT bid
+  matchType       String   // EXACT | BROAD
+  status          String   // ACTIVE | PAUSED | REJECTED
+
+  // LuviAI metadata — AI bid optimizer için
+  aiSuggestedBid  Float?   // AI'ın önerdiği optimal bid
+  lastOptimizedAt DateTime?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([adGroupId])
+  @@index([keyword])
+  @@map("asa_keyword_bids")
+}
+
+model AsaPerformanceDaily {
+  id              String   @id @default(cuid())
+  campaignId      String
+  campaign        AsaCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  date            DateTime @db.Date
+  impressions     Int      @default(0)
+  taps            Int      @default(0)
+  installs        Int      @default(0)
+  reattributions  Int      @default(0)
+  spendUsd        Float    @default(0)
+  avgCpt          Float?   // average cost per tap
+  avgCpa          Float?   // average cost per install
+  ttr             Float?   // tap-through rate (taps / impressions)
+  conversionRate  Float?   // installs / taps
+
+  createdAt       DateTime @default(now())
+
+  @@unique([campaignId, date])
+  @@index([campaignId, date])
+  @@map("asa_performance_daily")
+}
+
+// ─────────────────────────────────────────────────────────────────
+//  ASO Faz 2 — App Store Connect API (Release Tracking)
+// ─────────────────────────────────────────────────────────────────
+//
+//  ASC API: https://developer.apple.com/documentation/appstoreconnectapi
+//  Auth: ES256 JWT (Issuer ID + Key ID + .p8) — ASA'dan FARKLI key, ayrı oluşturulur
+//
+
+model AscAccount {
+  id              String   @id @default(cuid())
+  siteId          String
+  site            Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  issuerId        String   // App Store Connect Issuer ID
+  keyId           String
+  encryptedKey    String   @db.Text  // .p8 encrypted
+
+  tokenCacheValue String?  @db.Text
+  tokenCacheExpAt DateTime?
+
+  isActive        Boolean  @default(true)
+  lastSyncAt      DateTime?
+  lastError       String?  @db.Text
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  apps            AscApp[]
+
+  @@index([siteId])
+  @@map("asc_accounts")
+}
+
+model AscApp {
+  id              String   @id @default(cuid())
+  accountId       String
+  account         AscAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  appleAppId      String   @unique  // Apple App ID (numeric, store URL'inde olan)
+  bundleId        String
+  name            String
+  primaryLocale   String?
+
+  // Latest release snapshot
+  latestVersion   String?
+  latestReleaseAt DateTime?
+  latestBuildAt   DateTime?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  releases        AscRelease[]
+  alerts          AscReleaseAlert[]
+
+  @@index([accountId])
+  @@map("asc_apps")
+}
+
+model AscRelease {
+  id              String   @id @default(cuid())
+  appId           String
+  app             AscApp   @relation(fields: [appId], references: [id], onDelete: Cascade)
+
+  appleReleaseId  String   @unique
+  versionString   String
+  buildNumber     String?
+  releaseType     String?  // MANUAL | AFTER_APPROVAL | SCHEDULED
+  state           String   // READY_FOR_SALE, PREPARE_FOR_SUBMISSION, IN_REVIEW, vs.
+  releaseDate     DateTime?
+
+  createdAt       DateTime @default(now())
+
+  @@index([appId, releaseDate])
+  @@map("asc_releases")
+}
+
+model AscReleaseAlert {
+  id              String   @id @default(cuid())
+  appId           String
+  app             AscApp   @relation(fields: [appId], references: [id], onDelete: Cascade)
+
+  severity        String   // INFO | WARN | CRITICAL
+  message         String   @db.Text
+  daysSinceUpdate Int      // alert tetiklendiği anki gün sayısı
+  acknowledgedAt  DateTime?
+  acknowledgedBy  String?
+
+  createdAt       DateTime @default(now())
+
+  @@index([appId, acknowledgedAt])
+  @@map("asc_release_alerts")
+}
+
+// ─────────────────────────────────────────────────────────────────
+//  ASO Faz 3 — LuviAI iOS SDK (Remote Config + Rating Prompt)
+// ─────────────────────────────────────────────────────────────────
+//
+//  iOS app'ler LuviAISDK ile init eder: LuviAI.initialize(apiKey, appKey)
+//  SDK her açılışta /sdk/v1/config/:appKey endpoint'inden remote config çeker.
+//  Server-side rating prompt rule'larına göre SDK prompt'u açar veya açmaz.
+//
+
+model SdkAppConfig {
+  id              String   @id @default(cuid())
+  siteId          String
+  site            Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  appKey          String   @unique  // SDK init'te kullanılan public key
+  encryptedSecret String   @db.Text // backend → API auth için
+
+  // Remote config payload (SDK'nın okuyacağı)
+  ratingPromptRules Json?  // [{ trigger, minOpens, minDays, abVariants: [...] }]
+  remoteConfig    Json?    // arbitrary key-value, A/B test variants
+
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  events          SdkEvent[]
+
+  @@index([siteId])
+  @@map("sdk_app_configs")
+}
+
+model SdkEvent {
+  id              String   @id @default(cuid())
+  configId        String
+  config          SdkAppConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
+
+  deviceId        String   // anonymized
+  eventName       String
+  properties      Json?
+  sessionId       String?
+  appVersion      String?
+  osVersion       String?
+  timestamp       DateTime @default(now())
+
+  @@index([configId, eventName, timestamp])
+  @@map("sdk_events")
+}
+
 // ASO-spesifik prompt kategorisi (PromptCategory enum'a ekleme yapmadık,
 // PromptTemplate kullanır, kategori = GENERAL ama tag ile filtrelenebilir)
+
+// ─────────────────────────────────────────────────────────────────────────
+//  BRIGHTBEAN PARITY — Social Inbox + Media Library + Idea Board + Notifications
+// ─────────────────────────────────────────────────────────────────────────
+
+/// Media Library — yeniden kullanılabilir görseller/videolar (slot-bağımsız).
+/// Adapter'lar farklı boyut/format gerektirdiği için variants[] otomatik üretilir.
+model SocialMediaAsset {
+  id          String   @id @default(cuid())
+  userId      String
+  siteId      String?                                // site-spesifik veya kullanici geneli (null)
+
+  // Storage
+  url         String                                 // public URL (local /public/social-media veya S3)
+  thumbnail   String?                                // 256x256 küçük preview
+  variants    Json?                                  // [{label:"og-1200x630", url, w, h}]
+  filename    String
+  mimeType    String                                 // image/png, video/mp4
+  sizeBytes   Int
+  width       Int?
+  height      Int?
+  durationMs  Int?                                   // video icin
+
+  // Organization
+  folder      String?  @db.VarChar(255)              // "campaigns/q1-2026" gibi nested path
+  altText     String?  @db.Text
+  tags        Json?                                  // ["product","lifestyle","ugc"]
+
+  // Source
+  source      MediaSource @default(UPLOAD)            // UPLOAD | UNSPLASH | AI_GENERATED | URL_IMPORT
+  externalRef String?                                // unsplash id, prompt id vs
+
+  // Usage
+  usageCount  Int      @default(0)                   // kac postta kullanildi
+  lastUsedAt  DateTime?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  site        Site?   @relation(fields: [siteId], references: [id], onDelete: SetNull)
+
+  @@index([userId, folder])
+  @@index([siteId, folder])
+  @@index([siteId, source])
+  @@map("social_media_assets")
+}
+
+enum MediaSource {
+  UPLOAD
+  UNSPLASH
+  AI_GENERATED
+  URL_IMPORT
+}
+
+
+/// In-app + email notification — onay bekleyen post, gelen DM, yayın başarısızlığı vb.
+model Notification {
+  id          String   @id @default(cuid())
+  userId      String
+
+  type        NotificationType
+  title       String
+  body        String?  @db.Text
+  link        String?                                // tıklanınca gidilecek route
+
+  // Polymorphic ref
+  refKind     String?                                // "social_post" | "social_inbox" | "social_idea"
+  refId       String?
+
+  // Channel selection
+  channels    Json     @default("[\"inapp\"]")       // ["inapp","email"]
+
+  readAt      DateTime?
+  emailSentAt DateTime?
+
+  createdAt   DateTime @default(now())
+
+  user        User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt])
+  @@index([userId, type])
+  @@map("notifications")
+}
+
+enum NotificationType {
+  SOCIAL_POST_NEEDS_APPROVAL
+  SOCIAL_POST_PUBLISHED
+  SOCIAL_POST_FAILED
+  SOCIAL_INBOX_NEW_DM
+  SOCIAL_INBOX_NEW_MENTION
+  SOCIAL_INBOX_NEW_COMMENT
+  SOCIAL_IDEA_ASSIGNED
+  AUDIT_COMPLETE
+  AI_CITATION_DROP
+  SYSTEM
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+//  STUDIO — multi-modal AI içerik üretim history (image / video / text)
+// ─────────────────────────────────────────────────────────────────────────
+
+/// Studio modülünde üretilen her image/video/text taslak burada saklanır.
+/// Geçmiş listesi, favoriler, tekrar kullanma için kalıcı history.
+model StudioAsset {
+  id        String          @id @default(cuid())
+  siteId    String
+  userId    String?                                        // owner; null olabilir (admin/system üretimi)
+  type      StudioAssetType                                 // IMAGE | VIDEO | TEXT
+  prompt    String          @db.Text
+  provider  String                                          // gemini-flash | gpt-image-1 | flux-pro | claude-haiku-4-5 ...
+  url       String?                                         // image/video için public URL
+  text      String?         @db.Text                        // TEXT tipinde generated content
+  metadata  Json?                                           // { width, height, sizeBytes, costUsd, tokens, brandColor, format, ... }
+  favorite  Boolean         @default(false)
+  createdAt DateTime        @default(now())
+
+  site Site @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  @@index([siteId, type, createdAt])
+  @@index([siteId, favorite])
+  @@map("studio_assets")
+}
+
+enum StudioAssetType {
+  IMAGE
+  VIDEO
+  TEXT
+}

@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useParams, usePathname, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { BrandLogo } from '@/components/brand-logo';
 import {
   Home,
   Plus,
@@ -17,7 +18,7 @@ import {
   Award,
   FileText,
   Calendar,
-  Film,
+  Wand2,
   Send,
   BarChart3,
   Zap,
@@ -29,6 +30,8 @@ import {
   LineChart,
   Library,
   Smartphone,
+  Lightbulb,
+  Mail,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { ThemeToggle } from '@/components/theme-toggle';
@@ -83,10 +86,8 @@ const SITE_GROUPS = (siteId: string) => [
     label: 'CONTENT STUDIO',
     items: [
       { href: `/sites/${siteId}/articles`, label: 'İçerikler', icon: FileText },
-      { href: `/sites/${siteId}/prompts`, label: 'Prompt Kütüphanesi', icon: Library },
-      { href: `/sites/${siteId}/calendar`, label: 'Takvim', icon: Calendar },
-      { href: `/sites/${siteId}/social-calendar`, label: 'Sosyal Takvim', icon: Calendar },
-      { href: `/sites/${siteId}/videos`, label: 'Video Factory', icon: Film },
+      { href: `/sites/${siteId}/calendar`, label: 'İçerik Takvimi', icon: Calendar },
+      { href: `/sites/${siteId}/studio`, label: 'Sosyal Medya Studio', icon: Wand2 },
       { href: `/sites/${siteId}/publish-targets`, label: 'Yayın Hedefleri', icon: Send },
     ],
   },
@@ -167,8 +168,11 @@ export function SiteSidebar({ onClose }: { onClose?: () => void }) {
     return (
       <>
         <div className="p-6">
-          <Link href="/" className="text-2xl font-bold text-white">LuviAI</Link>
-          <div className="text-xs text-slate-500 mt-1">v0.7 Faz 2 Beta</div>
+          <Link href="/" className="inline-flex items-center gap-2 text-2xl font-bold text-white">
+            <BrandLogo size={36} className="rounded-lg" />
+            LuviAI
+          </Link>
+          <div className="text-xs text-slate-500 mt-2 ml-11">v0.7 Faz 2 Beta</div>
         </div>
         <nav className="px-3 space-y-1">
           {GLOBAL_NAV.map((item) => {
@@ -182,7 +186,7 @@ export function SiteSidebar({ onClose }: { onClose?: () => void }) {
                 className={cn(
                   'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
                   active
-                    ? 'bg-brand text-white'
+                    ? 'bg-gradient-to-br from-orange-500 to-orange-600 text-white shadow-md'
                     : 'text-slate-300 hover:bg-slate-800 hover:text-white',
                 )}
               >
@@ -202,9 +206,10 @@ export function SiteSidebar({ onClose }: { onClose?: () => void }) {
   return (
     <>
       <div className="p-4">
-        <Link href="/dashboard" className="text-base font-bold text-white inline-flex items-center gap-2 mb-3">
-          <span>LuviAI</span>
-          <span className="text-[9px] uppercase tracking-widest text-slate-500 font-mono">Site</span>
+        <Link href="/dashboard" className="inline-flex items-center gap-2 text-base font-bold text-white mb-3">
+          <BrandLogo size={28} className="rounded-lg" />
+          LuviAI
+          <span className="text-[9px] uppercase tracking-widest text-slate-500 font-mono ml-1">Site</span>
         </Link>
 
         {/* Site Switcher */}
@@ -332,7 +337,7 @@ export function SiteSidebar({ onClose }: { onClose?: () => void }) {
                         className={cn(
                           'flex items-center gap-2.5 px-3 py-1.5 rounded-md text-[13px] font-medium transition-colors',
                           active
-                            ? 'bg-brand text-white shadow-sm'
+                            ? 'bg-gradient-to-br from-orange-500 to-orange-600 text-white shadow-sm'
                             : 'text-slate-300 hover:bg-slate-800 hover:text-white',
                         )}
                       >

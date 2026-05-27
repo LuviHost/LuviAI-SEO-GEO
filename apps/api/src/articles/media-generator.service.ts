@@ -92,13 +92,20 @@ export class MediaGeneratorService {
 
     this.log.log(`[${article.id}] TTS audio: ${(audioBuffer.length / 1024).toFixed(1)} KB, ~${durationSec}s, $${costUsd.toFixed(4)} (${provider})`);
 
-    // Article'a inlineImages benzeri alana audio bilgisi yaz (frontmatter veya agentOutputs)
+    // Frontmatter'a audio_url yaz — videoGen ve diger akislarin gorebilmesi icin
+    const currentFm: any = article.frontmatter ?? {};
+    const newFm = {
+      ...currentFm,
+      audio_url: publicUrl,
+      audio_duration_sec: durationSec,
+      audio_provider: provider,
+    };
     await this.prisma.article.update({
       where: { id: articleId },
-      data: {
-        inlineImages: undefined as any, // dokunma
-      },
-    }).catch(() => {});
+      data: { frontmatter: newFm },
+    }).catch((err: any) => {
+      this.log.warn(`Article ${articleId} audio_url frontmatter update fail: ${err.message}`);
+    });
 
     return {
       ok: true,

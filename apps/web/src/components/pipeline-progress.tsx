@@ -15,6 +15,11 @@ export type PipelineStep = {
  *
  * Backend'in gerçek progress bilgisi yok (synchronous API call),
  * bu yüzden tahmin sürelerine göre simüle ediyoruz.
+ *
+ * `startedAt` verilirse elapsed = Date.now() - startedAt — sayfa yenilense
+ * bile doğru pozisyondan devam eder (F5/route change resistant).
+ * Verilmezse component mount'ından itibaren sayar (eski davranış).
+ *
  * "running" prop'u kapatılınca otomatik gizlenir.
  */
 export function PipelineProgress({
@@ -22,23 +27,45 @@ export function PipelineProgress({
   running,
   title,
   className,
+  startedAt,
 }: {
   steps: PipelineStep[];
   running: boolean;
   title?: string;
   className?: string;
+  /** Pipeline başlangıç timestamp'i (ms veya ISO string). Verilirse remount-resistant. */
+  startedAt?: number | string | Date;
 }) {
   const totalMs = steps.reduce((s, x) => s + x.durationMs, 0);
-  const [elapsed, setElapsed] = useState(0);
+
+  // startedAt verilmişse onu ms'e çevir
+  const startedAtMs = startedAt
+    ? (typeof startedAt === 'number' ? startedAt
+        : typeof startedAt === 'string' ? new Date(startedAt).getTime()
+        : startedAt.getTime())
+    : null;
+
+  const [elapsed, setElapsed] = useState<number>(() =>
+    startedAtMs ? Math.max(0, Date.now() - startedAtMs) : 0
+  );
 
   useEffect(() => {
     if (!running) {
-      setElapsed(0);
+      // running=false → state'i sıfırla (gizleme animasyonu için)
+      if (!startedAtMs) setElapsed(0);
       return;
     }
-    const id = setInterval(() => setElapsed((e) => e + 250), 250);
+    const id = setInterval(() => {
+      // startedAtMs varsa wall-clock üzerinden hesapla (component remount sonrası bile doğru)
+      // yoksa 250ms increment (eski davranış)
+      if (startedAtMs) {
+        setElapsed(Math.max(0, Date.now() - startedAtMs));
+      } else {
+        setElapsed((e) => e + 250);
+      }
+    }, 250);
     return () => clearInterval(id);
-  }, [running]);
+  }, [running, startedAtMs]);
 
   if (!running) return null;
 

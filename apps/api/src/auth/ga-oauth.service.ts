@@ -3,6 +3,46 @@ import { OAuth2Client } from 'google-auth-library';
 import { google } from 'googleapis';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { encrypt, decrypt } from '@luviai/shared';
+import * as https from 'node:https';
+import { URLSearchParams } from 'node:url';
+
+// Native https.request — googleapis gaxios IPv6 ETIMEDOUT bypass icin (GSC ile ayni pattern)
+function nativeHttpsJson(opts: {
+  method: 'GET' | 'POST';
+  hostname: string;
+  path: string;
+  headers?: Record<string, string>;
+  body?: string;
+  timeoutMs?: number;
+}): Promise<{ status: number; body: any }> {
+  return new Promise((resolve, reject) => {
+    const req = https.request(
+      {
+        method: opts.method,
+        hostname: opts.hostname,
+        port: 443,
+        path: opts.path,
+        family: 4,
+        timeout: opts.timeoutMs ?? 15_000,
+        headers: opts.headers ?? {},
+      },
+      (res) => {
+        const chunks: Buffer[] = [];
+        res.on('data', (c) => chunks.push(c));
+        res.on('end', () => {
+          const text = Buffer.concat(chunks).toString('utf-8');
+          let body: any = text;
+          try { body = JSON.parse(text); } catch { /* keep text */ }
+          resolve({ status: res.statusCode ?? 0, body });
+        });
+      },
+    );
+    req.on('timeout', () => { req.destroy(new Error(`request timeout (${opts.timeoutMs ?? 15_000}ms)`)); });
+    req.on('error', reject);
+    if (opts.body) req.write(opts.body);
+    req.end();
+  });
+}
 
 /**
  * Multi-tenant Google Analytics 4 OAuth (GSC pattern'iyle ayni).
@@ -44,33 +84,77 @@ export class GaOAuthService {
   }
 
   async handleCallback(code: string, state: string) {
-    const client = this.getClient();
-    const { tokens } = await client.getToken(code);
+    // ─── Token exchange — native https.request (gaxios bypass) ───
+    const clientId = process.env.GA_CLIENT_ID ?? process.env.GOOGLE_CLIENT_ID ?? '';
+    const clientSecret = process.env.GA_CLIENT_SECRET ?? process.env.GOOGLE_CLIENT_SECRET ?? '';
+    const redirectUri = `${process.env.API_BASE_URL}/api/auth/ga/callback`;
+
+    const tokenBody = new URLSearchParams({
+      code,
+      client_id: clientId,
+      client_secret: clientSecret,
+      redirect_uri: redirectUri,
+      grant_type: 'authorization_code',
+    }).toString();
+
+    const tokenRes = await nativeHttpsJson({
+      method: 'POST',
+      hostname: 'oauth2.googleapis.com',
+      path: '/token',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Content-Length': Buffer.byteLength(tokenBody).toString(),
+      },
+      body: tokenBody,
+      timeoutMs: 15_000,
+    });
+
+    if (tokenRes.status >= 400) {
+      const detail = tokenRes.body?.error_description ?? tokenRes.body?.error ?? `HTTP ${tokenRes.status}`;
+      throw new BadRequestException(`Google token exchange failed: ${detail}`);
+    }
+
+    const tokens = tokenRes.body as {
+      access_token?: string;
+      refresh_token?: string;
+      expires_in?: number;
+      scope?: string;
+      token_type?: string;
+    };
 
     if (!tokens.refresh_token) {
       throw new Error('refresh_token gelmedi — Google hesabinin GA izinlerini sifirlayip tekrar dene');
     }
 
-    client.setCredentials(tokens);
-
-    // Kullanicinin erisebildigi GA4 property'leri listele
+    // ─── GA accountSummaries — native https.request ───
     let firstPropertyId: string | null = null;
-    try {
-      const admin = google.analyticsadmin({ version: 'v1beta', auth: client as any });
-      const accounts = await admin.accountSummaries.list({ pageSize: 50 });
-      const summaries = accounts.data.accountSummaries ?? [];
-      // accountSummaries[].propertySummaries[].property = "properties/123456"
-      for (const a of summaries) {
-        for (const p of a.propertySummaries ?? []) {
-          if (p.property) {
-            firstPropertyId = p.property.replace(/^properties\//, '');
-            break;
+    if (tokens.access_token) {
+      try {
+        const sumRes = await nativeHttpsJson({
+          method: 'GET',
+          hostname: 'analyticsadmin.googleapis.com',
+          path: '/v1beta/accountSummaries?pageSize=50',
+          headers: {
+            Authorization: `Bearer ${tokens.access_token}`,
+            Accept: 'application/json',
+          },
+          timeoutMs: 15_000,
+        });
+        if (sumRes.status < 400) {
+          const summaries = sumRes.body?.accountSummaries ?? [];
+          for (const a of summaries) {
+            for (const p of (a.propertySummaries ?? [])) {
+              if (p.property) {
+                firstPropertyId = String(p.property).replace(/^properties\//, '');
+                break;
+              }
+            }
+            if (firstPropertyId) break;
           }
         }
-        if (firstPropertyId) break;
+      } catch (err: any) {
+        this.log.warn(`GA accountSummaries list failed: ${err.message}`);
       }
-    } catch (err: any) {
-      this.log.warn(`GA accountSummaries list failed: ${err.message}`);
     }
 
     const encrypted = encrypt(tokens.refresh_token);

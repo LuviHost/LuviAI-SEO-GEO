@@ -303,7 +303,7 @@ export function FuturisticGauge({
               >
                 {pctDisplay}
               </span>
-              <span className="text-2xl sm:text-3xl font-semibold text-foreground/40">
+              <span className="text-2xl sm:text-3xl font-semibold text-slate-500">
                 %
               </span>
             </div>
@@ -314,7 +314,7 @@ export function FuturisticGauge({
                 className="h-3.5 w-3.5"
                 style={{ color: phase.color }}
               />
-              <span className="text-[11px] sm:text-xs font-medium tracking-tight text-foreground/75">
+              <span className="text-[11px] sm:text-xs font-medium tracking-tight text-slate-700">
                 {phase.label}
               </span>
             </div>

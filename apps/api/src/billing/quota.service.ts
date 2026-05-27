@@ -15,11 +15,11 @@ export class QuotaService {
   private readonly log = new Logger(QuotaService.name);
 
   private readonly LIMITS = {
-    TRIAL:      { articles: 1,    sites: 1,  publishTargets: ['MARKDOWN_ZIP'] as string[], citationTests: 3,   pool: ['gemini'] as string[] },
-    STARTER:    { articles: 10,   sites: 1,  publishTargets: 'all' as const,                citationTests: 15,  pool: ['gemini', 'anthropic'] },
-    PRO:        { articles: 50,   sites: 3,  publishTargets: 'all' as const,                citationTests: 50,  pool: ['gemini', 'anthropic', 'xai'] },
-    AGENCY:     { articles: 250,  sites: 10, publishTargets: 'all' as const,                citationTests: 200, pool: ['gemini', 'anthropic', 'xai', 'openai', 'deepseek', 'perplexity'] },
-    ENTERPRISE: { articles: 9999, sites: 999, publishTargets: 'all' as const,               citationTests: 500, pool: ['gemini', 'anthropic', 'xai', 'openai', 'deepseek', 'perplexity'] },
+    TRIAL:      { articles: 1,    sites: 1,  videos: 0,  publishTargets: ['MARKDOWN_ZIP'] as string[], citationTests: 3,   pool: ['gemini'] as string[] },
+    STARTER:    { articles: 12,   sites: 1,  videos: 2,  publishTargets: 'all' as const,                citationTests: 15,  pool: ['gemini', 'anthropic'] },
+    PRO:        { articles: 30,   sites: 3,  videos: 8,  publishTargets: 'all' as const,                citationTests: 50,  pool: ['gemini', 'anthropic', 'xai'] },
+    AGENCY:     { articles: 60,   sites: 10, videos: 25, publishTargets: 'all' as const,                citationTests: 200, pool: ['gemini', 'anthropic', 'xai', 'openai', 'deepseek', 'perplexity'] },
+    ENTERPRISE: { articles: 250,  sites: 30, videos: 80, publishTargets: 'all' as const,                citationTests: 500, pool: ['gemini', 'anthropic', 'xai', 'openai', 'deepseek', 'perplexity'] },
   };
 
   constructor(private readonly prisma: PrismaService) {}
@@ -83,6 +83,80 @@ export class QuotaService {
     if (!allowed) {
       throw new ForbiddenException(`Plan limit: ${limit} site. Şu an ${current} siteniz var. Profesyonel veya Kurumsal'a yükseltin.`);
     }
+  }
+
+  // ────────────────────────────────────────────
+  //  Video Studio quota (pahalı — Sora 2 / Veo 3)
+  // ────────────────────────────────────────────
+  async checkVideoQuota(userId: string): Promise<{ allowed: boolean; used: number; limit: number; remaining: number }> {
+    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    await this.maybeResetMonthlyQuota(user);
+    const limit = this.LIMITS[user.plan].videos;
+    const used = (user as any).videosUsedThisMonth ?? 0;
+    return {
+      allowed: used < limit,
+      used,
+      limit,
+      remaining: Math.max(0, limit - used),
+    };
+  }
+
+  async enforceVideoQuota(userId: string) {
+    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { plan: true } });
+    const { allowed, limit, used } = await this.checkVideoQuota(userId);
+    if (!allowed) {
+      if (limit === 0) {
+        throw new ForbiddenException(`${user.plan} planında AI video üretimi yok. Profesyonel veya üst plana yükselterek video üretmeye başlayabilirsin.`);
+      }
+      throw new ForbiddenException(`Aylık ${limit} video kotan doldu (${used} kullandın). Plan yükseltebilir veya ayın sonunu bekleyebilirsin.`);
+    }
+  }
+
+  async incrementVideoUsage(userId: string) {
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: { videosUsedThisMonth: { increment: 1 } } as any,
+    });
+  }
+
+  // ────────────────────────────────────────────
+  //  AI Cost tracking (USD) — cost monitoring
+  // ────────────────────────────────────────────
+  async addAiCost(userId: string, usdAmount: number) {
+    if (!Number.isFinite(usdAmount) || usdAmount <= 0) return;
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { aiCostThisMonthUsd: { increment: usdAmount } } as any,
+    });
+  }
+
+  /**
+   * Plan başına alarm eşiği (USD). Plan'ın aylık fiyatının %50'sini aşarsa alert.
+   * Burada konservatif: kullanıcının aylık AI cost'u plan ücretinin %80'ini geçince throw.
+   * Soft warn için checkAiCostBudget kullan.
+   */
+  private readonly PLAN_MONTHLY_REVENUE_USD: Record<string, number> = {
+    TRIAL: 0,
+    STARTER: 30,    // ₺1199 / 40
+    PRO: 87,        // ₺3499 / 40
+    AGENCY: 200,    // ₺7999 / 40
+    ENTERPRISE: 500, // ₺19999 / 40
+  };
+
+  async checkAiCostBudget(userId: string): Promise<{ used: number; cap: number; pct: number; warn: boolean; hardBlock: boolean }> {
+    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    const revenue = this.PLAN_MONTHLY_REVENUE_USD[user.plan] ?? 30;
+    // Margin guard: AI cost plan revenue'nun %60'ını geçmesin (cost-to-revenue ratio)
+    const cap = revenue * 0.6;
+    const used = (user as any).aiCostThisMonthUsd ?? 0;
+    const pct = cap > 0 ? Math.round((used / cap) * 100) : 0;
+    return {
+      used,
+      cap,
+      pct,
+      warn: pct >= 80,
+      hardBlock: pct >= 100,
+    };
   }
 
   // ────────────────────────────────────────────
@@ -186,10 +260,12 @@ export class QuotaService {
         where: { id: user.id },
         data: {
           articlesUsedThisMonth: 0,
+          videosUsedThisMonth: 0,
+          aiCostThisMonthUsd: 0,
           articlesQuotaResetAt: now,
-        },
+        } as any,
       });
-      this.log.log(`[${user.id}] Aylık kota sıfırlandı`);
+      this.log.log(`[${user.id}] Aylık kota sıfırlandı (articles + videos + cost)`);
     }
   }
 

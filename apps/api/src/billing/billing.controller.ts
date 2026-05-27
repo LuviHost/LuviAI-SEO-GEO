@@ -43,11 +43,13 @@ export class BillingController {
   @Get('users/:userId/quota')
   async getQuota(@Req() req: Request, @Param('userId') userId: string) {
     ensureSelf(req, userId);
-    const [articles, sites] = await Promise.all([
+    const [articles, sites, videos, budget] = await Promise.all([
       this.quota.checkArticleQuota(userId),
       this.quota.checkSiteQuota(userId),
+      this.quota.checkVideoQuota(userId),
+      this.quota.checkAiCostBudget(userId),
     ]);
-    return { articles, sites };
+    return { articles, sites, videos, budget };
   }
 
   /**

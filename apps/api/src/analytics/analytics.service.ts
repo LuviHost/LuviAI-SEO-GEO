@@ -121,6 +121,107 @@ export class AnalyticsService {
     }
   }
 
+  /**
+   * Son N gun icin GSC'den tek seferde veri cek, gunluk snapshot olarak kaydet.
+   * captureSnapshot'i her gun icin ayri cagirmaya gore cok daha verimli (tek GSC API call).
+   *
+   * Yeni site baglandiginda + "Yenile" butonu icin kullanilir.
+   */
+  async backfillSnapshots(
+    siteId: string,
+    days: number,
+  ): Promise<{ saved: number; range: { from: string; to: string }; totalClicks: number; totalImpressions: number }> {
+    const site = await this.prisma.site.findUniqueOrThrow({ where: { id: siteId } });
+    if (!site.gscPropertyUrl || !site.gscRefreshToken) {
+      throw new BadRequestException('Bu site Google Search Console hesabina bagli degil.');
+    }
+
+    const client = await this.gscOAuth.getAuthenticatedClient(siteId);
+    if (!client) throw new BadRequestException('GSC client kurulamadi.');
+
+    const webmasters = google.webmasters({ version: 'v3', auth: client as any });
+    const endDate = new Date();
+    const startDate = new Date(endDate.getTime() - days * 86400000);
+    const startStr = startDate.toISOString().slice(0, 10);
+    const endStr = endDate.toISOString().slice(0, 10);
+
+    try {
+      // Date dimension: her gun icin total clicks/imp/pos
+      const dailyRes = await webmasters.searchanalytics.query({
+        siteUrl: site.gscPropertyUrl,
+        requestBody: { startDate: startStr, endDate: endStr, dimensions: ['date'], rowLimit: 1000 },
+      });
+
+      // Query + page (date'siz toplam, GSC privacy daily query'i gizleyebilir)
+      const queryRes = await webmasters.searchanalytics.query({
+        siteUrl: site.gscPropertyUrl,
+        requestBody: { startDate: startStr, endDate: endStr, dimensions: ['query', 'page'], rowLimit: 200 },
+      });
+
+      const dailyRows: GscRow[] = (dailyRes.data.rows ?? []) as any;
+      const queryRows: GscRow[] = (queryRes.data.rows ?? []) as any;
+
+      const totalQueries = queryRows.map((r) => ({
+        query: r.keys?.[0],
+        page: r.keys?.[1],
+        clicks: r.clicks ?? 0,
+        impressions: r.impressions ?? 0,
+        ctr: r.ctr ?? 0,
+        position: r.position ?? 0,
+      }));
+
+      let saved = 0;
+      let totalClicks = 0;
+      let totalImpressions = 0;
+
+      // En son tarihli snapshot'a tum query listesini iliştir (daily query yoksa bile)
+      const sortedDates = dailyRows.map((r) => r.keys?.[0]).filter(Boolean).sort();
+      const latestDate = sortedDates[sortedDates.length - 1];
+
+      for (const row of dailyRows) {
+        const dateStr = row.keys?.[0];
+        if (!dateStr) continue;
+        const date = new Date(`${dateStr}T00:00:00.000Z`);
+        const dayQueries = dateStr === latestDate ? totalQueries : [];
+
+        await this.prisma.analyticsSnapshot.upsert({
+          where: { siteId_date: { siteId, date } },
+          create: {
+            siteId,
+            date,
+            totalClicks: row.clicks ?? 0,
+            totalImpressions: row.impressions ?? 0,
+            avgCtr: row.ctr ?? 0,
+            avgPosition: row.position ?? 0,
+            pageDetails: [],
+            queryDetails: dayQueries as any,
+          },
+          update: {
+            totalClicks: row.clicks ?? 0,
+            totalImpressions: row.impressions ?? 0,
+            avgCtr: row.ctr ?? 0,
+            avgPosition: row.position ?? 0,
+            queryDetails: dayQueries as any,
+          },
+        });
+        saved++;
+        totalClicks += row.clicks ?? 0;
+        totalImpressions += row.impressions ?? 0;
+      }
+
+      this.log.log(`[${siteId}] Backfill ${days} days: ${saved} snapshots, ${totalClicks} clicks, ${totalImpressions} imp`);
+      return {
+        saved,
+        range: { from: startStr, to: endStr },
+        totalClicks,
+        totalImpressions,
+      };
+    } catch (err: any) {
+      this.log.error(`[${siteId}] Backfill error: ${err.message}`);
+      throw new BadRequestException(`GSC backfill basarisiz: ${err.message}`);
+    }
+  }
+
   /** Page URL'den slug çıkartıp Article.performanceMetrics güncelle */
   private async updateArticleMetrics(siteId: string, pageRows: GscRow[]) {
     const articles = await this.prisma.article.findMany({
@@ -337,6 +438,16 @@ export class AnalyticsService {
       return { keywords: [], summary: null, hasData: false };
     }
 
+    // Bu periyoda ait snapshot'lardan toplam metrikleri hesapla
+    // (queryDetails bos olsa bile snapshot.totalClicks/Impressions GSC daily'den geliyor).
+    // Keyword listesi yoksa bile kullanici "9 gosterim, 2 tiklama" gibi gercek toplami gormeli.
+    const currentSnapshots = snapshots.filter((s) => s.date >= periodStart);
+    const periodTotalClicks = currentSnapshots.reduce((s, x) => s + (x.totalClicks ?? 0), 0);
+    const periodTotalImpressions = currentSnapshots.reduce((s, x) => s + (x.totalImpressions ?? 0), 0);
+    const periodAvgPosition = currentSnapshots.length > 0
+      ? currentSnapshots.reduce((s, x) => s + (x.avgPosition ?? 0), 0) / currentSnapshots.length
+      : 0;
+
     // Her query için: günlük pozisyon dizisi, toplam click/impression
     type KwAcc = {
       query: string;
@@ -423,6 +534,16 @@ export class AnalyticsService {
         ? Math.round((keywords.reduce((s, k) => s + k.position, 0) / keywords.length) * 10) / 10
         : 0;
 
+    // Keyword listesi GSC privacy filter nedeniyle bos olabilir; bu durumda da
+    // toplam metrikler snapshot'larin kendisinden gelecek.
+    const totalClicksFromKw = keywords.reduce((s, k) => s + k.clicks, 0);
+    const totalImpFromKw = keywords.reduce((s, k) => s + k.impressions, 0);
+    const summaryTotalClicks = Math.max(totalClicksFromKw, periodTotalClicks);
+    const summaryTotalImp = Math.max(totalImpFromKw, periodTotalImpressions);
+    const summaryAvgPos = keywords.length > 0
+      ? avgPosition
+      : Math.round(periodAvgPosition * 10) / 10;
+
     return {
       keywords,
       summary: {
@@ -432,11 +553,11 @@ export class AnalyticsService {
         opportunities,
         improving,
         declining,
-        avgPosition,
-        totalClicks: keywords.reduce((s, k) => s + k.clicks, 0),
-        totalImpressions: keywords.reduce((s, k) => s + k.impressions, 0),
+        avgPosition: summaryAvgPos,
+        totalClicks: summaryTotalClicks,
+        totalImpressions: summaryTotalImp,
       },
-      hasData: true,
+      hasData: summaryTotalImp > 0 || keywords.length > 0,
       period: { days, startDate: periodStart.toISOString().slice(0, 10), endDate: now.toISOString().slice(0, 10) },
     };
   }

@@ -29,9 +29,18 @@ export default function ErrorPage({
           Beklenmedik bir hata oluştu. Sayfayı yeniden yükleyebilir ya da ana sayfaya dönebilirsin.
         </p>
         {error.digest && (
-          <p className="text-xs text-muted-foreground/70 font-mono mb-6">
+          <p className="text-xs text-muted-foreground/70 font-mono mb-2">
             Hata kodu: <code className="bg-muted px-1.5 py-0.5 rounded">{error.digest}</code>
           </p>
+        )}
+        {error.message && (
+          <details className="text-left mb-6 bg-muted/50 rounded-lg p-3 text-xs" open>
+            <summary className="cursor-pointer font-semibold text-rose-600 mb-2">Teknik detay</summary>
+            <pre className="whitespace-pre-wrap break-words font-mono text-[11px] text-foreground/80">{error.message}</pre>
+            {error.stack && (
+              <pre className="whitespace-pre-wrap break-words font-mono text-[10px] text-muted-foreground mt-2 max-h-48 overflow-y-auto">{error.stack}</pre>
+            )}
+          </details>
         )}
 
         <div className="flex flex-col sm:flex-row gap-3 justify-center mt-8">

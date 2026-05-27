@@ -17,6 +17,8 @@ import { Badge } from '@/components/ui/badge';
 import { InfoTooltip } from '@/components/info-tooltip';
 import { CitationHistoryChart } from '@/components/citation-history-chart';
 import { GeoLabPanel } from '@/components/geo-lab-panel';
+import { TestimonialWidget } from '@/components/testimonial-widget';
+import { QuotaMonitor } from '@/components/quota-monitor';
 import { GeoScoreCard } from '@/components/geo-score-card';
 import { CrawlerHitsPanel } from '@/components/crawler-hits-panel';
 import { AdsLabPanel } from '@/components/ads-lab-panel';
@@ -62,6 +64,14 @@ export function SiteOverviewDashboard({
       <AnalyticsRow siteId={site.id} audit={audit} articles={articles} />
       <AiCostStrip siteId={site.id} />
 
+      {/* Aylık kotalar + bütçe uyarısı */}
+      <QuotaMonitor />
+
+      {/* Testimonial widget — kullanıcı 7+ gün aktifse veya makale yayınladıysa göster */}
+      {(published.length >= 1 || (articles.length >= 3 && new Date(site.createdAt ?? 0).getTime() < Date.now() - 7 * 86400_000)) && (
+        <TestimonialWidget siteId={site.id} />
+      )}
+
       {/* Site Skoru özeti — onboarding sonrası kullanıcı detayı doğrudan görsün */}
       <AuditSummaryInline site={site} audit={audit} />
 
@@ -69,13 +79,13 @@ export function SiteOverviewDashboard({
 
       {/* Sirada Yayinlanacaklar */}
       {nextScheduled.length > 0 && (
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between mb-3">
+        <Card className="rounded-2xl shadow-sm">
+          <CardContent className="p-5">
+            <div className="flex items-center justify-between mb-3.5">
               <p className="text-sm font-semibold inline-flex items-center gap-2">
-                <Zap className="h-4 w-4 text-brand" /> Sırada Yayınlanacaklar
+                <Zap className="h-4 w-4 text-orange-500" /> Sırada Yayınlanacaklar
               </p>
-              <Link href={`/sites/${site.id}?tab=content`} className="text-xs text-brand hover:underline">
+              <Link href={`/sites/${site.id}?tab=content`} className="text-xs text-orange-600 dark:text-orange-400 hover:underline font-medium">
                 Takvimi aç →
               </Link>
             </div>
@@ -83,9 +93,9 @@ export function SiteOverviewDashboard({
               {nextScheduled.map((a) => {
                 const d = new Date(a.scheduledAt);
                 return (
-                  <div key={a.id} className="flex items-center gap-3 p-2 rounded-md border hover:border-brand/40">
-                    <div className="text-center min-w-[68px] bg-brand/10 text-brand rounded px-2 py-1">
-                      <div className="text-[10px] font-bold tracking-wide">
+                  <div key={a.id} className="flex items-center gap-3 p-2.5 rounded-xl border hover:border-orange-500/40 hover:bg-orange-500/[0.02] transition-colors">
+                    <div className="text-center min-w-[68px] bg-gradient-to-br from-orange-500/15 to-orange-600/10 text-orange-700 dark:text-orange-300 rounded-lg px-2 py-1.5 ring-1 ring-orange-500/20">
+                      <div className="text-[10px] font-bold tracking-wide uppercase">
                         {d.toLocaleDateString('tr-TR', { weekday: 'short' })}
                       </div>
                       <div className="text-sm font-bold leading-tight">
@@ -108,39 +118,39 @@ export function SiteOverviewDashboard({
       <RecentActivity articles={articles} audit={audit} siteId={site.id} />
 
       {/* AI Görünürlük Trendi (otomatik gunluk takip) */}
-      <CitationHistoryChart siteId={site.id} />
+      <CitationHistoryChart siteId={site.id} siteName={site.name} siteUrl={site.url} />
 
       {/* AI Crawler Trafigi (sunucu log analitigi) */}
       <CrawlerHitsPanel siteId={site.id} />
 
       {/* Quick links to deep-dive panels — GeoLab, Ads, Report (artık ayrı route'larda) */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <Link href={`/sites/${site.id}/geo-lab`} className="group rounded-xl border bg-card p-4 hover:border-brand/40 hover:shadow-md transition-all">
-          <div className="flex items-center justify-between mb-2">
-            <div className="h-8 w-8 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 grid place-items-center">
+        <Link href={`/sites/${site.id}/geo-lab`} className="group rounded-2xl border bg-card p-4 hover:border-orange-500/40 hover:shadow-lg hover:shadow-orange-500/5 hover:-translate-y-0.5 transition-all">
+          <div className="flex items-center justify-between mb-2.5">
+            <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-amber-500/15 to-amber-600/10 text-amber-600 dark:text-amber-400 grid place-items-center ring-1 ring-amber-500/20">
               <Sparkles className="h-4 w-4" />
             </div>
-            <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/40 group-hover:text-brand group-hover:translate-x-0.5 transition-all" />
+            <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/40 group-hover:text-orange-500 group-hover:translate-x-0.5 transition-all" />
           </div>
           <p className="text-sm font-semibold mb-0.5">GEO Lab</p>
           <p className="text-xs text-muted-foreground">6 pillar AI search optimizasyonu — heatmap, Wikidata, training.</p>
         </Link>
-        <Link href={`/sites/${site.id}/ads`} className="group rounded-xl border bg-card p-4 hover:border-brand/40 hover:shadow-md transition-all">
-          <div className="flex items-center justify-between mb-2">
-            <div className="h-8 w-8 rounded-lg bg-orange-500/10 text-orange-500 grid place-items-center">
+        <Link href={`/sites/${site.id}/ads`} className="group rounded-2xl border bg-card p-4 hover:border-orange-500/40 hover:shadow-lg hover:shadow-orange-500/5 hover:-translate-y-0.5 transition-all">
+          <div className="flex items-center justify-between mb-2.5">
+            <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-orange-500/15 to-orange-600/10 text-orange-600 dark:text-orange-400 grid place-items-center ring-1 ring-orange-500/20">
               <TrendingUp className="h-4 w-4" />
             </div>
-            <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/40 group-hover:text-brand group-hover:translate-x-0.5 transition-all" />
+            <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/40 group-hover:text-orange-500 group-hover:translate-x-0.5 transition-all" />
           </div>
           <p className="text-sm font-semibold mb-0.5">Reklam Autopilot</p>
           <p className="text-xs text-muted-foreground">Google + Meta ads ROAS optimize — 6 saatte bir bütçe ayarı.</p>
         </Link>
-        <Link href={`/sites/${site.id}/report`} className="group rounded-xl border bg-card p-4 hover:border-brand/40 hover:shadow-md transition-all">
-          <div className="flex items-center justify-between mb-2">
-            <div className="h-8 w-8 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 grid place-items-center">
+        <Link href={`/sites/${site.id}/report`} className="group rounded-2xl border bg-card p-4 hover:border-orange-500/40 hover:shadow-lg hover:shadow-orange-500/5 hover:-translate-y-0.5 transition-all">
+          <div className="flex items-center justify-between mb-2.5">
+            <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-indigo-500/15 to-indigo-600/10 text-indigo-600 dark:text-indigo-400 grid place-items-center ring-1 ring-indigo-500/20">
               <FileBarChart className="h-4 w-4" />
             </div>
-            <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/40 group-hover:text-brand group-hover:translate-x-0.5 transition-all" />
+            <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/40 group-hover:text-orange-500 group-hover:translate-x-0.5 transition-all" />
           </div>
           <p className="text-sm font-semibold mb-0.5">Detaylı Rapor</p>
           <p className="text-xs text-muted-foreground">Toplam performans, makale-bazlı metrikler, 30 günlük özet.</p>
@@ -151,8 +161,8 @@ export function SiteOverviewDashboard({
 
       {/* Generating / Ready bandi */}
       {(generating.length > 0 || ready.length > 0) && (
-        <Card>
-          <CardContent className="p-4 space-y-2">
+        <Card className="rounded-2xl shadow-sm">
+          <CardContent className="p-4 space-y-2.5">
             {generating.length > 0 && (
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <p className="text-sm flex items-center gap-2">
@@ -165,10 +175,10 @@ export function SiteOverviewDashboard({
             {ready.length > 0 && (
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <p className="text-sm flex items-center gap-2">
-                  <span className="h-2 w-2 rounded-full bg-green-500" />
+                  <span className="h-2 w-2 rounded-full bg-emerald-500" />
                   <strong>{ready.length}</strong> makale yayına hazır
                 </p>
-                <Link href={`/sites/${site.id}?tab=content`} className="text-xs text-brand hover:underline">
+                <Link href={`/sites/${site.id}?tab=content`} className="text-xs text-orange-600 dark:text-orange-400 hover:underline font-medium">
                   İncele →
                 </Link>
               </div>
@@ -205,7 +215,7 @@ function ScoreCard({
     muted: 'text-muted-foreground',
   };
   return (
-    <div className="rounded-lg border p-4 hover:border-brand/40 transition-colors">
+    <div className="rounded-2xl border bg-card p-4 hover:border-orange-500/40 hover:shadow-md transition-all">
       <div className={`flex items-center gap-2 text-xs font-medium ${colorMap[color]}`}>
         {icon}
         <span className="uppercase tracking-wide">{label}</span>
@@ -281,7 +291,7 @@ function NextActionWidget({ site, audit, articles, publishTargets, onRefresh }: 
       title: 'Yayın hedefi ekle (auto-fix bunu gerektirir)',
       desc: `${autoFixable.length} otomatik düzeltme uygulanabilir ama bağlı bir yayın hedefi yok. FTP/SFTP/WordPress ekle ki sitemap.xml, robots.txt gibi dosyalar yüklensin.`,
       cta: 'Yayın hedefi ekle',
-      href: `/sites/${site.id}?tab=content#publish-targets`,
+      href: `/sites/${site.id}?tab=settings#publish-targets`,
     });
   }
 
@@ -437,17 +447,17 @@ function NextActionWidget({ site, audit, articles, publishTargets, onRefresh }: 
   const rest = visible.slice(1);
 
   return (
-    <div className="rounded-2xl border-2 border-brand/50 bg-gradient-to-br from-brand/[0.06] via-violet-500/[0.04] to-fuchsia-500/[0.04] p-5 shadow-[0_8px_30px_-12px_rgba(124,58,237,0.25)]">
+    <div className="rounded-2xl border border-orange-500/40 bg-gradient-to-br from-orange-500/[0.07] via-amber-500/[0.04] to-orange-500/[0.06] p-5 shadow-[0_8px_30px_-12px_rgba(249,115,22,0.25)]">
       <div className="flex items-center gap-2 mb-4">
-        <span className="inline-flex items-center justify-center h-7 w-7 rounded-full bg-brand/15 text-brand">
+        <span className="inline-flex items-center justify-center h-8 w-8 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 text-white shadow-sm shadow-orange-500/20">
           <Sparkles className="h-4 w-4" />
         </span>
         <p className="font-bold text-base">Sıradaki Aksiyon{visible.length > 1 ? 'lar' : ''}</p>
-        <span className="text-[10px] uppercase tracking-widest text-brand/70 font-mono ml-auto">en yüksek etki için</span>
+        <span className="text-[10px] uppercase tracking-widest text-orange-600/80 dark:text-orange-400/80 font-mono ml-auto">en yüksek etki için</span>
       </div>
 
       {/* Birincil aksiyon — büyük ve baskın */}
-      <div className="rounded-xl bg-card border-2 border-brand/30 p-4 flex items-center gap-4 flex-wrap mb-2">
+      <div className="rounded-xl bg-card border border-orange-500/25 p-4 flex items-center gap-4 flex-wrap mb-2 shadow-sm">
         <span className="text-3xl shrink-0">{primary.icon}</span>
         <div className="flex-1 min-w-[220px]">
           <p className="text-base font-semibold leading-snug">{primary.title}</p>
@@ -556,10 +566,10 @@ function HealthBanner({ site, audit, articles, publishTargets }: { site: any; au
           <div
             key={idx}
             className={cn(
-              'rounded-lg border-l-4 p-3 flex items-center gap-3 flex-wrap',
+              'rounded-xl border-l-4 p-3.5 flex items-center gap-3 flex-wrap shadow-sm',
               isError
-                ? 'border-l-red-500 bg-red-500/5 border border-red-500/30'
-                : 'border-l-yellow-500 bg-yellow-500/5 border border-yellow-500/30',
+                ? 'border-l-red-500 bg-gradient-to-br from-red-500/[0.06] to-red-500/[0.02] border border-red-500/25'
+                : 'border-l-amber-500 bg-gradient-to-br from-amber-500/[0.06] to-amber-500/[0.02] border border-amber-500/25',
             )}
           >
             <span className="text-xl shrink-0">{isError ? '🔴' : '⚠️'}</span>

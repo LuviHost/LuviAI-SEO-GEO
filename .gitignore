@@ -46,3 +46,15 @@ tmp/
 *.tsbuildinfo
 uploads/
 .vscode/
+
+# macOS metadata
+._*
+.DS_Store
+
+# Runtime-generated public assets (AI-generated content)
+apps/api/public/blog/
+apps/api/public/videos/
+apps/api/public/screenshots/
+apps/api/public/social/
+apps/api/public/social-images/
+apps/api/public/studio-images/

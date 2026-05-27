@@ -1,4 +1,5 @@
 import './globals.css';
+import Script from 'next/script';
 import type { Metadata, Viewport } from 'next';
 import { ThemeProvider } from '@/components/theme-provider';
 import { CookieConsent } from '@/components/cookie-consent';
@@ -6,9 +7,21 @@ import { AppSessionProvider } from '@/components/session-provider';
 import { Toaster } from 'sonner';
 import { RefTracker } from '@/components/ref-tracker';
 
+// Microsoft Clarity project ID — heatmap + session recording.
+// Default to LuviAI production project; .env'den override edilebilir (staging için ayrı ID).
+const CLARITY_PROJECT_ID = process.env.NEXT_PUBLIC_CLARITY_PROJECT_ID ?? 'wr4kuo9zhi';
+
+// Google Tag Manager container ID — analytics + remarketing + conversion tracking.
+const GTM_ID = process.env.NEXT_PUBLIC_GTM_ID ?? 'GTM-TSH8KWCC';
+
 const SITE_URL = 'https://ai.luvihost.com';
-const TITLE = 'LuviAI — SEO, içerik üretimi, sosyal medya ve reklam tek panelden';
-const DESCRIPTION = 'Sitenin SEO + AI görünürlük denetimini dakikalar içinde yapar, marka sesinde kapsamlı makaleler üretir, sosyal medyaya ve sitene otomatik yayınlar. Türkiye için yapıldı, PayTR ile güvenli ödeme.';
+// Browser tab + Google snippet için uzun başlık (60 char)
+const TITLE = 'LuviAI — AI çağının pazarlama platformu';
+// Tüm sayfalarda fallback (max 160 char Google için)
+const DESCRIPTION = 'Senin yerine pazarlama yapan AI. Site, mobil app, sosyal medya — tek panel. AI Görünürlük, ASO, Apple Search Ads, Studio, Auto-Pilot.';
+// WhatsApp / Telegram / Discord unfurl için kısa versiyon (max 90 char, sosyal görseli güzelleştirir)
+const OG_TITLE = 'LuviAI — Senin yerine pazarlama yapan AI';
+const OG_DESCRIPTION = 'AI Görünürlük, ASO, Apple Search Ads, Studio — hepsi tek panel. 14 gün ücretsiz, kart gerekmez.';
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -43,14 +56,16 @@ export const metadata: Metadata = {
     alternateLocale: ['en_US'],
     url: SITE_URL,
     siteName: 'LuviAI',
-    title: TITLE,
-    description: DESCRIPTION,
+    title: OG_TITLE,
+    description: OG_DESCRIPTION,
     images: [
       {
         url: `${SITE_URL}/og-image.png`,
+        secureUrl: `${SITE_URL}/og-image.png`,
         width: 1200,
         height: 630,
-        alt: 'LuviAI — SEO ve AI görünürlük otomasyonu',
+        alt: 'LuviAI — AI ile pazarlama platformu',
+        type: 'image/png',
       },
     ],
   },
@@ -58,9 +73,12 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     site: '@luvihost',
     creator: '@luvihost',
-    title: TITLE,
-    description: DESCRIPTION,
-    images: [`${SITE_URL}/og-image.png`],
+    title: OG_TITLE,
+    description: OG_DESCRIPTION,
+    images: [{
+      url: `${SITE_URL}/og-image.png`,
+      alt: 'LuviAI — AI ile pazarlama platformu',
+    }],
   },
   robots: {
     index: true,
@@ -182,12 +200,49 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="tr" suppressHydrationWarning>
       <head>
+        {/* Google Tag Manager — GA4, conversion, remarketing. En üst konumda (head). */}
+        {GTM_ID && (
+          <Script id="gtm-head" strategy="afterInteractive">
+            {`(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+              new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+              j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+              'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+              })(window,document,'script','dataLayer','${GTM_ID}');`}
+          </Script>
+        )}
+        {/* LuviAI AI Crawler Tracker — kendi sitemizi izle (GPTBot, ClaudeBot, PerplexityBot, vs.) */}
+        <Script
+          id="luviai-tracker"
+          src="https://ai.luvihost.com/api/tracker.js?site=cmp6036790001artdfumwec57"
+          strategy="afterInteractive"
+        />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(orgJsonLd) }}
         />
       </head>
       <body className="antialiased min-h-screen bg-background text-foreground">
+        {/* GTM noscript fallback — body açılışının hemen sonrası (resmi öneri) */}
+        {GTM_ID && (
+          <noscript>
+            <iframe
+              src={`https://www.googletagmanager.com/ns.html?id=${GTM_ID}`}
+              height="0"
+              width="0"
+              style={{ display: 'none', visibility: 'hidden' }}
+            />
+          </noscript>
+        )}
+        {/* Microsoft Clarity — session replay + heatmap. afterInteractive: ana içerikten sonra. */}
+        {CLARITY_PROJECT_ID && (
+          <Script id="ms-clarity" strategy="afterInteractive">
+            {`(function(c,l,a,r,i,t,y){
+              c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
+              t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
+              y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
+            })(window, document, "clarity", "script", "${CLARITY_PROJECT_ID}");`}
+          </Script>
+        )}
         <RefTracker />
         <AppSessionProvider>
           <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>

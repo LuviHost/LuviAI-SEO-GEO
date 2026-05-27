@@ -80,12 +80,12 @@ async function bootstrap() {
   });
 
   const handlers: Record<string, (data: any) => Promise<any>> = {
-    BRAIN_GENERATE: async ({ siteId }) => {
+    BRAIN_GENERATE: async ({ siteId, forceRegenerate }) => {
       if (await services.settings.getBoolean('AI_GLOBAL_DISABLED')) {
         log.warn(`[${siteId}] BRAIN_GENERATE atlandı (AI_GLOBAL_DISABLED=1)`);
         return { skipped: true, reason: 'AI_GLOBAL_DISABLED' };
       }
-      await services.brainGen.runGeneration(siteId);
+      await services.brainGen.runGeneration(siteId, { forceRegenerate: !!forceRegenerate });
       return { ok: true };
     },
 
@@ -210,32 +210,44 @@ async function bootstrap() {
           },
         });
       } else {
-        log.log(`[${siteId}] [1/5] Brain üretiliyor`);
-        await services.brainGen.runGeneration(siteId);
+        log.log(`[${siteId}] [1/5] Brain + Audit + Platform paralel`);
       }
 
-      let audit: any = null;
-      if (false /* audit her zaman gerçek çalışır — AI Citation içeride AI_GLOBAL_DISABLED guard'ı ile atlanır, kalan 14 SEO check + PageSpeed + GEO LLM gerektirmez */) {
-        log.warn(`[${siteId}] [2/5] Audit MOCK (skip)`);
-        await new Promise((r) => setTimeout(r, 0));
-        audit = await services.prisma.audit.create({
-          data: {
-            siteId,
-            overallScore: 70,
-            geoScore: 50,
-            checks: { mock: true } as any,
-            issues: [] as any,
-            durationMs: 100,
-          },
+      // ⚡ Paralel başlat — Brain, Audit ve Platform birbirine bağımlı değil.
+      // Topics brain'i + audit'i bekler; o yüzden bunlar bittikten sonra çalışır.
+      const brainPromise = aiGlobalOff
+        ? Promise.resolve(null) // mock zaten yukarıda yazıldı
+        : services.brainGen.runGeneration(siteId).catch((err) => {
+            log.error(`[${siteId}] brain hata: ${err.message}`);
+            throw err;
+          });
+
+      const auditPromise = services.audit.runAudit(siteId).catch((err) => {
+        log.error(`[${siteId}] audit hata: ${err.message}`);
+        return null; // audit fail olsa bile zincir devam etsin
+      });
+
+      const platformPromise = services.platformDetector.detect(site.url)
+        .then(async (detection) => {
+          await services.prisma.site.update({
+            where: { id: siteId },
+            data: {
+              platform: detection.platform,
+              platformConfidence: detection.confidence,
+              platformDetectedAt: new Date(),
+            } as any,
+          });
+          log.log(`[${siteId}] Platform: ${detection.platform} (${(detection.confidence * 100).toFixed(0)}%)`);
+          return detection;
+        })
+        .catch((err) => {
+          log.warn(`[${siteId}] Platform detect fail: ${err.message}`);
+          return null;
         });
-        await services.prisma.site.update({
-          where: { id: siteId },
-          data: { status: 'AUDIT_COMPLETE' as any },
-        }).catch(() => {});
-      } else {
-        log.log(`[${siteId}] [2/5] Audit (AI citation otomatik)`);
-        audit = await services.audit.runAudit(siteId);
-      }
+
+      // Brain mutlaka bitsin (topics buna bağımlı). Audit + platform fire-and-collect.
+      await brainPromise;
+      const [audit] = await Promise.all([auditPromise, platformPromise]);
 
       let queue: any = { id: null, tier1Topics: [] };
       if (aiGlobalOff) {
@@ -269,22 +281,7 @@ async function bootstrap() {
         queue = await services.topics.runEngine(siteId);
       }
       const tier1Count = ((queue?.tier1Topics as any[]) ?? []).length;
-
-      log.log(`[${siteId}] [4/5] Platform tespiti`);
-      try {
-        const detection = await services.platformDetector.detect(site.url);
-        await services.prisma.site.update({
-          where: { id: siteId },
-          data: {
-            platform: detection.platform,
-            platformConfidence: detection.confidence,
-            platformDetectedAt: new Date(),
-          } as any,
-        });
-        log.log(`[${siteId}] Platform: ${detection.platform} (${(detection.confidence * 100).toFixed(0)}%)`);
-      } catch (err: any) {
-        log.warn(`[${siteId}] Platform detect fail: ${err.message}`);
-      }
+      // Platform tespiti yukarıda paralel başlatıldı, burada tekrar yapılmıyor.
 
       const articleGenDisabled = aiGlobalOff || await services.settings.getBoolean('ARTICLE_GENERATION_DISABLED');
       let scheduleResult: any;
@@ -491,6 +488,13 @@ async function bootstrap() {
     {
       connection,
       concurrency: parseInt(process.env.WORKER_CONCURRENCY ?? '2', 10),
+      // Stalled job davranışı — worker restart sırasında uzun süren job'lar (Onboarding,
+      // makale pipeline, AI Citation testi) yarıda kalırsa BullMQ stalled sayar.
+      // maxStalledCount default 1 → 1 kere stalled olunca direkt FAIL. Buyutuyoruz
+      // ki deploy sırasında yarıda kalan job'lar otomatik retry alabilsin.
+      stalledInterval: 60_000,   // her dk stalled kontrol (default 30s)
+      maxStalledCount: 3,        // 3 kere stalled olabilir (default 1)
+      lockDuration: 5 * 60_000,  // 5 dk lock (default 30s) — uzun pipeline'lar için
     },
   );
 

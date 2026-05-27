@@ -18,6 +18,21 @@ import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { PipelineProgress, PIPELINE_STEPS } from '@/components/pipeline-progress';
 import { ScanOrb } from '@/components/ai-scan';
+import { VendorLogo, type VendorName } from '@/components/vendor-logo';
+
+// Channel type → VendorLogo name eşlemesi (dahili SVG'lerden gelir, CDN bağımlılığı yok)
+const CHANNEL_TO_VENDOR_NAME: Record<string, VendorName> = {
+  LINKEDIN_PERSONAL: 'linkedin',
+  LINKEDIN_COMPANY:  'linkedin',
+  X_TWITTER:         'twitter',
+  FACEBOOK_PAGE:     'facebook',
+  INSTAGRAM_BUSINESS:'instagram',
+  TIKTOK:            'tiktok',
+  YOUTUBE:           'youtube',
+  THREADS:           'threads',
+  BLUESKY:           'bluesky',
+  PINTEREST:         'pinterest',
+};
 
 type StepStatus = 'pending' | 'auto-running' | 'done' | 'skipped';
 
@@ -2054,6 +2069,7 @@ export function ContentCalendarPanel({
   socialChannels = [],
   isChannelEnabledForArticle,
   toggleChannelForArticle,
+  standaloneSocialPosts = [],
 }: {
   siteId: string;
   scheduled: any[];
@@ -2064,6 +2080,8 @@ export function ContentCalendarPanel({
   socialChannels?: any[];
   isChannelEnabledForArticle?: (articleId: string, channelId: string) => boolean;
   toggleChannelForArticle?: (articleId: string, channelId: string, articleTitle?: string) => void;
+  /** Standalone sosyal post'lar (articleId=NULL, Studio wizard'ından oluşturulmuş) */
+  standaloneSocialPosts?: any[];
 }) {
   const [monthOffset, setMonthOffset] = useState(0); // 0 = bu ay
   const [pendingDrop, setPendingDrop] = useState<{ date: Date; data: any; kind: 'topic' | 'article' } | null>(null);
@@ -2118,6 +2136,15 @@ export function ContentCalendarPanel({
         ad.getMonth() === dayDate.getMonth() &&
         ad.getDate() === dayDate.getDate();
     }).sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime());
+  };
+
+  const socialPostsByDay = (dayDate: Date) => {
+    return standaloneSocialPosts.filter((p) => {
+      const ad = new Date(p.scheduledFor);
+      return ad.getFullYear() === dayDate.getFullYear() &&
+        ad.getMonth() === dayDate.getMonth() &&
+        ad.getDate() === dayDate.getDate();
+    }).sort((a, b) => new Date(a.scheduledFor).getTime() - new Date(b.scheduledFor).getTime());
   };
 
   const onDayDrop = (e: React.DragEvent, dayDate: Date) => {
@@ -2394,6 +2421,34 @@ export function ContentCalendarPanel({
                       </div>
                     )}
                   </div>
+                );
+              })}
+
+              {/* Standalone sosyal post'lar — Studio wizard'ından (articleId yok) */}
+              {socialPostsByDay(dayDate).map((post) => {
+                const channelType = post.channel?.type ?? '';
+                const meta = getChannelMeta(channelType);
+                const vendorName = CHANNEL_TO_VENDOR_NAME[channelType];
+                const statusBadge =
+                  post.status === 'PUBLISHED' ? 'yayında' :
+                  post.status === 'QUEUED'   ? 'kuyrukta' :
+                  'taslak';
+                return (
+                  <a
+                    key={post.id}
+                    href={`/sites/${siteId}/studio?tab=publish`}
+                    title={`${meta.shortName} · ${post.text?.slice(0, 100) ?? ''}`}
+                    className="group rounded text-[10px] p-1 leading-tight border bg-brand/10 border-brand/30 hover:bg-brand/15 transition-colors no-underline text-foreground block"
+                  >
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="font-mono font-bold text-brand">{fmtTime(post.scheduledFor)}</span>
+                      <span className="inline-flex items-center justify-center h-5 w-5 rounded border border-brand/30 bg-white dark:bg-slate-900 shrink-0">
+                        {vendorName ? <VendorLogo name={vendorName} size={12} /> : <Send className="h-3 w-3 text-muted-foreground" />}
+                      </span>
+                    </div>
+                    <p className="font-medium truncate mt-0.5">{post.text?.replace(/[#*]/g, '').trim().slice(0, 50) || '(boş)'}</p>
+                    <p className="text-[9px] text-muted-foreground">📣 sosyal · {meta.shortName} · {statusBadge}</p>
+                  </a>
                 );
               })}
             </div>

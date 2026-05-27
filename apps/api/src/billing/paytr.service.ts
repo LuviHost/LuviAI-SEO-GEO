@@ -295,10 +295,12 @@ export class PaytrService {
   }
 
   private getPlanDetails(planId: string, cycle: 'monthly' | 'annual') {
+    // TR fiyatlar (kuruş hassasiyetinde) — billing.service.ts ile senkron
     const plans: Record<string, { name: string; monthly: number; annual: number }> = {
-      starter: { name: 'Başlangıç', monthly: 3080, annual: 29568 },
-      pro: { name: 'Profesyonel', monthly: 6980, annual: 67008 },
-      agency: { name: 'Kurumsal', monthly: 13610, annual: 130656 },
+      starter: { name: 'Başlangıç', monthly: 799, annual: 7990 },
+      pro: { name: 'Profesyonel', monthly: 2499, annual: 24990 },
+      agency: { name: 'Ajans', monthly: 5999, annual: 59990 },
+      // enterprise burada YOK — özel iletişim formu üzerinden gidilir
     };
     const p = plans[planId];
     if (!p) throw new BadRequestException(`Bilinmeyen plan: ${planId}`);

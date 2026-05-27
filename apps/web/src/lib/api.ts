@@ -46,7 +46,15 @@ function toUserMessage(status: number, body: unknown): string {
   if (status === 502 || status === 503 || status === 504) {
     return 'Sunucu şu an cevap vermiyor. Birkaç saniye sonra tekrar dene.';
   }
-  if (status >= 500) return 'Sunucu tarafında beklenmeyen bir sorun oluştu. Tekrar dene.';
+  if (status >= 500) {
+    // Backend'in döndüğü spesifik mesajı önce dene
+    if (body && typeof body === 'object') {
+      const b = body as { message?: unknown; error?: unknown };
+      if (typeof b.message === 'string' && b.message.length > 0 && b.message.length < 500) return b.message;
+      if (typeof b.error === 'string' && b.error.length > 0 && b.error.length < 500) return b.error;
+    }
+    return 'Sunucu tarafında beklenmeyen bir sorun oluştu. Tekrar dene.';
+  }
   return 'Beklenmeyen bir hata oluştu, lütfen tekrar dene.';
 }
 
@@ -101,7 +109,24 @@ export const api = {
     request<any>(`/sites/${siteId}/complete-onboarding`, { method: 'POST' }),
 
   getUserQuota: (userId: string) =>
-    request<{ articles: { allowed: boolean; remaining: number; limit: number }; sites: any }>(`/billing/users/${userId}/quota`),
+    request<{
+      articles: { allowed: boolean; remaining: number; limit: number };
+      sites: { allowed: boolean; current: number; limit: number };
+      videos: { allowed: boolean; used: number; limit: number; remaining: number };
+      budget: { used: number; cap: number; pct: number; warn: boolean; hardBlock: boolean };
+    }>(`/billing/users/${userId}/quota`),
+
+  detectNiche: (url: string) =>
+    request<{
+      niche: string;
+      customNiche?: string;
+      confidence: number;
+      reasoning: string;
+      alternatives: Array<{ niche: string; confidence: number }>;
+    }>('/sites/detect-niche', {
+      method: 'POST',
+      body: JSON.stringify({ url }),
+    }),
 
   regenerateBrain: (siteId: string) =>
     request<any>(`/sites/${siteId}/brain/regenerate`, { method: 'POST' }),
@@ -158,6 +183,107 @@ export const api = {
 
   runCitationTest: (siteId: string) =>
     request<any>(`/sites/${siteId}/audit/citation-test`, { method: 'POST' }),
+
+  /** App Store Connect (ASO Faz 2) */
+  connectAsc: (siteId: string, body: { issuerId: string; keyId: string; privateKeyPem: string }) =>
+    request<any>(`/sites/${siteId}/aso/asc/connect`, { method: 'POST', body: JSON.stringify(body) }),
+
+  listAscAccounts: (siteId: string) =>
+    request<Array<{
+      id: string; issuerId: string; keyId: string;
+      isActive: boolean; lastSyncAt: string | null; lastError: string | null; createdAt: string;
+      apps: Array<{ id: string; appleAppId: string; bundleId: string; name: string; latestVersion: string | null; latestReleaseAt: string | null }>;
+    }>>(`/sites/${siteId}/aso/asc/accounts`),
+
+  disconnectAsc: (accountId: string) =>
+    request<{ ok: boolean }>(`/aso/asc/accounts/${accountId}`, { method: 'DELETE' }),
+
+  syncAscApps: (accountId: string) =>
+    request<{ synced: number }>(`/aso/asc/accounts/${accountId}/sync`, { method: 'POST' }),
+
+  syncAscReleases: (appId: string) =>
+    request<{ synced: number }>(`/aso/asc/apps/${appId}/sync-releases`, { method: 'POST' }),
+
+  fetchAscReviews: (appId: string) =>
+    request<{
+      appId: string;
+      appName: string;
+      avgRating: string | null;
+      reviews: Array<{
+        id: string; rating: number; title: string; body: string;
+        reviewerNickname: string; territory: string; createdDate: string | null;
+      }>;
+    }>(`/aso/asc/apps/${appId}/reviews`),
+
+  replyAscReview: (appId: string, reviewId: string, body: string) =>
+    request<any>(`/aso/asc/apps/${appId}/reviews/${reviewId}/reply`, {
+      method: 'POST',
+      body: JSON.stringify({ body }),
+    }),
+
+  listAscAlerts: (siteId: string) =>
+    request<Array<{
+      id: string; severity: string; message: string; daysSinceUpdate: number;
+      acknowledgedAt: string | null; createdAt: string;
+      app: { name: string; appleAppId: string };
+    }>>(`/sites/${siteId}/aso/asc/alerts`),
+
+  acknowledgeAscAlert: (alertId: string) =>
+    request<any>(`/aso/asc/alerts/${alertId}/acknowledge`, { method: 'POST' }),
+
+  /** Testimonials */
+  submitTestimonial: (body: { siteId?: string; rating: number; body: string; role?: string; company?: string; metric?: string }) =>
+    request<{ id: string }>(`/testimonials`, { method: 'POST', body: JSON.stringify(body) }),
+
+  listPublicTestimonials: (limit = 6) =>
+    request<Array<{
+      id: string; rating: number; body: string; role: string | null; company: string | null;
+      metric: string | null; displayName: string; initials: string; createdAt: string;
+    }>>(`/testimonials/public?limit=${limit}`),
+
+  listAdminTestimonials: (filter: 'pending' | 'approved' | 'rejected' | 'all' = 'pending') =>
+    request<Array<any>>(`/testimonials/admin?filter=${filter}`),
+
+  moderateTestimonial: (id: string, action: 'approve' | 'reject' | 'feature' | 'unfeature') =>
+    request<any>(`/testimonials/${id}/moderate`, { method: 'POST', body: JSON.stringify({ action }) }),
+
+  deleteTestimonial: (id: string) =>
+    request<{ ok: boolean }>(`/testimonials/${id}`, { method: 'DELETE' }),
+
+  /** Landing analytics admin summary */
+  getLandingAnalytics: (days = 7) =>
+    request<{
+      window: { daysBack: number; since: string };
+      totals: { sessions: number; events: number; pageviews: number; ctaClicks: number; signups: number };
+      funnel: { sessionToCtaPct: number; sessionToSignupPct: number };
+      byType: Record<string, number>;
+      topCtas: Array<{ id: string; count: number }>;
+      topSections: Array<{ id: string; count: number }>;
+      timeline: Array<{ date: string; pageviews: number; signups: number }>;
+    }>(`/analytics/landing/summary?days=${days}`),
+
+  /** AI Citation + GEO Roadmap (Maya tarzı öneri) */
+  runCitationRoadmap: (siteId: string) =>
+    request<{
+      results: any[];
+      roadmap: {
+        summary: string;
+        actions: Array<{ title: string; why: string; effort: 'low' | 'medium' | 'high' }>;
+      } | null;
+      runAt: string;
+    }>(`/sites/${siteId}/audit/citation-roadmap`, { method: 'POST' }),
+
+  /** Per-page citations + grounding queries (Microsoft Clarity tarzı) */
+  runCitationPerPage: (siteId: string) =>
+    request<{
+      breakdown: {
+        pages: Array<{ url: string; cites: number; queries: Array<{ query: string; provider: string; cites: number }> }>;
+        topPages: Array<{ url: string; cites: number }>;
+        groundingQueries: Array<{ query: string; cites: number; pages: string[] }>;
+        totalCites: number;
+      };
+      runAt: string;
+    }>(`/sites/${siteId}/audit/citation-per-page`, { method: 'POST' }),
 
   // ── BYOK (Bring Your Own Key) — Sprint BYOK ──
   getAiKeysStatus: (siteId: string) =>
@@ -680,6 +806,39 @@ export const api = {
   }) =>
     request<any>('/social/posts', { method: 'POST', body: JSON.stringify(body) }),
 
+  /**
+   * Bir makaleyi seçilen N kanala paylaş. Modal flow'un endpoint'i.
+   * Backend her kanal için platforma-adapte caption üretir (X kısa, LinkedIn uzun vs.).
+   */
+  shareArticleToSocial: (
+    siteId: string,
+    articleId: string,
+    body: { channelIds: string[]; scheduledFor?: string | null; status?: 'DRAFT' | 'QUEUED' },
+  ) =>
+    request<{ created: number; skipped: number; postIds: string[]; error?: string }>(
+      `/sites/${siteId}/articles/${articleId}/share-social`,
+      { method: 'POST', body: JSON.stringify(body) },
+    ),
+
+  /**
+   * Studio "Yeni Post" modal — asset bazlı (article'sız) N kanala aynı içeriği yayınla.
+   */
+  createMultiSocialPost: (
+    siteId: string,
+    body: {
+      channelIds: string[];
+      text: string;
+      mediaUrls?: Array<{ url: string; type: 'image' | 'video'; altText?: string }>;
+      mediaType?: 'text' | 'image' | 'video';
+      scheduledFor?: string | null;
+      status?: 'DRAFT' | 'QUEUED';
+    },
+  ) =>
+    request<{ created: number; postIds: string[] }>(
+      `/sites/${siteId}/social/posts/multi`,
+      { method: 'POST', body: JSON.stringify(body) },
+    ),
+
   updateSocialPost: (postId: string, body: any) =>
     request<any>(`/social/posts/${postId}`, { method: 'PATCH', body: JSON.stringify(body) }),
 
@@ -769,6 +928,84 @@ export const api = {
     request<{ ok: boolean }>(`/social/slots/${slotId}`, { method: 'DELETE' }),
 
   // ──────────────────────────────────────────────────────────────────
+  // Brightbean parity — Approval workflow + Inbox + Media Library + Ideas
+  // ──────────────────────────────────────────────────────────────────
+
+  submitPostForApproval: (postId: string) =>
+    request<any>(`/social/posts/${postId}/submit-for-approval`, { method: 'POST' }),
+
+  rejectPost: (postId: string, reason?: string) =>
+    request<any>(`/social/posts/${postId}/reject`, { method: 'POST', body: JSON.stringify({ reason }) }),
+
+  // Inbox
+  listInbox: (siteId: string, params: { status?: string; type?: string; channelId?: string; limit?: number; cursor?: string } = {}) => {
+    const q = new URLSearchParams();
+    if (params.status) q.set('status', params.status);
+    if (params.type) q.set('type', params.type);
+    if (params.channelId) q.set('channelId', params.channelId);
+    if (params.limit) q.set('limit', String(params.limit));
+    if (params.cursor) q.set('cursor', params.cursor);
+    const tail = q.toString() ? `?${q.toString()}` : '';
+    return request<Array<any>>(`/sites/${siteId}/social/inbox${tail}`);
+  },
+  inboxUnreadCount: (siteId: string) => request<number>(`/sites/${siteId}/social/inbox/unread-count`),
+  inboxMarkRead: (messageId: string) => request<any>(`/social/inbox/${messageId}/read`, { method: 'PATCH' }),
+  inboxReply: (messageId: string, reply: string) =>
+    request<any>(`/social/inbox/${messageId}/reply`, { method: 'POST', body: JSON.stringify({ reply }) }),
+  inboxArchive: (messageId: string) => request<any>(`/social/inbox/${messageId}/archive`, { method: 'POST' }),
+  inboxResolve: (messageId: string) => request<any>(`/social/inbox/${messageId}/resolve`, { method: 'POST' }),
+
+  // Media Library
+  listMediaLibrary: (params: { siteId?: string; folder?: string; source?: string; limit?: number; cursor?: string } = {}) => {
+    const q = new URLSearchParams();
+    if (params.siteId) q.set('siteId', params.siteId);
+    if (params.folder) q.set('folder', params.folder);
+    if (params.source) q.set('source', params.source);
+    if (params.limit) q.set('limit', String(params.limit));
+    if (params.cursor) q.set('cursor', params.cursor);
+    const tail = q.toString() ? `?${q.toString()}` : '';
+    return request<Array<any>>(`/social/media-library${tail}`);
+  },
+  listMediaFolders: (siteId?: string) =>
+    request<string[]>(`/social/media-library/folders${siteId ? `?siteId=${siteId}` : ''}`),
+  createMediaAsset: (body: any) =>
+    request<any>('/social/media-library', { method: 'POST', body: JSON.stringify(body) }),
+  updateMediaAsset: (assetId: string, body: any) =>
+    request<any>(`/social/media-library/${assetId}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  deleteMediaAsset: (assetId: string) =>
+    request<{ ok: boolean }>(`/social/media-library/${assetId}`, { method: 'DELETE' }),
+
+  // Idea Board (kanban)
+  ideaBoard: (siteId?: string) =>
+    request<Record<'UNASSIGNED' | 'TODO' | 'IN_PROGRESS' | 'DONE', any[]>>(`/social/ideas/board${siteId ? `?siteId=${siteId}` : ''}`),
+  createIdea: (body: { title: string; notes?: string; siteId?: string; column?: 'UNASSIGNED' | 'TODO' | 'IN_PROGRESS' | 'DONE'; hashtags?: string[]; refUrls?: string[]; dueAt?: string }) =>
+    request<any>('/social/ideas', { method: 'POST', body: JSON.stringify(body) }),
+  updateIdea: (ideaId: string, body: any) =>
+    request<any>(`/social/ideas/${ideaId}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  moveIdea: (ideaId: string, column: 'UNASSIGNED' | 'TODO' | 'IN_PROGRESS' | 'DONE', position: number) =>
+    request<any>(`/social/ideas/${ideaId}/move`, { method: 'POST', body: JSON.stringify({ column, position }) }),
+  convertIdeaToPost: (ideaId: string, channelId: string) =>
+    request<any>(`/social/ideas/${ideaId}/convert`, { method: 'POST', body: JSON.stringify({ channelId }) }),
+  deleteIdea: (ideaId: string) =>
+    request<{ ok: boolean }>(`/social/ideas/${ideaId}`, { method: 'DELETE' }),
+
+  // Notifications
+  listNotifications: (params: { unreadOnly?: boolean; type?: string; limit?: number; cursor?: string } = {}) => {
+    const q = new URLSearchParams();
+    if (params.unreadOnly) q.set('unread', '1');
+    if (params.type) q.set('type', params.type);
+    if (params.limit) q.set('limit', String(params.limit));
+    if (params.cursor) q.set('cursor', params.cursor);
+    const tail = q.toString() ? `?${q.toString()}` : '';
+    return request<Array<any>>(`/notifications${tail}`);
+  },
+  notificationsUnreadCount: () => request<number>('/notifications/unread-count'),
+  markNotificationRead: (id: string) => request<any>(`/notifications/${id}/read`, { method: 'PATCH' }),
+  markAllNotificationsRead: () => request<number>('/notifications/read-all', { method: 'POST' }),
+  deleteNotification: (id: string) =>
+    request<{ ok: boolean }>(`/notifications/${id}`, { method: 'DELETE' }),
+
+  // ──────────────────────────────────────────────────────────────────
   // Video Factory (Faz 12)
   // ──────────────────────────────────────────────────────────────────
 
@@ -811,4 +1048,190 @@ export const api = {
 
   deleteVideo: (id: string) =>
     request<{ id: string }>(`/videos/${id}`, { method: 'DELETE' }),
+
+  // ──────────────────────────────────────────────────────────────────
+  // ASO Health (claude-code-aso-skill port) — score gauge + competitors
+  // ──────────────────────────────────────────────────────────────────
+
+  asoCalculateScore: (
+    siteId: string,
+    appId: string,
+    body: {
+      targetKeywords?: string[];
+      keywordPerformance?: { top_10?: number; top_50?: number; top_100?: number; improving_keywords?: number };
+      conversion?: { impression_to_install?: number; downloads_last_30_days?: number; downloads_trend?: 'up' | 'stable' | 'down' };
+    } = {},
+  ) =>
+    request<{
+      appId: string;
+      appName: string;
+      computedAt: string;
+      overall_score: number;
+      grade: 'A' | 'B' | 'C' | 'D' | 'F';
+      breakdown: Record<string, { score: number; weight: number; weighted_contribution: number }>;
+      recommendations: Array<{ category: string; priority: 'high' | 'medium' | 'low'; action: string; details: string; expected_impact: string }>;
+      strengths: string[];
+      weaknesses: string[];
+    }>(`/sites/${siteId}/aso/apps/${appId}/score`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+
+  asoListCompetitors: (siteId: string, category: string, country = 'tr', limit = 10) =>
+    request<{
+      category: string;
+      country: string;
+      count: number;
+      results: Array<{
+        app_id?: number;
+        app_name?: string;
+        developer?: string;
+        category?: string;
+        rating: number;
+        ratings_count: number;
+        description: string;
+        icon_url?: string;
+        app_store_url?: string;
+        price: string;
+        screenshots: string[];
+      }>;
+    }>(`/sites/${siteId}/aso/competitors?category=${encodeURIComponent(category)}&country=${country}&limit=${limit}`),
+
+  asoCompareCompetitors: (siteId: string, names: string[], country = 'tr') =>
+    request<{
+      country: string;
+      count: number;
+      results: Array<any>;
+    }>(`/sites/${siteId}/aso/competitors/compare`, {
+      method: 'POST',
+      body: JSON.stringify({ names, country }),
+    }),
+
+  // ──────────────────────────────────────────────────────────────────
+  // Studio — multi-modal AI content (image / video / text) — DB-backed
+  // ──────────────────────────────────────────────────────────────────
+
+  listStudioImageProviders: () =>
+    request<Array<{ key: string; label: string; description: string; estTime: string; costBand: string }>>(
+      '/studio/image/providers',
+    ),
+
+  generateStudioImage: (siteId: string, body: { prompt: string; provider?: string; width?: number; height?: number; brandColor?: string }) =>
+    request<{ ok: boolean; assetId?: string; url?: string; costUsd?: number; error?: string }>(
+      `/sites/${siteId}/studio/image`,
+      { method: 'POST', body: JSON.stringify(body) },
+    ),
+
+  generateStudioText: (siteId: string, body: { prompt: string; format?: 'short' | 'medium' | 'long'; tone?: string; language?: 'tr' | 'en' }) =>
+    request<{ ok: boolean; assetId?: string; text?: string; costUsd?: number; tokens?: number }>(
+      `/sites/${siteId}/studio/text`,
+      { method: 'POST', body: JSON.stringify(body) },
+    ),
+
+  listStudioAssets: (siteId: string, params: { type?: 'IMAGE' | 'VIDEO' | 'TEXT'; favorite?: boolean } = {}) => {
+    const q = new URLSearchParams();
+    if (params.type) q.set('type', params.type);
+    if (params.favorite) q.set('favorite', '1');
+    const tail = q.toString() ? `?${q.toString()}` : '';
+    return request<Array<{
+      id: string; siteId: string; userId?: string; type: 'IMAGE' | 'VIDEO' | 'TEXT';
+      prompt: string; provider: string; url?: string; text?: string;
+      metadata?: any; favorite: boolean; createdAt: string;
+    }>>(`/sites/${siteId}/studio/assets${tail}`);
+  },
+
+  updateStudioAsset: (assetId: string, body: { favorite?: boolean }) =>
+    request<any>(`/studio/assets/${assetId}`, { method: 'PATCH', body: JSON.stringify(body) }),
+
+  deleteStudioAsset: (assetId: string) =>
+    request<{ ok: boolean }>(`/studio/assets/${assetId}`, { method: 'DELETE' }),
+
+  // ─── ASO Faz 1 — Apple Search Ads ──────────────────────
+
+  connectAsa: (siteId: string, body: { orgId: string; keyId: string; privateKeyPem: string; teamId?: string }) =>
+    request<{ id: string; orgId: string; status: 'created' | 'updated' }>(
+      `/sites/${siteId}/aso/asa/connect`,
+      { method: 'POST', body: JSON.stringify(body) },
+    ),
+
+  listAsaAccounts: (siteId: string) =>
+    request<Array<{
+      id: string; orgId: string; keyId: string; teamId: string | null;
+      isActive: boolean; lastSyncAt: string | null; lastError: string | null; createdAt: string;
+      _count: { campaigns: number };
+    }>>(`/sites/${siteId}/aso/asa/accounts`),
+
+  disconnectAsa: (accountId: string) =>
+    request<{ ok: boolean }>(`/aso/asa/accounts/${accountId}`, { method: 'DELETE' }),
+
+  syncAsaCampaigns: (accountId: string) =>
+    request<{ synced: number; removed?: number }>(`/aso/asa/accounts/${accountId}/sync`, { method: 'POST' }),
+
+  listAsaCampaigns: (siteId: string) =>
+    request<Array<{
+      id: string; asaCampaignId: string; name: string; budget: number; status: string;
+      countriesOrRegions: string[]; supplySources: string[]; appAdamId: string | null;
+      createdAt: string;
+      account: { id: string; orgId: string };
+      _count: { adGroups: number };
+    }>>(`/sites/${siteId}/aso/asa/campaigns`),
+
+  /** AI ile yeni kampanya önerisi (form pre-fill için) */
+  suggestAsaCampaign: (siteId: string) =>
+    request<{
+      name: string;
+      dailyBudgetUsd: number;
+      countries: string[];
+      appleAppId: number;
+      bidUsd: number;
+      keywords: string[];
+      meta: { keywordCount: number; country: string; appName: string };
+    }>(`/sites/${siteId}/aso/asa/suggest`),
+
+  /** Auto-Pilot toggle + budget cap */
+  setAsaAutoPilot: (accountId: string, body: { enabled: boolean; budgetCapUsd?: number | null }) =>
+    request<{ id: string; autoPilotEnabled: boolean; autoPilotBudgetCap: number | null }>(
+      `/aso/asa/accounts/${accountId}/autopilot`,
+      { method: 'PUT', body: JSON.stringify(body) },
+    ),
+
+  /** Auto-Pilot manual run */
+  runAsaAutoPilot: (accountId: string) =>
+    request<{ added: string[]; paused: string[]; skipped: string[]; reason?: string }>(
+      `/aso/asa/accounts/${accountId}/autopilot/run`,
+      { method: 'POST' },
+    ),
+
+  createAsaCampaign: (body: {
+    accountId: string;
+    name: string;
+    dailyBudgetUsd: number;
+    countries: string[];
+    appleAppId: number;
+    keywords?: Array<{ text: string; bidUsd: number; matchType?: 'EXACT' | 'BROAD' }>;
+  }) =>
+    request<{ campaignId: string; asaCampaignId: string }>(`/aso/asa/campaigns`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+
+  updateAsaKeywordBid: (keywordBidId: string, bidUsd: number) =>
+    request<any>(`/aso/asa/keyword-bids/${keywordBidId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ bidUsd }),
+    }),
+
+  getAsaPerformance: (siteId: string, daysBack = 30) =>
+    request<{
+      daysBack: number;
+      totals: {
+        impressions: number; taps: number; installs: number; spendUsd: number;
+        avgCpt: number; avgCpa: number; ttr: number; conversionRate: number;
+      };
+      dailyRows: Array<{
+        id: string; date: string; impressions: number; taps: number; installs: number;
+        spendUsd: number; avgCpt: number | null; avgCpa: number | null;
+        campaign: { name: string; asaCampaignId: string };
+      }>;
+    }>(`/sites/${siteId}/aso/asa/performance?daysBack=${daysBack}`),
 };

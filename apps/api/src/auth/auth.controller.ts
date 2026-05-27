@@ -17,6 +17,16 @@ export class AuthController {
     private readonly prisma: PrismaService,
   ) {}
 
+  private sanitizeOauthError(err: unknown): string {
+    const fallback = 'Bağlantı tamamlanamadı. Lütfen tekrar dene.';
+    if (!err) return fallback;
+    const raw = typeof err === 'string'
+      ? err
+      : ((err as any)?.message as string | undefined);
+    if (!raw) return fallback;
+    return raw.replace(/\s+/g, ' ').trim().slice(0, 220);
+  }
+
   /**
    * POST /api/auth/welcome-hook
    * Web (NextAuth) tarafindan yeni kullanici DB'ye yazildiktan sonra
@@ -75,8 +85,14 @@ export class AuthController {
     @Query('state') state: string,
     @Res() res: Response,
   ) {
-    const result = await this.gsc.handleCallback(code, state);
-    return res.redirect(`${process.env.WEB_BASE_URL}/sites/${result.siteId}?step=gsc&gsc=connected`);
+    try {
+      const result = await this.gsc.handleCallback(code, state);
+      return res.redirect(`${process.env.WEB_BASE_URL}/sites/${result.siteId}?tab=settings&step=gsc&gsc=connected`);
+    } catch (err) {
+      const msg = encodeURIComponent(this.sanitizeOauthError(err));
+      const safeState = encodeURIComponent(state ?? '');
+      return res.redirect(`${process.env.WEB_BASE_URL}/sites/${safeState}?tab=settings&step=gsc&gsc=error&gscerror=${msg}`);
+    }
   }
 
   @Post('gsc/disconnect')
@@ -99,8 +115,14 @@ export class AuthController {
     @Query('state') state: string,
     @Res() res: Response,
   ) {
-    const result = await this.ga.handleCallback(code, state);
-    return res.redirect(`${process.env.WEB_BASE_URL}/sites/${result.siteId}?step=ga4&ga=connected`);
+    try {
+      const result = await this.ga.handleCallback(code, state);
+      return res.redirect(`${process.env.WEB_BASE_URL}/sites/${result.siteId}?tab=settings&step=ga4&ga=connected`);
+    } catch (err) {
+      const msg = encodeURIComponent(this.sanitizeOauthError(err));
+      const safeState = encodeURIComponent(state ?? '');
+      return res.redirect(`${process.env.WEB_BASE_URL}/sites/${safeState}?tab=settings&step=ga4&ga=error&gaerror=${msg}`);
+    }
   }
 
   @Post('ga/disconnect')

@@ -3,6 +3,50 @@ import { OAuth2Client } from 'google-auth-library';
 import { google } from 'googleapis';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { encrypt, decrypt } from '@luviai/shared';
+import * as https from 'node:https';
+import { URLSearchParams } from 'node:url';
+
+/**
+ * Native https.request ile POST/GET — googleapis library'nin gaxios fetch'i bu sunucuda
+ * IPv6 ETIMEDOUT veriyor. dns.setDefaultResultOrder + undici dispatcher gaxios'a etki etmiyor,
+ * o yuzden token exchange ve sites list cagrilarini native module ile yapiyoruz.
+ */
+function nativeHttpsJson(opts: {
+  method: 'GET' | 'POST';
+  hostname: string;
+  path: string;
+  headers?: Record<string, string>;
+  body?: string;
+  timeoutMs?: number;
+}): Promise<{ status: number; body: any }> {
+  return new Promise((resolve, reject) => {
+    const req = https.request(
+      {
+        method: opts.method,
+        hostname: opts.hostname,
+        port: 443,
+        path: opts.path,
+        family: 4, // IPv4 zorla — IPv6 ETIMEDOUT engellendi
+        timeout: opts.timeoutMs ?? 15_000,
+        headers: opts.headers ?? {},
+      },
+      (res) => {
+        const chunks: Buffer[] = [];
+        res.on('data', (c) => chunks.push(c));
+        res.on('end', () => {
+          const text = Buffer.concat(chunks).toString('utf-8');
+          let body: any = text;
+          try { body = JSON.parse(text); } catch { /* keep text */ }
+          resolve({ status: res.statusCode ?? 0, body });
+        });
+      },
+    );
+    req.on('timeout', () => { req.destroy(new Error(`request timeout (${opts.timeoutMs ?? 15_000}ms)`)); });
+    req.on('error', reject);
+    if (opts.body) req.write(opts.body);
+    req.end();
+  });
+}
 
 /**
  * Multi-tenant GSC OAuth.
@@ -40,27 +84,93 @@ export class GscOAuthService {
 
   /** Callback: code → token, encrypted refresh_token DB'ye yaz */
   async handleCallback(code: string, state: string) {
-    const client = this.getClient();
-    const { tokens } = await client.getToken(code);
+    const site = await this.prisma.site.findUnique({
+      where: { id: state },
+      select: { id: true, gscRefreshToken: true, gscPropertyUrl: true },
+    });
+    if (!site) throw new NotFoundException('Site bulunamadı');
 
-    if (!tokens.refresh_token) {
-      throw new Error('refresh_token gelmedi — kullanıcı önce revoke etmeli');
+    // ─── Token exchange — native https.request (gaxios bypass) ───
+    const tokenBody = new URLSearchParams({
+      code,
+      client_id: process.env.GOOGLE_CLIENT_ID ?? '',
+      client_secret: process.env.GOOGLE_CLIENT_SECRET ?? '',
+      redirect_uri: `${process.env.API_BASE_URL}/api/auth/gsc/callback`,
+      grant_type: 'authorization_code',
+    }).toString();
+
+    const tokenRes = await nativeHttpsJson({
+      method: 'POST',
+      hostname: 'oauth2.googleapis.com',
+      path: '/token',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Content-Length': Buffer.byteLength(tokenBody).toString(),
+      },
+      body: tokenBody,
+      timeoutMs: 15_000,
+    });
+
+    if (tokenRes.status >= 400) {
+      const detail = tokenRes.body?.error_description ?? tokenRes.body?.error ?? `HTTP ${tokenRes.status}`;
+      throw new BadRequestException(`Google token exchange failed: ${detail}`);
     }
 
-    // Hangi GSC property'lerine erişimi var?
-    client.setCredentials(tokens);
-    const webmasters = google.webmasters({ version: 'v3', auth: client });
-    const list = await webmasters.sites.list();
-    const properties = list.data.siteEntry?.map(s => s.siteUrl) ?? [];
+    const tokens = tokenRes.body as {
+      access_token?: string;
+      refresh_token?: string;
+      expires_in?: number;
+      scope?: string;
+      token_type?: string;
+    };
+
+    // Google her callback'te refresh_token dönmeyebilir.
+    const resolvedRefreshToken =
+      tokens.refresh_token ??
+      (site.gscRefreshToken ? decrypt(site.gscRefreshToken) : null);
+
+    if (!resolvedRefreshToken) {
+      throw new BadRequestException('Google refresh token döndürmedi. Google hesabında erişimi kaldırıp tekrar dene.');
+    }
+
+    // ─── GSC sites list — native https.request ───
+    let properties: string[] = [];
+    if (tokens.access_token) {
+      try {
+        const sitesRes = await nativeHttpsJson({
+          method: 'GET',
+          hostname: 'www.googleapis.com',
+          path: '/webmasters/v3/sites',
+          headers: {
+            Authorization: `Bearer ${tokens.access_token}`,
+            Accept: 'application/json',
+          },
+          timeoutMs: 15_000,
+        });
+        if (sitesRes.status < 400 && Array.isArray(sitesRes.body?.siteEntry)) {
+          properties = sitesRes.body.siteEntry
+            .map((s: any) => s.siteUrl)
+            .filter((v: any): v is string => !!v);
+        }
+      } catch {
+        // Token kaydı başarısız olmasın diye property listesi hatasını yutuyoruz.
+        properties = [];
+      }
+    }
 
     // Şifreleyip kaydet
-    const encrypted = encrypt(tokens.refresh_token);
+    const encrypted = encrypt(resolvedRefreshToken);
+    const preferredProperty =
+      site.gscPropertyUrl && properties.includes(site.gscPropertyUrl)
+        ? site.gscPropertyUrl
+        : (properties[0] ?? null);
+
     await this.prisma.site.update({
       where: { id: state },
       data: {
         gscRefreshToken: encrypted,
         gscConnectedAt: new Date(),
-        gscPropertyUrl: properties[0] ?? null, // ilk property — kullanıcı sonra değiştirebilir
+        gscPropertyUrl: preferredProperty, // ilk property — kullanıcı sonra değiştirebilir
       },
     });
 

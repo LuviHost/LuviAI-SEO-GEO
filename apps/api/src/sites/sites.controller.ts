@@ -5,6 +5,7 @@ import { CreateSiteDto, UpdateSiteDto } from './sites.dto.js';
 import { GscOAuthService } from '../auth/gsc-oauth.service.js';
 import { GaOAuthService } from '../auth/ga-oauth.service.js';
 import { PlatformDetectorService } from './platform-detector.service.js';
+import { NicheDetectorService } from './niche-detector.service.js';
 import { DemoSeederService } from './demo-seeder.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 
@@ -21,9 +22,17 @@ export class SitesController {
     private readonly gsc: GscOAuthService,
     private readonly ga: GaOAuthService,
     private readonly platformDetector: PlatformDetectorService,
+    private readonly nicheDetector: NicheDetectorService,
     private readonly demoSeeder: DemoSeederService,
     private readonly prisma: PrismaService,
   ) {}
+
+  /** POST /sites/detect-niche — URL'den AI ile niş tespit (onboarding'de kullanılır) */
+  @Post('detect-niche')
+  detectNiche(@Body() body: { url: string }) {
+    if (!body?.url) return { error: 'url required' };
+    return this.nicheDetector.detectFromUrl(body.url);
+  }
 
   @Post()
   create(@Req() req: Request, @Body() dto: CreateSiteDto) {

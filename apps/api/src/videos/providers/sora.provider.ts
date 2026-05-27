@@ -41,7 +41,10 @@ export class SoraVideoProvider implements VideoProvider {
 
     const promptText = `${brief.title}. ${brief.scriptText.slice(0, 800)}. Style: ${brief.style ?? 'photorealistic, cinematic'}`;
     const size = brief.aspectRatio === '9:16' ? '720x1280' : brief.aspectRatio === '1:1' ? '720x720' : '1280x720';
-    const seconds = Math.min(20, Math.max(5, brief.durationSec));
+    // Sora 2 API sadece '4', '8' veya '12' kabul ediyor — string olarak. En yakın değere yuvarla.
+    const reqSec = brief.durationSec || 8;
+    const secondsStr: '4' | '8' | '12' = reqSec <= 6 ? '4' : reqSec <= 10 ? '8' : '12';
+    const seconds = parseInt(secondsStr, 10);
 
     const initRes = await fetch('https://api.openai.com/v1/videos', {
       method: 'POST',
@@ -53,7 +56,7 @@ export class SoraVideoProvider implements VideoProvider {
         model: 'sora-2',
         prompt: promptText,
         size,
-        seconds,
+        seconds: secondsStr,
       }),
     });
     if (!initRes.ok) {
@@ -63,24 +66,51 @@ export class SoraVideoProvider implements VideoProvider {
     const initData = (await initRes.json()) as { id: string };
     const videoId = initData.id;
 
-    // Poll
+    // Poll — status endpoint
     const startTs = Date.now();
     const maxMs = 10 * 60 * 1000;
+    let lastStatus = 'queued';
     while (Date.now() - startTs < maxMs) {
       await new Promise((r) => setTimeout(r, 12_000));
       const statusRes = await fetch(`https://api.openai.com/v1/videos/${videoId}`, {
         headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
       });
-      if (!statusRes.ok) continue;
+      if (!statusRes.ok) {
+        const errBody = await statusRes.text().catch(() => '');
+        throw new Error(`Sora status check ${statusRes.status}: ${errBody.slice(0, 200)}`);
+      }
       const statusData = (await statusRes.json()) as {
         status: string;
-        video_url?: string;
-        thumbnail_url?: string;
+        progress?: number;
+        error?: any;
       };
-      if (statusData.status === 'completed' && statusData.video_url) {
+      lastStatus = statusData.status;
+      if (statusData.status === 'completed') {
+        // İçeriği ayrı endpoint'ten indir → binary mp4
+        const contentRes = await fetch(`https://api.openai.com/v1/videos/${videoId}/content`, {
+          headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
+        });
+        if (!contentRes.ok) {
+          const errBody = await contentRes.text().catch(() => '');
+          throw new Error(`Sora content fetch failed: ${contentRes.status} ${errBody.slice(0, 200)}`);
+        }
+        const buf = Buffer.from(await contentRes.arrayBuffer());
+
+        // Sunucuda apps/api/public/videos altına kaydet — nginx /videos/* oradan serve ediyor
+        // (Slideshow ile aynı dizin; Next.js'in standalone public klasörü değil!)
+        const fs = await import('node:fs/promises');
+        const path = await import('node:path');
+        const filename = `sora-${videoId.slice(6, 24)}.mp4`;
+        const publicDir = path.resolve(process.cwd(), 'public', 'videos');
+        await fs.mkdir(publicDir, { recursive: true }).catch(() => {});
+        await fs.writeFile(path.join(publicDir, filename), buf);
+
+        const webBase = process.env.WEB_BASE_URL ?? 'https://ai.luvihost.com';
+        const videoUrl = `${webBase}/videos/${filename}`;
+
         return {
-          videoUrl: statusData.video_url,
-          thumbnailUrl: statusData.thumbnail_url,
+          videoUrl,
+          thumbnailUrl: undefined,
           durationSec: seconds,
           providerJobId: videoId,
           costUsd: seconds * 0.05,
@@ -88,9 +118,9 @@ export class SoraVideoProvider implements VideoProvider {
         };
       }
       if (statusData.status === 'failed') {
-        throw new Error(`Sora video failed: ${JSON.stringify(statusData)}`);
+        throw new Error(`Sora video failed: ${JSON.stringify(statusData.error ?? statusData)}`);
       }
     }
-    throw new Error(`Sora video timeout (${videoId})`);
+    throw new Error(`Sora video timeout (${videoId}) — son durum: ${lastStatus}`);
   }
 }

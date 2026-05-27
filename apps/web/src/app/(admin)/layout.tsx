@@ -2,19 +2,8 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { auth, signOut } from '@/auth';
 import { ThemeToggle } from '@/components/theme-toggle';
-import { AdminMobileNav } from '@/components/admin-mobile-nav';
+import { AdminSidebar } from '@/components/admin-sidebar';
 import { clearAdminUnlockCookie, isAdminUnlocked } from '@/lib/admin-unlock';
-
-const ADMIN_NAV = [
-  { href: '/admin', label: 'Genel Bakış' },
-  { href: '/admin/users', label: 'Kullanıcılar' },
-  { href: '/admin/invoices', label: 'Faturalar' },
-  { href: '/admin/sites', label: 'Siteler' },
-  { href: '/admin/queue', label: 'Queue Monitor' },
-  { href: '/admin/spend', label: 'AI Spend' },
-  { href: '/admin/jobs', label: 'Hatalı İşler' },
-  { href: '/admin/settings', label: 'Ayarlar' },
-];
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const session = await auth();
@@ -27,33 +16,24 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50 dark:bg-slate-950">
-      <header className="bg-slate-900 text-slate-100 border-b border-slate-800 sticky top-0 z-30">
-        <div className="container mx-auto flex items-center justify-between h-14 px-3 sm:px-4 gap-2">
-          <div className="flex items-center gap-2 sm:gap-6 min-w-0">
-            <AdminMobileNav />
-            <Link href="/admin" className="text-base sm:text-lg font-bold truncate">
-              LuviAI <span className="text-xs text-amber-400 font-normal ml-1">Admin</span>
-            </Link>
-            <nav className="hidden md:flex items-center gap-1">
-              {ADMIN_NAV.map((it) => (
-                <Link
-                  key={it.href}
-                  href={it.href as any}
-                  className="px-3 py-1.5 rounded-md text-sm text-slate-300 hover:bg-slate-800 hover:text-white transition-colors"
-                >
-                  {it.label}
-                </Link>
-              ))}
-            </nav>
-          </div>
-          <div className="flex items-center gap-2 sm:gap-3 text-sm shrink-0">
-            <span className="text-slate-400 hidden lg:inline truncate max-w-[180px]">{session.user.email}</span>
+    <div className="min-h-screen flex bg-muted/30">
+      {/* ── Sol sidebar (desktop) + sliding drawer (mobile) ── */}
+      <AdminSidebar userEmail={session.user.email ?? ''} />
+
+      {/* ── Ana içerik alanı ── */}
+      <div className="flex-1 min-w-0 lg:ml-64">
+        {/* Üst bar — sadece sağdaki user actions */}
+        <header className="sticky top-0 z-20 bg-background/85 backdrop-blur-xl border-b">
+          <div className="h-14 px-4 sm:px-6 flex items-center justify-end gap-2">
+            <span className="text-xs text-muted-foreground hidden md:inline truncate max-w-[200px] font-mono">
+              {session.user.email}
+            </span>
+            <div className="h-4 w-px bg-border hidden md:inline-block" />
             <Link
               href="/dashboard"
-              className="text-xs text-slate-400 hover:text-white whitespace-nowrap hidden sm:inline"
+              className="text-xs text-muted-foreground hover:text-foreground whitespace-nowrap hidden sm:inline px-2 py-1 rounded hover:bg-muted"
             >
-              ← Panel
+              ← Kullanıcı Paneli
             </Link>
             <ThemeToggle />
             <form
@@ -64,7 +44,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             >
               <button
                 type="submit"
-                className="text-xs text-slate-400 hover:text-white px-2 py-1 rounded hover:bg-slate-800 hidden sm:inline"
+                className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded hover:bg-muted hidden sm:inline-flex items-center gap-1"
                 title="Admin oturumunu kilitle"
               >
                 🔒 Kilitle
@@ -79,16 +59,16 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             >
               <button
                 type="submit"
-                className="text-xs text-red-400 hover:text-red-300 px-2 py-1 rounded hover:bg-slate-800"
+                className="text-xs text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 px-2.5 py-1 rounded font-medium"
               >
                 Çıkış
               </button>
             </form>
           </div>
-        </div>
-      </header>
+        </header>
 
-      <main className="flex-1 container mx-auto py-6 sm:py-8 px-3 sm:px-4">{children}</main>
+        <main className="p-4 sm:p-6 lg:p-8">{children}</main>
+      </div>
     </div>
   );
 }

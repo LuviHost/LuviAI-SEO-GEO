@@ -149,11 +149,12 @@ export class SocialMediaGeneratorService {
     const article = await this.prisma.article.findUniqueOrThrow({ where: { id: articleId } });
     const size = imageSizeFor(channelType);
     const slug = article.slug || article.id;
-    const outDir = path.join(process.cwd(), 'public', 'social', slug);
+    // nginx /social-images/ location'ı public/social-images/ → serve edilir
+    const outDir = path.join(process.cwd(), 'public', 'social-images', slug);
     await fs.mkdir(outDir, { recursive: true });
     const filename = `${channelType.toLowerCase()}-${Date.now()}.png`;
     const outputPath = path.join(outDir, filename);
-    const publicUrl = `/social/${slug}/${filename}`;
+    const publicUrl = `/social-images/${slug}/${filename}`;
 
     const prompt = [
       `Social media graphic for "${article.title}".`,

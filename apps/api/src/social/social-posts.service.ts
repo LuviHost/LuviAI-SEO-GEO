@@ -81,6 +81,65 @@ export class SocialPostsService {
     });
   }
 
+  /**
+   * Birden fazla kanala AYNI içeriği yayınla (asset bazlı, article'sız).
+   * Studio'da "Yeni Post" modal'ı bu endpoint'i kullanır.
+   * Her kanal için tek tek SocialPost satırı yaratır; medya/metin aynı.
+   */
+  async createMulti(args: {
+    siteId: string;
+    channelIds: string[];
+    text: string;
+    mediaUrls?: any[];
+    mediaType?: 'text' | 'image' | 'video';
+    scheduledFor?: string | null;
+    status?: 'DRAFT' | 'QUEUED';
+  }, user: RequestingUser) {
+    if (!Array.isArray(args.channelIds) || args.channelIds.length === 0) {
+      throw new BadRequestException('En az 1 kanal seçilmeli');
+    }
+    if (!args.text?.trim()) throw new BadRequestException('Metin boş olamaz');
+
+    const channels = await this.prisma.socialChannel.findMany({
+      where: { id: { in: args.channelIds }, siteId: args.siteId },
+      include: { site: { select: { userId: true } } },
+    });
+    if (channels.length !== args.channelIds.length) {
+      throw new BadRequestException('Bazı kanallar bulunamadı veya bu site\'a ait değil');
+    }
+    for (const ch of channels) {
+      if (user.role !== 'ADMIN' && ch.site.userId !== user.id) {
+        throw new ForbiddenException('Bazı kanallar sana ait değil');
+      }
+    }
+
+    const scheduledFor = args.scheduledFor ? new Date(args.scheduledFor) : null;
+    const mediaType = args.mediaType ?? (Array.isArray(args.mediaUrls) && args.mediaUrls.length > 0 ? 'image' : 'text');
+
+    const created = await Promise.all(
+      channels.map((ch) =>
+        this.prisma.socialPost.create({
+          data: {
+            channelId: ch.id,
+            articleId: null,
+            text: args.text,
+            mediaUrls: (args.mediaUrls ?? []) as any,
+            metadata: {
+              mediaType,
+              mediaGenStatus: Array.isArray(args.mediaUrls) && args.mediaUrls.length > 0 ? 'ready' : 'pending',
+              source: 'manual_multi',
+            } as any,
+            scheduledFor,
+            status: args.status ?? 'DRAFT',
+          },
+        }),
+      ),
+    );
+
+    this.log.log(`[${args.siteId}] Multi-channel post: ${created.length} kanala oluşturuldu (mediaType=${mediaType})`);
+    return { created: created.length, postIds: created.map((p) => p.id) };
+  }
+
   async update(postId: string, dto: { text?: string; mediaUrls?: any[]; metadata?: any; scheduledFor?: string | null; status?: string }, user: RequestingUser) {
     await this.assertPostOwner(postId, user);
     const data: any = {};
@@ -145,9 +204,14 @@ export class SocialPostsService {
    */
   async approve(postId: string, user: RequestingUser, scheduledFor?: Date) {
     const post = await this.assertPostOwner(postId, user);
-    if (post.status !== 'DRAFT') {
-      throw new BadRequestException(`Sadece DRAFT post onaylanabilir (mevcut: ${post.status})`);
+    if (post.status !== 'DRAFT' && post.status !== 'NEEDS_APPROVAL') {
+      throw new BadRequestException(`Onaylanabilen statüler: DRAFT, NEEDS_APPROVAL (mevcut: ${post.status})`);
     }
+    // Audit alanlarını set et (NEEDS_APPROVAL flow'unda dolar)
+    await this.prisma.socialPost.update({
+      where: { id: postId },
+      data: { approvedBy: user.id, approvedAt: new Date() },
+    });
     // scheduledFor verilmemişse anında yayınla (publishNow gibi)
     if (!scheduledFor) {
       return this.runPublish(postId);
@@ -157,6 +221,36 @@ export class SocialPostsService {
       data: {
         status: 'QUEUED' as any,
         scheduledFor,
+      },
+    });
+  }
+
+  /** Brightbean parity — post'u onay sürecine sok (DRAFT → NEEDS_APPROVAL) */
+  async submitForApproval(postId: string, user: RequestingUser) {
+    const post = await this.assertPostOwner(postId, user);
+    if (post.status !== 'DRAFT') {
+      throw new BadRequestException(`Sadece DRAFT post onaya gönderilebilir (mevcut: ${post.status})`);
+    }
+    // TODO: Notification.create({ type: SOCIAL_POST_NEEDS_APPROVAL, ... })
+    return this.prisma.socialPost.update({
+      where: { id: postId },
+      data: { status: 'NEEDS_APPROVAL' as any },
+    });
+  }
+
+  /** Brightbean parity — onayı reddet, post REJECTED'a düşer */
+  async reject(postId: string, user: RequestingUser, reason?: string) {
+    const post = await this.assertPostOwner(postId, user);
+    if (post.status !== 'NEEDS_APPROVAL' && post.status !== 'DRAFT') {
+      throw new BadRequestException(`Reddedilebilen statüler: DRAFT, NEEDS_APPROVAL (mevcut: ${post.status})`);
+    }
+    return this.prisma.socialPost.update({
+      where: { id: postId },
+      data: {
+        status: 'REJECTED' as any,
+        rejectedBy: user.id,
+        rejectedAt: new Date(),
+        rejectReason: reason ?? null,
       },
     });
   }

@@ -9,8 +9,9 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Lightbulb, Loader2, Calendar, FileCheck2, Send, Sparkles, RefreshCw, Eye } from 'lucide-react';
+import { Lightbulb, Loader2, Calendar, FileCheck2, Send, Sparkles, RefreshCw, Eye, Share2 } from 'lucide-react';
 import { PipelineProgress, PIPELINE_STEPS } from '@/components/pipeline-progress';
+import { SharePostModal } from '@/components/share-post-modal';
 
 /*
  * ContentFlowTable — TopicsStepBody + ArticlesStepBody'nin birleşik tablo karşılığı.
@@ -75,6 +76,7 @@ export function ContentFlowTable({
   const [scheduleTarget, setScheduleTarget] = useState<{ articleId: string; title: string } | null>(null);
   const [scheduleTopicTarget, setScheduleTopicTarget] = useState<{ topic: string; slug?: string; pillar?: string; title: string } | null>(null);
   const [scheduleSubmitting, setScheduleSubmitting] = useState(false);
+  const [shareTarget, setShareTarget] = useState<{ articleId: string; title: string } | null>(null);
 
   const inflightArticle = (articles ?? []).find((a) => a?.status === 'GENERATING' || a?.status === 'EDITING');
 
@@ -286,6 +288,9 @@ export function ContentFlowTable({
       {(running || anyInflight) && (() => {
         const firstGen = Array.from(generatingTopics)[0];
         const showTopic = firstGen ?? inflightTopic;
+        // Article generation başlangıç zamanı — F5 sonrası bile doğru pozisyondan devam.
+        // Inflight article'ın updatedAt'i GENERATING'e geçtiği an = pipeline başlangıcı.
+        const startedAt = inflightArticle?.updatedAt ?? inflightArticle?.createdAt;
         return (
           <PipelineProgress
             title={
@@ -295,6 +300,7 @@ export function ContentFlowTable({
             }
             steps={showTopic ? PIPELINE_STEPS.article : PIPELINE_STEPS.topicEngine}
             running
+            startedAt={startedAt}
           />
         );
       })()}
@@ -597,6 +603,14 @@ export function ContentFlowTable({
                                   🔗 Aç
                                 </a>
                               )}
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                title="Sosyal medyada paylaş"
+                                onClick={() => row.articleId && setShareTarget({ articleId: row.articleId, title: row.title })}
+                              >
+                                <Share2 className="h-3.5 w-3.5 mr-1" /> Paylaş
+                              </Button>
                               <Link href={`/sites/${siteId}/articles/${row.articleId}`}>
                                 <Button size="sm" variant="outline">
                                   <Eye className="h-3.5 w-3.5" />
@@ -617,6 +631,16 @@ export function ContentFlowTable({
           )}
         </CardContent>
       </Card>
+
+      {/* Sosyalde paylaş modal */}
+      {shareTarget && (
+        <SharePostModal
+          siteId={siteId}
+          articleId={shareTarget.articleId}
+          articleTitle={shareTarget.title}
+          onClose={() => setShareTarget(null)}
+        />
+      )}
 
       {/* Tarih atama modali — Sırada (tarihsiz) article'ları takvime al */}
       {scheduleTarget && (

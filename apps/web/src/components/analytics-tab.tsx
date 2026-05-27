@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
-import { TrendingUp, TrendingDown, Lightbulb, BarChart3, MousePointerClick, Eye, Activity, Target as TargetIcon, Clock } from 'lucide-react';
+import { TrendingUp, Lightbulb, BarChart3, MousePointerClick, Eye, Activity, Target as TargetIcon, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';

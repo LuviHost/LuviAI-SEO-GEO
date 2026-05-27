@@ -10,10 +10,12 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
+import { AsaTab } from '@/components/asa-tab';
+import { AscTab } from '@/components/asc-tab';
 import {
   Smartphone, Plus, Trash2, RefreshCw, Star, MessageSquare, TrendingUp,
   Apple, Bot, Search, Globe, Trophy, ArrowUp, ArrowDown, Minus, X, Sparkles, Check, Info,
-  Image as ImageIcon,
+  Image as ImageIcon, Rocket,
 } from 'lucide-react';
 
 /** Hover tooltip — küçük (i) ikonu + çıkan açıklama balonu. */
@@ -546,7 +548,8 @@ function ConnectAppModal({ siteId, onClose, onAdded }: { siteId: string; onClose
 function AppDetailModal({ app, siteId, onClose, onChanged }: {
   app: AppDetail; siteId: string; onClose: () => void; onChanged: () => void;
 }) {
-  const [tab, setTab] = useState<'keywords' | 'ai' | 'reviews' | 'optimize'>('keywords');
+  const [tab, setTab] = useState<'keywords' | 'ai' | 'reviews' | 'optimize' | 'asa' | 'asc'>('keywords');
+  const [asaPrefillKeyword, setAsaPrefillKeyword] = useState<string | null>(null);
   const [newKeyword, setNewKeyword] = useState('');
   const [keywordStore, setKeywordStore] = useState<'IOS' | 'ANDROID'>(app.appStoreId ? 'IOS' : 'ANDROID');
   const [adding, setAdding] = useState(false);
@@ -719,6 +722,41 @@ function AppDetailModal({ app, siteId, onClose, onChanged }: {
     }
   };
 
+  const [bulkAdding, setBulkAdding] = useState(false);
+  const addAllAiKeywords = async () => {
+    if (aiResults.length === 0) return;
+    if (!confirm(`${aiResults.length} keyword'u takibe eklensin mi?`)) return;
+    setBulkAdding(true);
+    try {
+      // Backend bulk endpoint: tek istekle hepsini insert et (transaction).
+      // body.keywords: string[] → backend addKeywordsBulk çağrısına düşer.
+      const result = await api.request<{ created: number; skipped: number; errors?: string[] }>(
+        `/sites/${siteId}/aso/apps/${app.id}/keywords`,
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            keywords: aiResults.map((r) => r.keyword),
+            store: keywordStore,
+            source: 'AI_SUGGESTED',
+          }),
+        },
+      );
+      setAiResults([]); // hepsi backend'e gitti, listeyi temizle
+      onChanged();
+      const created = (result as any)?.created ?? aiResults.length;
+      const skipped = (result as any)?.skipped ?? 0;
+      if (skipped === 0) {
+        toast.success(`✅ ${created} keyword eklendi`);
+      } else {
+        toast.success(`✅ ${created} eklendi · ${skipped} zaten vardı`);
+      }
+    } catch (err: any) {
+      toast.error(`Hata: ${err.message}`);
+    } finally {
+      setBulkAdding(false);
+    }
+  };
+
   const fetchReviews = async () => {
     setFetchingReviews(true);
     try {
@@ -805,7 +843,7 @@ function AppDetailModal({ app, siteId, onClose, onChanged }: {
 
         {/* TABS */}
         <div className="border-b flex overflow-x-auto">
-          {(['keywords', 'optimize', 'ai', 'reviews'] as const).map(t => (
+          {(['keywords', 'optimize', 'ai', 'reviews', 'asa', 'asc'] as const).map(t => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -816,7 +854,9 @@ function AppDetailModal({ app, siteId, onClose, onChanged }: {
               {t === 'keywords' ? `Keywords (${app.keywords?.length ?? 0})` :
                t === 'optimize' ? '⚡ Optimize' :
                t === 'ai' ? 'AI Asistan' :
-               'Reviews'}
+               t === 'reviews' ? 'Reviews' :
+               t === 'asa' ? '🚀 Apple Search Ads' :
+               '🍎 App Store Connect'}
             </button>
           ))}
         </div>
@@ -1020,6 +1060,18 @@ function AppDetailModal({ app, siteId, onClose, onChanged }: {
                           </td>
                           <td className="px-2 py-2 text-center">
                             <div className="flex gap-1 justify-end">
+                              {kw.store === 'IOS' && (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="h-7 px-2 text-orange-600 hover:bg-orange-500/10"
+                                  onClick={() => { setAsaPrefillKeyword(kw.keyword); setTab('asa'); }}
+                                  title="Apple Search Ads kampanyasına ekle"
+                                >
+                                  <Rocket className="h-3 w-3 mr-0.5" />
+                                  <span className="text-[10px] font-semibold">ASA</span>
+                                </Button>
+                              )}
                               <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => checkRank(kw.id)} title="Rank check" disabled={isChecking}>
                                 <RefreshCw className={`h-3 w-3 ${isChecking ? 'animate-spin' : ''}`} />
                               </Button>
@@ -1060,7 +1112,21 @@ function AppDetailModal({ app, siteId, onClose, onChanged }: {
 
             {aiResults.length > 0 && (
               <div className="space-y-2">
-                <h4 className="text-sm font-semibold">{aiResults.length} keyword önerisi</h4>
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <h4 className="text-sm font-semibold">{aiResults.length} keyword önerisi</h4>
+                  <Button
+                    size="sm"
+                    onClick={addAllAiKeywords}
+                    disabled={bulkAdding}
+                    className="bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white"
+                  >
+                    {bulkAdding ? (
+                      <><RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" /> Ekleniyor…</>
+                    ) : (
+                      <><Plus className="h-3.5 w-3.5 mr-1.5" /> Tümünü Ekle ({aiResults.length})</>
+                    )}
+                  </Button>
+                </div>
                 <div className="grid sm:grid-cols-2 gap-2 max-h-[400px] overflow-y-auto pr-2">
                   {aiResults.map(r => (
                     <Card key={r.keyword}>
@@ -1412,6 +1478,20 @@ function AppDetailModal({ app, siteId, onClose, onChanged }: {
                 </Card>
               </>
             )}
+          </div>
+        )}
+
+        {/* APPLE SEARCH ADS TAB — Faz 1 */}
+        {tab === 'asa' && (
+          <div className="p-5">
+            <AsaTab siteId={siteId} prefillKeyword={asaPrefillKeyword} onPrefillConsumed={() => setAsaPrefillKeyword(null)} />
+          </div>
+        )}
+
+        {/* APP STORE CONNECT TAB — Faz 2 */}
+        {tab === 'asc' && (
+          <div className="p-5">
+            <AscTab siteId={siteId} />
           </div>
         )}
       </div>

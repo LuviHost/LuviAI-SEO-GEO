@@ -119,10 +119,25 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       return true;
     },
     async jwt({ token, user }) {
+      // İlk login: user object dolu — email ile DB'den oku.
       if (user?.email) {
         const dbUser = await prisma.user.findUnique({ where: { email: user.email } });
         if (dbUser) {
           token.sub = dbUser.id;
+          (token as any).role = dbUser.role;
+          (token as any).plan = dbUser.plan;
+          (token as any).subscriptionStatus = dbUser.subscriptionStatus;
+        }
+        return token;
+      }
+      // Sonraki request'ler: plan / role / status değişmiş olabilir (admin upgrade, ödeme, expire).
+      // JWT bayatlanmasın diye her seferinde DB'den taze çek (~1ms, indexed by id).
+      if (token.sub) {
+        const dbUser = await prisma.user.findUnique({
+          where: { id: token.sub as string },
+          select: { role: true, plan: true, subscriptionStatus: true },
+        });
+        if (dbUser) {
           (token as any).role = dbUser.role;
           (token as any).plan = dbUser.plan;
           (token as any).subscriptionStatus = dbUser.subscriptionStatus;

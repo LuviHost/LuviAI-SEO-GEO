@@ -68,10 +68,11 @@ export class VideoGeneratorService {
       }
     }
 
-    // Hero gorsel path
+    // Hero gorsel path — sadece absolute path (/...) veya URL (http...) gecerli
     let imagePath = heroImageUrl ?? '';
-    if (!imagePath) {
-      // Fallback: solid renkli arkaplan
+    const isValidImage = imagePath && (imagePath.startsWith('/') || imagePath.startsWith('http'));
+    if (!isValidImage) {
+      // Relative path ("placeholder-hero.webp" gibi) veya bos → fallback uret
       imagePath = await this.generateFallbackImage(outDir, article.title, format);
     } else if (imagePath.startsWith('/')) {
       imagePath = path.join(process.cwd(), 'public', imagePath.replace(/^\//, ''));

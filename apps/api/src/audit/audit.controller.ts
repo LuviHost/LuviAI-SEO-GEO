@@ -90,6 +90,22 @@ export class AuditController {
     return { results, runAt: new Date().toISOString() };
   }
 
+  /** POST /sites/:siteId/audit/citation-roadmap — son sonuçlardan AI önerisi */
+  @Post('citation-roadmap')
+  async citationRoadmap(@Param('siteId') siteId: string) {
+    const results = await this.citation.runForSite(siteId, 5);
+    const roadmap = await this.citation.generateRoadmap(siteId, results);
+    return { results, roadmap, runAt: new Date().toISOString() };
+  }
+
+  /** POST /sites/:siteId/audit/citation-per-page — Clarity-style per-page cite + grounding queries */
+  @Post('citation-per-page')
+  async citationPerPage(@Param('siteId') siteId: string) {
+    const results = await this.citation.runForSite(siteId, 5);
+    const breakdown = this.citation.aggregatePerPageCitations(results);
+    return { breakdown, runAt: new Date().toISOString() };
+  }
+
   /** GET /sites/:siteId/audit/citation-history?days=30 — tarihsel AI gorunurluk */
   @Get('citation-history')
   citationHistory(@Param('siteId') siteId: string, @Query('days') days?: string) {

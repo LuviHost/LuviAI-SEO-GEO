@@ -14,6 +14,9 @@ export default function CalendarPage() {
   const [socialChannels, setSocialChannels] = useState<any[]>([]);
   // Per-article social pre-plan: hangi makalede hangi kanalda paylaşılacak
   const [articlePrePlan, setArticlePrePlan] = useState<Record<string, Set<string> | null>>({});
+  // Standalone sosyal post'lar — Studio wizard'ından oluşturulan (articleId=NULL) DRAFT/QUEUED
+  const [standaloneSocialPosts, setStandaloneSocialPosts] = useState<any[]>([]);
+  const [socialPostsTick, setSocialPostsTick] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -24,6 +27,21 @@ export default function CalendarPage() {
       .catch(() => { if (!cancelled) setSocialChannels([]); });
     return () => { cancelled = true; };
   }, [site.id]);
+
+  // Standalone sosyal post'ları çek (articleId yok + scheduledFor var)
+  useEffect(() => {
+    let cancelled = false;
+    api.listSocialPosts(site.id, {})
+      .then((rows: any) => {
+        if (cancelled) return;
+        const filtered = (Array.isArray(rows) ? rows : [])
+          .filter((p: any) => !p.articleId && p.scheduledFor &&
+            (p.status === 'DRAFT' || p.status === 'QUEUED' || p.status === 'NEEDS_APPROVAL' || p.status === 'PUBLISHED'));
+        setStandaloneSocialPosts(filtered);
+      })
+      .catch(() => { if (!cancelled) setStandaloneSocialPosts([]); });
+    return () => { cancelled = true; };
+  }, [site.id, socialPostsTick]);
 
   useEffect(() => {
     setArticlePrePlan((prev) => {
@@ -83,28 +101,29 @@ export default function CalendarPage() {
           <Calendar className="h-5 w-5" />
         </div>
         <div>
-          <h2 className="text-2xl font-bold">Takvim</h2>
-          <p className="text-sm text-muted-foreground">Planlanmış makaleler. Sürükleyip günü değiştir, saatini ayarla.</p>
+          <h2 className="text-2xl font-bold">İçerik Takvimi</h2>
+          <p className="text-sm text-muted-foreground">Planlanmış makaleler (mavi) + standalone sosyal post'lar (mor). Sürükleyip günü değiştir, saatini ayarla.</p>
         </div>
       </div>
-      {scheduled.length === 0 ? (
+      {scheduled.length === 0 && standaloneSocialPosts.length === 0 ? (
         <EmptyState
           icon={Calendar}
           accent="sky"
           title="Takvim boş"
-          description="Önerilen Konular sayfasından bir konuyu sürükleyip buraya bırak veya bir makaleyi takvime al. Yayın saati gelir, otomatik üretim başlar, WordPress'e gider."
+          description="Önerilen Konular'dan makale al, ya da Studio > Sosyal Yayın'dan bir sosyal post oluştur. Hepsi burada görünür."
           primary={{ label: 'Önerilen Konulara git', href: `/sites/${site.id}/topics` }}
-          secondary={{ label: 'Makaleler', href: `/sites/${site.id}/articles` }}
+          secondary={{ label: 'Studio (Sosyal Yayın)', href: `/sites/${site.id}/studio?tab=publish` }}
         />
       ) : (
         <ContentCalendarPanel
           siteId={site.id}
           scheduled={scheduled}
           otherArticlesCount={otherCount}
-          onChanged={refresh}
+          onChanged={() => { refresh(); setSocialPostsTick((t) => t + 1); }}
           socialChannels={socialChannels}
           isChannelEnabledForArticle={isChannelEnabledForArticle}
           toggleChannelForArticle={toggleChannelForArticle}
+          standaloneSocialPosts={standaloneSocialPosts}
         />
       )}
       <RelatedLinks

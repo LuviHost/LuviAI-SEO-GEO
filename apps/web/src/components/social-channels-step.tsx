@@ -8,8 +8,28 @@ import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { VendorLogo, type VendorName } from '@/components/vendor-logo';
 
-type Catalog = Array<{ type: string; label: string; status: 'live' | 'soon'; note?: string; recommended?: boolean }>;
+const CHANNEL_TO_VENDOR: Record<string, VendorName> = {
+  LINKEDIN_PERSONAL: 'linkedin',
+  LINKEDIN_COMPANY:  'linkedin',
+  X_TWITTER:         'twitter',
+  FACEBOOK_PAGE:     'facebook',
+  INSTAGRAM_BUSINESS:'instagram',
+  TIKTOK:            'tiktok',
+  YOUTUBE:           'youtube',
+  THREADS:           'threads',
+  BLUESKY:           'bluesky',
+  PINTEREST:         'pinterest',
+};
+
+type Catalog = Array<{
+  type: string;
+  label: string;
+  status: 'live' | 'config' | 'review' | 'soon';
+  note?: string;
+  recommended?: boolean;
+}>;
 
 export function SocialChannelsStep({ siteId }: { siteId: string }) {
   const search = useSearchParams();
@@ -37,13 +57,25 @@ export function SocialChannelsStep({ siteId }: { siteId: string }) {
 
   // Callback'ten döndüğünde toast + URL temizle
   useEffect(() => {
-    if (search.get('social') === 'connected') {
+    const social = search.get('social');
+    if (social === 'connected') {
       toast.success('Sosyal kanal bağlandı ✓');
       const url = new URL(window.location.href);
       url.searchParams.delete('social');
       url.searchParams.delete('channel');
       window.history.replaceState({}, '', url.toString());
       refresh();
+    } else if (social === 'error') {
+      const reason = search.get('reason') ?? 'Bilinmeyen OAuth hatası';
+      // LinkedIn'in tipik scope hatasını daha anlaşılır göster
+      const friendly = /unauthorized_scope_error|w_organization_social|r_organization_social|organization_admin/i.test(reason)
+        ? 'LinkedIn şirket sayfası onayı henüz LinkedIn tarafından verilmedi. Şu an sadece kişisel LinkedIn hesabı bağlanabilir. (Marketing Developer Platform onayı bekleniyor.)'
+        : reason;
+      toast.error(friendly, { duration: 8000 });
+      const url = new URL(window.location.href);
+      url.searchParams.delete('social');
+      url.searchParams.delete('reason');
+      window.history.replaceState({}, '', url.toString());
     }
   }, [search]);
 
@@ -122,7 +154,12 @@ export function SocialChannelsStep({ siteId }: { siteId: string }) {
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-medium text-sm">{c.externalName ?? c.name}</span>
-                      <Badge variant="outline" className="text-[10px]">{prettyType(c.type)}</Badge>
+                      <Badge variant="outline" className="text-[10px] inline-flex items-center gap-1.5 pl-1.5">
+                        {CHANNEL_TO_VENDOR[c.type] && (
+                          <VendorLogo name={CHANNEL_TO_VENDOR[c.type]} size={12} />
+                        )}
+                        {prettyType(c.type)}
+                      </Badge>
                       {c.isDefault && <Badge variant={'success' as any} className="text-[10px]">Varsayılan</Badge>}
                       {!c.isActive && <Badge variant="outline" className="text-[10px] opacity-60">Pasif</Badge>}
                     </div>
@@ -173,15 +210,24 @@ export function SocialChannelsStep({ siteId }: { siteId: string }) {
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           {catalog.map((item) => {
             const isConnected = channels.some((c: any) => c.type === item.type);
+            const isDisabled = item.status !== 'live';
+            const statusBadge = (() => {
+              switch (item.status) {
+                case 'soon':   return { text: 'Yakında', tone: 'outline' as const };
+                case 'review': return { text: 'Onay bekliyor', tone: 'outline' as const };
+                case 'config': return { text: 'Yapılandırma eksik', tone: 'outline' as const };
+                default:       return null;
+              }
+            })();
             return (
             <button
               key={item.type}
               type="button"
-              disabled={item.status === 'soon' || busy === item.type}
+              disabled={isDisabled || busy === item.type}
               onClick={() => connect(item.type)}
               title={item.note ?? ''}
               className={`flex flex-col items-start gap-1.5 px-4 py-3 rounded-lg border text-left transition-colors ${
-                item.status === 'soon'
+                isDisabled
                   ? 'opacity-60 cursor-not-allowed bg-muted/40'
                   : isConnected
                     ? 'border-emerald-500/40 bg-emerald-500/5 hover:border-emerald-500 cursor-pointer'
@@ -199,8 +245,8 @@ export function SocialChannelsStep({ siteId }: { siteId: string }) {
                     <Badge variant={'success' as any} className="text-[9px] uppercase">Önerilen</Badge>
                   ) : null}
                 </div>
-                {item.status === 'soon' ? (
-                  <Badge variant="outline" className="text-[10px]">Yakında</Badge>
+                {statusBadge ? (
+                  <Badge variant={statusBadge.tone} className="text-[10px]">{statusBadge.text}</Badge>
                 ) : (
                   <span className={`inline-flex items-center gap-1 text-xs ${isConnected ? 'font-semibold text-emerald-600 dark:text-emerald-400' : item.recommended ? 'font-semibold text-brand' : 'text-brand'}`}>
                     <Link2 className="h-3.5 w-3.5" /> {busy === item.type ? '…' : (isConnected ? '+ Başka hesap ekle' : 'Bağla')}

@@ -37,14 +37,14 @@ export class BrainGeneratorService {
   }
 
   /** Worker'dan çağrılan asıl iş */
-  async runGeneration(siteId: string): Promise<void> {
+  async runGeneration(siteId: string, opts: { forceRegenerate?: boolean } = {}): Promise<void> {
     const site = await this.prisma.site.findUniqueOrThrow({
       where: { id: siteId },
       include: { brain: true },
     });
 
-    if (site.brain && !this.shouldRegenerate(site.brain.updatedAt)) {
-      this.log.log(`${siteId}: Brain mevcut ve fresh, atlanıyor`);
+    if (!opts.forceRegenerate && site.brain && !this.shouldRegenerate(site.brain.updatedAt)) {
+      this.log.log(`${siteId}: Brain mevcut ve fresh, atlanıyor (forceRegenerate=false)`);
       return;
     }
 
@@ -137,6 +137,10 @@ Yukarıdaki prensiplere göre brandVoice'u doldur. Mock değer yazma:
     }
   ],
   "seoStrategy": {
+    "primaryKeywords": ["3-5 ana anahtar kelime"],
+    "topQuestions": ["Google'da aranabilecek 5-8 doğal soru cümlesi (örn: 'X nasıl yapılır?', 'X nedir?')"],
+    "aeoQueries": ["ChatGPT/Claude/Gemini gibi AI asistanlara sorulduğunda bu sitenin tavsiye edilmesi beklenen 4-6 spesifik sorgu (markaya değil, çözüme yönelik)"],
+    "geoQueries": ["Perplexity/SearchGPT gibi AI aramada kullanıcının yazacağı 4-6 sorgu — 'en iyi X araçları', 'X için alternatif', 'X vs Y' tarzı kıyaslama/liste sorguları"],
     "pillars": [
       {
         "url": "/sayfa-yolu",
@@ -190,7 +194,13 @@ ${pageSummaries}`;
         brandVoice: { tone: 'samimi-uzman', bannedWords: [], examples: [], pointOfView: '', brandPromise: '', offLimits: [], signaturePhrases: [], absencePatterns: [], hookStyle: '', closingStyle: '' },
         personas: [],
         competitors: [],
-        seoStrategy: { pillars: [] },
+        seoStrategy: {
+          primaryKeywords: [],
+          topQuestions: [],
+          aeoQueries: [],
+          geoQueries: [],
+          pillars: [],
+        },
         glossary: [],
       };
     }
