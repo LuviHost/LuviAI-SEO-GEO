@@ -207,7 +207,7 @@
   /* Stagger reveal — children animate fade-up with delay */
   .stagger-reveal > * {
     opacity: 0;
-    animation: fade-up 0.9s cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation: luvi-fade-up 0.9s cubic-bezier(0.16, 1, 0.3, 1) both;
   }
   .stagger-reveal > *:nth-child(1) { animation-delay: 0.05s; }
   .stagger-reveal > *:nth-child(2) { animation-delay: 0.15s; }
@@ -215,6 +215,33 @@
   .stagger-reveal > *:nth-child(4) { animation-delay: 0.35s; }
   .stagger-reveal > *:nth-child(5) { animation-delay: 0.45s; }
   .stagger-reveal > *:nth-child(6) { animation-delay: 0.55s; }
+  .stagger-reveal > *:nth-child(n+7) { animation-delay: 0.65s; }
+
+  /* prefers-reduced-motion: animasyon zorunlu degil, ama icerik gorunsun */
+  @media (prefers-reduced-motion: reduce) {
+    .stagger-reveal > * {
+      opacity: 1;
+      animation: none;
+    }
+  }
+}
+
+/*
+ * Keyframe definitions — Tailwind theme.extend.keyframes sadece animate-*
+ * utility class'i kullanildiginda final CSS'e cikar. Custom .stagger-reveal
+ * selector'umuz icin keyframe'leri burada explicit tanimliyoruz.
+ */
+@keyframes luvi-fade-up {
+  0%   { opacity: 0; transform: translateY(24px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+@keyframes luvi-fade-in {
+  0%   { opacity: 0; }
+  100% { opacity: 1; }
+}
+@keyframes luvi-scale-in {
+  0%   { opacity: 0; transform: scale(0.96); }
+  100% { opacity: 1; transform: scale(1); }
 }
 
 @layer utilities {
