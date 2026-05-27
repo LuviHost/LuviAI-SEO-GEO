@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Check, X, Crown, Sparkles, Zap, Globe, Shield, Mic, Network, Award, FileText, BarChart3 } from 'lucide-react';
+import { Check, X, Crown, Sparkles, Zap, Globe, Shield, Mic, Network, Award, FileText, BarChart3, ArrowRight } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -164,160 +164,161 @@ export default function ComparePage() {
         }) }}
       />
 
-      <main className="container max-w-6xl py-10 sm:py-16 px-4">
-        {/* HERO */}
-        <div className="text-center max-w-3xl mx-auto mb-10 sm:mb-14">
-          <Badge variant="outline" className="mb-4">Detaylı feature karşılaştırma</Badge>
-          <h1 className="text-3xl sm:text-5xl md:text-6xl font-bold tracking-tight mb-4">
-            LuviAI vs<br className="sm:hidden" />{' '}
-            <span className="text-brand">tüm rakipleri</span>
-          </h1>
-          <p className="text-base sm:text-lg text-muted-foreground mb-6">
-            <strong className="text-foreground">{luviaiCount}+ özellik</strong> tek panelde. SEO + AI Search + Reklam + Sosyal yayın
-            — diğerleri tek bir alanda iyi, LuviAI hepsini birleştiren tek Türk platform.
-          </p>
-          <div className="flex flex-wrap justify-center gap-2 text-xs">
-            <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/30">✓ Türkçe destek</Badge>
-            <Badge className="bg-brand/10 text-brand border-brand/30">✓ KVKK + TR veri</Badge>
-            <Badge className="bg-orange-500/10 text-orange-600 border-orange-500/30">✓ PayTR ödeme</Badge>
-            <Badge className="bg-purple-500/10 text-purple-600 border-purple-500/30">✓ 14 yayın hedefi</Badge>
+      <main className="relative overflow-hidden">
+        <div className="absolute inset-0 -z-10 bg-mesh-warm opacity-70 pointer-events-none" />
+        <div className="absolute inset-0 -z-10 bg-noise opacity-[0.03] pointer-events-none" />
+
+        <div className="container-apple section-padding stagger-reveal">
+          {/* HERO */}
+          <div className="text-center max-w-[760px] mx-auto mb-16">
+            <p className="eyebrow mb-4">Karşılaştırma</p>
+            <h1 className="text-balance font-medium tracking-display text-neutral-900 dark:text-white text-[clamp(2.5rem,6vw,5rem)] leading-[0.96]">
+              LuviAI{' '}
+              <span className="font-display italic text-[1.08em] text-brand-600 dark:text-brand-400">vs</span>{' '}
+              tüm rakipleri.
+            </h1>
+            <p className="text-pretty mt-7 max-w-[640px] mx-auto text-[clamp(1rem,1.4vw,1.25rem)] leading-[1.5] text-neutral-600 dark:text-neutral-400">
+              <strong className="text-foreground font-medium">{luviaiCount}+ özellik</strong> tek panelde.
+              SEO + AI Search + Reklam + Sosyal yayın — diğerleri tek bir alanda iyi, LuviAI hepsini birleştiren tek Türk platform.
+            </p>
+            <div className="mt-7 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-[12px] text-neutral-500 dark:text-neutral-400">
+              <span className="inline-flex items-center gap-1.5"><Check className="h-3 w-3 text-brand-500" /> Türkçe destek</span>
+              <span className="text-neutral-300 dark:text-neutral-700">·</span>
+              <span className="inline-flex items-center gap-1.5"><Check className="h-3 w-3 text-brand-500" /> KVKK + TR veri</span>
+              <span className="text-neutral-300 dark:text-neutral-700">·</span>
+              <span className="inline-flex items-center gap-1.5"><Check className="h-3 w-3 text-brand-500" /> PayTR ödeme</span>
+              <span className="text-neutral-300 dark:text-neutral-700">·</span>
+              <span className="inline-flex items-center gap-1.5"><Check className="h-3 w-3 text-brand-500" /> 14 yayın hedefi</span>
+            </div>
+          </div>
+
+        {/* HIGHLIGHT CARDS - Apple-grade */}
+        <div className="grid sm:grid-cols-3 gap-4 lg:gap-6 mb-16">
+          <div className="card-apple p-7">
+            <div className="font-medium tracking-display text-[clamp(2.5rem,4vw,3.5rem)] leading-none bg-gradient-to-br from-brand-500 via-rose-500 to-amber-500 bg-clip-text text-transparent mb-3">6-1</div>
+            <div className="text-h6 font-medium mb-2 tracking-[-0.015em]">Multi-LLM avantajı</div>
+            <p className="text-[13px] text-neutral-500 dark:text-neutral-400 leading-[1.5]">
+              Claude, GPT, Gemini, Grok, Perplexity, DeepSeek — 6 sağlayıcı. Rakipler sadece OpenAI'ya bağımlı.
+            </p>
+          </div>
+          <div className="card-apple p-7">
+            <div className="font-medium tracking-display text-[clamp(2.5rem,4vw,3.5rem)] leading-none text-emerald-600 dark:text-emerald-400 mb-3">8</div>
+            <div className="text-h6 font-medium mb-2 tracking-[-0.015em]">GEO / AEO özelliği</div>
+            <p className="text-[13px] text-neutral-500 dark:text-neutral-400 leading-[1.5]">
+              AI citation, heatmap, score card, mention alarm, llms.txt, persona chat — rakiplerde 0.
+            </p>
+          </div>
+          <div className="card-apple p-7">
+            <div className="font-display italic text-[clamp(2.5rem,4vw,3.5rem)] leading-none text-foreground mb-3">tek</div>
+            <div className="text-h6 font-medium mb-2 tracking-[-0.015em]">SEO + Ads panelde</div>
+            <p className="text-[13px] text-neutral-500 dark:text-neutral-400 leading-[1.5]">
+              Google Ads + Meta Ads + ROAS auto-optimize. SEO platformlarının hiçbirinde yok.
+            </p>
           </div>
         </div>
 
-        {/* HIGHLIGHT CARDS - Why LuviAI */}
-        <div className="grid sm:grid-cols-3 gap-4 mb-12">
-          <Card className="border-brand/20 bg-brand/5">
-            <CardContent className="p-5">
-              <div className="text-2xl font-bold text-brand mb-1">6-1</div>
-              <div className="text-sm font-semibold mb-1">Multi-LLM avantajı</div>
-              <p className="text-xs text-muted-foreground">
-                Claude, GPT, Gemini, Grok, Perplexity, DeepSeek — 6 sağlayıcı.
-                Rakipler sadece OpenAI'ya bağımlı.
-              </p>
-            </CardContent>
-          </Card>
-          <Card className="border-emerald-500/20 bg-emerald-500/5">
-            <CardContent className="p-5">
-              <div className="text-2xl font-bold text-emerald-600 mb-1">8</div>
-              <div className="text-sm font-semibold mb-1">GEO/AEO özelliği</div>
-              <p className="text-xs text-muted-foreground">
-                AI citation, heatmap, score card, mention alarm, llms.txt, persona chat — rakiplerde 0.
-              </p>
-            </CardContent>
-          </Card>
-          <Card className="border-orange-500/20 bg-orange-500/5">
-            <CardContent className="p-5">
-              <div className="text-2xl font-bold text-orange-600 mb-1">SEO + Ads</div>
-              <div className="text-sm font-semibold mb-1">Tek panelde</div>
-              <p className="text-xs text-muted-foreground">
-                Google Ads + Meta Ads + ROAS auto-optimize.
-                SEO platformlarının hiçbirinde yok.
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* COMPARISON TABLE — grouped */}
+        {/* COMPARISON TABLES — Apple-grade */}
         <div className="space-y-6">
           {FEATURE_GROUPS.map((group) => (
-            <Card key={group.title} className="overflow-hidden">
-              <div className="bg-gradient-to-r from-muted/60 to-muted/20 px-5 py-3 border-b flex items-center justify-between flex-wrap gap-2">
-                <h2 className="font-semibold flex items-center gap-2 text-base">
-                  <span className="text-brand">{group.icon}</span>
+            <div key={group.title} className="rounded-apple border border-border/60 bg-card shadow-apple-sm overflow-hidden">
+              <div className="px-6 py-4 border-b border-border/60 flex items-center justify-between flex-wrap gap-2">
+                <h2 className="font-medium flex items-center gap-2.5 text-[15px] tracking-[-0.01em]">
+                  <span className="text-brand-600 dark:text-brand-400">{group.icon}</span>
                   {group.title}
                 </h2>
                 {group.badge && (
-                  <Badge className="bg-brand/10 text-brand border-brand/30 text-xs">{group.badge}</Badge>
+                  <span className="inline-flex items-center px-2.5 h-6 rounded-full text-[10px] font-medium tracking-[0.04em] uppercase bg-brand-500/10 text-brand-700 dark:text-brand-400 border border-brand-500/20">
+                    {group.badge}
+                  </span>
                 )}
               </div>
               <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead className="bg-muted/30 text-xs">
+                <table className="w-full text-[14px]">
+                  <thead className="bg-neutral-50 dark:bg-neutral-950/40">
                     <tr>
-                      <th className="text-left px-4 py-2.5 font-semibold w-[40%]">Özellik</th>
-                      <th className="px-2 py-2.5 text-center bg-brand/5 font-bold text-brand min-w-[80px]">LuviAI</th>
-                      <th className="px-2 py-2.5 text-center font-medium min-w-[80px]">Surfer</th>
-                      <th className="px-2 py-2.5 text-center font-medium min-w-[80px]">Jasper</th>
-                      <th className="px-2 py-2.5 text-center font-medium min-w-[80px]">Ahrefs</th>
-                      <th className="px-2 py-2.5 text-center font-medium min-w-[80px]">Frase</th>
+                      <th className="text-left px-5 py-3 text-[11px] font-medium tracking-[0.06em] uppercase text-neutral-500 dark:text-neutral-400 w-[40%]">Özellik</th>
+                      <th className="px-3 py-3 text-center text-[11px] font-medium tracking-[0.06em] uppercase bg-brand-500/[0.06] text-brand-700 dark:text-brand-400 min-w-[90px]">LuviAI</th>
+                      <th className="px-3 py-3 text-center text-[11px] font-medium tracking-[0.06em] uppercase text-neutral-500 dark:text-neutral-400 min-w-[90px]">Surfer</th>
+                      <th className="px-3 py-3 text-center text-[11px] font-medium tracking-[0.06em] uppercase text-neutral-500 dark:text-neutral-400 min-w-[90px]">Jasper</th>
+                      <th className="px-3 py-3 text-center text-[11px] font-medium tracking-[0.06em] uppercase text-neutral-500 dark:text-neutral-400 min-w-[90px]">Ahrefs</th>
+                      <th className="px-3 py-3 text-center text-[11px] font-medium tracking-[0.06em] uppercase text-neutral-500 dark:text-neutral-400 min-w-[90px]">Frase</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-border/40">
+                  <tbody className="divide-y divide-border/60">
                     {group.rows.map((f) => (
-                      <tr key={f.name} className="hover:bg-muted/30 transition-colors">
-                        <td className="px-4 py-3 font-medium">
-                          {f.name}
+                      <tr key={f.name} className="hover:bg-neutral-50 dark:hover:bg-neutral-950/30 transition-colors duration-300 ease-apple">
+                        <td className="px-5 py-3.5">
+                          <div className="font-medium text-[14px]">{f.name}</div>
                           {f.hint && (
-                            <div className="text-xs text-muted-foreground mt-0.5 font-normal">{f.hint}</div>
+                            <div className="text-[12px] text-neutral-500 dark:text-neutral-400 mt-1">{f.hint}</div>
                           )}
                         </td>
-                        <td className="px-2 py-3 text-center bg-brand/5"><LuviCell value={f.luviai} /></td>
-                        <td className="px-2 py-3 text-center"><Cell value={f.surfer} /></td>
-                        <td className="px-2 py-3 text-center"><Cell value={f.jasper} /></td>
-                        <td className="px-2 py-3 text-center"><Cell value={f.ahrefs} /></td>
-                        <td className="px-2 py-3 text-center"><Cell value={f.frase} /></td>
+                        <td className="px-3 py-3.5 text-center bg-brand-500/[0.04]"><LuviCell value={f.luviai} /></td>
+                        <td className="px-3 py-3.5 text-center"><Cell value={f.surfer} /></td>
+                        <td className="px-3 py-3.5 text-center"><Cell value={f.jasper} /></td>
+                        <td className="px-3 py-3.5 text-center"><Cell value={f.ahrefs} /></td>
+                        <td className="px-3 py-3.5 text-center"><Cell value={f.frase} /></td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
-            </Card>
+            </div>
           ))}
         </div>
 
         {/* SUMMARY / BOTTOM CTA */}
-        <div className="mt-14 grid md:grid-cols-2 gap-6">
-          <Card className="bg-gradient-to-br from-brand/5 to-transparent border-brand/20">
-            <CardContent className="p-6">
-              <h3 className="font-bold text-lg mb-3 flex items-center gap-2">
-                <Crown className="h-5 w-5 text-brand" />
-                LuviAI'nin tek başına kapsadığı 4 dikey
-              </h3>
-              <ul className="text-sm space-y-2 text-muted-foreground">
-                <li className="flex gap-2"><Check className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" /> SEO içerik üretimi (Surfer/Jasper'a alternatif)</li>
-                <li className="flex gap-2"><Check className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" /> AI Search Optimization (Türkiye'de ilk)</li>
-                <li className="flex gap-2"><Check className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" /> Reklam otopilot (Google + Meta + ROAS)</li>
-                <li className="flex gap-2"><Check className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" /> Sosyal medya yayın (IG + TikTok + LinkedIn + X)</li>
-              </ul>
-              <p className="text-xs mt-4 text-muted-foreground/80">
-                Aynı işi rakip kombinasyonuyla almak: Surfer ($89) + Jasper ($49) + Ahrefs ($129) + Hootsuite ($99) = <strong className="text-foreground">$366/ay</strong>. LuviAI: <strong className="text-brand">₺499/ay</strong>.
-              </p>
-            </CardContent>
-          </Card>
+        <div className="mt-20 grid md:grid-cols-2 gap-4 lg:gap-6">
+          <div className="card-apple p-8 lg:p-9">
+            <h3 className="font-medium text-h5 tracking-[-0.02em] mb-5 flex items-center gap-2.5">
+              <Crown className="h-5 w-5 text-brand-500" strokeWidth={1.5} />
+              LuviAI'nin tek başına kapsadığı 4 dikey
+            </h3>
+            <ul className="text-[14px] space-y-3 text-neutral-600 dark:text-neutral-400">
+              <li className="flex gap-2.5"><Check className="h-3.5 w-3.5 text-brand-500 shrink-0 mt-1" strokeWidth={2.5} /> SEO içerik üretimi (Surfer/Jasper'a alternatif)</li>
+              <li className="flex gap-2.5"><Check className="h-3.5 w-3.5 text-brand-500 shrink-0 mt-1" strokeWidth={2.5} /> AI Search Optimization (Türkiye'de ilk)</li>
+              <li className="flex gap-2.5"><Check className="h-3.5 w-3.5 text-brand-500 shrink-0 mt-1" strokeWidth={2.5} /> Reklam otopilot (Google + Meta + ROAS)</li>
+              <li className="flex gap-2.5"><Check className="h-3.5 w-3.5 text-brand-500 shrink-0 mt-1" strokeWidth={2.5} /> Sosyal medya yayın (IG + TikTok + LinkedIn + X)</li>
+            </ul>
+            <p className="text-[12px] mt-6 text-neutral-500 dark:text-neutral-400 leading-[1.55]">
+              Aynı işi rakip kombinasyonuyla almak: Surfer ($89) + Jasper ($49) + Ahrefs ($129) + Hootsuite ($99) = <strong className="text-foreground font-medium">$366/ay</strong>. LuviAI: <strong className="text-brand-600 dark:text-brand-400 font-medium">₺499/ay</strong>.
+            </p>
+          </div>
 
-          <Card className="bg-gradient-to-br from-emerald-500/5 to-transparent border-emerald-500/20">
-            <CardContent className="p-6">
-              <h3 className="font-bold text-lg mb-3 flex items-center gap-2">
-                <Sparkles className="h-5 w-5 text-emerald-600" />
-                LuviAI'ye geçişte kazandıkların
-              </h3>
-              <ul className="text-sm space-y-2 text-muted-foreground">
-                <li className="flex gap-2"><Check className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" /> Tek subscription, tek dashboard</li>
-                <li className="flex gap-2"><Check className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" /> Türkçe destek + KVKK + TL fatura</li>
-                <li className="flex gap-2"><Check className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" /> AI Search'te görünürlük (rakipler ortalama 6-12 ay geri)</li>
-                <li className="flex gap-2"><Check className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" /> BYOK ile kendi LLM anahtarın → maliyet kontrolü</li>
-                <li className="flex gap-2"><Check className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" /> Whitelabel — ajanslar kendi markası altında satabilir</li>
-              </ul>
-            </CardContent>
-          </Card>
+          <div className="card-apple p-8 lg:p-9">
+            <h3 className="font-medium text-h5 tracking-[-0.02em] mb-5 flex items-center gap-2.5">
+              <Sparkles className="h-5 w-5 text-emerald-500" strokeWidth={1.5} />
+              LuviAI'ye geçişte kazandıkların
+            </h3>
+            <ul className="text-[14px] space-y-3 text-neutral-600 dark:text-neutral-400">
+              <li className="flex gap-2.5"><Check className="h-3.5 w-3.5 text-emerald-500 shrink-0 mt-1" strokeWidth={2.5} /> Tek subscription, tek dashboard</li>
+              <li className="flex gap-2.5"><Check className="h-3.5 w-3.5 text-emerald-500 shrink-0 mt-1" strokeWidth={2.5} /> Türkçe destek + KVKK + TL fatura</li>
+              <li className="flex gap-2.5"><Check className="h-3.5 w-3.5 text-emerald-500 shrink-0 mt-1" strokeWidth={2.5} /> AI Search'te görünürlük (rakipler ortalama 6-12 ay geri)</li>
+              <li className="flex gap-2.5"><Check className="h-3.5 w-3.5 text-emerald-500 shrink-0 mt-1" strokeWidth={2.5} /> BYOK ile kendi LLM anahtarın → maliyet kontrolü</li>
+              <li className="flex gap-2.5"><Check className="h-3.5 w-3.5 text-emerald-500 shrink-0 mt-1" strokeWidth={2.5} /> Whitelabel — ajanslar kendi markası altında satabilir</li>
+            </ul>
+          </div>
         </div>
 
         {/* FINAL CTA */}
-        <div className="mt-12 text-center">
-          <h3 className="text-2xl sm:text-3xl font-bold mb-3">
-            14 günde 1 sayfa yerine 14 makale yayınla
+        <div className="mt-20 text-center">
+          <h3 className="text-balance font-medium tracking-display text-[clamp(1.75rem,3.5vw,2.75rem)] leading-[1.05] mb-5">
+            14 günde 1 sayfa yerine{' '}
+            <span className="font-display italic text-[1.08em] text-brand-600 dark:text-brand-400">14 makale yayınla.</span>
           </h3>
-          <p className="text-muted-foreground mb-6 max-w-xl mx-auto text-sm">
+          <p className="text-neutral-500 dark:text-neutral-400 mb-8 max-w-[560px] mx-auto text-[15px] leading-[1.55]">
             İlk makale ücretsiz. Saatler süren işi dakikalara indir. AI Search'te de görün — 6 ay sonra gelen değişimi şimdi yakala.
           </p>
-          <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <Button asChild size="lg" className="bg-brand hover:bg-brand/90">
-              <Link href="/onboarding">İlk makaleni ücretsiz al →</Link>
-            </Button>
-            <Button asChild size="lg" variant="outline">
-              <Link href="/pricing">Fiyatlandırmayı incele</Link>
-            </Button>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center items-center">
+            <Link href="/onboarding" className="btn-apple-primary group">
+              İlk makaleni ücretsiz al
+              <ArrowRight className="h-4 w-4 transition-transform duration-300 ease-apple group-hover:translate-x-0.5" />
+            </Link>
+            <Link href="/pricing" className="btn-apple-ghost">
+              Fiyatlandırmayı incele
+            </Link>
           </div>
+        </div>
         </div>
       </main>
     </div>

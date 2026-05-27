@@ -63,162 +63,120 @@ export default function AboutPage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(aboutJsonLd) }}
       />
-      <div className="container max-w-4xl py-10">
-        <Breadcrumbs items={[{ label: 'Hakkımızda' }]} />
+      <div className="relative overflow-hidden">
+        <div className="absolute inset-0 -z-10 bg-mesh-warm opacity-60 pointer-events-none" />
+        <div className="absolute inset-0 -z-10 bg-noise opacity-[0.03] pointer-events-none" />
 
-        {/* Hero */}
-        <header className="text-center mt-4 mb-12">
-          <div className="inline-flex items-center gap-2 bg-brand/10 text-brand text-xs font-bold uppercase tracking-widest px-3 py-1 rounded-full mb-4">
-            <Sparkles className="h-3 w-3" /> Hakkımızda
+        <div className="container-apple section-padding max-w-[920px] stagger-reveal">
+          <Breadcrumbs items={[{ label: 'Hakkımızda' }]} />
+
+          {/* Hero — Apple grade */}
+          <header className="text-center mt-8 mb-20">
+            <p className="eyebrow mb-4">Hakkımızda</p>
+            <h1 className="text-balance font-medium tracking-display text-neutral-900 dark:text-white text-[clamp(2.5rem,6vw,5rem)] leading-[0.96]">
+              Türkiye için yapılmış{' '}
+              <span className="font-display italic text-[1.08em] bg-gradient-to-br from-brand-500 via-rose-500 to-amber-500 bg-clip-text text-transparent">AI SaaS.</span>
+            </h1>
+            <p className="text-pretty mt-7 max-w-[640px] mx-auto text-[clamp(1rem,1.4vw,1.25rem)] leading-[1.5] text-neutral-600 dark:text-neutral-400">
+              LuviAI; KOBİ, e-ticaret ve dijital ajansların SEO, içerik üretimi, sosyal medya ve reklam denetimini
+              tek panelden, otomatik olarak yönetebilmesi için kurulan Türkiye merkezli bir platformdur.
+            </p>
+          </header>
+
+          {/* Misyon + Hikayemiz — alternating layout */}
+          <div className="space-y-4 lg:space-y-6 mb-6">
+            <div className="card-apple p-8 lg:p-10">
+              <div className="flex items-start gap-5">
+                <div className="h-10 w-10 rounded-2xl bg-brand-500/10 border border-brand-500/20 text-brand-600 dark:text-brand-400 grid place-items-center shrink-0">
+                  <Target className="h-5 w-5" strokeWidth={1.5} />
+                </div>
+                <div className="flex-1">
+                  <p className="eyebrow mb-2">01 · Misyon</p>
+                  <h2 className="text-h4 font-medium mb-4 tracking-[-0.025em]">Misyonumuz</h2>
+                  <p className="text-[15px] text-neutral-600 dark:text-neutral-400 leading-[1.6]">
+                    Saatlerce uğraşan SEO uzmanı, içerik yazarı, sosyal medya yöneticisi ve reklam danışmanına ihtiyaç
+                    duymadan; küçük işletmelerin ve dijital ajansların yapay zeka destekli, kalite ve marka tutarlılığı
+                    taviz vermeyen büyüme araçlarına erişebilmesini sağlamak.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="card-apple p-8 lg:p-10">
+              <div className="flex items-start gap-5">
+                <div className="h-10 w-10 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-500 grid place-items-center shrink-0">
+                  <Heart className="h-5 w-5" strokeWidth={1.5} />
+                </div>
+                <div className="flex-1">
+                  <p className="eyebrow mb-2">02 · Hikaye</p>
+                  <h2 className="text-h4 font-medium mb-4 tracking-[-0.025em]">Hikayemiz</h2>
+                  <p className="text-[15px] text-neutral-600 dark:text-neutral-400 leading-[1.6] mb-4">
+                    LuviAI, 2018'den beri Türkiye'de hosting ve domain hizmeti veren <a href="https://luvihost.com" className="text-foreground hover:text-brand-600 dark:hover:text-brand-400 transition-colors duration-300 ease-apple underline decoration-1 underline-offset-2">LuviHost</a> grubunun bünyesinde 2026'da kuruldu. Müşterilerimizin "site açtım ama ne içerik üreteceğim?" sorusu bizi bu platformu inşa etmeye yönlendirdi.
+                  </p>
+                  <p className="text-[15px] text-neutral-600 dark:text-neutral-400 leading-[1.6]">
+                    Yapay zekanın içerik üretiminde sıradan, klişe ve marka kimliği zayıf çıktılar verdiğini gördük.
+                    6 ajanlı yazım zinciri, kalite kapısı ve marka beyni katmanı ile bu sorunları çözen ilk Türkçe platform haline geldik.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="card-apple p-8 lg:p-10">
+              <div className="flex items-start gap-5">
+                <div className="h-10 w-10 rounded-2xl bg-sky-500/10 border border-sky-500/20 text-sky-500 grid place-items-center shrink-0">
+                  <ShieldCheck className="h-5 w-5" strokeWidth={1.5} />
+                </div>
+                <div className="flex-1">
+                  <p className="eyebrow mb-2">03 · Güven</p>
+                  <h2 className="text-h4 font-medium mb-5 tracking-[-0.025em]">Neden bize güvenebilirsin</h2>
+                  <ul className="space-y-3 text-[14px] text-neutral-600 dark:text-neutral-400">
+                    {[
+                      ['Türkiye merkezli ve yerel', 'Veriler Türkiye lokasyonlu sunucularda, KVKK uyumlu, AES-256-GCM şifrelemeyle korunur.'],
+                      ['PayTR güvenli ödeme', "Türkiye'nin TCMB lisanslı ödeme sağlayıcısı. Aylık iptal hakkı, taahhüt yok."],
+                      ['Açık kaynaklı pattern\'ler', 'Anthropic Claude, Google Gemini, OpenAI ve LibreChat gibi açık ekosistemlerden ilham aldık.'],
+                      ['Kalite kapısı', 'Her makale yayına çıkmadan AI editör ajanından geçer. Klişe, yanlış bilgi, marka tutarsızlığı silinir.'],
+                      ['İlk makale ücretsiz', 'Beğenmezsen tek kuruş ödemen gerekmez. Önce dene, sonra karar ver.'],
+                    ].map(([label, desc]) => (
+                      <li key={label} className="flex gap-3">
+                        <Sparkles className="h-3.5 w-3.5 text-brand-500 shrink-0 mt-1" strokeWidth={1.5} />
+                        <span><strong className="text-foreground font-medium">{label}:</strong> {desc}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            </div>
           </div>
-          <h1 className="text-4xl sm:text-5xl font-bold tracking-tight mb-4">
-            Türkiye için yapılmış AI SaaS
-          </h1>
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-            LuviAI; KOBİ, e-ticaret ve dijital ajansların SEO, içerik üretimi, sosyal medya ve reklam denetimini
-            tek panelden, otomatik olarak yönetebilmesi için kurulan Türkiye merkezli bir platformdur.
-          </p>
-        </header>
 
-        {/* Misyon */}
-        <Card className="mb-6">
-          <CardContent className="p-8">
-            <div className="flex items-start gap-4">
-              <div className="h-10 w-10 rounded-xl bg-brand/10 text-brand grid place-items-center shrink-0">
-                <Target className="h-5 w-5" />
+          {/* Değerler — Apple-grade 2x2 grid */}
+          <div className="grid sm:grid-cols-2 gap-4 lg:gap-6 mb-20 mt-6">
+            {[
+              { icon: Globe2, color: 'text-brand-500', title: 'Türkçe öncelikli', body: 'Çoğu AI içerik aracı İngilizce için yapılır, sonra Türkçe\'ye uydurulur. Biz Türkçe ile başlayıp İngilizce\'yi ekliyoruz — gramer, ton ve sektör jargonu tutarlı.' },
+              { icon: Users, color: 'text-emerald-500', title: 'KOBİ-dostu', body: 'Saatler süren manuel SEO denetimi, içerik briefi yazma, sosyal medya planlama gibi işleri dakikalara indirir. Ekibinde uzman olmasa bile profesyonel sonuçlar alırsın.' },
+              { icon: Zap, color: 'text-amber-500', title: 'Gerçek otopilot', body: 'Plan + GSC + rakip + persona analizi → konu önerileri → otomatik üretim → otomatik yayın → 30 gün sonra performans takibi. Sen sadece onaylarsın.' },
+              { icon: Award, color: 'text-violet-500', title: 'AI search\'e hazır', body: 'ChatGPT, Claude, Gemini, Perplexity gibi AI asistanları cevap üretirken senin sitendeki içeriği kaynak göstersin diye GEO (Generative Engine Optimization) yapıyoruz.' },
+            ].map(({ icon: Icon, color, title, body }) => (
+              <div key={title} className="card-apple p-7 lg:p-8">
+                <Icon className={`h-6 w-6 ${color} mb-5`} strokeWidth={1.5} />
+                <h3 className="text-h5 font-medium mb-3 tracking-[-0.02em]">{title}</h3>
+                <p className="text-[14px] text-neutral-600 dark:text-neutral-400 leading-[1.55]">{body}</p>
               </div>
-              <div>
-                <h2 className="text-2xl font-bold mb-3">Misyonumuz</h2>
-                <p className="text-muted-foreground leading-relaxed">
-                  Saatlerce uğraşan SEO uzmanı, içerik yazarı, sosyal medya yöneticisi ve reklam danışmanına ihtiyaç
-                  duymadan; küçük işletmelerin ve dijital ajansların yapay zeka destekli, kalite ve marka tutarlılığı
-                  taviz vermeyen büyüme araçlarına erişebilmesini sağlamak. Site sahipleri içerik üretmek için saatler
-                  harcamak yerine asıl işlerine odaklansın diye tasarladık.
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            ))}
+          </div>
 
-        {/* Hikayemiz */}
-        <Card className="mb-6">
-          <CardContent className="p-8">
-            <div className="flex items-start gap-4">
-              <div className="h-10 w-10 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 grid place-items-center shrink-0">
-                <Heart className="h-5 w-5" />
-              </div>
-              <div>
-                <h2 className="text-2xl font-bold mb-3">Hikayemiz</h2>
-                <p className="text-muted-foreground leading-relaxed mb-3">
-                  LuviAI, 2018'den beri Türkiye'de hosting ve domain hizmeti veren <a href="https://luvihost.com" className="text-brand hover:underline">LuviHost</a> grubunun
-                  bünyesinde 2026'da kuruldu. Müşterilerimizin "site açtım ama ne içerik üreteceğim?" sorusuna verilecek cevap arayışı bizi
-                  bu platformu inşa etmeye yönlendirdi.
-                </p>
-                <p className="text-muted-foreground leading-relaxed">
-                  Yapay zekanın içerik üretiminde sıradan, klişe ve marka kimliği zayıf çıktılar verdiğini gördük.
-                  6 ajanlı yazım zinciri (anahtar kelime → taslak → yazar → editör → görsel → şema), kalite kapısı ve
-                  marka beyni katmanı ile bu sorunları çözen ilk Türkçe platform haline geldik.
-                </p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Neden güvenmeli */}
-        <Card className="mb-6">
-          <CardContent className="p-8">
-            <div className="flex items-start gap-4">
-              <div className="h-10 w-10 rounded-xl bg-sky-500/10 text-sky-600 dark:text-sky-400 grid place-items-center shrink-0">
-                <ShieldCheck className="h-5 w-5" />
-              </div>
-              <div className="flex-1">
-                <h2 className="text-2xl font-bold mb-4">Neden bize güvenebilirsin</h2>
-                <ul className="space-y-3 text-sm">
-                  <li className="flex gap-3">
-                    <span className="h-5 w-5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 grid place-items-center shrink-0 text-xs font-bold">✓</span>
-                    <span><strong>Türkiye merkezli ve yerel:</strong> Veriler Türkiye lokasyonlu sunucularda, KVKK uyumlu, AES-256-GCM şifrelemeyle korunur.</span>
-                  </li>
-                  <li className="flex gap-3">
-                    <span className="h-5 w-5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 grid place-items-center shrink-0 text-xs font-bold">✓</span>
-                    <span><strong>PayTR güvenli ödeme:</strong> Türkiye'nin TCMB lisanslı ödeme sağlayıcısı. Aylık iptal hakkı, taahhüt yok.</span>
-                  </li>
-                  <li className="flex gap-3">
-                    <span className="h-5 w-5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 grid place-items-center shrink-0 text-xs font-bold">✓</span>
-                    <span><strong>Açık kaynaklı pattern'ler:</strong> Anthropic Claude, Google Gemini, OpenAI ve LibreChat gibi açık ekosistemlerden ilham aldık.</span>
-                  </li>
-                  <li className="flex gap-3">
-                    <span className="h-5 w-5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 grid place-items-center shrink-0 text-xs font-bold">✓</span>
-                    <span><strong>Kalite kapısı:</strong> Her makale yayına çıkmadan AI editör ajanından geçer. Klişe, yanlış bilgi, marka tutarsızlığı silinir.</span>
-                  </li>
-                  <li className="flex gap-3">
-                    <span className="h-5 w-5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 grid place-items-center shrink-0 text-xs font-bold">✓</span>
-                    <span><strong>İlk makale ücretsiz:</strong> Beğenmezsen tek kuruş ödemen gerekmez. Önce dene, sonra karar ver.</span>
-                  </li>
-                  <li className="flex gap-3">
-                    <span className="h-5 w-5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 grid place-items-center shrink-0 text-xs font-bold">✓</span>
-                    <span><strong>Açık iletişim:</strong> Destek için <a href="mailto:destek@luvihost.com" className="text-brand hover:underline">destek@luvihost.com</a> — gerçek insan yanıtlar.</span>
-                  </li>
-                </ul>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Değerler */}
-        <div className="grid sm:grid-cols-2 gap-4 mb-6">
-          <Card>
-            <CardContent className="p-6">
-              <Globe2 className="h-6 w-6 text-brand mb-3" />
-              <h3 className="font-bold text-lg mb-2">Türkçe öncelikli</h3>
-              <p className="text-sm text-muted-foreground leading-relaxed">
-                Çoğu AI içerik aracı İngilizce için yapılır, sonra Türkçe'ye uydurulur. Biz Türkçe ile başlayıp İngilizce'yi ekliyoruz —
-                gramer, ton ve sektör jargonu tutarlı.
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-6">
-              <Users className="h-6 w-6 text-emerald-500 mb-3" />
-              <h3 className="font-bold text-lg mb-2">KOBİ-dostu</h3>
-              <p className="text-sm text-muted-foreground leading-relaxed">
-                Saatler süren manuel SEO denetimi, içerik briefi yazma, sosyal medya planlama gibi işleri dakikalara indirir.
-                Ekibinde uzman olmasa bile profesyonel sonuçlar alırsın.
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-6">
-              <Zap className="h-6 w-6 text-amber-500 mb-3" />
-              <h3 className="font-bold text-lg mb-2">Gerçek otopilot</h3>
-              <p className="text-sm text-muted-foreground leading-relaxed">
-                Plan + GSC + rakip + persona analizi → konu önerileri → otomatik üretim → otomatik yayın → 30 gün sonra performans takibi.
-                Sen sadece onaylarsın.
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent className="p-6">
-              <Award className="h-6 w-6 text-violet-500 mb-3" />
-              <h3 className="font-bold text-lg mb-2">AI search'e hazır</h3>
-              <p className="text-sm text-muted-foreground leading-relaxed">
-                ChatGPT, Claude, Gemini, Perplexity gibi AI asistanları cevap üretirken senin sitendeki içeriği kaynak göstersin diye
-                GEO (Generative Engine Optimization) yapıyoruz.
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* CTA */}
-        <div className="text-center mt-12 mb-4">
-          <Link
-            href="/onboarding"
-            className="inline-block px-8 py-4 bg-brand text-white rounded-lg font-bold text-lg hover:bg-brand/90 transition-colors shadow-lg"
-          >
-            İlk makaleni ücretsiz dene →
-          </Link>
-          <p className="text-xs text-muted-foreground mt-3">
-            Kart bilgisi gerekmez · Aylık iptal · PayTR güvenli ödeme
-          </p>
+          {/* Final CTA */}
+          <div className="text-center">
+            <h3 className="text-balance font-medium tracking-display text-[clamp(1.75rem,3.5vw,2.75rem)] leading-[1.05] mb-7">
+              İlk makaleni{' '}
+              <span className="font-display italic text-[1.08em] text-brand-600 dark:text-brand-400">ücretsiz dene.</span>
+            </h3>
+            <Link href="/onboarding" className="btn-apple-primary group inline-flex">
+              Hemen başla
+            </Link>
+            <p className="text-[12px] text-neutral-500 dark:text-neutral-400 mt-5">
+              Kart bilgisi gerekmez · Aylık iptal · PayTR güvenli ödeme
+            </p>
+          </div>
         </div>
       </div>
     </>

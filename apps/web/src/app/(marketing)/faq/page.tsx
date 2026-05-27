@@ -117,42 +117,63 @@ export default function FaqPage() {
   const [open, setOpen] = useState<number | null>(0);
 
   return (
-    <div className="bg-gradient-to-b from-background to-muted">
+    <div className="relative overflow-hidden">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
       />
-      <main className="container max-w-3xl py-12">
-        <h1 className="text-4xl md:text-5xl font-bold mb-3 text-center">Sık Sorulan Sorular</h1>
-        <p className="text-muted-foreground text-center mb-12">
-          Cevabını bulamadığın bir soru varsa{' '}
-          <a href="mailto:destek@luvihost.com" className="text-brand hover:underline">
-            destek@luvihost.com
-          </a>
-        </p>
+      <div className="absolute inset-0 -z-10 bg-mesh-warm opacity-60 pointer-events-none" />
+      <div className="absolute inset-0 -z-10 bg-noise opacity-[0.03] pointer-events-none" />
 
-        <div className="space-y-3">
-          {FAQS.map((item, i) => (
-            <Card key={i}>
-              <button
-                onClick={() => setOpen(open === i ? null : i)}
-                className="w-full text-left p-5 flex items-center justify-between gap-4"
-              >
-                <span className="font-semibold faq-question">{item.q}</span>
-                <ChevronDown className={cn('h-5 w-5 transition-transform shrink-0', open === i && 'rotate-180')} />
-              </button>
-              {open === i && (
-                <CardContent className="pt-0 text-sm text-muted-foreground leading-relaxed faq-answer">
-                  {item.a}
-                </CardContent>
-              )}
-            </Card>
-          ))}
+      <main className="container-apple section-padding max-w-[820px] stagger-reveal">
+        <div className="text-center mb-16">
+          <p className="eyebrow mb-4">SSS</p>
+          <h1 className="text-balance font-medium tracking-display text-neutral-900 dark:text-white text-[clamp(2.5rem,6vw,5rem)] leading-[0.96]">
+            Sık sorulan{' '}
+            <span className="font-display italic text-[1.08em]">sorular.</span>
+          </h1>
+          <p className="text-pretty mt-7 max-w-[560px] mx-auto text-[15px] leading-[1.55] text-neutral-500 dark:text-neutral-400">
+            Cevabını bulamadığın bir soru varsa{' '}
+            <a href="mailto:destek@luvihost.com" className="text-foreground hover:text-brand-600 dark:hover:text-brand-400 transition-colors duration-300 ease-apple underline decoration-1 underline-offset-2">
+              destek@luvihost.com
+            </a>
+          </p>
         </div>
 
-        <div className="mt-12 text-center">
-          <Link href="/onboarding" className="inline-block px-6 py-3 bg-brand text-white rounded-lg font-semibold">
-            1 Makale Ücretsiz Dene
+        <div className="divide-y divide-border/60 border-y border-border/60">
+          {FAQS.map((item, i) => {
+            const isOpen = open === i;
+            return (
+              <div key={i} className="overflow-hidden">
+                <button
+                  onClick={() => setOpen(isOpen ? null : i)}
+                  className="w-full py-6 flex items-center justify-between text-left group gap-6"
+                >
+                  <span className={cn('text-[16px] font-medium tracking-[-0.01em] transition-colors duration-300 ease-apple faq-question', isOpen ? 'text-foreground' : 'text-foreground group-hover:text-brand-600 dark:group-hover:text-brand-400')}>
+                    {item.q}
+                  </span>
+                  <span className={cn('h-7 w-7 shrink-0 rounded-full border grid place-items-center transition-all duration-500 ease-apple', isOpen ? 'rotate-45 bg-foreground text-background border-foreground' : 'border-border/60 group-hover:border-foreground')}>
+                    <ChevronDown className={cn('h-3 w-3 transition-transform duration-500 ease-apple', isOpen && '-rotate-45')} strokeWidth={2} />
+                  </span>
+                </button>
+                <div className={cn('overflow-hidden transition-all duration-500 ease-apple', isOpen ? 'max-h-[600px] opacity-100 pb-6' : 'max-h-0 opacity-0')}>
+                  <p className="text-[15px] leading-[1.6] text-neutral-600 dark:text-neutral-400 max-w-[680px] faq-answer">
+                    {item.a}
+                  </p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="mt-20 text-center">
+          <p className="text-eyebrow mb-4 text-neutral-400">Hala ikna olmadın mı?</p>
+          <h3 className="text-balance font-medium tracking-display text-[clamp(1.5rem,3vw,2.5rem)] leading-[1.1] mb-7">
+            1 makale yaz,{' '}
+            <span className="font-display italic text-[1.08em] text-brand-600 dark:text-brand-400">sonra karar ver.</span>
+          </h3>
+          <Link href="/onboarding" className="btn-apple-primary group">
+            1 makale ücretsiz dene
           </Link>
         </div>
       </main>

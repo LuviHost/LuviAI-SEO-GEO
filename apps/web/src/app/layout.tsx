@@ -6,6 +6,7 @@ import { CookieConsent } from '@/components/cookie-consent';
 import { AppSessionProvider } from '@/components/session-provider';
 import { Toaster } from 'sonner';
 import { RefTracker } from '@/components/ref-tracker';
+import { fontVariables } from '@/lib/fonts';
 
 // Microsoft Clarity project ID — heatmap + session recording.
 // Default to LuviAI production project; .env'den override edilebilir (staging için ayrı ID).
@@ -198,7 +199,7 @@ const orgJsonLd = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="tr" suppressHydrationWarning>
+    <html lang="tr" suppressHydrationWarning className={fontVariables}>
       <head>
         {/* Google Tag Manager — GA4, conversion, remarketing. En üst konumda (head). */}
         {GTM_ID && (
@@ -221,7 +222,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           dangerouslySetInnerHTML={{ __html: JSON.stringify(orgJsonLd) }}
         />
       </head>
-      <body className="antialiased min-h-screen bg-background text-foreground">
+      <body className="font-sans antialiased min-h-screen bg-background text-foreground">
         {/* GTM noscript fallback — body açılışının hemen sonrası (resmi öneri) */}
         {GTM_ID && (
           <noscript>

@@ -74,57 +74,56 @@ export default function PricingPage() {
   const realPlans = plans.filter((p) => p.id !== 'trial');
 
   return (
-    <div className="relative">
-      {/* gradient blob accents */}
-      <div className="absolute inset-0 -z-10 overflow-hidden pointer-events-none">
-        <div className="absolute top-10 -left-20 w-96 h-96 bg-orange-500/10 rounded-full blur-3xl" />
-        <div className="absolute top-40 -right-20 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl" />
+    <div className="relative overflow-hidden">
+      {/* Apple-grade mesh + noise background */}
+      <div className="absolute inset-0 -z-10 bg-mesh-warm opacity-80 pointer-events-none" />
+      <div className="absolute inset-0 -z-10 bg-noise opacity-[0.04] pointer-events-none" />
+      <div className="absolute -top-40 left-1/2 -translate-x-1/2 w-[120vw] h-[60vh] -z-10 pointer-events-none">
+        <div className="absolute inset-0 bg-gradient-to-b from-brand-200/20 via-transparent to-transparent dark:from-brand-900/15 blur-3xl" />
       </div>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-24">
-        <div className="max-w-3xl mx-auto text-center mb-12">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-500/10 border border-orange-500/20 text-orange-600 text-xs font-semibold mb-5">
-            <Sparkles className="h-3 w-3" />
+      <main className="container-apple section-padding stagger-reveal">
+        <div className="max-w-[760px] mx-auto text-center mb-16">
+          <div className="inline-flex items-center gap-2 px-3 h-7 rounded-full border border-border/60 bg-background/60 backdrop-blur-sm text-[12px] font-medium text-neutral-700 dark:text-neutral-300 mb-7">
+            <Sparkles className="h-3 w-3 text-brand-500" />
             <span>14 gün ücretsiz · Kredi kartı yok</span>
           </div>
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-tight">
-            Şeffaf fiyat,{' '}
-            <span className="bg-gradient-to-r from-orange-500 via-orange-600 to-red-600 bg-clip-text text-transparent">
-              ölçeklenebilir plan
+          <h1 className="text-balance font-medium tracking-display text-neutral-900 dark:text-white text-[clamp(2.5rem,6vw,5rem)] leading-[0.96]">
+            Şeffaf fiyat,
+            <br />
+            <span className="font-display italic text-[1.08em] bg-gradient-to-br from-brand-500 via-rose-500 to-amber-500 bg-clip-text text-transparent">
+              ölçeklenebilir plan.
             </span>
           </h1>
-          <p className="mt-5 text-lg text-muted-foreground">
+          <p className="text-pretty mt-7 max-w-[560px] mx-auto text-[clamp(1.0625rem,1.5vw,1.25rem)] leading-[1.5] text-neutral-600 dark:text-neutral-400">
             {t('pricing.subtitle')}
           </p>
         </div>
 
-        <div className="flex justify-center mb-12">
-          <div className="inline-flex bg-background border rounded-full p-1 shadow-sm">
+        {/* Apple-style segmented control */}
+        <div className="flex justify-center mb-16">
+          <div className="inline-flex p-1 rounded-full bg-neutral-100 dark:bg-neutral-900 border border-border/60">
             <button
               onClick={() => setCycle('monthly')}
-              className={`px-6 py-2 text-sm font-medium rounded-full transition-all ${
-                cycle === 'monthly'
-                  ? 'bg-gradient-to-br from-orange-500 to-orange-600 text-white shadow-md'
-                  : 'text-muted-foreground hover:text-foreground'
+              className={`px-5 h-9 rounded-full text-[13px] font-medium transition-all duration-300 ease-apple ${
+                cycle === 'monthly' ? 'bg-background shadow-apple-sm text-foreground' : 'text-neutral-500 hover:text-foreground'
               }`}
             >
               {t('pricing.monthly')}
             </button>
             <button
               onClick={() => setCycle('annual')}
-              className={`px-6 py-2 text-sm font-medium rounded-full transition-all flex items-center gap-2 ${
-                cycle === 'annual'
-                  ? 'bg-gradient-to-br from-orange-500 to-orange-600 text-white shadow-md'
-                  : 'text-muted-foreground hover:text-foreground'
+              className={`px-5 h-9 rounded-full text-[13px] font-medium transition-all duration-300 ease-apple relative ${
+                cycle === 'annual' ? 'bg-background shadow-apple-sm text-foreground' : 'text-neutral-500 hover:text-foreground'
               }`}
             >
               {t('pricing.annual')}
-              <span className="text-[10px] bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 px-1.5 py-0.5 rounded-full font-bold">-20%</span>
+              <span className="absolute -top-2 -right-2 text-[10px] bg-brand-500 text-white px-1.5 py-0.5 rounded-full font-medium">−%20</span>
             </button>
           </div>
         </div>
 
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6 max-w-[1200px] mx-auto">
           {realPlans.map((p) => {
             const price = cycle === 'annual' ? p.annual : p.monthly;
             const monthlyEq = cycle === 'annual' ? Math.round(p.annual / 12) : p.monthly;
@@ -132,34 +131,34 @@ export default function PricingPage() {
             return (
               <div
                 key={p.id}
-                className={`p-8 rounded-2xl border flex flex-col relative ${
+                className={`relative rounded-apple border flex flex-col p-8 lg:p-10 transition-all duration-500 ease-apple ${
                   highlighted
-                    ? 'bg-gradient-to-br from-orange-500/10 to-orange-500/5 border-orange-500/30 shadow-xl shadow-orange-500/10 lg:scale-105'
-                    : 'bg-background hover:border-orange-500/30 transition-colors'
+                    ? 'bg-foreground text-background border-foreground shadow-apple-xl lg:-translate-y-2'
+                    : 'bg-card border-border/60 shadow-apple-sm hover:shadow-apple-md'
                 }`}
               >
                 {highlighted && (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-gradient-to-br from-orange-500 to-orange-600 text-white text-[10px] font-bold uppercase tracking-wider shadow-md">
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 h-6 inline-flex items-center rounded-full text-[10px] font-medium tracking-[0.06em] uppercase bg-brand-500 text-white shadow-apple-md">
                     {t('pricing.popular')}
                   </div>
                 )}
 
-                <h2 className="text-xl font-bold">{p.name}</h2>
-                <div className="mt-4">
-                  <span className="text-4xl sm:text-5xl font-extrabold">
+                <h2 className={`text-eyebrow mb-5 ${highlighted ? 'text-brand-400' : 'text-brand-600 dark:text-brand-400'}`}>{p.name}</h2>
+                <div className="flex items-baseline gap-1.5 mb-1">
+                  <span className="font-medium tracking-display text-[clamp(2.5rem,4vw,3.5rem)] leading-none">
                     ₺{price.toLocaleString('tr-TR')}
                   </span>
-                  <span className="text-muted-foreground text-sm ml-2">
+                  <span className={`text-[14px] ${highlighted ? 'text-neutral-400' : 'text-neutral-500 dark:text-neutral-400'}`}>
                     /{cycle === 'annual' ? 'yıl' : 'ay'}
                   </span>
                 </div>
-                {cycle === 'annual' && (
-                  <p className="text-xs text-muted-foreground mt-1">
+                {cycle === 'annual' ? (
+                  <p className={`text-[12px] mt-1 ${highlighted ? 'text-neutral-400' : 'text-neutral-500 dark:text-neutral-400'}`}>
                     Aylık ortalama ₺{monthlyEq.toLocaleString('tr-TR')}
                   </p>
-                )}
+                ) : <p className={`text-[12px] mt-1 ${highlighted ? 'text-neutral-400' : 'text-neutral-500 dark:text-neutral-400'}`}>&nbsp;</p>}
 
-                <ul className="space-y-3 text-sm mt-6 mb-8 flex-1">
+                <ul className="space-y-3 text-[14px] mt-8 mb-9 flex-1">
                   <Feat highlight={highlighted}>{p.articlesPerMonth} {t('pricing.articles_per_month')}</Feat>
                   <Feat highlight={highlighted}>{p.socialPostsPerMonth} {t('pricing.social_posts_per_month')}</Feat>
                   <Feat highlight={highlighted}>{p.sites} {t('pricing.sites')}</Feat>
@@ -169,31 +168,30 @@ export default function PricingPage() {
                   <Feat highlight={highlighted}>GEO/AEO optimizasyon</Feat>
                 </ul>
 
-                <Button
+                <button
                   onClick={() => subscribe(p.id)}
                   disabled={loading === p.id}
-                  className={`w-full ${
+                  className={`inline-flex items-center justify-center w-full h-11 rounded-full font-medium text-[14px] gap-2 transition-all duration-300 ease-apple disabled:opacity-60 ${
                     highlighted
-                      ? 'bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white shadow-md'
-                      : ''
+                      ? 'bg-background text-foreground hover:scale-[1.02] shadow-apple-sm'
+                      : 'border border-border bg-background text-foreground hover:bg-neutral-100 dark:hover:bg-neutral-900'
                   }`}
-                  variant={highlighted ? 'default' : 'outline'}
                 >
                   {loading === p.id ? t('common.loading') : (
                     <>
                       {t('pricing.cta')}
-                      <ArrowRight className="ml-2 h-4 w-4" />
+                      <ArrowRight className="h-3.5 w-3.5" />
                     </>
                   )}
-                </Button>
+                </button>
               </div>
             );
           })}
         </div>
 
-        <div className="mt-12 max-w-2xl mx-auto text-center text-sm text-muted-foreground">
+        <div className="mt-16 max-w-[640px] mx-auto text-center text-[13px] text-neutral-500 dark:text-neutral-400">
           <p className="inline-flex items-center gap-2">
-            <ShieldCheck className="h-4 w-4" /> {t('pricing.security_note')}
+            <ShieldCheck className="h-3.5 w-3.5" /> {t('pricing.security_note')}
           </p>
         </div>
       </main>
@@ -203,9 +201,9 @@ export default function PricingPage() {
 
 function Feat({ children, highlight }: { children: React.ReactNode; highlight?: boolean }) {
   return (
-    <li className="flex items-start gap-2 text-foreground/90">
-      <CheckCircle2 className={`h-4 w-4 mt-0.5 shrink-0 ${highlight ? 'text-orange-600' : 'text-emerald-600'}`} />
-      <span>{children}</span>
+    <li className="flex items-start gap-2.5">
+      <CheckCircle2 className={`h-3.5 w-3.5 mt-1 shrink-0 ${highlight ? 'text-brand-400' : 'text-brand-500'}`} strokeWidth={2.25} />
+      <span className={highlight ? 'text-neutral-200' : ''}>{children}</span>
     </li>
   );
 }

@@ -1,11 +1,11 @@
 import Link from 'next/link';
-import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import { ArrowRight } from 'lucide-react';
 
 const USE_CASES = [
   {
     icon: '🛒',
     title: 'E-ticaret',
+    eyebrow: 'WooCommerce · Shopify',
     bullets: [
       'Şehir + ürün kategorisi sayfaları (programmatic SEO)',
       'Ürün karşılaştırma blogları (organic traffic)',
@@ -17,6 +17,7 @@ const USE_CASES = [
   {
     icon: '☁️',
     title: 'SaaS',
+    eyebrow: 'B2B · Documentation',
     bullets: [
       'Documentation + tutorial otomasyonu',
       'Long-tail "X nasıl yapılır" içerik',
@@ -28,6 +29,7 @@ const USE_CASES = [
   {
     icon: '🎨',
     title: 'Ajans',
+    eyebrow: 'White-label · Multi-tenant',
     bullets: [
       'Müşteri başına ayrı brain + brand voice',
       'White-label dashboard (Faz 3)',
@@ -39,6 +41,7 @@ const USE_CASES = [
   {
     icon: '📝',
     title: 'Blog & Yayın',
+    eyebrow: 'Editorial · Multi-CMS',
     bullets: [
       'Editorial calendar otomasyon',
       'WordPress REST + Ghost + custom CMS',
@@ -50,6 +53,7 @@ const USE_CASES = [
   {
     icon: '🏢',
     title: 'Kurumsal',
+    eyebrow: 'Enterprise · KVKK',
     bullets: [
       'KVKK + KKB + ETBİS uyumlu içerik',
       'Multi-site + multi-brand dashboard',
@@ -61,6 +65,7 @@ const USE_CASES = [
   {
     icon: '🌐',
     title: 'Hosting / Tech',
+    eyebrow: 'WHMCS · cPanel',
     bullets: [
       '"X hosting nedir" tarz teknik makaleler',
       'WHMCS Knowledge Base entegrasyonu',
@@ -73,29 +78,46 @@ const USE_CASES = [
 
 export default function UseCasesPage() {
   return (
-    <main className="min-h-screen bg-gradient-to-b from-background to-muted">
-      <div className="container py-12 max-w-6xl">
-        <Link href="/" className="text-sm text-muted-foreground hover:text-brand">← Ana sayfa</Link>
+    <main className="relative overflow-hidden">
+      {/* Apple mesh + noise background */}
+      <div className="absolute inset-0 -z-10 bg-mesh-warm opacity-70 pointer-events-none" />
+      <div className="absolute inset-0 -z-10 bg-noise opacity-[0.03] pointer-events-none" />
 
-        <div className="text-center my-12">
-          <h1 className="text-4xl md:text-5xl font-bold mb-3">Kullanım Senaryoları</h1>
-          <p className="text-muted-foreground">Sitenizin tipine göre LuviAI nasıl yardım eder?</p>
+      <div className="container-apple section-padding stagger-reveal">
+        {/* Eyebrow */}
+        <div className="text-center mb-16 max-w-[760px] mx-auto">
+          <p className="eyebrow mb-4">Kullanım Senaryoları</p>
+          <h1 className="text-balance font-medium tracking-display text-neutral-900 dark:text-white text-[clamp(2.5rem,6vw,5rem)] leading-[0.96]">
+            Sektörüne göre{' '}
+            <span className="font-display italic text-[1.08em] text-brand-600 dark:text-brand-400">biçildi.</span>
+          </h1>
+          <p className="text-pretty mt-7 max-w-[560px] mx-auto text-[clamp(1rem,1.4vw,1.25rem)] leading-[1.5] text-neutral-600 dark:text-neutral-400">
+            Sitenizin tipine göre LuviAI nasıl yardım eder?
+          </p>
         </div>
 
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4 lg:gap-6 max-w-[1280px] mx-auto">
           {USE_CASES.map((u) => (
-            <Card key={u.title}>
-              <CardContent className="p-6">
-                <div className="text-4xl mb-4">{u.icon}</div>
-                <h2 className="text-2xl font-bold mb-4">{u.title}</h2>
-                <ul className="space-y-2 text-sm text-muted-foreground mb-6">
-                  {u.bullets.map((b, i) => (
-                    <li key={i}>• {b}</li>
-                  ))}
-                </ul>
-                <Button asChild className="w-full"><Link href="/onboarding">{u.cta}</Link></Button>
-              </CardContent>
-            </Card>
+            <div key={u.title} className="card-apple p-8 lg:p-9 group flex flex-col">
+              <div className="text-[2.5rem] mb-5 transition-transform duration-500 ease-apple group-hover:scale-110 origin-left">{u.icon}</div>
+              <p className="eyebrow mb-2">{u.eyebrow}</p>
+              <h2 className="text-h4 font-medium mb-5 tracking-[-0.025em]">{u.title}</h2>
+              <ul className="space-y-2.5 text-[14px] text-neutral-600 dark:text-neutral-400 leading-[1.55] mb-8 flex-1">
+                {u.bullets.map((b, i) => (
+                  <li key={i} className="flex items-start gap-2.5">
+                    <span className="text-brand-500 mt-1.5 shrink-0">●</span>
+                    <span>{b}</span>
+                  </li>
+                ))}
+              </ul>
+              <Link
+                href="/onboarding"
+                className="inline-flex items-center justify-center gap-1.5 w-full h-11 rounded-full bg-foreground text-background text-[14px] font-medium transition-all duration-300 ease-apple hover:scale-[1.02] active:scale-[0.98] shadow-apple-sm"
+              >
+                {u.cta}
+                <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            </div>
           ))}
         </div>
       </div>
