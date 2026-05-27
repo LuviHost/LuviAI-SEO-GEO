@@ -93,6 +93,43 @@ export class AuditService {
       } as any);
     }
 
+    // GEO metod skorları düşükse fixable issue olarak çıkar — snippet generator'a yol açar
+    const geoIssueMap: Record<string, { type: string; checkId: string; desc: string }> = {
+      faq_qa: {
+        type: 'faq_missing',
+        checkId: 'geo_faq',
+        desc: 'FAQ schema ve soru-cevap formatı eksik (GEO ağırlığı 12) — jsonld_faq snippet üretici hazır.',
+      },
+      definition: {
+        type: 'definition_missing',
+        checkId: 'geo_definition',
+        desc: 'Tanım yoğunluğu düşük ("X nedir?" tarzı içerik yok) — jsonld_defined_term snippet üretici hazır.',
+      },
+      citation_format: {
+        type: 'citation_format_missing',
+        checkId: 'geo_citation_format',
+        desc: 'Liste/tablo formatı eksik — AI motorları madde işaretli özetleri atıf olarak tercih eder.',
+      },
+      freshness: {
+        type: 'freshness_missing',
+        checkId: 'geo_freshness',
+        desc: 'datePublished / dateModified sinyali eksik — Article schema basıldığında otomatik çözülür.',
+      },
+    };
+    for (const m of geoResult.methods ?? []) {
+      const map = geoIssueMap[m.id];
+      if (!map) continue;
+      if (typeof m.score === 'number' && m.score < 30) {
+        allIssues.push({
+          severity: 'warning' as const,
+          type: map.type,
+          description: `${map.desc} (mevcut skor ${m.score}/100)`,
+          fixable: true,
+          checkId: map.checkId,
+        } as any);
+      }
+    }
+
     // PageSpeed opportunities → issue
     if (pagespeedResult?.opportunities) {
       for (const opp of pagespeedResult.opportunities) {

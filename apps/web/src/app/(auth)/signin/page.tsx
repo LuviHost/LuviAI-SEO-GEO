@@ -22,60 +22,73 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
   if (session?.user) redirect(callbackUrl);
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-background to-muted px-4">
+    <div className="min-h-screen flex items-center justify-center px-4 relative overflow-hidden">
+      {/* gradient blobs */}
+      <div className="absolute inset-0 -z-10 pointer-events-none">
+        <div className="absolute top-20 -left-20 w-96 h-96 bg-orange-500/20 rounded-full blur-3xl" />
+        <div className="absolute bottom-20 -right-20 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl" />
+      </div>
+
       <div className="w-full max-w-md space-y-6">
         <div className="text-center">
-          <Link href="/" className="text-3xl font-bold inline-block">
+          <Link href="/" className="inline-flex items-center gap-2 font-bold text-2xl">
+            <span className="bg-gradient-to-br from-orange-500 to-orange-700 text-white rounded-xl w-10 h-10 grid place-items-center text-xl">
+              ✨
+            </span>
             LuviAI
           </Link>
-          <p className="text-muted-foreground mt-2 text-sm">
+          <p className="text-muted-foreground mt-3 text-sm">
             Türkiye&apos;nin AI destekli SEO/GEO içerik platformu
           </p>
         </div>
 
-        <Card>
-          <CardContent className="p-8 space-y-6">
-            <div className="text-center">
-              <h1 className="text-2xl font-bold">Giriş yap veya kayıt ol</h1>
-              <p className="text-sm text-muted-foreground mt-1">
-                1 makale ücretsiz — kart bilgisi gerekmez
-              </p>
-            </div>
-
-            {error && (
-              <div className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 text-red-700 dark:text-red-300 text-sm p-3 rounded-md">
-                {decodeURIComponent(error)}
-              </div>
-            )}
-
-            <form
-              action={async () => {
-                'use server';
-                await signIn('google', { redirectTo: callbackUrl });
-              }}
-            >
-              <Button type="submit" variant="outline" className="w-full h-11" size="lg">
-                <GoogleIcon className="h-5 w-5 mr-3" />
-                Google ile devam et
-              </Button>
-            </form>
-
-            <p className="text-xs text-center text-muted-foreground leading-relaxed">
-              Devam ederek{' '}
-              <Link href="/terms" className="underline hover:text-foreground">
-                Kullanım Koşulları
-              </Link>{' '}
-              ve{' '}
-              <Link href="/privacy" className="underline hover:text-foreground">
-                Gizlilik Politikası
-              </Link>
-              &apos;nı kabul etmiş olursun.
+        <div className="rounded-2xl border bg-background/80 backdrop-blur-xl shadow-xl p-8 space-y-6">
+          <div className="text-center">
+            <h1 className="text-2xl font-bold">Giriş yap veya kayıt ol</h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              1 makale ücretsiz — kart bilgisi gerekmez
             </p>
-          </CardContent>
-        </Card>
+          </div>
 
-        <p className="text-center text-sm text-muted-foreground">
-          <Link href="/" className="hover:text-foreground">
+          {error && (
+            <div className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 text-red-700 dark:text-red-300 text-sm p-3 rounded-lg">
+              {decodeURIComponent(error)}
+            </div>
+          )}
+
+          <form
+            action={async () => {
+              'use server';
+              await signIn('google', { redirectTo: callbackUrl });
+            }}
+          >
+            <Button type="submit" variant="outline" className="w-full h-12 text-base hover:border-orange-500/30 transition-colors" size="lg">
+              <GoogleIcon className="h-5 w-5 mr-3" />
+              Google ile devam et
+            </Button>
+          </form>
+
+          <div className="relative flex items-center gap-3 text-xs text-muted-foreground">
+            <div className="flex-1 h-px bg-border" />
+            <span>güvenli OAuth 2.0 ile</span>
+            <div className="flex-1 h-px bg-border" />
+          </div>
+
+          <p className="text-xs text-center text-muted-foreground leading-relaxed">
+            Devam ederek{' '}
+            <Link href="/terms" className="underline hover:text-orange-600 transition-colors">
+              Kullanım Koşulları
+            </Link>{' '}
+            ve{' '}
+            <Link href="/privacy" className="underline hover:text-orange-600 transition-colors">
+              Gizlilik Politikası
+            </Link>
+            &apos;nı kabul etmiş olursun.
+          </p>
+        </div>
+
+        <p className="text-center text-sm">
+          <Link href="/" className="text-muted-foreground hover:text-orange-600 transition-colors">
             ← Ana sayfaya dön
           </Link>
         </p>

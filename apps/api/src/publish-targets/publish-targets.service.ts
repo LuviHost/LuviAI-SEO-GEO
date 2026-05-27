@@ -6,10 +6,13 @@ import { PrismaService } from '../prisma/prisma.service.js';
 const TARGET_TYPES = [
   'WORDPRESS_REST', 'WORDPRESS_XMLRPC', 'FTP', 'SFTP', 'CPANEL_API',
   'GITHUB', 'WEBFLOW', 'SANITY', 'CONTENTFUL', 'GHOST', 'STRAPI',
-  'WHMCS_KB', 'CUSTOM_PHP', 'MARKDOWN_ZIP',
+  'WHMCS_KB', 'CUSTOM_PHP', 'MARKDOWN_ZIP', 'KOBIPRATIK',
 ] as const;
 
 type PublishTargetType = typeof TARGET_TYPES[number];
+
+/** Sadece ADMIN role'lu kullanicilarin gorebilecegi/kullanabilecegi hedef tipleri. */
+const ADMIN_ONLY_TARGET_TYPES = new Set<PublishTargetType>(['KOBIPRATIK']);
 
 @Injectable()
 export class PublishTargetsService {
@@ -61,6 +64,10 @@ export class PublishTargetsService {
     }
     if (!dto.name?.trim()) {
       throw new BadRequestException('İsim zorunlu');
+    }
+    // Admin-only hedefler: USER role ekleyemez (catalog'da gizli olsa da direkt POST atılabilir)
+    if (ADMIN_ONLY_TARGET_TYPES.has(dto.type) && requestingUser.role !== 'ADMIN') {
+      throw new ForbiddenException(`Bu hedef tipi sadece admin tarafindan eklenebilir: ${dto.type}`);
     }
 
     // Diğer default'ları kapat
@@ -170,8 +177,16 @@ export class PublishTargetsService {
     }
   }
 
-  /** Mevcut target tiplerini + ihtiyaç duydukları credential alanlarını döner (frontend formu için) */
-  static getTypeCatalog() {
+  /** Mevcut target tiplerini + ihtiyaç duydukları credential alanlarını döner (frontend formu için).
+   *  isAdmin=false ise adminOnly hedefleri (KOBIPRATIK gibi) çıkar.
+   */
+  static getTypeCatalog(opts?: { isAdmin?: boolean }) {
+    const isAdmin = opts?.isAdmin === true;
+    const all = PublishTargetsService.getFullCatalog();
+    return isAdmin ? all : all.filter((c) => !(c as any).adminOnly);
+  }
+
+  private static getFullCatalog() {
     return [
       {
         type: 'WORDPRESS_REST',
@@ -356,6 +371,20 @@ export class PublishTargetsService {
         description: 'Manuel indir, kendin yükle (test için ideal)',
         fields: [],
         configFields: [],
+      },
+      {
+        type: 'KOBIPRATIK',
+        label: 'KobiPratik (Luvihost içi)',
+        icon: '🏢',
+        description: 'Luvihost grubu özel adapter — admin only. Path-bazlı PageMeta upsert (full SEO + GEO + body override).',
+        adminOnly: true,
+        fields: [
+          { key: 'baseUrl', label: 'Base URL', type: 'text', placeholder: 'https://www.kobipratik.com', required: true, hint: 'Prod için www.kobipratik.com, dev için dev domain.' },
+          { key: 'apiKey', label: 'LuviAI API Key', type: 'password', required: true, hint: 'kobipratik appsettings → LuviAI.ApiKey değeri (M2M Bearer token).' },
+        ],
+        configFields: [
+          { key: 'defaultPathPrefix', label: 'Varsayilan path prefix (opsiyonel)', type: 'text', placeholder: '/pratik-kobi-rehberi', hint: 'Slug bu prefix\'in altina yazilir. Bos birakirsan root\'a yazilir.' },
+        ],
       },
     ];
   }
