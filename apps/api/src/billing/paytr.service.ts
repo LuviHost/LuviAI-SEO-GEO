@@ -180,6 +180,22 @@ export class PaytrService {
       return 'OK';
     }
 
+    // ─── Video credit add-on (LVCR prefix) — one-time payment, subscription degil ──
+    if (merchant_oid.startsWith('LVCR')) {
+      if (status === 'success') {
+        await this.confirmVideoCreditPurchase(merchant_oid);
+        this.log.log(`[${merchant_oid}] ✅ Video credit pack PAID`);
+      } else {
+        // Pack PENDING'de bırak, RefundService veya admin manuel iptal eder
+        await this.prisma.videoCreditPurchase.updateMany({
+          where: { merchantOid: merchant_oid, status: 'PENDING' },
+          data: { status: 'EXPIRED' },
+        });
+        this.log.warn(`[${merchant_oid}] ❌ Video credit purchase failed: ${failed_reason_msg}`);
+      }
+      return 'OK';
+    }
+
     const invoice = await this.prisma.invoice.findUnique({
       where: { paytrTransactionId: merchant_oid },
     });
@@ -370,6 +386,7 @@ export class PaytrService {
     packKey: '5' | '20' | '50';
     userEmail: string;
     userName: string;
+    userIp?: string;
   }): Promise<{ iframeUrl: string; merchantOid: string }> {
     const pack = PaytrService.CREDIT_PACKS[input.packKey];
     if (!pack) throw new BadRequestException(`Bilinmeyen credit pack: ${input.packKey}`);
@@ -390,12 +407,13 @@ export class PaytrService {
       },
     });
 
-    // PayTR iframe oluştur (mevcut buildToken/createIframe logic ile)
+    // PayTR iframe oluştur (one-time payment akisi, LVCR prefix webhook handler tarafindan tanir)
     const iframeUrl = await this.createIframeForOneTimePayment({
       merchantOid,
       amount: amountKurus,
       userEmail: input.userEmail,
       userName: input.userName,
+      userIp: input.userIp,
       productName: `LuviAI Video Credit Pack — ${pack.packSize} video`,
     });
 
@@ -424,19 +442,69 @@ export class PaytrService {
   }
 
   /**
-   * Tek seferlik ödeme için PayTR iframe (subscription değil). Mevcut createIframe'in lite versiyonu.
-   * NOT: Bu sadece iskelet — production'da PayTR'nin tam token akışı kullanılmalı.
+   * Tek seferlik ödeme için PayTR token + iframe URL üretir.
+   * createPaymentToken ile aynı PayTR endpoint'ini kullanır ama subscription değil — bir kerelik ödeme.
+   * Webhook PAID'e dönünce confirmVideoCreditPurchase tetiklenir (parseOrderId LVCR prefixini tanır).
    */
   private async createIframeForOneTimePayment(input: {
     merchantOid: string;
-    amount: number;
+    amount: number;     // kuruş cinsinden (örn. 49900 = ₺499)
     userEmail: string;
     userName: string;
+    userIp?: string;
     productName: string;
   }): Promise<string> {
-    // TODO: PayTR token + iframe URL üretme — mevcut createIframe metodunun pattern'ini uygula.
-    // Şimdilik dev için placeholder:
-    return `${process.env.NEXTAUTH_URL ?? 'https://ai.luvihost.com'}/billing/dev-confirm-credit?merchantOid=${input.merchantOid}`;
+    if (!this.merchantId) {
+      throw new BadRequestException('PayTR Merchant credentials .env\'de tanımlı değil');
+    }
+
+    const userIp = input.userIp ?? '127.0.0.1';
+    const userBasket = Buffer.from(JSON.stringify([
+      [input.productName, (input.amount / 100).toFixed(2), 1],
+    ])).toString('base64');
+
+    const noInstallment = '0';
+    const maxInstallment = '0';
+    const currency = 'TL';
+
+    const hashStr = `${this.merchantId}${userIp}${input.merchantOid}${input.userEmail}${input.amount}${userBasket}${noInstallment}${maxInstallment}${currency}${this.testMode}${this.merchantSalt}`;
+    const paytrToken = createHmac('sha256', this.merchantKey).update(hashStr).digest('base64');
+
+    const formData = new URLSearchParams({
+      merchant_id: this.merchantId,
+      user_ip: userIp,
+      merchant_oid: input.merchantOid,
+      email: input.userEmail,
+      payment_amount: String(input.amount),
+      paytr_token: paytrToken,
+      user_basket: userBasket,
+      debug_on: '1',
+      no_installment: noInstallment,
+      max_installment: maxInstallment,
+      user_name: input.userName,
+      user_address: 'N/A',
+      user_phone: '0000000000',
+      merchant_ok_url: this.okUrl,
+      merchant_fail_url: this.failUrl,
+      timeout_limit: '30',
+      currency,
+      test_mode: this.testMode,
+      lang: 'tr',
+    });
+
+    const res = await fetch('https://www.paytr.com/odeme/api/get-token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: formData.toString(),
+    });
+
+    const data: any = await res.json();
+    if (data.status !== 'success') {
+      this.log.error(`PayTR one-time token error: ${data.reason}`);
+      throw new BadRequestException(`PayTR: ${data.reason}`);
+    }
+
+    return `https://www.paytr.com/odeme/guvenli/${data.token}`;
   }
 
   private generateOrderId(userId: string, planId: string): string {

@@ -129,11 +129,15 @@ export class BillingController {
     @Body() body: { packKey: '5' | '20' | '50'; userEmail: string; userName: string },
   ) {
     ensureSelf(req, userId);
+    const userIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]
+      ?? req.socket.remoteAddress
+      ?? '127.0.0.1';
     return this.paytr.startVideoCreditPurchase({
       userId,
       packKey: body.packKey,
       userEmail: body.userEmail,
       userName: body.userName,
+      userIp,
     });
   }
 }

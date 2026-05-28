@@ -4,6 +4,7 @@ import { AdminService } from './admin.service.js';
 import { EmailService, type EmailTemplate } from '../email/email.service.js';
 import { AiCitationService } from '../audit/ai-citation.service.js';
 import { JobQueueService } from '../jobs/job-queue.service.js';
+import { PrismaService } from '../prisma/prisma.service.js';
 
 function assertAdmin(req: Request) {
   const user = (req as any).user;
@@ -19,6 +20,7 @@ export class AdminController {
     private readonly email: EmailService,
     private readonly aiCitation: AiCitationService,
     private readonly jobQueue: JobQueueService,
+    private readonly prisma: PrismaService,
   ) {}
 
   // ──────────────────────────────────────────────────────────────────────
@@ -167,5 +169,84 @@ export class AdminController {
       template,
       to,
     };
+  }
+
+  /**
+   * GET /admin/users-spend-status
+   * 2026-05 Premium Pricing — Spend cap monitoring dashboard.
+   * Tüm kullanıcıların aylık AI cost durumu, plan cap'leri ve risk seviyeleri.
+   */
+  @Get('users-spend-status')
+  async usersSpendStatus(@Req() req: Request) {
+    assertAdmin(req);
+
+    const SPEND_CAP_USD: Record<string, number> = {
+      TRIAL: 3, STARTER: 25, PRO: 80, AGENCY: 200, ENTERPRISE: 700,
+    };
+
+    const users = await this.prisma.user.findMany({
+      where: { subscriptionStatus: { in: ['ACTIVE', 'TRIAL', 'PAST_DUE'] } as any },
+      select: {
+        id: true, email: true, name: true, plan: true,
+        subscriptionStatus: true,
+        articlesUsedThisMonth: true,
+        videosUsedThisMonth: true,
+        aiCostThisMonthUsd: true,
+        articlesQuotaResetAt: true,
+        grandfatheredUntil: true,
+        legacyMonthlyPriceTry: true,
+        createdAt: true,
+      } as any,
+      orderBy: { aiCostThisMonthUsd: 'desc' } as any,
+      take: 200,
+    });
+
+    const enriched = users.map((u: any) => {
+      const cap = SPEND_CAP_USD[u.plan] ?? 25;
+      const used = u.aiCostThisMonthUsd ?? 0;
+      const pct = cap > 0 ? Math.round((used / cap) * 100) : 0;
+      const risk = pct >= 100 ? 'blocked' : pct >= 80 ? 'warn' : pct >= 50 ? 'normal' : 'low';
+      return {
+        id: u.id,
+        email: u.email,
+        name: u.name,
+        plan: u.plan,
+        subscriptionStatus: u.subscriptionStatus,
+        articlesUsedThisMonth: u.articlesUsedThisMonth,
+        videosUsedThisMonth: u.videosUsedThisMonth ?? 0,
+        aiCostUsd: used,
+        capUsd: cap,
+        capPct: pct,
+        risk,
+        isGrandfathered: !!u.grandfatheredUntil,
+        legacyMonthlyPriceTry: u.legacyMonthlyPriceTry,
+        createdAt: u.createdAt,
+      };
+    });
+
+    const summary = {
+      totalUsers: enriched.length,
+      blockedCount: enriched.filter((u) => u.risk === 'blocked').length,
+      warnCount: enriched.filter((u) => u.risk === 'warn').length,
+      grandfatheredCount: enriched.filter((u) => u.isGrandfathered).length,
+      totalMonthlyCostUsd: enriched.reduce((s, u) => s + u.aiCostUsd, 0),
+      totalMonthlyCapUsd: enriched.reduce((s, u) => s + u.capUsd, 0),
+    };
+
+    return { summary, users: enriched };
+  }
+
+  /**
+   * POST /admin/users/:userId/reset-spend
+   * Spend cap'i manuel sıfırla (kullanıcı destek talebi sonrası, vs.).
+   */
+  @Post('users/:userId/reset-spend')
+  async resetSpend(@Req() req: Request, @Param('userId') userId: string) {
+    assertAdmin(req);
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { aiCostThisMonthUsd: 0 } as any,
+    });
+    return { ok: true, message: 'Spend cap sıfırlandı' };
   }
 }

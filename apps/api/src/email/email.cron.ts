@@ -138,4 +138,97 @@ export class EmailCron {
 
     this.log.log(`${sent} haftalık rapor gönderildi`);
   }
+
+  /**
+   * 2026-05 Premium Pricing — Grandfathering uyari sistemi.
+   * Her gün 10:00'da çalışır:
+   *  - grandfatheredUntil 30 gün sonra olan: 30 gün uyari email
+   *  - grandfatheredUntil bugün geçen: yeni fiyat aktif email + DB temizle
+   */
+  @Cron('0 10 * * *')
+  async grandfatheringNotifications() {
+    const now = new Date();
+    const in30Days = new Date(now.getTime() + 30 * 86400000);
+    const in29Days = new Date(now.getTime() + 29 * 86400000);
+
+    // ─── 30 gün uyari ──────────────────────────────────────────────
+    // grandfatheredUntil 29-30 gün aralığında olanlar (cron günde 1 çalışsa da kaçırma)
+    const expiringSoon = await this.prisma.user.findMany({
+      where: {
+        grandfatheredUntil: { gte: in29Days, lte: in30Days } as any,
+        emailVerified: { not: null },
+      },
+    });
+
+    // Yeni fiyatları billing.service'ten almak için sabit map (grandfathered'lar PRO/AGENCY/STARTER/ENTERPRISE)
+    const NEW_PRICES: Record<string, number> = {
+      STARTER: 1499,
+      PRO: 4999,
+      AGENCY: 14999,
+      ENTERPRISE: 34999,
+    };
+
+    let warnSent = 0;
+    for (const u of expiringSoon) {
+      const newPrice = NEW_PRICES[u.plan] ?? 0;
+      const legacyPrice = (u as any).legacyMonthlyPriceTry ?? 0;
+      try {
+        await this.email.send({
+          userId: u.id,
+          to: u.email,
+          template: 'grandfathering_expiring',
+          data: {
+            name: u.name,
+            expiryDateText: (u as any).grandfatheredUntil?.toLocaleDateString('tr-TR', {
+              year: 'numeric', month: 'long', day: 'numeric',
+            }) ?? '',
+            legacyPriceTry: legacyPrice,
+            newPriceTry: newPrice,
+          },
+        });
+        warnSent++;
+      } catch (err: any) {
+        this.log.error(`grandfathering_expiring ${u.id}: ${err.message}`);
+      }
+    }
+
+    // ─── Bugün gracefully expired olanlar ──────────────────────────
+    // grandfatheredUntil bugün veya geçmişte + henüz "geçti" olarak işaretlenmemiş
+    const justExpired = await this.prisma.user.findMany({
+      where: {
+        grandfatheredUntil: { lte: now, gt: new Date(now.getTime() - 86400000) } as any,
+        emailVerified: { not: null },
+      },
+    });
+
+    let expiredSent = 0;
+    for (const u of justExpired) {
+      const newPrice = NEW_PRICES[u.plan] ?? 0;
+      const legacyPrice = (u as any).legacyMonthlyPriceTry ?? 0;
+      try {
+        await this.email.send({
+          userId: u.id,
+          to: u.email,
+          template: 'grandfathering_expired',
+          data: {
+            name: u.name,
+            legacyPriceTry: legacyPrice,
+            newPriceTry: newPrice,
+          },
+        });
+        // Grandfathering bilgisini temizle — yeni fiyat aktif
+        await this.prisma.user.update({
+          where: { id: u.id },
+          data: { grandfatheredUntil: null, legacyMonthlyPriceTry: null } as any,
+        });
+        expiredSent++;
+      } catch (err: any) {
+        this.log.error(`grandfathering_expired ${u.id}: ${err.message}`);
+      }
+    }
+
+    if (warnSent + expiredSent > 0) {
+      this.log.log(`Grandfathering: ${warnSent} uyari + ${expiredSent} expired email gönderildi`);
+    }
+  }
 }
