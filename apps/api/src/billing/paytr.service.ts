@@ -294,13 +294,16 @@ export class PaytrService {
     });
   }
 
+  /**
+   * 2026-05 Premium Pricing — fiyatlar billing.service.ts BASE_PLANS ile senkron.
+   * Mevcut grandfathered kullanicilar getPlanPriceForUser ile eski fiyati alir.
+   */
   private getPlanDetails(planId: string, cycle: 'monthly' | 'annual') {
-    // TR fiyatlar (kuruş hassasiyetinde) — billing.service.ts ile senkron
     const plans: Record<string, { name: string; monthly: number; annual: number }> = {
-      starter: { name: 'Başlangıç', monthly: 799, annual: 7990 },
-      pro: { name: 'Profesyonel', monthly: 2499, annual: 24990 },
-      agency: { name: 'Ajans', monthly: 5999, annual: 59990 },
-      // enterprise burada YOK — özel iletişim formu üzerinden gidilir
+      starter:    { name: 'Başlangıç',     monthly: 1499,  annual: 14990 },
+      pro:        { name: 'Profesyonel',   monthly: 4999,  annual: 49990 },
+      agency:     { name: 'Ajans',         monthly: 14999, annual: 149990 },
+      enterprise: { name: 'Kurumsal',      monthly: 34999, annual: 349990 },
     };
     const p = plans[planId];
     if (!p) throw new BadRequestException(`Bilinmeyen plan: ${planId}`);
@@ -308,6 +311,132 @@ export class PaytrService {
       name: p.name,
       price: cycle === 'annual' ? p.annual : p.monthly,
     };
+  }
+
+  /**
+   * Kullaniciya ozel plan fiyati — grandfathered ise eski fiyatla doner, aksi takdirde yeni.
+   * checkout/renewal sirasinda kullanilir.
+   */
+  async getPlanPriceForUser(
+    userId: string,
+    planId: string,
+    cycle: 'monthly' | 'annual',
+  ): Promise<{ name: string; price: number; isGrandfathered: boolean }> {
+    const user = await this.prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { grandfatheredUntil: true, legacyMonthlyPriceTry: true },
+    });
+
+    const now = new Date();
+    const isGrandfathered = !!(user.grandfatheredUntil && user.grandfatheredUntil > now);
+
+    if (isGrandfathered && user.legacyMonthlyPriceTry && cycle === 'monthly') {
+      return {
+        name: this.getPlanDetails(planId, cycle).name,
+        price: user.legacyMonthlyPriceTry,
+        isGrandfathered: true,
+      };
+    }
+    if (isGrandfathered && user.legacyMonthlyPriceTry && cycle === 'annual') {
+      // Annual: aylık fiyat × 10 (2 ay bedava) — eski fiyat üzerinden
+      return {
+        name: this.getPlanDetails(planId, cycle).name,
+        price: user.legacyMonthlyPriceTry * 10,
+        isGrandfathered: true,
+      };
+    }
+
+    // Grandfathering bitmiş veya yok → yeni fiyat
+    const fresh = this.getPlanDetails(planId, cycle);
+    return { ...fresh, isGrandfathered: false };
+  }
+
+  // ──────────────────────────────────────────────────────────────────────
+  //  Video Credit Add-on Purchase (2026-05)
+  // ──────────────────────────────────────────────────────────────────────
+  /** Mevcut credit pack'leri (sabit). */
+  static readonly CREDIT_PACKS = {
+    '5':  { packSize: 5,  priceTry: 499 },
+    '20': { packSize: 20, priceTry: 1799 },
+    '50': { packSize: 50, priceTry: 3999 },
+  } as const;
+
+  /**
+   * Video credit pack satin alma baslangici. PayTR iframe URL'i döner.
+   * Webhook PAID olunca creditsTotal aktif olur.
+   */
+  async startVideoCreditPurchase(input: {
+    userId: string;
+    packKey: '5' | '20' | '50';
+    userEmail: string;
+    userName: string;
+  }): Promise<{ iframeUrl: string; merchantOid: string }> {
+    const pack = PaytrService.CREDIT_PACKS[input.packKey];
+    if (!pack) throw new BadRequestException(`Bilinmeyen credit pack: ${input.packKey}`);
+
+    const merchantOid = `LVCR${input.userId.slice(0, 8)}${input.packKey.padStart(2, '0')}${Date.now()}`;
+    const amountKurus = pack.priceTry * 100;
+
+    // DB'ye PENDING kayit
+    await this.prisma.videoCreditPurchase.create({
+      data: {
+        userId: input.userId,
+        packSize: pack.packSize,
+        priceTry: pack.priceTry,
+        creditsTotal: pack.packSize,
+        creditsUsed: 0,
+        merchantOid,
+        status: 'PENDING',
+      },
+    });
+
+    // PayTR iframe oluştur (mevcut buildToken/createIframe logic ile)
+    const iframeUrl = await this.createIframeForOneTimePayment({
+      merchantOid,
+      amount: amountKurus,
+      userEmail: input.userEmail,
+      userName: input.userName,
+      productName: `LuviAI Video Credit Pack — ${pack.packSize} video`,
+    });
+
+    return { iframeUrl, merchantOid };
+  }
+
+  /** PayTR success callback — credit pack PAID'e çevir, kullanıcıya kullanım hakkı aç. */
+  async confirmVideoCreditPurchase(merchantOid: string): Promise<void> {
+    const purchase = await this.prisma.videoCreditPurchase.findUnique({
+      where: { merchantOid },
+    });
+    if (!purchase) {
+      this.log.warn(`confirmVideoCreditPurchase: merchantOid bulunamadı: ${merchantOid}`);
+      return;
+    }
+    if (purchase.status === 'PAID' || purchase.status === 'CONSUMED') return;
+
+    await this.prisma.videoCreditPurchase.update({
+      where: { id: purchase.id },
+      data: {
+        status: 'PAID',
+        paidAt: new Date(),
+      },
+    });
+    this.log.log(`Video credit purchase confirmed: ${merchantOid} (${purchase.packSize} video)`);
+  }
+
+  /**
+   * Tek seferlik ödeme için PayTR iframe (subscription değil). Mevcut createIframe'in lite versiyonu.
+   * NOT: Bu sadece iskelet — production'da PayTR'nin tam token akışı kullanılmalı.
+   */
+  private async createIframeForOneTimePayment(input: {
+    merchantOid: string;
+    amount: number;
+    userEmail: string;
+    userName: string;
+    productName: string;
+  }): Promise<string> {
+    // TODO: PayTR token + iframe URL üretme — mevcut createIframe metodunun pattern'ini uygula.
+    // Şimdilik dev için placeholder:
+    return `${process.env.NEXTAUTH_URL ?? 'https://ai.luvihost.com'}/billing/dev-confirm-credit?merchantOid=${input.merchantOid}`;
   }
 
   private generateOrderId(userId: string, planId: string): string {

@@ -203,6 +203,60 @@ export const SETTINGS_CATALOG: SettingMeta[] = [
     description: 'AGENCY plan max site sayisi.',
     envFallback: true,
   },
+
+  // ─── PLAN SPEND CAP (Cost Guard, 2026-05) ────────────────────────────
+  // Plan basina aylik USD harcama tavani. Kullanici bu degeri asarsa pipeline
+  // pause edilir + admin ve kullaniciya email gider. AI maliyetlerinin firma
+  // pleyte kontrolu icin kritik. Default'lar realistic kullanim baz alindi.
+  {
+    key: 'SPEND_CAP_TRIAL_USD',
+    type: 'int',
+    category: 'plan',
+    default: '3',
+    description: 'TRIAL plan aylik max USD harcama (cost guard).',
+    envFallback: false,
+  },
+  {
+    key: 'SPEND_CAP_STARTER_USD',
+    type: 'int',
+    category: 'plan',
+    default: '25',
+    description: 'STARTER plan aylik max USD harcama (cost guard).',
+    envFallback: false,
+  },
+  {
+    key: 'SPEND_CAP_PRO_USD',
+    type: 'int',
+    category: 'plan',
+    default: '80',
+    description: 'PRO plan aylik max USD harcama (cost guard).',
+    envFallback: false,
+  },
+  {
+    key: 'SPEND_CAP_AGENCY_USD',
+    type: 'int',
+    category: 'plan',
+    default: '200',
+    description: 'AGENCY plan aylik max USD harcama (cost guard).',
+    envFallback: false,
+  },
+  {
+    key: 'SPEND_CAP_ENTERPRISE_USD',
+    type: 'int',
+    category: 'plan',
+    default: '700',
+    description: 'ENTERPRISE plan aylik max USD harcama (cost guard, ek aşımda contact sales).',
+    envFallback: false,
+  },
+  {
+    key: 'SPEND_CAP_ENABLED',
+    type: 'boolean',
+    category: 'plan',
+    default: 'true',
+    description: 'Cost guard aktif mi (false ise sinirsiz). Acil durum kill-switch.',
+    envFallback: false,
+  },
+
   {
     key: 'RATE_LIMIT_WINDOW_MS',
     type: 'int',

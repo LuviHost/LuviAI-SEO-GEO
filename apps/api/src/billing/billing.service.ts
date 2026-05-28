@@ -41,17 +41,33 @@ interface BasePlan {
   contactSales?: boolean;
 }
 
+/**
+ * PREMIUM PRICING — 2026-05 update
+ *
+ * Gerekçe: AI maliyetleri (Claude Sonnet 4.6, Opus 4.7, Sora 2, Veo 3) eski fiyatları
+ * sürdürülemez kıldı. Profesyonel ve üstü planlarda kullanıcı başına %50 realistic usage
+ * dahi zarar veriyordu (örn. eski Ajans ₺7,999 vs ortalama ₺13,756 AI cost).
+ *
+ * Premium positioning:
+ *  - Tek aracın altında 7+ kapsam: SEO, GEO, AI Citation, Video Studio, ASO, Sosyal, Auto-publish
+ *  - Global rakip benchmark: Jasper Pro $125, Surfer Pro $129, MarketMuse Enterprise $12k/yıl
+ *  - LuviAI Profesyonel ₺4,999 ($125) → Jasper/Surfer ile head-to-head, kapsamla önde
+ *
+ * Migration (grandfathering): Mevcut aboneler 6 ay eski fiyatla devam.
+ * Cost guard: Plan başına aylık USD spend cap (SETTINGS_CATALOG'da) — aşılırsa pipeline pause.
+ * Add-on: Video credit pack (5/20/50) ek satın alma — base plan videosu yetmezse.
+ */
 const BASE_PLANS: BasePlan[] = [
   {
     id: 'trial',
     name_tr: 'Ücretsiz Deneme',
     name_en: 'Free Trial',
     monthly_try: 0, annual_try: 0,
-    articlesPerMonth: 1,
-    socialPostsPerMonth: 2,
-    videosPerMonth: 0,           // Trial: video yok (cost guard)
+    articlesPerMonth: 2,           // 2 deneme makale (conversion hook için)
+    socialPostsPerMonth: 5,        // 5 deneme sosyal post
+    videosPerMonth: 0,             // Video YOK (cost guard, Sora 2 = $20/video)
     sites: 1,
-    publishTargets: 'limited',
+    publishTargets: 'limited',     // Sadece Markdown ZIP + 1 WordPress
     support_tr: 'topluluk',
     support_en: 'community',
   },
@@ -59,10 +75,10 @@ const BASE_PLANS: BasePlan[] = [
     id: 'starter',
     name_tr: 'Başlangıç',
     name_en: 'Starter',
-    monthly_try: 1199, annual_try: 11990,    // +%50 (799 → 1199)
-    articlesPerMonth: 12,
-    socialPostsPerMonth: 10,
-    videosPerMonth: 2,            // 2 video/ay
+    monthly_try: 1499, annual_try: 14990,    // ₺1,499/ay ($37) — Frase Pro altı
+    articlesPerMonth: 15,
+    socialPostsPerMonth: 15,
+    videosPerMonth: 0,             // Video add-on'dan satın al (cost guard — solo blogger)
     sites: 1,
     publishTargets: 'all',
     support_tr: 'e-posta 24 saat',
@@ -72,10 +88,10 @@ const BASE_PLANS: BasePlan[] = [
     id: 'pro',
     name_tr: 'Profesyonel',
     name_en: 'Pro',
-    monthly_try: 3499, annual_try: 34990,    // +%40 (2499 → 3499)
-    articlesPerMonth: 30,
-    socialPostsPerMonth: 20,
-    videosPerMonth: 8,            // 8 video/ay
+    monthly_try: 4999, annual_try: 49990,    // ₺4,999/ay ($125) — Jasper Pro = Surfer Pro
+    articlesPerMonth: 40,
+    socialPostsPerMonth: 30,
+    videosPerMonth: 5,             // 5 video/ay base (~$75 cost cap)
     sites: 3,
     publishTargets: 'all',
     support_tr: 'e-posta 4 saat',
@@ -86,11 +102,11 @@ const BASE_PLANS: BasePlan[] = [
     id: 'agency',
     name_tr: 'Ajans',
     name_en: 'Agency',
-    monthly_try: 7999, annual_try: 79990,    // +%33 (5999 → 7999)
-    articlesPerMonth: 60,
-    socialPostsPerMonth: 40,
-    videosPerMonth: 25,           // 25 video/ay
-    sites: 10,
+    monthly_try: 14999, annual_try: 149990,  // ₺14,999/ay ($375) — Surfer Business üzeri
+    articlesPerMonth: 100,
+    socialPostsPerMonth: 80,
+    videosPerMonth: 20,            // 20 video/ay (~$300 cost)
+    sites: 12,
     publishTargets: 'all',
     support_tr: 'öncelikli + Slack',
     support_en: 'priority + Slack',
@@ -99,11 +115,11 @@ const BASE_PLANS: BasePlan[] = [
     id: 'enterprise',
     name_tr: 'Kurumsal',
     name_en: 'Enterprise',
-    monthly_try: 19999, annual_try: 199990,  // +%33 (14999 → 19999)
-    articlesPerMonth: 250,
-    socialPostsPerMonth: 120,
-    videosPerMonth: 80,           // 80 video/ay
-    sites: 30,                    // 'unlimited' → 30 (cost guard, ek site ₺250/ay)
+    monthly_try: 34999, annual_try: 349990,  // ₺34,999+/ay ($875+) — MarketMuse altı, custom
+    articlesPerMonth: 350,
+    socialPostsPerMonth: 200,
+    videosPerMonth: 100,           // 100 video/ay (~$1500 cost)
+    sites: 50,                     // Ek site ₺500/ay add-on (cost guard)
     publishTargets: 'all',
     support_tr: 'özel hesap yöneticisi + SLA',
     support_en: 'dedicated account manager + SLA',
@@ -246,5 +262,80 @@ export class BillingService {
     }
 
     return { ok: true, message: 'Talebiniz alındı, 24 saat içinde ulaşacağız' };
+  }
+
+  // ──────────────────────────────────────────────────────────────────────
+  //  Video Credit Pool (2026-05 Premium Pricing add-on)
+  // ──────────────────────────────────────────────────────────────────────
+
+  /**
+   * Kullanıcının PAID statüsünde + kullanılmamış credit'lerini topla.
+   * Plan kotası dolduğunda video üretimi bu havuzdan düşer.
+   *
+   * Döner: totalRemaining (toplam kalan), packages (detay her satın alma)
+   */
+  async getVideoCreditPool(userId: string): Promise<{
+    totalRemaining: number;
+    totalPurchased: number;
+    packages: Array<{ id: string; packSize: number; creditsUsed: number; remaining: number; paidAt: Date | null; expiresAt: Date | null }>;
+  }> {
+    const purchases = await this.prisma.videoCreditPurchase.findMany({
+      where: {
+        userId,
+        status: 'PAID',
+        OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+      },
+      orderBy: { paidAt: 'asc' }, // FIFO consumption
+    });
+
+    let totalRemaining = 0;
+    let totalPurchased = 0;
+    const packages = purchases.map((p) => {
+      const remaining = Math.max(0, p.creditsTotal - p.creditsUsed);
+      totalRemaining += remaining;
+      totalPurchased += p.creditsTotal;
+      return {
+        id: p.id,
+        packSize: p.packSize,
+        creditsUsed: p.creditsUsed,
+        remaining,
+        paidAt: p.paidAt,
+        expiresAt: p.expiresAt,
+      };
+    });
+
+    return { totalRemaining, totalPurchased, packages };
+  }
+
+  /**
+   * Bir video kullanıldığında çağrılır. FIFO: en eski PAID pack'ten 1 düş.
+   * Plan kotası yetmediğinde quota.service.consumeVideo bunu çağırır.
+   */
+  async consumeOneVideoCredit(userId: string): Promise<{ consumed: boolean; remaining: number }> {
+    const oldest = await this.prisma.videoCreditPurchase.findFirst({
+      where: {
+        userId,
+        status: 'PAID',
+        creditsUsed: { lt: this.prisma.videoCreditPurchase.fields?.creditsTotal as any },
+        OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+      },
+      orderBy: { paidAt: 'asc' },
+    });
+    // Prisma raw fields karşılaştırması bazen sorunlu — guard:
+    if (!oldest || oldest.creditsUsed >= oldest.creditsTotal) {
+      return { consumed: false, remaining: 0 };
+    }
+
+    const updated = await this.prisma.videoCreditPurchase.update({
+      where: { id: oldest.id },
+      data: {
+        creditsUsed: { increment: 1 },
+        // Tüm credit tükendiğinde status'u CONSUMED'a çevir
+        ...(oldest.creditsUsed + 1 >= oldest.creditsTotal ? { status: 'CONSUMED' as const } : {}),
+      },
+    });
+
+    const pool = await this.getVideoCreditPool(userId);
+    return { consumed: true, remaining: pool.totalRemaining };
   }
 }
