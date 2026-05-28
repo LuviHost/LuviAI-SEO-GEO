@@ -16,7 +16,9 @@ export type EmailTemplate =
   | 'article_ready'
   | 'plan_upgraded'
   | 'plan_canceled'
-  | 'payment_failed';
+  | 'payment_failed'
+  | 'grandfathering_expiring'   // 2026-05 Premium Pricing — 30 gün uyari
+  | 'grandfathering_expired';   // 2026-05 Premium Pricing — yeni fiyata gectigi gun
 
 @Injectable()
 export class EmailService {
@@ -288,6 +290,51 @@ export class EmailService {
           <p>Mevcut dönem sonuna kadar erişiminiz devam eder. Sonra üretilen makalelerinizi indirip saklayabilir veya tekrar abone olarak kaldığınız yerden devam edebilirsiniz.</p>
           <p><a href="${baseUrl}/pricing" style="color:#6c5ce7;">Plan seçeneklerini gör →</a></p>
           <p style="font-size:13px;color:#888;margin-top:16px;">Sorun mu yaşadın? Yanıt verirsen bize ulaşır, çözmeye çalışırız.</p>`,
+        );
+
+      case 'grandfathering_expiring':
+        return wrapper(
+          '⏰ 30 gün sonra fiyatınız değişiyor',
+          `<h2>${name}, plan fiyatınız 30 gün sonra güncelleniyor</h2>
+          <p>2026-05'te güncellenen premium fiyatlandırmamıza geçişiniz <strong>${data.expiryDateText ?? 'yakında'}</strong> tarihinde yapılacak.</p>
+          <table style="border:1px solid #eee;border-radius:8px;padding:14px;width:100%;border-collapse:collapse;margin:16px 0">
+            <tr>
+              <td style="padding:8px 12px;color:#666;font-size:13px;">Şu anki aylık fiyatınız</td>
+              <td style="padding:8px 12px;text-align:right;font-weight:600;">₺${(data.legacyPriceTry ?? 0).toLocaleString('tr-TR')}</td>
+            </tr>
+            <tr style="border-top:1px solid #eee">
+              <td style="padding:8px 12px;color:#666;font-size:13px;">Yeni fiyat</td>
+              <td style="padding:8px 12px;text-align:right;font-weight:600;color:#f97316;">₺${(data.newPriceTry ?? 0).toLocaleString('tr-TR')}</td>
+            </tr>
+          </table>
+          <p>Premium fiyatlandırmaya geçiş sebebi: AI maliyetleri (Sora 2, Veo 3, Claude Opus 4.7, GPT o1) ile sürdürülebilir hizmet sağlayabilmek için. Karşılığında daha kapsamlı kotalar ve yeni özellikler aldınız:</p>
+          <ul style="font-size:14px;line-height:1.7;color:#444">
+            <li>Daha fazla aylık makale kotası</li>
+            <li>AI Video Studio (Sora 2 / Veo 3) — base + add-on pack</li>
+            <li>Stuck page recovery + AI Citation tracking</li>
+            <li>ASO Apple Search Ads + App Store Connect entegrasyonu</li>
+          </ul>
+          <p style="margin-top:16px"><a href="${baseUrl}/pricing" style="background:#f97316;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;display:inline-block;font-weight:600;">Yeni fiyatları görüntüle →</a></p>
+          <p style="font-size:13px;color:#888;margin-top:16px;">İtirazınız veya sorunuz varsa bu email'i yanıtlayabilirsiniz.</p>`,
+        );
+
+      case 'grandfathering_expired':
+        return wrapper(
+          '✨ Yeni fiyat aktif',
+          `<h2>${name}, yeni fiyatınız bugünden itibaren aktif</h2>
+          <p>Premium pricing dönemine geçişiniz tamamlandı. Bir sonraki faturanız yeni fiyat üzerinden kesilecek.</p>
+          <table style="border:1px solid #eee;border-radius:8px;padding:14px;width:100%;border-collapse:collapse;margin:16px 0">
+            <tr>
+              <td style="padding:8px 12px;color:#666;font-size:13px;">Eski fiyat (sona erdi)</td>
+              <td style="padding:8px 12px;text-align:right;font-weight:500;text-decoration:line-through;color:#999;">₺${(data.legacyPriceTry ?? 0).toLocaleString('tr-TR')}</td>
+            </tr>
+            <tr style="border-top:1px solid #eee">
+              <td style="padding:8px 12px;color:#666;font-size:13px;">Yeni aylık fiyat</td>
+              <td style="padding:8px 12px;text-align:right;font-weight:600;color:#f97316;font-size:16px;">₺${(data.newPriceTry ?? 0).toLocaleString('tr-TR')}</td>
+            </tr>
+          </table>
+          <p><a href="${baseUrl}/dashboard" style="color:#6c5ce7;">Dashboard'a git →</a></p>
+          <p style="font-size:13px;color:#888;margin-top:16px;">Aboneliğinizi yönetmek için <a href="${baseUrl}/billing" style="color:#6c5ce7;">billing sayfasını</a> ziyaret edebilirsiniz.</p>`,
         );
 
       default:

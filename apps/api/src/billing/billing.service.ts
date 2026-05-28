@@ -215,6 +215,9 @@ export class BillingService {
       trialEndsAt: user.trialEndsAt,
       articlesUsedThisMonth: user.articlesUsedThisMonth,
       articlesQuotaResetAt: user.articlesQuotaResetAt,
+      // 2026-05 Premium Pricing — grandfathering bilgisi (frontend banner için)
+      grandfatheredUntil: (user as any).grandfatheredUntil ?? null,
+      legacyMonthlyPriceTry: (user as any).legacyMonthlyPriceTry ?? null,
     };
   }
 

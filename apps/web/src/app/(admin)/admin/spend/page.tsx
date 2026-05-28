@@ -5,8 +5,9 @@ import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { DollarSign, TrendingUp, Layers, Activity, RefreshCw, Calendar } from 'lucide-react';
+import { DollarSign, TrendingUp, Layers, Activity, RefreshCw, Calendar, Shield, AlertTriangle, Ban, Star } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
 
 const DAYS_OPTIONS = [7, 14, 30, 60, 90];
 
@@ -20,6 +21,8 @@ export default function AdminSpendPage() {
   const [days, setDays] = useState(30);
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [usersSpend, setUsersSpend] = useState<any>(null);
+  const [usersLoading, setUsersLoading] = useState(true);
 
   const load = async () => {
     setLoading(true);
@@ -33,7 +36,38 @@ export default function AdminSpendPage() {
     }
   };
 
+  const loadUsersSpend = async () => {
+    setUsersLoading(true);
+    try {
+      const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+      const res = await fetch(`${apiBase}/api/admin/users-spend-status`, { credentials: 'include' });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setUsersSpend(await res.json());
+    } catch (err: any) {
+      // Sessiz: spend cap dashboard ek özellik
+    } finally {
+      setUsersLoading(false);
+    }
+  };
+
+  const resetUserSpend = async (userId: string, email: string) => {
+    if (!confirm(`${email} kullanicisinin aylik spend cap sayacini sifirlamak istiyor musunuz?`)) return;
+    try {
+      const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+      const res = await fetch(`${apiBase}/api/admin/users/${userId}/reset-spend`, {
+        method: 'POST',
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      toast.success('Spend cap sifirlandi');
+      loadUsersSpend();
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  };
+
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [days]);
+  useEffect(() => { loadUsersSpend(); }, []);
 
   const total = data?.totalUsd ?? 0;
   const byProvider: [string, number][] = Object.entries(data?.byProvider ?? {}).sort((a: any, b: any) => b[1] - a[1]) as any;
@@ -149,6 +183,116 @@ export default function AdminSpendPage() {
                 </div>
               </CardContent>
             </Card>
+          </div>
+        </>
+      )}
+
+      {/* Spend Cap Monitoring — Plan başına aylık USD spend cap durumu */}
+      {usersSpend && (
+        <>
+          <div className="pt-6 mt-6 border-t">
+            <div className="flex items-center gap-2 mb-3">
+              <Shield className="h-5 w-5 text-purple-600" />
+              <h2 className="text-xl font-bold">Spend Cap Monitoring</h2>
+              <span className="text-xs text-muted-foreground">(Plan başına aylık USD cap durumu — 2026-05 premium pricing)</span>
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
+              <StatCard icon={Activity} label="Toplam Kullanıcı" value={usersSpend.summary.totalUsers} accent="brand" />
+              <StatCard icon={Ban} label="Cap Aşıldı" value={usersSpend.summary.blockedCount} accent="amber" />
+              <StatCard icon={AlertTriangle} label="%80+ Risk" value={usersSpend.summary.warnCount} accent="amber" />
+              <StatCard icon={Star} label="Grandfathered" value={usersSpend.summary.grandfatheredCount} accent="emerald" />
+              <StatCard icon={DollarSign} label="Aylık Toplam Cost" value={`$${usersSpend.summary.totalMonthlyCostUsd.toFixed(2)}`} accent="sky" />
+            </div>
+
+            <Card>
+              <CardContent className="p-0">
+                <div className="overflow-auto">
+                  <table className="w-full text-sm">
+                    <thead className="border-b bg-muted/30 text-xs uppercase text-muted-foreground">
+                      <tr>
+                        <th className="text-left p-3">Kullanıcı</th>
+                        <th className="text-left p-3">Plan</th>
+                        <th className="text-right p-3">Cost / Cap</th>
+                        <th className="text-right p-3">Kullanım %</th>
+                        <th className="text-right p-3">Makale</th>
+                        <th className="text-right p-3">Video</th>
+                        <th className="text-center p-3">Risk</th>
+                        <th className="text-right p-3"></th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {usersSpend.users.map((u: any) => {
+                        const riskColors: Record<string, string> = {
+                          blocked: 'bg-red-500/10 text-red-600 border-red-500/30',
+                          warn:    'bg-amber-500/10 text-amber-600 border-amber-500/30',
+                          normal:  'bg-emerald-500/10 text-emerald-600 border-emerald-500/30',
+                          low:     'bg-muted text-muted-foreground border-muted-foreground/20',
+                        };
+                        const riskLabel: Record<string, string> = {
+                          blocked: 'CAP AŞTI', warn: 'UYARI', normal: 'NORMAL', low: 'DÜŞÜK',
+                        };
+                        return (
+                          <tr key={u.id} className="hover:bg-muted/20">
+                            <td className="p-3">
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium">{u.name ?? u.email.split('@')[0]}</span>
+                                {u.isGrandfathered && (
+                                  <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 font-bold uppercase">GF</span>
+                                )}
+                              </div>
+                              <div className="text-xs text-muted-foreground truncate max-w-[200px]">{u.email}</div>
+                            </td>
+                            <td className="p-3">
+                              <span className="px-2 py-0.5 rounded-md bg-muted text-xs font-semibold">{u.plan}</span>
+                            </td>
+                            <td className="p-3 text-right font-mono text-xs tabular-nums">
+                              ${u.aiCostUsd.toFixed(2)} / ${u.capUsd}
+                            </td>
+                            <td className="p-3 text-right">
+                              <div className="inline-flex items-center gap-2">
+                                <div className="w-16 h-1.5 bg-muted rounded-full overflow-hidden">
+                                  <div
+                                    className={cn(
+                                      'h-full transition-all',
+                                      u.capPct >= 100 ? 'bg-red-500' : u.capPct >= 80 ? 'bg-amber-500' : 'bg-emerald-500'
+                                    )}
+                                    style={{ width: `${Math.min(100, u.capPct)}%` }}
+                                  />
+                                </div>
+                                <span className="text-xs font-mono tabular-nums w-10 text-right">{u.capPct}%</span>
+                              </div>
+                            </td>
+                            <td className="p-3 text-right text-xs tabular-nums">{u.articlesUsedThisMonth}</td>
+                            <td className="p-3 text-right text-xs tabular-nums">{u.videosUsedThisMonth}</td>
+                            <td className="p-3 text-center">
+                              <span className={cn('px-2 py-0.5 text-[10px] rounded-full border font-bold uppercase tracking-wider', riskColors[u.risk])}>
+                                {riskLabel[u.risk]}
+                              </span>
+                            </td>
+                            <td className="p-3 text-right">
+                              {u.capPct >= 50 && (
+                                <Button size="sm" variant="outline" onClick={() => resetUserSpend(u.id, u.email)} className="text-xs h-7">
+                                  Reset
+                                </Button>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+                {usersSpend.users.length === 0 && !usersLoading && (
+                  <p className="text-center text-sm text-muted-foreground p-6">Henüz aktif kullanıcı yok.</p>
+                )}
+              </CardContent>
+            </Card>
+
+            <p className="text-xs text-muted-foreground mt-3">
+              <strong>GF</strong> = Grandfathered (eski fiyatla devam ediyor) ·{' '}
+              <strong>CAP AŞTI</strong> = pipeline pause edildi, kullanıcı email aldı
+            </p>
           </div>
         </>
       )}
