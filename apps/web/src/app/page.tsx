@@ -219,8 +219,8 @@ export default function LandingPage() {
           {/* Risk reversal microcopy */}
           <div className="mt-5 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-1"><Check className="h-3.5 w-3.5 text-emerald-600" /> Kredi kartı istenmez</span>
-            <span className="inline-flex items-center gap-1"><Check className="h-3.5 w-3.5 text-emerald-600" /> 14 gün ücretsiz</span>
-            <span className="inline-flex items-center gap-1"><Check className="h-3.5 w-3.5 text-emerald-600" /> İstediğin zaman iptal</span>
+            <span className="inline-flex items-center gap-1"><Check className="h-3.5 w-3.5 text-emerald-600" /> 2 makale ücretsiz</span>
+            <span className="inline-flex items-center gap-1"><Check className="h-3.5 w-3.5 text-emerald-600" /> Kart gerekmez</span>
             <span className="inline-flex items-center gap-1"><Check className="h-3.5 w-3.5 text-emerald-600" /> 5 dakikada kurulum</span>
           </div>
         </div>
@@ -550,7 +550,7 @@ export default function LandingPage() {
               Bugün başla, kart sonra.
             </h2>
             <p className="mt-3 text-muted-foreground text-lg">
-              14 gün ücretsiz · İstediğin zaman iptal · Gizli ücret yok
+              2 makale ücretsiz · İstediğin zaman iptal · Gizli ücret yok
             </p>
           </div>
 
@@ -1217,7 +1217,7 @@ const FAQS = [
   },
   {
     q: 'Kredi kartı vermem gerekiyor mu?',
-    a: 'Hayır. Ücretsiz deneme için kart istenmez. 14 gün sonra ücretli plana geçmek istersen kart eklersin, istemezsen hesap otomatik trial olarak kalır.',
+    a: 'Hayır. Ücretsiz deneme için kart istenmez. 2 ücretsiz makale hakkını kullandıktan sonra devam etmek istersen plan seçer ve kart eklersin, istemezsen hesap pasif kalır.',
   },
   {
     q: 'AI sektörümü gerçekten anlayabilir mi?',
@@ -1233,6 +1233,6 @@ const FAQS = [
   },
   {
     q: 'İstediğim zaman iptal edebilir miyim?',
-    a: 'Evet. Tek tıkla iptal, ay sonuna kadar kullanmaya devam edersin. İade politikası: ilk 14 gün koşulsuz para iadesi.',
+    a: 'Evet. Tek tıkla iptal, ay sonuna kadar kullanmaya devam edersin. İade politikası: ilk 7 gün içinde koşulsuz para iadesi.',
   },
 ];

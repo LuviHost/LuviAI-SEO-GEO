@@ -15,8 +15,13 @@ const CLARITY_PROJECT_ID = process.env.NEXT_PUBLIC_CLARITY_PROJECT_ID ?? 'wr4kuo
 const GTM_ID = process.env.NEXT_PUBLIC_GTM_ID ?? 'GTM-TSH8KWCC';
 
 const SITE_URL = 'https://ai.luvihost.com';
-const TITLE = 'LuviAI — SEO, içerik üretimi, sosyal medya ve reklam tek panelden';
-const DESCRIPTION = 'Sitenin SEO + AI görünürlük denetimini dakikalar içinde yapar, marka sesinde kapsamlı makaleler üretir, sosyal medyaya ve sitene otomatik yayınlar. Türkiye için yapıldı, PayTR ile güvenli ödeme.';
+// Browser tab + Google snippet için uzun başlık (60 char)
+const TITLE = 'LuviAI — AI çağının pazarlama platformu';
+// Tüm sayfalarda fallback (max 160 char Google için)
+const DESCRIPTION = 'Senin yerine pazarlama yapan AI. Site, mobil app, sosyal medya — tek panel. AI Görünürlük, ASO, Apple Search Ads, Studio, Auto-Pilot.';
+// WhatsApp / Telegram / Discord unfurl için kısa versiyon (max 90 char, sosyal görseli güzelleştirir)
+const OG_TITLE = 'LuviAI — Senin yerine pazarlama yapan AI';
+const OG_DESCRIPTION = 'AI Görünürlük, ASO, Apple Search Ads, Studio — hepsi tek panel. 2 makale ücretsiz, kart gerekmez.';
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -51,14 +56,16 @@ export const metadata: Metadata = {
     alternateLocale: ['en_US'],
     url: SITE_URL,
     siteName: 'LuviAI',
-    title: TITLE,
-    description: DESCRIPTION,
+    title: OG_TITLE,
+    description: OG_DESCRIPTION,
     images: [
       {
         url: `${SITE_URL}/og-image.png`,
+        secureUrl: `${SITE_URL}/og-image.png`,
         width: 1200,
         height: 630,
-        alt: 'LuviAI — SEO ve AI görünürlük otomasyonu',
+        alt: 'LuviAI — AI ile pazarlama platformu',
+        type: 'image/png',
       },
     ],
   },
@@ -66,9 +73,12 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     site: '@luvihost',
     creator: '@luvihost',
-    title: TITLE,
-    description: DESCRIPTION,
-    images: [`${SITE_URL}/og-image.png`],
+    title: OG_TITLE,
+    description: OG_DESCRIPTION,
+    images: [{
+      url: `${SITE_URL}/og-image.png`,
+      alt: 'LuviAI — AI ile pazarlama platformu',
+    }],
   },
   robots: {
     index: true,
@@ -200,6 +210,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               })(window,document,'script','dataLayer','${GTM_ID}');`}
           </Script>
         )}
+        {/* LuviAI AI Crawler Tracker — kendi sitemizi izle (GPTBot, ClaudeBot, PerplexityBot, vs.) */}
+        <Script
+          id="luviai-tracker"
+          src="https://ai.luvihost.com/api/tracker.js?site=cmp6036790001artdfumwec57"
+          strategy="afterInteractive"
+        />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(orgJsonLd) }}
