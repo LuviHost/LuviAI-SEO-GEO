@@ -43,11 +43,13 @@ export class BillingController {
   @Get('users/:userId/quota')
   async getQuota(@Req() req: Request, @Param('userId') userId: string) {
     ensureSelf(req, userId);
-    const [articles, sites] = await Promise.all([
+    const [articles, sites, videos, budget] = await Promise.all([
       this.quota.checkArticleQuota(userId),
       this.quota.checkSiteQuota(userId),
+      this.quota.checkVideoQuota(userId),
+      this.quota.checkAiCostBudget(userId),
     ]);
-    return { articles, sites };
+    return { articles, sites, videos, budget };
   }
 
   /**
@@ -95,5 +97,43 @@ export class BillingController {
   @HttpCode(200)
   async webhook(@Body() body: any) {
     return this.paytr.handleWebhook(body);
+  }
+
+  // ──────────────────────────────────────────────────────────────────────
+  //  Video Credit Add-on (2026-05 Premium Pricing)
+  // ──────────────────────────────────────────────────────────────────────
+
+  /** Mevcut credit pack'ler — fiyat tablosu. */
+  @Public()
+  @Get('video-credits/packs')
+  creditPacks() {
+    return [
+      { key: '5',  packSize: 5,  priceTry: 499,  description: '5 ek video — küçük kampanya için' },
+      { key: '20', packSize: 20, priceTry: 1799, description: '20 ek video — %28 indirimli (₺25/video yerine ₺90)' },
+      { key: '50', packSize: 50, priceTry: 3999, description: '50 ek video — %20 indirimli (en avantajlı)' },
+    ];
+  }
+
+  /** Kullanıcının credit havuzunu döner (kalan kullanılabilir video sayısı). */
+  @Get('users/:userId/video-credits')
+  async myCredits(@Req() req: Request, @Param('userId') userId: string) {
+    ensureSelf(req, userId);
+    return this.billing.getVideoCreditPool(userId);
+  }
+
+  /** Credit pack satın al → PayTR iframe URL döner. */
+  @Post('users/:userId/video-credits/purchase')
+  async buyCredits(
+    @Req() req: Request,
+    @Param('userId') userId: string,
+    @Body() body: { packKey: '5' | '20' | '50'; userEmail: string; userName: string },
+  ) {
+    ensureSelf(req, userId);
+    return this.paytr.startVideoCreditPurchase({
+      userId,
+      packKey: body.packKey,
+      userEmail: body.userEmail,
+      userName: body.userName,
+    });
   }
 }
