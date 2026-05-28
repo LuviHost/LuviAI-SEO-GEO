@@ -6,7 +6,6 @@ import { CookieConsent } from '@/components/cookie-consent';
 import { AppSessionProvider } from '@/components/session-provider';
 import { Toaster } from 'sonner';
 import { RefTracker } from '@/components/ref-tracker';
-import { fontVariables } from '@/lib/fonts';
 
 // Microsoft Clarity project ID — heatmap + session recording.
 // Default to LuviAI production project; .env'den override edilebilir (staging için ayrı ID).
@@ -22,7 +21,7 @@ const TITLE = 'LuviAI — AI çağının pazarlama platformu';
 const DESCRIPTION = 'Senin yerine pazarlama yapan AI. Site, mobil app, sosyal medya — tek panel. AI Görünürlük, ASO, Apple Search Ads, Studio, Auto-Pilot.';
 // WhatsApp / Telegram / Discord unfurl için kısa versiyon (max 90 char, sosyal görseli güzelleştirir)
 const OG_TITLE = 'LuviAI — Senin yerine pazarlama yapan AI';
-const OG_DESCRIPTION = 'AI Görünürlük, ASO, Apple Search Ads, Studio — hepsi tek panel. 14 gün ücretsiz, kart gerekmez.';
+const OG_DESCRIPTION = 'AI Görünürlük, ASO, Apple Search Ads, Studio — hepsi tek panel. 2 makale ücretsiz, kart gerekmez.';
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -199,7 +198,7 @@ const orgJsonLd = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="tr" suppressHydrationWarning className={fontVariables}>
+    <html lang="tr" suppressHydrationWarning>
       <head>
         {/* Google Tag Manager — GA4, conversion, remarketing. En üst konumda (head). */}
         {GTM_ID && (
@@ -222,7 +221,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           dangerouslySetInnerHTML={{ __html: JSON.stringify(orgJsonLd) }}
         />
       </head>
-      <body className="font-sans antialiased min-h-screen bg-background text-foreground">
+      <body className="antialiased min-h-screen bg-background text-foreground">
         {/* GTM noscript fallback — body açılışının hemen sonrası (resmi öneri) */}
         {GTM_ID && (
           <noscript>

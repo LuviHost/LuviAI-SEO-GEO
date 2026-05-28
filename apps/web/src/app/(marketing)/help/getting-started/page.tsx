@@ -11,7 +11,7 @@ export default function Page() {
       title="5 dakikada başla"
       intro="LuviAI'da hesap aç, ilk siteni bağla, ilk AI çıktısını gör — toplam 5 dakika."
       steps={[
-        { name: 'Hesap aç', text: 'Landing\'de "Ücretsiz başla" butonu ile mail/Google ile kayıt. 14 günlük trial otomatik açılır, kart istenmez.' },
+        { name: 'Hesap aç', text: 'Landing\'de "Ücretsiz başla" butonu ile mail/Google ile kayıt. Hesabın otomatik açılır, kart istenmez. İlk 2 makale ücretsiz.' },
         { name: 'Site URL\'sini yapıştır', text: 'Dashboard üst köşedeki "Site Ekle" → URL gir. AI sektörünü ve dilini tespit eder.' },
         { name: 'AI bulgularını gör (60sn)', text: 'Onboarding sırasında platform tespit, hedef persona, 3 rakip, site skoru, ilk yazılacak içerik sırasıyla görünür.' },
         { name: 'AI Visibility test çalıştır', text: 'Sol menü → AI Görünürlük → Test Çalıştır. ChatGPT/Claude/Gemini/Perplexity sana 5 soru sorulur, 30-60 saniyede sonuç.' },
@@ -23,8 +23,8 @@ export default function Page() {
       <Step n={1} title="Ücretsiz başla butonuna bas">
         Landing'de turuncu <strong>"Ücretsiz başla — kart gerekmez"</strong> butonu ile başlarsın. Kayıt formunda mail + şifre veya Google ile tek tık.
       </Step>
-      <Step n={2} title="14 günlük trial otomatik açılır">
-        Kart bilgisi istenmez. Trial'da 1 makale + 2 sosyal post + 1 site hakkın var, tüm modüller görünür.
+      <Step n={2} title="Ücretsiz deneme otomatik açılır">
+        Kart bilgisi istenmez. Trial'da <strong>2 ücretsiz makale</strong> + 5 sosyal post + 1 site hakkın var, tüm modüller görünür.
       </Step>
 
       <h2>Adım 2: İlk siteni bağla</h2>
@@ -55,7 +55,7 @@ export default function Page() {
 
       <Tip kind="success">
         Bu noktada zaten ürünün gücünü gördün: AI senin siteni tarayıp eksikleri buldu, çözüm önerdi, ilk içeriği yazdı.
-        14 günlük trial boyunca tüm modüllere erişimin var.
+        İlk 2 ücretsiz makale boyunca tüm modüllere erişimin var.
       </Tip>
 
       <h2>Sonraki adımlar</h2>
