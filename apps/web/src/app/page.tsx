@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { LocaleSwitch } from '@/components/locale-switch';
+import { useT } from '@/lib/i18n';
 import { api } from '@/lib/api';
 import { trackPageview, trackCta, setupScrollDepthTracking, setupSectionTracking } from '@/lib/landing-track';
 import { VendorLogo, type VendorName } from '@/components/vendor-logo';
@@ -74,6 +75,7 @@ type PublicTestimonial = {
 };
 
 export default function LandingPage() {
+  const { t } = useT();
   const [plans, setPlans] = useState<Plan[]>([]);
   const [billing, setBilling] = useState<'monthly' | 'annual'>('annual');
   const [openFaq, setOpenFaq] = useState<number | null>(0);
@@ -150,21 +152,21 @@ export default function LandingPage() {
             LuviAI
           </Link>
           <div className="hidden md:flex items-center gap-7 text-sm">
-            <a href="#cozum" className="hover:text-orange-600 transition-colors">Çözüm</a>
-            <a href="#nasil" className="hover:text-orange-600 transition-colors">Nasıl çalışır</a>
-            <a href="#sonuc" className="hover:text-orange-600 transition-colors">Sonuçlar</a>
-            <a href="#fiyat" className="hover:text-orange-600 transition-colors">Fiyat</a>
-            <a href="#sss" className="hover:text-orange-600 transition-colors">SSS</a>
+            <a href="#cozum" className="hover:text-orange-600 transition-colors">{t('land.nav.solution')}</a>
+            <a href="#nasil" className="hover:text-orange-600 transition-colors">{t('land.nav.how')}</a>
+            <a href="#sonuc" className="hover:text-orange-600 transition-colors">{t('land.nav.results')}</a>
+            <a href="#fiyat" className="hover:text-orange-600 transition-colors">{t('land.nav.pricing')}</a>
+            <a href="#sss" className="hover:text-orange-600 transition-colors">{t('land.nav.faq')}</a>
           </div>
           <div className="flex items-center gap-1.5">
             <LocaleSwitch />
             <ThemeToggle />
             <Link href="/signin" className="hidden sm:inline-block">
-              <Button variant="ghost" size="sm">Giriş</Button>
+              <Button variant="ghost" size="sm">{t('land.nav.login')}</Button>
             </Link>
             <Link href="/signin?signup=1">
               <Button size="sm" className="bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white shadow-lg shadow-orange-500/20">
-                Ücretsiz başla <ArrowRight className="h-3.5 w-3.5 ml-1" />
+                {t('land.nav.signup')} <ArrowRight className="h-3.5 w-3.5 ml-1" />
               </Button>
             </Link>
           </div>
@@ -187,41 +189,41 @@ export default function LandingPage() {
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-500 opacity-75" />
               <span className="relative inline-flex rounded-full h-2 w-2 bg-orange-500" />
             </span>
-            AI · ASO · ASA · Sosyal · Studio — hepsi tek panelde
+            {t('land.hero.badge')}
           </div>
 
           {/* Headline — single sharp statement */}
           <h1 className="hero-headline text-5xl sm:text-6xl lg:text-8xl font-extrabold tracking-tight leading-[0.95]">
-            Senin yerine pazarlama yapan{' '}
-            <span className="bg-gradient-to-br from-orange-500 to-orange-700 bg-clip-text text-transparent">AI</span>.
+            {t('land.hero.title_pre')}{' '}
+            <span className="bg-gradient-to-br from-orange-500 to-orange-700 bg-clip-text text-transparent">{t('land.hero.title_brand')}</span>{t('land.hero.title_dot')}
           </h1>
 
           {/* Sub */}
           <p className="hero-subtitle mt-6 text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-            Site, mobil app, sosyal medya — hepsi tek panelden. LuviAI siteni tarar, eksikleri bulur, içeriği üretir, App Store reklamını optimize eder.
+            {t('land.hero.subtitle')}
           </p>
 
           {/* CTA */}
           <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
             <Link href="/signin?signup=1" onClick={() => trackCta('hero_primary')}>
               <Button size="lg" className="h-14 px-7 text-base bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white shadow-2xl shadow-orange-500/30">
-                Ücretsiz başla — kart gerekmez
+                {t('land.hero.cta_primary')}
                 <ArrowRight className="h-5 w-5 ml-2" />
               </Button>
             </Link>
             <a href="#nasil" onClick={() => trackCta('hero_secondary_demo')}>
               <Button size="lg" variant="outline" className="h-14 px-7 text-base">
-                <PlayCircle className="h-5 w-5 mr-2" /> Nasıl çalışır (2dk)
+                <PlayCircle className="h-5 w-5 mr-2" /> {t('land.hero.cta_secondary')}
               </Button>
             </a>
           </div>
 
           {/* Risk reversal microcopy */}
           <div className="mt-5 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs text-muted-foreground">
-            <span className="inline-flex items-center gap-1"><Check className="h-3.5 w-3.5 text-emerald-600" /> Kredi kartı istenmez</span>
-            <span className="inline-flex items-center gap-1"><Check className="h-3.5 w-3.5 text-emerald-600" /> 2 makale ücretsiz</span>
-            <span className="inline-flex items-center gap-1"><Check className="h-3.5 w-3.5 text-emerald-600" /> Kart gerekmez</span>
-            <span className="inline-flex items-center gap-1"><Check className="h-3.5 w-3.5 text-emerald-600" /> 5 dakikada kurulum</span>
+            <span className="inline-flex items-center gap-1"><Check className="h-3.5 w-3.5 text-emerald-600" /> {t('land.hero.tag_no_card')}</span>
+            <span className="inline-flex items-center gap-1"><Check className="h-3.5 w-3.5 text-emerald-600" /> {t('land.hero.tag_free_articles')}</span>
+            <span className="inline-flex items-center gap-1"><Check className="h-3.5 w-3.5 text-emerald-600" /> {t('land.hero.tag_cancel')}</span>
+            <span className="inline-flex items-center gap-1"><Check className="h-3.5 w-3.5 text-emerald-600" /> {t('land.hero.tag_setup')}</span>
           </div>
         </div>
 
@@ -234,16 +236,16 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-16">
           {/* Authority rozet bar */}
           <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3 mb-8">
-            <AuthorityBadge icon={Apple} text="Apple Search Ads Open API Partner" />
-            <AuthorityBadge icon={Cpu} text="OpenAI · Anthropic · Google Cloud" />
-            <AuthorityBadge icon={Lock} text="AES-256 · TLS 1.3" />
-            <AuthorityBadge icon={BadgeCheck} text="KVKK uyumlu · TR sunucu" />
-            <AuthorityBadge icon={Cloud} text="%99.9 SLA uptime" />
+            <AuthorityBadge icon={Apple} text={t('land.hero.authority_apple')} />
+            <AuthorityBadge icon={Cpu} text={t('land.hero.authority_ai')} />
+            <AuthorityBadge icon={Lock} text={t('land.hero.authority_security')} />
+            <AuthorityBadge icon={BadgeCheck} text={t('land.hero.authority_kvkk')} />
+            <AuthorityBadge icon={Cloud} text={t('land.hero.authority_uptime')} />
           </div>
 
           {/* AI Provider logo bar — Maya tarzı */}
           <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground text-center mb-5">
-            Markanı her major AI platformunda izle
+            {t('land.hero.ai_bar')}
           </p>
           <div className="flex flex-wrap items-center justify-center gap-x-7 gap-y-4 mb-8">
             {(['chatgpt', 'claude-ai', 'gemini', 'perplexity', 'grok', 'deepseek', 'mistral'] as VendorName[]).map((v) => (
@@ -256,7 +258,7 @@ export default function LandingPage() {
 
           {/* Diğer entegrasyon platformları */}
           <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground text-center mb-4 mt-4">
-            Ayrıca entegre çalıştığımız platformlar
+            {t('land.hero.integration_bar')}
           </p>
           <div className="flex flex-wrap items-center justify-center gap-x-7 gap-y-4 opacity-80">
             {(['linkedin', 'twitter', 'facebook', 'instagram', 'tiktok', 'youtube', 'google', 'wordpress', 'shopify', 'webflow'] as VendorName[]).map((v) => (
@@ -273,32 +275,30 @@ export default function LandingPage() {
       <section className="py-20 border-y bg-muted/30">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12 max-w-3xl mx-auto">
-            <p className="text-sm font-semibold text-orange-600 uppercase tracking-wider mb-2">Tanıdık geldi mi?</p>
+            <p className="text-sm font-semibold text-orange-600 uppercase tracking-wider mb-2">{t('land.pain.eyebrow')}</p>
             <h2 className="text-3xl sm:text-4xl font-bold">
-              Pazarlama bütçen patlıyor, sonuç gelmiyor.
+              {t('land.pain.title')}
             </h2>
           </div>
           <div className="grid md:grid-cols-3 gap-5">
             <PainCard
-              cost="₺15.000/ay"
-              title="SEO ajansı"
-              body="Aylar süren raporlar, belirsiz sonuç. Hangi keyword'de gerçekten ön plandasın bilmiyorsun."
+              cost={t('land.pain.c1_cost')}
+              title={t('land.pain.c1_title')}
+              body={t('land.pain.c1_body')}
             />
             <PainCard
-              cost="₺25.000/ay"
-              title="ASO + ASA uzmanı"
-              body="iOS App Store'da rakipler 1. sırada, sen 47. sıradasın. Apple Search Ads açmaya bile cesaret edemiyorsun."
+              cost={t('land.pain.c2_cost')}
+              title={t('land.pain.c2_title')}
+              body={t('land.pain.c2_body')}
             />
             <PainCard
-              cost="₺18.000/ay"
-              title="5 farklı SaaS aboneliği"
-              body="SEMrush + AppTweak + Hootsuite + ChatGPT + Canva. Hiçbiri konuşmuyor, hepsine ayrı para."
+              cost={t('land.pain.c3_cost')}
+              title={t('land.pain.c3_title')}
+              body={t('land.pain.c3_body')}
             />
           </div>
-          <p className="text-center mt-10 text-lg">
-            <span className="line-through text-muted-foreground">Toplam: ₺58.000/ay</span>
-            {' '}
-            <span className="font-bold">→ LuviAI: ₺799'dan başlar</span>
+          <p className="text-center mt-10 text-lg font-bold">
+            {t('land.pain.total')}
           </p>
         </div>
       </section>
@@ -545,12 +545,12 @@ export default function LandingPage() {
       <section id="fiyat" className="py-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-10">
-            <p className="text-sm font-semibold text-orange-600 uppercase tracking-wider mb-2">Şeffaf fiyat</p>
+            <p className="text-sm font-semibold text-orange-600 uppercase tracking-wider mb-2">{t('land.pricing.eyebrow')}</p>
             <h2 className="text-3xl sm:text-5xl font-bold tracking-tight">
-              Bugün başla, kart sonra.
+              {t('land.pricing.title')}
             </h2>
             <p className="mt-3 text-muted-foreground text-lg">
-              2 makale ücretsiz · İstediğin zaman iptal · Gizli ücret yok
+              {t('land.pricing.subtitle')}
             </p>
           </div>
 
@@ -651,8 +651,8 @@ export default function LandingPage() {
         />
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
-            <p className="text-sm font-semibold text-orange-600 uppercase tracking-wider mb-2">SSS</p>
-            <h2 className="text-3xl sm:text-4xl font-bold tracking-tight">Aklındaki sorular.</h2>
+            <p className="text-sm font-semibold text-orange-600 uppercase tracking-wider mb-2">{t('land.faq.eyebrow')}</p>
+            <h2 className="text-3xl sm:text-4xl font-bold tracking-tight">{t('land.faq.title')}</h2>
           </div>
 
           <div className="space-y-3">
@@ -674,23 +674,20 @@ export default function LandingPage() {
         <div className="absolute inset-0 -z-10 bg-gradient-to-br from-orange-500/10 via-amber-400/5 to-transparent" />
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-4xl sm:text-6xl font-extrabold tracking-tight">
-            5 dakika.<br />
-            <span className="bg-gradient-to-br from-orange-500 to-orange-700 bg-clip-text text-transparent">
-              Sıfır risk.
-            </span>
+            {t('land.cta.title')}
           </h2>
           <p className="mt-6 text-lg text-muted-foreground max-w-2xl mx-auto">
-            Kart bilgisi istenmez, istediğin zaman iptal edersin. İlk gün AI'nın senin için ne yapabileceğini gör.
+            {t('land.cta.subtitle')}
           </p>
           <div className="mt-9 flex flex-col sm:flex-row items-center justify-center gap-3">
             <Link href="/signin?signup=1" onClick={() => trackCta('final_primary')}>
               <Button size="lg" className="h-14 px-8 text-base bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white shadow-2xl shadow-orange-500/40">
-                Şimdi ücretsiz başla <ArrowRight className="h-5 w-5 ml-2" />
+                {t('land.cta.button')} <ArrowRight className="h-5 w-5 ml-2" />
               </Button>
             </Link>
             <Link href="/pricing" onClick={() => trackCta('final_secondary_pricing')}>
               <Button size="lg" variant="outline" className="h-14 px-8 text-base">
-                Fiyatları detaylı gör
+                {t('land.cta.secondary')}
               </Button>
             </Link>
           </div>
@@ -711,21 +708,21 @@ export default function LandingPage() {
               LuviAI
             </Link>
             <p className="mt-3 text-xs leading-relaxed">
-              AI ile siteni, mobil app'ini ve sosyal medyanı tek panelden büyüt.
+              {t('land.footer.tagline')}
             </p>
           </div>
-          <FooterCol title="Ürün" links={[
-            ['Özellikler', '#cozum'], ['Fiyat', '/pricing'], ['Kullanım Senaryoları', '/use-cases'], ['Karşılaştırma', '/compare'],
+          <FooterCol title={t('land.footer.product')} links={[
+            [t('land.nav.solution'), '#cozum'], [t('land.nav.pricing'), '/pricing'], ['Use Cases', '/use-cases'], ['Compare', '/compare'],
           ]} />
-          <FooterCol title="Şirket" links={[
-            ['Hakkımızda', '/about'], ['Destek', '/help'], ['SSS', '/faq'], ['Durum', '/status'],
+          <FooterCol title={t('land.footer.company')} links={[
+            ['About', '/about'], ['Help', '/help'], [t('land.nav.faq'), '/faq'], ['Status', '/status'],
           ]} />
-          <FooterCol title="Yasal" links={[
-            ['Gizlilik', '/privacy'], ['Şartlar', '/terms'], ['KVKK', '/kvkk'],
+          <FooterCol title={t('land.footer.legal')} links={[
+            ['Privacy', '/privacy'], ['Terms', '/terms'], ['KVKK', '/kvkk'],
           ]} />
         </div>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-10 pt-6 border-t text-xs flex flex-wrap justify-between gap-3">
-          <span>© {new Date().getFullYear()} LuviAI. Tüm hakları saklıdır.</span>
+          <span>© {new Date().getFullYear()} LuviAI. {t('land.footer.rights')}.</span>
           <span>Made with ❤️ in Türkiye</span>
         </div>
       </footer>
