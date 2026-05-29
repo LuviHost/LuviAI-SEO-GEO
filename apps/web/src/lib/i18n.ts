@@ -225,6 +225,24 @@ const dictionary = {
     'land.faq.eyebrow': 'Sıkça sorulanlar',
     'land.faq.title': 'Akla gelen ilk sorular',
     'land.faq.cta': 'Daha fazla soru? Tam SSS\'ye git →',
+    'land.faq.q1': 'Hangi sitelerde çalışıyor?',
+    'land.faq.a1': 'Herhangi bir web sitesi (WordPress, Shopify, Webflow, custom). Mobil app entegrasyonu için iOS App Store ID (adamId) yeterli. Bağlamak için sadece URL yapıştır.',
+    'land.faq.q2': 'Kredi kartı vermem gerekiyor mu?',
+    'land.faq.a2': 'Hayır. Ücretsiz deneme için kart istenmez. 2 ücretsiz makale hakkını kullandıktan sonra devam etmek istersen plan seçer ve kart eklersin, istemezsen hesap pasif kalır.',
+    'land.faq.q3': 'AI sektörümü gerçekten anlayabilir mi?',
+    'land.faq.a3': 'Evet. Onboarding sırasında siteni tarayıp sektörünü %95+ doğrulukla belirler. Yanlış tahmin ederse manuel düzeltebilirsin, sonraki içerikler ona göre üretilir.',
+    'land.faq.q4': 'Apple Search Ads için Apple Developer hesabım gerekli mi?',
+    'land.faq.a4': 'Evet, ASA için Apple\'ın istediği credentials sende olmalı (Org ID + Key ID + Public Key). LuviAI senin yerine wizard ile kurar — terminal/openssl gerekmez. 3 adım.',
+    'land.faq.q5': 'Üretilen içerikler benim mi?',
+    'land.faq.a5': 'Evet, %100 senin. LuviAI ürettiği makale, görsel, video, metin için telif iddia etmez. Sınırsız kullanabilirsin (planındaki kota dahilinde).',
+    'land.faq.q6': 'İstediğim zaman iptal edebilir miyim?',
+    'land.faq.a6': 'Evet. Tek tıkla iptal, ay sonuna kadar kullanmaya devam edersin. İade politikası: ilk 7 gün içinde koşulsuz para iadesi.',
+
+    // ─── Landing — Stats ────────────────────────────────────────
+    'land.stats.setup': 'Ortalama kurulum',
+    'land.stats.integrations': 'Entegrasyon',
+    'land.stats.team': 'Aktif ekip',
+    'land.stats.uptime': 'SLA uptime',
 
     // ─── Landing — Final CTA ────────────────────────────────────
     'land.cta.title': 'AI çağının pazarlamasına başla',
@@ -477,6 +495,24 @@ const dictionary = {
     'land.faq.eyebrow': 'Frequently asked',
     'land.faq.title': 'First questions that come to mind',
     'land.faq.cta': 'More questions? Go to full FAQ →',
+    'land.faq.q1': 'Which websites does it work on?',
+    'land.faq.a1': 'Any website (WordPress, Shopify, Webflow, custom). For mobile app integration, just iOS App Store ID (adamId) is enough. Just paste the URL to connect.',
+    'land.faq.q2': 'Do I need to enter a credit card?',
+    'land.faq.a2': 'No. No card needed for the free trial. After you use your 2 free article quota, if you want to continue you choose a plan and add a card; otherwise your account stays passive.',
+    'land.faq.q3': 'Can AI really understand my industry?',
+    'land.faq.a3': 'Yes. During onboarding, it scans your site and determines your industry with 95%+ accuracy. If it predicts wrong you can fix it manually, and subsequent content adapts accordingly.',
+    'land.faq.q4': 'Do I need an Apple Developer account for Apple Search Ads?',
+    'land.faq.a4': 'Yes, you need Apple\'s required credentials (Org ID + Key ID + Public Key). LuviAI sets it up with a wizard — no terminal/openssl needed. 3 steps.',
+    'land.faq.q5': 'Do I own the generated content?',
+    'land.faq.a5': 'Yes, 100% yours. LuviAI claims no copyright on the articles, images, videos, text it generates. Unlimited use (within your plan quota).',
+    'land.faq.q6': 'Can I cancel anytime?',
+    'land.faq.a6': 'Yes. One-click cancel, continue using until end of billing period. Refund policy: full refund within first 7 days, no questions asked.',
+
+    // ─── Landing — Stats ────────────────────────────────────────
+    'land.stats.setup': 'Avg. setup time',
+    'land.stats.integrations': 'Integrations',
+    'land.stats.team': 'Active team',
+    'land.stats.uptime': 'SLA uptime',
 
     // ─── Landing — Final CTA ────────────────────────────────────
     'land.cta.title': 'Start your AI-era marketing',
