@@ -307,11 +307,11 @@ export default function LandingPage() {
       <section id="cozum" className="py-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16 max-w-3xl mx-auto">
-            <p className="text-sm font-semibold text-orange-600 uppercase tracking-wider mb-2">Çözüm</p>
+            <p className="text-sm font-semibold text-orange-600 uppercase tracking-wider mb-2">{t('land.sol.eyebrow')}</p>
             <h2 className="text-3xl sm:text-5xl font-bold tracking-tight">
-              4 ayrı uzmana ihtiyacın yok.<br />
+              {t('land.sol.title_a')}<br />
               <span className="bg-gradient-to-br from-orange-500 to-orange-700 bg-clip-text text-transparent">
-                Hepsi tek AI panel.
+                {t('land.sol.title_b')}
               </span>
             </h2>
           </div>
@@ -319,31 +319,31 @@ export default function LandingPage() {
           <div className="grid md:grid-cols-2 gap-5">
             <FeatureCard
               icon={Search}
-              tag="SEO + AEO"
-              title="AI'lara görünür ol"
-              body="ChatGPT, Claude ve Gemini'de senin adının geçtiği yerleri gösterir. Hangi sorularda çıkmıyorsun, AI önerir, makaleyi otomatik yazar."
-              bullets={['50+ keyword takibi', 'AI Citation Tracker', 'Otomatik makale üretimi', 'Çoklu yayın hedefi']}
+              tag={t('land.sol.c1.tag')}
+              title={t('land.sol.c1.title')}
+              body={t('land.sol.c1.body')}
+              bullets={[t('land.sol.c1.b1'), t('land.sol.c1.b2'), t('land.sol.c1.b3'), t('land.sol.c1.b4')]}
             />
             <FeatureCard
               icon={Smartphone}
-              tag="ASO + Apple Search Ads"
-              title="App Store'da 1. sıraya"
-              body="Mobil uygulamandaki rakip analizi, keyword sıralaması, Apple Search Ads kampanya yönetimi. Auto-Pilot, düşük performansı pause edip yenisini ekler."
-              bullets={['App Store + Play Store skoru', 'AI keyword araştırması', 'ASA kampanya + bid otomasyonu', 'Auto-Pilot: kendiliğinden optimize']}
+              tag={t('land.sol.c2.tag')}
+              title={t('land.sol.c2.title')}
+              body={t('land.sol.c2.body')}
+              bullets={[t('land.sol.c2.b1'), t('land.sol.c2.b2'), t('land.sol.c2.b3'), t('land.sol.c2.b4')]}
             />
             <FeatureCard
               icon={Wand2}
-              tag="Sosyal Medya Studio"
-              title="AI ile post, görsel, video üret"
-              body="Tek konudan X / LinkedIn / Instagram için 3 farklı varyant. Sora 2, Google Veo 3, Runway ile video; DALL-E ile görsel."
-              bullets={['Görsel: GPT Image / DALL-E', 'Video: Sora 2 + Veo 3 + Runway', 'Metin: GPT-5 / Claude 4', 'Çoklu kanal tek tık paylaşım']}
+              tag={t('land.sol.c3.tag')}
+              title={t('land.sol.c3.title')}
+              body={t('land.sol.c3.body')}
+              bullets={[t('land.sol.c3.b1'), t('land.sol.c3.b2'), t('land.sol.c3.b3'), t('land.sol.c3.b4')]}
             />
             <FeatureCard
               icon={Bot}
-              tag="Otomasyon"
-              title="Auto-Pilot — sen uyurken çalışır"
-              body="Haftalık AI rapor, ranking düştüğünde alarm, fırsat keyword'ler için ASA otomatik açar. Sen sadece kararı ver."
-              bullets={["Günlük rank check", "Anomaly alert", "Cron'lu rapor & öneri", "Bütçe cap'lı auto-pilot"]}
+              tag={t('land.sol.c4.tag')}
+              title={t('land.sol.c4.title')}
+              body={t('land.sol.c4.body')}
+              bullets={[t('land.sol.c4.b1'), t('land.sol.c4.b2'), t('land.sol.c4.b3'), t('land.sol.c4.b4')]}
             />
           </div>
         </div>
@@ -353,32 +353,17 @@ export default function LandingPage() {
       <section id="nasil" className="py-24 bg-muted/30 border-y">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
-            <p className="text-sm font-semibold text-orange-600 uppercase tracking-wider mb-2">3 adım</p>
+            <p className="text-sm font-semibold text-orange-600 uppercase tracking-wider mb-2">{t('land.how.eyebrow')}</p>
             <h2 className="text-3xl sm:text-5xl font-bold tracking-tight">
-              5 dakikada yayında.
+              {t('land.how.title')}
             </h2>
-            <p className="mt-3 text-lg text-muted-foreground">Teknik bilgi gerekmez. Onboarding sırasında AI senin sektörünü tahmin eder, ilk içerikleri üretir.</p>
+            <p className="mt-3 text-lg text-muted-foreground">{t('land.how.subtitle')}</p>
           </div>
 
           <div className="grid md:grid-cols-3 gap-6">
-            <StepCard
-              n={1}
-              title="Siteni bağla"
-              body="URL'i yapıştır. LuviAI siteyi tarar, sektörünü belirler, ilk 50 keyword'ü çıkarır."
-              icon={Globe}
-            />
-            <StepCard
-              n={2}
-              title="AI analiz"
-              body="Rakiplerin metadata'sı, sıralamalar, eksik keyword'ler, AI Citation skorun — hepsi 2 dakikada."
-              icon={Sparkles}
-            />
-            <StepCard
-              n={3}
-              title="Yayında"
-              body="İlk makale, ilk sosyal post, ilk ASA önerisi hazır. Auto-Pilot açarsan sen hiçbir şey yapmazsın."
-              icon={Rocket}
-            />
+            <StepCard n={1} title={t('land.how.s1.title')} body={t('land.how.s1.body')} icon={Globe} />
+            <StepCard n={2} title={t('land.how.s2.title')} body={t('land.how.s2.body')} icon={Sparkles} />
+            <StepCard n={3} title={t('land.how.s3.title')} body={t('land.how.s3.body')} icon={Rocket} />
           </div>
         </div>
       </section>
@@ -387,16 +372,16 @@ export default function LandingPage() {
       <section id="sonuc" className="py-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-14">
-            <p className="text-sm font-semibold text-orange-600 uppercase tracking-wider mb-2">Sonuçlar</p>
+            <p className="text-sm font-semibold text-orange-600 uppercase tracking-wider mb-2">{t('land.res.eyebrow')}</p>
             <h2 className="text-3xl sm:text-5xl font-bold tracking-tight">
-              Sayılarla LuviAI etkisi.
+              {t('land.res.title')}
             </h2>
           </div>
 
           <div className="grid sm:grid-cols-3 gap-6 max-w-5xl mx-auto">
-            <StatCard num="+%47" label="ortalama organic trafik artışı" sub="ilk 30 günde" />
-            <StatCard num="-%62" label="App Store Ads CPI düşüşü" sub="Auto-Pilot 60 gün sonrası" />
-            <StatCard num="10x" label="içerik üretim hızı" sub="manuel sürece kıyasla" />
+            <StatCard num="+%47" label={t('land.res.r1.title')} sub={t('land.res.r1.sub')} />
+            <StatCard num="-%62" label={t('land.res.r2.title')} sub={t('land.res.r2.sub')} />
+            <StatCard num="10x" label={t('land.res.r3.title')} sub={t('land.res.r3.sub')} />
           </div>
         </div>
       </section>
@@ -405,18 +390,18 @@ export default function LandingPage() {
       <section className="py-24 bg-muted/30 border-y">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
-            <p className="text-sm font-semibold text-orange-600 uppercase tracking-wider mb-2">Karşılaştırma</p>
+            <p className="text-sm font-semibold text-orange-600 uppercase tracking-wider mb-2">{t('land.cmp.eyebrow')}</p>
             <h2 className="text-3xl sm:text-5xl font-bold tracking-tight">
-              5 SaaS yerine 1 LuviAI.
+              {t('land.cmp.title')}
             </h2>
-            <p className="mt-3 text-muted-foreground">Şu an birden fazla araç için ödüyorsan büyük ihtimalle %80 tasarruf edersin.</p>
+            <p className="mt-3 text-muted-foreground">{t('land.cmp.subtitle')}</p>
           </div>
 
           <div className="overflow-x-auto rounded-2xl border bg-background">
             <table className="w-full text-sm">
               <thead className="bg-muted/40">
                 <tr>
-                  <th className="text-left p-4 font-semibold">Özellik</th>
+                  <th className="text-left p-4 font-semibold">{t('land.cmp.col_feature')}</th>
                   <th className="text-center p-4 font-semibold">SEMrush</th>
                   <th className="text-center p-4 font-semibold">AppTweak</th>
                   <th className="text-center p-4 font-semibold">Hootsuite</th>
@@ -425,16 +410,16 @@ export default function LandingPage() {
                 </tr>
               </thead>
               <tbody>
-                <CompareRow row={['Web SEO + keyword takibi', true, false, false, false, true]} />
-                <CompareRow row={['AI Görünürlük (ChatGPT/Claude/Gemini)', false, false, false, false, true]} />
-                <CompareRow row={['App Store + Play Store ASO', false, true, false, false, true]} />
-                <CompareRow row={['Apple Search Ads yönetimi', false, false, false, false, true]} />
-                <CompareRow row={['Sosyal medya post + zamanlama', false, false, true, false, true]} />
-                <CompareRow row={['AI görsel + video üretimi', false, false, false, true, true]} />
-                <CompareRow row={['AI makale üretimi', false, false, false, true, true]} />
-                <CompareRow row={['Auto-Pilot otomasyon', false, false, false, false, true]} />
+                <CompareRow row={[t('land.cmp.row1'), true, false, false, false, true]} />
+                <CompareRow row={[t('land.cmp.row2'), false, false, false, false, true]} />
+                <CompareRow row={[t('land.cmp.row3'), false, true, false, false, true]} />
+                <CompareRow row={[t('land.cmp.row4'), false, false, false, false, true]} />
+                <CompareRow row={[t('land.cmp.row5'), false, false, true, false, true]} />
+                <CompareRow row={[t('land.cmp.row6'), false, false, false, true, true]} />
+                <CompareRow row={[t('land.cmp.row7'), false, false, false, true, true]} />
+                <CompareRow row={[t('land.cmp.row8'), false, false, false, false, true]} />
                 <tr className="border-t bg-muted/20">
-                  <td className="p-4 font-bold">Aylık fiyat (yaklaşık)</td>
+                  <td className="p-4 font-bold">{t('land.cmp.row_price')}</td>
                   <td className="text-center p-4 text-muted-foreground">$140</td>
                   <td className="text-center p-4 text-muted-foreground">$200</td>
                   <td className="text-center p-4 text-muted-foreground">$99</td>
@@ -445,7 +430,7 @@ export default function LandingPage() {
             </table>
           </div>
           <p className="text-center text-xs text-muted-foreground mt-4">
-            * Karşılaştırma resmi web sitelerinin Pro/Team paket fiyatlarına göre. Mayıs 2026 itibarıyla.
+            {t('land.cmp.note')}
           </p>
         </div>
       </section>
@@ -454,36 +439,36 @@ export default function LandingPage() {
       <section className="py-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-14">
-            <p className="text-sm font-semibold text-orange-600 uppercase tracking-wider mb-2">Kimler kullanıyor</p>
+            <p className="text-sm font-semibold text-orange-600 uppercase tracking-wider mb-2">{t('land.uc.eyebrow')}</p>
             <h2 className="text-3xl sm:text-5xl font-bold tracking-tight">
-              Senin iş modelin için biçildi mi?
+              {t('land.uc.title')}
             </h2>
           </div>
 
           <div className="grid md:grid-cols-3 gap-5">
             <UseCaseCard
               icon={FileText}
-              audience="KOBİ + Hizmet"
-              hook="Muhasebe / hukuk / danışmanlık"
-              body="Hedef müşteri Google ve ChatGPT'de seni arıyor. LuviAI haftalık 3 makale yazar, Linkedin'de paylaşır, organic trafik gelir."
-              before="Ayda 200 organic ziyaret"
-              after="6 ay sonra ayda 4.200"
+              audience={t('land.uc.c1.tag')}
+              hook={t('land.uc.c1.title')}
+              body={t('land.uc.c1.body')}
+              before={t('land.uc.c1.before')}
+              after={t('land.uc.c1.after')}
             />
             <UseCaseCard
               icon={Smartphone}
-              audience="Mobil App Sahibi"
-              hook="iOS / Android uygulama"
-              body="App Store'da rakiplerin 'en iyi X uygulaması' aramasında 1. sırada — sen 47. Auto-Pilot ASA açar, sıralaman yükselir."
-              before="Aylık 50 organic install"
-              after="60 gün sonra ayda 1.800"
+              audience={t('land.uc.c2.tag')}
+              hook={t('land.uc.c2.title')}
+              body={t('land.uc.c2.body')}
+              before={t('land.uc.c2.before')}
+              after={t('land.uc.c2.after')}
             />
             <UseCaseCard
               icon={MessageSquare}
-              audience="E-ticaret"
-              hook="Marka odaklı online satış"
-              body="Instagram + TikTok + Google için içerik üretimi başına ayda 40 saat harcıyordun. LuviAI ile 4 saat."
-              before="Ayda 8 post / 1 kanal"
-              after="Ayda 50 post / 5 kanal"
+              audience={t('land.uc.c3.tag')}
+              hook={t('land.uc.c3.title')}
+              body={t('land.uc.c3.body')}
+              before={t('land.uc.c3.before')}
+              after={t('land.uc.c3.after')}
             />
           </div>
         </div>
@@ -493,24 +478,24 @@ export default function LandingPage() {
       <section className="py-24 bg-muted/30 border-y">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-14">
-            <p className="text-sm font-semibold text-orange-600 uppercase tracking-wider mb-2">Kullanıcı yorumları</p>
+            <p className="text-sm font-semibold text-orange-600 uppercase tracking-wider mb-2">{t('land.test.eyebrow')}</p>
             <h2 className="text-3xl sm:text-5xl font-bold tracking-tight">
-              Ekipler ne diyor?
+              {t('land.test.title')}
             </h2>
           </div>
 
           {testimonials.length > 0 ? (
             <div className="grid md:grid-cols-3 gap-5">
-              {testimonials.slice(0, 6).map((t, i) => (
+              {testimonials.slice(0, 6).map((item, i) => (
                 <Testimonial
-                  key={t.id}
-                  name={t.displayName}
-                  role={t.role ?? 'LuviAI kullanıcısı'}
-                  company={t.company ?? ''}
-                  avatar={t.initials}
+                  key={item.id}
+                  name={item.displayName}
+                  role={item.role ?? 'LuviAI user'}
+                  company={item.company ?? ''}
+                  avatar={item.initials}
                   avatarBg={AVATAR_BGS[i % AVATAR_BGS.length]}
-                  metric={t.metric ?? `${t.rating}/5 puan`}
-                  quote={t.body}
+                  metric={item.metric ?? `${item.rating}/5`}
+                  quote={item.body}
                 />
               ))}
             </div>
@@ -519,7 +504,7 @@ export default function LandingPage() {
             <div className="rounded-2xl border-2 border-dashed border-border bg-card p-12 text-center max-w-2xl mx-auto">
               <Star className="h-10 w-10 text-amber-400 mx-auto mb-3" />
               <p className="text-sm text-muted-foreground">
-                İlk müşteri yorumları toplanıyor — sen de ilk kullananlardan ol, deneyimini paylaş.
+                {t('land.test.empty')}
               </p>
             </div>
           )}
@@ -562,7 +547,7 @@ export default function LandingPage() {
                 billing === 'monthly' ? 'bg-foreground text-background' : 'text-muted-foreground hover:text-foreground'
               }`}
             >
-              Aylık
+              {t('land.pric.monthly')}
             </button>
             <button
               onClick={() => setBilling('annual')}
@@ -570,9 +555,9 @@ export default function LandingPage() {
                 billing === 'annual' ? 'bg-foreground text-background' : 'text-muted-foreground hover:text-foreground'
               }`}
             >
-              Yıllık
+              {t('land.pric.annual')}
               <span className="absolute -top-3 -right-3 text-[10px] bg-emerald-500 text-white px-1.5 py-0.5 rounded-full font-bold">
-                %17 indirim
+                {t('land.pric.discount_badge')}
               </span>
             </button>
           </div>
@@ -580,20 +565,29 @@ export default function LandingPage() {
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-5 max-w-7xl mx-auto">
             {plans.filter((p) => p.id !== 'trial').map((p) => {
               const monthlyEq = billing === 'annual' ? Math.round(p.annual / 12) : p.monthly;
+              // Plan name'i locale'e gore secelim (API'den TR olarak gelir)
+              const planNameKey = `land.pric.plan_${p.id}`;
+              const localizedName = t(planNameKey);
+              const finalName = localizedName === planNameKey ? p.name : localizedName;
+              const sitesLabel = typeof p.sites === 'number'
+                ? (p.sites === 1 ? `${p.sites} ${t('land.pric.bullet_site')}` : `${p.sites} ${t('land.pric.bullet_sites')}`)
+                : t('land.pric.bullet_sites');
               return (
                 <PriceCard
                   key={p.id}
-                  name={p.name}
-                  price={p.contactSales ? 'Özel' : `₺${monthlyEq.toLocaleString('tr-TR')}`}
-                  period={p.contactSales ? '' : '/ay'}
-                  annualNote={!p.contactSales && billing === 'annual' ? `Yıllık ₺${p.annual.toLocaleString('tr-TR')} faturalandırılır` : !p.contactSales ? 'Aylık faturalandırılır' : ''}
+                  name={finalName}
+                  price={p.contactSales ? t('land.pric.enterprise_label') : `₺${monthlyEq.toLocaleString('tr-TR')}`}
+                  period={p.contactSales ? '' : t('land.pric.per_month')}
+                  annualNote={!p.contactSales && billing === 'annual'
+                    ? `${t('land.pric.annual_billed_prefix')} ₺${p.annual.toLocaleString('tr-TR')} ${t('land.pric.annual_billed_suffix')}`
+                    : !p.contactSales ? t('land.pric.monthly_billed') : ''}
                   bullets={[
-                    `${p.articlesPerMonth} AI makale / ay`,
-                    `${p.socialPostsPerMonth} sosyal post / ay`,
-                    `${typeof p.sites === 'number' ? p.sites : 'Sınırsız'} site`,
-                    `Destek: ${p.support}`,
+                    `${p.articlesPerMonth} ${t('land.pric.bullet_articles')}`,
+                    `${p.socialPostsPerMonth} ${t('land.pric.bullet_posts')}`,
+                    sitesLabel,
+                    `${t('land.pric.bullet_support')} ${p.support}`,
                   ]}
-                  cta={p.contactSales ? 'Bizimle iletişime geç' : 'Ücretsiz başla'}
+                  cta={p.contactSales ? t('land.pric.cta_contact') : t('land.pric.cta_free')}
                   href={p.contactSales ? '/pricing' : '/signin?signup=1'}
                   highlighted={!!p.popular}
                   onCtaClick={() => trackCta('pricing_cta', { planId: p.id, billing })}
@@ -603,7 +597,7 @@ export default function LandingPage() {
           </div>
 
           <p className="text-center mt-8 text-sm text-muted-foreground">
-            Hepsinde: tüm AI modüller · Apple Search Ads · 10+ yayın hedefi · API erişimi
+            {t('land.pric.footer_note')}
           </p>
         </div>
       </section>
