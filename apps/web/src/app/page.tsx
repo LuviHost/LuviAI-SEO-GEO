@@ -1259,7 +1259,7 @@ const FAQS = [
   },
   {
     q: 'Kredi kartı vermem gerekiyor mu?',
-    a: 'Hayır. Ücretsiz deneme için kart istenmez. 14 gün sonra ücretli plana geçmek istersen kart eklersin, istemezsen hesap otomatik trial olarak kalır.',
+    a: 'Hayır. Ücretsiz deneme için kart istenmez. 2 ücretsiz makale hakkını kullandıktan sonra devam etmek istersen plan seçer ve kart eklersin, istemezsen hesap pasif kalır.',
   },
   {
     q: 'AI sektörümü gerçekten anlayabilir mi?',
@@ -1275,6 +1275,6 @@ const FAQS = [
   },
   {
     q: 'İstediğim zaman iptal edebilir miyim?',
-    a: 'Evet. Tek tıkla iptal, ay sonuna kadar kullanmaya devam edersin. İade politikası: ilk 14 gün koşulsuz para iadesi.',
+    a: 'Evet. Tek tıkla iptal, ay sonuna kadar kullanmaya devam edersin. İade politikası: ilk 7 gün içinde koşulsuz para iadesi.',
   },
 ];
