@@ -161,6 +161,85 @@ const dictionary = {
     'pricing.free_start': 'Ücretsiz başla',
     'pricing.note_free_trial': '2 makale ücretsiz · Kredi kartı yok',
 
+    // ─── Landing — Nav ──────────────────────────────────────────
+    'land.nav.solution': 'Çözüm',
+    'land.nav.how': 'Nasıl çalışır',
+    'land.nav.results': 'Sonuçlar',
+    'land.nav.pricing': 'Fiyat',
+    'land.nav.faq': 'SSS',
+    'land.nav.login': 'Giriş',
+    'land.nav.signup': 'Ücretsiz başla',
+
+    // ─── Landing — Hero ─────────────────────────────────────────
+    'land.hero.badge': 'AI · ASO · ASA · Sosyal · Studio — hepsi tek panelde',
+    'land.hero.title_pre': 'Senin yerine pazarlama yapan',
+    'land.hero.title_brand': 'AI',
+    'land.hero.title_dot': '.',
+    'land.hero.subtitle': 'Site, mobil app, sosyal medya — hepsi tek panelden. LuviAI siteni tarar, eksikleri bulur, içeriği üretir, App Store reklamını optimize eder.',
+    'land.hero.cta_primary': 'Ücretsiz başla — kart gerekmez',
+    'land.hero.cta_secondary': 'Nasıl çalışır (2dk)',
+    'land.hero.tag_no_card': 'Kart istenmez',
+    'land.hero.tag_free_articles': '2 makale ücretsiz',
+    'land.hero.tag_cancel': 'İstediğin zaman iptal',
+    'land.hero.tag_setup': '5 dakikada kurulum',
+    'land.hero.authority_apple': 'Apple Search Ads Open API Partner',
+    'land.hero.authority_ai': 'OpenAI · Anthropic · Google Cloud',
+    'land.hero.authority_security': 'AES-256 · TLS 1.3',
+    'land.hero.authority_kvkk': 'KVKK uyumlu · TR sunucu',
+    'land.hero.authority_uptime': '%99.9 SLA uptime',
+    'land.hero.ai_bar': 'Markanı her major AI platformunda izle',
+    'land.hero.integration_bar': 'Ayrıca entegre çalıştığımız platformlar',
+
+    // ─── Landing — Pain (PAS) ───────────────────────────────────
+    'land.pain.eyebrow': 'Tanıdık geldi mi?',
+    'land.pain.title': 'Pazarlama bütçen patlıyor, sonuç gelmiyor.',
+    'land.pain.c1_cost': '₺15.000/ay',
+    'land.pain.c1_title': 'SEO ajansı',
+    'land.pain.c1_body': 'Aylar süren raporlar, belirsiz sonuç. Hangi keyword\'de gerçekten ön plandasın bilmiyorsun.',
+    'land.pain.c2_cost': '₺25.000/ay',
+    'land.pain.c2_title': 'ASO + ASA uzmanı',
+    'land.pain.c2_body': 'App Store keyword takibi + Apple Search Ads ayrı uzmanlar. Aylık raporlar tablolarla dolu, eylem yok.',
+    'land.pain.c3_cost': '₺8.000/ay',
+    'land.pain.c3_title': 'İçerik + Sosyal medya freelance',
+    'land.pain.c3_body': 'Çevirmeyi ben yazsam daha iyi diyorsun. Her zaman 2 hafta gecikme.',
+    'land.pain.total': 'Aylık toplam: ₺48.000+ · LuviAI: ₺1.499\'dan başlar',
+
+    // ─── Landing — Pricing section ──────────────────────────────
+    'land.pricing.eyebrow': 'Şeffaf fiyat',
+    'land.pricing.title': 'Bugün başla, kart sonra.',
+    'land.pricing.subtitle': '2 makale ücretsiz · İstediğin zaman iptal · Gizli ücret yok',
+    'land.pricing.most_popular': '⭐ En Çok Tercih Edilen',
+    'land.pricing.per_month': '/ay',
+    'land.pricing.per_year': '/yıl',
+    'land.pricing.annual_billing': 'Yıllık faturalandırılır',
+    'land.pricing.monthly_billing': 'Aylık faturalandırılır',
+    'land.pricing.contact_us': 'Bizimle iletişime geç',
+    'land.pricing.start_free': 'Ücretsiz başla',
+    'land.pricing.support_em24': 'Destek: e-posta 24 saat',
+    'land.pricing.support_em4': 'Destek: e-posta 4 saat',
+    'land.pricing.support_priority': 'Destek: öncelikli + Slack',
+    'land.pricing.support_dedicated': 'Destek: özel hesap yöneticisi + SLA',
+    'land.pricing.footer_note': 'Hepsinde: tüm AI modüller · Apple Search Ads · 10+ yayın hedefi · API erişimi',
+
+    // ─── Landing — FAQ ──────────────────────────────────────────
+    'land.faq.eyebrow': 'Sıkça sorulanlar',
+    'land.faq.title': 'Akla gelen ilk sorular',
+    'land.faq.cta': 'Daha fazla soru? Tam SSS\'ye git →',
+
+    // ─── Landing — Final CTA ────────────────────────────────────
+    'land.cta.title': 'AI çağının pazarlamasına başla',
+    'land.cta.subtitle': 'İlk 2 makale ücretsiz, kart gerekmez. 5 dakikada kurulum.',
+    'land.cta.button': 'Ücretsiz başla',
+    'land.cta.secondary': 'Önce demoyu izle',
+
+    // ─── Footer ─────────────────────────────────────────────────
+    'land.footer.product': 'Ürün',
+    'land.footer.resources': 'Kaynaklar',
+    'land.footer.company': 'Şirket',
+    'land.footer.legal': 'Yasal',
+    'land.footer.tagline': 'AI çağının pazarlama platformu — Türkiye',
+    'land.footer.rights': 'Tüm hakları saklıdır',
+
     // Dashboard
     'dashboard.title': 'Panel',
     'dashboard.new_site': '+ Yeni Site',
@@ -333,6 +412,85 @@ const dictionary = {
     'pricing.contact_sales': 'Contact sales',
     'pricing.free_start': 'Start free',
     'pricing.note_free_trial': '2 free articles · No credit card',
+
+    // ─── Landing — Nav ──────────────────────────────────────────
+    'land.nav.solution': 'Solution',
+    'land.nav.how': 'How it works',
+    'land.nav.results': 'Results',
+    'land.nav.pricing': 'Pricing',
+    'land.nav.faq': 'FAQ',
+    'land.nav.login': 'Sign in',
+    'land.nav.signup': 'Start free',
+
+    // ─── Landing — Hero ─────────────────────────────────────────
+    'land.hero.badge': 'AI · ASO · ASA · Social · Studio — all in one panel',
+    'land.hero.title_pre': 'AI that does marketing',
+    'land.hero.title_brand': 'for you',
+    'land.hero.title_dot': '.',
+    'land.hero.subtitle': 'Website, mobile app, social media — all from one panel. LuviAI scans your site, finds gaps, generates content, optimizes App Store ads.',
+    'land.hero.cta_primary': 'Start free — no card required',
+    'land.hero.cta_secondary': 'How it works (2 min)',
+    'land.hero.tag_no_card': 'No card needed',
+    'land.hero.tag_free_articles': '2 free articles',
+    'land.hero.tag_cancel': 'Cancel anytime',
+    'land.hero.tag_setup': '5-minute setup',
+    'land.hero.authority_apple': 'Apple Search Ads Open API Partner',
+    'land.hero.authority_ai': 'OpenAI · Anthropic · Google Cloud',
+    'land.hero.authority_security': 'AES-256 · TLS 1.3',
+    'land.hero.authority_kvkk': 'KVKK compliant · TR servers',
+    'land.hero.authority_uptime': '99.9% SLA uptime',
+    'land.hero.ai_bar': 'Track your brand on every major AI platform',
+    'land.hero.integration_bar': 'Other platforms we integrate with',
+
+    // ─── Landing — Pain (PAS) ───────────────────────────────────
+    'land.pain.eyebrow': 'Sound familiar?',
+    'land.pain.title': 'Your marketing budget is exploding, results aren\'t.',
+    'land.pain.c1_cost': '₺15,000/mo',
+    'land.pain.c1_title': 'SEO agency',
+    'land.pain.c1_body': 'Months of reports, unclear results. You don\'t know which keyword you actually rank for.',
+    'land.pain.c2_cost': '₺25,000/mo',
+    'land.pain.c2_title': 'ASO + ASA specialist',
+    'land.pain.c2_body': 'App Store keyword tracking + Apple Search Ads need separate experts. Monthly reports full of tables, zero action.',
+    'land.pain.c3_cost': '₺8,000/mo',
+    'land.pain.c3_title': 'Content + social media freelancer',
+    'land.pain.c3_body': 'You think "I\'d write better myself". Always 2 weeks behind schedule.',
+    'land.pain.total': 'Monthly total: ₺48,000+ · LuviAI: starts from ₺1,499',
+
+    // ─── Landing — Pricing section ──────────────────────────────
+    'land.pricing.eyebrow': 'Transparent pricing',
+    'land.pricing.title': 'Start today, pay later.',
+    'land.pricing.subtitle': '2 free articles · Cancel anytime · No hidden fees',
+    'land.pricing.most_popular': '⭐ Most Popular',
+    'land.pricing.per_month': '/mo',
+    'land.pricing.per_year': '/yr',
+    'land.pricing.annual_billing': 'Billed annually',
+    'land.pricing.monthly_billing': 'Billed monthly',
+    'land.pricing.contact_us': 'Contact us',
+    'land.pricing.start_free': 'Start free',
+    'land.pricing.support_em24': 'Support: email 24h',
+    'land.pricing.support_em4': 'Support: email 4h',
+    'land.pricing.support_priority': 'Support: priority + Slack',
+    'land.pricing.support_dedicated': 'Support: dedicated account manager + SLA',
+    'land.pricing.footer_note': 'In all plans: all AI modules · Apple Search Ads · 10+ publish targets · API access',
+
+    // ─── Landing — FAQ ──────────────────────────────────────────
+    'land.faq.eyebrow': 'Frequently asked',
+    'land.faq.title': 'First questions that come to mind',
+    'land.faq.cta': 'More questions? Go to full FAQ →',
+
+    // ─── Landing — Final CTA ────────────────────────────────────
+    'land.cta.title': 'Start your AI-era marketing',
+    'land.cta.subtitle': 'First 2 articles free, no card required. Setup in 5 minutes.',
+    'land.cta.button': 'Start free',
+    'land.cta.secondary': 'Watch demo first',
+
+    // ─── Footer ─────────────────────────────────────────────────
+    'land.footer.product': 'Product',
+    'land.footer.resources': 'Resources',
+    'land.footer.company': 'Company',
+    'land.footer.legal': 'Legal',
+    'land.footer.tagline': 'AI-era marketing platform — Türkiye',
+    'land.footer.rights': 'All rights reserved',
 
     // Dashboard
     'dashboard.title': 'Dashboard',
