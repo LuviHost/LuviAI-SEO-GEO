@@ -98,13 +98,16 @@ export class AdminService {
 
   /** /api/me — kullanıcının dashboard özeti */
   async getMyDashboard(userId: string) {
-    const [user, sitesCount, articlesPublished, draftCount, lastInvoice] = await Promise.all([
-      this.prisma.user.findUnique({ where: { id: userId } }),
-      this.prisma.site.count({ where: { userId } }),
-      this.prisma.article.count({ where: { site: { userId }, status: 'PUBLISHED' } }),
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    // ADMIN dashboard KPI'lari listede gorulen tum siteleri yansitir (sites.service list() ile ayni semantik)
+    const siteWhere = user?.role === 'ADMIN' ? {} : { userId };
+    const articleWhere = user?.role === 'ADMIN' ? {} : { site: { userId } };
+    const [sitesCount, articlesPublished, draftCount, lastInvoice] = await Promise.all([
+      this.prisma.site.count({ where: siteWhere }),
+      this.prisma.article.count({ where: { ...articleWhere, status: 'PUBLISHED' } }),
       this.prisma.article.count({
         where: {
-          site: { userId },
+          ...articleWhere,
           status: { in: ['DRAFT', 'GENERATING', 'EDITING', 'REVIZE_NEEDED', 'READY_TO_PUBLISH'] as any },
         },
       }),
