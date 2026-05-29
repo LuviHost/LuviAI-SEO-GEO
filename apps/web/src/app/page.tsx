@@ -142,143 +142,156 @@ export default function LandingPage() {
         />
       )}
 
-      {/* ─── NAV ──────────────────────────────────────────────── */}
-      <nav className="sticky top-0 z-50 bg-background/85 backdrop-blur-xl border-b border-border/60">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2 font-bold text-lg">
-            <BrandLogo size={32} className="rounded-lg shadow-lg shadow-orange-500/20" />
-            LuviAI
+      {/* ─── NAV (Apple-grade glassmorphic) ──────────────────── */}
+      <nav className="sticky top-0 z-50 nav-blur">
+        <div className="container-apple h-14 flex items-center justify-between">
+          <Link href="/" className="flex items-center gap-2.5 text-[15px] font-medium tracking-[-0.01em]">
+            <BrandLogo size={26} className="rounded-md" />
+            <span>LuviAI</span>
           </Link>
-          <div className="hidden md:flex items-center gap-7 text-sm">
-            <a href="#cozum" className="hover:text-orange-600 transition-colors">Çözüm</a>
-            <a href="#nasil" className="hover:text-orange-600 transition-colors">Nasıl çalışır</a>
-            <a href="#sonuc" className="hover:text-orange-600 transition-colors">Sonuçlar</a>
-            <a href="#fiyat" className="hover:text-orange-600 transition-colors">Fiyat</a>
-            <a href="#sss" className="hover:text-orange-600 transition-colors">SSS</a>
+          <div className="hidden md:flex items-center gap-9 text-[13px] text-neutral-600 dark:text-neutral-300">
+            <a href="#cozum" className="hover:text-foreground transition-colors duration-300 ease-apple">Çözüm</a>
+            <a href="#nasil" className="hover:text-foreground transition-colors duration-300 ease-apple">Nasıl çalışır</a>
+            <a href="#sonuc" className="hover:text-foreground transition-colors duration-300 ease-apple">Sonuçlar</a>
+            <a href="#fiyat" className="hover:text-foreground transition-colors duration-300 ease-apple">Fiyat</a>
+            <a href="#sss" className="hover:text-foreground transition-colors duration-300 ease-apple">SSS</a>
           </div>
           <div className="flex items-center gap-1.5">
             <LocaleSwitch />
             <ThemeToggle />
-            <Link href="/signin" className="hidden sm:inline-block">
-              <Button variant="ghost" size="sm">Giriş</Button>
+            <Link href="/signin" className="hidden sm:inline-flex items-center px-3 h-9 text-[13px] text-neutral-600 dark:text-neutral-300 hover:text-foreground transition-colors duration-300 ease-apple">
+              Giriş
             </Link>
-            <Link href="/signin?signup=1">
-              <Button size="sm" className="bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white shadow-lg shadow-orange-500/20">
-                Ücretsiz başla <ArrowRight className="h-3.5 w-3.5 ml-1" />
-              </Button>
+            <Link href="/signin?signup=1" className="inline-flex items-center gap-1.5 px-4 h-9 rounded-full bg-foreground text-background text-[13px] font-medium transition-all duration-300 ease-apple hover:scale-[1.03] active:scale-[0.97] shadow-apple">
+              Ücretsiz başla
+              <ArrowRight className="h-3 w-3" />
             </Link>
           </div>
         </div>
       </nav>
 
-      {/* ─── HERO ─────────────────────────────────────────────── */}
-      <section className="relative pt-14 pb-16 lg:pt-20 lg:pb-20">
-        {/* gradient blobs */}
-        <div className="absolute inset-0 -z-10 overflow-hidden pointer-events-none">
-          <div className="absolute top-0 -left-32 w-[36rem] h-[36rem] bg-orange-500/15 rounded-full blur-3xl" />
-          <div className="absolute -bottom-20 -right-24 w-[40rem] h-[40rem] bg-amber-400/10 rounded-full blur-3xl" />
-          <div className="absolute top-40 right-1/3 w-72 h-72 bg-orange-400/8 rounded-full blur-3xl" />
+      {/* ─── HERO (Apple-grade massive type + mesh) ──────────── */}
+      <section className="relative section-padding overflow-hidden">
+        {/* Multi-layer gradient mesh + noise — premium background */}
+        <div className="absolute inset-0 -z-10 bg-mesh-warm opacity-90 pointer-events-none" />
+        <div className="absolute inset-0 -z-10 bg-noise opacity-[0.04] pointer-events-none" />
+        {/* Subtle radial glow at top */}
+        <div className="absolute -top-40 left-1/2 -translate-x-1/2 w-[120vw] h-[60vh] -z-10 pointer-events-none">
+          <div className="absolute inset-0 bg-gradient-to-b from-brand-200/30 via-brand-50/10 to-transparent dark:from-brand-900/20 dark:via-transparent blur-3xl" />
         </div>
 
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          {/* Mini badge */}
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-orange-500/30 bg-orange-500/5 text-xs font-semibold text-orange-700 dark:text-orange-400 mb-6">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-500 opacity-75" />
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-orange-500" />
-            </span>
-            AI · ASO · ASA · Sosyal · Studio — hepsi tek panelde
+        <div className="container-apple text-center stagger-reveal">
+          {/* Eyebrow */}
+          <div className="flex items-center justify-center mb-7">
+            <div className="inline-flex items-center gap-2.5 px-4 h-8 rounded-full border border-neutral-200/80 dark:border-neutral-700/60 bg-background/60 backdrop-blur-sm text-[12px] font-medium text-neutral-700 dark:text-neutral-300">
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-500 opacity-60" />
+                <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-brand-500" />
+              </span>
+              AI · ASO · Sosyal · Studio — hepsi tek panelde
+            </div>
           </div>
 
-          {/* Headline — single sharp statement */}
-          <h1 className="hero-headline text-5xl sm:text-6xl lg:text-8xl font-extrabold tracking-tight leading-[0.95]">
-            Senin yerine pazarlama yapan{' '}
-            <span className="bg-gradient-to-br from-orange-500 to-orange-700 bg-clip-text text-transparent">AI</span>.
+          {/* Massive Apple-grade headline */}
+          <h1 className="hero-headline text-balance font-medium tracking-display text-neutral-900 dark:text-white text-[clamp(2.75rem,8vw,7rem)] leading-[0.96]">
+            <span>Senin yerine</span>
+            <br />
+            <span>pazarlama yapan </span>
+            <span className="font-display italic text-[1.05em] bg-gradient-to-br from-brand-500 via-rose-500 to-amber-500 bg-clip-text text-transparent">AI</span>
+            <span>.</span>
           </h1>
 
-          {/* Sub */}
-          <p className="hero-subtitle mt-6 text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
+          {/* Refined sub-headline */}
+          <p className="hero-subtitle text-pretty mt-8 mx-auto max-w-[640px] text-[clamp(1.0625rem,1.6vw,1.375rem)] leading-[1.5] text-neutral-600 dark:text-neutral-400">
             Site, mobil app, sosyal medya — hepsi tek panelden. LuviAI siteni tarar, eksikleri bulur, içeriği üretir, App Store reklamını optimize eder.
           </p>
 
-          {/* CTA */}
-          <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
-            <Link href="/signin?signup=1" onClick={() => trackCta('hero_primary')}>
-              <Button size="lg" className="h-14 px-7 text-base bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white shadow-2xl shadow-orange-500/30">
-                Ücretsiz başla — kart gerekmez
-                <ArrowRight className="h-5 w-5 ml-2" />
-              </Button>
+          {/* Apple-grade CTAs */}
+          <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-3">
+            <Link href="/signin?signup=1" onClick={() => trackCta('hero_primary')} className="btn-apple-primary group">
+              Ücretsiz başla — kart gerekmez
+              <ArrowRight className="h-4 w-4 transition-transform duration-300 ease-apple group-hover:translate-x-0.5" />
             </Link>
-            <a href="#nasil" onClick={() => trackCta('hero_secondary_demo')}>
-              <Button size="lg" variant="outline" className="h-14 px-7 text-base">
-                <PlayCircle className="h-5 w-5 mr-2" /> Nasıl çalışır (2dk)
-              </Button>
+            <a href="#nasil" onClick={() => trackCta('hero_secondary_demo')} className="btn-apple-ghost group">
+              <PlayCircle className="h-4 w-4" /> Nasıl çalışır (2dk)
             </a>
           </div>
 
-          {/* Risk reversal microcopy */}
-          <div className="mt-5 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs text-muted-foreground">
-            <span className="inline-flex items-center gap-1"><Check className="h-3.5 w-3.5 text-emerald-600" /> Kredi kartı istenmez</span>
-            <span className="inline-flex items-center gap-1"><Check className="h-3.5 w-3.5 text-emerald-600" /> 2 makale ücretsiz</span>
-            <span className="inline-flex items-center gap-1"><Check className="h-3.5 w-3.5 text-emerald-600" /> Kart gerekmez</span>
-            <span className="inline-flex items-center gap-1"><Check className="h-3.5 w-3.5 text-emerald-600" /> 5 dakikada kurulum</span>
+          {/* Risk reversal — minimal Apple style */}
+          <div className="mt-7 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-[12px] text-neutral-500 dark:text-neutral-400">
+            <span className="inline-flex items-center gap-1.5"><Check className="h-3 w-3 text-brand-500" /> Kart istenmez</span>
+            <span className="text-neutral-300 dark:text-neutral-700">·</span>
+            <span className="inline-flex items-center gap-1.5"><Check className="h-3 w-3 text-brand-500" /> 2 makale ücretsiz</span>
+            <span className="text-neutral-300 dark:text-neutral-700">·</span>
+            <span className="inline-flex items-center gap-1.5"><Check className="h-3 w-3 text-brand-500" /> İstediğin zaman iptal</span>
+            <span className="text-neutral-300 dark:text-neutral-700">·</span>
+            <span className="inline-flex items-center gap-1.5"><Check className="h-3 w-3 text-brand-500" /> 5 dakikada kurulum</span>
           </div>
         </div>
 
-        {/* ─── Live Product Preview (dashboard mockup) ─── */}
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 mt-16">
-          <ProductPreview />
+        {/* ─── Live Product Preview — Apple "device showcase" pattern ─── */}
+        <div className="container-apple mt-20 lg:mt-24 animate-scale-in">
+          <div className="relative">
+            {/* Subtle glow behind product */}
+            <div className="absolute inset-x-0 -inset-y-8 -z-10 bg-gradient-to-b from-brand-200/20 via-transparent to-transparent dark:from-brand-900/20 blur-3xl pointer-events-none" />
+            <ProductPreview />
+          </div>
         </div>
 
-        {/* Authority badges + integrations */}
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-16">
-          {/* Authority rozet bar */}
-          <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3 mb-8">
-            <AuthorityBadge icon={Apple} text="Apple Search Ads Open API Partner" />
-            <AuthorityBadge icon={Cpu} text="OpenAI · Anthropic · Google Cloud" />
-            <AuthorityBadge icon={Lock} text="AES-256 · TLS 1.3" />
-            <AuthorityBadge icon={BadgeCheck} text="KVKK uyumlu · TR sunucu" />
-            <AuthorityBadge icon={Cloud} text="%99.9 SLA uptime" />
+        {/* Authority + integrations — minimalist Apple "tech specs" bar */}
+        <div className="container-apple mt-24 lg:mt-28">
+          {/* Authority badges (toned-down, monochrome) */}
+          <div className="flex flex-wrap items-center justify-center gap-x-7 gap-y-3 mb-12 text-[12px] text-neutral-500 dark:text-neutral-400">
+            <span className="inline-flex items-center gap-1.5"><Apple className="h-3.5 w-3.5" /> Apple Search Ads Open API Partner</span>
+            <span className="hidden sm:inline text-neutral-300 dark:text-neutral-700">·</span>
+            <span className="inline-flex items-center gap-1.5"><Cpu className="h-3.5 w-3.5" /> OpenAI · Anthropic · Google Cloud</span>
+            <span className="hidden sm:inline text-neutral-300 dark:text-neutral-700">·</span>
+            <span className="inline-flex items-center gap-1.5"><Lock className="h-3.5 w-3.5" /> AES-256 · TLS 1.3</span>
+            <span className="hidden sm:inline text-neutral-300 dark:text-neutral-700">·</span>
+            <span className="inline-flex items-center gap-1.5"><BadgeCheck className="h-3.5 w-3.5" /> KVKK · TR sunucu</span>
+            <span className="hidden sm:inline text-neutral-300 dark:text-neutral-700">·</span>
+            <span className="inline-flex items-center gap-1.5"><Cloud className="h-3.5 w-3.5" /> %99.9 SLA</span>
           </div>
 
-          {/* AI Provider logo bar — Maya tarzı */}
-          <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground text-center mb-5">
+          {/* AI Provider logo wall — refined */}
+          <p className="text-eyebrow text-neutral-400 dark:text-neutral-500 text-center mb-6">
             Markanı her major AI platformunda izle
           </p>
-          <div className="flex flex-wrap items-center justify-center gap-x-7 gap-y-4 mb-8">
+          <div className="flex flex-wrap items-center justify-center gap-x-9 gap-y-5 mb-12">
             {(['chatgpt', 'claude-ai', 'gemini', 'perplexity', 'grok', 'deepseek', 'mistral'] as VendorName[]).map((v) => (
-              <div key={v} className="flex items-center gap-2 opacity-80 hover:opacity-100 transition">
+              <div key={v} className="flex items-center gap-2 opacity-70 hover:opacity-100 transition-opacity duration-300 ease-apple">
                 <VendorLogo name={v} size={22} />
-                <span className="text-sm font-semibold">{AI_LABELS[v] ?? v}</span>
+                <span className="text-[13px] font-medium tracking-[-0.005em]">{AI_LABELS[v] ?? v}</span>
               </div>
             ))}
           </div>
 
-          {/* Diğer entegrasyon platformları */}
-          <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground text-center mb-4 mt-4">
+          {/* Integrations — even more subtle */}
+          <p className="text-eyebrow text-neutral-400 dark:text-neutral-500 text-center mb-5">
             Ayrıca entegre çalıştığımız platformlar
           </p>
-          <div className="flex flex-wrap items-center justify-center gap-x-7 gap-y-4 opacity-80">
+          <div className="flex flex-wrap items-center justify-center gap-x-7 gap-y-4 opacity-60 hover:opacity-90 transition-opacity duration-500 ease-apple">
             {(['linkedin', 'twitter', 'facebook', 'instagram', 'tiktok', 'youtube', 'google', 'wordpress', 'shopify', 'webflow'] as VendorName[]).map((v) => (
-              <div key={v} className="flex items-center gap-1.5 hover:opacity-100 transition" title={INTEGRATION_LABELS[v] ?? v}>
+              <div key={v} className="flex items-center" title={INTEGRATION_LABELS[v] ?? v}>
                 <VendorLogo name={v} size={20} />
               </div>
             ))}
-            <span className="text-xs font-bold text-muted-foreground ml-2">+ Apple Search Ads · App Store Connect</span>
+            <span className="text-[11px] font-medium text-neutral-500 ml-2">+ Apple Search Ads · App Store Connect</span>
           </div>
         </div>
       </section>
 
-      {/* ─── PAIN (PAS) ───────────────────────────────────────── */}
-      <section className="py-20 border-y bg-muted/30">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12 max-w-3xl mx-auto">
-            <p className="text-sm font-semibold text-orange-600 uppercase tracking-wider mb-2">Tanıdık geldi mi?</p>
-            <h2 className="text-3xl sm:text-4xl font-bold">
-              Pazarlama bütçen patlıyor, sonuç gelmiyor.
+      {/* ─── PAIN (PAS) — Apple-grade ─────────────────────────── */}
+      <section className="section-padding border-y border-border/60 bg-neutral-50 dark:bg-neutral-950/40">
+        <div className="container-apple">
+          <div className="text-center mb-16 max-w-[680px] mx-auto">
+            <p className="eyebrow mb-4">Tanıdık geldi mi?</p>
+            <h2 className="text-balance font-medium tracking-display text-neutral-900 dark:text-white text-[clamp(2rem,4.5vw,3.5rem)] leading-[1.05]">
+              Pazarlama bütçen patlıyor,{' '}
+              <span className="font-display italic text-[1.05em] text-neutral-500 dark:text-neutral-400">sonuç gelmiyor.</span>
             </h2>
           </div>
-          <div className="grid md:grid-cols-3 gap-5">
+          <div className="grid md:grid-cols-3 gap-4 lg:gap-6">
             <PainCard
               cost="₺15.000/ay"
               title="SEO ajansı"
@@ -295,28 +308,27 @@ export default function LandingPage() {
               body="SEMrush + AppTweak + Hootsuite + ChatGPT + Canva. Hiçbiri konuşmuyor, hepsine ayrı para."
             />
           </div>
-          <p className="text-center mt-10 text-lg">
-            <span className="line-through text-muted-foreground">Toplam: ₺58.000/ay</span>
-            {' '}
-            <span className="font-bold">→ LuviAI: ₺799'dan başlar</span>
+          <p className="text-center mt-12 text-[clamp(1rem,1.4vw,1.25rem)] text-neutral-600 dark:text-neutral-400">
+            <span className="line-through text-neutral-400 dark:text-neutral-600">Toplam: ₺58.000/ay</span>
+            {' → '}
+            <span className="font-medium text-foreground">LuviAI: ₺799'dan başlar</span>
           </p>
         </div>
       </section>
 
-      {/* ─── SOLUTION ─────────────────────────────────────────── */}
-      <section id="cozum" className="py-24">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16 max-w-3xl mx-auto">
-            <p className="text-sm font-semibold text-orange-600 uppercase tracking-wider mb-2">Çözüm</p>
-            <h2 className="text-3xl sm:text-5xl font-bold tracking-tight">
-              4 ayrı uzmana ihtiyacın yok.<br />
-              <span className="bg-gradient-to-br from-orange-500 to-orange-700 bg-clip-text text-transparent">
-                Hepsi tek AI panel.
-              </span>
+      {/* ─── SOLUTION — Apple-grade ──────────────────────────── */}
+      <section id="cozum" className="section-padding">
+        <div className="container-apple">
+          <div className="text-center mb-20 max-w-[760px] mx-auto">
+            <p className="eyebrow mb-4">Çözüm</p>
+            <h2 className="text-balance font-medium tracking-display text-neutral-900 dark:text-white text-[clamp(2.25rem,5vw,4rem)] leading-[1]">
+              4 ayrı uzmana ihtiyacın yok.
+              <br />
+              <span className="font-display italic text-[1.08em] bg-gradient-to-br from-brand-500 via-rose-500 to-amber-500 bg-clip-text text-transparent">Hepsi tek AI panel.</span>
             </h2>
           </div>
 
-          <div className="grid md:grid-cols-2 gap-5">
+          <div className="grid md:grid-cols-2 gap-4 lg:gap-6">
             <FeatureCard
               icon={Search}
               tag="SEO + AEO"
@@ -349,51 +361,41 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ─── HOW IT WORKS ─────────────────────────────────────── */}
-      <section id="nasil" className="py-24 bg-muted/30 border-y">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
-            <p className="text-sm font-semibold text-orange-600 uppercase tracking-wider mb-2">3 adım</p>
-            <h2 className="text-3xl sm:text-5xl font-bold tracking-tight">
-              5 dakikada yayında.
+      {/* ─── HOW IT WORKS — Apple-grade ──────────────────────── */}
+      <section id="nasil" className="section-padding border-y border-border/60 bg-neutral-50 dark:bg-neutral-950/40">
+        <div className="container-apple max-w-[1200px]">
+          <div className="text-center mb-20 max-w-[680px] mx-auto">
+            <p className="eyebrow mb-4">3 adım</p>
+            <h2 className="text-balance font-medium tracking-display text-neutral-900 dark:text-white text-[clamp(2.25rem,5vw,4rem)] leading-[1]">
+              5 dakikada{' '}
+              <span className="font-display italic text-[1.08em] text-brand-600 dark:text-brand-400">yayında.</span>
             </h2>
-            <p className="mt-3 text-lg text-muted-foreground">Teknik bilgi gerekmez. Onboarding sırasında AI senin sektörünü tahmin eder, ilk içerikleri üretir.</p>
+            <p className="mt-6 text-[clamp(1rem,1.4vw,1.25rem)] text-neutral-500 dark:text-neutral-400">
+              Teknik bilgi gerekmez. Onboarding sırasında AI senin sektörünü tahmin eder, ilk içerikleri üretir.
+            </p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-6">
-            <StepCard
-              n={1}
-              title="Siteni bağla"
-              body="URL'i yapıştır. LuviAI siteyi tarar, sektörünü belirler, ilk 50 keyword'ü çıkarır."
-              icon={Globe}
-            />
-            <StepCard
-              n={2}
-              title="AI analiz"
-              body="Rakiplerin metadata'sı, sıralamalar, eksik keyword'ler, AI Citation skorun — hepsi 2 dakikada."
-              icon={Sparkles}
-            />
-            <StepCard
-              n={3}
-              title="Yayında"
-              body="İlk makale, ilk sosyal post, ilk ASA önerisi hazır. Auto-Pilot açarsan sen hiçbir şey yapmazsın."
-              icon={Rocket}
-            />
+          <div className="grid md:grid-cols-3 gap-4 lg:gap-6">
+            <StepCard n={1} title="Siteni bağla" body="URL'i yapıştır. LuviAI siteyi tarar, sektörünü belirler, ilk 50 keyword'ü çıkarır." icon={Globe} />
+            <StepCard n={2} title="AI analiz" body="Rakiplerin metadata'sı, sıralamalar, eksik keyword'ler, AI Citation skorun — hepsi 2 dakikada." icon={Sparkles} />
+            <StepCard n={3} title="Yayında" body="İlk makale, ilk sosyal post, ilk ASA önerisi hazır. Auto-Pilot açarsan sen hiçbir şey yapmazsın." icon={Rocket} />
           </div>
         </div>
       </section>
 
-      {/* ─── RESULTS ──────────────────────────────────────────── */}
-      <section id="sonuc" className="py-24">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-14">
-            <p className="text-sm font-semibold text-orange-600 uppercase tracking-wider mb-2">Sonuçlar</p>
-            <h2 className="text-3xl sm:text-5xl font-bold tracking-tight">
-              Sayılarla LuviAI etkisi.
+      {/* ─── RESULTS — Apple "Big Numbers" pattern ─────────── */}
+      <section id="sonuc" className="section-padding">
+        <div className="container-apple">
+          <div className="text-center mb-20">
+            <p className="eyebrow mb-4">Sonuçlar</p>
+            <h2 className="text-balance font-medium tracking-display text-neutral-900 dark:text-white text-[clamp(2.25rem,5vw,4rem)] leading-[1]">
+              Sayılarla{' '}
+              <span className="font-display italic text-[1.08em]">LuviAI</span>{' '}
+              etkisi.
             </h2>
           </div>
 
-          <div className="grid sm:grid-cols-3 gap-6 max-w-5xl mx-auto">
+          <div className="grid sm:grid-cols-3 gap-6 lg:gap-12 max-w-[1100px] mx-auto">
             <StatCard num="+%47" label="ortalama organic trafik artışı" sub="ilk 30 günde" />
             <StatCard num="-%62" label="App Store Ads CPI düşüşü" sub="Auto-Pilot 60 gün sonrası" />
             <StatCard num="10x" label="içerik üretim hızı" sub="manuel sürece kıyasla" />
@@ -401,27 +403,30 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ─── COMPARISON ──────────────────────────────────────── */}
-      <section className="py-24 bg-muted/30 border-y">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <p className="text-sm font-semibold text-orange-600 uppercase tracking-wider mb-2">Karşılaştırma</p>
-            <h2 className="text-3xl sm:text-5xl font-bold tracking-tight">
-              5 SaaS yerine 1 LuviAI.
+      {/* ─── COMPARISON — Apple "Tech Specs" table ─────────── */}
+      <section className="section-padding border-y border-border/60 bg-neutral-50 dark:bg-neutral-950/40">
+        <div className="container-apple max-w-[1100px]">
+          <div className="text-center mb-16">
+            <p className="eyebrow mb-4">Karşılaştırma</p>
+            <h2 className="text-balance font-medium tracking-display text-neutral-900 dark:text-white text-[clamp(2.25rem,5vw,4rem)] leading-[1]">
+              5 SaaS yerine{' '}
+              <span className="font-display italic text-[1.08em] bg-gradient-to-br from-brand-500 to-rose-500 bg-clip-text text-transparent">1 LuviAI</span>.
             </h2>
-            <p className="mt-3 text-muted-foreground">Şu an birden fazla araç için ödüyorsan büyük ihtimalle %80 tasarruf edersin.</p>
+            <p className="mt-6 text-[clamp(1rem,1.4vw,1.25rem)] text-neutral-500 dark:text-neutral-400">
+              Şu an birden fazla araç için ödüyorsan büyük ihtimalle %80 tasarruf edersin.
+            </p>
           </div>
 
-          <div className="overflow-x-auto rounded-2xl border bg-background">
-            <table className="w-full text-sm">
-              <thead className="bg-muted/40">
+          <div className="overflow-x-auto rounded-apple border border-border/60 bg-background shadow-apple-sm">
+            <table className="w-full text-[14px]">
+              <thead className="bg-neutral-50 dark:bg-neutral-950/60">
                 <tr>
-                  <th className="text-left p-4 font-semibold">Özellik</th>
-                  <th className="text-center p-4 font-semibold">SEMrush</th>
-                  <th className="text-center p-4 font-semibold">AppTweak</th>
-                  <th className="text-center p-4 font-semibold">Hootsuite</th>
-                  <th className="text-center p-4 font-semibold">ChatGPT Team</th>
-                  <th className="text-center p-4 font-bold bg-orange-500/10 text-orange-700 dark:text-orange-400">LuviAI</th>
+                  <th className="text-left p-5 text-[12px] font-medium tracking-[0.04em] uppercase text-neutral-500 dark:text-neutral-400">Özellik</th>
+                  <th className="text-center p-5 text-[12px] font-medium tracking-[0.04em] uppercase text-neutral-500 dark:text-neutral-400">SEMrush</th>
+                  <th className="text-center p-5 text-[12px] font-medium tracking-[0.04em] uppercase text-neutral-500 dark:text-neutral-400">AppTweak</th>
+                  <th className="text-center p-5 text-[12px] font-medium tracking-[0.04em] uppercase text-neutral-500 dark:text-neutral-400">Hootsuite</th>
+                  <th className="text-center p-5 text-[12px] font-medium tracking-[0.04em] uppercase text-neutral-500 dark:text-neutral-400">ChatGPT Team</th>
+                  <th className="text-center p-5 text-[12px] font-medium tracking-[0.04em] uppercase bg-brand-500/[0.06] text-brand-700 dark:text-brand-400">LuviAI</th>
                 </tr>
               </thead>
               <tbody>
@@ -433,34 +438,35 @@ export default function LandingPage() {
                 <CompareRow row={['AI görsel + video üretimi', false, false, false, true, true]} />
                 <CompareRow row={['AI makale üretimi', false, false, false, true, true]} />
                 <CompareRow row={['Auto-Pilot otomasyon', false, false, false, false, true]} />
-                <tr className="border-t bg-muted/20">
-                  <td className="p-4 font-bold">Aylık fiyat (yaklaşık)</td>
-                  <td className="text-center p-4 text-muted-foreground">$140</td>
-                  <td className="text-center p-4 text-muted-foreground">$200</td>
-                  <td className="text-center p-4 text-muted-foreground">$99</td>
-                  <td className="text-center p-4 text-muted-foreground">$60</td>
-                  <td className="text-center p-4 bg-orange-500/10 font-bold text-orange-700 dark:text-orange-400">₺4.999 ($125)</td>
+                <tr className="border-t border-border/60 bg-neutral-50 dark:bg-neutral-950/40">
+                  <td className="p-5 text-[14px] font-medium">Aylık fiyat (yaklaşık)</td>
+                  <td className="text-center p-5 text-neutral-500 dark:text-neutral-400">$140</td>
+                  <td className="text-center p-5 text-neutral-500 dark:text-neutral-400">$200</td>
+                  <td className="text-center p-5 text-neutral-500 dark:text-neutral-400">$99</td>
+                  <td className="text-center p-5 text-neutral-500 dark:text-neutral-400">$60</td>
+                  <td className="text-center p-5 bg-brand-500/[0.06] font-medium text-brand-700 dark:text-brand-400">₺4.999 (25)</td>
                 </tr>
               </tbody>
             </table>
           </div>
-          <p className="text-center text-xs text-muted-foreground mt-4">
+          <p className="text-center text-[12px] text-neutral-500 dark:text-neutral-400 mt-6">
             * Karşılaştırma resmi web sitelerinin Pro/Team paket fiyatlarına göre. Mayıs 2026 itibarıyla.
           </p>
         </div>
       </section>
 
-      {/* ─── USE CASES ────────────────────────────────────────── */}
-      <section className="py-24">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-14">
-            <p className="text-sm font-semibold text-orange-600 uppercase tracking-wider mb-2">Kimler kullanıyor</p>
-            <h2 className="text-3xl sm:text-5xl font-bold tracking-tight">
-              Senin iş modelin için biçildi mi?
+      {/* ─── USE CASES — Apple-grade ──────────────────────── */}
+      <section className="section-padding">
+        <div className="container-apple">
+          <div className="text-center mb-20 max-w-[760px] mx-auto">
+            <p className="eyebrow mb-4">Kimler kullanıyor</p>
+            <h2 className="text-balance font-medium tracking-display text-neutral-900 dark:text-white text-[clamp(2.25rem,5vw,4rem)] leading-[1]">
+              Senin iş modelin için{' '}
+              <span className="font-display italic text-[1.08em]">biçildi mi?</span>
             </h2>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-5">
+          <div className="grid md:grid-cols-3 gap-4 lg:gap-6">
             <UseCaseCard
               icon={FileText}
               audience="KOBİ + Hizmet"
@@ -489,13 +495,14 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ─── TESTIMONIALS ─────────────────────────────────────── */}
-      <section className="py-24 bg-muted/30 border-y">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-14">
-            <p className="text-sm font-semibold text-orange-600 uppercase tracking-wider mb-2">Kullanıcı yorumları</p>
-            <h2 className="text-3xl sm:text-5xl font-bold tracking-tight">
-              Ekipler ne diyor?
+      {/* ─── TESTIMONIALS — Apple-grade ──────────────────── */}
+      <section className="section-padding border-y border-border/60 bg-neutral-50 dark:bg-neutral-950/40">
+        <div className="container-apple">
+          <div className="text-center mb-20">
+            <p className="eyebrow mb-4">Kullanıcı yorumları</p>
+            <h2 className="text-balance font-medium tracking-display text-neutral-900 dark:text-white text-[clamp(2.25rem,5vw,4rem)] leading-[1]">
+              Ekipler{' '}
+              <span className="font-display italic text-[1.08em]">ne diyor?</span>
             </h2>
           </div>
 
@@ -541,43 +548,46 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ─── PRICING ──────────────────────────────────────────── */}
-      <section id="fiyat" className="py-24">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-10">
-            <p className="text-sm font-semibold text-orange-600 uppercase tracking-wider mb-2">Şeffaf fiyat</p>
-            <h2 className="text-3xl sm:text-5xl font-bold tracking-tight">
-              Bugün başla, kart sonra.
+      {/* ─── PRICING — Apple-grade ────────────────────────── */}
+      <section id="fiyat" className="section-padding">
+        <div className="container-apple">
+          <div className="text-center mb-14">
+            <p className="eyebrow mb-4">Şeffaf fiyat</p>
+            <h2 className="text-balance font-medium tracking-display text-neutral-900 dark:text-white text-[clamp(2.25rem,5vw,4rem)] leading-[1]">
+              Bugün başla,{' '}
+              <span className="font-display italic text-[1.08em] text-brand-600 dark:text-brand-400">kart sonra.</span>
             </h2>
-            <p className="mt-3 text-muted-foreground text-lg">
+            <p className="mt-6 text-[clamp(1rem,1.4vw,1.25rem)] text-neutral-500 dark:text-neutral-400">
               2 makale ücretsiz · İstediğin zaman iptal · Gizli ücret yok
             </p>
           </div>
 
-          {/* Billing toggle */}
-          <div className="flex items-center justify-center gap-3 mb-12">
-            <button
-              onClick={() => setBilling('monthly')}
-              className={`px-4 py-2 rounded-lg text-sm font-semibold transition ${
-                billing === 'monthly' ? 'bg-foreground text-background' : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              Aylık
-            </button>
-            <button
-              onClick={() => setBilling('annual')}
-              className={`px-4 py-2 rounded-lg text-sm font-semibold transition relative ${
-                billing === 'annual' ? 'bg-foreground text-background' : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              Yıllık
-              <span className="absolute -top-3 -right-3 text-[10px] bg-emerald-500 text-white px-1.5 py-0.5 rounded-full font-bold">
-                %17 indirim
-              </span>
-            </button>
+          {/* Apple-style segmented control */}
+          <div className="flex items-center justify-center mb-16">
+            <div className="inline-flex p-1 rounded-full bg-neutral-100 dark:bg-neutral-900 border border-border/60">
+              <button
+                onClick={() => setBilling('monthly')}
+                className={`px-5 h-9 rounded-full text-[13px] font-medium transition-all duration-300 ease-apple ${
+                  billing === 'monthly' ? 'bg-background shadow-apple-sm text-foreground' : 'text-neutral-500 hover:text-foreground'
+                }`}
+              >
+                Aylık
+              </button>
+              <button
+                onClick={() => setBilling('annual')}
+                className={`px-5 h-9 rounded-full text-[13px] font-medium transition-all duration-300 ease-apple relative ${
+                  billing === 'annual' ? 'bg-background shadow-apple-sm text-foreground' : 'text-neutral-500 hover:text-foreground'
+                }`}
+              >
+                Yıllık
+                <span className="absolute -top-2 -right-2 text-[10px] bg-brand-500 text-white px-1.5 py-0.5 rounded-full font-medium">
+                  −%17
+                </span>
+              </button>
+            </div>
           </div>
 
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-5 max-w-7xl mx-auto">
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6 max-w-[1400px] mx-auto">
             {plans.filter((p) => p.id !== 'trial').map((p) => {
               const monthlyEq = billing === 'annual' ? Math.round(p.annual / 12) : p.monthly;
               return (
@@ -608,32 +618,20 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ─── SOCIAL PROOF / METRICS ──────────────────────────── */}
-      <section className="py-20">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
-            <div>
-              <div className="text-3xl md:text-4xl font-extrabold"><AnimatedNumber raw="10dk" /></div>
-              <div className="text-xs text-muted-foreground mt-1">Ortalama kurulum</div>
-            </div>
-            <div>
-              <div className="text-3xl md:text-4xl font-extrabold"><AnimatedNumber raw="35+" /></div>
-              <div className="text-xs text-muted-foreground mt-1">Entegrasyon</div>
-            </div>
-            <div>
-              <div className="text-3xl md:text-4xl font-extrabold"><AnimatedNumber raw="240+" /></div>
-              <div className="text-xs text-muted-foreground mt-1">Aktif ekip</div>
-            </div>
-            <div>
-              <div className="text-3xl md:text-4xl font-extrabold"><AnimatedNumber raw="%99.9" /></div>
-              <div className="text-xs text-muted-foreground mt-1">SLA uptime</div>
-            </div>
+      {/* ─── SOCIAL PROOF / METRICS — Apple "stat strip" ─── */}
+      <section className="section-padding-sm">
+        <div className="container-apple max-w-[1100px]">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 md:gap-12">
+            <StatStrip num="10dk" label="Ortalama kurulum" />
+            <StatStrip num="35+" label="Entegrasyon" />
+            <StatStrip num="240+" label="Aktif ekip" />
+            <StatStrip num="%99.9" label="SLA uptime" />
           </div>
         </div>
       </section>
 
-      {/* ─── FAQ ──────────────────────────────────────────────── */}
-      <section id="sss" className="py-24 bg-muted/30 border-y">
+      {/* ─── FAQ — Apple-grade ──────────────────────────────── */}
+      <section id="sss" className="section-padding border-y border-border/60 bg-neutral-50 dark:bg-neutral-950/40">
         {/* FAQPage schema — AI'lar bunu cevap kaynağı olarak çok kullanır */}
         <script
           type="application/ld+json"
@@ -649,13 +647,16 @@ export default function LandingPage() {
             }),
           }}
         />
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <p className="text-sm font-semibold text-orange-600 uppercase tracking-wider mb-2">SSS</p>
-            <h2 className="text-3xl sm:text-4xl font-bold tracking-tight">Aklındaki sorular.</h2>
+        <div className="container-apple max-w-[820px]">
+          <div className="text-center mb-16">
+            <p className="eyebrow mb-4">SSS</p>
+            <h2 className="text-balance font-medium tracking-display text-neutral-900 dark:text-white text-[clamp(2.25rem,5vw,4rem)] leading-[1]">
+              Aklındaki{' '}
+              <span className="font-display italic text-[1.08em]">sorular.</span>
+            </h2>
           </div>
 
-          <div className="space-y-3">
+          <div className="divide-y divide-border/60 border-y border-border/60">
             {FAQS.map((q, i) => (
               <FaqItem
                 key={i}
@@ -669,64 +670,88 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ─── FINAL CTA ───────────────────────────────────────── */}
-      <section className="py-24 relative overflow-hidden">
-        <div className="absolute inset-0 -z-10 bg-gradient-to-br from-orange-500/10 via-amber-400/5 to-transparent" />
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-4xl sm:text-6xl font-extrabold tracking-tight">
-            5 dakika.<br />
-            <span className="bg-gradient-to-br from-orange-500 to-orange-700 bg-clip-text text-transparent">
-              Sıfır risk.
-            </span>
+      {/* ─── FINAL CTA — Apple-grade closing statement ──────── */}
+      <section className="relative section-padding overflow-hidden">
+        {/* Layered atmospheric background — mesh + noise + radial */}
+        <div className="absolute inset-0 -z-10 bg-mesh-warm opacity-80 pointer-events-none" />
+        <div className="absolute inset-0 -z-10 bg-noise opacity-[0.04] pointer-events-none" />
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[80vw] h-[60vh] -z-10 pointer-events-none">
+          <div className="absolute inset-0 bg-gradient-to-b from-brand-200/30 via-transparent to-transparent dark:from-brand-900/20 blur-3xl" />
+        </div>
+
+        <div className="container-apple max-w-[1024px] text-center">
+          {/* Display headline — italic accent on key word */}
+          <h2 className="text-balance font-medium tracking-display text-neutral-900 dark:text-white text-[clamp(2.5rem,7vw,5.5rem)] leading-[0.96]">
+            <span>5 dakika.</span>
+            <br />
+            <span className="font-display italic text-[1.05em] bg-gradient-to-br from-brand-500 via-rose-500 to-amber-500 bg-clip-text text-transparent">Sıfır</span>
+            <span> risk.</span>
           </h2>
-          <p className="mt-6 text-lg text-muted-foreground max-w-2xl mx-auto">
+
+          <p className="text-pretty mt-8 mx-auto max-w-[560px] text-[clamp(1.0625rem,1.5vw,1.25rem)] leading-[1.5] text-neutral-600 dark:text-neutral-400">
             Kart bilgisi istenmez, istediğin zaman iptal edersin. İlk gün AI'nın senin için ne yapabileceğini gör.
           </p>
-          <div className="mt-9 flex flex-col sm:flex-row items-center justify-center gap-3">
-            <Link href="/signin?signup=1" onClick={() => trackCta('final_primary')}>
-              <Button size="lg" className="h-14 px-8 text-base bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white shadow-2xl shadow-orange-500/40">
-                Şimdi ücretsiz başla <ArrowRight className="h-5 w-5 ml-2" />
-              </Button>
+
+          <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-3">
+            <Link href="/signin?signup=1" onClick={() => trackCta('final_primary')} className="btn-apple-primary group">
+              Şimdi ücretsiz başla
+              <ArrowRight className="h-4 w-4 transition-transform duration-300 ease-apple group-hover:translate-x-0.5" />
             </Link>
-            <Link href="/pricing" onClick={() => trackCta('final_secondary_pricing')}>
-              <Button size="lg" variant="outline" className="h-14 px-8 text-base">
-                Fiyatları detaylı gör
-              </Button>
+            <Link href="/pricing" onClick={() => trackCta('final_secondary_pricing')} className="btn-apple-ghost">
+              Fiyatları detaylı gör
             </Link>
           </div>
-          <div className="mt-6 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs text-muted-foreground">
-            <span className="inline-flex items-center gap-1"><ShieldCheck className="h-3.5 w-3.5 text-emerald-600" /> SOC-2 uyumlu</span>
-            <span className="inline-flex items-center gap-1"><Zap className="h-3.5 w-3.5 text-emerald-600" /> %99.9 uptime</span>
-            <span className="inline-flex items-center gap-1"><Clock className="h-3.5 w-3.5 text-emerald-600" /> 7/24 izleme</span>
+
+          <div className="mt-7 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 text-[12px] text-neutral-500 dark:text-neutral-400">
+            <span className="inline-flex items-center gap-1.5"><ShieldCheck className="h-3 w-3" /> SOC-2 uyumlu</span>
+            <span className="text-neutral-300 dark:text-neutral-700">·</span>
+            <span className="inline-flex items-center gap-1.5"><Zap className="h-3 w-3" /> %99.9 uptime</span>
+            <span className="text-neutral-300 dark:text-neutral-700">·</span>
+            <span className="inline-flex items-center gap-1.5"><Clock className="h-3 w-3" /> 7/24 izleme</span>
           </div>
         </div>
       </section>
 
-      {/* ─── FOOTER ───────────────────────────────────────────── */}
-      <footer className="border-t py-12 text-sm text-muted-foreground">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid md:grid-cols-4 gap-8">
-          <div>
-            <Link href="/" className="flex items-center gap-2 font-bold text-base text-foreground">
-              <BrandLogo size={28} className="rounded-lg" />
-              LuviAI
-            </Link>
-            <p className="mt-3 text-xs leading-relaxed">
-              AI ile siteni, mobil app'ini ve sosyal medyanı tek panelden büyüt.
-            </p>
+      {/* ─── FOOTER — Apple-grade minimal ───────────────────── */}
+      <footer className="border-t border-border/60 bg-neutral-50 dark:bg-neutral-950/40">
+        <div className="container-apple py-16 lg:py-20">
+          <div className="grid md:grid-cols-12 gap-10 lg:gap-16">
+            {/* Brand column — wider */}
+            <div className="md:col-span-4">
+              <Link href="/" className="inline-flex items-center gap-2.5 text-[15px] font-medium tracking-[-0.01em]">
+                <BrandLogo size={28} className="rounded-md" />
+                LuviAI
+              </Link>
+              <p className="mt-4 max-w-[280px] text-[13px] leading-relaxed text-neutral-500 dark:text-neutral-400">
+                AI ile siteni, mobil app'ini ve sosyal medyanı tek panelden büyüt. Türkiye'de yapıldı.
+              </p>
+              <p className="mt-6 text-[11px] tracking-[0.04em] uppercase text-neutral-400 dark:text-neutral-500">
+                Senin yerine pazarlama yapan <span className="font-display italic text-[1.1em] text-neutral-700 dark:text-neutral-300 normal-case">AI</span>
+              </p>
+            </div>
+
+            {/* Link columns */}
+            <div className="md:col-span-8 grid grid-cols-2 sm:grid-cols-3 gap-8">
+              <FooterCol title="Ürün" links={[
+                ['Özellikler', '#cozum'], ['Fiyat', '/pricing'], ['Kullanım Senaryoları', '/use-cases'], ['Karşılaştırma', '/compare'],
+              ]} />
+              <FooterCol title="Şirket" links={[
+                ['Hakkımızda', '/about'], ['Destek', '/help'], ['SSS', '/faq'], ['Durum', '/status'],
+              ]} />
+              <FooterCol title="Yasal" links={[
+                ['Gizlilik', '/privacy'], ['Şartlar', '/terms'], ['KVKK', '/kvkk'],
+              ]} />
+            </div>
           </div>
-          <FooterCol title="Ürün" links={[
-            ['Özellikler', '#cozum'], ['Fiyat', '/pricing'], ['Kullanım Senaryoları', '/use-cases'], ['Karşılaştırma', '/compare'],
-          ]} />
-          <FooterCol title="Şirket" links={[
-            ['Hakkımızda', '/about'], ['Destek', '/help'], ['SSS', '/faq'], ['Durum', '/status'],
-          ]} />
-          <FooterCol title="Yasal" links={[
-            ['Gizlilik', '/privacy'], ['Şartlar', '/terms'], ['KVKK', '/kvkk'],
-          ]} />
         </div>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-10 pt-6 border-t text-xs flex flex-wrap justify-between gap-3">
-          <span>© {new Date().getFullYear()} LuviAI. Tüm hakları saklıdır.</span>
-          <span>Made with ❤️ in Türkiye</span>
+
+        <div className="border-t border-border/60">
+          <div className="container-apple py-6 flex flex-wrap items-center justify-between gap-3 text-[12px] text-neutral-500 dark:text-neutral-500">
+            <span>© {new Date().getFullYear()} LuviAI. Tüm hakları saklıdır.</span>
+            <span className="inline-flex items-center gap-1.5">
+              Made with <span className="text-brand-500">●</span> in Türkiye
+            </span>
+          </div>
         </div>
       </footer>
     </div>
@@ -944,10 +969,10 @@ function FeedItem({ time, icon, text }: { time: string; icon: string; text: stri
 
 function PainCard({ cost, title, body }: { cost: string; title: string; body: string }) {
   return (
-    <div className="p-6 rounded-2xl border bg-background hover:border-rose-500/40 transition">
-      <div className="text-xs font-semibold text-rose-600 uppercase tracking-wider mb-2">{cost}</div>
-      <h3 className="text-lg font-bold mb-2">{title}</h3>
-      <p className="text-sm text-muted-foreground leading-relaxed">{body}</p>
+    <div className="card-apple p-7 lg:p-8 hover:border-rose-500/40">
+      <div className="text-[11px] font-medium text-rose-600 dark:text-rose-400 uppercase tracking-[0.08em] mb-3">{cost}</div>
+      <h3 className="text-h5 font-medium mb-3 tracking-[-0.02em]">{title}</h3>
+      <p className="text-[14px] text-neutral-500 dark:text-neutral-400 leading-[1.55]">{body}</p>
     </div>
   );
 }
@@ -958,19 +983,19 @@ function FeatureCard({
   icon: any; tag: string; title: string; body: string; bullets: string[];
 }) {
   return (
-    <div className="p-7 rounded-2xl border bg-card hover:border-orange-500/40 hover:shadow-xl hover:shadow-orange-500/5 transition-all">
-      <div className="flex items-center gap-3 mb-4">
-        <div className="h-11 w-11 rounded-xl bg-gradient-to-br from-orange-500/15 to-orange-600/10 grid place-items-center">
-          <Icon className="h-5 w-5 text-orange-600" />
+    <div className="card-apple p-8 lg:p-10 group">
+      <div className="flex items-center gap-3 mb-6">
+        <div className="h-11 w-11 rounded-2xl bg-gradient-to-br from-brand-500/15 to-brand-600/5 border border-brand-500/20 grid place-items-center transition-transform duration-500 ease-apple group-hover:scale-110">
+          <Icon className="h-5 w-5 text-brand-600 dark:text-brand-400" />
         </div>
-        <span className="text-[10px] font-bold uppercase tracking-wider text-orange-600">{tag}</span>
+        <span className="text-eyebrow text-brand-600 dark:text-brand-400">{tag}</span>
       </div>
-      <h3 className="text-xl font-bold mb-2">{title}</h3>
-      <p className="text-sm text-muted-foreground leading-relaxed mb-4">{body}</p>
-      <ul className="space-y-1.5">
+      <h3 className="text-h4 font-medium mb-3 tracking-[-0.025em]">{title}</h3>
+      <p className="text-[15px] text-neutral-500 dark:text-neutral-400 leading-[1.55] mb-6">{body}</p>
+      <ul className="space-y-2.5">
         {bullets.map((b, i) => (
-          <li key={i} className="text-sm flex items-start gap-2">
-            <Check className="h-4 w-4 text-orange-600 shrink-0 mt-0.5" />
+          <li key={i} className="text-[14px] flex items-start gap-2.5 text-neutral-700 dark:text-neutral-300">
+            <Check className="h-3.5 w-3.5 text-brand-500 shrink-0 mt-1" />
             <span>{b}</span>
           </li>
         ))}
@@ -981,14 +1006,15 @@ function FeatureCard({
 
 function StepCard({ n, title, body, icon: Icon }: { n: number; title: string; body: string; icon: any }) {
   return (
-    <div className="relative p-7 rounded-2xl border bg-background">
-      <div className="absolute -top-4 -left-2 text-7xl font-extrabold text-orange-500/10 leading-none select-none">
+    <div className="card-apple relative p-8 lg:p-10 overflow-hidden">
+      {/* Massive ghost numeral — Apple "page chapter" pattern */}
+      <div className="absolute -top-6 -right-4 font-display italic text-[10rem] leading-none text-neutral-100 dark:text-neutral-900 select-none pointer-events-none">
         {n}
       </div>
       <div className="relative">
-        <Icon className="h-7 w-7 text-orange-600 mb-3" />
-        <h3 className="text-lg font-bold mb-2">{title}</h3>
-        <p className="text-sm text-muted-foreground leading-relaxed">{body}</p>
+        <Icon className="h-7 w-7 text-brand-600 dark:text-brand-400 mb-5" strokeWidth={1.5} />
+        <h3 className="text-h5 font-medium mb-3 tracking-[-0.02em]">{title}</h3>
+        <p className="text-[14px] text-neutral-500 dark:text-neutral-400 leading-[1.55]">{body}</p>
       </div>
     </div>
   );
@@ -996,12 +1022,21 @@ function StepCard({ n, title, body, icon: Icon }: { n: number; title: string; bo
 
 function StatCard({ num, label, sub }: { num: string; label: string; sub: string }) {
   return (
-    <div className="p-8 rounded-2xl border bg-gradient-to-br from-orange-500/5 to-transparent text-center">
-      <div className="text-5xl md:text-6xl font-extrabold bg-gradient-to-br from-orange-500 to-orange-700 bg-clip-text text-transparent">
+    <div className="text-center">
+      <div className="font-medium tracking-display text-[clamp(3.5rem,7vw,5.5rem)] leading-[0.95] bg-gradient-to-br from-brand-500 via-rose-500 to-amber-500 bg-clip-text text-transparent">
         <AnimatedNumber raw={num} />
       </div>
-      <div className="mt-2 font-semibold">{label}</div>
-      <div className="text-xs text-muted-foreground mt-1">{sub}</div>
+      <div className="mt-4 text-[15px] font-medium text-foreground tracking-[-0.01em]">{label}</div>
+      <div className="text-[13px] text-neutral-500 dark:text-neutral-400 mt-1.5">{sub}</div>
+    </div>
+  );
+}
+
+function StatStrip({ num, label }: { num: string; label: string }) {
+  return (
+    <div className="text-center">
+      <div className="font-medium tracking-display text-[clamp(2rem,4vw,3.25rem)] text-foreground"><AnimatedNumber raw={num} /></div>
+      <div className="text-[12px] text-neutral-500 dark:text-neutral-400 mt-2 tracking-[-0.005em]">{label}</div>
     </div>
   );
 }
@@ -1050,8 +1085,8 @@ function AnimatedNumber({ raw }: { raw: string }) {
 
 function AuthorityBadge({ icon: Icon, text }: { icon: any; text: string }) {
   return (
-    <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-border/60 bg-background/50 backdrop-blur-sm text-[11px] font-semibold">
-      <Icon className="h-3.5 w-3.5 text-orange-600" />
+    <div className="inline-flex items-center gap-1.5 px-3 h-7 rounded-full border border-border/60 bg-background/60 backdrop-blur-sm text-[11px] font-medium text-neutral-700 dark:text-neutral-300">
+      <Icon className="h-3 w-3 text-brand-600 dark:text-brand-400" strokeWidth={1.75} />
       <span>{text}</span>
     </div>
   );
@@ -1064,27 +1099,23 @@ function Testimonial({
   avatar: string; avatarBg: string; metric: string; quote: string;
 }) {
   return (
-    <div className="p-7 rounded-2xl border bg-background flex flex-col hover:shadow-xl hover:shadow-orange-500/5 hover:border-orange-500/30 transition-all">
-      {/* Stars */}
-      <div className="flex gap-0.5 mb-3">
-        {[1, 2, 3, 4, 5].map((i) => (
-          <Star key={i} className="h-4 w-4 fill-amber-400 text-amber-400" />
-        ))}
-      </div>
+    <div className="card-apple p-8 lg:p-9 flex flex-col">
+      {/* Quote mark — Apple "Newsroom" pattern */}
+      <div className="font-display italic text-[3rem] text-brand-500/30 leading-none mb-3 select-none">"</div>
       {/* Quote */}
-      <p className="text-sm leading-relaxed flex-1 mb-5">"{quote}"</p>
+      <p className="text-[15px] leading-[1.6] flex-1 mb-7 text-neutral-700 dark:text-neutral-300">{quote}</p>
       {/* Metric badge */}
-      <div className="mb-5 inline-flex self-start items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 text-[11px] font-bold">
+      <div className="mb-6 inline-flex self-start items-center gap-1.5 px-2.5 h-7 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 text-[11px] font-medium">
         <TrendingUp className="h-3 w-3" /> {metric}
       </div>
       {/* Author */}
-      <div className="flex items-center gap-3 pt-4 border-t">
-        <div className={`h-10 w-10 rounded-full bg-gradient-to-br ${avatarBg} text-white grid place-items-center font-bold text-sm shrink-0`}>
+      <div className="flex items-center gap-3 pt-6 border-t border-border/60">
+        <div className={`h-10 w-10 rounded-full bg-gradient-to-br ${avatarBg} text-white grid place-items-center font-medium text-[13px] shrink-0 shadow-apple-sm`}>
           {avatar}
         </div>
         <div className="min-w-0">
-          <div className="font-bold text-sm">{name}</div>
-          <div className="text-[11px] text-muted-foreground truncate">{role} · {company}</div>
+          <div className="font-medium text-[14px] tracking-[-0.005em]">{name}</div>
+          <div className="text-[12px] text-neutral-500 dark:text-neutral-400 truncate">{role} · {company}</div>
         </div>
       </div>
     </div>
@@ -1094,11 +1125,13 @@ function Testimonial({
 function CompareRow({ row }: { row: [string, ...boolean[]] }) {
   const [label, ...vals] = row;
   return (
-    <tr className="border-t">
-      <td className="p-4 font-medium">{label}</td>
+    <tr className="border-t border-border/60">
+      <td className="p-5 text-[14px] font-medium">{label}</td>
       {vals.map((v, i) => (
-        <td key={i} className={`p-4 text-center ${i === vals.length - 1 ? 'bg-orange-500/5' : ''}`}>
-          {v ? <Check className="h-4 w-4 text-emerald-600 inline" /> : <XIcon className="h-4 w-4 text-muted-foreground/40 inline" />}
+        <td key={i} className={`p-5 text-center ${i === vals.length - 1 ? 'bg-brand-500/[0.04]' : ''}`}>
+          {v
+            ? <Check className="h-4 w-4 text-brand-500 inline" strokeWidth={2.5} />
+            : <XIcon className="h-4 w-4 text-neutral-300 dark:text-neutral-700 inline" strokeWidth={1.75} />}
         </td>
       ))}
     </tr>
@@ -1111,21 +1144,21 @@ function UseCaseCard({
   icon: any; audience: string; hook: string; body: string; before: string; after: string;
 }) {
   return (
-    <div className="p-7 rounded-2xl border bg-card hover:border-orange-500/40 transition">
-      <div className="flex items-center gap-2 mb-3">
-        <Icon className="h-5 w-5 text-orange-600" />
-        <span className="text-xs font-bold uppercase tracking-wider text-orange-600">{audience}</span>
+    <div className="card-apple p-8 lg:p-9">
+      <div className="flex items-center gap-2.5 mb-4">
+        <Icon className="h-4 w-4 text-brand-600 dark:text-brand-400" strokeWidth={1.75} />
+        <span className="text-eyebrow text-brand-600 dark:text-brand-400">{audience}</span>
       </div>
-      <h3 className="text-lg font-bold mb-2">{hook}</h3>
-      <p className="text-sm text-muted-foreground leading-relaxed mb-5">{body}</p>
-      <div className="grid grid-cols-2 gap-2 text-xs">
-        <div className="p-3 rounded-lg bg-muted/40">
-          <div className="text-[10px] font-bold text-muted-foreground uppercase mb-1">Önce</div>
-          <div className="font-semibold">{before}</div>
+      <h3 className="text-h5 font-medium mb-3 tracking-[-0.02em]">{hook}</h3>
+      <p className="text-[14px] text-neutral-500 dark:text-neutral-400 leading-[1.55] mb-7">{body}</p>
+      <div className="grid grid-cols-2 gap-3 text-[12px]">
+        <div className="p-4 rounded-xl bg-neutral-50 dark:bg-neutral-900/60 border border-border/60">
+          <div className="text-[10px] font-medium tracking-[0.06em] text-neutral-400 dark:text-neutral-500 uppercase mb-2">Önce</div>
+          <div className="font-medium text-[13px]">{before}</div>
         </div>
-        <div className="p-3 rounded-lg bg-orange-500/10">
-          <div className="text-[10px] font-bold text-orange-600 uppercase mb-1">Sonra</div>
-          <div className="font-semibold">{after}</div>
+        <div className="p-4 rounded-xl bg-gradient-to-br from-brand-500/[0.08] to-brand-500/[0.02] border border-brand-500/20">
+          <div className="text-[10px] font-medium tracking-[0.06em] text-brand-600 dark:text-brand-400 uppercase mb-2">Sonra</div>
+          <div className="font-medium text-[13px]">{after}</div>
         </div>
       </div>
     </div>
@@ -1140,37 +1173,40 @@ function PriceCard({
   onCtaClick?: () => void;
 }) {
   return (
-    <div className={`relative p-7 rounded-2xl border flex flex-col ${
+    <div className={`relative rounded-apple border flex flex-col p-8 lg:p-9 transition-all duration-500 ease-apple ${
       highlighted
-        ? 'bg-gradient-to-br from-orange-500/10 to-orange-500/5 border-orange-500/40 shadow-xl shadow-orange-500/10 lg:scale-[1.03]'
-        : 'bg-background'
+        ? 'bg-foreground text-background border-foreground shadow-apple-xl lg:-translate-y-2'
+        : 'bg-card border-border/60 shadow-apple-sm hover:shadow-apple-md'
     }`}>
       {highlighted && (
-        <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wide bg-gradient-to-br from-orange-500 to-orange-600 text-white shadow-lg whitespace-nowrap">
+        <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-4 py-1.5 inline-flex items-center gap-1 rounded-full text-xs font-bold tracking-wide uppercase bg-brand-500 text-white shadow-apple-md whitespace-nowrap">
           ⭐ En Çok Tercih Edilen
         </div>
       )}
-      <h3 className="text-lg font-bold">{name}</h3>
-      <div className="mt-4 mb-1">
-        <span className="text-4xl font-extrabold">{price}</span>
-        <span className="text-muted-foreground text-sm">{period}</span>
+      <h3 className={`text-eyebrow ${highlighted ? 'text-brand-400' : 'text-brand-600 dark:text-brand-400'} mb-5`}>{name}</h3>
+      <div className="flex items-baseline gap-1 mb-1">
+        <span className="font-medium tracking-display text-[clamp(2.5rem,3.5vw,3.5rem)] leading-none">{price}</span>
+        <span className={`text-[14px] ${highlighted ? 'text-neutral-400' : 'text-neutral-500 dark:text-neutral-400'}`}>{period}</span>
       </div>
-      <p className="text-xs text-muted-foreground min-h-[16px]">{annualNote}</p>
-      <ul className="space-y-2 text-sm mt-5 mb-6 flex-1">
+      <p className={`text-[12px] min-h-[16px] mt-1 ${highlighted ? 'text-neutral-400' : 'text-neutral-500 dark:text-neutral-400'}`}>{annualNote}</p>
+      <ul className="space-y-3 text-[14px] mt-7 mb-8 flex-1">
         {bullets.map((b, i) => (
-          <li key={i} className="flex items-start gap-2">
-            <Check className={`h-4 w-4 mt-0.5 shrink-0 ${highlighted ? 'text-orange-600' : 'text-emerald-600'}`} />
-            <span>{b}</span>
+          <li key={i} className="flex items-start gap-2.5">
+            <Check className={`h-3.5 w-3.5 mt-1 shrink-0 ${highlighted ? 'text-brand-400' : 'text-brand-500'}`} strokeWidth={2.5} />
+            <span className={highlighted ? 'text-neutral-200' : ''}>{b}</span>
           </li>
         ))}
       </ul>
-      <Link href={href} onClick={onCtaClick}>
-        <Button
-          className={`w-full ${highlighted ? 'bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white' : ''}`}
-          variant={highlighted ? 'default' : 'outline'}
-        >
-          {cta}
-        </Button>
+      <Link
+        href={href}
+        onClick={onCtaClick}
+        className={`inline-flex items-center justify-center w-full h-11 rounded-full font-medium text-[14px] transition-all duration-300 ease-apple ${
+          highlighted
+            ? 'bg-background text-foreground hover:scale-[1.02] shadow-apple-sm'
+            : 'border border-border bg-background text-foreground hover:bg-neutral-100 dark:hover:bg-neutral-900'
+        }`}
+      >
+        {cta}
       </Link>
     </div>
   );
@@ -1178,19 +1214,23 @@ function PriceCard({
 
 function FaqItem({ question, answer, open, onToggle }: { question: string; answer: string; open: boolean; onToggle: () => void }) {
   return (
-    <div className="rounded-xl border bg-background overflow-hidden">
+    <div className="overflow-hidden">
       <button
         onClick={onToggle}
-        className="w-full p-5 flex items-center justify-between text-left hover:bg-muted/30 transition"
+        className="w-full py-6 flex items-center justify-between text-left group gap-6"
       >
-        <span className="font-semibold">{question}</span>
-        <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+        <span className="text-[16px] font-medium tracking-[-0.01em] text-foreground group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors duration-300 ease-apple">
+          {question}
+        </span>
+        <span className={`h-7 w-7 shrink-0 rounded-full border border-border/60 grid place-items-center transition-all duration-500 ease-apple ${open ? 'rotate-45 bg-foreground text-background border-foreground' : 'group-hover:border-foreground'}`}>
+          <ChevronDown className={`h-3 w-3 transition-transform duration-500 ease-apple ${open ? '-rotate-45' : ''}`} strokeWidth={2} />
+        </span>
       </button>
-      {open && (
-        <div className="px-5 pb-5 text-sm text-muted-foreground leading-relaxed border-t pt-4">
+      <div className={`overflow-hidden transition-all duration-500 ease-apple ${open ? 'max-h-[500px] opacity-100 pb-6' : 'max-h-0 opacity-0'}`}>
+        <p className="text-[15px] text-neutral-600 dark:text-neutral-400 leading-[1.6] max-w-[680px]">
           {answer}
-        </div>
-      )}
+        </p>
+      </div>
     </div>
   );
 }
@@ -1198,11 +1238,13 @@ function FaqItem({ question, answer, open, onToggle }: { question: string; answe
 function FooterCol({ title, links }: { title: string; links: [string, string][] }) {
   return (
     <div>
-      <h4 className="font-semibold text-foreground mb-3">{title}</h4>
-      <ul className="space-y-2 text-xs">
+      <h4 className="text-eyebrow text-neutral-400 dark:text-neutral-500 mb-5">{title}</h4>
+      <ul className="space-y-3 text-[13px]">
         {links.map(([label, href]) => (
           <li key={href}>
-            <Link href={href} className="hover:text-foreground transition">{label}</Link>
+            <Link href={href} className="text-neutral-600 dark:text-neutral-400 hover:text-foreground transition-colors duration-300 ease-apple">
+              {label}
+            </Link>
           </li>
         ))}
       </ul>
