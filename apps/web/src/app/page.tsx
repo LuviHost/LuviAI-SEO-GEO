@@ -614,19 +614,19 @@ export default function LandingPage() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
             <div>
               <div className="text-3xl md:text-4xl font-extrabold"><AnimatedNumber raw="10dk" /></div>
-              <div className="text-xs text-muted-foreground mt-1">Ortalama kurulum</div>
+              <div className="text-xs text-muted-foreground mt-1">{t('land.stats.setup')}</div>
             </div>
             <div>
               <div className="text-3xl md:text-4xl font-extrabold"><AnimatedNumber raw="35+" /></div>
-              <div className="text-xs text-muted-foreground mt-1">Entegrasyon</div>
+              <div className="text-xs text-muted-foreground mt-1">{t('land.stats.integrations')}</div>
             </div>
             <div>
               <div className="text-3xl md:text-4xl font-extrabold"><AnimatedNumber raw="240+" /></div>
-              <div className="text-xs text-muted-foreground mt-1">Aktif ekip</div>
+              <div className="text-xs text-muted-foreground mt-1">{t('land.stats.team')}</div>
             </div>
             <div>
               <div className="text-3xl md:text-4xl font-extrabold"><AnimatedNumber raw="%99.9" /></div>
-              <div className="text-xs text-muted-foreground mt-1">SLA uptime</div>
+              <div className="text-xs text-muted-foreground mt-1">{t('land.stats.uptime')}</div>
             </div>
           </div>
         </div>
@@ -641,7 +641,7 @@ export default function LandingPage() {
             __html: JSON.stringify({
               '@context': 'https://schema.org',
               '@type': 'FAQPage',
-              mainEntity: FAQS.map((q) => ({
+              mainEntity: getFaqs(t).map((q) => ({
                 '@type': 'Question',
                 name: q.q,
                 acceptedAnswer: { '@type': 'Answer', text: q.a },
@@ -656,7 +656,7 @@ export default function LandingPage() {
           </div>
 
           <div className="space-y-3">
-            {FAQS.map((q, i) => (
+            {getFaqs(t).map((q, i) => (
               <FaqItem
                 key={i}
                 question={q.q}
@@ -1207,29 +1207,13 @@ function FooterCol({ title, links }: { title: string; links: [string, string][] 
   );
 }
 
-const FAQS = [
-  {
-    q: 'Hangi sitelerde çalışıyor?',
-    a: 'Herhangi bir web sitesi (WordPress, Shopify, Webflow, custom). Mobil app entegrasyonu için iOS App Store ID (adamId) yeterli. Bağlamak için sadece URL yapıştır.',
-  },
-  {
-    q: 'Kredi kartı vermem gerekiyor mu?',
-    a: 'Hayır. Ücretsiz deneme için kart istenmez. 2 ücretsiz makale hakkını kullandıktan sonra devam etmek istersen plan seçer ve kart eklersin, istemezsen hesap pasif kalır.',
-  },
-  {
-    q: 'AI sektörümü gerçekten anlayabilir mi?',
-    a: 'Evet. Onboarding sırasında siteni tarayıp sektörünü %95+ doğrulukla belirler. Yanlış tahmin ederse manuel düzeltebilirsin, sonraki içerikler ona göre üretilir.',
-  },
-  {
-    q: 'Apple Search Ads için Apple Developer hesabım gerekli mi?',
-    a: 'Evet, ASA için Apple\'ın istediği credentials sende olmalı (Org ID + Key ID + Public Key). LuviAI senin yerine wizard ile kurar — terminal/openssl gerekmez. 3 adım.',
-  },
-  {
-    q: 'Üretilen içerikler benim mi?',
-    a: 'Evet, %100 senin. LuviAI ürettiği makale, görsel, video, metin için telif iddia etmez. Sınırsız kullanabilirsin (planındaki kota dahilinde).',
-  },
-  {
-    q: 'İstediğim zaman iptal edebilir miyim?',
-    a: 'Evet. Tek tıkla iptal, ay sonuna kadar kullanmaya devam edersin. İade politikası: ilk 7 gün içinde koşulsuz para iadesi.',
-  },
-];
+function getFaqs(t: (k: string) => string): Array<{ q: string; a: string }> {
+  return [
+    { q: t('land.faq.q1'), a: t('land.faq.a1') },
+    { q: t('land.faq.q2'), a: t('land.faq.a2') },
+    { q: t('land.faq.q3'), a: t('land.faq.a3') },
+    { q: t('land.faq.q4'), a: t('land.faq.a4') },
+    { q: t('land.faq.q5'), a: t('land.faq.a5') },
+    { q: t('land.faq.q6'), a: t('land.faq.a6') },
+  ];
+}
