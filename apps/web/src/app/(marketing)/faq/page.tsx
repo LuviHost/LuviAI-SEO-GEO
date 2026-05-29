@@ -3,12 +3,10 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { ChevronDown } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card';
-import { ThemeToggle } from '@/components/theme-toggle';
-import { LocaleSwitch } from '@/components/locale-switch';
 import { cn } from '@/lib/utils';
+import { useT } from '@/lib/i18n';
 
-const FAQS = [
+const FAQS_TR = [
   {
     q: 'LuviAI nasıl çalışır?',
     a: 'Sitenizin URL\'ini bağlarsınız. AI önce sitenizi crawl edip "marka beyni" oluşturur (ton, persona, rakipler). Sonra GSC verisi + AI analiziyle Tier 1/2/3 konu listesi çıkarır. Her makale 6-ajan zincirinden geçer (anahtar kelime → outline → yazar → editör → görsel → yayıncı) ve seçtiğiniz hedefe (WordPress, FTP, GitHub, vb.) yayınlanır.',
@@ -87,38 +85,148 @@ const FAQS = [
   },
 ];
 
-// FAQPage + Speakable + BreadcrumbList JSON-LD — AI search ve Google rich result için
-const faqJsonLd = {
-  '@context': 'https://schema.org',
-  '@graph': [
-    {
-      '@type': 'FAQPage',
-      '@id': 'https://ai.luvihost.com/faq#faqpage',
-      mainEntity: FAQS.map((item) => ({
-        '@type': 'Question',
-        name: item.q,
-        acceptedAnswer: {
-          '@type': 'Answer',
-          text: item.a,
+const FAQS_EN = [
+  {
+    q: 'How does LuviAI work?',
+    a: 'You connect your site URL. The AI first crawls your site and builds a "brand brain" (tone, persona, competitors). It then uses GSC data + AI analysis to produce a Tier 1/2/3 topic list. Every article flows through a 6-agent chain (keyword → outline → writer → editor → image → publisher) and is published to your chosen target (WordPress, FTP, GitHub, etc.).',
+  },
+  {
+    q: 'Which languages are supported?',
+    a: 'Turkish and English. You pick during onboarding, or choose "both" and select per-article. 10 languages planned for Phase 3.',
+  },
+  {
+    q: 'How much can I use for free?',
+    a: 'On signup, 2 articles are generated completely free (no time limit, no credit card). You can download them as a Markdown ZIP or send to basic publish targets. When the quota is used, pick a plan; doing so unlocks all publish targets like WordPress/FTP/SFTP + AI Video Studio.',
+  },
+  {
+    q: 'Will Google penalize AI content?',
+    a: 'No. Google\'s AI content policy is quality-focused, not method-focused. LuviAI\'s editor layer removes AI clichés, enforces brand voice consistency, and every article is 1800-2500 words structured with FAQ + Schema markup to deliver real value.',
+  },
+  {
+    q: 'What is GEO (AI search) optimization?',
+    a: 'Content optimization to be cited in answers from AI assistants like ChatGPT, Perplexity, Claude. Two tracks run in parallel: (1) For Google AI Overviews — classic technical SEO + unique perspective + E-E-A-T (Google\'s official guide says this — no special "AI file" required). (2) For non-Google AI engines like Perplexity / ChatGPT browse / Claude.ai — llms.txt + llms-full.txt + structured data + Q&A formats are set up. The Auriti GEO Optimizer scans across 47 metrics and one-click fixes the gaps.',
+  },
+  {
+    q: 'How do I connect my own WordPress?',
+    a: 'In the WordPress admin under Users → Profile → Application Passwords, create an App Password. In LuviAI onboarding step 5, pick WordPress REST, enter site URL + username + app password. After that every generated article is auto-published.',
+  },
+  {
+    q: 'Can I cancel my subscription anytime?',
+    a: 'Yes. Dashboard → Subscription → Cancel. On monthly plans your access continues until end of period. On yearly plans full refund within first 30 days, then pro-rata refund per remaining month.',
+  },
+  {
+    q: 'Is my data safe?',
+    a: 'All credentials (FTP/SFTP/WP/cPanel passwords, GSC OAuth tokens) are AES-256-GCM encrypted. GDPR/KVKK compliant. If you delete your account, data is retained 30 days then permanently deleted.',
+  },
+  {
+    q: 'Which AI model do you use?',
+    a: 'Default: Claude Sonnet 4.6 (writer + editor). Quality-first customers can opt in to Opus 4.7. Images: Gemini 2.5 Flash Image. All models chosen for cost/quality balance.',
+  },
+  {
+    q: 'What happens if I exceed my monthly article quota?',
+    a: 'The system stops generation and suggests a plan upgrade. The quota auto-resets at month end. Professional → Enterprise upgrade is one click.',
+  },
+  {
+    q: 'How does the affiliate program work?',
+    a: 'After selecting a plan, enroll in affiliate from the dashboard. You get a unique link. You earn 30% of all payments your invitees make for 3 months. Paid monthly via automatic PayTR transfer.',
+  },
+  {
+    q: 'Can my developer team use the API?',
+    a: 'In Phase 3 (Q3 2026), a public REST API + npm/pip SDK + Zapier/Make/n8n integrations will ship. For now you operate manually/automated through the dashboard.',
+  },
+  {
+    q: 'How does ad management (Google Ads + Meta) work?',
+    a: 'Via the Ryze AI MCP integration, Google Ads + Meta + GA4 connect. AI suggests audiences (interest + keyword + lookalike), writes ad copy (Google RSA + Meta primaryText), prepares 3 image formats (square/portrait/landscape), and sets budget. Autopilot analyzes ROAS every 6h — pause if low, boost budget 20% if high, add irrelevant search terms as negative keywords.',
+  },
+  {
+    q: 'What exactly does the AI Citation test measure?',
+    a: 'It asks your site brain\'s AEO/GEO queries to Claude · Gemini · ChatGPT · Perplexity every day at 04:00 UTC. If your site URL is cited, 100 points; brand name only, 50; not at all, 0. Trend chart 7/30/90/365 days. A 30%+ drop triggers an automatic email alert.',
+  },
+  {
+    q: 'What is GEO Score, how is it calculated?',
+    a: 'Weighted average across 6 pillars: (1) Crawler Access — robots.txt + llms.txt + llms-full.txt + sitemap (helpful for non-Google AI engines like Perplexity, ChatGPT browse, Claude.ai; not officially required by Google AI Overviews but scored as classic technical SEO foundation), (2) Structured Data — schema coverage + Speakable + FAQPage (for rich results + non-Google AI), (3) AI Citation — 4-provider 7-day average (citation in real AI answers — the most critical pillar), (4) Authority — sameAs + competitive landscape + social channels + GSC (Google\'s E-E-A-T signal), (5) Freshness — last 7/30-day publishing, (6) Multi-Modal — TTS audio + podcast + hero images. Result: A+ → F letter grade.',
+  },
+  {
+    q: 'What exactly does Autopilot do?',
+    a: 'It\'s ON by default when you add a site. When ON: (1) Site audit → auto-fix (sitemap/robots/llms written to cPanel), (2) 8 articles scheduled, (3) First article generated immediately, (4) Subsequent articles enter generation 15min ahead, auto-publish at scheduled time, (5) AI Citation daily + content auto-revised after 30 days based on performance, (6) Ads autopilot optimizes ROAS every 6h. You just read the report via email.',
+  },
+  {
+    q: 'Is LuviAI really cheaper than hiring a Turkish SEO specialist?',
+    a: 'A Turkish SEO specialist costs ₺35-60k/mo. A content writer ₺10-20k/mo. A social media manager ₺15-25k/mo. An ads specialist ₺20-40k/mo. Total ~₺100k/mo. LuviAI Professional is ₺6,980/mo and does it all. Plus AI search optimization (rare in the Turkish market) + 24/7 + no vacation + no resignation.',
+  },
+  {
+    q: 'Does Google use llms.txt? Is this file actually needed?',
+    a: 'Google\'s official guide states: "You don\'t need to create a new machine-readable file, AI text file, markup or Markdown for AI Overviews and generative search" — so llms.txt is not required for Google. However Perplexity, ChatGPT browse mode, Claude.ai web access read llms.txt + llms-full.txt to parse content faster. LuviAI produces these files for "multi-engine GEO optimization" — neutral for Google, clear benefit for other AI engines. For Google AI Overviews the real focus is: unique perspective, first-hand experience, E-E-A-T signals and classic technical SEO (indexability + snippet eligibility). LuviAI\'s Brain Generator + content pipeline already optimizes these signals.',
+  },
+  {
+    q: 'I want a demo, how?',
+    a: 'In the onboarding screen, click "Open Demo". In 30 seconds a fully-loaded example site opens: 5 dummy articles (1 live, 1 generating, 3 scheduled) + audit report + AI Citation 14-day trend + GEO Score Card. One click to explore LuviAI without connecting your own site.',
+  },
+];
+
+const COPY = {
+  tr: {
+    eyebrow: '❓ SSS',
+    titleA: 'Sıkça',
+    titleB: 'sorulan',
+    titleC: 'sorular',
+    helpA: 'Cevabını bulamadığın bir soru varsa ',
+    helpEmail: 'destek@luvihost.com',
+    ctaTitle: 'Sorunu çözemedik mi?',
+    ctaSub: 'Hemen dene, sonra karar ver. İlk 2 makale ücretsiz.',
+    ctaBtn: '2 Makale Ücretsiz Dene →',
+    breadcrumbHome: 'Ana Sayfa',
+    breadcrumbFaq: 'Sıkça Sorulan Sorular',
+  },
+  en: {
+    eyebrow: '❓ FAQ',
+    titleA: 'Frequently',
+    titleB: 'asked',
+    titleC: 'questions',
+    helpA: 'Can\'t find your answer? ',
+    helpEmail: 'destek@luvihost.com',
+    ctaTitle: 'Still have questions?',
+    ctaSub: 'Try it now, decide later. First 2 articles free.',
+    ctaBtn: 'Try 2 Articles Free →',
+    breadcrumbHome: 'Home',
+    breadcrumbFaq: 'Frequently Asked Questions',
+  },
+} as const;
+
+function buildJsonLd(items: { q: string; a: string }[], breadcrumbHome: string, breadcrumbFaq: string) {
+  return {
+    '@context': 'https://schema.org',
+    '@graph': [
+      {
+        '@type': 'FAQPage',
+        '@id': 'https://ai.luvihost.com/faq#faqpage',
+        mainEntity: items.map((item) => ({
+          '@type': 'Question',
+          name: item.q,
+          acceptedAnswer: { '@type': 'Answer', text: item.a },
+        })),
+        speakable: {
+          '@type': 'SpeakableSpecification',
+          cssSelector: ['.faq-question', '.faq-answer'],
         },
-      })),
-      speakable: {
-        '@type': 'SpeakableSpecification',
-        cssSelector: ['.faq-question', '.faq-answer'],
       },
-    },
-    {
-      '@type': 'BreadcrumbList',
-      itemListElement: [
-        { '@type': 'ListItem', position: 1, name: 'Ana Sayfa', item: 'https://ai.luvihost.com/' },
-        { '@type': 'ListItem', position: 2, name: 'Sıkça Sorulan Sorular', item: 'https://ai.luvihost.com/faq' },
-      ],
-    },
-  ],
-};
+      {
+        '@type': 'BreadcrumbList',
+        itemListElement: [
+          { '@type': 'ListItem', position: 1, name: breadcrumbHome, item: 'https://ai.luvihost.com/' },
+          { '@type': 'ListItem', position: 2, name: breadcrumbFaq, item: 'https://ai.luvihost.com/faq' },
+        ],
+      },
+    ],
+  };
+}
 
 export default function FaqPage() {
+  const { locale } = useT();
   const [open, setOpen] = useState<number | null>(0);
+  const FAQS = locale === 'en' ? FAQS_EN : FAQS_TR;
+  const c = COPY[locale];
+  const faqJsonLd = buildJsonLd(FAQS, c.breadcrumbHome, c.breadcrumbFaq);
 
   return (
     <div className="relative">
@@ -135,19 +243,19 @@ export default function FaqPage() {
       <main className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         <div className="text-center mb-12">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-500/10 border border-orange-500/20 text-orange-600 text-xs font-semibold mb-5">
-            ❓ SSS
+            {c.eyebrow}
           </div>
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-tight mb-4">
-            Sıkça{' '}
+            {c.titleA}{' '}
             <span className="bg-gradient-to-r from-orange-500 via-orange-600 to-red-600 bg-clip-text text-transparent">
-              sorulan
+              {c.titleB}
             </span>{' '}
-            sorular
+            {c.titleC}
           </h1>
           <p className="text-lg text-muted-foreground">
-            Cevabını bulamadığın bir soru varsa{' '}
-            <a href="mailto:destek@luvihost.com" className="text-orange-600 hover:underline">
-              destek@luvihost.com
+            {c.helpA}
+            <a href={`mailto:${c.helpEmail}`} className="text-orange-600 hover:underline">
+              {c.helpEmail}
             </a>
           </p>
         </div>
@@ -178,15 +286,13 @@ export default function FaqPage() {
 
         {/* CTA */}
         <div className="rounded-2xl bg-gradient-to-br from-orange-500 via-orange-600 to-red-600 text-white p-10 text-center mt-12">
-          <h2 className="text-2xl sm:text-3xl font-extrabold mb-3">Sorunu çözemedik mi?</h2>
-          <p className="text-white/90 mb-6">
-            Hemen dene, sonra karar ver. İlk 2 makale ücretsiz.
-          </p>
+          <h2 className="text-2xl sm:text-3xl font-extrabold mb-3">{c.ctaTitle}</h2>
+          <p className="text-white/90 mb-6">{c.ctaSub}</p>
           <Link
             href="/onboarding"
             className="inline-flex items-center gap-2 bg-white text-orange-600 hover:bg-white/90 px-8 py-3 rounded-lg font-bold shadow-xl"
           >
-            2 Makale Ücretsiz Dene →
+            {c.ctaBtn}
           </Link>
         </div>
       </main>
