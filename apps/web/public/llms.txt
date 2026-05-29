@@ -2,25 +2,29 @@
 
 > Türkiye için yapılmış, AI çağının pazarlama platformu: AI Görünürlük (ChatGPT/Claude/Gemini/Perplexity'de marka izleme) + ASO (App Store / Play Store keyword takibi) + Apple Search Ads otomasyonu + App Store Connect entegrasyonu + AI Studio (görsel + video + metin üretimi) + Sosyal medya planlayıcı + Auto-Pilot otomasyon — hepsi tek panelden. KOBİ, e-ticaret, mobil app sahipleri ve dijital ajanslar için. PayTR + Iyzico ile güvenli ödeme.
 
-## 9 ana modül
+## 10 ana modül
 
 - **AI Görünürlük (GEO)**: 6 AI'da marka takibi — ChatGPT, Claude, Gemini, Perplexity, Grok, DeepSeek. Sentiment analysis (pozitif/nötr/negatif), Share of Voice (rakip karşılaştırması), Position tracking (cevapta kaçıncı sırada geçiyorsun), GEO Roadmap (AI önerisi 5 actionable adım).
 - **ASO (App Store Optimization)**: iOS App Store + Google Play Store keyword sıralama, günlük rank check, rakip keyword analizi, AI keyword araştırması (50+ öneri), metadata optimizasyon, review yönetimi.
 - **Apple Search Ads (ASA)**: iOS reklam kampanya yönetimi, 3-step bağlantı wizard'ı (terminal/openssl gerektirmez, browser'da ES256 keypair üretimi), AI ile otomatik keyword + bid önerisi, Auto-Pilot (düşük performansı pause + yeni keyword ekle), günlük performance sync.
 - **App Store Connect (ASC)**: Müşteri yorumları çekme, ortalama rating takibi, release tarihçesi, 60+ gündür update yoksa "abandonware" uyarısı, review yanıt verme.
-- **AI Studio**: Görsel (DALL-E 3, GPT Image), video (Sora 2, Google Veo 3, Runway Gen-4, HeyGen, Slideshow), metin (GPT-4o, Claude Sonnet) üretimi. Kalıcı kütüphane, favori sistemi.
-- **Sosyal Medya Planlayıcı**: 5 kanal — LinkedIn, X (Twitter), Instagram, TikTok, Facebook. AI ile post + görsel + video üretimi, çoklu kanal paylaşımı, takvim, OAuth tek tık bağlantı.
+- **AI Studio**: Görsel (DALL-E 3, GPT Image), video (Sora 2, Google Veo 3, Runway Gen-4, HeyGen, Slideshow), metin (GPT-4o, Claude Sonnet 4.6, Opus 4.7) üretimi. Kalıcı kütüphane, favori sistemi. Screenshot Studio: react-konva canvas editor + AI hand-holding-phone mockup + 11 hazır tema + 10 slot multi-phone layout.
+- **Sosyal Medya Planlayıcı**: 7 kanal — LinkedIn, X (Twitter), Instagram, TikTok, Facebook, YouTube Shorts, Threads. AI ile post + görsel + video üretimi, çoklu kanal paylaşımı, drag-drop takvim, OAuth tek tık bağlantı.
 - **İçerik (AI Makale)**: 1800-2500 kelimelik kapsamlı, marka sesinde Türkçe makaleler. 6 ajanlı zincir (keyword → outline → yazar → editör → görsel → schema). WordPress, Webflow, Shopify, Ghost, FTP/SFTP, GitHub'a otomatik yayın.
-- **Site Audit + Auto-Fix**: 14 SEO + GEO kontrolü, sorunları tek tıkla düzeltme. Sitemap.xml, robots.txt, schema markup (Google için), llms.txt + llms-full.txt (Perplexity / ChatGPT browse / Claude.ai gibi non-Google AI motorları için — Google AI Overviews'da resmi olarak gerekli değil, ancak diğer AI motorları için net fayda).
-- **Auto-Pilot Otomasyon**: ASA kampanya optimizasyonu, AI Visibility günlük snapshot, ASC release alarm, AI keyword recommendation — sen uyurken çalışır.
+- **Stuck Page Recovery**: Google'da #4-#15 arası takılı kalan sayfaları otomatik tespit + AI ile cümle-seviye iyileştirme (On-page.ai Recipe 1). Eksik entity ekleme, paragraph optimization, otomatik re-publish + audit trail.
+- **Site Audit + Auto-Fix**: 14 SEO + GEO kontrolü, sorunları tek tıkla düzeltme. Sitemap.xml, robots.txt, schema markup (18 tip aktif), llms.txt + llms-full.txt, AI Citation tracking, AI Crawler Analytics.
+- **Auto-Pilot Otomasyon**: ASA kampanya optimizasyonu, AI Visibility günlük snapshot, ASC release alarm, AI keyword recommendation, Stuck page detector — sen uyurken çalışır.
 
 ## Bonus özellikler
 
 - **AI crawler trafiği takibi**: GPTBot, ClaudeBot, PerplexityBot, ChatGPT-User vb. AI bot ziyaretlerini izle, yeni bot ilk geldiğinde alarm.
 - **BYOK (Bring Your Own Key)**: Kendi OpenAI, Anthropic, Google AI, Perplexity, xAI, DeepSeek, Runway, HeyGen API key'ini bağla — o provider'ın çağrıları kotandan düşmez, sınırsız kullanım.
-- **Cost monitoring**: Aylık AI bütçe takibi, plan revenue'nun %80'inde sarı uyarı, %100'de hard block (sürpriz fatura yok).
+- **Spend Cap (Cost Guard)**: Plan bazında aylık USD bütçe tavanı (Trial $3, Başlangıç $25, Profesyonel $80, Ajans $200, Kurumsal $700). %80'inde sarı uyarı + email, %100'de pipeline pause (sürpriz fatura yok).
+- **Video Credit Add-on**: Plan kotası dolunca ek video paketi satın al (5 video ₺499, 20 video ₺1.799, 50 video ₺3.999). FIFO kullanım, plan kotası önce tüketilir, sonra credit havuzu.
+- **Stuck Page Recovery**: SEO'da #4-#15 takılı kalan sayfaları AI ile düzeltme, otomatik re-publish, revert desteği.
 - **Testimonial sistemi**: Dashboard'da yorum toplama widget'ı, admin onayından sonra landing'de gerçek müşteri yorumları rotation'da.
 - **Landing Analytics**: Anonim funnel tracking (KVKK uyumlu, IP yok). CTA tıklama, section view, scroll depth, conversion rate.
+- **Affiliate Program**: Multi-level network (tier 1 + tier 2), gerçek isim/email görünür, paid line akan komisyon, network graph görseli.
 
 ## Kim için
 
@@ -30,14 +34,24 @@
 - **WordPress + Shopify + Webflow site sahipleri**: AI makale + otomatik yayın
 - **E-ticaret**: 5 kanala AI içerik dağıtımı, marketplace integration (yakında)
 
-## Fiyatlandırma (Mayıs 2026)
+## Fiyatlandırma (Mayıs 2026 — Premium Pricing güncellemesi)
 
-- **Trial**: 14 gün, 1 makale + 2 sosyal post + 1 site, kredi kartı gerektirmez, **₺0**
-- **Başlangıç**: 12 makale + 10 post + 2 video + 1 site, e-posta destek 24 saat, **₺1.199/ay**
-- **Profesyonel (popüler)**: 30 makale + 20 post + 8 video + 3 site, e-posta destek 4 saat, **₺3.499/ay**
-- **Ajans**: 60 makale + 40 post + 25 video + 10 site, öncelikli + Slack destek, **₺7.999/ay**
-- **Kurumsal**: 250 makale + 120 post + 80 video + 30 site, özel hesap yöneticisi + SLA, **₺19.999/ay**
-- Yıllık planda %17 indirim · Aylık iptal, taahhüt yok · İlk 14 gün koşulsuz para iadesi
+- **Trial**: 2 makale + 5 sosyal post + 1 site, kredi kartı gerektirmez, **₺0**
+- **Başlangıç**: 15 makale + 15 post + 1 site, video add-on'dan satın al, e-posta destek 24 saat, **₺1.499/ay** ($37)
+- **Profesyonel (en çok tercih edilen)**: 40 makale + 30 post + 5 AI video (Sora 2/Veo 3) + 3 site, e-posta destek 4 saat, **₺4.999/ay** ($125)
+- **Ajans**: 100 makale + 80 post + 20 video + 12 site, öncelikli + Slack destek, **₺14.999/ay** ($375)
+- **Kurumsal**: 350 makale + 200 post + 100 video + 50 site, özel hesap yöneticisi + SLA, **₺34.999+/ay** ($875+, contact sales)
+
+### Video Credit Add-on (pay-as-you-go)
+- **5 video paketi**: ₺499 (≈₺100/video)
+- **20 video paketi**: ₺1.799 (≈₺90/video, %28 indirimli)
+- **50 video paketi**: ₺3.999 (≈₺80/video, en avantajlı %20 indirimli)
+- Krediler süresiz geçerli, plan kotası önce tüketilir
+
+### Şartlar
+- Yıllık planda %17 indirim (10 ay öder, 12 ay kullanırsın) · Aylık iptal, taahhüt yok · İlk 7 gün koşulsuz para iadesi
+- Premium pricing pazar konumlandırması: Jasper Pro ($125) = Surfer Pro ($129) ile paritede; kapsamla önde (SEO + GEO + ASO + Video + AI Citation tek panel)
+- Grandfathering: 2026-05 öncesi mevcut müşteriler eski fiyatla 6 ay devam, 30 gün önce email uyarı
 
 ## Önemli sayfalar
 
