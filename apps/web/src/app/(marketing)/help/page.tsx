@@ -1,65 +1,74 @@
+'use client';
+
 import Link from 'next/link';
 import {
   Rocket, Search, Smartphone, Wand2, Bot, Sparkles,
   CreditCard, Plug, MessageSquare, BarChart3,
 } from 'lucide-react';
+import { useT } from '@/lib/i18n';
 
-const TOPICS = [
-  {
-    icon: Rocket, color: 'orange',
-    title: 'Hızlı Başlangıç',
-    desc: '5 dakikada hesabını kurup ilk AI çıktısını al.',
-    href: '/help/getting-started',
-  },
-  {
-    icon: Sparkles, color: 'purple',
-    title: 'AI Görünürlük',
-    desc: 'ChatGPT, Claude, Gemini, Perplexity\'de markanı izle.',
-    href: '/help/ai-visibility',
-  },
-  {
-    icon: Search, color: 'blue',
-    title: 'ASO — Mobil App SEO',
-    desc: 'App Store + Play Store keyword sıralama + rakip analizi.',
-    href: '/help/aso',
-  },
-  {
-    icon: Smartphone, color: 'amber',
-    title: 'Apple Search Ads + ASC',
-    desc: 'iOS reklam kampanyası kurulumu, Auto-Pilot, review takibi.',
-    href: '/help/asa-asc',
-  },
-  {
-    icon: Wand2, color: 'rose',
-    title: 'AI Studio',
-    desc: 'Görsel (DALL-E), video (Sora 2 + Veo 3), metin üretimi.',
-    href: '/help/studio',
-  },
-  {
-    icon: Bot, color: 'emerald',
-    title: 'Auto-Pilot Otomasyon',
-    desc: 'Sen uyurken AI keyword ekler, kampanya optimize eder.',
-    href: '/help/auto-pilot',
-  },
-  {
-    icon: Plug, color: 'cyan',
-    title: 'API Keys (BYOK)',
-    desc: 'Kendi OpenAI/Anthropic key\'inle çalış, kotamızdan düşmez.',
-    href: '/help/api-keys',
-  },
-  {
-    icon: MessageSquare, color: 'pink',
-    title: 'Sosyal Medya',
-    desc: '5 kanala AI ile post + görsel + zamanlama.',
-    href: '/help/social',
-  },
-  {
-    icon: CreditCard, color: 'slate',
-    title: 'Faturalama',
-    desc: 'Plan değiştirme, iptal, fatura indirme, kota.',
-    href: '/help/billing',
-  },
+type Color = 'orange' | 'purple' | 'blue' | 'amber' | 'rose' | 'emerald' | 'cyan' | 'pink' | 'slate';
+
+const TOPICS_BASE = [
+  { id: 'getting-started', icon: Rocket, color: 'orange' as Color, href: '/help/getting-started' },
+  { id: 'ai-visibility', icon: Sparkles, color: 'purple' as Color, href: '/help/ai-visibility' },
+  { id: 'aso', icon: Search, color: 'blue' as Color, href: '/help/aso' },
+  { id: 'asa-asc', icon: Smartphone, color: 'amber' as Color, href: '/help/asa-asc' },
+  { id: 'studio', icon: Wand2, color: 'rose' as Color, href: '/help/studio' },
+  { id: 'auto-pilot', icon: Bot, color: 'emerald' as Color, href: '/help/auto-pilot' },
+  { id: 'api-keys', icon: Plug, color: 'cyan' as Color, href: '/help/api-keys' },
+  { id: 'social', icon: MessageSquare, color: 'pink' as Color, href: '/help/social' },
+  { id: 'billing', icon: CreditCard, color: 'slate' as Color, href: '/help/billing' },
 ];
+
+const COPY = {
+  tr: {
+    eyebrow: '📚 Yardım Merkezi',
+    titleA: 'LuviAI nasıl',
+    titleB: 'kullanılır?',
+    lead1: '9 modül, 5 dakikada başla. Her sekmenin kendi rehberi.',
+    lead2: 'Sorunu bulamadıysan ',
+    readGuide: 'Rehberi oku →',
+    stuckTitle: 'Hâlâ takılı kaldın mı?',
+    stuckBody: 'Ekranı paylaşarak 15 dakika ücretsiz onboarding desteği alabilirsin. Pro plan + üstü kullanıcılar için canlı destek mevcut.',
+    mailBtn: '📧 Mail destek',
+    signinBtn: 'Hesabıma giriş',
+    topics: {
+      'getting-started': { title: 'Hızlı Başlangıç', desc: '5 dakikada hesabını kurup ilk AI çıktısını al.' },
+      'ai-visibility': { title: 'AI Görünürlük', desc: "ChatGPT, Claude, Gemini, Perplexity'de markanı izle." },
+      'aso': { title: 'ASO — Mobil App SEO', desc: 'App Store + Play Store keyword sıralama + rakip analizi.' },
+      'asa-asc': { title: 'Apple Search Ads + ASC', desc: 'iOS reklam kampanyası kurulumu, Auto-Pilot, review takibi.' },
+      'studio': { title: 'AI Studio', desc: 'Görsel (DALL-E), video (Sora 2 + Veo 3), metin üretimi.' },
+      'auto-pilot': { title: 'Auto-Pilot Otomasyon', desc: 'Sen uyurken AI keyword ekler, kampanya optimize eder.' },
+      'api-keys': { title: 'API Keys (BYOK)', desc: "Kendi OpenAI/Anthropic key'inle çalış, kotamızdan düşmez." },
+      'social': { title: 'Sosyal Medya', desc: '5 kanala AI ile post + görsel + zamanlama.' },
+      'billing': { title: 'Faturalama', desc: 'Plan değiştirme, iptal, fatura indirme, kota.' },
+    },
+  },
+  en: {
+    eyebrow: '📚 Help Center',
+    titleA: 'How do I use',
+    titleB: 'LuviAI?',
+    lead1: '9 modules, start in 5 minutes. Each tab has its own guide.',
+    lead2: "Can't find what you need? ",
+    readGuide: 'Read guide →',
+    stuckTitle: 'Still stuck?',
+    stuckBody: 'Get 15 minutes of free screen-share onboarding. Live support is available for Pro plan and above.',
+    mailBtn: '📧 Email support',
+    signinBtn: 'Sign in to my account',
+    topics: {
+      'getting-started': { title: 'Quick Start', desc: 'Set up your account and get your first AI output in 5 minutes.' },
+      'ai-visibility': { title: 'AI Visibility', desc: 'Monitor your brand on ChatGPT, Claude, Gemini, Perplexity.' },
+      'aso': { title: 'ASO — Mobile App SEO', desc: 'App Store + Play Store keyword ranking + competitor analysis.' },
+      'asa-asc': { title: 'Apple Search Ads + ASC', desc: 'iOS ad campaign setup, Auto-Pilot, review tracking.' },
+      'studio': { title: 'AI Studio', desc: 'Image (DALL-E), video (Sora 2 + Veo 3), text generation.' },
+      'auto-pilot': { title: 'Auto-Pilot Automation', desc: 'While you sleep, AI adds keywords and optimizes campaigns.' },
+      'api-keys': { title: 'API Keys (BYOK)', desc: "Use your own OpenAI/Anthropic key — doesn't count against our quota." },
+      'social': { title: 'Social Media', desc: 'AI post + image + scheduling for 5 channels.' },
+      'billing': { title: 'Billing', desc: 'Change plan, cancel, download invoice, quota.' },
+    },
+  },
+} as const;
 
 const COLORS: Record<string, string> = {
   orange: 'from-orange-500/15 to-orange-600/10 text-orange-600',
@@ -74,6 +83,9 @@ const COLORS: Record<string, string> = {
 };
 
 export default function HelpPage() {
+  const { locale } = useT();
+  const c = COPY[locale];
+
   return (
     <main className="relative min-h-screen">
       <div className="absolute inset-0 -z-10 overflow-hidden pointer-events-none">
@@ -84,61 +96,61 @@ export default function HelpPage() {
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         <div className="text-center mb-14 max-w-3xl mx-auto">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-500/10 border border-orange-500/20 text-orange-600 text-xs font-semibold mb-5">
-            📚 Yardım Merkezi
+            {c.eyebrow}
           </div>
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-tight mb-4">
-            LuviAI nasıl{' '}
+            {c.titleA}{' '}
             <span className="bg-gradient-to-r from-orange-500 via-orange-600 to-red-600 bg-clip-text text-transparent">
-              kullanılır?
+              {c.titleB}
             </span>
           </h1>
           <p className="text-lg text-muted-foreground">
-            9 modül, 5 dakikada başla. Her sekmenin kendi rehberi.{' '}
+            {c.lead1}{' '}
             <br />
-            Sorunu bulamadıysan{' '}
+            {c.lead2}
             <a href="mailto:destek@luvihost.com" className="text-orange-600 hover:underline font-semibold">destek@luvihost.com</a>
           </p>
         </div>
 
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-          {TOPICS.map((t) => (
-            <Link
-              key={t.href}
-              href={t.href as any}
-              className="p-6 rounded-2xl border bg-background hover:border-orange-500/40 hover:shadow-xl hover:shadow-orange-500/5 transition-all group"
-            >
-              <div className={`h-11 w-11 rounded-xl bg-gradient-to-br ${COLORS[t.color]} grid place-items-center mb-3 group-hover:scale-110 transition-transform`}>
-                <t.icon className="h-5 w-5" />
-              </div>
-              <h2 className="font-bold text-lg mb-1.5">{t.title}</h2>
-              <p className="text-sm text-muted-foreground leading-relaxed">{t.desc}</p>
-              <div className="mt-4 text-xs font-bold text-orange-600 group-hover:translate-x-0.5 transition-transform">
-                Rehberi oku →
-              </div>
-            </Link>
-          ))}
+          {TOPICS_BASE.map((t) => {
+            const topic = c.topics[t.id as keyof typeof c.topics];
+            return (
+              <Link
+                key={t.href}
+                href={t.href as any}
+                className="p-6 rounded-2xl border bg-background hover:border-orange-500/40 hover:shadow-xl hover:shadow-orange-500/5 transition-all group"
+              >
+                <div className={`h-11 w-11 rounded-xl bg-gradient-to-br ${COLORS[t.color]} grid place-items-center mb-3 group-hover:scale-110 transition-transform`}>
+                  <t.icon className="h-5 w-5" />
+                </div>
+                <h2 className="font-bold text-lg mb-1.5">{topic.title}</h2>
+                <p className="text-sm text-muted-foreground leading-relaxed">{topic.desc}</p>
+                <div className="mt-4 text-xs font-bold text-orange-600 group-hover:translate-x-0.5 transition-transform">
+                  {c.readGuide}
+                </div>
+              </Link>
+            );
+          })}
         </div>
 
         {/* Quick links */}
         <div className="mt-16 rounded-2xl border-2 border-orange-500/30 bg-gradient-to-br from-orange-500/5 to-amber-400/5 p-8 text-center">
           <BarChart3 className="h-10 w-10 text-orange-600 mx-auto mb-3" />
-          <h3 className="text-2xl font-bold mb-2">Hâlâ takılı kaldın mı?</h3>
-          <p className="text-muted-foreground mb-5 max-w-xl mx-auto">
-            Ekranı paylaşarak 15 dakika ücretsiz onboarding desteği alabilirsin.
-            Pro plan + üstü kullanıcılar için canlı destek mevcut.
-          </p>
+          <h3 className="text-2xl font-bold mb-2">{c.stuckTitle}</h3>
+          <p className="text-muted-foreground mb-5 max-w-xl mx-auto">{c.stuckBody}</p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
             <a
               href="mailto:destek@luvihost.com"
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white text-sm font-semibold shadow-lg shadow-orange-500/20"
             >
-              📧 Mail destek
+              {c.mailBtn}
             </a>
             <Link
               href={'/signin' as any}
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg border text-sm font-semibold hover:bg-muted/50"
             >
-              Hesabıma giriş
+              {c.signinBtn}
             </Link>
           </div>
         </div>
