@@ -19,7 +19,7 @@ const FAQS = [
   },
   {
     q: 'Ücretsiz olarak ne kadar kullanabilirim?',
-    a: 'Kayıt olunca 1 makale tamamen ücretsiz üretilir (süre sınırı yok). Markdown ZIP olarak indirebilirsin. İkinci makaleden itibaren bir plan seçmen gerekir; plan seçince WordPress/FTP/SFTP gibi tüm yayın hedefleri açılır.',
+    a: 'Kayıt olunca 2 makale tamamen ücretsiz üretilir (süre sınırı yok, kart bilgisi gerekmez). Markdown ZIP olarak indirebilir veya temel yayın hedeflerine gönderebilirsin. Quota bitince bir plan seçmen gerekir; plan seçince WordPress/FTP/SFTP gibi tüm yayın hedefleri + AI Video Studio açılır.',
   },
   {
     q: 'AI içeriği Google\'da cezalandırılır mı?',
@@ -27,7 +27,7 @@ const FAQS = [
   },
   {
     q: 'GEO (AI search) optimizasyonu nedir?',
-    a: 'ChatGPT, Perplexity, Claude, Gemini gibi AI asistanlarının cevaplarında alıntılanma için içerik optimizasyonu. Auriti GEO Optimizer ile 47 metrik üzerinden tarama yapılır, llms.txt + structured data + Q&A formatları otomatik kurulur.',
+    a: 'ChatGPT, Perplexity, Claude gibi AI asistanlarının cevaplarında alıntılanma için içerik optimizasyonu. İki ayrı pist çalışır: (1) Google AI Overviews için klasik teknik SEO + benzersiz bakış açısı + E-E-A-T (Google\'ın resmi rehberi bunu söylüyor — özel "AI dosyası" gerekmiyor). (2) Perplexity / ChatGPT browse / Claude.ai gibi non-Google AI motorları için llms.txt + llms-full.txt + structured data + Q&A formatları kurulur. Auriti GEO Optimizer 47 metrik üzerinden tarama yapar, eksikleri tek tıkla düzeltir.',
   },
   {
     q: 'Kendi WordPress\'ime nasıl bağlarım?',
@@ -67,7 +67,7 @@ const FAQS = [
   },
   {
     q: 'GEO Score nedir, nasıl hesaplanır?',
-    a: '6 pillar üzerinden ağırlıklı ortalama: (1) Crawler Erişimi — robots.txt + llms.txt + llms-full.txt + sitemap, (2) Yapısal Veri — schema kapsama + Speakable + FAQPage, (3) AI Citation — 4 sağlayıcı son 7 gün ortalama, (4) Otorite — sameAs + competitive landscape + sosyal kanal + GSC, (5) Tazelik — son 7/30 gün yayın, (6) Multi-Modal — TTS audio + podcast + hero görseller. Sonuç: A+ → F harf notu.',
+    a: '6 pillar üzerinden ağırlıklı ortalama: (1) Crawler Erişimi — robots.txt + llms.txt + llms-full.txt + sitemap (Perplexity, ChatGPT browse, Claude.ai gibi non-Google AI motorları için faydalı; Google AI Overviews\'da resmi olarak gerekli değil ama klasik teknik SEO altyapısı olarak puanlanır), (2) Yapısal Veri — schema kapsama + Speakable + FAQPage (rich result + non-Google AI için), (3) AI Citation — 4 sağlayıcı son 7 gün ortalama (gerçek AI cevaplarında alıntılanma — en kritik pillar), (4) Otorite — sameAs + competitive landscape + sosyal kanal + GSC (Google\'ın E-E-A-T sinyali), (5) Tazelik — son 7/30 gün yayın, (6) Multi-Modal — TTS audio + podcast + hero görseller. Sonuç: A+ → F harf notu.',
   },
   {
     q: 'Otopilot tam olarak ne yapıyor?',
@@ -76,6 +76,10 @@ const FAQS = [
   {
     q: 'Türkçe SEO uzmanı maaşına vermek yerine LuviAI almak gerçekten mantıklı mı?',
     a: 'Bir Türkçe SEO uzmanı 35-60k ₺/ay. Bir içerik yazarı 10-20k ₺/ay. Sosyal medya yöneticisi 15-25k ₺/ay. Reklam uzmanı 20-40k ₺/ay. Toplam ~100k ₺/ay. LuviAI Profesyonel paket 6.980 ₺/ay ve hepsini yapıyor. Üstelik AI search optimizasyonu (Türkçe pazarda yok) + 7/24 çalışıyor + tatil yapmıyor + ayrılmıyor.',
+  },
+  {
+    q: 'Google llms.txt\'i kullanıyor mu? Bu dosya gerçekten gerekli mi?',
+    a: 'Google resmi rehberinde "AI Overviews ve generatif arama için yeni bir machine-readable dosya, AI text dosyası, markup veya Markdown oluşturmanıza gerek yok" diyor — yani Google için llms.txt zorunlu değil. Ancak Perplexity, ChatGPT browse modu, Claude.ai web erişimi gibi non-Google AI motorları llms.txt + llms-full.txt\'i okuyarak içeriği daha hızlı parse ediyor. LuviAI bu dosyaları "multi-engine GEO optimizasyonu" için üretiyor — Google\'a yarar yok zararı yok, diğer AI motorlarına net yarar. Google\'da AI Overviews için asıl odak: benzersiz bakış açısı, first-hand deneyim, E-E-A-T sinyalleri ve klasik teknik SEO (indekslenebilirlik + snippet uygunluğu). LuviAI\'nın Brain Generator + içerik pipeline\'ı bu sinyalleri zaten optimize ediyor.',
   },
   {
     q: 'Demo görmek istiyorum, nasıl?',
@@ -117,63 +121,72 @@ export default function FaqPage() {
   const [open, setOpen] = useState<number | null>(0);
 
   return (
-    <div className="relative overflow-hidden">
+    <div className="relative">
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
       />
-      <div className="absolute inset-0 -z-10 bg-mesh-warm opacity-60 pointer-events-none" />
-      <div className="absolute inset-0 -z-10 bg-noise opacity-[0.03] pointer-events-none" />
+      {/* gradient blob */}
+      <div className="absolute inset-0 -z-10 overflow-hidden pointer-events-none">
+        <div className="absolute top-20 -left-20 w-96 h-96 bg-orange-500/10 rounded-full blur-3xl" />
+        <div className="absolute top-40 -right-20 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl" />
+      </div>
 
-      <main className="container-apple section-padding max-w-[820px] stagger-reveal">
-        <div className="text-center mb-16">
-          <p className="eyebrow mb-4">SSS</p>
-          <h1 className="text-balance font-medium tracking-display text-neutral-900 dark:text-white text-[clamp(2.5rem,6vw,5rem)] leading-[0.96]">
-            Sık sorulan{' '}
-            <span className="font-display italic text-[1.08em]">sorular.</span>
+      <main className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+        <div className="text-center mb-12">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-500/10 border border-orange-500/20 text-orange-600 text-xs font-semibold mb-5">
+            ❓ SSS
+          </div>
+          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-tight mb-4">
+            Sıkça{' '}
+            <span className="bg-gradient-to-r from-orange-500 via-orange-600 to-red-600 bg-clip-text text-transparent">
+              sorulan
+            </span>{' '}
+            sorular
           </h1>
-          <p className="text-pretty mt-7 max-w-[560px] mx-auto text-[15px] leading-[1.55] text-neutral-500 dark:text-neutral-400">
+          <p className="text-lg text-muted-foreground">
             Cevabını bulamadığın bir soru varsa{' '}
-            <a href="mailto:destek@luvihost.com" className="text-foreground hover:text-brand-600 dark:hover:text-brand-400 transition-colors duration-300 ease-apple underline decoration-1 underline-offset-2">
+            <a href="mailto:destek@luvihost.com" className="text-orange-600 hover:underline">
               destek@luvihost.com
             </a>
           </p>
         </div>
 
-        <div className="divide-y divide-border/60 border-y border-border/60">
-          {FAQS.map((item, i) => {
-            const isOpen = open === i;
-            return (
-              <div key={i} className="overflow-hidden">
-                <button
-                  onClick={() => setOpen(isOpen ? null : i)}
-                  className="w-full py-6 flex items-center justify-between text-left group gap-6"
-                >
-                  <span className={cn('text-[16px] font-medium tracking-[-0.01em] transition-colors duration-300 ease-apple faq-question', isOpen ? 'text-foreground' : 'text-foreground group-hover:text-brand-600 dark:group-hover:text-brand-400')}>
-                    {item.q}
-                  </span>
-                  <span className={cn('h-7 w-7 shrink-0 rounded-full border grid place-items-center transition-all duration-500 ease-apple', isOpen ? 'rotate-45 bg-foreground text-background border-foreground' : 'border-border/60 group-hover:border-foreground')}>
-                    <ChevronDown className={cn('h-3 w-3 transition-transform duration-500 ease-apple', isOpen && '-rotate-45')} strokeWidth={2} />
-                  </span>
-                </button>
-                <div className={cn('overflow-hidden transition-all duration-500 ease-apple', isOpen ? 'max-h-[600px] opacity-100 pb-6' : 'max-h-0 opacity-0')}>
-                  <p className="text-[15px] leading-[1.6] text-neutral-600 dark:text-neutral-400 max-w-[680px] faq-answer">
-                    {item.a}
-                  </p>
+        <div className="space-y-3">
+          {FAQS.map((item, i) => (
+            <div
+              key={i}
+              className={`rounded-2xl border bg-background transition-all ${
+                open === i ? 'border-orange-500/30 shadow-md' : 'hover:border-orange-500/20'
+              }`}
+            >
+              <button
+                onClick={() => setOpen(open === i ? null : i)}
+                className="w-full text-left p-5 flex items-center justify-between gap-4"
+              >
+                <span className="font-semibold faq-question">{item.q}</span>
+                <ChevronDown className={cn('h-5 w-5 transition-transform shrink-0 text-muted-foreground', open === i && 'rotate-180 text-orange-600')} />
+              </button>
+              {open === i && (
+                <div className="px-5 pb-5 text-sm text-muted-foreground leading-relaxed faq-answer">
+                  {item.a}
                 </div>
-              </div>
-            );
-          })}
+              )}
+            </div>
+          ))}
         </div>
 
-        <div className="mt-20 text-center">
-          <p className="text-eyebrow mb-4 text-neutral-400">Hala ikna olmadın mı?</p>
-          <h3 className="text-balance font-medium tracking-display text-[clamp(1.5rem,3vw,2.5rem)] leading-[1.1] mb-7">
-            1 makale yaz,{' '}
-            <span className="font-display italic text-[1.08em] text-brand-600 dark:text-brand-400">sonra karar ver.</span>
-          </h3>
-          <Link href="/onboarding" className="btn-apple-primary group">
-            1 makale ücretsiz dene
+        {/* CTA */}
+        <div className="rounded-2xl bg-gradient-to-br from-orange-500 via-orange-600 to-red-600 text-white p-10 text-center mt-12">
+          <h2 className="text-2xl sm:text-3xl font-extrabold mb-3">Sorunu çözemedik mi?</h2>
+          <p className="text-white/90 mb-6">
+            Hemen dene, sonra karar ver. İlk 2 makale ücretsiz.
+          </p>
+          <Link
+            href="/onboarding"
+            className="inline-flex items-center gap-2 bg-white text-orange-600 hover:bg-white/90 px-8 py-3 rounded-lg font-bold shadow-xl"
+          >
+            2 Makale Ücretsiz Dene →
           </Link>
         </div>
       </main>

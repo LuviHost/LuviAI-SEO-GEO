@@ -11,15 +11,23 @@ export default function Page() {
       title="Plan, fatura, iptal, kotalar"
       intro="Tüm ödeme ve plan işlemlerini buradan yönetirsin. Otomatik fatura, kart değişikliği, plan upgrade/downgrade, iptal — hepsi self-service."
     >
-      <h2>Planlar (Mayıs 2026)</h2>
+      <h2>Planlar (Mayıs 2026 — Premium Pricing)</h2>
       <ul>
-        <li><strong>Trial</strong> — ₺0, 14 gün, 1 makale + 2 post + 1 site</li>
-        <li><strong>Başlangıç</strong> — ₺1.199/ay, 12 makale + 10 post + 2 video + 1 site</li>
-        <li><strong>Profesyonel ⭐</strong> — ₺3.499/ay, 30 makale + 20 post + 8 video + 3 site</li>
-        <li><strong>Ajans</strong> — ₺7.999/ay, 60 makale + 40 post + 25 video + 10 site</li>
-        <li><strong>Kurumsal</strong> — ₺19.999/ay, 250 makale + 120 post + 80 video + 30 site</li>
+        <li><strong>Trial</strong> — ₺0, 2 makale + 5 post + 1 site (kart gerekmez)</li>
+        <li><strong>Başlangıç</strong> — ₺1.499/ay ($37), 15 makale + 15 post + 1 site, video add-on'dan satın al</li>
+        <li><strong>Profesyonel ⭐</strong> — ₺4.999/ay ($125), 40 makale + 30 post + 5 AI video + 3 site</li>
+        <li><strong>Ajans</strong> — ₺14.999/ay ($375), 100 makale + 80 post + 20 video + 12 site</li>
+        <li><strong>Kurumsal</strong> — ₺34.999+/ay ($875+), 350 makale + 200 post + 100 video + 50 site, özel hesap yöneticisi + SLA</li>
       </ul>
-      <p>Yıllık planda <strong>%17 indirim</strong> (etkili 10 aya 12 ay).</p>
+      <p>Yıllık planda <strong>%17 indirim</strong> (10 ay öder, 12 ay kullanırsın).</p>
+
+      <h3>Video Credit Add-on (pay-as-you-go)</h3>
+      <p>Plan kotanız dolunca ek video paketi satın alabilirsiniz. Süresiz geçerli, plan kotası önce tüketilir.</p>
+      <ul>
+        <li><strong>5 video paketi</strong> — ₺499 (≈ ₺100/video)</li>
+        <li><strong>20 video paketi</strong> — ₺1.799 (≈ ₺90/video, %28 indirim)</li>
+        <li><strong>50 video paketi</strong> — ₺3.999 (≈ ₺80/video, en avantajlı)</li>
+      </ul>
 
       <h2>Plan değiştirme</h2>
       <Step n={1} title="Sağ üst → Ayarlar → Plan">
@@ -44,7 +52,11 @@ export default function Page() {
       </Step>
 
       <Tip kind="info">
-        İlk 14 günde iptal edersen <strong>koşulsuz iade</strong>. Mail at: <a href="mailto:destek@luvihost.com">destek@luvihost.com</a>
+        İlk 7 gün içinde iptal edersen <strong>koşulsuz iade</strong>. Mail at: <a href="mailto:destek@luvihost.com">destek@luvihost.com</a>
+      </Tip>
+
+      <Tip kind="success">
+        <strong>Grandfathering:</strong> 2026-05 öncesi mevcut müşterilerimiz eski fiyatlarla 6 ay devam eder. 30 gün önce hatırlatma maili gönderilir.
       </Tip>
 
       <h2>Kotalar — aylık reset</h2>

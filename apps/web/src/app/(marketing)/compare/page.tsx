@@ -315,10 +315,10 @@ export default function ComparePage() {
         {/* FINAL CTA */}
         <div className="mt-16 rounded-2xl bg-gradient-to-br from-orange-500 via-orange-600 to-red-600 text-white p-10 text-center">
           <h3 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold mb-3">
-            14 günde 1 sayfa yerine 14 makale yayınla
+            Saatler süren işi dakikaya indir
           </h3>
           <p className="text-white/90 mb-6 max-w-xl mx-auto">
-            İlk makale ücretsiz. Saatler süren işi dakikalara indir. AI Search'te de görün — 6 ay sonra gelen değişimi şimdi yakala.
+            İlk 2 makale ücretsiz, kart gerekmez. SEO + AI Search'te bir arada görün — 6 ay sonra gelen değişimi şimdi yakala.
           </p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <Button asChild size="lg" className="bg-white text-orange-600 hover:bg-white/90 shadow-xl">
