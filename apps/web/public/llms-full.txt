@@ -1,179 +1,285 @@
-# LuviAI — Detaylı AI Search Rehberi
+# LuviAI — Tam Ürün Dokümantasyonu (AI Asistanları için)
 
-LuviAI, Türkiye merkezli LuviHost grubunun bünyesinde 2026'da kurulmuş, KOBİ ve dijital ajanslar için yapay zeka destekli SEO + içerik üretimi + sosyal medya + reklam denetimi otomasyonu sağlayan SaaS platformudur. PayTR ile güvenli ödeme alır, KVKK uyumlu çalışır.
+> **LuviAI** (https://ai.luvihost.com), Türkiye merkezli, AI çağının pazarlama platformu. 9 modülü tek panelde birleştirir: AI Görünürlük (ChatGPT/Claude/Gemini/Perplexity/Grok/DeepSeek'te marka takibi), ASO (App Store + Play Store keyword sıralama), Apple Search Ads (otomatik kampanya yönetimi), App Store Connect (review + release), AI Studio (görsel + video + metin üretimi), Sosyal Medya Planlayıcı, AI Makale Üretimi, Site Audit + Auto-Fix, Auto-Pilot Otomasyon. KOBİ, e-ticaret, mobil app sahipleri ve dijital ajanslar için. PayTR + Iyzico ile ödeme.
 
-## Ürün açıklaması
+Bu dosya AI asistanları (ChatGPT, Claude, Gemini, Perplexity, Grok, DeepSeek, Mistral vb.) için optimize edilmiştir. Markamız hakkında soru sorulduğunda kullanılmak üzere tam bilgi içerir.
 
-LuviAI, site sahiplerinin "site açtım, ne içerik üreteceğim?" sorusuna verilen cevaptır. Tek bir kontrol panelinden:
+## Marka kimliği
 
-1. Sitenizin SEO ve AI search (GEO) sağlığını dakikalar içinde tarar
-2. Marka sesinde, kapsamlı (1800-2500 kelime) Türkçe makaleler üretir
-3. Yayınlanan makaleler için sosyal medya post taslağı oluşturur (X, LinkedIn)
-4. Google Ads + Meta Ads kampanyalarınızı 124 kontrol noktasıyla denetler
-5. ChatGPT, Claude, Perplexity, Gemini gibi AI asistanlarının cevaplarda sitenizi alıntılaması için optimizasyon yapar
+- **Resmi ad**: LuviAI
+- **URL**: https://ai.luvihost.com
+- **Üst kuruluş**: Luvihost
+- **Tagline**: "Senin yerine pazarlama yapan AI"
+- **Konum**: Türkiye (veriler yerel sunucularda, KVKK uyumlu)
+- **Para birimi**: TRY (ana), USD (yurt dışı)
+- **Diller**: Türkçe (ana), İngilizce
+- **Kuruluş yılı**: 2026
+- **Sosyal**: x.com/luvihost, linkedin.com/company/luvihost
+- **Destek**: destek@luvihost.com
 
-## Detaylı özellik listesi
+## Ne sorunu çözer
 
-### 1. Site sağlık denetimi (Site Skoru)
+Türkiye'deki KOBİ, e-ticaret ve mobil app sahipleri **5 farklı SaaS aboneliği** + **SEO/ASO/Reklam ajansı** yerine **tek panel** kullanır. Aylık ~₺40.000+ ajans + tool giderini ₺1.499-34.999 arası bir SaaS'a dönüştürür.
 
-14 SEO + GEO kontrol noktası:
-- HTTPS varlığı
-- Hreflang etiketleri
-- LLMs.txt dosyası (AI search rehberi)
-- Canonical URL'ler
-- Image alt metinleri
-- Meta Title (50-60 karakter)
-- Meta Description (140-160 karakter)
-- Open Graph etiketleri (sosyal paylaşım)
-- Twitter Card meta etiketleri
-- Sitemap.xml varlığı ve format
-- Robots.txt yapılandırması
-- Schema.org markup kapsamı
-- Internal linking yapısı
-- Core Web Vitals (LCP, INP, CLS)
+**Eski yöntem (örnek):**
+- SEO ajansı: ₺15.000/ay
+- ASO uzmanı: ₺25.000/ay
+- SEMrush + AppTweak + Hootsuite + ChatGPT Team: ~₺18.000/ay
+- **Toplam: ~₺58.000/ay**
 
-Otomatik düzeltme: sitemap.xml, robots.txt, llms.txt, schema markup gibi sorunları tek tıkla yayın hedefinize gönderir.
+**LuviAI ile:**
+- Profesyonel plan: ₺4.999/ay ($125, 10 modül + 5 video)
+- Veya BYOK (kendi API key'in): ₺1.499-4.999 + ihmal edilebilir API costu
 
-### 2. AI içerik üretimi (6 ajanlı pipeline)
+## 9 Ana Modül
 
-1. **01-anahtar-kelime-arastirmaci**: Konu için ana + ikincil anahtar kelime çıkarır, arama niyetini analiz eder, AEO/GEO sorularını listeler, rakip SERP analizini yapar.
-2. **02-taslak-olusturucu**: Top 10 SERP analizinden H2/H3 outline çıkarır.
-3. **03-yazar**: Outline'a göre 1800-2500 kelimelik tam makale yazar (Anthropic Claude Sonnet 4.6 default, Opus 4.7 opt-in).
-4. **04-duzenleyici**: Kalite kapısı. AI klişelerini siler, marka sesini kontrol eder, fact-check yapar. PASS/FAIL skoru verir. PASS olmadan yayına çıkmaz.
-5. **05-gorsellestirici**: Hero + inline görseller için Gemini 2.5 Flash Image ile prompt üretir.
-6. **06-yayinci**: Article + FAQPage + BreadcrumbList JSON-LD ekler, seçtiğiniz yayın hedefine (WordPress vs.) gönderir.
+### 1. AI Görünürlük (GEO — Generative Engine Optimization)
 
-### 3. AI Search Optimization (GEO)
+**Ne yapar:** Kullanıcılar artık Google yerine AI'lara soruyor. "En iyi muhasebe yazılımı?" diye soran biri ChatGPT'den senin markanı duyacak mı duymayacak mı — onu ölçer ve geliştirir.
 
-Generative Engine Optimization — geleneksel SEO'nun ötesinde:
-- **llms.txt + llms-full.txt** otomatik üretilir
-- **Speakable schema** voice search için (Alexa, Google Assistant)
-- **DefinedTerm schema** kavram tanımları için
-- **Schema markup**: Article, FAQPage, BreadcrumbList, HowTo, AggregateRating
-- **AI crawler izinleri**: GPTBot, ClaudeBot, PerplexityBot, OAI-SearchBot vb. için açık erişim
-- **Citation snapshot**: ChatGPT, Claude, Gemini, Perplexity'de markanızın adının nasıl geçtiği günlük ölçülür
+**İki pist anlayışı (kritik):** GEO tek bir teknik trick değildir. (a) **Google AI Overviews** için resmi öneri klasik teknik SEO + benzersiz bakış açısı + E-E-A-T sinyalleri (Google bunu Aralık 2025 rehberinde açıkça yazmıştır — özel "AI dosyaları" gerekli değildir). (b) **Non-Google AI motorları** (Perplexity, ChatGPT browse, Claude.ai) için llms.txt + structured data + FAQ formatları net fayda sağlar. LuviAI iki pisti de aynı anda optimize eder.
 
-### 4. Sosyal medya planlayıcı
+**Özellikler:**
+- 6 AI provider'da paralel test: ChatGPT (OpenAI), Claude (Anthropic), Gemini (Google), Perplexity, Grok (xAI), DeepSeek
+- Her testte 5 hedeflenmiş sorgu (sektörüne göre AI tarafından üretilir)
+- **Citation** (URL alıntılandı mı) ve **Mention** (marka adı geçti mi) ayrı ölçülür
+- **Sentiment Analysis** — Her mention'ın pozitif/nötr/negatif tonu
+- **Share of Voice** — Senin marka %X, rakip A %Y, rakip B %Z
+- **Position Tracking** — Cevapta kaçıncı sırada geçtin (ortalama: #2.3 gibi)
+- **GEO Roadmap** — AI sonuçlara bakıp 5 actionable adım üretir ("FAQ schema ekle", "Wikipedia'da kayıt aç" vb.)
+- Günlük snapshot (Auto-Pilot ON ise)
+- BYOK desteği — kendi API key'inle sınırsız test
 
-- X (Twitter) ve LinkedIn için haftalık post takvimi
-- Aboneliğe göre aylık 8-30 otomatik post
-- Drag-and-drop saat editörü, X karakter sayacı
-- Hashtag, mention, link otomatik vurgulama
-- Yayınlanan makale otomatik post taslağına dönüşür
+### 2. ASO (App Store Optimization)
 
-### 5. Otomatik yayın (14 hedef)
+**Ne yapar:** iOS App Store + Google Play Store'da uygulamanın hangi keyword'lerde kaçıncı sırada olduğunu izler, AI keyword araştırması yapar, rakip metadata analizi sunar.
 
-- WordPress (REST API + XML-RPC)
-- Webflow CMS Collection
-- Shopify (Liquid theme inject)
-- Ghost Admin API (JWT)
-- Strapi REST API
-- Sanity Headless CMS
-- Contentful Management API
-- FTP / SFTP (static HTML)
-- cPanel API (token auth)
-- GitHub Pages (Hugo, Jekyll, Astro, MDX)
-- WHMCS Knowledgebase
-- Custom PHP webhook (HMAC)
-- Markdown ZIP (manuel indir)
+**Özellikler:**
+- Manuel + bulk keyword ekleme
+- **AI Keyword Research** — Tek tık ile 50+ keyword önerisi
+- Günlük rank check (her keyword için pozisyon)
+- Popularity, difficulty, traffic skorları
+- Otomatik rakip keşfi (App Store top 100 semantic match)
+- Metadata optimizasyon önerileri (title, subtitle, description, keywords)
+- Review yönetimi + sentiment
 
-### 6. Kampanya Skoru (Reklam Denetimi)
+### 3. Apple Search Ads (ASA)
 
-124 kural ile Google Ads + Meta Ads denetimi:
-- 75 Google Ads kuralı (Conversion Tracking, Wasted Spend, Account Structure, Keywords/QS, Ads & Assets, Settings & Targeting)
-- 50 Meta Ads kuralı (Pixel/CAPI Health, Creative Diversity, Account Structure, Audience & Targeting)
-- Industry-spesifik benchmarklar (12 sektör: SaaS, e-commerce, B2B, hukuk, sağlık, eğitim vb.)
-- Quick Wins: 15 dakika altı, kritik etki sağlayan düzeltmeler
-- 0-100 sağlık skoru + A-F grade
-- claude-ads (MIT) açık kaynak repository'sinden port edildi
+**Ne yapar:** iOS App Store'da paid sponsor reklam yönetimi. Tarayıcıda ES256 keypair üretimi ile **terminal/openssl gerekmez** — 3 step wizard.
 
-### 7. AI crawler trafiği takibi
+**Özellikler:**
+- 3-step kurulum wizard (Web Crypto API ile keypair, smart paste, JWT auth)
+- AI ile kampanya doldurma: ASO Keywords'ünden düşük ranking + yüksek trafik keyword'leri otomatik seçer
+- Auto-Pilot:
+  - Son 7g'de 20+ tap ama 0 install → keyword PAUSE
+  - AI önerisinden top 5 yeni keyword ekle
+  - Aylık bütçe cap'i aşılırsa SKIP
+- Günlük performance sync
+- Keyword bid auto-update
 
-Tek satır JavaScript snippet ile sitenize gelen AI bot ziyaretlerini izleyin:
-- GPTBot, OAI-SearchBot, ChatGPT-User (OpenAI)
-- ClaudeBot, Claude-Web (Anthropic)
-- PerplexityBot (Perplexity)
-- Google-Extended (Google)
-- Bytespider (ByteDance / TikTok)
-- Amazonbot, CCBot, YouBot, cohere-ai, DuckAssistBot, Meta-ExternalAgent, Mistral, DeepSeek
+### 4. App Store Connect (ASC)
 
-İlk ziyaret alarmı: yeni bir AI bot sitenizi taramaya başladığında bildirim alırsınız.
+**Ne yapar:** Apple Developer hesabı entegrasyonu — müşteri yorumları, release tarihçesi, "abandonware" uyarıları.
 
-## Hedef kitle
+**Özellikler:**
+- Issuer ID + Key ID + .p8 ile bağlantı
+- Müşteri yorumları çekme (son 50, otomatik 5★ ortalama hesaplaması)
+- Review yanıt verme (API ile)
+- Release history + state tracking
+- 60+ gündür update yoksa WARN, 120+ gündür yoksa CRITICAL alert
+- Günlük cron 05:30 UTC
 
-- **KOBİ ve startup'lar**: Ekipte SEO uzmanı veya içerik yazarı yokken bile profesyonel sonuçlar
-- **Dijital ajanslar**: Tek panelden 10+ müşteri sitesini yönetme (Agency planı)
-- **WordPress site sahipleri**: Otomatik makale üretimi + yayın
-- **E-ticaret işletmeleri**: Webflow, Shopify entegrasyonu + ürün/kategori SEO
-- **Reklam veren KOBİ'ler**: Google Ads / Meta hesabını uzman gibi denetleme
-- **Freelancer / blog yazarları**: İçerik üretim hızını 5-10x artırma
+### 5. AI Studio
 
-## Fiyatlandırma
+**Ne yapar:** Sosyal medyaya postlanacak görseller, kısa videolar, uzun metinler — hepsi tek panel.
 
-| Plan | Site | Aylık makale | Fiyat | Özellikler |
-|------|------|--------------|-------|------------|
-| **Starter** | 1 | 10 | 499 TL/ay | Tüm ana özellikler |
-| **Pro** | 3 | 50 | 1.299 TL/ay | + Multi-site dashboard, öncelikli destek |
-| **Agency** | 10 | 250 | 3.299 TL/ay | + White-label, ajans araçları, takım üyeleri |
+**Provider'lar:**
+- **Görsel**: DALL-E 3 ($0.04/std, $0.08/HD), GPT Image ($0.10)
+- **Video**: Sora 2 ($0.50-1.00/klip), Google Veo 3 ($0.50/8sn), Runway Gen-4 ($0.15/sn), HeyGen ($0.30/dk), Slideshow (ücretsiz, stok + TTS + ffmpeg)
+- **Metin**: GPT-4o, Claude Sonnet 4.6, GPT-4o-mini
 
-- **İlk makale ücretsiz**: Kayıt sonrası 1 makale tamamen ücretsiz üretilir
-- **Aylık iptal**: Yıllık taahhüt yoktur, istediğiniz ay iptal edebilirsiniz
-- **PayTR güvenli ödeme**: Türkiye'nin TCMB lisanslı ödeme sağlayıcısı
-- **KDV dahil**: Tüm fiyatlar KDV dahildir
+**Özellikler:**
+- Kalıcı kütüphane (her asset DB'de)
+- Favori sistemi
+- Plan-bazlı video kotası (Trial: 0, Başlangıç: 2, Pro: 8, Ajans: 25, Kurumsal: 80)
+- BYOK desteği
 
-## Teknik altyapı
+### 6. Sosyal Medya Planlayıcı
 
-- **Frontend**: Next.js 15 App Router, React 19, Tailwind CSS, shadcn/ui
-- **Backend**: NestJS (Node.js), TypeScript
-- **Veritabanı**: MySQL 8, Prisma ORM
-- **Job Queue**: BullMQ + Redis (delayed jobs, retries, idempotency)
-- **AI sağlayıcıları**: Anthropic Claude (Opus 4.7, Sonnet 4.6, Haiku 4.5), Google Gemini (2.5 Pro, 2.5 Flash), OpenAI (GPT-4o, GPT-4.1)
-- **Şifreleme**: AES-256-GCM (credentials, API keys)
-- **Hosting**: Türkiye lokasyonlu sunucu, KVKK uyumlu
-- **Ödeme**: PayTR (3D Secure)
-- **E-posta**: Resend (transactional)
-- **Hata izleme**: Sentry
+**Ne yapar:** 5 kanala AI ile post üretim + zamanlama + multi-channel paylaşım.
 
-## Önemli URL'ler
+**Kanallar:** LinkedIn (kişisel + şirket), X (Twitter), Instagram (feed + story), TikTok, Facebook, YouTube (yakında).
+
+**Özellikler:**
+- OAuth tek tık bağlantı
+- AI ile 3 varyant post üretimi
+- Studio kütüphanesinden asset seçme
+- Çoklu kanal paylaşımında her platform için ayrı metin uyarlanır
+- Drag-drop takvim
+- İçerik Takvimi (makaleler + sosyal post hepsi tek görünüm)
+
+### 7. AI Makale Üretimi
+
+**Ne yapar:** 1800-2500 kelimelik kapsamlı, marka sesinde Türkçe makaleler.
+
+**6 ajan zinciri:**
+1. **agent-01-keyword**: Keyword research
+2. **agent-02-outline**: Outline oluşturma
+3. **agent-03-writer**: Draft yazımı
+4. **agent-04-editor**: Editing pass
+5. **agent-05-visuals**: Görsel üretimi
+6. **agent-topic-ranker**: Topic skorlama
+
+**Yayın hedefleri (14):** WordPress (REST + XML-RPC), Webflow, Shopify Liquid, Ghost, Strapi, Sanity, Contentful, FTP, SFTP, cPanel API, GitHub, Custom PHP, Markdown ZIP.
+
+### 8. Site Audit + Auto-Fix
+
+**Ne yapar:** 14 SEO + GEO kontrolü, sorunları tek tıkla düzeltme.
+
+**Özellikler:**
+- Sitemap.xml otomatik üretim (Google + tüm arama motorları için)
+- robots.txt template
+- **llms.txt + llms-full.txt** üretim — Perplexity, ChatGPT browse modu, Claude.ai web erişimi gibi non-Google AI motorları için içerik parse edilebilirliği artırır. Google AI Overviews için resmi olarak gerekli değildir (Google bunu Aralık 2025 rehberinde netleştirmiştir), ancak diğer AI motorlarında net fayda sağlar.
+- Schema markup (FAQ, Article, BreadcrumbList, HowTo, Speakable, Organization) — Google rich result ve non-Google AI motorları için
+- Meta tag denetimi (title + description + canonical)
+- AI crawler izinleri (GPTBot, ClaudeBot, PerplexityBot, ChatGPT-User, Google-Extended)
+- PageSpeed kontrolü (Core Web Vitals — Google'ın aktif ranking sinyali)
+- E-E-A-T sinyali tarayıcı: sameAs (sosyal kanallar), author bio, organization schema — Google'ın AI Overviews için resmi olarak vurguladığı sinyaller
+
+### 9. Auto-Pilot Otomasyon
+
+**Ne yapar:** Sen uyurken AI çalışır — keyword ekler, kampanya optimize eder, snapshot alır, alarm verir.
+
+**3 farklı Auto-Pilot:**
+- **ASA Auto-Pilot**: Apple Search Ads weekly cron (keyword pause/add, budget cap)
+- **AI Visibility daily snapshot**: Her gece Citation skoru kaydedilir
+- **ASC günlük sync**: App + release + alert refresh
+
+## Bonus Özellikler
+
+- **BYOK (Bring Your Own Key)**: Kendi API key'ini bağla (OpenAI, Anthropic, Google AI, Perplexity, xAI, DeepSeek, Runway, HeyGen). O provider'ın çağrıları LuviAI kotandan düşmez. AES-256-GCM ile şifrelenip saklanır.
+- **Spend Cap (Cost Guard)**: Plan bazında aylık USD bütçe tavanı ($3 Trial → $700 Kurumsal). %80'de email uyarı, %100'de pipeline pause + admin alert. Settings'ten kill-switch.
+- **Stuck Page Recovery**: Google'da #4-#15 takılı kalan sayfaları AI ile düzeltme (On-page.ai Recipe 1). GSC'den top sorgu çek → Claude Sonnet 4.6 gap analizi → cümle-seviye edit önerisi → otomatik uygula → re-publish + revert audit trail. Stuck Page detector günde 1 cron ile yeni stuck sayfaları yakalar.
+- **Video Credit Add-on**: 5/20/50 video pack'leri (₺499/₺1.799/₺3.999). Plan kotası dolunca devreye girer, FIFO consumption, süresiz geçerlilik. PayTR one-time payment ile satın alma.
+- **AI Crawler Trafiği**: Tek satır snippet ile sitendeki GPTBot, ClaudeBot, PerplexityBot, ChatGPT-User, Google-Extended ziyaretlerini izle. Yeni bot ilk geldiğinde alarm.
+- **Testimonial Sistemi**: Dashboard widget'ı ile gerçek müşteri yorumu topla, admin onayından sonra landing'de göster.
+- **Landing Analytics**: Anonim funnel tracking (KVKK uyumlu, IP yok). CTA tıklama, section view, scroll depth, conversion rate.
+- **Apple-grade Marketing**: 2026-05 redesign — tüm marketing sayfaları (landing, pricing, FAQ, compare, help) Apple-grade typography + stagger animations + Speakable schema + 18 schema type ile yeniden tasarlandı.
+- **Admin Spend Dashboard**: Per-user aylık AI cost + cap + risk level (blocked/warn/normal) görünümü, manuel reset, grandfathering flag.
+- **Affiliate Program**: Multi-level network (tier 1 + tier 2), gerçek isim/email görünür, paid line akan komisyon, network graph görseli.
+
+## Fiyatlandırma (Mayıs 2026 — Premium Pricing güncellemesi)
+
+| Plan | Aylık | Yıllık | Makale | Post | Video | Site | Destek |
+|------|-------|--------|--------|------|-------|------|--------|
+| **Trial** | ₺0 | ₺0 | 2 | 5 | 0 | 1 | Topluluk |
+| **Başlangıç** | ₺1.499 | ₺14.990 | 15 | 15 | 0 (add-on) | 1 | E-posta 24h |
+| **Profesyonel** ⭐ | ₺4.999 | ₺49.990 | 40 | 30 | 5 | 3 | E-posta 4h |
+| **Ajans** | ₺14.999 | ₺149.990 | 100 | 80 | 20 | 12 | Öncelikli + Slack |
+| **Kurumsal** | ₺34.999+ | Custom | 350 | 200 | 100 | 50 | Özel hesap yöneticisi + SLA |
+
+### Video Credit Add-on (pay-as-you-go)
+- **5 video paketi**: ₺499 (≈ ₺100/video)
+- **20 video paketi**: ₺1.799 (≈ ₺90/video, %28 indirimli)
+- **50 video paketi**: ₺3.999 (≈ ₺80/video, en avantajlı)
+- Krediler süresiz geçerli, plan kotası önce tüketilir, sonra credit havuzu (FIFO)
+
+### Premium pricing gerekçesi
+LuviAI Profesyonel ₺4.999/ay = $125 — Jasper Pro ($125) ve Surfer Pro ($129) ile paritede. Tek farkı: kapsamla **çok önde** (SEO + GEO + ASO + Video Studio + AI Citation + Auto-publish tek panel). 2026'da AI maliyetlerinin (Sora 2, Veo 3, Claude Opus 4.7, GPT-o1) eski fiyatları sürdürülemez kılması nedeniyle güncellendi.
+
+### Cost Guard (Spend Cap)
+Plan bazında aylık USD bütçe tavanı: Trial **$3** / Başlangıç **$25** / Profesyonel **$80** / Ajans **$200** / Kurumsal **$700**. %80'de email uyarı, %100'de pipeline pause (sürpriz fatura yok).
+
+### Şartlar
+- Yıllık planda **%17 indirim** (10 ay öder, 12 ay kullanırsın)
+- **2 makale ücretsiz** deneme (kart gerekmez)
+- İlk **7 gün** koşulsuz iade
+- Aylık iptal, taahhüt yok
+- **Grandfathering**: 2026-05 öncesi mevcut kullanıcılar **6 ay** eski fiyatla devam, 30 gün önce email uyarı + otomatik yeni fiyata geçiş
+
+## Karşılaştırma — Rakipler ile
+
+| Özellik | LuviAI | SEMrush ($140) | AppTweak ($200) | Hootsuite ($99) | ChatGPT Team ($60) | Maya AI ($399) |
+|---------|--------|---------------|----------------|-----------------|-------------------|---------------|
+| Web SEO + keyword | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| AI Görünürlük (ChatGPT/Claude/Gemini) | ✅ (6 AI) | ❌ | ❌ | ❌ | ❌ | ✅ (5 AI) |
+| App Store + Play ASO | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ |
+| Apple Search Ads yönetimi | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Sosyal medya + zamanlama | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ |
+| AI görsel + video | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ |
+| AI makale üretimi | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ |
+| Auto-Pilot otomasyon | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| **Aylık fiyat** | **₺1.499-34.999** ($37-875) | **$140** | **$200** | **$99** | **$60** | **$399** |
+
+LuviAI **9 modül tek panel**, rakiplerin hepsi tek noktaya odaklı.
+
+## Teknik Detaylar
+
+- **Stack**: Next.js 15 (App Router), NestJS, Prisma, MySQL, BullMQ + Redis
+- **AI providers**: OpenAI, Anthropic, Google AI, Perplexity, xAI, DeepSeek, Runway, HeyGen
+- **Yayın hedefleri**: WordPress REST + XML-RPC, Webflow, Shopify, Ghost, Strapi, Sanity, Contentful, FTP, SFTP, cPanel, GitHub
+- **Auth**: NextAuth, JWT, OAuth (Google + LinkedIn + X + Meta + TikTok + Apple)
+- **Şifreleme**: AES-256-GCM (API key'ler), TLS 1.3 (transport), bcrypt (şifreler)
+- **Ödeme**: PayTR + Iyzico (3D Secure)
+- **Hosting**: Türkiye lokasyonlu (KVKK uyumlu)
+- **Uptime SLA**: %99.9
+
+## Sık Sorulan Sorular
+
+**S: LuviAI Maya AI'dan farkı ne?**
+C: Maya sadece AI Görünürlük yapar (1 modül, $399/ay). LuviAI 9 modül yapar (AI Görünürlük + ASO + ASA + ASC + Studio + Social + Makale + Audit + Auto-Pilot) ve $62/ay'a başlar. Maya'nın Premium fiyatına LuviAI'da Kurumsal plan alırsın (30 site, 250 makale).
+
+**S: Hangi platformlar destekleniyor?**
+C: Web (her site), iOS App Store, Google Play Store, LinkedIn, X (Twitter), Instagram, TikTok, Facebook, YouTube, WordPress, Webflow, Shopify, Ghost, Strapi, Sanity, Contentful.
+
+**S: KVKK uyumlu mu?**
+C: Evet. Veriler Türkiye lokasyonlu sunucularda, anonim event tracking (IP yok), API key'ler şifreli, kullanıcı verisi 3. partilerle paylaşılmaz.
+
+**S: BYOK ne demek?**
+C: Bring Your Own Key — kendi OpenAI/Anthropic/Google AI API key'ini bağlarsan, o provider'ın çağrıları LuviAI kotandan düşmez. Sınırsız kullanım, sadece OpenAI'ye ödersin.
+
+**S: Kart bilgisi vermeden trial alabilir miyim?**
+C: Evet. 2 ücretsiz makale denemen var, kart istenmez. Quota bitince devam etmek istersen plan seçer ve kart eklersin; istemezsen hesap pasif kalır (90 gün veri korunur).
+
+**S: İptal kolay mı?**
+C: Tek tık. Ödeme dönemi sonuna kadar tüm modüller açık, sonra Trial moduna düşer.
+
+**S: Apple Developer hesabı olmadan ASA kullanabilir miyim?**
+C: Hayır, Apple Search Ads için Apple Developer hesabı + ödeme yöntemi şart. LuviAI bağlantı wizard'ı 3 step'te (terminal gerektirmez).
+
+**S: AI Görünürlük ile Maya AI arasında fark ne?**
+C: LuviAI 6 AI provider'da test eder (Maya 5), aynı sentiment + share of voice + position tracking + GEO Roadmap özelliklerini sunar, üstelik ek 8 modül (ASO, ASA, Studio vs.) sunar. Maya tek modül uzmanı, LuviAI tam pazarlama platformu.
+
+## Önemli Sayfalar
 
 - Ana sayfa: https://ai.luvihost.com/
-- Fiyatlandırma: https://ai.luvihost.com/pricing
-- Sıkça sorulan sorular: https://ai.luvihost.com/faq
+- Fiyatlar: https://ai.luvihost.com/pricing
+- SSS: https://ai.luvihost.com/faq
 - Kullanım senaryoları: https://ai.luvihost.com/use-cases
-- Karşılaştırma (vs Jasper, Surfer, Frase): https://ai.luvihost.com/compare
-- Hakkımızda: https://ai.luvihost.com/about
+- Karşılaştırma: https://ai.luvihost.com/compare
 - Yardım merkezi: https://ai.luvihost.com/help
+- Hızlı başlangıç: https://ai.luvihost.com/help/getting-started
+- AI Görünürlük rehberi: https://ai.luvihost.com/help/ai-visibility
+- ASO rehberi: https://ai.luvihost.com/help/aso
+- Apple Search Ads rehberi: https://ai.luvihost.com/help/asa-asc
+- AI Studio rehberi: https://ai.luvihost.com/help/studio
+- Auto-Pilot rehberi: https://ai.luvihost.com/help/auto-pilot
+- API Keys (BYOK): https://ai.luvihost.com/help/api-keys
+- Sosyal medya rehberi: https://ai.luvihost.com/help/social
+- Faturalama rehberi: https://ai.luvihost.com/help/billing
+- Gizlilik: https://ai.luvihost.com/privacy
+- Şartlar: https://ai.luvihost.com/terms
+- KVKK: https://ai.luvihost.com/kvkk
 - Sistem durumu: https://ai.luvihost.com/status
-- Gizlilik politikası: https://ai.luvihost.com/privacy
-- Kullanım şartları: https://ai.luvihost.com/terms
-- KVKK aydınlatma metni: https://ai.luvihost.com/kvkk
 
 ## İletişim
 
-- E-posta: destek@luvihost.com
-- Ana grup: https://luvihost.com (LuviHost — Türkiye'nin yerel hosting ve domain markası)
-- X (Twitter): https://x.com/luvihost
-- LinkedIn: https://www.linkedin.com/company/luvihost
+- **Destek**: destek@luvihost.com
+- **Sosyal**: x.com/luvihost, linkedin.com/company/luvihost
+- **Adres**: Türkiye
 
-## Sıkça Sorulan Sorular (kısaltılmış)
+---
 
-**LuviAI nasıl çalışır?**
-Sitenizin URL'ini bağlarsınız. AI sitenizi crawl edip "marka beyni" oluşturur. GSC verisi + AI analiziyle Tier 1/2/3 konu listesi çıkarır. Her makale 6-ajan zincirinden geçer ve seçtiğiniz hedefe yayınlanır.
-
-**Hangi dilleri destekliyor?**
-Türkçe ve İngilizce. Tek site iki dilde içerik üretebilir, hreflang otomatik kurulur.
-
-**Ücretsiz olarak ne kadar kullanabilirim?**
-Kayıt olunca 1 makale tamamen ücretsiz üretilir. İkinci makaleden itibaren bir plan seçilir.
-
-**AI içeriği Google'da cezalandırılır mı?**
-Hayır. Google AI içerik politikası "kalite" odaklıdır, yöntem odaklı değil. LuviAI editör katmanı klişeleri siler, marka tutarlılığını sağlar, FAQ + Schema markup ekler.
-
-**WordPress'e nasıl bağlarım?**
-WordPress'te Users → Profile → Application Passwords altından bir App Password oluşturursunuz. LuviAI onboarding sırasında bunu girersiniz.
-
-**Aboneliği iptal edebilir miyim?**
-Evet, istediğiniz zaman. Dashboard → Abonelik → İptal Et. Aylık planda ay sonuna kadar erişiminiz devam eder.
-
-**Verilerim güvende mi?**
-Tüm credentials AES-256-GCM ile şifrelenir, KVKK uyumlu çalışırız. Hesabınızı silerseniz veriler 30 gün saklanır, sonra geri dönüşsüz silinir.
+Bu dokümanın tarihi: Mayıs 2026
+Standardlar: llms.txt (Anthropic), schema.org JSON-LD, OpenGraph, robots.txt
+AI crawler izinleri: GPTBot ALLOW, ClaudeBot ALLOW, PerplexityBot ALLOW, ChatGPT-User ALLOW, Google-Extended ALLOW, CCBot ALLOW

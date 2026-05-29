@@ -439,7 +439,7 @@ export default function LandingPage() {
                   <td className="text-center p-4 text-muted-foreground">$200</td>
                   <td className="text-center p-4 text-muted-foreground">$99</td>
                   <td className="text-center p-4 text-muted-foreground">$60</td>
-                  <td className="text-center p-4 bg-orange-500/10 font-bold text-orange-700 dark:text-orange-400">₺2.499</td>
+                  <td className="text-center p-4 bg-orange-500/10 font-bold text-orange-700 dark:text-orange-400">₺4.999 ($125)</td>
                 </tr>
               </tbody>
             </table>

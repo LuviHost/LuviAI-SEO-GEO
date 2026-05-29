@@ -116,9 +116,9 @@ const FEATURE_GROUPS: FeatureGroup[] = [
     title: 'Fiyat',
     icon: <Award className="h-4 w-4" />,
     rows: [
-      { name: 'Aylık başlangıç', luviai: '₺499', surfer: '$89 (~₺3.500)', jasper: '$49 (~₺1.900)', ahrefs: '$129 (~₺5.000)', frase: '$45 (~₺1.750)' },
-      { name: 'Yıllık ödeme indirimi', luviai: '%20', surfer: '%30', jasper: '%20', ahrefs: '%20', frase: '%10' },
-      { name: 'Ücretsiz ilk makale', luviai: true, surfer: false, jasper: '5 gün trial', ahrefs: false, frase: '5 trial' },
+      { name: 'Aylık başlangıç', luviai: '₺1.499 ($37)', surfer: '$89 (~₺3.500)', jasper: '$49 (~₺1.900)', ahrefs: '$129 (~₺5.000)', frase: '$45 (~₺1.750)' },
+      { name: 'Yıllık ödeme indirimi', luviai: '%17', surfer: '%30', jasper: '%20', ahrefs: '%20', frase: '%10' },
+      { name: '2 ücretsiz makale', luviai: true, surfer: false, jasper: '5 gün trial', ahrefs: false, frase: '5 trial' },
       { name: 'Aylık iptal — taahhüt yok', luviai: true, surfer: true, jasper: true, ahrefs: false, frase: true },
     ],
   },
@@ -290,7 +290,7 @@ export default function ComparePage() {
                 <li className="flex gap-2"><Check className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" /> Sosyal medya yayın (IG + TikTok + LinkedIn + X)</li>
               </ul>
               <p className="text-xs mt-4 text-muted-foreground/80">
-                Aynı işi rakip kombinasyonuyla almak: Surfer ($89) + Jasper ($49) + Ahrefs ($129) + Hootsuite ($99) = <strong className="text-foreground">$366/ay</strong>. LuviAI: <strong className="text-brand">₺499/ay</strong>.
+                Aynı işi rakip kombinasyonuyla almak: Surfer ($89) + Jasper ($49) + Ahrefs ($129) + Hootsuite ($99) = <strong className="text-foreground">$366/ay (≈ ₺14.640)</strong>. LuviAI Başlangıç: <strong className="text-brand">₺1.499/ay ($37)</strong>, Profesyonel: <strong className="text-brand">₺4.999/ay ($125)</strong>.
               </p>
             </CardContent>
           </Card>
