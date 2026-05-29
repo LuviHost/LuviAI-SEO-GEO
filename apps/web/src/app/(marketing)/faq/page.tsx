@@ -19,7 +19,7 @@ const FAQS = [
   },
   {
     q: 'Ücretsiz olarak ne kadar kullanabilirim?',
-    a: 'Kayıt olunca 1 makale tamamen ücretsiz üretilir (süre sınırı yok). Markdown ZIP olarak indirebilirsin. İkinci makaleden itibaren bir plan seçmen gerekir; plan seçince WordPress/FTP/SFTP gibi tüm yayın hedefleri açılır.',
+    a: 'Kayıt olunca 2 makale tamamen ücretsiz üretilir (süre sınırı yok, kart bilgisi gerekmez). Markdown ZIP olarak indirebilir veya temel yayın hedeflerine gönderebilirsin. Quota bitince bir plan seçmen gerekir; plan seçince WordPress/FTP/SFTP gibi tüm yayın hedefleri + AI Video Studio açılır.',
   },
   {
     q: 'AI içeriği Google\'da cezalandırılır mı?',
@@ -27,7 +27,7 @@ const FAQS = [
   },
   {
     q: 'GEO (AI search) optimizasyonu nedir?',
-    a: 'ChatGPT, Perplexity, Claude, Gemini gibi AI asistanlarının cevaplarında alıntılanma için içerik optimizasyonu. Auriti GEO Optimizer ile 47 metrik üzerinden tarama yapılır, llms.txt + structured data + Q&A formatları otomatik kurulur.',
+    a: 'ChatGPT, Perplexity, Claude gibi AI asistanlarının cevaplarında alıntılanma için içerik optimizasyonu. İki ayrı pist çalışır: (1) Google AI Overviews için klasik teknik SEO + benzersiz bakış açısı + E-E-A-T (Google\'ın resmi rehberi bunu söylüyor — özel "AI dosyası" gerekmiyor). (2) Perplexity / ChatGPT browse / Claude.ai gibi non-Google AI motorları için llms.txt + llms-full.txt + structured data + Q&A formatları kurulur. Auriti GEO Optimizer 47 metrik üzerinden tarama yapar, eksikleri tek tıkla düzeltir.',
   },
   {
     q: 'Kendi WordPress\'ime nasıl bağlarım?',
@@ -67,7 +67,7 @@ const FAQS = [
   },
   {
     q: 'GEO Score nedir, nasıl hesaplanır?',
-    a: '6 pillar üzerinden ağırlıklı ortalama: (1) Crawler Erişimi — robots.txt + llms.txt + llms-full.txt + sitemap, (2) Yapısal Veri — schema kapsama + Speakable + FAQPage, (3) AI Citation — 4 sağlayıcı son 7 gün ortalama, (4) Otorite — sameAs + competitive landscape + sosyal kanal + GSC, (5) Tazelik — son 7/30 gün yayın, (6) Multi-Modal — TTS audio + podcast + hero görseller. Sonuç: A+ → F harf notu.',
+    a: '6 pillar üzerinden ağırlıklı ortalama: (1) Crawler Erişimi — robots.txt + llms.txt + llms-full.txt + sitemap (Perplexity, ChatGPT browse, Claude.ai gibi non-Google AI motorları için faydalı; Google AI Overviews\'da resmi olarak gerekli değil ama klasik teknik SEO altyapısı olarak puanlanır), (2) Yapısal Veri — schema kapsama + Speakable + FAQPage (rich result + non-Google AI için), (3) AI Citation — 4 sağlayıcı son 7 gün ortalama (gerçek AI cevaplarında alıntılanma — en kritik pillar), (4) Otorite — sameAs + competitive landscape + sosyal kanal + GSC (Google\'ın E-E-A-T sinyali), (5) Tazelik — son 7/30 gün yayın, (6) Multi-Modal — TTS audio + podcast + hero görseller. Sonuç: A+ → F harf notu.',
   },
   {
     q: 'Otopilot tam olarak ne yapıyor?',
@@ -76,6 +76,10 @@ const FAQS = [
   {
     q: 'Türkçe SEO uzmanı maaşına vermek yerine LuviAI almak gerçekten mantıklı mı?',
     a: 'Bir Türkçe SEO uzmanı 35-60k ₺/ay. Bir içerik yazarı 10-20k ₺/ay. Sosyal medya yöneticisi 15-25k ₺/ay. Reklam uzmanı 20-40k ₺/ay. Toplam ~100k ₺/ay. LuviAI Profesyonel paket 6.980 ₺/ay ve hepsini yapıyor. Üstelik AI search optimizasyonu (Türkçe pazarda yok) + 7/24 çalışıyor + tatil yapmıyor + ayrılmıyor.',
+  },
+  {
+    q: 'Google llms.txt\'i kullanıyor mu? Bu dosya gerçekten gerekli mi?',
+    a: 'Google resmi rehberinde "AI Overviews ve generatif arama için yeni bir machine-readable dosya, AI text dosyası, markup veya Markdown oluşturmanıza gerek yok" diyor — yani Google için llms.txt zorunlu değil. Ancak Perplexity, ChatGPT browse modu, Claude.ai web erişimi gibi non-Google AI motorları llms.txt + llms-full.txt\'i okuyarak içeriği daha hızlı parse ediyor. LuviAI bu dosyaları "multi-engine GEO optimizasyonu" için üretiyor — Google\'a yarar yok zararı yok, diğer AI motorlarına net yarar. Google\'da AI Overviews için asıl odak: benzersiz bakış açısı, first-hand deneyim, E-E-A-T sinyalleri ve klasik teknik SEO (indekslenebilirlik + snippet uygunluğu). LuviAI\'nın Brain Generator + içerik pipeline\'ı bu sinyalleri zaten optimize ediyor.',
   },
   {
     q: 'Demo görmek istiyorum, nasıl?',
@@ -176,13 +180,13 @@ export default function FaqPage() {
         <div className="rounded-2xl bg-gradient-to-br from-orange-500 via-orange-600 to-red-600 text-white p-10 text-center mt-12">
           <h2 className="text-2xl sm:text-3xl font-extrabold mb-3">Sorunu çözemedik mi?</h2>
           <p className="text-white/90 mb-6">
-            Hemen dene, sonra karar ver. İlk makale ücretsiz.
+            Hemen dene, sonra karar ver. İlk 2 makale ücretsiz.
           </p>
           <Link
             href="/onboarding"
             className="inline-flex items-center gap-2 bg-white text-orange-600 hover:bg-white/90 px-8 py-3 rounded-lg font-bold shadow-xl"
           >
-            1 Makale Ücretsiz Dene →
+            2 Makale Ücretsiz Dene →
           </Link>
         </div>
       </main>

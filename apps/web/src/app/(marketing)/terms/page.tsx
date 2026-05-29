@@ -28,8 +28,8 @@ export default function TermsPage() {
           <section>
             <h2 className="text-xl font-bold mb-2">2. Üyelik & Trial</h2>
             <p className="text-muted-foreground">
-              Kayıt olan herkes 1 makaleyi ücretsiz üretebilir. Süre sınırı yoktur, kart bilgisi gerekmez.
-              İkinci ve sonraki makaleler için bir plan seçilmesi gerekir.
+              Kayıt olan herkes <strong>2 makaleyi ücretsiz</strong> üretebilir. Süre sınırı yoktur, kart bilgisi gerekmez.
+              Quota bittiğinde devam etmek için bir plan (Başlangıç ₺1.499/ay, Profesyonel ₺4.999/ay, Ajans ₺14.999/ay, Kurumsal ₺34.999+/ay) seçilmesi gerekir.
             </p>
           </section>
 
