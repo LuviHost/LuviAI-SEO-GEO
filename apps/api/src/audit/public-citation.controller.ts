@@ -1,12 +1,23 @@
-import { Body, Controller, HttpException, HttpStatus, Logger, Post, Req } from '@nestjs/common';
-import type { Request } from 'express';
+import { Body, Controller, Get, HttpException, HttpStatus, Logger, Post, Query, Req, Res } from '@nestjs/common';
+import type { Request, Response } from 'express';
 import { Public } from '../auth/public.decorator.js';
 import { PublicCitationService, type PublicCheckResult } from './public-citation.service.js';
+import { PublicCitationSubscriberService } from './public-citation-subscriber.service.js';
 
 interface PublicCheckBody {
   domain: string;
   /** Cloudflare Turnstile token (env-gated — TURNSTILE_SECRET set ise zorunlu) */
   turnstileToken?: string;
+}
+
+interface SubscribeBody {
+  email: string;
+  domain: string;
+  brand: string;
+  niche?: string;
+  customNiche?: string;
+  locale?: string;
+  consent: boolean;
 }
 
 /**
@@ -24,7 +35,10 @@ interface PublicCheckBody {
 export class PublicCitationController {
   private readonly log = new Logger(PublicCitationController.name);
 
-  constructor(private readonly citation: PublicCitationService) {}
+  constructor(
+    private readonly citation: PublicCitationService,
+    private readonly subscribers: PublicCitationSubscriberService,
+  ) {}
 
   @Public()
   @Post('citation-check')
@@ -61,6 +75,76 @@ export class PublicCitationController {
   @Post('citation-check/rate-limit')
   async rateLimit(@Req() req: Request): Promise<{ ok: boolean; remaining: number; resetIn?: string }> {
     return this.citation.checkRateLimit(this.extractIp(req));
+  }
+
+  /** Domain icin son N snapshot — dashboard delta gosterimi icin */
+  @Public()
+  @Get('citation-check/history')
+  async history(@Query('domain') domain: string, @Query('limit') limit?: string) {
+    if (!domain) throw new HttpException('domain query param gerekli', HttpStatus.BAD_REQUEST);
+    return this.citation.getHistory(domain, limit ? Math.min(50, parseInt(limit, 10)) : 12);
+  }
+
+  /** Email-based retest abonelik baslat (double-opt-in) */
+  @Public()
+  @Post('citation-check/subscribe')
+  async subscribe(@Body() body: SubscribeBody): Promise<{ ok: true; status: string; alreadyActive: boolean }> {
+    if (!body?.consent) {
+      throw new HttpException('Aboneligi onaylamak icin checkbox tikli olmali', HttpStatus.BAD_REQUEST);
+    }
+    return this.subscribers.subscribe({
+      email: body.email,
+      domain: body.domain,
+      brand: body.brand,
+      niche: body.niche,
+      customNiche: body.customNiche,
+      locale: body.locale,
+    });
+  }
+
+  /** Double-opt-in confirm — welcome email'deki linkten gelir */
+  @Public()
+  @Get('citation-check/confirm')
+  async confirm(@Query('token') token: string, @Res() res: Response) {
+    if (!token) throw new HttpException('token gerekli', HttpStatus.BAD_REQUEST);
+    try {
+      const r = await this.subscribers.confirm(token);
+      const webUrl = process.env.WEB_URL ?? 'https://ai.luvihost.com';
+      return res.redirect(`${webUrl}/?citation_confirmed=${encodeURIComponent(r.domain)}`);
+    } catch (err: any) {
+      const webUrl = process.env.WEB_URL ?? 'https://ai.luvihost.com';
+      return res.redirect(`${webUrl}/?citation_confirm_error=${encodeURIComponent(err.message ?? 'error')}`);
+    }
+  }
+
+  /** Internal: OAuth signup callback'ten cagrilir, ziyaretci -> user attribution kur */
+  @Public()
+  @Post('citation-check/link-signup')
+  async linkSignup(@Req() req: Request, @Body() body: { userId: string; email: string }) {
+    const internalKey = req.headers['x-internal-key'];
+    const expected = process.env.INTERNAL_API_KEY ?? process.env.NEXTAUTH_SECRET;
+    if (!expected || internalKey !== expected) {
+      throw new HttpException('forbidden', HttpStatus.FORBIDDEN);
+    }
+    if (!body?.userId || !body?.email) {
+      throw new HttpException('userId + email gerekli', HttpStatus.BAD_REQUEST);
+    }
+    return this.subscribers.linkSignup(body.userId, body.email);
+  }
+
+  /** Aboneligi iptal — email'deki linkten gelir */
+  @Public()
+  @Get('citation-check/unsubscribe')
+  async unsubscribe(@Query('token') token: string, @Res() res: Response) {
+    if (!token) throw new HttpException('token gerekli', HttpStatus.BAD_REQUEST);
+    try {
+      const r = await this.subscribers.unsubscribe(token);
+      const webUrl = process.env.WEB_URL ?? 'https://ai.luvihost.com';
+      return res.redirect(`${webUrl}/?citation_unsubscribed=${encodeURIComponent(r.domain)}`);
+    } catch (err: any) {
+      const webUrl = process.env.WEB_URL ?? 'https://ai.luvihost.com';
+      return res.redirect(`${webUrl}/?citation_unsubscribe_error=${encodeURIComponent(err.message ?? 'error')}`);
+    }
   }
 
   // ──────────────────────────────────────

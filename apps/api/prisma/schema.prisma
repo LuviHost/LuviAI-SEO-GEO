@@ -1897,23 +1897,94 @@ enum VideoCreditStatus {
 }
 
 // ──────────────────────────────────────────────────────────
-// PUBLIC AI CITATION CHECK — Landing demo cache
+// PUBLIC AI CITATION CHECK — Landing demo + history snapshots
 // Anonim ziyaretciler /api/v1/public/citation-check'i cagirir.
-// Sonucu domain bazinda 24h cache, IP rate-limit ayri kvStore'da.
+// Her test ayri row → domain geçmisi tutulur, retest cron buradan
+// before/after delta ureterek subscriber'lara email yollar.
 // ──────────────────────────────────────────────────────────
 model PublicCitationCheck {
   id          String   @id @default(cuid())
-  domain      String   @unique                          // host (kobipratik.com)
+  domain      String                                    // host (kobipratik.com) — artik unique degil
   brand       String                                    // tespit edilen marka adi
   niche       String?                                   // niche-detector'dan
   customNiche String?                                   // 'diger' ise spesifik etiket
   result      Json                                      // tum LLM responses + aggregate
   totalCalls  Int      @default(0)                      // kac LLM call yapildi (telemetri)
   costUsd     Float    @default(0)                      // toplam maliyet (telemetri)
-  ip          String?                                   // ilk taleb eden IP (audit)
+  ip          String?                                   // talep eden IP (hash) — audit + rate-limit
+  /** Hangi sebeple olusturuldu: manual (ziyaretci), retest_cron (otomatik 15/30/60/90g), signup_baseline */
+  source      String   @default("manual")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  @@index([domain, createdAt])
   @@index([createdAt])
   @@map("public_citation_checks")
+}
+
+// ──────────────────────────────────────────────────────────
+// PUBLIC CITATION SUBSCRIBER — email-based retest abonelik
+// Ziyaretci test sonucunda email birakir → cron'a alinir,
+// 15/30/60/90g otomatik retest + branded rapor email gonderilir.
+// ──────────────────────────────────────────────────────────
+model PublicCitationSubscriber {
+  id              String   @id @default(cuid())
+  email           String                                // ziyaretci emaili
+  domain          String                                // test edilen domain
+  brand           String                                // o anki tespit edilen marka
+  niche           String?                               // o anki niche
+  customNiche     String?
+  status          String   @default("PENDING_OPTIN")    // PENDING_OPTIN | ACTIVE | UNSUBSCRIBED | BOUNCED | SIGNED_UP
+  /** KVKK consent timestamp — modal'da explicit checkbox tiklendi */
+  consentAt       DateTime?
+  /** Double-opt-in token (welcome email confirm link) */
+  confirmToken    String?  @unique
+  confirmedAt     DateTime?
+  /** Unsubscribe link icin token */
+  unsubscribeToken String  @unique
+  /** Bir sonraki retest ne zaman (cron buna bakar) */
+  nextRetestAt    DateTime?
+  /** Kac retest tamamlandi (15/30/60/90 → 4 max) */
+  retestsSent     Int      @default(0)
+  /** Eger kullanici sonradan LuviAI'a kayit oldu — userId burada */
+  signupUserId    String?
+  signupAt        DateTime?
+  /** Email locale (TR | EN) */
+  locale          String   @default("tr")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  emailLogs PublicCitationEmailLog[]
+
+  @@unique([email, domain])
+  @@index([nextRetestAt, status])
+  @@index([signupUserId])
+  @@map("public_citation_subscribers")
+}
+
+// ──────────────────────────────────────────────────────────
+// PUBLIC CITATION EMAIL LOG — gönderilen retest emailleri
+// ──────────────────────────────────────────────────────────
+model PublicCitationEmailLog {
+  id            String   @id @default(cuid())
+  subscriberId  String
+  /** Tip: welcome | retest_15d | retest_30d | retest_60d | retest_90d | signup_nudge | unsubscribe_ack */
+  type          String
+  /** Email gonderim sirasinda üretilen citation check id'si (varsa) */
+  citationCheckId String?
+  /** O anki delta — ornek: { before: 1, after: 3, totalProviders: 7 } */
+  delta         Json?
+  sentAt        DateTime @default(now())
+  /** Resend webhook'tan gelen status: delivered/opened/clicked/bounced */
+  deliveredAt   DateTime?
+  openedAt      DateTime?
+  clickedAt     DateTime?
+  bouncedAt     DateTime?
+  error         String?
+
+  subscriber PublicCitationSubscriber @relation(fields: [subscriberId], references: [id], onDelete: Cascade)
+
+  @@index([subscriberId, sentAt])
+  @@index([type, sentAt])
+  @@map("public_citation_email_logs")
 }

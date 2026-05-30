@@ -115,6 +115,18 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             console.warn('[auth] affiliate cookie read fail:', err?.message);
           }
         }
+
+        // Public AI Citation Subscriber attribution — yeni kullanıcı ile aynı email'le
+        // landing page'te citation testi yapmış varsa attribution kur (signed_up)
+        if (internalKey) {
+          fetch(`${apiBase}/api/public/citation-check/link-signup`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-internal-key': internalKey },
+            body: JSON.stringify({ userId: created.id, email: user.email }),
+          }).catch((err) => {
+            console.warn('[auth] citation link-signup error:', err?.message);
+          });
+        }
       }
       return true;
     },

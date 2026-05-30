@@ -276,20 +276,29 @@ export class PublicCitationService {
   }
 
   /** Main entry — controller'in cagirdigi fonksiyon. */
-  async check(domain: string, ip: string): Promise<PublicCheckResult> {
+  async check(domain: string, ip: string, source: 'manual' | 'retest_cron' | 'signup_baseline' = 'manual'): Promise<PublicCheckResult> {
     const { url, host } = this.normalizeDomain(domain);
 
-    // 1) Cache kontrol — 24h taze sonuc varsa direkt don
-    const cutoff = new Date(Date.now() - this.CACHE_TTL_HOURS * 60 * 60 * 1000);
-    const cached = await this.prisma.publicCitationCheck.findUnique({ where: { domain: host } });
-    if (cached && cached.createdAt > cutoff) {
-      return { ...(cached.result as any), fromCache: true, cachedAt: cached.createdAt };
+    // 1) Cache kontrol — sadece manual istekte 24h taze snapshot varsa direkt don
+    //    (retest_cron + signup_baseline her zaman taze test ister)
+    if (source === 'manual') {
+      const cutoff = new Date(Date.now() - this.CACHE_TTL_HOURS * 60 * 60 * 1000);
+      const cached = await this.prisma.publicCitationCheck.findFirst({
+        where: { domain: host, createdAt: { gt: cutoff } },
+        orderBy: { createdAt: 'desc' },
+      });
+      if (cached) {
+        const res = cached.result as any;
+        return { ...res, fromCache: true, cachedAt: cached.createdAt };
+      }
     }
 
-    // 2) Rate limit (cache hit'te uygulanmaz, sadece taze sorguda)
-    const rl = await this.checkRateLimit(ip);
-    if (!rl.ok) {
-      throw new BadRequestException(`Gunluk hakkiniz doldu (${this.IP_DAILY_DOMAIN_LIMIT}/24h). ${rl.resetIn ?? ''}`);
+    // 2) Rate limit (cache miss durumunda manuel istekler icin)
+    if (source === 'manual') {
+      const rl = await this.checkRateLimit(ip);
+      if (!rl.ok) {
+        throw new BadRequestException(`Gunluk hakkiniz doldu (${this.IP_DAILY_DOMAIN_LIMIT}/24h). ${rl.resetIn ?? ''}`);
+      }
     }
 
     // 3) HTML fetch + brand
@@ -301,12 +310,12 @@ export class PublicCitationService {
     // 5) Query template
     const queries = this.buildQueries(detection.niche, detection.customNiche, meta.brand);
 
-    // 6) Probe 6 providers (paralel)
+    // 6) Probe 7 providers (paralel)
     const providerResults = await this.ai.runPublicProbes({
       brand: meta.brand,
       host,
       queries,
-      competitors: [], // public mode'da brain yok, competitor'lari LLM cevabindan turetecegiz
+      competitors: [],
     });
 
     // 7) Per-query aggregate + share-of-voice
@@ -344,11 +353,10 @@ export class PublicCitationService {
       fromCache: false,
     };
 
-    // 8) Cache yaz (upsert — daha eski kayit varsa guncelle)
+    // 8) Snapshot yaz — her test ayri row (history korunur)
     try {
-      await this.prisma.publicCitationCheck.upsert({
-        where: { domain: host },
-        create: {
+      const created = await this.prisma.publicCitationCheck.create({
+        data: {
           domain: host,
           brand: meta.brand,
           niche: detection.niche,
@@ -356,21 +364,70 @@ export class PublicCitationService {
           result: result as any,
           totalCalls: result.totalLlmCalls,
           ip: this.hashIp(ip),
-        },
-        update: {
-          brand: meta.brand,
-          niche: detection.niche,
-          customNiche: detection.customNiche,
-          result: result as any,
-          totalCalls: result.totalLlmCalls,
-          ip: this.hashIp(ip),
+          source,
         },
       });
+      (result as any).checkId = created.id;
     } catch (err: any) {
-      this.log.warn(`Cache write fail for ${host}: ${err.message}`);
+      this.log.warn(`Snapshot write fail for ${host}: ${err.message}`);
     }
 
     return result;
+  }
+
+  /** Domain icin son N snapshot'i don (eskiden yeniye). */
+  async getHistory(domain: string, limit = 12): Promise<Array<{
+    id: string;
+    createdAt: Date;
+    source: string;
+    totalCitedScore: number;
+    queriesCount: number;
+    totalProviders: number;
+  }>> {
+    const { host } = this.normalizeDomain(domain);
+    const rows = await this.prisma.publicCitationCheck.findMany({
+      where: { domain: host },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+      select: { id: true, createdAt: true, source: true, result: true },
+    });
+    return rows.map((r) => {
+      const res = r.result as any;
+      const totalCited = (res?.queries ?? []).reduce((a: number, q: any) => a + (q.citedCount ?? 0), 0);
+      const totalProviders = (res?.queries?.[0]?.totalProviders ?? 0);
+      return {
+        id: r.id,
+        createdAt: r.createdAt,
+        source: r.source,
+        totalCitedScore: totalCited,
+        queriesCount: res?.queries?.length ?? 0,
+        totalProviders,
+      };
+    });
+  }
+
+  /** Su anki sonucu ile N gun once arasinda delta uret (email/dashboard'da kullanilir). */
+  async compareWithPast(domain: string, daysAgo: number): Promise<{
+    current?: { totalCited: number; total: number; createdAt: Date };
+    past?: { totalCited: number; total: number; createdAt: Date };
+    delta: number;          // +1 = motor sayisi artti
+    deltaPct: number;       // delta / past.total * 100
+  }> {
+    const history = await this.getHistory(domain, 50);
+    if (history.length === 0) return { delta: 0, deltaPct: 0 };
+    const current = history[0];
+    const targetTime = Date.now() - daysAgo * 24 * 60 * 60 * 1000;
+    // En yakin onceki snapshot (>= targetTime'dan eski)
+    const past = history.slice(1).find((h) => h.createdAt.getTime() <= targetTime) || history[history.length - 1];
+    const totalProviders = current.totalProviders || 7;
+    const delta = current.totalCitedScore - past.totalCitedScore;
+    const deltaPct = past.totalCitedScore > 0 ? Math.round((delta / past.totalCitedScore) * 100) : 0;
+    return {
+      current: { totalCited: current.totalCitedScore, total: totalProviders, createdAt: current.createdAt },
+      past: { totalCited: past.totalCitedScore, total: totalProviders, createdAt: past.createdAt },
+      delta,
+      deltaPct,
+    };
   }
 
   /** IP'yi audit/rate-limit icin saklarken privacy icin hash'le. */
