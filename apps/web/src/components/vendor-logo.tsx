@@ -15,9 +15,9 @@ import { cn } from '@/lib/utils';
  * perplexity, grok (xai), gemini, mistral, ghost, webflow, shopify
  */
 export type VendorName =
-  // AI providers (8)
+  // AI providers (9)
   | 'anthropic' | 'claude-ai' | 'chatgpt' | 'openai' | 'deepseek'
-  | 'perplexity' | 'grok' | 'gemini' | 'mistral'
+  | 'perplexity' | 'grok' | 'gemini' | 'mistral' | 'meta-ai'
   // Search engines (2)
   | 'google' | 'bing'
   // Tech stack (8)
@@ -39,6 +39,7 @@ const VENDOR_TO_FILE: Record<VendorName, string> = {
   'grok':        '/brands/grok.svg',
   'gemini':      '/brands/gemini.svg',
   'mistral':     '/brands/mistral.svg',
+  'meta-ai':     '/brands/meta-ai.svg',
   'google':      '/brands/google.svg',
   'bing':        '/brands/bing.svg',
   'nextjs':      '/brands/nextjs.svg',
@@ -76,6 +77,7 @@ export const VENDOR_LABEL: Record<VendorName, string> = {
   'grok':        'xAI Grok',
   'gemini':      'Gemini',
   'mistral':     'Mistral AI',
+  'meta-ai':     'Meta AI (Llama)',
   'google':      'Google',
   'bing':        'Bing',
   'nextjs':      'Next.js',

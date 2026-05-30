@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200" fill="none">
+  <defs>
+    <linearGradient id="meta-ai-grad" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#3CE4B6"/>
+      <stop offset="35%" stop-color="#4A8DFF"/>
+      <stop offset="65%" stop-color="#9747FF"/>
+      <stop offset="100%" stop-color="#FF7DB1"/>
+    </linearGradient>
+  </defs>
+  <circle cx="100" cy="100" r="78" fill="none" stroke="url(#meta-ai-grad)" stroke-width="22" stroke-linecap="round"/>
+</svg>

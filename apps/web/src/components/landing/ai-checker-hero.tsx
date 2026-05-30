@@ -10,23 +10,23 @@ const COPY = {
   tr: {
     eyebrow: 'AI VISIBILITY PLATFORM',
     titleA: 'Markanız',
-    rotating: ['ChatGPT', 'Claude', 'Gemini', 'Perplexity', 'Grok', 'DeepSeek'],
+    rotating: ['ChatGPT', 'Claude', 'Gemini', 'Perplexity', 'Grok', 'DeepSeek', 'Meta AI'],
     titleB: "'de görünüyor mu?",
-    subtitle: 'ChatGPT, Claude, Gemini, Perplexity, Grok ve DeepSeek\'te markanızın nasıl tanındığını test edin. 30 saniyede sonuç, üye olmadan, kart bilgisi yok.',
+    subtitle: 'ChatGPT, Claude, Gemini, Perplexity, Grok, DeepSeek ve Meta AI\'da markanızın nasıl tanındığını test edin. 30 saniyede sonuç, üye olmadan, kart bilgisi yok.',
     placeholder: 'yourdomain.com',
     btnTest: 'Test Et',
-    socialProof: '6 AI motorunda hızlı görünürlük testi',
+    socialProof: '7 AI motorunda hızlı görünürlük testi',
     centerLabel: 'MARKANIZ',
   },
   en: {
     eyebrow: 'AI VISIBILITY PLATFORM',
     titleA: 'Is your brand on',
-    rotating: ['ChatGPT', 'Claude', 'Gemini', 'Perplexity', 'Grok', 'DeepSeek'],
+    rotating: ['ChatGPT', 'Claude', 'Gemini', 'Perplexity', 'Grok', 'DeepSeek', 'Meta AI'],
     titleB: '?',
-    subtitle: 'See how ChatGPT, Claude, Gemini, Perplexity, Grok and DeepSeek recognize your brand. Results in 30 seconds, no signup, no card.',
+    subtitle: 'See how ChatGPT, Claude, Gemini, Perplexity, Grok, DeepSeek and Meta AI recognize your brand. Results in 30 seconds, no signup, no card.',
     placeholder: 'yourdomain.com',
     btnTest: 'Test',
-    socialProof: 'Fast visibility test across 6 AI engines',
+    socialProof: 'Fast visibility test across 7 AI engines',
     centerLabel: 'YOUR BRAND',
   },
 } as const;
@@ -38,6 +38,7 @@ const ENGINES: Array<{ name: VendorName; label: string }> = [
   { name: 'perplexity', label: 'PERPLEXITY' },
   { name: 'grok', label: 'GROK' },
   { name: 'deepseek', label: 'DEEPSEEK' },
+  { name: 'meta-ai', label: 'META AI' },       // Llama via Groq
 ];
 
 export function AiCheckerHero() {
@@ -99,11 +100,12 @@ export function AiCheckerHero() {
 
 function OrbitalDiagram({ centerLabel }: { centerLabel: string }) {
   // Diagram is a 480x480 canvas. Engines on a circle of radius 190 from center.
-  // Each engine sits at angle = -90° + (i * 60°) starting from top, clockwise.
+  // Spacing is 360°/N starting from -90° (top), clockwise.
   const size = 480;
   const radius = 190;
   const centerX = size / 2;
   const centerY = size / 2;
+  const angleStep = 360 / ENGINES.length;
 
   return (
     <div className="relative" style={{ width: size, height: size }}>
@@ -152,7 +154,7 @@ function OrbitalDiagram({ centerLabel }: { centerLabel: string }) {
         />
         {/* Connection lines from center to each engine */}
         {ENGINES.map((_, i) => {
-          const angle = (-90 + i * 60) * (Math.PI / 180);
+          const angle = (-90 + i * angleStep) * (Math.PI / 180);
           const x = centerX + radius * Math.cos(angle);
           const y = centerY + radius * Math.sin(angle);
           return (
@@ -169,7 +171,7 @@ function OrbitalDiagram({ centerLabel }: { centerLabel: string }) {
 
         {/* Orbiting pulse dots along each line */}
         {ENGINES.map((_, i) => {
-          const angle = (-90 + i * 60) * (Math.PI / 180);
+          const angle = (-90 + i * angleStep) * (Math.PI / 180);
           const x = centerX + radius * 0.55 * Math.cos(angle);
           const y = centerY + radius * 0.55 * Math.sin(angle);
           return (
@@ -207,7 +209,7 @@ function OrbitalDiagram({ centerLabel }: { centerLabel: string }) {
 
       {/* Engine nodes (6 around the circle) */}
       {ENGINES.map((engine, i) => {
-        const angle = (-90 + i * 60) * (Math.PI / 180);
+        const angle = (-90 + i * angleStep) * (Math.PI / 180);
         const x = centerX + radius * Math.cos(angle);
         const y = centerY + radius * Math.sin(angle);
         return (
