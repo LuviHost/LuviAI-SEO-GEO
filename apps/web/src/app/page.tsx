@@ -183,48 +183,59 @@ export default function LandingPage() {
           <div className="absolute top-40 right-1/3 w-72 h-72 bg-orange-400/8 rounded-full blur-3xl" />
         </div>
 
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          {/* Mini badge */}
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-orange-500/30 bg-orange-500/5 text-xs font-semibold text-orange-700 dark:text-orange-400 mb-6">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-500 opacity-75" />
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-orange-500" />
-            </span>
-            {t('land.hero.badge')}
-          </div>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          {/* Split layout: hero message (left) + AI visibility checker (right) */}
+          <div className="grid lg:grid-cols-12 gap-8 lg:gap-10 items-center">
+            {/* Left — message */}
+            <div className="lg:col-span-7 text-center lg:text-left">
+              {/* Mini badge */}
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-orange-500/30 bg-orange-500/5 text-xs font-semibold text-orange-700 dark:text-orange-400 mb-6">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-500 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-orange-500" />
+                </span>
+                {t('land.hero.badge')}
+              </div>
 
-          {/* Headline — single sharp statement */}
-          <h1 className="hero-headline text-5xl sm:text-6xl lg:text-8xl font-extrabold tracking-tight leading-[0.95]">
-            {t('land.hero.title_pre')}{' '}
-            <span className="bg-gradient-to-br from-orange-500 to-orange-700 bg-clip-text text-transparent">{t('land.hero.title_brand')}</span>{t('land.hero.title_dot')}
-          </h1>
+              {/* Headline */}
+              <h1 className="hero-headline text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-extrabold tracking-tight leading-[1.0]">
+                {t('land.hero.title_pre')}{' '}
+                <span className="bg-gradient-to-br from-orange-500 to-orange-700 bg-clip-text text-transparent">{t('land.hero.title_brand')}</span>{t('land.hero.title_dot')}
+              </h1>
 
-          {/* Sub */}
-          <p className="hero-subtitle mt-6 text-lg sm:text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-            {t('land.hero.subtitle')}
-          </p>
+              {/* Sub */}
+              <p className="hero-subtitle mt-5 text-base sm:text-lg text-muted-foreground max-w-xl mx-auto lg:mx-0 leading-relaxed">
+                {t('land.hero.subtitle')}
+              </p>
 
-          {/* CTA */}
-          <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-3">
-            <Link href="/signin?signup=1" onClick={() => trackCta('hero_primary')}>
-              <Button size="lg" className="h-14 px-7 text-base bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white shadow-2xl shadow-orange-500/30">
-                {t('land.hero.cta_primary')}
-                <ArrowRight className="h-5 w-5 ml-2" />
-              </Button>
-            </Link>
-            <a href="#nasil" onClick={() => trackCta('hero_secondary_demo')}>
-              <Button size="lg" variant="outline" className="h-14 px-7 text-base">
-                <PlayCircle className="h-5 w-5 mr-2" /> {t('land.hero.cta_secondary')}
-              </Button>
-            </a>
-          </div>
+              {/* CTA */}
+              <div className="mt-7 flex flex-col sm:flex-row items-center lg:items-start justify-center lg:justify-start gap-3">
+                <Link href="/signin?signup=1" onClick={() => trackCta('hero_primary')}>
+                  <Button size="lg" className="h-13 px-6 text-base bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white shadow-2xl shadow-orange-500/30">
+                    {t('land.hero.cta_primary')}
+                    <ArrowRight className="h-5 w-5 ml-2" />
+                  </Button>
+                </Link>
+                <a href="#nasil" onClick={() => trackCta('hero_secondary_demo')}>
+                  <Button size="lg" variant="outline" className="h-13 px-6 text-base">
+                    <PlayCircle className="h-5 w-5 mr-2" /> {t('land.hero.cta_secondary')}
+                  </Button>
+                </a>
+              </div>
 
-          {/* Risk reversal microcopy */}
-          <div className="mt-5 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs text-muted-foreground">
-            <span className="inline-flex items-center gap-1"><Check className="h-3.5 w-3.5 text-emerald-600" /> {t('land.hero.tag_no_card')}</span>
-            <span className="inline-flex items-center gap-1"><Check className="h-3.5 w-3.5 text-emerald-600" /> {t('land.hero.tag_free_articles')}</span>
-            <span className="inline-flex items-center gap-1"><Check className="h-3.5 w-3.5 text-emerald-600" /> {t('land.hero.tag_cancel')}</span>
-            <span className="inline-flex items-center gap-1"><Check className="h-3.5 w-3.5 text-emerald-600" /> {t('land.hero.tag_setup')}</span>
+              {/* Risk reversal microcopy */}
+              <div className="mt-5 flex flex-wrap items-center justify-center lg:justify-start gap-x-4 gap-y-1.5 text-xs text-muted-foreground">
+                <span className="inline-flex items-center gap-1"><Check className="h-3.5 w-3.5 text-emerald-600" /> {t('land.hero.tag_no_card')}</span>
+                <span className="inline-flex items-center gap-1"><Check className="h-3.5 w-3.5 text-emerald-600" /> {t('land.hero.tag_free_articles')}</span>
+                <span className="inline-flex items-center gap-1"><Check className="h-3.5 w-3.5 text-emerald-600" /> {t('land.hero.tag_cancel')}</span>
+                <span className="inline-flex items-center gap-1"><Check className="h-3.5 w-3.5 text-emerald-600" /> {t('land.hero.tag_setup')}</span>
+              </div>
+            </div>
+
+            {/* Right — AI Visibility Checker (hero compact mode) */}
+            <div className="lg:col-span-5">
+              <AiVisibilityChecker mode="hero" />
+            </div>
           </div>
         </div>
 
@@ -271,9 +282,6 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
-
-      {/* ─── AI VISIBILITY CHECKER (Maya-style interactive demo) ─ */}
-      <AiVisibilityChecker />
 
       {/* ─── PAIN (PAS) ───────────────────────────────────────── */}
       <section className="py-20 border-y bg-muted/30">
