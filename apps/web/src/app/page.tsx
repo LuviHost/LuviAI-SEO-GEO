@@ -10,6 +10,7 @@ import { api } from '@/lib/api';
 import { trackPageview, trackCta, setupScrollDepthTracking, setupSectionTracking } from '@/lib/landing-track';
 import { VendorLogo, type VendorName } from '@/components/vendor-logo';
 import { BrandLogo } from '@/components/brand-logo';
+import { AiVisibilityChecker } from '@/components/landing/ai-visibility-checker';
 import {
   Sparkles, ArrowRight, Check, X as XIcon, ChevronDown,
   Rocket, Search, Smartphone, Wand2, Bot, Star,
@@ -270,6 +271,9 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
+
+      {/* ─── AI VISIBILITY CHECKER (Maya-style interactive demo) ─ */}
+      <AiVisibilityChecker />
 
       {/* ─── PAIN (PAS) ───────────────────────────────────────── */}
       <section className="py-20 border-y bg-muted/30">

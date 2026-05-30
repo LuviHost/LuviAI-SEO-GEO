@@ -1299,4 +1299,39 @@ export const api = {
         campaign: { name: string; asaCampaignId: string };
       }>;
     }>(`/sites/${siteId}/aso/asa/performance?daysBack=${daysBack}`),
+
+  // ──────────────────────────────────────────────────────────
+  //  PUBLIC — anonim landing checker (auth yok)
+  // ──────────────────────────────────────────────────────────
+  publicCitationCheck: (domain: string, turnstileToken?: string) =>
+    request<{
+      domain: string;
+      brand: string;
+      niche: string;
+      customNiche?: string;
+      queries: Array<{
+        query: string;
+        providers: Array<{
+          provider: string;
+          label: string;
+          cited: boolean;
+          brandMentioned: boolean;
+          excerpt?: string;
+        }>;
+        citedCount: number;
+        totalProviders: number;
+      }>;
+      competitorRanking: Array<{ name: string; mentions: number; pct: number; isBrand?: boolean }>;
+      totalLlmCalls: number;
+      fromCache: boolean;
+      cachedAt?: string;
+    }>('/public/citation-check', {
+      method: 'POST',
+      body: JSON.stringify({ domain, turnstileToken }),
+    }),
+
+  publicCitationRateLimit: () =>
+    request<{ ok: boolean; remaining: number; resetIn?: string }>('/public/citation-check/rate-limit', {
+      method: 'POST',
+    }),
 };

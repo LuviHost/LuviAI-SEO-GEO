@@ -1895,3 +1895,25 @@ enum VideoCreditStatus {
   REFUNDED     // İade edildi
   EXPIRED      // expiresAt geçti, kalan kullanılmadı
 }
+
+// ──────────────────────────────────────────────────────────
+// PUBLIC AI CITATION CHECK — Landing demo cache
+// Anonim ziyaretciler /api/v1/public/citation-check'i cagirir.
+// Sonucu domain bazinda 24h cache, IP rate-limit ayri kvStore'da.
+// ──────────────────────────────────────────────────────────
+model PublicCitationCheck {
+  id          String   @id @default(cuid())
+  domain      String   @unique                          // host (kobipratik.com)
+  brand       String                                    // tespit edilen marka adi
+  niche       String?                                   // niche-detector'dan
+  customNiche String?                                   // 'diger' ise spesifik etiket
+  result      Json                                      // tum LLM responses + aggregate
+  totalCalls  Int      @default(0)                      // kac LLM call yapildi (telemetri)
+  costUsd     Float    @default(0)                      // toplam maliyet (telemetri)
+  ip          String?                                   // ilk taleb eden IP (audit)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([createdAt])
+  @@map("public_citation_checks")
+}

@@ -35,14 +35,14 @@ import { SnippetApplierService } from './snippet-applier.service.js';
 import { StaticHtmlFixerService } from './static-html-fixer.service.js';
 import { StuckPageDetectorService } from './stuck-page-detector.service.js';
 import { StuckPageRecoveryService } from './stuck-page-recovery.service.js';
-import { StuckPagePerformanceCheckService } from './stuck-page-performance-check.service.js';
-import { StuckPageExternalRecoveryService } from './stuck-page-external-recovery.service.js';
+import { PublicCitationService } from './public-citation.service.js';
+import { PublicCitationController } from './public-citation.controller.js';
 import { SitesModule } from '../sites/sites.module.js';
 import { AuthModule } from '../auth/auth.module.js';
 
 @Module({
   imports: [SitesModule, EmailModule, AuthModule],
-  controllers: [AuditController, TrackerController],
+  controllers: [AuditController, TrackerController, PublicCitationController],
   providers: [
     AuditService,
     AuditChecksService,
@@ -77,8 +77,7 @@ import { AuthModule } from '../auth/auth.module.js';
     StaticHtmlFixerService,
     StuckPageDetectorService,
     StuckPageRecoveryService,
-    StuckPagePerformanceCheckService,
-    StuckPageExternalRecoveryService,
+    PublicCitationService,
   ],
   exports: [
     AuditService,
@@ -108,6 +107,8 @@ import { AuthModule } from '../auth/auth.module.js';
     SnippetGeneratorService,
     SnippetApplierService,
     StaticHtmlFixerService,
+    StuckPageDetectorService,
+    StuckPageRecoveryService,
   ],
 })
 export class AuditModule {}

@@ -331,6 +331,59 @@ export class AiCitationService {
   }
 
   // ────────────────────────────────────────────────────────────
+  //  PUBLIC (UNAUTH) — landing page demo icin
+  //  Site DB lookup yok, ENV anahtarlari ile direkt 6 provider'a paralel sor.
+  //  Cost guard ve quota DEVRE DISI — caller (PublicCitationService)
+  //  IP rate-limit + cache + Turnstile ile abuse'i kontrol eder.
+  // ────────────────────────────────────────────────────────────
+  async runPublicProbes(opts: {
+    brand: string;
+    host: string;
+    queries: string[];
+    competitors?: string[];
+  }): Promise<Array<{
+    provider: Provider;
+    label: string;
+    available: boolean;
+    probes: CitationProbe[];
+    reason?: string;
+  }>> {
+    const { brand, host, queries, competitors = [] } = opts;
+    const systemPrompt = this.buildSystemPrompt();
+    const providers: Provider[] = ['anthropic', 'gemini', 'openai', 'perplexity', 'xai', 'deepseek'];
+
+    return Promise.all(providers.map(async (provider) => {
+      const label = PROVIDER_LABELS[provider];
+      const key = process.env[POOL_ENV_KEY[provider]];
+      if (!key) {
+        return { provider, label, available: false, probes: [], reason: 'NO_KEY' };
+      }
+      try {
+        let probes: CitationProbe[] = [];
+        switch (provider) {
+          case 'anthropic':  probes = await this.probeAnthropic(key, host, brand, queries, systemPrompt, competitors); break;
+          case 'gemini':     probes = await this.probeGemini(key, host, brand, queries, systemPrompt, competitors); break;
+          case 'openai':     probes = await this.probeOpenAI(key, host, brand, queries, systemPrompt, competitors); break;
+          case 'perplexity': probes = await this.probePerplexity(key, host, brand, queries, systemPrompt, competitors); break;
+          case 'xai':        probes = await this.probeXai(key, host, brand, queries, systemPrompt, competitors); break;
+          case 'deepseek':   probes = await this.probeDeepseek(key, host, brand, queries, systemPrompt, competitors); break;
+        }
+        // Cost defteri tutulur (public da olsa sistem kotasinin parcasi)
+        await this.addCost(provider, probes.length).catch(() => {});
+        return { provider, label, available: true, probes };
+      } catch (err: any) {
+        this.log.warn(`Public probe failed (${provider}): ${err.message}`);
+        return { provider, label, available: false, probes: [], reason: err.message?.slice(0, 200) };
+      }
+    }));
+  }
+
+  /** Public aggregate — PublicCitationService bunu cagirir, kendi shareOfVoice'unu hesaplar. */
+  publicAggregate(probes: CitationProbe[], brand: string) {
+    return this.aggregateProbes(probes, brand);
+  }
+
+  // ────────────────────────────────────────────────────────────
   //  PER-PROVIDER ROUTER
   // ────────────────────────────────────────────────────────────
   private async runProvider(
