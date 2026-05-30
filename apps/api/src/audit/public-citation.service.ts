@@ -230,22 +230,45 @@ export class PublicCitationService {
       ?? html.match(/<meta\s+property=["']og:description["']\s+content=["']([^"']+)/i)?.[1]
       ?? '').trim().slice(0, 300);
     const ogSiteName = (html.match(/<meta\s+property=["']og:site_name["']\s+content=["']([^"']+)/i)?.[1] ?? '').trim();
-    const h1 = (html.match(/<h1[^>]*>([^<]+)</i)?.[1] ?? '').trim().slice(0, 150);
+    const ogTitle = (html.match(/<meta\s+property=["']og:title["']\s+content=["']([^"']+)/i)?.[1] ?? '').trim();
+    const appName = (html.match(/<meta\s+name=["']application-name["']\s+content=["']([^"']+)/i)?.[1] ?? '').trim();
 
-    // Brand resolution priority: og:site_name > <title> first chunk > hostname root
-    let brand = ogSiteName.slice(0, 80);
-    if (!brand) {
-      // title patterns: "BrandName - Tagline" or "BrandName | Tagline"
-      const titleBrand = title.split(/\s*[|–—\-·]\s*/)[0]?.trim().slice(0, 80);
-      if (titleBrand && titleBrand.length >= 3) brand = titleBrand;
-    }
-    if (!brand || brand.length < 3) {
+    // Hostname-based brand candidate (kobipratik.com -> "kobipratik")
+    const hostRoot = (() => {
       const parts = host.split('.');
-      brand = parts.length >= 2 ? parts[parts.length - 2] : host;
-      // capitalize first letter
-      brand = brand.charAt(0).toUpperCase() + brand.slice(1);
+      if (parts.length === 0) return host;
+      // 2-level TLD case (com.tr): "x.com.tr" -> "x"; otherwise "a.b.c" -> "b"
+      if (parts.length >= 3 && /^(com|net|org|gov|edu)$/.test(parts[parts.length - 2])) {
+        return parts[parts.length - 3];
+      }
+      return parts.length >= 2 ? parts[parts.length - 2] : host;
+    })();
+    const hostBrandPretty = hostRoot.charAt(0).toUpperCase() + hostRoot.slice(1);
+
+    // Brand priority:
+    //   1. og:site_name (the most authoritative)
+    //   2. application-name
+    //   3. title or og:title — but ONLY the segment that contains hostRoot (case-insensitive)
+    //   4. shortest segment of title/og:title (usually the brand)
+    //   5. hostname root (capitalised)
+    let brand = '';
+    if (ogSiteName && ogSiteName.length >= 3 && ogSiteName.length <= 80) brand = ogSiteName;
+    else if (appName && appName.length >= 3 && appName.length <= 80) brand = appName;
+    else {
+      const candidate = ogTitle || title;
+      const segments = candidate.split(/\s*[|–—\-·:»]\s*/).map((s) => s.trim()).filter((s) => s.length >= 2 && s.length <= 60);
+      if (segments.length > 0) {
+        const hostMatch = segments.find((s) => s.toLowerCase().includes(hostRoot.toLowerCase()));
+        if (hostMatch) {
+          brand = hostMatch;
+        } else {
+          // shortest segment heuristic — brand is usually the shortest piece
+          const shortest = [...segments].sort((a, b) => a.length - b.length)[0];
+          if (shortest) brand = shortest;
+        }
+      }
     }
-    if (!brand || brand.length < 2) brand = host;
+    if (!brand || brand.length < 3) brand = hostBrandPretty;
 
     return { brand: brand.slice(0, 80), title, description };
   }
