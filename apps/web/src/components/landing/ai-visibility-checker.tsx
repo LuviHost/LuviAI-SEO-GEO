@@ -74,9 +74,9 @@ const COPY = {
 } as const;
 
 const PROVIDER_LOGOS: Record<string, VendorName> = {
-  anthropic: 'anthropic',
+  anthropic: 'claude-ai',     // turuncu yildiz/burst
   gemini: 'gemini',
-  openai: 'openai',
+  openai: 'chatgpt',          // yesil iOS app icon
   perplexity: 'perplexity',
   xai: 'grok',
   deepseek: 'deepseek',

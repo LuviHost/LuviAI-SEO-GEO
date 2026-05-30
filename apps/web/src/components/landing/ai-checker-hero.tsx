@@ -32,13 +32,13 @@ const COPY = {
 } as const;
 
 const ENGINES: Array<{ name: VendorName; label: string }> = [
-  { name: 'openai', label: 'CHATGPT' },        // Multi-color OpenAI Sphere (full brand)
-  { name: 'anthropic', label: 'CLAUDE' },      // Anthropic cream "A" (official current brand)
+  { name: 'chatgpt', label: 'CHATGPT' },       // Yesil iOS app icon
+  { name: 'claude-ai', label: 'CLAUDE' },      // Turuncu yildiz/burst (Claude AI app icon)
   { name: 'gemini', label: 'GEMINI' },
   { name: 'perplexity', label: 'PERPLEXITY' },
   { name: 'grok', label: 'GROK' },
   { name: 'deepseek', label: 'DEEPSEEK' },
-  { name: 'meta-ai', label: 'META AI' },       // Llama via Groq
+  { name: 'meta-ai', label: 'META AI' },       // Llama via Groq, gradient ring
 ];
 
 export function AiCheckerHero() {
