@@ -222,10 +222,11 @@ function OrbitalDiagram({ centerLabel }: { centerLabel: string }) {
             }}
           >
             <div className="group relative w-full h-full">
-              <div className="absolute inset-0 rounded-full bg-background border-2 border-orange-500/20 shadow-lg grid place-items-center hover:border-orange-500/60 hover:scale-110 transition-all duration-300">
+              {/* Force white background so colored brand icons stay visible in dark mode */}
+              <div className="absolute inset-0 rounded-full bg-white border-2 border-orange-500/30 shadow-lg shadow-orange-500/10 grid place-items-center hover:border-orange-500/60 hover:scale-110 transition-all duration-300">
                 <VendorLogo name={engine.name} size={32} />
               </div>
-              <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap">
+              <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground dark:text-white/70 whitespace-nowrap">
                 {engine.label}
               </div>
             </div>

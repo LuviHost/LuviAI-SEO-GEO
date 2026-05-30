@@ -490,17 +490,19 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
                           <p className="text-xs text-white/90 mb-4 leading-relaxed">{c.ctaBoxBody}</p>
                           <div className="space-y-2">
                             <Link
-                              href="/onboarding"
+                              href="/signin?signup=1"
+                              onClick={handleReset}
                               className="block w-full text-center bg-white text-orange-600 hover:bg-white/95 font-bold text-sm px-4 py-2.5 rounded-lg transition-colors"
                             >
                               {c.ctaPrimary}
                             </Link>
-                            <Link
-                              href="/onboarding?demo=1"
+                            <a
+                              href="#nasil"
+                              onClick={(e) => { e.preventDefault(); handleReset(); setTimeout(() => { document.getElementById('nasil')?.scrollIntoView({ behavior: 'smooth' }); }, 100); }}
                               className="block w-full text-center bg-transparent border border-white/40 text-white hover:bg-white/10 font-semibold text-sm px-4 py-2 rounded-lg transition-colors"
                             >
                               {c.ctaSecondary}
-                            </Link>
+                            </a>
                           </div>
                         </div>
                       </div>
