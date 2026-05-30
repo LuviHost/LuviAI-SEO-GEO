@@ -39,6 +39,18 @@ const COPY = {
     domainHint: 'Sadece domain yazın (örn. kobipratik.com)',
     closeBtn: 'Kapat',
     testAnother: 'Yeni test',
+    // Email optin
+    optinHeader: '📧 90 gün boyunca markanızı takip edelim',
+    optinBody: '15, 30, 60, 90 gün sonra 7 AI motorda otomatik retest yapıp size branded rapor email\'i atalım. Markanızın AI cevaplarında değişimini izleyin.',
+    optinPlaceholder: 'siz@example.com',
+    optinConsent: 'Aboneliği kabul ediyorum (KVKK uyumlu, istediğiniz zaman iptal)',
+    optinBtn: '90 Günlük Takibi Başlat',
+    optinSending: 'Gönderiliyor...',
+    optinSuccess: '✅ Onay maili gönderildi — gelen kutunuzu kontrol edin',
+    optinError: 'Bir hata oluştu',
+    optinSubBenefit1: '✓ İlk rapor 15 gün sonra',
+    optinSubBenefit2: '✓ Otomatik 4 rapor (15/30/60/90g)',
+    optinSubBenefit3: '✓ Tek tıkla iptal',
   },
   en: {
     badge: '✨ AI Visibility Test',
@@ -70,6 +82,18 @@ const COPY = {
     domainHint: 'Just the domain (e.g. kobipratik.com)',
     closeBtn: 'Close',
     testAnother: 'New test',
+    // Email optin
+    optinHeader: '📧 Track your brand for 90 days',
+    optinBody: 'We\'ll automatically retest your domain on 7 AI engines at 15, 30, 60, 90 days and email you a branded report. Track how your AI visibility evolves.',
+    optinPlaceholder: 'you@example.com',
+    optinConsent: 'I agree to receive these emails (GDPR-compliant, unsubscribe anytime)',
+    optinBtn: 'Start 90-Day Tracking',
+    optinSending: 'Sending...',
+    optinSuccess: '✅ Confirmation email sent — check your inbox',
+    optinError: 'An error occurred',
+    optinSubBenefit1: '✓ First report in 15 days',
+    optinSubBenefit2: '✓ Auto 4 reports (15/30/60/90d)',
+    optinSubBenefit3: '✓ One-click unsubscribe',
   },
 } as const;
 
@@ -158,6 +182,43 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
   const turnstileRef = useRef<HTMLDivElement | null>(null);
   const turnstileWidgetIdRef = useRef<string | null>(null);
   const tokenResolverRef = useRef<((token: string | null) => void) | null>(null);
+
+  // Email optin state
+  const [optinEmail, setOptinEmail] = useState('');
+  const [optinConsent, setOptinConsent] = useState(false);
+  const [optinStatus, setOptinStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
+  const [optinError, setOptinErrorMsg] = useState<string | null>(null);
+
+  const handleSubscribe = async () => {
+    if (!result) return;
+    if (!optinEmail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(optinEmail)) {
+      setOptinErrorMsg(c.optinError);
+      setOptinStatus('error');
+      return;
+    }
+    if (!optinConsent) return;
+    setOptinStatus('sending');
+    setOptinErrorMsg(null);
+    try {
+      await api.request<{ ok: true }>('/public/citation-check/subscribe', {
+        method: 'POST',
+        body: JSON.stringify({
+          email: optinEmail.trim(),
+          domain: result.domain,
+          brand: result.brand,
+          niche: result.niche,
+          customNiche: result.customNiche,
+          locale,
+          consent: optinConsent,
+        }),
+      });
+      setOptinStatus('sent');
+    } catch (err) {
+      const msg = err instanceof ApiError ? err.message : (err as Error)?.message || c.optinError;
+      setOptinErrorMsg(msg);
+      setOptinStatus('error');
+    }
+  };
 
   // Lazy-load Turnstile script when widget mounts (only if site key set)
   useEffect(() => {
@@ -488,26 +549,74 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
                           )}
                         </div>
 
+                        {/* PRIMARY CTA — email optin (90 gün takip) */}
                         <div className="bg-gradient-to-br from-orange-500 via-orange-600 to-red-600 text-white rounded-2xl p-5 shadow-xl shadow-orange-500/20">
-                          <Crown className="h-6 w-6 mb-2" />
-                          <h5 className="font-bold text-base mb-1.5">{c.ctaBoxTitle}</h5>
-                          <p className="text-xs text-white/90 mb-4 leading-relaxed">{c.ctaBoxBody}</p>
-                          <div className="space-y-2">
-                            <Link
-                              href="/signin?signup=1"
-                              onClick={handleReset}
-                              className="block w-full text-center bg-white text-orange-600 hover:bg-white/95 font-bold text-sm px-4 py-2.5 rounded-lg transition-colors"
+                          <h5 className="font-bold text-base mb-2 leading-snug">{c.optinHeader}</h5>
+                          <p className="text-xs text-white/90 mb-4 leading-relaxed">{c.optinBody}</p>
+
+                          {optinStatus === 'sent' ? (
+                            <div className="bg-white/15 backdrop-blur rounded-lg p-4 text-center">
+                              <p className="font-bold text-sm">{c.optinSuccess}</p>
+                            </div>
+                          ) : (
+                            <form
+                              onSubmit={(e) => { e.preventDefault(); handleSubscribe(); }}
+                              className="space-y-3"
                             >
-                              {c.ctaPrimary}
-                            </Link>
-                            <a
-                              href="#nasil"
-                              onClick={(e) => { e.preventDefault(); handleReset(); setTimeout(() => { document.getElementById('nasil')?.scrollIntoView({ behavior: 'smooth' }); }, 100); }}
-                              className="block w-full text-center bg-transparent border border-white/40 text-white hover:bg-white/10 font-semibold text-sm px-4 py-2 rounded-lg transition-colors"
-                            >
-                              {c.ctaSecondary}
-                            </a>
-                          </div>
+                              <input
+                                type="email"
+                                value={optinEmail}
+                                onChange={(e) => setOptinEmail(e.target.value)}
+                                placeholder={c.optinPlaceholder}
+                                disabled={optinStatus === 'sending'}
+                                className="w-full px-3 py-2.5 rounded-lg bg-white/95 text-foreground placeholder:text-muted-foreground/60 text-sm outline-none focus:bg-white"
+                                required
+                              />
+                              <label className="flex items-start gap-2 text-[11px] text-white/95 cursor-pointer leading-snug">
+                                <input
+                                  type="checkbox"
+                                  checked={optinConsent}
+                                  onChange={(e) => setOptinConsent(e.target.checked)}
+                                  className="mt-0.5 shrink-0"
+                                  required
+                                />
+                                <span>{c.optinConsent}</span>
+                              </label>
+                              <button
+                                type="submit"
+                                disabled={!optinEmail.trim() || !optinConsent || optinStatus === 'sending'}
+                                className="w-full bg-white text-orange-600 hover:bg-white/95 disabled:bg-white/50 disabled:cursor-not-allowed font-bold text-sm px-4 py-2.5 rounded-lg transition-colors"
+                              >
+                                {optinStatus === 'sending' ? c.optinSending : c.optinBtn}
+                              </button>
+                              {optinStatus === 'error' && optinError && (
+                                <p className="text-xs text-red-100 bg-red-900/30 rounded p-2">{optinError}</p>
+                              )}
+                              <div className="text-[10px] text-white/80 space-y-0.5">
+                                <div>{c.optinSubBenefit1}</div>
+                                <div>{c.optinSubBenefit2}</div>
+                                <div>{c.optinSubBenefit3}</div>
+                              </div>
+                            </form>
+                          )}
+                        </div>
+
+                        {/* SECONDARY: signup + demo links */}
+                        <div className="space-y-2">
+                          <Link
+                            href="/signin?signup=1"
+                            onClick={handleReset}
+                            className="block w-full text-center bg-foreground text-background hover:opacity-90 font-bold text-sm px-4 py-2.5 rounded-lg transition-opacity"
+                          >
+                            {c.ctaPrimary}
+                          </Link>
+                          <a
+                            href="#nasil"
+                            onClick={(e) => { e.preventDefault(); handleReset(); setTimeout(() => { document.getElementById('nasil')?.scrollIntoView({ behavior: 'smooth' }); }, 100); }}
+                            className="block w-full text-center bg-transparent border border-muted-foreground/30 text-muted-foreground hover:text-foreground hover:border-muted-foreground/60 font-semibold text-sm px-4 py-2 rounded-lg transition-colors"
+                          >
+                            {c.ctaSecondary}
+                          </a>
                         </div>
                       </div>
                     </div>

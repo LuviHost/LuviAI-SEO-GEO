@@ -115,14 +115,41 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             console.warn('[auth] affiliate cookie read fail:', err?.message);
           }
         }
+
+        // Public AI Citation Subscriber attribution — yeni kullanıcı ile aynı email'le
+        // landing page'te citation testi yapmış varsa attribution kur (signed_up)
+        if (internalKey) {
+          fetch(`${apiBase}/api/public/citation-check/link-signup`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'x-internal-key': internalKey },
+            body: JSON.stringify({ userId: created.id, email: user.email }),
+          }).catch((err) => {
+            console.warn('[auth] citation link-signup error:', err?.message);
+          });
+        }
       }
       return true;
     },
     async jwt({ token, user }) {
+      // İlk login: user object dolu — email ile DB'den oku.
       if (user?.email) {
         const dbUser = await prisma.user.findUnique({ where: { email: user.email } });
         if (dbUser) {
           token.sub = dbUser.id;
+          (token as any).role = dbUser.role;
+          (token as any).plan = dbUser.plan;
+          (token as any).subscriptionStatus = dbUser.subscriptionStatus;
+        }
+        return token;
+      }
+      // Sonraki request'ler: plan / role / status değişmiş olabilir (admin upgrade, ödeme, expire).
+      // JWT bayatlanmasın diye her seferinde DB'den taze çek (~1ms, indexed by id).
+      if (token.sub) {
+        const dbUser = await prisma.user.findUnique({
+          where: { id: token.sub as string },
+          select: { role: true, plan: true, subscriptionStatus: true },
+        });
+        if (dbUser) {
           (token as any).role = dbUser.role;
           (token as any).plan = dbUser.plan;
           (token as any).subscriptionStatus = dbUser.subscriptionStatus;

@@ -37,6 +37,8 @@ import { StuckPageDetectorService } from './stuck-page-detector.service.js';
 import { StuckPageRecoveryService } from './stuck-page-recovery.service.js';
 import { PublicCitationService } from './public-citation.service.js';
 import { PublicCitationController } from './public-citation.controller.js';
+import { PublicCitationSubscriberService } from './public-citation-subscriber.service.js';
+import { PublicCitationRetestCron } from './public-citation-retest.cron.js';
 import { SitesModule } from '../sites/sites.module.js';
 import { AuthModule } from '../auth/auth.module.js';
 
@@ -78,6 +80,8 @@ import { AuthModule } from '../auth/auth.module.js';
     StuckPageDetectorService,
     StuckPageRecoveryService,
     PublicCitationService,
+    PublicCitationSubscriberService,
+    PublicCitationRetestCron,
   ],
   exports: [
     AuditService,
