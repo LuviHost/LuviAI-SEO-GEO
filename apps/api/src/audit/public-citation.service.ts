@@ -248,25 +248,18 @@ export class PublicCitationService {
     // Brand priority:
     //   1. og:site_name (the most authoritative)
     //   2. application-name
-    //   3. title or og:title — but ONLY the segment that contains hostRoot (case-insensitive)
-    //   4. shortest segment of title/og:title (usually the brand)
-    //   5. hostname root (capitalised)
+    //   3. title segment containing hostRoot (kesin marka match)
+    //   4. hostname root (capitalised) — pazarlama basliklari brand degildir; site og:site_name koymadiysa
+    //      title'in en kisa segmentini almak yerine hostname'i kullan (cunku "KOBI Nakit Ihtiyaci" gibi
+    //      bir CTA brand olmaz)
     let brand = '';
     if (ogSiteName && ogSiteName.length >= 3 && ogSiteName.length <= 80) brand = ogSiteName;
     else if (appName && appName.length >= 3 && appName.length <= 80) brand = appName;
     else {
       const candidate = ogTitle || title;
       const segments = candidate.split(/\s*[|–—\-·:»]\s*/).map((s) => s.trim()).filter((s) => s.length >= 2 && s.length <= 60);
-      if (segments.length > 0) {
-        const hostMatch = segments.find((s) => s.toLowerCase().includes(hostRoot.toLowerCase()));
-        if (hostMatch) {
-          brand = hostMatch;
-        } else {
-          // shortest segment heuristic — brand is usually the shortest piece
-          const shortest = [...segments].sort((a, b) => a.length - b.length)[0];
-          if (shortest) brand = shortest;
-        }
-      }
+      const hostMatch = segments.find((s) => s.toLowerCase().includes(hostRoot.toLowerCase()));
+      if (hostMatch) brand = hostMatch;
     }
     if (!brand || brand.length < 3) brand = hostBrandPretty;
 
