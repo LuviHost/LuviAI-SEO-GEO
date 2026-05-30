@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { ArrowRight, Check, X, Loader2, Sparkles, AlertCircle, Globe, TrendingUp, Crown } from 'lucide-react';
+import { ArrowRight, Check, X, Loader2, AlertCircle, Globe, Crown } from 'lucide-react';
 import { api, ApiError } from '@/lib/api';
 import { useT } from '@/lib/i18n';
 import { VendorLogo, type VendorName } from '@/components/vendor-logo';
@@ -15,6 +15,8 @@ const COPY = {
     titleB: 'AI cevaplarında',
     titleC: 'görünüyor mu?',
     subtitle: 'Domain\'inizi girin — 6 AI motoru (ChatGPT, Claude, Gemini, Perplexity, Grok, DeepSeek) markanızı nasıl tanıyor öğrenin. 30 saniyede sonuç, üye olmadan.',
+    heroEyebrow: '✨ AI Görünürlük Testi — 30 saniyede',
+    heroSub: 'Markanız 6 AI motorunda nasıl görünüyor?',
     placeholder: 'yourdomain.com',
     btnStart: 'Test Et',
     btnLoading: 'Test ediliyor...',
@@ -23,12 +25,9 @@ const COPY = {
     tagFast: '✓ 30 saniye',
     loadingTitle: '6 AI motorda markanız aranıyor...',
     loadingSubtitle: 'Bu işlem ~25 saniye sürer',
-    queryingPrefix: 'Soruluyor: ',
     resultsHeader: 'Markanız bu AI cevaplarında geçti mi?',
     competitorHeader: 'Rakip Karşılaştırması',
     youLabel: '(siz)',
-    yes: 'Geçti',
-    no: 'Geçmedi',
     citationCount: 'motor cevabında geçti',
     cachedAt: 'Sonuç önbellekten (24h cache)',
     ctaBoxTitle: 'Tam raporu açın — markanızı yükseltin',
@@ -36,9 +35,10 @@ const COPY = {
     ctaPrimary: '2 Makale Ücretsiz Dene',
     ctaSecondary: 'Demo İncele',
     errorTitle: 'Test başarısız',
-    errorRetry: 'Tekrar dene',
     competitorEmpty: 'Bu sorgularda öne çıkan rakip bulunamadı.',
     domainHint: 'Sadece domain yazın (örn. kobipratik.com)',
+    closeBtn: 'Kapat',
+    testAnother: 'Yeni test',
   },
   en: {
     badge: '✨ AI Visibility Test',
@@ -46,6 +46,8 @@ const COPY = {
     titleB: 'in AI answers',
     titleC: 'at all?',
     subtitle: 'Enter your domain — see how 6 AI engines (ChatGPT, Claude, Gemini, Perplexity, Grok, DeepSeek) recognize your brand. Results in 30 seconds, no signup needed.',
+    heroEyebrow: '✨ AI Visibility Test — 30 sec',
+    heroSub: 'How does your brand show on 6 AI engines?',
     placeholder: 'yourdomain.com',
     btnStart: 'Test',
     btnLoading: 'Testing...',
@@ -54,12 +56,9 @@ const COPY = {
     tagFast: '✓ 30 sec',
     loadingTitle: 'Searching your brand on 6 AI engines...',
     loadingSubtitle: 'This takes ~25 seconds',
-    queryingPrefix: 'Asking: ',
     resultsHeader: 'Did your brand appear in these AI answers?',
     competitorHeader: 'Competitor Ranking',
     youLabel: '(you)',
-    yes: 'Cited',
-    no: 'Not cited',
     citationCount: 'engines cited you',
     cachedAt: 'Result from cache (24h)',
     ctaBoxTitle: 'Unlock full report — boost your brand',
@@ -67,13 +66,13 @@ const COPY = {
     ctaPrimary: 'Try 2 Articles Free',
     ctaSecondary: 'See Demo',
     errorTitle: 'Test failed',
-    errorRetry: 'Try again',
     competitorEmpty: 'No competitors stood out in these queries.',
     domainHint: 'Just the domain (e.g. kobipratik.com)',
+    closeBtn: 'Close',
+    testAnother: 'New test',
   },
 } as const;
 
-// Provider name -> VendorLogo mapping
 const PROVIDER_LOGOS: Record<string, VendorName> = {
   anthropic: 'claude-ai',
   gemini: 'gemini',
@@ -138,7 +137,12 @@ declare global {
   }
 }
 
-export function AiVisibilityChecker() {
+export interface AiVisibilityCheckerProps {
+  /** 'standalone' = full landing section with title/sub. 'hero' = compact card for hero side panel. */
+  mode?: 'standalone' | 'hero';
+}
+
+export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityCheckerProps) {
   const { locale } = useT();
   const c = COPY[locale];
   const [domain, setDomain] = useState('');
@@ -164,7 +168,6 @@ export function AiVisibilityChecker() {
     }
   }, []);
 
-  // Render invisible Turnstile widget when DOM ref ready
   useEffect(() => {
     if (!TURNSTILE_SITE_KEY || !turnstileRef.current) return;
     let cancelled = false;
@@ -204,7 +207,6 @@ export function AiVisibilityChecker() {
     };
   }, []);
 
-  // Get a fresh Turnstile token (resolves null if disabled or fails)
   const getTurnstileToken = (): Promise<string | null> => {
     if (!TURNSTILE_SITE_KEY) return Promise.resolve(null);
     if (!window.turnstile || !turnstileWidgetIdRef.current) return Promise.resolve(null);
@@ -216,7 +218,6 @@ export function AiVisibilityChecker() {
       } catch (_e) {
         resolve(null);
       }
-      // Safety timeout
       setTimeout(() => {
         if (tokenResolverRef.current) {
           tokenResolverRef.current(null);
@@ -240,6 +241,17 @@ export function AiVisibilityChecker() {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
   }, [phase, locale]);
+
+  // Body scroll lock when result modal is open in hero mode
+  useEffect(() => {
+    if (mode !== 'hero') return;
+    if (phase === 'result' || phase === 'loading') {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => { document.body.style.overflow = ''; };
+  }, [phase, mode]);
 
   const handleStart = async () => {
     const cleaned = domain.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/^www\./, '').split('/')[0];
@@ -270,18 +282,276 @@ export function AiVisibilityChecker() {
 
   const msgs = locale === 'en' ? LOADING_MESSAGES_EN : LOADING_MESSAGES_TR;
 
+  // ─────────────────────────────────────────────────────────
+  //  HERO MODE — compact input card + fullscreen modal for results
+  // ─────────────────────────────────────────────────────────
+  if (mode === 'hero') {
+    return (
+      <>
+        {TURNSTILE_SITE_KEY && <div ref={turnstileRef} className="cf-turnstile" data-size="invisible" />}
+        <div className="relative bg-background/90 backdrop-blur border-2 border-orange-500/30 rounded-2xl p-5 sm:p-6 shadow-2xl shadow-orange-500/10">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-500/10 border border-orange-500/20 text-orange-600 text-[11px] font-semibold mb-3">
+            {c.heroEyebrow}
+          </div>
+          <h3 className="text-lg sm:text-xl font-bold leading-snug mb-4">
+            {c.heroSub}
+          </h3>
+
+          <form
+            onSubmit={(e) => { e.preventDefault(); handleStart(); }}
+            className="flex flex-col sm:flex-row gap-2 mb-3"
+          >
+            <div className="flex-1 flex items-center gap-2 px-3 border-2 border-muted hover:border-orange-500/40 focus-within:border-orange-500/60 rounded-xl transition-colors">
+              <Globe className="h-4 w-4 text-orange-600 shrink-0" />
+              <input
+                type="text"
+                value={domain}
+                onChange={(e) => setDomain(e.target.value)}
+                placeholder={c.placeholder}
+                autoComplete="off"
+                spellCheck={false}
+                disabled={phase === 'loading'}
+                className="flex-1 bg-transparent outline-none text-sm placeholder:text-muted-foreground/60 py-2.5"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={!domain.trim() || phase === 'loading'}
+              className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 disabled:from-muted disabled:to-muted disabled:text-muted-foreground disabled:cursor-not-allowed text-white font-bold text-sm shadow-lg shadow-orange-500/30 transition-all"
+            >
+              {phase === 'loading' ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <>
+                  {c.btnStart}
+                  <ArrowRight className="h-4 w-4" />
+                </>
+              )}
+            </button>
+          </form>
+
+          {/* Tag row + provider preview */}
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11px] text-muted-foreground mb-4">
+            <span>{c.tagFree}</span>
+            <span>{c.tagNoCard}</span>
+            <span>{c.tagFast}</span>
+          </div>
+          <div className="flex items-center gap-x-4 gap-y-2 flex-wrap pt-3 border-t border-border/60">
+            {(['chatgpt', 'claude-ai', 'gemini', 'perplexity', 'grok', 'deepseek'] as VendorName[]).map((v) => (
+              <div key={v} className="flex items-center gap-1 opacity-70">
+                <VendorLogo name={v} size={16} />
+                <span className="text-[10px] font-semibold uppercase tracking-wider">{
+                  v === 'claude-ai' ? 'Claude' : v === 'chatgpt' ? 'ChatGPT' : v.charAt(0).toUpperCase() + v.slice(1)
+                }</span>
+              </div>
+            ))}
+          </div>
+
+          {phase === 'error' && error && (
+            <div className="mt-3 flex items-start gap-2 p-3 rounded-lg border border-red-300/50 bg-red-50 dark:bg-red-950/20 text-red-700 dark:text-red-300 text-xs">
+              <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+              <div>{error}</div>
+            </div>
+          )}
+        </div>
+
+        {/* FULLSCREEN OVERLAY — loading or result */}
+        {(phase === 'loading' || phase === 'result') && (
+          <div
+            className="fixed inset-0 z-[100] bg-black/70 backdrop-blur-sm overflow-y-auto"
+            onClick={(e) => { if (e.target === e.currentTarget && phase === 'result') handleReset(); }}
+          >
+            <div className="min-h-full flex items-start justify-center p-4 sm:p-8">
+              <div className="relative w-full max-w-5xl bg-background rounded-2xl border-2 border-orange-500/20 shadow-2xl my-auto">
+                {/* Loading overlay content */}
+                {phase === 'loading' && (
+                  <div className="p-10 sm:p-16 text-center">
+                    <div className="relative w-24 h-24 mx-auto mb-6">
+                      <div className="absolute inset-0 rounded-full bg-gradient-to-br from-orange-500 to-red-600 animate-pulse opacity-20" />
+                      <div className="absolute inset-2 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 grid place-items-center">
+                        <Loader2 className="h-10 w-10 text-white animate-spin" />
+                      </div>
+                    </div>
+                    <h3 className="font-bold text-xl mb-2">{c.loadingTitle}</h3>
+                    <p className="text-sm text-muted-foreground mb-6">{c.loadingSubtitle}</p>
+                    <div className="h-6 mb-6 flex items-center justify-center">
+                      <p className="text-sm font-mono text-orange-600 animate-pulse" key={loadingIdx}>
+                        {msgs[loadingIdx]}
+                      </p>
+                    </div>
+                    <div className="flex items-center justify-center gap-3 flex-wrap">
+                      {(['chatgpt', 'claude-ai', 'gemini', 'perplexity', 'grok', 'deepseek'] as VendorName[]).map((v, idx) => (
+                        <div
+                          key={v}
+                          className="relative w-12 h-12 rounded-full bg-muted/50 grid place-items-center"
+                          style={{ animationDelay: `${idx * 120}ms` }}
+                        >
+                          <VendorLogo name={v} size={24} />
+                          <div className="absolute inset-0 rounded-full border-2 border-orange-400 animate-ping opacity-60" style={{ animationDelay: `${idx * 120}ms` }} />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Result modal content */}
+                {phase === 'result' && result && (
+                  <div className="p-5 sm:p-8 space-y-6">
+                    {/* Close button */}
+                    <button
+                      onClick={handleReset}
+                      className="absolute top-4 right-4 text-muted-foreground hover:text-foreground transition-colors p-2 rounded-lg hover:bg-muted"
+                      aria-label={c.closeBtn}
+                    >
+                      <X className="h-5 w-5" />
+                    </button>
+
+                    {/* Brand header */}
+                    <div className="flex items-center gap-4 pr-12">
+                      <DomainFavicon domain={result.domain} brand={result.brand} />
+                      <div>
+                        <h3 className="font-bold text-xl sm:text-2xl">{result.brand}</h3>
+                        <p className="text-sm text-muted-foreground">
+                          {result.domain}
+                          {result.niche && (
+                            <span className="ml-2 inline-block px-2 py-0.5 rounded-full bg-orange-500/10 text-orange-600 text-[10px] font-semibold uppercase tracking-wider">
+                              {result.customNiche || result.niche}
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                    </div>
+
+                    {result.fromCache && (
+                      <p className="text-xs text-center text-muted-foreground -mt-2">{c.cachedAt}</p>
+                    )}
+
+                    {/* Two-col results */}
+                    <div className="grid lg:grid-cols-3 gap-6">
+                      <div className="lg:col-span-2 space-y-4">
+                        <h4 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                          {c.resultsHeader}
+                        </h4>
+                        {result.queries.map((q, idx) => (
+                          <div key={idx} className="bg-muted/30 rounded-2xl border p-4 sm:p-5">
+                            <div className="flex items-start justify-between gap-4 mb-4">
+                              <div className="flex items-start gap-3 flex-1">
+                                <span className="inline-grid place-items-center min-w-[28px] h-7 px-2 rounded-md bg-foreground text-background text-xs font-bold">
+                                  {idx + 1}
+                                </span>
+                                <p className="text-sm font-medium leading-relaxed flex-1">{q.query}</p>
+                              </div>
+                              <div className="shrink-0 text-right">
+                                <div className="font-bold text-lg">
+                                  <span className={q.citedCount > 0 ? 'text-emerald-600' : 'text-muted-foreground'}>
+                                    {q.citedCount}
+                                  </span>
+                                  <span className="text-muted-foreground"> / {q.totalProviders}</span>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-3 flex-wrap">
+                              {q.providers.map((p) => {
+                                const logo = PROVIDER_LOGOS[p.provider];
+                                const short = PROVIDER_SHORT[p.provider] || p.label;
+                                const ok = p.cited || p.brandMentioned;
+                                return (
+                                  <div key={p.provider} className="flex flex-col items-center gap-1">
+                                    <div className={`relative w-11 h-11 rounded-xl grid place-items-center ${ok ? 'bg-emerald-500/10 ring-2 ring-emerald-500/40' : 'bg-muted/60 ring-1 ring-border'}`}>
+                                      {logo && <VendorLogo name={logo} size={22} />}
+                                      <div className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full grid place-items-center ring-2 ring-background ${ok ? 'bg-emerald-500 text-white' : 'bg-muted-foreground/40 text-white'}`}>
+                                        {ok ? <Check className="h-3 w-3" strokeWidth={3} /> : <X className="h-3 w-3" strokeWidth={3} />}
+                                      </div>
+                                    </div>
+                                    <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{short}</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="lg:col-span-1 space-y-4">
+                        <h4 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                          {c.competitorHeader}
+                        </h4>
+                        <div className="bg-muted/30 rounded-2xl border p-5">
+                          {result.competitorRanking.length === 0 ? (
+                            <p className="text-sm text-muted-foreground text-center py-8">{c.competitorEmpty}</p>
+                          ) : (
+                            <div className="space-y-3">
+                              {result.competitorRanking.slice(0, 8).map((comp, idx) => (
+                                <div key={comp.name + idx} className={`flex items-center gap-3 p-2 rounded-lg ${comp.isBrand ? 'bg-orange-500/10 ring-1 ring-orange-500/30' : ''}`}>
+                                  <span className={`inline-grid place-items-center w-6 h-6 rounded-md text-xs font-bold shrink-0 ${comp.isBrand ? 'bg-orange-500 text-white' : 'bg-muted text-foreground'}`}>
+                                    {idx + 1}
+                                  </span>
+                                  <span className="flex-1 text-sm font-medium truncate">
+                                    {comp.name}
+                                    {comp.isBrand && <span className="text-orange-600 text-xs ml-1.5 font-bold">{c.youLabel}</span>}
+                                  </span>
+                                  <span className={`text-sm font-bold shrink-0 ${comp.isBrand ? 'text-orange-600' : 'text-muted-foreground'}`}>
+                                    {comp.pct}%
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="bg-gradient-to-br from-orange-500 via-orange-600 to-red-600 text-white rounded-2xl p-5 shadow-xl shadow-orange-500/20">
+                          <Crown className="h-6 w-6 mb-2" />
+                          <h5 className="font-bold text-base mb-1.5">{c.ctaBoxTitle}</h5>
+                          <p className="text-xs text-white/90 mb-4 leading-relaxed">{c.ctaBoxBody}</p>
+                          <div className="space-y-2">
+                            <Link
+                              href="/onboarding"
+                              className="block w-full text-center bg-white text-orange-600 hover:bg-white/95 font-bold text-sm px-4 py-2.5 rounded-lg transition-colors"
+                            >
+                              {c.ctaPrimary}
+                            </Link>
+                            <Link
+                              href="/onboarding?demo=1"
+                              className="block w-full text-center bg-transparent border border-white/40 text-white hover:bg-white/10 font-semibold text-sm px-4 py-2 rounded-lg transition-colors"
+                            >
+                              {c.ctaSecondary}
+                            </Link>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Footer: test another */}
+                    <div className="text-center pt-2">
+                      <button
+                        onClick={handleReset}
+                        className="text-sm text-muted-foreground hover:text-orange-600 transition-colors"
+                      >
+                        ← {c.testAnother}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </>
+    );
+  }
+
+  // ─────────────────────────────────────────────────────────
+  //  STANDALONE MODE — full landing section
+  // ─────────────────────────────────────────────────────────
   return (
     <section id="ai-checker" className="relative py-16 lg:py-24 border-y bg-gradient-to-b from-orange-50/50 via-amber-50/30 to-transparent dark:from-orange-950/10 dark:via-amber-950/10">
-      {/* Invisible Turnstile container (env-gated) */}
       {TURNSTILE_SITE_KEY && <div ref={turnstileRef} className="cf-turnstile" data-size="invisible" />}
-      {/* Background blob */}
       <div className="absolute inset-0 -z-10 overflow-hidden pointer-events-none">
         <div className="absolute top-10 left-1/4 w-96 h-96 bg-orange-400/10 rounded-full blur-3xl" />
         <div className="absolute bottom-10 right-1/4 w-96 h-96 bg-amber-400/10 rounded-full blur-3xl" />
       </div>
 
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Hero */}
         <div className="text-center mb-10 max-w-3xl mx-auto">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-500/10 border border-orange-500/20 text-orange-600 text-xs font-semibold mb-5">
             {c.badge}
@@ -298,7 +568,6 @@ export function AiVisibilityChecker() {
           </p>
         </div>
 
-        {/* Phase: idle or error — input form */}
         {(phase === 'idle' || phase === 'error') && (
           <div className="max-w-2xl mx-auto">
             <form
@@ -327,14 +596,12 @@ export function AiVisibilityChecker() {
               </button>
             </form>
 
-            {/* Quick tags */}
             <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 mt-4 text-xs text-muted-foreground">
               <span>{c.tagFree}</span>
               <span>{c.tagNoCard}</span>
               <span>{c.tagFast}</span>
             </div>
 
-            {/* Error inline */}
             {phase === 'error' && error && (
               <div className="mt-5 flex items-start gap-3 p-4 rounded-xl border border-red-300/50 bg-red-50 dark:bg-red-950/20 text-red-700 dark:text-red-300 text-sm">
                 <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" />
@@ -345,7 +612,6 @@ export function AiVisibilityChecker() {
               </div>
             )}
 
-            {/* Provider preview row */}
             <div className="mt-8 flex flex-wrap items-center justify-center gap-x-7 gap-y-3 opacity-70">
               {(['chatgpt', 'claude-ai', 'gemini', 'perplexity', 'grok', 'deepseek'] as VendorName[]).map((v) => (
                 <div key={v} className="flex items-center gap-1.5">
@@ -359,7 +625,6 @@ export function AiVisibilityChecker() {
           </div>
         )}
 
-        {/* Phase: loading */}
         {phase === 'loading' && (
           <div className="max-w-2xl mx-auto bg-background rounded-2xl border-2 border-orange-500/20 p-10 shadow-xl shadow-orange-500/5 text-center">
             <div className="relative w-20 h-20 mx-auto mb-6">
@@ -370,20 +635,16 @@ export function AiVisibilityChecker() {
             </div>
             <h3 className="font-bold text-lg mb-2">{c.loadingTitle}</h3>
             <p className="text-sm text-muted-foreground mb-6">{c.loadingSubtitle}</p>
-
-            {/* Animated loading message */}
             <div className="h-6 mb-6 flex items-center justify-center">
               <p className="text-sm font-mono text-orange-600 animate-pulse" key={loadingIdx}>
                 {msgs[loadingIdx]}
               </p>
             </div>
-
-            {/* Provider dots */}
             <div className="flex items-center justify-center gap-3 flex-wrap">
               {(['chatgpt', 'claude-ai', 'gemini', 'perplexity', 'grok', 'deepseek'] as VendorName[]).map((v, idx) => (
                 <div
                   key={v}
-                  className="relative w-12 h-12 rounded-full bg-muted/50 grid place-items-center transition-all"
+                  className="relative w-12 h-12 rounded-full bg-muted/50 grid place-items-center"
                   style={{ animationDelay: `${idx * 120}ms` }}
                 >
                   <VendorLogo name={v} size={24} />
@@ -394,10 +655,8 @@ export function AiVisibilityChecker() {
           </div>
         )}
 
-        {/* Phase: result */}
         {phase === 'result' && result && (
           <div className="space-y-6">
-            {/* Brand header */}
             <div className="bg-background rounded-2xl border-2 border-orange-500/20 p-6 shadow-xl shadow-orange-500/5 flex items-center justify-between flex-wrap gap-4">
               <div className="flex items-center gap-4">
                 <DomainFavicon domain={result.domain} brand={result.brand} />
@@ -417,18 +676,15 @@ export function AiVisibilityChecker() {
                 onClick={handleReset}
                 className="text-sm text-muted-foreground hover:text-orange-600 transition-colors px-3 py-1.5 rounded-lg border border-muted hover:border-orange-500/30"
               >
-                ← {locale === 'en' ? 'Test another' : 'Yeni test'}
+                ← {c.testAnother}
               </button>
             </div>
 
-            {/* Cached note */}
             {result.fromCache && (
               <p className="text-xs text-center text-muted-foreground">{c.cachedAt}</p>
             )}
 
-            {/* Two-col: queries (left) + competitors (right) */}
             <div className="grid lg:grid-cols-3 gap-6">
-              {/* Queries — left 2/3 */}
               <div className="lg:col-span-2 space-y-4">
                 <h4 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
                   {c.resultsHeader}
@@ -451,7 +707,6 @@ export function AiVisibilityChecker() {
                         </div>
                       </div>
                     </div>
-                    {/* Provider chips */}
                     <div className="flex items-center gap-3 flex-wrap">
                       {q.providers.map((p) => {
                         const logo = PROVIDER_LOGOS[p.provider];
@@ -474,7 +729,6 @@ export function AiVisibilityChecker() {
                 ))}
               </div>
 
-              {/* Competitor ranking — right 1/3 */}
               <div className="lg:col-span-1 space-y-4">
                 <h4 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
                   {c.competitorHeader}
@@ -502,7 +756,6 @@ export function AiVisibilityChecker() {
                   )}
                 </div>
 
-                {/* CTA box (under competitors) */}
                 <div className="bg-gradient-to-br from-orange-500 via-orange-600 to-red-600 text-white rounded-2xl p-5 shadow-xl shadow-orange-500/20">
                   <Crown className="h-6 w-6 mb-2" />
                   <h5 className="font-bold text-base mb-1.5">{c.ctaBoxTitle}</h5>
@@ -531,7 +784,6 @@ export function AiVisibilityChecker() {
   );
 }
 
-/** Domain favicon via Google's s2 service with fallback to brand initial badge */
 function DomainFavicon({ domain, brand }: { domain: string; brand: string }) {
   const [failed, setFailed] = useState(false);
   const initial = (brand || domain).charAt(0).toUpperCase();
