@@ -5,7 +5,7 @@ import { decrypt } from '@luviai/shared';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { QuotaService } from '../billing/quota.service.js';
 
-export type Provider = 'anthropic' | 'gemini' | 'openai' | 'perplexity' | 'xai' | 'deepseek';
+export type Provider = 'anthropic' | 'gemini' | 'openai' | 'perplexity' | 'xai' | 'deepseek' | 'meta';
 
 export interface CitationProbe {
   query: string;
@@ -51,6 +51,7 @@ const PROVIDER_LABELS: Record<Provider, string> = {
   perplexity: 'Perplexity',
   xai:        'xAI Grok',
   deepseek:   'DeepSeek',
+  meta:       'Meta AI (Llama)',
 };
 
 const POOL_ENV_KEY: Record<Provider, string> = {
@@ -60,6 +61,7 @@ const POOL_ENV_KEY: Record<Provider, string> = {
   perplexity: 'PERPLEXITY_API_KEY',
   xai:        'XAI_API_KEY',
   deepseek:   'DEEPSEEK_API_KEY',
+  meta:       'GROQ_API_KEY',          // Llama via Groq
 };
 
 /**
@@ -88,6 +90,7 @@ export class AiCitationService {
     perplexity: parseFloat(process.env.AI_BUDGET_PERPLEXITY_USD ?? '5'),
     xai:        parseFloat(process.env.AI_BUDGET_GROK_USD       ?? '3'),
     deepseek:   parseFloat(process.env.AI_BUDGET_DEEPSEEK_USD   ?? '3'),
+    meta:       parseFloat(process.env.AI_BUDGET_META_USD       ?? '3'),
   };
 
   // Approx cost per probe (input ~150 tok + output ~400 tok)
@@ -98,6 +101,7 @@ export class AiCitationService {
     perplexity: 0.0006,
     xai:        0.0003,
     deepseek:   0.0006,
+    meta:       0.0002,        // Groq Llama 3.3 70B ~$0.59/1M in + $0.79/1M out → ~$0.0002/probe
   };
 
   constructor(
@@ -164,7 +168,7 @@ export class AiCitationService {
     const byokMap = new Map(byokRows.map(r => [r.provider, r]));
     const pool = this.quota.getPlanPool(plan);
 
-    const providers: Provider[] = ['anthropic', 'gemini', 'openai', 'perplexity', 'xai', 'deepseek'];
+    const providers: Provider[] = ['anthropic', 'gemini', 'openai', 'perplexity', 'xai', 'deepseek', 'meta'];
     return providers.map(provider => {
       const byok = byokMap.get(provider);
       const hasEnvKey = !!process.env[POOL_ENV_KEY[provider]];
@@ -316,7 +320,7 @@ export class AiCitationService {
     } catch { /* table yoksa sessiz geç */ }
     const uniqueCompetitors = Array.from(new Set(competitors.map((c) => c.trim()).filter((c) => c.length >= 3 && c.toLowerCase() !== brand.toLowerCase())));
 
-    const providers: Provider[] = ['anthropic', 'gemini', 'openai', 'perplexity', 'xai', 'deepseek'];
+    const providers: Provider[] = ['anthropic', 'gemini', 'openai', 'perplexity', 'xai', 'deepseek', 'meta'];
     const results = await Promise.all(
       providers.map(p => this.runProvider(p, siteId, plan, brand, url, probeQueries, uniqueCompetitors)),
     );
@@ -350,7 +354,7 @@ export class AiCitationService {
   }>> {
     const { brand, host, queries, competitors = [] } = opts;
     const systemPrompt = this.buildSystemPrompt();
-    const providers: Provider[] = ['anthropic', 'gemini', 'openai', 'perplexity', 'xai', 'deepseek'];
+    const providers: Provider[] = ['anthropic', 'gemini', 'openai', 'perplexity', 'xai', 'deepseek', 'meta'];
 
     return Promise.all(providers.map(async (provider) => {
       const label = PROVIDER_LABELS[provider];
@@ -367,6 +371,7 @@ export class AiCitationService {
           case 'perplexity': probes = await this.probePerplexity(key, host, brand, queries, systemPrompt, competitors); break;
           case 'xai':        probes = await this.probeXai(key, host, brand, queries, systemPrompt, competitors); break;
           case 'deepseek':   probes = await this.probeDeepseek(key, host, brand, queries, systemPrompt, competitors); break;
+          case 'meta':       probes = await this.probeMeta(key, host, brand, queries, systemPrompt, competitors); break;
         }
         // Cost defteri tutulur (public da olsa sistem kotasinin parcasi)
         await this.addCost(provider, probes.length).catch(() => {});
@@ -443,6 +448,9 @@ export class AiCitationService {
           break;
         case 'deepseek':
           probes = await this.probeDeepseek(resolved.key, host, brand, queries, systemPrompt, competitors);
+          break;
+        case 'meta':
+          probes = await this.probeMeta(resolved.key, host, brand, queries, systemPrompt, competitors);
           break;
       }
     } catch (err: any) {
@@ -627,6 +635,36 @@ export class AiCitationService {
         probes.push(this.buildProbe(q, text, host, brand, competitors));
       } catch (err: any) {
         this.log.warn(`DeepSeek probe failed (${q}): ${err.message}`);
+        probes.push({ query: q, cited: false, brandMentioned: false, excerpt: `HATA: ${err.message}` });
+      }
+    }
+    return probes;
+  }
+
+  /** Meta AI (Llama) via Groq — OpenAI-compatible endpoint, free tier friendly */
+  private async probeMeta(key: string, host: string, brand: string, queries: string[], systemPrompt: string, competitors: string[] = []): Promise<CitationProbe[]> {
+    const probes: CitationProbe[] = [];
+    const model = process.env.GROQ_LLAMA_MODEL ?? 'llama-3.3-70b-versatile';
+    for (const q of queries) {
+      try {
+        const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            model,
+            max_tokens: 400,
+            messages: [
+              { role: 'system', content: systemPrompt },
+              { role: 'user', content: q },
+            ],
+          }),
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text().catch(() => '')}`.slice(0, 200));
+        const data = await res.json() as any;
+        const text = data?.choices?.[0]?.message?.content ?? '';
+        probes.push(this.buildProbe(q, text, host, brand, competitors));
+      } catch (err: any) {
+        this.log.warn(`Meta/Llama probe failed (${q}): ${err.message}`);
         probes.push({ query: q, cited: false, brandMentioned: false, excerpt: `HATA: ${err.message}` });
       }
     }

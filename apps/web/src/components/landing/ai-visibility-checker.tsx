@@ -14,16 +14,16 @@ const COPY = {
     titleA: 'Markanız',
     titleB: 'AI cevaplarında',
     titleC: 'görünüyor mu?',
-    subtitle: 'Domain\'inizi girin — 6 AI motoru (ChatGPT, Claude, Gemini, Perplexity, Grok, DeepSeek) markanızı nasıl tanıyor öğrenin. 30 saniyede sonuç, üye olmadan.',
+    subtitle: 'Domain\'inizi girin — 7 AI motoru (ChatGPT, Claude, Gemini, Perplexity, Grok, DeepSeek, Meta AI) markanızı nasıl tanıyor öğrenin. 30 saniyede sonuç, üye olmadan.',
     heroEyebrow: '✨ AI Görünürlük Testi — 30 saniyede',
-    heroSub: 'Markanız 6 AI motorunda nasıl görünüyor?',
+    heroSub: 'Markanız 7 AI motorunda nasıl görünüyor?',
     placeholder: 'yourdomain.com',
     btnStart: 'Test Et',
     btnLoading: 'Test ediliyor...',
     tagFree: '✓ Ücretsiz',
     tagNoCard: '✓ Kart bilgisi yok',
     tagFast: '✓ 30 saniye',
-    loadingTitle: '6 AI motorda markanız aranıyor...',
+    loadingTitle: '7 AI motorda markanız aranıyor...',
     loadingSubtitle: 'Bu işlem ~25 saniye sürer',
     resultsHeader: 'Markanız bu AI cevaplarında geçti mi?',
     competitorHeader: 'Rakip Karşılaştırması',
@@ -45,16 +45,16 @@ const COPY = {
     titleA: 'Is your brand',
     titleB: 'in AI answers',
     titleC: 'at all?',
-    subtitle: 'Enter your domain — see how 6 AI engines (ChatGPT, Claude, Gemini, Perplexity, Grok, DeepSeek) recognize your brand. Results in 30 seconds, no signup needed.',
+    subtitle: 'Enter your domain — see how 7 AI engines (ChatGPT, Claude, Gemini, Perplexity, Grok, DeepSeek, Meta AI) recognize your brand. Results in 30 seconds, no signup needed.',
     heroEyebrow: '✨ AI Visibility Test — 30 sec',
-    heroSub: 'How does your brand show on 6 AI engines?',
+    heroSub: 'How does your brand show on 7 AI engines?',
     placeholder: 'yourdomain.com',
     btnStart: 'Test',
     btnLoading: 'Testing...',
     tagFree: '✓ Free',
     tagNoCard: '✓ No card',
     tagFast: '✓ 30 sec',
-    loadingTitle: 'Searching your brand on 6 AI engines...',
+    loadingTitle: 'Searching your brand on 7 AI engines...',
     loadingSubtitle: 'This takes ~25 seconds',
     resultsHeader: 'Did your brand appear in these AI answers?',
     competitorHeader: 'Competitor Ranking',
@@ -74,12 +74,13 @@ const COPY = {
 } as const;
 
 const PROVIDER_LOGOS: Record<string, VendorName> = {
-  anthropic: 'claude-ai',
+  anthropic: 'anthropic',
   gemini: 'gemini',
-  openai: 'chatgpt',
+  openai: 'openai',
   perplexity: 'perplexity',
   xai: 'grok',
   deepseek: 'deepseek',
+  meta: 'meta-ai',
 };
 
 const PROVIDER_SHORT: Record<string, string> = {
@@ -89,6 +90,7 @@ const PROVIDER_SHORT: Record<string, string> = {
   perplexity: 'Perplexity',
   xai: 'Grok',
   deepseek: 'DeepSeek',
+  meta: 'Meta AI',
 };
 
 type CheckResult = Awaited<ReturnType<typeof api.publicCitationCheck>>;
@@ -101,6 +103,7 @@ const LOADING_MESSAGES_TR = [
   'Soruluyor: Perplexity',
   'Soruluyor: Grok',
   'Soruluyor: DeepSeek',
+  'Soruluyor: Meta AI',
   'Cevaplar analiz ediliyor...',
   'Rakipler tespit ediliyor...',
   'Skor hesaplanıyor...',
@@ -113,6 +116,7 @@ const LOADING_MESSAGES_EN = [
   'Asking: Perplexity',
   'Asking: Grok',
   'Asking: DeepSeek',
+  'Asking: Meta AI',
   'Analyzing responses...',
   'Detecting competitors...',
   'Computing score...',
@@ -365,7 +369,7 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
                       </p>
                     </div>
                     <div className="flex items-center justify-center gap-3 flex-wrap">
-                      {(['chatgpt', 'claude-ai', 'gemini', 'perplexity', 'grok', 'deepseek'] as VendorName[]).map((v, idx) => (
+                      {(['chatgpt', 'claude-ai', 'gemini', 'perplexity', 'grok', 'deepseek', 'meta-ai'] as VendorName[]).map((v, idx) => (
                         <div
                           key={v}
                           className="relative w-12 h-12 rounded-full bg-muted/50 grid place-items-center"
@@ -600,7 +604,7 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
             )}
 
             <div className="mt-8 flex flex-wrap items-center justify-center gap-x-7 gap-y-3 opacity-70">
-              {(['chatgpt', 'claude-ai', 'gemini', 'perplexity', 'grok', 'deepseek'] as VendorName[]).map((v) => (
+              {(['chatgpt', 'claude-ai', 'gemini', 'perplexity', 'grok', 'deepseek', 'meta-ai'] as VendorName[]).map((v) => (
                 <div key={v} className="flex items-center gap-1.5">
                   <VendorLogo name={v} size={18} />
                   <span className="text-xs font-semibold">{
@@ -628,7 +632,7 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
               </p>
             </div>
             <div className="flex items-center justify-center gap-3 flex-wrap">
-              {(['chatgpt', 'claude-ai', 'gemini', 'perplexity', 'grok', 'deepseek'] as VendorName[]).map((v, idx) => (
+              {(['chatgpt', 'claude-ai', 'gemini', 'perplexity', 'grok', 'deepseek', 'meta-ai'] as VendorName[]).map((v, idx) => (
                 <div
                   key={v}
                   className="relative w-12 h-12 rounded-full bg-muted/50 grid place-items-center"
