@@ -289,20 +289,13 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
     return (
       <>
         {TURNSTILE_SITE_KEY && <div ref={turnstileRef} className="cf-turnstile" data-size="invisible" />}
-        <div className="relative bg-background/90 backdrop-blur border-2 border-orange-500/30 rounded-2xl p-5 sm:p-6 shadow-2xl shadow-orange-500/10">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-500/10 border border-orange-500/20 text-orange-600 text-[11px] font-semibold mb-3">
-            {c.heroEyebrow}
-          </div>
-          <h3 className="text-lg sm:text-xl font-bold leading-snug mb-4">
-            {c.heroSub}
-          </h3>
-
+        <div className="relative">
           <form
             onSubmit={(e) => { e.preventDefault(); handleStart(); }}
-            className="flex flex-col sm:flex-row gap-2 mb-3"
+            className="flex flex-col sm:flex-row gap-2 bg-background border-2 border-orange-500/30 hover:border-orange-500/50 focus-within:border-orange-500/70 rounded-2xl p-2 shadow-2xl shadow-orange-500/10 transition-colors"
           >
-            <div className="flex-1 flex items-center gap-2 px-3 border-2 border-muted hover:border-orange-500/40 focus-within:border-orange-500/60 rounded-xl transition-colors">
-              <Globe className="h-4 w-4 text-orange-600 shrink-0" />
+            <div className="flex-1 flex items-center gap-3 px-4">
+              <Globe className="h-5 w-5 text-orange-600 shrink-0" />
               <input
                 type="text"
                 value={domain}
@@ -311,40 +304,32 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
                 autoComplete="off"
                 spellCheck={false}
                 disabled={phase === 'loading'}
-                className="flex-1 bg-transparent outline-none text-sm placeholder:text-muted-foreground/60 py-2.5"
+                className="flex-1 bg-transparent outline-none text-lg sm:text-xl font-medium placeholder:text-muted-foreground/50 py-3 sm:py-4"
               />
             </div>
             <button
               type="submit"
               disabled={!domain.trim() || phase === 'loading'}
-              className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 disabled:from-muted disabled:to-muted disabled:text-muted-foreground disabled:cursor-not-allowed text-white font-bold text-sm shadow-lg shadow-orange-500/30 transition-all"
+              className="inline-flex items-center justify-center gap-2 px-7 sm:px-8 py-3 sm:py-4 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 disabled:from-muted disabled:to-muted disabled:text-muted-foreground disabled:cursor-not-allowed text-white font-bold text-base sm:text-lg shadow-lg shadow-orange-500/40 transition-all hover:scale-[1.02] active:scale-[0.98]"
             >
               {phase === 'loading' ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
+                <Loader2 className="h-5 w-5 animate-spin" />
               ) : (
                 <>
                   {c.btnStart}
-                  <ArrowRight className="h-4 w-4" />
+                  <ArrowRight className="h-5 w-5" />
                 </>
               )}
             </button>
           </form>
 
-          {/* Tag row + provider preview */}
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[11px] text-muted-foreground mb-4">
+          {/* Inline tag row */}
+          <div className="flex flex-wrap items-center justify-center lg:justify-start gap-x-4 gap-y-1 mt-3 text-xs text-muted-foreground">
             <span>{c.tagFree}</span>
+            <span className="opacity-40">•</span>
             <span>{c.tagNoCard}</span>
+            <span className="opacity-40">•</span>
             <span>{c.tagFast}</span>
-          </div>
-          <div className="flex items-center gap-x-4 gap-y-2 flex-wrap pt-3 border-t border-border/60">
-            {(['chatgpt', 'claude-ai', 'gemini', 'perplexity', 'grok', 'deepseek'] as VendorName[]).map((v) => (
-              <div key={v} className="flex items-center gap-1 opacity-70">
-                <VendorLogo name={v} size={16} />
-                <span className="text-[10px] font-semibold uppercase tracking-wider">{
-                  v === 'claude-ai' ? 'Claude' : v === 'chatgpt' ? 'ChatGPT' : v.charAt(0).toUpperCase() + v.slice(1)
-                }</span>
-              </div>
-            ))}
           </div>
 
           {phase === 'error' && error && (
