@@ -32,8 +32,8 @@ const COPY = {
 } as const;
 
 const ENGINES: Array<{ name: VendorName; label: string }> = [
-  { name: 'chatgpt', label: 'CHATGPT' },
-  { name: 'claude-ai', label: 'CLAUDE' },
+  { name: 'openai', label: 'CHATGPT' },        // Multi-color OpenAI Sphere (full brand)
+  { name: 'anthropic', label: 'CLAUDE' },      // Anthropic cream "A" (official current brand)
   { name: 'gemini', label: 'GEMINI' },
   { name: 'perplexity', label: 'PERPLEXITY' },
   { name: 'grok', label: 'GROK' },
@@ -223,8 +223,8 @@ function OrbitalDiagram({ centerLabel }: { centerLabel: string }) {
           >
             <div className="group relative w-full h-full">
               {/* Force white background so colored brand icons stay visible in dark mode */}
-              <div className="absolute inset-0 rounded-full bg-white border-2 border-orange-500/30 shadow-lg shadow-orange-500/10 grid place-items-center hover:border-orange-500/60 hover:scale-110 transition-all duration-300">
-                <VendorLogo name={engine.name} size={32} />
+              <div className="absolute inset-0 rounded-full bg-white shadow-lg shadow-orange-500/10 ring-1 ring-orange-500/20 grid place-items-center hover:ring-2 hover:ring-orange-500/60 hover:scale-110 transition-all duration-300 overflow-hidden">
+                <VendorLogo name={engine.name} size={48} />
               </div>
               <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground dark:text-white/70 whitespace-nowrap">
                 {engine.label}
