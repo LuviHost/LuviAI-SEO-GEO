@@ -435,7 +435,7 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
             onClick={(e) => { if (e.target === e.currentTarget && phase === 'result') handleReset(); }}
           >
             <div className="min-h-full flex items-start justify-center p-4 sm:p-8">
-              <div className="relative w-full max-w-5xl bg-background rounded-2xl border-2 border-orange-500/20 shadow-2xl my-auto">
+              <div className="relative w-full max-w-7xl bg-background rounded-2xl border-2 border-orange-500/20 shadow-2xl my-auto">
                 {/* Loading overlay content */}
                 {phase === 'loading' && (
                   <div className="p-10 sm:p-16 text-center">
