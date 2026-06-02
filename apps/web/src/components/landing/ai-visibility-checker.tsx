@@ -39,6 +39,12 @@ const COPY = {
     domainHint: 'Sadece domain yazın (örn. kobipratik.com)',
     closeBtn: 'Kapat',
     testAnother: 'Yeni test',
+    // Response excerpts
+    showResponses: 'Yanıtları gör',
+    hideResponses: 'Yanıtları gizle',
+    noCitedResponses: 'Hiçbir motor markanızı cevabında geçirmedi.',
+    aiAnswer: 'AI cevabı',
+    truncated: '… (kısaltıldı)',
     // Email optin
     optinHeader: '📧 90 gün boyunca markanızı takip edelim',
     optinBody: '15, 30, 60, 90 gün sonra 7 AI motorda otomatik retest yapıp size branded rapor email\'i atalım. Markanızın AI cevaplarında değişimini izleyin.',
@@ -82,6 +88,12 @@ const COPY = {
     domainHint: 'Just the domain (e.g. kobipratik.com)',
     closeBtn: 'Close',
     testAnother: 'New test',
+    // Response excerpts
+    showResponses: 'Show responses',
+    hideResponses: 'Hide responses',
+    noCitedResponses: 'No engine cited your brand in their answer.',
+    aiAnswer: 'AI answer',
+    truncated: '… (truncated)',
     // Email optin
     optinHeader: '📧 Track your brand for 90 days',
     optinBody: 'We\'ll automatically retest your domain on 7 AI engines at 15, 30, 60, 90 days and email you a branded report. Track how your AI visibility evolves.',
@@ -182,6 +194,17 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
   const turnstileRef = useRef<HTMLDivElement | null>(null);
   const turnstileWidgetIdRef = useRef<string | null>(null);
   const tokenResolverRef = useRef<((token: string | null) => void) | null>(null);
+
+  // Expanded responses state (per-query)
+  const [expandedQueries, setExpandedQueries] = useState<Set<number>>(new Set());
+  const toggleQuery = (idx: number) => {
+    setExpandedQueries((prev) => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx);
+      else next.add(idx);
+      return next;
+    });
+  };
 
   // Email optin state
   const [optinEmail, setOptinEmail] = useState('');
@@ -518,6 +541,15 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
                                 );
                               })}
                             </div>
+
+                            {/* Expandable AI responses (filtered to non-empty excerpts) */}
+                            <ResponsesToggle
+                              providers={q.providers}
+                              brand={result.brand}
+                              isOpen={expandedQueries.has(idx)}
+                              onToggle={() => toggleQuery(idx)}
+                              labels={{ show: c.showResponses, hide: c.hideResponses, none: c.noCitedResponses, aiAnswer: c.aiAnswer, truncated: c.truncated }}
+                            />
                           </div>
                         ))}
                       </div>
@@ -881,6 +913,86 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
         )}
       </div>
     </section>
+  );
+}
+
+interface ResponsesToggleProps {
+  providers: Array<{ provider: string; label: string; cited: boolean; brandMentioned: boolean; excerpt?: string }>;
+  brand: string;
+  isOpen: boolean;
+  onToggle: () => void;
+  labels: { show: string; hide: string; none: string; aiAnswer: string; truncated: string };
+}
+
+function ResponsesToggle({ providers, brand, isOpen, onToggle, labels }: ResponsesToggleProps) {
+  // Only show providers that have a meaningful excerpt (skip errors marked with "HATA:")
+  const withResponse = providers.filter((p) => p.excerpt && !p.excerpt.startsWith('HATA:'));
+  if (withResponse.length === 0) return null;
+
+  const cited = withResponse.filter((p) => p.cited || p.brandMentioned);
+  const others = withResponse.filter((p) => !p.cited && !p.brandMentioned);
+
+  return (
+    <div className="mt-4">
+      <button
+        onClick={onToggle}
+        className="text-xs font-semibold text-orange-600 hover:text-orange-700 inline-flex items-center gap-1.5 transition-colors"
+        type="button"
+      >
+        {isOpen ? labels.hide : labels.show}
+        <span className={`inline-block transition-transform ${isOpen ? 'rotate-180' : ''}`}>▾</span>
+      </button>
+
+      {isOpen && (
+        <div className="mt-3 space-y-2">
+          {cited.length === 0 ? (
+            <p className="text-xs text-muted-foreground italic px-3 py-2">{labels.none}</p>
+          ) : null}
+
+          {/* Show cited first, then others */}
+          {[...cited, ...others].map((p) => {
+            const short = PROVIDER_SHORT[p.provider] || p.label;
+            const logo = PROVIDER_LOGOS[p.provider];
+            const ok = p.cited || p.brandMentioned;
+            return (
+              <div
+                key={p.provider}
+                className={`rounded-lg border p-3 text-xs ${ok ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-muted/30 border-border'}`}
+              >
+                <div className="flex items-center gap-2 mb-1.5">
+                  {logo && <VendorLogo name={logo} size={16} />}
+                  <span className="font-bold text-sm">{short}</span>
+                  {ok && (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-600 bg-emerald-500/10 px-2 py-0.5 rounded-full">
+                      <Check className="h-3 w-3" strokeWidth={3} />
+                      {p.cited ? 'URL cite' : 'brand mention'}
+                    </span>
+                  )}
+                </div>
+                <p className="text-muted-foreground leading-relaxed">
+                  {highlightBrand(p.excerpt || '', brand)}
+                  {(p.excerpt || '').length >= 210 && <span className="text-muted-foreground/60">{labels.truncated}</span>}
+                </p>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** Brand adı geçen yerleri turuncu vurgula */
+function highlightBrand(text: string, brand: string): React.ReactNode {
+  if (!brand || brand.length < 3) return text;
+  const escaped = brand.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const splitRe = new RegExp(`(${escaped})`, 'gi');
+  const brandLower = brand.toLowerCase();
+  const parts = text.split(splitRe);
+  return parts.map((part, i) =>
+    part.toLowerCase() === brandLower
+      ? <mark key={i} className="bg-orange-500/20 text-orange-700 dark:text-orange-300 font-semibold rounded px-0.5">{part}</mark>
+      : <span key={i}>{part}</span>
   );
 }
 
