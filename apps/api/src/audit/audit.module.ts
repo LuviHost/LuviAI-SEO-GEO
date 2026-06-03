@@ -36,6 +36,7 @@ import { StaticHtmlFixerService } from './static-html-fixer.service.js';
 import { StuckPageDetectorService } from './stuck-page-detector.service.js';
 import { StuckPageRecoveryService } from './stuck-page-recovery.service.js';
 import { StuckPageExternalRecoveryService } from './stuck-page-external-recovery.service.js';
+import { StuckPagePerformanceCheckService } from './stuck-page-performance-check.service.js';
 import { PublicCitationService } from './public-citation.service.js';
 import { PublicCitationController } from './public-citation.controller.js';
 import { PublicCitationSubscriberService } from './public-citation-subscriber.service.js';
@@ -81,6 +82,7 @@ import { AuthModule } from '../auth/auth.module.js';
     StuckPageDetectorService,
     StuckPageRecoveryService,
     StuckPageExternalRecoveryService,
+    StuckPagePerformanceCheckService,
     PublicCitationService,
     PublicCitationSubscriberService,
     PublicCitationRetestCron,
@@ -115,6 +117,7 @@ import { AuthModule } from '../auth/auth.module.js';
     StaticHtmlFixerService,
     StuckPageDetectorService,
     StuckPageRecoveryService,
+    StuckPagePerformanceCheckService,
   ],
 })
 export class AuditModule {}
