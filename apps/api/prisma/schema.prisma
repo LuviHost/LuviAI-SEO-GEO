@@ -76,7 +76,6 @@ model User {
   // Brightbean parity back-relations
   notifications    Notification[]
   socialMediaAssets SocialMediaAsset[]
-  socialIdeas      SocialIdea[]
   // Video credit add-on (2026-05 Premium Pricing)
   videoCreditPurchases VideoCreditPurchase[]
 
