@@ -9,8 +9,8 @@ type SignInPageProps = {
 };
 
 export const metadata = {
-  title: 'Giriş yap veya hesap oluştur — LuviAI panele eriş',
-  description: 'LuviAI hesabınla giriş yap veya yeni hesap aç. İlk makale ücretsiz, kredi kartı gerekmez. PayTR güvenli ödeme, aylık iptal hakkı.',
+  title: 'Giriş yap veya hesap oluştur — RanksUp panele eriş',
+  description: 'RanksUp hesabınla giriş yap veya yeni hesap aç. İlk makale ücretsiz, kredi kartı gerekmez. PayTR güvenli ödeme, aylık iptal hakkı.',
 };
 
 export default async function SignInPage({ searchParams }: SignInPageProps) {
@@ -35,7 +35,7 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
             <span className="bg-gradient-to-br from-orange-500 to-orange-700 text-white rounded-xl w-10 h-10 grid place-items-center text-xl">
               ✨
             </span>
-            LuviAI
+            RanksUp
           </Link>
           <p className="text-muted-foreground mt-3 text-sm">
             Türkiye&apos;nin AI destekli SEO/GEO içerik platformu

@@ -144,7 +144,7 @@ export default function SettingsPage() {
           <Input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Örn: LuviAI"
+            placeholder="Örn: RanksUp"
           />
         </div>
 

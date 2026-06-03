@@ -48,7 +48,7 @@ function renderArticleHtml(opts: {
 
   // AI Crawler tracker
   const trackerScript = opts.trackerSiteId
-    ? `<script async src="${process.env.NEXT_PUBLIC_API_URL ?? 'https://ai.luvihost.com'}/api/tracker.js?site=${esc(opts.trackerSiteId)}"></script>`
+    ? `<script async src="${process.env.NEXT_PUBLIC_API_URL ?? 'https://ranksup.ai'}/api/tracker.js?site=${esc(opts.trackerSiteId)}"></script>`
     : '';
   return `<!DOCTYPE html>
 <html lang="tr">

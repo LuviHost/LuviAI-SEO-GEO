@@ -1,6 +1,6 @@
 import type { MetadataRoute } from 'next';
 
-const SITE_URL = 'https://ai.luvihost.com';
+const SITE_URL = 'https://ranksup.ai';
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const now = new Date();

@@ -9,7 +9,7 @@ const USE_CASES = {
     eyebrow: '🎯 Kullanım Senaryoları',
     titleA: 'Senin sektörüne',
     titleB: 'özel akış',
-    subtitle: 'Sitenizin tipine göre LuviAI nasıl yardım eder?',
+    subtitle: 'Sitenizin tipine göre RanksUp nasıl yardım eder?',
     items: [
       {
         icon: '🛒',
@@ -83,7 +83,7 @@ const USE_CASES = {
     eyebrow: '🎯 Use Cases',
     titleA: 'A flow tailored to',
     titleB: 'your industry',
-    subtitle: 'See how LuviAI helps depending on your site type.',
+    subtitle: 'See how RanksUp helps depending on your site type.',
     items: [
       {
         icon: '🛒',

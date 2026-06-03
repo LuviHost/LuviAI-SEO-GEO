@@ -1,7 +1,7 @@
 import { Wand2 } from 'lucide-react';
 import { HelpArticle, Step, Tip } from '@/components/help-article';
 
-export const metadata = { title: 'AI Studio — LuviAI Help' };
+export const metadata = { title: 'AI Studio — RanksUp Help' };
 
 export default function Page() {
   return (
@@ -9,7 +9,7 @@ export default function Page() {
       icon={Wand2}
       badge="AI Studio"
       title="Görsel, video, metin — hepsi tek panel"
-      intro="Sosyal medyaya postlanacak görseller (DALL-E 3, GPT Image), kısa videolar (Sora 2, Veo 3, Runway), uzun metinler (GPT-4o, Claude Sonnet) — hepsi LuviAI Studio'da."
+      intro="Sosyal medyaya postlanacak görseller (DALL-E 3, GPT Image), kısa videolar (Sora 2, Veo 3, Runway), uzun metinler (GPT-4o, Claude Sonnet) — hepsi RanksUp Studio'da."
       steps={[
         { name: 'Site dashboard → Studio', text: 'Sol menü → Sosyal Medya Studio. Üst tab\'larda Görsel / Video / Metin / Sosyal Yayın.' },
         { name: 'Provider seç', text: 'Solda provider listesi (DALL-E 3, Sora 2, Veo 3, GPT-4o vs) fiyat + kalite ile. Birini seç.' },

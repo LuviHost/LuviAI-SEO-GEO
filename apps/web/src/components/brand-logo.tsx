@@ -1,7 +1,7 @@
 import { Sparkles } from 'lucide-react';
 
 /**
- * LuviAI marka logosu — turuncu gradient kutu + Sparkles ikonu.
+ * RanksUp marka logosu — turuncu gradient kutu + Sparkles ikonu.
  * Tüm yerlerde tutarlı görünüm için.
  *
  * Kullanım:
@@ -14,7 +14,7 @@ export function BrandLogo({ size = 32, className = '' }: { size?: number; classN
     <span
       className={`bg-gradient-to-br from-orange-500 to-orange-700 text-white rounded-lg grid place-items-center shadow-lg shadow-orange-500/20 ${className}`}
       style={{ width: size, height: size }}
-      aria-label="LuviAI"
+      aria-label="RanksUp"
     >
       <Sparkles style={{ width: iconSize, height: iconSize }} />
     </span>

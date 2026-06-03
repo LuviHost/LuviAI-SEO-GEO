@@ -191,7 +191,7 @@ export function AsaTab({ siteId, prefillKeyword, onPrefillConsumed }: { siteId: 
                   </Button>
                   <button
                     onClick={async () => {
-                      if (!confirm('Hesabı kaldır? Kampanyalar Apple tarafında silinmez, sadece LuviAI bağlantısı kesilir.')) return;
+                      if (!confirm('Hesabı kaldır? Kampanyalar Apple tarafında silinmez, sadece RanksUp bağlantısı kesilir.')) return;
                       try {
                         await api.disconnectAsa(acc.id);
                         toast.success('Hesap kaldırıldı');
@@ -546,7 +546,7 @@ function ConnectScreen({ onConnect }: { onConnect: () => void }) {
       </div>
 
       <p className="text-[11px] text-muted-foreground mt-4 max-w-md mx-auto">
-        Reklam bütçesi <strong>doğrudan senin Apple kartından</strong> kesilir, LuviAI bütçeyi sadece yönetir.
+        Reklam bütçesi <strong>doğrudan senin Apple kartından</strong> kesilir, RanksUp bütçeyi sadece yönetir.
         Her müşteri kendi key'iyle bağlanır — verileri izole tutulur.
       </p>
     </div>
@@ -694,9 +694,9 @@ function ConnectModal({
             <div className="space-y-4">
               <div className="rounded-lg border bg-muted/30 p-4">
                 <p className="text-sm leading-relaxed">
-                  <strong>Tek tık güvenli anahtar üretimi.</strong> LuviAI tarayıcında ES256 keypair üretir.
+                  <strong>Tek tık güvenli anahtar üretimi.</strong> RanksUp tarayıcında ES256 keypair üretir.
                   <strong className="text-emerald-700 dark:text-emerald-400"> Private key sadece sende kalır</strong>,
-                  Apple ve LuviAI sunucusu hiç görmez (sadece encrypted blob saklanır).
+                  Apple ve RanksUp sunucusu hiç görmez (sadece encrypted blob saklanır).
                 </p>
               </div>
 
@@ -892,7 +892,7 @@ keyId     xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`}</pre>
                     <div className="flex-1">
                       <p className="text-sm font-bold text-red-900 dark:text-red-100">Apple bağlantıyı reddetti: <code className="text-xs">invalid_client</code></p>
                       <p className="text-xs text-red-800 dark:text-red-200 mt-1">
-                        Bu hatanın <strong>tek</strong> sebebi: Apple'da kayıtlı <strong>public key</strong> ile LuviAI'nın imzalamada kullandığı <strong>private key</strong> birbiriyle eşleşmiyor.
+                        Bu hatanın <strong>tek</strong> sebebi: Apple'da kayıtlı <strong>public key</strong> ile RanksUp'nın imzalamada kullandığı <strong>private key</strong> birbiriyle eşleşmiyor.
                       </p>
                     </div>
                   </div>
@@ -948,7 +948,7 @@ keyId     xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`}</pre>
 
               {!errorMode && (
                 <p className="text-xs text-muted-foreground text-center">
-                  <strong>Bağla</strong> tuşuna basınca LuviAI Apple'a JWT auth çağrısı atar.<br />
+                  <strong>Bağla</strong> tuşuna basınca RanksUp Apple'a JWT auth çağrısı atar.<br />
                   Başarılıysa hesap aktif olur ve kampanya oluşturabilirsin.
                 </p>
               )}

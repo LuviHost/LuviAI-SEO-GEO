@@ -1,4 +1,4 @@
-// LuviAI PM2 ecosystem
+// RanksUp PM2 ecosystem
 // Standalone Next.js .env okumadığı için biz manuel yükleyip her process'e geçiriyoruz.
 const fs = require('node:fs');
 const path = require('node:path');

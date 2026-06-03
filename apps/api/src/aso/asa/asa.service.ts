@@ -286,7 +286,7 @@ export class AsaService {
   }
 
   /**
-   * Yeni kampanya oluştur (LuviAI UI'dan). Apple'a POST eder, DB'ye yazar.
+   * Yeni kampanya oluştur (RanksUp UI'dan). Apple'a POST eder, DB'ye yazar.
    * payload.keywords[] varsa otomatik 1 adgroup + keyword bid'leri ekler.
    */
   async createCampaign(args: {

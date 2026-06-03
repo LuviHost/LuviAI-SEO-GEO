@@ -11,7 +11,7 @@ export function HelpArticle({
   /** Step listesi — HowTo schema için (Google rich snippet "Step 1, 2, 3"). Her item: { name, text } */
   steps?: Array<{ name: string; text: string }>;
 }) {
-  const siteUrl = 'https://ai.luvihost.com';
+  const siteUrl = 'https://ranksup.ai';
   const articleUrl = slug ? `${siteUrl}/help/${slug}` : `${siteUrl}/help`;
 
   return (
@@ -25,7 +25,7 @@ export function HelpArticle({
               '@context': 'https://schema.org',
               '@type': 'BreadcrumbList',
               itemListElement: [
-                { '@type': 'ListItem', position: 1, name: 'LuviAI', item: siteUrl },
+                { '@type': 'ListItem', position: 1, name: 'RanksUp', item: siteUrl },
                 { '@type': 'ListItem', position: 2, name: 'Yardım', item: `${siteUrl}/help` },
                 { '@type': 'ListItem', position: 3, name: title, item: articleUrl },
               ],
@@ -44,8 +44,8 @@ export function HelpArticle({
             description: intro,
             url: articleUrl,
             inLanguage: 'tr-TR',
-            author: { '@type': 'Organization', name: 'LuviAI', url: siteUrl },
-            publisher: { '@type': 'Organization', name: 'LuviAI', url: siteUrl, logo: { '@type': 'ImageObject', url: `${siteUrl}/og-image.png` } },
+            author: { '@type': 'Organization', name: 'RanksUp', url: siteUrl },
+            publisher: { '@type': 'Organization', name: 'RanksUp', url: siteUrl, logo: { '@type': 'ImageObject', url: `${siteUrl}/og-image.png` } },
             // Speakable — Google Voice / Assistant için en üstteki paragraf okunabilir
             speakable: {
               '@type': 'SpeakableSpecification',

@@ -1,7 +1,7 @@
 import { MessageSquare } from 'lucide-react';
 import { HelpArticle, Step, Tip } from '@/components/help-article';
 
-export const metadata = { title: 'Sosyal Medya — LuviAI Help' };
+export const metadata = { title: 'Sosyal Medya — RanksUp Help' };
 
 export default function Page() {
   return (

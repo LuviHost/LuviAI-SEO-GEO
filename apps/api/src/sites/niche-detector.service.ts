@@ -54,7 +54,7 @@ export class NicheDetectorService {
       const t = setTimeout(() => controller.abort(), 8000);
       const res = await fetch(url, {
         signal: controller.signal,
-        headers: { 'User-Agent': 'LuviAI-NicheDetector/1.0 (+https://ai.luvihost.com)' },
+        headers: { 'User-Agent': 'RanksUp-NicheDetector/1.0 (+https://ranksup.ai)' },
       });
       clearTimeout(t);
       if (!res.ok) return { ...fallback, reasoning: `HTTP ${res.status}` };

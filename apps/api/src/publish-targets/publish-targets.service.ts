@@ -380,7 +380,7 @@ export class PublishTargetsService {
         adminOnly: true,
         fields: [
           { key: 'baseUrl', label: 'Base URL', type: 'text', placeholder: 'https://www.kobipratik.com', required: true, hint: 'Prod için www.kobipratik.com, dev için dev domain.' },
-          { key: 'apiKey', label: 'LuviAI API Key', type: 'password', required: true, hint: 'kobipratik appsettings → LuviAI.ApiKey değeri (M2M Bearer token).' },
+          { key: 'apiKey', label: 'RanksUp API Key', type: 'password', required: true, hint: 'kobipratik appsettings → RanksUp.ApiKey değeri (M2M Bearer token).' },
         ],
         configFields: [
           { key: 'defaultPathPrefix', label: 'Varsayilan path prefix (opsiyonel)', type: 'text', placeholder: '/pratik-kobi-rehberi', hint: 'Slug bu prefix\'in altina yazilir. Bos birakirsan root\'a yazilir.' },

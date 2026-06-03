@@ -18,7 +18,7 @@ export interface IgUploadResult {
  *   2. GET /{creation_id}?fields=status_code (FINISHED bekle)
  *   3. POST /{ig_id}/media_publish (creation_id) -> media_id
  *
- * Video URL public erisimli olmali (LuviAI public/blog/<slug>/video-vertical.mp4).
+ * Video URL public erisimli olmali (RanksUp public/blog/<slug>/video-vertical.mp4).
  */
 @Injectable()
 export class InstagramPublisherService {
@@ -36,7 +36,7 @@ export class InstagramPublisherService {
     try {
       const articleRaw = await this.prisma.article.findUniqueOrThrow({ where: { id: articleId } });
       const article: any = articleRaw;
-      const text = caption ?? `${article.title}\n\nDetaylar: ${article.metaDescription ?? ''}\n\n#LuviAI #${(article.category ?? 'icerik').replace(/\s+/g, '')}`;
+      const text = caption ?? `${article.title}\n\nDetaylar: ${article.metaDescription ?? ''}\n\n#RanksUp #${(article.category ?? 'icerik').replace(/\s+/g, '')}`;
 
       // 1) Container
       const initUrl = new URL(`https://graph.facebook.com/v21.0/${this.businessId}/media`);

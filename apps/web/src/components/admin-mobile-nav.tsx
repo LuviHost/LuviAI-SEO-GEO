@@ -41,7 +41,7 @@ export function AdminMobileNav() {
                 onClick={() => setOpen(false)}
                 className="text-lg font-bold text-slate-100"
               >
-                LuviAI <span className="text-xs text-amber-400 font-normal ml-1">Admin</span>
+                RanksUp <span className="text-xs text-amber-400 font-normal ml-1">Admin</span>
               </Link>
               <button onClick={() => setOpen(false)} className="text-slate-400 hover:text-white p-1">
                 <X className="h-5 w-5" />

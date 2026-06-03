@@ -10,7 +10,7 @@ import { Public } from '../auth/public.decorator.js';
  * tag'i bu endpoint'e ping atar. User-Agent'a bakip AI bot tracking yapariz.
  *
  * Kullanim:
- *   <script async src="https://ai.luvihost.com/api/tracker.js?site=cmoj14...">
+ *   <script async src="https://ranksup.ai/api/tracker.js?site=cmoj14...">
  *   </script>
  *
  * tracker.js icindeki kod:
@@ -32,7 +32,7 @@ export class TrackerController {
   @Header('Cache-Control', 'public, max-age=3600')
   widgetScript(@Query('site') siteId: string, @Res() res: Response) {
     if (!siteId) {
-      res.send('// LuviAI widget — site param missing');
+      res.send('// RanksUp widget — site param missing');
       return;
     }
     res.send(this.personaChat.buildWidgetJs(siteId));
@@ -46,10 +46,10 @@ export class TrackerController {
   @Header('Cache-Control', 'public, max-age=3600')
   trackerScript(@Query('site') siteId: string, @Res() res: Response) {
     if (!siteId) {
-      res.send('// LuviAI tracker — site param missing');
+      res.send('// RanksUp tracker — site param missing');
       return;
     }
-    const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'https://ai.luvihost.com';
+    const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'https://ranksup.ai';
     const js = `
 (function(){
   var ua = navigator.userAgent || '';

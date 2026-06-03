@@ -172,7 +172,7 @@ export function SiteSidebar({ onClose }: { onClose?: () => void }) {
         <div className="p-6">
           <Link href="/" className="inline-flex items-center gap-2 text-2xl font-bold text-white">
             <BrandLogo size={36} className="rounded-lg" />
-            LuviAI
+            RanksUp
           </Link>
           <div className="text-xs text-slate-500 mt-2 ml-11">v0.7 Faz 2 Beta</div>
         </div>
@@ -210,7 +210,7 @@ export function SiteSidebar({ onClose }: { onClose?: () => void }) {
       <div className="p-4">
         <Link href="/dashboard" className="inline-flex items-center gap-2 text-base font-bold text-white mb-3">
           <BrandLogo size={28} className="rounded-lg" />
-          LuviAI
+          RanksUp
           <span className="text-[9px] uppercase tracking-widest text-slate-500 font-mono ml-1">Site</span>
         </Link>
 

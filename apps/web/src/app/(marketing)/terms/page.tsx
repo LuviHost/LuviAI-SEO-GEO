@@ -12,7 +12,7 @@ const CONTENT = {
     sections: [
       {
         h: '1. Hizmet Tanımı',
-        p: 'LuviAI, kullanıcı sitelerinin SEO + GEO + AEO performansını AI ile otomatikleştiren bir SaaS hizmetidir. Hizmet, Resend.com (email), Anthropic (Claude AI), Google AI (Gemini), PayTR (ödeme) ile entegre çalışır.',
+        p: 'RanksUp, kullanıcı sitelerinin SEO + GEO + AEO performansını AI ile otomatikleştiren bir SaaS hizmetidir. Hizmet, Resend.com (email), Anthropic (Claude AI), Google AI (Gemini), PayTR (ödeme) ile entegre çalışır.',
       },
       {
         h: '2. Üyelik & Trial',
@@ -29,7 +29,7 @@ const CONTENT = {
       },
       {
         h: '5. Sorumluluk Reddi',
-        p: 'AI tarafından üretilen içerik, kullanıcı tarafından gözden geçirilmelidir. LuviAI içerik doğruluğunu garanti etmez. SEO sonuçları (Google sıralaması, trafik artışı) garanti altında değildir.',
+        p: 'AI tarafından üretilen içerik, kullanıcı tarafından gözden geçirilmelidir. RanksUp içerik doğruluğunu garanti etmez. SEO sonuçları (Google sıralaması, trafik artışı) garanti altında değildir.',
       },
       {
         h: '6. Yasak Kullanım',
@@ -42,7 +42,7 @@ const CONTENT = {
       },
       {
         h: '7. Sosyal Medya Entegrasyonları',
-        p: "LuviAI; LinkedIn, X (Twitter), Bluesky, TikTok, YouTube, Facebook, Instagram, Threads ve Pinterest gibi platformlara OAuth 2.0 ile bağlanır. Her bağlantı kullanıcının açık rızasıyla yapılır; kullanıcı her zaman dashboard'dan bağlantıyı koparıp yetkiyi geri alabilir. LuviAI yalnızca kullanıcının onayladığı içerikleri kullanıcı adına yayınlar; otomatik yayın seçeneği bile kullanıcının önceden tanımladığı kurallar çerçevesinde çalışır. Yayınlanan tüm içeriğin sorumluluğu kullanıcıya aittir; ilgili platformların topluluk kurallarına uyum kullanıcının yükümlülüğüdür. Bir platformla yapılan entegrasyon, o platformun geliştirici politikalarına ve kullanım koşullarına tabidir.",
+        p: "RanksUp; LinkedIn, X (Twitter), Bluesky, TikTok, YouTube, Facebook, Instagram, Threads ve Pinterest gibi platformlara OAuth 2.0 ile bağlanır. Her bağlantı kullanıcının açık rızasıyla yapılır; kullanıcı her zaman dashboard'dan bağlantıyı koparıp yetkiyi geri alabilir. RanksUp yalnızca kullanıcının onayladığı içerikleri kullanıcı adına yayınlar; otomatik yayın seçeneği bile kullanıcının önceden tanımladığı kurallar çerçevesinde çalışır. Yayınlanan tüm içeriğin sorumluluğu kullanıcıya aittir; ilgili platformların topluluk kurallarına uyum kullanıcının yükümlülüğüdür. Bir platformla yapılan entegrasyon, o platformun geliştirici politikalarına ve kullanım koşullarına tabidir.",
       },
       {
         h: '8. Hesap Sonlandırma',
@@ -62,7 +62,7 @@ const CONTENT = {
     sections: [
       {
         h: '1. Service Definition',
-        p: 'LuviAI is a SaaS that automates SEO + GEO + AEO performance of user websites with AI. The service integrates with Resend.com (email), Anthropic (Claude AI), Google AI (Gemini), and PayTR (payments).',
+        p: 'RanksUp is a SaaS that automates SEO + GEO + AEO performance of user websites with AI. The service integrates with Resend.com (email), Anthropic (Claude AI), Google AI (Gemini), and PayTR (payments).',
       },
       {
         h: '2. Membership & Trial',
@@ -79,7 +79,7 @@ const CONTENT = {
       },
       {
         h: '5. Disclaimer',
-        p: 'AI-generated content must be reviewed by the user. LuviAI does not guarantee content accuracy. SEO outcomes (Google rankings, traffic growth) are not guaranteed.',
+        p: 'AI-generated content must be reviewed by the user. RanksUp does not guarantee content accuracy. SEO outcomes (Google rankings, traffic growth) are not guaranteed.',
       },
       {
         h: '6. Prohibited Use',
@@ -92,7 +92,7 @@ const CONTENT = {
       },
       {
         h: '7. Social Media Integrations',
-        p: "LuviAI connects to LinkedIn, X (Twitter), Bluesky, TikTok, YouTube, Facebook, Instagram, Threads and Pinterest via OAuth 2.0. Every connection requires the user's explicit consent; users can disconnect and revoke access at any time from the dashboard. LuviAI only publishes content the user approves on their behalf; even auto-publish operates within rules the user pre-defined. The user is responsible for all published content and for compliance with each platform's community guidelines. Each integration is subject to that platform's developer policies and terms of service.",
+        p: "RanksUp connects to LinkedIn, X (Twitter), Bluesky, TikTok, YouTube, Facebook, Instagram, Threads and Pinterest via OAuth 2.0. Every connection requires the user's explicit consent; users can disconnect and revoke access at any time from the dashboard. RanksUp only publishes content the user approves on their behalf; even auto-publish operates within rules the user pre-defined. The user is responsible for all published content and for compliance with each platform's community guidelines. Each integration is subject to that platform's developer policies and terms of service.",
       },
       {
         h: '8. Account Termination',

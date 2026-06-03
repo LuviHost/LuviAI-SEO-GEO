@@ -253,7 +253,7 @@ export class CampaignOrchestratorService {
             event: 'ai_citation_drop' as any,
             title: '⚠ Kampanya Pause Edildi',
             message: `${c.name} (${c.platform}) ROAS ${c.roas.toFixed(2)} olduğu için otomatik pause edildi. ${Number(c.spend).toFixed(0)} TL harcanmıştı.`,
-            url: `https://ai.luvihost.com/sites/${site.id}`,
+            url: `https://ranksup.ai/sites/${site.id}`,
             meta: { roas: c.roas, spend: Number(c.spend) },
           }).catch(() => {});
           actions++;
@@ -277,7 +277,7 @@ export class CampaignOrchestratorService {
             event: 'ai_citation_rise' as any,
             title: '🚀 Kampanya Bütçesi Artırıldı',
             message: `${c.name} mükemmel performans gösteriyor (CTR ${(c.ctr * 100).toFixed(1)}%, ROAS ${c.roas.toFixed(2)}x). Bütçe ${c.budgetAmount} → ${newBudget.toFixed(0)} TL.`,
-            url: `https://ai.luvihost.com/sites/${site.id}`,
+            url: `https://ranksup.ai/sites/${site.id}`,
             meta: { ctr: c.ctr, roas: c.roas, oldBudget: Number(c.budgetAmount), newBudget },
           }).catch(() => {});
           actions++;

@@ -1,17 +1,17 @@
-# LuviAI Architecture
+# RanksUp Architecture
 
 ## High-level
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                        ai.luvihost.com                          │
+│                        ranksup.ai                          │
 │                       (Next.js 15 frontend)                     │
 └────────────────────────────────┬────────────────────────────────┘
                                  │
                                  │ REST + NextAuth session cookie
                                  ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                    api.ai.luvihost.com                          │
+│                    api.ranksup.ai                          │
 │                  (NestJS 10 + Prisma + MySQL)                   │
 └────┬───────────────────────┬───────────────┬───────────────────┘
      │                       │               │
@@ -84,7 +84,7 @@
 ## Deployment topology
 
 **Tek VDS (LuviHost):**
-- nginx reverse proxy (`ai.luvihost.com` + `api.ai.luvihost.com`)
+- nginx reverse proxy (`ranksup.ai` + `api.ranksup.ai`)
 - 4 vCPU + 8GB RAM yeterli (~500 aktif kullanıcı)
 - Docker compose:
   - mysql 8 (port 3306, internal)

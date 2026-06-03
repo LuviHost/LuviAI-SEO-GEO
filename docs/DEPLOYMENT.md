@@ -1,4 +1,4 @@
-# LuviAI Deployment
+# RanksUp Deployment
 
 ## Hedef: LuviHost VDS (kendi sunucunuz)
 
@@ -8,8 +8,8 @@
 - 80GB SSD/NVMe
 - Public IP + 80, 443, 22 portları açık
 - DNS:
-  - `ai.luvihost.com` → A record sunucu IP'sine
-  - `api.ai.luvihost.com` → A record sunucu IP'sine
+  - `ranksup.ai` → A record sunucu IP'sine
+  - `api.ranksup.ai` → A record sunucu IP'sine
 
 ### Sunucu hazırlık
 
@@ -73,10 +73,10 @@ pm2 startup  # boot'ta otomatik başlatma
 ### nginx config
 
 ```nginx
-# /etc/nginx/sites-available/ai.luvihost.com
+# /etc/nginx/sites-available/ranksup.ai
 server {
   listen 80;
-  server_name ai.luvihost.com;
+  server_name ranksup.ai;
 
   location / {
     proxy_pass http://localhost:3000;
@@ -90,10 +90,10 @@ server {
   }
 }
 
-# /etc/nginx/sites-available/api.ai.luvihost.com
+# /etc/nginx/sites-available/api.ranksup.ai
 server {
   listen 80;
-  server_name api.ai.luvihost.com;
+  server_name api.ranksup.ai;
 
   location / {
     proxy_pass http://localhost:3001;
@@ -108,24 +108,24 @@ server {
 ```
 
 ```bash
-sudo ln -s /etc/nginx/sites-available/ai.luvihost.com /etc/nginx/sites-enabled/
-sudo ln -s /etc/nginx/sites-available/api.ai.luvihost.com /etc/nginx/sites-enabled/
+sudo ln -s /etc/nginx/sites-available/ranksup.ai /etc/nginx/sites-enabled/
+sudo ln -s /etc/nginx/sites-available/api.ranksup.ai /etc/nginx/sites-enabled/
 sudo nginx -t && sudo systemctl reload nginx
 
 # SSL
-sudo certbot --nginx -d ai.luvihost.com -d api.ai.luvihost.com
+sudo certbot --nginx -d ranksup.ai -d api.ranksup.ai
 ```
 
 ### Cloudflare
 
 1. Cloudflare DNS — A records:
-   - `ai.luvihost.com` → sunucu IP (proxy ON, turuncu bulut)
-   - `api.ai.luvihost.com` → sunucu IP (proxy ON)
+   - `ranksup.ai` → sunucu IP (proxy ON, turuncu bulut)
+   - `api.ranksup.ai` → sunucu IP (proxy ON)
 2. SSL/TLS mode: **Full (Strict)**
 3. WAF rules:
    - Rate limit: 100 req/min per IP
    - Bot Fight Mode: ON
-4. Page Rules: `api.ai.luvihost.com/*` → cache bypass
+4. Page Rules: `api.ranksup.ai/*` → cache bypass
 
 ### Backup cron
 
@@ -152,7 +152,7 @@ pm2 monit
 
 # Disk + RAM uyarısı
 crontab -e
-# 0 */6 * * * df -h | mail -s "LuviAI disk usage" emirhanburgazli@gmail.com
+# 0 */6 * * * df -h | mail -s "RanksUp disk usage" emirhanburgazli@gmail.com
 ```
 
 ### Rollback prosedürü

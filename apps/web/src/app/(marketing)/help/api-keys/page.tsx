@@ -1,7 +1,7 @@
 import { Plug } from 'lucide-react';
 import { HelpArticle, Step, Tip } from '@/components/help-article';
 
-export const metadata = { title: 'API Keys (BYOK) — LuviAI Help' };
+export const metadata = { title: 'API Keys (BYOK) — RanksUp Help' };
 
 export default function Page() {
   return (
@@ -9,7 +9,7 @@ export default function Page() {
       icon={Plug}
       badge="BYOK"
       title="Kendi API key'inle çalış"
-      intro="BYOK (Bring Your Own Key) — kendi OpenAI / Anthropic / Google AI key'ini bağlarsan, o provider'ın çağrıları LuviAI kotasından düşmez. Sınırsız kullanım."
+      intro="BYOK (Bring Your Own Key) — kendi OpenAI / Anthropic / Google AI key'ini bağlarsan, o provider'ın çağrıları RanksUp kotasından düşmez. Sınırsız kullanım."
     >
       <h2>Hangi provider'lar?</h2>
       <ul>
@@ -34,7 +34,7 @@ export default function Page() {
         Yapıştırdığında otomatik test edilir (ufak ping çağrısı). Başarılıysa yeşil "Doğrulandı" rozeti.
       </Step>
       <Step n={4} title="O provider artık kotasız">
-        Sonraki çağrılar otomatik senin key'ini kullanır. LuviAI kotandan düşmez.
+        Sonraki çağrılar otomatik senin key'ini kullanır. RanksUp kotandan düşmez.
       </Step>
 
       <h2>Güvenlik</h2>
@@ -64,7 +64,7 @@ export default function Page() {
       <p>İlgili dashboard'larından API key sekmesi.</p>
 
       <Tip kind="success">
-        BYOK avantajı: ay sonu sürpriz fatura yok. Sen sadece kullandığın kadar provider'a ödersin, LuviAI sabit aylık ücretini alır.
+        BYOK avantajı: ay sonu sürpriz fatura yok. Sen sadece kullandığın kadar provider'a ödersin, RanksUp sabit aylık ücretini alır.
       </Tip>
     </HelpArticle>
   );

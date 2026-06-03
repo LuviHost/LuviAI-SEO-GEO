@@ -72,7 +72,7 @@ export class WebhookNotifierService {
       siteId,
       siteName: site?.name ?? 'Site',
       event: 'autopilot_summary',
-      title: '✅ LuviAI Webhook Test',
+      title: '✅ RanksUp Webhook Test',
       message: 'Webhook bağlantısı çalışıyor. AI olayları buraya gelecek.',
     });
   }

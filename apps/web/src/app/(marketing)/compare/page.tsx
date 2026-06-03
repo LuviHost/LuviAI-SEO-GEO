@@ -229,10 +229,10 @@ const FEATURE_GROUPS_EN: FeatureGroup[] = [
 const COPY = {
   tr: {
     eyebrow: '⚖️ Detaylı karşılaştırma',
-    titleA: 'LuviAI vs',
+    titleA: 'RanksUp vs',
     titleB: 'tüm rakipleri',
     leadA: '+ özellik',
-    lead: ' tek panelde. SEO + AI Search + Reklam + Sosyal yayın — diğerleri tek bir alanda iyi, LuviAI hepsini birleştiren tek Türk platform.',
+    lead: ' tek panelde. SEO + AI Search + Reklam + Sosyal yayın — diğerleri tek bir alanda iyi, RanksUp hepsini birleştiren tek Türk platform.',
     badge1: '✓ Türkçe destek',
     badge2: '✓ KVKK + TR veri',
     badge3: '✓ PayTR ödeme',
@@ -246,7 +246,7 @@ const COPY = {
     hc3Title: 'Tek panelde',
     hc3Desc: 'Google Ads + Meta Ads + ROAS auto-optimize. SEO platformlarının hiçbirinde yok.',
     tableHeaderFeature: 'Özellik',
-    sumLeftTitle: 'LuviAI\'nin tek başına kapsadığı 4 dikey',
+    sumLeftTitle: 'RanksUp\'nin tek başına kapsadığı 4 dikey',
     sumLeftItems: [
       'SEO içerik üretimi (Surfer/Jasper\'a alternatif)',
       'AI Search Optimization (Türkiye\'de ilk)',
@@ -255,12 +255,12 @@ const COPY = {
     ],
     sumLeftNote: 'Aynı işi rakip kombinasyonuyla almak: Surfer ($89) + Jasper ($49) + Ahrefs ($129) + Hootsuite ($99) = ',
     sumLeftNotePrice: '$366/ay (≈ ₺14.640)',
-    sumLeftNote2: '. LuviAI Başlangıç: ',
+    sumLeftNote2: '. RanksUp Başlangıç: ',
     sumLeftLuviStart: '₺1.499/ay ($37)',
     sumLeftNote3: ', Profesyonel: ',
     sumLeftLuviPro: '₺4.999/ay ($125)',
     sumLeftNoteEnd: '.',
-    sumRightTitle: 'LuviAI\'ye geçişte kazandıkların',
+    sumRightTitle: 'RanksUp\'ye geçişte kazandıkların',
     sumRightItems: [
       'Tek subscription, tek dashboard',
       'Türkçe destek + KVKK + TL fatura',
@@ -275,10 +275,10 @@ const COPY = {
   },
   en: {
     eyebrow: '⚖️ Detailed comparison',
-    titleA: 'LuviAI vs',
+    titleA: 'RanksUp vs',
     titleB: 'every competitor',
     leadA: '+ features',
-    lead: ' in one dashboard. SEO + AI Search + Ads + Social publishing — others excel in one area, LuviAI is the only Turkey-built platform combining all.',
+    lead: ' in one dashboard. SEO + AI Search + Ads + Social publishing — others excel in one area, RanksUp is the only Turkey-built platform combining all.',
     badge1: '✓ Turkish support',
     badge2: '✓ KVKK + TR data',
     badge3: '✓ PayTR payment',
@@ -292,7 +292,7 @@ const COPY = {
     hc3Title: 'In one panel',
     hc3Desc: 'Google Ads + Meta Ads + ROAS auto-optimize. Not in any SEO platform.',
     tableHeaderFeature: 'Feature',
-    sumLeftTitle: '4 verticals only LuviAI covers alone',
+    sumLeftTitle: '4 verticals only RanksUp covers alone',
     sumLeftItems: [
       'SEO content generation (Surfer/Jasper alternative)',
       'AI Search Optimization (first in Turkey)',
@@ -301,12 +301,12 @@ const COPY = {
     ],
     sumLeftNote: 'Same job via competitors: Surfer ($89) + Jasper ($49) + Ahrefs ($129) + Hootsuite ($99) = ',
     sumLeftNotePrice: '$366/mo (≈ ₺14,640)',
-    sumLeftNote2: '. LuviAI Starter: ',
+    sumLeftNote2: '. RanksUp Starter: ',
     sumLeftLuviStart: '₺1,499/mo ($37)',
     sumLeftNote3: ', Professional: ',
     sumLeftLuviPro: '₺4,999/mo ($125)',
     sumLeftNoteEnd: '.',
-    sumRightTitle: 'What you gain by switching to LuviAI',
+    sumRightTitle: 'What you gain by switching to RanksUp',
     sumRightItems: [
       'One subscription, one dashboard',
       'Turkish support + KVKK + TRY invoice',
@@ -353,7 +353,7 @@ export default function ComparePage() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify({
           '@context': 'https://schema.org',
           '@type': 'WebPage',
-          name: 'LuviAI vs Surfer vs Jasper vs Ahrefs vs Frase Comparison',
+          name: 'RanksUp vs Surfer vs Jasper vs Ahrefs vs Frase Comparison',
           description: 'Detailed feature comparison of AI SEO platforms — AI content, GEO/AEO, audit, publishing, ads.',
           mainEntity: {
             '@type': 'ItemList',
@@ -398,7 +398,7 @@ export default function ComparePage() {
           </div>
         </div>
 
-        {/* HIGHLIGHT CARDS - Why LuviAI */}
+        {/* HIGHLIGHT CARDS - Why RanksUp */}
         <div className="grid sm:grid-cols-3 gap-4 mb-12">
           <Card className="border-brand/20 bg-brand/5">
             <CardContent className="p-5">
@@ -441,7 +441,7 @@ export default function ComparePage() {
                   <thead className="bg-muted/30 text-xs">
                     <tr>
                       <th className="text-left px-4 py-2.5 font-semibold w-[40%]">{c.tableHeaderFeature}</th>
-                      <th className="px-2 py-2.5 text-center bg-brand/5 font-bold text-brand min-w-[80px]">LuviAI</th>
+                      <th className="px-2 py-2.5 text-center bg-brand/5 font-bold text-brand min-w-[80px]">RanksUp</th>
                       <th className="px-2 py-2.5 text-center font-medium min-w-[80px]">Surfer</th>
                       <th className="px-2 py-2.5 text-center font-medium min-w-[80px]">Jasper</th>
                       <th className="px-2 py-2.5 text-center font-medium min-w-[80px]">Ahrefs</th>

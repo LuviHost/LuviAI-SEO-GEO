@@ -92,7 +92,7 @@ export class StuckPageDetectorService {
       return { found: 0, created: 0, updated: 0, skipped: 0 };
     }
 
-    // Mevcut LuviAI makaleleriyle eslestir
+    // Mevcut RanksUp makaleleriyle eslestir
     const articles = await this.prisma.article.findMany({
       where: { siteId, status: 'PUBLISHED' as any },
       select: { id: true, title: true, publishedTo: true, slug: true },
@@ -168,7 +168,7 @@ export class StuckPageDetectorService {
     return { found: stuckResults.length, created, updated, skipped };
   }
 
-  /** URL'i LuviAI'da var olan bir article ile eslestir. */
+  /** URL'i RanksUp'da var olan bir article ile eslestir. */
   private matchArticle(
     url: string,
     articles: Array<{ id: string; slug: string; title: string; publishedTo: any }>,

@@ -235,7 +235,7 @@ ${article.schemaMarkup ? `<script type="application/ld+json">${JSON.stringify(ar
 <article class="luvi-article">
 ${meta ? `<div class="luvi-meta">${meta}</div>` : ''}
 ${body}
-<div class="luvi-footer">LuviAI tarafından üretildi · <a href="https://ai.luvihost.com">ai.luvihost.com</a></div>
+<div class="luvi-footer">RanksUp tarafından üretildi · <a href="https://ranksup.ai">ranksup.ai</a></div>
 </article>
 </body>
 </html>`;

@@ -161,7 +161,7 @@ export class AdsAuditService {
       const result = await this.agentRunner.run({
         agentName: '04-editor',
         agentSystemSuffix: 'Sen bir reklam hesabı denetçisisin. SADECE geçerli JSON döndür, açıklama yazma.',
-        brainContext: { brand: 'LuviAI Ads Audit', voice: 'analitik', goals: [], stoplist: [] } as any,
+        brainContext: { brand: 'RanksUp Ads Audit', voice: 'analitik', goals: [], stoplist: [] } as any,
         input: prompt,
         maxTokens: 400,
         preferredModel: 'haiku',

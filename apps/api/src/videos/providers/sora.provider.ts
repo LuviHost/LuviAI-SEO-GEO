@@ -105,7 +105,7 @@ export class SoraVideoProvider implements VideoProvider {
         await fs.mkdir(publicDir, { recursive: true }).catch(() => {});
         await fs.writeFile(path.join(publicDir, filename), buf);
 
-        const webBase = process.env.WEB_BASE_URL ?? 'https://ai.luvihost.com';
+        const webBase = process.env.WEB_BASE_URL ?? 'https://ranksup.ai';
         const videoUrl = `${webBase}/videos/${filename}`;
 
         return {

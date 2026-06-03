@@ -11,9 +11,9 @@ repo'sundan adapte edilmiştir.
 - **Lisans:** MIT
 - **Adapte tarihi:** 2026-05-01
 
-## LuviAI'da Nasıl Kullanılıyor
+## RanksUp'da Nasıl Kullanılıyor
 
-| Skill | LuviAI Servisi | Amaç |
+| Skill | RanksUp Servisi | Amaç |
 |---|---|---|
 | `voice-builder.md` | `BrainGeneratorService` | Brand voice + persona + hot take + off-limits üretimi |
 | `post-writer.md` | `SocialAutoDraftService` | Sosyal post taslağı (LinkedIn/X) yazımı |
@@ -22,9 +22,9 @@ repo'sundan adapte edilmiştir.
 ## Dikkat
 
 Charlie'nin orijinal skill'leri **Claude Code agent'ları için** tasarlandı
-(interaktif, AskUserQuestion ile). LuviAI'da bunlar **headless prompt
+(interaktif, AskUserQuestion ile). RanksUp'da bunlar **headless prompt
 template'leri** olarak adapte edildi (kullanıcı interaksiyonu yok, otomatik
-JSON çıkışı). Pattern aynı, çıktı formatı LuviAI servislerine göre.
+JSON çıkışı). Pattern aynı, çıktı formatı RanksUp servislerine göre.
 
 ## Orijinal LICENSE (özet)
 

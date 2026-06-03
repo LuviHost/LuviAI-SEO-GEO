@@ -1,7 +1,7 @@
 import type { Config } from 'tailwindcss';
 
 /**
- * LuviAI Tailwind — Apple-grade design tokens.
+ * RanksUp Tailwind — Apple-grade design tokens.
  *
  * Degisiklikler:
  *  - fontFamily: display (Instrument Serif), sans (Geist), mono (Geist Mono)

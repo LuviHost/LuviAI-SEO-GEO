@@ -42,7 +42,7 @@ export class CustomPhpAdapter extends PublishAdapter {
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      'User-Agent': 'LuviAI-Publisher/1.0',
+      'User-Agent': 'RanksUp-Publisher/1.0',
     };
 
     if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;

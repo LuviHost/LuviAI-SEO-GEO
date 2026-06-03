@@ -36,7 +36,7 @@ ${urls}
     const block = opts.blockPaths ?? ['/admin/', '/wp-admin/', '/api/', '/cgi-bin/', '/.git/'];
 
     const baseUrl = siteUrl.replace(/\/$/, '');
-    let txt = `# LuviAI tarafından üretildi — ${new Date().toISOString().slice(0, 10)}\n`;
+    let txt = `# RanksUp tarafından üretildi — ${new Date().toISOString().slice(0, 10)}\n`;
     txt += `# GEO v2: AI search engines (ChatGPT, Claude, Gemini, Perplexity) icin optimize\n\n`;
 
     txt += `# Genel kurallar\nUser-agent: *\n`;

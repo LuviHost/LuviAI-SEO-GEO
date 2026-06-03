@@ -91,14 +91,14 @@ const dictionary = {
     'ads.b2': 'AI ile reklam görseli (Gemini) + metin draft\'ı',
     'ads.b3': 'Multi-platform tek panel (Google + Meta + GA4 conversion)',
     'ads.b4': 'A/B test sürekli — kazanan creative\'i otomatik scale',
-    'ads.impact': '<strong class="text-orange-500">Etki:</strong> Ortalama bir KOBİ Google + Meta\'ya ayda 5-15k ₺ harcıyor. Kötü yönetilirse %30-50\'si israf olur. <strong>LuviAI bunu otomatik kapatır → ayda 1.5-7.5k ₺ tasarruf.</strong>',
+    'ads.impact': '<strong class="text-orange-500">Etki:</strong> Ortalama bir KOBİ Google + Meta\'ya ayda 5-15k ₺ harcıyor. Kötü yönetilirse %30-50\'si israf olur. <strong>RanksUp bunu otomatik kapatır → ayda 1.5-7.5k ₺ tasarruf.</strong>',
 
     // Comparison table
-    'compare.title': 'LuviAI vs klasik kadro',
+    'compare.title': 'RanksUp vs klasik kadro',
     'compare.subtitle': 'Tek bir panel, 6 farklı uzmanın yaptığı işi yapıyor.',
     'compare.col_need': 'İhtiyaç',
     'compare.col_classic': 'Klasik',
-    'compare.col_luviai': 'LuviAI',
+    'compare.col_luviai': 'RanksUp',
     'compare.row_seo': 'SEO uzmanı',
     'compare.row_writer': 'Makale yazarı',
     'compare.row_social': 'Sosyal medya yöneticisi',
@@ -108,7 +108,7 @@ const dictionary = {
     'compare.row_ai': 'AI Search optimizasyonu',
     'compare.row_total': 'TOPLAM',
     'compare.classic_total': '78-140k ₺/ay',
-    'compare.luviai_total_label': 'LuviAI ile',
+    'compare.luviai_total_label': 'RanksUp ile',
     'compare.luviai_total_subtext': 'aylık başlangıç (Pro plan)',
 
     // Final CTA
@@ -131,7 +131,7 @@ const dictionary = {
     'footer.contact.support': 'Destek',
     'footer.contact.status': 'Sistem durumu',
     'footer.tagline': 'Türkiye merkezli AI içerik + sosyal + reklam otopilotu.',
-    'footer.copyright': '© 2026 LuviAI. Tüm hakları saklıdır.',
+    'footer.copyright': '© 2026 RanksUp. Tüm hakları saklıdır.',
 
     // Pricing
     'pricing.title': 'Plan Seçenekleri',
@@ -175,7 +175,7 @@ const dictionary = {
     'land.hero.title_pre': 'Senin yerine pazarlama yapan',
     'land.hero.title_brand': 'AI',
     'land.hero.title_dot': '.',
-    'land.hero.subtitle': 'Site, mobil app, sosyal medya — hepsi tek panelden. LuviAI siteni tarar, eksikleri bulur, içeriği üretir, App Store reklamını optimize eder.',
+    'land.hero.subtitle': 'Site, mobil app, sosyal medya — hepsi tek panelden. RanksUp siteni tarar, eksikleri bulur, içeriği üretir, App Store reklamını optimize eder.',
     'land.hero.cta_primary': 'Ücretsiz başla — kart gerekmez',
     'land.hero.cta_secondary': 'Nasıl çalışır (2dk)',
     'land.hero.tag_no_card': 'Kart istenmez',
@@ -202,7 +202,7 @@ const dictionary = {
     'land.pain.c3_cost': '₺8.000/ay',
     'land.pain.c3_title': 'İçerik + Sosyal medya freelance',
     'land.pain.c3_body': 'Çevirmeyi ben yazsam daha iyi diyorsun. Her zaman 2 hafta gecikme.',
-    'land.pain.total': 'Aylık toplam: ₺48.000+ · LuviAI: ₺1.499\'dan başlar',
+    'land.pain.total': 'Aylık toplam: ₺48.000+ · RanksUp: ₺1.499\'dan başlar',
 
     // ─── Landing — Pricing section ──────────────────────────────
     'land.pricing.eyebrow': 'Şeffaf fiyat',
@@ -232,9 +232,9 @@ const dictionary = {
     'land.faq.q3': 'AI sektörümü gerçekten anlayabilir mi?',
     'land.faq.a3': 'Evet. Onboarding sırasında siteni tarayıp sektörünü %95+ doğrulukla belirler. Yanlış tahmin ederse manuel düzeltebilirsin, sonraki içerikler ona göre üretilir.',
     'land.faq.q4': 'Apple Search Ads için Apple Developer hesabım gerekli mi?',
-    'land.faq.a4': 'Evet, ASA için Apple\'ın istediği credentials sende olmalı (Org ID + Key ID + Public Key). LuviAI senin yerine wizard ile kurar — terminal/openssl gerekmez. 3 adım.',
+    'land.faq.a4': 'Evet, ASA için Apple\'ın istediği credentials sende olmalı (Org ID + Key ID + Public Key). RanksUp senin yerine wizard ile kurar — terminal/openssl gerekmez. 3 adım.',
     'land.faq.q5': 'Üretilen içerikler benim mi?',
-    'land.faq.a5': 'Evet, %100 senin. LuviAI ürettiği makale, görsel, video, metin için telif iddia etmez. Sınırsız kullanabilirsin (planındaki kota dahilinde).',
+    'land.faq.a5': 'Evet, %100 senin. RanksUp ürettiği makale, görsel, video, metin için telif iddia etmez. Sınırsız kullanabilirsin (planındaki kota dahilinde).',
     'land.faq.q6': 'İstediğim zaman iptal edebilir miyim?',
     'land.faq.a6': 'Evet. Tek tıkla iptal, ay sonuna kadar kullanmaya devam edersin. İade politikası: ilk 7 gün içinde koşulsuz para iadesi.',
 
@@ -282,7 +282,7 @@ const dictionary = {
     'land.how.title': '5 dakikada yayında.',
     'land.how.subtitle': "Teknik bilgi gerekmez. Onboarding sırasında AI senin sektörünü tahmin eder, ilk içerikleri üretir.",
     'land.how.s1.title': 'Siteni bağla',
-    'land.how.s1.body': "URL'i yapıştır. LuviAI siteyi tarar, sektörünü belirler, ilk 50 keyword'ü çıkarır.",
+    'land.how.s1.body': "URL'i yapıştır. RanksUp siteyi tarar, sektörünü belirler, ilk 50 keyword'ü çıkarır.",
     'land.how.s2.title': 'AI analiz',
     'land.how.s2.body': "Rakiplerin metadata'sı, sıralamalar, eksik keyword'ler, AI Citation skorun — hepsi 2 dakikada.",
     'land.how.s3.title': 'Yayında',
@@ -290,7 +290,7 @@ const dictionary = {
 
     // ─── Landing — Results (3 KPI) ──────────────────────────────
     'land.res.eyebrow': 'Sonuçlar',
-    'land.res.title': 'Sayılarla LuviAI etkisi.',
+    'land.res.title': 'Sayılarla RanksUp etkisi.',
     'land.res.r1.title': 'ortalama organic trafik artışı',
     'land.res.r1.sub': 'ilk 30 günde',
     'land.res.r2.title': 'App Store Ads CPI düşüşü',
@@ -300,7 +300,7 @@ const dictionary = {
 
     // ─── Landing — Compare (table) ──────────────────────────────
     'land.cmp.eyebrow': 'Karşılaştırma',
-    'land.cmp.title': '5 SaaS yerine 1 LuviAI.',
+    'land.cmp.title': '5 SaaS yerine 1 RanksUp.',
     'land.cmp.subtitle': "Şu an birden fazla araç için ödüyorsan büyük ihtimalle %80 tasarruf edersin.",
     'land.cmp.col_feature': 'Özellik',
     'land.cmp.row1': 'Web SEO + keyword takibi',
@@ -319,7 +319,7 @@ const dictionary = {
     'land.uc.title': 'Senin iş modelin için biçildi mi?',
     'land.uc.c1.tag': 'KOBİ + HİZMET',
     'land.uc.c1.title': 'Muhasebe / hukuk / danışmanlık',
-    'land.uc.c1.body': "Hedef müşteri Google ve ChatGPT'de seni arıyor. LuviAI haftalık 3 makale yazar, Linkedin'de paylaşır, organic trafik gelir.",
+    'land.uc.c1.body': "Hedef müşteri Google ve ChatGPT'de seni arıyor. RanksUp haftalık 3 makale yazar, Linkedin'de paylaşır, organic trafik gelir.",
     'land.uc.c1.before': 'Ayda 200 organic ziyaret',
     'land.uc.c1.after': '6 ay sonra ayda 4.200',
     'land.uc.c2.tag': 'MOBİL APP SAHİBİ',
@@ -329,7 +329,7 @@ const dictionary = {
     'land.uc.c2.after': '60 gün sonra ayda 1.800',
     'land.uc.c3.tag': 'E-TİCARET',
     'land.uc.c3.title': 'Marka odaklı online satış',
-    'land.uc.c3.body': 'Instagram + TikTok + Google için içerik üretimi başına ayda 40 saat harcıyordun. LuviAI ile 4 saat.',
+    'land.uc.c3.body': 'Instagram + TikTok + Google için içerik üretimi başına ayda 40 saat harcıyordun. RanksUp ile 4 saat.',
     'land.uc.c3.before': 'Ayda 8 post / 1 kanal',
     'land.uc.c3.after': 'Ayda 50 post / 5 kanal',
     'land.uc.before_label': 'ÖNCE',
@@ -482,14 +482,14 @@ const dictionary = {
     'ads.b2': 'AI ad creative (Gemini) + copy drafts',
     'ads.b3': 'Multi-platform single panel (Google + Meta + GA4 conversion)',
     'ads.b4': 'Continuous A/B test — auto-scale winning creatives',
-    'ads.impact': '<strong class="text-orange-500">Impact:</strong> An average SMB spends 5-15k ₺/month on Google + Meta. Without good management, 30-50% gets wasted. <strong>LuviAI plugs the leak — saving 1.5-7.5k ₺/month.</strong>',
+    'ads.impact': '<strong class="text-orange-500">Impact:</strong> An average SMB spends 5-15k ₺/month on Google + Meta. Without good management, 30-50% gets wasted. <strong>RanksUp plugs the leak — saving 1.5-7.5k ₺/month.</strong>',
 
     // Comparison
-    'compare.title': 'LuviAI vs the classic team',
+    'compare.title': 'RanksUp vs the classic team',
     'compare.subtitle': 'A single panel does the work of 6 different specialists.',
     'compare.col_need': 'Need',
     'compare.col_classic': 'Classic',
-    'compare.col_luviai': 'LuviAI',
+    'compare.col_luviai': 'RanksUp',
     'compare.row_seo': 'SEO specialist',
     'compare.row_writer': 'Article writer',
     'compare.row_social': 'Social media manager',
@@ -499,7 +499,7 @@ const dictionary = {
     'compare.row_ai': 'AI Search optimization',
     'compare.row_total': 'TOTAL',
     'compare.classic_total': '78-140k ₺/month',
-    'compare.luviai_total_label': 'With LuviAI',
+    'compare.luviai_total_label': 'With RanksUp',
     'compare.luviai_total_subtext': 'monthly starting (Pro plan)',
 
     // Final CTA
@@ -522,7 +522,7 @@ const dictionary = {
     'footer.contact.support': 'Support',
     'footer.contact.status': 'System status',
     'footer.tagline': 'Turkey-based AI content + social + ads autopilot.',
-    'footer.copyright': '© 2026 LuviAI. All rights reserved.',
+    'footer.copyright': '© 2026 RanksUp. All rights reserved.',
 
     // Pricing
     'pricing.title': 'Plans & Pricing',
@@ -566,7 +566,7 @@ const dictionary = {
     'land.hero.title_pre': 'AI that does marketing',
     'land.hero.title_brand': 'for you',
     'land.hero.title_dot': '.',
-    'land.hero.subtitle': 'Website, mobile app, social media — all from one panel. LuviAI scans your site, finds gaps, generates content, optimizes App Store ads.',
+    'land.hero.subtitle': 'Website, mobile app, social media — all from one panel. RanksUp scans your site, finds gaps, generates content, optimizes App Store ads.',
     'land.hero.cta_primary': 'Start free — no card required',
     'land.hero.cta_secondary': 'How it works (2 min)',
     'land.hero.tag_no_card': 'No card needed',
@@ -593,7 +593,7 @@ const dictionary = {
     'land.pain.c3_cost': '₺8,000/mo',
     'land.pain.c3_title': 'Content + social media freelancer',
     'land.pain.c3_body': 'You think "I\'d write better myself". Always 2 weeks behind schedule.',
-    'land.pain.total': 'Monthly total: ₺48,000+ · LuviAI: starts from ₺1,499',
+    'land.pain.total': 'Monthly total: ₺48,000+ · RanksUp: starts from ₺1,499',
 
     // ─── Landing — Pricing section ──────────────────────────────
     'land.pricing.eyebrow': 'Transparent pricing',
@@ -623,9 +623,9 @@ const dictionary = {
     'land.faq.q3': 'Can AI really understand my industry?',
     'land.faq.a3': 'Yes. During onboarding, it scans your site and determines your industry with 95%+ accuracy. If it predicts wrong you can fix it manually, and subsequent content adapts accordingly.',
     'land.faq.q4': 'Do I need an Apple Developer account for Apple Search Ads?',
-    'land.faq.a4': 'Yes, you need Apple\'s required credentials (Org ID + Key ID + Public Key). LuviAI sets it up with a wizard — no terminal/openssl needed. 3 steps.',
+    'land.faq.a4': 'Yes, you need Apple\'s required credentials (Org ID + Key ID + Public Key). RanksUp sets it up with a wizard — no terminal/openssl needed. 3 steps.',
     'land.faq.q5': 'Do I own the generated content?',
-    'land.faq.a5': 'Yes, 100% yours. LuviAI claims no copyright on the articles, images, videos, text it generates. Unlimited use (within your plan quota).',
+    'land.faq.a5': 'Yes, 100% yours. RanksUp claims no copyright on the articles, images, videos, text it generates. Unlimited use (within your plan quota).',
     'land.faq.q6': 'Can I cancel anytime?',
     'land.faq.a6': 'Yes. One-click cancel, continue using until end of billing period. Refund policy: full refund within first 7 days, no questions asked.',
 
@@ -673,7 +673,7 @@ const dictionary = {
     'land.how.title': 'Live in 5 minutes.',
     'land.how.subtitle': 'No technical knowledge needed. During onboarding, AI predicts your industry and generates the first content.',
     'land.how.s1.title': 'Connect your site',
-    'land.how.s1.body': 'Paste the URL. LuviAI scans the site, detects your industry, extracts the first 50 keywords.',
+    'land.how.s1.body': 'Paste the URL. RanksUp scans the site, detects your industry, extracts the first 50 keywords.',
     'land.how.s2.title': 'AI analysis',
     'land.how.s2.body': 'Competitor metadata, rankings, missing keywords, your AI Citation score — all in 2 minutes.',
     'land.how.s3.title': 'Live',
@@ -681,7 +681,7 @@ const dictionary = {
 
     // ─── Landing — Results (3 KPI) ──────────────────────────────
     'land.res.eyebrow': 'Results',
-    'land.res.title': 'LuviAI impact in numbers.',
+    'land.res.title': 'RanksUp impact in numbers.',
     'land.res.r1.title': 'average organic traffic increase',
     'land.res.r1.sub': 'in first 30 days',
     'land.res.r2.title': 'App Store Ads CPI decrease',
@@ -691,7 +691,7 @@ const dictionary = {
 
     // ─── Landing — Compare (table) ──────────────────────────────
     'land.cmp.eyebrow': 'Comparison',
-    'land.cmp.title': '1 LuviAI instead of 5 SaaS.',
+    'land.cmp.title': '1 RanksUp instead of 5 SaaS.',
     'land.cmp.subtitle': "If you're paying for multiple tools right now, you'll likely save 80%.",
     'land.cmp.col_feature': 'Feature',
     'land.cmp.row1': 'Web SEO + keyword tracking',
@@ -710,7 +710,7 @@ const dictionary = {
     'land.uc.title': 'Built for your business model?',
     'land.uc.c1.tag': 'SMB + SERVICE',
     'land.uc.c1.title': 'Accounting / legal / consulting',
-    'land.uc.c1.body': 'Target customers search for you on Google and ChatGPT. LuviAI writes 3 articles per week, shares on LinkedIn, organic traffic flows in.',
+    'land.uc.c1.body': 'Target customers search for you on Google and ChatGPT. RanksUp writes 3 articles per week, shares on LinkedIn, organic traffic flows in.',
     'land.uc.c1.before': '200 organic visits/month',
     'land.uc.c1.after': '4,200/month after 6 months',
     'land.uc.c2.tag': 'MOBILE APP OWNER',
@@ -720,7 +720,7 @@ const dictionary = {
     'land.uc.c2.after': '1,800/month after 60 days',
     'land.uc.c3.tag': 'E-COMMERCE',
     'land.uc.c3.title': 'Brand-focused online sales',
-    'land.uc.c3.body': 'You used to spend 40 hours/month creating content for Instagram + TikTok + Google. With LuviAI, 4 hours.',
+    'land.uc.c3.body': 'You used to spend 40 hours/month creating content for Instagram + TikTok + Google. With RanksUp, 4 hours.',
     'land.uc.c3.before': '8 posts/month / 1 channel',
     'land.uc.c3.after': '50 posts/month / 5 channels',
     'land.uc.before_label': 'BEFORE',

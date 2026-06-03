@@ -152,7 +152,7 @@ export class AdminController {
         name: body.name ?? 'Test Kullanicisi',
         // first_article_published icin demo veri
         title: 'Test Makalesi: WordPress Hosting Nasil Secilir?',
-        publicUrl: 'https://ai.luvihost.com',
+        publicUrl: 'https://ranksup.ai',
         wordCount: 1500,
         faqs: 5,
         editorScore: 56,

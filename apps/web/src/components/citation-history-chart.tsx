@@ -50,7 +50,7 @@ export function CitationHistoryChart({
         const u = new URL(siteUrl);
         const h = u.hostname.replace(/^www\./, '');
         if (h) terms.push(h);
-        // ai.luvihost.com → "luvihost" (subdomain çıkar, ana marka kelimesi)
+        // ranksup.ai → "luvihost" (subdomain çıkar, ana marka kelimesi)
         const parts = h.split('.');
         if (parts.length >= 2) {
           const main = parts[parts.length - 2];

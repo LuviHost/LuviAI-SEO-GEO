@@ -10,7 +10,7 @@ interface ReviewSentimentResult {
 
 /**
  * App review fetch + LLM sentiment analizi.
- * LuviAI'ın LLM altyapısını kullanır (multi-provider BYOK).
+ * RanksUp'ın LLM altyapısını kullanır (multi-provider BYOK).
  */
 @Injectable()
 export class AsoReviewsService {

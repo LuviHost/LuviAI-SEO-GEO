@@ -1,5 +1,5 @@
 /**
- * LuviAI API client.
+ * RanksUp API client.
  * NextAuth session cookie otomatik include edilir (credentials: 'include').
  */
 

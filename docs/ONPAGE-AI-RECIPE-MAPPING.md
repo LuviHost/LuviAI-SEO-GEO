@@ -1,20 +1,20 @@
-# On-Page.ai 17 Recipe → LuviAI Feature Mapping
+# On-Page.ai 17 Recipe → RanksUp Feature Mapping
 
 **Kaynak:** https://on-page.ai/pages/automate-seo/ — 17 SEO automation recipe.
 
-**Amaç:** Her recipe'i LuviAI'nın mevcut özellikleriyle karşılaştır, **gap analizi** yap, **Faz 2 / Faz 3 backlog** için sıralı bir aksiyon listesi çıkar.
+**Amaç:** Her recipe'i RanksUp'nın mevcut özellikleriyle karşılaştır, **gap analizi** yap, **Faz 2 / Faz 3 backlog** için sıralı bir aksiyon listesi çıkar.
 
 **Önemli stratejik gözlem:**
 - On-page.ai bir **MCP connector** olarak çalışıyor (Codex / Claude Code içinde) — power user / SEO ajansları hedefli.
-- LuviAI **SaaS dashboard** — KOBİ + ajans için tek tıklık UX.
-- LuviAI'nın **Auriti GEO 47-metrik** altyapısı zaten var (on-page.ai'nın "entity importance + Highly Related Words" raporuyla benzer veri). Yani **veri layer'ı hazır**, eksik olan **workflow orchestration + UI exposure**.
-- Her recipe doğal olarak bir **BullMQ job tipi + dashboard butonu** olarak LuviAI'a eklenir.
+- RanksUp **SaaS dashboard** — KOBİ + ajans için tek tıklık UX.
+- RanksUp'nın **Auriti GEO 47-metrik** altyapısı zaten var (on-page.ai'nın "entity importance + Highly Related Words" raporuyla benzer veri). Yani **veri layer'ı hazır**, eksik olan **workflow orchestration + UI exposure**.
+- Her recipe doğal olarak bir **BullMQ job tipi + dashboard butonu** olarak RanksUp'a eklenir.
 
 ---
 
 ## Hızlı durum özeti
 
-| # | Recipe | LuviAI Durumu | Öncelik |
+| # | Recipe | RanksUp Durumu | Öncelik |
 |---|--------|---------------|---------|
 | 1 | Recover Stuck Page | ❌ Yok | 🔴 Yüksek |
 | 2 | Site-Wide Internal Links | ⚠️ Kısmi (cross-site var, within-site yok) | 🔴 Yüksek |
@@ -43,7 +43,7 @@
 ### 🔴 Recipe 1: Recover a Stuck Page
 **Ne yapar:** İndekslenmiş ama yeterince ranklamayan tek sayfayı kurtarır. Deep scan → entity gap → light edit → re-scan → audit trail.
 
-**LuviAI mevcut:** Yok. Yeni içerik üretiyorsun ama mevcut sayfayı "kurtarmak" için bir job yok.
+**RanksUp mevcut:** Yok. Yeni içerik üretiyorsun ama mevcut sayfayı "kurtarmak" için bir job yok.
 
 **Eklemek için gerekli:**
 - `apps/worker/src/jobs/recover-page.ts` — job
@@ -62,7 +62,7 @@
 ### 🔴 Recipe 2: Site-Wide Internal Links
 **Ne yapar:** Sitemap'ten manifest → batch processing → her sayfa için 3 source page'den seamless internal link ekleme. Resume/continue, idempotent.
 
-**LuviAI mevcut:** `cross-linking.service.ts` var ama **siteler arası** (multi-tenant ekosistem linking). **Within-site** internal linking yok.
+**RanksUp mevcut:** `cross-linking.service.ts` var ama **siteler arası** (multi-tenant ekosistem linking). **Within-site** internal linking yok.
 
 **Eklemek için gerekli:**
 - `apps/worker/src/jobs/site-internal-links.ts` — manifest-based batch job
@@ -84,7 +84,7 @@
 ### 🟡 Recipe 3-4: Single Page Internal Links (Detailed + Simple)
 **Ne yapar:** Tek sayfa için 3 contextual internal link. Detailed = full report, Simple = lightweight.
 
-**LuviAI mevcut:** Yok (within-site).
+**RanksUp mevcut:** Yok (within-site).
 
 **Eklemek için gerekli:** Recipe 2'nin tekilleştirilmiş versiyonu. Recipe 2 yazılırsa bu **ücretsiz** gelir (aynı kod, 1 sayfa input).
 
@@ -95,7 +95,7 @@
 ### 🔴 Recipe 5: Site-Wide Refresh for Old/Stale Pages
 **Ne yapar:** Sitemap last-modified'a göre eski-önce sıralı manifest → Lite scan → entity insertion + alt-text + 1 paragraph (light edits).
 
-**LuviAI mevcut:** `programmatic-seo.service.ts` var ama bu **yeni sayfa üretimi**, refresh değil. **Article scheduler** yeniden yayın yapabilir ama refresh batch'i yok.
+**RanksUp mevcut:** `programmatic-seo.service.ts` var ama bu **yeni sayfa üretimi**, refresh değil. **Article scheduler** yeniden yayın yapabilir ama refresh batch'i yok.
 
 **Eklemek için gerekli:**
 - `apps/worker/src/jobs/site-wide-refresh.ts`
@@ -107,7 +107,7 @@
 
 **Tahmini effort:** 10-12 gün.
 
-**Impact:** 🔥🔥🔥 Bu **olmazsa olmaz** — mevcut KOBİ sitelerinde "10 yıllık eski blog" sorunu çok yaygın. LuviAI'nın "kuruluştaki içeriği AI ile canlandır" anlatısı çok güçlü olur. **Faz 2 sonu için kesin kapsam.**
+**Impact:** 🔥🔥🔥 Bu **olmazsa olmaz** — mevcut KOBİ sitelerinde "10 yıllık eski blog" sorunu çok yaygın. RanksUp'nın "kuruluştaki içeriği AI ile canlandır" anlatısı çok güçlü olur. **Faz 2 sonu için kesin kapsam.**
 
 **UX:** Dashboard → Site → "Stale Content Refresh" — sitenin yaş dağılımı grafiği, "En eski 50 sayfayı refresh et" tek tık.
 
@@ -116,7 +116,7 @@
 ### 🟡 Recipe 6: Light Page Refresh, Single Page
 **Ne yapar:** Recipe 5'in tekil versiyonu.
 
-**LuviAI mevcut:** Yok.
+**RanksUp mevcut:** Yok.
 
 **Eklemek için:** Recipe 5'in özel hali. 1 günde gelir.
 
@@ -125,11 +125,11 @@
 ### 🟡 Recipe 7: Standard Optimization, Single Page
 **Ne yapar:** Recipe 6'dan daha kapsamlı. Entity 7,8,9,10 + sub-headlines + image alt-text + **Google category alignment** + **re-scan verification loop** (max 2 pass).
 
-**LuviAI mevcut:** Pipeline'da yeni üretimde benzer iş var. Mevcut sayfaya retrofit yok. **Google category alignment** ve **re-scan loop** yok.
+**RanksUp mevcut:** Pipeline'da yeni üretimde benzer iş var. Mevcut sayfaya retrofit yok. **Google category alignment** ve **re-scan loop** yok.
 
 **Eklemek için:**
 - Recipe 6 üzerine: re-scan + score comparison + retry pass
-- Google category check (LuviAI'nın schema-classifier servisi var, biraz adaptasyonla olur)
+- Google category check (RanksUp'nın schema-classifier servisi var, biraz adaptasyonla olur)
 
 **Tahmini effort:** 3-4 gün (Recipe 5/6 sonrası).
 
@@ -138,7 +138,7 @@
 ### 🟢 Recipe 8: Standard Optimization, Site-Wide
 **Ne yapar:** Recipe 7'nin batch versiyonu.
 
-**LuviAI mevcut:** Yok.
+**RanksUp mevcut:** Yok.
 
 **Eklemek için:** Recipe 5'in batch infrastructure'ı + Recipe 7'nin per-page logic'i. Birleşim.
 
@@ -149,7 +149,7 @@
 ### 🟡 Recipe 9: Full Client Website Audit PDF
 **Ne yapar:** Ajansın müşterisi için PDF audit raporu.
 
-**LuviAI mevcut:** Audit var, **PDF export yok**.
+**RanksUp mevcut:** Audit var, **PDF export yok**.
 
 **Eklemek için:**
 - PDF generator (Puppeteer veya `@react-pdf/renderer`)
@@ -166,7 +166,7 @@
 ### 🟡 Recipe 10: Single Page Audit PDF
 **Ne yapar:** Tek sayfa PDF audit.
 
-**LuviAI mevcut:** Yok.
+**RanksUp mevcut:** Yok.
 
 **Eklemek için:** Recipe 9'un single-page versiyonu. 1 günde gelir.
 
@@ -175,7 +175,7 @@
 ### 🟡 Recipe 11: Advanced Page Diagnostic — "Why Is This Page Not Ranking?"
 **Ne yapar:** Yapılandırılmış derin diagnostic — entity gap + headline issues + thin content + speed + competitor delta.
 
-**LuviAI mevcut:** Auriti GEO 47-metrik var ama "neden ranklamıyor" şeklinde **yapılandırılmış narrative** yok.
+**RanksUp mevcut:** Auriti GEO 47-metrik var ama "neden ranklamıyor" şeklinde **yapılandırılmış narrative** yok.
 
 **Eklemek için:**
 - Auriti GEO çıktısını LLM'e ver → "narrative diagnostic" üret
@@ -191,7 +191,7 @@
 ### 🟢 Recipe 12 + 13: Sub-Headline + Image Alt-Text Optimization (Single Page)
 **Ne yapar:** H1/H2/H3 retrofit + image alt-text retrofit.
 
-**LuviAI mevcut:** Yeni üretimde yapılıyor, mevcut sayfa retrofit yok.
+**RanksUp mevcut:** Yeni üretimde yapılıyor, mevcut sayfa retrofit yok.
 
 **Eklemek için:** Recipe 6/7'nin alt-task'leri. Ayrı endpoint açmaya gerek yok — Recipe 7'nin parametre seçenekleri olarak gelsin.
 
@@ -202,7 +202,7 @@
 ### 🟡 Recipe 14-15: Local Page Diagnostic + Tuning
 **Ne yapar:** Lokal sayfa (örn. "İstanbul'da diş kliniği") neden ranklamıyor + nasıl optimize edilir.
 
-**LuviAI mevcut:** Yok. Local SEO vertical bütünüyle eksik.
+**RanksUp mevcut:** Yok. Local SEO vertical bütünüyle eksik.
 
 **Eklemek için:**
 - LocalBusiness schema generation (zaten Schema modülü var — extend)
@@ -219,7 +219,7 @@
 ### 🔴 Recipe 16: Local Website + GBP Alignment Verification
 **Ne yapar:** Google Business Profile (GBP) ile sitenin tutarlılığı.
 
-**LuviAI mevcut:** Yok. GBP entegrasyonu hiç yok.
+**RanksUp mevcut:** Yok. GBP entegrasyonu hiç yok.
 
 **Eklemek için:**
 - Google My Business API entegrasyonu (OAuth)
@@ -235,7 +235,7 @@
 ### 🔴 Recipe 17: Local Cannibalization Checker
 **Ne yapar:** Aynı keyword için birden fazla sayfa ranklıyorsa (cannibalization) tespit + consolidation önerisi.
 
-**LuviAI mevcut:** Yok.
+**RanksUp mevcut:** Yok.
 
 **Eklemek için:**
 - GSC verisi + on-site search varyasyon analizi
@@ -244,7 +244,7 @@
 
 **Tahmini effort:** 5-7 gün.
 
-**Impact:** 🔥🔥 Cannibalization SEO'nun en az otomatize edilen problemlerinden. LuviAI bunu **automated** sunarsa farklılaşır.
+**Impact:** 🔥🔥 Cannibalization SEO'nun en az otomatize edilen problemlerinden. RanksUp bunu **automated** sunarsa farklılaşır.
 
 ---
 
@@ -279,9 +279,9 @@
 
 ---
 
-## LuviAI vs on-page.ai stratejik fark
+## RanksUp vs on-page.ai stratejik fark
 
-| Boyut | on-page.ai | LuviAI |
+| Boyut | on-page.ai | RanksUp |
 |-------|-----------|--------|
 | Format | MCP (Codex/Claude Code agent) | SaaS dashboard |
 | Hedef kullanıcı | Power SEO + ajans | KOBİ + ajans + e-ticaret |
@@ -291,10 +291,10 @@
 | GBP entegrasyon | ⚠️ Manuel | 🎯 OAuth tek tık |
 | Multi-tenant | ❌ | ✅ Ajans plan |
 | Pricing | Credits | Aylık abonelik (TL) |
-| AI Citation tracking | ❌ | ✅ (LuviAI'nın avantajı) |
+| AI Citation tracking | ❌ | ✅ (RanksUp'nın avantajı) |
 | Auto-Pilot (zamanlı cron) | ❌ | ✅ |
 
-**LuviAI'nın gerçek avantajı:** AI Citation tracking + Auto-Pilot + Türkçe local SEO. Recipe'leri **adapt edip** kendi UX'ine entegre edersek, on-page.ai'nın "Codex paste" karmaşıklığı yerine **tek tık** sunarız.
+**RanksUp'nın gerçek avantajı:** AI Citation tracking + Auto-Pilot + Türkçe local SEO. Recipe'leri **adapt edip** kendi UX'ine entegre edersek, on-page.ai'nın "Codex paste" karmaşıklığı yerine **tek tık** sunarız.
 
 ---
 

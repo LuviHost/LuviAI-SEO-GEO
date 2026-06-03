@@ -356,7 +356,7 @@ function humanizeSocialError(raw: string, channelType: string): string {
   // TikTok
   if (channelType === 'TIKTOK') {
     if (lower.includes('unaudited_client_can_only_post_to_private_accounts') || lower.includes('unaudited_client')) {
-      // LuviAI app artık Production Live (1 May 2026). Bu hata sadece eski
+      // RanksUp app artık Production Live (1 May 2026). Bu hata sadece eski
       // sandbox token ile yapılan call'larda gelir. Çözüm: kanalı yeniden bağla.
       return 'TikTok kanal token süresi dolmuş veya eski sandbox token ile bağlı. Sosyal Kanallar → TikTok kanalını sil ve yeniden bağla, sorun çözülür.';
     }

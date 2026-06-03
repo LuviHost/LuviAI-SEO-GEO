@@ -37,7 +37,7 @@ export class SchemaValidatorService {
       const res = await fetch(url, {
         method: 'GET',
         signal: AbortSignal.timeout(15_000),
-        headers: { 'User-Agent': 'LuviAI-SchemaValidator/1.0' },
+        headers: { 'User-Agent': 'RanksUp-SchemaValidator/1.0' },
       });
       if (!res.ok) {
         result.errors.push(`HTTP ${res.status} — sayfaya ulasilamadi`);

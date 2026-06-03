@@ -711,7 +711,7 @@ async function bootstrap() {
     log.warn(`Cron kurulumu basarisiz: ${err.message}`);
   }
 
-  log.log('🔧 LuviAI Worker dinliyor (queue: luviai-jobs)');
+  log.log('🔧 RanksUp Worker dinliyor (queue: luviai-jobs)');
 
   const shutdown = async () => {
     log.log('Shutting down...');

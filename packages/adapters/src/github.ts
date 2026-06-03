@@ -42,7 +42,7 @@ export class GithubAdapter extends PublishAdapter {
         content: Buffer.from(content).toString('base64'),
         branch,
         sha,
-        committer: { name: 'LuviAI', email: 'noreply@ai.luvihost.com' },
+        committer: { name: 'RanksUp', email: 'noreply@ranksup.ai' },
       });
 
       return {

@@ -142,7 +142,7 @@ export class SiteCrawlerService {
     try {
       const res = await fetch(url, {
         headers: {
-          'User-Agent': 'LuviAI-Crawler/1.0 (+https://ai.luvihost.com)',
+          'User-Agent': 'RanksUp-Crawler/1.0 (+https://ranksup.ai)',
           'Accept': 'text/html,application/xhtml+xml,application/xml,*/*',
         },
         signal: AbortSignal.timeout(15000),

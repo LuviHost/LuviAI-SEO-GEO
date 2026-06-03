@@ -1,7 +1,7 @@
 import { Bot } from 'lucide-react';
 import { HelpArticle, Step, Tip } from '@/components/help-article';
 
-export const metadata = { title: 'Auto-Pilot — LuviAI Help' };
+export const metadata = { title: 'Auto-Pilot — RanksUp Help' };
 
 export default function Page() {
   return (

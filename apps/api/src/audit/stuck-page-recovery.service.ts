@@ -68,7 +68,7 @@ export class StuckPageRecoveryService {
 
     if (!stuckPage.articleId) {
       throw new BadRequestException(
-        'Bu sayfa LuviAI disinda yazildi (Article kaydi yok) — external page recovery henuz desteklenmiyor.',
+        'Bu sayfa RanksUp disinda yazildi (Article kaydi yok) — external page recovery henuz desteklenmiyor.',
       );
     }
     if (!this.anthropic) {

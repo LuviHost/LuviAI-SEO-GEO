@@ -143,7 +143,7 @@ export class AgencyService {
 
     const baseUrl = owner.whitelabelDomain
       ? `https://${owner.whitelabelDomain}`
-      : (process.env.NEXT_PUBLIC_BASE_URL ?? 'https://ai.luvihost.com');
+      : (process.env.NEXT_PUBLIC_BASE_URL ?? 'https://ranksup.ai');
     const inviteUrl = `${baseUrl}/agency/accept?token=${token}&email=${encodeURIComponent(clientEmail)}`;
 
     this.log.log(`[${agencyOwnerId}] Client invite uretildi: ${clientEmail}`);

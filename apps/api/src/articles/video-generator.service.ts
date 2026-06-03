@@ -166,7 +166,7 @@ export class VideoGeneratorService {
         snippet: {
           title: article.title.slice(0, 100),
           description: (article.metaDescription ?? '').slice(0, 5000) + `\n\nTam makale: ${article.site?.url ?? ''}/blog/${article.slug}.html`,
-          tags: [article.category, 'LuviAI', 'AI içerik'].filter(Boolean),
+          tags: [article.category, 'RanksUp', 'AI içerik'].filter(Boolean),
           categoryId: '22', // People & Blogs
         },
         status: { privacyStatus: 'public', selfDeclaredMadeForKids: false },

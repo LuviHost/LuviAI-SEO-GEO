@@ -2,8 +2,8 @@ import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
   title: 'Sistem Durumu — Web, API, AI üretimi, sosyal medya yayını',
-  description: 'LuviAI servislerinin (web panel, API, AI içerik üretimi, sosyal medya yayını, ödeme) gerçek zamanlı durumu, geçmiş uptime ve duyurular.',
-  alternates: { canonical: 'https://ai.luvihost.com/status' },
+  description: 'RanksUp servislerinin (web panel, API, AI içerik üretimi, sosyal medya yayını, ödeme) gerçek zamanlı durumu, geçmiş uptime ve duyurular.',
+  alternates: { canonical: 'https://ranksup.ai/status' },
 };
 
 export default function StatusLayout({ children }: { children: React.ReactNode }) {

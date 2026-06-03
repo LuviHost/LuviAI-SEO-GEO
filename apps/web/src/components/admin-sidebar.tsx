@@ -76,7 +76,7 @@ export function AdminSidebar({ userEmail }: { userEmail: string }) {
         <div className="h-14 px-4 flex items-center justify-between border-b shrink-0">
           <Link href="/admin" className="flex items-center gap-2 font-bold" onClick={() => setOpen(false)}>
             <BrandLogo size={28} className="rounded-lg shadow-md" />
-            <span className="text-base">LuviAI</span>
+            <span className="text-base">RanksUp</span>
             <span className="text-[9px] uppercase tracking-widest font-semibold px-1.5 py-0.5 rounded bg-orange-500/10 text-orange-600 dark:text-orange-400">
               Admin
             </span>

@@ -300,7 +300,7 @@ export class ASOScorerService {
       recs.push({
         category: 'conversion_metrics', priority: 'high',
         action: 'Conversion oranını iyileştir',
-        details: 'Screenshot\'ları yenile (LuviAI ASO Studio + A/B test), açıklamayı yeniden yaz, ikon güncelle',
+        details: 'Screenshot\'ları yenile (RanksUp ASO Studio + A/B test), açıklamayı yeniden yaz, ikon güncelle',
         expected_impact: 'Aynı trafik daha çok install',
       });
     }

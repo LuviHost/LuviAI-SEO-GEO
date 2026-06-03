@@ -3,7 +3,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Breadcrumbs } from '@/components/breadcrumbs';
 import { ShieldCheck, Sparkles, Heart, Globe2, Users, Zap, Target, Award } from 'lucide-react';
 
-const SITE_URL = 'https://ai.luvihost.com';
+const SITE_URL = 'https://ranksup.ai';
 
 const aboutJsonLd = {
   '@context': 'https://schema.org',
@@ -12,15 +12,15 @@ const aboutJsonLd = {
       '@type': 'AboutPage',
       '@id': `${SITE_URL}/about#aboutpage`,
       url: `${SITE_URL}/about`,
-      name: 'LuviAI Hakkında',
-      description: 'Türkiye merkezli AI içerik + SEO + sosyal medya otomasyon platformu LuviAI hakkında bilgiler.',
+      name: 'RanksUp Hakkında',
+      description: 'Türkiye merkezli AI içerik + SEO + sosyal medya otomasyon platformu RanksUp hakkında bilgiler.',
       isPartOf: { '@id': `${SITE_URL}/#website` },
       about: { '@id': `${SITE_URL}/#organization` },
     },
     {
       '@type': 'Organization',
       '@id': `${SITE_URL}/#organization-extended`,
-      name: 'LuviAI',
+      name: 'RanksUp',
       legalName: 'LuviHost Bilişim Hizmetleri',
       url: SITE_URL,
       foundingDate: '2026',
@@ -46,7 +46,7 @@ const aboutJsonLd = {
         'Google Ads Optimization',
         'Meta Ads Optimization',
       ],
-      brand: { '@type': 'Brand', name: 'LuviAI' },
+      brand: { '@type': 'Brand', name: 'RanksUp' },
       parentOrganization: {
         '@type': 'Organization',
         name: 'LuviHost',
@@ -78,7 +78,7 @@ export default function AboutPage() {
               <span className="font-display italic text-[1.08em] bg-gradient-to-br from-brand-500 via-rose-500 to-amber-500 bg-clip-text text-transparent">AI SaaS.</span>
             </h1>
             <p className="text-pretty mt-7 max-w-[640px] mx-auto text-[clamp(1rem,1.4vw,1.25rem)] leading-[1.5] text-neutral-600 dark:text-neutral-400">
-              LuviAI; KOBİ, e-ticaret ve dijital ajansların SEO, içerik üretimi, sosyal medya ve reklam denetimini
+              RanksUp; KOBİ, e-ticaret ve dijital ajansların SEO, içerik üretimi, sosyal medya ve reklam denetimini
               tek panelden, otomatik olarak yönetebilmesi için kurulan Türkiye merkezli bir platformdur.
             </p>
           </header>
@@ -111,7 +111,7 @@ export default function AboutPage() {
                   <p className="eyebrow mb-2">02 · Hikaye</p>
                   <h2 className="text-h4 font-medium mb-4 tracking-[-0.025em]">Hikayemiz</h2>
                   <p className="text-[15px] text-neutral-600 dark:text-neutral-400 leading-[1.6] mb-4">
-                    LuviAI, 2018'den beri Türkiye'de hosting ve domain hizmeti veren <a href="https://luvihost.com" className="text-foreground hover:text-brand-600 dark:hover:text-brand-400 transition-colors duration-300 ease-apple underline decoration-1 underline-offset-2">LuviHost</a> grubunun bünyesinde 2026'da kuruldu. Müşterilerimizin "site açtım ama ne içerik üreteceğim?" sorusu bizi bu platformu inşa etmeye yönlendirdi.
+                    RanksUp, 2018'den beri Türkiye'de hosting ve domain hizmeti veren <a href="https://luvihost.com" className="text-foreground hover:text-brand-600 dark:hover:text-brand-400 transition-colors duration-300 ease-apple underline decoration-1 underline-offset-2">LuviHost</a> grubunun bünyesinde 2026'da kuruldu. Müşterilerimizin "site açtım ama ne içerik üreteceğim?" sorusu bizi bu platformu inşa etmeye yönlendirdi.
                   </p>
                   <p className="text-[15px] text-neutral-600 dark:text-neutral-400 leading-[1.6]">
                     Yapay zekanın içerik üretiminde sıradan, klişe ve marka kimliği zayıf çıktılar verdiğini gördük.

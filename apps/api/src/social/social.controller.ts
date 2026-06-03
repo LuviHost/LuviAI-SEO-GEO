@@ -90,7 +90,7 @@ export class SocialController {
     @Query('error_description') errorDescription: string,
     @Res() res: Response,
   ) {
-    const webBase = process.env.WEB_BASE_URL ?? 'https://ai.luvihost.com';
+    const webBase = process.env.WEB_BASE_URL ?? 'https://ranksup.ai';
 
     // state'ten siteId çıkartmayı dene — redirect target'ı için
     let siteIdFromState: string | null = null;

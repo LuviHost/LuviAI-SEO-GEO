@@ -25,7 +25,7 @@ export function SiteFooter() {
           <div className="md:col-span-5">
             <Link href="/" className="inline-flex items-center gap-2.5 text-[15px] font-medium tracking-[-0.01em]">
               <BrandLogo size={28} className="rounded-md" />
-              <span>LuviAI</span>
+              <span>RanksUp</span>
             </Link>
             <p className="mt-5 max-w-[360px] text-[13px] leading-relaxed text-neutral-500 dark:text-neutral-400">
               SEO, AI içerik üretimi, sosyal medya ve reklam denetimi tek panelden.

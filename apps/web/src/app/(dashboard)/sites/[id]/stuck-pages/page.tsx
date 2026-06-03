@@ -131,9 +131,9 @@ function StuckPageCard({
               {page.articleId === null && (
                 <span
                   className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-xs font-medium bg-zinc-500/10 text-zinc-600 border-zinc-500/30"
-                  title="Bu sayfa LuviAI ile değil, sitende elle yazılmış. Recovery için site'ne WordPress / FTP / SFTP / cPanel publish target bağlamalısın."
+                  title="Bu sayfa RanksUp ile değil, sitende elle yazılmış. Recovery için site'ne WordPress / FTP / SFTP / cPanel publish target bağlamalısın."
                 >
-                  <AlertTriangle className="h-3 w-3" /> LuviAI dışı
+                  <AlertTriangle className="h-3 w-3" /> RanksUp dışı
                 </span>
               )}
             </div>
@@ -200,7 +200,7 @@ function StuckPageCard({
             {canRecover && !page.articleId && (
               <Link
                 href={`/sites/${page.siteId}/publish-targets` as any}
-                title="External sayfaları (LuviAI dışı) kurtarmak için WordPress / FTP / SFTP / cPanel publish target bağlamak gerek."
+                title="External sayfaları (RanksUp dışı) kurtarmak için WordPress / FTP / SFTP / cPanel publish target bağlamak gerek."
                 className="inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-md text-xs font-medium border border-dashed border-brand-500/40 text-brand-600 hover:bg-brand-500/10 transition-colors"
               >
                 <Send className="h-3.5 w-3.5" /> Target bağla
@@ -301,8 +301,8 @@ const GUIDE_STEPS = [
   },
   {
     icon: AlertTriangle,
-    title: '"LuviAI dışı" rozeti?',
-    body: 'Bu sayfa LuviAI ile yazılmadı, sitende elle yazılmış. Recovery için WordPress / FTP / SFTP / cPanel publish target bağlı olmalı.',
+    title: '"RanksUp dışı" rozeti?',
+    body: 'Bu sayfa RanksUp ile yazılmadı, sitende elle yazılmış. Recovery için WordPress / FTP / SFTP / cPanel publish target bağlı olmalı.',
   },
 ];
 
@@ -590,7 +590,7 @@ export default function StuckPagesPage() {
             <div className="text-sm flex-1 min-w-0 inline-flex items-center gap-1.5">
               <span className="font-semibold">{selectedIds.size}</span>{' '}
               sayfa seçili
-              <InfoTooltip text="Sadece DETECTED durumdaki + LuviAI içi sayfalar bulk seçilebilir. External (LuviAI dışı) sayfalar publish target gerektirdiği için tek tek elle yapılmalı." />
+              <InfoTooltip text="Sadece DETECTED durumdaki + RanksUp içi sayfalar bulk seçilebilir. External (RanksUp dışı) sayfalar publish target gerektirdiği için tek tek elle yapılmalı." />
               {selectedIds.size > 0 && (
                 <button onClick={clearSelection} className="ml-2 text-xs text-muted-foreground hover:text-foreground underline">
                   temizle
@@ -603,7 +603,7 @@ export default function StuckPagesPage() {
               onClick={() => selectAllVisible(
                 filteredRows.filter((r) => r.status === 'DETECTED' && r.articleId).map((r) => r.id),
               )}
-              title="Görünür listedeki tüm DETECTED + LuviAI içi sayfaları seç (filter aktifse sadece filtreli olanlar)"
+              title="Görünür listedeki tüm DETECTED + RanksUp içi sayfaları seç (filter aktifse sadece filtreli olanlar)"
             >
               Tümünü seç (DETECTED)
             </Button>

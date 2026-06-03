@@ -1,4 +1,4 @@
-# LuviAI — Çalışma Mantığı
+# RanksUp — Çalışma Mantığı
 
 > Güncel mimari, akışlar, veri modelleri, kullanıcı yolculuğu ve operasyon prensipleri.
 > v0.7 Faz 2 Beta · Mayıs 2026
@@ -7,9 +7,9 @@
 
 ## 1. Tek Cümle ile
 
-LuviAI, web sitenize bir **AI ajan** koyan, sürekli denetleyen, içerik üreten, sosyal kanallarda yayınlayan ve performansı ölçen **uçtan uca SEO + GEO otomasyon platformudur**.
+RanksUp, web sitenize bir **AI ajan** koyan, sürekli denetleyen, içerik üreten, sosyal kanallarda yayınlayan ve performansı ölçen **uçtan uca SEO + GEO otomasyon platformudur**.
 
-**Ne çözüyor:** SEO içeriği üretmek artık bilgi değil **zaman sorunu**. Bir blog yazısı + sosyal uyarlama + GEO optimizasyonu + analytics manuel olarak 3-4 saat tutuyor. LuviAI bunu **dakikalara** indiriyor.
+**Ne çözüyor:** SEO içeriği üretmek artık bilgi değil **zaman sorunu**. Bir blog yazısı + sosyal uyarlama + GEO optimizasyonu + analytics manuel olarak 3-4 saat tutuyor. RanksUp bunu **dakikalara** indiriyor.
 
 ---
 
@@ -233,7 +233,7 @@ Worker SOCIAL_PUBLISH job → SocialPostsService.runPublish
 ### Click → Signup → Komisyon Akışı
 
 ```
-1. Kullanıcı https://ai.luvihost.com?ref=CODE linkine tıklar
+1. Kullanıcı https://ranksup.ai?ref=CODE linkine tıklar
    ↓
 2. RefTracker (client component, layout.tsx içinde):
    - URL'den ?ref=CODE oku, regex sanitize
@@ -409,7 +409,7 @@ pm2 logs --lines 50
 - [ ] White-label tam özellik (Agency plan)
 - [ ] Mobile uygulama (React Native + Expo)
 - [ ] Chrome extension (one-click site ekle)
-- [ ] WordPress plugin (LuviAI agent embed)
+- [ ] WordPress plugin (RanksUp agent embed)
 - [ ] Affiliate gerçek webhook (commission auto-payout)
 - [ ] Video Factory: self-hosted T2V (LTX-Video, Wan 2.1) GPU sunucusunda
 

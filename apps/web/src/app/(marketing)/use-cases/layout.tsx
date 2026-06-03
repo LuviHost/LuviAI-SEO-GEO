@@ -2,12 +2,12 @@ import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
   title: 'Kullanım Senaryoları — KOBİ, e-ticaret, ajans için AI otomasyon',
-  description: 'KOBİ, e-ticaret, dijital ajans, freelancer, blog yazarı için LuviAI nasıl kullanılır — gerçek senaryolar, beklenen sonuçlar, ROI tahmini.',
-  alternates: { canonical: 'https://ai.luvihost.com/use-cases' },
+  description: 'KOBİ, e-ticaret, dijital ajans, freelancer, blog yazarı için RanksUp nasıl kullanılır — gerçek senaryolar, beklenen sonuçlar, ROI tahmini.',
+  alternates: { canonical: 'https://ranksup.ai/use-cases' },
   openGraph: {
-    title: 'LuviAI Kullanım Senaryoları',
+    title: 'RanksUp Kullanım Senaryoları',
     description: 'KOBİ, e-ticaret, ajans ve freelancer için somut senaryolar.',
-    url: 'https://ai.luvihost.com/use-cases',
+    url: 'https://ranksup.ai/use-cases',
   },
 };
 

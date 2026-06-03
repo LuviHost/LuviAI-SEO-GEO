@@ -15,7 +15,7 @@ export interface HaroQuery {
 }
 
 /**
- * HARO Parser — kullanici LuviAI'ye HARO emaillerini forward eder veya
+ * HARO Parser — kullanici RanksUp'ye HARO emaillerini forward eder veya
  * paneli'ye gunluk HARO digest'ini yapistir. AI parse eder, sektore uygun
  * sorulara taslak yanit hazirlar.
  *

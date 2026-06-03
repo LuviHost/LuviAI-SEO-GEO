@@ -63,7 +63,7 @@ export function TestimonialWidget({ siteId, defaultMetric }: { siteId?: string; 
           <MessageSquare className="h-5 w-5" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-bold">LuviAI'ı nasıl buldun?</p>
+          <p className="text-sm font-bold">RanksUp'ı nasıl buldun?</p>
           <p className="text-xs text-muted-foreground">1 cümle yorumun landing'imizde görünebilir — gerçek müşteri sosyal kanıtı oluştur.</p>
         </div>
         <Button size="sm" onClick={() => setOpen(true)} className="bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white shrink-0">

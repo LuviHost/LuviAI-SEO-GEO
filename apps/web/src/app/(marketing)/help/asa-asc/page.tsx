@@ -1,7 +1,7 @@
 import { Smartphone } from 'lucide-react';
 import { HelpArticle, Step, Tip } from '@/components/help-article';
 
-export const metadata = { title: 'Apple Search Ads + ASC — LuviAI Help' };
+export const metadata = { title: 'Apple Search Ads + ASC — RanksUp Help' };
 
 export default function Page() {
   return (
@@ -27,7 +27,7 @@ export default function Page() {
       </p>
 
       <h3>ASA bağlantı — 3 adımda</h3>
-      <p>Wizard ile <strong>terminal/openssl gerekmez</strong>. Tarayıcıda ES256 keypair üretilir, Apple'a yapıştırırsın, Apple'ın verdiği 3 satırı LuviAI'a yapıştırırsın.</p>
+      <p>Wizard ile <strong>terminal/openssl gerekmez</strong>. Tarayıcıda ES256 keypair üretilir, Apple'a yapıştırırsın, Apple'ın verdiği 3 satırı RanksUp'a yapıştırırsın.</p>
 
       <Step n={1} title="Anahtar üret (tarayıcıda)">
         ASA tab → <strong>"Bağla"</strong> → Step 1 <strong>"Otomatik Anahtar Üret"</strong>. Web Crypto API ile ES256 keypair tarayıcında üretilir. Private key sadece sende kalır (AES-256-GCM ile şifrelenip saklanır).
@@ -67,7 +67,7 @@ export default function Page() {
         ASO sayfasında <strong>"🍎 App Store Connect"</strong> sekmesi. <strong>Bağla</strong> → Apple Developer'dan üretilen Issuer ID + Key ID + .p8 dosyası.
       </Step>
       <Step n={2} title="App'leri sync et">
-        Bağlantı sonrası <strong>Sync</strong> bas. Apple'daki tüm app'lerin LuviAI'a düşer.
+        Bağlantı sonrası <strong>Sync</strong> bas. Apple'daki tüm app'lerin RanksUp'a düşer.
       </Step>
       <Step n={3} title="Yorumları + release'leri çek">
         Her app altında <strong>Yorumlar</strong> butonu → son 50 yorum + ortalama rating. Cron her gece otomatik çeker.

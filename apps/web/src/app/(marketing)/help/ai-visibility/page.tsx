@@ -1,7 +1,7 @@
 import { Sparkles } from 'lucide-react';
 import { HelpArticle, Step, Tip } from '@/components/help-article';
 
-export const metadata = { title: 'AI Görünürlük — LuviAI Help' };
+export const metadata = { title: 'AI Görünürlük — RanksUp Help' };
 
 export default function Page() {
   return (
@@ -9,7 +9,7 @@ export default function Page() {
       icon={Sparkles}
       badge="AI Görünürlük"
       title="ChatGPT, Claude, Gemini'de markanı izle"
-      intro="Kullanıcılar artık Google yerine AI'lara soruyor. LuviAI hangi AI sorularında çıkıp çıkmadığını ölçer, sentiment, share of voice ve eylem önerisi verir."
+      intro="Kullanıcılar artık Google yerine AI'lara soruyor. RanksUp hangi AI sorularında çıkıp çıkmadığını ölçer, sentiment, share of voice ve eylem önerisi verir."
       steps={[
         { name: 'AI Görünürlük sekmesine git', text: 'Sol menü → AI Görünürlük. Citation History Chart üstte gözükür.' },
         { name: 'İlk testi çalıştır', text: '"Test Çalıştır" butonu. 6 AI\'ya (ChatGPT, Claude, Gemini, Perplexity, Grok, DeepSeek) paralel 5 soru sorulur, 30-60 saniye sürer.' },
@@ -20,7 +20,7 @@ export default function Page() {
     >
       <h2>Nasıl çalışır?</h2>
       <p>
-        LuviAI senin sektörüne uygun 5 soruyu (örn. <em>"en iyi KOBİ muhasebe yazılımı nedir?"</em>)
+        RanksUp senin sektörüne uygun 5 soruyu (örn. <em>"en iyi KOBİ muhasebe yazılımı nedir?"</em>)
         <strong> 6 AI'ya birden</strong> sorar: ChatGPT, Claude, Gemini, Perplexity, Grok, DeepSeek.
         Cevapta marka adın geçti mi, URL alıntılandı mı, hangi sırada geçti — hepsi ölçülür.
       </p>
@@ -38,7 +38,7 @@ export default function Page() {
       <p>Her mention'ın pozitif/nötr/negatif tonu ölçülür. AI cevabında "en iyi", "tavsiye" gibi keyword'ler pozitif; "kötü", "tavsiye etmem" negatif sayılır.</p>
 
       <h3>2. Position Tracking</h3>
-      <p>Cevapta marka kaçıncı sırada geçmiş? 1. olmak ile 5. olmak çok farklı — LuviAI ortalamayı `#3.2` gibi gösterir.</p>
+      <p>Cevapta marka kaçıncı sırada geçmiş? 1. olmak ile 5. olmak çok farklı — RanksUp ortalamayı `#3.2` gibi gösterir.</p>
 
       <h3>3. Share of Voice</h3>
       <p>Senin marka %X, rakipler %Y, %Z. AI cevaplarında ne kadar yer kaplıyorsun, rakiplere göre nerede duruyorsun.</p>

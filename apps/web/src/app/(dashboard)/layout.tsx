@@ -27,7 +27,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         >
           {open ? <X /> : <Menu />}
         </Button>
-        <Link href="/" className="text-base font-bold text-white">LuviAI</Link>
+        <Link href="/" className="text-base font-bold text-white">RanksUp</Link>
         <div className="w-9" />
       </div>
 

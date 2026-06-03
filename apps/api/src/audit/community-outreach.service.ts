@@ -79,7 +79,7 @@ export class CommunityOutreachService {
     const url = `https://www.reddit.com/search.json?q=${encodeURIComponent(query)}&sort=new&t=month&limit=5`;
     try {
       const res = await fetch(url, {
-        headers: { 'User-Agent': 'LuviAI-Outreach/1.0 (https://ai.luvihost.com)' },
+        headers: { 'User-Agent': 'RanksUp-Outreach/1.0 (https://ranksup.ai)' },
         signal: AbortSignal.timeout(10000),
       });
       if (!res.ok) return [];

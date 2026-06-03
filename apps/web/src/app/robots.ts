@@ -1,6 +1,6 @@
 import type { MetadataRoute } from 'next';
 
-const SITE_URL = 'https://ai.luvihost.com';
+const SITE_URL = 'https://ranksup.ai';
 
 /**
  * AI crawler'lara açıkça izin veriyoruz — biz bir AI search optimization

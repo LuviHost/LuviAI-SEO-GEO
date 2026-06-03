@@ -9,29 +9,29 @@ import { RefTracker } from '@/components/ref-tracker';
 import { fontVariables } from '@/lib/fonts';
 
 // Microsoft Clarity project ID — heatmap + session recording.
-// Default to LuviAI production project; .env'den override edilebilir (staging için ayrı ID).
+// Default to RanksUp production project; .env'den override edilebilir (staging için ayrı ID).
 const CLARITY_PROJECT_ID = process.env.NEXT_PUBLIC_CLARITY_PROJECT_ID ?? 'wr4kuo9zhi';
 
 // Google Tag Manager container ID — analytics + remarketing + conversion tracking.
 const GTM_ID = process.env.NEXT_PUBLIC_GTM_ID ?? 'GTM-TSH8KWCC';
 
-const SITE_URL = 'https://ai.luvihost.com';
+const SITE_URL = 'https://ranksup.ai';
 // Browser tab + Google snippet için uzun başlık (60 char)
-const TITLE = 'LuviAI — AI çağının pazarlama platformu';
+const TITLE = 'RanksUp — AI çağının pazarlama platformu';
 // Tüm sayfalarda fallback (max 160 char Google için)
 const DESCRIPTION = 'Senin yerine pazarlama yapan AI. Site, mobil app, sosyal medya — tek panel. AI Görünürlük, ASO, Apple Search Ads, Studio, Auto-Pilot.';
 // WhatsApp / Telegram / Discord unfurl için kısa versiyon (max 90 char, sosyal görseli güzelleştirir)
-const OG_TITLE = 'LuviAI — Senin yerine pazarlama yapan AI';
+const OG_TITLE = 'RanksUp — Senin yerine pazarlama yapan AI';
 const OG_DESCRIPTION = 'AI Görünürlük, ASO, Apple Search Ads, Studio — hepsi tek panel. 2 makale ücretsiz, kart gerekmez.';
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: {
     default: TITLE,
-    template: '%s · LuviAI',
+    template: '%s · RanksUp',
   },
   description: DESCRIPTION,
-  applicationName: 'LuviAI',
+  applicationName: 'RanksUp',
   keywords: [
     'SEO otomasyonu', 'AI içerik üretimi', 'GEO optimizasyonu', 'AI search optimization',
     'Generative Engine Optimization', 'ChatGPT görünürlük', 'Perplexity SEO',
@@ -39,9 +39,9 @@ export const metadata: Metadata = {
     'sosyal medya planlayıcı', 'X otomatik post', 'LinkedIn otomatik post',
     'Google Ads denetimi', 'Meta Ads denetimi', 'kampanya skoru',
   ],
-  authors: [{ name: 'LuviAI', url: SITE_URL }],
-  creator: 'LuviAI',
-  publisher: 'LuviAI',
+  authors: [{ name: 'RanksUp', url: SITE_URL }],
+  creator: 'RanksUp',
+  publisher: 'RanksUp',
   formatDetection: { email: false, address: false, telephone: false },
   alternates: {
     canonical: SITE_URL,
@@ -56,7 +56,7 @@ export const metadata: Metadata = {
     locale: 'tr_TR',
     alternateLocale: ['en_US'],
     url: SITE_URL,
-    siteName: 'LuviAI',
+    siteName: 'RanksUp',
     title: OG_TITLE,
     description: OG_DESCRIPTION,
     images: [
@@ -65,7 +65,7 @@ export const metadata: Metadata = {
         secureUrl: `${SITE_URL}/og-image.png`,
         width: 1200,
         height: 630,
-        alt: 'LuviAI — AI ile pazarlama platformu',
+        alt: 'RanksUp — AI ile pazarlama platformu',
         type: 'image/png',
       },
     ],
@@ -78,7 +78,7 @@ export const metadata: Metadata = {
     description: OG_DESCRIPTION,
     images: [{
       url: `${SITE_URL}/og-image.png`,
-      alt: 'LuviAI — AI ile pazarlama platformu',
+      alt: 'RanksUp — AI ile pazarlama platformu',
     }],
   },
   robots: {
@@ -128,7 +128,7 @@ const orgJsonLd = {
     {
       '@type': 'Organization',
       '@id': `${SITE_URL}/#organization`,
-      name: 'LuviAI',
+      name: 'RanksUp',
       url: SITE_URL,
       logo: {
         '@type': 'ImageObject',
@@ -158,7 +158,7 @@ const orgJsonLd = {
       '@type': 'WebSite',
       '@id': `${SITE_URL}/#website`,
       url: SITE_URL,
-      name: 'LuviAI',
+      name: 'RanksUp',
       publisher: { '@id': `${SITE_URL}/#organization` },
       inLanguage: ['tr-TR', 'en-US'],
       potentialAction: {
@@ -170,7 +170,7 @@ const orgJsonLd = {
     {
       '@type': 'SoftwareApplication',
       '@id': `${SITE_URL}/#software`,
-      name: 'LuviAI',
+      name: 'RanksUp',
       url: SITE_URL,
       applicationCategory: 'BusinessApplication',
       applicationSubCategory: 'SEO + Content Automation',
@@ -211,10 +211,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               })(window,document,'script','dataLayer','${GTM_ID}');`}
           </Script>
         )}
-        {/* LuviAI AI Crawler Tracker — kendi sitemizi izle (GPTBot, ClaudeBot, PerplexityBot, vs.) */}
+        {/* RanksUp AI Crawler Tracker — kendi sitemizi izle (GPTBot, ClaudeBot, PerplexityBot, vs.) */}
         <Script
           id="luviai-tracker"
-          src="https://ai.luvihost.com/api/tracker.js?site=cmp6036790001artdfumwec57"
+          src="https://ranksup.ai/api/tracker.js?site=cmp6036790001artdfumwec57"
           strategy="afterInteractive"
         />
         <script

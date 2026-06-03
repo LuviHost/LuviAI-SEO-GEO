@@ -186,7 +186,7 @@ export class GeoRunnerService {
   private async fetch(url: string): Promise<string | null> {
     try {
       const res = await fetch(url, {
-        headers: { "User-Agent": "LuviAI-GEO/1.0" },
+        headers: { "User-Agent": "RanksUp-GEO/1.0" },
         signal: AbortSignal.timeout(12000),
       });
       if (!res.ok) return null;

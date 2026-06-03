@@ -1,7 +1,7 @@
 import { Instrument_Serif, Geist, Geist_Mono } from 'next/font/google';
 
 /**
- * LuviAI tipografi sistemi — Apple-grade premium pair.
+ * RanksUp tipografi sistemi — Apple-grade premium pair.
  *
  * Anthropic frontend-design skill prensibi: "NEVER use Inter/Roboto/Arial."
  * Bizim secimimiz:

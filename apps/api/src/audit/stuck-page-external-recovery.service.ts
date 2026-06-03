@@ -28,7 +28,7 @@ interface LlmRecoveryProposal {
 /**
  * ENH#2 — External Page Recovery.
  *
- * LuviAI Article kaydi olmayan, dis sayfa (kullanicinin sitesinde elle
+ * RanksUp Article kaydi olmayan, dis sayfa (kullanicinin sitesinde elle
  * yazilmis blog post vb.) icin recovery.
  *
  * Akis:
@@ -264,7 +264,7 @@ export class StuckPageExternalRecoveryService {
   private async fetchHtml(url: string): Promise<string | null> {
     try {
       const res = await fetch(url, {
-        headers: { 'User-Agent': 'LuviAI-StuckPageRecovery/1.0 (+https://ai.luvihost.com)' },
+        headers: { 'User-Agent': 'RanksUp-StuckPageRecovery/1.0 (+https://ranksup.ai)' },
         signal: AbortSignal.timeout(15000),
       });
       if (!res.ok) return null;

@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 
 // ───────────────────────────────────────────────────────────────
-//  LuviAI — Landing (yeni, dönüşüm odaklı)
+//  RanksUp — Landing (yeni, dönüşüm odaklı)
 //  AIDA + PAS + Risk Reversal · brand orange · plan verisi /api/billing/plans'tan
 // ───────────────────────────────────────────────────────────────
 
@@ -102,8 +102,8 @@ export default function LandingPage() {
           __html: JSON.stringify({
             '@context': 'https://schema.org',
             '@type': 'WebPage',
-            url: 'https://ai.luvihost.com/',
-            name: 'LuviAI — Senin yerine pazarlama yapan AI',
+            url: 'https://ranksup.ai/',
+            name: 'RanksUp — Senin yerine pazarlama yapan AI',
             speakable: {
               '@type': 'SpeakableSpecification',
               cssSelector: ['.hero-headline', '.hero-subtitle'],
@@ -120,8 +120,8 @@ export default function LandingPage() {
             __html: JSON.stringify({
               '@context': 'https://schema.org',
               '@type': 'SoftwareApplication',
-              name: 'LuviAI',
-              url: 'https://ai.luvihost.com/',
+              name: 'RanksUp',
+              url: 'https://ranksup.ai/',
               applicationCategory: 'BusinessApplication',
               operatingSystem: 'Web',
               aggregateRating: {
@@ -151,7 +151,7 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2 font-bold text-lg">
             <BrandLogo size={32} className="rounded-lg shadow-lg shadow-orange-500/20" />
-            LuviAI
+            RanksUp
           </Link>
           <div className="hidden md:flex items-center gap-7 text-sm">
             <a href="#cozum" className="hover:text-orange-600 transition-colors">{t('land.nav.solution')}</a>
@@ -409,7 +409,7 @@ export default function LandingPage() {
                   <th className="text-center p-4 font-semibold">AppTweak</th>
                   <th className="text-center p-4 font-semibold">Hootsuite</th>
                   <th className="text-center p-4 font-semibold">ChatGPT Team</th>
-                  <th className="text-center p-4 font-bold bg-orange-500/10 text-orange-700 dark:text-orange-400">LuviAI</th>
+                  <th className="text-center p-4 font-bold bg-orange-500/10 text-orange-700 dark:text-orange-400">RanksUp</th>
                 </tr>
               </thead>
               <tbody>
@@ -493,7 +493,7 @@ export default function LandingPage() {
                 <Testimonial
                   key={item.id}
                   name={item.displayName}
-                  role={item.role ?? 'LuviAI user'}
+                  role={item.role ?? 'RanksUp user'}
                   company={item.company ?? ''}
                   avatar={item.initials}
                   avatarBg={AVATAR_BGS[i % AVATAR_BGS.length]}
@@ -702,7 +702,7 @@ export default function LandingPage() {
           <div>
             <Link href="/" className="flex items-center gap-2 font-bold text-base text-foreground">
               <BrandLogo size={28} className="rounded-lg" />
-              LuviAI
+              RanksUp
             </Link>
             <p className="mt-3 text-xs leading-relaxed">
               {t('land.footer.tagline')}
@@ -719,7 +719,7 @@ export default function LandingPage() {
           ]} />
         </div>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-10 pt-6 border-t text-xs flex flex-wrap justify-between gap-3">
-          <span>© {new Date().getFullYear()} LuviAI. {t('land.footer.rights')}.</span>
+          <span>© {new Date().getFullYear()} RanksUp. {t('land.footer.rights')}.</span>
           <span>Made with ❤️ in Türkiye</span>
         </div>
       </footer>
@@ -744,7 +744,7 @@ function ProductPreview() {
             <span className="h-3 w-3 rounded-full bg-emerald-400/70" />
           </div>
           <div className="flex-1 mx-3 px-3 py-1 rounded-md bg-background border text-[11px] font-mono text-muted-foreground text-center">
-            ai.luvihost.com/sites/kobipratik
+            ranksup.ai/sites/kobipratik
           </div>
           <div className="hidden sm:flex items-center gap-1 text-[10px] text-muted-foreground">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />

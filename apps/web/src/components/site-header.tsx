@@ -22,7 +22,7 @@ export function SiteHeader() {
       <div className="container-apple h-14 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-2.5 text-[15px] font-medium tracking-[-0.01em]">
           <BrandLogo size={26} className="rounded-md" />
-          <span>LuviAI</span>
+          <span>RanksUp</span>
         </Link>
 
         <nav className="hidden md:flex items-center gap-9 text-[13px] text-neutral-600 dark:text-neutral-300">

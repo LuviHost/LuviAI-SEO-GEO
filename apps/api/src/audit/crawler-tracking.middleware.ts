@@ -43,7 +43,7 @@ interface BufferedHit {
  * gelen request'leri gormek istersek site sahibinin proxy log'unu da
  * relay edebiliriz. MVP: API endpoint'i sahip oldugunda direkt yazar.
  *
- * Pratik: kullanicinin sitesinin onunde LuviAI proxy ya da CDN servisi
+ * Pratik: kullanicinin sitesinin onunde RanksUp proxy ya da CDN servisi
  * yoksa middleware sadece dashboard request'lerini gorur. Real-time icin
  * site sahibinin <script src="/luviai-tracker.js"> embed etmesi gerekir.
  */

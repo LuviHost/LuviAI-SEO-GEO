@@ -9,7 +9,7 @@ import type { PublishPayload, PublishResult, OnPageMetaPayload, OnPageMetaResult
  *
  * credentials:
  *   - baseUrl: "https://www.kobipratik.com" (veya dev: "https://dev.kobipratik.com")
- *   - apiKey:  kobipratik appsettings -> LuviAI:ApiKey değeri
+ *   - apiKey:  kobipratik appsettings -> RanksUp:ApiKey değeri
  *
  * config:
  *   - defaultPathPrefix?: "/pratik-kobi-rehberi"  // payload.slug'in önüne eklenir; yoksa root'tan başlar

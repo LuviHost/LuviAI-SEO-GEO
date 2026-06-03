@@ -61,7 +61,7 @@ export default function ApiKeysPage() {
     <div className="space-y-6 max-w-4xl">
       <div>
         <h1 className="text-3xl font-bold flex items-center gap-2"><Key className="h-7 w-7 text-brand" /> API Keys</h1>
-        <p className="text-sm text-muted-foreground mt-1">LuviAI Public REST API + SDK ile programatik erişim</p>
+        <p className="text-sm text-muted-foreground mt-1">RanksUp Public REST API + SDK ile programatik erişim</p>
       </div>
 
       {/* SDK quick start */}
@@ -71,9 +71,9 @@ export default function ApiKeysPage() {
           <code className="text-xs bg-muted px-2 py-1 rounded">npm install @luviai/sdk</code>
         </div>
         <pre className="text-[11px] bg-muted/30 p-3 rounded font-mono overflow-x-auto">
-{`import { LuviAI } from '@luviai/sdk';
+{`import { RanksUp } from '@luviai/sdk';
 
-const luvi = new LuviAI({ apiKey: process.env.LUVIAI_API_KEY });
+const luvi = new RanksUp({ apiKey: process.env.LUVIAI_API_KEY });
 
 const article = await luvi.articles.generate({
   siteId: 'site_123',

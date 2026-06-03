@@ -1,4 +1,4 @@
-// LuviAI — Database schema
+// RanksUp — Database schema
 // Multi-tenant SEO/GEO content platform
 
 generator client {
@@ -272,7 +272,7 @@ model Site {
   trackedApps      TrackedApp[]
   stuckPages       StuckPage[]
 
-  // ASO Faz 1/2/3 — Apple Search Ads + App Store Connect + LuviAI SDK
+  // ASO Faz 1/2/3 — Apple Search Ads + App Store Connect + RanksUp SDK
   asaAccounts      AsaAccount[]
   ascAccounts      AscAccount[]
   sdkConfigs       SdkAppConfig[]
@@ -832,7 +832,7 @@ enum JobType {
   STUCK_PAGE_DETECT_ALL   // Cron: tum autopilot sitelerinde tarama + otomatik recovery dispatch
   STUCK_PAGE_RECOVER             // Tek stuck sayfa icin LLM tabanli recovery
   STUCK_PAGE_PERFORMANCE_CHECK   // 30 gun sonra GSC re-check + recovery effectiveness olcumu
-  STUCK_PAGE_EXTERNAL_RECOVER    // LuviAI disinda yazilan sayfa icin HTML fetch + LLM + adapter publish
+  STUCK_PAGE_EXTERNAL_RECOVER    // RanksUp disinda yazilan sayfa icin HTML fetch + LLM + adapter publish
 }
 
 enum JobStatus {
@@ -1551,7 +1551,7 @@ model AsaKeywordBid {
   matchType       String   // EXACT | BROAD
   status          String   // ACTIVE | PAUSED | REJECTED
 
-  // LuviAI metadata — AI bid optimizer için
+  // RanksUp metadata — AI bid optimizer için
   aiSuggestedBid  Float?   // AI'ın önerdiği optimal bid
   lastOptimizedAt DateTime?
 
@@ -1680,10 +1680,10 @@ model AscReleaseAlert {
 }
 
 // ─────────────────────────────────────────────────────────────────
-//  ASO Faz 3 — LuviAI iOS SDK (Remote Config + Rating Prompt)
+//  ASO Faz 3 — RanksUp iOS SDK (Remote Config + Rating Prompt)
 // ─────────────────────────────────────────────────────────────────
 //
-//  iOS app'ler LuviAISDK ile init eder: LuviAI.initialize(apiKey, appKey)
+//  iOS app'ler LuviAISDK ile init eder: RanksUp.initialize(apiKey, appKey)
 //  SDK her açılışta /sdk/v1/config/:appKey endpoint'inden remote config çeker.
 //  Server-side rating prompt rule'larına göre SDK prompt'u açar veya açmaz.
 //
@@ -1945,7 +1945,7 @@ model PublicCitationSubscriber {
   nextRetestAt    DateTime?
   /** Kac retest tamamlandi (15/30/60/90 → 4 max) */
   retestsSent     Int      @default(0)
-  /** Eger kullanici sonradan LuviAI'a kayit oldu — userId burada */
+  /** Eger kullanici sonradan RanksUp'a kayit oldu — userId burada */
   signupUserId    String?
   signupAt        DateTime?
   /** Email locale (TR | EN) */

@@ -9,7 +9,7 @@ import type { ChatRequest, ChatResponse, ILLMProvider, ProviderName } from './ll
 /**
  * LLMProviderService — multi-provider router + token usage recorder.
  *
- * Tüm LuviAI servisleri (article writer, snippet optimizer, ads audit judge,
+ * Tüm RanksUp servisleri (article writer, snippet optimizer, ads audit judge,
  * citation tracker vb.) bu service'in `chat()` metodunu çağırır. Service:
  *   1. AI_GLOBAL_DISABLED guard kontrolü yapar (admin panel toggle)
  *   2. Model adına göre doğru provider'ı seçer

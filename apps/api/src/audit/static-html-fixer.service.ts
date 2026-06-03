@@ -223,7 +223,7 @@ export class StaticHtmlFixerService {
   private async fetch(url: string): Promise<string | null> {
     try {
       const res = await fetch(url, {
-        headers: { 'User-Agent': 'LuviAI-StaticFixer/1.0' },
+        headers: { 'User-Agent': 'RanksUp-StaticFixer/1.0' },
         signal: AbortSignal.timeout(15000),
       });
       if (!res.ok) return null;

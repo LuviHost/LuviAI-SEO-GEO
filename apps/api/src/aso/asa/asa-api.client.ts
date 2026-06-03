@@ -87,7 +87,7 @@ export class AsaApiClient {
    *              aud: "https://appleid.apple.com",
    *              iat: now, exp: now + N seconds }
    *
-   * NOT: LuviAI form'unda "Organization ID" = clientId olarak kullanılıyor.
+   * NOT: RanksUp form'unda "Organization ID" = clientId olarak kullanılıyor.
    * "Key ID" = UUID formatlı keyId (NOT clientId).
    */
   private generateClientSecretJwt(expSeconds = 60 * 60): string {

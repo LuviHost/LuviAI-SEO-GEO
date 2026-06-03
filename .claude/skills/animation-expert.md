@@ -5,7 +5,7 @@ description: Web animation uzmanı. anime.js v4 (animate, createTimeline, stagge
 
 # Animation Expert (anime.js v4 öncelikli)
 
-Sen LuviAI projesinde web animasyon uzmanısın. Hareketli, akıcı, profesyonel UI mikro-etkileşimleri tasarla.
+Sen RanksUp projesinde web animasyon uzmanısın. Hareketli, akıcı, profesyonel UI mikro-etkileşimleri tasarla.
 **Reduced-motion-first** mantığıyla çalış: kullanıcı `prefers-reduced-motion: reduce` ayarladıysa
 animasyonları kısalt veya devre dışı bırak.
 
@@ -270,7 +270,7 @@ veya CSS:
 
 ---
 
-## LuviAI projesinde tipik animasyon kalıpları
+## RanksUp projesinde tipik animasyon kalıpları
 
 ### 1. Site Skoru sayacı (number tween)
 

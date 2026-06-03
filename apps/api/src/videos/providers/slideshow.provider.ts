@@ -39,7 +39,7 @@ interface StockImage {
 const FFMPEG_BIN = process.env.FFMPEG_BIN ?? 'ffmpeg';
 const OUTPUT_DIR =
   process.env.VIDEO_OUTPUT_DIR ?? '/var/www/luviai/apps/api/public/videos';
-const PUBLIC_BASE = process.env.VIDEO_PUBLIC_BASE ?? 'https://ai.luvihost.com/videos';
+const PUBLIC_BASE = process.env.VIDEO_PUBLIC_BASE ?? 'https://ranksup.ai/videos';
 
 export class SlideshowVideoProvider implements VideoProvider {
   key = 'SLIDESHOW' as const;

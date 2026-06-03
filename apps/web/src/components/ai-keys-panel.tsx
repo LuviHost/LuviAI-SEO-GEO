@@ -88,7 +88,7 @@ export function AiKeysPanel({ siteId }: { siteId: string }) {
   };
 
   const remove = async (provider: string) => {
-    if (!confirm(`${provider.toUpperCase()} anahtarı silinsin mi? Site bu sağlayıcı için artık LuviAI havuzuna düşecek (plana dahilse).`)) return;
+    if (!confirm(`${provider.toUpperCase()} anahtarı silinsin mi? Site bu sağlayıcı için artık RanksUp havuzuna düşecek (plana dahilse).`)) return;
     try {
       await api.deleteAiKey(siteId, provider);
       toast.success('Anahtar silindi');
@@ -146,7 +146,7 @@ export function AiKeysPanel({ siteId }: { siteId: string }) {
             p.effectiveSource === 'byok'
               ? { text: p.byokVerified ? '🔑 Senin anahtarın' : '⚠️ Senin anahtarın (test başarısız)', cls: p.byokVerified ? 'text-green-500' : 'text-yellow-500' }
               : p.effectiveSource === 'pool'
-              ? { text: '🏛️ LuviAI havuzu (plana dahil)', cls: 'text-blue-500' }
+              ? { text: '🏛️ RanksUp havuzu (plana dahil)', cls: 'text-blue-500' }
               : { text: '🔒 Bu plana dahil değil — anahtarını bağla', cls: 'text-muted-foreground' };
 
           return (

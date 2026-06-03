@@ -3,7 +3,7 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('🌱 LuviAI seed başlıyor...');
+  console.log('🌱 RanksUp seed başlıyor...');
 
   // Test admin user
   const admin = await prisma.user.upsert({

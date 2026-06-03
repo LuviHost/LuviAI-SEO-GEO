@@ -1,7 +1,7 @@
 import { Search } from 'lucide-react';
 import { HelpArticle, Step, Tip } from '@/components/help-article';
 
-export const metadata = { title: 'ASO — Mobil App SEO — LuviAI Help' };
+export const metadata = { title: 'ASO — Mobil App SEO — RanksUp Help' };
 
 export default function Page() {
   return (
@@ -9,7 +9,7 @@ export default function Page() {
       icon={Search}
       badge="ASO"
       title="App Store + Play Store sıralama takibi"
-      intro="Mobil uygulaman App Store ve Google Play'de hangi keyword'lerde kaçıncı sırada? LuviAI günlük rank check, AI keyword araştırması, rakip metadata analizi ve optimizasyon önerileri sunar."
+      intro="Mobil uygulaman App Store ve Google Play'de hangi keyword'lerde kaçıncı sırada? RanksUp günlük rank check, AI keyword araştırması, rakip metadata analizi ve optimizasyon önerileri sunar."
     >
       <h2>3 büyük modül</h2>
 

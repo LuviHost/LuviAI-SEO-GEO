@@ -25,11 +25,11 @@ export class PaytrService {
   private readonly testMode = process.env.PAYTR_TEST_MODE ?? '1';
 
   private readonly notifyUrl = process.env.PAYTR_NOTIFICATION_URL
-    ?? 'https://api.ai.luvihost.com/api/billing/webhooks/paytr';
+    ?? 'https://api.ranksup.ai/api/billing/webhooks/paytr';
   private readonly okUrl = process.env.PAYTR_OK_URL
-    ?? 'https://ai.luvihost.com/billing/success';
+    ?? 'https://ranksup.ai/billing/success';
   private readonly failUrl = process.env.PAYTR_FAIL_URL
-    ?? 'https://ai.luvihost.com/billing/failure';
+    ?? 'https://ranksup.ai/billing/failure';
 
   constructor(
     private readonly prisma: PrismaService,
@@ -61,7 +61,7 @@ export class PaytrService {
     const paymentAmount = Math.round(plan.price * 100);
 
     const userBasket = Buffer.from(JSON.stringify([
-      [`LuviAI ${plan.name} ${opts.cycle === 'annual' ? 'Yıllık' : 'Aylık'}`, plan.price.toFixed(2), 1],
+      [`RanksUp ${plan.name} ${opts.cycle === 'annual' ? 'Yıllık' : 'Aylık'}`, plan.price.toFixed(2), 1],
     ])).toString('base64');
 
     const noInstallment = '0';
@@ -112,7 +112,7 @@ export class PaytrService {
         amount: plan.price,
         currency: 'TRY',
         status: 'PENDING',
-        description: `LuviAI ${plan.name} — ${opts.cycle}`,
+        description: `RanksUp ${plan.name} — ${opts.cycle}`,
       },
     });
 
@@ -414,7 +414,7 @@ export class PaytrService {
       userEmail: input.userEmail,
       userName: input.userName,
       userIp: input.userIp,
-      productName: `LuviAI Video Credit Pack — ${pack.packSize} video`,
+      productName: `RanksUp Video Credit Pack — ${pack.packSize} video`,
     });
 
     return { iframeUrl, merchantOid };
