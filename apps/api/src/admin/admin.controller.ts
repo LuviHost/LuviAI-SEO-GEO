@@ -127,6 +127,22 @@ export class AdminController {
     return this.admin.getFailedJobs();
   }
 
+  /** Anonim AI görünürlük testleri (lead listesi) */
+  @Get('citation-leads')
+  citationLeads(
+    @Req() req: Request,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+    @Query('search') search?: string,
+  ) {
+    assertAdmin(req);
+    return this.admin.listCitationLeads({
+      limit: limit ? Number(limit) : undefined,
+      offset: offset ? Number(offset) : undefined,
+      search,
+    });
+  }
+
   /**
    * POST /admin/email-test
    * body: { to: 'foo@bar.com', template?: 'welcome_day0' | ..., name?: string }

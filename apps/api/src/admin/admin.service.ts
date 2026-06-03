@@ -96,6 +96,68 @@ export class AdminService {
     });
   }
 
+  /**
+   * Anonim (üye olmadan yapılan) AI görünürlük testleri — lead/kullanım takibi.
+   * public_citation_checks tablosundan listeler + özet istatistik döner.
+   */
+  async listCitationLeads(opts: { limit?: number; offset?: number; search?: string } = {}) {
+    const limit = Math.min(Math.max(opts.limit ?? 50, 1), 200);
+    const offset = Math.max(opts.offset ?? 0, 0);
+    const search = opts.search?.trim();
+
+    const where: any = {};
+    if (search) {
+      where.OR = [
+        { domain: { contains: search } },
+        { brand: { contains: search } },
+      ];
+    }
+
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+
+    const [rows, total, today, uniqueDomains] = await Promise.all([
+      this.prisma.publicCitationCheck.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+        skip: offset,
+        select: {
+          id: true, domain: true, brand: true, niche: true, customNiche: true,
+          source: true, ip: true, totalCalls: true, costUsd: true, createdAt: true, result: true,
+        },
+      }),
+      this.prisma.publicCitationCheck.count({ where }),
+      this.prisma.publicCitationCheck.count({ where: { createdAt: { gte: startOfToday } } }),
+      this.prisma.publicCitationCheck.groupBy({ by: ['domain'] }).then((g) => g.length),
+    ]);
+
+    const items = rows.map((r) => {
+      const res = (r.result ?? {}) as any;
+      const queries = Array.isArray(res?.queries) ? res.queries : [];
+      const citedScore = queries.reduce((a: number, q: any) => a + (q.citedCount ?? 0), 0);
+      const totalProviders = queries?.[0]?.totalProviders ?? 0;
+      const queriesCount = queries.length;
+      return {
+        id: r.id,
+        domain: r.domain,
+        brand: r.brand,
+        niche: r.customNiche || r.niche || null,
+        source: r.source,
+        ip: r.ip,
+        totalCalls: r.totalCalls,
+        costUsd: r.costUsd,
+        createdAt: r.createdAt,
+        citedScore,
+        maxScore: queriesCount * totalProviders,
+        queriesCount,
+        totalProviders,
+      };
+    });
+
+    return { items, total, today, uniqueDomains };
+  }
+
   /** /api/me — kullanıcının dashboard özeti */
   async getMyDashboard(userId: string) {
     const user = await this.prisma.user.findUnique({ where: { id: userId } });

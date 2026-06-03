@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, Users, Receipt, Globe, BarChart3, MessageSquare,
-  ListChecks, DollarSign, AlertTriangle, Settings,
+  ListChecks, DollarSign, AlertTriangle, Settings, Sparkles,
   Menu, X,
 } from 'lucide-react';
 import { BrandLogo } from '@/components/brand-logo';
@@ -29,6 +29,7 @@ const SECTIONS = [
     label: 'Marketing',
     items: [
       { href: '/admin/landing', label: 'Landing Analytics', icon: BarChart3 },
+      { href: '/admin/leads', label: 'AI Test Leadleri', icon: Sparkles },
       { href: '/admin/testimonials', label: 'Müşteri Yorumları', icon: MessageSquare },
     ],
   },

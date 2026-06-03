@@ -683,6 +683,21 @@ export const api = {
     request<any[]>(`/admin/invoices${status ? `?status=${status}` : ''}`),
   getAdminSites: () => request<any[]>('/admin/sites'),
   getAdminFailedJobs: () => request<any[]>('/admin/jobs/failed'),
+  getAdminCitationLeads: (params: { limit?: number; offset?: number; search?: string } = {}) => {
+    const qs = new URLSearchParams();
+    if (params.limit) qs.set('limit', String(params.limit));
+    if (params.offset) qs.set('offset', String(params.offset));
+    if (params.search) qs.set('search', params.search);
+    const q = qs.toString();
+    return request<{
+      items: Array<{
+        id: string; domain: string; brand: string; niche: string | null;
+        source: string; ip: string | null; totalCalls: number; costUsd: number;
+        createdAt: string; citedScore: number; maxScore: number; queriesCount: number; totalProviders: number;
+      }>;
+      total: number; today: number; uniqueDomains: number;
+    }>(`/admin/citation-leads${q ? `?${q}` : ''}`);
+  },
 
   // Faz 12 — LLM Spend (LibreChat tx pattern)
   getAdminSpend: (days = 30) =>
