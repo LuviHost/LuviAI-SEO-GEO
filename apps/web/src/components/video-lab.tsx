@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import {
   Sparkles, Film, Mic, Wand2, Bot, Layers, Loader2,
   CheckCircle2, AlertCircle, Play, Trash2, ExternalLink,
-  CalendarPlus, Send, X,
+  CalendarPlus, Send, X, Share2, RefreshCw,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
@@ -13,6 +13,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { CreateSocialPostModal } from '@/components/create-social-post-modal';
 
 type Provider = {
   key: 'SLIDESHOW' | 'VEO' | 'RUNWAY' | 'HEYGEN' | 'SORA';
@@ -82,6 +83,7 @@ export function VideoLab({ siteId }: { siteId: string }) {
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [picked, setPicked] = useState<Provider['key'] | null>(null);
+  const [providersExpanded, setProvidersExpanded] = useState(true);
   const [title, setTitle] = useState('');
   const [scriptText, setScriptText] = useState('');
   const [aspect, setAspect] = useState<'9:16' | '16:9' | '1:1'>('9:16');
@@ -90,6 +92,7 @@ export function VideoLab({ siteId }: { siteId: string }) {
   // ── Takvime ekle / yayınla state ─────────────────────────
   const [channels, setChannels] = useState<SocialChannel[]>([]);
   const [schedulingId, setSchedulingId] = useState<string | null>(null);
+  const [shareVideoUrl, setShareVideoUrl] = useState<string | null>(null);
   const [scheduleMode, setScheduleMode] = useState<ScheduleMode>('later');
   const [scheduleChannelId, setScheduleChannelId] = useState<string>('');
   const [scheduleText, setScheduleText] = useState<string>('');
@@ -252,150 +255,162 @@ export function VideoLab({ siteId }: { siteId: string }) {
         </p>
       </div>
 
-      {/* Provider grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-        {providers.map((p) => {
-          const Icon = PROVIDER_ICON[p.key] ?? Sparkles;
-          const isPicked = picked === p.key;
-          return (
-            <button
-              key={p.key}
-              type="button"
-              onClick={() => p.ready && setPicked(p.key)}
-              disabled={!p.ready}
-              className={cn(
-                'relative text-left rounded-xl border p-4 transition-all duration-200',
-                isPicked
-                  ? 'border-brand shadow-[0_0_0_1px_rgb(124_58_237/0.4),0_8px_32px_-6px_rgb(124_58_237/0.4)] bg-brand/5'
-                  : p.ready
-                    ? 'border-brand/15 bg-card hover:border-brand/40'
-                    : 'border-muted bg-muted/20 opacity-60 cursor-not-allowed',
-              )}
-            >
-              <div className="flex items-start justify-between gap-2 mb-2">
-                <div className="flex items-center gap-2">
-                  <Icon className={cn('h-5 w-5', isPicked ? 'text-brand' : 'text-foreground/70')} />
-                  <span className="font-semibold">{p.label}</span>
-                </div>
-                {p.ready ? (
-                  <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-0 text-[10px] font-mono">
-                    HAZIR
-                  </Badge>
-                ) : (
-                  <Badge variant="outline" className="text-[10px] font-mono border-amber-500/40 text-amber-700 dark:text-amber-400">
-                    KEY GEREK
-                  </Badge>
-                )}
-              </div>
-              <p className="text-xs text-muted-foreground line-clamp-3 min-h-[3em]">{p.description}</p>
-              <div className="mt-3 flex items-center gap-3 text-[11px] font-mono">
-                <span className="text-muted-foreground">{p.estTime}</span>
-                <span className="opacity-30">·</span>
-                <span className="text-muted-foreground">{p.costBand}</span>
-              </div>
-              <div className="mt-2 flex items-center gap-1">
-                {QUALITY_DOTS(p.quality)}
-                <span className="ml-1.5 text-[10px] text-muted-foreground font-mono">kalite</span>
-              </div>
-              {!p.ready && p.note && (
-                <p className="mt-2 text-[10px] text-amber-700 dark:text-amber-400 leading-snug">
-                  ⚠ {p.note}
-                </p>
-              )}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Form */}
-      {picked && (
-        <Card className="border-brand/30">
-          <CardContent className="p-5 space-y-4">
-            <div className="flex items-center gap-2">
-              <span className="font-mono text-[10px] uppercase tracking-[0.2em] text-brand">
-                &gt;&gt; YENİ VİDEO · {picked}
-              </span>
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium mb-1.5">Başlık</label>
-              <Input
-                placeholder="Örn: Shared hosting nedir? 60 saniyede"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium mb-1.5">Senaryo / Anlatım metni</label>
-              <textarea
-                rows={6}
-                placeholder="TTS bunu seslendirecek. Slideshow için her cümle bir sahne olur. AI provider'lar prompt olarak kullanır."
-                value={scriptText}
-                onChange={(e) => setScriptText(e.target.value)}
-                className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand/40"
-              />
-              <div className="text-[10px] text-muted-foreground mt-1 font-mono">
-                {scriptText.trim().length} karakter · ~{Math.ceil(scriptText.trim().split(/\s+/).filter(Boolean).length / 2.5)}sn TTS
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-medium mb-1.5">Aspect</label>
-                <div className="flex gap-1">
-                  {(['9:16', '1:1', '16:9'] as const).map((a) => (
-                    <button
-                      key={a}
-                      type="button"
-                      onClick={() => setAspect(a)}
-                      className={cn(
-                        'flex-1 px-3 py-2 rounded-md border text-xs font-mono transition-colors',
-                        aspect === a ? 'bg-brand text-white border-brand' : 'bg-card hover:border-brand/40',
+      {/* İki kolonlu layout: sol panel üretim formu, sağ panel kütüphane */}
+      <div className="grid gap-5 lg:grid-cols-[400px_1fr]">
+        {/* Sol panel: provider seçimi + form */}
+        <div className="space-y-4">
+          <div>
+            <label className="text-sm font-semibold mb-1.5 block">AI Sağlayıcı</label>
+            <div className="space-y-1.5">
+              {(providersExpanded ? providers : providers.filter((p) => p.key === picked)).map((p) => {
+                const Icon = PROVIDER_ICON[p.key] ?? Sparkles;
+                const isPicked = picked === p.key;
+                const isCollapsedPickedRow = isPicked && !providersExpanded;
+                return (
+                  <button
+                    key={p.key}
+                    type="button"
+                    onClick={() => {
+                      if (!p.ready) return;
+                      // Seçili karta tıkla: liste açık/kapalı toggle
+                      if (isPicked) {
+                        setProvidersExpanded((v) => !v);
+                        return;
+                      }
+                      // Farklı bir provider seçildi: değiştir + daralt
+                      setPicked(p.key);
+                      setProvidersExpanded(false);
+                    }}
+                    disabled={!p.ready}
+                    title={isCollapsedPickedRow ? 'Tıkla: başka sağlayıcı seç' : isPicked ? 'Tıkla: daralt' : ''}
+                    className={cn(
+                      'w-full text-left p-2.5 rounded-lg border text-xs transition-colors',
+                      isPicked && p.ready
+                        ? 'border-brand bg-brand/5'
+                        : p.ready
+                          ? 'border-border hover:bg-muted'
+                          : 'border-dashed border-border/60 opacity-50 cursor-not-allowed',
+                    )}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <Icon className={cn('h-3.5 w-3.5 shrink-0', isPicked ? 'text-brand' : 'text-foreground/70')} />
+                        <span className="font-semibold truncate">{p.label}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <span className="text-[10px] font-mono text-muted-foreground">{p.costBand}</span>
+                        {isCollapsedPickedRow && (
+                          <span className="text-[10px] text-brand">▾</span>
+                        )}
+                        {isPicked && providersExpanded && (
+                          <span className="text-[10px] text-brand">▴</span>
+                        )}
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-muted-foreground mt-0.5 leading-snug line-clamp-2">{p.description}</p>
+                    <div className="mt-1 flex items-center gap-2">
+                      <span className="text-[9px] font-mono text-muted-foreground">{p.estTime}</span>
+                      <span className="opacity-30 text-[9px]">·</span>
+                      <div className="flex items-center gap-0.5">{QUALITY_DOTS(p.quality)}</div>
+                      {!p.ready && (
+                        <span className="ml-auto text-[9px] text-amber-600 dark:text-amber-400">KEY GEREK</span>
                       )}
-                    >
-                      {a}
-                    </button>
-                  ))}
-                </div>
-              </div>
+                    </div>
+                    {!p.ready && p.note && (
+                      <p className="mt-1 text-[10px] text-amber-700 dark:text-amber-400 leading-snug line-clamp-2">
+                        ⚠ {p.note}
+                      </p>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {picked ? (
+            <div className="space-y-3 pt-2 border-t">
               <div>
-                <label className="block text-xs font-medium mb-1.5">Süre (sn)</label>
+                <label className="block text-xs font-medium mb-1.5">Başlık</label>
                 <Input
-                  type="number"
-                  min={5}
-                  max={120}
-                  value={duration}
-                  onChange={(e) => setDuration(Math.max(5, Math.min(120, parseInt(e.target.value) || 30)))}
+                  placeholder="Örn: Shared hosting nedir? 60 saniyede"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
                 />
               </div>
-            </div>
 
-            <div className="flex items-center justify-between gap-3 pt-2 border-t">
-              <Button variant="ghost" onClick={() => setPicked(null)} disabled={creating}>
-                İptal
-              </Button>
-              <Button
-                onClick={submit}
-                disabled={creating}
-                className="font-mono text-xs uppercase tracking-widest bg-gradient-to-r from-brand to-brand/85 shadow-[0_0_0_1px_rgb(124_58_237/0.3),0_8px_24px_-6px_rgb(124_58_237/0.5)]"
-              >
-                {creating ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <Sparkles className="h-3.5 w-3.5 mr-1.5" />}
+              <div>
+                <label className="block text-xs font-medium mb-1.5">Senaryo / Anlatım metni</label>
+                <textarea
+                  rows={5}
+                  placeholder="TTS bunu seslendirecek. Slideshow için her cümle bir sahne olur."
+                  value={scriptText}
+                  onChange={(e) => setScriptText(e.target.value)}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-brand/40"
+                />
+                <div className="text-[10px] text-muted-foreground mt-1 font-mono">
+                  {scriptText.trim().length} karakter · ~{Math.ceil(scriptText.trim().split(/\s+/).filter(Boolean).length / 2.5)}sn TTS
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-xs font-medium mb-1.5">Aspect</label>
+                  <div className="flex gap-1">
+                    {(['9:16', '1:1', '16:9'] as const).map((a) => (
+                      <button
+                        key={a}
+                        type="button"
+                        onClick={() => setAspect(a)}
+                        className={cn(
+                          'flex-1 px-2 py-1.5 rounded-md border text-[11px] font-mono transition-colors',
+                          aspect === a ? 'bg-brand text-white border-brand' : 'bg-card hover:border-brand/40',
+                        )}
+                      >
+                        {a}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium mb-1.5">Süre (sn)</label>
+                  <Input
+                    type="number"
+                    min={5}
+                    max={120}
+                    value={duration}
+                    onChange={(e) => setDuration(Math.max(5, Math.min(120, parseInt(e.target.value) || 30)))}
+                  />
+                </div>
+              </div>
+
+              <Button onClick={submit} disabled={creating} className="w-full">
+                {creating ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <Sparkles className="h-4 w-4 mr-1.5" />}
                 {creating ? 'Kuyrukta…' : 'Video Üret'}
               </Button>
             </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Recent videos */}
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-semibold">Son Videolar</h3>
-          <span className="text-xs text-muted-foreground font-mono">{videos.length} adet</span>
+          ) : (
+            <div className="rounded-lg border-2 border-dashed border-border p-4 text-center text-xs text-muted-foreground">
+              Önce yukarıdan bir AI sağlayıcı seç
+            </div>
+          )}
         </div>
+
+        {/* Sağ panel: kütüphane (Son Videolar) */}
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-semibold">Kütüphane <span className="text-xs font-normal text-muted-foreground">({videos.length})</span></h3>
+            <div className="flex gap-1.5">
+              <button onClick={refresh} className="h-7 w-7 grid place-items-center rounded hover:bg-muted" title="Yenile">
+                <RefreshCw className="h-3 w-3" />
+              </button>
+            </div>
+          </div>
         {videos.length === 0 ? (
-          <p className="text-center text-xs text-muted-foreground py-8">Henüz video yok. Yukarıdan bir provider seç + üret.</p>
+          <div className="rounded-xl border-2 border-dashed border-border p-10 text-center">
+            <Film className="h-10 w-10 text-muted-foreground/40 mx-auto mb-3" />
+            <p className="text-sm font-medium mb-1">Henüz video yok</p>
+            <p className="text-xs text-muted-foreground">Soldaki formu doldurup üret. Üretilenler kalıcı kaydedilir.</p>
+          </div>
         ) : (
           <div className="space-y-2">
             {videos.map((v) => (
@@ -427,19 +442,29 @@ export function VideoLab({ siteId }: { siteId: string }) {
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
                     {v.status === 'READY' && v.videoUrl && (
-                      <button
-                        onClick={() => (schedulingId === v.id ? closeScheduler() : openScheduler(v))}
-                        className={cn(
-                          'h-8 px-2 inline-flex items-center gap-1 rounded text-[11px] font-mono uppercase tracking-wider transition-colors',
-                          schedulingId === v.id
-                            ? 'bg-brand text-white'
-                            : 'bg-brand/10 text-brand hover:bg-brand/20',
-                        )}
-                        title="Takvime ekle / Yayinla"
-                      >
-                        <CalendarPlus className="h-3.5 w-3.5" />
-                        <span className="hidden sm:inline">Takvim</span>
-                      </button>
+                      <>
+                        <button
+                          onClick={() => v.videoUrl && setShareVideoUrl(v.videoUrl)}
+                          className="h-8 px-2 inline-flex items-center gap-1 rounded text-[11px] font-mono uppercase tracking-wider transition-colors bg-gradient-to-br from-orange-500 to-orange-600 text-white hover:from-orange-600 hover:to-orange-700"
+                          title="Çoklu kanal paylaşımı"
+                        >
+                          <Share2 className="h-3.5 w-3.5" />
+                          <span className="hidden sm:inline">Paylaş</span>
+                        </button>
+                        <button
+                          onClick={() => (schedulingId === v.id ? closeScheduler() : openScheduler(v))}
+                          className={cn(
+                            'h-8 px-2 inline-flex items-center gap-1 rounded text-[11px] font-mono uppercase tracking-wider transition-colors',
+                            schedulingId === v.id
+                              ? 'bg-brand text-white'
+                              : 'bg-brand/10 text-brand hover:bg-brand/20',
+                          )}
+                          title="Tek kanala takvime ekle (legacy)"
+                        >
+                          <CalendarPlus className="h-3.5 w-3.5" />
+                          <span className="hidden sm:inline">Tek Kanal</span>
+                        </button>
+                      </>
                     )}
                     {v.videoUrl && (
                       <a
@@ -484,7 +509,16 @@ export function VideoLab({ siteId }: { siteId: string }) {
             ))}
           </div>
         )}
+        </div>
       </div>
+
+      {shareVideoUrl && (
+        <CreateSocialPostModal
+          siteId={siteId}
+          initialAsset={{ url: shareVideoUrl, type: 'video' }}
+          onClose={() => setShareVideoUrl(null)}
+        />
+      )}
     </div>
   );
 }

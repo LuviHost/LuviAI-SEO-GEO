@@ -427,7 +427,7 @@ export class PipelineService {
     });
     if (!article) return;
 
-    const publicUrl = `${process.env.WEB_BASE_URL ?? 'https://ai.luvihost.com'}/sites/${siteId}/articles/${articleId}`;
+    const publicUrl = `${process.env.WEB_BASE_URL ?? 'https://ranksup.ai'}/sites/${siteId}/articles/${articleId}`;
 
     // Daha onceki ready/published makale var mi?
     const earlierCount = await this.prisma.article.count({

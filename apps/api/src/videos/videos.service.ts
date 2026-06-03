@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { JobQueueService } from '../jobs/job-queue.service.js';
+import { QuotaService } from '../billing/quota.service.js';
 import { listVideoProviders } from './providers/registry.js';
 import type { CreateVideoDto } from './videos.dto.js';
 
@@ -9,6 +10,7 @@ export class VideosService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jobs: JobQueueService,
+    private readonly quota: QuotaService,
   ) {}
 
   /** UI'ın gösterdiği provider listesi (info + ready durumu). */
@@ -21,6 +23,17 @@ export class VideosService {
     const site = await this.prisma.site.findUnique({ where: { id: siteId } });
     if (!site) throw new NotFoundException('Site bulunamadi');
     if (site.userId !== userId) throw new ForbiddenException();
+
+    // Video kotası kontrolü — SLIDESHOW (Stok + TTS) ücretsiz, diğerleri sayar
+    const isFreeProvider = dto.provider === 'SLIDESHOW';
+    if (!isFreeProvider) {
+      await this.quota.enforceVideoQuota(userId);
+      // AI cost budget kontrolü
+      const budget = await this.quota.checkAiCostBudget(userId);
+      if (budget.hardBlock) {
+        throw new ForbiddenException(`Aylık AI bütçen doldu (${budget.pct}%). Plan yükselterek devam edebilirsin.`);
+      }
+    }
 
     const video = await this.prisma.video.create({
       data: {
@@ -57,6 +70,17 @@ export class VideosService {
       },
       priority: 5,
     });
+
+    // Video kotasını ve cost'unu say (sadece pahalı provider'lar için)
+    if (!isFreeProvider) {
+      await this.quota.incrementVideoUsage(userId).catch(() => { /* noop */ });
+      // Approx cost: Sora ~$0.75, Veo ~$0.50, Runway ~$0.15, Heygen ~$0.40
+      const approxCostUsd = dto.provider === 'SORA' ? 0.75 :
+                            dto.provider === 'VEO' ? 0.50 :
+                            dto.provider === 'RUNWAY' ? 0.15 :
+                            dto.provider === 'HEYGEN' ? 0.40 : 0.20;
+      await this.quota.addAiCost(userId, approxCostUsd).catch(() => { /* noop */ });
+    }
 
     return video;
   }

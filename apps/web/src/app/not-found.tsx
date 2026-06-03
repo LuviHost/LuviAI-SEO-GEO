@@ -4,7 +4,7 @@ import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
   title: 'Sayfa bulunamadı',
-  description: 'Aradığın sayfa LuviAI üzerinde mevcut değil.',
+  description: 'Aradığın sayfa RanksUp üzerinde mevcut değil.',
   robots: { index: false, follow: true },
 };
 

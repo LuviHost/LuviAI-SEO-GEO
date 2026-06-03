@@ -7,7 +7,9 @@ export type NotifyEvent =
   | 'ai_citation_rise'
   | 'crawler_first_visit'   // GPTBot/ClaudeBot ilk kez geldi
   | 'ai_referrer_first'     // ChatGPT/Perplexity'den ilk tıklama
-  | 'autopilot_summary';
+  | 'autopilot_summary'
+  | 'stuck_page_detected'   // Yeni stuck sayfa(lar) algilandi
+  | 'stuck_page_recovered'; // Stuck sayfa otomatik duzeltildi
 
 export interface NotifyPayload {
   siteId: string;
@@ -70,7 +72,7 @@ export class WebhookNotifierService {
       siteId,
       siteName: site?.name ?? 'Site',
       event: 'autopilot_summary',
-      title: '✅ LuviAI Webhook Test',
+      title: '✅ RanksUp Webhook Test',
       message: 'Webhook bağlantısı çalışıyor. AI olayları buraya gelecek.',
     });
   }

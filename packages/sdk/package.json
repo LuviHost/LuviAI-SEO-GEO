@@ -1,7 +1,7 @@
 {
   "name": "@luviai/sdk",
   "version": "0.1.0",
-  "description": "Official Node.js SDK for LuviAI — SEO + GEO + Ads automation",
+  "description": "Official Node.js SDK for RanksUp — SEO + GEO + Ads automation",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

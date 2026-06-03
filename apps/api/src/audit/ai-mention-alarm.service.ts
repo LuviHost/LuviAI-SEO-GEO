@@ -175,16 +175,16 @@ export class AiMentionAlarmService {
       </li>
     `).join('')}
   </ul>
-  <p>LuviAI <strong>otopilot</strong> moduyla bu sorunları otomatik düzeltebilir. Detaylar için panele bakın:</p>
+  <p>RanksUp <strong>otopilot</strong> moduyla bu sorunları otomatik düzeltebilir. Detaylar için panele bakın:</p>
   <p>
-    <a href="https://ai.luvihost.com/sites/${first.siteId}?tab=report"
+    <a href="https://ranksup.ai/sites/${first.siteId}?tab=report"
        style="display: inline-block; background: #6c5ce7; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none;">
       Raporu Aç →
     </a>
   </p>
   <hr style="margin: 24px 0; border: none; border-top: 1px solid #eee;">
   <p style="font-size: 12px; color: #999;">
-    LuviAI · AI görünürlük takibi otomatiktir, her gün 04:00 UTC'de kontrol edilir.
+    RanksUp · AI görünürlük takibi otomatiktir, her gün 04:00 UTC'de kontrol edilir.
   </p>
 </body></html>
     `;

@@ -59,16 +59,20 @@ export default function SettingsPage() {
   };
 
   const regenerateBrain = async () => {
-    setRegenerating(true);
     setBrainJustReady(false);
     const startTs = Date.now();
-    // Mevcut brain.updatedAt'ı çek — polling karşılaştırması için
+    // Mevcut brain.updatedAt'ı önce çek — polling başlangıç noktası
+    let currentUpdatedAt: string;
     try {
       const currentBrain = await api.getBrain(site.id).catch(() => null);
-      regenStartedAt.current = currentBrain?.updatedAt ?? new Date(0).toISOString();
+      currentUpdatedAt = currentBrain?.updatedAt ?? new Date(0).toISOString();
     } catch {
-      regenStartedAt.current = new Date(0).toISOString();
+      currentUpdatedAt = new Date(0).toISOString();
     }
+    // ÖNCE ref'i set et, SONRA regenerating=true ile useEffect'i tetikle.
+    // (Aksi halde useEffect ilk renderda ref boş diye return eder, polling hiç başlamaz.)
+    regenStartedAt.current = currentUpdatedAt;
+    setRegenerating(true);
     try {
       await api.regenerateBrain(site.id);
       toast.success('Brain üretimi başladı — ~1-2 dk içinde hazır olur', { duration: 8000 });
@@ -140,7 +144,7 @@ export default function SettingsPage() {
           <Input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            placeholder="Örn: LuviAI"
+            placeholder="Örn: RanksUp"
           />
         </div>
 

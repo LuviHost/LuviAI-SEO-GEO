@@ -2,8 +2,8 @@ import type { MetadataRoute } from 'next';
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'LuviAI — SEO + İçerik + Sosyal Medya Otomasyonu',
-    short_name: 'LuviAI',
+    name: 'RanksUp — SEO + İçerik + Sosyal Medya Otomasyonu',
+    short_name: 'RanksUp',
     description: 'Site denetimi, AI içerik üretimi, sosyal medya planlama ve reklam denetimi tek panelden.',
     start_url: '/',
     display: 'standalone',

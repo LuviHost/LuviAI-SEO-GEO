@@ -1,6 +1,6 @@
 # @luviai/sdk
 
-Official Node.js SDK for [LuviAI](https://ai.luvihost.com) — SEO + GEO + Ads automation platform.
+Official Node.js SDK for [RanksUp](https://ranksup.ai) — SEO + GEO + Ads automation platform.
 
 ## Install
 
@@ -11,9 +11,9 @@ npm install @luviai/sdk
 ## Quick Start
 
 ```ts
-import { LuviAI } from '@luviai/sdk';
+import { RanksUp } from '@luviai/sdk';
 
-const luvi = new LuviAI({ apiKey: process.env.LUVIAI_API_KEY! });
+const luvi = new RanksUp({ apiKey: process.env.LUVIAI_API_KEY! });
 
 // 1. Liste sites
 const sites = await luvi.sites.list();
@@ -44,7 +44,7 @@ const campaign = await luvi.ads.build(sites[0].id, {
 
 ## Get an API Key
 
-1. Sign in at https://ai.luvihost.com
+1. Sign in at https://ranksup.ai
 2. Go to **Settings → API Keys**
 3. Click **Create Key**, choose scopes
 4. Copy the token (starts with `luvi_`)

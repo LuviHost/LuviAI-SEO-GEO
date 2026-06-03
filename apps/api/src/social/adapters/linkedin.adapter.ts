@@ -125,6 +125,9 @@ export class LinkedInAdapter implements SocialAdapter {
 
     const text = this.formatText(input);
 
+    // 1) Medya varsa önce LinkedIn'e upload et — asset URN'lerini al
+    const mediaAssets = await this.uploadMediaIfAny(input.mediaUrls ?? [], accessToken, author);
+
     const body: any = {
       author,
       lifecycleState: 'PUBLISHED',
@@ -137,8 +140,18 @@ export class LinkedInAdapter implements SocialAdapter {
       visibility: { 'com.linkedin.ugc.MemberNetworkVisibility': 'PUBLIC' },
     };
 
-    // Link unfurl (eger metadata.link varsa) — LinkedIn URL'i otomatik unfurl eder
-    if (input.metadata?.link) {
+    if (mediaAssets.length > 0) {
+      // Medya öncelikli: image veya video
+      const firstType = mediaAssets[0].type;
+      body.specificContent['com.linkedin.ugc.ShareContent'].shareMediaCategory =
+        firstType === 'video' ? 'VIDEO' : 'IMAGE';
+      body.specificContent['com.linkedin.ugc.ShareContent'].media = mediaAssets.map((a) => ({
+        status: 'READY',
+        media: a.assetUrn,
+        ...(a.altText ? { description: { text: a.altText } } : {}),
+      }));
+    } else if (input.metadata?.link) {
+      // Link unfurl (metadata.link varsa) — LinkedIn URL'i otomatik unfurl eder
       body.specificContent['com.linkedin.ugc.ShareContent'].shareMediaCategory = 'ARTICLE';
       body.specificContent['com.linkedin.ugc.ShareContent'].media = [
         { status: 'READY', originalUrl: input.metadata.link },
@@ -166,6 +179,103 @@ export class LinkedInAdapter implements SocialAdapter {
     const externalUrl = `https://www.linkedin.com/feed/update/${encodeURIComponent(externalId)}/`;
 
     return { externalId, externalUrl, raw: data };
+  }
+
+  /**
+   * LinkedIn media upload (3 adım):
+   *  1. POST /v2/assets?action=registerUpload → uploadUrl + asset URN
+   *  2. PUT binary → uploadUrl (LinkedIn'in CDN'i)
+   *  3. asset URN'i ugcPosts body'sinde media olarak referans ver
+   *
+   * Image için recipe: urn:li:digitalmediaRecipe:feedshare-image
+   * Video için recipe: urn:li:digitalmediaRecipe:feedshare-video (chunked, daha karmaşık)
+   *
+   * Şimdilik max 1 image/video destekliyoruz. LinkedIn'in post'larında
+   * çok-resim ise carousel — ayrı bir akış gerek.
+   */
+  private async uploadMediaIfAny(
+    mediaUrls: Array<{ url: string; type: 'image' | 'video'; altText?: string }>,
+    accessToken: string,
+    ownerUrn: string,
+  ): Promise<Array<{ assetUrn: string; type: 'image' | 'video'; altText?: string }>> {
+    if (!Array.isArray(mediaUrls) || mediaUrls.length === 0) return [];
+
+    const webBase = process.env.WEB_BASE_URL ?? 'http://localhost:3000';
+    const result: Array<{ assetUrn: string; type: 'image' | 'video'; altText?: string }> = [];
+
+    // Şimdilik tek medya (video varsa onu, yoksa ilk image)
+    const videos = mediaUrls.filter((m) => m.type === 'video').slice(0, 1);
+    const images = videos.length > 0 ? [] : mediaUrls.filter((m) => m.type === 'image').slice(0, 1);
+    const items = videos.length > 0 ? videos : images;
+    if (items.length === 0) return [];
+
+    for (const item of items) {
+      const absoluteUrl = item.url.startsWith('http') ? item.url : `${webBase}${item.url}`;
+      const recipe = item.type === 'video'
+        ? 'urn:li:digitalmediaRecipe:feedshare-video'
+        : 'urn:li:digitalmediaRecipe:feedshare-image';
+
+      // 1) Register upload
+      const regRes = await fetch(`${LINKEDIN_API}/assets?action=registerUpload`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+          'X-Restli-Protocol-Version': '2.0.0',
+        },
+        body: JSON.stringify({
+          registerUploadRequest: {
+            recipes: [recipe],
+            owner: ownerUrn,
+            serviceRelationships: [
+              { relationshipType: 'OWNER', identifier: 'urn:li:userGeneratedContent' },
+            ],
+          },
+        }),
+      });
+      if (!regRes.ok) {
+        const errBody = await regRes.text();
+        throw new Error(`LinkedIn registerUpload failed: ${regRes.status} ${errBody.slice(0, 300)}`);
+      }
+      const regData = (await regRes.json()) as {
+        value: {
+          uploadMechanism: {
+            'com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest': {
+              uploadUrl: string;
+              headers?: Record<string, string>;
+            };
+          };
+          asset: string;
+        };
+      };
+      const uploadUrl = regData.value.uploadMechanism['com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest'].uploadUrl;
+      const uploadHeaders = regData.value.uploadMechanism['com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest'].headers ?? {};
+      const assetUrn = regData.value.asset;
+
+      // 2) Binary'yi indir + PUT et
+      const fileRes = await fetch(absoluteUrl);
+      if (!fileRes.ok) {
+        throw new Error(`LinkedIn media indirilemedi: ${absoluteUrl} → HTTP ${fileRes.status}`);
+      }
+      const buf = Buffer.from(await fileRes.arrayBuffer());
+
+      const upRes = await fetch(uploadUrl, {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          ...uploadHeaders,
+        },
+        body: buf,
+      });
+      if (!upRes.ok) {
+        const errBody = await upRes.text().catch(() => '');
+        throw new Error(`LinkedIn binary upload failed: ${upRes.status} ${errBody.slice(0, 300)}`);
+      }
+
+      result.push({ assetUrn, type: item.type, altText: item.altText });
+    }
+
+    return result;
   }
 
   /**

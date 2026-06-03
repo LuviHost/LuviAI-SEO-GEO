@@ -8,7 +8,7 @@ import { useT } from '@/lib/i18n';
 
 const FAQS_TR = [
   {
-    q: 'LuviAI nasıl çalışır?',
+    q: 'RanksUp nasıl çalışır?',
     a: 'Sitenizin URL\'ini bağlarsınız. AI önce sitenizi crawl edip "marka beyni" oluşturur (ton, persona, rakipler). Sonra GSC verisi + AI analiziyle Tier 1/2/3 konu listesi çıkarır. Her makale 6-ajan zincirinden geçer (anahtar kelime → outline → yazar → editör → görsel → yayıncı) ve seçtiğiniz hedefe (WordPress, FTP, GitHub, vb.) yayınlanır.',
   },
   {
@@ -21,7 +21,7 @@ const FAQS_TR = [
   },
   {
     q: 'AI içeriği Google\'da cezalandırılır mı?',
-    a: 'Hayır. Google AI içerik politikası "kalite" odaklıdır, yöntem odaklı değil. LuviAI editör katmanı AI klişelerini siler, marka sesi tutarlılığını sağlar ve tüm makaleler 1800-2500 kelime, FAQ + Schema markup ile gerçek değer yaratacak şekilde yapılandırılır.',
+    a: 'Hayır. Google AI içerik politikası "kalite" odaklıdır, yöntem odaklı değil. RanksUp editör katmanı AI klişelerini siler, marka sesi tutarlılığını sağlar ve tüm makaleler 1800-2500 kelime, FAQ + Schema markup ile gerçek değer yaratacak şekilde yapılandırılır.',
   },
   {
     q: 'GEO (AI search) optimizasyonu nedir?',
@@ -29,7 +29,7 @@ const FAQS_TR = [
   },
   {
     q: 'Kendi WordPress\'ime nasıl bağlarım?',
-    a: 'WordPress yönetim panelinde Users → Profile → Application Passwords altından bir App Password oluşturursunuz. LuviAI onboarding 5. adımında WordPress REST seçer, site URL + kullanıcı adı + app password girersiniz. Sonra her üretilen makale otomatik yayına geçer.',
+    a: 'WordPress yönetim panelinde Users → Profile → Application Passwords altından bir App Password oluşturursunuz. RanksUp onboarding 5. adımında WordPress REST seçer, site URL + kullanıcı adı + app password girersiniz. Sonra her üretilen makale otomatik yayına geçer.',
   },
   {
     q: 'Aboneliğimi istediğim zaman iptal edebilir miyim?',
@@ -72,22 +72,22 @@ const FAQS_TR = [
     a: 'Site eklediğinizde varsayılan AÇIK gelir. Otopilot ON ise: (1) Site denetimi → otomatik düzeltme (sitemap/robots/llms cPanel\'e yazılır), (2) 8 makale takvime yerleşir, (3) İlk makale hemen üretilir, (4) Sonraki makaleler 15dk öncesinden üretime girer, yayın saatinde otomatik publish, (5) AI Citation günlük + içerik 30 gün sonra performansa göre revize, (6) Reklam autopilot 6 saatte ROAS optimize. Sen sadece raporu maille okursun.',
   },
   {
-    q: 'Türkçe SEO uzmanı maaşına vermek yerine LuviAI almak gerçekten mantıklı mı?',
-    a: 'Bir Türkçe SEO uzmanı 35-60k ₺/ay. Bir içerik yazarı 10-20k ₺/ay. Sosyal medya yöneticisi 15-25k ₺/ay. Reklam uzmanı 20-40k ₺/ay. Toplam ~100k ₺/ay. LuviAI Profesyonel paket 6.980 ₺/ay ve hepsini yapıyor. Üstelik AI search optimizasyonu (Türkçe pazarda yok) + 7/24 çalışıyor + tatil yapmıyor + ayrılmıyor.',
+    q: 'Türkçe SEO uzmanı maaşına vermek yerine RanksUp almak gerçekten mantıklı mı?',
+    a: 'Bir Türkçe SEO uzmanı 35-60k ₺/ay. Bir içerik yazarı 10-20k ₺/ay. Sosyal medya yöneticisi 15-25k ₺/ay. Reklam uzmanı 20-40k ₺/ay. Toplam ~100k ₺/ay. RanksUp Profesyonel paket 6.980 ₺/ay ve hepsini yapıyor. Üstelik AI search optimizasyonu (Türkçe pazarda yok) + 7/24 çalışıyor + tatil yapmıyor + ayrılmıyor.',
   },
   {
     q: 'Google llms.txt\'i kullanıyor mu? Bu dosya gerçekten gerekli mi?',
-    a: 'Google resmi rehberinde "AI Overviews ve generatif arama için yeni bir machine-readable dosya, AI text dosyası, markup veya Markdown oluşturmanıza gerek yok" diyor — yani Google için llms.txt zorunlu değil. Ancak Perplexity, ChatGPT browse modu, Claude.ai web erişimi gibi non-Google AI motorları llms.txt + llms-full.txt\'i okuyarak içeriği daha hızlı parse ediyor. LuviAI bu dosyaları "multi-engine GEO optimizasyonu" için üretiyor — Google\'a yarar yok zararı yok, diğer AI motorlarına net yarar. Google\'da AI Overviews için asıl odak: benzersiz bakış açısı, first-hand deneyim, E-E-A-T sinyalleri ve klasik teknik SEO (indekslenebilirlik + snippet uygunluğu). LuviAI\'nın Brain Generator + içerik pipeline\'ı bu sinyalleri zaten optimize ediyor.',
+    a: 'Google resmi rehberinde "AI Overviews ve generatif arama için yeni bir machine-readable dosya, AI text dosyası, markup veya Markdown oluşturmanıza gerek yok" diyor — yani Google için llms.txt zorunlu değil. Ancak Perplexity, ChatGPT browse modu, Claude.ai web erişimi gibi non-Google AI motorları llms.txt + llms-full.txt\'i okuyarak içeriği daha hızlı parse ediyor. RanksUp bu dosyaları "multi-engine GEO optimizasyonu" için üretiyor — Google\'a yarar yok zararı yok, diğer AI motorlarına net yarar. Google\'da AI Overviews için asıl odak: benzersiz bakış açısı, first-hand deneyim, E-E-A-T sinyalleri ve klasik teknik SEO (indekslenebilirlik + snippet uygunluğu). RanksUp\'nın Brain Generator + içerik pipeline\'ı bu sinyalleri zaten optimize ediyor.',
   },
   {
     q: 'Demo görmek istiyorum, nasıl?',
-    a: 'Onboarding ekranında "Demo Aç" butonuna tıkla. 30 saniyede tam dolu örnek site açılır: 5 dummy makale (1 yayında, 1 üretiliyor, 3 takvimde) + audit raporu + AI Citation 14 günlük trend + GEO Score Card. Tek tıkla LuviAI\'ı keşfedebilirsin, kendi siteni bağlamadan.',
+    a: 'Onboarding ekranında "Demo Aç" butonuna tıkla. 30 saniyede tam dolu örnek site açılır: 5 dummy makale (1 yayında, 1 üretiliyor, 3 takvimde) + audit raporu + AI Citation 14 günlük trend + GEO Score Card. Tek tıkla RanksUp\'ı keşfedebilirsin, kendi siteni bağlamadan.',
   },
 ];
 
 const FAQS_EN = [
   {
-    q: 'How does LuviAI work?',
+    q: 'How does RanksUp work?',
     a: 'You connect your site URL. The AI first crawls your site and builds a "brand brain" (tone, persona, competitors). It then uses GSC data + AI analysis to produce a Tier 1/2/3 topic list. Every article flows through a 6-agent chain (keyword → outline → writer → editor → image → publisher) and is published to your chosen target (WordPress, FTP, GitHub, etc.).',
   },
   {
@@ -100,7 +100,7 @@ const FAQS_EN = [
   },
   {
     q: 'Will Google penalize AI content?',
-    a: 'No. Google\'s AI content policy is quality-focused, not method-focused. LuviAI\'s editor layer removes AI clichés, enforces brand voice consistency, and every article is 1800-2500 words structured with FAQ + Schema markup to deliver real value.',
+    a: 'No. Google\'s AI content policy is quality-focused, not method-focused. RanksUp\'s editor layer removes AI clichés, enforces brand voice consistency, and every article is 1800-2500 words structured with FAQ + Schema markup to deliver real value.',
   },
   {
     q: 'What is GEO (AI search) optimization?',
@@ -108,7 +108,7 @@ const FAQS_EN = [
   },
   {
     q: 'How do I connect my own WordPress?',
-    a: 'In the WordPress admin under Users → Profile → Application Passwords, create an App Password. In LuviAI onboarding step 5, pick WordPress REST, enter site URL + username + app password. After that every generated article is auto-published.',
+    a: 'In the WordPress admin under Users → Profile → Application Passwords, create an App Password. In RanksUp onboarding step 5, pick WordPress REST, enter site URL + username + app password. After that every generated article is auto-published.',
   },
   {
     q: 'Can I cancel my subscription anytime?',
@@ -151,16 +151,16 @@ const FAQS_EN = [
     a: 'It\'s ON by default when you add a site. When ON: (1) Site audit → auto-fix (sitemap/robots/llms written to cPanel), (2) 8 articles scheduled, (3) First article generated immediately, (4) Subsequent articles enter generation 15min ahead, auto-publish at scheduled time, (5) AI Citation daily + content auto-revised after 30 days based on performance, (6) Ads autopilot optimizes ROAS every 6h. You just read the report via email.',
   },
   {
-    q: 'Is LuviAI really cheaper than hiring a Turkish SEO specialist?',
-    a: 'A Turkish SEO specialist costs ₺35-60k/mo. A content writer ₺10-20k/mo. A social media manager ₺15-25k/mo. An ads specialist ₺20-40k/mo. Total ~₺100k/mo. LuviAI Professional is ₺6,980/mo and does it all. Plus AI search optimization (rare in the Turkish market) + 24/7 + no vacation + no resignation.',
+    q: 'Is RanksUp really cheaper than hiring a Turkish SEO specialist?',
+    a: 'A Turkish SEO specialist costs ₺35-60k/mo. A content writer ₺10-20k/mo. A social media manager ₺15-25k/mo. An ads specialist ₺20-40k/mo. Total ~₺100k/mo. RanksUp Professional is ₺6,980/mo and does it all. Plus AI search optimization (rare in the Turkish market) + 24/7 + no vacation + no resignation.',
   },
   {
     q: 'Does Google use llms.txt? Is this file actually needed?',
-    a: 'Google\'s official guide states: "You don\'t need to create a new machine-readable file, AI text file, markup or Markdown for AI Overviews and generative search" — so llms.txt is not required for Google. However Perplexity, ChatGPT browse mode, Claude.ai web access read llms.txt + llms-full.txt to parse content faster. LuviAI produces these files for "multi-engine GEO optimization" — neutral for Google, clear benefit for other AI engines. For Google AI Overviews the real focus is: unique perspective, first-hand experience, E-E-A-T signals and classic technical SEO (indexability + snippet eligibility). LuviAI\'s Brain Generator + content pipeline already optimizes these signals.',
+    a: 'Google\'s official guide states: "You don\'t need to create a new machine-readable file, AI text file, markup or Markdown for AI Overviews and generative search" — so llms.txt is not required for Google. However Perplexity, ChatGPT browse mode, Claude.ai web access read llms.txt + llms-full.txt to parse content faster. RanksUp produces these files for "multi-engine GEO optimization" — neutral for Google, clear benefit for other AI engines. For Google AI Overviews the real focus is: unique perspective, first-hand experience, E-E-A-T signals and classic technical SEO (indexability + snippet eligibility). RanksUp\'s Brain Generator + content pipeline already optimizes these signals.',
   },
   {
     q: 'I want a demo, how?',
-    a: 'In the onboarding screen, click "Open Demo". In 30 seconds a fully-loaded example site opens: 5 dummy articles (1 live, 1 generating, 3 scheduled) + audit report + AI Citation 14-day trend + GEO Score Card. One click to explore LuviAI without connecting your own site.',
+    a: 'In the onboarding screen, click "Open Demo". In 30 seconds a fully-loaded example site opens: 5 dummy articles (1 live, 1 generating, 3 scheduled) + audit report + AI Citation 14-day trend + GEO Score Card. One click to explore RanksUp without connecting your own site.',
   },
 ];
 
@@ -199,7 +199,7 @@ function buildJsonLd(items: { q: string; a: string }[], breadcrumbHome: string, 
     '@graph': [
       {
         '@type': 'FAQPage',
-        '@id': 'https://ai.luvihost.com/faq#faqpage',
+        '@id': 'https://ranksup.ai/faq#faqpage',
         mainEntity: items.map((item) => ({
           '@type': 'Question',
           name: item.q,
@@ -213,8 +213,8 @@ function buildJsonLd(items: { q: string; a: string }[], breadcrumbHome: string, 
       {
         '@type': 'BreadcrumbList',
         itemListElement: [
-          { '@type': 'ListItem', position: 1, name: breadcrumbHome, item: 'https://ai.luvihost.com/' },
-          { '@type': 'ListItem', position: 2, name: breadcrumbFaq, item: 'https://ai.luvihost.com/faq' },
+          { '@type': 'ListItem', position: 1, name: breadcrumbHome, item: 'https://ranksup.ai/' },
+          { '@type': 'ListItem', position: 2, name: breadcrumbFaq, item: 'https://ranksup.ai/faq' },
         ],
       },
     ],

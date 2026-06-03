@@ -85,7 +85,7 @@ export class AffiliateService {
     return {
       enrolled: true,
       refCode: affiliate.refCode,
-      shareUrl: `${process.env.WEB_BASE_URL ?? 'https://ai.luvihost.com'}?ref=${affiliate.refCode}`,
+      shareUrl: `${process.env.WEB_BASE_URL ?? 'https://ranksup.ai'}?ref=${affiliate.refCode}`,
       totalReferred: affiliate.totalReferred,
       totalRevenue: affiliate.totalRevenue,
       totalCommission: affiliate.totalCommission,

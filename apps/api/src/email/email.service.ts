@@ -29,7 +29,7 @@ export class EmailService {
   constructor(private readonly prisma: PrismaService) {
     const key = process.env.RESEND_API_KEY;
     this.client = key ? new Resend(key) : null;
-    this.from = process.env.EMAIL_FROM ?? 'LuviAI <noreply@ai.luvihost.com>';
+    this.from = process.env.EMAIL_FROM ?? 'RanksUp <noreply@ranksup.ai>';
 
     if (!this.client) {
       this.log.warn('RESEND_API_KEY yok — email gönderimi devre dışı');
@@ -144,7 +144,7 @@ export class EmailService {
    */
   private renderTemplate(template: EmailTemplate, data: Record<string, any>): { subject: string; html: string } {
     const name = data.name ?? 'kullanıcı';
-    const baseUrl = process.env.WEB_BASE_URL ?? 'https://ai.luvihost.com';
+    const baseUrl = process.env.WEB_BASE_URL ?? 'https://ranksup.ai';
 
     const wrapper = (subject: string, body: string) => ({
       subject,
@@ -152,11 +152,11 @@ export class EmailService {
 <html><head><meta charset="utf-8"></head>
 <body style="font-family:-apple-system,system-ui,sans-serif;background:#f4f1ff;padding:32px 16px;color:#1a1a2e;">
   <div style="max-width:560px;margin:0 auto;background:#fff;border-radius:12px;padding:32px;">
-    <div style="font-size:24px;font-weight:700;color:#6c5ce7;margin-bottom:24px;">LuviAI</div>
+    <div style="font-size:24px;font-weight:700;color:#6c5ce7;margin-bottom:24px;">RanksUp</div>
     ${body}
     <hr style="border:0;border-top:1px solid #eee;margin:32px 0">
     <div style="font-size:12px;color:#888;">
-      © 2026 LuviHost · <a href="${baseUrl}" style="color:#6c5ce7;">ai.luvihost.com</a><br>
+      © 2026 LuviHost · <a href="${baseUrl}" style="color:#6c5ce7;">ranksup.ai</a><br>
       <a href="${baseUrl}/billing" style="color:#888;">Abonelik yönet</a> ·
       <a href="${baseUrl}/help" style="color:#888;">Yardım</a>
     </div>
@@ -167,9 +167,9 @@ export class EmailService {
     switch (template) {
       case 'welcome_day0':
         return wrapper(
-          '🎉 LuviAI\'ye hoş geldiniz, ' + name,
+          '🎉 RanksUp\'ye hoş geldiniz, ' + name,
           `<h2>Merhaba ${name},</h2>
-          <p>LuviAI hesabın oluşturuldu! Kaydolan herkes 1 makaleyi ücretsiz üretebilir (süre sınırı yok). Hesabında:</p>
+          <p>RanksUp hesabın oluşturuldu! Kaydolan herkes 1 makaleyi ücretsiz üretebilir (süre sınırı yok). Hesabında:</p>
           <ul>
             <li>1 ücretsiz makale otomatik üretilir</li>
             <li>Sitenin SEO sağlık taraması yapılır</li>
@@ -180,7 +180,7 @@ export class EmailService {
 
       case 'welcome_day1':
         return wrapper(
-          'LuviAI\'de ilk makaleniz hazır mı?',
+          'RanksUp\'de ilk makaleniz hazır mı?',
           `<h2>Selam ${name}!</h2>
           <p>Onboarding sonrası AI ilk makalenizi üretti. Henüz görmediyseniz:</p>
           <p><a href="${baseUrl}/dashboard" style="color:#6c5ce7;">Dashboard'a git →</a></p>
@@ -255,7 +255,7 @@ export class EmailService {
       case 'weekly_report':
         return wrapper(
           `📊 Haftalık rapor: ${data.totalClicks ?? 0} click, ${data.totalImpressions ?? 0} gösterim`,
-          `<h2>Bu hafta LuviAI ile</h2>
+          `<h2>Bu hafta RanksUp ile</h2>
           <ul>
             <li>${data.articlesPublished ?? 0} makale yayınlandı</li>
             <li>${data.totalClicks ?? 0} tıklama</li>
@@ -339,7 +339,7 @@ export class EmailService {
 
       default:
         return wrapper(
-          'LuviAI bildirimi',
+          'RanksUp bildirimi',
           `<p>${name}, sizinle paylaşacağımız bir güncelleme var.</p>`,
         );
     }

@@ -51,7 +51,7 @@ interface BasePlan {
  * Premium positioning:
  *  - Tek aracın altında 7+ kapsam: SEO, GEO, AI Citation, Video Studio, ASO, Sosyal, Auto-publish
  *  - Global rakip benchmark: Jasper Pro $125, Surfer Pro $129, MarketMuse Enterprise $12k/yıl
- *  - LuviAI Profesyonel ₺4,999 ($125) → Jasper/Surfer ile head-to-head, kapsamla önde
+ *  - RanksUp Profesyonel ₺4,999 ($125) → Jasper/Surfer ile head-to-head, kapsamla önde
  *
  * Migration (grandfathering): Mevcut aboneler 6 ay eski fiyatla devam.
  * Cost guard: Plan başına aylık USD spend cap (SETTINGS_CATALOG'da) — aşılırsa pipeline pause.

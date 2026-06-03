@@ -39,6 +39,9 @@ import { KeywordOptimizerService } from '../../api/dist/ads/keyword-optimizer.se
 import { BudgetShifterService } from '../../api/dist/ads/budget-shifter.service.js';
 import { AutoBoostService } from '../../api/dist/ads/auto-boost.service.js';
 import { SettingsService } from '../../api/dist/settings/settings.service.js';
+import { StuckPageDetectorService } from '../../api/dist/audit/stuck-page-detector.service.js';
+import { StuckPageRecoveryService } from '../../api/dist/audit/stuck-page-recovery.service.js';
+import { JobQueueService } from '../../api/dist/jobs/job-queue.service.js';
 
 const log = new Logger('Worker');
 
@@ -71,6 +74,9 @@ async function bootstrap() {
     adsAutoBoost: app.get(AutoBoostService),
     prisma: app.get(PrismaService),
     settings: app.get(SettingsService),
+    stuckDetector: app.get(StuckPageDetectorService),
+    stuckRecovery: app.get(StuckPageRecoveryService),
+    jobs: app.get(JobQueueService),
   };
 
   log.log('🔧 Worker DI hazır, BullMQ bağlanıyor');
@@ -210,32 +216,44 @@ async function bootstrap() {
           },
         });
       } else {
-        log.log(`[${siteId}] [1/5] Brain üretiliyor`);
-        await services.brainGen.runGeneration(siteId);
+        log.log(`[${siteId}] [1/5] Brain + Audit + Platform paralel`);
       }
 
-      let audit: any = null;
-      if (false /* audit her zaman gerçek çalışır — AI Citation içeride AI_GLOBAL_DISABLED guard'ı ile atlanır, kalan 14 SEO check + PageSpeed + GEO LLM gerektirmez */) {
-        log.warn(`[${siteId}] [2/5] Audit MOCK (skip)`);
-        await new Promise((r) => setTimeout(r, 0));
-        audit = await services.prisma.audit.create({
-          data: {
-            siteId,
-            overallScore: 70,
-            geoScore: 50,
-            checks: { mock: true } as any,
-            issues: [] as any,
-            durationMs: 100,
-          },
+      // ⚡ Paralel başlat — Brain, Audit ve Platform birbirine bağımlı değil.
+      // Topics brain'i + audit'i bekler; o yüzden bunlar bittikten sonra çalışır.
+      const brainPromise = aiGlobalOff
+        ? Promise.resolve(null) // mock zaten yukarıda yazıldı
+        : services.brainGen.runGeneration(siteId).catch((err) => {
+            log.error(`[${siteId}] brain hata: ${err.message}`);
+            throw err;
+          });
+
+      const auditPromise = services.audit.runAudit(siteId).catch((err) => {
+        log.error(`[${siteId}] audit hata: ${err.message}`);
+        return null; // audit fail olsa bile zincir devam etsin
+      });
+
+      const platformPromise = services.platformDetector.detect(site.url)
+        .then(async (detection) => {
+          await services.prisma.site.update({
+            where: { id: siteId },
+            data: {
+              platform: detection.platform,
+              platformConfidence: detection.confidence,
+              platformDetectedAt: new Date(),
+            } as any,
+          });
+          log.log(`[${siteId}] Platform: ${detection.platform} (${(detection.confidence * 100).toFixed(0)}%)`);
+          return detection;
+        })
+        .catch((err) => {
+          log.warn(`[${siteId}] Platform detect fail: ${err.message}`);
+          return null;
         });
-        await services.prisma.site.update({
-          where: { id: siteId },
-          data: { status: 'AUDIT_COMPLETE' as any },
-        }).catch(() => {});
-      } else {
-        log.log(`[${siteId}] [2/5] Audit (AI citation otomatik)`);
-        audit = await services.audit.runAudit(siteId);
-      }
+
+      // Brain mutlaka bitsin (topics buna bağımlı). Audit + platform fire-and-collect.
+      await brainPromise;
+      const [audit] = await Promise.all([auditPromise, platformPromise]);
 
       let queue: any = { id: null, tier1Topics: [] };
       if (aiGlobalOff) {
@@ -269,22 +287,7 @@ async function bootstrap() {
         queue = await services.topics.runEngine(siteId);
       }
       const tier1Count = ((queue?.tier1Topics as any[]) ?? []).length;
-
-      log.log(`[${siteId}] [4/5] Platform tespiti`);
-      try {
-        const detection = await services.platformDetector.detect(site.url);
-        await services.prisma.site.update({
-          where: { id: siteId },
-          data: {
-            platform: detection.platform,
-            platformConfidence: detection.confidence,
-            platformDetectedAt: new Date(),
-          } as any,
-        });
-        log.log(`[${siteId}] Platform: ${detection.platform} (${(detection.confidence * 100).toFixed(0)}%)`);
-      } catch (err: any) {
-        log.warn(`[${siteId}] Platform detect fail: ${err.message}`);
-      }
+      // Platform tespiti yukarıda paralel başlatıldı, burada tekrar yapılmıyor.
 
       const articleGenDisabled = aiGlobalOff || await services.settings.getBoolean('ARTICLE_GENERATION_DISABLED');
       let scheduleResult: any;
@@ -420,6 +423,68 @@ async function bootstrap() {
     },
 
     /**
+     * STUCK_PAGE_DETECT — tek site icin GSC tabanli stuck page tarama.
+     * Cron tarafindan haftalik tetiklenir veya manuel API'den.
+     */
+    STUCK_PAGE_DETECT: async ({ siteId }) => {
+      return services.stuckDetector.detect(siteId);
+    },
+
+    /**
+     * STUCK_PAGE_DETECT_ALL — haftalik cron: tum autopilot ON sitelerde tarama.
+     * Bulunanlardan autopilot ON ise otomatik recover dispatch.
+     */
+    STUCK_PAGE_DETECT_ALL: async () => {
+      const sites = await services.prisma.site.findMany({
+        where: { status: { in: ['ACTIVE', 'AUDIT_COMPLETE'] as any[] } },
+        select: { id: true, name: true, autopilot: true, userId: true },
+      });
+      const summary = { totalSites: sites.length, totalDetected: 0, autoRecoveryQueued: 0 };
+      for (const site of sites) {
+        try {
+          const result = await services.stuckDetector.detect(site.id);
+          summary.totalDetected += result.found;
+          if (site.autopilot && result.found > 0) {
+            // Yeni DETECTED kayitlarini al, autopilot ile recovery kuyrukla
+            const newStuck = await services.prisma.stuckPage.findMany({
+              where: { siteId: site.id, status: 'DETECTED' as any, articleId: { not: null } },
+              orderBy: { stuckScore: 'desc' },
+              take: 5, // tek seferde max 5 sayfa
+            });
+            for (const sp of newStuck) {
+              await services.jobs.enqueue({
+                type: 'STUCK_PAGE_RECOVER',
+                userId: site.userId,
+                siteId: site.id,
+                payload: { stuckPageId: sp.id, triggeredBy: 'autopilot' },
+                priority: 5,
+              }).catch(() => null);
+              summary.autoRecoveryQueued++;
+            }
+          }
+        } catch (err: any) {
+          log.warn(`[${site.id}] stuck detect hata: ${err.message}`);
+        }
+      }
+      log.log(`STUCK_PAGE_DETECT_ALL: ${summary.totalSites} site, ${summary.totalDetected} stuck, ${summary.autoRecoveryQueued} otomatik recovery`);
+      return summary;
+    },
+
+    /**
+     * STUCK_PAGE_RECOVER — tek stuck sayfa icin LLM tabanli recovery.
+     * Basarili olursa otomatik PUBLISH_ARTICLE kuyruga atilir (recovery service icinde).
+     */
+    STUCK_PAGE_RECOVER: async ({ stuckPageId, triggeredBy }) => {
+      if (await services.settings.getBoolean('AI_GLOBAL_DISABLED')) {
+        log.warn(`[stuck:${stuckPageId}] atlandi (AI_GLOBAL_DISABLED=1)`);
+        return { skipped: true, reason: 'AI_GLOBAL_DISABLED' };
+      }
+      return services.stuckRecovery.recover(stuckPageId, {
+        triggeredBy: triggeredBy || 'autopilot',
+      });
+    },
+
+    /**
      * VIDEO_GENERATE — Faz 12: çoklu provider video factory.
      * payload: { videoId, provider, brief: { title, scriptText, durationSec, aspectRatio, voiceId, language, style, imageUrls } }
      */
@@ -491,6 +556,13 @@ async function bootstrap() {
     {
       connection,
       concurrency: parseInt(process.env.WORKER_CONCURRENCY ?? '2', 10),
+      // Stalled job davranışı — worker restart sırasında uzun süren job'lar (Onboarding,
+      // makale pipeline, AI Citation testi) yarıda kalırsa BullMQ stalled sayar.
+      // maxStalledCount default 1 → 1 kere stalled olunca direkt FAIL. Buyutuyoruz
+      // ki deploy sırasında yarıda kalan job'lar otomatik retry alabilsin.
+      stalledInterval: 60_000,   // her dk stalled kontrol (default 30s)
+      maxStalledCount: 3,        // 3 kere stalled olabilir (default 1)
+      lockDuration: 5 * 60_000,  // 5 dk lock (default 30s) — uzun pipeline'lar için
     },
   );
 
@@ -604,12 +676,24 @@ async function bootstrap() {
       },
     );
 
-    log.log('⏰ Cron: PROCESS_SCHEDULED 30dk · LLMS_FULL_BUILD haftalik · AI_CITATION_DAILY gunluk · CONTENT_PIVOT_CHECK haftalik · AI_MENTION_ALARM gunluk · ADS_AUTOPILOT 6saat');
+    // 7) STUCK_PAGE_DETECT_ALL — Pazartesi 06:00 UTC haftalik
+    await queue.add(
+      'STUCK_PAGE_DETECT_ALL',
+      { trigger: 'cron' },
+      {
+        repeat: { pattern: '0 6 * * 1', tz: 'UTC' },
+        jobId: 'cron:stuck-page-detect-weekly',
+        removeOnComplete: { count: 20 },
+        removeOnFail: { count: 20 },
+      },
+    );
+
+    log.log('⏰ Cron: PROCESS_SCHEDULED 30dk · LLMS_FULL_BUILD haftalik · AI_CITATION_DAILY gunluk · CONTENT_PIVOT_CHECK haftalik · AI_MENTION_ALARM gunluk · ADS_AUTOPILOT 6saat · STUCK_PAGE_DETECT_ALL haftalik');
   } catch (err: any) {
     log.warn(`Cron kurulumu basarisiz: ${err.message}`);
   }
 
-  log.log('🔧 LuviAI Worker dinliyor (queue: luviai-jobs)');
+  log.log('🔧 RanksUp Worker dinliyor (queue: luviai-jobs)');
 
   const shutdown = async () => {
     log.log('Shutting down...');

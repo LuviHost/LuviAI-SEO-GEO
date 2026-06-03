@@ -1,6 +1,7 @@
 import { Global, Module } from '@nestjs/common';
 import { BillingController } from './billing.controller.js';
 import { BillingService } from './billing.service.js';
+import { FxService } from './fx.service.js';
 import { PaytrService } from './paytr.service.js';
 import { QuotaService } from './quota.service.js';
 
@@ -12,7 +13,7 @@ import { QuotaService } from './quota.service.js';
 @Global()
 @Module({
   controllers: [BillingController],
-  providers: [BillingService, PaytrService, QuotaService],
-  exports: [BillingService, PaytrService, QuotaService],
+  providers: [BillingService, FxService, PaytrService, QuotaService],
+  exports: [BillingService, FxService, PaytrService, QuotaService],
 })
 export class BillingModule {}

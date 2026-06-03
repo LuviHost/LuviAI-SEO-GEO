@@ -1,4 +1,4 @@
-# LuviAI Pricing
+# RanksUp Pricing
 
 ## Aylık planlar (TL)
 
@@ -23,10 +23,10 @@
 
 ## Ek ürünler (Faz 3)
 
-- **LuviAI Pages** — programmatic SEO, 1000 sayfa toplu üretim. ₺9.999 tek seferlik.
-- **LuviAI Refresh** — eski içerik güncelleme. ₺199/makale.
-- **LuviAI Localize** — TR makaleyi 10 dile çeviri. ₺99/dil/makale.
-- **LuviAI Audit** — sadece audit + öneri raporu. ₺199/ay.
+- **RanksUp Pages** — programmatic SEO, 1000 sayfa toplu üretim. ₺9.999 tek seferlik.
+- **RanksUp Refresh** — eski içerik güncelleme. ₺199/makale.
+- **RanksUp Localize** — TR makaleyi 10 dile çeviri. ₺99/dil/makale.
+- **RanksUp Audit** — sadece audit + öneri raporu. ₺199/ay.
 
 ## Trial mantığı
 
@@ -53,7 +53,7 @@ Bu, kullanıcının ürünün **ilk değerini ücretsiz görmesini** sağlar. Co
 
 Faz 2'de:
 - LuviHost müşterileri davet ettikleri her ödemeli kullanıcı için **%30 komisyon** (3 ay boyunca)
-- Tracking link: `ai.luvihost.com?ref=USER_ID`
+- Tracking link: `ranksup.ai?ref=USER_ID`
 - Ödeme: aylık otomatik PayTR transfer
 
 ## İptal & iade

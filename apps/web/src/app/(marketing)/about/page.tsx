@@ -3,7 +3,7 @@ import { Breadcrumbs } from '@/components/breadcrumbs';
 import { Button } from '@/components/ui/button';
 import { ShieldCheck, Sparkles, Heart, Globe2, Users, Zap, Target, Award, ArrowRight, CheckCircle2 } from 'lucide-react';
 
-const SITE_URL = 'https://ai.luvihost.com';
+const SITE_URL = 'https://ranksup.ai';
 
 const aboutJsonLd = {
   '@context': 'https://schema.org',
@@ -12,15 +12,15 @@ const aboutJsonLd = {
       '@type': 'AboutPage',
       '@id': `${SITE_URL}/about#aboutpage`,
       url: `${SITE_URL}/about`,
-      name: 'LuviAI Hakkında',
-      description: 'Türkiye merkezli AI içerik + SEO + sosyal medya otomasyon platformu LuviAI hakkında bilgiler.',
+      name: 'RanksUp Hakkında',
+      description: 'Türkiye merkezli AI içerik + SEO + sosyal medya otomasyon platformu RanksUp hakkında bilgiler.',
       isPartOf: { '@id': `${SITE_URL}/#website` },
       about: { '@id': `${SITE_URL}/#organization` },
     },
     {
       '@type': 'Organization',
       '@id': `${SITE_URL}/#organization-extended`,
-      name: 'LuviAI',
+      name: 'RanksUp',
       legalName: 'LuviHost Bilişim Hizmetleri',
       url: SITE_URL,
       foundingDate: '2026',
@@ -46,7 +46,7 @@ const aboutJsonLd = {
         'Google Ads Optimization',
         'Meta Ads Optimization',
       ],
-      brand: { '@type': 'Brand', name: 'LuviAI' },
+      brand: { '@type': 'Brand', name: 'RanksUp' },
       parentOrganization: {
         '@type': 'Organization',
         name: 'LuviHost',
@@ -85,7 +85,7 @@ export default function AboutPage() {
               </span>
             </h1>
             <p className="text-lg text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-              LuviAI; KOBİ, e-ticaret ve dijital ajansların SEO, içerik üretimi, sosyal medya ve reklam denetimini
+              RanksUp; KOBİ, e-ticaret ve dijital ajansların SEO, içerik üretimi, sosyal medya ve reklam denetimini
               tek panelden, otomatik olarak yönetebilmesi için kurulan Türkiye merkezli bir platformdur.
             </p>
           </header>
@@ -117,7 +117,7 @@ export default function AboutPage() {
               <div>
                 <h2 className="text-2xl font-bold mb-3">Hikayemiz</h2>
                 <p className="text-muted-foreground leading-relaxed mb-3">
-                  LuviAI, 2018'den beri Türkiye'de hosting ve domain hizmeti veren <a href="https://luvihost.com" className="text-orange-600 hover:underline">LuviHost</a> grubunun
+                  RanksUp, 2018'den beri Türkiye'de hosting ve domain hizmeti veren <a href="https://luvihost.com" className="text-orange-600 hover:underline">LuviHost</a> grubunun
                   bünyesinde 2026'da kuruldu. Müşterilerimizin "site açtım ama ne içerik üreteceğim?" sorusuna verilecek cevap arayışı bizi
                   bu platformu inşa etmeye yönlendirdi.
                 </p>

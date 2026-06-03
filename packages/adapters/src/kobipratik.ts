@@ -9,7 +9,7 @@ import type { PublishPayload, PublishResult, OnPageMetaPayload, OnPageMetaResult
  *
  * credentials:
  *   - baseUrl: "https://www.kobipratik.com" (veya dev: "https://dev.kobipratik.com")
- *   - apiKey:  kobipratik appsettings -> LuviAI:ApiKey değeri
+ *   - apiKey:  kobipratik appsettings -> RanksUp:ApiKey değeri
  *
  * config:
  *   - defaultPathPrefix?: "/pratik-kobi-rehberi"  // payload.slug'in önüne eklenir; yoksa root'tan başlar
@@ -27,7 +27,37 @@ export class KobipratikAdapter extends PublishAdapter {
     }
 
     const path = this.buildPath(payload.slug, payload.metaTitle || payload.title);
-    const url = `${this.normalizeBase(baseUrl)}/api/v1/luviai/page-meta/upsert`;
+    const base = this.normalizeBase(baseUrl);
+
+    // 1) Önce Blog kaydı upsert et — frontend body için Blog tablosundan okur
+    const blogUrl = `${base}/api/v1/luviai/blog/upsert`;
+    const blogBody = {
+      slug: payload.slug,
+      title: payload.title,
+      image: payload.heroImageUrl || '',
+      shortDescription: payload.metaDescription || '',
+      description: payload.bodyHtml || '',
+      createDate: new Date().toISOString(),
+    };
+    try {
+      const blogRes = await fetch(blogUrl, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(blogBody),
+      });
+      if (!blogRes.ok) {
+        const errorText = await blogRes.text();
+        return { ok: false, error: `kobipratik Blog upsert ${blogRes.status}: ${errorText.slice(0, 300)}` };
+      }
+    } catch (err: any) {
+      return { ok: false, error: `kobipratik Blog upsert hata: ${err.message}` };
+    }
+
+    // 2) Sonra PageMeta upsert et — SEO/GEO meta katmanı
+    const url = `${base}/api/v1/luviai/page-meta/upsert`;
 
     const body: Record<string, any> = {
       path,

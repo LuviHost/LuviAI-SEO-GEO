@@ -11,7 +11,7 @@ export interface BreadcrumbItem {
  * Marketing alt sayfalarda kullanılır.
  */
 export function Breadcrumbs({ items }: { items: BreadcrumbItem[] }) {
-  const SITE_URL = 'https://ai.luvihost.com';
+  const SITE_URL = 'https://ranksup.ai';
 
   const allItems: BreadcrumbItem[] = [
     { label: 'Ana Sayfa', href: '/' },

@@ -48,7 +48,7 @@ function renderArticleHtml(opts: {
 
   // AI Crawler tracker
   const trackerScript = opts.trackerSiteId
-    ? `<script async src="${process.env.NEXT_PUBLIC_API_URL ?? 'https://ai.luvihost.com'}/api/tracker.js?site=${esc(opts.trackerSiteId)}"></script>`
+    ? `<script async src="${process.env.NEXT_PUBLIC_API_URL ?? 'https://ranksup.ai'}/api/tracker.js?site=${esc(opts.trackerSiteId)}"></script>`
     : '';
   return `<!DOCTYPE html>
 <html lang="tr">
@@ -255,10 +255,9 @@ export class PublisherService {
         },
       });
 
-      // Sosyal kanallara DRAFT post hazirla — cron yayinlayacak.
-      this.socialAutoDraft.createDraftsForArticle(articleId).catch((err) => {
-        this.log.warn(`[${articleId}] social auto-draft basarisiz: ${err.message}`);
-      });
+      // Sosyal kanallara otomatik DRAFT post artık üretilmiyor — kullanıcı article
+      // listesindeki "Sosyalde paylaş" butonundan modal ile kanal seçip elle ekler.
+      // (Geri açmak istersen: socialAutoDraft.createDraftsForArticle(articleId) çağır.)
 
       // GEO: yayinlanan URL'i tum AI/search engine kanallarina ping at (best-effort)
       const firstPublicUrl = successful.find((r) => r.externalUrl)?.externalUrl;

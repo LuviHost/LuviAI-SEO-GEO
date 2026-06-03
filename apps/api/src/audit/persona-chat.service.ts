@@ -111,7 +111,7 @@ Cevabin sonunda kullandigin makale URL'lerini parantez icinde belirt: (kaynak: $
    * Site sahibinin embed edecegi widget JS'i.
    */
   buildWidgetJs(siteId: string): string {
-    const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'https://ai.luvihost.com';
+    const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'https://ranksup.ai';
     return `
 (function(){
   if (window.__luviai_widget_loaded) return;

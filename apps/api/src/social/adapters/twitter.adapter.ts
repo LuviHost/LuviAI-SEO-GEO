@@ -12,7 +12,7 @@ import type {
  * X gerektiriyor:
  *   - Confidential client (Client Secret + Basic Auth)
  *   - PKCE (code_verifier + code_challenge S256)
- *   - Scopes: tweet.read tweet.write users.read offline.access
+ *   - Scopes: tweet.read tweet.write users.read offline.access media.write
  *
  * Token icin:
  *   POST https://api.x.com/2/oauth2/token
@@ -41,7 +41,7 @@ export class TwitterAdapter implements SocialAdapter {
   type = 'twitter';
 
   oauth = {
-    scopes: ['tweet.read', 'tweet.write', 'users.read', 'offline.access'],
+    scopes: ['tweet.read', 'tweet.write', 'users.read', 'offline.access', 'media.write'],
 
     /**
      * X PKCE icin verifier ve challenge uretip,
@@ -147,6 +147,10 @@ export class TwitterAdapter implements SocialAdapter {
     const accessToken = ctx.credentials?.accessToken;
     if (!accessToken) throw new Error('X accessToken yok');
 
+    // 1) Önce medya varsa upload et — sadece ilk part'a iliştirilir (Twitter thread'lerde her tweet
+    //    için ayrı media gerekir; şimdilik ilk tweet'e koyuyoruz, gerisi reply olarak gider)
+    const mediaIds = await this.uploadMediaIfAny(input.mediaUrls ?? [], accessToken);
+
     // Thread destegi: metadata.threadParts varsa zincir at
     const parts = input.metadata?.threadParts?.length
       ? input.metadata.threadParts
@@ -160,6 +164,10 @@ export class TwitterAdapter implements SocialAdapter {
       const body: any = { text };
       if (lastId) {
         body.reply = { in_reply_to_tweet_id: lastId };
+      }
+      // İlk tweet'e medya ekle (varsa)
+      if (i === 0 && mediaIds.length > 0) {
+        body.media = { media_ids: mediaIds };
       }
       const res = await fetch(`${X_API}/tweets`, {
         method: 'POST',
@@ -184,6 +192,65 @@ export class TwitterAdapter implements SocialAdapter {
     const externalUrl = `https://x.com/${username}/status/${firstId}`;
 
     return { externalId: firstId, externalUrl };
+  }
+
+  /**
+   * X media upload (v2). En fazla 4 görsel veya 1 video. Tweet başına.
+   * mediaUrls'teki path'leri absolute URL'ye çevirip (WEB_BASE_URL üzerinden)
+   * binary fetch eder, multipart POST ile yükler, media_id'leri döner.
+   *
+   * Gereken scope: media.write — yoksa 403 alır, X kanalını yeniden bağlamak gerekir.
+   */
+  private async uploadMediaIfAny(
+    mediaUrls: Array<{ url: string; type: 'image' | 'video'; altText?: string }>,
+    accessToken: string,
+  ): Promise<string[]> {
+    if (!Array.isArray(mediaUrls) || mediaUrls.length === 0) return [];
+
+    // Image ve video farklı kurallar: max 4 image VEYA 1 video (karışık olmaz)
+    const videos = mediaUrls.filter((m) => m.type === 'video').slice(0, 1);
+    const images = videos.length > 0 ? [] : mediaUrls.filter((m) => m.type === 'image').slice(0, 4);
+    const items = videos.length > 0 ? videos : images;
+    if (items.length === 0) return [];
+
+    const webBase = process.env.WEB_BASE_URL ?? 'http://localhost:3000';
+    const mediaIds: string[] = [];
+
+    for (const item of items) {
+      const absoluteUrl = item.url.startsWith('http') ? item.url : `${webBase}${item.url}`;
+
+      // 1) Binary'yi indir
+      const fileRes = await fetch(absoluteUrl);
+      if (!fileRes.ok) {
+        throw new Error(`X media indirilemedi: ${absoluteUrl} → HTTP ${fileRes.status}`);
+      }
+      const buf = Buffer.from(await fileRes.arrayBuffer());
+      const contentType = fileRes.headers.get('content-type') ?? (item.type === 'video' ? 'video/mp4' : 'image/jpeg');
+      const ext = absoluteUrl.split('.').pop()?.split('?')[0] ?? (item.type === 'video' ? 'mp4' : 'jpg');
+
+      // 2) Multipart POST → X v2 media/upload
+      const form = new FormData();
+      form.append('media', new Blob([buf], { type: contentType }), `media.${ext}`);
+      form.append('media_category', item.type === 'video' ? 'tweet_video' : 'tweet_image');
+
+      const upRes = await fetch(`${X_API}/media/upload`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}` },
+        body: form,
+      });
+      if (!upRes.ok) {
+        const errBody = await upRes.text();
+        throw new Error(`X media upload failed: ${upRes.status} ${errBody.slice(0, 300)}`);
+      }
+      const upData = (await upRes.json()) as { data?: { id?: string }; media_id_string?: string; id?: string };
+      const mediaId = upData.data?.id ?? upData.media_id_string ?? upData.id;
+      if (!mediaId) {
+        throw new Error(`X media upload: media_id parse edilemedi (${JSON.stringify(upData).slice(0, 200)})`);
+      }
+      mediaIds.push(mediaId);
+    }
+
+    return mediaIds;
   }
 
   private formatText(input: SocialPublishInput): string {

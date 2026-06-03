@@ -1,7 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { Mail, Sparkles, ShieldCheck } from 'lucide-react';
+import { Mail, ShieldCheck } from 'lucide-react';
+import { BrandLogo } from '@/components/brand-logo';
 import { useT } from '@/lib/i18n';
 
 const X_HANDLE = 'luvihost';
@@ -19,10 +20,8 @@ export function SiteFooter() {
           {/* Brand */}
           <div className="col-span-2">
             <Link href="/" className="flex items-center gap-2 font-bold text-lg mb-3">
-              <span className="bg-gradient-to-br from-orange-500 to-orange-700 text-white rounded-lg w-8 h-8 grid place-items-center">
-                <Sparkles className="h-4 w-4" />
-              </span>
-              LuviAI
+              <BrandLogo size={32} className="rounded-lg" />
+              RanksUp
             </Link>
             <p className="text-sm text-muted-foreground max-w-md leading-relaxed">
               SEO, AI içerik üretimi, sosyal medya ve reklam denetimi tek panelden.

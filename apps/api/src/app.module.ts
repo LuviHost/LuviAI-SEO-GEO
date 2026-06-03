@@ -28,10 +28,14 @@ import { OAuthModule } from './oauth/oauth.module.js';
 import { SettingsModule } from './settings/settings.module.js';
 import { VideosModule } from './videos/videos.module.js';
 import { LLMModule } from './llm/llm.module.js';
-import { PromptsModule } from './prompts/prompts.module.js';
 import { AsoModule } from './aso/aso.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { NotificationsModule } from './notifications/notifications.module.js';
+// TODO(ranksup): StudioModule henüz oluşturulmadı (src/studio/ yok) — feature tamamlanınca aç.
+// import { StudioModule } from './studio/studio.module.js';
+import { AsaModule } from './aso/asa/asa.module.js';
+import { AscModule } from './aso/asc/asc.module.js';
+import { TestimonialsModule } from './testimonials/testimonials.module.js';
 
 @Module({
   imports: [
@@ -63,9 +67,12 @@ import { NotificationsModule } from './notifications/notifications.module.js';
     SettingsModule,
     VideosModule,
     LLMModule,
-    PromptsModule,
     AsoModule,
     NotificationsModule,
+    // StudioModule, // TODO(ranksup): feature tamamlanınca aç (yukarıdaki import ile birlikte)
+    AsaModule,
+    AscModule,
+    TestimonialsModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: AuthGuard },

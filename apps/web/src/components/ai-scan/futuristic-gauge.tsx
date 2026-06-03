@@ -7,7 +7,7 @@ import { cn } from '@/lib/utils';
 import { useReducedMotion } from './use-reduced-motion';
 
 /*
- * FuturisticGauge — LuviAI orbital halka.
+ * FuturisticGauge — RanksUp orbital halka.
  *
  * Yapı:
  *   - 5 pastel yay (her faz için bir tane), tek bir grup içinde sürekli akıcı döner (40s/turn)

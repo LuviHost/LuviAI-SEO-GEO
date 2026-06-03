@@ -101,4 +101,50 @@ export class GscService {
     this.log.log(`[${siteId}] GSC: ${rows.length} satır, ${opportunities.length} fırsat`);
     return opportunities;
   }
+
+  /**
+   * Per-page aggregate performance — Stuck Page Detector icin.
+   * Tum sayfalar icin son N gunluk impressions/clicks/position/ctr donderir.
+   * Per-query degil, per-page aggregate.
+   */
+  async fetchPagePerformance(
+    siteId: string,
+    days = 30,
+  ): Promise<Array<{ url: string; impressions: number; clicks: number; ctr: number; position: number }>> {
+    const site = await this.prisma.site.findUniqueOrThrow({ where: { id: siteId } });
+    if (!site.gscPropertyUrl || !site.gscRefreshToken) {
+      this.log.log(`[${siteId}] GSC baglanti yok — page perf atlandi`);
+      return [];
+    }
+
+    const client = await this.oauth.getAuthenticatedClient(siteId);
+    if (!client) return [];
+
+    const webmasters = google.webmasters({ version: 'v3', auth: client as any });
+    const endDate = new Date().toISOString().slice(0, 10);
+    const startDate = new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
+
+    try {
+      const res = await webmasters.searchanalytics.query({
+        siteUrl: site.gscPropertyUrl,
+        requestBody: {
+          startDate,
+          endDate,
+          dimensions: ['page'],
+          rowLimit: 5000,
+        },
+      });
+      const rows = res.data.rows ?? [];
+      return rows.map((r: any) => ({
+        url: (r.keys?.[0] ?? '') as string,
+        impressions: r.impressions ?? 0,
+        clicks: r.clicks ?? 0,
+        ctr: r.ctr ?? 0,
+        position: r.position ?? 0,
+      })).filter((p: any) => p.url);
+    } catch (err: any) {
+      this.log.error(`[${siteId}] GSC page perf: ${err.message}`);
+      return [];
+    }
+  }
 }

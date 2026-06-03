@@ -130,7 +130,7 @@ export class AuditChecksService {
       issues.push({
         severity: 'warning',
         type: 'llms_missing',
-        description: 'llms.txt yok — ChatGPT/Perplexity/Claude AI sitenizi alıntılaması zorlaşır',
+        description: 'llms.txt yok — Perplexity / ChatGPT browse / Claude.ai gibi non-Google AI motorlarına içerik parse için ek sinyal verilmez (Google AI Overviews için resmi gereklilik değil)',
         fixable: true,
         fixCommand: 'auto-fix: llms',
       });

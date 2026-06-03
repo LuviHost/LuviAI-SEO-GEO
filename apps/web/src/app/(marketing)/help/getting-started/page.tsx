@@ -1,7 +1,7 @@
 import { Rocket } from 'lucide-react';
 import { HelpArticle, Step, Tip } from '@/components/help-article';
 
-export const metadata = { title: 'Hızlı Başlangıç — LuviAI Help' };
+export const metadata = { title: 'Hızlı Başlangıç — RanksUp Help' };
 
 export default function Page() {
   return (
@@ -9,7 +9,7 @@ export default function Page() {
       icon={Rocket}
       badge="Başlangıç"
       title="5 dakikada başla"
-      intro="LuviAI'da hesap aç, ilk siteni bağla, ilk AI çıktısını gör — toplam 5 dakika."
+      intro="RanksUp'da hesap aç, ilk siteni bağla, ilk AI çıktısını gör — toplam 5 dakika."
       steps={[
         { name: 'Hesap aç', text: 'Landing\'de "Ücretsiz başla" butonu ile mail/Google ile kayıt. Hesabın otomatik açılır, kart istenmez. İlk 2 makale ücretsiz.' },
         { name: 'Site URL\'sini yapıştır', text: 'Dashboard üst köşedeki "Site Ekle" → URL gir. AI sektörünü ve dilini tespit eder.' },

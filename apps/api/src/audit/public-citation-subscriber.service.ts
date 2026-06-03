@@ -14,7 +14,7 @@ import { PublicCitationService } from './public-citation.service.js';
  *   4. Cron her gun 09:00 UTC: ACTIVE + nextRetestAt <= now subscribers'i bulur,
  *      retest yapar, branded email gonderir, sonraki retest'i zamanlar
  *   5. 4 retest sonra (15/30/60/90g) cycle biter, status: COMPLETED
- *   6. Kullanici LuviAI'a kayit olursa OAuth callback'ten linkSignup() cagrilir,
+ *   6. Kullanici RanksUp'a kayit olursa OAuth callback'ten linkSignup() cagrilir,
  *      status: SIGNED_UP, retest durur
  */
 
@@ -241,7 +241,7 @@ export class PublicCitationSubscriberService {
   //  EMAIL HELPERS
   // ──────────────────────────────────────────────
   private async sendWelcomeEmail(sub: { id: string; email: string; domain: string; brand: string; confirmToken: string | null; unsubscribeToken: string; locale: string }) {
-    const baseUrl = process.env.WEB_URL ?? 'https://ai.luvihost.com';
+    const baseUrl = process.env.WEB_URL ?? 'https://ranksup.ai';
     const confirmUrl = `${baseUrl}/api/public/citation-check/confirm?token=${sub.confirmToken}`;
     const unsubscribeUrl = `${baseUrl}/api/public/citation-check/unsubscribe?token=${sub.unsubscribeToken}`;
 
@@ -273,7 +273,7 @@ export class PublicCitationSubscriberService {
       deltaPct: number;
     },
   ) {
-    const baseUrl = process.env.WEB_URL ?? 'https://ai.luvihost.com';
+    const baseUrl = process.env.WEB_URL ?? 'https://ranksup.ai';
     const unsubscribeUrl = `${baseUrl}/api/public/citation-check/unsubscribe?token=${sub.unsubscribeToken}`;
     const signupUrl = `${baseUrl}/signin?signup=1&utm_source=citation_retest&utm_campaign=${intervalLabel}`;
     const tr = sub.locale === 'tr';
@@ -313,7 +313,7 @@ export class PublicCitationSubscriberService {
 <div style="max-width:600px;margin:32px auto;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.06)">
   <div style="background:linear-gradient(135deg,#f97316,#ea580c);padding:32px;text-align:center;color:#fff">
     <div style="font-size:32px;margin-bottom:8px">✨</div>
-    <h1 style="margin:0;font-size:24px;font-weight:800">LuviAI</h1>
+    <h1 style="margin:0;font-size:24px;font-weight:800">RanksUp</h1>
     <p style="margin:8px 0 0;opacity:0.9;font-size:14px">${tr ? 'AI Visibility Tracker' : 'AI Visibility Tracker'}</p>
   </div>
   <div style="padding:32px">
@@ -333,7 +333,7 @@ export class PublicCitationSubscriberService {
     </p>
   </div>
   <div style="background:#fafafa;padding:16px;text-align:center;font-size:11px;color:#999;border-top:1px solid #eee">
-    LuviAI · ${tr ? 'AI cagini icin pazarlama otomasyonu' : 'Marketing automation for the AI era'}
+    RanksUp · ${tr ? 'AI cagini icin pazarlama otomasyonu' : 'Marketing automation for the AI era'}
   </div>
 </div>
 </body></html>`;
@@ -404,7 +404,7 @@ export class PublicCitationSubscriberService {
     </p>
 
     <p style="margin:0 0 24px;color:#4a4a4a;font-weight:600">
-      ${tr ? 'LuviAI ile 90 gunde ortalama +4 motor artisi:' : 'With LuviAI, average +4 engines in 90 days:'}
+      ${tr ? 'RanksUp ile 90 gunde ortalama +4 motor artisi:' : 'With RanksUp, average +4 engines in 90 days:'}
     </p>
 
     <ul style="margin:0 0 24px;padding-left:20px;color:#4a4a4a">
@@ -423,7 +423,7 @@ export class PublicCitationSubscriberService {
     </p>
   </div>
   <div style="background:#fafafa;padding:16px;text-align:center;font-size:11px;color:#999;border-top:1px solid #eee">
-    LuviAI · ${tr ? 'AI cagini icin pazarlama otomasyonu' : 'Marketing automation for the AI era'}
+    RanksUp · ${tr ? 'AI cagini icin pazarlama otomasyonu' : 'Marketing automation for the AI era'}
   </div>
 </div>
 </body></html>`;

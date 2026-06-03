@@ -145,6 +145,54 @@ export function CrawlerHitsPanel({ siteId }: { siteId: string }) {
               ))}
             </div>
 
+            {/* Clarity-style: Bot purpose split + Pages crawled coverage */}
+            {(data.purposeSplit || data.coverage) && (
+              <div className="grid md:grid-cols-2 gap-2">
+                {/* Purpose split bar */}
+                {data.purposeSplit && (
+                  <div className="rounded-md border p-3">
+                    <p className="text-xs font-semibold mb-2">Bot Amaç Dağılımı</p>
+                    <div className="flex h-2 rounded-full overflow-hidden bg-muted mb-2">
+                      <div className="bg-blue-500" style={{ width: `${data.purposeSplit.aiSearchPct}%` }} title={`AI Search %${data.purposeSplit.aiSearchPct}`} />
+                      <div className="bg-purple-500" style={{ width: `${data.purposeSplit.trainingPct}%` }} title={`Training %${data.purposeSplit.trainingPct}`} />
+                      <div className="bg-emerald-500" style={{ width: `${data.purposeSplit.classicSearchPct}%` }} title={`Classic %${data.purposeSplit.classicSearchPct}`} />
+                      <div className="bg-slate-500" style={{ width: `${data.purposeSplit.otherPct}%` }} />
+                    </div>
+                    <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px]">
+                      <span className="inline-flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-blue-500" />AI Search %{data.purposeSplit.aiSearchPct}</span>
+                      <span className="inline-flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-purple-500" />Training %{data.purposeSplit.trainingPct}</span>
+                      <span className="inline-flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />Classic %{data.purposeSplit.classicSearchPct}</span>
+                    </div>
+                  </div>
+                )}
+                {/* Page coverage */}
+                {data.coverage && (
+                  <div className="rounded-md border p-3">
+                    <p className="text-xs font-semibold mb-2">Sayfa Tarama Kapsamı</p>
+                    {data.coverage.sitePagesTotal != null ? (
+                      <>
+                        <div className="flex items-baseline gap-2 mb-1">
+                          <span className="text-2xl font-bold">%{data.coverage.pagesCrawledPct ?? 0}</span>
+                          <span className="text-[11px] text-muted-foreground">tarandı</span>
+                        </div>
+                        <div className="h-1.5 rounded-full bg-muted overflow-hidden mb-1.5">
+                          <div className="h-full bg-gradient-to-r from-orange-500 to-orange-600" style={{ width: `${data.coverage.pagesCrawledPct ?? 0}%` }} />
+                        </div>
+                        <p className="text-[10px] text-muted-foreground">
+                          <strong>{data.coverage.uniquePathsVisited}</strong> / {data.coverage.sitePagesTotal} sayfa (sitemap'e göre)
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-xs"><strong>{data.coverage.uniquePathsVisited}</strong> tekil sayfa tarandı</p>
+                        <p className="text-[10px] text-muted-foreground mt-1">Sitemap.xml bulunamadı, oran hesaplanamıyor.</p>
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Bot bazinda dagilim */}
             <div className="rounded-md border">
               <div className="px-3 py-2 border-b bg-muted/30">

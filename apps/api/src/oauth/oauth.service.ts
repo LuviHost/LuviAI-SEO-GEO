@@ -245,7 +245,7 @@ export class OAuthService {
    */
   buildMetaDataDeletionResponse(userId: string): { url: string; confirmation_code: string } {
     const code = createHash('sha256').update(`${userId}:${process.env.META_APP_SECRET ?? ''}`).digest('hex').slice(0, 32);
-    const webBase = process.env.WEB_BASE_URL ?? 'https://ai.luvihost.com';
+    const webBase = process.env.WEB_BASE_URL ?? 'https://ranksup.ai';
     return {
       url: `${webBase}/legal/data-deletion?code=${code}`,
       confirmation_code: code,
@@ -256,18 +256,18 @@ export class OAuthService {
   //  Helpers
   // ─────────────────────────────────────────────────────────────
   private googleRedirectUri(): string {
-    return `${process.env.API_BASE_URL ?? 'https://ai.luvihost.com'}/api/oauth/google-ads/callback`;
+    return `${process.env.API_BASE_URL ?? 'https://ranksup.ai'}/api/oauth/google-ads/callback`;
   }
 
   private metaRedirectUri(): string {
-    return `${process.env.API_BASE_URL ?? 'https://ai.luvihost.com'}/api/oauth/meta-ads/callback`;
+    return `${process.env.API_BASE_URL ?? 'https://ranksup.ai'}/api/oauth/meta-ads/callback`;
   }
 
   /**
    * Popup'tan parent window'a postMessage gondermek icin HTML response.
    */
   buildCallbackHtml(provider: 'google-ads' | 'meta-ads', payload: any, error?: string): string {
-    const origin = process.env.WEB_BASE_URL ?? 'https://ai.luvihost.com';
+    const origin = process.env.WEB_BASE_URL ?? 'https://ranksup.ai';
     const success = !error;
     const message = success
       ? { type: 'oauth-success', provider, data: payload }

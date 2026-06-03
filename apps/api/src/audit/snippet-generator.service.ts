@@ -532,7 +532,7 @@ Başlık: ${heading}
   private async fetch(url: string): Promise<string | null> {
     try {
       const res = await fetch(url, {
-        headers: { 'User-Agent': 'LuviAI-Snippet/1.0' },
+        headers: { 'User-Agent': 'RanksUp-Snippet/1.0' },
         signal: AbortSignal.timeout(12000),
       });
       if (!res.ok) return null;

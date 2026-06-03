@@ -9,7 +9,7 @@ import type { ChatRequest, ChatResponse, ILLMProvider, ProviderName } from './ll
 /**
  * LLMProviderService — multi-provider router + token usage recorder.
  *
- * Tüm LuviAI servisleri (article writer, snippet optimizer, ads audit judge,
+ * Tüm RanksUp servisleri (article writer, snippet optimizer, ads audit judge,
  * citation tracker vb.) bu service'in `chat()` metodunu çağırır. Service:
  *   1. AI_GLOBAL_DISABLED guard kontrolü yapar (admin panel toggle)
  *   2. Model adına göre doğru provider'ı seçer
@@ -54,8 +54,17 @@ export class LLMProviderService {
       throw new ServiceUnavailableException('AI_GLOBAL_DISABLED — admin panelinden test modu aktif');
     }
 
-    const provider = this.resolveProvider(req.model);
-    const response = await provider.chat(req);
+    // Auto-cache: Anthropic için system prompt >= 1024 token (~4000 char) ise otomatik
+    // cache_control ekle. %90 cost düşüşü sağlar tekrarlayan sistem prompt'larında.
+    const effectiveReq: ChatRequest = (
+      req.cacheSystemPrompt === undefined
+      && req.systemPrompt
+      && req.systemPrompt.length >= 4000
+      && req.model.startsWith('claude')
+    ) ? { ...req, cacheSystemPrompt: true } : req;
+
+    const provider = this.resolveProvider(effectiveReq.model);
+    const response = await provider.chat(effectiveReq);
 
     // Token usage kaydı (asenkron — başarısızlık ana akışı kırmasın)
     this.recordUsage(req, response).catch(err => {
@@ -142,6 +151,17 @@ export class LLMProviderService {
 
     if (records.length === 0) return;
     await this.prisma.tokenUsageRecord.createMany({ data: records });
+
+    // Aylık aiCostThisMonthUsd field'ını da güncelle (budget guard için)
+    if (req.userId) {
+      const totalCost = records.reduce((s, r) => s + (r.costUsd ?? 0), 0);
+      if (totalCost > 0) {
+        await this.prisma.user.update({
+          where: { id: req.userId },
+          data: { aiCostThisMonthUsd: { increment: totalCost } } as any,
+        }).catch(() => { /* user might be deleted, sessiz geç */ });
+      }
+    }
   }
 
   /** Site / user / global için aggregated spend bilgisi */

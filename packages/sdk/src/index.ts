@@ -1,10 +1,10 @@
 /**
- * @luviai/sdk — Official Node.js SDK for LuviAI
+ * @luviai/sdk — Official Node.js SDK for RanksUp
  *
  * @example
- *   import { LuviAI } from '@luviai/sdk';
+ *   import { RanksUp } from '@luviai/sdk';
  *
- *   const luvi = new LuviAI({ apiKey: process.env.LUVIAI_API_KEY });
+ *   const luvi = new RanksUp({ apiKey: process.env.LUVIAI_API_KEY });
  *
  *   // Yeni makale uret
  *   const article = await luvi.articles.generate({
@@ -39,7 +39,7 @@ export class LuviAIError extends Error {
   }
 }
 
-export class LuviAI {
+export class RanksUp {
   public readonly sites: SitesAPI;
   public readonly articles: ArticlesAPI;
   public readonly audit: AuditAPI;
@@ -53,10 +53,10 @@ export class LuviAI {
 
   constructor(config: LuviAIConfig) {
     if (!config.apiKey?.startsWith('luvi_')) {
-      throw new Error('apiKey must start with "luvi_". Get one at https://ai.luvihost.com/settings/api-keys');
+      throw new Error('apiKey must start with "luvi_". Get one at https://ranksup.ai/settings/api-keys');
     }
     this.apiKey = config.apiKey;
-    this.baseUrl = config.baseUrl ?? 'https://ai.luvihost.com/api';
+    this.baseUrl = config.baseUrl ?? 'https://ranksup.ai/api';
     this.timeout = config.timeout ?? 60000;
 
     const requester = this.request.bind(this);
@@ -93,7 +93,7 @@ export class LuviAI {
     if (!res.ok) {
       let body: any;
       try { body = await res.json(); } catch { body = await res.text().catch(() => ''); }
-      throw new LuviAIError(res.status, body, `LuviAI ${res.status}: ${typeof body === 'string' ? body.slice(0, 200) : body?.message ?? res.statusText}`);
+      throw new LuviAIError(res.status, body, `RanksUp ${res.status}: ${typeof body === 'string' ? body.slice(0, 200) : body?.message ?? res.statusText}`);
     }
 
     if (res.headers.get('content-type')?.includes('application/json')) {
@@ -103,7 +103,7 @@ export class LuviAI {
   }
 }
 
-type Requester = LuviAI['request'];
+type Requester = RanksUp['request'];
 
 // ──────────────────────────────────────────────────────────────────
 // Resource APIs
@@ -228,4 +228,4 @@ class SocialAPI {
   }
 }
 
-export default LuviAI;
+export default RanksUp;

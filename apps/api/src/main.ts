@@ -68,7 +68,7 @@ async function bootstrap() {
 
   const port = parseInt(process.env.API_PORT ?? '3001', 10);
   await app.listen(port);
-  console.log(`🚀 LuviAI API listening on http://localhost:${port}`);
+  console.log(`🚀 RanksUp API listening on http://localhost:${port}`);
 }
 
 bootstrap();

@@ -24,7 +24,7 @@ const TOPICS_BASE = [
 const COPY = {
   tr: {
     eyebrow: '📚 Yardım Merkezi',
-    titleA: 'LuviAI nasıl',
+    titleA: 'RanksUp nasıl',
     titleB: 'kullanılır?',
     lead1: '9 modül, 5 dakikada başla. Her sekmenin kendi rehberi.',
     lead2: 'Sorunu bulamadıysan ',
@@ -48,7 +48,7 @@ const COPY = {
   en: {
     eyebrow: '📚 Help Center',
     titleA: 'How do I use',
-    titleB: 'LuviAI?',
+    titleB: 'RanksUp?',
     lead1: '9 modules, start in 5 minutes. Each tab has its own guide.',
     lead2: "Can't find what you need? ",
     readGuide: 'Read guide →',

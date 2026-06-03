@@ -33,8 +33,8 @@ import {
   type MissionTask,
 } from '@/components/ai-scan';
 
-const POLL_INTERVAL_MS = 4000;
-const ESTIMATED_TOTAL_MS = 90_000;
+const POLL_INTERVAL_MS = 2000;          // 4s → 2s, ilk wow için
+const ESTIMATED_TOTAL_MS = 60_000;       // 90s → 60s hedef
 const RESUME_KEY = 'luviai-quickmission-active-site';
 
 export default function OnboardingPage() {
@@ -322,6 +322,44 @@ function MissionStage({
     { key: 'platform', label: 'Platform tespiti', done: false },
     { key: 'schedule', label: 'Yayın takvimi', done: false },
   ]);
+  // Wow preview — her aşama biter bitmez user'a anında değer göster (Maya tarzı)
+  const [wow, setWow] = useState<{
+    platform?: string;
+    competitors?: string[];
+    persona?: string;
+    siteScore?: number;
+    topIssue?: string;
+    topTopic?: string;
+  }>({});
+  // Stuck-check: 8 dk'dan uzun sürüyorsa kullanıcıya çıkış yolu sun
+  const [stuck, setStuck] = useState(false);
+  // Tick: her 30sn'de bir elapsed'i kontrol et
+  const [, forceTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => {
+      const elapsed = Date.now() - startedAtRef.current;
+      if (elapsed > 8 * 60_000) setStuck(true);
+      forceTick((t) => t + 1);
+    }, 30_000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Manuel retry: onboarding chain'i yeniden tetikle
+  const [retrying, setRetrying] = useState(false);
+  const handleRetryChain = async () => {
+    setRetrying(true);
+    try {
+      await api.completeOnboarding(siteId);
+      toast.success('Onboarding tekrar başlatıldı (1-2 dk)');
+      setStuck(false);
+      startedAtRef.current = Date.now();
+      try { window.localStorage.setItem(`luviai-mission-startedAt-${siteId}`, String(startedAtRef.current)); } catch (_e) { /* noop */ }
+    } catch (err: any) {
+      toast.error(`Yeniden başlatılamadı: ${err.message}`);
+    } finally {
+      setRetrying(false);
+    }
+  };
 
   // Polling effect
   useEffect(() => {
@@ -365,6 +403,22 @@ function MissionStage({
           { key: 'schedule', label: 'Yayın takvimi', done: scheduleDone },
         ]);
 
+        // Wow preview — her aşamadan ilk değerli sinyali çıkar
+        setWow((prev) => ({
+          platform: prev.platform ?? (site?.platform ? String(site.platform) : undefined),
+          competitors: prev.competitors ?? (Array.isArray(brain?.competitors) && brain.competitors.length > 0
+            ? brain.competitors.slice(0, 3).map((c: any) => typeof c === 'string' ? c : c?.name).filter(Boolean)
+            : undefined),
+          persona: prev.persona ?? (Array.isArray(brain?.personas) && brain.personas[0]
+            ? (brain.personas[0]?.name ?? brain.personas[0]?.name)
+            : undefined),
+          siteScore: prev.siteScore ?? (audit?.overallScore ?? undefined),
+          topIssue: prev.topIssue ?? (Array.isArray(audit?.issues) && audit.issues[0]?.title
+            ? String(audit.issues[0].title)
+            : undefined),
+          topTopic: prev.topTopic ?? (queue?.tier1Topics?.[0]?.topic ?? undefined),
+        }));
+
         // Tamamlandı → yönlendir
         if (scheduleDone || (brainDone && auditDone && topicsDone)) {
           // Kısa bir gösterim için 1.4sn bekle (HUD "done" state'i dönsün)
@@ -396,6 +450,112 @@ function MissionStage({
       </div>
 
       <MissionWheel tasks={tasks} startedAt={startedAtRef.current} estimatedMs={ESTIMATED_TOTAL_MS} />
+
+      {/* Wow preview — aşamalar bittikçe AI'nın bulduklarını anında göster */}
+      {(wow.platform || wow.competitors || wow.siteScore || wow.topTopic) && (
+        <div className="mt-6 max-w-2xl mx-auto space-y-2 animate-in fade-in slide-in-from-bottom-2 duration-500">
+          <p className="text-[10px] font-mono uppercase tracking-widest text-orange-600 text-center mb-2">
+            ⚡ AI bulguları geliyor
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {wow.platform && (
+              <div className="rounded-lg border bg-card p-3 flex items-center gap-2.5 hover:border-orange-500/30 transition">
+                <span className="text-xl">🛠️</span>
+                <div className="min-w-0">
+                  <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Platform</p>
+                  <p className="text-sm font-semibold truncate">{wow.platform}</p>
+                </div>
+              </div>
+            )}
+            {wow.persona && (
+              <div className="rounded-lg border bg-card p-3 flex items-center gap-2.5 hover:border-orange-500/30 transition">
+                <span className="text-xl">👤</span>
+                <div className="min-w-0">
+                  <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Hedef persona</p>
+                  <p className="text-sm font-semibold truncate">{wow.persona}</p>
+                </div>
+              </div>
+            )}
+            {wow.competitors && wow.competitors.length > 0 && (
+              <div className="rounded-lg border bg-card p-3 flex items-center gap-2.5 hover:border-orange-500/30 transition sm:col-span-2">
+                <span className="text-xl">🎯</span>
+                <div className="min-w-0">
+                  <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">{wow.competitors.length} rakip bulundu</p>
+                  <p className="text-sm font-semibold truncate">{wow.competitors.join(' · ')}</p>
+                </div>
+              </div>
+            )}
+            {wow.siteScore !== undefined && (
+              <div className="rounded-lg border bg-card p-3 flex items-center gap-2.5 hover:border-orange-500/30 transition">
+                <span className="text-xl">📊</span>
+                <div className="min-w-0">
+                  <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Site skoru</p>
+                  <p className="text-sm font-semibold">{wow.siteScore}/100</p>
+                </div>
+              </div>
+            )}
+            {wow.topIssue && (
+              <div className="rounded-lg border bg-card p-3 flex items-center gap-2.5 hover:border-orange-500/30 transition">
+                <span className="text-xl">⚠️</span>
+                <div className="min-w-0">
+                  <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">İlk düzeltilecek</p>
+                  <p className="text-sm font-semibold truncate">{wow.topIssue}</p>
+                </div>
+              </div>
+            )}
+            {wow.topTopic && (
+              <div className="rounded-lg border-2 border-orange-500/40 bg-orange-50/30 dark:bg-orange-950/10 p-3 flex items-center gap-2.5 sm:col-span-2">
+                <span className="text-xl">✍️</span>
+                <div className="min-w-0">
+                  <p className="text-[10px] uppercase font-bold text-orange-600 tracking-wider">İlk yazılacak içerik</p>
+                  <p className="text-sm font-semibold truncate">{wow.topTopic}</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Stuck warning — 8 dakikadan uzun süren onboarding için kullanıcıya çıkış yolu */}
+      {stuck && (
+        <div className="mt-8 max-w-xl mx-auto rounded-2xl border-2 border-amber-500/40 bg-amber-50 dark:bg-amber-950/30 p-5 space-y-3">
+          <div className="flex items-start gap-3">
+            <div className="h-10 w-10 rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400 grid place-items-center shrink-0 text-xl">
+              ⏱
+            </div>
+            <div className="flex-1 min-w-0">
+              <h3 className="font-bold text-amber-900 dark:text-amber-100">İşlem normalden uzun sürüyor</h3>
+              <p className="text-sm text-amber-800 dark:text-amber-200 mt-1 leading-relaxed">
+                Genelde 1-3 dakikada biter. Şu an {Math.floor((Date.now() - startedAtRef.current) / 60_000)} dakikadır beklemedeyiz.
+                Backend'deki onboarding zinciri yarıda kalmış olabilir (deploy, network gecikmesi, AI provider yavaşlığı).
+              </p>
+            </div>
+          </div>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <button
+              type="button"
+              onClick={handleRetryChain}
+              disabled={retrying}
+              className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-lg bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white text-sm font-semibold transition-colors disabled:opacity-60"
+            >
+              {retrying ? '↻ Yeniden başlatılıyor…' : '↻ Onboarding\'i yeniden başlat'}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                try { window.localStorage.removeItem(`luviai-mission-startedAt-${siteId}`); } catch (_e) { /* noop */ }
+                onComplete(siteId);
+              }}
+              className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-lg border border-amber-500/40 hover:bg-amber-500/10 text-amber-800 dark:text-amber-200 text-sm font-semibold transition-colors"
+            >
+              → Dashboard'a git (eksikleri orada gör)
+            </button>
+          </div>
+          <p className="text-[11px] text-amber-700 dark:text-amber-300 text-center">
+            Backend tamamlandığında dashboard otomatik güncellenir. Bu ekranı kapatabilirsin.
+          </p>
+        </div>
+      )}
 
       <div className="mt-10 flex items-center justify-center gap-3 text-[10px] font-mono uppercase tracking-widest text-muted-foreground">
         <span className="opacity-70">SITE_ID: {siteId}</span>

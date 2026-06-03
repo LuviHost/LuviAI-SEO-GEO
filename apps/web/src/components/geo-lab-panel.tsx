@@ -165,7 +165,7 @@ function ChatWidgetTab({ siteId }: { siteId: string }) {
         <p className="text-xs font-semibold mb-2">Özellikler</p>
         <ul className="space-y-1 text-xs text-muted-foreground">
           <li>✓ Otomatik FAB (sağ alt köşe, tıklanınca açılır)</li>
-          <li>✓ Marka rengi + LuviAI gradient</li>
+          <li>✓ Marka rengi + RanksUp gradient</li>
           <li>✓ AI brain context'i + son 30 makale ile cevap üretir</li>
           <li>✓ Cevap içinde ilgili makale linki otomatik</li>
           <li>✓ Mobil uyumlu, responsive</li>
@@ -526,7 +526,7 @@ function TrackerEmbedTab({ siteId }: { siteId: string }) {
           <li>• <strong>WordPress:</strong> Tema &gt; Theme File Editor &gt; header.php (&lt;/head&gt; tag'inden hemen önce)</li>
           <li>• <strong>Webflow:</strong> Project Settings &gt; Custom Code &gt; Head Code</li>
           <li>• <strong>cPanel/HTML:</strong> Her sayfanın &lt;head&gt; bölümüne ekleyin</li>
-          <li>• <strong>Otopilot ON:</strong> LuviAI'ın yayınladığı yeni makalelere <strong>otomatik</strong> eklenir</li>
+          <li>• <strong>Otopilot ON:</strong> RanksUp'ın yayınladığı yeni makalelere <strong>otomatik</strong> eklenir</li>
         </ul>
       </div>
 
@@ -567,7 +567,7 @@ function CommunityTab({ siteId }: { siteId: string }) {
   return (
     <div className="space-y-3">
       <p className="text-xs text-muted-foreground">
-        AI'lar (özellikle ChatGPT ve Perplexity) Reddit'i <strong>birinci kaynak</strong> olarak kullanıyor. LuviAI sektör sorularınızla ilgili Reddit postlarını tarayıp marka sesinizde taslak cevap önerir. Spam değil — gerçek değer.
+        AI'lar (özellikle ChatGPT ve Perplexity) Reddit'i <strong>birinci kaynak</strong> olarak kullanıyor. RanksUp sektör sorularınızla ilgili Reddit postlarını tarayıp marka sesinizde taslak cevap önerir. Spam değil — gerçek değer.
         <strong className="text-yellow-700 dark:text-yellow-400"> Manuel onay zorunlu</strong>, otomatik post YOK.
       </p>
       <Button size="sm" onClick={find} disabled={loading}>
@@ -658,7 +658,7 @@ function CrossLinkTab({ siteId }: { siteId: string }) {
   return (
     <div className="space-y-3">
       <p className="text-xs text-muted-foreground">
-        LuviAI ekosistemindeki diğer sitelerle <strong>akıllı cross-link</strong> kurar. AI'lar bu bağlantıları "ekosistem" olarak öğrenir → tüm siteler birden alıntılanır. Sadece <strong>Otopilot ON</strong> olan siteler dahil edilir (consent).
+        RanksUp ekosistemindeki diğer sitelerle <strong>akıllı cross-link</strong> kurar. AI'lar bu bağlantıları "ekosistem" olarak öğrenir → tüm siteler birden alıntılanır. Sadece <strong>Otopilot ON</strong> olan siteler dahil edilir (consent).
       </p>
       <div className="flex items-center gap-2 flex-wrap">
         <Button size="sm" variant="outline" onClick={loadArticles}>

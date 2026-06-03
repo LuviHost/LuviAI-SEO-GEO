@@ -81,6 +81,65 @@ export class SocialPostsService {
     });
   }
 
+  /**
+   * Birden fazla kanala AYNI içeriği yayınla (asset bazlı, article'sız).
+   * Studio'da "Yeni Post" modal'ı bu endpoint'i kullanır.
+   * Her kanal için tek tek SocialPost satırı yaratır; medya/metin aynı.
+   */
+  async createMulti(args: {
+    siteId: string;
+    channelIds: string[];
+    text: string;
+    mediaUrls?: any[];
+    mediaType?: 'text' | 'image' | 'video';
+    scheduledFor?: string | null;
+    status?: 'DRAFT' | 'QUEUED';
+  }, user: RequestingUser) {
+    if (!Array.isArray(args.channelIds) || args.channelIds.length === 0) {
+      throw new BadRequestException('En az 1 kanal seçilmeli');
+    }
+    if (!args.text?.trim()) throw new BadRequestException('Metin boş olamaz');
+
+    const channels = await this.prisma.socialChannel.findMany({
+      where: { id: { in: args.channelIds }, siteId: args.siteId },
+      include: { site: { select: { userId: true } } },
+    });
+    if (channels.length !== args.channelIds.length) {
+      throw new BadRequestException('Bazı kanallar bulunamadı veya bu site\'a ait değil');
+    }
+    for (const ch of channels) {
+      if (user.role !== 'ADMIN' && ch.site.userId !== user.id) {
+        throw new ForbiddenException('Bazı kanallar sana ait değil');
+      }
+    }
+
+    const scheduledFor = args.scheduledFor ? new Date(args.scheduledFor) : null;
+    const mediaType = args.mediaType ?? (Array.isArray(args.mediaUrls) && args.mediaUrls.length > 0 ? 'image' : 'text');
+
+    const created = await Promise.all(
+      channels.map((ch) =>
+        this.prisma.socialPost.create({
+          data: {
+            channelId: ch.id,
+            articleId: null,
+            text: args.text,
+            mediaUrls: (args.mediaUrls ?? []) as any,
+            metadata: {
+              mediaType,
+              mediaGenStatus: Array.isArray(args.mediaUrls) && args.mediaUrls.length > 0 ? 'ready' : 'pending',
+              source: 'manual_multi',
+            } as any,
+            scheduledFor,
+            status: args.status ?? 'DRAFT',
+          },
+        }),
+      ),
+    );
+
+    this.log.log(`[${args.siteId}] Multi-channel post: ${created.length} kanala oluşturuldu (mediaType=${mediaType})`);
+    return { created: created.length, postIds: created.map((p) => p.id) };
+  }
+
   async update(postId: string, dto: { text?: string; mediaUrls?: any[]; metadata?: any; scheduledFor?: string | null; status?: string }, user: RequestingUser) {
     await this.assertPostOwner(postId, user);
     const data: any = {};
@@ -297,7 +356,7 @@ function humanizeSocialError(raw: string, channelType: string): string {
   // TikTok
   if (channelType === 'TIKTOK') {
     if (lower.includes('unaudited_client_can_only_post_to_private_accounts') || lower.includes('unaudited_client')) {
-      // LuviAI app artık Production Live (1 May 2026). Bu hata sadece eski
+      // RanksUp app artık Production Live (1 May 2026). Bu hata sadece eski
       // sandbox token ile yapılan call'larda gelir. Çözüm: kanalı yeniden bağla.
       return 'TikTok kanal token süresi dolmuş veya eski sandbox token ile bağlı. Sosyal Kanallar → TikTok kanalını sil ve yeniden bağla, sorun çözülür.';
     }

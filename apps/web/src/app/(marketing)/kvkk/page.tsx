@@ -20,7 +20,7 @@ export default function KvkkPage() {
           <section>
             <h2 className="text-xl font-bold mb-2">Veri Sorumlusu</h2>
             <p className="text-muted-foreground">
-              LuviHost (LuviAI işleten kuruluş). Veri sorumlu iletişim:{' '}
+              LuviHost (RanksUp işleten kuruluş). Veri sorumlu iletişim:{' '}
               <a href="mailto:kvkk@luvihost.com" className="text-orange-600">kvkk@luvihost.com</a>
             </p>
           </section>

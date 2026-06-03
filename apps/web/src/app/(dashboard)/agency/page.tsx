@@ -158,7 +158,7 @@ function WhitelabelTab({ whitelabel, onSaved }: { whitelabel: any; onSaved: () =
           <input type="checkbox" checked={form.enabled} onChange={(e) => setForm({ ...form, enabled: e.target.checked })} className="mt-1" />
           <div>
             <p className="text-sm font-semibold">Whitelabel aktif</p>
-            <p className="text-xs text-muted-foreground">Custom domain'den giriş yapan müşterileriniz "powered by LuviAI" yerine sizin markanızı görür.</p>
+            <p className="text-xs text-muted-foreground">Custom domain'den giriş yapan müşterileriniz "powered by RanksUp" yerine sizin markanızı görür.</p>
           </div>
         </label>
       </CardContent></Card>
@@ -179,7 +179,7 @@ function WhitelabelTab({ whitelabel, onSaved }: { whitelabel: any; onSaved: () =
         <label className="block">
           <span className="text-xs font-medium">Custom Domain (CNAME)</span>
           <input value={form.domain} onChange={(e) => setForm({ ...form, domain: e.target.value })} className="w-full mt-1 px-3 py-2 border rounded text-sm bg-background" placeholder="ai.ajansadi.com.tr" />
-          <p className="text-[11px] text-muted-foreground mt-1">CNAME → ai.luvihost.com'a yönlendirin</p>
+          <p className="text-[11px] text-muted-foreground mt-1">CNAME → ranksup.ai'a yönlendirin</p>
         </label>
         <label className="block">
           <span className="text-xs font-medium">Email Sender</span>

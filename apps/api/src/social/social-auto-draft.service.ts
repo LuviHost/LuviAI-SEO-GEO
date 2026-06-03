@@ -16,7 +16,14 @@ export class SocialAutoDraftService {
 
   constructor(private readonly prisma: PrismaService) {}
 
-  async createDraftsForArticle(articleId: string): Promise<{ created: number; skipped: number }> {
+  async createDraftsForArticle(
+    articleId: string,
+    opts: {
+      channelIds?: string[];               // user-explicit kanal listesi (modal'dan)
+      scheduledFor?: Date | null;          // tarih/saat — null = takvime slot atansın, undefined = mevcut davranış
+      status?: 'DRAFT' | 'QUEUED';         // QUEUED ise direkt yayın kuyruğuna
+    } = {},
+  ): Promise<{ created: number; skipped: number; postIds: string[] }> {
     const article = await this.prisma.article.findUnique({
       where: { id: articleId },
       include: {
@@ -31,32 +38,41 @@ export class SocialAutoDraftService {
 
     if (!article) {
       this.log.warn(`Article ${articleId} bulunamadi, draft atlandi`);
-      return { created: 0, skipped: 0 };
+      return { created: 0, skipped: 0, postIds: [] };
     }
     if (article.site.socialChannels.length === 0) {
       this.log.log(`[${article.siteId}] Hic aktif sosyal kanal yok, draft atlandi`);
-      return { created: 0, skipped: 0 };
+      return { created: 0, skipped: 0, postIds: [] };
     }
 
-    // Per-article pre-plan: kullanici belirli kanallar sectiyse sadece onlari kullan.
-    // null/undefined => tum aktif kanallar (default). [] => hicbir kanal.
-    const prePlan = (article as any).socialPrePlanChannelIds as string[] | null | undefined;
+    // Kanal seçimi: opts.channelIds (modal'dan) > article.socialPrePlanChannelIds > tüm aktif kanallar.
     let candidateChannels = article.site.socialChannels;
-    if (Array.isArray(prePlan)) {
-      if (prePlan.length === 0) {
-        this.log.log(`[${article.siteId}] Article ${articleId} pre-plan = [] (hicbir kanal), draft atlandi`);
-        return { created: 0, skipped: 0 };
-      }
-      const allow = new Set(prePlan);
+    if (opts.channelIds && opts.channelIds.length > 0) {
+      const allow = new Set(opts.channelIds);
       candidateChannels = article.site.socialChannels.filter((c) => allow.has(c.id));
       if (candidateChannels.length === 0) {
-        this.log.log(`[${article.siteId}] Article ${articleId} pre-plan kanallari aktif degil, draft atlandi`);
-        return { created: 0, skipped: 0 };
+        this.log.log(`[${article.siteId}] Article ${articleId} secilen kanallar aktif degil, draft atlandi`);
+        return { created: 0, skipped: 0, postIds: [] };
+      }
+    } else {
+      const prePlan = (article as any).socialPrePlanChannelIds as string[] | null | undefined;
+      if (Array.isArray(prePlan)) {
+        if (prePlan.length === 0) {
+          this.log.log(`[${article.siteId}] Article ${articleId} pre-plan = [] (hicbir kanal), draft atlandi`);
+          return { created: 0, skipped: 0, postIds: [] };
+        }
+        const allow = new Set(prePlan);
+        candidateChannels = article.site.socialChannels.filter((c) => allow.has(c.id));
+        if (candidateChannels.length === 0) {
+          this.log.log(`[${article.siteId}] Article ${articleId} pre-plan kanallari aktif degil, draft atlandi`);
+          return { created: 0, skipped: 0, postIds: [] };
+        }
       }
     }
 
     let created = 0;
     let skipped = 0;
+    const postIds: string[] = [];
 
     for (const channel of candidateChannels) {
       // Idempotent: ayni article + channel kombinasyonu varsa yeni post acma
@@ -89,8 +105,6 @@ export class SocialAutoDraftService {
         hookVariations,
       });
 
-      // Kanal tipine göre varsayılan medya formatı (TikTok/YouTube → video, IG → image, X → text, vb.)
-      // Kullanıcı UI'dan değiştirebilir + generate-media endpoint'i ile üretir.
       const defaultMediaType = mediaDefaultFor(channel.type);
       const mergedMetadata = {
         ...(metadata as any),
@@ -98,22 +112,24 @@ export class SocialAutoDraftService {
         mediaGenStatus: 'pending',
       };
 
-      await this.prisma.socialPost.create({
+      const post = await this.prisma.socialPost.create({
         data: {
           channelId: channel.id,
           articleId: article.id,
           text,
           metadata: mergedMetadata as any,
-          status: 'DRAFT',
+          status: opts.status ?? 'DRAFT',
+          scheduledFor: opts.scheduledFor ?? null,
         },
       });
+      postIds.push(post.id);
       created++;
     }
 
     this.log.log(
       `[${article.siteId}] Auto-draft: ${created} olusturuldu, ${skipped} atlandi (zaten vardi)`,
     );
-    return { created, skipped };
+    return { created, skipped, postIds };
   }
 
   /**

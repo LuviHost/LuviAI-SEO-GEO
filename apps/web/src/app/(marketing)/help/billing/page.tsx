@@ -1,7 +1,7 @@
 import { CreditCard } from 'lucide-react';
 import { HelpArticle, Step, Tip } from '@/components/help-article';
 
-export const metadata = { title: 'Faturalama — LuviAI Help' };
+export const metadata = { title: 'Faturalama — RanksUp Help' };
 
 export default function Page() {
   return (

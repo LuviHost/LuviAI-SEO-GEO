@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useParams, usePathname, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { BrandLogo } from '@/components/brand-logo';
 import {
   Home,
   Plus,
@@ -17,7 +18,7 @@ import {
   Award,
   FileText,
   Calendar,
-  Film,
+  Wand2,
   Send,
   BarChart3,
   Zap,
@@ -31,7 +32,7 @@ import {
   Smartphone,
   Lightbulb,
   Mail,
-  Image as ImageIcon,
+  Wrench,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { ThemeToggle } from '@/components/theme-toggle';
@@ -79,6 +80,7 @@ const SITE_GROUPS = (siteId: string) => [
       { href: `/sites/${siteId}/geo-lab`, label: 'GEO Lab', icon: Award },
       { href: `/sites/${siteId}/competitors`, label: 'Rakipler', icon: Network },
       { href: `/sites/${siteId}/snippet`, label: 'Sayfa SEO İyileştir', icon: FileText },
+      { href: `/sites/${siteId}/stuck-pages`, label: 'Stuck Pages', icon: Wrench },
     ],
   },
   {
@@ -86,13 +88,8 @@ const SITE_GROUPS = (siteId: string) => [
     label: 'CONTENT STUDIO',
     items: [
       { href: `/sites/${siteId}/articles`, label: 'İçerikler', icon: FileText },
-      { href: `/sites/${siteId}/prompts`, label: 'Prompt Kütüphanesi', icon: Library },
-      { href: `/sites/${siteId}/calendar`, label: 'Makale Takvimi', icon: Calendar },
-      { href: `/sites/${siteId}/social-calendar`, label: 'Sosyal Post Takvimi', icon: Send },
-      { href: `/sites/${siteId}/social-ideas`, label: 'Fikir Panosu', icon: Lightbulb },
-      { href: `/sites/${siteId}/social-inbox`, label: 'Sosyal Inbox', icon: Mail },
-      { href: `/sites/${siteId}/media-library`, label: 'Media Library', icon: ImageIcon },
-      { href: `/sites/${siteId}/videos`, label: 'Video Factory', icon: Film },
+      { href: `/sites/${siteId}/calendar`, label: 'İçerik Takvimi', icon: Calendar },
+      { href: `/sites/${siteId}/studio`, label: 'Sosyal Medya Studio', icon: Wand2 },
       { href: `/sites/${siteId}/publish-targets`, label: 'Yayın Hedefleri', icon: Send },
     ],
   },
@@ -174,10 +171,8 @@ export function SiteSidebar({ onClose }: { onClose?: () => void }) {
       <>
         <div className="p-6">
           <Link href="/" className="inline-flex items-center gap-2 text-2xl font-bold text-white">
-            <span className="bg-gradient-to-br from-orange-500 to-orange-700 text-white rounded-lg w-9 h-9 grid place-items-center">
-              <Sparkles className="h-4 w-4" />
-            </span>
-            LuviAI
+            <BrandLogo size={36} className="rounded-lg" />
+            RanksUp
           </Link>
           <div className="text-xs text-slate-500 mt-2 ml-11">v0.7 Faz 2 Beta</div>
         </div>
@@ -214,10 +209,8 @@ export function SiteSidebar({ onClose }: { onClose?: () => void }) {
     <>
       <div className="p-4">
         <Link href="/dashboard" className="inline-flex items-center gap-2 text-base font-bold text-white mb-3">
-          <span className="bg-gradient-to-br from-orange-500 to-orange-700 text-white rounded-lg w-7 h-7 grid place-items-center">
-            <Sparkles className="h-3.5 w-3.5" />
-          </span>
-          LuviAI
+          <BrandLogo size={28} className="rounded-lg" />
+          RanksUp
           <span className="text-[9px] uppercase tracking-widest text-slate-500 font-mono ml-1">Site</span>
         </Link>
 

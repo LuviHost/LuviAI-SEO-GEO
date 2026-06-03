@@ -19,7 +19,7 @@ export interface CrossLinkSuggestion {
 }
 
 /**
- * Cross-Linking — LuviAI ekosistemindeki sitelerin makalelerini akilli bir
+ * Cross-Linking — RanksUp ekosistemindeki sitelerin makalelerini akilli bir
  * sekilde birbirine baglar. Sadece OPT-IN siteler dahil edilir.
  *
  * Calisma:

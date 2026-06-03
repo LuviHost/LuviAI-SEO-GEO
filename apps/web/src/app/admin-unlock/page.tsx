@@ -106,7 +106,7 @@ export default async function AdminUnlockPage({
         <Card className="w-full max-w-sm bg-slate-900 border-red-500/40 text-slate-100">
           <CardContent className="p-6 space-y-4">
             <div>
-              <div className="text-xs uppercase tracking-wide text-red-400 mb-1">LuviAI Admin</div>
+              <div className="text-xs uppercase tracking-wide text-red-400 mb-1">RanksUp Admin</div>
               <h1 className="text-xl font-bold">Erişim engellendi</h1>
               <p className="text-sm text-slate-400 mt-1">
                 Bu Google hesabı (<strong>{userEmail}</strong>) admin email listesinde değil.
@@ -128,7 +128,7 @@ export default async function AdminUnlockPage({
         <Card className="w-full max-w-sm bg-slate-900 border-slate-800 text-slate-100">
           <CardContent className="p-6 space-y-5">
             <div>
-              <div className="text-xs uppercase tracking-wide text-amber-400 mb-1">LuviAI Admin</div>
+              <div className="text-xs uppercase tracking-wide text-amber-400 mb-1">RanksUp Admin</div>
               <h1 className="text-xl font-bold">Email ile giriş</h1>
               <p className="text-sm text-slate-400 mt-1">
                 Admin paneline girmek için 6 haneli kodu mailine göndereceğiz.
@@ -187,7 +187,7 @@ export default async function AdminUnlockPage({
         <Card className="w-full max-w-sm bg-slate-900 border-slate-800 text-slate-100">
           <CardContent className="p-6 space-y-5">
             <div>
-              <div className="text-xs uppercase tracking-wide text-amber-400 mb-1">LuviAI Admin</div>
+              <div className="text-xs uppercase tracking-wide text-amber-400 mb-1">RanksUp Admin</div>
               <h1 className="text-xl font-bold">Mail kodunu gir</h1>
               <p className="text-sm text-slate-400 mt-1">
                 <strong>{userEmail}</strong> adresine 6 haneli kod gönderildi. 5 dakika geçerli.
@@ -253,7 +253,7 @@ export default async function AdminUnlockPage({
       <Card className="w-full max-w-sm bg-slate-900 border-slate-800 text-slate-100">
         <CardContent className="p-6 space-y-5">
           <div>
-            <div className="text-xs uppercase tracking-wide text-amber-400 mb-1">LuviAI Admin</div>
+            <div className="text-xs uppercase tracking-wide text-amber-400 mb-1">RanksUp Admin</div>
             <h1 className="text-xl font-bold">Yönetici PIN'i</h1>
             <p className="text-sm text-slate-400 mt-1">
               Devam etmek için yöneticilere özel PIN'i gir.

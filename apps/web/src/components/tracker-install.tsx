@@ -89,8 +89,8 @@ export function TrackerInstall({ siteId, siteUrl }: { siteId: string; siteUrl?: 
   const [expandedPlatform, setExpandedPlatform] = useState<string | null>('wordpress');
 
   const apiBase = (typeof window !== 'undefined' && window.location.origin.startsWith('http'))
-    ? `https://ai.luvihost.com`
-    : 'https://ai.luvihost.com';
+    ? `https://ranksup.ai`
+    : 'https://ranksup.ai';
 
   const snippet = `<script async src="${apiBase}/api/tracker.js?site=${siteId}"></script>`;
 

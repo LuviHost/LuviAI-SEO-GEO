@@ -21,10 +21,12 @@ export class AiCitationTrackerService {
   /**
    * Tek bir site icin snapshot al ve DB'ye yaz.
    */
-  async snapshotSite(siteId: string): Promise<{ saved: number }> {
+  async snapshotSite(siteId: string): Promise<{ saved: number; results: any[]; runAt: string }> {
     const results = await this.citation.runForSite(siteId, 5);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0); // UTC date'e normalize
+    const runAt = new Date().toISOString();
+    // UTC midnight — server timezone'a bagli kalmamak icin (TR'de setHours(0,0,0,0) bir onceki UTC gunune kayar)
+    const now = new Date();
+    const today = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
 
     let saved = 0;
     for (const r of results) {
@@ -59,7 +61,7 @@ export class AiCitationTrackerService {
       }
     }
 
-    return { saved };
+    return { saved, results, runAt };
   }
 
   /**
@@ -118,11 +120,29 @@ export class AiCitationTrackerService {
       trends.push({ provider, first, last, delta });
     }
 
+    // Son snapshot detaylarini da don — F5 sonrasi detay panelinin yeniden hidrate olabilmesi icin
+    const latestByProvider = new Map<string, typeof snapshots[number]>();
+    for (const s of snapshots) {
+      const cur = latestByProvider.get(s.provider);
+      if (!cur || s.date.getTime() > cur.date.getTime()) latestByProvider.set(s.provider, s);
+    }
+    const latestResults = Array.from(latestByProvider.values()).map((s) => ({
+      provider: s.provider,
+      available: s.available,
+      score: s.score,
+      probes: s.probes,
+    }));
+    const latestRunAt = snapshots.length > 0
+      ? snapshots.reduce((a, b) => (a.createdAt.getTime() > b.createdAt.getTime() ? a : b)).createdAt.toISOString()
+      : null;
+
     return {
       days,
       since: since.toISOString(),
       byProvider,
       trends,
+      latestResults,
+      latestRunAt,
     };
   }
 }

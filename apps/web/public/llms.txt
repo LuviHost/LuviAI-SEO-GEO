@@ -1,4 +1,4 @@
-# LuviAI
+# RanksUp
 
 > Türkiye için yapılmış, AI çağının pazarlama platformu: AI Görünürlük (ChatGPT/Claude/Gemini/Perplexity'de marka izleme) + ASO (App Store / Play Store keyword takibi) + Apple Search Ads otomasyonu + App Store Connect entegrasyonu + AI Studio (görsel + video + metin üretimi) + Sosyal medya planlayıcı + Auto-Pilot otomasyon — hepsi tek panelden. KOBİ, e-ticaret, mobil app sahipleri ve dijital ajanslar için. PayTR + Iyzico ile güvenli ödeme.
 
@@ -55,25 +55,25 @@
 
 ## Önemli sayfalar
 
-- [Ana sayfa](https://ai.luvihost.com/)
-- [Fiyatlar](https://ai.luvihost.com/pricing)
-- [SSS](https://ai.luvihost.com/faq)
-- [Kullanım senaryoları](https://ai.luvihost.com/use-cases)
-- [Karşılaştırma (vs SEMrush, AppTweak, Hootsuite, ChatGPT Team)](https://ai.luvihost.com/compare)
-- [Yardım merkezi](https://ai.luvihost.com/help)
-- [Hızlı başlangıç (5dk)](https://ai.luvihost.com/help/getting-started)
-- [AI Görünürlük rehberi](https://ai.luvihost.com/help/ai-visibility)
-- [ASO rehberi](https://ai.luvihost.com/help/aso)
-- [Apple Search Ads rehberi](https://ai.luvihost.com/help/asa-asc)
-- [Studio rehberi](https://ai.luvihost.com/help/studio)
-- [Auto-Pilot rehberi](https://ai.luvihost.com/help/auto-pilot)
-- [API Keys (BYOK)](https://ai.luvihost.com/help/api-keys)
-- [Sosyal medya rehberi](https://ai.luvihost.com/help/social)
-- [Faturalama rehberi](https://ai.luvihost.com/help/billing)
-- [Gizlilik politikası](https://ai.luvihost.com/privacy)
-- [Kullanım şartları](https://ai.luvihost.com/terms)
-- [KVKK](https://ai.luvihost.com/kvkk)
-- [Sistem durumu](https://ai.luvihost.com/status)
+- [Ana sayfa](https://ranksup.ai/)
+- [Fiyatlar](https://ranksup.ai/pricing)
+- [SSS](https://ranksup.ai/faq)
+- [Kullanım senaryoları](https://ranksup.ai/use-cases)
+- [Karşılaştırma (vs SEMrush, AppTweak, Hootsuite, ChatGPT Team)](https://ranksup.ai/compare)
+- [Yardım merkezi](https://ranksup.ai/help)
+- [Hızlı başlangıç (5dk)](https://ranksup.ai/help/getting-started)
+- [AI Görünürlük rehberi](https://ranksup.ai/help/ai-visibility)
+- [ASO rehberi](https://ranksup.ai/help/aso)
+- [Apple Search Ads rehberi](https://ranksup.ai/help/asa-asc)
+- [Studio rehberi](https://ranksup.ai/help/studio)
+- [Auto-Pilot rehberi](https://ranksup.ai/help/auto-pilot)
+- [API Keys (BYOK)](https://ranksup.ai/help/api-keys)
+- [Sosyal medya rehberi](https://ranksup.ai/help/social)
+- [Faturalama rehberi](https://ranksup.ai/help/billing)
+- [Gizlilik politikası](https://ranksup.ai/privacy)
+- [Kullanım şartları](https://ranksup.ai/terms)
+- [KVKK](https://ranksup.ai/kvkk)
+- [Sistem durumu](https://ranksup.ai/status)
 
 ## İletişim
 

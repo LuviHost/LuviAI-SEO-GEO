@@ -12,9 +12,7 @@ import { ImageGeneratorService } from '../articles/image-generator.service.js';
 import { VideoGeneratorService } from '../articles/video-generator.service.js';
 import { ArticlesModule } from '../articles/articles.module.js';
 // Brightbean parity services
-import { SocialInboxService } from './social-inbox.service.js';
 import { SocialMediaLibraryService } from './social-media-library.service.js';
-import { SocialIdeaService } from './social-idea.service.js';
 
 /**
  * Sosyal medya — kanal yonetimi + post yayini + plan-bazli takvim/cron.
@@ -37,18 +35,14 @@ import { SocialIdeaService } from './social-idea.service.js';
     SocialAutoDraftService,
     SocialSchedulerService,
     SocialMediaGeneratorService,
-    SocialInboxService,
     SocialMediaLibraryService,
-    SocialIdeaService,
   ],
   exports: [
     SocialChannelsService,
     SocialPostsService,
     SocialAutoDraftService,
     SocialMediaGeneratorService,
-    SocialInboxService,
     SocialMediaLibraryService,
-    SocialIdeaService,
   ],
 })
 export class SocialModule {}

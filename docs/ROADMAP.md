@@ -1,4 +1,4 @@
-# LuviAI Roadmap
+# RanksUp Roadmap
 
 > Tek geliştirici (Emirhan) takvimi. Junior dev varsa 2x kısalır.
 
@@ -43,7 +43,7 @@
 - [ ] Cron scheduler (haftalık otomatik üretim)
 - [ ] Email notifications (Resend)
 - [ ] LuviHost VDS deploy (Docker compose)
-- [ ] DNS + Cloudflare SSL (`ai.luvihost.com`)
+- [ ] DNS + Cloudflare SSL (`ranksup.ai`)
 - [ ] 5-10 beta kullanıcı testi
 - [ ] **🚀 Beta lansman**
 
@@ -90,7 +90,7 @@
 
 ### Hafta 11 — Launch ops
 - [ ] Marketing site (TR + EN)
-- [ ] LuviAI'nin kendi blog'u (dogfooding)
+- [ ] RanksUp'nin kendi blog'u (dogfooding)
 - [ ] Pricing + FAQ + Comparison sayfaları
 - [ ] Affiliate programı (LuviHost müşterilerine %30)
 - [ ] Product Hunt + sosyal medya kampanya
@@ -133,10 +133,10 @@
 - [ ] Site bazında "marka sesi modeli"
 - [ ] Performance feedback loop
 - [ ] AI A/B testing
-- [ ] LuviAI Pages (programmatic SEO)
-- [ ] LuviAI Refresh (eski içerik güncelleme)
-- [ ] LuviAI Localize (10 dil)
-- [ ] LuviAI Audit (sadece audit, ucuz plan)
+- [ ] RanksUp Pages (programmatic SEO)
+- [ ] RanksUp Refresh (eski içerik güncelleme)
+- [ ] RanksUp Localize (10 dil)
+- [ ] RanksUp Audit (sadece audit, ucuz plan)
 
 ### Ay 7-9 — Enterprise
 - [ ] SSO (SAML, Okta, Google Workspace)

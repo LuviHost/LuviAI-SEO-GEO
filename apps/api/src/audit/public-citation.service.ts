@@ -215,7 +215,7 @@ export class PublicCitationService {
       const res = await fetch(url, {
         signal: controller.signal,
         redirect: 'follow',
-        headers: { 'User-Agent': 'LuviAI-PublicCitation/1.0 (+https://ai.luvihost.com)' },
+        headers: { 'User-Agent': 'RanksUp-PublicCitation/1.0 (+https://ranksup.ai)' },
       });
       clearTimeout(t);
       if (res.ok) {

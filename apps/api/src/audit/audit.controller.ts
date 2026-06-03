@@ -27,6 +27,8 @@ import { Public } from '../auth/public.decorator.js';
 import { SnippetGeneratorService } from './snippet-generator.service.js';
 import { SnippetApplierService } from './snippet-applier.service.js';
 import { StaticHtmlFixerService } from './static-html-fixer.service.js';
+import { StuckPageDetectorService } from './stuck-page-detector.service.js';
+import { StuckPageRecoveryService } from './stuck-page-recovery.service.js';
 
 @Controller('sites/:siteId/audit')
 export class AuditController {
@@ -57,6 +59,8 @@ export class AuditController {
     private readonly snippets: SnippetGeneratorService,
     private readonly applier: SnippetApplierService,
     private readonly staticFixer: StaticHtmlFixerService,
+    private readonly stuckDetector: StuckPageDetectorService,
+    private readonly stuckRecovery: StuckPageRecoveryService,
   ) {}
 
   @Get('latest')
@@ -84,10 +88,100 @@ export class AuditController {
     return this.autoFix.runAutoFix(siteId, body.fixes);
   }
 
+  // ──────────────────────────────────────────────────────────────
+  //  Stuck Pages — On-page.ai Recipe 1 esleyicisi
+  // ──────────────────────────────────────────────────────────────
+
+  /** GET /sites/:siteId/audit/stuck-pages — liste */
+  @Get('stuck-pages')
+  async listStuckPages(
+    @Param('siteId') siteId: string,
+    @Query('status') status?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.stuckDetector.list(siteId, {
+      status,
+      limit: limit ? Number(limit) : undefined,
+    });
+  }
+
+  /** POST /sites/:siteId/audit/stuck-pages/detect — manuel tarama tetikle */
+  @Post('stuck-pages/detect')
+  async detectStuckPages(@Param('siteId') siteId: string) {
+    return this.stuckDetector.detect(siteId);
+  }
+
+  /** GET /sites/:siteId/audit/stuck-pages/:id — detay + son recovery audit trail */
+  @Get('stuck-pages/:id')
+  async stuckPageDetail(@Param('id') id: string) {
+    return this.stuckDetector.getDetail(id);
+  }
+
+  /** POST /sites/:siteId/audit/stuck-pages/:id/recover — tek sayfa recovery */
+  @Post('stuck-pages/:id/recover')
+  async recoverStuckPage(@Param('id') id: string, @Body() body: { triggeredBy?: string } = {}) {
+    return this.stuckRecovery.recover(id, {
+      triggeredBy: body.triggeredBy || 'manual',
+    });
+  }
+
+  /** POST /sites/:siteId/audit/stuck-pages/recover-batch — coklu recovery */
+  @Post('stuck-pages/recover-batch')
+  async recoverBatch(
+    @Param('siteId') siteId: string,
+    @Body() body: { stuckPageIds: string[]; triggeredBy?: string },
+  ) {
+    const results: Array<{ id: string; ok: boolean; error?: string; recoveryId?: string }> = [];
+    for (const id of body.stuckPageIds ?? []) {
+      try {
+        const r = await this.stuckRecovery.recover(id, {
+          triggeredBy: body.triggeredBy || 'manual',
+        });
+        results.push({ id, ok: r.success, recoveryId: r.recoveryId });
+      } catch (err: any) {
+        results.push({ id, ok: false, error: err.message });
+      }
+    }
+    return { siteId, results };
+  }
+
+  /** POST /sites/:siteId/audit/stuck-pages/recovery/:recoveryId/revert — geri al */
+  @Post('stuck-pages/recovery/:recoveryId/revert')
+  async revertRecovery(
+    @Param('recoveryId') recoveryId: string,
+    @Body() body: { userId?: string } = {},
+  ) {
+    await this.stuckRecovery.revert(recoveryId, body.userId || 'manual');
+    return { ok: true };
+  }
+
+  /** POST /sites/:siteId/audit/stuck-pages/:id/ignore — bu sayfayi gormezden gel */
+  @Post('stuck-pages/:id/ignore')
+  async ignoreStuckPage(@Param('id') id: string) {
+    await this.stuckDetector.ignore(id);
+    return { ok: true };
+  }
+
   @Post('citation-test')
   async citationTest(@Param('siteId') siteId: string) {
     const results = await this.citation.runForSite(siteId, 5);
     return { results, runAt: new Date().toISOString() };
+  }
+
+  /** POST /sites/:siteId/audit/citation-roadmap — son sonuçlardan AI önerisi */
+  @Post('citation-roadmap')
+  async citationRoadmap(@Param('siteId') siteId: string) {
+    const results = await this.citation.runForSite(siteId, 5);
+    const roadmap = await this.citation.generateRoadmap(siteId, results);
+    return { results, roadmap, runAt: new Date().toISOString() };
+  }
+
+  /** POST /sites/:siteId/audit/citation-per-page — Clarity-style per-page cite + grounding queries */
+  @Post('citation-per-page')
+  async citationPerPage(@Param('siteId') siteId: string) {
+    const results = await this.citation.runForSite(siteId, 5);
+    const breakdown = this.citation.aggregatePerPageCitations(results);
+    return { breakdown, runAt: new Date().toISOString() };
   }
 
   /** GET /sites/:siteId/audit/citation-history?days=30 — tarihsel AI gorunurluk */

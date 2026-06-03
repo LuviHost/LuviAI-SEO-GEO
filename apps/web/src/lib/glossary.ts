@@ -171,17 +171,17 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
     level: 1,
   },
 
-  // ──────────── LuviAI Ozel Terimler ────────────
+  // ──────────── RanksUp Ozel Terimler ────────────
   Otopilot: {
-    short: 'LuviAI\'in senin yerine kararlar alip uygulamasi. Dusuk performans → pause, yuksek → butce artir, A/B winner sec, vs.',
+    short: 'RanksUp\'in senin yerine kararlar alip uygulamasi. Dusuk performans → pause, yuksek → butce artir, A/B winner sec, vs.',
     level: 2,
   },
   Brain: {
-    short: 'LuviAI\'in senin sitenle ilgili tuttugu AI hafiza: marka tonu, hedef kitle, rakipler, SEO stratejisi.',
+    short: 'RanksUp\'in senin sitenle ilgili tuttugu AI hafiza: marka tonu, hedef kitle, rakipler, SEO stratejisi.',
     level: 2,
   },
   'Site Brain': {
-    short: 'LuviAI\'in senin sitenle ilgili tuttugu AI hafiza: marka tonu, hedef kitle, rakipler, SEO stratejisi.',
+    short: 'RanksUp\'in senin sitenle ilgili tuttugu AI hafiza: marka tonu, hedef kitle, rakipler, SEO stratejisi.',
     level: 2,
   },
   Persona: {
@@ -223,7 +223,7 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
     level: 2,
   },
   'API Key': {
-    short: 'LuviAI\'a programatik erisim icin kisisel anahtar. Gelistiriciler kendi yazilimlarindan LuviAI\'i kullanabilir.',
+    short: 'RanksUp\'a programatik erisim icin kisisel anahtar. Gelistiriciler kendi yazilimlarindan RanksUp\'i kullanabilir.',
     level: 1,
   },
   Scope: {
@@ -237,11 +237,11 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
 
   // ──────────── Paket / İş ────────────
   Whitelabel: {
-    short: 'LuviAI markasini gizleyip kendi marka adinla satma. "Powered by LuviAI" yazisi kalkar.',
+    short: 'RanksUp markasini gizleyip kendi marka adinla satma. "Powered by RanksUp" yazisi kalkar.',
     level: 2,
   },
   Affiliate: {
-    short: 'Bir baskasini LuviAI\'a yonlendirip kaydolduklarinda komisyon kazanma programi (%30, 3 ay).',
+    short: 'Bir baskasini RanksUp\'a yonlendirip kaydolduklarinda komisyon kazanma programi (%30, 3 ay).',
     level: 1,
   },
   TRIAL: {

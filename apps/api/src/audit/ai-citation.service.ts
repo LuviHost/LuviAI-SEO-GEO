@@ -275,7 +275,7 @@ export class AiCitationService {
       try {
         const u = new URL(site.url);
         const parts = u.hostname.replace(/^www\./, '').split('.');
-        if (parts.length >= 2) brand = parts[parts.length - 2]; // ai.luvihost.com -> "luvihost"
+        if (parts.length >= 2) brand = parts[parts.length - 2]; // ranksup.ai -> "luvihost"
       } catch { /* ignore */ }
     }
     const url = site.url;
@@ -891,7 +891,7 @@ export class AiCitationService {
 
   /**
    * GEO Roadmap — sonuçlardan yola çıkarak "neden bu skordasın + ne yapmalısın".
-   * Maya'nın "GEO Roadmap & Actions" özelliğinin LuviAI versiyonu.
+   * Maya'nın "GEO Roadmap & Actions" özelliğinin RanksUp versiyonu.
    * OpenAI gpt-4o-mini ile 1 call; yoksa heuristic fallback.
    */
   async generateRoadmap(
@@ -929,7 +929,7 @@ export class AiCitationService {
     const openaiKey = process.env.OPENAI_API_KEY;
     if (openaiKey) {
       try {
-        const prompt = `LuviAI bir markanın AI asistanlarda (ChatGPT, Claude, Gemini, Perplexity) görünürlüğünü ölçtü.
+        const prompt = `RanksUp bir markanın AI asistanlarda (ChatGPT, Claude, Gemini, Perplexity) görünürlüğünü ölçtü.
 
 Marka: ${site.name} (${site.url})
 Niş: ${site.niche ?? 'bilinmiyor'}

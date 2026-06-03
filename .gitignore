@@ -46,3 +46,4 @@ tmp/
 *.tsbuildinfo
 uploads/
 .vscode/
+.tmp-trigger-snapshot.cjs

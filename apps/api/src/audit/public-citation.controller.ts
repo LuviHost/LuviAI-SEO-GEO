@@ -109,10 +109,10 @@ export class PublicCitationController {
     if (!token) throw new HttpException('token gerekli', HttpStatus.BAD_REQUEST);
     try {
       const r = await this.subscribers.confirm(token);
-      const webUrl = process.env.WEB_URL ?? 'https://ai.luvihost.com';
+      const webUrl = process.env.WEB_URL ?? 'https://ranksup.ai';
       return res.redirect(`${webUrl}/?citation_confirmed=${encodeURIComponent(r.domain)}`);
     } catch (err: any) {
-      const webUrl = process.env.WEB_URL ?? 'https://ai.luvihost.com';
+      const webUrl = process.env.WEB_URL ?? 'https://ranksup.ai';
       return res.redirect(`${webUrl}/?citation_confirm_error=${encodeURIComponent(err.message ?? 'error')}`);
     }
   }
@@ -139,10 +139,10 @@ export class PublicCitationController {
     if (!token) throw new HttpException('token gerekli', HttpStatus.BAD_REQUEST);
     try {
       const r = await this.subscribers.unsubscribe(token);
-      const webUrl = process.env.WEB_URL ?? 'https://ai.luvihost.com';
+      const webUrl = process.env.WEB_URL ?? 'https://ranksup.ai';
       return res.redirect(`${webUrl}/?citation_unsubscribed=${encodeURIComponent(r.domain)}`);
     } catch (err: any) {
-      const webUrl = process.env.WEB_URL ?? 'https://ai.luvihost.com';
+      const webUrl = process.env.WEB_URL ?? 'https://ranksup.ai';
       return res.redirect(`${webUrl}/?citation_unsubscribe_error=${encodeURIComponent(err.message ?? 'error')}`);
     }
   }

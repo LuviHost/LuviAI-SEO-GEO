@@ -91,7 +91,7 @@ ${code}
 <p style="margin:0;color:#9ca3af;font-size:12px;line-height:1.6;">Bu giriş denemesini siz yapmadıysanız bu maili göz ardı edin. Hesabınız güvende — kod doğrulanmadan oturum açılmaz.</p>
 </td></tr>
 </table>
-<p style="color:#6b7280;font-size:11px;margin:16px 0 0;font-family:SF Mono,Menlo,monospace;">LuviAI · Admin OTP</p>
+<p style="color:#6b7280;font-size:11px;margin:16px 0 0;font-family:SF Mono,Menlo,monospace;">RanksUp · Admin OTP</p>
 </td></tr></table>
 </body></html>`;
 
@@ -103,9 +103,9 @@ ${code}
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: `LuviAI Admin <${process.env.EMAIL_FROM ?? 'noreply@luvihost.com.tr'}>`,
+        from: `RanksUp Admin <${process.env.EMAIL_FROM ?? 'noreply@luvihost.com.tr'}>`,
         to: [email],
-        subject: `🔐 LuviAI Admin giriş kodu: ${code}`,
+        subject: `🔐 RanksUp Admin giriş kodu: ${code}`,
         html,
       }),
     });

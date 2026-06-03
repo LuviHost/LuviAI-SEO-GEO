@@ -320,12 +320,12 @@ const TARGET_GUIDES: Record<string, { title: string; steps: string[]; tip?: stri
       'WordPress yönetici paneline (wp-admin) giriş yap',
       'Sol menüden Kullanıcılar → Profil ekranına git',
       'Sayfanın altında "Application Passwords" bölümünü bul',
-      'Etiket olarak "LuviAI" yaz (sadece şifreyi tanımak için, kullanıcı oluşturmaz) → "Add New Application Password" tıkla',
+      'Etiket olarak "RanksUp" yaz (sadece şifreyi tanımak için, kullanıcı oluşturmaz) → "Add New Application Password" tıkla',
       'Çıkan xxxx xxxx xxxx xxxx formatlı parolayı kopyala (boşluklarla beraber)',
-      'Bu pencerede: Site URL = sadece domain (örn https://ai.luvihost.com — /wp-admin veya /wp-json EKLEME, backend otomatik ekler. Bağlandığın site varsa otomatik gelir) · Kullanıcı adı = SENİN WP login\'in (admin/email vb., "LuviAI" DEĞİL) · App Password = az önce kopyaladığın 24 haneli parola',
+      'Bu pencerede: Site URL = sadece domain (örn https://ranksup.ai — /wp-admin veya /wp-json EKLEME, backend otomatik ekler. Bağlandığın site varsa otomatik gelir) · Kullanıcı adı = SENİN WP login\'in (admin/email vb., "RanksUp" DEĞİL) · App Password = az önce kopyaladığın 24 haneli parola',
       '"Yayın durumu": Taslak → sen WP\'de inceleyip yayınlarsın · Yayında → otomatik canlıya çıkar',
     ],
-    tip: '"LuviAI" sadece şifrenin etiketi — gerçek WP kullanıcısı oluşturmaz. Kullanıcı adı alanına kendi WP login\'ini yaz.',
+    tip: '"RanksUp" sadece şifrenin etiketi — gerçek WP kullanıcısı oluşturmaz. Kullanıcı adı alanına kendi WP login\'ini yaz.',
   },
   WORDPRESS_XMLRPC: {
     title: 'WordPress (XML-RPC) Kurulumu',
@@ -363,7 +363,7 @@ const TARGET_GUIDES: Record<string, { title: string; steps: string[]; tip?: stri
     title: 'cPanel API Kurulumu',
     steps: [
       'cPanel hesabına gir → Security → Manage API Tokens',
-      'Yeni token oluştur ("LuviAI" adıyla)',
+      'Yeni token oluştur ("RanksUp" adıyla)',
       'Host = cpanel.alanadi.com (genelde)',
       'Kullanıcı = cPanel username',
       'API Token = az önce kopyaladığın token',
@@ -394,7 +394,7 @@ const TARGET_GUIDES: Record<string, { title: string; steps: string[]; tip?: stri
   STATIC_LOCAL: {
     title: 'Local Static (Bu sunucuya yaz)',
     steps: [
-      'Makale dosyaları LuviAI sunucusunun /var/www/published/<slug>/ klasörüne yazılır',
+      'Makale dosyaları RanksUp sunucusunun /var/www/published/<slug>/ klasörüne yazılır',
       'Sonradan rsync veya manuel kopyalayabilirsin',
       'Path = base klasör adı (örn "luvihost")',
     ],
@@ -926,7 +926,7 @@ function GscConnectionCard({ siteId }: { siteId: string }) {
         ) : (
           <div className="flex items-center justify-between gap-3 flex-wrap text-sm">
             <p className="text-muted-foreground">
-              Sitenin Google Search Console hesabını bağla; LuviAI <strong>{site?.url}</strong> property'sinin
+              Sitenin Google Search Console hesabını bağla; RanksUp <strong>{site?.url}</strong> property'sinin
               tıklama, gösterim ve sıralama verisini çeker.
             </p>
             <Button onClick={connect} disabled={busy}>
@@ -1108,7 +1108,7 @@ function Ga4ConnectionCard({ siteId }: { siteId: string }) {
         ) : (
           <div className="flex items-center justify-between gap-3 flex-wrap text-sm">
             <p className="text-muted-foreground">
-              Sitenin GA4 property'sini bağla; LuviAI bounce/oturum/conversion verisini çeker, makale önerisinde kullanır.
+              Sitenin GA4 property'sini bağla; RanksUp bounce/oturum/conversion verisini çeker, makale önerisinde kullanır.
             </p>
             <Button onClick={connect} disabled={busy}>
               <Link2 className="h-4 w-4 mr-2" />

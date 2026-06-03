@@ -8,9 +8,7 @@ import { SocialCalendarService } from './social-calendar.service.js';
 import { SocialMediaGeneratorService } from './social-media-generator.service.js';
 import { SocialAutoDraftService } from './social-auto-draft.service.js';
 import { MEDIA_POLICY, type MediaType } from './social-media-policy.js';
-import { SocialInboxService } from './social-inbox.service.js';
 import { SocialMediaLibraryService } from './social-media-library.service.js';
-import { SocialIdeaService } from './social-idea.service.js';
 
 function ensureUser(req: Request) {
   const user = (req as any).user;
@@ -27,9 +25,7 @@ export class SocialController {
     private readonly calendar: SocialCalendarService,
     private readonly mediaGen: SocialMediaGeneratorService,
     private readonly autoDraft: SocialAutoDraftService,
-    private readonly inbox: SocialInboxService,
     private readonly mediaLibrary: SocialMediaLibraryService,
-    private readonly ideas: SocialIdeaService,
   ) {}
 
   // ─── Catalog ─────────────────────────────────────────
@@ -90,12 +86,44 @@ export class SocialController {
   async oauthCallback(
     @Query('code') code: string,
     @Query('state') state: string,
+    @Query('error') error: string,
+    @Query('error_description') errorDescription: string,
     @Res() res: Response,
   ) {
-    const result = await this.channels.handleCallback(code, state);
-    return res.redirect(
-      `${process.env.WEB_BASE_URL}/sites/${result.siteId}?step=social&social=connected&channel=${result.channelId}`,
-    );
+    const webBase = process.env.WEB_BASE_URL ?? 'https://ranksup.ai';
+
+    // state'ten siteId çıkartmayı dene — redirect target'ı için
+    let siteIdFromState: string | null = null;
+    if (state) {
+      try {
+        const decoded = JSON.parse(Buffer.from(state, 'base64url').toString('utf-8'));
+        siteIdFromState = decoded?.siteId ?? null;
+      } catch { /* ignore — aşağıda da yakalanır */ }
+    }
+
+    const redirectError = (reason: string) => {
+      const target = siteIdFromState
+        ? `${webBase}/sites/${siteIdFromState}/connections?social=error&reason=${encodeURIComponent(reason)}`
+        : `${webBase}/?social=error&reason=${encodeURIComponent(reason)}`;
+      return res.redirect(target);
+    };
+
+    // LinkedIn / OAuth provider hatası (scope rejection, kullanıcı iptal vs.)
+    if (error) {
+      return redirectError(errorDescription || error);
+    }
+    if (!code || !state) {
+      return redirectError('Eksik OAuth parametresi (code veya state)');
+    }
+
+    try {
+      const result = await this.channels.handleCallback(code, state);
+      return res.redirect(
+        `${webBase}/sites/${result.siteId}?step=social&social=connected&channel=${result.channelId}`,
+      );
+    } catch (err: any) {
+      return redirectError(err?.message ?? 'Bilinmeyen OAuth hatası');
+    }
   }
 
   // ─── Posts ──────────────────────────────────────────
@@ -124,6 +152,25 @@ export class SocialController {
     },
   ) {
     return this.posts.create(body, ensureUser(req));
+  }
+
+  /**
+   * Studio "Yeni Post" modal'ı için: aynı asset+caption'ı N kanala paylaş (article'sız).
+   */
+  @Post('sites/:siteId/social/posts/multi')
+  createMultiPost(
+    @Req() req: Request,
+    @Param('siteId') siteId: string,
+    @Body() body: {
+      channelIds: string[];
+      text: string;
+      mediaUrls?: any[];
+      mediaType?: 'text' | 'image' | 'video';
+      scheduledFor?: string | null;
+      status?: 'DRAFT' | 'QUEUED';
+    },
+  ) {
+    return this.posts.createMulti({ siteId, ...body }, ensureUser(req));
   }
 
   @Patch('social/posts/:postId')
@@ -204,6 +251,32 @@ export class SocialController {
     return this.autoDraft.backfillForSite(siteId, body?.daysAgo ?? 30);
   }
 
+  /**
+   * Bir article'ı kullanıcının seçtiği N kanala paylaşmak için draft üret.
+   * Modal flow'un asıl endpoint'i — channelIds (multiselect) + scheduledFor + status (DRAFT/QUEUED).
+   */
+  @Post('sites/:siteId/articles/:articleId/share-social')
+  async shareArticleToSocial(
+    @Req() req: Request,
+    @Param('siteId') siteId: string,
+    @Param('articleId') articleId: string,
+    @Body() body: {
+      channelIds: string[];
+      scheduledFor?: string | null;
+      status?: 'DRAFT' | 'QUEUED';
+    },
+  ) {
+    ensureUser(req);
+    if (!Array.isArray(body?.channelIds) || body.channelIds.length === 0) {
+      return { created: 0, skipped: 0, postIds: [], error: 'En az 1 kanal seçilmeli' };
+    }
+    return this.autoDraft.createDraftsForArticle(articleId, {
+      channelIds: body.channelIds,
+      scheduledFor: body.scheduledFor ? new Date(body.scheduledFor) : null,
+      status: body.status ?? 'DRAFT',
+    });
+  }
+
   // ─── Calendar / scheduling ──────────────────────────
 
   @Get('sites/:siteId/social/calendar')
@@ -265,50 +338,6 @@ export class SocialController {
     return this.slots.deleteSlot(slotId, ensureUser(req));
   }
 
-  // ─── Brightbean parity: Inbox (DM/mention/comment) ──────────
-
-  @Get('sites/:siteId/social/inbox')
-  inboxList(
-    @Req() req: Request,
-    @Param('siteId') siteId: string,
-    @Query('status') status?: string,
-    @Query('type') type?: string,
-    @Query('channelId') channelId?: string,
-    @Query('limit') limit?: string,
-    @Query('cursor') cursor?: string,
-  ) {
-    return this.inbox.listForSite(siteId, ensureUser(req), {
-      status, type, channelId,
-      limit: limit ? parseInt(limit, 10) : undefined,
-      cursor,
-    });
-  }
-
-  @Get('sites/:siteId/social/inbox/unread-count')
-  inboxUnreadCount(@Req() req: Request, @Param('siteId') siteId: string) {
-    return this.inbox.unreadCountForSite(siteId, ensureUser(req));
-  }
-
-  @Patch('social/inbox/:messageId/read')
-  inboxMarkRead(@Req() req: Request, @Param('messageId') messageId: string) {
-    return this.inbox.markAsRead(messageId, ensureUser(req));
-  }
-
-  @Post('social/inbox/:messageId/reply')
-  inboxReply(@Req() req: Request, @Param('messageId') messageId: string, @Body() body: { reply: string }) {
-    return this.inbox.reply(messageId, body.reply, ensureUser(req));
-  }
-
-  @Post('social/inbox/:messageId/archive')
-  inboxArchive(@Req() req: Request, @Param('messageId') messageId: string) {
-    return this.inbox.archive(messageId, ensureUser(req));
-  }
-
-  @Post('social/inbox/:messageId/resolve')
-  inboxResolve(@Req() req: Request, @Param('messageId') messageId: string) {
-    return this.inbox.resolve(messageId, ensureUser(req));
-  }
-
   // ─── Brightbean parity: Media Library ──────────
 
   @Get('social/media-library')
@@ -347,35 +376,4 @@ export class SocialController {
     return this.mediaLibrary.delete(assetId, ensureUser(req));
   }
 
-  // ─── Brightbean parity: Idea Board (kanban) ──────────
-
-  @Get('social/ideas/board')
-  ideasBoard(@Req() req: Request, @Query('siteId') siteId?: string) {
-    return this.ideas.board(ensureUser(req), siteId);
-  }
-
-  @Post('social/ideas')
-  ideasCreate(@Req() req: Request, @Body() body: any) {
-    return this.ideas.create(ensureUser(req), body);
-  }
-
-  @Patch('social/ideas/:ideaId')
-  ideasUpdate(@Req() req: Request, @Param('ideaId') ideaId: string, @Body() body: any) {
-    return this.ideas.update(ideaId, ensureUser(req), body);
-  }
-
-  @Post('social/ideas/:ideaId/move')
-  ideasMove(@Req() req: Request, @Param('ideaId') ideaId: string, @Body() body: { column: 'UNASSIGNED' | 'TODO' | 'IN_PROGRESS' | 'DONE'; position: number }) {
-    return this.ideas.move(ideaId, ensureUser(req), body);
-  }
-
-  @Post('social/ideas/:ideaId/convert')
-  ideasConvert(@Req() req: Request, @Param('ideaId') ideaId: string, @Body() body: { channelId: string }) {
-    return this.ideas.convertToPost(ideaId, ensureUser(req), body.channelId);
-  }
-
-  @Delete('social/ideas/:ideaId')
-  ideasDelete(@Req() req: Request, @Param('ideaId') ideaId: string) {
-    return this.ideas.delete(ideaId, ensureUser(req));
-  }
 }

@@ -1,11 +1,11 @@
-# LuviAI — SEO + GEO Otomasyon Platformu
+# RanksUp — SEO + GEO Otomasyon Platformu
 
 > **"Sitenin URL'ini ver, GSC bağla, AI haftalık 5-50 makale üretip yayınlasın."**
 
-LuviAI, küçük-orta işletmelerin ve ajansların blog büyümesini AI ile otomatikleştiren bir SaaS ürünüdür. LuviHost ana markasının türevi olarak konumlanır.
+RanksUp, küçük-orta işletmelerin ve ajansların blog büyümesini AI ile otomatikleştiren bir SaaS ürünüdür. LuviHost ana markasının türevi olarak konumlanır.
 
-- **Domain:** `ai.luvihost.com`
-- **API:** `api.ai.luvihost.com`
+- **Domain:** `ranksup.ai`
+- **API:** `api.ranksup.ai`
 - **Geliştirici:** Emirhan Burgazli ([@luvihost](https://luvihost.com.tr))
 - **Lisans:** Proprietary (kapalı kaynak)
 
@@ -29,7 +29,7 @@ Mevcut SEO içerik üretim pipeline'ını (LuviHost için kurulmuş 6-ajan siste
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                      LuviAI Monorepo                            │
+│                      RanksUp Monorepo                            │
 └─────────────────────────────────────────────────────────────────┘
 
   apps/web          apps/api           apps/worker
@@ -86,14 +86,14 @@ Davet üzeri 30 kullanıcı, ödeme yok.
 - Polished UI + dark mode + i18n TR/EN
 - 10 yeni publish adapter (Webflow, Sanity, GitHub, cPanel, vb.)
 - Analytics dashboard (GSC verisi)
-- Marketing site + LuviAI'nin kendi blog'u (dogfooding)
+- Marketing site + RanksUp'nin kendi blog'u (dogfooding)
 
 ### 🔴 Faz 3 — Scale + Enterprise (6 ay)
 - White-label (ajans planı)
 - Public API + SDK + Zapier/Make/n8n
 - Adaptive AI (kullanıcı feedback'inden öğren)
-- LuviAI Pages (programmatic SEO 1000+ sayfa)
-- LuviAI Localize (10 dile çeviri)
+- RanksUp Pages (programmatic SEO 1000+ sayfa)
+- RanksUp Localize (10 dile çeviri)
 - Enterprise (SSO, SLA, dedicated infra)
 
 ---
@@ -216,11 +216,11 @@ pnpm dev   # web (3000), api (3001), worker (background)
 
 ---
 
-## Migrasyon: LuviHost pipeline → LuviAI
+## Migrasyon: LuviHost pipeline → RanksUp
 
-Mevcut `~/Desktop/EMİR/LuviHost/luvi/scripts/` klasöründeki kod LuviAI'nin **prototip ve dogfooding örneği** olarak korunur. Şu mapping ile NestJS service'lerine taşınır:
+Mevcut `~/Desktop/EMİR/LuviHost/luvi/scripts/` klasöründeki kod RanksUp'nin **prototip ve dogfooding örneği** olarak korunur. Şu mapping ile NestJS service'lerine taşınır:
 
-| Mevcut script | LuviAI service |
+| Mevcut script | RanksUp service |
 |---|---|
 | `generate-article.js` | `apps/worker/src/jobs/generate-article.ts` |
 | `publish.js` | `apps/worker/src/jobs/publish.ts` |
@@ -258,6 +258,6 @@ Beta'da **PayTR yok**, sınır **1 ücretsiz makale** (onboarding sonu otomatik)
 | 1 | 4 hafta | MVP beta, 30 kullanıcı |
 | 2 | 6 hafta | PayTR + public + 100-500 ödemeli |
 | 3 | 6 ay | White-label + API + 500+ kullanıcı |
-| **Toplam** | **~10 ay** | LuviAI'nin tam ürünü |
+| **Toplam** | **~10 ay** | RanksUp'nin tam ürünü |
 
 > Junior dev katkı (₺25-35K/ay) varsa takvim 2x kısalır.

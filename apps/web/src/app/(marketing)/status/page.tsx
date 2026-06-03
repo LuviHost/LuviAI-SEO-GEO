@@ -8,7 +8,7 @@ import { ThemeToggle } from '@/components/theme-toggle';
 import { LocaleSwitch } from '@/components/locale-switch';
 
 const SERVICES = [
-  { name: 'API (ai.luvihost.com/api)', status: 'operational', uptime: '99.98%' },
+  { name: 'API (ranksup.ai/api)', status: 'operational', uptime: '99.98%' },
   { name: 'Web Dashboard', status: 'operational', uptime: '99.99%' },
   { name: 'AI Generation Worker', status: 'operational', uptime: '99.95%' },
   { name: 'Publish Adapters', status: 'operational', uptime: '99.92%' },
