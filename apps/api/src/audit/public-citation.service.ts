@@ -354,6 +354,7 @@ export class PublicCitationService {
     };
 
     // 8) Snapshot yaz — her test ayri row (history korunur)
+    const costUsd = providerResults.reduce((a, pr: any) => a + (pr.cost ?? 0), 0);
     try {
       const created = await this.prisma.publicCitationCheck.create({
         data: {
@@ -363,6 +364,7 @@ export class PublicCitationService {
           customNiche: detection.customNiche,
           result: result as any,
           totalCalls: result.totalLlmCalls,
+          costUsd,
           ip: this.hashIp(ip),
           source,
         },

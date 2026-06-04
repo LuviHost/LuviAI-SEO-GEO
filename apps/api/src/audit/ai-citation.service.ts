@@ -202,8 +202,8 @@ export class AiCitationService {
     return projected > cap;
   }
 
-  private async addCost(provider: Provider, probeCount: number): Promise<void> {
-    if (probeCount === 0) return;
+  private async addCost(provider: Provider, probeCount: number): Promise<number> {
+    if (probeCount === 0) return 0;
     const today = new Date().toISOString().slice(0, 10);
     const key = `ai-cost:${provider}:${today}`;
     const cost = (this.COST_PER_PROBE_USD[provider] ?? 0) * probeCount;
@@ -218,6 +218,7 @@ export class AiCitationService {
     } catch (err: any) {
       this.log.warn(`addCost(${provider}) fail: ${err.message}`);
     }
+    return cost;
   }
 
   async getTodayCosts(): Promise<Record<string, { spent: number; cap: number }>> {
@@ -351,6 +352,7 @@ export class AiCitationService {
     available: boolean;
     probes: CitationProbe[];
     reason?: string;
+    cost: number;
   }>> {
     const { brand, host, queries, competitors = [] } = opts;
     const systemPrompt = this.buildSystemPrompt();
@@ -360,7 +362,7 @@ export class AiCitationService {
       const label = PROVIDER_LABELS[provider];
       const key = process.env[POOL_ENV_KEY[provider]];
       if (!key) {
-        return { provider, label, available: false, probes: [], reason: 'NO_KEY' };
+        return { provider, label, available: false, probes: [], reason: 'NO_KEY', cost: 0 };
       }
       try {
         let probes: CitationProbe[] = [];
@@ -374,11 +376,11 @@ export class AiCitationService {
           case 'meta':       probes = await this.probeMeta(key, host, brand, queries, systemPrompt, competitors); break;
         }
         // Cost defteri tutulur (public da olsa sistem kotasinin parcasi)
-        await this.addCost(provider, probes.length).catch(() => {});
-        return { provider, label, available: true, probes };
+        const cost = await this.addCost(provider, probes.length).catch(() => 0);
+        return { provider, label, available: true, probes, cost };
       } catch (err: any) {
         this.log.warn(`Public probe failed (${provider}): ${err.message}`);
-        return { provider, label, available: false, probes: [], reason: err.message?.slice(0, 200) };
+        return { provider, label, available: false, probes: [], reason: err.message?.slice(0, 200), cost: 0 };
       }
     }));
   }
