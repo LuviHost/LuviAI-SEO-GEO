@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useParams, usePathname, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { BrandLogo } from '@/components/brand-logo';
+import { BrandWordmark } from '@/components/brand-logo';
 import {
   Home,
   Plus,
@@ -170,11 +170,10 @@ export function SiteSidebar({ onClose }: { onClose?: () => void }) {
     return (
       <>
         <div className="p-6">
-          <Link href="/" className="inline-flex items-center gap-2 text-2xl font-bold text-white">
-            <BrandLogo size={36} className="rounded-lg" />
-            RanksUp
+          <Link href="/" className="inline-flex items-center">
+            <BrandWordmark size={26} reversed />
           </Link>
-          <div className="text-xs text-slate-500 mt-2 ml-11">v0.7 Faz 2 Beta</div>
+          <div className="text-xs text-slate-500 mt-2">v0.7 Faz 2 Beta</div>
         </div>
         <nav className="px-3 space-y-1">
           {GLOBAL_NAV.map((item) => {
@@ -208,9 +207,8 @@ export function SiteSidebar({ onClose }: { onClose?: () => void }) {
   return (
     <>
       <div className="p-4">
-        <Link href="/dashboard" className="inline-flex items-center gap-2 text-base font-bold text-white mb-3">
-          <BrandLogo size={28} className="rounded-lg" />
-          RanksUp
+        <Link href="/dashboard" className="inline-flex items-center gap-2 mb-3">
+          <BrandWordmark size={19} reversed />
           <span className="text-[9px] uppercase tracking-widest text-slate-500 font-mono ml-1">Site</span>
         </Link>
 

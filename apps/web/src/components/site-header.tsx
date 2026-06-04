@@ -5,7 +5,7 @@ import { useSession } from 'next-auth/react';
 import { ArrowRight } from 'lucide-react';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { LocaleSwitch } from '@/components/locale-switch';
-import { BrandLogo } from '@/components/brand-logo';
+import { BrandWordmark } from '@/components/brand-logo';
 import { useT } from '@/lib/i18n';
 
 /**
@@ -20,9 +20,8 @@ export function SiteHeader() {
   return (
     <header className="sticky top-0 z-50 w-full nav-blur">
       <div className="container-apple h-14 flex items-center justify-between">
-        <Link href="/" className="flex items-center gap-2.5 text-[15px] font-medium tracking-[-0.01em]">
-          <BrandLogo size={26} className="rounded-md" />
-          <span>RanksUp</span>
+        <Link href="/" className="flex items-center">
+          <BrandWordmark size={23} />
         </Link>
 
         <nav className="hidden md:flex items-center gap-9 text-[13px] text-neutral-600 dark:text-neutral-300">

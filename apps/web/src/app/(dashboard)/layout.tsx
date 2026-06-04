@@ -11,6 +11,7 @@ import { cn } from '@/lib/utils';
 import { SiteSidebar } from '@/components/site-sidebar';
 import { CommandPalette } from '@/components/command-palette';
 import { NotificationBell } from '@/components/notification-bell';
+import { BrandWordmark } from '@/components/brand-logo';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
@@ -27,7 +28,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         >
           {open ? <X /> : <Menu />}
         </Button>
-        <Link href="/" className="text-base font-bold text-white">RanksUp</Link>
+        <Link href="/" className="inline-flex items-center"><BrandWordmark size={18} reversed /></Link>
         <div className="w-9" />
       </div>
 

@@ -1,4 +1,4 @@
-import { Instrument_Serif, Geist, Geist_Mono } from 'next/font/google';
+import { Instrument_Serif, Geist, Geist_Mono, Sora, Plus_Jakarta_Sans, JetBrains_Mono } from 'next/font/google';
 
 /**
  * RanksUp tipografi sistemi — Apple-grade premium pair.
@@ -35,4 +35,29 @@ export const fontMono = Geist_Mono({
   display: 'swap',
 });
 
-export const fontVariables = `${fontDisplay.variable} ${fontSans.variable} ${fontMono.variable}`;
+/**
+ * Bridge marka sistemi fontları:
+ *   - SORA → logotype (Ranks↗Up) + başlıklar. Markanın imza fontu.
+ *   - PLUS JAKARTA SANS → gövde metni alternatifi.
+ *   - JETBRAINS MONO → kicker/etiket/kod.
+ */
+export const fontSora = Sora({
+  subsets: ['latin', 'latin-ext'],
+  weight: ['500', '600', '700', '800'],
+  variable: '--font-sora',
+  display: 'swap',
+});
+
+export const fontJakarta = Plus_Jakarta_Sans({
+  subsets: ['latin', 'latin-ext'],
+  variable: '--font-jakarta',
+  display: 'swap',
+});
+
+export const fontJetbrains = JetBrains_Mono({
+  subsets: ['latin', 'latin-ext'],
+  variable: '--font-jetbrains',
+  display: 'swap',
+});
+
+export const fontVariables = `${fontDisplay.variable} ${fontSans.variable} ${fontMono.variable} ${fontSora.variable} ${fontJakarta.variable} ${fontJetbrains.variable}`;

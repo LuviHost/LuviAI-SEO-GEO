@@ -47,7 +47,7 @@ export function BrandWordmark({
       className={className}
       style={{
         display: 'inline-flex', alignItems: 'center',
-        fontFamily: "'Sora', var(--font-sora, 'Sora'), system-ui, sans-serif",
+        fontFamily: "var(--font-sora), 'Sora', system-ui, sans-serif",
         fontWeight: 700, fontSize: size, letterSpacing: '-0.03em', lineHeight: 1, whiteSpace: 'nowrap',
       }}
       aria-label="RanksUp"

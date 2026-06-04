@@ -8,7 +8,7 @@ import {
   ListChecks, DollarSign, AlertTriangle, Settings, Sparkles,
   Menu, X,
 } from 'lucide-react';
-import { BrandLogo } from '@/components/brand-logo';
+import { BrandWordmark } from '@/components/brand-logo';
 
 const SECTIONS = [
   {
@@ -76,8 +76,7 @@ export function AdminSidebar({ userEmail }: { userEmail: string }) {
         {/* Logo */}
         <div className="h-14 px-4 flex items-center justify-between border-b shrink-0">
           <Link href="/admin" className="flex items-center gap-2 font-bold" onClick={() => setOpen(false)}>
-            <BrandLogo size={28} className="rounded-lg shadow-md" />
-            <span className="text-base">RanksUp</span>
+            <BrandWordmark size={20} />
             <span className="text-[9px] uppercase tracking-widest font-semibold px-1.5 py-0.5 rounded bg-orange-500/10 text-orange-600 dark:text-orange-400">
               Admin
             </span>

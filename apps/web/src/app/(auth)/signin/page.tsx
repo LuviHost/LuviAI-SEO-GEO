@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { auth, signIn } from '@/auth';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { BrandWordmark } from '@/components/brand-logo';
 
 type SignInPageProps = {
   searchParams: Promise<{ callbackUrl?: string; error?: string }>;
@@ -31,11 +32,8 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
 
       <div className="w-full max-w-md space-y-6">
         <div className="text-center">
-          <Link href="/" className="inline-flex items-center gap-2 font-bold text-2xl">
-            <span className="bg-gradient-to-br from-orange-500 to-orange-700 text-white rounded-xl w-10 h-10 grid place-items-center text-xl">
-              ✨
-            </span>
-            RanksUp
+          <Link href="/" className="inline-flex items-center">
+            <BrandWordmark size={32} />
           </Link>
           <p className="text-muted-foreground mt-3 text-sm">
             Türkiye&apos;nin AI destekli SEO/GEO içerik platformu
