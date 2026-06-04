@@ -61,8 +61,8 @@ export const metadata: Metadata = {
     description: OG_DESCRIPTION,
     images: [
       {
-        url: `${SITE_URL}/og-image.png`,
-        secureUrl: `${SITE_URL}/og-image.png`,
+        url: `${SITE_URL}/og-image.png?v=2`,
+        secureUrl: `${SITE_URL}/og-image.png?v=2`,
         width: 1200,
         height: 630,
         alt: 'RanksUp — AI ile pazarlama platformu',
@@ -77,7 +77,7 @@ export const metadata: Metadata = {
     title: OG_TITLE,
     description: OG_DESCRIPTION,
     images: [{
-      url: `${SITE_URL}/og-image.png`,
+      url: `${SITE_URL}/og-image.png?v=2`,
       alt: 'RanksUp — AI ile pazarlama platformu',
     }],
   },
@@ -132,7 +132,7 @@ const orgJsonLd = {
       url: SITE_URL,
       logo: {
         '@type': 'ImageObject',
-        url: `${SITE_URL}/og-image.png`,
+        url: `${SITE_URL}/og-image.png?v=2`,
         width: 1200,
         height: 630,
       },
