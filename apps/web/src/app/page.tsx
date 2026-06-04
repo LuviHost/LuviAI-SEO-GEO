@@ -9,7 +9,7 @@ import { useT } from '@/lib/i18n';
 import { api } from '@/lib/api';
 import { trackPageview, trackCta, setupScrollDepthTracking, setupSectionTracking } from '@/lib/landing-track';
 import { VendorLogo, type VendorName } from '@/components/vendor-logo';
-import { BrandLogo } from '@/components/brand-logo';
+import { BrandWordmark } from '@/components/brand-logo';
 import { AiVisibilityChecker } from '@/components/landing/ai-visibility-checker';
 import { AiCheckerHero } from '@/components/landing/ai-checker-hero';
 import {
@@ -149,9 +149,8 @@ export default function LandingPage() {
       {/* ─── NAV ──────────────────────────────────────────────── */}
       <nav className="sticky top-0 z-50 bg-background/85 backdrop-blur-xl border-b border-border/60">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2 font-bold text-lg">
-            <BrandLogo size={32} className="rounded-lg shadow-lg shadow-orange-500/20" />
-            RanksUp
+          <Link href="/" className="flex items-center">
+            <BrandWordmark size={24} />
           </Link>
           <div className="hidden md:flex items-center gap-7 text-sm">
             <a href="#cozum" className="hover:text-orange-600 transition-colors">{t('land.nav.solution')}</a>
@@ -700,9 +699,8 @@ export default function LandingPage() {
       <footer className="border-t py-12 text-sm text-muted-foreground">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid md:grid-cols-4 gap-8">
           <div>
-            <Link href="/" className="flex items-center gap-2 font-bold text-base text-foreground">
-              <BrandLogo size={28} className="rounded-lg" />
-              RanksUp
+            <Link href="/" className="flex items-center">
+              <BrandWordmark size={20} />
             </Link>
             <p className="mt-3 text-xs leading-relaxed">
               {t('land.footer.tagline')}

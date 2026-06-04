@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { Mail, ShieldCheck } from 'lucide-react';
-import { BrandLogo } from '@/components/brand-logo';
+import { BrandWordmark } from '@/components/brand-logo';
 import { useT } from '@/lib/i18n';
 
 const X_HANDLE = 'luvihost';
@@ -23,9 +23,8 @@ export function SiteFooter() {
         <div className="grid md:grid-cols-12 gap-10 lg:gap-16">
           {/* Brand column — wider, more breathing room */}
           <div className="md:col-span-5">
-            <Link href="/" className="inline-flex items-center gap-2.5 text-[15px] font-medium tracking-[-0.01em]">
-              <BrandLogo size={28} className="rounded-md" />
-              <span>RanksUp</span>
+            <Link href="/" className="inline-flex items-center">
+              <BrandWordmark size={22} />
             </Link>
             <p className="mt-5 max-w-[360px] text-[13px] leading-relaxed text-neutral-500 dark:text-neutral-400">
               SEO, AI içerik üretimi, sosyal medya ve reklam denetimi tek panelden.
