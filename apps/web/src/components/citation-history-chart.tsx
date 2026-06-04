@@ -6,6 +6,7 @@ import { TrendingUp, TrendingDown, Minus, Sparkles, RefreshCw, Download } from '
 import { api } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { BeforeAfterCard } from '@/components/before-after-card';
 
 const PROVIDER_COLORS: Record<string, string> = {
   anthropic: '#a78bfa',  // mor — Claude
@@ -214,6 +215,9 @@ export function CitationHistoryChart({
           </div>
         ) : (
           <>
+            {/* RanksUp Etkisi — before/after değer kartı */}
+            <BeforeAfterCard data={data} />
+
             {/* Yorumlama Kartı — son skorların ortalaması + ne anlama geliyor + ne yapmalı */}
             {(() => {
               const lastScores = trends
