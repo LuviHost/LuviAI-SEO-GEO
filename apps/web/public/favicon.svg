@@ -1,16 +1,13 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" fill="none">
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 100 100" fill="none">
   <defs>
-    <linearGradient id="ranksup-grad" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#fb7a45"/>
-      <stop offset="1" stop-color="#c2410e"/>
+    <linearGradient id="ru-tile" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#F36D32"/>
+      <stop offset="1" stop-color="#B63325"/>
     </linearGradient>
   </defs>
-  <rect width="512" height="512" rx="116" fill="url(#ranksup-grad)"/>
-  <g fill="#ffffff">
-    <path d="M200 126 L130 260 L270 260 Z"/>
-    <rect x="171" y="250" width="58" height="150" rx="16"/>
-    <path d="M352 128 Q352 170 394 170 Q352 170 352 212 Q352 170 310 170 Q352 170 352 128 Z"/>
-    <path d="M410 238 Q410 262 434 262 Q410 262 410 286 Q410 262 386 262 Q410 262 410 238 Z"/>
-    <path d="M398 96 Q398 112 414 112 Q398 112 398 128 Q398 112 382 112 Q398 112 398 96 Z"/>
+  <rect width="100" height="100" rx="29" fill="url(#ru-tile)"/>
+  <g transform="translate(20,20) scale(0.6)" fill="none" stroke="#ffffff" stroke-width="11" stroke-linecap="round">
+    <path d="M28 72 L72 28"/>
+    <path d="M40 26 L74 26 L74 60" stroke-linejoin="round"/>
   </g>
 </svg>
