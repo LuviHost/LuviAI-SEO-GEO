@@ -17,6 +17,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { InfoTooltip } from '@/components/info-tooltip';
 import { CitationHistoryChart } from '@/components/citation-history-chart';
+import { RanksUpImpactCard } from '@/components/ranksup-impact-card';
 import { GeoLabPanel } from '@/components/geo-lab-panel';
 import { TestimonialWidget } from '@/components/testimonial-widget';
 import { QuotaMonitor } from '@/components/quota-monitor';
@@ -60,6 +61,9 @@ export function SiteOverviewDashboard({
 
       {/* Sıradaki Aksiyon — kullanıcı sayfaya inince ilk gördüğü öğe (KPI'lerin üstünde) */}
       <NextActionWidget site={site} audit={audit} articles={articles} publishTargets={publishTargets ?? []} onRefresh={onRefresh} />
+
+      {/* RanksUp Etkisi — bütünsel before-after (GEO/AI + SEO/Google) değer kartı */}
+      <RanksUpImpactCard siteId={site.id} days={90} />
 
       {/* Cloudflare-inspired analytics row: 3 stat cards with animated sparklines */}
       <AnalyticsRow siteId={site.id} audit={audit} articles={articles} />
