@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import {
   Rocket, Search, Smartphone, Wand2, Bot, Sparkles,
-  CreditCard, Plug, MessageSquare, BarChart3,
+  CreditCard, Plug, MessageSquare, BarChart3, BookOpen,
 } from 'lucide-react';
 import { useT } from '@/lib/i18n';
 
@@ -19,6 +19,7 @@ const TOPICS_BASE = [
   { id: 'api-keys', icon: Plug, color: 'cyan' as Color, href: '/help/api-keys' },
   { id: 'social', icon: MessageSquare, color: 'pink' as Color, href: '/help/social' },
   { id: 'billing', icon: CreditCard, color: 'slate' as Color, href: '/help/billing' },
+  { id: 'glossary', icon: BookOpen, color: 'purple' as Color, href: '/help/glossary' },
 ];
 
 const COPY = {
@@ -43,6 +44,7 @@ const COPY = {
       'api-keys': { title: 'API Keys (BYOK)', desc: "Kendi OpenAI/Anthropic key'inle çalış, kotamızdan düşmez." },
       'social': { title: 'Sosyal Medya', desc: '5 kanala AI ile post + görsel + zamanlama.' },
       'billing': { title: 'Faturalama', desc: 'Plan değiştirme, iptal, fatura indirme, kota.' },
+      'glossary': { title: 'SEO & GEO Sözlüğü', desc: 'SEO, GEO, AEO, schema ve reklam terimleri — sade Türkçe.' },
     },
   },
   en: {
@@ -66,6 +68,7 @@ const COPY = {
       'api-keys': { title: 'API Keys (BYOK)', desc: "Use your own OpenAI/Anthropic key — doesn't count against our quota." },
       'social': { title: 'Social Media', desc: 'AI post + image + scheduling for 5 channels.' },
       'billing': { title: 'Billing', desc: 'Change plan, cancel, download invoice, quota.' },
+      'glossary': { title: 'SEO & GEO Glossary', desc: 'SEO, GEO, AEO, schema and ad terms — plain definitions.' },
     },
   },
 } as const;

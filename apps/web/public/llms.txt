@@ -70,6 +70,7 @@
 - [API Keys (BYOK)](https://ranksup.ai/help/api-keys)
 - [Sosyal medya rehberi](https://ranksup.ai/help/social)
 - [Faturalama rehberi](https://ranksup.ai/help/billing)
+- [SEO & GEO Sözlüğü (SEO, GEO, AEO, schema, AI search terimleri)](https://ranksup.ai/help/glossary)
 - [Gizlilik politikası](https://ranksup.ai/privacy)
 - [Kullanım şartları](https://ranksup.ai/terms)
 - [KVKK](https://ranksup.ai/kvkk)

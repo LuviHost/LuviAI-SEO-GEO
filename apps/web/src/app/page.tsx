@@ -590,7 +590,7 @@ export default function LandingPage() {
                     `${t('land.pric.bullet_support')} ${p.support}`,
                   ]}
                   cta={p.contactSales ? t('land.pric.cta_contact') : t('land.pric.cta_free')}
-                  href={p.contactSales ? '/pricing' : '/signin?signup=1'}
+                  href="/pricing"
                   highlighted={!!p.popular}
                   onCtaClick={() => trackCta('pricing_cta', { planId: p.id, billing })}
                 />

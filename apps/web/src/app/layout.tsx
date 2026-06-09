@@ -45,9 +45,12 @@ export const metadata: Metadata = {
   formatDetection: { email: false, address: false, telephone: false },
   alternates: {
     canonical: SITE_URL,
+    // NOT: Dil değişimi client-side (localStorage). `?locale=en` SSR'da aynı TR HTML'i
+    // döndürür — ayrı bir EN URL yok. Bu yüzden var olmayan bir en-US alternate ilan
+    // ETMİYORUZ (geçersiz hreflang + duplicate content sinyali olur). Gerçek path-bazlı
+    // i18n (/en) eklendiğinde buraya en-US eklenmeli.
     languages: {
       'tr-TR': SITE_URL,
-      'en-US': `${SITE_URL}/?locale=en`,
       'x-default': SITE_URL,
     },
   },
