@@ -10,7 +10,7 @@ import { fontVariables } from '@/lib/fonts';
 
 // Microsoft Clarity project ID — heatmap + session recording.
 // Default to RanksUp production project; .env'den override edilebilir (staging için ayrı ID).
-const CLARITY_PROJECT_ID = process.env.NEXT_PUBLIC_CLARITY_PROJECT_ID ?? 'wr4kuo9zhi';
+const CLARITY_PROJECT_ID = process.env.NEXT_PUBLIC_CLARITY_PROJECT_ID ?? 'x8l5as16yd';
 
 // Google Tag Manager container ID — analytics + remarketing + conversion tracking.
 const GTM_ID = process.env.NEXT_PUBLIC_GTM_ID ?? 'GTM-TSH8KWCC';

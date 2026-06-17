@@ -13,7 +13,9 @@ export const metadata: Metadata = {
   },
 };
 
-// Plan başına Offer — Google "fiyat" rich result + AI'ların plan/fiyat alıntılaması (GEO) için.
+// SoftwareApplication + plan başına Offer — Google "fiyat" rich result + AI'ların plan/fiyat
+// alıntılaması (GEO) için. Product yerine SoftwareApplication: RanksUp fiziksel ürün değil,
+// site genelindeki diğer schema'larla (layout.tsx, page.tsx) tutarlı.
 const PLANS = [
   { name: 'Başlangıç',   price: '1499',  desc: 'Tek site, KOBİ ve freelancer için AI Görünürlük + içerik otomasyonu. Aylık 10 makale.' },
   { name: 'Profesyonel', price: '4999',  desc: 'Büyüyen markalar için ASO, Apple Search Ads ve AI Studio dahil tam paket. Aylık 40 makale.' },
@@ -25,12 +27,15 @@ const pricingJsonLd = {
   '@context': 'https://schema.org',
   '@graph': [
     {
-      '@type': 'Product',
-      '@id': `${SITE_URL}/pricing#product`,
+      '@type': 'SoftwareApplication',
+      '@id': `${SITE_URL}/pricing#software`,
       name: 'RanksUp',
       description: 'AI destekli SEO + GEO, içerik üretimi, ASO, Apple Search Ads ve sosyal medya otomasyon platformu.',
-      brand: { '@type': 'Brand', name: 'RanksUp' },
+      applicationCategory: 'BusinessApplication',
+      applicationSubCategory: 'SEO + Content Automation',
+      operatingSystem: 'Web',
       url: `${SITE_URL}/pricing`,
+      provider: { '@id': `${SITE_URL}/#organization` },
       offers: {
         '@type': 'AggregateOffer',
         priceCurrency: 'TRY',
