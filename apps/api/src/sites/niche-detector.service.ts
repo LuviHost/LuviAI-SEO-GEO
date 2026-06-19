@@ -27,6 +27,7 @@ export interface NicheDetectionResult {
   confidence: number;             // 0..1
   reasoning: string;              // niye bu niş seçildi
   alternatives: Array<{ niche: string; confidence: number }>;
+  queries?: string[];             // gerçek müşterinin soracağı 3 doğal soru (yerel + hizmet-spesifik)
 }
 
 @Injectable()
@@ -94,15 +95,20 @@ Kurallar:
 - Hangi seçenek en iyi açıklar? Eğer hiçbiri uymazsa 'diğer' seç.
 - 'diğer' seçtiysen customNiche'e 2-4 kelimelik daha spesifik etiket yaz (örn: "AI SEO platformu", "KOBİ dijitalleşme", "B2B SaaS analitik")
 - 2-3 alternatif öner (alternatives)
+- "queries": Bu işletmeyi/siteyi arayan GERÇEK bir potansiyel müşterinin ChatGPT veya Google'a yazacağı 3 doğal Türkçe soru üret:
+  • Sitenin GERÇEK hizmet/ürününü yansıtsın — genel sektör adı değil. (örn. tüplü dalış okulu → "dalış kursu", emlak ofisi → "satılık daire")
+  • İşletme yerelse konumu (şehir/ilçe) mutlaka içersin. (örn. Bodrum'daki dalış okulu → "Bodrum'da tüplü dalış kursu nereden alınır?")
+  • Marka adını İÇERMESİN — müşteri markayı henüz bilmiyor. "en iyi", "nerede", "nasıl", "öner" gibi keşif amaçlı sorular olsun.
+  • Her biri tek cümle, 4-12 kelime.
 - Sadece JSON döndür, başka açıklama yok.
 
 Format:
-{"niche": "SaaS", "customNiche": null, "confidence": 0.85, "reasoning": "1-2 cümle gerekçe", "alternatives": [{"niche": "teknoloji/yazılım", "confidence": 0.65}, {"niche": "ajans", "confidence": 0.25}]}`;
+{"niche": "turizm", "customNiche": "tüplü dalış okulu", "confidence": 0.8, "reasoning": "1-2 cümle gerekçe", "alternatives": [{"niche": "spor/fitness", "confidence": 0.4}], "queries": ["Bodrum'da tüplü dalış kursu nereden alınır?", "Bodrum'da başlangıç seviyesi dalış deneyimi nasıl yapılır?", "Bodrum'da en iyi dalış merkezi hangisi?"]}`;
 
     try {
       const resp = await this.anthropic.messages.create({
         model: 'claude-haiku-4-5-20251001',
-        max_tokens: 400,
+        max_tokens: 600,
         system: 'Sen Türkçe SEO uzmanısın. JSON döndür, açıklama yapma, kod-fence kullanma.',
         messages: [{ role: 'user', content: prompt }],
       });
@@ -132,6 +138,12 @@ Format:
                 niche: a.niche,
                 confidence: typeof a.confidence === 'number' ? a.confidence : 0,
               }))
+          : [],
+        queries: Array.isArray(parsed.queries)
+          ? parsed.queries
+              .filter((q: any) => typeof q === 'string' && q.trim().length >= 8)
+              .map((q: any) => q.trim().slice(0, 160))
+              .slice(0, 3)
           : [],
       };
     } catch (err: any) {

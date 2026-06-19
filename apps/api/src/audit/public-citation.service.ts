@@ -307,8 +307,14 @@ export class PublicCitationService {
     // 4) Niche detect (Claude Haiku)
     const detection = await this.niche.detectFromUrl(url);
 
-    // 5) Query template
-    const queries = this.buildQueries(detection.niche, detection.customNiche, meta.brand);
+    // 5) Sorular — niche-detector AI gerçek müşteri sorularını ürettiyse onları kullan
+    //    (yerel + hizmet-spesifik = alakalı). Üretemediyse niche template'ine düş.
+    const aiQueries = (detection.queries ?? [])
+      .map((q) => q.trim())
+      .filter((q) => q.length >= 8 && q.length <= 160);
+    const queries = aiQueries.length >= 3
+      ? aiQueries.slice(0, 3)
+      : this.buildQueries(detection.niche, detection.customNiche, meta.brand);
 
     // 6) Probe 7 providers (paralel)
     const providerResults = await this.ai.runPublicProbes({
