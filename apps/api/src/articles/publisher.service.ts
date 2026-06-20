@@ -4,6 +4,7 @@ import { decrypt, mdToHtml, parseFrontmatter } from '@luviai/shared';
 import { getAdapter } from '@luviai/adapters';
 import { SocialAutoDraftService } from '../social/social-auto-draft.service.js';
 import { AiIndexingPingerService } from '../audit/ai-indexing-pinger.service.js';
+import { LlmsFullBuilderService } from '../audit/llms-full-builder.service.js';
 
 /**
  * Markdown body'yi tam bir HTML sayfasi haline getir.
@@ -137,6 +138,7 @@ export class PublisherService {
     private readonly prisma: PrismaService,
     private readonly socialAutoDraft: SocialAutoDraftService,
     private readonly indexingPinger: AiIndexingPingerService,
+    private readonly llmsFullBuilder: LlmsFullBuilderService,
   ) {}
 
   async publishArticle(articleId: string, targetIds: string[]): Promise<PublishResult[]> {
@@ -265,6 +267,16 @@ export class PublisherService {
         this.indexingPinger.pingUrl(article.siteId, firstPublicUrl).catch((err) => {
           this.log.warn(`[${articleId}] index ping basarisiz: ${err.message}`);
         });
+      }
+
+      // GEO: yeni makale llms-full.txt'ye HEMEN girsin diye site'in llms dosyasini
+      // yeniden uret (haftalik cron'u bekleme). Best-effort — publish'i bloklamaz.
+      // AI-sitemap zaten anlik (on-demand) uretildigi icin ayrica rebuild gerekmez.
+      try {
+        const r = await this.llmsFullBuilder.build(article.siteId);
+        this.log.log(`[${articleId}] llms-full.txt güncellendi: ${r.articles} makale, ${(r.bytes / 1024).toFixed(1)} KB`);
+      } catch (err: any) {
+        this.log.warn(`[${articleId}] llms-full.txt rebuild başarısız: ${err.message}`);
       }
     }
 
