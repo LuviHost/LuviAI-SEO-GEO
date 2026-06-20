@@ -1,11 +1,13 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { GscOAuthService } from '../auth/gsc-oauth.service.js';
 
 /**
  * AI Indexing Pinger — yeni makale yayinlandiginda anlik bildirim gonderir:
  *  - IndexNow (Bing/Yandex/Seznam/Naver)
  *  - Google Indexing API (env'de service account varsa)
- *  - Sitemap ping
+ *  - Bing sitemap ping
+ *  - GSC sitemap submit (Search Console API — site GSC'ye bagliysa)
  *
  * AI sistemleri (OpenAI Atlas, Anthropic crawler, Perplexity) henuz public
  * indexing endpoint sunmuyor; ama IndexNow + Bing kanali (which feeds ChatGPT)
@@ -15,21 +17,30 @@ import { PrismaService } from '../prisma/prisma.service.js';
 export class AiIndexingPingerService {
   private readonly log = new Logger(AiIndexingPingerService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly gscOAuth: GscOAuthService,
+  ) {}
 
   /**
    * Bir URL icin tum kanallari ping at. Hatalar yutulur — best-effort.
    */
-  async pingUrl(siteId: string, url: string): Promise<{ indexnow: boolean; google: boolean; bing: boolean }> {
-    const result = { indexnow: false, google: false, bing: false };
+  async pingUrl(
+    siteId: string,
+    url: string,
+  ): Promise<{ indexnow: boolean; google: boolean; bing: boolean; gsc: boolean }> {
+    const result = { indexnow: false, google: false, bing: false, gsc: false };
 
     await Promise.all([
       this.pingIndexNow(url).then((ok) => (result.indexnow = ok)).catch(() => {}),
       this.pingGoogleIndexing(url).then((ok) => (result.google = ok)).catch(() => {}),
       this.pingBing(siteId, url).then((ok) => (result.bing = ok)).catch(() => {}),
+      this.submitGscSitemap(siteId, url).then((ok) => (result.gsc = ok)).catch(() => {}),
     ]);
 
-    this.log.log(`[${siteId}] Index ping ${url}: indexnow=${result.indexnow}, google=${result.google}, bing=${result.bing}`);
+    this.log.log(
+      `[${siteId}] Index ping ${url}: indexnow=${result.indexnow}, google=${result.google}, bing=${result.bing}, gsc=${result.gsc}`,
+    );
     return result;
   }
 
@@ -108,6 +119,25 @@ export class AiIndexingPingerService {
       const res = await fetch(`https://www.bing.com/ping?sitemap=${encodeURIComponent(sitemapUrl)}`, {
         signal: AbortSignal.timeout(8000),
       });
+      return res.ok;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * GSC sitemap submit — site Google Search Console'a bagliysa Search Console API
+   * uzerinden sitemap'i gonderir. Google Indexing API anlik indeksleme yaparken,
+   * sitemap submit Google'a tum sayfa envanterini bildirir (tamamlayici).
+   * Best-effort: bagli degilse / yazma scope'u yoksa sessizce false doner.
+   */
+  private async submitGscSitemap(siteId: string, url: string): Promise<boolean> {
+    try {
+      const sitemapUrl = `${new URL(url).origin}/sitemap.xml`;
+      const res = await this.gscOAuth.submitSitemap(siteId, sitemapUrl);
+      if (!res.ok && res.error) {
+        this.log.warn(`[${siteId}] GSC sitemap submit: ${res.error}`);
+      }
       return res.ok;
     } catch {
       return false;

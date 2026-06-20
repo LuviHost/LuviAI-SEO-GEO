@@ -275,12 +275,55 @@ export class PublisherService {
       try {
         const r = await this.llmsFullBuilder.build(article.siteId);
         this.log.log(`[${articleId}] llms-full.txt güncellendi: ${r.articles} makale, ${(r.bytes / 1024).toFixed(1)} KB`);
+
+        // GEO: kendi llms.txt'sini üretmeyen hedeflere (kobipratik gibi) llms.txt +
+        // llms-full.txt push et. Best-effort — desteklemeyen adapter no-op döner.
+        await this.pushLlmsToTargets(article.siteId, article.site.publishTargets).catch((err) => {
+          this.log.warn(`[${articleId}] llms push başarısız: ${err.message}`);
+        });
       } catch (err: any) {
         this.log.warn(`[${articleId}] llms-full.txt rebuild başarısız: ${err.message}`);
       }
     }
 
     return results;
+  }
+
+  /**
+   * Site'in llms.txt (kısa index) + llms-full.txt içeriğini, llms push destekleyen
+   * publish hedeflerine gönderir (kobipratik vb). Desteklemeyen adapter `skipped`
+   * döner → atlanır. Tamamen best-effort: publish sonucunu etkilemez.
+   */
+  private async pushLlmsToTargets(
+    siteId: string,
+    targets: Array<{ type: string; credentials: any; config: any }>,
+  ): Promise<void> {
+    if (!targets || targets.length === 0) return;
+
+    const full =
+      ((await this.prisma.site.findUnique({
+        where: { id: siteId },
+        select: { llmsFullTxt: true } as any,
+      })) as any)?.llmsFullTxt ?? '';
+    const shortIndex = await this.llmsFullBuilder.buildShortIndex(siteId);
+
+    for (const target of targets) {
+      const Adapter = getAdapter(target.type) as any;
+      if (!Adapter) continue;
+      const adapter = new Adapter(this.decryptCredentials(target.credentials as Record<string, any>), target.config ?? {});
+      if (typeof adapter.pushLlms !== 'function') continue;
+
+      try {
+        const r = await adapter.pushLlms({ llmsTxt: shortIndex, llmsFullTxt: full });
+        if (r?.ok) {
+          this.log.log(`[${siteId}] llms push → ${target.type}: ✓ ${r.externalUrl ?? ''}`);
+        } else if (r && !r.skipped) {
+          this.log.warn(`[${siteId}] llms push → ${target.type}: ${r.error ?? 'bilinmeyen hata'}`);
+        }
+      } catch (err: any) {
+        this.log.warn(`[${siteId}] llms push → ${target.type} hata: ${err.message}`);
+      }
+    }
   }
 
   private decryptCredentials(creds: Record<string, any>): Record<string, any> {

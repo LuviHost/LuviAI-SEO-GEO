@@ -627,6 +627,13 @@ export class AsaService {
       timeZone: 'UTC',
       returnRowTotals: false,
       returnRecordsWithNoMetrics: false,
+      // Apple `/reports/campaigns` selector'ı zorunlu kılar (yoksa 400: "Selector is required").
+      // orderBy bir metrik alanı (impressions) — groupBy gerektirmez; country bazlı groupBy
+      // eklemiyoruz çünkü campaignId_date unique kısıtı country kırılımında çakışırdı.
+      selector: {
+        orderBy: [{ field: 'impressions', sortOrder: 'DESCENDING' }],
+        pagination: { offset: 0, limit: 1000 },
+      },
     });
 
     const rows = report.data?.reportingDataResponse?.row ?? [];

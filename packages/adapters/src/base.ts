@@ -45,6 +45,23 @@ export interface OnPageMetaResult {
   error?: string;
 }
 
+/**
+ * llms.txt / llms-full.txt push — GEO/AI-SEO için site geneli AI özet dosyalarını
+ * hedef siteye gönderir (kendi backend'i llms üretmiyorsa RanksUp besler).
+ * Adapter desteklemiyorsa default impl `skipped: 'unsupported'` döner.
+ */
+export interface LlmsPushPayload {
+  llmsTxt: string;          // kısa index (H1 + sayfa/makale linkleri)
+  llmsFullTxt: string;      // tüm sitenin temizlenmiş içeriği (AI'lar bunu okur)
+}
+
+export interface LlmsPushResult {
+  ok: boolean;
+  skipped?: string;         // örn. 'unsupported', 'not_configured'
+  externalUrl?: string;
+  error?: string;
+}
+
 export abstract class PublishAdapter {
   constructor(
     protected credentials: PublishCredentials,
@@ -64,5 +81,14 @@ export abstract class PublishAdapter {
       applied: [],
       skipped: [{ field: 'all', reason: 'Bu adapter on-page meta yazımını desteklemiyor — snippet panelinden copy-paste yap.' }],
     };
+  }
+
+  /**
+   * Adapter destekliyorsa override eder. Varsayılan: desteklenmiyor (no-op).
+   * Çağıran taraf (publisher) tüm hedeflerde güvenle çağırabilir; desteklemeyen
+   * adapter HTTP yapmadan `skipped: 'unsupported'` döner.
+   */
+  async pushLlms(_payload: LlmsPushPayload): Promise<LlmsPushResult> {
+    return { ok: false, skipped: 'unsupported' };
   }
 }

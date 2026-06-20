@@ -77,7 +77,10 @@ export class GscOAuthService {
     return client.generateAuthUrl({
       access_type: 'offline',
       prompt: 'consent',
-      scope: process.env.GSC_SCOPES?.split(',') ?? ['https://www.googleapis.com/auth/webmasters.readonly'],
+      // Yazma scope'u (webmasters) — readonly'nin üst kümesi. searchanalytics okumayı
+      // da kapsar + sitemaps.submit (sitemap gönderimi) için gereklidir. Eski readonly
+      // ile bağlanmış siteler sitemap submit'te 403 alır → yeniden yetkilendirme gerekir.
+      scope: process.env.GSC_SCOPES?.split(',') ?? ['https://www.googleapis.com/auth/webmasters'],
       state: siteId,
     });
   }
@@ -217,6 +220,42 @@ export class GscOAuthService {
       data: { gscPropertyUrl: propertyUrl },
     });
     return { siteUrl: propertyUrl };
+  }
+
+  /**
+   * GSC'ye sitemap gönder (Search Console API `sitemaps.submit`).
+   * Best-effort — bağlı değilse / yazma scope'u yoksa hata fırlatmaz, sonucu döner.
+   *
+   * NOT: `sitemaps.submit` yazma scope'u (`.../auth/webmasters`) ister. readonly ile
+   * bağlanmış eski siteler 403 alır → kullanıcı GSC'yi yeniden bağlamalı.
+   */
+  async submitSitemap(
+    siteId: string,
+    sitemapUrl: string,
+  ): Promise<{ ok: boolean; skipped?: string; error?: string }> {
+    const site = await this.prisma.site.findUnique({
+      where: { id: siteId },
+      select: { gscRefreshToken: true, gscPropertyUrl: true },
+    });
+    if (!site?.gscRefreshToken) return { ok: false, skipped: 'not_connected' };
+    if (!site.gscPropertyUrl) return { ok: false, skipped: 'no_property' };
+
+    const client = await this.getAuthenticatedClient(siteId);
+    if (!client) return { ok: false, skipped: 'not_connected' };
+
+    try {
+      const webmasters = google.webmasters({ version: 'v3', auth: client as any });
+      await webmasters.sitemaps.submit({
+        siteUrl: site.gscPropertyUrl,
+        feedpath: sitemapUrl,
+      });
+      return { ok: true };
+    } catch (err: any) {
+      const status = err?.code ?? err?.response?.status;
+      // 403 = readonly scope (yazma yetkisi yok) → yeniden yetkilendirme gerekir.
+      const reason = status === 403 ? 'insufficient_scope (reconnect GSC)' : (err?.message ?? 'unknown');
+      return { ok: false, error: reason };
+    }
   }
 
   async disconnect(siteId: string) {

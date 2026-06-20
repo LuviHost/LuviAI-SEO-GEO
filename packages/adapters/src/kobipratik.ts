@@ -1,5 +1,12 @@
 import { PublishAdapter } from './base.js';
-import type { PublishPayload, PublishResult, OnPageMetaPayload, OnPageMetaResult } from './base.js';
+import type {
+  PublishPayload,
+  PublishResult,
+  OnPageMetaPayload,
+  OnPageMetaResult,
+  LlmsPushPayload,
+  LlmsPushResult,
+} from './base.js';
 
 /**
  * kobipratik özel adapter — luvihost grubu içi kullanım için admin-only.
@@ -170,6 +177,46 @@ export class KobipratikAdapter extends PublishAdapter {
         skipped: [{ field: 'all', reason: err.message }],
         error: err.message,
       };
+    }
+  }
+
+  /**
+   * GEO/AI-SEO: site geneli llms.txt + llms-full.txt'yi kobipratik'e gönder.
+   * kobipratik kendi llms.txt'sini üretmiyor → RanksUp besler; kobipratik bunu
+   * /llms.txt ve /llms-full.txt olarak servis eder.
+   *
+   * Endpoint: POST /api/v1/luviai/llms/upsert (Bearer apiKey).
+   */
+  async pushLlms(payload: LlmsPushPayload): Promise<LlmsPushResult> {
+    const { baseUrl, apiKey } = this.credentials;
+    if (!baseUrl || !apiKey) {
+      return { ok: false, skipped: 'not_configured' };
+    }
+
+    const url = `${this.normalizeBase(baseUrl)}/api/v1/luviai/llms/upsert`;
+    const body = {
+      llmsTxt: payload.llmsTxt ?? '',
+      llmsFullTxt: payload.llmsFullTxt ?? '',
+      updateSource: 'luviai',
+      updatedByLabel: 'luviai-bot',
+    };
+
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const errorText = await res.text();
+        return { ok: false, error: `kobipratik llms ${res.status}: ${errorText.slice(0, 300)}` };
+      }
+      return { ok: true, externalUrl: `${this.normalizeBase(baseUrl)}/llms.txt` };
+    } catch (err: any) {
+      return { ok: false, error: `kobipratik llms request hata: ${err.message}` };
     }
   }
 
