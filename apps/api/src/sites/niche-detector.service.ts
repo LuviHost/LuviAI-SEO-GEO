@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import Anthropic from '@anthropic-ai/sdk';
+import { PageRendererService } from './page-renderer.service.js';
 
 /**
  * URL'den site nişini AI ile tespit et.
@@ -28,6 +29,16 @@ export interface NicheDetectionResult {
   reasoning: string;              // niye bu niş seçildi
   alternatives: Array<{ niche: string; confidence: number }>;
   queries?: string[];             // gerçek müşterinin soracağı 3 doğal soru (yerel + hizmet-spesifik)
+  contentReadable?: boolean;      // sitenin metinsel içeriği okunabildi mi (SPA + render başarısız → false)
+  renderUsed?: boolean;           // içerik headless render ile mi elde edildi
+}
+
+interface SiteSignals {
+  title: string;
+  metaDesc: string;
+  ogDesc: string;
+  h1: string;
+  bodyText: string;
 }
 
 @Injectable()
@@ -36,6 +47,35 @@ export class NicheDetectorService {
   private readonly anthropic = process.env.ANTHROPIC_API_KEY
     ? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
     : null;
+
+  constructor(private readonly renderer: PageRendererService) {}
+
+  /** HTML'den niş tespiti için metinsel sinyalleri çıkar. */
+  private extractSignals(html: string): SiteSignals {
+    const title = (html.match(/<title[^>]*>([^<]+)</i)?.[1] ?? '').trim().slice(0, 200);
+    const metaDesc = (html.match(/<meta\s+name=["']description["']\s+content=["']([^"']+)/i)?.[1] ?? '').trim().slice(0, 300);
+    const ogDesc = (html.match(/<meta\s+property=["']og:description["']\s+content=["']([^"']+)/i)?.[1] ?? '').trim().slice(0, 300);
+    const h1 = (html.match(/<h1[^>]*>([^<]+)</i)?.[1] ?? '').trim().slice(0, 200);
+    const bodyText = html
+      .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+      .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .slice(0, 2000);
+    return { title, metaDesc, ogDesc, h1, bodyText };
+  }
+
+  /**
+   * İçerik "ince" mi? = niş tespiti için yeterli metinsel sinyal YOK.
+   * Tipik SPA kabuğu: sadece <title> var; meta/h1/body boş veya title'ın tekrarı.
+   */
+  private isThin(s: SiteSignals): boolean {
+    if (s.metaDesc || s.ogDesc || s.h1) return false;
+    // body'den title'ı düş; geriye anlamlı metin kalıyor mu?
+    const bodyNoTitle = s.bodyText.replace(s.title, '').replace(/\s+/g, ' ').trim();
+    return bodyNoTitle.length < 120;
+  }
 
   async detectFromUrl(url: string): Promise<NicheDetectionResult> {
     const fallback: NicheDetectionResult = {
@@ -48,7 +88,7 @@ export class NicheDetectorService {
       return { ...fallback, reasoning: 'ANTHROPIC_API_KEY yok' };
     }
 
-    // 1) Fetch
+    // 1) Fetch (statik HTML)
     let html = '';
     try {
       const controller = new AbortController();
@@ -65,19 +105,37 @@ export class NicheDetectorService {
       return { ...fallback, reasoning: `Fetch hatası: ${err.message}` };
     }
 
-    // 2) Extract signals
-    const title = (html.match(/<title[^>]*>([^<]+)</i)?.[1] ?? '').trim().slice(0, 200);
-    const metaDesc = (html.match(/<meta\s+name=["']description["']\s+content=["']([^"']+)/i)?.[1] ?? '').trim().slice(0, 300);
-    const ogDesc = (html.match(/<meta\s+property=["']og:description["']\s+content=["']([^"']+)/i)?.[1] ?? '').trim().slice(0, 300);
-    const h1 = (html.match(/<h1[^>]*>([^<]+)</i)?.[1] ?? '').trim().slice(0, 200);
-    // body text rough strip
-    const bodyText = html
-      .replace(/<script[\s\S]*?<\/script>/gi, ' ')
-      .replace(/<style[\s\S]*?<\/style>/gi, ' ')
-      .replace(/<[^>]+>/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim()
-      .slice(0, 800);
+    // 2) Sinyalleri çıkar. İçerik ince ise (SPA kabuğu) → headless render dene.
+    let signals = this.extractSignals(html);
+    let renderUsed = false;
+    if (this.isThin(signals)) {
+      this.log.log(`İnce içerik (muhtemel SPA): ${url} — headless render deneniyor`);
+      const rendered = await this.renderer.renderHtml(url);
+      if (rendered) {
+        const renderedSignals = this.extractSignals(rendered.slice(0, 200_000));
+        if (!this.isThin(renderedSignals)) {
+          signals = renderedSignals;
+          renderUsed = true;
+          this.log.log(`Render başarılı: ${url} (${rendered.length} byte DOM)`);
+        }
+      }
+    }
+
+    // 2b) Render sonrası hâlâ ince → içerik okunamadı. Sektörü İSİMDEN UYDURMA;
+    //     dürüst düşük-güven sonuç dön (çağıran taraf jenerik fallback'e düşer).
+    if (this.isThin(signals)) {
+      return {
+        ...fallback,
+        confidence: 0,
+        contentReadable: false,
+        renderUsed,
+        reasoning: this.renderer.isAvailable()
+          ? 'Site JS ile render ediliyor; render edildi ama metinsel içerik bulunamadı'
+          : 'Site JS ile render ediliyor (SPA), sunucu HTML\'i boş — render için Chromium kurulu değil',
+      };
+    }
+
+    const { title, metaDesc, ogDesc, h1, bodyText } = signals;
 
     // 3) Ask Claude Haiku
     const prompt = `Bu web sitesinin sektörünü tespit et:
@@ -92,8 +150,10 @@ Mevcut niş seçenekleri:
 ${NICHES.join(', ')}
 
 Kurallar:
+- SADECE yukarıdaki Title/Description/H1/İçerik özetine dayan. Sektörü site ADINDAN/DOMAIN'den TAHMİN ETME. (örn. "PlanIn" adından "planlama yazılımı" çıkarma — içeriğe bak: etkinlik mi, sosyal mi, e-ticaret mi?)
+- İçerik bir mobil uygulama / app tanıtım sitesiyse (App Store / Google Play indirme), uygulamanın GERÇEK işlevini esas al (örn. etkinlik keşif uygulaması, yemek siparişi, fitness takibi).
 - Hangi seçenek en iyi açıklar? Eğer hiçbiri uymazsa 'diğer' seç.
-- 'diğer' seçtiysen customNiche'e 2-4 kelimelik daha spesifik etiket yaz (örn: "AI SEO platformu", "KOBİ dijitalleşme", "B2B SaaS analitik")
+- 'diğer' seçtiysen customNiche'e 2-4 kelimelik daha spesifik etiket yaz (örn: "AI SEO platformu", "etkinlik keşif uygulaması", "B2B SaaS analitik")
 - 2-3 alternatif öner (alternatives)
 - "queries": Bu işletmeyi/siteyi arayan GERÇEK bir potansiyel müşterinin ChatGPT veya Google'a yazacağı 3 doğal Türkçe soru üret:
   • Sitenin GERÇEK hizmet/ürününü yansıtsın — genel sektör adı değil. (örn. tüplü dalış okulu → "dalış kursu", emlak ofisi → "satılık daire")
@@ -145,6 +205,8 @@ Format:
               .map((q: any) => q.trim().slice(0, 160))
               .slice(0, 3)
           : [],
+        contentReadable: true,
+        renderUsed,
       };
     } catch (err: any) {
       this.log.warn(`Niş AI detect fail: ${err.message}`);
