@@ -76,7 +76,7 @@ export class StudioController {
         height,
         type: 'inline',
       },
-      { provider: body.provider ?? 'gemini-flash', brandColor: body.brandColor },
+      { provider: body.provider ?? process.env.IMAGE_PROVIDER ?? 'gemini-flash', brandColor: body.brandColor },
     );
 
     if (!result.ok) {
@@ -93,7 +93,7 @@ export class StudioController {
         userId: user?.id ?? null,
         type: 'IMAGE' as any,
         prompt: body.prompt.trim(),
-        provider: body.provider ?? 'gemini-flash',
+        provider: body.provider ?? process.env.IMAGE_PROVIDER ?? 'gemini-flash',
         url: publicUrl,
         metadata: {
           width,
@@ -111,7 +111,7 @@ export class StudioController {
       url: publicUrl,
       sizeBytes: result.size,
       costUsd: result.costUsd,
-      provider: body.provider ?? 'gemini-flash',
+      provider: body.provider ?? process.env.IMAGE_PROVIDER ?? 'gemini-flash',
     };
   }
 

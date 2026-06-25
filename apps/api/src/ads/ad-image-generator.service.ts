@@ -1,8 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { GoogleGenAI } from '@google/genai';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { SettingsService } from '../settings/settings.service.js';
+import { ImageGeneratorService } from '../articles/image-generator.service.js';
 
 export interface AdImage {
   format: 'square' | 'portrait' | 'landscape';
@@ -12,20 +12,20 @@ export interface AdImage {
 }
 
 /**
- * AdImageGenerator — Gemini 2.5 Flash Image ile reklam gorseli.
- *
- * 3 format Meta + Google placement uyumlu:
- *   - square 1080x1080 (Feed, IG)
- *   - portrait 1080x1350 (IG Feed Vertical)
- *   - landscape 1200x628 (Google Display, Meta Audience Network)
- *
- * Otomatik brand color overlay + minimal text (eger gerekirse Sharp ile).
+ * AdImageGenerator — reklam gorseli. Artik birlesik ImageGeneratorService uzerinden
+ * uretiyor (IMAGE_PROVIDER = gpt-image-1 / vb. "max" model). Format -> boyut esleme:
+ *   - square   1024x1024 (Feed, IG)
+ *   - portrait 1024x1536 (IG Vertical)
+ *   - landscape 1536x1024 (Google Display, Meta)
  */
 @Injectable()
 export class AdImageGeneratorService {
   private readonly log = new Logger(AdImageGeneratorService.name);
 
-  constructor(private readonly settings: SettingsService) {}
+  constructor(
+    private readonly settings: SettingsService,
+    private readonly imageGen: ImageGeneratorService,
+  ) {}
 
   async generateSet(opts: {
     prompt: string;
@@ -34,15 +34,12 @@ export class AdImageGeneratorService {
     brandColor?: string;
   }): Promise<AdImage[]> {
     await this.settings.assertAiEnabled('ad image generation');
-    if (!process.env.GOOGLE_AI_API_KEY) {
-      throw new Error('GOOGLE_AI_API_KEY yok');
-    }
-    const ai = new GoogleGenAI({ apiKey: process.env.GOOGLE_AI_API_KEY });
+
     const formats = opts.formats ?? ['square', 'portrait', 'landscape'];
-    const aspectMap: Record<string, string> = {
-      square: '1:1',
-      portrait: '4:5',
-      landscape: '16:9',
+    const sizeMap: Record<string, { w: number; h: number }> = {
+      square: { w: 1024, h: 1024 },
+      portrait: { w: 1024, h: 1536 },
+      landscape: { w: 1536, h: 1024 },
     };
 
     const outDir = path.join(process.cwd(), 'public', 'ads', opts.siteSlug);
@@ -59,36 +56,22 @@ NO text, NO logos, NO watermarks, NO photorealistic faces.`;
     const results: AdImage[] = [];
     for (const format of formats) {
       try {
-        const response = await ai.models.generateContent({
-          model: 'gemini-2.5-flash-image',
-          contents: enrichedPrompt,
-          config: {
-            responseModalities: ['IMAGE'],
-            imageConfig: { aspectRatio: aspectMap[format] },
-          } as any,
-        });
-
-        let buffer: Buffer | null = null;
-        for (const part of response.candidates?.[0]?.content?.parts ?? []) {
-          if (part.inlineData?.data) {
-            buffer = Buffer.from(part.inlineData.data, 'base64');
-            break;
-          }
-        }
-        if (!buffer) {
-          this.log.warn(`Ad image ${format} bos cevap`);
-          continue;
-        }
-
+        const { w, h } = sizeMap[format];
         const filename = `${format}-${Date.now().toString(36)}.png`;
         const outPath = path.join(outDir, filename);
-        await fs.writeFile(outPath, buffer);
-
+        const result = await this.imageGen.generate(
+          { prompt: enrichedPrompt, outputPath: outPath, width: w, height: h, type: 'inline' },
+          { provider: process.env.IMAGE_PROVIDER, brandColor },
+        );
+        if (!result.ok) {
+          this.log.warn(`Ad image ${format} fail: ${result.error}`);
+          continue;
+        }
         results.push({
           format,
           publicUrl: `/ads/${opts.siteSlug}/${filename}`,
-          bytes: buffer.length,
-          costUsd: 0.030,
+          bytes: result.size ?? 0,
+          costUsd: result.costUsd ?? 0,
         });
       } catch (err: any) {
         this.log.warn(`Ad image ${format} fail: ${err.message}`);
