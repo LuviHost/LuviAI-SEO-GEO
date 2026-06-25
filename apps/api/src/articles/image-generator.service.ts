@@ -126,24 +126,26 @@ export class ImageGeneratorService {
     await this.settings.assertAiEnabled('image generation');
     const provider = opts.provider ?? process.env.IMAGE_PROVIDER ?? 'gemini-flash';
 
+    const FALLBACK_PROVIDER = 'gemini-flash';
+    let usedProvider = provider;
+
     try {
       let buffer: Buffer | null = null;
       let model = '';
 
-      if (provider === 'gemini-flash' || provider === 'gemini-pro') {
-        ({ buffer, model } = await this.generateWithGemini(req, opts, provider));
-      } else if (provider === 'gpt-image-1' || provider === 'gpt-image-1-mini') {
-        ({ buffer, model } = await this.generateWithOpenAI(req, opts, provider));
-      } else if (provider === 'flux-pro') {
-        ({ buffer, model } = await this.generateWithFlux(req, opts));
-      } else if (provider === 'ideogram-v3') {
-        ({ buffer, model } = await this.generateWithIdeogram(req, opts));
-      } else {
-        return { ok: false, costUsd: 0, error: `Bilinmeyen provider: ${provider}` };
-      }
-
-      if (!buffer) {
-        return { ok: false, costUsd: 0, error: `${provider} yanıtında görsel yok` };
+      // Birincil provider'ı dene. Erişilemezse (ör. OpenAI anlık DNS/ağ kesintisi)
+      // güvenilir gemini-flash'a düş — içerik asla görselsiz kalmasın.
+      try {
+        ({ buffer, model } = await this.dispatchProvider(provider, req, opts));
+        if (!buffer) throw new Error(`${provider} yanıtında görsel yok`);
+      } catch (primaryErr: any) {
+        if (provider === FALLBACK_PROVIDER) throw primaryErr;
+        this.log.warn(
+          `[image:${provider}] başarısız (${primaryErr?.message}) → ${FALLBACK_PROVIDER} fallback`,
+        );
+        usedProvider = FALLBACK_PROVIDER;
+        ({ buffer, model } = await this.dispatchProvider(FALLBACK_PROVIDER, req, opts));
+        if (!buffer) throw new Error(`${FALLBACK_PROVIDER} fallback da görsel döndürmedi`);
       }
 
       // Sharp ile resize + WebP optimize
@@ -165,7 +167,7 @@ export class ImageGeneratorService {
       }
 
       const cost = PRICING[model] ?? 0.030;
-      this.log.log(`[image:${provider}] ${req.type} → ${(webp.length / 1024).toFixed(0)}KB, $${cost.toFixed(3)}`);
+      this.log.log(`[image:${usedProvider}] ${req.type} → ${(webp.length / 1024).toFixed(0)}KB, $${cost.toFixed(3)}`);
 
       return {
         ok: true,
@@ -177,6 +179,27 @@ export class ImageGeneratorService {
       this.log.error(`[image:${provider}] ${err.message}`);
       return { ok: false, costUsd: 0, error: err.message };
     }
+  }
+
+  // ─── Provider dispatch (fallback için ayrıştırıldı) ──
+  private async dispatchProvider(
+    provider: string,
+    req: ImageRequest,
+    opts: { brandColor?: string },
+  ): Promise<{ buffer: Buffer | null; model: string }> {
+    if (provider === 'gemini-flash' || provider === 'gemini-pro') {
+      return this.generateWithGemini(req, opts, provider);
+    }
+    if (provider === 'gpt-image-1' || provider === 'gpt-image-1-mini') {
+      return this.generateWithOpenAI(req, opts, provider);
+    }
+    if (provider === 'flux-pro') {
+      return this.generateWithFlux(req, opts);
+    }
+    if (provider === 'ideogram-v3') {
+      return this.generateWithIdeogram(req, opts);
+    }
+    throw new Error(`Bilinmeyen provider: ${provider}`);
   }
 
   // ─── Provider impl'leri ──────────────────────────────
