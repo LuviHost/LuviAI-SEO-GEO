@@ -462,16 +462,21 @@ export class AuditChecksService {
   //  13. Internal linking (orphan sayfalar)
   // ───────────────────────────────────────────────────────────
   private checkInternalLinking(c: CrawlResult): CheckResult {
-    // Bir sayfaya hiç inbound link yoksa orphan
+    // Bir sayfaya hiç inbound link yoksa orphan.
+    // URL'leri normalize et: trailing slash / query / hash / büyük-küçük harf farkı
+    // olmasın — yoksa "/post/" linki "/post" sayfasına eşleşmeyip yanlış orphan üretir.
+    const norm = (u: string) => u.replace(/[?#].*$/, '').replace(/\/+$/, '').toLowerCase();
     const inboundCount = new Map<string, number>();
-    for (const p of c.pages) inboundCount.set(p.url, 0);
+    for (const p of c.pages) inboundCount.set(norm(p.url), 0);
     for (const p of c.pages) {
       for (const link of p.outboundLinks) {
-        inboundCount.set(link, (inboundCount.get(link) ?? 0) + 1);
+        const k = norm(link);
+        if (inboundCount.has(k)) inboundCount.set(k, (inboundCount.get(k) ?? 0) + 1);
       }
     }
 
-    const orphans = [...inboundCount.entries()].filter(([url, n]) => n === 0 && url !== c.baseUrl);
+    const base = norm(c.baseUrl);
+    const orphans = [...inboundCount.entries()].filter(([url, n]) => n === 0 && url !== base);
     const total = c.pages.length;
     const score = total > 0 ? Math.round(((total - orphans.length) / total) * 100) : 0;
     return {

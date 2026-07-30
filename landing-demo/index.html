@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>RanksUp — Senin yerine pazarlama yapan AI</title>
+<meta name="description" content="Site, mobil app ve sosyal medya tek panelden. 7 AI motorunda görünür ol, App Store'da yüksel, Auto-Pilot sen uyurken çalışsın." />
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&family=Geist:wght@400;500;600&family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+
+<style>
+  :root{
+    --bg:        #0a0806;
+    --bg-2:      #130d07;
+    --ink:       #f4ecdd;
+    --muted:     rgba(244,236,221,0.58);
+    --faint:     rgba(244,236,221,0.55);
+    --line:      rgba(244,236,221,0.12);
+    --line-soft: rgba(244,236,221,0.07);
+
+    --orange:      #f97316;
+    --orange-deep: #e0561b;
+    --amber:       #f59e0b;
+    --gold:        #fbbf24;
+    --gold-hi:     #ffe9a8;
+
+    /* metallic gold -> brand orange */
+    --gold-grad: linear-gradient(102deg,#fff3cf 0%,#ffd66e 24%,#f7b13a 50%,#f97316 78%,#e0561b 100%);
+
+    --sans:    "Geist", ui-sans-serif, system-ui, sans-serif;
+    --display: "Bricolage Grotesque", var(--sans);
+    --serif:   "Instrument Serif", Georgia, serif;
+    --mono:    "JetBrains Mono", ui-monospace, monospace;
+
+    --maxw: 1200px;
+    --pad: clamp(18px, 4vw, 56px);
+  }
+
+  *{ box-sizing:border-box; margin:0; padding:0; }
+  html{ scroll-behavior:smooth; }
+  body{
+    background:var(--bg);
+    color:var(--ink);
+    font-family:var(--sans);
+    -webkit-font-smoothing:antialiased;
+    text-rendering:optimizeLegibility;
+    overflow-x:hidden;
+    line-height:1.5;
+  }
+  ::selection{ background:rgba(249,115,22,0.30); color:#fff; }
+  a{ color:inherit; text-decoration:none; }
+
+  /* ---------- atmosphere / background layers ---------- */
+  .atmos{ position:fixed; inset:0; z-index:0; pointer-events:none; }
+  .atmos .glow{
+    position:absolute; border-radius:50%; filter:blur(90px); opacity:.55;
+  }
+  .glow.a{ width:60vw; height:60vw; left:-12vw; top:-22vw;
+    background:radial-gradient(circle at 50% 50%, rgba(249,115,22,.42), transparent 62%); }
+  .glow.b{ width:48vw; height:48vw; right:-14vw; top:8vh;
+    background:radial-gradient(circle at 50% 50%, rgba(245,158,11,.30), transparent 64%); }
+  .glow.c{ width:55vw; height:55vw; left:30vw; bottom:-30vw;
+    background:radial-gradient(circle at 50% 50%, rgba(224,86,27,.22), transparent 66%); }
+  /* fine dotted grid */
+  .atmos .grid{
+    position:absolute; inset:0; opacity:.55;
+    background-image:radial-gradient(rgba(244,236,221,.06) 1px, transparent 1px);
+    background-size:34px 34px;
+    -webkit-mask-image:radial-gradient(120% 90% at 50% 0%, #000 38%, transparent 78%);
+            mask-image:radial-gradient(120% 90% at 50% 0%, #000 38%, transparent 78%);
+  }
+  /* grain */
+  .atmos .grain{
+    position:absolute; inset:-50%; opacity:.045; mix-blend-mode:overlay;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  /* ---------- nav ---------- */
+  header.nav{
+    position:fixed; top:0; left:0; right:0; z-index:50;
+    display:flex; justify-content:center;
+    padding:14px var(--pad) 0;
+  }
+  .nav-inner{
+    position:relative;
+    width:100%; max-width:var(--maxw);
+    display:flex; align-items:center; gap:18px;
+    padding:9px 9px 9px 16px;
+    border-radius:999px;
+    background:rgba(18,13,7,0.62);
+    border:1px solid var(--line);
+    backdrop-filter:blur(14px) saturate(140%);
+    -webkit-backdrop-filter:blur(14px) saturate(140%);
+    box-shadow:0 10px 40px -22px rgba(0,0,0,.9), inset 0 1px 0 rgba(255,255,255,.04);
+  }
+  .brand{ display:flex; align-items:center; gap:10px; margin-right:auto; }
+  .mark{
+    width:30px; height:30px; border-radius:9px; flex:none;
+    display:grid; place-items:center;
+    background:linear-gradient(150deg,#F36D32,#B63325);
+    box-shadow:0 6px 18px -6px rgba(224,86,27,.7), inset 0 1px 0 rgba(255,255,255,.25);
+  }
+  .mark svg{ width:15px; height:15px; display:block; }
+  .brand b{ font-family:var(--display); font-weight:800; font-size:18px; letter-spacing:-.02em; }
+  .brand b i{ font-style:normal; color:var(--orange); }
+
+  .nav-links{ display:flex; gap:2px; }
+  .nav-links a{
+    font-size:13.5px; color:var(--muted); padding:8px 13px; border-radius:999px;
+    transition:color .2s, background .2s;
+  }
+  .nav-links a:hover{ color:var(--ink); background:rgba(244,236,221,.06); }
+
+  .pill{
+    font-family:var(--sans); font-weight:600; font-size:13.5px;
+    border-radius:999px; padding:10px 18px; cursor:pointer; border:1px solid transparent;
+    white-space:nowrap; transition:transform .15s, box-shadow .25s, background .2s, color .2s;
+    display:inline-flex; align-items:center; gap:8px;
+  }
+  .pill.ghost{ color:var(--ink); border-color:var(--line); background:transparent; }
+  .pill.ghost:hover{ background:rgba(244,236,221,.06); border-color:var(--faint); }
+  .pill.gold{
+    color:#2a1606;
+    -webkit-text-fill-color:#2a1606;            /* defeat .gold text-clip collision */
+    background:var(--gold-grad);
+    -webkit-background-clip:border-box; background-clip:border-box;
+    box-shadow:0 8px 26px -10px rgba(249,150,30,.75), inset 0 1px 0 rgba(255,255,255,.45);
+  }
+  .pill.gold:hover{ transform:translateY(-1px); box-shadow:0 12px 30px -10px rgba(249,150,30,.9); }
+
+  /* keyboard focus (outline follows border-radius in modern browsers) */
+  :where(a,button,.pill,summary):focus-visible{ outline:2px solid var(--gold-hi); outline-offset:3px; }
+
+  /* mobile menu */
+  .d-short{ display:none; }
+  .nav-toggle{ display:none; width:44px; height:44px; flex:none; border-radius:12px;
+    border:1px solid var(--line); background:transparent; color:var(--ink);
+    align-items:center; justify-content:center; cursor:pointer; }
+  .nav-toggle svg{ width:20px; height:20px; }
+  .nav-drawer{ display:none; }
+  @media (max-width:880px){
+    .nav-links, .login{ display:none; }
+    .nav-toggle{ display:inline-flex; }
+    .nav-inner{ gap:10px; }
+    .nav .pill{ min-height:44px; padding:11px 14px; font-size:13px; }
+    .nav-inner > .pill.gold{ display:none; }   /* CTA lives in the drawer on mobile */
+    .brand{ min-height:44px; }
+    .nav-drawer{
+      display:flex; flex-direction:column; gap:4px;
+      position:absolute; top:calc(100% + 10px); left:0; right:0;
+      background:rgba(18,13,7,0.97); backdrop-filter:blur(16px);
+      border:1px solid var(--line); border-radius:20px; padding:12px;
+      box-shadow:0 24px 60px -24px rgba(0,0,0,.9);
+      opacity:0; transform:translateY(-8px); pointer-events:none;
+      transition:opacity .2s, transform .2s;
+    }
+    .nav-drawer.open{ opacity:1; transform:none; pointer-events:auto; }
+    .nav-drawer a{ display:flex; align-items:center; min-height:44px; padding:12px 16px;
+      border-radius:12px; color:var(--ink); font-size:15px; }
+    .nav-drawer a:hover{ background:rgba(244,236,221,.06); }
+    .nav-drawer .drawer-cta{ justify-content:center; margin-top:6px; font-weight:600;
+      background:var(--gold-grad); color:#2a1606; -webkit-text-fill-color:#2a1606; }
+  }
+
+  /* ---------- hero ---------- */
+  main{ position:relative; z-index:2; }
+  .hero{
+    position:relative;
+    min-height:100svh;
+    max-width:var(--maxw);
+    margin:0 auto;
+    padding:150px var(--pad) 70px;
+    display:flex; flex-direction:column; justify-content:center;
+  }
+
+  /* thread svg layers fill hero */
+  .threads{ position:absolute; inset:0; width:100%; height:100%; pointer-events:none; }
+  .threads.back{ z-index:1; opacity:.9; }
+  .threads.front{ z-index:4; mix-blend-mode:screen; }   /* weave OVER the headline */
+  .threads path{ fill:none; stroke-linecap:round; }
+
+  .eyebrow{
+    font-family:var(--mono); font-size:12px; letter-spacing:.32em; text-transform:uppercase;
+    color:var(--amber); display:flex; align-items:center; gap:11px;
+    position:relative; z-index:3; margin-bottom:26px;
+    opacity:0; animation:rise .8s .1s cubic-bezier(.2,.7,.2,1) forwards;
+  }
+  .eyebrow .dot{ width:7px; height:7px; border-radius:50%; background:var(--orange);
+    box-shadow:0 0 0 4px rgba(249,115,22,.18); animation:pulse 2.4s infinite; }
+  .eyebrow .sep{ width:34px; height:1px; background:linear-gradient(90deg,var(--amber),transparent); }
+  .eyebrow .sub{ color:var(--faint); letter-spacing:.22em; }
+
+  h1.head{
+    position:relative; z-index:3;
+    font-family:var(--display); font-weight:800; letter-spacing:-.035em; line-height:.92;
+    font-size:clamp(40px, 12vw, 168px);
+    max-width:12ch;
+  }
+  h1.head .l{ display:block; overflow:hidden; }
+  h1.head .l > span{ display:block; transform:translateY(110%);
+    animation:reveal .95s cubic-bezier(.18,.85,.16,1) forwards; }
+  h1.head .l1 > span{ animation-delay:.18s; }
+  h1.head .l2 > span{ animation-delay:.30s; }
+  .gold{
+    background:var(--gold-grad);
+    -webkit-background-clip:text; background-clip:text;
+    -webkit-text-fill-color:transparent; color:transparent;
+  }
+  h1.head .accent{
+    font-family:var(--serif); font-style:italic; font-weight:400;
+    letter-spacing:-.01em; color:var(--ink); padding-left:.12em;
+  }
+
+  .sub{
+    position:relative; z-index:3;
+    margin-top:30px; max-width:46ch; font-size:clamp(15px,1.55vw,19px);
+    color:var(--muted); line-height:1.62;
+    opacity:0; animation:rise .9s .5s cubic-bezier(.2,.7,.2,1) forwards;
+  }
+  .sub b{ color:var(--ink); font-weight:600; }
+
+  .cta-row{
+    position:relative; z-index:3; margin-top:36px; display:flex; gap:14px; flex-wrap:wrap;
+    opacity:0; animation:rise .9s .62s cubic-bezier(.2,.7,.2,1) forwards;
+  }
+  .pill.lg{ font-size:15px; padding:15px 26px; }
+  .pill.scan{ color:var(--ink); border-color:var(--line); background:rgba(244,236,221,.03); }
+  .pill.scan:hover{ border-color:var(--amber); color:#fff; }
+
+  .engines{
+    position:relative; z-index:3; margin-top:46px;
+    display:flex; align-items:center; gap:18px; flex-wrap:wrap;
+    font-family:var(--mono); font-size:11.5px; letter-spacing:.12em; color:var(--faint);
+    opacity:0; animation:rise .9s .8s cubic-bezier(.2,.7,.2,1) forwards;
+  }
+  .engines .lbl{ color:var(--amber); letter-spacing:.24em; }
+  .engines .dotline{
+    flex:1; min-width:60px; height:8px;
+    /* repeating-linear-gradient dotted divider */
+    background:repeating-linear-gradient(90deg, var(--faint) 0 2px, transparent 2px 9px);
+    -webkit-mask-image:linear-gradient(90deg,#000,#000 70%,transparent);
+            mask-image:linear-gradient(90deg,#000,#000 70%,transparent);
+    opacity:.6;
+  }
+  .engines span.e{ color:var(--muted); }
+
+  /* ---------- floating product card (z-depth, in FRONT) ---------- */
+  .product{
+    position:absolute; z-index:6;
+    right:var(--pad); bottom:62px; width:min(360px, 42vw);
+    border-radius:20px; padding:18px;
+    background:linear-gradient(180deg, rgba(28,20,12,.92), rgba(16,11,7,.94));
+    border:1px solid rgba(255,210,140,.18);
+    box-shadow:0 50px 90px -30px rgba(0,0,0,.85), 0 0 0 1px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.06);
+    transform:rotate(-3deg);
+    opacity:0;
+    /* both animations on ONE property so float doesn't clobber the card reveal */
+    animation:card 1.1s .7s cubic-bezier(.18,.85,.16,1) forwards, float 7s 2.2s ease-in-out infinite;
+  }
+  .product .pc-top{ display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
+  .product .pc-top .t{ font-family:var(--mono); font-size:10.5px; letter-spacing:.2em; color:var(--amber); }
+  .product .pc-top .live{ font-family:var(--mono); font-size:10px; color:var(--muted); display:flex; gap:6px; align-items:center; }
+  .product .pc-top .live i{ width:6px; height:6px; border-radius:50%; background:#36d27a; animation:pulse 2s infinite; }
+  .domain{
+    display:flex; align-items:center; gap:9px; font-family:var(--mono); font-size:13px;
+    padding:10px 12px; border-radius:10px; color:var(--ink);
+    background:rgba(0,0,0,.35); border:1px solid var(--line); margin-bottom:16px;
+  }
+  .domain .g{ color:var(--amber); }
+  .score-wrap{ display:flex; align-items:flex-end; gap:14px; margin-bottom:16px; }
+  .score{ font-family:var(--display); font-weight:800; font-size:52px; line-height:.85; letter-spacing:-.04em; }
+  .score s{ text-decoration:none; font-size:20px; color:var(--faint); }
+  .score-meta{ font-size:11.5px; color:var(--muted); padding-bottom:4px; }
+  .score-meta b{ color:#36d27a; }
+  .bars{ display:grid; gap:9px; }
+  .bar{ display:grid; grid-template-columns:74px 1fr 30px; align-items:center; gap:10px; font-family:var(--mono); font-size:10.5px; color:var(--muted); }
+  .bar .track{ height:6px; border-radius:99px; background:rgba(244,236,221,.08); overflow:hidden; }
+  .bar .fill{ height:100%; border-radius:99px; background:var(--gold-grad); width:0; animation:grow 1.2s 1.1s cubic-bezier(.2,.8,.2,1) forwards; }
+  .bar .v{ text-align:right; color:var(--ink); }
+  .pc-foot{ margin-top:15px; font-family:var(--mono); font-size:10px; letter-spacing:.12em; color:var(--faint); text-align:center;
+    border-top:1px dashed rgba(244,236,221,.14); padding-top:11px; }
+
+  @media (max-width:980px){
+    .product{ position:relative; right:auto; bottom:auto; width:100%; margin-top:48px; transform:none;
+      animation:rise .8s .2s ease forwards; }
+  }
+  @media (max-width:880px){
+    .hero{ min-height:auto; padding-top:120px; }
+  }
+  @media (max-height:680px){ .hero{ min-height:auto; } }
+  @media (max-width:400px){ h1.head{ font-size:40px; line-height:.96; } }
+
+  section[id]{ scroll-margin-top:96px; }
+
+  /* ---------- dotted section divider ---------- */
+  .divider{
+    max-width:var(--maxw); margin:0 auto; height:1px;
+    background:repeating-linear-gradient(90deg, var(--line) 0 6px, transparent 6px 14px);
+  }
+
+  /* ---------- spec / features ---------- */
+  section.spec{ max-width:var(--maxw); margin:0 auto; padding:84px var(--pad); position:relative; z-index:2; }
+  .spec-head{ display:flex; align-items:baseline; justify-content:space-between; gap:20px; flex-wrap:wrap; margin-bottom:42px; }
+  .spec-head h2{ font-family:var(--display); font-weight:800; font-size:clamp(26px,3.4vw,42px); letter-spacing:-.03em; line-height:1.02; max-width:18ch; }
+  .spec-head h2 em{ font-family:var(--serif); font-style:italic; font-weight:400; color:var(--amber); }
+  .spec-head .tag{ font-family:var(--mono); font-size:11px; letter-spacing:.22em; color:var(--faint); text-transform:uppercase; }
+
+  .cards{ display:grid; grid-template-columns:repeat(2,1fr); gap:1px; background:var(--line-soft);
+    border:1px solid var(--line-soft); border-radius:18px; overflow:hidden; }
+  @media (max-width:760px){ .cards{ grid-template-columns:1fr; } }
+  .card{
+    background:linear-gradient(180deg, rgba(20,14,8,.6), rgba(12,9,6,.6));
+    padding:30px clamp(20px,2.6vw,34px); position:relative; transition:background .3s;
+  }
+  .card:hover{ background:linear-gradient(180deg, rgba(30,21,11,.85), rgba(16,11,7,.85)); }
+  .card .num{ font-family:var(--mono); font-size:12px; color:var(--orange); letter-spacing:.1em; }
+  .card h3{ font-family:var(--display); font-weight:600; font-size:21px; letter-spacing:-.02em; margin:16px 0 10px; }
+  .card p{ font-size:14.5px; color:var(--muted); line-height:1.62; max-width:42ch; }
+  .card .edge{ position:absolute; left:0; top:0; bottom:0; width:2px; background:var(--gold-grad); transform:scaleY(0); transform-origin:top; transition:transform .35s; }
+  .card:hover .edge{ transform:scaleY(1); }
+
+  /* ---------- stats ---------- */
+  section.stats{ max-width:var(--maxw); margin:0 auto; padding:20px var(--pad) 90px; position:relative; z-index:2; }
+  .stat-grid{ display:grid; grid-template-columns:repeat(4,1fr); gap:clamp(16px,3vw,40px); }
+  @media (max-width:760px){ .stat-grid{ grid-template-columns:repeat(2,1fr); row-gap:36px; } }
+  .stat{ text-align:left; }
+  .stat .v{ font-family:var(--display); font-weight:800; font-size:clamp(34px,5vw,60px); letter-spacing:-.04em; line-height:1; }
+  .stat .v.up .gold{ }
+  .stat .k{ font-family:var(--mono); font-size:11.5px; letter-spacing:.14em; color:var(--muted); margin-top:12px; text-transform:uppercase; }
+
+  /* ---------- final cta ---------- */
+  section.final{ position:relative; z-index:2; padding:90px var(--pad) 70px; text-align:center; overflow:hidden; }
+  .final h2{ font-family:var(--display); font-weight:800; font-size:clamp(32px,6vw,82px); letter-spacing:-.04em; line-height:.96; max-width:16ch; margin:0 auto 14px; }
+  .final p{ color:var(--muted); max-width:48ch; margin:0 auto 30px; font-size:16px; }
+  .final .cta-row{ justify-content:center; animation:none; opacity:1; }
+  .final .glow-line{ position:absolute; left:0; right:0; bottom:0; height:1px;
+    background:repeating-linear-gradient(90deg, var(--amber) 0 3px, transparent 3px 12px); opacity:.4; }
+
+  footer{ position:relative; z-index:2; max-width:var(--maxw); margin:0 auto; padding:30px var(--pad) 50px;
+    display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap;
+    font-family:var(--mono); font-size:11.5px; color:var(--faint); letter-spacing:.08em;
+    border-top:1px dashed var(--line); }
+  footer .tag{ color:var(--muted); }
+
+  /* ---------- how it works + faq ---------- */
+  section.how, section.faq{ max-width:var(--maxw); margin:0 auto; padding:84px var(--pad); position:relative; z-index:2; }
+  .steps{ display:grid; grid-template-columns:repeat(3,1fr); gap:clamp(16px,2.4vw,28px); }
+  @media (max-width:760px){ .steps{ grid-template-columns:1fr; } }
+  .step{ position:relative; padding:26px 22px; border:1px solid var(--line-soft); border-radius:16px;
+    background:linear-gradient(180deg, rgba(20,14,8,.55), rgba(12,9,6,.55)); }
+  .step .num{ font-family:var(--display); font-weight:800; font-size:34px; letter-spacing:-.04em;
+    background:var(--gold-grad); -webkit-background-clip:text; background-clip:text;
+    -webkit-text-fill-color:transparent; color:transparent; }
+  .step h3{ font-family:var(--display); font-weight:600; font-size:18px; margin:12px 0 8px; letter-spacing:-.02em; }
+  .step p{ font-size:14px; color:var(--muted); line-height:1.6; }
+
+  .qa-list{ display:grid; gap:10px; max-width:860px; }
+  .qa{ border:1px solid var(--line-soft); border-radius:14px; background:rgba(18,13,7,.5); overflow:hidden; }
+  .qa summary{ cursor:pointer; list-style:none; padding:18px 20px; font-family:var(--sans); font-weight:600;
+    font-size:15.5px; display:flex; justify-content:space-between; align-items:center; gap:16px; }
+  .qa summary::-webkit-details-marker{ display:none; }
+  .qa summary::after{ content:'+'; font-family:var(--mono); color:var(--amber); font-size:20px; transition:transform .2s; }
+  .qa[open] summary::after{ transform:rotate(45deg); }
+  .qa p{ padding:0 20px 20px; color:var(--muted); font-size:14.5px; line-height:1.62; max-width:70ch; }
+
+  /* a11y */
+  .sr-only{ position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden;
+    clip:rect(0,0,0,0); clip-path:inset(50%); white-space:nowrap; border:0; }
+
+  /* ---------- keyframes ---------- */
+  @keyframes reveal{ to{ transform:translateY(0); } }
+  @keyframes rise{ from{ opacity:0; transform:translateY(18px); } to{ opacity:1; transform:translateY(0); } }
+  @keyframes card{ from{ opacity:0; transform:rotate(-3deg) translateY(40px) scale(.96); } to{ opacity:1; transform:rotate(-3deg) translateY(0) scale(1); } }
+  @keyframes float{ 0%,100%{ transform:rotate(-3deg) translateY(0); } 50%{ transform:rotate(-3deg) translateY(-14px); } }
+  @keyframes grow{ to{ width:var(--w,70%); } }
+  @keyframes pulse{ 0%,100%{ opacity:1; } 50%{ opacity:.35; } }
+
+  @media (prefers-reduced-motion:reduce){
+    html{ scroll-behavior:auto; }
+    *{ animation-duration:.001s !important; animation-delay:0s !important; }
+    .product{ animation:none !important; opacity:1 !important; }
+    h1.head .l > span{ transform:none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- atmosphere -->
+<div class="atmos" aria-hidden="true">
+  <div class="glow a"></div><div class="glow b"></div><div class="glow c"></div>
+  <div class="grid"></div>
+  <div class="grain"></div>
+</div>
+
+<!-- nav -->
+<header class="nav">
+  <nav class="nav-inner" aria-label="Ana menü">
+    <a class="brand" href="#" aria-label="RanksUp ana sayfa">
+      <span class="mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none"><path d="M5 16l5-6 4 4 5-8" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/><path d="M16 6h3v3" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </span>
+      <b>Ranks<i>Up</i></b>
+    </a>
+    <div class="nav-links">
+      <a href="#cozum">Çözüm</a>
+      <a href="#nasil">Nasıl çalışır</a>
+      <a href="#sonuc">Sonuçlar</a>
+      <a href="#sss">SSS</a>
+      <a href="#fiyat">Fiyat</a>
+    </div>
+    <a class="pill ghost login" href="#">Giriş</a>
+    <a class="pill gold" href="#"><span class="d-full">Ücretsiz başla</span><span class="d-short">Başla</span></a>
+    <button class="nav-toggle" type="button" aria-label="Menüyü aç" aria-expanded="false" aria-controls="navDrawer">
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    </button>
+    <div class="nav-drawer" id="navDrawer">
+      <a href="#cozum">Çözüm</a>
+      <a href="#nasil">Nasıl çalışır</a>
+      <a href="#sonuc">Sonuçlar</a>
+      <a href="#sss">SSS</a>
+      <a href="#fiyat">Fiyat</a>
+      <a href="#">Giriş</a>
+      <a class="drawer-cta" href="#">Ücretsiz başla — kart gerekmez</a>
+    </div>
+  </nav>
+</header>
+
+<main>
+  <!-- HERO -->
+  <section class="hero" aria-label="Tanıtım">
+    <svg class="threads back" id="threadsBack" preserveAspectRatio="none" viewBox="0 0 1440 900" aria-hidden="true"></svg>
+
+    <p class="eyebrow">
+      <span class="dot"></span>
+      AI Görünürlük Platformu
+      <span class="sep"></span>
+      <span class="sub">7 motor · 30 sn · kart yok</span>
+    </p>
+
+    <h1 class="head">
+      <span class="l l1"><span>AI'da</span></span>
+      <span class="l l2"><span><span class="gold">Zirveye</span><span class="accent">çık.</span></span></span>
+    </h1>
+
+    <p class="sub">
+      Site, mobil app, sosyal medya — <b>hepsi tek panelden</b>. RanksUp siteni tarar,
+      eksikleri bulur, içeriği üretir, App Store reklamını optimize eder.
+      <b>Sen uyurken çalışır.</b>
+    </p>
+
+    <div class="cta-row">
+      <a class="pill gold lg" href="#">Ücretsiz başla — kart gerekmez</a>
+      <a class="pill scan lg" href="#">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="11" cy="11" r="7" stroke="currentColor" stroke-width="2"/><path d="M16.5 16.5L21 21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        Markanı 30 saniyede test et
+      </a>
+    </div>
+
+    <div class="engines" aria-label="Desteklenen AI motorları">
+      <span class="lbl">TARANAN&nbsp;AI</span>
+      <span class="e">ChatGPT</span><span class="e">Claude</span><span class="e">Gemini</span>
+      <span class="e">Perplexity</span><span class="e">Grok</span><span class="e">DeepSeek</span><span class="e">Meta&nbsp;AI</span>
+      <span class="dotline"></span>
+    </div>
+
+    <svg class="threads front" id="threadsFront" preserveAspectRatio="none" viewBox="0 0 1440 900" aria-hidden="true"></svg>
+
+    <!-- floating product card, in FRONT (z-depth) -->
+    <aside class="product floaty" aria-label="Örnek AI görünürlük raporu">
+      <div class="pc-top">
+        <span class="t">AI GÖRÜNÜRLÜK RAPORU</span>
+        <span class="live"><i></i> CANLI</span>
+      </div>
+      <div class="domain"><span class="g">↳</span> ranksup.ai</div>
+      <div class="score-wrap">
+        <div class="score gold">84<s>/100</s></div>
+        <div class="score-meta">Görünürlük skoru<br><b>+12</b> son 30 gün</div>
+      </div>
+      <div class="bars">
+        <div class="bar"><span>ChatGPT</span><span class="track"><span class="fill" style="--w:92%"></span></span><span class="v">92</span></div>
+        <div class="bar"><span>Claude</span><span class="track"><span class="fill" style="--w:88%"></span></span><span class="v">88</span></div>
+        <div class="bar"><span>Gemini</span><span class="track"><span class="fill" style="--w:76%"></span></span><span class="v">76</span></div>
+        <div class="bar"><span>Perplexity</span><span class="track"><span class="fill" style="--w:81%"></span></span><span class="v">81</span></div>
+        <div class="bar"><span>Grok</span><span class="track"><span class="fill" style="--w:69%"></span></span><span class="v">69</span></div>
+      </div>
+      <div class="pc-foot">30 SANİYEDE · ÜYELİK YOK · KART YOK</div>
+    </aside>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- SPEC / FEATURES -->
+  <section class="spec" id="cozum" tabindex="-1">
+    <div class="spec-head">
+      <h2>4 ayrı uzmana ihtiyacın yok. <em>Hepsi tek AI panel.</em></h2>
+      <span class="tag">// ÇÖZÜM · 01—04</span>
+    </div>
+    <div class="cards">
+      <article class="card"><span class="edge"></span>
+        <span class="num">01</span>
+        <h3>AI'lara görünür ol</h3>
+        <p>ChatGPT, Claude ve Gemini'de adının geçtiği yerleri gör. AI Citation Tracker, 50+ keyword takibi, eksik soruları bulup makaleyi otomatik yazar.</p>
+      </article>
+      <article class="card"><span class="edge"></span>
+        <span class="num">02</span>
+        <h3>App Store'da 1. sıraya</h3>
+        <p>ASO + Apple Search Ads tek panelde. AI keyword araştırması, kampanya ve teklif (bid) otomasyonu; Auto-Pilot düşük performanslı kampanyaları durdurur, CPI'yi %62 düşürür.</p>
+      </article>
+      <article class="card"><span class="edge"></span>
+        <span class="num">03</span>
+        <h3>Tek konudan tüm kanallara</h3>
+        <p>Sosyal Medya Studio: X, LinkedIn, Instagram için 3 varyant. Sora 2 + Veo 3 + Runway ile video, DALL·E ile görsel, tek tık çoklu kanal paylaşım.</p>
+      </article>
+      <article class="card"><span class="edge"></span>
+        <span class="num">04</span>
+        <h3>Auto-Pilot — sen uyurken çalışır</h3>
+        <p>Günlük sıra takibi, anomali uyarısı, bütçe sınırlı otomatik ASA, haftalık AI rapor. 5 SaaS yerine 1 RanksUp, ~%80 daha az maliyet. Sen sadece kararı ver.</p>
+      </article>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- HOW IT WORKS -->
+  <section class="how" id="nasil" tabindex="-1" aria-labelledby="how-h">
+    <div class="spec-head">
+      <h2 id="how-h">5 dakikada <em>yayında.</em></h2>
+      <span class="tag">// NASIL ÇALIŞIR · 01—03</span>
+    </div>
+    <div class="steps">
+      <div class="step"><span class="num">01</span><h3>Domainini bağla</h3><p>Domainini gir; RanksUp siteni ve App Store sayfanı 30 saniyede tarar, 7 AI motorundaki görünürlüğünü raporlar.</p></div>
+      <div class="step"><span class="num">02</span><h3>AI planını onayla</h3><p>Eksik içerikler, anahtar kelimeler ve kampanya önerileri önüne gelir. Sen onayla; ilk 2 makalen otomatik yazılır.</p></div>
+      <div class="step"><span class="num">03</span><h3>Auto-Pilot'u aç</h3><p>İçerik, sosyal paylaşım ve Apple Search Ads arka planda çalışır. Haftalık raporu al, sonuçları izle.</p></div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- STATS -->
+  <section class="stats" id="sonuc" tabindex="-1" aria-labelledby="stats-h">
+    <h2 id="stats-h" class="sr-only">Sonuçlar</h2>
+    <div class="stat-grid">
+      <div class="stat"><div class="v"><span class="gold">+%47</span></div><div class="k">AI görünürlük artışı</div></div>
+      <div class="stat"><div class="v"><span class="gold">−%62</span></div><div class="k">App Store CPI düşüşü</div></div>
+      <div class="stat"><div class="v"><span class="gold">10×</span></div><div class="k">içerik üretim hızı</div></div>
+      <div class="stat"><div class="v"><span class="gold">5→1</span></div><div class="k">SaaS tek panelde</div></div>
+    </div>
+  </section>
+
+  <div class="divider"></div>
+
+  <!-- FAQ -->
+  <section class="faq" id="sss" tabindex="-1" aria-labelledby="faq-h">
+    <div class="spec-head">
+      <h2 id="faq-h">Akla gelen <em>ilk sorular.</em></h2>
+      <span class="tag">// SSS</span>
+    </div>
+    <div class="qa-list">
+      <details class="qa"><summary>Kart bilgisi gerekiyor mu?</summary><p>Hayır. Ücretsiz başlarsın; onboarding'de 2 makalen otomatik üretilir. Kart yalnızca ücretli plana geçerken gerekir.</p></details>
+      <details class="qa"><summary>Hangi AI motorlarını tarıyorsunuz?</summary><p>ChatGPT, Claude, Gemini, Perplexity, Grok, DeepSeek ve Meta AI. Markanın her birinde nasıl tanındığını tek raporda görürsün.</p></details>
+      <details class="qa"><summary>Verilerim güvende mi?</summary><p>Evet. KVKK uyumlu, Türkiye sunucu, AES-256 / TLS 1.3 şifreleme. Verilerin Türkiye'de kalır.</p></details>
+      <details class="qa"><summary>Gerçekten 5 araç yerine tek panel mi?</summary><p>Evet. SEO, ASO + Apple Search Ads, sosyal medya ve otomasyon tek RanksUp panelinde; ortalama ~%80 daha az maliyet.</p></details>
+    </div>
+  </section>
+
+  <!-- FINAL CTA -->
+  <section class="final" id="fiyat" tabindex="-1">
+    <h2>AI çağının pazarlamasına <span class="gold">başla.</span></h2>
+    <p>Bugün başla, kart sonra. Onboarding'de 2 makalen otomatik yazılır — anında sonucu gör.</p>
+    <div class="cta-row">
+      <a class="pill gold lg" href="#">Ücretsiz başla — kart gerekmez</a>
+      <a class="pill scan lg" href="#sss">Sıkça sorulanlar</a>
+    </div>
+    <div class="glow-line" aria-hidden="true"></div>
+  </section>
+</main>
+
+<footer>
+  <span class="tag">RanksUp — AI çağının pazarlama platformu · Türkiye</span>
+  <span>© 2026 LuviHost · ranksup.ai</span>
+</footer>
+
+<script>
+(function(){
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const SVGNS = 'http://www.w3.org/2000/svg';
+  const W = 1440, H = 900;
+
+  // simple seeded PRNG so the weave is stable each load
+  let seed = 20260620;
+  function rnd(){ seed = (seed*1664525 + 1013904223) & 0x7fffffff; return seed / 0x7fffffff; }
+
+  // build a gentle left->right wavy bezier across the canvas at vertical position cy
+  function makePath(cy, amp, wob){
+    const segs = 4;
+    let d = `M -60 ${cy.toFixed(1)}`;
+    let x = -60;
+    const step = (W + 120) / segs;
+    for(let s=0;s<segs;s++){
+      const cx1 = x + step*0.35;
+      const cx2 = x + step*0.65;
+      const ny  = cy + (rnd()-0.5)*amp*2 + Math.sin((s+wob))*amp;
+      const my  = cy + (rnd()-0.5)*amp;
+      x += step;
+      d += ` C ${cx1.toFixed(1)} ${my.toFixed(1)} ${cx2.toFixed(1)} ${ny.toFixed(1)} ${x.toFixed(1)} ${ny.toFixed(1)}`;
+      cy = ny;
+    }
+    return d;
+  }
+
+  // create N threads in a layer; returns array of {el,len,...}
+  function build(svg, n, opts){
+    const arr = [];
+    for(let i=0;i<n;i++){
+      const t = i/(n-1);
+      const cy = 70 + t*(H-140) + (rnd()-0.5)*40;
+      const p = document.createElementNS(SVGNS,'path');
+      p.setAttribute('d', makePath(cy, opts.amp*(0.5+rnd()), i));
+      const gold = opts.front;
+      // colour: gold->orange threads
+      const hue = 28 + rnd()*22;            // amber..orange
+      const light = gold ? 62 : 50;
+      p.setAttribute('stroke', `hsla(${hue}, 95%, ${light}%, ${opts.alpha})`);
+      p.setAttribute('stroke-width', (opts.front ? 1.0 : 0.8) + rnd()*0.9);
+      const len = p.getTotalLength();
+      const cometFrac = opts.front ? (0.04 + rnd()*0.05) : 0;
+      // dash pattern is CONSTANT per thread -> set once; only the offset animates each frame
+      if(cometFrac > 0){
+        const lit = cometFrac * len;
+        p.style.strokeDasharray = `${lit} ${len - lit}`;
+      } else {
+        p.style.strokeDasharray = len;
+      }
+      p.style.strokeDashoffset = len;       // start hidden -> self-draw
+      svg.appendChild(p);
+      arr.push({
+        el:p, len,
+        drawDelay: i*55 + (opts.front?350:0),
+        drawDur: 1100 + rnd()*700,
+        speed: (0.00006 + rnd()*0.00010) * (opts.front?1:0.4),
+        phase: rnd(),
+        comet: cometFrac
+      });
+    }
+    return arr;
+  }
+
+  const back  = build(document.getElementById('threadsBack'),  20, {amp:55, alpha:0.34, front:false});
+  const front = build(document.getElementById('threadsFront'), 16, {amp:48, alpha:0.55, front:true});
+  const all = back.concat(front);
+  const ease = x => 1 - Math.pow(1-x, 3);
+
+  if(reduce){
+    // show fully-drawn static threads, no rAF
+    all.forEach(t => t.el.style.strokeDashoffset = 0);
+  } else {
+    let running = false, rafId = 0, last = 0, el = 0;
+    function frame(now){
+      if(!last) last = now;
+      el += now - last; last = now;          // elapsed accrues ONLY while running -> pauses in place
+      for(let i=0;i<all.length;i++){
+        const t = all[i];
+        const draw = Math.min(Math.max((el - t.drawDelay)/t.drawDur, 0), 1);
+        if(t.comet > 0){
+          // technique #2: flowing comet travels along the path, staggered per thread (dash set once)
+          const flow = ((el * t.speed) + t.phase) % 1;
+          t.el.style.strokeDashoffset = t.len * (1 - flow);
+          t.el.style.opacity = draw;
+        } else {
+          // technique #1: each line draws itself across the screen, then gently breathes
+          const drawn = ease(draw);
+          const breathe = 1 + Math.sin(el*0.0008 + t.phase*6.28)*0.04*draw;
+          t.el.style.strokeDashoffset = t.len * (1 - drawn);
+          t.el.style.opacity = 0.5 + 0.5*draw*breathe;
+        }
+      }
+      if(running) rafId = requestAnimationFrame(frame);
+    }
+    function start(){ if(running) return; running = true; last = 0; rafId = requestAnimationFrame(frame); }
+    function stop(){ running = false; cancelAnimationFrame(rafId); }
+
+    // run ONLY while the tab is visible AND the hero is on screen (no double-run, no battery drain)
+    let docVisible = !document.hidden, heroOnScreen = true;
+    function update(){ (docVisible && heroOnScreen) ? start() : stop(); }
+    document.addEventListener('visibilitychange', ()=>{ docVisible = !document.hidden; update(); });
+    const heroEl = document.querySelector('.hero');
+    if('IntersectionObserver' in window && heroEl){
+      new IntersectionObserver((es)=>{ heroOnScreen = es[0].isIntersecting; update(); }, {threshold:0}).observe(heroEl);
+    }
+    update();
+  }
+})();
+</script>
+<script>
+(function(){
+  const btn = document.querySelector('.nav-toggle');
+  const drawer = document.getElementById('navDrawer');
+  if(!btn || !drawer) return;
+  function setOpen(open){
+    drawer.classList.toggle('open', open);
+    btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    btn.setAttribute('aria-label', open ? 'Menüyü kapat' : 'Menüyü aç');
+  }
+  btn.addEventListener('click', ()=> setOpen(!drawer.classList.contains('open')));
+  drawer.querySelectorAll('a').forEach(a => a.addEventListener('click', ()=> setOpen(false)));
+})();
+</script>
+</body>
+</html>

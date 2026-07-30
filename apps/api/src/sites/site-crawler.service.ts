@@ -140,10 +140,16 @@ export class SiteCrawlerService {
 
   private async fetchPage(url: string): Promise<string | null> {
     try {
-      const res = await fetch(url, {
+      // Cache-bust: WP.com / Cloudflare gibi edge cache'ler eski içerik veriyordu →
+      // audit eski title/FAQ/schema görüp YANLIŞ sonuç üretiyordu. Benzersiz query +
+      // no-cache header ile her zaman taze (origin) içerik çekiyoruz.
+      const bust = url + (url.includes('?') ? '&' : '?') + '_rc=' + Date.now();
+      const res = await fetch(bust, {
         headers: {
           'User-Agent': 'RanksUp-Crawler/1.0 (+https://ranksup.ai)',
           'Accept': 'text/html,application/xhtml+xml,application/xml,*/*',
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache',
         },
         signal: AbortSignal.timeout(15000),
         redirect: 'follow',
@@ -301,7 +307,9 @@ export class SiteCrawlerService {
 
     return {
       url,
-      title: $('title').text().trim() || $('h1').first().text().trim(),
+      // SADECE head'deki <title> — $('title').text() SVG ikon <title>'larını da
+      // birleştirip uzunluğu yanlış şişiriyordu (yanlış "title 60+ karakter").
+      title: ($('head title').first().text() || $('title').first().text()).trim() || $('h1').first().text().trim(),
       metaDescription: $('meta[name="description"]').attr('content') ?? '',
       h1: $('h1').first().text().trim(),
       h2s: h2s.slice(0, 10),

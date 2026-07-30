@@ -48,8 +48,9 @@ export class AuditService {
 
     this.log.log(`[${siteId}] Audit başlıyor: ${site.url}`);
 
-    // 1) Site crawl
-    const crawl = await this.crawler.crawl(site.url, 30);
+    // 1) Site crawl — orphan/internal-linking analizinin doğru olması için tüm
+    // siteyi tara (30 ile yarım kalıyordu → link grafiği eksik → yanlış orphan).
+    const crawl = await this.crawler.crawl(site.url, 100);
     this.log.log(`[${siteId}] ${crawl.pages.length} sayfa crawl edildi`);
 
     // 2) 14 kontrol noktası

@@ -1,7 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
+import fs from 'node:fs/promises';
+import path from 'node:path';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { decrypt, mdToHtml, parseFrontmatter } from '@luviai/shared';
 import { getAdapter } from '@luviai/adapters';
+import { ImageGeneratorService } from './image-generator.service.js';
 import { SocialAutoDraftService } from '../social/social-auto-draft.service.js';
 import { AiIndexingPingerService } from '../audit/ai-indexing-pinger.service.js';
 import { LlmsFullBuilderService } from '../audit/llms-full-builder.service.js';
@@ -115,6 +118,26 @@ ${inner}
 </html>`;
 }
 
+/** Markdown body'deki "Sıkça Sorulan Sorular" bölümünden FAQPage JSON-LD üretir (yoksa null). */
+function buildFaqPageLd(bodyMd: string): any | null {
+  const md = bodyMd ?? '';
+  const i = md.search(/##\s*S[ıi]k[çc]a\s+Sorulan\s+Sorular/i);
+  if (i < 0) return null;
+  const after = md.slice(i);
+  const nextH2 = after.slice(3).search(/\n##\s/);
+  const sec = nextH2 >= 0 ? after.slice(0, nextH2 + 3) : after;
+  const parts = sec.split(/\n###\s+/).slice(1);
+  const clean = (s: string) => s.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1').replace(/[#>*`_]/g, '').replace(/\s+/g, ' ').trim();
+  const mainEntity = parts.map((p) => {
+    const nl = p.indexOf('\n');
+    const q = clean(nl >= 0 ? p.slice(0, nl) : p);
+    const a = clean(nl >= 0 ? p.slice(nl + 1) : '');
+    return { '@type': 'Question', name: q, acceptedAnswer: { '@type': 'Answer', text: a } };
+  }).filter((q) => q.name && q.acceptedAnswer.text.length > 10);
+  if (mainEntity.length < 2) return null;
+  return { '@context': 'https://schema.org', '@type': 'FAQPage', mainEntity };
+}
+
 export interface PublishResult {
   targetId: string;
   targetType: string;
@@ -136,6 +159,7 @@ export class PublisherService {
 
   constructor(
     private readonly prisma: PrismaService,
+    private readonly imageGen: ImageGeneratorService,
     private readonly socialAutoDraft: SocialAutoDraftService,
     private readonly indexingPinger: AiIndexingPingerService,
     private readonly llmsFullBuilder: LlmsFullBuilderService,
@@ -175,13 +199,66 @@ export class PublisherService {
       return fm?.audio_url ?? null;
     })();
 
+    // GEO: body'de görünür SSS varsa eşleşen FAQPage schema ekle (zaten yoksa).
+    // Google FAQ rich-result politikası: schema görünür içerikle eşleşmeli — bu yüzden
+    // makaledeki gerçek SSS sorularından üretiyoruz, uydurmuyoruz.
+    if (!schemaJsonLd.some((s) => s?.['@type'] === 'FAQPage')) {
+      const faqLd = buildFaqPageLd(article.bodyMd ?? '');
+      if (faqLd) schemaJsonLd.push(faqLd);
+    }
+
+    // ── Hero görsel: yoksa veya placeholder ise gerçek görsel üret ──
+    // 05-visuals agent makaleye "placeholder-hero.webp" yazıyor; burada gerçeğini
+    // üretip hem og:image hem WordPress featured image (media upload) için kullanıyoruz.
+    let heroImageUrl: string | null = article.heroImageUrl ?? null;
+    let heroImageBase64: string | undefined;
+    let heroImageFilename: string | undefined;
+    let heroImageMime: string | undefined;
+    if (!heroImageUrl || /placeholder/i.test(heroImageUrl)) {
+      try {
+        const outPath = path.join(process.cwd(), 'public', 'blog', article.slug, 'hero.webp');
+        const prompt = `Professional, modern editorial blog header illustration for an article titled "${article.title}". Clean, high-quality, conceptual, relevant to the subject. No text, no words, no letters, no logos.`;
+        const gen = await this.imageGen.generate(
+          { prompt, outputPath: outPath, width: 1536, height: 1024, type: 'hero' },
+          { provider: process.env.IMAGE_PROVIDER },
+        );
+        if (gen.ok) {
+          const base = (process.env.NEXT_PUBLIC_API_URL ?? 'https://ranksup.ai').replace(/\/+$/, '');
+          heroImageUrl = `${base}/blog/${article.slug}/hero.webp`;
+          // WordPress media için en uyumlu format JPG byte'larını oku (yoksa webp)
+          try {
+            const buf = await fs.readFile(outPath.replace(/\.webp$/, '.jpg'));
+            heroImageBase64 = buf.toString('base64');
+            heroImageFilename = `${article.slug}-hero.jpg`;
+            heroImageMime = 'image/jpeg';
+          } catch {
+            const buf = await fs.readFile(outPath);
+            heroImageBase64 = buf.toString('base64');
+            heroImageFilename = `${article.slug}-hero.webp`;
+            heroImageMime = 'image/webp';
+          }
+          await this.prisma.article.update({ where: { id: article.id }, data: { heroImageUrl } }).catch(() => {});
+          this.log.log(`[${articleId}] hero görsel üretildi → ${heroImageUrl}`);
+        } else {
+          this.log.warn(`[${articleId}] hero görsel üretilemedi: ${gen.error}`);
+          heroImageUrl = null; // placeholder'ı body'ye koyma
+        }
+      } catch (err: any) {
+        this.log.warn(`[${articleId}] hero görsel hata: ${err.message}`);
+        heroImageUrl = null;
+      }
+    }
+
+    // Body markdown'daki placeholder hero referansını temizle (kırık img olmasın)
+    const cleanBodyMd = (article.bodyMd ?? '').replace(/!\[[^\]]*\]\(\s*placeholder-hero\.webp\s*\)/gi, '');
+
     const bodyHtml = renderArticleHtml({
-      bodyMd: article.bodyMd ?? '',
+      bodyMd: cleanBodyMd,
       title: article.title,
       metaTitle: article.metaTitle,
       metaDescription: article.metaDescription,
       canonical,
-      heroImageUrl: article.heroImageUrl,
+      heroImageUrl,
       siteName: article.site.name,
       schemaJsonLd,
       audioUrl,
@@ -214,7 +291,10 @@ export class PublisherService {
           metaTitle: article.metaTitle ?? undefined,
           metaDescription: article.metaDescription ?? undefined,
           category: article.category ?? undefined,
-          heroImageUrl: article.heroImageUrl ?? undefined,
+          heroImageUrl: heroImageUrl ?? undefined,
+          heroImageBase64,
+          heroImageFilename,
+          heroImageMime,
         });
 
         // Last used timestamp güncelle

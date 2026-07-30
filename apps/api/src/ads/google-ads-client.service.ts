@@ -88,6 +88,95 @@ export class GoogleAdsClientService {
   }
 
   /**
+   * Refresh token'dan access token (site-bagimsiz — keyword research icin).
+   * OAuth client: GOOGLE_OAUTH_CLIENT_ID/SECRET, yoksa GOOGLE_CLIENT_ID/SECRET fallback.
+   */
+  private async getAccessTokenFromRefresh(refreshToken: string): Promise<string | null> {
+    const clientId = process.env.GOOGLE_OAUTH_CLIENT_ID ?? process.env.GOOGLE_CLIENT_ID;
+    const clientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET ?? process.env.GOOGLE_CLIENT_SECRET;
+    if (!clientId || !clientSecret) {
+      this.log.warn('Ads OAuth client env yok (GOOGLE_OAUTH_CLIENT_ID/SECRET veya GOOGLE_CLIENT_ID/SECRET)');
+      return null;
+    }
+    try {
+      const res = await fetch('https://oauth2.googleapis.com/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          client_id: clientId,
+          client_secret: clientSecret,
+          refresh_token: refreshToken,
+          grant_type: 'refresh_token',
+        }),
+      });
+      if (!res.ok) throw new Error(`Token refresh ${res.status}: ${(await res.text()).slice(0, 200)}`);
+      return ((await res.json()) as any).access_token;
+    } catch (err: any) {
+      this.log.warn(`Ads access token (refresh): ${err.message}`);
+      return null;
+    }
+  }
+
+  /**
+   * Keyword Planner — anahtar kelime arama hacimleri (site-bagimsiz, keyword research).
+   * Docs: customers.generateKeywordIdeas (KeywordPlanIdeaService).
+   *
+   * Varsayilanlar: Turkiye (geoTargetConstants/2792) + Turkce (languageConstants/1037).
+   * customerId/refreshToken verilmezse env'den okunur
+   * (GOOGLE_ADS_CUSTOMER_ID / GOOGLE_ADS_REFRESH_TOKEN; customerId fallback = LOGIN_CUSTOMER_ID).
+   *
+   * NOT: Developer token "Basic" erisim seviyesinde olmali; "Test" hesaplar sifir doner.
+   */
+  async generateKeywordIdeas(opts: {
+    keywords: string[];
+    refreshToken?: string;
+    customerId?: string;
+    geoTargetId?: string;
+    languageId?: string;
+  }): Promise<Array<{ keyword: string; avgMonthlySearches: number; competition: string; competitionIndex: number | null }>> {
+    const refresh = opts.refreshToken ?? process.env.GOOGLE_ADS_REFRESH_TOKEN;
+    const customerId = (opts.customerId ?? process.env.GOOGLE_ADS_CUSTOMER_ID ?? process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID ?? '').replace(/-/g, '');
+    const devToken = process.env.GOOGLE_ADS_DEV_TOKEN;
+    if (!refresh) throw new Error('GOOGLE_ADS_REFRESH_TOKEN yok (Google Ads yetkilendirilmeli)');
+    if (!customerId) throw new Error('Google Ads customerId yok');
+    if (!devToken) throw new Error('GOOGLE_ADS_DEV_TOKEN env yok');
+
+    const accessToken = await this.getAccessTokenFromRefresh(refresh);
+    if (!accessToken) throw new Error('Ads access token alinamadi (OAuth client env eksik olabilir)');
+
+    const headers: Record<string, string> = {
+      'Authorization': `Bearer ${accessToken}`,
+      'developer-token': devToken,
+      'Content-Type': 'application/json',
+    };
+    if (process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID) {
+      headers['login-customer-id'] = process.env.GOOGLE_ADS_LOGIN_CUSTOMER_ID.replace(/-/g, '');
+    }
+
+    const body = {
+      keywordSeed: { keywords: opts.keywords },
+      geoTargetConstants: [`geoTargetConstants/${opts.geoTargetId ?? '2792'}`],
+      language: `languageConstants/${opts.languageId ?? '1037'}`,
+      keywordPlanNetwork: 'GOOGLE_SEARCH',
+    };
+
+    const res = await fetch(`https://googleads.googleapis.com/v21/customers/${customerId}:generateKeywordIdeas`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error(`generateKeywordIdeas ${res.status}: ${(await res.text()).slice(0, 300)}`);
+
+    const data = (await res.json()) as any;
+    return (data.results ?? []).map((r: any) => ({
+      keyword: r.text,
+      avgMonthlySearches: Number(r.keywordIdeaMetrics?.avgMonthlySearches ?? 0),
+      competition: r.keywordIdeaMetrics?.competition ?? 'UNKNOWN',
+      competitionIndex: r.keywordIdeaMetrics?.competitionIndex != null ? Number(r.keywordIdeaMetrics.competitionIndex) : null,
+    }));
+  }
+
+  /**
    * Mevcut kampanyalarin metriklerini cek (son 30g).
    */
   async getCampaignMetrics(siteId: string, externalId: string) {

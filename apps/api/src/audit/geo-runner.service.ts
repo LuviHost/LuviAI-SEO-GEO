@@ -43,21 +43,30 @@ export class GeoRunnerService {
       }
       const llmsTxt = await this.fetch(`${origin}/llms.txt`);
 
-      // Sample sayfa setini anasayfadan dahili linklerle topla
+      // Sample sayfa seti — GERÇEK içerik sayfalarını örnekle. Eskiden sadece
+      // anasayfa + ilk 5 menü linki örnekleniyordu → blog postları (FAQ/schema
+      // bunlarda) hiç görülmüyordu, GEO skoru yanlış düşük çıkıyordu. Artık önce
+      // sitemap'teki post URL'lerini, sonra anasayfa linklerini kullanıyoruz;
+      // taksonomi/nav/yasal sayfaları eliyoruz.
       const $home = cheerio.load(homepage);
       const samplePages: { url: string; html: string }[] = [{ url: origin, html: homepage }];
-      const candidates: string[] = [];
+      const homeLinks: string[] = [];
       $home("a[href]").each((_, el) => {
         const href = $home(el).attr("href");
         if (!href) return;
         try {
-          const abs = new URL(href, origin).href;
-          if (abs.startsWith(origin) && abs !== origin && !candidates.includes(abs)) {
-            candidates.push(abs);
-          }
+          const abs = new URL(href, origin).href.split("#")[0];
+          if (abs.startsWith(origin) && abs !== origin && !homeLinks.includes(abs)) homeLinks.push(abs);
         } catch {}
       });
-      for (const c of candidates.slice(0, 5)) {
+      const sitemapUrls = await this.collectContentUrls(origin);
+      const navRe = /\/(category|categories|tag|tags|author|page|wp-[a-z]|feed|cdn-cgi|amp)\/|\/(hakkimizda|iletisim|contact|about|gizlilik|privacy|kvkk|cerez|cookie)\/?$/i;
+      const isContent = (u: string) => u.startsWith(origin) && u !== origin && !navRe.test(u);
+      const datedFirst = (a: string, b: string) =>
+        (/\/\d{4}\/\d{2}\//.test(b) ? 1 : 0) - (/\/\d{4}\/\d{2}\//.test(a) ? 1 : 0);
+      const candidates = [...new Set([...sitemapUrls, ...homeLinks])].filter(isContent).sort(datedFirst);
+      const chosen = (candidates.length ? candidates : homeLinks).slice(0, 8);
+      for (const c of chosen) {
         const html = await this.fetch(c);
         if (html) samplePages.push({ url: c, html });
       }
@@ -183,10 +192,34 @@ export class GeoRunnerService {
     return { schemaScore, faqScore, defScore, headingScore, metaScore, freshScore, citationScore };
   }
 
+  /** Sitemap'ten içerik (öncelikle post) URL'lerini toplar — GEO örneklemesi için. */
+  private async collectContentUrls(origin: string): Promise<string[]> {
+    const out: string[] = [];
+    let xml: string | null = null;
+    for (const c of [`${origin}/sitemap_index.xml`, `${origin}/sitemap.xml`, `${origin}/wp-sitemap.xml`]) {
+      const x = await this.fetch(c);
+      if (x && /<(sitemapindex|urlset)/i.test(x)) { xml = x; break; }
+    }
+    if (!xml) return out;
+    const locs = (s: string) => [...s.matchAll(/<loc>\s*([^<\s]+)\s*<\/loc>/gi)].map((m) => m[1]);
+    if (/<sitemapindex/i.test(xml)) {
+      const subs = locs(xml);
+      const postSubs = subs.filter((s) => /post/i.test(s));
+      const chosen = (postSubs.length ? postSubs : subs).slice(0, 2);
+      for (const sub of chosen) {
+        const sx = await this.fetch(sub);
+        if (sx) out.push(...locs(sx));
+      }
+    } else {
+      out.push(...locs(xml));
+    }
+    return out;
+  }
+
   private async fetch(url: string): Promise<string | null> {
     try {
       const res = await fetch(url, {
-        headers: { "User-Agent": "RanksUp-GEO/1.0" },
+        headers: { "User-Agent": "RanksUp-GEO/1.0", "Cache-Control": "no-cache", "Pragma": "no-cache" },
         signal: AbortSignal.timeout(12000),
       });
       if (!res.ok) return null;

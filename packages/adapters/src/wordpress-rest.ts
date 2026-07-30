@@ -18,16 +18,53 @@ export class WordPressRestAdapter extends PublishAdapter {
     const { siteUrl, username, appPassword } = this.credentials;
     const auth = Buffer.from(`${username}:${appPassword}`).toString('base64');
 
+    let content = payload.bodyHtml;
+    let featuredMediaId: number | undefined;
+
+    // Hero görseli WP media kütüphanesine yükle → featured image (öne çıkan görsel) yap.
+    // Liste küçük resmi + Yoast og:image bundan gelir. Tema tek-yazıda da gösterir.
+    if (payload.heroImageBase64) {
+      try {
+        const buf = Buffer.from(payload.heroImageBase64, 'base64');
+        const filename = payload.heroImageFilename || 'hero.jpg';
+        const mime = payload.heroImageMime || 'image/jpeg';
+        const up = await fetch(`${siteUrl}/wp-json/wp/v2/media`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Basic ${auth}`,
+            'Content-Type': mime,
+            'Content-Disposition': `attachment; filename="${filename}"`,
+          },
+          body: buf,
+        });
+        if (up.ok) {
+          const media: any = await up.json();
+          featuredMediaId = media.id;
+          // Featured image tema tarafından üstte gösterileceği için body'deki
+          // hero <img>'i kaldır (çift görsel olmasın).
+          if (payload.heroImageUrl) {
+            const esc = payload.heroImageUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            content = content.replace(new RegExp(`<img[^>]*src=["']${esc}["'][^>]*>`, 'gi'), '');
+          }
+        }
+      } catch { /* media upload best-effort — yine de post oluştur */ }
+    }
+    // Kalıntı placeholder hero img'lerini her durumda temizle (kırık görsel olmasın)
+    content = content.replace(/<img[^>]*placeholder-hero\.webp[^>]*>/gi, '');
+
+    const postBody: Record<string, any> = {
+      title: payload.title,
+      slug: payload.slug,
+      content,
+      status: this.config.postStatus ?? 'publish',
+      excerpt: payload.metaDescription,
+    };
+    if (featuredMediaId) postBody.featured_media = featuredMediaId;
+
     const res = await fetch(`${siteUrl}/wp-json/wp/v2/posts`, {
       method: 'POST',
       headers: { 'Authorization': `Basic ${auth}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        title: payload.title,
-        slug: payload.slug,
-        content: payload.bodyHtml,
-        status: this.config.postStatus ?? 'publish',
-        excerpt: payload.metaDescription,
-      }),
+      body: JSON.stringify(postBody),
     });
     if (!res.ok) {
       return { ok: false, error: `WP REST ${res.status}: ${await res.text()}` };

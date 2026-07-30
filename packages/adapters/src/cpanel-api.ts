@@ -115,6 +115,72 @@ export class CpanelApiAdapter extends PublishAdapter {
     }
   }
 
+  get supportsRootFiles(): boolean { return true; }
+
+  /**
+   * Web root'a ham dosya yazar (robots.txt / llms.txt / sitemap.xml).
+   * config.rootPath = web kök dizini (varsayılan "public_html").
+   */
+  async putRootFile(filename: string, content: string, contentType = 'text/plain; charset=utf-8'): Promise<PublishResult> {
+    const host = this.credentials.host ?? this.credentials.cpanelUrl;
+    const { username, apiToken } = this.credentials;
+    let rootPath = String(this.config.rootPath ?? 'public_html').replace(/^\/+/, '').replace(/\/+$/, '');
+    if (!rootPath) rootPath = 'public_html';
+
+    if (!host || !username || !apiToken) {
+      return { ok: false, error: `cPanel credentials eksik: host=${!!host}, username=${!!username}, apiToken=${!!apiToken}.` };
+    }
+
+    const url = `${host.replace(/\/$/, '')}/execute/Fileman/upload_files`;
+    const boundary = `----LuviAIBoundary${Date.now()}`;
+    const body = [
+      `--${boundary}`,
+      `Content-Disposition: form-data; name="dir"`,
+      '',
+      rootPath,
+      `--${boundary}`,
+      `Content-Disposition: form-data; name="overwrite"`,
+      '',
+      '1',
+      `--${boundary}`,
+      `Content-Disposition: form-data; name="file-1"; filename="${filename}"`,
+      `Content-Type: ${contentType}`,
+      '',
+      content,
+      `--${boundary}--`,
+      '',
+    ].join('\r\n');
+
+    try {
+      const undici = await getUndiciFetch();
+      const fetchFn = undici?.fetch ?? fetch;
+      const fetchOpts: any = {
+        method: 'POST',
+        headers: {
+          'Authorization': `cpanel ${username}:${apiToken}`,
+          'Content-Type': `multipart/form-data; boundary=${boundary}`,
+        },
+        body,
+      };
+      if (undici?.agent) fetchOpts.dispatcher = undici.agent;
+      const res = await fetchFn(url, fetchOpts);
+      if (!res.ok) {
+        return { ok: false, error: `cPanel HTTP ${res.status}: ${(await res.text().catch(() => '')).slice(0, 200)}` };
+      }
+      const data: any = await res.json();
+      if (data.status !== 1) {
+        return { ok: false, error: `cPanel API hata: ${data.errors?.[0] ?? JSON.stringify(data).slice(0, 200)}` };
+      }
+      const publicBase = String(this.config.publicBaseUrl ?? '').trim().replace(/\/+$/, '')
+        || `https://${new URL(host).hostname.replace(':2083', '').replace(/^cpanel\./, '')}`;
+      return { ok: true, externalUrl: `${publicBase}/${filename}`, externalId: filename };
+    } catch (err: any) {
+      const cause = err?.cause;
+      const causeMsg = cause?.code ? `${cause.code}: ${cause.message ?? ''}` : (cause?.message ?? '');
+      return { ok: false, error: `cPanel bağlantı hatası: ${[err.message, causeMsg].filter(Boolean).join(' | ')}` };
+    }
+  }
+
   async test(): Promise<boolean> {
     const host = this.credentials.host ?? this.credentials.cpanelUrl;
     const { username, apiToken } = this.credentials;

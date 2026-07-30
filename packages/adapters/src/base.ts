@@ -7,6 +7,11 @@ export interface PublishPayload {
   metaDescription?: string;
   category?: string;
   heroImageUrl?: string;
+  // Hero görsel ham verisi — WordPress media'ya yükleyip featured image yapmak için.
+  // PublisherService üretip base64 olarak geçer; adapter destekliyorsa kullanır.
+  heroImageBase64?: string;
+  heroImageFilename?: string;   // örn. "slug-hero.jpg"
+  heroImageMime?: string;       // örn. "image/jpeg"
   schemaMarkup?: Record<string, any>[];
 }
 
@@ -90,5 +95,28 @@ export abstract class PublishAdapter {
    */
   async pushLlms(_payload: LlmsPushPayload): Promise<LlmsPushResult> {
     return { ok: false, skipped: 'unsupported' };
+  }
+
+  /**
+   * Bu adapter sunucu köküne GERÇEK dosya (robots.txt, llms.txt, sitemap.xml)
+   * yazabiliyor mu? FTP / SFTP / cPanel gibi dosya-tabanlı adapter'lar → true.
+   * WordPress REST gibi yalnızca-CMS adapter'lar → false (kök dosya yazamaz;
+   * publish() çağrılırsa "robots.txt" başlıklı çöp bir post oluştururdu).
+   */
+  get supportsRootFiles(): boolean {
+    return false;
+  }
+
+  /**
+   * Sunucu köküne ham dosya yazar (robots.txt / llms.txt / sitemap.xml gibi).
+   * publish()'ten farkı: `slug.html` DEĞİL — verilen dosya adı birebir, web root'a.
+   * Yalnızca supportsRootFiles=true adapter'lar override eder; diğerleri net
+   * yönlendirici hata döner.
+   */
+  async putRootFile(_filename: string, _content: string, _contentType?: string): Promise<PublishResult> {
+    return {
+      ok: false,
+      error: 'Bu hedef kök dosya (robots.txt / llms.txt / sitemap.xml) yazımını desteklemiyor. WordPress REST API kök dosya yazamaz — bu dosyalar için SFTP / FTP / cPanel publish target ekleyin.',
+    };
   }
 }

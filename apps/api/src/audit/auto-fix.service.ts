@@ -43,15 +43,33 @@ export class AutoFixService {
     const site = await this.prisma.site.findUniqueOrThrow({
       where: { id: siteId },
       include: {
-        publishTargets: { where: { isDefault: true, isActive: true }, take: 1 },
+        publishTargets: { where: { isActive: true } },
         brain: true,
       },
     });
 
-    const target = site.publishTargets[0];
-    if (!target) {
-      this.log.warn(`[${siteId}] Default publish target yok, fix uygulanamadı`);
+    if (site.publishTargets.length === 0) {
+      this.log.warn(`[${siteId}] Aktif publish target yok, fix uygulanamadı`);
       return { applied: [], skipped: fixes, reason: 'no-publish-target' };
+    }
+
+    // Kök dosyalar (robots.txt / llms.txt / sitemap.xml) yalnızca dosya-tabanlı
+    // adapter'larla (SFTP / FTP / cPanel) yazılabilir. WordPress REST adapter'ı
+    // kök dosya yazamaz — publish() çağrılsaydı "robots.txt" başlıklı çöp bir
+    // blog postu oluştururdu. Bu yüzden default'u tercih edip, değilse ilk
+    // dosya-yazabilen aktif target'ı seçiyoruz.
+    const target = this.pickRootFileTarget(site.publishTargets);
+    if (!target) {
+      this.log.warn(`[${siteId}] Kök dosya yazabilen target yok (SFTP/FTP/cPanel gerekli)`);
+      return {
+        applied: [],
+        skipped: fixes,
+        reason: 'no-file-target',
+        errors: fixes.map((fix) => ({
+          fix,
+          error: 'robots.txt / llms.txt / sitemap.xml için dosya yazabilen bir publish target gerekli (SFTP / FTP / cPanel). WordPress REST API kök dosya yazamaz — Yayın Hedefleri\'nden bir SFTP target ekleyin.',
+        })),
+      };
     }
 
     // Crawl bir kere
@@ -139,23 +157,45 @@ export class AutoFixService {
       return { ok: false, error: `Adapter yok: ${target.type}` };
     }
 
-    // Şifrelenmiş credentials decrypt
-    const credentials: Record<string, any> = {};
-    for (const [k, v] of Object.entries(target.credentials as Record<string, any>)) {
-      credentials[k] = typeof v === 'string' && v.includes(':')
-        ? this.tryDecrypt(v)
-        : v;
-    }
+    const adapter = new Adapter(this.decryptCreds(target.credentials as Record<string, any>), target.config ?? {});
 
-    const adapter = new Adapter(credentials, target.config ?? {});
+    // Kök dosya yazımı — slug.html DEĞİL, dosya adı birebir web root'a.
+    const contentType = filename.endsWith('.xml')
+      ? 'application/xml; charset=utf-8'
+      : 'text/plain; charset=utf-8';
+    return adapter.putRootFile(filename, content, contentType);
+  }
 
-    // Auto-fix dosyaları root'a yazılmalı (sitemap.xml, robots.txt, llms.txt)
-    return adapter.publish({
-      slug: filename.replace(/\.[^.]+$/, ''),
-      title: filename,
-      bodyHtml: content,
-      bodyMd: content,
+  /** Aktif target'lar arasından kök dosya yazabilen (SFTP/FTP/cPanel) ilkini seç; default'u tercih et. */
+  private pickRootFileTarget(targets: any[]): any | null {
+    const capable = targets.filter((t) => {
+      const Adapter = getAdapter(t.type) as any;
+      if (!Adapter) return false;
+      try {
+        // Yetenek kontrolü creds gerektirmez — boş constructor yeterli.
+        return new Adapter({}, {}).supportsRootFiles === true;
+      } catch {
+        return false;
+      }
     });
+    if (capable.length === 0) return null;
+    return capable.find((t) => t.isDefault) ?? capable[0];
+  }
+
+  /** credentials decrypt — hem yeni {enc} formatı hem eski per-field formatı. */
+  private decryptCreds(creds: Record<string, any>): Record<string, any> {
+    if (!creds || typeof creds !== 'object') return {};
+    if (typeof creds.enc === 'string' && creds.enc.includes(':')) {
+      try {
+        const parsed = JSON.parse(decrypt(creds.enc));
+        if (parsed && typeof parsed === 'object') return parsed;
+      } catch { /* per-field'e düş */ }
+    }
+    const out: Record<string, any> = {};
+    for (const [k, v] of Object.entries(creds)) {
+      out[k] = typeof v === 'string' && v.includes(':') ? this.tryDecrypt(v) : v;
+    }
+    return out;
   }
 
   private tryDecrypt(value: string): string {

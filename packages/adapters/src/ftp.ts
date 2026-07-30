@@ -34,4 +34,27 @@ export class FtpAdapter extends PublishAdapter {
     } catch { return false; }
     finally { client.close(); }
   }
+
+  get supportsRootFiles(): boolean { return true; }
+
+  /**
+   * Web root'a ham dosya yazar (robots.txt / llms.txt / sitemap.xml).
+   * config.rootPath = web kök dizini (genelde "public_html"). Boşsa FTP'nin
+   * indiği dizine yazar.
+   */
+  async putRootFile(filename: string, content: string): Promise<PublishResult> {
+    const { host, user, password, secure } = this.credentials;
+    const rootPath = String(this.config.rootPath ?? this.config.docRoot ?? '').replace(/^\/+|\/+$/g, '');
+    const remoteFile = rootPath ? `${rootPath}/${filename}` : filename;
+    const client = new Client();
+    try {
+      await client.access({ host, user, password, secure: !!secure });
+      await client.uploadFrom(Readable.from([content]), remoteFile);
+      return { ok: true, externalUrl: `ftp://${host}/${remoteFile}` };
+    } catch (err: any) {
+      return { ok: false, error: err.message };
+    } finally {
+      client.close();
+    }
+  }
 }
