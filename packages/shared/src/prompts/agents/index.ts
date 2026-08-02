@@ -27,6 +27,40 @@ export interface AgentContext {
 }
 
 /**
+ * CTA hedefini GERÇEK sayfa envanterinden bulur.
+ *
+ * Daha önce burada `${siteUrl}/contact` sabiti vardı. Türkçe sitelerde bu
+ * sayfa yok (`/iletisim` var), dolayısıyla üretilen her makalenin CTA'sı
+ * 404'e gidiyordu. Üstelik link doğrulayıcı bunu onaramıyor: "contact" ile
+ * "iletisim" ortak kelime taşımadığı için link tamamen siliniyor ve makale
+ * CTA'sız kalıyordu.
+ *
+ * Artık envanterde iletişim/teklif sayfası aranıyor; bulunamazsa anasayfaya
+ * düşülüyor. Var olmayan bir yol asla üretilmiyor.
+ */
+function resolveCtaTarget(ctx: AgentContext): string {
+  if (ctx.whmcsCart) return ctx.whmcsCart;
+
+  const pages = ctx.sitePages ?? [];
+  // Öncelik sırası: iletişim > teklif/randevu > anasayfa
+  const PATTERNS = [
+    /\/(iletisim|iletişim|contact|contact-us)\/?$/i,
+    /\/(teklif|teklif-al|bize-ulasin|bize-ulaşın|randevu|quote|get-a-quote)\/?$/i,
+  ];
+  for (const re of PATTERNS) {
+    const hit = pages.find((p) => {
+      try {
+        return re.test(new URL(p.url).pathname);
+      } catch {
+        return re.test(p.url);
+      }
+    });
+    if (hit) return hit.url;
+  }
+  return ctx.siteUrl;
+}
+
+/**
  * Sitenin gerçek sayfalarını prompt'a beyaz liste olarak koyar.
  *
  * Bu blok olmadan yazar ajanı iç link URL'lerini uydururdu: konuyla alakalı
@@ -133,7 +167,9 @@ ${(ctx.brain.glossary ?? []).slice(0, 20).map(g => `- ${g.term} → ${g.translat
 2. AI klişeleri yasak: "günümüzde", "delve", "tapestry", "robust", "bu makalede", "şunu unutmayalım"
 3. Cümle ortalama 14 kelime, max 22
 4. Pasif çatı yerine aktif kullan
-5. CTA hedef: ${ctx.whmcsCart ?? `${ctx.siteUrl}/contact`}`;
+5. CTA hedef: ${resolveCtaTarget(ctx)}
+   (Bu URL gerçek ve doğrulanmıştır. CTA linki verirken BUNU kullan,
+    "/contact" gibi bir yol uydurma.)`;
 }
 
 // ────────────────────────────────────────────────────────────
