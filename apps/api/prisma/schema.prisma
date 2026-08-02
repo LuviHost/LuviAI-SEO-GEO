@@ -311,6 +311,12 @@ model Brain {
   seoStrategy   Json   // { pillars: [{ url, clusters: [...] }] }
   glossary      Json   // [{ term, translation, note }]
 
+  // Gercek site sayfa envanteri — crawl'dan gelir, AI uretmez.
+  // Yazar ajani IC LINK verirken SADECE buradaki URL'leri kullanabilir.
+  // [{ url, title, h1 }]
+  sitePages     Json?
+  sitePagesAt   DateTime?
+
   // Sözlük versiyonları (ilerleme için)
   version       Int    @default(1)
   generatedBy   String @default("auto") // auto | manual | hybrid

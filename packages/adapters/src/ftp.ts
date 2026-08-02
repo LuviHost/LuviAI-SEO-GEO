@@ -35,6 +35,9 @@ export class FtpAdapter extends PublishAdapter {
     finally { client.close(); }
   }
 
+  /** Diske gercek .html dosyasi yazar — tam sayfa gerekir. */
+  get needsFullPage(): boolean { return true; }
+
   get supportsRootFiles(): boolean { return true; }
 
   /**

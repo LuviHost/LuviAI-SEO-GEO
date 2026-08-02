@@ -6,6 +6,7 @@ import { SiteCrawlerService } from './site-crawler.service.js';
 import { PlatformDetectorService } from './platform-detector.service.js';
 import { NicheDetectorService } from './niche-detector.service.js';
 import { PageRendererService } from './page-renderer.service.js';
+import { SiteUrlInventoryService } from './site-url-inventory.service.js';
 import { DemoSeederService } from './demo-seeder.service.js';
 import { SiteAiKeysController } from './site-ai-keys.controller.js';
 import { SiteAiKeysService } from './site-ai-keys.service.js';
@@ -24,7 +25,7 @@ import { AuthModule } from '../auth/auth.module.js';
 @Module({
   imports: [AuthModule],
   controllers: [SitesController, SiteAiKeysController],
-  providers: [SitesService, BrainGeneratorService, SiteCrawlerService, PlatformDetectorService, NicheDetectorService, PageRendererService, DemoSeederService, SiteAiKeysService],
-  exports: [SitesService, BrainGeneratorService, SiteCrawlerService, PlatformDetectorService, NicheDetectorService, PageRendererService, DemoSeederService, SiteAiKeysService],
+  providers: [SitesService, BrainGeneratorService, SiteCrawlerService, PlatformDetectorService, NicheDetectorService, PageRendererService, SiteUrlInventoryService, DemoSeederService, SiteAiKeysService],
+  exports: [SitesService, BrainGeneratorService, SiteCrawlerService, PlatformDetectorService, NicheDetectorService, PageRendererService, SiteUrlInventoryService, DemoSeederService, SiteAiKeysService],
 })
 export class SitesModule {}

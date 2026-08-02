@@ -11,6 +11,13 @@ import type { PublishPayload, PublishResult } from './base.js';
  * kullanıcılar için ideal.
  */
 export class GithubAdapter extends PublishAdapter {
+  /**
+   * format=html iken repoya dogrudan servis edilebilir bir .html dosyasi yazar
+   * (GitHub Pages vb.) — tam sayfa gerekir. format=markdown iken bodyMd
+   * kullanildigi icin bu bayrak zararsizdir.
+   */
+  get needsFullPage(): boolean { return true; }
+
   async publish(payload: PublishPayload): Promise<PublishResult> {
     const { token, owner, repo, branch = 'main' } = this.credentials;
     const {

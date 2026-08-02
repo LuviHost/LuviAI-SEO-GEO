@@ -32,6 +32,9 @@ export class SftpAdapter extends PublishAdapter {
     finally { try { await sftp.end(); } catch {} }
   }
 
+  /** Diske gercek .html dosyasi yazar — tam sayfa gerekir. */
+  get needsFullPage(): boolean { return true; }
+
   get supportsRootFiles(): boolean { return true; }
 
   /**

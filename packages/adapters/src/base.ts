@@ -108,6 +108,23 @@ export abstract class PublishAdapter {
   }
 
   /**
+   * Bu adapter TAM bir HTML sayfası mı bekliyor (<!DOCTYPE html> + <head> + <style>),
+   * yoksa CMS gövdesine girecek bir HTML PARÇASI mı?
+   *
+   * FTP / SFTP / cPanel / ZIP gibi dosya-tabanlı hedefler diske gerçek bir .html
+   * dosyası yazar → tam sayfa gerekir (true).
+   *
+   * WordPress / Ghost / Shopify / Webflow / Strapi gibi CMS'ler içeriği kendi
+   * temasının içine gömer → tam sayfa gönderilirse post gövdesine <style>,
+   * ikinci bir <header> navigasyonu ve ikinci bir <footer> sızar; <style>
+   * içindeki `body{...}` kuralı temanın tipografisini de ezer. Bu yüzden
+   * varsayılan false ve publisher onlara sadece <article> gövdesini verir.
+   */
+  get needsFullPage(): boolean {
+    return false;
+  }
+
+  /**
    * Sunucu köküne ham dosya yazar (robots.txt / llms.txt / sitemap.xml gibi).
    * publish()'ten farkı: `slug.html` DEĞİL — verilen dosya adı birebir, web root'a.
    * Yalnızca supportsRootFiles=true adapter'lar override eder; diğerleri net

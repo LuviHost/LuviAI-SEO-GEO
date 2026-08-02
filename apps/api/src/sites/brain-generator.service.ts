@@ -59,17 +59,34 @@ export class BrainGeneratorService {
     this.log.log(`${siteId}: ${crawlResult.pages.length} sayfa crawl edildi, AI analizi başlıyor`);
     const brain = await this.analyzeWithAI(site, crawlResult);
 
+    // ── Gerçek sayfa envanteri ────────────────────────────────
+    // Crawl sonucu bugüne kadar sadece prompt kurmak için kullanılıp atılıyordu.
+    // Artık kalıcı: yazar ajanı iç link verirken SADECE bu listeyi kullanabilir.
+    const sitePages = crawlResult.pages.map((p) => ({
+      url: p.url,
+      title: (p.title || p.h1 || '').slice(0, 160),
+      h1: (p.h1 || '').slice(0, 160),
+    }));
+
+    // AI'ın ürettiği pillar URL'lerini gerçek envantere karşı doğrula.
+    // Uydurulmuş olanlar (404) sessizce elenir — yoksa yazara yanlış hedef gider.
+    brain.seoStrategy = this.validatePillars(brain.seoStrategy, sitePages, site.url, siteId);
+
     // DB'ye yaz
     await this.prisma.brain.upsert({
       where: { siteId },
       create: {
         siteId,
         ...brain,
-      },
+        sitePages,
+        sitePagesAt: new Date(),
+      } as any,
       update: {
         ...brain,
+        sitePages,
+        sitePagesAt: new Date(),
         version: { increment: 1 },
-      },
+      } as any,
     });
 
     // Site status güncelle
@@ -84,6 +101,56 @@ export class BrainGeneratorService {
   private shouldRegenerate(updatedAt: Date): boolean {
     // 30 günden eski ise yeniden üret
     return Date.now() - updatedAt.getTime() > 30 * 24 * 60 * 60 * 1000;
+  }
+
+  /**
+   * AI'ın ürettiği seoStrategy.pillars[].url alanlarını gerçek crawl envanterine
+   * karşı doğrular. Eşleşmeyen (uydurulmuş) pillar'lar elenir.
+   *
+   * Neden: Claude prompt'ta "/sayfa-yolu" formatı istendiği için var olmayan ama
+   * makul görünen yollar üretebiliyor. Bu URL'ler brainContext üzerinden yazar
+   * ajanına geçip makaleye 404 iç link olarak giriyordu.
+   */
+  private validatePillars(
+    seoStrategy: any,
+    sitePages: Array<{ url: string; title: string }>,
+    siteUrl: string,
+    siteId: string,
+  ): any {
+    const strategy = seoStrategy ?? {};
+    const pillars: any[] = Array.isArray(strategy.pillars) ? strategy.pillars : [];
+    if (pillars.length === 0 || sitePages.length === 0) return strategy;
+
+    // Gerçek path kümesi — trailing slash ve case normalize
+    const norm = (u: string): string => {
+      try {
+        const parsed = u.startsWith('http') ? new URL(u) : new URL(u, siteUrl);
+        let p = parsed.pathname.toLowerCase();
+        if (p.length > 1 && p.endsWith('/')) p = p.slice(0, -1);
+        return p;
+      } catch {
+        return '';
+      }
+    };
+    const realPaths = new Set(sitePages.map((p) => norm(p.url)).filter(Boolean));
+
+    const kept: any[] = [];
+    const dropped: string[] = [];
+    for (const pillar of pillars) {
+      const path = norm(String(pillar?.url ?? ''));
+      if (path && realPaths.has(path)) {
+        kept.push({ ...pillar, url: path });
+      } else {
+        dropped.push(String(pillar?.url ?? '(bos)'));
+      }
+    }
+
+    if (dropped.length > 0) {
+      this.log.warn(
+        `${siteId}: ${dropped.length} uydurma pillar URL elendi → ${dropped.join(', ')}`,
+      );
+    }
+    return { ...strategy, pillars: kept };
   }
 
   private async analyzeWithAI(site: any, crawl: CrawlResult): Promise<any> {
@@ -143,7 +210,7 @@ Yukarıdaki prensiplere göre brandVoice'u doldur. Mock değer yazma:
     "geoQueries": ["Perplexity/SearchGPT gibi AI aramada kullanıcının yazacağı 4-6 sorgu — 'en iyi X araçları', 'X için alternatif', 'X vs Y' tarzı kıyaslama/liste sorguları"],
     "pillars": [
       {
-        "url": "/sayfa-yolu",
+        "url": "AŞAĞIDAKİ 'Gerçek sayfa URL listesi'nden BİREBİR kopyalanmış yol — uydurma YASAK",
         "name": "pillar adı",
         "clusters": ["cluster makale slug 1", "cluster makale slug 2"]
       }
@@ -163,6 +230,9 @@ Sadece JSON döndür. Açıklama, kod-fence dışı text yazma.
 # Site URL: ${site.url}
 # Niche (kullanıcı söyledi): ${site.niche ?? 'belirtilmemiş'}
 # Dil: ${site.language}
+
+# Gerçek sayfa URL listesi (pillars[].url SADECE buradan seçilir, uydurma YASAK):
+${crawl.pages.map((p) => `- ${new URL(p.url).pathname}  →  ${p.title || p.h1 || ''}`.trim()).join('\n')}
 
 # Sayfa örnekleri:
 ${pageSummaries}`;

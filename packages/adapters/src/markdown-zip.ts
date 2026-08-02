@@ -29,5 +29,8 @@ export class MarkdownZipAdapter extends PublishAdapter {
     });
   }
 
+  /** ZIP icine acilabilir bir .html dosyasi koyar — tam sayfa gerekir. */
+  get needsFullPage(): boolean { return true; }
+
   async test() { return true; }
 }

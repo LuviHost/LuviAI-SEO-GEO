@@ -8,6 +8,58 @@ import { ImageGeneratorService } from './image-generator.service.js';
 import { SocialAutoDraftService } from '../social/social-auto-draft.service.js';
 import { AiIndexingPingerService } from '../audit/ai-indexing-pinger.service.js';
 import { LlmsFullBuilderService } from '../audit/llms-full-builder.service.js';
+import { LinkValidatorService } from './link-validator.service.js';
+import { SiteUrlInventoryService } from '../sites/site-url-inventory.service.js';
+
+/**
+ * Markdown body'yi CMS gövdesine girecek HTML PARÇASI haline getirir.
+ *
+ * WordPress / Ghost / Shopify gibi hedefler içeriği kendi temasının içine
+ * gömer. Onlara tam sayfa (<!DOCTYPE html> + <head> + <style>) göndermek
+ * post gövdesine <style> bloğu, ikinci bir site navigasyonu ve ikinci bir
+ * footer sızdırır; ayrıca <style> içindeki `body{...}` kuralı temanın kendi
+ * tipografisini ezer. Bu yüzden CMS hedefleri sadece bu parçayı alır.
+ *
+ * Schema JSON-LD burada da yer alır: WordPress <script type="application/ld+json">
+ * bloğunu post gövdesinde korur, böylece GEO/AEO sinyali kaybolmaz.
+ */
+function renderArticleFragment(opts: {
+  bodyMd: string;
+  heroImageUrl?: string | null;
+  schemaJsonLd?: any[] | null;
+  audioUrl?: string | null;
+  trackerSiteId?: string | null;
+}): string {
+  const parsed = parseFrontmatter(opts.bodyMd ?? '');
+  const md = (parsed.content || opts.bodyMd || '').trim();
+
+  // Bastaki "# H1" satirini at: CMS zaten post basligini <h1> olarak basiyor.
+  // Ikisi birden kalirsa sayfada iki H1 olur (SEO hatasi). Sadece EN BASTAKI
+  // H1 dusurulur; govde icinde H1 kullanilmadigi icin gerisi korunur.
+  const withoutH1 = md.replace(/^#\s+[^\n]*\n+/, '');
+
+  const inner = mdToHtml(withoutH1);
+  const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+
+  const schemaTags = Array.isArray(opts.schemaJsonLd) && opts.schemaJsonLd.length > 0
+    ? opts.schemaJsonLd.map((s) => `<script type="application/ld+json">${JSON.stringify(s)}</script>`).join('\n')
+    : '';
+
+  const audioBlock = opts.audioUrl ? `
+<audio controls preload="metadata" style="width:100%;margin:1rem 0">
+  <source src="${esc(opts.audioUrl)}" type="audio/mpeg">
+</audio>` : '';
+
+  // AI crawler tracker — tam sayfa render'indaki davranisla ayni kalsin
+  const trackerScript = opts.trackerSiteId
+    ? `<script async src="${process.env.NEXT_PUBLIC_API_URL ?? 'https://ranksup.ai'}/api/tracker.js?site=${esc(opts.trackerSiteId)}"></script>`
+    : '';
+
+  // Hero <img>: WordPress adapter featured image yüklerse bunu kendisi siler.
+  const hero = opts.heroImageUrl ? `<img src="${esc(opts.heroImageUrl)}" alt="" class="hero">` : '';
+
+  return [hero, audioBlock, inner, schemaTags, trackerScript].filter(Boolean).join('\n');
+}
 
 /**
  * Markdown body'yi tam bir HTML sayfasi haline getir.
@@ -15,6 +67,10 @@ import { LlmsFullBuilderService } from '../audit/llms-full-builder.service.js';
  * - <html lang="tr"> + UTF-8 + viewport
  * - SEO meta (title, description, canonical, og)
  * - Inline minimal CSS — okunabilir, mobile-first
+ *
+ * SADECE dosya-tabanli hedefler icin (FTP/SFTP/cPanel/ZIP/GitHub Pages) —
+ * bunlar diske gercek bir .html dosyasi yazar. CMS hedefleri
+ * renderArticleFragment() kullanir.
  */
 function renderArticleHtml(opts: {
   bodyMd: string;
@@ -163,6 +219,8 @@ export class PublisherService {
     private readonly socialAutoDraft: SocialAutoDraftService,
     private readonly indexingPinger: AiIndexingPingerService,
     private readonly llmsFullBuilder: LlmsFullBuilderService,
+    private readonly linkValidator: LinkValidatorService,
+    private readonly urlInventory: SiteUrlInventoryService,
   ) {}
 
   async publishArticle(articleId: string, targetIds: string[]): Promise<PublishResult[]> {
@@ -250,9 +308,28 @@ export class PublisherService {
     }
 
     // Body markdown'daki placeholder hero referansını temizle (kırık img olmasın)
-    const cleanBodyMd = (article.bodyMd ?? '').replace(/!\[[^\]]*\]\(\s*placeholder-hero\.webp\s*\)/gi, '');
+    let cleanBodyMd = (article.bodyMd ?? '').replace(/!\[[^\]]*\]\(\s*placeholder-hero\.webp\s*\)/gi, '');
 
-    const bodyHtml = renderArticleHtml({
+    // ── Yayın öncesi son link kontrolü ────────────────────────
+    // Pipeline'daki doğrulamadan sonra makale günlerce beklemiş, elle
+    // düzenlenmiş veya hedef sayfa silinmiş olabilir. Kırık link canlıya
+    // çıkmasın diye yayından hemen önce bir kez daha süzülür.
+    try {
+      const validated = await this.linkValidator.validateArticleMarkdown(article.siteId, cleanBodyMd, {
+        checkExternal: false, // yayını yavaşlatmamak için sadece iç linkler
+      });
+      cleanBodyMd = validated.bodyMd;
+      if (validated.report.remapped || validated.report.unlinked) {
+        this.log.warn(
+          `[${articleId}] yayın öncesi link temizliği: ${validated.report.remapped} remap, ${validated.report.unlinked} kaldırıldı`,
+        );
+      }
+    } catch (err: any) {
+      this.log.warn(`[${articleId}] yayın öncesi link doğrulama atlandı: ${err.message}`);
+    }
+
+    // Dosya-tabanli hedefler (FTP/SFTP/cPanel/ZIP) icin tam HTML sayfasi
+    const fullPageHtml = renderArticleHtml({
       bodyMd: cleanBodyMd,
       title: article.title,
       metaTitle: article.metaTitle,
@@ -260,6 +337,15 @@ export class PublisherService {
       canonical,
       heroImageUrl,
       siteName: article.site.name,
+      schemaJsonLd,
+      audioUrl,
+      trackerSiteId: article.siteId,
+    });
+
+    // CMS hedefleri (WordPress/Ghost/Shopify/...) icin sadece govde parcasi
+    const fragmentHtml = renderArticleFragment({
+      bodyMd: cleanBodyMd,
+      heroImageUrl,
       schemaJsonLd,
       audioUrl,
       trackerSiteId: article.siteId,
@@ -286,7 +372,7 @@ export class PublisherService {
         const result = await adapter.publish({
           slug: article.slug,
           title: article.title,
-          bodyHtml,
+          bodyHtml: adapter.needsFullPage ? fullPageHtml : fragmentHtml,
           bodyMd: article.bodyMd ?? '',
           metaTitle: article.metaTitle ?? undefined,
           metaDescription: article.metaDescription ?? undefined,
@@ -332,7 +418,8 @@ export class PublisherService {
         data: {
           status: 'PUBLISHED',
           publishedAt: new Date(),
-          bodyHtml,
+          // Panel onizlemesi bunu dogrudan DOM'a basiyor → tam sayfa degil parca sakla
+          bodyHtml: fragmentHtml,
           publishedTo: successful as any,
         },
       });
@@ -340,6 +427,10 @@ export class PublisherService {
       // Sosyal kanallara otomatik DRAFT post artık üretilmiyor — kullanıcı article
       // listesindeki "Sosyalde paylaş" butonundan modal ile kanal seçip elle ekler.
       // (Geri açmak istersen: socialAutoDraft.createDraftsForArticle(articleId) çağır.)
+
+      // Yeni sayfa eklendi → iç link envanteri bayatladı. Cache düşürülmezse
+      // sonraki makaleler bu makaleye link veremez (envanterde görünmez).
+      this.urlInventory.invalidate(article.siteId);
 
       // GEO: yayinlanan URL'i tum AI/search engine kanallarina ping at (best-effort)
       const firstPublicUrl = successful.find((r) => r.externalUrl)?.externalUrl;

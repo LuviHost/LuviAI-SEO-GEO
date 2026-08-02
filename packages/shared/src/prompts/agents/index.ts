@@ -17,6 +17,55 @@ export interface AgentContext {
   language: 'tr' | 'en' | 'both';
   whmcsCart?: string; // CTA URL prefix
   today: string; // YYYY-MM-DD
+  /**
+   * Sitenin GERÇEK sayfa envanteri (crawl + sitemap'ten gelir, AI üretmez).
+   * İç link verilebilecek TEK kaynak budur. Boş geçilirse ajanlara
+   * "iç link verme" talimatı gider — uydurma URL üretmesindense linksiz
+   * makale yayınlamak yeğdir.
+   */
+  sitePages?: Array<{ url: string; title: string }>;
+}
+
+/**
+ * Sitenin gerçek sayfalarını prompt'a beyaz liste olarak koyar.
+ *
+ * Bu blok olmadan yazar ajanı iç link URL'lerini uydururdu: konuyla alakalı
+ * görünen ama sitede karşılığı olmayan yollar üretip 404 link bırakıyordu.
+ * Envanter boşsa iç link tamamen yasaklanır.
+ */
+function buildSitePagesBlock(ctx: AgentContext): string {
+  const pages = ctx.sitePages ?? [];
+  if (pages.length === 0) {
+    return `## İç Bağlantı Kaynağı — YOK
+
+Bu site için doğrulanmış sayfa listesi elde edilemedi.
+**Bu yüzden HİÇBİR iç bağlantı verme.** Markdown link yazma, frontmatter'daki
+internal_links listesini boş bırak. Uydurma URL yazmak, linksiz makaleden
+çok daha kötüdür (404 verir, SEO'yu düşürür).`;
+  }
+
+  const list = pages
+    .slice(0, 120)
+    .map((p) => `- ${p.url}${p.title ? `  →  ${p.title}` : ''}`)
+    .join('\n');
+
+  return `## İç Bağlantı Beyaz Listesi (ZORUNLU — ${pages.length} gerçek sayfa)
+
+Aşağıdaki URL'ler bu sitede GERÇEKTEN var. İç bağlantı verirken kullanabileceğin
+TEK kaynak bu listedir.
+
+${list}
+
+### İç bağlantı kuralları (ihlal = FAIL)
+1. URL'i listeden **birebir kopyala**. Tek karakter bile değiştirme.
+2. Listede olmayan bir iç URL yazma. Aklına yatan ama listede olmayan sayfa
+   YOKTUR — uydurma, o linki hiç verme.
+3. Yeni slug türetme ("/isg-oyunlastirma-yontemleri" gibi tahmin YASAK).
+4. Anchor metni hedef sayfanın gerçek konusunu anlatsın; alakasız sayfaya
+   anahtar kelime bindirme.
+5. Makale başına 3-6 iç bağlantı yeterli. Uygun hedef yoksa daha az ver.
+6. Harici link verirken sadece kurumsal/resmi kaynak kullan (mevzuat, bakanlık,
+   ÇASGEM, ISO gibi). Blog/rakip sitesine link verme, URL uydurma.`;
 }
 
 /**
@@ -73,6 +122,8 @@ ${(ctx.brain.competitors ?? []).map(c => `- **${c.name}** (${c.url}): ${c.streng
 
 ## SEO Stratejisi (Pillar/Cluster)
 ${(ctx.brain.seoStrategy?.pillars ?? []).map(p => `- ${p.name} (${p.url}): ${p.clusters?.length ?? 0} cluster`).join('\n')}
+
+${buildSitePagesBlock(ctx)}
 
 ## Sözlük (terim seçimi)
 ${(ctx.brain.glossary ?? []).slice(0, 20).map(g => `- ${g.term} → ${g.translation}`).join('\n')}
@@ -175,6 +226,10 @@ export const AGENT_02_OUTLINE = {
 ## İç bağlantı haritası
 | Hedef URL | Anchor | Konum |
 
+Hedef URL sütununa SADECE system prompt'taki "İç Bağlantı Beyaz Listesi"nde
+bulunan URL'leri birebir kopyala. Liste "YOK" diyorsa bu tabloyu boş bırak.
+Var olmayan sayfa için satır uydurma.
+
 ## Schema gereksinimleri
 - Article ✓
 - BreadcrumbList ✓
@@ -212,9 +267,9 @@ meta_title: "<outline'dan>"
 meta_description: "<outline'dan>"
 date_published: "<BUGÜN — YYYY-MM-DD, geçmiş yıl YASAK>"
 persona: "<outline'dan>"
-pillar: "<URL>"
+pillar: "<beyaz listeden URL — yoksa bos birak>"
 internal_links:
-  - url: "..."
+  - url: "<beyaz listeden BIREBIR kopyalanmis URL>"
     anchor: "..."
 schema_types: ["Article", "BreadcrumbList", "FAQPage"]
 hero_image: "placeholder-hero.webp"
@@ -242,13 +297,31 @@ Bu kurallar Claude/Gemini/ChatGPT/Perplexity'nin makaleyi alıntılamasını ~3x
 5. **Yazar imzası:** Sonuç bölümünden sonra "**Bu makale [persona/yazar] tarafından yazıldı.**" satırı (E-E-A-T sinyali).
 6. **Son güncelleme tarihi:** Makale sonunda "*Son güncelleme: YYYY-MM-DD*" satırı (AI tazelik filtresi).
 
+## İç Bağlantı (en sık yapılan hata — dikkat)
+
+System prompt'taki "İç Bağlantı Beyaz Listesi" bölümüne bak. Yazdığın HER
+markdown linkinin hedefi o listede aynen bulunmalı.
+
+- Doğru: \`[VR İSG Eğitimi](https://site.com/vr-isg-egitimi-simulasyon/)\` (listede var)
+- Yanlış: \`[VR İSG eğitim yöntemleri](/vr-isg-egitim-yontemleri)\` (uydurma → 404)
+
+Beyaz liste bölümü "YOK" diyorsa hiç iç link verme. Uygun hedef bulamadığın
+cümleyi linksiz bırak — bu bir eksiklik değil, doğru davranış.
+
+## Konu Alaka Kuralı
+
+Makale sitenin gerçek hizmet/içerik alanıyla ilgili olmalı. Yukarıdaki sayfa
+listesi sitenin ne yaptığını gösterir. Sitede karşılığı olmayan bir hizmeti
+varmış gibi anlatma, olmayan ürüne CTA verme.
+
 ## YASAK
 - "günümüzde / dijital çağda / delve / tapestry / robust / bu makalede"
 - ` + '```markdown ile sarma' + ` (düz markdown ver)
 - Eski yıl tarih (date_published bugün olacak)
 - "Bence / yani / aslında" tıkaçları arka arkaya
 - 30+ kelimelik cümle
-- Emoji (frontmatter dahil)`,
+- Emoji (frontmatter dahil)
+- Beyaz listede olmayan iç URL (en ağır ihlal — makale FAIL alır)`,
 };
 
 // ────────────────────────────────────────────────────────────
@@ -266,11 +339,17 @@ export const AGENT_04_EDITOR = {
 2. Marka sesi: cümle uzunluğu, pasif çatı, "biz/siz" dengesi
 3. Yapı: H1, Hızlı Cevap, 4-7 H2, FAQ, Sonuç+CTA hepsi var mı
 4. Anahtar kelime: birincil H1 + giriş + en az 1 H2'de mi
-5. İç bağlantı: outline'a uyuyor mu
-6. Hosting/niş sözlüğü: doğru terimler kullanılıyor mu
-7. AI parmak izi: numerik şişirme, sıfat tekrarı, "zaten/aslında/nitekim" zinciri
-8. SEO meta: title 50-60, desc 140-160 karakter
-9. date_published: bugünün tarihi mi (eski yıl YASAK)
+5. **İç bağlantı doğrulama (kritik):** Makaledeki HER markdown linkini system
+   prompt'taki "İç Bağlantı Beyaz Listesi" ile karşılaştır. Listede olmayan bir
+   iç URL varsa linki KALDIR (anchor metnini düz metin olarak bırak) ve bunu
+   "Yapılan düzeltmeler"de belirt. Beyaz liste "YOK" diyorsa tüm iç linkleri
+   kaldır. Uydurma URL tek başına REVIZE sebebidir.
+6. Konu alakası: makale sitenin gerçek hizmet alanıyla ilgili mi, olmayan bir
+   hizmet varmış gibi anlatılmış mı
+7. Niş sözlüğü: doğru terimler kullanılıyor mu
+8. AI parmak izi: numerik şişirme, sıfat tekrarı, "zaten/aslında/nitekim" zinciri
+9. SEO meta: title 50-60, desc 140-160 karakter
+10. date_published: bugünün tarihi mi (eski yıl YASAK)
 
 ## Çıktı (KESİN format — parser bu format'a göre çalışır)
 \`\`\`

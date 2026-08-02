@@ -14,9 +14,11 @@ import { VideoGeneratorService } from './video-generator.service.js';
 import { TiktokPublisherService } from './tiktok-publisher.service.js';
 import { InstagramPublisherService } from './instagram-publisher.service.js';
 import { TranslatorService } from './translator.service.js';
+import { LinkValidatorService } from './link-validator.service.js';
 import { SocialModule } from '../social/social.module.js';
 import { LLMModule } from '../llm/llm.module.js';
 import { AuditModule } from '../audit/audit.module.js';
+import { SitesModule } from '../sites/sites.module.js';
 
 /**
  * Article Pipeline:
@@ -28,7 +30,7 @@ import { AuditModule } from '../audit/audit.module.js';
  *  - SocialModule: PUBLISHED makaleler icin auto-draft sosyal post
  */
 @Module({
-  imports: [SocialModule, AuditModule, LLMModule],
+  imports: [SocialModule, AuditModule, LLMModule, SitesModule],
   controllers: [ArticlesController],
   providers: [
     ArticlesService,
@@ -45,6 +47,7 @@ import { AuditModule } from '../audit/audit.module.js';
     TiktokPublisherService,
     InstagramPublisherService,
     TranslatorService,
+    LinkValidatorService,
   ],
   exports: [
     ArticlesService,
@@ -61,6 +64,7 @@ import { AuditModule } from '../audit/audit.module.js';
     TiktokPublisherService,
     InstagramPublisherService,
     TranslatorService,
+    LinkValidatorService,
   ],
 })
 export class ArticlesModule {}

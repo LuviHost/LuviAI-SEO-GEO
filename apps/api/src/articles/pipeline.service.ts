@@ -5,6 +5,8 @@ import { EmailService } from '../email/email.service.js';
 import { SocialAutoDraftService } from '../social/social-auto-draft.service.js';
 import { SchemaClassifierService } from './schema-classifier.service.js';
 import { SettingsService } from '../settings/settings.service.js';
+import { SiteUrlInventoryService } from '../sites/site-url-inventory.service.js';
+import { LinkValidatorService } from './link-validator.service.js';
 import {
   AGENT_01_KEYWORD,
   AGENT_02_OUTLINE,
@@ -48,6 +50,8 @@ export class PipelineService {
     private readonly socialAutoDraft: SocialAutoDraftService,
     private readonly schemaClassifier: SchemaClassifierService,
     private readonly settings: SettingsService,
+    private readonly urlInventory: SiteUrlInventoryService,
+    private readonly linkValidator: LinkValidatorService,
   ) {}
 
   /**
@@ -180,6 +184,14 @@ export class PipelineService {
       throw new Error(`Site ${opts.siteId}: brain henüz oluşturulmamış. Önce BRAIN_GENERATE çalıştırın.`);
     }
 
+    // Gerçek sayfa envanteri — iç link beyaz listesi. Ajanlar bunun dışında
+    // URL üretemez; envanter boşsa iç link tamamen yasaklanır.
+    const sitePages = await this.urlInventory.getInventory(opts.siteId).catch((err) => {
+      this.log.warn(`[${opts.siteId}] URL envanteri alınamadı: ${err.message}`);
+      return [] as Awaited<ReturnType<SiteUrlInventoryService['getInventory']>>;
+    });
+    this.log.log(`[${opts.siteId}] İç link beyaz listesi: ${sitePages.length} sayfa`);
+
     const brainContext: AgentContext = {
       brain: {
         brandVoice: site.brain.brandVoice as any,
@@ -194,6 +206,7 @@ export class PipelineService {
       language: (site.language as any) ?? 'tr',
       whmcsCart: undefined,
       today: new Date().toISOString().slice(0, 10),
+      sitePages: sitePages.map((p) => ({ url: p.url, title: p.title })),
     };
 
     const dateNote = `\n\n[ZORUNLU: Bugünün tarihi ${brainContext.today}. Frontmatter'da date_published bu olacak. Geçmiş yıl YASAK. Kod-fence sarmalama yok.]`;
@@ -287,8 +300,32 @@ export class PipelineService {
     }
 
     // Frontmatter parse + DB
-    const cleaned = this.cleanCodeFences(currentDraft);
+    let cleaned = this.cleanCodeFences(currentDraft);
+
+    // ── Link doğrulama (deterministik güvenlik ağı) ───────────
+    // Prompt kuralı tek başına yeterli değil: model yine de URL uydurabiliyor.
+    // Burada her link gerçek envantere karşı kontrol edilir; eşleşmeyen linkler
+    // ya en yakın gerçek sayfaya remap edilir ya da düz metne çevrilir.
+    try {
+      const validated = await this.linkValidator.validateArticleMarkdown(opts.siteId, cleaned, {
+        checkExternal: true,
+      });
+      cleaned = validated.bodyMd;
+      agentOutputs.linkValidation = validated.report;
+      if (validated.report.remapped || validated.report.unlinked) {
+        this.log.warn(
+          `[${opts.siteId}] Kırık link temizlendi: ${validated.report.remapped} remap, ${validated.report.unlinked} kaldırıldı`,
+        );
+      }
+    } catch (err: any) {
+      this.log.warn(`[${opts.siteId}] Link doğrulama atlandı: ${err.message}`);
+    }
+
     const { data: fm, content: body } = parseFrontmatter(cleaned);
+
+    // frontmatter.internal_links de aynı envantere göre süzülür — makale
+    // gövdesi temizlenip metadata kirli kalmasın.
+    const cleanInternalLinks = await this.filterInternalLinks(opts.siteId, fm.internal_links as any);
 
     const slug = (fm.slug as string) || turkishSlug((fm.title as string) ?? opts.topic).slice(0, 60);
     const wordCount = body.split(/\s+/).length;
@@ -365,7 +402,7 @@ export class PipelineService {
       editorVerdict: editorVerdict as any,
       totalCost: totalCost,
       status: editorVerdict === 'PASS' ? 'READY_TO_PUBLISH' : 'REVIZE_NEEDED',
-      internalLinks: (fm.internal_links as any) ?? null,
+      internalLinks: cleanInternalLinks,
     } as const;
 
     // Eger queueGeneration() placeholder Article olusturmussa onu guncelle,
@@ -481,6 +518,37 @@ export class PipelineService {
       score,
       article: articleMatch ? articleMatch[1].trim() : null,
     };
+  }
+
+  /**
+   * frontmatter.internal_links listesini gerçek sayfa envanterine göre süzer.
+   * Sitede karşılığı olmayan girdiler atılır — bu liste UI'da ve iç link
+   * raporlarında kullanıldığı için kirli kalmamalı.
+   */
+  private async filterInternalLinks(siteId: string, raw: any): Promise<any> {
+    if (!Array.isArray(raw) || raw.length === 0) return raw ?? null;
+    try {
+      const site = await this.prisma.site.findUnique({ where: { id: siteId } });
+      if (!site) return raw;
+      const pages = await this.urlInventory.getInventory(siteId);
+      if (pages.length === 0) return raw; // envanter yoksa hüküm verme
+
+      const known = new Set(pages.map((p) => p.path));
+      const kept = raw.filter((item: any) => {
+        const url = String(item?.url ?? '');
+        if (!url) return false;
+        if (!this.urlInventory.isInternal(url, site.url)) return true; // harici — dokunma
+        const path = this.urlInventory.normalizePath(url, site.url);
+        return !!path && (path === '/' || known.has(path));
+      });
+
+      if (kept.length !== raw.length) {
+        this.log.warn(`[${siteId}] internal_links: ${raw.length - kept.length} geçersiz girdi elendi`);
+      }
+      return kept.length > 0 ? kept : null;
+    } catch {
+      return raw;
+    }
   }
 
   private hasPlaceholder(text: string): boolean {
