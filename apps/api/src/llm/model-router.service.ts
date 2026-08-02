@@ -25,9 +25,9 @@ export class ModelRouterService {
 
     if (opts.preferAnthropic) {
       switch (effectiveTier) {
-        case 'cheap': return { provider: 'anthropic', model: 'claude-haiku-4-5-20251001', supportsCaching: true };
-        case 'standard': return { provider: 'anthropic', model: 'claude-sonnet-4-6', supportsCaching: true };
-        case 'premium': return { provider: 'anthropic', model: 'claude-opus-4-7', supportsCaching: true };
+        case 'cheap': return { provider: 'anthropic', model: 'claude-haiku-4-5', supportsCaching: true };
+        case 'standard': return { provider: 'anthropic', model: 'claude-sonnet-5', supportsCaching: true };
+        case 'premium': return { provider: 'anthropic', model: 'claude-opus-5', supportsCaching: true };
       }
     }
     switch (effectiveTier) {

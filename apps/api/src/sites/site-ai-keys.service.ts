@@ -188,7 +188,7 @@ export class SiteAiKeysService {
         case 'anthropic': {
           const c = new Anthropic({ apiKey: key });
           const r = await c.messages.create({
-            model: 'claude-haiku-4-5-20251001',
+            model: 'claude-haiku-4-5',
             max_tokens: 5,
             messages: [{ role: 'user', content: 'ping' }],
           });

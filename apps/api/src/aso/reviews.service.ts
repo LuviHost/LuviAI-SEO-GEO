@@ -137,7 +137,7 @@ ${reviews.map(r => `[${r.id}] (${r.rating}/5) "${r.text.slice(0, 300)}"`).join('
     try {
       const response = await this.llm.chat({
         context: 'aso-review-sentiment',
-        model: 'claude-haiku-4-5-20251001',
+        model: 'claude-haiku-4-5',
         messages: [{ role: 'user', content: prompt }],
         maxTokens: 1500,
       });

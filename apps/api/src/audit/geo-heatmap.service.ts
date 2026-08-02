@@ -202,7 +202,7 @@ export class GeoHeatmapService {
 
     if (provider === 'anthropic' && this.anthropic) {
       const resp = await this.anthropic.messages.create({
-        model: 'claude-haiku-4-5-20251001',
+        model: 'claude-haiku-4-5',
         max_tokens: 350,
         system,
         messages: [{ role: 'user', content: query }],

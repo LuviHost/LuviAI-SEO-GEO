@@ -129,7 +129,7 @@ export class KnowledgeGraphBuilderService {
     if (this.anthropic) {
       try {
         const resp = await this.anthropic.messages.create({
-          model: 'claude-sonnet-4-6',
+          model: 'claude-sonnet-5',
           max_tokens: 1500,
           system: 'Sen Wikipedia editörüsün. Verilen marka için Wikipedia wikitext formatinda Türkçe makale taslagi yazarsin. Tarafsız (NPOV), 3.parti kaynaklarla doğrulanabilir, reklam içermemeli.',
           messages: [{

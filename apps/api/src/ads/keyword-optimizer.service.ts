@@ -51,7 +51,7 @@ export class KeywordOptimizerService {
           const site_: any = site;
           const niche = site_.niche ?? '';
           const aiResp = await this.anthropic.messages.create({
-            model: 'claude-haiku-4-5-20251001',
+            model: 'claude-haiku-4-5',
             max_tokens: 800,
             system: `Sen Google Ads optimizasyon uzmanisin. Search term listesi gosterilir, sektore alakasiz olanlari tespit edersin. Sadece JSON dondur.`,
             messages: [{

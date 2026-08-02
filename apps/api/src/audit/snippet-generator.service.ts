@@ -501,7 +501,7 @@ Başlık: ${heading}
     if (!this.anthropic) return null;
     try {
       const resp = await this.anthropic.messages.create({
-        model: 'claude-haiku-4-5-20251001',
+        model: 'claude-haiku-4-5',
         max_tokens: 220,
         system: 'Sen Türkçe SEO copywriter\'ısın. İstenen formatta tek bir çıktı ver, açıklama yapma, tırnak/markdown kullanma.',
         messages: [{ role: 'user', content: prompt }],

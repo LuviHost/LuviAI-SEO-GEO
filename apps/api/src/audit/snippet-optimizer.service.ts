@@ -42,7 +42,7 @@ export class SnippetOptimizerService {
     const md = (article.bodyMd ?? '').slice(0, 8000);
 
     const resp = await this.anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001',
+      model: 'claude-haiku-4-5',
       max_tokens: 800,
       system: 'Sen AI search engine optimization uzmanisin. Bir makalenin meta+snippet alanlarini AI cevap kutucuklarinda (Google AI Overviews, ChatGPT, Perplexity) gorunecek sekilde optimize edersin. JSON dondur, baska aciklama yok.',
       messages: [{

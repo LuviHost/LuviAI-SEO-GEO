@@ -52,7 +52,7 @@ export class TranslatorService {
     try {
       const md = (article.bodyMd ?? '').slice(0, 50000);
       const resp = await this.anthropic.messages.create({
-        model: 'claude-sonnet-4-6',
+        model: 'claude-sonnet-5',
         max_tokens: 8000,
         system: `Sen profesyonel ceviri uzmanisin. Markdown formatini KORU (#, ##, **, blockquote, tables, lists). Frontmatter (--- arasindaki YAML) icindeki value'lari cevir, key'leri DEGISTIRME. SEO meta_title ve meta_description native ${langName} okuyucu icin yeniden yaz, kelime kelime ceviri yapma. Internal link URL'lerini AYNEN birak.`,
         messages: [{

@@ -102,7 +102,7 @@ export class SchemaClassifierService {
     if (this.anthropic && md.length > 800) {
       try {
         const resp = await this.anthropic.messages.create({
-          model: 'claude-haiku-4-5-20251001',
+          model: 'claude-haiku-4-5',
           max_tokens: 300,
           system: 'Sen bir schema.org uzmanisin. Verilen Turkce makaleyi inceleyip hangi schema.org tiplerinin uygulanmasi gerektigini karara baglarsin. Sadece JSON dondur, baska aciklama yapma.',
           messages: [

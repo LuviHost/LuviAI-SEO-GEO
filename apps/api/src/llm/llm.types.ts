@@ -27,7 +27,25 @@ export interface ChatRequest {
   systemPrompt?: string;
   messages: ChatMessage[];
   maxTokens?: number;
+  /**
+   * Yalnızca kabul eden modellere gönderilir. Claude Opus 4.7+ ve Sonnet 5'te
+   * bu parametre kaldırıldı; gönderilirse API 400 döner — Anthropic sağlayıcı
+   * bu modellerde alanı otomatik olarak atlar.
+   */
   temperature?: number;
+
+  /**
+   * Adaptive thinking — model ne kadar düşüneceğine kendi karar verir.
+   * Sabit token bütçesi (budget_tokens) yeni modellerde kaldırıldı.
+   * Desteklemeyen modellerde sessizce yok sayılır.
+   */
+  thinking?: boolean;
+
+  /**
+   * Düşünme derinliği ve toplam token harcaması.
+   * Karmaşık üretim işleri için 'high', ucuz/kısa işler için 'low'.
+   */
+  effort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 
   /** Anthropic için ephemeral cache control desteği */
   cacheSystemPrompt?: boolean;

@@ -161,7 +161,7 @@ export class StuckPageRecoveryService {
           paragraphAdded: proposal.paragraphAdded ?? null,
           entityScoreAfter: proposal.entityScoreEstimate,
           scorePassedComp: proposal.entityScoreEstimate >= 70,
-          llmModel: 'claude-sonnet-4-6',
+          llmModel: 'claude-sonnet-5',
           appliedBy: opts.triggeredBy,
           // ENH#1
           geoScoreBefore,
@@ -361,7 +361,7 @@ ONEMLI:
 
     try {
       const resp = await this.anthropic.messages.create({
-        model: 'claude-sonnet-4-6',
+        model: 'claude-sonnet-5',
         max_tokens: 4000,
         system: systemPrompt,
         messages: [{ role: 'user', content: userPrompt }],

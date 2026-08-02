@@ -238,7 +238,7 @@ ${crawl.pages.map((p) => `- ${new URL(p.url).pathname}  →  ${p.title || p.h1 |
 ${pageSummaries}`;
 
     const response = await client.messages.create({
-      model: process.env.ROUTING_MODEL ?? 'claude-sonnet-4-6',
+      model: process.env.ROUTING_MODEL ?? 'claude-sonnet-5',
       max_tokens: 8192,
       messages: [{ role: 'user', content: prompt }],
     });

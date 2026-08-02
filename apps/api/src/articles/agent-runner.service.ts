@@ -30,9 +30,9 @@ export interface AgentResult {
 }
 
 const MODEL_MAP: Record<string, string> = {
-  opus: 'claude-opus-4-7',
-  sonnet: 'claude-sonnet-4-6',
-  haiku: 'claude-haiku-4-5-20251001',
+  opus: 'claude-opus-5',
+  sonnet: 'claude-sonnet-5',
+  haiku: 'claude-haiku-4-5',
 };
 
 // Pricing artık LLMProviderService/AnthropicProvider içinde merkezi.
@@ -80,6 +80,10 @@ export class AgentRunnerService {
         cacheSystemPrompt: true,
         messages: [{ role: 'user', content: params.input }],
         maxTokens: params.maxTokens ?? 16384,
+        // Adaptive thinking: model ne kadar duşuneceğine kendi karar verir.
+        // Yazma ve editörlük çok adımlı akıl yürütme gerektirdiği için açık.
+        thinking: true,
+        effort: this.resolveEffort(params.agentName),
       });
 
       this.log.log(`[${params.agentName}] ${model} — ${((Date.now() - t0) / 1000).toFixed(1)}s, $${response.costUsd.toFixed(4)} (in:${response.usage.inputTokens}+${response.usage.cacheReadTokens}/cache, out:${response.usage.outputTokens})`);
@@ -109,12 +113,26 @@ export class AgentRunnerService {
     }
   }
 
+  /**
+   * Ajan basina dusunme derinligi. Efor arttikca kalite ve token harcamasi
+   * birlikte artar — her ajana isinin gerektirdigi kadari verilir.
+   *
+   *  - 03-writer / 04-editor : makalenin kalitesini bu ikisi belirler → high
+   *  - 02-outline            : yapi kurar, orta seviye akil yurutme → medium
+   *  - 01-keyword / 05-visuals: kisa, sablonlu isler → low
+   */
+  private resolveEffort(agentName: string): 'low' | 'medium' | 'high' {
+    if (agentName === '03-writer' || agentName === '04-editor') return 'high';
+    if (agentName === '02-outline') return 'medium';
+    return 'low';
+  }
+
   private resolveModel(preferred: string | undefined, agentName: string): string {
     if (agentName === '03-writer' && process.env.WRITER_MODEL) return process.env.WRITER_MODEL;
     if (agentName === '04-editor' && process.env.EDITOR_MODEL) return process.env.EDITOR_MODEL;
     if (preferred && MODEL_MAP[preferred]) return MODEL_MAP[preferred];
     if (preferred) return preferred;
-    return process.env.ROUTING_MODEL ?? 'claude-sonnet-4-6';
+    return process.env.ROUTING_MODEL ?? 'claude-sonnet-5';
   }
 
 }

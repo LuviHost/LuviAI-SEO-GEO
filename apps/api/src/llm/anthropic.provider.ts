@@ -2,14 +2,45 @@ import { Injectable, Logger } from '@nestjs/common';
 import Anthropic from '@anthropic-ai/sdk';
 import type { ChatRequest, ChatResponse, ILLMProvider, ModelPricing, ProviderName } from './llm.types.js';
 
+/**
+ * $ / 1M token. cacheRead = input x0.1, cacheWrite = input x1.25 (5 dk TTL).
+ *
+ * DIKKAT: Buradaki rakamlar kullaniciya raporlanan maliyeti belirler.
+ * Onceki tabloda claude-opus-4-7 15/75 yaziyordu; gercegi 5/25 — yani her
+ * Opus cagrisinin maliyeti panelde 3 KAT fazla gosteriliyordu.
+ */
 const PRICING: Record<string, ModelPricing> = {
-  'claude-opus-4-7':            { input: 15, output: 75, cacheRead: 1.5,  cacheWrite: 18.75 },
+  'claude-opus-5':              { input: 5,  output: 25, cacheRead: 0.5,  cacheWrite: 6.25 },
+  'claude-opus-4-8':            { input: 5,  output: 25, cacheRead: 0.5,  cacheWrite: 6.25 },
+  'claude-opus-4-7':            { input: 5,  output: 25, cacheRead: 0.5,  cacheWrite: 6.25 },
+  // Sonnet 5: 2026-08-31'e kadar tanitim fiyati 2/10. Standart tarife
+  // yaziliyor — maliyeti eksik degil fazla gostermek daha guvenli.
+  'claude-sonnet-5':            { input: 3,  output: 15, cacheRead: 0.3,  cacheWrite: 3.75 },
   'claude-sonnet-4-6':          { input: 3,  output: 15, cacheRead: 0.3,  cacheWrite: 3.75 },
+  'claude-haiku-4-5':           { input: 1,  output: 5,  cacheRead: 0.1,  cacheWrite: 1.25 },
   'claude-haiku-4-5-20251001':  { input: 1,  output: 5,  cacheRead: 0.1,  cacheWrite: 1.25 },
   // Fallbacks (legacy model isimleri)
   'claude-3-5-sonnet':          { input: 3,  output: 15, cacheRead: 0.3,  cacheWrite: 3.75 },
   'claude-3-5-haiku':           { input: 1,  output: 5,  cacheRead: 0.1,  cacheWrite: 1.25 },
 };
+
+/**
+ * temperature / top_p / top_k bu modellerde KALDIRILDI — gonderilirse API
+ * 400 doner. Saglayici bu modellerde parametreyi hic gondermez.
+ * (Claude Opus 5 / 4.8 / 4.7, Sonnet 5, Fable 5)
+ */
+function rejectsSamplingParams(model: string): boolean {
+  return /^claude-(opus-(5|4-8|4-7)|sonnet-5|fable-5|mythos-5)/.test(model);
+}
+
+/**
+ * Adaptive thinking destekleyen modeller. Opus 5'te thinking VARSAYILAN
+ * olarak aciktir — parametre gonderilmese de calisir; digerlerinde acikca
+ * istenmesi gerekir.
+ */
+function supportsAdaptiveThinking(model: string): boolean {
+  return /^claude-(opus-(5|4-8|4-7|4-6)|sonnet-(5|4-6)|fable-5|mythos-5)/.test(model);
+}
 
 @Injectable()
 export class AnthropicProvider implements ILLMProvider {
@@ -42,16 +73,35 @@ export class AnthropicProvider implements ILLMProvider {
         : [{ type: 'text' as const, text: req.systemPrompt }]
       : undefined;
 
+    // temperature yalnizca kabul eden modellere gonderilir. Opus 4.7+ ve
+    // Sonnet 5'te bu parametre kaldirildi; gonderilirse istek 400 ile duser.
+    const sampling =
+      req.temperature !== undefined && !rejectsSamplingParams(req.model)
+        ? { temperature: req.temperature }
+        : {};
+
+    // Adaptive thinking: model karar verir, sabit token butcesi yok.
+    // (budget_tokens Opus 4.7+ ve Sonnet 5'te kaldirildi — 400 verir.)
+    const thinking =
+      req.thinking && supportsAdaptiveThinking(req.model)
+        ? { thinking: { type: 'adaptive' as const } }
+        : {};
+
+    // effort thinking derinligini ve toplam token harcamasini ayarlar.
+    const outputConfig = req.effort ? { output_config: { effort: req.effort } } : {};
+
     const response = await this.client.messages.create({
       model: req.model,
       max_tokens: req.maxTokens ?? 1024,
-      temperature: req.temperature,
+      ...sampling,
+      ...thinking,
+      ...outputConfig,
       system: systemBlocks,
       messages: req.messages.filter(m => m.role !== 'system').map(m => ({
         role: m.role as 'user' | 'assistant',
         content: m.content,
       })),
-    });
+    } as any);
 
     const text = response.content
       .filter((b): b is Anthropic.Messages.TextBlock => b.type === 'text')

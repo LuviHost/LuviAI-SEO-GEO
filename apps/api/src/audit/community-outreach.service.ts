@@ -129,7 +129,7 @@ export class CommunityOutreachService {
       const systemPrompt = `Sen ${site.name} markasinin temsilcisisin. ${site.niche ?? 'sektor'} alaninda calisiyorsun. Reddit/Quora'da gercek deger katacak, samimi, spam olmayan cevaplar yazarsin. ASLA reklam yapma. Kullanicinin sorusuna once gercek cevap ver, sonra DOGAL bir bicimde markanizdan link verirsen ver. Marka tonu: ${brand.tone ?? 'profesyonel ama samimi'}. Cevap maksimum 150 kelime.`;
 
       const resp = await this.anthropic.messages.create({
-        model: 'claude-haiku-4-5-20251001',
+        model: 'claude-haiku-4-5',
         max_tokens: 400,
         system: systemPrompt,
         messages: [{

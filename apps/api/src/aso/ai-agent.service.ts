@@ -114,7 +114,7 @@ JSON formatında dön:
     try {
       const response = await this.llm.chat({
         context: 'aso-keyword-research',
-        model: 'claude-haiku-4-5-20251001',
+        model: 'claude-haiku-4-5',
         messages: [{ role: 'user', content: aiPrompt }],
         maxTokens: 3000,
       });
@@ -180,7 +180,7 @@ JSON formatında dön:
     try {
       const response = await this.llm.chat({
         context: 'aso-metadata-optimize',
-        model: 'claude-sonnet-4-6',
+        model: 'claude-sonnet-5',
         messages: [{ role: 'user', content: prompt }],
         maxTokens: 4000,
       });

@@ -160,7 +160,7 @@ export class CrossLinkingService {
     if (!this.anthropic) return null;
     try {
       const resp = await this.anthropic.messages.create({
-        model: 'claude-haiku-4-5-20251001',
+        model: 'claude-haiku-4-5',
         max_tokens: 350,
         system: 'Sen icerik baglanti uzmani. Iki makaleye bakip aralarinda anlamli bir cross-link mantikli mi karar verir, eger oyleyse anchor text ve baglam onerirsin. JSON dondur.',
         messages: [{

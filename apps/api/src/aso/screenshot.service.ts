@@ -245,7 +245,7 @@ JSON formatında dön:
     try {
       const response = await this.llm.chat({
         context: 'aso-screenshot-captions',
-        model: 'claude-haiku-4-5-20251001',
+        model: 'claude-haiku-4-5',
         messages: [{ role: 'user', content: prompt }],
         maxTokens: 2500,
       });

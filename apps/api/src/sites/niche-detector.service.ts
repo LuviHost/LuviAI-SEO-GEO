@@ -167,7 +167,7 @@ Format:
 
     try {
       const resp = await this.anthropic.messages.create({
-        model: 'claude-haiku-4-5-20251001',
+        model: 'claude-haiku-4-5',
         max_tokens: 600,
         system: 'Sen Türkçe SEO uzmanısın. JSON döndür, açıklama yapma, kod-fence kullanma.',
         messages: [{ role: 'user', content: prompt }],

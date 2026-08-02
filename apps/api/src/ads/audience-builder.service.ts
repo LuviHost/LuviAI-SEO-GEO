@@ -67,7 +67,7 @@ export class AudienceBuilderService {
     ).join('\n');
 
     const resp = await this.anthropic.messages.create({
-      model: 'claude-sonnet-4-6',
+      model: 'claude-sonnet-5',
       max_tokens: 2500,
       system: `Sen Turkiye pazari icin paid ads strateji uzmanisin. Google Ads ve Meta Ads icin hedefleme onerisi yaparsin. Yerel ifadeler kullan, Turkiye'ye ozel davran (TR il listesi, Tr lira bazli butce). JSON dondur, baska aciklama yok.`,
       messages: [{
