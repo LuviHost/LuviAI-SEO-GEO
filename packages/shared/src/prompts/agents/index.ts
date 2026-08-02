@@ -231,7 +231,7 @@ export const AGENT_02_OUTLINE = {
 - **Slug:** kebab-case-türkçe-aksansız
 - **Meta title:** 50-60 karakter
 - **Meta description:** 140-160 karakter
-- **Hedef kelime sayısı:** 1800-2500
+- **Tahmini kelime sayısı:** konuyu kapsayacak kadar (tipik 1400-2200, dolgu için şişirme yok)
 - **Hedef persona:** [01'den]
 
 ## Hızlı Cevap kutusu (40-60 kelime)
@@ -283,7 +283,20 @@ export const AGENT_03_WRITER = {
 
 # Rol: Yazar
 
-02-taslak-olusturucu'nun outline'ını alıp 1800-2500 kelimelik tam markdown makaleyi yaz.
+02-taslak-olusturucu'nun outline'ını alıp tam markdown makaleyi yaz.
+
+## Uzunluk
+
+Konuyu tam kapsayacak kadar yaz. Tipik aralık 1400-2200 kelime, ancak bu bir
+hedef değil gözlemdir. Sayı tutturmak için dolgu cümle, tekrar veya genel geçer
+paragraf EKLEME.
+
+Kelime sayısı arama sıralamasında bir faktör değildir. AI arama motorları ise
+atomik bilgi çıkarır — dolgu metin bilgi yoğunluğunu düşürür ve alıntılanma
+ihtimalini azaltır. Kısa ve yoğun bir makale, şişirilmiş uzun bir makaleden
+hem SEO hem GEO açısından daha iyidir.
+
+Ölçüt şu: okur sorusunun cevabını aldı mı, eksik kalan alt başlık var mı.
 
 ## Yazım Kuralları
 - Cümle ortalama 14 kelime, max 22
@@ -328,7 +341,10 @@ Bu kurallar Claude/Gemini/ChatGPT/Perplexity'nin makaleyi alıntılamasını ~3x
 
 1. **Soru-bazlı H2 başlıkları:** H2'lerin en az %50'si soru olsun ("Shared hosting kim için uygundur?", "WordPress'te SSL nasıl kurulur?")
 2. **Direct answer cümlesi:** Her H2 altında, paragraf girişinden önce \`> **Kısa cevap:** [max 25 kelime, atomik bilgi].\` blockquote satırı zorunlu. AI bu cümleleri olduğu gibi alıntılar.
-3. **Liste + Tablo zorunluluğu:** Her makalede en az 1 numaralı liste (adımlar/checklist) + en az 1 karşılaştırma tablosu (rakip/fiyat/özellik).
+3. **Yapılandırılmış içerik zorunluluğu:** Her makalede en az 1 liste + en az 1 tablo bulunmalı. Liste tipini İÇERİK belirler, kalıp değil:
+   - **Numaralı liste:** sıra önemliyse (adımlar, süreç, kronoloji, checklist).
+   - **Madde işaretli liste:** sıra önemsizse (kalemler, kriterler, seçenekler, örnekler).
+   Sıralı olmayan içeriği numaralandırmak yanlış sinyal verir; AI motorları listeyi "adım" sanır. Doğru tipi seç, ikisini birden zorlama.
 4. **İstatistik blockquote:** Makalede en az 1 \`<blockquote cite="...">\` ile sayısal istatistik veya alıntı (AI source attribution alır).
 5. **Yazar imzası:** Sonuç bölümünden sonra "**Bu makale [persona/yazar] tarafından yazıldı.**" satırı (E-E-A-T sinyali).
 6. **Son güncelleme tarihi:** Makale sonunda "*Son güncelleme: YYYY-MM-DD*" satırı (AI tazelik filtresi).
