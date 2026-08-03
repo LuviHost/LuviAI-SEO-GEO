@@ -51,7 +51,13 @@ export class ProgrammaticSeoService {
     const remaining = Math.max(0, limit - site.user.articlesUsedThisMonth);
     const actualMax = Math.min(max, remaining, cities.length);
 
-    const niche = site.niche ?? 'hosting';
+    // 'hosting' LuviHost kalıntısı bir varsayılandı: nişi boş olan bir finans
+    // sitesinde "İstanbul için hosting önerileri" gibi konusu tamamen yanlış
+    // sayfalar üretiyordu. Niş yoksa {niche} yer tutucusu boş bırakılır.
+    const niche = String(site.niche ?? '').trim();
+    if (!niche && opts.template.includes('{niche}')) {
+      this.log.warn(`[${siteId}] Şablon {niche} içeriyor ama sitenin nişi tanımsız — yer tutucu boş bırakıldı`);
+    }
     const topics: string[] = [];
     const slots = this.buildSpreadSlots(actualMax, spreadDays);
 
@@ -60,7 +66,9 @@ export class ProgrammaticSeoService {
       const city = cities[i];
       const topic = opts.template
         .replace('{location}', city)
-        .replace('{niche}', niche);
+        .replace('{niche}', niche)
+        .replace(/\s{2,}/g, ' ')
+        .trim();
       const slug = `prog-${city.toLowerCase().replace(/[ığüşöç ]/g, '-')}-${Date.now().toString(36)}-${i}`;
 
       try {

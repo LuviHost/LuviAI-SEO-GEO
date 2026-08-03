@@ -320,10 +320,21 @@ pillar: "<beyaz listeden URL — yoksa bos birak>"
 internal_links:
   - url: "<beyaz listeden BIREBIR kopyalanmis URL>"
     anchor: "..."
+faqs:
+  - q: "<SSS bolumundeki H3 sorusu — BIREBIR ayni metin>"
+    a: "<gorunur cevabin 1-2 cumlelik ozeti>"
 schema_types: ["Article", "BreadcrumbList", "FAQPage"]
 hero_image: "placeholder-hero.webp"
 ---
 \`\`\`
+
+### faqs alanı hakkında (şema doğruluğu — kritik)
+Buraya yazdığın her soru, makalenin görünür "## Sıkça Sorulan Sorular"
+bölümünde H3 olarak AYNEN bulunmalı ve altında gerçek bir cevap paragrafı
+olmalı. Bu liste FAQPage şemasına dönüşüyor; görünür karşılığı olmayan soru
+yazmak Google'ın rich-result politikasını ihlal eder ve sayfayı riske atar.
+SSS bölümünde olmayan soruyu buraya ekleme, buradaki soruyu SSS'de yazmayı
+atlama.
 
 ## Yapı (zorunlu sırayla)
 1. Frontmatter
@@ -339,15 +350,21 @@ hero_image: "placeholder-hero.webp"
 
 Bu kurallar Claude/Gemini/ChatGPT/Perplexity'nin makaleyi alıntılamasını ~3x artırır:
 
-1. **Soru-bazlı H2 başlıkları:** H2'lerin en az %50'si soru olsun ("Shared hosting kim için uygundur?", "WordPress'te SSL nasıl kurulur?")
-2. **Direct answer cümlesi:** Her H2 altında, paragraf girişinden önce \`> **Kısa cevap:** [max 25 kelime, atomik bilgi].\` blockquote satırı zorunlu. AI bu cümleleri olduğu gibi alıntılar.
+Bu kurallar ÖLÇÜLÜYOR. Editörden önce deterministik bir kapı çalışıyor: metni
+regex ile tarayıp tabloyu, "Kısa cevap" satırlarını, soru H2 oranını, görünür
+son güncelleme tarihini ve kaynaksız sayıları sayıyor. Geçemeyen taslak otomatik
+revizyona düşer.
+
+1. **Soru-bazlı H2 başlıkları:** İçerik H2'lerinin en az %50'si soru olsun ("Shared hosting kim için uygundur?", "WordPress'te SSL nasıl kurulur?"). Sayıma "Sıkça Sorulan Sorular" ve "Sonuç" başlıkları girmez.
+2. **Direct answer cümlesi:** Her içerik H2'sinin hemen altında, ilk paragraftan ÖNCE \`> **Kısa cevap:** [max 25 kelime, atomik bilgi].\` blockquote satırı zorunlu. AI bu cümleleri olduğu gibi alıntılar. (SSS ve Sonuç bölümleri hariç — orada gerekmez.)
 3. **Yapılandırılmış içerik zorunluluğu:** Her makalede en az 1 liste + en az 1 tablo bulunmalı. Liste tipini İÇERİK belirler, kalıp değil:
    - **Numaralı liste:** sıra önemliyse (adımlar, süreç, kronoloji, checklist).
    - **Madde işaretli liste:** sıra önemsizse (kalemler, kriterler, seçenekler, örnekler).
    Sıralı olmayan içeriği numaralandırmak yanlış sinyal verir; AI motorları listeyi "adım" sanır. Doğru tipi seç, ikisini birden zorlama.
-4. **İstatistik blockquote:** Makalede en az 1 \`<blockquote cite="...">\` ile sayısal istatistik veya alıntı (AI source attribution alır).
-5. **Yazar imzası:** Sonuç bölümünden sonra "**Bu makale [persona/yazar] tarafından yazıldı.**" satırı (E-E-A-T sinyali).
-6. **Son güncelleme tarihi:** Makale sonunda "*Son güncelleme: YYYY-MM-DD*" satırı (AI tazelik filtresi).
+4. **İstatistik blockquote:** Makalede en az 1 \`<blockquote cite="KAYNAK-URL">\` ile sayısal istatistik veya alıntı (AI source attribution alır).
+5. **Yazar imzası:** Sonuç bölümünden sonra "**Bu makale [yazar/kurum] tarafından hazırlandı.**" satırı (E-E-A-T sinyali). Buraya persona YAZMA — persona okuyucu profilidir, yazar değil.
+6. **Son güncelleme tarihi:** Makale sonunda GÖRÜNÜR "*Son güncelleme: YYYY-MM-DD*" satırı (AI tazelik filtresi). Frontmatter'daki tarih yetmez, gövdede de olacak.
+7. **Kaynaklı sayı zorunluluğu (YMYL — vergi/faiz/kredi):** Yazdığın her oran, tutar, faiz, vergi ve komisyon rakamının yanında resmî kaynak olacak: markdown link (GİB, TÜİK, TCMB, Resmî Gazete, mevzuat.gov.tr, KOSGEB, SGK gibi) ya da aynı paragrafta "Kaynak: ..." satırı. Kaynağını gösteremeyeceğin sayıyı YAZMA — sayıyı çıkarıp niteliksel anlat. Uydurma istatistik tek başına revizyon sebebidir.
 
 ## İç Bağlantı (en sık yapılan hata — dikkat)
 
@@ -402,43 +419,76 @@ export const AGENT_04_EDITOR = {
 8. AI parmak izi: numerik şişirme, sıfat tekrarı, "zaten/aslında/nitekim" zinciri
 9. SEO meta: title 50-60, desc 140-160 karakter
 10. date_published: bugünün tarihi mi (eski yıl YASAK)
+11. **Olgusal doğruluk (YMYL — en ağır madde):** Metindeki her oran, tutar, faiz,
+    vergi, komisyon ve tarih iddiasını tek tek ele al. "Bu sayı doğru mu, bugün
+    hâlâ geçerli mi, mevzuat değişti mi?" diye sor. Emin olmadığın sayıyı sildir
+    veya niteliksel ifadeye çevirt. Doğruluğundan emin olmadığın bir rakamı
+    "muhtemelen doğrudur" diye geçirme.
+12. **Kaynak gösterimi:** Her sayısal iddianın yanında resmî kaynak var mı
+    (GİB, TÜİK, TCMB, Resmî Gazete, mevzuat.gov.tr, KOSGEB, SGK gibi link ya da
+    aynı paragrafta "Kaynak: ..."). Kaynaksız tek bir sayı bile TEK BAŞINA
+    REVIZE sebebidir — skor yüksek olsa bile.
+13. **Özgün katkı / derinlik:** Makale ilk 3 arama sonucunda zaten yazan şeyleri
+    mi tekrarlıyor, yoksa somut örnek, hesaplama, eşik, istisna, sayısal senaryo
+    gibi kendine ait bir katkı sunuyor mu? Genel geçer tanım yığını = ince içerik.
 
-## Çıktı (KESİN format — parser bu format'a göre çalışır)
+## Çıktı (KESİN format — parser bu formata göre çalışır)
+
+Çıktın İKİ parçadan oluşur. Birinci parça ZORUNLU: tek bir \`json\` kod bloğu.
+Serbest metinle karar bildirme; parser yalnızca bu JSON'u okur.
+
+\`\`\`json
+{
+  "verdict": "PASS",
+  "scores": {
+    "yapi": 9,
+    "marka_sesi": 8,
+    "anahtar_kelime": 9,
+    "ic_baglanti": 10,
+    "persona_uyumu": 8,
+    "ai_parmak_izi": 9,
+    "olgusal_dogruluk": 9,
+    "kaynak_gosterimi": 8,
+    "ozgun_katki": 8
+  },
+  "total": 78,
+  "blocking_issues": [],
+  "fixes": ["\\"günümüzde X\\" → \\"X\\""],
+  "article_included": true
+}
 \`\`\`
-# Düzenleme Raporu — <slug>
 
-## Karar
-**PASS** veya **REVIZE** veya **FAIL** (TEK karar, alt-başlık yok)
+Alan kuralları:
+- \`verdict\`: sadece "PASS", "REVIZE" veya "FAIL".
+- \`scores\`: 9 kategorinin her biri 0-10 tam sayı. Anahtar adlarını değiştirme.
+- \`total\`: 9 puanın toplamı (0-90). Kendin topla, tutarsız yazma.
+- \`blocking_issues\`: PASS'i engelleyen somut ihlaller (kaynaksız sayı, uydurma
+  iç link, yanlış olgu). Boşsa \`[]\`.
+- \`article_included\`: düzeltilmiş tam makaleyi aşağıya koyduysan \`true\`.
 
-## Skor
-| Kategori | Puan (10) |
-|---|---|
-| Yapı | x |
-| Marka sesi | x |
-| Anahtar kelime hijyeni | x |
-| İç bağlantı | x |
-| Persona uyumu | x |
-| AI parmak izi | x |
-| **Toplam** | **xx/60** |
+İkinci parça (yalnızca \`article_included: true\` ise):
 
-## Yapılan düzeltmeler
-- "..." → "..."
-
-## Düzeltilmiş tam makale (sadece >5 değişiklik varsa)
+\`\`\`
+## Düzeltilmiş tam makale
 \`\`\`markdown
 [frontmatter dahil tam makale — date_published bugünün tarihi]
 \`\`\`
 \`\`\`
 
-## Karar Matrisi
-- skor ≥48 + auto-correct mümkün → **PASS** (kendi düzelt, 5+ değişiklik varsa tam makaleyi ver)
-- skor 36-47 → **REVIZE** (yazara geri yolla)
-- skor <36 → **FAIL** (baştan)
+## Karar Matrisi (90 üzerinden)
+- total ≥72 **ve** blocking_issues boş → **PASS** (küçük şeyleri kendin düzelt)
+- total 54-71 → **REVIZE**
+- total <54 → **FAIL**
+- blocking_issues doluysa total ne olursa olsun **PASS VERME** (en az REVIZE)
 
 ## Önemli
-- TÜM makaleyi tekrar yazmaktan kaçın (max_tokens'a takılır)
-- 5'ten az edit varsa "Düzeltilmiş tam makale" bölümünü ATLA, orijinal yazar çıktısı kullanılır
-- Otomatik düzeltebileceğin şeyler için REVIZE yazma → PASS ver`,
+- Girdide "DETERMİNİSTİK GEO KAPISI" bloğu varsa: o maddeler makineyle ölçülmüştür,
+  tartışma. Hepsini düzelt ve düzeltilmiş tam makaleyi döndür.
+- Yapısal düzeltme yaparken kelime sayısını şişirme; dolgu paragraf ekleme.
+- 5'ten az edit varsa "Düzeltilmiş tam makale" bölümünü ATLA ve
+  \`article_included: false\` yaz — orijinal yazar çıktısı kullanılır.
+- Otomatik düzeltebileceğin biçimsel şeyler için REVIZE yazma → düzelt, PASS ver.
+  Ama olgusal/kaynak sorunlarını "düzelttim" diye geçiştirme.`,
 };
 
 // ────────────────────────────────────────────────────────────

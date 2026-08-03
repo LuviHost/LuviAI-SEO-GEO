@@ -1,6 +1,9 @@
 export { encrypt, decrypt } from './utils/crypto.js';
 export { turkishSlug } from './utils/slug.js';
 export { mdToHtml, extractFAQs, readingTime, parseFrontmatter } from './utils/markdown.js';
+export type { ExtractedFaq } from './utils/markdown.js';
+export { checkGeoGate } from './utils/geo-gate.js';
+export type { GeoGateResult, GeoGateIssue, GeoGateStats, GeoGateCode } from './utils/geo-gate.js';
 export {
   buildBrainContext,
   AGENT_01_KEYWORD,
