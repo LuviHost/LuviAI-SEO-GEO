@@ -225,8 +225,10 @@ function buildLinkedInText(art: ArticleSnippet): {
 function buildPublicUrl(art: ArticleSnippet): string {
   if (art.fullUrl) return art.siteUrl;
   const base = art.siteUrl.replace(/\/+$/, '');
-  // Pillar varsa onu kullan, yoksa /blog/
-  const path = art.pillar?.startsWith('/') ? art.pillar : '/blog';
+  // Pillar varsa onu kullan. YOKSA bölüm segmenti UYDURMA: sabit `/blog`
+  // pek çok sitede (kobipratik dahil) hiç yok ve paylaşılan link 404'e gidiyordu.
+  // Bölüm bilinmiyorken kök + slug, yanlış bir bölümden iyidir.
+  const path = art.pillar?.startsWith('/') ? art.pillar.replace(/\/+$/, '') : '';
   return `${base}${path}/${art.slug}`;
 }
 

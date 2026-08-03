@@ -10,6 +10,7 @@ import { AiIndexingPingerService } from '../audit/ai-indexing-pinger.service.js'
 import { LlmsFullBuilderService } from '../audit/llms-full-builder.service.js';
 import { LinkValidatorService } from './link-validator.service.js';
 import { SiteUrlInventoryService } from '../sites/site-url-inventory.service.js';
+import { resolveArticleUrl } from './article-url.util.js';
 
 /**
  * Markdown body'yi CMS gövdesine girecek HTML PARÇASI haline getirir.
@@ -80,6 +81,8 @@ function renderArticleHtml(opts: {
   canonical?: string | null;
   heroImageUrl?: string | null;
   siteName?: string | null;
+  /** Makalenin bölüm yolu (ör. "/pratik-kobi-rehberi"). Yoksa nav linki basılmaz. */
+  sectionPath?: string | null;
   schemaJsonLd?: any[] | null;
   audioUrl?: string | null;
   trackerSiteId?: string | null;
@@ -93,6 +96,14 @@ function renderArticleHtml(opts: {
   const hero = opts.heroImageUrl ? `<img src="${esc(opts.heroImageUrl)}" alt="" class="hero">` : '';
   const brand = esc(opts.siteName || 'Blog');
   const year = new Date().getFullYear();
+
+  // Sabit `/blog` nav linki kaldırıldı: pek çok sitede (kobipratik dahil) /blog
+  // yolu YOK, yani yayınlanan HER sayfa 404'e giden bir iç link taşıyordu.
+  // Bölüm yolu gerçekten biliniyorsa link basılır, bilinmiyorsa hiç basılmaz.
+  const section = (opts.sectionPath || '').trim();
+  const sectionLink = section
+    ? `<a href="${esc(section)}">${esc(section.replace(/^\//, '').replace(/-/g, ' '))}</a>`
+    : '';
 
   // GEO: Schema.org JSON-LD <script> tag'leri
   const schemaTags = Array.isArray(opts.schemaJsonLd) && opts.schemaJsonLd.length > 0
@@ -162,7 +173,7 @@ footer.site{margin-top:3rem;padding:1.5rem 0;border-top:1px solid var(--line);co
 </head>
 <body>
 <div class="wrap">
-<header class="brand"><a class="logo" href="/">${brand}</a><a href="/blog">Blog</a></header>
+<header class="brand"><a class="logo" href="/">${brand}</a>${sectionLink}</header>
 <main>
 ${hero}
 ${audioBlock}
@@ -243,10 +254,36 @@ export class PublisherService {
     }
 
     // Markdown → tam HTML sayfa (frontmatter strip + UTF-8 + meta + sade tema)
-    const canonical = (() => {
-      const base = (article.site as any).url ? String((article.site as any).url).replace(/\/+$/, '') : '';
-      return base ? `${base}/blog/${article.slug}` : null;
-    })();
+    //
+    // canonical, JSON-LD'deki Article.url ile AYNI kaynaktan gelmek ZORUNDA.
+    // Eski hâli sabit `${base}/blog/${slug}` üretiyordu; pipeline şemayı gerçek
+    // yola (ör. /pratik-kobi-rehberi/<slug>) taşıyınca sayfa kendi kendisiyle
+    // çelişti: şema bir URL, canonical başka bir URL (üstelik var olmayan /blog)
+    // gösteriyordu. Google için tutarsız canonical, tutarlı-yanlış canonical'dan
+    // daha kötüdür (self-referencing canonical bozulur, sayfa indekslenmeyebilir).
+    //
+    // Hedef olarak sitenin VARSAYILAN aktif hedefi okunur; publishTargets bu
+    // çağrıda targetIds ile daraltılmış olabilir ve canonical hangi hedefe
+    // basıldığından bağımsız olarak tek/otoriter URL'i göstermelidir.
+    const siteUrl = (article.site as any).url ? String((article.site as any).url) : '';
+    let canonical: string | null = null;
+    let sectionPath: string | null = null;
+    if (siteUrl) {
+      let defaultTarget: { type?: string | null; config?: unknown } | null = null;
+      try {
+        const targets = await this.prisma.publishTarget.findMany({
+          where: { siteId: article.siteId, isActive: true },
+          orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
+          take: 1,
+        });
+        defaultTarget = targets[0] ?? null;
+      } catch (err: any) {
+        this.log.warn(`[${articleId}] Publish hedefi okunamadı, canonical varsayılana düştü: ${err.message}`);
+      }
+      const resolved = resolveArticleUrl(siteUrl, article.slug, defaultTarget);
+      canonical = resolved.url;
+      sectionPath = resolved.sectionPath;
+    }
     // GEO v7: schema JSON-LD + audio + tracker injection
     const schemaJsonLd: any[] = (() => {
       const sm: any = (article as any).schemaMarkup;
@@ -337,6 +374,7 @@ export class PublisherService {
       canonical,
       heroImageUrl,
       siteName: article.site.name,
+      sectionPath,
       schemaJsonLd,
       audioUrl,
       trackerSiteId: article.siteId,

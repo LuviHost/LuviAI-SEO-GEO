@@ -150,6 +150,11 @@ export class SchemaClassifierService {
       heroImage?: string | null;
       faqs?: Array<{ q: string; a: string }>;
       author?: { name: string; url?: string } | null;
+      /**
+       * Kirinti yolu. Cagiran taraf gercek URL hiyerarsisinden uretip verir;
+       * verilmezse a.url'in path segmentlerinden turetilir.
+       */
+      breadcrumbs?: Array<{ name: string; url: string }>;
     };
     site: {
       name: string;
@@ -189,15 +194,22 @@ export class SchemaClassifierService {
     }
 
     // BreadcrumbList — always
+    //
+    // Sabit `${baseUrl}/blog` ara adimi yanlisti: cogu sitede /blog diye bir
+    // sayfa yok (kobipratik'te rehberler /pratik-kobi-rehberi altinda). Var
+    // olmayan bir kirinti 404'e baglanir. Artik cagiranin verdigi gercek yol
+    // kullanilir; verilmezse makale URL'inin kendi segmentlerinden turetilir.
     if (args.types.includes('BreadcrumbList')) {
+      const trail = a.breadcrumbs?.length ? a.breadcrumbs : this.deriveBreadcrumbs(baseUrl, a.url, a.title);
       schemas.push({
         '@context': 'https://schema.org',
         '@type': 'BreadcrumbList',
-        itemListElement: [
-          { '@type': 'ListItem', position: 1, name: 'Anasayfa', item: baseUrl },
-          { '@type': 'ListItem', position: 2, name: 'Blog', item: `${baseUrl}/blog` },
-          { '@type': 'ListItem', position: 3, name: a.title, item: a.url },
-        ],
+        itemListElement: trail.map((c, i) => ({
+          '@type': 'ListItem',
+          position: i + 1,
+          name: c.name,
+          item: c.url,
+        })),
       });
     }
 
@@ -331,5 +343,41 @@ export class SchemaClassifierService {
     }
 
     return schemas;
+  }
+
+  /**
+   * Makale URL'inin path segmentlerinden kirinti yolu turetir.
+   * Ara segmentin adi slug'dan insanilastirilir; uydurma bir "Blog" adimi
+   * eklenmez. Segment yoksa iki adimli (Anasayfa → makale) yol doner.
+   */
+  private deriveBreadcrumbs(
+    baseUrl: string,
+    articleUrl: string,
+    title: string,
+  ): Array<{ name: string; url: string }> {
+    const trail: Array<{ name: string; url: string }> = [{ name: 'Anasayfa', url: baseUrl }];
+    let segments: string[] = [];
+    try {
+      segments = new URL(articleUrl).pathname.split('/').filter(Boolean);
+    } catch {
+      segments = String(articleUrl ?? '').split('/').filter(Boolean);
+    }
+    // Son segment makalenin kendisi
+    const parents = segments.slice(0, -1);
+    let acc = baseUrl;
+    for (const seg of parents) {
+      acc = `${acc}/${seg}`;
+      trail.push({ name: this.humanizeSegment(seg), url: acc });
+    }
+    trail.push({ name: title, url: articleUrl });
+    return trail;
+  }
+
+  private humanizeSegment(seg: string): string {
+    return seg
+      .split('-')
+      .filter(Boolean)
+      .map((w) => w.charAt(0).toLocaleUpperCase('tr') + w.slice(1))
+      .join(' ');
   }
 }

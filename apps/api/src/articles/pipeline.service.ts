@@ -13,10 +13,15 @@ import {
   AGENT_03_WRITER,
   AGENT_04_EDITOR,
   AGENT_05_VISUALS,
+  checkGeoGate,
+  extractFAQs,
   parseFrontmatter,
   turkishSlug,
 } from '@luviai/shared';
-import type { AgentContext } from '@luviai/shared';
+import type { AgentContext, ExtractedFaq, GeoGateResult } from '@luviai/shared';
+import { safeParseJson } from '../common/safe-json.js';
+// Tek kaynak: canonical (publisher.service.ts) ile JSON-LD (burası) aynı URL'i üretsin.
+import { resolveArticleUrl as buildArticleUrl } from './article-url.util.js';
 
 export interface PipelineResult {
   articleId: string;
@@ -202,7 +207,9 @@ export class PipelineService {
       },
       siteUrl: site.url,
       siteName: site.name,
-      niche: site.niche ?? 'web',
+      // 'web' LuviHost kalıntısı bir varsayılandı: niş boş kalınca finans sitesine
+      // "web" nişi enjekte ediyordu. Nötr bir değer, yanlış nişten iyidir.
+      niche: (site.niche ?? '').trim() || 'genel',
       language: (site.language as any) ?? 'tr',
       whmcsCart: undefined,
       today: new Date().toISOString().slice(0, 10),
@@ -247,11 +254,29 @@ export class PipelineService {
     agentOutputs.writer = { output: writer.output, usage: writer.usage };
     totalCost += writer.costUsd;
 
-    // 04 — Editör
+    // 04 — Editör + deterministik GEO kapısı
+    //
+    // Prompt'lardaki GEO kuralları doğruydu ama hiç ölçülmüyordu; editör
+    // tamamen biçimsel bir LLM yargısıydı. Artık her turda metin regex ile
+    // ölçülüyor (tablo, "Kısa cevap", soru H2 oranı, görünür son güncelleme,
+    // kaynaksız sayı) ve kapı geçilmeden PASS kabul edilmiyor.
     let currentDraft = writer.output;
-    let editorVerdict: 'PASS' | 'REVIZE' | 'FAIL' = 'FAIL';
+    // Başlangıç değeri FAIL değil REVIZE: hiç değerlendirme yapılmamış bir
+    // taslağa "baştan yaz" hükmü vermek için elimizde kanıt yok.
+    let editorVerdict: 'PASS' | 'REVIZE' | 'FAIL' = 'REVIZE';
     let editorScore: number | null = null;
-    const maxRevize = opts.maxRevize ?? 1;
+    // 1 → 2: deterministik kapı bulgularının kapatılabilmesi için ek bir tur.
+    const maxRevize = opts.maxRevize ?? 2;
+    const MAX_PARSE_RETRIES = 1;
+    let parseRetries = 0;
+
+    let geoGate: GeoGateResult = checkGeoGate(this.cleanCodeFences(currentDraft));
+    this.log.log(
+      `[${opts.siteId}] GEO kapısı (yazar çıktısı): ${geoGate.pass ? 'GEÇTİ' : 'KALDI'} — ` +
+        `soru H2 %${Math.round(geoGate.stats.questionRatio * 100)}, tablo ${geoGate.stats.tables}, ` +
+        `kısa cevap ${geoGate.stats.shortAnswerCovered}/${geoGate.stats.contentH2}, ` +
+        `kaynaksız sayı ${geoGate.stats.unsourcedNumericClaims}`,
+    );
 
     for (let attempt = 0; attempt <= maxRevize; attempt++) {
       this.log.log(`[${opts.siteId}] [4/6] Editör${attempt > 0 ? ` (revize ${attempt})` : ''}`);
@@ -259,29 +284,66 @@ export class PipelineService {
         agentName: '04-editor',
         agentSystemSuffix: AGENT_04_EDITOR.systemSuffix,
         brainContext,
-        input: currentDraft + dateNote,
+        // Kapı bulguları editöre madde madde gider — "kaliteyi artır" gibi
+        // muğlak bir istek değil, kapatılacak somut liste.
+        input: currentDraft + dateNote + (geoGate.pass ? '' : geoGate.feedback),
       });
       agentOutputs[`editor_attempt_${attempt}`] = { output: editor.output, usage: editor.usage };
       totalCost += editor.costUsd;
 
       const verdict = this.extractEditorVerdict(editor.output);
-      editorVerdict = verdict.verdict;
-      editorScore = verdict.score;
 
-      this.log.log(`[${opts.siteId}]   → ${verdict.verdict} (${verdict.score}/60)`);
-
-      if (verdict.verdict === 'PASS') {
-        if (verdict.article && verdict.article.length > 1000 && !this.hasPlaceholder(verdict.article)) {
-          currentDraft = verdict.article;
+      // Ayrıştırılamayan çıktı bir kalite hükmü DEĞİL. Eskiden sessizce 'FAIL'
+      // dönüyordu; artık ayrı bir durum ve editör bir kez daha denenir.
+      if (verdict.verdict === 'PARSE_ERROR') {
+        agentOutputs[`editor_attempt_${attempt}`].parseError = verdict.parseError;
+        this.log.warn(`[${opts.siteId}]   → PARSE_ERROR: ${verdict.parseError}`);
+        if (parseRetries < MAX_PARSE_RETRIES) {
+          // Kanıtı kaybetme: bozuk çıktıyı ayrı anahtara taşı, turu tekrarla.
+          agentOutputs[`editor_attempt_${attempt}_parse_error_${parseRetries}`] =
+            agentOutputs[`editor_attempt_${attempt}`];
+          delete agentOutputs[`editor_attempt_${attempt}`];
+          parseRetries++;
+          attempt--; // revizyon bütçesini yeme, aynı turu tekrarla
+          continue;
         }
+        editorVerdict = 'REVIZE';
+        editorScore = null;
         break;
       }
-      if (verdict.verdict === 'FAIL' || attempt >= maxRevize) {
-        if (verdict.article) currentDraft = verdict.article;
-        break;
+
+      editorScore = verdict.score;
+      if (verdict.article && verdict.article.length > 1000 && !this.hasPlaceholder(verdict.article)) {
+        currentDraft = verdict.article;
       }
-      if (verdict.article) currentDraft = verdict.article;
+
+      // Kapı, editörün düzeltilmiş metni üzerinde yeniden ölçülür.
+      geoGate = checkGeoGate(this.cleanCodeFences(currentDraft));
+
+      let effective = verdict.verdict;
+      if (effective === 'PASS' && !geoGate.pass) {
+        effective = 'REVIZE';
+        this.log.warn(
+          `[${opts.siteId}]   → GEO kapısı PASS'i bloke etti: ${geoGate.issues.map((i) => i.code).join(', ')}`,
+        );
+      }
+      editorVerdict = effective;
+
+      this.log.log(
+        `[${opts.siteId}]   → ${verdict.verdict}${effective !== verdict.verdict ? ` ⇒ ${effective}` : ''} ` +
+          `(${verdict.score ?? '?'}/${verdict.maxScore}` +
+          `${verdict.blockingIssues.length > 0 ? `, ${verdict.blockingIssues.length} engelleyici bulgu` : ''})`,
+      );
+
+      if (effective === 'PASS' || effective === 'FAIL') break;
+      if (attempt >= maxRevize) break;
     }
+
+    agentOutputs.geoGate = {
+      pass: geoGate.pass,
+      stats: geoGate.stats,
+      issues: geoGate.issues.map((i) => ({ code: i.code, samples: i.samples ?? [] })),
+    };
 
     // 05 — Görselleştirici
     if (!opts.skipImages && editorVerdict === 'PASS') {
@@ -327,14 +389,25 @@ export class PipelineService {
     // gövdesi temizlenip metadata kirli kalmasın.
     const cleanInternalLinks = await this.filterInternalLinks(opts.siteId, fm.internal_links as any);
 
-    const slug = (fm.slug as string) || turkishSlug((fm.title as string) ?? opts.topic).slice(0, 60);
+    // LLM'in yazdığı slug da normalizasyondan GEÇER. Önceden fm.slug olduğu gibi
+    // kabul ediliyordu; model "kârlılık" yazınca aksanlı harfler düşüp
+    // "...-krlilik-2026" gibi anahtar kelimesi kaybolmuş URL'ler sitemap'e giriyordu.
+    // turkishSlug'daki TR_MAP zaten â→a eşlemesini içeriyor; sorun eşlemenin
+    // atlanmasıydı.
+    const slug = this.normalizeSlug((fm.slug as string) || (fm.title as string) || opts.topic);
     const wordCount = body.split(/\s+/).length;
+
+    // ── SSS teli ────────────────────────────────────────────────
+    // extractFAQs bugüne kadar hiçbir yerden çağrılmıyordu; model frontmatter'a
+    // faqs yazmadığında FAQPage şeması hiç üretilmiyordu. Artık frontmatter
+    // birincil kaynak, görünür SSS bölümü fallback. İkisi de görünür metne
+    // dayandığı için şema-içerik uyumsuzluğu üretmez.
+    const faqs = this.resolveFaqs(fm.faqs, body);
 
     // ── Schema Classifier — 15+ schema tipini otomatik karara bagla ──
     let schemaMarkup: any = null;
     if (editorVerdict === 'PASS') {
       try {
-        const faqs = (fm.faqs as any[]) ?? [];
         const classification = await this.schemaClassifier.classify(cleaned, {
           hasFaqs: faqs.length > 0,
           persona: fm.persona as string,
@@ -347,7 +420,14 @@ export class PipelineService {
         const siteName: string = String(siteAny.name ?? 'Site');
         const siteUrl: string = String(siteAny.url ?? '');
         const baseUrl = siteUrl.replace(/\/+$/, '');
-        const articleUrl = `${baseUrl}/blog/${slug}.html`;
+        // Sabit `/blog/<slug>.html` yanlıştı: bu yol hiçbir hedefte yok.
+        // (kobipratik'te rehberler /pratik-kobi-rehberi/<slug>, uzantısız.)
+        // Artık gerçek publish hedefinin path kuralından türetiliyor.
+        const { url: articleUrl, sectionPath } = await this.resolveArticleUrl(
+          opts.siteId,
+          baseUrl,
+          slug,
+        );
         const sameAs = Array.isArray(siteAny.socialProfiles)
           ? (siteAny.socialProfiles as string[])
           : [];
@@ -362,8 +442,21 @@ export class PipelineService {
             datePublished: new Date().toISOString(),
             dateModified: new Date().toISOString(),
             heroImage: ((fm as any).hero_image as string) ?? null,
-            faqs: faqs as any,
-            author: fm.persona ? { name: fm.persona as string } : null,
+            faqs,
+            // author BİLEREK verilmiyor: fm.persona okuyucu profilidir (hedef
+            // kitle), makalenin yazarı değil. Person olarak basmak schema.org
+            // açısından yanlış beyandır; Organization fallback'i doğru olan.
+            author: null,
+            // Kırıntı yolu gerçek URL hiyerarşisinden gelir ve ara sayfa
+            // yalnızca site envanterinde GERÇEKTEN varsa eklenir.
+            breadcrumbs: this.buildBreadcrumbs({
+              baseUrl,
+              siteName,
+              sectionPath,
+              sitePages,
+              title: (fm.title as string) ?? opts.topic,
+              articleUrl,
+            }),
           },
           site: {
             name: siteName,
@@ -387,7 +480,10 @@ export class PipelineService {
       title: (fm.title as string) ?? opts.topic,
       metaTitle: (fm.meta_title as string) ?? null,
       metaDescription: (fm.meta_description as string) ?? null,
-      category: (fm.category as string) ?? 'Hosting',
+      // 'Hosting' LuviHost kalıntısı sabitti — finans sitesinde üretilen her
+      // makale bu kategoriye düşüyordu. Yanlış kategori yerine sitenin kendi
+      // nişi; o da yoksa null (yanlış etiket, etiketsizlikten kötüdür).
+      category: (fm.category as string) ?? ((site.niche ?? '').trim() || null),
       language: brainContext.language === 'both' ? 'tr' : brainContext.language,
       persona: (fm.persona as string) ?? null,
       pillar: (fm.pillar as string) ?? null,
@@ -395,7 +491,7 @@ export class PipelineService {
       frontmatter: fm as any,
       agentOutputs: agentOutputs as any,
       schemaMarkup: schemaMarkup as any,
-      faqs: (fm.faqs as any) ?? null,
+      faqs: faqs.length > 0 ? (faqs as any) : null,
       wordCount,
       readingTime: Math.max(1, Math.round(wordCount / 200)),
       editorScore,
@@ -493,22 +589,70 @@ export class PipelineService {
     this.log.log(`[${siteId}] Mail gonderildi: ${site.user.email} (${template})`);
   }
 
+  /** Editör skor tavanı — 04-editor prompt'undaki 9 kategori × 10 puan. */
+  private static readonly EDITOR_MAX_SCORE = 90;
+
+  /**
+   * Editör çıktısını yapılandırılmış olarak okur.
+   *
+   * Eskiden serbest markdown regex'lenip, tutmazsa sessizce 'FAIL' dönülüyordu;
+   * üstelik yedek yakalayıcı genel `\b(\d+)/60\b` olduğu için metindeki rastgele
+   * bir sayı PASS üretebiliyordu. Artık sözleşme tek bir JSON bloğu:
+   * ayrıştırılamayan çıktı bir kalite hükmü değil, 'PARSE_ERROR' — çağıran
+   * tarafta yeniden denenir.
+   */
   private extractEditorVerdict(output: string): {
-    verdict: 'PASS' | 'REVIZE' | 'FAIL';
+    verdict: 'PASS' | 'REVIZE' | 'FAIL' | 'PARSE_ERROR';
     score: number | null;
+    maxScore: number;
+    blockingIssues: string[];
     article: string | null;
+    parseError?: string;
   } {
-    const verdictPattern = /##\s*Karar(?:\s+güncellemesi)?\s*\n\*\*\[?(PASS|REVIZE|FAIL)/gi;
-    const matches = [...output.matchAll(verdictPattern)];
-    let verdict: 'PASS' | 'REVIZE' | 'FAIL' = matches.length > 0
-      ? (matches[matches.length - 1][1].toUpperCase() as any)
-      : 'FAIL';
+    const maxScore = PipelineService.EDITOR_MAX_SCORE;
+    const empty = { score: null, maxScore, blockingIssues: [] as string[], article: null };
 
-    const scoreMatch = output.match(/\*\*Toplam\*\*\s*\|\s*\*\*(\d+)\/60/i)
-      || output.match(/\b(\d+)\/60\b/);
-    const score = scoreMatch ? parseInt(scoreMatch[1], 10) : null;
+    const raw = this.extractJsonBlock(output);
+    if (!raw) {
+      return { verdict: 'PARSE_ERROR', ...empty, parseError: 'json bloğu bulunamadı' };
+    }
 
-    if (verdict === 'REVIZE' && score !== null && score >= 48) verdict = 'PASS';
+    let parsed: any;
+    try {
+      parsed = safeParseJson(raw);
+    } catch (err: any) {
+      return { verdict: 'PARSE_ERROR', ...empty, parseError: `json parse: ${err.message}` };
+    }
+
+    const rawVerdict = String(parsed?.verdict ?? '').toUpperCase();
+    if (!['PASS', 'REVIZE', 'FAIL'].includes(rawVerdict)) {
+      return { verdict: 'PARSE_ERROR', ...empty, parseError: `geçersiz verdict: "${parsed?.verdict}"` };
+    }
+    let verdict = rawVerdict as 'PASS' | 'REVIZE' | 'FAIL';
+
+    // Skor: önce beyan edilen total, tutarsızsa kategori toplamı.
+    const scores = parsed?.scores && typeof parsed.scores === 'object' ? parsed.scores : {};
+    const summed = Object.values(scores)
+      .filter((v): v is number => typeof v === 'number' && Number.isFinite(v))
+      .reduce((a, b) => a + b, 0);
+    const declared = typeof parsed?.total === 'number' ? parsed.total : null;
+    let score: number | null =
+      declared !== null && declared >= 0 && declared <= maxScore ? declared : summed > 0 ? summed : null;
+    if (score !== null) score = Math.max(0, Math.min(maxScore, Math.round(score)));
+
+    const blockingIssues = Array.isArray(parsed?.blocking_issues)
+      ? parsed.blocking_issues.map((b: any) => String(b)).filter(Boolean)
+      : [];
+
+    // Skor yüksekse REVIZE'yi PASS'e çeviren eski davranış korunuyor, ancak
+    // artık yalnızca engelleyici bulgu YOKKEN. Kaynaksız sayı gibi bir ihlal
+    // "puanı yüksek" diye affedilemez (YMYL).
+    if (verdict === 'REVIZE' && score !== null && score / maxScore >= 0.8 && blockingIssues.length === 0) {
+      verdict = 'PASS';
+    }
+    if (verdict === 'PASS' && blockingIssues.length > 0) {
+      verdict = 'REVIZE';
+    }
 
     let articleMatch = output.match(/##\s*Düzeltilmiş tam makale\s*\n+```(?:markdown)?\s*\n([\s\S]+?)```\s*$/i);
     if (!articleMatch) articleMatch = output.match(/##\s*Düzeltilmiş tam makale\s*\n([\s\S]+?)$/i);
@@ -516,8 +660,123 @@ export class PipelineService {
     return {
       verdict,
       score,
+      maxScore,
+      blockingIssues,
       article: articleMatch ? articleMatch[1].trim() : null,
     };
+  }
+
+  /**
+   * Editör raporundaki karar JSON'unu bulur.
+   * Önce ```json fence'leri, olmazsa "verdict" içeren ilk süslü blok.
+   */
+  private extractJsonBlock(output: string): string | null {
+    const fences = [...output.matchAll(/```json\s*\n([\s\S]*?)```/gi)];
+    for (const f of fences) {
+      if (/"verdict"/i.test(f[1])) return f[1].trim();
+    }
+    if (fences.length > 0) return fences[0][1].trim();
+
+    const braceMatch = output.match(/\{[^{}]*"verdict"[\s\S]*?\n\}/);
+    return braceMatch ? braceMatch[0] : null;
+  }
+
+  /**
+   * Slug'ı Türkçe-güvenli kebab-case'e indirger ve 60 karakterle sınırlar.
+   * Kesme sonrası yarım kalan kelime parçası ve kuyruk tiresi temizlenir.
+   */
+  private normalizeSlug(input: string): string {
+    const full = turkishSlug(String(input ?? ''));
+    if (full.length <= 60) return full;
+    const cut = full.slice(0, 60);
+    const lastDash = cut.lastIndexOf('-');
+    return (lastDash > 20 ? cut.slice(0, lastDash) : cut).replace(/-+$/, '');
+  }
+
+  /**
+   * SSS listesini çözer: frontmatter birincil, görünür SSS bölümü fallback.
+   * Her iki yol da { q, a } döndürür (Article.faqs ve FAQPage şeması bu şekli bekler).
+   * Cevabı boş olan soru elenir — görünür karşılığı olmayan Question basmayız.
+   */
+  private resolveFaqs(fmFaqs: unknown, body: string): ExtractedFaq[] {
+    const fromFm = Array.isArray(fmFaqs)
+      ? (fmFaqs as any[])
+          .map((f) => ({
+            q: String(f?.q ?? f?.question ?? '').trim(),
+            a: String(f?.a ?? f?.answer ?? '').trim(),
+          }))
+          .filter((f) => f.q && f.a)
+      : [];
+    if (fromFm.length > 0) return fromFm;
+    return extractFAQs(body);
+  }
+
+  /**
+   * Makalenin yayınlanacağı GERÇEK public URL'i, sitenin publish hedefinin
+   * path kuralından türetir.
+   *
+   * Sabit `/blog/<slug>.html` varsayımı yanlıştı: `.html` yalnızca FTP/SFTP/cPanel
+   * hedeflerinde geçerli, `/blog` ise pek çok sitede hiç yok. Yanlış URL hem
+   * Article.url hem BreadcrumbList'e sızıp şemayı 404'e bağlıyordu.
+   *
+   * baseUrl olarak site.url kullanılır (hedefin credentials'ı şifreli ve
+   * yayın domaini ile aynı olmayabilir); path ise hedefin config'inden gelir.
+   *
+   * Hesaplama article-url.util.ts'e taşındı: publisher.service.ts canonical'ı
+   * ayrı bir kopyayla üretiyordu ve burası düzeltilince ikisi çelişti
+   * (şema /pratik-kobi-rehberi/x, canonical /blog/x). Tek kaynak zorunlu.
+   */
+  private async resolveArticleUrl(
+    siteId: string,
+    baseUrl: string,
+    slug: string,
+  ): Promise<{ url: string; sectionPath: string | null }> {
+    let target: { type?: string | null; config?: unknown } | null = null;
+    try {
+      const targets = await this.prisma.publishTarget.findMany({
+        where: { siteId, isActive: true },
+        orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
+        take: 1,
+      });
+      target = targets[0] ?? null;
+    } catch (err: any) {
+      this.log.warn(`[${siteId}] Publish hedefi okunamadı, URL varsayılana düştü: ${err.message}`);
+    }
+
+    return buildArticleUrl(baseUrl, slug, target);
+  }
+
+  /**
+   * BreadcrumbList öğelerini üretir.
+   * Ara kırıntı (bölüm sayfası) yalnızca site envanterinde GERÇEKTEN varsa
+   * eklenir — var olmayan bir bölüm sayfası ilan etmek 404 kırıntı demektir.
+   */
+  private buildBreadcrumbs(args: {
+    baseUrl: string;
+    siteName: string;
+    sectionPath: string | null;
+    sitePages: Array<{ url: string; path: string; title: string }>;
+    title: string;
+    articleUrl: string;
+  }): Array<{ name: string; url: string }> {
+    const crumbs = [{ name: 'Anasayfa', url: args.baseUrl }];
+    if (args.sectionPath) {
+      const hit = args.sitePages.find((p) => p.path === args.sectionPath);
+      if (hit) {
+        crumbs.push({ name: hit.title || this.humanizePath(args.sectionPath), url: hit.url });
+      }
+    }
+    crumbs.push({ name: args.title, url: args.articleUrl });
+    return crumbs;
+  }
+
+  private humanizePath(path: string): string {
+    return path
+      .replace(/^\/+|\/+$/g, '')
+      .split('-')
+      .filter(Boolean)
+      .map((w) => w.charAt(0).toLocaleUpperCase('tr') + w.slice(1))
+      .join(' ');
   }
 
   /**
