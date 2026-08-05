@@ -242,12 +242,19 @@ export class StuckPageRecoveryService {
   }
 
   /** Recovery'yi geri al — bodyMd snapshot'tan eski hali. Worker re-publish'i ayri job ile yapar. */
+  /**
+   * KIRACI IZOLASYONU: siteId zorunlu.
+   * Bu metot bir makalenin govdesini onceki haline dondurur. siteId ile
+   * kisitlanmazsa saldirgan kendi sitesinin URL'i altinda baskasinin
+   * recoveryId'sini gecirip o musterinin yayindaki makalesini degistirebilirdi.
+   */
   async revert(
+    siteId: string,
     recoveryId: string,
     userId: string,
   ): Promise<{ needsRepublish: boolean; articleId: string }> {
-    const recovery = await this.prisma.stuckPageRecovery.findUnique({
-      where: { id: recoveryId },
+    const recovery = await this.prisma.stuckPageRecovery.findFirst({
+      where: { id: recoveryId, stuckPage: { siteId } },
       include: { stuckPage: true },
     });
     if (!recovery) throw new NotFoundException('Recovery bulunamadi');

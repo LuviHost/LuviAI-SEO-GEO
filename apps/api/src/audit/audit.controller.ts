@@ -1,5 +1,5 @@
-import { Body, Controller, Delete, Get, Header, Param, Patch, Post, Query, Res } from '@nestjs/common';
-import type { Response } from 'express';
+import { Body, Controller, Delete, ForbiddenException, Get, Header, NotFoundException, Param, Patch, Post, Query, Req, Res } from '@nestjs/common';
+import type { Request, Response } from 'express';
 import { AuditService } from './audit.service.js';
 import { AutoFixService } from './auto-fix.service.js';
 import { AiCitationService } from './ai-citation.service.js';
@@ -116,16 +116,28 @@ export class AuditController {
     return this.stuckDetector.detect(siteId);
   }
 
+  // NOT: Asagidaki tum stuck-page islemleri siteId ile KISITLANIR.
+  // SiteAccessGuard yalnizca URL'deki :siteId'nin sahipligini dogrular; ic
+  // kaynak id'lerine bakmaz. Kapsam olmadan saldirgan kendi sitesinin URL'i
+  // altinda baskasinin stuckPageId/recoveryId'sini gecirip o musterinin
+  // yayindaki makalesini degistirebilir veya govdesini okuyabilirdi.
+
   @Get('stuck-pages/:id')
-  async stuckPageDetail(@Param('id') id: string) {
-    return this.stuckDetector.getDetail(id);
+  async stuckPageDetail(@Param('siteId') siteId: string, @Param('id') id: string) {
+    const sp = await this.stuckDetector.getDetail(siteId, id);
+    if (!sp) throw new NotFoundException('Stuck page bulunamadi');
+    return sp;
   }
 
   @Post('stuck-pages/:id/recover')
-  async recoverStuckPage(@Param('id') id: string, @Body() body: { triggeredBy?: string } = {}) {
+  async recoverStuckPage(
+    @Param('siteId') siteId: string,
+    @Param('id') id: string,
+    @Body() body: { triggeredBy?: string } = {},
+  ) {
     // articleId varsa Article-based recovery, yoksa external (URL fetch)
-    const sp = await this.stuckDetector.getDetail(id);
-    if (!sp) throw new Error('Stuck page bulunamadi');
+    const sp = await this.stuckDetector.getDetail(siteId, id);
+    if (!sp) throw new NotFoundException('Stuck page bulunamadi');
     if (sp.articleId) {
       return this.stuckRecovery.recover(id, {
         triggeredBy: body.triggeredBy || 'manual',
@@ -142,9 +154,11 @@ export class AuditController {
     @Body() body: { stuckPageIds: string[]; triggeredBy?: string },
   ) {
     const results: Array<{ id: string; ok: boolean; error?: string; recoveryId?: string }> = [];
-    for (const id of body.stuckPageIds ?? []) {
+    // Toplu istekte de her id ayri ayri siteId ile dogrulanir — govdeden gelen
+    // liste kullanicinin kendi sitesine ait olmayan id icerebilir.
+    for (const id of (body.stuckPageIds ?? []).slice(0, 50)) {
       try {
-        const sp = await this.stuckDetector.getDetail(id);
+        const sp = await this.stuckDetector.getDetail(siteId, id);
         if (!sp) {
           results.push({ id, ok: false, error: 'Stuck page bulunamadi' });
           continue;
@@ -162,16 +176,20 @@ export class AuditController {
 
   @Post('stuck-pages/recovery/:recoveryId/revert')
   async revertRecovery(
+    @Param('siteId') siteId: string,
     @Param('recoveryId') recoveryId: string,
-    @Body() body: { userId?: string } = {},
+    @Req() req: Request,
   ) {
-    await this.stuckRecovery.revert(recoveryId, body.userId || 'manual');
+    // Kim geri aldi bilgisi OTURUMDAN alinir. Onceden body.userId'den
+    // okunuyordu; saldirgan denetim kaydina istedigi kimligi yazdirabilirdi.
+    const actor = (req as any).user?.id ?? 'manual';
+    await this.stuckRecovery.revert(siteId, recoveryId, actor);
     return { ok: true };
   }
 
   @Post('stuck-pages/:id/ignore')
-  async ignoreStuckPage(@Param('id') id: string) {
-    await this.stuckDetector.ignore(id);
+  async ignoreStuckPage(@Param('siteId') siteId: string, @Param('id') id: string) {
+    await this.stuckDetector.ignore(siteId, id);
     return { ok: true };
   }
 
@@ -433,9 +451,22 @@ export class AuditController {
     return this.crawler.getHistory(siteId, days ? parseInt(days, 10) : 30);
   }
 
-  /** POST /audit/alarm/scan — admin: tum sitelerde alarm tarama (cron disinda manuel) */
+  /**
+   * POST /sites/:siteId/audit/alarm/scan — TUM sitelerde alarm tarama.
+   *
+   * ADMIN ZORUNLU: scanAndAlert() butun tenant'lari tarar ve donusteki her
+   * AlarmTrigger kaydi o sitenin userId + userEmail bilgisini tasir.
+   * Yetki kontrolu yokken, kendi sitesi olan HERHANGI bir kullanici bu
+   * endpoint'i kendi siteId'siyle cagirip tum musteri listesinin e-posta
+   * adreslerini cekebiliyordu. SiteAccessGuard bunu goremez; o yalnizca
+   * URL'deki siteId'nin sahipligini dogrular, islemin kapsamini degil.
+   */
   @Post('alarm/scan')
-  alarmScan() {
+  alarmScan(@Req() req: Request) {
+    const user = (req as any).user;
+    if (user?.role !== 'ADMIN') {
+      throw new ForbiddenException('Bu islem tum kiracilari tarar, yalnizca admin calistirabilir');
+    }
     return this.alarm.scanAndAlert();
   }
 

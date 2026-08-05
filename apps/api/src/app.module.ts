@@ -2,7 +2,7 @@ import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
-import { ThrottlerModule } from '@nestjs/throttler';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 
 import { CrawlerTrackingMiddleware } from './audit/crawler-tracking.middleware.js';
 import { AuthModule } from './auth/auth.module.js';
@@ -73,7 +73,16 @@ import { TestimonialsModule } from './testimonials/testimonials.module.js';
     AscModule,
     TestimonialsModule,
   ],
+  // Guard SIRASI onemli — kayit sirasinda calisirlar.
+  //
+  // ThrottlerGuard EN BASTA: ThrottlerModule.forRoot() yapilandirmasi bugune
+  // kadar OLU KODDU. @nestjs/throttler v6'da forRoot yalnizca storage/options
+  // saglar, guard'i APP_GUARD olarak KAYDETMEZ; bu satir eksik oldugu icin
+  // hicbir endpoint'te rate limit uygulanmiyordu. Kimlik dogrulamadan ONCE
+  // calismasi gerekir ki kimliksiz flood, DB'ye giden auth sorgusuna ulasmadan
+  // kesilsin.
   providers: [
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: AuthGuard },
     { provide: APP_GUARD, useClass: SiteAccessGuard },
   ],

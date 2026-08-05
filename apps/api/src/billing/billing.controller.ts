@@ -1,5 +1,6 @@
 import { Body, Controller, ForbiddenException, Get, HttpCode, Param, Post, Query, Req } from '@nestjs/common';
 import type { Request } from 'express';
+import { SkipThrottle } from '@nestjs/throttler';
 import { Public } from '../auth/public.decorator.js';
 import { BillingService } from './billing.service.js';
 import { PaytrService } from './paytr.service.js';
@@ -95,7 +96,13 @@ export class BillingController {
     return this.paytr.devConfirmPayment(user.id, merchantOid);
   }
 
-  /** PayTR webhook — body signature ile doğrulanır, public olmalı */
+  /**
+   * PayTR webhook — body signature ile dogrulanir, public olmali.
+   * SkipThrottle: PayTR tum musterilerin bildirimini ayni IP havuzundan gonderir.
+   * Rate limit'e takilan bir bildirim = odenmis ama aktive edilmemis abonelik.
+   * Guvenlik HMAC imzasiyla saglanir, IP limitiyle degil.
+   */
+  @SkipThrottle()
   @Public()
   @Post('webhooks/paytr')
   @HttpCode(200)

@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { google } from 'googleapis';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { GscOAuthService } from '../auth/gsc-oauth.service.js';
@@ -298,16 +298,28 @@ export class StuckPageDetectorService {
     });
   }
 
-  async ignore(stuckPageId: string): Promise<void> {
+  /**
+   * KIRACI IZOLASYONU: siteId zorunlu.
+   * SiteAccessGuard yalnizca URL'deki :siteId'nin sahipligini dogrular; bu
+   * metotlar id ile calistigi icin siteId ile kisitlanmazsa saldirgan kendi
+   * sitesinin URL'i altinda baskasinin stuckPageId'sini gecirip o kaydi
+   * okuyabilir/degistirebilirdi.
+   */
+  async ignore(siteId: string, stuckPageId: string): Promise<void> {
+    const existing = await this.prisma.stuckPage.findFirst({
+      where: { id: stuckPageId, siteId },
+      select: { id: true },
+    });
+    if (!existing) throw new NotFoundException('Stuck page bulunamadi');
     await this.prisma.stuckPage.update({
       where: { id: stuckPageId },
       data: { status: 'IGNORED' as any },
     });
   }
 
-  async getDetail(stuckPageId: string): Promise<any> {
-    return this.prisma.stuckPage.findUnique({
-      where: { id: stuckPageId },
+  async getDetail(siteId: string, stuckPageId: string): Promise<any> {
+    return this.prisma.stuckPage.findFirst({
+      where: { id: stuckPageId, siteId },
       include: {
         recoveries: { orderBy: { appliedAt: 'desc' } },
       },

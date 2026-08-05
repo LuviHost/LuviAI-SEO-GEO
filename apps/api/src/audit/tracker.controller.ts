@@ -4,6 +4,7 @@ import { CrawlerTrackingMiddleware } from './crawler-tracking.middleware.js';
 import { AiReferrerService } from './ai-referrer.service.js';
 import { PersonaChatService } from './persona-chat.service.js';
 import { Public } from '../auth/public.decorator.js';
+import { SkipThrottle } from '@nestjs/throttler';
 
 /**
  * Public tracker beacon — site sahibinin html'ine eklediği <script>
@@ -19,6 +20,14 @@ import { Public } from '../auth/public.decorator.js';
  * Ya da daha pratik: nginx/Apache log'u her gece otomatik upload et
  * (cron job ile rsync / SCP), middleware o log'u parse etsin.
  */
+/**
+ * SkipThrottle: bu controller musteri sitelerine gomulu script'i ve her sayfa
+ * goruntulemesinde atilan beacon'i sunar. Global 60 istek/dk limiti burada
+ * mesru trafigi keserdi (tek bir yogun musteri sitesi veya proxy arkasindaki
+ * ziyaretciler ayni IP'yi paylasir). Abuse korumasi beacon'in kendi
+ * dogrulamasiyla yapilmali, genel IP limitiyle degil.
+ */
+@SkipThrottle()
 @Controller()
 export class TrackerController {
   constructor(

@@ -96,7 +96,11 @@ export class AiCitationService {
   // Approx cost per probe (input ~150 tok + output ~400 tok)
   private readonly COST_PER_PROBE_USD: Record<Provider, number> = {
     anthropic:  0.0024,
-    gemini:     0,
+    // Gemini SIFIR OLAMAZ. Sifirken projected maliyet hicbir zaman cap'i
+    // asmiyordu, yani gemini icin gunluk butce guard'i HIC calismiyordu ve
+    // her planin havuzunda gemini bulundugu icin bu en genis acikti.
+    // Deger Gemini Flash listesinden: ~150 girdi + ~400 cikti token/probe.
+    gemini:     0.00013,
     openai:     0.0004,
     perplexity: 0.0006,
     xai:        0.0003,
@@ -191,32 +195,74 @@ export class AiCitationService {
   // ────────────────────────────────────────────────────────────
   //  BUDGET GUARD (havuz icin gunluk USD cap)
   // ────────────────────────────────────────────────────────────
-  private async isOverBudget(provider: Provider, plannedProbes: number): Promise<boolean> {
+  /**
+   * Tek bir kiracinin gunluk havuzdan alabilecegi azami pay.
+   * Butce ONCEDEN yalnizca GLOBAL'di: bir kullanici birkac istekle anthropic
+   * havuzunun tamamini bitirip gun sonuna kadar TUM musterilere
+   * "Gunluk havuz butcesi asildi" hatasi aldirabiliyordu.
+   */
+  private readonly PER_USER_BUDGET_SHARE = 0.25;
+
+  private costKey(provider: Provider, day: string, userId?: string): string {
+    return userId ? `ai-cost:${provider}:${day}:u:${userId}` : `ai-cost:${provider}:${day}`;
+  }
+
+  private async readSpent(key: string): Promise<number> {
+    const row = await this.prisma.kvStore.findUnique({ where: { key } }).catch(() => null);
+    const n = parseFloat(((row as any)?.value as string) ?? '0');
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  /**
+   * Hem global havuz hem de kiracinin adil payi kontrol edilir.
+   * Ikisinden biri asilirsa bu saglayici o gun icin kapanir.
+   */
+  private async isOverBudget(provider: Provider, plannedProbes: number, userId?: string): Promise<boolean> {
     const cap = this.DAILY_BUDGET_USD[provider];
     if (!cap) return false;
     const today = new Date().toISOString().slice(0, 10);
-    const key = `ai-cost:${provider}:${today}`;
-    const row = await this.prisma.kvStore.findUnique({ where: { key } }).catch(() => null);
-    const spentToday = parseFloat(((row as any)?.value as string) ?? '0');
-    const projected = spentToday + (this.COST_PER_PROBE_USD[provider] ?? 0) * plannedProbes;
-    return projected > cap;
+    const unit = this.COST_PER_PROBE_USD[provider] ?? 0;
+    const planned = unit * plannedProbes;
+
+    const globalSpent = await this.readSpent(this.costKey(provider, today));
+    if (globalSpent + planned > cap) return true;
+
+    if (userId) {
+      const userCap = cap * this.PER_USER_BUDGET_SHARE;
+      const userSpent = await this.readSpent(this.costKey(provider, today, userId));
+      if (userSpent + planned > userCap) {
+        this.log.log(`[${userId}] ${provider} gunluk adil pay siniri asildi (${userCap.toFixed(2)} USD)`);
+        return true;
+      }
+    }
+    return false;
   }
 
-  private async addCost(provider: Provider, probeCount: number): Promise<number> {
+  /**
+   * Maliyeti hem global hem kullanici defterine ATOMIK yazar.
+   * Onceden oku-degistir-yaz yapiliyordu; es zamanli istekler birbirinin
+   * yazimini eziyor ve harcama oldugundan dusuk gorunuyordu.
+   */
+  private async addCost(provider: Provider, probeCount: number, userId?: string): Promise<number> {
     if (probeCount === 0) return 0;
     const today = new Date().toISOString().slice(0, 10);
-    const key = `ai-cost:${provider}:${today}`;
     const cost = (this.COST_PER_PROBE_USD[provider] ?? 0) * probeCount;
-    try {
-      const existing = await this.prisma.kvStore.findUnique({ where: { key } }).catch(() => null);
-      const prev = parseFloat(((existing as any)?.value as string) ?? '0');
-      await this.prisma.kvStore.upsert({
-        where: { key },
-        create: { key, value: String(prev + cost) },
-        update: { value: String(prev + cost) },
-      });
-    } catch (err: any) {
-      this.log.warn(`addCost(${provider}) fail: ${err.message}`);
+    if (cost === 0) return 0;
+
+    const keys = [this.costKey(provider, today)];
+    if (userId) keys.push(this.costKey(provider, today, userId));
+
+    for (const key of keys) {
+      try {
+        // MySQL ON DUPLICATE KEY UPDATE — tek ifadede oku+topla+yaz
+        await this.prisma.$executeRawUnsafe(
+          'INSERT INTO `kv_store` (`key`, `value`, `updatedAt`) VALUES (?, ?, NOW(3)) ' +
+          'ON DUPLICATE KEY UPDATE `value` = CAST(CAST(`value` AS DECIMAL(18,8)) + ? AS CHAR)',
+          key, String(cost), cost,
+        );
+      } catch (err: any) {
+        this.log.warn(`addCost(${provider}) fail: ${err.message}`);
+      }
     }
     return cost;
   }
@@ -351,7 +397,7 @@ export class AiCitationService {
     }
 
     const results = await Promise.all(
-      effectiveProviders.map(p => this.runProvider(p, siteId, plan, brand, site.url, queries, competitors)),
+      effectiveProviders.map(p => this.runProvider(p, siteId, plan, brand, site.url, queries, competitors, site.userId)),
     );
 
     // Havuz kullanan basarili test varsa kota +1 (runForSite ile ayni davranis)
@@ -426,7 +472,7 @@ export class AiCitationService {
 
     const providers: Provider[] = ['anthropic', 'gemini', 'openai', 'perplexity', 'xai', 'deepseek', 'meta'];
     const results = await Promise.all(
-      providers.map(p => this.runProvider(p, siteId, plan, brand, url, probeQueries, uniqueCompetitors)),
+      providers.map(p => this.runProvider(p, siteId, plan, brand, url, probeQueries, uniqueCompetitors, userId)),
     );
 
     // Havuz kullanan en az bir basarili test varsa kota +1
@@ -504,6 +550,8 @@ export class AiCitationService {
     url: string,
     queries: string[],
     competitors: string[] = [],
+    /** Butce muhasebesi kullanici basina da tutulur — tek kiraci havuzu tuketmesin */
+    userId?: string,
   ): Promise<CitationResult> {
     const label = PROVIDER_LABELS[provider];
     const resolved = await this.resolveKey(siteId, provider, plan);
@@ -522,7 +570,7 @@ export class AiCitationService {
       };
     }
     // Butce kontrolu sadece havuz icin (BYOK kullanicinin kendi parasi)
-    if (resolved.source === 'pool' && await this.isOverBudget(provider, queries.length)) {
+    if (resolved.source === 'pool' && await this.isOverBudget(provider, queries.length, userId)) {
       return {
         provider, label, available: false, score: null, probes: [],
         reason: `Günlük havuz bütçesi aşıldı (${this.DAILY_BUDGET_USD[provider]?.toFixed(2)} USD). BYOK ekleyebilir veya yarın tekrar denersiniz.`,
@@ -568,7 +616,7 @@ export class AiCitationService {
     }
 
     if (resolved.source === 'pool') {
-      await this.addCost(provider, probes.filter((p) => !p.excerpt?.startsWith('HATA:')).length);
+      await this.addCost(provider, probes.filter((p) => !p.excerpt?.startsWith('HATA:')).length, userId);
     }
 
     const agg = this.aggregateProbes(probes, brand);
