@@ -1,143 +1,50 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { FxService } from './fx.service.js';
+import { BASE_PLANS, type BasePlan, type PlanId } from './plans.js';
 
 export interface PlanDefinition {
-  id: 'trial' | 'starter' | 'pro' | 'agency' | 'enterprise';
+  id: PlanId;
   name: string;
-  monthly: number;       // hesaplanmış değer (TL veya USD)
+  /** Kanonik fiyat — USD */
+  monthly: number;
   annual: number;
-  currency: 'TRY' | 'USD';
+  currency: 'USD';
+  /** Gunun TCMB kuruyla hesaplanmis TL karsiligi (gosterim icin) */
+  monthlyTry: number;
+  annualTry: number;
   articlesPerMonth: number;
   socialPostsPerMonth: number;
   videosPerMonth: number;
   sites: number;
+  promptRunsPerMonth: number;
+  llmResponsesPerMonth: number;
   publishTargets: 'limited' | 'all';
   support: string;
   popular?: boolean;
-  /** Enterprise için: pazarlama formuyla iletişime geçilir, doğrudan satın alma yok */
+  /** Enterprise icin: pazarlama formuyla iletisime gecilir, dogrudan satin alma yok */
   contactSales?: boolean;
 }
 
 /**
- * Base plan tanımları — TL bazlı (Türkçe locale için canonical).
- * USD karşılıkları FxService ile dinamik hesaplanır.
+ * Kur GEREKTIRMEYEN plan listesi (senkron erisim isteyen eski cagrilar icin).
+ * TL alanlari 0'dir — TL tutari yalnizca FxService ile hesaplanabilir.
+ * Fiyat gostermek icin getPlans() kullanin.
  */
-interface BasePlan {
-  id: PlanDefinition['id'];
-  name_tr: string;
-  name_en: string;
-  monthly_try: number;
-  annual_try: number;
-  // Enterprise için USD da fix tutulabilir, ama biz TL'yi USD'ye çevireceğiz
-  articlesPerMonth: number;
-  socialPostsPerMonth: number;
-  videosPerMonth: number;          // AI video Studio kotası (Sora 2/Veo 3/Runway)
-  sites: number;                    // 'unlimited' → sayıyla limitlendi (cost guard)
-  publishTargets: 'limited' | 'all';
-  support_tr: string;
-  support_en: string;
-  popular?: boolean;
-  contactSales?: boolean;
-}
-
-/**
- * PREMIUM PRICING — 2026-05 update
- *
- * Gerekçe: AI maliyetleri (Claude Sonnet 4.6, Opus 4.7, Sora 2, Veo 3) eski fiyatları
- * sürdürülemez kıldı. Profesyonel ve üstü planlarda kullanıcı başına %50 realistic usage
- * dahi zarar veriyordu (örn. eski Ajans ₺7,999 vs ortalama ₺13,756 AI cost).
- *
- * Premium positioning:
- *  - Tek aracın altında 7+ kapsam: SEO, GEO, AI Citation, Video Studio, ASO, Sosyal, Auto-publish
- *  - Global rakip benchmark: Jasper Pro $125, Surfer Pro $129, MarketMuse Enterprise $12k/yıl
- *  - RanksUp Profesyonel ₺4,999 ($125) → Jasper/Surfer ile head-to-head, kapsamla önde
- *
- * Migration (grandfathering): Mevcut aboneler 6 ay eski fiyatla devam.
- * Cost guard: Plan başına aylık USD spend cap (SETTINGS_CATALOG'da) — aşılırsa pipeline pause.
- * Add-on: Video credit pack (5/20/50) ek satın alma — base plan videosu yetmezse.
- */
-const BASE_PLANS: BasePlan[] = [
-  {
-    id: 'trial',
-    name_tr: 'Ücretsiz Deneme',
-    name_en: 'Free Trial',
-    monthly_try: 0, annual_try: 0,
-    articlesPerMonth: 2,           // 2 deneme makale (conversion hook için)
-    socialPostsPerMonth: 5,        // 5 deneme sosyal post
-    videosPerMonth: 0,             // Video YOK (cost guard, Sora 2 = $20/video)
-    sites: 1,
-    publishTargets: 'limited',     // Sadece Markdown ZIP + 1 WordPress
-    support_tr: 'topluluk',
-    support_en: 'community',
-  },
-  {
-    id: 'starter',
-    name_tr: 'Başlangıç',
-    name_en: 'Starter',
-    monthly_try: 1499, annual_try: 14990,    // ₺1,499/ay ($37) — Frase Pro altı
-    articlesPerMonth: 15,
-    socialPostsPerMonth: 15,
-    videosPerMonth: 0,             // Video add-on'dan satın al (cost guard — solo blogger)
-    sites: 1,
-    publishTargets: 'all',
-    support_tr: 'e-posta 24 saat',
-    support_en: 'email 24h',
-  },
-  {
-    id: 'pro',
-    name_tr: 'Profesyonel',
-    name_en: 'Pro',
-    monthly_try: 4999, annual_try: 49990,    // ₺4,999/ay ($125) — Jasper Pro = Surfer Pro
-    articlesPerMonth: 40,
-    socialPostsPerMonth: 30,
-    videosPerMonth: 5,             // 5 video/ay base (~$75 cost cap)
-    sites: 3,
-    publishTargets: 'all',
-    support_tr: 'e-posta 4 saat',
-    support_en: 'email 4h',
-    popular: true,
-  },
-  {
-    id: 'agency',
-    name_tr: 'Ajans',
-    name_en: 'Agency',
-    monthly_try: 14999, annual_try: 149990,  // ₺14,999/ay ($375) — Surfer Business üzeri
-    articlesPerMonth: 100,
-    socialPostsPerMonth: 80,
-    videosPerMonth: 20,            // 20 video/ay (~$300 cost)
-    sites: 12,
-    publishTargets: 'all',
-    support_tr: 'öncelikli + Slack',
-    support_en: 'priority + Slack',
-  },
-  {
-    id: 'enterprise',
-    name_tr: 'Kurumsal',
-    name_en: 'Enterprise',
-    monthly_try: 34999, annual_try: 349990,  // ₺34,999+/ay ($875+) — MarketMuse altı, custom
-    articlesPerMonth: 350,
-    socialPostsPerMonth: 200,
-    videosPerMonth: 100,           // 100 video/ay (~$1500 cost)
-    sites: 50,                     // Ek site ₺500/ay add-on (cost guard)
-    publishTargets: 'all',
-    support_tr: 'özel hesap yöneticisi + SLA',
-    support_en: 'dedicated account manager + SLA',
-    contactSales: true,
-  },
-];
-
-/** Eski PlanDefinition export'unu koru — geriye uyumluluk */
 export const PLANS: PlanDefinition[] = BASE_PLANS.map((p) => ({
   id: p.id,
   name: p.name_tr,
-  monthly: p.monthly_try,
-  annual: p.annual_try,
-  currency: 'TRY',
+  monthly: p.monthly_usd,
+  annual: p.annual_usd,
+  currency: 'USD' as const,
+  monthlyTry: 0,
+  annualTry: 0,
   articlesPerMonth: p.articlesPerMonth,
   socialPostsPerMonth: p.socialPostsPerMonth,
   videosPerMonth: p.videosPerMonth,
   sites: p.sites,
+  promptRunsPerMonth: p.promptRunsPerMonth,
+  llmResponsesPerMonth: p.llmResponsesPerMonth,
   publishTargets: p.publishTargets,
   support: p.support_tr,
   popular: p.popular,
@@ -152,58 +59,41 @@ export class BillingService {
   ) {}
 
   /**
-   * Locale-aware plan listesi.
-   *  - locale='tr' (default): TL fiyatlar
-   *  - locale='en' veya diğer: USD'ye çevrilmiş, .99 yuvarlamalı
+   * Plan listesi. Fiyat her iki locale'de de USD kanoniktir; locale yalnizca
+   * plan adi ve destek metnini degistirir. TL tutari gosterim icin gunun
+   * TCMB kuruyla hesaplanip `monthlyTry`/`annualTry` alanlarinda doner.
    */
   async getPlans(locale: 'tr' | 'en' = 'tr'): Promise<PlanDefinition[]> {
-    if (locale === 'tr') {
-      return BASE_PLANS.map((p) => ({
-        id: p.id,
-        name: p.name_tr,
-        monthly: p.monthly_try,
-        annual: p.annual_try,
-        currency: 'TRY' as const,
-        articlesPerMonth: p.articlesPerMonth,
-        socialPostsPerMonth: p.socialPostsPerMonth,
-        videosPerMonth: p.videosPerMonth,
-        sites: p.sites,
-        publishTargets: p.publishTargets,
-        support: p.support_tr,
-        popular: p.popular,
-        contactSales: p.contactSales,
-      }));
-    }
+    // Fiyat USD kanonik; TL karsiligi gunun TCMB kuruyla HESAPLANIR.
+    // Kur bir kez alinir — plan basina ayri cagri yapilirsa liste icinde
+    // farkli kurlar karisabilirdi.
+    const { rate } = await this.fx.getRate();
 
-    // EN / diğer dilleri → USD
-    const rate = await this.fx.getUsdToTryRate();
-    return Promise.all(
-      BASE_PLANS.map(async (p) => {
-        let monthly_usd = 0;
-        let annual_usd = 0;
-        if (p.monthly_try > 0) {
-          monthly_usd = await this.fx.tryToUsd(p.monthly_try);
-        }
-        if (p.annual_try > 0) {
-          annual_usd = await this.fx.tryToUsd(p.annual_try);
-        }
-        return {
-          id: p.id,
-          name: p.name_en,
-          monthly: monthly_usd,
-          annual: annual_usd,
-          currency: 'USD' as const,
-          articlesPerMonth: p.articlesPerMonth,
-          socialPostsPerMonth: p.socialPostsPerMonth,
-          videosPerMonth: p.videosPerMonth,
-          sites: p.sites,
-          publishTargets: p.publishTargets,
-          support: p.support_en,
-          popular: p.popular,
-          contactSales: p.contactSales,
-        };
-      }),
-    );
+    return BASE_PLANS.map((p) => ({
+      id: p.id,
+      name: locale === 'tr' ? p.name_tr : p.name_en,
+      monthly: p.monthly_usd,
+      annual: p.annual_usd,
+      currency: 'USD' as const,
+      monthlyTry: Math.round(p.monthly_usd * rate),
+      annualTry: Math.round(p.annual_usd * rate),
+      articlesPerMonth: p.articlesPerMonth,
+      socialPostsPerMonth: p.socialPostsPerMonth,
+      videosPerMonth: p.videosPerMonth,
+      sites: p.sites,
+      promptRunsPerMonth: p.promptRunsPerMonth,
+      llmResponsesPerMonth: p.llmResponsesPerMonth,
+      publishTargets: p.publishTargets,
+      support: locale === 'tr' ? p.support_tr : p.support_en,
+      popular: p.popular,
+      contactSales: p.contactSales,
+    }));
+  }
+
+  /** Plan listesi + o an kullanilan kur (UI dipnotu icin birlikte doner) */
+  async getPlansWithFx(locale: 'tr' | 'en' = 'tr') {
+    const [plans, fx] = await Promise.all([this.getPlans(locale), this.fx.getRate()]);
+    return { plans, fx };
   }
 
   async getCurrentPlan(userId: string) {
@@ -230,11 +120,12 @@ export class BillingService {
   }
 
   /**
-   * Kur bilgisi — UI'da "Kur: 1 USD = X TL (TCMB)" göstermek için.
+   * Kur bilgisi — UI'da "1 USD = X TL (TCMB, <tarih>)" dipnotu icin.
+   * `stale: true` ise TCMB'ye ulasilamamis, son bilinen kur gosteriliyor demektir.
    */
   async getCurrentFxRate() {
-    const rate = await this.fx.getUsdToTryRate();
-    return { usdToTry: rate, source: 'TCMB', cachedFor: '24h' };
+    const fx = await this.fx.getRate();
+    return { usdToTry: fx.rate, source: fx.source, fetchedAt: fx.fetchedAt, stale: fx.stale };
   }
 
   /**

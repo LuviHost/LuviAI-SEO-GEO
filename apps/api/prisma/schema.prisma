@@ -860,8 +860,13 @@ model Invoice {
   userId String
 
   paytrTransactionId String?       @unique
+  /** Tahsil edilen tutar — PayTR TL ile calisir, bu alan TL'dir */
   amount             Decimal       @db.Decimal(10, 2)
   currency           String        @default("TRY")
+  /** Fiyatin kanonik hali (USD). Fiyat listesi USD bazli tutulur. */
+  amountUsd          Decimal?      @db.Decimal(10, 2)
+  /** Siparis anindaki TCMB USD/TRY kuru — fatura/denetim icin sabitlenir */
+  fxRate             Decimal?      @db.Decimal(12, 4)
   status             InvoiceStatus @default(PENDING)
 
   description String?

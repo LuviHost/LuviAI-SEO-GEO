@@ -3,6 +3,8 @@ import { createHmac } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AffiliateService } from '../affiliate/affiliate.service.js';
 import { EmailService } from '../email/email.service.js';
+import { FxService } from './fx.service.js';
+import { findPlan } from './plans.js';
 
 /**
  * PayTR iframe API + webhook entegrasyonu.
@@ -35,6 +37,7 @@ export class PaytrService {
     private readonly prisma: PrismaService,
     private readonly affiliate: AffiliateService,
     private readonly email: EmailService,
+    private readonly fx: FxService,
   ) {}
 
   /**
@@ -55,8 +58,18 @@ export class PaytrService {
       throw new BadRequestException('PayTR Merchant credentials .env\'de tanımlı değil');
     }
 
-    const plan = this.getPlanDetails(opts.planId, opts.cycle);
+    const plan = await this.getPlanDetails(opts.planId, opts.cycle);
     const merchantOid = this.generateOrderId(opts.userId, opts.planId);
+
+    // Kur TCMB'den alinamadiysa tahsilat YAPMA. Bayat kurla islem yapmak
+    // ya musteriyi fazla ya bizi eksik yakar; her iki durum da geri donusu
+    // zahmetli. Kullanici birkac dakika sonra tekrar denesin.
+    if (plan.fxStale) {
+      this.log.error(`Kur bayat (${plan.fxSource}) — odeme reddedildi: ${merchantOid}`);
+      throw new BadRequestException(
+        'Güncel döviz kuru alınamadı, ödeme başlatılamıyor. Lütfen birkaç dakika sonra tekrar deneyin.',
+      );
+    }
 
     const paymentAmount = Math.round(plan.price * 100);
 
@@ -111,8 +124,12 @@ export class PaytrService {
         paytrTransactionId: merchantOid,
         amount: plan.price,
         currency: 'TRY',
+        // Fiyatin kanonik hali ve kullanilan kur faturaya sabitlenir —
+        // "bu TL tutari nereden cikti" sorusu sonradan cevaplanabilsin.
+        amountUsd: plan.priceUsd,
+        fxRate: plan.fxRate,
         status: 'PENDING',
-        description: `RanksUp ${plan.name} — ${opts.cycle}`,
+        description: `RanksUp ${plan.name} — ${opts.cycle} ($${plan.priceUsd} @ ${plan.fxRate})`,
       },
     });
 
@@ -314,18 +331,33 @@ export class PaytrService {
    * 2026-05 Premium Pricing — fiyatlar billing.service.ts BASE_PLANS ile senkron.
    * Mevcut grandfathered kullanicilar getPlanPriceForUser ile eski fiyati alir.
    */
-  private getPlanDetails(planId: string, cycle: 'monthly' | 'annual') {
-    const plans: Record<string, { name: string; monthly: number; annual: number }> = {
-      starter:    { name: 'Başlangıç',     monthly: 1499,  annual: 14990 },
-      pro:        { name: 'Profesyonel',   monthly: 4999,  annual: 49990 },
-      agency:     { name: 'Ajans',         monthly: 14999, annual: 149990 },
-      enterprise: { name: 'Kurumsal',      monthly: 34999, annual: 349990 },
-    };
-    const p = plans[planId];
+  /**
+   * Plan detayi — fiyat USD kanonik, tahsilat TL.
+   *
+   * ONEMLI: Fiyat listesi burada TEKRAR TANIMLANMAZ; plans.ts tek kaynaktir.
+   * Onceden bu metotta ayri bir TL fiyat sabiti duruyordu ve billing.service
+   * icindeki listeyle ayrisma riski vardi — kullaniciya bir fiyat gosterilip
+   * kartindan baska tutar cekilebilirdi.
+   *
+   * TL tutari SIPARIS ANINDAKI kurla hesaplanir ve faturaya yazilir; boylece
+   * odeme ile fatura arasinda kur farki olusmaz.
+   */
+  private async getPlanDetails(planId: string, cycle: 'monthly' | 'annual') {
+    const p = findPlan(planId);
     if (!p) throw new BadRequestException(`Bilinmeyen plan: ${planId}`);
+
+    const usd = cycle === 'annual' ? p.annual_usd : p.monthly_usd;
+    if (usd <= 0) throw new BadRequestException(`${p.name_tr} plani satin alinamaz`);
+
+    const fx = await this.fx.getRate();
     return {
-      name: p.name,
-      price: cycle === 'annual' ? p.annual : p.monthly,
+      name: p.name_tr,
+      /** PayTR'ye gidecek TL tutari */
+      price: Math.round(usd * fx.rate),
+      priceUsd: usd,
+      fxRate: fx.rate,
+      fxSource: fx.source,
+      fxStale: fx.stale,
     };
   }
 
@@ -337,34 +369,40 @@ export class PaytrService {
     userId: string,
     planId: string,
     cycle: 'monthly' | 'annual',
-  ): Promise<{ name: string; price: number; isGrandfathered: boolean }> {
+  ): Promise<{ name: string; price: number; priceUsd: number; fxRate: number; isGrandfathered: boolean }> {
     const user = await this.prisma.user.findUniqueOrThrow({
       where: { id: userId },
       select: { grandfatheredUntil: true, legacyMonthlyPriceTry: true },
     });
 
+    const fresh = await this.getPlanDetails(planId, cycle);
     const now = new Date();
     const isGrandfathered = !!(user.grandfatheredUntil && user.grandfatheredUntil > now);
 
-    if (isGrandfathered && user.legacyMonthlyPriceTry && cycle === 'monthly') {
+    // KORUNAN FIYAT TL SABITTIR ve kurdan etkilenmez — musteriye "su fiyattan
+    // devam edeceksin" sozu TL cinsinden verilmisti. USD karsiligi bilgi
+    // amacli, gunun kuruyla geriye dogru hesaplanir.
+    if (isGrandfathered && user.legacyMonthlyPriceTry) {
+      const priceTry = cycle === 'annual'
+        ? user.legacyMonthlyPriceTry * 10   // 2 ay bedava, eski fiyat uzerinden
+        : user.legacyMonthlyPriceTry;
       return {
-        name: this.getPlanDetails(planId, cycle).name,
-        price: user.legacyMonthlyPriceTry,
-        isGrandfathered: true,
-      };
-    }
-    if (isGrandfathered && user.legacyMonthlyPriceTry && cycle === 'annual') {
-      // Annual: aylık fiyat × 10 (2 ay bedava) — eski fiyat üzerinden
-      return {
-        name: this.getPlanDetails(planId, cycle).name,
-        price: user.legacyMonthlyPriceTry * 10,
+        name: fresh.name,
+        price: priceTry,
+        priceUsd: Math.round((priceTry / fresh.fxRate) * 100) / 100,
+        fxRate: fresh.fxRate,
         isGrandfathered: true,
       };
     }
 
-    // Grandfathering bitmiş veya yok → yeni fiyat
-    const fresh = this.getPlanDetails(planId, cycle);
-    return { ...fresh, isGrandfathered: false };
+    // Grandfathering bitmis veya yok -> gunun kuruyla yeni fiyat
+    return {
+      name: fresh.name,
+      price: fresh.price,
+      priceUsd: fresh.priceUsd,
+      fxRate: fresh.fxRate,
+      isGrandfathered: false,
+    };
   }
 
   // ──────────────────────────────────────────────────────────────────────

@@ -834,7 +834,24 @@ export const api = {
   getMyDashboard: () => request<any>('/me/dashboard'),
 
   // Billing
-  getPlans: (locale?: string) => request<any[]>(`/billing/plans${locale ? '?locale=' + locale : ''}`),
+  /**
+   * Plan listesi + o an kullanilan kur.
+   * Fiyat USD kanonik (`monthly`/`annual`); TL karsiligi gunun TCMB kuruyla
+   * hesaplanip `monthlyTry`/`annualTry` alanlarinda gelir.
+   */
+  getPlans: (locale?: string) =>
+    request<{
+      plans: Array<{
+        id: string; name: string;
+        monthly: number; annual: number; currency: 'USD';
+        monthlyTry: number; annualTry: number;
+        articlesPerMonth: number; socialPostsPerMonth: number; videosPerMonth: number;
+        sites: number; promptRunsPerMonth: number; llmResponsesPerMonth: number;
+        publishTargets: string; support: string;
+        popular?: boolean; contactSales?: boolean;
+      }>;
+      fx: { rate: number; fetchedAt: string; source: 'TCMB' | 'fallback'; stale: boolean };
+    }>(`/billing/plans${locale ? '?locale=' + locale : ''}`),
   enterpriseInquiry: (body: { name: string; email: string; company?: string; phone?: string; message?: string; source?: string }) =>
     request<{ ok: true }>('/billing/enterprise-inquiry', { method: 'POST', body: JSON.stringify(body) }),
   getCurrentFxRate: () => request<{ usdToTry: number; source: string; cachedFor: string }>('/billing/fx-rate'),

@@ -1,4 +1,4 @@
-import { Body, Controller, ForbiddenException, Get, HttpCode, Param, Post, Req } from '@nestjs/common';
+import { Body, Controller, ForbiddenException, Get, HttpCode, Param, Post, Query, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import { Public } from '../auth/public.decorator.js';
 import { BillingService } from './billing.service.js';
@@ -21,11 +21,15 @@ export class BillingController {
     private readonly quota: QuotaService,
   ) {}
 
-  /** GET /api/billing/plans — herkes plan listesini görebilir */
+  /**
+   * GET /api/billing/plans — herkes plan listesini görebilir.
+   * Fiyat USD kanonik; `monthlyTry`/`annualTry` gunun TCMB kuruyla hesaplanir.
+   * `fx` alani UI dipnotu icin kur + cekilme zamani + bayat mi bilgisini tasir.
+   */
   @Public()
   @Get('plans')
-  plans() {
-    return this.billing.getPlans();
+  plans(@Query('locale') locale?: string) {
+    return this.billing.getPlansWithFx(locale === 'en' ? 'en' : 'tr');
   }
 
   @Get('users/:userId/current')

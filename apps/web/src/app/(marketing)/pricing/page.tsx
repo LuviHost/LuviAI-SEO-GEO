@@ -22,6 +22,8 @@ export default function PricingPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
   const [plans, setPlans] = useState<any[]>([]);
+  /** Gunun TCMB kuru — fiyatlar USD, TL karsiligi bununla gosteriliyor */
+  const [fx, setFx] = useState<{ rate: number; fetchedAt: string; source: string; stale: boolean } | null>(null);
   const [cycle, setCycle] = useState<'monthly' | 'annual'>('monthly');
   const [loading, setLoading] = useState<string | null>(null);
   const [creditPacks, setCreditPacks] = useState<CreditPack[]>([]);
@@ -30,7 +32,10 @@ export default function PricingPage() {
 
   useEffect(() => {
     api.getPlans()
-      .then(setPlans)
+      .then((res) => {
+        setPlans(res.plans);
+        setFx(res.fx);
+      })
       .catch(() => toast.error(t('common.error')));
 
     // Video credit pack'leri yukle (public)
@@ -212,10 +217,31 @@ export default function PricingPage() {
           </div>
         </div>
 
+        {/* Kur dipnotu — TL tutarinin nereden geldigi acikca yazilir.
+            Kur bayatsa (TCMB'ye ulasilamadi) kullanici bunu bilmelidir. */}
+        {fx && (
+          <p className="text-center text-xs text-muted-foreground mb-6">
+            Fiyatlar ABD doları cinsindendir. Türk lirası tutarı{' '}
+            <strong className="tabular-nums">1 USD = ₺{fx.rate.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 4 })}</strong>{' '}
+            kuruyla hesaplanmıştır
+            {fx.source === 'TCMB' && ' (TCMB)'}
+            {fx.fetchedAt && ` · ${new Date(fx.fetchedAt).toLocaleDateString('tr-TR')}`}.
+            {fx.stale && (
+              <span className="block mt-1 text-amber-600 dark:text-amber-400">
+                Güncel kur alınamadı, son bilinen kur gösteriliyor. Ödeme sırasında güncel kur uygulanır.
+              </span>
+            )}
+            <span className="block mt-1">Tahsilat, ödeme anındaki kurla Türk lirası olarak yapılır.</span>
+          </p>
+        )}
+
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
           {realPlans.map((p) => {
+            // Fiyat USD kanonik; TL karsiligi backend'de gunun TCMB kuruyla hesaplandi
             const price = cycle === 'annual' ? p.annual : p.monthly;
+            const priceTry = cycle === 'annual' ? p.annualTry : p.monthlyTry;
             const monthlyEq = cycle === 'annual' ? Math.round(p.annual / 12) : p.monthly;
+            const monthlyEqTry = cycle === 'annual' ? Math.round(p.annualTry / 12) : p.monthlyTry;
             const highlighted = p.popular;
             return (
               <div
@@ -235,15 +261,23 @@ export default function PricingPage() {
                 <h2 className="text-xl font-bold">{p.name}</h2>
                 <div className="mt-4">
                   <span className="text-4xl sm:text-5xl font-extrabold">
-                    ₺{price.toLocaleString('tr-TR')}
+                    ${price.toLocaleString('en-US')}
                   </span>
                   <span className="text-muted-foreground text-sm ml-2">
                     /{cycle === 'annual' ? 'yıl' : 'ay'}
                   </span>
                 </div>
+                {/* TL karsiligi — gunun TCMB kuruyla hesaplaniyor, bilgi amacli */}
+                {priceTry > 0 && (
+                  <p className="text-sm text-muted-foreground mt-1 tabular-nums">
+                    ≈ ₺{priceTry.toLocaleString('tr-TR')}
+                    <span className="text-xs"> /{cycle === 'annual' ? 'yıl' : 'ay'}</span>
+                  </p>
+                )}
                 {cycle === 'annual' && (
                   <p className="text-xs text-muted-foreground mt-1">
-                    Aylık ortalama ₺{monthlyEq.toLocaleString('tr-TR')}
+                    Aylık ortalama ${monthlyEq.toLocaleString('en-US')}
+                    {monthlyEqTry > 0 && ` (≈ ₺${monthlyEqTry.toLocaleString('tr-TR')})`}
                   </p>
                 )}
 

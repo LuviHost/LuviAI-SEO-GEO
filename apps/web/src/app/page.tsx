@@ -28,9 +28,13 @@ import {
 type Plan = {
   id: string;
   name: string;
+  /** Kanonik fiyat — USD */
   monthly: number;
   annual: number;
   currency: string;
+  /** Gunun TCMB kuruyla hesaplanmis TL karsiligi */
+  monthlyTry: number;
+  annualTry: number;
   articlesPerMonth: number;
   socialPostsPerMonth: number;
   sites: number | string;
@@ -84,7 +88,7 @@ export default function LandingPage() {
   const [testimonials, setTestimonials] = useState<PublicTestimonial[]>([]);
 
   useEffect(() => {
-    api.getPlans('tr').then((p) => setPlans(p ?? [])).catch(() => {});
+    api.getPlans('tr').then((r) => setPlans((r?.plans as Plan[]) ?? [])).catch(() => {});
     api.listPublicTestimonials(6).then((t) => setTestimonials(t ?? [])).catch(() => {});
     // Landing analytics
     trackPageview();
@@ -567,6 +571,8 @@ export default function LandingPage() {
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-5 max-w-7xl mx-auto">
             {plans.filter((p) => p.id !== 'trial').map((p) => {
               const monthlyEq = billing === 'annual' ? Math.round(p.annual / 12) : p.monthly;
+              // TL karsiligi bilgi amacli — tahsilat odeme anindaki kurla yapilir
+              const monthlyEqTry = billing === 'annual' ? Math.round((p.annualTry ?? 0) / 12) : (p.monthlyTry ?? 0);
               // Plan name'i locale'e gore secelim (API'den TR olarak gelir)
               const planNameKey = `land.pric.plan_${p.id}`;
               const localizedName = t(planNameKey);
@@ -578,11 +584,16 @@ export default function LandingPage() {
                 <PriceCard
                   key={p.id}
                   name={finalName}
-                  price={p.contactSales ? t('land.pric.enterprise_label') : `₺${monthlyEq.toLocaleString('tr-TR')}`}
+                  price={p.contactSales ? t('land.pric.enterprise_label') : `$${monthlyEq.toLocaleString('en-US')}`}
                   period={p.contactSales ? '' : t('land.pric.per_month')}
-                  annualNote={!p.contactSales && billing === 'annual'
-                    ? `${t('land.pric.annual_billed_prefix')} ₺${p.annual.toLocaleString('tr-TR')} ${t('land.pric.annual_billed_suffix')}`
-                    : !p.contactSales ? t('land.pric.monthly_billed') : ''}
+                  annualNote={p.contactSales
+                    ? ''
+                    : billing === 'annual'
+                      ? `${t('land.pric.annual_billed_prefix')} $${p.annual.toLocaleString('en-US')} ${t('land.pric.annual_billed_suffix')}`
+                        + (p.annualTry ? ` (≈ ₺${p.annualTry.toLocaleString('tr-TR')})` : '')
+                      : monthlyEqTry
+                        ? `≈ ₺${monthlyEqTry.toLocaleString('tr-TR')} / ${t('land.pric.per_month')}`
+                        : t('land.pric.monthly_billed')}
                   bullets={[
                     `${p.articlesPerMonth} ${t('land.pric.bullet_articles')}`,
                     `${p.socialPostsPerMonth} ${t('land.pric.bullet_posts')}`,
