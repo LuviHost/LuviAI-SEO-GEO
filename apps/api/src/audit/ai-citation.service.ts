@@ -311,8 +311,47 @@ export class AiCitationService {
       ? opts.providers
       : ['anthropic', 'gemini', 'openai', 'perplexity', 'xai', 'deepseek', 'meta'];
 
+    // KOTA ZORLAMASI — havuz anahtari kullanacak bir provider varsa kotayi
+    // GERCEKTEN uygula. Ilk surumde burada yalnizca incrementCitationUsage
+    // vardi; yani sayac artiyordu ama limit hicbir zaman bloklamiyordu ve
+    // kotasi dolmus kullanici Prompt Lab uzerinden sinirsiz LLM cagrisi
+    // yapabiliyordu (operatorun havuz butcesinden).
+    const status = await this.getProviderStatus(siteId, plan).catch(() => []);
+    const poolProviders = new Set(
+      status.filter((s: any) => s.effectiveSource === 'pool').map((s: any) => s.provider),
+    );
+    const usesPool = providers.some((p) => poolProviders.size === 0 || poolProviders.has(p));
+
+    let poolAllowed = true;
+    if (usesPool) {
+      try {
+        await this.quota.enforceCitationQuota(site.userId);
+      } catch (err: any) {
+        // Kota dolu — havuzu kullanma. BYOK anahtari olan provider'lar
+        // kullanicinin kendi parasi oldugu icin calismaya devam eder.
+        this.log.log(`[${siteId}] Citation kotasi dolu, sadece BYOK provider'lar calisacak: ${err.message}`);
+        poolAllowed = false;
+      }
+    }
+
+    const effectiveProviders = poolAllowed
+      ? providers
+      : providers.filter((p) => !poolProviders.has(p));
+
+    if (effectiveProviders.length === 0) {
+      return providers.map((provider) => ({
+        provider,
+        label: PROVIDER_LABELS[provider],
+        available: false,
+        score: null,
+        probes: [],
+        reason: 'Aylik citation kotasi doldu — plani yukseltin veya kendi API anahtarinizi (BYOK) ekleyin',
+        source: 'pool' as const,
+      }));
+    }
+
     const results = await Promise.all(
-      providers.map(p => this.runProvider(p, siteId, plan, brand, site.url, queries, competitors)),
+      effectiveProviders.map(p => this.runProvider(p, siteId, plan, brand, site.url, queries, competitors)),
     );
 
     // Havuz kullanan basarili test varsa kota +1 (runForSite ile ayni davranis)

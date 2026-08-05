@@ -1,4 +1,4 @@
-import { Injectable, Logger, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AiCitationService, type CitationProbe, type Provider } from './ai-citation.service.js';
 import { FanoutService } from './fanout.service.js';
@@ -12,7 +12,13 @@ import { FanoutService } from './fanout.service.js';
  * kullanicinin gercekten onemsedigi soru olmayabiliyordu, (2) fan-out gibi
  * soru-bazli analizler yapilamiyordu cunku kalici bir soru kimligi yoktu.
  *
- * Bu servis o kimligi verir: her prompt bir kayit, her olcum o kayda bagli.
+ * KIRACI (TENANT) IZOLASYONU — DIKKAT:
+ * SiteAccessGuard yalnizca URL'deki :siteId'nin sahipligini dogrular; ic
+ * kaynak ID'lerine (promptId, fanoutId) bakmaz. Bu yuzden BU SERVISTEKI HER
+ * METOT siteId almak ve sorgusunu siteId ile kisitlamak ZORUNDADIR. Aksi
+ * halde saldirgan kendi sitesinin URL'i ile baskasinin promptId'sini gecirip
+ * o kullanicinin verisini okuyabilir/silebilir ve butcesini harcayabilir.
+ * findUnique({ where: { id } }) KULLANMAYIN — findFirst({ where: { id, siteId } }).
  */
 
 export interface PromptRunSummary {
@@ -30,12 +36,17 @@ export interface PromptRunSummary {
     reason?: string;
     probes: CitationProbe[];
   }>;
-  /** En zayif dallar — aksiyon icin */
+  /** En zayif dallar — aksiyon icin (hic olculemeyenler haric) */
   weakestBranches: Array<{ id: string; text: string; kind: string; citedCount: number; total: number }>;
   runAt: string;
 }
 
 const MAX_PROMPTS_PER_SITE = 200;
+const MAX_TEXT_LEN = 500;
+const MIN_TEXT_LEN = 5;
+/** Tek calistirmada islenecek azami dal — manuel dal eklemede ust sinir yoksa maliyet patlar */
+const MAX_BRANCHES_PER_RUN = 12;
+const MAX_RUN_ALL = 50;
 
 @Injectable()
 export class PromptLabService {
@@ -46,6 +57,29 @@ export class PromptLabService {
     private readonly citation: AiCitationService,
     private readonly fanout: FanoutService,
   ) {}
+
+  // ────────────────────────────────────────────────────────────
+  //  ORTAK: kiraci kapsamli prompt cozumleme
+  // ────────────────────────────────────────────────────────────
+  /**
+   * promptId'yi SADECE verilen site icinde arar. Baska tenant'in prompt'u
+   * istenirse 404 doner (403 degil — kaynagin varligini sizdirmamak icin).
+   */
+  private async requirePrompt<T extends object>(siteId: string, promptId: string, include?: T) {
+    const prompt = await this.prisma.geoPrompt.findFirst({
+      where: { id: promptId, siteId },
+      ...(include ? { include } : {}),
+    } as any);
+    if (!prompt) throw new NotFoundException('Prompt bulunamadi');
+    return prompt as any;
+  }
+
+  /** ?days=abc gibi girdiler NaN -> Invalid Date -> Prisma 500 uretiyordu */
+  private safeDays(days: unknown, fallback = 30): number {
+    const n = typeof days === 'number' ? days : parseInt(String(days ?? ''), 10);
+    if (!Number.isFinite(n)) return fallback;
+    return Math.min(Math.max(Math.trunc(n), 1), 365);
+  }
 
   // ────────────────────────────────────────────────────────────
   //  CRUD
@@ -77,15 +111,13 @@ export class PromptLabService {
   }
 
   async create(siteId: string, input: {
-    text: string;
+    text?: string;
     intent?: string;
     locale?: string;
     tags?: string[];
     source?: string;
   }) {
-    const text = (input.text ?? '').trim();
-    if (text.length < 5) throw new BadRequestException('Soru en az 5 karakter olmali');
-    if (text.length > 500) throw new BadRequestException('Soru 500 karakteri asamaz');
+    const text = this.validateText(input?.text);
 
     const count = await this.prisma.geoPrompt.count({ where: { siteId } });
     if (count >= MAX_PROMPTS_PER_SITE) {
@@ -94,42 +126,49 @@ export class PromptLabService {
 
     // Ayni soru iki kez eklenmesin — normalize edip karsilastir
     const existing = await this.findByNormalizedText(siteId, text);
-    if (existing) throw new BadRequestException('Bu soru zaten takip listesinde');
+    if (existing) {
+      throw new BadRequestException(
+        existing.isActive
+          ? 'Bu soru zaten takip listesinde'
+          : 'Bu soru pasif olarak kayitli — listeden yeniden aktive edebilirsin',
+      );
+    }
 
     return this.prisma.geoPrompt.create({
       data: {
         siteId,
         text,
         intent: input.intent ?? 'informational',
-        locale: input.locale ?? 'tr',
-        tags: input.tags?.length ? input.tags : undefined,
+        locale: input.locale === 'en' ? 'en' : 'tr',
+        tags: Array.isArray(input.tags) && input.tags.length ? input.tags : undefined,
         source: input.source ?? 'manual',
       },
     });
   }
 
-  async update(promptId: string, input: {
+  async update(siteId: string, promptId: string, input: {
     text?: string;
     intent?: string;
     tags?: string[];
     isActive?: boolean;
   }) {
+    await this.requirePrompt(siteId, promptId);
+
     const data: any = {};
-    if (input.text !== undefined) {
-      const text = input.text.trim();
-      if (text.length < 5) throw new BadRequestException('Soru en az 5 karakter olmali');
-      data.text = text;
-    }
-    if (input.intent !== undefined) data.intent = input.intent;
-    if (input.tags !== undefined) data.tags = input.tags;
-    if (input.isActive !== undefined) data.isActive = input.isActive;
+    // create() ile AYNI dogrulama — eskiden update ust siniri uygulamiyordu,
+    // create'in reddettigi 10 KB'lik metin PATCH ile iceri giriyordu.
+    if (input.text !== undefined) data.text = this.validateText(input.text);
+    if (input.intent !== undefined) data.intent = String(input.intent).slice(0, 40);
+    if (input.tags !== undefined) data.tags = Array.isArray(input.tags) ? input.tags : undefined;
+    if (input.isActive !== undefined) data.isActive = !!input.isActive;
 
     return this.prisma.geoPrompt.update({ where: { id: promptId }, data });
   }
 
-  async remove(promptId: string) {
+  async remove(siteId: string, promptId: string) {
+    await this.requirePrompt(siteId, promptId);
     // fanouts + runs cascade ile gider (schema'da onDelete: Cascade)
-    await this.prisma.geoPrompt.delete({ where: { id: promptId } }).catch(() => null);
+    await this.prisma.geoPrompt.delete({ where: { id: promptId } });
     return { ok: true };
   }
 
@@ -154,21 +193,30 @@ export class PromptLabService {
       candidates
         .filter((q): q is string => typeof q === 'string')
         .map((q) => q.trim())
-        .filter((q) => q.length >= 5 && q.length <= 500),
+        .filter((q) => q.length >= MIN_TEXT_LEN && q.length <= MAX_TEXT_LEN),
     ));
 
-    let imported = 0;
+    // Mevcut kayitlari TEK sorguda al — eskiden aday basina tum tablo cekiliyordu (N+1)
+    const existing = await this.prisma.geoPrompt.findMany({
+      where: { siteId },
+      select: { text: true },
+    });
+    const seen = new Set(existing.map((e) => this.normalize(e.text)));
+    let total = existing.length;
+
+    const toCreate: Array<{ siteId: string; text: string; source: string; locale: string }> = [];
     let skipped = 0;
     for (const text of clean) {
-      if (await this.findByNormalizedText(siteId, text)) { skipped++; continue; }
-      const total = await this.prisma.geoPrompt.count({ where: { siteId } });
-      if (total >= MAX_PROMPTS_PER_SITE) { skipped++; continue; }
-      await this.prisma.geoPrompt.create({
-        data: { siteId, text, source: 'brain', locale: site.language === 'en' ? 'en' : 'tr' },
-      });
-      imported++;
+      const norm = this.normalize(text);
+      if (seen.has(norm) || total >= MAX_PROMPTS_PER_SITE) { skipped++; continue; }
+      seen.add(norm);
+      total++;
+      toCreate.push({ siteId, text, source: 'brain', locale: site.language === 'en' ? 'en' : 'tr' });
     }
-    return { imported, skipped };
+    if (toCreate.length) {
+      await this.prisma.geoPrompt.createMany({ data: toCreate });
+    }
+    return { imported: toCreate.length, skipped };
   }
 
   // ────────────────────────────────────────────────────────────
@@ -178,24 +226,22 @@ export class PromptLabService {
    * Tek bir prompt'u (istege bagli fan-out dallariyla birlikte) calistir.
    *
    * MALIYET UYARISI: dal sayisi x provider sayisi kadar LLM cagrisi yapilir.
-   * withFanout=true iken saglayici sayisi daraltilmazsa 8 dal x 7 provider = 56
-   * cagri eder. Bu yuzden fan-out varsayilan olarak 3 saglayiciyla calisir.
+   * Bu yuzden fan-out varsayilan olarak 3 saglayiciyla ve en fazla
+   * MAX_BRANCHES_PER_RUN dal ile calisir.
    */
-  async runPrompt(promptId: string, opts: {
+  async runPrompt(siteId: string, promptId: string, opts: {
     withFanout?: boolean;
     providers?: Provider[];
     fanoutProviders?: Provider[];
   } = {}): Promise<PromptRunSummary> {
-    const prompt = await this.prisma.geoPrompt.findUnique({
-      where: { id: promptId },
-      include: { fanouts: { where: { isActive: true }, orderBy: { rank: 'asc' } } },
+    const prompt = await this.requirePrompt(siteId, promptId, {
+      fanouts: { where: { isActive: true }, orderBy: { rank: 'asc' }, take: MAX_BRANCHES_PER_RUN },
     });
-    if (!prompt) throw new BadRequestException('Prompt bulunamadi');
 
     const today = this.utcToday();
 
     // ── 1) Ana soru
-    const mainResults = await this.citation.runQueries(prompt.siteId, [prompt.text], {
+    const mainResults = await this.citation.runQueries(siteId, [prompt.text], {
       providers: opts.providers,
     });
 
@@ -203,11 +249,11 @@ export class PromptLabService {
     for (const r of mainResults) {
       for (const probe of r.probes) mainProbeRows.push({ provider: r.provider, probe });
     }
-    await this.persistRuns(prompt.siteId, promptId, null, today, mainProbeRows);
+    await this.persistRuns(siteId, promptId, null, today, mainProbeRows);
 
     // ── 2) Fan-out dallari
     let fanoutAgg: PromptRunSummary['fanout'] = null;
-    const branchStats = new Map<string, { text: string; kind: string; cited: number; total: number }>();
+    const branchStats = new Map<string, { text: string; kind: string; cited: number; mentioned: number; total: number }>();
 
     if (opts.withFanout && prompt.fanouts.length > 0) {
       // Maliyet freni — dal olcumunde varsayilan 3 saglayici
@@ -216,28 +262,30 @@ export class PromptLabService {
         : ['openai', 'anthropic', 'gemini'];
 
       for (const branch of prompt.fanouts) {
-        const res = await this.citation.runQueries(prompt.siteId, [branch.text], {
+        const res = await this.citation.runQueries(siteId, [branch.text], {
           providers: fanoutProviders,
         });
         const rows: Array<{ provider: string; probe: CitationProbe }> = [];
         for (const r of res) {
           for (const probe of r.probes) rows.push({ provider: r.provider, probe });
         }
-        await this.persistRuns(prompt.siteId, promptId, branch.id, today, rows);
+        await this.persistRuns(siteId, promptId, branch.id, today, rows);
 
         const valid = rows.filter((r) => !this.isErrorProbe(r.probe));
         branchStats.set(branch.id, {
           text: branch.text,
           kind: branch.kind,
           cited: valid.filter((r) => r.probe.cited).length,
+          // mentioned'i BELLEKTEN say. Eskiden DB'den ayri sorguyla geliyordu;
+          // yazma hatasi yutuldugunda veya ayni gun ikinci kez calistirildiginda
+          // mentioned > total gibi imkansiz degerler cikiyordu.
+          mentioned: valid.filter((r) => r.probe.brandMentioned).length,
           total: valid.length,
         });
       }
 
       let cited = 0, mentioned = 0, total = 0;
-      for (const s of branchStats.values()) { cited += s.cited; total += s.total; }
-      // mention sayimi ayri gerekiyor — runs tablosundan degil bellekten toplayalim
-      mentioned = await this.countMentionedToday(prompt.siteId, promptId, today, true);
+      for (const s of branchStats.values()) { cited += s.cited; mentioned += s.mentioned; total += s.total; }
       fanoutAgg = { cited, mentioned, total, score: total ? Math.round((cited / total) * 100) : 0 };
     }
 
@@ -252,22 +300,22 @@ export class PromptLabService {
       score: mainValid.length ? Math.round((mainCited / mainValid.length) * 100) : 0,
     };
 
-    await this.prisma.geoPrompt.update({
-      where: { id: promptId },
-      data: {
-        lastRunAt: new Date(),
-        lastCitedCount: main.cited,
-        lastTotalCount: main.total,
-      },
-    });
+    // Tamamen basarisiz calistirma (butce asimi, anahtar yok, hepsi HATA) son
+    // bilinen skoru 0/0 ile EZMEMELI — kullanici gercek bir dususe bakiyor sanir.
+    if (main.total > 0) {
+      await this.prisma.geoPrompt.update({
+        where: { id: promptId },
+        data: { lastRunAt: new Date(), lastCitedCount: main.cited, lastTotalCount: main.total },
+      });
+    } else {
+      this.log.warn(`[${promptId}] Gecerli olcum yok — son bilinen skor korundu`);
+    }
 
     const weakestBranches = Array.from(branchStats.entries())
+      // total=0 olan dal "olculemedi" demek, "zayif" demek degil — sirala disi birak
+      .filter(([, s]) => s.total > 0)
       .map(([id, s]) => ({ id, text: s.text, kind: s.kind, citedCount: s.cited, total: s.total }))
-      .sort((a, b) => {
-        const ra = a.total ? a.citedCount / a.total : 0;
-        const rb = b.total ? b.citedCount / b.total : 0;
-        return ra - rb;
-      })
+      .sort((a, b) => (a.citedCount / a.total) - (b.citedCount / b.total))
       .slice(0, 5);
 
     return {
@@ -288,31 +336,39 @@ export class PromptLabService {
   }
 
   /**
-   * Sitenin tum aktif promptlarini sirayla calistirir.
-   * Paralel calistirmiyoruz — saglayici rate limitleri ve gunluk butce
-   * guard'i (ai-citation.service) sirali akista daha ongorulebilir davraniyor.
+   * Sitenin aktif promptlarini sirayla calistirir.
+   *
+   * SIRALAMA: en uzun suredir olculmeyen once (lastRunAt asc, null'lar basta).
+   * Eskiden createdAt asc idi ve limit 25 oldugundan 26. prompt HIC olculmuyordu.
    */
   async runAll(siteId: string, opts: { withFanout?: boolean; limit?: number } = {}) {
-    const limit = Math.min(Math.max(opts.limit ?? 25, 1), MAX_PROMPTS_PER_SITE);
+    const rawLimit = typeof opts.limit === 'number' ? opts.limit : parseInt(String(opts.limit ?? ''), 10);
+    const limit = Number.isFinite(rawLimit)
+      ? Math.min(Math.max(Math.trunc(rawLimit), 1), MAX_RUN_ALL)
+      : 25;
+
     const prompts = await this.prisma.geoPrompt.findMany({
       where: { siteId, isActive: true },
-      orderBy: { createdAt: 'asc' },
+      orderBy: [{ lastRunAt: { sort: 'asc', nulls: 'first' } }, { createdAt: 'asc' }],
       take: limit,
       select: { id: true },
     });
 
     const summaries: PromptRunSummary[] = [];
+    const failed: Array<{ promptId: string; error: string }> = [];
     for (const p of prompts) {
       try {
-        summaries.push(await this.runPrompt(p.id, { withFanout: opts.withFanout }));
+        summaries.push(await this.runPrompt(siteId, p.id, { withFanout: opts.withFanout }));
       } catch (err: any) {
         this.log.warn(`Prompt calistirilamadi (${p.id}): ${err.message}`);
+        failed.push({ promptId: p.id, error: err.message?.slice(0, 200) ?? 'bilinmeyen hata' });
       }
     }
     return {
       siteId,
       ran: summaries.length,
       requested: prompts.length,
+      failed,
       summaries,
       runAt: new Date().toISOString(),
     };
@@ -326,31 +382,33 @@ export class PromptLabService {
    * Asil urun degeri burasi: "ana soruda %60 gorunuyorsun ama
    * 'guvenilir mi' dallarinda %0'sin" gibi bir tespit.
    */
-  async coverage(siteId: string, days = 30) {
-    const since = new Date(Date.now() - days * 86400_000);
+  async coverage(siteId: string, daysInput: unknown = 30) {
+    const days = this.safeDays(daysInput);
+    const since = this.utcDateOnly(new Date(Date.now() - days * 86400_000));
 
+    // SELECT'te excerpt YOK — her satir 2 KB'a kadar metin tasiyor, 90 gunluk
+    // sorgu yuz binlerce satirda bellegi sisiriyordu. Hata ayirt etmek icin
+    // excerpt yerine ayri bir "gecerli mi" sinyaline ihtiyacimiz var:
+    // isError alani tutmadigimizdan, hatali satirlar zaten cited=false/
+    // brandMentioned=false olarak yaziliyor ve orani asagi cekiyor. Bunu
+    // onlemek icin persistRuns HATALI probe'lari DB'YE HIC YAZMIYOR (asagi bak).
     const runs = await this.prisma.geoPromptRun.findMany({
-      where: { siteId, date: { gte: this.utcDateOnly(since) } },
-      select: {
-        promptId: true, fanoutId: true, provider: true,
-        cited: true, brandMentioned: true, excerpt: true,
-      },
+      where: { siteId, date: { gte: since } },
+      select: { promptId: true, fanoutId: true, cited: true, brandMentioned: true },
     });
 
     const fanouts = await this.prisma.geoFanoutQuery.findMany({
       where: { siteId },
-      select: { id: true, text: true, kind: true, promptId: true },
+      select: { id: true, kind: true },
     });
-    const fanoutById = new Map(fanouts.map((f) => [f.id, f]));
+    const kindById = new Map(fanouts.map((f) => [f.id, f.kind]));
 
-    const valid = runs.filter((r) => !r.excerpt?.startsWith('HATA:'));
-    const mainRuns = valid.filter((r) => !r.fanoutId);
-    const branchRuns = valid.filter((r) => r.fanoutId);
+    const mainRuns = runs.filter((r) => !r.fanoutId);
+    const branchRuns = runs.filter((r) => r.fanoutId);
 
-    // Dal tipine gore kirilim — en zayif tip aksiyonu yonlendirir
     const byKind = new Map<string, { cited: number; mentioned: number; total: number }>();
     for (const r of branchRuns) {
-      const kind = fanoutById.get(r.fanoutId!)?.kind ?? 'unknown';
+      const kind = kindById.get(r.fanoutId!) ?? 'unknown';
       const cur = byKind.get(kind) ?? { cited: 0, mentioned: 0, total: 0 };
       cur.total++;
       if (r.cited) cur.cited++;
@@ -359,6 +417,8 @@ export class PromptLabService {
     }
 
     const pct = (c: number, t: number) => (t ? Math.round((c / t) * 100) : 0);
+    const mainScore = pct(mainRuns.filter((r) => r.cited).length, mainRuns.length);
+    const fanoutScore = pct(branchRuns.filter((r) => r.cited).length, branchRuns.length);
 
     return {
       siteId,
@@ -367,48 +427,62 @@ export class PromptLabService {
         cited: mainRuns.filter((r) => r.cited).length,
         mentioned: mainRuns.filter((r) => r.brandMentioned).length,
         total: mainRuns.length,
-        score: pct(mainRuns.filter((r) => r.cited).length, mainRuns.length),
+        score: mainScore,
       },
       fanout: {
         cited: branchRuns.filter((r) => r.cited).length,
         mentioned: branchRuns.filter((r) => r.brandMentioned).length,
         total: branchRuns.length,
-        score: pct(branchRuns.filter((r) => r.cited).length, branchRuns.length),
+        score: fanoutScore,
       },
       byKind: Array.from(byKind.entries())
         .map(([kind, s]) => ({ kind, ...s, score: pct(s.cited, s.total) }))
         .sort((a, b) => a.score - b.score),
-      /** Ana soruda gorunup dallarda kaybedilen fark — negatifse dal tarafi zayif */
-      gap: pct(branchRuns.filter((r) => r.cited).length, branchRuns.length)
-         - pct(mainRuns.filter((r) => r.cited).length, mainRuns.length),
+      /** Negatifse dal tarafi ana sorudan zayif */
+      gap: fanoutScore - mainScore,
     };
   }
 
-  /** Tek prompt'un zaman icindeki citation trendi */
-  async history(promptId: string, days = 30) {
+  /**
+   * Tek prompt'un zaman icindeki citation trendi.
+   * Ana soru ve fan-out dallari AYRI seriler — eskiden ayni kovaya
+   * karistiginda fan-out'lu gunler yapay olarak farkli gorunuyordu.
+   */
+  async history(siteId: string, promptId: string, daysInput: unknown = 30) {
+    await this.requirePrompt(siteId, promptId);
+
+    const days = this.safeDays(daysInput);
     const since = this.utcDateOnly(new Date(Date.now() - days * 86400_000));
     const runs = await this.prisma.geoPromptRun.findMany({
-      where: { promptId, date: { gte: since } },
+      where: { promptId, siteId, date: { gte: since } },
       orderBy: { date: 'asc' },
-      select: { date: true, provider: true, cited: true, brandMentioned: true, fanoutId: true, excerpt: true },
+      select: { date: true, cited: true, brandMentioned: true, fanoutId: true },
     });
 
-    const byDate = new Map<string, { cited: number; mentioned: number; total: number }>();
+    type Bucket = { cited: number; mentioned: number; total: number };
+    const byDate = new Map<string, { main: Bucket; fanout: Bucket }>();
+    const empty = (): Bucket => ({ cited: 0, mentioned: 0, total: 0 });
+
     for (const r of runs) {
-      if (r.excerpt?.startsWith('HATA:')) continue;
       const key = r.date.toISOString().slice(0, 10);
-      const cur = byDate.get(key) ?? { cited: 0, mentioned: 0, total: 0 };
-      cur.total++;
-      if (r.cited) cur.cited++;
-      if (r.brandMentioned) cur.mentioned++;
+      const cur = byDate.get(key) ?? { main: empty(), fanout: empty() };
+      const b = r.fanoutId ? cur.fanout : cur.main;
+      b.total++;
+      if (r.cited) b.cited++;
+      if (r.brandMentioned) b.mentioned++;
       byDate.set(key, cur);
     }
 
+    const pct = (c: number, t: number) => (t ? Math.round((c / t) * 100) : 0);
     return Array.from(byDate.entries())
-      .map(([date, s]) => ({
+      .map(([date, v]) => ({
         date,
-        ...s,
-        score: s.total ? Math.round((s.cited / s.total) * 100) : 0,
+        // Geriye donuk uyumluluk: ust seviye alanlar ANA soruyu temsil eder
+        cited: v.main.cited,
+        mentioned: v.main.mentioned,
+        total: v.main.total,
+        score: pct(v.main.cited, v.main.total),
+        fanout: { ...v.fanout, score: pct(v.fanout.cited, v.fanout.total) },
       }))
       .sort((a, b) => a.date.localeCompare(b.date));
   }
@@ -416,6 +490,20 @@ export class PromptLabService {
   // ────────────────────────────────────────────────────────────
   //  YARDIMCILAR
   // ────────────────────────────────────────────────────────────
+  private validateText(raw: unknown): string {
+    const text = typeof raw === 'string' ? raw.trim() : '';
+    if (text.length < MIN_TEXT_LEN) throw new BadRequestException(`Soru en az ${MIN_TEXT_LEN} karakter olmali`);
+    if (text.length > MAX_TEXT_LEN) throw new BadRequestException(`Soru ${MAX_TEXT_LEN} karakteri asamaz`);
+    return text;
+  }
+
+  /**
+   * HATALI probe'lar DB'YE YAZILMAZ.
+   * Yazilsaydi cited=false/mentioned=false olarak kaydedilir ve coverage/history
+   * hesaplarinda "gorunmedik" gibi sayilirdi — saglayici hatasi dusuk gorunurluk
+   * gibi okunurdu. Bellekteki ozet zaten isErrorProbe ile ayikliyor; kalici
+   * kayitta da ayni kurali uyguluyoruz ki iki taraf tutarli olsun.
+   */
   private async persistRuns(
     siteId: string,
     promptId: string,
@@ -423,35 +511,30 @@ export class PromptLabService {
     date: Date,
     rows: Array<{ provider: string; probe: CitationProbe }>,
   ) {
-    if (rows.length === 0) return;
-    await this.prisma.geoPromptRun.createMany({
-      data: rows.map(({ provider, probe }) => ({
-        siteId,
-        promptId,
-        fanoutId,
-        provider,
-        date,
-        cited: !!probe.cited,
-        brandMentioned: !!probe.brandMentioned,
-        position: probe.position ?? null,
-        sentiment: probe.sentiment ?? null,
-        excerpt: probe.excerpt?.slice(0, 2000) ?? null,
-        citedPages: probe.citedPages?.length ? probe.citedPages : undefined,
-        competitors: probe.competitors?.length ? (probe.competitors as any) : undefined,
-      })),
-    }).catch((err) => {
-      this.log.warn(`GeoPromptRun yazilamadi (${promptId}): ${err.message}`);
-    });
-  }
-
-  private async countMentionedToday(siteId: string, promptId: string, date: Date, fanoutOnly: boolean) {
-    return this.prisma.geoPromptRun.count({
-      where: {
-        siteId, promptId, date,
-        brandMentioned: true,
-        ...(fanoutOnly ? { fanoutId: { not: null } } : { fanoutId: null }),
-      },
-    }).catch(() => 0);
+    const valid = rows.filter((r) => !this.isErrorProbe(r.probe));
+    if (valid.length === 0) return;
+    try {
+      await this.prisma.geoPromptRun.createMany({
+        data: valid.map(({ provider, probe }) => ({
+          siteId,
+          promptId,
+          fanoutId,
+          provider,
+          date,
+          cited: !!probe.cited,
+          brandMentioned: !!probe.brandMentioned,
+          position: probe.position ?? null,
+          sentiment: probe.sentiment ?? null,
+          excerpt: probe.excerpt?.slice(0, 2000) ?? null,
+          citedPages: probe.citedPages?.length ? probe.citedPages : undefined,
+          competitors: probe.competitors?.length ? (probe.competitors as any) : undefined,
+        })),
+      });
+    } catch (err: any) {
+      // Yazma basarisiz olsa bile ozet bellekten uretildigi icin yanit dogru kalir;
+      // sadece gecmis eksilir. Sessizce yutmuyoruz, gorunur log biraliyoruz.
+      this.log.error(`GeoPromptRun yazilamadi (prompt=${promptId} fanout=${fanoutId}): ${err.message}`);
+    }
   }
 
   /** Probe hata dondurduyse istatistige katma — yoksa skor yanlis duser */
@@ -463,13 +546,19 @@ export class PromptLabService {
     const norm = this.normalize(text);
     const all = await this.prisma.geoPrompt.findMany({
       where: { siteId },
-      select: { id: true, text: true },
+      select: { id: true, text: true, isActive: true },
     });
     return all.find((p) => this.normalize(p.text) === norm) ?? null;
   }
 
+  /**
+   * Karsilastirma icin normalize.
+   * toLowerCase() TR locale KULLANMAZ: "I" harfi TR'de "ı"ya duserken EN'de
+   * "i"ye duser; TR locale ile normalize edilen "IPHONE" ve "iPhone" ayri
+   * anahtarlar uretip ayni sorunun iki kez eklenmesine izin veriyordu.
+   */
   private normalize(s: string): string {
-    return s.toLocaleLowerCase('tr').replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+    return s.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
   }
 
   /** UTC gun basi — server timezone'a bagli kalmamak icin (TR'de local midnight bir onceki UTC gunune kayar) */

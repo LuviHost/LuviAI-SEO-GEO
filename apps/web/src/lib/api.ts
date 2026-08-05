@@ -240,7 +240,13 @@ export const api = {
     }>>(`/sites/${siteId}/audit/prompts/${promptId}/fanout`),
 
   generateFanout: (siteId: string, promptId: string, max = 8) =>
-    request<{ promptId: string; generated: number; branches: Array<{ text: string; kind: string; likelihood: number }> }>(
+    request<{
+      promptId: string;
+      generated: number;
+      /** Ayni metinle daha once uretilmis, gecmisi korunarak yeniden aktive edilen dal sayisi */
+      reactivated: number;
+      branches: Array<{ text: string; kind: string; likelihood: number }>;
+    }>(
       `/sites/${siteId}/audit/prompts/${promptId}/fanout/generate`,
       { method: 'POST', body: JSON.stringify({ max }) },
     ),

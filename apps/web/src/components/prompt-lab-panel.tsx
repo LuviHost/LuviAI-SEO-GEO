@@ -271,7 +271,11 @@ function PromptRow({
     setGenerating(true);
     try {
       const res = await api.generateFanout(siteId, prompt.id, 8);
-      toast.success(`${res.generated} dal üretildi`);
+      toast.success(
+        res.reactivated
+          ? `${res.generated} yeni dal, ${res.reactivated} dal geçmişiyle korundu`
+          : `${res.generated} dal üretildi`,
+      );
       setBranches(await api.listFanout(siteId, prompt.id));
     } catch (err: any) {
       toast.error(err?.message ?? 'Dallar üretilemedi');

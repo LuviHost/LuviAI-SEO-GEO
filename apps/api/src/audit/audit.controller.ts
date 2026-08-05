@@ -215,34 +215,46 @@ export class AuditController {
     return this.promptLab.coverage(siteId, days ? parseInt(days, 10) : 30);
   }
 
+  // NOT: Asagidaki ':promptId' rotalari, yukaridaki sabit yollardan
+  // ('prompts/import-brain', 'prompts/run-all', 'prompts/coverage') SONRA
+  // tanimlanmalidir. NestJS rotalari tanim sirasina gore eslestirir; sabit
+  // yollar once gelmezse 'prompts/coverage' istegi ':promptId' handler'ina
+  // duser ve promptId="coverage" ile 404 alirsiniz.
+
   /** PATCH /sites/:siteId/audit/prompts/:promptId */
   @Patch('prompts/:promptId')
   updatePrompt(
+    @Param('siteId') siteId: string,
     @Param('promptId') promptId: string,
     @Body() body: { text?: string; intent?: string; tags?: string[]; isActive?: boolean },
   ) {
-    return this.promptLab.update(promptId, body);
+    return this.promptLab.update(siteId, promptId, body);
   }
 
   /** DELETE /sites/:siteId/audit/prompts/:promptId */
   @Delete('prompts/:promptId')
-  deletePrompt(@Param('promptId') promptId: string) {
-    return this.promptLab.remove(promptId);
+  deletePrompt(@Param('siteId') siteId: string, @Param('promptId') promptId: string) {
+    return this.promptLab.remove(siteId, promptId);
   }
 
   /** POST /sites/:siteId/audit/prompts/:promptId/run — tek prompt calistir */
   @Post('prompts/:promptId/run')
   runPrompt(
+    @Param('siteId') siteId: string,
     @Param('promptId') promptId: string,
     @Body() body: { withFanout?: boolean; providers?: Provider[]; fanoutProviders?: Provider[] } = {},
   ) {
-    return this.promptLab.runPrompt(promptId, body);
+    return this.promptLab.runPrompt(siteId, promptId, body);
   }
 
   /** GET /sites/:siteId/audit/prompts/:promptId/history?days=30 */
   @Get('prompts/:promptId/history')
-  promptHistory(@Param('promptId') promptId: string, @Query('days') days?: string) {
-    return this.promptLab.history(promptId, days ? parseInt(days, 10) : 30);
+  promptHistory(
+    @Param('siteId') siteId: string,
+    @Param('promptId') promptId: string,
+    @Query('days') days?: string,
+  ) {
+    return this.promptLab.history(siteId, promptId, days);
   }
 
   // ══════════════════════════════════════════════════════════
@@ -251,17 +263,18 @@ export class AuditController {
 
   /** GET /sites/:siteId/audit/prompts/:promptId/fanout */
   @Get('prompts/:promptId/fanout')
-  listFanout(@Param('promptId') promptId: string) {
-    return this.fanout.listForPrompt(promptId);
+  listFanout(@Param('siteId') siteId: string, @Param('promptId') promptId: string) {
+    return this.fanout.listForPrompt(siteId, promptId);
   }
 
   /** POST /sites/:siteId/audit/prompts/:promptId/fanout/generate — dallari (yeniden) uret */
   @Post('prompts/:promptId/fanout/generate')
   generateFanout(
+    @Param('siteId') siteId: string,
     @Param('promptId') promptId: string,
     @Body() body: { max?: number } = {},
   ) {
-    return this.fanout.generateForPrompt(promptId, body);
+    return this.fanout.generateForPrompt(siteId, promptId, body);
   }
 
   /** POST /sites/:siteId/audit/prompts/:promptId/fanout — elle dal ekle */
@@ -269,21 +282,25 @@ export class AuditController {
   addFanout(
     @Param('siteId') siteId: string,
     @Param('promptId') promptId: string,
-    @Body() body: { text: string; kind?: FanoutKind },
+    @Body() body: { text?: string; kind?: FanoutKind } = {},
   ) {
-    return this.fanout.addManual(promptId, siteId, body.text, body.kind);
+    return this.fanout.addManual(siteId, promptId, body?.text, body?.kind);
   }
 
   /** PATCH /sites/:siteId/audit/fanout/:fanoutId — dali ac/kapat */
   @Patch('fanout/:fanoutId')
-  toggleFanout(@Param('fanoutId') fanoutId: string, @Body() body: { isActive: boolean }) {
-    return this.fanout.setActive(fanoutId, body.isActive);
+  toggleFanout(
+    @Param('siteId') siteId: string,
+    @Param('fanoutId') fanoutId: string,
+    @Body() body: { isActive?: boolean } = {},
+  ) {
+    return this.fanout.setActive(siteId, fanoutId, !!body?.isActive);
   }
 
   /** DELETE /sites/:siteId/audit/fanout/:fanoutId */
   @Delete('fanout/:fanoutId')
-  deleteFanout(@Param('fanoutId') fanoutId: string) {
-    return this.fanout.remove(fanoutId);
+  deleteFanout(@Param('siteId') siteId: string, @Param('fanoutId') fanoutId: string) {
+    return this.fanout.remove(siteId, fanoutId);
   }
 
   @Post('citation-test')
