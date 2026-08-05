@@ -20,6 +20,13 @@ export interface CitationProbe {
   competitors?: Array<{ name: string; mentions: number; positionFirst: number | null }>;
   /** Per-page citation: AI cevabında hangi spesifik sayfa URL'leri alıntılandı (host'umuza ait) */
   citedPages?: string[];
+  /**
+   * Cevapta gecen BASKA alan adlari — kendi host'umuz ve genel/noise siteler haric.
+   * Onceden rakip tespiti YALNIZCA disaridan verilen listeye bakiyordu; public
+   * kontrolde o liste bos oldugu icin hicbir zaman rakip bulunamiyordu.
+   * Bu alan cevabin kendisinden kesfedilen adaylari tasir.
+   */
+  mentionedDomains?: string[];
 }
 
 export interface CitationResult {
@@ -886,6 +893,13 @@ export class AiCitationService {
       else sentiment = 'neutral';
     }
 
+    // ── Rakip KESFI: cevapta gecen alan adlari
+    // Sadece disaridan verilen listeye bakmak yetmiyordu — public kontrolde o
+    // liste bos geldigi icin "rakip bulunamadi" cikiyordu. Model bir soruya
+    // cevap verirken zaten rakipleri sayiyor ("mackolik.com, nesine.com...");
+    // o adlari cevabin kendisinden topluyoruz.
+    const mentionedDomains = this.extractDomains(text, host);
+
     // ── Competitor mentions: ASO modülünden gelen rakip listesini text'te ara
     const competitorStats: Array<{ name: string; mentions: number; positionFirst: number | null }> = [];
     for (const compRaw of competitors) {
@@ -932,8 +946,67 @@ export class AiCitationService {
       sentiment,
       competitors: competitorStats,
       citedPages,
+      mentionedDomains,
     };
   }
+
+  /**
+   * Cevap metninde gecen alan adlarini cikarir (kendi host'umuz haric).
+   *
+   * NEDEN: Rakip tespiti onceden yalnizca disaridan verilen listeye bakiyordu.
+   * Public kontrolde (landing'deki ucretsiz test) Brain olmadigi icin o liste
+   * bos geliyor ve panel her zaman "rakip bulunamadi" diyordu — oysa modelin
+   * cevabi zaten rakipleri sayiyor.
+   *
+   * Yaklasim: LLM'e ikinci bir cagri YAPMIYORUZ (ucretsiz aracin maliyetini
+   * ikiye katlardi). Metinden alan adi cikarmak hem bedava hem yuksek isabetli;
+   * modeller "nerede takip edebilirim" turu sorulara site adiyla cevap veriyor.
+   *
+   * SINIR: Yalnizca TLD'li adlar yakalanir. Model markayi "Mackolik" gibi
+   * alan adi olmadan yazarsa gormeyiz — bunun icin ya kurumsal bir marka
+   * sozlugu ya da ek bir LLM gecisi gerekir; ikisi de ayri bir is.
+   */
+  private extractDomains(text: string, ownHost: string): string[] {
+    if (!text) return [];
+
+    // Sayilari ve dosya uzantilarini elemek icin TLD'yi harf zorunlu tutuyoruz.
+    // "3.5", "v1.2", "index.html" gibi seyler rakip sanilmasin.
+    const re = /\b((?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+(?:com|net|org|io|ai|co|app|dev|tv|gg|me|info|biz|news|shop|store|site|online|xyz|tr|de|uk|fr|es|it|nl|ru|az|com\.tr|net\.tr|org\.tr|gov\.tr|edu\.tr|co\.uk))\b/gi;
+
+    const own = (ownHost || '').toLowerCase().replace(/^www\./, '');
+    const ownRoot = own.split('.').slice(-2).join('.');
+
+    const counts = new Map<string, number>();
+    for (const m of text.matchAll(re)) {
+      const d = m[1].toLowerCase().replace(/^www\./, '');
+      if (d.length < 4 || d.length > 80) continue;
+      if (own && (d === own || d.endsWith('.' + own))) continue;      // kendi sitemiz
+      if (ownRoot && d.split('.').slice(-2).join('.') === ownRoot) continue;
+      if (this.NOISE_DOMAINS.has(d) || this.NOISE_DOMAINS.has(d.split('.').slice(-2).join('.'))) continue;
+      counts.set(d, (counts.get(d) ?? 0) + 1);
+    }
+
+    return [...counts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 15)
+      .map(([d]) => d);
+  }
+
+  /**
+   * Rakip SAYILMAYACAK alan adlari — arama motorlari, sosyal aglar, uygulama
+   * magazalari, ansiklopediler ve AI saglayicilarinin kendisi. Bunlar her
+   * cevapta gectigi icin filtrelenmezse rakip listesini bogar.
+   */
+  private readonly NOISE_DOMAINS = new Set<string>([
+    'google.com', 'google.com.tr', 'bing.com', 'yahoo.com', 'duckduckgo.com', 'yandex.com',
+    'wikipedia.org', 'tr.wikipedia.org', 'en.wikipedia.org', 'wikimedia.org',
+    'youtube.com', 'youtu.be', 'facebook.com', 'instagram.com', 'twitter.com', 'x.com',
+    'linkedin.com', 'reddit.com', 'tiktok.com', 'pinterest.com', 'whatsapp.com', 'telegram.org',
+    'apple.com', 'apps.apple.com', 'play.google.com', 'microsoft.com', 'amazon.com',
+    'github.com', 'gitlab.com', 'medium.com', 'quora.com', 'stackoverflow.com',
+    'openai.com', 'chatgpt.com', 'anthropic.com', 'claude.ai', 'perplexity.ai', 'gemini.google.com',
+    'example.com', 'example.org', 'gov.tr', 'edu.tr',
+  ]);
 
   /**
    * Probe array'inden aggregate metrikleri çıkar:
@@ -966,6 +1039,13 @@ export class AiCitationService {
       if (p.brandMentioned) brandMentions++;
       for (const c of p.competitors ?? []) {
         counter.set(c.name, (counter.get(c.name) ?? 0) + c.mentions);
+      }
+      // Yapilandirilmis rakip listesine EK olarak, cevaptan kesfedilenler.
+      // Public kontrolde yapilandirilmis liste bos oldugu icin share-of-voice
+      // tamamen bos cikiyordu; artik en azindan cevapta gecen siteler gorunur.
+      for (const d of p.mentionedDomains ?? []) {
+        if (!counter.has(d)) counter.set(d, 0);
+        counter.set(d, (counter.get(d) ?? 0) + 1);
       }
     }
     const total = brandMentions + [...counter.values()].reduce((a, b) => a + b, 0);
