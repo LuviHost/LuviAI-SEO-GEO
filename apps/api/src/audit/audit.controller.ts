@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Header, Param, Post, Query, Res } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Header, Param, Patch, Post, Query, Res } from '@nestjs/common';
 import type { Response } from 'express';
 import { AuditService } from './audit.service.js';
 import { AutoFixService } from './auto-fix.service.js';
@@ -30,6 +30,9 @@ import { StaticHtmlFixerService } from './static-html-fixer.service.js';
 import { StuckPageDetectorService } from './stuck-page-detector.service.js';
 import { StuckPageRecoveryService } from './stuck-page-recovery.service.js';
 import { StuckPageExternalRecoveryService } from './stuck-page-external-recovery.service.js';
+import { PromptLabService } from './prompt-lab.service.js';
+import { FanoutService, type FanoutKind } from './fanout.service.js';
+import type { Provider } from './ai-citation.service.js';
 
 @Controller('sites/:siteId/audit')
 export class AuditController {
@@ -63,6 +66,8 @@ export class AuditController {
     private readonly stuckDetector: StuckPageDetectorService,
     private readonly stuckRecovery: StuckPageRecoveryService,
     private readonly stuckExternalRecovery: StuckPageExternalRecoveryService,
+    private readonly promptLab: PromptLabService,
+    private readonly fanout: FanoutService,
   ) {}
 
   @Get('latest')
@@ -168,6 +173,117 @@ export class AuditController {
   async ignoreStuckPage(@Param('id') id: string) {
     await this.stuckDetector.ignore(id);
     return { ok: true };
+  }
+
+  // ══════════════════════════════════════════════════════════
+  //  PROMPT LAB — takip edilen sorular
+  // ══════════════════════════════════════════════════════════
+
+  /** GET /sites/:siteId/audit/prompts?includeInactive=1 */
+  @Get('prompts')
+  listPrompts(@Param('siteId') siteId: string, @Query('includeInactive') inc?: string) {
+    return this.promptLab.list(siteId, { includeInactive: inc === '1' || inc === 'true' });
+  }
+
+  /** POST /sites/:siteId/audit/prompts — takip listesine soru ekle */
+  @Post('prompts')
+  createPrompt(
+    @Param('siteId') siteId: string,
+    @Body() body: { text: string; intent?: string; locale?: string; tags?: string[] },
+  ) {
+    return this.promptLab.create(siteId, body);
+  }
+
+  /** POST /sites/:siteId/audit/prompts/import-brain — brain'deki AEO/GEO sorgularini aktar */
+  @Post('prompts/import-brain')
+  importPromptsFromBrain(@Param('siteId') siteId: string) {
+    return this.promptLab.importFromBrain(siteId);
+  }
+
+  /** POST /sites/:siteId/audit/prompts/run-all — tum aktif promptlari calistir */
+  @Post('prompts/run-all')
+  runAllPrompts(
+    @Param('siteId') siteId: string,
+    @Body() body: { withFanout?: boolean; limit?: number } = {},
+  ) {
+    return this.promptLab.runAll(siteId, body);
+  }
+
+  /** GET /sites/:siteId/audit/prompts/coverage?days=30 — ana soru vs fan-out farki */
+  @Get('prompts/coverage')
+  promptCoverage(@Param('siteId') siteId: string, @Query('days') days?: string) {
+    return this.promptLab.coverage(siteId, days ? parseInt(days, 10) : 30);
+  }
+
+  /** PATCH /sites/:siteId/audit/prompts/:promptId */
+  @Patch('prompts/:promptId')
+  updatePrompt(
+    @Param('promptId') promptId: string,
+    @Body() body: { text?: string; intent?: string; tags?: string[]; isActive?: boolean },
+  ) {
+    return this.promptLab.update(promptId, body);
+  }
+
+  /** DELETE /sites/:siteId/audit/prompts/:promptId */
+  @Delete('prompts/:promptId')
+  deletePrompt(@Param('promptId') promptId: string) {
+    return this.promptLab.remove(promptId);
+  }
+
+  /** POST /sites/:siteId/audit/prompts/:promptId/run — tek prompt calistir */
+  @Post('prompts/:promptId/run')
+  runPrompt(
+    @Param('promptId') promptId: string,
+    @Body() body: { withFanout?: boolean; providers?: Provider[]; fanoutProviders?: Provider[] } = {},
+  ) {
+    return this.promptLab.runPrompt(promptId, body);
+  }
+
+  /** GET /sites/:siteId/audit/prompts/:promptId/history?days=30 */
+  @Get('prompts/:promptId/history')
+  promptHistory(@Param('promptId') promptId: string, @Query('days') days?: string) {
+    return this.promptLab.history(promptId, days ? parseInt(days, 10) : 30);
+  }
+
+  // ══════════════════════════════════════════════════════════
+  //  FAN-OUT — modelin arka planda actigi alt sorgu dallari
+  // ══════════════════════════════════════════════════════════
+
+  /** GET /sites/:siteId/audit/prompts/:promptId/fanout */
+  @Get('prompts/:promptId/fanout')
+  listFanout(@Param('promptId') promptId: string) {
+    return this.fanout.listForPrompt(promptId);
+  }
+
+  /** POST /sites/:siteId/audit/prompts/:promptId/fanout/generate — dallari (yeniden) uret */
+  @Post('prompts/:promptId/fanout/generate')
+  generateFanout(
+    @Param('promptId') promptId: string,
+    @Body() body: { max?: number } = {},
+  ) {
+    return this.fanout.generateForPrompt(promptId, body);
+  }
+
+  /** POST /sites/:siteId/audit/prompts/:promptId/fanout — elle dal ekle */
+  @Post('prompts/:promptId/fanout')
+  addFanout(
+    @Param('siteId') siteId: string,
+    @Param('promptId') promptId: string,
+    @Body() body: { text: string; kind?: FanoutKind },
+  ) {
+    return this.fanout.addManual(promptId, siteId, body.text, body.kind);
+  }
+
+  /** PATCH /sites/:siteId/audit/fanout/:fanoutId — dali ac/kapat */
+  @Patch('fanout/:fanoutId')
+  toggleFanout(@Param('fanoutId') fanoutId: string, @Body() body: { isActive: boolean }) {
+    return this.fanout.setActive(fanoutId, body.isActive);
+  }
+
+  /** DELETE /sites/:siteId/audit/fanout/:fanoutId */
+  @Delete('fanout/:fanoutId')
+  deleteFanout(@Param('fanoutId') fanoutId: string) {
+    return this.fanout.remove(fanoutId);
   }
 
   @Post('citation-test')

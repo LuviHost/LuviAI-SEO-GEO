@@ -233,6 +233,96 @@ export class AiCitationService {
   }
 
   // ────────────────────────────────────────────────────────────
+  //  ORTAK BAGLAM COZUMLEME (runForSite + runQueries paylasir)
+  // ────────────────────────────────────────────────────────────
+  /**
+   * Brand resolution — site.name cok kisa (orn "ai") veya genericse hostname'in
+   * ana parcasini kullan. "ai" gibi 2 harfli string'i AI kelimesinden ayirt edemeyiz.
+   */
+  private resolveBrand(name: string | null, url: string): string {
+    const brand = (name || '').trim();
+    if (brand.length >= 4) return brand;
+    try {
+      const parts = new URL(url).hostname.replace(/^www\./, '').split('.');
+      if (parts.length >= 2) return parts[parts.length - 2]; // ranksup.ai -> "ranksup"
+    } catch { /* ignore */ }
+    return brand;
+  }
+
+  /** Rakip listesi — brain'den + ASO modulunden (aso_competitors tablosu varsa) */
+  private async resolveCompetitors(siteId: string, brain: any, brand: string): Promise<string[]> {
+    const competitors: string[] = [];
+    const brainComps: any = brain?.competitors;
+    if (Array.isArray(brainComps)) {
+      for (const c of brainComps) {
+        const name = typeof c === 'string' ? c : (c && typeof c === 'object' ? c.name : null);
+        if (name && typeof name === 'string') competitors.push(name);
+      }
+    }
+    try {
+      const asoComps = await this.prisma.$queryRawUnsafe<Array<{ name: string }>>(
+        `SELECT DISTINCT name FROM aso_competitors WHERE siteId = ? AND isActive = 1 LIMIT 20`,
+        siteId,
+      ).catch(() => []);
+      for (const c of asoComps ?? []) if (c.name) competitors.push(c.name);
+    } catch { /* table yoksa sessiz geç */ }
+    return Array.from(new Set(
+      competitors.map((c) => c.trim()).filter((c) => c.length >= 3 && c.toLowerCase() !== brand.toLowerCase()),
+    ));
+  }
+
+  // ────────────────────────────────────────────────────────────
+  //  PROMPT LAB GIRISI — acikca verilen sorgulari calistir
+  // ────────────────────────────────────────────────────────────
+  /**
+   * Brain'den turetilen sorgular yerine KULLANICININ verdigi sorgu setini
+   * calistirir. Prompt Lab ve fan-out olcumleri bunu kullanir; key cozumleme,
+   * butce guard'i ve kota mantigi runForSite ile ayni yoldan gecer.
+   *
+   * @param providers Bos birakilirsa 7 saglayicinin hepsi denenir. Fan-out
+   *                  olcumu bunu daraltir — dal sayisi carpani maliyeti patlatir.
+   */
+  async runQueries(
+    siteId: string,
+    queries: string[],
+    opts: { providers?: Provider[] } = {},
+  ): Promise<CitationResult[]> {
+    if (queries.length === 0) return [];
+
+    try {
+      const flag = await this.prisma.appSetting.findUnique({ where: { key: 'AI_GLOBAL_DISABLED' } });
+      if (flag && (flag.value === '1' || flag.value === 'true')) {
+        this.log.warn(`[${siteId}] Prompt Lab probe atlandi: AI_GLOBAL_DISABLED=1`);
+        return [];
+      }
+    } catch (_err) { /* tablo yoksa devam et */ }
+
+    const site = await this.prisma.site.findUnique({
+      where: { id: siteId },
+      include: { brain: true, user: { select: { id: true, plan: true } } },
+    });
+    if (!site) return [];
+
+    const plan = site.user.plan;
+    const brand = this.resolveBrand(site.name, site.url);
+    const competitors = await this.resolveCompetitors(siteId, site.brain, brand);
+
+    const providers: Provider[] = opts.providers?.length
+      ? opts.providers
+      : ['anthropic', 'gemini', 'openai', 'perplexity', 'xai', 'deepseek', 'meta'];
+
+    const results = await Promise.all(
+      providers.map(p => this.runProvider(p, siteId, plan, brand, site.url, queries, competitors)),
+    );
+
+    // Havuz kullanan basarili test varsa kota +1 (runForSite ile ayni davranis)
+    if (results.some(r => r.source === 'pool' && r.score !== null)) {
+      try { await this.quota.incrementCitationUsage(site.userId); } catch (_e) { /* noop */ }
+    }
+    return results;
+  }
+
+  // ────────────────────────────────────────────────────────────
   //  ANA GIRIS NOKTASI
   // ────────────────────────────────────────────────────────────
   async runForSite(siteId: string, maxProbes = 5): Promise<CitationResult[]> {
@@ -269,16 +359,7 @@ export class AiCitationService {
       }
     }
 
-    // Brand resolution — site.name cok kisa (orn "ai") veya genericse hostname'in
-    // ana parcasini kullan. "ai" gibi 2 harfli string'i AI kelimesinden ayirt edemeyiz.
-    let brand = (site.name || '').trim();
-    if (brand.length < 4) {
-      try {
-        const u = new URL(site.url);
-        const parts = u.hostname.replace(/^www\./, '').split('.');
-        if (parts.length >= 2) brand = parts[parts.length - 2]; // ranksup.ai -> "luvihost"
-      } catch { /* ignore */ }
-    }
+    const brand = this.resolveBrand(site.name, site.url);
     const url = site.url;
     const seo: any = site.brain?.seoStrategy ?? {};
     const queries: string[] = [];
@@ -302,24 +383,7 @@ export class AiCitationService {
     }
     const probeQueries = Array.from(new Set(queries)).slice(0, maxProbes);
 
-    // Rakip listesi — brain'den + ASO modülünden (TrackedApp Competitor table varsa)
-    const competitors: string[] = [];
-    const brainComps: any = (site.brain as any)?.competitors;
-    if (Array.isArray(brainComps)) {
-      for (const c of brainComps) {
-        const name = typeof c === 'string' ? c : (c && typeof c === 'object' ? c.name : null);
-        if (name && typeof name === 'string') competitors.push(name);
-      }
-    }
-    // ASO competitor table fallback (varsa)
-    try {
-      const asoComps = await this.prisma.$queryRawUnsafe<Array<{ name: string }>>(
-        `SELECT DISTINCT name FROM aso_competitors WHERE siteId = ? AND isActive = 1 LIMIT 20`,
-        siteId,
-      ).catch(() => []);
-      for (const c of asoComps ?? []) if (c.name) competitors.push(c.name);
-    } catch { /* table yoksa sessiz geç */ }
-    const uniqueCompetitors = Array.from(new Set(competitors.map((c) => c.trim()).filter((c) => c.length >= 3 && c.toLowerCase() !== brand.toLowerCase())));
+    const uniqueCompetitors = await this.resolveCompetitors(siteId, site.brain, brand);
 
     const providers: Provider[] = ['anthropic', 'gemini', 'openai', 'perplexity', 'xai', 'deepseek', 'meta'];
     const results = await Promise.all(

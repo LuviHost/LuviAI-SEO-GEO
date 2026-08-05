@@ -184,6 +184,80 @@ export const api = {
   runCitationTest: (siteId: string) =>
     request<any>(`/sites/${siteId}/audit/citation-test`, { method: 'POST' }),
 
+  // ── Prompt Lab — kullanıcının takip ettiği sorular ────────────
+  listPrompts: (siteId: string, includeInactive = false) =>
+    request<Array<{
+      id: string; text: string; intent: string; locale: string; source: string;
+      tags: unknown; isActive: boolean; fanoutCount: number;
+      lastRunAt: string | null; lastCitedCount: number; lastTotalCount: number;
+      lastScore: number | null; createdAt: string;
+    }>>(`/sites/${siteId}/audit/prompts${includeInactive ? '?includeInactive=1' : ''}`),
+
+  createPrompt: (siteId: string, body: { text: string; intent?: string; locale?: string; tags?: string[] }) =>
+    request<any>(`/sites/${siteId}/audit/prompts`, { method: 'POST', body: JSON.stringify(body) }),
+
+  updatePrompt: (siteId: string, promptId: string, body: { text?: string; intent?: string; isActive?: boolean }) =>
+    request<any>(`/sites/${siteId}/audit/prompts/${promptId}`, { method: 'PATCH', body: JSON.stringify(body) }),
+
+  deletePrompt: (siteId: string, promptId: string) =>
+    request<{ ok: boolean }>(`/sites/${siteId}/audit/prompts/${promptId}`, { method: 'DELETE' }),
+
+  importPromptsFromBrain: (siteId: string) =>
+    request<{ imported: number; skipped: number }>(`/sites/${siteId}/audit/prompts/import-brain`, { method: 'POST' }),
+
+  runPrompt: (siteId: string, promptId: string, body: { withFanout?: boolean } = {}) =>
+    request<{
+      promptId: string; text: string;
+      main: { cited: number; mentioned: number; total: number; score: number };
+      fanout: { cited: number; mentioned: number; total: number; score: number } | null;
+      providers: Array<{ provider: string; label: string; available: boolean; reason?: string; probes: any[] }>;
+      weakestBranches: Array<{ id: string; text: string; kind: string; citedCount: number; total: number }>;
+      runAt: string;
+    }>(`/sites/${siteId}/audit/prompts/${promptId}/run`, { method: 'POST', body: JSON.stringify(body) }),
+
+  runAllPrompts: (siteId: string, body: { withFanout?: boolean; limit?: number } = {}) =>
+    request<any>(`/sites/${siteId}/audit/prompts/run-all`, { method: 'POST', body: JSON.stringify(body) }),
+
+  promptCoverage: (siteId: string, days = 30) =>
+    request<{
+      siteId: string; days: number;
+      main: { cited: number; mentioned: number; total: number; score: number };
+      fanout: { cited: number; mentioned: number; total: number; score: number };
+      byKind: Array<{ kind: string; cited: number; mentioned: number; total: number; score: number }>;
+      gap: number;
+    }>(`/sites/${siteId}/audit/prompts/coverage?days=${days}`),
+
+  promptHistory: (siteId: string, promptId: string, days = 30) =>
+    request<Array<{ date: string; cited: number; mentioned: number; total: number; score: number }>>(
+      `/sites/${siteId}/audit/prompts/${promptId}/history?days=${days}`,
+    ),
+
+  // ── Fan-out — modelin arka planda açtığı alt sorgu dalları ────
+  listFanout: (siteId: string, promptId: string) =>
+    request<Array<{
+      id: string; text: string; kind: string; likelihood: number;
+      rank: number; isActive: boolean; generatedBy: string;
+    }>>(`/sites/${siteId}/audit/prompts/${promptId}/fanout`),
+
+  generateFanout: (siteId: string, promptId: string, max = 8) =>
+    request<{ promptId: string; generated: number; branches: Array<{ text: string; kind: string; likelihood: number }> }>(
+      `/sites/${siteId}/audit/prompts/${promptId}/fanout/generate`,
+      { method: 'POST', body: JSON.stringify({ max }) },
+    ),
+
+  addFanout: (siteId: string, promptId: string, text: string, kind?: string) =>
+    request<any>(`/sites/${siteId}/audit/prompts/${promptId}/fanout`, {
+      method: 'POST', body: JSON.stringify({ text, kind }),
+    }),
+
+  toggleFanout: (siteId: string, fanoutId: string, isActive: boolean) =>
+    request<any>(`/sites/${siteId}/audit/fanout/${fanoutId}`, {
+      method: 'PATCH', body: JSON.stringify({ isActive }),
+    }),
+
+  deleteFanout: (siteId: string, fanoutId: string) =>
+    request<{ ok: boolean }>(`/sites/${siteId}/audit/fanout/${fanoutId}`, { method: 'DELETE' }),
+
   /** App Store Connect (ASO Faz 2) */
   connectAsc: (siteId: string, body: { issuerId: string; keyId: string; privateKeyPem: string }) =>
     request<any>(`/sites/${siteId}/aso/asc/connect`, { method: 'POST', body: JSON.stringify(body) }),

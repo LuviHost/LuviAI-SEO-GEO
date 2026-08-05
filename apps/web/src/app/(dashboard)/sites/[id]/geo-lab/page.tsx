@@ -1,6 +1,7 @@
 'use client';
 import { useSiteContext } from '../site-context';
 import { GeoLabPanel } from '@/components/geo-lab-panel';
+import { PromptLabPanel } from '@/components/prompt-lab-panel';
 import { GeoScoreCard } from '@/components/geo-score-card';
 import { Award } from 'lucide-react';
 
@@ -18,6 +19,7 @@ export default function GeoLabPage() {
         </div>
       </div>
       <GeoScoreCard siteId={site.id} />
+      <PromptLabPanel siteId={site.id} />
       <GeoLabPanel siteId={site.id} />
     </div>
   );

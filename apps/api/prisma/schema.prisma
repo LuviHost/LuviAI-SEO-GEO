@@ -24,16 +24,16 @@ model User {
   locale        String    @default("tr") // tr | en
 
   // Subscription state (PayTR)
-  plan          PlanTier  @default(TRIAL)
-  trialEndsAt   DateTime?
-  subscriptionId String?  @unique  // PayTR subscription ID
+  plan               PlanTier           @default(TRIAL)
+  trialEndsAt        DateTime?
+  subscriptionId     String?            @unique // PayTR subscription ID
   subscriptionStatus SubscriptionStatus @default(TRIAL)
 
   // Affiliate referral
   referredByCode String?
 
   // Quota (aylık)
-  articlesUsedThisMonth Int @default(0)
+  articlesUsedThisMonth Int      @default(0)
   articlesQuotaResetAt  DateTime @default(now())
 
   // AI Citation testi kotasi (Sprint BYOK)
@@ -41,41 +41,41 @@ model User {
   aiCitationQuotaResetAt   DateTime @default(now())
 
   // Video Studio kotası (Sora 2 / Veo 3 / Runway — pahalı)
-  videosUsedThisMonth     Int      @default(0)
+  videosUsedThisMonth Int   @default(0)
   // Aylık AI cost tracking (USD)
-  aiCostThisMonthUsd      Float    @default(0)
+  aiCostThisMonthUsd  Float @default(0)
 
   // 2026-05 Premium Pricing — Grandfathering
   // Mevcut kullanicilar eski fiyatla devam etmesi icin son tarih.
-  grandfatheredUntil   DateTime?
+  grandfatheredUntil    DateTime?
   // Eski plan fiyati (TL) — sadece grandfathered kullanicilar icin bilgi
   legacyMonthlyPriceTry Int?
 
   // Whitelabel / Agency (AGENCY_OWNER icin doldurulur)
-  whitelabelEnabled    Boolean @default(false)
-  whitelabelBrandName  String?  // ornek "Webmasters Ajansı"
-  whitelabelLogoUrl    String?
+  whitelabelEnabled      Boolean @default(false)
+  whitelabelBrandName    String? // ornek "Webmasters Ajansı"
+  whitelabelLogoUrl      String?
   whitelabelPrimaryColor String? // #6c5ce7
-  whitelabelDomain     String?  // ai.ajansadi.com.tr (CNAME)
-  whitelabelEmailFrom  String?  // "noreply@ajansadi.com.tr"
+  whitelabelDomain       String? // ai.ajansadi.com.tr (CNAME)
+  whitelabelEmailFrom    String? // "noreply@ajansadi.com.tr"
   // Agency owner'in altinda calisan client kullanicilar parentAgencyId ile referans
-  parentAgencyId       String?
+  parentAgencyId         String?
 
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // Relations
-  accounts      Account[]
-  sessions      Session[]
-  sites         Site[]
-  jobs          Job[]
-  invoices      Invoice[]
-  parentAgency  User?    @relation("AgencyClients", fields: [parentAgencyId], references: [id], onDelete: SetNull)
-  clients       User[]   @relation("AgencyClients")
-  apiKeys       ApiKey[]
+  accounts             Account[]
+  sessions             Session[]
+  sites                Site[]
+  jobs                 Job[]
+  invoices             Invoice[]
+  parentAgency         User?                 @relation("AgencyClients", fields: [parentAgencyId], references: [id], onDelete: SetNull)
+  clients              User[]                @relation("AgencyClients")
+  apiKeys              ApiKey[]
   // Brightbean parity back-relations
-  notifications    Notification[]
-  socialMediaAssets SocialMediaAsset[]
+  notifications        Notification[]
+  socialMediaAssets    SocialMediaAsset[]
   // Video credit add-on (2026-05 Premium Pricing)
   videoCreditPurchases VideoCreditPurchase[]
 
@@ -88,7 +88,7 @@ model User {
 enum UserRole {
   USER
   ADMIN
-  AGENCY_OWNER  // Faz 3 — white-label
+  AGENCY_OWNER // Faz 3 — white-label
 }
 
 enum PlanTier {
@@ -109,18 +109,18 @@ enum SubscriptionStatus {
 
 // Site bazli BYOK — kullanicinin OpenAI/xAI/DeepSeek/Perplexity vs API key'leri (Sprint BYOK)
 model SiteAiProviderKey {
-  id         String   @id @default(cuid())
+  id         String    @id @default(cuid())
   siteId     String
-  provider   String   // openai | anthropic | gemini | xai | deepseek | perplexity
-  enc        String   @db.Text  // AES-256 encrypted (@luviai/shared.encrypt)
-  prefix     String   // ilk 8 char gosterim icin
-  verified   Boolean  @default(false)
+  provider   String // openai | anthropic | gemini | xai | deepseek | perplexity
+  enc        String    @db.Text // AES-256 encrypted (@luviai/shared.encrypt)
+  prefix     String // ilk 8 char gosterim icin
+  verified   Boolean   @default(false)
   verifiedAt DateTime?
-  lastError  String?  @db.Text
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  lastError  String?   @db.Text
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 
-  site       Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  site Site @relation(fields: [siteId], references: [id], onDelete: Cascade)
 
   @@unique([siteId, provider])
   @@index([siteId])
@@ -129,17 +129,17 @@ model SiteAiProviderKey {
 
 // Public API key (Sprint C — public REST API icin)
 model ApiKey {
-  id          String    @id @default(cuid())
-  userId      String
-  name        String                          // "Production server" gibi etiket
-  keyHash     String    @unique               // sha256 of token
-  prefix      String                          // ilk 8 char gosterim icin
-  scopes      Json                            // ["articles:read", "articles:write", "ads:read", ...]
-  rateLimit   Int       @default(60)          // istek/dk
-  lastUsedAt  DateTime?
-  expiresAt   DateTime?
-  createdAt   DateTime  @default(now())
-  revokedAt   DateTime?
+  id         String    @id @default(cuid())
+  userId     String
+  name       String // "Production server" gibi etiket
+  keyHash    String    @unique // sha256 of token
+  prefix     String // ilk 8 char gosterim icin
+  scopes     Json // ["articles:read", "articles:write", "ads:read", ...]
+  rateLimit  Int       @default(60) // istek/dk
+  lastUsedAt DateTime?
+  expiresAt  DateTime?
+  createdAt  DateTime  @default(now())
+  revokedAt  DateTime?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -193,23 +193,23 @@ model VerificationToken {
 // ═══════════════════════════════════════════════════════════════
 
 model Site {
-  id          String   @id @default(cuid())
-  userId      String
-  url         String                            // https://luvihost.com.tr
-  name        String                            // "LuviHost"
-  niche       String?                           // hosting | ecommerce | saas | ...
-  language    String   @default("tr")           // tr | en | both
-  status      SiteStatus @default(ONBOARDING)
+  id       String     @id @default(cuid())
+  userId   String
+  url      String // https://luvihost.com.tr
+  name     String // "LuviHost"
+  niche    String? // hosting | ecommerce | saas | ...
+  language String     @default("tr") // tr | en | both
+  status   SiteStatus @default(ONBOARDING)
 
   // GSC OAuth token (per-site, kullanıcı isterse her site için ayrı GSC hesabı)
-  gscPropertyUrl     String?  // sc-domain:luvihost.com
-  gscRefreshToken    String?  @db.Text // şifrelenmiş
-  gscConnectedAt     DateTime?
+  gscPropertyUrl  String? // sc-domain:luvihost.com
+  gscRefreshToken String?   @db.Text // şifrelenmiş
+  gscConnectedAt  DateTime?
 
   // GA4 OAuth token (opsiyonel — bounce/conversion sinyali için)
-  gaPropertyId       String?  // 123456789 (numeric property id)
-  gaRefreshToken     String?  @db.Text // şifrelenmiş
-  gaConnectedAt      DateTime?
+  gaPropertyId   String? // 123456789 (numeric property id)
+  gaRefreshToken String?   @db.Text // şifrelenmiş
+  gaConnectedAt  DateTime?
 
   // Otomatik üretim
   autoGenerationEnabled Boolean @default(false)
@@ -217,72 +217,74 @@ model Site {
   autoGenerationCount   Int     @default(5)
 
   // Sprint Onboarding — Hibrit yayin akisi
-  publishApprovalMode    String  @default("manual_approve") // manual_approve | auto_publish
-  autoGenerationFrequency String @default("weekly")          // daily | three_per_week | weekly
-  autoGenerationHour      Int    @default(9)                  // 0-23 (yerel TR saati)
-  onboardingStep          Int    @default(1)                  // 1-6 (kaldigi yer)
+  publishApprovalMode     String    @default("manual_approve") // manual_approve | auto_publish
+  autoGenerationFrequency String    @default("weekly") // daily | three_per_week | weekly
+  autoGenerationHour      Int       @default(9) // 0-23 (yerel TR saati)
+  onboardingStep          Int       @default(1) // 1-6 (kaldigi yer)
   onboardingCompletedAt   DateTime?
 
   // Otopilot — varsayilan AÇIK, tum akisi otomatik yapar
-  autopilot         Boolean @default(true)
+  autopilot          Boolean   @default(true)
   // Platform tahmini (auto-detect): wordpress | webflow | wix | ghost | shopify | cpanel-static | unknown
-  platform          String?
-  platformConfidence Float?  // 0..1
+  platform           String?
+  platformConfidence Float? // 0..1
   platformDetectedAt DateTime?
 
   // GEO ek alanlar
-  llmsFullTxt       String?  @db.LongText // tum sitenin AI icin markdown ozeti
-  llmsFullTxtAt     DateTime?
+  llmsFullTxt    String?   @db.LongText // tum sitenin AI icin markdown ozeti
+  llmsFullTxtAt  DateTime?
   // sameAs sosyal/web profilleri — Organization schema'da kullanilir
-  socialProfiles    Json?    // ["https://twitter.com/...", "https://linkedin.com/..."]
+  socialProfiles Json? // ["https://twitter.com/...", "https://linkedin.com/..."]
 
   // Webhook bildirimleri (Slack/Discord)
-  notifyWebhookUrl  String?  // Slack/Discord incoming webhook URL
-  notifyWebhookKind String?  // slack | discord
+  notifyWebhookUrl  String? // Slack/Discord incoming webhook URL
+  notifyWebhookKind String? // slack | discord
 
   // Ads Manager (Faz 11.2 — direkt resmi API'ler, Ryze AI kaldırıldı)
   // Google Ads OAuth
-  googleAdsCustomerId    String?  // 123-456-7890
-  googleAdsRefreshToken  String?  @db.Text  // sifrelenmis
-  googleAdsConnectedAt   DateTime?
+  googleAdsCustomerId   String? // 123-456-7890
+  googleAdsRefreshToken String?   @db.Text // sifrelenmis
+  googleAdsConnectedAt  DateTime?
   // Meta Ads OAuth
-  metaAdsAccountId       String?  // act_1234567890
-  metaAdsAccessToken     String?  @db.Text  // sifrelenmis (long-lived)
-  metaAdsConnectedAt     DateTime?
-  metaPageId             String?  // FB Page ID — campaign creation + auto-boost icin
-  metaInstagramActorId   String?  // IG Business Account ID — opsiyonel, IG placement icin
+  metaAdsAccountId      String? // act_1234567890
+  metaAdsAccessToken    String?   @db.Text // sifrelenmis (long-lived)
+  metaAdsConnectedAt    DateTime?
+  metaPageId            String? // FB Page ID — campaign creation + auto-boost icin
+  metaInstagramActorId  String? // IG Business Account ID — opsiyonel, IG placement icin
   // Otopilot
-  adsAutopilot           Boolean @default(false)
+  adsAutopilot          Boolean   @default(false)
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // Relations
-  user             User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  brain            Brain?
-  publishTargets   PublishTarget[]
-  audits           Audit[]
-  topicQueues      TopicQueue[]
-  articles         Article[]
-  jobs             Job[]
+  user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  brain              Brain?
+  publishTargets     PublishTarget[]
+  audits             Audit[]
+  topicQueues        TopicQueue[]
+  articles           Article[]
+  jobs               Job[]
   analyticsSnapshots AnalyticsSnapshot[]
-  socialChannels   SocialChannel[]
-  adCampaigns      AdCampaign[]
-  aiProviderKeys   SiteAiProviderKey[]
-  trackedApps      TrackedApp[]
-  stuckPages       StuckPage[]
+  socialChannels     SocialChannel[]
+  adCampaigns        AdCampaign[]
+  aiProviderKeys     SiteAiProviderKey[]
+  trackedApps        TrackedApp[]
+  stuckPages         StuckPage[]
 
   // ASO Faz 1/2/3 — Apple Search Ads + App Store Connect + RanksUp SDK
-  asaAccounts      AsaAccount[]
-  ascAccounts      AscAccount[]
-  sdkConfigs       SdkAppConfig[]
-  videos           Video[]
-  adsAudits        AdsAudit[]
-  tokenUsage       TokenUsageRecord[]
+  asaAccounts       AsaAccount[]
+  ascAccounts       AscAccount[]
+  sdkConfigs        SdkAppConfig[]
+  videos            Video[]
+  adsAudits         AdsAudit[]
+  tokenUsage        TokenUsageRecord[]
   // Brightbean parity back-relations
   socialMediaAssets SocialMediaAsset[]
   // Studio back-relation
-  studioAssets     StudioAsset[]
+  studioAssets      StudioAsset[]
+  // Prompt Lab — takip edilen sorular ve fan-out dallari
+  geoPrompts        GeoPrompt[]
 
   @@unique([userId, url])
   @@index([userId])
@@ -291,35 +293,35 @@ model Site {
 }
 
 enum SiteStatus {
-  ONBOARDING        // wizard tamamlanmamış
-  AUDIT_PENDING     // audit henüz çalışmadı
-  AUDIT_COMPLETE    // audit hazır
-  ACTIVE            // makale üretiyor
-  PAUSED            // kullanıcı durdurmuş
-  ERROR             // sürekli hata
+  ONBOARDING // wizard tamamlanmamış
+  AUDIT_PENDING // audit henüz çalışmadı
+  AUDIT_COMPLETE // audit hazır
+  ACTIVE // makale üretiyor
+  PAUSED // kullanıcı durdurmuş
+  ERROR // sürekli hata
 }
 
 // Brain = kullanıcı sitesinin AI bağlamı (LuviHost'ta .claude/context/'in dinamik versiyonu)
 model Brain {
-  id        String   @id @default(cuid())
-  siteId    String   @unique
+  id     String @id @default(cuid())
+  siteId String @unique
 
   // JSON yapısı (versiyonlu — kullanıcı düzenleyebilir)
-  brandVoice    Json   // { tone, banned_words, examples }
-  personas      Json   // [{ name, age, expertise, search_intent, cta }]
-  competitors   Json   // [{ name, url, strengths, weaknesses }]
-  seoStrategy   Json   // { pillars: [{ url, clusters: [...] }] }
-  glossary      Json   // [{ term, translation, note }]
+  brandVoice  Json // { tone, banned_words, examples }
+  personas    Json // [{ name, age, expertise, search_intent, cta }]
+  competitors Json // [{ name, url, strengths, weaknesses }]
+  seoStrategy Json // { pillars: [{ url, clusters: [...] }] }
+  glossary    Json // [{ term, translation, note }]
 
   // Gercek site sayfa envanteri — crawl'dan gelir, AI uretmez.
   // Yazar ajani IC LINK verirken SADECE buradaki URL'leri kullanabilir.
   // [{ url, title, h1 }]
-  sitePages     Json?
-  sitePagesAt   DateTime?
+  sitePages   Json?
+  sitePagesAt DateTime?
 
   // Sözlük versiyonları (ilerleme için)
-  version       Int    @default(1)
-  generatedBy   String @default("auto") // auto | manual | hybrid
+  version     Int    @default(1)
+  generatedBy String @default("auto") // auto | manual | hybrid
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -331,22 +333,22 @@ model Brain {
 
 // Yayın hedefi (bir site için birden fazla olabilir — örn. WP + GitHub mirror)
 model PublishTarget {
-  id          String              @id @default(cuid())
-  siteId      String
-  type        PublishTargetType
-  name        String                              // "Production WordPress"
-  isDefault   Boolean             @default(false)
-  isActive    Boolean             @default(true)
+  id        String            @id @default(cuid())
+  siteId    String
+  type      PublishTargetType
+  name      String // "Production WordPress"
+  isDefault Boolean           @default(false)
+  isActive  Boolean           @default(true)
 
   // Şifrelenmiş credentials JSON
-  credentials Json                                // { host, user, password, apiKey, token, ... }
+  credentials Json // { host, user, password, apiKey, token, ... }
 
   // Adapter-specific config
-  config      Json?                               // { post_status: "draft"|"publish", category_id, ... }
+  config Json? // { post_status: "draft"|"publish", category_id, ... }
 
-  createdAt   DateTime            @default(now())
-  updatedAt   DateTime            @updatedAt
-  lastUsedAt  DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  lastUsedAt DateTime?
 
   site Site @relation(fields: [siteId], references: [id], onDelete: Cascade)
 
@@ -377,26 +379,26 @@ enum PublishTargetType {
 // ═══════════════════════════════════════════════════════════════
 
 model Audit {
-  id          String      @id @default(cuid())
-  siteId      String
+  id     String @id @default(cuid())
+  siteId String
 
   // Genel skor (0-100)
   overallScore Int
-  geoScore     Int?       // Auriti GEO skoru
+  geoScore     Int? // Auriti GEO skoru
 
   // Kontrol noktaları (14 madde)
   // { sitemap_xml: { found, score, fixable }, robots_txt: {...}, ... }
-  checks      Json
+  checks Json
 
   // Eksik & hata listesi
-  issues      Json        // [{ severity, type, page, description, fix_command }]
+  issues Json // [{ severity, type, page, description, fix_command }]
 
   // Auto-fix durumu
   autoFixApplied Boolean @default(false)
-  fixesApplied   Json?   // ["sitemap_xml", "robots_txt", ...]
+  fixesApplied   Json? // ["sitemap_xml", "robots_txt", ...]
 
-  ranAt       DateTime    @default(now())
-  durationMs  Int?
+  ranAt      DateTime @default(now())
+  durationMs Int?
 
   site Site @relation(fields: [siteId], references: [id], onDelete: Cascade)
 
@@ -409,8 +411,8 @@ model Audit {
 // ═══════════════════════════════════════════════════════════════
 
 model TopicQueue {
-  id          String   @id @default(cuid())
-  siteId      String
+  id     String @id @default(cuid())
+  siteId String
 
   // 4 katman ham veri (debug + history için)
   planTopics       Json
@@ -419,15 +421,15 @@ model TopicQueue {
   competitorMoves  Json
 
   // Sıralanmış sonuç (topic-ranker AI çıktısı)
-  tier1Topics  Json    // [{ topic, score, persona, pillar, auto_command }]
+  tier1Topics  Json // [{ topic, score, persona, pillar, auto_command }]
   tier2Topics  Json
   tier3Topics  Json
-  improvements Json    // [{ page, issue, fix_command }]
+  improvements Json // [{ page, issue, fix_command }]
 
   totalEvaluated Int
 
-  generatedAt  DateTime @default(now())
-  expiresAt    DateTime  // 7 gün sonra fresh tarama gerekli
+  generatedAt DateTime @default(now())
+  expiresAt   DateTime // 7 gün sonra fresh tarama gerekli
 
   site Site @relation(fields: [siteId], references: [id], onDelete: Cascade)
 
@@ -440,60 +442,60 @@ model TopicQueue {
 // ═══════════════════════════════════════════════════════════════
 
 model Article {
-  id          String         @id @default(cuid())
-  siteId      String
+  id     String @id @default(cuid())
+  siteId String
 
-  topic       String                                  // Orijinal kullanıcı/AI input
-  slug        String                                  // shared-hosting-nedir
-  title       String
-  metaTitle   String?
+  topic           String // Orijinal kullanıcı/AI input
+  slug            String // shared-hosting-nedir
+  title           String
+  metaTitle       String?
   metaDescription String?
-  category    String?
-  language    String         @default("tr")
-  persona     String?                                 // Mert | Buse | Erdem Bey | Cem | custom
-  pillar      String?                                 // /paylasimli-hosting
+  category        String?
+  language        String  @default("tr")
+  persona         String? // Mert | Buse | Erdem Bey | Cem | custom
+  pillar          String? // /paylasimli-hosting
 
   // İçerik (üretim sürecinde dolar)
-  bodyMd      String?        @db.LongText
-  bodyHtml    String?        @db.LongText
+  bodyMd      String? @db.LongText
+  bodyHtml    String? @db.LongText
   frontmatter Json?
 
   // Pipeline çıktıları (her ajan ayrı kayıt)
-  agentOutputs Json?         // { keyword, outline, draft, editor, visuals, publish }
+  agentOutputs Json? // { keyword, outline, draft, editor, visuals, publish }
 
   // Görseller
-  heroImageUrl  String?
-  inlineImages  Json?         // [{ url, alt, position }]
+  heroImageUrl String?
+  inlineImages Json? // [{ url, alt, position }]
 
   // SEO
-  schemaMarkup  Json?         // [Article, FAQPage, HowTo, ...]
-  faqs          Json?         // [{ q, a }]
-  internalLinks Json?         // [{ url, anchor }]
+  schemaMarkup  Json? // [Article, FAQPage, HowTo, ...]
+  faqs          Json? // [{ q, a }]
+  internalLinks Json? // [{ url, anchor }]
   wordCount     Int?
   readingTime   Int?
 
   // Pipeline metrikleri
   editorScore   Int?
   editorVerdict EditorVerdict?
-  totalCost     Decimal?      @db.Decimal(10, 4) // USD
+  totalCost     Decimal?       @db.Decimal(10, 4) // USD
 
   // Yayın
-  status        ArticleStatus @default(DRAFT)
-  scheduledAt   DateTime?                              // Planlanan üretim/yayın zamanı
-  publishedAt   DateTime?
-  publishedTo   Json?         // [{ targetId, url, externalId }]
+  status                  ArticleStatus @default(DRAFT)
+  scheduledAt             DateTime? // Planlanan üretim/yayın zamanı
+  publishedAt             DateTime?
+  publishedTo             Json? // [{ targetId, url, externalId }]
   // Per-article social pre-plan: kullanici hangi sosyal kanallarda paylasacagini sec.
   // null veya undefined = tum aktif kanallar (default davranis). [] = hicbir kanalda paylasma.
   socialPrePlanChannelIds Json? // string[]
 
   // 30 gün sonra performans
   performanceCheckedAt DateTime?
-  performanceMetrics   Json?  // { impressions, clicks, ctr, position }
+  performanceMetrics   Json? // { impressions, clicks, ctr, position }
 
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  site Site @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  site        Site         @relation(fields: [siteId], references: [id], onDelete: Cascade)
   socialPosts SocialPost[]
   videos      Video[]
   stuckPages  StuckPage[]
@@ -531,29 +533,29 @@ enum EditorVerdict {
 // ═══════════════════════════════════════════════════════════════
 
 model StuckPage {
-  id           String   @id @default(cuid())
-  siteId       String
-  articleId    String?
+  id        String  @id @default(cuid())
+  siteId    String
+  articleId String?
 
-  url          String
-  title        String?
-  impressions  Int
-  clicks       Int
-  position     Float
-  ctr          Float
-  stuckScore   Int
+  url         String
+  title       String?
+  impressions Int
+  clicks      Int
+  position    Float
+  ctr         Float
+  stuckScore  Int
 
   entityScoreBefore  Int?
   topMissingEntities Json?
   topQueries         Json?
 
-  status       StuckPageStatus @default(DETECTED)
-  detectedAt   DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  status     StuckPageStatus @default(DETECTED)
+  detectedAt DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
 
-  site         Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
-  article      Article? @relation(fields: [articleId], references: [id], onDelete: SetNull)
-  recoveries   StuckPageRecovery[]
+  site       Site                @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  article    Article?            @relation(fields: [articleId], references: [id], onDelete: SetNull)
+  recoveries StuckPageRecovery[]
 
   @@index([siteId, status])
   @@index([siteId, detectedAt])
@@ -561,44 +563,44 @@ model StuckPage {
 }
 
 model StuckPageRecovery {
-  id              String   @id @default(cuid())
-  stuckPageId     String
+  id          String @id @default(cuid())
+  stuckPageId String
 
-  bodyHtmlBefore  String?  @db.LongText
-  bodyHtmlAfter   String?  @db.LongText
-  bodyMdBefore    String?  @db.LongText
-  bodyMdAfter     String?  @db.LongText
+  bodyHtmlBefore String? @db.LongText
+  bodyHtmlAfter  String? @db.LongText
+  bodyMdBefore   String? @db.LongText
+  bodyMdAfter    String? @db.LongText
 
   edits           Json
   entitiesAdded   Json
   alttextsUpdated Json?
-  paragraphAdded  String?  @db.Text
+  paragraphAdded  String? @db.Text
 
   entityScoreAfter Int
   scorePassedComp  Boolean
 
-  llmModel        String
-  totalCost       Decimal? @db.Decimal(10, 4)
-  promptTokens    Int?
+  llmModel         String
+  totalCost        Decimal? @db.Decimal(10, 4)
+  promptTokens     Int?
   completionTokens Int?
 
-  appliedAt       DateTime @default(now())
-  appliedBy       String
-  revertedAt      DateTime?
-  revertedBy      String?
+  appliedAt  DateTime  @default(now())
+  appliedBy  String
+  revertedAt DateTime?
+  revertedBy String?
 
   // ENH#1: Auriti GEO rescan — gercek skor before/after (LLM tahmin yerine)
-  geoScoreBefore  Int?
-  geoScoreAfter   Int?
+  geoScoreBefore Int?
+  geoScoreAfter  Int?
 
   // ENH#4: Performance feedback loop — 30 gun sonra GSC re-check
-  effectivenessCheckAt DateTime?           // ne zaman olculdu
-  positionBefore       Float?              // recovery aninda position (referans)
-  positionAfter        Float?              // 30g sonra GSC'den
-  positionImprovement  Float?              // positionBefore - positionAfter (pozitif = iyilesti)
+  effectivenessCheckAt DateTime? // ne zaman olculdu
+  positionBefore       Float? // recovery aninda position (referans)
+  positionAfter        Float? // 30g sonra GSC'den
+  positionImprovement  Float? // positionBefore - positionAfter (pozitif = iyilesti)
   ctrBefore            Float?
   ctrAfter             Float?
-  effectivenessScore   Int?                // 0-100: gercekte ise yaradi mi
+  effectivenessScore   Int? // 0-100: gercekte ise yaradi mi
 
   stuckPage StuckPage @relation(fields: [stuckPageId], references: [id], onDelete: Cascade)
 
@@ -620,11 +622,11 @@ enum StuckPageStatus {
 // ═══════════════════════════════════════════════════════════════
 
 model AnalyticsSnapshot {
-  id          String   @id @default(cuid())
-  siteId      String
+  id     String @id @default(cuid())
+  siteId String
 
   // Hangi gün (UTC)
-  date        DateTime @db.Date
+  date DateTime @db.Date
 
   // Site-level toplam
   totalClicks      Int
@@ -654,20 +656,20 @@ model AnalyticsSnapshot {
 // ═══════════════════════════════════════════════════════════════
 
 model AiCitationSnapshot {
-  id          String   @id @default(cuid())
-  siteId      String
+  id     String @id @default(cuid())
+  siteId String
 
-  date        DateTime @db.Date  // Hangi gun (UTC)
-  provider    String              // anthropic | gemini | openai | perplexity | grok | deepseek
-  available   Boolean
-  score       Int?                // 0..100, null = kullanilamaz / sorgu yok
+  date      DateTime @db.Date // Hangi gun (UTC)
+  provider  String // anthropic | gemini | openai | perplexity | grok | deepseek
+  available Boolean
+  score     Int? // 0..100, null = kullanilamaz / sorgu yok
 
   // Probe detaylari (en fazla 5 sorgu)
-  probes      Json                // [{ query, cited, brandMentioned, excerpt }]
-  citedCount  Int      @default(0)
-  mentionedCount Int   @default(0)
+  probes         Json // [{ query, cited, brandMentioned, excerpt }]
+  citedCount     Int  @default(0)
+  mentionedCount Int  @default(0)
 
-  createdAt   DateTime @default(now())
+  createdAt DateTime @default(now())
 
   @@unique([siteId, date, provider])
   @@index([siteId, date])
@@ -684,16 +686,16 @@ model AiCitationSnapshot {
 // ═══════════════════════════════════════════════════════════════
 
 model AiReferrerHit {
-  id          String   @id @default(cuid())
-  siteId      String
+  id     String @id @default(cuid())
+  siteId String
 
-  date        DateTime @db.Date
-  referrer    String   // chatgpt | perplexity | claude | gemini | bing-copilot | unknown
-  hits        Int      @default(0)
-  uniqueUrls  Int      @default(0)
-  topUrls     Json     // [{ url, count }]
+  date       DateTime @db.Date
+  referrer   String // chatgpt | perplexity | claude | gemini | bing-copilot | unknown
+  hits       Int      @default(0)
+  uniqueUrls Int      @default(0)
+  topUrls    Json // [{ url, count }]
 
-  createdAt   DateTime @default(now())
+  createdAt DateTime @default(now())
 
   @@unique([siteId, date, referrer])
   @@index([siteId, date])
@@ -705,52 +707,52 @@ model AiReferrerHit {
 // ═══════════════════════════════════════════════════════════════
 
 model AdCampaign {
-  id            String   @id @default(cuid())
-  siteId        String
+  id     String @id @default(cuid())
+  siteId String
 
-  platform      String   // google_ads | meta_ads
-  externalId    String?  // platform-side campaign ID (Google: 123, Meta: act_123)
-  name          String
-  objective     String   // traffic | leads | conversions | brand_awareness | sales
-  status        String   @default("DRAFT") // DRAFT | PAUSED | ACTIVE | ENDED | FAILED
+  platform   String // google_ads | meta_ads
+  externalId String? // platform-side campaign ID (Google: 123, Meta: act_123)
+  name       String
+  objective  String // traffic | leads | conversions | brand_awareness | sales
+  status     String  @default("DRAFT") // DRAFT | PAUSED | ACTIVE | ENDED | FAILED
 
   // Targeting
-  audience      Json?    // { interests, demographics, lookalikes, keywords (Google) }
-  locations     Json?    // ["TR", "İstanbul", ...]
-  languages     Json?    // ["tr", "en"]
+  audience  Json? // { interests, demographics, lookalikes, keywords (Google) }
+  locations Json? // ["TR", "İstanbul", ...]
+  languages Json? // ["tr", "en"]
 
   // Creatives
-  headlines     Json?    // [{ text, length }] — Google RSA
-  descriptions  Json?    // [{ text }]
-  primaryTexts  Json?    // Meta primary text variants
-  ctaButton     String?  // SHOP_NOW | LEARN_MORE | SIGN_UP
+  headlines    Json? // [{ text, length }] — Google RSA
+  descriptions Json? // [{ text }]
+  primaryTexts Json? // Meta primary text variants
+  ctaButton    String? // SHOP_NOW | LEARN_MORE | SIGN_UP
 
   // Images / Videos
-  creativeAssets Json?   // [{ url, format: square|portrait|landscape, type: image|video }]
+  creativeAssets Json? // [{ url, format: square|portrait|landscape, type: image|video }]
 
   // Budget
-  budgetType    String?  // daily | lifetime
-  budgetAmount  Decimal? @db.Decimal(10, 2) // TL
-  budgetCurrency String  @default("TRY")
-  startDate     DateTime?
-  endDate       DateTime?
+  budgetType     String? // daily | lifetime
+  budgetAmount   Decimal?  @db.Decimal(10, 2) // TL
+  budgetCurrency String    @default("TRY")
+  startDate      DateTime?
+  endDate        DateTime?
 
   // Performance (cron her 6 saat update)
-  impressions   Int      @default(0)
-  clicks        Int      @default(0)
-  spend         Decimal  @default(0) @db.Decimal(10, 2)
-  conversions   Int      @default(0)
-  ctr           Float    @default(0)
-  cpc           Float    @default(0)
-  roas          Float    @default(0)
+  impressions          Int       @default(0)
+  clicks               Int       @default(0)
+  spend                Decimal   @default(0) @db.Decimal(10, 2)
+  conversions          Int       @default(0)
+  ctr                  Float     @default(0)
+  cpc                  Float     @default(0)
+  roas                 Float     @default(0)
   performanceCheckedAt DateTime?
-  performanceMetrics Json?
+  performanceMetrics   Json?
 
   // Otopilot kararlari
   autopilotActions Json? // [{ time, action, reason }]
 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   site Site @relation(fields: [siteId], references: [id], onDelete: Cascade)
 
@@ -760,20 +762,20 @@ model AdCampaign {
 }
 
 model AiCrawlerHit {
-  id          String   @id @default(cuid())
-  siteId      String
+  id     String @id @default(cuid())
+  siteId String
 
   date        DateTime @db.Date
-  bot         String   // GPTBot | ClaudeBot | PerplexityBot | Google-Extended | ...
-  hits        Int      @default(0)         // gunluk istek sayisi
-  uniqueUrls  Int      @default(0)         // farkli URL sayisi
-  topUrls     Json     // [{ url, count }] top 10
-  status2xx   Int      @default(0)         // basarili istek
-  status4xx   Int      @default(0)         // hatali istek
+  bot         String // GPTBot | ClaudeBot | PerplexityBot | Google-Extended | ...
+  hits        Int      @default(0) // gunluk istek sayisi
+  uniqueUrls  Int      @default(0) // farkli URL sayisi
+  topUrls     Json // [{ url, count }] top 10
+  status2xx   Int      @default(0) // basarili istek
+  status4xx   Int      @default(0) // hatali istek
   status5xx   Int      @default(0)
   bytesServed Int      @default(0)
 
-  createdAt   DateTime @default(now())
+  createdAt DateTime @default(now())
 
   @@unique([siteId, date, bot])
   @@index([siteId, date])
@@ -786,25 +788,25 @@ model AiCrawlerHit {
 // ═══════════════════════════════════════════════════════════════
 
 model Job {
-  id          String     @id @default(cuid())
-  userId      String
-  siteId      String?
+  id     String  @id @default(cuid())
+  userId String
+  siteId String?
 
-  type        JobType
-  status      JobStatus  @default(QUEUED)
-  priority    Int        @default(0)
+  type     JobType
+  status   JobStatus @default(QUEUED)
+  priority Int       @default(0)
 
-  payload     Json
-  result      Json?
-  error       String?    @db.Text
-  attempts    Int        @default(0)
+  payload  Json
+  result   Json?
+  error    String? @db.Text
+  attempts Int     @default(0)
 
-  queuedAt    DateTime   @default(now())
-  startedAt   DateTime?
-  finishedAt  DateTime?
+  queuedAt   DateTime  @default(now())
+  startedAt  DateTime?
+  finishedAt DateTime?
 
   // BullMQ link
-  bullJobId   String?    @unique
+  bullJobId String? @unique
 
   user User  @relation(fields: [userId], references: [id], onDelete: Cascade)
   site Site? @relation(fields: [siteId], references: [id], onDelete: SetNull)
@@ -824,21 +826,21 @@ enum JobType {
   GENERATE_IMAGE
   IMPROVE_PAGE
   WEEKLY_BATCH
-  PERFORMANCE_CHECK   // 30 gün sonra GSC
-  ONBOARDING_CHAIN    // brain → audit → topics → ilk makale
-  SOCIAL_PUBLISH      // tek bir SocialPost yayini (cron tetikler)
-  PROCESS_SCHEDULED   // scheduledAt <= now olan SCHEDULED makaleleri uretime alir (cron)
-  LLMS_FULL_BUILD     // tum site icerigini llms-full.txt'e konsolide et (haftalik)
-  AI_CITATION_DAILY   // gunluk Claude/Gemini/OpenAI/Perplexity gorunurluk testi
+  PERFORMANCE_CHECK // 30 gün sonra GSC
+  ONBOARDING_CHAIN // brain → audit → topics → ilk makale
+  SOCIAL_PUBLISH // tek bir SocialPost yayini (cron tetikler)
+  PROCESS_SCHEDULED // scheduledAt <= now olan SCHEDULED makaleleri uretime alir (cron)
+  LLMS_FULL_BUILD // tum site icerigini llms-full.txt'e konsolide et (haftalik)
+  AI_CITATION_DAILY // gunluk Claude/Gemini/OpenAI/Perplexity gorunurluk testi
   CONTENT_PIVOT_CHECK // 30 gun sonra dusuk performans tespit + revize tetikle (haftalik)
-  AI_MENTION_ALARM    // gunluk: AI citation drop tespit + email
-  ADS_AUTOPILOT       // 6 saatte bir: aktif kampanyalari ROAS'a gore optimize
-  VIDEO_GENERATE      // Faz 12: SLIDESHOW/VEO/RUNWAY/HEYGEN/SORA video uretim job tipi
-  STUCK_PAGE_DETECT       // Tek site: GSC bazli stuck page tarama
-  STUCK_PAGE_DETECT_ALL   // Cron: tum autopilot sitelerinde tarama + otomatik recovery dispatch
-  STUCK_PAGE_RECOVER             // Tek stuck sayfa icin LLM tabanli recovery
-  STUCK_PAGE_PERFORMANCE_CHECK   // 30 gun sonra GSC re-check + recovery effectiveness olcumu
-  STUCK_PAGE_EXTERNAL_RECOVER    // RanksUp disinda yazilan sayfa icin HTML fetch + LLM + adapter publish
+  AI_MENTION_ALARM // gunluk: AI citation drop tespit + email
+  ADS_AUTOPILOT // 6 saatte bir: aktif kampanyalari ROAS'a gore optimize
+  VIDEO_GENERATE // Faz 12: SLIDESHOW/VEO/RUNWAY/HEYGEN/SORA video uretim job tipi
+  STUCK_PAGE_DETECT // Tek site: GSC bazli stuck page tarama
+  STUCK_PAGE_DETECT_ALL // Cron: tum autopilot sitelerinde tarama + otomatik recovery dispatch
+  STUCK_PAGE_RECOVER // Tek stuck sayfa icin LLM tabanli recovery
+  STUCK_PAGE_PERFORMANCE_CHECK // 30 gun sonra GSC re-check + recovery effectiveness olcumu
+  STUCK_PAGE_EXTERNAL_RECOVER // RanksUp disinda yazilan sayfa icin HTML fetch + LLM + adapter publish
 }
 
 enum JobStatus {
@@ -854,20 +856,20 @@ enum JobStatus {
 // ═══════════════════════════════════════════════════════════════
 
 model Invoice {
-  id          String   @id @default(cuid())
-  userId      String
+  id     String @id @default(cuid())
+  userId String
 
-  paytrTransactionId String? @unique
-  amount      Decimal  @db.Decimal(10, 2)
-  currency    String   @default("TRY")
-  status      InvoiceStatus @default(PENDING)
+  paytrTransactionId String?       @unique
+  amount             Decimal       @db.Decimal(10, 2)
+  currency           String        @default("TRY")
+  status             InvoiceStatus @default(PENDING)
 
   description String?
-  invoiceUrl  String?  // E-fatura PDF URL'i
+  invoiceUrl  String? // E-fatura PDF URL'i
 
-  paidAt      DateTime?
-  failedAt    DateTime?
-  createdAt   DateTime @default(now())
+  paidAt    DateTime?
+  failedAt  DateTime?
+  createdAt DateTime  @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -887,12 +889,12 @@ enum InvoiceStatus {
 // ═══════════════════════════════════════════════════════════════
 
 model UsageEvent {
-  id          String   @id @default(cuid())
-  userId      String?
-  siteId      String?
-  type        String                              // article_generated, audit_run, ...
-  metadata    Json?
-  createdAt   DateTime @default(now())
+  id        String   @id @default(cuid())
+  userId    String?
+  siteId    String?
+  type      String // article_generated, audit_run, ...
+  metadata  Json?
+  createdAt DateTime @default(now())
 
   @@index([type, createdAt])
   @@index([userId, createdAt])
@@ -901,21 +903,21 @@ model UsageEvent {
 
 /// Gerçek müşteri testimonial'ı — dashboard'dan toplanır, admin onaylar, landing'de gösterilir.
 model Testimonial {
-  id          String   @id @default(cuid())
-  userId      String                                // hangi user yazdı
-  siteId      String?                               // hangi siteden (opsiyonel)
-  rating      Int                                   // 1-5
-  body        String   @db.Text                     // 1-500 karakter
-  role        String?                               // "Kurucu", "Pazarlama Müdürü" — user'ın kendi yazdığı
-  company     String?                               // şirket / site adı
-  metric      String?                               // "ASA CPI %40 düştü" gibi spesifik kazanım (opsiyonel)
-  approved    Boolean  @default(false)              // admin onaylamadan landing'de gözükmez
-  approvedAt  DateTime?
-  approvedBy  String?                               // hangi admin onayladı (userId)
-  rejected    Boolean  @default(false)
-  featured    Boolean  @default(false)              // landing'de öne çıkanlar arasında mı
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id         String    @id @default(cuid())
+  userId     String // hangi user yazdı
+  siteId     String? // hangi siteden (opsiyonel)
+  rating     Int // 1-5
+  body       String    @db.Text // 1-500 karakter
+  role       String? // "Kurucu", "Pazarlama Müdürü" — user'ın kendi yazdığı
+  company    String? // şirket / site adı
+  metric     String? // "ASA CPI %40 düştü" gibi spesifik kazanım (opsiyonel)
+  approved   Boolean   @default(false) // admin onaylamadan landing'de gözükmez
+  approvedAt DateTime?
+  approvedBy String? // hangi admin onayladı (userId)
+  rejected   Boolean   @default(false)
+  featured   Boolean   @default(false) // landing'de öne çıkanlar arasında mı
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
 
   @@index([approved, featured, createdAt])
   @@index([userId])
@@ -925,15 +927,15 @@ model Testimonial {
 /// Landing page + onboarding funnel için anonim event tracking.
 /// PostHog/Plausible yerine kendi datamızı tutuyoruz (KVKK uyumlu, IP yok).
 model LandingEvent {
-  id          String   @id @default(cuid())
-  type        String                              // pageview, cta_click, section_view, scroll_depth, signup_complete
-  path        String?                             // / , /pricing, /signin vs
-  sessionId   String                              // anonymous session (cookie/localStorage)
-  meta        Json?                               // { ctaId, sectionId, scrollPct, ... }
-  referrer    String?  @db.Text
-  ua          String?  @db.Text                   // user agent
-  utm         Json?                               // { source, medium, campaign }
-  createdAt   DateTime @default(now())
+  id        String   @id @default(cuid())
+  type      String // pageview, cta_click, section_view, scroll_depth, signup_complete
+  path      String? // / , /pricing, /signin vs
+  sessionId String // anonymous session (cookie/localStorage)
+  meta      Json? // { ctaId, sectionId, scrollPct, ... }
+  referrer  String?  @db.Text
+  ua        String?  @db.Text // user agent
+  utm       Json? // { source, medium, campaign }
+  createdAt DateTime @default(now())
 
   @@index([type, createdAt])
   @@index([sessionId])
@@ -946,43 +948,43 @@ model LandingEvent {
 // ═══════════════════════════════════════════════════════════════
 
 model Affiliate {
-  id              String   @id @default(cuid())
-  userId          String   @unique
-  refCode         String   @unique          // luvi-emir-2026
-  commissionPct   Float    @default(30)     // %30 komisyon
-  active          Boolean  @default(true)
+  id            String  @id @default(cuid())
+  userId        String  @unique
+  refCode       String  @unique // luvi-emir-2026
+  commissionPct Float   @default(30) // %30 komisyon
+  active        Boolean @default(true)
 
-  totalReferred   Int      @default(0)
-  totalRevenue    Decimal  @default(0) @db.Decimal(10, 2)
-  totalCommission Decimal  @default(0) @db.Decimal(10, 2)
-  totalPaid       Decimal  @default(0) @db.Decimal(10, 2)
+  totalReferred   Int     @default(0)
+  totalRevenue    Decimal @default(0) @db.Decimal(10, 2)
+  totalCommission Decimal @default(0) @db.Decimal(10, 2)
+  totalPaid       Decimal @default(0) @db.Decimal(10, 2)
 
-  payoutMethod    String?                   // "iban" | "papara"
-  payoutDetails   Json?                     // şifrelenmiş
+  payoutMethod  String? // "iban" | "papara"
+  payoutDetails Json? // şifrelenmiş
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  referrals       AffiliateReferral[]
+  referrals AffiliateReferral[]
 
   @@map("affiliates")
 }
 
 model AffiliateReferral {
-  id              String   @id @default(cuid())
-  affiliateId     String
-  referredUserId  String
+  id             String @id @default(cuid())
+  affiliateId    String
+  referredUserId String
 
-  clickedAt       DateTime @default(now())
-  signedUpAt      DateTime?
-  firstPaidAt     DateTime?
+  clickedAt   DateTime  @default(now())
+  signedUpAt  DateTime?
+  firstPaidAt DateTime?
 
-  commissionUntil DateTime?                 // 3 ay sonra biter
-  totalCommissionEarned Decimal @default(0) @db.Decimal(10, 2)
+  commissionUntil       DateTime? // 3 ay sonra biter
+  totalCommissionEarned Decimal   @default(0) @db.Decimal(10, 2)
 
-  status          String   @default("clicked")  // clicked | signed_up | paid | expired
+  status String @default("clicked") // clicked | signed_up | paid | expired
 
-  affiliate       Affiliate @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
+  affiliate Affiliate @relation(fields: [affiliateId], references: [id], onDelete: Cascade)
 
   @@index([referredUserId])
   @@index([affiliateId, status])
@@ -994,17 +996,17 @@ model AffiliateReferral {
 // ═══════════════════════════════════════════════════════════════
 
 model EmailLog {
-  id          String   @id @default(cuid())
-  userId      String?
-  to          String
-  template    String                        // welcome_day0 | trial_expiry | weekly_report
-  subject     String
-  status      String   @default("sent")     // sent | delivered | opened | bounced
+  id       String  @id @default(cuid())
+  userId   String?
+  to       String
+  template String // welcome_day0 | trial_expiry | weekly_report
+  subject  String
+  status   String  @default("sent") // sent | delivered | opened | bounced
 
-  resendId    String?  @unique
-  metadata    Json?
+  resendId String? @unique
+  metadata Json?
 
-  createdAt   DateTime @default(now())
+  createdAt DateTime @default(now())
 
   @@index([userId, createdAt])
   @@index([template, createdAt])
@@ -1019,33 +1021,33 @@ model EmailLog {
 // ─────────────────────────────────────────────────────────────────
 
 model SocialChannel {
-  id          String   @id @default(cuid())
-  siteId      String
-  type        SocialChannelType
-  name        String                              // "LuviHost LinkedIn" gibi kullanici etiketi
-  isActive    Boolean  @default(true)
-  isDefault   Boolean  @default(false)            // makale yayini sonrasi otomatik dagit (opt-in)
+  id        String            @id @default(cuid())
+  siteId    String
+  type      SocialChannelType
+  name      String // "LuviHost LinkedIn" gibi kullanici etiketi
+  isActive  Boolean           @default(true)
+  isDefault Boolean           @default(false) // makale yayini sonrasi otomatik dagit (opt-in)
 
   // OAuth + credentials (sifrelenmis JSON)
-  credentials String   @db.Text                   // encrypt(JSON.stringify({ accessToken, refreshToken, expiresAt, ... }))
-  config      Json?                               // kanal-bazli ek ayar: pageId, ugcUrn, accountId
+  credentials String @db.Text // encrypt(JSON.stringify({ accessToken, refreshToken, expiresAt, ... }))
+  config      Json? // kanal-bazli ek ayar: pageId, ugcUrn, accountId
 
   // Account metadata (UI'da gostermek icin)
-  externalId      String?                         // LI URN, FB Page ID, IG Business Account ID
-  externalName    String?                         // "Emirhan Burgazli" / "LuviHost Co."
-  externalAvatar  String?  @db.VarChar(1000)      // LinkedIn CDN URL'leri 500+ karakter olabiliyor
+  externalId     String? // LI URN, FB Page ID, IG Business Account ID
+  externalName   String? // "Emirhan Burgazli" / "LuviHost Co."
+  externalAvatar String? @db.VarChar(1000) // LinkedIn CDN URL'leri 500+ karakter olabiliyor
 
-  lastUsedAt  DateTime?
-  lastError   String?  @db.Text
+  lastUsedAt DateTime?
+  lastError  String?   @db.Text
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  site            Site                  @relation(fields: [siteId], references: [id], onDelete: Cascade)
-  posts           SocialPost[]
-  recurringSlots  SocialRecurringSlot[]
+  site           Site                  @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  posts          SocialPost[]
+  recurringSlots SocialRecurringSlot[]
 
-  @@unique([siteId, type, externalId])           // ayni site icin ayni kanal+hesap iki kez eklenmesin
+  @@unique([siteId, type, externalId]) // ayni site icin ayni kanal+hesap iki kez eklenmesin
   @@index([siteId])
   @@index([type])
   @@map("social_channels")
@@ -1062,43 +1064,43 @@ enum SocialChannelType {
   THREADS
   BLUESKY
   PINTEREST
-  GMB                 // Google Business Profile
+  GMB // Google Business Profile
   MASTODON
 }
 
 model SocialPost {
-  id          String   @id @default(cuid())
-  channelId   String
-  articleId   String?                              // makaleden tureyense bagli, bagimsizsa null
+  id        String  @id @default(cuid())
+  channelId String
+  articleId String? // makaleden tureyense bagli, bagimsizsa null
 
   // Icerik (kanal-formati uygulanmis)
-  text        String   @db.Text                    // ana metin
-  mediaUrls   Json?                                // [{url, type:'image'|'video', altText}]
-  metadata    Json?                                // hashtags, mentions, link, threadParts
+  text      String @db.Text // ana metin
+  mediaUrls Json? // [{url, type:'image'|'video', altText}]
+  metadata  Json? // hashtags, mentions, link, threadParts
 
   // Scheduling
-  status      SocialPostStatus @default(DRAFT)
-  scheduledFor DateTime?                           // null = "hemen" veya manuel
-  publishedAt DateTime?
+  status       SocialPostStatus @default(DRAFT)
+  scheduledFor DateTime? // null = "hemen" veya manuel
+  publishedAt  DateTime?
 
   // Yayin sonucu
-  externalId  String?                              // LI urn, X tweet id, FB post id
-  externalUrl String?                              // public URL (https://linkedin.com/feed/update/urn:li:...)
-  errorMsg    String?  @db.Text
-  retryCount  Int      @default(0)
+  externalId  String? // LI urn, X tweet id, FB post id
+  externalUrl String? // public URL (https://linkedin.com/feed/update/urn:li:...)
+  errorMsg    String? @db.Text
+  retryCount  Int     @default(0)
 
   // Approval workflow (Brightbean parity) — opsiyonel; sadece NEEDS_APPROVAL flow'unda kullanilir
-  approvedBy  String?                              // user id (approve eden)
-  approvedAt  DateTime?
-  rejectedBy  String?
-  rejectedAt  DateTime?
-  rejectReason String?  @db.Text
+  approvedBy   String? // user id (approve eden)
+  approvedAt   DateTime?
+  rejectedBy   String?
+  rejectedAt   DateTime?
+  rejectReason String?   @db.Text
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  channel  SocialChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  article  Article?      @relation(fields: [articleId], references: [id], onDelete: SetNull)
+  channel SocialChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  article Article?      @relation(fields: [articleId], references: [id], onDelete: SetNull)
 
   @@index([channelId, status])
   @@index([scheduledFor])
@@ -1107,51 +1109,51 @@ model SocialPost {
 }
 
 enum SocialPostStatus {
-  DRAFT                // taslak — kullanici onaylamadi
-  NEEDS_APPROVAL       // takim icindeki onaylayicilar bekleniyor
-  APPROVED             // onaylandi, scheduledFor varsa QUEUED'a gecer
-  QUEUED               // zamanlanmis, scheduledFor bekleniyor
-  PUBLISHING           // yayina gonderiliyor
-  PUBLISHED            // basariyla yayinlandi
-  FAILED               // yayin basarisiz, retry edilebilir
-  CANCELED             // kullanici iptal etti
-  REJECTED             // approval reddedildi
+  DRAFT // taslak — kullanici onaylamadi
+  NEEDS_APPROVAL // takim icindeki onaylayicilar bekleniyor
+  APPROVED // onaylandi, scheduledFor varsa QUEUED'a gecer
+  QUEUED // zamanlanmis, scheduledFor bekleniyor
+  PUBLISHING // yayina gonderiliyor
+  PUBLISHED // basariyla yayinlandi
+  FAILED // yayin basarisiz, retry edilebilir
+  CANCELED // kullanici iptal etti
+  REJECTED // approval reddedildi
 }
 
 // Haftalik recurring slot — "her Pazartesi 09:00 LI'ye queue'dan 1 post"
 model SocialRecurringSlot {
-  id          String   @id @default(cuid())
-  channelId   String
+  id        String @id @default(cuid())
+  channelId String
 
-  dayOfWeek   Int                                  // 0 (Pazar) - 6 (Cumartesi)
-  hour        Int                                  // 0-23
-  minute      Int                                  // 0-59
-  timezone    String   @default("Europe/Istanbul")
+  dayOfWeek Int // 0 (Pazar) - 6 (Cumartesi)
+  hour      Int // 0-23
+  minute    Int // 0-59
+  timezone  String @default("Europe/Istanbul")
 
   // Slot ne yapsin?
-  source      SocialSlotSource @default(QUEUE)    // QUEUE: kullanici taslagindan ilk siradakini cek; AUTO: 09-social-writer ile yeni uret
-  isActive    Boolean  @default(true)
+  source   SocialSlotSource @default(QUEUE) // QUEUE: kullanici taslagindan ilk siradakini cek; AUTO: 09-social-writer ile yeni uret
+  isActive Boolean          @default(true)
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  channel  SocialChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  channel SocialChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
 
   @@index([channelId])
   @@map("social_recurring_slots")
 }
 
 enum SocialSlotSource {
-  QUEUE                // kullanici draft'larindan al
-  AUTO                 // 09-social-writer ile yeni uret
+  QUEUE // kullanici draft'larindan al
+  AUTO // 09-social-writer ile yeni uret
 }
 
 // Faz 11.4 — Generic key-value store (AI cost counter, daily quota, vb.)
 model KvStore {
-  key       String   @id
-  value     String   @db.Text
+  key       String    @id
+  value     String    @db.Text
   expiresAt DateTime?
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime  @updatedAt
 
   @@index([expiresAt])
   @@map("kv_store")
@@ -1161,13 +1163,13 @@ model KvStore {
 // Secret olmayan, admin panelden yonetilen anahtarlar. Settings cache i 30sn TTL,
 // degisiklik audit log a yazilir. Eski .env degerlerinden goc edildi.
 model AppSetting {
-  key         String   @id           // ARTICLE_GENERATION_DISABLED, PLAN_PRO_PRICE, vb.
-  value       String   @db.Text      // hep string olarak saklanir, type alanı kasti yorumla
-  type        String                  // "boolean" | "int" | "string" | "enum"
-  category    String                  // "toggle" | "plan" | "model" | "limit"
-  description String?  @db.Text      // admin panelde gosterilen aciklama
+  key         String   @id // ARTICLE_GENERATION_DISABLED, PLAN_PRO_PRICE, vb.
+  value       String   @db.Text // hep string olarak saklanir, type alanı kasti yorumla
+  type        String // "boolean" | "int" | "string" | "enum"
+  category    String // "toggle" | "plan" | "model" | "limit"
+  description String?  @db.Text // admin panelde gosterilen aciklama
   updatedAt   DateTime @updatedAt
-  updatedBy   String?                // user id
+  updatedBy   String? // user id
 
   @@index([category])
   @@map("app_settings")
@@ -1175,14 +1177,14 @@ model AppSetting {
 
 // SettingAuditLog — kim, hangi anahtari, ne zaman, neye degistirdi.
 model SettingAuditLog {
-  id         String   @id @default(cuid())
-  key        String                            // AppSetting.key
-  oldValue   String?  @db.Text
-  newValue   String   @db.Text
-  changedBy  String                            // user id
-  changedAt  DateTime @default(now())
-  userAgent  String?  @db.Text
-  ipAddress  String?
+  id        String   @id @default(cuid())
+  key       String // AppSetting.key
+  oldValue  String?  @db.Text
+  newValue  String   @db.Text
+  changedBy String // user id
+  changedAt DateTime @default(now())
+  userAgent String?  @db.Text
+  ipAddress String?
 
   @@index([key, changedAt])
   @@index([changedBy, changedAt])
@@ -1194,41 +1196,41 @@ model SettingAuditLog {
 // ═══════════════════════════════════════════════════════════════
 
 model Video {
-  id          String        @id @default(cuid())
-  siteId      String
-  articleId   String?
+  id        String  @id @default(cuid())
+  siteId    String
+  articleId String?
 
   // Source content
   title       String
-  description String?       @db.Text
-  scriptText  String?       @db.LongText  // TTS için kullanılan senaryo
+  description String? @db.Text
+  scriptText  String? @db.LongText // TTS için kullanılan senaryo
 
   // Generation params
   provider    VideoProvider
   status      VideoStatus   @default(PENDING)
   durationSec Int?
-  aspectRatio String        @default("9:16")  // 9:16 | 16:9 | 1:1
-  voiceId     String?                          // ElevenLabs voice id veya OpenAI voice
+  aspectRatio String        @default("9:16") // 9:16 | 16:9 | 1:1
+  voiceId     String? // ElevenLabs voice id veya OpenAI voice
   language    String        @default("tr")
 
   // Output
-  videoUrl     String?      @db.VarChar(1000)
-  thumbnailUrl String?      @db.VarChar(1000)
+  videoUrl     String? @db.VarChar(1000)
+  thumbnailUrl String? @db.VarChar(1000)
   fileSize     Int?
 
   // Job tracking
-  jobId         String?     // BullMQ job id
-  errorMsg      String?     @db.Text
-  costUsd       Decimal?    @db.Decimal(10, 4)
+  jobId    String? // BullMQ job id
+  errorMsg String?  @db.Text
+  costUsd  Decimal? @db.Decimal(10, 4)
 
   // Provider-specific raw data
-  providerJobId String?     // Veo operation name, Runway task id, etc.
+  providerJobId String? // Veo operation name, Runway task id, etc.
   providerRaw   Json?
 
   startedAt   DateTime?
   completedAt DateTime?
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
 
   site    Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
   article Article? @relation(fields: [articleId], references: [id], onDelete: SetNull)
@@ -1247,11 +1249,11 @@ enum VideoStatus {
 }
 
 enum VideoProvider {
-  SLIDESHOW   // ffmpeg + stock görseller + TTS — sunucuda, ücretsiz
-  VEO         // Google Veo 3 (Vertex AI / Gemini)
-  RUNWAY      // Runway Gen-3 / Gen-4
-  HEYGEN      // HeyGen avatar video
-  SORA        // OpenAI Sora
+  SLIDESHOW // ffmpeg + stock görseller + TTS — sunucuda, ücretsiz
+  VEO // Google Veo 3 (Vertex AI / Gemini)
+  RUNWAY // Runway Gen-3 / Gen-4
+  HEYGEN // HeyGen avatar video
+  SORA // OpenAI Sora
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1259,18 +1261,18 @@ enum VideoProvider {
 // ═══════════════════════════════════════════════════════════════
 
 model AdsAudit {
-  id          String   @id @default(cuid())
-  siteId      String
-  platform    String   // 'google' | 'meta'
-  industry    String   @default("saas")
+  id       String @id @default(cuid())
+  siteId   String
+  platform String // 'google' | 'meta'
+  industry String @default("saas")
 
-  totalScore  Int      // 0-100
-  grade       String   // 'A' | 'B' | 'C' | 'D' | 'F'
-  byCategory  Json     // { conversion: { score, weight }, waste: {...}, ... }
-  findings    Json     // [{ ruleId, name, category, severity, verdict, finding, recommendation, isQuickWin, fixTimeMinutes }]
-  summary     Json     // { pass, warning, fail, na, total }
-  ranAt       DateTime @default(now())
-  durationMs  Int?
+  totalScore Int // 0-100
+  grade      String // 'A' | 'B' | 'C' | 'D' | 'F'
+  byCategory Json // { conversion: { score, weight }, waste: {...}, ... }
+  findings   Json // [{ ruleId, name, category, severity, verdict, finding, recommendation, isQuickWin, fixTimeMinutes }]
+  summary    Json // { pass, warning, fail, na, total }
+  ranAt      DateTime @default(now())
+  durationMs Int?
 
   site Site @relation(fields: [siteId], references: [id], onDelete: Cascade)
 
@@ -1283,26 +1285,26 @@ model AdsAudit {
 // ═══════════════════════════════════════════════════════════════
 
 model TokenUsageRecord {
-  id              String   @id @default(cuid())
-  siteId          String?
-  userId          String?
-  provider        String   // 'anthropic' | 'openai' | 'gemini'
-  model           String   // 'claude-opus-4-7' | 'gpt-4o' | 'gemini-2.5-pro'
-  tokenType       String   // 'prompt' | 'completion' | 'cache_read' | 'cache_write'
-  context         String?  // 'article-writer' | 'snippet-optimizer' | 'ads-audit-llm' | ...
+  id        String  @id @default(cuid())
+  siteId    String?
+  userId    String?
+  provider  String // 'anthropic' | 'openai' | 'gemini'
+  model     String // 'claude-opus-4-7' | 'gpt-4o' | 'gemini-2.5-pro'
+  tokenType String // 'prompt' | 'completion' | 'cache_read' | 'cache_write'
+  context   String? // 'article-writer' | 'snippet-optimizer' | 'ads-audit-llm' | ...
 
-  inputTokens     Int      @default(0)
-  outputTokens    Int      @default(0)
-  cacheReadTokens Int      @default(0)
-  cacheWriteTokens Int     @default(0)
+  inputTokens      Int @default(0)
+  outputTokens     Int @default(0)
+  cacheReadTokens  Int @default(0)
+  cacheWriteTokens Int @default(0)
 
-  rate            Decimal  @db.Decimal(18, 8) // USD per 1M tokens (active rate)
-  costUsd         Decimal  @db.Decimal(18, 8) // Σ(tokens × rate)
+  rate    Decimal @db.Decimal(18, 8) // USD per 1M tokens (active rate)
+  costUsd Decimal @db.Decimal(18, 8) // Σ(tokens × rate)
 
-  conversationId  String?  // article id, audit id vs.
-  messageId       String?
+  conversationId String? // article id, audit id vs.
+  messageId      String?
 
-  createdAt       DateTime @default(now())
+  createdAt DateTime @default(now())
 
   site Site? @relation(fields: [siteId], references: [id], onDelete: SetNull)
 
@@ -1312,7 +1314,6 @@ model TokenUsageRecord {
   @@map("token_usage_records")
 }
 
-
 // ═══════════════════════════════════════════════════════════════
 //  ASO — App Store Optimization
 //  Kullanılan kütüphaneler: aso-v2, google-play-scraper, app-store-scraper
@@ -1320,41 +1321,41 @@ model TokenUsageRecord {
 // ═══════════════════════════════════════════════════════════════
 
 model TrackedApp {
-  id            String   @id @default(cuid())
-  siteId        String
-  site          Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  id     String @id @default(cuid())
+  siteId String
+  site   Site   @relation(fields: [siteId], references: [id], onDelete: Cascade)
 
   // App identifiers — en az birinin dolu olması gerek
-  appStoreId    String?  // iTunes app id (örn. "6444904356")
-  playStoreId   String?  // Google Play package (örn. "com.example.app")
+  appStoreId  String? // iTunes app id (örn. "6444904356")
+  playStoreId String? // Google Play package (örn. "com.example.app")
 
   // Display
-  name          String
-  category      String?
-  iconUrl       String?  @db.Text
-  developer     String?
+  name      String
+  category  String?
+  iconUrl   String? @db.Text
+  developer String?
 
   // Country / locale
-  country       String   @default("tr") // tr | us | de | ...
+  country String @default("tr") // tr | us | de | ...
 
   // Latest metadata (snapshot from last fetch)
-  metadata      Json?    // { ios: {...}, android: {...} }
+  metadata      Json? // { ios: {...}, android: {...} }
   lastFetchedAt DateTime?
 
   // Stats (latest)
-  iosRating     Float?
-  iosReviewCount Int?
-  androidRating Float?
+  iosRating          Float?
+  iosReviewCount     Int?
+  androidRating      Float?
   androidReviewCount Int?
 
-  isActive      Boolean  @default(true)
+  isActive Boolean @default(true)
 
   // Relations
-  keywords      TrackedAppKeyword[]
-  reviews       AppReview[]
+  keywords TrackedAppKeyword[]
+  reviews  AppReview[]
 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([siteId, appStoreId, playStoreId, country])
   @@index([siteId])
@@ -1362,35 +1363,35 @@ model TrackedApp {
 }
 
 model TrackedAppKeyword {
-  id            String   @id @default(cuid())
-  trackedAppId  String
-  trackedApp    TrackedApp @relation(fields: [trackedAppId], references: [id], onDelete: Cascade)
+  id           String     @id @default(cuid())
+  trackedAppId String
+  trackedApp   TrackedApp @relation(fields: [trackedAppId], references: [id], onDelete: Cascade)
 
-  keyword       String
-  store         AppStore // IOS | ANDROID
+  keyword String
+  store   AppStore // IOS | ANDROID
 
   // aso-v2 scoring (0-100)
-  popularity    Float?   // search volume proxy
-  difficulty    Float?   // competition score
-  traffic       Float?   // popularity / difficulty heuristic
+  popularity Float? // search volume proxy
+  difficulty Float? // competition score
+  traffic    Float? // popularity / difficulty heuristic
   // Ek skor: bizim hesapladığımız (app-agent pattern: AI relevance)
-  relevance     Float?
+  relevance  Float?
 
   // Latest rank (cron tarafından güncellenir)
-  currentRank   Int?     // 1-100, null = top 100 dışı
+  currentRank   Int? // 1-100, null = top 100 dışı
   previousRank  Int?
-  bestRank      Int?     // ever achieved
+  bestRank      Int? // ever achieved
   lastCheckedAt DateTime?
 
   // Source — kullanıcı manuel mi, AI öneri mi
-  source        KeywordSource @default(MANUAL)
+  source KeywordSource @default(MANUAL)
 
-  isActive      Boolean  @default(true)
+  isActive Boolean @default(true)
 
-  rankings      AppRanking[]
+  rankings AppRanking[]
 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([trackedAppId, keyword, store])
   @@index([trackedAppId, isActive])
@@ -1403,45 +1404,45 @@ enum AppStore {
 }
 
 enum KeywordSource {
-  MANUAL          // Kullanıcı ekledi
-  AI_SUGGESTED    // app-agent pattern — AI önerdi
-  COMPETITOR      // Rakip metadata'sından çıkarıldı
-  AUTOCOMPLETE    // Store suggestions'dan
+  MANUAL // Kullanıcı ekledi
+  AI_SUGGESTED // app-agent pattern — AI önerdi
+  COMPETITOR // Rakip metadata'sından çıkarıldı
+  AUTOCOMPLETE // Store suggestions'dan
 }
 
 model AppRanking {
-  id                  String   @id @default(cuid())
+  id                  String            @id @default(cuid())
   trackedAppKeywordId String
   trackedAppKeyword   TrackedAppKeyword @relation(fields: [trackedAppKeywordId], references: [id], onDelete: Cascade)
 
-  position            Int?     // 1-100, null = top 100 dışı
-  totalResults        Int?     // toplam kaç sonuç vardı
+  position     Int? // 1-100, null = top 100 dışı
+  totalResults Int? // toplam kaç sonuç vardı
 
-  checkedAt           DateTime @default(now())
+  checkedAt DateTime @default(now())
 
   @@index([trackedAppKeywordId, checkedAt])
   @@map("app_rankings")
 }
 
 model AppReview {
-  id            String   @id @default(cuid())
-  trackedAppId  String
-  trackedApp    TrackedApp @relation(fields: [trackedAppId], references: [id], onDelete: Cascade)
+  id           String     @id @default(cuid())
+  trackedAppId String
+  trackedApp   TrackedApp @relation(fields: [trackedAppId], references: [id], onDelete: Cascade)
 
-  store         AppStore
-  externalId    String   // store-side review id
-  rating        Int      // 1-5
-  title         String?  @db.Text
-  text          String   @db.Text
-  author        String?
-  reviewDate    DateTime?
+  store      AppStore
+  externalId String // store-side review id
+  rating     Int // 1-5
+  title      String?   @db.Text
+  text       String    @db.Text
+  author     String?
+  reviewDate DateTime?
 
   // LLM analysis
-  sentiment     ReviewSentiment? // POSITIVE | NEUTRAL | NEGATIVE
-  topics        Json?            // ["bug", "ui", "pricing", ...]
-  aiSummary     String?  @db.Text
+  sentiment ReviewSentiment? // POSITIVE | NEUTRAL | NEGATIVE
+  topics    Json? // ["bug", "ui", "pricing", ...]
+  aiSummary String?          @db.Text
 
-  fetchedAt     DateTime @default(now())
+  fetchedAt DateTime @default(now())
 
   @@unique([trackedAppId, store, externalId])
   @@index([trackedAppId, sentiment])
@@ -1467,102 +1468,102 @@ enum ReviewSentiment {
 //
 
 model AsaAccount {
-  id              String   @id @default(cuid())
-  siteId          String
-  site            Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  id     String @id @default(cuid())
+  siteId String
+  site   Site   @relation(fields: [siteId], references: [id], onDelete: Cascade)
 
   // Apple Search Ads API credentials (encrypted at rest)
-  orgId           String   // Apple Organization ID (numeric)
-  keyId           String   // Apple Key ID
-  encryptedKey    String   @db.Text  // .p8 private key, AES-256-GCM encrypted
-  teamId          String?  // opsiyonel — multi-team hesaplar için
+  orgId        String // Apple Organization ID (numeric)
+  keyId        String // Apple Key ID
+  encryptedKey String  @db.Text // .p8 private key, AES-256-GCM encrypted
+  teamId       String? // opsiyonel — multi-team hesaplar için
 
   // Auth state
-  tokenCacheValue String?  @db.Text  // last issued JWT (cache; 180 day expiry)
+  tokenCacheValue String?   @db.Text // last issued JWT (cache; 180 day expiry)
   tokenCacheExpAt DateTime?
 
   // Status
-  isActive        Boolean  @default(true)
-  lastSyncAt      DateTime?
-  lastError       String?  @db.Text
+  isActive   Boolean   @default(true)
+  lastSyncAt DateTime?
+  lastError  String?   @db.Text
 
   // ── Auto-Pilot (Seviye 2) ─────────────────────────
-  autoPilotEnabled    Boolean  @default(false)
-  autoPilotBudgetCap  Float?   // USD/ay — aşılırsa yeni kampanya açılmaz
+  autoPilotEnabled    Boolean   @default(false)
+  autoPilotBudgetCap  Float? // USD/ay — aşılırsa yeni kampanya açılmaz
   autoPilotLastRunAt  DateTime?
-  autoPilotLastResult String?  @db.Text  // JSON: { added: [...], paused: [...], skipped: [...] }
+  autoPilotLastResult String?   @db.Text // JSON: { added: [...], paused: [...], skipped: [...] }
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  campaigns       AsaCampaign[]
+  campaigns AsaCampaign[]
 
   @@index([siteId])
   @@map("asa_accounts")
 }
 
 model AsaCampaign {
-  id              String   @id @default(cuid())
-  accountId       String
-  account         AsaAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  id        String     @id @default(cuid())
+  accountId String
+  account   AsaAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
   // Apple-side identifiers
-  asaCampaignId   String   @unique  // Apple'ın verdiği numeric ID (string olarak tutuyoruz)
-  name            String
-  budget          Float    // daily budget USD
-  totalBudget     Float?   // opsiyonel — toplam kampanya bütçesi
-  status          String   // ENABLED | PAUSED | DELETED | DRAFT
-  countriesOrRegions Json  // ["US", "TR", ...]
-  supplySources   Json     // ["APPSTORE_SEARCH_RESULTS", "APPSTORE_SEARCH_TAB", "APPSTORE_TODAY_TAB", "APPSTORE_PRODUCT_PAGES"]
-  appAdamId       String?  // hedef Apple App ID (TrackedApp.appleId ile bağlantı)
+  asaCampaignId      String  @unique // Apple'ın verdiği numeric ID (string olarak tutuyoruz)
+  name               String
+  budget             Float // daily budget USD
+  totalBudget        Float? // opsiyonel — toplam kampanya bütçesi
+  status             String // ENABLED | PAUSED | DELETED | DRAFT
+  countriesOrRegions Json // ["US", "TR", ...]
+  supplySources      Json // ["APPSTORE_SEARCH_RESULTS", "APPSTORE_SEARCH_TAB", "APPSTORE_TODAY_TAB", "APPSTORE_PRODUCT_PAGES"]
+  appAdamId          String? // hedef Apple App ID (TrackedApp.appleId ile bağlantı)
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  adGroups        AsaAdGroup[]
-  performance     AsaPerformanceDaily[]
+  adGroups    AsaAdGroup[]
+  performance AsaPerformanceDaily[]
 
   @@index([accountId])
   @@map("asa_campaigns")
 }
 
 model AsaAdGroup {
-  id              String   @id @default(cuid())
-  campaignId      String
-  campaign        AsaCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  id         String      @id @default(cuid())
+  campaignId String
+  campaign   AsaCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
 
-  asaAdGroupId    String   @unique  // Apple'ın verdiği ID
-  name            String
-  defaultBidAmount Float   // adgroup default bid USD
-  status          String   // ENABLED | PAUSED
-  targetingType   String?  // EXACT | BROAD (Apple)
+  asaAdGroupId     String  @unique // Apple'ın verdiği ID
+  name             String
+  defaultBidAmount Float // adgroup default bid USD
+  status           String // ENABLED | PAUSED
+  targetingType    String? // EXACT | BROAD (Apple)
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  keywords        AsaKeywordBid[]
+  keywords AsaKeywordBid[]
 
   @@index([campaignId])
   @@map("asa_ad_groups")
 }
 
 model AsaKeywordBid {
-  id              String   @id @default(cuid())
-  adGroupId       String
-  adGroup         AsaAdGroup @relation(fields: [adGroupId], references: [id], onDelete: Cascade)
+  id        String     @id @default(cuid())
+  adGroupId String
+  adGroup   AsaAdGroup @relation(fields: [adGroupId], references: [id], onDelete: Cascade)
 
-  asaKeywordId    String   @unique
-  keyword         String
-  bidAmount       Float    // USD CPT bid
-  matchType       String   // EXACT | BROAD
-  status          String   // ACTIVE | PAUSED | REJECTED
+  asaKeywordId String @unique
+  keyword      String
+  bidAmount    Float // USD CPT bid
+  matchType    String // EXACT | BROAD
+  status       String // ACTIVE | PAUSED | REJECTED
 
   // RanksUp metadata — AI bid optimizer için
-  aiSuggestedBid  Float?   // AI'ın önerdiği optimal bid
+  aiSuggestedBid  Float? // AI'ın önerdiği optimal bid
   lastOptimizedAt DateTime?
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([adGroupId])
   @@index([keyword])
@@ -1570,22 +1571,22 @@ model AsaKeywordBid {
 }
 
 model AsaPerformanceDaily {
-  id              String   @id @default(cuid())
-  campaignId      String
-  campaign        AsaCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  id         String      @id @default(cuid())
+  campaignId String
+  campaign   AsaCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
 
-  date            DateTime @db.Date
-  impressions     Int      @default(0)
-  taps            Int      @default(0)
-  installs        Int      @default(0)
-  reattributions  Int      @default(0)
-  spendUsd        Float    @default(0)
-  avgCpt          Float?   // average cost per tap
-  avgCpa          Float?   // average cost per install
-  ttr             Float?   // tap-through rate (taps / impressions)
-  conversionRate  Float?   // installs / taps
+  date           DateTime @db.Date
+  impressions    Int      @default(0)
+  taps           Int      @default(0)
+  installs       Int      @default(0)
+  reattributions Int      @default(0)
+  spendUsd       Float    @default(0)
+  avgCpt         Float? // average cost per tap
+  avgCpa         Float? // average cost per install
+  ttr            Float? // tap-through rate (taps / impressions)
+  conversionRate Float? // installs / taps
 
-  createdAt       DateTime @default(now())
+  createdAt DateTime @default(now())
 
   @@unique([campaignId, date])
   @@index([campaignId, date])
@@ -1601,85 +1602,85 @@ model AsaPerformanceDaily {
 //
 
 model AscAccount {
-  id              String   @id @default(cuid())
-  siteId          String
-  site            Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  id     String @id @default(cuid())
+  siteId String
+  site   Site   @relation(fields: [siteId], references: [id], onDelete: Cascade)
 
-  issuerId        String   // App Store Connect Issuer ID
-  keyId           String
-  encryptedKey    String   @db.Text  // .p8 encrypted
+  issuerId     String // App Store Connect Issuer ID
+  keyId        String
+  encryptedKey String @db.Text // .p8 encrypted
 
-  tokenCacheValue String?  @db.Text
+  tokenCacheValue String?   @db.Text
   tokenCacheExpAt DateTime?
 
-  isActive        Boolean  @default(true)
-  lastSyncAt      DateTime?
-  lastError       String?  @db.Text
+  isActive   Boolean   @default(true)
+  lastSyncAt DateTime?
+  lastError  String?   @db.Text
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  apps            AscApp[]
+  apps AscApp[]
 
   @@index([siteId])
   @@map("asc_accounts")
 }
 
 model AscApp {
-  id              String   @id @default(cuid())
-  accountId       String
-  account         AscAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  id        String     @id @default(cuid())
+  accountId String
+  account   AscAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
 
-  appleAppId      String   @unique  // Apple App ID (numeric, store URL'inde olan)
-  bundleId        String
-  name            String
-  primaryLocale   String?
+  appleAppId    String  @unique // Apple App ID (numeric, store URL'inde olan)
+  bundleId      String
+  name          String
+  primaryLocale String?
 
   // Latest release snapshot
   latestVersion   String?
   latestReleaseAt DateTime?
   latestBuildAt   DateTime?
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  releases        AscRelease[]
-  alerts          AscReleaseAlert[]
+  releases AscRelease[]
+  alerts   AscReleaseAlert[]
 
   @@index([accountId])
   @@map("asc_apps")
 }
 
 model AscRelease {
-  id              String   @id @default(cuid())
-  appId           String
-  app             AscApp   @relation(fields: [appId], references: [id], onDelete: Cascade)
+  id    String @id @default(cuid())
+  appId String
+  app   AscApp @relation(fields: [appId], references: [id], onDelete: Cascade)
 
-  appleReleaseId  String   @unique
-  versionString   String
-  buildNumber     String?
-  releaseType     String?  // MANUAL | AFTER_APPROVAL | SCHEDULED
-  state           String   // READY_FOR_SALE, PREPARE_FOR_SUBMISSION, IN_REVIEW, vs.
-  releaseDate     DateTime?
+  appleReleaseId String    @unique
+  versionString  String
+  buildNumber    String?
+  releaseType    String? // MANUAL | AFTER_APPROVAL | SCHEDULED
+  state          String // READY_FOR_SALE, PREPARE_FOR_SUBMISSION, IN_REVIEW, vs.
+  releaseDate    DateTime?
 
-  createdAt       DateTime @default(now())
+  createdAt DateTime @default(now())
 
   @@index([appId, releaseDate])
   @@map("asc_releases")
 }
 
 model AscReleaseAlert {
-  id              String   @id @default(cuid())
-  appId           String
-  app             AscApp   @relation(fields: [appId], references: [id], onDelete: Cascade)
+  id    String @id @default(cuid())
+  appId String
+  app   AscApp @relation(fields: [appId], references: [id], onDelete: Cascade)
 
-  severity        String   // INFO | WARN | CRITICAL
-  message         String   @db.Text
-  daysSinceUpdate Int      // alert tetiklendiği anki gün sayısı
+  severity        String // INFO | WARN | CRITICAL
+  message         String    @db.Text
+  daysSinceUpdate Int // alert tetiklendiği anki gün sayısı
   acknowledgedAt  DateTime?
   acknowledgedBy  String?
 
-  createdAt       DateTime @default(now())
+  createdAt DateTime @default(now())
 
   @@index([appId, acknowledgedAt])
   @@map("asc_release_alerts")
@@ -1695,39 +1696,39 @@ model AscReleaseAlert {
 //
 
 model SdkAppConfig {
-  id              String   @id @default(cuid())
-  siteId          String
-  site            Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  id     String @id @default(cuid())
+  siteId String
+  site   Site   @relation(fields: [siteId], references: [id], onDelete: Cascade)
 
-  appKey          String   @unique  // SDK init'te kullanılan public key
-  encryptedSecret String   @db.Text // backend → API auth için
+  appKey          String @unique // SDK init'te kullanılan public key
+  encryptedSecret String @db.Text // backend → API auth için
 
   // Remote config payload (SDK'nın okuyacağı)
-  ratingPromptRules Json?  // [{ trigger, minOpens, minDays, abVariants: [...] }]
-  remoteConfig    Json?    // arbitrary key-value, A/B test variants
+  ratingPromptRules Json? // [{ trigger, minOpens, minDays, abVariants: [...] }]
+  remoteConfig      Json? // arbitrary key-value, A/B test variants
 
-  isActive        Boolean  @default(true)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  events          SdkEvent[]
+  events SdkEvent[]
 
   @@index([siteId])
   @@map("sdk_app_configs")
 }
 
 model SdkEvent {
-  id              String   @id @default(cuid())
-  configId        String
-  config          SdkAppConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
+  id       String       @id @default(cuid())
+  configId String
+  config   SdkAppConfig @relation(fields: [configId], references: [id], onDelete: Cascade)
 
-  deviceId        String   // anonymized
-  eventName       String
-  properties      Json?
-  sessionId       String?
-  appVersion      String?
-  osVersion       String?
-  timestamp       DateTime @default(now())
+  deviceId   String // anonymized
+  eventName  String
+  properties Json?
+  sessionId  String?
+  appVersion String?
+  osVersion  String?
+  timestamp  DateTime @default(now())
 
   @@index([configId, eventName, timestamp])
   @@map("sdk_events")
@@ -1743,39 +1744,39 @@ model SdkEvent {
 /// Media Library — yeniden kullanılabilir görseller/videolar (slot-bağımsız).
 /// Adapter'lar farklı boyut/format gerektirdiği için variants[] otomatik üretilir.
 model SocialMediaAsset {
-  id          String   @id @default(cuid())
-  userId      String
-  siteId      String?                                // site-spesifik veya kullanici geneli (null)
+  id     String  @id @default(cuid())
+  userId String
+  siteId String? // site-spesifik veya kullanici geneli (null)
 
   // Storage
-  url         String                                 // public URL (local /public/social-media veya S3)
-  thumbnail   String?                                // 256x256 küçük preview
-  variants    Json?                                  // [{label:"og-1200x630", url, w, h}]
-  filename    String
-  mimeType    String                                 // image/png, video/mp4
-  sizeBytes   Int
-  width       Int?
-  height      Int?
-  durationMs  Int?                                   // video icin
+  url        String // public URL (local /public/social-media veya S3)
+  thumbnail  String? // 256x256 küçük preview
+  variants   Json? // [{label:"og-1200x630", url, w, h}]
+  filename   String
+  mimeType   String // image/png, video/mp4
+  sizeBytes  Int
+  width      Int?
+  height     Int?
+  durationMs Int? // video icin
 
   // Organization
-  folder      String?  @db.VarChar(255)              // "campaigns/q1-2026" gibi nested path
-  altText     String?  @db.Text
-  tags        Json?                                  // ["product","lifestyle","ugc"]
+  folder  String? @db.VarChar(255) // "campaigns/q1-2026" gibi nested path
+  altText String? @db.Text
+  tags    Json? // ["product","lifestyle","ugc"]
 
   // Source
-  source      MediaSource @default(UPLOAD)            // UPLOAD | UNSPLASH | AI_GENERATED | URL_IMPORT
-  externalRef String?                                // unsplash id, prompt id vs
+  source      MediaSource @default(UPLOAD) // UPLOAD | UNSPLASH | AI_GENERATED | URL_IMPORT
+  externalRef String? // unsplash id, prompt id vs
 
   // Usage
-  usageCount  Int      @default(0)                   // kac postta kullanildi
-  lastUsedAt  DateTime?
+  usageCount Int       @default(0) // kac postta kullanildi
+  lastUsedAt DateTime?
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  user        User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  site        Site?   @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  user User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  site Site? @relation(fields: [siteId], references: [id], onDelete: SetNull)
 
   @@index([userId, folder])
   @@index([siteId, folder])
@@ -1790,30 +1791,29 @@ enum MediaSource {
   URL_IMPORT
 }
 
-
 /// In-app + email notification — onay bekleyen post, gelen DM, yayın başarısızlığı vb.
 model Notification {
-  id          String   @id @default(cuid())
-  userId      String
+  id     String @id @default(cuid())
+  userId String
 
-  type        NotificationType
-  title       String
-  body        String?  @db.Text
-  link        String?                                // tıklanınca gidilecek route
+  type  NotificationType
+  title String
+  body  String?          @db.Text
+  link  String? // tıklanınca gidilecek route
 
   // Polymorphic ref
-  refKind     String?                                // "social_post" | "social_inbox" | "social_idea"
-  refId       String?
+  refKind String? // "social_post" | "social_inbox" | "social_idea"
+  refId   String?
 
   // Channel selection
-  channels    Json     @default("[\"inapp\"]")       // ["inapp","email"]
+  channels Json @default("[\"inapp\"]") // ["inapp","email"]
 
   readAt      DateTime?
   emailSentAt DateTime?
 
-  createdAt   DateTime @default(now())
+  createdAt DateTime @default(now())
 
-  user        User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, readAt])
   @@index([userId, type])
@@ -1842,13 +1842,13 @@ enum NotificationType {
 model StudioAsset {
   id        String          @id @default(cuid())
   siteId    String
-  userId    String?                                        // owner; null olabilir (admin/system üretimi)
-  type      StudioAssetType                                 // IMAGE | VIDEO | TEXT
+  userId    String? // owner; null olabilir (admin/system üretimi)
+  type      StudioAssetType // IMAGE | VIDEO | TEXT
   prompt    String          @db.Text
-  provider  String                                          // gemini-flash | gpt-image-1 | flux-pro | claude-haiku-4-5 ...
-  url       String?                                         // image/video için public URL
-  text      String?         @db.Text                        // TEXT tipinde generated content
-  metadata  Json?                                           // { width, height, sizeBytes, costUsd, tokens, brandColor, format, ... }
+  provider  String // gemini-flash | gpt-image-1 | flux-pro | claude-haiku-4-5 ...
+  url       String? // image/video için public URL
+  text      String?         @db.Text // TEXT tipinde generated content
+  metadata  Json? // { width, height, sizeBytes, costUsd, tokens, brandColor, format, ... }
   favorite  Boolean         @default(false)
   createdAt DateTime        @default(now())
 
@@ -1873,18 +1873,18 @@ enum StudioAssetType {
 // ═══════════════════════════════════════════════════════════════
 
 model VideoCreditPurchase {
-  id            String              @id @default(cuid())
-  userId        String
-  packSize      Int                                     // 5 | 20 | 50
-  priceTry      Int                                     // 499 | 1799 | 3999
-  status        VideoCreditStatus   @default(PENDING)   // PENDING → PAID → CONSUMED
-  merchantOid   String?             @unique             // PayTR order ref
+  id             String            @id @default(cuid())
+  userId         String
+  packSize       Int // 5 | 20 | 50
+  priceTry       Int // 499 | 1799 | 3999
+  status         VideoCreditStatus @default(PENDING) // PENDING → PAID → CONSUMED
+  merchantOid    String?           @unique // PayTR order ref
   paytrInvoiceId String?
-  creditsTotal  Int                                     // = packSize (satın alma anında snapshot)
-  creditsUsed   Int                 @default(0)
-  expiresAt     DateTime?                               // null = ömür boyu, opsiyonel 12 ay sonra expire
-  paidAt        DateTime?
-  createdAt     DateTime            @default(now())
+  creditsTotal   Int // = packSize (satın alma anında snapshot)
+  creditsUsed    Int               @default(0)
+  expiresAt      DateTime? // null = ömür boyu, opsiyonel 12 ay sonra expire
+  paidAt         DateTime?
+  createdAt      DateTime          @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -1894,11 +1894,11 @@ model VideoCreditPurchase {
 }
 
 enum VideoCreditStatus {
-  PENDING      // PayTR yönlendirme bekleniyor
-  PAID         // Ödeme alındı, kullanım hakkı aktif
-  CONSUMED     // creditsUsed == creditsTotal
-  REFUNDED     // İade edildi
-  EXPIRED      // expiresAt geçti, kalan kullanılmadı
+  PENDING // PayTR yönlendirme bekleniyor
+  PAID // Ödeme alındı, kullanım hakkı aktif
+  CONSUMED // creditsUsed == creditsTotal
+  REFUNDED // İade edildi
+  EXPIRED // expiresAt geçti, kalan kullanılmadı
 }
 
 // ──────────────────────────────────────────────────────────
@@ -1909,15 +1909,17 @@ enum VideoCreditStatus {
 // ──────────────────────────────────────────────────────────
 model PublicCitationCheck {
   id          String   @id @default(cuid())
-  domain      String                                    // host (kobipratik.com) — artik unique degil
-  brand       String                                    // tespit edilen marka adi
-  niche       String?                                   // niche-detector'dan
-  customNiche String?                                   // 'diger' ise spesifik etiket
-  result      Json                                      // tum LLM responses + aggregate
-  totalCalls  Int      @default(0)                      // kac LLM call yapildi (telemetri)
-  costUsd     Float    @default(0)                      // toplam maliyet (telemetri)
-  ip          String?                                   // talep eden IP (hash) — audit + rate-limit
-  /** Hangi sebeple olusturuldu: manual (ziyaretci), retest_cron (otomatik 15/30/60/90g), signup_baseline */
+  domain      String // host (kobipratik.com) — artik unique degil
+  brand       String // tespit edilen marka adi
+  niche       String? // niche-detector'dan
+  customNiche String? // 'diger' ise spesifik etiket
+  result      Json // tum LLM responses + aggregate
+  totalCalls  Int      @default(0) // kac LLM call yapildi (telemetri)
+  costUsd     Float    @default(0) // toplam maliyet (telemetri)
+  ip          String? // talep eden IP (hash) — audit + rate-limit
+  /**
+   * Hangi sebeple olusturuldu: manual (ziyaretci), retest_cron (otomatik 15/30/60/90g), signup_baseline
+   */
   source      String   @default("manual")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -1933,31 +1935,45 @@ model PublicCitationCheck {
 // 15/30/60/90g otomatik retest + branded rapor email gonderilir.
 // ──────────────────────────────────────────────────────────
 model PublicCitationSubscriber {
-  id              String   @id @default(cuid())
-  email           String                                // ziyaretci emaili
-  domain          String                                // test edilen domain
-  brand           String                                // o anki tespit edilen marka
-  niche           String?                               // o anki niche
-  customNiche     String?
-  status          String   @default("PENDING_OPTIN")    // PENDING_OPTIN | ACTIVE | UNSUBSCRIBED | BOUNCED | SIGNED_UP
-  /** KVKK consent timestamp — modal'da explicit checkbox tiklendi */
-  consentAt       DateTime?
-  /** Double-opt-in token (welcome email confirm link) */
-  confirmToken    String?  @unique
-  confirmedAt     DateTime?
-  /** Unsubscribe link icin token */
-  unsubscribeToken String  @unique
-  /** Bir sonraki retest ne zaman (cron buna bakar) */
-  nextRetestAt    DateTime?
-  /** Kac retest tamamlandi (15/30/60/90 → 4 max) */
-  retestsSent     Int      @default(0)
-  /** Eger kullanici sonradan RanksUp'a kayit oldu — userId burada */
-  signupUserId    String?
-  signupAt        DateTime?
-  /** Email locale (TR | EN) */
-  locale          String   @default("tr")
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id               String    @id @default(cuid())
+  email            String // ziyaretci emaili
+  domain           String // test edilen domain
+  brand            String // o anki tespit edilen marka
+  niche            String? // o anki niche
+  customNiche      String?
+  status           String    @default("PENDING_OPTIN") // PENDING_OPTIN | ACTIVE | UNSUBSCRIBED | BOUNCED | SIGNED_UP
+  /**
+   * KVKK consent timestamp — modal'da explicit checkbox tiklendi
+   */
+  consentAt        DateTime?
+  /**
+   * Double-opt-in token (welcome email confirm link)
+   */
+  confirmToken     String?   @unique
+  confirmedAt      DateTime?
+  /**
+   * Unsubscribe link icin token
+   */
+  unsubscribeToken String    @unique
+  /**
+   * Bir sonraki retest ne zaman (cron buna bakar)
+   */
+  nextRetestAt     DateTime?
+  /**
+   * Kac retest tamamlandi (15/30/60/90 → 4 max)
+   */
+  retestsSent      Int       @default(0)
+  /**
+   * Eger kullanici sonradan RanksUp'a kayit oldu — userId burada
+   */
+  signupUserId     String?
+  signupAt         DateTime?
+  /**
+   * Email locale (TR | EN)
+   */
+  locale           String    @default("tr")
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   emailLogs PublicCitationEmailLog[]
 
@@ -1971,25 +1987,159 @@ model PublicCitationSubscriber {
 // PUBLIC CITATION EMAIL LOG — gönderilen retest emailleri
 // ──────────────────────────────────────────────────────────
 model PublicCitationEmailLog {
-  id            String   @id @default(cuid())
-  subscriberId  String
-  /** Tip: welcome | retest_15d | retest_30d | retest_60d | retest_90d | signup_nudge | unsubscribe_ack */
-  type          String
-  /** Email gonderim sirasinda üretilen citation check id'si (varsa) */
+  id              String    @id @default(cuid())
+  subscriberId    String
+  /**
+   * Tip: welcome | retest_15d | retest_30d | retest_60d | retest_90d | signup_nudge | unsubscribe_ack
+   */
+  type            String
+  /**
+   * Email gonderim sirasinda üretilen citation check id'si (varsa)
+   */
   citationCheckId String?
-  /** O anki delta — ornek: { before: 1, after: 3, totalProviders: 7 } */
-  delta         Json?
-  sentAt        DateTime @default(now())
-  /** Resend webhook'tan gelen status: delivered/opened/clicked/bounced */
-  deliveredAt   DateTime?
-  openedAt      DateTime?
-  clickedAt     DateTime?
-  bouncedAt     DateTime?
-  error         String?
+  /**
+   * O anki delta — ornek: { before: 1, after: 3, totalProviders: 7 }
+   */
+  delta           Json?
+  sentAt          DateTime  @default(now())
+  /**
+   * Resend webhook'tan gelen status: delivered/opened/clicked/bounced
+   */
+  deliveredAt     DateTime?
+  openedAt        DateTime?
+  clickedAt       DateTime?
+  bouncedAt       DateTime?
+  error           String?
 
   subscriber PublicCitationSubscriber @relation(fields: [subscriberId], references: [id], onDelete: Cascade)
 
   @@index([subscriberId, sentAt])
   @@index([type, sentAt])
   @@map("public_citation_email_logs")
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  PROMPT LAB + FAN-OUT — kullanicinin takip ettigi sorular ve
+//  modelin arka planda urettigi alt sorgu agi
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Kullanicinin "beni bu soruda takip et" dedigi prompt.
+ * Onceden probe sorgulari brain'den otomatik turuyordu ve kullanici
+ * mudahale edemiyordu; artik takip seti birinci sinif veri.
+ */
+model GeoPrompt {
+  id     String @id @default(cuid())
+  siteId String
+
+  text     String  @db.Text
+  /**
+   * informational | commercial | comparison | transactional | brand
+   */
+  intent   String  @default("informational")
+  locale   String  @default("tr")
+  /**
+   * manual = kullanici yazdi, brain = brain'den import, suggested = AI onerdi
+   */
+  source   String  @default("manual")
+  tags     Json? // ["pos", "kredi"]
+  isActive Boolean @default(true)
+
+  /**
+   * Son calistirmadan ozet — liste ekraninda N+1 sorgu yapmamak icin
+   */
+  lastRunAt      DateTime?
+  lastCitedCount Int       @default(0)
+  lastTotalCount Int       @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  site    Site             @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  runs    GeoPromptRun[]
+  fanouts GeoFanoutQuery[]
+
+  @@index([siteId, isActive])
+  @@map("geo_prompts")
+}
+
+/**
+ * Modelin bir ana prompt'u cevaplarken arka planda urettigi alt sorgu.
+ * Citation cogu zaman burada kazanilir/kaybedilir — kullanicinin yazdigi
+ * soruda degil, modelin "X guvenilir mi", "X vs Y" seklinde actigi dallarda.
+ */
+model GeoFanoutQuery {
+  id       String @id @default(cuid())
+  promptId String
+  siteId   String
+
+  text        String  @db.Text
+  /**
+   * reviews | trust | comparison | pricing | alternatives | howto | local | spec
+   */
+  kind        String  @default("reviews")
+  /**
+   * Modelin bu dali uretme olasiligi tahmini 0..100
+   */
+  likelihood  Int     @default(50)
+  /**
+   * Fan-out agacindaki sira (0 = ilk dal)
+   */
+  rank        Int     @default(0)
+  isActive    Boolean @default(true)
+  /**
+   * ai = LLM uretti, manual = kullanici ekledi
+   */
+  generatedBy String  @default("ai")
+
+  createdAt DateTime @default(now())
+
+  prompt GeoPrompt      @relation(fields: [promptId], references: [id], onDelete: Cascade)
+  runs   GeoPromptRun[]
+
+  @@index([siteId])
+  @@index([promptId, rank])
+  @@map("geo_fanout_queries")
+}
+
+/**
+ * Tek bir (prompt|fanout) x provider olcumu.
+ * AiCitationSnapshot gunluk toplami tutar; bu tablo soru bazinda detay tutar
+ * ki "hangi dalda kaybediyoruz" sorusu cevaplanabilsin.
+ */
+model GeoPromptRun {
+  id       String  @id @default(cuid())
+  siteId   String
+  promptId String
+  /**
+   * Dolu ise bu olcum fan-out dalina ait; null ise ana prompt
+   */
+  fanoutId String?
+
+  provider String
+  date     DateTime @db.Date
+
+  cited          Boolean @default(false)
+  brandMentioned Boolean @default(false)
+  /**
+   * Marka cevapta kacinci paragrafta gecti (1 = en ust)
+   */
+  position       Int?
+  /**
+   * positive | neutral | negative
+   */
+  sentiment      String?
+  excerpt        String? @db.Text
+  citedPages     Json?
+  competitors    Json?
+
+  createdAt DateTime @default(now())
+
+  prompt GeoPrompt       @relation(fields: [promptId], references: [id], onDelete: Cascade)
+  fanout GeoFanoutQuery? @relation(fields: [fanoutId], references: [id], onDelete: Cascade)
+
+  @@index([siteId, date])
+  @@index([promptId, date])
+  @@index([fanoutId, date])
+  @@map("geo_prompt_runs")
 }
