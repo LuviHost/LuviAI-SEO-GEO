@@ -546,6 +546,96 @@ export class AiCitationService {
     return this.aggregateProbes(probes, brand);
   }
 
+  /**
+   * IS MODELI FILTRESI — kesfedilen adaylardan GERCEK rakipleri secer.
+   *
+   * NEDEN: extractDomains cevapta gecen tum alan adlarini aday yapar, ama
+   * hepsi rakip degildir. Ornek: Kobipratik bir KREDI KARSILASTIRMA
+   * platformu; modele "en iyi karsilastirma sitesi" diye sorulunca cevapta
+   * BANKALAR (isbank, ziraat...) gecer. Bankalar Kobipratik'in karsilastirdigi
+   * SAGLAYICILARDIR, rakibi degil. Gercek rakip ayni isi yapan platformlardir
+   * (hangikredi, hesapkurdu, cimri...). Bunlar da kesfedilir ama mention
+   * sayisiyla siralaninca bankalarin altinda kalir. Bu filtre, markanin
+   * ne yaptigini bilerek adaylari "rakip mi / saglayici-kaynak mi" diye ayirir.
+   *
+   * Tek ucuz Haiku cagrisi. Anahtar yoksa veya hata olursa TUM adaylar
+   * korunur (filtreleme opsiyoneldir, akisi kirmaz).
+   *
+   * @returns korunacak domain'lerin Set'i (normalize edilmis, lowercase)
+   */
+  async classifyRealCompetitors(opts: {
+    brand: string;
+    host: string;
+    niche?: string;
+    customNiche?: string;
+    candidates: string[];
+  }): Promise<Set<string>> {
+    const candidates = Array.from(new Set(
+      (opts.candidates ?? []).map((c) => c.toLowerCase().trim()).filter(Boolean),
+    ));
+    if (candidates.length === 0) return new Set();
+
+    const key = process.env[POOL_ENV_KEY.anthropic];
+    // Anahtar yoksa filtreleme yapma — hepsini gecir (mevcut davranis, bozmaz)
+    if (!key) return new Set(candidates);
+
+    const nicheDesc = [opts.niche, opts.customNiche].filter(Boolean).join(' — ') || 'bilinmiyor';
+    const system = [
+      'Sen bir rekabet analistisin. Bir markanin GERCEK rakiplerini belirlersin.',
+      '',
+      'Kural — is modeli eslesmesi:',
+      '- Gercek rakip = marka ile AYNI TURDE hizmet veren site.',
+      '- Marka bir KARSILASTIRMA/ARACILIK platformuysa (fiyat/kredi/urun kiyaslama),',
+      '  onun karsilastirdigi SAGLAYICILAR (bankalar, magazalar, markalar) RAKIP DEGILDIR.',
+      '  Yalnizca diger karsilastirma/aracilik platformlari rakiptir.',
+      '- Resmi kurumlar, federasyonlar, devlet siteleri, haber/ansiklopedi/jenerik',
+      '  kaynak siteler RAKIP DEGILDIR.',
+      '',
+      'Ciktiyi SADECE JSON dizisi olarak ver, aciklama yazma:',
+      '["rakip1.com","rakip2.com"]',
+      'Emin olmadigin adayi DISARIDA birak. Hicbiri rakip degilse bos dizi: []',
+    ].join('\n');
+
+    const user = [
+      `Marka: ${opts.brand} (${opts.host})`,
+      `Ne yapiyor: ${nicheDesc}`,
+      '',
+      'AI cevaplarinda gecen siteler:',
+      candidates.map((c) => `- ${c}`).join('\n'),
+      '',
+      `Bunlardan yalnizca ${opts.brand} ile DOGRUDAN rakip olanlari sec.`,
+    ].join('\n');
+
+    try {
+      const client = new Anthropic({ apiKey: key });
+      const resp = await client.messages.create({
+        model: 'claude-haiku-4-5',
+        max_tokens: 500,
+        system,
+        messages: [{ role: 'user', content: user }],
+      });
+      const text = resp.content.filter((b: any) => b.type === 'text').map((b: any) => b.text).join('');
+      const start = text.indexOf('[');
+      const end = text.lastIndexOf(']');
+      if (start === -1 || end <= start) return new Set(candidates); // parse edemedik → hepsini koru
+      const parsed = JSON.parse(text.slice(start, end + 1));
+      if (!Array.isArray(parsed)) return new Set(candidates);
+
+      // Modelin dondurdugu adlari yalnizca ADAY listesiyle sinirla (uydurma eklemesin)
+      const candidateSet = new Set(candidates);
+      const keep = new Set<string>();
+      for (const item of parsed) {
+        if (typeof item !== 'string') continue;
+        const d = item.toLowerCase().trim().replace(/^www\./, '');
+        if (candidateSet.has(d)) keep.add(d);
+      }
+      return keep;
+    } catch (err: any) {
+      this.log.warn(`classifyRealCompetitors basarisiz, adaylar korunuyor: ${err.message}`);
+      return new Set(candidates);
+    }
+  }
+
   // ────────────────────────────────────────────────────────────
   //  PER-PROVIDER ROUTER
   // ────────────────────────────────────────────────────────────

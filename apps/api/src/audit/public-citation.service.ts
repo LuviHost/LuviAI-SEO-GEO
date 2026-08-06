@@ -276,6 +276,43 @@ export class PublicCitationService {
   }
 
   /** Main entry — controller'in cagirdigi fonksiyon. */
+  /**
+   * Kesfedilen share-of-voice listesini IS MODELI FILTRESINDEN gecirir.
+   * Marka her zaman korunur; adaylardan yalnizca gercek rakipler tutulur;
+   * yuzdeler kalan set uzerinden yeniden hesaplanir.
+   */
+  private async filterCompetitors(
+    shareOfVoice: Array<{ name: string; mentions: number; pct: number; isBrand?: boolean }>,
+    ctx: { brand: string; host: string; niche?: string; customNiche?: string },
+  ): Promise<Array<{ name: string; mentions: number; pct: number; isBrand?: boolean }>> {
+    if (!shareOfVoice.length) return [];
+
+    const brandRow = shareOfVoice.find((s) => s.isBrand);
+    const candidates = shareOfVoice.filter((s) => !s.isBrand);
+    if (candidates.length === 0) return shareOfVoice;
+
+    const keep = await this.ai.classifyRealCompetitors({
+      brand: ctx.brand,
+      host: ctx.host,
+      niche: ctx.niche,
+      customNiche: ctx.customNiche,
+      candidates: candidates.map((c) => c.name),
+    });
+
+    const realComps = candidates.filter((c) => keep.has(c.name.toLowerCase().replace(/^www\./, '')));
+
+    // Yuzdeleri yeniden hesapla: marka + gercek rakip mention'lari toplamiuzerinden
+    const total = (brandRow?.mentions ?? 0) + realComps.reduce((a, c) => a + c.mentions, 0);
+    const pct = (m: number) => (total > 0 ? Math.round((m / total) * 100) : 0);
+
+    const out: Array<{ name: string; mentions: number; pct: number; isBrand?: boolean }> = [];
+    if (brandRow) out.push({ ...brandRow, pct: pct(brandRow.mentions) });
+    for (const c of realComps.sort((a, b) => b.mentions - a.mentions)) {
+      out.push({ name: c.name, mentions: c.mentions, pct: pct(c.mentions) });
+    }
+    return out;
+  }
+
   async check(domain: string, ip: string, source: 'manual' | 'retest_cron' | 'signup_baseline' = 'manual'): Promise<PublicCheckResult> {
     const { url, host } = this.normalizeDomain(domain);
 
@@ -348,13 +385,23 @@ export class PublicCitationService {
     for (const pr of providerResults) allProbes.push(...pr.probes);
     const agg = this.ai.publicAggregate(allProbes, meta.brand);
 
+    // IS MODELI FILTRESI — bkz. ai-citation.classifyRealCompetitors.
+    // Kesfedilen adaylar arasindan SADECE gercek rakipleri (ayni is modeli)
+    // tut; saglayicilari/kaynaklari ele. Ornek: kredi karsilastirma platformu
+    // icin bankalar saglayicidir, rakip degil. Filtreleme sonrasi yuzdeler
+    // kalan set uzerinden yeniden hesaplanir.
+    const competitorRanking = await this.filterCompetitors(
+      agg.shareOfVoice ?? [],
+      { brand: meta.brand, host, niche: detection.niche, customNiche: detection.customNiche },
+    );
+
     const result: PublicCheckResult = {
       domain: host,
       brand: meta.brand,
       niche: detection.niche,
       customNiche: detection.customNiche,
       queries: perQuery,
-      competitorRanking: agg.shareOfVoice ?? [],
+      competitorRanking,
       totalLlmCalls: providerResults.filter((p) => p.available).length * queries.length,
       fromCache: false,
     };
