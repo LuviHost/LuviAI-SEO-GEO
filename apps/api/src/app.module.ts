@@ -2,8 +2,9 @@ import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { ScheduleModule } from '@nestjs/schedule';
-import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { ThrottlerModule } from '@nestjs/throttler';
 
+import { ProxyThrottlerGuard } from './common/proxy-throttler.guard.js';
 import { CrawlerTrackingMiddleware } from './audit/crawler-tracking.middleware.js';
 import { AuthModule } from './auth/auth.module.js';
 import { AuthGuard } from './auth/auth.guard.js';
@@ -82,7 +83,10 @@ import { TestimonialsModule } from './testimonials/testimonials.module.js';
   // calismasi gerekir ki kimliksiz flood, DB'ye giden auth sorgusuna ulasmadan
   // kesilsin.
   providers: [
-    { provide: APP_GUARD, useClass: ThrottlerGuard },
+    // ProxyThrottlerGuard: Cloudflare+nginx arkasinda gercek istemci IP'siyle
+    // rate limit uygular. Duz ThrottlerGuard req.ip=127.0.0.1 gorup tum
+    // kullanicilari tek bucket'a koyuyordu (oz-DoS). Bkz. guard dosyasi.
+    { provide: APP_GUARD, useClass: ProxyThrottlerGuard },
     { provide: APP_GUARD, useClass: AuthGuard },
     { provide: APP_GUARD, useClass: SiteAccessGuard },
   ],
