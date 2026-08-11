@@ -13,7 +13,10 @@
       "supportsTablet": true,
       "userInterfaceStyle": "dark",
       "bundleIdentifier": "ai.ranksup.app",
-      "usesAppleSignIn": true
+      "usesAppleSignIn": true,
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "userInterfaceStyle": "dark",
@@ -36,11 +39,20 @@
       "expo-apple-authentication",
       [
         "@react-native-google-signin/google-signin",
-        { "iosUrlScheme": "com.googleusercontent.apps.793565931127-g9t22o43safr517cd1auo0p98ne78m3o" }
+        {
+          "iosUrlScheme": "com.googleusercontent.apps.793565931127-g9t22o43safr517cd1auo0p98ne78m3o"
+        }
       ]
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "80f38c22-54c7-4d7c-8663-f246218d7340"
+      }
+    },
+    "owner": "emirnisanci"
   }
 }
