@@ -17,7 +17,13 @@ export const metadata = {
 export default async function SignInPage({ searchParams }: SignInPageProps) {
   const session = await auth();
   const params = await searchParams;
-  const callbackUrl = params.callbackUrl ?? '/dashboard';
+  // Open-redirect engeli: yalnızca uygulama-içi göreli yol ('/...') kabul; protocol-relative ('//')
+  // ve backslash kaçışları reddedilir, aksi halde /dashboard'a düşülür.
+  const rawCallback = params.callbackUrl ?? '/dashboard';
+  const callbackUrl =
+    rawCallback.startsWith('/') && !rawCallback.startsWith('//') && !rawCallback.startsWith('/\\')
+      ? rawCallback
+      : '/dashboard';
   const error = params.error;
 
   if (session?.user) redirect(callbackUrl);

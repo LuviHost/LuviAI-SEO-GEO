@@ -34,6 +34,7 @@
     "google-play-scraper": "^10.1.2",
     "googleapis": "^144.0.0",
     "ioredis": "^5.4.0",
+    "jose": "6.2.3",
     "jsonrepair": "^3.14.0",
     "nestjs-prisma": "^0.24.0",
     "next-auth": "5.0.0-beta.31",
