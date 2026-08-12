@@ -36,6 +36,9 @@ import { StudioModule } from './studio/studio.module.js';
 import { AsaModule } from './aso/asa/asa.module.js';
 import { AscModule } from './aso/asc/asc.module.js';
 import { TestimonialsModule } from './testimonials/testimonials.module.js';
+import { ActionPlansModule } from './action-plans/action-plans.module.js';
+import { McpModule } from './mcp/mcp.module.js';
+import { ChatModule } from './chat/chat.module.js';
 
 @Module({
   imports: [
@@ -73,6 +76,9 @@ import { TestimonialsModule } from './testimonials/testimonials.module.js';
     AsaModule,
     AscModule,
     TestimonialsModule,
+    ActionPlansModule,
+    McpModule,
+    ChatModule,
   ],
   // Guard SIRASI onemli — kayit sirasinda calisirlar.
   //

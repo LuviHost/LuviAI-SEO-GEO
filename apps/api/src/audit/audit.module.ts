@@ -45,9 +45,17 @@ import { PublicCitationSubscriberService } from './public-citation-subscriber.se
 import { PublicCitationRetestCron } from './public-citation-retest.cron.js';
 import { SitesModule } from '../sites/sites.module.js';
 import { AuthModule } from '../auth/auth.module.js';
+import { LLMModule } from '../llm/llm.module.js';
+import { NotificationsModule } from '../notifications/notifications.module.js';
+import { AgentReadinessService } from './agent-readiness.service.js';
+import { ContentOpportunityService } from './content-opportunity.service.js';
+import { AiKpisService } from './ai-kpis.service.js';
+import { ProductRadarService } from './product-radar.service.js';
+import { CommunityAgentService } from './community-agent.service.js';
+import { LiveCrawlerService } from './live-crawler.service.js';
 
 @Module({
-  imports: [SitesModule, EmailModule, AuthModule],
+  imports: [SitesModule, EmailModule, AuthModule, LLMModule, NotificationsModule],
   controllers: [AuditController, TrackerController, PublicCitationController],
   providers: [
     AuditService,
@@ -90,6 +98,12 @@ import { AuthModule } from '../auth/auth.module.js';
     PublicCitationRetestCron,
     PromptLabService,
     FanoutService,
+    AgentReadinessService,
+    ContentOpportunityService,
+    AiKpisService,
+    ProductRadarService,
+    CommunityAgentService,
+    LiveCrawlerService,
   ],
   exports: [
     AuditService,
@@ -124,6 +138,12 @@ import { AuthModule } from '../auth/auth.module.js';
     StuckPagePerformanceCheckService,
     PromptLabService,
     FanoutService,
+    AgentReadinessService,
+    ContentOpportunityService,
+    AiKpisService,
+    ProductRadarService,
+    CommunityAgentService,
+    LiveCrawlerService,
   ],
 })
 export class AuditModule {}

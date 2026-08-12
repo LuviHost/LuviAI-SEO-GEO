@@ -6,6 +6,7 @@ import { GaService } from './ga.service.js';
 import { ReportsService } from './reports.service.js';
 import { LandingAnalyticsController } from './landing-analytics.controller.js';
 import { LandingAnalyticsService } from './landing-analytics.service.js';
+import { LookerController } from './looker.controller.js';
 import { AuthModule } from '../auth/auth.module.js';
 import { PrismaModule } from '../prisma/prisma.module.js';
 
@@ -17,7 +18,7 @@ import { PrismaModule } from '../prisma/prisma.module.js';
  */
 @Module({
   imports: [AuthModule, PrismaModule],
-  controllers: [AnalyticsController, LandingAnalyticsController],
+  controllers: [AnalyticsController, LandingAnalyticsController, LookerController],
   providers: [AnalyticsService, AnalyticsCron, GaService, ReportsService, LandingAnalyticsService],
   exports: [AnalyticsService, GaService, ReportsService, LandingAnalyticsService],
 })

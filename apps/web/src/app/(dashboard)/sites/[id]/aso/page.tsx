@@ -220,6 +220,9 @@ export default function AsoPage() {
                   <Button size="sm" variant="outline" className="h-8 px-2 text-xs" onClick={() => router.push(`/sites/${site.id}/aso/${app.id}/screenshots`)} title="Screenshot Studio">
                     <ImageIcon className="h-3 w-3 mr-1" />Studio
                   </Button>
+                  <Button size="sm" variant="outline" className="h-8 px-2 text-xs" onClick={() => router.push(`/sites/${site.id}/aso/${app.id}/ai-visibility`)} title="AI Görünürlük — ChatGPT/Gemini app'ini öneriyor mu?">
+                    <Sparkles className="h-3 w-3 mr-1" />AI
+                  </Button>
                   <Button size="sm" variant="outline" className="h-8 px-2 text-rose-600 hover:bg-rose-500/10" onClick={() => removeApp(app.id)}>
                     <Trash2 className="h-3 w-3" />
                   </Button>

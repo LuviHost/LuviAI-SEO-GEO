@@ -7,6 +7,7 @@ export type NotifyEvent =
   | 'ai_citation_rise'
   | 'crawler_first_visit'   // GPTBot/ClaudeBot ilk kez geldi
   | 'ai_referrer_first'     // ChatGPT/Perplexity'den ilk tıklama
+  | 'cite_fetch'            // ChatGPT-User canli sayfa cekti — cevapta kullanildin
   | 'autopilot_summary'
   | 'stuck_page_detected'
   | 'stuck_page_recovered';

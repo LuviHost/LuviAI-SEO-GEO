@@ -1,8 +1,8 @@
-import { Controller, Get, Header, Param, Query, Req, Res } from '@nestjs/common';
-import type { Request, Response } from 'express';
-import { CrawlerTrackingMiddleware } from './crawler-tracking.middleware.js';
+import { Body, Controller, Get, Header, Post, Query, Res } from '@nestjs/common';
+import type { Response } from 'express';
 import { AiReferrerService } from './ai-referrer.service.js';
 import { PersonaChatService } from './persona-chat.service.js';
+import { LiveCrawlerService, type IngestEvent } from './live-crawler.service.js';
 import { Public } from '../auth/public.decorator.js';
 import { SkipThrottle } from '@nestjs/throttler';
 
@@ -33,7 +33,20 @@ export class TrackerController {
   constructor(
     private readonly aiReferrer: AiReferrerService,
     private readonly personaChat: PersonaChatService,
+    private readonly liveCrawler: LiveCrawlerService,
   ) {}
+
+  /**
+   * POST /api/tracker/events — Live Crawler ingest (edge kaynaklari).
+   * Cloudflare Worker / WordPress eklentisi / nginx ajani batch event yollar.
+   * Public + throttle disi: bot trafigi dogasi geregi ani yigilir; koruma
+   * LiveCrawlerService icinde (bilinmeyen UA at, batch 500, gunluk tavan).
+   */
+  @Public()
+  @Post('tracker/events')
+  async ingestEvents(@Body() body: { site?: string; source?: string; events?: IngestEvent[] }) {
+    return this.liveCrawler.ingest(String(body?.site ?? ''), body?.events ?? [], body?.source);
+  }
 
   @Public()
   @Get('widget.js')

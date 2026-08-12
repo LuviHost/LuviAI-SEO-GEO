@@ -15,6 +15,7 @@ import { TiktokPublisherService } from './tiktok-publisher.service.js';
 import { InstagramPublisherService } from './instagram-publisher.service.js';
 import { TranslatorService } from './translator.service.js';
 import { LinkValidatorService } from './link-validator.service.js';
+import { QaGateService } from './qa-gate.service.js';
 import { SocialModule } from '../social/social.module.js';
 import { LLMModule } from '../llm/llm.module.js';
 import { AuditModule } from '../audit/audit.module.js';
@@ -48,6 +49,7 @@ import { SitesModule } from '../sites/sites.module.js';
     InstagramPublisherService,
     TranslatorService,
     LinkValidatorService,
+    QaGateService,
   ],
   exports: [
     ArticlesService,
@@ -65,6 +67,7 @@ import { SitesModule } from '../sites/sites.module.js';
     InstagramPublisherService,
     TranslatorService,
     LinkValidatorService,
+    QaGateService,
   ],
 })
 export class ArticlesModule {}

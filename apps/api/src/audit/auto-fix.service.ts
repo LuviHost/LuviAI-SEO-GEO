@@ -133,6 +133,22 @@ export class AutoFixService {
           ?? `${site.name} — ${site.niche ?? 'web sitesi'}`;
         return this.generators.generateLlmsTxt(crawl, site.name, description);
       }
+      // Agent Readiness (AXO) fix'leri
+      case 'agent_json': {
+        const description = site.brain?.brandVoice?.tagline
+          ?? `${site.name} — ${site.niche ?? 'web sitesi'}`;
+        const pillars = Array.isArray(site.brain?.seoStrategy?.pillars)
+          ? site.brain.seoStrategy.pillars.map((p: any) => ({ name: p?.name ?? p?.pillar, url: p?.url }))
+          : [];
+        return this.generators.generateAgentJson({
+          siteUrl: site.url,
+          brandName: site.name,
+          description,
+          pillars,
+        });
+      }
+      case 'auth_md':
+        return this.generators.generateAuthMd({ siteUrl: site.url, brandName: site.name });
       default:
         this.log.warn(`Bilinmeyen fix: ${fix}`);
         return null;
@@ -147,6 +163,10 @@ export class AutoFixService {
       robots_txt: 'robots.txt',
       llms: 'llms.txt',
       llms_txt: 'llms.txt',
+      // AXO kok dosyalari — .well-known dizini adapter'da yoksa hata gorunur
+      // sekilde kullaniciya doner (sessiz yutulmaz).
+      agent_json: '.well-known/agent.json',
+      auth_md: 'auth.md',
     };
     return map[fix] ?? `${fix}.txt`;
   }
@@ -162,7 +182,11 @@ export class AutoFixService {
     // Kök dosya yazımı — slug.html DEĞİL, dosya adı birebir web root'a.
     const contentType = filename.endsWith('.xml')
       ? 'application/xml; charset=utf-8'
-      : 'text/plain; charset=utf-8';
+      : filename.endsWith('.json')
+        ? 'application/json; charset=utf-8'
+        : filename.endsWith('.md')
+          ? 'text/markdown; charset=utf-8'
+          : 'text/plain; charset=utf-8';
     return adapter.putRootFile(filename, content, contentType);
   }
 

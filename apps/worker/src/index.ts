@@ -161,8 +161,8 @@ async function bootstrap() {
       }
     },
 
-    PUBLISH_ARTICLE: async ({ articleId, targetIds }) => {
-      return services.publisher.publishArticle(articleId, targetIds ?? []);
+    PUBLISH_ARTICLE: async ({ articleId, targetIds, overrideQa }) => {
+      return services.publisher.publishArticle(articleId, targetIds ?? [], { overrideQa: !!overrideQa });
     },
 
     /**

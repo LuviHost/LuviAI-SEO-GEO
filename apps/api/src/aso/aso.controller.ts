@@ -11,6 +11,8 @@ import { AsoAbTestPlannerService } from './aso-ab-test-planner.service.js';
 import { AsoLaunchChecklistService } from './aso-launch-checklist.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AppStore, KeywordSource } from '@prisma/client';
+import { AsoPromptLabService } from './aso-prompt-lab.service.js';
+import { AsoReviewContentService } from './aso-review-content.service.js';
 
 @Controller('sites/:siteId/aso')
 export class AsoController {
@@ -26,7 +28,74 @@ export class AsoController {
     private readonly localization: AsoLocalizationHelperService,
     private readonly abTest: AsoAbTestPlannerService,
     private readonly launchChecklist: AsoLaunchChecklistService,
+    private readonly appPromptLab: AsoPromptLabService,
+    private readonly reviewContent: AsoReviewContentService,
   ) {}
+
+  // ─── App Prompt Lab — AI asistanlarda app onerisi takibi (GEO ⨉ ASO) ───
+
+  /** GET /sites/:siteId/aso/apps/:appId/prompts */
+  @Get('apps/:appId/prompts')
+  listAppPrompts(@Param('siteId') siteId: string, @Param('appId') appId: string) {
+    return this.appPromptLab.list(siteId, appId);
+  }
+
+  /** POST /sites/:siteId/aso/apps/:appId/prompts */
+  @Post('apps/:appId/prompts')
+  addAppPrompt(
+    @Param('siteId') siteId: string,
+    @Param('appId') appId: string,
+    @Body() body: { text: string },
+  ) {
+    return this.appPromptLab.add(siteId, appId, body?.text ?? '');
+  }
+
+  /** POST /sites/:siteId/aso/apps/:appId/prompts/suggest — AI soru onerileri */
+  @Post('apps/:appId/prompts/suggest')
+  suggestAppPrompts(@Param('siteId') siteId: string, @Param('appId') appId: string) {
+    return this.appPromptLab.suggest(siteId, appId);
+  }
+
+  /** POST /sites/:siteId/aso/apps/:appId/prompts/:promptId/run — 7 saglayicida olc */
+  @Post('apps/:appId/prompts/:promptId/run')
+  runAppPrompt(
+    @Param('siteId') siteId: string,
+    @Param('appId') appId: string,
+    @Param('promptId') promptId: string,
+  ) {
+    return this.appPromptLab.run(siteId, appId, promptId);
+  }
+
+  /** GET /sites/:siteId/aso/apps/:appId/prompts/:promptId/history */
+  @Get('apps/:appId/prompts/:promptId/history')
+  appPromptHistory(
+    @Param('siteId') siteId: string,
+    @Param('appId') appId: string,
+    @Param('promptId') promptId: string,
+    @Query('days') days?: string,
+  ) {
+    return this.appPromptLab.history(siteId, appId, promptId, parseInt(days ?? '30', 10) || 30);
+  }
+
+  /** DELETE /sites/:siteId/aso/apps/:appId/prompts/:promptId */
+  @Delete('apps/:appId/prompts/:promptId')
+  removeAppPrompt(
+    @Param('siteId') siteId: string,
+    @Param('appId') appId: string,
+    @Param('promptId') promptId: string,
+  ) {
+    return this.appPromptLab.remove(siteId, appId, promptId);
+  }
+
+  // ─── Review → Icerik Dongusu ────────────────────────────────
+
+  /** POST /sites/:siteId/aso/apps/:appId/review-content-pack
+   *  Olumsuz yorum temalarindan What's New + FAQ + blog konusu uretir;
+   *  blog konulari ContentOpportunity'ye (source=reviews) yazilir. */
+  @Post('apps/:appId/review-content-pack')
+  reviewContentPack(@Param('siteId') siteId: string, @Param('appId') appId: string) {
+    return this.reviewContent.buildPack(siteId, appId);
+  }
 
   // ─── Search ─────────────────────────────────
 

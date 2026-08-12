@@ -286,6 +286,16 @@ model Site {
   // Prompt Lab — takip edilen sorular ve fan-out dallari
   geoPrompts        GeoPrompt[]
 
+  // Maya-parity dalgasi (2026-08)
+  agentReadinessScans  AgentReadinessScan[]
+  actionPlanItems      ActionPlanItem[]
+  contentOpportunities ContentOpportunity[]
+  chatConversations    ChatConversation[]
+  productRadarSnapshots ProductRadarSnapshot[]
+  communityOpportunities CommunityOpportunity[]
+  // Live Crawler dalgasi (2026-08)
+  crawlerHitEvents     CrawlerHitEvent[]
+
   @@unique([userId, url])
   @@index([userId])
   @@index([status])
@@ -479,6 +489,12 @@ model Article {
   editorVerdict EditorVerdict?
   totalCost     Decimal?       @db.Decimal(10, 4) // USD
 
+  // QA Gate — yayin oncesi son kontrol (halüsinasyon/kaynaksiz iddia/placeholder)
+  // null = henuz kosulmadi. BLOCKED ise publisher yayini reddeder (override haric).
+  qaStatus    QaGateStatus?
+  qaReport    Json? // { blockers: [{type, detail, excerpt}], warnings: [...], stats: {...} }
+  qaCheckedAt DateTime?
+
   // Yayın
   status                  ArticleStatus @default(DRAFT)
   scheduledAt             DateTime? // Planlanan üretim/yayın zamanı
@@ -499,12 +515,19 @@ model Article {
   socialPosts SocialPost[]
   videos      Video[]
   stuckPages  StuckPage[]
+  contentOpportunities ContentOpportunity[]
 
   @@unique([siteId, slug])
   @@index([siteId, status])
   @@index([siteId, scheduledAt])
   @@index([publishedAt])
   @@map("articles")
+}
+
+enum QaGateStatus {
+  PASS
+  WARN
+  BLOCKED
 }
 
 enum ArticleStatus {
@@ -1356,8 +1379,10 @@ model TrackedApp {
   isActive Boolean @default(true)
 
   // Relations
-  keywords TrackedAppKeyword[]
-  reviews  AppReview[]
+  keywords   TrackedAppKeyword[]
+  reviews    AppReview[]
+  // App Prompt Lab — AI asistanlarda app onerisi takibi
+  geoPrompts GeoPrompt[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -2037,6 +2062,12 @@ model GeoPrompt {
   id     String @id @default(cuid())
   siteId String
 
+  /**
+   * Dolu ise bu prompt bir mobil uygulamayi izler (App Prompt Lab) — probe'da
+   * marka yerine app adi + store linki aranir. null = klasik site prompt'u.
+   */
+  trackedAppId String?
+
   text     String  @db.Text
   /**
    * informational | commercial | comparison | transactional | brand
@@ -2060,11 +2091,13 @@ model GeoPrompt {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  site    Site             @relation(fields: [siteId], references: [id], onDelete: Cascade)
-  runs    GeoPromptRun[]
-  fanouts GeoFanoutQuery[]
+  site       Site             @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  trackedApp TrackedApp?      @relation(fields: [trackedAppId], references: [id], onDelete: Cascade)
+  runs       GeoPromptRun[]
+  fanouts    GeoFanoutQuery[]
 
   @@index([siteId, isActive])
+  @@index([trackedAppId])
   @@map("geo_prompts")
 }
 
@@ -2147,4 +2180,263 @@ model GeoPromptRun {
   @@index([promptId, date])
   @@index([fanoutId, date])
   @@map("geo_prompt_runs")
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  MAYA-PARITY DALGASI (2026-08)
+//  Agent Readiness (AXO) + Action Plans + Content Opportunities +
+//  In-app Chat + Product Radar + Community Agent
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Agent Readiness (AXO) taramasi — domain'in AI AJANLARINA hazirlik skoru.
+ * GEO Score Card "AI arama motorlarinda gorunurluk" olcerken bu tablo
+ * "AI ajanlari siteni okuyabiliyor/kullanabiliyor mu" sorusuna cevap verir.
+ * 4 seviye: quick-wins, groundwork, advanced, commerce.
+ */
+model AgentReadinessScan {
+  id     String @id @default(cuid())
+  siteId String
+
+  overallScore Int // 0-100
+  status       String // ready | mostly_ready | needs_work | not_ready
+
+  /**
+   * [{ id, title, score, maxScore, checks: [{ id, name, ok, impact,
+   *    statusText, howTo, agentPrompt, audit: [{ step, detail, ok }] }] }]
+   */
+  levels Json
+
+  // robots.txt AI stance ozeti — "10 allow / 4 block", "23/27 ajan girebilir"
+  robotsAiStance Json? // { allow, block, unspecified, bots: [{ name, stance }] }
+  agentsAllowed  Int?
+  agentsTotal    Int?
+
+  // "Next up to fix" chip'leri — en yuksek etkili eksikler
+  nextUpToFix Json? // [{ checkId, name }]
+
+  ranAt      DateTime @default(now())
+  durationMs Int?
+
+  site Site @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  @@index([siteId, ranAt])
+  @@map("agent_readiness_scans")
+}
+
+/**
+ * Action Plan — tum modullerden (audit, GEO, AXO, ASO, ads, citation, chat)
+ * "Aksiyon Planina Ekle" ile toplanan is listesi. Urunu rapordan is
+ * yonetimine cevirir (Maya Action Plans karsiligi).
+ */
+model ActionPlanItem {
+  id     String @id @default(cuid())
+  siteId String
+
+  title       String
+  description String? @db.Text
+
+  /** audit | geo | agent_readiness | citation | prompt_lab | aso | ads | qa | chat | product_radar | community | manual */
+  source    String  @default("manual")
+  /** Kaynak kaydin id'si (check id, prompt id, opportunity id...) */
+  sourceRef String?
+
+  impact String @default("medium") // high | medium | low
+  effort String @default("medium") // easy | medium | hard
+  status String @default("todo") // todo | in_progress | done | dismissed
+
+  dueAt  DateTime?
+  doneAt DateTime?
+  meta   Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  site Site @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  @@index([siteId, status])
+  @@index([siteId, source])
+  @@map("action_plan_items")
+}
+
+/**
+ * Content Opportunity — kapali dongunun kalbi.
+ * Prompt Lab'de KAYBEDILEN sorgu / review temasi / radar boslugu buraya
+ * "icerik firsati" olarak duser; makale uretilir; yayin sonrasi ayni prompt
+ * yeniden olculur ve delta buraya yazilir. (Maya Forge / Content Opportunity)
+ */
+model ContentOpportunity {
+  id     String @id @default(cuid())
+  siteId String
+
+  /** prompt = Prompt Lab kaybi, reviews = ASO review temasi, radar = product radar, manual */
+  source   String  @default("prompt")
+  promptId String? // GeoPrompt kaynagi (source=prompt ise)
+  fanoutId String?
+
+  title String @db.Text // onerilen icerik basligi
+  query String @db.Text // kaybedilen/tetikleyen sorgu
+
+  /** LOST = hic gorunmuyor, WEAK = kismi, MISSING = veri yok, WON = kazanildi */
+  coverage      String @default("LOST")
+  providersLost Json? // ["openai", "gemini"]
+  score         Int    @default(0) // onceliklendirme 0-100
+
+  /** OPEN | PLANNED | GENERATED | PUBLISHED | REMEASURED | DISMISSED */
+  status    String  @default("OPEN")
+  articleId String?
+
+  remeasuredAt    DateTime?
+  /** { before: { cited, total }, after: { cited, total }, wonProviders: [...] } */
+  remeasureResult Json?
+  meta            Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  site    Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  article Article? @relation(fields: [articleId], references: [id], onDelete: SetNull)
+
+  @@index([siteId, status])
+  @@index([siteId, coverage])
+  @@index([promptId])
+  @@map("content_opportunities")
+}
+
+/**
+ * In-app Chat — kullanicinin kendi verisi uzerinde konusan asistan.
+ * Tool-calling ile MCP tool registry'sini paylasir (tek kaynak).
+ */
+model ChatConversation {
+  id     String  @id @default(cuid())
+  siteId String
+  userId String
+  title  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  site     Site          @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  messages ChatMessage[]
+
+  @@index([siteId, updatedAt])
+  @@index([userId, updatedAt])
+  @@map("chat_conversations")
+}
+
+model ChatMessage {
+  id             String @id @default(cuid())
+  conversationId String
+
+  role    String // user | assistant
+  content String @db.LongText
+
+  /** Asistanin bu mesajda kullandigi tool cagrilari: [{ name, input, resultSummary }] */
+  toolCalls Json?
+  /** Mesaji tetikleyen skill preset'i (weekly-plan, visibility-report, ...) */
+  skill     String?
+  costUsd   Decimal? @db.Decimal(10, 4)
+
+  createdAt DateTime @default(now())
+
+  conversation ChatConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+  @@map("chat_messages")
+}
+
+/**
+ * Product Radar — AI asistanlar kullanicinin kategorisinde HANGI urunleri
+ * oneriyor? Marka listede mi, kacinci sirada? (Maya Product Radar karsiligi)
+ */
+model ProductRadarSnapshot {
+  id     String @id @default(cuid())
+  siteId String
+
+  date     DateTime @db.Date
+  provider String // anthropic | openai | gemini | perplexity | ...
+  category String // sorgunun kategorisi (site.niche tabanli)
+  query    String @db.Text
+
+  /** [{ name, url?, rank, isBrand }] — cevaptaki oneri listesi */
+  products    Json
+  brandListed Boolean @default(false)
+  brandRank   Int?
+
+  createdAt DateTime @default(now())
+
+  site Site @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  @@index([siteId, date])
+  @@index([siteId, provider, date])
+  @@map("product_radar_snapshots")
+}
+
+/**
+ * Community Opportunity — Reddit/Quora/HARO'da tespit edilen soru +
+ * AI taslak cevap + durum akisi. CommunityOutreachService'in kalici hali.
+ */
+model CommunityOpportunity {
+  id     String @id @default(cuid())
+  siteId String
+
+  platform  String  @default("reddit") // reddit | quora | haro | twitter
+  url       String  @db.Text
+  title     String  @db.Text
+  subreddit String?
+  snippet   String? @db.Text
+
+  relevance  Int     @default(50) // brandFitScore 0-100
+  draftReply String? @db.Text
+
+  /** NEW | DRAFTED | APPROVED | POSTED | IGNORED */
+  status   String    @default("NEW")
+  postedAt DateTime?
+  meta     Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  site Site @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  @@index([siteId, status])
+  @@index([siteId, createdAt])
+  @@map("community_opportunities")
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  LIVE CRAWLER EVENTS (2026-08) — istek bazli ham AI bot ziyareti
+//
+//  AiCrawlerHit GUNLUK toplam tutar (grafik/KPI); bu tablo HAM satir
+//  tutar ("1sn once GPTBot /blog/x'i cekti"). Kaynak: Cloudflare Worker,
+//  WordPress eklentisi veya nginx log ajani → POST /api/tracker/events.
+//  Retention: 60 gun (purge cron) — canli akis + kisa vadeli adli analiz.
+// ═══════════════════════════════════════════════════════════════
+
+model CrawlerHitEvent {
+  id     String @id @default(cuid())
+  siteId String
+
+  ts     DateTime @default(now())
+  bot    String // GPTBot | ChatGPT-User | ClaudeBot | ...
+  path   String   @db.VarChar(1000)
+  status Int      @default(200)
+
+  /**
+   * true = on-demand fetcher (ChatGPT-User, OAI-SearchBot, Perplexity-User,
+   * Claude-Web/Claude-User): gercek bir kullanicinin AI sohbeti sirasinda
+   * sayfa CANLI cekildi — "su anda bir cevabin icinde kullanildin" sinyali.
+   */
+  isCiteFetch Boolean @default(false)
+
+  /** worker (Cloudflare) | wp (WordPress eklentisi) | log (nginx ajani) | beacon */
+  source String @default("worker")
+  meta   Json?
+
+  site Site @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  @@index([siteId, ts])
+  @@index([siteId, isCiteFetch, ts])
+  @@index([ts])
+  @@map("crawler_hit_events")
 }

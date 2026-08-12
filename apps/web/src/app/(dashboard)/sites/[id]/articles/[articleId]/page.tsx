@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { marked } from 'marked';
+import DOMPurify from 'dompurify';
 import { toast } from 'sonner';
 import { ArrowLeft, Download, Send, ExternalLink, Calendar, Clock, FileText, ImageIcon, Wrench } from 'lucide-react';
 import { api } from '@/lib/api';
@@ -46,7 +47,9 @@ function renderMarkdownToHtml(md: string): string {
   if (!md) return '';
   // Frontmatter blogunu (varsa) at — render etme
   const stripped = md.replace(/^---\n[\s\S]+?\n---\n+/, '');
-  return marked.parse(stripped, { async: false }) as string;
+  // marked raw HTML'i sanitize ETMEZ; icerik pipeline uretimi olsa da
+  // ayni sink kalibinin tamaminda DOMPurify uygulanir (XSS savunmasi).
+  return DOMPurify.sanitize(marked.parse(stripped, { async: false }) as string);
 }
 
 const STATUS_VARIANT: Record<string, any> = {
@@ -78,6 +81,7 @@ export default function ArticleDetailPage() {
   const [publishing, setPublishing] = useState(false);
   const [selectedTargets, setSelectedTargets] = useState<Set<string>>(new Set());
   const [stuckPage, setStuckPage] = useState<any | null>(null);
+  const [qaRunning, setQaRunning] = useState(false);
 
   const refresh = async () => {
     try {
@@ -109,8 +113,9 @@ export default function ArticleDetailPage() {
   }, [siteId, articleId]);
 
   // Pipeline DB'ye bodyHtml/faqs yazmıyor — markdown'dan client-side türet.
+  // Her iki yol da sanitize edilir: bodyHtml DB'den gelse de sink tek standarttan geçer.
   const renderedHtml = useMemo<string>(() => {
-    if (article?.bodyHtml) return article.bodyHtml as string;
+    if (article?.bodyHtml) return DOMPurify.sanitize(article.bodyHtml as string);
     if (article?.bodyMd) return renderMarkdownToHtml(article.bodyMd as string);
     return '';
   }, [article?.bodyHtml, article?.bodyMd]);
@@ -260,15 +265,20 @@ ${body}
     });
   };
 
-  const publish = async () => {
+  const publish = async (overrideQa = false) => {
     if (selectedTargets.size === 0) {
       toast.error('En az bir yayın hedefi seç');
       return;
     }
+    // QA Gate on kontrolu: BLOCKED ise once kullaniciya blocker'lari goster
+    if (!overrideQa && article?.qaStatus === 'BLOCKED') {
+      toast.error('QA gate yayını engelledi — aşağıdaki QA raporuna bak veya "Yine de Yayınla" kullan');
+      return;
+    }
     setPublishing(true);
     try {
-      await api.publishArticle(siteId, articleId, Array.from(selectedTargets));
-      toast.success('Yayın işi kuyruğa alındı, birkaç saniyede tamamlanacak');
+      await api.publishArticle(siteId, articleId, Array.from(selectedTargets), overrideQa);
+      toast.success(overrideQa ? 'QA override ile yayın kuyruğa alındı' : 'Yayın işi kuyruğa alındı, birkaç saniyede tamamlanacak');
       // 25 saniye sonra refresh — publishedTo dolacak
       setTimeout(() => {
         refresh();
@@ -277,6 +287,23 @@ ${body}
     } catch (err: any) {
       toast.error(err.message);
       setPublishing(false);
+    }
+  };
+
+  const runQaCheck = async () => {
+    setQaRunning(true);
+    try {
+      const res = await api.runArticleQaCheck(siteId, articleId);
+      toast.success(
+        res.status === 'PASS' ? 'QA temiz — yayına engel yok'
+        : res.status === 'WARN' ? `QA: ${res.warnings.length} uyarı (yayın serbest)`
+        : `QA: ${res.blockers.length} blocker — yayın engellendi`,
+      );
+      await refresh();
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setQaRunning(false);
     }
   };
 
@@ -355,6 +382,72 @@ ${body}
         />
       )}
 
+      {/* QA Gate — yayin oncesi son kontrol raporu */}
+      {(() => {
+        const qaReport: any = article.qaReport ?? null;
+        const blockers: any[] = Array.isArray(qaReport?.blockers) ? qaReport.blockers : [];
+        const warnings: any[] = Array.isArray(qaReport?.warnings) ? qaReport.warnings : [];
+        const qaStatus: string | null = article.qaStatus ?? null;
+        if (!qaStatus && article.status !== 'READY_TO_PUBLISH' && article.status !== 'PUBLISHED') return null;
+        return (
+          <Card className={
+            qaStatus === 'BLOCKED' ? 'border-red-500/40 bg-red-500/5'
+            : qaStatus === 'WARN' ? 'border-amber-500/40 bg-amber-500/5'
+            : qaStatus === 'PASS' ? 'border-emerald-500/30'
+            : ''
+          }>
+            <CardContent className="p-4 space-y-2.5">
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-semibold">
+                    {qaStatus === 'BLOCKED' && '⛔ Yayın engellendi — makalede çözülmemiş sorunlar var'}
+                    {qaStatus === 'WARN' && '⚠️ QA uyarıları — yayın serbest, gözden geçirmen önerilir'}
+                    {qaStatus === 'PASS' && '✅ QA temiz — uydurma atıf / kaynaksız iddia / placeholder yok'}
+                    {!qaStatus && 'QA kontrolü henüz koşulmadı'}
+                  </span>
+                  {qaReport?.checkedAt && (
+                    <span className="text-[10px] text-muted-foreground">
+                      {new Date(qaReport.checkedAt).toLocaleString('tr-TR')}
+                    </span>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <Button size="sm" variant="outline" onClick={runQaCheck} disabled={qaRunning}>
+                    {qaRunning ? 'Kontrol ediliyor…' : qaStatus ? 'Yeniden Kontrol Et' : 'QA Kontrolü Koş'}
+                  </Button>
+                  {qaStatus === 'BLOCKED' && (
+                    <Button size="sm" variant="outline" className="border-red-500/40 text-red-600"
+                      onClick={() => publish(true)} disabled={publishing || selectedTargets.size === 0}>
+                      Yine de Yayınla
+                    </Button>
+                  )}
+                </div>
+              </div>
+              {blockers.length > 0 && (
+                <ul className="space-y-1">
+                  {blockers.map((b: any, i: number) => (
+                    <li key={i} className="text-xs">
+                      <span className="font-semibold text-red-600">[BLOCKER]</span> {b.detail}
+                      {b.excerpt && <span className="text-muted-foreground font-mono"> — "{b.excerpt}"</span>}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {warnings.length > 0 && (
+                <ul className="space-y-1">
+                  {warnings.map((w: any, i: number) => (
+                    <li key={i} className="text-xs">
+                      <span className="font-semibold text-amber-600">[UYARI]</span> {w.detail}
+                      {w.excerpt && <span className="text-muted-foreground font-mono"> — "{w.excerpt}"</span>}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
+        );
+      })()}
+
       {/* ENH#6 — Stuck page banner: bu makale Google'da #4-15 araliginda kaldi */}
       {stuckPage && (
         <Card className="border-amber-500/40 bg-amber-500/5">
@@ -404,7 +497,7 @@ ${body}
                   <Link href={`/sites/${siteId}?tab=settings` as any}>+ Yayın Hedefi Ekle</Link>
                 </Button>
               ) : (
-                <Button onClick={publish} disabled={publishing || selectedTargets.size === 0}>
+                <Button onClick={() => publish()} disabled={publishing || selectedTargets.size === 0}>
                   <Send className="h-4 w-4 mr-2" />
                   {publishing ? 'Yayınlanıyor…' : 'Yayınla'}
                 </Button>

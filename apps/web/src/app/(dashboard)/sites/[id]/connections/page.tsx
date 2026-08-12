@@ -2,6 +2,7 @@
 import { useSiteContext } from '../site-context';
 import { SettingsTab } from '@/components/settings-tab';
 import { TrackerInstall } from '@/components/tracker-install';
+import { McpSetupCard } from '@/components/mcp-setup-card';
 import { Plug } from 'lucide-react';
 
 export default function ConnectionsPage() {
@@ -17,6 +18,7 @@ export default function ConnectionsPage() {
           <p className="text-sm text-muted-foreground">Google Search Console, Analytics, AI crawler tracker, sosyal kanallar, BYOK API anahtarları.</p>
         </div>
       </div>
+      <McpSetupCard />
       <TrackerInstall siteId={site.id} siteUrl={site.url} />
       <SettingsTab siteId={site.id} onRefresh={refresh} />
     </div>

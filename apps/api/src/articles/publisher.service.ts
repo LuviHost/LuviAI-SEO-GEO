@@ -11,6 +11,7 @@ import { LlmsFullBuilderService } from '../audit/llms-full-builder.service.js';
 import { LinkValidatorService } from './link-validator.service.js';
 import { SiteUrlInventoryService } from '../sites/site-url-inventory.service.js';
 import { resolveArticleUrl } from './article-url.util.js';
+import { QaGateService } from './qa-gate.service.js';
 
 /**
  * Markdown body'yi CMS gövdesine girecek HTML PARÇASI haline getirir.
@@ -232,9 +233,10 @@ export class PublisherService {
     private readonly llmsFullBuilder: LlmsFullBuilderService,
     private readonly linkValidator: LinkValidatorService,
     private readonly urlInventory: SiteUrlInventoryService,
+    private readonly qaGate: QaGateService,
   ) {}
 
-  async publishArticle(articleId: string, targetIds: string[]): Promise<PublishResult[]> {
+  async publishArticle(articleId: string, targetIds: string[], opts: { overrideQa?: boolean } = {}): Promise<PublishResult[]> {
     const article = await this.prisma.article.findUniqueOrThrow({
       where: { id: articleId },
       include: {
@@ -247,6 +249,30 @@ export class PublisherService {
         },
       },
     });
+
+    // ── QA Gate — BLOCKED makale yayinlanmaz (kullanici bilerek override
+    // edebilir; override da audit izine yazilir). qaStatus hic kosulmadiysa
+    // yayin aninda kos: pipeline hook'u kacirmis eski makaleler de kapsansin.
+    if (!opts.overrideQa) {
+      let qaStatus = (article as any).qaStatus as string | null;
+      if (!qaStatus) {
+        try {
+          const res = await this.qaGate.check(articleId);
+          qaStatus = res.status;
+        } catch (err: any) {
+          this.log.warn(`[${articleId}] Yayin oncesi QA kosulamadi (yayina devam): ${err.message}`);
+        }
+      }
+      if (qaStatus === 'BLOCKED') {
+        const report: any = (article as any).qaReport
+          ?? (await this.prisma.article.findUnique({ where: { id: articleId }, select: { qaReport: true } as any }) as any)?.qaReport;
+        const blockers: any[] = Array.isArray(report?.blockers) ? report.blockers : [];
+        const summary = blockers.slice(0, 3).map((b) => b.detail).join(' | ') || 'QA blocker mevcut';
+        throw new Error(`QA_BLOCKED: Yayin engellendi — ${summary}. Sorunlari duzelt veya "yine de yayinla" ile override et.`);
+      }
+    } else {
+      this.log.warn(`[${articleId}] QA gate OVERRIDE ile atlandi (kullanici karari)`);
+    }
 
     if (article.site.publishTargets.length === 0) {
       this.log.warn(`[${articleId}] Hiç publish target yok`);

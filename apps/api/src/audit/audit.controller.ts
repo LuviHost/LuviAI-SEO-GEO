@@ -33,6 +33,12 @@ import { StuckPageExternalRecoveryService } from './stuck-page-external-recovery
 import { PromptLabService } from './prompt-lab.service.js';
 import { FanoutService, type FanoutKind } from './fanout.service.js';
 import type { Provider } from './ai-citation.service.js';
+import { AgentReadinessService } from './agent-readiness.service.js';
+import { ContentOpportunityService } from './content-opportunity.service.js';
+import { AiKpisService } from './ai-kpis.service.js';
+import { ProductRadarService } from './product-radar.service.js';
+import { CommunityAgentService } from './community-agent.service.js';
+import { LiveCrawlerService } from './live-crawler.service.js';
 
 @Controller('sites/:siteId/audit')
 export class AuditController {
@@ -68,7 +74,151 @@ export class AuditController {
     private readonly stuckExternalRecovery: StuckPageExternalRecoveryService,
     private readonly promptLab: PromptLabService,
     private readonly fanout: FanoutService,
+    private readonly agentReadiness: AgentReadinessService,
+    private readonly opportunities: ContentOpportunityService,
+    private readonly kpis: AiKpisService,
+    private readonly productRadar: ProductRadarService,
+    private readonly communityAgent: CommunityAgentService,
+    private readonly liveCrawler: LiveCrawlerService,
   ) {}
+
+  // ────────────────────────────────────────────────────────────
+  //  LIVE CRAWLER — canli AI bot akisi
+  // ────────────────────────────────────────────────────────────
+
+  /** GET /sites/:siteId/audit/live-crawler?minutes=10&limit=50 */
+  @Get('live-crawler')
+  liveCrawlerRecent(
+    @Param('siteId') siteId: string,
+    @Query('minutes') minutes?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.liveCrawler.recent(siteId, {
+      minutes: parseInt(minutes ?? '10', 10) || 10,
+      limit: parseInt(limit ?? '50', 10) || 50,
+    });
+  }
+
+  /** GET /sites/:siteId/audit/live-crawler/snippets — Worker/WP/nginx kurulum kodlari */
+  @Get('live-crawler/snippets')
+  liveCrawlerSnippets(@Param('siteId') siteId: string) {
+    return this.liveCrawler.snippets(siteId);
+  }
+
+  // ────────────────────────────────────────────────────────────
+  //  AGENT READINESS (AXO)
+  // ────────────────────────────────────────────────────────────
+
+  /** GET /sites/:siteId/audit/agent-readiness/latest */
+  @Get('agent-readiness/latest')
+  agentReadinessLatest(@Param('siteId') siteId: string) {
+    return this.agentReadiness.getLatest(siteId);
+  }
+
+  /** POST /sites/:siteId/audit/agent-readiness/run */
+  @Post('agent-readiness/run')
+  agentReadinessRun(@Param('siteId') siteId: string) {
+    return this.agentReadiness.scan(siteId);
+  }
+
+  /** GET /sites/:siteId/audit/agent-readiness/history?days=90 */
+  @Get('agent-readiness/history')
+  agentReadinessHistory(@Param('siteId') siteId: string, @Query('days') days?: string) {
+    return this.agentReadiness.history(siteId, parseInt(days ?? '90', 10) || 90);
+  }
+
+  // ────────────────────────────────────────────────────────────
+  //  CONTENT OPPORTUNITIES (kapali dongu)
+  // ────────────────────────────────────────────────────────────
+
+  /** GET /sites/:siteId/audit/opportunities */
+  @Get('opportunities')
+  async listOpportunities(
+    @Param('siteId') siteId: string,
+    @Query('status') status?: string,
+    @Query('coverage') coverage?: string,
+  ) {
+    await this.opportunities.reconcile(siteId);
+    return this.opportunities.list(siteId, { status, coverage });
+  }
+
+  /** POST /sites/:siteId/audit/opportunities/derive — prompt kayiplarindan firsat cikar */
+  @Post('opportunities/derive')
+  deriveOpportunities(@Param('siteId') siteId: string) {
+    return this.opportunities.derive(siteId);
+  }
+
+  /** PATCH /sites/:siteId/audit/opportunities/:id — durum degistir (OPEN/PLANNED/DISMISSED) */
+  @Patch('opportunities/:id')
+  updateOpportunity(
+    @Param('siteId') siteId: string,
+    @Param('id') id: string,
+    @Body() body: { status: string },
+  ) {
+    return this.opportunities.updateStatus(siteId, id, body.status);
+  }
+
+  /** POST /sites/:siteId/audit/opportunities/:id/generate — firsattan makale uret */
+  @Post('opportunities/:id/generate')
+  generateFromOpportunity(@Param('siteId') siteId: string, @Param('id') id: string) {
+    return this.opportunities.generateArticle(siteId, id);
+  }
+
+  /** POST /sites/:siteId/audit/opportunities/:id/remeasure — yayin sonrasi yeniden olc */
+  @Post('opportunities/:id/remeasure')
+  remeasureOpportunity(@Param('siteId') siteId: string, @Param('id') id: string) {
+    return this.opportunities.remeasure(siteId, id);
+  }
+
+  // ────────────────────────────────────────────────────────────
+  //  AI KPI SERIDI + PRODUCT RADAR + COMMUNITY AGENT
+  // ────────────────────────────────────────────────────────────
+
+  /** GET /sites/:siteId/audit/ai-kpis — overview KPI seridi */
+  @Get('ai-kpis')
+  aiKpis(@Param('siteId') siteId: string) {
+    return this.kpis.getKpis(siteId);
+  }
+
+  /** GET /sites/:siteId/audit/product-radar */
+  @Get('product-radar')
+  productRadarLatest(@Param('siteId') siteId: string) {
+    return this.productRadar.latest(siteId);
+  }
+
+  /** POST /sites/:siteId/audit/product-radar/run */
+  @Post('product-radar/run')
+  productRadarRun(@Param('siteId') siteId: string) {
+    return this.productRadar.run(siteId);
+  }
+
+  /** GET /sites/:siteId/audit/community */
+  @Get('community')
+  communityList(@Param('siteId') siteId: string, @Query('status') status?: string) {
+    return this.communityAgent.list(siteId, { status });
+  }
+
+  /** POST /sites/:siteId/audit/community/scan */
+  @Post('community/scan')
+  communityScan(@Param('siteId') siteId: string, @Body() body: { limit?: number }) {
+    return this.communityAgent.scan(siteId, { limit: body?.limit });
+  }
+
+  /** PATCH /sites/:siteId/audit/community/:id */
+  @Patch('community/:id')
+  communityUpdate(
+    @Param('siteId') siteId: string,
+    @Param('id') id: string,
+    @Body() body: { status?: string; draftReply?: string },
+  ) {
+    return this.communityAgent.update(siteId, id, body);
+  }
+
+  /** DELETE /sites/:siteId/audit/community/:id */
+  @Delete('community/:id')
+  communityRemove(@Param('siteId') siteId: string, @Param('id') id: string) {
+    return this.communityAgent.remove(siteId, id);
+  }
 
   @Get('latest')
   latest(@Param('siteId') siteId: string) {

@@ -24,6 +24,7 @@ import { QuotaMonitor } from '@/components/quota-monitor';
 import { GeoScoreCard } from '@/components/geo-score-card';
 import { CrawlerHitsPanel } from '@/components/crawler-hits-panel';
 import { AdsLabPanel } from '@/components/ads-lab-panel';
+import { AiKpiStrip } from '@/components/ai-kpi-strip';
 
 /**
  * Site detay sayfasinin VARSAYILAN gorunumu — kisanin tum panelin onunde
@@ -64,6 +65,9 @@ export function SiteOverviewDashboard({
 
       {/* RanksUp Etkisi — bütünsel before-after (GEO/AI + SEO/Google) değer kartı */}
       <RanksUpImpactCard siteId={site.id} days={90} />
+
+      {/* AI KPI Şeridi — Mention Rate / Sentiment / SOV / AI Crawler / Agent Ready */}
+      <AiKpiStrip siteId={site.id} />
 
       {/* Cloudflare-inspired analytics row: 3 stat cards with animated sparklines */}
       <AnalyticsRow siteId={site.id} audit={audit} articles={articles} />

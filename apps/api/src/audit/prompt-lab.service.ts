@@ -66,8 +66,11 @@ export class PromptLabService {
    * istenirse 404 doner (403 degil — kaynagin varligini sizdirmamak icin).
    */
   private async requirePrompt<T extends object>(siteId: string, promptId: string, include?: T) {
+    // trackedAppId: null — App Prompt Lab sorulari (ASO) bu servisin SITE
+    // semantigiyle (marka=site adi, cited=site linki) OLCULEMEZ; olculseydi
+    // app skorlari site degerleriyle ezilirdi. App sorulari 404 doner.
     const prompt = await this.prisma.geoPrompt.findFirst({
-      where: { id: promptId, siteId },
+      where: { id: promptId, siteId, trackedAppId: null },
       ...(include ? { include } : {}),
     } as any);
     if (!prompt) throw new NotFoundException('Prompt bulunamadi');
@@ -86,7 +89,8 @@ export class PromptLabService {
   // ────────────────────────────────────────────────────────────
   async list(siteId: string, opts: { includeInactive?: boolean } = {}) {
     const prompts = await this.prisma.geoPrompt.findMany({
-      where: { siteId, ...(opts.includeInactive ? {} : { isActive: true }) },
+      // App Prompt Lab sorulari ASO ekraninda listelenir, burada degil
+      where: { siteId, trackedAppId: null, ...(opts.includeInactive ? {} : { isActive: true }) },
       orderBy: [{ createdAt: 'desc' }],
       include: { _count: { select: { fanouts: true } } },
     });
@@ -119,7 +123,7 @@ export class PromptLabService {
   }) {
     const text = this.validateText(input?.text);
 
-    const count = await this.prisma.geoPrompt.count({ where: { siteId } });
+    const count = await this.prisma.geoPrompt.count({ where: { siteId, trackedAppId: null } });
     if (count >= MAX_PROMPTS_PER_SITE) {
       throw new BadRequestException(`Site basina en fazla ${MAX_PROMPTS_PER_SITE} prompt takip edilebilir`);
     }
@@ -198,7 +202,7 @@ export class PromptLabService {
 
     // Mevcut kayitlari TEK sorguda al — eskiden aday basina tum tablo cekiliyordu (N+1)
     const existing = await this.prisma.geoPrompt.findMany({
-      where: { siteId },
+      where: { siteId, trackedAppId: null },
       select: { text: true },
     });
     const seen = new Set(existing.map((e) => this.normalize(e.text)));
@@ -348,7 +352,9 @@ export class PromptLabService {
       : 25;
 
     const prompts = await this.prisma.geoPrompt.findMany({
-      where: { siteId, isActive: true },
+      // App sorulari haric — aksi halde lastRunAt=null olduklarindan siralamada
+      // one gecip site butcesini tuketir ve app skorlarini site semantigiyle ezerdi
+      where: { siteId, isActive: true, trackedAppId: null },
       orderBy: [{ lastRunAt: { sort: 'asc', nulls: 'first' } }, { createdAt: 'asc' }],
       take: limit,
       select: { id: true },
@@ -393,7 +399,8 @@ export class PromptLabService {
     // brandMentioned=false olarak yaziliyor ve orani asagi cekiyor. Bunu
     // onlemek icin persistRuns HATALI probe'lari DB'YE HIC YAZMIYOR (asagi bak).
     const runs = await this.prisma.geoPromptRun.findMany({
-      where: { siteId, date: { gte: since } },
+      // App Prompt Lab olcumleri site kapsama raporuna karismasin
+      where: { siteId, date: { gte: since }, prompt: { trackedAppId: null } },
       select: { promptId: true, fanoutId: true, cited: true, brandMentioned: true },
     });
 
@@ -545,7 +552,7 @@ export class PromptLabService {
   private async findByNormalizedText(siteId: string, text: string) {
     const norm = this.normalize(text);
     const all = await this.prisma.geoPrompt.findMany({
-      where: { siteId },
+      where: { siteId, trackedAppId: null },
       select: { id: true, text: true, isActive: true },
     });
     return all.find((p) => this.normalize(p.text) === norm) ?? null;

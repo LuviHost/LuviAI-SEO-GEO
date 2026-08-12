@@ -17,9 +17,12 @@ import { AsoAbTestPlannerService } from './aso-ab-test-planner.service.js';
 import { AsoLaunchChecklistService } from './aso-launch-checklist.service.js';
 import { PrismaModule } from '../prisma/prisma.module.js';
 import { LLMModule } from '../llm/llm.module.js';
+import { AuditModule } from '../audit/audit.module.js';
+import { AsoPromptLabService } from './aso-prompt-lab.service.js';
+import { AsoReviewContentService } from './aso-review-content.service.js';
 
 @Module({
-  imports: [PrismaModule, LLMModule],
+  imports: [PrismaModule, LLMModule, AuditModule],
   controllers: [AsoController],
   providers: [
     AsoService,
@@ -38,6 +41,8 @@ import { LLMModule } from '../llm/llm.module.js';
     AsoLocalizationHelperService,
     AsoAbTestPlannerService,
     AsoLaunchChecklistService,
+    AsoPromptLabService,
+    AsoReviewContentService,
   ],
   exports: [
     AsoService, AsoTrackerService, AsoScreenshotService,
