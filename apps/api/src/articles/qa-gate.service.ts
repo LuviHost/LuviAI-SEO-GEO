@@ -1,7 +1,7 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { LLMProviderService } from '../llm/llm-provider.service.js';
-import { safeParseJson } from '../common/safe-json.js';
+import { parseJsonFromLlm } from '../common/safe-json.js';
 
 /**
  * QA Gate — yayin oncesi son kontrol.
@@ -200,8 +200,7 @@ export class QaGateService {
       messages: [{ role: 'user', content: body.slice(0, 60_000) }],
     });
 
-    const raw = res.output.trim().replace(/^```json?\s*|\s*```$/g, '');
-    const parsed = safeParseJson<any>(raw);
+    const parsed = parseJsonFromLlm<any>(res.output);
     if (!Array.isArray(parsed)) return [];
     return parsed
       .filter((i) => i && typeof i.detail === 'string')

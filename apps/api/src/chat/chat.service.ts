@@ -179,7 +179,7 @@ export class ChatService {
     for (let round = 0; round <= MAX_TOOL_ROUNDS; round++) {
       const response = await this.anthropic.messages.create({
         model: MODEL,
-        max_tokens: 3000,
+        max_tokens: 8000,
         system: [{ type: 'text' as const, text: systemPrompt, cache_control: { type: 'ephemeral' as const } }],
         tools: anthropicTools,
         messages,

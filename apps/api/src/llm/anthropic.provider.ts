@@ -42,6 +42,28 @@ function supportsAdaptiveThinking(model: string): boolean {
   return /^claude-(opus-(5|4-8|4-7|4-6)|sonnet-(5|4-6)|fable-5|mythos-5)/.test(model);
 }
 
+/**
+ * output_config.effort destekleyen modeller. Haiku 4.5 ve Sonnet 4.5'te
+ * DESTEKLENMEZ — gonderilirse 400 doner. Kardesi olan sampling/thinking
+ * gate'leri vardi ama effort gate'i atlanmisti: WRITER_MODEL=claude-haiku-4-5
+ * secildiginde tum yazar/editor ajani cagrilari 400 ile duserdi.
+ */
+function supportsEffort(model: string): boolean {
+  return /^claude-(opus-(5|4-8|4-7|4-6|4-5)|sonnet-(5|4-6)|fable-5|mythos-5)/.test(model);
+}
+
+/**
+ * 'xhigh' ve 'max' her modelde yok: xhigh Opus 4.7 ile geldi, max Opus 4.6+.
+ * Desteklemeyen modelde seviye 'high'a indirilir (400 yerine calisan istek).
+ */
+function clampEffort(model: string, effort: string): string {
+  const supportsXhigh = /^claude-(opus-(5|4-8|4-7)|sonnet-5|fable-5|mythos-5)/.test(model);
+  const supportsMax = /^claude-(opus-(5|4-8|4-7|4-6)|sonnet-(5|4-6)|fable-5|mythos-5)/.test(model);
+  if (effort === 'xhigh' && !supportsXhigh) return 'high';
+  if (effort === 'max' && !supportsMax) return 'high';
+  return effort;
+}
+
 @Injectable()
 export class AnthropicProvider implements ILLMProvider {
   readonly name: ProviderName = 'anthropic';
@@ -88,7 +110,10 @@ export class AnthropicProvider implements ILLMProvider {
         : {};
 
     // effort thinking derinligini ve toplam token harcamasini ayarlar.
-    const outputConfig = req.effort ? { output_config: { effort: req.effort } } : {};
+    // Model gate'i SART: Haiku 4.5 / Sonnet 4.5 effort kabul etmez (400).
+    const outputConfig = req.effort && supportsEffort(req.model)
+      ? { output_config: { effort: clampEffort(req.model, req.effort) } }
+      : {};
 
     const response = await this.client.messages.create({
       model: req.model,

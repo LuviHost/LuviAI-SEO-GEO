@@ -25,8 +25,11 @@ export class ModelRouterService {
 
     if (opts.preferAnthropic) {
       switch (effectiveTier) {
-        case 'cheap': return { provider: 'anthropic', model: 'claude-haiku-4-5', supportsCaching: true };
-        case 'standard': return { provider: 'anthropic', model: 'claude-sonnet-5', supportsCaching: true };
+        // 'cheap' tier artik da Opus 5 — kalite tercihi (2026-08). Maliyet
+        // kontrolu model dusurmekle degil `effort: 'low'` ile yapiliyor:
+        // Opus 5 dusuk effort'ta onceki nesillerin xhigh'ini gecebiliyor.
+        case 'cheap': return { provider: 'anthropic', model: 'claude-opus-5', supportsCaching: true };
+        case 'standard': return { provider: 'anthropic', model: 'claude-opus-5', supportsCaching: true };
         case 'premium': return { provider: 'anthropic', model: 'claude-opus-5', supportsCaching: true };
       }
     }

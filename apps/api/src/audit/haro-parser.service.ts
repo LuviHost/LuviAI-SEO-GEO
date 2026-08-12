@@ -122,8 +122,8 @@ export class HaroParserService {
 
     try {
       const resp = await this.anthropic.messages.create({
-        model: 'claude-haiku-4-5',
-        max_tokens: 500,
+        model: 'claude-opus-5',
+        max_tokens: 4000,
         system: `Sen ${opts.brand} markasinin temsilcisisin. ${opts.niche} alaninda uzmansin. Gazetecilere kisa, somut, alintilanabilir HARO yaniti yazarsin. Marka tonu: ${opts.brandTone ?? 'profesyonel'}. Reklam degil, gercek deger.`,
         messages: [{
           role: 'user',

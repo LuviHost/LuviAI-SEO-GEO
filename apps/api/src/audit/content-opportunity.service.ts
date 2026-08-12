@@ -321,7 +321,7 @@ export class ContentOpportunityService {
       const res = await this.llm.chat({
         context: 'content-opportunity-title',
         siteId,
-        model: 'claude-haiku-4-5',
+        model: 'claude-opus-5',
         maxTokens: 100,
         systemPrompt: 'Kullanicinin AI aramalarinda kaybettigi sorgu icin SEO/GEO uyumlu tek bir Turkce makale basligi uret. SADECE basligi dondur, tirnak ve aciklama yok.',
         messages: [{ role: 'user', content: `Kaybedilen sorgu: "${query}"` }],

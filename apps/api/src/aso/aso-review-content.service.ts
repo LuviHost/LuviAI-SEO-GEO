@@ -1,7 +1,7 @@
 import { Injectable, Logger, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { LLMProviderService } from '../llm/llm-provider.service.js';
-import { safeParseJson } from '../common/safe-json.js';
+import { parseJsonFromLlm } from '../common/safe-json.js';
 
 /**
  * Review → Icerik Dongusu — ASO'nun kapali dongu karsiligi.
@@ -90,8 +90,7 @@ export class AsoReviewContentService {
       }],
     });
 
-    const raw = res.output.trim().replace(/^```json?\s*|\s*```$/g, '');
-    const parsed = safeParseJson<any>(raw);
+    const parsed = parseJsonFromLlm<any>(res.output);
     const whatsNew = typeof parsed?.whatsNew === 'string' ? parsed.whatsNew.slice(0, 1000) : '';
     const faqs = Array.isArray(parsed?.faqs)
       ? parsed.faqs.filter((f: any) => f?.q && f?.a).slice(0, 6).map((f: any) => ({ q: String(f.q), a: String(f.a) }))
