@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import Anthropic from '@anthropic-ai/sdk';
 import { PageRendererService } from './page-renderer.service.js';
+import { SettingsService } from '../settings/settings.service.js';
+import { modelForAudience, type Audience } from '../llm/model-tier.js';
 
 /**
  * URL'den site nişini AI ile tespit et.
@@ -48,7 +50,10 @@ export class NicheDetectorService {
     ? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
     : null;
 
-  constructor(private readonly renderer: PageRendererService) {}
+  constructor(
+    private readonly renderer: PageRendererService,
+    private readonly settings: SettingsService,
+  ) {}
 
   /** HTML'den niş tespiti için metinsel sinyalleri çıkar. */
   private extractSignals(html: string): SiteSignals {
@@ -77,7 +82,11 @@ export class NicheDetectorService {
     return bodyNoTitle.length < 120;
   }
 
-  async detectFromUrl(url: string): Promise<NicheDetectionResult> {
+  /**
+   * @param audience Cagriyi kim tetikledi. Landing'deki anonim checker 'anon'
+   *   gecer (ucuz model); onboarding/dashboard varsayilan 'member'.
+   */
+  async detectFromUrl(url: string, audience: Audience = 'member'): Promise<NicheDetectionResult> {
     const fallback: NicheDetectionResult = {
       niche: 'diğer', confidence: 0,
       reasoning: 'Tespit edilemedi (varsayılan)',
@@ -167,7 +176,7 @@ Format:
 
     try {
       const resp = await this.anthropic.messages.create({
-        model: 'claude-opus-5',
+        model: await modelForAudience(this.settings, audience),
         max_tokens: 4000,
         system: 'Sen Türkçe SEO uzmanısın. JSON döndür, açıklama yapma, kod-fence kullanma.',
         messages: [{ role: 'user', content: prompt }],
