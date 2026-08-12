@@ -1,4 +1,4 @@
-import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
+import { CanActivate, ExecutionContext, ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import type { Request } from 'express';
 import { decode } from 'next-auth/jwt';
@@ -41,6 +41,25 @@ export class AuthGuard implements CanActivate {
       if (!apiKey) throw new UnauthorizedException('API key gecersiz');
       const user = await this.prisma.user.findUnique({ where: { id: apiKey.userId } });
       if (!user) throw new UnauthorizedException('User bulunamadi');
+
+      // ── Scope zorlamasi ──
+      // Onceden scopes tamamen dekoratifti: salt-okunur uretilen anahtar
+      // DELETE /sites dahil her ucu cagirabiliyordu. Kaba ama gercek kural:
+      // mutasyon metodlari (POST/PUT/PATCH/DELETE) '*' veya ':write' iceren
+      // scope ister. /mcp harici tutulur — MCP transport'u POST'tur ama
+      // salt-okuma tool'lari da tasir; yazma denetimi tool bazinda
+      // McpController'da yapilir (mutating tool + read-only key = ret).
+      const method = req.method.toUpperCase();
+      const isMutating = !['GET', 'HEAD', 'OPTIONS'].includes(method);
+      const path = (req.path ?? req.url ?? '');
+      const isMcpTransport = /\/mcp\/?$/.test(path.split('?')[0] ?? '');
+      if (isMutating && !isMcpTransport) {
+        const canWrite = apiKey.scopes.includes('*') || apiKey.scopes.some((s) => s.endsWith(':write'));
+        if (!canWrite) {
+          throw new ForbiddenException('Bu API anahtari salt-okunur (yalnizca :read scope). Yazma islemi icin :write scope\'lu anahtar uret.');
+        }
+      }
+
       (req as any).user = user;
       (req as any).apiKey = apiKey;
       return true;

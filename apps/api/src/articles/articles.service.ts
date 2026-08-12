@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { JobQueueService } from '../jobs/job-queue.service.js';
 import { QuotaService } from '../billing/quota.service.js';
@@ -124,7 +124,7 @@ export class ArticlesService {
     return { ...job, articleId: article.id };
   }
 
-  async queuePublish(siteId: string, articleId: string, targetIds: string[]) {
+  async queuePublish(siteId: string, articleId: string, targetIds: string[], opts: { overrideQa?: boolean } = {}) {
     const article = await this.prisma.article.findFirst({
       where: { id: articleId, siteId },
       include: { site: true },
@@ -132,11 +132,22 @@ export class ArticlesService {
     if (!article) {
       throw new NotFoundException('Makale bulunamadi');
     }
+    // QA Gate on kontrolu — BLOCKED makale kuyruga bile girmesin ki kullanici
+    // hatayi job log'unda degil, tikladigi anda gorsun. (qaStatus null ise
+    // engelleme yok; worker yayin aninda kosar.)
+    if (!opts.overrideQa && (article as any).qaStatus === 'BLOCKED') {
+      const blockers: any[] = Array.isArray(((article as any).qaReport as any)?.blockers)
+        ? ((article as any).qaReport as any).blockers
+        : [];
+      throw new BadRequestException(
+        `Yayin engellendi — QA blocker: ${blockers.slice(0, 3).map((b) => b.detail).join(' | ') || 'detay icin QA raporuna bak'}`,
+      );
+    }
     return this.jobQueue.enqueue({
       type: 'PUBLISH_ARTICLE',
       userId: article.site.userId,
       siteId: article.siteId,
-      payload: { articleId, targetIds },
+      payload: { articleId, targetIds, overrideQa: !!opts.overrideQa },
     });
   }
 

@@ -8,6 +8,7 @@ import { VideoGeneratorService } from './video-generator.service.js';
 import { TiktokPublisherService } from './tiktok-publisher.service.js';
 import { InstagramPublisherService } from './instagram-publisher.service.js';
 import { TranslatorService } from './translator.service.js';
+import { QaGateService } from './qa-gate.service.js';
 
 @Controller('sites/:siteId/articles')
 export class ArticlesController {
@@ -20,6 +21,7 @@ export class ArticlesController {
     private readonly tiktok: TiktokPublisherService,
     private readonly instagram: InstagramPublisherService,
     private readonly translator: TranslatorService,
+    private readonly qaGate: QaGateService,
   ) {}
 
   @Get()
@@ -104,8 +106,18 @@ export class ArticlesController {
 
   /** POST /sites/:siteId/articles/:id/publish */
   @Post(':id/publish')
-  publish(@Param('siteId') siteId: string, @Param('id') id: string, @Body() body: { targetIds: string[] }) {
-    return this.articles.queuePublish(siteId, id, body.targetIds);
+  publish(
+    @Param('siteId') siteId: string,
+    @Param('id') id: string,
+    @Body() body: { targetIds: string[]; overrideQa?: boolean },
+  ) {
+    return this.articles.queuePublish(siteId, id, body.targetIds, { overrideQa: body.overrideQa });
+  }
+
+  /** POST /sites/:siteId/articles/:id/qa-check — yayin oncesi QA gate'i (yeniden) kos */
+  @Post(':id/qa-check')
+  qaCheck(@Param('siteId') siteId: string, @Param('id') id: string) {
+    return this.qaGate.check(id, siteId);
   }
 
   /** POST /sites/:siteId/articles/:id/trigger-now — SCHEDULED article'ı şimdi üretime al */

@@ -33,6 +33,12 @@ import {
   Lightbulb,
   Mail,
   Wrench,
+  Bot,
+  Radar as RadarIcon,
+  MessageSquare,
+  MessagesSquare,
+  ClipboardList,
+  Activity,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { ThemeToggle } from '@/components/theme-toggle';
@@ -67,6 +73,7 @@ const SITE_GROUPS = (siteId: string) => [
     id: 'overview',
     items: [
       { href: `/sites/${siteId}`, label: 'Genel Bakış', icon: Home, exact: true },
+      { href: `/sites/${siteId}/chat`, label: 'Asistan', icon: MessageSquare },
     ],
   },
   {
@@ -77,7 +84,10 @@ const SITE_GROUPS = (siteId: string) => [
       { href: `/sites/${siteId}/rank-tracking`, label: 'Sıralama Takibi', icon: LineChart },
       { href: `/sites/${siteId}/aso`, label: 'ASO (Mobil App)', icon: Smartphone },
       { href: `/sites/${siteId}/visibility`, label: 'AI Görünürlük', icon: Sparkles },
+      { href: `/sites/${siteId}/crawler-live`, label: 'Live Crawler', icon: Activity },
       { href: `/sites/${siteId}/geo-lab`, label: 'GEO Lab', icon: Award },
+      { href: `/sites/${siteId}/agent-readiness`, label: 'Agent Readiness', icon: Bot },
+      { href: `/sites/${siteId}/product-radar`, label: 'Product Radar', icon: RadarIcon },
       { href: `/sites/${siteId}/competitors`, label: 'Rakipler', icon: Network },
       { href: `/sites/${siteId}/snippet`, label: 'Sayfa SEO İyileştir', icon: FileText },
       { href: `/sites/${siteId}/stuck-pages`, label: 'Stuck Pages', icon: Wrench },
@@ -87,9 +97,11 @@ const SITE_GROUPS = (siteId: string) => [
     id: 'content',
     label: 'CONTENT STUDIO',
     items: [
+      { href: `/sites/${siteId}/opportunities`, label: 'İçerik Fırsatları', icon: Lightbulb },
       { href: `/sites/${siteId}/articles`, label: 'İçerikler', icon: FileText },
       { href: `/sites/${siteId}/calendar`, label: 'İçerik Takvimi', icon: Calendar },
       { href: `/sites/${siteId}/studio`, label: 'Sosyal Medya Studio', icon: Wand2 },
+      { href: `/sites/${siteId}/communities`, label: 'Topluluk Ajanı', icon: MessagesSquare },
       { href: `/sites/${siteId}/publish-targets`, label: 'Yayın Hedefleri', icon: Send },
     ],
   },
@@ -97,6 +109,7 @@ const SITE_GROUPS = (siteId: string) => [
     id: 'growth',
     label: 'GROWTH',
     items: [
+      { href: `/sites/${siteId}/action-plan`, label: 'Aksiyon Planı', icon: ClipboardList },
       { href: `/sites/${siteId}/analytics`, label: 'Analytics', icon: BarChart3 },
       { href: `/sites/${siteId}/ads`, label: 'Reklam', icon: TrendingUp },
       { href: `/sites/${siteId}/ads-health`, label: 'Kampanya Skoru', icon: Target },

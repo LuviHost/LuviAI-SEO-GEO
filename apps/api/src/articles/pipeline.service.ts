@@ -7,6 +7,7 @@ import { SchemaClassifierService } from './schema-classifier.service.js';
 import { SettingsService } from '../settings/settings.service.js';
 import { SiteUrlInventoryService } from '../sites/site-url-inventory.service.js';
 import { LinkValidatorService } from './link-validator.service.js';
+import { QaGateService } from './qa-gate.service.js';
 import {
   AGENT_01_KEYWORD,
   AGENT_02_OUTLINE,
@@ -57,6 +58,7 @@ export class PipelineService {
     private readonly settings: SettingsService,
     private readonly urlInventory: SiteUrlInventoryService,
     private readonly linkValidator: LinkValidatorService,
+    private readonly qaGate: QaGateService,
   ) {}
 
   /**
@@ -514,6 +516,11 @@ export class PipelineService {
 
     const durationMs = Date.now() - t0;
     this.log.log(`[${opts.siteId}] ✅ Pipeline tamamlandı: ${slug} (${editorVerdict}, $${totalCost.toFixed(4)}, ${(durationMs / 1000).toFixed(0)}s, ${wordCount} kelime)`);
+
+    // QA Gate — yayin oncesi son kontrol (uydurma atif / kaynaksiz iddia /
+    // placeholder). Fire-and-forget: pipeline suresini uzatmaz; publisher
+    // qaStatus'u yoksa yayin aninda kendisi kosar.
+    this.qaGate.checkSafe(article.id);
 
     // Site sahibine "makale hazir" maili (PASS olduysa).
     // Mail gonderimi pipeline'i blok etmez — fail olsa da makale kaydi tamam.

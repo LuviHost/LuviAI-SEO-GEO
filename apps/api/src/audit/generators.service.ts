@@ -31,6 +31,8 @@ ${urls}
   generateRobotsTxt(siteUrl: string, opts: {
     allowAiCrawlers?: boolean;
     blockPaths?: string[];
+    /** Content-Signal: ai-train degeri — varsayilan yes (gorunurluk oncelikli) */
+    allowAiTraining?: boolean;
   } = {}): string {
     const allowAi = opts.allowAiCrawlers ?? true;
     const block = opts.blockPaths ?? ['/admin/', '/wp-admin/', '/api/', '/cgi-bin/', '/.git/'];
@@ -89,6 +91,14 @@ ${urls}
       txt += `User-agent: ${bot}\nDisallow: /\n\n`;
     }
 
+    // Content Signals (Cloudflare Content Signals Policy) — iceriginin arama,
+    // AI cevabi ve egitimde nasil kullanilabilecegini deklare eder. Agent
+    // Readiness (AXO) kontrolu bu satiri arar.
+    txt += `# ═════════════════════════════════════════════════════\n`;
+    txt += `# Content Signals — icerik kullanim tercihi\n`;
+    txt += `# ═════════════════════════════════════════════════════\n`;
+    txt += `Content-Signal: search=yes, ai-input=yes, ai-train=${opts.allowAiTraining === false ? 'no' : 'yes'}\n\n`;
+
     txt += `# ═════════════════════════════════════════════════════\n`;
     txt += `# Sitemap + AI dosyalari\n`;
     txt += `# ═════════════════════════════════════════════════════\n`;
@@ -99,6 +109,87 @@ ${urls}
     txt += `# ${baseUrl}/llms-full.txt\n`;
 
     return txt;
+  }
+
+  /**
+   * A2A Agent Card — /.well-known/agent.json
+   * Ajanlarin siteyi bir "hizmet" olarak kesfetmesi icin kimlik karti.
+   * Zorunlu alanlar: name, description, url; skills sitenin sundugu
+   * hizmetlerden (brain.seoStrategy pillars) turetilir.
+   */
+  generateAgentJson(opts: {
+    siteUrl: string;
+    brandName: string;
+    description: string;
+    pillars?: Array<{ name?: string; url?: string }>;
+  }): string {
+    const baseUrl = opts.siteUrl.replace(/\/$/, '');
+    const skills = (opts.pillars ?? [])
+      .filter((p) => p?.name)
+      .slice(0, 8)
+      .map((p, i) => ({
+        id: `skill-${i + 1}`,
+        name: p.name,
+        description: `${opts.brandName} — ${p.name}`,
+        ...(p.url ? { url: p.url.startsWith('http') ? p.url : `${baseUrl}${p.url}` } : {}),
+      }));
+
+    return JSON.stringify({
+      protocolVersion: '0.3.0',
+      name: opts.brandName,
+      description: opts.description,
+      url: baseUrl,
+      preferredTransport: 'none',
+      provider: { organization: opts.brandName, url: baseUrl },
+      documentationUrl: `${baseUrl}/llms.txt`,
+      capabilities: { streaming: false, pushNotifications: false },
+      defaultInputModes: ['text/plain'],
+      defaultOutputModes: ['text/html', 'text/markdown'],
+      skills,
+      generatedBy: `RanksUp — ${new Date().toISOString().slice(0, 10)}`,
+    }, null, 2);
+  }
+
+  /**
+   * auth.md — kullanici adina islem yapan AI ajanlarina giris talimati.
+   * Login akisini bilmeyen ajan formu brute-force parse etmeye calisir ve
+   * cogu zaman vazgecer; bu dosya akisi acikca anlatir.
+   */
+  generateAuthMd(opts: { siteUrl: string; brandName: string; loginPath?: string }): string {
+    const baseUrl = opts.siteUrl.replace(/\/$/, '');
+    const login = opts.loginPath ?? '/giris';
+    return `# ${opts.brandName} — AI Agent Authentication Guide
+
+> Bu dosya, kullanıcı adına işlem yapan AI ajanları (ChatGPT Operator, Claude,
+> Perplexity Assistant vb.) için giriş akışını tarif eder.
+
+## Login
+
+- **Login URL:** ${baseUrl}${login}
+- **Yöntem:** E-posta + şifre formu
+- **Alanlar:** \`email\`, \`password\`
+- **Başarılı girişte:** oturum çerezi set edilir, kullanıcı paneline yönlenir.
+
+## İki Aşamalı Doğrulama (2FA)
+
+2FA aktifse e-posta ile tek kullanımlık kod gönderilir. Ajanlar kodu
+kullanıcıdan istemelidir; otomatik atlama yolu yoktur.
+
+## API Erişimi (önerilen)
+
+İnsan-dışı erişim için oturum yerine API anahtarı kullanın:
+
+- Anahtar talebi: hesap ayarları → API anahtarları
+- Kullanım: \`Authorization: Bearer <API_KEY>\`
+
+## Kurallar
+
+- Rate limit: 60 istek/dk. Aşımda \`429\` döner — bekleyip yeniden deneyin.
+- Ajanlar \`robots.txt\` kurallarına uymalıdır.
+- Sorun bildirimi: ${baseUrl}/iletisim
+
+_Üretildi: RanksUp — ${new Date().toISOString().slice(0, 10)}_
+`;
   }
 
   /** llms.txt — Auriti formatında AI search özetlemesi */

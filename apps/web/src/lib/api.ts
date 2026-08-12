@@ -732,11 +732,20 @@ export const api = {
       body: JSON.stringify({ topic }),
     }),
 
-  publishArticle: (siteId: string, articleId: string, targetIds: string[]) =>
+  publishArticle: (siteId: string, articleId: string, targetIds: string[], overrideQa?: boolean) =>
     request<any>(`/sites/${siteId}/articles/${articleId}/publish`, {
       method: 'POST',
-      body: JSON.stringify({ targetIds }),
+      body: JSON.stringify({ targetIds, overrideQa }),
     }),
+
+  runArticleQaCheck: (siteId: string, articleId: string) =>
+    request<{
+      status: 'PASS' | 'WARN' | 'BLOCKED';
+      blockers: Array<{ type: string; detail: string; excerpt?: string }>;
+      warnings: Array<{ type: string; detail: string; excerpt?: string }>;
+      stats: { wordCount: number; llmUsed: boolean };
+      checkedAt: string;
+    }>(`/sites/${siteId}/articles/${articleId}/qa-check`, { method: 'POST' }),
 
   // SCHEDULED article'ı şimdi üretime al (cron'u bekleme).
   triggerArticleNow: (siteId: string, articleId: string) =>
@@ -1411,6 +1420,186 @@ export const api = {
         campaign: { name: string; asaCampaignId: string };
       }>;
     }>(`/sites/${siteId}/aso/asa/performance?daysBack=${daysBack}`),
+
+  // ──────────────────────────────────────────────────────────
+  //  AGENT READINESS (AXO)
+  // ──────────────────────────────────────────────────────────
+  getAgentReadiness: (siteId: string) =>
+    request<any>(`/sites/${siteId}/audit/agent-readiness/latest`),
+
+  runAgentReadiness: (siteId: string) =>
+    request<any>(`/sites/${siteId}/audit/agent-readiness/run`, { method: 'POST' }),
+
+  getAgentReadinessHistory: (siteId: string, days = 90) =>
+    request<Array<{ date: string; score: number; agentsAllowed: number | null; agentsTotal: number | null }>>(
+      `/sites/${siteId}/audit/agent-readiness/history?days=${days}`,
+    ),
+
+  // ──────────────────────────────────────────────────────────
+  //  CONTENT OPPORTUNITIES (kapalı döngü)
+  // ──────────────────────────────────────────────────────────
+  listOpportunities: (siteId: string, opts: { status?: string; coverage?: string } = {}) => {
+    const qs = new URLSearchParams();
+    if (opts.status) qs.set('status', opts.status);
+    if (opts.coverage) qs.set('coverage', opts.coverage);
+    return request<any[]>(`/sites/${siteId}/audit/opportunities${qs.size ? `?${qs}` : ''}`);
+  },
+
+  deriveOpportunities: (siteId: string) =>
+    request<{ created: number; updated: number; scanned: number }>(
+      `/sites/${siteId}/audit/opportunities/derive`, { method: 'POST' },
+    ),
+
+  updateOpportunity: (siteId: string, id: string, status: string) =>
+    request<any>(`/sites/${siteId}/audit/opportunities/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+    }),
+
+  generateFromOpportunity: (siteId: string, id: string) =>
+    request<{ opportunityId: string; articleId: string; jobId: string }>(
+      `/sites/${siteId}/audit/opportunities/${id}/generate`, { method: 'POST' },
+    ),
+
+  remeasureOpportunity: (siteId: string, id: string) =>
+    request<any>(`/sites/${siteId}/audit/opportunities/${id}/remeasure`, { method: 'POST' }),
+
+  // ──────────────────────────────────────────────────────────
+  //  AI KPI ŞERİDİ + PRODUCT RADAR + COMMUNITY
+  // ──────────────────────────────────────────────────────────
+  getAiKpis: (siteId: string) =>
+    request<any>(`/sites/${siteId}/audit/ai-kpis`),
+
+  getProductRadar: (siteId: string) =>
+    request<any>(`/sites/${siteId}/audit/product-radar`),
+
+  runProductRadar: (siteId: string) =>
+    request<{ snapshots: number; queries: string[] }>(
+      `/sites/${siteId}/audit/product-radar/run`, { method: 'POST' },
+    ),
+
+  listCommunityOpportunities: (siteId: string, status?: string) =>
+    request<any[]>(`/sites/${siteId}/audit/community${status ? `?status=${status}` : ''}`),
+
+  scanCommunity: (siteId: string, limit?: number) =>
+    request<{ found: number; created: number }>(`/sites/${siteId}/audit/community/scan`, {
+      method: 'POST',
+      body: JSON.stringify({ limit }),
+    }),
+
+  updateCommunityOpportunity: (siteId: string, id: string, body: { status?: string; draftReply?: string }) =>
+    request<any>(`/sites/${siteId}/audit/community/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(body),
+    }),
+
+  deleteCommunityOpportunity: (siteId: string, id: string) =>
+    request<{ ok: boolean }>(`/sites/${siteId}/audit/community/${id}`, { method: 'DELETE' }),
+
+  // ──────────────────────────────────────────────────────────
+  //  LIVE CRAWLER
+  // ──────────────────────────────────────────────────────────
+  getLiveCrawler: (siteId: string, minutes = 10, limit = 50) =>
+    request<{
+      windowMinutes: number;
+      workerConnected: boolean;
+      lastEventAt: string | null;
+      lastEventSource: string | null;
+      total: number;
+      byBot: Array<{ bot: string; hits: number }>;
+      events: Array<{ id: string; ts: string; bot: string; path: string; status: number; isCiteFetch: boolean; source: string }>;
+      citeFetches24h: Array<{ ts: string; bot: string; path: string }>;
+    }>(`/sites/${siteId}/audit/live-crawler?minutes=${minutes}&limit=${limit}`),
+
+  getLiveCrawlerSnippets: (siteId: string) =>
+    request<{ ingestUrl: string; cloudflareWorker: string; wordpress: string; nginx: string }>(
+      `/sites/${siteId}/audit/live-crawler/snippets`,
+    ),
+
+  // ──────────────────────────────────────────────────────────
+  //  ACTION PLAN
+  // ──────────────────────────────────────────────────────────
+  listActionPlan: (siteId: string, opts: { status?: string; source?: string } = {}) => {
+    const qs = new URLSearchParams();
+    if (opts.status) qs.set('status', opts.status);
+    if (opts.source) qs.set('source', opts.source);
+    return request<any[]>(`/sites/${siteId}/action-plan${qs.size ? `?${qs}` : ''}`);
+  },
+
+  getActionPlanCounts: (siteId: string) =>
+    request<{ todo: number; inProgress: number; done: number }>(`/sites/${siteId}/action-plan/counts`),
+
+  addActionPlanItem: (siteId: string, body: {
+    title: string; description?: string; source?: string; sourceRef?: string;
+    impact?: string; effort?: string; dueAt?: string;
+  }) =>
+    request<any>(`/sites/${siteId}/action-plan`, { method: 'POST', body: JSON.stringify(body) }),
+
+  updateActionPlanItem: (siteId: string, id: string, body: any) =>
+    request<any>(`/sites/${siteId}/action-plan/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+
+  deleteActionPlanItem: (siteId: string, id: string) =>
+    request<{ ok: boolean }>(`/sites/${siteId}/action-plan/${id}`, { method: 'DELETE' }),
+
+  // ──────────────────────────────────────────────────────────
+  //  CHAT + SKILLS
+  // ──────────────────────────────────────────────────────────
+  listChatSkills: (siteId: string) =>
+    request<Array<{
+      key: string; name: string; tag: string; description: string;
+      accesses: string[]; needsInput?: boolean; inputPlaceholder?: string;
+    }>>(`/sites/${siteId}/chat/skills`),
+
+  listChatConversations: (siteId: string) =>
+    request<any[]>(`/sites/${siteId}/chat/conversations`),
+
+  getChatConversation: (siteId: string, conversationId: string) =>
+    request<any>(`/sites/${siteId}/chat/conversations/${conversationId}`),
+
+  deleteChatConversation: (siteId: string, conversationId: string) =>
+    request<{ ok: boolean }>(`/sites/${siteId}/chat/conversations/${conversationId}`, { method: 'DELETE' }),
+
+  sendChatMessage: (siteId: string, body: { conversationId?: string; message?: string; skill?: string }) =>
+    request<{
+      conversationId: string;
+      message: { id: string; role: string; content: string; toolCalls: any[]; createdAt: string };
+      costUsd: number;
+    }>(`/sites/${siteId}/chat/messages`, { method: 'POST', body: JSON.stringify(body) }),
+
+  // ──────────────────────────────────────────────────────────
+  //  APP PROMPT LAB (ASO ⨉ GEO)
+  // ──────────────────────────────────────────────────────────
+  listAppPrompts: (siteId: string, appId: string) =>
+    request<any[]>(`/sites/${siteId}/aso/apps/${appId}/prompts`),
+
+  addAppPrompt: (siteId: string, appId: string, text: string) =>
+    request<any>(`/sites/${siteId}/aso/apps/${appId}/prompts`, {
+      method: 'POST',
+      body: JSON.stringify({ text }),
+    }),
+
+  suggestAppPrompts: (siteId: string, appId: string) =>
+    request<{ suggested: string[]; created: number }>(
+      `/sites/${siteId}/aso/apps/${appId}/prompts/suggest`, { method: 'POST' },
+    ),
+
+  runAppPrompt: (siteId: string, appId: string, promptId: string) =>
+    request<any>(`/sites/${siteId}/aso/apps/${appId}/prompts/${promptId}/run`, { method: 'POST' }),
+
+  deleteAppPrompt: (siteId: string, appId: string, promptId: string) =>
+    request<{ ok: boolean }>(`/sites/${siteId}/aso/apps/${appId}/prompts/${promptId}`, { method: 'DELETE' }),
+
+  getAppPromptHistory: (siteId: string, appId: string, promptId: string, days = 30) =>
+    request<any[]>(`/sites/${siteId}/aso/apps/${appId}/prompts/${promptId}/history?days=${days}`),
+
+  buildReviewContentPack: (siteId: string, appId: string) =>
+    request<{
+      appId: string; appName: string;
+      basedOn: { negativeCount: number; themes: Array<{ theme: string; count: number }> };
+      whatsNew: string;
+      faqs: Array<{ q: string; a: string }>;
+      blogTopics: Array<{ title: string; opportunityId: string | null }>;
+    }>(`/sites/${siteId}/aso/apps/${appId}/review-content-pack`, { method: 'POST' }),
 
   // ──────────────────────────────────────────────────────────
   //  PUBLIC — anonim landing checker (auth yok)
