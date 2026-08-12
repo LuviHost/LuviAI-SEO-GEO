@@ -90,7 +90,16 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     throw new ApiError(res.status, toUserMessage(res.status, body), body);
   }
 
-  return res.json();
+  // NestJS handler null/undefined dondugunde govde BOS gelir (Content-Length: 0).
+  // res.json() bos govdede "Unexpected end of JSON input" firlatiyordu — 200'lu
+  // bos yanit hata degil, null'dir (ör. agent-readiness/latest ilk taramadan once).
+  const text = await res.text();
+  if (!text) return null as T;
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    return null as T;
+  }
 }
 
 export const api = {

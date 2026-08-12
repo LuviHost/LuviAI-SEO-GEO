@@ -18,6 +18,12 @@ import { acquireCronLock } from '../common/cron-lock.js';
 const RADAR_PROVIDERS: Provider[] = ['openai', 'anthropic', 'gemini', 'perplexity'];
 const MAX_QUERIES = 3;
 
+/**
+ * Jenerik kategori/tur adi kaliplari — extractor'in "urun" sanmamasi gereken
+ * cogul ifadeler (TR+EN). LLM prompt'una ragmen kacarsa son savunma.
+ */
+const GENERIC_NAME_RE = /(araçlar[ıi]?|çözümler[i]?|yazılımlar[ıi]?|platformlar[ıi]?|sistemler[i]?|uygulamalar[ıi]?|hizmetler[i]?|kaynaklar[ıi]?|siteler[i]?|cms'?ler[i]?|ajanslar[ıi]?|tools?|solutions?|platforms?|systems?|services)$/i;
+
 @Injectable()
 export class ProductRadarService {
   private readonly log = new Logger(ProductRadarService.name);
@@ -36,7 +42,7 @@ export class ProductRadarService {
       include: { brain: true },
     });
 
-    const queries = this.buildQueries(site);
+    const queries = await this.buildQueries(site);
     if (queries.length === 0) {
       throw new BadRequestException('Kategori sorgusu uretilemedi — site nis bilgisi (niche) eksik');
     }
@@ -55,6 +61,8 @@ export class ProductRadarService {
         if (probe.excerpt?.startsWith('HATA:')) continue;
 
         const products = await this.extractProducts(siteId, probe.excerpt ?? '', brand);
+        // Bos cikti kaydetme — leaderboard'a gurultu, UI'da bos kart olusturuyordu
+        if (products.length === 0 && !probe.brandMentioned) continue;
         const brandEntry = products.find((p) => p.isBrand);
 
         // Ayni gun + provider + query tekrarinda yeni satir atma, guncelle.
@@ -97,12 +105,13 @@ export class ProductRadarService {
       orderBy: [{ provider: 'asc' }],
     });
 
-    // Leaderboard: urun → kac saglayici/sorguda onerildi, ortalama sira
+    // Leaderboard: urun → kac saglayici/sorguda onerildi, ortalama sira.
+    // Anahtar diyakritik-katlanmis: "Haber Turk" ile "Haber Türk" tek satir.
     const tally = new Map<string, { name: string; count: number; rankSum: number; ranked: number; isBrand: boolean; providers: Set<string> }>();
     for (const s of snapshots) {
       const products: any[] = Array.isArray(s.products) ? (s.products as any[]) : [];
       for (const p of products) {
-        const key = String(p.name ?? '').toLowerCase().trim();
+        const key = this.foldName(String(p.name ?? ''));
         if (!key) continue;
         const cur = tally.get(key) ?? { name: p.name, count: 0, rankSum: 0, ranked: 0, isBrand: !!p.isBrand, providers: new Set<string>() };
         cur.count++;
@@ -162,22 +171,62 @@ export class ProductRadarService {
 
   // ────────────────────────────────────────────────────────────
 
-  private buildQueries(site: any): string[] {
+  /**
+   * Kategori sorgularini LLM ile uret — sablon sorgu ("X araclari")
+   * belirsizdi: haber sitesi icin hem haber MARKALARINI hem medya
+   * ARACLARINI (MailChimp, Hootsuite) getiriyordu. LLM, nis + marka
+   * baglaminda "bu markanin RAKIPLERININ onerilecegi" sorulari kurar.
+   * LLM hatasinda sablona duser.
+   */
+  private async buildQueries(site: any): Promise<string[]> {
     const niche = (site.niche ?? '').trim();
     if (!niche) return [];
     const tr = site.language !== 'en';
-    const queries = tr
+
+    try {
+      const competitors: string[] = Array.isArray(site.brain?.competitors)
+        ? site.brain.competitors.map((c: any) => c?.name).filter(Boolean).slice(0, 5)
+        : [];
+      const res = await this.llm.chat({
+        context: 'product-radar-queries',
+        siteId: site.id,
+        model: 'claude-haiku-4-5',
+        maxTokens: 400,
+        systemPrompt: [
+          'Bir markanin AI asistanlarda (ChatGPT/Gemini) rakipleriyle birlikte ONERILIP onerilmedigini olcmek istiyoruz.',
+          'Gorevin: siradan bir kullanicinin sorup cevabinda BU MARKANIN VE DOGRUDAN RAKIPLERININ listelenecegi 3 soru uretmek.',
+          'KRITIK: soru, markanin kendi kategorisindeki SAGLAYICILARI listeletmeli — o kategoriye hizmet eden yan araclari/yazilimlari DEGIL.',
+          '(Ornek: haber sitesi icin "en iyi haber siteleri/kaynaklari" DOGRU; "haber/medya araclari" YANLIS — MailChimp gibi araclar gelir.)',
+          `Dil: ${tr ? 'Turkce' : 'Ingilizce'}. Marka adini sorularda GECIRME.`,
+          'YANIT: yalnizca JSON dizi of string, 3 soru.',
+        ].join('\n'),
+        messages: [{
+          role: 'user',
+          content: `Marka: ${site.name} (${site.url})\nNis: ${niche}${competitors.length ? `\nBilinen rakipler: ${competitors.join(', ')}` : ''}`,
+        }],
+      });
+      const raw = res.output.trim().replace(/^```json?\s*|\s*```$/g, '');
+      const parsed = safeParseJson<any>(raw);
+      const queries = Array.isArray(parsed)
+        ? parsed.filter((q) => typeof q === 'string' && q.trim().length >= 10).slice(0, MAX_QUERIES)
+        : [];
+      if (queries.length > 0) return queries;
+    } catch (err: any) {
+      this.log.warn(`Radar sorgu uretimi LLM hatasi (sablona dusuluyor): ${err.message}`);
+    }
+
+    // Fallback sablonlar — "araclari" yerine "saglayici/marka" vurgusu
+    return (tr
       ? [
-          `en iyi ${niche} araçları hangileri?`,
-          `${niche} için hangi ürünü/servisi önerirsin?`,
-          `${niche} alanında en popüler çözümler`,
+          `en iyi ${niche} markaları/siteleri hangileri?`,
+          `${niche} için hangisini önerirsin, en güvenilir kaynaklar kimler?`,
+          `${niche} alanında en popüler isimler`,
         ]
       : [
-          `what are the best ${niche} tools?`,
-          `which ${niche} product would you recommend?`,
-          `most popular ${niche} solutions`,
-        ];
-    return queries.slice(0, MAX_QUERIES);
+          `what are the best ${niche} brands/sites?`,
+          `which ${niche} provider would you recommend?`,
+          `most popular names in ${niche}`,
+        ]).slice(0, MAX_QUERIES);
   }
 
   /** AI cevabindan oneri listesi cikar — ucuz LLM parse, hatada bos liste */
@@ -194,28 +243,49 @@ export class ProductRadarService {
         model: 'claude-haiku-4-5',
         maxTokens: 800,
         systemPrompt: [
-          'Sana bir AI asistan cevabi verilecek. Cevapta ONERILEN urun/servis/marka adlarini sirasiyla cikar.',
+          'Sana bir AI asistan cevabi verilecek. Cevapta ONERILEN somut marka/urun/servis OZEL ADLARINI sirasiyla cikar.',
           'YANIT: yalnizca JSON dizi: [{"name":"Urun Adi","rank":1}] — rank cevaptaki gecis sirasi (1 = ilk).',
-          'En fazla 15 madde. Urun degil kavram olanlari (ör. "SEO", "içerik pazarlama") ALMA.',
+          'En fazla 15 madde. SADECE ozel isimler (NTV, Hurriyet, MailChimp gibi).',
+          'ALMA: kavramlar ("SEO"), KATEGORI/TUR adlari ("Haber Sitesi CMS\'leri", "Sosyal Medya Yonetim Araclari", "Medya Takip Araclari" gibi cogul jenerik ifadeler).',
+          'Cevapta hic somut marka yoksa [] dondur.',
         ].join('\n'),
         messages: [{ role: 'user', content: excerpt.slice(0, 8000) }],
       });
       const raw = res.output.trim().replace(/^```json?\s*|\s*```$/g, '');
       const parsed = safeParseJson<any>(raw);
       if (!Array.isArray(parsed)) return [];
-      const brandNorm = brand.toLowerCase();
+      const brandNorm = this.foldName(brand);
       return parsed
         .filter((p) => p && typeof p.name === 'string' && p.name.trim())
+        // Jenerik kategori adlari LLM'den kacarsa son savunma (ör. "... Araçları")
+        .filter((p) => !GENERIC_NAME_RE.test(p.name.trim()))
         .slice(0, 15)
-        .map((p, i) => ({
-          name: p.name.trim().slice(0, 120),
-          rank: typeof p.rank === 'number' ? p.rank : i + 1,
-          isBrand: p.name.toLowerCase().includes(brandNorm) || brandNorm.includes(p.name.toLowerCase().trim()),
-        }));
+        .map((p, i) => {
+          const nameNorm = this.foldName(p.name);
+          return {
+            name: p.name.trim().slice(0, 120),
+            rank: typeof p.rank === 'number' ? p.rank : i + 1,
+            isBrand: nameNorm.includes(brandNorm) || brandNorm.includes(nameNorm),
+          };
+        });
     } catch (err: any) {
       this.log.warn(`Product extract fail: ${err.message}`);
       return [];
     }
+  }
+
+  /**
+   * Karsilastirma icin isim katlama: kucuk harf + diyakritik/aksan temizligi
+   * + noktalamasiz. TR ozel: 'ı'→'i'. "Haber Türk" ve "Haber Turk" ayni anahtara duser.
+   */
+  private foldName(s: string): string {
+    return s
+      .toLowerCase()
+      .replace(/ı/g, 'i')
+      .normalize('NFD')
+      .replace(/[̀-ͯ]/g, '')
+      .replace(/[^a-z0-9]+/g, ' ')
+      .trim();
   }
 
   private utcToday(): Date {
