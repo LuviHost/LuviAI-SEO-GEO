@@ -186,8 +186,8 @@ export class BrainGeneratorService {
 
     try {
       const resp = await client.messages.create({
-        model: 'claude-haiku-4-5',
-        max_tokens: 60,
+        model: 'claude-opus-5',
+        max_tokens: 4000,
         system: 'Sadece etiketi dondur. Aciklama, tirnak, noktalama yok.',
         messages: [{
           role: 'user',
@@ -306,7 +306,7 @@ ${pageSummaries}`;
 
     const response = await client.messages.create({
       model: process.env.ROUTING_MODEL ?? 'claude-sonnet-5',
-      max_tokens: 8192,
+      max_tokens: 16000,
       messages: [{ role: 'user', content: prompt }],
     });
 

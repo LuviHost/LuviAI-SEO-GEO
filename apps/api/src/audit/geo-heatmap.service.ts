@@ -202,8 +202,8 @@ export class GeoHeatmapService {
 
     if (provider === 'anthropic' && this.anthropic) {
       const resp = await this.anthropic.messages.create({
-        model: 'claude-haiku-4-5',
-        max_tokens: 350,
+        model: 'claude-opus-5',
+        max_tokens: 1000,
         system,
         messages: [{ role: 'user', content: query }],
       });
@@ -222,7 +222,7 @@ export class GeoHeatmapService {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${this.openaiKey}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: 'gpt-4o-mini', max_tokens: 350,
+          model: 'gpt-4o-mini', max_tokens: 1000,
           messages: [{ role: 'system', content: system }, { role: 'user', content: query }],
         }),
       });
@@ -235,7 +235,7 @@ export class GeoHeatmapService {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${this.perplexityKey}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: 'sonar', max_tokens: 350,
+          model: 'sonar', max_tokens: 1000,
           messages: [{ role: 'system', content: system }, { role: 'user', content: query }],
         }),
       });

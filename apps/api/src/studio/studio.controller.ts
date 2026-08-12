@@ -154,7 +154,7 @@ export class StudioController {
     const resp = await this.llm.chat({
       context: 'studio-text',
       siteId,
-      model: 'claude-haiku-4-5',
+      model: 'claude-opus-5',
       systemPrompt: system,
       messages: [{ role: 'user', content: body.prompt.trim() }],
       maxTokens: body.format === 'long' ? 1200 : 600,
@@ -170,7 +170,7 @@ export class StudioController {
         userId: user?.id ?? null,
         type: 'TEXT' as any,
         prompt: body.prompt.trim(),
-        provider: 'claude-haiku-4-5',
+        provider: 'claude-opus-5',
         text: generatedText,
         metadata: {
           format: body.format ?? 'medium',

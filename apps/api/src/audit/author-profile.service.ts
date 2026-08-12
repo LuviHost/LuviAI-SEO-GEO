@@ -54,8 +54,8 @@ export class AuthorProfileService {
     if ((!bio || expertise.length === 0) && this.anthropic) {
       try {
         const resp = await this.anthropic.messages.create({
-          model: 'claude-haiku-4-5',
-          max_tokens: 350,
+          model: 'claude-opus-5',
+          max_tokens: 4000,
           system: 'Sen yazar profili olusturucusun. Verilen persona icin kisa, gercekci, abartisiz bir biyografi yazarsin. JSON dondur.',
           messages: [{
             role: 'user',

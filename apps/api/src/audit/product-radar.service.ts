@@ -3,7 +3,7 @@ import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AiCitationService, type Provider } from './ai-citation.service.js';
 import { LLMProviderService } from '../llm/llm-provider.service.js';
-import { safeParseJson } from '../common/safe-json.js';
+import { parseJsonFromLlm } from '../common/safe-json.js';
 import { acquireCronLock } from '../common/cron-lock.js';
 
 /**
@@ -198,7 +198,7 @@ export class ProductRadarService {
       const res = await this.llm.chat({
         context: 'product-radar-queries',
         siteId: site.id,
-        model: 'claude-haiku-4-5',
+        model: 'claude-opus-5',
         maxTokens: 400,
         systemPrompt: [
           'Bir markanin AI asistanlarda (ChatGPT/Gemini) rakipleriyle birlikte ONERILIP onerilmedigini olcmek istiyoruz.',
@@ -221,8 +221,7 @@ export class ProductRadarService {
           ].filter(Boolean).join('\n'),
         }],
       });
-      const raw = res.output.trim().replace(/^```json?\s*|\s*```$/g, '');
-      const parsed = safeParseJson<any>(raw);
+      const parsed = parseJsonFromLlm<any>(res.output);
       const queries = Array.isArray(parsed)
         ? parsed.filter((q) => typeof q === 'string' && q.trim().length >= 10).slice(0, MAX_QUERIES)
         : [];
@@ -259,7 +258,7 @@ export class ProductRadarService {
       const res = await this.llm.chat({
         context: 'product-radar-extract',
         siteId,
-        model: 'claude-haiku-4-5',
+        model: 'claude-opus-5',
         maxTokens: 800,
         systemPrompt: [
           'Sana bir AI asistan cevabi verilecek. Cevapta ONERILEN somut marka/urun/servis OZEL ADLARINI sirasiyla cikar.',
@@ -270,8 +269,7 @@ export class ProductRadarService {
         ].join('\n'),
         messages: [{ role: 'user', content: excerpt.slice(0, 8000) }],
       });
-      const raw = res.output.trim().replace(/^```json?\s*|\s*```$/g, '');
-      const parsed = safeParseJson<any>(raw);
+      const parsed = parseJsonFromLlm<any>(res.output);
       if (!Array.isArray(parsed)) return [];
       const brandNorm = this.foldName(brand);
       return parsed

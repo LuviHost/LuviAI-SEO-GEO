@@ -187,6 +187,11 @@ export class SiteAiKeysService {
       switch (provider) {
         case 'anthropic': {
           const c = new Anthropic({ apiKey: key });
+          // BILEREK Haiku: bu bir KALITE cagrisi degil, "anahtar gecerli mi"
+          // ping'i. Opus 5 kullanmak iki sorun yaratirdi: (1) kisitli/dusuk
+          // katman BYOK anahtarlari Opus'a erisemeyip GECERLI anahtar
+          // "gecersiz" isaretlenirdi, (2) Opus 5'te thinking varsayilan acik
+          // oldugundan max_tokens: 5 ile cagri anlamsizlasir.
           const r = await c.messages.create({
             model: 'claude-haiku-4-5',
             max_tokens: 5,

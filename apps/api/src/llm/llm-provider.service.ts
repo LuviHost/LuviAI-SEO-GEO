@@ -24,6 +24,20 @@ import type { ChatRequest, ChatResponse, ILLMProvider, ProviderName } from './ll
  *   - LibreChat'in `Transaction + spendTokens` 2-aşamalı yapısının
  *     Prisma karşılığı.
  */
+/**
+ * Thinking'i VARSAYILAN olarak acik olan modeller (Opus 5, Sonnet 5, Fable 5).
+ * Bu modellerde `max_tokens` thinking + cevap metnini BIRLIKTE siniralar:
+ * dusuk bir max_tokens butcenin tamamini thinking'e harcayip METIN BOS
+ * donmesine yol acar. Haiku'dan Opus 5'e gecerken en buyuk risk buydu —
+ * eski cagrilarin cogu 60-500 token ile yaziliydi.
+ */
+function thinksByDefault(model: string): boolean {
+  return /^claude-(opus-5|sonnet-5|fable-5|mythos-5)/.test(model);
+}
+
+/** Thinking'li modellerde guvenli alt sinir — thinking + JSON cikti icin yeterli pay */
+const MIN_MAX_TOKENS_THINKING = 4000;
+
 @Injectable()
 export class LLMProviderService {
   private readonly log = new Logger(LLMProviderService.name);
@@ -56,12 +70,31 @@ export class LLMProviderService {
 
     // Auto-cache: Anthropic için system prompt >= 1024 token (~4000 char) ise otomatik
     // cache_control ekle. %90 cost düşüşü sağlar tekrarlayan sistem prompt'larında.
-    const effectiveReq: ChatRequest = (
+    // NOT: Opus 5'te cache alt siniri 512 token'a dustu (Opus 4.8'de 1024) —
+    // esik ~2000 karaktere cekilirse daha cok prompt cache'lenebilir.
+    let effectiveReq: ChatRequest = (
       req.cacheSystemPrompt === undefined
       && req.systemPrompt
       && req.systemPrompt.length >= 4000
       && req.model.startsWith('claude')
     ) ? { ...req, cacheSystemPrompt: true } : req;
+
+    // Thinking-varsayilan modellerde max_tokens tabani. Cagiran servis 300 token
+    // istese bile thinking o butceyi yiyip cevabi kesebilir; sessiz kirpik cevap
+    // yerine tabani yukseltiyoruz.
+    //
+    // MALIYET NOTU: max_tokens bir TAVANdir, pesin ucret degil — yalnizca
+    // uretilen token faturalanir. Ancak adaptive thinking daha genis tavanda
+    // BIRAZ daha uzun dusunebilir: prod olcumunde 400 → 4000 tavan degisimi
+    // ciktiyi 317 → 400 token yapti (%26 artis, 10x degil). Yani taban
+    // maliyeti bir miktar artirir, katlamaz.
+    if (thinksByDefault(effectiveReq.model)) {
+      const requested = effectiveReq.maxTokens ?? 1024;
+      if (requested < MIN_MAX_TOKENS_THINKING) {
+        this.log.debug(`[${effectiveReq.context}] max_tokens ${requested} → ${MIN_MAX_TOKENS_THINKING} (thinking payi)`);
+        effectiveReq = { ...effectiveReq, maxTokens: MIN_MAX_TOKENS_THINKING };
+      }
+    }
 
     const provider = this.resolveProvider(effectiveReq.model);
     const response = await provider.chat(effectiveReq);

@@ -280,8 +280,8 @@ export class FanoutService {
     ].filter(Boolean).join('\n');
 
     const resp = await this.anthropic.messages.create({
-      model: 'claude-haiku-4-5',
-      max_tokens: 1200,
+      model: 'claude-opus-5',
+      max_tokens: 4000,
       system,
       messages: [{ role: 'user', content: user }],
     });

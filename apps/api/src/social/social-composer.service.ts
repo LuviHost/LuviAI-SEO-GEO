@@ -226,7 +226,7 @@ export class SocialComposerService {
     const resp = await this.llm.chat({
       context: 'social-composer',
       siteId,
-      model: 'claude-haiku-4-5',
+      model: 'claude-opus-5',
       systemPrompt: system,
       messages: [{ role: 'user', content: `Konu: ${prompt.trim()}` }],
       maxTokens: 400,

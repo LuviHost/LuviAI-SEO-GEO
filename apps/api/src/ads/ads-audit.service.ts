@@ -164,7 +164,7 @@ export class AdsAuditService {
         brainContext: { brand: 'RanksUp Ads Audit', voice: 'analitik', goals: [], stoplist: [] } as any,
         input: prompt,
         maxTokens: 400,
-        preferredModel: 'haiku',
+        preferredModel: 'opus',
       });
       // JSON parse et
       const json = JSON.parse(result.output.match(/\{[\s\S]*\}/)?.[0] ?? '{}');

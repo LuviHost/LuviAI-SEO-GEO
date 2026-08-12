@@ -62,7 +62,7 @@ export class AdGeneratorService {
 
     const resp = await this.anthropic.messages.create({
       model: 'claude-sonnet-5',
-      max_tokens: 2500,
+      max_tokens: 8000,
       system: `Sen ${brand} markasinin paid ads copywriter'isin. Google Ads + Meta Ads icin yuksek CTR'li reklam metinleri yazarsin.
 
 KURALLAR:

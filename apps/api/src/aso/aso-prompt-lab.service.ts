@@ -2,7 +2,7 @@ import { Injectable, Logger, BadRequestException, NotFoundException } from '@nes
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AiCitationService } from '../audit/ai-citation.service.js';
 import { LLMProviderService } from '../llm/llm-provider.service.js';
-import { safeParseJson } from '../common/safe-json.js';
+import { parseJsonFromLlm } from '../common/safe-json.js';
 
 /**
  * App Prompt Lab — GEO ⨉ ASO kesisimi. RAKIPTE YOK.
@@ -89,7 +89,7 @@ export class AsoPromptLabService {
     const res = await this.llm.chat({
       context: 'aso-prompt-suggest',
       siteId,
-      model: 'claude-haiku-4-5',
+      model: 'claude-opus-5',
       maxTokens: 600,
       systemPrompt: [
         'Kullanicilarin bir AI asistana (ChatGPT/Gemini) uygulama tavsiyesi sorarken kullanacagi sorulari uret.',
@@ -102,8 +102,7 @@ export class AsoPromptLabService {
       }],
     });
 
-    const raw = res.output.trim().replace(/^```json?\s*|\s*```$/g, '');
-    const parsed = safeParseJson<any>(raw);
+    const parsed = parseJsonFromLlm<any>(res.output);
     const suggestions: string[] = Array.isArray(parsed)
       ? parsed.filter((s) => typeof s === 'string' && s.trim().length >= 5).slice(0, 8)
       : [];

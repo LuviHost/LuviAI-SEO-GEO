@@ -80,8 +80,8 @@ Cevabin sonunda kullandigin makale URL'lerini parantez icinde belirt: (kaynak: $
 
     try {
       const resp = await this.anthropic.messages.create({
-        model: 'claude-haiku-4-5',
-        max_tokens: 600,
+        model: 'claude-opus-5',
+        max_tokens: 4000,
         system,
         messages: history.map((m) => ({ role: m.role, content: m.content })),
       });

@@ -91,7 +91,11 @@ export class AiCitationService {
   // Cost guard — gunluk per-provider hard cap (USD).
   // Sadece havuz (pool) kullanimina uygulanir; BYOK kullanicinin kendi parasi oldugu icin saymaz.
   private readonly DAILY_BUDGET_USD: Record<Provider, number> = {
-    anthropic:  parseFloat(process.env.AI_BUDGET_ANTHROPIC_USD  ?? '5'),
+    // Opus 5'e gecisle probe basi TAVAN maliyet 0.0024 → 0.03 (12x).
+    // Varsayilan gunluk tavan 5 → 30 USD: bu, gunde ~1000 anthropic probe
+    // demektir (eski kurulumda ~2000 idi). Kapasiteyi geri istiyorsan
+    // AI_BUDGET_ANTHROPIC_USD=60 yap; maliyeti kismak istiyorsan dusur.
+    anthropic:  parseFloat(process.env.AI_BUDGET_ANTHROPIC_USD  ?? '30'),
     gemini:     parseFloat(process.env.AI_BUDGET_GEMINI_USD     ?? '5'),
     openai:     parseFloat(process.env.AI_BUDGET_OPENAI_USD     ?? '5'),
     perplexity: parseFloat(process.env.AI_BUDGET_PERPLEXITY_USD ?? '5'),
@@ -101,8 +105,20 @@ export class AiCitationService {
   };
 
   // Approx cost per probe (input ~150 tok + output ~400 tok)
+  //
+  // DIKKAT — bu sabitler MATEMATIKSEL UST SINIR olmak zorunda, ortalama degil:
+  // guard harcamayi cagri ONCESI projekte eder, gercek fatura sabitten buyukse
+  // gunluk cap sessizce asilir.
+  //
+  // anthropic (Opus 5, 2026-08): girdi ~150 tok x $5/1M = $0.00075
+  //                              cikti max_tokens 1000 x $25/1M = $0.025
+  //                              → tavan $0.026, guvenli pay ile 0.03
+  // Opus 5'te thinking VARSAYILAN ACIK ve thinking tokenlari da cikti olarak
+  // faturalanir; bu yuzden tavan max_tokens uzerinden hesaplanir (olculen
+  // ortalama ~400 tok / $0.011 idi, ama guard ortalamaya guvenemez).
+  // Model veya max_tokens degistirirken BURAYI da guncelle.
   private readonly COST_PER_PROBE_USD: Record<Provider, number> = {
-    anthropic:  0.0024,
+    anthropic:  0.03,
     // Gemini SIFIR OLAMAZ. Sifirken projected maliyet hicbir zaman cap'i
     // asmiyordu, yani gemini icin gunluk butce guard'i HIC calismiyordu ve
     // her planin havuzunda gemini bulundugu icin bu en genis acikti.
@@ -629,8 +645,8 @@ export class AiCitationService {
     try {
       const client = new Anthropic({ apiKey: key });
       const resp = await client.messages.create({
-        model: 'claude-haiku-4-5',
-        max_tokens: 500,
+        model: 'claude-opus-5',
+        max_tokens: 4000,
         system,
         messages: [{ role: 'user', content: user }],
       });
@@ -757,8 +773,8 @@ export class AiCitationService {
     for (const q of queries) {
       try {
         const resp = await client.messages.create({
-          model: 'claude-haiku-4-5',
-          max_tokens: 400,
+          model: 'claude-opus-5',
+          max_tokens: 1000,
           system: systemPrompt,
           messages: [{ role: 'user', content: q }],
         });
@@ -766,6 +782,20 @@ export class AiCitationService {
           .filter((b: any) => b.type === 'text')
           .map((b: any) => b.text)
           .join(' ');
+
+        // Opus 5 guvenlik siniflandiricilari istegi REDDEDEBILIR: HTTP 200 +
+        // stop_reason 'refusal' + BOS content doner, SDK exception FIRLATMAZ.
+        // Kontrol edilmezse bu "marka anilmadi" gibi kaydedilir ve skoru haksiz
+        // yere dusurur. HATA: onekiyle isaretlenirse persistRuns bu satiri
+        // DB'ye hic yazmaz (bkz. prompt-lab.service.ts isErrorProbe).
+        const stopReason = (resp as any).stop_reason;
+        if (stopReason === 'refusal' || (!text.trim() && stopReason !== 'end_turn')) {
+          const reason = stopReason === 'refusal' ? 'saglayici reddi (refusal)' : `bos cevap (stop_reason=${stopReason})`;
+          this.log.warn(`Anthropic probe olculemedi (${q}): ${reason}`);
+          probes.push({ query: q, cited: false, brandMentioned: false, excerpt: `HATA: ${reason}` });
+          continue;
+        }
+
         probes.push(this.buildProbe(q, text, host, brand, competitors));
       } catch (err: any) {
         this.log.warn(`Anthropic probe failed (${q}): ${err.message}`);
@@ -783,7 +813,7 @@ export class AiCitationService {
         const resp = await client.models.generateContent({
           model: 'gemini-2.5-flash',
           contents: `${systemPrompt}\n\nSoru: ${q}`,
-          config: { maxOutputTokens: 400 } as any,
+          config: { maxOutputTokens: 1000 } as any,
         });
         const text = resp.text ?? '';
         probes.push(this.buildProbe(q, text, host, brand, competitors));
@@ -804,7 +834,7 @@ export class AiCitationService {
           headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({
             model: 'gpt-4o-mini',
-            max_tokens: 400,
+            max_tokens: 1000,
             messages: [
               { role: 'system', content: systemPrompt },
               { role: 'user', content: q },
@@ -832,7 +862,7 @@ export class AiCitationService {
           headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({
             model: 'sonar',
-            max_tokens: 400,
+            max_tokens: 1000,
             messages: [
               { role: 'system', content: systemPrompt },
               { role: 'user', content: q },
@@ -864,7 +894,7 @@ export class AiCitationService {
           headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({
             model: 'grok-4-fast-non-reasoning',
-            max_tokens: 400,
+            max_tokens: 1000,
             messages: [
               { role: 'system', content: systemPrompt },
               { role: 'user', content: q },
@@ -892,7 +922,7 @@ export class AiCitationService {
           headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({
             model: 'deepseek-chat',
-            max_tokens: 400,
+            max_tokens: 1000,
             messages: [
               { role: 'system', content: systemPrompt },
               { role: 'user', content: q },
@@ -922,7 +952,7 @@ export class AiCitationService {
           headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({
             model,
-            max_tokens: 400,
+            max_tokens: 1000,
             messages: [
               { role: 'system', content: systemPrompt },
               { role: 'user', content: q },
