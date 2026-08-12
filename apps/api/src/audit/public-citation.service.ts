@@ -3,6 +3,7 @@ import { createHash } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AiCitationService, type CitationProbe } from './ai-citation.service.js';
 import { NicheDetectorService } from '../sites/niche-detector.service.js';
+import type { Audience } from '../llm/model-tier.js';
 
 /**
  * Public AI Citation Check — landing page demo (anonim).
@@ -283,7 +284,7 @@ export class PublicCitationService {
    */
   private async filterCompetitors(
     shareOfVoice: Array<{ name: string; mentions: number; pct: number; isBrand?: boolean }>,
-    ctx: { brand: string; host: string; niche?: string; customNiche?: string },
+    ctx: { brand: string; host: string; niche?: string; customNiche?: string; audience: Audience },
   ): Promise<Array<{ name: string; mentions: number; pct: number; isBrand?: boolean }>> {
     if (!shareOfVoice.length) return [];
 
@@ -297,6 +298,7 @@ export class PublicCitationService {
       niche: ctx.niche,
       customNiche: ctx.customNiche,
       candidates: candidates.map((c) => c.name),
+      audience: ctx.audience,
     });
 
     const realComps = candidates.filter((c) => keep.has(c.name.toLowerCase().replace(/^www\./, '')));
@@ -315,6 +317,11 @@ export class PublicCitationService {
 
   async check(domain: string, ip: string, source: 'manual' | 'retest_cron' | 'signup_baseline' = 'manual'): Promise<PublicCheckResult> {
     const { url, host } = this.normalizeDomain(domain);
+
+    // Model kademesi: landing'den gelen anonim istek ve email abonesinin cron
+    // retest'i 'anon' (ucuz model); kayit sonrasi baseline uyeye ait → 'member'.
+    // Probe modeli bu ayrimdan ETKILENMEZ (olcum cetveli sabit, bkz. model-tier.ts).
+    const audience: Audience = source === 'signup_baseline' ? 'member' : 'anon';
 
     // 1) Cache kontrol — sadece manual istekte 24h taze snapshot varsa direkt don
     //    (retest_cron + signup_baseline her zaman taze test ister)
@@ -341,8 +348,8 @@ export class PublicCitationService {
     // 3) HTML fetch + brand
     const meta = await this.extractBrandFromHtml(url, host);
 
-    // 4) Niche detect (Claude Haiku)
-    const detection = await this.niche.detectFromUrl(url);
+    // 4) Niche detect — model kademesi cagiran kitleye gore
+    const detection = await this.niche.detectFromUrl(url, audience);
 
     // 5) Sorular — niche-detector AI gerçek müşteri sorularını ürettiyse onları kullan
     //    (yerel + hizmet-spesifik = alakalı). Üretemediyse niche template'ine düş.
@@ -392,7 +399,7 @@ export class PublicCitationService {
     // kalan set uzerinden yeniden hesaplanir.
     const competitorRanking = await this.filterCompetitors(
       agg.shareOfVoice ?? [],
-      { brand: meta.brand, host, niche: detection.niche, customNiche: detection.customNiche },
+      { brand: meta.brand, host, niche: detection.niche, customNiche: detection.customNiche, audience },
     );
 
     const result: PublicCheckResult = {

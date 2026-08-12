@@ -4,6 +4,8 @@ import { GoogleGenAI } from '@google/genai';
 import { decrypt } from '@luviai/shared';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { QuotaService } from '../billing/quota.service.js';
+import { SettingsService } from '../settings/settings.service.js';
+import { modelForAudience, type Audience } from '../llm/model-tier.js';
 
 export type Provider = 'anthropic' | 'gemini' | 'openai' | 'perplexity' | 'xai' | 'deepseek' | 'meta';
 
@@ -134,6 +136,7 @@ export class AiCitationService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly quota: QuotaService,
+    private readonly settings: SettingsService,
   ) {}
 
   // ────────────────────────────────────────────────────────────
@@ -585,6 +588,8 @@ export class AiCitationService {
     niche?: string;
     customNiche?: string;
     candidates: string[];
+    /** Cagriyi kim tetikledi — anonim landing kontrolu 'anon' gecer. */
+    audience?: Audience;
   }): Promise<Set<string>> {
     const candidates = Array.from(new Set(
       (opts.candidates ?? []).map((c) => c.toLowerCase().trim()).filter(Boolean),
@@ -645,7 +650,7 @@ export class AiCitationService {
     try {
       const client = new Anthropic({ apiKey: key });
       const resp = await client.messages.create({
-        model: 'claude-opus-5',
+        model: await modelForAudience(this.settings, opts.audience ?? 'member'),
         max_tokens: 4000,
         system,
         messages: [{ role: 'user', content: user }],

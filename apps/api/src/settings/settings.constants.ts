@@ -302,6 +302,29 @@ export const SETTINGS_CATALOG: SettingMeta[] = [
     envFallback: true,
     enumValues: ['claude-opus-5', 'claude-sonnet-5', 'claude-haiku-4-5'],
   },
+  // ─── AUDIENCE MODEL TIER (2026-08) ───────────────────────────────────
+  // Oturum acmamis ziyaretcinin tetikledigi AI cagrilari (landing citation
+  // checker'in nis tespiti + rakip filtresi, persona chat widget'i) bedava
+  // ve kimliksiz. Uye cagrilarindan ayri model kademesi:
+  // NOT: citation probe'lari BU AYARDAN ETKILENMEZ — bkz. llm/model-tier.ts.
+  {
+    key: 'MODEL_ANON',
+    type: 'enum',
+    category: 'model',
+    default: 'claude-haiku-4-5',
+    description: 'Oturum acmamis ziyaretcinin tetikledigi AI cagrilari (landing checker nis tespiti, persona chat widget). Citation probe modelini DEGISTIRMEZ.',
+    envFallback: true,
+    enumValues: ['claude-haiku-4-5', 'claude-sonnet-5', 'claude-opus-5'],
+  },
+  {
+    key: 'MODEL_MEMBER',
+    type: 'enum',
+    category: 'model',
+    default: 'claude-opus-5',
+    description: 'Giris yapmis kullanicinin AI cagrilari (onboarding nis tespiti, dashboard). Kalite tercihi.',
+    envFallback: true,
+    enumValues: ['claude-opus-5', 'claude-sonnet-5', 'claude-haiku-4-5'],
+  },
   {
     key: 'IMAGE_PROVIDER',
     type: 'enum',

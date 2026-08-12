@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import Anthropic from '@anthropic-ai/sdk';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { SettingsService } from '../settings/settings.service.js';
+import { modelForAudience } from '../llm/model-tier.js';
 
 export interface ChatMessage {
   role: 'user' | 'assistant';
@@ -31,7 +33,18 @@ export class PersonaChatService {
     ? new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
     : null;
 
-  constructor(private readonly prisma: PrismaService) {}
+  /**
+   * Widget ucu @Public — istemci gecmisi kendi gonderir, yani uzunlugu
+   * saldirgan belirler. Girdi token maliyeti sinirsiz buyumesin diye son N
+   * mesaj ve mesaj basi karakter tavani uygulanir.
+   */
+  private readonly MAX_HISTORY_MESSAGES = 10;
+  private readonly MAX_MESSAGE_CHARS = 2000;
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly settings: SettingsService,
+  ) {}
 
   async ask(siteId: string, history: ChatMessage[]): Promise<ChatResponse> {
     if (!this.anthropic) {
@@ -79,11 +92,14 @@ ${articleList}
 Cevabin sonunda kullandigin makale URL'lerini parantez icinde belirt: (kaynak: ${baseUrl}/blog/...).`;
 
     try {
+      // Widget ziyaretcisi anonim → 'anon' kademesi (admin panelden MODEL_ANON).
       const resp = await this.anthropic.messages.create({
-        model: 'claude-opus-5',
+        model: await modelForAudience(this.settings, 'anon'),
         max_tokens: 4000,
         system,
-        messages: history.map((m) => ({ role: m.role, content: m.content })),
+        messages: history
+          .slice(-this.MAX_HISTORY_MESSAGES)
+          .map((m) => ({ role: m.role, content: String(m.content ?? '').slice(0, this.MAX_MESSAGE_CHARS) })),
       });
       const text = resp.content.filter((b: any) => b.type === 'text').map((b: any) => b.text).join('\n');
 
