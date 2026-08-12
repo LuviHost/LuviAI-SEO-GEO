@@ -89,6 +89,20 @@ export class BrainGeneratorService {
       } as any,
     });
 
+    // ── Spesifik kategori etiketi (customNiche) ───────────────
+    // `niche` 20 secenekli kaba liste; cogu siteyi yanlis kovaya koyuyor
+    // (futbol canli skor platformu → "haber/medya"). Brain siteyi CRAWL edip
+    // anladigi icin cok daha guvenilir: rakip listesinden spesifik kategoriyi
+    // turetip kaydediyoruz. Rakip/sorgu ureten servisler ONCE bunu kullanir.
+    // Kullanici elle yazdiysa (mevcut deger) dokunmayiz.
+    if (!site.customNiche) {
+      const derived = await this.deriveCustomNiche(site, brain);
+      if (derived) {
+        await this.prisma.site.update({ where: { id: siteId }, data: { customNiche: derived } });
+        this.log.log(`${siteId}: customNiche türetildi → "${derived}" (niche: ${site.niche ?? '—'})`);
+      }
+    }
+
     // Site status güncelle
     await this.prisma.site.update({
       where: { id: siteId },
@@ -151,6 +165,57 @@ export class BrainGeneratorService {
       );
     }
     return { ...strategy, pillars: kept };
+  }
+
+  /**
+   * Brain ciktisindan 2-4 kelimelik spesifik kategori etiketi turet.
+   * Rakip listesi en guclu sinyaldir: rakipler Flashscore/Mackolik ise site
+   * "haber/medya" degil "futbol canli skor platformu"dur. Hata durumunda
+   * null doner — yanlis etiket yazmaktansa bos birakmak yeglenir.
+   */
+  private async deriveCustomNiche(site: any, brain: any): Promise<string | null> {
+    if (!process.env.ANTHROPIC_API_KEY) return null;
+    const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+    const competitors: string[] = Array.isArray(brain?.competitors)
+      ? brain.competitors.map((c: any) => c?.name).filter(Boolean).slice(0, 6)
+      : [];
+    const pillars: string[] = Array.isArray(brain?.seoStrategy?.pillars)
+      ? brain.seoStrategy.pillars.map((p: any) => p?.name ?? p?.pillar).filter(Boolean).slice(0, 5)
+      : [];
+    if (competitors.length === 0 && pillars.length === 0) return null;
+
+    try {
+      const resp = await client.messages.create({
+        model: 'claude-haiku-4-5',
+        max_tokens: 60,
+        system: 'Sadece etiketi dondur. Aciklama, tirnak, noktalama yok.',
+        messages: [{
+          role: 'user',
+          content: [
+            'Bu siteyi en iyi anlatan 2-4 kelimelik Turkce kategori etiketini yaz.',
+            'Rakip listesi en guclu ipucudur — kategoriyi onlar tarif eder.',
+            `Site: ${site.name} (${site.url})`,
+            competitors.length ? `Rakipler: ${competitors.join(', ')}` : '',
+            pillars.length ? `Icerik pillar'lari: ${pillars.join(', ')}` : '',
+            'Ornek ciktilar: "futbol canli skor platformu", "B2B SaaS analitik", "tuplu dalis okulu"',
+          ].filter(Boolean).join('\n'),
+        }],
+      });
+      const label = resp.content
+        .filter((b: any) => b.type === 'text')
+        .map((b: any) => b.text)
+        .join('')
+        .trim()
+        .replace(/^["'«]|["'».]$/g, '')
+        .split('\n')[0]
+        ?.slice(0, 60);
+      // 2-4 kelime bekleniyor; cumle donduyse guvenme
+      if (!label || label.length < 4 || label.split(/\s+/).length > 6) return null;
+      return label;
+    } catch (err: any) {
+      this.log.warn(`${site.id}: customNiche türetilemedi: ${err.message}`);
+      return null;
+    }
   }
 
   private async analyzeWithAI(site: any, crawl: CrawlResult): Promise<any> {
@@ -228,7 +293,9 @@ Sadece JSON döndür. Açıklama, kod-fence dışı text yazma.
 
 # Site Adı: ${site.name}
 # Site URL: ${site.url}
-# Niche (kullanıcı söyledi): ${site.niche ?? 'belirtilmemiş'}
+# Niche (kullanıcı söyledi): ${site.niche ?? 'belirtilmemiş'}${site.customNiche ? `\n# Spesifik kategori: ${site.customNiche}` : ''}
+# NOT: Niche 20 secenekli kaba bir listedir ve YANLIS olabilir. Crawl ettigin
+# gercek icerik niche ile celisiyorsa ICERIGE guven, niche'i gormezden gel.
 # Dil: ${site.language}
 
 # Gerçek sayfa URL listesi (pillars[].url SADECE buradan seçilir, uydurma YASAK):

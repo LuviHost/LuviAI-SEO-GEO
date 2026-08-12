@@ -47,7 +47,9 @@ export class ProductRadarService {
       throw new BadRequestException('Kategori sorgusu uretilemedi — site nis bilgisi (niche) eksik');
     }
 
-    const category = site.niche ?? 'genel';
+    // Kategori etiketi: spesifik olan ONCE. Kaba `niche` listesi (20 secenek)
+    // cogu siteyi yanlis kovaya koyuyor (futbol canli skor → "haber/medya").
+    const category = (site.customNiche ?? site.niche ?? 'genel').trim();
     const brand = site.name;
     const today = this.utcToday();
     let saved = 0;
@@ -155,7 +157,7 @@ export class ProductRadarService {
     // (LLM cagrili en pahali cron'lardan; cift calisma cift maliyet olurdu)
     if (!(await acquireCronLock(this.prisma, 'product-radar', 'weekly'))) return;
     const sites = await this.prisma.site.findMany({
-      where: { status: 'ACTIVE' as any, niche: { not: null } },
+      where: { status: 'ACTIVE' as any, OR: [{ niche: { not: null } }, { customNiche: { not: null } }] },
       select: { id: true },
       take: 100,
     });
@@ -180,12 +182,18 @@ export class ProductRadarService {
    */
   private async buildQueries(site: any): Promise<string[]> {
     const niche = (site.niche ?? '').trim();
-    if (!niche) return [];
+    const customNiche = (site.customNiche ?? '').trim();
+    // Brain rakipleri sitenin GERCEK kategorisinin en guclu kaniti: brain
+    // siteyi crawl edip anliyor, `niche` ise 20 secenekli kaba liste.
+    const competitors: string[] = Array.isArray(site.brain?.competitors)
+      ? site.brain.competitors.map((c: any) => c?.name).filter(Boolean).slice(0, 6)
+      : [];
+    if (!niche && !customNiche && competitors.length === 0) return [];
     const tr = site.language !== 'en';
 
     try {
-      const competitors: string[] = Array.isArray(site.brain?.competitors)
-        ? site.brain.competitors.map((c: any) => c?.name).filter(Boolean).slice(0, 5)
+      const pillars: string[] = Array.isArray(site.brain?.seoStrategy?.pillars)
+        ? site.brain.seoStrategy.pillars.map((p: any) => p?.name ?? p?.pillar).filter(Boolean).slice(0, 5)
         : [];
       const res = await this.llm.chat({
         context: 'product-radar-queries',
@@ -195,14 +203,22 @@ export class ProductRadarService {
         systemPrompt: [
           'Bir markanin AI asistanlarda (ChatGPT/Gemini) rakipleriyle birlikte ONERILIP onerilmedigini olcmek istiyoruz.',
           'Gorevin: siradan bir kullanicinin sorup cevabinda BU MARKANIN VE DOGRUDAN RAKIPLERININ listelenecegi 3 soru uretmek.',
+          'ONCELIK SIRASI: (1) Bilinen rakipler — kategoriyi en iyi onlar tarif eder, (2) spesifik kategori, (3) genel nis etiketi.',
+          'Genel nis etiketi ("haber/medya" gibi) YANILTICI olabilir; rakipler listesi onunla celisirse RAKIPLERE GUVEN.',
+          '(Ornek: rakipler Flashscore/Mackolik ise soru "en iyi canli skor siteleri" olmali, "haber siteleri" DEGIL.)',
           'KRITIK: soru, markanin kendi kategorisindeki SAGLAYICILARI listeletmeli — o kategoriye hizmet eden yan araclari/yazilimlari DEGIL.',
-          '(Ornek: haber sitesi icin "en iyi haber siteleri/kaynaklari" DOGRU; "haber/medya araclari" YANLIS — MailChimp gibi araclar gelir.)',
           `Dil: ${tr ? 'Turkce' : 'Ingilizce'}. Marka adini sorularda GECIRME.`,
           'YANIT: yalnizca JSON dizi of string, 3 soru.',
         ].join('\n'),
         messages: [{
           role: 'user',
-          content: `Marka: ${site.name} (${site.url})\nNis: ${niche}${competitors.length ? `\nBilinen rakipler: ${competitors.join(', ')}` : ''}`,
+          content: [
+            `Marka: ${site.name} (${site.url})`,
+            competitors.length ? `Bilinen rakipler (EN GUCLU SINYAL): ${competitors.join(', ')}` : null,
+            customNiche ? `Spesifik kategori: ${customNiche}` : null,
+            niche ? `Genel nis etiketi: ${niche}` : null,
+            pillars.length ? `Icerik pillar'lari: ${pillars.join(', ')}` : null,
+          ].filter(Boolean).join('\n'),
         }],
       });
       const raw = res.output.trim().replace(/^```json?\s*|\s*```$/g, '');
@@ -215,17 +231,20 @@ export class ProductRadarService {
       this.log.warn(`Radar sorgu uretimi LLM hatasi (sablona dusuluyor): ${err.message}`);
     }
 
-    // Fallback sablonlar — "araclari" yerine "saglayici/marka" vurgusu
+    // Fallback sablonlar — spesifik kategori varsa onu kullan (kaba nis degil),
+    // "araclari" yerine "saglayici/marka" vurgusu
+    const label = customNiche || niche;
+    if (!label) return [];
     return (tr
       ? [
-          `en iyi ${niche} markaları/siteleri hangileri?`,
-          `${niche} için hangisini önerirsin, en güvenilir kaynaklar kimler?`,
-          `${niche} alanında en popüler isimler`,
+          `en iyi ${label} markaları/siteleri hangileri?`,
+          `${label} için hangisini önerirsin, en güvenilir kaynaklar kimler?`,
+          `${label} alanında en popüler isimler`,
         ]
       : [
-          `what are the best ${niche} brands/sites?`,
-          `which ${niche} provider would you recommend?`,
-          `most popular names in ${niche}`,
+          `what are the best ${label} brands/sites?`,
+          `which ${label} provider would you recommend?`,
+          `most popular names in ${label}`,
         ]).slice(0, MAX_QUERIES);
   }
 
