@@ -198,6 +198,13 @@ model Site {
   url      String // https://luvihost.com.tr
   name     String // "LuviHost"
   niche    String? // hosting | ecommerce | saas | ...
+  /**
+   * Spesifik kategori etiketi — 20 elemanli kaba `niche` listesi cogu siteyi
+   * tam anlatmiyor (ör. futbol canli skor platformu "haber/medya"ya dusuyordu).
+   * NicheDetector zaten uretiyordu ama kaydedilmiyordu; brain uretimi sonrasi
+   * da doldurulur. Rakip/sorgu ureten tum servisler ONCE bunu kullanir.
+   */
+  customNiche String?
   language String     @default("tr") // tr | en | both
   status   SiteStatus @default(ONBOARDING)
 

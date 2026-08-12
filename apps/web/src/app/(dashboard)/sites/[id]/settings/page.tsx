@@ -17,6 +17,9 @@ export default function SettingsPage() {
   const [customNiche, setCustomNiche] = useState<string>(
     site.niche && !NICHES.includes(site.niche as any) ? site.niche : '',
   );
+  // DB'deki ayri alan (Site.customNiche) — yukaridaki "kendim yazayim" alanindan
+  // farkli: o, niche kolonuna yaziliyor; bu, spesifik kategori olarak saklaniyor.
+  const [specificCategory, setSpecificCategory] = useState<string>(site.customNiche ?? '');
   const [language, setLanguage] = useState(site.language ?? 'tr');
   const [saving, setSaving] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
@@ -28,13 +31,15 @@ export default function SettingsPage() {
     setName(site.name);
     setNiche(NICHES.includes(site.niche as any) ? (site.niche ?? 'diğer') : 'diğer');
     setCustomNiche(site.niche && !NICHES.includes(site.niche as any) ? site.niche : '');
+    setSpecificCategory(site.customNiche ?? '');
     setLanguage(site.language ?? 'tr');
-  }, [site.id, site.name, site.niche, site.language]);
+  }, [site.id, site.name, site.niche, site.customNiche, site.language]);
 
   const useCustomNiche = niche === 'diğer' || niche === 'custom';
   const isDirty =
     name.trim() !== site.name ||
     language !== (site.language ?? 'tr') ||
+    specificCategory.trim() !== (site.customNiche ?? '') ||
     (useCustomNiche
       ? customNiche.trim() !== (site.niche ?? '')
       : niche !== (site.niche ?? 'diğer'));
@@ -47,6 +52,7 @@ export default function SettingsPage() {
       await api.updateSite(site.id, {
         name: name.trim(),
         niche: finalNiche,
+        customNiche: specificCategory.trim() || null,
         language,
       });
       toast.success('Ayarlar kaydedildi');
@@ -191,6 +197,24 @@ export default function SettingsPage() {
           <p className="text-[10px] text-muted-foreground mt-1.5">
             Spesifik niş yazmak AI Citation testlerinde daha anlamlı sorgu üretir.{' '}
             <strong>"diğer"</strong> seçeneği AI motorlarına generic sorgu gönderir, atıf alma şansı düşer.
+          </p>
+        </div>
+
+        {/* Spesifik kategori — yukarıdaki 20 seçenek çoğu siteyi tam anlatmıyor
+            (ör. futbol canlı skor platformu "haber/medya"ya düşüyordu). Rakip ve
+            sorgu üreten tüm modüller ÖNCE bu alanı kullanır. */}
+        <div>
+          <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 block">
+            Spesifik Kategori <span className="normal-case font-normal text-[10px]">(Product Radar & rakip tespiti bunu kullanır)</span>
+          </label>
+          <Input
+            value={specificCategory}
+            onChange={(e) => setSpecificCategory(e.target.value)}
+            placeholder="Örn: futbol canlı skor platformu, tüplü dalış okulu, B2B SaaS analitik"
+          />
+          <p className="text-[10px] text-muted-foreground mt-1.5">
+            Boş bırakırsan Brain üretiminde otomatik doldurulur. Yukarıdaki geniş niş etiketiyle
+            çelişirse <strong>bu alan kazanır</strong> — rakiplerin doğru bulunması için en kritik alan.
           </p>
         </div>
 

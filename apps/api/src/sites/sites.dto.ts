@@ -11,6 +11,7 @@ export class CreateSiteDto {
   @IsOptional()
   @IsString()
   niche?: string;
+  customNiche?: string;
 
   @IsOptional()
   @IsString()
@@ -23,6 +24,7 @@ export class CreateSiteDto {
 export class UpdateSiteDto {
   @IsOptional() @IsString() name?: string;
   @IsOptional() @IsString() niche?: string;
+  @IsOptional() @IsString() customNiche?: string;
   @IsOptional() @IsString() language?: string;
   @IsOptional() autoGenerationEnabled?: boolean;
   @IsOptional() autoGenerationCron?: string;
