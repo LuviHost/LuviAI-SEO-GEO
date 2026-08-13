@@ -604,8 +604,10 @@ export default function LandingPage() {
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-5 max-w-7xl mx-auto">
             {plans.filter((p) => p.id !== 'trial').map((p) => {
               const monthlyEq = billing === 'annual' ? Math.round(p.annual / 12) : p.monthly;
-              // TL karsiligi bilgi amacli — tahsilat odeme anindaki kurla yapilir
-              const monthlyEqTry = billing === 'annual' ? Math.round((p.annualTry ?? 0) / 12) : (p.monthlyTry ?? 0);
+              // Kartlarda TL karsiligi GOSTERILMEZ — fiyat USD'de kanonik,
+              // TL tutari odeme aninda hesaplaniyor. Iki para birimini yan yana
+              // basmak hem karti kalabaliklastiriyor hem de kur oynadikca
+              // ekrandaki rakamla tahsil edilen tutar birbirini tutmuyordu.
               // Plan adi VE madde listesi tek kaynaktan: plans.ts (API locale'e gore
               // cevirip yolluyor). Burada ikinci bir i18n sozlugu tutuldugunda ikisi
               // birbirinden kaydi — landing "Baslangic" derken /pricing ayni plana
@@ -620,10 +622,7 @@ export default function LandingPage() {
                     ? ''
                     : billing === 'annual'
                       ? `${t('land.pric.annual_billed_prefix')} $${p.annual.toLocaleString('en-US')} ${t('land.pric.annual_billed_suffix')}`
-                        + (p.annualTry ? ` (≈ ₺${p.annualTry.toLocaleString('tr-TR')})` : '')
-                      : monthlyEqTry
-                        ? `≈ ₺${monthlyEqTry.toLocaleString('tr-TR')} / ${t('land.pric.per_month')}`
-                        : t('land.pric.monthly_billed')}
+                      : t('land.pric.monthly_billed')}
                   bullets={p.features ?? []}
                   inheritLabel={p.inheritsLabel}
                   cta={p.contactSales ? t('land.pric.cta_contact') : t('land.pric.cta_free')}
