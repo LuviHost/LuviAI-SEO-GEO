@@ -3,14 +3,14 @@
 import { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { ArrowRight, Check, X, Loader2, AlertCircle, Globe, Crown, Lock } from 'lucide-react';
+import { ArrowRight, Check, X, Loader2, AlertCircle, Globe, Crown } from 'lucide-react';
 import { api, ApiError } from '@/lib/api';
 import { useT } from '@/lib/i18n';
 import { VendorLogo, type VendorName } from '@/components/vendor-logo';
 
 const COPY = {
   tr: {
-    badge: 'AI Görünürlük Testi',
+    badge: '✨ AI Görünürlük Testi',
     titleA: 'Markanız',
     titleB: 'AI cevaplarında',
     titleC: 'görünüyor mu?',
@@ -46,12 +46,6 @@ const COPY = {
     aiAnswer: 'AI cevabı',
     truncated: '… (kısaltıldı)',
     // Email optin
-    // Teaser kilidi
-    lockedHint: 'Bu soru henüz sorulmadı — kilidi açınca 7 motorda ölçülür.',
-    unlockTitle: '{n} soru daha kilitli',
-    unlockBody: 'Ücretsiz testte 2 soru ölçülüyor. Kalan soruları 7 AI motorunda ölçmek, rakip payını görmek ve haftalık takibe almak için hesabınızı açın.',
-    unlockCta: 'Tüm raporu aç',
-    unlockNote: 'Kayıt ücretsiz · Kart bilgisi istenmez',
     optinHeader: '📧 90 gün boyunca markanızı takip edelim',
     optinBody: '15, 30, 60, 90 gün sonra 7 AI motorda otomatik retest yapıp size branded rapor email\'i atalım. Markanızın AI cevaplarında değişimini izleyin.',
     optinPlaceholder: 'siz@example.com',
@@ -65,7 +59,7 @@ const COPY = {
     optinSubBenefit3: '✓ Tek tıkla iptal',
   },
   en: {
-    badge: 'AI Visibility Test',
+    badge: '✨ AI Visibility Test',
     titleA: 'Is your brand',
     titleB: 'in AI answers',
     titleC: 'at all?',
@@ -101,12 +95,6 @@ const COPY = {
     aiAnswer: 'AI answer',
     truncated: '… (truncated)',
     // Email optin
-    // Teaser lock
-    lockedHint: 'Not asked yet — unlock to measure it across all 7 engines.',
-    unlockTitle: '{n} more prompts locked',
-    unlockBody: 'The free test measures 2 prompts. Create your account to run the rest across 7 AI engines, see competitor share, and get weekly tracking.',
-    unlockCta: 'Unlock full report',
-    unlockNote: 'Free to create · No card required',
     optinHeader: '📧 Track your brand for 90 days',
     optinBody: 'We\'ll automatically retest your domain on 7 AI engines at 15, 30, 60, 90 days and email you a branded report. Track how your AI visibility evolves.',
     optinPlaceholder: 'you@example.com',
@@ -142,17 +130,7 @@ const PROVIDER_SHORT: Record<string, string> = {
 };
 
 type CheckResult = Awaited<ReturnType<typeof api.publicCitationCheck>>;
-type QueryRow = CheckResult['queries'][number];
 type Phase = 'idle' | 'loading' | 'result' | 'error';
-
-/** Soru kategorisi rozetleri — kilitli soruda da gorunur, merak yaratir. */
-export const CATEGORY_LABELS: Record<string, { tr: string; en: string }> = {
-  DISCOVERY: { tr: 'KEŞİF', en: 'DISCOVERY' },
-  COMPARISON: { tr: 'KARŞILAŞTIRMA', en: 'COMPARISON' },
-  BRAND: { tr: 'MARKA', en: 'BRAND' },
-  PROBLEM: { tr: 'PROBLEM', en: 'PROBLEM' },
-  BUYING_INTENT: { tr: 'SATIN ALMA NİYETİ', en: 'BUYING INTENT' },
-};
 
 const LOADING_MESSAGES_TR = [
   'Soruluyor: ChatGPT',
@@ -304,7 +282,7 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
           });
           turnstileWidgetIdRef.current = widgetId;
           clearInterval(interval);
-        } catch { /* turnstile not ready yet */ }
+        } catch (_e) { /* turnstile not ready yet */ }
       }
     }, 200);
     return () => {
@@ -325,7 +303,7 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
       try {
         window.turnstile!.reset(turnstileWidgetIdRef.current!);
         window.turnstile!.execute(turnstileWidgetIdRef.current!);
-      } catch {
+      } catch (_e) {
         resolve(null);
       }
       setTimeout(() => {
@@ -402,10 +380,10 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
         <div className="relative">
           <form
             onSubmit={(e) => { e.preventDefault(); handleStart(); }}
-            className="flex flex-col sm:flex-row gap-2 bg-ink-2 border border-bone/15 hover:border-bone/25 focus-within:border-brand-400/60 rounded-2xl p-2 transition-colors"
+            className="flex flex-col sm:flex-row gap-2 bg-background border-2 border-orange-500/30 hover:border-orange-500/50 focus-within:border-orange-500/70 rounded-2xl p-2 shadow-2xl shadow-orange-500/10 transition-colors"
           >
             <div className="flex-1 flex items-center gap-3 px-4">
-              <Globe className="h-5 w-5 text-brand-400 shrink-0" />
+              <Globe className="h-5 w-5 text-orange-600 shrink-0" />
               <input
                 type="text"
                 value={domain}
@@ -414,13 +392,13 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
                 autoComplete="off"
                 spellCheck={false}
                 disabled={phase === 'loading'}
-                className="flex-1 bg-transparent outline-none text-lg sm:text-xl font-medium text-bone placeholder:text-bone/30 py-3 sm:py-4"
+                className="flex-1 bg-transparent outline-none text-lg sm:text-xl font-medium placeholder:text-muted-foreground/50 py-3 sm:py-4"
               />
             </div>
             <button
               type="submit"
               disabled={!domain.trim() || phase === 'loading'}
-              className="btn-brand h-auto px-7 sm:px-8 py-3 sm:py-4 text-base sm:text-lg font-bold disabled:opacity-40 disabled:cursor-not-allowed"
+              className="inline-flex items-center justify-center gap-2 px-7 sm:px-8 py-3 sm:py-4 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 disabled:from-muted disabled:to-muted disabled:text-muted-foreground disabled:cursor-not-allowed text-white font-bold text-base sm:text-lg shadow-lg shadow-orange-500/40 transition-all hover:scale-[1.02] active:scale-[0.98]"
             >
               {phase === 'loading' ? (
                 <Loader2 className="h-5 w-5 animate-spin" />
@@ -434,7 +412,7 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
           </form>
 
           {/* Inline tag row */}
-          <div className="flex flex-wrap items-center justify-center lg:justify-start gap-x-4 gap-y-1 mt-3 text-xs text-bone/60">
+          <div className="flex flex-wrap items-center justify-center lg:justify-start gap-x-4 gap-y-1 mt-3 text-xs text-muted-foreground">
             <span>{c.tagFree}</span>
             <span className="opacity-40">•</span>
             <span>{c.tagNoCard}</span>
@@ -443,8 +421,8 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
           </div>
 
           {phase === 'error' && error && (
-            <div className="mt-3 flex items-start gap-2 p-3 rounded-lg border border-[#C43C2E]/50 bg-[#C43C2E]/10 text-bone/90 text-xs">
-              <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 text-[#C43C2E]" />
+            <div className="mt-3 flex items-start gap-2 p-3 rounded-lg border border-red-300/50 bg-red-50 dark:bg-red-950/20 text-red-700 dark:text-red-300 text-xs">
+              <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
               <div>{error}</div>
             </div>
           )}
@@ -457,20 +435,20 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
             onClick={(e) => { if (e.target === e.currentTarget && phase === 'result') handleReset(); }}
           >
             <div className="min-h-full flex items-start justify-center p-4 sm:p-8">
-              <div className="relative w-full max-w-7xl bg-background rounded-2xl border border-border shadow-2xl my-auto">
+              <div className="relative w-full max-w-7xl bg-background rounded-2xl border-2 border-orange-500/20 shadow-2xl my-auto">
                 {/* Loading overlay content */}
                 {phase === 'loading' && (
                   <div className="p-10 sm:p-16 text-center">
                     <div className="relative w-24 h-24 mx-auto mb-6">
-                      <div className="absolute inset-0 rounded-full bg-brand/15 animate-pulse" />
-                      <div className="absolute inset-2 rounded-full bg-brand grid place-items-center">
+                      <div className="absolute inset-0 rounded-full bg-gradient-to-br from-orange-500 to-red-600 animate-pulse opacity-20" />
+                      <div className="absolute inset-2 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 grid place-items-center">
                         <Loader2 className="h-10 w-10 text-white animate-spin" />
                       </div>
                     </div>
                     <h3 className="font-bold text-xl mb-2">{c.loadingTitle}</h3>
                     <p className="text-sm text-muted-foreground mb-6">{c.loadingSubtitle}</p>
                     <div className="h-6 mb-6 flex items-center justify-center">
-                      <p className="text-sm font-mono text-brand dark:text-brand-400 animate-pulse" key={loadingIdx}>
+                      <p className="text-sm font-mono text-orange-600 animate-pulse" key={loadingIdx}>
                         {msgs[loadingIdx]}
                       </p>
                     </div>
@@ -482,7 +460,7 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
                           style={{ animationDelay: `${idx * 120}ms` }}
                         >
                           <VendorLogo name={v} size={24} />
-                          <div className="absolute inset-0 rounded-full border-2 border-brand-400 animate-ping opacity-60" style={{ animationDelay: `${idx * 120}ms` }} />
+                          <div className="absolute inset-0 rounded-full border-2 border-orange-400 animate-ping opacity-60" style={{ animationDelay: `${idx * 120}ms` }} />
                         </div>
                       ))}
                     </div>
@@ -509,7 +487,7 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
                         <p className="text-sm text-muted-foreground">
                           {result.domain}
                           {result.niche && (
-                            <span className="ml-2 inline-block px-2 py-0.5 rounded-full bg-brand/10 text-brand dark:text-brand-400 text-[10px] font-semibold uppercase tracking-wider">
+                            <span className="ml-2 inline-block px-2 py-0.5 rounded-full bg-orange-500/10 text-orange-600 text-[10px] font-semibold uppercase tracking-wider">
                               {result.customNiche || result.niche}
                             </span>
                           )}
@@ -528,26 +506,49 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
                           {c.resultsHeader}
                         </h4>
                         {result.queries.map((q, idx) => (
-                          <div key={idx}>
-                            {/* Kilitli blogun hemen basinda acma karti */}
-                            {q.locked && !result.queries[idx - 1]?.locked && (
-                              <div className="mb-4">
-                                <UnlockCta
-                                  lockedCount={result.access?.lockedQueries ?? 0}
-                                  domain={result.domain}
-                                  onNavigate={handleReset}
-                                  labels={{ title: c.unlockTitle, body: c.unlockBody, cta: c.unlockCta, note: c.unlockNote }}
-                                />
+                          <div key={idx} className="bg-muted/30 rounded-2xl border p-4 sm:p-5">
+                            <div className="flex items-start justify-between gap-4 mb-4">
+                              <div className="flex items-start gap-3 flex-1">
+                                <span className="inline-grid place-items-center min-w-[28px] h-7 px-2 rounded-md bg-foreground text-background text-xs font-bold">
+                                  {idx + 1}
+                                </span>
+                                <p className="text-sm font-medium leading-relaxed flex-1">{q.query}</p>
                               </div>
-                            )}
-                            <QueryCard
-                              q={q}
-                              idx={idx}
+                              <div className="shrink-0 text-right">
+                                <div className="font-bold text-lg">
+                                  <span className={q.citedCount > 0 ? 'text-emerald-600' : 'text-muted-foreground'}>
+                                    {q.citedCount}
+                                  </span>
+                                  <span className="text-muted-foreground"> / {q.totalProviders}</span>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-3 flex-wrap">
+                              {q.providers.map((p) => {
+                                const logo = PROVIDER_LOGOS[p.provider];
+                                const short = PROVIDER_SHORT[p.provider] || p.label;
+                                const ok = p.cited || p.brandMentioned;
+                                return (
+                                  <div key={p.provider} className="flex flex-col items-center gap-1">
+                                    <div className={`relative w-11 h-11 rounded-xl grid place-items-center ${ok ? 'bg-emerald-500/10 ring-2 ring-emerald-500/40' : 'bg-muted/60 ring-1 ring-border'}`}>
+                                      {logo && <VendorLogo name={logo} size={22} />}
+                                      <div className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full grid place-items-center ring-2 ring-background ${ok ? 'bg-emerald-500 text-white' : 'bg-muted-foreground/40 text-white'}`}>
+                                        {ok ? <Check className="h-3 w-3" strokeWidth={3} /> : <X className="h-3 w-3" strokeWidth={3} />}
+                                      </div>
+                                    </div>
+                                    <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{short}</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+
+                            {/* Expandable AI responses (filtered to non-empty excerpts) */}
+                            <ResponsesToggle
+                              providers={q.providers}
                               brand={result.brand}
-                              lang={locale}
                               isOpen={expandedQueries.has(idx)}
                               onToggle={() => toggleQuery(idx)}
-                              labels={{ show: c.showResponses, hide: c.hideResponses, none: c.noCitedResponses, aiAnswer: c.aiAnswer, truncated: c.truncated, lockedHint: c.lockedHint }}
+                              labels={{ show: c.showResponses, hide: c.hideResponses, none: c.noCitedResponses, aiAnswer: c.aiAnswer, truncated: c.truncated }}
                             />
                           </div>
                         ))}
@@ -557,21 +558,21 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
                         <h4 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
                           {c.competitorHeader}
                         </h4>
-                        <div className="card-brand p-5">
+                        <div className="bg-muted/30 rounded-2xl border p-5">
                           {result.competitorRanking.length === 0 ? (
                             <p className="text-sm text-muted-foreground text-center py-8">{c.competitorEmpty}</p>
                           ) : (
                             <div className="space-y-3">
                               {result.competitorRanking.slice(0, 8).map((comp, idx) => (
-                                <div key={comp.name + idx} className={`flex items-center gap-3 p-2 rounded-lg ${comp.isBrand ? 'bg-brand/10 ring-1 ring-brand/30' : ''}`}>
-                                  <span className={`inline-grid place-items-center w-6 h-6 rounded-md text-xs font-bold shrink-0 ${comp.isBrand ? 'bg-brand text-white' : 'bg-muted text-foreground'}`}>
+                                <div key={comp.name + idx} className={`flex items-center gap-3 p-2 rounded-lg ${comp.isBrand ? 'bg-orange-500/10 ring-1 ring-orange-500/30' : ''}`}>
+                                  <span className={`inline-grid place-items-center w-6 h-6 rounded-md text-xs font-bold shrink-0 ${comp.isBrand ? 'bg-orange-500 text-white' : 'bg-muted text-foreground'}`}>
                                     {idx + 1}
                                   </span>
                                   <span className="flex-1 text-sm font-medium truncate">
                                     {comp.name}
-                                    {comp.isBrand && <span className="text-brand dark:text-brand-400 text-xs ml-1.5 font-bold">{c.youLabel}</span>}
+                                    {comp.isBrand && <span className="text-orange-600 text-xs ml-1.5 font-bold">{c.youLabel}</span>}
                                   </span>
-                                  <span className={`text-sm font-bold shrink-0 ${comp.isBrand ? 'text-brand dark:text-brand-400' : 'text-muted-foreground'}`}>
+                                  <span className={`text-sm font-bold shrink-0 ${comp.isBrand ? 'text-orange-600' : 'text-muted-foreground'}`}>
                                     {comp.pct}%
                                   </span>
                                 </div>
@@ -581,7 +582,7 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
                         </div>
 
                         {/* PRIMARY CTA — email optin (90 gün takip) */}
-                        <div className="bg-brand text-white rounded-2xl p-5">
+                        <div className="bg-gradient-to-br from-orange-500 via-orange-600 to-red-600 text-white rounded-2xl p-5 shadow-xl shadow-orange-500/20">
                           <h5 className="font-bold text-base mb-2 leading-snug">{c.optinHeader}</h5>
                           <p className="text-xs text-white/90 mb-4 leading-relaxed">{c.optinBody}</p>
 
@@ -616,7 +617,7 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
                               <button
                                 type="submit"
                                 disabled={!optinEmail.trim() || !optinConsent || optinStatus === 'sending'}
-                                className="w-full bg-white text-brand hover:bg-white/95 disabled:bg-white/50 disabled:cursor-not-allowed font-bold text-sm px-4 py-2.5 rounded-lg transition-colors"
+                                className="w-full bg-white text-orange-600 hover:bg-white/95 disabled:bg-white/50 disabled:cursor-not-allowed font-bold text-sm px-4 py-2.5 rounded-lg transition-colors"
                               >
                                 {optinStatus === 'sending' ? c.optinSending : c.optinBtn}
                               </button>
@@ -656,7 +657,7 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
                     <div className="text-center pt-2">
                       <button
                         onClick={handleReset}
-                        className="text-sm text-muted-foreground hover:text-brand dark:hover:text-brand-400 transition-colors"
+                        className="text-sm text-muted-foreground hover:text-orange-600 transition-colors"
                       >
                         ← {c.testAnother}
                       </button>
@@ -675,22 +676,26 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
   //  STANDALONE MODE — full landing section
   // ─────────────────────────────────────────────────────────
   return (
-    <section id="ai-checker" className="relative py-16 lg:py-24 border-y border-ink/10 bg-bone text-ink dark:border-bone/10 dark:bg-ink-2 dark:text-bone">
+    <section id="ai-checker" className="relative py-16 lg:py-24 border-y bg-gradient-to-b from-orange-50/50 via-amber-50/30 to-transparent dark:from-orange-950/10 dark:via-amber-950/10">
       {TURNSTILE_SITE_KEY && <div ref={turnstileRef} className="cf-turnstile" data-size="invisible" />}
+      <div className="absolute inset-0 -z-10 overflow-hidden pointer-events-none">
+        <div className="absolute top-10 left-1/4 w-96 h-96 bg-orange-400/10 rounded-full blur-3xl" />
+        <div className="absolute bottom-10 right-1/4 w-96 h-96 bg-amber-400/10 rounded-full blur-3xl" />
+      </div>
 
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-10 max-w-3xl mx-auto">
-          <p className="eyebrow mb-4">
-            <span className="text-brand dark:text-brand-400">{c.badge}</span>
-          </p>
-          <h2 className="font-brandDisplay text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-[-0.03em] leading-[1.05] mb-4">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-500/10 border border-orange-500/20 text-orange-600 text-xs font-semibold mb-5">
+            {c.badge}
+          </div>
+          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight leading-tight mb-4">
             {c.titleA}{' '}
-            <span className="text-brand dark:text-brand-400">
+            <span className="bg-gradient-to-r from-orange-500 via-orange-600 to-red-600 bg-clip-text text-transparent">
               {c.titleB}
             </span>{' '}
             {c.titleC}
           </h2>
-          <p className="text-base sm:text-lg text-[#6E6259] dark:text-[#A99F92] leading-relaxed">
+          <p className="text-base sm:text-lg text-muted-foreground leading-relaxed">
             {c.subtitle}
           </p>
         </div>
@@ -699,10 +704,10 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
           <div className="max-w-2xl mx-auto">
             <form
               onSubmit={(e) => { e.preventDefault(); handleStart(); }}
-              className="flex flex-col sm:flex-row gap-3 card-brand rounded-2xl p-3 focus-within:border-brand/50 transition-colors"
+              className="flex flex-col sm:flex-row gap-3 bg-background border-2 border-orange-500/20 rounded-2xl p-3 shadow-xl shadow-orange-500/5"
             >
               <div className="flex-1 flex items-center gap-2 px-3">
-                <Globe className="h-5 w-5 text-brand shrink-0" />
+                <Globe className="h-5 w-5 text-orange-600 shrink-0" />
                 <input
                   type="text"
                   value={domain}
@@ -716,7 +721,7 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
               <button
                 type="submit"
                 disabled={!domain.trim()}
-                className="btn-brand h-auto px-6 py-3 text-base font-bold disabled:opacity-40 disabled:cursor-not-allowed"
+                className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 disabled:from-muted disabled:to-muted disabled:text-muted-foreground disabled:cursor-not-allowed text-white font-bold text-base shadow-lg shadow-orange-500/30 transition-all hover:scale-[1.02] active:scale-[0.98]"
               >
                 {c.btnStart}
                 <ArrowRight className="h-5 w-5" />
@@ -730,7 +735,7 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
             </div>
 
             {phase === 'error' && error && (
-              <div className="mt-5 flex items-start gap-3 p-4 rounded-xl border border-[#C43C2E]/40 bg-[#C43C2E]/10 text-[#C43C2E] dark:text-[#E8907F] text-sm">
+              <div className="mt-5 flex items-start gap-3 p-4 rounded-xl border border-red-300/50 bg-red-50 dark:bg-red-950/20 text-red-700 dark:text-red-300 text-sm">
                 <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" />
                 <div className="flex-1">
                   <div className="font-bold mb-0.5">{c.errorTitle}</div>
@@ -753,17 +758,17 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
         )}
 
         {phase === 'loading' && (
-          <div className="max-w-2xl mx-auto card-brand p-10 text-center">
+          <div className="max-w-2xl mx-auto bg-background rounded-2xl border-2 border-orange-500/20 p-10 shadow-xl shadow-orange-500/5 text-center">
             <div className="relative w-20 h-20 mx-auto mb-6">
-              <div className="absolute inset-0 rounded-full bg-brand/15 animate-pulse" />
-              <div className="absolute inset-2 rounded-full bg-brand grid place-items-center">
+              <div className="absolute inset-0 rounded-full bg-gradient-to-br from-orange-500 to-red-600 animate-pulse opacity-20" />
+              <div className="absolute inset-2 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 grid place-items-center">
                 <Loader2 className="h-8 w-8 text-white animate-spin" />
               </div>
             </div>
             <h3 className="font-bold text-lg mb-2">{c.loadingTitle}</h3>
             <p className="text-sm text-muted-foreground mb-6">{c.loadingSubtitle}</p>
             <div className="h-6 mb-6 flex items-center justify-center">
-              <p className="text-sm font-mono text-brand dark:text-brand-400 animate-pulse" key={loadingIdx}>
+              <p className="text-sm font-mono text-orange-600 animate-pulse" key={loadingIdx}>
                 {msgs[loadingIdx]}
               </p>
             </div>
@@ -775,7 +780,7 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
                   style={{ animationDelay: `${idx * 120}ms` }}
                 >
                   <VendorLogo name={v} size={24} />
-                  <div className="absolute inset-0 rounded-full border-2 border-brand-400 animate-ping opacity-60" style={{ animationDelay: `${idx * 120}ms` }} />
+                  <div className="absolute inset-0 rounded-full border-2 border-orange-400 animate-ping opacity-60" style={{ animationDelay: `${idx * 120}ms` }} />
                 </div>
               ))}
             </div>
@@ -784,7 +789,7 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
 
         {phase === 'result' && result && (
           <div className="space-y-6">
-            <div className="card-brand p-6 flex items-center justify-between flex-wrap gap-4">
+            <div className="bg-background rounded-2xl border-2 border-orange-500/20 p-6 shadow-xl shadow-orange-500/5 flex items-center justify-between flex-wrap gap-4">
               <div className="flex items-center gap-4">
                 <DomainFavicon domain={result.domain} brand={result.brand} />
                 <div>
@@ -792,7 +797,7 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
                   <p className="text-sm text-muted-foreground">
                     {result.domain}
                     {result.niche && (
-                      <span className="ml-2 inline-block px-2 py-0.5 rounded-full bg-brand/10 text-brand dark:text-brand-400 text-[10px] font-semibold uppercase tracking-wider">
+                      <span className="ml-2 inline-block px-2 py-0.5 rounded-full bg-orange-500/10 text-orange-600 text-[10px] font-semibold uppercase tracking-wider">
                         {result.customNiche || result.niche}
                       </span>
                     )}
@@ -801,7 +806,7 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
               </div>
               <button
                 onClick={handleReset}
-                className="text-sm text-muted-foreground hover:text-brand dark:hover:text-brand-400 transition-colors px-3 py-1.5 rounded-lg border border-muted hover:border-brand/40"
+                className="text-sm text-muted-foreground hover:text-orange-600 transition-colors px-3 py-1.5 rounded-lg border border-muted hover:border-orange-500/30"
               >
                 ← {c.testAnother}
               </button>
@@ -817,25 +822,41 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
                   {c.resultsHeader}
                 </h4>
                 {result.queries.map((q, idx) => (
-                  <div key={idx}>
-                    {q.locked && !result.queries[idx - 1]?.locked && (
-                      <div className="mb-4">
-                        <UnlockCta
-                          lockedCount={result.access?.lockedQueries ?? 0}
-                          domain={result.domain}
-                          labels={{ title: c.unlockTitle, body: c.unlockBody, cta: c.unlockCta, note: c.unlockNote }}
-                        />
+                  <div key={idx} className="bg-background rounded-2xl border p-5 hover:border-orange-500/30 transition-colors">
+                    <div className="flex items-start justify-between gap-4 mb-4">
+                      <div className="flex items-start gap-3 flex-1">
+                        <span className="inline-grid place-items-center min-w-[28px] h-7 px-2 rounded-md bg-foreground text-background text-xs font-bold">
+                          {idx + 1}
+                        </span>
+                        <p className="text-sm font-medium leading-relaxed flex-1">{q.query}</p>
                       </div>
-                    )}
-                    <QueryCard
-                      q={q}
-                      idx={idx}
-                      brand={result.brand}
-                      lang={locale}
-                      isOpen={expandedQueries.has(idx)}
-                      onToggle={() => toggleQuery(idx)}
-                      labels={{ show: c.showResponses, hide: c.hideResponses, none: c.noCitedResponses, aiAnswer: c.aiAnswer, truncated: c.truncated, lockedHint: c.lockedHint }}
-                    />
+                      <div className="shrink-0 text-right">
+                        <div className="font-bold text-lg">
+                          <span className={q.citedCount > 0 ? 'text-emerald-600' : 'text-muted-foreground'}>
+                            {q.citedCount}
+                          </span>
+                          <span className="text-muted-foreground"> / {q.totalProviders}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 flex-wrap">
+                      {q.providers.map((p) => {
+                        const logo = PROVIDER_LOGOS[p.provider];
+                        const short = PROVIDER_SHORT[p.provider] || p.label;
+                        const ok = p.cited || p.brandMentioned;
+                        return (
+                          <div key={p.provider} className="flex flex-col items-center gap-1">
+                            <div className={`relative w-11 h-11 rounded-xl grid place-items-center ${ok ? 'bg-emerald-500/10 ring-2 ring-emerald-500/40' : 'bg-muted/40 ring-1 ring-border'}`}>
+                              {logo && <VendorLogo name={logo} size={22} />}
+                              <div className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full grid place-items-center ring-2 ring-background ${ok ? 'bg-emerald-500 text-white' : 'bg-muted-foreground/40 text-white'}`}>
+                                {ok ? <Check className="h-3 w-3" strokeWidth={3} /> : <X className="h-3 w-3" strokeWidth={3} />}
+                              </div>
+                            </div>
+                            <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{short}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -844,21 +865,21 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
                 <h4 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
                   {c.competitorHeader}
                 </h4>
-                <div className="card-brand p-5">
+                <div className="bg-background rounded-2xl border p-5">
                   {result.competitorRanking.length === 0 ? (
                     <p className="text-sm text-muted-foreground text-center py-8">{c.competitorEmpty}</p>
                   ) : (
                     <div className="space-y-3">
                       {result.competitorRanking.slice(0, 8).map((comp, idx) => (
-                        <div key={comp.name + idx} className={`flex items-center gap-3 p-2 rounded-lg ${comp.isBrand ? 'bg-brand/10 ring-1 ring-brand/30' : ''}`}>
-                          <span className={`inline-grid place-items-center w-6 h-6 rounded-md text-xs font-bold shrink-0 ${comp.isBrand ? 'bg-brand text-white' : 'bg-muted text-foreground'}`}>
+                        <div key={comp.name + idx} className={`flex items-center gap-3 p-2 rounded-lg ${comp.isBrand ? 'bg-orange-500/10 ring-1 ring-orange-500/30' : ''}`}>
+                          <span className={`inline-grid place-items-center w-6 h-6 rounded-md text-xs font-bold shrink-0 ${comp.isBrand ? 'bg-orange-500 text-white' : 'bg-muted text-foreground'}`}>
                             {idx + 1}
                           </span>
                           <span className="flex-1 text-sm font-medium truncate">
                             {comp.name}
-                            {comp.isBrand && <span className="text-brand dark:text-brand-400 text-xs ml-1.5 font-bold">{c.youLabel}</span>}
+                            {comp.isBrand && <span className="text-orange-600 text-xs ml-1.5 font-bold">{c.youLabel}</span>}
                           </span>
-                          <span className={`text-sm font-bold shrink-0 ${comp.isBrand ? 'text-brand dark:text-brand-400' : 'text-muted-foreground'}`}>
+                          <span className={`text-sm font-bold shrink-0 ${comp.isBrand ? 'text-orange-600' : 'text-muted-foreground'}`}>
                             {comp.pct}%
                           </span>
                         </div>
@@ -867,14 +888,14 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
                   )}
                 </div>
 
-                <div className="bg-brand text-white rounded-2xl p-5">
+                <div className="bg-gradient-to-br from-orange-500 via-orange-600 to-red-600 text-white rounded-2xl p-5 shadow-xl shadow-orange-500/20">
                   <Crown className="h-6 w-6 mb-2" />
                   <h5 className="font-bold text-base mb-1.5">{c.ctaBoxTitle}</h5>
                   <p className="text-xs text-white/90 mb-4 leading-relaxed">{c.ctaBoxBody}</p>
                   <div className="space-y-2">
                     <Link
                       href="/onboarding"
-                      className="block w-full text-center bg-white text-brand hover:bg-white/95 font-bold text-sm px-4 py-2.5 rounded-lg transition-colors"
+                      className="block w-full text-center bg-white text-orange-600 hover:bg-white/95 font-bold text-sm px-4 py-2.5 rounded-lg transition-colors"
                     >
                       {c.ctaPrimary}
                     </Link>
@@ -892,146 +913,6 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
         )}
       </div>
     </section>
-  );
-}
-
-export interface QueryCardProps {
-  q: QueryRow;
-  idx: number;
-  brand: string;
-  lang: 'tr' | 'en';
-  isOpen: boolean;
-  onToggle: () => void;
-  labels: { show: string; hide: string; none: string; aiAnswer: string; truncated: string; lockedHint: string };
-}
-
-/**
- * Tek soru karti — hem modal hem standalone modunda ayni bilesen.
- *
- * KILITLI DURUM: soru metni ve kategorisi GORUNUR, sonuc alani placeholder.
- * Buradaki bulaniklik kozmetiktir; asil kilit sunucuda — kilitli sorgu icin
- * LLM cagrisi hic yapilmaz, `providers` bos dizi olarak gelir. Yani devtools
- * acan biri de bir sey goremez, cunku gonderilen veri yok.
- */
-export function QueryCard({ q, idx, brand, lang, isOpen, onToggle, labels }: QueryCardProps) {
-  const catLabel = q.category ? CATEGORY_LABELS[q.category]?.[lang] : undefined;
-
-  if (q.locked) {
-    return (
-      <div className="card-brand p-4 sm:p-5 relative overflow-hidden">
-        <div className="flex items-start justify-between gap-4 mb-4">
-          <div className="flex items-start gap-3 flex-1 min-w-0">
-            <span className="inline-grid place-items-center min-w-[28px] h-7 px-2 rounded-md bg-muted text-muted-foreground text-xs font-bold">
-              {idx + 1}
-            </span>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium leading-relaxed">{q.query}</p>
-              {catLabel && (
-                <span className="inline-block mt-1.5 text-[10px] font-bold uppercase tracking-wider text-brand/70 bg-brand/10 px-1.5 py-0.5 rounded">
-                  {catLabel}
-                </span>
-              )}
-            </div>
-          </div>
-          <Lock className="h-4 w-4 text-muted-foreground/60 shrink-0 mt-1.5" aria-hidden />
-        </div>
-
-        {/* Olculmemis sonuc alani — veri yok, yer tutucu var */}
-        <div className="flex items-center gap-3 flex-wrap" aria-label={labels.lockedHint}>
-          {Array.from({ length: Math.min(q.totalProviders || 7, 7) }).map((_, i) => (
-            <div key={i} className="flex flex-col items-center gap-1">
-              <div className="w-11 h-11 rounded-xl bg-muted/60 ring-1 ring-border animate-pulse" />
-              <div className="h-2 w-9 rounded bg-muted/60" />
-            </div>
-          ))}
-        </div>
-        <p className="mt-3 text-xs text-muted-foreground">{labels.lockedHint}</p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="card-brand p-4 sm:p-5">
-      <div className="flex items-start justify-between gap-4 mb-4">
-        <div className="flex items-start gap-3 flex-1 min-w-0">
-          <span className="inline-grid place-items-center min-w-[28px] h-7 px-2 rounded-md bg-foreground text-background text-xs font-bold">
-            {idx + 1}
-          </span>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium leading-relaxed">{q.query}</p>
-            {catLabel && (
-              <span className="inline-block mt-1.5 text-[10px] font-bold uppercase tracking-wider text-brand/70 bg-brand/10 px-1.5 py-0.5 rounded">
-                {catLabel}
-              </span>
-            )}
-          </div>
-        </div>
-        <div className="shrink-0 text-right">
-          <div className="font-bold text-lg">
-            <span className={q.citedCount > 0 ? 'text-[#3E9B4F]' : 'text-muted-foreground'}>{q.citedCount}</span>
-            <span className="text-muted-foreground"> / {q.totalProviders}</span>
-          </div>
-        </div>
-      </div>
-      <div className="flex items-center gap-3 flex-wrap">
-        {q.providers.map((p) => {
-          const logo = PROVIDER_LOGOS[p.provider];
-          const short = PROVIDER_SHORT[p.provider] || p.label;
-          const ok = p.cited || p.brandMentioned;
-          return (
-            <div key={p.provider} className="flex flex-col items-center gap-1">
-              <div className={`relative w-11 h-11 rounded-xl grid place-items-center ${ok ? 'bg-[#3E9B4F]/10 ring-2 ring-[#3E9B4F]/40' : 'bg-muted/60 ring-1 ring-border'}`}>
-                {logo && <VendorLogo name={logo} size={22} />}
-                <div className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full grid place-items-center ring-2 ring-background ${ok ? 'bg-[#3E9B4F] text-white' : 'bg-muted-foreground/40 text-white'}`}>
-                  {ok ? <Check className="h-3 w-3" strokeWidth={3} /> : <X className="h-3 w-3" strokeWidth={3} />}
-                </div>
-              </div>
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{short}</span>
-            </div>
-          );
-        })}
-      </div>
-
-      <ResponsesToggle
-        providers={q.providers}
-        brand={brand}
-        isOpen={isOpen}
-        onToggle={onToggle}
-        labels={labels}
-      />
-    </div>
-  );
-}
-
-interface UnlockCtaProps {
-  lockedCount: number;
-  domain: string;
-  onNavigate?: () => void;
-  labels: { title: string; body: string; cta: string; note: string };
-}
-
-/** Kilitli sorularin hemen ustunde duran acma karti. */
-function UnlockCta({ lockedCount, domain, onNavigate, labels }: UnlockCtaProps) {
-  if (lockedCount <= 0) return null;
-  return (
-    <div className="rounded-2xl border-2 border-brand/40 bg-brand/5 p-5 text-center">
-      <div className="inline-grid place-items-center w-10 h-10 rounded-full bg-brand/15 mb-3">
-        <Lock className="h-5 w-5 text-brand" />
-      </div>
-      <h5 className="font-bold text-base mb-1.5">{labels.title.replace('{n}', String(lockedCount))}</h5>
-      <p className="text-xs text-muted-foreground mb-4 leading-relaxed max-w-md mx-auto">{labels.body}</p>
-      <Link
-        // Giris sonrasi /unlock'a doner ve kalan sorular uye kademesinde olculur.
-        // signin sayfasi callbackUrl'i yalnizca uygulama-ici goreli yol olarak kabul eder.
-        href={`/signin?callbackUrl=${encodeURIComponent(`/unlock?domain=${encodeURIComponent(domain)}`)}`}
-        onClick={onNavigate}
-        className="inline-flex items-center justify-center gap-2 btn-brand px-6 py-2.5 text-sm font-bold rounded-lg"
-      >
-        {labels.cta}
-        <ArrowRight className="h-4 w-4" />
-      </Link>
-      <p className="text-[11px] text-muted-foreground/80 mt-2.5">{labels.note}</p>
-    </div>
   );
 }
 
@@ -1055,7 +936,7 @@ function ResponsesToggle({ providers, brand, isOpen, onToggle, labels }: Respons
     <div className="mt-4">
       <button
         onClick={onToggle}
-        className="text-xs font-semibold text-brand hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300 inline-flex items-center gap-1.5 transition-colors"
+        className="text-xs font-semibold text-orange-600 hover:text-orange-700 inline-flex items-center gap-1.5 transition-colors"
         type="button"
       >
         {isOpen ? labels.hide : labels.show}
@@ -1076,13 +957,13 @@ function ResponsesToggle({ providers, brand, isOpen, onToggle, labels }: Respons
             return (
               <div
                 key={p.provider}
-                className={`rounded-lg border p-3 text-xs ${ok ? 'bg-[#3E9B4F]/5 border-[#3E9B4F]/20' : 'bg-muted/30 border-border'}`}
+                className={`rounded-lg border p-3 text-xs ${ok ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-muted/30 border-border'}`}
               >
                 <div className="flex items-center gap-2 mb-1.5">
                   {logo && <VendorLogo name={logo} size={16} />}
                   <span className="font-bold text-sm">{short}</span>
                   {ok && (
-                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-[#3E9B4F] bg-[#3E9B4F]/10 px-2 py-0.5 rounded-full">
+                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-600 bg-emerald-500/10 px-2 py-0.5 rounded-full">
                       <Check className="h-3 w-3" strokeWidth={3} />
                       {p.cited ? 'URL cite' : 'brand mention'}
                     </span>
@@ -1110,7 +991,7 @@ function highlightBrand(text: string, brand: string): React.ReactNode {
   const parts = text.split(splitRe);
   return parts.map((part, i) =>
     part.toLowerCase() === brandLower
-      ? <mark key={i} className="bg-brand/15 text-brand-700 dark:text-brand-300 font-semibold rounded px-0.5">{part}</mark>
+      ? <mark key={i} className="bg-orange-500/20 text-orange-700 dark:text-orange-300 font-semibold rounded px-0.5">{part}</mark>
       : <span key={i}>{part}</span>
   );
 }
@@ -1120,7 +1001,7 @@ function DomainFavicon({ domain, brand }: { domain: string; brand: string }) {
   const initial = (brand || domain).charAt(0).toUpperCase();
   if (failed) {
     return (
-      <div className="w-14 h-14 rounded-xl bg-brand text-white text-2xl font-bold grid place-items-center shrink-0">
+      <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-orange-500 to-orange-700 text-white text-2xl font-bold grid place-items-center shrink-0">
         {initial}
       </div>
     );

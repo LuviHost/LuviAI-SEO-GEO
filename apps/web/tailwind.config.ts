@@ -1,17 +1,20 @@
 import type { Config } from 'tailwindcss';
 
 /**
- * RanksUp Tailwind — "Basamak" marka sistemi v1.
+ * RanksUp Tailwind — Apple-grade design tokens.
  *
- * Kanonik renkler:
- *  - brand (RanksUp Turuncu): #E04E24 — DEFAULT ve 600. 400=#F1652F (koyu zemin vurgu),
- *    700=#B93E1C. Tonal scale dashboard tarafindan kullanildigi icin korunur,
- *    sadece degerler yeni turuncuya oturtuldu.
- *  - ink #171310 / ink-2 #211B15 (koyu zemin + kart), bone #F6F3EC / paper #FCFAF6
- *    (acik zemin + kart), stone-data #8A8177 (ikincil veri serisi).
- *  - fontFamily.brandDisplay: Sora — display/baslik/dev sayi fontu.
+ * Degisiklikler:
+ *  - fontFamily: display (Instrument Serif), sans (Geist), mono (Geist Mono)
+ *  - fontSize: Apple-scale display sizes (96px down to body)
+ *  - spacing: 'section' (her zaman kullanilir), 'shoulder' (yan marj)
+ *  - boxShadow: cok katmanli premium golge sistemi (multi-layer subtle)
+ *  - borderRadius: ek 'apple' radius (28px Apple card)
+ *  - colors: muted-warm gri tonlari (Apple #1d1d1f, #86868b, #f5f5f7)
+ *  - transitionTimingFunction: Apple-style ease (out-expo, smooth-spring)
+ *  - backgroundImage: hazir gradient mesh + subtle radial
+ *  - keyframes: stagger reveal, float, shine
  *
- * YASAK (marka spec): mesh gradientler, renkli glow golgeler → kaldirildi.
+ * brand color = mevcut orange korunur (sadece tonal stops eklenir).
  */
 const config: Config = {
   darkMode: 'class',
@@ -31,8 +34,6 @@ const config: Config = {
         sans: ['var(--font-sans)', 'system-ui', '-apple-system', 'Segoe UI', 'sans-serif'],
         display: ['var(--font-display)', 'Georgia', 'Times New Roman', 'serif'],
         mono: ['var(--font-mono)', 'ui-monospace', 'monospace'],
-        // "Basamak" display fontu — Sora (logotype ile ayni aile)
-        brandDisplay: ['var(--font-sora)', 'Sora', 'system-ui', '-apple-system', 'sans-serif'],
       },
       fontSize: {
         // Apple-scale type. Body = 17px (default 16). Then up.
@@ -77,26 +78,18 @@ const config: Config = {
           950: '#0b0b0d',
         },
         brand: {
-          DEFAULT: '#E04E24',  // RanksUp Turuncu — TEK kanonik marka rengi
-          50:  '#FDF0EA',
-          100: '#FADDD1',
-          200: '#F5BBA4',
-          300: '#F09071',
-          400: '#F1652F',  // turuncu-bright — koyu zeminde hover/vurgu
-          500: '#E8622C',
-          600: '#E04E24',  // kanonik turuncu (logo oku)
-          700: '#B93E1C',
-          800: '#933118',
-          900: '#772A15',
+          DEFAULT: '#f97316',  // orange-500 (mevcut)
+          50:  '#fff7ed',
+          100: '#ffedd5',
+          200: '#fed7aa',
+          300: '#fdba74',
+          400: '#fb923c',
+          500: '#f97316',
+          600: '#ea580c',
+          700: '#c2410c',
+          800: '#9a3412',
+          900: '#7c2d12',
         },
-        // "Basamak" zemin/kart renkleri
-        ink: {
-          DEFAULT: '#171310',  // ana koyu zemin — isinmis is siyahi
-          2: '#211B15',        // koyu zeminde kart yuzeyi
-        },
-        bone: '#F6F3EC',   // acik zemin — ilik kemik
-        paper: '#FCFAF6',  // acik zeminde kart yuzeyi
-        'stone-data': '#8A8177',  // ikincil veri serisi
       },
       borderRadius: {
         lg: 'var(--radius)',
@@ -113,13 +106,16 @@ const config: Config = {
         'apple-md': '0 8px 32px rgba(0, 0, 0, 0.08), 0 2px 8px rgba(0, 0, 0, 0.05)',
         'apple-lg': '0 24px 64px rgba(0, 0, 0, 0.10), 0 8px 24px rgba(0, 0, 0, 0.06)',
         'apple-xl': '0 48px 128px rgba(0, 0, 0, 0.14), 0 16px 48px rgba(0, 0, 0, 0.08)',
-        // NOT: shadow-glow / shadow-glow-lg kaldirildi (0 kullanim + marka spec yasagi)
+        // Brand-tinted (orange-glow) — premium CTA icin
+        'glow':     '0 0 0 1px rgba(249, 115, 22, 0.20), 0 8px 32px rgba(249, 115, 22, 0.18)',
+        'glow-lg':  '0 0 0 1px rgba(249, 115, 22, 0.24), 0 24px 64px rgba(249, 115, 22, 0.24)',
         // Inset for inputs / cards
         'apple-inset': 'inset 0 1px 0 rgba(255, 255, 255, 0.6)',
       },
       backgroundImage: {
-        // NOT: mesh-warm / mesh-cool kaldirildi (marka spec yasagi: mesh gradient).
-        // Tek tuketici landing'deki about sayfasiydi; landing restyle ediliyor.
+        // Hero gradient mesh — premium, soft, multi-color blend
+        'mesh-warm': 'radial-gradient(at 20% 30%, rgba(249, 115, 22, 0.18) 0px, transparent 50%), radial-gradient(at 80% 20%, rgba(244, 63, 94, 0.12) 0px, transparent 50%), radial-gradient(at 70% 80%, rgba(245, 158, 11, 0.10) 0px, transparent 50%), radial-gradient(at 20% 80%, rgba(168, 85, 247, 0.08) 0px, transparent 50%)',
+        'mesh-cool': 'radial-gradient(at 30% 20%, rgba(99, 102, 241, 0.10) 0px, transparent 50%), radial-gradient(at 80% 40%, rgba(59, 130, 246, 0.08) 0px, transparent 50%)',
         // Noise overlay — Anthropic skill specifically mentions "noise textures"
         'noise': "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E\")",
         // Subtle diagonal stripes for section dividers

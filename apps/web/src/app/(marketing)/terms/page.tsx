@@ -112,10 +112,13 @@ export default function TermsPage() {
 
   return (
     <main className="relative">
+      <div className="absolute inset-0 -z-10 overflow-hidden pointer-events-none">
+        <div className="absolute top-20 -left-20 w-96 h-96 bg-orange-500/10 rounded-full blur-3xl" />
+      </div>
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <Link href="/" className="text-sm text-muted-foreground hover:text-brand dark:hover:text-brand-400 transition-colors">{data.backHome}</Link>
-        <h1 className="font-brandDisplay text-4xl sm:text-5xl font-extrabold tracking-tight mt-8 mb-3">
-          <span className="text-brand dark:text-brand-400">
+        <Link href="/" className="text-sm text-muted-foreground hover:text-orange-600 transition-colors">{data.backHome}</Link>
+        <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight mt-8 mb-3">
+          <span className="bg-gradient-to-r from-orange-500 via-orange-600 to-red-600 bg-clip-text text-transparent">
             {data.titleA}
           </span>{' '}
           {data.titleB}

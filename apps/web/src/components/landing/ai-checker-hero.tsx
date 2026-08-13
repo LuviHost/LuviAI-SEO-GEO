@@ -1,13 +1,14 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { ArrowRight } from 'lucide-react';
 import { useT } from '@/lib/i18n';
 import { VendorLogo, type VendorName } from '@/components/vendor-logo';
 import { AiVisibilityChecker } from './ai-visibility-checker';
 
 const COPY = {
   tr: {
-    eyebrow: '7 AI MOTORU · 30 SANİYEDE SONUÇ',
+    eyebrow: 'AI VISIBILITY PLATFORM',
     titleA: 'Markanız',
     rotating: ['ChatGPT', 'Claude', 'Gemini', 'Perplexity', 'Grok', 'DeepSeek', 'Meta AI'],
     titleB: "'de görünüyor mu?",
@@ -18,7 +19,7 @@ const COPY = {
     centerLabel: 'MARKANIZ',
   },
   en: {
-    eyebrow: '7 AI ENGINES · RESULTS IN 30 SEC',
+    eyebrow: 'AI VISIBILITY PLATFORM',
     titleA: 'Is your brand on',
     rotating: ['ChatGPT', 'Claude', 'Gemini', 'Perplexity', 'Grok', 'DeepSeek', 'Meta AI'],
     titleB: '?',
@@ -57,26 +58,25 @@ export function AiCheckerHero() {
     <div className="grid lg:grid-cols-2 gap-10 lg:gap-14 items-center">
       {/* LEFT — message + input */}
       <div className="text-center lg:text-left">
-        {/* Mono eyebrow — "ölçüm sesi" (hero her temada ink zemin, renkler sabit) */}
-        <div className="font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-brand-400 mb-5">
+        <div className="text-[11px] font-bold uppercase tracking-[0.25em] text-orange-600 mb-5">
           {c.eyebrow}
         </div>
 
-        <h1 className="hero-headline font-brandDisplay text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-extrabold tracking-[-0.035em] leading-[1.02] text-bone mb-5">
+        <h1 className="text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-extrabold tracking-tight leading-[1.05] mb-5">
           {c.titleA}{' '}
           <span className="relative inline-block">
             <span
               key={rotateIdx}
-              className="inline-block text-brand-400 animate-[luvi-fade-up_400ms_ease-out_both]"
+              className="inline-block bg-gradient-to-br from-orange-500 to-orange-700 bg-clip-text text-transparent animate-[fadeInUp_400ms_ease-out]"
             >
               {c.rotating[rotateIdx]}
             </span>
-            <span className="absolute -bottom-1.5 left-0 right-0 h-1 bg-brand" />
+            <span className="absolute -bottom-1.5 left-0 right-0 h-[5px] bg-gradient-to-r from-orange-500/40 via-orange-500 to-orange-500/40 rounded-full" />
           </span>
           {c.titleB}
         </h1>
 
-        <p className="hero-subtitle text-base sm:text-lg text-[#A99F92] max-w-xl mx-auto lg:mx-0 leading-relaxed mb-7">
+        <p className="text-base sm:text-lg text-muted-foreground max-w-xl mx-auto lg:mx-0 leading-relaxed mb-7">
           {c.subtitle}
         </p>
 
@@ -85,12 +85,12 @@ export function AiCheckerHero() {
           <AiVisibilityChecker mode="hero" />
         </div>
 
-        <p className="font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-[#A99F92] mt-4">
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mt-4">
           {c.socialProof}
         </p>
       </div>
 
-      {/* RIGHT — Orbital diagram (7 engines around YOUR BRAND) */}
+      {/* RIGHT — Orbital diagram (6 engines around YOUR BRAND) */}
       <div className="relative hidden lg:flex items-center justify-center">
         <OrbitalDiagram centerLabel={c.centerLabel} />
       </div>
@@ -108,29 +108,49 @@ function OrbitalDiagram({ centerLabel }: { centerLabel: string }) {
   const angleStep = 360 / ENGINES.length;
 
   return (
-    <div className="relative text-bone" style={{ width: size, height: size }}>
-      {/* SVG: hairline halkalar + bağlantı çizgileri — teknik çizim dili, glow yok */}
+    <div className="relative" style={{ width: size, height: size }}>
+      {/* Background subtle glow */}
+      <div className="absolute inset-8 rounded-full bg-gradient-to-br from-orange-500/8 via-amber-400/4 to-transparent blur-2xl" />
+
+      {/* SVG: circle outlines + connecting lines */}
       <svg
         viewBox={`0 0 ${size} ${size}`}
         className="absolute inset-0"
         xmlns="http://www.w3.org/2000/svg"
       >
+        <defs>
+          <radialGradient id="orbital-line" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="rgb(249 115 22)" stopOpacity="0.45" />
+            <stop offset="60%" stopColor="rgb(249 115 22)" stopOpacity="0.25" />
+            <stop offset="100%" stopColor="rgb(249 115 22)" stopOpacity="0.08" />
+          </radialGradient>
+          <linearGradient id="orbital-ring" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="rgb(249 115 22)" stopOpacity="0.35" />
+            <stop offset="100%" stopColor="rgb(245 158 11)" stopOpacity="0.15" />
+          </linearGradient>
+        </defs>
+
         {/* Outer ring */}
         <circle
           cx={centerX} cy={centerY} r={radius}
           fill="none"
-          stroke="#F6F3EC"
-          strokeOpacity="0.14"
-          strokeWidth="1"
+          stroke="url(#orbital-ring)"
+          strokeWidth="1.5"
           strokeDasharray="4 4"
         />
         {/* Middle ring */}
         <circle
           cx={centerX} cy={centerY} r={radius * 0.65}
           fill="none"
-          stroke="#F6F3EC"
-          strokeOpacity="0.07"
+          stroke="rgb(249 115 22)"
+          strokeOpacity="0.15"
           strokeWidth="1"
+        />
+        {/* Inner highlight ring */}
+        <circle
+          cx={centerX} cy={centerY} r={64}
+          fill="url(#orbital-line)"
+          opacity="0.5"
         />
         {/* Connection lines from center to each engine */}
         {ENGINES.map((_, i) => {
@@ -141,8 +161,8 @@ function OrbitalDiagram({ centerLabel }: { centerLabel: string }) {
             <line
               key={i}
               x1={centerX} y1={centerY} x2={x} y2={y}
-              stroke="#F6F3EC"
-              strokeOpacity="0.10"
+              stroke="rgb(249 115 22)"
+              strokeOpacity="0.18"
               strokeWidth="1"
               strokeDasharray="2 6"
             />
@@ -155,7 +175,7 @@ function OrbitalDiagram({ centerLabel }: { centerLabel: string }) {
           const x = centerX + radius * 0.55 * Math.cos(angle);
           const y = centerY + radius * 0.55 * Math.sin(angle);
           return (
-            <circle key={`d${i}`} cx={x} cy={y} r="3" fill="#E04E24" opacity="0.6">
+            <circle key={`d${i}`} cx={x} cy={y} r="3" fill="rgb(249 115 22)" opacity="0.6">
               <animate attributeName="opacity" values="0.2;1;0.2" dur="2.2s" begin={`${i * 0.3}s`} repeatCount="indefinite" />
               <animate attributeName="r" values="2;4;2" dur="2.2s" begin={`${i * 0.3}s`} repeatCount="indefinite" />
             </circle>
@@ -163,7 +183,7 @@ function OrbitalDiagram({ centerLabel }: { centerLabel: string }) {
         })}
       </svg>
 
-      {/* CENTER badge — YOUR BRAND (flat turuncu, wordmark oku ile) */}
+      {/* CENTER badge — YOUR BRAND */}
       <div
         className="absolute"
         style={{
@@ -174,19 +194,20 @@ function OrbitalDiagram({ centerLabel }: { centerLabel: string }) {
         }}
       >
         <div className="relative w-full h-full">
-          <div className="absolute inset-0 rounded-full border border-brand-400/50 animate-ping opacity-40" />
-          <div className="absolute inset-2 rounded-full bg-brand border border-bone/20 grid place-items-center">
-            <div className="text-center text-paper">
-              <div className="font-mono text-[10px] font-medium uppercase tracking-[0.14em] opacity-90">
+          <div className="absolute inset-0 rounded-full bg-gradient-to-br from-orange-500 to-red-600 animate-pulse opacity-25 blur-xl" />
+          <div className="absolute inset-0 rounded-full border-2 border-orange-500/60 animate-ping opacity-40" />
+          <div className="absolute inset-2 rounded-full bg-gradient-to-br from-orange-500 via-orange-600 to-red-600 grid place-items-center shadow-2xl shadow-orange-500/40">
+            <div className="text-center text-white">
+              <div className="text-[10px] font-bold uppercase tracking-widest opacity-90">
                 {centerLabel}
               </div>
-              <div className="mt-1 text-2xl font-brandDisplay font-bold leading-none">↗</div>
+              <div className="mt-1 text-2xl">✨</div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Engine nodes (7 around the circle) */}
+      {/* Engine nodes (6 around the circle) */}
       {ENGINES.map((engine, i) => {
         const angle = (-90 + i * angleStep) * (Math.PI / 180);
         const x = centerX + radius * Math.cos(angle);
@@ -203,11 +224,11 @@ function OrbitalDiagram({ centerLabel }: { centerLabel: string }) {
             }}
           >
             <div className="group relative w-full h-full">
-              {/* Force white background so colored brand icons stay visible on ink */}
-              <div className="absolute inset-0 rounded-full bg-white ring-1 ring-bone/25 grid place-items-center hover:ring-2 hover:ring-brand-400/70 hover:scale-105 transition-all duration-300 overflow-hidden">
+              {/* Force white background so colored brand icons stay visible in dark mode */}
+              <div className="absolute inset-0 rounded-full bg-white shadow-lg shadow-orange-500/10 ring-1 ring-orange-500/20 grid place-items-center hover:ring-2 hover:ring-orange-500/60 hover:scale-110 transition-all duration-300 overflow-hidden">
                 <VendorLogo name={engine.name} size={48} />
               </div>
-              <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-[#A99F92] whitespace-nowrap">
+              <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground dark:text-white/70 whitespace-nowrap">
                 {engine.label}
               </div>
             </div>

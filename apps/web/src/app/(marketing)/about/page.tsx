@@ -64,6 +64,7 @@ export default function AboutPage() {
         dangerouslySetInnerHTML={{ __html: JSON.stringify(aboutJsonLd) }}
       />
       <div className="relative overflow-hidden">
+        <div className="absolute inset-0 -z-10 bg-mesh-warm opacity-60 pointer-events-none" />
         <div className="absolute inset-0 -z-10 bg-noise opacity-[0.03] pointer-events-none" />
 
         <div className="container-apple section-padding max-w-[920px] stagger-reveal">
@@ -74,7 +75,7 @@ export default function AboutPage() {
             <p className="eyebrow mb-4">Hakkımızda</p>
             <h1 className="text-balance font-medium tracking-display text-neutral-900 dark:text-white text-[clamp(2.5rem,6vw,5rem)] leading-[0.96]">
               Türkiye için yapılmış{' '}
-              <span className="font-brandDisplay font-bold text-brand dark:text-brand-400">AI SaaS.</span>
+              <span className="font-display italic text-[1.08em] bg-gradient-to-br from-brand-500 via-rose-500 to-amber-500 bg-clip-text text-transparent">AI SaaS.</span>
             </h1>
             <p className="text-pretty mt-7 max-w-[640px] mx-auto text-[clamp(1rem,1.4vw,1.25rem)] leading-[1.5] text-neutral-600 dark:text-neutral-400">
               RanksUp; KOBİ, e-ticaret ve dijital ajansların SEO, içerik üretimi, sosyal medya ve reklam denetimini
@@ -84,7 +85,7 @@ export default function AboutPage() {
 
           {/* Misyon + Hikayemiz — alternating layout */}
           <div className="space-y-4 lg:space-y-6 mb-6">
-            <div className="card-brand p-8 lg:p-10">
+            <div className="card-apple p-8 lg:p-10">
               <div className="flex items-start gap-5">
                 <div className="h-10 w-10 rounded-2xl bg-brand-500/10 border border-brand-500/20 text-brand-600 dark:text-brand-400 grid place-items-center shrink-0">
                   <Target className="h-5 w-5" strokeWidth={1.5} />
@@ -101,7 +102,7 @@ export default function AboutPage() {
               </div>
             </div>
 
-            <div className="card-brand p-8 lg:p-10">
+            <div className="card-apple p-8 lg:p-10">
               <div className="flex items-start gap-5">
                 <div className="h-10 w-10 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-500 grid place-items-center shrink-0">
                   <Heart className="h-5 w-5" strokeWidth={1.5} />
@@ -120,7 +121,7 @@ export default function AboutPage() {
               </div>
             </div>
 
-            <div className="card-brand p-8 lg:p-10">
+            <div className="card-apple p-8 lg:p-10">
               <div className="flex items-start gap-5">
                 <div className="h-10 w-10 rounded-2xl bg-sky-500/10 border border-sky-500/20 text-sky-500 grid place-items-center shrink-0">
                   <ShieldCheck className="h-5 w-5" strokeWidth={1.5} />
@@ -155,7 +156,7 @@ export default function AboutPage() {
               { icon: Zap, color: 'text-amber-500', title: 'Gerçek otopilot', body: 'Plan + GSC + rakip + persona analizi → konu önerileri → otomatik üretim → otomatik yayın → 30 gün sonra performans takibi. Sen sadece onaylarsın.' },
               { icon: Award, color: 'text-violet-500', title: 'AI search\'e hazır', body: 'ChatGPT, Claude, Gemini, Perplexity gibi AI asistanları cevap üretirken senin sitendeki içeriği kaynak göstersin diye GEO (Generative Engine Optimization) yapıyoruz.' },
             ].map(({ icon: Icon, color, title, body }) => (
-              <div key={title} className="card-brand p-7 lg:p-8">
+              <div key={title} className="card-apple p-7 lg:p-8">
                 <Icon className={`h-6 w-6 ${color} mb-5`} strokeWidth={1.5} />
                 <h3 className="text-h5 font-medium mb-3 tracking-[-0.02em]">{title}</h3>
                 <p className="text-[14px] text-neutral-600 dark:text-neutral-400 leading-[1.55]">{body}</p>
@@ -167,9 +168,9 @@ export default function AboutPage() {
           <div className="text-center">
             <h3 className="text-balance font-medium tracking-display text-[clamp(1.75rem,3.5vw,2.75rem)] leading-[1.05] mb-7">
               İlk makaleni{' '}
-              <span className="font-brandDisplay font-bold text-brand dark:text-brand-400">ücretsiz dene.</span>
+              <span className="font-display italic text-[1.08em] text-brand-600 dark:text-brand-400">ücretsiz dene.</span>
             </h3>
-            <Link href="/onboarding" className="btn-brand group inline-flex">
+            <Link href="/onboarding" className="btn-apple-primary group inline-flex">
               Hemen başla
             </Link>
             <p className="text-[12px] text-neutral-500 dark:text-neutral-400 mt-5">

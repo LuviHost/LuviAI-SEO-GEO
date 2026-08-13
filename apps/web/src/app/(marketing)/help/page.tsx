@@ -6,19 +6,20 @@ import {
   CreditCard, Plug, MessageSquare, BarChart3, BookOpen,
 } from 'lucide-react';
 import { useT } from '@/lib/i18n';
-import { Eyebrow, StepMotif } from '@/components/brand';
+
+type Color = 'orange' | 'purple' | 'blue' | 'amber' | 'rose' | 'emerald' | 'cyan' | 'pink' | 'slate';
 
 const TOPICS_BASE = [
-  { id: 'getting-started', icon: Rocket, href: '/help/getting-started' },
-  { id: 'ai-visibility', icon: Sparkles, href: '/help/ai-visibility' },
-  { id: 'aso', icon: Search, href: '/help/aso' },
-  { id: 'asa-asc', icon: Smartphone, href: '/help/asa-asc' },
-  { id: 'studio', icon: Wand2, href: '/help/studio' },
-  { id: 'auto-pilot', icon: Bot, href: '/help/auto-pilot' },
-  { id: 'api-keys', icon: Plug, href: '/help/api-keys' },
-  { id: 'social', icon: MessageSquare, href: '/help/social' },
-  { id: 'billing', icon: CreditCard, href: '/help/billing' },
-  { id: 'glossary', icon: BookOpen, href: '/help/glossary' },
+  { id: 'getting-started', icon: Rocket, color: 'orange' as Color, href: '/help/getting-started' },
+  { id: 'ai-visibility', icon: Sparkles, color: 'purple' as Color, href: '/help/ai-visibility' },
+  { id: 'aso', icon: Search, color: 'blue' as Color, href: '/help/aso' },
+  { id: 'asa-asc', icon: Smartphone, color: 'amber' as Color, href: '/help/asa-asc' },
+  { id: 'studio', icon: Wand2, color: 'rose' as Color, href: '/help/studio' },
+  { id: 'auto-pilot', icon: Bot, color: 'emerald' as Color, href: '/help/auto-pilot' },
+  { id: 'api-keys', icon: Plug, color: 'cyan' as Color, href: '/help/api-keys' },
+  { id: 'social', icon: MessageSquare, color: 'pink' as Color, href: '/help/social' },
+  { id: 'billing', icon: CreditCard, color: 'slate' as Color, href: '/help/billing' },
+  { id: 'glossary', icon: BookOpen, color: 'purple' as Color, href: '/help/glossary' },
 ];
 
 const COPY = {
@@ -72,23 +73,37 @@ const COPY = {
   },
 } as const;
 
+const COLORS: Record<string, string> = {
+  orange: 'from-orange-500/15 to-orange-600/10 text-orange-600',
+  purple: 'from-purple-500/15 to-purple-600/10 text-purple-600',
+  blue: 'from-blue-500/15 to-blue-600/10 text-blue-600',
+  amber: 'from-amber-500/15 to-amber-600/10 text-amber-600',
+  rose: 'from-rose-500/15 to-rose-600/10 text-rose-600',
+  emerald: 'from-emerald-500/15 to-emerald-600/10 text-emerald-600',
+  cyan: 'from-cyan-500/15 to-cyan-600/10 text-cyan-600',
+  pink: 'from-pink-500/15 to-pink-600/10 text-pink-600',
+  slate: 'from-slate-500/15 to-slate-600/10 text-slate-600',
+};
+
 export default function HelpPage() {
   const { locale } = useT();
   const c = COPY[locale];
 
   return (
     <main className="relative min-h-screen">
-      <div className="absolute inset-x-0 top-0 h-80 -z-10 grid-paper-light pointer-events-none" aria-hidden="true" />
+      <div className="absolute inset-0 -z-10 overflow-hidden pointer-events-none">
+        <div className="absolute top-20 -left-20 w-96 h-96 bg-orange-500/10 rounded-full blur-3xl" />
+        <div className="absolute top-60 -right-20 w-96 h-96 bg-amber-400/10 rounded-full blur-3xl" />
+      </div>
 
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <div className="relative text-center mb-14 max-w-3xl mx-auto">
-          <StepMotif size={36} steps={4} className="absolute -top-1 right-0 hidden sm:block" />
-          <div className="mb-5">
-            <Eyebrow>{c.eyebrow}</Eyebrow>
+        <div className="text-center mb-14 max-w-3xl mx-auto">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-500/10 border border-orange-500/20 text-orange-600 text-xs font-semibold mb-5">
+            {c.eyebrow}
           </div>
-          <h1 className="font-brandDisplay text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-[-0.03em] leading-[1.08] mb-4">
+          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-tight mb-4">
             {c.titleA}{' '}
-            <span className="text-brand dark:text-brand-400">
+            <span className="bg-gradient-to-r from-orange-500 via-orange-600 to-red-600 bg-clip-text text-transparent">
               {c.titleB}
             </span>
           </h1>
@@ -96,7 +111,7 @@ export default function HelpPage() {
             {c.lead1}{' '}
             <br />
             {c.lead2}
-            <a href="mailto:destek@luvihost.com" className="text-brand dark:text-brand-400 hover:underline font-semibold">destek@luvihost.com</a>
+            <a href="mailto:destek@luvihost.com" className="text-orange-600 hover:underline font-semibold">destek@luvihost.com</a>
           </p>
         </div>
 
@@ -107,14 +122,14 @@ export default function HelpPage() {
               <Link
                 key={t.href}
                 href={t.href as any}
-                className="p-6 rounded-2xl border border-ink/10 dark:border-bone/10 bg-paper dark:bg-ink-2 hover:border-brand/40 dark:hover:border-brand-400/40 transition-colors group"
+                className="p-6 rounded-2xl border bg-background hover:border-orange-500/40 hover:shadow-xl hover:shadow-orange-500/5 transition-all group"
               >
-                <div className="h-11 w-11 rounded-xl bg-brand/10 text-brand dark:text-brand-400 grid place-items-center mb-3">
+                <div className={`h-11 w-11 rounded-xl bg-gradient-to-br ${COLORS[t.color]} grid place-items-center mb-3 group-hover:scale-110 transition-transform`}>
                   <t.icon className="h-5 w-5" />
                 </div>
-                <h2 className="font-brandDisplay font-bold text-lg mb-1.5">{topic.title}</h2>
+                <h2 className="font-bold text-lg mb-1.5">{topic.title}</h2>
                 <p className="text-sm text-muted-foreground leading-relaxed">{topic.desc}</p>
-                <div className="mt-4 text-xs font-bold text-brand dark:text-brand-400 group-hover:translate-x-0.5 transition-transform">
+                <div className="mt-4 text-xs font-bold text-orange-600 group-hover:translate-x-0.5 transition-transform">
                   {c.readGuide}
                 </div>
               </Link>
@@ -123,20 +138,20 @@ export default function HelpPage() {
         </div>
 
         {/* Quick links */}
-        <div className="mt-16 card-brand p-8 text-center">
-          <BarChart3 className="h-10 w-10 text-brand dark:text-brand-400 mx-auto mb-3" />
-          <h3 className="font-brandDisplay text-2xl font-bold mb-2">{c.stuckTitle}</h3>
+        <div className="mt-16 rounded-2xl border-2 border-orange-500/30 bg-gradient-to-br from-orange-500/5 to-amber-400/5 p-8 text-center">
+          <BarChart3 className="h-10 w-10 text-orange-600 mx-auto mb-3" />
+          <h3 className="text-2xl font-bold mb-2">{c.stuckTitle}</h3>
           <p className="text-muted-foreground mb-5 max-w-xl mx-auto">{c.stuckBody}</p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
             <a
               href="mailto:destek@luvihost.com"
-              className="btn-brand h-10 px-5 text-sm"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white text-sm font-semibold shadow-lg shadow-orange-500/20"
             >
               {c.mailBtn}
             </a>
             <Link
               href={'/signin' as any}
-              className="btn-brand-outline h-10 px-5 text-sm"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg border text-sm font-semibold hover:bg-muted/50"
             >
               {c.signinBtn}
             </Link>

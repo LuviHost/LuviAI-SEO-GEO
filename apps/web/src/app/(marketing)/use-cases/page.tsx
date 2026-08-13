@@ -1,8 +1,8 @@
 'use client';
 
 import Link from 'next/link';
+import { Button } from '@/components/ui/button';
 import { useT } from '@/lib/i18n';
-import { Eyebrow, StepMotif } from '@/components/brand';
 
 const USE_CASES = {
   tr: {
@@ -161,17 +161,19 @@ export default function UseCasesPage() {
 
   return (
     <main className="relative">
-      <div className="absolute inset-x-0 top-0 h-80 -z-10 grid-paper-light pointer-events-none" aria-hidden="true" />
+      <div className="absolute inset-0 -z-10 overflow-hidden pointer-events-none">
+        <div className="absolute top-20 -left-20 w-96 h-96 bg-orange-500/10 rounded-full blur-3xl" />
+        <div className="absolute top-60 -right-20 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl" />
+      </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <div className="relative text-center mb-12 max-w-3xl mx-auto">
-          <StepMotif size={36} steps={4} className="absolute -top-1 right-0 hidden sm:block" />
-          <div className="mb-5">
-            <Eyebrow>{data.eyebrow}</Eyebrow>
+        <div className="text-center mb-12 max-w-3xl mx-auto">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-500/10 border border-orange-500/20 text-orange-600 text-xs font-semibold mb-5">
+            {data.eyebrow}
           </div>
-          <h1 className="font-brandDisplay text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-[-0.03em] leading-[1.08] mb-4">
+          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-tight mb-4">
             {data.titleA}{' '}
-            <span className="text-brand dark:text-brand-400">
+            <span className="bg-gradient-to-r from-orange-500 via-orange-600 to-red-600 bg-clip-text text-transparent">
               {data.titleB}
             </span>
           </h1>
@@ -180,20 +182,20 @@ export default function UseCasesPage() {
 
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {data.items.map((u) => (
-            <div key={u.title} className="p-6 rounded-2xl border border-ink/10 dark:border-bone/10 bg-paper dark:bg-ink-2 hover:border-brand/40 dark:hover:border-brand-400/40 transition-colors flex flex-col">
-              <div className="text-4xl mb-4 inline-block">{u.icon}</div>
-              <h2 className="font-brandDisplay text-xl font-bold mb-3">{u.title}</h2>
+            <div key={u.title} className="p-6 rounded-2xl border bg-background hover:border-orange-500/30 hover:shadow-lg hover:shadow-orange-500/5 transition-all group flex flex-col">
+              <div className="text-4xl mb-4 group-hover:scale-110 transition-transform inline-block">{u.icon}</div>
+              <h2 className="text-xl font-bold mb-3">{u.title}</h2>
               <ul className="space-y-2 text-sm text-muted-foreground mb-6 flex-1">
                 {u.bullets.map((b, i) => (
                   <li key={i} className="flex items-start gap-2">
-                    <span className="text-brand dark:text-brand-400 shrink-0">•</span>
+                    <span className="text-orange-600 shrink-0">•</span>
                     <span>{b}</span>
                   </li>
                 ))}
               </ul>
-              <Link href="/onboarding" className="btn-brand w-full text-sm">
-                {u.cta}
-              </Link>
+              <Button asChild className="w-full bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white">
+                <Link href="/onboarding">{u.cta}</Link>
+              </Button>
             </div>
           ))}
         </div>
