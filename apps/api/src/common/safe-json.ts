@@ -1,4 +1,5 @@
 import { jsonrepair } from 'jsonrepair';
+import { stripInvisible } from './text-normalize.js';
 
 /**
  * LLM'den gelen JSON'u parse et. Standart JSON.parse fail olursa
@@ -33,7 +34,10 @@ export function safeParseJson<T = any>(raw: string): T {
  * ile son ] veya } arasi kesilir.
  */
 export function parseJsonFromLlm<T = any>(raw: string): T {
-  const withoutFences = String(raw ?? '')
+  // Gorunmez/sifir-genislikli karakterler once silinir: LLM ciktisinda sessizce
+  // tasinip JSON string'lerinin icine yerlesiyor, oradan da ASO baslik karakter
+  // sayimina (30 limiti) ve kelime eslesmesine sizip ikisini de bozuyorlar.
+  const withoutFences = stripInvisible(String(raw ?? ''))
     .replace(/```[a-zA-Z]*\s*/g, '')
     .replace(/```/g, '')
     .trim();
