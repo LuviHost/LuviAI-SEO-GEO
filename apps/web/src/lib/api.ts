@@ -60,11 +60,13 @@ function toUserMessage(status: number, body: unknown): string {
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   let res: Response;
+  // FormData gövdede Content-Type'i tarayıcı belirler (multipart boundary) — elle set etme.
+  const isFormData = typeof FormData !== 'undefined' && init.body instanceof FormData;
   try {
     res = await fetch(`${API_BASE}/api${path}`, {
       ...init,
       headers: {
-        'Content-Type': 'application/json',
+        ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
         ...init.headers,
       },
       credentials: 'include',
@@ -1034,6 +1036,41 @@ export const api = {
       { method: 'POST', body: JSON.stringify(body) },
     ),
 
+  /**
+   * Composer modal — kullanıcının kendi görsel/videosunu yükle, paylaşılabilir URL dön.
+   */
+  uploadSocialMedia: (siteId: string, file: File) => {
+    const fd = new FormData();
+    fd.append('file', file);
+    return request<{ url: string; type: 'image' | 'video' }>(
+      `/sites/${siteId}/social/media/upload`,
+      { method: 'POST', body: fd },
+    );
+  },
+
+  /**
+   * AI Composer — prompt'tan N kanala kampanya (kanal-spesifik caption + opsiyonel auto-media).
+   * Backend: SocialComposerService.compose.
+   */
+  createSocialCampaign: (
+    siteId: string,
+    body: {
+      prompt: string;
+      channelIds: string[];
+      autoMedia?: boolean;
+      sharedMediaUrls?: Array<{ url: string; type: 'image' | 'video'; altText?: string }>;
+      scheduledFor?: string;
+      mediaTypeByChannel?: Record<string, 'text' | 'image' | 'video'>;
+    },
+  ) =>
+    request<{
+      campaignId: string;
+      drafts: Array<{ id: string; channelId: string; channelType: string; mediaType: string; status: string }>;
+      skipped?: Array<{ channelType: string; reason: string }>;
+      publishedImmediately: boolean;
+      costUsd: number;
+    }>(`/sites/${siteId}/social/campaigns`, { method: 'POST', body: JSON.stringify(body) }),
+
   updateSocialPost: (postId: string, body: any) =>
     request<any>(`/social/posts/${postId}`, { method: 'PATCH', body: JSON.stringify(body) }),
 
@@ -1318,7 +1355,7 @@ export const api = {
     ),
 
   generateStudioText: (siteId: string, body: { prompt: string; format?: 'short' | 'medium' | 'long'; tone?: string; language?: 'tr' | 'en' }) =>
-    request<{ ok: boolean; assetId?: string; text?: string; costUsd?: number; tokens?: number }>(
+    request<{ ok: boolean; assetId?: string; text?: string; costUsd?: number; tokens?: number; error?: string }>(
       `/sites/${siteId}/studio/text`,
       { method: 'POST', body: JSON.stringify(body) },
     ),

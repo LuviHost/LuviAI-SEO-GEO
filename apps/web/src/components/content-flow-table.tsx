@@ -607,7 +607,7 @@ export function ContentFlowTable({
                                 size="sm"
                                 variant="outline"
                                 title="Sosyal medyada paylaş"
-                                onClick={() => row.articleId && setShareTarget({ articleId: row.articleId, title: row.title })}
+                                onClick={() => row.articleId && setShareTarget({ articleId: row.articleId, title: row.topic })}
                               >
                                 <Share2 className="h-3.5 w-3.5 mr-1" /> Paylaş
                               </Button>

@@ -66,6 +66,10 @@ interface SlotState {
   phoneFrameStyle?: 'solid' | 'glass' | 'outline';
   phoneTilt: number;
   phoneScale: number;
+  /** Telefon drop-shadow yoğunluğu (0-100). Stage default 70 kullanır. */
+  phoneShadow?: number;
+  /** Yazı gölgesi yoğunluğu (0-100). Stage default 30 kullanır. */
+  textShadow?: number;
   phoneLayout?: 'single' | 'duo' | 'trio';
   phoneVerticalAlign?: 'top' | 'center' | 'bottom';
   // Reflection (shots.so polish)
@@ -109,7 +113,14 @@ function makeSlot(i: number): SlotState {
 }
 
 // Layout presets — Hero (text top + single phone), Showcase (2 phones), Comparison (3 phones)
-const LAYOUT_PRESETS = [
+type LayoutConfig = {
+  phoneLayout: 'single' | 'duo' | 'trio';
+  textPosition: 'top' | 'bottom';
+  phoneVerticalAlign: 'top' | 'center' | 'bottom';
+  phoneScale: number;
+  phoneTilt: number;
+};
+const LAYOUT_PRESETS: Array<{ id: string; name: string; description: string; config: LayoutConfig }> = [
   {
     id: 'hero',
     name: 'Hero',
@@ -258,7 +269,7 @@ function SuggestionField({ label, value, limit, multiline }: {
 }
 
 // Layout preset preview — config'e göre minik SVG mockup. Telefon, yazı bloğu pozisyonu görünür.
-function LayoutPreview({ config }: { config: typeof LAYOUT_PRESETS[number]['config'] }) {
+function LayoutPreview({ config }: { config: LayoutConfig }) {
   const W = 60, H = 100;
   const textY = config.textPosition === 'top' ? 6 : H - 16;
 
@@ -1190,7 +1201,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                         onClick={() => updateAllSlots({
                           background: t.solid
                             ? { type: 'solid', value: t.solid }
-                            : { type: 'gradient', value: t.gradient },
+                            : { type: 'gradient', value: t.gradient ?? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' },
                           textColor: t.textColor,
                           hookFontSize: t.hookFontSize,
                           textPosition: t.textPosition,

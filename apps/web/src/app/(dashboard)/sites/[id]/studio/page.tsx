@@ -132,7 +132,7 @@ function ImageStudio({ siteId }: { siteId: string }) {
       const { w, h } = ASPECT_DIMS[aspect];
       const r = await api.generateStudioImage(siteId, { prompt: prompt.trim(), provider, width: w, height: h });
       if (r.ok && r.url) {
-        toast.success(`Görsel hazır (~$${r.costUsd.toFixed(3)})`);
+        toast.success(`Görsel hazır (~$${(r.costUsd ?? 0).toFixed(3)})`);
         await loadAssets();
       } else {
         toast.error(r.error || 'Görsel üretilemedi');
@@ -369,7 +369,7 @@ function TextStudio({ siteId }: { siteId: string }) {
     try {
       const r = await api.generateStudioText(siteId, { prompt: prompt.trim(), format, tone, language: 'tr' });
       if (r.ok && r.text) {
-        toast.success(`Metin hazır (~$${r.costUsd.toFixed(4)})`);
+        toast.success(`Metin hazır (~$${(r.costUsd ?? 0).toFixed(4)})`);
         await loadAssets();
       } else {
         toast.error(r.error || 'Metin üretilemedi');
