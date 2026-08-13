@@ -2,9 +2,7 @@ import { Body, Controller, Delete, Get, Header, Param, Patch, Post, Put, Query, 
 import type { Response } from 'express';
 import { ArticlesService } from './articles.service.js';
 import { ArticleSchedulerService } from './article-scheduler.service.js';
-import { MediaGeneratorService } from './media-generator.service.js';
 import { ProgrammaticSeoService } from './programmatic-seo.service.js';
-import { VideoGeneratorService } from './video-generator.service.js';
 import { TiktokPublisherService } from './tiktok-publisher.service.js';
 import { InstagramPublisherService } from './instagram-publisher.service.js';
 import { TranslatorService } from './translator.service.js';
@@ -15,9 +13,7 @@ export class ArticlesController {
   constructor(
     private readonly articles: ArticlesService,
     private readonly scheduler: ArticleSchedulerService,
-    private readonly media: MediaGeneratorService,
     private readonly programmatic: ProgrammaticSeoService,
-    private readonly video: VideoGeneratorService,
     private readonly tiktok: TiktokPublisherService,
     private readonly instagram: InstagramPublisherService,
     private readonly translator: TranslatorService,
@@ -126,24 +122,6 @@ export class ArticlesController {
     return this.articles.triggerNow(siteId, id);
   }
 
-  /** POST /sites/:siteId/articles/:id/audio — TTS audio uret (multi-modal GEO) */
-  @Post(':id/audio')
-  generateAudio(@Param('id') id: string) {
-    return this.media.generateAudio(id);
-  }
-
-  /** POST /sites/:siteId/articles/:id/video — TTS audio + hero gorseli birlestir, MP4 uret */
-  @Post(':id/video')
-  generateVideo(@Param('id') id: string, @Body() body: { format?: 'horizontal' | 'vertical' }) {
-    return this.video.generate(id, { format: body?.format });
-  }
-
-  /** POST /sites/:siteId/articles/:id/video/youtube — uretilmis video YouTube'a yukle */
-  @Post(':id/video/youtube')
-  uploadYouTube(@Param('id') id: string, @Body() body: { videoPath: string }) {
-    return this.video.uploadToYouTube(id, body.videoPath);
-  }
-
   /** POST /sites/:siteId/articles/:id/video/tiktok — TikTok upload */
   @Post(':id/video/tiktok')
   uploadTikTok(@Param('id') id: string, @Body() body: { videoPath: string }) {
@@ -175,14 +153,5 @@ export class ArticlesController {
     @Body() body: { template: string; cities?: string[]; spreadDays?: number; maxQuota?: number },
   ) {
     return this.programmatic.generateCityPages(siteId, body);
-  }
-
-  /** GET /sites/:siteId/articles/podcast.rss — podcast feed (Spotify/Apple Podcasts ready) */
-  @Get('podcast.rss')
-  @Header('Content-Type', 'application/rss+xml; charset=utf-8')
-  async podcastRss(@Param('siteId') siteId: string, @Res() res: Response) {
-    const xml = await this.media.generatePodcastRss(siteId);
-    res.setHeader('Cache-Control', 'public, max-age=1800');
-    res.send(xml);
   }
 }

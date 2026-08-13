@@ -6,7 +6,6 @@ import { useSession } from 'next-auth/react';
 import { Plus, Trash2, Edit2, CheckCircle2, XCircle, Star, Power, Loader2, BarChart3, Link2, Unlink, Activity } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
-import { SocialChannelsStep } from '@/components/social-channels-step';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -304,7 +303,6 @@ export function SettingsTab({ siteId, onRefresh }: { siteId: string; onRefresh?:
           </p>
         </CardHeader>
         <CardContent>
-          <SocialChannelsStep siteId={siteId} />
         </CardContent>
       </Card>
 

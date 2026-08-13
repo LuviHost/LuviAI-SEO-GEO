@@ -405,59 +405,6 @@ export class PaytrService {
     };
   }
 
-  // ──────────────────────────────────────────────────────────────────────
-  //  Video Credit Add-on Purchase (2026-05)
-  // ──────────────────────────────────────────────────────────────────────
-  /** Mevcut credit pack'leri (sabit). */
-  static readonly CREDIT_PACKS = {
-    '5':  { packSize: 5,  priceTry: 499 },
-    '20': { packSize: 20, priceTry: 1799 },
-    '50': { packSize: 50, priceTry: 3999 },
-  } as const;
-
-  /**
-   * Video credit pack satin alma baslangici. PayTR iframe URL'i döner.
-   * Webhook PAID olunca creditsTotal aktif olur.
-   */
-  async startVideoCreditPurchase(input: {
-    userId: string;
-    packKey: '5' | '20' | '50';
-    userEmail: string;
-    userName: string;
-    userIp?: string;
-  }): Promise<{ iframeUrl: string; merchantOid: string }> {
-    const pack = PaytrService.CREDIT_PACKS[input.packKey];
-    if (!pack) throw new BadRequestException(`Bilinmeyen credit pack: ${input.packKey}`);
-
-    const merchantOid = `LVCR${input.userId.slice(0, 8)}${input.packKey.padStart(2, '0')}${Date.now()}`;
-    const amountKurus = pack.priceTry * 100;
-
-    // DB'ye PENDING kayit
-    await this.prisma.videoCreditPurchase.create({
-      data: {
-        userId: input.userId,
-        packSize: pack.packSize,
-        priceTry: pack.priceTry,
-        creditsTotal: pack.packSize,
-        creditsUsed: 0,
-        merchantOid,
-        status: 'PENDING',
-      },
-    });
-
-    // PayTR iframe oluştur (one-time payment akisi, LVCR prefix webhook handler tarafindan tanir)
-    const iframeUrl = await this.createIframeForOneTimePayment({
-      merchantOid,
-      amount: amountKurus,
-      userEmail: input.userEmail,
-      userName: input.userName,
-      userIp: input.userIp,
-      productName: `RanksUp Video Credit Pack — ${pack.packSize} video`,
-    });
-
-    return { iframeUrl, merchantOid };
-  }
-
   /** PayTR success callback — credit pack PAID'e çevir, kullanıcıya kullanım hakkı aç. */
   async confirmVideoCreditPurchase(merchantOid: string): Promise<void> {
     const purchase = await this.prisma.videoCreditPurchase.findUnique({

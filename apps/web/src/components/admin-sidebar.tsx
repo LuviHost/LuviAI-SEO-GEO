@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard, Users, Receipt, Globe, BarChart3, MessageSquare,
   ListChecks, DollarSign, AlertTriangle, Settings, Sparkles,
-  Menu, X,
+  Menu, X, Radar,
 } from 'lucide-react';
 import { BrandWordmark } from '@/components/brand-logo';
 
@@ -31,6 +31,12 @@ const SECTIONS = [
       { href: '/admin/landing', label: 'Landing Analytics', icon: BarChart3 },
       { href: '/admin/leads', label: 'AI Test Leadleri', icon: Sparkles },
       { href: '/admin/testimonials', label: 'Müşteri Yorumları', icon: MessageSquare },
+    ],
+  },
+  {
+    label: 'Araştırma',
+    items: [
+      { href: '/admin/intel', label: 'Sektör İstihbaratı', icon: Radar },
     ],
   },
   {

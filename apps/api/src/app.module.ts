@@ -21,18 +21,15 @@ import { EmailModule } from './email/email.module.js';
 import { AffiliateModule } from './affiliate/affiliate.module.js';
 import { MeModule } from './me/me.module.js';
 import { PublishTargetsModule } from './publish-targets/publish-targets.module.js';
-import { SocialModule } from './social/social.module.js';
 import { AdsModule } from './ads/ads.module.js';
 import { AgencyModule } from './agency/agency.module.js';
 import { ApiKeysModule } from './api-keys/api-keys.module.js';
 import { OAuthModule } from './oauth/oauth.module.js';
 import { SettingsModule } from './settings/settings.module.js';
-import { VideosModule } from './videos/videos.module.js';
 import { LLMModule } from './llm/llm.module.js';
 import { AsoModule } from './aso/aso.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { NotificationsModule } from './notifications/notifications.module.js';
-import { StudioModule } from './studio/studio.module.js';
 import { AsaModule } from './aso/asa/asa.module.js';
 import { AscModule } from './aso/asc/asc.module.js';
 import { TestimonialsModule } from './testimonials/testimonials.module.js';
@@ -62,17 +59,14 @@ import { ChatModule } from './chat/chat.module.js';
     AffiliateModule,
     MeModule,
     PublishTargetsModule,
-    SocialModule,
     AdsModule,
     AgencyModule,
     ApiKeysModule,
     OAuthModule,
     SettingsModule,
-    VideosModule,
     LLMModule,
     AsoModule,
     NotificationsModule,
-    StudioModule,
     AsaModule,
     AscModule,
     TestimonialsModule,

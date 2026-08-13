@@ -495,10 +495,6 @@ export const api = {
       body: JSON.stringify(payload),
     }),
 
-  setArticleSocialPrePlan: (siteId: string, articleId: string, channelIds: string[] | null) =>
-    request<any>(`/sites/${siteId}/articles/${articleId}/social-pre-plan`, {
-      method: 'PATCH', body: JSON.stringify({ channelIds }),
-    }),
 
   rescheduleArticle: (siteId: string, articleId: string, scheduledAt: string) =>
     request<any>(`/sites/${siteId}/articles/${articleId}/reschedule`, {
@@ -656,17 +652,7 @@ export const api = {
     return `${apiBase}/api/widget.js?site=${siteId}`;
   },
 
-  generateArticleVideo: (siteId: string, articleId: string, format: 'horizontal' | 'vertical' = 'vertical') =>
-    request<any>(`/sites/${siteId}/articles/${articleId}/video`, {
-      method: 'POST',
-      body: JSON.stringify({ format }),
-    }),
 
-  uploadVideoToYouTube: (siteId: string, articleId: string, videoPath: string) =>
-    request<any>(`/sites/${siteId}/articles/${articleId}/video/youtube`, {
-      method: 'POST',
-      body: JSON.stringify({ videoPath }),
-    }),
 
   // Faz 11 — Ads Manager
   listAdCampaigns: (siteId: string, status?: string) =>
@@ -955,22 +941,10 @@ export const api = {
       body: JSON.stringify({ competitors }),
     }),
 
-  // Social — catalog
-  getSocialCatalog: () =>
-    request<Array<{ type: string; label: string; status: 'live' | 'soon' }>>('/social/catalog'),
 
-  // Social — channels
-  listSocialChannels: (siteId: string) =>
-    request<Array<any>>(`/sites/${siteId}/social/channels`),
 
-  updateSocialChannel: (channelId: string, body: { name?: string; isActive?: boolean; isDefault?: boolean; config?: any }) =>
-    request<any>(`/social/channels/${channelId}`, { method: 'PATCH', body: JSON.stringify(body) }),
 
-  deleteSocialChannel: (channelId: string) =>
-    request<{ ok: boolean }>(`/social/channels/${channelId}`, { method: 'DELETE' }),
 
-  startSocialOAuth: (siteId: string, type: string) =>
-    request<{ url: string }>(`/sites/${siteId}/social/${type}/oauth/start`),
 
   listLinkedInPages: (channelId: string) =>
     request<Array<{ organizationUrn: string; organizationId: string; name: string; vanityName?: string; logoUrl?: string }>>(
@@ -983,181 +957,28 @@ export const api = {
       body: JSON.stringify(body),
     }),
 
-  // Social — posts
-  listSocialPosts: (siteId: string, params?: { channelId?: string; status?: string }) => {
-    const qs = new URLSearchParams();
-    if (params?.channelId) qs.set('channelId', params.channelId);
-    if (params?.status) qs.set('status', params.status);
-    const tail = qs.toString() ? `?${qs.toString()}` : '';
-    return request<Array<any>>(`/sites/${siteId}/social/posts${tail}`);
-  },
 
-  createSocialPost: (body: {
-    channelId: string;
-    text: string;
-    mediaUrls?: any[];
-    metadata?: any;
-    scheduledFor?: string | null;
-    articleId?: string;
-    status?: 'DRAFT' | 'QUEUED';
-  }) =>
-    request<any>('/social/posts', { method: 'POST', body: JSON.stringify(body) }),
 
-  /**
-   * Bir makaleyi seçilen N kanala paylaş. Modal flow'un endpoint'i.
-   * Backend her kanal için platforma-adapte caption üretir (X kısa, LinkedIn uzun vs.).
-   */
-  shareArticleToSocial: (
-    siteId: string,
-    articleId: string,
-    body: { channelIds: string[]; scheduledFor?: string | null; status?: 'DRAFT' | 'QUEUED' },
-  ) =>
-    request<{ created: number; skipped: number; postIds: string[]; error?: string }>(
-      `/sites/${siteId}/articles/${articleId}/share-social`,
-      { method: 'POST', body: JSON.stringify(body) },
-    ),
 
-  /**
-   * Studio "Yeni Post" modal — asset bazlı (article'sız) N kanala aynı içeriği yayınla.
-   */
-  createMultiSocialPost: (
-    siteId: string,
-    body: {
-      channelIds: string[];
-      text: string;
-      mediaUrls?: Array<{ url: string; type: 'image' | 'video'; altText?: string }>;
-      mediaType?: 'text' | 'image' | 'video';
-      scheduledFor?: string | null;
-      status?: 'DRAFT' | 'QUEUED';
-    },
-  ) =>
-    request<{ created: number; postIds: string[] }>(
-      `/sites/${siteId}/social/posts/multi`,
-      { method: 'POST', body: JSON.stringify(body) },
-    ),
 
-  /**
-   * Composer modal — kullanıcının kendi görsel/videosunu yükle, paylaşılabilir URL dön.
-   */
-  uploadSocialMedia: (siteId: string, file: File) => {
-    const fd = new FormData();
-    fd.append('file', file);
-    return request<{ url: string; type: 'image' | 'video' }>(
-      `/sites/${siteId}/social/media/upload`,
-      { method: 'POST', body: fd },
-    );
-  },
 
-  /**
-   * AI Composer — prompt'tan N kanala kampanya (kanal-spesifik caption + opsiyonel auto-media).
-   * Backend: SocialComposerService.compose.
-   */
-  createSocialCampaign: (
-    siteId: string,
-    body: {
-      prompt: string;
-      channelIds: string[];
-      autoMedia?: boolean;
-      sharedMediaUrls?: Array<{ url: string; type: 'image' | 'video'; altText?: string }>;
-      scheduledFor?: string;
-      mediaTypeByChannel?: Record<string, 'text' | 'image' | 'video'>;
-    },
-  ) =>
-    request<{
-      campaignId: string;
-      drafts: Array<{ id: string; channelId: string; channelType: string; mediaType: string; status: string }>;
-      skipped?: Array<{ channelType: string; reason: string }>;
-      publishedImmediately: boolean;
-      costUsd: number;
-    }>(`/sites/${siteId}/social/campaigns`, { method: 'POST', body: JSON.stringify(body) }),
 
-  updateSocialPost: (postId: string, body: any) =>
-    request<any>(`/social/posts/${postId}`, { method: 'PATCH', body: JSON.stringify(body) }),
 
-  deleteSocialPost: (postId: string) =>
-    request<{ ok: boolean }>(`/social/posts/${postId}`, { method: 'DELETE' }),
 
-  publishSocialPostNow: (postId: string) =>
-    request<any>(`/social/posts/${postId}/publish-now`, { method: 'POST' }),
 
   // Social — media generation + approval
   socialMediaPolicy: () =>
     request<Record<string, { default: 'text' | 'image' | 'video'; options: Array<'text' | 'image' | 'video'>; editable: boolean }>>(`/social/media-policy`),
 
-  generateSocialPostMedia: (postId: string, mediaType?: 'text' | 'image' | 'video') =>
-    request<{ ok: boolean; mediaType: string; mediaUrls: Array<{ url: string; type: 'image' | 'video'; altText?: string }>; error?: string }>(
-      `/social/posts/${postId}/generate-media`,
-      { method: 'POST', body: JSON.stringify({ mediaType }) },
-    ),
 
-  approveSocialPost: (postId: string, scheduledFor?: string) =>
-    request<any>(`/social/posts/${postId}/approve`, {
-      method: 'POST',
-      body: JSON.stringify({ scheduledFor }),
-    }),
 
-  backfillSocialDrafts: (siteId: string, daysAgo = 30) =>
-    request<{ articleCount: number; created: number; skipped: number }>(
-      `/sites/${siteId}/social/posts/backfill`,
-      { method: 'POST', body: JSON.stringify({ daysAgo }) },
-    ),
 
-  // Social — calendar / plan / slots
-  getSocialCalendar: (siteId: string, params?: { from?: string; to?: string }) => {
-    const qs = new URLSearchParams();
-    if (params?.from) qs.set('from', params.from);
-    if (params?.to) qs.set('to', params.to);
-    const tail = qs.toString() ? `?${qs.toString()}` : '';
-    return request<{
-      plan: string;
-      postsPerWeek: number;
-      timezone: string;
-      channels: Array<any>;
-      slots: Array<any>;
-      defaultSlots: Array<{ dayOfWeek: number; hour: number; minute: number; label: string }>;
-      stats: { draftCount: number; queuedCount: number; publishedCount: number; total: number };
-      posts: Array<any>;
-    }>(`/sites/${siteId}/social/calendar${tail}`);
-  },
 
-  getSocialPlanInfo: (siteId: string) =>
-    request<{
-      plan: string;
-      postsPerWeek: number;
-      timezone: string;
-      defaultSlots: Array<{ dayOfWeek: number; hour: number; minute: number; label: string }>;
-      tiers: Array<{ plan: string; postsPerWeek: number }>;
-    }>(`/sites/${siteId}/social/plan`),
 
-  listSocialSlots: (siteId: string) =>
-    request<Array<any>>(`/sites/${siteId}/social/slots`),
 
-  seedSocialSlots: (siteId: string, body: { replace?: boolean } = {}) =>
-    request<{ created: number; channelId: string; total: number }>(
-      `/sites/${siteId}/social/slots/seed`,
-      { method: 'POST', body: JSON.stringify(body) },
-    ),
 
-  createSocialSlot: (
-    channelId: string,
-    body: { dayOfWeek: number; hour: number; minute: number; source?: 'QUEUE' | 'AUTO'; isActive?: boolean },
-  ) =>
-    request<any>(`/social/channels/${channelId}/slots`, {
-      method: 'POST',
-      body: JSON.stringify(body),
-    }),
 
-  updateSocialSlot: (
-    slotId: string,
-    body: { dayOfWeek?: number; hour?: number; minute?: number; source?: 'QUEUE' | 'AUTO'; isActive?: boolean },
-  ) =>
-    request<any>(`/social/slots/${slotId}`, {
-      method: 'PUT',
-      body: JSON.stringify(body),
-    }),
 
-  deleteSocialSlot: (slotId: string) =>
-    request<{ ok: boolean }>(`/social/slots/${slotId}`, { method: 'DELETE' }),
 
   // ──────────────────────────────────────────────────────────────────
   // Brightbean parity — Approval workflow + Inbox + Media Library + Ideas
@@ -1241,45 +1062,10 @@ export const api = {
   // Video Factory (Faz 12)
   // ──────────────────────────────────────────────────────────────────
 
-  listVideoProviders: () => request<Array<{
-    key: 'SLIDESHOW' | 'VEO' | 'RUNWAY' | 'HEYGEN' | 'SORA';
-    label: string;
-    description: string;
-    estTime: string;
-    costBand: string;
-    quality: number;
-    requiredEnvKeys: string[];
-    ready: boolean;
-    note?: string;
-    bestFor?: string[];
-  }>>('/videos/providers'),
 
-  listVideos: (siteId: string) => request<any[]>(`/sites/${siteId}/videos`),
 
-  createVideo: (
-    siteId: string,
-    body: {
-      title: string;
-      scriptText: string;
-      provider: 'SLIDESHOW' | 'VEO' | 'RUNWAY' | 'HEYGEN' | 'SORA';
-      durationSec?: number;
-      aspectRatio?: '9:16' | '16:9' | '1:1';
-      voiceId?: string;
-      language?: string;
-      style?: string;
-      imageUrls?: string[];
-      articleId?: string;
-    },
-  ) =>
-    request<any>(`/sites/${siteId}/videos`, {
-      method: 'POST',
-      body: JSON.stringify(body),
-    }),
 
-  getVideo: (id: string) => request<any>(`/videos/${id}`),
 
-  deleteVideo: (id: string) =>
-    request<{ id: string }>(`/videos/${id}`, { method: 'DELETE' }),
 
   // ──────────────────────────────────────────────────────────────────
   // ASO Health (claude-code-aso-skill port) — score gauge + competitors
@@ -1343,40 +1129,11 @@ export const api = {
   // Studio — multi-modal AI content (image / video / text) — DB-backed
   // ──────────────────────────────────────────────────────────────────
 
-  listStudioImageProviders: () =>
-    request<Array<{ key: string; label: string; description: string; estTime: string; costBand: string }>>(
-      '/studio/image/providers',
-    ),
 
-  generateStudioImage: (siteId: string, body: { prompt: string; provider?: string; width?: number; height?: number; brandColor?: string }) =>
-    request<{ ok: boolean; assetId?: string; url?: string; costUsd?: number; error?: string }>(
-      `/sites/${siteId}/studio/image`,
-      { method: 'POST', body: JSON.stringify(body) },
-    ),
 
-  generateStudioText: (siteId: string, body: { prompt: string; format?: 'short' | 'medium' | 'long'; tone?: string; language?: 'tr' | 'en' }) =>
-    request<{ ok: boolean; assetId?: string; text?: string; costUsd?: number; tokens?: number; error?: string }>(
-      `/sites/${siteId}/studio/text`,
-      { method: 'POST', body: JSON.stringify(body) },
-    ),
 
-  listStudioAssets: (siteId: string, params: { type?: 'IMAGE' | 'VIDEO' | 'TEXT'; favorite?: boolean } = {}) => {
-    const q = new URLSearchParams();
-    if (params.type) q.set('type', params.type);
-    if (params.favorite) q.set('favorite', '1');
-    const tail = q.toString() ? `?${q.toString()}` : '';
-    return request<Array<{
-      id: string; siteId: string; userId?: string; type: 'IMAGE' | 'VIDEO' | 'TEXT';
-      prompt: string; provider: string; url?: string; text?: string;
-      metadata?: any; favorite: boolean; createdAt: string;
-    }>>(`/sites/${siteId}/studio/assets${tail}`);
-  },
 
-  updateStudioAsset: (assetId: string, body: { favorite?: boolean }) =>
-    request<any>(`/studio/assets/${assetId}`, { method: 'PATCH', body: JSON.stringify(body) }),
 
-  deleteStudioAsset: (assetId: string) =>
-    request<{ ok: boolean }>(`/studio/assets/${assetId}`, { method: 'DELETE' }),
 
   // ─── ASO Faz 1 — Apple Search Ads ──────────────────────
 

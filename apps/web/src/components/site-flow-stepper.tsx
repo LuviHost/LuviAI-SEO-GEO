@@ -1853,16 +1853,11 @@ export function ArticlesStepBody({
 
   // Aktif sosyal kanallar — her makalenin altında "X'te paylaş / LinkedIn'de paylaş"
   // toggle rozetleri için.
-  const [socialChannels, setSocialChannels] = useState<any[]>([]);
+  // Sosyal medya modulu kaldirildi (GEO/SEO/ASO odagi). Kanal listesi artik
+  // her zaman bos; asagidaki kanal rozetleri dogal olarak gizleniyor.
+  const socialChannels: any[] = [];
   const [articlePrePlan, setArticlePrePlan] = useState<Record<string, Set<string> | null>>({});
 
-  useEffect(() => {
-    let cancelled = false;
-    api.listSocialChannels(siteId)
-      .then((rows) => { if (!cancelled) setSocialChannels(Array.isArray(rows) ? rows.filter((c: any) => c?.isActive) : []); })
-      .catch(() => { if (!cancelled) setSocialChannels([]); });
-    return () => { cancelled = true; };
-  }, [siteId]);
 
   useEffect(() => {
     setArticlePrePlan((prev) => {
@@ -1894,7 +1889,6 @@ export function ArticlesStepBody({
     const arr = Array.from(set);
     const isAll = arr.length === allActive.length && allActive.every((id) => arr.includes(id));
     try {
-      await api.setArticleSocialPrePlan(siteId, articleId, isAll ? null : arr);
       const ch = socialChannels.find((c) => c.id === channelId);
       const channelName = (ch?.type ?? 'kanal').toUpperCase();
       const tShort = (articleTitle ?? '').slice(0, 40) + ((articleTitle ?? '').length > 40 ? '…' : '');

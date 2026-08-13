@@ -1,9 +1,5 @@
 import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { AdGeneratorService } from './ad-generator.service.js';
-import { AdImageGeneratorService } from './ad-image-generator.service.js';
-import { AudienceBuilderService } from './audience-builder.service.js';
-import { CampaignOrchestratorService } from './campaign-orchestrator.service.js';
 import { AdsClientService } from './ads-client.service.js';
 import { AdsAuditService } from './ads-audit.service.js';
 import type { Industry, Platform } from './rules/types.js';
@@ -13,10 +9,6 @@ import { encrypt } from '@luviai/shared';
 export class AdsController {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly adGen: AdGeneratorService,
-    private readonly imgGen: AdImageGeneratorService,
-    private readonly audience: AudienceBuilderService,
-    private readonly orchestrator: CampaignOrchestratorService,
     private readonly adsClient: AdsClientService,
     private readonly adsAudit: AdsAuditService,
   ) {}
@@ -54,40 +46,6 @@ export class AdsController {
   @Get('campaigns/:id')
   get(@Param('siteId') siteId: string, @Param('id') id: string) {
     return this.prisma.adCampaign.findFirst({ where: { id, siteId } });
-  }
-
-  /** POST /sites/:siteId/ads/audience — sadece audience onerisi */
-  @Post('audience')
-  buildAudience(@Param('siteId') siteId: string, @Body() body: any) {
-    return this.audience.build(siteId, body);
-  }
-
-  /** POST /sites/:siteId/ads/copy — sadece reklam metni varyantlari */
-  @Post('copy')
-  buildCopy(@Param('siteId') siteId: string, @Body() body: any) {
-    return this.adGen.generate(siteId, body);
-  }
-
-  /** POST /sites/:siteId/ads/images — 3 format reklam gorseli */
-  @Post('images')
-  async buildImages(
-    @Param('siteId') siteId: string,
-    @Body() body: { prompt: string; brandColor?: string; formats?: any[] },
-  ) {
-    const site: any = await this.prisma.site.findUniqueOrThrow({ where: { id: siteId } });
-    const slug = String(site.name).toLowerCase().replace(/\s+/g, '-').slice(0, 30);
-    return this.imgGen.generateSet({
-      prompt: body.prompt,
-      siteSlug: slug,
-      formats: body.formats,
-      brandColor: body.brandColor,
-    });
-  }
-
-  /** POST /sites/:siteId/ads/build — TUM kampanya: audience + copy + image + DB + (autoLaunch ise MCP) */
-  @Post('build')
-  build(@Param('siteId') siteId: string, @Body() body: any) {
-    return this.orchestrator.buildCampaign({ ...body, siteId });
   }
 
   /**

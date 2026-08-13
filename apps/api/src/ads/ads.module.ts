@@ -1,8 +1,5 @@
 import { Module } from '@nestjs/common';
 import { AdsController } from './ads.controller.js';
-import { AdGeneratorService } from './ad-generator.service.js';
-import { AdImageGeneratorService } from './ad-image-generator.service.js';
-import { AudienceBuilderService } from './audience-builder.service.js';
 import { CampaignOrchestratorService } from './campaign-orchestrator.service.js';
 import { AdsClientService } from './ads-client.service.js';
 import { GoogleAdsClientService } from './google-ads-client.service.js';
@@ -33,9 +30,6 @@ import { ArticlesModule } from '../articles/articles.module.js';
   imports: [AuditModule, ArticlesModule],
   controllers: [AdsController],
   providers: [
-    AdGeneratorService,
-    AdImageGeneratorService,
-    AudienceBuilderService,
     CampaignOrchestratorService,
     AdsClientService,
     GoogleAdsClientService,
@@ -49,9 +43,6 @@ import { ArticlesModule } from '../articles/articles.module.js';
     AdsSnapshotCollectorService,
   ],
   exports: [
-    AdGeneratorService,
-    AdImageGeneratorService,
-    AudienceBuilderService,
     CampaignOrchestratorService,
     AdsClientService,
     GoogleAdsClientService,
