@@ -6,6 +6,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { QuotaService } from '../billing/quota.service.js';
 import { SettingsService } from '../settings/settings.service.js';
 import { modelForAudience, type Audience } from '../llm/model-tier.js';
+import { normalizeText, foldForMatch, sameLength, escapeRegex } from '../common/text-normalize.js';
 
 export type Provider = 'anthropic' | 'gemini' | 'openai' | 'perplexity' | 'xai' | 'deepseek' | 'meta';
 
@@ -996,15 +997,23 @@ export class AiCitationService {
   }
 
   private buildProbe(query: string, text: string, host: string, brand: string, competitors: string[] = []): CitationProbe {
-    const lower = text.toLowerCase();
-    const brandLower = (brand || '').toLowerCase().trim();
+    // Eslesmeler HAM metin uzerinde degil normalize edilmis metin uzerinde
+    // yapilir. Ham metinde `"İddaa".toLowerCase()` = `i` + U+0307 ureterek
+    // regex'i sessizce kirmisti: İ ile baslayan her Turkce marka, cevapta
+    // acikca anilsa bile "anilmadi" olarak olculuyordu. bkz. text-normalize.ts
+    const baseText = normalizeText(text);        // gorunum korunur (sentiment/excerpt icin)
+    const folded = foldForMatch(baseText);       // eslesme icin katlanmis
+    // Indeks tabanli slice yalnizca uzunluklar esitken guvenli.
+    const ctxSource = sameLength(baseText, folded) ? baseText : folded;
+
+    const brandFolded = foldForMatch(brand || '').trim();
     // Marka mention'a sahte match yok — word boundary + minimum 4 karakter zorunlu.
     let brandMentioned = false;
     let brandFirstIdx: number | null = null;
-    if (brandLower.length >= 4) {
-      const escaped = brandLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const re = new RegExp(`(?:^|[^a-zA-Z0-9À-ſğüşöçıİĞÜŞÖÇ])${escaped}(?:$|[^a-zA-Z0-9À-ſğüşöçıİĞÜŞÖÇ])`, 'i');
-      const m = text.match(re);
+    if (brandFolded.length >= 4) {
+      const escaped = escapeRegex(brandFolded);
+      const re = new RegExp(`(?:^|[^a-z0-9à-ſğüşöç])${escaped}(?:$|[^a-z0-9à-ſğüşöç])`);
+      const m = folded.match(re);
       if (m && m.index !== undefined) {
         brandMentioned = true;
         brandFirstIdx = m.index;
@@ -1015,7 +1024,7 @@ export class AiCitationService {
     let position: number | null = null;
     if (brandMentioned && brandFirstIdx !== null) {
       // Paragraf yerine "satır" — daha tutarlı (markdown lists bile çalışsın)
-      const lines = text.split(/\n+/).map((l) => l.trim()).filter(Boolean);
+      const lines = folded.split(/\n+/).map((l) => l.trim()).filter(Boolean);
       let cumIdx = 0;
       for (let i = 0; i < lines.length; i++) {
         cumIdx += lines[i].length + 1; // +1 newline
@@ -1028,8 +1037,10 @@ export class AiCitationService {
     let sentiment: 'positive' | 'neutral' | 'negative' | null = null;
     if (brandMentioned && brandFirstIdx !== null) {
       const ctxStart = Math.max(0, brandFirstIdx - 80);
-      const ctxEnd = Math.min(text.length, brandFirstIdx + brandLower.length + 80);
-      const ctx = text.slice(ctxStart, ctxEnd).toLowerCase();
+      const ctxEnd = Math.min(ctxSource.length, brandFirstIdx + brandFolded.length + 80);
+      // Sentiment kaliplari Turkce harf iceriyor ('sıkıntı', 'kullanışlı') —
+      // bu yuzden I-katlamasi YAPILMAMIS metin uzerinde arama yapilir.
+      const ctx = ctxSource.slice(ctxStart, ctxEnd).toLowerCase();
       // TR + EN kalıplar
       const positive = /(en iyi|önerilir|tavsiye|kaliteli|güçlü|harika|popüler|lider|en sevilen|kazanc|kullanışlı|effective|recommended|best|leading|popular|top|excellent|trusted|reliable|favored)/i;
       const negative = /(kötü|sorunlu|yavaş|pahalı|tavsiye etmem|hayal kırıklığı|zayıf|eksik|berbat|sıkıntı|problem|avoid|bad|poor|weak|disappointing|expensive|outdated|complaints)/i;
@@ -1043,16 +1054,18 @@ export class AiCitationService {
     // liste bos geldigi icin "rakip bulunamadi" cikiyordu. Model bir soruya
     // cevap verirken zaten rakipleri sayiyor ("mackolik.com, nesine.com...");
     // o adlari cevabin kendisinden topluyoruz.
-    const mentionedDomains = this.extractDomains(text, host);
+    const mentionedDomains = this.extractDomains(baseText, host);
 
     // ── Competitor mentions: ASO modülünden gelen rakip listesini text'te ara
     const competitorStats: Array<{ name: string; mentions: number; positionFirst: number | null }> = [];
     for (const compRaw of competitors) {
-      const comp = (compRaw || '').toLowerCase().trim();
-      if (comp.length < 3 || comp === brandLower) continue;
-      const esc = comp.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const re = new RegExp(`(?:^|[^a-zA-Z0-9À-ſğüşöçıİĞÜŞÖÇ])${esc}(?:$|[^a-zA-Z0-9À-ſğüşöçıİĞÜŞÖÇ])`, 'gi');
-      const matches = [...text.matchAll(re)];
+      // Rakip adlarinda da ayni İ hatasi vardi — orn. "İddaa.com" hicbir zaman
+      // sayilmiyordu (ofsayt.com rakip listesinde gercek ornek).
+      const comp = foldForMatch(compRaw || '').trim();
+      if (comp.length < 3 || comp === brandFolded) continue;
+      const esc = escapeRegex(comp);
+      const re = new RegExp(`(?:^|[^a-z0-9à-ſğüşöç])${esc}(?:$|[^a-z0-9à-ſğüşöç])`, 'g');
+      const matches = [...folded.matchAll(re)];
       if (matches.length > 0) {
         competitorStats.push({
           name: compRaw,
@@ -1069,7 +1082,8 @@ export class AiCitationService {
       const escHost = host.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       // Matches: https://host/path veya host/path (https opsiyonel)
       const urlRe = new RegExp(`(?:https?:\\/\\/)?${escHost}(\\/[\\w\\-./?#=&%+]*)`, 'gi');
-      const matches = [...text.matchAll(urlRe)];
+      // Path buyuk/kucuk harfi korunmali → katlanmis degil normalize metin.
+      const matches = [...baseText.matchAll(urlRe)];
       const seen = new Set<string>();
       for (const m of matches) {
         let path = m[1] || '/';
@@ -1084,9 +1098,9 @@ export class AiCitationService {
 
     return {
       query,
-      cited: lower.includes(host),
+      cited: folded.includes(host),
       brandMentioned,
-      excerpt: text.slice(0, 220),
+      excerpt: baseText.slice(0, 220),
       position,
       sentiment,
       competitors: competitorStats,
