@@ -3,10 +3,11 @@
 import { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { ArrowRight, Check, X, Loader2, AlertCircle, Globe, Crown } from 'lucide-react';
+import { ArrowRight, X, Loader2, AlertCircle, Globe, Crown } from 'lucide-react';
 import { api, ApiError } from '@/lib/api';
 import { useT } from '@/lib/i18n';
 import { VendorLogo, type VendorName } from '@/components/vendor-logo';
+import { QueryCard, UnlockCta } from '@/components/citation/query-card';
 
 const COPY = {
   tr: {
@@ -46,6 +47,12 @@ const COPY = {
     aiAnswer: 'AI cevabı',
     truncated: '… (kısaltıldı)',
     // Email optin
+    // Teaser kilidi
+    lockedHint: 'Bu soru henüz sorulmadı — kilidi açınca 7 motorda ölçülür.',
+    unlockTitle: '{n} soru daha kilitli',
+    unlockBody: 'Ücretsiz testte {open} soru ölçülüyor. Kalan {locked} soruyu 7 AI motorunda ölçmek, AI cevaplarının tam metnini ve rakip payını görmek için bir plan seçin.',
+    unlockCta: 'Tüm raporu aç',
+    unlockNote: 'Planlar aylık · İstediğin zaman iptal',
     optinHeader: '📧 90 gün boyunca markanızı takip edelim',
     optinBody: '15, 30, 60, 90 gün sonra 7 AI motorda otomatik retest yapıp size branded rapor email\'i atalım. Markanızın AI cevaplarında değişimini izleyin.',
     optinPlaceholder: 'siz@example.com',
@@ -95,6 +102,12 @@ const COPY = {
     aiAnswer: 'AI answer',
     truncated: '… (truncated)',
     // Email optin
+    // Teaser lock
+    lockedHint: 'Not asked yet — unlock to measure it across all 7 engines.',
+    unlockTitle: '{n} more prompts locked',
+    unlockBody: 'The free test measures {open} prompts. Choose a plan to run the remaining {locked} across 7 AI engines and see full answer text plus competitor share.',
+    unlockCta: 'Unlock full report',
+    unlockNote: 'Monthly plans · Cancel anytime',
     optinHeader: '📧 Track your brand for 90 days',
     optinBody: 'We\'ll automatically retest your domain on 7 AI engines at 15, 30, 60, 90 days and email you a branded report. Track how your AI visibility evolves.',
     optinPlaceholder: 'you@example.com',
@@ -109,25 +122,7 @@ const COPY = {
   },
 } as const;
 
-const PROVIDER_LOGOS: Record<string, VendorName> = {
-  anthropic: 'claude-ai',     // turuncu yildiz/burst
-  gemini: 'gemini',
-  openai: 'chatgpt',          // yesil iOS app icon
-  perplexity: 'perplexity',
-  xai: 'grok',
-  deepseek: 'deepseek',
-  meta: 'meta-ai',
-};
 
-const PROVIDER_SHORT: Record<string, string> = {
-  anthropic: 'Claude',
-  gemini: 'Gemini',
-  openai: 'ChatGPT',
-  perplexity: 'Perplexity',
-  xai: 'Grok',
-  deepseek: 'DeepSeek',
-  meta: 'Meta AI',
-};
 
 type CheckResult = Awaited<ReturnType<typeof api.publicCitationCheck>>;
 type Phase = 'idle' | 'loading' | 'result' | 'error';
@@ -506,49 +501,26 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
                           {c.resultsHeader}
                         </h4>
                         {result.queries.map((q, idx) => (
-                          <div key={idx} className="bg-muted/30 rounded-2xl border p-4 sm:p-5">
-                            <div className="flex items-start justify-between gap-4 mb-4">
-                              <div className="flex items-start gap-3 flex-1">
-                                <span className="inline-grid place-items-center min-w-[28px] h-7 px-2 rounded-md bg-foreground text-background text-xs font-bold">
-                                  {idx + 1}
-                                </span>
-                                <p className="text-sm font-medium leading-relaxed flex-1">{q.query}</p>
+                          <div key={idx}>
+                            {q.locked && !result.queries[idx - 1]?.locked && (
+                              <div className="mb-4">
+                                <UnlockCta
+                                  lockedCount={result.access?.lockedQueries ?? 0}
+                                  unlockedCount={result.access?.unlockedQueries ?? 0}
+                                  domain={result.domain}
+                              onNavigate={handleReset}
+                                  labels={{ title: c.unlockTitle, body: c.unlockBody, cta: c.unlockCta, note: c.unlockNote }}
+                                />
                               </div>
-                              <div className="shrink-0 text-right">
-                                <div className="font-bold text-lg">
-                                  <span className={q.citedCount > 0 ? 'text-emerald-600' : 'text-muted-foreground'}>
-                                    {q.citedCount}
-                                  </span>
-                                  <span className="text-muted-foreground"> / {q.totalProviders}</span>
-                                </div>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-3 flex-wrap">
-                              {q.providers.map((p) => {
-                                const logo = PROVIDER_LOGOS[p.provider];
-                                const short = PROVIDER_SHORT[p.provider] || p.label;
-                                const ok = p.cited || p.brandMentioned;
-                                return (
-                                  <div key={p.provider} className="flex flex-col items-center gap-1">
-                                    <div className={`relative w-11 h-11 rounded-xl grid place-items-center ${ok ? 'bg-emerald-500/10 ring-2 ring-emerald-500/40' : 'bg-muted/60 ring-1 ring-border'}`}>
-                                      {logo && <VendorLogo name={logo} size={22} />}
-                                      <div className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full grid place-items-center ring-2 ring-background ${ok ? 'bg-emerald-500 text-white' : 'bg-muted-foreground/40 text-white'}`}>
-                                        {ok ? <Check className="h-3 w-3" strokeWidth={3} /> : <X className="h-3 w-3" strokeWidth={3} />}
-                                      </div>
-                                    </div>
-                                    <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{short}</span>
-                                  </div>
-                                );
-                              })}
-                            </div>
-
-                            {/* Expandable AI responses (filtered to non-empty excerpts) */}
-                            <ResponsesToggle
-                              providers={q.providers}
+                            )}
+                            <QueryCard
+                              q={q}
+                              idx={idx}
                               brand={result.brand}
+                              lang={locale}
                               isOpen={expandedQueries.has(idx)}
                               onToggle={() => toggleQuery(idx)}
-                              labels={{ show: c.showResponses, hide: c.hideResponses, none: c.noCitedResponses, aiAnswer: c.aiAnswer, truncated: c.truncated }}
+                              labels={{ show: c.showResponses, hide: c.hideResponses, none: c.noCitedResponses, aiAnswer: c.aiAnswer, truncated: c.truncated, lockedHint: c.lockedHint }}
                             />
                           </div>
                         ))}
@@ -822,41 +794,26 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
                   {c.resultsHeader}
                 </h4>
                 {result.queries.map((q, idx) => (
-                  <div key={idx} className="bg-background rounded-2xl border p-5 hover:border-orange-500/30 transition-colors">
-                    <div className="flex items-start justify-between gap-4 mb-4">
-                      <div className="flex items-start gap-3 flex-1">
-                        <span className="inline-grid place-items-center min-w-[28px] h-7 px-2 rounded-md bg-foreground text-background text-xs font-bold">
-                          {idx + 1}
-                        </span>
-                        <p className="text-sm font-medium leading-relaxed flex-1">{q.query}</p>
+                  <div key={idx}>
+                    {q.locked && !result.queries[idx - 1]?.locked && (
+                      <div className="mb-4">
+                        <UnlockCta
+                          lockedCount={result.access?.lockedQueries ?? 0}
+                          unlockedCount={result.access?.unlockedQueries ?? 0}
+                          domain={result.domain}
+                          labels={{ title: c.unlockTitle, body: c.unlockBody, cta: c.unlockCta, note: c.unlockNote }}
+                        />
                       </div>
-                      <div className="shrink-0 text-right">
-                        <div className="font-bold text-lg">
-                          <span className={q.citedCount > 0 ? 'text-emerald-600' : 'text-muted-foreground'}>
-                            {q.citedCount}
-                          </span>
-                          <span className="text-muted-foreground"> / {q.totalProviders}</span>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3 flex-wrap">
-                      {q.providers.map((p) => {
-                        const logo = PROVIDER_LOGOS[p.provider];
-                        const short = PROVIDER_SHORT[p.provider] || p.label;
-                        const ok = p.cited || p.brandMentioned;
-                        return (
-                          <div key={p.provider} className="flex flex-col items-center gap-1">
-                            <div className={`relative w-11 h-11 rounded-xl grid place-items-center ${ok ? 'bg-emerald-500/10 ring-2 ring-emerald-500/40' : 'bg-muted/40 ring-1 ring-border'}`}>
-                              {logo && <VendorLogo name={logo} size={22} />}
-                              <div className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full grid place-items-center ring-2 ring-background ${ok ? 'bg-emerald-500 text-white' : 'bg-muted-foreground/40 text-white'}`}>
-                                {ok ? <Check className="h-3 w-3" strokeWidth={3} /> : <X className="h-3 w-3" strokeWidth={3} />}
-                              </div>
-                            </div>
-                            <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{short}</span>
-                          </div>
-                        );
-                      })}
-                    </div>
+                    )}
+                    <QueryCard
+                      q={q}
+                      idx={idx}
+                      brand={result.brand}
+                      lang={locale}
+                      isOpen={expandedQueries.has(idx)}
+                      onToggle={() => toggleQuery(idx)}
+                      labels={{ show: c.showResponses, hide: c.hideResponses, none: c.noCitedResponses, aiAnswer: c.aiAnswer, truncated: c.truncated, lockedHint: c.lockedHint }}
+                    />
                   </div>
                 ))}
               </div>
@@ -913,86 +870,6 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
         )}
       </div>
     </section>
-  );
-}
-
-interface ResponsesToggleProps {
-  providers: Array<{ provider: string; label: string; cited: boolean; brandMentioned: boolean; excerpt?: string }>;
-  brand: string;
-  isOpen: boolean;
-  onToggle: () => void;
-  labels: { show: string; hide: string; none: string; aiAnswer: string; truncated: string };
-}
-
-function ResponsesToggle({ providers, brand, isOpen, onToggle, labels }: ResponsesToggleProps) {
-  // Only show providers that have a meaningful excerpt (skip errors marked with "HATA:")
-  const withResponse = providers.filter((p) => p.excerpt && !p.excerpt.startsWith('HATA:'));
-  if (withResponse.length === 0) return null;
-
-  const cited = withResponse.filter((p) => p.cited || p.brandMentioned);
-  const others = withResponse.filter((p) => !p.cited && !p.brandMentioned);
-
-  return (
-    <div className="mt-4">
-      <button
-        onClick={onToggle}
-        className="text-xs font-semibold text-orange-600 hover:text-orange-700 inline-flex items-center gap-1.5 transition-colors"
-        type="button"
-      >
-        {isOpen ? labels.hide : labels.show}
-        <span className={`inline-block transition-transform ${isOpen ? 'rotate-180' : ''}`}>▾</span>
-      </button>
-
-      {isOpen && (
-        <div className="mt-3 space-y-2">
-          {cited.length === 0 ? (
-            <p className="text-xs text-muted-foreground italic px-3 py-2">{labels.none}</p>
-          ) : null}
-
-          {/* Show cited first, then others */}
-          {[...cited, ...others].map((p) => {
-            const short = PROVIDER_SHORT[p.provider] || p.label;
-            const logo = PROVIDER_LOGOS[p.provider];
-            const ok = p.cited || p.brandMentioned;
-            return (
-              <div
-                key={p.provider}
-                className={`rounded-lg border p-3 text-xs ${ok ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-muted/30 border-border'}`}
-              >
-                <div className="flex items-center gap-2 mb-1.5">
-                  {logo && <VendorLogo name={logo} size={16} />}
-                  <span className="font-bold text-sm">{short}</span>
-                  {ok && (
-                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-600 bg-emerald-500/10 px-2 py-0.5 rounded-full">
-                      <Check className="h-3 w-3" strokeWidth={3} />
-                      {p.cited ? 'URL cite' : 'brand mention'}
-                    </span>
-                  )}
-                </div>
-                <p className="text-muted-foreground leading-relaxed">
-                  {highlightBrand(p.excerpt || '', brand)}
-                  {(p.excerpt || '').length >= 210 && <span className="text-muted-foreground/60">{labels.truncated}</span>}
-                </p>
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
-/** Brand adı geçen yerleri turuncu vurgula */
-function highlightBrand(text: string, brand: string): React.ReactNode {
-  if (!brand || brand.length < 3) return text;
-  const escaped = brand.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const splitRe = new RegExp(`(${escaped})`, 'gi');
-  const brandLower = brand.toLowerCase();
-  const parts = text.split(splitRe);
-  return parts.map((part, i) =>
-    part.toLowerCase() === brandLower
-      ? <mark key={i} className="bg-orange-500/20 text-orange-700 dark:text-orange-300 font-semibold rounded px-0.5">{part}</mark>
-      : <span key={i}>{part}</span>
   );
 }
 

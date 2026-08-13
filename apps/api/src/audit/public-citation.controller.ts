@@ -91,16 +91,38 @@ export class PublicCitationController {
    */
   @Post('citation-check/unlock')
   async unlock(@Req() req: Request, @Body() body: { domain?: string }): Promise<PublicCheckResult> {
-    const user = (req as any).user as { id: string } | undefined;
+    const user = (req as any).user as
+      | { id: string; role?: string; subscriptionStatus?: string; plan?: string }
+      | undefined;
     if (!user?.id) throw new HttpException('Giris gerekli', HttpStatus.UNAUTHORIZED);
     if (!body?.domain || typeof body.domain !== 'string') {
       throw new HttpException('domain alani gerekli', HttpStatus.BAD_REQUEST);
     }
 
+    // ODEME KAPISI — kilit "giris yapmis olmakla" degil SATIN ALMAYLA acilir.
+    // Yalnizca giris sarti olsaydi teaser'in satisa itme islevi kalmazdi:
+    // herkes ucretsiz hesap acip tam raporu alirdi. subscriptionStatus'un
+    // ACTIVE olmasi = PayTR odemesi tamamlanmis demek; TRIAL (kayit olmus
+    // ama odememis) BURADA GECMEZ.
+    const isAdmin = user.role === 'ADMIN';
+    const hasPaid = user.subscriptionStatus === 'ACTIVE';
+    if (!isAdmin && !hasPaid) {
+      throw new HttpException(
+        {
+          statusCode: HttpStatus.PAYMENT_REQUIRED,
+          code: 'PAYMENT_REQUIRED',
+          message: 'Tam raporu acmak icin bir plan satin almalisin.',
+        },
+        HttpStatus.PAYMENT_REQUIRED,
+      );
+    }
+
     await this.quota.enforceCitationQuota(user.id);
     try {
       const result = await this.citation.check(body.domain, this.extractIp(req), 'signup_baseline');
-      await this.quota.incrementCitationUsage(user.id);
+      // Cache'ten donduyse yeni olcum YAPILMADI — kota dusulmez. Aksi halde
+      // sayfayi yenilemek her seferinde hak yakardi.
+      if (!result.fromCache) await this.quota.incrementCitationUsage(user.id);
       return result;
     } catch (err: any) {
       if (err.status) throw err;

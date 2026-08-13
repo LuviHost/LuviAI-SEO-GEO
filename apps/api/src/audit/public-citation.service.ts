@@ -134,13 +134,14 @@ const TURKISH_NICHE_PROMPTS: Record<string, string[]> = {
  * yalnizca ilki(leri) OLCULUR.
  *
  * Kritik nokta: kilitli sorgular icin LLM cagrisi HIC YAPILMAZ. Bu yuzden
- *   - maliyet duser (eskiden 3 sorgu x 7 motor = 21 cagri; simdi 2 x 7 = 14),
+ *   - maliyet duser (eskiden 3 sorgu x 7 motor = 21 cagri; simdi de 3 x 7 = 21 ama
+ *   toplam 10 sorunun 7'si icin hic cagri yapilmiyor),
  *   - sizdirilacak veri yoktur (CSS blur olsa devtools'tan okunurdu).
  */
 const TEASER_TOTAL_QUERIES = 10;
 const FREE_UNLOCKED_QUERIES = Math.max(
   1,
-  parseInt(process.env.PUBLIC_CITATION_FREE_QUERIES ?? '2', 10) || 2,
+  parseInt(process.env.PUBLIC_CITATION_FREE_QUERIES ?? '3', 10) || 3,
 );
 
 export interface PublicCheckResult {
@@ -354,22 +355,29 @@ export class PublicCitationService {
     // Probe modeli bu ayrimdan ETKILENMEZ (olcum cetveli sabit, bkz. model-tier.ts).
     const audience: Audience = source === 'signup_baseline' ? 'member' : 'anon';
 
-    // 1) Cache kontrol — sadece manual istekte 24h taze snapshot varsa direkt don
-    //    (retest_cron + signup_baseline her zaman taze test ister)
-    if (source === 'manual') {
+    // 1) Cache kontrol — 24h taze snapshot.
+    //
+    // KADEME TAM ESLESMELI, iki yonlu da tehlikeli:
+    //   anon'a member snapshot'i verilirse → 10 sorunun TAMAMI bedava sizar,
+    //     kilit anlamsizlasir (bir kisi acinca 24 saat herkese acik olurdu).
+    //   member'a anon snapshot'i verilirse → 2 sorguluk eksik rapor gelir,
+    //     ustelik kotasindan dusulmus olur.
+    //
+    // retest_cron haric tutulur: amaci zaten TAZE olcum almak.
+    if (source === 'manual' || source === 'signup_baseline') {
       const cutoff = new Date(Date.now() - this.CACHE_TTL_HOURS * 60 * 60 * 1000);
-      const cached = await this.prisma.publicCitationCheck.findFirst({
+      // En yeniyi alip kademesine bakmak YETMEZ: bir uye domaini actiginda en
+      // yeni snapshot 'member' olur ve sonraki her anonim ziyaretci cache'i
+      // kaciririp bastan tam olcum tetiklerdi. Son birkac kaydin icinden
+      // kademesi TUTAN en yenisini sec.
+      const recent = await this.prisma.publicCitationCheck.findMany({
         where: { domain: host, createdAt: { gt: cutoff } },
         orderBy: { createdAt: 'desc' },
+        take: 5,
       });
+      const cached = recent.find((c) => ((c.result as any)?.access?.tier ?? 'anon') === audience);
       if (cached) {
-        const res = cached.result as any;
-        // Kademe uyusmuyorsa cache KULLANILMAZ: anonim teaser'da yalnizca 2
-        // sorgu olculmus olur; uyeye onu servis etmek eksik rapor demektir.
-        const cachedTier = res?.access?.tier ?? 'anon';
-        if (cachedTier === audience || audience === 'anon') {
-          return { ...res, fromCache: true, cachedAt: cached.createdAt };
-        }
+        return { ...(cached.result as any), fromCache: true, cachedAt: cached.createdAt };
       }
     }
 
