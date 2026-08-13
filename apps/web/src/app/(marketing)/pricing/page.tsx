@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { LocaleSwitch } from '@/components/locale-switch';
-import { CheckCircle2, Sparkles, ShieldCheck, ArrowRight, Video, Lock, Clock, Star } from 'lucide-react';
+import { CheckCircle2, Sparkles, ShieldCheck, ArrowRight, Clock, Star } from 'lucide-react';
 
 type GrandfatheringInfo = { isGrandfathered: boolean; grandfatheredUntil?: string; legacyMonthlyPriceTry?: number };
 
@@ -233,21 +233,6 @@ export default function PricingPage() {
 
                 <ul className="space-y-3 text-sm mt-6 mb-8 flex-1">
                   <Feat highlight={highlighted}>{p.articlesPerMonth} {t('pricing.articles_per_month')}</Feat>
-                  {p.videosPerMonth > 0 ? (
-                    <Feat highlight={highlighted}>
-                      <span className="inline-flex items-center gap-1.5">
-                        <Video className="h-3.5 w-3.5" />
-                        {p.videosPerMonth} AI video / ay (Sora 2 + Veo 3)
-                      </span>
-                    </Feat>
-                  ) : (
-                    <Feat highlight={highlighted} muted>
-                      <span className="inline-flex items-center gap-1.5">
-                        <Lock className="h-3.5 w-3.5" />
-                        Video: ek paketten satın al (5'lik ₺499)
-                      </span>
-                    </Feat>
-                  )}
                   <Feat highlight={highlighted}>{p.sites} {t('pricing.sites')}</Feat>
                   <Feat highlight={highlighted}>{p.publishTargets === 'all' ? t('pricing.all_publish_targets') : t('pricing.markdown_only')}</Feat>
                   <Feat highlight={highlighted}>{p.support}</Feat>

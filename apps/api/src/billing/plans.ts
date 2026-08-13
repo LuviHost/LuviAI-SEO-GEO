@@ -26,8 +26,6 @@ export interface BasePlan {
   /** Yillik fiyat — USD (10 ay fiyatina 12 ay: 2 ay bedava) */
   annual_usd: number;
   articlesPerMonth: number;
-  socialPostsPerMonth: number;
-  videosPerMonth: number;
   sites: number;
   /** Prompt Lab: aylik calistirilabilecek takip sorusu sayisi */
   promptRunsPerMonth: number;
@@ -65,8 +63,6 @@ export const BASE_PLANS: BasePlan[] = [
     monthly_usd: 0,
     annual_usd: 0,
     articlesPerMonth: 2,
-    socialPostsPerMonth: 5,
-    videosPerMonth: 0,
     sites: 1,
     promptRunsPerMonth: 5,
     llmResponsesPerMonth: 150,
@@ -81,8 +77,6 @@ export const BASE_PLANS: BasePlan[] = [
     monthly_usd: 149,
     annual_usd: 1490,
     articlesPerMonth: 15,
-    socialPostsPerMonth: 15,
-    videosPerMonth: 0,
     sites: 2,
     promptRunsPerMonth: 150,
     llmResponsesPerMonth: 6_000,
@@ -97,8 +91,6 @@ export const BASE_PLANS: BasePlan[] = [
     monthly_usd: 349,
     annual_usd: 3490,
     articlesPerMonth: 40,
-    socialPostsPerMonth: 30,
-    videosPerMonth: 5,
     sites: 5,
     promptRunsPerMonth: 400,
     llmResponsesPerMonth: 20_000,
@@ -114,8 +106,6 @@ export const BASE_PLANS: BasePlan[] = [
     monthly_usd: 749,
     annual_usd: 7490,
     articlesPerMonth: 100,
-    socialPostsPerMonth: 80,
-    videosPerMonth: 20,
     sites: 15,
     promptRunsPerMonth: 1_200,
     llmResponsesPerMonth: 60_000,
@@ -130,8 +120,6 @@ export const BASE_PLANS: BasePlan[] = [
     monthly_usd: 1499,
     annual_usd: 14990,
     articlesPerMonth: 350,
-    socialPostsPerMonth: 200,
-    videosPerMonth: 100,
     sites: 50,
     promptRunsPerMonth: 4_000,
     llmResponsesPerMonth: 200_000,

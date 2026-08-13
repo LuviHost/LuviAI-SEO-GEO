@@ -14,8 +14,6 @@ export interface PlanDefinition {
   monthlyTry: number;
   annualTry: number;
   articlesPerMonth: number;
-  socialPostsPerMonth: number;
-  videosPerMonth: number;
   sites: number;
   promptRunsPerMonth: number;
   llmResponsesPerMonth: number;
@@ -40,8 +38,6 @@ export const PLANS: PlanDefinition[] = BASE_PLANS.map((p) => ({
   monthlyTry: 0,
   annualTry: 0,
   articlesPerMonth: p.articlesPerMonth,
-  socialPostsPerMonth: p.socialPostsPerMonth,
-  videosPerMonth: p.videosPerMonth,
   sites: p.sites,
   promptRunsPerMonth: p.promptRunsPerMonth,
   llmResponsesPerMonth: p.llmResponsesPerMonth,
@@ -78,8 +74,6 @@ export class BillingService {
       monthlyTry: Math.round(p.monthly_usd * rate),
       annualTry: Math.round(p.annual_usd * rate),
       articlesPerMonth: p.articlesPerMonth,
-      socialPostsPerMonth: p.socialPostsPerMonth,
-      videosPerMonth: p.videosPerMonth,
       sites: p.sites,
       promptRunsPerMonth: p.promptRunsPerMonth,
       llmResponsesPerMonth: p.llmResponsesPerMonth,

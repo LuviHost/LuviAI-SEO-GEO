@@ -20,11 +20,11 @@ export class QuotaService {
    * settings.constants'tan dinamik okunur — burada sadece kota.
    */
   private readonly LIMITS = {
-    TRIAL:      { articles: 2,    sites: 1,  videos: 0,   publishTargets: ['MARKDOWN_ZIP', 'WORDPRESS_REST'] as string[], citationTests: 3,   pool: ['gemini'] as string[] },
-    STARTER:    { articles: 15,   sites: 1,  videos: 0,   publishTargets: 'all' as const,                                  citationTests: 20,  pool: ['gemini', 'anthropic'] },
-    PRO:        { articles: 40,   sites: 3,  videos: 5,   publishTargets: 'all' as const,                                  citationTests: 75,  pool: ['gemini', 'anthropic', 'xai'] },
-    AGENCY:     { articles: 100,  sites: 12, videos: 20,  publishTargets: 'all' as const,                                  citationTests: 300, pool: ['gemini', 'anthropic', 'xai', 'openai', 'deepseek', 'perplexity'] },
-    ENTERPRISE: { articles: 350,  sites: 50, videos: 100, publishTargets: 'all' as const,                                  citationTests: 1000, pool: ['gemini', 'anthropic', 'xai', 'openai', 'deepseek', 'perplexity'] },
+    TRIAL:      { articles: 2,    sites: 1,  publishTargets: ['MARKDOWN_ZIP', 'WORDPRESS_REST'] as string[], citationTests: 3,   pool: ['gemini'] as string[] },
+    STARTER:    { articles: 15,   sites: 1,  publishTargets: 'all' as const,                                  citationTests: 20,  pool: ['gemini', 'anthropic'] },
+    PRO:        { articles: 40,   sites: 3,  publishTargets: 'all' as const,                                  citationTests: 75,  pool: ['gemini', 'anthropic', 'xai'] },
+    AGENCY:     { articles: 100,  sites: 12, publishTargets: 'all' as const,                                  citationTests: 300, pool: ['gemini', 'anthropic', 'xai', 'openai', 'deepseek', 'perplexity'] },
+    ENTERPRISE: { articles: 350,  sites: 50, publishTargets: 'all' as const,                                  citationTests: 1000, pool: ['gemini', 'anthropic', 'xai', 'openai', 'deepseek', 'perplexity'] },
   };
 
   /** Plan başına aylık USD spend cap. settings.constants ile senkron tutulmalı. */
@@ -97,112 +97,6 @@ export class QuotaService {
     if (!allowed) {
       throw new ForbiddenException(`Plan limit: ${limit} site. Şu an ${current} siteniz var. Profesyonel veya Kurumsal'a yükseltin.`);
     }
-  }
-
-  // ────────────────────────────────────────────
-  //  Video Studio quota (pahalı — Sora 2 / Veo 3)
-  // ────────────────────────────────────────────
-  async checkVideoQuota(userId: string): Promise<{ allowed: boolean; used: number; limit: number; remaining: number }> {
-    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
-    await this.maybeResetMonthlyQuota(user);
-    const limit = this.LIMITS[user.plan].videos;
-    const used = (user as any).videosUsedThisMonth ?? 0;
-    return {
-      allowed: used < limit,
-      used,
-      limit,
-      remaining: Math.max(0, limit - used),
-    };
-  }
-
-  async enforceVideoQuota(userId: string) {
-    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { plan: true } });
-    const { allowed, limit, used } = await this.checkVideoQuota(userId);
-    if (allowed) return;
-
-    // Plan kotası dolu — credit havuzunda var mı?
-    const creditPool = await this.getCreditPoolRemaining(userId);
-    if (creditPool > 0) {
-      // Credit havuzundan tüketilebilir — caller incrementVideoUsage YERINE consumeOneVideoCredit çağırmalı
-      return;
-    }
-
-    if (limit === 0) {
-      throw new ForbiddenException(
-        `${user.plan} planında base video kotası yok. ` +
-        `Ek video paketi satın al (5 video ₺499) veya Profesyonel'e yükselt.`,
-      );
-    }
-    throw new ForbiddenException(
-      `Aylık ${limit} video kotan doldu (${used} kullandın). ` +
-      `Ek video paketi satın al (5 video ₺499 / 20 video ₺1.799 / 50 video ₺3.999) veya plan yükselt.`,
-    );
-  }
-
-  /**
-   * Video tüketildiğinde çağrılır. Önce plan kotasından düş, dolu ise credit havuzundan.
-   * Caller (videos.service) bunu kullanmalı, eski incrementVideoUsage yerine.
-   */
-  async consumeVideo(userId: string): Promise<{ source: 'plan' | 'credit'; remaining: number }> {
-    const { allowed, remaining } = await this.checkVideoQuota(userId);
-    if (allowed) {
-      await this.incrementVideoUsage(userId);
-      return { source: 'plan', remaining: remaining - 1 };
-    }
-
-    // Plan dolu → credit havuzu
-    const consumed = await this.consumeOneCreditFromPool(userId);
-    if (!consumed.consumed) {
-      throw new ForbiddenException('Video kotası ve credit havuzu boş. Ek paket satın al.');
-    }
-    return { source: 'credit', remaining: consumed.remaining };
-  }
-
-  /** Helper: credit pool kalan sayısı (basit count). billing.service'in tam halini ister. */
-  private async getCreditPoolRemaining(userId: string): Promise<number> {
-    const purchases = await this.prisma.videoCreditPurchase.findMany({
-      where: {
-        userId,
-        status: 'PAID',
-        OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
-      },
-      select: { creditsTotal: true, creditsUsed: true },
-    });
-    return purchases.reduce((sum, p) => sum + Math.max(0, p.creditsTotal - p.creditsUsed), 0);
-  }
-
-  /** Helper: FIFO credit consumption. */
-  private async consumeOneCreditFromPool(userId: string): Promise<{ consumed: boolean; remaining: number }> {
-    const oldest = await this.prisma.videoCreditPurchase.findFirst({
-      where: {
-        userId,
-        status: 'PAID',
-        OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
-      },
-      orderBy: { paidAt: 'asc' },
-    });
-    if (!oldest || oldest.creditsUsed >= oldest.creditsTotal) {
-      return { consumed: false, remaining: 0 };
-    }
-
-    const newUsed = oldest.creditsUsed + 1;
-    await this.prisma.videoCreditPurchase.update({
-      where: { id: oldest.id },
-      data: {
-        creditsUsed: newUsed,
-        ...(newUsed >= oldest.creditsTotal ? { status: 'CONSUMED' as const } : {}),
-      },
-    });
-
-    const remaining = await this.getCreditPoolRemaining(userId);
-    return { consumed: true, remaining };
-  }
-
-  async incrementVideoUsage(userId: string) {
-    return this.prisma.user.update({
-      where: { id: userId },
-      data: { videosUsedThisMonth: { increment: 1 } } as any,
-    });
   }
 
   // ────────────────────────────────────────────

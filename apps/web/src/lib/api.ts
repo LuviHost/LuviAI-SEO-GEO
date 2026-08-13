@@ -849,7 +849,7 @@ export const api = {
         id: string; name: string;
         monthly: number; annual: number; currency: 'USD';
         monthlyTry: number; annualTry: number;
-        articlesPerMonth: number; socialPostsPerMonth: number; videosPerMonth: number;
+        articlesPerMonth: number;
         sites: number; promptRunsPerMonth: number; llmResponsesPerMonth: number;
         publishTargets: string; support: string;
         popular?: boolean; contactSales?: boolean;

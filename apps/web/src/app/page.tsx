@@ -36,7 +36,6 @@ type Plan = {
   monthlyTry: number;
   annualTry: number;
   articlesPerMonth: number;
-  socialPostsPerMonth: number;
   sites: number | string;
   publishTargets: string;
   support: string;
