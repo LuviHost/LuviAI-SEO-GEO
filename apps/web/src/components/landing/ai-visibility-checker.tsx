@@ -10,7 +10,7 @@ import { VendorLogo, type VendorName } from '@/components/vendor-logo';
 
 const COPY = {
   tr: {
-    badge: '✨ AI Görünürlük Testi',
+    badge: 'AI Görünürlük Testi',
     titleA: 'Markanız',
     titleB: 'AI cevaplarında',
     titleC: 'görünüyor mu?',
@@ -59,7 +59,7 @@ const COPY = {
     optinSubBenefit3: '✓ Tek tıkla iptal',
   },
   en: {
-    badge: '✨ AI Visibility Test',
+    badge: 'AI Visibility Test',
     titleA: 'Is your brand',
     titleB: 'in AI answers',
     titleC: 'at all?',
@@ -282,7 +282,7 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
           });
           turnstileWidgetIdRef.current = widgetId;
           clearInterval(interval);
-        } catch (_e) { /* turnstile not ready yet */ }
+        } catch { /* turnstile not ready yet */ }
       }
     }, 200);
     return () => {
@@ -303,7 +303,7 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
       try {
         window.turnstile!.reset(turnstileWidgetIdRef.current!);
         window.turnstile!.execute(turnstileWidgetIdRef.current!);
-      } catch (_e) {
+      } catch {
         resolve(null);
       }
       setTimeout(() => {
@@ -380,10 +380,10 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
         <div className="relative">
           <form
             onSubmit={(e) => { e.preventDefault(); handleStart(); }}
-            className="flex flex-col sm:flex-row gap-2 bg-background border-2 border-orange-500/30 hover:border-orange-500/50 focus-within:border-orange-500/70 rounded-2xl p-2 shadow-2xl shadow-orange-500/10 transition-colors"
+            className="flex flex-col sm:flex-row gap-2 bg-ink-2 border border-bone/15 hover:border-bone/25 focus-within:border-brand-400/60 rounded-2xl p-2 transition-colors"
           >
             <div className="flex-1 flex items-center gap-3 px-4">
-              <Globe className="h-5 w-5 text-orange-600 shrink-0" />
+              <Globe className="h-5 w-5 text-brand-400 shrink-0" />
               <input
                 type="text"
                 value={domain}
@@ -392,13 +392,13 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
                 autoComplete="off"
                 spellCheck={false}
                 disabled={phase === 'loading'}
-                className="flex-1 bg-transparent outline-none text-lg sm:text-xl font-medium placeholder:text-muted-foreground/50 py-3 sm:py-4"
+                className="flex-1 bg-transparent outline-none text-lg sm:text-xl font-medium text-bone placeholder:text-bone/30 py-3 sm:py-4"
               />
             </div>
             <button
               type="submit"
               disabled={!domain.trim() || phase === 'loading'}
-              className="inline-flex items-center justify-center gap-2 px-7 sm:px-8 py-3 sm:py-4 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 disabled:from-muted disabled:to-muted disabled:text-muted-foreground disabled:cursor-not-allowed text-white font-bold text-base sm:text-lg shadow-lg shadow-orange-500/40 transition-all hover:scale-[1.02] active:scale-[0.98]"
+              className="btn-brand h-auto px-7 sm:px-8 py-3 sm:py-4 text-base sm:text-lg font-bold disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {phase === 'loading' ? (
                 <Loader2 className="h-5 w-5 animate-spin" />
@@ -412,7 +412,7 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
           </form>
 
           {/* Inline tag row */}
-          <div className="flex flex-wrap items-center justify-center lg:justify-start gap-x-4 gap-y-1 mt-3 text-xs text-muted-foreground">
+          <div className="flex flex-wrap items-center justify-center lg:justify-start gap-x-4 gap-y-1 mt-3 text-xs text-bone/60">
             <span>{c.tagFree}</span>
             <span className="opacity-40">•</span>
             <span>{c.tagNoCard}</span>
@@ -421,8 +421,8 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
           </div>
 
           {phase === 'error' && error && (
-            <div className="mt-3 flex items-start gap-2 p-3 rounded-lg border border-red-300/50 bg-red-50 dark:bg-red-950/20 text-red-700 dark:text-red-300 text-xs">
-              <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+            <div className="mt-3 flex items-start gap-2 p-3 rounded-lg border border-[#C43C2E]/50 bg-[#C43C2E]/10 text-bone/90 text-xs">
+              <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 text-[#C43C2E]" />
               <div>{error}</div>
             </div>
           )}
@@ -435,20 +435,20 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
             onClick={(e) => { if (e.target === e.currentTarget && phase === 'result') handleReset(); }}
           >
             <div className="min-h-full flex items-start justify-center p-4 sm:p-8">
-              <div className="relative w-full max-w-7xl bg-background rounded-2xl border-2 border-orange-500/20 shadow-2xl my-auto">
+              <div className="relative w-full max-w-7xl bg-background rounded-2xl border border-border shadow-2xl my-auto">
                 {/* Loading overlay content */}
                 {phase === 'loading' && (
                   <div className="p-10 sm:p-16 text-center">
                     <div className="relative w-24 h-24 mx-auto mb-6">
-                      <div className="absolute inset-0 rounded-full bg-gradient-to-br from-orange-500 to-red-600 animate-pulse opacity-20" />
-                      <div className="absolute inset-2 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 grid place-items-center">
+                      <div className="absolute inset-0 rounded-full bg-brand/15 animate-pulse" />
+                      <div className="absolute inset-2 rounded-full bg-brand grid place-items-center">
                         <Loader2 className="h-10 w-10 text-white animate-spin" />
                       </div>
                     </div>
                     <h3 className="font-bold text-xl mb-2">{c.loadingTitle}</h3>
                     <p className="text-sm text-muted-foreground mb-6">{c.loadingSubtitle}</p>
                     <div className="h-6 mb-6 flex items-center justify-center">
-                      <p className="text-sm font-mono text-orange-600 animate-pulse" key={loadingIdx}>
+                      <p className="text-sm font-mono text-brand dark:text-brand-400 animate-pulse" key={loadingIdx}>
                         {msgs[loadingIdx]}
                       </p>
                     </div>
@@ -460,7 +460,7 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
                           style={{ animationDelay: `${idx * 120}ms` }}
                         >
                           <VendorLogo name={v} size={24} />
-                          <div className="absolute inset-0 rounded-full border-2 border-orange-400 animate-ping opacity-60" style={{ animationDelay: `${idx * 120}ms` }} />
+                          <div className="absolute inset-0 rounded-full border-2 border-brand-400 animate-ping opacity-60" style={{ animationDelay: `${idx * 120}ms` }} />
                         </div>
                       ))}
                     </div>
@@ -487,7 +487,7 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
                         <p className="text-sm text-muted-foreground">
                           {result.domain}
                           {result.niche && (
-                            <span className="ml-2 inline-block px-2 py-0.5 rounded-full bg-orange-500/10 text-orange-600 text-[10px] font-semibold uppercase tracking-wider">
+                            <span className="ml-2 inline-block px-2 py-0.5 rounded-full bg-brand/10 text-brand dark:text-brand-400 text-[10px] font-semibold uppercase tracking-wider">
                               {result.customNiche || result.niche}
                             </span>
                           )}
@@ -506,7 +506,7 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
                           {c.resultsHeader}
                         </h4>
                         {result.queries.map((q, idx) => (
-                          <div key={idx} className="bg-muted/30 rounded-2xl border p-4 sm:p-5">
+                          <div key={idx} className="card-brand p-4 sm:p-5">
                             <div className="flex items-start justify-between gap-4 mb-4">
                               <div className="flex items-start gap-3 flex-1">
                                 <span className="inline-grid place-items-center min-w-[28px] h-7 px-2 rounded-md bg-foreground text-background text-xs font-bold">
@@ -516,7 +516,7 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
                               </div>
                               <div className="shrink-0 text-right">
                                 <div className="font-bold text-lg">
-                                  <span className={q.citedCount > 0 ? 'text-emerald-600' : 'text-muted-foreground'}>
+                                  <span className={q.citedCount > 0 ? 'text-[#3E9B4F]' : 'text-muted-foreground'}>
                                     {q.citedCount}
                                   </span>
                                   <span className="text-muted-foreground"> / {q.totalProviders}</span>
@@ -530,9 +530,9 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
                                 const ok = p.cited || p.brandMentioned;
                                 return (
                                   <div key={p.provider} className="flex flex-col items-center gap-1">
-                                    <div className={`relative w-11 h-11 rounded-xl grid place-items-center ${ok ? 'bg-emerald-500/10 ring-2 ring-emerald-500/40' : 'bg-muted/60 ring-1 ring-border'}`}>
+                                    <div className={`relative w-11 h-11 rounded-xl grid place-items-center ${ok ? 'bg-[#3E9B4F]/10 ring-2 ring-[#3E9B4F]/40' : 'bg-muted/60 ring-1 ring-border'}`}>
                                       {logo && <VendorLogo name={logo} size={22} />}
-                                      <div className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full grid place-items-center ring-2 ring-background ${ok ? 'bg-emerald-500 text-white' : 'bg-muted-foreground/40 text-white'}`}>
+                                      <div className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full grid place-items-center ring-2 ring-background ${ok ? 'bg-[#3E9B4F] text-white' : 'bg-muted-foreground/40 text-white'}`}>
                                         {ok ? <Check className="h-3 w-3" strokeWidth={3} /> : <X className="h-3 w-3" strokeWidth={3} />}
                                       </div>
                                     </div>
@@ -558,21 +558,21 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
                         <h4 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
                           {c.competitorHeader}
                         </h4>
-                        <div className="bg-muted/30 rounded-2xl border p-5">
+                        <div className="card-brand p-5">
                           {result.competitorRanking.length === 0 ? (
                             <p className="text-sm text-muted-foreground text-center py-8">{c.competitorEmpty}</p>
                           ) : (
                             <div className="space-y-3">
                               {result.competitorRanking.slice(0, 8).map((comp, idx) => (
-                                <div key={comp.name + idx} className={`flex items-center gap-3 p-2 rounded-lg ${comp.isBrand ? 'bg-orange-500/10 ring-1 ring-orange-500/30' : ''}`}>
-                                  <span className={`inline-grid place-items-center w-6 h-6 rounded-md text-xs font-bold shrink-0 ${comp.isBrand ? 'bg-orange-500 text-white' : 'bg-muted text-foreground'}`}>
+                                <div key={comp.name + idx} className={`flex items-center gap-3 p-2 rounded-lg ${comp.isBrand ? 'bg-brand/10 ring-1 ring-brand/30' : ''}`}>
+                                  <span className={`inline-grid place-items-center w-6 h-6 rounded-md text-xs font-bold shrink-0 ${comp.isBrand ? 'bg-brand text-white' : 'bg-muted text-foreground'}`}>
                                     {idx + 1}
                                   </span>
                                   <span className="flex-1 text-sm font-medium truncate">
                                     {comp.name}
-                                    {comp.isBrand && <span className="text-orange-600 text-xs ml-1.5 font-bold">{c.youLabel}</span>}
+                                    {comp.isBrand && <span className="text-brand dark:text-brand-400 text-xs ml-1.5 font-bold">{c.youLabel}</span>}
                                   </span>
-                                  <span className={`text-sm font-bold shrink-0 ${comp.isBrand ? 'text-orange-600' : 'text-muted-foreground'}`}>
+                                  <span className={`text-sm font-bold shrink-0 ${comp.isBrand ? 'text-brand dark:text-brand-400' : 'text-muted-foreground'}`}>
                                     {comp.pct}%
                                   </span>
                                 </div>
@@ -582,7 +582,7 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
                         </div>
 
                         {/* PRIMARY CTA — email optin (90 gün takip) */}
-                        <div className="bg-gradient-to-br from-orange-500 via-orange-600 to-red-600 text-white rounded-2xl p-5 shadow-xl shadow-orange-500/20">
+                        <div className="bg-brand text-white rounded-2xl p-5">
                           <h5 className="font-bold text-base mb-2 leading-snug">{c.optinHeader}</h5>
                           <p className="text-xs text-white/90 mb-4 leading-relaxed">{c.optinBody}</p>
 
@@ -617,7 +617,7 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
                               <button
                                 type="submit"
                                 disabled={!optinEmail.trim() || !optinConsent || optinStatus === 'sending'}
-                                className="w-full bg-white text-orange-600 hover:bg-white/95 disabled:bg-white/50 disabled:cursor-not-allowed font-bold text-sm px-4 py-2.5 rounded-lg transition-colors"
+                                className="w-full bg-white text-brand hover:bg-white/95 disabled:bg-white/50 disabled:cursor-not-allowed font-bold text-sm px-4 py-2.5 rounded-lg transition-colors"
                               >
                                 {optinStatus === 'sending' ? c.optinSending : c.optinBtn}
                               </button>
@@ -657,7 +657,7 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
                     <div className="text-center pt-2">
                       <button
                         onClick={handleReset}
-                        className="text-sm text-muted-foreground hover:text-orange-600 transition-colors"
+                        className="text-sm text-muted-foreground hover:text-brand dark:hover:text-brand-400 transition-colors"
                       >
                         ← {c.testAnother}
                       </button>
@@ -676,26 +676,22 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
   //  STANDALONE MODE — full landing section
   // ─────────────────────────────────────────────────────────
   return (
-    <section id="ai-checker" className="relative py-16 lg:py-24 border-y bg-gradient-to-b from-orange-50/50 via-amber-50/30 to-transparent dark:from-orange-950/10 dark:via-amber-950/10">
+    <section id="ai-checker" className="relative py-16 lg:py-24 border-y border-ink/10 bg-bone text-ink dark:border-bone/10 dark:bg-ink-2 dark:text-bone">
       {TURNSTILE_SITE_KEY && <div ref={turnstileRef} className="cf-turnstile" data-size="invisible" />}
-      <div className="absolute inset-0 -z-10 overflow-hidden pointer-events-none">
-        <div className="absolute top-10 left-1/4 w-96 h-96 bg-orange-400/10 rounded-full blur-3xl" />
-        <div className="absolute bottom-10 right-1/4 w-96 h-96 bg-amber-400/10 rounded-full blur-3xl" />
-      </div>
 
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-10 max-w-3xl mx-auto">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-500/10 border border-orange-500/20 text-orange-600 text-xs font-semibold mb-5">
-            {c.badge}
-          </div>
-          <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight leading-tight mb-4">
+          <p className="eyebrow mb-4">
+            <span className="text-brand dark:text-brand-400">{c.badge}</span>
+          </p>
+          <h2 className="font-brandDisplay text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-[-0.03em] leading-[1.05] mb-4">
             {c.titleA}{' '}
-            <span className="bg-gradient-to-r from-orange-500 via-orange-600 to-red-600 bg-clip-text text-transparent">
+            <span className="text-brand dark:text-brand-400">
               {c.titleB}
             </span>{' '}
             {c.titleC}
           </h2>
-          <p className="text-base sm:text-lg text-muted-foreground leading-relaxed">
+          <p className="text-base sm:text-lg text-[#6E6259] dark:text-[#A99F92] leading-relaxed">
             {c.subtitle}
           </p>
         </div>
@@ -704,10 +700,10 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
           <div className="max-w-2xl mx-auto">
             <form
               onSubmit={(e) => { e.preventDefault(); handleStart(); }}
-              className="flex flex-col sm:flex-row gap-3 bg-background border-2 border-orange-500/20 rounded-2xl p-3 shadow-xl shadow-orange-500/5"
+              className="flex flex-col sm:flex-row gap-3 card-brand rounded-2xl p-3 focus-within:border-brand/50 transition-colors"
             >
               <div className="flex-1 flex items-center gap-2 px-3">
-                <Globe className="h-5 w-5 text-orange-600 shrink-0" />
+                <Globe className="h-5 w-5 text-brand shrink-0" />
                 <input
                   type="text"
                   value={domain}
@@ -721,7 +717,7 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
               <button
                 type="submit"
                 disabled={!domain.trim()}
-                className="inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 disabled:from-muted disabled:to-muted disabled:text-muted-foreground disabled:cursor-not-allowed text-white font-bold text-base shadow-lg shadow-orange-500/30 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                className="btn-brand h-auto px-6 py-3 text-base font-bold disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 {c.btnStart}
                 <ArrowRight className="h-5 w-5" />
@@ -735,7 +731,7 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
             </div>
 
             {phase === 'error' && error && (
-              <div className="mt-5 flex items-start gap-3 p-4 rounded-xl border border-red-300/50 bg-red-50 dark:bg-red-950/20 text-red-700 dark:text-red-300 text-sm">
+              <div className="mt-5 flex items-start gap-3 p-4 rounded-xl border border-[#C43C2E]/40 bg-[#C43C2E]/10 text-[#C43C2E] dark:text-[#E8907F] text-sm">
                 <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" />
                 <div className="flex-1">
                   <div className="font-bold mb-0.5">{c.errorTitle}</div>
@@ -758,17 +754,17 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
         )}
 
         {phase === 'loading' && (
-          <div className="max-w-2xl mx-auto bg-background rounded-2xl border-2 border-orange-500/20 p-10 shadow-xl shadow-orange-500/5 text-center">
+          <div className="max-w-2xl mx-auto card-brand p-10 text-center">
             <div className="relative w-20 h-20 mx-auto mb-6">
-              <div className="absolute inset-0 rounded-full bg-gradient-to-br from-orange-500 to-red-600 animate-pulse opacity-20" />
-              <div className="absolute inset-2 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 grid place-items-center">
+              <div className="absolute inset-0 rounded-full bg-brand/15 animate-pulse" />
+              <div className="absolute inset-2 rounded-full bg-brand grid place-items-center">
                 <Loader2 className="h-8 w-8 text-white animate-spin" />
               </div>
             </div>
             <h3 className="font-bold text-lg mb-2">{c.loadingTitle}</h3>
             <p className="text-sm text-muted-foreground mb-6">{c.loadingSubtitle}</p>
             <div className="h-6 mb-6 flex items-center justify-center">
-              <p className="text-sm font-mono text-orange-600 animate-pulse" key={loadingIdx}>
+              <p className="text-sm font-mono text-brand dark:text-brand-400 animate-pulse" key={loadingIdx}>
                 {msgs[loadingIdx]}
               </p>
             </div>
@@ -780,7 +776,7 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
                   style={{ animationDelay: `${idx * 120}ms` }}
                 >
                   <VendorLogo name={v} size={24} />
-                  <div className="absolute inset-0 rounded-full border-2 border-orange-400 animate-ping opacity-60" style={{ animationDelay: `${idx * 120}ms` }} />
+                  <div className="absolute inset-0 rounded-full border-2 border-brand-400 animate-ping opacity-60" style={{ animationDelay: `${idx * 120}ms` }} />
                 </div>
               ))}
             </div>
@@ -789,7 +785,7 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
 
         {phase === 'result' && result && (
           <div className="space-y-6">
-            <div className="bg-background rounded-2xl border-2 border-orange-500/20 p-6 shadow-xl shadow-orange-500/5 flex items-center justify-between flex-wrap gap-4">
+            <div className="card-brand p-6 flex items-center justify-between flex-wrap gap-4">
               <div className="flex items-center gap-4">
                 <DomainFavicon domain={result.domain} brand={result.brand} />
                 <div>
@@ -797,7 +793,7 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
                   <p className="text-sm text-muted-foreground">
                     {result.domain}
                     {result.niche && (
-                      <span className="ml-2 inline-block px-2 py-0.5 rounded-full bg-orange-500/10 text-orange-600 text-[10px] font-semibold uppercase tracking-wider">
+                      <span className="ml-2 inline-block px-2 py-0.5 rounded-full bg-brand/10 text-brand dark:text-brand-400 text-[10px] font-semibold uppercase tracking-wider">
                         {result.customNiche || result.niche}
                       </span>
                     )}
@@ -806,7 +802,7 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
               </div>
               <button
                 onClick={handleReset}
-                className="text-sm text-muted-foreground hover:text-orange-600 transition-colors px-3 py-1.5 rounded-lg border border-muted hover:border-orange-500/30"
+                className="text-sm text-muted-foreground hover:text-brand dark:hover:text-brand-400 transition-colors px-3 py-1.5 rounded-lg border border-muted hover:border-brand/40"
               >
                 ← {c.testAnother}
               </button>
@@ -822,7 +818,7 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
                   {c.resultsHeader}
                 </h4>
                 {result.queries.map((q, idx) => (
-                  <div key={idx} className="bg-background rounded-2xl border p-5 hover:border-orange-500/30 transition-colors">
+                  <div key={idx} className="card-brand p-5 hover:border-brand/40 transition-colors">
                     <div className="flex items-start justify-between gap-4 mb-4">
                       <div className="flex items-start gap-3 flex-1">
                         <span className="inline-grid place-items-center min-w-[28px] h-7 px-2 rounded-md bg-foreground text-background text-xs font-bold">
@@ -832,7 +828,7 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
                       </div>
                       <div className="shrink-0 text-right">
                         <div className="font-bold text-lg">
-                          <span className={q.citedCount > 0 ? 'text-emerald-600' : 'text-muted-foreground'}>
+                          <span className={q.citedCount > 0 ? 'text-[#3E9B4F]' : 'text-muted-foreground'}>
                             {q.citedCount}
                           </span>
                           <span className="text-muted-foreground"> / {q.totalProviders}</span>
@@ -846,9 +842,9 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
                         const ok = p.cited || p.brandMentioned;
                         return (
                           <div key={p.provider} className="flex flex-col items-center gap-1">
-                            <div className={`relative w-11 h-11 rounded-xl grid place-items-center ${ok ? 'bg-emerald-500/10 ring-2 ring-emerald-500/40' : 'bg-muted/40 ring-1 ring-border'}`}>
+                            <div className={`relative w-11 h-11 rounded-xl grid place-items-center ${ok ? 'bg-[#3E9B4F]/10 ring-2 ring-[#3E9B4F]/40' : 'bg-muted/40 ring-1 ring-border'}`}>
                               {logo && <VendorLogo name={logo} size={22} />}
-                              <div className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full grid place-items-center ring-2 ring-background ${ok ? 'bg-emerald-500 text-white' : 'bg-muted-foreground/40 text-white'}`}>
+                              <div className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full grid place-items-center ring-2 ring-background ${ok ? 'bg-[#3E9B4F] text-white' : 'bg-muted-foreground/40 text-white'}`}>
                                 {ok ? <Check className="h-3 w-3" strokeWidth={3} /> : <X className="h-3 w-3" strokeWidth={3} />}
                               </div>
                             </div>
@@ -865,21 +861,21 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
                 <h4 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
                   {c.competitorHeader}
                 </h4>
-                <div className="bg-background rounded-2xl border p-5">
+                <div className="card-brand p-5">
                   {result.competitorRanking.length === 0 ? (
                     <p className="text-sm text-muted-foreground text-center py-8">{c.competitorEmpty}</p>
                   ) : (
                     <div className="space-y-3">
                       {result.competitorRanking.slice(0, 8).map((comp, idx) => (
-                        <div key={comp.name + idx} className={`flex items-center gap-3 p-2 rounded-lg ${comp.isBrand ? 'bg-orange-500/10 ring-1 ring-orange-500/30' : ''}`}>
-                          <span className={`inline-grid place-items-center w-6 h-6 rounded-md text-xs font-bold shrink-0 ${comp.isBrand ? 'bg-orange-500 text-white' : 'bg-muted text-foreground'}`}>
+                        <div key={comp.name + idx} className={`flex items-center gap-3 p-2 rounded-lg ${comp.isBrand ? 'bg-brand/10 ring-1 ring-brand/30' : ''}`}>
+                          <span className={`inline-grid place-items-center w-6 h-6 rounded-md text-xs font-bold shrink-0 ${comp.isBrand ? 'bg-brand text-white' : 'bg-muted text-foreground'}`}>
                             {idx + 1}
                           </span>
                           <span className="flex-1 text-sm font-medium truncate">
                             {comp.name}
-                            {comp.isBrand && <span className="text-orange-600 text-xs ml-1.5 font-bold">{c.youLabel}</span>}
+                            {comp.isBrand && <span className="text-brand dark:text-brand-400 text-xs ml-1.5 font-bold">{c.youLabel}</span>}
                           </span>
-                          <span className={`text-sm font-bold shrink-0 ${comp.isBrand ? 'text-orange-600' : 'text-muted-foreground'}`}>
+                          <span className={`text-sm font-bold shrink-0 ${comp.isBrand ? 'text-brand dark:text-brand-400' : 'text-muted-foreground'}`}>
                             {comp.pct}%
                           </span>
                         </div>
@@ -888,14 +884,14 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
                   )}
                 </div>
 
-                <div className="bg-gradient-to-br from-orange-500 via-orange-600 to-red-600 text-white rounded-2xl p-5 shadow-xl shadow-orange-500/20">
+                <div className="bg-brand text-white rounded-2xl p-5">
                   <Crown className="h-6 w-6 mb-2" />
                   <h5 className="font-bold text-base mb-1.5">{c.ctaBoxTitle}</h5>
                   <p className="text-xs text-white/90 mb-4 leading-relaxed">{c.ctaBoxBody}</p>
                   <div className="space-y-2">
                     <Link
                       href="/onboarding"
-                      className="block w-full text-center bg-white text-orange-600 hover:bg-white/95 font-bold text-sm px-4 py-2.5 rounded-lg transition-colors"
+                      className="block w-full text-center bg-white text-brand hover:bg-white/95 font-bold text-sm px-4 py-2.5 rounded-lg transition-colors"
                     >
                       {c.ctaPrimary}
                     </Link>
@@ -936,7 +932,7 @@ function ResponsesToggle({ providers, brand, isOpen, onToggle, labels }: Respons
     <div className="mt-4">
       <button
         onClick={onToggle}
-        className="text-xs font-semibold text-orange-600 hover:text-orange-700 inline-flex items-center gap-1.5 transition-colors"
+        className="text-xs font-semibold text-brand hover:text-brand-700 dark:text-brand-400 dark:hover:text-brand-300 inline-flex items-center gap-1.5 transition-colors"
         type="button"
       >
         {isOpen ? labels.hide : labels.show}
@@ -957,13 +953,13 @@ function ResponsesToggle({ providers, brand, isOpen, onToggle, labels }: Respons
             return (
               <div
                 key={p.provider}
-                className={`rounded-lg border p-3 text-xs ${ok ? 'bg-emerald-500/5 border-emerald-500/20' : 'bg-muted/30 border-border'}`}
+                className={`rounded-lg border p-3 text-xs ${ok ? 'bg-[#3E9B4F]/5 border-[#3E9B4F]/20' : 'bg-muted/30 border-border'}`}
               >
                 <div className="flex items-center gap-2 mb-1.5">
                   {logo && <VendorLogo name={logo} size={16} />}
                   <span className="font-bold text-sm">{short}</span>
                   {ok && (
-                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-600 bg-emerald-500/10 px-2 py-0.5 rounded-full">
+                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-[#3E9B4F] bg-[#3E9B4F]/10 px-2 py-0.5 rounded-full">
                       <Check className="h-3 w-3" strokeWidth={3} />
                       {p.cited ? 'URL cite' : 'brand mention'}
                     </span>
@@ -991,7 +987,7 @@ function highlightBrand(text: string, brand: string): React.ReactNode {
   const parts = text.split(splitRe);
   return parts.map((part, i) =>
     part.toLowerCase() === brandLower
-      ? <mark key={i} className="bg-orange-500/20 text-orange-700 dark:text-orange-300 font-semibold rounded px-0.5">{part}</mark>
+      ? <mark key={i} className="bg-brand/15 text-brand-700 dark:text-brand-300 font-semibold rounded px-0.5">{part}</mark>
       : <span key={i}>{part}</span>
   );
 }
@@ -1001,7 +997,7 @@ function DomainFavicon({ domain, brand }: { domain: string; brand: string }) {
   const initial = (brand || domain).charAt(0).toUpperCase();
   if (failed) {
     return (
-      <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-orange-500 to-orange-700 text-white text-2xl font-bold grid place-items-center shrink-0">
+      <div className="w-14 h-14 rounded-xl bg-brand text-white text-2xl font-bold grid place-items-center shrink-0">
         {initial}
       </div>
     );

@@ -10,19 +10,19 @@ import { api } from '@/lib/api';
 import { trackPageview, trackCta, setupScrollDepthTracking, setupSectionTracking } from '@/lib/landing-track';
 import { VendorLogo, type VendorName } from '@/components/vendor-logo';
 import { BrandWordmark } from '@/components/brand-logo';
-import { AiVisibilityChecker } from '@/components/landing/ai-visibility-checker';
+import { Eyebrow, StepMotif } from '@/components/brand';
 import { AiCheckerHero } from '@/components/landing/ai-checker-hero';
 import {
   Sparkles, ArrowRight, Check, X as XIcon, ChevronDown,
   Rocket, Search, Smartphone, Wand2, Bot, Star,
-  TrendingUp, Zap, ShieldCheck, Clock, BarChart3, Globe,
-  PlayCircle, MousePointer2, MessageSquare, FileText, Apple,
+  TrendingUp, Zap, ShieldCheck, Clock, Globe,
+  PlayCircle, MessageSquare, FileText, Apple,
   Lock, Cpu, Cloud, BadgeCheck,
 } from 'lucide-react';
 
 // ───────────────────────────────────────────────────────────────
-//  RanksUp — Landing (yeni, dönüşüm odaklı)
-//  AIDA + PAS + Risk Reversal · brand orange · plan verisi /api/billing/plans'tan
+//  RanksUp — Landing ("Basamak" marka sistemi v1)
+//  AIDA + PAS + Risk Reversal · ink ↔ bone bölüm ritmi · plan verisi /api/billing/plans'tan
 // ───────────────────────────────────────────────────────────────
 
 type Plan = {
@@ -59,15 +59,6 @@ const INTEGRATION_LABELS: Partial<Record<VendorName, string>> = {
   'instagram': 'Instagram', 'tiktok': 'TikTok', 'youtube': 'YouTube',
   'google': 'Google Ads', 'wordpress': 'WordPress', 'shopify': 'Shopify', 'webflow': 'Webflow',
 };
-
-const AVATAR_BGS = [
-  'from-orange-500 to-rose-500',
-  'from-orange-400 to-amber-500',
-  'from-orange-500 to-purple-500',
-  'from-amber-400 to-orange-500',
-  'from-rose-400 to-orange-500',
-  'from-orange-600 to-amber-600',
-];
 
 type PublicTestimonial = {
   id: string;
@@ -157,11 +148,11 @@ export default function LandingPage() {
             <BrandWordmark size={24} />
           </Link>
           <div className="hidden md:flex items-center gap-7 text-sm">
-            <a href="#cozum" className="hover:text-orange-600 transition-colors">{t('land.nav.solution')}</a>
-            <a href="#nasil" className="hover:text-orange-600 transition-colors">{t('land.nav.how')}</a>
-            <a href="#sonuc" className="hover:text-orange-600 transition-colors">{t('land.nav.results')}</a>
-            <a href="#fiyat" className="hover:text-orange-600 transition-colors">{t('land.nav.pricing')}</a>
-            <a href="#sss" className="hover:text-orange-600 transition-colors">{t('land.nav.faq')}</a>
+            <a href="#cozum" className="hover:text-brand transition-colors">{t('land.nav.solution')}</a>
+            <a href="#nasil" className="hover:text-brand transition-colors">{t('land.nav.how')}</a>
+            <a href="#sonuc" className="hover:text-brand transition-colors">{t('land.nav.results')}</a>
+            <a href="#fiyat" className="hover:text-brand transition-colors">{t('land.nav.pricing')}</a>
+            <a href="#sss" className="hover:text-brand transition-colors">{t('land.nav.faq')}</a>
           </div>
           <div className="flex items-center gap-1.5">
             <LocaleSwitch />
@@ -169,66 +160,74 @@ export default function LandingPage() {
             <Link href="/signin" className="hidden sm:inline-block">
               <Button variant="ghost" size="sm">{t('land.nav.login')}</Button>
             </Link>
-            <Link href="/signin?signup=1">
-              <Button size="sm" className="bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white shadow-lg shadow-orange-500/20">
-                {t('land.nav.signup')} <ArrowRight className="h-3.5 w-3.5 ml-1" />
-              </Button>
+            <Link href="/signin?signup=1" className="btn-brand h-9 px-4 text-sm">
+              {t('land.nav.signup')} <ArrowRight className="h-3.5 w-3.5" />
             </Link>
           </div>
         </div>
       </nav>
 
-      {/* ─── HERO ─────────────────────────────────────────────── */}
-      <section className="relative pt-14 pb-16 lg:pt-20 lg:pb-20">
-        {/* gradient blobs */}
-        <div className="absolute inset-0 -z-10 overflow-hidden pointer-events-none">
-          <div className="absolute top-0 -left-32 w-[36rem] h-[36rem] bg-orange-500/15 rounded-full blur-3xl" />
-          <div className="absolute -bottom-20 -right-24 w-[40rem] h-[40rem] bg-amber-400/10 rounded-full blur-3xl" />
-          <div className="absolute top-40 right-1/3 w-72 h-72 bg-orange-400/8 rounded-full blur-3xl" />
+      {/* ─── HERO — surface-ink + grafik kağıdı (her temada ink) ── */}
+      <section className="relative overflow-hidden surface-ink grid-paper pt-14 pb-16 lg:pt-20 lg:pb-24">
+        {/* Basamak köşe süsü — orkestre an: karelerin yukarı dizilişi (stagger) */}
+        <div aria-hidden className="pointer-events-none absolute top-10 right-6 lg:right-12 hidden md:flex items-end gap-[3px] stagger-reveal">
+          {[0, 1, 2, 3, 4].map((i) => (
+            <span
+              key={i}
+              className={`h-2.5 w-2.5 ${i === 4 ? 'bg-brand' : 'bg-bone/20'}`}
+              style={{ marginBottom: i * 13 }}
+            />
+          ))}
         </div>
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          {/* PRIMARY: Big AI Visibility Test hero (Maya-style — domain test as the main CTA) */}
+          {/* PRIMARY: Big AI Visibility Test hero (domain test as the main CTA) */}
           <AiCheckerHero />
 
           {/* SUB-HERO: full-platform message + signup CTA (after the test catches attention) */}
-          <div className="mt-20 lg:mt-24 pt-12 border-t border-border/50 text-center max-w-3xl mx-auto">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-orange-500/30 bg-orange-500/5 text-xs font-semibold text-orange-700 dark:text-orange-400 mb-5">
+          <div className="mt-20 lg:mt-24 pt-12 border-t border-bone/10 text-center max-w-3xl mx-auto">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-bone/15 mb-5">
               <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-500 opacity-75" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-orange-500" />
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-brand-400" />
               </span>
-              {t('land.hero.badge')}
+              <span className="font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-brand-400">
+                {t('land.hero.badge')}
+              </span>
             </div>
 
-            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight leading-[1.1] mb-4">
+            <h2 className="font-brandDisplay text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-[-0.03em] leading-[1.08] mb-4">
               {t('land.hero.title_pre')}{' '}
-              <span className="bg-gradient-to-br from-orange-500 to-orange-700 bg-clip-text text-transparent">{t('land.hero.title_brand')}</span>{t('land.hero.title_dot')}
+              <span className="text-brand-400">{t('land.hero.title_brand')}</span>{t('land.hero.title_dot')}
             </h2>
 
-            <p className="text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto leading-relaxed mb-7">
+            <p className="text-base sm:text-lg text-[#A99F92] max-w-2xl mx-auto leading-relaxed mb-7">
               {t('land.hero.subtitle')}
             </p>
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-              <Link href="/signin?signup=1" onClick={() => trackCta('hero_primary')}>
-                <Button size="lg" className="h-13 px-7 text-base bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white shadow-2xl shadow-orange-500/30">
-                  {t('land.hero.cta_primary')}
-                  <ArrowRight className="h-5 w-5 ml-2" />
-                </Button>
+              <Link
+                href="/signin?signup=1"
+                onClick={() => trackCta('hero_primary')}
+                className="btn-brand h-12 px-7 text-base w-full sm:w-auto"
+              >
+                {t('land.hero.cta_primary')}
+                <ArrowRight className="h-5 w-5" />
               </Link>
-              <a href="#nasil" onClick={() => trackCta('hero_secondary_demo')}>
-                <Button size="lg" variant="outline" className="h-13 px-7 text-base">
-                  <PlayCircle className="h-5 w-5 mr-2" /> {t('land.hero.cta_secondary')}
-                </Button>
+              <a
+                href="#nasil"
+                onClick={() => trackCta('hero_secondary_demo')}
+                className="inline-flex h-12 items-center justify-center gap-2 rounded-[10px] border border-bone/20 px-7 text-base font-semibold text-bone transition-colors hover:border-bone/40 w-full sm:w-auto"
+              >
+                <PlayCircle className="h-5 w-5" /> {t('land.hero.cta_secondary')}
               </a>
             </div>
 
-            <div className="mt-5 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs text-muted-foreground">
-              <span className="inline-flex items-center gap-1"><Check className="h-3.5 w-3.5 text-emerald-600" /> {t('land.hero.tag_no_card')}</span>
-              <span className="inline-flex items-center gap-1"><Check className="h-3.5 w-3.5 text-emerald-600" /> {t('land.hero.tag_free_articles')}</span>
-              <span className="inline-flex items-center gap-1"><Check className="h-3.5 w-3.5 text-emerald-600" /> {t('land.hero.tag_cancel')}</span>
-              <span className="inline-flex items-center gap-1"><Check className="h-3.5 w-3.5 text-emerald-600" /> {t('land.hero.tag_setup')}</span>
+            <div className="mt-5 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs text-[#A99F92]">
+              <span className="inline-flex items-center gap-1"><Check className="h-3.5 w-3.5 text-[#3E9B4F]" /> {t('land.hero.tag_no_card')}</span>
+              <span className="inline-flex items-center gap-1"><Check className="h-3.5 w-3.5 text-[#3E9B4F]" /> {t('land.hero.tag_free_articles')}</span>
+              <span className="inline-flex items-center gap-1"><Check className="h-3.5 w-3.5 text-[#3E9B4F]" /> {t('land.hero.tag_cancel')}</span>
+              <span className="inline-flex items-center gap-1"><Check className="h-3.5 w-3.5 text-[#3E9B4F]" /> {t('land.hero.tag_setup')}</span>
             </div>
           </div>
         </div>
@@ -237,9 +236,11 @@ export default function LandingPage() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 mt-16">
           <ProductPreview />
         </div>
+      </section>
 
-        {/* Authority badges + integrations */}
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-16">
+      {/* ─── AUTHORITY + LOGO BAR — bone strip ───────────────── */}
+      <section className="bg-bone text-ink dark:bg-ink-2 dark:text-bone border-b border-ink/10 dark:border-bone/10 py-12">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           {/* Authority rozet bar */}
           <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3 mb-8">
             <AuthorityBadge icon={Apple} text={t('land.hero.authority_apple')} />
@@ -249,10 +250,10 @@ export default function LandingPage() {
             <AuthorityBadge icon={Cloud} text={t('land.hero.authority_uptime')} />
           </div>
 
-          {/* AI Provider logo bar — Maya tarzı */}
-          <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground text-center mb-5">
-            {t('land.hero.ai_bar')}
-          </p>
+          {/* AI Provider logo bar */}
+          <div className="text-center mb-5">
+            <Eyebrow>{t('land.hero.ai_bar')}</Eyebrow>
+          </div>
           <div className="flex flex-wrap items-center justify-center gap-x-7 gap-y-4 mb-8">
             {(['chatgpt', 'claude-ai', 'gemini', 'perplexity', 'grok', 'deepseek', 'mistral'] as VendorName[]).map((v) => (
               <div key={v} className="flex items-center gap-2 opacity-80 hover:opacity-100 transition">
@@ -263,26 +264,26 @@ export default function LandingPage() {
           </div>
 
           {/* Diğer entegrasyon platformları */}
-          <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground text-center mb-4 mt-4">
-            {t('land.hero.integration_bar')}
-          </p>
+          <div className="text-center mb-4 mt-4">
+            <Eyebrow>{t('land.hero.integration_bar')}</Eyebrow>
+          </div>
           <div className="flex flex-wrap items-center justify-center gap-x-7 gap-y-4 opacity-80">
             {(['linkedin', 'twitter', 'facebook', 'instagram', 'tiktok', 'youtube', 'google', 'wordpress', 'shopify', 'webflow'] as VendorName[]).map((v) => (
               <div key={v} className="flex items-center gap-1.5 hover:opacity-100 transition" title={INTEGRATION_LABELS[v] ?? v}>
                 <VendorLogo name={v} size={20} />
               </div>
             ))}
-            <span className="text-xs font-bold text-muted-foreground ml-2">+ Apple Search Ads · App Store Connect</span>
+            <span className="text-xs font-bold text-[#6E6259] dark:text-[#A99F92] ml-2">+ Apple Search Ads · App Store Connect</span>
           </div>
         </div>
       </section>
 
-      {/* ─── PAIN (PAS) ───────────────────────────────────────── */}
-      <section className="py-20 border-y bg-muted/30">
+      {/* ─── PAIN (PAS) — ink ─────────────────────────────────── */}
+      <section className="surface-ink py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12 max-w-3xl mx-auto">
-            <p className="text-sm font-semibold text-orange-600 uppercase tracking-wider mb-2">{t('land.pain.eyebrow')}</p>
-            <h2 className="text-3xl sm:text-4xl font-bold">
+            <Eyebrow index="01" className="mb-3 text-[#A99F92]">{t('land.pain.eyebrow')}</Eyebrow>
+            <h2 className="font-brandDisplay text-3xl sm:text-4xl font-bold tracking-[-0.03em]">
               {t('land.pain.title')}
             </h2>
           </div>
@@ -309,14 +310,14 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ─── SOLUTION ─────────────────────────────────────────── */}
-      <section id="cozum" className="py-24">
+      {/* ─── SOLUTION — bone ──────────────────────────────────── */}
+      <section id="cozum" className="bg-bone text-ink dark:bg-ink-2 dark:text-bone py-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16 max-w-3xl mx-auto">
-            <p className="text-sm font-semibold text-orange-600 uppercase tracking-wider mb-2">{t('land.sol.eyebrow')}</p>
-            <h2 className="text-3xl sm:text-5xl font-bold tracking-tight">
+            <Eyebrow index="02" className="mb-3">{t('land.sol.eyebrow')}</Eyebrow>
+            <h2 className="font-brandDisplay text-3xl sm:text-5xl font-bold tracking-[-0.03em]">
               {t('land.sol.title_a')}<br />
-              <span className="bg-gradient-to-br from-orange-500 to-orange-700 bg-clip-text text-transparent">
+              <span className="text-brand dark:text-brand-400">
                 {t('land.sol.title_b')}
               </span>
             </h2>
@@ -355,15 +356,15 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ─── HOW IT WORKS ─────────────────────────────────────── */}
-      <section id="nasil" className="py-24 bg-muted/30 border-y">
+      {/* ─── HOW IT WORKS — ink ───────────────────────────────── */}
+      <section id="nasil" className="surface-ink py-24">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
-            <p className="text-sm font-semibold text-orange-600 uppercase tracking-wider mb-2">{t('land.how.eyebrow')}</p>
-            <h2 className="text-3xl sm:text-5xl font-bold tracking-tight">
+            <Eyebrow index="03" className="mb-3 text-[#A99F92]">{t('land.how.eyebrow')}</Eyebrow>
+            <h2 className="font-brandDisplay text-3xl sm:text-5xl font-bold tracking-[-0.03em]">
               {t('land.how.title')}
             </h2>
-            <p className="mt-3 text-lg text-muted-foreground">{t('land.how.subtitle')}</p>
+            <p className="mt-3 text-lg text-[#A99F92]">{t('land.how.subtitle')}</p>
           </div>
 
           <div className="grid md:grid-cols-3 gap-6">
@@ -374,12 +375,12 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ─── RESULTS ──────────────────────────────────────────── */}
-      <section id="sonuc" className="py-24">
+      {/* ─── RESULTS — bone ───────────────────────────────────── */}
+      <section id="sonuc" className="bg-bone text-ink dark:bg-ink-2 dark:text-bone py-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-14">
-            <p className="text-sm font-semibold text-orange-600 uppercase tracking-wider mb-2">{t('land.res.eyebrow')}</p>
-            <h2 className="text-3xl sm:text-5xl font-bold tracking-tight">
+            <Eyebrow index="04" className="mb-3">{t('land.res.eyebrow')}</Eyebrow>
+            <h2 className="font-brandDisplay text-3xl sm:text-5xl font-bold tracking-[-0.03em]">
               {t('land.res.title')}
             </h2>
           </div>
@@ -392,27 +393,27 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ─── COMPARISON ──────────────────────────────────────── */}
-      <section className="py-24 bg-muted/30 border-y">
+      {/* ─── COMPARISON — ink ─────────────────────────────────── */}
+      <section className="surface-ink py-24">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
-            <p className="text-sm font-semibold text-orange-600 uppercase tracking-wider mb-2">{t('land.cmp.eyebrow')}</p>
-            <h2 className="text-3xl sm:text-5xl font-bold tracking-tight">
+            <Eyebrow index="05" className="mb-3 text-[#A99F92]">{t('land.cmp.eyebrow')}</Eyebrow>
+            <h2 className="font-brandDisplay text-3xl sm:text-5xl font-bold tracking-[-0.03em]">
               {t('land.cmp.title')}
             </h2>
-            <p className="mt-3 text-muted-foreground">{t('land.cmp.subtitle')}</p>
+            <p className="mt-3 text-[#A99F92]">{t('land.cmp.subtitle')}</p>
           </div>
 
-          <div className="overflow-x-auto rounded-2xl border bg-background">
+          <div className="overflow-x-auto rounded-2xl border border-bone/10 bg-ink-2">
             <table className="w-full text-sm">
-              <thead className="bg-muted/40">
+              <thead className="bg-bone/5">
                 <tr>
                   <th className="text-left p-4 font-semibold">{t('land.cmp.col_feature')}</th>
                   <th className="text-center p-4 font-semibold">SEMrush</th>
                   <th className="text-center p-4 font-semibold">AppTweak</th>
                   <th className="text-center p-4 font-semibold">Hootsuite</th>
                   <th className="text-center p-4 font-semibold">ChatGPT Team</th>
-                  <th className="text-center p-4 font-bold bg-orange-500/10 text-orange-700 dark:text-orange-400">RanksUp</th>
+                  <th className="text-center p-4 font-bold bg-brand/15 text-brand-400">RanksUp</th>
                 </tr>
               </thead>
               <tbody>
@@ -424,29 +425,29 @@ export default function LandingPage() {
                 <CompareRow row={[t('land.cmp.row6'), false, false, false, true, true]} />
                 <CompareRow row={[t('land.cmp.row7'), false, false, false, true, true]} />
                 <CompareRow row={[t('land.cmp.row8'), false, false, false, false, true]} />
-                <tr className="border-t bg-muted/20">
+                <tr className="border-t border-bone/10 bg-bone/5">
                   <td className="p-4 font-bold">{t('land.cmp.row_price')}</td>
-                  <td className="text-center p-4 text-muted-foreground">$140</td>
-                  <td className="text-center p-4 text-muted-foreground">$200</td>
-                  <td className="text-center p-4 text-muted-foreground">$99</td>
-                  <td className="text-center p-4 text-muted-foreground">$60</td>
-                  <td className="text-center p-4 bg-orange-500/10 font-bold text-orange-700 dark:text-orange-400">₺4.999 ($125)</td>
+                  <td className="text-center p-4 text-[#A99F92]">$140</td>
+                  <td className="text-center p-4 text-[#A99F92]">$200</td>
+                  <td className="text-center p-4 text-[#A99F92]">$99</td>
+                  <td className="text-center p-4 text-[#A99F92]">$60</td>
+                  <td className="text-center p-4 bg-brand/15 font-bold tabular-nums text-brand-400">₺4.999 ($125)</td>
                 </tr>
               </tbody>
             </table>
           </div>
-          <p className="text-center text-xs text-muted-foreground mt-4">
+          <p className="text-center text-xs text-[#A99F92] mt-4">
             {t('land.cmp.note')}
           </p>
         </div>
       </section>
 
-      {/* ─── USE CASES ────────────────────────────────────────── */}
-      <section className="py-24">
+      {/* ─── USE CASES — bone ─────────────────────────────────── */}
+      <section className="bg-bone text-ink dark:bg-ink-2 dark:text-bone py-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-14">
-            <p className="text-sm font-semibold text-orange-600 uppercase tracking-wider mb-2">{t('land.uc.eyebrow')}</p>
-            <h2 className="text-3xl sm:text-5xl font-bold tracking-tight">
+            <Eyebrow index="06" className="mb-3">{t('land.uc.eyebrow')}</Eyebrow>
+            <h2 className="font-brandDisplay text-3xl sm:text-5xl font-bold tracking-[-0.03em]">
               {t('land.uc.title')}
             </h2>
           </div>
@@ -480,26 +481,25 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ─── TESTIMONIALS ─────────────────────────────────────── */}
-      <section className="py-24 bg-muted/30 border-y">
+      {/* ─── TESTIMONIALS — ink ───────────────────────────────── */}
+      <section className="surface-ink py-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-14">
-            <p className="text-sm font-semibold text-orange-600 uppercase tracking-wider mb-2">{t('land.test.eyebrow')}</p>
-            <h2 className="text-3xl sm:text-5xl font-bold tracking-tight">
+            <Eyebrow index="07" className="mb-3 text-[#A99F92]">{t('land.test.eyebrow')}</Eyebrow>
+            <h2 className="font-brandDisplay text-3xl sm:text-5xl font-bold tracking-[-0.03em]">
               {t('land.test.title')}
             </h2>
           </div>
 
           {testimonials.length > 0 ? (
             <div className="grid md:grid-cols-3 gap-5">
-              {testimonials.slice(0, 6).map((item, i) => (
+              {testimonials.slice(0, 6).map((item) => (
                 <Testimonial
                   key={item.id}
                   name={item.displayName}
                   role={item.role ?? 'RanksUp user'}
                   company={item.company ?? ''}
                   avatar={item.initials}
-                  avatarBg={AVATAR_BGS[i % AVATAR_BGS.length]}
                   metric={item.metric ?? `${item.rating}/5`}
                   quote={item.body}
                 />
@@ -507,9 +507,9 @@ export default function LandingPage() {
             </div>
           ) : (
             /* Henüz onaylı yorum yok — kısa placeholder */
-            <div className="rounded-2xl border-2 border-dashed border-border bg-card p-12 text-center max-w-2xl mx-auto">
-              <Star className="h-10 w-10 text-amber-400 mx-auto mb-3" />
-              <p className="text-sm text-muted-foreground">
+            <div className="rounded-2xl border border-dashed border-bone/20 bg-ink-2 p-12 text-center max-w-2xl mx-auto">
+              <div className="flex justify-center mb-3"><StepMotif size={32} steps={4} className="text-bone" /></div>
+              <p className="text-sm text-[#A99F92]">
                 {t('land.test.empty')}
               </p>
             </div>
@@ -520,27 +520,27 @@ export default function LandingPage() {
             <div className="mt-12 flex items-center justify-center gap-2 text-sm">
               <div className="flex gap-0.5">
                 {[1, 2, 3, 4, 5].map((i) => (
-                  <Star key={i} className={`h-5 w-5 ${i <= Math.round(testimonials.reduce((s, t) => s + t.rating, 0) / testimonials.length) ? 'fill-amber-400 text-amber-400' : 'text-muted-foreground/30'}`} />
+                  <Star key={i} className={`h-5 w-5 ${i <= Math.round(testimonials.reduce((s, t) => s + t.rating, 0) / testimonials.length) ? 'fill-brand-400 text-brand-400' : 'text-bone/25'}`} />
                 ))}
               </div>
-              <span className="font-bold">
+              <span className="font-bold tabular-nums">
                 {(testimonials.reduce((s, t) => s + t.rating, 0) / testimonials.length).toFixed(1)} / 5.0
               </span>
-              <span className="text-muted-foreground">— {testimonials.length}+ ekipten</span>
+              <span className="text-[#A99F92]">— {testimonials.length}+ ekipten</span>
             </div>
           )}
         </div>
       </section>
 
-      {/* ─── PRICING ──────────────────────────────────────────── */}
-      <section id="fiyat" className="py-24">
+      {/* ─── PRICING — bone ───────────────────────────────────── */}
+      <section id="fiyat" className="bg-bone text-ink dark:bg-ink-2 dark:text-bone py-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-10">
-            <p className="text-sm font-semibold text-orange-600 uppercase tracking-wider mb-2">{t('land.pricing.eyebrow')}</p>
-            <h2 className="text-3xl sm:text-5xl font-bold tracking-tight">
+            <Eyebrow index="08" className="mb-3">{t('land.pricing.eyebrow')}</Eyebrow>
+            <h2 className="font-brandDisplay text-3xl sm:text-5xl font-bold tracking-[-0.03em]">
               {t('land.pricing.title')}
             </h2>
-            <p className="mt-3 text-muted-foreground text-lg">
+            <p className="mt-3 text-[#6E6259] dark:text-[#A99F92] text-lg">
               {t('land.pricing.subtitle')}
             </p>
           </div>
@@ -549,20 +549,20 @@ export default function LandingPage() {
           <div className="flex items-center justify-center gap-3 mb-12">
             <button
               onClick={() => setBilling('monthly')}
-              className={`px-4 py-2 rounded-lg text-sm font-semibold transition ${
-                billing === 'monthly' ? 'bg-foreground text-background' : 'text-muted-foreground hover:text-foreground'
+              className={`px-4 py-2 rounded-[10px] text-sm font-semibold transition ${
+                billing === 'monthly' ? 'bg-ink text-bone dark:bg-bone dark:text-ink' : 'text-[#6E6259] dark:text-[#A99F92] hover:text-ink dark:hover:text-bone'
               }`}
             >
               {t('land.pric.monthly')}
             </button>
             <button
               onClick={() => setBilling('annual')}
-              className={`px-4 py-2 rounded-lg text-sm font-semibold transition relative ${
-                billing === 'annual' ? 'bg-foreground text-background' : 'text-muted-foreground hover:text-foreground'
+              className={`px-4 py-2 rounded-[10px] text-sm font-semibold transition relative ${
+                billing === 'annual' ? 'bg-ink text-bone dark:bg-bone dark:text-ink' : 'text-[#6E6259] dark:text-[#A99F92] hover:text-ink dark:hover:text-bone'
               }`}
             >
               {t('land.pric.annual')}
-              <span className="absolute -top-3 -right-3 text-[10px] bg-emerald-500 text-white px-1.5 py-0.5 rounded-full font-bold">
+              <span className="absolute -top-3 -right-3 text-[10px] bg-[#3E9B4F] text-white px-1.5 py-0.5 rounded-full font-bold">
                 {t('land.pric.discount_badge')}
               </span>
             </button>
@@ -575,7 +575,7 @@ export default function LandingPage() {
               const monthlyEqTry = billing === 'annual' ? Math.round((p.annualTry ?? 0) / 12) : (p.monthlyTry ?? 0);
               // Plan name'i locale'e gore secelim (API'den TR olarak gelir)
               const planNameKey = `land.pric.plan_${p.id}`;
-              const localizedName = t(planNameKey);
+              const localizedName = t(planNameKey as Parameters<typeof t>[0]);
               const finalName = localizedName === planNameKey ? p.name : localizedName;
               const sitesLabel = typeof p.sites === 'number'
                 ? (p.sites === 1 ? `${p.sites} ${t('land.pric.bullet_site')}` : `${p.sites} ${t('land.pric.bullet_sites')}`)
@@ -609,38 +609,38 @@ export default function LandingPage() {
             })}
           </div>
 
-          <p className="text-center mt-8 text-sm text-muted-foreground">
+          <p className="text-center mt-8 text-sm text-[#6E6259] dark:text-[#A99F92]">
             {t('land.pric.footer_note')}
           </p>
         </div>
       </section>
 
-      {/* ─── SOCIAL PROOF / METRICS ──────────────────────────── */}
-      <section className="py-20">
+      {/* ─── SOCIAL PROOF / METRICS — ink ────────────────────── */}
+      <section className="surface-ink py-20">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
             <div>
-              <div className="text-3xl md:text-4xl font-extrabold"><AnimatedNumber raw="10dk" /></div>
-              <div className="text-xs text-muted-foreground mt-1">{t('land.stats.setup')}</div>
+              <div className="font-brandDisplay text-3xl md:text-4xl font-extrabold tabular-nums"><AnimatedNumber raw="10dk" /></div>
+              <div className="mt-2 font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-[#A99F92]">{t('land.stats.setup')}</div>
             </div>
             <div>
-              <div className="text-3xl md:text-4xl font-extrabold"><AnimatedNumber raw="35+" /></div>
-              <div className="text-xs text-muted-foreground mt-1">{t('land.stats.integrations')}</div>
+              <div className="font-brandDisplay text-3xl md:text-4xl font-extrabold tabular-nums"><AnimatedNumber raw="35+" /></div>
+              <div className="mt-2 font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-[#A99F92]">{t('land.stats.integrations')}</div>
             </div>
             <div>
-              <div className="text-3xl md:text-4xl font-extrabold"><AnimatedNumber raw="240+" /></div>
-              <div className="text-xs text-muted-foreground mt-1">{t('land.stats.team')}</div>
+              <div className="font-brandDisplay text-3xl md:text-4xl font-extrabold tabular-nums"><AnimatedNumber raw="240+" /></div>
+              <div className="mt-2 font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-[#A99F92]">{t('land.stats.team')}</div>
             </div>
             <div>
-              <div className="text-3xl md:text-4xl font-extrabold"><AnimatedNumber raw="%99.9" /></div>
-              <div className="text-xs text-muted-foreground mt-1">{t('land.stats.uptime')}</div>
+              <div className="font-brandDisplay text-3xl md:text-4xl font-extrabold tabular-nums"><AnimatedNumber raw="%99.9" /></div>
+              <div className="mt-2 font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-[#A99F92]">{t('land.stats.uptime')}</div>
             </div>
           </div>
         </div>
       </section>
 
-      {/* ─── FAQ ──────────────────────────────────────────────── */}
-      <section id="sss" className="py-24 bg-muted/30 border-y">
+      {/* ─── FAQ — bone ───────────────────────────────────────── */}
+      <section id="sss" className="bg-bone text-ink dark:bg-ink-2 dark:text-bone py-24">
         {/* FAQPage schema — AI'lar bunu cevap kaynağı olarak çok kullanır */}
         <script
           type="application/ld+json"
@@ -658,8 +658,8 @@ export default function LandingPage() {
         />
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
-            <p className="text-sm font-semibold text-orange-600 uppercase tracking-wider mb-2">{t('land.faq.eyebrow')}</p>
-            <h2 className="text-3xl sm:text-4xl font-bold tracking-tight">{t('land.faq.title')}</h2>
+            <Eyebrow index="09" className="mb-3">{t('land.faq.eyebrow')}</Eyebrow>
+            <h2 className="font-brandDisplay text-3xl sm:text-4xl font-bold tracking-[-0.03em]">{t('land.faq.title')}</h2>
           </div>
 
           <div className="space-y-3">
@@ -676,42 +676,48 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ─── FINAL CTA ───────────────────────────────────────── */}
-      <section className="py-24 relative overflow-hidden">
-        <div className="absolute inset-0 -z-10 bg-gradient-to-br from-orange-500/10 via-amber-400/5 to-transparent" />
+      {/* ─── FINAL CTA — ink + grafik kağıdı ─────────────────── */}
+      <section className="relative overflow-hidden surface-ink grid-paper py-24">
+        <div aria-hidden className="pointer-events-none absolute top-8 right-8 hidden md:block">
+          <StepMotif size={56} steps={5} className="text-bone" />
+        </div>
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-4xl sm:text-6xl font-extrabold tracking-tight">
+          <h2 className="font-brandDisplay text-4xl sm:text-6xl font-extrabold tracking-[-0.04em] leading-[1.02]">
             {t('land.cta.title')}
           </h2>
-          <p className="mt-6 text-lg text-muted-foreground max-w-2xl mx-auto">
+          <p className="mt-6 text-lg text-[#A99F92] max-w-2xl mx-auto">
             {t('land.cta.subtitle')}
           </p>
           <div className="mt-9 flex flex-col sm:flex-row items-center justify-center gap-3">
-            <Link href="/signin?signup=1" onClick={() => trackCta('final_primary')}>
-              <Button size="lg" className="h-14 px-8 text-base bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white shadow-2xl shadow-orange-500/40">
-                {t('land.cta.button')} <ArrowRight className="h-5 w-5 ml-2" />
-              </Button>
+            <Link
+              href="/signin?signup=1"
+              onClick={() => trackCta('final_primary')}
+              className="btn-brand h-14 px-8 text-base w-full sm:w-auto"
+            >
+              {t('land.cta.button')} <ArrowRight className="h-5 w-5" />
             </Link>
-            <Link href="/pricing" onClick={() => trackCta('final_secondary_pricing')}>
-              <Button size="lg" variant="outline" className="h-14 px-8 text-base">
-                {t('land.cta.secondary')}
-              </Button>
+            <Link
+              href="/pricing"
+              onClick={() => trackCta('final_secondary_pricing')}
+              className="inline-flex h-14 items-center justify-center rounded-[10px] border border-bone/20 px-8 text-base font-semibold text-bone transition-colors hover:border-bone/40 w-full sm:w-auto"
+            >
+              {t('land.cta.secondary')}
             </Link>
           </div>
-          <div className="mt-6 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs text-muted-foreground">
-            <span className="inline-flex items-center gap-1"><ShieldCheck className="h-3.5 w-3.5 text-emerald-600" /> SOC-2 uyumlu</span>
-            <span className="inline-flex items-center gap-1"><Zap className="h-3.5 w-3.5 text-emerald-600" /> %99.9 uptime</span>
-            <span className="inline-flex items-center gap-1"><Clock className="h-3.5 w-3.5 text-emerald-600" /> 7/24 izleme</span>
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs text-[#A99F92]">
+            <span className="inline-flex items-center gap-1"><ShieldCheck className="h-3.5 w-3.5 text-[#3E9B4F]" /> SOC-2 uyumlu</span>
+            <span className="inline-flex items-center gap-1"><Zap className="h-3.5 w-3.5 text-[#3E9B4F]" /> %99.9 uptime</span>
+            <span className="inline-flex items-center gap-1"><Clock className="h-3.5 w-3.5 text-[#3E9B4F]" /> 7/24 izleme</span>
           </div>
         </div>
       </section>
 
-      {/* ─── FOOTER ───────────────────────────────────────────── */}
-      <footer className="border-t py-12 text-sm text-muted-foreground">
+      {/* ─── FOOTER — ink ─────────────────────────────────────── */}
+      <footer className="surface-ink border-t border-bone/10 py-12 text-sm text-[#A99F92]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid md:grid-cols-4 gap-8">
           <div>
             <Link href="/" className="flex items-center">
-              <BrandWordmark size={20} />
+              <BrandWordmark size={20} reversed />
             </Link>
             <p className="mt-3 text-xs leading-relaxed">
               {t('land.footer.tagline')}
@@ -727,7 +733,7 @@ export default function LandingPage() {
             ['Privacy', '/privacy'], ['Terms', '/terms'], ['KVKK', '/kvkk'],
           ]} />
         </div>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-10 pt-6 border-t text-xs flex flex-wrap justify-between gap-3">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-10 pt-6 border-t border-bone/10 text-xs flex flex-wrap justify-between gap-3">
           <span>© {new Date().getFullYear()} RanksUp. {t('land.footer.rights')}.</span>
           <span>Made with ❤️ in Türkiye</span>
         </div>
@@ -737,26 +743,26 @@ export default function LandingPage() {
 }
 
 // ─────────────────────────────────────────────────────────────
-//  Product Preview (dashboard mockup — hero altına)
+//  Product Preview (dashboard mockup — hero altına, ink zemin)
 // ─────────────────────────────────────────────────────────────
 
 function ProductPreview() {
   return (
     <div className="relative">
-      {/* Browser chrome */}
-      <div className="rounded-2xl border bg-card shadow-2xl shadow-orange-500/10 overflow-hidden">
+      {/* Browser chrome — flat, 1px border */}
+      <div className="rounded-2xl border border-bone/[0.12] bg-ink-2 overflow-hidden">
         {/* Top bar — sahte tarayıcı */}
-        <div className="flex items-center gap-2 px-4 py-2.5 border-b bg-muted/40">
+        <div className="flex items-center gap-2 px-4 py-2.5 border-b border-bone/10 bg-bone/5">
           <div className="flex gap-1.5">
-            <span className="h-3 w-3 rounded-full bg-rose-400/70" />
-            <span className="h-3 w-3 rounded-full bg-amber-400/70" />
-            <span className="h-3 w-3 rounded-full bg-emerald-400/70" />
+            <span className="h-3 w-3 rounded-full bg-bone/15" />
+            <span className="h-3 w-3 rounded-full bg-bone/15" />
+            <span className="h-3 w-3 rounded-full bg-bone/15" />
           </div>
-          <div className="flex-1 mx-3 px-3 py-1 rounded-md bg-background border text-[11px] font-mono text-muted-foreground text-center">
+          <div className="flex-1 mx-3 px-3 py-1 rounded-md bg-ink border border-bone/10 text-[11px] font-mono text-[#A99F92] text-center">
             ranksup.ai/sites/kobipratik
           </div>
-          <div className="hidden sm:flex items-center gap-1 text-[10px] text-muted-foreground">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+          <div className="hidden sm:flex items-center gap-1 font-mono text-[10px] uppercase tracking-[0.14em] text-[#A99F92]">
+            <span className="h-1.5 w-1.5 rounded-full bg-[#3E9B4F] animate-pulse" />
             CANLI
           </div>
         </div>
@@ -774,31 +780,31 @@ function ProductPreview() {
             </div>
 
             {/* Citation chart */}
-            <div className="rounded-xl border bg-background p-4">
+            <div className="rounded-xl border border-bone/10 bg-ink p-4">
               <div className="flex items-center justify-between mb-3">
                 <div>
                   <div className="text-xs font-semibold">AI Görünürlük (30 gün)</div>
-                  <div className="text-[10px] text-muted-foreground">ChatGPT, Claude, Gemini, Perplexity</div>
+                  <div className="text-[10px] text-[#A99F92]">ChatGPT, Claude, Gemini, Perplexity</div>
                 </div>
-                <div className="flex gap-1 text-[10px]">
-                  <span className="px-2 py-0.5 rounded bg-muted text-muted-foreground">7g</span>
-                  <span className="px-2 py-0.5 rounded bg-orange-500/15 text-orange-700 dark:text-orange-400 font-semibold">30g</span>
-                  <span className="px-2 py-0.5 rounded bg-muted text-muted-foreground">90g</span>
+                <div className="flex gap-1 text-[10px] font-mono">
+                  <span className="px-2 py-0.5 rounded bg-bone/10 text-[#A99F92]">7g</span>
+                  <span className="px-2 py-0.5 rounded bg-brand/20 text-brand-400 font-semibold">30g</span>
+                  <span className="px-2 py-0.5 rounded bg-bone/10 text-[#A99F92]">90g</span>
                 </div>
               </div>
               <CitationChart />
-              <div className="mt-2 flex items-center gap-3 text-[10px] text-muted-foreground">
-                <span className="inline-flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-orange-500" /> ChatGPT</span>
-                <span className="inline-flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-purple-500" /> Claude</span>
-                <span className="inline-flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> Gemini</span>
-                <span className="inline-flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-blue-500" /> Perplexity</span>
+              <div className="mt-2 flex items-center gap-3 text-[10px] text-[#A99F92]">
+                <span className="inline-flex items-center gap-1"><span className="h-1.5 w-1.5 bg-[#E04E24]" /> ChatGPT</span>
+                <span className="inline-flex items-center gap-1"><span className="h-1.5 w-1.5 bg-[#8A8177]" /> Claude</span>
+                <span className="inline-flex items-center gap-1"><span className="h-1.5 w-1.5 bg-[#C9BFB2]" /> Gemini</span>
+                <span className="inline-flex items-center gap-1"><span className="h-1.5 w-1.5 bg-[#6E6259]" /> Perplexity</span>
               </div>
             </div>
 
             {/* ASO + ASA grid */}
             <div className="grid grid-cols-2 gap-3">
               {/* ASO Keywords */}
-              <div className="rounded-xl border bg-background p-4">
+              <div className="rounded-xl border border-bone/10 bg-ink p-4">
                 <div className="text-xs font-semibold mb-3">App Store sıralama</div>
                 <div className="space-y-2 text-[11px]">
                   <KeywordRow kw="ön muhasebe" rank={3} delta={5} />
@@ -809,10 +815,10 @@ function ProductPreview() {
               </div>
 
               {/* ASA Perf */}
-              <div className="rounded-xl border bg-gradient-to-br from-orange-500/5 to-transparent p-4">
+              <div className="rounded-xl border border-bone/10 bg-ink p-4">
                 <div className="flex items-center justify-between mb-3">
                   <div className="text-xs font-semibold">Apple Search Ads</div>
-                  <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-700">Auto-Pilot</span>
+                  <span className="font-mono text-[9px] font-medium uppercase tracking-[0.14em] px-1.5 py-0.5 rounded bg-[#3E9B4F]/15 text-[#3E9B4F]">Auto-Pilot</span>
                 </div>
                 <div className="grid grid-cols-2 gap-2 text-[11px]">
                   <MiniBox label="Gösterim" value="12.4K" />
@@ -820,7 +826,7 @@ function ProductPreview() {
                   <MiniBox label="İndirme" value="62" />
                   <MiniBox label="Harcama" value="$26" />
                 </div>
-                <div className="mt-2 text-[10px] text-muted-foreground">
+                <div className="mt-2 text-[10px] text-[#A99F92]">
                   Son 7 gün · CR %12.7
                 </div>
               </div>
@@ -828,9 +834,9 @@ function ProductPreview() {
           </div>
 
           {/* Sağ: live activity feed */}
-          <div className="border-t lg:border-t-0 lg:border-l bg-muted/20 p-4">
+          <div className="border-t lg:border-t-0 lg:border-l border-bone/10 bg-bone/[0.03] p-4">
             <div className="flex items-center gap-2 mb-3">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="h-1.5 w-1.5 rounded-full bg-[#3E9B4F] animate-pulse" />
               <div className="text-xs font-semibold">Canlı aktivite</div>
             </div>
             <div className="space-y-3 text-[11px]">
@@ -846,11 +852,11 @@ function ProductPreview() {
         </div>
       </div>
 
-      {/* Floating UI badges (cosmetic) */}
-      <div className="hidden lg:block absolute -top-4 -left-4 px-3 py-1.5 rounded-full bg-card border shadow-lg text-[11px] font-semibold">
-        <span className="text-emerald-600">●</span> 247 keyword izleniyor
+      {/* Floating UI badges (cosmetic — flat) */}
+      <div className="hidden lg:block absolute -top-4 -left-4 px-3 py-1.5 rounded-full bg-ink-2 border border-bone/15 text-[11px] font-semibold text-bone">
+        <span className="text-[#3E9B4F]">●</span> 247 keyword izleniyor
       </div>
-      <div className="hidden lg:block absolute -bottom-4 -right-4 px-3 py-1.5 rounded-full bg-card border shadow-lg text-[11px] font-semibold">
+      <div className="hidden lg:block absolute -bottom-4 -right-4 px-3 py-1.5 rounded-full bg-ink-2 border border-bone/15 text-[11px] font-semibold text-bone">
         🤖 Auto-Pilot aktif
       </div>
     </div>
@@ -858,25 +864,25 @@ function ProductPreview() {
 }
 
 function MiniStat({ label, value, delta, deltaColor }: { label: string; value: string; delta: string; deltaColor: 'emerald' | 'rose' }) {
-  const colorClass = deltaColor === 'emerald' ? 'text-emerald-600' : 'text-rose-600';
+  const colorClass = deltaColor === 'emerald' ? 'text-[#3E9B4F]' : 'text-[#C43C2E]';
   return (
-    <div className="rounded-lg border bg-background p-2.5">
-      <div className="text-[9px] uppercase tracking-wider text-muted-foreground">{label}</div>
+    <div className="rounded-lg border border-bone/10 bg-ink p-2.5">
+      <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-[#A99F92]">{label}</div>
       <div className="flex items-baseline gap-1.5 mt-0.5">
-        <span className="text-base font-bold">{value}</span>
-        <span className={`text-[10px] font-semibold ${colorClass}`}>{delta}</span>
+        <span className="font-brandDisplay text-base font-bold tabular-nums">{value}</span>
+        <span className={`text-[10px] font-semibold tabular-nums ${colorClass}`}>{delta}</span>
       </div>
     </div>
   );
 }
 
 function CitationChart() {
-  // 4 line chart — mock points
+  // 4 line chart — mock points (birincil: turuncu; diğer seriler: taş tonları)
   const lines = [
-    { color: '#f97316', points: [30, 28, 35, 32, 40, 45, 42, 50, 55, 58, 62, 70] },     // ChatGPT
-    { color: '#a855f7', points: [22, 25, 28, 30, 32, 35, 38, 42, 45, 48, 52, 55] },     // Claude
-    { color: '#10b981', points: [18, 20, 19, 24, 26, 28, 30, 32, 34, 36, 38, 40] },     // Gemini
-    { color: '#3b82f6', points: [12, 14, 15, 17, 19, 22, 24, 26, 28, 30, 32, 35] },     // Perplexity
+    { color: '#E04E24', points: [30, 28, 35, 32, 40, 45, 42, 50, 55, 58, 62, 70] },     // ChatGPT
+    { color: '#8A8177', points: [22, 25, 28, 30, 32, 35, 38, 42, 45, 48, 52, 55] },     // Claude
+    { color: '#C9BFB2', points: [18, 20, 19, 24, 26, 28, 30, 32, 34, 36, 38, 40] },     // Gemini
+    { color: '#6E6259', points: [12, 14, 15, 17, 19, 22, 24, 26, 28, 30, 32, 35] },     // Perplexity
   ];
   const w = 500, h = 110, max = 80;
   const path = (pts: number[]) => {
@@ -886,17 +892,17 @@ function CitationChart() {
   return (
     <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-[110px]">
       <defs>
-        <linearGradient id="g-orange" x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0%" stopColor="#f97316" stopOpacity="0.25" />
-          <stop offset="100%" stopColor="#f97316" stopOpacity="0" />
+        <linearGradient id="g-brand" x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0%" stopColor="#E04E24" stopOpacity="0.18" />
+          <stop offset="100%" stopColor="#E04E24" stopOpacity="0" />
         </linearGradient>
       </defs>
-      {/* horizontal grid */}
+      {/* horizontal grid — grafik kağıdı dili */}
       {[0, 0.25, 0.5, 0.75, 1].map((p, i) => (
         <line key={i} x1="0" x2={w} y1={p * h} y2={p * h} stroke="currentColor" strokeOpacity="0.06" strokeWidth="1" />
       ))}
       {/* area fill under ChatGPT line */}
-      <path d={`${path(lines[0].points)} L${w},${h} L0,${h} Z`} fill="url(#g-orange)" />
+      <path d={`${path(lines[0].points)} L${w},${h} L0,${h} Z`} fill="url(#g-brand)" />
       {/* lines */}
       {lines.map((l, i) => (
         <path key={i} d={path(l.points)} fill="none" stroke={l.color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
@@ -909,10 +915,10 @@ function KeywordRow({ kw, rank, delta }: { kw: string; rank: number; delta: numb
   const up = delta > 0;
   return (
     <div className="flex items-center justify-between">
-      <span className="truncate">{kw}</span>
+      <span className="truncate text-bone/80">{kw}</span>
       <div className="flex items-center gap-2 shrink-0">
-        <span className="font-bold">#{rank}</span>
-        <span className={`text-[10px] font-semibold ${up ? 'text-emerald-600' : 'text-rose-600'}`}>
+        <span className="font-bold tabular-nums">#{rank}</span>
+        <span className={`text-[10px] font-semibold tabular-nums ${up ? 'text-[#3E9B4F]' : 'text-[#C43C2E]'}`}>
           {up ? '↑' : '↓'}{Math.abs(delta)}
         </span>
       </div>
@@ -922,9 +928,9 @@ function KeywordRow({ kw, rank, delta }: { kw: string; rank: number; delta: numb
 
 function MiniBox({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded bg-background/60 border border-border/40 px-2 py-1.5">
-      <div className="text-[9px] uppercase text-muted-foreground">{label}</div>
-      <div className="font-bold text-sm">{value}</div>
+    <div className="rounded bg-bone/5 border border-bone/10 px-2 py-1.5">
+      <div className="font-mono text-[9px] uppercase tracking-[0.14em] text-[#A99F92]">{label}</div>
+      <div className="font-brandDisplay font-bold text-sm tabular-nums">{value}</div>
     </div>
   );
 }
@@ -934,8 +940,8 @@ function FeedItem({ time, icon, text }: { time: string; icon: string; text: stri
     <div className="flex gap-2.5">
       <span className="text-base leading-none mt-0.5">{icon}</span>
       <div className="flex-1 min-w-0">
-        <div className="leading-snug">{text}</div>
-        <div className="text-[9px] text-muted-foreground mt-0.5">{time}</div>
+        <div className="leading-snug text-bone/85">{text}</div>
+        <div className="font-mono text-[9px] text-[#A99F92] mt-0.5">{time}</div>
       </div>
     </div>
   );
@@ -947,10 +953,10 @@ function FeedItem({ time, icon, text }: { time: string; icon: string; text: stri
 
 function PainCard({ cost, title, body }: { cost: string; title: string; body: string }) {
   return (
-    <div className="p-6 rounded-2xl border bg-background hover:border-rose-500/40 transition">
-      <div className="text-xs font-semibold text-rose-600 uppercase tracking-wider mb-2">{cost}</div>
+    <div className="p-6 rounded-2xl border border-bone/10 bg-ink-2 transition-colors hover:border-[#C43C2E]/40">
+      <div className="font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-[#C43C2E] mb-2">{cost}</div>
       <h3 className="text-lg font-bold mb-2">{title}</h3>
-      <p className="text-sm text-muted-foreground leading-relaxed">{body}</p>
+      <p className="text-sm text-[#A99F92] leading-relaxed">{body}</p>
     </div>
   );
 }
@@ -961,19 +967,20 @@ function FeatureCard({
   icon: any; tag: string; title: string; body: string; bullets: string[];
 }) {
   return (
-    <div className="p-7 rounded-2xl border bg-card hover:border-orange-500/40 hover:shadow-xl hover:shadow-orange-500/5 transition-all">
+    <div className="card-brand p-7 transition-colors hover:border-brand/40">
       <div className="flex items-center gap-3 mb-4">
-        <div className="h-11 w-11 rounded-xl bg-gradient-to-br from-orange-500/15 to-orange-600/10 grid place-items-center">
-          <Icon className="h-5 w-5 text-orange-600" />
+        <div className="h-11 w-11 rounded-[10px] bg-brand/10 grid place-items-center">
+          <Icon className="h-5 w-5 text-brand" />
         </div>
-        <span className="text-[10px] font-bold uppercase tracking-wider text-orange-600">{tag}</span>
+        <span className="font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-brand dark:text-brand-400">{tag}</span>
       </div>
       <h3 className="text-xl font-bold mb-2">{title}</h3>
-      <p className="text-sm text-muted-foreground leading-relaxed mb-4">{body}</p>
+      <p className="text-sm text-[#6E6259] dark:text-[#A99F92] leading-relaxed mb-4">{body}</p>
       <ul className="space-y-1.5">
         {bullets.map((b, i) => (
           <li key={i} className="text-sm flex items-start gap-2">
-            <Check className="h-4 w-4 text-orange-600 shrink-0 mt-0.5" />
+            {/* Basamak bullet — kare */}
+            <span className="mt-[7px] h-2 w-2 shrink-0 bg-brand" aria-hidden="true" />
             <span>{b}</span>
           </li>
         ))}
@@ -984,14 +991,15 @@ function FeatureCard({
 
 function StepCard({ n, title, body, icon: Icon }: { n: number; title: string; body: string; icon: any }) {
   return (
-    <div className="relative p-7 rounded-2xl border bg-background">
-      <div className="absolute -top-4 -left-2 text-7xl font-extrabold text-orange-500/10 leading-none select-none">
+    <div className="relative p-7 rounded-2xl border border-bone/10 bg-ink-2 overflow-hidden">
+      <div className="absolute -top-3 right-3 font-brandDisplay text-7xl font-extrabold text-bone/[0.06] leading-none select-none tabular-nums">
         {n}
       </div>
       <div className="relative">
-        <Icon className="h-7 w-7 text-orange-600 mb-3" />
+        <div className="font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-brand-400 mb-3">0{n}</div>
+        <Icon className="h-7 w-7 text-brand-400 mb-3" />
         <h3 className="text-lg font-bold mb-2">{title}</h3>
-        <p className="text-sm text-muted-foreground leading-relaxed">{body}</p>
+        <p className="text-sm text-[#A99F92] leading-relaxed">{body}</p>
       </div>
     </div>
   );
@@ -999,12 +1007,13 @@ function StepCard({ n, title, body, icon: Icon }: { n: number; title: string; bo
 
 function StatCard({ num, label, sub }: { num: string; label: string; sub: string }) {
   return (
-    <div className="p-8 rounded-2xl border bg-gradient-to-br from-orange-500/5 to-transparent text-center">
-      <div className="text-5xl md:text-6xl font-extrabold bg-gradient-to-br from-orange-500 to-orange-700 bg-clip-text text-transparent">
+    <div className="card-brand p-8 text-center">
+      {/* Veri dili: dev sayı (Sora 800, tabular-nums) + mono uppercase label */}
+      <div className="font-brandDisplay text-5xl md:text-6xl font-extrabold leading-none tracking-[-0.03em] tabular-nums text-brand dark:text-brand-400">
         <AnimatedNumber raw={num} />
       </div>
-      <div className="mt-2 font-semibold">{label}</div>
-      <div className="text-xs text-muted-foreground mt-1">{sub}</div>
+      <div className="mt-3 font-mono text-[11px] font-medium uppercase tracking-[0.14em]">{label}</div>
+      <div className="text-xs text-[#6E6259] dark:text-[#A99F92] mt-1">{sub}</div>
     </div>
   );
 }
@@ -1053,41 +1062,41 @@ function AnimatedNumber({ raw }: { raw: string }) {
 
 function AuthorityBadge({ icon: Icon, text }: { icon: any; text: string }) {
   return (
-    <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-border/60 bg-background/50 backdrop-blur-sm text-[11px] font-semibold">
-      <Icon className="h-3.5 w-3.5 text-orange-600" />
+    <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-ink/10 bg-paper dark:border-bone/[0.12] dark:bg-ink text-[11px] font-semibold">
+      <Icon className="h-3.5 w-3.5 text-brand" />
       <span>{text}</span>
     </div>
   );
 }
 
 function Testimonial({
-  name, role, company, avatar, avatarBg, metric, quote,
+  name, role, company, avatar, metric, quote,
 }: {
   name: string; role: string; company: string;
-  avatar: string; avatarBg: string; metric: string; quote: string;
+  avatar: string; metric: string; quote: string;
 }) {
   return (
-    <div className="p-7 rounded-2xl border bg-background flex flex-col hover:shadow-xl hover:shadow-orange-500/5 hover:border-orange-500/30 transition-all">
+    <div className="p-7 rounded-2xl border border-bone/10 bg-ink-2 flex flex-col transition-colors hover:border-brand/40">
       {/* Stars */}
       <div className="flex gap-0.5 mb-3">
         {[1, 2, 3, 4, 5].map((i) => (
-          <Star key={i} className="h-4 w-4 fill-amber-400 text-amber-400" />
+          <Star key={i} className="h-4 w-4 fill-brand-400 text-brand-400" />
         ))}
       </div>
       {/* Quote */}
-      <p className="text-sm leading-relaxed flex-1 mb-5">"{quote}"</p>
+      <p className="text-sm leading-relaxed flex-1 mb-5 text-bone/90">"{quote}"</p>
       {/* Metric badge */}
-      <div className="mb-5 inline-flex self-start items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 text-[11px] font-bold">
+      <div className="mb-5 inline-flex self-start items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#3E9B4F]/15 text-[#3E9B4F] text-[11px] font-bold">
         <TrendingUp className="h-3 w-3" /> {metric}
       </div>
       {/* Author */}
-      <div className="flex items-center gap-3 pt-4 border-t">
-        <div className={`h-10 w-10 rounded-full bg-gradient-to-br ${avatarBg} text-white grid place-items-center font-bold text-sm shrink-0`}>
+      <div className="flex items-center gap-3 pt-4 border-t border-bone/10">
+        <div className="h-10 w-10 rounded-full bg-brand text-paper grid place-items-center font-bold text-sm shrink-0">
           {avatar}
         </div>
         <div className="min-w-0">
           <div className="font-bold text-sm">{name}</div>
-          <div className="text-[11px] text-muted-foreground truncate">{role} · {company}</div>
+          <div className="text-[11px] text-[#A99F92] truncate">{role} · {company}</div>
         </div>
       </div>
     </div>
@@ -1097,11 +1106,11 @@ function Testimonial({
 function CompareRow({ row }: { row: [string, ...boolean[]] }) {
   const [label, ...vals] = row;
   return (
-    <tr className="border-t">
+    <tr className="border-t border-bone/10">
       <td className="p-4 font-medium">{label}</td>
       {vals.map((v, i) => (
-        <td key={i} className={`p-4 text-center ${i === vals.length - 1 ? 'bg-orange-500/5' : ''}`}>
-          {v ? <Check className="h-4 w-4 text-emerald-600 inline" /> : <XIcon className="h-4 w-4 text-muted-foreground/40 inline" />}
+        <td key={i} className={`p-4 text-center ${i === vals.length - 1 ? 'bg-brand/10' : ''}`}>
+          {v ? <Check className="h-4 w-4 text-[#3E9B4F] inline" /> : <XIcon className="h-4 w-4 text-bone/25 inline" />}
         </td>
       ))}
     </tr>
@@ -1114,20 +1123,20 @@ function UseCaseCard({
   icon: any; audience: string; hook: string; body: string; before: string; after: string;
 }) {
   return (
-    <div className="p-7 rounded-2xl border bg-card hover:border-orange-500/40 transition">
+    <div className="card-brand p-7 transition-colors hover:border-brand/40">
       <div className="flex items-center gap-2 mb-3">
-        <Icon className="h-5 w-5 text-orange-600" />
-        <span className="text-xs font-bold uppercase tracking-wider text-orange-600">{audience}</span>
+        <Icon className="h-5 w-5 text-brand" />
+        <span className="font-mono text-[11px] font-medium uppercase tracking-[0.14em] text-brand dark:text-brand-400">{audience}</span>
       </div>
       <h3 className="text-lg font-bold mb-2">{hook}</h3>
-      <p className="text-sm text-muted-foreground leading-relaxed mb-5">{body}</p>
+      <p className="text-sm text-[#6E6259] dark:text-[#A99F92] leading-relaxed mb-5">{body}</p>
       <div className="grid grid-cols-2 gap-2 text-xs">
-        <div className="p-3 rounded-lg bg-muted/40">
-          <div className="text-[10px] font-bold text-muted-foreground uppercase mb-1">Önce</div>
+        <div className="p-3 rounded-lg bg-ink/5 dark:bg-bone/5">
+          <div className="font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-[#6E6259] dark:text-[#A99F92] mb-1">Önce</div>
           <div className="font-semibold">{before}</div>
         </div>
-        <div className="p-3 rounded-lg bg-orange-500/10">
-          <div className="text-[10px] font-bold text-orange-600 uppercase mb-1">Sonra</div>
+        <div className="p-3 rounded-lg bg-brand/10">
+          <div className="font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-brand dark:text-brand-400 mb-1">Sonra</div>
           <div className="font-semibold">{after}</div>
         </div>
       </div>
@@ -1143,37 +1152,33 @@ function PriceCard({
   onCtaClick?: () => void;
 }) {
   return (
-    <div className={`relative p-7 rounded-2xl border flex flex-col ${
-      highlighted
-        ? 'bg-gradient-to-br from-orange-500/10 to-orange-500/5 border-orange-500/40 shadow-xl shadow-orange-500/10 lg:scale-[1.03]'
-        : 'bg-background'
-    }`}>
+    <div className={`relative card-brand p-7 flex flex-col ${highlighted ? 'border-brand' : ''}`}>
       {highlighted && (
-        <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wide bg-gradient-to-br from-orange-500 to-orange-600 text-white shadow-lg whitespace-nowrap">
-          ⭐ En Çok Tercih Edilen
+        <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-4 py-1.5 rounded-full font-mono text-[10px] font-medium uppercase tracking-[0.14em] bg-brand text-paper whitespace-nowrap">
+          En Çok Tercih Edilen
         </div>
       )}
       <h3 className="text-lg font-bold">{name}</h3>
       <div className="mt-4 mb-1">
-        <span className="text-4xl font-extrabold">{price}</span>
-        <span className="text-muted-foreground text-sm">{period}</span>
+        <span className="font-brandDisplay text-4xl font-extrabold tabular-nums">{price}</span>
+        <span className="text-[#6E6259] dark:text-[#A99F92] text-sm">{period}</span>
       </div>
-      <p className="text-xs text-muted-foreground min-h-[16px]">{annualNote}</p>
+      <p className="text-xs text-[#6E6259] dark:text-[#A99F92] min-h-[16px]">{annualNote}</p>
       <ul className="space-y-2 text-sm mt-5 mb-6 flex-1">
         {bullets.map((b, i) => (
           <li key={i} className="flex items-start gap-2">
-            <Check className={`h-4 w-4 mt-0.5 shrink-0 ${highlighted ? 'text-orange-600' : 'text-emerald-600'}`} />
+            {/* Basamak bullet — kare */}
+            <span className="mt-[7px] h-2 w-2 shrink-0 bg-brand" aria-hidden="true" />
             <span>{b}</span>
           </li>
         ))}
       </ul>
-      <Link href={href} onClick={onCtaClick}>
-        <Button
-          className={`w-full ${highlighted ? 'bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white' : ''}`}
-          variant={highlighted ? 'default' : 'outline'}
-        >
-          {cta}
-        </Button>
+      <Link
+        href={href}
+        onClick={onCtaClick}
+        className={`${highlighted ? 'btn-brand' : 'btn-brand-outline'} w-full`}
+      >
+        {cta}
       </Link>
     </div>
   );
@@ -1181,16 +1186,16 @@ function PriceCard({
 
 function FaqItem({ question, answer, open, onToggle }: { question: string; answer: string; open: boolean; onToggle: () => void }) {
   return (
-    <div className="rounded-xl border bg-background overflow-hidden">
+    <div className="card-brand overflow-hidden">
       <button
         onClick={onToggle}
-        className="w-full p-5 flex items-center justify-between text-left hover:bg-muted/30 transition"
+        className="w-full p-5 flex items-center justify-between text-left hover:bg-ink/[0.03] dark:hover:bg-bone/5 transition"
       >
         <span className="font-semibold">{question}</span>
         <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && (
-        <div className="px-5 pb-5 text-sm text-muted-foreground leading-relaxed border-t pt-4">
+        <div className="px-5 pb-5 text-sm text-[#6E6259] dark:text-[#A99F92] leading-relaxed border-t border-ink/10 dark:border-bone/10 pt-4">
           {answer}
         </div>
       )}
@@ -1201,11 +1206,11 @@ function FaqItem({ question, answer, open, onToggle }: { question: string; answe
 function FooterCol({ title, links }: { title: string; links: [string, string][] }) {
   return (
     <div>
-      <h4 className="font-semibold text-foreground mb-3">{title}</h4>
+      <h4 className="font-semibold text-bone mb-3">{title}</h4>
       <ul className="space-y-2 text-xs">
         {links.map(([label, href]) => (
           <li key={href}>
-            <Link href={href} className="hover:text-foreground transition">{label}</Link>
+            <Link href={href} className="hover:text-bone transition">{label}</Link>
           </li>
         ))}
       </ul>
@@ -1213,7 +1218,7 @@ function FooterCol({ title, links }: { title: string; links: [string, string][] 
   );
 }
 
-function getFaqs(t: (k: string) => string): Array<{ q: string; a: string }> {
+function getFaqs(t: ReturnType<typeof useT>['t']): Array<{ q: string; a: string }> {
   return [
     { q: t('land.faq.q1'), a: t('land.faq.a1') },
     { q: t('land.faq.q2'), a: t('land.faq.a2') },

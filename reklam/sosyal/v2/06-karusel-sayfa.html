@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="tr"><head><meta charset="utf-8">
+<link rel="stylesheet" href="../fonts/fonts.css">
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{width:1200px;height:1200px;overflow:hidden}
+  body{
+    font-family:'Geist',system-ui,sans-serif;
+    background:#F6F3EC;
+    color:#171310;
+    -webkit-font-smoothing:antialiased;
+    position:relative;
+  }
+  .frame{position:relative;height:100%;padding:84px;display:flex;flex-direction:column}
+
+  .eyebrow{font-family:'Geist Mono',ui-monospace,'SF Mono',Menlo,monospace;
+    font-weight:500;font-size:20px;letter-spacing:.14em;text-transform:uppercase;
+    color:#6E6259;display:flex;align-items:center;gap:16px}
+  .eyebrow::before{content:'';width:14px;height:14px;background:#E04E24;flex:none}
+
+  h1{margin-top:30px;font-family:'Sora',sans-serif;font-weight:800;font-size:62px;line-height:1.06;
+    letter-spacing:-.035em;color:#171310;max-width:980px}
+
+  /* gövde: serbest içerik alanı */
+  .body{flex:1;margin-top:52px;display:flex;flex-direction:column;justify-content:flex-start}
+  .content{background:#FCFAF6;border:1px solid rgba(23,19,16,.11);border-radius:16px;
+    padding:48px 52px;flex:1;display:flex;flex-direction:column;justify-content:center;gap:36px}
+  .content p{font-size:28px;line-height:1.55;color:#171310;font-weight:400}
+  .content p b{font-weight:600}
+  .li{display:flex;align-items:flex-start;gap:20px;font-size:27px;line-height:1.45;color:#171310}
+  /* liste bullet'ı = mini basamak karesi */
+  .li::before{content:'';width:14px;height:14px;background:#E04E24;flex:none;margin-top:12px}
+  .li .mut{color:#6E6259}
+
+  /* alt bar: sayfa göstergesi (basamak dizisi) + wordmark */
+  .foot{margin-top:44px;display:flex;align-items:center;justify-content:space-between}
+  .pager{display:flex;align-items:flex-end;gap:5px}
+  .pager i{display:block;width:16px;height:16px;background:rgba(23,19,16,.14)}
+  .pager i:nth-child(1){margin-bottom:0}
+  .pager i:nth-child(2){margin-bottom:10px}
+  .pager i:nth-child(3){margin-bottom:20px}
+  .pager i:nth-child(4){margin-bottom:30px}
+  .pager i:nth-child(5){margin-bottom:40px}
+  .pager i.on{background:#E04E24}
+  .wm{display:inline-flex;align-items:center;font-family:'Sora',sans-serif;font-weight:700;
+    font-size:40px;letter-spacing:-.03em;line-height:1;white-space:nowrap}
+  .wm .l{color:#171310}
+  .wm .up{color:#E04E24}
+  .wm svg{margin:0 -1px 0 2px}
+</style></head>
+<body>
+  <div class="frame">
+    <div class="eyebrow">Bölüm {{N}} / {{TOPLAM}}</div>
+    <h1>{{BAŞLIK}}</h1>
+
+    <div class="body">
+      <div class="content">
+        <p>{{İÇERİK — bu alan serbest: paragraf, madde listesi ya da mini veri bloğu. Örnek düzen aşağıda.}}</p>
+        <div class="li"><span>{{MADDE_1}} <span class="mut">— kısa açıklama</span></span></div>
+        <div class="li"><span>{{MADDE_2}} <span class="mut">— kısa açıklama</span></span></div>
+        <div class="li"><span>{{MADDE_3}} <span class="mut">— kısa açıklama</span></span></div>
+      </div>
+    </div>
+
+    <div class="foot">
+      <!-- aktif kare = bulunduğun sayfa; .on sınıfını taşı -->
+      <div class="pager"><i></i><i class="on"></i><i></i><i></i><i></i></div>
+      <span class="wm"><span class="l">Ranks</span><svg width="24" height="24" viewBox="0 0 40 40" fill="none"><path d="M10 30 L30 10" stroke="#E04E24" stroke-width="5.5" stroke-linecap="round"/><path d="M17 8.5 L31.5 8.5 L31.5 23" stroke="#E04E24" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="up">Up</span></span>
+    </div>
+  </div>
+</body></html>

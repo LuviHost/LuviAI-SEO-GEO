@@ -10,15 +10,15 @@ const LINKEDIN_HANDLE = 'luvihost';
 const SUPPORT_EMAIL = 'destek@luvihost.com';
 
 /**
- * Marketing footer — Apple-grade minimal.
- * 12-col grid, italic accent on tagline, refined social icons, generous padding.
+ * Marketing footer — Basamak marka dili.
+ * 12-col grid, bone yüzey (dark'ta ink-2), flat 1px border, turuncu vurgu.
  */
 export function SiteFooter() {
   const { t } = useT();
   const year = new Date().getFullYear();
 
   return (
-    <footer className="border-t border-border/60 bg-neutral-50 dark:bg-neutral-950/40 mt-auto">
+    <footer className="border-t border-border/60 bg-bone dark:bg-ink-2 mt-auto">
       <div className="container-apple py-16 lg:py-20">
         <div className="grid md:grid-cols-12 gap-10 lg:gap-16">
           {/* Brand column — wider, more breathing room */}
@@ -32,7 +32,7 @@ export function SiteFooter() {
             </p>
             <p className="mt-6 text-[11px] tracking-[0.04em] uppercase text-neutral-400 dark:text-neutral-500">
               Senin yerine pazarlama yapan{' '}
-              <span className="font-display italic text-[1.15em] text-neutral-700 dark:text-neutral-300 normal-case">AI</span>
+              <span className="font-brandDisplay font-semibold text-brand dark:text-brand-400">AI</span>
             </p>
             <div className="flex items-center gap-2 mt-7">
               <a
@@ -64,7 +64,7 @@ export function SiteFooter() {
           {/* Link columns */}
           <div className="md:col-span-7 grid grid-cols-3 gap-8">
             <div>
-              <h4 className="text-eyebrow text-neutral-400 dark:text-neutral-500 mb-5">Ürün</h4>
+              <h4 className="eyebrow mb-5">Ürün</h4>
               <ul className="space-y-3 text-[13px]">
                 <li><Link href="/pricing" className="text-neutral-600 dark:text-neutral-400 hover:text-foreground transition-colors duration-300 ease-apple">{t('nav.pricing')}</Link></li>
                 <li><Link href="/use-cases" className="text-neutral-600 dark:text-neutral-400 hover:text-foreground transition-colors duration-300 ease-apple">{t('nav.use_cases')}</Link></li>
@@ -75,7 +75,7 @@ export function SiteFooter() {
             </div>
 
             <div>
-              <h4 className="text-eyebrow text-neutral-400 dark:text-neutral-500 mb-5">Şirket</h4>
+              <h4 className="eyebrow mb-5">Şirket</h4>
               <ul className="space-y-3 text-[13px]">
                 <li><Link href="/about" className="text-neutral-600 dark:text-neutral-400 hover:text-foreground transition-colors duration-300 ease-apple">Hakkımızda</Link></li>
                 <li><Link href="/status" className="text-neutral-600 dark:text-neutral-400 hover:text-foreground transition-colors duration-300 ease-apple">Sistem Durumu</Link></li>
@@ -85,7 +85,7 @@ export function SiteFooter() {
             </div>
 
             <div>
-              <h4 className="text-eyebrow text-neutral-400 dark:text-neutral-500 mb-5">Yasal</h4>
+              <h4 className="eyebrow mb-5">Yasal</h4>
               <ul className="space-y-3 text-[13px]">
                 <li><Link href="/privacy" className="text-neutral-600 dark:text-neutral-400 hover:text-foreground transition-colors duration-300 ease-apple">Gizlilik</Link></li>
                 <li><Link href="/terms" className="text-neutral-600 dark:text-neutral-400 hover:text-foreground transition-colors duration-300 ease-apple">Şartlar</Link></li>

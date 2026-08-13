@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useT } from '@/lib/i18n';
+import { Eyebrow, StepMotif } from '@/components/brand';
 
 const FAQS_TR = [
   {
@@ -234,27 +235,25 @@ export default function FaqPage() {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
       />
-      {/* gradient blob */}
-      <div className="absolute inset-0 -z-10 overflow-hidden pointer-events-none">
-        <div className="absolute top-20 -left-20 w-96 h-96 bg-orange-500/10 rounded-full blur-3xl" />
-        <div className="absolute top-40 -right-20 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl" />
-      </div>
+      {/* grafik kağıdı atmosferi */}
+      <div className="absolute inset-x-0 top-0 h-80 -z-10 grid-paper-light pointer-events-none" aria-hidden="true" />
 
       <main className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <div className="text-center mb-12">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-500/10 border border-orange-500/20 text-orange-600 text-xs font-semibold mb-5">
-            {c.eyebrow}
+        <div className="relative text-center mb-12">
+          <StepMotif size={36} steps={4} className="absolute -top-1 right-0 hidden sm:block" />
+          <div className="mb-5">
+            <Eyebrow>{c.eyebrow}</Eyebrow>
           </div>
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-tight mb-4">
+          <h1 className="font-brandDisplay text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-[-0.03em] leading-[1.08] mb-4">
             {c.titleA}{' '}
-            <span className="bg-gradient-to-r from-orange-500 via-orange-600 to-red-600 bg-clip-text text-transparent">
+            <span className="text-brand dark:text-brand-400">
               {c.titleB}
             </span>{' '}
             {c.titleC}
           </h1>
           <p className="text-lg text-muted-foreground">
             {c.helpA}
-            <a href={`mailto:${c.helpEmail}`} className="text-orange-600 hover:underline">
+            <a href={`mailto:${c.helpEmail}`} className="text-brand dark:text-brand-400 hover:underline">
               {c.helpEmail}
             </a>
           </p>
@@ -264,16 +263,19 @@ export default function FaqPage() {
           {FAQS.map((item, i) => (
             <div
               key={i}
-              className={`rounded-2xl border bg-background transition-all ${
-                open === i ? 'border-orange-500/30 shadow-md' : 'hover:border-orange-500/20'
-              }`}
+              className={cn(
+                'rounded-2xl border bg-paper dark:bg-ink-2 transition-colors',
+                open === i
+                  ? 'border-brand/40 dark:border-brand-400/40'
+                  : 'border-ink/10 dark:border-bone/10 hover:border-brand/30 dark:hover:border-brand-400/30',
+              )}
             >
               <button
                 onClick={() => setOpen(open === i ? null : i)}
                 className="w-full text-left p-5 flex items-center justify-between gap-4"
               >
                 <span className="font-semibold faq-question">{item.q}</span>
-                <ChevronDown className={cn('h-5 w-5 transition-transform shrink-0 text-muted-foreground', open === i && 'rotate-180 text-orange-600')} />
+                <ChevronDown className={cn('h-5 w-5 transition-transform shrink-0 text-muted-foreground', open === i && 'rotate-180 text-brand dark:text-brand-400')} />
               </button>
               {open === i && (
                 <div className="px-5 pb-5 text-sm text-muted-foreground leading-relaxed faq-answer">
@@ -285,12 +287,15 @@ export default function FaqPage() {
         </div>
 
         {/* CTA */}
-        <div className="rounded-2xl bg-gradient-to-br from-orange-500 via-orange-600 to-red-600 text-white p-10 text-center mt-12">
-          <h2 className="text-2xl sm:text-3xl font-extrabold mb-3">{c.ctaTitle}</h2>
-          <p className="text-white/90 mb-6">{c.ctaSub}</p>
+        <div className="relative overflow-hidden rounded-2xl surface-ink grid-paper p-10 text-center mt-12">
+          <div className="flex justify-center mb-4">
+            <StepMotif size={36} steps={4} className="text-bone" />
+          </div>
+          <h2 className="font-brandDisplay text-2xl sm:text-3xl font-extrabold tracking-[-0.03em] mb-3">{c.ctaTitle}</h2>
+          <p className="text-[#A99F92] mb-6">{c.ctaSub}</p>
           <Link
             href="/onboarding"
-            className="inline-flex items-center gap-2 bg-white text-orange-600 hover:bg-white/90 px-8 py-3 rounded-lg font-bold shadow-xl"
+            className="btn-brand h-12 px-8 text-base"
           >
             {c.ctaBtn}
           </Link>

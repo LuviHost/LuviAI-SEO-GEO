@@ -7,12 +7,8 @@ import { useSession } from 'next-auth/react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { useT } from '@/lib/i18n';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { ThemeToggle } from '@/components/theme-toggle';
-import { LocaleSwitch } from '@/components/locale-switch';
-import { CheckCircle2, Sparkles, ShieldCheck, ArrowRight, Video, Lock, Clock, Star } from 'lucide-react';
+import { Eyebrow, StepMotif } from '@/components/brand';
+import { ShieldCheck, ArrowRight, Video, Lock, Clock, Star } from 'lucide-react';
 
 type CreditPack = { key: '5' | '20' | '50'; packSize: number; priceTry: number; description: string };
 type GrandfatheringInfo = { isGrandfathered: boolean; grandfatheredUntil?: string; legacyMonthlyPriceTry?: number };
@@ -143,23 +139,19 @@ export default function PricingPage() {
 
   return (
     <div className="relative">
-      {/* gradient blob accents */}
-      <div className="absolute inset-0 -z-10 overflow-hidden pointer-events-none">
-        <div className="absolute top-10 -left-20 w-96 h-96 bg-orange-500/10 rounded-full blur-3xl" />
-        <div className="absolute top-40 -right-20 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl" />
+      {/* Basamak hero atmosferi — grafik kağıdı */}
+      <div className="absolute inset-x-0 top-0 h-[480px] -z-10 overflow-hidden pointer-events-none" aria-hidden="true">
+        <div className="absolute inset-0 grid-paper-light dark:hidden" />
+        <div className="absolute inset-0 hidden dark:block grid-paper" />
       </div>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-24">
         <div className="max-w-3xl mx-auto text-center mb-12">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-500/10 border border-orange-500/20 text-orange-600 text-xs font-semibold mb-5">
-            <Sparkles className="h-3 w-3" />
-            <span>2 makale ücretsiz · Kredi kartı yok</span>
-          </div>
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-tight">
+          <div className="flex justify-center mb-4"><StepMotif size={32} steps={4} /></div>
+          <Eyebrow index="2 makale ücretsiz" className="mb-5">Kredi kartı yok</Eyebrow>
+          <h1 className="font-brandDisplay text-4xl sm:text-5xl lg:text-6xl font-bold tracking-[-0.03em] leading-tight">
             Şeffaf fiyat,{' '}
-            <span className="bg-gradient-to-r from-orange-500 via-orange-600 to-red-600 bg-clip-text text-transparent">
-              ölçeklenebilir plan
-            </span>
+            <span className="text-brand dark:text-brand-400">ölçeklenebilir plan</span>
           </h1>
           <p className="mt-5 text-lg text-muted-foreground">
             {t('pricing.subtitle')}
@@ -168,14 +160,14 @@ export default function PricingPage() {
 
         {/* Grandfathering banner — sadece mevcut user'lar icin */}
         {grandfathering?.isGrandfathered && grandfathering.grandfatheredUntil && (
-          <div className="mb-8 max-w-3xl mx-auto p-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10">
+          <div className="mb-8 max-w-3xl mx-auto p-4 card-brand">
             <div className="flex items-start gap-3">
-              <Star className="h-5 w-5 text-emerald-600 mt-0.5 shrink-0" />
+              <Star className="h-5 w-5 text-brand dark:text-brand-400 mt-0.5 shrink-0" />
               <div className="flex-1 text-sm">
-                <div className="font-semibold text-emerald-700 dark:text-emerald-400">
+                <div className="font-semibold">
                   Eski fiyatınızla devam ediyorsunuz
                 </div>
-                <p className="text-emerald-700/80 dark:text-emerald-300/80 mt-1">
+                <p className="text-muted-foreground mt-1">
                   Mevcut planınız <strong>aylık ₺{grandfathering.legacyMonthlyPriceTry?.toLocaleString('tr-TR')}</strong>{' '}
                   fiyatla{' '}
                   <strong>
@@ -192,12 +184,12 @@ export default function PricingPage() {
         )}
 
         <div className="flex justify-center mb-12">
-          <div className="inline-flex bg-background border rounded-full p-1 shadow-sm">
+          <div className="inline-flex card-brand p-1">
             <button
               onClick={() => setCycle('monthly')}
-              className={`px-6 py-2 text-sm font-medium rounded-full transition-all ${
+              className={`px-6 py-2 text-sm font-semibold rounded-[10px] transition-colors ${
                 cycle === 'monthly'
-                  ? 'bg-gradient-to-br from-orange-500 to-orange-600 text-white shadow-md'
+                  ? 'bg-ink text-bone dark:bg-bone dark:text-ink'
                   : 'text-muted-foreground hover:text-foreground'
               }`}
             >
@@ -205,14 +197,14 @@ export default function PricingPage() {
             </button>
             <button
               onClick={() => setCycle('annual')}
-              className={`px-6 py-2 text-sm font-medium rounded-full transition-all flex items-center gap-2 ${
+              className={`px-6 py-2 text-sm font-semibold rounded-[10px] transition-colors flex items-center gap-2 ${
                 cycle === 'annual'
-                  ? 'bg-gradient-to-br from-orange-500 to-orange-600 text-white shadow-md'
+                  ? 'bg-ink text-bone dark:bg-bone dark:text-ink'
                   : 'text-muted-foreground hover:text-foreground'
               }`}
             >
               {t('pricing.annual')}
-              <span className="text-[10px] bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 px-1.5 py-0.5 rounded-full font-bold">-20%</span>
+              <span className="text-[10px] bg-[#3E9B4F] text-white px-1.5 py-0.5 rounded-full font-bold">-20%</span>
             </button>
           </div>
         </div>
@@ -227,7 +219,7 @@ export default function PricingPage() {
             {fx.source === 'TCMB' && ' (TCMB)'}
             {fx.fetchedAt && ` · ${new Date(fx.fetchedAt).toLocaleDateString('tr-TR')}`}.
             {fx.stale && (
-              <span className="block mt-1 text-amber-600 dark:text-amber-400">
+              <span className="block mt-1 text-brand-600 dark:text-brand-400">
                 Güncel kur alınamadı, son bilinen kur gösteriliyor. Ödeme sırasında güncel kur uygulanır.
               </span>
             )}
@@ -246,21 +238,19 @@ export default function PricingPage() {
             return (
               <div
                 key={p.id}
-                className={`p-8 rounded-2xl border flex flex-col relative ${
-                  highlighted
-                    ? 'bg-gradient-to-br from-orange-500/10 to-orange-500/5 border-orange-500/30 shadow-xl shadow-orange-500/10 lg:scale-105'
-                    : 'bg-background hover:border-orange-500/30 transition-colors'
+                className={`card-brand p-8 flex flex-col relative transition-colors ${
+                  highlighted ? 'border-brand' : 'hover:border-brand/40'
                 }`}
               >
                 {highlighted && (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-gradient-to-br from-orange-500 to-orange-600 text-white text-[10px] font-bold uppercase tracking-wider shadow-md">
+                  <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-4 py-1.5 rounded-full font-mono text-[10px] font-medium uppercase tracking-[0.14em] bg-brand text-paper whitespace-nowrap">
                     {t('pricing.popular')}
                   </div>
                 )}
 
                 <h2 className="text-xl font-bold">{p.name}</h2>
                 <div className="mt-4">
-                  <span className="text-4xl sm:text-5xl font-extrabold">
+                  <span className="font-brandDisplay text-4xl sm:text-5xl font-extrabold tabular-nums">
                     ${price.toLocaleString('en-US')}
                   </span>
                   <span className="text-muted-foreground text-sm ml-2">
@@ -306,23 +296,18 @@ export default function PricingPage() {
                   <Feat highlight={highlighted}>GEO/AEO + AI Citation Tracking</Feat>
                 </ul>
 
-                <Button
+                <button
                   onClick={() => subscribe(p.id)}
                   disabled={loading === p.id}
-                  className={`w-full ${
-                    highlighted
-                      ? 'bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white shadow-md'
-                      : ''
-                  }`}
-                  variant={highlighted ? 'default' : 'outline'}
+                  className={`${highlighted ? 'btn-brand' : 'btn-brand-outline'} w-full disabled:opacity-60 disabled:pointer-events-none`}
                 >
                   {loading === p.id ? t('common.loading') : (
                     <>
                       {t('pricing.cta')}
-                      <ArrowRight className="ml-2 h-4 w-4" />
+                      <ArrowRight className="h-4 w-4" />
                     </>
                   )}
-                </Button>
+                </button>
               </div>
             );
           })}
@@ -332,10 +317,8 @@ export default function PricingPage() {
         {creditPacks.length > 0 && (
           <div className="mt-20 max-w-5xl mx-auto">
             <div className="text-center mb-8">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-700 dark:text-purple-300 text-xs font-semibold mb-3">
-                <Video className="h-3 w-3" /> EK VIDEO KREDİSİ
-              </div>
-              <h2 className="text-3xl font-bold">İhtiyaç anında ek video</h2>
+              <Eyebrow className="mb-3">EK VIDEO KREDİSİ</Eyebrow>
+              <h2 className="font-brandDisplay text-3xl font-bold tracking-[-0.02em]">İhtiyaç anında ek video</h2>
               <p className="mt-2 text-muted-foreground text-sm">
                 Plan kotanız dolduğunda istediğiniz zaman ek video kredisi satın alın. Tüketmediğinizde kalan kredileriniz kaybolmaz.
               </p>
@@ -348,21 +331,21 @@ export default function PricingPage() {
                 return (
                   <div
                     key={pack.key}
-                    className={`p-6 rounded-2xl border bg-background hover:border-purple-500/40 transition-colors relative ${
-                      isPro ? 'border-purple-500/30 shadow-md' : ''
+                    className={`card-brand p-6 transition-colors relative ${
+                      isPro ? 'border-brand' : 'hover:border-brand/40'
                     }`}
                   >
                     {isPro && (
-                      <div className="absolute -top-2.5 right-4 px-2 py-0.5 rounded-full bg-purple-600 text-white text-[10px] font-bold uppercase">
+                      <div className="absolute -top-2.5 right-4 px-2.5 py-0.5 rounded-full font-mono text-[10px] font-medium uppercase tracking-[0.14em] bg-brand text-paper">
                         EN POPÜLER
                       </div>
                     )}
-                    <div className="flex items-center gap-2 text-purple-600 mb-2">
+                    <div className="flex items-center gap-2 text-brand dark:text-brand-400 mb-2">
                       <Video className="h-4 w-4" />
-                      <span className="text-2xl font-bold">{pack.packSize}</span>
+                      <span className="text-2xl font-bold tabular-nums">{pack.packSize}</span>
                       <span className="text-xs text-muted-foreground">video</span>
                     </div>
-                    <div className="text-3xl font-extrabold mt-3">
+                    <div className="font-brandDisplay text-3xl font-extrabold tabular-nums mt-3">
                       ₺{pack.priceTry.toLocaleString('tr-TR')}
                     </div>
                     <div className="text-xs text-muted-foreground mt-1">
@@ -371,15 +354,13 @@ export default function PricingPage() {
                     <p className="text-xs text-muted-foreground mt-3 leading-relaxed min-h-[3em]">
                       {pack.description}
                     </p>
-                    <Button
+                    <button
                       onClick={() => buyCredits(pack.key)}
                       disabled={purchasingPack === pack.key}
-                      variant={isPro ? 'default' : 'outline'}
-                      className={`w-full mt-4 ${isPro ? 'bg-purple-600 hover:bg-purple-700' : ''}`}
-                      size="sm"
+                      className={`${isPro ? 'btn-brand' : 'btn-brand-outline'} w-full mt-4 h-9 text-sm disabled:opacity-60 disabled:pointer-events-none`}
                     >
                       {purchasingPack === pack.key ? 'Yönlendiriliyor...' : 'Satın Al'}
-                    </Button>
+                    </button>
                   </div>
                 );
               })}
@@ -402,12 +383,11 @@ export default function PricingPage() {
   );
 }
 
-function Feat({ children, highlight, muted }: { children: React.ReactNode; highlight?: boolean; muted?: boolean }) {
+function Feat({ children, muted }: { children: React.ReactNode; highlight?: boolean; muted?: boolean }) {
   return (
     <li className={`flex items-start gap-2 ${muted ? 'text-muted-foreground' : 'text-foreground/90'}`}>
-      <CheckCircle2 className={`h-4 w-4 mt-0.5 shrink-0 ${
-        muted ? 'text-muted-foreground/50' : highlight ? 'text-orange-600' : 'text-emerald-600'
-      }`} />
+      {/* Basamak bullet — kare */}
+      <span className={`mt-[7px] h-2 w-2 shrink-0 ${muted ? 'bg-muted-foreground/40' : 'bg-brand'}`} aria-hidden="true" />
       <span>{children}</span>
     </li>
   );

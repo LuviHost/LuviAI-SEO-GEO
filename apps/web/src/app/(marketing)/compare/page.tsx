@@ -2,9 +2,8 @@
 
 import Link from 'next/link';
 import { Check, X, Crown, Sparkles, Zap, Globe, Shield, Network, Award, BarChart3 } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Eyebrow, StepMotif } from '@/components/brand';
 import { useT } from '@/lib/i18n';
 
 interface FeatureRow {
@@ -323,7 +322,7 @@ const COPY = {
 
 function makeCell(yesLabel: string, noLabel: string) {
   return function Cell({ value }: { value: boolean | string }) {
-    if (value === true) return <Check className="h-4 w-4 text-emerald-500 mx-auto" aria-label={yesLabel} />;
+    if (value === true) return <Check className="h-4 w-4 text-[#3E9B4F] mx-auto" aria-label={yesLabel} />;
     if (value === false) return <X className="h-4 w-4 text-muted-foreground/30 mx-auto" aria-label={noLabel} />;
     return <span className="text-xs text-center block text-foreground/80 font-medium">{value}</span>;
   };
@@ -331,9 +330,9 @@ function makeCell(yesLabel: string, noLabel: string) {
 
 function makeLuviCell(yesLabel: string, noLabel: string) {
   return function LuviCell({ value }: { value: boolean | string }) {
-    if (value === true) return <Check className="h-4 w-4 text-emerald-500 mx-auto" aria-label={yesLabel} />;
+    if (value === true) return <Check className="h-4 w-4 text-[#3E9B4F] mx-auto" aria-label={yesLabel} />;
     if (value === false) return <X className="h-4 w-4 text-muted-foreground/30 mx-auto" aria-label={noLabel} />;
-    return <span className="text-xs text-center block text-brand font-bold">{value}</span>;
+    return <span className="text-xs text-center block text-brand dark:text-brand-400 font-bold">{value}</span>;
   };
 }
 
@@ -346,7 +345,7 @@ export default function ComparePage() {
   const LuviCell = makeLuviCell(locale === 'en' ? 'Yes' : 'Var', locale === 'en' ? 'No' : 'Yok');
 
   return (
-    <div className="bg-gradient-to-b from-background via-background to-muted/40">
+    <div className="bg-background">
       {/* JSON-LD: ComparisonTable + FAQ */}
       <script
         type="application/ld+json"
@@ -370,70 +369,62 @@ export default function ComparePage() {
       />
 
       <main className="relative">
-        <div className="absolute inset-0 -z-10 overflow-hidden pointer-events-none">
-          <div className="absolute top-20 -left-20 w-96 h-96 bg-orange-500/10 rounded-full blur-3xl" />
-          <div className="absolute top-60 -right-20 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl" />
+        {/* Basamak hero atmosferi — grafik kağıdı */}
+        <div className="absolute inset-x-0 top-0 h-[480px] -z-10 overflow-hidden pointer-events-none" aria-hidden="true">
+          <div className="absolute inset-0 grid-paper-light dark:hidden" />
+          <div className="absolute inset-0 hidden dark:block grid-paper" />
         </div>
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         {/* HERO */}
         <div className="text-center max-w-3xl mx-auto mb-12">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-500/10 border border-orange-500/20 text-orange-600 text-xs font-semibold mb-5">
-            {c.eyebrow}
-          </div>
-          <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-tight mb-4">
+          <div className="flex justify-center mb-4"><StepMotif size={32} steps={4} /></div>
+          <Eyebrow className="mb-5">{c.eyebrow}</Eyebrow>
+          <h1 className="font-brandDisplay text-4xl sm:text-5xl lg:text-6xl font-bold tracking-[-0.03em] leading-tight mb-4">
             {c.titleA}{' '}
-            <span className="bg-gradient-to-r from-orange-500 via-orange-600 to-red-600 bg-clip-text text-transparent">
-              {c.titleB}
-            </span>
+            <span className="text-brand dark:text-brand-400">{c.titleB}</span>
           </h1>
           <p className="text-lg text-muted-foreground mb-6">
             <strong className="text-foreground">{luviaiCount}{c.leadA}</strong>{c.lead}
           </p>
           <div className="flex flex-wrap justify-center gap-2 text-xs">
-            <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/30">{c.badge1}</Badge>
-            <Badge className="bg-brand/10 text-brand border-brand/30">{c.badge2}</Badge>
-            <Badge className="bg-orange-500/10 text-orange-600 border-orange-500/30">{c.badge3}</Badge>
-            <Badge className="bg-purple-500/10 text-purple-600 border-purple-500/30">{c.badge4}</Badge>
+            <Badge className="bg-brand/10 text-brand dark:text-brand-400 border-brand/30">{c.badge1}</Badge>
+            <Badge className="bg-brand/10 text-brand dark:text-brand-400 border-brand/30">{c.badge2}</Badge>
+            <Badge className="bg-brand/10 text-brand dark:text-brand-400 border-brand/30">{c.badge3}</Badge>
+            <Badge className="bg-brand/10 text-brand dark:text-brand-400 border-brand/30">{c.badge4}</Badge>
           </div>
         </div>
 
         {/* HIGHLIGHT CARDS - Why RanksUp */}
         <div className="grid sm:grid-cols-3 gap-4 mb-12">
-          <Card className="border-brand/20 bg-brand/5">
-            <CardContent className="p-5">
-              <div className="text-2xl font-bold text-brand mb-1">6-1</div>
-              <div className="text-sm font-semibold mb-1">{c.hc1Title}</div>
-              <p className="text-xs text-muted-foreground">{c.hc1Desc}</p>
-            </CardContent>
-          </Card>
-          <Card className="border-emerald-500/20 bg-emerald-500/5">
-            <CardContent className="p-5">
-              <div className="text-2xl font-bold text-emerald-600 mb-1">{c.hc2Num}</div>
-              <div className="text-sm font-semibold mb-1">{c.hc2Title}</div>
-              <p className="text-xs text-muted-foreground">{c.hc2Desc}</p>
-            </CardContent>
-          </Card>
-          <Card className="border-orange-500/20 bg-orange-500/5">
-            <CardContent className="p-5">
-              <div className="text-2xl font-bold text-orange-600 mb-1">{c.hc3Num}</div>
-              <div className="text-sm font-semibold mb-1">{c.hc3Title}</div>
-              <p className="text-xs text-muted-foreground">{c.hc3Desc}</p>
-            </CardContent>
-          </Card>
+          <div className="card-brand p-5">
+            <div className="font-brandDisplay text-2xl font-bold text-brand dark:text-brand-400 mb-1 tabular-nums">6-1</div>
+            <div className="text-sm font-semibold mb-1">{c.hc1Title}</div>
+            <p className="text-xs text-muted-foreground">{c.hc1Desc}</p>
+          </div>
+          <div className="card-brand p-5">
+            <div className="font-brandDisplay text-2xl font-bold text-brand dark:text-brand-400 mb-1 tabular-nums">{c.hc2Num}</div>
+            <div className="text-sm font-semibold mb-1">{c.hc2Title}</div>
+            <p className="text-xs text-muted-foreground">{c.hc2Desc}</p>
+          </div>
+          <div className="card-brand p-5">
+            <div className="font-brandDisplay text-2xl font-bold text-brand dark:text-brand-400 mb-1">{c.hc3Num}</div>
+            <div className="text-sm font-semibold mb-1">{c.hc3Title}</div>
+            <p className="text-xs text-muted-foreground">{c.hc3Desc}</p>
+          </div>
         </div>
 
         {/* COMPARISON TABLE — grouped */}
         <div className="space-y-6">
           {FEATURE_GROUPS.map((group) => (
-            <Card key={group.title} className="overflow-hidden">
-              <div className="bg-gradient-to-r from-muted/60 to-muted/20 px-5 py-3 border-b flex items-center justify-between flex-wrap gap-2">
+            <div key={group.title} className="card-brand overflow-hidden">
+              <div className="bg-muted/40 px-5 py-3 border-b flex items-center justify-between flex-wrap gap-2">
                 <h2 className="font-semibold flex items-center gap-2 text-base">
-                  <span className="text-brand">{group.icon}</span>
+                  <span className="text-brand dark:text-brand-400">{group.icon}</span>
                   {group.title}
                 </h2>
                 {group.badge && (
-                  <Badge className="bg-brand/10 text-brand border-brand/30 text-xs">{group.badge}</Badge>
+                  <Badge className="bg-brand/10 text-brand dark:text-brand-400 border-brand/30 text-xs">{group.badge}</Badge>
                 )}
               </div>
               <div className="overflow-x-auto">
@@ -441,7 +432,7 @@ export default function ComparePage() {
                   <thead className="bg-muted/30 text-xs">
                     <tr>
                       <th className="text-left px-4 py-2.5 font-semibold w-[40%]">{c.tableHeaderFeature}</th>
-                      <th className="px-2 py-2.5 text-center bg-brand/5 font-bold text-brand min-w-[80px]">RanksUp</th>
+                      <th className="px-2 py-2.5 text-center bg-brand/5 font-bold text-brand dark:text-brand-400 min-w-[80px]">RanksUp</th>
                       <th className="px-2 py-2.5 text-center font-medium min-w-[80px]">Surfer</th>
                       <th className="px-2 py-2.5 text-center font-medium min-w-[80px]">Jasper</th>
                       <th className="px-2 py-2.5 text-center font-medium min-w-[80px]">Ahrefs</th>
@@ -467,55 +458,52 @@ export default function ComparePage() {
                   </tbody>
                 </table>
               </div>
-            </Card>
+            </div>
           ))}
         </div>
 
         {/* SUMMARY / BOTTOM CTA */}
         <div className="mt-14 grid md:grid-cols-2 gap-6">
-          <Card className="bg-gradient-to-br from-brand/5 to-transparent border-brand/20">
-            <CardContent className="p-6">
-              <h3 className="font-bold text-lg mb-3 flex items-center gap-2">
-                <Crown className="h-5 w-5 text-brand" />
-                {c.sumLeftTitle}
-              </h3>
-              <ul className="text-sm space-y-2 text-muted-foreground">
-                {c.sumLeftItems.map((it) => (
-                  <li key={it} className="flex gap-2"><Check className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" /> {it}</li>
-                ))}
-              </ul>
-              <p className="text-xs mt-4 text-muted-foreground/80">
-                {c.sumLeftNote}<strong className="text-foreground">{c.sumLeftNotePrice}</strong>{c.sumLeftNote2}<strong className="text-brand">{c.sumLeftLuviStart}</strong>{c.sumLeftNote3}<strong className="text-brand">{c.sumLeftLuviPro}</strong>{c.sumLeftNoteEnd}
-              </p>
-            </CardContent>
-          </Card>
+          <div className="card-brand p-6">
+            <h3 className="font-bold text-lg mb-3 flex items-center gap-2">
+              <Crown className="h-5 w-5 text-brand dark:text-brand-400" />
+              {c.sumLeftTitle}
+            </h3>
+            <ul className="text-sm space-y-2 text-muted-foreground">
+              {c.sumLeftItems.map((it) => (
+                <li key={it} className="flex gap-2"><Check className="h-4 w-4 text-[#3E9B4F] shrink-0 mt-0.5" /> {it}</li>
+              ))}
+            </ul>
+            <p className="text-xs mt-4 text-muted-foreground/80">
+              {c.sumLeftNote}<strong className="text-foreground">{c.sumLeftNotePrice}</strong>{c.sumLeftNote2}<strong className="text-brand dark:text-brand-400">{c.sumLeftLuviStart}</strong>{c.sumLeftNote3}<strong className="text-brand dark:text-brand-400">{c.sumLeftLuviPro}</strong>{c.sumLeftNoteEnd}
+            </p>
+          </div>
 
-          <Card className="bg-gradient-to-br from-emerald-500/5 to-transparent border-emerald-500/20">
-            <CardContent className="p-6">
-              <h3 className="font-bold text-lg mb-3 flex items-center gap-2">
-                <Sparkles className="h-5 w-5 text-emerald-600" />
-                {c.sumRightTitle}
-              </h3>
-              <ul className="text-sm space-y-2 text-muted-foreground">
-                {c.sumRightItems.map((it) => (
-                  <li key={it} className="flex gap-2"><Check className="h-4 w-4 text-emerald-500 shrink-0 mt-0.5" /> {it}</li>
-                ))}
-              </ul>
-            </CardContent>
-          </Card>
+          <div className="card-brand p-6">
+            <h3 className="font-bold text-lg mb-3 flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-brand dark:text-brand-400" />
+              {c.sumRightTitle}
+            </h3>
+            <ul className="text-sm space-y-2 text-muted-foreground">
+              {c.sumRightItems.map((it) => (
+                <li key={it} className="flex gap-2"><Check className="h-4 w-4 text-[#3E9B4F] shrink-0 mt-0.5" /> {it}</li>
+              ))}
+            </ul>
+          </div>
         </div>
 
-        {/* FINAL CTA */}
-        <div className="mt-16 rounded-2xl bg-gradient-to-br from-orange-500 via-orange-600 to-red-600 text-white p-10 text-center">
-          <h3 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold mb-3">{c.ctaTitle}</h3>
-          <p className="text-white/90 mb-6 max-w-xl mx-auto">{c.ctaSub}</p>
+        {/* FINAL CTA — surface-ink + grafik kağıdı */}
+        <div className="mt-16 relative overflow-hidden rounded-2xl surface-ink grid-paper p-10 text-center">
+          <div className="flex justify-center mb-4"><StepMotif size={40} steps={5} className="text-bone" /></div>
+          <h3 className="font-brandDisplay text-2xl sm:text-3xl lg:text-4xl font-bold tracking-[-0.02em] mb-3">{c.ctaTitle}</h3>
+          <p className="text-[#A99F92] mb-6 max-w-xl mx-auto">{c.ctaSub}</p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <Button asChild size="lg" className="bg-white text-orange-600 hover:bg-white/90 shadow-xl">
-              <Link href="/onboarding">{c.ctaPrimary}</Link>
-            </Button>
-            <Button asChild size="lg" variant="outline" className="bg-transparent border-white/30 text-white hover:bg-white/10">
-              <Link href="/pricing">{c.ctaSecondary}</Link>
-            </Button>
+            <Link href="/onboarding" className="btn-brand">
+              {c.ctaPrimary}
+            </Link>
+            <Link href="/pricing" className="btn-brand-outline border-bone/25 text-bone hover:border-brand-400 hover:text-brand-400">
+              {c.ctaSecondary}
+            </Link>
           </div>
         </div>
         </div>
