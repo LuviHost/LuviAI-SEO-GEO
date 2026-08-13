@@ -24,13 +24,26 @@ const NICHES = [
   'danışmanlık', 'üretim/sanayi', 'diğer',
 ];
 
+/**
+ * Soru kategorileri — musteri yolculugunun farkli asamalari. Teaser'da
+ * kilitli sorularin bile kategorisi gosterilir: kullanici neyi kacirdigini
+ * gorur, bu da acma motivasyonunu yaratir.
+ */
+export const QUERY_CATEGORIES = ['DISCOVERY', 'COMPARISON', 'BRAND', 'PROBLEM', 'BUYING_INTENT'] as const;
+export type QueryCategory = (typeof QUERY_CATEGORIES)[number];
+
 export interface NicheDetectionResult {
   niche: string;                  // önerilen niş (NICHES içinden veya 'diğer')
   customNiche?: string;           // 'diğer' ise daha spesifik öneri (free text)
   confidence: number;             // 0..1
   reasoning: string;              // niye bu niş seçildi
   alternatives: Array<{ niche: string; confidence: number }>;
-  queries?: string[];             // gerçek müşterinin soracağı 3 doğal soru (yerel + hizmet-spesifik)
+  /**
+   * Gercek musterinin soracagi dogal sorular (yerel + hizmet-spesifik).
+   * Landing'deki teaser 10 tanesini LISTELER ama yalnizca ilk birkacini
+   * OLCER — kilitli olanlar icin LLM cagrisi yapilmaz. bkz. public-citation.
+   */
+  queries?: Array<{ query: string; category: QueryCategory }>;
   contentReadable?: boolean;      // sitenin metinsel içeriği okunabildi mi (SPA + render başarısız → false)
   renderUsed?: boolean;           // içerik headless render ile mi elde edildi
 }
@@ -164,15 +177,27 @@ Kurallar:
 - Hangi seçenek en iyi açıklar? Eğer hiçbiri uymazsa 'diğer' seç.
 - 'diğer' seçtiysen customNiche'e 2-4 kelimelik daha spesifik etiket yaz (örn: "AI SEO platformu", "etkinlik keşif uygulaması", "B2B SaaS analitik")
 - 2-3 alternatif öner (alternatives)
-- "queries": Bu işletmeyi/siteyi arayan GERÇEK bir potansiyel müşterinin ChatGPT veya Google'a yazacağı 3 doğal Türkçe soru üret:
+- "queries": Bu işletmeyi/siteyi arayan GERÇEK bir potansiyel müşterinin ChatGPT veya Google'a yazacağı 10 doğal Türkçe soru üret:
   • Sitenin GERÇEK hizmet/ürününü yansıtsın — genel sektör adı değil. (örn. tüplü dalış okulu → "dalış kursu", emlak ofisi → "satılık daire")
   • İşletme yerelse konumu (şehir/ilçe) mutlaka içersin. (örn. Bodrum'daki dalış okulu → "Bodrum'da tüplü dalış kursu nereden alınır?")
-  • Marka adını İÇERMESİN — müşteri markayı henüz bilmiyor. "en iyi", "nerede", "nasıl", "öner" gibi keşif amaçlı sorular olsun.
-  • Her biri tek cümle, 4-12 kelime.
+  • Her biri tek cümle, 4-12 kelime. Birbirinin tekrarı OLMASIN.
+  • Her soruya bir "category" ver — 5 kategoriden ikişer soru üret:
+      DISCOVERY     → müşteri markayı bilmiyor, seçenek arıyor. Marka adı GEÇMEZ.
+                      ("Bodrum'da tüplü dalış kursu nereden alınır?")
+      COMPARISON    → seçenekleri kıyaslıyor. Marka adı GEÇMEZ.
+                      ("Bodrum'daki dalış merkezleri arasında fark ne?")
+      PROBLEM       → bir derdi var, çözüm arıyor. Marka adı GEÇMEZ.
+                      ("Hiç deneyimim yok, dalışa nasıl başlarım?")
+      BUYING_INTENT → satın almaya hazır, fiyat/şart soruyor. Marka adı GEÇMEZ.
+                      ("Dalış kursu ücretleri ne kadar, kaç gün sürer?")
+      BRAND         → markayı DUYMUŞ, doğrudan soruyor. Marka adı GEÇER.
+                      ("${title || '(marka)'} nedir, ne sunuyor?")
+  • DISCOVERY/COMPARISON/PROBLEM/BUYING_INTENT sorularında marka adı KESİNLİKLE geçmesin —
+    müşteri markayı henüz bilmiyor; markayı yazarsak ölçüm anlamsız olur.
 - Sadece JSON döndür, başka açıklama yok.
 
 Format:
-{"niche": "turizm", "customNiche": "tüplü dalış okulu", "confidence": 0.8, "reasoning": "1-2 cümle gerekçe", "alternatives": [{"niche": "spor/fitness", "confidence": 0.4}], "queries": ["Bodrum'da tüplü dalış kursu nereden alınır?", "Bodrum'da başlangıç seviyesi dalış deneyimi nasıl yapılır?", "Bodrum'da en iyi dalış merkezi hangisi?"]}`;
+{"niche": "turizm", "customNiche": "tüplü dalış okulu", "confidence": 0.8, "reasoning": "1-2 cümle gerekçe", "alternatives": [{"niche": "spor/fitness", "confidence": 0.4}], "queries": [{"query": "Bodrum'da tüplü dalış kursu nereden alınır?", "category": "DISCOVERY"}, {"query": "Bodrum'daki dalış merkezleri arasındaki fark nedir?", "category": "COMPARISON"}, {"query": "Hiç deneyimim yok, tüplü dalışa nasıl başlarım?", "category": "PROBLEM"}, {"query": "Dalış kursu ücretleri ne kadar ve kaç gün sürer?", "category": "BUYING_INTENT"}]}`;
 
     try {
       const resp = await this.anthropic.messages.create({
@@ -208,11 +233,24 @@ Format:
                 confidence: typeof a.confidence === 'number' ? a.confidence : 0,
               }))
           : [],
+        // Hem yeni {query,category} hem eski duz string formatini kabul et —
+        // model ara sira eski sekle donebiliyor, tum teaser bu yuzden bos kalmasin.
         queries: Array.isArray(parsed.queries)
           ? parsed.queries
-              .filter((q: any) => typeof q === 'string' && q.trim().length >= 8)
-              .map((q: any) => q.trim().slice(0, 160))
-              .slice(0, 3)
+              .map((q: any) => {
+                const text = typeof q === 'string' ? q : typeof q?.query === 'string' ? q.query : '';
+                const trimmed = text.trim().slice(0, 160);
+                if (trimmed.length < 8) return null;
+                const cat = String(q?.category ?? '').toUpperCase().replace(/[\s-]/g, '_');
+                return {
+                  query: trimmed,
+                  category: (QUERY_CATEGORIES as readonly string[]).includes(cat)
+                    ? (cat as QueryCategory)
+                    : ('DISCOVERY' as QueryCategory),
+                };
+              })
+              .filter((q: any): q is { query: string; category: QueryCategory } => q !== null)
+              .slice(0, 10)
           : [],
         contentReadable: true,
         renderUsed,

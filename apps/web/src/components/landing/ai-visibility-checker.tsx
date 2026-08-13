@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { ArrowRight, Check, X, Loader2, AlertCircle, Globe, Crown } from 'lucide-react';
+import { ArrowRight, Check, X, Loader2, AlertCircle, Globe, Crown, Lock } from 'lucide-react';
 import { api, ApiError } from '@/lib/api';
 import { useT } from '@/lib/i18n';
 import { VendorLogo, type VendorName } from '@/components/vendor-logo';
@@ -46,6 +46,12 @@ const COPY = {
     aiAnswer: 'AI cevabı',
     truncated: '… (kısaltıldı)',
     // Email optin
+    // Teaser kilidi
+    lockedHint: 'Bu soru henüz sorulmadı — kilidi açınca 7 motorda ölçülür.',
+    unlockTitle: '{n} soru daha kilitli',
+    unlockBody: 'Ücretsiz testte 2 soru ölçülüyor. Kalan soruları 7 AI motorunda ölçmek, rakip payını görmek ve haftalık takibe almak için hesabınızı açın.',
+    unlockCta: 'Tüm raporu aç',
+    unlockNote: 'Kayıt ücretsiz · Kart bilgisi istenmez',
     optinHeader: '📧 90 gün boyunca markanızı takip edelim',
     optinBody: '15, 30, 60, 90 gün sonra 7 AI motorda otomatik retest yapıp size branded rapor email\'i atalım. Markanızın AI cevaplarında değişimini izleyin.',
     optinPlaceholder: 'siz@example.com',
@@ -95,6 +101,12 @@ const COPY = {
     aiAnswer: 'AI answer',
     truncated: '… (truncated)',
     // Email optin
+    // Teaser lock
+    lockedHint: 'Not asked yet — unlock to measure it across all 7 engines.',
+    unlockTitle: '{n} more prompts locked',
+    unlockBody: 'The free test measures 2 prompts. Create your account to run the rest across 7 AI engines, see competitor share, and get weekly tracking.',
+    unlockCta: 'Unlock full report',
+    unlockNote: 'Free to create · No card required',
     optinHeader: '📧 Track your brand for 90 days',
     optinBody: 'We\'ll automatically retest your domain on 7 AI engines at 15, 30, 60, 90 days and email you a branded report. Track how your AI visibility evolves.',
     optinPlaceholder: 'you@example.com',
@@ -130,7 +142,17 @@ const PROVIDER_SHORT: Record<string, string> = {
 };
 
 type CheckResult = Awaited<ReturnType<typeof api.publicCitationCheck>>;
+type QueryRow = CheckResult['queries'][number];
 type Phase = 'idle' | 'loading' | 'result' | 'error';
+
+/** Soru kategorisi rozetleri — kilitli soruda da gorunur, merak yaratir. */
+export const CATEGORY_LABELS: Record<string, { tr: string; en: string }> = {
+  DISCOVERY: { tr: 'KEŞİF', en: 'DISCOVERY' },
+  COMPARISON: { tr: 'KARŞILAŞTIRMA', en: 'COMPARISON' },
+  BRAND: { tr: 'MARKA', en: 'BRAND' },
+  PROBLEM: { tr: 'PROBLEM', en: 'PROBLEM' },
+  BUYING_INTENT: { tr: 'SATIN ALMA NİYETİ', en: 'BUYING INTENT' },
+};
 
 const LOADING_MESSAGES_TR = [
   'Soruluyor: ChatGPT',
@@ -506,49 +528,26 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
                           {c.resultsHeader}
                         </h4>
                         {result.queries.map((q, idx) => (
-                          <div key={idx} className="card-brand p-4 sm:p-5">
-                            <div className="flex items-start justify-between gap-4 mb-4">
-                              <div className="flex items-start gap-3 flex-1">
-                                <span className="inline-grid place-items-center min-w-[28px] h-7 px-2 rounded-md bg-foreground text-background text-xs font-bold">
-                                  {idx + 1}
-                                </span>
-                                <p className="text-sm font-medium leading-relaxed flex-1">{q.query}</p>
+                          <div key={idx}>
+                            {/* Kilitli blogun hemen basinda acma karti */}
+                            {q.locked && !result.queries[idx - 1]?.locked && (
+                              <div className="mb-4">
+                                <UnlockCta
+                                  lockedCount={result.access?.lockedQueries ?? 0}
+                                  domain={result.domain}
+                                  onNavigate={handleReset}
+                                  labels={{ title: c.unlockTitle, body: c.unlockBody, cta: c.unlockCta, note: c.unlockNote }}
+                                />
                               </div>
-                              <div className="shrink-0 text-right">
-                                <div className="font-bold text-lg">
-                                  <span className={q.citedCount > 0 ? 'text-[#3E9B4F]' : 'text-muted-foreground'}>
-                                    {q.citedCount}
-                                  </span>
-                                  <span className="text-muted-foreground"> / {q.totalProviders}</span>
-                                </div>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-3 flex-wrap">
-                              {q.providers.map((p) => {
-                                const logo = PROVIDER_LOGOS[p.provider];
-                                const short = PROVIDER_SHORT[p.provider] || p.label;
-                                const ok = p.cited || p.brandMentioned;
-                                return (
-                                  <div key={p.provider} className="flex flex-col items-center gap-1">
-                                    <div className={`relative w-11 h-11 rounded-xl grid place-items-center ${ok ? 'bg-[#3E9B4F]/10 ring-2 ring-[#3E9B4F]/40' : 'bg-muted/60 ring-1 ring-border'}`}>
-                                      {logo && <VendorLogo name={logo} size={22} />}
-                                      <div className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full grid place-items-center ring-2 ring-background ${ok ? 'bg-[#3E9B4F] text-white' : 'bg-muted-foreground/40 text-white'}`}>
-                                        {ok ? <Check className="h-3 w-3" strokeWidth={3} /> : <X className="h-3 w-3" strokeWidth={3} />}
-                                      </div>
-                                    </div>
-                                    <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{short}</span>
-                                  </div>
-                                );
-                              })}
-                            </div>
-
-                            {/* Expandable AI responses (filtered to non-empty excerpts) */}
-                            <ResponsesToggle
-                              providers={q.providers}
+                            )}
+                            <QueryCard
+                              q={q}
+                              idx={idx}
                               brand={result.brand}
+                              lang={locale}
                               isOpen={expandedQueries.has(idx)}
                               onToggle={() => toggleQuery(idx)}
-                              labels={{ show: c.showResponses, hide: c.hideResponses, none: c.noCitedResponses, aiAnswer: c.aiAnswer, truncated: c.truncated }}
+                              labels={{ show: c.showResponses, hide: c.hideResponses, none: c.noCitedResponses, aiAnswer: c.aiAnswer, truncated: c.truncated, lockedHint: c.lockedHint }}
                             />
                           </div>
                         ))}
@@ -818,41 +817,25 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
                   {c.resultsHeader}
                 </h4>
                 {result.queries.map((q, idx) => (
-                  <div key={idx} className="card-brand p-5 hover:border-brand/40 transition-colors">
-                    <div className="flex items-start justify-between gap-4 mb-4">
-                      <div className="flex items-start gap-3 flex-1">
-                        <span className="inline-grid place-items-center min-w-[28px] h-7 px-2 rounded-md bg-foreground text-background text-xs font-bold">
-                          {idx + 1}
-                        </span>
-                        <p className="text-sm font-medium leading-relaxed flex-1">{q.query}</p>
+                  <div key={idx}>
+                    {q.locked && !result.queries[idx - 1]?.locked && (
+                      <div className="mb-4">
+                        <UnlockCta
+                          lockedCount={result.access?.lockedQueries ?? 0}
+                          domain={result.domain}
+                          labels={{ title: c.unlockTitle, body: c.unlockBody, cta: c.unlockCta, note: c.unlockNote }}
+                        />
                       </div>
-                      <div className="shrink-0 text-right">
-                        <div className="font-bold text-lg">
-                          <span className={q.citedCount > 0 ? 'text-[#3E9B4F]' : 'text-muted-foreground'}>
-                            {q.citedCount}
-                          </span>
-                          <span className="text-muted-foreground"> / {q.totalProviders}</span>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3 flex-wrap">
-                      {q.providers.map((p) => {
-                        const logo = PROVIDER_LOGOS[p.provider];
-                        const short = PROVIDER_SHORT[p.provider] || p.label;
-                        const ok = p.cited || p.brandMentioned;
-                        return (
-                          <div key={p.provider} className="flex flex-col items-center gap-1">
-                            <div className={`relative w-11 h-11 rounded-xl grid place-items-center ${ok ? 'bg-[#3E9B4F]/10 ring-2 ring-[#3E9B4F]/40' : 'bg-muted/40 ring-1 ring-border'}`}>
-                              {logo && <VendorLogo name={logo} size={22} />}
-                              <div className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full grid place-items-center ring-2 ring-background ${ok ? 'bg-[#3E9B4F] text-white' : 'bg-muted-foreground/40 text-white'}`}>
-                                {ok ? <Check className="h-3 w-3" strokeWidth={3} /> : <X className="h-3 w-3" strokeWidth={3} />}
-                              </div>
-                            </div>
-                            <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{short}</span>
-                          </div>
-                        );
-                      })}
-                    </div>
+                    )}
+                    <QueryCard
+                      q={q}
+                      idx={idx}
+                      brand={result.brand}
+                      lang={locale}
+                      isOpen={expandedQueries.has(idx)}
+                      onToggle={() => toggleQuery(idx)}
+                      labels={{ show: c.showResponses, hide: c.hideResponses, none: c.noCitedResponses, aiAnswer: c.aiAnswer, truncated: c.truncated, lockedHint: c.lockedHint }}
+                    />
                   </div>
                 ))}
               </div>
@@ -909,6 +892,146 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
         )}
       </div>
     </section>
+  );
+}
+
+export interface QueryCardProps {
+  q: QueryRow;
+  idx: number;
+  brand: string;
+  lang: 'tr' | 'en';
+  isOpen: boolean;
+  onToggle: () => void;
+  labels: { show: string; hide: string; none: string; aiAnswer: string; truncated: string; lockedHint: string };
+}
+
+/**
+ * Tek soru karti — hem modal hem standalone modunda ayni bilesen.
+ *
+ * KILITLI DURUM: soru metni ve kategorisi GORUNUR, sonuc alani placeholder.
+ * Buradaki bulaniklik kozmetiktir; asil kilit sunucuda — kilitli sorgu icin
+ * LLM cagrisi hic yapilmaz, `providers` bos dizi olarak gelir. Yani devtools
+ * acan biri de bir sey goremez, cunku gonderilen veri yok.
+ */
+export function QueryCard({ q, idx, brand, lang, isOpen, onToggle, labels }: QueryCardProps) {
+  const catLabel = q.category ? CATEGORY_LABELS[q.category]?.[lang] : undefined;
+
+  if (q.locked) {
+    return (
+      <div className="card-brand p-4 sm:p-5 relative overflow-hidden">
+        <div className="flex items-start justify-between gap-4 mb-4">
+          <div className="flex items-start gap-3 flex-1 min-w-0">
+            <span className="inline-grid place-items-center min-w-[28px] h-7 px-2 rounded-md bg-muted text-muted-foreground text-xs font-bold">
+              {idx + 1}
+            </span>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium leading-relaxed">{q.query}</p>
+              {catLabel && (
+                <span className="inline-block mt-1.5 text-[10px] font-bold uppercase tracking-wider text-brand/70 bg-brand/10 px-1.5 py-0.5 rounded">
+                  {catLabel}
+                </span>
+              )}
+            </div>
+          </div>
+          <Lock className="h-4 w-4 text-muted-foreground/60 shrink-0 mt-1.5" aria-hidden />
+        </div>
+
+        {/* Olculmemis sonuc alani — veri yok, yer tutucu var */}
+        <div className="flex items-center gap-3 flex-wrap" aria-label={labels.lockedHint}>
+          {Array.from({ length: Math.min(q.totalProviders || 7, 7) }).map((_, i) => (
+            <div key={i} className="flex flex-col items-center gap-1">
+              <div className="w-11 h-11 rounded-xl bg-muted/60 ring-1 ring-border animate-pulse" />
+              <div className="h-2 w-9 rounded bg-muted/60" />
+            </div>
+          ))}
+        </div>
+        <p className="mt-3 text-xs text-muted-foreground">{labels.lockedHint}</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="card-brand p-4 sm:p-5">
+      <div className="flex items-start justify-between gap-4 mb-4">
+        <div className="flex items-start gap-3 flex-1 min-w-0">
+          <span className="inline-grid place-items-center min-w-[28px] h-7 px-2 rounded-md bg-foreground text-background text-xs font-bold">
+            {idx + 1}
+          </span>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium leading-relaxed">{q.query}</p>
+            {catLabel && (
+              <span className="inline-block mt-1.5 text-[10px] font-bold uppercase tracking-wider text-brand/70 bg-brand/10 px-1.5 py-0.5 rounded">
+                {catLabel}
+              </span>
+            )}
+          </div>
+        </div>
+        <div className="shrink-0 text-right">
+          <div className="font-bold text-lg">
+            <span className={q.citedCount > 0 ? 'text-[#3E9B4F]' : 'text-muted-foreground'}>{q.citedCount}</span>
+            <span className="text-muted-foreground"> / {q.totalProviders}</span>
+          </div>
+        </div>
+      </div>
+      <div className="flex items-center gap-3 flex-wrap">
+        {q.providers.map((p) => {
+          const logo = PROVIDER_LOGOS[p.provider];
+          const short = PROVIDER_SHORT[p.provider] || p.label;
+          const ok = p.cited || p.brandMentioned;
+          return (
+            <div key={p.provider} className="flex flex-col items-center gap-1">
+              <div className={`relative w-11 h-11 rounded-xl grid place-items-center ${ok ? 'bg-[#3E9B4F]/10 ring-2 ring-[#3E9B4F]/40' : 'bg-muted/60 ring-1 ring-border'}`}>
+                {logo && <VendorLogo name={logo} size={22} />}
+                <div className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full grid place-items-center ring-2 ring-background ${ok ? 'bg-[#3E9B4F] text-white' : 'bg-muted-foreground/40 text-white'}`}>
+                  {ok ? <Check className="h-3 w-3" strokeWidth={3} /> : <X className="h-3 w-3" strokeWidth={3} />}
+                </div>
+              </div>
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{short}</span>
+            </div>
+          );
+        })}
+      </div>
+
+      <ResponsesToggle
+        providers={q.providers}
+        brand={brand}
+        isOpen={isOpen}
+        onToggle={onToggle}
+        labels={labels}
+      />
+    </div>
+  );
+}
+
+interface UnlockCtaProps {
+  lockedCount: number;
+  domain: string;
+  onNavigate?: () => void;
+  labels: { title: string; body: string; cta: string; note: string };
+}
+
+/** Kilitli sorularin hemen ustunde duran acma karti. */
+function UnlockCta({ lockedCount, domain, onNavigate, labels }: UnlockCtaProps) {
+  if (lockedCount <= 0) return null;
+  return (
+    <div className="rounded-2xl border-2 border-brand/40 bg-brand/5 p-5 text-center">
+      <div className="inline-grid place-items-center w-10 h-10 rounded-full bg-brand/15 mb-3">
+        <Lock className="h-5 w-5 text-brand" />
+      </div>
+      <h5 className="font-bold text-base mb-1.5">{labels.title.replace('{n}', String(lockedCount))}</h5>
+      <p className="text-xs text-muted-foreground mb-4 leading-relaxed max-w-md mx-auto">{labels.body}</p>
+      <Link
+        // Giris sonrasi /unlock'a doner ve kalan sorular uye kademesinde olculur.
+        // signin sayfasi callbackUrl'i yalnizca uygulama-ici goreli yol olarak kabul eder.
+        href={`/signin?callbackUrl=${encodeURIComponent(`/unlock?domain=${encodeURIComponent(domain)}`)}`}
+        onClick={onNavigate}
+        className="inline-flex items-center justify-center gap-2 btn-brand px-6 py-2.5 text-sm font-bold rounded-lg"
+      >
+        {labels.cta}
+        <ArrowRight className="h-4 w-4" />
+      </Link>
+      <p className="text-[11px] text-muted-foreground/80 mt-2.5">{labels.note}</p>
+    </div>
   );
 }
 

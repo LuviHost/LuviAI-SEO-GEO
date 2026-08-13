@@ -1658,6 +1658,9 @@ export const api = {
       customNiche?: string;
       queries: Array<{
         query: string;
+        category?: string;
+        /** true = soru listelendi ama olculmedi; providers BOS gelir. */
+        locked?: boolean;
         providers: Array<{
           provider: string;
           label: string;
@@ -1672,9 +1675,26 @@ export const api = {
       totalLlmCalls: number;
       fromCache: boolean;
       cachedAt?: string;
+      access?: {
+        tier: 'anon' | 'member';
+        unlockedQueries: number;
+        totalQueries: number;
+        lockedQueries: number;
+      };
     }>('/public/citation-check', {
       method: 'POST',
       body: JSON.stringify({ domain, turnstileToken }),
+    }),
+
+  /**
+   * Teaser kilidini acar — GIRIS GEREKIR. Landing'de 10 sorudan 2'si olculur;
+   * bu uc kalanlari da olcup (uye kademesi → Opus 5) tam raporu doner.
+   * Plan basina aylik citationTests kotasina tabidir.
+   */
+  publicCitationUnlock: (domain: string) =>
+    request<Awaited<ReturnType<typeof api.publicCitationCheck>>>('/public/citation-check/unlock', {
+      method: 'POST',
+      body: JSON.stringify({ domain }),
     }),
 
   publicCitationRateLimit: () =>
