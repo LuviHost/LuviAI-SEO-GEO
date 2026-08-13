@@ -8,7 +8,7 @@ export const metadata: Metadata = {
   alternates: { canonical: `${SITE_URL}/pricing` },
   openGraph: {
     title: 'RanksUp Fiyatlandırma — ₺1.499 / ₺4.999 / ₺14.999 / ₺34.999',
-    description: '2 makale ücretsiz, kart gerekmez. 4 plan + video credit add-on, tüm özellikler dahil.',
+    description: '2 makale ücretsiz, kart gerekmez. 4 plan, tüm özellikler dahil.',
     url: `${SITE_URL}/pricing`,
   },
 };
@@ -30,7 +30,7 @@ const pricingJsonLd = {
       '@type': 'SoftwareApplication',
       '@id': `${SITE_URL}/pricing#software`,
       name: 'RanksUp',
-      description: 'AI destekli SEO + GEO, içerik üretimi, ASO, Apple Search Ads ve sosyal medya otomasyon platformu.',
+      description: 'AI destekli GEO + SEO, içerik üretimi, ASO ve Apple Search Ads otomasyon platformu.',
       applicationCategory: 'BusinessApplication',
       applicationSubCategory: 'SEO + Content Automation',
       operatingSystem: 'Web',

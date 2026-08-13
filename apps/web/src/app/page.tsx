@@ -770,7 +770,7 @@ function ProductPreview() {
               <MiniStat label="AI Citation" value="47" delta="+12" deltaColor="emerald" />
               <MiniStat label="ASO Skor" value="78" delta="+5" deltaColor="emerald" />
               <MiniStat label="ASA CPI" value="$0.42" delta="-23%" deltaColor="emerald" />
-              <MiniStat label="Post" value="124" delta="+18" deltaColor="emerald" />
+              <MiniStat label="AI Payı" value="%38" delta="+9" deltaColor="emerald" />
             </div>
 
             {/* Citation chart */}
@@ -837,7 +837,7 @@ function ProductPreview() {
               <FeedItem time="şimdi" icon="📈" text="Sıralaman yükseldi: 'ön muhasebe' #8 → #3" />
               <FeedItem time="2dk" icon="🤖" text="Auto-Pilot 3 yeni keyword ekledi" />
               <FeedItem time="14dk" icon="✍️" text="AI yeni makale üretti: 'KOBİ vergi takvimi 2026'" />
-              <FeedItem time="42dk" icon="🚀" text="LinkedIn'de yayınlandı (267 görüntüleme)" />
+              <FeedItem time="42dk" icon="🚀" text="Agent Readiness taraması: llms.txt eksik → düzeltildi" />
               <FeedItem time="1s" icon="⚡" text="ASA bid optimize edildi: $0.50 → $0.38" />
               <FeedItem time="2s" icon="🎯" text="ChatGPT'de marka mentionı +1" />
               <FeedItem time="3s" icon="📊" text="Günlük rank check tamamlandı (50 kw)" />

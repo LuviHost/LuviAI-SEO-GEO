@@ -19,10 +19,10 @@ const SITE_URL = 'https://ranksup.ai';
 // Browser tab + Google snippet için uzun başlık (60 char)
 const TITLE = 'RanksUp — AI çağının pazarlama platformu';
 // Tüm sayfalarda fallback (max 160 char Google için)
-const DESCRIPTION = 'Senin yerine pazarlama yapan AI. Site, mobil app, sosyal medya — tek panel. AI Görünürlük, ASO, Apple Search Ads, Studio, Auto-Pilot.';
+const DESCRIPTION = 'AI çağının görünürlük platformu. GEO, SEO, ASO ve Apple Search Ads tek panelde — markanı ChatGPT, Claude ve Gemini cevaplarında ölç, App Store sıralamanı yükselt.';
 // WhatsApp / Telegram / Discord unfurl için kısa versiyon (max 90 char, sosyal görseli güzelleştirir)
 const OG_TITLE = 'RanksUp — Senin yerine pazarlama yapan AI';
-const OG_DESCRIPTION = 'AI Görünürlük, ASO, Apple Search Ads, Studio — hepsi tek panel. 2 makale ücretsiz, kart gerekmez.';
+const OG_DESCRIPTION = 'GEO · SEO · ASO · Apple Search Ads — hepsi tek panel. 2 makale ücretsiz, kart gerekmez.';
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
