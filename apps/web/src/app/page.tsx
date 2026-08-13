@@ -93,6 +93,12 @@ export default function LandingPage() {
   const [openFaq, setOpenFaq] = useState<number | null>(0);
   const [testimonials, setTestimonials] = useState<PublicTestimonial[]>([]);
 
+  // Karsilastirma tablosundaki RanksUp fiyati — rakipler aylik liste fiyatiyla
+  // veriliyor, biz de giris planinin AYLIK fiyatini gosteriyoruz. plans
+  // yuklenene kadar '—' basilir; sabit yazmak iki ekranin birbirinden
+  // kaymasina yol aciyordu.
+  const comparePlan = plans.find((p) => p.id === 'starter');
+
   // Locale'i API'ye gecirmek sart: plan adi ve destek metni orada cevriliyor.
   // Sabit 'tr' oldugu surece EN ziyaretci Turkce destek metni goruyordu.
   useEffect(() => {
@@ -449,7 +455,27 @@ export default function LandingPage() {
                   <td className="text-center p-4 text-muted-foreground">$200</td>
                   <td className="text-center p-4 text-muted-foreground">$99</td>
                   <td className="text-center p-4 text-muted-foreground">$60</td>
-                  <td className="text-center p-4 bg-orange-500/10 font-bold text-orange-700 dark:text-orange-400">₺4.999 ($125)</td>
+                  {/* Fiyat ELLE YAZILMAZ — plan verisinden gelir.
+                      Burada "₺4.999 ($125)" sabiti duruyordu: fiyat karti ayni
+                      plan icin $124 gosterirken tablo $125 diyordu ve TL tutari
+                      kurdan bagimsiz sabit kaldigi icin iyice bayatlamisti
+                      (bugunku kurla $149 ≈ ₺7.100). Artik /billing/plans ile
+                      ayni kaynak. */}
+                  <td className="text-center p-4 bg-orange-500/10 font-bold text-orange-700 dark:text-orange-400">
+                    {comparePlan ? (
+                      <>
+                        ${comparePlan.monthly.toLocaleString('en-US')}
+                        {comparePlan.monthlyTry > 0 && (
+                          <span className="block text-[11px] font-normal text-orange-700/70 dark:text-orange-400/70">
+                            ≈ ₺{comparePlan.monthlyTry.toLocaleString('tr-TR')}
+                          </span>
+                        )}
+                        <span className="block text-[11px] font-normal text-orange-700/70 dark:text-orange-400/70">
+                          {t('land.cmp.annual_hint')} ${Math.round(comparePlan.annual / 12).toLocaleString('en-US')}
+                        </span>
+                      </>
+                    ) : '—'}
+                  </td>
                 </tr>
               </tbody>
             </table>

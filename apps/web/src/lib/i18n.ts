@@ -302,6 +302,7 @@ const dictionary = {
     'land.cmp.row7': 'AI makale üretimi',
     'land.cmp.row8': 'Auto-Pilot otomasyon',
     'land.cmp.row_price': 'Aylık fiyat (yaklaşık)',
+    'land.cmp.annual_hint': 'yıllıkta',
     'land.cmp.note': "* Karşılaştırma resmi web sitelerinin Pro/Team paket fiyatlarına göre. Mayıs 2026 itibarıyla.",
 
     // ─── Landing — Use Cases (3 card) ───────────────────────────
@@ -676,7 +677,8 @@ const dictionary = {
     'land.cmp.row7': 'AI article generation',
     'land.cmp.row8': 'Auto-Pilot automation',
     'land.cmp.row_price': 'Monthly price (approx.)',
-    'land.cmp.note': '* Comparison based on official Pro/Team package pricing from competitor websites. As of May 2026.',
+    'land.cmp.annual_hint': 'annual:',
+    'land.cmp.note': '* Competitor prices are their official Pro/Team packages (May 2026). The RanksUp figure is the current monthly list price of the Growth plan; the TRY amount is computed at the daily central-bank rate.',
 
     // ─── Landing — Use Cases (3 card) ───────────────────────────
     'land.uc.eyebrow': 'Who uses it',
