@@ -7,7 +7,12 @@ import { TiktokPublisherService } from './tiktok-publisher.service.js';
 import { InstagramPublisherService } from './instagram-publisher.service.js';
 import { TranslatorService } from './translator.service.js';
 import { QaGateService } from './qa-gate.service.js';
+import { RequiresPlan } from '../billing/plan-feature.decorator.js';
 
+// PLAN KAPILARI — bu dosyada yalnizca EYLEM uclari plana baglidir.
+// Programmatic SEO fiyat kartinda Ajans plani maddesi olarak satiliyor, o yuzden
+// toplu sehir uretimi ucu kapali. Duz listeleme ve gecmis GET uclari bilerek
+// ACIK birakildi; plani dusen kullanici gecmis verisini gorebilmeli.
 @Controller('sites/:siteId/articles')
 export class ArticlesController {
   constructor(
@@ -146,7 +151,8 @@ export class ArticlesController {
     return this.translator.bulkTranslateSite(siteId, body.languages ?? ['en']);
   }
 
-  /** POST /sites/:siteId/articles/programmatic/cities — 81 il icin bulk schedule */
+  /** POST /sites/:siteId/articles/programmatic/cities — 81 il icin bulk schedule (plan kapisi) */
+  @RequiresPlan('programmaticSeo')
   @Post('programmatic/cities')
   programmaticCities(
     @Param('siteId') siteId: string,

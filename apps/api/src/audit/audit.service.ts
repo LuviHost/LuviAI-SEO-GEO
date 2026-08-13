@@ -63,6 +63,10 @@ export class AuditService {
     // 4) Auriti GEO + AI Citation (Claude/Gemini/OpenAI/Perplexity) — paralel
     const [geoResult, citationResults] = await Promise.all([
       this.geo.runAudit(site.url),
+      // KULLANICI tetikli (varsayilan) — audit'i kullanici baslatir, citation
+      // kotasi gercekten dayatilir. Kota doluysa runForSite artik firlatir;
+      // asagidaki catch audit'in geri kalanini ayakta tutar, yalnizca citation
+      // bolumu bos doner.
       this.aiCitation.runForSite(siteId, 5).catch((err) => {
         this.log.warn(`[${siteId}] AI Citation testi basarisiz: ${err.message}`);
         return [] as Awaited<ReturnType<AiCitationService['runForSite']>>;

@@ -259,23 +259,35 @@ export default function PricingPage() {
                   ))}
                 </ul>
 
-                <Button
-                  onClick={() => subscribe(p.id)}
-                  disabled={loading === p.id}
-                  className={`w-full ${
-                    highlighted
-                      ? 'bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white shadow-md'
-                      : ''
-                  }`}
-                  variant={highlighted ? 'default' : 'outline'}
-                >
-                  {loading === p.id ? t('common.loading') : (
-                    <>
-                      {t('pricing.cta')}
+                {/* contactSales planlari kart akisina GIRMEZ: "sozlesmeli kurulum"
+                    vaadi varken Kurumsal'i PayTR'ye yollamak celiskiydi. API
+                    tarafinda da PURCHASABLE_PLAN_IDS ile reddediliyor. */}
+                {p.contactSales ? (
+                  <Button asChild className="w-full" variant="outline">
+                    <a href={`mailto:destek@luvihost.com?subject=${encodeURIComponent(`${p.name} planı — kurulum görüşmesi`)}`}>
+                      {t('pricing.cta_contact')}
                       <ArrowRight className="ml-2 h-4 w-4" />
-                    </>
-                  )}
-                </Button>
+                    </a>
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={() => subscribe(p.id)}
+                    disabled={loading === p.id}
+                    className={`w-full ${
+                      highlighted
+                        ? 'bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white shadow-md'
+                        : ''
+                    }`}
+                    variant={highlighted ? 'default' : 'outline'}
+                  >
+                    {loading === p.id ? t('common.loading') : (
+                      <>
+                        {t('pricing.cta')}
+                        <ArrowRight className="ml-2 h-4 w-4" />
+                      </>
+                    )}
+                  </Button>
+                )}
               </div>
             );
           })}

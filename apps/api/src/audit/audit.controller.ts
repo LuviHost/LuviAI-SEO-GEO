@@ -39,7 +39,12 @@ import { AiKpisService } from './ai-kpis.service.js';
 import { ProductRadarService } from './product-radar.service.js';
 import { CommunityAgentService } from './community-agent.service.js';
 import { LiveCrawlerService } from './live-crawler.service.js';
+import { RequiresPlan } from '../billing/plan-feature.decorator.js';
 
+// PLAN KAPILARI — bu dosyada yalnizca EYLEM uclari plana baglidir:
+// calistirma/uretme/uygulama gibi pahali POST'lar. Duz listeleme ve gecmis
+// GET uclari bilerek ACIK birakildi; plani dusen kullanici gecmis verisini
+// gorebilmeli ve disari alabilmeli.
 @Controller('sites/:siteId/audit')
 export class AuditController {
   constructor(
@@ -84,6 +89,8 @@ export class AuditController {
 
   // ────────────────────────────────────────────────────────────
   //  LIVE CRAWLER — canli AI bot akisi
+  //  Asagidaki iki GET bilerek ACIK: akisi izleme ve kurulum kodunu gorme
+  //  plana bagli degil. Plan kapisi log yutma ucunda (crawler/ingest).
   // ────────────────────────────────────────────────────────────
 
   /** GET /sites/:siteId/audit/live-crawler?minutes=10&limit=50 */
@@ -115,7 +122,8 @@ export class AuditController {
     return this.agentReadiness.getLatest(siteId);
   }
 
-  /** POST /sites/:siteId/audit/agent-readiness/run */
+  /** POST /sites/:siteId/audit/agent-readiness/run — tarama baslatir (plan kapisi) */
+  @RequiresPlan('agentReadiness')
   @Post('agent-readiness/run')
   agentReadinessRun(@Param('siteId') siteId: string) {
     return this.agentReadiness.scan(siteId);
@@ -143,12 +151,17 @@ export class AuditController {
   }
 
   /** POST /sites/:siteId/audit/opportunities/derive — prompt kayiplarindan firsat cikar */
+  @RequiresPlan('contentOpportunities')
   @Post('opportunities/derive')
   deriveOpportunities(@Param('siteId') siteId: string) {
     return this.opportunities.derive(siteId);
   }
 
-  /** PATCH /sites/:siteId/audit/opportunities/:id — durum degistir (OPEN/PLANNED/DISMISSED) */
+  /**
+   * PATCH /sites/:siteId/audit/opportunities/:id — durum degistir (OPEN/PLANNED/DISMISSED)
+   * PLAN KAPISI YOK: bu yalnizca isaretleme; uretim/olcum yapmaz. Plani dusen
+   * kullanici acik kalan firsatlarini kapatabilmeli.
+   */
   @Patch('opportunities/:id')
   updateOpportunity(
     @Param('siteId') siteId: string,
@@ -159,12 +172,14 @@ export class AuditController {
   }
 
   /** POST /sites/:siteId/audit/opportunities/:id/generate — firsattan makale uret */
+  @RequiresPlan('contentOpportunities')
   @Post('opportunities/:id/generate')
   generateFromOpportunity(@Param('siteId') siteId: string, @Param('id') id: string) {
     return this.opportunities.generateArticle(siteId, id);
   }
 
   /** POST /sites/:siteId/audit/opportunities/:id/remeasure — yayin sonrasi yeniden olc */
+  @RequiresPlan('contentOpportunities')
   @Post('opportunities/:id/remeasure')
   remeasureOpportunity(@Param('siteId') siteId: string, @Param('id') id: string) {
     return this.opportunities.remeasure(siteId, id);
@@ -186,7 +201,8 @@ export class AuditController {
     return this.productRadar.latest(siteId);
   }
 
-  /** POST /sites/:siteId/audit/product-radar/run */
+  /** POST /sites/:siteId/audit/product-radar/run — tarama baslatir (plan kapisi) */
+  @RequiresPlan('productRadar')
   @Post('product-radar/run')
   productRadarRun(@Param('siteId') siteId: string) {
     return this.productRadar.run(siteId);
@@ -261,6 +277,8 @@ export class AuditController {
     });
   }
 
+  /** Tespit taramasi — pahali eylem, plana bagli. Yukaridaki liste GET'i acik. */
+  @RequiresPlan('stuckPages')
   @Post('stuck-pages/detect')
   async detectStuckPages(@Param('siteId') siteId: string) {
     return this.stuckDetector.detect(siteId);
@@ -279,6 +297,7 @@ export class AuditController {
     return sp;
   }
 
+  @RequiresPlan('stuckPages')
   @Post('stuck-pages/:id/recover')
   async recoverStuckPage(
     @Param('siteId') siteId: string,
@@ -298,6 +317,7 @@ export class AuditController {
     });
   }
 
+  @RequiresPlan('stuckPages')
   @Post('stuck-pages/recover-batch')
   async recoverBatch(
     @Param('siteId') siteId: string,
@@ -324,6 +344,7 @@ export class AuditController {
     return { siteId, results };
   }
 
+  @RequiresPlan('stuckPages')
   @Post('stuck-pages/recovery/:recoveryId/revert')
   async revertRecovery(
     @Param('siteId') siteId: string,
@@ -337,6 +358,8 @@ export class AuditController {
     return { ok: true };
   }
 
+  // PLAN KAPISI YOK: yalnizca isaretleme (yok say). Kurtarma/tespit gibi is
+  // yapmaz, o yuzden plani dusen kullanici listesini temizleyebilmeli.
   @Post('stuck-pages/:id/ignore')
   async ignoreStuckPage(@Param('siteId') siteId: string, @Param('id') id: string) {
     await this.stuckDetector.ignore(siteId, id);
@@ -471,6 +494,10 @@ export class AuditController {
     return this.fanout.remove(siteId, fanoutId);
   }
 
+  // Asagidaki POST uclari EYLEM'dir: kullanici tetikli calistirma, citation
+  // kotasi dayatilir (runForSite varsayilani trigger:'user'). GET
+  // citation-history sadece gecmis listeler — kotasi dolan kullanici da
+  // gormeli, o yuzden kapi yok.
   @Post('citation-test')
   async citationTest(@Param('siteId') siteId: string) {
     const results = await this.citation.runForSite(siteId, 5);
@@ -527,6 +554,7 @@ export class AuditController {
   }
 
   /** POST /sites/:siteId/audit/geo-heatmap — sektor sorularini AI'lara test et + rakiplerle karsilastir */
+  @RequiresPlan('geoHeatmap')
   @Post('geo-heatmap')
   geoHeatmap(@Param('siteId') siteId: string, @Body() body: { maxQueries?: number }) {
     return this.heatmap.runForSite(siteId, { maxQueries: body?.maxQueries });
@@ -589,7 +617,11 @@ export class AuditController {
     res.send(result.jsonl);
   }
 
-  /** POST /sites/:siteId/audit/crawler/ingest — Apache log parse + DB save */
+  /**
+   * POST /sites/:siteId/audit/crawler/ingest — Apache log parse + DB save
+   * Sunucu logu yutma ucu; Ajans maddesinin sattigi sey bu. GET history acik.
+   */
+  @RequiresPlan('liveCrawler')
   @Post('crawler/ingest')
   ingestCrawlerLog(@Param('siteId') siteId: string, @Body() body: { logContent: string }) {
     return this.crawler.ingestLog(siteId, body.logContent);

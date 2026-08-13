@@ -17,12 +17,18 @@ const ALL_SCOPES = [
   'social:read', 'social:write',
 ];
 
+// Varsayilan secim API'deki DEFAULT_SCOPES ile AYNI olmali: tum okuma.
+// Ikisi ayri durdugunda UI'dan uretilen anahtar, servis varsayilanindan
+// dar kaliyor ve kaynak bazli scope denetimi devreye girince entegrasyon
+// sessizce 403 aliyordu.
+const DEFAULT_SCOPES = ALL_SCOPES.filter((s) => s.endsWith(':read'));
+
 export default function ApiKeysPage() {
   const [keys, setKeys] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [newToken, setNewToken] = useState<string | null>(null);
-  const [form, setForm] = useState({ name: '', scopes: ['articles:read', 'sites:read', 'audit:read'] });
+  const [form, setForm] = useState({ name: '', scopes: DEFAULT_SCOPES });
 
   const load = async () => {
     setLoading(true);
@@ -41,7 +47,7 @@ export default function ApiKeysPage() {
     try {
       const r = await api.createApiKey({ name: form.name, scopes: form.scopes });
       setNewToken(r.token);
-      setForm({ name: '', scopes: ['articles:read', 'sites:read', 'audit:read'] });
+      setForm({ name: '', scopes: DEFAULT_SCOPES });
       load();
     } catch (err: any) { toast.error(err.message); }
     finally { setCreating(false); }

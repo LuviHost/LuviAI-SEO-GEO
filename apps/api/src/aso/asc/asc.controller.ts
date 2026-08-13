@@ -24,7 +24,7 @@ export class AscController {
     @Body() body: { issuerId: string; keyId: string; privateKeyPem: string },
   ) {
     const user = ensureUser(req);
-    await this.quota.enforcePlanFeature(user.id, 'ascEnabled', 'App Store Connect');
+    await this.quota.enforcePlanFeature(user.id, 'ascEnabled');
     return this.asc.connectAccount({ siteId, ...body }, user);
   }
 

@@ -1,7 +1,10 @@
 import { Injectable, ForbiddenException, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { BASE_PLANS, findPlan } from './plans.js';
+import {
+  findPlan, planHasFeature, FEATURE_MIN_PLAN, PLAN_FEATURE_LABELS,
+  type PlanFeature, type PlanId,
+} from './plans.js';
 import { acquireCronLock } from '../common/cron-lock.js';
 
 /**
@@ -171,22 +174,22 @@ export class QuotaService {
    * musterisi hepsini kullanabiliyordu. Kartta yazan her kilidin burada bir
    * karsiligi olmali; aksi halde karttaki katmanlama bos vaattir.
    */
-  async enforcePlanFeature(
-    userId: string,
-    feature: 'asaEnabled' | 'ascEnabled' | 'mcpAccess' | 'apiAccess' | 'byok',
-    label: string,
-  ): Promise<void> {
+  async enforcePlanFeature(userId: string, feature: PlanFeature): Promise<void> {
     const user = await this.prisma.user.findUniqueOrThrow({
       where: { id: userId },
       select: { plan: true },
     });
-    const plan = findPlan(user.plan.toLowerCase());
-    if (plan?.[feature]) return;
+    this.assertPlanFeature(user.plan, feature);
+  }
 
-    const minimum = BASE_PLANS.find((p) => p[feature]);
-    const needed = minimum ? minimum.name_tr : 'üst';
+  /** Plan zaten elimizdeyse DB'ye tekrar gitmeden kontrol (guard bu yolu kullanir). */
+  assertPlanFeature(plan: string, feature: PlanFeature): void {
+    const planId = plan.toLowerCase() as PlanId;
+    if (planHasFeature(planId, feature)) return;
+
+    const needed = findPlan(FEATURE_MIN_PLAN[feature])?.name_tr ?? 'üst';
     throw new ForbiddenException(
-      `${label} ${needed} planına dahildir. Planını yükselterek kullanabilirsin.`,
+      `${PLAN_FEATURE_LABELS[feature]} ${needed} planına dahildir. Planını yükselterek kullanabilirsin.`,
     );
   }
 

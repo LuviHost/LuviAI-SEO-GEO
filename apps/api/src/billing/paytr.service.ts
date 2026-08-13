@@ -4,7 +4,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { AffiliateService } from '../affiliate/affiliate.service.js';
 import { EmailService } from '../email/email.service.js';
 import { FxService } from './fx.service.js';
-import { findPlan } from './plans.js';
+import { findPlan, PURCHASABLE_PLAN_IDS } from './plans.js';
 
 /**
  * PayTR iframe API + webhook entegrasyonu.
@@ -345,6 +345,16 @@ export class PaytrService {
   private async getPlanDetails(planId: string, cycle: 'monthly' | 'annual') {
     const p = findPlan(planId);
     if (!p) throw new BadRequestException(`Bilinmeyen plan: ${planId}`);
+
+    // PURCHASABLE_PLAN_IDS bugune kadar OLU SABITTI: hicbir yerden import
+    // edilmiyordu, bu yuzden fiyat karti "Bizimle iletisime gec" dese de
+    // Kurumsal plan diger planlarla ayni PayTR kart akisindan satin
+    // alinabiliyordu — "sozlesmeli kurulum" vaadinin tersi. Artik dayatiliyor.
+    if (!PURCHASABLE_PLAN_IDS.includes(p.id)) {
+      throw new BadRequestException(
+        `${p.name_tr} plani kart ile satin alinamaz — satis ekibimizle iletisime gecin.`,
+      );
+    }
 
     const usd = cycle === 'annual' ? p.annual_usd : p.monthly_usd;
     if (usd <= 0) throw new BadRequestException(`${p.name_tr} plani satin alinamaz`);

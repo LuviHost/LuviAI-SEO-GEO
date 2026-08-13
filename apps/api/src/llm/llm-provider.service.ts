@@ -113,7 +113,21 @@ export class LLMProviderService {
 
     const records: any[] = [];
 
-    if (res.usage.inputTokens > 0) {
+    // Cache okumasi CIFT SAYILMASIN.
+    // OpenAI (prompt_tokens) ve Gemini (promptTokenCount) alanlari cache'ten
+    // okunan token'lari ICERIR — maliyet hesaplari tam bu yuzden
+    // (inputTokens - cacheReadTokens) diye cikarir. Anthropic'in input_tokens
+    // alani ise cache'i zaten HARIC tutar. Asagida 'prompt' kaydina ham
+    // inputTokens yazilip ayrica bir 'cache_read' kaydi daha acilirsa,
+    // ilk iki saglayicida ayni token iki kez sayilir ve musteriye gosterilen
+    // token toplami sisik cikar. Kayit da maliyet hesabiyla ayni konvansiyonu
+    // kullanmali.
+    const inputIncludesCacheRead = res.provider === 'openai' || res.provider === 'gemini';
+    const promptTokens = inputIncludesCacheRead
+      ? Math.max(0, res.usage.inputTokens - res.usage.cacheReadTokens)
+      : res.usage.inputTokens;
+
+    if (promptTokens > 0) {
       records.push({
         siteId: req.siteId,
         userId: req.userId,
@@ -121,12 +135,16 @@ export class LLMProviderService {
         model: res.model,
         tokenType: 'prompt',
         context: req.context,
-        inputTokens: res.usage.inputTokens,
+        inputTokens: promptTokens,
         outputTokens: 0,
         cacheReadTokens: 0,
         cacheWriteTokens: 0,
         rate: pricing.input,
-        costUsd: (res.usage.inputTokens / 1_000_000) * pricing.input,
+        // promptTokens ile ayni konvansiyon: cache'ten okunan token burada
+        // TAM ucretten sayilmaz, kendi 'cache_read' kaydinda indirimli
+        // oraniyla sayilir. Onceden ham inputTokens kullanildigi icin
+        // OpenAI/Gemini trafiginde ayni token iki kez faturalaniyordu.
+        costUsd: (promptTokens / 1_000_000) * pricing.input,
         conversationId: req.conversationId,
       });
     }
@@ -204,6 +222,13 @@ export class LLMProviderService {
     byContext: Record<string, number>;
     byDate: Record<string, number>;
     requestCount: number;
+    tokens: {
+      input: number;
+      output: number;
+      cacheRead: number;
+      cacheWrite: number;
+      total: number;
+    };
   }> {
     const days = filter.days ?? 30;
     const since = new Date(Date.now() - days * 86400000);
@@ -222,6 +247,14 @@ export class LLMProviderService {
     const byDate: Record<string, number> = {};
     let totalUsd = 0;
 
+    // Token toplamlari: alanlar TokenUsageRecord'da zaten tutuluyordu ama hicbir
+    // uca cikmiyordu. Fiyat kartindaki "AI maliyet ve token muhasebesi"
+    // maddesinin token yarisinin karsiligi olmasi icin burada toplaniyor.
+    let inputTokens = 0;
+    let outputTokens = 0;
+    let cacheReadTokens = 0;
+    let cacheWriteTokens = 0;
+
     for (const r of records) {
       const cost = Number(r.costUsd);
       totalUsd += cost;
@@ -229,8 +262,26 @@ export class LLMProviderService {
       if (r.context) byContext[r.context] = (byContext[r.context] ?? 0) + cost;
       const d = r.createdAt.toISOString().slice(0, 10);
       byDate[d] = (byDate[d] ?? 0) + cost;
+
+      inputTokens += r.inputTokens;
+      outputTokens += r.outputTokens;
+      cacheReadTokens += r.cacheReadTokens;
+      cacheWriteTokens += r.cacheWriteTokens;
     }
 
-    return { totalUsd, byProvider, byContext, byDate, requestCount: records.length };
+    return {
+      totalUsd,
+      byProvider,
+      byContext,
+      byDate,
+      requestCount: records.length,
+      tokens: {
+        input: inputTokens,
+        output: outputTokens,
+        cacheRead: cacheReadTokens,
+        cacheWrite: cacheWriteTokens,
+        total: inputTokens + outputTokens + cacheReadTokens + cacheWriteTokens,
+      },
+    };
   }
 }

@@ -94,7 +94,7 @@ export class SiteAiKeysService {
     // Plan kapisi. BYOK, calistirma kotasi dolduktan sonra olcmeye devam
     // etmenin TEK yolu (kota dolunca yalnizca BYOK saglayicilari kosar) —
     // yani kilitlenmezse alt planlar calistirma kotasini tamamen bypass eder.
-    await this.quota.enforcePlanFeature(site.userId, 'byok', 'Kendi API anahtarını bağlama (BYOK)');
+    await this.quota.enforcePlanFeature(site.userId, 'byok');
 
     const trimmed = rawKey.trim();
     const prefix = trimmed.slice(0, 8);

@@ -55,7 +55,7 @@ export class McpController {
     // oldugu icin HTTP 403 yerine RPC hatasi donuyoruz; istemciler (Claude,
     // Cursor) govdedeki hatayi kullaniciya gosterir, ciplak 403'u gostermez.
     try {
-      await this.quota.enforcePlanFeature(user.id, 'mcpAccess', 'MCP sunucusu');
+      await this.quota.enforcePlanFeature(user.id, 'mcpAccess');
     } catch (err: any) {
       res.status(403).json(this.rpcError(null, -32003, err?.message ?? 'Plan yetersiz'));
       return;

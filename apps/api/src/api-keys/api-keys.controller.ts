@@ -27,7 +27,7 @@ export class ApiKeysController {
   @Post()
   async create(@Req() req: Request, @Body() body: { name: string; scopes?: string[]; expiresInDays?: number; rateLimit?: number }) {
     const userId = ensureUser(req).id;
-    await this.quota.enforcePlanFeature(userId, 'apiAccess', 'REST API erişimi');
+    await this.quota.enforcePlanFeature(userId, 'apiAccess');
     return this.keys.create(userId, body);
   }
 

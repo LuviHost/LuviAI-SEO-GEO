@@ -71,26 +71,12 @@ describe('fiyat karti maddeleri', () => {
     }
   });
 
-  it('ozellik bayraklari merdiveni geri gitmiyor — ust plan asla ozellik kaybetmez', () => {
+  it('takip edilen uygulama sayisi merdiveni geri gitmiyor', () => {
     const ladder = ['trial', 'starter', 'pro', 'agency', 'enterprise'] as const;
-    const flags = ['asaEnabled', 'ascEnabled', 'mcpAccess', 'apiAccess', 'byok'] as const;
     for (let i = 1; i < ladder.length; i++) {
       const prev = BASE_PLANS.find((p) => p.id === ladder[i - 1])!;
       const cur = BASE_PLANS.find((p) => p.id === ladder[i])!;
-      for (const f of flags) {
-        if (prev[f]) {
-          expect(cur[f], `${cur.id} plani ${prev.id}'de acik olan ${f} ozelligini kaybetmis`).toBe(true);
-        }
-      }
       expect(cur.trackedApps, `${cur.id} uygulama < ${prev.id}`).toBeGreaterThanOrEqual(prev.trackedApps);
-    }
-  });
-
-  it('kartta kilit iddia eden her ozellik en az bir planda acik', () => {
-    const flags = ['asaEnabled', 'ascEnabled', 'mcpAccess', 'apiAccess', 'byok'] as const;
-    for (const f of flags) {
-      expect(BASE_PLANS.some((p) => p[f]), `${f} hicbir planda acik degil — kapi ulasilamaz`).toBe(true);
-      expect(BASE_PLANS.every((p) => p[f]), `${f} her planda acik — kapinin anlami yok`).toBe(false);
     }
   });
 

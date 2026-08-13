@@ -20,9 +20,18 @@ export class AiCitationTrackerService {
 
   /**
    * Tek bir site icin snapshot al ve DB'ye yaz.
+   *
+   * @param opts.trigger 'user' (VARSAYILAN) kullanicinin acikca istedigi
+   *   snapshot — aylik citation kotasi dayatilir ve tuketilir.
+   *   'system' platformun kendi otomatik izlemesi (gunluk cron, onboarding
+   *   baseline) — kota ne kontrol edilir ne de tuketilir; aksi halde kullanici
+   *   hicbir sey yapmadan kotasi bitiyordu (bkz. ai-citation.service.ts).
    */
-  async snapshotSite(siteId: string): Promise<{ saved: number; results: any[]; runAt: string }> {
-    const results = await this.citation.runForSite(siteId, 5);
+  async snapshotSite(
+    siteId: string,
+    opts: { trigger?: 'user' | 'system' } = {},
+  ): Promise<{ saved: number; results: any[]; runAt: string }> {
+    const results = await this.citation.runForSite(siteId, 5, { trigger: opts.trigger ?? 'user' });
     const runAt = new Date().toISOString();
     // UTC midnight — server timezone'a bagli kalmamak icin (TR'de setHours(0,0,0,0) bir onceki UTC gunune kayar)
     const now = new Date();
@@ -66,6 +75,8 @@ export class AiCitationTrackerService {
 
   /**
    * Tum aktif siteler icin snapshot — gunluk cron tarafindan cagrilir.
+   * Platformun kendi izlemesi oldugu icin SISTEM modunda kosar: kullanicinin
+   * citation kotasini ne kontrol eder ne de tuketir.
    */
   async snapshotAllActive(): Promise<{ sites: number; snapshots: number }> {
     const sites = await this.prisma.site.findMany({
@@ -76,7 +87,7 @@ export class AiCitationTrackerService {
     let totalSnapshots = 0;
     for (const site of sites) {
       try {
-        const r = await this.snapshotSite(site.id);
+        const r = await this.snapshotSite(site.id, { trigger: 'system' });
         totalSnapshots += r.saved;
       } catch (err: any) {
         this.log.warn(`[${site.id}] AI citation daily fail: ${err.message}`);

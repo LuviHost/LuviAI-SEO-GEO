@@ -437,7 +437,22 @@ export class AiCitationService {
   // ────────────────────────────────────────────────────────────
   //  ANA GIRIS NOKTASI
   // ────────────────────────────────────────────────────────────
-  async runForSite(siteId: string, maxProbes = 5): Promise<CitationResult[]> {
+  /**
+   * Brain'den turetilen sorgularla site gorunurlugunu olcer.
+   *
+   * @param opts.trigger Cagriyi kim baslatti — kota davranisini bu belirler.
+   *   'user'   (VARSAYILAN) kullanici bir dugmeye basti; aylik citation kotasi
+   *            gercekten dayatilir ve basarili calistirma sayaci +1 artar.
+   *   'system' platformun kendi otomasyonu (gunluk cron / otomatik izleme);
+   *            kota ne kontrol edilir ne de tuketilir.
+   */
+  async runForSite(
+    siteId: string,
+    maxProbes = 5,
+    opts: { trigger?: 'user' | 'system' } = {},
+  ): Promise<CitationResult[]> {
+    const trigger = opts.trigger ?? 'user';
+
     // Guard: AI_GLOBAL_DISABLED admin flag — ücretli LLM call'larini durdur
     try {
       const flag = await this.prisma.appSetting.findUnique({ where: { key: 'AI_GLOBAL_DISABLED' } });
@@ -456,18 +471,41 @@ export class AiCitationService {
     const userId = site.userId;
     const plan = site.user.plan;
 
-    // Kota — sadece HAVUZ kullanan testler dusurur. BYOK varsa o provider sayilmaz.
-    // Once kota kontrol et; tamamen havuzdaysa kota dusur.
+    // ────────────────────────────────────────────────────────────
+    //  KOTA — yalnizca KULLANICI tetikli calistirmalarda
+    // ────────────────────────────────────────────────────────────
+    // NEDEN iki mod var:
+    //
+    // 1) Sistem tetikli yol (AI_CITATION_DAILY -> snapshotAllActive ->
+    //    snapshotSite) her site icin sayaci +1 artiriyordu. 15 siteli bir
+    //    ajansta bu ayda ~450 calistirma demek; kullanici kendisi hicbir sey
+    //    yapmadan ~20. gunde kotasi bitiyordu. Platformun kendi izlemesi
+    //    kullanicinin satin aldigi kotadan DUSMEZ (ne kontrol, ne artis).
+    //    Havuz harcamasi zaten isOverBudget/addCost ile ayrica sinirlanir.
+    //
+    // 2) Kullanici tetikli yolda enforceCitationQuota hatasi yutuluyor ve
+    //    ardindan TUM saglayicilar yine kosuyordu — yani 300 bir limit degil
+    //    sadece bir sayacti. Artik runQueries ile ayni sekilde gercekten
+    //    blokluyor: havuz anahtarli saglayicilar devre disi kalir, BYOK
+    //    anahtari olanlar (kullanicinin kendi parasi) calismaya devam eder.
+    //    Calistirilabilecek hicbir saglayici kalmiyorsa hata disari firlatilir
+    //    ki kullanici sessiz bos sonuc yerine net bir kota mesaji gorsun.
     const status = await this.getProviderStatus(siteId, plan);
-    const usesPool = status.some(s => s.effectiveSource === 'pool');
+    let providers: Provider[] = ['anthropic', 'gemini', 'openai', 'perplexity', 'xai', 'deepseek', 'meta'];
 
-    if (usesPool) {
-      try {
-        await this.quota.enforceCitationQuota(userId);
-      } catch (err: any) {
-        // Kota dolu — bu durumda sadece BYOK olanlari calistir
-        this.log.log(`Kota dolu (user ${userId}), sadece BYOK provider'lar calisacak: ${err.message}`);
-        // Hata firlatma — BYOK olanlar calismaya devam etsin
+    if (trigger === 'user') {
+      const poolProviders = new Set(
+        status.filter(s => s.effectiveSource === 'pool').map(s => s.provider),
+      );
+      if (poolProviders.size > 0) {
+        try {
+          await this.quota.enforceCitationQuota(userId);
+        } catch (err: any) {
+          const hasByok = status.some(s => s.effectiveSource === 'byok');
+          if (!hasByok) throw err;
+          this.log.log(`[${siteId}] Citation kotasi dolu, sadece BYOK saglayicilar calisacak: ${err.message}`);
+          providers = providers.filter(p => !poolProviders.has(p));
+        }
       }
     }
 
@@ -497,14 +535,14 @@ export class AiCitationService {
 
     const uniqueCompetitors = await this.resolveCompetitors(siteId, site.brain, brand);
 
-    const providers: Provider[] = ['anthropic', 'gemini', 'openai', 'perplexity', 'xai', 'deepseek', 'meta'];
     const results = await Promise.all(
       providers.map(p => this.runProvider(p, siteId, plan, brand, url, probeQueries, uniqueCompetitors, userId)),
     );
 
-    // Havuz kullanan en az bir basarili test varsa kota +1
+    // Havuz kullanan en az bir basarili test varsa kota +1.
+    // Sistem tetikli calistirmalar sayaci ARTIRMAZ — yukaridaki (1) numarali not.
     const anyPoolSuccess = results.some(r => r.source === 'pool' && r.score !== null);
-    if (anyPoolSuccess) {
+    if (trigger === 'user' && anyPoolSuccess) {
       try { await this.quota.incrementCitationUsage(userId); } catch (e) { /* noop */ }
     }
 

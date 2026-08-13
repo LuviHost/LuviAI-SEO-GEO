@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { JobQueueService } from '../jobs/job-queue.service.js';
+import { findPlan } from '../billing/plans.js';
 
 /**
  * Programmatic SEO — sablon × deger ile bulk sayfa uretir.
@@ -44,10 +45,12 @@ export class ProgrammaticSeoService {
       include: { user: { select: { id: true, plan: true, articlesUsedThisMonth: true } } },
     });
 
-    const PLAN_LIMITS: Record<string, number> = {
-      TRIAL: 1, STARTER: 10, PRO: 40, AGENCY: 100, ENTERPRISE: 9999,
-    };
-    const limit = PLAN_LIMITS[site.user.plan] ?? 1;
+    // Aylik makale tavani plans.ts'ten okunur — TEK KAYNAK.
+    // Burada duran ayri bir PLAN_LIMITS tablosu ucuncu bir plan tanimiydi:
+    // fiyat kartiyla celisiyordu (STARTER 10 vs 15, ENTERPRISE 9999 vs 350) ve
+    // fiyat guncellendiginde sessizce eskiyordu. PlanTier enum'u BUYUK harf,
+    // plans.ts kimlikleri kucuk harf oldugu icin cevirip ariyoruz.
+    const limit = findPlan(site.user.plan.toLowerCase())?.articlesPerMonth ?? 1;
     const remaining = Math.max(0, limit - site.user.articlesUsedThisMonth);
     const actualMax = Math.min(max, remaining, cities.length);
 
@@ -101,6 +104,9 @@ export class ProgrammaticSeoService {
 
   /**
    * Turkiye'nin 81 il listesi.
+   *
+   * Liste kabaca nufusa gore siralidir. Bir donem 'Ağrı' eksikti (80 il) —
+   * fiyat karti "81 il sablonu" dedigi halde sablon 80 sayfa uretiyordu.
    */
   private getTurkishCities(): string[] {
     return [
@@ -109,8 +115,8 @@ export class ProgrammaticSeoService {
       'Samsun', 'Balıkesir', 'Kahramanmaraş', 'Van', 'Aydın', 'Tekirdağ', 'Sakarya',
       'Denizli', 'Muğla', 'Eskişehir', 'Mardin', 'Trabzon', 'Ordu', 'Afyonkarahisar',
       'Malatya', 'Erzurum', 'Sivas', 'Tokat', 'Adıyaman', 'Batman', 'Elazığ', 'Çorum',
-      'Zonguldak', 'Edirne', 'Osmaniye', 'Düzce', 'Çanakkale', 'Kütahya', 'Aksaray',
-      'Isparta', 'Yozgat', 'Bolu', 'Iğdır', 'Kırklareli', 'Kastamonu', 'Niğde',
+      'Zonguldak', 'Edirne', 'Osmaniye', 'Düzce', 'Çanakkale', 'Kütahya', 'Ağrı',
+      'Aksaray', 'Isparta', 'Yozgat', 'Bolu', 'Iğdır', 'Kırklareli', 'Kastamonu', 'Niğde',
       'Uşak', 'Kırıkkale', 'Karaman', 'Bitlis', 'Karabük', 'Burdur', 'Yalova', 'Rize',
       'Kars', 'Amasya', 'Siirt', 'Şırnak', 'Çankırı', 'Sinop', 'Hakkari', 'Bingöl',
       'Erzincan', 'Muş', 'Nevşehir', 'Kırşehir', 'Bilecik', 'Artvin', 'Bartın',

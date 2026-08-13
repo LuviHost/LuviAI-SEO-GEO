@@ -32,7 +32,7 @@ export class AsaController {
     @Body() body: { orgId: string; keyId: string; privateKeyPem: string; teamId?: string },
   ) {
     const user = ensureUser(req);
-    await this.quota.enforcePlanFeature(user.id, 'asaEnabled', 'Apple Search Ads');
+    await this.quota.enforcePlanFeature(user.id, 'asaEnabled');
     return this.asa.connectAccount({ siteId, ...body }, user);
   }
 

@@ -9,6 +9,7 @@ import { CrawlerTrackingMiddleware } from './audit/crawler-tracking.middleware.j
 import { AuthModule } from './auth/auth.module.js';
 import { AuthGuard } from './auth/auth.guard.js';
 import { SiteAccessGuard } from './auth/site-access.guard.js';
+import { PlanFeatureGuard } from './billing/plan-feature.guard.js';
 import { SitesModule } from './sites/sites.module.js';
 import { AuditModule } from './audit/audit.module.js';
 import { TopicsModule } from './topics/topics.module.js';
@@ -91,6 +92,9 @@ import { IntelModule } from './intel/intel.module.js';
     { provide: APP_GUARD, useClass: ProxyThrottlerGuard },
     { provide: APP_GUARD, useClass: AuthGuard },
     { provide: APP_GUARD, useClass: SiteAccessGuard },
+    // Plan kapilari EN SONDA: kimlik (AuthGuard) ve sahiplik (SiteAccessGuard)
+    // dogrulandiktan sonra "bu plan bu ozelligi aldi mi" sorusu sorulur.
+    { provide: APP_GUARD, useClass: PlanFeatureGuard },
   ],
 })
 export class AppModule implements NestModule {

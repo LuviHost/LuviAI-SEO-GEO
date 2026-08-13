@@ -13,6 +13,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { AppStore, KeywordSource } from '@prisma/client';
 import { AsoPromptLabService } from './aso-prompt-lab.service.js';
 import { AsoReviewContentService } from './aso-review-content.service.js';
+import { RequiresPlan } from '../billing/plan-feature.decorator.js';
 
 @Controller('sites/:siteId/aso')
 export class AsoController {
@@ -33,6 +34,9 @@ export class AsoController {
   ) {}
 
   // ─── App Prompt Lab — AI asistanlarda app onerisi takibi (GEO ⨉ ASO) ───
+  // Plan kapisi: yalnizca eylem uclarinda (prompt ekleme/oneri/calistirma/silme).
+  // Listeleme ve gecmis GET uclari acik — plani dusen kullanici gecmis olcumlerini
+  // gormeye devam edebilmeli.
 
   /** GET /sites/:siteId/aso/apps/:appId/prompts */
   @Get('apps/:appId/prompts')
@@ -42,6 +46,7 @@ export class AsoController {
 
   /** POST /sites/:siteId/aso/apps/:appId/prompts */
   @Post('apps/:appId/prompts')
+  @RequiresPlan('appPromptLab')
   addAppPrompt(
     @Param('siteId') siteId: string,
     @Param('appId') appId: string,
@@ -52,12 +57,14 @@ export class AsoController {
 
   /** POST /sites/:siteId/aso/apps/:appId/prompts/suggest — AI soru onerileri */
   @Post('apps/:appId/prompts/suggest')
+  @RequiresPlan('appPromptLab')
   suggestAppPrompts(@Param('siteId') siteId: string, @Param('appId') appId: string) {
     return this.appPromptLab.suggest(siteId, appId);
   }
 
   /** POST /sites/:siteId/aso/apps/:appId/prompts/:promptId/run — 7 saglayicida olc */
   @Post('apps/:appId/prompts/:promptId/run')
+  @RequiresPlan('appPromptLab')
   runAppPrompt(
     @Param('siteId') siteId: string,
     @Param('appId') appId: string,
@@ -79,6 +86,7 @@ export class AsoController {
 
   /** DELETE /sites/:siteId/aso/apps/:appId/prompts/:promptId */
   @Delete('apps/:appId/prompts/:promptId')
+  @RequiresPlan('appPromptLab')
   removeAppPrompt(
     @Param('siteId') siteId: string,
     @Param('appId') appId: string,
@@ -251,9 +259,13 @@ export class AsoController {
   }
 
   // ─── Screenshot Studio ──────────────────────
+  // Plan kapisi: yalnizca uretim uclarinda (background/captions/save/hand-photo).
+  // library GET acik — plani dusen kullanici gecmis uretimlerini gorebilmeli;
+  // library DELETE de acik ki kendi dosyalarini silebilsin.
 
   /** POST /aso/apps/:appId/screenshots/background — Gemini Imagen ile arkaplan üret */
   @Post('apps/:appId/screenshots/background')
+  @RequiresPlan('screenshotStudio')
   generateBackground(
     @Param('appId') appId: string,
     @Body() body: {
@@ -269,6 +281,7 @@ export class AsoController {
 
   /** POST /aso/apps/:appId/screenshots/captions — AI caption text önerileri (10 slot) */
   @Post('apps/:appId/screenshots/captions')
+  @RequiresPlan('screenshotStudio')
   generateCaptions(
     @Param('appId') appId: string,
     @Body() body: { targetKeywords?: string[]; locale?: 'tr' | 'en'; slotCount?: number },
@@ -278,6 +291,7 @@ export class AsoController {
 
   /** POST /aso/apps/:appId/screenshots/save — final PNG'i sunucuda sakla */
   @Post('apps/:appId/screenshots/save')
+  @RequiresPlan('screenshotStudio')
   saveScreenshot(
     @Param('appId') appId: string,
     @Body() body: { base64Png: string; slotIndex: number; store: 'IOS' | 'ANDROID' },
@@ -290,6 +304,7 @@ export class AsoController {
    * Multimodal Gemini: screenshot → AI hand+phone scene with screenshot embedded.
    */
   @Post('apps/:appId/screenshots/hand-photo-with-screenshot')
+  @RequiresPlan('screenshotStudio')
   generateHandPhotoWithScreenshot(
     @Param('appId') appId: string,
     @Body() body: { screenshotBase64: string; brandColor?: string; width?: number; height?: number },

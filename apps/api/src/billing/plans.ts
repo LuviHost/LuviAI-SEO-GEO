@@ -17,6 +17,77 @@
 
 export type PlanId = 'trial' | 'starter' | 'pro' | 'agency' | 'enterprise';
 
+/** Merdiven sirasi — kapi kontrolu bu siraya gore yapilir. */
+export const PLAN_RANK: Record<PlanId, number> = {
+  trial: 0, starter: 1, pro: 2, agency: 3, enterprise: 4,
+};
+
+/**
+ * Plana bagli ozellikler.
+ *
+ * Fiyat kartinda ust plan farki olarak SATILAN her ozellik burada olmak
+ * ZORUNDA. Aksi halde madde bos vaattir: ozellik calisir ama alt plan
+ * musterisi de kullanir.
+ */
+export type PlanFeature =
+  | 'asaEnabled' | 'ascEnabled' | 'appPromptLab' | 'screenshotStudio'
+  | 'agentReadiness' | 'stuckPages' | 'contentOpportunities'
+  | 'programmaticSeo' | 'productRadar' | 'geoHeatmap' | 'liveCrawler'
+  | 'costAnalytics' | 'mcpAccess' | 'apiAccess' | 'byok';
+
+/**
+ * Ozellik -> gereken EN DUSUK plan.
+ *
+ * Neden boolean tablosu degil: her plana ayri bayrak yazildiginda merdiven
+ * geriye gidebiliyordu (ust planin bir ozelligi yanlislikla false kalabilir).
+ * Minimum-plan tablosunda bu YAPISAL OLARAK imkansiz — ust plan alt planin
+ * her ozelligini otomatik alir.
+ */
+export const FEATURE_MIN_PLAN: Record<PlanFeature, PlanId> = {
+  // Profesyonel — ASO'nun para harcayan katmani ve kapali dongu
+  asaEnabled: 'pro',
+  ascEnabled: 'pro',
+  appPromptLab: 'pro',
+  screenshotStudio: 'pro',
+  agentReadiness: 'pro',
+  stuckPages: 'pro',
+  contentOpportunities: 'pro',
+  // Ajans — portfoy olcegi
+  programmaticSeo: 'agency',
+  productRadar: 'agency',
+  geoHeatmap: 'agency',
+  liveCrawler: 'agency',
+  // Kurumsal — platform erisimi
+  costAnalytics: 'enterprise',
+  mcpAccess: 'enterprise',
+  apiAccess: 'enterprise',
+  byok: 'enterprise',
+};
+
+/** Hata mesajinda kullanilan kullanici-yuzu ad. */
+export const PLAN_FEATURE_LABELS: Record<PlanFeature, string> = {
+  asaEnabled: 'Apple Search Ads',
+  ascEnabled: 'App Store Connect',
+  appPromptLab: 'App Prompt Lab',
+  screenshotStudio: 'Screenshot Studio',
+  agentReadiness: 'Agent Readiness (AXO)',
+  stuckPages: 'Takılmış sayfa tespiti',
+  contentOpportunities: 'İçerik fırsatları',
+  programmaticSeo: 'Programmatic SEO',
+  productRadar: 'Product Radar',
+  geoHeatmap: 'GEO Heatmap',
+  liveCrawler: 'Live Crawler',
+  costAnalytics: 'AI maliyet kırılımı',
+  mcpAccess: 'MCP sunucusu',
+  apiAccess: 'REST API erişimi',
+  byok: 'Kendi API anahtarını bağlama (BYOK)',
+};
+
+/** Plan bu ozellige sahip mi? */
+export function planHasFeature(plan: PlanId, feature: PlanFeature): boolean {
+  return PLAN_RANK[plan] >= PLAN_RANK[FEATURE_MIN_PLAN[feature]];
+}
+
 export interface BasePlan {
   id: PlanId;
   name_tr: string;
@@ -44,16 +115,6 @@ export interface BasePlan {
   publishTargets: 'limited' | 'all';
   /** ASO: takip edilebilir uygulama sayisi — AsoService.connectApp dayatir */
   trackedApps: number;
-  /** Apple Search Ads baglama — AsaController dayatir */
-  asaEnabled: boolean;
-  /** App Store Connect baglama — AscController dayatir */
-  ascEnabled: boolean;
-  /** MCP sunucusu erisimi — McpController dayatir */
-  mcpAccess: boolean;
-  /** REST API anahtari uretme — ApiKeysController dayatir */
-  apiAccess: boolean;
-  /** Kendi saglayici anahtarini baglama — SiteAiKeysController dayatir */
-  byok: boolean;
   support_tr: string;
   support_en: string;
   /** Kart bu planin maddelerini "X'teki her sey, arti:" diye gosterir */
@@ -95,11 +156,6 @@ export const BASE_PLANS: BasePlan[] = [
     aiProviders: 7,
     publishTargets: 'limited',
     trackedApps: 1,
-    asaEnabled: false,
-    ascEnabled: false,
-    mcpAccess: false,
-    apiAccess: false,
-    byok: false,
     support_tr: 'topluluk',
     support_en: 'community',
     features_tr: [
@@ -125,11 +181,6 @@ export const BASE_PLANS: BasePlan[] = [
     aiProviders: 7,
     publishTargets: 'all',
     trackedApps: 1,
-    asaEnabled: false,
-    ascEnabled: false,
-    mcpAccess: false,
-    apiAccess: false,
-    byok: false,
     support_tr: 'e-posta 24 saat',
     support_en: 'email 24h',
     features_tr: [
@@ -169,11 +220,6 @@ export const BASE_PLANS: BasePlan[] = [
     aiProviders: 7,
     publishTargets: 'all',
     trackedApps: 3,
-    asaEnabled: true,
-    ascEnabled: true,
-    mcpAccess: false,
-    apiAccess: false,
-    byok: false,
     support_tr: 'e-posta 4 saat',
     support_en: 'email 4h',
     inheritsFrom: 'starter',
@@ -211,17 +257,12 @@ export const BASE_PLANS: BasePlan[] = [
     aiProviders: 7,
     publishTargets: 'all',
     trackedApps: 10,
-    asaEnabled: true,
-    ascEnabled: true,
-    mcpAccess: false,
-    apiAccess: false,
-    byok: false,
     support_tr: 'öncelikli + Slack',
     support_en: 'priority + Slack',
     inheritsFrom: 'pro',
     features_tr: [
       '100 AI makale / ay · 300 görünürlük çalıştırması · 15 site',
-      'Programmatic SEO — çalıştırma başına 100 şehir sayfası (81 il şablonu)',
+      'Programmatic SEO — tek şablonla 81 ilin tamamına şehir sayfası (aylık makale kotasından düşer)',
       'Product Radar — haftalık rakip ses payı ve kategori sırası',
       'GEO Heatmap — çoklu sağlayıcıda görünürlük ısı haritası',
       'Live Crawler — AI botlarının canlı akışı + sunucu logu yutma',
@@ -229,7 +270,7 @@ export const BASE_PLANS: BasePlan[] = [
     ],
     features_en: [
       '100 AI articles/mo · 300 visibility runs · 15 sites',
-      'Programmatic SEO — 100 city pages per run (81-province template)',
+      'Programmatic SEO — one template, city pages for all 81 provinces (counts toward your monthly article quota)',
       'Product Radar — weekly competitor share-of-voice and category rank',
       'GEO Heatmap — multi-provider visibility heatmap',
       'Live Crawler — live AI bot stream + server log ingestion',
@@ -248,11 +289,6 @@ export const BASE_PLANS: BasePlan[] = [
     aiProviders: 7,
     publishTargets: 'all',
     trackedApps: 50,
-    asaEnabled: true,
-    ascEnabled: true,
-    mcpAccess: true,
-    apiAccess: true,
-    byok: true,
     support_tr: 'özel hesap yöneticisi + SLA',
     support_en: 'dedicated account manager + SLA',
     inheritsFrom: 'agency',

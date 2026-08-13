@@ -140,6 +140,7 @@ const dictionary = {
     'pricing.annual': 'Yıllık',
     'pricing.save': 'kazan',
     'pricing.cta': '2 Makale Ücretsiz Dene',
+    'pricing.cta_contact': 'Bizimle iletişime geç',
     'pricing.popular': 'EN ÇOK TERCİH EDİLEN',
     // Kart maddeleri burada TUTULMAZ — tek kaynak apps/api/src/billing/plans.ts
     // (features_tr / features_en). API locale'e gore secip yolluyor.
@@ -513,6 +514,7 @@ const dictionary = {
     'pricing.annual': 'Annual',
     'pricing.save': 'save',
     'pricing.cta': 'Try 2 Articles Free',
+    'pricing.cta_contact': 'Contact us',
     'pricing.popular': 'MOST POPULAR',
     // Card bullets are NOT kept here — single source is apps/api/src/billing/plans.ts
     // (features_tr / features_en). The API picks by locale.

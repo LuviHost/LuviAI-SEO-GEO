@@ -43,20 +43,38 @@ export class AuthGuard implements CanActivate {
       if (!user) throw new UnauthorizedException('User bulunamadi');
 
       // ── Scope zorlamasi ──
-      // Onceden scopes tamamen dekoratifti: salt-okunur uretilen anahtar
-      // DELETE /sites dahil her ucu cagirabiliyordu. Kaba ama gercek kural:
-      // mutasyon metodlari (POST/PUT/PATCH/DELETE) '*' veya ':write' iceren
-      // scope ister. /mcp harici tutulur — MCP transport'u POST'tur ama
-      // salt-okuma tool'lari da tasir; yazma denetimi tool bazinda
-      // McpController'da yapilir (mutating tool + read-only key = ret).
+      // Onceden scopes yari dekoratifti: guard yalnizca "mutasyon mu" diye
+      // bakip HERHANGI bir ':write' scope'unu yeterli sayiyordu. Yani
+      // 'social:write' tasiyan anahtar DELETE /sites cagirabiliyor, okuma
+      // scope'lari ise hic denetlenmiyordu.
+      //
+      // Artik yol -> kaynak eslesmesi yapilir ve gereken scope kaynak bazinda
+      // hesaplanir: GET '<kaynak>:read', mutasyon '<kaynak>:write'. '*' her
+      // seyi acar; ':write' ayni kaynagin ':read'ini de kapsar.
+      //
+      // Yol bilinen bir kaynaga eslesmiyorsa (requiredScope null) mevcut
+      // entegrasyonlari kirmamak icin ESKI davranisa duseriz: mutasyon icin
+      // herhangi bir ':write' yeter, GET serbest.
+      //
+      // /mcp harici tutulur — MCP transport'u POST'tur ama salt-okuma
+      // tool'lari da tasir; yazma denetimi tool bazinda McpController'da
+      // yapilir (mutating tool + read-only key = ret).
       const method = req.method.toUpperCase();
       const isMutating = !['GET', 'HEAD', 'OPTIONS'].includes(method);
       const path = (req.path ?? req.url ?? '');
       const isMcpTransport = /\/mcp\/?$/.test(path.split('?')[0] ?? '');
-      if (isMutating && !isMcpTransport) {
-        const canWrite = apiKey.scopes.includes('*') || apiKey.scopes.some((s) => s.endsWith(':write'));
-        if (!canWrite) {
-          throw new ForbiddenException('Bu API anahtari salt-okunur (yalnizca :read scope). Yazma islemi icin :write scope\'lu anahtar uret.');
+      if (!isMcpTransport) {
+        const required = this.apiKeys.requiredScope(method, path);
+        if (required) {
+          if (!this.apiKeys.hasScopeForRoute(apiKey.scopes, required)) {
+            throw new ForbiddenException(`Bu API anahtarinda "${required}" scope'u yok. Anahtari bu scope ile yeniden uret.`);
+          }
+        } else if (isMutating) {
+          // Bilinmeyen kaynak — geriye donuk uyum icin kaba kural korunur.
+          const canWrite = apiKey.scopes.includes('*') || apiKey.scopes.some((s) => s.endsWith(':write'));
+          if (!canWrite) {
+            throw new ForbiddenException('Bu API anahtari salt-okunur (yalnizca :read scope). Yazma islemi icin :write scope\'lu anahtar uret.');
+          }
         }
       }
 

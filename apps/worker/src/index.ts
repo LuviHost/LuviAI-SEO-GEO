@@ -308,7 +308,9 @@ async function bootstrap() {
           log.warn(`[${siteId}] Citation snapshot atlandi (AI_GLOBAL_DISABLED=1)`);
         } else {
           try {
-            await services.citationTracker.snapshotSite(siteId);
+            // SISTEM modu — otomatik izlemenin baseline'i; kullanicinin
+            // aylik citation kotasindan dusmez (bkz. ai-citation.service.ts).
+            await services.citationTracker.snapshotSite(siteId, { trigger: 'system' });
             log.log(`[${siteId}] AI citation baseline snapshot kaydedildi`);
           } catch (err: any) {
             log.warn(`[${siteId}] Citation snapshot atlandi: ${err.message}`);
