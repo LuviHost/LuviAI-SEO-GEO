@@ -1,6 +1,7 @@
 import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { JobQueueService } from '../jobs/job-queue.service.js';
+import { QuotaService } from '../billing/quota.service.js';
 import { CreateSiteDto, UpdateSiteDto } from './sites.dto.js';
 
 type RequestingUser = { id: string; role: 'USER' | 'ADMIN' | 'AGENCY_OWNER' };
@@ -31,9 +32,16 @@ export class SitesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly jobQueue: JobQueueService,
+    private readonly quota: QuotaService,
   ) {}
 
   async create(userId: string, dto: CreateSiteDto) {
+    // Plan site kotasi. enforceSiteQuota yazildigindan beri hicbir yerden
+    // cagrilmiyordu — herkes sinirsiz site acabiliyordu, oysa fiyat karti
+    // 2/5/15/50 satiyor. Duplicate kontrolunden ONCE, cunku kota asilmissa
+    // istegin devami zaten anlamsiz.
+    await this.quota.enforceSiteQuota(userId);
+
     const normalizedUrl = normalizeSiteUrl(dto.url);
 
     const duplicate = await this.prisma.site.findFirst({

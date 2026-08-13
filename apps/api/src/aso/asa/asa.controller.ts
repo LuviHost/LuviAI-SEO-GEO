@@ -1,6 +1,7 @@
 import { Body, Controller, Delete, Get, Param, Post, Put, Query, Req, UnauthorizedException } from '@nestjs/common';
 import type { Request } from 'express';
 import { AsaService } from './asa.service.js';
+import { QuotaService } from '../../billing/quota.service.js';
 
 function ensureUser(req: Request) {
   const user = (req as any).user;
@@ -10,18 +11,29 @@ function ensureUser(req: Request) {
 
 @Controller()
 export class AsaController {
-  constructor(private readonly asa: AsaService) {}
+  constructor(
+    private readonly asa: AsaService,
+    private readonly quota: QuotaService,
+  ) {}
 
   // ─── Account management ──────────────────────────────
 
-  /** POST /api/sites/:siteId/aso/asa/connect — Apple Search Ads API key bağla */
+  /**
+   * POST /api/sites/:siteId/aso/asa/connect — Apple Search Ads API key bağla
+   *
+   * Plan kapisi yalnizca BAGLAMA ucunda: fiyat karti ASA'yi Profesyonel'e
+   * veriyor. Listeleme/silme acik kalir ki plani dusen kullanici mevcut
+   * hesabini gorup baglantisini kesebilsin.
+   */
   @Post('sites/:siteId/aso/asa/connect')
-  connect(
+  async connect(
     @Req() req: Request,
     @Param('siteId') siteId: string,
     @Body() body: { orgId: string; keyId: string; privateKeyPem: string; teamId?: string },
   ) {
-    return this.asa.connectAccount({ siteId, ...body }, ensureUser(req));
+    const user = ensureUser(req);
+    await this.quota.enforcePlanFeature(user.id, 'asaEnabled', 'Apple Search Ads');
+    return this.asa.connectAccount({ siteId, ...body }, user);
   }
 
   /** GET /api/sites/:siteId/aso/asa/accounts */

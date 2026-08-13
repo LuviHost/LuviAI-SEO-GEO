@@ -1,6 +1,7 @@
 import { Body, Controller, Delete, Get, Param, Post, Req, UnauthorizedException } from '@nestjs/common';
 import type { Request } from 'express';
 import { AscService } from './asc.service.js';
+import { QuotaService } from '../../billing/quota.service.js';
 
 interface AuthedRequest extends Request { user?: { id: string; role: 'USER' | 'ADMIN' | 'AGENCY_OWNER' } }
 function ensureUser(req: AuthedRequest) {
@@ -10,15 +11,21 @@ function ensureUser(req: AuthedRequest) {
 
 @Controller()
 export class AscController {
-  constructor(private readonly asc: AscService) {}
+  constructor(
+    private readonly asc: AscService,
+    private readonly quota: QuotaService,
+  ) {}
 
+  /** Plan kapisi yalnizca baglamada — bkz. AsaController.connect gerekcesi. */
   @Post('sites/:siteId/aso/asc/connect')
-  connect(
+  async connect(
     @Req() req: AuthedRequest,
     @Param('siteId') siteId: string,
     @Body() body: { issuerId: string; keyId: string; privateKeyPem: string },
   ) {
-    return this.asc.connectAccount({ siteId, ...body }, ensureUser(req));
+    const user = ensureUser(req);
+    await this.quota.enforcePlanFeature(user.id, 'ascEnabled', 'App Store Connect');
+    return this.asc.connectAccount({ siteId, ...body }, user);
   }
 
   @Get('sites/:siteId/aso/asc/accounts')

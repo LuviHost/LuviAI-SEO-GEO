@@ -12,7 +12,7 @@ import { cn } from '@/lib/utils';
 /**
  * RanksUp MCP kurulum kartı — "Claude & ChatGPT üstünde RanksUp".
  * Kullanıcı kendi AI istemcisinden RanksUp verisini sorgular:
- * görünürlük raporları, rakip kıyasları, aksiyonlar, prompt'lar, ASO. 24 tool.
+ * görünürlük raporları, rakip kıyasları, aksiyonlar, prompt'lar, ASO. 26 tool.
  */
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'https://api.ranksup.ai';
@@ -44,7 +44,7 @@ export function McpSetupCard() {
                 <Badge className="text-[9px]">YENİ</Badge>
               </div>
               <p className="text-xs text-muted-foreground">
-                MCP sunucusu: kendi Claude/ChatGPT/Cursor'undan RanksUp verini sorgula — görünürlük, rakipler, aksiyonlar, prompt'lar + ASO. 24 tool, API anahtarıyla güvenli.
+                MCP sunucusu: kendi Claude/ChatGPT/Cursor'undan RanksUp verini sorgula — görünürlük, rakipler, aksiyonlar, prompt'lar + ASO. 26 tool, API anahtarıyla güvenli.
               </p>
             </div>
           </div>

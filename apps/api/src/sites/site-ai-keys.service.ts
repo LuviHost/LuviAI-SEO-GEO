@@ -88,8 +88,13 @@ export class SiteAiKeysService {
       throw new BadRequestException('API anahtari cok kisa');
     }
 
-    const site = await this.prisma.site.findUnique({ where: { id: siteId }, select: { id: true } });
+    const site = await this.prisma.site.findUnique({ where: { id: siteId }, select: { id: true, userId: true } });
     if (!site) throw new NotFoundException('Site bulunamadi');
+
+    // Plan kapisi. BYOK, calistirma kotasi dolduktan sonra olcmeye devam
+    // etmenin TEK yolu (kota dolunca yalnizca BYOK saglayicilari kosar) —
+    // yani kilitlenmezse alt planlar calistirma kotasini tamamen bypass eder.
+    await this.quota.enforcePlanFeature(site.userId, 'byok', 'Kendi API anahtarını bağlama (BYOK)');
 
     const trimmed = rawKey.trim();
     const prefix = trimmed.slice(0, 8);

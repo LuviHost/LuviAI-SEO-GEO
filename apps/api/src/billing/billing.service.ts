@@ -15,13 +15,73 @@ export interface PlanDefinition {
   annualTry: number;
   articlesPerMonth: number;
   sites: number;
-  promptRunsPerMonth: number;
-  llmResponsesPerMonth: number;
+  /** Aylik AI gorunurluk calistirmasi — QuotaService citationTests ile ayni */
+  aiRunsPerMonth: number;
+  /** Bir calistirmada sorgulanan AI asistan sayisi */
+  aiProviders: number;
   publishTargets: 'limited' | 'all';
   support: string;
+  /** Kart maddeleri — locale'e gore secilmis */
+  features: string[];
+  /** "Buyume'deki her sey, arti:" — ust planlar sadece farki listeler; kok planda undefined */
+  inheritsLabel?: string;
   popular?: boolean;
   /** Enterprise icin: pazarlama formuyla iletisime gecilir, dogrudan satin alma yok */
   contactSales?: boolean;
+}
+
+/**
+ * Turkce bulunma hali eki (-da/-de/-ta/-te) + "-ki".
+ *
+ * Plan adlari sabit degil (plans.ts'ten geliyor) oldugu icin eki elle yazmak
+ * yanlis sonuc veriyor: "Ajans" sert unsuzle bittigi icin "Ajans'deki" DEGIL
+ * "Ajans'taki" olmali. Kural ikili:
+ *   1) Sert unsuzle biterse (f s t k c s h p) ek sertlesir: -ta/-te
+ *   2) Son unlu kalinsa (a i o u) -a, incese (e i o u) -e
+ */
+function turkishLocative(name: string): string {
+  const lower = name.toLocaleLowerCase('tr');
+  const lastVowel = [...lower].reverse().find((ch) => 'aeıioöuü'.includes(ch));
+  const back = lastVowel ? 'aıou'.includes(lastVowel) : true;
+  const hard = 'fstkçşhp'.includes(lower[lower.length - 1] ?? '');
+  const consonant = hard ? 't' : 'd';
+  return `${consonant}${back ? 'a' : 'e'}ki`;
+}
+
+/**
+ * "Buyume'deki her sey, arti:" basligini uretir. Ust plan yalnizca FARKI
+ * listeledigi icin kart sismeden zengin gorunur; miras alinan planin adi
+ * plans.ts'ten okundugu icin plan adi degisirse baslik da kendiliginden duzelir.
+ */
+function inheritsLabel(p: BasePlan, locale: 'tr' | 'en'): string | undefined {
+  if (!p.inheritsFrom) return undefined;
+  const parent = BASE_PLANS.find((x) => x.id === p.inheritsFrom);
+  if (!parent) return undefined;
+  return locale === 'tr'
+    ? `${parent.name_tr}'${turkishLocative(parent.name_tr)} her şey, artı:`
+    : `Everything in ${parent.name_en}, plus:`;
+}
+
+function toDefinition(p: BasePlan, locale: 'tr' | 'en', rate: number): PlanDefinition {
+  return {
+    id: p.id,
+    name: locale === 'tr' ? p.name_tr : p.name_en,
+    monthly: p.monthly_usd,
+    annual: p.annual_usd,
+    currency: 'USD' as const,
+    monthlyTry: Math.round(p.monthly_usd * rate),
+    annualTry: Math.round(p.annual_usd * rate),
+    articlesPerMonth: p.articlesPerMonth,
+    sites: p.sites,
+    aiRunsPerMonth: p.aiRunsPerMonth,
+    aiProviders: p.aiProviders,
+    publishTargets: p.publishTargets,
+    support: locale === 'tr' ? p.support_tr : p.support_en,
+    features: locale === 'tr' ? p.features_tr : p.features_en,
+    inheritsLabel: inheritsLabel(p, locale),
+    popular: p.popular,
+    contactSales: p.contactSales,
+  };
 }
 
 /**
@@ -29,23 +89,7 @@ export interface PlanDefinition {
  * TL alanlari 0'dir — TL tutari yalnizca FxService ile hesaplanabilir.
  * Fiyat gostermek icin getPlans() kullanin.
  */
-export const PLANS: PlanDefinition[] = BASE_PLANS.map((p) => ({
-  id: p.id,
-  name: p.name_tr,
-  monthly: p.monthly_usd,
-  annual: p.annual_usd,
-  currency: 'USD' as const,
-  monthlyTry: 0,
-  annualTry: 0,
-  articlesPerMonth: p.articlesPerMonth,
-  sites: p.sites,
-  promptRunsPerMonth: p.promptRunsPerMonth,
-  llmResponsesPerMonth: p.llmResponsesPerMonth,
-  publishTargets: p.publishTargets,
-  support: p.support_tr,
-  popular: p.popular,
-  contactSales: p.contactSales,
-}));
+export const PLANS: PlanDefinition[] = BASE_PLANS.map((p) => toDefinition(p, 'tr', 0));
 
 @Injectable()
 export class BillingService {
@@ -65,23 +109,7 @@ export class BillingService {
     // farkli kurlar karisabilirdi.
     const { rate } = await this.fx.getRate();
 
-    return BASE_PLANS.map((p) => ({
-      id: p.id,
-      name: locale === 'tr' ? p.name_tr : p.name_en,
-      monthly: p.monthly_usd,
-      annual: p.annual_usd,
-      currency: 'USD' as const,
-      monthlyTry: Math.round(p.monthly_usd * rate),
-      annualTry: Math.round(p.annual_usd * rate),
-      articlesPerMonth: p.articlesPerMonth,
-      sites: p.sites,
-      promptRunsPerMonth: p.promptRunsPerMonth,
-      llmResponsesPerMonth: p.llmResponsesPerMonth,
-      publishTargets: p.publishTargets,
-      support: locale === 'tr' ? p.support_tr : p.support_en,
-      popular: p.popular,
-      contactSales: p.contactSales,
-    }));
+    return BASE_PLANS.map((p) => toDefinition(p, locale, rate));
   }
 
   /** Plan listesi + o an kullanilan kur (UI dipnotu icin birlikte doner) */

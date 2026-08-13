@@ -1,6 +1,7 @@
 import { Body, Controller, Delete, Get, Logger, Post, Req, Res } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { McpToolsService } from './mcp-tools.service.js';
+import { QuotaService } from '../billing/quota.service.js';
 
 /**
  * RanksUp MCP Server — Streamable HTTP transport, STATELESS mod.
@@ -37,7 +38,10 @@ type JsonRpcMsg = {
 export class McpController {
   private readonly log = new Logger(McpController.name);
 
-  constructor(private readonly tools: McpToolsService) {}
+  constructor(
+    private readonly tools: McpToolsService,
+    private readonly quota: QuotaService,
+  ) {}
 
   @Post()
   async handle(@Req() req: Request, @Res() res: Response, @Body() body: JsonRpcMsg | JsonRpcMsg[]) {
@@ -45,6 +49,15 @@ export class McpController {
     if (!user) {
       // AuthGuard normalde 401 atar; bu dal savunma amacli
       res.status(401).json(this.rpcError(null, -32001, 'Kimlik dogrulanamadi'));
+      return;
+    }
+    // Plan kapisi — MCP sunucusu fiyat kartinda Kurumsal'a ait. JSON-RPC
+    // oldugu icin HTTP 403 yerine RPC hatasi donuyoruz; istemciler (Claude,
+    // Cursor) govdedeki hatayi kullaniciya gosterir, ciplak 403'u gostermez.
+    try {
+      await this.quota.enforcePlanFeature(user.id, 'mcpAccess', 'MCP sunucusu');
+    } catch (err: any) {
+      res.status(403).json(this.rpcError(null, -32003, err?.message ?? 'Plan yetersiz'));
       return;
     }
     // API anahtarinin scope'lari — mutating tool'lar :write ister (guard /mcp'yi

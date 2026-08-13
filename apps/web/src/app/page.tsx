@@ -37,8 +37,15 @@ type Plan = {
   annualTry: number;
   articlesPerMonth: number;
   sites: number | string;
+  /** Aylik AI gorunurluk calistirmasi — QuotaService citationTests ile ayni */
+  aiRunsPerMonth: number;
+  aiProviders: number;
   publishTargets: string;
   support: string;
+  /** Kart maddeleri — tek kaynak apps/api/src/billing/plans.ts */
+  features: string[];
+  /** "Buyume'deki her sey, arti:" — kok planda undefined */
+  inheritsLabel?: string;
   popular?: boolean;
   contactSales?: boolean;
 };
@@ -80,16 +87,21 @@ type PublicTestimonial = {
 };
 
 export default function LandingPage() {
-  const { t } = useT();
+  const { t, locale } = useT();
   const [plans, setPlans] = useState<Plan[]>([]);
   const [billing, setBilling] = useState<'monthly' | 'annual'>('annual');
   const [openFaq, setOpenFaq] = useState<number | null>(0);
   const [testimonials, setTestimonials] = useState<PublicTestimonial[]>([]);
 
+  // Locale'i API'ye gecirmek sart: plan adi ve destek metni orada cevriliyor.
+  // Sabit 'tr' oldugu surece EN ziyaretci Turkce destek metni goruyordu.
   useEffect(() => {
-    api.getPlans('tr').then((r) => setPlans((r?.plans as Plan[]) ?? [])).catch(() => {});
+    api.getPlans(locale).then((r) => setPlans((r?.plans as Plan[]) ?? [])).catch(() => {});
+  }, [locale]);
+
+  useEffect(() => {
     api.listPublicTestimonials(6).then((t) => setTestimonials(t ?? [])).catch(() => {});
-    // Landing analytics
+    // Landing analytics — dil degisiminde tekrar kurulmamali
     trackPageview();
     const offScroll = setupScrollDepthTracking();
     const offSection = setupSectionTracking(['cozum', 'nasil', 'sonuc', 'fiyat', 'sss']);
@@ -572,17 +584,14 @@ export default function LandingPage() {
               const monthlyEq = billing === 'annual' ? Math.round(p.annual / 12) : p.monthly;
               // TL karsiligi bilgi amacli — tahsilat odeme anindaki kurla yapilir
               const monthlyEqTry = billing === 'annual' ? Math.round((p.annualTry ?? 0) / 12) : (p.monthlyTry ?? 0);
-              // Plan name'i locale'e gore secelim (API'den TR olarak gelir)
-              const planNameKey = `land.pric.plan_${p.id}`;
-              const localizedName = t(planNameKey);
-              const finalName = localizedName === planNameKey ? p.name : localizedName;
-              const sitesLabel = typeof p.sites === 'number'
-                ? (p.sites === 1 ? `${p.sites} ${t('land.pric.bullet_site')}` : `${p.sites} ${t('land.pric.bullet_sites')}`)
-                : t('land.pric.bullet_sites');
+              // Plan adi VE madde listesi tek kaynaktan: plans.ts (API locale'e gore
+              // cevirip yolluyor). Burada ikinci bir i18n sozlugu tutuldugunda ikisi
+              // birbirinden kaydi — landing "Baslangic" derken /pricing ayni plana
+              // "Buyume" diyordu.
               return (
                 <PriceCard
                   key={p.id}
-                  name={finalName}
+                  name={p.name}
                   price={p.contactSales ? t('land.pric.enterprise_label') : `$${monthlyEq.toLocaleString('en-US')}`}
                   period={p.contactSales ? '' : t('land.pric.per_month')}
                   annualNote={p.contactSales
@@ -593,11 +602,8 @@ export default function LandingPage() {
                       : monthlyEqTry
                         ? `≈ ₺${monthlyEqTry.toLocaleString('tr-TR')} / ${t('land.pric.per_month')}`
                         : t('land.pric.monthly_billed')}
-                  bullets={[
-                    `${p.articlesPerMonth} ${t('land.pric.bullet_articles')}`,
-                    sitesLabel,
-                    `${t('land.pric.bullet_support')} ${p.support}`,
-                  ]}
+                  bullets={p.features ?? []}
+                  inheritLabel={p.inheritsLabel}
                   cta={p.contactSales ? t('land.pric.cta_contact') : t('land.pric.cta_free')}
                   href="/pricing"
                   highlighted={!!p.popular}
@@ -1134,10 +1140,13 @@ function UseCaseCard({
 }
 
 function PriceCard({
-  name, price, period, annualNote, bullets, cta, href, highlighted, onCtaClick,
+  name, price, period, annualNote, bullets, inheritLabel, cta, href, highlighted, onCtaClick,
 }: {
   name: string; price: string; period: string; annualNote: string;
-  bullets: string[]; cta: string; href: string; highlighted?: boolean;
+  bullets: string[];
+  /** "X'teki her sey, arti:" — ust planlar sadece FARKI listeler, kart sismez */
+  inheritLabel?: string;
+  cta: string; href: string; highlighted?: boolean;
   onCtaClick?: () => void;
 }) {
   return (
@@ -1157,7 +1166,12 @@ function PriceCard({
         <span className="text-muted-foreground text-sm">{period}</span>
       </div>
       <p className="text-xs text-muted-foreground min-h-[16px]">{annualNote}</p>
-      <ul className="space-y-2 text-sm mt-5 mb-6 flex-1">
+      {inheritLabel && (
+        <p className="mt-5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          {inheritLabel}
+        </p>
+      )}
+      <ul className={`space-y-2 text-sm mb-6 flex-1 ${inheritLabel ? 'mt-3' : 'mt-5'}`}>
         {bullets.map((b, i) => (
           <li key={i} className="flex items-start gap-2">
             <Check className={`h-4 w-4 mt-0.5 shrink-0 ${highlighted ? 'text-orange-600' : 'text-emerald-600'}`} />

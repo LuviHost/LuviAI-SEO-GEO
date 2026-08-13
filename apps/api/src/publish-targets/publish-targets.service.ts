@@ -2,6 +2,7 @@ import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundEx
 import { encrypt, decrypt } from '@luviai/shared';
 import { getAdapter } from '@luviai/adapters';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { QuotaService } from '../billing/quota.service.js';
 
 const TARGET_TYPES = [
   'WORDPRESS_REST', 'WORDPRESS_XMLRPC', 'FTP', 'SFTP', 'CPANEL_API',
@@ -18,7 +19,10 @@ const ADMIN_ONLY_TARGET_TYPES = new Set<PublishTargetType>(['KOBIPRATIK']);
 export class PublishTargetsService {
   private readonly log = new Logger(PublishTargetsService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly quota: QuotaService,
+  ) {}
 
   private async ensureSiteOwner(siteId: string, requestingUser: { id: string; role: string }) {
     const site = await this.prisma.site.findUnique({ where: { id: siteId }, select: { userId: true } });
@@ -68,6 +72,22 @@ export class PublishTargetsService {
     // Admin-only hedefler: USER role ekleyemez (catalog'da gizli olsa da direkt POST atılabilir)
     if (ADMIN_ONLY_TARGET_TYPES.has(dto.type) && requestingUser.role !== 'ADMIN') {
       throw new ForbiddenException(`Bu hedef tipi sadece admin tarafindan eklenebilir: ${dto.type}`);
+    }
+
+    // Plan kapisi. canUsePublishTarget yazildigindan beri hicbir yerden
+    // cagrilmiyordu — TRIAL kullanicisi da 14 hedef tipinin hepsini
+    // kullanabiliyordu, oysa plan tanimi TRIAL'i Markdown ZIP + WordPress
+    // ile sinirliyor. Site sahibinin plani esas alinir (ADMIN muaf).
+    if (requestingUser.role !== 'ADMIN') {
+      const site = await this.prisma.site.findUnique({
+        where: { id: siteId },
+        select: { userId: true },
+      });
+      if (site && !(await this.quota.canUsePublishTarget(site.userId, dto.type))) {
+        throw new ForbiddenException(
+          `${dto.type} yayın hedefi planına dahil değil. Ücretli bir plana geçerek kullanabilirsin.`,
+        );
+      }
     }
 
     // Diğer default'ları kapat

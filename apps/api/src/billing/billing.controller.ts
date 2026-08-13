@@ -48,12 +48,16 @@ export class BillingController {
   @Get('users/:userId/quota')
   async getQuota(@Req() req: Request, @Param('userId') userId: string) {
     ensureSelf(req, userId);
-    const [articles, sites, budget] = await Promise.all([
+    const [articles, sites, aiRuns, budget] = await Promise.all([
       this.quota.checkArticleQuota(userId),
       this.quota.checkSiteQuota(userId),
+      // AI gorunurluk calistirmasi — panelde gosterilen ucuncu eksen.
+      // Onceki 'videos' ekseni 108edda'da urunden cikarildi ama panel onu
+      // okumaya devam ediyordu; site sayfasi bu yuzden patliyordu.
+      this.quota.checkCitationQuota(userId),
       this.quota.checkAiCostBudget(userId),
     ]);
-    return { articles, sites, budget };
+    return { articles, sites, aiRuns, budget };
   }
 
   /**

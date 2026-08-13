@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { api } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
-import { FileText, Globe, Film, DollarSign, AlertTriangle } from 'lucide-react';
+import { FileText, Globe, Sparkles, AlertTriangle } from 'lucide-react';
 
 /**
  * Dashboard'da kullanıcının aylık kotalarını + AI cost bütçesini gösterir.
@@ -27,8 +27,12 @@ export function QuotaMonitor() {
 
   if (!data) return null;
 
+  // Eksik ekseni ATLA, patlama.
+  // Bu bilesen 'videos' eksenini okumaya devam ederken API o ekseni birakmisti
+  // ve tek bir undefined tum /sites/[id] sayfasini error boundary'ye
+  // dusuruyordu. Bir kotanin gorunmemesi, sayfanin olmesinden iyidir.
   const items = [
-    {
+    data.articles && {
       key: 'articles',
       icon: FileText,
       label: 'Makale',
@@ -36,15 +40,15 @@ export function QuotaMonitor() {
       limit: data.articles.limit,
       color: 'orange',
     },
-    {
-      key: 'videos',
-      icon: Film,
-      label: 'Video',
-      used: data.videos.used,
-      limit: data.videos.limit,
+    data.aiRuns && {
+      key: 'aiRuns',
+      icon: Sparkles,
+      label: 'AI çalıştırma',
+      used: data.aiRuns.used,
+      limit: data.aiRuns.limit,
       color: 'purple',
     },
-    {
+    data.sites && {
       key: 'sites',
       icon: Globe,
       label: 'Site',
@@ -52,10 +56,13 @@ export function QuotaMonitor() {
       limit: data.sites.limit,
       color: 'blue',
     },
-  ];
+  ].filter(Boolean) as Array<{
+    key: string; icon: typeof FileText; label: string;
+    used: number; limit: number; color: string;
+  }>;
 
   // Budget warning banner
-  const showBudgetWarn = data.budget.warn || data.budget.hardBlock;
+  const showBudgetWarn = !!data.budget && (data.budget.warn || data.budget.hardBlock);
 
   return (
     <div className="space-y-2">

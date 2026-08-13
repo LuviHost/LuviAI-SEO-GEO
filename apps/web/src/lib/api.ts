@@ -121,7 +121,8 @@ export const api = {
     request<{
       articles: { allowed: boolean; remaining: number; limit: number };
       sites: { allowed: boolean; current: number; limit: number };
-      videos: { allowed: boolean; used: number; limit: number; remaining: number };
+      /** AI gorunurluk calistirmasi (AI Citation + Prompt Lab ayni kovadan duser) */
+      aiRuns: { allowed: boolean; used: number; limit: number; remaining: number };
       budget: { used: number; cap: number; pct: number; warn: boolean; hardBlock: boolean };
     }>(`/billing/users/${userId}/quota`),
 
@@ -850,8 +851,12 @@ export const api = {
         monthly: number; annual: number; currency: 'USD';
         monthlyTry: number; annualTry: number;
         articlesPerMonth: number;
-        sites: number; promptRunsPerMonth: number; llmResponsesPerMonth: number;
+        sites: number; aiRunsPerMonth: number; aiProviders: number;
         publishTargets: string; support: string;
+        /** Kart maddeleri — tek kaynak apps/api/src/billing/plans.ts */
+        features: string[];
+        /** "Buyume'deki her sey, arti:" — kok planda undefined */
+        inheritsLabel?: string;
         popular?: boolean; contactSales?: boolean;
       }>;
       fx: { rate: number; fetchedAt: string; source: 'TCMB' | 'fallback'; stale: boolean };

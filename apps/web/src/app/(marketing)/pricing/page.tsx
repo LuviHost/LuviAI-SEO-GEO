@@ -17,7 +17,7 @@ import { CheckCircle2, Sparkles, ShieldCheck, ArrowRight, Clock, Star } from 'lu
 type GrandfatheringInfo = { isGrandfathered: boolean; grandfatheredUntil?: string; legacyMonthlyPriceTry?: number };
 
 export default function PricingPage() {
-  const { t } = useT();
+  const { t, locale } = useT();
   const { data: session, status } = useSession();
   const router = useRouter();
   const [plans, setPlans] = useState<any[]>([]);
@@ -26,6 +26,19 @@ export default function PricingPage() {
   const [cycle, setCycle] = useState<'monthly' | 'annual'>('monthly');
   const [loading, setLoading] = useState<string | null>(null);
   const [grandfathering, setGrandfathering] = useState<GrandfatheringInfo | null>(null);
+
+  // Plan listesi + gunun kuru.
+  // NOT: bu fetch 0db5a1c'de video kredi paketi cagrisiyla ayni useEffect'te
+  // oldugu icin yanlislikla silinmisti; sayfa o tarihten beri bos grid basiyordu.
+  useEffect(() => {
+    api.getPlans(locale)
+      .then((res) => {
+        setPlans(res.plans);
+        setFx(res.fx);
+      })
+      .catch(() => toast.error(t('common.error')));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [locale]);
 
   // Grandfathering durumunu cek (sadece logged-in user icin)
   useEffect(() => {
@@ -231,13 +244,19 @@ export default function PricingPage() {
                   </p>
                 )}
 
-                <ul className="space-y-3 text-sm mt-6 mb-8 flex-1">
-                  <Feat highlight={highlighted}>{p.articlesPerMonth} {t('pricing.articles_per_month')}</Feat>
-                  <Feat highlight={highlighted}>{p.sites} {t('pricing.sites')}</Feat>
-                  <Feat highlight={highlighted}>{p.publishTargets === 'all' ? t('pricing.all_publish_targets') : t('pricing.markdown_only')}</Feat>
-                  <Feat highlight={highlighted}>{p.support}</Feat>
-                  <Feat highlight={highlighted}>TR + EN içerik</Feat>
-                  <Feat highlight={highlighted}>GEO/AEO + AI Citation Tracking</Feat>
+                {/* Maddeler plans.ts'ten geliyor — burada ikinci bir liste TUTULMAZ.
+                    Onceki sabit liste her plana ayni 8 satiri basiyordu ve iki
+                    maddesi ('TR + EN icerik', prompt run sayilari) hicbir calisan
+                    ozellige dayanmiyordu. */}
+                {p.inheritsLabel && (
+                  <p className="mt-6 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                    {p.inheritsLabel}
+                  </p>
+                )}
+                <ul className={`space-y-3 text-sm mb-8 flex-1 ${p.inheritsLabel ? 'mt-3' : 'mt-6'}`}>
+                  {(p.features ?? []).map((f: string, i: number) => (
+                    <Feat key={i} highlight={highlighted}>{f}</Feat>
+                  ))}
                 </ul>
 
                 <Button

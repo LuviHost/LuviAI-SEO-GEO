@@ -6,6 +6,7 @@ import { AsoKeywordService } from './keyword.service.js';
 import { AsoTrackerService } from './tracker.service.js';
 import { AsoReviewsService } from './reviews.service.js';
 import { AsoAiAgentService } from './ai-agent.service.js';
+import { QuotaService } from '../billing/quota.service.js';
 
 export interface ConnectAppDto {
   siteId: string;
@@ -25,6 +26,7 @@ export class AsoService {
     private readonly tracker: AsoTrackerService,
     private readonly reviews: AsoReviewsService,
     private readonly aiAgent: AsoAiAgentService,
+    private readonly quota: QuotaService,
   ) {}
 
   // ─────────────────────────────────────────────
@@ -150,8 +152,31 @@ export class AsoService {
       throw new BadRequestException('App Store ID veya Play Store ID gerekli');
     }
 
-    // Metadata fetch
+    // Plan kotasi — ASO modulunun tamami bugune kadar kotasizdi.
+    // Upsert oldugu icin YALNIZCA yeni kayitta kontrol ediyoruz: zaten bagli
+    // bir uygulamanin metadata'sini tazelemek kotaya takilmamali.
     const country = dto.country ?? 'tr';
+    const already = await this.prisma.trackedApp.findUnique({
+      where: {
+        siteId_appStoreId_playStoreId_country: {
+          siteId: dto.siteId,
+          appStoreId: dto.appStoreId ?? '',
+          playStoreId: dto.playStoreId ?? '',
+          country,
+        },
+      },
+      select: { id: true },
+    });
+    if (!already) {
+      const site = await this.prisma.site.findUnique({
+        where: { id: dto.siteId },
+        select: { userId: true },
+      });
+      if (!site) throw new BadRequestException('Site bulunamadı');
+      await this.quota.enforceTrackedAppQuota(site.userId);
+    }
+
+    // Metadata fetch
     const ios = dto.appStoreId
       ? await this.scrapers.getIosApp({ id: dto.appStoreId, country })
       : null;

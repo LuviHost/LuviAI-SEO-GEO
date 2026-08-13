@@ -1,5 +1,8 @@
 import { Injectable, ForbiddenException, Logger } from '@nestjs/common';
+import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { BASE_PLANS, findPlan } from './plans.js';
+import { acquireCronLock } from '../common/cron-lock.js';
 
 /**
  * Plan-based quota enforcer.
@@ -19,11 +22,20 @@ export class QuotaService {
    * Spend cap (USD/ay): TRIAL=$3, STARTER=$25, PRO=$80, AGENCY=$200, ENTERPRISE=$700.
    * settings.constants'tan dinamik okunur — burada sadece kota.
    */
+  /**
+   * SITES: plans.ts ile AYNI olmali. Onceden burada 1/1/3/12/50 yaziyordu ama
+   * fiyatlandirma 1/2/5/15/50 reklam ediyordu — musteri 5 site icin odeyip
+   * 3'te bloklanacakti. Reklam degeri esas alindi (dayatmayi yukseltmek,
+   * satilani kucultmekten dogru).
+   *
+   * CITATIONTESTS: plans.ts aiRunsPerMonth ile AYNI olmali. AI Citation testi
+   * ve Prompt Lab calistirmasi ayni kovadan duser.
+   */
   private readonly LIMITS = {
     TRIAL:      { articles: 2,    sites: 1,  publishTargets: ['MARKDOWN_ZIP', 'WORDPRESS_REST'] as string[], citationTests: 3,   pool: ['gemini'] as string[] },
-    STARTER:    { articles: 15,   sites: 1,  publishTargets: 'all' as const,                                  citationTests: 20,  pool: ['gemini', 'anthropic'] },
-    PRO:        { articles: 40,   sites: 3,  publishTargets: 'all' as const,                                  citationTests: 75,  pool: ['gemini', 'anthropic', 'xai'] },
-    AGENCY:     { articles: 100,  sites: 12, publishTargets: 'all' as const,                                  citationTests: 300, pool: ['gemini', 'anthropic', 'xai', 'openai', 'deepseek', 'perplexity'] },
+    STARTER:    { articles: 15,   sites: 2,  publishTargets: 'all' as const,                                  citationTests: 20,  pool: ['gemini', 'anthropic'] },
+    PRO:        { articles: 40,   sites: 5,  publishTargets: 'all' as const,                                  citationTests: 75,  pool: ['gemini', 'anthropic', 'xai'] },
+    AGENCY:     { articles: 100,  sites: 15, publishTargets: 'all' as const,                                  citationTests: 300, pool: ['gemini', 'anthropic', 'xai', 'openai', 'deepseek', 'perplexity'] },
     ENTERPRISE: { articles: 350,  sites: 50, publishTargets: 'all' as const,                                  citationTests: 1000, pool: ['gemini', 'anthropic', 'xai', 'openai', 'deepseek', 'perplexity'] },
   };
 
@@ -148,6 +160,58 @@ export class QuotaService {
   }
 
   // ────────────────────────────────────────────
+  //  Plan ozellik kapilari (feature gate)
+  // ────────────────────────────────────────────
+
+  /**
+   * plans.ts'teki boolean ozellik bayraklarini dayatir.
+   *
+   * NEDEN: ASO modulu, MCP sunucusu, REST API ve BYOK fiyat kartinda ust
+   * planlara ait gorunuyordu ama kodda HICBIR plan kontrolu yoktu — alt plan
+   * musterisi hepsini kullanabiliyordu. Kartta yazan her kilidin burada bir
+   * karsiligi olmali; aksi halde karttaki katmanlama bos vaattir.
+   */
+  async enforcePlanFeature(
+    userId: string,
+    feature: 'asaEnabled' | 'ascEnabled' | 'mcpAccess' | 'apiAccess' | 'byok',
+    label: string,
+  ): Promise<void> {
+    const user = await this.prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { plan: true },
+    });
+    const plan = findPlan(user.plan.toLowerCase());
+    if (plan?.[feature]) return;
+
+    const minimum = BASE_PLANS.find((p) => p[feature]);
+    const needed = minimum ? minimum.name_tr : 'üst';
+    throw new ForbiddenException(
+      `${label} ${needed} planına dahildir. Planını yükselterek kullanabilirsin.`,
+    );
+  }
+
+  /** ASO: takip edilen uygulama sayisi kotasi */
+  async checkTrackedAppQuota(userId: string): Promise<{ allowed: boolean; current: number; limit: number }> {
+    const user = await this.prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { plan: true },
+    });
+    const limit = findPlan(user.plan.toLowerCase())?.trackedApps ?? 1;
+    // TrackedApp Site'a bagli; kullanicinin tum sitelerindeki uygulamalar sayilir.
+    const current = await this.prisma.trackedApp.count({ where: { site: { userId } } });
+    return { allowed: current < limit, current, limit };
+  }
+
+  async enforceTrackedAppQuota(userId: string): Promise<void> {
+    const { allowed, current, limit } = await this.checkTrackedAppQuota(userId);
+    if (!allowed) {
+      throw new ForbiddenException(
+        `Plan limiti: ${limit} uygulama. Şu an ${current} uygulaman var. Daha fazlası için plan yükselt.`,
+      );
+    }
+  }
+
+  // ────────────────────────────────────────────
   //  Publish target quota
   // ────────────────────────────────────────────
   async canUsePublishTarget(userId: string, targetType: string): Promise<boolean> {
@@ -172,6 +236,19 @@ export class QuotaService {
         articlesQuotaResetAt: new Date(),
       },
     });
+  }
+
+  /**
+   * Suresi dolan trial'lari EXPIRED'a cevirir.
+   *
+   * NEDEN CRON: bu metod yazildigindan beri hicbir yerden cagrilmiyordu —
+   * TRIAL kullanicisi omur boyu TRIAL kaliyordu ve tek freni omur boyu
+   * 2 makale + 3 calistirmaydi. Gunluk 04:00'te, cift-calisma kilidiyle.
+   */
+  @Cron('0 4 * * *', { timeZone: 'Europe/Istanbul' })
+  async expireOldTrialsCron() {
+    if (!(await acquireCronLock(this.prisma, 'trial-expiry', 'daily'))) return;
+    await this.expireOldTrials();
   }
 
   async expireOldTrials() {

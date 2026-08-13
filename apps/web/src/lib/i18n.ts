@@ -141,11 +141,8 @@ const dictionary = {
     'pricing.save': 'kazan',
     'pricing.cta': '2 Makale Ücretsiz Dene',
     'pricing.popular': 'EN ÇOK TERCİH EDİLEN',
-    'pricing.articles_per_month': 'SEO makale/ay',
-    'pricing.social_posts_per_month': 'AI görünürlük testi/ay (7 motor)',
-    'pricing.sites': 'site',
-    'pricing.all_publish_targets': 'Tüm yayın hedefleri',
-    'pricing.markdown_only': 'Sadece Markdown ZIP',
+    // Kart maddeleri burada TUTULMAZ — tek kaynak apps/api/src/billing/plans.ts
+    // (features_tr / features_en). API locale'e gore secip yolluyor.
     'pricing.security_note': '💳 PayTR güvenli ödeme · ✅ İstediğin zaman iptal · 🇹🇷 KDV dahil',
     'pricing.grandfathering_banner': 'Eski fiyatınızla devam ediyorsunuz — {date} tarihine kadar geçerli.',
     'pricing.annual_save_badge': '-%17',
@@ -211,7 +208,7 @@ const dictionary = {
     'land.pricing.support_em4': 'Destek: e-posta 4 saat',
     'land.pricing.support_priority': 'Destek: öncelikli + Slack',
     'land.pricing.support_dedicated': 'Destek: özel hesap yöneticisi + SLA',
-    'land.pricing.footer_note': 'Hepsinde: tüm AI modüller · Apple Search Ads · 10+ yayın hedefi · API erişimi',
+    'land.pricing.footer_note': 'Her planda: 14 yayın hedefi · 7 AI asistanında ölçüm · TR + EN arayüz · kurulum 10 dakika',
 
     // ─── Landing — FAQ ──────────────────────────────────────────
     'land.faq.eyebrow': 'Sıkça sorulanlar',
@@ -343,18 +340,11 @@ const dictionary = {
     'land.pric.annual_billed_prefix': 'Yıllık',
     'land.pric.annual_billed_suffix': 'faturalandırılır',
     'land.pric.monthly_billed': 'Aylık faturalandırılır',
-    'land.pric.bullet_articles': 'AI makale / ay',
-    'land.pric.bullet_posts': 'AI görünürlük testi / ay',
-    'land.pric.bullet_site': 'site',
-    'land.pric.bullet_sites': 'site',
-    'land.pric.bullet_support': 'Destek:',
+    // Madde metinleri plans.ts'ten geliyor — buraya ikinci bir kopya yazmayin.
     'land.pric.cta_free': 'Planı seç',
     'land.pric.cta_contact': 'Bizimle iletişime geç',
-    'land.pric.footer_note': 'Hepsinde: tüm AI modüller · Apple Search Ads · 10+ yayın hedefi · API erişimi',
-    'land.pric.plan_starter': 'Başlangıç',
-    'land.pric.plan_pro': 'Profesyonel',
-    'land.pric.plan_agency': 'Ajans',
-    'land.pric.plan_enterprise': 'Kurumsal',
+    'land.pric.footer_note': 'Her planda: 14 yayın hedefi · 7 AI asistanında ölçüm · TR + EN arayüz · kurulum 10 dakika',
+    // Plan adlari burada TUTULMAZ — tek kaynak apps/api/src/billing/plans.ts.
     'land.pric.enterprise_label': 'Özel',
 
     // ─── Landing — Final CTA ────────────────────────────────────
@@ -524,11 +514,8 @@ const dictionary = {
     'pricing.save': 'save',
     'pricing.cta': 'Try 2 Articles Free',
     'pricing.popular': 'MOST POPULAR',
-    'pricing.articles_per_month': 'SEO articles/mo',
-    'pricing.social_posts_per_month': 'AI visibility tests/mo (7 engines)',
-    'pricing.sites': 'sites',
-    'pricing.all_publish_targets': 'All publish targets',
-    'pricing.markdown_only': 'Markdown ZIP only',
+    // Card bullets are NOT kept here — single source is apps/api/src/billing/plans.ts
+    // (features_tr / features_en). The API picks by locale.
     'pricing.security_note': '💳 PayTR secure payment · ✅ Cancel anytime · 🇹🇷 VAT included',
     'pricing.grandfathering_banner': 'You are continuing on your old price — valid until {date}.',
     'pricing.annual_save_badge': '-17%',
@@ -594,7 +581,7 @@ const dictionary = {
     'land.pricing.support_em4': 'Support: email 4h',
     'land.pricing.support_priority': 'Support: priority + Slack',
     'land.pricing.support_dedicated': 'Support: dedicated account manager + SLA',
-    'land.pricing.footer_note': 'In all plans: all AI modules · Apple Search Ads · 10+ publish targets · API access',
+    'land.pricing.footer_note': 'In every plan: 14 publishing targets · measurement across 7 AI assistants · TR + EN interface · 10-minute setup',
 
     // ─── Landing — FAQ ──────────────────────────────────────────
     'land.faq.eyebrow': 'Frequently asked',
@@ -726,18 +713,11 @@ const dictionary = {
     'land.pric.annual_billed_prefix': 'Billed',
     'land.pric.annual_billed_suffix': 'annually',
     'land.pric.monthly_billed': 'Billed monthly',
-    'land.pric.bullet_articles': 'AI articles / mo',
-    'land.pric.bullet_posts': 'AI visibility tests / mo',
-    'land.pric.bullet_site': 'site',
-    'land.pric.bullet_sites': 'sites',
-    'land.pric.bullet_support': 'Support:',
+    // Bullet text comes from plans.ts — do not keep a second copy here.
     'land.pric.cta_free': 'Choose plan',
     'land.pric.cta_contact': 'Contact us',
-    'land.pric.footer_note': 'In all plans: all AI modules · Apple Search Ads · 10+ publish targets · API access',
-    'land.pric.plan_starter': 'Starter',
-    'land.pric.plan_pro': 'Professional',
-    'land.pric.plan_agency': 'Agency',
-    'land.pric.plan_enterprise': 'Enterprise',
+    'land.pric.footer_note': 'In every plan: 14 publishing targets · measurement across 7 AI assistants · TR + EN interface · 10-minute setup',
+    // Plan names are NOT kept here — single source is apps/api/src/billing/plans.ts.
     'land.pric.enterprise_label': 'Custom',
 
     // ─── Landing — Final CTA ────────────────────────────────────
