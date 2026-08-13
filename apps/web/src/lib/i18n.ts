@@ -278,7 +278,7 @@ const dictionary = {
     'land.how.s2.title': 'AI analiz',
     'land.how.s2.body': "Rakiplerin metadata'sı, sıralamalar, eksik keyword'ler, AI Citation skorun — hepsi 2 dakikada.",
     'land.how.s3.title': 'Yayında',
-    'land.how.s3.body': "İlk makale, ilk sosyal post, ilk ASA önerisi hazır. Auto-Pilot açarsan sen hiçbir şey yapmazsın.",
+    'land.how.s3.body': "İlk makale, ilk AI görünürlük raporu, ilk ASA önerisi hazır. Auto-Pilot açarsan sen hiçbir şey yapmazsın.",
 
     // ─── Landing — Results (3 KPI) ──────────────────────────────
     'land.res.eyebrow': 'Sonuçlar',
@@ -661,7 +661,7 @@ const dictionary = {
     'land.how.s2.title': 'AI analysis',
     'land.how.s2.body': 'Competitor metadata, rankings, missing keywords, your AI Citation score — all in 2 minutes.',
     'land.how.s3.title': 'Live',
-    'land.how.s3.body': 'First article, first social post, first ASA suggestion ready. Turn on Auto-Pilot and you do nothing.',
+    'land.how.s3.body': 'First article, first AI visibility report, first ASA suggestion ready. Turn on Auto-Pilot and you do nothing.',
 
     // ─── Landing — Results (3 KPI) ──────────────────────────────
     'land.res.eyebrow': 'Results',
