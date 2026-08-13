@@ -337,7 +337,7 @@ export default function ComparePage() {
   // Fiyatlar tek kaynaktan: /billing/plans (fiyat kartlariyla ayni).
   // Sabit yazildiginda sayfa sessizce bayatliyordu.
   const [planPrices, setPlanPrices] = useState<Array<{
-    id: string; name: string; monthly: number; monthlyTry: number;
+    id: string; name: string; monthly: number;
   }>>([]);
   useEffect(() => {
     api.getPlans(locale)
@@ -501,7 +501,6 @@ export default function ComparePage() {
                   <span key={p.id}>
                     {i === 0 ? c.sumLeftNote2 : c.sumLeftNote3}
                     {p.name}: <strong className="text-brand">${p.monthly.toLocaleString('en-US')}/{c.perMonth}</strong>
-                    {p.monthlyTry > 0 && ` (≈ ₺${p.monthlyTry.toLocaleString('tr-TR')})`}
                   </span>
                 ))}
                 {c.sumLeftNoteEnd}

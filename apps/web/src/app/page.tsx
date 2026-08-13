@@ -462,19 +462,7 @@ export default function LandingPage() {
                       (bugunku kurla $149 ≈ ₺7.100). Artik /billing/plans ile
                       ayni kaynak. */}
                   <td className="text-center p-4 bg-orange-500/10 font-bold text-orange-700 dark:text-orange-400">
-                    {comparePlan ? (
-                      <>
-                        ${comparePlan.monthly.toLocaleString('en-US')}
-                        {comparePlan.monthlyTry > 0 && (
-                          <span className="block text-[11px] font-normal text-orange-700/70 dark:text-orange-400/70">
-                            ≈ ₺{comparePlan.monthlyTry.toLocaleString('tr-TR')}
-                          </span>
-                        )}
-                        <span className="block text-[11px] font-normal text-orange-700/70 dark:text-orange-400/70">
-                          {t('land.cmp.annual_hint')} ${Math.round(comparePlan.annual / 12).toLocaleString('en-US')}
-                        </span>
-                      </>
-                    ) : '—'}
+                    {comparePlan ? `$${comparePlan.monthly.toLocaleString('en-US')}` : '—'}
                   </td>
                 </tr>
               </tbody>
