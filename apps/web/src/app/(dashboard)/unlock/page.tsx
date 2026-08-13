@@ -7,6 +7,7 @@ import { ArrowRight, Loader2, AlertCircle, Unlock, Lock, Check } from 'lucide-re
 import { api, ApiError } from '@/lib/api';
 import { useT } from '@/lib/i18n';
 import { QueryCard } from '@/components/citation/query-card';
+import { UNLOCK_DOMAIN_KEY } from '@/lib/unlock-return';
 
 type UnlockResult = Awaited<ReturnType<typeof api.publicCitationUnlock>>;
 
@@ -166,7 +167,7 @@ function UnlockView() {
             // tasinamiyor; hedef domaini localStorage'a birakiyoruz ve
             // /billing/success odeme sonrasi buraya geri getiriyor.
             onClick={() => {
-              try { localStorage.setItem('ranksup-unlock-domain', domain); } catch { /* noop */ }
+              try { localStorage.setItem(UNLOCK_DOMAIN_KEY, domain); } catch { /* noop */ }
             }}
             className="w-full inline-flex items-center justify-center gap-2 bg-orange-600 hover:bg-orange-700 text-white px-5 py-3 rounded-lg text-sm font-bold transition-colors"
           >

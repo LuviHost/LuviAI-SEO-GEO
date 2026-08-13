@@ -3,10 +3,10 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { UNLOCK_DOMAIN_KEY } from '@/lib/unlock-return';
 
 const STORAGE_KEY = 'luviai-onboarding-v2';
-/** /unlock satis duvarindan /pricing'e giderken saklanan domain. */
-export const UNLOCK_DOMAIN_KEY = 'ranksup-unlock-domain';
+
 
 export default function SuccessPage() {
   const router = useRouter();
