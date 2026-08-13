@@ -400,10 +400,12 @@ export default function LandingPage() {
                 Onceki +%47 / -%62 / 10x hicbir veriye dayanmiyordu; CPI icin
                 asa_performance_daily tablosu bugun de bos, o yuzden yerine
                 gercekten olculen ASO sirasi kondu. Kaynaklar:
-                  - trafik/gosterim: Search Console (sc-domain:kobipratik.com)
+                  - trafik/gosterim: Search Console (sc-domain:kobipratik.com),
+                    ilk 30 gun 1.559 tiklama (gunde 52,0) -> son 30 gun 10.202
+                    (gunde 340,1) = 6,54x; gosterim 79.852 -> 728.565
                   - siralama: app_rankings, 16 May - 13 Agu, 1.264 konumlu olcum */}
-            <StatCard num="3.3x" label={t('land.res.r1.title')} sub={t('land.res.r1.sub')} />
-            <StatCard num="705K" label={t('land.res.r2.title')} sub={t('land.res.r2.sub')} />
+            <StatCard num="6.5x" label={t('land.res.r1.title')} sub={t('land.res.r1.sub')} />
+            <StatCard num="729K" label={t('land.res.r2.title')} sub={t('land.res.r2.sub')} />
             <StatCard num="2.9" label={t('land.res.r3.title')} sub={t('land.res.r3.sub')} />
           </div>
         </div>
