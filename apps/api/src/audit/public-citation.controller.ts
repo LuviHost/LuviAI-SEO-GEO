@@ -3,6 +3,7 @@ import type { Request, Response } from 'express';
 import { Public } from '../auth/public.decorator.js';
 import { PublicCitationService, type PublicCheckResult } from './public-citation.service.js';
 import { PublicCitationSubscriberService } from './public-citation-subscriber.service.js';
+import { QuotaService } from '../billing/quota.service.js';
 
 interface PublicCheckBody {
   domain: string;
@@ -38,6 +39,7 @@ export class PublicCitationController {
   constructor(
     private readonly citation: PublicCitationService,
     private readonly subscribers: PublicCitationSubscriberService,
+    private readonly quota: QuotaService,
   ) {}
 
   @Public()
@@ -75,6 +77,58 @@ export class PublicCitationController {
   @Post('citation-check/rate-limit')
   async rateLimit(@Req() req: Request): Promise<{ ok: boolean; remaining: number; resetIn?: string }> {
     return this.citation.checkRateLimit(this.extractIp(req));
+  }
+
+  /**
+   * POST /api/v1/public/citation-check/unlock — teaser kilidini acar.
+   *
+   * @Public DEGIL: giris yapmis kullanici gerekir. Landing'deki teaser 10
+   * sorudan yalnizca 2'sini olcer; burasi kalan sorulari da olcer (uye
+   * kademesi → Opus 5) ve tam raporu doner.
+   *
+   * Kotaya tabidir (plan basina aylik citationTests): aksi halde tek hesapla
+   * sinirsiz domain acilabilirdi.
+   */
+  @Post('citation-check/unlock')
+  async unlock(@Req() req: Request, @Body() body: { domain?: string }): Promise<PublicCheckResult> {
+    const user = (req as any).user as
+      | { id: string; role?: string; subscriptionStatus?: string; plan?: string }
+      | undefined;
+    if (!user?.id) throw new HttpException('Giris gerekli', HttpStatus.UNAUTHORIZED);
+    if (!body?.domain || typeof body.domain !== 'string') {
+      throw new HttpException('domain alani gerekli', HttpStatus.BAD_REQUEST);
+    }
+
+    // ODEME KAPISI — kilit "giris yapmis olmakla" degil SATIN ALMAYLA acilir.
+    // Yalnizca giris sarti olsaydi teaser'in satisa itme islevi kalmazdi:
+    // herkes ucretsiz hesap acip tam raporu alirdi. subscriptionStatus'un
+    // ACTIVE olmasi = PayTR odemesi tamamlanmis demek; TRIAL (kayit olmus
+    // ama odememis) BURADA GECMEZ.
+    const isAdmin = user.role === 'ADMIN';
+    const hasPaid = user.subscriptionStatus === 'ACTIVE';
+    if (!isAdmin && !hasPaid) {
+      throw new HttpException(
+        {
+          statusCode: HttpStatus.PAYMENT_REQUIRED,
+          code: 'PAYMENT_REQUIRED',
+          message: 'Tam raporu acmak icin bir plan satin almalisin.',
+        },
+        HttpStatus.PAYMENT_REQUIRED,
+      );
+    }
+
+    await this.quota.enforceCitationQuota(user.id);
+    try {
+      const result = await this.citation.check(body.domain, this.extractIp(req), 'signup_baseline');
+      // Cache'ten donduyse yeni olcum YAPILMADI — kota dusulmez. Aksi halde
+      // sayfayi yenilemek her seferinde hak yakardi.
+      if (!result.fromCache) await this.quota.incrementCitationUsage(user.id);
+      return result;
+    } catch (err: any) {
+      if (err.status) throw err;
+      this.log.warn(`Unlock fail (${body.domain}): ${err.message}`);
+      throw new HttpException(err.message || 'Beklenmedik hata', HttpStatus.INTERNAL_SERVER_ERROR);
+    }
   }
 
   /** Domain icin son N snapshot — dashboard delta gosterimi icin */

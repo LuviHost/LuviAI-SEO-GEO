@@ -5,10 +5,13 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
 const STORAGE_KEY = 'luviai-onboarding-v2';
+/** /unlock satis duvarindan /pricing'e giderken saklanan domain. */
+export const UNLOCK_DOMAIN_KEY = 'ranksup-unlock-domain';
 
 export default function SuccessPage() {
   const router = useRouter();
   const [returnTo, setReturnTo] = useState<{ siteId?: string; step?: number } | null>(null);
+  const [unlockDomain, setUnlockDomain] = useState<string | null>(null);
   const [countdown, setCountdown] = useState(3);
 
   // localStorage'dan onboarding state'i oku
@@ -22,6 +25,15 @@ export default function SuccessPage() {
         }
       }
     } catch (_e) { /* noop */ }
+  }, []);
+
+  // Teaser satis duvarindan gelindiyse odeme sonrasi rapora don.
+  // PayTR'in ok_url'i sabit oldugu icin hedef domaini localStorage tasiyor.
+  useEffect(() => {
+    try {
+      const d = localStorage.getItem(UNLOCK_DOMAIN_KEY);
+      if (d) setUnlockDomain(d);
+    } catch { /* noop */ }
   }, []);
 
   // PayTR test mode webhook gondermiyor — kendimiz dev-confirm cagiralim
@@ -45,8 +57,16 @@ export default function SuccessPage() {
     return () => { cancelled = true; };
   }, []);
 
+  // Unlock akisi onceliklidir: kullanici tam raporu acmak icin odedi.
+  useEffect(() => {
+    if (!unlockDomain) return;
+    try { localStorage.removeItem(UNLOCK_DOMAIN_KEY); } catch { /* noop */ }
+    router.push(`/unlock?domain=${encodeURIComponent(unlockDomain)}`);
+  }, [unlockDomain, router]);
+
   // Onboarding state varsa 3 saniyede otomatik geri dön
   useEffect(() => {
+    if (unlockDomain) return;
     if (!returnTo?.siteId) return;
     if (countdown <= 0) {
       const sp = returnTo.step ? `&step=${returnTo.step}` : '';
@@ -55,7 +75,7 @@ export default function SuccessPage() {
     }
     const t = setTimeout(() => setCountdown((c) => c - 1), 1000);
     return () => clearTimeout(t);
-  }, [returnTo, countdown, router]);
+  }, [returnTo, countdown, router, unlockDomain]);
 
   const goBackToWizard = () => {
     if (!returnTo?.siteId) return;

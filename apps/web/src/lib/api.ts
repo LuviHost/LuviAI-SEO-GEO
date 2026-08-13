@@ -1621,6 +1621,9 @@ export const api = {
       customNiche?: string;
       queries: Array<{
         query: string;
+        category?: string;
+        /** true = soru listelendi ama olculmedi; providers BOS gelir. */
+        locked?: boolean;
         providers: Array<{
           provider: string;
           label: string;
@@ -1635,9 +1638,25 @@ export const api = {
       totalLlmCalls: number;
       fromCache: boolean;
       cachedAt?: string;
+      access?: {
+        tier: 'anon' | 'member';
+        unlockedQueries: number;
+        totalQueries: number;
+        lockedQueries: number;
+      };
     }>('/public/citation-check', {
       method: 'POST',
       body: JSON.stringify({ domain, turnstileToken }),
+    }),
+
+  /**
+   * Teaser kilidini acar — GIRIS + ODENMIS PLAN gerekir. Odememis kullaniciya
+   * 402 doner; cagiran taraf bunu satis ekranina cevirir.
+   */
+  publicCitationUnlock: (domain: string) =>
+    request<Awaited<ReturnType<typeof api.publicCitationCheck>>>('/public/citation-check/unlock', {
+      method: 'POST',
+      body: JSON.stringify({ domain }),
     }),
 
   publicCitationRateLimit: () =>

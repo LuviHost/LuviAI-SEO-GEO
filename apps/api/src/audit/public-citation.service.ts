@@ -126,6 +126,24 @@ const TURKISH_NICHE_PROMPTS: Record<string, string[]> = {
   ],
 };
 
+/**
+ * TEASER MODELI (2026-08)
+ *
+ * Landing'de tum rapor bedava akiyordu; ziyaretcinin kayit olmak icin sebebi
+ * kalmiyordu. Artik niche-detector 10 soru URETIR, hepsi LISTELENIR, ama
+ * yalnizca ilki(leri) OLCULUR.
+ *
+ * Kritik nokta: kilitli sorgular icin LLM cagrisi HIC YAPILMAZ. Bu yuzden
+ *   - maliyet duser (eskiden 3 sorgu x 7 motor = 21 cagri; simdi de 3 x 7 = 21 ama
+ *   toplam 10 sorunun 7'si icin hic cagri yapilmiyor),
+ *   - sizdirilacak veri yoktur (CSS blur olsa devtools'tan okunurdu).
+ */
+const TEASER_TOTAL_QUERIES = 10;
+const FREE_UNLOCKED_QUERIES = Math.max(
+  1,
+  parseInt(process.env.PUBLIC_CITATION_FREE_QUERIES ?? '3', 10) || 3,
+);
+
 export interface PublicCheckResult {
   domain: string;
   brand: string;
@@ -133,6 +151,13 @@ export interface PublicCheckResult {
   customNiche?: string;
   queries: Array<{
     query: string;
+    category?: string;
+    /**
+     * true = bu soru LISTELENDI ama OLCULMEDI. Kilitli satirda providers
+     * bos gelir; hicbir sonuc verisi istemciye gonderilmez. CSS blur ile
+     * gizlemek yeterli DEGIL — devtools'tan okunurdu.
+     */
+    locked?: boolean;
     providers: Array<{
       provider: string;
       label: string;
@@ -143,6 +168,13 @@ export interface PublicCheckResult {
     citedCount: number;     // kac motor cite etti
     totalProviders: number; // kac motor sorgulandi (= 5-6)
   }>;
+  /** Teaser durumu — UI kilit rozetini ve CTA'yi buna gore cizer. */
+  access: {
+    tier: 'anon' | 'member';
+    unlockedQueries: number;
+    totalQueries: number;
+    lockedQueries: number;
+  };
   competitorRanking: Array<{
     name: string;
     mentions: number;
@@ -323,17 +355,29 @@ export class PublicCitationService {
     // Probe modeli bu ayrimdan ETKILENMEZ (olcum cetveli sabit, bkz. model-tier.ts).
     const audience: Audience = source === 'signup_baseline' ? 'member' : 'anon';
 
-    // 1) Cache kontrol — sadece manual istekte 24h taze snapshot varsa direkt don
-    //    (retest_cron + signup_baseline her zaman taze test ister)
-    if (source === 'manual') {
+    // 1) Cache kontrol — 24h taze snapshot.
+    //
+    // KADEME TAM ESLESMELI, iki yonlu da tehlikeli:
+    //   anon'a member snapshot'i verilirse → 10 sorunun TAMAMI bedava sizar,
+    //     kilit anlamsizlasir (bir kisi acinca 24 saat herkese acik olurdu).
+    //   member'a anon snapshot'i verilirse → 2 sorguluk eksik rapor gelir,
+    //     ustelik kotasindan dusulmus olur.
+    //
+    // retest_cron haric tutulur: amaci zaten TAZE olcum almak.
+    if (source === 'manual' || source === 'signup_baseline') {
       const cutoff = new Date(Date.now() - this.CACHE_TTL_HOURS * 60 * 60 * 1000);
-      const cached = await this.prisma.publicCitationCheck.findFirst({
+      // En yeniyi alip kademesine bakmak YETMEZ: bir uye domaini actiginda en
+      // yeni snapshot 'member' olur ve sonraki her anonim ziyaretci cache'i
+      // kaciririp bastan tam olcum tetiklerdi. Son birkac kaydin icinden
+      // kademesi TUTAN en yenisini sec.
+      const recent = await this.prisma.publicCitationCheck.findMany({
         where: { domain: host, createdAt: { gt: cutoff } },
         orderBy: { createdAt: 'desc' },
+        take: 5,
       });
+      const cached = recent.find((c) => ((c.result as any)?.access?.tier ?? 'anon') === audience);
       if (cached) {
-        const res = cached.result as any;
-        return { ...res, fromCache: true, cachedAt: cached.createdAt };
+        return { ...(cached.result as any), fromCache: true, cachedAt: cached.createdAt };
       }
     }
 
@@ -351,28 +395,39 @@ export class PublicCitationService {
     // 4) Niche detect — model kademesi cagiran kitleye gore
     const detection = await this.niche.detectFromUrl(url, audience);
 
-    // 5) Sorular — niche-detector AI gerçek müşteri sorularını ürettiyse onları kullan
-    //    (yerel + hizmet-spesifik = alakalı). Üretemediyse niche template'ine düş.
+    // 5) Sorular — niche-detector 10 soru uretir. Uretemezse niche template'ine dus.
     const aiQueries = (detection.queries ?? [])
-      .map((q) => q.trim())
-      .filter((q) => q.length >= 8 && q.length <= 160);
-    const queries = aiQueries.length >= 3
-      ? aiQueries.slice(0, 3)
-      : this.buildQueries(detection.niche, detection.customNiche, meta.brand);
+      .map((q) => ({ query: q.query.trim(), category: q.category as string | undefined }))
+      .filter((q) => q.query.length >= 8 && q.query.length <= 160);
+    const allQueries: Array<{ query: string; category?: string }> =
+      aiQueries.length >= 3
+        ? aiQueries.slice(0, TEASER_TOTAL_QUERIES)
+        : this.buildQueries(detection.niche, detection.customNiche, meta.brand)
+            .map((q) => ({ query: q, category: undefined }));
 
-    // 6) Probe 7 providers (paralel)
+    // TEASER KILIDI — anonim ziyaretci tum sorulari GORUR ama yalnizca ilk
+    // birkaci OLCULUR. Kilitli sorgular icin LLM cagrisi HIC yapilmaz: hem
+    // maliyet duser (3x7=21 → 2x7=14 cagri) hem de sizdirilacak veri olmaz.
+    const unlockedCount = audience === 'member'
+      ? allQueries.length
+      : Math.min(FREE_UNLOCKED_QUERIES, allQueries.length);
+    const measured = allQueries.slice(0, unlockedCount);
+    const lockedQueries = allQueries.slice(unlockedCount);
+
+    // 6) Probe 7 providers (paralel) — SADECE acik sorgular icin
     const providerResults = await this.ai.runPublicProbes({
       brand: meta.brand,
       host,
-      queries,
+      queries: measured.map((q) => q.query),
       competitors: [],
     });
 
     // 7) Per-query aggregate + share-of-voice
     const allProbes: CitationProbe[] = [];
-    const perQuery: PublicCheckResult['queries'] = queries.map((q) => {
+    const totalProviders = providerResults.length;
+    const perQuery: PublicCheckResult['queries'] = measured.map((q) => {
       const providers = providerResults.map((pr) => {
-        const probe = pr.probes.find((p) => p.query === q);
+        const probe = pr.probes.find((p) => p.query === q.query);
         return {
           provider: pr.provider,
           label: pr.label,
@@ -383,12 +438,26 @@ export class PublicCitationService {
       });
       const citedCount = providers.filter((p) => p.cited || p.brandMentioned).length;
       return {
-        query: q,
+        query: q.query,
+        category: q.category,
+        locked: false,
         providers,
         citedCount,
         totalProviders: providers.length,
       };
     });
+    // Kilitli sorular: yalnizca METIN ve KATEGORI gider. providers bos —
+    // istemciye sizacak bir sonuc verisi yok, cunku olcum hic yapilmadi.
+    for (const q of lockedQueries) {
+      perQuery.push({
+        query: q.query,
+        category: q.category,
+        locked: true,
+        providers: [],
+        citedCount: 0,
+        totalProviders,
+      });
+    }
     for (const pr of providerResults) allProbes.push(...pr.probes);
     const agg = this.ai.publicAggregate(allProbes, meta.brand);
 
@@ -409,8 +478,14 @@ export class PublicCitationService {
       customNiche: detection.customNiche,
       queries: perQuery,
       competitorRanking,
-      totalLlmCalls: providerResults.filter((p) => p.available).length * queries.length,
+      totalLlmCalls: providerResults.filter((p) => p.available).length * measured.length,
       fromCache: false,
+      access: {
+        tier: audience,
+        unlockedQueries: measured.length,
+        totalQueries: allQueries.length,
+        lockedQueries: lockedQueries.length,
+      },
     };
 
     // 8) Snapshot yaz — her test ayri row (history korunur)
