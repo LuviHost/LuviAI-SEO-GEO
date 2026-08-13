@@ -31,6 +31,22 @@ import { IntelDigestService } from './digest.service.js';
 /** Kapatma anahtari — sorun cikarsa deploy beklemeden durdurulabilsin */
 const isDisabled = () => process.env.INTEL_ENABLED === 'false';
 
+/**
+ * ZAMANLAMA anahtari. INTEL_CRON=false iken hicbir cron calismaz; boru hatti
+ * yalnizca /admin/intel panelinden (POST /intel/run/:stage, /digest/build,
+ * /sources/:id/collect) elle tetiklenir.
+ *
+ * NEDEN AYRI: INTEL_ENABLED=false katalog senkronunu da (onModuleInit)
+ * durdurur — o zaman koda yeni kaynak eklendiginde deploy ile devreye
+ * girmez, elle senkron gerekir. Bu anahtar yalnizca ZAMANLAMAYI kapatir,
+ * katalog senkronu ve manuel uclar calismaya devam eder.
+ *
+ * Maliyet notu: analiz asamasi Opus 5 kullaniyor ve gunluk butce tavani
+ * YOK; elle tetikleme, harcamanin ne zaman olusacagini kontrol altinda
+ * tutmanin en basit yolu.
+ */
+const isCronDisabled = () => process.env.INTEL_CRON === 'false';
+
 @Injectable()
 export class IntelCronService implements OnModuleInit {
   private readonly log = new Logger(IntelCronService.name);
@@ -68,6 +84,7 @@ export class IntelCronService implements OnModuleInit {
   @Cron('0 */3 * * *')
   async collect(): Promise<void> {
     if (isDisabled()) return;
+    if (isCronDisabled()) return;
     if (!(await acquireCronLock(this.prisma, 'intel-collect', 'hourly'))) return;
 
     try {
@@ -84,6 +101,7 @@ export class IntelCronService implements OnModuleInit {
   @Cron('20 5 * * *')
   async triageRun(): Promise<void> {
     if (isDisabled()) return;
+    if (isCronDisabled()) return;
     if (!(await acquireCronLock(this.prisma, 'intel-triage', 'daily'))) return;
 
     try {
@@ -104,6 +122,7 @@ export class IntelCronService implements OnModuleInit {
   @Cron('50 5 * * *')
   async analyze(): Promise<void> {
     if (isDisabled()) return;
+    if (isCronDisabled()) return;
     if (!(await acquireCronLock(this.prisma, 'intel-analyze', 'daily'))) return;
 
     try {
@@ -126,6 +145,7 @@ export class IntelCronService implements OnModuleInit {
   @Cron('30 6 * * *')
   async dailyDigest(): Promise<void> {
     if (isDisabled()) return;
+    if (isCronDisabled()) return;
     if (!(await acquireCronLock(this.prisma, 'intel-digest-daily', 'daily'))) return;
 
     try {
@@ -148,6 +168,7 @@ export class IntelCronService implements OnModuleInit {
   @Cron('0 7 * * 1')
   async weeklyDigest(): Promise<void> {
     if (isDisabled()) return;
+    if (isCronDisabled()) return;
     if (!(await acquireCronLock(this.prisma, 'intel-digest-weekly', 'weekly'))) return;
 
     try {
@@ -166,6 +187,7 @@ export class IntelCronService implements OnModuleInit {
   @Cron('0 4 * * 0')
   async purge(): Promise<void> {
     if (isDisabled()) return;
+    if (isCronDisabled()) return;
     if (!(await acquireCronLock(this.prisma, 'intel-purge', 'weekly'))) return;
 
     const cutoff = new Date(Date.now() - 90 * 86_400_000);
