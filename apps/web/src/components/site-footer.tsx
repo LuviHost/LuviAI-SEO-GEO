@@ -27,7 +27,7 @@ export function SiteFooter() {
               <BrandWordmark size={22} />
             </Link>
             <p className="mt-5 max-w-[360px] text-[13px] leading-relaxed text-neutral-500 dark:text-neutral-400">
-              SEO, AI içerik üretimi, sosyal medya ve reklam denetimi tek panelden.
+              GEO, SEO, ASO ve Apple Search Ads tek panelden.
               Türkiye için yapıldı, PayTR ile güvenli ödeme.
             </p>
             <p className="mt-6 text-[11px] tracking-[0.04em] uppercase text-neutral-400 dark:text-neutral-500">

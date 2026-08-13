@@ -4,7 +4,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: 'RanksUp — SEO + İçerik + Sosyal Medya Otomasyonu',
     short_name: 'RanksUp',
-    description: 'Site denetimi, AI içerik üretimi, sosyal medya planlama ve reklam denetimi tek panelden.',
+    description: 'AI görünürlük ölçümü, GEO/SEO içerik üretimi, ASO ve Apple Search Ads tek panelden.',
     start_url: '/',
     display: 'standalone',
     background_color: '#0c0a14',

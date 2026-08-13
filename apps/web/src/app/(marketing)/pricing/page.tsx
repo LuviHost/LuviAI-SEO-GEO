@@ -233,7 +233,6 @@ export default function PricingPage() {
 
                 <ul className="space-y-3 text-sm mt-6 mb-8 flex-1">
                   <Feat highlight={highlighted}>{p.articlesPerMonth} {t('pricing.articles_per_month')}</Feat>
-                  <Feat highlight={highlighted}>{p.socialPostsPerMonth} {t('pricing.social_posts_per_month')}</Feat>
                   {p.videosPerMonth > 0 ? (
                     <Feat highlight={highlighted}>
                       <span className="inline-flex items-center gap-1.5">

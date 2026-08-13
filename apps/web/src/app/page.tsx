@@ -596,7 +596,6 @@ export default function LandingPage() {
                         : t('land.pric.monthly_billed')}
                   bullets={[
                     `${p.articlesPerMonth} ${t('land.pric.bullet_articles')}`,
-                    `${p.socialPostsPerMonth} ${t('land.pric.bullet_posts')}`,
                     sitesLabel,
                     `${t('land.pric.bullet_support')} ${p.support}`,
                   ]}
