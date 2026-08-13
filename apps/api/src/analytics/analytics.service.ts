@@ -24,6 +24,38 @@ export class AnalyticsService {
   //  Daily snapshot — cron task çağırır
   // ─────────────────────────────────────────────
 
+  /**
+   * GSC ham satirini DB sekline cevirir.
+   *
+   * NEDEN AYRI FONKSIYON: upsert'un create dali bu esleme yapiyordu ama
+   * update dali HAM satiri (`{keys:[...]}`) yaziyordu. Iki dal farkli sekil
+   * uretince, ayni tarih ikinci kez yazildiginda kayit bozuluyor ve
+   * pageDetails/queryDetails'i okuyan her yuzey (rank tracking, trending,
+   * oneriler, rapor top-query) sessizce bosaliyor. Gunluk cron kayan
+   * pencereye gectigi icin (T-3..T-7) ayni tarihler her gece tekrar
+   * yaziliyor — yani bu bug artik her gece tetikleniyordu.
+   */
+  private toPageDetail(r: GscRow) {
+    return {
+      page: r.keys?.[0],
+      clicks: r.clicks ?? 0,
+      impressions: r.impressions ?? 0,
+      ctr: r.ctr ?? 0,
+      position: r.position ?? 0,
+    };
+  }
+
+  private toQueryDetail(r: GscRow) {
+    return {
+      query: r.keys?.[0],
+      page: r.keys?.[1],
+      clicks: r.clicks ?? 0,
+      impressions: r.impressions ?? 0,
+      ctr: r.ctr ?? 0,
+      position: r.position ?? 0,
+    };
+  }
+
   async captureSnapshot(siteId: string, date?: Date, opts?: { silent?: boolean }): Promise<void> {
     const targetDate = date ?? this.defaultSnapshotDate();
     const dateStr = targetDate.toISOString().slice(0, 10);
@@ -92,6 +124,9 @@ export class AnalyticsService {
         ? pageRows.reduce((s, r) => s + (r.position ?? 0), 0) / pageRows.length
         : 0;
 
+      const pageDetails = pageRows.map((r) => this.toPageDetail(r));
+      const queryDetails = queryRows.map((r) => this.toQueryDetail(r));
+
       await this.prisma.analyticsSnapshot.upsert({
         where: { siteId_date: { siteId, date: targetDate } },
         create: {
@@ -101,29 +136,16 @@ export class AnalyticsService {
           totalImpressions,
           avgCtr,
           avgPosition,
-          pageDetails: pageRows.map(r => ({
-            page: r.keys?.[0],
-            clicks: r.clicks ?? 0,
-            impressions: r.impressions ?? 0,
-            ctr: r.ctr ?? 0,
-            position: r.position ?? 0,
-          })) as any,
-          queryDetails: queryRows.map(r => ({
-            query: r.keys?.[0],
-            page: r.keys?.[1],
-            clicks: r.clicks ?? 0,
-            impressions: r.impressions ?? 0,
-            ctr: r.ctr ?? 0,
-            position: r.position ?? 0,
-          })) as any,
+          pageDetails: pageDetails as any,
+          queryDetails: queryDetails as any,
         },
         update: {
           totalClicks,
           totalImpressions,
           avgCtr,
           avgPosition,
-          pageDetails: pageRows as any,
-          queryDetails: queryRows as any,
+          pageDetails: pageDetails as any,
+          queryDetails: queryDetails as any,
         },
       });
 
@@ -211,12 +233,16 @@ export class AnalyticsService {
             pageDetails: [],
             queryDetails: dayQueries as any,
           },
+          // Bos gunde queryDetails EZILMEZ: backfill yalnizca EN SON tarihe
+          // tam query listesi iliştiriyor, digerlerine [] veriyor. Bunu update
+          // dalinda yazmak, gunluk cron'un o gun icin toplamis oldugu gercek
+          // query listesini siliyordu.
           update: {
             totalClicks: row.clicks ?? 0,
             totalImpressions: row.impressions ?? 0,
             avgCtr: row.ctr ?? 0,
             avgPosition: row.position ?? 0,
-            queryDetails: dayQueries as any,
+            ...(dayQueries.length > 0 ? { queryDetails: dayQueries as any } : {}),
           },
         });
         saved++;

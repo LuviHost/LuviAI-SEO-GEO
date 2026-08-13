@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { AnalyticsService } from './analytics.service.js';
 
 /**
@@ -54,5 +55,29 @@ describe('GSC veri gecikmesi', () => {
   it('GSC_LAG_DAYS sabiti emniyet payi birakiyor', () => {
     const lag = (AnalyticsService as unknown as { GSC_LAG_DAYS: number }).GSC_LAG_DAYS;
     expect(lag, 'gecikme 2 gun; 3 gun 1 gunluk pay birakir').toBeGreaterThanOrEqual(3);
+  });
+});
+
+describe('snapshot sekil tutarliligi', () => {
+  it('create ve update dallari AYNI sekli yaziyor', () => {
+    const kaynak = readFileSync(
+      new URL('./analytics.service.ts', import.meta.url), 'utf8',
+    );
+    const upsert = kaynak.slice(
+      kaynak.indexOf('analyticsSnapshot.upsert'),
+      kaynak.indexOf('updateArticleMetrics'),
+    );
+    // Iki dal da onceden hesaplanmis esleyici degiskenini kullanmali.
+    const createSekli = /create:[\s\S]*?pageDetails: (\w+)/.exec(upsert)?.[1];
+    const updateSekli = /update:[\s\S]*?pageDetails: (\w+)/.exec(upsert)?.[1];
+    expect(createSekli, 'create dali pageDetails yazmiyor').toBeTruthy();
+    expect(updateSekli, 'update dali pageDetails yazmiyor').toBeTruthy();
+    expect(
+      updateSekli,
+      'update dali create ile AYNI degiskeni yazmali — ham GSC satiri (pageRows) yazilirsa ' +
+      'ayni tarih ikinci kez islendiginde kayit {keys:[...]} sekline donup okuyan tum yuzeyleri bosaltir',
+    ).toBe(createSekli);
+    expect(upsert.includes('pageDetails: pageRows')).toBe(false);
+    expect(upsert.includes('queryDetails: queryRows')).toBe(false);
   });
 });
