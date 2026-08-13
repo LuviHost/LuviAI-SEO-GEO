@@ -117,7 +117,6 @@ const FEATURE_GROUPS_TR: FeatureGroup[] = [
     title: 'Fiyat',
     icon: <Award className="h-4 w-4" />,
     rows: [
-      { name: 'Aylık başlangıç', luviai: '₺1.499 ($37)', surfer: '$89 (~₺3.500)', jasper: '$49 (~₺1.900)', ahrefs: '$129 (~₺5.000)', frase: '$45 (~₺1.750)' },
       { name: 'Yıllık ödeme indirimi', luviai: '%17', surfer: '%30', jasper: '%20', ahrefs: '%20', frase: '%10' },
       { name: '2 ücretsiz makale', luviai: true, surfer: false, jasper: '5 gün trial', ahrefs: false, frase: '5 trial' },
       { name: 'Aylık iptal — taahhüt yok', luviai: true, surfer: true, jasper: true, ahrefs: false, frase: true },
@@ -216,7 +215,6 @@ const FEATURE_GROUPS_EN: FeatureGroup[] = [
     title: 'Price',
     icon: <Award className="h-4 w-4" />,
     rows: [
-      { name: 'Monthly starting', luviai: '₺1,499 ($37)', surfer: '$89 (~₺3,500)', jasper: '$49 (~₺1,900)', ahrefs: '$129 (~₺5,000)', frase: '$45 (~₺1,750)' },
       { name: 'Yearly discount', luviai: '17%', surfer: '30%', jasper: '20%', ahrefs: '20%', frase: '10%' },
       { name: '2 free articles', luviai: true, surfer: false, jasper: '5-day trial', ahrefs: false, frase: '5 trial' },
       { name: 'Monthly cancel — no commitment', luviai: true, surfer: true, jasper: true, ahrefs: false, frase: true },

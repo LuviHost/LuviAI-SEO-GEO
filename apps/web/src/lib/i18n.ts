@@ -192,7 +192,7 @@ const dictionary = {
     'land.pain.c3_cost': '₺8.000/ay',
     'land.pain.c3_title': 'Freelance içerik yazarı',
     'land.pain.c3_body': 'GEO bilmeyen yazar, AI cevaplarında hiç çıkmayan içerik üretir. Üstüne her seferinde 2 hafta gecikme.',
-    'land.pain.total': 'Aylık toplam: ₺48.000+ · RanksUp: ₺1.499\'dan başlar',
+    'land.pain.total': 'Aylık toplam: ₺48.000+ · RanksUp: $149\'dan başlar',
 
     // ─── Landing — Pricing section ──────────────────────────────
     'land.pricing.eyebrow': 'Şeffaf fiyat',
@@ -567,7 +567,7 @@ const dictionary = {
     'land.pain.c3_cost': '₺8,000/mo',
     'land.pain.c3_title': 'Freelance content writer',
     'land.pain.c3_body': 'A writer who does not know GEO produces content that never shows up in AI answers. Always 2 weeks behind schedule.',
-    'land.pain.total': 'Monthly total: ₺48,000+ · RanksUp: starts from ₺1,499',
+    'land.pain.total': 'Monthly total: ₺48,000+ · RanksUp: starts from $149',
 
     // ─── Landing — Pricing section ──────────────────────────────
     'land.pricing.eyebrow': 'Transparent pricing',

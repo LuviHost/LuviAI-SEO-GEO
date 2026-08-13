@@ -11,23 +11,24 @@ export default function Page() {
       title="Plan, fatura, iptal, kotalar"
       intro="Tüm ödeme ve plan işlemlerini buradan yönetirsin. Otomatik fatura, kart değişikliği, plan upgrade/downgrade, iptal — hepsi self-service."
     >
-      <h2>Planlar (Mayıs 2026 — Premium Pricing)</h2>
+      {/* Fiyat YAZILMAZ — TL karsiligi gunun TCMB kuruyla hesaplandigi icin
+          bu sayfada sabit tutmak kacinilmaz olarak bayatliyordu (₺1.499 /
+          ₺4.999 ... gercegin bes'te biriydi). Kotalar plans.ts ile ayni.
+          Ayrica "post" ve "video" kotalari urunden kaldirilmisti, burada
+          hala satiliyordu. */}
+      <h2>Planlar</h2>
       <ul>
-        <li><strong>Trial</strong> — ₺0, 2 makale + 5 post + 1 site (kart gerekmez)</li>
-        <li><strong>Başlangıç</strong> — ₺1.499/ay ($37), 15 makale + 15 post + 1 site, video add-on'dan satın al</li>
-        <li><strong>Profesyonel ⭐</strong> — ₺4.999/ay ($125), 40 makale + 30 post + 5 AI video + 3 site</li>
-        <li><strong>Ajans</strong> — ₺14.999/ay ($375), 100 makale + 80 post + 20 video + 12 site</li>
-        <li><strong>Kurumsal</strong> — ₺34.999+/ay ($875+), 350 makale + 200 post + 100 video + 50 site, özel hesap yöneticisi + SLA</li>
+        <li><strong>Ücretsiz Deneme</strong> — 2 makale + 3 AI görünürlük çalıştırması + 1 site (kart gerekmez)</li>
+        <li><strong>Büyüme</strong> — 15 makale + 20 çalıştırma + 2 site</li>
+        <li><strong>Profesyonel ⭐</strong> — 40 makale + 75 çalıştırma + 5 site, Apple Search Ads ve App Store Connect dahil</li>
+        <li><strong>Ajans</strong> — 100 makale + 300 çalıştırma + 15 site, Programmatic SEO ve Product Radar dahil</li>
+        <li><strong>Kurumsal</strong> — 350 makale + 1.000 çalıştırma + 50 site, BYOK, MCP, REST API, özel hesap yöneticisi + SLA</li>
       </ul>
+      <p>
+        Güncel fiyatlar için <a href="/pricing">fiyatlandırma sayfasına</a> bakın. Fiyatlar ABD doları
+        üzerinden belirlenir; Türk lirası karşılığı ödeme anındaki TCMB kuruyla hesaplanır.
+      </p>
       <p>Yıllık planda <strong>%17 indirim</strong> (10 ay öder, 12 ay kullanırsın).</p>
-
-      <h3>Video Credit Add-on (pay-as-you-go)</h3>
-      <p>Plan kotanız dolunca ek video paketi satın alabilirsiniz. Süresiz geçerli, plan kotası önce tüketilir.</p>
-      <ul>
-        <li><strong>5 video paketi</strong> — ₺499 (≈ ₺100/video)</li>
-        <li><strong>20 video paketi</strong> — ₺1.799 (≈ ₺90/video, %28 indirim)</li>
-        <li><strong>50 video paketi</strong> — ₺3.999 (≈ ₺80/video, en avantajlı)</li>
-      </ul>
 
       <h2>Plan değiştirme</h2>
       <Step n={1} title="Sağ üst → Ayarlar → Plan">
@@ -37,7 +38,7 @@ export default function Page() {
         Upgrade veya downgrade. Upgrade anlık aktif, downgrade ay sonu efektif.
       </Step>
       <Step n={3} title="Ödeme onayı">
-        Iyzico veya PayTR ile güvenli ödeme. 3D Secure aktif.
+        PayTR ile güvenli ödeme. 3D Secure aktif.
       </Step>
 
       <h2>Fatura indirme</h2>
@@ -61,20 +62,20 @@ export default function Page() {
 
       <h2>Kotalar — aylık reset</h2>
       <p>
-        Her ayın 1'inde kotalarn sıfırlanır (makale, sosyal post, video, AI bütçe).
-        Sites kotası fix (mevcut site sayın limiti aşarsa fazla siteler suspend).
+        Her ayın 1'inde kotalar sıfırlanır (makale ve AI görünürlük çalıştırması).
+        Site kotası sabittir — plan limitini aşan yeni site eklenemez.
       </p>
 
       <h3>Aşımda ne olur?</h3>
       <ul>
         <li><strong>Makale</strong> — yeni makale üretemez, plan upgrade promosu çıkar</li>
-        <li><strong>Video</strong> — yeni video üretemez (SLIDESHOW ücretsiz, kotadan düşmez)</li>
+        <li><strong>AI görünürlük çalıştırması</strong> — yeni ölçüm başlatılamaz; platformun günlük otomatik izlemesi kotadan düşmediği için grafiklerin akmaya devam eder</li>
         <li><strong>AI bütçe %80</strong> — sarı uyarı banner</li>
         <li><strong>AI bütçe %100</strong> — hard block: yeni AI istekleri durdurulur</li>
       </ul>
 
       <Tip kind="warn">
-        BYOK (kendi API key'inle) kullanırsan kota saymaz — sınırsız üretim. <a href="/help/api-keys">API Keys rehberi</a>.
+        BYOK (kendi sağlayıcı anahtarınla) kullanırsan havuz kotası dolsa bile ölçümün durmaz. Kurumsal plana dahildir — <a href="/help/api-keys">API Keys rehberi</a>.
       </Tip>
 
       <h2>Vergi + KVKK</h2>
