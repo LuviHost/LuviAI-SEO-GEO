@@ -2447,3 +2447,184 @@ model CrawlerHitEvent {
   @@index([ts])
   @@map("crawler_hit_events")
 }
+
+// ═══════════════════════════════════════════════════════════════
+//  INTEL (2026-08) — sektor istihbarati: GEO/SEO/ASO dunyasinda
+//  ne degisti, hangi iddia dogru, RanksUp'in nesini etkiliyor?
+//
+//  Akis:  IntelSource (katalog) → IntelItem (ham yayin, triage'li)
+//         → IntelEvidence (yayindan cikarilan kanit) → IntelClaim
+//         (iddia defteri, durum: CONFIRMED/CONTESTED/MYTH/...)
+//         → IntelDigest (gunluk ozet)
+//
+//  NEDEN AYRI TABLOLAR: bir yayin birden fazla iddiaya kanit olabilir
+//  (Ahrefs'in tek yazisi hem "llms.txt okunmuyor" hem "AI botlari
+//  robots.txt'e uyuyor" iddialarini besler), ayni iddia da onlarca
+//  yayindan beslenir. Cok-cok iliski IntelEvidence'ta cozulur.
+// ═══════════════════════════════════════════════════════════════
+
+model IntelSource {
+  id   String @id @default(cuid())
+  /** source-registry.ts'teki slug — upsert anahtari */
+  key  String @unique
+  name String
+
+  /** rss | reddit | hn | x | github */
+  kind   String
+  /** feed URL'i, subreddit adi ya da arama sorgusu */
+  target String @db.Text
+
+  /** official | primary-research | practitioner | news | community */
+  tier          String
+  /** IntelTopic listesi (JSON string dizisi) */
+  topics        Json
+  /** Kaynak on-agirligi 0-100 — kanit skorunun carpani */
+  weight        Int     @default(50)
+  intervalHours Int     @default(24)
+  enabled       Boolean @default(true)
+  note          String? @db.Text
+
+  lastFetchedAt DateTime?
+  /** Ust uste hata sayaci — esigi asinca otomatik devre disi kalir */
+  failCount     Int       @default(0)
+  lastError     String?   @db.Text
+
+  items IntelItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([enabled, lastFetchedAt])
+  @@map("intel_sources")
+}
+
+model IntelItem {
+  id       String @id @default(cuid())
+  sourceId String
+
+  /** Icerik parmak izi (normalize URL + baslik) — ayni yazi birden fazla feed'de cikabilir */
+  fingerprint String @unique
+
+  url         String    @db.Text
+  title       String    @db.Text
+  author      String?
+  publishedAt DateTime?
+  /** Feed ozeti — triage bunun uzerinden calisir, tam metin cekilmez */
+  summary     String?   @db.Text
+  /** Analiz asamasinda cekilen tam metin (yalnizca triage'i gecenler) */
+  fullText    String?   @db.LongText
+
+  /** PENDING | RELEVANT | IRRELEVANT | ANALYZED | FAILED */
+  status String @default("PENDING")
+
+  /** Triage ciktisi: 0-100 alaka puani */
+  relevance  Int?
+  /** Triage ciktisi: IntelTopic listesi */
+  topics     Json?
+  /** Triage'in tek cumlelik gerekcesi — yanlis elemeleri denetlemek icin */
+  triageNote String? @db.Text
+
+  /** Toplulukta ilgi olcusu: HN puani, Reddit upvote, X begeni */
+  engagement Int?
+
+  meta Json?
+
+  source    IntelSource     @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  evidences IntelEvidence[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, relevance])
+  @@index([sourceId, createdAt])
+  @@index([publishedAt])
+  @@map("intel_items")
+}
+
+model IntelClaim {
+  id String @id @default(cuid())
+
+  /** Iddianin kanonik ifadesi — tek cumle, dogrulanabilir bicimde */
+  statement String @db.Text
+  /** Eslestirme anahtari: normalize edilmis konu ifadesi */
+  slug      String @unique
+
+  /** IntelTopic listesi */
+  topics Json
+
+  /** CONFIRMED | CONTESTED | EMERGING | MYTH | STALE */
+  status        String @default("EMERGING")
+  /** -1..+1 — destek/karsit kefelerinin normalize farki */
+  confidence    Float  @default(0)
+  supportWeight Int    @default(0)
+  refuteWeight  Int    @default(0)
+
+  /** Bu iddia RanksUp'in NESINI etkiliyor (citation-scoring, agent-readiness, ...) */
+  productAreas Json?
+  /** Ekip icin tek cumlelik kullanim talimati */
+  guidance     String? @db.Text
+  /** OPEN | PLANNED | APPLIED | REJECTED — bulgunun urun tarafinda kapanmasi */
+  actionStatus String  @default("OPEN")
+  actionNote   String? @db.Text
+
+  evidences IntelEvidence[]
+
+  firstSeenAt    DateTime  @default(now())
+  lastEvidenceAt DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([status, confidence])
+  @@index([actionStatus])
+  @@map("intel_claims")
+}
+
+model IntelEvidence {
+  id      String @id @default(cuid())
+  claimId String
+  itemId  String
+
+  /** official-doc | large-n-study | controlled-test | case-study | expert-opinion | anecdote | speculation */
+  grade  String
+  /** supports | refutes | mixed */
+  stance String
+
+  /** Yayindan birebir alinti — kanit zinciri denetlenebilir olsun diye */
+  quote      String? @db.Text
+  /** Calismanin orneklem buyuklugu; large-n-study dogrulamasinda kullanilir */
+  sampleSize Int?
+  /** Hesaplanmis etkili agirlik (grade x kaynak x tazelik) */
+  weight     Int     @default(0)
+
+  claim IntelClaim @relation(fields: [claimId], references: [id], onDelete: Cascade)
+  item  IntelItem  @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  /** Ayni yayin ayni iddiaya iki kez kanit olamaz */
+  @@unique([claimId, itemId])
+  @@index([claimId, weight])
+  @@map("intel_evidence")
+}
+
+model IntelDigest {
+  id String @id @default(cuid())
+
+  /** daily | weekly */
+  period String
+  /** Kapsanan donemin bitis gunu (UTC gun basi) */
+  date   DateTime
+
+  /** Markdown ozet — e-posta ve panelde ayni govde kullanilir */
+  body  String @db.LongText
+  /** Ozet istatistikleri: kac yayin tarandi, kac iddia degisti vs. */
+  stats Json?
+
+  emailedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@unique([period, date])
+  @@index([date])
+  @@map("intel_digests")
+}

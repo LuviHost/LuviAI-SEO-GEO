@@ -14,19 +14,26 @@ import type { PrismaService } from '../prisma/prisma.service.js';
 export async function acquireCronLock(
   prisma: PrismaService,
   name: string,
-  granularity: 'daily' | 'weekly',
+  granularity: 'hourly' | 'daily' | 'weekly',
 ): Promise<boolean> {
   const now = new Date();
-  const stamp = granularity === 'daily'
-    ? now.toISOString().slice(0, 10)
-    : `${now.getUTCFullYear()}-w${getIsoWeek(now)}`;
+  const stamp = granularity === 'hourly'
+    // Saat basi cozunurluk — gun icinde tekrarlayan cron'lar (intel
+    // toplama) icin. Kilit anahtari saatle degistigi surece ayni saatte
+    // iki proses birden calisamaz.
+    ? now.toISOString().slice(0, 13)
+    : granularity === 'daily'
+      ? now.toISOString().slice(0, 10)
+      : `${now.getUTCFullYear()}-w${getIsoWeek(now)}`;
   const key = `cron-lock:${name}:${stamp}`;
   try {
     await prisma.kvStore.create({
       data: {
         key,
         value: `${process.pid}@${now.toISOString()}`,
-        expiresAt: new Date(now.getTime() + 14 * 86_400_000),
+        // Saatlik kilitler hizla birikir; 2 gun sonra temizlenebilir
+        // olmalari yeterli (gunluk/haftalik 14 gun kalir).
+        expiresAt: new Date(now.getTime() + (granularity === 'hourly' ? 2 : 14) * 86_400_000),
       },
     });
     return true;

@@ -36,6 +36,7 @@ import { TestimonialsModule } from './testimonials/testimonials.module.js';
 import { ActionPlansModule } from './action-plans/action-plans.module.js';
 import { McpModule } from './mcp/mcp.module.js';
 import { ChatModule } from './chat/chat.module.js';
+import { IntelModule } from './intel/intel.module.js';
 
 @Module({
   imports: [
@@ -73,6 +74,7 @@ import { ChatModule } from './chat/chat.module.js';
     ActionPlansModule,
     McpModule,
     ChatModule,
+    IntelModule,
   ],
   // Guard SIRASI onemli — kayit sirasinda calisirlar.
   //
