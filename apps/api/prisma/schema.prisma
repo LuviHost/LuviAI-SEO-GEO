@@ -938,8 +938,14 @@ model UsageEvent {
 
 /// Gerçek müşteri testimonial'ı — dashboard'dan toplanır, admin onaylar, landing'de gösterilir.
 model Testimonial {
-  id         String    @id @default(cuid())
-  userId     String // hangi user yazdı
+  id     String  @id @default(cuid())
+  /// Panelden yorum bırakan user. Dışarıdan alınan referanslarda NULL olur.
+  userId String?
+  /// Panel kullanıcısı olmayan referanslar için görünen ad — ör. bir müşteri
+  /// firmanın kurucusu. Doluysa listPublic user tablosuna hiç bakmaz.
+  /// NOT: bu alan doluyken kayıt, kişinin YAZILI ONAYI alınmadan
+  /// approved=true yapılmamalıdır; aksi halde uydurma referans olur.
+  authorName String?
   siteId     String? // hangi siteden (opsiyonel)
   rating     Int // 1-5
   body       String    @db.Text // 1-500 karakter

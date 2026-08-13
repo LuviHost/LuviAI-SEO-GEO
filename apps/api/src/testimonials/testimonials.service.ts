@@ -45,8 +45,8 @@ export class TestimonialsService {
       orderBy: [{ featured: 'desc' }, { createdAt: 'desc' }],
       take: limit,
     });
-    // user info için ek query
-    const userIds = [...new Set(rows.map((r) => r.userId))];
+    // user info için ek query — yalnızca panel kullanıcısına bağlı kayıtlar için
+    const userIds = [...new Set(rows.map((r) => r.userId).filter((id): id is string => !!id))];
     const users = userIds.length > 0 ? await this.prisma.user.findMany({
       where: { id: { in: userIds } },
       select: { id: true, name: true, email: true },
@@ -54,8 +54,12 @@ export class TestimonialsService {
     const userMap = new Map(users.map((u) => [u.id, u]));
 
     return rows.map((r) => {
-      const u = userMap.get(r.userId);
-      const displayName = r.role && r.company ? makeAnonName(u?.name ?? u?.email ?? '') : (u?.name ?? 'Kullanıcı');
+      const u = r.userId ? userMap.get(r.userId) : undefined;
+      // authorName doluysa (dışarıdan alınan referans) kısaltma UYGULANMAZ:
+      // kişi adının tam haliyle yayınlanmasına zaten onay vermiş demektir.
+      const displayName = r.authorName
+        ? r.authorName
+        : (r.role && r.company ? makeAnonName(u?.name ?? u?.email ?? '') : (u?.name ?? 'Kullanıcı'));
       const initials = (displayName || 'U').trim().split(/\s+/).slice(0, 2).map((s) => s[0]?.toUpperCase() ?? '').join('') || 'U';
       return {
         id: r.id,
@@ -83,7 +87,7 @@ export class TestimonialsService {
       orderBy: { createdAt: 'desc' },
       take: 100,
     });
-    const userIds = [...new Set(rows.map((r) => r.userId))];
+    const userIds = [...new Set(rows.map((r) => r.userId).filter((id): id is string => !!id))];
     const users = userIds.length > 0 ? await this.prisma.user.findMany({
       where: { id: { in: userIds } },
       select: { id: true, name: true, email: true },
@@ -91,7 +95,7 @@ export class TestimonialsService {
     const userMap = new Map(users.map((u) => [u.id, u]));
     return rows.map((r) => ({
       ...r,
-      user: userMap.get(r.userId) ?? null,
+      user: r.userId ? (userMap.get(r.userId) ?? null) : null,
     }));
   }
 

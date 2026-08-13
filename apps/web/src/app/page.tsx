@@ -396,9 +396,15 @@ export default function LandingPage() {
           </div>
 
           <div className="grid sm:grid-cols-3 gap-6 max-w-5xl mx-auto">
-            <StatCard num="+%47" label={t('land.res.r1.title')} sub={t('land.res.r1.sub')} />
-            <StatCard num="-%62" label={t('land.res.r2.title')} sub={t('land.res.r2.sub')} />
-            <StatCard num="10x" label={t('land.res.r3.title')} sub={t('land.res.r3.sub')} />
+            {/* Uc rakam da OLCULMUS tek bir vakadan (KobiPratik) geliyor.
+                Onceki +%47 / -%62 / 10x hicbir veriye dayanmiyordu; CPI icin
+                asa_performance_daily tablosu bugun de bos, o yuzden yerine
+                gercekten olculen ASO sirasi kondu. Kaynaklar:
+                  - trafik/gosterim: Search Console (sc-domain:kobipratik.com)
+                  - siralama: app_rankings, 16 May - 13 Agu, 1.264 konumlu olcum */}
+            <StatCard num="3.3x" label={t('land.res.r1.title')} sub={t('land.res.r1.sub')} />
+            <StatCard num="705K" label={t('land.res.r2.title')} sub={t('land.res.r2.sub')} />
+            <StatCard num="2.9" label={t('land.res.r3.title')} sub={t('land.res.r3.sub')} />
           </div>
         </div>
       </section>

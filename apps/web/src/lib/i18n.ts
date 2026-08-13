@@ -281,12 +281,12 @@ const dictionary = {
     // ─── Landing — Results (3 KPI) ──────────────────────────────
     'land.res.eyebrow': 'Sonuçlar',
     'land.res.title': 'Sayılarla RanksUp etkisi.',
-    'land.res.r1.title': 'ortalama organic trafik artışı',
-    'land.res.r1.sub': 'ilk 30 günde',
-    'land.res.r2.title': 'App Store Ads CPI düşüşü',
-    'land.res.r2.sub': 'Auto-Pilot 60 gün sonrası',
-    'land.res.r3.title': 'içerik üretim hızı',
-    'land.res.r3.sub': 'manuel sürece kıyasla',
+    'land.res.r1.title': 'organik trafik',
+    'land.res.r1.sub': 'KobiPratik · 3 ayda, günde ~100’den 327’ye',
+    'land.res.r2.title': 'aylık arama gösterimi',
+    'land.res.r2.sub': 'Search Console, son 30 gün',
+    'land.res.r3.title': 'App Store ortalama sırası',
+    'land.res.r3.sub': '3 ayda 4.8’den — 1.264 ölçüm',
 
     // ─── Landing — Compare (table) ──────────────────────────────
     'land.cmp.eyebrow': 'Karşılaştırma',
@@ -655,12 +655,12 @@ const dictionary = {
     // ─── Landing — Results (3 KPI) ──────────────────────────────
     'land.res.eyebrow': 'Results',
     'land.res.title': 'RanksUp impact in numbers.',
-    'land.res.r1.title': 'average organic traffic increase',
-    'land.res.r1.sub': 'in first 30 days',
-    'land.res.r2.title': 'App Store Ads CPI decrease',
-    'land.res.r2.sub': 'after 60 days on Auto-Pilot',
-    'land.res.r3.title': 'content production speed',
-    'land.res.r3.sub': 'compared to manual process',
+    'land.res.r1.title': 'organic traffic',
+    'land.res.r1.sub': 'KobiPratik · 3 months, ~100/day to 327/day',
+    'land.res.r2.title': 'monthly search impressions',
+    'land.res.r2.sub': 'Search Console, last 30 days',
+    'land.res.r3.title': 'average App Store rank',
+    'land.res.r3.sub': 'from 4.8 in 3 months — 1,264 measurements',
 
     // ─── Landing — Compare (table) ──────────────────────────────
     'land.cmp.eyebrow': 'Comparison',

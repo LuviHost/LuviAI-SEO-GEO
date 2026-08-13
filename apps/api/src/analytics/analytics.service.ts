@@ -25,7 +25,7 @@ export class AnalyticsService {
   // ─────────────────────────────────────────────
 
   async captureSnapshot(siteId: string, date?: Date, opts?: { silent?: boolean }): Promise<void> {
-    const targetDate = date ?? this.yesterday();
+    const targetDate = date ?? this.defaultSnapshotDate();
     const dateStr = targetDate.toISOString().slice(0, 10);
 
     const site = await this.prisma.site.findUniqueOrThrow({ where: { id: siteId } });
@@ -69,6 +69,21 @@ export class AnalyticsService {
 
       const pageRows: GscRow[] = (pageRes.data.rows ?? []) as any;
       const queryRows: GscRow[] = (queryRes.data.rows ?? []) as any;
+
+      // GSC BOS DONDUYSE HICBIR SEY YAZMA.
+      // Bos yanit "o gun trafik yoktu" demek DEGIL; neredeyse her zaman
+      // "o gunun verisi henuz yayinlanmadi" demek. Sifir yazmak iki hasar
+      // veriyordu: (1) grafik gercek olmayan bir dusus gosteriyor,
+      // (2) upsert oldugu icin veri sonradan yayinlandiginda da duzelmiyor.
+      // Yazmayip gecmek, bir sonraki calismada ayni gunun tekrar denenmesine
+      // izin verir.
+      if (pageRows.length === 0) {
+        this.log.warn(
+          `[${siteId}] ${dateStr} icin GSC bos dondu — snapshot YAZILMADI ` +
+          `(veri henuz yayinlanmamis olabilir; GSC ~2 gun gecikmeli).`,
+        );
+        return;
+      }
 
       const totalClicks = pageRows.reduce((s, r) => s + (r.clicks ?? 0), 0);
       const totalImpressions = pageRows.reduce((s, r) => s + (r.impressions ?? 0), 0);
@@ -573,9 +588,25 @@ export class AnalyticsService {
   //  Helpers
   // ─────────────────────────────────────────────
 
-  private yesterday(): Date {
+  /**
+   * Gunluk snapshot icin varsayilan tarih.
+   *
+   * DUN DEGIL, T-3. Google Search Console verisi ~2 gun gecikmeli yayinlanir;
+   * dun icin sorgu ATTIGIMIZ HER GECE BOS DONUYORDU. Olculdu (kobipratik,
+   * sc-domain, siteOwner):
+   *   T-1 -> 0 satir      T-2 -> 50 satir / 486 tiklama
+   *   T-3 -> 50 satir     T-4 -> 50 satir / 289 tiklama
+   * Cron her gece bu bos yaniti sifir snapshot olarak yaziyor, upsert oldugu
+   * icin de o sifir bir daha duzelmiyordu — kobipratik'te 3 ay boyunca
+   * 36 snapshot'in hepsi 0 tiklama/0 gosterim olarak kaldi, oysa ayni
+   * property gercekte ayda ~9.800 tiklama aliyordu.
+   * T-3, 1 gunluk emniyet payi birakir.
+   */
+  private static readonly GSC_LAG_DAYS = 3;
+
+  private defaultSnapshotDate(): Date {
     const d = new Date();
-    d.setUTCDate(d.getUTCDate() - 1);
+    d.setUTCDate(d.getUTCDate() - AnalyticsService.GSC_LAG_DAYS);
     d.setUTCHours(0, 0, 0, 0);
     return d;
   }
