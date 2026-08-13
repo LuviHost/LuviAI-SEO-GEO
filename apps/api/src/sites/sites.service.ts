@@ -4,6 +4,18 @@ import { JobQueueService } from '../jobs/job-queue.service.js';
 import { QuotaService } from '../billing/quota.service.js';
 import { CreateSiteDto, UpdateSiteDto } from './sites.dto.js';
 
+/**
+ * Site satirindaki sirlar — API cevabina ASLA cikmamali.
+ * Yeni bir sir alani eklenirse buraya da eklenmeli.
+ */
+const SITE_SECRET_FIELDS = {
+  ingestSecret: true,
+  gscRefreshToken: true,
+  gaRefreshToken: true,
+  googleAdsRefreshToken: true,
+  metaAccessToken: true,
+} as const;
+
 type RequestingUser = { id: string; role: 'USER' | 'ADMIN' | 'AGENCY_OWNER' };
 
 /**
@@ -77,11 +89,25 @@ export class SitesService {
 
   list(user: RequestingUser) {
     const where = user.role === 'ADMIN' ? {} : { userId: user.id };
-    return this.prisma.site.findMany({ where, orderBy: { createdAt: 'desc' } });
+    // SIRLAR CEVABA SIZMASIN.
+    // Site satiri ingestSecret (canli crawler HMAC siri) ve saglayici
+    // refresh token'lari tasiyor. Select/omit olmadan bu alanlar API
+    // cevabinda donuyordu; salt-okunur bir API anahtari (sites:read) sirri
+    // okuyup sahte ingest imzalayabilirdi — yani okuma yetkisi sessizce
+    // yazma kabiliyetine donusuyordu.
+    return this.prisma.site.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      omit: SITE_SECRET_FIELDS,
+    });
   }
 
   async findOne(id: string, user: RequestingUser) {
-    const site = await this.prisma.site.findUnique({ where: { id }, include: { brain: true } });
+    const site = await this.prisma.site.findUnique({
+      where: { id },
+      include: { brain: true },
+      omit: SITE_SECRET_FIELDS,
+    });
     if (!site) throw new NotFoundException();
     if (user.role !== 'ADMIN' && site.userId !== user.id) {
       throw new ForbiddenException('Bu site sana ait degil');

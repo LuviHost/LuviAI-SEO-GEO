@@ -21,17 +21,32 @@ export class AsoKeywordService {
     store: 'IOS' | 'ANDROID';
     country?: string;
   }) {
+    // Rank olcumu ile ayni lokal cozumleyicisini kullaniyoruz ki skorlama ve
+    // siralama ayni pazari anlatsin.
+    const loc = this.scrapers.locale(opts.country);
     try {
       const fn = opts.store === 'IOS' ? asoHelpers.analyzeITunesKeyword : asoHelpers.analyzeGPlayKeyword;
       const scores: any = await fn(opts.keyword, {
-        country: opts.country ?? 'tr',
+        country: loc.country,
+        // DIKKAT — aso-v2 KUSURU: StoreConfig.language degeri
+        // (dist/main.js executeRequest) scraper'a `language` anahtariyla
+        // gonderiliyor, oysa app-store-scraper/google-play-scraper `lang`
+        // okuyor. Yani bu deger scraper'a ULASMIYOR ve aso-v2 skorlari
+        // her zaman Ingilizce arayuzden hesaplaniyor. Config'e `lang`
+        // eklemek de ise yaramiyor: executeRequest params'a yalnizca
+        // country/language/timeout kopyaliyor. Dogru degeri yine de
+        // geciyoruz ki kutuphane duzelince davranis kendiliginden toparlansin.
+        language: loc.googleLang,
       } as any);
       // aso-v2 response: { difficulty: { score, ...nested }, traffic: { score, suggest, ranked, installs, length } }
       // popularity field yok → traffic.suggest.score (autocomplete prominence) proxy
       const difficultyRaw = scores?.difficulty?.score ?? 0;
       const trafficRaw = scores?.traffic?.score ?? 0;
       const popularityRaw = scores?.traffic?.suggest?.score ?? scores?.traffic?.installs?.score ?? 0;
-      this.log.debug(`Score "${opts.keyword}": pop=${popularityRaw} diff=${difficultyRaw} traffic=${trafficRaw}`);
+      // Bilerek measuredLocale DONMUYORUZ: yukaridaki aso-v2 kusuru yuzunden
+      // bu skorlar gercekte Ingilizce arayuzden geliyor; "tr-TR ile olculdu"
+      // demek yanlis olurdu. Sadece storefront'u logluyoruz.
+      this.log.debug(`Score "${opts.keyword}" [storefront=${loc.country}, aso-v2 dili: en]: pop=${popularityRaw} diff=${difficultyRaw} traffic=${trafficRaw}`);
       return {
         popularity: this.normalizeScore(popularityRaw),
         difficulty: this.normalizeScore(difficultyRaw),

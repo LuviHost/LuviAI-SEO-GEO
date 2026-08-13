@@ -102,6 +102,38 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   }
 }
 
+/** Audit delta raporu — GET /sites/:id/audit/compare cevabi */
+export interface AuditComparison {
+  from: { id: string; ranAt: string; overallScore: number; geoScore: number | null } | null;
+  to: { id: string; ranAt: string; overallScore: number; geoScore: number | null } | null;
+  scoreDelta: number;
+  geoScoreDelta: number;
+  checks: Array<{
+    id: string;
+    oncekiScore: number | null;
+    sonrakiScore: number | null;
+    delta: number;
+    durum: 'iyilesti' | 'kotulesti' | 'ayni' | 'yeni' | 'kayboldu';
+  }>;
+  issues: {
+    cozulen: AuditIssueRecord[];
+    yeniCikan: AuditIssueRecord[];
+    devamEden: AuditIssueRecord[];
+  };
+  ozet: { cozulenSayisi: number; yeniSayisi: number; devamEdenSayisi: number };
+  /** Tek tarama varsa true — karsilastirilacak referans yok */
+  yeterliVeriYok?: boolean;
+}
+
+export interface AuditIssueRecord {
+  severity?: 'critical' | 'warning' | 'info' | string;
+  type?: string;
+  page?: string;
+  description?: string;
+  fixable?: boolean;
+  checkId?: string;
+}
+
 export const api = {
   // Generic raw request (custom endpoints icin)
   request: <T = any>(path: string, options?: RequestInit) => request<T>(path, options),
@@ -156,6 +188,25 @@ export const api = {
 
   runAuditNow: (siteId: string) =>
     request<any>(`/sites/${siteId}/audit/run-now`, { method: 'POST' }),
+
+  // Tarama geçmişi + iki tarama arası fark
+  getAuditHistory: (siteId: string, limit = 20) =>
+    request<Array<{
+      id: string;
+      ranAt: string;
+      overallScore: number;
+      geoScore: number | null;
+      issueCount: number;
+      durationMs: number | null;
+    }>>(`/sites/${siteId}/audit/history?limit=${limit}`),
+
+  compareAudits: (siteId: string, opts: { fromId?: string; toId?: string } = {}) => {
+    const qs = new URLSearchParams();
+    if (opts.fromId) qs.set('fromId', opts.fromId);
+    if (opts.toId) qs.set('toId', opts.toId);
+    const suffix = qs.toString() ? `?${qs.toString()}` : '';
+    return request<AuditComparison>(`/sites/${siteId}/audit/compare${suffix}`);
+  },
 
   previewStaticWrite: (siteId: string, pageUrl: string, snippets: any[]) =>
     request<any>(`/sites/${siteId}/audit/snippets/static-preview`, { method: 'POST', body: JSON.stringify({ pageUrl, snippets }) }),

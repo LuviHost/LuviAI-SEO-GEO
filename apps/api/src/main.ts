@@ -52,7 +52,11 @@ class SentryExceptionFilter implements ExceptionFilter {
 }
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  // rawBody: Live Crawler ingest ucu (POST /api/tracker/events) govdenin HAM
+  // halini HMAC ile dogrular. Parse edilmis nesneyi yeniden serilestirmek
+  // anahtar sirasi/bosluk farki yuzunden gecerli imzalari sessizce dusururdu,
+  // bu yuzden express'in gordugu byte dizisi saklanmali.
+  const app = await NestFactory.create(AppModule, { rawBody: true });
 
   app.enableCors({
     origin: process.env.CORS_ORIGINS?.split(',') ?? ['http://localhost:3000'],

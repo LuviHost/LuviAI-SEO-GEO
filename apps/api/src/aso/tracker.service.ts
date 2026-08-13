@@ -33,13 +33,31 @@ export class AsoTrackerService {
       return null;
     }
 
-    const { rank, total } = await this.scrapers.findRank({
+    // Lokal kaynagi TrackedApp.country (varsayilan "tr"). Dil buradan turetilir;
+    // ayri bir dil alani tutmuyoruz ki olcum ile keyword skorlamasi ayrisamasin.
+    const { rank, total, measurable, measuredLocale } = await this.scrapers.findRank({
       term: kw.keyword,
       appIdent,
       country: kw.trackedApp.country,
       storeType: kw.store as 'IOS' | 'ANDROID',
       num: 100,
     });
+
+    // OLCUM YAPILAMADIYSA KAYIT YAZMA.
+    // Arama 0 sonuc dondugunde bu "uygulama siralamada yok" demek degil,
+    // "magaza tarafi cevap vermedi" demektir. Eskiden bu durumda position:null
+    // yaziliyordu ve grafik gercek olmayan bir dususe geciyordu. Su an
+    // google-play-scraper'in search'u tam olarak boyle davraniyor (her sorgu
+    // 0 sonuc), yani her Android keyword'u her gun "sirada yok" kaydediyordu.
+    // Kayit atlanirsa grafik son GERCEK olcumde kalir — bu, uydurma bir
+    // dususten dogrudur.
+    if (!measurable) {
+      this.log.warn(
+        `[${kw.id}] "${kw.keyword}" (${kw.store}, ${measuredLocale}) olculemedi — ` +
+        `magaza aramasi 0 sonuc dondu, kayit yazilmadi.`,
+      );
+      return { rank: kw.currentRank, previousRank: kw.previousRank, measurable: false, measuredLocale };
+    }
 
     // Tarihsel kayıt
     await this.prisma.appRanking.create({
@@ -61,11 +79,21 @@ export class AsoTrackerService {
       },
     });
 
-    return { rank, total };
+    // measuredLocale'i cagirana donduruyoruz: ayni keyword farkli lokalde
+    // farkli sira verir, bu bilgi olmadan sonuc yorumlanamaz.
+    // NOT: app_rankings tablosunda lokal sutunu yok — gecmis kayitlarin hangi
+    // dille olculdugu bilinemez (bkz. uyarilar).
+    return { rank, total, measuredLocale };
   }
 
   /** Bir app'in tüm keyword'leri için sıralı rank check (rate limit uyumlu). */
   async checkAllForApp(trackedAppId: string) {
+    const app = await this.prisma.trackedApp.findUniqueOrThrow({
+      where: { id: trackedAppId },
+      select: { country: true },
+    });
+    const measuredLocale = this.scrapers.locale(app.country).measuredLocale;
+
     const keywords = await this.prisma.trackedAppKeyword.findMany({
       where: { trackedAppId, isActive: true },
     });
@@ -82,7 +110,7 @@ export class AsoTrackerService {
         failed++;
       }
     }
-    return { success, failed, total: keywords.length };
+    return { success, failed, total: keywords.length, measuredLocale };
   }
 
   /** Cron — her gece 03:30'da tüm aktif app'lerin keyword'lerini check eder. */
@@ -98,7 +126,7 @@ export class AsoTrackerService {
     for (const app of apps) {
       try {
         const r = await this.checkAllForApp(app.id);
-        this.log.log(`[${app.name}] ${r.success}/${r.total} rank güncellendi`);
+        this.log.log(`[${app.name}] ${r.success}/${r.total} rank güncellendi (${r.measuredLocale})`);
         await new Promise(r => setTimeout(r, 5000)); // appler arası bekle
       } catch (err: any) {
         this.log.error(`[${app.id}] daily rank: ${err.message}`);

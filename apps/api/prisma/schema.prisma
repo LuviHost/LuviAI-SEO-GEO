@@ -247,6 +247,16 @@ model Site {
   notifyWebhookUrl  String? // Slack/Discord incoming webhook URL
   notifyWebhookKind String? // slack | discord
 
+  /**
+   * Live Crawler ingest sirri — edge kaynaklarinin (Cloudflare Worker / WP
+   * eklentisi / nginx ajani) POST /api/tracker/events istegini HMAC-SHA256 ile
+   * imzalamasi icin. Onceden ingest yalnizca "siteId DB'de var mi" diye
+   * bakiyordu; siteId gizli olmadigi icin herkes sahte bot ziyareti enjekte
+   * edip musteriye yanlis "AI seni okudu" verisi gosterebiliyordu.
+   * NULL = snippet henuz uretilmedi; bu durumda ingest reddedilir.
+   */
+  ingestSecret String?
+
   // Ads Manager (Faz 11.2 — direkt resmi API'ler, Ryze AI kaldırıldı)
   // Google Ads OAuth
   googleAdsCustomerId   String? // 123-456-7890

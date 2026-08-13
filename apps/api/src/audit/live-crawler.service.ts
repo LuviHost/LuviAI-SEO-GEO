@@ -1,9 +1,14 @@
-import { Injectable, Logger, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException, NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { WebhookNotifierService } from './webhook-notifier.service.js';
 import { acquireCronLock } from '../common/cron-lock.js';
+import {
+  generateIngestSecret,
+  verifyIngestSignature,
+  describeIngestFailure,
+} from './ingest-auth.js';
 
 /**
  * Live Crawler — istek bazli, gercek zamanli AI bot ziyaret hatti.
@@ -78,6 +83,14 @@ export interface IngestEvent {
   ts?: string | number;
 }
 
+/** Ingest istegini imzalayan basliklar + govdenin HAM hali */
+export interface IngestAuthContext {
+  signature?: string | null;
+  timestamp?: string | null;
+  /** Yeniden serilestirme (JSON.stringify) imzayi bozar — express'in ham gorduğu gövde */
+  rawBody: string;
+}
+
 @Injectable()
 export class LiveCrawlerService {
   private readonly log = new Logger(LiveCrawlerService.name);
@@ -100,15 +113,33 @@ export class LiveCrawlerService {
     return null;
   }
 
-  async ingest(siteId: string, events: IngestEvent[], source = 'worker'): Promise<{ accepted: number; skipped: number }> {
+  async ingest(
+    siteId: string,
+    events: IngestEvent[],
+    source = 'worker',
+    auth?: IngestAuthContext,
+  ): Promise<{ accepted: number; skipped: number }> {
     if (!siteId || !Array.isArray(events) || events.length === 0) {
       throw new BadRequestException('site + events zorunlu');
     }
     const site = await this.prisma.site.findUnique({
       where: { id: siteId },
-      select: { id: true, userId: true, name: true },
+      select: { id: true, userId: true, name: true, ingestSecret: true },
     });
     if (!site) throw new NotFoundException('Site bulunamadi');
+
+    // IMZA ZORUNLU. Sirri olmayan site de reddedilir (henuz snippet uretmemis
+    // demektir) — "sir yoksa serbest gec" davranisi acigi aynen geri getirirdi.
+    const verdict = verifyIngestSignature({
+      secret: site.ingestSecret,
+      signature: auth?.signature,
+      timestamp: auth?.timestamp,
+      rawBody: auth?.rawBody ?? '',
+    });
+    if (!verdict.ok) {
+      this.log.warn(`[${siteId}] Ingest reddedildi (${source}): ${describeIngestFailure(verdict.reason!)}`);
+      throw new UnauthorizedException('Ingest imzasi dogrulanamadi');
+    }
 
     // Gunluk tavan — kacak/dongusel worker koruması
     const dayStart = new Date(new Date().toISOString().slice(0, 10));
@@ -230,37 +261,116 @@ export class LiveCrawlerService {
   //  KURULUM SNIPPET'LERI — Worker / WP / nginx
   // ────────────────────────────────────────────────────────────
 
-  snippets(siteId: string) {
+  /**
+   * Site'nin ingest sirrini dondur; yoksa uret ve kaydet.
+   * Snippet uretimi bunu cagirir — kullanici kurulum kodunu ilk gordugunde sir
+   * hazir olsun, "once sir uret" diye ayri bir adim olmasin.
+   */
+  async ensureIngestSecret(siteId: string): Promise<string> {
+    const site = await this.prisma.site.findUnique({
+      where: { id: siteId },
+      select: { id: true, ingestSecret: true },
+    });
+    if (!site) throw new NotFoundException('Site bulunamadi');
+    if (site.ingestSecret) return site.ingestSecret;
+
+    // KOSULLU YAZMA — oku-sonra-yaz yarisini kapatir.
+    // Snippet ucu bir GET ve kullanici sayfayi acinca otomatik cagriliyor.
+    // Duz update ile iki sekme ayni anda acildiginda iki farkli sir uretilip
+    // sonuncusu kazaniyordu; ilk sekmedeki snippet'i kuran musteri sessizce
+    // 401 aliyordu. updateMany + ingestSecret:null kosulu ile yalnizca ilk
+    // yazan kazanir, kaybeden mevcut sirri okur.
+    const secret = generateIngestSecret();
+    const yazildi = await this.prisma.site.updateMany({
+      where: { id: siteId, ingestSecret: null },
+      data: { ingestSecret: secret },
+    });
+    if (yazildi.count === 0) {
+      const taze = await this.prisma.site.findUnique({
+        where: { id: siteId },
+        select: { ingestSecret: true },
+      });
+      if (taze?.ingestSecret) return taze.ingestSecret;
+    }
+    this.log.log(`[${siteId}] Ingest sirri uretildi`);
+    return secret;
+  }
+
+  /**
+   * Sirri yenile — eski sir aninda gecersiz olur, yani sahada kurulu her
+   * snippet imzasi duser. Sizinti supheli oldugunda dogru davranis budur;
+   * kullaniciya snippet'i yeniden kurmasi soylenir.
+   */
+  async rotateIngestSecret(siteId: string): Promise<{ secret: string; warning: string }> {
+    const site = await this.prisma.site.findUnique({ where: { id: siteId }, select: { id: true } });
+    if (!site) throw new NotFoundException('Site bulunamadi');
+
+    const secret = generateIngestSecret();
+    await this.prisma.site.update({ where: { id: siteId }, data: { ingestSecret: secret } });
+    this.log.warn(`[${siteId}] Ingest sirri yenilendi — eski snippet'ler artik reddedilecek`);
+    return {
+      secret,
+      warning: 'Yeni anahtar üretildi. Eski anahtarla imzalanan istekler artık reddediliyor — Worker / WordPress / nginx snippet\'ini yeniden kopyalayıp kurmanız gerekiyor, aksi halde bot ziyaretleri kaydedilmez.',
+    };
+  }
+
+  async snippets(siteId: string) {
+    const secret = await this.ensureIngestSecret(siteId);
     const apiBase = (process.env.NEXT_PUBLIC_API_URL ?? 'https://ranksup.ai').replace(/\/+$/, '');
     const ingest = `${apiBase}/api/tracker/events`;
     const uaPattern = LIVE_BOT_REGISTRY.map((b) => b.re.source).join('|');
 
+    // Sablonlarin hepsi AYNI kanonik metni imzalar: `${timestamp}.${rawBody}`.
+    // Govde ONCE string'e cevrilip hem imzada hem istekte AYNI string kullanilir;
+    // iki kez serilestirmek (bir imza icin, bir gonderim icin) anahtar sirasi
+    // farkindan dolayi imzayi sessizce bozabilir.
     const cloudflareWorker = `// RanksUp Live Crawler — Cloudflare Worker
 // Kurulum: Cloudflare Dashboard → Workers & Pages → Create Worker →
 // bu kodu yapistir → Deploy → siteni Worker Route ile bagla (ör. example.com/*)
+// NOT: RANKSUP_SECRET gizlidir; bu kodu herkese acik bir repoda paylasma.
 const RANKSUP_INGEST = '${ingest}';
 const SITE_ID = '${siteId}';
+const RANKSUP_SECRET = '${secret}';
 const AI_BOT = /${uaPattern}/i;
+
+async function ranksupSign(payload) {
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    'raw', enc.encode(RANKSUP_SECRET),
+    { name: 'HMAC', hash: 'SHA-256' }, false, ['sign'],
+  );
+  const sig = await crypto.subtle.sign('HMAC', key, enc.encode(payload));
+  return [...new Uint8Array(sig)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
 
 export default {
   async fetch(request, env, ctx) {
     const response = await fetch(request); // istegi normal isle — sifir gecikme
     const ua = request.headers.get('user-agent') || '';
     if (AI_BOT.test(ua)) {
-      ctx.waitUntil(fetch(RANKSUP_INGEST, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
+      ctx.waitUntil((async () => {
+        const ts = String(Date.now());
+        const body = JSON.stringify({
           site: SITE_ID,
           source: 'worker',
           events: [{
             ua,
             path: new URL(request.url).pathname,
             status: response.status,
-            ts: Date.now(),
+            ts: Number(ts),
           }],
-        }),
-      }).catch(() => {}));
+        });
+        const sig = await ranksupSign(ts + '.' + body);
+        await fetch(RANKSUP_INGEST, {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            'X-RanksUp-Timestamp': ts,
+            'X-RanksUp-Signature': 'sha256=' + sig,
+          },
+          body,
+        });
+      })().catch(() => {}));
     }
     return response;
   },
@@ -270,25 +380,39 @@ export default {
 /**
  * Plugin Name: RanksUp Live Crawler
  * Description: AI bot ziyaretlerini (GPTBot, ClaudeBot, ChatGPT-User...) RanksUp'a anlik bildirir.
- * Version: 1.0
+ * Version: 1.1
  */
+// NOT: RANKSUP_SECRET gizlidir; bu dosyayi herkese acik bir repoda paylasma.
+define('RANKSUP_INGEST', '${ingest}');
+define('RANKSUP_SITE', '${siteId}');
+define('RANKSUP_SECRET', '${secret}');
+
 add_action('template_redirect', function () {
   $ua = isset($_SERVER['HTTP_USER_AGENT']) ? $_SERVER['HTTP_USER_AGENT'] : '';
   if (!$ua || !preg_match('/${uaPattern.replace(/\//g, '\\/')}/i', $ua)) return;
-  wp_remote_post('${ingest}', array(
+
+  $ts   = (string) round(microtime(true) * 1000);
+  $body = wp_json_encode(array(
+    'site'   => RANKSUP_SITE,
+    'source' => 'wp',
+    'events' => array(array(
+      'ua'     => $ua,
+      'path'   => isset($_SERVER['REQUEST_URI']) ? strtok($_SERVER['REQUEST_URI'], '?') : '/',
+      'status' => 200,
+      'ts'     => (int) $ts,
+    )),
+  ));
+  $sig = hash_hmac('sha256', $ts . '.' . $body, RANKSUP_SECRET);
+
+  wp_remote_post(RANKSUP_INGEST, array(
     'timeout'  => 2,
     'blocking' => false, // ziyaretciyi bekletme
-    'headers'  => array('Content-Type' => 'application/json'),
-    'body'     => wp_json_encode(array(
-      'site'   => '${siteId}',
-      'source' => 'wp',
-      'events' => array(array(
-        'ua'     => $ua,
-        'path'   => isset($_SERVER['REQUEST_URI']) ? strtok($_SERVER['REQUEST_URI'], '?') : '/',
-        'status' => 200,
-        'ts'     => round(microtime(true) * 1000),
-      )),
-    )),
+    'headers'  => array(
+      'Content-Type'        => 'application/json',
+      'X-RanksUp-Timestamp' => $ts,
+      'X-RanksUp-Signature' => 'sha256=' . $sig,
+    ),
+    'body'     => $body,
   ));
 });`;
 
@@ -296,19 +420,26 @@ add_action('template_redirect', function () {
 # RanksUp Live Crawler — nginx access log ajani
 # Kurulum: sunucuda calistir (systemd service veya screen/tmux icinde)
 # Log formati: varsayilan "combined" beklenir.
+# NOT: SECRET gizlidir; dosya izinlerini kisitla (chmod 600).
 INGEST='${ingest}'
 SITE='${siteId}'
+SECRET='${secret}'
 tail -F /var/log/nginx/access.log | while read -r line; do
   ua=$(echo "$line" | grep -oE '"[^"]*"$' | tr -d '"')
   echo "$ua" | grep -qiE '${uaPattern}' || continue
   path=$(echo "$line" | awk '{print $7}')
   status=$(echo "$line" | awk '{print $9}')
+  # Milisaniye epoch — date +%s%3N BSD/macOS'ta yok, carpim her yerde calisir
+  ts=$(( $(date +%s) * 1000 ))
+  body="{\\"site\\":\\"$SITE\\",\\"source\\":\\"log\\",\\"events\\":[{\\"ua\\":\\"$ua\\",\\"path\\":\\"$path\\",\\"status\\":$status,\\"ts\\":$ts}]}"
+  sig=$(printf '%s' "$ts.$body" | openssl dgst -sha256 -hmac "$SECRET" -r | awk '{print $1}')
   curl -s -m 2 -X POST "$INGEST" -H 'Content-Type: application/json' \\
-    -d "{\\"site\\":\\"$SITE\\",\\"source\\":\\"log\\",\\"events\\":[{\\"ua\\":\\"$ua\\",\\"path\\":\\"$path\\",\\"status\\":$status}]}" \\
-    > /dev/null 2>&1 &
+    -H "X-RanksUp-Timestamp: $ts" \\
+    -H "X-RanksUp-Signature: sha256=$sig" \\
+    -d "$body" > /dev/null 2>&1 &
 done`;
 
-    return { ingestUrl: ingest, cloudflareWorker, wordpress, nginx };
+    return { ingestUrl: ingest, ingestSecret: secret, cloudflareWorker, wordpress, nginx };
   }
 
   // ────────────────────────────────────────────────────────────

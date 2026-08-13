@@ -1,10 +1,12 @@
-import { Body, Controller, Get, Header, Post, Query, Res } from '@nestjs/common';
-import type { Response } from 'express';
+import { Body, Controller, Get, Header, Headers, Post, Query, Req, Res } from '@nestjs/common';
+import type { RawBodyRequest } from '@nestjs/common';
+import type { Request, Response } from 'express';
 import { AiReferrerService } from './ai-referrer.service.js';
 import { PersonaChatService } from './persona-chat.service.js';
 import { LiveCrawlerService, type IngestEvent } from './live-crawler.service.js';
 import { Public } from '../auth/public.decorator.js';
-import { SkipThrottle } from '@nestjs/throttler';
+import { SkipThrottle, Throttle } from '@nestjs/throttler';
+import { INGEST_SIGNATURE_HEADER, INGEST_TIMESTAMP_HEADER } from './ingest-auth.js';
 
 /**
  * Public tracker beacon — site sahibinin html'ine eklediği <script>
@@ -39,13 +41,39 @@ export class TrackerController {
   /**
    * POST /api/tracker/events — Live Crawler ingest (edge kaynaklari).
    * Cloudflare Worker / WordPress eklentisi / nginx ajani batch event yollar.
-   * Public + throttle disi: bot trafigi dogasi geregi ani yigilir; koruma
-   * LiveCrawlerService icinde (bilinmeyen UA at, batch 500, gunluk tavan).
+   *
+   * @Public() KALIYOR: edge kaynagi kullanici oturumu tasiyamaz. Yerine istek
+   * site bazli sirla HMAC-SHA256 imzalanir (X-RanksUp-Signature +
+   * X-RanksUp-Timestamp) — dogrulama LiveCrawlerService.ingest icinde.
+   *
+   * SkipThrottle KALDIRILDI: sinif seviyesindeki muafiyet, imzasiz istekleri de
+   * sinirsiz birakiyordu; yani gecersiz imzayla bile HMAC + DB sorgusu
+   * tetiklenip ucuz bir CPU/DB tuketim vektoru aciliyordu. Ingest bir batch
+   * ucudur (tek istekte 500 event), yani mesru bir edge kaynaginin dakikada
+   * 300 isteğe ihtiyaci olmaz; bu limit gercek trafigi kesmez.
    */
   @Public()
+  @SkipThrottle({ default: false })
+  @Throttle({ default: { limit: 300, ttl: 60_000 } })
   @Post('tracker/events')
-  async ingestEvents(@Body() body: { site?: string; source?: string; events?: IngestEvent[] }) {
-    return this.liveCrawler.ingest(String(body?.site ?? ''), body?.events ?? [], body?.source);
+  async ingestEvents(
+    @Body() body: { site?: string; source?: string; events?: IngestEvent[] },
+    @Headers() headers: Record<string, string | undefined>,
+    @Req() req: RawBodyRequest<Request>,
+  ) {
+    // Imza HAM govde uzerinden hesaplanir; parse edilmis nesneyi yeniden
+    // JSON.stringify etmek (anahtar sirasi/bosluk farki) imzayi bozardi.
+    const rawBody = req.rawBody ? req.rawBody.toString('utf8') : '';
+    return this.liveCrawler.ingest(
+      String(body?.site ?? ''),
+      body?.events ?? [],
+      body?.source,
+      {
+        signature: headers[INGEST_SIGNATURE_HEADER],
+        timestamp: headers[INGEST_TIMESTAMP_HEADER],
+        rawBody,
+      },
+    );
   }
 
   @Public()

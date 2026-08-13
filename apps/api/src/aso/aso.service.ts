@@ -52,9 +52,11 @@ export class AsoService {
       const app: any = urlInfo.store === 'IOS'
         ? await this.scrapers.getIosApp({ id: urlInfo.id, country })
         : await this.scrapers.getAndroidApp({ appId: urlInfo.id, country });
-      if (!app) return { results: [], parsedUrl: urlInfo };
+      const measuredLocale = this.scrapers.locale(country).measuredLocale;
+      if (!app) return { results: [], parsedUrl: urlInfo, measuredLocale };
       return {
         parsedUrl: urlInfo,
+        measuredLocale,
         results: [{
           id: urlInfo.id,
           store: urlInfo.store,
@@ -107,7 +109,8 @@ export class AsoService {
     }
 
     const results = (await Promise.all(promises)).flat();
-    return { results };
+    // Hangi ulke+dil ile arandigi doner; ayni terim baska lokalde baska sonuc verir.
+    return { results, measuredLocale: this.scrapers.locale(country).measuredLocale };
   }
 
   /**

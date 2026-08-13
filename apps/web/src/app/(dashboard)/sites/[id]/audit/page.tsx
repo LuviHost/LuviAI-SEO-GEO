@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import { useSiteContext } from '../site-context';
 import { AuditStepBody } from '@/components/site-flow-stepper';
+import { AuditDeltaPanel } from '@/components/audit-delta-panel';
 import { RelatedLinks } from '@/components/empty-state';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -12,6 +13,9 @@ import { ShieldCheck, Sparkles, FileText, Send, Award, RefreshCw } from 'lucide-
 export default function AuditPage() {
   const { site, audit, refresh, onboardingMode } = useSiteContext();
   const [running, setRunning] = useState(false);
+  // Yeni tarama bittiginde delta paneli de tazelenmeli; site context'i yalnizca
+  // SON taramayi tasidigi icin panel kendi ucunu yeniden cagirmak zorunda.
+  const [deltaKey, setDeltaKey] = useState(0);
 
   const runAudit = async () => {
     setRunning(true);
@@ -19,6 +23,7 @@ export default function AuditPage() {
       await api.runAuditNow(site.id);
       toast.success('Yeni tarama tamamlandı');
       await refresh();
+      setDeltaKey((k) => k + 1);
     } catch (err: any) {
       toast.error(err.message || 'Tarama başarısız');
     } finally {
@@ -41,6 +46,8 @@ export default function AuditPage() {
           {running ? 'Taranıyor…' : 'Yeniden Tara'}
         </Button>
       </div>
+      {/* Onceki taramaya gore ne degisti — asil audit sonucunun ustunde durur */}
+      <AuditDeltaPanel key={deltaKey} siteId={site.id} />
       <Card>
         <CardContent className="p-5">
           <AuditStepBody audit={audit} siteId={site.id} onRefresh={refresh} onboardingMode={onboardingMode} />

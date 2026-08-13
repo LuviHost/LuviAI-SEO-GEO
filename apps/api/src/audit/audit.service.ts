@@ -7,6 +7,192 @@ import { GeoRunnerService } from './geo-runner.service.js';
 import { AiCitationService } from './ai-citation.service.js';
 import type { CheckResult } from './audit-checks.service.js';
 
+/** Bir taramanin karsilastirmada kullanilan ozet kimligi */
+export interface AuditOzet {
+  id: string;
+  ranAt: Date;
+  overallScore: number;
+  geoScore: number | null;
+}
+
+export type CheckDurum = 'iyilesti' | 'kotulesti' | 'ayni' | 'yeni' | 'kayboldu';
+
+export interface CheckDelta {
+  id: string;
+  oncekiScore: number | null;
+  sonrakiScore: number | null;
+  delta: number;
+  durum: CheckDurum;
+}
+
+export interface AuditIssueKaydi {
+  severity?: string;
+  type?: string;
+  page?: string;
+  description?: string;
+  fixable?: boolean;
+  checkId?: string;
+  [k: string]: unknown;
+}
+
+export interface AuditKarsilastirma {
+  from: AuditOzet | null;
+  to: AuditOzet | null;
+  scoreDelta: number;
+  geoScoreDelta: number;
+  checks: CheckDelta[];
+  issues: {
+    cozulen: AuditIssueKaydi[];
+    yeniCikan: AuditIssueKaydi[];
+    devamEden: AuditIssueKaydi[];
+  };
+  ozet: { cozulenSayisi: number; yeniSayisi: number; devamEdenSayisi: number };
+  yeterliVeriYok?: boolean;
+}
+
+/**
+ * Issue eslestirme anahtari.
+ *
+ * Audit.issues opak bir Json dizisi; kayitlarin KALICI id'si yok, her tarama
+ * listeyi sifirdan uretiyor. Iki tarama arasinda "ayni sorun mu" sorusunu
+ * cevaplamak icin en kararli bilesim `type + page`: type kontrol uretecinden
+ * sabit gelir (meta_title_missing gibi), page ise sorunun hangi URL'de
+ * oldugunu ayirir — ayni type farkli sayfalarda ayri sorun sayilmali.
+ * Ikisi de yoksa (ornek: PageSpeed/GEO gibi site geneli, type'siz kayitlar)
+ * description'in ilk 80 karakterine duseriz; tam metin degil, cunku aciklama
+ * icinde degisen sayilar (skor, saniye) var ve bunlar her taramada oynayip
+ * ayni sorunu "cozuldu + yeni cikti" olarak ikiye bolerdi.
+ */
+export function issueKey(issue: AuditIssueKaydi): string {
+  const type = typeof issue?.type === 'string' ? issue.type.trim() : '';
+  const page = typeof issue?.page === 'string' ? issue.page.trim() : '';
+  if (type || page) return `${type}|${page}`;
+  const desc = typeof issue?.description === 'string' ? issue.description : '';
+  return `desc:${desc.slice(0, 80)}`;
+}
+
+/** checks Json'undaki bir girdiden 0-100 skoru cikarir; yoksa null */
+function checkScore(entry: unknown): number | null {
+  if (!entry || typeof entry !== 'object') return null;
+  const s = (entry as { score?: unknown }).score;
+  return typeof s === 'number' && Number.isFinite(s) ? s : null;
+}
+
+function ozetle(row: any): AuditOzet | null {
+  if (!row) return null;
+  return {
+    id: row.id,
+    ranAt: row.ranAt,
+    overallScore: row.overallScore,
+    geoScore: row.geoScore ?? null,
+  };
+}
+
+function issueListesi(row: any): AuditIssueKaydi[] {
+  const raw = row?.issues;
+  return Array.isArray(raw) ? (raw as AuditIssueKaydi[]) : [];
+}
+
+/**
+ * Iki audit satirini karsilastiran SAF cekirdek — DB'ye dokunmaz, testin
+ * hedefi budur. Satirlardan biri (from) null olabilir: ilk tarama durumu.
+ */
+export function compareAuditRows(fromRow: any, toRow: any): AuditKarsilastirma {
+  const from = ozetle(fromRow);
+  const to = ozetle(toRow);
+
+  const bos: AuditKarsilastirma = {
+    from,
+    to,
+    scoreDelta: 0,
+    geoScoreDelta: 0,
+    checks: [],
+    issues: { cozulen: [], yeniCikan: [], devamEden: [] },
+    ozet: { cozulenSayisi: 0, yeniSayisi: 0, devamEdenSayisi: 0 },
+  };
+
+  // Tek tarama (veya hic tarama) — karsilastiracak referans yok.
+  if (!from || !to) return { ...bos, yeterliVeriYok: true };
+
+  // ── Skor deltalari ────────────────────────────────────────────
+  const scoreDelta = (to.overallScore ?? 0) - (from.overallScore ?? 0);
+  const geoScoreDelta =
+    typeof to.geoScore === 'number' && typeof from.geoScore === 'number'
+      ? to.geoScore - from.geoScore
+      : 0;
+
+  // ── Per-check delta ───────────────────────────────────────────
+  // checks her taramada AYNI anahtarlarla yazilir (runAudit'teki create),
+  // yani anahtar bazli eslesme guvenli. Yine de eski taramalar yeni eklenen
+  // kontrolleri icermeyebilir; o yuzden iki tarafin anahtar birlesimi gezilir.
+  const fromChecks = (fromRow?.checks ?? {}) as Record<string, unknown>;
+  const toChecks = (toRow?.checks ?? {}) as Record<string, unknown>;
+  const checkIds = Array.from(
+    new Set([...Object.keys(fromChecks), ...Object.keys(toChecks)]),
+  );
+
+  const checks: CheckDelta[] = [];
+  for (const id of checkIds) {
+    const oncekiScore = checkScore(fromChecks[id]);
+    const sonrakiScore = checkScore(toChecks[id]);
+    // Iki tarafta da skor yoksa (ornek: pagespeed null dondu) satir uretme —
+    // kullaniciya "0 -> 0, ayni" gurultusu gosterilmemeli.
+    if (oncekiScore === null && sonrakiScore === null) continue;
+
+    let durum: CheckDurum;
+    let delta = 0;
+    if (oncekiScore === null) {
+      durum = 'yeni';
+    } else if (sonrakiScore === null) {
+      durum = 'kayboldu';
+    } else {
+      // delta yalnizca iki uc da olculebildiginde anlamli; yeni/kayboldu
+      // durumlarinda 0 birakilir ki "+87 puan" gibi sahte sicramalar cikmasin.
+      delta = sonrakiScore - oncekiScore;
+      durum = delta > 0 ? 'iyilesti' : delta < 0 ? 'kotulesti' : 'ayni';
+    }
+
+    checks.push({ id, oncekiScore, sonrakiScore, delta, durum });
+  }
+  // Once en cok degisenler (mutlak delta), sonra alfabetik — kullanici paneli
+  // acinca once "ne degisti" gorsun.
+  checks.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta) || a.id.localeCompare(b.id));
+
+  // ── Issue eslestirme ──────────────────────────────────────────
+  const oncekiIssues = issueListesi(fromRow);
+  const sonrakiIssues = issueListesi(toRow);
+
+  const oncekiMap = new Map<string, AuditIssueKaydi>();
+  for (const i of oncekiIssues) if (!oncekiMap.has(issueKey(i))) oncekiMap.set(issueKey(i), i);
+  const sonrakiMap = new Map<string, AuditIssueKaydi>();
+  for (const i of sonrakiIssues) if (!sonrakiMap.has(issueKey(i))) sonrakiMap.set(issueKey(i), i);
+
+  const cozulen: AuditIssueKaydi[] = [];
+  const devamEden: AuditIssueKaydi[] = [];
+  for (const [key, issue] of oncekiMap) {
+    if (sonrakiMap.has(key)) devamEden.push(sonrakiMap.get(key)!);
+    else cozulen.push(issue);
+  }
+  const yeniCikan: AuditIssueKaydi[] = [];
+  for (const [key, issue] of sonrakiMap) {
+    if (!oncekiMap.has(key)) yeniCikan.push(issue);
+  }
+
+  return {
+    from,
+    to,
+    scoreDelta,
+    geoScoreDelta,
+    checks,
+    issues: { cozulen, yeniCikan, devamEden },
+    ozet: {
+      cozulenSayisi: cozulen.length,
+      yeniSayisi: yeniCikan.length,
+      devamEdenSayisi: devamEden.length,
+    },
+  };
+}
+
 @Injectable()
 export class AuditService {
   private readonly log = new Logger(AuditService.name);
@@ -25,6 +211,88 @@ export class AuditService {
       where: { siteId },
       orderBy: { ranAt: 'desc' },
     });
+  }
+
+  /**
+   * Tarama gecmisi — en yeni once.
+   *
+   * checks Json'u BILEREK cekilmiyor: 14 kontrolun tam ciktisi tarama basina
+   * yuzlerce KB tutabiliyor ve liste ucunda hicbir ise yaramiyor. issues ise
+   * yalnizca sayisini uretmek icin okunur, cevaba konmaz.
+   */
+  async getHistory(siteId: string, limit = 20) {
+    const guvenliLimit = Math.min(100, Math.max(1, Math.floor(limit) || 20));
+    const rows = await this.prisma.audit.findMany({
+      where: { siteId },
+      orderBy: { ranAt: 'desc' },
+      take: guvenliLimit,
+      select: {
+        id: true,
+        ranAt: true,
+        overallScore: true,
+        geoScore: true,
+        issues: true,
+        durationMs: true,
+      },
+    });
+
+    return rows.map((a) => ({
+      id: a.id,
+      ranAt: a.ranAt,
+      overallScore: a.overallScore,
+      geoScore: a.geoScore,
+      issueCount: Array.isArray(a.issues) ? a.issues.length : 0,
+      durationMs: a.durationMs,
+    }));
+  }
+
+  /**
+   * Iki tarama arasindaki farki cikarir. fromId/toId verilmezse son IKI tarama
+   * karsilastirilir (from = bir onceki, to = en son).
+   *
+   * Tek tarama varsa HATA ATMAZ: yeterliVeriYok:true ile bos ama anlamli bir
+   * sonuc doner — cagiran yuzey "en az iki tarama gerekli" durumunu bu bayrakla
+   * gosterir, 404/500 ile karsilasmaz.
+   */
+  async compareAudits(
+    siteId: string,
+    opts: { fromId?: string; toId?: string } = {},
+  ): Promise<AuditKarsilastirma> {
+    let fromRow: any = null;
+    let toRow: any = null;
+
+    if (opts.fromId || opts.toId) {
+      // siteId filtresi zorunlu: id'ler govdeden/query'den gelir, baska bir
+      // musterinin audit id'si gecirilirse eslesme olmamalidir.
+      const [f, t] = await Promise.all([
+        opts.fromId
+          ? this.prisma.audit.findFirst({ where: { id: opts.fromId, siteId } })
+          : Promise.resolve(null),
+        opts.toId
+          ? this.prisma.audit.findFirst({ where: { id: opts.toId, siteId } })
+          : Promise.resolve(null),
+      ]);
+      fromRow = f;
+      toRow = t;
+      // Yalnizca biri verilmisse eksik tarafi son taramayla tamamla
+      if (!toRow) toRow = await this.getLatest(siteId);
+      if (!fromRow && toRow) {
+        fromRow = await this.prisma.audit.findFirst({
+          where: { siteId, ranAt: { lt: toRow.ranAt } },
+          orderBy: { ranAt: 'desc' },
+        });
+      }
+    } else {
+      const sonIki = await this.prisma.audit.findMany({
+        where: { siteId },
+        orderBy: { ranAt: 'desc' },
+        take: 2,
+      });
+      toRow = sonIki[0] ?? null;
+      fromRow = sonIki[1] ?? null;
+    }
+
+    return compareAuditRows(fromRow, toRow);
   }
 
   async queueAudit(siteId: string) {

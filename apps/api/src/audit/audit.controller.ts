@@ -106,10 +106,23 @@ export class AuditController {
     });
   }
 
-  /** GET /sites/:siteId/audit/live-crawler/snippets — Worker/WP/nginx kurulum kodlari */
+  /**
+   * GET /sites/:siteId/audit/live-crawler/snippets — Worker/WP/nginx kurulum kodlari.
+   * Snippet'ler ingest sirrini icerir; sir yoksa burada uretilir.
+   */
   @Get('live-crawler/snippets')
   liveCrawlerSnippets(@Param('siteId') siteId: string) {
     return this.liveCrawler.snippets(siteId);
+  }
+
+  /**
+   * POST /sites/:siteId/audit/live-crawler/rotate-secret — ingest anahtarini yenile.
+   * Sir sizdiysa tek care budur: eski anahtarla imzalanan istekler aninda
+   * reddedilir, bu yuzden cevapta snippet'i yeniden kurma uyarisi doner.
+   */
+  @Post('live-crawler/rotate-secret')
+  liveCrawlerRotateSecret(@Param('siteId') siteId: string) {
+    return this.liveCrawler.rotateIngestSecret(siteId);
   }
 
   // ────────────────────────────────────────────────────────────
@@ -239,6 +252,29 @@ export class AuditController {
   @Get('latest')
   latest(@Param('siteId') siteId: string) {
     return this.audit.getLatest(siteId);
+  }
+
+  /**
+   * GET /sites/:siteId/audit/history?limit=20 — tarama gecmisi (yeni -> eski).
+   * Plan kapisi YOK: okuma ucu, @Get('latest') ile tutarli.
+   */
+  @Get('history')
+  history(@Param('siteId') siteId: string, @Query('limit') limit?: string) {
+    return this.audit.getHistory(siteId, parseInt(limit ?? '20', 10) || 20);
+  }
+
+  /**
+   * GET /sites/:siteId/audit/compare?fromId=..&toId=.. — iki tarama farki.
+   * Parametresiz cagrilirsa son iki taramayi karsilastirir.
+   * Plan kapisi YOK: okuma ucu.
+   */
+  @Get('compare')
+  compare(
+    @Param('siteId') siteId: string,
+    @Query('fromId') fromId?: string,
+    @Query('toId') toId?: string,
+  ) {
+    return this.audit.compareAudits(siteId, { fromId, toId });
   }
 
   @Post('run-now')
