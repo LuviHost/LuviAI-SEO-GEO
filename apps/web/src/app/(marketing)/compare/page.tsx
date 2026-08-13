@@ -6,6 +6,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useT } from '@/lib/i18n';
+import { useEffect, useState } from 'react';
+import { api } from '@/lib/api';
 
 interface FeatureRow {
   name: string;
@@ -251,11 +253,10 @@ const COPY = {
     ],
     sumLeftNote: 'Aynı işi rakip kombinasyonuyla almak: Surfer ($89) + Jasper ($49) + Ahrefs ($129) + Hootsuite ($99) = ',
     sumLeftNotePrice: '$366/ay (≈ ₺14.640)',
-    sumLeftNote2: '. RanksUp Başlangıç: ',
-    sumLeftLuviStart: '₺1.499/ay ($37)',
-    sumLeftNote3: ', Profesyonel: ',
-    sumLeftLuviPro: '₺4.999/ay ($125)',
+    sumLeftNote2: '. RanksUp ',
+    sumLeftNote3: ', ',
     sumLeftNoteEnd: '.',
+    perMonth: 'ay',
     sumRightTitle: 'RanksUp\'ye geçişte kazandıkların',
     sumRightItems: [
       'Tek subscription, tek dashboard',
@@ -297,11 +298,10 @@ const COPY = {
     ],
     sumLeftNote: 'Same job via competitors: Surfer ($89) + Jasper ($49) + Ahrefs ($129) + Hootsuite ($99) = ',
     sumLeftNotePrice: '$366/mo (≈ ₺14,640)',
-    sumLeftNote2: '. RanksUp Starter: ',
-    sumLeftLuviStart: '₺1,499/mo ($37)',
-    sumLeftNote3: ', Professional: ',
-    sumLeftLuviPro: '₺4,999/mo ($125)',
+    sumLeftNote2: '. RanksUp ',
+    sumLeftNote3: ', ',
     sumLeftNoteEnd: '.',
+    perMonth: 'mo',
     sumRightTitle: 'What you gain by switching to RanksUp',
     sumRightItems: [
       'One subscription, one dashboard',
@@ -335,6 +335,19 @@ function makeLuviCell(yesLabel: string, noLabel: string) {
 
 export default function ComparePage() {
   const { locale } = useT();
+
+  // Fiyatlar tek kaynaktan: /billing/plans (fiyat kartlariyla ayni).
+  // Sabit yazildiginda sayfa sessizce bayatliyordu.
+  const [planPrices, setPlanPrices] = useState<Array<{
+    id: string; name: string; monthly: number; monthlyTry: number;
+  }>>([]);
+  useEffect(() => {
+    api.getPlans(locale)
+      .then((r) => setPlanPrices(
+        (r?.plans ?? []).filter((p) => p.id === 'starter' || p.id === 'pro'),
+      ))
+      .catch(() => { /* fiyat gosterilmez, sayfa calismaya devam eder */ });
+  }, [locale]);
   const c = COPY[locale];
   const FEATURE_GROUPS = locale === 'en' ? FEATURE_GROUPS_EN : FEATURE_GROUPS_TR;
   const luviaiCount = FEATURE_GROUPS.flatMap((g) => g.rows).filter((r) => r.luviai === true || (typeof r.luviai === 'string' && r.luviai !== '')).length;
@@ -481,7 +494,19 @@ export default function ComparePage() {
                 ))}
               </ul>
               <p className="text-xs mt-4 text-muted-foreground/80">
-                {c.sumLeftNote}<strong className="text-foreground">{c.sumLeftNotePrice}</strong>{c.sumLeftNote2}<strong className="text-brand">{c.sumLeftLuviStart}</strong>{c.sumLeftNote3}<strong className="text-brand">{c.sumLeftLuviPro}</strong>{c.sumLeftNoteEnd}
+                {c.sumLeftNote}<strong className="text-foreground">{c.sumLeftNotePrice}</strong>
+                {/* RanksUp fiyatlari ELLE YAZILMAZ. Burada '₺1.499 ($37)' ve
+                    '₺4.999 ($125)' sabitleri duruyordu; gercek fiyatlar $149 ve
+                    $349 oldugu icin sayfa dort kata varan yanlis fiyat
+                    gosteriyordu. Artik /billing/plans ile ayni kaynak. */}
+                {planPrices.map((p, i) => (
+                  <span key={p.id}>
+                    {i === 0 ? c.sumLeftNote2 : c.sumLeftNote3}
+                    {p.name}: <strong className="text-brand">${p.monthly.toLocaleString('en-US')}/{c.perMonth}</strong>
+                    {p.monthlyTry > 0 && ` (≈ ₺${p.monthlyTry.toLocaleString('tr-TR')})`}
+                  </span>
+                ))}
+                {c.sumLeftNoteEnd}
               </p>
             </CardContent>
           </Card>

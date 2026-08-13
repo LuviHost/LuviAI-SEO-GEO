@@ -16,12 +16,12 @@ const CONTENT = {
       },
       {
         h: '2. Üyelik & Trial',
-        p: 'Kayıt olan herkes 2 makaleyi ücretsiz üretebilir. Süre sınırı yoktur, kart bilgisi gerekmez. Quota bittiğinde devam etmek için bir plan (Başlangıç ₺1.499/ay, Profesyonel ₺4.999/ay, Ajans ₺14.999/ay, Kurumsal ₺34.999+/ay) seçilmesi gerekir.',
+        p: 'Kayıt olan herkes 2 makaleyi ücretsiz üretebilir. Süre sınırı yoktur, kart bilgisi gerekmez. Kota bittiğinde devam etmek için ücretli bir plan seçilmesi gerekir. Güncel plan adları, kapsamları ve fiyatları için fiyatlandırma sayfasına bakınız; fiyatlar ABD doları üzerinden belirlenir ve Türk lirası karşılığı ödeme anındaki TCMB kuruyla hesaplanır.',
         strong: '2 makaleyi ücretsiz',
       },
       {
         h: '3. Ücretler',
-        p: 'Aylık veya yıllık ödeme. KDV dahil. Yıllık planda %20 indirim. PayTR ile güvenli ödeme. İptal sonrası kalan ay sonuna kadar erişim devam eder.',
+        p: 'Aylık veya yıllık ödeme. KDV dahil. Yıllık planda 12 ay yerine 10 ay ücreti alınır (yaklaşık %17 indirim). PayTR ile güvenli ödeme. İptal sonrası kalan ay sonuna kadar erişim devam eder.',
       },
       {
         h: '4. İptal & İade',
@@ -66,12 +66,12 @@ const CONTENT = {
       },
       {
         h: '2. Membership & Trial',
-        p: 'Every signup can generate 2 free articles. No time limit, no credit card required. When the quota is used, continuing requires a plan (Starter ₺1,499/mo, Professional ₺4,999/mo, Agency ₺14,999/mo, Enterprise ₺34,999+/mo).',
+        p: 'Every signup can generate 2 free articles. No time limit, no credit card required. Once the quota is used, continuing requires a paid plan. See the pricing page for current plan names, scope and prices; prices are set in US dollars and the Turkish lira amount is calculated at the central-bank rate at the time of payment.',
         strong: '2 free articles',
       },
       {
         h: '3. Pricing',
-        p: 'Monthly or yearly billing. VAT included. 20% discount on yearly plans. Secure payment via PayTR. After cancellation, access continues until the end of the paid period.',
+        p: 'Monthly or yearly billing. VAT included. Yearly plans are billed for 10 months instead of 12 (about 17% off). Secure payment via PayTR. After cancellation, access continues until the end of the paid period.',
       },
       {
         h: '4. Cancellation & Refund',
