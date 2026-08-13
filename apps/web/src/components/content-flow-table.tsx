@@ -11,7 +11,6 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Lightbulb, Loader2, Calendar, FileCheck2, Send, Sparkles, RefreshCw, Eye, Share2 } from 'lucide-react';
 import { PipelineProgress, PIPELINE_STEPS } from '@/components/pipeline-progress';
-import { SharePostModal } from '@/components/share-post-modal';
 
 /*
  * ContentFlowTable — TopicsStepBody + ArticlesStepBody'nin birleşik tablo karşılığı.
@@ -631,16 +630,6 @@ export function ContentFlowTable({
           )}
         </CardContent>
       </Card>
-
-      {/* Sosyalde paylaş modal */}
-      {shareTarget && (
-        <SharePostModal
-          siteId={siteId}
-          articleId={shareTarget.articleId}
-          articleTitle={shareTarget.title}
-          onClose={() => setShareTarget(null)}
-        />
-      )}
 
       {/* Tarih atama modali — Sırada (tarihsiz) article'ları takvime al */}
       {scheduleTarget && (

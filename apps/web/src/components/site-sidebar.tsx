@@ -17,8 +17,6 @@ import {
   TrendingUp,
   Award,
   FileText,
-  Calendar,
-  Wand2,
   Send,
   BarChart3,
   Zap,
@@ -99,8 +97,6 @@ const SITE_GROUPS = (siteId: string) => [
     items: [
       { href: `/sites/${siteId}/opportunities`, label: 'İçerik Fırsatları', icon: Lightbulb },
       { href: `/sites/${siteId}/articles`, label: 'İçerikler', icon: FileText },
-      { href: `/sites/${siteId}/calendar`, label: 'İçerik Takvimi', icon: Calendar },
-      { href: `/sites/${siteId}/studio`, label: 'Sosyal Medya Studio', icon: Wand2 },
       { href: `/sites/${siteId}/communities`, label: 'Topluluk Ajanı', icon: MessagesSquare },
       { href: `/sites/${siteId}/publish-targets`, label: 'Yayın Hedefleri', icon: Send },
     ],

@@ -14,7 +14,6 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { PipelineProgress } from '@/components/pipeline-progress';
-import { MultiModalPanel } from '@/components/multi-modal-panel';
 import { InfoTooltip } from '@/components/info-tooltip';
 
 /**
@@ -700,12 +699,6 @@ ${body}
       </Tabs>
 
       {/* Multi-Modal Panel — Audio/Video/Yayın/Çeviri */}
-      <MultiModalPanel
-        siteId={siteId}
-        articleId={articleId}
-        article={article}
-        onChanged={refresh}
-      />
     </div>
   );
 }

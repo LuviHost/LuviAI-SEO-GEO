@@ -5,7 +5,6 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { decrypt, mdToHtml, parseFrontmatter } from '@luviai/shared';
 import { getAdapter } from '@luviai/adapters';
 import { ImageGeneratorService } from './image-generator.service.js';
-import { SocialAutoDraftService } from '../social/social-auto-draft.service.js';
 import { AiIndexingPingerService } from '../audit/ai-indexing-pinger.service.js';
 import { LlmsFullBuilderService } from '../audit/llms-full-builder.service.js';
 import { LinkValidatorService } from './link-validator.service.js';
@@ -228,7 +227,6 @@ export class PublisherService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly imageGen: ImageGeneratorService,
-    private readonly socialAutoDraft: SocialAutoDraftService,
     private readonly indexingPinger: AiIndexingPingerService,
     private readonly llmsFullBuilder: LlmsFullBuilderService,
     private readonly linkValidator: LinkValidatorService,

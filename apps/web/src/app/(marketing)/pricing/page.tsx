@@ -14,7 +14,6 @@ import { ThemeToggle } from '@/components/theme-toggle';
 import { LocaleSwitch } from '@/components/locale-switch';
 import { CheckCircle2, Sparkles, ShieldCheck, ArrowRight, Video, Lock, Clock, Star } from 'lucide-react';
 
-type CreditPack = { key: '5' | '20' | '50'; packSize: number; priceTry: number; description: string };
 type GrandfatheringInfo = { isGrandfathered: boolean; grandfatheredUntil?: string; legacyMonthlyPriceTry?: number };
 
 export default function PricingPage() {
@@ -26,24 +25,7 @@ export default function PricingPage() {
   const [fx, setFx] = useState<{ rate: number; fetchedAt: string; source: string; stale: boolean } | null>(null);
   const [cycle, setCycle] = useState<'monthly' | 'annual'>('monthly');
   const [loading, setLoading] = useState<string | null>(null);
-  const [creditPacks, setCreditPacks] = useState<CreditPack[]>([]);
   const [grandfathering, setGrandfathering] = useState<GrandfatheringInfo | null>(null);
-  const [purchasingPack, setPurchasingPack] = useState<string | null>(null);
-
-  useEffect(() => {
-    api.getPlans()
-      .then((res) => {
-        setPlans(res.plans);
-        setFx(res.fx);
-      })
-      .catch(() => toast.error(t('common.error')));
-
-    // Video credit pack'leri yukle (public)
-    fetch(`${process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'}/api/billing/video-credits/packs`)
-      .then((r) => r.json())
-      .then(setCreditPacks)
-      .catch(() => { /* sessizce gec - add-on opsiyonel */ });
-  }, []);
 
   // Grandfathering durumunu cek (sadece logged-in user icin)
   useEffect(() => {
@@ -63,38 +45,6 @@ export default function PricingPage() {
       .catch(() => { /* not critical */ });
   }, [session?.user?.id]);
 
-  const buyCredits = async (packKey: '5' | '20' | '50') => {
-    if (!session?.user?.id) {
-      toast.message('Devam etmek için giriş yapın');
-      router.push(`/signin?callbackUrl=${encodeURIComponent('/pricing')}`);
-      return;
-    }
-    setPurchasingPack(packKey);
-    try {
-      const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
-      const res = await fetch(`${apiBase}/api/billing/users/${session.user.id}/video-credits/purchase`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          packKey,
-          userEmail: session.user.email,
-          userName: session.user.name ?? session.user.email,
-        }),
-      });
-      const data = await res.json();
-      if (data.iframeUrl) {
-        toast.success('Ödeme sayfasına yönlendiriliyorsunuz...');
-        window.location.href = data.iframeUrl;
-      } else {
-        toast.error(data.message ?? 'Satın alma başlatılamadı');
-      }
-    } catch (err: any) {
-      toast.error(err.message);
-    } finally {
-      setPurchasingPack(null);
-    }
-  };
 
   const subscribe = async (planId: string) => {
     if (status === 'loading') return;
@@ -329,68 +279,6 @@ export default function PricingPage() {
         </div>
 
         {/* Video Credit Add-on Section */}
-        {creditPacks.length > 0 && (
-          <div className="mt-20 max-w-5xl mx-auto">
-            <div className="text-center mb-8">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-700 dark:text-purple-300 text-xs font-semibold mb-3">
-                <Video className="h-3 w-3" /> EK VIDEO KREDİSİ
-              </div>
-              <h2 className="text-3xl font-bold">İhtiyaç anında ek video</h2>
-              <p className="mt-2 text-muted-foreground text-sm">
-                Plan kotanız dolduğunda istediğiniz zaman ek video kredisi satın alın. Tüketmediğinizde kalan kredileriniz kaybolmaz.
-              </p>
-            </div>
-
-            <div className="grid sm:grid-cols-3 gap-4">
-              {creditPacks.map((pack) => {
-                const perVideo = Math.round(pack.priceTry / pack.packSize);
-                const isPro = pack.key === '20';
-                return (
-                  <div
-                    key={pack.key}
-                    className={`p-6 rounded-2xl border bg-background hover:border-purple-500/40 transition-colors relative ${
-                      isPro ? 'border-purple-500/30 shadow-md' : ''
-                    }`}
-                  >
-                    {isPro && (
-                      <div className="absolute -top-2.5 right-4 px-2 py-0.5 rounded-full bg-purple-600 text-white text-[10px] font-bold uppercase">
-                        EN POPÜLER
-                      </div>
-                    )}
-                    <div className="flex items-center gap-2 text-purple-600 mb-2">
-                      <Video className="h-4 w-4" />
-                      <span className="text-2xl font-bold">{pack.packSize}</span>
-                      <span className="text-xs text-muted-foreground">video</span>
-                    </div>
-                    <div className="text-3xl font-extrabold mt-3">
-                      ₺{pack.priceTry.toLocaleString('tr-TR')}
-                    </div>
-                    <div className="text-xs text-muted-foreground mt-1">
-                      ≈ ₺{perVideo}/video
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-3 leading-relaxed min-h-[3em]">
-                      {pack.description}
-                    </p>
-                    <Button
-                      onClick={() => buyCredits(pack.key)}
-                      disabled={purchasingPack === pack.key}
-                      variant={isPro ? 'default' : 'outline'}
-                      className={`w-full mt-4 ${isPro ? 'bg-purple-600 hover:bg-purple-700' : ''}`}
-                      size="sm"
-                    >
-                      {purchasingPack === pack.key ? 'Yönlendiriliyor...' : 'Satın Al'}
-                    </Button>
-                  </div>
-                );
-              })}
-            </div>
-
-            <div className="mt-6 text-center text-xs text-muted-foreground inline-flex items-center justify-center gap-2 w-full">
-              <Clock className="h-3 w-3" />
-              <span>Kredileriniz süresiz geçerli · Plan kotası önce tüketilir, sonra credit havuzu</span>
-            </div>
-          </div>
-        )}
 
         <div className="mt-12 max-w-2xl mx-auto text-center text-sm text-muted-foreground">
           <p className="inline-flex items-center gap-2">

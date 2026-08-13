@@ -24,7 +24,6 @@ import { TopicsService } from '../../api/dist/topics/topics.service.js';
 import { PipelineService } from '../../api/dist/articles/pipeline.service.js';
 import { PublisherService } from '../../api/dist/articles/publisher.service.js';
 import { ArticleSchedulerService } from '../../api/dist/articles/article-scheduler.service.js';
-import { SocialPostsService } from '../../api/dist/social/social-posts.service.js';
 import { PrismaService } from '../../api/dist/prisma/prisma.service.js';
 import { PlatformDetectorService } from '../../api/dist/sites/platform-detector.service.js';
 import { LlmsFullBuilderService } from '../../api/dist/audit/llms-full-builder.service.js';
@@ -61,7 +60,6 @@ async function bootstrap() {
     pipeline: app.get(PipelineService),
     publisher: app.get(PublisherService),
     scheduler: app.get(ArticleSchedulerService),
-    socialPosts: app.get(SocialPostsService),
     platformDetector: app.get(PlatformDetectorService),
     llmsBuilder: app.get(LlmsFullBuilderService),
     citationTracker: app.get(AiCitationTrackerService),
@@ -163,15 +161,6 @@ async function bootstrap() {
 
     PUBLISH_ARTICLE: async ({ articleId, targetIds, overrideQa }) => {
       return services.publisher.publishArticle(articleId, targetIds ?? [], { overrideQa: !!overrideQa });
-    },
-
-    /**
-     * SOCIAL_PUBLISH — SocialSchedulerService cron tarafindan tetiklenir.
-     * Tek bir SocialPost'u alip kanala (X / LinkedIn) yayinlar.
-     */
-    SOCIAL_PUBLISH: async ({ postId }) => {
-      const result = await services.socialPosts.runPublish(postId);
-      return { postId, externalId: result.externalId, externalUrl: result.externalUrl };
     },
 
     IMPROVE_PAGE: async (data) => {
@@ -500,58 +489,6 @@ async function bootstrap() {
      */
     STUCK_PAGE_PERFORMANCE_CHECK: async ({ recoveryId }) => {
       return services.stuckPerfCheck.check(recoveryId);
-    },
-
-    /**
-     * VIDEO_GENERATE — Faz 12: çoklu provider video factory.
-     * payload: { videoId, provider, brief: { title, scriptText, durationSec, aspectRatio, voiceId, language, style, imageUrls } }
-     */
-    VIDEO_GENERATE: async ({ videoId, provider, brief }) => {
-      log.log(`[video:${videoId}] generate (${provider})`);
-      const startedAt = new Date();
-      try {
-        await services.prisma.video.update({
-          where: { id: videoId },
-          data: { status: 'GENERATING' as any, startedAt },
-        });
-        const { getVideoProvider } = await import('../../api/dist/videos/providers/registry.js');
-        const provider_ = getVideoProvider(provider);
-        const result = await provider_.generate(brief);
-        // providerRaw içine credits'i de yerleştir (UI bunu okuyup yayın description'ına basabilir)
-        const rawWithCredits = result.credits
-          ? { ...(result.raw ?? {}), credits: result.credits }
-          : result.raw;
-        await services.prisma.video.update({
-          where: { id: videoId },
-          data: {
-            status: 'READY' as any,
-            videoUrl: result.videoUrl,
-            thumbnailUrl: result.thumbnailUrl,
-            durationSec: result.durationSec,
-            fileSize: result.fileSize,
-            providerJobId: result.providerJobId,
-            providerRaw: rawWithCredits as any,
-            costUsd: result.costUsd as any,
-            // Pexels Terms of Service: atıf metni Video.description'a yazılır.
-            // Yayın akışı bunu okuyup YouTube/TikTok description'ına otomatik append eder.
-            description: result.credits?.text ?? null,
-            completedAt: new Date(),
-          },
-        });
-        log.log(`[video:${videoId}] READY ${result.videoUrl}`);
-        return { videoId, videoUrl: result.videoUrl };
-      } catch (err: any) {
-        log.error(`[video:${videoId}] FAILED ${err.message}`);
-        await services.prisma.video.update({
-          where: { id: videoId },
-          data: {
-            status: 'FAILED' as any,
-            errorMsg: err.message?.slice(0, 4000) ?? 'Unknown error',
-            completedAt: new Date(),
-          },
-        });
-        throw err;
-      }
     },
   };
 
