@@ -575,7 +575,7 @@ export default function LandingPage() {
               const monthlyEqTry = billing === 'annual' ? Math.round((p.annualTry ?? 0) / 12) : (p.monthlyTry ?? 0);
               // Plan name'i locale'e gore secelim (API'den TR olarak gelir)
               const planNameKey = `land.pric.plan_${p.id}`;
-              const localizedName = t(planNameKey);
+              const localizedName = t(planNameKey as Parameters<typeof t>[0]);
               const finalName = localizedName === planNameKey ? p.name : localizedName;
               const sitesLabel = typeof p.sites === 'number'
                 ? (p.sites === 1 ? `${p.sites} ${t('land.pric.bullet_site')}` : `${p.sites} ${t('land.pric.bullet_sites')}`)
@@ -1213,7 +1213,7 @@ function FooterCol({ title, links }: { title: string; links: [string, string][] 
   );
 }
 
-function getFaqs(t: (k: string) => string): Array<{ q: string; a: string }> {
+function getFaqs(t: ReturnType<typeof useT>['t']): Array<{ q: string; a: string }> {
   return [
     { q: t('land.faq.q1'), a: t('land.faq.a1') },
     { q: t('land.faq.q2'), a: t('land.faq.a2') },
