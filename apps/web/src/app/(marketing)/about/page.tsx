@@ -13,7 +13,7 @@ const aboutJsonLd = {
       '@id': `${SITE_URL}/about#aboutpage`,
       url: `${SITE_URL}/about`,
       name: 'RanksUp Hakkında',
-      description: 'Türkiye merkezli AI içerik + SEO + sosyal medya otomasyon platformu RanksUp hakkında bilgiler.',
+      description: 'Türkiye merkezli GEO + SEO + ASO + Apple Search Ads platformu RanksUp hakkında bilgiler.',
       isPartOf: { '@id': `${SITE_URL}/#website` },
       about: { '@id': `${SITE_URL}/#organization` },
     },
@@ -41,7 +41,7 @@ const aboutJsonLd = {
         'Generative Engine Optimization',
         'AI Search Optimization',
         'Content Marketing Automation',
-        'Social Media Management',
+        'App Store Optimization (ASO)',
         'WordPress Publishing',
         'Google Ads Optimization',
         'Meta Ads Optimization',
@@ -78,7 +78,7 @@ export default function AboutPage() {
               <span className="font-display italic text-[1.08em] bg-gradient-to-br from-brand-500 via-rose-500 to-amber-500 bg-clip-text text-transparent">AI SaaS.</span>
             </h1>
             <p className="text-pretty mt-7 max-w-[640px] mx-auto text-[clamp(1rem,1.4vw,1.25rem)] leading-[1.5] text-neutral-600 dark:text-neutral-400">
-              RanksUp; KOBİ, e-ticaret ve dijital ajansların SEO, içerik üretimi, sosyal medya ve reklam denetimini
+              RanksUp; KOBİ, e-ticaret ve dijital ajansların GEO, SEO, içerik üretimi, ASO ve Apple Search Ads denetimini
               tek panelden, otomatik olarak yönetebilmesi için kurulan Türkiye merkezli bir platformdur.
             </p>
           </header>
@@ -94,7 +94,7 @@ export default function AboutPage() {
                   <p className="eyebrow mb-2">01 · Misyon</p>
                   <h2 className="text-h4 font-medium mb-4 tracking-[-0.025em]">Misyonumuz</h2>
                   <p className="text-[15px] text-neutral-600 dark:text-neutral-400 leading-[1.6]">
-                    Saatlerce uğraşan SEO uzmanı, içerik yazarı, sosyal medya yöneticisi ve reklam danışmanına ihtiyaç
+                    Saatlerce uğraşan SEO uzmanı, içerik yazarı, ASO uzmanı ve Apple Search Ads danışmanına ihtiyaç
                     duymadan; küçük işletmelerin ve dijital ajansların yapay zeka destekli, kalite ve marka tutarlılığı
                     taviz vermeyen büyüme araçlarına erişebilmesini sağlamak.
                   </p>

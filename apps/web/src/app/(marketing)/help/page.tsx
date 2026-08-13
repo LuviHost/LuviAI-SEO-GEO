@@ -2,8 +2,8 @@
 
 import Link from 'next/link';
 import {
-  Rocket, Search, Smartphone, Wand2, Bot, Sparkles,
-  CreditCard, Plug, MessageSquare, BarChart3, BookOpen,
+  Rocket, Search, Smartphone, Bot, Sparkles,
+  CreditCard, Plug, BarChart3, BookOpen,
 } from 'lucide-react';
 import { useT } from '@/lib/i18n';
 
@@ -14,10 +14,8 @@ const TOPICS_BASE = [
   { id: 'ai-visibility', icon: Sparkles, color: 'purple' as Color, href: '/help/ai-visibility' },
   { id: 'aso', icon: Search, color: 'blue' as Color, href: '/help/aso' },
   { id: 'asa-asc', icon: Smartphone, color: 'amber' as Color, href: '/help/asa-asc' },
-  { id: 'studio', icon: Wand2, color: 'rose' as Color, href: '/help/studio' },
   { id: 'auto-pilot', icon: Bot, color: 'emerald' as Color, href: '/help/auto-pilot' },
   { id: 'api-keys', icon: Plug, color: 'cyan' as Color, href: '/help/api-keys' },
-  { id: 'social', icon: MessageSquare, color: 'pink' as Color, href: '/help/social' },
   { id: 'billing', icon: CreditCard, color: 'slate' as Color, href: '/help/billing' },
   { id: 'glossary', icon: BookOpen, color: 'purple' as Color, href: '/help/glossary' },
 ];
@@ -39,10 +37,8 @@ const COPY = {
       'ai-visibility': { title: 'AI Görünürlük', desc: "ChatGPT, Claude, Gemini, Perplexity'de markanı izle." },
       'aso': { title: 'ASO — Mobil App SEO', desc: 'App Store + Play Store keyword sıralama + rakip analizi.' },
       'asa-asc': { title: 'Apple Search Ads + ASC', desc: 'iOS reklam kampanyası kurulumu, Auto-Pilot, review takibi.' },
-      'studio': { title: 'AI Studio', desc: 'Görsel (DALL-E), video (Sora 2 + Veo 3), metin üretimi.' },
       'auto-pilot': { title: 'Auto-Pilot Otomasyon', desc: 'Sen uyurken AI keyword ekler, kampanya optimize eder.' },
       'api-keys': { title: 'API Keys (BYOK)', desc: "Kendi OpenAI/Anthropic key'inle çalış, kotamızdan düşmez." },
-      'social': { title: 'Sosyal Medya', desc: '5 kanala AI ile post + görsel + zamanlama.' },
       'billing': { title: 'Faturalama', desc: 'Plan değiştirme, iptal, fatura indirme, kota.' },
       'glossary': { title: 'SEO & GEO Sözlüğü', desc: 'SEO, GEO, AEO, schema ve reklam terimleri — sade Türkçe.' },
     },
@@ -63,7 +59,6 @@ const COPY = {
       'ai-visibility': { title: 'AI Visibility', desc: 'Monitor your brand on ChatGPT, Claude, Gemini, Perplexity.' },
       'aso': { title: 'ASO — Mobile App SEO', desc: 'App Store + Play Store keyword ranking + competitor analysis.' },
       'asa-asc': { title: 'Apple Search Ads + ASC', desc: 'iOS ad campaign setup, Auto-Pilot, review tracking.' },
-      'studio': { title: 'AI Studio', desc: 'Image (DALL-E), video (Sora 2 + Veo 3), text generation.' },
       'auto-pilot': { title: 'Auto-Pilot Automation', desc: 'While you sleep, AI adds keywords and optimizes campaigns.' },
       'api-keys': { title: 'API Keys (BYOK)', desc: "Use your own OpenAI/Anthropic key — doesn't count against our quota." },
       'social': { title: 'Social Media', desc: 'AI post + image + scheduling for 5 channels.' },

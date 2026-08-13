@@ -73,7 +73,7 @@ const FAQS_TR = [
   },
   {
     q: 'Türkçe SEO uzmanı maaşına vermek yerine RanksUp almak gerçekten mantıklı mı?',
-    a: 'Bir Türkçe SEO uzmanı 35-60k ₺/ay. Bir içerik yazarı 10-20k ₺/ay. Sosyal medya yöneticisi 15-25k ₺/ay. Reklam uzmanı 20-40k ₺/ay. Toplam ~100k ₺/ay. RanksUp Profesyonel paket 6.980 ₺/ay ve hepsini yapıyor. Üstelik AI search optimizasyonu (Türkçe pazarda yok) + 7/24 çalışıyor + tatil yapmıyor + ayrılmıyor.',
+    a: 'Bir Türkçe SEO uzmanı 35-60k ₺/ay. Bir içerik yazarı 10-20k ₺/ay. ASO uzmanı 15-25k ₺/ay. Reklam uzmanı 20-40k ₺/ay. Toplam ~100k ₺/ay. RanksUp Profesyonel paket 6.980 ₺/ay ve hepsini yapıyor. Üstelik AI search optimizasyonu (Türkçe pazarda yok) + 7/24 çalışıyor + tatil yapmıyor + ayrılmıyor.',
   },
   {
     q: 'Google llms.txt\'i kullanıyor mu? Bu dosya gerçekten gerekli mi?',
@@ -152,7 +152,7 @@ const FAQS_EN = [
   },
   {
     q: 'Is RanksUp really cheaper than hiring a Turkish SEO specialist?',
-    a: 'A Turkish SEO specialist costs ₺35-60k/mo. A content writer ₺10-20k/mo. A social media manager ₺15-25k/mo. An ads specialist ₺20-40k/mo. Total ~₺100k/mo. RanksUp Professional is ₺6,980/mo and does it all. Plus AI search optimization (rare in the Turkish market) + 24/7 + no vacation + no resignation.',
+    a: 'A Turkish SEO specialist costs ₺35-60k/mo. A content writer ₺10-20k/mo. An ASO specialist ₺1ger ₺15-25k/mo. An ads specialist ₺20-40k/mo. Total ~₺100k/mo. RanksUp Professional is ₺6,980/mo and does it all. Plus AI search optimization (rare in the Turkish market) + 24/7 + no vacation + no resignation.',
   },
   {
     q: 'Does Google use llms.txt? Is this file actually needed?',
