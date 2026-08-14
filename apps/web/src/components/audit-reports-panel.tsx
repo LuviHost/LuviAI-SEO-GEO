@@ -120,7 +120,11 @@ export function AuditReportsPanel({ siteId }: { siteId: string }) {
       const job = await api.queueAudit(siteId);
       const basladi = Date.now();
       // Ust sinir: worker olu ya da is takildi ise sonsuza kadar yoklamayalim.
-      const ZAMAN_ASIMI = 6 * 60 * 1000;
+      // 10 dakika, olcume dayali: uretimde tam bir tarama (100 sayfa crawl +
+      // 14 kontrol + PageSpeed + GEO + AI probe) 208 saniye surdu. 6 dakikalik
+      // eski sinir yavas bir sitede kolayca dolar ve kullaniciya "beklenenden
+      // uzun suruyor" derdik — halbuki tarama gayet normal ilerliyor olurdu.
+      const ZAMAN_ASIMI = 10 * 60 * 1000;
 
       while (canli.current) {
         // Yoklama araligi kademeli aciliyor: ilk yarim dakika 3sn (kisa
