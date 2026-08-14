@@ -231,3 +231,47 @@ describe('entitlements — web icin ozellik haklari', () => {
     }
   });
 });
+
+describe('periyodik tarama — raporun veri kaynagi', () => {
+  it('AUDIT_CRON varsayilan ACIK, sadece "false" kapatir', async () => {
+    const { AuditCron } = await import('../audit/audit.cron.js');
+    const cron: any = new (AuditCron as any)(null, null);
+    const eski = process.env.AUDIT_CRON;
+    try {
+      delete process.env.AUDIT_CRON;
+      expect(cron.enabled(), 'tanimsizken acik olmali — kapaliysa rapor hic dolmaz').toBe(true);
+      process.env.AUDIT_CRON = 'false';
+      expect(cron.enabled()).toBe(false);
+      process.env.AUDIT_CRON = 'FALSE';
+      expect(cron.enabled(), 'buyuk harf de kapatmali').toBe(false);
+      process.env.AUDIT_CRON = 'true';
+      expect(cron.enabled()).toBe(true);
+    } finally {
+      if (eski === undefined) delete process.env.AUDIT_CRON; else process.env.AUDIT_CRON = eski;
+    }
+  });
+
+  it('site tavani gecersiz degerlerde makul varsayilana duser', async () => {
+    const { AuditCron } = await import('../audit/audit.cron.js');
+    const cron: any = new (AuditCron as any)(null, null);
+    const eski = process.env.AUDIT_CRON_MAX_SITES;
+    try {
+      for (const v of [undefined, '', '0', '-5', 'abc']) {
+        if (v === undefined) delete process.env.AUDIT_CRON_MAX_SITES;
+        else process.env.AUDIT_CRON_MAX_SITES = v;
+        expect(cron.maxSites(), `girdi=${v}`).toBe(100);
+      }
+      process.env.AUDIT_CRON_MAX_SITES = '25';
+      expect(cron.maxSites()).toBe(25);
+    } finally {
+      if (eski === undefined) delete process.env.AUDIT_CRON_MAX_SITES; else process.env.AUDIT_CRON_MAX_SITES = eski;
+    }
+  });
+
+  it('TRIAL periyodik taramaya girmez — maliyet freni', async () => {
+    const { AuditCron } = await import('../audit/audit.cron.js');
+    const paid = (AuditCron as any).PAID as string[];
+    expect(paid).not.toContain('TRIAL');
+    expect(paid).toEqual(['STARTER', 'PRO', 'AGENCY', 'ENTERPRISE']);
+  });
+});

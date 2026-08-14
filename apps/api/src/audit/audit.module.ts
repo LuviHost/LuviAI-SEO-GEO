@@ -53,12 +53,14 @@ import { AiKpisService } from './ai-kpis.service.js';
 import { ProductRadarService } from './product-radar.service.js';
 import { CommunityAgentService } from './community-agent.service.js';
 import { LiveCrawlerService } from './live-crawler.service.js';
+import { AuditCron } from './audit.cron.js';
 
 @Module({
   imports: [SitesModule, EmailModule, AuthModule, LLMModule, NotificationsModule],
   controllers: [AuditController, TrackerController, PublicCitationController],
   providers: [
     AuditService,
+    AuditCron,
     AuditChecksService,
     PageSpeedService,
     GeoRunnerService,

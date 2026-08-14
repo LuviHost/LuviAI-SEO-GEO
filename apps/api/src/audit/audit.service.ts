@@ -310,7 +310,14 @@ export class AuditService {
   /**
    * Worker'dan çağrılan asıl iş — 14 kontrol + PageSpeed + GEO.
    */
-  async runAudit(siteId: string) {
+  /**
+   * @param opts.trigger 'user' (varsayilan) kullanicinin baslattigi tarama —
+   *   citation kotasi dayatilir. 'system' zamanlanmis periyodik tarama —
+   *   kotayi TUKETMEZ. Aksi halde haftalik otomatik tarama, kullanicinin
+   *   kendi olcumleri icin ayirdigi hakki sessizce yer ve "kotam neden bitti"
+   *   sorusu dogar.
+   */
+  async runAudit(siteId: string, opts: { trigger?: 'user' | 'system' } = {}) {
     const t0 = Date.now();
     const site = await this.prisma.site.findUniqueOrThrow({ where: { id: siteId } });
 
@@ -335,7 +342,7 @@ export class AuditService {
       // kotasi gercekten dayatilir. Kota doluysa runForSite artik firlatir;
       // asagidaki catch audit'in geri kalanini ayakta tutar, yalnizca citation
       // bolumu bos doner.
-      this.aiCitation.runForSite(siteId, 5).catch((err) => {
+      this.aiCitation.runForSite(siteId, 5, { trigger: opts.trigger ?? 'user' }).catch((err) => {
         this.log.warn(`[${siteId}] AI Citation testi basarisiz: ${err.message}`);
         return [] as Awaited<ReturnType<AiCitationService['runForSite']>>;
       }),
