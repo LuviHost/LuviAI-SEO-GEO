@@ -325,6 +325,30 @@ export const SETTINGS_CATALOG: SettingMeta[] = [
     envFallback: true,
     enumValues: ['claude-opus-5', 'claude-sonnet-5', 'claude-haiku-4-5'],
   },
+  // ─── INTEL BORU HATTI MODELLERI ──────────────────────────────────────
+  // triage.service.ts ve analyst.service.ts bu anahtarlari okuyor ama
+  // katalogda KAYITLI DEGILLERDI: getRaw bilinmeyen anahtarda hata firlatiyor,
+  // cagri yerindeki `.catch(() => null)` onu yutuyor ve sessizce kod
+  // fallback'ine dusuluyordu. Yani app_settings'e elle yazilan deger hicbir
+  // zaman okunmuyordu — panelden model degistirmek imkansizdi.
+  {
+    key: 'MODEL_INTEL_TRIAGE',
+    type: 'enum',
+    category: 'model',
+    default: 'claude-opus-5',
+    description: 'Intel triage (ucuz eleme) modeli. Yanlis eleme SESSIZ korluk yaratir — elenen kayit analiste hic ulasmaz — bu yuzden gunde ~10 cagrilik hacimde kalite tercih ediliyor.',
+    envFallback: true,
+    enumValues: ['claude-opus-5', 'claude-sonnet-5', 'claude-haiku-4-5'],
+  },
+  {
+    key: 'MODEL_INTEL_ANALYST',
+    type: 'enum',
+    category: 'model',
+    default: 'claude-opus-5',
+    description: 'Intel analist modeli — tam metinden dogrulanabilir iddia ve kanit cinsi cikarir. Boru hattinin en pahali ve en kalite-hassas ucu.',
+    envFallback: true,
+    enumValues: ['claude-opus-5', 'claude-sonnet-5', 'claude-haiku-4-5'],
+  },
   {
     key: 'IMAGE_PROVIDER',
     type: 'enum',

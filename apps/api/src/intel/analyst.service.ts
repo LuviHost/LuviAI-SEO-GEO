@@ -118,7 +118,12 @@ export class IntelAnalystService {
 
     if (items.length === 0) return { analyzed: 0, claims: 0, failed: 0 };
 
-    const model = (await this.settings.getString('MODEL_INTEL_ANALYST').catch(() => null))?.trim() || FALLBACK_MODEL;
+    // Bkz. triage.service.ts — ayni sessiz yutma kalibi orada model secimini
+    // aylarca yanlis tutmustu. Fallback kalsin ama gorunur olsun.
+    const model = (await this.settings.getString('MODEL_INTEL_ANALYST').catch((err) => {
+      this.log.warn(`MODEL_INTEL_ANALYST okunamadi (${err.message}) — ${FALLBACK_MODEL} kullanilacak`);
+      return null;
+    }))?.trim() || FALLBACK_MODEL;
     let analyzed = 0;
     let claims = 0;
     let failed = 0;

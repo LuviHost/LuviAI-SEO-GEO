@@ -95,7 +95,14 @@ export class IntelTriageService {
 
     if (pending.length === 0) return { processed: 0, relevant: 0 };
 
-    const model = (await this.settings.getString('MODEL_INTEL_TRIAGE').catch(() => null))?.trim() || FALLBACK_MODEL;
+    // Hatayi SESSIZCE yutma: anahtar katalogda kayitli degilse getRaw firlatir
+    // ve fallback'e duseriz. Bu tam olarak yasandi — MODEL_INTEL_TRIAGE
+    // katalogda yoktu, app_settings'e yazilan Opus 5 hicbir zaman okunmadi ve
+    // triage aylarca Haiku'da kaldi. Log olmadan fark edilmesi imkansizdi.
+    const model = (await this.settings.getString('MODEL_INTEL_TRIAGE').catch((err) => {
+      this.log.warn(`MODEL_INTEL_TRIAGE okunamadi (${err.message}) — ${FALLBACK_MODEL} kullanilacak`);
+      return null;
+    }))?.trim() || FALLBACK_MODEL;
     let relevant = 0;
 
     for (let i = 0; i < pending.length; i += BATCH_SIZE) {
