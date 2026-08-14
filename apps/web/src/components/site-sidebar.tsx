@@ -37,8 +37,10 @@ import {
   MessagesSquare,
   ClipboardList,
   Activity,
+  Lock,
 } from 'lucide-react';
 import { api } from '@/lib/api';
+import { useEntitlements, type PlanFeature } from '@/lib/entitlements';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { LocaleSwitch } from '@/components/locale-switch';
 import { UserMenu } from '@/components/user-menu';
@@ -60,13 +62,34 @@ import { cn } from '@/lib/utils';
 
 type SiteOption = { id: string; name: string; url: string };
 
+/**
+ * Menu ogesi — `feature` verilirse plan kapisina tabidir.
+ *
+ * NEDEN GIZLEMIYORUZ DA KILITLIYORUZ: gizlemek ozelligin VARLIGINI da gizler,
+ * yani musteri yukseltmek icin bir sebep hic gormez ve menu plana gore
+ * kisalip uzadigi icin urun eksik gorunur. Kilitli gostermek hem sebebi hem
+ * de yukseltme yolunu ayni yerde birakiyor. Link acik kaliyor; sayfa kendi
+ * icinde PlanLockedCard basiyor, yani tiklamanin sonu bos ekran degil teklif.
+ *
+ * Bir ogeye `feature` YAZMADAN once sunucudaki karsiligi dogrulandi
+ * (@RequiresPlan / siteWhereForFeature). Emin olunmayan yuzeye dokunulmadi:
+ * yanlis kilitlemek, kilitlememekten kotu.
+ */
+type NavItem = {
+  href: string;
+  label: string;
+  icon: any;
+  exact?: boolean;
+  feature?: PlanFeature;
+};
+
 const GLOBAL_NAV = [
   { href: '/dashboard', label: 'Sitelerim', icon: Home },
   { href: '/billing', label: 'Abonelik', icon: CreditCard },
   { href: '/affiliate', label: 'Affiliate', icon: UsersIcon },
 ];
 
-const SITE_GROUPS = (siteId: string) => [
+const SITE_GROUPS = (siteId: string): Array<{ id: string; label?: string; items: NavItem[] }> => [
   {
     id: 'overview',
     items: [
@@ -84,18 +107,18 @@ const SITE_GROUPS = (siteId: string) => [
       { href: `/sites/${siteId}/visibility`, label: 'AI Görünürlük', icon: Sparkles },
       { href: `/sites/${siteId}/crawler-live`, label: 'Live Crawler', icon: Activity },
       { href: `/sites/${siteId}/geo-lab`, label: 'GEO Lab', icon: Award },
-      { href: `/sites/${siteId}/agent-readiness`, label: 'Agent Readiness', icon: Bot },
-      { href: `/sites/${siteId}/product-radar`, label: 'Product Radar', icon: RadarIcon },
+      { href: `/sites/${siteId}/agent-readiness`, label: 'Agent Readiness', icon: Bot, feature: 'agentReadiness' },
+      { href: `/sites/${siteId}/product-radar`, label: 'Product Radar', icon: RadarIcon, feature: 'productRadar' },
       { href: `/sites/${siteId}/competitors`, label: 'Rakipler', icon: Network },
       { href: `/sites/${siteId}/snippet`, label: 'Sayfa SEO İyileştir', icon: FileText },
-      { href: `/sites/${siteId}/stuck-pages`, label: 'Stuck Pages', icon: Wrench },
+      { href: `/sites/${siteId}/stuck-pages`, label: 'Stuck Pages', icon: Wrench, feature: 'stuckPages' },
     ],
   },
   {
     id: 'content',
     label: 'CONTENT STUDIO',
     items: [
-      { href: `/sites/${siteId}/opportunities`, label: 'İçerik Fırsatları', icon: Lightbulb },
+      { href: `/sites/${siteId}/opportunities`, label: 'İçerik Fırsatları', icon: Lightbulb, feature: 'contentOpportunities' },
       { href: `/sites/${siteId}/articles`, label: 'İçerikler', icon: FileText },
       { href: `/sites/${siteId}/communities`, label: 'Topluluk Ajanı', icon: MessagesSquare },
       { href: `/sites/${siteId}/publish-targets`, label: 'Yayın Hedefleri', icon: Send },
@@ -130,6 +153,7 @@ export function SiteSidebar({ onClose }: { onClose?: () => void }) {
 
   const siteId = (params?.id as string) || null;
   const inSiteContext = !!siteId && path.startsWith('/sites/');
+  const { can } = useEntitlements();
 
   // Site list for switcher (only fetched when in site context)
   const [sites, setSites] = useState<SiteOption[] | null>(null);
@@ -333,25 +357,32 @@ export function SiteSidebar({ onClose }: { onClose?: () => void }) {
               )}
               {expanded && (
                 <div className="space-y-0.5">
-                  {group.items.map((item: any) => {
+                  {group.items.map((item) => {
                     const active = item.exact
                       ? path === item.href
                       : path === item.href || path.startsWith(item.href + '/');
                     const Icon = item.icon;
+                    // Yalnizca KESIN kapaliysa kilitle. Haklar henuz yuklenmediyse
+                    // can() null doner ve menu oldugu gibi kalir — flicker olmaz.
+                    const locked = !!item.feature && can(item.feature) === false;
                     return (
                       <Link
                         key={item.href}
                         href={item.href as any}
                         onClick={onClose}
+                        title={locked ? `${item.label} — planını yükselt` : undefined}
                         className={cn(
                           'flex items-center gap-2.5 px-3 py-1.5 rounded-md text-[13px] font-medium transition-colors',
                           active
                             ? 'bg-gradient-to-br from-orange-500 to-orange-600 text-white shadow-sm'
-                            : 'text-slate-300 hover:bg-slate-800 hover:text-white',
+                            : locked
+                              ? 'text-slate-500 hover:bg-slate-800 hover:text-slate-300'
+                              : 'text-slate-300 hover:bg-slate-800 hover:text-white',
                         )}
                       >
                         <Icon className="h-3.5 w-3.5 shrink-0" />
                         <span className="truncate">{item.label}</span>
+                        {locked && <Lock className="h-3 w-3 shrink-0 ml-auto opacity-70" />}
                       </Link>
                     );
                   })}

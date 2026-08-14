@@ -8,7 +8,9 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { InfoTooltip } from '@/components/info-tooltip';
+import { PlanLockedCard } from '@/components/plan-locked-card';
 import { api } from '@/lib/api';
+import { useEntitlements } from '@/lib/entitlements';
 import {
   Wrench,
   RefreshCw,
@@ -334,6 +336,9 @@ export default function StuckPagesPage() {
   };
   const [bulkBusy, setBulkBusy] = useState(false);
 
+  const { can, requirementFor } = useEntitlements();
+  const allowed = can('stuckPages');
+
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
@@ -346,9 +351,11 @@ export default function StuckPagesPage() {
     }
   }, [site.id]);
 
+  // Haklar KESIN gelene kadar istek atilmaz — kapali planda bos 200/403 gurultusu olmasin.
   useEffect(() => {
+    if (allowed !== true) return;
     refresh();
-  }, [refresh]);
+  }, [refresh, allowed]);
 
   const handleDetect = async () => {
     setDetecting(true);
@@ -477,6 +484,15 @@ export default function StuckPagesPage() {
     }
     return c;
   }, [rows]);
+
+  if (allowed === false) {
+    return (
+      <PlanLockedCard
+        requirement={requirementFor('stuckPages')}
+        description="Sıralaması takılmış sayfaları tespit eder ve tek tıkla toplu kurtarma uygular."
+      />
+    );
+  }
 
   return (
     <div className="space-y-5">

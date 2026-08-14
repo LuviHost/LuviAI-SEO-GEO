@@ -52,9 +52,12 @@ const ALL_PLANS: PlanId[] = ['trial', 'starter', 'pro', 'agency', 'enterprise'];
  * Kapiyi genisletmek isteniyorsa ONCE REST GET ucuna @RequiresPlan konmali.
  */
 const EXPECTED_GATES: Record<string, PlanFeature> = {
+  get_agent_readiness: 'agentReadiness',
   run_agent_readiness_scan: 'agentReadiness',
+  list_content_opportunities: 'contentOpportunities',
   derive_content_opportunities: 'contentOpportunities',
   generate_article_from_opportunity: 'contentOpportunities',
+  get_product_radar: 'productRadar',
 };
 
 describe('tool kapisi — tanimlar', () => {
@@ -187,11 +190,14 @@ describe('chat skill kartlari — plana gore suzme', () => {
     }
   });
 
-  it('okuma araclari her planda acik — chat panelden daha siki olmamali', () => {
+  it('okuma araclari REST ile AYNI kapida — ne daha gevsek ne daha siki', () => {
+    // audit.controller.ts'te bu uc GET ucunun her birinde @RequiresPlan var.
+    // Chat de ayni kapiyi uygulamali; ayrisirsa ya veri sizar ya da kullanici
+    // panelde gordugu seyi chat'e soramaz.
     const svc = toolsService('STARTER');
     const gorunur = svc.listForUser(userOf('STARTER')).map((t) => t.name);
     for (const t of ['get_agent_readiness', 'list_content_opportunities', 'get_product_radar']) {
-      expect(gorunur, `${t} REST'te acikken chat'te kilitli`).toContain(t);
+      expect(gorunur, `${t} REST'te kapaliyken chat'te acik`).not.toContain(t);
     }
   });
 

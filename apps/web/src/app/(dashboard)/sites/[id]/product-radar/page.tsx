@@ -7,6 +7,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { api } from '@/lib/api';
+import { useEntitlements } from '@/lib/entitlements';
+import { PlanLockedCard } from '@/components/plan-locked-card';
 import { cn } from '@/lib/utils';
 import { Radar, RefreshCw, Loader2, Trophy, AlertTriangle } from 'lucide-react';
 
@@ -24,9 +26,12 @@ const PROVIDER_LABEL: Record<string, string> = {
 
 export default function ProductRadarPage() {
   const { site } = useSiteContext();
+  const { can, requirementFor } = useEntitlements();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
+
+  const allowed = can('productRadar');
 
   const load = async () => {
     try {
@@ -38,7 +43,23 @@ export default function ProductRadarPage() {
     }
   };
 
-  useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [site.id]);
+  // Haklar KESIN gelene kadar istek atilmaz: kapali planda bos 200/403
+  // gurultusu uretmemek icin. Cache sayesinde bu bekleme ilk yuklemede
+  // bir /me turu, sonrasinda sifir.
+  useEffect(() => {
+    if (allowed !== true) return;
+    load();
+    /* eslint-disable-next-line react-hooks/exhaustive-deps */
+  }, [site.id, allowed]);
+
+  if (allowed === false) {
+    return (
+      <PlanLockedCard
+        requirement={requirementFor('productRadar')}
+        description="AI asistanların kategorinde hangi ürünleri önerdiğini haftalık tarar — listede misin, kimler önünde, göster."
+      />
+    );
+  }
 
   const run = async () => {
     setRunning(true);

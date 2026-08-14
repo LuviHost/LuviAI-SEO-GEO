@@ -198,3 +198,36 @@ describe('cron plan suzgeci — otomatik uretim de plana bagli', () => {
     }
   });
 });
+
+describe('entitlements — web icin ozellik haklari', () => {
+  it('her plan icin planHasFeature ile birebir ayni', async () => {
+    const { entitlementsFor } = await import('./entitlements.js');
+    for (const p of ALL_PLANS) {
+      const e = entitlementsFor(p.toUpperCase());
+      expect(e.plan).toBe(p);
+      for (const f of ALL_FEATURES) {
+        expect(e.features[f], `${p}/${f}`).toBe(planHasFeature(p, f));
+      }
+    }
+  });
+
+  it('kapali ozellik icin gereken plan ADI plans.ts ten geliyor', async () => {
+    const { entitlementsFor } = await import('./entitlements.js');
+    const e = entitlementsFor('STARTER');
+    // Plan yeniden adlandirilirsa arayuz metni kendiliginden duzelmeli —
+    // 'Baslangic' -> 'Buyume' degisikliginde landing aylarca eski adi
+    // gostermisti, ayni hatayi tekrarlamayalim.
+    expect(e.required.productRadar.planName).toBe('Ajans');
+    expect(e.required.agentReadiness.planName).toBe('Profesyonel');
+    expect(e.required.mcpAccess.planName).toBe('Kurumsal');
+    expect(e.required.productRadar.label).toBe('Product Radar');
+  });
+
+  it('bilinmeyen/bos plan guvenli tarafa duser (hicbir ozellik acilmaz)', async () => {
+    const { entitlementsFor } = await import('./entitlements.js');
+    for (const girdi of ['', 'YOKBOYLEPLAN', undefined as any]) {
+      const e = entitlementsFor(girdi);
+      expect(Object.values(e.features).some(Boolean), `girdi=${girdi}`).toBe(false);
+    }
+  });
+});

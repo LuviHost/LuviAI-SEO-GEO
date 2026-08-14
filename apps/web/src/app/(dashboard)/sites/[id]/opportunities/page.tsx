@@ -8,6 +8,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { api } from '@/lib/api';
+import { useEntitlements } from '@/lib/entitlements';
+import { PlanLockedCard } from '@/components/plan-locked-card';
 import { cn } from '@/lib/utils';
 import {
   Lightbulb, RefreshCw, Loader2, Sparkles, FileText, Repeat,
@@ -45,11 +47,14 @@ const SOURCE_LABEL: Record<string, { text: string; icon: any }> = {
 
 export default function OpportunitiesPage() {
   const { site } = useSiteContext();
+  const { can, requirementFor } = useEntitlements();
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [deriving, setDeriving] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [showDismissed, setShowDismissed] = useState(false);
+
+  const allowed = can('contentOpportunities');
 
   const load = async () => {
     try {
@@ -62,7 +67,12 @@ export default function OpportunitiesPage() {
     }
   };
 
-  useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [site.id]);
+  // Haklar KESIN gelene kadar istek atilmaz — kapali planda bos 200/403 gurultusu olmasin.
+  useEffect(() => {
+    if (allowed !== true) return;
+    load();
+    /* eslint-disable-next-line react-hooks/exhaustive-deps */
+  }, [site.id, allowed]);
 
   const derive = async () => {
     setDeriving(true);
@@ -114,6 +124,15 @@ export default function OpportunitiesPage() {
   };
 
   const visible = items.filter((i) => showDismissed || i.status !== 'DISMISSED');
+
+  if (allowed === false) {
+    return (
+      <PlanLockedCard
+        requirement={requirementFor('contentOpportunities')}
+        description="AI aramalarında kaybettiğin sorguları fırsata çevirir: makale üret, yayınla, yeniden ölç, kanıtı gör."
+      />
+    );
+  }
 
   return (
     <div className="space-y-5">

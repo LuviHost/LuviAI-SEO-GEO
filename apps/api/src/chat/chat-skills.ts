@@ -54,13 +54,16 @@ export const CHAT_SKILLS: ChatSkill[] = [
     tag: 'AGENT',
     description: 'Önceliklendirilmiş, kanıta dayalı haftalık yapılacaklar listesi — Aksiyon Planına eklemeye hazır.',
     accesses: ['Fırsatlar', 'Rakipler', 'Citations', 'Aksiyon Planı'],
-    // Plan "kanita dayali" oldugu iddiasini icerik firsatlarindan aliyor;
-    // o tool kapaliyken skill sadece genel tavsiye uretir, o yuzden gizlenir.
-    requiresTools: ['list_content_opportunities', 'get_agent_readiness'],
+    // requiresTools BILEREK YOK. Bu skill iki kilitli okuma aracina baglanmisti
+    // ve sonucu: haftalik plan cron'u STARTER sitelerinde ForbiddenException ile
+    // dusuyor, plan/bildirim/e-posta hic uretilmiyordu. Diger dort skill'de
+    // uygulanan desen burada da gecerli — kilitli araclar prompt icinde
+    // "erisimin varsa" diye isaretli, model onlari listede goremezse skill o
+    // adim olmadan calisir. Kart her planda gorunur, cikti plana gore zenginlesir.
     prompt: [
       'Bu site için bu haftanın çalışma planını çıkar. Sırasıyla:',
-      '1) get_site_overview + get_ai_kpis + get_agent_readiness ile durumu topla.',
-      '2) list_content_opportunities ile açık fırsatları al; get_prompt_coverage ile hangi dallarda kaybettiğimizi gör.',
+      '1) get_site_overview + get_ai_kpis (+ erişimin varsa get_agent_readiness) ile durumu topla.',
+      '2) Erişimin varsa list_content_opportunities ile açık fırsatları al; get_prompt_coverage ile hangi dallarda kaybettiğimizi gör.',
       '3) En yüksek etkili 5-7 maddelik önceliklendirilmiş plan yaz — her maddede NEDEN (kanıt: hangi metrik/fırsat) ve tahmini etki.',
       '4) Kullanıcıya planı Aksiyon Planına eklemeyi öner; onaylarsa add_action_plan_item ile ekle.',
     ].join('\n'),

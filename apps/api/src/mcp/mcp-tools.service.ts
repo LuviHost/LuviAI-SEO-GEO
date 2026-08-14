@@ -288,6 +288,7 @@ export class McpToolsService {
       },
       {
         name: 'get_agent_readiness',
+        requiresFeature: 'agentReadiness',
         title: 'Agent Readiness (AXO) skoru',
         description: 'Domain\'in AI AJANLARINA hazirligi: robots AI stance, agent card, auth.md, API katalogu, markdown negotiation... 4 seviye + kacinilan ajan sayisi.',
         inputSchema: this.schema(SITE_ID_PROP, ['site_id']),
@@ -358,6 +359,7 @@ export class McpToolsService {
       },
       {
         name: 'list_content_opportunities',
+        requiresFeature: 'contentOpportunities',
         title: 'Icerik firsatlari',
         description: 'Kaybedilen AI sorgularindan turetilen icerik firsatlari (LOST/WEAK etiketli, kanit baglantili). Kapali dongunun giris noktasi.',
         inputSchema: this.schema({
@@ -544,6 +546,7 @@ export class McpToolsService {
       // ── PRODUCT RADAR + COMMUNITY ────────────────────────
       {
         name: 'get_product_radar',
+        requiresFeature: 'productRadar',
         title: 'Product Radar',
         description: 'AI asistanlar kullanicinin kategorisinde hangi urunleri oneriyor — son tarama: urun siralamasi + markanin listede olup olmadigi.',
         inputSchema: this.schema(SITE_ID_PROP, ['site_id']),

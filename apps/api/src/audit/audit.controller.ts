@@ -130,6 +130,11 @@ export class AuditController {
   // ────────────────────────────────────────────────────────────
 
   /** GET /sites/:siteId/audit/agent-readiness/latest */
+  // OKUMA ucu da plana bagli. Onceden yalnizca POST uclari kapaliydi;
+  // web'de kilit gostermek kozmetik kaliyordu cunku API'yi dogrudan
+  // cagiran veriyi yine aliyordu. Kartta ust plana ait diye satilan
+  // ozelligin OKUNMASI da kisitli olmali.
+  @RequiresPlan('agentReadiness')
   @Get('agent-readiness/latest')
   agentReadinessLatest(@Param('siteId') siteId: string) {
     return this.agentReadiness.getLatest(siteId);
@@ -153,6 +158,11 @@ export class AuditController {
   // ────────────────────────────────────────────────────────────
 
   /** GET /sites/:siteId/audit/opportunities */
+  // OKUMA ucu da plana bagli. Onceden yalnizca POST uclari kapaliydi;
+  // web'de kilit gostermek kozmetik kaliyordu cunku API'yi dogrudan
+  // cagiran veriyi yine aliyordu. Kartta ust plana ait diye satilan
+  // ozelligin OKUNMASI da kisitli olmali.
+  @RequiresPlan('contentOpportunities')
   @Get('opportunities')
   async listOpportunities(
     @Param('siteId') siteId: string,
@@ -209,6 +219,11 @@ export class AuditController {
   }
 
   /** GET /sites/:siteId/audit/product-radar */
+  // OKUMA ucu da plana bagli. Onceden yalnizca POST uclari kapaliydi;
+  // web'de kilit gostermek kozmetik kaliyordu cunku API'yi dogrudan
+  // cagiran veriyi yine aliyordu. Kartta ust plana ait diye satilan
+  // ozelligin OKUNMASI da kisitli olmali.
+  @RequiresPlan('productRadar')
   @Get('product-radar')
   productRadarLatest(@Param('siteId') siteId: string) {
     return this.productRadar.latest(siteId);
@@ -301,6 +316,11 @@ export class AuditController {
   //  Stuck Pages — On-page.ai Recipe 1 esleyicisi
   // ──────────────────────────────────────────────────────────────
 
+  // OKUMA ucu da plana bagli. Onceden yalnizca POST uclari kapaliydi;
+  // web'de kilit gostermek kozmetik kaliyordu cunku API'yi dogrudan
+  // cagiran veriyi yine aliyordu. Kartta ust plana ait diye satilan
+  // ozelligin OKUNMASI da kisitli olmali.
+  @RequiresPlan('stuckPages')
   @Get('stuck-pages')
   async listStuckPages(
     @Param('siteId') siteId: string,

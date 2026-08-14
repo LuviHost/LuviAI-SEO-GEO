@@ -7,6 +7,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { api } from '@/lib/api';
+import { useEntitlements } from '@/lib/entitlements';
+import { PlanLockedCard } from '@/components/plan-locked-card';
 import { cn } from '@/lib/utils';
 import {
   Bot, RefreshCw, Check, X, ChevronDown, Copy, Wrench, Loader2,
@@ -54,11 +56,14 @@ function Gauge({ score }: { score: number }) {
 
 export default function AgentReadinessPage() {
   const { site } = useSiteContext();
+  const { can, requirementFor } = useEntitlements();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
   const [fixing, setFixing] = useState<string | null>(null);
   const [openCheck, setOpenCheck] = useState<string | null>(null);
+
+  const allowed = can('agentReadiness');
 
   const load = async () => {
     try {
@@ -71,7 +76,12 @@ export default function AgentReadinessPage() {
     }
   };
 
-  useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [site.id]);
+  // Haklar KESIN gelene kadar istek atilmaz — kapali planda bos 200/403 gurultusu olmasin.
+  useEffect(() => {
+    if (allowed !== true) return;
+    load();
+    /* eslint-disable-next-line react-hooks/exhaustive-deps */
+  }, [site.id, allowed]);
 
   const runScan = async () => {
     setRunning(true);
@@ -125,6 +135,15 @@ export default function AgentReadinessPage() {
       () => toast.error('Kopyalanamadı'),
     );
   };
+
+  if (allowed === false) {
+    return (
+      <PlanLockedCard
+        requirement={requirementFor('agentReadiness')}
+        description="Alan adının AI ajanlarına hazır olup olmadığını 24 kontrolle ölçer, eksikleri tek tıkla düzeltir."
+      />
+    );
+  }
 
   if (loading) {
     return <div className="text-sm text-muted-foreground p-6 text-center">Agent Readiness yükleniyor…</div>;

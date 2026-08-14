@@ -6,44 +6,31 @@ import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { invalidateEntitlements } from '@/lib/entitlements';
 
+/**
+ * Plan verisi ELLE YAZILMAZ — /billing/plans'tan gelir.
+ *
+ * Burada sabit bir tablo duruyordu ve fena halde bayatlamisti: plan adlari
+ * eskiydi ('Baslangic' -> 'Buyume', agency'ye 'Kurumsal' deniyordu), fiyatlar
+ * TL sabitiydi (₺3.080 / ₺6.980 / ₺13.610 — gerceginin yarisindan azi),
+ * makale sayilari tutmuyordu (10/50/250 yerine 15/40/100) ve artik urunde
+ * OLMAYAN "sosyal medya postu" ozelligi satiliyordu. Ustelik burasi bir
+ * YUKSELTME modali: kullanici yanlis fiyat gorup odemeye gidiyordu.
+ */
 type Plan = {
-  id: 'starter' | 'pro' | 'agency';
+  id: string;
   name: string;
   monthly: number;
   annual: number;
-  articles: number;
+  monthlyTry: number;
+  annualTry: number;
+  articlesPerMonth: number;
   features: string[];
-  highlight?: boolean;
+  popular?: boolean;
+  contactSales?: boolean;
 };
 
-const PLANS: Plan[] = [
-  {
-    id: 'starter',
-    name: 'Başlangıç',
-    monthly: 3080,
-    annual: 2464,
-    articles: 10,
-    features: ['10 SEO makale/ay', '8 sosyal medya postu/ay', '1 site', 'Tüm yayın hedefleri', 'Email 24 saat'],
-  },
-  {
-    id: 'pro',
-    name: 'Profesyonel',
-    monthly: 6980,
-    annual: 5584,
-    articles: 50,
-    features: ['40 SEO makale/ay', '18 sosyal medya postu/ay', '3 site', 'Tüm yayın hedefleri', 'Email 4 saat', 'GEO/AEO optimizasyon'],
-    highlight: true,
-  },
-  {
-    id: 'agency',
-    name: 'Kurumsal',
-    monthly: 13610,
-    annual: 10888,
-    articles: 250,
-    features: ['100 SEO makale/ay', '30 sosyal medya postu/ay', '10 site', 'Priority + Slack', 'GEO/AEO optimizasyon'],
-  },
-];
 
 export function UpgradePlanModal({
   open,
@@ -62,6 +49,16 @@ export function UpgradePlanModal({
   const [iframeUrl, setIframeUrl] = useState<string | null>(null);
   const [polling, setPolling] = useState(false);
   const [originalPlan, setOriginalPlan] = useState<string | null>(null);
+  const [plans, setPlans] = useState<Plan[]>([]);
+
+  // Fiyat kartlariyla AYNI kaynak. contactSales planlari (Kurumsal) modalda
+  // gosterilmez: kart ile satin alinamiyorlar, satis ekibinden geciyorlar.
+  useEffect(() => {
+    if (!open) return;
+    api.getPlans('tr')
+      .then((r) => setPlans(((r?.plans ?? []) as Plan[]).filter((p) => p.id !== 'trial' && !p.contactSales)))
+      .catch(() => { /* fiyat gosterilmez, modal yine acilir */ });
+  }, [open]);
 
   // Modal açılınca user'ın mevcut plan'ını cek (degisim algılama icin)
   useEffect(() => {
@@ -89,6 +86,10 @@ export function UpgradePlanModal({
           setPolling(false);
           toast.success(`Plan yukseltildi! Aylık ${q.articles.limit} makale hakkın oldu.`);
           setIframeUrl(null);
+          // Ozellik haklari onbellekte tutuluyor; yukseltmeden sonra
+          // temizlenmezse kullanici sert yenileme (F5) yapana kadar odedigi
+          // ozelligi hala kilitli gorur.
+          invalidateEntitlements();
           onSuccess?.();
           onClose();
         }
@@ -97,7 +98,7 @@ export function UpgradePlanModal({
     return () => clearInterval(interval);
   }, [iframeUrl, originalPlan, session]);
 
-  const subscribe = async (planId: Plan['id']) => {
+  const subscribe = async (planId: string) => {
     if (!session?.user?.id) {
       toast.error('Oturum süresi dolmuş, lütfen tekrar giriş yap');
       return;
@@ -202,31 +203,32 @@ export function UpgradePlanModal({
 
             {/* Plans grid */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              {PLANS.map((p) => {
-                const price = cycle === 'monthly' ? p.monthly : p.annual;
+              {plans.map((p) => {
+                // Fiyat USD'de kanonik; yillikta aylik esdeger gosteriliyor.
+                const price = cycle === 'monthly' ? p.monthly : Math.round(p.annual / 12);
                 return (
                   <div
                     key={p.id}
                     className={cn(
                       'rounded-lg border-2 p-4 flex flex-col transition-colors',
-                      p.highlight ? 'border-brand bg-brand/5' : 'hover:border-brand/40',
+                      p.popular ? 'border-brand bg-brand/5' : 'hover:border-brand/40',
                     )}
                   >
-                    {p.highlight && (
+                    {p.popular && (
                       <div className="text-[10px] font-bold tracking-wide bg-brand text-white rounded-full px-2 py-0.5 self-start mb-2">
                         EN POPÜLER
                       </div>
                     )}
                     <h3 className="font-bold text-lg">{p.name}</h3>
                     <div className="mt-2">
-                      <span className="text-3xl font-bold">₺{price.toLocaleString('tr-TR')}</span>
+                      <span className="text-3xl font-bold">${price.toLocaleString('en-US')}</span>
                       <span className="text-sm text-muted-foreground">/ay</span>
                     </div>
                     {cycle === 'annual' && (
-                      <p className="text-[10px] text-green-600 mt-0.5">Yıllık ödeme · ₺{(p.annual * 12).toLocaleString('tr-TR')}/yıl</p>
+                      <p className="text-[10px] text-green-600 mt-0.5">Yıllık ödeme · ${p.annual.toLocaleString('en-US')}/yıl</p>
                     )}
                     <ul className="mt-3 space-y-1.5 text-xs flex-1">
-                      {p.features.map((f, i) => (
+                      {(p.features ?? []).slice(0, 6).map((f, i) => (
                         <li key={i} className="flex items-start gap-2">
                           <span className="text-green-500 shrink-0">✓</span>
                           <span>{f}</span>
@@ -237,7 +239,7 @@ export function UpgradePlanModal({
                       className="mt-4 w-full"
                       onClick={() => subscribe(p.id)}
                       disabled={loadingPlan === p.id}
-                      variant={p.highlight ? 'default' : 'outline'}
+                      variant={p.popular ? 'default' : 'outline'}
                     >
                       {loadingPlan === p.id ? 'Hazırlanıyor…' : 'Bu Plana Geç'}
                     </Button>

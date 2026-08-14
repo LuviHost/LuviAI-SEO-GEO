@@ -1,6 +1,7 @@
 import { Controller, Get, Req, UnauthorizedException } from '@nestjs/common';
 import type { Request } from 'express';
 import { AdminService } from '../admin/admin.service.js';
+import { entitlementsFor } from '../billing/entitlements.js';
 
 /**
  * /api/me/* — login olmuş kullanıcının kendi datası.
@@ -23,6 +24,10 @@ export class MeController {
       subscriptionStatus: user.subscriptionStatus,
       trialEndsAt: user.trialEndsAt,
       articlesUsedThisMonth: user.articlesUsedThisMonth,
+      // Ozellik haklari SUNUCUDA hesaplanir. Web'in FEATURE_MIN_PLAN tablosunun
+      // bir kopyasini tutmasi gerekmesin — bu oturumda tekrar tekrar duzelttigimiz
+      // "iki tablo birbirinden kayiyor" hatasinin ayni sinifi.
+      entitlements: entitlementsFor(user.plan),
     };
   }
 
