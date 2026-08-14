@@ -257,3 +257,80 @@ describe('olculemedi yardimcisi', () => {
     expect(o).toEqual({ olculemedi: true, neden: 'sebep' });
   });
 });
+
+/**
+ * Uretimde gorulen UC YANILTICI SAYI — hepsi ayni hata sinifi.
+ *
+ * Ilk gercek rapor uretildiginde ciktiya bakildi ve su uc sey duzeltildi:
+ *
+ *  1. "14.766 tiklama (+14.766)" — onceki donemde HIC snapshot yoktu
+ *     (kobipratik'in ilk GSC kaydi 15 Mayis), prevClicks=0 oldugu icin fark
+ *     toplamin kendisi cikiyordu. "Sifirdan buraya geldik" gibi okunuyordu.
+ *  2. "ortalama sira 3" — 50 kelime izleniyor ama yalnizca 2'si ilk 100
+ *     icinde hem basta hem sonda olculebilmis. Kac kelimeden hesaplandigi
+ *     yazilmazsa "uygulama 3. sirada" sanilir.
+ *  3. "AI maliyeti $0.00" — TokenUsageRecord'un 1413 satirinin yalnizca
+ *     56'sinda siteId dolu (%96 atifsiz). Kayit yoklugu "para harcanmadi"
+ *     degil, "harcama bu siteye baglanmamis" demek.
+ */
+describe('yaniltici sayilar — uretim dersleri', () => {
+  it('ASO ortalamasinin kac kelimeden geldigi raporlaniyor', async () => {
+    const veri = {
+      trackedApp: {
+        findMany: async () => [{
+          id: 'a1', name: 'App', appStoreId: '1', playStoreId: null, country: 'tr',
+          keywords: Array.from({ length: 50 }, (_, i) => ({ id: `k${i}`, store: 'IOS' })),
+        }],
+      },
+      appRanking: {
+        findMany: async () => [
+          // 50 kelimeden yalnizca 2'si ilk 100'de olculebilmis
+          { trackedAppKeywordId: 'k0', position: 3, checkedAt: new Date('2026-05-01') },
+          { trackedAppKeywordId: 'k1', position: 5, checkedAt: new Date('2026-05-01') },
+          { trackedAppKeywordId: 'k0', position: 2, checkedAt: new Date('2026-08-01') },
+          { trackedAppKeywordId: 'k1', position: 4, checkedAt: new Date('2026-08-01') },
+          ...Array.from({ length: 48 }, (_, i) => ({
+            trackedAppKeywordId: `k${i + 2}`, position: null, checkedAt: new Date('2026-08-01'),
+          })),
+        ],
+      },
+    };
+    const r = await cagir(servis(veri), 'asoBolumu', 's1', DONEM);
+    const u = r.uygulamalar[0];
+    expect(u.kelimeSayisi, 'izlenen kelime').toBe(50);
+    expect(u.karsilastirilabilirKelime, 'ortalama yalnizca 2 kelimeden geliyor, bu yazilmali').toBe(2);
+    expect(u.sonOrtalamaSira).toBe(3);
+  });
+
+  it('bu siteye atfedilmis token kaydi yoksa maliyet null — $0.00 degil', async () => {
+    const veri = {
+      article: { findMany: async () => [] },
+      socialPost: { count: async () => 0 },
+      studioAsset: { count: async () => 0 },
+      audit: { count: async () => 0 },
+      tokenUsageRecord: { groupBy: async () => [] },
+    };
+    const r = await cagir(servis(veri), 'isDokumu', 's1', DONEM);
+    expect(r.aiMaliyetiUsd, '$0.00 "hic para harcanmadi" gibi okunur').toBeNull();
+    expect(r.maliyetKayitSayisi).toBe(0);
+  });
+
+  it('kayit varsa maliyet ve kapsam birlikte donuyor', async () => {
+    const veri = {
+      article: { findMany: async () => [] },
+      socialPost: { count: async () => 0 },
+      studioAsset: { count: async () => 0 },
+      audit: { count: async () => 0 },
+      tokenUsageRecord: {
+        groupBy: async () => [
+          { context: 'article', _sum: { costUsd: 1.5 }, _count: 3 },
+          { context: 'audit', _sum: { costUsd: 0.25 }, _count: 2 },
+        ],
+      },
+    };
+    const r = await cagir(servis(veri), 'isDokumu', 's1', DONEM);
+    expect(r.aiMaliyetiUsd).toBe(1.75);
+    expect(r.maliyetKayitSayisi).toBe(5);
+    expect(r.maliyetKirilimi[0].is).toBe('article');
+  });
+});

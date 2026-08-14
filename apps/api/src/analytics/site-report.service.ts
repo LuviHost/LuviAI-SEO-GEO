@@ -54,6 +54,15 @@ export interface AsoBolumu {
     dusen: number;
     /** Ilk 10'a giren kelime sayisi (donem sonu) */
     ilkOnda: number;
+    /**
+     * Ortalama siranin KAC kelimeden hesaplandigi.
+     *
+     * Kritik: 50 kelime izlenirken bunlarin cogu ilk 100 disinda olabilir ve
+     * ortalamaya girmez. Bu sayi yazilmazsa "ortalama sira 3" ifadesi
+     * "uygulama 3. sirada" gibi okunur — halbuki yalnizca 2 kelimenin
+     * ortalamasi olabilir. Uretimde tam olarak boyle cikti.
+     */
+    karsilastirilabilirKelime: number;
     olcumGunu: number;
   }>;
   toplamKelime: number;
@@ -77,7 +86,17 @@ export interface IsDokumu {
   studioVarligi: number;
   kullaniciTaramasi: number;
   cozulenSorun: number | null;
-  aiMaliyetiUsd: number;
+  /**
+   * Bu siteye ATFEDILEN AI maliyeti. Kayit yoksa null — 0 DEGIL.
+   *
+   * NEDEN ONEMLI: uretimde olculdu, TokenUsageRecord'un 1413 satirinin
+   * yalnizca 56'sinda siteId dolu (%96'si atifsiz). Bir sitede kayit
+   * bulunmamasi "hic para harcanmadi" demek DEGIL, "harcama bu siteye
+   * baglanmamis" demek. $0.00 yazmak ikincisini birincisi gibi gosterirdi.
+   */
+  aiMaliyetiUsd: number | null;
+  /** Kac token kaydindan hesaplandi — kapsam gostergesi */
+  maliyetKayitSayisi: number;
   /** Maliyetin ise gore kirilimi — TokenUsageRecord.context */
   maliyetKirilimi: Array<{ is: string; usd: number }>;
 }
@@ -187,7 +206,7 @@ export class SiteReportService {
         clicks: seo.search.totalClicks,
         impressions: seo.search.totalImpressions,
         articlesPublished: seo.articles.published,
-        costUsd: is.aiMaliyetiUsd,
+        costUsd: is.aiMaliyetiUsd ?? 0,
         durationMs: Date.now() - t0,
       },
     });
@@ -360,6 +379,7 @@ export class SiteReportService {
         yukselen,
         dusen,
         ilkOnda,
+        karsilastirilabilirKelime: ciftler.length,
         olcumGunu: gunler.size,
       };
     });
@@ -469,6 +489,7 @@ export class SiteReportService {
         by: ['context'],
         where: { siteId, createdAt: { gte: d.rangeStart, lte: d.rangeEnd } },
         _sum: { costUsd: true },
+        _count: true,
       }),
     ]);
 
@@ -478,6 +499,8 @@ export class SiteReportService {
       .filter((m) => m.usd > 0)
       .sort((a, b) => b.usd - a.usd);
 
+    const kayitSayisi = maliyet.reduce((a: number, m: any) => a + (Number(m._count) || 0), 0);
+
     return {
       yayinlananMakale: makaleler.length,
       toplamKelime: kelimeler.length ? kelimeler.reduce((a, b) => a + b, 0) : null,
@@ -485,7 +508,10 @@ export class SiteReportService {
       studioVarligi: studio,
       kullaniciTaramasi: tarama,
       cozulenSorun: null, // seo.audit.cozulenSayisi'ndan okunur; burada tekrar hesaplanmaz
-      aiMaliyetiUsd: Math.round(maliyetKirilimi.reduce((a, b) => a + b.usd, 0) * 100) / 100,
+      // Hic kayit yoksa null: "harcama yok" ile "harcama bu siteye
+      // baglanmamis" ayni sey degil ve ikincisi cok daha olasi (%96 atifsiz).
+      aiMaliyetiUsd: kayitSayisi === 0 ? null : Math.round(maliyetKirilimi.reduce((a, b) => a + b.usd, 0) * 100) / 100,
+      maliyetKayitSayisi: kayitSayisi,
       maliyetKirilimi: maliyetKirilimi.slice(0, 10),
     };
   }

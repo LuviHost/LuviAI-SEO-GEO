@@ -49,8 +49,19 @@ export interface ReportOverview {
     totalImpressions: number;
     avgCtr: number;
     avgPosition: number;
-    clicksDelta: number;
-    impressionsDelta: number;
+    /**
+     * Onceki doneme gore fark. ONCEKI DONEMDE HIC OLCUM YOKSA null.
+     *
+     * Onceden her zaman sayi donuyordu: onceki donemde snapshot olmadiginda
+     * prevClicks=0 oluyor ve fark toplamin kendisi cikiyordu. Uretimde
+     * goruldu — kobipratik icin "14.766 tiklama (+14.766)" yaziyordu, sanki
+     * sifirdan buraya gelmis gibi. Halbuki o donemde site henuz olculmuyordu.
+     * Buyume iddiasi, olculmemis bir gecmisin uzerine kurulamaz.
+     */
+    clicksDelta: number | null;
+    impressionsDelta: number | null;
+    /** Onceki donemde karsilastirilacak olcum var miydi */
+    oncekiDonemVeriVar: boolean;
     topQueries: Array<{ query: string; clicks: number; impressions: number; ctr: number; position: number }>;
     topPages: Array<{ page: string; clicks: number; impressions: number; ctr: number; position: number }>;
   };
@@ -300,6 +311,9 @@ export class ReportsService {
     const avgCtr = totalImpressions > 0 ? totalClicks / totalImpressions : 0;
     const posAgirlik = snapshots.reduce((a, s) => a + s.avgPosition * s.totalImpressions, 0);
     const avgPosition = totalImpressions > 0 ? posAgirlik / totalImpressions : 0;
+    // Onceki donemde HIC snapshot yoksa fark hesaplanamaz — sifirdan
+    // buyume iddiasi uretmemek icin delta null donecek.
+    const oncekiDonemVeriVar = prevSnapshots.length > 0;
     const prevClicks = prevSnapshots.reduce((a, s) => a + s.totalClicks, 0);
     const prevImpressions = prevSnapshots.reduce((a, s) => a + s.totalImpressions, 0);
 
@@ -396,8 +410,9 @@ export class ReportsService {
         totalImpressions,
         avgCtr,
         avgPosition,
-        clicksDelta: totalClicks - prevClicks,
-        impressionsDelta: totalImpressions - prevImpressions,
+        clicksDelta: oncekiDonemVeriVar ? totalClicks - prevClicks : null,
+        impressionsDelta: oncekiDonemVeriVar ? totalImpressions - prevImpressions : null,
+        oncekiDonemVeriVar,
         topQueries,
         topPages,
       },
@@ -468,9 +483,9 @@ export class ReportsService {
     yaz('basarisiz_makale', report.articles.failed);
     yaz('sosyal_post', report.social.posts);
     yaz('toplam_tiklama', report.search.totalClicks);
-    yaz('tiklama_farki', report.search.clicksDelta);
+    yaz('tiklama_farki', report.search.clicksDelta ?? 'onceki donemde olcum yok');
     yaz('toplam_gosterim', report.search.totalImpressions);
-    yaz('gosterim_farki', report.search.impressionsDelta);
+    yaz('gosterim_farki', report.search.impressionsDelta ?? 'onceki donemde olcum yok');
     yaz('ortalama_ctr', `${(report.search.avgCtr * 100).toFixed(2)}%`);
     yaz('ortalama_pozisyon', report.search.avgPosition.toFixed(1));
     yaz('site_skoru', report.audit.overallScore ?? 'olcum yok');

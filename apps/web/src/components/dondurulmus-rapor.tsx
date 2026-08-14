@@ -128,12 +128,27 @@ export function DondurulmusRapor({ rapor }: { rapor: { data: any; periodStart: s
             <Kutu
               etiket="Tıklama"
               deger={sayi(seo.search?.totalClicks)}
-              alt={<Delta deger={seo.search?.clicksDelta ?? null} />}
+              alt={
+                seo.search?.oncekiDonemVeriVar === false ? (
+                  /* Onceki donemde hic olcum yoksa fark gosterilmez: "+14.766"
+                     sifirdan buyume gibi okunurdu, halbuki site o donemde
+                     henuz olculmuyordu. */
+                  <span className="text-[11px] text-muted-foreground">önceki dönemde ölçüm yok</span>
+                ) : (
+                  <Delta deger={seo.search?.clicksDelta ?? null} />
+                )
+              }
             />
             <Kutu
               etiket="Gösterim"
               deger={sayi(seo.search?.totalImpressions)}
-              alt={<Delta deger={seo.search?.impressionsDelta ?? null} />}
+              alt={
+                seo.search?.oncekiDonemVeriVar === false ? (
+                  <span className="text-[11px] text-muted-foreground">önceki dönemde ölçüm yok</span>
+                ) : (
+                  <Delta deger={seo.search?.impressionsDelta ?? null} />
+                )
+              }
             />
             <Kutu
               etiket="Ortalama pozisyon"
@@ -300,9 +315,18 @@ export function DondurulmusRapor({ rapor }: { rapor: { data: any; periodStart: s
                     />
                   </div>
                   <p className="text-[11px] text-muted-foreground mt-2">
-                    {u.kelimeSayisi} kelime, {u.olcumGunu} günde ölçüldü.
+                    {u.kelimeSayisi} kelime izleniyor, {u.olcumGunu} günde ölçüldü.
+                    {/* Ortalamanin KAC kelimeden geldigi yazilmazsa "ortalama sira 3"
+                        ifadesi "uygulama 3. sirada" gibi okunur — halbuki izlenen
+                        kelimelerin cogu ilk 100 disinda olabilir. */}
+                    {u.karsilastirilabilirKelime !== undefined && (
+                      <>
+                        {' '}Ortalama sıra, ilk 100 içinde hem dönem başında hem sonunda ölçülebilen{' '}
+                        <strong>{u.karsilastirilabilirKelime}</strong> kelimeden hesaplandı.
+                      </>
+                    )}
                     {u.ilkOrtalamaSira !== null && u.sonOrtalamaSira !== null && (
-                      <> Dönem başı ortalama {u.ilkOrtalamaSira}. sıra → dönem sonu {u.sonOrtalamaSira}. sıra.</>
+                      <> Dönem başı {u.ilkOrtalamaSira}. sıra → dönem sonu {u.sonOrtalamaSira}. sıra.</>
                     )}
                   </p>
                   {detay && (
@@ -375,7 +399,19 @@ export function DondurulmusRapor({ rapor }: { rapor: { data: any; periodStart: s
           {detay && (
             <>
               <div className="mt-4 pt-3 border-t">
-                <Kutu etiket="AI maliyeti" deger={`$${(is.aiMaliyetiUsd ?? 0).toFixed(2)}`} />
+                {/* Maliyet kaydi site bazinda %96 oraninda atifsiz; kayit yoksa
+                    $0.00 yazmak "hic para harcanmadi" gibi okunur ve yanlistir. */}
+                <Kutu
+                  etiket="AI maliyeti"
+                  deger={is.aiMaliyetiUsd === null || is.aiMaliyetiUsd === undefined ? '—' : `$${is.aiMaliyetiUsd.toFixed(2)}`}
+                  alt={
+                    <span className="text-[11px] text-muted-foreground">
+                      {is.aiMaliyetiUsd === null || is.aiMaliyetiUsd === undefined
+                        ? 'Bu döneme ait, bu siteye atfedilmiş token kaydı yok'
+                        : `${is.maliyetKayitSayisi ?? 0} kayıttan hesaplandı`}
+                    </span>
+                  }
+                />
               </div>
               {is.maliyetKirilimi?.length > 0 && (
                 <div className="mt-3 overflow-x-auto print:overflow-visible">
