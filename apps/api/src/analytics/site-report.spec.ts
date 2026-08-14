@@ -397,3 +397,65 @@ describe('uygulanan duzeltmeler', () => {
     expect(r.uygulananDuzeltme.toplam, 'basarisizlar "uygulandi" sayilmis').toBe(0);
   });
 });
+
+/**
+ * Magaza arama derinligi.
+ *
+ * NEDEN VAR: kod her sorguda 100 sonuc istiyor ama magazalar farkli davraniyor.
+ * Uretimde olculdu (14 Agustos 2026, num=50/100/250 ile ayni terimler):
+ *   App Store  istenen kadar doner  (100 -> 100, 250 -> 210)
+ *   Play       num NE OLURSA OLSUN 23-30'da tavan yapiyor
+ *
+ * Yani Android'de position=null "ilk 100 disinda" DEGIL, "ilk ~25 disinda"
+ * demek. Rapor 100 varsayarsa olcmedigi bir seyi olcmus gibi gosterir.
+ */
+describe('ASO — olculen derinlik', () => {
+  const app = (n: number) => ({
+    id: 'a1', name: 'App', appStoreId: null, playStoreId: 'com.x', country: 'tr',
+    keywords: Array.from({ length: n }, (_, i) => ({ id: `k${i}`, store: 'ANDROID' })),
+  });
+
+  it('gercek derinlik totalResults\'tan turetiliyor, 100 varsayilmiyor', async () => {
+    const veri = {
+      trackedApp: { findMany: async () => [app(2)] },
+      appRanking: {
+        findMany: async () => [
+          { trackedAppKeywordId: 'k0', position: 3, totalResults: 25, checkedAt: new Date('2026-05-01') },
+          { trackedAppKeywordId: 'k0', position: 2, totalResults: 27, checkedAt: new Date('2026-08-01') },
+          { trackedAppKeywordId: 'k1', position: null, totalResults: 24, checkedAt: new Date('2026-08-01') },
+        ],
+      },
+    };
+    const r = await cagir(servis(veri), 'asoBolumu', 's1', DONEM);
+    expect(r.uygulamalar[0].olculenDerinlik, 'derinlik 100 varsayilmis').toBe(25);
+  });
+
+  it('MEDYAN aliniyor — tek bozuk olcum ortalamayi bozmasin', async () => {
+    const veri = {
+      trackedApp: { findMany: async () => [app(1)] },
+      appRanking: {
+        findMany: async () => [
+          { trackedAppKeywordId: 'k0', position: 1, totalResults: 30, checkedAt: new Date('2026-05-01') },
+          { trackedAppKeywordId: 'k0', position: 1, totalResults: 28, checkedAt: new Date('2026-06-01') },
+          { trackedAppKeywordId: 'k0', position: 1, totalResults: 1, checkedAt: new Date('2026-08-01') },
+        ],
+      },
+    };
+    const r = await cagir(servis(veri), 'asoBolumu', 's1', DONEM);
+    // Siralanmis: [1, 28, 30] -> medyan 28. Ortalama olsaydi 19.7 cikardi.
+    expect(r.uygulamalar[0].olculenDerinlik).toBe(28);
+  });
+
+  it('hic gecerli derinlik yoksa null — sahte bir sayi uretilmiyor', async () => {
+    const veri = {
+      trackedApp: { findMany: async () => [app(1)] },
+      appRanking: {
+        findMany: async () => [
+          { trackedAppKeywordId: 'k0', position: 5, totalResults: null, checkedAt: new Date('2026-05-01') },
+        ],
+      },
+    };
+    const r = await cagir(servis(veri), 'asoBolumu', 's1', DONEM);
+    expect(r.uygulamalar[0].olculenDerinlik).toBeNull();
+  });
+});

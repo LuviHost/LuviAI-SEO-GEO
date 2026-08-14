@@ -318,10 +318,10 @@ export function DondurulmusRapor({ rapor }: { rapor: { data: any; periodStart: s
                     {u.kelimeSayisi} kelime izleniyor, {u.olcumGunu} günde ölçüldü.
                     {/* Ortalamanin KAC kelimeden geldigi yazilmazsa "ortalama sira 3"
                         ifadesi "uygulama 3. sirada" gibi okunur — halbuki izlenen
-                        kelimelerin cogu ilk 100 disinda olabilir. */}
+                        kelimelerin cogu olculen derinligin disinda olabilir. */}
                     {u.karsilastirilabilirKelime !== undefined && (
                       <>
-                        {' '}Ortalama sıra, ilk 100 içinde hem dönem başında hem sonunda ölçülebilen{' '}
+                        {' '}Ortalama sıra, hem dönem başında hem sonunda ölçülebilen{' '}
                         <strong>{u.karsilastirilabilirKelime}</strong> kelimeden hesaplandı.
                       </>
                     )}
@@ -329,9 +329,18 @@ export function DondurulmusRapor({ rapor }: { rapor: { data: any; periodStart: s
                       <> Dönem başı {u.ilkOrtalamaSira}. sıra → dönem sonu {u.sonOrtalamaSira}. sıra.</>
                     )}
                   </p>
-                  {detay && (
+                  {/*
+                    ÖLÇÜLEN DERİNLİK YAZILMAK ZORUNDA. Kod her sorguda 100 sonuç
+                    istiyor ama mağazalar farklı davranıyor: App Store istenen
+                    kadar dönüyor, Play num ne olursa olsun ~25-30'da tavan
+                    yapıyor (üretimde ölçüldü). "İlk 100 dışı" demek Android'de
+                    yanlış olurdu — 26. sıra ile 500. sırayı ayırt edemiyoruz.
+                  */}
+                  {u.olculenDerinlik != null && (
                     <p className="text-[11px] text-muted-foreground mt-1">
-                      İlk 100 dışında kalan kelimeler ortalamaya katılmaz — sıra uydurulmaz.
+                      Mağaza araması ilk <strong>{u.olculenDerinlik}</strong> sonucu gösteriyor; bu
+                      derinliğin dışında kalan kelimeler ortalamaya katılmaz — sıra uydurulmaz.
+                      {u.olculenDerinlik < 50 && ' Play Store arama derinliği sınırlı olduğu için Android ölçümü iOS\'a göre daha sığdır.'}
                     </p>
                   )}
                 </div>

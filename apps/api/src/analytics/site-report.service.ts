@@ -47,7 +47,20 @@ export interface AsoBolumu {
     store: string;
     /** Izlenen kelime sayisi */
     kelimeSayisi: number;
-    /** Donem basi / sonu ortalama sira (yalnizca ilk 100'de olculebilenler) */
+    /**
+     * Magaza aramasinin GERCEKTEN gordugu derinlik (medyan sonuc sayisi).
+     *
+     * NEDEN GEREKLI: kod her sorguda 100 sonuc istiyor ama magazalar farkli
+     * davraniyor. Uretimde olculdu (14 Agustos 2026, num=50/100/250 ile):
+     *   App Store  istenen kadar doner (100 -> 100, 250 -> 210)
+     *   Play       num NE OLURSA OLSUN 23-30'da tavan yapiyor
+     * Yani Android'de "ilk 100 disinda" demek yanlis; dogrusu "ilk ~25
+     * disinda". 26. sirali uygulama ile 500. sirali ayni gorunuyor ve
+     * aralarindaki farki olcemiyoruz. Bu sayi yazilmazsa rapor Android'de
+     * olcmedigi bir seyi olcmus gibi gosterir.
+     */
+    olculenDerinlik: number | null;
+    /** Donem basi / sonu ortalama sira (yalnizca olculen derinlik icindekiler) */
     ilkOrtalamaSira: number | null;
     sonOrtalamaSira: number | null;
     delta: number | null;
@@ -354,7 +367,9 @@ export class SiteReportService {
     const siralamalar = await this.prisma.appRanking.findMany({
       where: { trackedAppKeywordId: { in: tumKelimeIds }, checkedAt: { gte: d.rangeStart, lte: d.rangeEnd } },
       orderBy: { checkedAt: 'asc' },
-      select: { trackedAppKeywordId: true, position: true, checkedAt: true },
+      // totalResults: o sorguda magazanin GERCEKTEN dondurdugu sonuc sayisi.
+      // Olculen derinligi buradan cikariyoruz, 100 varsayamayiz.
+      select: { trackedAppKeywordId: true, position: true, checkedAt: true, totalResults: true },
     });
 
     if (siralamalar.length === 0) {
@@ -388,6 +403,16 @@ export class SiteReportService {
 
       const magazalar = [app.appStoreId ? 'iOS' : null, app.playStoreId ? 'Android' : null].filter(Boolean);
 
+      // Medyan — ortalama degil. Tek bir bozuk olcum (0 sonuc donen bir gun)
+      // ortalamayi asagi ceker; medyan tipik derinligi verir.
+      const derinlikler = kayitlar
+        .map((r) => r.totalResults)
+        .filter((n): n is number => typeof n === 'number' && n > 0)
+        .sort((a, b) => a - b);
+      const olculenDerinlik = derinlikler.length
+        ? derinlikler[Math.floor(derinlikler.length / 2)]
+        : null;
+
       return {
         id: app.id,
         ad: app.name,
@@ -400,6 +425,7 @@ export class SiteReportService {
         dusen,
         ilkOnda,
         karsilastirilabilirKelime: ciftler.length,
+        olculenDerinlik,
         olcumGunu: gunler.size,
       };
     });
