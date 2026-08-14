@@ -1,4 +1,5 @@
 import { ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { JobQueueService } from '../jobs/job-queue.service.js';
 import { QuotaService } from '../billing/quota.service.js';
@@ -7,14 +8,23 @@ import { CreateSiteDto, UpdateSiteDto } from './sites.dto.js';
 /**
  * Site satirindaki sirlar — API cevabina ASLA cikmamali.
  * Yeni bir sir alani eklenirse buraya da eklenmeli.
+ *
+ * TIP ACIKCA YAZILI (Prisma.SiteOmit) — bu SART.
+ * Once `as const` ile yazilmisti ve icinde SEMADA OLMAYAN bir alan vardi
+ * (metaAccessToken; dogrusu metaAdsAccessToken). TypeScript bunu yakalamadi
+ * cunku fazla-ozellik kontrolu yalnizca satir ici nesne literaline uygulanir,
+ * degiskene DEGIL. Sonuc: tsc temiz gecti ama Prisma calisma aninda dogrulama
+ * hatasi atti, site listesi 500 dondu ve panel "Henuz site eklenmemis" gosterdi
+ * (sayac baska bir uctan geldigi icin 11 yaziyordu — hata bu yuzden sessiz kaldi).
+ * Tip yazili oldugunda yanlis alan adi DERLEME hatasi verir.
  */
-const SITE_SECRET_FIELDS = {
+const SITE_SECRET_FIELDS: Prisma.SiteOmit = {
   ingestSecret: true,
   gscRefreshToken: true,
   gaRefreshToken: true,
   googleAdsRefreshToken: true,
-  metaAccessToken: true,
-} as const;
+  metaAdsAccessToken: true,
+};
 
 type RequestingUser = { id: string; role: 'USER' | 'ADMIN' | 'AGENCY_OWNER' };
 
