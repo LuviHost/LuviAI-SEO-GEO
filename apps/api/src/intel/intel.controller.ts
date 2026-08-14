@@ -17,6 +17,7 @@ import { IntelAnalystService, PRODUCT_AREAS } from './analyst.service.js';
 import { ClaimLedgerService } from './claim-ledger.service.js';
 import { IntelDigestService } from './digest.service.js';
 import { XSearchService } from './x-search.service.js';
+import { OpenClawService } from './openclaw.service.js';
 import { DISABLED_SOURCES } from './source-registry.js';
 
 /**
@@ -42,6 +43,7 @@ export class IntelController {
     private readonly ledger: ClaimLedgerService,
     private readonly digest: IntelDigestService,
     private readonly xSearch: XSearchService,
+    private readonly openClaw: OpenClawService,
   ) {}
 
   // ────────────────────────────────────────────────────────────
@@ -79,6 +81,7 @@ export class IntelController {
       sources,
       disabledSources: DISABLED_SOURCES,
       xSearchEnabled: this.xSearch.enabled,
+      openClawEnabled: this.openClaw.enabled,
       latestDigest: latestDigest
         ? { id: latestDigest.id, period: latestDigest.period, date: latestDigest.date, emailedAt: latestDigest.emailedAt }
         : null,

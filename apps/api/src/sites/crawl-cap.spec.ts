@@ -156,3 +156,34 @@ describe('crawler — icerik turu suzgeci', () => {
     expect(r.pages.map((p) => p.url)).toContain('https://ornek.test/a');
   });
 });
+
+/**
+ * GEO calistiricisi ayni tavana tabi.
+ *
+ * NEDEN AYRI TEST: bu, ayni hatanin IKINCI kopyasiydi. site-crawler
+ * tavanlandiktan sonra uretimde olculdu — GEO asamasi worker RSS'ini tek
+ * basina 260 MB'tan 748 MB'a cikariyordu, cunku kendi tavansiz fetch'i vardi
+ * ve en fazla 9 sayfanin govdesini AYNI ANDA bellekte tutuyor. Okuma mantigi
+ * artik common/fetch-capped.ts'te tek yerde; bu test ikinci cagiranin
+ * gercekten oraya bagli oldugunu sabitler.
+ */
+describe('GEO calistiricisi — ayni tavan', () => {
+  it('devasa sayfada baglantiyi birakiyor', async () => {
+    const { GeoRunnerService } = await import('../audit/geo-runner.service.js');
+    const sayac = { parca: 0 };
+    const sayim = stubla((url) => {
+      if (url.includes('llms.txt') || url.includes('sitemap') || url.includes('robots')) return null;
+      return new Response(
+        devasaGovde(20 * 1024 * 1024, '<html><head><title>Dev</title></head><body><h1>x</h1>', sayac),
+        { status: 200, headers: HTML },
+      );
+    });
+
+    const r = await new GeoRunnerService().runAudit('https://ornek.test');
+
+    const parcaBasina = sayac.parca / Math.max(1, sayim.istek);
+    expect(parcaBasina, `istek basina ${parcaBasina.toFixed(0)} parca — GEO tarafi tavansiz`).toBeLessThan(40);
+    // Tavan uygulanmasina ragmen skor uretilebiliyor olmali
+    expect(r.score, 'GEO skoru uretilemedi — kirpma analizi bozmus').not.toBeNull();
+  });
+});

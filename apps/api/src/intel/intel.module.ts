@@ -3,6 +3,7 @@ import { LLMModule } from '../llm/llm.module.js';
 import { IntelController } from './intel.controller.js';
 import { IntelCollectorService } from './collector.service.js';
 import { XSearchService } from './x-search.service.js';
+import { OpenClawService } from './openclaw.service.js';
 import { IntelTriageService } from './triage.service.js';
 import { IntelAnalystService } from './analyst.service.js';
 import { ClaimLedgerService } from './claim-ledger.service.js';
@@ -24,6 +25,7 @@ import { IntelCronService } from './intel.cron.js';
   providers: [
     IntelCollectorService,
     XSearchService,
+    OpenClawService,
     IntelTriageService,
     IntelAnalystService,
     ClaimLedgerService,

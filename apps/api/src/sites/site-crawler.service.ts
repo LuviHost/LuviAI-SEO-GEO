@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as cheerio from 'cheerio';
+import { readBodyCapped, isBinaryContentType } from '../common/fetch-capped.js';
 
 export interface CrawledPage {
   url: string;
@@ -184,71 +185,22 @@ export class SiteCrawlerService {
       // sunucular katı Accept'te 406 donuyor), yani PDF/zip/video gelebiliyordu
       // ve res.text() onu bastan sona bellege aliyordu. Ayristirilacak bir sey
       // olmadigi icin bu tamamen bosa harcanan bellek.
-      const ct = res.headers.get('content-type') ?? '';
-      if (ct && !/(text\/|xml|json|javascript|xhtml)/i.test(ct)) {
+      if (isBinaryContentType(res)) {
         await res.body?.cancel().catch(() => {});
         return null;
       }
 
-      return await this.readCapped(res, url, maxBytes);
+      const okundu = await readBodyCapped(res, maxBytes);
+      if (!okundu) return null;
+      if (okundu.truncated) {
+        this.log.warn(
+          `${url} ${(maxBytes / 1048576).toFixed(1)}MB tavanda kirpildi — head sinyalleri okundu, sayfa sonundaki linkler eksik olabilir`,
+        );
+      }
+      return okundu.text;
     } catch {
       return null;
     }
-  }
-
-  /**
-   * Govdeyi tavana kadar okur, tavanda baglantiyi keser.
-   *
-   * NEDEN VAR: res.text() ne gelirse tamamini bellege aliyordu. Canlida olculdu —
-   * tek bir site taramasi 100 sayfa icin 137 MB indiriyordu ve iceride 14.1 MB'lik
-   * TEK bir HTML sayfasi vardi. Cheerio boyle bir belgeyi ayristirirken kaynagin
-   * birkac kati DOM ayirir; 5'li batch ve 2 es zamanli tarama ile worker'in RSS'i
-   * 205 MB'tan 1440 MB'a firliyordu. PM2'nin 1 GB max_memory_restart siniri
-   * devreye girip SIGTERM gonderiyordu: tarama yarida oluyor, DB'deki is
-   * PROCESSING'de asili kaliyor, BullMQ takilan isi yeniden veriyor ve ayni
-   * tarama tekrar tekrar cokuyordu. Uretimde ayni is 7 kez bastan basladi.
-   *
-   * KESMEK, SAYFAYI ATMAKTAN IYI: cikardigimiz sinyallerin tamami (title, meta,
-   * canonical, OG, JSON-LD) belgenin <head> kismindadir, yani ilk kilobaytlarda.
-   * Sayfayi tamamen elemek onu link grafiginden de dusururdu ve baska sayfalari
-   * yanlislikla "orphan" gosterirdi. Kirpilan sayfa loglanir — sessiz kirpma yok.
-   */
-  private async readCapped(res: Response, url: string, maxBytes: number): Promise<string | null> {
-    const reader = res.body?.getReader();
-    if (!reader) return null;
-
-    const decoder = new TextDecoder('utf-8');
-    const parts: string[] = [];
-    let total = 0;
-    let kirpildi = false;
-
-    try {
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        if (!value) continue;
-
-        const kalan = maxBytes - total;
-        if (value.length >= kalan) {
-          parts.push(decoder.decode(value.subarray(0, kalan)));
-          kirpildi = true;
-          await reader.cancel().catch(() => {});
-          break;
-        }
-        total += value.length;
-        parts.push(decoder.decode(value, { stream: true }));
-      }
-    } catch {
-      await reader.cancel().catch(() => {});
-      return parts.length ? parts.join('') : null;
-    }
-
-    if (kirpildi) {
-      this.log.warn(
-        `${url} ${(maxBytes / 1048576).toFixed(1)}MB tavanda kirpildi — head sinyalleri okundu, sayfa sonundaki linkler eksik olabilir`,
-      );
-    }
-    return parts.join('');
   }
 
   private async findSitemap(origin: string): Promise<string | null> {

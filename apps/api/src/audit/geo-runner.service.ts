@@ -1,5 +1,6 @@
 import { Injectable, Logger } from "@nestjs/common";
 import * as cheerio from "cheerio";
+import { readBodyCapped, isBinaryContentType } from "../common/fetch-capped.js";
 
 export interface GeoSignal {
   id: string;
@@ -216,14 +217,39 @@ export class GeoRunnerService {
     return out;
   }
 
+  /**
+   * Sayfa govdesi — 2 MB tavanli.
+   *
+   * NEDEN TAVAN VAR: burasi ucuncu taraf sitelerden HTML cekiyor ve ustelik
+   * en fazla 9 sayfanin govdesini AYNI ANDA samplePages icinde tutuyor.
+   * Tavansiz surumde uretimde olculdu — GEO asamasi worker RSS'ini tek basina
+   * 260 MB'tan 748 MB'a cikariyordu (ofsayt.com sayfalari ~2.7 MB HTML).
+   * Ayni hata site-crawler'da da vardi; ucuncu bir kopya cikmasin diye okuma
+   * mantigi common/fetch-capped.ts'te tek yerde duruyor.
+   */
+  private static readonly MAX_PAGE_BYTES = 2 * 1024 * 1024;
+
   private async fetch(url: string): Promise<string | null> {
     try {
       const res = await fetch(url, {
         headers: { "User-Agent": "RanksUp-GEO/1.0", "Cache-Control": "no-cache", "Pragma": "no-cache" },
         signal: AbortSignal.timeout(12000),
       });
-      if (!res.ok) return null;
-      return await res.text();
+      if (!res.ok) {
+        await res.body?.cancel().catch(() => {});
+        return null;
+      }
+      // PDF/zip/video govdesini hic indirme — ayristirilacak bir sey yok.
+      if (isBinaryContentType(res)) {
+        await res.body?.cancel().catch(() => {});
+        return null;
+      }
+      const okundu = await readBodyCapped(res, GeoRunnerService.MAX_PAGE_BYTES);
+      if (!okundu) return null;
+      if (okundu.truncated) {
+        this.log.warn(`${url} 2.0MB tavanda kirpildi — GEO sinyalleri <head> ve ilk govdeden okundu`);
+      }
+      return okundu.text;
     } catch { return null; }
   }
 }

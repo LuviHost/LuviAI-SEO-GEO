@@ -3,6 +3,7 @@ import { load } from 'cheerio';
 import { createHash } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { XSearchService } from './x-search.service.js';
+import { OpenClawService } from './openclaw.service.js';
 import { INTEL_SOURCES, type SourceKind } from './source-registry.js';
 
 /**
@@ -66,6 +67,7 @@ export class IntelCollectorService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly xSearch: XSearchService,
+    private readonly openClaw: OpenClawService,
   ) {}
 
   // ────────────────────────────────────────────────────────────
@@ -220,6 +222,15 @@ export class IntelCollectorService {
       case 'hn':
         return this.fetchHackerNews(target);
       case 'x':
+        // OpenClaw acikken tarayici yolu ONCELIKLI: gercek oturumla arama
+        // yapar ve postun isaret ettigi GitHub deposunu da inceler. Bos
+        // donerse (tarayici hatasi, oturum dusmesi) xAI yoluna duseriz —
+        // X kaynaklari tek bir bilesenin arizasiyla komple susmasin.
+        if (this.openClaw.enabled) {
+          const viaBrowser = await this.openClaw.search(target);
+          if (viaBrowser.length > 0) return viaBrowser;
+          this.log.warn(`[x] OpenClaw bos dondu — xAI yoluna dusuluyor: ${target}`);
+        }
         return this.xSearch.search(target);
       default:
         return [];
