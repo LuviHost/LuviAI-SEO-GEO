@@ -74,6 +74,9 @@ describe('connectApp — davranis', () => {
     const prisma = {
       trackedApp: {
         findFirst: async () => mevcut,
+        // Ad eslestirmesi bu yolu kullanir: hedef magaza yuvasi bos olan
+        // kayitlar. Testte mevcut kaydi aday olarak veriyoruz.
+        findMany: async () => (mevcut ? [mevcut] : []),
         update: async (a: any) => { cagrilar.update = a; return { id: 'x', ...a.data }; },
         create: async (a: any) => { cagrilar.create = a; return { id: 'y', ...a.data }; },
       },
@@ -131,5 +134,103 @@ describe('connectApp — davranis', () => {
     );
     expect(cagrilar.update.data).not.toHaveProperty('iosRating');
     expect(cagrilar.update.data.androidRating).toBe(4.2);
+  });
+});
+
+/**
+ * IKINCI MAGAZA — paylasilan kimlik YOKKEN.
+ *
+ * Ilk duzeltme kaydi magaza kimligiyle ariyordu ve bu, gercek senaryoyu
+ * COZMEDI: iOS'ta takip edilen bir uygulamanin Android'i eklenirken elimizde
+ * yalnizca playStoreId var, mevcut kaydin playStoreId'si ise null — ortak
+ * hicbir kimlik yok, arama zorunlu olarak bos doner ve kota yine patlar.
+ * Kullanici "hala ekleyemiyorum" dedi ve hakliydi.
+ *
+ * Ikinci olcut AD. Uc korumasi var: hedef yuva bos olmali, tam olarak bir
+ * aday eslesmeli, ad normalize edilmeli.
+ */
+describe('ikinci magaza — ortak kimlik olmadan', () => {
+  async function kur(adaylar: any[], dto: any) {
+    const { AsoService } = await import('./aso.service.js');
+    const cagrilar: any = { kotaKontrolu: 0, update: null, create: null };
+    const prisma = {
+      trackedApp: {
+        findFirst: async () => null,            // magaza kimligiyle eslesme YOK
+        findMany: async () => adaylar,          // ad eslestirmesinin adaylari
+        update: async (a: any) => { cagrilar.update = a; return { id: 'x', ...a.data }; },
+        create: async (a: any) => { cagrilar.create = a; return { id: 'y', ...a.data }; },
+      },
+      site: { findUnique: async () => ({ userId: 'u1' }) },
+    };
+    const quota = {
+      enforceTrackedAppQuota: async () => {
+        cagrilar.kotaKontrolu++;
+        throw new Error('Plan limiti: 3 uygulama');
+      },
+    };
+    const scrapers = {
+      getIosApp: async () => ({ title: 'KobiPratik', score: 5, reviews: 10, developer: 'Emir Burgazl', primaryGenre: 'B', icon: 'i' }),
+      getAndroidApp: async () => ({ title: 'KobiPratik', score: 4.2, reviews: 8, developer: 'Emirhan Burgazli', genre: 'B', icon: 'i' }),
+    };
+    const n = null as any;
+    const svc = new AsoService(prisma as any, scrapers as any, n, n, n, n, quota as any);
+    return { cagrilar, sonuc: await svc.connectApp(dto).catch((e: Error) => e) };
+  }
+
+  const iosKaydi = { id: 'app1', name: 'KobiPratik', appStoreId: '6762136975', playStoreId: null };
+
+  it('AD ile esleserek mevcut kayda baglaniyor — kota tuketilmiyor', async () => {
+    const { cagrilar, sonuc } = await kur([iosKaydi], {
+      siteId: 's1', playStoreId: 'com.kobipratik.app', country: 'tr',
+    });
+    expect(sonuc, 'yine kotaya takildi').not.toBeInstanceOf(Error);
+    expect(cagrilar.kotaKontrolu).toBe(0);
+    expect(cagrilar.update?.where?.id, 'mevcut kayit guncellenmedi').toBe('app1');
+    expect(cagrilar.update.data.playStoreId).toBe('com.kobipratik.app');
+    expect(cagrilar.update.data.appStoreId, 'iOS kimligi kayboldu').toBe('6762136975');
+  });
+
+  it('GELISTIRICI ADI farkli olsa da esliyor', async () => {
+    // Uretim gercegi: ayni uygulama iOS'ta "Emir Burgazl", Play'de
+    // "Emirhan Burgazli". Gelistiriciyi zorunlu tutmak dogru birlestirmeyi
+    // engellerdi.
+    const { cagrilar } = await kur([{ ...iosKaydi, developer: 'Emir Burgazl' }], {
+      siteId: 's1', playStoreId: 'com.kobipratik.app', country: 'tr',
+    });
+    expect(cagrilar.update).not.toBeNull();
+  });
+
+  it('ad normalize ediliyor — buyuk/kucuk, aksan, bosluk, noktalama', async () => {
+    const { cagrilar } = await kur([{ ...iosKaydi, name: 'Kobi-Pratik' }], {
+      siteId: 's1', playStoreId: 'com.kobipratik.app', country: 'tr',
+    });
+    expect(cagrilar.update, '"Kobi-Pratik" ile "KobiPratik" eslesmedi').not.toBeNull();
+  });
+
+  it('BIRDEN FAZLA aday varsa birlestirmiyor — belirsizlikte yeni kayit', async () => {
+    const { cagrilar, sonuc } = await kur(
+      [iosKaydi, { id: 'app2', name: 'KobiPratik', appStoreId: '999', playStoreId: null }],
+      { siteId: 's1', playStoreId: 'com.kobipratik.app', country: 'tr' },
+    );
+    expect(cagrilar.update, 'belirsizken yanlis kayda baglandi').toBeNull();
+    expect(cagrilar.kotaKontrolu, 'kota atlandi').toBe(1);
+    expect(sonuc).toBeInstanceOf(Error);
+  });
+
+  it('ad tutmuyorsa birlestirmiyor — farkli uygulamalar karismasin', async () => {
+    const { cagrilar } = await kur([{ ...iosKaydi, name: 'Bambaska Uygulama' }], {
+      siteId: 's1', playStoreId: 'com.kobipratik.app', country: 'tr',
+    });
+    expect(cagrilar.update, 'alakasiz uygulamaya baglandi').toBeNull();
+    expect(cagrilar.kotaKontrolu).toBe(1);
+  });
+
+  it('kota kontrolu metadata VE ad eslestirmesinden SONRA calisiyor', () => {
+    const i = CONNECT.indexOf('const name =');
+    const j = CONNECT.indexOf('uyanlar.length === 1');
+    const k = CONNECT.indexOf('enforceTrackedAppQuota');
+    expect(i, 'ad hesaplanmiyor').toBeGreaterThan(0);
+    expect(j, 'ad eslestirmesi yok').toBeGreaterThan(i);
+    expect(k, 'kota ad eslestirmesinden ONCE calisiyor — eski hata').toBeGreaterThan(j);
   });
 });

@@ -174,7 +174,7 @@ export class AsoService {
     //
     // Cozum: kaydi MAGAZA KIMLIGIYLE ari. Biri eslesiyorsa ayni uygulamadir;
     // eksik yarisi doldurulur, kota TUKETILMEZ.
-    const eslesme = await this.prisma.trackedApp.findFirst({
+    let eslesme = await this.prisma.trackedApp.findFirst({
       where: {
         siteId: dto.siteId,
         country,
@@ -186,6 +186,78 @@ export class AsoService {
       select: { id: true, appStoreId: true, playStoreId: true, name: true },
     });
 
+    // Metadata fetch
+    const ios = dto.appStoreId
+      ? await this.scrapers.getIosApp({ id: dto.appStoreId, country })
+      : null;
+    const android = dto.playStoreId
+      ? await this.scrapers.getAndroidApp({ appId: dto.playStoreId, country })
+      : null;
+
+    if (!ios && !android) {
+      throw new BadRequestException('App store\'larında bulunamadı. ID veya country yanlış olabilir.');
+    }
+
+    const name = ios?.title ?? android?.title ?? 'Unknown App';
+
+    // IKINCI MAGAZA EKLENIRKEN PAYLASILAN KIMLIK YOKTUR.
+    //
+    // Yukaridaki eslestirme magaza kimligine bakiyor; ama iOS'ta takip edilen
+    // bir uygulamanin Android'i eklenirken elimizde YALNIZCA playStoreId var
+    // ve mevcut kaydin playStoreId'si null — ortak hicbir kimlik yok, yani o
+    // arama zorunlu olarak bos doner. Uretimde tam olarak bu yasandi:
+    // KobiPratik iOS'ta kayitliyken Android eklenemiyor, "Plan limiti"
+    // hatasi aliniyordu.
+    //
+    // Bu yuzden ikinci olcut AD: magaza basligi normalize edilip ayni sitedeki
+    // ayni ulkeli kayitlarla karsilastiriliyor. Uc korumasi var:
+    //   1. Hedef magaza yuvasi BOS olmali (iOS ekliyorsak appStoreId null)
+    //   2. Tam olarak BIR aday eslesmeli — birden fazlaysa hangisi oldugu
+    //      belirsiz, yeni kayit acilir
+    //   3. Ad normalize edilir (buyuk/kucuk, aksan, bosluk, noktalama)
+    //
+    // Gelistirici adi BILEREK olcut degil: uretimde ayni uygulama iOS'ta
+    // "Emir Burgazl", Play'de "Emirhan Burgazli" olarak kayitli — magazalar
+    // farkli yaziyor ve zorunlu tutmak dogru birlestirmeyi engellerdi.
+    if (!eslesme) {
+      const normalize = (x: string) =>
+        x.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+      const hedefIos = !!dto.appStoreId;
+      const adaylar = await this.prisma.trackedApp.findMany({
+        where: {
+          siteId: dto.siteId,
+          country,
+          // Hedef magaza yuvasi bos olan kayitlar
+          ...(hedefIos ? { appStoreId: null } : { playStoreId: null }),
+        },
+        select: { id: true, appStoreId: true, playStoreId: true, name: true },
+      });
+      const hedefAd = normalize(name);
+      const uyanlar = adaylar.filter((a) => normalize(a.name) === hedefAd);
+
+      if (uyanlar.length === 1) {
+        eslesme = uyanlar[0];
+        this.log.log(
+          `[${dto.siteId}] "${name}" ad eslesmesiyle mevcut kayda baglandi ` +
+            `(${hedefIos ? 'iOS' : 'Android'} yuvasi dolduruluyor) — yeni uygulama sayilmiyor`,
+        );
+      } else if (uyanlar.length > 1) {
+        this.log.warn(
+          `[${dto.siteId}] "${name}" icin ${uyanlar.length} aday kayit var — belirsiz, yeni kayit aciliyor`,
+        );
+      }
+    }
+
+    // KOTA KONTROLU EN SONDA.
+    //
+    // Bilerek metadata cekiminden ve HER IKI eslestirmeden sonra: uygulamanin
+    // adi ancak magaza metadata'si gelince biliniyor, ad eslestirmesi de ona
+    // dayaniyor. Kota once calissaydi (eski hali boyleydi) ikinci magaza
+    // eklenirken kayit "yeni" sanilip kotaya takilirdi — uretimde tam olarak
+    // bu oldu.
+    //
+    // Bedeli: kotasi dolu bir kullanici icin bir magaza metadata istegi bosa
+    // gider. Bu, dogru uygulamayi eklemeyi engellemekten cok daha ucuz.
     if (!eslesme) {
       const site = await this.prisma.site.findUnique({
         where: { id: dto.siteId },
@@ -202,20 +274,6 @@ export class AsoService {
           `(iOS=${dto.appStoreId ?? eslesme.appStoreId ?? '-'}, Play=${dto.playStoreId ?? eslesme.playStoreId ?? '-'}) — kota tuketilmiyor`,
       );
     }
-
-    // Metadata fetch
-    const ios = dto.appStoreId
-      ? await this.scrapers.getIosApp({ id: dto.appStoreId, country })
-      : null;
-    const android = dto.playStoreId
-      ? await this.scrapers.getAndroidApp({ appId: dto.playStoreId, country })
-      : null;
-
-    if (!ios && !android) {
-      throw new BadRequestException('App store\'larında bulunamadı. ID veya country yanlış olabilir.');
-    }
-
-    const name = ios?.title ?? android?.title ?? 'Unknown App';
     const developer = ios?.developer ?? android?.developer ?? null;
     const category = ios?.primaryGenre ?? android?.genre ?? null;
     const iconUrl = ios?.icon ?? android?.icon ?? null;
