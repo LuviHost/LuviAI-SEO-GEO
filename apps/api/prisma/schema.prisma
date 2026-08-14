@@ -427,9 +427,16 @@ model Audit {
   ranAt      DateTime @default(now())
   durationMs Int?
 
+  /// Taramayi kim baslatti: 'user' (elle), 'system' (AUDIT_CRON haftalik),
+  /// 'test' (uretimde dogrulama kosumu). Rapor yalnizca 'user' taramalarini
+  /// "yapilan is" olarak sayar — aksi halde cron acildiginda musteriye
+  /// gosterilen sayi kendiliginden sisar.
+  trigger String @default("user") @db.VarChar(16)
+
   site Site @relation(fields: [siteId], references: [id], onDelete: Cascade)
 
   @@index([siteId, ranAt])
+  @@index([siteId, trigger, ranAt])
   @@map("audits")
 }
 

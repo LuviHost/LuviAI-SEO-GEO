@@ -8,6 +8,18 @@ import { AiCitationService } from './ai-citation.service.js';
 import type { CheckResult } from './audit-checks.service.js';
 import { JobQueueService } from '../jobs/job-queue.service.js';
 
+/**
+ * Taramayi kim baslatti.
+ *
+ * 'user'   — kullanici panelden "Yeni tarama" dedi. RAPORDA SAYILAN TEK TUR.
+ * 'system' — AUDIT_CRON haftalik otomatik tarama. Gercek bir tarama ama
+ *            kullanicinin yaptigi bir is degil; "yapilan is" sayisina
+ *            katilirsa cron acildigi gun sayi kendiliginden sisar.
+ * 'test'   — uretimde dogrulama kosumu. Bu tur, tam olarak boyle bir kosumun
+ *            kullanici taramalarindan ayirt edilemedigi fark edilince eklendi.
+ */
+export type AuditTrigger = 'user' | 'system' | 'test';
+
 /** Bir taramanin karsilastirmada kullanilan ozet kimligi */
 export interface AuditOzet {
   id: string;
@@ -235,6 +247,10 @@ export class AuditService {
         geoScore: true,
         issues: true,
         durationMs: true,
+        // Gecmis listesi taramanin kaynagini GOSTERIR ama gizlemez: tarama
+        // gercekten calisti, kaydi durmali. Rapor "yapilan is" sayarken
+        // yalnizca 'user' olanlari sayar; arayuz digerlerini rozetle ayirir.
+        trigger: true,
       },
     });
 
@@ -335,7 +351,7 @@ export class AuditService {
    *   kendi olcumleri icin ayirdigi hakki sessizce yer ve "kotam neden bitti"
    *   sorusu dogar.
    */
-  async runAudit(siteId: string, opts: { trigger?: 'user' | 'system' } = {}) {
+  async runAudit(siteId: string, opts: { trigger?: AuditTrigger } = {}) {
     const t0 = Date.now();
     const site = await this.prisma.site.findUniqueOrThrow({ where: { id: siteId } });
 
@@ -360,7 +376,12 @@ export class AuditService {
       // kotasi gercekten dayatilir. Kota doluysa runForSite artik firlatir;
       // asagidaki catch audit'in geri kalanini ayakta tutar, yalnizca citation
       // bolumu bos doner.
-      this.aiCitation.runForSite(siteId, 5, { trigger: opts.trigger ?? 'user' }).catch((err) => {
+      // Kota acisindan yalnizca GERCEK kullanici taramasi hak tuketir.
+      // 'test' de 'system' gibi davranir: dogrulama kosumu musterinin aylik
+      // gorunurluk hakkini yiyemez.
+      this.aiCitation.runForSite(siteId, 5, {
+        trigger: (opts.trigger ?? 'user') === 'user' ? 'user' : 'system',
+      }).catch((err) => {
         this.log.warn(`[${siteId}] AI Citation testi basarisiz: ${err.message}`);
         return [] as Awaited<ReturnType<AiCitationService['runForSite']>>;
       }),
@@ -461,6 +482,12 @@ export class AuditService {
         },
         issues: allIssues,
         durationMs: Date.now() - t0,
+        // Taramayi kimin baslattigi KALICI olarak yaziliyor. Onceden bu deger
+        // yalnizca kota kararinda kullanilip atiliyordu; sonuc olarak gecmiste
+        // bir taramanin kullaniciya mi, cron'a mi, yoksa bir dogrulama
+        // kosumuna mi ait oldugu anlasilamiyordu. Rapor "yapilan is" sayarken
+        // yalnizca 'user' taramalarini sayacak.
+        trigger: opts.trigger ?? 'user',
       },
     });
 
