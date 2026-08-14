@@ -36,15 +36,18 @@ export class AuditCron {
   }
 
   /**
-   * Varsayilan ACIK.
+   * Varsayilan KAPALI — bilincli urun karari.
    *
-   * Diger cron'lardan (INTEL_CRON, WEEKLY_PLAN_CRON) farkli olarak burada
-   * varsayilan acik: bu bir raporlama ozelliginin VERI KAYNAGI. Kapali olursa
-   * karsilastirma ekrani hicbir zaman dolmaz, yani ozellik yokmus gibi olur.
-   * Kapatmak icin AUDIT_CRON=false.
+   * Periyodik tarama her site icin crawl + PageSpeed + 7 saglayici probe
+   * demek, yani otomatik ve surekli LLM maliyeti. Rapor kullanicinin ELLE
+   * baslattigi taramalarla besleniyor: kullanici "Yeni tarama" der, sonucu
+   * hemen gorur, gecmis listesine bir satir daha eklenir. Kimsenin bakmadigi
+   * bir zamanlamayla token yakmanin karsiligi yok.
+   *
+   * Acmak isteyen AUDIT_CRON=true der; kod ve kilit hazir bekliyor.
    */
   private enabled(): boolean {
-    return String(process.env.AUDIT_CRON ?? 'true').toLowerCase() !== 'false';
+    return String(process.env.AUDIT_CRON ?? 'false').toLowerCase() === 'true';
   }
 
   /** Pazar 03:00 — hafta ici trafigi ve diger cron'lari rahatsiz etmesin. */

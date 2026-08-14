@@ -233,19 +233,19 @@ describe('entitlements — web icin ozellik haklari', () => {
 });
 
 describe('periyodik tarama — raporun veri kaynagi', () => {
-  it('AUDIT_CRON varsayilan ACIK, sadece "false" kapatir', async () => {
+  it('AUDIT_CRON varsayilan KAPALI — rapor elle tetiklenen taramalarla beslenir', async () => {
     const { AuditCron } = await import('../audit/audit.cron.js');
     const cron: any = new (AuditCron as any)(null, null);
     const eski = process.env.AUDIT_CRON;
     try {
       delete process.env.AUDIT_CRON;
-      expect(cron.enabled(), 'tanimsizken acik olmali — kapaliysa rapor hic dolmaz').toBe(true);
-      process.env.AUDIT_CRON = 'false';
-      expect(cron.enabled()).toBe(false);
-      process.env.AUDIT_CRON = 'FALSE';
-      expect(cron.enabled(), 'buyuk harf de kapatmali').toBe(false);
+      expect(cron.enabled(), 'tanimsizken KAPALI olmali — kimsenin bakmadigi taramaya token harcanmaz').toBe(false);
       process.env.AUDIT_CRON = 'true';
       expect(cron.enabled()).toBe(true);
+      process.env.AUDIT_CRON = 'TRUE';
+      expect(cron.enabled(), 'buyuk harf de acmali').toBe(true);
+      process.env.AUDIT_CRON = 'false';
+      expect(cron.enabled()).toBe(false);
     } finally {
       if (eski === undefined) delete process.env.AUDIT_CRON; else process.env.AUDIT_CRON = eski;
     }

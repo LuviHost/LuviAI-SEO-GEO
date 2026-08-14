@@ -57,23 +57,44 @@ export function AuditDeltaPanel({ siteId }: { siteId: string }) {
 
   if (!cmp) return null;
 
+  return (
+    <Card>
+      <CardContent className="p-4">
+        <AuditComparisonBody cmp={cmp} history={history} />
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * Karsilastirmanin gorsel govdesi — Card sarmalayicisi DISINDA tutuldu.
+ *
+ * NEDEN: Ayni delta gorunumu hem audit sayfasinda hem rapor sayfasinda
+ * kullaniliyor; iki farkli delta dili olusmasin diye tek kaynaktan besleniyor.
+ * Sarmalayiciyi cagiran secer (audit'te tek kart, raporda bolum icinde).
+ */
+export function AuditComparisonBody({
+  cmp,
+  history = [],
+}: {
+  cmp: AuditComparison;
+  history?: Array<{ id: string; ranAt: string; overallScore: number }>;
+}) {
   if (cmp.yeterliVeriYok) {
     return (
-      <Card>
-        <CardContent className="p-4 flex items-start gap-3">
-          <div className="h-9 w-9 rounded-lg bg-muted grid place-items-center shrink-0">
-            <History className="h-4 w-4 text-muted-foreground" />
-          </div>
-          <div>
-            <p className="text-sm font-semibold">Karşılaştırma için en az iki tarama gerekli</p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              {cmp.to
-                ? `Şu an tek tarama var (${tarih(cmp.to.ranAt)} · ${cmp.to.overallScore}/100). Düzeltmelerini yaptıktan sonra yeniden tara, farkı burada göstereceğiz.`
-                : 'Henüz tarama yok. İlk taramayı başlatarak başla.'}
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+      <div className="flex items-start gap-3">
+        <div className="h-9 w-9 rounded-lg bg-muted grid place-items-center shrink-0">
+          <History className="h-4 w-4 text-muted-foreground" />
+        </div>
+        <div>
+          <p className="text-sm font-semibold">Karşılaştırma için en az iki tarama gerekli</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {cmp.to
+              ? `Şu an tek tarama var (${tarih(cmp.to.ranAt)} · ${cmp.to.overallScore}/100). Düzeltmelerini yaptıktan sonra yeniden tara, farkı burada göstereceğiz.`
+              : 'Henüz tarama yok. İlk taramayı başlatarak başla.'}
+          </p>
+        </div>
+      </div>
     );
   }
 
@@ -82,102 +103,100 @@ export function AuditDeltaPanel({ siteId }: { siteId: string }) {
   const degisenCheckler = cmp.checks.filter((c) => c.durum === 'iyilesti' || c.durum === 'kotulesti');
 
   return (
-    <Card>
-      <CardContent className="p-4 space-y-4">
-        {/* Ust satir: skor delta rozeti + tarih araligi */}
-        <div className="flex items-start justify-between flex-wrap gap-3">
-          <div className="flex items-center gap-3">
-            <div
-              className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-lg font-bold ${
-                yon === 'up'
-                  ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'
-                  : yon === 'down'
-                    ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'
-                    : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
-              }`}
-            >
-              {yon === 'up' ? <TrendingUp className="h-5 w-5" />
-                : yon === 'down' ? <TrendingDown className="h-5 w-5" />
-                  : <Minus className="h-5 w-5" />}
-              {scoreDelta > 0 ? '+' : ''}{scoreDelta} puan
-            </div>
-            <div>
-              <p className="text-sm font-semibold">
-                {from?.overallScore} <span className="text-muted-foreground font-normal">→</span> {to?.overallScore}
-                <span className="text-xs text-muted-foreground font-normal">/100</span>
-              </p>
-              <p className="text-[11px] text-muted-foreground">
-                {tarih(from?.ranAt)} — {tarih(to?.ranAt)}
-              </p>
-            </div>
+    <div className="space-y-4">
+      {/* Ust satir: skor delta rozeti + tarih araligi */}
+      <div className="flex items-start justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-3">
+          <div
+            className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-lg font-bold ${
+              yon === 'up'
+                ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'
+                : yon === 'down'
+                  ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'
+                  : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
+            }`}
+          >
+            {yon === 'up' ? <TrendingUp className="h-5 w-5" />
+              : yon === 'down' ? <TrendingDown className="h-5 w-5" />
+                : <Minus className="h-5 w-5" />}
+            {scoreDelta > 0 ? '+' : ''}{scoreDelta} puan
           </div>
-
-          {geoScoreDelta !== 0 && (
-            <Badge variant={geoScoreDelta > 0 ? 'success' : 'destructive'}>
-              GEO {geoScoreDelta > 0 ? '+' : ''}{geoScoreDelta}
-            </Badge>
-          )}
+          <div>
+            <p className="text-sm font-semibold">
+              {from?.overallScore} <span className="text-muted-foreground font-normal">→</span> {to?.overallScore}
+              <span className="text-xs text-muted-foreground font-normal">/100</span>
+            </p>
+            <p className="text-[11px] text-muted-foreground">
+              {tarih(from?.ranAt)} — {tarih(to?.ranAt)}
+            </p>
+          </div>
         </div>
 
-        {/* Trend — son N taramanin genel skoru */}
-        {history.length > 1 && <ScoreTrend history={history} />}
-
-        {/* Uc liste */}
-        <div className="space-y-2">
-          <IssueGroup
-            baslik="Çözülen"
-            sayi={ozet.cozulenSayisi}
-            issues={issues.cozulen}
-            tonu="success"
-            icon={<CheckCircle2 className="h-4 w-4" />}
-          />
-          <IssueGroup
-            baslik="Yeni çıkan"
-            sayi={ozet.yeniSayisi}
-            issues={issues.yeniCikan}
-            tonu="destructive"
-            icon={<AlertCircle className="h-4 w-4" />}
-          />
-          <IssueGroup
-            baslik="Devam eden"
-            sayi={ozet.devamEdenSayisi}
-            issues={issues.devamEden}
-            tonu="warning"
-            icon={<Clock className="h-4 w-4" />}
-          />
-        </div>
-
-        {/* Degisen kontroller */}
-        {degisenCheckler.length > 0 && (
-          <details className="group rounded-lg border">
-            <summary className="flex items-center justify-between gap-2 p-3 cursor-pointer list-none">
-              <span className="text-sm font-medium">
-                Değişen kontroller
-                <span className="ml-2 text-xs text-muted-foreground">{degisenCheckler.length}</span>
-              </span>
-              <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180" />
-            </summary>
-            <div className="border-t divide-y">
-              {degisenCheckler.map((c) => (
-                <div key={c.id} className="flex items-center justify-between gap-3 px-3 py-2">
-                  <span className="text-xs font-mono truncate">{c.id}</span>
-                  <span className="text-xs text-muted-foreground shrink-0">
-                    {c.oncekiScore} → {c.sonrakiScore}
-                    <span
-                      className={`ml-2 font-semibold ${
-                        c.delta > 0 ? 'text-green-500' : 'text-red-500'
-                      }`}
-                    >
-                      {c.delta > 0 ? '+' : ''}{c.delta}
-                    </span>
-                  </span>
-                </div>
-              ))}
-            </div>
-          </details>
+        {geoScoreDelta !== 0 && (
+          <Badge variant={geoScoreDelta > 0 ? 'success' : 'destructive'}>
+            GEO {geoScoreDelta > 0 ? '+' : ''}{geoScoreDelta}
+          </Badge>
         )}
-      </CardContent>
-    </Card>
+      </div>
+
+      {/* Trend — son N taramanin genel skoru */}
+      {history.length > 1 && <ScoreTrend history={history} />}
+
+      {/* Uc liste */}
+      <div className="space-y-2">
+        <IssueGroup
+          baslik="Çözülen"
+          sayi={ozet.cozulenSayisi}
+          issues={issues.cozulen}
+          tonu="success"
+          icon={<CheckCircle2 className="h-4 w-4" />}
+        />
+        <IssueGroup
+          baslik="Yeni çıkan"
+          sayi={ozet.yeniSayisi}
+          issues={issues.yeniCikan}
+          tonu="destructive"
+          icon={<AlertCircle className="h-4 w-4" />}
+        />
+        <IssueGroup
+          baslik="Devam eden"
+          sayi={ozet.devamEdenSayisi}
+          issues={issues.devamEden}
+          tonu="warning"
+          icon={<Clock className="h-4 w-4" />}
+        />
+      </div>
+
+      {/* Degisen kontroller */}
+      {degisenCheckler.length > 0 && (
+        <details className="group rounded-lg border">
+          <summary className="flex items-center justify-between gap-2 p-3 cursor-pointer list-none">
+            <span className="text-sm font-medium">
+              Değişen kontroller
+              <span className="ml-2 text-xs text-muted-foreground">{degisenCheckler.length}</span>
+            </span>
+            <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180" />
+          </summary>
+          <div className="border-t divide-y">
+            {degisenCheckler.map((c) => (
+              <div key={c.id} className="flex items-center justify-between gap-3 px-3 py-2">
+                <span className="text-xs font-mono truncate">{c.id}</span>
+                <span className="text-xs text-muted-foreground shrink-0">
+                  {c.oncekiScore} → {c.sonrakiScore}
+                  <span
+                    className={`ml-2 font-semibold ${
+                      c.delta > 0 ? 'text-green-500' : 'text-red-500'
+                    }`}
+                  >
+                    {c.delta > 0 ? '+' : ''}{c.delta}
+                  </span>
+                </span>
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
+    </div>
   );
 }
 
