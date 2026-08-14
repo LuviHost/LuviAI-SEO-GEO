@@ -155,28 +155,52 @@ export class AsoService {
       throw new BadRequestException('App Store ID veya Play Store ID gerekli');
     }
 
-    // Plan kotasi — ASO modulunun tamami bugune kadar kotasizdi.
-    // Upsert oldugu icin YALNIZCA yeni kayitta kontrol ediyoruz: zaten bagli
-    // bir uygulamanin metadata'sini tazelemek kotaya takilmamali.
     const country = dto.country ?? 'tr';
-    const already = await this.prisma.trackedApp.findUnique({
+
+    // AYNI UYGULAMANIN IKINCI MAGAZASI YENI UYGULAMA DEGILDIR.
+    //
+    // Sema bir TrackedApp'in HEM appStoreId HEM playStoreId tutmasina izin
+    // veriyor — cunku bunlar ayni urunun iki magazasi. Ama eski kod kaydi
+    // (appStoreId, playStoreId) CIFTIYLE ariyordu: iOS'ta zaten takip edilen
+    // bir uygulamanin Android'i eklenmek istendiginde eslesme bulunamiyor,
+    // yeni kayit sayiliyor ve plan kotasina takiliyordu. Uretimde tam olarak
+    // bu yasandi: KobiPratik (appStoreId dolu, playStoreId null) icin Android
+    // eklenmek istendi, "Plan limiti: 3 uygulama" hatasi alindi.
+    //
+    // Ikinci kusur: arama `?? ''` ile bos dize ariyor ama create `?? null`
+    // yaziyordu. MySQL'de '' ile NULL esit degil ve NULL iceren unique indeks
+    // tekrari engellemez — yani ayni Android uygulamasi iki kez eklenirse
+    // arama yine bulamaz ve MUKERRER satir olusurdu.
+    //
+    // Cozum: kaydi MAGAZA KIMLIGIYLE ari. Biri eslesiyorsa ayni uygulamadir;
+    // eksik yarisi doldurulur, kota TUKETILMEZ.
+    const eslesme = await this.prisma.trackedApp.findFirst({
       where: {
-        siteId_appStoreId_playStoreId_country: {
-          siteId: dto.siteId,
-          appStoreId: dto.appStoreId ?? '',
-          playStoreId: dto.playStoreId ?? '',
-          country,
-        },
+        siteId: dto.siteId,
+        country,
+        OR: [
+          ...(dto.appStoreId ? [{ appStoreId: dto.appStoreId }] : []),
+          ...(dto.playStoreId ? [{ playStoreId: dto.playStoreId }] : []),
+        ],
       },
-      select: { id: true },
+      select: { id: true, appStoreId: true, playStoreId: true, name: true },
     });
-    if (!already) {
+
+    if (!eslesme) {
       const site = await this.prisma.site.findUnique({
         where: { id: dto.siteId },
         select: { userId: true },
       });
       if (!site) throw new BadRequestException('Site bulunamadı');
       await this.quota.enforceTrackedAppQuota(site.userId);
+    } else if (
+      (dto.appStoreId && !eslesme.appStoreId) ||
+      (dto.playStoreId && !eslesme.playStoreId)
+    ) {
+      this.log.log(
+        `[${dto.siteId}] "${eslesme.name}" mevcut kayda ikinci magaza ekleniyor ` +
+          `(iOS=${dto.appStoreId ?? eslesme.appStoreId ?? '-'}, Play=${dto.playStoreId ?? eslesme.playStoreId ?? '-'}) — kota tuketilmiyor`,
+      );
     }
 
     // Metadata fetch
@@ -196,44 +220,39 @@ export class AsoService {
     const category = ios?.primaryGenre ?? android?.genre ?? null;
     const iconUrl = ios?.icon ?? android?.icon ?? null;
 
-    const tracked = await this.prisma.trackedApp.upsert({
-      where: {
-        siteId_appStoreId_playStoreId_country: {
-          siteId: dto.siteId,
-          appStoreId: dto.appStoreId ?? '',
-          playStoreId: dto.playStoreId ?? '',
-          country,
-        },
-      },
-      create: {
-        siteId: dto.siteId,
-        appStoreId: dto.appStoreId ?? null,
-        playStoreId: dto.playStoreId ?? null,
-        country,
-        name,
-        developer,
-        category,
-        iconUrl,
-        metadata: { ios, android } as any,
-        lastFetchedAt: new Date(),
-        iosRating: ios?.score ?? null,
-        iosReviewCount: ios?.reviews ?? null,
-        androidRating: android?.score ?? null,
-        androidReviewCount: android?.reviews ?? null,
-      },
-      update: {
-        name,
-        developer,
-        category,
-        iconUrl,
-        metadata: { ios, android } as any,
-        lastFetchedAt: new Date(),
-        iosRating: ios?.score ?? null,
-        iosReviewCount: ios?.reviews ?? null,
-        androidRating: android?.score ?? null,
-        androidReviewCount: android?.reviews ?? null,
-      },
-    });
+    // Magaza kimlikleri BIRLESTIRILIYOR: yeni gelen doldurur, eskisi silinmez.
+    // Aksi halde Android eklerken iOS kimligi kaybolur ve o magazadaki tum
+    // siralama gecmisi kopardi.
+    const birlesikIos = dto.appStoreId ?? eslesme?.appStoreId ?? null;
+    const birlesikPlay = dto.playStoreId ?? eslesme?.playStoreId ?? null;
+
+    const ortakVeri = {
+      name,
+      developer,
+      category,
+      iconUrl,
+      metadata: { ios, android } as any,
+      lastFetchedAt: new Date(),
+      // Bu turda olculemeyen magazanin degeri EZILMEZ: yalnizca Android
+      // eklenirken iOS puani null'a dusmemeli.
+      ...(ios ? { iosRating: ios.score ?? null, iosReviewCount: ios.reviews ?? null } : {}),
+      ...(android ? { androidRating: android.score ?? null, androidReviewCount: android.reviews ?? null } : {}),
+    };
+
+    const tracked = eslesme
+      ? await this.prisma.trackedApp.update({
+          where: { id: eslesme.id },
+          data: { ...ortakVeri, appStoreId: birlesikIos, playStoreId: birlesikPlay },
+        })
+      : await this.prisma.trackedApp.create({
+          data: {
+            siteId: dto.siteId,
+            appStoreId: birlesikIos,
+            playStoreId: birlesikPlay,
+            country,
+            ...ortakVeri,
+          },
+        });
 
     return tracked;
   }
