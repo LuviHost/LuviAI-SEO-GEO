@@ -44,6 +44,9 @@ export function AuditReportsPanel({ siteId }: { siteId: string }) {
   const [cmpLoading, setCmpLoading] = useState(false);
 
   const [running, setRunning] = useState(false);
+  // Yoklama sirasinda kullaniciya nerede oldugumuzu soyler — uzun bekleyiste
+  // hareketsiz bir spinner "takildi mi" hissi veriyor.
+  const [durum, setDurum] = useState('');
 
   // Bilesen sokulduyse gec gelen yanit state'i yazmasin
   const canli = useRef(true);
@@ -101,18 +104,64 @@ export function AuditReportsPanel({ siteId }: { siteId: string }) {
     return () => { iptal = true; };
   }, [siteId, fromId, toId]);
 
+  /**
+   * Taramayi KUYRUGA atip durumunu yoklar.
+   *
+   * NEDEN TEK FETCH DEGIL: tarama crawl + PageSpeed + 7 saglayici probe demek,
+   * olculdu 1-3 dakika. Tek bir POST'u bu kadar acik tutmak vekil sunucunun
+   * timeout'una carpiyor (Cloudflare varsayilani ~100 sn) — is sunucuda
+   * tamamlansa bile kullanici hata gorurdu. Simdi POST hemen donuyor, ilerleme
+   * is kaydindan okunuyor.
+   */
   const yeniTarama = async () => {
     setRunning(true);
+    setDurum('Tarama kuyruğa alınıyor…');
     try {
-      await api.runAuditNow(siteId);
-      toast.success('Yeni tarama tamamlandı');
-      // Liste tazelenince secim yeniden son iki taramaya kurulur, karsilastirma
-      // da bagli efektle kendiliginden yenilenir.
-      await gecmisiYukle();
+      const job = await api.queueAudit(siteId);
+      const basladi = Date.now();
+      // Ust sinir: worker olu ya da is takildi ise sonsuza kadar yoklamayalim.
+      const ZAMAN_ASIMI = 6 * 60 * 1000;
+
+      while (canli.current) {
+        await new Promise((r) => setTimeout(r, 3000));
+        if (!canli.current) return;
+
+        let j: Awaited<ReturnType<typeof api.getJob>>;
+        try {
+          j = await api.getJob(job.id);
+        } catch {
+          // Gecici ag hatasi yoklamayi bitirmesin; zaman asimi zaten koruyor.
+          continue;
+        }
+
+        if (j.status === 'COMPLETED') {
+          toast.success('Yeni tarama tamamlandı');
+          await gecmisiYukle();
+          return;
+        }
+        if (j.status === 'FAILED' || j.status === 'CANCELED') {
+          toast.error(j.error || 'Tarama başarısız');
+          return;
+        }
+        setDurum(
+          j.status === 'PROCESSING'
+            ? 'Site taranıyor — sayfa taraması, PageSpeed ve AI ölçümü…'
+            : 'Sırada bekliyor…',
+        );
+        if (Date.now() - basladi > ZAMAN_ASIMI) {
+          toast.message('Tarama beklenenden uzun sürüyor', {
+            description: 'Arka planda devam ediyor; birazdan sayfayı yenile.',
+          });
+          return;
+        }
+      }
     } catch (err: any) {
-      toast.error(err?.message || 'Tarama başarısız');
+      toast.error(err?.message || 'Tarama başlatılamadı');
     } finally {
-      setRunning(false);
+      if (canli.current) {
+        setRunning(false);
+        setDurum('');
+      }
     }
   };
 
@@ -142,7 +191,7 @@ export function AuditReportsPanel({ siteId }: { siteId: string }) {
               {running ? 'Taranıyor…' : 'Yeni tarama başlat'}
             </Button>
             <span className="text-[11px] text-muted-foreground">
-              {running ? 'Sayfada kalabilirsin, bitince haber vereceğiz.' : 'Tarama 1-3 dakika sürebilir'}
+              {running ? (durum || 'Sayfada kalabilirsin, bitince haber vereceğiz.') : 'Tarama 1-3 dakika sürebilir'}
             </span>
           </div>
         </CardContent>

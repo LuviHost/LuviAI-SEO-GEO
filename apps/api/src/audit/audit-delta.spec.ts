@@ -30,9 +30,11 @@ function svc(rows: any[]) {
       },
     },
   };
+  // Delta mantigi yalnizca prisma kullaniyor; kalan bagimliliklar (crawler,
+  // checks, pagespeed, geo, aiCitation, jobQueue) bu testte cagrilmiyor.
   return new AuditService(
     prisma as never, null as never, null as never,
-    null as never, null as never, null as never,
+    null as never, null as never, null as never, null as never,
   );
 }
 

@@ -6,6 +6,7 @@ import { PageSpeedService } from './pagespeed.service.js';
 import { GeoRunnerService } from './geo-runner.service.js';
 import { AiCitationService } from './ai-citation.service.js';
 import type { CheckResult } from './audit-checks.service.js';
+import { JobQueueService } from '../jobs/job-queue.service.js';
 
 /** Bir taramanin karsilastirmada kullanilan ozet kimligi */
 export interface AuditOzet {
@@ -204,6 +205,7 @@ export class AuditService {
     private readonly pagespeed: PageSpeedService,
     private readonly geo: GeoRunnerService,
     private readonly aiCitation: AiCitationService,
+    private readonly jobQueue: JobQueueService,
   ) {}
 
   async getLatest(siteId: string) {
@@ -295,15 +297,23 @@ export class AuditService {
     return compareAuditRows(fromRow, toRow);
   }
 
+  /**
+   * Taramayi KUYRUGA atar ve is kaydini doner.
+   *
+   * ONCEDEN prisma.job.create ile yalnizca DB satiri yaziyordu — BullMQ'ya
+   * hicbir sey eklenmiyordu. Worker BullMQ tuketicisi oldugu icin o is
+   * sonsuza kadar QUEUED kaliyor, hicbir zaman calismiyordu. Yani bu uc
+   * sessizce ise yaramiyordu. JobQueueService.enqueue hem DB satirini hem
+   * BullMQ kaydini olusturur ve bullJobId'yi geri yazar.
+   */
   async queueAudit(siteId: string) {
     const site = await this.prisma.site.findUniqueOrThrow({ where: { id: siteId } });
-    return this.prisma.job.create({
-      data: {
-        userId: site.userId,
-        siteId,
-        type: 'SITE_AUDIT',
-        payload: { siteId, url: site.url },
-      },
+    return this.jobQueue.enqueue({
+      type: 'SITE_AUDIT',
+      userId: site.userId,
+      siteId,
+      payload: { siteId, url: site.url },
+      priority: 5,
     });
   }
 
