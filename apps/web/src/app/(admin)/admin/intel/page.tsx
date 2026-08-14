@@ -73,14 +73,26 @@ export default function AdminIntelPage() {
 
   useEffect(() => { loadOverview(); }, [loadOverview]);
 
+  /**
+   * Asamayi baslatir. Sunucu isi ARKA PLANDA calistirip hemen doner —
+   * asamalar dakikalarca surdugu icin senkron beklemek Cloudflare'in
+   * ~100 saniyelik tavanina takilip 524 veriyordu (is bitse bile).
+   * Ilerleme sayaclardan izlenir: baslatinca kisa araliklarla yeniliyoruz.
+   */
   const runStage = async (stage: string, label: string) => {
     setRunning(stage);
     try {
-      const res = await call(`/run/${stage}`, { method: 'POST' });
-      toast.success(`${label} tamamlandı: ${JSON.stringify(res)}`);
+      const res: any = await call(`/run/${stage}`, { method: 'POST' });
+      if (res?.zatenCalisiyor) {
+        toast.info(`${label} zaten çalışıyor`);
+      } else {
+        toast.success(`${label} başlatıldı — sayaçlar ilerledikçe güncellenecek`);
+        // Ilk dakikalarda birkac kez yenile ki kullanici ilerledigini gorsun
+        [5, 15, 30, 60].forEach((sn) => setTimeout(loadOverview, sn * 1000));
+      }
       loadOverview();
     } catch (err: any) {
-      toast.error(`${label} hatası: ${err.message}`);
+      toast.error(`${label} başlatılamadı: ${err.message}`);
     } finally {
       setRunning(null);
     }
@@ -436,8 +448,10 @@ function SourcesTab({ sources, disabled, onChange }: { sources: any[]; disabled:
     setBusy(id);
     try {
       const res: any = await call(`/sources/${id}/collect`, { method: 'POST' });
-      if (res.ok) toast.success(`${name}: ${res.newItems} yeni kayıt`);
-      else toast.error(`${name}: ${res.error}`);
+      if (res?.zatenCalisiyor) toast.info(`${name}: zaten çekiliyor`);
+      else toast.success(`${name}: arka planda başladı`);
+      // X kaynaklari ~15 dakika surer; erken yenilemeler ilerlemeyi gosterir
+      [10, 30, 60, 120].forEach((sn) => setTimeout(onChange, sn * 1000));
       onChange();
     } catch (err: any) {
       toast.error(err.message);

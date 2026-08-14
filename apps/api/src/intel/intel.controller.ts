@@ -4,6 +4,7 @@ import {
   Controller,
   ForbiddenException,
   Get,
+  Logger,
   Param,
   Post,
   Query,
@@ -33,8 +34,16 @@ function assertAdmin(req: Request) {
   return user;
 }
 
+/**
+ * Su an arka planda calisan asamalar. Modul kapsaminda tutuluyor: controller
+ * ornegi istek basina yeniden olusabilir, kilit onunla birlikte kaybolurdu.
+ */
+const CALISAN_ASAMALAR = new Set<string>();
+
 @Controller('intel')
 export class IntelController {
+  private readonly log = new Logger(IntelController.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly collector: IntelCollectorService,
@@ -231,37 +240,70 @@ export class IntelController {
   }
 
   /** Tek kaynagi hemen ceker — yeni feed eklendiginde beklemeden test icin. */
+  /**
+   * Tek kaynagi ceker — ARKA PLANDA. Bir X kaynagi iki sekme gezip her postu
+   * actigi icin ~15 dakika surer; senkron beklemek Cloudflare 524'une takilir.
+   */
   @Post('sources/:id/collect')
   async collectOne(@Req() req: Request, @Param('id') id: string) {
     assertAdmin(req);
-    try {
-      const newItems = await this.collector.collectSource(id);
-      return { ok: true, newItems };
-    } catch (err: any) {
-      return { ok: false, error: err.message };
+
+    const kilit = `source:${id}`;
+    if (CALISAN_ASAMALAR.has(kilit)) {
+      return { ok: false, zatenCalisiyor: true, mesaj: 'Bu kaynak zaten cekiliyor' };
     }
+    CALISAN_ASAMALAR.add(kilit);
+
+    this.collector
+      .collectSource(id)
+      .then((n) => this.log.log(`[${id}] elle toplama: ${n} yeni kayit`))
+      .catch((err) => this.log.warn(`[${id}] elle toplama hatasi: ${err?.message ?? err}`))
+      .finally(() => CALISAN_ASAMALAR.delete(kilit));
+
+    return { ok: true, baslatildi: true, mesaj: 'Arka planda basladi' };
   }
 
   // ────────────────────────────────────────────────────────────
   //  ELLE CALISTIRMA — cron beklemeden boru hattini surmek icin
   // ────────────────────────────────────────────────────────────
 
+  /**
+   * Boru hattini elle surer — ARKA PLANDA.
+   *
+   * NEDEN BEKLEMIYORUZ: bu asamalar dakikalarca surer (tam toplama turu ~2
+   * saat). Senkron yanit beklemek Cloudflare'in ~100 saniyelik tavanina
+   * takiliyor ve kullaniciya 524 donuyordu — is aslinda basariyla bitse bile.
+   * Cloudflare tavani plan seviyesinde degistirilemedigi icin dogru cozum
+   * istegi hemen kapatmak; panel zaten sayaclari yenileyerek ilerlemeyi
+   * gosteriyor.
+   */
   @Post('run/:stage')
   async run(@Req() req: Request, @Param('stage') stage: string) {
     assertAdmin(req);
 
-    switch (stage) {
-      case 'collect':
-        return this.collector.collectDue();
-      case 'triage':
-        return this.triage.runPending();
-      case 'analyze':
-        return this.analyst.runRelevant();
-      case 'recompute':
-        return this.ledger.recomputeAll();
-      default:
-        throw new BadRequestException('Gecersiz asama: collect | triage | analyze | recompute');
+    const isler: Record<string, () => Promise<unknown>> = {
+      collect: () => this.collector.collectDue(),
+      triage: () => this.triage.runPending(),
+      analyze: () => this.analyst.runRelevant(),
+      recompute: () => this.ledger.recomputeAll(),
+    };
+    const is = isler[stage];
+    if (!is) throw new BadRequestException('Gecersiz asama: collect | triage | analyze | recompute');
+
+    // Ust uste basilmayi engelle: iki triage turu ayni kayitlari isler,
+    // iki toplama turu ayni tek tarayiciyi paylasip birbirini dusurur.
+    if (CALISAN_ASAMALAR.has(stage)) {
+      return { ok: false, zatenCalisiyor: true, mesaj: `${stage} zaten calisiyor` };
     }
+    CALISAN_ASAMALAR.add(stage);
+
+    // Bilerek await YOK. Hata yutulmasin diye sonuc loglaniyor.
+    is()
+      .then((sonuc) => this.log.log(`[${stage}] tamamlandi: ${JSON.stringify(sonuc)}`))
+      .catch((err) => this.log.error(`[${stage}] basarisiz: ${err?.message ?? err}`))
+      .finally(() => CALISAN_ASAMALAR.delete(stage));
+
+    return { ok: true, baslatildi: stage, mesaj: 'Arka planda basladi — panel sayaclari ilerlemeyi gosterir' };
   }
 
   // ────────────────────────────────────────────────────────────
