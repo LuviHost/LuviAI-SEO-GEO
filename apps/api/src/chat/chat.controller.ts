@@ -6,10 +6,11 @@ import { ChatService } from './chat.service.js';
 export class ChatController {
   constructor(private readonly chat: ChatService) {}
 
-  /** GET /sites/:siteId/chat/skills — hazir gorev katalogu */
+  /** GET /sites/:siteId/chat/skills — hazir gorev katalogu (plana gore suzulur) */
   @Get('skills')
-  skills() {
-    return this.chat.listSkills();
+  skills(@Param('siteId') siteId: string, @Req() req: Request) {
+    const user = (req as any).user;
+    return this.chat.listSkills(siteId, { id: user.id, role: user.role, plan: user.plan });
   }
 
   /** GET /sites/:siteId/chat/conversations */

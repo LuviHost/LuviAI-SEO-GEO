@@ -16,6 +16,35 @@ export interface ChatSkill {
   /** Kullanicidan ek girdi ister (ör. YouTube linki) */
   needsInput?: boolean;
   inputPlaceholder?: string;
+  /**
+   * Skill'in UZERINE KURULU oldugu tool'lar. Biri kullanicinin planinda
+   * kapaliysa kart hic gosterilmez — aksi halde kullanici karta tikliyor,
+   * asistan kilitli tool'u goremedigi icin bos/yaris bir cevap donuyordu.
+   *
+   * Prompt'ta gecen ama skill'i ayakta tutmayan tool'lar buraya YAZILMAZ;
+   * onlar prompt icinde "erisimin varsa" diye isaretlendi, boylece ust plan
+   * ozelligi yuzunden ise yarar bir skill tumden kaybolmaz.
+   */
+  requiresTools?: string[];
+  /** Kart yalnizca sitede izlenen bir uygulama varken anlamli */
+  requiresTrackedApp?: boolean;
+}
+
+/**
+ * Kullaniciya gosterilecek skill'ler.
+ *
+ * Saf fonksiyon: plan cozumlemesi (hangi tool acik) ve baglam (izlenen
+ * uygulama var mi) disaridan gelir, boylece test edilebilir kalir.
+ */
+export function visibleSkills(
+  allowedTools: Set<string>,
+  ctx: { hasTrackedApp: boolean },
+): ChatSkill[] {
+  return CHAT_SKILLS.filter(
+    (s) =>
+      (s.requiresTools ?? []).every((t) => allowedTools.has(t)) &&
+      (!s.requiresTrackedApp || ctx.hasTrackedApp),
+  );
 }
 
 export const CHAT_SKILLS: ChatSkill[] = [
@@ -25,6 +54,9 @@ export const CHAT_SKILLS: ChatSkill[] = [
     tag: 'AGENT',
     description: 'Önceliklendirilmiş, kanıta dayalı haftalık yapılacaklar listesi — Aksiyon Planına eklemeye hazır.',
     accesses: ['Fırsatlar', 'Rakipler', 'Citations', 'Aksiyon Planı'],
+    // Plan "kanita dayali" oldugu iddiasini icerik firsatlarindan aliyor;
+    // o tool kapaliyken skill sadece genel tavsiye uretir, o yuzden gizlenir.
+    requiresTools: ['list_content_opportunities', 'get_agent_readiness'],
     prompt: [
       'Bu site için bu haftanın çalışma planını çıkar. Sırasıyla:',
       '1) get_site_overview + get_ai_kpis + get_agent_readiness ile durumu topla.',
@@ -57,7 +89,7 @@ export const CHAT_SKILLS: ChatSkill[] = [
       '1) get_ai_kpis — başlık metrikleri ve deltalar.',
       '2) list_prompts — en iyi ve en kötü 5 prompt.',
       '3) get_prompt_coverage — dal bazında zayıflıklar.',
-      '4) get_product_radar — kategori önerilerinde durum.',
+      '4) get_product_radar (erişimin varsa) — kategori önerilerinde durum.',
       'Rapor: Özet (3 cümle) → Metrikler tablosu → Kazanımlar → Riskler → Önerilen 3 aksiyon. Markdown formatında, paylaşılabilir netlikte yaz.',
     ].join('\n'),
   },
@@ -68,7 +100,7 @@ export const CHAT_SKILLS: ChatSkill[] = [
     description: 'Yönetici nabzı: skor, kazanımlar, riskler ve yapılacak TEK hamle.',
     accesses: ['Görünürlük', 'Kazanım/Kayıp'],
     prompt: [
-      'Son 7 günün GEO brifingini çıkar: get_ai_kpis + get_geo_score_card + list_content_opportunities.',
+      'Son 7 günün GEO brifingini çıkar: get_ai_kpis + get_geo_score_card (+ erişimin varsa list_content_opportunities).',
       'Format: SKOR (tek sayı + trend) → 3 KAZANIM → 3 RİSK → "BU HAFTANIN TEK HAMLESİ" (en yüksek kaldıraçlı iş, gerekçesiyle).',
       'Kısa tut — yönetici 60 saniyede okuyabilmeli.',
     ].join('\n'),
@@ -95,8 +127,8 @@ export const CHAT_SKILLS: ChatSkill[] = [
       'Görünürlük kaybı teşhisi yap:',
       '1) list_prompts — skoru en düşük 5 prompt.',
       '2) get_prompt_coverage — hangi dal türlerinde (reviews/trust/comparison) zayıfız.',
-      '3) get_product_radar — bizim yerimize kimler öneriliyor.',
-      '4) Her kayıp için: neden kaybediyoruz (hipotez) + hangi içerik/teknik iş düzeltir + list_content_opportunities\'te karşılığı var mı.',
+      '3) get_product_radar (erişimin varsa) — bizim yerimize kimler öneriliyor.',
+      '4) Her kayıp için: neden kaybediyoruz (hipotez) + hangi içerik/teknik iş düzeltir + (erişimin varsa) list_content_opportunities\'te karşılığı var mı.',
       'Sonunda en kritik tek düzeltmeyi öner ve kullanıcı isterse add_action_plan_item ile plana ekle.',
     ].join('\n'),
   },
@@ -108,7 +140,7 @@ export const CHAT_SKILLS: ChatSkill[] = [
     accesses: ['Promptlar', 'Fırsatlar'],
     prompt: [
       'Bu sitenin nişinde bu hafta yayınlanabilecek 5 güncel içerik açısı öner.',
-      'get_site_overview ile nişi al; list_content_opportunities ve get_prompt_coverage ile hangi sorgu boşluklarının açık olduğunu gör.',
+      'get_site_overview ile nişi al; get_prompt_coverage (ve erişimin varsa list_content_opportunities) ile hangi sorgu boşluklarının açık olduğunu gör.',
       'Her açı için: başlık + neden şimdi (güncellik kancası) + hedef sorgu + tahmini zorluk.',
       'Kullanıcı birini seçerse create_article ile üretimi başlatmayı öner (onay almadan başlatma).',
     ].join('\n'),
@@ -148,6 +180,8 @@ export const CHAT_SKILLS: ChatSkill[] = [
     tag: 'ASO',
     description: 'Uygulama sıralamaları + yorum sentimenti + mağaza fırsatları (rakipte yok).',
     accesses: ['ASO', 'Keywords', 'Reviews'],
+    // Izlenen uygulama yokken kart "uygulama bulunamadi" cevabi uretiyordu
+    requiresTrackedApp: true,
     prompt: [
       'Mobil uygulama ASO durumunu çıkar:',
       '1) list_tracked_apps — izlenen uygulamalar.',

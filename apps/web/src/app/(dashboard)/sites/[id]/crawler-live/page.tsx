@@ -10,6 +10,7 @@ import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
 import {
   Activity, Flame, Copy, Wifi, WifiOff, Pause, Play, Cloud, Server,
+  RefreshCw, KeyRound, AlertTriangle,
 } from 'lucide-react';
 
 /**
@@ -43,6 +44,10 @@ export default function CrawlerLivePage() {
   const [tab, setTab] = useState<'worker' | 'wordpress' | 'nginx'>('worker');
   const [paused, setPaused] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [rotating, setRotating] = useState(false);
+  // Yenileme sonrasi uyari ekranda KALICI durur: kullanici snippet'i yeniden
+  // kurana kadar veri akmaz, tek seferlik toast bunu kacirmaya cok musait.
+  const [rotated, setRotated] = useState(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const load = async () => {
@@ -76,6 +81,29 @@ export default function CrawlerLivePage() {
       () => toast.success('Kopyalandı'),
       () => toast.error('Kopyalanamadı'),
     );
+  };
+
+  const rotateSecret = async () => {
+    if (!confirm(
+      'Anahtarı yenilemek mevcut kurulumu bozar: eski anahtarla imzalanan istekler '
+      + 'anında reddedilir ve snippet\'i yeniden kurana kadar bot ziyaretleri kaydedilmez.\n\n'
+      + 'Devam edilsin mi?',
+    )) return;
+
+    setRotating(true);
+    try {
+      await api.rotateIngestSecret(site.id);
+      // Yeni sir snippet metinlerinin ICINE gomulu; ekrandaki kodu tazelemezsek
+      // kullanici eski (artik gecersiz) sirri kopyalamaya devam eder.
+      const fresh = await api.getLiveCrawlerSnippets(site.id);
+      setSnippets(fresh);
+      setRotated(true);
+      toast.success('Yeni anahtar üretildi');
+    } catch (e: any) {
+      toast.error(e?.message ?? 'Anahtar yenilenemedi');
+    } finally {
+      setRotating(false);
+    }
   };
 
   const connected = data?.workerConnected;
@@ -200,7 +228,31 @@ export default function CrawlerLivePage() {
       {/* Kurulum */}
       <Card>
         <CardContent className="p-4 space-y-3">
-          <div className="text-sm font-semibold">Kaynak Bağla</div>
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div className="text-sm font-semibold">Kaynak Bağla</div>
+            <Button
+              size="sm" variant="outline" onClick={rotateSecret} disabled={rotating || !snippets}
+              className="text-amber-600 dark:text-amber-400 border-amber-500/40 hover:bg-amber-500/10"
+            >
+              <RefreshCw className={cn('h-3.5 w-3.5 mr-1.5', rotating && 'animate-spin')} />
+              {rotating ? 'Yenileniyor…' : 'Anahtarı Yenile'}
+            </Button>
+          </div>
+
+          {rotated && (
+            <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 flex items-start gap-2.5">
+              <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+              <div className="text-xs">
+                <div className="font-semibold text-amber-700 dark:text-amber-300">
+                  Yeni anahtar üretildi. Aşağıdaki snippet&apos;i yeniden kurmadan veri akmaz.
+                </div>
+                <div className="text-muted-foreground mt-0.5">
+                  Eski anahtarla imzalanan istekler artık reddediliyor — kodu kopyalayıp Cloudflare Worker / WordPress / nginx tarafında değiştir.
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="flex gap-1.5">
             {([
               { key: 'worker', label: 'Cloudflare Worker', icon: Cloud, hint: 'önerilen' },
@@ -222,16 +274,24 @@ export default function CrawlerLivePage() {
             ))}
           </div>
           {snippets ? (
-            <div className="relative">
-              <pre className="rounded-lg bg-muted/50 border p-3 text-[11px] overflow-x-auto max-h-80 whitespace-pre">
-                {tab === 'worker' ? snippets.cloudflareWorker : tab === 'wordpress' ? snippets.wordpress : snippets.nginx}
-              </pre>
-              <Button
-                size="sm" variant="outline" className="absolute top-2 right-2"
-                onClick={() => copy(tab === 'worker' ? snippets.cloudflareWorker : tab === 'wordpress' ? snippets.wordpress : snippets.nginx)}
-              >
-                <Copy className="h-3.5 w-3.5 mr-1" /> Kopyala
-              </Button>
+            <div className="space-y-1.5">
+              <div className="flex items-start gap-1.5 text-[11px] text-amber-600 dark:text-amber-400">
+                <KeyRound className="h-3 w-3 shrink-0 mt-0.5" />
+                <span>
+                  Gizli ingest anahtarın bu kodun içine gömülü — <strong>bu kodu herkese açık bir yerde paylaşma</strong> (GitHub, forum, ekran görüntüsü).
+                </span>
+              </div>
+              <div className="relative">
+                <pre className="rounded-lg bg-muted/50 border p-3 text-[11px] overflow-x-auto max-h-80 whitespace-pre">
+                  {tab === 'worker' ? snippets.cloudflareWorker : tab === 'wordpress' ? snippets.wordpress : snippets.nginx}
+                </pre>
+                <Button
+                  size="sm" variant="outline" className="absolute top-2 right-2"
+                  onClick={() => copy(tab === 'worker' ? snippets.cloudflareWorker : tab === 'wordpress' ? snippets.wordpress : snippets.nginx)}
+                >
+                  <Copy className="h-3.5 w-3.5 mr-1" /> Kopyala
+                </Button>
+              </div>
             </div>
           ) : (
             <div className="text-xs text-muted-foreground">Kurulum kodları yükleniyor…</div>

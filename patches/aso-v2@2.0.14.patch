@@ -1,0 +1,21 @@
+diff --git a/dist/main.js b/dist/main.js
+index eb58e440c1b941497b5d5c4c43b976887d96d468..203ed4ace49f5bf355c75eb31081fb1f764b45eb 100644
+--- a/dist/main.js
++++ b/dist/main.js
+@@ -58,6 +58,16 @@ export class ASO {
+                     ...params,
+                     country: this.config.country,
+                     language: this.config.language,
++                    // RanksUp yamasi: aso-v2 dili yalnizca `language` anahtariyla
++                    // gonderiyordu, oysa app-store-scraper ve google-play-scraper
++                    // `lang` okuyor. Bu yuzden StoreConfig.language scraper'a HIC
++                    // ulasmiyor, her sorgu kutuphane varsayilani olan Ingilizce
++                    // arayuzden yapiliyordu: TR storefront'unda bile Ingilizce
++                    // basliklar donuyor ve keyword skorlari (ozellikle
++                    // titleMatches) yanlis hesaplaniyordu. Ayni degeri `lang`
++                    // olarak da geciyoruz; `language` yukarida duruyor ki
++                    // kutuphane ileride onu desteklerse davranis bozulmasin.
++                    lang: this.config.language,
+                     timeout: this.config.timeout
+                 };
+                 if (!this.api[method]) {

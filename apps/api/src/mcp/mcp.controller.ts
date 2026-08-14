@@ -126,7 +126,8 @@ export class McpController {
           return isNotification ? undefined : this.rpcResult(msg.id!, {});
 
         case 'tools/list':
-          return this.rpcResult(msg.id!, { tools: this.tools.listForMcp() });
+          // Plan kapisi listede: kullanicinin planinda olmayan tool hic gorunmez
+          return this.rpcResult(msg.id!, { tools: this.tools.listForMcp(user) });
 
         case 'tools/call': {
           const name = msg.params?.name;

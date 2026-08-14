@@ -1,9 +1,9 @@
-import { Injectable, Logger, BadRequestException, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException, ForbiddenException, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import Anthropic from '@anthropic-ai/sdk';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { SettingsService } from '../settings/settings.service.js';
 import { McpToolsService, type ToolUser } from '../mcp/mcp-tools.service.js';
-import { CHAT_SKILLS } from './chat-skills.js';
+import { CHAT_SKILLS, visibleSkills } from './chat-skills.js';
 
 /**
  * RanksUp Chat — kullanicinin KENDI VERISI uzerinde konusan asistan.
@@ -44,9 +44,22 @@ export class ChatService {
   //  KATALOG + GECMIS
   // ────────────────────────────────────────────────────────────
 
-  listSkills() {
+  /**
+   * Skill katalogu — plana ve site baglamina gore suzulur.
+   *
+   * NEDEN SUZME: kart, arkasindaki tool'lar kilitliyken de gorunuyordu;
+   * kullanici tikliyor, asistan tool'u goremedigi icin yarim cevap donuyordu.
+   * Ayni sekilde izlenen uygulama yokken ASO karti anlamsizdi.
+   */
+  async listSkills(siteId: string, user: ToolUser) {
+    const allowedTools = new Set(this.tools.listForUser(user).map((t) => t.name));
+    // Baglam sorgusu yalnizca gerektiginde — bos kosul icin DB'ye gitme
+    const hasTrackedApp = CHAT_SKILLS.some((s) => s.requiresTrackedApp)
+      ? (await this.prisma.trackedApp.count({ where: { siteId, isActive: true } })) > 0
+      : false;
+
     // prompt alani dis dunyaya sizmasin — yalnizca meta doner
-    return CHAT_SKILLS.map((s) => ({
+    return visibleSkills(allowedTools, { hasTrackedApp }).map((s) => ({
       key: s.key,
       name: s.name,
       tag: s.tag,
@@ -107,6 +120,17 @@ export class ChatService {
     // ── Girdi: skill preset'i veya serbest mesaj
     const skill = input.skill ? CHAT_SKILLS.find((s) => s.key === input.skill) : undefined;
     if (input.skill && !skill) throw new BadRequestException('Bilinmeyen skill');
+    // Gizlenmis bir skill'in anahtari elle de gonderilebilir (eski sekme,
+    // dogrudan istek). Kart gorunmuyorsa gorev de calismasin.
+    if (skill?.requiresTools?.length) {
+      const allowed = new Set(this.tools.listForUser(user).map((t) => t.name));
+      const missing = skill.requiresTools.filter((t) => !allowed.has(t));
+      if (missing.length) {
+        throw new ForbiddenException(
+          `"${skill.name}" hazır görevi mevcut planında kapalı — dayandığı veriye erişimin yok. Planını yükselterek kullanabilirsin.`,
+        );
+      }
+    }
 
     const userText = typeof input.message === 'string' ? input.message.trim() : '';
     if (userText.length > MAX_MESSAGE_LEN) {
@@ -168,7 +192,10 @@ export class ChatService {
     ];
 
     const systemPrompt = this.buildSystemPrompt(site);
-    const anthropicTools = this.tools.listForAnthropic() as any;
+    // Plan kapisi: kullanicinin planinda olmayan tool modele HIC verilmez —
+    // aksi halde model kilitli veriyi cagirmayi dener ve chat, kilitli uclari
+    // atlayan bir arka kapi haline gelir.
+    const anthropicTools = this.tools.listForAnthropic(user) as any;
 
     // ── Agent dongusu
     let totalIn = 0;

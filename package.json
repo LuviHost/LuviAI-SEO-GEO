@@ -31,6 +31,9 @@
     "typescript-eslint": "^8.59.3"
   },
   "pnpm": {
+    "overrides": {
+      "google-play-scraper": "^10.1.3"
+    },
     "onlyBuiltDependencies": [
       "@nestjs/core",
       "@prisma/client",
@@ -42,6 +45,9 @@
       "protobufjs",
       "sharp",
       "ssh2"
-    ]
+    ],
+    "patchedDependencies": {
+      "aso-v2@2.0.14": "patches/aso-v2@2.0.14.patch"
+    }
   }
 }

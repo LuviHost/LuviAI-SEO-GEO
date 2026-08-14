@@ -2,6 +2,15 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Resend } from 'resend';
 import { PrismaService } from '../prisma/prisma.service.js';
 
+/** LLM/kullanici kaynakli metni HTML govdesine gomerken kacisla */
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
 export type EmailTemplate =
   | 'welcome_day0'
   | 'welcome_day1'
@@ -11,6 +20,7 @@ export type EmailTemplate =
   | 'trial_expiry_d13'
   | 'trial_expired'
   | 'weekly_report'
+  | 'weekly_plan'                // Pazartesi sabahi uretilen "Bu haftanin plani" (WeeklyPlanCron)
   | 'monthly_report'
   | 'first_article_published'
   | 'article_ready'
@@ -265,6 +275,27 @@ export class EmailService {
           ${data.topArticle ? `<p><strong>En iyi performans:</strong> ${data.topArticle.title} — ${data.topArticle.clicks} click</p>` : ''}
           <p><a href="${baseUrl}/dashboard" style="color:#6c5ce7;">Dashboard'a git →</a></p>`,
         );
+
+      case 'weekly_plan': {
+        // Icerik LLM'den geliyor — kacislamadan basilirsa tek bir '<' maili
+        // bozar. Diger sablonlarda veri bizim uretimimiz, burada degil.
+        const siteName = escapeHtml(String(data.siteName ?? 'siteniz'));
+        const items: string[] = Array.isArray(data.items) ? data.items : [];
+        const listHtml = items.length
+          ? `<ol style="font-size:14px;line-height:1.7;color:#333;padding-left:20px;">${
+              items.map((t) => `<li style="margin-bottom:6px;">${escapeHtml(String(t))}</li>`).join('')
+            }</ol>`
+          : '<p style="color:#888;font-size:14px;">Bu hafta öne çıkan bir madde çıkmadı.</p>';
+        const planLink = data.siteId ? `${baseUrl}/sites/${data.siteId}/action-plan` : `${baseUrl}/dashboard`;
+        return wrapper(
+          `🗓 Bu haftanın planı: ${siteName}`,
+          `<h2>${name}, ${siteName} için bu haftanın planı hazır</h2>
+          <p style="font-size:14px;color:#444;">Asistan sitenin görünürlük verisine bakıp ${items.length} maddelik öncelik listesi çıkardı. Maddeler Aksiyon Planına eklendi.</p>
+          ${listHtml}
+          <p><a href="${planLink}" style="background:#6c5ce7;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;display:inline-block;">Aksiyon Planını aç →</a></p>
+          <p style="font-size:13px;color:#888;margin-top:16px;">Gerekçeler ve kanıtlar her maddenin açıklamasında.</p>`,
+        );
+      }
 
       case 'plan_upgraded':
         return wrapper(

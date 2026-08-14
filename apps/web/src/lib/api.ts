@@ -1366,9 +1366,18 @@ export const api = {
       citeFetches24h: Array<{ ts: string; bot: string; path: string }>;
     }>(`/sites/${siteId}/audit/live-crawler?minutes=${minutes}&limit=${limit}`),
 
+  // ingestSecret snippet'lerin icine gomulu gelir; ekranda "bu kod gizli" uyarisi
+  // gosterebilmek icin tipte de acikca duruyor.
   getLiveCrawlerSnippets: (siteId: string) =>
-    request<{ ingestUrl: string; cloudflareWorker: string; wordpress: string; nginx: string }>(
+    request<{ ingestUrl: string; ingestSecret: string; cloudflareWorker: string; wordpress: string; nginx: string }>(
       `/sites/${siteId}/audit/live-crawler/snippets`,
+    ),
+
+  // Sir yenilenince eski snippet'lerin imzasi aninda gecersiz olur; cagiran
+  // taraf snippet'leri yeniden cekip kullaniciya kurulum uyarisini gostermeli.
+  rotateIngestSecret: (siteId: string) =>
+    request<{ secret: string; warning: string }>(
+      `/sites/${siteId}/audit/live-crawler/rotate-secret`, { method: 'POST' },
     ),
 
   // ──────────────────────────────────────────────────────────

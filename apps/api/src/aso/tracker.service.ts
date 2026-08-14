@@ -46,11 +46,12 @@ export class AsoTrackerService {
     // OLCUM YAPILAMADIYSA KAYIT YAZMA.
     // Arama 0 sonuc dondugunde bu "uygulama siralamada yok" demek degil,
     // "magaza tarafi cevap vermedi" demektir. Eskiden bu durumda position:null
-    // yaziliyordu ve grafik gercek olmayan bir dususe geciyordu. Su an
-    // google-play-scraper'in search'u tam olarak boyle davraniyor (her sorgu
-    // 0 sonuc), yani her Android keyword'u her gun "sirada yok" kaydediyordu.
-    // Kayit atlanirsa grafik son GERCEK olcumde kalir — bu, uydurma bir
-    // dususten dogrudur.
+    // yaziliyordu ve grafik gercek olmayan bir dususe geciyordu —
+    // google-play-scraper 10.1.2'de search her sorgu icin 0 sonuc donerken
+    // her Android keyword'u her gun "sirada yok" olarak kaydedilmisti.
+    // Scraper 10.1.3 ile duzeldi, ancak koruma kaliyor: magaza tarafi yine
+    // kirilirsa kayit atlanir ve grafik son GERCEK olcumde kalir — bu,
+    // uydurma bir dususten dogrudur.
     if (!measurable) {
       this.log.warn(
         `[${kw.id}] "${kw.keyword}" (${kw.store}, ${measuredLocale}) olculemedi — ` +

@@ -5,6 +5,15 @@ import { AsoScrapersService } from './scrapers.service.js';
 /**
  * Keyword research + scoring.
  * aso-v2 wrapper + asolytics-inspired competitor metrics.
+ *
+ * aso-v2 hakkinda iki dis mudahale var, ikisi de bilerek:
+ *  1) patches/aso-v2@2.0.14.patch — dil parametresi scraper'a ulassin diye
+ *     (executeRequest yalnizca `language` gonderiyordu, scraper `lang` okuyor).
+ *  2) Kok package.json'da pnpm.overrides ile google-play-scraper ^10.1.3 —
+ *     aso-v2 kendi bagimliligi olarak ^9.1.1 istiyor, o surumun search'u
+ *     Google'in kaldirdigi /work/search adresini kullandigi icin her sorguya
+ *     0 sonuc donuyordu. Override olmadan Android keyword skorlari bos
+ *     arama sonucu uzerinden, yani sifir/anlamsiz hesaplanir.
  */
 @Injectable()
 export class AsoKeywordService {
@@ -26,35 +35,40 @@ export class AsoKeywordService {
     const loc = this.scrapers.locale(opts.country);
     try {
       const fn = opts.store === 'IOS' ? asoHelpers.analyzeITunesKeyword : asoHelpers.analyzeGPlayKeyword;
+      // Magazaya gore farkli lang formati: Apple tarafinda tek bir deger hem
+      // Accept-Language basligina hem de iTunes lookup'in `&lang=` parametresine
+      // gidiyor (app-store-scraper/lib/search.js) — 'tr-tr' ikisinde de gecerli,
+      // canli dogrulandi. Play tarafi ise `hl` bekliyor, yani sade 'tr'.
+      const langForStore = opts.store === 'IOS' ? loc.appleSearchLang : loc.googleLang;
       const scores: any = await fn(opts.keyword, {
         country: loc.country,
-        // DIKKAT — aso-v2 KUSURU: StoreConfig.language degeri
-        // (dist/main.js executeRequest) scraper'a `language` anahtariyla
-        // gonderiliyor, oysa app-store-scraper/google-play-scraper `lang`
-        // okuyor. Yani bu deger scraper'a ULASMIYOR ve aso-v2 skorlari
-        // her zaman Ingilizce arayuzden hesaplaniyor. Config'e `lang`
-        // eklemek de ise yaramiyor: executeRequest params'a yalnizca
-        // country/language/timeout kopyaliyor. Dogru degeri yine de
-        // geciyoruz ki kutuphane duzelince davranis kendiliginden toparlansin.
-        language: loc.googleLang,
+        // aso-v2 dili yalnizca `language` anahtariyla scraper'a gonderiyordu,
+        // oysa her iki scraper da `lang` okuyor — yani dil HIC ulasmiyordu ve
+        // skorlar TR storefront'unda bile Ingilizce arayuzden hesaplaniyordu
+        // (canli: 'kredi karti' aramasi Revolut/Nickel gibi Ingilizce basliklar
+        // donduruyordu, Yapi Kredi/Bankkart degil). patches/aso-v2@2.0.14.patch
+        // executeRequest'te mergedParams'a `lang`i da ekleyerek bunu duzeltiyor.
+        // Buradaki anahtar `language` KALMALI: yama onu `lang`e kopyaliyor.
+        language: langForStore,
       } as any);
       // aso-v2 response: { difficulty: { score, ...nested }, traffic: { score, suggest, ranked, installs, length } }
       // popularity field yok → traffic.suggest.score (autocomplete prominence) proxy
       const difficultyRaw = scores?.difficulty?.score ?? 0;
       const trafficRaw = scores?.traffic?.score ?? 0;
       const popularityRaw = scores?.traffic?.suggest?.score ?? scores?.traffic?.installs?.score ?? 0;
-      // Bilerek measuredLocale DONMUYORUZ: yukaridaki aso-v2 kusuru yuzunden
-      // bu skorlar gercekte Ingilizce arayuzden geliyor; "tr-TR ile olculdu"
-      // demek yanlis olurdu. Sadece storefront'u logluyoruz.
-      this.log.debug(`Score "${opts.keyword}" [storefront=${loc.country}, aso-v2 dili: en]: pop=${popularityRaw} diff=${difficultyRaw} traffic=${trafficRaw}`);
+      // Yama sonrasi skorlar gercekten talep edilen lokalden geliyor, bu yuzden
+      // measuredLocale'i artik doniyoruz — ayni keyword farkli lokalde farkli
+      // skor verir, bu alan olmadan sonuc yorumlanamaz.
+      this.log.debug(`Score "${opts.keyword}" [${loc.measuredLocale}]: pop=${popularityRaw} diff=${difficultyRaw} traffic=${trafficRaw}`);
       return {
         popularity: this.normalizeScore(popularityRaw),
         difficulty: this.normalizeScore(difficultyRaw),
         traffic: this.normalizeScore(trafficRaw),
+        measuredLocale: loc.measuredLocale,
       };
     } catch (err: any) {
       this.log.warn(`Score "${opts.keyword}": ${err.message}`);
-      return { popularity: null, difficulty: null, traffic: null };
+      return { popularity: null, difficulty: null, traffic: null, measuredLocale: loc.measuredLocale };
     }
   }
 
@@ -73,7 +87,7 @@ export class AsoKeywordService {
     store: 'IOS' | 'ANDROID';
     country?: string;
   }) {
-    const out: Array<{ keyword: string; popularity: number | null; difficulty: number | null; traffic: number | null }> = [];
+    const out: Array<{ keyword: string; popularity: number | null; difficulty: number | null; traffic: number | null; measuredLocale: string }> = [];
 
     // 3'er paralel batch (aso-v2 rate limit'e takılmamak için)
     const BATCH = 3;

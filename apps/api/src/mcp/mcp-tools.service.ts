@@ -9,6 +9,7 @@ import { ContentOpportunityService } from '../audit/content-opportunity.service.
 import { ProductRadarService } from '../audit/product-radar.service.js';
 import { PromptLabService } from '../audit/prompt-lab.service.js';
 import { ActionPlansService } from '../action-plans/action-plans.service.js';
+import { planHasFeature, type PlanFeature, type PlanId } from '../billing/plans.js';
 
 /**
  * RanksUp Tool Registry — MCP server VE uygulama ici Chat'in ORTAK tool seti.
@@ -21,6 +22,14 @@ import { ActionPlansService } from '../action-plans/action-plans.service.js';
  * GUVENLIK: her handler cagrisi kimligi dogrulanmis user ile gelir;
  * site kapsamli tool'lar resolveSite() ile SAHIPLIK dogrular. ADMIN her
  * siteye erisebilir (SiteAccessGuard ile ayni kural).
+ *
+ * PLAN KAPISI: sahiplik dogrulamasi "bu veri senin mi" sorusunu cevaplar,
+ * "bu veriyi gorme hakkin var mi" sorusunu cevaplamaz. AXO, icerik firsatlari
+ * ve Product Radar uclari controller'da @RequiresPlan ile kilitliyken ayni
+ * veriye dokunan tool'lar KILITSIZDI: Buyume planindaki bir kullanici kilitli
+ * uca hic gitmeden chat'e sorarak ayni veriyi alabiliyordu. Artik tool tanimi
+ * requiresFeature tasiyor ve iki noktada dayatiliyor — listede gorunmez,
+ * yine de cagrilirsa call() reddeder.
  */
 
 export interface ToolUser {
@@ -36,6 +45,25 @@ export interface ToolDef {
   inputSchema: Record<string, any>;
   /** Yan etkisi olan tool'lar (job kuyruklar, veri yazar) */
   mutating?: boolean;
+  /**
+   * Tool'un dokundugu veri hangi plan ozelligine ait.
+   *
+   * Bos birakilirsa tool HERKESE ACIKTIR. Emin olunmayan tool acik
+   * birakilir — yanlislikla kilitlemek, sizdirmaktan daha gurultulu
+   * bir hata (calisan bir yetenek sessizce kaybolur).
+   */
+  /**
+   * Araci bir plan ozelligine baglar.
+   *
+   * KURAL: kapi REST ucuyla AYNI olmali. Bugun @RequiresPlan yalnizca
+   * EYLEM uclarinda (POST run/derive/generate) var; listeleme GET'leri acik.
+   * Okuma araclarina kapi koyunca chat, panelden DAHA SIKI davraniyordu:
+   * kullanici veriyi ekranda goruyor ama chat'e sorunca "planina dahil degil"
+   * cevabi aliyordu. Ayrica haftalik plan cron'u STARTER sitelerde bu yuzden
+   * patliyordu (weekly-plan skill'i iki okuma aracina bagli). Okuma araclari
+   * REST ile hizalandi; kilit eylem araclarinda kaldi.
+   */
+  requiresFeature?: PlanFeature;
   handler: (user: ToolUser, args: Record<string, any>) => Promise<any>;
 }
 
@@ -70,9 +98,31 @@ export class McpToolsService {
     return this.tools;
   }
 
+  /**
+   * Kullanicinin planinda ACIK olan tool'lar.
+   *
+   * Listeleme kapisi tek basina guvenlik degil (eski konusmalar ve dogrudan
+   * MCP tools/call listeyi atlar) ama modelin olmayan bir yetenegi cagirmaya
+   * calismasini ve kullaniciya "hata" olarak donmesini engeller.
+   */
+  listForUser(user: ToolUser): ToolDef[] {
+    return this.list().filter((t) => this.canUseTool(user, t));
+  }
+
+  /** Senkron kapi kontrolu — user.plan elde oldugu icin DB'ye gitmez. */
+  canUseTool(user: ToolUser, tool: ToolDef): boolean {
+    if (!tool.requiresFeature) return true;
+    // ADMIN muaf — PlanFeatureGuard ile ayni kural (destek/hata ayiklama).
+    if (user.role === 'ADMIN') return true;
+    // Plan bilinmiyorsa listeyi daraltmiyoruz; asil dayatma call() tarafinda
+    // taze plan ile yapiliyor (PlanFeatureGuard de ayni sekilde davranir).
+    if (!user.plan) return true;
+    return planHasFeature(user.plan.toLowerCase() as PlanId, tool.requiresFeature);
+  }
+
   /** MCP tools/list icin dis format */
-  listForMcp() {
-    return this.list().map((t) => ({
+  listForMcp(user: ToolUser) {
+    return this.listForUser(user).map((t) => ({
       name: t.name,
       title: t.title,
       description: t.description,
@@ -81,8 +131,8 @@ export class McpToolsService {
   }
 
   /** Anthropic Messages API tools parametresi icin format */
-  listForAnthropic() {
-    return this.list().map((t) => ({
+  listForAnthropic(user: ToolUser) {
+    return this.listForUser(user).map((t) => ({
       name: t.name,
       description: t.description,
       input_schema: t.inputSchema,
@@ -92,7 +142,28 @@ export class McpToolsService {
   async call(user: ToolUser, name: string, args: Record<string, any>): Promise<any> {
     const tool = this.list().find((t) => t.name === name);
     if (!tool) throw new Error(`Bilinmeyen tool: ${name}`);
+    await this.assertToolAllowed(user, tool);
     return tool.handler(user, args ?? {});
+  }
+
+  /**
+   * Cagri anindaki plan kapisi — ASIL dayatma noktasi.
+   *
+   * Listeden gizlemek yetmez: eski bir konusmanin gecmisinde duran tool_use
+   * blogu veya elle atilmis bir MCP tools/call istegi listeyi hic gormez.
+   * Plan DB'den taze okunur (kullanici plan dusurmusse ayni istek icinde
+   * gecerli olsun diye) ve hata modele ciplak 403 yerine okunabilir bir
+   * cumle olarak doner — model bunu kullaniciya "su plan gerekiyor" diye
+   * aktarabilsin.
+   */
+  async assertToolAllowed(user: ToolUser, tool: ToolDef): Promise<void> {
+    if (!tool.requiresFeature) return;
+    if (user.role === 'ADMIN') return;
+    try {
+      await this.quota.enforcePlanFeature(user.id, tool.requiresFeature);
+    } catch (err: any) {
+      throw new Error(`"${tool.title}" aracı mevcut planında kapalı. ${err?.message ?? ''}`.trim());
+    }
   }
 
   // ────────────────────────────────────────────────────────────
@@ -220,6 +291,7 @@ export class McpToolsService {
         title: 'Agent Readiness (AXO) skoru',
         description: 'Domain\'in AI AJANLARINA hazirligi: robots AI stance, agent card, auth.md, API katalogu, markdown negotiation... 4 seviye + kacinilan ajan sayisi.',
         inputSchema: this.schema(SITE_ID_PROP, ['site_id']),
+        // audit.controller GET /agent-readiness ile ayni kapi
         handler: async (user, args) => {
           const site = await this.resolveSite(user, args.site_id);
           const latest = await this.agentReadiness.getLatest(site.id);
@@ -232,6 +304,7 @@ export class McpToolsService {
         description: 'AXO taramasini senkron calistirir ve guncel skoru dondurur (~15 sn).',
         inputSchema: this.schema(SITE_ID_PROP, ['site_id']),
         mutating: true,
+        requiresFeature: 'agentReadiness',
         handler: async (user, args) => {
           const site = await this.resolveSite(user, args.site_id);
           return this.agentReadiness.scan(site.id);
@@ -291,6 +364,7 @@ export class McpToolsService {
           ...SITE_ID_PROP,
           status: { type: 'string', description: 'OPEN | PLANNED | GENERATED | PUBLISHED | REMEASURED | DISMISSED (opsiyonel)' },
         }, ['site_id']),
+        // audit.controller GET /opportunities ile ayni kapi
         handler: async (user, args) => {
           const site = await this.resolveSite(user, args.site_id);
           return { opportunities: await this.opportunities.list(site.id, { status: args.status }) };
@@ -302,6 +376,7 @@ export class McpToolsService {
         description: 'Son 14 gunun prompt olcumlerinden yeni icerik firsatlari cikarir.',
         inputSchema: this.schema(SITE_ID_PROP, ['site_id']),
         mutating: true,
+        requiresFeature: 'contentOpportunities',
         handler: async (user, args) => {
           const site = await this.resolveSite(user, args.site_id);
           return this.opportunities.derive(site.id);
@@ -316,6 +391,7 @@ export class McpToolsService {
           opportunity_id: { type: 'string' },
         }, ['site_id', 'opportunity_id']),
         mutating: true,
+        requiresFeature: 'contentOpportunities',
         handler: async (user, args) => {
           const site = await this.resolveSite(user, args.site_id);
           return this.opportunities.generateArticle(site.id, String(args.opportunity_id));
@@ -471,6 +547,7 @@ export class McpToolsService {
         title: 'Product Radar',
         description: 'AI asistanlar kullanicinin kategorisinde hangi urunleri oneriyor — son tarama: urun siralamasi + markanin listede olup olmadigi.',
         inputSchema: this.schema(SITE_ID_PROP, ['site_id']),
+        // audit.controller GET /product-radar ile ayni kapi
         handler: async (user, args) => {
           const site = await this.resolveSite(user, args.site_id);
           return this.productRadar.latest(site.id);

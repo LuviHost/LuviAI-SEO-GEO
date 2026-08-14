@@ -96,6 +96,15 @@ export class AsoScrapersService {
     }
   }
 
+  /**
+   * DERINLIK SINIRI: `num` ne verilirse verilsin Play pratikte ~24-30 sonuc
+   * doner (canli olculdu, num=100 ile: 'banka' tr -> 26, 'bank' us -> 24,
+   * 'oyun' tr -> 30). /store/search tek bir sonuc kumesi veriyor ve sayfalama
+   * tokeni cogu sorguda erken tukeniyor. Yani Android'de gercekte olcebildigimiz
+   * sey top ~25-30; bunun disindaki bir uygulama findRank'ten rank=null alir.
+   * Bu "top 100'de yok" ile ayni sey DEGIL — asagi yukari "ilk sayfada yok"
+   * demek. Kullaniciya derinlik vaadi verirken bunu hesaba kat.
+   */
   async androidSearch(opts: { term: string; country?: string; lang?: string; num?: number }) {
     const loc = this.locale(opts.country, opts.lang);
     try {
@@ -148,12 +157,16 @@ export class AsoScrapersService {
     });
     // "OLCULEMEDI" ile "SIRADA YOK" AYNI SEY DEGIL.
     // Arama hic sonuc dondurmediyse bu, uygulamanin siralamada olmadigi
-    // anlamina gelmez — magaza tarafinda bir kirilma demektir. Bugun tam
-    // olarak bu yasaniyor: google-play-scraper'in search'u her sorgu icin
-    // 0 sonuc donuyor (canli olculdu: 'banka' tr/tr ve 'bank' us/en -> 0),
-    // hata da firlatmadigi icin her Android keyword'u sessizce "sirada yok"
-    // olarak kaydediliyordu ve musteriye olmayan bir dusus gosteriliyordu.
-    // Cagiran taraf artik ikisini ayirt edebilsin.
+    // anlamina gelmez — magaza tarafinda bir kirilma demektir. Bu ayrimi
+    // google-play-scraper 10.1.2'de yasadigimiz sessiz kirilma yuzunden
+    // ekledik: search her sorgu icin 0 sonuc donuyor ama hata FIRLATMIYORDU,
+    // dolayisiyla her Android keyword'u sessizce "sirada yok" kaydediliyor ve
+    // musteriye olmayan bir dusus gosteriliyordu. Sebep: kutuphane arama icin
+    // play.google.com/work/search (managed Play) adresini kullaniyordu, Google
+    // orayi degistirince sayfa artik ds:* veri blogu icermez oldu. 10.1.3
+    // /store/search?c=apps'e gecip ayrisitirmayi guncelledi — sorun cozuldu,
+    // ama kontrol kaliyor: magaza tarafi her an yine kirilabilir ve bu kez
+    // uydurma veri yazmayalim.
     const measurable = results.length > 0;
     return {
       rank: idx >= 0 ? idx + 1 : null,
