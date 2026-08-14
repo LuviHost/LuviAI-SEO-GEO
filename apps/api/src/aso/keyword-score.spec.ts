@@ -104,3 +104,69 @@ describe('arayuz — ikili sinyal sayi gibi cizilmiyor', () => {
     expect(UI).not.toMatch(/kw\.traffic != null && kw\.traffic > 0/);
   });
 });
+
+/**
+ * Kelime aynalama — magaza basina ayri satir.
+ *
+ * NEDEN VAR: TrackedAppKeyword magaza basina AYRI satir tutuyor
+ * (@@unique([trackedAppId, keyword, store])) cunku ayni kelimenin App Store
+ * ve Play sirasi farkli seylerdir. Ama kelime ekleme kutusunun magaza secici
+ * varsayilan iOS'ta aciliyor; dokunulmazsa her kelime yalnizca iOS'a
+ * yaziliyor. Uretimde tam olarak bu oldu: 91 kelimenin TAMAMI iOS, Android'de
+ * tek bir olcum bile yok. Kullanici "sadece ios icin mi siralama yapiliyor?"
+ * diye sordu — evet, cunku Android satiri hic olusturulmamis.
+ */
+describe('mirrorKeywords', () => {
+  async function kur(app: any, kaynak: any[], hedef: any[]) {
+    const { AsoService } = await import('./aso.service.js');
+    const yazilan: any = { data: null };
+    const prisma = {
+      trackedApp: { findUnique: async () => app },
+      trackedAppKeyword: {
+        findMany: async ({ where }: any) =>
+          where.store === 'IOS' ? kaynak : hedef,
+        createMany: async (a: any) => { yazilan.data = a.data; return { count: a.data.length }; },
+      },
+    };
+    const n = null as any;
+    const svc = new AsoService(prisma as any, n, n, n, n, n, n);
+    return { yazilan, sonuc: await svc.mirrorKeywords({ trackedAppId: 'a1', from: 'IOS', to: 'ANDROID' }).catch((e: Error) => e) };
+  }
+
+  const app = { id: 'a1', name: 'KobiPratik', appStoreId: '676', playStoreId: 'com.x' };
+
+  it('eksik kelimeleri hedef magazaya kopyaliyor', async () => {
+    const { yazilan, sonuc }: any = await kur(app, [{ keyword: 'kobi kredisi', source: 'manual' }, { keyword: 'ticari leasing', source: 'ai' }], []);
+    expect(sonuc.eklenen).toBe(2);
+    expect(yazilan.data.every((d: any) => d.store === 'ANDROID')).toBe(true);
+    expect(yazilan.data[0].keyword).toBe('kobi kredisi');
+  });
+
+  it('zaten var olan kelimeyi TEKRAR eklemiyor', async () => {
+    const { sonuc }: any = await kur(
+      app,
+      [{ keyword: 'kobi kredisi', source: 'manual' }, { keyword: 'ticari leasing', source: 'ai' }],
+      [{ keyword: 'Kobi Kredisi' }],  // buyuk/kucuk harf farki
+    );
+    expect(sonuc.eklenen, 'buyuk/kucuk harf farki mukerrer satir uretti').toBe(1);
+    expect(sonuc.zatenVardi).toBe(1);
+  });
+
+  it('hedef magaza bagli DEGILSE reddediyor — olculemeyecek satir uretmiyor', async () => {
+    const { sonuc }: any = await kur({ ...app, playStoreId: null }, [{ keyword: 'x', source: 'm' }], []);
+    expect(sonuc).toBeInstanceOf(Error);
+    expect((sonuc as Error).message).toMatch(/Google Play/);
+  });
+
+  it('kaynak ve hedef ayni olamaz', async () => {
+    const { AsoService } = await import('./aso.service.js');
+    const svc = new AsoService({} as any, null as any, null as any, null as any, null as any, null as any, null as any);
+    await expect(svc.mirrorKeywords({ trackedAppId: 'a1', from: 'IOS', to: 'IOS' })).rejects.toThrow(/aynı olamaz/);
+  });
+
+  it('kopyalanacak kelime yoksa acik hata veriyor', async () => {
+    const { sonuc }: any = await kur(app, [], []);
+    expect(sonuc).toBeInstanceOf(Error);
+    expect((sonuc as Error).message).toMatch(/kelime yok/);
+  });
+});

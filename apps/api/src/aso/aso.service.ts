@@ -146,6 +146,79 @@ export class AsoService {
     return null;
   }
 
+  /**
+   * Bir magazadaki kelimeleri DIGER magazaya kopyalar.
+   *
+   * NEDEN GEREKLI: TrackedAppKeyword magaza basina AYRI satir tutuyor
+   * (@@unique([trackedAppId, keyword, store])) — cunku ayni kelimenin App
+   * Store ve Play sirasi farkli seylerdir ve ayri olculmeleri gerekir.
+   * Ama kelime ekleme kutusundaki magaza secici varsayilan iOS'ta aciliyor;
+   * dokunulmazsa her kelime yalnizca iOS'a yaziliyor. Uretimde tam olarak bu
+   * oldu: 91 kelimenin TAMAMI iOS, Android'de tek bir olcum bile yok.
+   *
+   * Elle 50 kelimeyi tek tek yeniden eklemek yerine tek islemle aynalaniyor.
+   * Zaten var olan kelimeler atlanir (kota ve mukerrer satir olusmasin).
+   */
+  async mirrorKeywords(opts: { trackedAppId: string; from: 'IOS' | 'ANDROID'; to: 'IOS' | 'ANDROID' }) {
+    if (opts.from === opts.to) throw new BadRequestException('Kaynak ve hedef mağaza aynı olamaz');
+
+    const app = await this.prisma.trackedApp.findUnique({
+      where: { id: opts.trackedAppId },
+      select: { id: true, name: true, appStoreId: true, playStoreId: true },
+    });
+    if (!app) throw new BadRequestException('Uygulama bulunamadı');
+
+    // Hedef magazanin kimligi yoksa olcum yapilamaz — kelimeyi kopyalamak
+    // yalnizca olculemeyecek satirlar uretirdi.
+    const hedefKimlik = opts.to === 'IOS' ? app.appStoreId : app.playStoreId;
+    if (!hedefKimlik) {
+      throw new BadRequestException(
+        `Bu uygulamanın ${opts.to === 'IOS' ? 'App Store' : 'Google Play'} bağlantısı yok — önce o mağazayı bağla`,
+      );
+    }
+
+    const kaynak = await this.prisma.trackedAppKeyword.findMany({
+      where: { trackedAppId: opts.trackedAppId, store: opts.from as any },
+      select: { keyword: true, source: true },
+    });
+    if (!kaynak.length) throw new BadRequestException('Kopyalanacak kelime yok');
+
+    const mevcut = new Set(
+      (
+        await this.prisma.trackedAppKeyword.findMany({
+          where: { trackedAppId: opts.trackedAppId, store: opts.to as any },
+          select: { keyword: true },
+        })
+      ).map((k) => k.keyword.toLowerCase()),
+    );
+
+    const eklenecek = kaynak.filter((k) => !mevcut.has(k.keyword.toLowerCase()));
+    if (eklenecek.length) {
+      await this.prisma.trackedAppKeyword.createMany({
+        data: eklenecek.map((k) => ({
+          trackedAppId: opts.trackedAppId,
+          keyword: k.keyword,
+          store: opts.to as any,
+          source: k.source ?? 'mirror',
+        })),
+        skipDuplicates: true,
+      });
+    }
+
+    this.log.log(
+      `[${app.name}] ${opts.from} -> ${opts.to}: ${eklenecek.length} kelime kopyalandi, ${kaynak.length - eklenecek.length} zaten vardi`,
+    );
+
+    // Skorlar ve siralamalar BILEREK burada hesaplanmiyor: 50 kelime x magaza
+    // istegi dakikalar surer ve istegi acik tutar. Kullanici "Skorları Yenile"
+    // ve "Tüm Rank'leri Çek" ile tetikler.
+    return {
+      eklenen: eklenecek.length,
+      zatenVardi: kaynak.length - eklenecek.length,
+      hedefMagaza: opts.to,
+    };
+  }
+
   // ─────────────────────────────────────────────
   //  App connect / list / delete
   // ─────────────────────────────────────────────

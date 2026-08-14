@@ -165,6 +165,23 @@ export class AsoController {
 
   // ─── Keywords ───────────────────────────────
 
+  /**
+   * POST /aso/apps/:appId/keywords/mirror
+   * Body: { from: 'IOS'|'ANDROID', to: 'IOS'|'ANDROID' }
+   * Bir magazadaki kelimeleri digerine kopyalar (skor/rank hesaplanmaz).
+   */
+  @Post('apps/:appId/keywords/mirror')
+  mirrorKeywords(
+    @Param('appId') appId: string,
+    @Body() body: { from?: 'IOS' | 'ANDROID'; to?: 'IOS' | 'ANDROID' },
+  ) {
+    return this.aso.mirrorKeywords({
+      trackedAppId: appId,
+      from: body.from ?? 'IOS',
+      to: body.to ?? 'ANDROID',
+    });
+  }
+
   @Post('apps/:appId/keywords')
   addKeyword(
     @Param('appId') appId: string,

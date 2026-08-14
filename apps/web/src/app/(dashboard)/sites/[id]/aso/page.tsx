@@ -15,7 +15,7 @@ import { AscTab } from '@/components/asc-tab';
 import {
   Smartphone, Plus, Trash2, RefreshCw, Star, MessageSquare, TrendingUp,
   Apple, Bot, Search, Globe, Trophy, ArrowUp, ArrowDown, Minus, X, Sparkles, Check, Info,
-  Image as ImageIcon, Rocket,
+  Image as ImageIcon, Rocket, Copy,
 } from 'lucide-react';
 
 /** Hover tooltip — küçük (i) ikonu + çıkan açıklama balonu. */
@@ -596,6 +596,43 @@ function AppDetailModal({ app, siteId, onClose, onChanged }: {
       .finally(() => setAuditLoading(false));
   }, [tab, app.id, siteId]);
 
+  /**
+   * Kelimeleri diger magazaya kopyala.
+   *
+   * NEDEN GEREKLI: kelime ekleme kutusunun magaza secici varsayilan iOS'ta
+   * aciliyor; dokunulmazsa her kelime yalnizca iOS'a yaziliyor ve Android
+   * tarafinda tek bir olcum bile olmuyor. Elle 50 kelimeyi yeniden eklemek
+   * yerine tek islemle aynalaniyor.
+   *
+   * Skor ve siralama BILEREK burada hesaplanmiyor — 50 kelime x magaza istegi
+   * dakikalar surer. Kopyalamadan sonra "Tüm Rank'leri Çek" hatirlatiliyor.
+   */
+  const [mirroring, setMirroring] = useState(false);
+  const mirrorToStore = async (to: 'IOS' | 'ANDROID') => {
+    const from = to === 'ANDROID' ? 'IOS' : 'ANDROID';
+    setMirroring(true);
+    try {
+      const r = await api.request<{ eklenen: number; zatenVardi: number }>(
+        `/sites/${siteId}/aso/apps/${app.id}/keywords/mirror`,
+        { method: 'POST', body: JSON.stringify({ from, to }) },
+      );
+      onChanged();
+      if (r.eklenen === 0) {
+        toast.message('Kopyalanacak yeni kelime yok', {
+          description: `${r.zatenVardi} kelime zaten ${to === 'ANDROID' ? 'Android' : 'iOS'} tarafında var.`,
+        });
+      } else {
+        toast.success(`${r.eklenen} kelime ${to === 'ANDROID' ? 'Android' : 'iOS'}'a kopyalandı`, {
+          description: "Sıralamaları görmek için \"Tüm Rank'leri Çek\" butonuna bas.",
+        });
+      }
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setMirroring(false);
+    }
+  };
+
   const addKeyword = async () => {
     if (!newKeyword.trim()) return;
     setAdding(true);
@@ -890,6 +927,33 @@ function AppDetailModal({ app, siteId, onClose, onChanged }: {
                 <Sparkles className={`h-4 w-4 mr-1 ${refreshingScores ? 'animate-spin' : ''}`} />
                 {refreshingScores ? 'Hesaplanıyor...' : 'Skorları Yenile'}
               </Button>
+              {/*
+                Kelimeler magaza basina AYRI satir tutuluyor — ayni kelimenin
+                App Store ve Play sirasi farkli seylerdir. Bu dugme yalnizca
+                hedef magaza bagliysa ve o tarafta eksik kelime varsa cikar.
+              */}
+              {app.playStoreId && (app.keywords ?? []).some((k) => k.store === 'IOS') &&
+                (app.keywords ?? []).filter((k) => k.store === 'ANDROID').length <
+                  (app.keywords ?? []).filter((k) => k.store === 'IOS').length && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => mirrorToStore('ANDROID')}
+                    disabled={mirroring}
+                    title="iOS kelimelerini Android tarafına da ekler — Play sıralamasını da görebilmek için"
+                  >
+                    <Copy className={`h-4 w-4 mr-1 ${mirroring ? 'animate-pulse' : ''}`} />
+                    {mirroring ? 'Kopyalanıyor...' : "Android'e de ekle"}
+                  </Button>
+                )}
+              {app.appStoreId && (app.keywords ?? []).some((k) => k.store === 'ANDROID') &&
+                (app.keywords ?? []).filter((k) => k.store === 'IOS').length <
+                  (app.keywords ?? []).filter((k) => k.store === 'ANDROID').length && (
+                  <Button size="sm" variant="outline" onClick={() => mirrorToStore('IOS')} disabled={mirroring}>
+                    <Copy className={`h-4 w-4 mr-1 ${mirroring ? 'animate-pulse' : ''}`} />
+                    {mirroring ? 'Kopyalanıyor...' : "iOS'a da ekle"}
+                  </Button>
+                )}
             </div>
 
             {/* Progress bar — bulk işlemlerde */}
@@ -1062,8 +1126,14 @@ function AppDetailModal({ app, siteId, onClose, onChanged }: {
                                   Öneriliyor
                                 </span>
                               ) : (
-                                <span className="text-muted-foreground text-[11px]" title="Apple bu terime hiç öneri vermiyor — App Store'da bu terim neredeyse hiç aranmıyor">
-                                  Önerilmiyor
+                                /*
+                                  "Önerilmiyor" yazısı kaldırıldı: 91 kelimenin 90'ında
+                                  aynı metin çıkıyordu ve sütunu okunmaz hale getiriyordu.
+                                  Bilgi kaybolmuyor — tire üzerindeki açıklamada duruyor,
+                                  ve zaten anlamlı olan durum "Öneriliyor" olanı.
+                                */
+                                <span className="text-muted-foreground" title="Apple bu terime hiç öneri vermiyor — App Store'da bu terim neredeyse hiç aranmıyor">
+                                  —
                                 </span>
                               )
                             ) : (
@@ -1076,13 +1146,20 @@ function AppDetailModal({ app, siteId, onClose, onChanged }: {
                             "olctuk, sifir cikti" ayni gorunuyordu). aso-v2 skorlarinin
                             tabani 1.0 oldugu icin gercek bir 0 zaten uretilemez.
                           */}
+                          {/*
+                            0 da "ölçülemedi" sayılır: aso-v2 skorlarının tabanı 1.0,
+                            normalizeScore 10 ile çarpıyor — yani gerçek bir ölçüm asla
+                            0 üretemez, en düşük değer 10. DB'deki 0'lar eski koddan
+                            kalma başarısız ölçümler (migration onları NULL'a çeviriyor;
+                            bu kontrol henüz güncellenmemiş kayıtlar için güvence).
+                          */}
                           <td className="px-2 py-2 text-center tabular-nums">
-                            {kw.difficulty != null ? kw.difficulty.toFixed(0) : (
+                            {kw.difficulty ? kw.difficulty.toFixed(0) : (
                               <span className="text-muted-foreground" title="Ölçülemedi — mağaza yanıt vermedi">—</span>
                             )}
                           </td>
                           <td className="px-2 py-2 text-center tabular-nums">
-                            {kw.traffic != null ? kw.traffic.toFixed(0) : (
+                            {kw.traffic ? kw.traffic.toFixed(0) : (
                               <span className="text-muted-foreground" title="Ölçülemedi — mağaza yanıt vermedi">—</span>
                             )}
                           </td>
