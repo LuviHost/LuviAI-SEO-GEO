@@ -55,6 +55,17 @@ export interface RawItem {
   publishedAt?: Date | null;
   summary?: string | null;
   engagement?: number | null;
+  /**
+   * Toplama aninda ELDE OLAN tam metin. Yalnizca toplayicinin icerigi
+   * zaten okudugu durumlarda dolar (OpenClaw tarayicida postu ve
+   * yanitlarini okuyor).
+   *
+   * NEDEN VAR: analist normalde URL'yi yeniden ceker, ama x.com oturumsuz
+   * istege bos JS kabugu donduruyor (olculdu: 0 karakter). Metin zaten
+   * elimizdeyken atip yeniden cekmeye calismak X kayitlarinin analiz
+   * asamasinda FAILED olmasina yol aciyordu.
+   */
+  fullText?: string | null;
   meta?: Record<string, any>;
 }
 
@@ -377,6 +388,7 @@ export class IntelCollectorService {
             publishedAt: it.publishedAt ?? null,
             summary: it.summary?.slice(0, 4000) ?? null,
             engagement: it.engagement ?? null,
+            fullText: it.fullText?.slice(0, 60_000) ?? null,
             meta: (it.meta ?? undefined) as any,
           },
         });

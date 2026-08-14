@@ -111,6 +111,7 @@ export class IntelAnalystService {
       take: MAX_PER_RUN,
       select: {
         id: true, url: true, title: true, summary: true, publishedAt: true, topics: true,
+        fullText: true,
         source: { select: { name: true, tier: true, weight: true } },
       },
     });
@@ -143,19 +144,37 @@ export class IntelAnalystService {
   private async analyzeItem(
     item: {
       id: string; url: string; title: string; summary: string | null;
-      publishedAt: Date | null; topics: any;
+      publishedAt: Date | null; topics: any; fullText: string | null;
       source: { name: string; tier: string; weight: number };
     },
     model: string,
   ): Promise<number> {
-    // Tam metin en iyi cabayla cekilir; bot korumasi/paywall varsa
-    // feed ozetiyle devam ederiz — analizi tumden atlamaktansa daha
-    // zayif girdiyle yapmak yeglenir (grade zaten dusuk cikacaktir).
-    const fullText = (await this.fetchArticleText(item.url).catch(() => null)) ?? item.summary ?? '';
+    // TOPLAMA ANINDA METIN VARSA ONU KULLAN, yeniden cekme.
+    //
+    // OpenClaw postu ve yanitlarini tarayicida zaten okuyor. x.com'u
+    // oturumsuz yeniden cekmek bos JS kabugu donduruyor (olculdu: 0
+    // karakter) — sonra ozete dusuyor, 200 karakter esigini gecemeyince
+    // kayit FAILED oluyordu. Yani X postlari analize hic giremiyordu.
+    //
+    // Diger kaynaklarda (rss/github/hn/reddit) bu alan bos gelir ve
+    // eski davranis aynen surer.
+    // Kisa olsa bile yeniden CEKMIYORUZ: toplayici icerigi zaten okuduysa
+    // ikinci istek yeni bilgi getirmez (x.com'da hic getirmiyor). Kisa metin
+    // asagidaki esikte elenir — bu dogru sonuc, cunku 150 karakterlik bir
+    // postan dogrulanabilir iddia cikmaz.
+    const stored = item.fullText?.trim();
+    const fullText = stored
+      ? stored
+      : (await this.fetchArticleText(item.url).catch(() => null)) ?? item.summary ?? '';
     if (fullText.trim().length < 200) {
       await this.prisma.intelItem.update({
         where: { id: item.id },
-        data: { status: 'FAILED', triageNote: 'Metin cekilemedi veya cok kisa' },
+        data: {
+          status: 'FAILED',
+          triageNote: stored
+            ? `Icerik cok kisa (${stored.length} karakter) — iddia cikarilamaz`
+            : 'Metin cekilemedi veya cok kisa',
+        },
       });
       return 0;
     }

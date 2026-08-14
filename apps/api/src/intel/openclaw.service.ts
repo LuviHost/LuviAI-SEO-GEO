@@ -56,6 +56,16 @@ const MODES = [
 const MAX_POSTS = 15;
 /** Bir turda en fazla kac depo incelenir; her depo ekstra sayfa gezmesi demek */
 const MAX_REPOS = 3;
+/**
+ * Post basina en fazla kac yanit alinir.
+ *
+ * NEDEN YANIT TOPLUYORUZ: kanit tartimi (evidence-grade.ts) destek ve
+ * KARSIT kefeleri karsilastirarak hukum veriyor. Yalniz postlari okursak
+ * tek yonlu destek yigini birikir; MYTH durumu hicbir zaman olusmaz.
+ * "Bende calismadi", "su kosulda gecerli" ve yazarin kendi duzeltmesi
+ * cogunlukla yanitlarda.
+ */
+const MAX_REPLIES = 8;
 const DEFAULT_TIMEOUT_SEC = 420;
 /** Ajan ciktisi JSON; buyumesi icin gercek bir sebep yok ama kesilmesin */
 const MAX_STDOUT_BYTES = 4 * 1024 * 1024;
@@ -82,6 +92,10 @@ interface AgentPost {
   author?: string;
   title?: string;
   summary?: string;
+  /** Postun kirpilmamis metni — analist bunu kullanir */
+  text?: string;
+  /** Kayda deger yanitlar; karsit kanit cogunlukla burada */
+  replies?: Array<{ author?: string; text?: string }>;
   publishedAt?: string;
   engagement?: number;
   repoUrls?: string[];
@@ -176,6 +190,8 @@ export class OpenClawService {
       if (seen.has(url)) continue;
       seen.add(url);
 
+      const replies = Array.isArray(p?.replies) ? p!.replies!.slice(0, MAX_REPLIES) : [];
+
       out.push({
         url,
         title,
@@ -183,10 +199,14 @@ export class OpenClawService {
         publishedAt: p?.publishedAt ? safeDate(p.publishedAt) : null,
         summary: str(p?.summary),
         engagement: Number.isFinite(p?.engagement) ? Number(p!.engagement) : null,
+        // Analist bu alan doluysa URL'yi yeniden CEKMEZ. x.com oturumsuz
+        // istege bos donduugu icin tek gecerli metin kaynagi burasi.
+        fullText: composeFullText(str(p?.text) ?? str(p?.summary), replies),
         meta: {
           via: 'openclaw-browser',
           query,
           tab: mode.tab,
+          replyCount: replies.length,
           repoUrls: Array.isArray(p?.repoUrls) ? p!.repoUrls!.slice(0, MAX_REPOS) : [],
         },
       });
@@ -336,10 +356,18 @@ ADIMLAR
    (bu "${mode.label}" sekmesidir)
 2. Sayfayi snapshot al. Gerekirse en fazla 3 kez asagi kaydirip tekrar snapshot al.
 3. ${since} tarihinden yeni, en fazla ${MAX_POSTS} ilgili postu topla.
-4. Postlarda GitHub deposu linki varsa en fazla ${MAX_REPOS} tanesini ayrica ac,
+4. Her post icin postu ACIP tam metnini ve yanitlarini oku:
+   - "text" alanina postun KIRPILMAMIS metnini yaz (thread ise devam
+     postlarini da ekle). Ozet degil, oldugu gibi.
+   - "replies" alanina en fazla ${MAX_REPLIES} KAYDA DEGER yaniti yaz.
+     Kayda deger olan: itiraz, duzeltme, "bende calismadi", "su kosulda
+     gecerli", ek veri, yazarin kendi ek aciklamasi.
+     Kayda deger OLMAYAN: "harika", emoji, tesekkur, alakasiz sohbet.
+     Kayda deger yanit yoksa bos dizi birak.
+5. Postlarda GitHub deposu linki varsa en fazla ${MAX_REPOS} tanesini ayrica ac,
    README'sini ve son commit tarihini oku, ne yaptigini kendi cumlelerinle yaz.
-   Post "acik kaynak yaptim / open sourced" diyor ama link gorunmuyorsa, postu
-   acip yanitlarina bak — depo linki cogu zaman orada olur.
+   Post "acik kaynak yaptim / open sourced" diyor ama link gorunmuyorsa,
+   yanitlara bak — depo linki cogu zaman orada olur.
 
 NEYI AL
 - Veri, olcum, test sonucu, platform degisikligi, somut deneyim iceren postlar.
@@ -363,6 +391,10 @@ CIKTI (baska hicbir metin yazma)
       "author": "@kullanici",
       "title": "postun ozunu veren tek cumle",
       "summary": "postun icerigi, 2-3 cumle",
+      "text": "postun kirpilmamis tam metni",
+      "replies": [
+        { "author": "@baskasi", "text": "kayda deger yanitin tam metni" }
+      ],
       "publishedAt": "2026-08-13",
       "engagement": 250,
       "repoUrls": ["https://github.com/sahip/depo"]
@@ -383,6 +415,31 @@ CIKTI (baska hicbir metin yazma)
 
 function str(v: unknown): string | null {
   return typeof v === 'string' && v.trim() ? v.trim() : null;
+}
+
+/**
+ * Post metni + yanitlari analiste gidecek tek govdeye cevirir.
+ *
+ * Yanitlar ayri bir baslik altinda veriliyor ki analist bunlarin postun
+ * kendi iddiasi degil, ona verilen TEPKILER oldugunu ayirt edebilsin —
+ * kanit tutumunu (supports/refutes) dogru atamasi buna bagli.
+ */
+function composeFullText(
+  text: string | null,
+  replies: Array<{ author?: string; text?: string }>,
+): string | null {
+  if (!text) return null;
+  const clean = replies
+    .map((r) => {
+      const t = str(r?.text);
+      if (!t) return null;
+      const who = str(r?.author);
+      return who ? `${who}: ${t}` : t;
+    })
+    .filter((x): x is string => x !== null);
+
+  if (clean.length === 0) return text;
+  return `${text}\n\n--- YANITLAR ---\n${clean.join('\n')}`;
 }
 
 /** x.com/u/status/123 → "123". Alan adi ve sorgu parametreleri degisken, id sabit. */
