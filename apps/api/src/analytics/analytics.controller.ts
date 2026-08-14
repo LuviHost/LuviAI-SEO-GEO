@@ -2,7 +2,29 @@ import { Controller, Get, Header, Param, Post, Query, Res } from '@nestjs/common
 import type { Response } from 'express';
 import { AnalyticsService } from './analytics.service.js';
 import { GaService } from './ga.service.js';
-import { ReportsService, ReportRange } from './reports.service.js';
+import { ReportsService, type ReportOpts, type ReportRange } from './reports.service.js';
+
+/**
+ * Sorgu parametrelerini rapor donemine cevirir.
+ *
+ * from/to IKISI BIRDEN ve gecerli olmali; biri eksik ya da bozuksa sessizce
+ * range'e duseriz — yariyla hesaplanan bir donem, kullaniciya yanlis bir
+ * tarih araligi gostermekten iyidir.
+ */
+function donemParametresi(range?: string, from?: string, to?: string): ReportOpts {
+  if (from && to) {
+    const f = new Date(from);
+    const t = new Date(to);
+    if (!Number.isNaN(+f) && !Number.isNaN(+t) && t >= f) {
+      // Bitis gunu DAHIL olsun: "1-31 Temmuz" 31 Temmuz'un tamamini kapsamali,
+      // yoksa gun basinda kesilir ve son gunun verisi rapora girmez.
+      t.setHours(23, 59, 59, 999);
+      return { from: f, to: t };
+    }
+  }
+  const r: ReportRange = range === 'week' || range === 'year' ? range : 'month';
+  return { range: r };
+}
 
 @Controller('sites/:siteId/analytics')
 export class AnalyticsController {
@@ -59,14 +81,21 @@ export class AnalyticsController {
     return this.ga.fetchSiteSummary(siteId, days ? parseInt(days, 10) : 30);
   }
 
-  /** GET /sites/:siteId/analytics/report?range=week|month|year — kapsamli rapor */
+  /**
+   * GET /sites/:siteId/analytics/report
+   *   ?range=week|month|year   — son N gun
+   *   ?from=YYYY-MM-DD&to=YYYY-MM-DD — keyfi donem ("1-31 Temmuz")
+   *
+   * from/to birlikte verilmeli; yalniz biri verilirse range'e duseriz.
+   */
   @Get('report')
   report(
     @Param('siteId') siteId: string,
     @Query('range') range?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
   ) {
-    const r: ReportRange = (range === 'week' || range === 'year') ? range : 'month';
-    return this.reports.overview(siteId, r);
+    return this.reports.overview(siteId, donemParametresi(range, from, to));
   }
 
   /** GET /sites/:siteId/analytics/report.csv?range=month — Excel'e direkt acilabilir */
@@ -76,11 +105,16 @@ export class AnalyticsController {
     @Param('siteId') siteId: string,
     @Query('range') range: string | undefined,
     @Res() res: Response,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
   ) {
-    const r: ReportRange = (range === 'week' || range === 'year') ? range : 'month';
-    const data = await this.reports.overview(siteId, r);
+    const opts = donemParametresi(range, from, to);
+    const data = await this.reports.overview(siteId, opts);
     const csv = this.reports.toCsv(data);
-    const filename = `luviai-report-${siteId.slice(0, 8)}-${r}-${new Date().toISOString().slice(0, 10)}.csv`;
+    const etiket = data.range === 'custom'
+      ? `${data.rangeStart.slice(0, 10)}_${data.rangeEnd.slice(0, 10)}`
+      : data.range;
+    const filename = `ranksup-rapor-${siteId.slice(0, 8)}-${etiket}.csv`;
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.send(csv);
   }

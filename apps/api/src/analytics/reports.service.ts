@@ -1,7 +1,28 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { compareAuditRows, type AuditKarsilastirma } from '../audit/audit.service.js';
 
-export type ReportRange = 'week' | 'month' | 'year';
+export type ReportRange = 'week' | 'month' | 'year' | 'custom';
+
+/**
+ * Rapor donemi. `from`/`to` verilirse range 'custom' olur ve gun sayisi
+ * ikisinin farkindan turer; onceki donem AYNI UZUNLUKTA, hemen oncesidir.
+ *
+ * NEDEN GEREKLI: imza yalnizca 'week'|'month'|'year' aliyordu, yani
+ * "1-31 Temmuz" gibi bir rapor cikarilamiyordu. Alt sorgular zaten
+ * `date: { gte, lte }` kullaniyordu — eksik olan sadece parametre yuzeyiydi.
+ */
+export interface ReportOpts {
+  range?: ReportRange;
+  from?: Date;
+  to?: Date;
+}
+
+/** Bir metrik olculemedi mi, yoksa gercekten sifir mi — ikisi ayni sey degil. */
+export interface OlcumYok {
+  olculemedi: true;
+  neden: string;
+}
 
 export interface ReportOverview {
   range: ReportRange;
@@ -34,14 +55,37 @@ export interface ReportOverview {
     topPages: Array<{ page: string; clicks: number; impressions: number; ctr: number; position: number }>;
   };
   ai: {
-    citationScore: number | null; // son audit'ten ortalama
+    /**
+     * Son taramanin AI gorunurluk ortalamasi. HIC saglayici olculemediyse
+     * `null` — 0 DEGIL. runAudit `aiCitationAvg ?? 0` yaziyor ve o 0 trend
+     * grafiginde sahte bir cokus uretiyordu ("gorunurlugun sifira dustu"),
+     * halbuki olcum hic yapilamamisti.
+     */
+    citationScore: number | null;
+    /** citationScore null ise nedeni — arayuz "olcum yok" yazabilsin */
+    citationOlcumYok: string | null;
     providers: Array<{ provider: string; label: string; score: number | null; available: boolean }>;
   };
   audit: {
     overallScore: number | null;
     geoScore: number | null;
     issuesCount: number;
-    fixedThisRange: number; // bu donemde dusurulen issue sayisi (audit history)
+    /**
+     * Donem icinde GERCEKTEN cozulen sorun sayisi.
+     *
+     * ONCEDEN: `max(0, ilkTaramaIssueSayisi - sonTaramaIssueSayisi)` idi. Bu
+     * bir "duzeltme kaydi" degil, iki uzunlugun farkiydi: donemde 5 sorun
+     * cozulup 5 yeni sorun ciktiysa 0 gosteriyordu ve max(0,..) negatifi
+     * yutuyordu. Artik compareAuditRows'un `type|page` eslestirmesi
+     * kullaniliyor — cozulen, yeni cikan ve devam eden AYRI AYRI sayiliyor.
+     */
+    cozulenSayisi: number;
+    yeniCikanSayisi: number;
+    devamEdenSayisi: number;
+    /** Donemin ilk ve son taramasi arasindaki tam karsilastirma; tek tarama varsa null */
+    karsilastirma: AuditKarsilastirma | null;
+    /** Donemde kullanicinin ELLE calistirdigi tarama sayisi (cron/test haric) */
+    kullaniciTaramaSayisi: number;
   };
   // Zaman serisi (gunluk)
   timeSeries: {
@@ -53,19 +97,142 @@ export interface ReportOverview {
   };
 }
 
+
+/**
+ * Donem sinirlarini hesaplar.
+ *
+ * `from`/`to` verilirse o aralik aynen kullanilir ve range 'custom' olur.
+ * Onceki donem HER ZAMAN ayni uzunlukta ve hemen oncesindedir — yuzde
+ * degisim ancak esit uzunluktaki iki donem karsilastirilinca anlamli.
+ */
+export function donemHesapla(o: ReportOpts): {
+  range: ReportRange;
+  rangeStart: Date;
+  rangeEnd: Date;
+  prevStart: Date;
+  prevEnd: Date;
+  days: number;
+} {
+  if (o.from && o.to) {
+    const rangeStart = new Date(o.from);
+    const rangeEnd = new Date(o.to);
+    if (rangeEnd < rangeStart) throw new Error('Rapor donemi ters: bitis baslangictan once');
+    // En az 1 gun; ayni gun secilirse gun sayisi 0 cikip bolme hatasi olurdu.
+    const days = Math.max(1, Math.round((+rangeEnd - +rangeStart) / 86400000));
+    return {
+      range: 'custom',
+      rangeStart,
+      rangeEnd,
+      prevEnd: new Date(rangeStart),
+      prevStart: new Date(+rangeStart - days * 86400000),
+      days,
+    };
+  }
+
+  const range: ReportRange = o.range && o.range !== 'custom' ? o.range : 'month';
+  const days = range === 'week' ? 7 : range === 'month' ? 30 : 365;
+  const rangeEnd = new Date();
+  const rangeStart = new Date(+rangeEnd - days * 86400000);
+  return {
+    range,
+    rangeStart,
+    rangeEnd,
+    prevEnd: new Date(rangeStart),
+    prevStart: new Date(+rangeStart - days * 86400000),
+    days,
+  };
+}
+
+/**
+ * Snapshot'lardaki sorgu/sayfa detaylarini DONEM GENELINDE toplar.
+ *
+ * Her snapshot bir gunun ilk 10-N kaydini tutuyor; bunlari tiklama ve
+ * gosterime gore toplayip yeniden siralamak, "son gunun listesi"ni donemin
+ * listesi diye gostermekten cok daha dogru. CTR ve pozisyon toplanamaz:
+ * CTR toplam tiklama/gosterimden yeniden hesaplanir, pozisyon ise
+ * GOSTERIMLE AGIRLIKLI ortalanir — duz ortalama, 3 gosterimli bir gunu
+ * 3000 gosterimli gunle esit sayardi.
+ */
+export function detaylariTopla(
+  snapshots: Array<Record<string, unknown>>,
+  alan: 'queryDetails' | 'pageDetails',
+  anahtar: 'query' | 'page',
+): any[] {
+  const toplam = new Map<string, { clicks: number; impressions: number; posAgirlik: number }>();
+
+  for (const s of snapshots) {
+    const kayitlar = s?.[alan];
+    if (!Array.isArray(kayitlar)) continue;
+    for (const k of kayitlar as any[]) {
+      const ad = k?.[anahtar];
+      if (typeof ad !== 'string' || !ad) continue;
+      const clicks = Number(k.clicks) || 0;
+      const impressions = Number(k.impressions) || 0;
+      const position = Number(k.position);
+      const mevcut = toplam.get(ad) ?? { clicks: 0, impressions: 0, posAgirlik: 0 };
+      mevcut.clicks += clicks;
+      mevcut.impressions += impressions;
+      if (Number.isFinite(position) && impressions > 0) mevcut.posAgirlik += position * impressions;
+      toplam.set(ad, mevcut);
+    }
+  }
+
+  return [...toplam.entries()]
+    .map(([ad, v]) => ({
+      [anahtar]: ad,
+      clicks: v.clicks,
+      impressions: v.impressions,
+      ctr: v.impressions > 0 ? v.clicks / v.impressions : 0,
+      position: v.impressions > 0 ? v.posAgirlik / v.impressions : 0,
+    }))
+    .sort((a, b) => b.clicks - a.clicks || b.impressions - a.impressions)
+    .slice(0, 10);
+}
+
+/**
+ * AI gorunurluk skoru olculebildi mi?
+ *
+ * runAudit hicbir saglayici cevap veremediginde `aiCitationAvg ?? 0` yaziyor.
+ * O 0 bir OLCUM degil, olcumun YOKLUGU — ama grafikte gercek bir cokus gibi
+ * gorunuyor ve "AI gorunurlugun sifira dustu" yalanini uretiyor.
+ */
+export function citationDegerlendir(aiCitations: any): { skor: number | null; olcumYok: string | null } {
+  if (!aiCitations) return { skor: null, olcumYok: 'Bu sitede henuz AI gorunurluk olcumu yapilmadi' };
+  const providers: any[] = Array.isArray(aiCitations.providers) ? aiCitations.providers : [];
+  const olculebilen = providers.filter((p) => p?.available);
+  if (providers.length > 0 && olculebilen.length === 0) {
+    return { skor: null, olcumYok: 'Hicbir AI saglayicisi olcum donduremedi (kota, anahtar veya servis hatasi)' };
+  }
+  const skor = typeof aiCitations.score === 'number' ? aiCitations.score : null;
+  if (skor === 0 && olculebilen.length === 0) {
+    return { skor: null, olcumYok: 'Olcum yapilamadi' };
+  }
+  return { skor, olcumYok: null };
+}
+
+/**
+ * RFC 4180 hucre kacislamasi. Virgul, tirnak veya satir sonu iceren deger
+ * tirnaklanir, ic tirnaklar ikilenir. Bu olmadan tek bir sorgu metni
+ * ("ankara, oto kiralama") tum tabloyu kaydiriyordu.
+ */
+export function csvHucre(v: string | number | null | undefined): string {
+  if (v === null || v === undefined) return '';
+  const s = String(v);
+  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
 @Injectable()
 export class ReportsService {
   private readonly log = new Logger(ReportsService.name);
 
   constructor(private readonly prisma: PrismaService) {}
 
-  async overview(siteId: string, range: ReportRange = 'month'): Promise<ReportOverview> {
-    const now = new Date();
-    const days = range === 'week' ? 7 : range === 'month' ? 30 : 365;
+  async overview(siteId: string, opts: ReportRange | ReportOpts = 'month'): Promise<ReportOverview> {
+    // Eski cagrilar `overview(siteId, 'month')` seklinde; bozmadan genisletiyoruz.
+    const o: ReportOpts = typeof opts === 'string' ? { range: opts } : opts;
 
-    const rangeStart = new Date(now.getTime() - days * 86400000);
-    const prevEnd = new Date(rangeStart);
-    const prevStart = new Date(rangeStart.getTime() - days * 86400000);
+    const { range, rangeStart, rangeEnd, prevStart, prevEnd, days } = donemHesapla(o);
+    const now = rangeEnd;
 
     // ── Articles ───────────────────────────────────────────────
     const [publishedArticles, prevPublished, scheduled, failed, articleStats] = await Promise.all([
@@ -125,14 +292,14 @@ export class ReportsService {
     const prevClicks = prevSnapshots.reduce((a, s) => a + s.totalClicks, 0);
     const prevImpressions = prevSnapshots.reduce((a, s) => a + s.totalImpressions, 0);
 
-    // Top queries / pages — son snapshot'tan al
-    const lastSnapshot = snapshots[snapshots.length - 1];
-    const topQueries = Array.isArray(lastSnapshot?.queryDetails)
-      ? (lastSnapshot.queryDetails as any[]).slice(0, 10)
-      : [];
-    const topPages = Array.isArray(lastSnapshot?.pageDetails)
-      ? (lastSnapshot.pageDetails as any[]).slice(0, 10)
-      : [];
+    // Top queries / pages — DONEMIN TAMAMI uzerinde toplanir.
+    //
+    // ONCEDEN yalnizca son snapshot'tan aliniyordu (kodun kendi yorumu bunu
+    // itiraf ediyordu: "son snapshot'tan al"). Sonuc: aylik raporda "donemin
+    // en cok tiklanan sorgulari" basligi altinda SON GUNUN sorgulari
+    // gosteriliyordu. Baslik ile sayi ayni seyi soylemiyordu.
+    const topQueries = detaylariTopla(snapshots, 'queryDetails', 'query');
+    const topPages = detaylariTopla(snapshots, 'pageDetails', 'page');
 
     // ── AI citation + audit ────────────────────────────────────
     const lastAudit = await this.prisma.audit.findFirst({
@@ -141,15 +308,31 @@ export class ReportsService {
     });
     const aiCitations = (lastAudit?.checks as any)?.aiCitations;
     const providers = aiCitations?.providers ?? [];
+    const citationDurumu = citationDegerlendir(aiCitations);
 
+    // Donemdeki taramalar — karsilastirma icin TAM satir gerekiyor
+    // (compareAuditRows checks + issues okuyor, sadece sayilari degil).
     const auditsInRange = await this.prisma.audit.findMany({
-      where: { siteId, ranAt: { gte: rangeStart, lte: now } },
+      where: { siteId, ranAt: { gte: rangeStart, lte: rangeEnd } },
       orderBy: { ranAt: 'asc' },
-      select: { issues: true, ranAt: true },
     });
-    const firstIssuesCount = Array.isArray(auditsInRange[0]?.issues) ? (auditsInRange[0].issues as any[]).length : 0;
+
+    // Ilk ve son tarama arasindaki GERCEK delta. compareAuditRows `type|page`
+    // ile eslestirdigi icin "5 cozuldu + 5 yeni cikti" durumunu dogru ayirir;
+    // eski uzunluk farki bunu 0 gosteriyordu.
+    const karsilastirma =
+      auditsInRange.length >= 2
+        ? compareAuditRows(auditsInRange[0], auditsInRange[auditsInRange.length - 1])
+        : null;
+
     const lastIssuesCount = Array.isArray(lastAudit?.issues) ? (lastAudit!.issues as any[]).length : 0;
-    const fixedThisRange = Math.max(0, firstIssuesCount - lastIssuesCount);
+
+    // "Yapilan is" olarak yalnizca KULLANICININ elle baslattigi taramalar
+    // sayilir. AUDIT_CRON acildiginda haftalik otomatik taramalar bu sayiyi
+    // kendiliginden sisirirdi; dogrulama kosumlari da ('test') ayni sekilde.
+    const kullaniciTaramaSayisi = await this.prisma.audit.count({
+      where: { siteId, trigger: 'user', ranAt: { gte: rangeStart, lte: rangeEnd } },
+    });
 
     // ── Zaman serisi (gunluk) ──────────────────────────────────
     const dates: string[] = [];
@@ -158,8 +341,10 @@ export class ReportsService {
     const clicksSeries: number[] = [];
     const impressionsSeries: number[] = [];
 
-    // Bucket: gunluk
-    const bucketSize = range === 'year' ? 7 : 1; // yillik raporda haftalik bucket
+    // Bucket: gunluk; uzun donemlerde haftalik.
+    // 'custom' araligi 365 gun secilirse gunluk kova 365 nokta uretirdi —
+    // grafik okunmaz olur ve rapor gövdesi gereksiz sisar.
+    const bucketSize = days > 90 ? 7 : 1;
     for (let i = 0; i < days; i += bucketSize) {
       const dStart = new Date(rangeStart.getTime() + i * 86400000);
       const dEnd = new Date(dStart.getTime() + bucketSize * 86400000);
@@ -179,7 +364,7 @@ export class ReportsService {
     return {
       range,
       rangeStart: rangeStart.toISOString(),
-      rangeEnd: now.toISOString(),
+      rangeEnd: rangeEnd.toISOString(),
       prevStart: prevStart.toISOString(),
       prevEnd: prevEnd.toISOString(),
       articles: {
@@ -206,7 +391,8 @@ export class ReportsService {
         topPages,
       },
       ai: {
-        citationScore: aiCitations?.score ?? null,
+        citationScore: citationDurumu.skor,
+        citationOlcumYok: citationDurumu.olcumYok,
         providers: providers.map((p: any) => ({
           provider: p.provider, label: p.label, score: p.score, available: p.available,
         })),
@@ -215,7 +401,11 @@ export class ReportsService {
         overallScore: lastAudit?.overallScore ?? null,
         geoScore: lastAudit?.geoScore ?? null,
         issuesCount: lastIssuesCount,
-        fixedThisRange,
+        cozulenSayisi: karsilastirma?.ozet.cozulenSayisi ?? 0,
+        yeniCikanSayisi: karsilastirma?.ozet.yeniSayisi ?? 0,
+        devamEdenSayisi: karsilastirma?.ozet.devamEdenSayisi ?? 0,
+        karsilastirma,
+        kullaniciTaramaSayisi,
       },
       timeSeries: {
         dates,
@@ -228,33 +418,97 @@ export class ReportsService {
   }
 
   /**
-   * CSV formatinda zaman serisi export — Excel'e direkt acilir.
+   * CSV disa aktarim — Excel'e dogrudan acilir.
+   *
+   * KACISLAMA ZORUNLU: onceki surum degerleri duz `join(',')` ile yaziyordu.
+   * Sorgu metinleri virgul, tirnak ve satir sonu icerebiliyor ("ankara, oto
+   * kiralama" gibi) — kacislama olmadan bir sorgu tabloyu kaydirip tum
+   * kolonlari bozuyordu. Simdi RFC 4180'e uygun tirnaklama var.
    */
   toCsv(report: ReportOverview): string {
-    const headers = ['date', 'publishedArticles', 'socialPosts', 'clicks', 'impressions'];
-    const lines = [headers.join(',')];
+    const satirlar: string[] = [];
+    const yaz = (...hucre: Array<string | number | null | undefined>) =>
+      satirlar.push(hucre.map(csvHucre).join(','));
+
+    yaz('# RanksUp raporu');
+    yaz('donem', report.range);
+    yaz('baslangic', report.rangeStart.slice(0, 10));
+    yaz('bitis', report.rangeEnd.slice(0, 10));
+    yaz('onceki_donem', `${report.prevStart.slice(0, 10)} - ${report.prevEnd.slice(0, 10)}`);
+    satirlar.push('');
+
+    yaz('# Zaman serisi');
+    yaz('tarih', 'yayinlanan_makale', 'sosyal_post', 'tiklama', 'gosterim');
     for (let i = 0; i < report.timeSeries.dates.length; i++) {
-      lines.push([
+      yaz(
         report.timeSeries.dates[i],
         report.timeSeries.publishedArticles[i],
         report.timeSeries.socialPosts[i],
         report.timeSeries.clicks[i],
         report.timeSeries.impressions[i],
-      ].join(','));
+      );
     }
-    lines.push('');
-    lines.push('# Ozet');
-    lines.push(`articles_published,${report.articles.published}`);
-    lines.push(`articles_scheduled,${report.articles.scheduled}`);
-    lines.push(`articles_failed,${report.articles.failed}`);
-    lines.push(`total_clicks,${report.search.totalClicks}`);
-    lines.push(`total_impressions,${report.search.totalImpressions}`);
-    lines.push(`avg_ctr,${(report.search.avgCtr * 100).toFixed(2)}%`);
-    lines.push(`avg_position,${report.search.avgPosition.toFixed(1)}`);
-    lines.push(`audit_score,${report.audit.overallScore ?? '-'}`);
-    lines.push(`geo_score,${report.audit.geoScore ?? '-'}`);
-    lines.push(`ai_citation_score,${report.ai.citationScore ?? '-'}`);
-    lines.push(`total_cost_usd,${report.articles.totalCost.toFixed(2)}`);
-    return lines.join('\n');
+    satirlar.push('');
+
+    yaz('# Ozet');
+    yaz('yayinlanan_makale', report.articles.published);
+    yaz('yayinlanan_makale_onceki_doneme_fark', report.articles.publishedDelta);
+    yaz('planlanan_makale', report.articles.scheduled);
+    yaz('basarisiz_makale', report.articles.failed);
+    yaz('sosyal_post', report.social.posts);
+    yaz('toplam_tiklama', report.search.totalClicks);
+    yaz('tiklama_farki', report.search.clicksDelta);
+    yaz('toplam_gosterim', report.search.totalImpressions);
+    yaz('gosterim_farki', report.search.impressionsDelta);
+    yaz('ortalama_ctr', `${(report.search.avgCtr * 100).toFixed(2)}%`);
+    yaz('ortalama_pozisyon', report.search.avgPosition.toFixed(1));
+    yaz('site_skoru', report.audit.overallScore ?? 'olcum yok');
+    yaz('geo_skoru', report.audit.geoScore ?? 'olcum yok');
+    // 0 yerine "olcum yok": olculemeyen bir metrigi 0 yazmak sahte dusus uretir.
+    yaz('ai_gorunurluk_skoru', report.ai.citationScore ?? `olcum yok${report.ai.citationOlcumYok ? ` (${report.ai.citationOlcumYok})` : ''}`);
+    yaz('acik_sorun', report.audit.issuesCount);
+    yaz('cozulen_sorun', report.audit.cozulenSayisi);
+    yaz('yeni_cikan_sorun', report.audit.yeniCikanSayisi);
+    yaz('devam_eden_sorun', report.audit.devamEdenSayisi);
+    yaz('kullanici_taramasi', report.audit.kullaniciTaramaSayisi);
+    yaz('makale_maliyeti_usd', report.articles.totalCost.toFixed(2));
+    satirlar.push('');
+
+    yaz('# En cok tiklanan sorgular (donem geneli)');
+    yaz('sorgu', 'tiklama', 'gosterim', 'ctr', 'pozisyon');
+    for (const q of report.search.topQueries) {
+      yaz(q.query, q.clicks, q.impressions, `${(q.ctr * 100).toFixed(2)}%`, q.position.toFixed(1));
+    }
+    satirlar.push('');
+
+    yaz('# En cok tiklanan sayfalar (donem geneli)');
+    yaz('sayfa', 'tiklama', 'gosterim', 'ctr', 'pozisyon');
+    for (const pg of report.search.topPages) {
+      yaz(pg.page, pg.clicks, pg.impressions, `${(pg.ctr * 100).toFixed(2)}%`, pg.position.toFixed(1));
+    }
+    satirlar.push('');
+
+    yaz('# AI saglayici kirilimi');
+    yaz('saglayici', 'skor', 'olculebildi');
+    for (const pr of report.ai.providers) {
+      yaz(pr.label ?? pr.provider, pr.available ? (pr.score ?? '-') : 'olcum yok', pr.available ? 'evet' : 'hayir');
+    }
+
+    const k = report.audit.karsilastirma;
+    if (k?.from && k.to) {
+      satirlar.push('');
+      yaz('# Tarama karsilastirmasi');
+      yaz('ilk_tarama', new Date(k.from.ranAt).toISOString().slice(0, 10), k.from.overallScore);
+      yaz('son_tarama', new Date(k.to.ranAt).toISOString().slice(0, 10), k.to.overallScore);
+      yaz('skor_farki', k.scoreDelta);
+      yaz('geo_skor_farki', k.geoScoreDelta);
+      satirlar.push('');
+      yaz('kontrol', 'onceki', 'sonraki', 'fark', 'durum');
+      for (const c of k.checks) {
+        yaz(c.id, c.oncekiScore ?? '-', c.sonrakiScore ?? '-', c.delta, c.durum);
+      }
+    }
+
+    return satirlar.join('\n');
   }
 }

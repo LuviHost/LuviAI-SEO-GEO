@@ -122,8 +122,19 @@ export function SiteReportPanel({ siteId, site }: { siteId: string; site: any })
               <p className="text-[11px] text-muted-foreground mt-1">GEO Skoru</p>
             </div>
             <div className="text-center">
-              <div className="text-3xl font-bold">{data.ai.citationScore ?? '—'}<span className="text-sm text-muted-foreground font-normal">/100</span></div>
+              {/*
+                Olculemeyen skor 0 DEGIL "—" gosterilir ve nedeni yazilir.
+                Sunucu artik hicbir saglayici cevap veremediginde null donuyor;
+                0 yazmak "AI gorunurlugun sifira dustu" yalanini uretiyordu.
+              */}
+              <div className="text-3xl font-bold">
+                {data.ai.citationScore ?? '—'}
+                <span className="text-sm text-muted-foreground font-normal">/100</span>
+              </div>
               <p className="text-[11px] text-muted-foreground mt-1">AI Görünürlük</p>
+              {data.ai.citationScore === null && data.ai.citationOlcumYok && (
+                <p className="text-[10px] text-muted-foreground mt-0.5 leading-tight">{data.ai.citationOlcumYok}</p>
+              )}
             </div>
           </div>
         </CardContent>
@@ -225,13 +236,37 @@ export function SiteReportPanel({ siteId, site }: { siteId: string; site: any })
             <p className="text-[11px] uppercase text-muted-foreground">Ortalama Editör Skoru</p>
             <p className="text-xl font-bold">{data.articles.avgEditorScore?.toFixed(1) ?? '—'}/60</p>
           </div>
+          {/*
+            ONCEDEN tek bir "Duzeltilen Sorun" sayisi vardi ve sunucuda
+            max(0, ilkIssueSayisi - sonIssueSayisi) ile hesaplaniyordu — yani
+            donemde 5 sorun cozulup 5 yeni sorun ciktiginda 0 gosteriyordu.
+            Artik compareAuditRows'un type|page eslestirmesi kullaniliyor ve
+            uc sayi AYRI gosteriliyor; "cozuldu" ile "yenisi cikti" ayni
+            hucrede birbirini yiyemez.
+          */}
           <div>
-            <p className="text-[11px] uppercase text-muted-foreground">Düzeltilen Sorun</p>
-            <p className="text-xl font-bold">{data.audit.fixedThisRange}</p>
+            <p className="text-[11px] uppercase text-muted-foreground">Çözülen Sorun</p>
+            <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400">
+              {data.audit.karsilastirma ? data.audit.cozulenSayisi : '—'}
+            </p>
+            {!data.audit.karsilastirma && (
+              <p className="text-[10px] text-muted-foreground leading-tight">Karşılaştırma için en az 2 tarama gerekli</p>
+            )}
+          </div>
+          <div>
+            <p className="text-[11px] uppercase text-muted-foreground">Yeni Çıkan Sorun</p>
+            <p className="text-xl font-bold text-amber-600 dark:text-amber-400">
+              {data.audit.karsilastirma ? data.audit.yeniCikanSayisi : '—'}
+            </p>
           </div>
           <div>
             <p className="text-[11px] uppercase text-muted-foreground">Bekleyen Sorun</p>
             <p className="text-xl font-bold">{data.audit.issuesCount}</p>
+          </div>
+          <div>
+            <p className="text-[11px] uppercase text-muted-foreground">Kullanıcı Taraması</p>
+            <p className="text-xl font-bold">{data.audit.kullaniciTaramaSayisi ?? '—'}</p>
+            <p className="text-[10px] text-muted-foreground leading-tight">Elle başlatılan (cron/test hariç)</p>
           </div>
         </CardContent>
       </Card>

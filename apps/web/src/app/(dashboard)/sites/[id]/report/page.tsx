@@ -15,7 +15,7 @@ export default function ReportPage() {
         <div>
           <h2 className="text-2xl font-bold">Raporlar</h2>
           <p className="text-sm text-muted-foreground">
-            Performans raporu ve tarama geçmişi — yayınlanan, etkileşim, ROI ve site skorunun zaman içindeki değişimi.
+            Performans raporu ve tarama geçmişi — trafik, yayınlanan içerik, AI görünürlüğü ve site skorunun zaman içindeki değişimi.
           </p>
         </div>
       </div>
