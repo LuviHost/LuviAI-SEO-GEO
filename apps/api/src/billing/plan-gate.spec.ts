@@ -163,3 +163,38 @@ describe('API anahtari scope dogrulamasi — yetki yukseltme kapali', async () =
     expect(DEFAULT_SCOPES.some((s) => s.endsWith(':write'))).toBe(false);
   });
 });
+
+describe('cron plan suzgeci — otomatik uretim de plana bagli', () => {
+  it('ozellik icin yalnizca yeterli planlar seciliyor', async () => {
+    const { siteWhereForFeature } = await import('./plan-site-filter.js');
+    const planlar = (f: PlanFeature) =>
+      (siteWhereForFeature(f).user.plan.in as string[]).slice().sort();
+
+    // Profesyonel ozellikleri: pro, agency, enterprise
+    expect(planlar('agentReadiness')).toEqual(['AGENCY', 'ENTERPRISE', 'PRO']);
+    expect(planlar('contentOpportunities')).toEqual(['AGENCY', 'ENTERPRISE', 'PRO']);
+    // Ajans ozelligi: agency, enterprise
+    expect(planlar('productRadar')).toEqual(['AGENCY', 'ENTERPRISE']);
+    // Kurumsal ozelligi
+    expect(planlar('mcpAccess')).toEqual(['ENTERPRISE']);
+  });
+
+  it('TRIAL ve STARTER hicbir ust-plan ozelliginin cron listesinde YOK', async () => {
+    const { siteWhereForFeature } = await import('./plan-site-filter.js');
+    for (const f of ALL_FEATURES) {
+      const planlar = siteWhereForFeature(f).user.plan.in as string[];
+      expect(planlar, `${f}: TRIAL sizmis`).not.toContain('TRIAL');
+      expect(planlar, `${f}: STARTER sizmis`).not.toContain('STARTER');
+    }
+  });
+
+  it('suzgec planHasFeature ile tutarli', async () => {
+    const { siteWhereForFeature } = await import('./plan-site-filter.js');
+    for (const f of ALL_FEATURES) {
+      const izinli = new Set(siteWhereForFeature(f).user.plan.in as string[]);
+      for (const p of ALL_PLANS) {
+        expect(izinli.has(p.toUpperCase()), `${p}/${f}`).toBe(planHasFeature(p, f));
+      }
+    }
+  });
+});

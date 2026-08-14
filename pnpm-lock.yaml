@@ -6,6 +6,7 @@ settings:
 
 overrides:
   google-play-scraper: ^10.1.3
+  app-store-scraper: ^0.18.0
 
 patchedDependencies:
   aso-v2@2.0.14:
@@ -2793,9 +2794,6 @@ packages:
     resolution: {integrity: sha512-KMReFUr0B4t+D+OBkjR3KYqvocp2XaSzO55UcB6mgQMd3KbcE+mWTyvVV7D/zsdEbNnV6acZUutkiHQXvTr1Rw==}
     engines: {node: '>= 8'}
 
-  app-store-scraper@0.17.0:
-    resolution: {integrity: sha512-NJZ4Ih6lsy4at+M6hEjzf5tYEUuzFa4b8HVZlJ5MUpnTZPnDa3YgljkbKln6FhJRfnf4FC0YtvM+aPUVeA98Pg==}
-
   app-store-scraper@0.18.0:
     resolution: {integrity: sha512-PCfyCZKdpzijis8cHc5IGUnT3r1rvNuurj2i55oH5C1coU03j19meXItWoxZhfDulWuEBTpgPdY6HcCza9ZGWg==}
 
@@ -3338,9 +3336,6 @@ packages:
     resolution: {integrity: sha512-ndfJ/JxxMd3nw31uyKoY2naivF+r29V+Lc0svZxe1JvvIRmi8hUsrMvdOwgS1o6uBHmiz91geQ0ylPP0aj1VUA==}
     engines: {node: '>=12'}
 
-  d@0.1.1:
-    resolution: {integrity: sha512-0SdM9V9pd/OXJHoWmTfNPTAeD+lw6ZqHg+isPyBFuJsZLSE0Ygg1cYZ/0l6DrKQXMOqGOu1oWupMoOfoRfMZrQ==}
-
   d@1.0.2:
     resolution: {integrity: sha512-MOqHvMWF9/9MX6nza0KgvFH4HpMU0EF5uUDXqX/BtxtU8NfB0QzRtJ8Oe/6SuS4kbhyzVJwjd97EA4PKrzJ8bw==}
     engines: {node: '>=0.12'}
@@ -3578,21 +3573,12 @@ packages:
     resolution: {integrity: sha512-p2snDhiLaXe6dahss1LddxqEm+SkuDvV8dnIQG0MWjyHpcMNfXKPE+/Cc0y+PhxJX3A4xGNeFCj5oc0BUh6deg==}
     engines: {node: '>=0.10'}
 
-  es6-iterator@0.1.3:
-    resolution: {integrity: sha512-6TOmbFM6OPWkTe+bQ3ZuUkvqcWUjAnYjKUCLdbvRsAUz2Pr+fYIibwNXNkLNtIK9PPFbNMZZddaRNkyJhlGJhA==}
-
   es6-iterator@2.0.3:
     resolution: {integrity: sha512-zw4SRzoUkd+cl+ZoE15A9o1oQd920Bb0iOJMQkQhl3jNc03YqVjAhG7scf9C5KWRU/R13Orf588uCC6525o02g==}
-
-  es6-symbol@2.0.1:
-    resolution: {integrity: sha512-wjobO4zO8726HVU7mI2OA/B6QszqwHJuKab7gKHVx+uRfVVYGcWJkCIFxV2Madqb9/RUSrhJ/r6hPfG7FsWtow==}
 
   es6-symbol@3.1.4:
     resolution: {integrity: sha512-U9bFFjX8tFiATgtkJ1zg25+KviIXpgRvRHS8sau3GfhVzThRQrOeksPeT0BWW2MNZs1OEWJ1DPXOQMn0KKRkvg==}
     engines: {node: '>=0.12'}
-
-  es6-weak-map@0.1.4:
-    resolution: {integrity: sha512-P+N5Cd2TXeb7G59euFiM7snORspgbInS29Nbf3KNO2JQp/DyhvMCDWd58nsVAXwYJ6W3Bx7qDdy6QQ3PCJ7jKQ==}
 
   es6-weak-map@2.0.3:
     resolution: {integrity: sha512-p5um32HOTO1kP+w7PRnB+5lQ43Z6muuMuIMffvDN8ZB4GcnjLBV6zGStpbASIMk4DCAvEaamhe2zhyCb/QXXsA==}
@@ -4489,9 +4475,6 @@ packages:
     resolution: {integrity: sha512-UERzLsxzllchadvbPs5aolHh65ISpKpM+ccLbOJ8/vvpBKmAWf+la7dXFy7Mr0ySHbdHrFv5kGFCUHHe6GFEmw==}
     engines: {node: '>= 4.0.0'}
 
-  memoizee@0.3.10:
-    resolution: {integrity: sha512-LLzVUuWwGBKK188spgOK/ukrp5zvd9JGsiLDH41pH9vt5jvhZfsu5pxDuAnYAMG8YEGce72KO07sSBy9KkvOfw==}
-
   memoizee@0.4.17:
     resolution: {integrity: sha512-DGqD7Hjpi/1or4F/aYAspXKNm5Yili0QDAFAY4QYvpqpgiY6+1jOfqpmByzjxbWd/T9mChbCArXAbDAsTm5oXA==}
     engines: {node: '>=0.12'}
@@ -4656,9 +4639,6 @@ packages:
     peerDependencies:
       react: ^16.8 || ^17 || ^18 || ^19 || ^19.0.0-rc
       react-dom: ^16.8 || ^17 || ^18 || ^19 || ^19.0.0-rc
-
-  next-tick@0.2.2:
-    resolution: {integrity: sha512-f7h4svPtl+QidoBv4taKXUjJ70G2asaZ8G28nS0OkqaalX8dwwrtWtyxEDPK62AC00ur/+/E0pUwBwY5EPn15Q==}
 
   next-tick@1.1.0:
     resolution: {integrity: sha512-CXdUiJembsNjuToQvxayPZF9Vqht7hewsvy2sOWafLvi2awflj9mOC6bHIg50orX8IJvWKY9wYQ/zB2kogPslQ==}
@@ -5077,9 +5057,6 @@ packages:
   quick-lru@5.1.1:
     resolution: {integrity: sha512-WuyALRjWPDGtt/wzJiadO5AXY+8hZ80hVpe6MyivgraREW751X3SbhRvG3eLKOYN+8VEvqLcf3wdnt44Z4S4SA==}
     engines: {node: '>=10'}
-
-  ramda@0.21.0:
-    resolution: {integrity: sha512-HGd5aczYKQXGILB+abY290V7Xz62eFajpa6AtMdwEmQSakJmgSO7ks4eI3HdR34j+X2Vz4Thp9VAJbrCAMbO2w==}
 
   ramda@0.29.1:
     resolution: {integrity: sha512-OfxIeWzd4xdUNxlWhgFazxsA/nl3mS4/jGZI5n00uWOoSSFRhC1b6gl6xvmzUamgmqELraWp0J/qqVlXYPDPyA==}
@@ -6020,10 +5997,6 @@ packages:
         optional: true
       utf-8-validate:
         optional: true
-
-  xml2js@0.4.23:
-    resolution: {integrity: sha512-ySPiMjM0+pLDftHgXY4By0uswI3SPKLDw/i3UXbnO8M/p28zqexCUoPmQFrYD+/1BzhGJSs2i1ERWKJAtiLrug==}
-    engines: {node: '>=4.0.0'}
 
   xml2js@0.6.2:
     resolution: {integrity: sha512-T4rieHaC1EXcES0Kxxj4JWgaUQHDk+qwHcYOCFHfiwKz7tOVPLq7Hjq9dM1WCMhylqMEfP7hMcOIChvotiZegA==}
@@ -8445,17 +8418,6 @@ snapshots:
       normalize-path: 3.0.0
       picomatch: 2.3.2
 
-  app-store-scraper@0.17.0:
-    dependencies:
-      cheerio: 1.2.0
-      debug: 2.6.9
-      memoizee: 0.3.10
-      ramda: 0.21.0
-      request: 2.88.2
-      xml2js: 0.4.23
-    transitivePeerDependencies:
-      - supports-color
-
   app-store-scraper@0.18.0:
     dependencies:
       cheerio: 1.2.0
@@ -8518,7 +8480,7 @@ snapshots:
 
   aso-v2@2.0.14(patch_hash=3241c2d4a1b47e356940236f08e2bdbb445aa3deca4072a895571f2c8c47f2cb):
     dependencies:
-      app-store-scraper: 0.17.0
+      app-store-scraper: 0.18.0
       axios: 1.15.2(debug@4.4.3)
       debug: 4.4.3
       google-play-scraper: 10.1.3
@@ -9046,10 +9008,6 @@ snapshots:
 
   d3-timer@3.0.1: {}
 
-  d@0.1.1:
-    dependencies:
-      es5-ext: 0.10.64
-
   d@1.0.2:
     dependencies:
       es5-ext: 0.10.64
@@ -9246,34 +9204,16 @@ snapshots:
       esniff: 2.0.1
       next-tick: 1.1.0
 
-  es6-iterator@0.1.3:
-    dependencies:
-      d: 0.1.1
-      es5-ext: 0.10.64
-      es6-symbol: 2.0.1
-
   es6-iterator@2.0.3:
     dependencies:
       d: 1.0.2
       es5-ext: 0.10.64
       es6-symbol: 3.1.4
 
-  es6-symbol@2.0.1:
-    dependencies:
-      d: 0.1.1
-      es5-ext: 0.10.64
-
   es6-symbol@3.1.4:
     dependencies:
       d: 1.0.2
       ext: 1.7.0
-
-  es6-weak-map@0.1.4:
-    dependencies:
-      d: 0.1.1
-      es5-ext: 0.10.64
-      es6-iterator: 0.1.3
-      es6-symbol: 2.0.1
 
   es6-weak-map@2.0.3:
     dependencies:
@@ -10346,16 +10286,6 @@ snapshots:
     dependencies:
       fs-monkey: 1.1.0
 
-  memoizee@0.3.10:
-    dependencies:
-      d: 0.1.1
-      es5-ext: 0.10.64
-      es6-weak-map: 0.1.4
-      event-emitter: 0.3.5
-      lru-queue: 0.1.0
-      next-tick: 0.2.2
-      timers-ext: 0.1.8
-
   memoizee@0.4.17:
     dependencies:
       d: 1.0.2
@@ -10504,8 +10434,6 @@ snapshots:
     dependencies:
       react: 19.2.5
       react-dom: 19.2.5(react@19.2.5)
-
-  next-tick@0.2.2: {}
 
   next-tick@1.1.0: {}
 
@@ -10878,8 +10806,6 @@ snapshots:
   queue-microtask@1.2.3: {}
 
   quick-lru@5.1.1: {}
-
-  ramda@0.21.0: {}
 
   ramda@0.29.1: {}
 
@@ -11937,11 +11863,6 @@ snapshots:
   wrappy@1.0.2: {}
 
   ws@8.20.0: {}
-
-  xml2js@0.4.23:
-    dependencies:
-      sax: 1.6.0
-      xmlbuilder: 11.0.1
 
   xml2js@0.6.2:
     dependencies:

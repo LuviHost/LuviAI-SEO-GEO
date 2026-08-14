@@ -5,6 +5,7 @@ import { AiCitationService, type Provider } from './ai-citation.service.js';
 import { LLMProviderService } from '../llm/llm-provider.service.js';
 import { parseJsonFromLlm } from '../common/safe-json.js';
 import { acquireCronLock } from '../common/cron-lock.js';
+import { siteWhereForFeature } from '../billing/plan-site-filter.js';
 
 /**
  * Product Radar — AI asistanlar kullanicinin KATEGORISINDE hangi urunleri
@@ -157,7 +158,13 @@ export class ProductRadarService {
     // (LLM cagrili en pahali cron'lardan; cift calisma cift maliyet olurdu)
     if (!(await acquireCronLock(this.prisma, 'product-radar', 'weekly'))) return;
     const sites = await this.prisma.site.findMany({
-      where: { status: 'ACTIVE' as any, OR: [{ niche: { not: null } }, { customNiche: { not: null } }] },
+      where: {
+        status: 'ACTIVE' as any,
+        OR: [{ niche: { not: null } }, { customNiche: { not: null } }],
+        // Fiyat kartinda Ajans'a ait — cron da plani dayatmali, aksi halde
+        // alt plan musterisi veriyi hazir bulur ve kilit anlamsizlasir.
+        ...siteWhereForFeature('productRadar'),
+      },
       select: { id: true },
       take: 100,
     });

@@ -3,6 +3,7 @@ import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { acquireCronLock } from '../common/cron-lock.js';
+import { siteWhereForFeature } from '../billing/plan-site-filter.js';
 
 /**
  * Agent Readiness (AXO — Agent Experience Optimization) taramasi.
@@ -237,7 +238,11 @@ export class AgentReadinessService {
     // API + worker ayni cron'u tetikler — atomik kilit tek proses calistirir
     if (!(await acquireCronLock(this.prisma, 'agent-readiness', 'weekly'))) return;
     const sites = await this.prisma.site.findMany({
-      where: { status: { in: ['ACTIVE', 'AUDIT_COMPLETE'] as any } },
+      where: {
+        status: { in: ['ACTIVE', 'AUDIT_COMPLETE'] as any },
+        // Profesyonel ozelligi — otomatik tarama da plana bagli.
+        ...siteWhereForFeature('agentReadiness'),
+      },
       select: { id: true },
       take: 200,
     });

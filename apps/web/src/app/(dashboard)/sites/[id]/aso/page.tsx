@@ -1050,7 +1050,23 @@ function AppDetailModal({ app, siteId, onClose, onChanged }: {
                           <td className="px-2 py-2 text-center font-bold">
                             {isChecking ? (
                               <RefreshCw className="h-3.5 w-3.5 animate-spin inline text-blue-600" />
-                            ) : kw.currentRank != null ? `#${kw.currentRank}` : <span className="text-muted-foreground">—</span>}
+                            ) : kw.currentRank != null ? `#${kw.currentRank}` : (
+                              // Bos tire "olculemedi" ile "arandi ama yok"u
+                              // ayirt ettirmiyordu. Arama derinligi magazaya
+                              // gore farkli: iOS ~100, Android ~30 (Google o
+                              // yoldan fazlasini vermiyor). Musteri neye
+                              // baktigimizi bilsin.
+                              <span
+                                className="text-muted-foreground"
+                                title={
+                                  kw.lastCheckedAt
+                                    ? `Arandı, ilk ${kw.store === 'IOS' ? '100' : '30'} sonuçta bulunamadı`
+                                    : 'Henüz ölçüm yapılmadı'
+                                }
+                              >
+                                —
+                              </span>
+                            )}
                           </td>
                           <td className="px-2 py-2 text-center">
                             {delta == null ? '—' : delta > 0 ? (

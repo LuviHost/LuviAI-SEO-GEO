@@ -6,6 +6,7 @@ import { QuotaService } from '../billing/quota.service.js';
 import { LLMProviderService } from '../llm/llm-provider.service.js';
 import { PromptLabService } from './prompt-lab.service.js';
 import { acquireCronLock } from '../common/cron-lock.js';
+import { siteWhereForFeature } from '../billing/plan-site-filter.js';
 
 /**
  * Content Opportunity — kapali dongu:
@@ -157,7 +158,11 @@ export class ContentOpportunityService {
     // birden tetiklenir. KvStore @id uzerinden atomik kilit: ilk create kazanir.
     if (!(await acquireCronLock(this.prisma, 'opportunity-derive', 'daily'))) return;
     const sites = await this.prisma.site.findMany({
-      where: { status: 'ACTIVE' as any },
+      where: {
+        status: 'ACTIVE' as any,
+        // Profesyonel ozelligi — kapali dongu otomatik olarak da alt planda calismamali.
+        ...siteWhereForFeature('contentOpportunities'),
+      },
       select: { id: true },
       take: 200,
     });
