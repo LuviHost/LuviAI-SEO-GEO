@@ -1004,7 +1004,7 @@ function AppDetailModal({ app, siteId, onClose, onChanged }: {
                       <th className="text-center px-2 py-2 font-semibold">
                         <span className="inline-flex items-center justify-center">
                           Pop.
-                          <HelpTip text="Popularity (0-100): Bu keyword'ün autocomplete önerilerinde ne kadar görünür olduğu. Yüksek = çok aranıyor. aso-v2 traffic.suggest skorundan üretilir." side="bottom" />
+                          <HelpTip text="Popularity: mağazanın otomatik tamamlama önerilerindeki görünürlük. ANDROID'de 0-100 kademeli bir skor. iOS'ta ise İKİLİ bir sinyal — Apple bu terime öneri veriyor mu, vermiyor mu. Ara değer üretilemiyor, o yüzden iOS satırlarında sayı yerine 'Öneriliyor / Önerilmiyor' gösteriyoruz. — = ölçülemedi." side="bottom" />
                         </span>
                       </th>
                       <th className="text-center px-2 py-2 font-semibold">
@@ -1022,7 +1022,7 @@ function AppDetailModal({ app, siteId, onClose, onChanged }: {
                       <th className="text-center px-2 py-2 font-semibold">
                         <span className="inline-flex items-center justify-center">
                           Rank
-                          <HelpTip text="Bu keyword için arama sonuçlarında app'inin gerçek sırası (1-100). 'Tüm Rank'leri Çek' butonuna basınca güncellenir. — = top 100 dışında." side="bottom" />
+                          <HelpTip text="App'inin bu keyword'deki gerçek sırası — SATIRIN MAĞAZASINDA. iOS satırı App Store sırasını, Android satırı Play sırasını gösterir; ikisi birbirinin yerine geçmez. Arama derinliği de farklı: App Store istenen kadar sonuç döner (~100), Google Play ne istenirse istensin ~25-30'da tavan yapar — yani Android'de 'bulunamadı' aslında 'ilk ~30'da yok' demektir. 'Tüm Rank'leri Çek' ile güncellenir." side="bottom" />
                         </span>
                       </th>
                       <th className="text-center px-2 py-2 font-semibold">
@@ -1044,9 +1044,48 @@ function AppDetailModal({ app, siteId, onClose, onChanged }: {
                           <td className="px-2 py-2 text-center">
                             <Badge variant="outline" className="text-[10px]">{kw.store === 'IOS' ? 'iOS' : 'Android'}</Badge>
                           </td>
-                          <td className="px-2 py-2 text-center tabular-nums">{kw.popularity != null && kw.popularity > 0 ? kw.popularity.toFixed(0) : '—'}</td>
-                          <td className="px-2 py-2 text-center tabular-nums">{kw.difficulty != null && kw.difficulty > 0 ? kw.difficulty.toFixed(0) : '—'}</td>
-                          <td className="px-2 py-2 text-center tabular-nums">{kw.traffic != null && kw.traffic > 0 ? kw.traffic.toFixed(0) : '—'}</td>
+                          {/*
+                            iOS'ta popularity IKILI: aso-v2 `zScore(8000, oneriVar ? 5000 : 0)`
+                            hesapliyor, yani matematiksel olarak yalnizca 66 ya da 10
+                            uretilebilir — ara deger yok. Uretimde olculdu: "kredi" 66,
+                            "oyun" 66, "ticari leasing" 10; 91 kelimenin 90'i 10.
+                            "10/100" diye gostermek kullaniciya "olculmus ama dusuk"
+                            dedirtiyordu; dogrusu "Apple bu terime hic oneri vermiyor".
+                            Android'de ayni alan gercekten kademeli (89, 92) — orada sayi kaliyor.
+                          */}
+                          <td className="px-2 py-2 text-center tabular-nums">
+                            {kw.popularity == null ? (
+                              <span className="text-muted-foreground" title="Ölçülemedi — mağaza yanıt vermedi">—</span>
+                            ) : kw.store === 'IOS' ? (
+                              kw.popularity > 30 ? (
+                                <span className="text-emerald-600 dark:text-emerald-400 text-[11px] font-medium" title="Apple bu terim için otomatik tamamlama önerisi veriyor — gerçek arama talebi var">
+                                  Öneriliyor
+                                </span>
+                              ) : (
+                                <span className="text-muted-foreground text-[11px]" title="Apple bu terime hiç öneri vermiyor — App Store'da bu terim neredeyse hiç aranmıyor">
+                                  Önerilmiyor
+                                </span>
+                              )
+                            ) : (
+                              kw.popularity.toFixed(0)
+                            )}
+                          </td>
+                          {/*
+                            `> 0` kontrolu kaldirildi: sunucu artik olculemeyeni null
+                            donuyor (once 0 doniyordu ve "magaza cevap vermedi" ile
+                            "olctuk, sifir cikti" ayni gorunuyordu). aso-v2 skorlarinin
+                            tabani 1.0 oldugu icin gercek bir 0 zaten uretilemez.
+                          */}
+                          <td className="px-2 py-2 text-center tabular-nums">
+                            {kw.difficulty != null ? kw.difficulty.toFixed(0) : (
+                              <span className="text-muted-foreground" title="Ölçülemedi — mağaza yanıt vermedi">—</span>
+                            )}
+                          </td>
+                          <td className="px-2 py-2 text-center tabular-nums">
+                            {kw.traffic != null ? kw.traffic.toFixed(0) : (
+                              <span className="text-muted-foreground" title="Ölçülemedi — mağaza yanıt vermedi">—</span>
+                            )}
+                          </td>
                           <td className="px-2 py-2 text-center font-bold">
                             {isChecking ? (
                               <RefreshCw className="h-3.5 w-3.5 animate-spin inline text-blue-600" />
@@ -1060,7 +1099,7 @@ function AppDetailModal({ app, siteId, onClose, onChanged }: {
                                 className="text-muted-foreground"
                                 title={
                                   kw.lastCheckedAt
-                                    ? `Arandı, ilk ${kw.store === 'IOS' ? '100' : '30'} sonuçta bulunamadı`
+                                    ? `Arandı, ilk ${kw.store === 'IOS' ? '~100' : '~30'} sonuçta bulunamadı`
                                     : 'Henüz ölçüm yapılmadı'
                                 }
                               >

@@ -53,9 +53,15 @@ export class AsoKeywordService {
       } as any);
       // aso-v2 response: { difficulty: { score, ...nested }, traffic: { score, suggest, ranked, installs, length } }
       // popularity field yok → traffic.suggest.score (autocomplete prominence) proxy
-      const difficultyRaw = scores?.difficulty?.score ?? 0;
-      const trafficRaw = scores?.traffic?.score ?? 0;
-      const popularityRaw = scores?.traffic?.suggest?.score ?? scores?.traffic?.installs?.score ?? 0;
+      // `?? 0` YETMIYOR: NaN null/undefined degil, yani `??` onu YAKALAMAZ
+      // (NaN ?? 0 -> NaN) ve asagida sessizce 0'a cevriliyordu. Sonuc:
+      // "magaza cevap vermedi" ile "olctuk, sifir cikti" ayni gorunuyordu.
+      const sayi = (v: unknown): number | null =>
+        typeof v === 'number' && Number.isFinite(v) ? v : null;
+
+      const difficultyRaw = sayi(scores?.difficulty?.score);
+      const trafficRaw = sayi(scores?.traffic?.score);
+      const popularityRaw = sayi(scores?.traffic?.suggest?.score) ?? sayi(scores?.traffic?.installs?.score);
       // Yama sonrasi skorlar gercekten talep edilen lokalden geliyor, bu yuzden
       // measuredLocale'i artik doniyoruz — ayni keyword farkli lokalde farkli
       // skor verir, bu alan olmadan sonuc yorumlanamaz.
@@ -64,17 +70,48 @@ export class AsoKeywordService {
         popularity: this.normalizeScore(popularityRaw),
         difficulty: this.normalizeScore(difficultyRaw),
         traffic: this.normalizeScore(trafficRaw),
+        /**
+         * iOS'ta popularity IKILI bir sinyaldir, kademeli bir skor DEGIL.
+         *
+         * aso-v2 iOS icin `zScore(8000, oneriVar ? 5000 : 0)` hesapliyor
+         * (analyzer.js:78-82) — matematiksel olarak yalnizca IKI sonuc
+         * uretilebilir: 6.63 (-> 66) ya da 1.0 (-> 10). Ara deger yok.
+         * Uretimde olculdu: "kredi" 66, "oyun" 66, "ticari leasing" 10;
+         * takip edilen 91 kelimenin 90'i 10.
+         *
+         * Android'de ayni alan GERCEKTEN kademeli: ayni terimler icin 89 ve
+         * 92 dondu. Bu yuzden ayni sutun iki magazada ayni seyi anlatmiyor
+         * ve arayuz bunu bilmek zorunda — "10/100" bir olcum gibi
+         * gosterilirse kullanici "populerligi dusuk ama olculmus" saniyor,
+         * halbuki dogrusu "Apple bu terime hic oneri vermiyor".
+         */
+        popularityIkili: opts.store === 'IOS',
         measuredLocale: loc.measuredLocale,
       };
     } catch (err: any) {
       this.log.warn(`Score "${opts.keyword}": ${err.message}`);
-      return { popularity: null, difficulty: null, traffic: null, measuredLocale: loc.measuredLocale };
+      return {
+        popularity: null, difficulty: null, traffic: null,
+        popularityIkili: opts.store === 'IOS',
+        measuredLocale: loc.measuredLocale,
+      };
     }
   }
 
-  /** aso-v2 skorları 0-10 arası gelir; biz 0-100'e çekeriz (frontend için). */
-  private normalizeScore(v: number): number {
-    if (v == null || isNaN(v)) return 0;
+  /**
+   * aso-v2 skorlari 0-10 arasi gelir; 0-100'e cekiyoruz.
+   *
+   * OLCULEMEYEN DEGER null DONER, 0 DEGIL. Onceden 0 donuyordu ve bu,
+   * "magaza cevap vermedi" durumunu "olctuk, sifir cikti" haline getiriyordu.
+   * Rank tarafinda bu ayrim `measurable` bayragiyla ozenle kurulmustu
+   * (tracker.service.ts), skor tarafinda ise eksikti — ayni hata sinifi
+   * duzeltilmemis yerde duruyordu.
+   *
+   * Not: aso-v2 skorlarinin TABANI 1.0'dir, yani gercek bir 0 uretilemez.
+   * Dolayisiyla DB'deki her 0, olculememis demektir.
+   */
+  private normalizeScore(v: number | null): number | null {
+    if (v === null || !Number.isFinite(v)) return null;
     return Math.round(v * 10);
   }
 
