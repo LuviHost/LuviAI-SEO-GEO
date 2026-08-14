@@ -178,7 +178,9 @@ export class IntelCollectorService {
 
     try {
       await this.throttle(kind);
-      const raw = await this.fetchByKind(kind, src.target);
+      // Panelden elle girilen sorgu varsa o gecerli; yoksa katalog degeri.
+      const target = src.targetOverride?.trim() || src.target;
+      const raw = await this.fetchByKind(kind, target);
       const saved = await this.persist(src.id, raw.slice(0, MAX_ITEMS_PER_SOURCE));
 
       // BOS FEED KOR NOKTASI: seroundtable gibi bazi kaynaklar HTTP 200

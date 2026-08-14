@@ -2496,8 +2496,17 @@ model IntelSource {
 
   /** rss | reddit | hn | x | github */
   kind   String
-  /** feed URL'i, subreddit adi ya da arama sorgusu */
+  /** feed URL'i, subreddit adi ya da arama sorgusu — KATALOG degeri */
   target String @db.Text
+  /**
+   * Panelden elle girilen sorgu. Doluysa `target` yerine BU kullanilir.
+   *
+   * NEDEN AYRI ALAN: syncCatalog() her senkronda `target`'i koddaki
+   * INTEL_SOURCES'tan eziyor. Elle duzenleme dogrudan `target`'a yazilsaydi
+   * bir sonraki acilista sessizce geri alinirdi. Override ayri durdugu icin
+   * senkron ona dokunmuyor; bosaltilinca katalog degerine geri donulur.
+   */
+  targetOverride String? @db.Text
 
   /** official | primary-research | practitioner | news | community */
   tier          String

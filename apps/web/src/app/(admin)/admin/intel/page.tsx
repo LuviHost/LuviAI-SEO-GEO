@@ -394,6 +394,27 @@ function ClaimsTab({ onChange }: { onChange: () => void }) {
 
 function SourcesTab({ sources, disabled, onChange }: { sources: any[]; disabled: any[]; onChange: () => void }) {
   const [busy, setBusy] = useState<string | null>(null);
+  /** Sorgusu duzenlenen kaynagin id'si */
+  const [duzenlenen, setDuzenlenen] = useState<string | null>(null);
+  const [taslak, setTaslak] = useState('');
+
+  const sorguKaydet = async (id: string) => {
+    setBusy(id);
+    try {
+      await call(`/sources/${id}/target`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ target: taslak }),
+      });
+      toast.success(taslak.trim() ? 'Sorgu güncellendi' : 'Katalog sorgusuna dönüldü');
+      setDuzenlenen(null);
+      onChange();
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setBusy(null);
+    }
+  };
 
   const toggle = async (id: string, enabled: boolean) => {
     setBusy(id);
@@ -446,9 +467,55 @@ function SourcesTab({ sources, disabled, onChange }: { sources: any[]; disabled:
             <tbody>
               {sources.map((s) => (
                 <tr key={s.id} className={cn('border-b last:border-0', !s.enabled && 'opacity-55')}>
-                  <td className="px-3 py-2">
+                  <td className="px-3 py-2 max-w-md">
                     <div className="font-medium">{s.name}</div>
                     <div className="text-[11px] text-muted-foreground font-mono">{s.key}</div>
+
+                    {duzenlenen === s.id ? (
+                      <div className="mt-1.5 space-y-1.5">
+                        <textarea
+                          value={taslak}
+                          onChange={(e) => setTaslak(e.target.value)}
+                          rows={3}
+                          className="w-full text-[11px] font-mono rounded border bg-background p-1.5 leading-relaxed"
+                          placeholder="Boş bırakılırsa katalogdaki sorguya dönülür"
+                        />
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            onClick={() => sorguKaydet(s.id)}
+                            disabled={busy === s.id}
+                            className="px-2 py-0.5 rounded text-[11px] bg-primary text-primary-foreground disabled:opacity-50"
+                          >
+                            Kaydet
+                          </button>
+                          <button
+                            onClick={() => setDuzenlenen(null)}
+                            className="px-2 py-0.5 rounded text-[11px] border"
+                          >
+                            Vazgeç
+                          </button>
+                          {s.targetOverride && (
+                            <button
+                              onClick={() => { setTaslak(''); sorguKaydet(s.id); }}
+                              className="px-2 py-0.5 rounded text-[11px] text-muted-foreground hover:text-foreground"
+                            >
+                              varsayılana dön
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => { setDuzenlenen(s.id); setTaslak(s.targetOverride ?? s.target ?? ''); }}
+                        className="mt-1 block text-left text-[11px] font-mono text-muted-foreground hover:text-foreground transition-colors break-words"
+                        title="Düzenlemek için tıkla"
+                      >
+                        {s.targetOverride && (
+                          <span className="mr-1 px-1 rounded bg-amber-500/15 text-amber-700 dark:text-amber-400 text-[10px] not-italic">özel</span>
+                        )}
+                        {s.targetOverride ?? s.target}
+                      </button>
+                    )}
                   </td>
                   <td className="px-3 py-2 text-xs">{TIER_LABEL[s.tier] ?? s.tier}</td>
                   <td className="px-3 py-2 text-xs uppercase text-muted-foreground">{s.kind}</td>

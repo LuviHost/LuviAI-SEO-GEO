@@ -52,8 +52,16 @@ const MODES = [
   { tab: 'top', label: 'Populer', days: 180 },
 ] as const;
 
-/** Sekme basina en fazla kac post — tur suresi ve gurultu freni */
-const MAX_POSTS = 15;
+/**
+ * Sekme basina en fazla kac post.
+ *
+ * 15 DENENDI VE FAZLA GELDI: her post ayrica acilip yanitlari okundugu icin
+ * sekme suresi 600 saniyeyi asiyordu. Olcum (14 Agustos turu): 10 sekme
+ * denemesinin 3'u zaman asimina ugradi, x-llms-txt iki sekmesini de
+ * kaybedip 0 kayit dondu. Tavani yukseltmek yerine sekme basina isi
+ * azaltiyoruz — tur da kisaliyor.
+ */
+const MAX_POSTS = 10;
 /** Bir turda en fazla kac depo incelenir; her depo ekstra sayfa gezmesi demek */
 const MAX_REPOS = 3;
 /**

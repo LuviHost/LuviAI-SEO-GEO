@@ -63,7 +63,8 @@ export class IntelController {
         select: {
           id: true, key: true, name: true, kind: true, tier: true, weight: true,
           enabled: true, failCount: true, lastError: true, lastFetchedAt: true,
-          intervalHours: true, _count: { select: { items: true } },
+          intervalHours: true, target: true, targetOverride: true,
+          _count: { select: { items: true } },
         },
       }),
       this.prisma.intelItem.count({ where: { createdAt: { gte: since7 } } }),
@@ -189,6 +190,37 @@ export class IntelController {
   }
 
   /** Devre disi kalmis kaynagi elle geri acar (hata sayacini sifirlar). */
+  /**
+   * Arama sorgusunu panelden degistir.
+   *
+   * `targetOverride` alanina yazilir, `target`'a DEGIL: syncCatalog() her
+   * senkronda `target`'i koddan eziyor, oraya yazilan elle degisiklik bir
+   * sonraki acilista sessizce kaybolurdu. Bos/null gonderilirse override
+   * kaldirilir ve katalog degerine donulur.
+   */
+  @Post('sources/:id/target')
+  async setSourceTarget(
+    @Req() req: Request,
+    @Param('id') id: string,
+    @Body() body: { target?: string | null },
+  ) {
+    assertAdmin(req);
+    const value = typeof body?.target === 'string' ? body.target.trim() : '';
+    if (value.length > 2000) throw new BadRequestException('Sorgu 2000 karakteri asamaz');
+
+    const updated = await this.prisma.intelSource.update({
+      where: { id },
+      data: {
+        targetOverride: value || null,
+        // Sorgu degisti — eski hata sayaci artik gecerli degil.
+        failCount: 0,
+        lastError: null,
+      },
+      select: { id: true, key: true, target: true, targetOverride: true },
+    });
+    return { ok: true, ...updated, etkin: updated.targetOverride ?? updated.target };
+  }
+
   @Post('sources/:id/toggle')
   async toggleSource(@Req() req: Request, @Param('id') id: string, @Body() body: { enabled: boolean }) {
     assertAdmin(req);
