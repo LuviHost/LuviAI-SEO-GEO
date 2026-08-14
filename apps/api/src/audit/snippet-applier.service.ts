@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { AppliedFixService } from './applied-fix.service.js';
 import { decrypt } from '@luviai/shared';
 import { getAdapter } from '@luviai/adapters';
 // OnPageMeta tipleri base.ts içinde tanımlı; package exports root index'ten gelen tip
@@ -34,7 +35,10 @@ import type { PageSnippet } from './snippet-generator.service.js';
 export class SnippetApplierService {
   private readonly log = new Logger(SnippetApplierService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly appliedFix: AppliedFixService,
+  ) {}
 
   async applyToTarget(siteId: string, snippets: PageSnippet[]): Promise<OnPageMetaResult & { adapter: string }> {
     if (snippets.length === 0) {
@@ -109,6 +113,31 @@ export class SnippetApplierService {
 
     const result = await adapter.applyOnPageMeta(payload);
     this.log.log(`[${siteId}] applyOnPageMeta(${target.type}): applied=${result.applied.length} skipped=${result.skipped.length}`);
+
+    // KALICI KAYIT. Onceden bu servis siteye gercek degisiklik yaziyor ama
+    // hicbir iz birakmiyordu; rapor "N sayfaya meta uygulandi" diyemiyordu.
+    // Basarisiz alanlar da FAILED olarak yaziliyor — sessiz basarisizlik
+    // "uygulandi" sayilmasin.
+    await this.appliedFix.topluKaydet([
+      ...result.applied.map((alan: string) => ({
+        siteId,
+        kind: 'snippet' as const,
+        fixType: alan,
+        target: pageUrl,
+        status: 'APPLIED' as const,
+        adapter: target.type,
+      })),
+      ...result.skipped.map((x: { field: string; reason?: string }) => ({
+        siteId,
+        kind: 'snippet' as const,
+        fixType: x.field,
+        target: pageUrl,
+        status: 'FAILED' as const,
+        error: x.reason ?? null,
+        adapter: target.type,
+      })),
+    ]);
+
     return { ...result, adapter: target.type };
   }
 

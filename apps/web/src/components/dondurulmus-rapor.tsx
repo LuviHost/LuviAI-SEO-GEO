@@ -432,13 +432,46 @@ export function DondurulmusRapor({ rapor }: { rapor: { data: any; periodStart: s
           )}
 
           {/*
-            Bilerek YAZILMAYANLAR: uygulanan meta/schema duzeltmeleri, auto-fix
-            adedi, ASO metadata onerileri, App Store yorum cevaplari. Bu isler
-            calisiyor ama hicbiri kalici DB kaydi acmiyor; sayilari uydurulmus
-            olurdu. Kayit eklenirse bu bolume girerler.
+            Uygulanan duzeltmeler artik SAYILABILIYOR — AppliedFix kaydi
+            eklendi. Oncesinde snippet-applier / static-html-fixer / auto-fix
+            siteye gercek degisiklik yaziyor ama iz birakmiyordu.
+            null = kayit katmanindan ONCEKI donemler; "0" yazmak yanlis olurdu.
           */}
+          {is.uygulananDuzeltme && (
+            <div className="mt-4 pt-3 border-t">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <Kutu
+                  etiket="Uygulanan düzeltme"
+                  deger={<span className="text-emerald-600 dark:text-emerald-400">{sayi(is.uygulananDuzeltme.toplam)}</span>}
+                />
+                <Kutu etiket="Etkilenen sayfa" deger={sayi(is.uygulananDuzeltme.etkilenenSayfa)} />
+                {is.uygulananDuzeltme.basarisiz > 0 && (
+                  <Kutu
+                    etiket="Başarısız deneme"
+                    deger={<span className="text-amber-600 dark:text-amber-400">{sayi(is.uygulananDuzeltme.basarisiz)}</span>}
+                  />
+                )}
+              </div>
+              {detay && is.uygulananDuzeltme.turBazinda?.length > 0 && (
+                <div className="mt-3 overflow-x-auto print:overflow-visible">
+                  <table className="w-full text-xs">
+                    <tbody>
+                      {is.uygulananDuzeltme.turBazinda.map((t: any) => (
+                        <tr key={t.tur} className="border-t">
+                          <td className="py-1">{t.tur}</td>
+                          <td className="py-1 text-right">{t.adet}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
           <p className="text-[11px] text-muted-foreground mt-3 pt-2 border-t">
             Yalnızca kalıcı kaydı olan işler sayılır.
+            {!is.uygulananDuzeltme && ' Bu dönemde uygulanmış düzeltme kaydı yok.'}
           </p>
         </CardContent>
       </Card>

@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AuditController } from './audit.controller.js';
+import { AppliedFixService } from './applied-fix.service.js';
 import { AuditService } from './audit.service.js';
 import { AuditChecksService } from './audit-checks.service.js';
 import { PageSpeedService } from './pagespeed.service.js';
@@ -59,6 +60,7 @@ import { AuditCron } from './audit.cron.js';
   imports: [SitesModule, EmailModule, AuthModule, LLMModule, NotificationsModule],
   controllers: [AuditController, TrackerController, PublicCitationController],
   providers: [
+    AppliedFixService,
     AuditService,
     AuditCron,
     AuditChecksService,
@@ -108,6 +110,7 @@ import { AuditCron } from './audit.cron.js';
     LiveCrawlerService,
   ],
   exports: [
+    AppliedFixService,
     AuditService,
     AutoFixService,
     GeoRunnerService,

@@ -1,6 +1,7 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { ReportsService, donemHesapla, type ReportOpts, type ReportOverview } from './reports.service.js';
+import { AppliedFixService } from '../audit/applied-fix.service.js';
 
 /**
  * Bir metrik bolumu ya OLCULDU ya da OLCULEMEDI.
@@ -79,6 +80,14 @@ export interface AsaBolumu {
   oncekiDonem: { yukleme: number; harcamaUsd: number; cpi: number | null } | null;
 }
 
+export interface UygulananDuzeltme {
+  toplam: number;
+  etkilenenSayfa: number;
+  turBazinda: Array<{ tur: string; adet: number }>;
+  basarisiz: number;
+  geriAlinan: number;
+}
+
 export interface IsDokumu {
   yayinlananMakale: number;
   toplamKelime: number | null;
@@ -99,6 +108,16 @@ export interface IsDokumu {
   maliyetKayitSayisi: number;
   /** Maliyetin ise gore kirilimi — TokenUsageRecord.context */
   maliyetKirilimi: Array<{ is: string; usd: number }>;
+  /**
+   * Siteye uygulanan duzeltmeler.
+   *
+   * Bu satir uzun sure rapora GIREMIYORDU: snippet-applier, static-html-fixer
+   * ve auto-fix siteye gercek degisiklik yaziyor ama hicbiri kalici kayit
+   * acmiyordu, dolayisiyla her sayi uydurma olurdu. AppliedFix tablosu
+   * eklendikten sonra gercek sayilabilir hale geldi. `null` = kayit katmani
+   * eklenmeden ONCEKI donemler.
+   */
+  uygulananDuzeltme: UygulananDuzeltme | null;
 }
 
 export interface RaporGovdesi {
@@ -135,6 +154,7 @@ export class SiteReportService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly reports: ReportsService,
+    private readonly appliedFix: AppliedFixService,
   ) {}
 
   // ────────────────────────────────────────────────────────────────
@@ -473,7 +493,7 @@ export class SiteReportService {
    *   - ASO metadata onerileri, App Store yorum cevaplari
    */
   private async isDokumu(siteId: string, d: ReturnType<typeof donemHesapla>): Promise<IsDokumu> {
-    const [makaleler, sosyal, studio, tarama, maliyet] = await Promise.all([
+    const [makaleler, sosyal, studio, tarama, maliyet, duzeltme] = await Promise.all([
       this.prisma.article.findMany({
         where: { siteId, status: 'PUBLISHED' as any, publishedAt: { gte: d.rangeStart, lte: d.rangeEnd } },
         select: { wordCount: true },
@@ -491,6 +511,7 @@ export class SiteReportService {
         _sum: { costUsd: true },
         _count: true,
       }),
+      this.appliedFix.donemOzeti(siteId, d.rangeStart, d.rangeEnd),
     ]);
 
     const kelimeler = makaleler.map((m) => Number(m.wordCount) || 0).filter((n) => n > 0);
@@ -513,6 +534,12 @@ export class SiteReportService {
       aiMaliyetiUsd: kayitSayisi === 0 ? null : Math.round(maliyetKirilimi.reduce((a, b) => a + b.usd, 0) * 100) / 100,
       maliyetKayitSayisi: kayitSayisi,
       maliyetKirilimi: maliyetKirilimi.slice(0, 10),
+      // Hic kayit yoksa null: kayit katmani 14 Agustos 2026'da eklendi,
+      // oncesindeki donemlerde "0 duzeltme" demek yanlis olurdu.
+      uygulananDuzeltme:
+        duzeltme.toplam === 0 && duzeltme.basarisiz === 0 && duzeltme.geriAlinan === 0
+          ? null
+          : duzeltme,
     };
   }
 

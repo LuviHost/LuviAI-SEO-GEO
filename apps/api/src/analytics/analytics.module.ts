@@ -5,6 +5,7 @@ import { AnalyticsCron } from './analytics.cron.js';
 import { GaService } from './ga.service.js';
 import { ReportsService } from './reports.service.js';
 import { SiteReportService } from './site-report.service.js';
+import { AuditModule } from '../audit/audit.module.js';
 import { LandingAnalyticsController } from './landing-analytics.controller.js';
 import { LandingAnalyticsService } from './landing-analytics.service.js';
 import { LookerController } from './looker.controller.js';
@@ -18,7 +19,7 @@ import { PrismaModule } from '../prisma/prisma.module.js';
  * Landing — anonim funnel tracking (kendi sistemimiz).
  */
 @Module({
-  imports: [AuthModule, PrismaModule],
+  imports: [AuditModule, AuthModule, PrismaModule],
   controllers: [AnalyticsController, LandingAnalyticsController, LookerController],
   providers: [AnalyticsService, AnalyticsCron, GaService, ReportsService, SiteReportService, LandingAnalyticsService],
   exports: [AnalyticsService, GaService, ReportsService, SiteReportService, LandingAnalyticsService],

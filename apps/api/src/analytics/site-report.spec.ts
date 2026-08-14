@@ -26,7 +26,11 @@ function sahtePrisma(veri: Record<string, any>) {
 }
 
 function servis(veri: Record<string, any>) {
-  return new SiteReportService(sahtePrisma(veri) as never, null as never);
+  // Ucuncu bagimlilik AppliedFixService — testlerde bos ozet doner.
+  const sahteFix = {
+    donemOzeti: async () => ({ toplam: 0, etkilenenSayfa: 0, turBazinda: [], basarisiz: 0, geriAlinan: 0 }),
+  };
+  return new SiteReportService(sahtePrisma(veri) as never, null as never, sahteFix as never);
 }
 
 /** private bolum ureticilerine testten erisim */
@@ -332,5 +336,64 @@ describe('yaniltici sayilar — uretim dersleri', () => {
     expect(r.aiMaliyetiUsd).toBe(1.75);
     expect(r.maliyetKayitSayisi).toBe(5);
     expect(r.maliyetKirilimi[0].is).toBe('article');
+  });
+});
+
+/**
+ * Uygulanan duzeltmeler — kayit katmani sonrasi.
+ *
+ * NEDEN VAR: bu satir uzun sure rapora GIREMIYORDU. snippet-applier,
+ * static-html-fixer ve auto-fix siteye gercek degisiklik yaziyor ama hicbiri
+ * kalici kayit acmiyordu; auto-fix ustelik en son Audit satirinin
+ * fixesApplied alaninin uzerine yazip onceki kosumun izini siliyordu.
+ * AppliedFix tablosu eklendikten sonra sayilabilir hale geldi.
+ */
+describe('uygulanan duzeltmeler', () => {
+  const temelVeri = {
+    article: { findMany: async () => [] },
+    socialPost: { count: async () => 0 },
+    studioAsset: { count: async () => 0 },
+    audit: { count: async () => 0 },
+    tokenUsageRecord: { groupBy: async () => [] },
+  };
+
+  const servisFix = (ozet: any) => {
+    const sahteFix = { donemOzeti: async () => ozet };
+    return new SiteReportService(
+      new Proxy({} as any, {
+        get: (_t, ad: string) =>
+          (temelVeri as any)[ad] ?? { findMany: async () => [], count: async () => 0, groupBy: async () => [] },
+      }) as never,
+      null as never,
+      sahteFix as never,
+    );
+  };
+
+  it('hic kayit yoksa null — "0 duzeltme" demiyor', async () => {
+    // Kayit katmani 14 Agustos 2026'da eklendi; oncesindeki donemlerde
+    // "0 duzeltme uygulandi" demek yanlis olurdu, cunku kayit tutulmuyordu.
+    const s = servisFix({ toplam: 0, etkilenenSayfa: 0, turBazinda: [], basarisiz: 0, geriAlinan: 0 });
+    const r = await cagir(s, 'isDokumu', 's1', DONEM);
+    expect(r.uygulananDuzeltme).toBeNull();
+  });
+
+  it('kayit varsa ozet raporda gorunuyor', async () => {
+    const s = servisFix({
+      toplam: 12, etkilenenSayfa: 5,
+      turBazinda: [{ tur: 'meta_title', adet: 5 }, { tur: 'canonical', adet: 4 }],
+      basarisiz: 2, geriAlinan: 0,
+    });
+    const r = await cagir(s, 'isDokumu', 's1', DONEM);
+    expect(r.uygulananDuzeltme.toplam).toBe(12);
+    expect(r.uygulananDuzeltme.etkilenenSayfa).toBe(5);
+    expect(r.uygulananDuzeltme.turBazinda[0].tur).toBe('meta_title');
+  });
+
+  it('yalnizca basarisiz kayit varsa da bolum gorunuyor — sessiz kalmiyor', async () => {
+    const s = servisFix({ toplam: 0, etkilenenSayfa: 0, turBazinda: [], basarisiz: 3, geriAlinan: 0 });
+    const r = await cagir(s, 'isDokumu', 's1', DONEM);
+    expect(r.uygulananDuzeltme, 'basarisiz denemeler gizlenmis').not.toBeNull();
+    expect(r.uygulananDuzeltme.basarisiz).toBe(3);
+    expect(r.uygulananDuzeltme.toplam, 'basarisizlar "uygulandi" sayilmis').toBe(0);
   });
 });

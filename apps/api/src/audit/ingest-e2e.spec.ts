@@ -314,6 +314,15 @@ describe('POST /api/tracker/events — throttle override', () => {
     // 2) SkipThrottle({ default: false }) gercekten muafiyeti kaldirdi mi:
     //    300'luk pencere dolunca 429 gelmeli. Gelmezse uc tamamen limitsizdir
     //    ve imzasiz istekle ucuz CPU/DB tuketimi vektoru acik kalir.
+    //
+    // ISTEKLER BILEREK SIRAYLA: paralel partiler denendi ve ECONNRESET verdi
+    // (uc 429 dondurunce soket kapaniyor, ayni partideki ucan istekler
+    // reddediliyor). Olculdu — sirali hali normalde 340ms-1sn suruyor, yani
+    // test yavas DEGIL. Bir kez 60sn tavanina carpti cunku ayni anda agir
+    // uretim isleri kosuyordu ve surec CPU'dan ac kaldi. Cozum testi
+    // hizlandirmak degil, tavani gercekci yapmak: 120sn'de bile normal
+    // kosumda 1 saniye harciyoruz, yalnizca sistem mesgulken yanlis
+    // kirmizi vermiyoruz.
     let sawTooMany = false;
     for (let i = 0; i < 400 && !sawTooMany; i++) {
       const res = await request(server)
@@ -322,6 +331,6 @@ describe('POST /api/tracker/events — throttle override', () => {
         .send(rawBody);
       if (res.status === 429) sawTooMany = true;
     }
-    expect(sawTooMany).toBe(true);
-  }, 60_000);
+    expect(sawTooMany, 'ingest ucu tamamen limitsiz — imzasiz istekle CPU tuketilebilir').toBe(true);
+  }, 120_000);
 });

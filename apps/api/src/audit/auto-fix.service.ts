@@ -4,6 +4,7 @@ import { SiteCrawlerService } from '../sites/site-crawler.service.js';
 import { GeneratorsService } from './generators.service.js';
 import { decrypt } from '@luviai/shared';
 import { getAdapter } from '@luviai/adapters';
+import { AppliedFixService } from './applied-fix.service.js';
 
 /**
  * Auto-fix engine — en kritik 3 düzeltmeyi otomatik yapar:
@@ -24,6 +25,7 @@ export class AutoFixService {
     private readonly prisma: PrismaService,
     private readonly crawler: SiteCrawlerService,
     private readonly generators: GeneratorsService,
+    private readonly appliedFix: AppliedFixService,
   ) {}
 
   async applyFixes(siteId: string, fixes: string[]) {
@@ -101,6 +103,19 @@ export class AutoFixService {
         this.log.error(`[${siteId}] ✗ ${fix}: ${err.message}`);
       }
     }
+
+    // KALICI KAYIT. Asagidaki Audit.fixesApplied guncellemesi en son taramanin
+    // UZERINE yaziyor — ikinci kosum birincinin izini siliyor, yani "toplam kac
+    // fix uygulandi" sorusu oradan cevaplanamaz. Bu tablo her kosumu ayri
+    // satir olarak tutar.
+    await this.appliedFix.topluKaydet([
+      ...applied.map((fix: string) => ({
+        siteId, kind: 'auto_fix' as const, fixType: fix, status: 'APPLIED' as const,
+      })),
+      ...errors.map((e: { fix: string; error: string }) => ({
+        siteId, kind: 'auto_fix' as const, fixType: e.fix, status: 'FAILED' as const, error: e.error,
+      })),
+    ]);
 
     // En son audit'i güncelle
     const latestAudit = await this.prisma.audit.findFirst({

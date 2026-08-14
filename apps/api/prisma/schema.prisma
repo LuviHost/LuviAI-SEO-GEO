@@ -280,6 +280,7 @@ model Site {
   publishTargets     PublishTarget[]
   audits             Audit[]
   siteReports        SiteReport[]
+  appliedFixes       AppliedFix[]
   topicQueues        TopicQueue[]
   articles           Article[]
   jobs               Job[]
@@ -2724,4 +2725,63 @@ model SiteReport {
   @@index([siteId, generatedAt])
   @@index([siteId, period, periodStart])
   @@map("site_reports")
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  UYGULANAN DUZELTMELER
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Siteye GERCEKTEN uygulanan bir duzeltmenin kalici kaydi.
+ *
+ * NEDEN GEREKIYOR: uc ayri servis siteye degisiklik yaziyordu ve HICBIRI iz
+ * birakmiyordu:
+ *   - snippet-applier.service.ts  meta/OG/JSON-LD'yi yayin hedefine yaziyor
+ *   - static-html-fixer.service.ts statik HTML'e yaziyor
+ *   - auto-fix.service.ts          en son Audit satirinin fixesApplied
+ *     alaninin UZERINE yaziyor; ikinci kosum birincinin izini siliyor
+ *
+ * Sonuc: "bu donemde kac duzeltme uygulandi" sorusu cevaplanamiyordu ve
+ * rapora "N sayfaya meta uygulandi" yazmak uydurma olurdu. Bu tablo o
+ * boslugu kapatir; rapor artik sayabilir.
+ *
+ * Neden Audit'e kolon degil de ayri tablo: bir tarama ile bir duzeltme
+ * arasinda 1-N iliski var, duzeltmeler taramadan bagimsiz da uygulanabiliyor
+ * (kullanici tek bir sayfayi elle duzeltebiliyor) ve geri alma zamani da
+ * saklanmali.
+ */
+model AppliedFix {
+  id     String  @id @default(cuid())
+  siteId String
+  /// Elle uygulandiysa kim uyguladi; sistem uygulamasinda null.
+  userId String?
+
+  /// snippet | static_html | auto_fix — hangi servis uyguladi
+  kind String @db.VarChar(24)
+  /// meta_title | canonical | jsonld_article | sitemap_xml ...
+  fixType String @db.VarChar(48)
+  /// Hangi sayfaya/kaynaga uygulandi (URL ya da dosya yolu)
+  target String? @db.Text
+
+  /// APPLIED | FAILED | REVERTED
+  status String @default("APPLIED") @db.VarChar(12)
+  /// Basarisizsa nedeni — sessiz basarisizlik "uygulandi" sayilmasin
+  error String? @db.Text
+
+  /// Uygulanan degerin ozeti. Tam govde saklanmiyor: sayfa HTML'i buyuk
+  /// olabiliyor ve raporun ihtiyaci olan sey ne yazildigi degil, ne tur bir
+  /// duzeltmenin yapildigi.
+  detail Json?
+
+  /// Hangi yayin hedefi uzerinden gitti (wordpress, ftp...)
+  adapter String? @db.VarChar(32)
+
+  appliedAt  DateTime  @default(now())
+  revertedAt DateTime?
+
+  site Site @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  @@index([siteId, appliedAt])
+  @@index([siteId, status, appliedAt])
+  @@map("applied_fixes")
 }

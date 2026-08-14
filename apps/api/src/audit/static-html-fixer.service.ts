@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as cheerio from 'cheerio';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { AppliedFixService } from './applied-fix.service.js';
 import { decrypt } from '@luviai/shared';
 import { getAdapter } from '@luviai/adapters';
 import type { PageSnippet } from './snippet-generator.service.js';
@@ -27,7 +28,10 @@ export class StaticHtmlFixerService {
   private readonly log = new Logger(StaticHtmlFixerService.name);
   private readonly fileTargets = ['FTP', 'SFTP', 'CPANEL_API'];
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly appliedFix: AppliedFixService,
+  ) {}
 
   async preview(siteId: string, pageUrl: string, snippets: PageSnippet[]) {
     const html = await this.fetch(pageUrl);
@@ -91,6 +95,21 @@ export class StaticHtmlFixerService {
     });
 
     this.log.log(`[${siteId}] static-html-fix → ${pageUrl} → ${remoteDir}/${filename} : ${res.ok ? 'OK' : res.error}`);
+
+    // KALICI KAYIT — bkz. applied-fix.service.ts. Yazma basarisizsa FAILED,
+    // cunku "dosya gonderildi" ile "dosya yazildi" ayni sey degil.
+    await this.appliedFix.topluKaydet(
+      applied.map((alan: string) => ({
+        siteId,
+        kind: 'static_html' as const,
+        fixType: alan,
+        target: pageUrl,
+        status: res.ok ? ('APPLIED' as const) : ('FAILED' as const),
+        error: res.ok ? null : String(res.error ?? 'bilinmeyen hata'),
+        adapter: target.type,
+        detail: { remoteDir, filename },
+      })),
+    );
 
     return {
       ok: !!res.ok,
