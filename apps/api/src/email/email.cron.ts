@@ -71,6 +71,9 @@ export class EmailCron {
   @Cron('0 9 * * 1')
   async weeklyReports() {
     const sevenDaysAgo = new Date(Date.now() - 7 * 86400000);
+    // Rapor mailindeki karsilastirma ve gunluk grafik icin 14 gun cekiliyor:
+    // ilk 7 gun onceki hafta (referans), son 7 gun bu hafta.
+    const fourteenDaysAgo = new Date(Date.now() - 14 * 86400000);
 
     const users = await this.prisma.user.findMany({
       where: {
@@ -82,7 +85,10 @@ export class EmailCron {
           where: { status: 'ACTIVE' },
           include: {
             articles: { where: { publishedAt: { gte: sevenDaysAgo } } },
-            analyticsSnapshots: { where: { date: { gte: sevenDaysAgo } } },
+            analyticsSnapshots: {
+              where: { date: { gte: fourteenDaysAgo } },
+              orderBy: { date: 'asc' },
+            },
           },
         },
       },
@@ -98,13 +104,27 @@ export class EmailCron {
         let positionCount = 0;
         let topArticle: any = null;
 
+        // Gunluk tiklama serisi — mailde sutun grafik olarak ciziliyor.
+        // Tarih -> toplam; birden fazla site varsa gunler toplaniyor.
+        const gunlukTiklama = new Map<string, number>();
+        let oncekiHaftaTiklama = 0;
+        let oncekiOlcumVar = false;
+
         for (const site of u.sites) {
           articlesPublished += site.articles.length;
           for (const snap of site.analyticsSnapshots) {
-            totalClicks += snap.totalClicks;
-            totalImpressions += snap.totalImpressions;
-            positionSum += snap.avgPosition;
-            positionCount++;
+            const buHafta = snap.date >= sevenDaysAgo;
+            if (buHafta) {
+              totalClicks += snap.totalClicks;
+              totalImpressions += snap.totalImpressions;
+              positionSum += snap.avgPosition;
+              positionCount++;
+              const gun = snap.date.toISOString().slice(0, 10);
+              gunlukTiklama.set(gun, (gunlukTiklama.get(gun) ?? 0) + snap.totalClicks);
+            } else {
+              oncekiHaftaTiklama += snap.totalClicks;
+              oncekiOlcumVar = true;
+            }
           }
           for (const a of site.articles) {
             const m = (a.performanceMetrics as any) ?? {};
@@ -126,8 +146,15 @@ export class EmailCron {
             articlesPublished,
             totalClicks,
             totalImpressions,
-            avgPosition: positionCount > 0 ? (positionSum / positionCount).toFixed(1) : '-',
+            avgPosition: positionCount > 0 ? (positionSum / positionCount).toFixed(1) : null,
             topArticle,
+            // Onceki hafta HIC olculmediyse prevClicks GONDERILMEZ; sablon o
+            // zaman fark yerine "gecen hafta olcum yok" yaziyor. 0 gondermek
+            // "sifirdan buraya geldik" yalanini uretirdi.
+            ...(oncekiOlcumVar ? { prevClicks: oncekiHaftaTiklama } : {}),
+            clicksSeries: [...gunlukTiklama.entries()]
+              .sort(([a], [b]) => a.localeCompare(b))
+              .map(([, n]) => n),
           },
         });
         sent++;
