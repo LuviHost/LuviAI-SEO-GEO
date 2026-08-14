@@ -305,16 +305,24 @@ export class AuditService {
    * sonsuza kadar QUEUED kaliyor, hicbir zaman calismiyordu. Yani bu uc
    * sessizce ise yaramiyordu. JobQueueService.enqueue hem DB satirini hem
    * BullMQ kaydini olusturur ve bullJobId'yi geri yazar.
+   *
+   * DONUS SEKLI BILEREK YENIDEN ADLANDIRILIYOR: enqueue `{ dbJobId, bullJobId }`
+   * doner, ama bu ucun tuketicisi `{ id }` bekliyor — cunku bir sonraki adim
+   * GET /jobs/:id yoklamasi. Ham sekli oldugu gibi gecirince istemci
+   * `job.id` okuyup `undefined` aliyor ve yoklama ilk istekte patliyor.
+   * (Tam olarak bu yasandi; tsc yakalamadi cunku web kendi donus tipini
+   * bagimsiz beyan ediyor.) Uc, is kimligini HER ZAMAN `id` adiyla verir.
    */
-  async queueAudit(siteId: string) {
+  async queueAudit(siteId: string): Promise<{ id: string; status: 'QUEUED'; bullJobId: string }> {
     const site = await this.prisma.site.findUniqueOrThrow({ where: { id: siteId } });
-    return this.jobQueue.enqueue({
+    const { dbJobId, bullJobId } = await this.jobQueue.enqueue({
       type: 'SITE_AUDIT',
       userId: site.userId,
       siteId,
       payload: { siteId, url: site.url },
       priority: 5,
     });
+    return { id: dbJobId, status: 'QUEUED', bullJobId: String(bullJobId) };
   }
 
   /**
