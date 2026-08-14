@@ -155,6 +155,29 @@ export class IntelController {
     });
   }
 
+  /**
+   * Tek kaydin TAM icerigi — okunan metnin kendisi.
+   *
+   * NEDEN AYRI UC: fullText 60 bin karaktere kadar cikabiliyor; listede
+   * 100 kayitla birlikte donmek paneli bogar. Liste hafif kalir, metin
+   * yalnizca acilan satir icin cekilir.
+   */
+  @Get('items/:id')
+  async item(@Req() req: Request, @Param('id') id: string) {
+    assertAdmin(req);
+    const found = await this.prisma.intelItem.findUnique({
+      where: { id },
+      select: {
+        id: true, url: true, title: true, summary: true, fullText: true,
+        author: true, publishedAt: true, status: true, relevance: true,
+        topics: true, triageNote: true, engagement: true, meta: true,
+        source: { select: { name: true, tier: true } },
+      },
+    });
+    if (!found) throw new BadRequestException('Kayit bulunamadi');
+    return found;
+  }
+
   // ────────────────────────────────────────────────────────────
   //  KAYNAKLAR
   // ────────────────────────────────────────────────────────────

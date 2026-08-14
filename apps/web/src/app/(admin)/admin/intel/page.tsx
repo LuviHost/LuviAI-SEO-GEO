@@ -514,13 +514,51 @@ function SourcesTab({ sources, disabled, onChange }: { sources: any[]; disabled:
 //  HAM AKIŞ — triage denetimi
 // ═══════════════════════════════════════════════════════════════
 
+/**
+ * fullText'i postun kendisi ve yanitlar olarak ayirir.
+ *
+ * Toplayici yanitlari "--- YANITLAR ---" ayraciyla ekliyor (bkz.
+ * openclaw.service.ts composeFullText). Ayrı gostermek onemli: yanitlar
+ * postun iddiasi degil, ona verilen TEPKI — karsit kanit cogunlukla orada.
+ */
+function ayirMetin(fullText: string | null | undefined): { govde: string; yanitlar: string[] } {
+  if (!fullText) return { govde: '', yanitlar: [] };
+  const [govde, yanitBlogu] = fullText.split('\n\n--- YANITLAR ---\n');
+  return {
+    govde: govde ?? '',
+    yanitlar: yanitBlogu ? yanitBlogu.split('\n').filter((s) => s.trim()) : [],
+  };
+}
+
 function FeedTab() {
   const [status, setStatus] = useState('RELEVANT');
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  /** Acik satirin id'si — ayni anda tek kayit acik kalir */
+  const [acikId, setAcikId] = useState<string | null>(null);
+  /** id → detay. Bir kez cekilen kayit tekrar istenmez. */
+  const [detaylar, setDetaylar] = useState<Record<string, any>>({});
+  const [detayYukleniyor, setDetayYukleniyor] = useState<string | null>(null);
+
+  const satirAc = useCallback(async (id: string) => {
+    if (acikId === id) { setAcikId(null); return; }
+    setAcikId(id);
+    if (detaylar[id]) return;
+    setDetayYukleniyor(id);
+    try {
+      const d = await call(`/items/${id}`);
+      setDetaylar((o) => ({ ...o, [id]: d }));
+    } catch (err: any) {
+      toast.error(err.message);
+      setAcikId(null);
+    } finally {
+      setDetayYukleniyor(null);
+    }
+  }, [acikId, detaylar]);
 
   useEffect(() => {
     setLoading(true);
+    setAcikId(null);
     call(`/items?status=${status}&limit=100`)
       .then(setItems)
       .catch((err) => toast.error(err.message))
@@ -578,6 +616,69 @@ function FeedTab() {
                   </div>
                   {it.triageNote && (
                     <div className="text-[11px] text-muted-foreground mt-1 italic">{it.triageNote}</div>
+                  )}
+
+                  <button
+                    onClick={() => satirAc(it.id)}
+                    className="text-[11px] text-muted-foreground hover:text-foreground mt-1.5 inline-flex items-center gap-1 transition-colors"
+                  >
+                    {acikId === it.id ? '▾ okunan metni gizle' : '▸ okunan metni göster'}
+                  </button>
+
+                  {acikId === it.id && (
+                    <div className="mt-2 rounded-md border bg-muted/40 p-2.5 text-xs">
+                      {detayYukleniyor === it.id ? (
+                        <Skeleton className="h-16" />
+                      ) : (() => {
+                        const d = detaylar[it.id];
+                        if (!d) return null;
+                        const { govde, yanitlar } = ayirMetin(d.fullText);
+                        const metin = govde || d.summary;
+                        const m = d.meta ?? {};
+                        return (
+                          <div className="space-y-2.5">
+                            <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-muted-foreground">
+                              {d.author && <span>{d.author}</span>}
+                              {m.via && <span>kaynak: {m.via}</span>}
+                              {m.tab && <span>sekme: {m.tab === 'live' ? 'En Son' : 'Popüler'}</span>}
+                              {m.kind === 'repo' && <span className="text-foreground">GitHub deposu</span>}
+                              {metin && <span>{metin.length} karakter</span>}
+                            </div>
+
+                            {metin ? (
+                              <p className="whitespace-pre-wrap leading-relaxed">{metin}</p>
+                            ) : (
+                              <p className="text-muted-foreground italic">
+                                Metin saklanmamış — bu kaynak toplama anında tam metin vermiyor.
+                              </p>
+                            )}
+
+                            {yanitlar.length > 0 && (
+                              <div className="border-t pt-2">
+                                <div className="text-[10px] font-medium text-muted-foreground mb-1.5">
+                                  YANITLAR ({yanitlar.length}) — karşıt kanıt çoğunlukla burada
+                                </div>
+                                <div className="space-y-1.5">
+                                  {yanitlar.map((y, i) => (
+                                    <p key={i} className="pl-2 border-l-2 border-muted-foreground/25 leading-relaxed">{y}</p>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {Array.isArray(m.repoUrls) && m.repoUrls.length > 0 && (
+                              <div className="border-t pt-2 space-y-1">
+                                {m.repoUrls.map((u: string) => (
+                                  <a key={u} href={u} target="_blank" rel="noreferrer" className="block text-[11px] hover:underline">
+                                    {u}
+                                  </a>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })()}
+                    </div>
                   )}
                 </div>
               </div>
