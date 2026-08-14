@@ -24,7 +24,19 @@ const apiBase = () => process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001'
 async function call<T = any>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${apiBase()}/api/intel${path}`, { credentials: 'include', ...init });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
+
+  // BOS GOVDE COKERTMESIN: res.json() bos yanitta
+  // "Unexpected end of JSON input" firlatiyor ve kullaniciya anlamsiz bir
+  // hata olarak cikiyor. Bos gövde su durumlarda olusuyor: uc null donduruyor,
+  // 204 donuyor, ya da uzun istegi Cloudflare kesiyor. Metni once okuyup
+  // bosluk kontrolu yapiyoruz.
+  const metin = await res.text();
+  if (!metin.trim()) return null as T;
+  try {
+    return JSON.parse(metin) as T;
+  } catch {
+    throw new Error('Sunucu yaniti okunamadi (yanit JSON degil ya da yarim geldi)');
+  }
 }
 
 const STATUS_META: Record<string, { label: string; icon: any; cls: string }> = {
@@ -796,13 +808,20 @@ function DigestTab() {
   const build = async (period: 'daily' | 'weekly') => {
     setBuilding(true);
     try {
-      await call('/digest/build', {
+      const res: any = await call('/digest/build', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         // send:false — panelden elle uretimde e-posta gitmesin
         body: JSON.stringify({ period, send: false }),
       });
-      toast.success('Özet üretildi');
+      if (res?.zatenCalisiyor) {
+        toast.info('Bu özet zaten üretiliyor');
+      } else {
+        // Arka planda uretiliyor (editor notu icin LLM cagrisi var) —
+        // birkac kez yenileyip hazir olunca gosteriyoruz.
+        toast.success('Özet üretiliyor — hazır olunca burada görünecek');
+        [5, 15, 30, 60].forEach((sn) => setTimeout(load, sn * 1000));
+      }
       load();
     } catch (err: any) {
       toast.error(err.message);

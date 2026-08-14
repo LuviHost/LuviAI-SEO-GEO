@@ -326,10 +326,28 @@ export class IntelController {
     });
   }
 
+  /**
+   * Ozet uretir — ARKA PLANDA. Editor notu icin LLM cagrisi yapiyor;
+   * senkron beklemek Cloudflare'in ~100 saniyelik tavanina takilip yaniti
+   * bos birakiyordu (panelde "Unexpected end of JSON input" olarak cikiyordu).
+   */
   @Post('digest/build')
   async buildDigest(@Req() req: Request, @Body() body: { period?: string; send?: boolean }) {
     assertAdmin(req);
     const period = body?.period === 'weekly' ? 'weekly' : 'daily';
-    return this.digest.build(period, body?.send !== false);
+
+    const kilit = `digest:${period}`;
+    if (CALISAN_ASAMALAR.has(kilit)) {
+      return { ok: false, zatenCalisiyor: true, mesaj: `${period} ozet zaten uretiliyor` };
+    }
+    CALISAN_ASAMALAR.add(kilit);
+
+    this.digest
+      .build(period, body?.send !== false)
+      .then((d) => this.log.log(`[digest:${period}] uretildi: ${d?.id ?? 'bos'}`))
+      .catch((err) => this.log.error(`[digest:${period}] basarisiz: ${err?.message ?? err}`))
+      .finally(() => CALISAN_ASAMALAR.delete(kilit));
+
+    return { ok: true, baslatildi: period, mesaj: 'Ozet arka planda uretiliyor' };
   }
 }
