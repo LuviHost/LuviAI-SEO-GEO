@@ -134,6 +134,32 @@ export interface AuditIssueRecord {
   checkId?: string;
 }
 
+/**
+ * Kalici rapor kaydi.
+ *
+ * Liste ucunda `data` GELMEZ — yalnizca getReportById'de gelir; dondurulmus
+ * govde rapor basina yuzlerce KB ve liste satirinda hicbir ise yaramiyor.
+ * Skor alanlari NULLABLE: "olculemedi" ile "sifir" ayni sey degil.
+ */
+export interface RaporKaydi {
+  id: string;
+  period: string;
+  periodStart: string;
+  periodEnd: string;
+  trigger: string;
+  seoScore: number | null;
+  geoScore: number | null;
+  aiVisibility: number | null;
+  asoAvgRank: number | null;
+  clicks: number;
+  impressions: number;
+  articlesPublished: number;
+  costUsd: string | number;
+  status: string;
+  durationMs: number | null;
+  generatedAt: string;
+}
+
 export const api = {
   // Generic raw request (custom endpoints icin)
   request: <T = any>(path: string, options?: RequestInit) => request<T>(path, options),
@@ -786,6 +812,36 @@ export const api = {
   getReportCsvUrl: (siteId: string, range: 'week' | 'month' | 'year' = 'month') => {
     const apiBase = process.env.NEXT_PUBLIC_API_URL ?? '';
     return `${apiBase}/api/sites/${siteId}/analytics/report.csv?range=${range}`;
+  },
+
+  // ── Kalici rapor (dondurulmus) ───────────────────────────────────
+  // Canli hesaplanan getReport'tan farki: sonuc URETILDIGI ANDA saklanir ve
+  // bir daha degismez. Altindaki kaynaklar degistigi icin (reklam metrikleri
+  // cron ile uzerine yaziliyor, crawler kayitlari temizleniyor, aylik kotalar
+  // sifirlaniyor) canli hesap ayni donem icin zamanla FARKLI sayi doner.
+
+  /** Raporu uretir ve kaydeder. Donem: range VEYA from+to. */
+  runReport: (siteId: string, donem: { range?: string; from?: string; to?: string }) => {
+    const q = new URLSearchParams();
+    if (donem.from && donem.to) { q.set('from', donem.from); q.set('to', donem.to); }
+    else q.set('range', donem.range ?? 'month');
+    return request<RaporKaydi>(`/sites/${siteId}/analytics/reports/run?${q.toString()}`, { method: 'POST' });
+  },
+
+  /** Gecmis — dondurulmus govde HARIC (liste satiri basina yuzlerce KB olurdu) */
+  getReportHistory: (siteId: string, limit = 30) =>
+    request<RaporKaydi[]>(`/sites/${siteId}/analytics/reports?limit=${limit}`),
+
+  /** Tek rapor — dondurulmus tam govde ile */
+  getReportById: (siteId: string, reportId: string) =>
+    request<RaporKaydi & { data: any }>(`/sites/${siteId}/analytics/reports/${reportId}`),
+
+  deleteReport: (siteId: string, reportId: string) =>
+    request<{ id: string }>(`/sites/${siteId}/analytics/reports/${reportId}`, { method: 'DELETE' }),
+
+  getReportByIdCsvUrl: (siteId: string, reportId: string) => {
+    const apiBase = process.env.NEXT_PUBLIC_API_URL ?? '';
+    return `${apiBase}/api/sites/${siteId}/analytics/reports/${reportId}/csv`;
   },
 
   getArticle: (siteId: string, articleId: string) =>

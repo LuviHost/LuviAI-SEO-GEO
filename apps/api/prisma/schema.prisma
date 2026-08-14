@@ -279,6 +279,7 @@ model Site {
   brain              Brain?
   publishTargets     PublishTarget[]
   audits             Audit[]
+  siteReports        SiteReport[]
   topicQueues        TopicQueue[]
   articles           Article[]
   jobs               Job[]
@@ -2650,4 +2651,77 @@ model IntelDigest {
   @@unique([period, date])
   @@index([date])
   @@map("intel_digests")
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  RAPOR — DONDURULMUS SONUC
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * Kullanicinin calistirdigi bir raporun KALICI kaydi.
+ *
+ * NEDEN TABLO GEREKIYOR — turetilmis hesap "gecmis" olamaz:
+ * ReportsService.overview() her cagrida sifirdan hesapliyor ve altindaki
+ * kaynaklarin bir kismi degisiyor/siliniyor. Ayni rapor iki hafta sonra
+ * acildiginda FARKLI sayi gosterir:
+ *   - AdCampaign metrik kolonlarini cron uzerine yaziyor (gunluk snapshot yok)
+ *   - AiCrawlerHit / CrawlerHitEvent belirli sure sonra temizleniyor
+ *   - User.articlesUsedThisMonth ve aiCostThisMonthUsd her ay sifirlaniyor
+ * Musteriye "Temmuz raporu" diye gonderilen bir belgenin Eylul'de baska
+ * rakam gostermesi kabul edilemez. Bu yuzden rapor URETILDIGI ANDA
+ * dondurulur ve bir daha hesaplanmaz.
+ *
+ * TEK TABLO, DORT ALAN: SEO / GEO / ASO / ASA ayri tablolara bolunmedi.
+ * Kullanici "bu proje ne kadar buyudu" diye soruyor; cevap tek bir belge
+ * olmali. ASO ve ASA da site eksenine toplanabiliyor
+ * (AppRanking -> TrackedAppKeyword -> TrackedApp.siteId), yani ayirmayi
+ * gerektiren bir kisit yok.
+ */
+model SiteReport {
+  id     String  @id @default(cuid())
+  siteId String
+  /// Raporu kim calistirdi. Kullanici silinirse rapor kalir (SetNull yok:
+  /// alan opsiyonel ve iliski tanimlanmadi — kimlik yalnizca bilgi amacli).
+  userId String?
+
+  /// week | month | year | custom
+  period      String   @db.VarChar(16)
+  periodStart DateTime
+  periodEnd   DateTime
+
+  /// manual | cron | api — Audit.trigger ile ayni gerekce: otomatik uretilen
+  /// raporlar kullanicinin "calistirdigi rapor" sayisina karismamali.
+  trigger String @default("manual") @db.VarChar(16)
+
+  /**
+   * DONDURULMUS tam govde. Sekli: { seo, geo, aso, asa, is, meta }.
+   * Olculemeyen her bolum `{ olculemedi: true, neden: "..." }` tasir —
+   * sifir YAZILMAZ, cunku sifir sahte bir dusus gibi okunur.
+   */
+  data Json
+
+  // ── Liste kolonlari ────────────────────────────────────────────
+  // Gecmis listesini data'yi parse etmeden cizebilmek icin denormalize.
+  // Ayni gerekce AuditService.getHistory'nin `checks` Json'unu bilerek
+  // cekmemesiyle ayni: liste satiri basina yuzlerce KB parse edilmemeli.
+  // Hepsi NULLABLE cunku "olculemedi" ile "sifir" ayri seyler.
+  seoScore          Int?
+  geoScore          Int?
+  aiVisibility      Int?
+  asoAvgRank        Float?
+  clicks            Int      @default(0)
+  impressions       Int      @default(0)
+  articlesPublished Int      @default(0)
+  costUsd           Decimal  @default(0) @db.Decimal(10, 4)
+
+  status     String    @default("READY") @db.VarChar(16)
+  error      String?   @db.Text
+  durationMs Int?
+  generatedAt DateTime @default(now())
+
+  site Site @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  @@index([siteId, generatedAt])
+  @@index([siteId, period, periodStart])
+  @@map("site_reports")
 }

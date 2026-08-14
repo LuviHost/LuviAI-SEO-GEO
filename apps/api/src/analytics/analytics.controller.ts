@@ -1,8 +1,9 @@
-import { Controller, Get, Header, Param, Post, Query, Res } from '@nestjs/common';
+import { Controller, Delete, Get, Header, Param, Post, Query, Req, Res } from '@nestjs/common';
 import type { Response } from 'express';
 import { AnalyticsService } from './analytics.service.js';
 import { GaService } from './ga.service.js';
 import { ReportsService, type ReportOpts, type ReportRange } from './reports.service.js';
+import { SiteReportService } from './site-report.service.js';
 
 /**
  * Sorgu parametrelerini rapor donemine cevirir.
@@ -32,6 +33,7 @@ export class AnalyticsController {
     private readonly analytics: AnalyticsService,
     private readonly ga: GaService,
     private readonly reports: ReportsService,
+    private readonly siteReports: SiteReportService,
   ) {}
 
   /** GET /sites/:siteId/analytics/overview?days=30 */
@@ -117,5 +119,69 @@ export class AnalyticsController {
     const filename = `ranksup-rapor-${siteId.slice(0, 8)}-${etiket}.csv`;
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     res.send(csv);
+  }
+
+  // ──────────────────────────────────────────────────────────────
+  //  KALICI RAPOR — calistir / gecmis / ac / sil
+  // ──────────────────────────────────────────────────────────────
+
+  /**
+   * POST /sites/:siteId/analytics/reports/run
+   *   ?range=week|month|year  veya  ?from=YYYY-MM-DD&to=YYYY-MM-DD
+   *
+   * Raporu URETIR ve DONDURUR. Senkron: butun bolumler indeksli Prisma
+   * sorgulari, dis servise gidilmiyor.
+   *
+   * Plan kapisi bilincli olarak YOK — audit gecmis/karsilastirma uclariyla
+   * tutarli. Kendi verisini gormek plan ustu bir ozellik degil.
+   */
+  @Post('reports/run')
+  runReport(
+    @Param('siteId') siteId: string,
+    @Req() req: any,
+    @Query('range') range?: string,
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+  ) {
+    return this.siteReports.generate(siteId, {
+      ...donemParametresi(range, from, to),
+      userId: req?.user?.id,
+      trigger: 'manual',
+    });
+  }
+
+  /** GET /sites/:siteId/analytics/reports — gecmis (dondurulmus govde HARIC) */
+  @Get('reports')
+  reportHistory(@Param('siteId') siteId: string, @Query('limit') limit?: string) {
+    return this.siteReports.list(siteId, limit ? parseInt(limit, 10) : 30);
+  }
+
+  /** GET /sites/:siteId/analytics/reports/:reportId — dondurulmus tam govde */
+  @Get('reports/:reportId')
+  reportById(@Param('siteId') siteId: string, @Param('reportId') reportId: string) {
+    return this.siteReports.get(siteId, reportId);
+  }
+
+  /** GET /sites/:siteId/analytics/reports/:reportId.csv */
+  @Get('reports/:reportId/csv')
+  @Header('Content-Type', 'text/csv; charset=utf-8')
+  async reportByIdCsv(
+    @Param('siteId') siteId: string,
+    @Param('reportId') reportId: string,
+    @Res() res: Response,
+  ) {
+    const rapor = await this.siteReports.get(siteId, reportId);
+    const govde = rapor.data as any;
+    // Dondurulmus govdedeki SEO bolumu ayni sekle sahip — yeniden hesaplanmaz.
+    const csv = this.reports.toCsv(govde.seo);
+    const etiket = rapor.periodStart.toISOString().slice(0, 10);
+    res.setHeader('Content-Disposition', `attachment; filename="ranksup-rapor-${etiket}.csv"`);
+    res.send(csv);
+  }
+
+  /** DELETE /sites/:siteId/analytics/reports/:reportId */
+  @Delete('reports/:reportId')
+  removeReport(@Param('siteId') siteId: string, @Param('reportId') reportId: string) {
+    return this.siteReports.remove(siteId, reportId);
   }
 }

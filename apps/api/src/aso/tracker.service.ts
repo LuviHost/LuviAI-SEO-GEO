@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AsoScrapersService } from './scrapers.service.js';
+import { acquireCronLock } from '../common/cron-lock.js';
 
 /**
  * Daily rank tracker. Her takipli app + keyword için günde bir rank kontrolü yapar.
@@ -114,9 +115,26 @@ export class AsoTrackerService {
     return { success, failed, total: keywords.length, measuredLocale };
   }
 
-  /** Cron — her gece 03:30'da tüm aktif app'lerin keyword'lerini check eder. */
-  @Cron('30 3 * * *')
+  /**
+   * Cron — her gece 03:30'da tum aktif app'lerin keyword'lerini kontrol eder.
+   *
+   * KILIT ZORUNLU: API ve worker AYNI AppModule'u bootstrap ediyor, yani bu
+   * cron iki surecte birden tetikleniyor. checkAllForApp her olcumde
+   * appRanking.create() cagirdigi icin (upsert degil) her kelime icin GUNDE
+   * IKI SATIR yaziliyordu. Uretimde olculdu: 83 gunun 80'inde kelime basina
+   * 2 satir; toplam 14.909 satir, olmasi gereken ~7.553. Ustelik her gece
+   * App Store ve Play'e iki kat istek gidiyordu — hem gereksiz maliyet hem
+   * rate limit riski.
+   *
+   * timeZone da eklendi: donem raporlari gun sinirina gore kesiyor, sunucu
+   * UTC'de oldugu icin 03:30 UTC Turkiye'de 06:30'a denk geliyordu.
+   */
+  @Cron('30 3 * * *', { timeZone: 'Europe/Istanbul' })
   async dailyRankCheck() {
+    if (!(await acquireCronLock(this.prisma, 'aso-rank-tracking', 'daily'))) {
+      this.log.log('ASO rank tracking atlandi — kilit baska surecte');
+      return;
+    }
     this.log.log('🕒 ASO daily rank tracking başlıyor');
     const apps = await this.prisma.trackedApp.findMany({
       where: { isActive: true },

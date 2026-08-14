@@ -276,3 +276,92 @@
     color: transparent;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   YAZDIRMA — "PDF olarak kaydet"
+   ═══════════════════════════════════════════════════════════════
+
+   NEDEN VAR: raporda bir "PDF" dugmesi vardi ve window.print() cagiriyordu,
+   ama projede TEK SATIR yazdirma stili yoktu. Sonuc: cikan kagitta sol menu,
+   kullanici menusu ve tema anahtari yer aliyor, kirpilmis (overflow) listeler
+   yarim basiliyor, kapali <details> bloklari hic gorunmuyordu. Yani dugme
+   calisiyor gibi duruyor ama ise yaramiyordu.
+
+   Sunucu tarafi PDF (Puppeteer/Playwright) BILINCLI olarak eklenmedi: bu
+   oturumda worker'i bellek sinirinda oldurten sey zaten sayfa isleme yuku
+   oldu; ayni yara uzerine baski kurmak yerine tarayicinin kendi motoru
+   kullaniliyor. */
+
+@media print {
+  /* Kagitta isi olmayan arayuz ogeleri */
+  aside,
+  nav,
+  [data-print-hide],
+  .print\:hidden {
+    display: none !important;
+  }
+
+  /* Sol menu kalkinca ana icerik tum genisligi kullansin */
+  main {
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow: visible !important;
+  }
+
+  html,
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+
+  /* Kirpilan listeler TAM basilsin — ekranda kaydirilan kutular kagitta
+     kaydirilamaz, kirpilirsa veri sessizce kaybolur. */
+  .overflow-y-auto,
+  .overflow-x-auto,
+  .overflow-auto,
+  .overflow-hidden {
+    overflow: visible !important;
+    max-height: none !important;
+  }
+
+  /* Kapali acilir bloklar kagitta acik gorunsun */
+  details {
+    display: block !important;
+  }
+  details > summary {
+    display: none !important;
+  }
+  details > *:not(summary) {
+    display: block !important;
+  }
+
+  /* Kart golgeleri ve arka planlar murekkep yakmasin, cerceve kalsin */
+  .shadow,
+  .shadow-sm,
+  .shadow-md,
+  .shadow-lg {
+    box-shadow: none !important;
+  }
+
+  /* Bir kart sayfa ortasindan bolunmesin */
+  .rounded-xl,
+  .rounded-lg,
+  table,
+  tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  /* Grafikler ve tablolar sayfa genisligini asmasin */
+  svg,
+  table,
+  img {
+    max-width: 100% !important;
+  }
+
+  @page {
+    margin: 14mm 12mm;
+  }
+}

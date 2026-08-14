@@ -198,3 +198,74 @@ describe('kaynak kodu — geri donusu engelleyen kontroller', () => {
     expect(src, 'kacislamasiz join geri donmus').not.toMatch(/\]\.join\(','\)\);/);
   });
 });
+
+/**
+ * Ust seviye CTR/pozisyon de gosterimle agirlikli olmali.
+ *
+ * NEDEN AYRI: detaylariTopla dogru yapiyordu ama overview()'daki ust seviye
+ * avgCtr/avgPosition gunlerin DUZ ortalamasini aliyordu — 3 gosterimli bir
+ * gun, 3000 gosterimli gunle esit sayiliyordu. Dondurulmus rapor bu yanlisi
+ * kalici hale getirecekti.
+ */
+describe('ust seviye CTR/pozisyon agirliklandirmasi', () => {
+  const src = readFileSync(new URL('./reports.service.ts', import.meta.url), 'utf8');
+
+  it('CTR toplamlardan hesaplaniyor, gunlerin ortalamasi degil', () => {
+    expect(src).toContain('totalImpressions > 0 ? totalClicks / totalImpressions : 0');
+    expect(src, 'duz ortalama geri donmus').not.toMatch(/reduce\(\(a, s\) => a \+ s\.avgCtr, 0\) \/ snapshots\.length/);
+  });
+
+  it('pozisyon gosterimle agirlikli', () => {
+    expect(src).toContain('s.avgPosition * s.totalImpressions');
+    expect(src).not.toMatch(/reduce\(\(a, s\) => a \+ s\.avgPosition, 0\) \/ snapshots\.length/);
+  });
+});
+
+/**
+ * ASO gunluk cron'u kilitli olmali.
+ *
+ * NEDEN: API ve worker AYNI AppModule'u bootstrap ediyor. Kilit yokken bu
+ * cron iki surecte birden calisiyor ve checkAllForApp appRanking.create()
+ * cagirdigi icin (upsert degil) her kelimeye GUNDE IKI satir yaziyordu.
+ * Uretimde olculdu: 83 gunun 80'inde kelime basina 2 satir, toplam 14.909
+ * satir — olmasi gereken ~7.553. Ustelik her gece magazalara iki kat istek.
+ */
+describe('ASO rank cron kilidi', () => {
+  const src = readFileSync(new URL('../aso/tracker.service.ts', import.meta.url), 'utf8');
+
+  it('acquireCronLock kullaniyor', () => {
+    expect(src).toContain('acquireCronLock');
+    const govde = src.slice(src.indexOf('async dailyRankCheck'), src.indexOf('async dailyRankCheck') + 400);
+    expect(govde, 'kilit dailyRankCheck icinde alinmiyor').toContain('acquireCronLock');
+  });
+
+  it('saat dilimi acikca verilmis — donem siniri kaymasin', () => {
+    expect(src).toMatch(/@Cron\('30 3 \* \* \*', \{ timeZone: 'Europe\/Istanbul' \}\)/);
+  });
+});
+
+/**
+ * AI gorunurluk alarmi olculemeyen skoru 0 saymamali.
+ *
+ * NEDEN: AiCitationSnapshot saglayici cevap veremediginde available=false +
+ * score=null yaziyor. `?? 0` bunu gercek bir sifir sanip "gorunurlugun %X
+ * dustu" alarmini tetikliyordu — kota bitmesi ya da anahtar hatasi musteriye
+ * SAHTE DUSUS e-postasi olarak gidiyordu.
+ */
+describe('AI gorunurluk alarmi — sahte dusus', () => {
+  const src = readFileSync(new URL('../audit/ai-mention-alarm.service.ts', import.meta.url), 'utf8');
+
+  it('score ?? 0 kalmamis', () => {
+    expect(src, 'olculemeyen skor yine 0 sayiliyor').not.toMatch(/r\.score \?\? 0/);
+  });
+
+  it('yalnizca olculebilen skorlar ortalaniyor', () => {
+    expect(src).toContain('olculebilenSkorlar');
+    expect(src).toMatch(/available !== false && typeof r\.score === 'number'/);
+  });
+
+  it('avg bos dizide null donuyor', () => {
+    expect(src).toMatch(/private avg\(arr: number\[\]\): number \| null/);
+    expect(src).toMatch(/if \(arr\.length === 0\) return null;/);
+  });
+});

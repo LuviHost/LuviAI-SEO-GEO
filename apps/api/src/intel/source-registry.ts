@@ -498,6 +498,41 @@ const X_QUERIES: IntelSourceDef[] = [
     weight: 30,
     intervalHours: 24,
   },
+  {
+    key: 'x-geo-genel',
+    name: 'X — GEO/AI SEO genel tartisma',
+    kind: 'x',
+    target: '"geo seo" OR "GEO optimization" OR "AI SEO" OR "answer engine optimization"',
+    tier: 'community',
+    topics: ['geo', 'seo'],
+    weight: 30,
+    intervalHours: 24,
+    note: 'Alanin gunluk dili — dar teknik sorgularin kacirdigi tartismalar burada',
+  },
+  {
+    key: 'x-oss-araclar',
+    name: 'X — acik kaynak SEO/GEO arac duyurulari',
+    kind: 'x',
+    target: '"open sourced" SEO tool OR "open source" "AI visibility" OR github "llms.txt" generator',
+    tier: 'community',
+    topics: ['geo', 'seo', 'agents'],
+    weight: 35,
+    intervalHours: 24,
+    // Bu sorgunun asil degeri postun kendisi degil, isaret ettigi DEPO.
+    // Toplayici depoyu acip inceler ve ayri bir bulgu olarak kaydeder.
+    note: 'Depo cikma olasiligi en yuksek sorgu — rakip arac cikislarini erken yakalar',
+  },
+  {
+    key: 'x-rakipler',
+    name: 'X — GEO araclari pazar sinyalleri',
+    kind: 'x',
+    target: 'Profound OR "Peec AI" OR Otterly OR "AI search monitoring" OR "brand visibility AI"',
+    tier: 'community',
+    topics: ['geo', 'measurement'],
+    weight: 30,
+    intervalHours: 24,
+    note: 'Rakip hamleleri, fiyatlama ve kullanici sikayetleri',
+  },
 ];
 
 export const INTEL_SOURCES: IntelSourceDef[] = [

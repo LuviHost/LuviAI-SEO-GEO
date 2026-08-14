@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { spawn } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { parseJsonFromLlm } from '../common/safe-json.js';
 import type { RawItem } from './collector.service.js';
 
@@ -33,19 +34,45 @@ import type { RawItem } from './collector.service.js';
  * hicbir zaman zorunlu bagimlilik degildir.
  */
 
-/** Sorgu basina en fazla kac post — tur suresi ve gurultu freni */
+/**
+ * X'in iki arama sekmesi ayri isler goruyor, ikisi de taranir:
+ *
+ *  - `live` ("En Son"): kronolojik. Platform degisikligi, yeni olcum,
+ *    "su an su oluyor" tipi sinyal buradan gelir. Dar pencere yeterli.
+ *  - `top`  ("Populer"): etkilesime gore. Duyurular, acik kaynak arac
+ *    cikislari ve referans olmus threadler burada birikir — ve bunlar
+ *    genellikle GUNLERCE degil AYLARCA degerli kalir. Sadece `live`
+ *    taransaydi bu tur bulgular tamamen kacardi.
+ */
+const MODES = [
+  { tab: 'live', label: 'En Son', days: 2 },
+  // 180 gun: bu sekmedeki bir arac duyurusu aylarca referans olarak kalir.
+  // Dar pencere (90 gun) denendi ve ISE YARAMADI — hedef ornek olarak alinan
+  // "acik kaynak GEO-SEO araci" postu 124 gunlukdu ve eleniyordu.
+  { tab: 'top', label: 'Populer', days: 180 },
+] as const;
+
+/** Sekme basina en fazla kac post — tur suresi ve gurultu freni */
 const MAX_POSTS = 15;
 /** Bir turda en fazla kac depo incelenir; her depo ekstra sayfa gezmesi demek */
 const MAX_REPOS = 3;
-/** Kac gun geriye bakilir — gunluk cekimde 2 gun guvenli ust sinir */
-const LOOKBACK_DAYS = 2;
 const DEFAULT_TIMEOUT_SEC = 420;
 /** Ajan ciktisi JSON; buyumesi icin gercek bir sebep yok ama kesilmesin */
 const MAX_STDOUT_BYTES = 4 * 1024 * 1024;
 
+/**
+ * `openclaw agent --json` zarfi. DIKKAT: `openclaw agent exec` bambaska bir
+ * zarf dondurur (duz `final` alani); bu servis gateway'e baglanan `agent`
+ * yolunu kullanir, metin `result.payloads[].text` icindedir.
+ */
 interface OpenClawEnvelope {
-  ok?: boolean;
+  runId?: string;
   status?: 'ok' | 'error' | 'timeout';
+  summary?: string;
+  result?: {
+    payloads?: Array<{ text?: string | null }>;
+  };
+  /** agent exec uyumlulugu — yol degisirse bos donmek yerine calissin */
   final?: string;
   error?: { message?: string; kind?: string };
 }
@@ -104,7 +131,27 @@ export class OpenClawService {
       return [];
     }
 
-    const raw = await this.runAgent(buildPrompt(query));
+    // SIRAYLA, paralel degil: tek bir Chrome ornegi var, es zamanli iki ajan
+    // turu ayni sekmeleri birbirinin altindan cekerdi.
+    const out: RawItem[] = [];
+    const seen = new Set<string>();
+    for (const mode of MODES) {
+      const items = await this.searchMode(query, mode);
+      for (const it of items) {
+        // Ayni post iki sekmede de cikabilir; ilk goren kazanir
+        if (seen.has(it.url)) continue;
+        seen.add(it.url);
+        out.push(it);
+      }
+    }
+    return out;
+  }
+
+  private async searchMode(
+    query: string,
+    mode: (typeof MODES)[number],
+  ): Promise<RawItem[]> {
+    const raw = await this.runAgent(buildPrompt(query, mode));
     if (!raw) return [];
 
     let payload: AgentPayload;
@@ -139,6 +186,7 @@ export class OpenClawService {
         meta: {
           via: 'openclaw-browser',
           query,
+          tab: mode.tab,
           repoUrls: Array.isArray(p?.repoUrls) ? p!.repoUrls!.slice(0, MAX_REPOS) : [],
         },
       });
@@ -161,12 +209,12 @@ export class OpenClawService {
         publishedAt: r?.lastCommit ? safeDate(r.lastCommit) : null,
         summary: [what, str(r?.whyItMatters)].filter(Boolean).join(' '),
         engagement: Number.isFinite(r?.stars) ? Number(r!.stars) : null,
-        meta: { via: 'openclaw-browser', query, kind: 'repo' },
+        meta: { via: 'openclaw-browser', query, tab: mode.tab, kind: 'repo' },
       });
     }
 
     this.log.log(
-      `OpenClaw [${query}] → ${out.length} kayit (${payload?.posts?.length ?? 0} post, ${payload?.repos?.length ?? 0} depo)`,
+      `OpenClaw [${mode.label}] ${query} → ${out.length} kayit (${payload?.posts?.length ?? 0} post, ${payload?.repos?.length ?? 0} depo)`,
     );
     return out;
   }
@@ -187,7 +235,21 @@ export class OpenClawService {
     const timeoutSec = Number(process.env.OPENCLAW_TIMEOUT_SEC ?? DEFAULT_TIMEOUT_SEC);
 
     const args = ['agent', '--message', prompt, '--json', '--timeout', String(timeoutSec)];
-    if (process.env.OPENCLAW_AGENT) args.push('--agent', process.env.OPENCLAW_AGENT);
+
+    // OTURUM SECICI ZORUNLU: seciciSIZ cagri "No target session selected" ile
+    // aninda duser. OPENCLAW_AGENT verilmisse onu kullaniyoruz; verilmemisse
+    // HER TUR ICIN YENI bir oturum anahtari uretiyoruz.
+    //
+    // Neden her tur yeni: sabit anahtar oturumu buyutur — ajan onceki
+    // taramalarin tam metnini baglaminda tasir, maliyet her gun artar ve
+    // eski sonuclari tekrar rapor etme egilimi dogar. Her tarama bagimsiz
+    // olmali.
+    if (process.env.OPENCLAW_AGENT) {
+      args.push('--agent', process.env.OPENCLAW_AGENT);
+    } else {
+      args.push('--session-key', `ranksup-intel-${Date.now()}-${randomUUID().slice(0, 8)}`);
+    }
+
     if (process.env.OPENCLAW_GATEWAY_URL) args.push('--url', process.env.OPENCLAW_GATEWAY_URL);
     if (process.env.OPENCLAW_TOKEN) args.push('--token', process.env.OPENCLAW_TOKEN);
 
@@ -248,7 +310,14 @@ export class OpenClawService {
       );
       return null;
     }
-    return envelope.final?.trim() || null;
+
+    const text =
+      (envelope.result?.payloads ?? [])
+        .map((p) => p?.text ?? '')
+        .join('')
+        .trim() || envelope.final?.trim() || '';
+
+    return text || null;
   }
 }
 
@@ -256,20 +325,21 @@ export class OpenClawService {
 //  Prompt
 // ────────────────────────────────────────────────────────────
 
-function buildPrompt(query: string): string {
-  const since = new Date(Date.now() - LOOKBACK_DAYS * 86_400_000).toISOString().slice(0, 10);
-  // `f=live` = "En Son" sekmesi. Varsayilan "Populer" sekmesi eski ama cok
-  // etkilesim almis postlari one cikarir; biz TAZELIK istiyoruz.
-  const searchUrl = `https://x.com/search?q=${encodeURIComponent(query)}&src=typed_query&f=live`;
+function buildPrompt(query: string, mode: (typeof MODES)[number]): string {
+  const since = new Date(Date.now() - mode.days * 86_400_000).toISOString().slice(0, 10);
+  const searchUrl = `https://x.com/search?q=${encodeURIComponent(query)}&src=typed_query&f=${mode.tab}`;
 
   return `X (Twitter) uzerinde arastirma yap ve YALNIZCA JSON dondur.
 
 ADIMLAR
 1. browser aracini kullanarak su adresi ac: ${searchUrl}
+   (bu "${mode.label}" sekmesidir)
 2. Sayfayi snapshot al. Gerekirse en fazla 3 kez asagi kaydirip tekrar snapshot al.
 3. ${since} tarihinden yeni, en fazla ${MAX_POSTS} ilgili postu topla.
 4. Postlarda GitHub deposu linki varsa en fazla ${MAX_REPOS} tanesini ayrica ac,
    README'sini ve son commit tarihini oku, ne yaptigini kendi cumlelerinle yaz.
+   Post "acik kaynak yaptim / open sourced" diyor ama link gorunmuyorsa, postu
+   acip yanitlarina bak — depo linki cogu zaman orada olur.
 
 NEYI AL
 - Veri, olcum, test sonucu, platform degisikligi, somut deneyim iceren postlar.

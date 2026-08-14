@@ -287,8 +287,19 @@ export class ReportsService {
 
     const totalClicks = snapshots.reduce((a, s) => a + s.totalClicks, 0);
     const totalImpressions = snapshots.reduce((a, s) => a + s.totalImpressions, 0);
-    const avgCtr = snapshots.length > 0 ? snapshots.reduce((a, s) => a + s.avgCtr, 0) / snapshots.length : 0;
-    const avgPosition = snapshots.length > 0 ? snapshots.reduce((a, s) => a + s.avgPosition, 0) / snapshots.length : 0;
+    // CTR ve pozisyon GOSTERIMLE AGIRLIKLI.
+    //
+    // Onceden gunlerin duz ortalamasi aliniyordu: 3 gosterimli bir gun,
+    // 3000 gosterimli gunle ESIT sayiliyordu. Trafigin dalgali oldugu
+    // sitelerde bu, ortalama pozisyonu bir-iki sessiz gunun belirlemesine
+    // yol aciyordu. Ayni dosyadaki detaylariTopla zaten dogrusunu yapiyordu;
+    // ust seviye ondan geri kalmisti.
+    //
+    // CTR ayrica ortalanmaz, TOPLAMLARDAN yeniden hesaplanir — oranlarin
+    // ortalamasi, oranların toplamı degildir.
+    const avgCtr = totalImpressions > 0 ? totalClicks / totalImpressions : 0;
+    const posAgirlik = snapshots.reduce((a, s) => a + s.avgPosition * s.totalImpressions, 0);
+    const avgPosition = totalImpressions > 0 ? posAgirlik / totalImpressions : 0;
     const prevClicks = prevSnapshots.reduce((a, s) => a + s.totalClicks, 0);
     const prevImpressions = prevSnapshots.reduce((a, s) => a + s.totalImpressions, 0);
 

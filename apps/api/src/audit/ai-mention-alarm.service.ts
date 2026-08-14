@@ -19,6 +19,18 @@ export interface AlarmTrigger {
  * tespit eder. Eger 7 gun ortalamasi onceki 7 gunden %30+ dustuyse
  * site sahibine email gonderir.
  */
+/**
+ * Yalnizca GERCEKTEN olculmus skorlar.
+ *
+ * AiCitationSnapshot, saglayici cevap veremediginde `available=false` ve
+ * `score=null` satiri yazar. Bu bir olcum degil, olcumun yoklugudur; ortalamaya
+ * 0 olarak girerse kota bitmesi ya da anahtar hatasi "gorunurlugun dustu"
+ * alarmina donusur ve musteriye sahte e-posta gider.
+ */
+function olculebilenSkorlar(kayitlar: Array<{ available?: boolean; score?: number | null }>): number[] {
+  return kayitlar.filter((r) => r.available !== false && typeof r.score === 'number').map((r) => r.score as number);
+}
+
 @Injectable()
 export class AiMentionAlarmService {
   private readonly log = new Logger(AiMentionAlarmService.name);
@@ -98,8 +110,14 @@ export class AiMentionAlarmService {
       const previousP = previous.filter((r) => r.provider === p);
       if (recentP.length === 0 || previousP.length === 0) continue;
 
-      const recentAvg = this.avg(recentP.map((r) => r.score ?? 0));
-      const previousAvg = this.avg(previousP.map((r) => r.score ?? 0));
+      // OLCULEMEYEN SNAPSHOT ORTALAMAYA GIRMEZ. AiCitationSnapshot,
+      // saglayici cevap veremediginde available=false + score=null satiri
+      // yaziyor. `?? 0` bunu gercek bir sifir sanip "gorunurlugun %X dustu"
+      // alarmini tetikliyordu — kota bitmesi ya da anahtar hatasi musteriye
+      // sahte dusus e-postasi olarak gidiyordu.
+      const recentAvg = this.avg(olculebilenSkorlar(recentP));
+      const previousAvg = this.avg(olculebilenSkorlar(previousP));
+      if (recentAvg === null || previousAvg === null) continue;
       if (previousAvg < 5) continue; // anlamsiz baz
 
       const delta = (recentAvg - previousAvg) / previousAvg;
@@ -128,9 +146,11 @@ export class AiMentionAlarmService {
     }
 
     // Genel skor kontrol
-    const recentOverall = this.avg(recent.map((r) => r.score ?? 0));
-    const prevOverall = this.avg(previous.map((r) => r.score ?? 0));
-    if (prevOverall >= 5) {
+    const recentOverall = this.avg(olculebilenSkorlar(recent));
+    const prevOverall = this.avg(olculebilenSkorlar(previous));
+    // Iki donemden biri hic olculemediyse genel karsilastirma yapilamaz —
+    // saglayici bazli tetikler yukarida zaten toplandi, onlari kaybetmeyelim.
+    if (recentOverall !== null && prevOverall !== null && prevOverall >= 5) {
       const delta = (recentOverall - prevOverall) / prevOverall;
       if (delta <= -this.DROP_THRESHOLD) {
         triggers.push({
@@ -148,8 +168,15 @@ export class AiMentionAlarmService {
     return triggers;
   }
 
-  private avg(arr: number[]): number {
-    if (arr.length === 0) return 0;
+  /**
+   * Ortalama — BOS DIZIDE null, 0 DEGIL.
+   *
+   * Onceden 0 donuyordu ve bu, "olcum yok" durumunu "skor sifir" haline
+   * getiriyordu; yukaridaki delta hesabi da bunu gercek bir cokus sanip
+   * musteriye alarm e-postasi gonderiyordu.
+   */
+  private avg(arr: number[]): number | null {
+    if (arr.length === 0) return null;
     return arr.reduce((a, b) => a + b, 0) / arr.length;
   }
 
