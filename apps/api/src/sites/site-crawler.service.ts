@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import * as cheerio from 'cheerio';
 
 export interface CrawledPage {
@@ -34,6 +34,27 @@ export interface CrawlResult {
 
 @Injectable()
 export class SiteCrawlerService {
+  private readonly log = new Logger(SiteCrawlerService.name);
+
+  /**
+   * Tek bir sayfadan okunacak en fazla bayt (varsayilan 2 MB).
+   *
+   * Cikardigimiz her sinyal <head> icinde — 2 MB o isin kat kat ustunde.
+   * Uretimde olculdu: siniri olmayan surumde tek bir sayfa 14.1 MB HTML
+   * donduruyordu ve worker'i bellek sinirinda oldurmeye yetiyordu.
+   * Ortam degiskeniyle ayarlanabilir.
+   */
+  private static readonly MAX_PAGE_BYTES =
+    Number(process.env.CRAWL_MAX_PAGE_BYTES) > 0
+      ? Number(process.env.CRAWL_MAX_PAGE_BYTES)
+      : 2 * 1024 * 1024;
+
+  /**
+   * Sitemap tavani daha genis — sitemap 50.000 URL icerebilir ve bunlar
+   * duz metin, ayristirmasi ucuz. Yine de sinirsiz degil.
+   */
+  private static readonly MAX_SITEMAP_BYTES = 8 * 1024 * 1024;
+
   /**
    * Bir siteyi sınırlı derinlikte crawl eder.
    * Sitemap.xml öncelikli, yoksa link discovery. Her sayfa için head'deki
@@ -138,7 +159,7 @@ export class SiteCrawlerService {
     return /^\/(api|admin|admin-unlock|onboarding|sites|dashboard|billing|affiliate|api-keys|agency|signin|signup|auth)(\/|$|\?)/.test(path);
   }
 
-  private async fetchPage(url: string): Promise<string | null> {
+  private async fetchPage(url: string, maxBytes = SiteCrawlerService.MAX_PAGE_BYTES): Promise<string | null> {
     try {
       // Cache-bust: WP.com / Cloudflare gibi edge cache'ler eski içerik veriyordu →
       // audit eski title/FAQ/schema görüp YANLIŞ sonuç üretiyordu. Benzersiz query +
@@ -154,11 +175,80 @@ export class SiteCrawlerService {
         signal: AbortSignal.timeout(15000),
         redirect: 'follow',
       });
-      if (!res.ok) return null;
-      return await res.text();
+      if (!res.ok) {
+        await res.body?.cancel().catch(() => {});
+        return null;
+      }
+
+      // Metin olmayan govdeyi hic indirme. Accept basligi */* iceriyor (bazi
+      // sunucular katı Accept'te 406 donuyor), yani PDF/zip/video gelebiliyordu
+      // ve res.text() onu bastan sona bellege aliyordu. Ayristirilacak bir sey
+      // olmadigi icin bu tamamen bosa harcanan bellek.
+      const ct = res.headers.get('content-type') ?? '';
+      if (ct && !/(text\/|xml|json|javascript|xhtml)/i.test(ct)) {
+        await res.body?.cancel().catch(() => {});
+        return null;
+      }
+
+      return await this.readCapped(res, url, maxBytes);
     } catch {
       return null;
     }
+  }
+
+  /**
+   * Govdeyi tavana kadar okur, tavanda baglantiyi keser.
+   *
+   * NEDEN VAR: res.text() ne gelirse tamamini bellege aliyordu. Canlida olculdu —
+   * tek bir site taramasi 100 sayfa icin 137 MB indiriyordu ve iceride 14.1 MB'lik
+   * TEK bir HTML sayfasi vardi. Cheerio boyle bir belgeyi ayristirirken kaynagin
+   * birkac kati DOM ayirir; 5'li batch ve 2 es zamanli tarama ile worker'in RSS'i
+   * 205 MB'tan 1440 MB'a firliyordu. PM2'nin 1 GB max_memory_restart siniri
+   * devreye girip SIGTERM gonderiyordu: tarama yarida oluyor, DB'deki is
+   * PROCESSING'de asili kaliyor, BullMQ takilan isi yeniden veriyor ve ayni
+   * tarama tekrar tekrar cokuyordu. Uretimde ayni is 7 kez bastan basladi.
+   *
+   * KESMEK, SAYFAYI ATMAKTAN IYI: cikardigimiz sinyallerin tamami (title, meta,
+   * canonical, OG, JSON-LD) belgenin <head> kismindadir, yani ilk kilobaytlarda.
+   * Sayfayi tamamen elemek onu link grafiginden de dusururdu ve baska sayfalari
+   * yanlislikla "orphan" gosterirdi. Kirpilan sayfa loglanir — sessiz kirpma yok.
+   */
+  private async readCapped(res: Response, url: string, maxBytes: number): Promise<string | null> {
+    const reader = res.body?.getReader();
+    if (!reader) return null;
+
+    const decoder = new TextDecoder('utf-8');
+    const parts: string[] = [];
+    let total = 0;
+    let kirpildi = false;
+
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        if (!value) continue;
+
+        const kalan = maxBytes - total;
+        if (value.length >= kalan) {
+          parts.push(decoder.decode(value.subarray(0, kalan)));
+          kirpildi = true;
+          await reader.cancel().catch(() => {});
+          break;
+        }
+        total += value.length;
+        parts.push(decoder.decode(value, { stream: true }));
+      }
+    } catch {
+      await reader.cancel().catch(() => {});
+      return parts.length ? parts.join('') : null;
+    }
+
+    if (kirpildi) {
+      this.log.warn(
+        `${url} ${(maxBytes / 1048576).toFixed(1)}MB tavanda kirpildi — head sinyalleri okundu, sayfa sonundaki linkler eksik olabilir`,
+      );
+    }
+    return parts.join('');
   }
 
   private async findSitemap(origin: string): Promise<string | null> {
@@ -168,7 +258,7 @@ export class SiteCrawlerService {
       `${origin}/sitemap-index.xml`,
     ];
     for (const url of candidates) {
-      const txt = await this.fetchPage(url);
+      const txt = await this.fetchPage(url, SiteCrawlerService.MAX_SITEMAP_BYTES);
       if (txt && (txt.includes('<urlset') || txt.includes('<sitemapindex'))) return url;
     }
 
@@ -186,7 +276,7 @@ export class SiteCrawlerService {
    * Index ise alt sitemap'leri de takip eder.
    */
   private async parseSitemap(sitemapUrl: string): Promise<string[]> {
-    const xml = await this.fetchPage(sitemapUrl);
+    const xml = await this.fetchPage(sitemapUrl, SiteCrawlerService.MAX_SITEMAP_BYTES);
     if (!xml) return [];
 
     // Sitemap index ise alt sitemap'leri parse et
@@ -194,7 +284,7 @@ export class SiteCrawlerService {
       const childUrls = [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map(m => m[1].trim());
       const all: string[] = [];
       for (const child of childUrls.slice(0, 5)) { // max 5 sub-sitemap
-        const childXml = await this.fetchPage(child);
+        const childXml = await this.fetchPage(child, SiteCrawlerService.MAX_SITEMAP_BYTES);
         if (childXml) {
           const matches = [...childXml.matchAll(/<loc>([^<]+)<\/loc>/g)];
           all.push(...matches.map(m => m[1].trim()));
