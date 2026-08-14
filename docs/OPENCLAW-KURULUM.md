@@ -223,9 +223,28 @@ GEO-SEO aracı" postu 124 günlüktü ve eleniyordu.
   `aaron-he-zhu/seo-geo-claude-skills` (151, 2026-07-13)
 - 124 günlük hedef post yakalandı → 180 günlük pencere doğrulandı
 
-Tur süresi kabaca: sorgu başına iki sekme ≈ 7 dakika. 8 X sorgusu × günde 1 tur
-≈ 55 dakika tarayıcı zamanı/gün. Toplama cron'u 3 saatte bir çalışır ve
-`acquireCronLock` üst üste binmeyi engeller.
+**3) Üretim kod yolu** — deploy sonrası, derlenmiş `dist/intel/openclaw.service.js`
+doğrudan çağrıldı (spawn → wrapper → gateway → tarayıcı → parse):
+
+```
+OpenClaw [En Son]  … → 3 kayit (2 post, 1 depo)     ~237 sn
+OpenClaw [Populer] … → 6 kayit (3 post, 3 depo)     ~348 sn
+TOPLAM 8 kayit (tekillestirme sonrasi), 585 sn
+```
+
+Depolar: `letterstory/lettertrace` (41★), `zubair-trabzada/geo-seo-claude`
+(9.347★), `nowork-studio/notfair-plugin` (3.357★).
+
+### Süre bütçesi
+
+Sorgu başına iki sekme ≈ **10 dakika** (Popüler sekmesi depo incelemesi
+yüzünden daha uzun, ~350 sn — `OPENCLAW_TIMEOUT_SEC=420` sınırına yakın).
+8 X sorgusu × günde 1 tur ≈ **80 dakika tarayıcı zamanı/gün**.
+
+Toplama cron'u 3 saatte bir çalışır, kaynakların `intervalHours` değeri 24
+olduğu için her sorgu günde bir kez döner. `acquireCronLock` turların üst üste
+binmesini engeller. Süre sıkışırsa `MAX_REPOS` düşürülmeli — depo incelemesi
+en pahalı adım.
 
 ## `openclaw agent` çağrısının iki tuzağı
 
