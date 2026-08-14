@@ -8,6 +8,7 @@ import { JobQueueService } from '../jobs/job-queue.service.js';
 import { decrypt } from '@luviai/shared';
 import { getAdapter } from '@luviai/adapters';
 import { safeParseJson } from '../common/safe-json.js';
+import { readBodyCapped } from '../common/fetch-capped.js';
 
 interface ProposedEdit {
   type: 'sentence_replace' | 'paragraph_add' | 'alttext_update';
@@ -267,8 +268,11 @@ export class StuckPageExternalRecoveryService {
         headers: { 'User-Agent': 'RanksUp-StuckPageRecovery/1.0 (+https://ranksup.ai)' },
         signal: AbortSignal.timeout(15000),
       });
-      if (!res.ok) return null;
-      return await res.text();
+      if (!res.ok) {
+        await res.body?.cancel().catch(() => {});
+        return null;
+      }
+      return (await readBodyCapped(res, 2 * 1024 * 1024))?.text ?? null;
     } catch (err: any) {
       this.log.warn(`Fetch hata ${url}: ${err.message}`);
       return null;

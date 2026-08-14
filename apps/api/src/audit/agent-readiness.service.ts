@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { acquireCronLock } from '../common/cron-lock.js';
 import { siteWhereForFeature } from '../billing/plan-site-filter.js';
+import { readBodyCapped } from '../common/fetch-capped.js';
 
 /**
  * Agent Readiness (AXO — Agent Experience Optimization) taramasi.
@@ -738,7 +739,8 @@ export class AgentReadinessService {
         signal: controller.signal,
       });
       clearTimeout(timer);
-      const body = res.ok ? await res.text() : '';
+      // 500 KB'a kirpiliyordu ama INDIRDIKTEN sonra; tavan artik okuma aninda.
+      const body = res.ok ? ((await readBodyCapped(res, 500_000))?.text ?? '') : '';
       return {
         ok: res.ok,
         status: res.status,

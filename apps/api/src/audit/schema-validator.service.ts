@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { readBodyCapped } from '../common/fetch-capped.js';
 
 export interface SchemaValidationResult {
   url: string;
@@ -43,7 +44,9 @@ export class SchemaValidatorService {
         result.errors.push(`HTTP ${res.status} — sayfaya ulasilamadi`);
         return result;
       }
-      html = await res.text();
+      // 2 MB tavan — JSON-LD genelde <head>'de, bazen govde sonunda; 2 MB ikisini
+      // de kapsar ve sinirsiz okumanin worker'i oldurmesini engeller.
+      html = (await readBodyCapped(res, 2 * 1024 * 1024))?.text ?? '';
     } catch (err: any) {
       result.errors.push(`Fetch fail: ${err.message}`);
       return result;

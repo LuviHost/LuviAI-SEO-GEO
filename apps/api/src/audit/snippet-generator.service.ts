@@ -3,6 +3,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import * as cheerio from 'cheerio';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { SiteCrawlerService } from '../sites/site-crawler.service.js';
+import { readBodyCapped } from '../common/fetch-capped.js';
 
 export type SnippetType =
   | 'meta_description'
@@ -535,8 +536,11 @@ Başlık: ${heading}
         headers: { 'User-Agent': 'RanksUp-Snippet/1.0' },
         signal: AbortSignal.timeout(12000),
       });
-      if (!res.ok) return null;
-      return await res.text();
+      if (!res.ok) {
+        await res.body?.cancel().catch(() => {});
+        return null;
+      }
+      return (await readBodyCapped(res, 2 * 1024 * 1024))?.text ?? null;
     } catch { return null; }
   }
 }

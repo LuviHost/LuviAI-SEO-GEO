@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { AiCitationService, type CitationProbe } from './ai-citation.service.js';
 import { NicheDetectorService } from '../sites/niche-detector.service.js';
 import type { Audience } from '../llm/model-tier.js';
+import { readBodyCapped } from '../common/fetch-capped.js';
 
 /**
  * Public AI Citation Check — landing page demo (anonim).
@@ -252,7 +253,10 @@ export class PublicCitationService {
       });
       clearTimeout(t);
       if (res.ok) {
-        html = (await res.text()).slice(0, 100_000);
+        // BURASI KIMLIK DOGRULAMASIZ PUBLIC UC — adres tamamen disaridan geliyor.
+        // 100 KB'a kirpiliyordu ama INDIRDIKTEN sonra, yani biri devasa bir
+        // adres verirse bellek yine harcaniyordu. Tavan artik okuma aninda.
+        html = ((await readBodyCapped(res, 1024 * 1024))?.text ?? '').slice(0, 100_000);
       }
     } catch (err: any) {
       this.log.warn(`Public HTML fetch fail (${url}): ${err.message}`);

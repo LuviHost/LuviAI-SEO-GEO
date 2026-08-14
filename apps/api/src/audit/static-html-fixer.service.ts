@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { decrypt } from '@luviai/shared';
 import { getAdapter } from '@luviai/adapters';
 import type { PageSnippet } from './snippet-generator.service.js';
+import { readBodyCapped } from '../common/fetch-capped.js';
 
 /**
  * D4 — Statik HTML siteleri için preview-onaylı auto-write.
@@ -226,8 +227,11 @@ export class StaticHtmlFixerService {
         headers: { 'User-Agent': 'RanksUp-StaticFixer/1.0' },
         signal: AbortSignal.timeout(15000),
       });
-      if (!res.ok) return null;
-      return await res.text();
+      if (!res.ok) {
+        await res.body?.cancel().catch(() => {});
+        return null;
+      }
+      return (await readBodyCapped(res, 2 * 1024 * 1024))?.text ?? null;
     } catch { return null; }
   }
 }

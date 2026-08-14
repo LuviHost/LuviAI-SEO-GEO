@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { readBodyCapped } from '../common/fetch-capped.js';
 
 export interface PlatformDetection {
   platform: 'wordpress' | 'webflow' | 'wix' | 'ghost' | 'shopify' | 'squarespace' | 'cpanel-static' | 'next' | 'unknown';
@@ -27,7 +28,9 @@ export class PlatformDetectorService {
         redirect: 'follow',
         signal: AbortSignal.timeout(10000),
       });
-      html = (await res.text()).slice(0, 50000);
+      // 50 KB yetiyor (asagida zaten kirpiliyordu) — ama eski hali govdenin
+      // TAMAMINI indirip sonra kirpiyordu, yani bellek zaten harcanmis oluyordu.
+      html = ((await readBodyCapped(res, 512 * 1024))?.text ?? '').slice(0, 50000);
       res.headers.forEach((v, k) => (headers[k.toLowerCase()] = v));
     } catch (err: any) {
       this.log.warn(`Platform fetch fail (${siteUrl}): ${err.message}`);

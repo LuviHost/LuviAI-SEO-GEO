@@ -3,6 +3,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { PageRendererService } from './page-renderer.service.js';
 import { SettingsService } from '../settings/settings.service.js';
 import { modelForAudience, type Audience } from '../llm/model-tier.js';
+import { readBodyCapped } from '../common/fetch-capped.js';
 
 /**
  * URL'den site nişini AI ile tespit et.
@@ -121,7 +122,8 @@ export class NicheDetectorService {
       });
       clearTimeout(t);
       if (!res.ok) return { ...fallback, reasoning: `HTTP ${res.status}` };
-      html = (await res.text()).slice(0, 50_000);
+      // 50 KB yetiyor — ama eski hali once govdenin tamamini indiriyordu.
+      html = ((await readBodyCapped(res, 512 * 1024))?.text ?? '').slice(0, 50_000);
     } catch (err: any) {
       this.log.warn(`URL fetch fail (${url}): ${err.message}`);
       return { ...fallback, reasoning: `Fetch hatası: ${err.message}` };

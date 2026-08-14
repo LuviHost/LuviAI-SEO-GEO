@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { readBodyCapped } from '../common/fetch-capped.js';
 
 export interface CrawlerLogEntry {
   ip: string;
@@ -302,7 +303,8 @@ export class CrawlerAnalyticsService {
         const sitemapUrl = `${site.url.replace(/\/+$/, '')}/sitemap.xml`;
         const res = await fetch(sitemapUrl, { signal: AbortSignal.timeout(5000) }).catch(() => null);
         if (res?.ok) {
-          const xml = await res.text();
+          // Sitemap duz metin ama devasa olabilir — 8 MB tavan.
+          const xml = (await readBodyCapped(res, 8 * 1024 * 1024))?.text ?? '';
           const urlMatches = xml.match(/<loc>/gi) ?? [];
           sitePagesTotal = urlMatches.length;
           if (sitePagesTotal > 0) {

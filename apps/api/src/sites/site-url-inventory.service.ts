@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { readBodyCapped, isBinaryContentType } from '../common/fetch-capped.js';
 
 export interface SitePageRef {
   url: string;    // mutlak URL
@@ -232,8 +233,18 @@ export class SiteUrlInventoryService {
         signal: AbortSignal.timeout(12000),
         redirect: 'follow',
       });
-      if (!res.ok) return null;
-      return await res.text();
+      if (!res.ok) {
+        await res.body?.cancel().catch(() => {});
+        return null;
+      }
+      if (isBinaryContentType(res)) {
+        await res.body?.cancel().catch(() => {});
+        return null;
+      }
+      // Tavan: burasi sitemap de HTML de okuyabiliyor. Sitemap'ler duz metin ve
+      // buyuk olabildigi icin 8 MB; yine de sinirsiz degil. Bkz. fetch-capped.ts
+      const okundu = await readBodyCapped(res, 8 * 1024 * 1024);
+      return okundu?.text ?? null;
     } catch {
       return null;
     }
