@@ -29,6 +29,22 @@ import { INGEST_SIGNATURE_HEADER, INGEST_TIMESTAMP_HEADER } from './ingest-auth.
  * ziyaretciler ayni IP'yi paylasir). Abuse korumasi beacon'in kendi
  * dogrulamasiyla yapilmali, genel IP limitiyle degil.
  */
+/**
+ * Ingest ucunun dakikalik istek tavani.
+ *
+ * Ortam degiskenine baglandi cunku e2e testi bu limiti GERCEKTEN asarak
+ * "@SkipThrottle({default:false}) muafiyeti kaldiriyor mu" sorusunu
+ * dogruluyor. 300 sabitken test her kosumda 400 ardisik HTTP istegi atmak
+ * zorundaydi; makine mesgulken bu 2 dakikayi asip testi dusuruyordu
+ * (iki kez yasandi). Testte limit kucultuluyor, davranis ayni kaliyor.
+ *
+ * Uretim varsayilani DEGISMEDI: 300/dk. Ingest bir batch ucu (tek istekte
+ * 500 event), mesru bir edge kaynagi bu kadarina ihtiyac duymaz.
+ */
+const INGEST_RATE_LIMIT = Number(process.env.INGEST_RATE_LIMIT) > 0
+  ? Number(process.env.INGEST_RATE_LIMIT)
+  : 300;
+
 @SkipThrottle()
 @Controller()
 export class TrackerController {
@@ -54,7 +70,7 @@ export class TrackerController {
    */
   @Public()
   @SkipThrottle({ default: false })
-  @Throttle({ default: { limit: 300, ttl: 60_000 } })
+  @Throttle({ default: { limit: INGEST_RATE_LIMIT, ttl: 60_000 } })
   @Post('tracker/events')
   async ingestEvents(
     @Body() body: { site?: string; source?: string; events?: IngestEvent[] },

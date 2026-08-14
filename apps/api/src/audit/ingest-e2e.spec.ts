@@ -1,13 +1,25 @@
 import 'reflect-metadata';
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import request from 'supertest';
+
+/**
+ * Ingest limiti testte kucultuluyor — bkz. tracker.controller.ts
+ * INGEST_RATE_LIMIT. Uretim degeri 300; burada 50 ile AYNI davranis
+ * yuzlerce istek atmadan olculuyor: eski hali 400 ardisik HTTP istegi
+ * atiyordu ve makine mesgulken once 60sn sonra 120sn tavanini asip testi
+ * dusurdu (iki kez yasandi).
+ *
+ * 5 denendi ve DOSYADAKI DIGER testleri dusurdu — onlar da ayni uc'a istek
+ * atiyor ve limiti tuketiyorlardi. 50, diger testlerin toplam istegi ile
+ * throttle testinin maliyeti arasindaki dogru denge.
+ */
+const TEST_LIMIT = 50;
 import type { INestApplication } from '@nestjs/common';
 import { ValidationPipe } from '@nestjs/common';
 import { APP_GUARD, Reflector } from '@nestjs/core';
 import { Test } from '@nestjs/testing';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 
-import { TrackerController } from './tracker.controller.js';
 import { LiveCrawlerService } from './live-crawler.service.js';
 import { AiReferrerService } from './ai-referrer.service.js';
 import { PersonaChatService } from './persona-chat.service.js';
@@ -68,6 +80,16 @@ function shimParamTypes(target: unknown, deps: unknown[]): void {
   }
 }
 
+/**
+ * Controller DINAMIK import ediliyor.
+ *
+ * NEDEN: @Throttle dekoratoru sinif TANIMLANIRKEN calisiyor ve limiti
+ * process.env.INGEST_RATE_LIMIT'ten okuyor. ESM'de importlar hoist edildigi
+ * icin dosya basindaki bir env atamasi GEC kalirdi — dekorator zaten
+ * calismis olurdu. Bu yuzden env once set edilip modul sonra yukleniyor.
+ */
+process.env.INGEST_RATE_LIMIT = String(TEST_LIMIT);
+const { TrackerController } = await import('./tracker.controller.js');
 shimParamTypes(TrackerController, [AiReferrerService, PersonaChatService, LiveCrawlerService]);
 shimParamTypes(LiveCrawlerService, [PrismaService, NotificationsService, WebhookNotifierService]);
 shimParamTypes(AuthGuard, [PrismaService, Reflector, ApiKeysService]);
@@ -287,7 +309,7 @@ describe('POST /api/tracker/events — throttle override', () => {
   let app: INestApplication;
 
   beforeAll(async () => {
-    // Global varsayilan 2 istek/dk; ingest ucu 300'e cikariyor.
+    // Global varsayilan 2 istek/dk; ingest ucu kendi override'ini uygular.
     ({ app } = await createIngestApp());
   });
 
@@ -312,19 +334,17 @@ describe('POST /api/tracker/events — throttle override', () => {
     }
 
     // 2) SkipThrottle({ default: false }) gercekten muafiyeti kaldirdi mi:
-    //    300'luk pencere dolunca 429 gelmeli. Gelmezse uc tamamen limitsizdir
-    //    ve imzasiz istekle ucuz CPU/DB tuketimi vektoru acik kalir.
+    //    limit dolunca 429 gelmeli. Gelmezse uc tamamen limitsizdir ve
+    //    imzasiz istekle ucuz CPU/DB tuketimi vektoru acik kalir.
     //
-    // ISTEKLER BILEREK SIRAYLA: paralel partiler denendi ve ECONNRESET verdi
-    // (uc 429 dondurunce soket kapaniyor, ayni partideki ucan istekler
-    // reddediliyor). Olculdu — sirali hali normalde 340ms-1sn suruyor, yani
-    // test yavas DEGIL. Bir kez 60sn tavanina carpti cunku ayni anda agir
-    // uretim isleri kosuyordu ve surec CPU'dan ac kaldi. Cozum testi
-    // hizlandirmak degil, tavani gercekci yapmak: 120sn'de bile normal
-    // kosumda 1 saniye harciyoruz, yalnizca sistem mesgulken yanlis
-    // kirmizi vermiyoruz.
+    // LIMIT TESTTE KUCULTULDU (INGEST_RATE_LIMIT=5, asagida beforeAll'da).
+    // Uretim limiti 300 ve sabitken bu test her kosumda 400 ardisik HTTP
+    // istegi atmak zorundaydi; makine mesgulken toplam sure once 60sn sonra
+    // 120sn tavanini asip testi dusurdu. Once paralel partiler denendi ve
+    // ECONNRESET verdi (uc 429 dondurunce soket kapaniyor). Dogru cozum
+    // istek SAYISINI dusurmek: olculen davranis ayni, maliyet 400 -> ~8.
     let sawTooMany = false;
-    for (let i = 0; i < 400 && !sawTooMany; i++) {
+    for (let i = 0; i < TEST_LIMIT + 5 && !sawTooMany; i++) {
       const res = await request(server)
         .post(ROUTE)
         .set('Content-Type', 'application/json')
@@ -332,5 +352,5 @@ describe('POST /api/tracker/events — throttle override', () => {
       if (res.status === 429) sawTooMany = true;
     }
     expect(sawTooMany, 'ingest ucu tamamen limitsiz — imzasiz istekle CPU tuketilebilir').toBe(true);
-  }, 120_000);
+  }, 30_000);
 });
