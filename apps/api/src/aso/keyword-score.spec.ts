@@ -80,16 +80,24 @@ describe('arayuz — ikili sinyal sayi gibi cizilmiyor', () => {
     'utf8',
   );
 
-  it('iOS satirinda Pop. sayi yerine etiket gosteriliyor', () => {
-    expect(UI).toContain('Öneriliyor');
-    expect(UI).toContain('Önerilmiyor');
-    expect(UI).toMatch(/kw\.store === 'IOS'/);
+  it('Pop. sutunu TAMAMEN kaldirilmis', () => {
+    // Uretimde olculdu: sutun bu kullanicinin kelime setinde HICBIR ZAMAN
+    // deger uretemiyor.
+    //   iOS      — ikili sinyal ve hep tabanda (91 kelimenin 90'i 10)
+    //   ANDROID  — uzun kuyruk terimlerde kutuphane hata firlatiyor
+    //              ("Cannot read properties of null (reading 'map')");
+    //              yalnizca "kredi karti" gibi yaygin terimlerde calisiyor
+    // Sonuc: her satirda "—". Bos bir sutun tutmak, kullaniciya olculebilir
+    // bir sey varmis izlenimi verir.
+    expect(UI, 'Pop. sutunu hala duruyor').not.toContain('Pop.');
+    expect(UI).not.toContain('Öneriliyor');
   });
 
-  it('Pop. tooltip\'i artik "yuksek = cok araniyor" demiyor', () => {
-    // Ikili bir sinyal icin bu cumle yanlis.
-    expect(UI).not.toContain("Yüksek = çok aranıyor");
-    expect(UI).toContain('İKİLİ bir sinyal');
+  it('sunucu tarafi popularity HESAPLAMAYA devam ediyor — yalnizca gosterim kalkti', () => {
+    // Alan silinmedi: Android'de yaygin terimlerde gercek deger uretiyor
+    // (olculdu: "kredi karti" -> 73). Sutun geri istenirse veri hazir.
+    const API = readFileSync(new URL('./keyword.service.ts', import.meta.url), 'utf8');
+    expect(API).toContain('popularity: this.normalizeScore(popularityRaw)');
   });
 
   it('Rank tooltip\'i magaza derinligini dogru soyluyor', () => {

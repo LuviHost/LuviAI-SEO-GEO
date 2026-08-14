@@ -923,7 +923,7 @@ function AppDetailModal({ app, siteId, onClose, onChanged }: {
                 <RefreshCw className={`h-4 w-4 mr-1 ${bulkRankProgress ? 'animate-spin' : ''}`} />
                 {bulkRankProgress ? 'Çekiliyor...' : "Tüm Rank'leri Çek"}
               </Button>
-              <Button size="sm" variant="outline" onClick={refreshScores} disabled={refreshingScores || (app.keywords?.length ?? 0) === 0} title="aso-v2 ile Pop/Diff/Traffic skorlarını yeniden hesaplar">
+              <Button size="sm" variant="outline" onClick={refreshScores} disabled={refreshingScores || (app.keywords?.length ?? 0) === 0} title="Zorluk ve trafik skorlarını mağaza verisinden yeniden hesaplar">
                 <Sparkles className={`h-4 w-4 mr-1 ${refreshingScores ? 'animate-spin' : ''}`} />
                 {refreshingScores ? 'Hesaplanıyor...' : 'Skorları Yenile'}
               </Button>
@@ -1067,12 +1067,6 @@ function AppDetailModal({ app, siteId, onClose, onChanged }: {
                       </th>
                       <th className="text-center px-2 py-2 font-semibold">
                         <span className="inline-flex items-center justify-center">
-                          Pop.
-                          <HelpTip text="Popularity: mağazanın otomatik tamamlama önerilerindeki görünürlük. ANDROID'de 0-100 kademeli bir skor. iOS'ta ise İKİLİ bir sinyal — Apple bu terime öneri veriyor mu, vermiyor mu. Ara değer üretilemiyor, o yüzden iOS satırlarında sayı yerine 'Öneriliyor / Önerilmiyor' gösteriyoruz. — = ölçülemedi." side="bottom" />
-                        </span>
-                      </th>
-                      <th className="text-center px-2 py-2 font-semibold">
-                        <span className="inline-flex items-center justify-center">
                           Diff.
                           <HelpTip text="Difficulty (0-100): Bu keyword'de ranklenmek ne kadar zor. 5 alt-faktörün ortalaması: title eşleşmeleri, rakip sayısı, install hacmi, rating ortalaması, son güncellemeden geçen gün. Yüksek = rakipler güçlü." side="bottom" />
                         </span>
@@ -1107,38 +1101,6 @@ function AppDetailModal({ app, siteId, onClose, onChanged }: {
                           <td className="px-3 py-2 font-medium max-w-[200px] truncate">{kw.keyword}</td>
                           <td className="px-2 py-2 text-center">
                             <Badge variant="outline" className="text-[10px]">{kw.store === 'IOS' ? 'iOS' : 'Android'}</Badge>
-                          </td>
-                          {/*
-                            iOS'ta popularity IKILI: aso-v2 `zScore(8000, oneriVar ? 5000 : 0)`
-                            hesapliyor, yani matematiksel olarak yalnizca 66 ya da 10
-                            uretilebilir — ara deger yok. Uretimde olculdu: "kredi" 66,
-                            "oyun" 66, "ticari leasing" 10; 91 kelimenin 90'i 10.
-                            "10/100" diye gostermek kullaniciya "olculmus ama dusuk"
-                            dedirtiyordu; dogrusu "Apple bu terime hic oneri vermiyor".
-                            Android'de ayni alan gercekten kademeli (89, 92) — orada sayi kaliyor.
-                          */}
-                          <td className="px-2 py-2 text-center tabular-nums">
-                            {kw.popularity == null ? (
-                              <span className="text-muted-foreground" title="Ölçülemedi — mağaza yanıt vermedi">—</span>
-                            ) : kw.store === 'IOS' ? (
-                              kw.popularity > 30 ? (
-                                <span className="text-emerald-600 dark:text-emerald-400 text-[11px] font-medium" title="Apple bu terim için otomatik tamamlama önerisi veriyor — gerçek arama talebi var">
-                                  Öneriliyor
-                                </span>
-                              ) : (
-                                /*
-                                  "Önerilmiyor" yazısı kaldırıldı: 91 kelimenin 90'ında
-                                  aynı metin çıkıyordu ve sütunu okunmaz hale getiriyordu.
-                                  Bilgi kaybolmuyor — tire üzerindeki açıklamada duruyor,
-                                  ve zaten anlamlı olan durum "Öneriliyor" olanı.
-                                */
-                                <span className="text-muted-foreground" title="Apple bu terime hiç öneri vermiyor — App Store'da bu terim neredeyse hiç aranmıyor">
-                                  —
-                                </span>
-                              )
-                            ) : (
-                              kw.popularity.toFixed(0)
-                            )}
                           </td>
                           {/*
                             `> 0` kontrolu kaldirildi: sunucu artik olculemeyeni null
