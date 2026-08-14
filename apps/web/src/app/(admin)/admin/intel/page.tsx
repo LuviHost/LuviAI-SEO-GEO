@@ -162,9 +162,15 @@ export default function AdminIntelPage() {
           <Stat label="Elenmiş" value={overview?.items?.byStatus?.IRRELEVANT ?? 0} muted />
           <Stat label="Açık aksiyon" value={overview?.openActions ?? 0} />
           <div className="flex items-center gap-1.5 text-xs">
+            <Plug className={cn('h-3.5 w-3.5', overview?.openClawEnabled ? 'text-emerald-500' : 'text-muted-foreground')} />
+            <span className="text-muted-foreground">
+              X tarayıcı {overview?.openClawEnabled ? 'açık (OpenClaw)' : 'kapalı (OPENCLAW_ENABLED yok)'}
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5 text-xs">
             <Plug className={cn('h-3.5 w-3.5', overview?.xSearchEnabled ? 'text-emerald-500' : 'text-muted-foreground')} />
             <span className="text-muted-foreground">
-              X araması {overview?.xSearchEnabled ? 'açık' : 'kapalı (XAI_API_KEY yok)'}
+              X yedek yolu {overview?.xSearchEnabled ? 'açık (xAI)' : 'kapalı (XAI_API_KEY yok)'}
             </span>
           </div>
         </CardContent>

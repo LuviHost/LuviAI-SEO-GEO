@@ -63,7 +63,28 @@ module.exports = {
       env: sharedEnv,
       error_file: '/var/log/luviai/worker.err.log',
       out_file: '/var/log/luviai/worker.out.log',
-      max_memory_restart: '1G',
+      /**
+       * Worker'in bellek tavani — site taramasi yuzunden yukseltildi.
+       *
+       * OLCULEN: site taramasi 100 sayfa cekiyor; sayfa govdeleri 2 MB'ta
+       * kirpilsa bile (bkz. site-crawler.service.ts) hizli tahsis/atma
+       * dongusunde V8 RSS'i 800 MB'in uzerine cikariyor. Eski 1 GB tavaninda
+       * PM2 tarama ortasinda SIGTERM gonderiyordu: is yarida oluyor, DB'deki
+       * kayit PROCESSING'de kaliyor, BullMQ takilan isi yeniden veriyor ve
+       * ayni tarama tekrar cokuyordu. Uretimde ayni is 7 kez bastan basladi.
+       *
+       * IKI AYAR BIRLIKTE CALISIR:
+       *  - max_old_space_size=1536: V8'e acik bir tavan verir. Tavan yokken
+       *    V8 tembel davranip cop toplamak yerine buyuyor; tavan varken
+       *    yaklastikca major GC yapar. Asil frendir.
+       *  - max_memory_restart=2G: PM2'nin siniri artik V8'in tavaninin
+       *    UZERINDE. Boylece normal calismada once GC devreye girer, PM2
+       *    yalnizca gercek bir kacak varsa surece mudahale eder.
+       *
+       * Makine 16 GB (olculdu: 11.8 GB bos) — 2 GB tek worker icin guvenli.
+       */
+      node_args: ['--max-old-space-size=1536'],
+      max_memory_restart: '2G',
     },
   ],
 };

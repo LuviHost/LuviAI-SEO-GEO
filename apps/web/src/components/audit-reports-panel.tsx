@@ -123,7 +123,14 @@ export function AuditReportsPanel({ siteId }: { siteId: string }) {
       const ZAMAN_ASIMI = 6 * 60 * 1000;
 
       while (canli.current) {
-        await new Promise((r) => setTimeout(r, 3000));
+        // Yoklama araligi kademeli aciliyor: ilk yarim dakika 3sn (kisa
+        // taramalarda sonuc hemen gorunsun), sonra 6sn, iki dakikadan sonra
+        // 10sn. Sabit 3sn ile 6 dakikalik bir bekleyis 120 istek demek ve
+        // hiz siniri dakikada 60 — bu tek basina butcenin ucte biri, ayni
+        // sekmedeki diger istekler 429'a itebilir.
+        const gecen = Date.now() - basladi;
+        const aralik = gecen < 30_000 ? 3000 : gecen < 120_000 ? 6000 : 10_000;
+        await new Promise((r) => setTimeout(r, aralik));
         if (!canli.current) return;
 
         let j: Awaited<ReturnType<typeof api.getJob>>;
