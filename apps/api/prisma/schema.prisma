@@ -1439,6 +1439,15 @@ model TrackedAppKeyword {
   // Ek skor: bizim hesapladığımız (app-agent pattern: AI relevance)
   relevance  Float?
 
+  /// Magazanin otomatik tamamlamasi bu terimi oneriyor mu.
+  ///
+  /// TALEP SKORUNDAN (popularity) AYRI TUTULUYOR cunku farkli bir sey olcuyor:
+  /// popularity "bu terimde siralanan uygulamalar ne kadar buyuk", bu ise
+  /// "insanlar terimi yazarken magaza tamamliyor mu". Ikisini tek sayida
+  /// birlestirmek, ayni sutunun satirdan satira farkli sey anlatmasi olurdu.
+  /// null = olculemedi.
+  suggested Boolean?
+
   // Latest rank (cron tarafından güncellenir)
   currentRank   Int? // 1-100, null = top 100 dışı
   previousRank  Int?

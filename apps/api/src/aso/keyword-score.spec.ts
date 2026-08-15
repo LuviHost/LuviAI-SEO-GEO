@@ -61,15 +61,32 @@ describe('ham deger cikarimi', () => {
     expect(KAYNAK, 'olculemeyen yine 0 donuyor').not.toMatch(/if \(v == null \|\| isNaN\(v\)\) return 0;/);
   });
 
-  it('iOS popularity IKILI olarak isaretleniyor', () => {
-    // Arayuz bunu bilmek zorunda; aksi halde ikili sinyali 0-100 skor gibi cizer.
-    expect(KAYNAK).toContain('popularityIkili');
-    expect(KAYNAK).toMatch(/popularityIkili: opts\.store === 'IOS'/);
+  it('TALEP skoru installs\'ten turuyor — suggest\'ten degil', () => {
+    // Eski hali: suggest.score ?? installs.score. Iki sorun vardi —
+    //  1. `??` sag tarafi HIC calismiyordu (suggest.score her zaman sonlu,
+    //     taban 1.0), yani olu koddu.
+    //  2. Karistirmak yanlisti: suggest "otomatik tamamlamada mi",
+    //     installs "rakipler ne kadar buyuk" — ayni sutun satirdan satira
+    //     farkli sey anlatirdi.
+    expect(KAYNAK).toContain('const popularityRaw = sayi(scores?.traffic?.installs?.score);');
+    expect(KAYNAK, 'eski karisik fallback geri donmus').not.toMatch(
+      /popularityRaw = sayi\(scores\?\.traffic\?\.suggest\?\.score\) \?\?/,
+    );
   });
 
-  it('hata yolunda da ikili bayrak donuyor — sekil tutarli', () => {
+  it('oneri sinyali AYRI alanda donuyor', () => {
+    expect(KAYNAK).toContain('oneriliyor:');
+    // Taban deger (1.0) "oneri yok" demek; ustundeki her sey "oneriliyor".
+    expect(KAYNAK).toMatch(/suggest\?\.score\) === null[\s\S]*?> 1/);
+  });
+
+  it('hata yolunda oneriliyor null donuyor — "onermiyor" ile karistirilmiyor', () => {
     const hata = KAYNAK.slice(KAYNAK.indexOf('} catch (err: any) {'), KAYNAK.indexOf('private normalizeScore'));
-    expect(hata).toContain('popularityIkili');
+    expect(hata).toContain('oneriliyor: null');
+  });
+
+  it('hata yolunda tum skorlar null — sekil tutarli', () => {
+    const hata = KAYNAK.slice(KAYNAK.indexOf('} catch (err: any) {'), KAYNAK.indexOf('private normalizeScore'));
     expect(hata).toMatch(/popularity: null, difficulty: null, traffic: null/);
   });
 });
@@ -80,24 +97,25 @@ describe('arayuz — ikili sinyal sayi gibi cizilmiyor', () => {
     'utf8',
   );
 
-  it('Pop. sutunu TAMAMEN kaldirilmis', () => {
-    // Uretimde olculdu: sutun bu kullanicinin kelime setinde HICBIR ZAMAN
-    // deger uretemiyor.
-    //   iOS      — ikili sinyal ve hep tabanda (91 kelimenin 90'i 10)
-    //   ANDROID  — uzun kuyruk terimlerde kutuphane hata firlatiyor
-    //              ("Cannot read properties of null (reading 'map')");
-    //              yalnizca "kredi karti" gibi yaygin terimlerde calisiyor
-    // Sonuc: her satirda "—". Bos bir sutun tutmak, kullaniciya olculebilir
-    // bir sey varmis izlenimi verir.
-    expect(UI, 'Pop. sutunu hala duruyor').not.toContain('Pop.');
-    expect(UI).not.toContain('Öneriliyor');
+  it('sutun "Talep" adiyla geri gelmis, yaniltici "Pop." adi kullanilmiyor', () => {
+    // "Pop." adi yanlisti: olculen sey populerlik degil, o terimde siralanan
+    // uygulamalarin buyuklugu. Isim de olcumle ayni seyi soylemeli.
+    //
+    // YORUMLAR HARIC tutuluyor: kodda eski adin GECMISI anlatiliyor ve o
+    // metni yasaklamak, aciklamayi silmeye zorlardi.
+    const gorunen = UI.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
+    expect(gorunen).toContain('Talep');
+    expect(gorunen, 'yaniltici eski baslik geri donmus').not.toContain('Pop.');
   });
 
-  it('sunucu tarafi popularity HESAPLAMAYA devam ediyor — yalnizca gosterim kalkti', () => {
-    // Alan silinmedi: Android'de yaygin terimlerde gercek deger uretiyor
-    // (olculdu: "kredi karti" -> 73). Sutun geri istenirse veri hazir.
-    const API = readFileSync(new URL('./keyword.service.ts', import.meta.url), 'utf8');
-    expect(API).toContain('popularity: this.normalizeScore(popularityRaw)');
+  it('oneri sinyali AYRI rozet — talep sayisina karistirilmamis', () => {
+    expect(UI).toContain('kw.suggested');
+    expect(UI).toContain('✦');
+  });
+
+  it('talep 0/null iken sayi degil "olculemedi" gosteriliyor', () => {
+    expect(UI).toMatch(/kw\.popularity \?/);
+    expect(UI).toContain('bu terimde sıralanan uygulama bulunamadı');
   });
 
   it('Rank tooltip\'i magaza derinligini dogru soyluyor', () => {

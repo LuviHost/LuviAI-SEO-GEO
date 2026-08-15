@@ -68,6 +68,8 @@ interface TrackedKeyword {
   keyword: string;
   store: 'IOS' | 'ANDROID';
   popularity: number | null;
+  /** Magazanin otomatik tamamlamasi bu terimi oneriyor mu — talepten AYRI sinyal */
+  suggested?: boolean | null;
   difficulty: number | null;
   traffic: number | null;
   currentRank: number | null;
@@ -923,7 +925,7 @@ function AppDetailModal({ app, siteId, onClose, onChanged }: {
                 <RefreshCw className={`h-4 w-4 mr-1 ${bulkRankProgress ? 'animate-spin' : ''}`} />
                 {bulkRankProgress ? 'Çekiliyor...' : "Tüm Rank'leri Çek"}
               </Button>
-              <Button size="sm" variant="outline" onClick={refreshScores} disabled={refreshingScores || (app.keywords?.length ?? 0) === 0} title="Zorluk ve trafik skorlarını mağaza verisinden yeniden hesaplar">
+              <Button size="sm" variant="outline" onClick={refreshScores} disabled={refreshingScores || (app.keywords?.length ?? 0) === 0} title="Talep, zorluk ve trafik skorlarını mağaza verisinden yeniden hesaplar">
                 <Sparkles className={`h-4 w-4 mr-1 ${refreshingScores ? 'animate-spin' : ''}`} />
                 {refreshingScores ? 'Hesaplanıyor...' : 'Skorları Yenile'}
               </Button>
@@ -1067,6 +1069,12 @@ function AppDetailModal({ app, siteId, onClose, onChanged }: {
                       </th>
                       <th className="text-center px-2 py-2 font-semibold">
                         <span className="inline-flex items-center justify-center">
+                          Talep
+                          <HelpTip text="Bu terimde sıralanan uygulamaların büyüklüğü (Play'de indirme, App Store'da değerlendirme sayısı). Yüksek = terim rağbet görüyor. HER İKİ MAĞAZADA AYNI ŞEYİ ölçer, satırlar birbiriyle karşılaştırılabilir. ✦ işareti ayrı bir sinyaldir: mağazanın otomatik tamamlaması bu terimi öneriyor — en güçlü talep göstergesi, ama seyrek. — = ölçülemedi (o terimde sıralanan uygulama yok)." side="bottom" />
+                        </span>
+                      </th>
+                      <th className="text-center px-2 py-2 font-semibold">
+                        <span className="inline-flex items-center justify-center">
                           Diff.
                           <HelpTip text="Difficulty (0-100): Bu keyword'de ranklenmek ne kadar zor. 5 alt-faktörün ortalaması: title eşleşmeleri, rakip sayısı, install hacmi, rating ortalaması, son güncellemeden geçen gün. Yüksek = rakipler güçlü." side="bottom" />
                         </span>
@@ -1108,6 +1116,32 @@ function AppDetailModal({ app, siteId, onClose, onChanged }: {
                             "olctuk, sifir cikti" ayni gorunuyordu). aso-v2 skorlarinin
                             tabani 1.0 oldugu icin gercek bir 0 zaten uretilemez.
                           */}
+                          {/*
+                            TALEP — tek bir seyi olcuyor: bu terimde siralanan
+                            uygulamalarin buyuklugu. Eski "Pop." sutunu
+                            suggest.score'u kullaniyordu ve o iOS'ta matematiksel
+                            olarak ikili (66 ya da 10), Android'de uzun kuyrukta
+                            hep tabandaydi — yani sutun hicbir zaman deger
+                            uretmiyordu. Otomatik tamamlama sinyali ayri rozete
+                            tasindi cunku BASKA bir sey olcuyor.
+                          */}
+                          <td className="px-2 py-2 text-center tabular-nums">
+                            {kw.popularity ? (
+                              <span className="inline-flex items-center gap-1">
+                                {kw.popularity.toFixed(0)}
+                                {kw.suggested && (
+                                  <span
+                                    className="text-emerald-600 dark:text-emerald-400"
+                                    title="Mağazanın otomatik tamamlaması bu terimi öneriyor — gerçek arama talebinin en güçlü göstergesi"
+                                  >
+                                    ✦
+                                  </span>
+                                )}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground" title="Ölçülemedi — bu terimde sıralanan uygulama bulunamadı">—</span>
+                            )}
+                          </td>
                           {/*
                             0 da "ölçülemedi" sayılır: aso-v2 skorlarının tabanı 1.0,
                             normalizeScore 10 ile çarpıyor — yani gerçek bir ölçüm asla

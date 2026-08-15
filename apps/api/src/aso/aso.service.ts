@@ -530,11 +530,13 @@ export class AsoService {
         popularity: scores.popularity,
         difficulty: scores.difficulty,
         traffic: scores.traffic,
+        suggested: scores.oneriliyor,
       },
       update: {
         popularity: scores.popularity,
         difficulty: scores.difficulty,
         traffic: scores.traffic,
+        suggested: scores.oneriliyor,
       },
     });
   }
@@ -589,6 +591,7 @@ export class AsoService {
             popularity: s.popularity,
             difficulty: s.difficulty,
             traffic: s.traffic,
+            suggested: s.oneriliyor,
           },
         });
         updated++;

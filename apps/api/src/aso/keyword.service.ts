@@ -61,7 +61,35 @@ export class AsoKeywordService {
 
       const difficultyRaw = sayi(scores?.difficulty?.score);
       const trafficRaw = sayi(scores?.traffic?.score);
-      const popularityRaw = sayi(scores?.traffic?.suggest?.score) ?? sayi(scores?.traffic?.installs?.score);
+
+      /**
+       * TALEP skoru — `traffic.installs`, yani bu terimde siralanan
+       * uygulamalarin BUYUKLUGU (Play'de yukleme sayisi, App Store'da
+       * degerlendirme sayisi). Iki magazada da AYNI SEYI olcuyor, o yuzden
+       * satirlar birbiriyle karsilastirilabilir.
+       *
+       * NEDEN suggest DEGIL: eski kod `suggest.score`u kullaniyor, olmazsa
+       * `installs`e dusuyordu. Iki sorun vardi.
+       *
+       *  1. `??` sag tarafi HIC CALISMIYORDU. suggest.score her zaman sonlu
+       *     bir sayi (taban 1.0), yani null olmuyor ve fallback devreye
+       *     girmiyordu — olu kod.
+       *
+       *  2. Karistirmak YANLIS olurdu. suggest "bu terim otomatik
+       *     tamamlamada mi" der, installs "bu terimde siralanan uygulamalar
+       *     ne kadar buyuk" der. Bunlari tek sayida birlestirmek, ayni
+       *     sutunun satirdan satira farkli sey anlatmasi demekti.
+       *
+       * Uretimde olculdu — installs iki magazada da AYRISIYOR:
+       *   ANDROID  kobi kredisi 10.00 (1.367.783)  ticari leasing 1.27 (30.142)
+       *   iOS      kredi karti   8.57 (84.103)     oyun          10.00 (469.149)
+       * suggest ise ayni terimlerde sabit tabandaydi (Android 1, iOS 1).
+       *
+       * App Store'da hic rakip yoksa kutuphane NaN doner (ornek:
+       * "kobi kredisi" -> NaN); sayi() bunu null'a cevirir ve arayuz
+       * "olculemedi" gosterir. Uydurma bir 0 yazilmaz.
+       */
+      const popularityRaw = sayi(scores?.traffic?.installs?.score);
       // Yama sonrasi skorlar gercekten talep edilen lokalden geliyor, bu yuzden
       // measuredLocale'i artik doniyoruz — ayni keyword farkli lokalde farkli
       // skor verir, bu alan olmadan sonuc yorumlanamaz.
@@ -71,28 +99,28 @@ export class AsoKeywordService {
         difficulty: this.normalizeScore(difficultyRaw),
         traffic: this.normalizeScore(trafficRaw),
         /**
-         * iOS'ta popularity IKILI bir sinyaldir, kademeli bir skor DEGIL.
+         * Magazanin otomatik tamamlamasi bu terimi oneriyor mu.
          *
-         * aso-v2 iOS icin `zScore(8000, oneriVar ? 5000 : 0)` hesapliyor
-         * (analyzer.js:78-82) — matematiksel olarak yalnizca IKI sonuc
-         * uretilebilir: 6.63 (-> 66) ya da 1.0 (-> 10). Ara deger yok.
-         * Uretimde olculdu: "kredi" 66, "oyun" 66, "ticari leasing" 10;
-         * takip edilen 91 kelimenin 90'i 10.
+         * TALEP SKORUNDAN AYRI TUTULUYOR cunku farkli bir sey olcuyor:
+         * talep "rakipler ne kadar buyuk", bu ise "insanlar bu terimi yazarken
+         * magaza tamamliyor mu". Ikincisi guclu ama SEYREK bir sinyal —
+         * iOS'ta matematiksel olarak ikili (6.63 ya da 1.0), Android'de de
+         * uzun kuyrukta hep tabanda. Tek sayiya karistirmak sutunu yine
+         * yalanci yapardi.
          *
-         * Android'de ayni alan GERCEKTEN kademeli: ayni terimler icin 89 ve
-         * 92 dondu. Bu yuzden ayni sutun iki magazada ayni seyi anlatmiyor
-         * ve arayuz bunu bilmek zorunda — "10/100" bir olcum gibi
-         * gosterilirse kullanici "populerligi dusuk ama olculmus" saniyor,
-         * halbuki dogrusu "Apple bu terime hic oneri vermiyor".
+         * null = olculemedi.
          */
-        popularityIkili: opts.store === 'IOS',
+        oneriliyor:
+          sayi(scores?.traffic?.suggest?.score) === null
+            ? null
+            : (scores.traffic.suggest.score as number) > 1,
         measuredLocale: loc.measuredLocale,
       };
     } catch (err: any) {
       this.log.warn(`Score "${opts.keyword}": ${err.message}`);
       return {
         popularity: null, difficulty: null, traffic: null,
-        popularityIkili: opts.store === 'IOS',
+        oneriliyor: null,
         measuredLocale: loc.measuredLocale,
       };
     }

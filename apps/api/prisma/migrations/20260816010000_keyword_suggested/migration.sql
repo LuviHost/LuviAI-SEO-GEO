@@ -1,0 +1,14 @@
+-- Magazanin otomatik tamamlamasi bu terimi oneriyor mu.
+--
+-- NEDEN AYRI KOLON: `popularity` artik TALEP skoru — bu terimde siralanan
+-- uygulamalarin buyuklugu (Play'de yukleme, App Store'da degerlendirme
+-- sayisi). Otomatik tamamlama ise bambaska bir sey olcuyor: "insanlar terimi
+-- yazarken magaza tamamliyor mu". Ikisini tek sayida birlestirmek, ayni
+-- sutunun satirdan satira farkli sey anlatmasi demekti — eski kodun hatasi
+-- tam olarak buydu (suggest.score kullaniliyor, olmazsa installs'a
+-- dusuluyordu; ustelik `??` sag tarafi hic calismiyordu cunku suggest.score
+-- her zaman sonlu).
+--
+-- NULL birakiliyor: mevcut satirlar icin bu sinyal hic olculmedi ve
+-- "olculmedi" ile "onermiyor" ayni sey degil.
+ALTER TABLE `tracked_app_keywords` ADD COLUMN `suggested` BOOLEAN NULL;
