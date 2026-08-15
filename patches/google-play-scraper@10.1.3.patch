@@ -1,0 +1,29 @@
+diff --git a/lib/suggest.js b/lib/suggest.js
+index 2cd10a427136525604f6b8259e83733a7de54e9b..43d6728ac2ad92fa86028f6e5a6acbef06f466e7 100644
+--- a/lib/suggest.js
++++ b/lib/suggest.js
+@@ -29,7 +29,23 @@ function suggest (opts) {
+         const input = JSON.parse(html.substring(5));
+         const data = JSON.parse(input[0][2]);
+ 
+-        if (data === null) {
++        // RanksUp yamasi: Play, oneri BULAMADIGINDA null DONMEZ — dolu bir
++        // zarf doner ve yalnizca oneri yuvasi bostur:
++        //   [[null,["CAhKAggD"],[[null,[[172800],null,[604800]]]]]]
++        // Yani `data` null degildir ama `data[0][0]` null'dur. Eski koruma
++        // sadece `data === null` bakiyordu ve asagidaki .map
++        // "Cannot read properties of null (reading 'map')" ile patliyordu.
++        //
++        // ETKISI BUYUKTU: aso-v2 bu cagriyi traffic.suggest icin yapiyor;
++        // hata yukari firladigi icin analyzeGPlayKeyword TAMAMEN dusuyor ve
++        // difficulty ile traffic de hesaplanamiyordu. Uretimde olculdu:
++        //   "kobi kredisi"       once: cokme -> hepsi null
++        //                        sonra: difficulty 5.07, traffic 3.42
++        //   "ticari leasing"     sonra: difficulty 1.93, traffic 1.33
++        //   "faktoring hizmeti"  sonra: difficulty 2.14, traffic 1.24
++        // Yani uzun kuyruk terimlerin TUM Android skorlari bu tek satir
++        // yuzunden kayboluyordu.
++        if (!data?.[0]?.[0]) {
+           return [];
+         }
+         return data[0][0].map(s => s[0]);
