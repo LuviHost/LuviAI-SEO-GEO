@@ -182,18 +182,54 @@ export class ClaimLedgerService {
     const lastEvidenceAt = claim.evidences
       .map((e) => e.item.publishedAt?.getTime() ?? 0)
       .reduce((a, b) => Math.max(a, b), 0);
+    const nextEvidenceAt = lastEvidenceAt > 0 ? new Date(lastEvidenceAt) : null;
 
-    await this.prisma.intelClaim.update({
-      where: { id: claimId },
-      data: {
-        status: verdict.status,
-        confidence: verdict.confidence,
-        supportWeight: verdict.supportWeight,
-        refuteWeight: verdict.refuteWeight,
-        guidance: verdictGuidance(verdict, verdict.status),
-        lastEvidenceAt: lastEvidenceAt > 0 ? new Date(lastEvidenceAt) : null,
-      },
-    });
+    /**
+     * HUKUM gercekten degisti mi?
+     *
+     * NEDEN ONEMLI: recomputeAll() her gece tum defteri yeniden tartiyor ve
+     * burasi eskiden kosulsuz update() cagiriyordu. Prisma'nin @updatedAt
+     * alani boylece 745 satirin hepsinde tazeleniyor, gunluk ozet de
+     * "donem icinde degisen iddialar"i updatedAt ile suzdugu icin defterin
+     * TAMAMINI basiyordu. Ozet artik lastChangedAt'e bakiyor.
+     *
+     * Guven karsilastirmasi 2 ondaliga yuvarlanarak yapilir — computeVerdict
+     * zaten oraya yuvarliyor, kayan nokta gurultusu sahte degisim uretmesin.
+     */
+    const verdictChanged =
+      claim.status !== verdict.status ||
+      Math.round(claim.confidence * 100) !== Math.round(verdict.confidence * 100) ||
+      claim.supportWeight !== verdict.supportWeight ||
+      claim.refuteWeight !== verdict.refuteWeight;
+
+    // Hukum aynı kalsa da yeni kanit gelmis olabilir; o zaman da yazmak sart
+    // ama bu bir HUKUM degisimi degildir, lastChangedAt'e dokunmaz.
+    const evidenceDateChanged =
+      (claim.lastEvidenceAt?.getTime() ?? null) !== (nextEvidenceAt?.getTime() ?? null);
+
+    // Guidance metni sablondan (verdictGuidance) turer. Kosulsuz-yazma
+    // kaldirilinca recomputeAll bu metnin kendini-onarma yolu olmaktan
+    // cikmisti: sablon degisse bile hukmu aylardir sabit iddialar (ozellikle
+    // tum kaniti 730 gunu asmis olanlar — recencyFactor basamakli, tuple hic
+    // oynamiyor) sonsuza dek eski cumleyi tasiyacakti. Metin farki da yazma
+    // sebebi; lastChangedAt'e DOKUNMAZ (hukum degismedi).
+    const nextGuidance = verdictGuidance(verdict, verdict.status);
+    const guidanceChanged = claim.guidance !== nextGuidance;
+
+    if (verdictChanged || evidenceDateChanged || guidanceChanged) {
+      await this.prisma.intelClaim.update({
+        where: { id: claimId },
+        data: {
+          status: verdict.status,
+          confidence: verdict.confidence,
+          supportWeight: verdict.supportWeight,
+          refuteWeight: verdict.refuteWeight,
+          guidance: nextGuidance,
+          lastEvidenceAt: nextEvidenceAt,
+          ...(verdictChanged ? { lastChangedAt: new Date() } : {}),
+        },
+      });
+    }
 
     if (verdict.status === before) return null;
 

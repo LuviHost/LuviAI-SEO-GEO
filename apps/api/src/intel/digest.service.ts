@@ -48,9 +48,16 @@ export class IntelDigestService {
     const date = startOfUtcDay(new Date());
 
     const [changedClaims, newEvidence, itemStats, sourceHealth] = await Promise.all([
-      // Donem icinde kaniti guncellenen iddialar
+      // Donem icinde HUKMU degisen iddialar.
+      //
+      // updatedAt DEGIL lastChangedAt: recomputeAll() her gece tum defteri
+      // yeniden tartiyor ve eskiden deger degismese bile update() cagirdigi
+      // icin @updatedAt her satirda tazeleniyordu. Sonuc: bu suzgec 745
+      // iddianin tamamini esliyor, "Curutulen iddialar" bolumu o gunun
+      // mitlerini degil defterdeki TUM mitleri listeliyordu. Modulun kendi
+      // ilkesi bunun tersi: "Ne degisti her zaman ne var'dan onemli".
       this.prisma.intelClaim.findMany({
-        where: { updatedAt: { gte: since } },
+        where: { lastChangedAt: { gte: since } },
         orderBy: [{ confidence: 'asc' }],
         include: {
           evidences: {
@@ -249,10 +256,9 @@ export class IntelDigestService {
 
   private claimBlock(c: any): string[] {
     const L: string[] = [];
-    const conf = Math.round(Math.abs(c.confidence) * 100);
     L.push(`### ${c.statement}`);
     L.push('');
-    L.push(`\`${c.slug}\` · ${STATUS_LABEL_TR[c.status as ClaimStatus] ?? c.status} · güven %${conf} · ${c._count?.evidences ?? 0} kanıt (destek ${c.supportWeight} / karşıt ${c.refuteWeight})`);
+    L.push(`\`${c.slug}\` · ${STATUS_LABEL_TR[c.status as ClaimStatus] ?? c.status} · ${this.confidenceLabel(c.confidence, c.status)} · ${c._count?.evidences ?? 0} kanıt (destek ${c.supportWeight} / karşıt ${c.refuteWeight})`);
     L.push('');
     if (c.guidance) {
       L.push(`**Nasıl kullanılır:** ${c.guidance}`);
@@ -267,6 +273,27 @@ export class IntelDigestService {
     }
     L.push('');
     return L;
+  }
+
+  /**
+   * Guven degerinin OKUNABILIR karsiligi.
+   *
+   * confidence -1..+1 arasinda ve isareti yonu tasiyor: eksi = kaniti
+   * curutuyor, arti = destekliyor. Eskiden mutlak deger basiliyordu, bu
+   * yuzden confidence = -1.0 olan bir MIT e-postada "guven %100" goruunuyor
+   * ve "bu iddiaya %100 guveniliyor" gibi okunuyordu. Kastedilen tam tersi:
+   * "curutuldugunden %100 eminiz".
+   *
+   * Hesap degismedi, yalnizca etiket duruma gore ayrisiyor.
+   */
+  private confidenceLabel(confidence: number, status: string): string {
+    const pct = Math.round(Math.abs(confidence ?? 0) * 100);
+    if (status === 'MYTH') return `çürütme gücü %${pct}`;
+    if (status === 'CONFIRMED') return `doğrulama gücü %${pct}`;
+    // CONTESTED / EMERGING / STALE — yon belirsiz, isaretli ham deger daha
+    // durust: okuyan hangi tarafa egildigini gorsun.
+    const signed = (confidence ?? 0) >= 0 ? `+${pct}` : `−${pct}`;
+    return `denge ${signed}`;
   }
 
   /**
