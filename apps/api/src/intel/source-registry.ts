@@ -142,6 +142,138 @@ const OFFICIAL: IntelSourceDef[] = [
     intervalHours: 24,
     note: 'AI bot trafigi olcumleri + pay-per-crawl; crawler erisimi tarafinin birincil kaynagi',
   },
+
+  // ── 2026-08-21 genislemesi: AI saglayicilarin kendi agzi eksikti ──
+  // Feed'ler eklenmeden once curl ile dogrulandi (HTTP 200 + >=3 kayit +
+  // son kayit <60 gun). Google kategori feed'leri The Keyword genel feed'iyle
+  // kesisebilir — sorun degil: collector fingerprint'i normalize URL bazli,
+  // ayni yazi iki feed'den gelse de TEK kayit olur.
+  {
+    key: 'deepmind-blog',
+    name: 'Google DeepMind Blog',
+    kind: 'rss',
+    target: 'https://deepmind.google/blog/rss.xml',
+    tier: 'official',
+    topics: ['platform', 'agents'],
+    weight: 92,
+    intervalHours: 24,
+    note: 'Gemini arastirma tarafinin birincil agzi',
+  },
+  {
+    key: 'google-blog-gemini',
+    name: 'The Keyword — Gemini',
+    kind: 'rss',
+    target: 'https://blog.google/products/gemini/rss/',
+    tier: 'official',
+    topics: ['platform', 'agents'],
+    weight: 92,
+    intervalHours: 12,
+    note: 'Gemini asistaninin tarama/kaynak gosterme/agent duyurulari',
+  },
+  {
+    key: 'google-blog-ai',
+    name: 'The Keyword — AI',
+    kind: 'rss',
+    target: 'https://blog.google/technology/ai/rss/',
+    tier: 'official',
+    topics: ['platform', 'geo', 'agents'],
+    weight: 90,
+    intervalHours: 24,
+    note: 'Search/Gemini kategorilerine dusmeyen Labs/arastirma duyurulari',
+  },
+  {
+    key: 'mistral-blog',
+    name: 'Mistral AI Blog',
+    kind: 'rss',
+    target: 'https://mistral.ai/rss.xml',
+    tier: 'official',
+    topics: ['platform', 'agents'],
+    weight: 90,
+    intervalHours: 24,
+    note: 'Avrupanin ana model saglayicisi — agentic search duyurulari',
+  },
+  {
+    key: 'anthropic-news-mirror',
+    name: 'Anthropic News (RSSHub aynasi)',
+    kind: 'rss',
+    target: 'https://rsshub.bestblogs.dev/anthropic/news',
+    tier: 'official',
+    topics: ['platform', 'ai-crawler', 'agents'],
+    weight: 88,
+    intervalHours: 12,
+    note: 'Anthropic resmi feed YAYINLAMIYOR (tum yollar 404 — bkz. DISABLED). ' +
+      'Icerik resmi, tasiyici topluluk aynasi (RSSHub): kirilirsa failCount ' +
+      'mekanizmasi kapatir, alternatif ayna aranir. ClaudeBot/Claude-User ' +
+      'davranisinin birincil agzi baska yerde yok.',
+  },
+  {
+    key: 'meta-eng-ai',
+    name: 'Meta Engineering — AI Research',
+    kind: 'rss',
+    target: 'https://engineering.fb.com/category/ai-research/feed/',
+    tier: 'official',
+    topics: ['platform', 'agents'],
+    weight: 88,
+    intervalHours: 24,
+    note: 'ai.meta.com feed vermiyor; erisilen tek resmi Meta AI feed bu. Aylik ritim.',
+  },
+  {
+    key: 'mcp-blog',
+    name: 'Model Context Protocol Blog',
+    kind: 'rss',
+    target: 'https://blog.modelcontextprotocol.io/index.xml',
+    tier: 'official',
+    topics: ['agents', 'platform'],
+    weight: 95,
+    intervalHours: 24,
+    note: 'Ajan-arac protokolunun spec sahibi — MCP degisiklikleri AXO/mcpAccess yuzeyini dogrudan etkiler',
+  },
+  {
+    key: 'vercel-news',
+    name: 'Vercel News',
+    kind: 'rss',
+    target: 'https://vercel.com/atom',
+    tier: 'official',
+    topics: ['ai-crawler', 'agents', 'platform'],
+    weight: 90,
+    intervalHours: 24,
+    note: 'AI crawling/bot olcumleri yayinliyor. DIKKAT: feed tum arsivi ' +
+      'tasiyor (~1500 kayit) — ilk cekim kuyrugu sisirir, triage birkac ' +
+      'gunde eritir; kalici maliyet yok (fingerprint dedup).',
+  },
+  {
+    key: 'fastly-blog',
+    name: 'Fastly Blog',
+    kind: 'rss',
+    target: 'https://www.fastly.com/blog_rss.xml',
+    tier: 'official',
+    topics: ['ai-crawler', 'platform'],
+    weight: 88,
+    intervalHours: 24,
+    note: 'CDN gozunden bot/AI crawler olcumleri — Cloudflare tekeline ikinci ses. Feed yolu standart disi.',
+  },
+  {
+    key: 'stripe-blog',
+    name: 'Stripe Blog',
+    kind: 'rss',
+    target: 'https://stripe.com/blog/feed.rss',
+    tier: 'official',
+    topics: ['agents', 'platform'],
+    weight: 88,
+    intervalHours: 24,
+    note: 'Agentic commerce birincil agzi; genel fintech karisimini triage eler',
+  },
+  {
+    key: 'github-blog-ai',
+    name: 'GitHub Blog — AI & ML',
+    kind: 'rss',
+    target: 'https://github.blog/ai-and-ml/feed/',
+    tier: 'official',
+    topics: ['agents', 'platform'],
+    weight: 88,
+    intervalHours: 24,
+    note: 'Ajan/araclarin gelistirici ekosistemi tarafi',
+  },
 ];
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -218,6 +350,92 @@ const PRIMARY_RESEARCH: IntelSourceDef[] = [
     intervalHours: 24,
     note: 'Render/indeksleme deneyleri',
   },
+
+  // ── 2026-08-21 genislemesi ──
+  {
+    key: 'searchpilot',
+    name: 'SearchPilot Blog',
+    kind: 'rss',
+    target: 'https://www.searchpilot.com/resources/blog/rss.xml',
+    tier: 'primary-research',
+    topics: ['seo', 'geo', 'measurement'],
+    weight: 88,
+    intervalHours: 24,
+    note: 'Sektorun tek duzenli SEO A/B test yayincisi — kontrollu deney ' +
+      'kaniti (grade: controlled-test adayi). Feed sayfada ilan edilmiyor; ' +
+      'URL sessizce degisirse bos-feed alarmi yakalar.',
+  },
+  {
+    key: 'profound-blog',
+    name: 'Profound Blog',
+    kind: 'rss',
+    target: 'https://www.tryprofound.com/rss/blog.xml',
+    tier: 'primary-research',
+    topics: ['geo', 'measurement', 'ai-crawler'],
+    weight: 88,
+    intervalHours: 24,
+    note: 'AI gorunurluk olcumunde buyuk orneklemli calismalar (158K iddia ' +
+      'analizi, citation dagilimlari). Rakip olmasi sorun degil — veri veri.',
+  },
+  {
+    key: 'brightedge-blog',
+    name: 'BrightEdge Blog',
+    kind: 'rss',
+    target: 'https://www.brightedge.com/rss.xml',
+    tier: 'primary-research',
+    topics: ['geo', 'seo', 'measurement'],
+    weight: 85,
+    intervalHours: 24,
+    note: 'Generative Parser buyuk orneklemli AI atif calismalari; urun duyurusu karisimini triage eler',
+  },
+  {
+    key: 'sistrix-blog',
+    name: 'SISTRIX Blog',
+    kind: 'rss',
+    target: 'https://www.sistrix.com/feed/',
+    tier: 'primary-research',
+    topics: ['seo', 'geo', 'measurement'],
+    weight: 85,
+    intervalHours: 24,
+    note: 'Gorunurluk endeksi + AI arama calismalari. /blog/feed/ BOS donuyor — kok /feed/ kullanilmali.',
+  },
+  {
+    key: 'seoclarity-blog',
+    name: 'seoClarity Blog',
+    kind: 'rss',
+    target: 'https://www.seoclarity.net/blog/rss.xml',
+    tier: 'primary-research',
+    topics: ['seo', 'geo', 'measurement'],
+    weight: 80,
+    intervalHours: 24,
+    note: 'Kurumsal veri setiyle AEO olcum calismalari',
+  },
+  {
+    key: 'commoncrawl-blog',
+    name: 'Common Crawl Foundation Blog',
+    kind: 'rss',
+    target: 'https://commoncrawl.org/blog/rss.xml',
+    tier: 'primary-research',
+    topics: ['ai-crawler', 'platform'],
+    weight: 85,
+    intervalHours: 24,
+    note: 'AI egitim verisinin ana kaynagi kendi agzi; rutin crawl-surumu duyurulari triage ile elenir',
+  },
+  {
+    key: 'arxiv-cs-ir',
+    name: 'arXiv cs.IR (Information Retrieval)',
+    kind: 'rss',
+    target: 'https://rss.arxiv.org/rss/cs.IR',
+    tier: 'primary-research',
+    topics: ['geo', 'measurement', 'agents'],
+    weight: 75,
+    intervalHours: 12,
+    note: 'GEO/LLM-arama akademik on-baskilari. PENCERE 1 GUN — feed yalnizca ' +
+      'o gunun duyurularini tasir, 12 saatte cekilmezse kayit KAYBOLUR. ' +
+      'Hakemsiz on-baski oldugu icin weight dusuk; gunde ~30 kayit gurultusunu ' +
+      'triage eler. cs.CL BILEREK alinmadi: gunde ~110 kayit, tek basina ' +
+      'gunluk triage butcesinin yarisini yiyordu.',
+  },
 ];
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -287,6 +505,43 @@ const PRACTITIONER: IntelSourceDef[] = [
     topics: ['seo', 'geo', 'schema'],
     weight: 65,
     intervalHours: 24,
+  },
+
+  // ── 2026-08-21 genislemesi ──
+  {
+    key: 'amsive-insights',
+    name: 'Amsive Insights (Lily Ray)',
+    kind: 'rss',
+    target: 'https://www.amsive.com/feed/',
+    tier: 'practitioner',
+    topics: ['geo', 'seo', 'measurement'],
+    weight: 75,
+    intervalHours: 24,
+    note: 'Lily Ray ekibinin AI-search testleri; ajans geneli feed — GEO disi icerigi triage eler',
+  },
+  {
+    key: 'marie-haynes',
+    name: 'Marie Haynes',
+    kind: 'rss',
+    target: 'https://www.mariehaynes.com/feed/',
+    tier: 'practitioner',
+    topics: ['seo', 'geo'],
+    weight: 72,
+    intervalHours: 24,
+    note: 'Google algoritma degisimlerinin en dikkatli practitioner izleyicilerinden; ayda 2-3 kayit',
+  },
+  {
+    key: 'duane-forrester',
+    name: 'Duane Forrester Decodes',
+    kind: 'rss',
+    target: 'https://duaneforresterdecodes.substack.com/feed',
+    tier: 'practitioner',
+    topics: ['geo', 'seo'],
+    weight: 70,
+    intervalHours: 24,
+    note: 'Eski Bing arama urun yoneticisi, AI-arama analizleri. DIKKAT: ' +
+      'duaneforrester.substack.com (tekil, Decodes\'suz) FARKLI ve bos bir ' +
+      'muzik hesabi — karistirma.',
   },
 ];
 
@@ -370,6 +625,66 @@ const ASO_SOURCES: IntelSourceDef[] = [
     // Olculen pencere 1.6 gun (gunde ~16 gonderi) — 12 saat guvenli
     intervalHours: 12,
     note: 'Indie gelistirici saha deneyleri — erken sinyal',
+  },
+
+  // ── 2026-08-21 genislemesi ──
+  {
+    key: 'phiture-blog',
+    name: 'Phiture (ASO Stack)',
+    kind: 'rss',
+    target: 'https://phiture.com/feed/',
+    tier: 'practitioner',
+    topics: ['aso'],
+    weight: 78,
+    intervalHours: 24,
+    note: 'ASO Stack ekolunun ana kaynagi — katalogdaki en buyuk ASO eksigiydi',
+  },
+  {
+    key: 'revenuecat-blog',
+    name: 'RevenueCat Blog',
+    kind: 'rss',
+    target: 'https://www.revenuecat.com/blog/rss.xml',
+    tier: 'primary-research',
+    topics: ['aso', 'platform'],
+    weight: 82,
+    intervalHours: 24,
+    note: 'State of Subscription Apps — mobil gelir tarafinin en buyuk orneklemli veri seti',
+  },
+  {
+    key: 'appsflyer-blog',
+    name: 'AppsFlyer Blog',
+    kind: 'rss',
+    target: 'https://www.appsflyer.com/feed/',
+    tier: 'primary-research',
+    topics: ['aso', 'measurement'],
+    weight: 78,
+    intervalHours: 24,
+    note: 'Atribusyon veri calismalari. /blog/feed/ 403 doner — kok /feed/ kullanilmali.',
+  },
+  {
+    key: 'branch-blog',
+    name: 'Branch Blog',
+    kind: 'rss',
+    target: 'https://www.branch.io/feed/',
+    tier: 'practitioner',
+    topics: ['aso', 'platform'],
+    weight: 65,
+    intervalHours: 24,
+    note: 'Deep link / mobil kesif tarafi',
+  },
+  {
+    key: 'appfigures-resources',
+    name: 'Appfigures Resources',
+    kind: 'rss',
+    target: 'https://appfigures.com/resources/rss',
+    tier: 'practitioner',
+    topics: ['aso'],
+    weight: 75,
+    intervalHours: 24,
+    note: 'Magaza verisi analizleri. Eski /resources/feed yolu 404 idi (bkz. ' +
+      'DISABLED) — calisan yol bu. Item pubDate tasimiyor: publishedAt null ' +
+      'kalir, recencyFactor 0.6 varsayilanina duser; kanit agirligi hafif ' +
+      'cezali ama kabul edilebilir.',
   },
 ];
 
@@ -558,6 +873,21 @@ export const DISABLED_SOURCES: Array<{ name: string; target: string; reason: str
   { name: 'Sensor Tower Blog', target: 'https://sensortower.com/blog/rss', reason: 'HTTP 404 — feed kaldirilmis' },
   { name: 'Appfigures Blog', target: 'https://www.appfigures.com/resources/feed', reason: 'HTTP 404' },
   { name: 'OpenClaw Blog', target: 'https://openclaw.ai/blog/rss.xml', reason: 'HTTP 404 — feed yok, GitHub releases kullaniliyor' },
+  // ── 2026-08-21 kesif dalgasinda denenip ELENENLER — ayni cukura dusme ──
+  { name: 'IETF AI Preferences (aipref) WG', target: 'https://datatracker.ietf.org/feed/group/aipref/', reason: 'Kesif ajani dogruladi sanmisti ama tum datatracker feed yollari 404 — bagimsiz yeniden dogrulamada yakalandi. Standart onemli: aipref RFC tasla klari X sorgulari + Cloudflare/Google resmi kanallarindan izlenir; feed yolu bulunursa yeniden eklenmeli.' },
+  { name: 'Anthropic resmi feed', target: 'https://www.anthropic.com/rss.xml', reason: '/rss.xml, /news/rss.xml, /feed hepsi 404 — resmi feed yok. RSSHub aynasi kullaniliyor (anthropic-news-mirror).' },
+  { name: 'xAI News', target: 'https://x.ai/rss.xml', reason: 'Feed yok + Cloudflare 403. X sorgulari (x-*) kismen kapatiyor.' },
+  { name: 'Microsoft AI Blog', target: 'https://blogs.microsoft.com/ai/feed/', reason: 'Cloudflare bot korumasi — 403 "Just a moment".' },
+  { name: 'Meta AI Blog', target: 'https://ai.meta.com/blog/rss/', reason: 'Feed yok (404). Ikame: engineering.fb.com AI Research kategorisi (meta-eng-ai).' },
+  { name: 'Adjust Blog', target: 'https://www.adjust.com/blog/rss.xml', reason: 'HTTP 429 — Astro challenge, bot korumasi.' },
+  { name: 'Otterly.ai Blog', target: 'https://otterly.ai/blog/rss.xml', reason: 'Feed URL kendi uzerine 302 donguyor — sunucu yapilandirma hatasi.' },
+  { name: 'Peec AI / AthenaHQ / Scrunch / Evertune', target: '(cesitli)', reason: 'GEO olcum girisimlerinin cogu Framer/Astro/Webflow — feed uretmiyorlar. Veri yayinlarlarsa X sorgulari yakalar.' },
+  { name: 'Conductor / Botify / Advanced Web Ranking', target: '(cesitli)', reason: 'RSS yok — modern site kabuklari feed uretmiyor.' },
+  { name: 'HTTP Archive / Web Almanac', target: 'https://httparchive.org/atom.xml', reason: 'Feed yok (404). Yillik Almanac cikinca elle islenebilir.' },
+  { name: 'Apple Search Ads duyurulari', target: 'https://ads.apple.com/news', reason: 'Resmi feed yok — sadece HTML. ASA degisiklikleri Apple Developer News + ASO kaynaklarindan geliyor.' },
+  { name: 'arXiv cs.CL', target: 'https://rss.arxiv.org/rss/cs.CL', reason: 'Calisiyor AMA gunde ~110 kayit — tek basina gunluk triage butcesinin yarisi. cs.IR yeterli.' },
+  { name: 'Bing Blogs / Microsoft Copilot Blog', target: 'https://blogs.bing.com/Home/feed', reason: 'Feed calisiyor ama bayat (son kayit >60 gun). Canlanirsa yeniden degerlendir.' },
+  { name: 'Shopify Engineering', target: 'https://shopify.engineering/blog.atom', reason: 'Belgelenen feed 404. Platform changelog ise 789 kayitlik arsiv + ajan-disi gurultu.' },
 ];
 
 export function sourceByKey(key: string): IntelSourceDef | undefined {
