@@ -91,6 +91,12 @@ export interface EvidenceInput {
   publishedAt: Date | null;
   /** Calismadaki orneklem buyuklugu; large-n-study icin dogrulama saglar */
   sampleSize?: number | null;
+  /**
+   * Kanitin geldigi kaynagin kimligi (IntelSource.key). Kesin hukum icin
+   * FARKLI kaynak sayisi buradan olculur; verilmeyen kanit kendi basina
+   * bir kaynak sayilir (eski cagiranlar/testler kirilmasin).
+   */
+  sourceKey?: string;
 }
 
 /**
@@ -217,6 +223,19 @@ const DECISIVE_PEAK = 70;
  */
 const SUBORDINATE_PEAK = 45;
 /** Bu yastan sonra kanit yenilenmeliyse iddia bayat sayilir */
+/**
+ * Kesin hukum (CONFIRMED/MYTH) icin gereken FARKLI kaynak sayisi.
+ *
+ * URUN KARARI (2026-08-21): tek kanitla is yapilmaz. Tek guclu kanit
+ * (peak >= 70) daha once tek basina CONFIRMED verebiliyordu ve defterin
+ * 206 CONFIRMED'inin 158'i tek kanitliydi — tek bir yazinin (kaynak ne
+ * kadar guclu olursa olsun) urun mantigini yonlendirmesi kabul edilmedi.
+ * Ikinci bagimsiz kaynak gelene kadar iddia EMERGING'de bekler; guidance
+ * da "izlemede tut, urune yazma" der. MYTH icin de simetrik: tek calisma
+ * bir inanisi "curutulmus" ilan edemez.
+ */
+const MIN_DISTINCT_SOURCES = 2;
+
 const STALE_AFTER_DAYS = 270;
 
 function applyGradeDominance(
@@ -250,6 +269,13 @@ function decideStatus(ctx: {
 
   // Yeterli agirlik yok VE tek basina belirleyici bir kanit da yok
   if (total < MIN_TOTAL_FOR_VERDICT && peak < DECISIVE_PEAK) return 'EMERGING';
+
+  // TEK KAYNAKLA KESIN HUKUM YOK (bkz. MIN_DISTINCT_SOURCES notu).
+  // sourceKey verilmemis kanit kendi basina bir kaynak sayilir.
+  const distinctSources = new Set(
+    evidences.map((e, i) => e.sourceKey ?? `__anon_${i}`),
+  ).size;
+  if (distinctSources < MIN_DISTINCT_SOURCES) return 'EMERGING';
 
   // Bayatlik hukumden ONCE bakilir: eski bir "CONFIRMED" yanlis guven verir
   const newest = evidences

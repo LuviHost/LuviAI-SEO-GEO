@@ -153,3 +153,36 @@ describe('cleanHtml', () => {
     expect(cleanHtml(null)).toBeNull();
   });
 });
+
+describe('tek kaynak kurali — MIN_DISTINCT_SOURCES', () => {
+  const guclu = (sourceKey?: string) => ({
+    grade: 'official-doc' as const, stance: 'supports' as const,
+    sourceWeight: 100, publishedAt: d('2026-08-01'), sampleSize: null, sourceKey,
+  });
+
+  it('AYNI kaynaktan iki guclu kanit kesin hukum veremez', () => {
+    // Urun karari (2026-08-21): tek kanitla is yapilmaz. Ayni yayincinin
+    // iki yazisi "iki kaynak" degildir.
+    const v = computeVerdict([guclu('google-search-central'), guclu('google-search-central')], NOW);
+    expect(v.status).toBe('EMERGING');
+  });
+
+  it('iki FARKLI kaynak esigi acar', () => {
+    const v = computeVerdict([guclu('google-search-central'), guclu('cloudflare-blog')], NOW);
+    expect(v.status).toBe('CONFIRMED');
+  });
+
+  it('tek kaynakli curutme de MYTH ilan edemez', () => {
+    const tek = { grade: 'large-n-study' as const, stance: 'refutes' as const,
+      sourceWeight: 90, publishedAt: d('2026-08-01'), sampleSize: 80_861,
+      sourceKey: 'ahrefs' };
+    const v = computeVerdict([tek], NOW);
+    expect(v.status).toBe('EMERGING'); // curutme gucu ne olursa olsun ikinci kaynak sart
+  });
+
+  it('sourceKey verilmeyen kanitlar (eski cagiranlar) ayri kaynak sayilir', () => {
+    const v = computeVerdict([guclu(undefined), guclu(undefined)], NOW);
+    expect(v.status).toBe('CONFIRMED');
+  });
+});
+

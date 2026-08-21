@@ -161,7 +161,7 @@ export class ClaimLedgerService {
         evidences: {
           select: {
             grade: true, stance: true, sampleSize: true,
-            item: { select: { publishedAt: true, source: { select: { weight: true } } } },
+            item: { select: { publishedAt: true, source: { select: { weight: true, key: true } } } },
           },
         },
       },
@@ -172,6 +172,7 @@ export class ClaimLedgerService {
       grade: e.grade as EvidenceGrade,
       stance: e.stance as EvidenceStance,
       sourceWeight: e.item.source.weight,
+      sourceKey: e.item.source.key,
       publishedAt: e.item.publishedAt,
       sampleSize: e.sampleSize,
     }));
