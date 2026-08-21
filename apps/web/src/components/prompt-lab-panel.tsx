@@ -510,26 +510,38 @@ function CoverageTab({ siteId }: { siteId: string }) {
           <div className="grid grid-cols-2 gap-2">
             <div className="rounded-md border p-3">
               <p className="text-[11px] text-muted-foreground">Ana sorular</p>
-              <p className={`text-xl font-semibold tabular-nums ${scoreColor(data.main.score)}`}>
-                %{data.main.score}
-              </p>
+              {data.main.score === null ? (
+                <p className="text-xl font-semibold text-muted-foreground">—</p>
+              ) : (
+                <p className={`text-xl font-semibold tabular-nums ${scoreColor(data.main.score)}`}>
+                  %{data.main.score}
+                </p>
+              )}
               <p className="text-[10px] text-muted-foreground">
-                {data.main.cited}/{data.main.total} ölçümde alıntılandı
+                {data.main.score === null
+                  ? 'Ölçülecek markasız soru yok'
+                  : `${data.main.cited}/${data.main.total} ölçümde alıntılandı`}
               </p>
             </div>
             <div className="rounded-md border p-3">
               <p className="text-[11px] text-muted-foreground">Fan-out dalları</p>
-              <p className={`text-xl font-semibold tabular-nums ${scoreColor(data.fanout.score)}`}>
-                %{data.fanout.score}
-              </p>
+              {data.fanout.score === null ? (
+                <p className="text-xl font-semibold text-muted-foreground">—</p>
+              ) : (
+                <p className={`text-xl font-semibold tabular-nums ${scoreColor(data.fanout.score)}`}>
+                  %{data.fanout.score}
+                </p>
+              )}
               <p className="text-[10px] text-muted-foreground">
-                {data.fanout.cited}/{data.fanout.total} ölçümde alıntılandı
+                {data.fanout.score === null
+                  ? 'Ölçülecek markasız dal yok'
+                  : `${data.fanout.cited}/${data.fanout.total} ölçümde alıntılandı`}
               </p>
             </div>
           </div>
 
           {/* Asıl bulgu — fark */}
-          {data.fanout.total > 0 && (
+          {data.fanout.total > 0 && data.gap !== null && (
             <div className={`rounded-md border p-3 ${data.gap < -15 ? 'border-red-300 bg-red-50/50 dark:bg-red-950/20' : ''}`}>
               <p className="text-xs font-medium">
                 {data.gap < -15

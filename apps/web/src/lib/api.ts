@@ -328,10 +328,11 @@ export const api = {
   promptCoverage: (siteId: string, days = 30) =>
     request<{
       siteId: string; days: number;
-      main: { cited: number; mentioned: number; total: number; score: number };
-      fanout: { cited: number; mentioned: number; total: number; score: number };
+      /** score null = olculecek MARKASIZ satir yok ("%0 kapsama" degil) */
+      main: { cited: number; mentioned: number; total: number; score: number | null };
+      fanout: { cited: number; mentioned: number; total: number; score: number | null };
       byKind: Array<{ kind: string; cited: number; mentioned: number; total: number; score: number }>;
-      gap: number;
+      gap: number | null;
     }>(`/sites/${siteId}/audit/prompts/coverage?days=${days}`),
 
   promptHistory: (siteId: string, promptId: string, days = 30) =>
@@ -1564,6 +1565,8 @@ export const api = {
         }>;
         citedCount: number;
         totalProviders: number;
+        /** Sorunun kendisinde marka adi geciyor — anilma totolojik, skor disi */
+        brandInQuery?: boolean;
       }>;
       competitorRanking: Array<{ name: string; mentions: number; pct: number; isBrand?: boolean }>;
       totalLlmCalls: number;

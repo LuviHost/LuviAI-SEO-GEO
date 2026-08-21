@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { containsBrand, resolveSiteBrand } from './brand-in-query.js';
 import Anthropic from '@anthropic-ai/sdk';
 import { GoogleGenAI } from '@google/genai';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -64,7 +65,10 @@ export class GeoHeatmapService {
       include: { brain: true },
     });
 
-    const brand = site.name;
+    // Ham site.name DEGIL — kisa/uzun pazarlama adlarinda hostname'e dusen
+    // ayni cozumleme her damga noktasinda kullanilmali; yoksa heatmap ile
+    // KPI seridi ayni site icin farkli sorulari "markali" sayar.
+    const brand = resolveSiteBrand(site.name, site.url);
     const url = site.url;
     const brandHost = this.extractHost(url);
 
@@ -81,7 +85,22 @@ export class GeoHeatmapService {
         `${site.niche} konusunda hangi sirketler one cikiyor?`,
       );
     }
-    const probeQueries = [...new Set(queries)].slice(0, max);
+    // Markali sorgular izgaraya HIC girmez: heatmap "gorunurluk" iddiasinda
+    // ve markali soruda sari/yesil hucre neredeyse garanti — hem skorlari
+    // sisiriyor hem firsat/zayif/guzel siniflamasini bozuyordu. Kaynaginda
+    // suzmek ayrica markali hucre olcum maliyetini de sifirlar.
+    let unbrandedQueries = [...new Set(queries)].filter((q) => !containsBrand(q, brand));
+    if (unbrandedQueries.length === 0 && site.niche) {
+      // Brain'in tum sorgulari markaliysa izgarayi bos birakma — bos grid
+      // "her motorda gorunmezsin" gibi cizilir. Nis sablonlari markasizdir
+      // ve brain'i bos sitelerdeki mevcut fallback ile ayni felsefe.
+      unbrandedQueries = [
+        `${site.niche} alaninda en iyi siteler hangileri?`,
+        `${site.niche} icin Turkiye'deki en kapsamli kaynaklar nelerdir?`,
+        `${site.niche} konusunda hangi sirketler one cikiyor?`,
+      ];
+    }
+    const probeQueries = unbrandedQueries.slice(0, max);
 
     // Brain'deki rakip listesi
     const competitorsRaw: any[] = Array.isArray(site.brain?.competitors)

@@ -1,6 +1,7 @@
 import { Injectable, Logger, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AiCitationService } from '../audit/ai-citation.service.js';
+import { containsBrand } from '../audit/brand-in-query.js';
 import { LLMProviderService } from '../llm/llm-provider.service.js';
 import { parseJsonFromLlm } from '../common/safe-json.js';
 
@@ -159,6 +160,9 @@ export class AsoPromptLabService {
     }> = [];
 
     const runRows: any[] = [];
+    // Dongu-sabiti: deger yalnizca prompt metnine bagli, saglayici basina
+    // ayni katlama+regex'i tekrarlamaya gerek yok.
+    const promptIsBranded = containsBrand(prompt.text, app.name);
     for (const r of results) {
       if (!r.available || r.probes.length === 0) {
         providerRows.push({
@@ -194,6 +198,11 @@ export class AsoPromptLabService {
         date: today,
         cited: storeLinked,
         brandMentioned: probe.brandMentioned,
+        // Uygulama adi sorunun kendisinde geciyorsa asistanin uygulamayi
+        // anmasi neredeyse totolojik. Bu satirlar zaten site KPI'sina
+        // girmiyor (trackedAppId dolu), ama sutunun ASO ekraninda da dogru
+        // olmasi icin burada da hesaplaniyor. bkz. audit/brand-in-query.ts
+        brandInQuery: promptIsBranded,
         position: probe.position ?? null,
         sentiment: probe.sentiment ?? null,
         excerpt: probe.excerpt?.slice(0, 2000) ?? null,

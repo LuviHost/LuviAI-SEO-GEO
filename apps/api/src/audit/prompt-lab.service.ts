@@ -2,6 +2,7 @@ import { Injectable, Logger, BadRequestException, NotFoundException } from '@nes
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AiCitationService, type CitationProbe, type Provider } from './ai-citation.service.js';
 import { FanoutService } from './fanout.service.js';
+import { unbrandedOnly } from './brand-in-query.js';
 
 /**
  * Prompt Lab — kullanicinin takip ettigi sorulari yonetir ve calistirir.
@@ -401,7 +402,7 @@ export class PromptLabService {
     const runs = await this.prisma.geoPromptRun.findMany({
       // App Prompt Lab olcumleri site kapsama raporuna karismasin
       where: { siteId, date: { gte: since }, prompt: { trackedAppId: null } },
-      select: { promptId: true, fanoutId: true, cited: true, brandMentioned: true },
+      select: { promptId: true, fanoutId: true, cited: true, brandMentioned: true, brandInQuery: true },
     });
 
     const fanouts = await this.prisma.geoFanoutQuery.findMany({
@@ -410,8 +411,15 @@ export class PromptLabService {
     });
     const kindById = new Map(fanouts.map((f) => [f.id, f.kind]));
 
-    const mainRuns = runs.filter((r) => !r.fanoutId);
-    const branchRuns = runs.filter((r) => r.fanoutId);
+    // Kapsama skorlari MARKASIZ satirlardan: sablondan uretilen dallarin
+    // tamami markali oldugu icin karisik havuz "Fan-out dallari %85" gibi
+    // gercek disi bir kapsama gosteriyor, byKind siralamasinda da markali
+    // dallar her tur icin tepeyi doldurup zayif turleri gizliyordu. Markali
+    // satir sayisi bilgi olarak ayrica donuluyor (brandedTotal) — UI "su
+    // kadar olcum taninirlik olctugu icin haric" diyebilsin.
+    const unbranded = unbrandedOnly(runs);
+    const mainRuns = unbranded.filter((r) => !r.fanoutId);
+    const branchRuns = unbranded.filter((r) => r.fanoutId);
 
     const byKind = new Map<string, { cited: number; mentioned: number; total: number }>();
     for (const r of branchRuns) {
@@ -423,7 +431,10 @@ export class PromptLabService {
       byKind.set(kind, cur);
     }
 
-    const pct = (c: number, t: number) => (t ? Math.round((c / t) * 100) : 0);
+    // null = "olculecek markasiz satir yok" — %0 kapsama ile ayni sey DEGIL.
+    // Tum promptlari markali bir sitede eski davranis "Kapsama %0" basiyor ve
+    // gercek bir gorunurluk kaybindan ayirt edilemiyordu.
+    const pct = (c: number, t: number) => (t ? Math.round((c / t) * 100) : null);
     const mainScore = pct(mainRuns.filter((r) => r.cited).length, mainRuns.length);
     const fanoutScore = pct(branchRuns.filter((r) => r.cited).length, branchRuns.length);
 
@@ -443,10 +454,10 @@ export class PromptLabService {
         score: fanoutScore,
       },
       byKind: Array.from(byKind.entries())
-        .map(([kind, s]) => ({ kind, ...s, score: pct(s.cited, s.total) }))
+        .map(([kind, s]) => ({ kind, ...s, score: pct(s.cited, s.total) ?? 0 }))
         .sort((a, b) => a.score - b.score),
-      /** Negatifse dal tarafi ana sorudan zayif */
-      gap: fanoutScore - mainScore,
+      /** Negatifse dal tarafi ana sorudan zayif; taraflardan biri olculemediyse null */
+      gap: mainScore !== null && fanoutScore !== null ? fanoutScore - mainScore : null,
     };
   }
 
@@ -461,7 +472,10 @@ export class PromptLabService {
     const days = this.safeDays(daysInput);
     const since = this.utcDateOnly(new Date(Date.now() - days * 86400_000));
     const runs = await this.prisma.geoPromptRun.findMany({
-      where: { promptId, siteId, date: { gte: since } },
+      // coverage() ile AYNI suzgec — ayni panelde "Kapsama %12" yaninda
+      // markali dallarla sisik %70'lik trend cizmek, duzeltmenin kendisini
+      // yalanci cikarir.
+      where: { promptId, siteId, date: { gte: since }, brandInQuery: false },
       orderBy: { date: 'asc' },
       select: { date: true, cited: true, brandMentioned: true, fanoutId: true },
     });
@@ -530,6 +544,12 @@ export class PromptLabService {
           date,
           cited: !!probe.cited,
           brandMentioned: !!probe.brandMentioned,
+          // Sorunun KENDISINDE marka geciyorsa bu satir manset gorunurluk
+          // metriklerine girmez. Deger buildProbe'un damgasindan gelir —
+          // burada yeniden hesaplamak ayni kurali iki kod yolunda yasatmakti:
+          // ikisi ayrisirsa ayni kosum snapshot'ta bir turlu, KPI'da baska
+          // turlu suzulurdu ve hicbir sey gurultuyle patlamazdi.
+          brandInQuery: probe.brandInQuery ?? false,
           position: probe.position ?? null,
           sentiment: probe.sentiment ?? null,
           excerpt: probe.excerpt?.slice(0, 2000) ?? null,

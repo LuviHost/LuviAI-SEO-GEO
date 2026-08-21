@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { citationCounts } from './citation-score.js';
 import { AiCitationService } from './ai-citation.service.js';
 
 /**
@@ -41,8 +42,11 @@ export class AiCitationTrackerService {
     for (const r of results) {
       try {
         const probes = r.probes ?? [];
-        const cited = probes.filter((p: any) => p.cited).length;
-        const mentioned = probes.filter((p: any) => p.brandMentioned && !p.cited).length;
+        // Sayaclar markasiz sorgulardan, skorla AYNI fonksiyondan
+        // (citationCounts) — sayac tanimi baska yerde tekrarlanmaz. probes
+        // JSON'una TUM probe'lar (brandInQuery damgasiyla) yazilir: veri
+        // kaybolmaz ve eski/yeni yontem kayittan ayirt edilebilir.
+        const { cited, mentioned } = citationCounts(probes as any[]);
 
         await this.prisma.aiCitationSnapshot.upsert({
           where: { siteId_date_provider: { siteId, date: today, provider: r.provider } },

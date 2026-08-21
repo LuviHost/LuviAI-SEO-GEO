@@ -2,6 +2,7 @@ import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { createHash } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AiCitationService, type CitationProbe } from './ai-citation.service.js';
+import { containsBrand } from './brand-in-query.js';
 import { NicheDetectorService } from '../sites/niche-detector.service.js';
 import type { Audience } from '../llm/model-tier.js';
 import { readBodyCapped } from '../common/fetch-capped.js';
@@ -168,6 +169,12 @@ export interface PublicCheckResult {
     }>;
     citedCount: number;     // kac motor cite etti
     totalProviders: number; // kac motor sorgulandi (= 5-6)
+    /**
+     * Sorunun kendisinde marka adi geciyor mu (BRAND kategorisi ve
+     * {BRAND_HINT} sablonlari). Bu sorularda asistanin markayi anmasi
+     * neredeyse totolojik — manset skora katilmaz, ayri gosterilir.
+     */
+    brandInQuery: boolean;
   }>;
   /** Teaser durumu — UI kilit rozetini ve CTA'yi buna gore cizer. */
   access: {
@@ -441,6 +448,13 @@ export class PublicCitationService {
         };
       });
       const citedCount = providers.filter((p) => p.cited || p.brandMentioned).length;
+      // Damga probe'dan okunur (buildProbe ayni meta.brand ile vurdu) —
+      // burada yeniden hesaplansaydi rozet ile skorun dislama kumesi iki
+      // ayri kod yolundan gecerdi ve bir kural degisikliginde sessizce
+      // ayrisirlardi. Probe bulunamazsa (teorik) metinden hesapla.
+      const probeStamp = providerResults
+        .flatMap((pr) => pr.probes)
+        .find((p) => p.query === q.query)?.brandInQuery;
       return {
         query: q.query,
         category: q.category,
@@ -448,6 +462,7 @@ export class PublicCitationService {
         providers,
         citedCount,
         totalProviders: providers.length,
+        brandInQuery: probeStamp ?? containsBrand(q.query, meta.brand),
       };
     });
     // Kilitli sorular: yalnizca METIN ve KATEGORI gider. providers bos —
@@ -460,6 +475,7 @@ export class PublicCitationService {
         providers: [],
         citedCount: 0,
         totalProviders,
+        brandInQuery: containsBrand(q.query, meta.brand),
       });
     }
     for (const pr of providerResults) allProbes.push(...pr.probes);
@@ -530,18 +546,34 @@ export class PublicCitationService {
       where: { domain: host },
       orderBy: { createdAt: 'desc' },
       take: limit,
-      select: { id: true, createdAt: true, source: true, result: true },
+      // brand de lazim: marka adi gecen sorular skordan ayrilir ve bu ayrim
+      // ESKI kayitlar icin de yapilabilsin diye kaydin kendi markasindan
+      // yeniden hesaplanir (JSON'da brandInQuery alani olmayabilir).
+      select: { id: true, createdAt: true, source: true, result: true, brand: true },
     });
     return rows.map((r) => {
       const res = r.result as any;
-      const totalCited = (res?.queries ?? []).reduce((a: number, q: any) => a + (q.citedCount ?? 0), 0);
-      const totalProviders = (res?.queries?.[0]?.totalProviders ?? 0);
+      const queries: any[] = Array.isArray(res?.queries) ? res.queries : [];
+
+      // MANSET: yalnizca markasiz sorular. Marka adi sorunun icinde geciyorsa
+      // asistanin markayi anmasi neredeyse totolojik; ikisi toplanirsa skor
+      // gorunurlugu degil soru bilesimini olcer.
+      //
+      // Kayitli alan varsa o kullanilir, yoksa sorgu metninden yeniden
+      // hesaplanir — boylece bu degisiklikten ONCEKI kayitlar da ayni
+      // olcutle degerlendirilir ve tarihsel karsilastirma bozulmaz.
+      const isBranded = (q: any): boolean =>
+        typeof q?.brandInQuery === 'boolean' ? q.brandInQuery : containsBrand(q?.query ?? '', r.brand ?? '');
+
+      const unbranded = queries.filter((q) => !isBranded(q));
+      const totalCited = unbranded.reduce((a, q) => a + (q.citedCount ?? 0), 0);
+      const totalProviders = (queries[0]?.totalProviders ?? 0);
       return {
         id: r.id,
         createdAt: r.createdAt,
         source: r.source,
         totalCitedScore: totalCited,
-        queriesCount: res?.queries?.length ?? 0,
+        queriesCount: unbranded.length,
         totalProviders,
       };
     });

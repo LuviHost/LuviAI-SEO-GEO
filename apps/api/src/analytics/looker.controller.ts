@@ -1,6 +1,7 @@
 import { Controller, ForbiddenException, Get, NotFoundException, Query, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { containsBrand, resolveSiteBrand } from '../audit/brand-in-query.js';
 
 /**
  * Looker Studio / BI data connector uclari.
@@ -20,7 +21,7 @@ export class LookerController {
   private async ensureSite(req: Request, siteId: unknown) {
     const user = (req as any).user;
     if (typeof siteId !== 'string' || !siteId) throw new NotFoundException('site_id zorunlu');
-    const site = await this.prisma.site.findUnique({ where: { id: siteId }, select: { id: true, userId: true } });
+    const site = await this.prisma.site.findUnique({ where: { id: siteId }, select: { id: true, userId: true, name: true, url: true } });
     if (!site) throw new NotFoundException('Site bulunamadi');
     if (user.role !== 'ADMIN' && site.userId !== user.id) throw new ForbiddenException('Bu site sana ait degil');
     return site;
@@ -40,8 +41,16 @@ export class LookerController {
   async mentionRate(@Req() req: Request, @Query('site_id') siteId: string, @Query('days') days?: string) {
     const site = await this.ensureSite(req, siteId);
     const runs = await this.prisma.geoPromptRun.findMany({
-      // Site metrikleri — App Prompt Lab olcumleri haric
-      where: { siteId: site.id, date: { gte: this.days(days) }, prompt: { trackedAppId: null } },
+      // Site metrikleri — App Prompt Lab olcumleri haric.
+      // brandInQuery:false — ajans BI panolarina giden mention_rate/citation_rate
+      // manset tanimla ayni olmali (bkz. ai-kpis.service.ts MANSET SUZGECI);
+      // yoksa Looker'daki sayi panelle celisir ve hangisinin dogru oldugu
+      // musteriyle tartisma konusu olur.
+      where: {
+        siteId: site.id, date: { gte: this.days(days) },
+        prompt: { trackedAppId: null },
+        brandInQuery: false,
+      },
       select: { date: true, provider: true, cited: true, brandMentioned: true },
     });
 
@@ -105,10 +114,15 @@ export class LookerController {
       orderBy: { updatedAt: 'desc' },
       take: 200,
     });
+    // Markali promptlar tabloda kalir ama ISARETLI gider — Looker tarafinda
+    // alinan her ortalama bu kolonla suzulebilsin. Isaret prompt metninden
+    // hesaplanir (satir bazli degil): tablo prompt-seviyesi bir ozet.
+    const brand = resolveSiteBrand(site.name, site.url);
     return {
       rows: prompts.map((p) => ({
         prompt: p.text,
         intent: p.intent,
+        brand_in_query: containsBrand(p.text, brand),
         last_run: p.lastRunAt?.toISOString().slice(0, 10) ?? null,
         score: p.lastTotalCount > 0 ? Math.round((p.lastCitedCount / p.lastTotalCount) * 100) : null,
       })),

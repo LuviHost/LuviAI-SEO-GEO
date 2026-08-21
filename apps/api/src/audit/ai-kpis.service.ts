@@ -1,5 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { brandSharePct, rivalsFromCompetitors } from './share-of-voice.js';
+import { unbrandedOnly } from './brand-in-query.js';
 
 /**
  * AI KPI seridi — Overview dashboard'un ust blogu.
@@ -17,10 +19,31 @@ export interface KpiValue {
 }
 
 export interface AiKpis {
-  mentionRate: KpiValue;      // % — marka AI cevaplarinda gecti
-  citationRate: KpiValue;     // % — site URL'i kaynak gosterildi
+  // ── MANSET: yalnizca MARKASIZ sorulardan hesaplanir ──
+  // Sorguda markanin adi gecince asistanin markayi anmasi neredeyse
+  // totolojik (sektor olcumu: %68,9'a karsi %2,1). Ikisi ayni havuzda
+  // toplanirsa sayi gorunurlugu degil prompt bilesimini olcer.
+  mentionRate: KpiValue;      // % — markasiz soruda marka AI cevabinda gecti
+  citationRate: KpiValue;     // % — markasiz soruda site URL'i kaynak gosterildi
   sentiment: KpiValue;        // % pozitif (pozitif / etiketli)
   shareOfVoice: KpiValue;     // % — marka mention / (marka + rakip mention)
+
+  // ── TANINIRLIK: marka adi gecen sorular. Gorunurluk DEGIL ──
+  // "Adimizi bilen sorunca ne cikiyor" sorusunun cevabi. Ayri tutulur
+  // cunku manset sayiyla ayni sey degil ve kendi basina da anlamli.
+  // (Yalnizca UI'nin fiilen kullandigi alan tutulur — tuketicisiz alan
+  // API'de curur; citation karsiligi ihtiyac dogunca eklenir.)
+  brandedMentionRate: KpiValue;
+
+  /**
+   * Olcum bilesimi — son 7 gunde kac satir markali/markasiz.
+   *
+   * TESHIS AMACLI: fan-out uretimi basarisiz olup sablona dustugunde
+   * uretilen dallarin tamami markali oluyor. Bu oran sessizce kayarsa
+   * manset sayi da kayar; burada gorunur olsun diye tasiniyor.
+   */
+  queryMix: { branded: number; unbranded: number };
+
   aiCrawlerHits: KpiValue;    // adet — AI bot istekleri
   aiReferrerHits: KpiValue;   // adet — ChatGPT/Perplexity'den gelen insan trafigi
   citeFetches: KpiValue;      // adet — canli cite sinyali (ChatGPT-User vb. on-demand fetch)
@@ -46,7 +69,10 @@ export class AiKpisService {
         // App Prompt Lab olcumleri (trackedAppId dolu prompt'lar) site KPI'sina
         // karismasin — app gorunurlugu ASO ekraninda ayri raporlanir.
         where: { siteId, date: { gte: d14 }, prompt: { trackedAppId: null } },
-        select: { date: true, cited: true, brandMentioned: true, sentiment: true, competitors: true },
+        select: {
+          date: true, cited: true, brandMentioned: true, sentiment: true, competitors: true,
+          brandInQuery: true,
+        },
       }),
       this.prisma.aiCrawlerHit.findMany({
         where: { siteId, date: { gte: d14 } },
@@ -68,8 +94,15 @@ export class AiKpisService {
       }),
     ]);
 
-    const recent = runs.filter((r) => r.date >= d7);
-    const prev = runs.filter((r) => r.date < d7);
+    // MANSET SUZGECI: sorusunda marka adi gecen satirlar disarida kalir.
+    // Bu satirlar kaldirilmiyor, ayri raporlaniyor (brandedMentionRate).
+    const unbranded = unbrandedOnly(runs);
+    const branded = runs.filter((r) => r.brandInQuery);
+
+    const recent = unbranded.filter((r) => r.date >= d7);
+    const prev = unbranded.filter((r) => r.date < d7);
+    const brandedRecent = branded.filter((r) => r.date >= d7);
+    const brandedPrev = branded.filter((r) => r.date < d7);
 
     // ── Mention & citation rate
     const rate = (rows: typeof runs, key: 'brandMentioned' | 'cited') =>
@@ -80,6 +113,10 @@ export class AiKpisService {
     const citedNow = rate(recent, 'cited');
     const citedPrev = rate(prev, 'cited');
 
+    // Taninirlik — marka adi gecen sorularda
+    const bMentionNow = rate(brandedRecent, 'brandMentioned');
+    const bMentionPrev = rate(brandedPrev, 'brandMentioned');
+
     // ── Sentiment: pozitif / etiketli
     const sentimentPct = (rows: typeof runs) => {
       const labeled = rows.filter((r) => r.sentiment);
@@ -89,18 +126,21 @@ export class AiKpisService {
     const sentNow = sentimentPct(recent);
     const sentPrev = sentimentPct(prev);
 
-    // ── Share of Voice: marka mention sayisi vs rakip mention toplami
-    const sov = (rows: typeof runs) => {
-      let brand = 0;
-      let competitors = 0;
-      for (const r of rows) {
-        if (r.brandMentioned) brand++;
-        const comps: any[] = Array.isArray(r.competitors) ? (r.competitors as any[]) : [];
-        for (const c of comps) competitors += Number(c?.mentions ?? 0) > 0 ? 1 : 0;
-      }
-      const total = brand + competitors;
-      return total > 0 ? Math.round((brand / total) * 1000) / 10 : null;
-    };
+    // ── Share of Voice ──
+    // Hesap share-of-voice.ts'te; ai-citation.service.ts de ayni fonksiyonu
+    // cagirir. Iki servis eskiden farkli birimlerle sayip ayni site icin
+    // farkli sayi donuyordu.
+    //
+    // NOT: burada rakip kumesi yalnizca yapilandirilmis listedir — cevaptan
+    // kesfedilen domainler GeoPromptRun'a yazilmiyor. Formul ayni, girdi
+    // genisligi farkli.
+    const sov = (rows: typeof runs) =>
+      brandSharePct(
+        rows.map((r) => ({
+          brandPresent: r.brandMentioned,
+          rivals: rivalsFromCompetitors(r.competitors as any[]),
+        })),
+      );
     const sovNow = sov(recent);
     const sovPrev = sov(prev);
 
@@ -127,26 +167,34 @@ export class AiKpisService {
       this.groupDaily(rows as any[], (dayRows: any[]) => dayRows.reduce((a, r) => a + r.hits, 0));
 
     return {
+      // Seriler de markasiz havuzdan — manset sayi ile sparkline ayni seyi
+      // anlatmali, yoksa grafik sayiyi yalanlar.
       mentionRate: {
         value: mentionNow,
         deltaPct: this.delta(mentionNow, mentionPrev),
-        series: dailySeries((rows) => rate(rows, 'brandMentioned'), runs),
+        series: dailySeries((rows) => rate(rows, 'brandMentioned'), unbranded),
       },
       citationRate: {
         value: citedNow,
         deltaPct: this.delta(citedNow, citedPrev),
-        series: dailySeries((rows) => rate(rows, 'cited'), runs),
+        series: dailySeries((rows) => rate(rows, 'cited'), unbranded),
       },
       sentiment: {
         value: sentNow,
         deltaPct: this.delta(sentNow, sentPrev),
-        series: dailySeries(sentimentPct, runs),
+        series: dailySeries(sentimentPct, unbranded),
       },
       shareOfVoice: {
         value: sovNow,
         deltaPct: this.delta(sovNow, sovPrev),
-        series: dailySeries(sov, runs),
+        series: dailySeries(sov, unbranded),
       },
+      brandedMentionRate: {
+        value: bMentionNow,
+        deltaPct: this.delta(bMentionNow, bMentionPrev),
+        series: dailySeries((rows) => rate(rows, 'brandMentioned'), branded),
+      },
+      queryMix: { branded: brandedRecent.length, unbranded: recent.length },
       aiCrawlerHits: {
         value: crawlerNow,
         deltaPct: crawlerPrev > 0 ? Math.round(((crawlerNow - crawlerPrev) / crawlerPrev) * 1000) / 10 : null,

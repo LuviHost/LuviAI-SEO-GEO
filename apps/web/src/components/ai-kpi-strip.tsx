@@ -50,16 +50,28 @@ export function AiKpiStrip({ siteId }: { siteId: string }) {
 
   if (!data) return null;
 
+  // Manset sayilar artik yalnizca MARKASIZ sorulardan geliyor. Marka adi
+  // sorunun icinde gecince asistanin markayi anmasi neredeyse totolojik;
+  // ikisi ayni havuzda toplandiginda sayi gorunurlugu degil soru bilesimini
+  // olcuyordu. Markali sorular "taninirlik" olarak alt satirda gosteriliyor.
+  const brandedMention = data.brandedMentionRate?.value ?? null;
+  const mix = data.queryMix as { branded: number; unbranded: number } | undefined;
+
   const tiles: Array<{
     key: string; label: string; icon: any; color: string;
     value: string; delta: number | null; deltaSuffix?: string;
-    series: any[]; href?: string;
+    series: any[]; href?: string; note?: string; title?: string;
   }> = [
     {
-      key: 'mention', label: 'Mention Rate (7g)', icon: Sparkles, color: '#f97316',
+      key: 'mention', label: 'Mention Rate (markasız)', icon: Sparkles, color: '#f97316',
       value: data.mentionRate.value !== null ? `${data.mentionRate.value}%` : '—',
       delta: data.mentionRate.deltaPct, series: data.mentionRate.series,
       href: 'geo-lab',
+      note: brandedMention !== null ? `Markalı sorularda %${brandedMention}` : undefined,
+      title:
+        'Marka adı sorunun içinde geçmeyen sorulardaki anılma oranı — asıl görünürlük ölçüsü budur. ' +
+        'Marka adı geçen sorularda asistanın markayı anması beklenen bir sonuç olduğu için ayrı tutulur.' +
+        (mix ? ` Son 7 gün: ${mix.unbranded} markasız, ${mix.branded} markalı ölçüm.` : ''),
     },
     {
       key: 'sentiment', label: 'Sentiment (7g)', icon: Heart, color: '#ec4899',
@@ -98,7 +110,7 @@ export function AiKpiStrip({ siteId }: { siteId: string }) {
       {tiles.map((t) => {
         const Icon = t.icon;
         const inner = (
-          <Card className="hover:border-brand/40 transition-colors h-full">
+          <Card className="hover:border-brand/40 transition-colors h-full" title={t.title}>
             <CardContent className="p-3.5">
               <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1.5">
                 <Icon className="h-3 w-3" style={{ color: t.color }} /> {t.label}
@@ -110,6 +122,9 @@ export function AiKpiStrip({ siteId }: { siteId: string }) {
                 </div>
                 <Spark series={t.series} color={t.color} />
               </div>
+              {t.note && (
+                <div className="mt-1.5 text-[10px] text-muted-foreground leading-none">{t.note}</div>
+              )}
             </CardContent>
           </Card>
         );

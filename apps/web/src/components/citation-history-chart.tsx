@@ -461,11 +461,15 @@ export function CitationHistoryChart({
                           {r.probes?.length > 0 && (
                             <ul className="space-y-2.5">
                               {r.probes.map((p: any, i: number) => {
-                                const status = p.cited
-                                  ? { label: 'URL ALINTIDI', tone: 'emerald', score: '+100' }
-                                  : p.brandMentioned
-                                    ? { label: 'MARKA GEÇTI', tone: 'amber', score: '+50' }
-                                    : { label: 'BAHSETMEDI', tone: 'red', score: '0' };
+                                // Markalı soru: skor bu probe'ları saymaz — +100/+50 rozeti
+                                // basılırsa kullanıcı rozetleri toplayıp skoru tutturamaz.
+                                const status = p.brandInQuery
+                                  ? { label: 'MARKALI SORU · SKOR DIŞI', tone: 'slate', score: '—' }
+                                  : p.cited
+                                    ? { label: 'URL ALINTIDI', tone: 'emerald', score: '+100' }
+                                    : p.brandMentioned
+                                      ? { label: 'MARKA GEÇTI', tone: 'amber', score: '+50' }
+                                      : { label: 'BAHSETMEDI', tone: 'red', score: '0' };
                                 const toneClasses: Record<string, { badge: string; bar: string }> = {
                                   emerald: {
                                     badge: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 ring-1 ring-emerald-500/30',
@@ -474,6 +478,10 @@ export function CitationHistoryChart({
                                   amber: {
                                     badge: 'bg-amber-500/15 text-amber-700 dark:text-amber-300 ring-1 ring-amber-500/30',
                                     bar: 'bg-amber-500',
+                                  },
+                                  slate: {
+                                    badge: 'bg-slate-500/15 text-slate-600 dark:text-slate-300 ring-1 ring-slate-500/30',
+                                    bar: 'bg-slate-400',
                                   },
                                   red: {
                                     badge: 'bg-red-500/15 text-red-700 dark:text-red-300 ring-1 ring-red-500/30',

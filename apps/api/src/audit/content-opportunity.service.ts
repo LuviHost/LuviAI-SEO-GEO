@@ -22,6 +22,14 @@ import { siteWhereForFeature } from '../billing/plan-site-filter.js';
 const LOOKBACK_DAYS = 14;
 /** citedRate alti LOST sayilir */
 const LOST_THRESHOLD = 0.01;
+/**
+ * Hukum icin gereken asgari satir sayisi. Havuz fanoutId:null +
+ * brandInQuery:false suzgecleriyle ~6 kat kuculdu; eski buyuk payda tek
+ * probe'luk gunlerin (butce asimi gunu tek saglayici kosar) LOST/WON karari
+ * vermesini engelliyordu. Simdi acik esik gerekiyor: tek satirla ne kart
+ * acilir ne "kazanildi" diye kapanir.
+ */
+const MIN_RUNS_FOR_VERDICT = 3;
 /** citedRate bu esigin altindaysa WEAK */
 const WEAK_THRESHOLD = 0.4;
 
@@ -56,8 +64,21 @@ export class ContentOpportunityService {
     });
     if (prompts.length === 0) return { created: 0, updated: 0, scanned: 0 };
 
+    // YALNIZ ana soru + MARKASIZ satirlar. Iki suzgecin de gerekcesi ayni:
+    // firsat "kaybettigin soru"yu temsil eder ve remeasure() sonucu
+    // summary.main (yalniz ana soru) ile olcer — before/after ayni tanimdan
+    // gelmezse delta anlamsizlasir. Markali satirlar (fan-out sablon dallari
+    // %100 markali; 12 dal x 3 saglayici = 36 satir, ana soru ~7) citedRate'i
+    // yukari cekip gercekte LOST olan promptu WEAK/WON gosteriyordu — firsat
+    // karti ya hic acilmiyor ya "kazanildi" diye kapaniyordu.
+    // NOT: ana sorusu markali olan prompt boylece hic kart uretmez — dogru:
+    // markali soruda "gorunmuyorsun" diye icerik uretmek anlamsiz.
     const runs = await this.prisma.geoPromptRun.findMany({
-      where: { siteId, date: { gte: since }, promptId: { in: prompts.map((p) => p.id) } },
+      where: {
+        siteId, date: { gte: since }, promptId: { in: prompts.map((p) => p.id) },
+        fanoutId: null,
+        brandInQuery: false,
+      },
       select: { promptId: true, provider: true, cited: true, brandMentioned: true },
     });
 
@@ -78,7 +99,8 @@ export class ContentOpportunityService {
 
     for (const prompt of prompts) {
       const stats = byPrompt.get(prompt.id);
-      if (!stats || stats.total === 0) continue; // olcum yok — MISSING uretme (gurultu)
+      // Olcum yok/yetersiz — hukum verme (MISSING de uretme: gurultu)
+      if (!stats || stats.total < MIN_RUNS_FOR_VERDICT) continue;
 
       const rate = stats.cited / stats.total;
       const coverage = rate <= LOST_THRESHOLD ? 'LOST' : rate < WEAK_THRESHOLD ? 'WEAK' : 'WON';
@@ -125,7 +147,7 @@ export class ContentOpportunityService {
             coverage,
             providersLost,
             score,
-            meta: { ...(existing.meta as any ?? {}), citedRate: rate, cited: stats.cited, total: stats.total },
+            meta: { ...(existing.meta as any ?? {}), citedRate: rate, cited: stats.cited, total: stats.total, method: 'main-unbranded' },
           },
         });
         updated++;
@@ -141,7 +163,7 @@ export class ContentOpportunityService {
             providersLost,
             score,
             status: 'OPEN',
-            meta: { citedRate: rate, cited: stats.cited, total: stats.total },
+            meta: { citedRate: rate, cited: stats.cited, total: stats.total, method: 'main-unbranded' },
           },
         });
         created++;
@@ -273,20 +295,48 @@ export class ContentOpportunityService {
 
     const summary = await this.promptLab.runPrompt(siteId, item.promptId, {});
     const before = (item.meta as any)?.before ?? { cited: 0, total: 0 };
-    const after = { cited: summary.main.cited, total: summary.main.total };
 
-    const won = after.total > 0 && after.cited / after.total >= WEAK_THRESHOLD;
+    // "after" MARKASIZ ana-soru probe'larindan sayilir (HATA'lilar haric).
+    // summary.main tum ana probe'lari sayar; bu degisiklikten ONCE acilmis
+    // bir kartin prompt'u markali olabilir ve o durumda summary.main
+    // totolojik %100 gosterip karti sahte "WON" ile kapatirdi.
+    const afterProbes = summary.providers
+      .flatMap((prov) => prov.probes)
+      .filter((probe) => !probe.excerpt?.startsWith('HATA:') && probe.brandInQuery !== true);
+    const after = { cited: afterProbes.filter((probe) => probe.cited).length, total: afterProbes.length };
+
+    // Karsilastirma ORAN uzerinden: before 14 gunluk cok-kosum toplami, after
+    // tek kosum — ham sayi kiyasi (after.cited > before.cited) 3/60'i 1/5'ten
+    // iyi gosterip gercek 4x iyilesmeyi "etkisiz" okuyordu.
+    //
+    // VE yalnizca AYNI YONTEMLE olculmus before ile: eski kartlarin before'u
+    // karisik havuzdan (fan-out + markali satirlar) geldi ve sismis durumda —
+    // onunla kiyas "makale ise yaramadi" yalanini uretir. Etiketsiz before
+    // karsilastirilmaz; delta yerine yalniz after esigi konusur.
+    const comparable = (item.meta as any)?.method === 'main-unbranded' && before.total > 0;
+    const beforeRate = comparable ? before.cited / before.total : null;
+    const afterRate = after.total > 0 ? after.cited / after.total : 0;
+    const won = after.total > 0 && afterRate >= WEAK_THRESHOLD;
     const wonProviders = summary.providers
-      .filter((p) => p.available && p.probes.some((probe) => probe.cited))
+      .filter((p) => p.available && p.probes.some((probe) => probe.cited && probe.brandInQuery !== true))
       .map((p) => p.provider);
 
     const updated = await this.prisma.contentOpportunity.update({
       where: { id: item.id },
       data: {
         status: 'REMEASURED',
-        coverage: won ? 'WON' : after.cited > before.cited ? 'WEAK' : item.coverage,
+        coverage: won ? 'WON' : (beforeRate !== null && afterRate > beforeRate) ? 'WEAK' : item.coverage,
         remeasuredAt: new Date(),
-        remeasureResult: { before, after, wonProviders },
+        // beforeMethod: 'legacy-mixed' = before karisik havuz doneminden,
+        // delta hesaplanmadi (UI "oncesiyle kiyaslanamaz — olcum yontemi
+        // degisti" gostermeli). Yeni kartlarda 'main-unbranded'.
+        remeasureResult: {
+          before: comparable ? before : null,
+          beforeMethod: comparable ? 'main-unbranded' : 'legacy-mixed',
+          after,
+          wonProviders,
+          method: 'main-unbranded',
+        },
       },
     });
 

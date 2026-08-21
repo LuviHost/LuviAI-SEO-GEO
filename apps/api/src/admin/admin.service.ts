@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { containsBrand } from '../audit/brand-in-query.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 
 @Injectable()
@@ -135,7 +136,15 @@ export class AdminService {
     const items = rows.map((r) => {
       const res = (r.result ?? {}) as any;
       const queries = Array.isArray(res?.queries) ? res.queries : [];
-      const citedScore = queries.reduce((a: number, q: any) => a + (q.citedCount ?? 0), 0);
+      // MARKASIZ sorularin toplami — public getHistory ile ayni tanim.
+      // Karisik toplam kalsaydi ayni domain admin listesinde baska,
+      // gecmis grafiginde baska skor gosterirdi. Eski kayitlarda alan yok;
+      // sorgu metninden ayni kuralla yeniden hesaplanir.
+      const isBranded = (q: any): boolean =>
+        typeof q?.brandInQuery === 'boolean' ? q.brandInQuery : containsBrand(q?.query ?? '', r.brand ?? '');
+      const citedScore = queries
+        .filter((q: any) => !isBranded(q))
+        .reduce((a: number, q: any) => a + (q.citedCount ?? 0), 0);
       const totalProviders = queries?.[0]?.totalProviders ?? 0;
       const queriesCount = queries.length;
       return {

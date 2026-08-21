@@ -113,16 +113,32 @@ export function QueryCard({ q, idx, brand, lang, isOpen, onToggle, labels }: Que
           </span>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium leading-relaxed">{q.query}</p>
-            {catLabel && (
-              <span className="inline-block mt-1.5 text-[10px] font-bold uppercase tracking-wider text-orange-600 bg-orange-500/10 px-1.5 py-0.5 rounded">
-                {catLabel}
-              </span>
+            {(catLabel || q.brandInQuery) && (
+            <span className="inline-flex items-center gap-1.5 mt-1.5">
+              {catLabel && (
+                <span className="text-[10px] font-bold uppercase tracking-wider text-orange-600 bg-orange-500/10 px-1.5 py-0.5 rounded">
+                  {catLabel}
+                </span>
+              )}
+              {q.brandInQuery && (
+                <span
+                  className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground bg-muted px-1.5 py-0.5 rounded"
+                  title={lang === 'tr'
+                    ? 'Soruda marka adı geçiyor — burada anılmak beklenen sonuç, görünürlük skoruna katılmaz'
+                    : 'The query contains the brand name — a mention here is expected and excluded from the visibility score'}
+                >
+                  {lang === 'tr' ? 'markalı soru' : 'branded query'}
+                </span>
+              )}
+            </span>
             )}
           </div>
         </div>
         <div className="shrink-0 text-right">
-          <div className="font-bold text-lg">
-            <span className={q.citedCount > 0 ? 'text-emerald-600' : 'text-muted-foreground'}>{q.citedCount}</span>
+          {/* Markali soruda yesil sayi gosterme: 7/7 "basari" gibi okunuyordu,
+              oysa soruda adi gecen markanin anilmasi beklenen sonuc. */}
+          <div className={q.brandInQuery ? 'font-semibold text-base text-muted-foreground' : 'font-bold text-lg'}>
+            <span className={!q.brandInQuery && q.citedCount > 0 ? 'text-emerald-600' : 'text-muted-foreground'}>{q.citedCount}</span>
             <span className="text-muted-foreground"> / {q.totalProviders}</span>
           </div>
         </div>

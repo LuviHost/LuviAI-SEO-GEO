@@ -141,9 +141,13 @@ export class ContentPivotService {
       where: { siteId, date: { gte: since } },
       select: { date: true, score: true, citedCount: true },
     });
-    if (recentSnapshots.length >= 7) {
-      const totalCited = recentSnapshots.reduce((a, s) => a + s.citedCount, 0);
-      const avgScore = recentSnapshots.reduce((a, s) => a + (s.score ?? 0), 0) / recentSnapshots.length;
+    // score=null "markasiz sorgu olculemedi" demek — 0 sayilirsa hic
+    // olculmemis site "14 gundur sifir" diye yuksek oncelikli yeniden-yazma
+    // bayragi yer. Karar yalniz GERCEKTEN skorlanmis gunlerden verilir.
+    const scoredSnapshots = recentSnapshots.filter((s) => s.score !== null);
+    if (scoredSnapshots.length >= 7) {
+      const totalCited = scoredSnapshots.reduce((a, s) => a + s.citedCount, 0);
+      const avgScore = scoredSnapshots.reduce((a, s) => a + (s.score as number), 0) / scoredSnapshots.length;
       if (totalCited === 0 && avgScore < 20) {
         // Tum site icin "AI gorunurluk dusuk" flag — pillar makaleye pivot
         const pillar = articles[0];

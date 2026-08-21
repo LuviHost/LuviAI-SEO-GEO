@@ -7,6 +7,9 @@ import { QuotaService } from '../billing/quota.service.js';
 import { SettingsService } from '../settings/settings.service.js';
 import { modelForAudience, type Audience } from '../llm/model-tier.js';
 import { normalizeText, foldForMatch, sameLength, escapeRegex } from '../common/text-normalize.js';
+import { brandMatchIndexFolded, resolveSiteBrand, containsBrand, unbrandedOnly } from './brand-in-query.js';
+import { shareOfVoiceList, rivalsFromCompetitors, type SovObservation } from './share-of-voice.js';
+import { citationScore } from './citation-score.js';
 
 export type Provider = 'anthropic' | 'gemini' | 'openai' | 'perplexity' | 'xai' | 'deepseek' | 'meta';
 
@@ -14,6 +17,17 @@ export interface CitationProbe {
   query: string;
   cited: boolean;
   brandMentioned: boolean;
+  /**
+   * SORGUNUN kendisinde marka adi geciyor mu (cevapta degil).
+   *
+   * Markali sorguda asistanin markayi anmasi neredeyse totolojik; bu yuzden
+   * skor, SoV, roadmap, per-page kirilimi ve snapshot sayaclari yalnizca
+   * markasiz probe'lardan hesaplanir (unbrandedOnly). Alan buildProbe'da
+   * damgalanir — snapshot probes JSON'una da aynen serilestigi icin gecmis
+   * kayitlarin hangi yontemle olculdugu buradan anlasilir (alan yoksa kayit
+   * eski karisik yontemden kalmadir).
+   */
+  brandInQuery?: boolean;
   excerpt?: string;
   /** Marka response'ta hangi paragraf sırasında ilk geçti. 1 = en üstte, daha yüksek = aşağıda, null = hiç geçmedi */
   position?: number | null;
@@ -313,13 +327,26 @@ export class AiCitationService {
    * ana parcasini kullan. "ai" gibi 2 harfli string'i AI kelimesinden ayirt edemeyiz.
    */
   private resolveBrand(name: string | null, url: string): string {
-    const brand = (name || '').trim();
-    if (brand.length >= 4) return brand;
-    try {
-      const parts = new URL(url).hostname.replace(/^www\./, '').split('.');
-      if (parts.length >= 2) return parts[parts.length - 2]; // ranksup.ai -> "ranksup"
-    } catch { /* ignore */ }
-    return brand;
+    // Kural brand-in-query.ts'te — olcum, satir yazimi ve geri doldurma
+    // script'i ayni fonksiyonu kullanmali.
+    return resolveSiteBrand(name, url);
+  }
+
+  /**
+   * Sitenin marka adi — olcumde kullanilanin AYNISI.
+   *
+   * PromptLabService satir yazarken "soruda marka gecti mi" sorusunu
+   * cevaplamak icin bunu cagirir. Ayni cozumleme kuralindan gecmesi sart:
+   * cevapta aranan marka ile soruda aranan marka farkli olursa markasiz
+   * gorunurluk metrigi kendi icinde tutarsiz olur.
+   */
+  async brandForSite(siteId: string): Promise<string> {
+    const site = await this.prisma.site.findUnique({
+      where: { id: siteId },
+      select: { name: true, url: true },
+    });
+    if (!site) return '';
+    return this.resolveBrand(site.name, site.url);
   }
 
   /** Rakip listesi — brain'den + ASO modulunden (aso_competitors tablosu varsa) */
@@ -428,7 +455,7 @@ export class AiCitationService {
     );
 
     // Havuz kullanan basarili test varsa kota +1 (runForSite ile ayni davranis)
-    if (results.some(r => r.source === 'pool' && r.score !== null)) {
+    if (results.some(r => r.source === 'pool' && this.hasRealProbes(r))) {
       try { await this.quota.incrementCitationUsage(site.userId); } catch (_e) { /* noop */ }
     }
     return results;
@@ -541,7 +568,7 @@ export class AiCitationService {
 
     // Havuz kullanan en az bir basarili test varsa kota +1.
     // Sistem tetikli calistirmalar sayaci ARTIRMAZ — yukaridaki (1) numarali not.
-    const anyPoolSuccess = results.some(r => r.source === 'pool' && r.score !== null);
+    const anyPoolSuccess = results.some(r => r.source === 'pool' && this.hasRealProbes(r));
     if (trigger === 'user' && anyPoolSuccess) {
       try { await this.quota.incrementCitationUsage(userId); } catch (e) { /* noop */ }
     }
@@ -1022,16 +1049,29 @@ export class AiCitationService {
     return 'Kullanicinin sorusuna kisa ve dogrudan cevap ver. Tanidigin Turkiye kaynaklarini, web sitelerini ve markalari ismiyle ve URL siyle birlikte belirt. Bilmiyorsan acikca soyle.';
   }
 
+  /**
+   * Bu sonucta GERCEKTEN olcum yapildi mi — kota sayaci icin.
+   *
+   * Eskiden `score !== null` vekil olarak kullaniliyordu; skor artik tamamen
+   * markali havuzda da null dondugu icin o vekil "7 saglayici calisti, para
+   * harcandi ama kota artmadi" acigina donusuyordu (sinirsiz havuz harcamasi).
+   * Olcut probe'un varligi: HATA'li satirlar olcum sayilmaz.
+   */
+  private hasRealProbes(r: { available: boolean; probes: CitationProbe[] }): boolean {
+    return r.available && r.probes.some((p) => !p.excerpt?.startsWith('HATA:'));
+  }
+
   private extractHost(url: string): string {
     try { return new URL(url).hostname.replace(/^www\./, '').toLowerCase(); }
     catch { return url.toLowerCase(); }
   }
 
   private scoreFromProbes(probes: CitationProbe[]): number | null {
-    if (probes.length === 0) return null;
-    const cited = probes.filter(p => p.cited).length;
-    const mentioned = probes.filter(p => p.brandMentioned && !p.cited).length;
-    return Math.round(((cited * 100) + (mentioned * 50)) / probes.length);
+    // Formul citation-score.ts'te tek yerde — gecmis snapshot'lari yeniden
+    // hesaplayan backfill script'i de AYNI fonksiyonu kullanir; ayrisirlarsa
+    // tarihsel grafik guvenilmez olur. Kural: yalnizca markasiz sorgular,
+    // havuz bossa null.
+    return citationScore(probes);
   }
 
   private buildProbe(query: string, text: string, host: string, brand: string, competitors: string[] = []): CitationProbe {
@@ -1046,17 +1086,19 @@ export class AiCitationService {
 
     const brandFolded = foldForMatch(brand || '').trim();
     // Marka mention'a sahte match yok — word boundary + minimum 4 karakter zorunlu.
-    let brandMentioned = false;
-    let brandFirstIdx: number | null = null;
-    if (brandFolded.length >= 4) {
-      const escaped = escapeRegex(brandFolded);
-      const re = new RegExp(`(?:^|[^a-z0-9à-ſğüşöç])${escaped}(?:$|[^a-z0-9à-ſğüşöç])`);
-      const m = folded.match(re);
-      if (m && m.index !== undefined) {
-        brandMentioned = true;
-        brandFirstIdx = m.index;
-      }
-    }
+    //
+    // Kural artik brand-in-query.ts'te TEK yerde duruyor. Sebebi: ayni olcut
+    // "soruda marka gecti mi" sorusunu da cevapliyor (GeoPromptRun.brandInQuery)
+    // ve iki taraf ayrisirsa markasiz gorunurluk metrigi kendi icinde
+    // tutarsiz olur — soruyu markasiz sayip cevapta markayi bulan satir
+    // olcumu sessizce sisirir.
+    // Katlanmis metin zaten elimizde — brandMatchIndex'in ic katlamasini
+    // tekrarlamamak icin folded varyanti kullanilir (cevap 2-8 KB, probe
+    // basina ikinci tam-metin NFKC+regex gecisi saf israfti).
+    const brandFirstIdx = brandMatchIndexFolded(folded, brandFolded);
+    const brandMentioned = brandFirstIdx !== null;
+    // Sorgu kimligi — tum saglayicilar buradan gectigi icin tek damga noktasi.
+    const brandInQuery = containsBrand(query, brand);
 
     // ── Position: response'u paragraflara böl, brand ilk hangi paragrafta?
     let position: number | null = null;
@@ -1138,6 +1180,7 @@ export class AiCitationService {
       query,
       cited: folded.includes(host),
       brandMentioned,
+      brandInQuery,
       excerpt: baseText.slice(0, 220),
       position,
       sentiment,
@@ -1209,50 +1252,56 @@ export class AiCitationService {
    * Probe array'inden aggregate metrikleri çıkar:
    *  - avgPosition  : Brand'in ortalama mention sırası (1=en üstte)
    *  - sentimentMix : Pozitif/nötr/negatif/yok dağılımı
-   *  - shareOfVoice : Brand vs rakip toplam mention oranı
+   *  - shareOfVoice : Brand vs rakip gorunurluk orani. `mentions` alani
+   *                   "kac cevapta gecti" demektir (probe basina en fazla 1),
+   *                   ham anilma adedi degil — bkz. hesap yerindeki not.
    */
   private aggregateProbes(probes: CitationProbe[], brand: string): {
     avgPosition: number | null;
     sentimentMix: { positive: number; neutral: number; negative: number; absent: number };
     shareOfVoice: Array<{ name: string; mentions: number; pct: number; isBrand?: boolean }>;
   } {
+    // avgPosition ve sentiment YALNIZCA markasiz probe'lardan: markali sorguda
+    // marka dogal olarak 1. paragrafta gecer ve ton olcumu totolojik anilmayla
+    // kirlenir. SoV icin kural asagida farkli — bkz. observations notu.
+    const unbranded = unbrandedOnly(probes);
+
     // avgPosition
-    const positions = probes.map((p) => p.position).filter((x): x is number => typeof x === 'number');
+    const positions = unbranded.map((p) => p.position).filter((x): x is number => typeof x === 'number');
     const avgPosition = positions.length > 0
       ? Math.round((positions.reduce((a, b) => a + b, 0) / positions.length) * 10) / 10
       : null;
 
     // sentiment mix
     const mix = { positive: 0, neutral: 0, negative: 0, absent: 0 };
-    for (const p of probes) {
+    for (const p of unbranded) {
       if (!p.brandMentioned || !p.sentiment) mix.absent++;
       else mix[p.sentiment]++;
     }
 
-    // share of voice
-    const counter = new Map<string, number>();
-    let brandMentions = 0;
-    for (const p of probes) {
-      if (p.brandMentioned) brandMentions++;
-      for (const c of p.competitors ?? []) {
-        counter.set(c.name, (counter.get(c.name) ?? 0) + c.mentions);
-      }
-      // Yapilandirilmis rakip listesine EK olarak, cevaptan kesfedilenler.
-      // Public kontrolde yapilandirilmis liste bos oldugu icin share-of-voice
-      // tamamen bos cikiyordu; artik en azindan cevapta gecen siteler gorunur.
-      for (const d of p.mentionedDomains ?? []) {
-        if (!counter.has(d)) counter.set(d, 0);
-        counter.set(d, (counter.get(d) ?? 0) + 1);
-      }
-    }
-    const total = brandMentions + [...counter.values()].reduce((a, b) => a + b, 0);
-    const shareOfVoice: Array<{ name: string; mentions: number; pct: number; isBrand?: boolean }> = [];
-    if (total > 0) {
-      shareOfVoice.push({ name: brand, mentions: brandMentions, pct: Math.round((brandMentions / total) * 100), isBrand: true });
-      for (const [name, mentions] of [...counter.entries()].sort((a, b) => b[1] - a[1])) {
-        shareOfVoice.push({ name, mentions, pct: Math.round((mentions / total) * 100) });
-      }
-    }
+    // ── Share of voice ──
+    // Hesap share-of-voice.ts'te tek yerde. Buradaki is yalnizca probe'lari
+    // ortak gozlem sekline cevirmek: her cevapta kim gorundu.
+    //
+    // Yapilandirilmis rakip listesine EK olarak cevaptan kesfedilenler de
+    // katilir — public kontrolde yapilandirilmis liste bos oldugu icin
+    // share-of-voice tamamen bos cikiyordu.
+    // SoV gozlemleri TUM probe'lardan, ama marka kredisi yalnizca MARKASIZ
+    // cevaplardan:
+    //  - Rakipler her cevaptan toplanir. "X alternatifleri" gibi markali
+    //    sorularin cevabi rakip kesfinin EN zengin kaynagi; onlari atmak
+    //    landing'de tek olculen soru markali oldugunda rakip siralamasini
+    //    tamamen bosaltiyordu (7 LLM cagrisi yapilmis testte "rakip yok").
+    //  - Markanin "gorundu" kredisi markali cevapta sayilmaz — soruda adi
+    //    gecen markanin cevapta gecmesi pay degil, totolojidir.
+    const observations: SovObservation[] = probes.map((p) => ({
+      brandPresent: !p.brandInQuery && !!p.brandMentioned,
+      rivals: [
+        ...rivalsFromCompetitors(p.competitors),
+        ...(p.mentionedDomains ?? []),
+      ],
+    }));
+    const shareOfVoice = shareOfVoiceList(observations, brand);
 
     return { avgPosition, sentimentMix: mix, shareOfVoice };
   }
@@ -1279,7 +1328,9 @@ export class AiCitationService {
 
     for (const r of results) {
       if (!r.available) continue;
-      for (const p of r.probes ?? []) {
+      // Markali sorgu kendi host'unu neredeyse totolojik alintilatir; "hangi
+      // sorgu cite tetikliyor" siralamasi markasiz sorgulardan hesaplanir.
+      for (const p of unbrandedOnly(r.probes ?? [])) {
         for (const url of p.citedPages ?? []) {
           totalCites++;
           // Page → query+provider
@@ -1331,11 +1382,22 @@ export class AiCitationService {
     const successfulResults = results.filter((r) => r.available && r.probes.length > 0);
     if (successfulResults.length === 0) return null;
 
-    const allProbes = successfulResults.flatMap((r) => r.probes);
+    // Roadmap LLM'ine giden "%X anilma" ve hitRate<0.2 sezgisel kapisi
+    // markasiz havuzdan beslenmeli — markali sorgular hitRate'i esik ustune
+    // itip temel onerileri (marka H1, Wikipedia varligi vb.) atlatiyordu.
+    const allProbes = unbrandedOnly(successfulResults.flatMap((r) => r.probes));
     const totalProbes = allProbes.length;
+    // Havuzda hic markasiz sorgu kalmadiysa roadmap uretme — "0 probe ile
+    // %0 anilma" verisinden LLM'e yorum yaptirmak uydurma oneri uretir.
+    if (totalProbes === 0) return null;
     const brandHits = allProbes.filter((p) => p.brandMentioned || p.cited).length;
     const hitRate = totalProbes > 0 ? brandHits / totalProbes : 0;
-    const avgScore = successfulResults.reduce((s, r) => s + (r.score ?? 0), 0) / successfulResults.length;
+    // Skoru hesaplanabilmis (markasiz sorgusu olan) saglayicilarin ortalamasi.
+    // null'u 0 sayarak bolmek "olculemedi"yi "cokmus" gosteriyordu.
+    const scoredResults = successfulResults.filter((r) => r.score !== null);
+    const avgScore = scoredResults.length > 0
+      ? scoredResults.reduce((s, r) => s + (r.score as number), 0) / scoredResults.length
+      : 0;
 
     const compTally = new Map<string, number>();
     for (const p of allProbes) {

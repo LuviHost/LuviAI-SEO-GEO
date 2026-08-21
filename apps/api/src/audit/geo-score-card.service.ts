@@ -184,7 +184,19 @@ export class GeoScoreCardService {
         });
         continue;
       }
-      const avg = pSnapshots.reduce((a, s) => a + (s.score ?? 0), 0) / pSnapshots.length;
+      // null skor = "markasiz sorgu olculemedi" — 0 sayip ortalamayi cokertme.
+      // Aksi halde tum brain sorgulari markali olan site, hicbir sey
+      // degismedigi halde "AI gorunurluk 0/100 cokmus" uyarisi goruyordu.
+      const scored = pSnapshots.filter((s) => s.score !== null);
+      if (scored.length === 0) {
+        checks.push({
+          id: `cite-${p}`, name: this.providerLabel(p),
+          ok: false,
+          detail: 'Markasız sorgu ölçümü yok — skor hesaplanamadı (Prompt Lab\'e markasız soru ekleyin)',
+        });
+        continue;
+      }
+      const avg = scored.reduce((a, s) => a + (s.score as number), 0) / scored.length;
       checks.push({
         id: `cite-${p}`, name: this.providerLabel(p),
         ok: avg >= 30,
