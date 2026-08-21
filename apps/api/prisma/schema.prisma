@@ -2201,6 +2201,19 @@ model GeoPromptRun {
   cited          Boolean @default(false)
   brandMentioned Boolean @default(false)
   /**
+   * SORUNUN KENDISINDE marka adi geciyor mu?
+   *
+   * Sorguda markanin adi gecince asistanin markayi anmasi neredeyse
+   * totolojik — sektor olcumu bu farki 33 kat veriyor (sorguda ismi gecen
+   * markalar %68,9 anilirken yalnizca getirilen markalar %2,1). Ikisi ayni
+   * havuzda toplanirsa skor gorunurlugu degil prompt bilesimini olcer.
+   *
+   * Manset metrikleri (mentionRate, citationRate, sentiment, shareOfVoice)
+   * yalnizca `false` satirlardan hesaplanir; `true` satirlar ayrica
+   * "taninirlik" olarak raporlanir. bkz. audit/brand-in-query.ts
+   */
+  brandInQuery   Boolean @default(false)
+  /**
    * Marka cevapta kacinci paragrafta gecti (1 = en ust)
    */
   position       Int?
@@ -2220,6 +2233,15 @@ model GeoPromptRun {
   @@index([siteId, date])
   @@index([promptId, date])
   @@index([fanoutId, date])
+  /**
+   * Esitlik kolonu (brandInQuery) range kolonundan (date) ONCE — b-tree'de
+   * range'den sonraki esitlik seek'te kullanilamiyor, index bosa bakim
+   * maliyeti oduyordu. Kullananlar: content-opportunity.derive (siteId eq +
+   * brandInQuery eq + date range), looker mention-rate (aynisi). ai-kpis
+   * markali/markasiz AYRIMINI JS'te yapar (queryMix icin iki taraf da lazim),
+   * bu index'i kullanmaz — yorumu ona baglamak yanlisti.
+   */
+  @@index([siteId, brandInQuery, date])
   @@map("geo_prompt_runs")
 }
 
@@ -2614,11 +2636,25 @@ model IntelClaim {
 
   firstSeenAt    DateTime  @default(now())
   lastEvidenceAt DateTime?
+  /**
+   * HUKMUN gercekten degistigi an — status/confidence/agirlik alanlarindan
+   * biri baska bir degere yazildiginda guncellenir.
+   *
+   * NEDEN updatedAt YETMIYOR: recomputeAll() her gece tum defteri yeniden
+   * tartiyor ve deger degismese bile update() cagirdigi icin @updatedAt her
+   * satirda taze goruniyordu. Ozet "donem icinde degisen iddialar" diye
+   * updatedAt ile suzunce 745 iddianin tamami eslesiyor, gunluk ozet
+   * defterin tamamini basiyordu. updatedAt teknik denetim alani olarak
+   * birakildi; urun anlami bu alanda.
+   */
+  lastChangedAt  DateTime?
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
   @@index([status, confidence])
   @@index([actionStatus])
+  /** Ozet "bu donemde ne degisti" sorgusu */
+  @@index([lastChangedAt])
   @@map("intel_claims")
 }
 
