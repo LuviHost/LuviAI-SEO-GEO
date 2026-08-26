@@ -385,9 +385,12 @@ export class AiCitationService {
   async runQueries(
     siteId: string,
     queries: string[],
-    opts: { providers?: Provider[] } = {},
+    opts: { providers?: Provider[]; trigger?: 'user' | 'system' } = {},
   ): Promise<CitationResult[]> {
     if (queries.length === 0) return [];
+    // runForSite ile AYNI iki mod: 'system' = platformun kendi otomasyonu
+    // (remeasure takip kosumlari) — kota ne kontrol edilir ne tuketilir.
+    const trigger = opts.trigger ?? 'user';
 
     try {
       const flag = await this.prisma.appSetting.findUnique({ where: { key: 'AI_GLOBAL_DISABLED' } });
@@ -423,7 +426,7 @@ export class AiCitationService {
     const usesPool = providers.some((p) => poolProviders.size === 0 || poolProviders.has(p));
 
     let poolAllowed = true;
-    if (usesPool) {
+    if (usesPool && trigger === 'user') {
       try {
         await this.quota.enforceCitationQuota(site.userId);
       } catch (err: any) {
@@ -454,8 +457,8 @@ export class AiCitationService {
       effectiveProviders.map(p => this.runProvider(p, siteId, plan, brand, site.url, queries, competitors, site.userId)),
     );
 
-    // Havuz kullanan basarili test varsa kota +1 (runForSite ile ayni davranis)
-    if (results.some(r => r.source === 'pool' && this.hasRealProbes(r))) {
+    // Havuz kullanan basarili test varsa kota +1 (runForSite ile ayni davranis; sistem kosumu saymaz)
+    if (trigger === 'user' && results.some(r => r.source === 'pool' && this.hasRealProbes(r))) {
       try { await this.quota.incrementCitationUsage(site.userId); } catch (_e) { /* noop */ }
     }
     return results;

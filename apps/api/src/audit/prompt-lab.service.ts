@@ -238,6 +238,8 @@ export class PromptLabService {
     withFanout?: boolean;
     providers?: Provider[];
     fanoutProviders?: Provider[];
+    /** 'system' = platform otomasyonu (remeasure takip kosumu) — kota tuketmez */
+    trigger?: 'user' | 'system';
   } = {}): Promise<PromptRunSummary> {
     const prompt = await this.requirePrompt(siteId, promptId, {
       fanouts: { where: { isActive: true }, orderBy: { rank: 'asc' }, take: MAX_BRANCHES_PER_RUN },
@@ -248,6 +250,7 @@ export class PromptLabService {
     // ── 1) Ana soru
     const mainResults = await this.citation.runQueries(siteId, [prompt.text], {
       providers: opts.providers,
+      trigger: opts.trigger,
     });
 
     const mainProbeRows: Array<{ provider: string; probe: CitationProbe }> = [];

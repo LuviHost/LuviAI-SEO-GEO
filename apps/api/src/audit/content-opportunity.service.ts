@@ -7,6 +7,9 @@ import { LLMProviderService } from '../llm/llm-provider.service.js';
 import { PromptLabService } from './prompt-lab.service.js';
 import { acquireCronLock } from '../common/cron-lock.js';
 import { siteWhereForFeature } from '../billing/plan-site-filter.js';
+import {
+  remeasureVerdict, afterWindowStart, REMEASURE_FOLLOW_UPS, REMEASURE_WINDOW_DAYS,
+} from './remeasure-verdict.js';
 
 /**
  * Content Opportunity — kapali dongu:
@@ -284,63 +287,114 @@ export class ContentOpportunityService {
   }
 
   /**
-   * Yayin sonrasi yeniden olcum — ayni prompt'u tekrar calistirir,
-   * before/after deltayi kaydeder. Kanit dongusunun son halkasi.
+   * Yayin sonrasi yeniden olcum — HIBRIT.
+   *
+   * Tik: 1 kosum (kullanici tetikli, kota sayar) → "ON SONUC" aninda gosterilir,
+   * coverage DEGISMEZ. D+1 ve D+2'de dailyRemeasureFollowUps ayni promptu
+   * sistem modunda (kota tuketmeden) yeniden kosar; hukum >= 2 FARKLI GUN ve
+   * >= 6 satirda verilir (remeasure-verdict.ts). Eski kod tek tikin ~7
+   * saglayici satiriyla WON ilan ediyordu — AI cevaplari gunden gune oynak,
+   * tek kosumluk "kazandik" buyuk oranda sansti.
    */
   async remeasure(siteId: string, id: string) {
     const item = await this.require(siteId, id);
     if (!item.promptId) {
       throw new BadRequestException('Bu firsat bir prompt kaynagina bagli degil');
     }
+    await this.promptLab.runPrompt(siteId, item.promptId, { trigger: 'user' });
+    const updated = await this.applyRemeasure(item.id, { followUpsDone: 0 });
+    const rr = updated.remeasureResult as any;
+    return { opportunity: updated, before: rr?.before ?? null, after: rr?.after, wonProviders: rr?.wonProviders ?? [] };
+  }
 
-    const summary = await this.promptLab.runPrompt(siteId, item.promptId, {});
+  /**
+   * "after" havuzunu topla ve hukmu uygula — tek tik ve takip kosumlari AYNI
+   * yoldan gecer. Havuz: son REMEASURE_WINDOW_DAYS gunun ana-soru + markasiz
+   * satirlari (persistRuns HATA'li probe'u zaten yazmaz), yayin gununden
+   * erken degil (afterWindowStart — gun basina yuvarlanir).
+   */
+  private async applyRemeasure(id: string, opts: { followUpsDone: number }) {
+    const item = await this.prisma.contentOpportunity.findUniqueOrThrow({
+      where: { id },
+      include: { article: { select: { publishedAt: true } } },
+    });
+    const now = new Date();
+    const since = afterWindowStart(now, item.article?.publishedAt ?? null);
+    const rows = await this.prisma.geoPromptRun.findMany({
+      where: { siteId: item.siteId, promptId: item.promptId!, fanoutId: null, brandInQuery: false, date: { gte: since } },
+      select: { date: true, provider: true, cited: true },
+    });
+    const v = remeasureVerdict(
+      rows.map((r) => ({ date: r.date.toISOString().slice(0, 10), provider: r.provider, cited: r.cited })),
+      { weak: WEAK_THRESHOLD, lost: LOST_THRESHOLD },
+    );
+
+    // before: 14 gunluk cok-kosum toplami; yalniz AYNI YONTEMLE (main-unbranded)
+    // olculmusse kiyaslanir — eski kartlarin karisik-havuz before'u sismis,
+    // onunla kiyas "makale ise yaramadi" yalanini uretir.
     const before = (item.meta as any)?.before ?? { cited: 0, total: 0 };
-
-    // "after" MARKASIZ ana-soru probe'larindan sayilir (HATA'lilar haric).
-    // summary.main tum ana probe'lari sayar; bu degisiklikten ONCE acilmis
-    // bir kartin prompt'u markali olabilir ve o durumda summary.main
-    // totolojik %100 gosterip karti sahte "WON" ile kapatirdi.
-    const afterProbes = summary.providers
-      .flatMap((prov) => prov.probes)
-      .filter((probe) => !probe.excerpt?.startsWith('HATA:') && probe.brandInQuery !== true);
-    const after = { cited: afterProbes.filter((probe) => probe.cited).length, total: afterProbes.length };
-
-    // Karsilastirma ORAN uzerinden: before 14 gunluk cok-kosum toplami, after
-    // tek kosum — ham sayi kiyasi (after.cited > before.cited) 3/60'i 1/5'ten
-    // iyi gosterip gercek 4x iyilesmeyi "etkisiz" okuyordu.
-    //
-    // VE yalnizca AYNI YONTEMLE olculmus before ile: eski kartlarin before'u
-    // karisik havuzdan (fan-out + markali satirlar) geldi ve sismis durumda —
-    // onunla kiyas "makale ise yaramadi" yalanini uretir. Etiketsiz before
-    // karsilastirilmaz; delta yerine yalniz after esigi konusur.
     const comparable = (item.meta as any)?.method === 'main-unbranded' && before.total > 0;
-    const beforeRate = comparable ? before.cited / before.total : null;
-    const afterRate = after.total > 0 ? after.cited / after.total : 0;
-    const won = after.total > 0 && afterRate >= WEAK_THRESHOLD;
-    const wonProviders = summary.providers
-      .filter((p) => p.available && p.probes.some((probe) => probe.cited && probe.brandInQuery !== true))
-      .map((p) => p.provider);
 
-    const updated = await this.prisma.contentOpportunity.update({
-      where: { id: item.id },
+    // Kesin hukum coverage'i degistirir; ON SONUC ve LOST mevcut coverage'a dokunmaz
+    const coverage = v.verdict === 'WON' ? 'WON' : v.verdict === 'WEAK' ? 'WEAK' : item.coverage;
+
+    return this.prisma.contentOpportunity.update({
+      where: { id },
       data: {
         status: 'REMEASURED',
-        coverage: won ? 'WON' : (beforeRate !== null && afterRate > beforeRate) ? 'WEAK' : item.coverage,
-        remeasuredAt: new Date(),
-        // beforeMethod: 'legacy-mixed' = before karisik havuz doneminden,
-        // delta hesaplanmadi (UI "oncesiyle kiyaslanamaz — olcum yontemi
-        // degisti" gostermeli). Yeni kartlarda 'main-unbranded'.
+        coverage,
+        remeasuredAt: item.remeasuredAt ?? now, // ilk tik ani; takipler lastMeasuredAt'e yazar
         remeasureResult: {
           before: comparable ? before : null,
           beforeMethod: comparable ? 'main-unbranded' : 'legacy-mixed',
-          after,
-          wonProviders,
+          after: { cited: v.cited, total: v.total },
+          wonProviders: v.wonProviders,
           method: 'main-unbranded',
+          verdict: v.verdict,
+          dayCount: v.dayCount,
+          windowDays: REMEASURE_WINDOW_DAYS,
+          windowStart: since.toISOString().slice(0, 10),
+          followUpsDone: opts.followUpsDone,
+          followUpsTarget: REMEASURE_FOLLOW_UPS,
+          lastMeasuredAt: now.toISOString(),
         },
       },
     });
+  }
 
-    return { opportunity: updated, before, after, wonProviders };
+  /**
+   * Takip kosumlari — 05:30 UTC. ON SONUC'ta kalan kartlarin promptunu sistem
+   * modunda (kota tuketmeden) yeniden kosar. GeoPromptRun hattinda baska cron
+   * yok — bu olmadan "on sonuc" kalici bir kilit olurdu.
+   */
+  @Cron('30 5 * * *')
+  async dailyRemeasureFollowUps() {
+    if (!(await acquireCronLock(this.prisma, 'opportunity-remeasure-followup', 'daily'))) return;
+    const since = new Date(Date.now() - 10 * 86_400_000);
+    const pending = await this.prisma.contentOpportunity.findMany({
+      where: {
+        status: 'REMEASURED',
+        remeasuredAt: { gte: since },
+        promptId: { not: null },
+        remeasureResult: { path: '$.verdict', equals: 'PRELIMINARY' },
+        site: { status: 'ACTIVE' as any, ...siteWhereForFeature('contentOpportunities') },
+      },
+      select: { id: true, siteId: true, promptId: true, remeasureResult: true },
+      take: 200,
+    });
+    let ran = 0;
+    for (const item of pending) {
+      const done = Number((item.remeasureResult as any)?.followUpsDone ?? 0);
+      if (done >= REMEASURE_FOLLOW_UPS) continue;
+      try {
+        await this.promptLab.runPrompt(item.siteId, item.promptId!, { trigger: 'system' });
+        await this.applyRemeasure(item.id, { followUpsDone: done + 1 });
+        ran++;
+      } catch (err: any) {
+        this.log.warn(`Remeasure takip fail (${item.id}): ${err.message}`);
+      }
+    }
+    if (ran > 0) this.log.log(`Remeasure takip kosumu: ${ran} kart`);
   }
 
   /** Yayinlanan makalesi olan GENERATED firsatlari PUBLISHED'a tasi (UI list oncesi cagirilir) */

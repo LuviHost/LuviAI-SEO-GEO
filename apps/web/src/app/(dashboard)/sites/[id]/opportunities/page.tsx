@@ -218,8 +218,22 @@ export default function OpportunitiesPage() {
                       )}
                       {remeasureResult && (
                         <div className="text-xs rounded-md bg-muted/50 px-2.5 py-1.5 inline-block">
-                          Yeniden ölçüm: {remeasureResult.before?.cited}/{remeasureResult.before?.total} →{' '}
+                          Yeniden ölçüm:{' '}
+                          {remeasureResult.before
+                            ? <>{remeasureResult.before.cited}/{remeasureResult.before.total} → </>
+                            : <span className="text-muted-foreground">(öncesiyle kıyaslanamaz — ölçüm yöntemi değişti) </span>}
                           <strong>{remeasureResult.after?.cited}/{remeasureResult.after?.total}</strong>
+                          {typeof remeasureResult.dayCount === 'number' && (
+                            <> · {remeasureResult.dayCount} gün / {(remeasureResult.followUpsDone ?? 0) + 1} ölçüm</>
+                          )}
+                          {remeasureResult.verdict === 'PRELIMINARY' && (
+                            <span
+                              className="ml-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 text-[10px] font-semibold"
+                              title="Kesin hüküm için en az 2 farklı günde 6 ölçüm gerekir — tek günün tek koşumu AI cevaplarının günlük oynaklığını yansıtmaz. Takip ölçümleri sonraki günlerde otomatik koşar, kotanı tüketmez."
+                            >
+                              ön sonuç — ölçüm birikiyor
+                            </span>
+                          )}
                           {Array.isArray(remeasureResult.wonProviders) && remeasureResult.wonProviders.length > 0 && (
                             <> · kazanılan: {remeasureResult.wonProviders.join(', ')}</>
                           )}
@@ -234,7 +248,7 @@ export default function OpportunitiesPage() {
                           Makale Üret
                         </Button>
                       )}
-                      {(item.status === 'PUBLISHED' || item.status === 'GENERATED') && item.promptId && (
+                      {(item.status === 'PUBLISHED' || item.status === 'GENERATED' || (item.status === 'REMEASURED' && remeasureResult?.verdict === 'PRELIMINARY')) && item.promptId && (
                         <Button size="sm" variant="outline" onClick={() => remeasure(item)} disabled={busy !== null}>
                           {busy === item.id ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Repeat className="h-3.5 w-3.5 mr-1.5" />}
                           Yeniden Ölç
