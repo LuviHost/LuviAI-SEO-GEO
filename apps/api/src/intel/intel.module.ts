@@ -9,6 +9,8 @@ import { IntelAnalystService } from './analyst.service.js';
 import { ClaimLedgerService } from './claim-ledger.service.js';
 import { IntelDigestService } from './digest.service.js';
 import { IntelCronService } from './intel.cron.js';
+import { IntelActionService } from './intel-action.service.js';
+import { ActionPlansModule } from '../action-plans/action-plans.module.js';
 
 /**
  * Intel — sektor istihbarati boru hatti.
@@ -20,7 +22,7 @@ import { IntelCronService } from './intel.cron.js';
  * ayrica import edilir.
  */
 @Module({
-  imports: [LLMModule],
+  imports: [LLMModule, ActionPlansModule],
   controllers: [IntelController],
   providers: [
     IntelCollectorService,
@@ -31,6 +33,7 @@ import { IntelCronService } from './intel.cron.js';
     ClaimLedgerService,
     IntelDigestService,
     IntelCronService,
+    IntelActionService,
   ],
   exports: [ClaimLedgerService, IntelDigestService],
 })

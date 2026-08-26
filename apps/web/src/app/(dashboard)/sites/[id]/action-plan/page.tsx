@@ -30,6 +30,7 @@ const SOURCE_LABEL: Record<string, string> = {
   chat: 'Asistan',
   product_radar: 'Product Radar',
   community: 'Topluluk',
+  intel: 'İstihbarat',
   manual: 'Manuel',
 };
 

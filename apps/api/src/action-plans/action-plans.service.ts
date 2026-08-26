@@ -11,6 +11,9 @@ import { PrismaService } from '../prisma/prisma.service.js';
 const SOURCES = [
   'audit', 'geo', 'agent_readiness', 'citation', 'prompt_lab',
   'aso', 'ads', 'qa', 'chat', 'product_radar', 'community', 'manual',
+  // 'intel': istihbarat defterinden ADMIN ONAYIYLA acilan aksiyon (otomatik
+  // uretim yok — iddialar kuresel, siteye adreslenemez; bkz. intel-action.service.ts)
+  'intel',
 ] as const;
 const STATUSES = ['todo', 'in_progress', 'done', 'dismissed'] as const;
 const IMPACTS = ['high', 'medium', 'low'] as const;

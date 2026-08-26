@@ -16,6 +16,7 @@ import { IntelCollectorService } from './collector.service.js';
 import { IntelTriageService } from './triage.service.js';
 import { IntelAnalystService, PRODUCT_AREAS } from './analyst.service.js';
 import { ClaimLedgerService } from './claim-ledger.service.js';
+import { IntelActionService } from './intel-action.service.js';
 import { IntelDigestService } from './digest.service.js';
 import { XSearchService } from './x-search.service.js';
 import { OpenClawService } from './openclaw.service.js';
@@ -50,6 +51,7 @@ export class IntelController {
     private readonly triage: IntelTriageService,
     private readonly analyst: IntelAnalystService,
     private readonly ledger: ClaimLedgerService,
+    private readonly intelAction: IntelActionService,
     private readonly digest: IntelDigestService,
     private readonly xSearch: XSearchService,
     private readonly openClaw: OpenClawService,
@@ -140,6 +142,21 @@ export class IntelController {
     } catch (err: any) {
       throw new BadRequestException(err.message);
     }
+  }
+
+  /**
+   * POST /intel/claims/:id/to-action — iddiadan SECILI sitelere aksiyon
+   * plani maddesi ac (admin onayli kopru; otomatik uretim yok — bkz.
+   * intel-action.service.ts). Iki-kaynak kurali burada da zorlanir.
+   */
+  @Post('claims/:id/to-action')
+  async toAction(
+    @Req() req: Request,
+    @Param('id') id: string,
+    @Body() body: { siteIds: string[]; title?: string; description?: string; impact?: 'high' | 'medium' | 'low'; effort?: 'easy' | 'medium' | 'hard' },
+  ) {
+    assertAdmin(req);
+    return this.intelAction.toActionPlan(id, body ?? { siteIds: [] });
   }
 
   // ────────────────────────────────────────────────────────────

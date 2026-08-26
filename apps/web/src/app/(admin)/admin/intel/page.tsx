@@ -401,12 +401,120 @@ function ClaimsTab({ onChange }: { onChange: () => void }) {
                         ))}
                       </div>
                     </div>
+                    <ToActionForm claim={c} onDone={() => { load(); onChange(); }} />
                   </div>
                 )}
               </CardContent>
             </Card>
           );
         })
+      )}
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  İDDİADAN AKSİYONA — admin onaylı köprü (otomatik değil)
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * İddiayı seçili müşteri sitelerine Aksiyon Planı maddesi olarak açar.
+ * Otomatik üretim bilinçli olarak YOK: iddialar küresel (siteye adreslenemez),
+ * gece yeniden tartımları salınım yaratır, müşterinin yoksaydığı madde geri
+ * gelirdi. İki-kaynak kuralı sunucuda da zorlanır — tek kaynaklı iddia açılamaz.
+ */
+function ToActionForm({ claim, onDone }: { claim: any; onDone: () => void }) {
+  const [openForm, setOpenForm] = useState(false);
+  const [sites, setSites] = useState<any[] | null>(null);
+  const [selected, setSelected] = useState<string[]>([]);
+  const [title, setTitle] = useState<string>(claim.statement ?? '');
+  const [impact, setImpact] = useState<'high' | 'medium' | 'low'>('medium');
+  const [busy, setBusy] = useState(false);
+
+  const eligible = ['CONFIRMED', 'MYTH', 'CONTESTED'].includes(claim.status);
+  const evidenceCount = claim._count?.evidences ?? (claim.evidences?.length ?? 0);
+
+  useEffect(() => {
+    if (!openForm || sites !== null) return;
+    fetch(`${apiBase()}/api/admin/sites`, { credentials: 'include' })
+      .then(async (r) => (r.ok ? r.json() : []))
+      .then((list) => setSites(Array.isArray(list) ? list : []))
+      .catch(() => setSites([]));
+  }, [openForm, sites]);
+
+  const submit = async () => {
+    if (selected.length === 0) { toast.error('En az bir site seç'); return; }
+    setBusy(true);
+    try {
+      const r = await call(`/claims/${claim.id}/to-action`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ siteIds: selected, title, impact }),
+      });
+      toast.success(`${r?.created?.length ?? 0} siteye aksiyon açıldı (${r?.claim?.distinctSources} bağımsız kaynak)`);
+      setOpenForm(false); setSelected([]);
+      onDone();
+    } catch (err: any) {
+      toast.error(err.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!eligible) return null;
+
+  return (
+    <div className="pt-2 border-t border-dashed">
+      {!openForm ? (
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <span className="text-xs text-muted-foreground">
+            Müşteri aksiyonuna çevir — sen seçersin, otomatik açılmaz. Sunucu 2 bağımsız kaynak şartını uygular ({evidenceCount} kanıt).
+          </span>
+          <Button size="sm" variant="outline" onClick={() => setOpenForm(true)}>Aksiyona çevir</Button>
+        </div>
+      ) : (
+        <div className="space-y-2 text-sm">
+          <input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            className="w-full rounded-md border bg-background px-2.5 py-1.5 text-sm"
+            placeholder="Aksiyon başlığı (müşteri görecek)"
+            maxLength={300}
+          />
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs text-muted-foreground">Etki:</span>
+            {(['high', 'medium', 'low'] as const).map((v) => (
+              <button
+                key={v}
+                onClick={() => setImpact(v)}
+                className={cn('px-2 py-0.5 rounded text-[11px] border', impact === v ? 'bg-primary text-primary-foreground border-primary' : 'hover:bg-muted')}
+              >
+                {v === 'high' ? 'Yüksek' : v === 'medium' ? 'Orta' : 'Düşük'}
+              </button>
+            ))}
+          </div>
+          <div className="max-h-44 overflow-y-auto rounded-md border p-2 grid sm:grid-cols-2 gap-1">
+            {sites === null ? (
+              <span className="text-xs text-muted-foreground">Siteler yükleniyor…</span>
+            ) : sites.length === 0 ? (
+              <span className="text-xs text-muted-foreground">Site bulunamadı</span>
+            ) : sites.map((s: any) => (
+              <label key={s.id} className="flex items-center gap-2 text-xs cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={selected.includes(s.id)}
+                  onChange={(e) => setSelected((cur) => e.target.checked ? [...cur, s.id] : cur.filter((x) => x !== s.id))}
+                />
+                <span className="truncate">{s.name ?? s.url ?? s.id}</span>
+                {s.url && <span className="text-muted-foreground truncate">{String(s.url).replace(/^https?:\/\//, '')}</span>}
+              </label>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <Button size="sm" onClick={submit} disabled={busy}>{busy ? 'Açılıyor…' : `${selected.length} siteye aç`}</Button>
+            <Button size="sm" variant="ghost" onClick={() => setOpenForm(false)}>Vazgeç</Button>
+          </div>
+        </div>
       )}
     </div>
   );
