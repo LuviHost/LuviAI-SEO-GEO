@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { KNOWN_AI_BOTS, ROBOTS_ALLOW_EXTRAS } from './known-ai-bots.js';
 import type { CrawlResult } from '../sites/site-crawler.service.js';
 
 /**
@@ -46,33 +47,12 @@ ${urls}
     txt += `Allow: /\nCrawl-delay: 1\n\n`;
 
     if (allowAi) {
-      // AI search engine crawlers — actively want them
+      // AI crawler listesi TEK kaynaktan (known-ai-bots.ts) — AXO taramasiyla
+      // ayni isimler; eskiden 'Mistral-AI-User' (yanlis) ve 'Claude-Web' (bayat)
+      // yaziliyor, tarayici hic tanimiyordu. Klasik arama botlari ekstra listede.
       const aiCrawlersDescriptions: Array<[string, string]> = [
-        ['GPTBot', 'OpenAI ChatGPT training crawler'],
-        ['OAI-SearchBot', 'ChatGPT Search (real-time)'],
-        ['ChatGPT-User', 'ChatGPT user-shared link fetch'],
-        ['ClaudeBot', 'Anthropic Claude training crawler'],
-        ['Claude-Web', 'Claude.ai web fetch'],
-        ['anthropic-ai', 'Anthropic generic'],
-        ['Google-Extended', 'Bard / Gemini training'],
-        ['Googlebot', 'Google Search'],
-        ['Googlebot-Image', 'Google Images / Lens'],
-        ['Bingbot', 'Bing + Copilot'],
-        ['Applebot', 'Apple Search'],
-        ['Applebot-Extended', 'Apple Intelligence training'],
-        ['PerplexityBot', 'Perplexity AI search'],
-        ['Perplexity-User', 'Perplexity user-shared link fetch'],
-        ['YouBot', 'You.com AI search'],
-        ['cohere-ai', 'Cohere training'],
-        ['Bytespider', 'TikTok/ByteDance AI search'],
-        ['Amazonbot', 'Amazon Alexa+ / Rufus'],
-        ['DuckAssistBot', 'DuckDuckGo AI'],
-        ['Meta-ExternalAgent', 'Meta AI'],
-        ['FacebookBot', 'Meta link preview / training'],
-        ['Diffbot', 'Diffbot knowledge graph'],
-        ['CCBot', 'Common Crawl (training data)'],
-        ['Mistral-AI-User', 'Mistral Le Chat'],
-        ['DeepSeekBot', 'DeepSeek crawler'],
+        ...KNOWN_AI_BOTS.map((b): [string, string] => [b.name, b.description]),
+        ...ROBOTS_ALLOW_EXTRAS.map((b): [string, string] => [b.name, b.description]),
       ];
       txt += `# ═════════════════════════════════════════════════════\n`;
       txt += `# AI Search Engines — explicit allow (modern GEO)\n`;

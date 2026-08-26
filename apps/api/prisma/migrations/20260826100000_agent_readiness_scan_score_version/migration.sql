@@ -1,0 +1,13 @@
+-- AXO (Agent Readiness) skor metodolojisi surumu.
+--
+-- v2 (2026-08): user-triggered fetcher'lar (ChatGPT-User, Perplexity-User,
+-- Claude-User...) robots stance skorundan cikarildi — robots.txt'e guvenilir
+-- uymadiklari icin "bilincli durus" olcumunu yaniltiyorlardi (defter:
+-- user-initiated-ai-fetchers-ignore-robots-txt, 2 bagimsiz kaynak); llms.txt
+-- etkisi medium->low (hicbir buyuk saglayici taahhut etmiyor, dosyalarin
+-- %97'si hic okunmuyor); puansiz "bilgi" kontrolleri eklendi.
+--
+-- Skor ayni site icin v1'den v2'ye MEKANIK olarak oynar. UI iki tarama arasi
+-- degisimi anlamlandirirken surum farkini gormeli ("metodoloji degisti",
+-- "siteniz kotulesti" degil). Mevcut satirlar v1 sayilir.
+ALTER TABLE `agent_readiness_scans` ADD COLUMN `scoreVersion` INT NOT NULL DEFAULT 1;

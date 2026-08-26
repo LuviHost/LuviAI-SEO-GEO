@@ -5,6 +5,9 @@ import { NotificationsService } from '../notifications/notifications.service.js'
 import { acquireCronLock } from '../common/cron-lock.js';
 import { siteWhereForFeature } from '../billing/plan-site-filter.js';
 import { readBodyCapped } from '../common/fetch-capped.js';
+import { KNOWN_AI_BOTS, STANCE_SCORED_BOTS } from './known-ai-bots.js';
+import { parseRobotsAiStance as parseStance, type RobotsAiStance } from './robots-ai-stance.js';
+import { assessJsFreeDiscovery } from './js-free-discovery.js';
 
 /**
  * Agent Readiness (AXO — Agent Experience Optimization) taramasi.
@@ -16,10 +19,20 @@ import { readBodyCapped } from '../common/fetch-capped.js';
  * markdown negotiation ve content signals bu ajanlarin ilk baktigi yerler.
  *
  * 4 seviye (Maya AXO paritesi + RanksUp farki: her kontrolun auto-fix'i var):
- *   L1 quick-wins   — robots.txt, sitemap, AI crawler kurallari, content signals, llms.txt
- *   L2 groundwork   — auth.md, API katalogu, llms-full.txt, Organization schema
+ *   L1 quick-wins   — robots.txt, sitemap, AI crawler kurallari, content signals, llms.txt (low)
+ *   L2 groundwork   — auth.md, API katalogu, llms-full.txt, Organization schema, JS'siz kesif (bilgi)
  *   L3 advanced     — A2A agent card, MCP deklarasyonu, markdown negotiation (+ app kontrolleri)
  *   L4 commerce     — urun feed'i, Product schema, agentic checkout sinyali
+ *
+ * SKOR METODOLOJISI v2 (2026-08, defter analizi — her madde >=2 bagimsiz kaynak):
+ *   - user-triggered fetcher'lar (ChatGPT-User, Perplexity-User...) robots stance
+ *     skorundan cikti: robots.txt'e guvenilir uymuyorlar, anilmalari erisimi ne
+ *     acar ne kapatir. Skor tabani training + search botlari (21/27).
+ *   - llms.txt medium -> low: hicbir buyuk saglayici taahhut etmiyor, %97'si hic
+ *     okunmuyor, Google kullanmiyor. "Opsiyonel hijyen" olarak sunulur.
+ *   - 'info' etkisi: puansiz gozlem kontrolleri (JS'siz kesif). Esikler gercek
+ *     dagilim gorulmeden puanlanmaz.
+ *   scoreVersion DB'ye yazilir; UI onceki taramayla farki metodolojiye baglar.
  */
 
 export interface ReadinessAuditStep {
@@ -32,7 +45,8 @@ export interface ReadinessCheck {
   id: string;
   name: string;
   ok: boolean;
-  impact: 'high' | 'medium' | 'low';
+  /** 'info' = puansiz gozlem kontrolu — skora ve nextUpToFix'e girmez */
+  impact: 'high' | 'medium' | 'low' | 'info';
   statusText: string;
   howTo: string;
   /** "Copy Agent Prompt" — kullanicinin kendi AI ajanina yapistiracagi talimat */
@@ -55,19 +69,10 @@ export interface ReadinessLevel {
 export interface AgentReadinessResult {
   overallScore: number;
   status: 'ready' | 'mostly_ready' | 'needs_work' | 'not_ready';
+  /** Skor metodolojisi surumu — bkz. SCORE_VERSION */
+  scoreVersion: number;
   levels: ReadinessLevel[];
-  robotsAiStance: {
-    allow: number;
-    block: number;
-    unspecified: number;
-    bots: Array<{
-      name: string;
-      /** ACIK deklarasyon: bot isimle anilmis mi (allow/block), yoksa unspecified */
-      stance: 'allow' | 'block' | 'unspecified';
-      /** RFC 9309 etkin durum: isimle anilmayan bot `*` grubunun kuralina tabi */
-      effective: 'allow' | 'block';
-    }>;
-  } | null;
+  robotsAiStance: RobotsAiStance | null;
   agentsAllowed: number | null;
   agentsTotal: number | null;
   nextUpToFix: Array<{ checkId: string; name: string; fixKey?: string }>;
@@ -75,20 +80,16 @@ export interface AgentReadinessResult {
   durationMs: number;
 }
 
-/** Ajan stance'i olculen bilinen AI botlari (Maya "23/27" karsiligi) */
-const KNOWN_AI_BOTS = [
-  'GPTBot', 'ChatGPT-User', 'OAI-SearchBot',
-  'ClaudeBot', 'Claude-User', 'Claude-SearchBot', 'anthropic-ai',
-  'PerplexityBot', 'Perplexity-User',
-  'Google-Extended', 'GoogleOther', 'Gemini-Deep-Research',
-  'Applebot-Extended', 'Amazonbot', 'Bytespider', 'CCBot',
-  'cohere-ai', 'cohere-training-data-crawler',
-  'Meta-ExternalAgent', 'Meta-ExternalFetcher',
-  'Diffbot', 'DuckAssistBot', 'YouBot',
-  'MistralAI-User', 'AI2Bot', 'Timpibot', 'Omgilibot',
-];
+/**
+ * Skor metodolojisi surumu. Artir + migration yorumuna gerekce yaz; UI bu
+ * sayiyi onceki taramayla kiyaslayip "metodoloji degisti" rozeti gosterir.
+ */
+const SCORE_VERSION = 2;
 
-const IMPACT_POINTS: Record<ReadinessCheck['impact'], number> = { high: 3, medium: 2, low: 1 };
+/** ai-crawler-rules esigi — v1'de 5 idi (27'lik taban); v2 tabani 21 bot, esik 4 */
+const AI_RULES_MIN_NAMED = 4;
+
+const IMPACT_POINTS: Record<ReadinessCheck['impact'], number> = { high: 3, medium: 2, low: 1, info: 0 };
 
 const FETCH_TIMEOUT_MS = 10_000;
 const UA = 'RanksUpAgentReadiness/1.0 (+https://ranksup.ai)';
@@ -116,6 +117,7 @@ export class AgentReadinessService {
       id: scan.id,
       overallScore: scan.overallScore,
       status: scan.status,
+      scoreVersion: scan.scoreVersion,
       levels: scan.levels,
       robotsAiStance: scan.robotsAiStance,
       agentsAllowed: scan.agentsAllowed,
@@ -132,11 +134,12 @@ export class AgentReadinessService {
     const scans = await this.prisma.agentReadinessScan.findMany({
       where: { siteId, ranAt: { gte: since } },
       orderBy: { ranAt: 'asc' },
-      select: { ranAt: true, overallScore: true, agentsAllowed: true, agentsTotal: true },
+      select: { ranAt: true, overallScore: true, agentsAllowed: true, agentsTotal: true, scoreVersion: true },
     });
     return scans.map((s) => ({
       date: s.ranAt.toISOString().slice(0, 10),
       score: s.overallScore,
+      scoreVersion: s.scoreVersion,
       agentsAllowed: s.agentsAllowed,
       agentsTotal: s.agentsTotal,
     }));
@@ -164,7 +167,7 @@ export class AgentReadinessService {
 
     // ── Seviyeler
     const l1 = await this.levelQuickWins(baseUrl, robots, sitemap, llmsTxt, stance);
-    const l2 = await this.levelGroundwork(baseUrl, site, jsonLd);
+    const l2 = await this.levelGroundwork(baseUrl, site, jsonLd, homepageHtml, sitemap);
     const l3 = await this.levelAdvanced(baseUrl, site, homepageHtml, homepageMd, jsonLd);
     const l4 = this.levelCommerce(site, jsonLd, homepageHtml);
 
@@ -180,7 +183,7 @@ export class AgentReadinessService {
     // "Next up to fix" — basarisiz kontroller icinde etkisi en yuksek 3
     const failed = levels
       .filter((l) => l.applicable)
-      .flatMap((l) => l.checks.filter((c) => !c.ok))
+      .flatMap((l) => l.checks.filter((c) => !c.ok && IMPACT_POINTS[c.impact] > 0)) // info kontrolleri "duzeltilecek" degil
       .sort((a, b) => IMPACT_POINTS[b.impact] - IMPACT_POINTS[a.impact])
       .slice(0, 3);
     const nextUpToFix = failed.map((c) => ({ checkId: c.id, name: c.name, fixKey: c.fixKey }));
@@ -192,6 +195,7 @@ export class AgentReadinessService {
     const result: AgentReadinessResult = {
       overallScore: overall,
       status,
+      scoreVersion: SCORE_VERSION,
       levels,
       robotsAiStance: stance,
       agentsAllowed,
@@ -212,6 +216,7 @@ export class AgentReadinessService {
         siteId,
         overallScore: overall,
         status,
+        scoreVersion: SCORE_VERSION,
         levels: levels as any,
         robotsAiStance: stance as any,
         agentsAllowed,
@@ -299,55 +304,84 @@ export class AgentReadinessService {
       ],
     });
 
-    // 3. AI bot yonetimi — bilinen AI crawler'lara acik stance
-    const namedCount = stance ? stance.allow + stance.block : 0;
-    const aiRulesOk = !!stance && namedCount >= 5;
+    // 3. AI bot yonetimi — bilinen AI crawler'lara acik stance.
+    // SKOR TABANI = training + search botlari (21). User-triggered fetcher'lar
+    // (ChatGPT-User, Perplexity-User, Claude-User...) robots.txt'e guvenilir
+    // uymaz — anilmalari erisimi ne acar ne kapatir; skora katmak "bilincli
+    // durus" olcumunu yaniltir (defter: user-initiated-ai-fetchers-ignore-
+    // robots-txt, 2 bagimsiz kaynak). Esik 5 -> 4: eski tabanda user-triggered
+    // botlari sayarak gecen siteler yeni tabanda dusmesin (v2 gecisi).
+    const namedCount = stance ? stance.scored.named : 0;
+    const scoredTotal = stance ? stance.scored.total : STANCE_SCORED_BOTS.length;
+    const aiRulesOk = !!stance && namedCount >= AI_RULES_MIN_NAMED;
+    const missingScored = stance
+      ? stance.bots.filter((b) => b.category !== 'user-triggered' && b.stance === 'unspecified').map((b) => b.name).slice(0, 4)
+      : [];
+    const userTriggeredNamed = stance ? stance.bots.filter((b) => b.category === 'user-triggered' && b.stance !== 'unspecified').length : 0;
     checks.push({
       id: 'ai-crawler-rules',
       name: 'AI botlarını yönet (AI Crawler Rules)',
       ok: aiRulesOk,
       impact: 'high',
       statusText: stance
-        ? `robots.txt ${namedCount} AI crawler'ı isimle anıyor (${stance.allow} allow / ${stance.block} block)`
+        ? aiRulesOk
+          ? `robots.txt ${namedCount}/${scoredTotal} eğitim + AI arama botunu isimle anıyor (${stance.scored.allow} allow / ${stance.scored.block} block)`
+          : `robots.txt yalnız ${namedCount}/${scoredTotal} eğitim + AI arama botunu isimle anıyor${userTriggeredNamed ? ` — ${userTriggeredNamed} kullanıcı-tetikli fetcher skora girmez` : ''}; en az ${AI_RULES_MIN_NAMED} gerekli, ör. ${missingScored.join(', ')}`
         : 'robots.txt okunamadığı için stance yok',
-      howTo: 'GPTBot, ClaudeBot, PerplexityBot, Google-Extended, CCBot gibi AI crawler\'lar için robots.txt\'de açık User-agent blokları tanımla — izin ver ya da engelle, ama bilinçli olsun.',
-      agentPrompt: `Fetch ${baseUrl}/robots.txt and list which of these AI crawlers have an explicit User-agent block: ${KNOWN_AI_BOTS.slice(0, 10).join(', ')}. For each, state allow or block.`,
+      howTo: `GPTBot, ClaudeBot, PerplexityBot, Google-Extended, CCBot gibi eğitim ve AI-arama crawler'ları için robots.txt'de açık User-agent blokları tanımla — izin ver ya da engelle, ama bilinçli olsun (en az ${AI_RULES_MIN_NAMED} bot). ChatGPT-User, Perplexity-User, Claude-User gibi kullanıcı-tetikli fetcher'lar robots.txt'e güvenilir uymadığı için skora girmez; onları anmak zararsız ama erişimi belirlemez.`,
+      agentPrompt: `Fetch ${baseUrl}/robots.txt and list which of these AI crawlers have an explicit User-agent block: ${STANCE_SCORED_BOTS.slice(0, 10).map((b) => b.name).join(', ')}. For each, state allow or block.`,
       fixKey: 'robots_txt',
       audit: [
         { step: 'FETCH', detail: `GET /robots.txt → ${robots.status || 'erişilemedi'}`, ok: robots.ok },
-        { step: 'PARSE', detail: stance ? `Bilinen AI user-agent taraması: ${stance.bots.filter((b) => b.stance !== 'unspecified').map((b) => b.name).slice(0, 8).join(', ') || 'hiçbiri'}` : '—', ok: aiRulesOk },
-        { step: 'CONCLUDE', detail: aiRulesOk ? 'AI crawler kuralları deklare edilmiş' : 'AI crawler\'lar için açık kural yok', ok: aiRulesOk },
+        { step: 'PARSE', detail: stance ? `Skorlanan AI user-agent taraması: ${stance.bots.filter((b) => b.category !== 'user-triggered' && b.stance !== 'unspecified').map((b) => b.name).slice(0, 8).join(', ') || 'hiçbiri'}` : '—', ok: aiRulesOk },
+        { step: 'CONCLUDE', detail: aiRulesOk ? 'AI crawler kuralları deklare edilmiş' : 'AI crawler\'lar için yeterli açık kural yok', ok: aiRulesOk },
       ],
     });
 
     // 4. Content Signals — icerigin nasil kullanilabilecegi
     const contentSignals = robots.ok && /content-signal\s*:/i.test(robots.body);
+    // Cloudflare: 15 Eylul 2026'dan itibaren ai-train=no secen sitelerde
+    // AI-egitim engeli Googlebot/Bingbot'u da kapsayabiliyor (defter:
+    // cloudflare-blocks-googlebot-under-ai-training-rules, 2 kaynak). Copy
+    // tarihe gore degisir ki 3 hafta sonra bayatlamasin.
+    const cfNote = Date.now() < Date.UTC(2026, 8, 15)
+      ? '15 Eylül 2026\'dan itibaren Cloudflare, ai-train=no seçen sitelerde AI-eğitim engelini Googlebot/Bingbot\'a da uygulayabilecek — görünürlük öncelikliyse ai-train=yes bırak.'
+      : 'Eylül 2026\'dan beri Cloudflare, ai-train=no seçen sitelerde AI-eğitim engelini Googlebot/Bingbot\'a da uygulayabiliyor — görünürlük öncelikliyse ai-train=yes bırak.';
     checks.push({
       id: 'content-signals',
       name: 'İçerik kullanım sinyalleri (Content Signals)',
       ok: contentSignals,
       impact: 'medium',
       statusText: contentSignals ? 'Content-Signal satırı mevcut' : 'Content-Signal deklare edilmemiş',
-      howTo: 'robots.txt\'e `Content-Signal: search=yes, ai-input=yes, ai-train=no` benzeri bir satır ekleyerek içeriğinin arama, AI cevabı ve eğitimde nasıl kullanılabileceğini deklare et (Cloudflare Content Signals Policy).',
+      howTo: `robots.txt'e \`Content-Signal: search=yes, ai-input=yes, ai-train=yes|no\` satırı ekleyerek içeriğinin arama, AI cevabı ve eğitimde nasıl kullanılabileceğini bilinçli olarak deklare et (Cloudflare Content Signals Policy). ai-train değerini bilerek seç: ${cfNote}`,
       fixKey: 'robots_txt',
       audit: [
         { step: 'PARSE', detail: contentSignals ? 'Content-Signal: satırı bulundu' : 'robots.txt içinde Content-Signal yok', ok: contentSignals },
       ],
     });
 
-    // 5. llms.txt — AI-optimize metin ozeti
-    const llmsOk = llmsTxt.ok && llmsTxt.body.trim().startsWith('#');
+    // 5. llms.txt — DUSUK ETKI (v2). Kanit (defter, 4 bagimsiz kaynak): hicbir
+    // buyuk LLM saglayicisi llms.txt'yi dikkate alacagini taahhut etmedi
+    // (no-major-llm-provider-honors-llms-txt); Ahrefs 137k site: dosyalarin
+    // %97'si hic okunmadi (llms-txt-97-percent-zero-traffic); Google Search
+    // kullanmiyor (google-search-ignores-llms-txt). Dusuk maliyetli hijyen,
+    // vaat degil. Gecerlilik: 404 sayfasi markdown baslikla donebiliyor —
+    // baslik + en az bir link ariyoruz (RanksUp'in kendi uretici cikisi gecer).
+    const llmsBody = llmsTxt.body.trim();
+    const llmsOk = llmsTxt.ok && /^#\s*\S/.test(llmsBody) && /https?:\/\//.test(llmsBody);
     checks.push({
       id: 'llms-txt',
-      name: 'AI-optimize özet (llms.txt)',
+      name: 'AI-optimize özet (llms.txt) — opsiyonel',
       ok: llmsOk,
-      impact: 'medium',
-      statusText: llmsOk ? 'llms.txt mevcut ve markdown formatında' : 'llms.txt yok',
-      howTo: 'Site köküne markdown formatında llms.txt ekle — AI asistanların markanı doğru özetlemesi için yapılandırılmış kaynak. RanksUp otomatik üretir.',
+      impact: 'low',
+      statusText: llmsOk
+        ? 'llms.txt mevcut (markdown başlık + link)'
+        : llmsTxt.ok ? 'llms.txt var ama başlık/link yapısı doğrulanamadı' : 'llms.txt yok (opsiyonel)',
+      howTo: 'Düşük maliyetli, kanıtı zayıf, opsiyonel bir hijyen adımı: hiçbir büyük AI sağlayıcısı llms.txt\'yi kullanacağını taahhüt etmiyor, Google Search kullanmıyor ve Ahrefs\'in 137 bin sitelik ölçümünde dosyaların %97\'si hiç okunmadı. Zararı yok, olası faydası küçük — RanksUp tek tıkla üretir; sıralama/görünürlük beklentisiyle yapma.',
       fixKey: 'llms_txt',
       audit: [
         { step: 'FETCH', detail: `GET /llms.txt → ${llmsTxt.status || 'erişilemedi'}`, ok: llmsTxt.ok },
-        { step: 'PARSE', detail: llmsOk ? 'Markdown başlığıyla başlıyor' : 'Markdown formatı doğrulanamadı', ok: llmsOk },
+        { step: 'PARSE', detail: llmsOk ? 'Markdown başlığı ve en az bir link var' : 'Markdown başlık + link yapısı doğrulanamadı', ok: llmsOk },
       ],
     });
 
@@ -361,6 +395,8 @@ export class AgentReadinessService {
     baseUrl: string,
     site: any,
     jsonLd: any[],
+    homepageHtml: FetchResult,
+    sitemap: FetchResult,
   ): Promise<ReadinessLevel> {
     const checks: ReadinessCheck[] = [];
 
@@ -439,6 +475,28 @@ export class AgentReadinessService {
       audit: [
         { step: 'PARSE', detail: `Ana sayfada ${jsonLd.length} JSON-LD bloğu; Organization: ${org ? 'var' : 'yok'}`, ok: !!org },
         { step: 'CONCLUDE', detail: orgOk ? 'Kimlik grafiği yeterli' : 'sameAs profilleri eksik (en az 2 önerilir)', ok: orgOk },
+      ],
+    });
+
+    // 5. JS'siz kesif — BILGI (puansiz, v2). Google disi AI crawler'lar
+    // (GPTBot, ClaudeBot, PerplexityBot) JavaScript calistirmaz; ham HTML'de
+    // link yoksa siteyi kesfedemezler (defter: non-google-ai-crawlers-dont-
+    // execute-javascript-links, 2 kaynak). Ilk surumde puansiz: esikler gercek
+    // dagilim gorulmeden puanlanirsa az linkli landing'lerde sahte FAIL uretir.
+    // scan()'de zaten cekilen homepage + sitemap kullanilir — sifir ek fetch.
+    const jsFree = assessJsFreeDiscovery(homepageHtml.ok ? homepageHtml.body : '', sitemap.ok ? sitemap.body : '', baseUrl);
+    checks.push({
+      id: 'js-free-discovery',
+      name: 'JS\'siz keşfedilebilirlik (ham HTML link grafiği)',
+      ok: !jsFree.applicable || jsFree.ok,
+      impact: 'info',
+      statusText: jsFree.applicable ? jsFree.reason : `Ölçülemedi — ${jsFree.reason}`,
+      howTo: 'Ana gezinme ve içerik linklerini sunucu tarafında (SSR/SSG) ham HTML\'e yaz; yalnız JavaScript ile oluşan menü/liste linkleri GPTBot, ClaudeBot, PerplexityBot için görünmez. Sitemap tek başına yetmez: ajanlar sayfa-arası bağlamı link grafiğinden alır.',
+      agentPrompt: `Fetch ${baseUrl} WITHOUT executing JavaScript and count the internal <a href> links in the raw HTML. Compare with ${baseUrl}/sitemap.xml — which sitemap URLs are unreachable from the raw homepage HTML?`,
+      audit: [
+        { step: 'PARSE', detail: `Ham HTML'de ${jsFree.internalLinks} iç link${jsFree.truncated ? ' (HTML 500 KB\'ta kırpıldı, alt kısım sayılmadı)' : ''}`, ok: jsFree.internalLinks > 0 },
+        { step: 'PARSE', detail: jsFree.applicable ? `Sitemap ${jsFree.sitemapUrls} URL · örneklem ${jsFree.sampled} · ham HTML'de bulunan ${jsFree.overlap}` : jsFree.reason, ok: jsFree.applicable },
+        { step: 'CONCLUDE', detail: jsFree.applicable ? (jsFree.ok ? 'JS\'siz keşif yeterli' : 'JS-bağımlı keşif şüphesi — puansız gözlem') : 'Ölçülemedi (bilgi)', ok: !jsFree.applicable || jsFree.ok },
       ],
     });
 
@@ -654,64 +712,9 @@ export class AgentReadinessService {
     };
   }
 
-  /**
-   * robots.txt icinden bilinen AI botlarinin stance'ini cikarir.
-   * Grup mantigi: "User-agent: X" satirlarini takip eden Allow/Disallow kurallari
-   * o gruba aittir. "Disallow: /" = block, aksi halde allow. Ismi gecmeyen bot
-   * "unspecified" — `*` grubunun kuralina tabi olur ama biz acik deklarasyonu olceriz.
-   */
-  parseRobotsAiStance(robotsTxt: string): NonNullable<AgentReadinessResult['robotsAiStance']> {
-    const groups = new Map<string, string[]>(); // lower(bot) -> rules
-    let currentAgents: string[] = [];
-    let rulesOpen = false;
-
-    for (const rawLine of robotsTxt.split(/\r?\n/)) {
-      const line = rawLine.replace(/#.*$/, '').trim();
-      if (!line) continue;
-      const [keyRaw, ...rest] = line.split(':');
-      const key = keyRaw.trim().toLowerCase();
-      const value = rest.join(':').trim();
-
-      if (key === 'user-agent') {
-        if (rulesOpen) currentAgents = []; // yeni grup basliyor
-        rulesOpen = false;
-        currentAgents.push(value.toLowerCase());
-        for (const a of currentAgents) if (!groups.has(a)) groups.set(a, []);
-      } else if (key === 'allow' || key === 'disallow') {
-        rulesOpen = true;
-        for (const a of currentAgents) groups.get(a)?.push(`${key}:${value}`);
-      }
-    }
-
-    const stanceOf = (rules: string[] | undefined): 'allow' | 'block' | null => {
-      if (!rules || rules.length === 0) return null;
-      // Tam kapatma: "disallow:/" (path'siz disallow allow anlamina gelir)
-      const fullBlock = rules.some((r) => r === 'disallow:/');
-      const hasAllow = rules.some((r) => r.startsWith('allow:'));
-      if (fullBlock && !hasAllow) return 'block';
-      return 'allow';
-    };
-
-    // `*` grubunun durusu — isimle anilmayan botlarin ETKIN durumunu belirler
-    // (RFC 9309: ozel grup yoksa wildcard grup gecerlidir). "User-agent: *
-    // Disallow: /" olan bir sitede isimsiz botlar giremez; onceden bunlar
-    // "unspecified = izinli" sayilip 27/27 gosteriliyordu — tam tersiydi.
-    const wildcard = stanceOf(groups.get('*'));
-
-    const bots = KNOWN_AI_BOTS.map((name) => {
-      const own = stanceOf(groups.get(name.toLowerCase()));
-      const stance = own ?? ('unspecified' as const);
-      // robots.txt hic kural icermiyorsa varsayilan: erisim serbest
-      const effective = own ?? wildcard ?? ('allow' as const);
-      return { name, stance, effective };
-    });
-
-    return {
-      allow: bots.filter((b) => b.stance === 'allow').length,
-      block: bots.filter((b) => b.stance === 'block').length,
-      unspecified: bots.filter((b) => b.stance === 'unspecified').length,
-      bots,
-    };
+  /** Saf parser robots-ai-stance.ts'e tasindi (test edilebilir); imza geriye uyumlu. */
+  parseRobotsAiStance(robotsTxt: string): RobotsAiStance {
+    return parseStance(robotsTxt, KNOWN_AI_BOTS);
   }
 
   private extractJsonLd(html: string): any[] {

@@ -90,7 +90,7 @@ export class GeoScoreCardService {
     checks.push({
       id: 'llms', name: 'llms.txt',
       ok: ck.llms_txt?.found === true,
-      detail: ck.llms_txt?.found ? 'Mevcut' : 'llms.txt yok — non-Google AI motorlarına (Perplexity, ChatGPT browse, Claude.ai) ek parse sinyali yok. Google AI Overviews için zorunlu değil.',
+      detail: ck.llms_txt?.found ? 'Mevcut (opsiyonel hijyen)' : 'llms.txt yok — opsiyonel: hiçbir büyük AI sağlayıcısı taahhüt etmiyor, Google kullanmıyor; düşük maliyetli ama kanıtı zayıf bir adım.',
     });
 
     const site: any = await this.prisma.site.findUniqueOrThrow({ where: { id: siteId } });

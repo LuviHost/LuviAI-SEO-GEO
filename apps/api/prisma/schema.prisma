@@ -2263,6 +2263,9 @@ model AgentReadinessScan {
 
   overallScore Int // 0-100
   status       String // ready | mostly_ready | needs_work | not_ready
+  // Skor metodolojisi surumu — 1: 2026-08 oncesi; 2: user-triggered botlar
+  // stance skorundan cikti, llms.txt low, puansiz bilgi kontrolleri (bkz. migration)
+  scoreVersion Int    @default(1)
 
   /**
    * [{ id, title, score, maxScore, checks: [{ id, name, ok, impact,

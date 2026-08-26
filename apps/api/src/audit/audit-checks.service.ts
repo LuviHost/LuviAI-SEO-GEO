@@ -104,7 +104,7 @@ export class AuditChecksService {
       });
 
       // AI crawler whitelist (modern SEO)
-      const aiCrawlers = ['GPTBot', 'Claude-Web', 'PerplexityBot', 'Google-Extended'];
+      const aiCrawlers = ['GPTBot', 'ClaudeBot', 'PerplexityBot', 'Google-Extended']; // Claude-Web bayat UA idi
       const allowed = aiCrawlers.filter(c => txt.includes(c));
       if (allowed.length >= 2) score += 30;
       else issues.push({
@@ -130,7 +130,7 @@ export class AuditChecksService {
       issues.push({
         severity: 'warning',
         type: 'llms_missing',
-        description: 'llms.txt yok — Perplexity / ChatGPT browse / Claude.ai gibi non-Google AI motorlarına içerik parse için ek sinyal verilmez (Google AI Overviews için resmi gereklilik değil)',
+        description: 'llms.txt yok — düşük maliyetli, opsiyonel bir hijyen adımı: hiçbir büyük AI sağlayıcısı dosyayı kullanacağını taahhüt etmiyor ve Google Search kullanmıyor; olası faydası küçük, zararı yok',
         fixable: true,
         fixCommand: 'auto-fix: llms',
       });

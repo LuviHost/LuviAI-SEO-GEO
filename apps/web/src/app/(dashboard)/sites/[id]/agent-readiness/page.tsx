@@ -17,7 +17,7 @@ import {
 
 /**
  * Agent Readiness (AXO) — domain AI ajanlarina hazir mi?
- * 4 seviye, 24 kontrol, FETCH/PARSE/CONCLUDE audit detayi,
+ * 4 seviye, 15+ kontrol (sayi sonuctan dinamik), FETCH/PARSE/CONCLUDE audit detayi,
  * "Copy Agent Prompt" + tek tikla auto-fix (rakipte yok).
  */
 
@@ -32,6 +32,8 @@ const IMPACT_BADGE: Record<string, { text: string; cls: string }> = {
   high:   { text: 'YÜKSEK ETKİ', cls: 'bg-red-500/10 text-red-600 border-red-500/30' },
   medium: { text: 'ORTA ETKİ',   cls: 'bg-amber-500/10 text-amber-600 border-amber-500/30' },
   low:    { text: 'DÜŞÜK ETKİ',  cls: 'bg-zinc-500/10 text-zinc-500 border-zinc-500/30' },
+  // Puansız bilgi kontrolü — skora girmez, ilk sürümde gözlem amaçlı
+  info:   { text: 'BİLGİ',       cls: 'bg-sky-500/10 text-sky-600 border-sky-500/30' },
 };
 
 function Gauge({ score }: { score: number }) {
@@ -121,7 +123,7 @@ export default function AgentReadinessPage() {
         description: check.howTo,
         source: 'agent_readiness',
         sourceRef: check.id,
-        impact: check.impact,
+        impact: check.impact === 'info' ? 'low' : check.impact,
       });
       toast.success('Aksiyon planına eklendi');
     } catch (err: any) {
@@ -140,7 +142,7 @@ export default function AgentReadinessPage() {
     return (
       <PlanLockedCard
         requirement={requirementFor('agentReadiness')}
-        description="Alan adının AI ajanlarına hazır olup olmadığını 24 kontrolle ölçer, eksikleri tek tıkla düzeltir."
+        description="Alan adının AI ajanlarına hazır olup olmadığını 4 seviyede ölçer, eksikleri tek tıkla düzeltir."
       />
     );
   }
@@ -197,6 +199,11 @@ export default function AgentReadinessPage() {
                   <div className="text-[10px] text-muted-foreground mt-0.5">
                     Son tarama: {data.ranAt ? new Date(data.ranAt).toLocaleString('tr-TR') : '—'}
                   </div>
+                  {(data.scoreVersion ?? 1) >= 2 && (
+                    <div className="text-[10px] text-muted-foreground mt-0.5" title="Ağustos 2026: kullanıcı-tetikli botlar stance skorundan çıktı, llms.txt etkisi düşürüldü, bilgi kontrolleri eklendi. Önceki taramalarla puan farkı metodolojiden kaynaklanabilir.">
+                      Metodoloji v2 · Ağu 2026
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex-1 min-w-[260px] grid sm:grid-cols-2 gap-3">
@@ -210,6 +217,11 @@ export default function AgentReadinessPage() {
                         <span className="text-muted-foreground mx-1.5">·</span>
                         <span className="text-muted-foreground">{stance.unspecified} belirsiz</span>
                       </div>
+                      {stance.scored && (
+                        <div className="text-[10px] text-muted-foreground mt-1" title="ChatGPT-User, Perplexity-User, Claude-User gibi kullanıcı-tetikli fetcher'lar bir insanın AI sohbeti sırasında sayfayı canlı çeker ve robots.txt'e güvenilir uymaz — bu yüzden 'bilinçli duruş' skoruna katılmazlar.">
+                          Skora giren: {stance.scored.named}/{stance.scored.total} eğitim + AI arama botu · kullanıcı-tetikli fetcher'lar skor dışı
+                        </div>
+                      )}
                     </div>
                   )}
                   {data.agentsAllowed !== null && (
