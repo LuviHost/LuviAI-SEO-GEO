@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { citationCounts } from './citation-score.js';
 import { buildHeadline, providerHeadline } from './citation-headline.js';
+import { assessStability } from './visibility-variance.js';
 import { AiCitationService } from './ai-citation.service.js';
 
 /**
@@ -11,6 +12,9 @@ import { AiCitationService } from './ai-citation.service.js';
  * Frontend'de 30/90/365 gunluk trend grafigi cizilir.
  * Drop tespit edilirse alert gonderilir (ChatGPT 2 hafta once alintililiyordu, artik degil).
  */
+/** snapshotSite'in saglayici basina probe sayisi — runForSite(siteId, 5) ile ayni */
+const SNAPSHOT_PROBES = 5;
+
 @Injectable()
 export class AiCitationTrackerService {
   private readonly log = new Logger(AiCitationTrackerService.name);
@@ -33,7 +37,7 @@ export class AiCitationTrackerService {
     siteId: string,
     opts: { trigger?: 'user' | 'system' } = {},
   ): Promise<{ saved: number; results: any[]; runAt: string }> {
-    const results = await this.citation.runForSite(siteId, 5, { trigger: opts.trigger ?? 'user' });
+    const results = await this.citation.runForSite(siteId, SNAPSHOT_PROBES, { trigger: opts.trigger ?? 'user' });
     const runAt = new Date().toISOString();
     // UTC midnight — server timezone'a bagli kalmamak icin (TR'de setHours(0,0,0,0) bir onceki UTC gunune kayar)
     const now = new Date();
@@ -152,6 +156,21 @@ export class AiCitationTrackerService {
     // Manset: chart, overview ve analytics-row AYNI sayiyi soylemeli — tek kaynak burasi.
     const headline = buildHeadline(byProvider);
 
+    // Oynaklik: gunluk saglayicilar-arasi ortalama + o gun skora giren probe
+    // sayisi (saglayici x SNAPSHOT_PROBES). Beklenen orneklem gurultusune
+    // oranlanir — bkz. visibility-variance.ts. Son 14 gunle sinirli: daha
+    // uzun pencere gercek trendi "oynaklik" diye okur.
+    const providersByDay = new Map<string, number>();
+    for (const series of Object.values(byProvider)) {
+      for (const pt of series) {
+        if (typeof pt.score !== 'number') continue;
+        providersByDay.set(pt.date, (providersByDay.get(pt.date) ?? 0) + 1);
+      }
+    }
+    const stability = assessStability(
+      headline.daily.slice(-14).map((d) => ({ score: d.score, n: (providersByDay.get(d.date) ?? 0) * SNAPSHOT_PROBES })),
+    );
+
     // Son snapshot detaylarini da don — F5 sonrasi detay panelinin yeniden hidrate olabilmesi icin
     const latestByProvider = new Map<string, typeof snapshots[number]>();
     for (const s of snapshots) {
@@ -163,7 +182,7 @@ export class AiCitationTrackerService {
       : null;
 
     if (headlineOnly) {
-      return { days, since: since.toISOString(), trends, headline, latestRunAt };
+      return { days, since: since.toISOString(), trends, headline, stability, latestRunAt };
     }
 
     const latestResults = Array.from(latestByProvider.values()).map((s) => ({
@@ -179,6 +198,7 @@ export class AiCitationTrackerService {
       byProvider,
       trends,
       headline,
+      stability,
       latestResults,
       latestRunAt,
     };

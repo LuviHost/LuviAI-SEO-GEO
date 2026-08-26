@@ -2204,9 +2204,9 @@ model GeoPromptRun {
    * SORUNUN KENDISINDE marka adi geciyor mu?
    *
    * Sorguda markanin adi gecince asistanin markayi anmasi neredeyse
-   * totolojik — sektor olcumu bu farki 33 kat veriyor (sorguda ismi gecen
-   * markalar %68,9 anilirken yalnizca getirilen markalar %2,1). Ikisi ayni
-   * havuzda toplanirsa skor gorunurlugu degil prompt bilesimini olcer.
+   * totolojik. (Sektorde "33 kat" diye dolasan sayi tek hesapli bir deneyin
+   * cift sayimi cikti — yon dogru, sayi tasinmaz; defter analizi 2026-08.)
+   * Ikisi ayni havuzda toplanirsa skor gorunurlugu degil prompt bilesimini olcer.
    *
    * Manset metrikleri (mentionRate, citationRate, sentiment, shareOfVoice)
    * yalnizca `false` satirlardan hesaplanir; `true` satirlar ayrica

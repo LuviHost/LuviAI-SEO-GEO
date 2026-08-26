@@ -232,6 +232,14 @@ export function CitationHistoryChart({
               const windowLabel = headline.method === 'rolling'
                 ? `7 günlük ortalama · ${headline.runCount} ölçüm`
                 : 'ilk ölçüm';
+              const stability = data.stability ?? null;
+              const STABILITY: Record<string, { text: string; cls: string; hint: string }> = {
+                'istikrarli':    { text: 'istikrarlı', cls: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30', hint: 'Günlük dalgalanma örnekleme gürültüsü sınırında — hareketler büyük olasılıkla gerçek değil.' },
+                'dalgali':       { text: 'dalgalı',    cls: 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30',       hint: 'Günlük dalgalanma gürültünün üstünde — tek günlük değişimlere göre karar verme.' },
+                'oynak':         { text: 'oynak',      cls: 'bg-red-500/10 text-red-700 dark:text-red-300 border-red-500/30',               hint: 'AI cevapları günden güne belirgin değişiyor — 7 günlük ortalamaya bak, tek güne değil.' },
+                'yetersiz-veri': { text: 'veri az',    cls: 'bg-zinc-500/10 text-zinc-600 dark:text-zinc-300 border-zinc-500/30',           hint: 'Oynaklık için en az 4 ölçüm günü gerekir.' },
+              };
+              const st = stability ? STABILITY[stability.label] : null;
 
               const grade =
                 avg >= 75 ? { label: 'Mükemmel', tone: 'emerald', desc: 'AI motorları sitenizi çok iyi tanıyor.' } :
@@ -254,7 +262,14 @@ export function CitationHistoryChart({
                       <div className="text-[10px] uppercase tracking-wider font-bold mt-1 opacity-70">/ 100</div>
                     </div>
                     <div className="flex-1 min-w-[220px]">
-                      <p className="text-sm font-bold">{grade.label} — AI görünürlük <span className="font-normal opacity-70">({windowLabel})</span></p>
+                      <p className="text-sm font-bold flex items-center gap-2 flex-wrap">
+                        <span>{grade.label} — AI görünürlük <span className="font-normal opacity-70">({windowLabel})</span></span>
+                        {st && (
+                          <span className={`text-[10px] font-semibold border rounded-full px-2 py-0.5 ${st.cls}`} title={`${st.hint}${stability?.ratio !== null && stability?.ratio !== undefined ? ` (gözlenen/beklenen sapma ${stability.ratio}×, ${stability.dayCount} gün)` : ''}`}>
+                            {st.text}
+                          </span>
+                        )}
+                      </p>
                       <p className="text-xs opacity-90 mt-0.5">{grade.desc}</p>
                       <div className="text-[11px] mt-2 opacity-80 leading-relaxed">
                         {best && (
