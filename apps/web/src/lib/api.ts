@@ -633,6 +633,9 @@ export const api = {
   // GEO
   getCitationHistory: (siteId: string, days = 30) =>
     request<any>(`/sites/${siteId}/audit/citation-history?days=${days}`),
+  /** Hafif manset: probe JSON'suz — overview/analytics kartlari icin */
+  getCitationHeadline: (siteId: string, days = 14) =>
+    request<any>(`/sites/${siteId}/audit/citation-history?days=${days}&headline=1`),
 
   triggerCitationSnapshot: (siteId: string) =>
     request<any>(`/sites/${siteId}/audit/citation-snapshot`, { method: 'POST' }),

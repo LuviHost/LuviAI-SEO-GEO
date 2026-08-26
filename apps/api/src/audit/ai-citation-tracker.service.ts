@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { citationCounts } from './citation-score.js';
+import { buildHeadline, providerHeadline } from './citation-headline.js';
 import { AiCitationService } from './ai-citation.service.js';
 
 /**
@@ -102,15 +103,25 @@ export class AiCitationTrackerService {
   }
 
   /**
-   * Frontend icin: bir site icin son N gun trend
+   * Frontend icin: bir site icin son N gun trend.
+   *
+   * @param headlineOnly true ise probe JSON'lari cekilmez ve byProvider /
+   *   latestResults donmez — overview kartlari gibi yalnizca manset sayiya
+   *   ihtiyac duyan yuzeyler icin (30 gun x 7 saglayici x 5 probe excerpt
+   *   megabaytlara varabiliyor).
    */
-  async getHistory(siteId: string, days = 30) {
+  async getHistory(siteId: string, days = 30, headlineOnly = false) {
     const since = new Date(Date.now() - days * 86400000);
     since.setHours(0, 0, 0, 0);
 
     const snapshots = await this.prisma.aiCitationSnapshot.findMany({
       where: { siteId, date: { gte: since } },
       orderBy: { date: 'asc' },
+      select: {
+        provider: true, date: true, score: true, citedCount: true, mentionedCount: true,
+        available: true, createdAt: true,
+        probes: !headlineOnly,
+      },
     });
 
     // Group by provider
@@ -126,14 +137,20 @@ export class AiCitationTrackerService {
       });
     }
 
-    // Trend: ilk vs son (drop tespit)
-    const trends: Array<{ provider: string; first: number | null; last: number | null; delta: number | null }> = [];
+    // Trend: ilk vs son (drop tespit) + 7g ortalama (manset — bkz. citation-headline.ts)
+    const trends: Array<{
+      provider: string; first: number | null; last: number | null; delta: number | null;
+      last7Avg: number | null; runCount: number;
+    }> = [];
     for (const [provider, series] of Object.entries(byProvider)) {
       const first = series[0]?.score ?? null;
       const last = series[series.length - 1]?.score ?? null;
       const delta = (first !== null && last !== null) ? last - first : null;
-      trends.push({ provider, first, last, delta });
+      const h = providerHeadline(series);
+      trends.push({ provider, first, last, delta, last7Avg: h.last7Avg, runCount: h.runCount });
     }
+    // Manset: chart, overview ve analytics-row AYNI sayiyi soylemeli — tek kaynak burasi.
+    const headline = buildHeadline(byProvider);
 
     // Son snapshot detaylarini da don — F5 sonrasi detay panelinin yeniden hidrate olabilmesi icin
     const latestByProvider = new Map<string, typeof snapshots[number]>();
@@ -141,21 +158,27 @@ export class AiCitationTrackerService {
       const cur = latestByProvider.get(s.provider);
       if (!cur || s.date.getTime() > cur.date.getTime()) latestByProvider.set(s.provider, s);
     }
+    const latestRunAt = snapshots.length > 0
+      ? snapshots.reduce((a, b) => (a.createdAt.getTime() > b.createdAt.getTime() ? a : b)).createdAt.toISOString()
+      : null;
+
+    if (headlineOnly) {
+      return { days, since: since.toISOString(), trends, headline, latestRunAt };
+    }
+
     const latestResults = Array.from(latestByProvider.values()).map((s) => ({
       provider: s.provider,
       available: s.available,
       score: s.score,
-      probes: s.probes,
+      probes: (s as { probes?: unknown }).probes ?? [],
     }));
-    const latestRunAt = snapshots.length > 0
-      ? snapshots.reduce((a, b) => (a.createdAt.getTime() > b.createdAt.getTime() ? a : b)).createdAt.toISOString()
-      : null;
 
     return {
       days,
       since: since.toISOString(),
       byProvider,
       trends,
+      headline,
       latestResults,
       latestRunAt,
     };

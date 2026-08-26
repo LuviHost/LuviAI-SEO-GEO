@@ -576,10 +576,17 @@ export class AuditController {
     return { breakdown, runAt: new Date().toISOString() };
   }
 
-  /** GET /sites/:siteId/audit/citation-history?days=30 — tarihsel AI gorunurluk */
+  /**
+   * GET /sites/:siteId/audit/citation-history?days=30[&headline=1] — tarihsel AI gorunurluk.
+   * headline=1: probe JSON'suz hafif yanit (manset + trends), overview kartlari icin.
+   */
   @Get('citation-history')
-  citationHistory(@Param('siteId') siteId: string, @Query('days') days?: string) {
-    return this.tracker.getHistory(siteId, days ? parseInt(days, 10) : 30);
+  citationHistory(
+    @Param('siteId') siteId: string,
+    @Query('days') days?: string,
+    @Query('headline') headline?: string,
+  ) {
+    return this.tracker.getHistory(siteId, days ? parseInt(days, 10) : 30, headline === '1');
   }
 
   /** POST /sites/:siteId/audit/citation-snapshot — snapshot al ve DB'ye yaz */

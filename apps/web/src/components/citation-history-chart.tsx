@@ -218,16 +218,20 @@ export function CitationHistoryChart({
             {/* RanksUp Etkisi — before/after değer kartı */}
             <BeforeAfterCard data={data} />
 
-            {/* Yorumlama Kartı — son skorların ortalaması + ne anlama geliyor + ne yapmalı */}
+            {/* Yorumlama Kartı — 7 günlük ortalama manşet (backend citation-headline.ts, tek kaynak) */}
             {(() => {
-              const lastScores = trends
-                .map((t: any) => t.last)
-                .filter((v: any) => typeof v === 'number') as number[];
-              if (lastScores.length === 0) return null;
-              const avg = Math.round(lastScores.reduce((a, b) => a + b, 0) / lastScores.length);
-              const sorted = [...trends].filter((t: any) => typeof t.last === 'number').sort((a: any, b: any) => b.last - a.last);
+              const headline = data.headline ?? null;
+              const avg: number | null = headline?.score ?? null;
+              if (avg === null) return null;
+              // Sağlayıcı sıralaması manşetle aynı kuralı izler: ≥2 ölçüm varsa 7g ortalaması, yoksa son ölçüm
+              const pick = (t: any): number | null =>
+                typeof t.last7Avg === 'number' && t.runCount >= 2 ? t.last7Avg : (typeof t.last === 'number' ? t.last : null);
+              const sorted = [...trends].filter((t: any) => pick(t) !== null).sort((a: any, b: any) => (pick(b) as number) - (pick(a) as number));
               const best = sorted[0];
               const worst = sorted[sorted.length - 1];
+              const windowLabel = headline.method === 'rolling'
+                ? `7 günlük ortalama · ${headline.runCount} ölçüm`
+                : 'ilk ölçüm';
 
               const grade =
                 avg >= 75 ? { label: 'Mükemmel', tone: 'emerald', desc: 'AI motorları sitenizi çok iyi tanıyor.' } :
@@ -250,14 +254,14 @@ export function CitationHistoryChart({
                       <div className="text-[10px] uppercase tracking-wider font-bold mt-1 opacity-70">/ 100</div>
                     </div>
                     <div className="flex-1 min-w-[220px]">
-                      <p className="text-sm font-bold">{grade.label} — ortalama AI görünürlük</p>
+                      <p className="text-sm font-bold">{grade.label} — AI görünürlük <span className="font-normal opacity-70">({windowLabel})</span></p>
                       <p className="text-xs opacity-90 mt-0.5">{grade.desc}</p>
                       <div className="text-[11px] mt-2 opacity-80 leading-relaxed">
                         {best && (
-                          <span>✅ En iyi: <strong>{PROVIDER_LABELS[best.provider] ?? best.provider}</strong> ({best.last} puan)</span>
+                          <span>✅ En iyi: <strong>{PROVIDER_LABELS[best.provider] ?? best.provider}</strong> ({pick(best)} puan)</span>
                         )}
                         {worst && best?.provider !== worst?.provider && (
-                          <span> · ❌ En zayıf: <strong>{PROVIDER_LABELS[worst.provider] ?? worst.provider}</strong> ({worst.last} puan)</span>
+                          <span> · ❌ En zayıf: <strong>{PROVIDER_LABELS[worst.provider] ?? worst.provider}</strong> ({pick(worst)} puan)</span>
                         )}
                       </div>
                       {avg < 50 && (

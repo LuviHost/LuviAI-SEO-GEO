@@ -47,7 +47,6 @@ export function SiteOverviewDashboard({
 
   const overallScore = audit?.overallScore ?? null;
   const geoScore = audit?.geoScore ?? null;
-  const aiScore = audit?.checks?.aiCitations?.score ?? null;
   const issues = Array.isArray(audit?.issues) ? audit.issues : [];
   const criticalIssues = issues.filter((i: any) => i.severity === 'critical');
 

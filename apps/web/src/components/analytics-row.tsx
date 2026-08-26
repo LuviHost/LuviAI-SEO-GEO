@@ -229,7 +229,22 @@ export function AnalyticsRow({
   const scheduled = articles.filter((a) => a.status === 'SCHEDULED').length;
   const generating = articles.filter((a) => a.status === 'GENERATING' || a.status === 'EDITING').length;
 
-  const aiScore = audit?.checks?.aiCitations?.score ?? null;
+  // AI gorunurluk manseti — chart ile AYNI kaynak (citation-history?headline=1, 7g ortalama).
+  // Eskiden audit anindaki tek kosum skoru donmus halde gosteriliyor, delta ve
+  // sparkline ise sabit mock'tu (-2.4 / mockTrendDown) — musteriye sahte hareket.
+  const [headline, setHeadline] = useState<any>(null);
+  useEffect(() => {
+    let cancelled = false;
+    api.getCitationHeadline(siteId, 14)
+      .then((res) => { if (!cancelled) setHeadline(res?.headline ?? null); })
+      .catch(() => { /* sessizce gec — audit skoruna duser */ });
+    return () => { cancelled = true; };
+  }, [siteId]);
+  const aiScore: number | null = headline?.score ?? audit?.checks?.aiCitations?.score ?? null;
+  const aiLabel = headline?.method === 'rolling' ? '7g ortalama' : headline?.method === 'first-run' ? 'İlk ölçüm' : 'Citation';
+  const aiSparkline: number[] = (headline?.daily?.length ?? 0) >= 2
+    ? headline.daily.slice(-14).map((d: any) => (typeof d.score === 'number' ? d.score : 0))
+    : [aiScore ?? 0, aiScore ?? 0];
 
   // Crawler trafigi — son 30g; bugünkü ve son 7g sparkline icin byDate kullaniyoruz
   const [crawlerHistory, setCrawlerHistory] = useState<any>(null);
@@ -278,9 +293,14 @@ export function AnalyticsRow({
       title: 'AI VISIBILITY',
       icon: Sparkles,
       accent: aiScore !== null && aiScore >= 60 ? 'sky' : 'amber',
-      primary: { label: 'Citation', value: aiScore !== null ? `${aiScore}` : '—', delta: -2.4, deltaSuffix: '' },
+      primary: {
+        label: aiLabel,
+        value: aiScore !== null ? `${aiScore}` : '—',
+        delta: typeof headline?.deltaVsPrev === 'number' ? headline.deltaVsPrev : undefined,
+        deltaSuffix: 'p',
+      },
       secondary: { label: 'Crawler 30g', value: formatNum(crawlerTotal30d), hint: 'AI bot toplam' },
-      sparkline: mockTrendDown(24),
+      sparkline: aiSparkline,
       href: `/sites/${siteId}/visibility`,
     },
     {
@@ -324,9 +344,6 @@ function mockTrendUp(len: number): number[] {
   return Array.from({ length: len }, (_, i) => 30 + i * 1.5 + Math.sin(i * 0.7) * 6 + Math.random() * 4);
 }
 
-function mockTrendDown(len: number): number[] {
-  return Array.from({ length: len }, (_, i) => 70 - i * 0.8 + Math.cos(i * 0.5) * 5 + Math.random() * 3);
-}
 
 function mockTrendStable(len: number, base: number): number[] {
   const b = Math.max(base, 5);
