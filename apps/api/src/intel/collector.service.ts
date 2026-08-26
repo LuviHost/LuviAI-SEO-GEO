@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { XSearchService } from './x-search.service.js';
 import { OpenClawService } from './openclaw.service.js';
+import { XCurationService } from './x-curation.service.js';
 import { INTEL_SOURCES, type SourceKind } from './source-registry.js';
 
 /**
@@ -79,7 +80,10 @@ export class IntelCollectorService {
     private readonly prisma: PrismaService,
     private readonly xSearch: XSearchService,
     private readonly openClaw: OpenClawService,
+    private readonly xCuration: XCurationService,
   ) {}
+  /** attributeTo (kaynak key) → id onbellegi; persist'te yayinciya atif icin */
+  private readonly sourceIdByKey = new Map<string, string | null>();
 
   // ────────────────────────────────────────────────────────────
   //  KATALOG SENKRONU
@@ -245,6 +249,9 @@ export class IntelCollectorService {
           this.log.warn(`[x] OpenClaw bos dondu — xAI yoluna dusuluyor: ${target}`);
         }
         return this.xSearch.search(target);
+      case 'x-curation':
+        // Kisisel yer-isareti kurasyonu — tarayici, LLM yok. Kapaliysa bos doner.
+        return this.xCuration.collect(target);
       default:
         return [];
     }
@@ -379,10 +386,16 @@ export class IntelCollectorService {
 
     for (const it of items) {
       const fingerprint = fingerprintOf(it.url, it.title);
+      // YAYINCIYA ATIF: kesif kanali (X yer isaretleri) makaleyi bulmus olsa da kayit
+      // makalenin kendi yayincisina yazilir (meta.attributeTo = kaynak key) —
+      // iki-kaynak kurali "SEJ yazisi DM'den geldi diye ayri kaynak" saymasin.
+      const attributed = typeof it.meta?.attributeTo === 'string'
+        ? await this.resolveSourceId(it.meta.attributeTo)
+        : null;
       try {
         await this.prisma.intelItem.create({
           data: {
-            sourceId,
+            sourceId: attributed ?? sourceId,
             fingerprint,
             url: it.url.slice(0, 2000),
             title: it.title.slice(0, 500),
@@ -402,6 +415,14 @@ export class IntelCollectorService {
     }
 
     return saved;
+  }
+
+  private async resolveSourceId(key: string): Promise<string | null> {
+    if (this.sourceIdByKey.has(key)) return this.sourceIdByKey.get(key)!;
+    const src = await this.prisma.intelSource.findUnique({ where: { key }, select: { id: true } });
+    const id = src?.id ?? null;
+    this.sourceIdByKey.set(key, id);
+    return id;
   }
 
   // ────────────────────────────────────────────────────────────

@@ -4,6 +4,7 @@ import { IntelController } from './intel.controller.js';
 import { IntelCollectorService } from './collector.service.js';
 import { XSearchService } from './x-search.service.js';
 import { OpenClawService } from './openclaw.service.js';
+import { XCurationService } from './x-curation.service.js';
 import { IntelTriageService } from './triage.service.js';
 import { IntelAnalystService } from './analyst.service.js';
 import { ClaimLedgerService } from './claim-ledger.service.js';
@@ -28,6 +29,7 @@ import { ActionPlansModule } from '../action-plans/action-plans.module.js';
     IntelCollectorService,
     XSearchService,
     OpenClawService,
+    XCurationService,
     IntelTriageService,
     IntelAnalystService,
     ClaimLedgerService,

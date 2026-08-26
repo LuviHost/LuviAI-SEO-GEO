@@ -16,7 +16,7 @@
  */
 
 /** Kaynagin nasil cekildigi — collector bu alana gore dallanir. */
-export type SourceKind = 'rss' | 'reddit' | 'hn' | 'x' | 'github';
+export type SourceKind = 'rss' | 'reddit' | 'hn' | 'x' | 'github' | 'x-curation';
 
 /**
  * Kaynak katmani. Bir bulgunun kanit gucu NIHAI olarak icerikten cikar
@@ -850,6 +850,31 @@ const X_QUERIES: IntelSourceDef[] = [
   },
 ];
 
+/**
+ * Kisisel kurasyon — kullanicinin X'te YER ISARETLERINE ekledigi gonderiler
+ * (x-curation.service.ts). Gonderi kaynak degil kesif kanali: makale kendi
+ * yayincisina atfedilir (meta.attributeTo); yalniz katalogda olmayan
+ * yayincilar bu kovada kalir. target = sayfa URL'leri (virgulle coklu;
+ * Premium klasor URL'si de olur). DM DEGIL: XChat uctan uca sifreli,
+ * cerez senkronuyla okunamiyor (2026-08-27 denendi).
+ * Sunucuda OPENCLAW_X_CURATION_ENABLED=1 degilse toplayici bos doner.
+ */
+const X_CURATION_SOURCES: IntelSourceDef[] = [
+  {
+    key: 'x-curated',
+    name: 'X Yer İşaretleri — "ranksup.ai" klasörü',
+    kind: 'x-curation',
+    // "ranksup.ai" yer-isareti klasoru — #folder=<ad>: klasor URL'si soguk yuklemede
+    // hata verdigi icin servis sayfayi acip sekme + klasor adina tiklar (x-curation-links.ts)
+    target: 'https://x.com/i/bookmarks#folder=ranksup.ai',
+    tier: 'community',
+    topics: ['geo', 'seo', 'aso', 'ai-crawler', 'measurement', 'agents', 'platform'],
+    weight: 30,
+    intervalHours: 24,
+    note: 'OpenClaw tarayicisi, LLM yok. Oturum dusunce lastError "X oturumu yok" der; Mac\'te OPENCLAW_HOST=luvi108 node scripts/x-oturum-aktar.mjs.',
+  },
+];
+
 export const INTEL_SOURCES: IntelSourceDef[] = [
   ...OFFICIAL,
   ...PRIMARY_RESEARCH,
@@ -858,6 +883,7 @@ export const INTEL_SOURCES: IntelSourceDef[] = [
   ...ASO_SOURCES,
   ...COMMUNITY,
   ...X_QUERIES,
+  ...X_CURATION_SOURCES,
 ];
 
 /**

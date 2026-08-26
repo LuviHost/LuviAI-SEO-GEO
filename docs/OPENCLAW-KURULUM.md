@@ -304,3 +304,38 @@ find /home/openclaw/.openclaw/agents/main/sessions -name '*.jsonl' -mtime +30 -d
 - `openclaw browser --browser-profile openclaw doctor --deep` sağlık kontrolü.
 - nvm Node sürümü değişirse `openclaw daemon install` ile unit'i yenileyin.
 - Bellek darsa `MAX_POSTS`/`MAX_REPOS` düşürün veya `intervalHours` artırın.
+
+---
+
+## 10. X kürasyonu — yer işaretleri kaynak kutusu (LLM yok)
+
+Kullanıcı SEO/GEO gönderilerini X'te **Yer İşaretleri**'ne ekler
+("ranksup.ai" klasörü). Hedef `https://x.com/i/bookmarks#folder=ranksup.ai`: klasör URL'si (`/i/history/bookmarks/<id>`) soğuk yüklemede "Bir hata oluştu" veriyor, servis sayfayı açıp "Yer İşaretleri" sekmesine ve adı eşleşen klasöre tıklıyor.
+`apps/api/src/intel/x-curation.service.ts` o sayfayı **aynı OpenClaw
+tarayıcısında** açar, gönderileri ve içlerindeki linkleri toplar,
+`IntelCollectorService`'e verir. `openclaw agent` (model çağrısı)
+**kullanılmaz** — yalnızca `openclaw browser open / evaluate / close`; maliyet sıfır.
+
+> **DM neden değil:** 27.08.2026'da denendi. X'in yeni XChat'i uçtan uca şifreli;
+> çerez senkronuyla açılan oturumda sohbet "Disconnected / mesajlarınız yüklenemedi"
+> kalıyor — şifreleme anahtarları kullanıcının cihazında. Yer işaretleri sayfası
+> şifresiz, aynı oturumla ilk denemede okundu (3 gönderi + t.co linkleri).
+
+- Kaynak: `source-registry.ts` → `x-curated` (kind `x-curation`, target = sayfa URL'leri,
+  virgülle çoklu; panelden `targetOverride` ile değiştirilebilir). Günde 1 kez.
+- Atıf: gönderi kaynak değil, **keşif kanalı**. İşaret ettiği makale kendi
+  yayıncısına yazılır (`meta.attributeTo` → katalogdaki RSS kaynağı, host eşlemesi
+  `x-curation-links.ts`). İki-kaynak kuralı bozulmaz; katalogda olmayan
+  yayıncılar `x-curated` kovasında (community, ağırlık 30) kalır.
+- t.co linkleri yönlendirme takibiyle çözülür; gönderiler `api.fxtwitter.com`
+  (anahtarsız) ile açılır, içindeki linkler alınır; link yoksa gönderi kendisi kayıt olur.
+- Ayrı bayrak: `OPENCLAW_X_CURATION_ENABLED=1` (`OPENCLAW_ENABLED`'dan bağımsız).
+  `OPENCLAW_BIN` aynı köprü.
+- Oturum düşmüşse (giriş duvarı) toplayıcı **açık hata** verir; kaynak kartında
+  `lastError: "X oturumu yok — ..."` görünür. Ardışık hatalarda kaynak kendini
+  kapatır; oturum tazelenince panelden aç.
+- Gürültü: yer işaretlerindeki SEO dışı gönderiler de toplanır; triage (ucuz eleme)
+  ilgisizleri eler. Daha temiz akış için Premium yer-işareti klasörü kullanılabilir.
+
+> **Risk notu:** otomasyonla okumak X koşullarına aykırıdır; günde tek sayfa
+> yüklemesi arama taramasından çok daha düşük hacimdir ama hesap askıya alınabilir.
