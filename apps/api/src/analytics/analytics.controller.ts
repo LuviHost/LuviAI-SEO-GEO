@@ -1,9 +1,10 @@
-import { Controller, Delete, Get, Header, Param, Post, Query, Req, Res } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Header, Param, Post, Query, Req, Res } from '@nestjs/common';
 import type { Response } from 'express';
 import { AnalyticsService } from './analytics.service.js';
 import { GaService } from './ga.service.js';
 import { ReportsService, type ReportOpts, type ReportRange } from './reports.service.js';
 import { SiteReportService } from './site-report.service.js';
+import { GoogleAiSurfaceService } from './google-ai-surface.service.js';
 
 /**
  * Sorgu parametrelerini rapor donemine cevirir.
@@ -34,7 +35,37 @@ export class AnalyticsController {
     private readonly ga: GaService,
     private readonly reports: ReportsService,
     private readonly siteReports: SiteReportService,
+    private readonly googleAi: GoogleAiSurfaceService,
   ) {}
+
+  // ──────────────────────────────────────────────────────────────
+  //  GOOGLE AI YUZEYI — AI Overviews / AI Mode (GSC Generative AI raporu)
+  //  Google API vermiyor; kullanici UI export'unu yukler (JSON body { csv }).
+  // ──────────────────────────────────────────────────────────────
+
+  /** POST /sites/:siteId/analytics/gsc-ai-csv/preview — parse + yanlis-dosya kontrolu, yazmaz */
+  @Post('gsc-ai-csv/preview')
+  previewGscAiCsv(@Param('siteId') siteId: string, @Body() body: { csv?: string }) {
+    return this.googleAi.preview(siteId, body?.csv ?? '');
+  }
+
+  /** POST /sites/:siteId/analytics/gsc-ai-csv — idempotent upsert (siteId+date+surface) */
+  @Post('gsc-ai-csv')
+  importGscAiCsv(@Param('siteId') siteId: string, @Body() body: { csv?: string; fileName?: string }) {
+    return this.googleAi.import(siteId, body?.csv ?? '', { fileName: body?.fileName });
+  }
+
+  /** GET /sites/:siteId/analytics/gsc-ai-series?days=90 */
+  @Get('gsc-ai-series')
+  gscAiSeries(@Param('siteId') siteId: string, @Query('days') days?: string) {
+    return this.googleAi.series(siteId, days ? parseInt(days, 10) : 90);
+  }
+
+  /** GET /sites/:siteId/analytics/ai-mode-queries?days=28 — sezgisel AI-Mode-suphesi sorgular */
+  @Get('ai-mode-queries')
+  aiModeQueries(@Param('siteId') siteId: string, @Query('days') days?: string) {
+    return this.googleAi.aiModeQueries(siteId, days ? parseInt(days, 10) : 28);
+  }
 
   /** GET /sites/:siteId/analytics/overview?days=30 */
   @Get('overview')

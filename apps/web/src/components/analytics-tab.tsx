@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { GoogleAiSurfaceCard } from '@/components/google-ai-surface-card';
 
 export function AnalyticsTab({ siteId, site }: { siteId: string; site?: any }) {
   const [overview, setOverview] = useState<any>(null);
@@ -142,6 +143,9 @@ export function AnalyticsTab({ siteId, site }: { siteId: string; site?: any }) {
           </div>
         </CardContent>
       </Card>
+
+      {/* Google AI yüzeyi — AIO/AI Mode gösterimleri (CSV import), AI-Mode-şüpheli sorgular, Preferred Sources rehberi */}
+      <GoogleAiSurfaceCard siteId={siteId} site={site} />
 
       {/* GA4 davranış metrikleri (opsiyonel) */}
       {gaSummary && (

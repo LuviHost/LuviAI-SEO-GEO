@@ -285,6 +285,7 @@ model Site {
   articles           Article[]
   jobs               Job[]
   analyticsSnapshots AnalyticsSnapshot[]
+  gscAiVisibilitySnapshots GscAiVisibilitySnapshot[]
   socialChannels     SocialChannel[]
   adCampaigns        AdCampaign[]
   aiProviderKeys     SiteAiProviderKey[]
@@ -698,6 +699,36 @@ model AnalyticsSnapshot {
   @@unique([siteId, date])
   @@index([siteId, date])
   @@map("analytics_snapshots")
+}
+
+/**
+ * GSC "Generative AI" performans raporu — AI Overviews + AI Mode gorunumleri.
+ *
+ * Google bu raporu YALNIZ GOSTERIM olarak, AIO/AI Mode AYRIMSIZ verir; API ve
+ * BigQuery yok, tek cikis UI'dan CSV export. Kullanici export'u yukler,
+ * gsc-ai-csv.ts parse eder (yanlis-dosya korumali), buraya gunluk yazilir.
+ * `surface` bugun hep 'gen_ai'; Google ayrimi acarsa 'aio' | 'ai_mode'.
+ * clicks/position ileriye donuk nullable — rapor bugun vermiyor.
+ */
+model GscAiVisibilitySnapshot {
+  id     String @id @default(cuid())
+  siteId String
+
+  date        DateTime @db.Date
+  surface     String   @default("gen_ai")
+  impressions Int
+  clicks      Int?
+  position    Float?
+  source      String   @default("csv_upload")
+  meta        Json? // { fileName, mapping, importedAt }
+
+  createdAt DateTime @default(now())
+
+  site Site @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  @@unique([siteId, date, surface])
+  @@index([siteId, date])
+  @@map("gsc_ai_visibility_snapshots")
 }
 
 // ═══════════════════════════════════════════════════════════════

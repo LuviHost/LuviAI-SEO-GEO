@@ -1009,6 +1009,16 @@ export const api = {
   getImprovementSuggestions: (siteId: string) =>
     request<any[]>(`/sites/${siteId}/analytics/suggestions`),
 
+  // Google AI yuzeyi — GSC Generative AI raporu (CSV import) + AI-Mode-suphesi sorgular
+  previewGscAiCsv: (siteId: string, csv: string) =>
+    request<any>(`/sites/${siteId}/analytics/gsc-ai-csv/preview`, { method: 'POST', body: JSON.stringify({ csv }) }),
+  importGscAiCsv: (siteId: string, csv: string, fileName?: string) =>
+    request<any>(`/sites/${siteId}/analytics/gsc-ai-csv`, { method: 'POST', body: JSON.stringify({ csv, fileName }) }),
+  getGscAiSeries: (siteId: string, days = 90) =>
+    request<any>(`/sites/${siteId}/analytics/gsc-ai-series?days=${days}`),
+  getAiModeQueries: (siteId: string, days = 28) =>
+    request<any>(`/sites/${siteId}/analytics/ai-mode-queries?days=${days}`),
+
   triggerSnapshotNow: (siteId: string) =>
     request<any>(`/sites/${siteId}/analytics/snapshot-now`, { method: 'POST' }),
 
