@@ -71,6 +71,12 @@ describe('containsBrand — markasiz sorgular', () => {
       expect(containsBrand(q, 'Kobipratik')).toBe(true);
     }
   });
+
+  it('fan-out "category" dali MARKASIZ uretilir — kesif olcumune girer', () => {
+    // buildFromTemplate kategori dali konu olarak nis/soru konusunu kullanir, markayi degil
+    expect(containsBrand('en iyi ön muhasebe uygulamaları ve araçları', 'Kobipratik')).toBe(false);
+    expect(containsBrand('best bookkeeping apps and tools', 'Kobipratik')).toBe(false);
+  });
 });
 
 describe('brandMatchIndex — bos ve bozuk girdiler', () => {

@@ -31,7 +31,8 @@ export type FanoutKind =
   | 'alternatives'  // "X alternatifleri", "X yerine ne"
   | 'howto'         // "X nasil yapilir", "X basvuru adimlari"
   | 'local'         // "Turkiye'de X", "X sehir"
-  | 'spec';         // "X ozellikleri", "X sartlari"
+  | 'spec'          // "X ozellikleri", "X sartlari"
+  | 'category';     // "en iyi X uygulamalari", "X hangi kategoride" — model markayi yanlis kategoride goruyorsa oneri listesine hic girmez
 
 export interface FanoutBranch {
   text: string;
@@ -41,7 +42,7 @@ export interface FanoutBranch {
 }
 
 const KIND_SET: FanoutKind[] = [
-  'reviews', 'trust', 'comparison', 'pricing', 'alternatives', 'howto', 'local', 'spec',
+  'reviews', 'trust', 'comparison', 'pricing', 'alternatives', 'howto', 'local', 'spec', 'category',
 ];
 
 const MAX_BRANCHES_PER_PROMPT = 20;
@@ -262,10 +263,11 @@ export class FanoutService {
       '- Her sorgu tek bir niyete odaklanmali.',
       '- Marka adini yalnizca dogal durdugu yerde kullan; her sorguya zorla sokma.',
       '- Ayni seyin farkli kelimelerle tekrari YASAK.',
+      '- category = markanin ait oldugu sektor/kategori sorgusu ("en iyi X uygulamalari", "X hangi kategoride"): model markayi yanlis kategoride goruyorsa oneri listesine hic girmez; bu dal MARKASIZ yazilmali.',
       `- Sorgular ${dil} olmali.`,
       '',
       'Ciktiyi SADECE JSON dizisi olarak ver, baska hicbir sey yazma:',
-      '[{"text":"...","kind":"reviews|trust|comparison|pricing|alternatives|howto|local|spec","likelihood":0-100}]',
+      '[{"text":"...","kind":"reviews|trust|comparison|pricing|alternatives|howto|local|spec|category","likelihood":0-100}]',
       '',
       'likelihood = modelin bu dali gercekten acma olasiligi tahminin (0-100 arasi sayi).',
     ].join('\n');
@@ -381,6 +383,18 @@ export class FanoutService {
           { text: `${konu} şartları ve özellikleri`, kind: 'spec', likelihood: 55 },
           { text: `Türkiye'de ${konu} seçenekleri`, kind: 'local', likelihood: 50 },
         ];
+
+    // Kategori dali MARKASIZ olmali (kesif olcumu): konu marka degil nis/soru konusu.
+    // Sektor yanlis-siniflandirma kaniti (2 kaynak): model markayi yanlis
+    // kategoride goruyorsa "en iyi X" listelerine hic girmiyor.
+    const kategori = (ctx.niche || this.topicFromQuestion(ctx.question)).trim();
+    if (kategori && kategori.toLowerCase() !== konu.toLowerCase()) {
+      out.splice(1, 0, {
+        text: en ? `best ${kategori} apps and tools` : `en iyi ${kategori} uygulamaları ve araçları`,
+        kind: 'category',
+        likelihood: 70,
+      });
+    }
 
     if (rakip) {
       out.splice(2, 0, {

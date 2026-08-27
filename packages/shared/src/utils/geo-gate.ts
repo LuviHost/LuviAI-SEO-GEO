@@ -20,7 +20,8 @@ export type GeoGateCode =
   | 'MISSING_SHORT_ANSWER'
   | 'LOW_QUESTION_H2_RATIO'
   | 'NO_UPDATED_DATE'
-  | 'UNSOURCED_NUMERIC_CLAIM';
+  | 'UNSOURCED_NUMERIC_CLAIM'
+  | 'WEAK_LEDE';
 
 export interface GeoGateIssue {
   code: GeoGateCode;
@@ -38,6 +39,10 @@ export interface GeoGateStats {
   shortAnswerCovered: number;
   hasUpdatedDate: boolean;
   unsourcedNumericClaims: number;
+  /** H1 ile ilk H2 arasindaki metnin uzunlugu (gorsel/yorum haric) */
+  ledeChars: number;
+  /** H1'den sonraki ilk anlamli blok cevap tasiyor mu (Hizli cevap blockquote'u ya da klise-siz cumle) */
+  ledeHasAnswer: boolean;
 }
 
 export interface GeoGateResult {
@@ -53,6 +58,8 @@ export interface GeoGateOptions {
   minQuestionRatio?: number;
   /** Feedback bloğunda gösterilecek örnek sayısı */
   maxSamples?: number;
+  /** Lede penceresi — H1 sonrasi kac karakter cevap tasimali (varsayilan 200) */
+  ledeWindow?: number;
 }
 
 /**
@@ -164,6 +171,31 @@ function hasShortAnswer(sectionBody: string): boolean {
   return lines.some((l) => /^>\s*\*\*\s*k[ıi]sa\s+cevap\s*:?\s*\*\*/i.test(l));
 }
 
+/**
+ * Lede: H1 ile ilk H2 arasindaki metin. OpenAI'nin indeksi sayfadan yalniz
+ * basligi ve ~200 karakteri sakliyor (2 bagimsiz kaynak) — ilk 200 karakter
+ * gorsel, boilerplate veya giris klisesiyse makale indekste bos gorunur.
+ * Yazar prompt'u "> **Hızlı cevap:**" istiyor ama olculmuyordu.
+ */
+const LEDE_CLICHE = /(günümüzde|gunumuzde|bu yazıda|bu yazida|bu makalede|son yıllarda|son yillarda|bilindiği gibi|bilindigi gibi|hepimiz biliyoruz|teknolojinin gelişmesiyle)/i;
+
+function extractLede(body: string): { present: boolean; text: string; firstBlockIsImage: boolean; hasQuickAnswer: boolean } {
+  const lines = body.split('\n');
+  let h1 = -1;
+  for (let i = 0; i < lines.length; i++) if (/^#\s+(?!#)/.test(lines[i])) { h1 = i; break; }
+  if (h1 < 0) return { present: false, text: '', firstBlockIsImage: false, hasQuickAnswer: false };
+  const chunk: string[] = [];
+  for (let i = h1 + 1; i < lines.length; i++) {
+    if (/^##\s+(?!#)/.test(lines[i])) break;
+    chunk.push(lines[i]);
+  }
+  const meaningful = chunk.map((l) => l.trim()).filter((l) => l && !/^<!--/.test(l));
+  const firstBlockIsImage = meaningful.length > 0 && /^!\[/.test(meaningful[0]);
+  const hasQuickAnswer = meaningful.slice(0, 3).some((l) => /^>\s*\*\*\s*h[ıi]zl[ıi]\s+cevap\s*:?\s*\*\*/i.test(l));
+  const text = meaningful.filter((l) => !/^!\[/.test(l)).join(' ').replace(/\s+/g, ' ').trim();
+  return { present: true, text, firstBlockIsImage, hasQuickAnswer };
+}
+
 /** Markdown tablosu: en az bir hizalama (separator) satırı olmalı. */
 function countTables(body: string): number {
   const matches = body.match(/^\s*\|?[\s:]*-{3,}[\s:|-]*\|[\s:|-]*$/gm);
@@ -227,6 +259,7 @@ function findUnsourcedClaims(body: string, limit: number): string[] {
 export function checkGeoGate(markdown: string, opts: GeoGateOptions = {}): GeoGateResult {
   const minRatio = opts.minQuestionRatio ?? 0.5;
   const maxSamples = opts.maxSamples ?? 6;
+  const ledeWindow = opts.ledeWindow ?? 200;
 
   const body = stripNonProse(markdown);
   const sections = splitH2Sections(body);
@@ -238,8 +271,24 @@ export function checkGeoGate(markdown: string, opts: GeoGateOptions = {}): GeoGa
   const tables = countTables(body);
   const hasUpdatedDate = /son\s+g[üu]ncelleme\s*[:：]\s*\*{0,2}\s*\d{4}-\d{2}-\d{2}/i.test(body);
   const unsourced = findUnsourcedClaims(body, maxSamples);
+  const lede = extractLede(body);
+  const ledeHead = lede.text.slice(0, ledeWindow);
+  const ledeHasAnswer = lede.present && !lede.firstBlockIsImage && lede.text.length > 0
+    && (lede.hasQuickAnswer || !LEDE_CLICHE.test(ledeHead));
 
   const issues: GeoGateIssue[] = [];
+
+  if (lede.present && !ledeHasAnswer) {
+    issues.push({
+      code: 'WEAK_LEDE',
+      message:
+        `H1'den sonraki ilk ${ledeWindow} karakter cevap taşımıyor` +
+        (lede.firstBlockIsImage ? ' (ilk blok görsel)' : lede.text.length === 0 ? ' (H1 ile ilk H2 arası boş)' : ' (giriş klişesiyle başlıyor)') +
+        '. AI indeksleri sayfadan yalnız başlık + ilk ~200 karakteri saklar: H1\'in hemen altına "> **Hızlı cevap:** ..." ' +
+        'blockquote\'unu koy, görseli ve giriş cümlesini ondan SONRAYA al.',
+      samples: ledeHead ? [ledeHead.slice(0, 160)] : undefined,
+    });
+  }
 
   if (tables === 0) {
     issues.push({
@@ -304,6 +353,8 @@ export function checkGeoGate(markdown: string, opts: GeoGateOptions = {}): GeoGa
     shortAnswerCovered: content.length - missingShortAnswer.length,
     hasUpdatedDate,
     unsourcedNumericClaims: unsourced.length,
+    ledeChars: lede.text.length,
+    ledeHasAnswer,
   };
 
   return {

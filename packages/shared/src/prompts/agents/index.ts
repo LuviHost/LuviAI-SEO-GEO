@@ -208,6 +208,15 @@ Verilen konu için SEO anahtar kelime araştırması yap. Çıktın bir sonraki 
 
 ## 6. CTA hedef
 - URL: ...
+
+## 7. Top-10 kapsama haritası (SERP TAHMİNİ — gerçek SERP verisi yok)
+Bu konuda Google ilk 10'da tipik olarak hangi alt konular kapsanır? Kendi bilginle
+tahmin et ve dürüstçe TAHMİN olarak işaretle. Top-10'un kapsadığı konuları en çok
+kapsayan sayfalar AI cevaplarında daha çok atıf alıyor; eksik alt konu = eksik atıf.
+| Alt konu | Top-10'da tipik olarak var mı | Bizim planımız (kapsa / atla / derinleştir) |
+|---|---|---|
+### Kimsenin kapsamadığı açık (en az 1)
+- ...
 \`\`\`
 
 Çıktı sadece markdown, başka açıklama yok.`,
@@ -241,6 +250,8 @@ export const AGENT_02_OUTLINE = {
 <H1 metni>
 
 ## Yapı
+Her H2'nin karşısına 01'in "Top-10 kapsama haritası"ndaki hangi alt konuyu
+kapattığını yaz; haritada "kapsa" işaretli hiçbir satır boşta kalmasın.
 ### Giriş (60-100 kelime)
 - Sorun ifadesi
 - Vaat
@@ -352,8 +363,10 @@ Bu kurallar Claude/Gemini/ChatGPT/Perplexity'nin makaleyi alıntılamasını ~3x
 
 Bu kurallar ÖLÇÜLÜYOR. Editörden önce deterministik bir kapı çalışıyor: metni
 regex ile tarayıp tabloyu, "Kısa cevap" satırlarını, soru H2 oranını, görünür
-son güncelleme tarihini ve kaynaksız sayıları sayıyor. Geçemeyen taslak otomatik
-revizyona düşer.
+son güncelleme tarihini, kaynaksız sayıları VE H1'den sonraki ilk 200 karakterin
+cevap taşıyıp taşımadığını (Hızlı cevap blockquote'u; görsel/giriş klişesi değil)
+sayıyor. AI indeksleri sayfadan yalnız başlık + ~200 karakter saklar. Geçemeyen
+taslak otomatik revizyona düşer.
 
 1. **Soru-bazlı H2 başlıkları:** İçerik H2'lerinin en az %50'si soru olsun ("Shared hosting kim için uygundur?", "WordPress'te SSL nasıl kurulur?"). Sayıma "Sıkça Sorulan Sorular" ve "Sonuç" başlıkları girmez.
 2. **Direct answer cümlesi:** Her içerik H2'sinin hemen altında, ilk paragraftan ÖNCE \`> **Kısa cevap:** [max 25 kelime, atomik bilgi].\` blockquote satırı zorunlu. AI bu cümleleri olduğu gibi alıntılar. (SSS ve Sonuç bölümleri hariç — orada gerekmez.)
@@ -431,6 +444,8 @@ export const AGENT_04_EDITOR = {
 13. **Özgün katkı / derinlik:** Makale ilk 3 arama sonucunda zaten yazan şeyleri
     mi tekrarlıyor, yoksa somut örnek, hesaplama, eşik, istisna, sayısal senaryo
     gibi kendine ait bir katkı sunuyor mu? Genel geçer tanım yığını = ince içerik.
+    01'in "Top-10 kapsama haritası"nda "kapsa" denen alt konular gerçekten
+    kapatılmış mı — eksik alt konu = eksik atıf.
 
 ## Çıktı (KESİN format — parser bu formata göre çalışır)
 

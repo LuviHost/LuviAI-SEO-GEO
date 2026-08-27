@@ -7,6 +7,7 @@ import { AsoTrackerService } from './tracker.service.js';
 import { AsoReviewsService } from './reviews.service.js';
 import { AsoAiAgentService } from './ai-agent.service.js';
 import { QuotaService } from '../billing/quota.service.js';
+import { nextCreativeAssetState, buildIosCreativeAssetFindings } from './creative-asset-findings.js';
 
 export interface ConnectAppDto {
   siteId: string;
@@ -256,7 +257,7 @@ export class AsoService {
           ...(dto.playStoreId ? [{ playStoreId: dto.playStoreId }] : []),
         ],
       },
-      select: { id: true, appStoreId: true, playStoreId: true, name: true },
+      select: { id: true, appStoreId: true, playStoreId: true, name: true, metadata: true },
     });
 
     // Metadata fetch
@@ -303,7 +304,7 @@ export class AsoService {
           // Hedef magaza yuvasi bos olan kayitlar
           ...(hedefIos ? { appStoreId: null } : { playStoreId: null }),
         },
-        select: { id: true, appStoreId: true, playStoreId: true, name: true },
+        select: { id: true, appStoreId: true, playStoreId: true, name: true, metadata: true },
       });
       const hedefAd = normalize(name);
       const uyanlar = adaylar.filter((a) => normalize(a.name) === hedefAd);
@@ -362,7 +363,12 @@ export class AsoService {
       developer,
       category,
       iconUrl,
-      metadata: { ios, android } as any,
+      // creativeAssets: ekran goruntusu kumesinin degisim takibi (migration'siz,
+      // ayni Json kolonu) — "son 90 gunde yaratici varlik degismedi" uyarisi icin.
+      metadata: {
+        ios, android,
+        creativeAssets: nextCreativeAssetState(ios as any, (eslesme?.metadata as any)?.creativeAssets ?? null, new Date()),
+      } as any,
       lastFetchedAt: new Date(),
       // Bu turda olculemeyen magazanin degeri EZILMEZ: yalnizca Android
       // eklenirken iOS puani null'a dusmemeli.
@@ -791,11 +797,10 @@ export class AsoService {
         findings.push({ severity: 'ok', store: 'IOS', field: 'screenshots', label: 'Screenshots', current: `${screenshotCount}/10` });
       }
 
-      // App Preview Video
-      const videoCount = (ios.appPreviewVideos ?? []).length;
-      if (videoCount === 0) {
-        findings.push({ severity: 'info', store: 'IOS', field: 'video', label: 'App Preview Video', current: 0, message: 'App preview video yok', recommendation: '15 sn dikey video (3 adet localized). Conversion %20-30 artırır.' });
-      }
+      // Yaratici varliklar: iPad ekran goruntusu, set tazeligi, video (checklist —
+      // iTunes lookup video vermez; eski kod olmayan `appPreviewVideos` alanina
+      // bakip videosu olan uygulamaya bile "yok" diyordu). bkz. creative-asset-findings.ts
+      findings.push(...(buildIosCreativeAssetFindings(ios, meta.creativeAssets ?? null, new Date()) as Finding[]));
 
       // Category
       const cat = ios.primaryGenre ?? '';

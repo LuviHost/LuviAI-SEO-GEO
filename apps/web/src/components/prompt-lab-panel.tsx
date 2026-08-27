@@ -39,6 +39,7 @@ const KIND_LABEL: Record<string, string> = {
   howto: 'Nasıl yapılır',
   local: 'Yerel',
   spec: 'Özellikler',
+  category: 'Kategori',
   unknown: 'Diğer',
 };
 
