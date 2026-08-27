@@ -256,9 +256,14 @@ export class AiCitationTrackerService {
       const cur = latestByProvider.get(s.provider);
       if (!cur || s.date.getTime() > cur.date.getTime()) latestByProvider.set(s.provider, s);
     }
-    const latestRunAt = snapshots.length > 0
-      ? snapshots.reduce((a, b) => (a.createdAt.getTime() > b.createdAt.getTime() ? a : b)).createdAt.toISOString()
+    // "Son test" zamani: snapshot upsert'in update dali createdAt'e dokunmadigi
+    // icin ayni gun ikinci testten sonra hala ilk kosumu gosteriyordu. Kosum
+    // kaydi (AiCitationRun) daha dogru; yoksa snapshot'a dusulur.
+    const lastRun = await this.prisma.aiCitationRun.findFirst({ where: { siteId }, orderBy: { runAt: 'desc' }, select: { runAt: true } });
+    const latestSnapshotAt = snapshots.length > 0
+      ? snapshots.reduce((a, b) => (a.createdAt.getTime() > b.createdAt.getTime() ? a : b)).createdAt
       : null;
+    const latestRunAt = (lastRun && (!latestSnapshotAt || lastRun.runAt > latestSnapshotAt) ? lastRun.runAt : latestSnapshotAt)?.toISOString() ?? null;
 
     if (headlineOnly) {
       return { days, since: since.toISOString(), trends, headline, stability, latestRunAt };
