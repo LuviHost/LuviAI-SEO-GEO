@@ -7,6 +7,7 @@ import { GeoRunnerService } from './geo-runner.service.js';
 import { AiCitationService } from './ai-citation.service.js';
 import type { CheckResult } from './audit-checks.service.js';
 import { JobQueueService } from '../jobs/job-queue.service.js';
+import { groupIssues } from './issue-grouping.js';
 
 /**
  * Taramayi kim baslatti.
@@ -481,6 +482,8 @@ export class AuditService {
           } as any,
         },
         issues: allIssues,
+        // Sablon bazli ozet — "yuzlerce sayfa hatasi = tek bilesen duzeltmesi" (issue-grouping.ts)
+        issueGroups: groupIssues(allIssues as any, Object.fromEntries(checkResults.map(r => [r.id, r]))) as any,
         durationMs: Date.now() - t0,
         // Taramayi kimin baslattigi KALICI olarak yaziliyor. Onceden bu deger
         // yalnizca kota kararinda kullanilip atiliyordu; sonuc olarak gecmiste

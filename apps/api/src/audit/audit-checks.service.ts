@@ -251,9 +251,10 @@ export class AuditChecksService {
   private checkMetaDescription(c: CrawlResult): CheckResult {
     const issues: AuditIssue[] = [];
     let valid = 0, tooShort = 0, tooLong = 0, missing = 0;
+    const missingPages: string[] = [];
 
     for (const p of c.pages) {
-      if (!p.metaDescription) { missing++; continue; }
+      if (!p.metaDescription) { missing++; missingPages.push(p.url); continue; }
       const len = p.metaDescription.length;
       if (len < 100) tooShort++;
       else if (len > 160) tooLong++;
@@ -278,7 +279,7 @@ export class AuditChecksService {
       id: 'meta_description', name: 'Meta Description',
       found: missing === 0, valid: valid === total,
       score, issues,
-      details: { valid, tooShort, tooLong, missing, total },
+      details: { valid, tooShort, tooLong, missing, total, missingPages },
     };
   }
 

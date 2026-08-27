@@ -4,6 +4,7 @@ import { toast } from 'sonner';
 import { useSiteContext } from '../site-context';
 import { AuditStepBody } from '@/components/site-flow-stepper';
 import { AuditDeltaPanel } from '@/components/audit-delta-panel';
+import { AuditIssueGroups } from '@/components/audit-issue-groups';
 import { RelatedLinks } from '@/components/empty-state';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -48,6 +49,8 @@ export default function AuditPage() {
       </div>
       {/* Onceki taramaya gore ne degisti — asil audit sonucunun ustunde durur */}
       <AuditDeltaPanel key={deltaKey} siteId={site.id} />
+      {/* Sablona gore sorunlar — yuzlerce sayfa hatasi cogu zaman tek bilesen duzeltmesi */}
+      <AuditIssueGroups siteId={site.id} groups={audit?.issueGroups} onRefresh={refresh} />
       <Card>
         <CardContent className="p-5">
           <AuditStepBody audit={audit} siteId={site.id} onRefresh={refresh} onboardingMode={onboardingMode} />

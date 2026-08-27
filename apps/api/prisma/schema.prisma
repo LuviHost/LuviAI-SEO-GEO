@@ -421,7 +421,9 @@ model Audit {
   checks Json
 
   // Eksik & hata listesi
-  issues Json // [{ severity, type, page, description, fix_command }]
+  issues Json // [{ severity, type, page, description, fixable, checkId }]
+  /// Sorunlarin sablon (URL deseni) ve kontrol bazli ozeti — UI gruplama (issue-grouping.ts). Eski taramalarda null.
+  issueGroups Json?
 
   // Auto-fix durumu
   autoFixApplied Boolean @default(false)
@@ -2212,7 +2214,7 @@ model GeoFanoutQuery {
 
   text        String  @db.Text
   /**
-   * reviews | trust | comparison | pricing | alternatives | howto | local | spec
+   * reviews | trust | comparison | pricing | alternatives | howto | local | spec | category
    */
   kind        String  @default("reviews")
   /**
