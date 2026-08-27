@@ -62,6 +62,7 @@ const FEATURE_GROUPS_TR: FeatureGroup[] = [
     rows: [
       { name: 'Otomatik site audit', luviai: '14 kontrol', surfer: 'kısmi', jasper: false, ahrefs: 'detaylı', frase: 'kısmi' },
       { name: 'GSC entegrasyonu', luviai: true, surfer: false, jasper: false, ahrefs: true, frase: true },
+      { name: 'Organik trafik verisi: Search Console gerçeği vs. tahmin', luviai: 'GSC gerçek', surfer: false, jasper: false, ahrefs: 'tahmin', frase: 'kısmi', hint: 'Üçüncü taraf araçların "organik trafik" rakamı modelleme tahminidir (aynı site için Ahrefs 189/ay derken Search Console 2.000+ gösterebilir). RanksUp birinci-taraf GSC verisini ve markalı/markasız ayrımını kullanır.' },
       { name: 'GA4 entegrasyonu', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false },
       { name: 'Auto-fix (sitemap, robots, schema, snippet)', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false },
       { name: 'Topic Engine (4 katman skoring)', luviai: true, surfer: 'kısmi', jasper: false, ahrefs: 'detaylı', frase: 'kısmi' },
@@ -160,6 +161,7 @@ const FEATURE_GROUPS_EN: FeatureGroup[] = [
     rows: [
       { name: 'Automatic site audit', luviai: '14 checks', surfer: 'partial', jasper: false, ahrefs: 'detailed', frase: 'partial' },
       { name: 'GSC integration', luviai: true, surfer: false, jasper: false, ahrefs: true, frase: true },
+      { name: 'Organic traffic data: Search Console truth vs. estimates', luviai: 'GSC actuals', surfer: false, jasper: false, ahrefs: 'estimate', frase: 'partial', hint: 'Third-party "organic traffic" numbers are modelled estimates (the same site can show 189/mo in Ahrefs and 2,000+ in Search Console). RanksUp uses first-party GSC data with a branded/non-branded split.' },
       { name: 'GA4 integration', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false },
       { name: 'Auto-fix (sitemap, robots, schema, snippet)', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false },
       { name: 'Topic Engine (4-layer scoring)', luviai: true, surfer: 'partial', jasper: false, ahrefs: 'detailed', frase: 'partial' },
@@ -220,6 +222,30 @@ const FEATURE_GROUPS_EN: FeatureGroup[] = [
       { name: 'Monthly cancel — no commitment', luviai: true, surfer: true, jasper: true, ahrefs: false, frase: true },
     ],
   },
+];
+
+/**
+ * Semrush 6-aylik AI arama playbook'u (22 adim) — RanksUp'taki karsiligi.
+ * Durumlar kod dogrulamasina dayanir (27.08.2026): auto = urun kendiliginden
+ * yapar, partial = kismen/elle tetikli, none = henuz yok. Rakibin kendi
+ * rehberi bizim kapali dongumuzun en iyi satis dokumani.
+ */
+const PLAYBOOK: Array<{ step: string; tr: string; en: string; status: 'auto' | 'partial' | 'none'; noteTr: string; noteEn: string }> = [
+  { step: '1-2', tr: 'AI görünürlüğünü ölç, hedef koy (share of voice, kaynak görünürlüğü, referral)', en: 'Measure AI visibility and set targets (share of voice, source visibility, referral)', status: 'auto', noteTr: '7 AI asistanda günlük ölçüm; markalı sorular manşetten ayrı; 7 günlük ortalama + oynaklık rozeti.', noteEn: 'Daily probes across 7 assistants; branded queries excluded from the headline; 7-day rolling average + volatility badge.' },
+  { step: '3', tr: 'robots.txt AI crawler engellerini kaldır', en: 'Unblock AI crawlers in robots.txt', status: 'auto', noteTr: 'AXO taraması 27 botu kategorili ölçer; tek tıkla düzeltir.', noteEn: 'AXO scan checks 27 bots by category; one-click fix.' },
+  { step: '4', tr: 'Site denetimi (kırık link, yönlendirme, orphan, tekrar içerik)', en: 'Site audit (broken links, redirects, orphans, duplicates)', status: 'partial', noteTr: '14 kontrol + PageSpeed; orphan var, kırık link ve tekrar title henüz yok.', noteEn: '14 checks + PageSpeed; orphans yes, broken links and duplicate titles not yet.' },
+  { step: '5, 19', tr: 'Marka doğruluk taraması — AI markan hakkında yanlış ne söylüyor?', en: 'Brand accuracy scan — what does AI get wrong about you?', status: 'none', noteTr: 'Sentiment ölçülüyor; doğruluk taraması yol haritasında.', noteEn: 'Sentiment is measured; accuracy scanning is on the roadmap.' },
+  { step: '6-7', tr: 'Atıf alan sayfalarını ve bahsedilmeleri analiz et', en: 'Analyse your cited pages and mentions', status: 'auto', noteTr: 'Sayfa bazlı atıf kırılımı, "atıf var · ad anılmadı" sayacı, canlı cite-fetch sinyali.', noteEn: 'Per-page citation breakdown, "cited but not mentioned" counter, live cite-fetch signal.' },
+  { step: '8-9', tr: 'Sayfa optimizasyonu + Article/FAQ/HowTo/Product şeması', en: 'On-page optimisation + Article/FAQ/HowTo/Product schema', status: 'auto', noteTr: '15+ şema tipi üretim ve doğrulama; geo-gate 5 yapısal kural.', noteEn: '15+ schema types generated and validated; geo-gate with 5 structural rules.' },
+  { step: '10', tr: 'Site mimarisi (2-3 tıkta erişilebilir hiyerarşi)', en: 'Site architecture (key pages within 2-3 clicks)', status: 'partial', noteTr: 'Orphan tespiti ve cross-link önerileri var; mimari planlama yok.', noteEn: 'Orphan detection and cross-link suggestions exist; no architecture planner.' },
+  { step: '11', tr: 'Eski içeriği güncelle (istatistik, örnek, tarih)', en: 'Refresh old content (stats, examples, dates)', status: 'auto', noteTr: '30 gün sonra performansa göre pivot; kaybedilen soru için mevcut makaleyi güncelleme köprüsü.', noteEn: 'Performance-based pivot after 30 days; lost-query → update-existing-article bridge.' },
+  { step: '12-15', tr: 'AI\'ın tercih ettiği formatlarda içerik: rehber, karşılaştırma, soru-cevap, tablo', en: 'Content in AI-preferred formats: guides, comparisons, Q&A, tables', status: 'auto', noteTr: 'Kaybedilen soru → 6 ajanlı üretim → QA kapısı → yayın → yeniden ölçüm.', noteEn: 'Lost query → 6-agent pipeline → QA gate → publish → re-measure.' },
+  { step: '13', tr: 'İçerik hub\'ı (pillar + 5-10 cluster)', en: 'Content hubs (pillar + 5-10 clusters)', status: 'partial', noteTr: 'Brain\'de pillar/cluster modeli var; hub sayfası üretimi yol haritasında.', noteEn: 'Pillar/cluster model exists in the brain; hub page generation on the roadmap.' },
+  { step: '16', tr: 'E-E-A-T: yazar biyografisi, kaynak atıfları', en: 'E-E-A-T: author bios, source citations', status: 'auto', noteTr: 'Person şeması + sameAs + imza bloğu; geo-gate kaynaklı sayı kuralı.', noteEn: 'Person schema + sameAs + byline; geo-gate sourced-number rule.' },
+  { step: '17', tr: 'İçeriği yeniden kullan (LinkedIn, X, YouTube)', en: 'Repurpose content (LinkedIn, X, YouTube)', status: 'auto', noteTr: 'Sosyal medya modülü: makaleden gönderi, onay akışı, gelen kutusu.', noteEn: 'Social module: posts from articles, approval flow, inbox.' },
+  { step: '18', tr: '"Best of" listelerine gir, digital PR', en: 'Get into "best of" lists, digital PR', status: 'partial', noteTr: 'Product Radar listelerde sırayı ölçer; HARO pitch taslağı; başvuru elle.', noteEn: 'Product Radar tracks list positions; HARO pitch drafts; outreach is manual.' },
+  { step: '20', tr: 'Reddit / Quora katkıları', en: 'Reddit / Quora contributions', status: 'partial', noteTr: 'Topluluk ajanı taslak hazırlar, onayla gönderilir (otomatik post yok).', noteEn: 'Community agent drafts replies; you approve (no auto-posting).' },
+  { step: '21-22', tr: 'Sonuçları gözden geçir, döngüyü tekrarla', en: 'Review results, repeat the loop', status: 'auto', noteTr: 'Haftalık plan, aksiyon planı, yeniden ölçüm hükmü ≥2 farklı günde.', noteEn: 'Weekly plan, action plan, re-measure verdict over ≥2 different days.' },
 ];
 
 const COPY = {
@@ -477,6 +503,42 @@ export default function ComparePage() {
             </Card>
           ))}
         </div>
+
+        {/* SEMRUSH 6-AYLIK AI ARAMA PLAYBOOK'U — hangi adim RanksUp'ta otomatik? */}
+        <Card className="mt-10 overflow-hidden">
+          <div className="bg-gradient-to-r from-muted/60 to-muted/20 px-5 py-3 border-b">
+            <h2 className="font-semibold flex items-center gap-2 text-base">
+              <span className="text-brand"><BarChart3 className="h-4 w-4" /></span>
+              {locale === 'en' ? 'Semrush\'s 6-month AI search playbook — which steps run on autopilot in RanksUp?' : 'Semrush\'ın 6 aylık AI arama playbook\'u — hangi adım RanksUp\'ta otomatik?'}
+            </h2>
+            <p className="text-xs text-muted-foreground mt-1">
+              {locale === 'en'
+                ? 'Semrush publishes a 22-step, six-month manual plan (May 2026). Same metrics as ours (share of voice, source visibility, referral traffic). Here is what the closed loop does for you.'
+                : 'Semrush 22 adımlık, altı aylık elle yürütülen bir plan yayınladı (Mayıs 2026). Metrikleri bizimkiyle aynı (share of voice, kaynak görünürlüğü, referral trafik). Kapalı döngünün senin yerine yaptıkları:'}
+            </p>
+          </div>
+          <div className="divide-y divide-border/40">
+            {PLAYBOOK.map((row) => {
+              const label = row.status === 'auto' ? (locale === 'en' ? 'Automatic' : 'Otomatik') : row.status === 'partial' ? (locale === 'en' ? 'Partial' : 'Kısmen') : (locale === 'en' ? 'Not yet' : 'Henüz yok');
+              const cls = row.status === 'auto' ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30' : row.status === 'partial' ? 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30' : 'bg-zinc-500/10 text-zinc-600 dark:text-zinc-300 border-zinc-500/30';
+              return (
+                <div key={row.step} className="px-5 py-2.5 text-sm flex items-start gap-3">
+                  <span className="text-xs font-mono text-muted-foreground w-10 shrink-0 pt-0.5">{row.step}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium">{locale === 'en' ? row.en : row.tr}</div>
+                    <div className="text-xs text-muted-foreground">{locale === 'en' ? row.noteEn : row.noteTr}</div>
+                  </div>
+                  <span className={`text-[10px] font-semibold border rounded-full px-2 py-0.5 shrink-0 ${cls}`}>{label}</span>
+                </div>
+              );
+            })}
+          </div>
+          <div className="px-5 py-3 text-xs text-muted-foreground border-t">
+            {locale === 'en'
+              ? 'Source: Semrush, "How to Rank in AI Search" (Tushar Pol, 4 May 2026). Statuses reflect RanksUp features as of Aug 2026.'
+              : 'Kaynak: Semrush, "How to Rank in AI Search" (Tushar Pol, 4 Mayıs 2026). Durumlar Ağustos 2026 itibarıyla RanksUp özelliklerini yansıtır.'}
+          </div>
+        </Card>
 
         {/* SUMMARY / BOTTOM CTA */}
         <div className="mt-14 grid md:grid-cols-2 gap-6">
