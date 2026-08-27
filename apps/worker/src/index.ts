@@ -46,6 +46,9 @@ import { JobQueueService } from '../../api/dist/jobs/job-queue.service.js';
 
 const log = new Logger('Worker');
 
+/** Gunluk otomatik AI olcumu kapali mi (musteri tetikli mod) */
+const isCitationDailyDisabled = () => process.env.AI_CITATION_DAILY_CRON === 'false';
+
 async function bootstrap() {
   // NestJS application context — HTTP listen yok, sadece DI
   const app = await NestFactory.createApplicationContext(AppModule, {
@@ -385,6 +388,13 @@ async function bootstrap() {
         log.warn('AI_CITATION_DAILY atlandı (AI_GLOBAL_DISABLED=1)');
         return { skipped: true, reason: 'AI_GLOBAL_DISABLED' };
       }
+      // URUN KARARI (27.08.2026): otomatik gunluk olcum KAPALI, musteri kendi
+      // tetikler ("Yeniden Test"). Kayit asamasinda da atlaniyor; bu kontrol
+      // Redis'te kalmis eski bir tekrar isinin yine de kosmasina karsi.
+      if (isCitationDailyDisabled()) {
+        log.warn('AI_CITATION_DAILY atlandı (AI_CITATION_DAILY_CRON=false — musteri tetikli mod)');
+        return { skipped: true, reason: 'AI_CITATION_DAILY_CRON' };
+      }
       return services.citationTracker.snapshotAllActive();
     },
 
@@ -586,16 +596,27 @@ async function bootstrap() {
     );
 
     // 3) AI_CITATION_DAILY — her gun 04:00 UTC (Turkiye 07:00)
-    await queue.add(
-      'AI_CITATION_DAILY',
-      { trigger: 'cron' },
-      {
-        repeat: { pattern: '0 4 * * *', tz: 'UTC' },
-        jobId: 'cron:ai-citation-daily',
-        removeOnComplete: { count: 50 },
-        removeOnFail: { count: 20 },
-      },
-    );
+    //
+    // AI_CITATION_DAILY_CRON=false (27.08.2026 urun karari): platform kendi
+    // basina olcum KOSMAZ; site basina 7 saglayici x 5 soru = 35 LLM cagrisi/gun
+    // havuz anahtarlarindan odeniyordu. Musteri "Yeniden Test" ile kendisi
+    // tetikler (kota sayar). Bayrak kapaliyken Redis'teki mevcut tekrar isi
+    // de SILINIR — yoksa eski zamanlama worker yeniden baslasa da kosardi.
+    if (isCitationDailyDisabled()) {
+      await queue.removeRepeatable('AI_CITATION_DAILY', { pattern: '0 4 * * *', tz: 'UTC' }, 'cron:ai-citation-daily').catch(() => undefined);
+      log.warn('AI_CITATION_DAILY kayit edilmedi ve varsa tekrar isi silindi (AI_CITATION_DAILY_CRON=false)');
+    } else {
+      await queue.add(
+        'AI_CITATION_DAILY',
+        { trigger: 'cron' },
+        {
+          repeat: { pattern: '0 4 * * *', tz: 'UTC' },
+          jobId: 'cron:ai-citation-daily',
+          removeOnComplete: { count: 50 },
+          removeOnFail: { count: 20 },
+        },
+      );
+    }
 
     // 4) CONTENT_PIVOT_CHECK — Pazartesi 02:30 UTC haftalik
     await queue.add(
