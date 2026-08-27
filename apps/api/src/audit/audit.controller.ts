@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, ForbiddenException, Get, Header, NotFoundException, Param, Patch, Post, Query, Req, Res } from '@nestjs/common';
+import { Body, Controller, Delete, ForbiddenException, Get, Header, NotFoundException, Param, Patch, Post, Query, Req, Res, BadRequestException } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { AuditService } from './audit.service.js';
 import { AutoFixService } from './auto-fix.service.js';
@@ -587,6 +587,28 @@ export class AuditController {
     @Query('headline') headline?: string,
   ) {
     return this.tracker.getHistory(siteId, days ? parseInt(days, 10) : 30, headline === '1');
+  }
+
+  /** GET /sites/:siteId/audit/citation-runs?limit=30 — test gecmisi (her kosum kalici) */
+  @Get('citation-runs')
+  citationRuns(@Param('siteId') siteId: string, @Query('limit') limit?: string) {
+    return this.tracker.listRuns(siteId, limit ? parseInt(limit, 10) : 30);
+  }
+
+  /** GET /sites/:siteId/audit/citation-runs/compare?a=&b= — iki testi kiyasla */
+  @Get('citation-runs/compare')
+  async compareCitationRuns(@Param('siteId') siteId: string, @Query('a') a: string, @Query('b') b: string) {
+    const res = await this.tracker.compareRuns(siteId, a, b);
+    if (!res) throw new BadRequestException('Kosum bulunamadi');
+    return res;
+  }
+
+  /** GET /sites/:siteId/audit/citation-runs/:id — tek kosumun tam sonucu */
+  @Get('citation-runs/:id')
+  async citationRun(@Param('siteId') siteId: string, @Param('id') id: string) {
+    const run = await this.tracker.getRun(siteId, id);
+    if (!run) throw new BadRequestException('Kosum bulunamadi');
+    return run;
   }
 
   /** POST /sites/:siteId/audit/citation-snapshot — snapshot al ve DB'ye yaz */

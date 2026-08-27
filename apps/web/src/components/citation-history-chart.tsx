@@ -28,6 +28,8 @@ const PROVIDER_LABELS: Record<string, string> = {
   deepseek: 'DeepSeek',
 };
 
+const OUTCOME_TR: Record<string, string> = { cited: 'URL geçti', mentioned: 'yalnız marka', none: 'geçmedi', 'n/a': 'sorulmadı' };
+
 /**
  * AI Citation gunluk gorunurluk trendi — provider bazli SVG line chart.
  * 7/30/90/365 gun secimi. Her sayfa yuklenisinde fresh fetch.
@@ -99,6 +101,33 @@ export function CitationHistoryChart({
   const [lastResults, setLastResults] = useState<any[] | null>(null);
   const [lastRunAt, setLastRunAt] = useState<string | null>(null);
   const [showDetails, setShowDetails] = useState(false);
+  // Test geçmişi — her koşum kalıcı (AiCitationRun); iki koşum karşılaştırılabilir
+  const [runs, setRuns] = useState<any[]>([]);
+  const [selectedRuns, setSelectedRuns] = useState<string[]>([]);
+  const [comparison, setComparison] = useState<any>(null);
+  const [comparing, setComparing] = useState(false);
+  const loadRuns = async () => {
+    try { setRuns(await api.getCitationRuns(siteId, 30)); } catch { /* gecmis yoksa sessiz */ }
+  };
+  const toggleRun = (id: string) => {
+    setComparison(null);
+    setSelectedRuns((cur) => cur.includes(id) ? cur.filter((x) => x !== id) : [...cur.slice(-1), id]);
+  };
+  const compareSelected = async () => {
+    if (selectedRuns.length !== 2) return;
+    setComparing(true);
+    try { setComparison(await api.compareCitationRuns(siteId, selectedRuns[0], selectedRuns[1])); }
+    catch (err: any) { toast.error(err.message); }
+    finally { setComparing(false); }
+  };
+  const showRun = async (id: string) => {
+    try {
+      const run = await api.getCitationRun(siteId, id);
+      setLastResults(run.providers);
+      setLastRunAt(run.runAt);
+      setShowDetails(true);
+    } catch (err: any) { toast.error(err.message); }
+  };
 
   const load = async (d: number) => {
     setLoading(true);
@@ -118,6 +147,7 @@ export function CitationHistoryChart({
   };
 
   useEffect(() => { load(days); }, [days, siteId]);
+  useEffect(() => { loadRuns(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [siteId]);
 
   const triggerSnapshot = async () => {
     setRunning(true);
@@ -128,8 +158,9 @@ export function CitationHistoryChart({
         setLastRunAt(res.runAt ?? new Date().toISOString());
         setShowDetails(true);
       }
-      toast.success('AI görünürlük testi çalıştı — grafik ve detaylar güncellendi');
+      toast.success('AI görünürlük testi çalıştı — önceki testler geçmişte duruyor, grafik ve detaylar güncellendi');
       await load(days);
+      await loadRuns();
     } catch (err: any) {
       toast.error(err.message);
     } finally {
@@ -393,6 +424,84 @@ export function CitationHistoryChart({
                 })}
               </svg>
             </div>
+
+            {/* Test geçmişi — her koşum kalıcı; iki koşumu karşılaştır */}
+            {runs.length > 0 && (
+              <div className="mt-4 pt-4 border-t">
+                <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
+                  <p className="text-xs font-semibold">Test geçmişi <span className="font-normal text-muted-foreground">({runs.length} koşum — hiçbiri silinmez; iki tanesini seçip karşılaştır)</span></p>
+                  <Button size="sm" variant="outline" onClick={compareSelected} disabled={selectedRuns.length !== 2 || comparing}>
+                    {comparing ? 'Karşılaştırılıyor…' : `Karşılaştır (${selectedRuns.length}/2)`}
+                  </Button>
+                </div>
+                <div className="max-h-56 overflow-y-auto rounded-md border divide-y divide-border/50">
+                  {runs.map((r: any) => (
+                    <div key={r.id} className="flex items-center gap-3 px-3 py-1.5 text-xs">
+                      <input type="checkbox" checked={selectedRuns.includes(r.id)} onChange={() => toggleRun(r.id)} aria-label="karşılaştırmak için seç" />
+                      <span className="tabular-nums w-[120px] shrink-0">{new Date(r.runAt).toLocaleString('tr-TR', { dateStyle: 'short', timeStyle: 'short' })}</span>
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded border ${r.trigger === 'system' ? 'text-muted-foreground' : 'text-orange-700 dark:text-orange-300 border-orange-500/30 bg-orange-500/10'}`}>
+                        {r.trigger === 'system' ? 'otomatik' : 'senin testin'}
+                      </span>
+                      <span className="font-semibold tabular-nums">{r.headlineScore ?? '—'}<span className="text-muted-foreground font-normal">/100</span></span>
+                      <span className="text-muted-foreground truncate flex-1 min-w-0">
+                        {r.providers.filter((p: any) => p.available).map((p: any) => `${PROVIDER_LABELS[p.provider] ?? p.provider} ${p.score ?? '—'}`).join(' · ')}
+                      </span>
+                      <button type="button" className="text-orange-600 dark:text-orange-400 hover:underline shrink-0" onClick={() => showRun(r.id)}>detay</button>
+                    </div>
+                  ))}
+                </div>
+
+                {comparison && (
+                  <div className="mt-3 rounded-lg border p-3 text-xs space-y-2 bg-muted/20">
+                    <div className="flex items-baseline gap-3 flex-wrap">
+                      <span className="font-semibold">
+                        {new Date(comparison.a.runAt).toLocaleString('tr-TR', { dateStyle: 'short', timeStyle: 'short' })} → {new Date(comparison.b.runAt).toLocaleString('tr-TR', { dateStyle: 'short', timeStyle: 'short' })}
+                      </span>
+                      <span className="text-lg font-bold tabular-nums">
+                        {comparison.a.headlineScore ?? '—'} → {comparison.b.headlineScore ?? '—'}
+                        {comparison.headlineDelta !== null && (
+                          <span className={`ml-1 text-sm ${comparison.headlineDelta > 0 ? 'text-emerald-600' : comparison.headlineDelta < 0 ? 'text-red-600' : 'text-muted-foreground'}`}>
+                            ({comparison.headlineDelta > 0 ? '+' : ''}{comparison.headlineDelta})
+                          </span>
+                        )}
+                      </span>
+                      <span className="text-muted-foreground">
+                        {comparison.gained} soru kazanıldı · {comparison.lost} kaybedildi · {comparison.unchanged} aynı
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-1.5">
+                      {comparison.providers.map((p: any) => (
+                        <div key={p.provider} className="rounded border px-2 py-1 flex items-center justify-between gap-2">
+                          <span className="truncate">{PROVIDER_LABELS[p.provider] ?? p.provider}</span>
+                          <span className="tabular-nums whitespace-nowrap">
+                            {p.before ?? '—'} → <strong>{p.after ?? '—'}</strong>
+                            {p.delta !== null && p.delta !== 0 && (
+                              <span className={`ml-1 ${p.delta > 0 ? 'text-emerald-600' : 'text-red-600'}`}>{p.delta > 0 ? '+' : ''}{p.delta}</span>
+                            )}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                    {comparison.changed.length > 0 ? (
+                      <div className="space-y-1">
+                        <div className="text-[10px] uppercase tracking-wider font-bold text-muted-foreground">Değişen sorular</div>
+                        {comparison.changed.map((c: any, i: number) => (
+                          <div key={i} className="flex items-start gap-2">
+                            <span className={c.direction > 0 ? 'text-emerald-600' : 'text-red-600'}>{c.direction > 0 ? '▲' : '▼'}</span>
+                            <span className="text-muted-foreground w-[70px] shrink-0 truncate">{PROVIDER_LABELS[c.provider] ?? c.provider}</span>
+                            <span className="flex-1 min-w-0 truncate">{c.query}</span>
+                            <span className="text-muted-foreground whitespace-nowrap">{OUTCOME_TR[c.before] ?? c.before} → <strong>{OUTCOME_TR[c.after] ?? c.after}</strong></span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-muted-foreground">Soru bazında değişiklik yok — iki test aynı sonucu verdi.</div>
+                    )}
+                    <div className="text-[10px] text-muted-foreground">AI cevapları koşumdan koşuma oynak olabilir; tek testler arası farkı karar için değil gözlem için kullan — manşet 7 günlük ortalamadır.</div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Son test detayları — her provider için probe-by-probe */}
             {lastResults && lastResults.length > 0 && (

@@ -757,6 +757,33 @@ model AiCitationSnapshot {
   @@map("ai_citation_snapshots")
 }
 
+/**
+ * AI gorunurluk testi KOSUMLARI — append-only.
+ *
+ * NEDEN AYRI TABLO: AiCitationSnapshot siteId+date+provider ile gunluk TEK
+ * satir tutar; ayni gun ikinci "Yeniden Test" oncekinin uzerine yaziyordu.
+ * Musteri onceki sonucu kaybetmemeli ve iki testi kiyaslayabilmeli. Snapshot
+ * (grafik) gunun son kosumunu tutmaya devam eder; her kosumun tam sonucu
+ * (saglayici + probe) burada kalir.
+ */
+model AiCitationRun {
+  id     String @id @default(cuid())
+  siteId String
+
+  runAt   DateTime @default(now())
+  trigger String   @default("user") // user | system | audit
+
+  headlineScore  Int? // saglayicilarin null-disi skor ortalamasi
+  citedCount     Int  @default(0)
+  mentionedCount Int  @default(0)
+  poolSize       Int  @default(0)
+
+  providers Json // [{ provider, label, available, score, reason, probes: [{ query, cited, brandMentioned, brandInQuery, position, sentiment, excerpt, citedPages }] }]
+
+  @@index([siteId, runAt])
+  @@map("ai_citation_runs")
+}
+
 // ═══════════════════════════════════════════════════════════════
 //  AI CRAWLER HITS — Sunucu loglarindan bot trafigi
 // ═══════════════════════════════════════════════════════════════

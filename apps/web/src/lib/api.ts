@@ -637,6 +637,13 @@ export const api = {
   getCitationHeadline: (siteId: string, days = 14) =>
     request<any>(`/sites/${siteId}/audit/citation-history?days=${days}&headline=1`),
 
+  /** Test gecmisi — her "Yeniden Test" kalici; iki kosum karsilastirilabilir */
+  getCitationRuns: (siteId: string, limit = 30) =>
+    request<any[]>(`/sites/${siteId}/audit/citation-runs?limit=${limit}`),
+  getCitationRun: (siteId: string, id: string) =>
+    request<any>(`/sites/${siteId}/audit/citation-runs/${id}`),
+  compareCitationRuns: (siteId: string, a: string, b: string) =>
+    request<any>(`/sites/${siteId}/audit/citation-runs/compare?a=${encodeURIComponent(a)}&b=${encodeURIComponent(b)}`),
   triggerCitationSnapshot: (siteId: string) =>
     request<any>(`/sites/${siteId}/audit/citation-snapshot`, { method: 'POST' }),
 

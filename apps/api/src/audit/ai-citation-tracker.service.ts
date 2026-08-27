@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { citationCounts } from './citation-score.js';
 import { buildHeadline, providerHeadline } from './citation-headline.js';
 import { assessStability } from './visibility-variance.js';
+import { compareCitationRuns, headlineOfProviders, type RunProvider, type RunSummary } from './citation-run-compare.js';
 import { AiCitationService } from './ai-citation.service.js';
 
 /**
@@ -36,7 +37,7 @@ export class AiCitationTrackerService {
   async snapshotSite(
     siteId: string,
     opts: { trigger?: 'user' | 'system' } = {},
-  ): Promise<{ saved: number; results: any[]; runAt: string }> {
+  ): Promise<{ saved: number; results: any[]; runAt: string; runId: string | null }> {
     const results = await this.citation.runForSite(siteId, SNAPSHOT_PROBES, { trigger: opts.trigger ?? 'user' });
     const runAt = new Date().toISOString();
     // UTC midnight — server timezone'a bagli kalmamak icin (TR'de setHours(0,0,0,0) bir onceki UTC gunune kayar)
@@ -79,7 +80,49 @@ export class AiCitationTrackerService {
       }
     }
 
-    return { saved, results, runAt };
+    // HER KOSUM KALICI: ayni gun ikinci "Yeniden Test" gunluk snapshot'i
+    // (siteId+date+provider unique) uzerine yazar; musteri onceki sonucu
+    // kaybetmesin ve iki testi kiyaslayabilsin diye kosumlar AiCitationRun'a
+    // append-only yazilir (excerpt kirpilmis). Basarisizlik olcumu bozmaz.
+    const providersJson: RunProvider[] = results.map((r) => ({
+      provider: r.provider,
+      label: r.label,
+      available: r.available,
+      score: r.score,
+      reason: r.reason ?? null,
+      probes: (r.probes ?? []).map((pr) => ({
+        query: pr.query,
+        cited: !!pr.cited,
+        brandMentioned: !!pr.brandMentioned,
+        brandInQuery: pr.brandInQuery ?? false,
+        position: pr.position ?? null,
+        sentiment: pr.sentiment ?? null,
+        excerpt: pr.excerpt?.slice(0, 400) ?? null,
+        ...(pr.citedPages?.length ? { citedPages: pr.citedPages } : {}),
+      })),
+    }));
+    const counts = citationCounts(results.flatMap((r) => r.probes ?? []) as any[]);
+    let runId: string | null = null;
+    try {
+      const run = await this.prisma.aiCitationRun.create({
+        data: {
+          siteId,
+          runAt: new Date(runAt),
+          trigger: opts.trigger ?? 'user',
+          headlineScore: headlineOfProviders(providersJson),
+          citedCount: counts.cited,
+          mentionedCount: counts.mentioned,
+          poolSize: counts.poolSize,
+          providers: providersJson as any,
+        },
+        select: { id: true },
+      });
+      runId = run.id;
+    } catch (err: any) {
+      this.log.warn(`[${siteId}] Kosum kaydi yazilamadi: ${err.message}`);
+    }
+
+    return { saved, results, runAt, runId };
   }
 
   /**
@@ -104,6 +147,42 @@ export class AiCitationTrackerService {
     }
     this.log.log(`AI Citation daily: ${sites.length} site, ${totalSnapshots} snapshot kaydedildi`);
     return { sites: sites.length, snapshots: totalSnapshots };
+  }
+
+  // ── Test gecmisi (append-only kosumlar) ──────────────────────
+
+  async listRuns(siteId: string, limit = 30) {
+    const runs = await this.prisma.aiCitationRun.findMany({
+      where: { siteId },
+      orderBy: { runAt: 'desc' },
+      take: Math.min(Math.max(limit, 1), 100),
+      select: { id: true, runAt: true, trigger: true, headlineScore: true, citedCount: true, mentionedCount: true, poolSize: true, providers: true },
+    });
+    return runs.map((r) => ({
+      id: r.id,
+      runAt: r.runAt.toISOString(),
+      trigger: r.trigger,
+      headlineScore: r.headlineScore,
+      citedCount: r.citedCount,
+      mentionedCount: r.mentionedCount,
+      poolSize: r.poolSize,
+      // Liste hafif kalsin: saglayici skorlari, probe'lar yok
+      providers: ((r.providers as any[]) ?? []).map((p) => ({ provider: p.provider, label: p.label, available: p.available, score: p.score })),
+    }));
+  }
+
+  async getRun(siteId: string, id: string): Promise<RunSummary | null> {
+    const r = await this.prisma.aiCitationRun.findFirst({ where: { id, siteId } });
+    if (!r) return null;
+    return { id: r.id, runAt: r.runAt.toISOString(), trigger: r.trigger, headlineScore: r.headlineScore, providers: (r.providers as any[]) ?? [] };
+  }
+
+  /** a = onceki, b = sonraki (siralama gonderen tarafa bagli degil; runAt'e gore duzeltilir) */
+  async compareRuns(siteId: string, aId: string, bId: string) {
+    const [ra, rb] = await Promise.all([this.getRun(siteId, aId), this.getRun(siteId, bId)]);
+    if (!ra || !rb) return null;
+    const [first, second] = ra.runAt <= rb.runAt ? [ra, rb] : [rb, ra];
+    return compareCitationRuns(first, second);
   }
 
   /**
