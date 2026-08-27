@@ -90,8 +90,12 @@ export default function OpportunitiesPage() {
   const generate = async (item: any) => {
     setBusy(item.id);
     try {
-      await api.generateFromOpportunity(site.id, item.id);
-      toast.success('Makale üretimi başladı — İçerikler sayfasından izleyebilirsin');
+      const res: any = await api.generateFromOpportunity(site.id, item.id);
+      if (res?.mode === 'update') {
+        toast.success(`Bu soruyu zaten cevaplayan makale var — yeni makale yerine güncelleniyor: "${res.matchedTitle}"`);
+      } else {
+        toast.success('Makale üretimi başladı — İçerikler sayfasından izleyebilirsin');
+      }
       await load();
     } catch (err: any) {
       toast.error(err.message);

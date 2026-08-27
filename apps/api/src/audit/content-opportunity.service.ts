@@ -10,6 +10,7 @@ import { siteWhereForFeature } from '../billing/plan-site-filter.js';
 import {
   remeasureVerdict, afterWindowStart, REMEASURE_FOLLOW_UPS, REMEASURE_WINDOW_DAYS,
 } from './remeasure-verdict.js';
+import { matchArticleForQuery } from './opportunity-article-match.js';
 
 /**
  * Content Opportunity — kapali dongu:
@@ -246,6 +247,58 @@ export class ContentOpportunityService {
     await this.quota.enforceArticleQuota(site.userId);
 
     const topic = item.title || item.query;
+
+    // ONCE MEVCUT MAKALE: bu soruyu zaten cevaplayan yayimlanmis bir makale
+    // varsa YENI makale uretilmez, o makale guncellenir (content-pivot ile ayni
+    // job: articleId dolu → var olan kayit yeniden yazilir). Iki bagimsiz
+    // kaynak: AI atif tazeligi yeni yayindan degil GUNCELLEMEDEN geliyor ve
+    // yakin kopyalar sinyali boluyor (defter + Semrush playbook m.11).
+    const published = await this.prisma.article.findMany({
+      where: { siteId, status: 'PUBLISHED' as any },
+      select: { id: true, title: true, topic: true, slug: true },
+      orderBy: { publishedAt: 'desc' },
+      take: 300,
+    });
+    const match = matchArticleForQuery(item.query || topic, published);
+    if (match) {
+      const job = await this.jobQueue.enqueue({
+        type: 'GENERATE_ARTICLE',
+        userId: site.userId,
+        siteId,
+        payload: {
+          siteId,
+          topic: match.article.topic || match.article.title,
+          articleId: match.article.id, // var olan kayit guncellenir
+          skipImages: true,
+          pivotReason: `Kapali dongu: "${item.query}" sorusunda gorunmuyoruz — mevcut makale guncellendi, tarih tazelendi`,
+          lostQuery: item.query,
+        } as any,
+      });
+      await this.quota.incrementArticleUsage(site.userId);
+      const now = new Date();
+      await this.prisma.contentOpportunity.update({
+        where: { id: item.id },
+        data: {
+          status: 'GENERATED',
+          articleId: match.article.id,
+          meta: {
+            ...(item.meta as any ?? {}),
+            generateJobId: job.dbJobId,
+            mode: 'update',
+            updateOf: match.article.id,
+            matchCoverage: match.coverage,
+            // remeasure "after" penceresinin alt siniri — makalenin eski
+            // publishedAt'i degil, guncellemenin basladigi gun
+            updateStartedAt: now.toISOString(),
+            before: (item.meta as any)?.before ?? {
+              cited: (item.meta as any)?.cited ?? 0,
+              total: (item.meta as any)?.total ?? 0,
+            },
+          },
+        },
+      });
+      return { opportunityId: item.id, articleId: match.article.id, jobId: job.dbJobId, mode: 'update' as const, matchedTitle: match.article.title, coverage: match.coverage };
+    }
     const placeholderSlug = `generating-${Date.now().toString(36)}`;
     const article = await this.prisma.article.create({
       data: {
@@ -283,7 +336,7 @@ export class ContentOpportunityService {
       },
     });
 
-    return { opportunityId: item.id, articleId: article.id, jobId: job.dbJobId };
+    return { opportunityId: item.id, articleId: article.id, jobId: job.dbJobId, mode: 'new' as const };
   }
 
   /**
@@ -319,7 +372,10 @@ export class ContentOpportunityService {
       include: { article: { select: { publishedAt: true } } },
     });
     const now = new Date();
-    const since = afterWindowStart(now, item.article?.publishedAt ?? null);
+    // Guncelleme modunda alt sinir makalenin eski yayin tarihi degil,
+    // guncellemenin basladigi gun (meta.updateStartedAt).
+    const updateStartedAt = (item.meta as any)?.updateStartedAt ? new Date((item.meta as any).updateStartedAt) : null;
+    const since = afterWindowStart(now, updateStartedAt ?? item.article?.publishedAt ?? null);
     const rows = await this.prisma.geoPromptRun.findMany({
       where: { siteId: item.siteId, promptId: item.promptId!, fanoutId: null, brandInQuery: false, date: { gte: since } },
       select: { date: true, provider: true, cited: true },
