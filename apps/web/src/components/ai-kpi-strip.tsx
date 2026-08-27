@@ -56,6 +56,12 @@ export function AiKpiStrip({ siteId }: { siteId: string }) {
   // olcuyordu. Markali sorular "taninirlik" olarak alt satirda gosteriliyor.
   const brandedMention = data.brandedMentionRate?.value ?? null;
   const mix = data.queryMix as { branded: number; unbranded: number } | undefined;
+  // "Kaynak oldun, öneri değilsin": URL atıf aldı ama marka adı cevapta geçmedi.
+  const citedNotMentioned: number | null = data.citedNotMentionedRate?.value ?? null;
+  const mentionNote = [
+    brandedMention !== null ? `Markalı sorularda %${brandedMention}` : null,
+    citedNotMentioned !== null && citedNotMentioned > 0 ? `Atıf var · ad anılmadı %${citedNotMentioned}` : null,
+  ].filter(Boolean).join(' · ');
 
   const tiles: Array<{
     key: string; label: string; icon: any; color: string;
@@ -67,11 +73,12 @@ export function AiKpiStrip({ siteId }: { siteId: string }) {
       value: data.mentionRate.value !== null ? `${data.mentionRate.value}%` : '—',
       delta: data.mentionRate.deltaPct, series: data.mentionRate.series,
       href: 'geo-lab',
-      note: brandedMention !== null ? `Markalı sorularda %${brandedMention}` : undefined,
+      note: mentionNote || undefined,
       title:
         'Marka adı sorunun içinde geçmeyen sorulardaki anılma oranı — asıl görünürlük ölçüsü budur. ' +
         'Marka adı geçen sorularda asistanın markayı anması beklenen bir sonuç olduğu için ayrı tutulur.' +
-        (mix ? ` Son 7 gün: ${mix.unbranded} markasız, ${mix.branded} markalı ölçüm.` : ''),
+        (mix ? ` Son 7 gün: ${mix.unbranded} markasız, ${mix.branded} markalı ölçüm.` : '') +
+        (citedNotMentioned !== null ? ` "Atıf var · ad anılmadı": site URL'i kaynak gösterildi ama marka adı cevapta geçmedi — içeriğin cevabın malzemesi olmuş, önerisi olmamış.` : ''),
     },
     {
       key: 'sentiment', label: 'Sentiment (7g)', icon: Heart, color: '#ec4899',

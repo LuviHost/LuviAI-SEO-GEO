@@ -25,6 +25,13 @@ export interface AiKpis {
   // toplanirsa sayi gorunurlugu degil prompt bilesimini olcer.
   mentionRate: KpiValue;      // % — markasiz soruda marka AI cevabinda gecti
   citationRate: KpiValue;     // % — markasiz soruda site URL'i kaynak gosterildi
+  /**
+   * % — atif VAR ama marka adi cevapta ANILMADI: site cevabin malzemesi
+   * olmus, onerisi olmamis ("kaynak oldun, oneri degilsin"). Yalniz anilmayi
+   * olcen rapor bunu goremez; ayri sayilir. Yon 2 bagimsiz kaynak (Featured
+   * atif raporu + Surfer 5M analizi); sayilar tasinmaz.
+   */
+  citedNotMentionedRate: KpiValue;
   sentiment: KpiValue;        // % pozitif (pozitif / etiketli)
   shareOfVoice: KpiValue;     // % — marka mention / (marka + rakip mention)
 
@@ -113,6 +120,12 @@ export class AiKpisService {
     const citedNow = rate(recent, 'cited');
     const citedPrev = rate(prev, 'cited');
 
+    // Atif var, marka anilmadi — cited && !brandMentioned (citation-score.ts ile ayni tanim)
+    const cnmRate = (rows: typeof runs) =>
+      rows.length ? Math.round((rows.filter((r) => r.cited && !r.brandMentioned).length / rows.length) * 1000) / 10 : null;
+    const cnmNow = cnmRate(recent);
+    const cnmPrev = cnmRate(prev);
+
     // Taninirlik — marka adi gecen sorularda
     const bMentionNow = rate(brandedRecent, 'brandMentioned');
     const bMentionPrev = rate(brandedPrev, 'brandMentioned');
@@ -178,6 +191,11 @@ export class AiKpisService {
         value: citedNow,
         deltaPct: this.delta(citedNow, citedPrev),
         series: dailySeries((rows) => rate(rows, 'cited'), unbranded),
+      },
+      citedNotMentionedRate: {
+        value: cnmNow,
+        deltaPct: this.delta(cnmNow, cnmPrev),
+        series: dailySeries(cnmRate, unbranded),
       },
       sentiment: {
         value: sentNow,

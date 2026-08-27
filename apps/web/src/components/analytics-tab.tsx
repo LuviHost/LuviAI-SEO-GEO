@@ -112,6 +112,36 @@ export function AnalyticsTab({ siteId, site }: { siteId: string; site?: any }) {
         <MetricCard label="Sıralama" value={totals.avgPosition.toFixed(1)} />
       </div>
 
+      {/* Markasız tıklama payı — organik "keşif kanalı" ölçüsü (AI tarafındaki brandInQuery ayrımının ikizi) */}
+      {overview.brandSplit && (
+        <Card>
+          <CardContent className="p-4 flex items-start gap-4 flex-wrap">
+            <div className="min-w-[120px]">
+              <div className="text-xs text-muted-foreground mb-1">Markasız tıklama payı</div>
+              <div className="text-2xl font-bold tabular-nums">
+                {overview.brandSplit.unbrandedClickSharePct !== null ? `%${overview.brandSplit.unbrandedClickSharePct}` : '—'}
+              </div>
+            </div>
+            <div className="flex-1 min-w-[240px] text-xs text-muted-foreground leading-relaxed">
+              <div>
+                <strong>{overview.brandSplit.unbranded.clicks.toLocaleString('tr-TR')}</strong> markasız ·{' '}
+                <strong>{overview.brandSplit.branded.clicks.toLocaleString('tr-TR')}</strong> markalı tıklama
+                {' '}({overview.brandSplit.unbranded.queries + overview.brandSplit.branded.queries} sorgu örneklemi, {overview.brandSplit.daysWithQueries} gün)
+              </div>
+              <div className="mt-1">
+                Marka adını (<em>{overview.brandSplit.brand}</em>) içeren sorgular seni zaten bilenlerden gelir — bu hafıza, keşif değil.
+                Markasız pay ne kadar yüksekse Google o kadar gerçek bir keşif kanalı. Örneklem: gün başına en çok tıklanan 100 sorgu.
+              </div>
+              {overview.brandSplit.unbrandedClickSharePct !== null && overview.brandSplit.unbrandedClickSharePct < 20 && (
+                <div className="mt-1 text-amber-700 dark:text-amber-300">
+                  Tıklamaların %80'inden fazlası adını bilenlerden — henüz bir SEO keşif kanalın yok; markasız sorulara cevap veren içerik gerekiyor.
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Chart */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">

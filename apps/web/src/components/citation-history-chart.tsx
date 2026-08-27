@@ -241,6 +241,11 @@ export function CitationHistoryChart({
               };
               const st = stability ? STABILITY[stability.label] : null;
 
+              // "Kaynak oldun, öneri değilsin" — son ölçümde URL atıf aldı ama marka adı cevapta geçmedi (markasız sorular)
+              const latestProbes: any[] = (data.latestResults ?? []).flatMap((r: any) => Array.isArray(r.probes) ? r.probes : []);
+              const unbrandedProbes = latestProbes.filter((p: any) => p.brandInQuery !== true && !String(p.excerpt ?? '').startsWith('HATA:'));
+              const citedNotMentioned = unbrandedProbes.filter((p: any) => p.cited && !p.brandMentioned).length;
+
               const grade =
                 avg >= 75 ? { label: 'Mükemmel', tone: 'emerald', desc: 'AI motorları sitenizi çok iyi tanıyor.' } :
                 avg >= 50 ? { label: 'İyi', tone: 'orange',  desc: 'Marka adınız tanınıyor, hedef: URL citation almak.' } :
@@ -277,6 +282,11 @@ export function CitationHistoryChart({
                         )}
                         {worst && best?.provider !== worst?.provider && (
                           <span> · ❌ En zayıf: <strong>{PROVIDER_LABELS[worst.provider] ?? worst.provider}</strong> ({pick(worst)} puan)</span>
+                        )}
+                        {citedNotMentioned > 0 && (
+                          <div className="mt-1" title="Site URL'i kaynak gösterildi ama marka adı cevapta geçmedi: içeriğin cevabın malzemesi olmuş, önerisi olmamış. Yalnız anılmayı ölçen raporlar bunu göremez.">
+                            🔗 Atıf var · ad anılmadı: <strong>{citedNotMentioned}/{unbrandedProbes.length}</strong> ölçüm (son koşum) — kaynak oldun, öneri değilsin
+                          </div>
                         )}
                       </div>
                       {avg < 50 && (

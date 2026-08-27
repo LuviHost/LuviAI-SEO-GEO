@@ -2,6 +2,8 @@ import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { google } from 'googleapis';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { GscOAuthService } from '../auth/gsc-oauth.service.js';
+import { resolveSiteBrand } from '../audit/brand-in-query.js';
+import { splitQueriesByBrand, dailyUnbrandedShare, type OrganicQueryRow } from './organic-brand-split.js';
 
 interface GscRow {
   keys: string[];
@@ -304,10 +306,28 @@ export class AnalyticsService {
 
   async getOverview(siteId: string, days = 30) {
     const since = new Date(Date.now() - days * 86400000);
-    const snapshots = await this.prisma.analyticsSnapshot.findMany({
-      where: { siteId, date: { gte: since } },
-      orderBy: { date: 'asc' },
-    });
+    const [snapshots, site] = await Promise.all([
+      this.prisma.analyticsSnapshot.findMany({
+        where: { siteId, date: { gte: since } },
+        orderBy: { date: 'asc' },
+      }),
+      this.prisma.site.findUnique({ where: { id: siteId }, select: { name: true, url: true } }),
+    ]);
+
+    // Markali / markasiz organik ayrimi — AI probe'lariyla AYNI marka kurali
+    // (brand-in-query.ts). Markali sorgu hafiza, markasiz sorgu kesif olcer;
+    // "SEO kanalin var mi?" sorusunun cevabi markasiz payda. Orneklem:
+    // queryDetails gun basina ilk 100 sorgu (bkz. organic-brand-split.ts).
+    const brand = site ? resolveSiteBrand(site.name, site.url) : '';
+    const allQueries = snapshots.flatMap((s) => (Array.isArray(s.queryDetails) ? (s.queryDetails as unknown as OrganicQueryRow[]) : []));
+    const brandSplit = brand
+      ? {
+          ...splitQueriesByBrand(allQueries, brand),
+          brand,
+          daysWithQueries: snapshots.filter((s) => Array.isArray(s.queryDetails) && (s.queryDetails as any[]).length > 0).length,
+          series: dailyUnbrandedShare(snapshots, brand),
+        }
+      : null;
 
     const totals = snapshots.reduce(
       (acc, s) => ({
@@ -333,6 +353,7 @@ export class AnalyticsService {
         ctr: s.avgCtr,
         position: s.avgPosition,
       })),
+      brandSplit,
       latestSnapshot: snapshots[snapshots.length - 1] ?? null,
     };
   }

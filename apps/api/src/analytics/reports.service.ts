@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { compareAuditRows, type AuditKarsilastirma } from '../audit/audit.service.js';
+import { resolveSiteBrand } from '../audit/brand-in-query.js';
+import { splitQueriesByBrand, type OrganicQueryRow, type OrganicBrandSplit } from './organic-brand-split.js';
 
 export type ReportRange = 'week' | 'month' | 'year' | 'custom';
 
@@ -64,6 +66,12 @@ export interface ReportOverview {
     oncekiDonemVeriVar: boolean;
     topQueries: Array<{ query: string; clicks: number; impressions: number; ctr: number; position: number }>;
     topPages: Array<{ page: string; clicks: number; impressions: number; ctr: number; position: number }>;
+    /**
+     * Markali / markasiz organik ayrimi (organic-brand-split.ts). Markali
+     * sorgu hafiza, markasiz sorgu kesif olcer — "tiklamalarin %X'i adini
+     * bilmeyenlerden". Marka cozulemediyse null. Orneklem: gunluk ilk 100 sorgu.
+     */
+    brandSplit: OrganicBrandSplit | null;
   };
   ai: {
     /**
@@ -326,6 +334,17 @@ export class ReportsService {
     const topQueries = detaylariTopla(snapshots, 'queryDetails', 'query');
     const topPages = detaylariTopla(snapshots, 'pageDetails', 'page');
 
+    // Markali / markasiz organik ayrimi — overview ile AYNI yardimci
+    // (organic-brand-split.ts). Raporda "tiklamalarin %X'i adini bilmeyenlerden".
+    const brandSite = await this.prisma.site.findUnique({ where: { id: siteId }, select: { name: true, url: true } });
+    const brand = brandSite ? resolveSiteBrand(brandSite.name, brandSite.url) : '';
+    const brandSplit = brand
+      ? splitQueriesByBrand(
+          snapshots.flatMap((s) => (Array.isArray(s.queryDetails) ? (s.queryDetails as unknown as OrganicQueryRow[]) : [])),
+          brand,
+        )
+      : null;
+
     // ── AI citation + audit ────────────────────────────────────
     const lastAudit = await this.prisma.audit.findFirst({
       where: { siteId },
@@ -415,6 +434,7 @@ export class ReportsService {
         oncekiDonemVeriVar,
         topQueries,
         topPages,
+        brandSplit,
       },
       ai: {
         citationScore: citationDurumu.skor,

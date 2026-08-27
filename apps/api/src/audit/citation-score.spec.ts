@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { citationScore } from './citation-score.js';
+import { citationScore, citationCounts } from './citation-score.js';
 
 /**
  * Skor formulu testleri.
@@ -34,5 +34,19 @@ describe('citationScore — markasiz havuz kurali', () => {
 
   it('brandInQuery tanimsiz probe markasiz sayilir (eski JSON uyumu)', () => {
     expect(citationScore([{ cited: true, brandMentioned: true }])).toBe(100);
+  });
+});
+
+describe('citationCounts — "atif var, marka anilmadi" sayaci', () => {
+  it('cited && !brandMentioned ayri sayilir; skora etkisi yok (cited zaten tam puan)', () => {
+    const c = citationCounts([P(true, false), P(true, true), P(false, true), P(false, false)]);
+    expect(c.cited).toBe(2);
+    expect(c.mentioned).toBe(1);          // anildi ama alintilanmadi
+    expect(c.citedNotMentioned).toBe(1);  // alintilandi ama anilmadi — "kaynak oldun, oneri degilsin"
+    expect(c.score).toBe(63);             // (100+100+50+0)/4 = 62.5 -> 63
+  });
+
+  it('markali probe bu sayaca da girmez', () => {
+    expect(citationCounts([P(true, false, true)]).citedNotMentioned).toBe(0);
   });
 });

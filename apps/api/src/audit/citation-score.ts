@@ -25,6 +25,13 @@ export interface CitationCounts {
   score: number | null;
   cited: number;
   mentioned: number;
+  /**
+   * Atif VAR ama marka adi cevapta ANILMADI: site cevabin malzemesi olmus,
+   * onerisi olmamis ("kaynak oldun, oneri degilsin"). Yalniz marka anilmasini
+   * olcen raporlarda gorunmez; ayri sayilir. (Yon: Featured atif raporu +
+   * Surfer 5M atif analizi — 2 bagimsiz kaynak; sayilar tasinmaz.)
+   */
+  citedNotMentioned: number;
   /** markasiz havuz buyuklugu — payda */
   poolSize: number;
 }
@@ -38,10 +45,12 @@ export function citationCounts(probes: ScorableProbe[]): CitationCounts {
   const pool = unbrandedOnly(probes);
   const cited = pool.filter((p) => p.cited).length;
   const mentioned = pool.filter((p) => p.brandMentioned && !p.cited).length;
+  const citedNotMentioned = pool.filter((p) => p.cited && !p.brandMentioned).length;
   return {
     score: pool.length === 0 ? null : Math.round(((cited * 100) + (mentioned * 50)) / pool.length),
     cited,
     mentioned,
+    citedNotMentioned,
     poolSize: pool.length,
   };
 }
