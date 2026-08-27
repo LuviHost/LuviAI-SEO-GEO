@@ -217,7 +217,10 @@ export function CitationHistoryChart({
               <Sparkles className="h-4 w-4 text-orange-500" /> AI Görünürlük Trendi
             </p>
             <p className="text-xs text-muted-foreground mt-0.5 max-w-2xl">
-              ChatGPT, Claude, Gemini gibi 6 AI'a markanla ilgili soru sorduğumuzda <strong>cevapta site URL'in veya marka adın geçiyor mu</strong> ölçüyoruz. <strong>0-100 skor:</strong> URL geçerse 100 puan, sadece marka adı geçerse 50 puan/soru.
+              ChatGPT, Claude, Gemini, Perplexity, Grok, DeepSeek ve Meta — 7 AI'a markanla ilgili soru sorduğumuzda <strong>cevapta site URL'in veya marka adın geçiyor mu</strong> ölçüyoruz. <strong>0-100 skor:</strong> URL geçerse 100 puan, sadece marka adı geçerse 50 puan/soru.
+            </p>
+            <p className="text-[10px] text-muted-foreground mt-0.5 max-w-2xl">
+              Ölçüm sağlayıcıların API yüzeyinde yapılır. Tüketici uygulamasında (ChatGPT web) ayrıca bir reklam katmanı var — cevapların yaklaşık dörtte biri reklam içeriyor ve reklam vermek atıf getirmiyor; kaynak olmak yalnız içerikle mümkün.
             </p>
           </div>
           <div className="flex items-center gap-2">

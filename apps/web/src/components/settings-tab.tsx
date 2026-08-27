@@ -865,6 +865,7 @@ function GscConnectionCard({ siteId }: { siteId: string }) {
               <h2 className="font-semibold">Google Search Console</h2>
               <p className="text-xs text-muted-foreground mt-1">
                 Topic engine'e arama verisi besler ve Performans sekmesini açar. Opsiyonel — bağlamadığında pipeline yine çalışır.
+                Not: Search Console AI cevaplarında görünüp görünmediğini ve tıklamayı nerede kaybettiğini söyleyemez — RanksUp bunu 7 AI asistanına doğrudan sorarak ölçer; GSC bunun yanına Google'daki gerçek tıklamayı koyar (markalı/markasız ayrımıyla).
               </p>
             </div>
           </div>

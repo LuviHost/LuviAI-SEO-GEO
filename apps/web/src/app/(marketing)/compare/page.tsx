@@ -54,6 +54,7 @@ const FEATURE_GROUPS_TR: FeatureGroup[] = [
       { name: 'llms.txt + llms-full.txt builder', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false },
       { name: 'AI sitemap (LLM crawler için)', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false },
       { name: 'Persona Chat (rakip simülasyonu)', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false },
+      { name: 'Kapalı döngü: kaybedilen soru → içerik → QA → yeniden ölçüm', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false, hint: 'Cloudflare\'in AEO / agent-readiness panosu sitenin AI\'a erişilebilirliğini ölçer ama içerik üretmez ve yeniden ölçmez; RanksUp erişimi (AXO), görünürlüğü ve üretimi tek döngüde kapatır.' },
     ],
   },
   {
@@ -153,6 +154,7 @@ const FEATURE_GROUPS_EN: FeatureGroup[] = [
       { name: 'llms.txt + llms-full.txt builder', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false },
       { name: 'AI sitemap (for LLM crawlers)', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false },
       { name: 'Persona Chat (competitor simulation)', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false },
+      { name: 'Closed loop: lost query → content → QA → re-measure', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false, hint: 'Cloudflare\'s AEO / agent-readiness dashboard measures whether AI can reach your site but produces no content and never re-measures; RanksUp closes access (AXO), visibility and production in one loop.' },
     ],
   },
   {

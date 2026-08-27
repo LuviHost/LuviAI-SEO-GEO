@@ -367,6 +367,9 @@ function AnalyticsEmptyState({
             Performans verisini görmek için önce Google Search Console'u bağla.
             Bağlandıktan ~24 saat sonra ilk veri görünür.
           </p>
+          <p className="text-xs text-muted-foreground mb-6 max-w-md mx-auto">
+            Search Console AI cevaplarında nerede görünmediğini ve tıklamayı nerede kaybettiğini söyleyemez; onu RanksUp doğrudan ölçer. GSC burada Google'daki gerçek tıklamayı — tahmini değil — markalı/markasız ayrımıyla gösterir.
+          </p>
           <div className="flex justify-center">
             <Button onClick={connectGsc} disabled={connecting} size="lg" className="font-mono text-xs uppercase tracking-widest">
               <span aria-hidden className="mr-2">🔍</span>

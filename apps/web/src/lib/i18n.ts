@@ -227,6 +227,8 @@ const dictionary = {
     'land.faq.a5': 'Evet, %100 senin. RanksUp ürettiği makale, görsel ve metin için telif iddia etmez. Sınırsız kullanabilirsin (planındaki kota dahilinde).',
     'land.faq.q6': 'İstediğim zaman iptal edebilir miyim?',
     'land.faq.a6': 'Evet. Tek tıkla iptal, ay sonuna kadar kullanmaya devam edersin. İade politikası: ilk 7 gün içinde koşulsuz para iadesi.',
+    'land.faq.q7': 'AI asistanlar aramaya markaları kendileri mi ekliyor?',
+    'land.faq.a7': 'Evet. Ölçümlerde ChatGPT, kullanıcı yazmadan da arama sorgusuna marka adları ekliyor — kimin aranacağı sorgu daha yazılmadan belirleniyor. Bu yüzden RanksUp markanızın adının geçtiği soruları skordan ayırır (o tanınırlık) ve adınızın geçmediği sorularda anılıp anılmadığınızı ölçer (o görünürlük).',
 
     // ─── Landing — Stats ────────────────────────────────────────
     'land.stats.setup': 'Ortalama kurulum',
@@ -245,6 +247,7 @@ const dictionary = {
     'land.sol.c1.b2': 'AI Citation Tracker',
     'land.sol.c1.b3': 'Otomatik makale üretimi',
     'land.sol.c1.b4': 'Çoklu yayın hedefi',
+    'land.sol.c1.b5': 'Atıf satın alınamaz: reklam AI cevabına sokmuyor, içerik sokuyor',
     'land.sol.c2.tag': 'ASO + APPLE SEARCH ADS',
     'land.sol.c2.title': "App Store'da 1. sıraya",
     'land.sol.c2.body': 'Mobil uygulamandaki rakip analizi, keyword sıralaması, Apple Search Ads kampanya yönetimi. Auto-Pilot, düşük performansı pause edip yenisini ekler.',
@@ -601,6 +604,8 @@ const dictionary = {
     'land.faq.a5': 'Yes, 100% yours. RanksUp claims no copyright on the articles, images and text it generates. Unlimited use (within your plan quota).',
     'land.faq.q6': 'Can I cancel anytime?',
     'land.faq.a6': 'Yes. One-click cancel, continue using until end of billing period. Refund policy: full refund within first 7 days, no questions asked.',
+    'land.faq.q7': 'Do AI assistants add brands to the search themselves?',
+    'land.faq.a7': 'Yes. In our measurements ChatGPT injects brand names into its search query even when the user never typed them — who gets looked up is decided before the query exists. That is why RanksUp keeps questions that already contain your brand out of the score (that is recognition) and measures whether you are mentioned in questions that do not (that is visibility).',
 
     // ─── Landing — Stats ────────────────────────────────────────
     'land.stats.setup': 'Avg. setup time',
@@ -619,6 +624,7 @@ const dictionary = {
     'land.sol.c1.b2': 'AI Citation Tracker',
     'land.sol.c1.b3': 'Automated article generation',
     'land.sol.c1.b4': 'Multi-channel publishing',
+    'land.sol.c1.b5': 'Citations can\'t be bought: ads don\'t get you into AI answers, content does',
     'land.sol.c2.tag': 'ASO + APPLE SEARCH ADS',
     'land.sol.c2.title': 'Get to #1 on App Store',
     'land.sol.c2.body': 'Competitor analysis, keyword ranking, Apple Search Ads campaign management for your mobile app. Auto-Pilot pauses low performers and adds new ones.',

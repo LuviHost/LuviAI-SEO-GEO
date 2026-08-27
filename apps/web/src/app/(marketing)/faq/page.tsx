@@ -40,6 +40,10 @@ const FAQS_TR = [
     a: 'Tüm credentials (FTP/SFTP/WP/cPanel passwords, GSC OAuth tokens) AES-256-GCM ile şifrelenir. KVKK uyumlu. Hesabınızı silerseniz veriler 30 gün saklanır, sonra geri dönüşsüz silinir.',
   },
   {
+    q: 'AB Yapay Zekâ Yasası (AI Act) RanksUp içeriğini etkiler mi?',
+    a: 'AI Act Madde 50, üretken AI çıktılarının makine-okunur biçimde işaretlenmesini şart koşuyor; yükümlülük öncelikle model sağlayıcılarında (Anthropic, Google, OpenAI). AB\'ye içerik yayınlayan müşteriler için RanksUp: makalelerde AI katkısını gizlemez, yazar/editör bilgisini şemada tutar (Person + author) ve sağlayıcıların işaretleme uygulamalarını istihbarat defterinde izler. Türkiye\'ye yayın için ek yükümlülük yok; bir zorunluluk doğduğunda ürün güncellenir, sizin bir şey yapmanız gerekmez.',
+  },
+  {
     q: 'AI hangi modeli kullanıyor?',
     a: 'Default: Claude Sonnet 4.6 (yazar + editör). Kalite öncelikli müşteriler için Opus 4.7 opt-in. Görsel: Gemini 2.5 Flash Image. Tüm modeller maliyet/kalite dengesi için seçildi.',
   },
@@ -61,11 +65,11 @@ const FAQS_TR = [
   },
   {
     q: 'AI Citation testi tam olarak ne ölçüyor?',
-    a: 'Site brain\'inizdeki AEO/GEO sorgularını her gün 04:00 UTC\'de Claude · Gemini · ChatGPT · Perplexity\'e sorar. Cevapta site URL\'iniz alıntılanırsa 100, sadece marka adı geçerse 50, hiç geçmezse 0 puan. Trend grafiği 7/30/90/365 gün. %30+ düşüş tespit edilirse otomatik email gelir.',
+    a: 'Site brain\'inizdeki AEO/GEO sorgularını 7 AI asistanına sorar: ChatGPT · Claude · Gemini · Perplexity · Grok · DeepSeek · Meta. Ölçümü siz tetiklersiniz ("Yeniden Test"); her test kalıcı kaydedilir, iki testi yan yana karşılaştırabilirsiniz. Marka adınızın geçtiği sorular skora girmez (o tanınırlık, görünürlük değil). Cevapta site URL\'iniz alıntılanırsa 100, sadece marka adı geçerse 50, hiç geçmezse 0 puan; manşet 7 günlük ortalama. %30+ düşüş tespit edilirse otomatik email gelir.',
   },
   {
     q: 'GEO Score nedir, nasıl hesaplanır?',
-    a: '6 pillar üzerinden ağırlıklı ortalama: (1) Crawler Erişimi — robots.txt + llms.txt + llms-full.txt + sitemap (Perplexity, ChatGPT browse, Claude.ai gibi non-Google AI motorları için faydalı; Google AI Overviews\'da resmi olarak gerekli değil ama klasik teknik SEO altyapısı olarak puanlanır), (2) Yapısal Veri — schema kapsama + Speakable + FAQPage (rich result + non-Google AI için), (3) AI Citation — 4 sağlayıcı son 7 gün ortalama (gerçek AI cevaplarında alıntılanma — en kritik pillar), (4) Otorite — sameAs + competitive landscape + sosyal kanal + GSC (Google\'ın E-E-A-T sinyali), (5) Tazelik — son 7/30 gün yayın, (6) Multi-Modal — TTS audio + podcast + hero görseller. Sonuç: A+ → F harf notu.',
+    a: '6 pillar üzerinden ağırlıklı ortalama: (1) Crawler Erişimi — robots.txt + llms.txt + llms-full.txt + sitemap (Perplexity, ChatGPT browse, Claude.ai gibi non-Google AI motorları için faydalı; Google AI Overviews\'da resmi olarak gerekli değil ama klasik teknik SEO altyapısı olarak puanlanır), (2) Yapısal Veri — schema kapsama + Speakable + FAQPage (rich result + non-Google AI için), (3) AI Citation — 7 sağlayıcı son 7 gün ortalama (gerçek AI cevaplarında alıntılanma — en kritik pillar), (4) Otorite — sameAs + competitive landscape + sosyal kanal + GSC (Google\'ın E-E-A-T sinyali), (5) Tazelik — son 7/30 gün yayın, (6) Multi-Modal — TTS audio + podcast + hero görseller. Sonuç: A+ → F harf notu.',
   },
   {
     q: 'Otopilot tam olarak ne yapıyor?',
@@ -119,6 +123,10 @@ const FAQS_EN = [
     a: 'All credentials (FTP/SFTP/WP/cPanel passwords, GSC OAuth tokens) are AES-256-GCM encrypted. GDPR/KVKK compliant. If you delete your account, data is retained 30 days then permanently deleted.',
   },
   {
+    q: 'Does the EU AI Act affect content made with RanksUp?',
+    a: 'Article 50 of the AI Act requires generative-AI output to be marked in a machine-readable way; the obligation sits primarily with model providers (Anthropic, Google, OpenAI). For customers publishing into the EU, RanksUp does not hide AI involvement, keeps author/editor information in schema (Person + author) and tracks providers\' marking practices in its intelligence ledger. No extra obligation for Turkish publishing; if one arises the product is updated — nothing for you to do.',
+  },
+  {
     q: 'Which AI model do you use?',
     a: 'Default: Claude Sonnet 4.6 (writer + editor). Quality-first customers can opt in to Opus 4.7. Images: Gemini 2.5 Flash Image. All models chosen for cost/quality balance.',
   },
@@ -140,11 +148,11 @@ const FAQS_EN = [
   },
   {
     q: 'What exactly does the AI Citation test measure?',
-    a: 'It asks your site brain\'s AEO/GEO queries to Claude · Gemini · ChatGPT · Perplexity every day at 04:00 UTC. If your site URL is cited, 100 points; brand name only, 50; not at all, 0. Trend chart 7/30/90/365 days. A 30%+ drop triggers an automatic email alert.',
+    a: 'It asks your site brain\'s AEO/GEO queries to 7 AI assistants: ChatGPT · Claude · Gemini · Perplexity · Grok · DeepSeek · Meta. You trigger the measurement ("Re-test"); every run is stored permanently and any two runs can be compared side by side. Questions that already contain your brand are excluded from the score (that is recognition, not visibility). URL cited = 100, brand name only = 50, absent = 0; the headline is a 7-day rolling average. A 30%+ drop triggers an automatic email alert.',
   },
   {
     q: 'What is GEO Score, how is it calculated?',
-    a: 'Weighted average across 6 pillars: (1) Crawler Access — robots.txt + llms.txt + llms-full.txt + sitemap (helpful for non-Google AI engines like Perplexity, ChatGPT browse, Claude.ai; not officially required by Google AI Overviews but scored as classic technical SEO foundation), (2) Structured Data — schema coverage + Speakable + FAQPage (for rich results + non-Google AI), (3) AI Citation — 4-provider 7-day average (citation in real AI answers — the most critical pillar), (4) Authority — sameAs + competitive landscape + social channels + GSC (Google\'s E-E-A-T signal), (5) Freshness — last 7/30-day publishing, (6) Multi-Modal — TTS audio + podcast + hero images. Result: A+ → F letter grade.',
+    a: 'Weighted average across 6 pillars: (1) Crawler Access — robots.txt + llms.txt + llms-full.txt + sitemap (helpful for non-Google AI engines like Perplexity, ChatGPT browse, Claude.ai; not officially required by Google AI Overviews but scored as classic technical SEO foundation), (2) Structured Data — schema coverage + Speakable + FAQPage (for rich results + non-Google AI), (3) AI Citation — 7-provider 7-day average (citation in real AI answers — the most critical pillar), (4) Authority — sameAs + competitive landscape + social channels + GSC (Google\'s E-E-A-T signal), (5) Freshness — last 7/30-day publishing, (6) Multi-Modal — TTS audio + podcast + hero images. Result: A+ → F letter grade.',
   },
   {
     q: 'What exactly does Autopilot do?',

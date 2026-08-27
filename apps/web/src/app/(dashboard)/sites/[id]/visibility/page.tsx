@@ -65,7 +65,7 @@ export default function VisibilityPage() {
         </div>
         <div>
           <h2 className="text-2xl font-bold">AI Görünürlük</h2>
-          <p className="text-sm text-muted-foreground">Claude · Gemini · ChatGPT · Perplexity · Grok · DeepSeek'te marka takibi · sentiment · share of voice · rakip analizi.</p>
+          <p className="text-sm text-muted-foreground">Claude · Gemini · ChatGPT · Perplexity · Grok · DeepSeek · Meta'da marka takibi · sentiment · share of voice · rakip analizi.</p>
         </div>
       </div>
 

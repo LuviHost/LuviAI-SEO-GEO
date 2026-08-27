@@ -101,6 +101,9 @@ function AiSearchConsoleTab({ siteId }: { siteId: string }) {
       <p className="text-xs text-muted-foreground">
         Bu sayfa <strong>AI cevap kutucuklarından gelen kullanıcı trafiği</strong>nı gösterir. ChatGPT/Perplexity/Claude'da sitenizin URL'i alıntılandığında, kullanıcı linke tıkladıkça referer header'ı yakalanır. <strong>Bot trafiği değil — gerçek satın alma niyetli ziyaretçi.</strong>
       </p>
+      <p className="text-[11px] text-muted-foreground">
+        Bağlam: sektör genelinde AI asistanlarından gelen ziyaret çoğu site için toplam trafiğin %1'inin altında — burada hacim değil niyet önemli (bu ziyaretçi soruyu sormuş, cevabı okumuş, sonra tıklamış). Ayrıca ChatGPT trafiğinin büyük bölümü analitikte sorgu bilgisi olmadan "Direct/Referral" görünür; bu sayfa <strong>ölçülebilen alt küme</strong>dir, tamamı değil.
+      </p>
 
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="inline-flex border rounded-md overflow-hidden">
@@ -113,7 +116,7 @@ function AiSearchConsoleTab({ siteId }: { siteId: string }) {
 
       {data.totalHits === 0 ? (
         <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
-          Henüz AI referrer trafiği yok. Tracker.js sitenize embed edildikten sonra (Bot Tracker sekmesi) kullanıcılar AI'dan tıklayınca buradan görürsün.
+          Henüz AI referrer trafiği yok. Tracker.js sitenize embed edildikten sonra (Bot Tracker sekmesi) kullanıcılar AI'dan tıklayınca buradan görürsün. Sıfır olması normaldir: sektörde AI referral çoğu site için %1'in altında; önce atıf (kaynak olmak) gelir, tıklama sonra.
         </div>
       ) : (
         <div className="space-y-2">

@@ -103,7 +103,7 @@ export default function ProductRadarPage() {
           <CardContent className="p-10 text-center space-y-3">
             <Radar className="h-10 w-10 mx-auto text-muted-foreground/40" />
             <p className="text-sm text-muted-foreground">
-              Henüz tarama yok. "Şimdi Tara" ile 4 AI sağlayıcıya kategori sorgularını sor — haftalık otomatik tekrar eder.
+              Henüz tarama yok. "Şimdi Tara" ile AI sağlayıcılarına kategori sorgularını sor — haftalık otomatik tekrar eder.
             </p>
           </CardContent>
         </Card>

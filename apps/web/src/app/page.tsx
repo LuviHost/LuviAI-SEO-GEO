@@ -345,7 +345,7 @@ export default function LandingPage() {
               tag={t('land.sol.c1.tag')}
               title={t('land.sol.c1.title')}
               body={t('land.sol.c1.body')}
-              bullets={[t('land.sol.c1.b1'), t('land.sol.c1.b2'), t('land.sol.c1.b3'), t('land.sol.c1.b4')]}
+              bullets={[t('land.sol.c1.b1'), t('land.sol.c1.b2'), t('land.sol.c1.b3'), t('land.sol.c1.b4'), t('land.sol.c1.b5')]}
             />
             <FeatureCard
               icon={Smartphone}
@@ -1254,5 +1254,6 @@ function getFaqs(t: (k: string) => string): Array<{ q: string; a: string }> {
     { q: t('land.faq.q4'), a: t('land.faq.a4') },
     { q: t('land.faq.q5'), a: t('land.faq.a5') },
     { q: t('land.faq.q6'), a: t('land.faq.a6') },
+    { q: t('land.faq.q7'), a: t('land.faq.a7') },
   ];
 }
