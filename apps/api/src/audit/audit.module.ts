@@ -21,6 +21,7 @@ import { CrawlerAnalyticsService } from './crawler-analytics.service.js';
 import { CrawlerTrackingMiddleware } from './crawler-tracking.middleware.js';
 import { TrackerController } from './tracker.controller.js';
 import { AiMentionAlarmService } from './ai-mention-alarm.service.js';
+import { CrawlerErrorAlarmService } from './crawler-error-alarm.service.js';
 import { GeoScoreCardService } from './geo-score-card.service.js';
 import { SchemaValidatorService } from './schema-validator.service.js';
 import { AiSitemapService } from './ai-sitemap.service.js';
@@ -108,6 +109,7 @@ import { AuditCron } from './audit.cron.js';
     ProductRadarService,
     CommunityAgentService,
     LiveCrawlerService,
+    CrawlerErrorAlarmService,
   ],
   exports: [
     AppliedFixService,
@@ -149,6 +151,7 @@ import { AuditCron } from './audit.cron.js';
     ProductRadarService,
     CommunityAgentService,
     LiveCrawlerService,
+    CrawlerErrorAlarmService,
   ],
 })
 export class AuditModule {}

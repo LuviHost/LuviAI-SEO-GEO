@@ -10,7 +10,8 @@ export type NotifyEvent =
   | 'cite_fetch'            // ChatGPT-User canli sayfa cekti — cevapta kullanildin
   | 'autopilot_summary'
   | 'stuck_page_detected'
-  | 'stuck_page_recovered';
+  | 'stuck_page_recovered'
+  | 'crawler_error_spike';  // bir bot 4xx/5xx alirken digerleri 2xx — bot-ozel engel
 
 export interface NotifyPayload {
   siteId: string;
@@ -91,12 +92,13 @@ export class WebhookNotifierService {
       crawler_first_visit: '🤖',
       ai_referrer_first: '🎯',
       autopilot_summary: 'ℹ',
+      crawler_error_spike: '⚠️',
     } as any)[p.event] ?? 'ℹ';
 
     return {
       text: `${emoji} *${p.title}*\n${p.message}${p.url ? `\n<${p.url}|Detay →>` : ''}`,
       attachments: [{
-        color: p.event === 'ai_citation_drop' ? 'danger' : p.event === 'ai_citation_rise' ? 'good' : '#6c5ce7',
+        color: p.event === 'ai_citation_drop' ? 'danger' : p.event === 'crawler_error_spike' ? 'warning' : p.event === 'ai_citation_rise' ? 'good' : '#6c5ce7',
         fields: [
           { title: 'Site', value: p.siteName, short: true },
           { title: 'Event', value: p.event, short: true },
@@ -110,6 +112,7 @@ export class WebhookNotifierService {
       ai_citation_drop: 0xef4444,
       ai_citation_rise: 0x22c55e,
       article_published: 0x6c5ce7,
+      crawler_error_spike: 0xf59e0b,
     } as any)[p.event] ?? 0x6c5ce7;
 
     return {

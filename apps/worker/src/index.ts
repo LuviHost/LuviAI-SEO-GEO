@@ -31,6 +31,7 @@ import { AiCitationTrackerService } from '../../api/dist/audit/ai-citation-track
 import { AiIndexingPingerService } from '../../api/dist/audit/ai-indexing-pinger.service.js';
 import { ContentPivotService } from '../../api/dist/articles/content-pivot.service.js';
 import { AiMentionAlarmService } from '../../api/dist/audit/ai-mention-alarm.service.js';
+import { CrawlerErrorAlarmService } from '../../api/dist/audit/crawler-error-alarm.service.js';
 import { CampaignOrchestratorService } from '../../api/dist/ads/campaign-orchestrator.service.js';
 import { PerformanceSyncService } from '../../api/dist/ads/performance-sync.service.js';
 import { AbTestManagerService } from '../../api/dist/ads/ab-test-manager.service.js';
@@ -69,6 +70,7 @@ async function bootstrap() {
     indexingPinger: app.get(AiIndexingPingerService),
     contentPivot: app.get(ContentPivotService),
     aiAlarm: app.get(AiMentionAlarmService),
+    crawlerAlarm: app.get(CrawlerErrorAlarmService),
     adsOrchestrator: app.get(CampaignOrchestratorService),
     adsPerformance: app.get(PerformanceSyncService),
     adsAbTest: app.get(AbTestManagerService),
@@ -414,6 +416,14 @@ async function bootstrap() {
     },
 
     /**
+     * CRAWLER_ERROR_ALARM — 6 saatte bir: bir bot 4xx/5xx alirken digerleri
+     * 2xx aliyorsa (bot-ozel engel) bildirim. IRS.gov vakasi (Ağu 2026).
+     */
+    CRAWLER_ERROR_ALARM: async () => {
+      return services.crawlerAlarm.scanAndAlert();
+    },
+
+    /**
      * ADS_AUTOPILOT — 6 saat'te bir aktif kampanyalari ROAS'a gore optimize.
      */
     ADS_AUTOPILOT: async () => {
@@ -666,7 +676,19 @@ async function bootstrap() {
       },
     );
 
-    log.log('⏰ Cron: PROCESS_SCHEDULED 30dk · LLMS_FULL_BUILD haftalik · AI_CITATION_DAILY gunluk · CONTENT_PIVOT_CHECK haftalik · AI_MENTION_ALARM gunluk · ADS_AUTOPILOT 6saat · STUCK_PAGE_DETECT_ALL haftalik');
+    // 8) CRAWLER_ERROR_ALARM — her 6 saat (AiCrawlerHit 4xx/5xx sayaclari zaten toplaniyordu, okunmuyordu)
+    await queue.add(
+      'CRAWLER_ERROR_ALARM',
+      { trigger: 'cron' },
+      {
+        repeat: { every: 6 * 60 * 60 * 1000 },
+        jobId: 'cron:crawler-error-alarm',
+        removeOnComplete: { count: 30 },
+        removeOnFail: { count: 20 },
+      },
+    );
+
+    log.log(`⏰ Cron: PROCESS_SCHEDULED 30dk · LLMS_FULL_BUILD haftalik · AI_CITATION_DAILY ${isCitationDailyDisabled() ? 'KAPALI (musteri tetikli)' : 'gunluk'} · CONTENT_PIVOT_CHECK haftalik · AI_MENTION_ALARM gunluk · CRAWLER_ERROR_ALARM 6saat · ADS_AUTOPILOT 6saat · STUCK_PAGE_DETECT_ALL haftalik`);
   } catch (err: any) {
     log.warn(`Cron kurulumu basarisiz: ${err.message}`);
   }
