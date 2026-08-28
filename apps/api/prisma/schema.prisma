@@ -2902,3 +2902,60 @@ model AppliedFix {
   @@index([siteId, status, appliedAt])
   @@map("applied_fixes")
 }
+
+// ─── LinkedIn outreach (Faz 8 botu) ──────────────────────────────────────────
+//
+// Kurumsal kampanyanin paralel kanali: kisisel kurucu hesabindan sikı frenli
+// baglanti istegi + kisa mesaj (intel/linkedin-outreach.service.ts). Kisi
+// basina TEK satir; profileUrl tekil anahtar (ayni kisi iki kez eklenmez).
+// Servis duraklatma durumu bu tabloda DEGIL, KvStore'da
+// ('linkedin-outreach:paused' → neden) — kayit bazli degil, servis bazli.
+//
+// KVKK: isimli veri; yalnizca is amacli (unvan bazli) ve panel admin-only.
+
+enum LinkedinProspectStatus {
+  QUEUED // sirada; henuz dokunulmadi
+  REQUESTED // baglanti istegi gonderildi (notla)
+  ACCEPTED // 1. derece oldu (kabul) — mesaj sirada
+  MESSAGED // kabul sonrasi mesaj gonderildi
+  REPLIED // cevap geldi — insan devralir, bot bir daha yazmaz
+  SKIPPED // elle atlandi / ret istedi
+  FAILED // son islem hata verdi (lastError)
+}
+
+model LinkedinProspect {
+  id    String @id @default(cuid())
+  ad    String @db.VarChar(80)
+  soyad String @db.VarChar(80)
+  firma String @db.VarChar(160)
+  unvan String? @db.VarChar(160)
+  /// finans | eticaret-perakende-teknoloji | turizm-havayolu-telekom-otomotiv (sablon secimi)
+  sektor String? @db.VarChar(64)
+  /// 1 karar verici / 2 etkileyici (kisiler.csv ile ayni)
+  kademe Int @default(1)
+  /// Normalize: https://www.linkedin.com/in/<slug>/
+  profileUrl String @unique @db.VarChar(255)
+
+  status LinkedinProspectStatus @default(QUEUED)
+
+  /// Gonderilen baglanti notu (<=300 karakter) — kanit
+  noteText String? @db.Text
+  /// Gonderilen mesaj — kanit
+  messageText String? @db.Text
+
+  requestedAt DateTime?
+  acceptedAt  DateTime?
+  messagedAt  DateTime?
+  repliedAt   DateTime?
+
+  lastError String? @db.Text
+  /// Son adimin ekran goruntusu (data/linkedin/<id>-<adim>.png)
+  screenshotPath String? @db.VarChar(255)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([requestedAt])
+  @@map("linkedin_prospects")
+}

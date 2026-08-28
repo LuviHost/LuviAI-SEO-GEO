@@ -166,6 +166,9 @@ node scripts/x-oturum-aktar.mjs
 Ortam değişkenleriyle hedef değiştirilebilir: `OPENCLAW_HOST`,
 `OPENCLAW_PROFILE`, `CHROME_PROFILE`.
 
+Genel biçim `node scripts/oturum-aktar.mjs --site x|linkedin`; `x-oturum-aktar.mjs`
+bunun `--site x` sarmalayıcısıdır. LinkedIn için §11.
+
 ## 9. RanksUp'ı bağla
 
 RanksUp API root olarak koşuyor, OpenClaw ise `openclaw` kullanıcısında.
@@ -339,3 +342,121 @@ tarayıcısında** açar, gönderileri ve içlerindeki linkleri toplar,
 
 > **Risk notu:** otomasyonla okumak X koşullarına aykırıdır; günde tek sayfa
 > yüklemesi arama taramasından çok daha düşük hacimdir ama hesap askıya alınabilir.
+
+---
+
+## 11. LinkedIn oturumu ve outreach botu
+
+Kurumsal kampanyanın (Faz 8) paralel kanalı: **kişisel kurucu hesabından**
+sıkı frenli bağlantı isteği + kısa mesaj. Aynı OpenClaw tarayıcısı, aynı
+yönetilen profil (`openclaw`), **LLM yok** — yalnızca `openclaw browser
+snapshot / click / type / press / screenshot`. Servis
+`apps/api/src/intel/linkedin-outreach.service.ts`, seçiciler
+`linkedin-selectors.ts`, worker işi `LINKEDIN_OUTREACH_TICK`.
+
+> **Risk notu (kabul edildi):** otomasyon LinkedIn kullanım koşullarına
+> aykırıdır; hesap **kısıtlanabilir veya kapatılabilir**. Bot kişisel hesapla
+> çalışır, parola hiçbir yerde tutulmaz. LinkedIn DM'si de "ticari elektronik
+> ileti" sayılabilir — İYS/KVKK rejimi e-posta listesiyle aynıdır; ret gelince
+> kişi `SKIPPED` olur ve bir daha yazılmaz.
+
+### 11.1 Çerezleri Mac'ten aktar
+
+Sunucuda LinkedIn'e giriş **yapılmaz** (X ile aynı gerekçe: datacenter IP →
+doğrulama duvarı). Mac'te Chrome'da LinkedIn oturumu açıkken, repo kökünden:
+
+```bash
+OPENCLAW_HOST=luvi108 node scripts/oturum-aktar.mjs --site linkedin
+```
+
+- `OPENCLAW_HOST` SSH hedefi (alias ya da `root@IP`; verilmezse
+  `root@87.76.142.108`). `OPENCLAW_PROFILE`, `CHROME_PROFILE` X'teki gibi.
+- macOS Keychain izin penceresi çıkar → **Allow**.
+- Zorunlu çerezler **`li_at`** (oturum) ve **`JSESSIONID`** (CSRF; değeri
+  `"ajax:…"` **çift tırnaklı** gelir, bu normaldir, olduğu gibi yazılır).
+  İsteğe bağlı `bcookie`, `lidc` varsa yazılır, yoksa hata değildir.
+- Değerler ekrana basılmaz, diske yazılmaz; yalnızca SSH üzerinden
+  `openclaw browser cookies set … --url https://www.linkedin.com` ile profile girer.
+- Doğrulama: script `https://www.linkedin.com/feed/` açar, snapshot'ta giriş
+  duvarı (`Sign in | Oturum aç | Join now | Hemen katıl | Giriş yap`) arar.
+  "BAŞARILI … LinkedIn akışı geliyor" görmeden bota geçmeyin.
+- `scripts/x-oturum-aktar.mjs` artık ince sarmalayıcıdır (`--site x`); eski
+  komut aynen çalışır.
+
+Oturum ~aylık düşer; bot giriş duvarı görünce kendini duraklatır → bu adımı
+tekrarlayıp panelden **Devam** deyin.
+
+### 11.2 Bayrak ve zamanlama
+
+```
+OPENCLAW_LINKEDIN_OUTREACH_ENABLED=1   # varsayılan KAPALI; OPENCLAW_ENABLED'dan bağımsız
+OPENCLAW_BIN=…                         # aynı köprü (X ile ortak)
+```
+
+Worker `LINKEDIN_OUTREACH_TICK` işini 30 dakikada bir kuyruğa koyar; servis her tick'i %25 olasılıkla
+atlar (ritim 30–60 dk, tahmin edilemez). Servis yalnız **hafta içi 09:00–18:00 (TR)** penceresinde işlem yapar,
+pencere dışında tick "yapılacak yok" diye döner. Bayrak kapalıyken tick hiç
+tarayıcı açmaz.
+
+### 11.3 Frenler (kod sabiti; env ile yalnız aşağı çekilebilir)
+
+| Fren | Değer |
+| --- | --- |
+| Günlük bağlantı isteği | ≤ 20 |
+| Günlük mesaj | ≤ 15 |
+| Haftalık istek | ≤ 80 |
+| Tick başına işlem | ≤ 3; işlemler arası 2–6 dk rastgele |
+| Profilde "okuma" | her istekten önce 8–20 sn + rastgele kaydırma |
+| Aynı firmadan | günde ≤ 2 kişi |
+| Otomatik duraklama | ardışık 3 hata; "limit" / "doğrulama" / captcha / giriş duvarı; 7 günlük kabul oranı < %15 |
+
+Duraklama bildirim üretir (`notifications` SYSTEM + webhook); sebep panelde
+**Durum** kartında görünür.
+
+### 11.4 Panel — `/admin/linkedin`
+
+- **Sayaçlar:** bugün istek/mesaj, hafta istek (limitle birlikte "kaç kaldı"),
+  kuyruk, 7 günlük kabul oranı, durum (Çalışıyor / Duraklatıldı + neden).
+- **Düğmeler:** *Duraklat* (neden sorar) / *Devam*, *Kuru tick*, *Gerçek tick*
+  (onay ister; duraklatılmışken kapalı).
+- **CSV içe aktar:** textarea'ya yapıştır — sütunlar
+  `ad,soyad,firma,unvan,sektor,kademe,profileUrl` (başlık isteğe bağlı; virgül,
+  noktalı virgül veya sekme). `profileUrl` tekil anahtardır: aynı URL
+  güncellenir, kopya oluşmaz. Toplu üretim için
+  `apps/api/scripts/prospect/05-linkedin-import.ts`.
+- **Son 50 kayıt:** kişi, firma/ünvan, sektör·kademe, durum rozeti
+  (`QUEUED → REQUESTED → ACCEPTED → MESSAGED → REPLIED`, ayrıca `SKIPPED`,
+  `FAILED`, `PAUSED`), tarihler, son hata, ekran görüntüsü dosya adı, **Atla**.
+- Uçlar (tamamı admin): `GET /intel/linkedin/overview`,
+  `POST /intel/linkedin/import | pause | resume | tick`,
+  `POST /intel/linkedin/prospects/:id/skip`.
+
+### 11.5 Kuru mod — önce bununla başlayın
+
+*Kuru tick* (`{ dryRun: true }`) profili açar, dereceyi okur, "Bağlantı kur →
+Not ekle" alanını doldurur, **Gönder'e basmaz**, her adımda ekran görüntüsü
+alır (`data/linkedin/<id>-<adım>.png`) ve kaydı değiştirmez. Önerilen sıra:
+
+1. Oturum aktarımı (11.1) → BAŞARILI.
+2. 5 kişilik CSV → **Kuru tick** → ekran görüntülerinde doğru alanların
+   dolduğunu kontrol edin (TR/EN etiketler `linkedin-selectors.ts`).
+3. 3 kişiyle **Gerçek tick**; kabul geldikçe mesaj adımı `/admin/linkedin`'de izlenir.
+4. Ancak sonra worker bayrağını açın.
+
+### 11.6 Duraklat / devam
+
+- **Elle:** panelden *Duraklat* (neden yazılır) — worker tick atsa da işlem
+  yapmaz. *Devam* ile açılır.
+- **Otomatik:** 11.3'teki tetikleyicilerden biri → `PAUSED` + bildirim.
+  Nedeni okuyun; oturum düştüyse 11.1, kabul oranı düştüyse not/mesaj metnini
+  (`reklam/pazarlama/kurumsal-mail-sablonlari.md` LinkedIn kısaltmaları)
+  gözden geçirin; sonra *Devam*.
+- **Cevap gelince** bot o kişiye bir daha yazmaz (`REPLIED`); yanıtı insan
+  verir. Ret isteyen → panelden *Atla*.
+
+| Belirti | Bakılacak yer |
+| --- | --- |
+| Snapshot'ta "Sign in / Oturum aç" | Çerezler düşmüş → 11.1'i tekrarla |
+| `li_at bulunamadi` | Mac'te Chrome'da LinkedIn oturumu açık mı, doğru `CHROME_PROFILE` mi |
+| Tick hep "yapılacak yok" | Hafta içi 09–18 TR dışı, kuyruk boş, günlük limit dolu ya da bayrak kapalı |
+| Bot sürekli `PAUSED` | Durum kartındaki neden; "limit" ise bir gün bekleyin, captcha ise Mac'te elle çözüp çerezleri yeniden aktarın |

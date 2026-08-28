@@ -44,11 +44,14 @@ import { StuckPageRecoveryService } from '../../api/dist/audit/stuck-page-recove
 import { StuckPagePerformanceCheckService } from '../../api/dist/audit/stuck-page-performance-check.service.js';
 import { StuckPageExternalRecoveryService } from '../../api/dist/audit/stuck-page-external-recovery.service.js';
 import { JobQueueService } from '../../api/dist/jobs/job-queue.service.js';
+import { LinkedinOutreachService } from '../../api/dist/intel/linkedin-outreach.service.js';
 
 const log = new Logger('Worker');
 
 /** Gunluk otomatik AI olcumu kapali mi (musteri tetikli mod) */
 const isCitationDailyDisabled = () => process.env.AI_CITATION_DAILY_CRON === 'false';
+/** LinkedIn outreach botu (Faz 8) — varsayilan KAPALI; yalniz bayrak 1 iken tekrar isi kurulur */
+const isLinkedinOutreachEnabled = () => process.env.OPENCLAW_LINKEDIN_OUTREACH_ENABLED === '1';
 
 async function bootstrap() {
   // NestJS application context — HTTP listen yok, sadece DI
@@ -84,6 +87,7 @@ async function bootstrap() {
     stuckPerfCheck: app.get(StuckPagePerformanceCheckService),
     stuckExternal: app.get(StuckPageExternalRecoveryService),
     jobs: app.get(JobQueueService),
+    linkedin: app.get(LinkedinOutreachService),
   };
 
   log.log('🔧 Worker DI hazır, BullMQ bağlanıyor');
@@ -424,6 +428,17 @@ async function bootstrap() {
     },
 
     /**
+     * LINKEDIN_OUTREACH_TICK — 30 dk'da bir: LinkedIn botu bir tur (en fazla 3
+     * islem; hafta ici 09-18 TR disinda "yapilacak yok" doner). Servis kendi
+     * bayragini da kontrol eder; duraklatilmissa dokunmaz. `jitter:true`:
+     * servis tick'lerin %25'ini rastgele atlar — NEDEN: cron sabit 30 dk,
+     * hedef 20-40 dk rastgele ritim (kalip olusmasin).
+     */
+    LINKEDIN_OUTREACH_TICK: async () => {
+      return services.linkedin.tick({ dryRun: false, jitter: true });
+    },
+
+    /**
      * ADS_AUTOPILOT — 6 saat'te bir aktif kampanyalari ROAS'a gore optimize.
      */
     ADS_AUTOPILOT: async () => {
@@ -688,7 +703,26 @@ async function bootstrap() {
       },
     );
 
-    log.log(`⏰ Cron: PROCESS_SCHEDULED 30dk · LLMS_FULL_BUILD haftalik · AI_CITATION_DAILY ${isCitationDailyDisabled() ? 'KAPALI (musteri tetikli)' : 'gunluk'} · CONTENT_PIVOT_CHECK haftalik · AI_MENTION_ALARM gunluk · CRAWLER_ERROR_ALARM 6saat · ADS_AUTOPILOT 6saat · STUCK_PAGE_DETECT_ALL haftalik`);
+    // 9) LINKEDIN_OUTREACH_TICK — her 30 dk, YALNIZ OPENCLAW_LINKEDIN_OUTREACH_ENABLED=1.
+    //    Bayrak kapaliyken Redis'teki tekrar isi de SILINIR (AI_CITATION_DAILY kalibi):
+    //    yoksa eski zamanlama worker yeniden baslasa da kosar, bot istemeden calisirdi.
+    if (!isLinkedinOutreachEnabled()) {
+      await queue.removeRepeatable('LINKEDIN_OUTREACH_TICK', { every: 30 * 60 * 1000 }, 'cron:linkedin-outreach-tick').catch(() => undefined);
+      log.warn('LINKEDIN_OUTREACH_TICK kayit edilmedi ve varsa tekrar isi silindi (OPENCLAW_LINKEDIN_OUTREACH_ENABLED!=1)');
+    } else {
+      await queue.add(
+        'LINKEDIN_OUTREACH_TICK',
+        { trigger: 'cron' },
+        {
+          repeat: { every: 30 * 60 * 1000 },
+          jobId: 'cron:linkedin-outreach-tick',
+          removeOnComplete: { count: 50 },
+          removeOnFail: { count: 20 },
+        },
+      );
+    }
+
+    log.log(`⏰ Cron: PROCESS_SCHEDULED 30dk · LLMS_FULL_BUILD haftalik · AI_CITATION_DAILY ${isCitationDailyDisabled() ? 'KAPALI (musteri tetikli)' : 'gunluk'} · CONTENT_PIVOT_CHECK haftalik · AI_MENTION_ALARM gunluk · CRAWLER_ERROR_ALARM 6saat · ADS_AUTOPILOT 6saat · STUCK_PAGE_DETECT_ALL haftalik · LINKEDIN_OUTREACH_TICK ${isLinkedinOutreachEnabled() ? '30dk' : 'KAPALI'}`);
   } catch (err: any) {
     log.warn(`Cron kurulumu basarisiz: ${err.message}`);
   }

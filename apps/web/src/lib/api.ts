@@ -160,6 +160,83 @@ export interface RaporKaydi {
   generatedAt: string;
 }
 
+// ──────────────────────────────────────────────────────────
+//  Intel -> LinkedIn outreach (admin) — /api/intel/linkedin/*
+// ──────────────────────────────────────────────────────────
+
+export type LinkedinProspectStatus =
+  | 'QUEUED' | 'REQUESTED' | 'ACCEPTED' | 'MESSAGED'
+  | 'REPLIED' | 'SKIPPED' | 'FAILED';
+
+export interface LinkedinProspect {
+  id: string;
+  ad: string;
+  soyad: string;
+  firma: string;
+  unvan: string | null;
+  profileUrl: string;
+  sektor: string | null;
+  /** 1 = karar verici, 2 = etkileyici */
+  kademe: number | null;
+  status: LinkedinProspectStatus;
+  noteText?: string | null;
+  messageText?: string | null;
+  requestedAt?: string | null;
+  acceptedAt?: string | null;
+  messagedAt?: string | null;
+  repliedAt?: string | null;
+  lastError?: string | null;
+  screenshotPath?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface LinkedinOverview {
+  /** OPENCLAW_LINKEDIN_OUTREACH_ENABLED=1 mi — kapaliysa tick "Kapali" doner */
+  enabled?: boolean;
+  paused: boolean;
+  pauseReason?: string | null;
+  /** Su an hafta ici 09-18 Europe/Istanbul penceresinde miyiz */
+  workWindow?: boolean;
+  today: { requests: number; messages: number };
+  week: { requests: number };
+  queued: number;
+  /** ORAN (0-1): olgunlasmis isteklerde (72 sa - 14 gun) kabul / istek; 20 istek altinda null */
+  acceptRate7d: number | null;
+  acceptRateWindow?: string;
+  acceptRateBase?: { requests: number; accepted: number; minRequests: number };
+  byStatus?: Partial<Record<LinkedinProspectStatus, number>>;
+  /** Arka uctaki etkin frenler (env ile yalniz asagi cekilmis olabilir) */
+  limits?: Record<string, number>;
+  recent: LinkedinProspect[];
+}
+
+export interface LinkedinImportRow {
+  ad: string;
+  soyad: string;
+  firma: string;
+  unvan?: string;
+  sektor?: string;
+  kademe?: number;
+  profileUrl: string;
+}
+
+export interface LinkedinTickAction {
+  type: string;
+  prospectId?: string;
+  ok: boolean;
+  note?: string;
+}
+
+export interface LinkedinTickResult {
+  actions: LinkedinTickAction[];
+  paused?: boolean;
+  /** Gercek tick arka planda baslatildi (senkron sonuc yok); kuru tick senkron doner */
+  started?: boolean;
+  dryRun?: boolean;
+  reason?: string;
+}
+
 export const api = {
   // Generic raw request (custom endpoints icin)
   request: <T = any>(path: string, options?: RequestInit) => request<T>(path, options),
@@ -971,6 +1048,32 @@ export const api = {
     request<any[]>(`/admin/settings/audit?limit=${limit}`),
   getAdminSettingAudit: (key: string) =>
     request<any[]>(`/admin/settings/${encodeURIComponent(key)}/audit`),
+
+  // Intel -> LinkedIn outreach (admin). Uclar apps/api/src/intel altinda;
+  // tick'i normalde worker atar, buradaki tick elle tetikleme icindir.
+  getLinkedinOverview: () => request<LinkedinOverview>('/intel/linkedin/overview'),
+  importLinkedinProspects: (rows: LinkedinImportRow[]) =>
+    request<{ upserted: number }>('/intel/linkedin/import', {
+      method: 'POST',
+      body: JSON.stringify({ rows }),
+    }),
+  pauseLinkedin: (reason?: string) =>
+    request<{ ok?: boolean; paused?: boolean; pauseReason?: string | null }>('/intel/linkedin/pause', {
+      method: 'POST',
+      body: JSON.stringify(reason ? { reason } : {}),
+    }),
+  resumeLinkedin: () =>
+    request<{ ok?: boolean; paused?: boolean }>('/intel/linkedin/resume', { method: 'POST' }),
+  tickLinkedin: (opts: { dryRun: boolean; force?: boolean }) =>
+    request<LinkedinTickResult>('/intel/linkedin/tick', {
+      method: 'POST',
+      body: JSON.stringify({ dryRun: opts.dryRun, force: opts.force === true }),
+    }),
+  skipLinkedinProspect: (id: string) =>
+    request<{ ok?: boolean; status?: LinkedinProspectStatus }>(
+      `/intel/linkedin/prospects/${encodeURIComponent(id)}/skip`,
+      { method: 'POST' },
+    ),
 
   // Me (login olmuş kullanıcı)
   getMe: () => request<any>('/me'),
