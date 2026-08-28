@@ -473,11 +473,31 @@ export function adCikar(baslik: string, ekYasak: string[] = []): { ad: string; s
 
 // ─── Ag ─────────────────────────────────────────────────────────────────────
 
-/** Her istekten sonra insan hizina yakin bekleme (kaynak sunucusuna saygi) */
+/** Gecici sayilan hatalar: baglanti kopmasi, zaman asimi, 5xx, 429 (KAP burst'te 429 doner) */
+const GECICI_HATA_RE = /fetch failed|abort|ECONNRESET|ETIMEDOUT|EAI_AGAIN|ECONNREFUSED|socket hang up|HTTP (5\d\d|429|408)\b/i;
+
+/**
+ * Her istekten sonra insan hizina yakin bekleme (kaynak sunucusuna saygi).
+ * NEDEN geri cekilme: KAP ~20 ardisik istekten sonra 429 / baglanti reddi veriyor
+ * (29.08 canli: 455 firmanin 353'u "fetch failed"). 429'da 60-120 sn, diger gecici
+ * hatada 5-10 sn bekleyip en fazla 2 kez daha denenir; sonra hata firmaya yazilir.
+ */
 async function get(url: string): Promise<string> {
-  const html = await fetchText(url, { timeoutMs: 25_000 });
-  await sleep(jitter(400, 1200));
-  return html;
+  let sonHata: unknown = null;
+  for (let deneme = 0; deneme < 3; deneme++) {
+    try {
+      const html = await fetchText(url, { timeoutMs: 25_000 });
+      await sleep(jitter(400, 1200));
+      return html;
+    } catch (e) {
+      sonHata = e;
+      const msg = (e as Error)?.message ?? '';
+      if (!GECICI_HATA_RE.test(msg) && !/abort/i.test((e as Error)?.name ?? '')) throw e;
+      if (deneme === 2) break;
+      await sleep(/429/.test(msg) ? jitter(60_000, 120_000) : jitter(5_000, 10_000));
+    }
+  }
+  throw sonHata;
 }
 
 /**
@@ -674,6 +694,8 @@ async function kapKaynak(firmalar: Firma[], ctx: Ctx): Promise<Kisi[]> {
       if (!permaLink) { kimlikYok++; continue; }
       kimlikli++;
       const url = `https://www.kap.org.tr/tr/sirket-bilgileri/genel/${permaLink}`;
+      // NEDEN ek bekleme: KAP burst'e 429 veriyor; firma basina 1,2-2,5 sn insan ritmi
+      await sleep(jitter(1200, 2500));
       const html = await get(url);
       const satirlar = kapPersonelParcala(html);
       const kapWeb = kapWebParcala(html);
@@ -690,6 +712,8 @@ async function kapKaynak(firmalar: Firma[], ctx: Ctx): Promise<Kisi[]> {
       }
     } catch (e) {
       hatalar.ekle(e);
+      // NEDEN: loglar isim/URL basmaz; hata ayiklamak icin PROSPECT_DEBUG=1 ile yalniz yigin izi (firma adi yok)
+      if (process.env.PROSPECT_DEBUG) console.error('[kap debug]', (e as Error)?.stack?.split('\n').slice(0, 4).join(' | '));
     }
   }
   if (hatalar.toplam) ctx.log(`kap UYARI: ${hatalar.toplam} firma hata ile atlandi (${hatalar.ozet()})`);
@@ -1064,9 +1088,40 @@ async function main(): Promise<void> {
   console.log(`  Eslesmeyen atama haberi: ${eslesmeyen.length}`);
 }
 
+/**
+ * --merge-file <csv>: baska bir kosumun (orn. sunucuda --only kap) kisiler ciktisini
+ * mevcut DATA_DIR/kisiler.csv ile birlestirir, tekillestirir, manuel listeyi yeniler.
+ * NEDEN: KAP'i Mac IP'si 429 ile kesiyor; KAP adimi sunucuda kosulup buraya eklenir.
+ */
+async function mergeFile(dosya: string): Promise<void> {
+  const hedef = path.join(DATA_DIR, 'kisiler.csv');
+  const okuKisi = (f: string): Kisi[] => readCsv(f).map((r) => ({
+    firma: r.firma ?? '', web: r.web ?? '', ad: r.ad ?? '', soyad: r.soyad ?? '', unvan: r.unvan ?? '',
+    kademe: (Number(r.kademe) === 2 ? 2 : 1) as Kisi['kademe'], kaynak: (r.kaynak ?? '') as Kisi['kaynak'], kaynakUrl: r.kaynakUrl ?? '',
+    kaynakTarihi: r.kaynakTarihi ?? '', guven: (r.guven as Kisi['guven']) || 'dusuk',
+  }));
+  const mevcut = okuKisi(hedef);
+  const gelen = okuKisi(path.resolve(dosya));
+  if (gelen.length === 0) { console.error(`merge: ${dosya} bos/yok`); process.exit(1); }
+  const birlesik = kisileriBirlestir([...gelen, ...mevcut]); // gelen once → ayni kisi icin yeni kayit kazanir
+  const kisiRows = birlesik.map((k) => ({ ...k, ad: titleCaseTr(k.ad), soyad: titleCaseTr(k.soyad) }));
+  writeCsv(hedef, kisiRows, KISI_COLUMNS);
+  // manuel liste: kisisi olmayan hedef-sektor firmalari (firmalar.csv gerekli)
+  const firmalar = firmalariOku(path.join(DATA_DIR, 'firmalar.csv'));
+  const kapsanan = new Set(birlesik.map((k) => firmaCekirdek(k.firma) || translit(k.firma)));
+  const manuel = firmalar
+    .filter((f) => f.sektor && f.sektor !== 'diger' && !kapsanan.has(firmaCekirdek(f.firma) || translit(f.firma)))
+    .map((f) => ({ firma: f.firma, web: f.web, sektor: f.sektor, linkedinAramaUrl: linkedinAramaUrl(f.firma) }));
+  writeCsv(path.join(DATA_DIR, 'manuel-liste.csv'), manuel, MANUEL_COLUMNS);
+  console.log(`merge: mevcut ${mevcut.length} + gelen ${gelen.length} → tekil ${birlesik.length}; manuel liste ${manuel.length}`);
+}
+
 // NEDEN: dosya dogrudan kosuldugunda main; import edilirse (test) yalniz saf fonksiyonlar
 const dogrudan = !!process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
-if (dogrudan) {
+const mergeArg = (() => { const i = process.argv.indexOf('--merge-file'); return i > 0 ? process.argv[i + 1] : null; })();
+if (dogrudan && mergeArg) {
+  mergeFile(mergeArg).catch((e) => { console.error(hataKodu(e)); process.exit(1); });
+} else if (dogrudan) {
   main().catch((e) => {
     console.error(hataKodu(e));
     process.exit(1);
