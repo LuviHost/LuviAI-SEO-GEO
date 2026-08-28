@@ -58,3 +58,11 @@ apps/api/public/screenshots/
 apps/api/public/social/
 apps/api/public/social-images/
 apps/api/public/studio-images/
+
+# App Store Connect API key (gizli — asla commitleme)
+*.p8
+AuthKey_*.p8
+
+# Kurumsal aday listesi — isimli kisi verisi (KVKK), asla commitleme
+reklam/pazarlama/prospect/data/
+apps/api/data/linkedin/

@@ -5,6 +5,7 @@
 - **Isınma:** 1. hafta günde 150, 2. hafta 300, sonra 500. Şikâyet %0,3 / bounce %3 üstüne çıkarsa dur.
 - **Liste hijyeni:** göndermeden önce doğrulama servisinden geçir (geçersiz adresler bounce = itibar kaybı). `info@`, `iletisim@`, `rezervasyon@` gibi kurumsal adresler; kişisel gmail'lere gönderme.
 - **Segment:** Oteller (rezervasyon + "yakınımda otel" AI soruları), Kuaför/güzellik (yerel hizmet, "en iyi kuaför X ilçesi"), KOBİ/hizmet (muhasebe, hukuk, klinik). **Bankaları çıkar.**
+  - Not (28.08.2026): "Bankaları çıkar" yalnız bu KOBİ/self-servis hunisi içindir. Büyük kurumlar (banka, e-ticaret, havayolu, telekom, otomotiv) için ayrı kampanya: `kurumsal-mail-sablonlari.md` — karar verici hedefli, İYS/KVKK ön koşullu.
 - **Hukuk:** her mailde açık kimlik (ad, şirket, adres), tek tıkla ret linki (Jetmail unsubscribe), İYS kaydı. Şahıs işletmelerine ilk mailde satış değil "ücretsiz test sonucu" ver.
 - **Kanıt kuralı:** tek kaynaklı sayı (33×, %68,9, %34,5) kullanma. Müşteri adı (Kobipratik) yazılı onaysız geçmez.
 - **Uzunluk:** 90-130 kelime, düz metin görünümü, tek CTA, ek yok, görsel yok (ilk mailde).

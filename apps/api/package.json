@@ -8,6 +8,7 @@
     "build": "prisma generate && nest build",
     "start": "node dist/main.js",
     "lint": "eslint \"src/**/*.ts\"",
+    "typecheck:scripts": "tsc -p tsconfig.scripts.json",
     "test": "vitest"
   },
   "dependencies": {
