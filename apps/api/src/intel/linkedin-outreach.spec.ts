@@ -880,7 +880,7 @@ describe('isTargetTitle — ust yonetim/kurucu + pazarlama ailesi', () => {
   });
   it('hedef disi: CFO/CHRO/CISO/CLO, muhendislik yoneticisi, duz manager, IK, stajyer', async () => {
     const m = await import('./linkedin-outreach-rules.js');
-    for (const t of ['CFO', 'Chief Financial Officer', 'Chief Human Resources Officer', 'Chief People Officer', 'Chief Information Security Officer', 'Chief Legal Officer', 'Chief Risk Officer', 'Engineering Manager', 'Software Development Manager', 'Product Manager', 'Project Manager', 'Operations Director', 'Finans Direktörü', 'İnsan Kaynakları Müdürü', 'Marketing Intern', 'Senior Software Engineer', 'Head of IT', 'Chief Accountant', 'People & Culture Director', 'Business Intelligence Director', 'Chief Data Officer', '']) {
+    for (const t of ['CFO', 'Chief Financial Officer', 'Chief Human Resources Officer', 'Chief People Officer', 'Chief Information Security Officer', 'Chief Legal Officer', 'Chief Risk Officer', 'Engineering Manager', 'Software Development Manager', 'Product Manager', 'Project Manager', 'Operations Director', 'Finans Direktörü', 'İnsan Kaynakları Müdürü', 'Marketing Intern', 'Senior Software Engineer', 'Head of IT', 'Chief Accountant', 'People & Culture Director', 'Business Intelligence Director', 'Chief Data Officer', 'Kurucu Avukat', 'General Counsel', '']) {
       expect(m.isTargetTitle(t), t).toBe(false);
     }
   });
