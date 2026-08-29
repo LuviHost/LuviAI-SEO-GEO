@@ -26,6 +26,7 @@ import {
   extractRef,
   findRef,
   firmaKey,
+  headlineNamesOtherCompany,
   isAnonymousMember,
   isWorkWindow,
   istanbulDayStart,
@@ -671,9 +672,12 @@ export class LinkedinOutreachService {
         if (!isTargetTitle(unvan)) { elenen++; continue; }
         // NEDEN firma filtresi (yedek modda): anahtar kelime firmayi her yerde bulur ("Geçmiş: Papara …", yetenekler);
         // kart su anki firmayi gostermiyorsa aday degil. Facet modunda currentCompany zaten bunu garanti eder.
+        const cm = cardCompanyMatch(lines, firma, unvan);
         if (!facet) {
-          const cm = cardCompanyMatch(lines, firma, unvan);
           if (cm === 'past' || cm === 'none') { firmaDisi++; continue; }
+        } else if (cm === 'none' && headlineNamesOtherCompany(unvan, firma)) {
+          // Facet: kayit firmada ama baslik baska sirketteki asil rolu anlatiyor ("Co-Founder at Finfree Co")
+          firmaDisi++; continue;
         }
         hits.push({ ad: parts.slice(0, -1).join(' '), soyad: parts[parts.length - 1], unvan: unvan.slice(0, 160), profileUrl: u });
       }

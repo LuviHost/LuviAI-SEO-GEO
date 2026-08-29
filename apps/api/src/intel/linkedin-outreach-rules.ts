@@ -863,7 +863,7 @@ export function parseSearchResults(text: string | null | undefined): ResearchHit
  */
 const UST_YONETIM = /(\bceo\b|\bcto\b|\bcmo\b|\bcdo\b|\bcgo\b|\bcoo\b|\bcpo\b|\bcro\b|\bchief\b|co-?founder|founder|kurucu|genel müdür|genel mudur|\bgmy\b|managing director|general manager|country manager|başkan|baskan|president|\bvp\b|vice president|direktör|direktor|director|head of|\bhead\b|yönetim kurulu|yonetim kurulu|board member|icra kurulu|executive)/iu;
 const PAZARLAMA_POZITIF = /(pazarlama|marketing|marka|brand|dijital|digital|growth|büyüme|buyume|iletişim|iletisim|communications?|müşteri deneyimi|musteri deneyimi|customer experience|e-?ticaret|e-?commerce|performance|kampanya|campaign|crm|içerik|icerik|content|seo|sosyal medya|social media|reklam|advertis)/iu;
-const HEDEF_NEGATIF = /(engineer|mühendis|muhendis|developer|yazılım|yazilim|software|\bqa\b|\btest|data scien|veri bilim|devops|\bit\b|bilgi teknolojileri|security|güvenlik|guvenlik|financ|finans|muhasebe|account(?:ing|ant)|hukuk|legal|avukat|attorney|lawyer|counsel|\brisk\b|insan kaynakları|insan kaynaklari|human resources|chief people|people officer|people (?:&|and) culture|business intelligence|analytics|analitik|\bdata\b|\bveri\b|\bhr\b|recruit|işe alım|ise alim|operasyon|operations|lojistik|logistic|satın alma|satin alma|procurement|product designer|\bux\b|ui designer|intern\b|stajyer|öğrenci|ogrenci|student)/iu;
+const HEDEF_NEGATIF = /(engineer|mühendis|muhendis|developer|yazılım|yazilim|software|\bqa\b|\btest|data scien|veri bilim|devops|\bit\b|bilgi teknolojileri|security|güvenlik|guvenlik|financ|finans|muhasebe|account(?:ing|ant)|hukuk|legal|avukat|attorney|lawyer|counsel|\brisk\b|insan kaynakları|insan kaynaklari|human resources|chief people|people officer|people (?:&|and) culture|business intelligence|analytics|analitik|\bdata\b|\bveri\b|\bhr\b|recruit|işe alım|ise alim|operasyon|operations|lojistik|logistic|satın alma|satin alma|procurement|product designer|\bux\b|ui designer|intern\b|stajyer|öğrenci|ogrenci|student|assistant|asistan|secretary|sekreter|trainer|eğitmen|egitmen|\bcoach\b|\bkoç\b|\bkoc\b)/iu;
 
 /**
  * NEDEN: JS regex `i` bayragi U+0130 (İ) harfini "i"ye katlamaz — "İcra Kurulu", "İletişim"
@@ -1069,4 +1069,17 @@ export function currentTitleFromCard(lines: readonly string[]): string {
     return rest.slice(0, 160);
   }
   return '';
+}
+
+/**
+ * Baslik ACIKCA baska bir firmayi mi soyluyor? ("Co-Founder at Finfree Co", "CEO @ SuperMassive",
+ * "X şirketinde GM", "Y'de Direktör"). NEDEN: currentCompany facet'i kisinin firmada bir kaydi oldugunu
+ * garanti eder ama baslik baska sirketteki asil rolunu anlatiyorsa yanlis kisiye istek gider.
+ * Baslikta firma geciyorsa (cardCompanyMatch 'headline') baska firma sayilmaz.
+ */
+export function headlineNamesOtherCompany(unvan: string | null | undefined, firma: string): boolean {
+  const t = (unvan ?? '').trim();
+  if (!t) return false;
+  if (cardCompanyMatch([], firma, t) === 'headline') return false;
+  return /(\s+at\s+\S|\s*@\s*\S|\s+şirketinde\b|\s+sirketinde\b|\S['’](?:da|de|ta|te)\s+\S)/iu.test(t);
 }

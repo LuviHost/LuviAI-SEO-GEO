@@ -880,7 +880,7 @@ describe('isTargetTitle — ust yonetim/kurucu + pazarlama ailesi', () => {
   });
   it('hedef disi: CFO/CHRO/CISO/CLO, muhendislik yoneticisi, duz manager, IK, stajyer', async () => {
     const m = await import('./linkedin-outreach-rules.js');
-    for (const t of ['CFO', 'Chief Financial Officer', 'Chief Human Resources Officer', 'Chief People Officer', 'Chief Information Security Officer', 'Chief Legal Officer', 'Chief Risk Officer', 'Engineering Manager', 'Software Development Manager', 'Product Manager', 'Project Manager', 'Operations Director', 'Finans Direktörü', 'İnsan Kaynakları Müdürü', 'Marketing Intern', 'Senior Software Engineer', 'Head of IT', 'Chief Accountant', 'People & Culture Director', 'Business Intelligence Director', 'Chief Data Officer', 'Kurucu Avukat', 'General Counsel', '']) {
+    for (const t of ['CFO', 'Chief Financial Officer', 'Chief Human Resources Officer', 'Chief People Officer', 'Chief Information Security Officer', 'Chief Legal Officer', 'Chief Risk Officer', 'Engineering Manager', 'Software Development Manager', 'Product Manager', 'Project Manager', 'Operations Director', 'Finans Direktörü', 'İnsan Kaynakları Müdürü', 'Marketing Intern', 'Senior Software Engineer', 'Head of IT', 'Chief Accountant', 'People & Culture Director', 'Business Intelligence Director', 'Chief Data Officer', 'Kurucu Avukat', 'General Counsel', 'Executive Assistant to CEO', 'CEO Asistanı', 'Co-Founder & Trainer', 'Growth Coach', '']) {
       expect(m.isTargetTitle(t), t).toBe(false);
     }
   });
@@ -895,5 +895,21 @@ describe('currentTitleFromCard — "Mevcut:" satirindan pozisyon unvani', () => 
     expect(m.currentTitleFromCard(['Mevcut: Papara şirketinde Software Engineering Manager - …their professional growth while'])).toBe('Software Engineering Manager');
     expect(m.currentTitleFromCard(['Ayşe Demir', '• 2.', 'Pazarlama Müdürü', 'Geçmiş: X şirketinde Y'])).toBe('');
     expect(m.currentTitleFromCard([])).toBe('');
+  });
+});
+
+describe('headlineNamesOtherCompany — facet modunda baska firma basligi', () => {
+  it('"at X" / "@ X" / "X şirketinde" / "X\'da" baska firma → true; firma basligin icindeyse false', async () => {
+    const m = await import('./linkedin-outreach-rules.js');
+    expect(m.headlineNamesOtherCompany('Co-Founder at Finfree Co', 'Papara')).toBe(true);
+    expect(m.headlineNamesOtherCompany('CEO @ SuperMassive', 'Papara')).toBe(true);
+    expect(m.headlineNamesOtherCompany('Acme şirketinde Genel Müdür', 'Papara')).toBe(true);
+    expect(m.headlineNamesOtherCompany("Acme'de Pazarlama Direktörü", 'Papara')).toBe(true);
+    expect(m.headlineNamesOtherCompany('CEO at Papara', 'Papara')).toBe(false);
+    expect(m.headlineNamesOtherCompany('Head of Product @ Papara | Products People Love', 'Papara')).toBe(false);
+    expect(m.headlineNamesOtherCompany("Papara'da Marka Müdürü", 'Papara')).toBe(false);
+    expect(m.headlineNamesOtherCompany('CTO', 'Papara')).toBe(false);
+    expect(m.headlineNamesOtherCompany('SuperMassive CEO (Esports Investment)', 'Papara')).toBe(false);
+    expect(m.headlineNamesOtherCompany('', 'Papara')).toBe(false);
   });
 });
