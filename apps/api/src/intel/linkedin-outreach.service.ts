@@ -949,8 +949,15 @@ export class LinkedinOutreachService {
   private browser<T = any>(args: string[]): Promise<T | null> {
     const bin = process.env.OPENCLAW_BIN ?? 'openclaw';
     const full = ['browser', ...args, '--json', '--timeout', String(DEFAULT_TIMEOUT_MS)];
-    if (process.env.OPENCLAW_GATEWAY_URL) full.push('--url', process.env.OPENCLAW_GATEWAY_URL);
-    if (process.env.OPENCLAW_TOKEN) full.push('--token', process.env.OPENCLAW_TOKEN);
+    // NEDEN LinkedIn'e ozel gateway: VPS IP'sini LinkedIn dakikalar icinde 429/redirect ile kesiyor
+    // (29.08.2026). Tarayici konut IP'sindeki bir makinede (SSH ters tunel) kosar; X kurasyonu
+    // sunucudaki profili kullanmaya devam eder.
+    const url = process.env.OPENCLAW_LINKEDIN_GATEWAY_URL || process.env.OPENCLAW_GATEWAY_URL;
+    const token = process.env.OPENCLAW_LINKEDIN_TOKEN || process.env.OPENCLAW_TOKEN;
+    const profile = process.env.OPENCLAW_LINKEDIN_BROWSER_PROFILE;
+    if (url) full.push('--url', url);
+    if (token) full.push('--token', token);
+    if (profile) full.push('--browser-profile', profile);
     return new Promise((resolve, reject) => {
       let stdout = '';
       let stderr = '';
