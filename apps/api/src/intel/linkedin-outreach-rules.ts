@@ -1052,3 +1052,22 @@ export function urlMatchesTarget(current: string | null | undefined, target: str
     return false;
   }
 }
+
+/**
+ * Karttaki "Mevcut: <firma> şirketinde <unvan>" / "Current: <unvan> at <firma>" satirindan gercek
+ * pozisyon unvani. NEDEN: baslik serbest metindir ("Growth", "Fintech & Banking"); kademe ve hedef
+ * filtresi icin pozisyon unvani daha guvenilir. Satir yoksa ''.
+ */
+export function currentTitleFromCard(lines: readonly string[]): string {
+  for (const raw of lines) {
+    const m = /^(mevcut|current)\s*:\s*(.+)$/iu.exec(raw.trim());
+    if (!m) continue;
+    const rest = m[2].trim();
+    const tr = /^(.+?)\s+(?:şirketinde|sirketinde|'da|'de|’da|’de)\s+(.+)$/iu.exec(rest);
+    if (tr) return tr[2].replace(/\s*[-–—]\s*[.…].*$/u, '').trim().slice(0, 160);
+    const en = /^(.+?)\s+at\s+(.+)$/iu.exec(rest);
+    if (en) return en[1].trim().slice(0, 160);
+    return rest.slice(0, 160);
+  }
+  return '';
+}

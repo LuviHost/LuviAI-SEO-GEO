@@ -880,3 +880,15 @@ describe('isTargetTitle — ust yonetim/kurucu + pazarlama ailesi', () => {
     }
   });
 });
+
+describe('currentTitleFromCard — "Mevcut:" satirindan pozisyon unvani', () => {
+  it('TR "X şirketinde Y", EN "Y at X"; yoksa bos', async () => {
+    const m = await import('./linkedin-outreach-rules.js');
+    expect(m.currentTitleFromCard(['Türker Karakaş', '• 2.', 'Growth', 'Beşiktaş, İstanbul, Türkiye', 'Takip Et', 'Mevcut: Papara şirketinde Director of Growth'])).toBe('Director of Growth');
+    expect(m.researchKademe(m.currentTitleFromCard(['Mevcut: Papara şirketinde Director of Growth']))).toBe(1);
+    expect(m.currentTitleFromCard(['Current: Marketing Manager at Getir'])).toBe('Marketing Manager');
+    expect(m.currentTitleFromCard(['Mevcut: Papara şirketinde Software Engineering Manager - …their professional growth while'])).toBe('Software Engineering Manager');
+    expect(m.currentTitleFromCard(['Ayşe Demir', '• 2.', 'Pazarlama Müdürü', 'Geçmiş: X şirketinde Y'])).toBe('');
+    expect(m.currentTitleFromCard([])).toBe('');
+  });
+});

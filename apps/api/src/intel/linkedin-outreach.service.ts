@@ -18,6 +18,7 @@ import {
   acceptRateWindow,
   cardCompanyMatch,
   companySearchUrl,
+  currentTitleFromCard,
   cutAtSidebar,
   delayBetweenActionsMs,
   detectBlock,
@@ -148,16 +149,29 @@ const CONVERSATIONS_FN = `() => {
 }`;
 /** Arama sonucu: profil linkleri + kart metni (ad/unvan cikarimi TS tarafinda) */
 const SEARCH_LINKS_FN = `() => {
-  const out = [];
+  // NEDEN bu yol: yeni LinkedIn arayuzunde (30.08.2026) kart <li> degil; profil baglantisi kartin tum metnini
+  // sariyor ("Ad Soyad\\n• 2.\\nCTO\\n…"). Kart = yalniz BU profilin baglantilarini iceren en ust ata
+  // (ortak baglanti linkleri baska profil → orada durur). Ad = ilk satir, derece isareti temizlenir.
+  const norm = (h) => { try { const u = new URL(h, location.href); const m = /^\\/in\\/([^/?#]+)/.exec(u.pathname); return m ? 'https://www.linkedin.com/in/' + m[1] : null; } catch { return null; } };
+  const byProfile = new Map();
   for (const a of document.querySelectorAll('a[href*="/in/"]')) {
-    const text = (a.innerText || '').replace(/\\s+/g, ' ').trim().slice(0, 200);
-    const card = a.closest('li') || a.parentElement;
-    // NEDEN satir dizisi: unvan, konum ve "Mevcut:" ayri satirlardadir; tek satira indirgenince unvan secilemiyordu
-    const lines = ((card && card.innerText) || '').split('\\n').map((l) => l.trim()).filter(Boolean).slice(0, 14);
-    out.push({ href: a.href.split('?')[0], text, card: lines.join(' ').slice(0, 400), lines });
-    if (out.length >= 120) break;
+    const u = norm(a.href);
+    if (!u) continue;
+    let card = a, el = a.parentElement, depth = 0;
+    while (el && depth < 10) {
+      const others = [...el.querySelectorAll('a[href*="/in/"]')].map((x) => norm(x.href)).filter((x) => x && x !== u);
+      if (others.length) break;
+      card = el; el = el.parentElement; depth++;
+    }
+    const lines = (card.innerText || '').split('\\n').map((l) => l.trim()).filter(Boolean).slice(0, 16);
+    const prev = byProfile.get(u);
+    if (!prev || lines.length > prev.lines.length) byProfile.set(u, { href: u, lines });
+    if (byProfile.size >= 120) break;
   }
-  return out;
+  return [...byProfile.values()].filter((c) => c.lines.length >= 2).map((c) => {
+    const text = (c.lines[0] || '').replace(/\\s*[•·]\\s*[123]\\.?\\+?.*$/u, '').replace(/\\s+\\b(1st|2nd|3rd)\\b.*$/u, '').trim();
+    return { href: c.href, text, card: c.lines.join(' ').slice(0, 400), lines: c.lines };
+  });
 }`;
 
 /** Sirket arama sayfasi: /company/ baglantilari (slug secimi rules.pickCompanySlug) */
@@ -647,7 +661,9 @@ export class LinkedinOutreachService {
         if (!/^[\p{Lu}][\p{L}.'-]+(?:\s+[\p{Lu}][\p{L}.'-]+)+$/u.test(name)) continue;
         const parts = name.split(/\s+/);
         const lines = l.lines ?? l.card.split(/\s{2,}|·/);
-        const unvan = pickTitleFromCard(lines, name);
+        // NEDEN: "Mevcut: Papara şirketinde Director of Growth" satiri gercek pozisyon unvanidir; baslik
+        // ("Growth") kisa/serbest olabilir → kademe icin Mevcut unvani tercih edilir
+        const unvan = currentTitleFromCard(lines) || pickTitleFromCard(lines, name);
         seen.add(u);
         // NEDEN filtre: arama muhendis/QA/IK dahil herkesi getirir; yalniz hedef unvanlar (C-level/kurucu/pazarlama)
         if (!isTargetTitle(unvan)) { elenen++; continue; }
