@@ -178,6 +178,12 @@ export interface TickOptions {
   force?: boolean;
   /** %25 rastgele atlama; varsayilan: gercek tick'te acik, kuru tick'te kapali. Panelden elle tick false verir. */
   jitter?: boolean;
+  /**
+   * Yalniz arastirma: plan research adimlariyla sinirlanir (istek/mesaj YOK) ve calisma
+   * penceresi kontrolu atlanir. NEDEN: kuyruk doldurma gonderim degildir; hafta sonu
+   * kuyrugu hazirlayip pazartesi 09:00'da gondermeye baslamak icin.
+   */
+  researchOnly?: boolean;
 }
 
 export interface ImportRow {
@@ -246,7 +252,7 @@ export class LinkedinOutreachService {
 
     const limits = resolveLimits();
     const bypassWindow = dryRun && opts.force === true;
-    if (!bypassWindow && !isWorkWindow(new Date(), limits)) {
+    if (!bypassWindow && !isWorkWindow(new Date(), limits) && !opts.researchOnly) {
       return { actions: [], reason: `Çalışma penceresi dışı (hafta içi 09-18 Europe/Istanbul)${dryRun ? ' — kuru tick için force:true' : ''}` };
     }
     if (!(await this.acquireLock())) return { actions: [], reason: 'Başka bir tick çalışıyor' };
@@ -260,7 +266,8 @@ export class LinkedinOutreachService {
       }
 
       const queue = await this.buildQueue(opts.research);
-      const plan = planTick(counters, queue, limits);
+      let plan = planTick(counters, queue, limits);
+      if (opts.researchOnly) plan = plan.filter((a) => a.type === 'research'); // yalniz arastirma: istek/mesaj yok
       if (plan.length === 0) return { actions: [], reason: 'Yapılacak iş yok' };
       this.log.log(`LinkedIn tick${dryRun ? ' (kuru)' : ''}: ${plan.map((p) => p.type).join(', ')}`);
 

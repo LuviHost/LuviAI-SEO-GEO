@@ -14,6 +14,7 @@
  *   node dist/cli/linkedin-tick.js --dry-run --force --research "Papara,Getir"   # arastirma + kuru profil acma
  *   node dist/cli/linkedin-tick.js --dry-run --force                             # kuyruktakilere kuru tick
  *   node dist/cli/linkedin-tick.js --overview                                    # sayaclar + son kayitlar (isim yok)
+ *   node dist/cli/linkedin-tick.js --research-only --research "Papara,Getir"   # kuyrugu doldur (yazar), istek/mesaj YOK, pencere disi da calisir
  *   node dist/cli/linkedin-tick.js --real --yes                                  # GERCEK tick (gonderir!) — onay bayragi sart
  *
  * Cikti: islem listesi (type/ok/note) + ekran goruntusu yollari. Isim basilmaz.
@@ -25,8 +26,9 @@ import { LinkedinOutreachService } from '../intel/linkedin-outreach.service.js';
 import { parseArgs } from '../prospect/prospect-utils.js';
 
 const args = parseArgs(process.argv.slice(2));
-const DRY = args.real !== true;
-if (!DRY && args.yes !== true) {
+const RESEARCH_ONLY = args['research-only'] === true;
+const DRY = args.real !== true && !RESEARCH_ONLY;
+if (!DRY && !RESEARCH_ONLY && args.yes !== true) {
   console.error('GERCEK tick icin --real --yes gerekli (LinkedIn\'de gercekten istek/mesaj gonderir).');
   process.exit(2);
 }
@@ -46,8 +48,8 @@ async function main() {
       return;
     }
     const research = typeof args.research === 'string' ? String(args.research).split(',').map((s) => s.trim()).filter(Boolean) : undefined;
-    log.log(`tick: ${DRY ? 'KURU (gonderim yok)' : 'GERCEK'} · force=${args.force === true} · research=${research?.length ?? 0} firma`);
-    const r: any = await svc.tick({ dryRun: DRY, force: args.force === true, research, jitter: false } as any);
+    log.log(`tick: ${DRY ? 'KURU (gonderim yok)' : RESEARCH_ONLY ? 'YALNIZ ARASTIRMA (kuyruga yazar, gonderim yok)' : 'GERCEK'} · force=${args.force === true} · research=${research?.length ?? 0} firma`);
+    const r: any = await svc.tick({ dryRun: DRY, force: args.force === true, research, jitter: false, researchOnly: RESEARCH_ONLY } as any);
     const actions = (r.actions ?? []).map((a: any) => ({ type: a.type, ok: a.ok, note: a.note ?? '', prospectId: a.prospectId ?? '' }));
     console.log(JSON.stringify({ paused: r.paused ?? false, reason: r.reason ?? '', actions }, null, 2));
   } finally {
