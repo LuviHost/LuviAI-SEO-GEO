@@ -6,19 +6,23 @@
  * ACILMADAN yapilmali; bayrak acilirsa worker 30 dk'da bir GERCEK tick atar.
  * Bu script bayragi yalniz kendi surecinde acar, servisi dogrudan cagirir.
  *
- * Kullanim (sunucuda, apps/api icinde):
- *   npx tsx scripts/linkedin-tick.ts --dry-run --force --research "Papara,Getir"   # arastirma + kuru profil acma
- *   npx tsx scripts/linkedin-tick.ts --dry-run --force                             # kuyruktakilere kuru tick
- *   npx tsx scripts/linkedin-tick.ts --overview                                    # sayaclar + son kayitlar (isim yok)
- *   npx tsx scripts/linkedin-tick.ts --real --yes                                  # GERCEK tick (gonderir!) — onay bayragi sart
+ * NEDEN src/cli altinda: Nest DI decorator metadata ister; tsx/esbuild bunu uretmez
+ * (createApplicationContext'te prisma undefined kalir). nest build ile derlenip
+ * `node dist/cli/linkedin-tick.js` olarak kosulur.
+ *
+ * Kullanim (sunucuda, apps/api icinde, once `pnpm build`):
+ *   node dist/cli/linkedin-tick.js --dry-run --force --research "Papara,Getir"   # arastirma + kuru profil acma
+ *   node dist/cli/linkedin-tick.js --dry-run --force                             # kuyruktakilere kuru tick
+ *   node dist/cli/linkedin-tick.js --overview                                    # sayaclar + son kayitlar (isim yok)
+ *   node dist/cli/linkedin-tick.js --real --yes                                  # GERCEK tick (gonderir!) — onay bayragi sart
  *
  * Cikti: islem listesi (type/ok/note) + ekran goruntusu yollari. Isim basilmaz.
  */
 import { NestFactory } from '@nestjs/core';
 import { Logger } from '@nestjs/common';
-import { AppModule } from '../src/app.module.js';
-import { LinkedinOutreachService } from '../src/intel/linkedin-outreach.service.js';
-import { parseArgs } from '../src/prospect/prospect-utils.js';
+import { AppModule } from '../app.module.js';
+import { LinkedinOutreachService } from '../intel/linkedin-outreach.service.js';
+import { parseArgs } from '../prospect/prospect-utils.js';
 
 const args = parseArgs(process.argv.slice(2));
 const DRY = args.real !== true;
