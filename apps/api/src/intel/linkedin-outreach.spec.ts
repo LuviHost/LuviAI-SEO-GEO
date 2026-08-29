@@ -768,16 +768,58 @@ describe('pickTitleFromCard — DOM kart satirlarindan unvan', () => {
 });
 
 describe('arastirma — arama URL\'si ve firma eslesmesi', () => {
-  it('researchSearchUrl: anahtar kelime firma, unvan filtresi pazarlama terimleri (OR)', async () => {
+  it('researchSearchUrl: sirket kimligi varsa currentCompany facet + kisa sorgu; yoksa "<firma> AND (…)" yedegi', async () => {
     const m = await import('./linkedin-outreach-rules.js');
-    const u = new URL(m.researchSearchUrl(' Papara '));
-    expect(u.pathname).toBe('/search/results/people/');
-    expect(u.searchParams.get('keywords')).toBe('Papara');
-    expect(u.searchParams.get('title')).toContain('CEO OR CTO');
-    expect(u.searchParams.get('title')).toContain('Founder OR Kurucu');
-    expect(u.searchParams.get('title')).toContain('Pazarlama OR Marketing');
-    // Eski kalip ("Papara Pazarlama" anahtar kelimesi) artik yok
-    expect(u.searchParams.get('keywords')).not.toContain('Pazarlama');
+    const f = new URL(m.researchSearchUrl(' Papara ', '10232743'));
+    expect(f.pathname).toBe('/search/results/people/');
+    expect(f.searchParams.get('currentCompany')).toBe('["10232743"]');
+    expect(f.searchParams.get('keywords')).toBe('CEO OR CTO OR CMO OR Founder OR Kurucu');
+    expect(f.searchParams.get('keywords')!.split(' OR ').length).toBeLessThanOrEqual(6); // uzun OR → "Sonuç bulunamadı"
+    const urls = m.researchSearchUrls('Papara', '10232743');
+    expect(urls).toHaveLength(m.RESEARCH_KEYWORD_QUERIES.length);
+    expect(new URL(urls[1]).searchParams.get('keywords')).toContain('Pazarlama');
+    const y = new URL(m.researchSearchUrl('Papara', null));
+    expect(y.searchParams.get('currentCompany')).toBeNull();
+    expect(y.searchParams.get('keywords')).toBe('Papara AND (CEO OR Founder OR Director OR Marketing OR Pazarlama)');
+    expect(m.researchSearchUrls('Papara', null)).toHaveLength(1);
+    // Yutulan parametreler kullanilmiyor
+    for (const u of [f, y]) { expect(u.searchParams.get('title')).toBeNull(); expect(u.searchParams.get('titleFreeText')).toBeNull(); }
+  });
+
+  it('pickCompanySlug: birebir ad once; "Acquired by X" / "X Menkul" sonra; hicbiri yoksa ilk; encode cozulur', async () => {
+    const m = await import('./linkedin-outreach-rules.js');
+    const links = [
+      { href: 'https://www.linkedin.com/company/finfreeapp/', text: 'Finfree (Acquired by Papara)\n\nFinansal Hizmetler' },
+      { href: 'https://www.linkedin.com/company/papara-menkul-de%C4%9Ferler/', text: 'Papara Menkul Değerler\n\nFinansal Hizmetler' },
+      { href: 'https://www.linkedin.com/company/papara/', text: 'Papara \n\nFinansal Hizmetler\n\nIstanbul' },
+      { href: 'https://www.linkedin.com/company/papara/', text: 'Papara' },
+    ];
+    expect(m.pickCompanySlug(links, 'Papara')).toBe('papara');
+    expect(m.pickCompanySlug(links.slice(0, 2), 'Papara')).toBe('papara-menkul-değerler'); // "papara menkul…" ile baslayan
+    expect(m.pickCompanySlug(links.slice(0, 1), 'Papara')).toBe('finfreeapp'); // iceren
+    expect(m.pickCompanySlug([{ href: 'https://www.linkedin.com/company/x/', text: 'X' }], 'Papara')).toBe('x'); // ilk
+    expect(m.pickCompanySlug([], 'Papara')).toBeNull();
+    expect(m.pickCompanySlug(links, '')).toBeNull();
+    expect(m.pickCompanySlug([{ href: 'https://www.linkedin.com/company/turk-hava-yollari/', text: 'Türk Hava Yolları A.Ş.' }], 'Türk Hava Yolları')).toBe('turk-hava-yollari');
+  });
+
+  it('pickCompanyId: network= icermeyen "Çalışanları gör" baglantisi once; encode cozulur', async () => {
+    const m = await import('./linkedin-outreach-rules.js');
+    const hs = [
+      'http://www.linkedin.com/search/results/people/?origin=COMPANY_PAGE_CANNED_SEARCH&network=%5B%22F%22%5D&currentCompany=%5B%2220323326%22%5D',
+      'https://www.linkedin.com/search/results/people/?currentCompany=%5B%2210232743%22%5D&origin=COMPANY_PAGE_CANNED_SEARCH',
+    ];
+    expect(m.pickCompanyId(hs)).toBe('10232743');
+    expect(m.pickCompanyId(hs.slice(0, 1))).toBe('20323326');
+    expect(m.pickCompanyId(['https://www.linkedin.com/company/papara/people/'])).toBeNull();
+    expect(m.pickCompanyId([])).toBeNull();
+  });
+
+  it('isAnonymousMember: "LinkedIn Üyesi"/"LinkedIn Member" aday degil', async () => {
+    const m = await import('./linkedin-outreach-rules.js');
+    expect(m.isAnonymousMember('LinkedIn Üyesi')).toBe(true);
+    expect(m.isAnonymousMember('LinkedIn Member')).toBe(true);
+    expect(m.isAnonymousMember('Ayşe Demir')).toBe(false);
   });
 
   it('cardCompanyMatch: Mevcut/Current → current; yalniz Geçmiş → past; baslikta firma → headline; hicbiri → none', async () => {
@@ -799,8 +841,11 @@ describe('arastirma — arama URL\'si ve firma eslesmesi', () => {
     const m = await import('./linkedin-outreach-rules.js');
     const target = m.researchSearchUrl('Papara');
     expect(m.urlMatchesTarget(target, target)).toBe(true);
-    expect(m.urlMatchesTarget(target.replace('origin=FACETED_SEARCH', 'origin=GLOBAL_SEARCH_HEADER') + '&sid=abc', target)).toBe(true);
+    expect(m.urlMatchesTarget(target.replace('origin=GLOBAL_SEARCH_HEADER', 'origin=FACETED_SEARCH') + '&sid=abc', target)).toBe(true);
     expect(m.urlMatchesTarget(m.researchSearchUrl('Getir'), target)).toBe(false);
+    // Facet URL: LinkedIn parametre sirasini degistirir — sira onemsiz
+    const facet = m.researchSearchUrl('Papara', '10232743');
+    expect(m.urlMatchesTarget('https://www.linkedin.com/search/results/people/?keywords=CEO%20OR%20CTO%20OR%20CMO%20OR%20Founder%20OR%20Kurucu&origin=FACETED_SEARCH&currentCompany=%5B%2210232743%22%5D', facet)).toBe(true);
     expect(m.urlMatchesTarget('https://www.linkedin.com/feed/', target)).toBe(false);
     expect(m.urlMatchesTarget('https://www.linkedin.com/checkpoint/challenge/', target)).toBe(false);
     expect(m.urlMatchesTarget('', target)).toBe(false);
@@ -830,7 +875,7 @@ describe('isTargetTitle — ust yonetim/kurucu + pazarlama ailesi', () => {
   });
   it('hedef disi: CFO/CHRO/CISO/CLO, muhendislik yoneticisi, duz manager, IK, stajyer', async () => {
     const m = await import('./linkedin-outreach-rules.js');
-    for (const t of ['CFO', 'Chief Financial Officer', 'Chief Human Resources Officer', 'Chief People Officer', 'Chief Information Security Officer', 'Chief Legal Officer', 'Chief Risk Officer', 'Engineering Manager', 'Software Development Manager', 'Product Manager', 'Project Manager', 'Operations Director', 'Finans Direktörü', 'İnsan Kaynakları Müdürü', 'Marketing Intern', 'Senior Software Engineer', 'Head of IT', 'Chief Accountant', '']) {
+    for (const t of ['CFO', 'Chief Financial Officer', 'Chief Human Resources Officer', 'Chief People Officer', 'Chief Information Security Officer', 'Chief Legal Officer', 'Chief Risk Officer', 'Engineering Manager', 'Software Development Manager', 'Product Manager', 'Project Manager', 'Operations Director', 'Finans Direktörü', 'İnsan Kaynakları Müdürü', 'Marketing Intern', 'Senior Software Engineer', 'Head of IT', 'Chief Accountant', 'People & Culture Director', 'Business Intelligence Director', 'Chief Data Officer', '']) {
       expect(m.isTargetTitle(t), t).toBe(false);
     }
   });

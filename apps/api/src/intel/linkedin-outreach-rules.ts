@@ -863,7 +863,7 @@ export function parseSearchResults(text: string | null | undefined): ResearchHit
  */
 const UST_YONETIM = /(\bceo\b|\bcto\b|\bcmo\b|\bcdo\b|\bcgo\b|\bcoo\b|\bcpo\b|\bcro\b|\bchief\b|co-?founder|founder|kurucu|genel müdür|genel mudur|\bgmy\b|managing director|general manager|country manager|başkan|baskan|president|\bvp\b|vice president|direktör|direktor|director|head of|\bhead\b|yönetim kurulu|yonetim kurulu|board member|icra kurulu|executive)/iu;
 const PAZARLAMA_POZITIF = /(pazarlama|marketing|marka|brand|dijital|digital|growth|büyüme|buyume|iletişim|iletisim|communications?|müşteri deneyimi|musteri deneyimi|customer experience|e-?ticaret|e-?commerce|performance|kampanya|campaign|crm|içerik|icerik|content|seo|sosyal medya|social media|reklam|advertis)/iu;
-const HEDEF_NEGATIF = /(engineer|mühendis|muhendis|developer|yazılım|yazilim|software|\bqa\b|\btest|data scien|veri bilim|devops|\bit\b|bilgi teknolojileri|security|güvenlik|guvenlik|financ|finans|muhasebe|account(?:ing|ant)|hukuk|legal|\brisk\b|insan kaynakları|insan kaynaklari|human resources|chief people|people officer|\bhr\b|recruit|işe alım|ise alim|operasyon|operations|lojistik|logistic|satın alma|satin alma|procurement|product designer|\bux\b|ui designer|intern\b|stajyer|öğrenci|ogrenci|student)/iu;
+const HEDEF_NEGATIF = /(engineer|mühendis|muhendis|developer|yazılım|yazilim|software|\bqa\b|\btest|data scien|veri bilim|devops|\bit\b|bilgi teknolojileri|security|güvenlik|guvenlik|financ|finans|muhasebe|account(?:ing|ant)|hukuk|legal|\brisk\b|insan kaynakları|insan kaynaklari|human resources|chief people|people officer|people (?:&|and) culture|business intelligence|analytics|analitik|\bdata\b|\bveri\b|\bhr\b|recruit|işe alım|ise alim|operasyon|operations|lojistik|logistic|satın alma|satin alma|procurement|product designer|\bux\b|ui designer|intern\b|stajyer|öğrenci|ogrenci|student)/iu;
 
 /**
  * NEDEN: JS regex `i` bayragi U+0130 (İ) harfini "i"ye katlamaz — "İcra Kurulu", "İletişim"
@@ -914,16 +914,92 @@ export function pickTitleFromCard(lines: string[], name: string): string {
 // ── Arastirma: arama URL'si + firma eslesmesi ─────────────────
 
 /**
- * Unvan filtresi (LinkedIn "Tüm filtreler → Unvan", boolean OR destekler).
- * NEDEN: `keywords="<firma> Pazarlama"` aramasi Papara/Getir icin eski calisan
- * muhendisleri getirdi, pazarlama unvanli kimse cikmadi (29.08.2026, 3 firma 0 aday).
+ * Facet modunda anahtar kelime sorgulari. NEDEN iki kisa sorgu: LinkedIn uzun boolean OR'da
+ * "Sonuç bulunamadı" veriyor (29.08.2026 denemesi: 12 ve 19 terim → 0 sonuc, 5 terim → 37 sonuc).
+ * `title=` / `titleFreeText=` URL parametreleri artik yutuluyor; yalniz `currentCompany` facet'i calisiyor.
+ * Eski `keywords="<firma> Pazarlama"` aramasi eski calisan muhendisleri getirmisti (3 firma 0 aday).
  */
-export const RESEARCH_TITLE_QUERY = 'CEO OR CTO OR CMO OR COO OR Chief OR Founder OR Kurucu OR "Genel Müdür" OR Director OR Direktör OR Head OR VP OR Pazarlama OR Marketing OR Marka OR Brand OR Growth OR Dijital OR Digital';
+export const RESEARCH_KEYWORD_QUERIES: readonly string[] = Object.freeze([
+  'CEO OR CTO OR CMO OR Founder OR Kurucu',
+  'Director OR Direktör OR Marketing OR Pazarlama OR Growth',
+]);
 
-/** Kisi arama URL'si: anahtar kelime = firma (kartta "Mevcut:/Geçmiş:" eslesme satiri cikar), unvan filtresi pazarlama */
-export function researchSearchUrl(firma: string): string {
-  const q = new URLSearchParams({ keywords: firma.trim(), title: RESEARCH_TITLE_QUERY, origin: 'FACETED_SEARCH' });
-  return `https://www.linkedin.com/search/results/people/?${q.toString()}`;
+/** Sirket kimligi yoksa yedek: firma adi + hedef terimler; kart "Mevcut:/baslik" eslesmesi ZORUNLU (firma her yerde gecebilir) */
+export const RESEARCH_FALLBACK_TERMS = '(CEO OR Founder OR Director OR Marketing OR Pazarlama)';
+
+const PEOPLE_SEARCH = 'https://www.linkedin.com/search/results/people/?';
+
+/**
+ * Kisi arama URL'si. companyId varsa `currentCompany=["id"]` facet'i (su anki calisanlar) + kisa
+ * anahtar kelime sorgusu; yoksa `"<firma> AND (…)"` anahtar kelime yedegi.
+ */
+export function researchSearchUrl(firma: string, companyId?: string | null, query: string = RESEARCH_KEYWORD_QUERIES[0]): string {
+  if (companyId) {
+    const q = new URLSearchParams({ currentCompany: JSON.stringify([String(companyId)]), keywords: query, origin: 'FACETED_SEARCH' });
+    return PEOPLE_SEARCH + q.toString();
+  }
+  const q = new URLSearchParams({ keywords: `${firma.trim()} AND ${RESEARCH_FALLBACK_TERMS}`, origin: 'GLOBAL_SEARCH_HEADER' });
+  return PEOPLE_SEARCH + q.toString();
+}
+
+/** Bir arastirma turunda gezilecek arama sayfalari (facet: sorgu basina bir; yedek: tek) */
+export function researchSearchUrls(firma: string, companyId?: string | null): string[] {
+  if (!companyId) return [researchSearchUrl(firma, null)];
+  return RESEARCH_KEYWORD_QUERIES.map((q) => researchSearchUrl(firma, companyId, q));
+}
+
+/** Sirket arama URL'si (sirket kimligi cozumlemenin ilk adimi) */
+export function companySearchUrl(firma: string): string {
+  const q = new URLSearchParams({ keywords: firma.trim(), origin: 'SWITCH_SEARCH_VERTICAL' });
+  return `https://www.linkedin.com/search/results/companies/?${q.toString()}`;
+}
+
+/**
+ * Sirket arama sonuclarindan dogru sirket sayfasinin slug'i. Tercih: ad firmaKey ile birebir →
+ * onunla baslayan → iceren → ilk sonuc. NEDEN: "Papara" aramasi "Finfree (Acquired by Papara)",
+ * "Papara Menkul Değerler" gibi sonuclar da getirir; birebir ad once.
+ */
+export function pickCompanySlug(links: ReadonlyArray<{ href: string; text: string }>, firma: string): string | null {
+  const key = firmaKey(firma);
+  if (!key) return null;
+  const cands: Array<{ slug: string; name: string }> = [];
+  for (const l of links) {
+    const m = /\/company\/([^/?#]+)/.exec(l.href ?? '');
+    if (!m) continue;
+    let slug = m[1];
+    try { slug = decodeURIComponent(slug); } catch { /* oldugu gibi */ }
+    const name = firmaKey((l.text ?? '').split('\n')[0]);
+    if (!cands.some((c) => c.slug === slug)) cands.push({ slug, name });
+  }
+  if (cands.length === 0) return null;
+  return (
+    cands.find((c) => c.name === key)?.slug ??
+    cands.find((c) => c.name.startsWith(key + ' '))?.slug ??
+    cands.find((c) => c.name.includes(key))?.slug ??
+    cands[0].slug
+  );
+}
+
+/**
+ * Sirket sayfasindaki "Çalışanları gör" baglantilarindan sayisal kimlik. `network=` iceren
+ * (baglantilarim filtresi) baglanti bazen ana sirket/istirak kimligi tasir → once onsuz olan.
+ */
+export function pickCompanyId(hrefs: readonly string[]): string | null {
+  const parse = (h: string): string | null => {
+    let d = h;
+    try { d = decodeURIComponent(h); } catch { /* oldugu gibi */ }
+    const m = /currentCompany=\[\s*"?(\d+)"?/.exec(d);
+    return m ? m[1] : null;
+  };
+  const plain = hrefs.filter((h) => !/[?&]network=/.test(h));
+  for (const h of plain) { const id = parse(h); if (id) return id; }
+  for (const h of hrefs) { const id = parse(h); if (id) return id; }
+  return null;
+}
+
+/** "LinkedIn Üyesi" / "LinkedIn Member" — profili gizli anonim sonuc; profil URL'si yok, aday olamaz */
+export function isAnonymousMember(name: string | null | undefined): boolean {
+  return /^linkedin\s+(üyesi|uyesi|member)$/iu.test((name ?? '').trim());
 }
 
 export type CardCompanyMatch = 'current' | 'headline' | 'past' | 'none';

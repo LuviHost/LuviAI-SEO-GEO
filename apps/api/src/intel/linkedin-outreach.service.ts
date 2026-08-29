@@ -17,6 +17,7 @@ import {
   type UnreadConversation,
   acceptRateWindow,
   cardCompanyMatch,
+  companySearchUrl,
   cutAtSidebar,
   delayBetweenActionsMs,
   detectBlock,
@@ -24,6 +25,7 @@ import {
   extractRef,
   findRef,
   firmaKey,
+  isAnonymousMember,
   isWorkWindow,
   istanbulDayStart,
   istanbulParts,
@@ -32,6 +34,8 @@ import {
   normalizeProfileUrl,
   parseDegree,
   parseSearchResults,
+  pickCompanyId,
+  pickCompanySlug,
   isTargetTitle,
   researchKademe,
   pickTitleFromCard,
@@ -39,7 +43,7 @@ import {
   profileReadDelayMs,
   renderMessage,
   renderNote,
-  researchSearchUrl,
+  researchSearchUrls,
   resolveLimits,
   shouldPause,
   urlMatchesTarget,
@@ -89,6 +93,8 @@ const KV_PAUSED = 'linkedin-outreach:paused';
 const KV_FAILS = 'linkedin-outreach:fails';
 const KV_LOCK = 'linkedin-outreach:lock';
 const KV_RESEARCH = 'linkedin-outreach:research:'; // + YYYY-MM-DD
+const KV_COMPANY = 'linkedin-outreach:company:'; // + firmaKey → sayisal LinkedIn sirket kimligi
+const COMPANY_ID_TTL_MS = 90 * 86_400_000;
 
 const DEFAULT_TIMEOUT_MS = 45_000;
 /** Sayfa gecisi sonrasi yerlesme suresi */
@@ -153,6 +159,11 @@ const SEARCH_LINKS_FN = `() => {
   }
   return out;
 }`;
+
+/** Sirket arama sayfasi: /company/ baglantilari (slug secimi rules.pickCompanySlug) */
+const COMPANY_LINKS_FN = `() => [...document.querySelectorAll('a[href*="/company/"]')].slice(0, 40).map((a) => ({ href: a.href.split('?')[0], text: (a.innerText || '').trim().slice(0, 120) }))`;
+/** Sirket sayfasi: "Çalışanları gör" baglantilari (currentCompany=["id"]) */
+const COMPANY_ID_FN = `() => [...new Set([...document.querySelectorAll('a[href*="currentCompany"]')].map((a) => a.href))].slice(0, 10)`;
 
 interface PageRead {
   text: string;
@@ -573,51 +584,96 @@ export class LinkedinOutreachService {
 
   // ── (0) Arastirma ───────────────────────────────────────────
 
-  private async research(firma: string, dryRun: boolean, limits: OutreachLimits): Promise<TickAction> {
-    const url = researchSearchUrl(firma);
-    await this.goto(url);
-    await sleep(SETTLE_MS + 1_000);
-    const page = await this.readPage();
-    this.assertNoBlock(page);
+  /**
+   * LinkedIn sayisal sirket kimligi (currentCompany facet'i icin). KvStore'da 90 gun onbellek.
+   * Akis: sirket aramasi → slug (rules.pickCompanySlug) → sirket sayfasi → "Çalışanları gör"
+   * baglantisindan kimlik (rules.pickCompanyId). Bulunamazsa null → anahtar kelime yedegi.
+   */
+  private async resolveCompanyId(firma: string): Promise<string | null> {
+    const key = KV_COMPANY + firmaKey(firma);
+    const cached = await this.prisma.kvStore.findUnique({ where: { key } }).catch(() => null);
+    if (cached?.value && (!cached.expiresAt || cached.expiresAt > new Date())) return cached.value;
 
-    // Once deterministik DOM okuma; bos donerse snapshot metni (regex)
-    const links = await this.browser<{ result?: Array<{ href: string; text: string; card: string; lines?: string[] }> }>(['evaluate', '--fn', SEARCH_LINKS_FN]);
+    await this.goto(companySearchUrl(firma));
+    await sleep(SETTLE_MS);
+    this.assertNoBlock(await this.readPage());
+    const links = await this.browser<{ result?: Array<{ href: string; text: string }> }>(['evaluate', '--fn', COMPANY_LINKS_FN]);
+    const slug = pickCompanySlug(links?.result ?? [], firma);
+    if (!slug) { this.log.debug(`sirket kimligi: "${firma}" icin sirket sayfasi bulunamadi`); return null; }
+
+    await this.goto(`https://www.linkedin.com/company/${encodeURIComponent(slug)}/`);
+    await sleep(SETTLE_MS);
+    this.assertNoBlock(await this.readPage());
+    const hrefs = await this.browser<{ result?: string[] }>(['evaluate', '--fn', COMPANY_ID_FN]);
+    const id = pickCompanyId(hrefs?.result ?? []);
+    if (!id) { this.log.debug(`sirket kimligi: "${firma}" (/company/${slug}/) sayfasinda calisan baglantisi yok`); return null; }
+    await this.prisma.kvStore.upsert({
+      where: { key },
+      create: { key, value: id, expiresAt: new Date(Date.now() + COMPANY_ID_TTL_MS) },
+      update: { value: id, expiresAt: new Date(Date.now() + COMPANY_ID_TTL_MS) },
+    }).catch(() => undefined);
+    this.log.log(`sirket kimligi: "${firma}" → /company/${slug}/ (${id})`);
+    return id;
+  }
+
+  private async research(firma: string, dryRun: boolean, limits: OutreachLimits): Promise<TickAction> {
+    const companyId = await this.resolveCompanyId(firma).catch((err: any) => {
+      if (err instanceof BlockError) throw err;
+      this.log.warn(`sirket kimligi cozumlenemedi ("${firma}"): ${err?.message ?? err} — anahtar kelime yedegi`);
+      return null;
+    });
+    const facet = Boolean(companyId);
     const hits: Array<{ ad: string; soyad: string; unvan: string; profileUrl: string }> = [];
     const seen = new Set<string>();
     let elenen = 0;
     let firmaDisi = 0;
-    for (const l of links?.result ?? []) {
-      const u = normalizeProfileUrl(l.href);
-      if (!u || seen.has(u)) continue;
-      const name = l.text.trim();
-      if (!/^[\p{Lu}][\p{L}.'-]+(?:\s+[\p{Lu}][\p{L}.'-]+)+$/u.test(name)) continue;
-      const parts = name.split(/\s+/);
-      const lines = l.lines ?? l.card.split(/\s{2,}|·/);
-      const unvan = pickTitleFromCard(lines, name);
-      seen.add(u);
-      // NEDEN filtre: "<firma> Pazarlama" aramasi muhendis/QA/tasarimci dahil herkesi getirir
-      if (!isTargetTitle(unvan)) { elenen++; continue; }
-      // NEDEN firma filtresi: anahtar kelime eski calisanlari da getirir ("Geçmiş: Papara şirketinde …");
-      // kart su anki firmayi gostermiyorsa aday degil — yanlis kisiye istek atilmaz
-      const cm = cardCompanyMatch(lines, firma, unvan);
-      if (cm === 'past' || cm === 'none') { firmaDisi++; continue; }
-      hits.push({ ad: parts.slice(0, -1).join(' '), soyad: parts[parts.length - 1], unvan: unvan.slice(0, 160), profileUrl: u });
+    let linkN = 0;
+
+    for (const url of researchSearchUrls(firma, companyId)) {
+      if (hits.length >= MAX_RESEARCH_HITS) break;
+      await this.goto(url);
+      await sleep(SETTLE_MS + 1_000);
+      const page = await this.readPage();
+      this.assertNoBlock(page);
+
+      // Once deterministik DOM okuma; bos donerse snapshot metni (regex)
+      const links = await this.browser<{ result?: Array<{ href: string; text: string; card: string; lines?: string[] }> }>(['evaluate', '--fn', SEARCH_LINKS_FN]);
+      linkN += links?.result?.length ?? 0;
+      for (const l of links?.result ?? []) {
+        const u = normalizeProfileUrl(l.href);
+        if (!u || seen.has(u)) continue;
+        const name = l.text.trim();
+        if (isAnonymousMember(name)) continue;
+        if (!/^[\p{Lu}][\p{L}.'-]+(?:\s+[\p{Lu}][\p{L}.'-]+)+$/u.test(name)) continue;
+        const parts = name.split(/\s+/);
+        const lines = l.lines ?? l.card.split(/\s{2,}|·/);
+        const unvan = pickTitleFromCard(lines, name);
+        seen.add(u);
+        // NEDEN filtre: arama muhendis/QA/IK dahil herkesi getirir; yalniz hedef unvanlar (C-level/kurucu/pazarlama)
+        if (!isTargetTitle(unvan)) { elenen++; continue; }
+        // NEDEN firma filtresi (yedek modda): anahtar kelime firmayi her yerde bulur ("Geçmiş: Papara …", yetenekler);
+        // kart su anki firmayi gostermiyorsa aday degil. Facet modunda currentCompany zaten bunu garanti eder.
+        if (!facet) {
+          const cm = cardCompanyMatch(lines, firma, unvan);
+          if (cm === 'past' || cm === 'none') { firmaDisi++; continue; }
+        }
+        hits.push({ ad: parts.slice(0, -1).join(' '), soyad: parts[parts.length - 1], unvan: unvan.slice(0, 160), profileUrl: u });
+      }
+      if (hits.length === 0 && (links?.result?.length ?? 0) === 0) {
+        const snap = await this.snapshot(['--urls']);
+        // Snapshot yolunda kart satiri yok → firma yalniz basliktan dogrulanabilir ('headline'); facet modunda gerekmez
+        for (const h of parseSearchResults(snap).filter((x) => isTargetTitle(x.unvan) && (facet || cardCompanyMatch([], firma, x.unvan) === 'headline')).slice(0, MAX_RESEARCH_HITS)) if (!seen.has(h.profileUrl)) { seen.add(h.profileUrl); hits.push(h); }
+        if (hits.length === 0) {
+          // Kisisel veri loga basilmaz: yalniz sayi
+          const nameless = extractProfileUrls(snap).length;
+          if (nameless > 0) this.log.debug(`arastirma: ${nameless} isimsiz profil URL'si atlandi`);
+        }
+      }
     }
     // NEDEN siralama: sayfa sirasi rastgele; karar vericiler (kademe 1) kotaya once girsin
     hits.sort((a, b) => researchKademe(a.unvan) - researchKademe(b.unvan));
     hits.splice(MAX_RESEARCH_HITS);
-    if (elenen || firmaDisi) this.log.debug(`arastirma "${firma}": ${elenen} aday pazarlama disi unvanla, ${firmaDisi} aday firma eslesmeyince elendi`);
-    if (hits.length === 0) {
-      const snap = await this.snapshot(['--urls']);
-      // NEDEN filtre: arama sonucundaki muhendis/QA'ler aday olmasin; yalniz pazarlama unvanlilar.
-      // Snapshot yolunda kart satiri yok → firma yalniz basliktan dogrulanabilir ('headline')
-      for (const h of parseSearchResults(snap).filter((x) => isTargetTitle(x.unvan) && cardCompanyMatch([], firma, x.unvan) === 'headline').slice(0, MAX_RESEARCH_HITS)) if (!seen.has(h.profileUrl)) { seen.add(h.profileUrl); hits.push(h); }
-      if (hits.length === 0) {
-        // Kisisel veri loga basilmaz: yalniz sayi
-        const nameless = extractProfileUrls(snap).length;
-        if (nameless > 0) this.log.debug(`arastirma: ${nameless} isimsiz profil URL'si atlandi`);
-      }
-    }
+    this.log.log(`arastirma "${firma}" (${facet ? `facet ${companyId}` : 'anahtar kelime yedegi'}): ${linkN} link, ${elenen} unvan disi, ${firmaDisi} firma disi, ${hits.length} aday`);
     await this.screenshot('research', firmaKey(firma).replace(/\s+/g, '-').slice(0, 40) || 'firma');
 
     if (dryRun) return { type: 'research', ok: true, note: `kuru: "${firma}" → ${hits.length} aday (yazılmadı)` };
