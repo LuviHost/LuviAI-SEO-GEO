@@ -422,9 +422,21 @@ Bayrak kapalıyken tarayıcı hiç açılmaz.
   `PAUSED`), tarihler, son hata, ekran görüntüsü dosya adı (yalnız ad; görüntü servis edilmez), **Atla**.
 - Uçlar: `GET /intel/linkedin/overview`, `POST /intel/linkedin/import | pause | resume | tick`,
   `POST /intel/linkedin/prospects/:id/skip`.
-- **Araştırma adımı** (`manuel-liste.csv` için ad + unvan + profil URL okuma) panelde düğme yok; API'den:
-  `POST /intel/linkedin/tick` gövde `{ "dryRun": true, "research": ["Firma A", "Firma B"] }` (en fazla 10
-  firma/tick, günde ≤ 50 arama). Bulunanlar `kademe=2`, `QUEUED` olarak DB'ye düşer.
+- **Araştırma adımı** (firma → LinkedIn'den ad + unvan + profil URL) panelde düğme yok; sunucuda CLI:
+  `cd /var/www/luviai/apps/api && set -a && . /var/www/luviai/.env && set +a && node dist/cli/linkedin-tick.js --research-only --research "Papara,Getir"`
+  (`--research-only`: yalnız kuyruk doldurur, istek/mesaj atmaz, çalışma penceresine bakmaz — hafta sonu
+  hazırlık için) ya da API `POST /intel/linkedin/tick` gövde `{ "dryRun": true, "research": [...] }`.
+  Tick başına ≤ 3 firma, günde ≤ 50 arama, firma başına ≤ 10 aday (kademe 1 önce).
+  Nasıl arar (30.08.2026'da tarayıcıda doğrulandı): LinkedIn `title=`/`titleFreeText=` URL parametrelerini
+  yutuyor; çalışan tek filtre **`currentCompany=["<sayısal id>"]`**. Kimlik: şirket araması → `/company/<slug>/`
+  → "Çalışanları gör" bağlantısından okunur, KvStore'da 90 gün saklanır (`linkedin-outreach:company:<firma>`).
+  Sorgu iki kısa boolean (uzun OR "Sonuç bulunamadı" veriyor): `CEO OR CTO OR CMO OR Founder OR Kurucu` +
+  `Director OR Direktör OR Marketing OR Pazarlama OR Growth`. Kimlik bulunamazsa `"<firma> AND (…)"` anahtar
+  kelimesi + kartta "Mevcut:" / başlıkta firma eşleşmesi zorunlu (eski çalışanlar elenir).
+  Hedef unvan (`isTargetTitle`): C-level/kurucu/genel müdür/direktör/head/VP + pazarlama-marka-dijital-büyüme
+  ailesi (müdür/uzman dahil); CFO/İK/hukuk/IT/mühendislik/operasyon/veri/stajyer elenir. Düz "Manager" tek
+  başına yetmez. Kart okuma: yeni arayüzde `<li>` yok, profil bağlantısı kartı sarar — "Mevcut: X şirketinde Y"
+  satırındaki pozisyon unvanı başlığa tercih edilir.
 
 ### 5.4 Frenler (kod sabiti; env ile yalnız **aşağı** çekilir — `LINKEDIN_MAX_REQUESTS_PER_DAY=10` gibi)
 
