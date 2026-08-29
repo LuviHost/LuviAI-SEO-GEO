@@ -44,6 +44,7 @@ import {
   profileReadDelayMs,
   renderMessage,
   renderNote,
+  RESEARCH_KEYWORD_QUERIES,
   researchSearchUrls,
   resolveLimits,
   shouldPause,
@@ -111,7 +112,7 @@ const LOCK_TTL_MS = 45 * 60_000;
 /** Gercek tick'lerin rastgele atlanma orani — 30 dk sabit cron'a 20-40 dk ritmi verir */
 const JITTER_SKIP_RATIO = 0.25;
 const MESSAGING_URL = 'https://www.linkedin.com/messaging/';
-const MAX_RESEARCH_HITS = 10;
+const MAX_RESEARCH_HITS = 15; // firma basina kuyruga giren aday; fazlasi loglanir (sessiz kesme yok)
 const MAX_IMPORT_ROWS = 5_000;
 const QUEUE_TAKE = 60;
 /** Ardisik hata sayacina giren islemler — okuma adimlari (reply/accept-check, research) DEGIL */
@@ -643,8 +644,9 @@ export class LinkedinOutreachService {
     let firmaDisi = 0;
     let linkN = 0;
 
+    // NEDEN erken cikis yok: her terim ayri arama (kullanici karari); C-level terimleri kotayi doldursa da
+    // pazarlama terimleri de gezilir, siralama/kesme en sonda yapilir
     for (const url of researchSearchUrls(firma, companyId)) {
-      if (hits.length >= MAX_RESEARCH_HITS) break;
       await this.goto(url);
       await sleep(SETTLE_MS + 1_000);
       const page = await this.readPage();
@@ -688,8 +690,9 @@ export class LinkedinOutreachService {
     }
     // NEDEN siralama: sayfa sirasi rastgele; karar vericiler (kademe 1) kotaya once girsin
     hits.sort((a, b) => researchKademe(a.unvan) - researchKademe(b.unvan));
+    const kesilen = Math.max(0, hits.length - MAX_RESEARCH_HITS);
     hits.splice(MAX_RESEARCH_HITS);
-    this.log.log(`arastirma "${firma}" (${facet ? `facet ${companyId}` : 'anahtar kelime yedegi'}): ${linkN} link, ${elenen} unvan disi, ${firmaDisi} firma disi, ${hits.length} aday`);
+    this.log.log(`arastirma "${firma}" (${facet ? `facet ${companyId}` : 'anahtar kelime yedegi'}, ${RESEARCH_KEYWORD_QUERIES.length} ayri arama): ${linkN} link, ${elenen} unvan disi, ${firmaDisi} firma disi, ${hits.length} aday${kesilen ? `, ${kesilen} aday kota (${MAX_RESEARCH_HITS}) disinda kaldi` : ''}`);
     await this.screenshot('research', firmaKey(firma).replace(/\s+/g, '-').slice(0, 40) || 'firma');
 
     if (dryRun) return { type: 'research', ok: true, note: `kuru: "${firma}" → ${hits.length} aday (yazılmadı)` };

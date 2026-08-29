@@ -426,13 +426,15 @@ Bayrak kapalıyken tarayıcı hiç açılmaz.
   `cd /var/www/luviai/apps/api && set -a && . /var/www/luviai/.env && set +a && node dist/cli/linkedin-tick.js --research-only --research "Papara,Getir"`
   (`--research-only`: yalnız kuyruk doldurur, istek/mesaj atmaz, çalışma penceresine bakmaz — hafta sonu
   hazırlık için) ya da API `POST /intel/linkedin/tick` gövde `{ "dryRun": true, "research": [...] }`.
-  Tick başına ≤ 3 firma, günde ≤ 50 arama, firma başına ≤ 10 aday (kademe 1 önce).
+  Tick başına ≤ 3 firma, günde ≤ 50 araştırma (firma sayısı), firma başına ≤ 15 aday (kademe 1 önce).
   Nasıl arar (30.08.2026'da tarayıcıda doğrulandı): LinkedIn `title=`/`titleFreeText=` URL parametrelerini
   yutuyor; çalışan tek filtre **`currentCompany=["<sayısal id>"]`**. Kimlik: şirket araması → `/company/<slug>/`
   → "Çalışanları gör" bağlantısından okunur, KvStore'da 90 gün saklanır (`linkedin-outreach:company:<firma>`).
-  Sorgu iki kısa boolean (uzun OR "Sonuç bulunamadı" veriyor): `CEO OR CTO OR CMO OR Founder OR Kurucu` +
-  `Director OR Direktör OR Marketing OR Pazarlama OR Growth`. Kimlik bulunamazsa `"<firma> AND (…)"` anahtar
-  kelimesi + kartta "Mevcut:" / başlıkta firma eşleşmesi zorunlu (eski çalışanlar elenir).
+  **Her terim ayrı arama** (birleşik/boolean yok — kullanıcı kararı 30.08): `CEO`, `CTO`, `CMO`, `Founder`,
+  `Kurucu`, `Genel Müdür`, `Director`, `Direktör`, `Pazarlama`, `Marketing`, `Growth`, `Marka`, `Brand`;
+  sonuçlar profil URL'sine göre tekilleştirilir, firma başına ≤ 15 aday (kademe 1 önce, kesilen sayısı loglanır).
+  Kimlik bulunamazsa `"<firma> <terim>"` anahtar kelimesi + kartta "Mevcut:" / başlıkta firma eşleşmesi
+  zorunlu (eski çalışanlar elenir).
   Hedef unvan (`isTargetTitle`): C-level/kurucu/genel müdür/direktör/head/VP + pazarlama-marka-dijital-büyüme
   ailesi (müdür/uzman dahil); CFO/İK/hukuk/IT/mühendislik/operasyon/veri/stajyer elenir. Düz "Manager" tek
   başına yetmez. Kart okuma: yeni arayüzde `<li>` yok, profil bağlantısı kartı sarar — "Mevcut: X şirketinde Y"

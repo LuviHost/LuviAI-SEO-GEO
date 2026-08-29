@@ -914,38 +914,37 @@ export function pickTitleFromCard(lines: string[], name: string): string {
 // ── Arastirma: arama URL'si + firma eslesmesi ─────────────────
 
 /**
- * Facet modunda anahtar kelime sorgulari. NEDEN iki kisa sorgu: LinkedIn uzun boolean OR'da
- * "Sonuç bulunamadı" veriyor (29.08.2026 denemesi: 12 ve 19 terim → 0 sonuc, 5 terim → 37 sonuc).
- * `title=` / `titleFreeText=` URL parametreleri artik yutuluyor; yalniz `currentCompany` facet'i calisiyor.
- * Eski `keywords="<firma> Pazarlama"` aramasi eski calisan muhendisleri getirmisti (3 firma 0 aday).
+ * Arastirma arama terimleri — HER TERIM AYRI ARAMA (kullanici karari 30.08.2026: "birlesik arama yok,
+ * hepsini tek tek arayacaksin"). Sonuclar profil URL'sine gore tekillestirilir, kademe 1 once.
+ * Sira: ust yonetim/kurucu → direktor → pazarlama ailesi.
+ * Not: `title=` / `titleFreeText=` URL parametreleri yutuluyor; yalniz `currentCompany` facet'i calisiyor;
+ * uzun boolean OR "Sonuç bulunamadı" veriyordu (29.08 denemesi) — boolean artik hic kullanilmiyor.
  */
 export const RESEARCH_KEYWORD_QUERIES: readonly string[] = Object.freeze([
-  'CEO OR CTO OR CMO OR Founder OR Kurucu',
-  'Director OR Direktör OR Marketing OR Pazarlama OR Growth',
+  'CEO', 'CTO', 'CMO', 'Founder', 'Kurucu', 'Genel Müdür',
+  'Director', 'Direktör',
+  'Pazarlama', 'Marketing', 'Growth', 'Marka', 'Brand',
 ]);
-
-/** Sirket kimligi yoksa yedek: firma adi + hedef terimler; kart "Mevcut:/baslik" eslesmesi ZORUNLU (firma her yerde gecebilir) */
-export const RESEARCH_FALLBACK_TERMS = '(CEO OR Founder OR Director OR Marketing OR Pazarlama)';
 
 const PEOPLE_SEARCH = 'https://www.linkedin.com/search/results/people/?';
 
 /**
- * Kisi arama URL'si. companyId varsa `currentCompany=["id"]` facet'i (su anki calisanlar) + kisa
- * anahtar kelime sorgusu; yoksa `"<firma> AND (…)"` anahtar kelime yedegi.
+ * Tek terimlik kisi arama URL'si. companyId varsa `currentCompany=["id"]` facet'i (su anki calisanlar)
+ * + terim; yoksa `"<firma> <terim>"` anahtar kelimesi (kart "Mevcut:/baslik" firma eslesmesi ZORUNLU —
+ * firma adi profilin her yerinde gecebilir).
  */
-export function researchSearchUrl(firma: string, companyId?: string | null, query: string = RESEARCH_KEYWORD_QUERIES[0]): string {
+export function researchSearchUrl(firma: string, companyId?: string | null, term: string = RESEARCH_KEYWORD_QUERIES[0]): string {
   if (companyId) {
-    const q = new URLSearchParams({ currentCompany: JSON.stringify([String(companyId)]), keywords: query, origin: 'FACETED_SEARCH' });
+    const q = new URLSearchParams({ currentCompany: JSON.stringify([String(companyId)]), keywords: term, origin: 'FACETED_SEARCH' });
     return PEOPLE_SEARCH + q.toString();
   }
-  const q = new URLSearchParams({ keywords: `${firma.trim()} AND ${RESEARCH_FALLBACK_TERMS}`, origin: 'GLOBAL_SEARCH_HEADER' });
+  const q = new URLSearchParams({ keywords: `${firma.trim()} ${term}`, origin: 'GLOBAL_SEARCH_HEADER' });
   return PEOPLE_SEARCH + q.toString();
 }
 
-/** Bir arastirma turunda gezilecek arama sayfalari (facet: sorgu basina bir; yedek: tek) */
+/** Bir arastirma turunda gezilecek arama sayfalari: terim basina bir (facet ya da anahtar kelime yedegi) */
 export function researchSearchUrls(firma: string, companyId?: string | null): string[] {
-  if (!companyId) return [researchSearchUrl(firma, null)];
-  return RESEARCH_KEYWORD_QUERIES.map((q) => researchSearchUrl(firma, companyId, q));
+  return RESEARCH_KEYWORD_QUERIES.map((t) => researchSearchUrl(firma, companyId, t));
 }
 
 /** Sirket arama URL'si (sirket kimligi cozumlemenin ilk adimi) */

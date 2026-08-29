@@ -768,20 +768,25 @@ describe('pickTitleFromCard — DOM kart satirlarindan unvan', () => {
 });
 
 describe('arastirma — arama URL\'si ve firma eslesmesi', () => {
-  it('researchSearchUrl: sirket kimligi varsa currentCompany facet + kisa sorgu; yoksa "<firma> AND (…)" yedegi', async () => {
+  it('researchSearchUrl: her terim AYRI arama (boolean yok); facet varsa currentCompany + terim, yoksa "<firma> <terim>"', async () => {
     const m = await import('./linkedin-outreach-rules.js');
     const f = new URL(m.researchSearchUrl(' Papara ', '10232743'));
     expect(f.pathname).toBe('/search/results/people/');
     expect(f.searchParams.get('currentCompany')).toBe('["10232743"]');
-    expect(f.searchParams.get('keywords')).toBe('CEO OR CTO OR CMO OR Founder OR Kurucu');
-    expect(f.searchParams.get('keywords')!.split(' OR ').length).toBeLessThanOrEqual(6); // uzun OR → "Sonuç bulunamadı"
+    expect(f.searchParams.get('keywords')).toBe('CEO');
     const urls = m.researchSearchUrls('Papara', '10232743');
     expect(urls).toHaveLength(m.RESEARCH_KEYWORD_QUERIES.length);
-    expect(new URL(urls[1]).searchParams.get('keywords')).toContain('Pazarlama');
-    const y = new URL(m.researchSearchUrl('Papara', null));
+    expect(urls.length).toBeGreaterThanOrEqual(10);
+    const kws = urls.map((u) => new URL(u).searchParams.get('keywords'));
+    expect(kws).toEqual([...m.RESEARCH_KEYWORD_QUERIES]);
+    for (const k of kws) { expect(k).not.toMatch(/\bOR\b|\bAND\b|[()]/); } // birlesik arama yok
+    expect(kws.slice(0, 6)).toEqual(['CEO', 'CTO', 'CMO', 'Founder', 'Kurucu', 'Genel Müdür']); // ust yonetim once
+    expect(kws).toContain('Pazarlama');
+    expect(kws).toContain('Marketing');
+    const y = new URL(m.researchSearchUrl('Papara', null, 'Pazarlama'));
     expect(y.searchParams.get('currentCompany')).toBeNull();
-    expect(y.searchParams.get('keywords')).toBe('Papara AND (CEO OR Founder OR Director OR Marketing OR Pazarlama)');
-    expect(m.researchSearchUrls('Papara', null)).toHaveLength(1);
+    expect(y.searchParams.get('keywords')).toBe('Papara Pazarlama');
+    expect(m.researchSearchUrls('Papara', null)).toHaveLength(m.RESEARCH_KEYWORD_QUERIES.length);
     // Yutulan parametreler kullanilmiyor
     for (const u of [f, y]) { expect(u.searchParams.get('title')).toBeNull(); expect(u.searchParams.get('titleFreeText')).toBeNull(); }
   });
@@ -845,7 +850,7 @@ describe('arastirma — arama URL\'si ve firma eslesmesi', () => {
     expect(m.urlMatchesTarget(m.researchSearchUrl('Getir'), target)).toBe(false);
     // Facet URL: LinkedIn parametre sirasini degistirir — sira onemsiz
     const facet = m.researchSearchUrl('Papara', '10232743');
-    expect(m.urlMatchesTarget('https://www.linkedin.com/search/results/people/?keywords=CEO%20OR%20CTO%20OR%20CMO%20OR%20Founder%20OR%20Kurucu&origin=FACETED_SEARCH&currentCompany=%5B%2210232743%22%5D', facet)).toBe(true);
+    expect(m.urlMatchesTarget('https://www.linkedin.com/search/results/people/?keywords=CEO&origin=FACETED_SEARCH&currentCompany=%5B%2210232743%22%5D', facet)).toBe(true);
     expect(m.urlMatchesTarget('https://www.linkedin.com/feed/', target)).toBe(false);
     expect(m.urlMatchesTarget('https://www.linkedin.com/checkpoint/challenge/', target)).toBe(false);
     expect(m.urlMatchesTarget('', target)).toBe(false);
