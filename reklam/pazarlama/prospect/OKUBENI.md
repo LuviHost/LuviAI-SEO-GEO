@@ -14,7 +14,7 @@ Dizin:
 | `reklam/pazarlama/prospect/data/` | Bütün üretilen CSV/JSON/HTML — **`.gitignore`'da**, isimli veri repoya girmez |
 | `reklam/pazarlama/prospect/data/karne/` | Kurum karneleri (`<host>-<yyyymmdd>.json/.html/.pdf`) |
 | `apps/api/scripts/prospect/01…05-*.ts` | Zincir script'leri (`npx tsx`, `apps/api` içinden) |
-| `apps/api/scripts/prospect-karne.ts` | Talep üzerine karne |
+| `apps/api/src/cli/prospect-karne.ts (derlenmiş: dist/cli/prospect-karne.js)` | Talep üzerine karne |
 | `apps/api/src/prospect/prospect-utils.ts` | Saf yardımcılar (translit, alan adı, CSV, UA'lı fetch, desen) + spec |
 | `apps/api/data/linkedin/` | Bot ekran görüntüleri (`.gitignore`'da) |
 
@@ -342,11 +342,11 @@ Eşik aşımından sonra yeniden başlarken tavan tekrar 100'den başlar.
 
 ```bash
 cd apps/api
-npx tsx scripts/prospect-karne.ts --help
+node dist/cli/prospect-karne.js --help
 # 1) kuru koşum: sorular + maliyet tahmini + çıktı yolları; LLM çağrısı ve dosya YOK
-npx tsx scripts/prospect-karne.ts --brand "Acme Bank" --host acmebank.com.tr --sektor finans --altsektor banka --dry-run
+node dist/cli/prospect-karne.js --brand "Acme Bank" --host acmebank.com.tr --sektor finans --altsektor banka --dry-run
 # 2) gerçek koşum (anahtarlar prod VPS'te → orada koş)
-npx tsx scripts/prospect-karne.ts --brand "Acme Bank" --host acmebank.com.tr --sektor finans --altsektor banka \
+node dist/cli/prospect-karne.js --brand "Acme Bank" --host acmebank.com.tr --sektor finans --altsektor banka \
     --rakipler garantibbva.com.tr,isbank.com.tr --pdf [--yes] [--limit 2] [--only anthropic,gemini] [--force]
 ```
 

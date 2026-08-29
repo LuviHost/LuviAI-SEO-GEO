@@ -1,11 +1,15 @@
 /**
+ * NEDEN src/cli altinda: Nest DI decorator metadata ister; tsx/esbuild uretmez
+ * (createApplicationContext'te servisler bos kalir). `pnpm build` sonra
+ * `set -a; . ../../.env; set +a; node dist/cli/prospect-karne.js ...` (apps/api icinde).
+ *
  * Talep uzerine kurum karnesi — "evet" diyen kuruma 2 is gunu icinde.
  *
  * Kullanim (apps/api icinde):
- *   npx tsx scripts/prospect-karne.ts --brand "Acme Bank" --host acmebank.com.tr --sektor finans
- *   npx tsx scripts/prospect-karne.ts --brand "X" --host x.com.tr --sektor finans --altsektor banka \
+ *   node dist/cli/prospect-karne.js --brand "Acme Bank" --host acmebank.com.tr --sektor finans
+ *   node dist/cli/prospect-karne.js --brand "X" --host x.com.tr --sektor finans --altsektor banka \
  *       --rakipler a.com,b.com --pdf --yes
- *   npx tsx scripts/prospect-karne.ts --help
+ *   node dist/cli/prospect-karne.js --help
  *
  * Bayraklar:
  *   --brand "X"            kurum adi (zorunlu; >= 4 karakter — kisa ad metinde rastgele eslesir)
@@ -52,12 +56,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import readline from 'node:readline';
 import { execFileSync } from 'node:child_process';
-import { parseArgs, normalizeDomain, DATA_DIR, SEKTORLER } from '../src/prospect/prospect-utils.js';
-import { sorulariGetir, altsektorAnahtari, sektorDogrula, sektorAltAnahtarlari, ALT_SEKTOR_ANAHTARLARI } from '../src/prospect/karne-sorular.js';
-import { karneOzeti, karneHtml } from '../src/prospect/karne-html.js';
-import { containsBrand, MIN_BRAND_LEN } from '../src/audit/brand-in-query.js';
+import { parseArgs, normalizeDomain, DATA_DIR, SEKTORLER } from '../prospect/prospect-utils.js';
+import { sorulariGetir, altsektorAnahtari, sektorDogrula, sektorAltAnahtarlari, ALT_SEKTOR_ANAHTARLARI } from '../prospect/karne-sorular.js';
+import { karneOzeti, karneHtml } from '../prospect/karne-html.js';
+import { containsBrand, MIN_BRAND_LEN } from '../audit/brand-in-query.js';
 // Yalniz TIP — calisma zamaninda silinir; servis modulu dry-run'da yuklenmez.
-import type { Provider } from '../src/audit/ai-citation.service.js';
+import type { Provider } from '../audit/ai-citation.service.js';
 
 // main.ts ile ayni: sunucuda IPv6 yokken happy-eyeballs zaman asimi veriyor.
 dns.setDefaultResultOrder('ipv4first');
@@ -99,7 +103,7 @@ const TAHMINI_MALIYET_USD: Record<Provider, number> = {
 
 const KULLANIM = `Kurum karnesi — 7 AI asistanina 10 markasiz soru, tek dosya HTML (+JSON/PDF)
 
-  npx tsx scripts/prospect-karne.ts --brand "Acme Bank" --host acmebank.com.tr --sektor finans [secenekler]
+  node dist/cli/prospect-karne.js --brand "Acme Bank" --host acmebank.com.tr --sektor finans [secenekler]
 
 Zorunlu:
   --brand "X"              kurum adi (en az ${MIN_BRAND_LEN} karakter)
@@ -299,10 +303,10 @@ async function main() {
 
   // ── Servisler (Nest DI yok — bkz. dosya basi) ──
   const { Logger } = await import('@nestjs/common');
-  const { PrismaService } = await import('../src/prisma/prisma.service.js');
-  const { QuotaService } = await import('../src/billing/quota.service.js');
-  const { SettingsService } = await import('../src/settings/settings.service.js');
-  const { AiCitationService } = await import('../src/audit/ai-citation.service.js');
+  const { PrismaService } = await import('../prisma/prisma.service.js');
+  const { QuotaService } = await import('../billing/quota.service.js');
+  const { SettingsService } = await import('../settings/settings.service.js');
+  const { AiCitationService } = await import('../audit/ai-citation.service.js');
   Logger.overrideLogger(['error', 'warn']);
 
   const prisma = new PrismaService();
