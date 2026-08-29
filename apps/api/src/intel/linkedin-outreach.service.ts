@@ -33,6 +33,7 @@ import {
   parseSearchResults,
   isMarketingTitle,
   researchKademe,
+  pickTitleFromCard,
   planTick,
   profileReadDelayMs,
   renderMessage,
@@ -142,7 +143,9 @@ const SEARCH_LINKS_FN = `() => {
   for (const a of document.querySelectorAll('a[href*="/in/"]')) {
     const text = (a.innerText || '').replace(/\\s+/g, ' ').trim().slice(0, 200);
     const card = a.closest('li') || a.parentElement;
-    out.push({ href: a.href.split('?')[0], text, card: ((card && card.innerText) || '').replace(/\\s+/g, ' ').trim().slice(0, 400) });
+    // NEDEN satir dizisi: unvan, konum ve "Mevcut:" ayri satirlardadir; tek satira indirgenince unvan secilemiyordu
+    const lines = ((card && card.innerText) || '').split('\\n').map((l) => l.trim()).filter(Boolean).slice(0, 14);
+    out.push({ href: a.href.split('?')[0], text, card: lines.join(' ').slice(0, 400), lines });
     if (out.length >= 120) break;
   }
   return out;
@@ -575,20 +578,24 @@ export class LinkedinOutreachService {
     this.assertNoBlock(page);
 
     // Once deterministik DOM okuma; bos donerse snapshot metni (regex)
-    const links = await this.browser<{ result?: Array<{ href: string; text: string; card: string }> }>(['evaluate', '--fn', SEARCH_LINKS_FN]);
+    const links = await this.browser<{ result?: Array<{ href: string; text: string; card: string; lines?: string[] }> }>(['evaluate', '--fn', SEARCH_LINKS_FN]);
     const hits: Array<{ ad: string; soyad: string; unvan: string; profileUrl: string }> = [];
     const seen = new Set<string>();
+    let elenen = 0;
     for (const l of links?.result ?? []) {
       const u = normalizeProfileUrl(l.href);
       if (!u || seen.has(u)) continue;
       const name = l.text.trim();
       if (!/^[\p{Lu}][\p{L}.'-]+(?:\s+[\p{Lu}][\p{L}.'-]+)+$/u.test(name)) continue;
       const parts = name.split(/\s+/);
-      const unvanM = l.card.match(/(?:[^·•]*?)\b([^·•]*(?:müdür|direktör|yönetici|başkan|manager|director|head|chief|cmo|cdo|lead|uzman|specialist)[^·•]*)/iu);
+      const unvan = pickTitleFromCard(l.lines ?? l.card.split(/\s{2,}|·/), name);
       seen.add(u);
-      hits.push({ ad: parts.slice(0, -1).join(' '), soyad: parts[parts.length - 1], unvan: (unvanM?.[1] ?? '').trim().slice(0, 160), profileUrl: u });
+      // NEDEN filtre: "<firma> Pazarlama" aramasi muhendis/QA/tasarimci dahil herkesi getirir
+      if (!isMarketingTitle(unvan)) { elenen++; continue; }
+      hits.push({ ad: parts.slice(0, -1).join(' '), soyad: parts[parts.length - 1], unvan: unvan.slice(0, 160), profileUrl: u });
       if (hits.length >= MAX_RESEARCH_HITS) break;
     }
+    if (elenen) this.log.debug(`arastirma "${firma}": ${elenen} aday pazarlama disi unvanla elendi`);
     if (hits.length === 0) {
       const snap = await this.snapshot(['--urls']);
       // NEDEN filtre: arama sonucundaki muhendis/QA'ler aday olmasin; yalniz pazarlama unvanlilar

@@ -754,3 +754,15 @@ describe('arastirma unvan filtresi (isMarketingTitle / researchKademe)', () => {
     expect(hits.filter((h) => m.isMarketingTitle(h.unvan)).map((h) => h.soyad)).toEqual(['Demir']);
   });
 });
+
+describe('pickTitleFromCard — DOM kart satirlarindan unvan', () => {
+  it('isimden sonraki ilk unvan satiri; derece, konum ve Mevcut: satirlari atlanir', async () => {
+    const m = await import('./linkedin-outreach-rules.js');
+    const lines = ['Nilay Yıldız Sayar', '· 2.', 'Senior Android Engineer', 'Ankara, Türkiye', 'Mevcut: Getir şirketinde Senior Software Engineer - I', 'HARUN KÖR, Hande Hoşkal ve 38 diğer ortak bağlantınız', 'Bağlantı kur'];
+    expect(m.pickTitleFromCard(lines, 'Nilay Yıldız Sayar')).toBe('Senior Android Engineer');
+    expect(m.isMarketingTitle(m.pickTitleFromCard(lines, 'Nilay Yıldız Sayar'))).toBe(false);
+    const l2 = ['Ayşe Demir', '· 2.', 'Dijital Pazarlama Direktörü @ Papara', 'İstanbul, Türkiye', 'Bağlantı kur'];
+    expect(m.pickTitleFromCard(l2, 'Ayşe Demir')).toBe('Dijital Pazarlama Direktörü @ Papara');
+    expect(m.pickTitleFromCard(['Bağlantı kur'], 'Ali Veli')).toBe('');
+  });
+});

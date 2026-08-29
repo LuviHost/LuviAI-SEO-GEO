@@ -871,3 +871,25 @@ export function researchKademe(unvan: string | null | undefined): 1 | 2 {
   const t = (unvan ?? '');
   return /(direktör|direktor|director|müdür|mudur|manager|başkan|baskan|head|chief|\bcmo\b|\bcdo\b|\bvp\b|genel müdür|gmy|lider|lead|yönetici|yonetici)/iu.test(t) ? 1 : 2;
 }
+
+/**
+ * Arama karti satirlarindan unvani sec: isim satirindan sonraki ilk "konum / Mevcut: /
+ * derece / ortak baglanti / dugme" olmayan satir. parseSearchResults ile ayni kurallar;
+ * NEDEN ayri fonksiyon: DOM yolu (SEARCH_LINKS_FN) satir dizisi verir, snapshot yolu metin.
+ */
+export function pickTitleFromCard(lines: string[], name: string): string {
+  const temiz = lines.map((l) => l.trim()).filter(Boolean);
+  const nameKeyed = name.trim().toLowerCase();
+  let start = temiz.findIndex((l) => l.toLowerCase() === nameKeyed || l.toLowerCase().startsWith(nameKeyed));
+  if (start < 0) start = -1;
+  for (let k = start + 1; k < Math.min(temiz.length, start + 8); k++) {
+    const cand = temiz[k];
+    if (cand.length < 3 || !/\p{L}{3,}/u.test(cand)) continue;                       // "· 2." derece
+    if (cand.toLowerCase() === nameKeyed) continue;                                       // isim tekrari
+    if (/^(mevcut|geçmiş|current|past|önceki)\s*:/iu.test(cand)) continue;             // "Mevcut: X sirketinde ..."
+    if (/ortak bağlantı|mutual connection|takipçi|followers|bağlantı kur|connect\b|mesaj|message|görüntüle|view profile|1\. derece|2\. derece|3\. derece|\b1st\b|\b2nd\b|\b3rd\b/iu.test(cand)) continue;
+    if (/^[\p{L}\s.]+,\s*[\p{L}\s.]+$/u.test(cand) && /türkiye|turkey|istanbul|ankara|izmir|bursa|antalya|kocaeli|london|berlin|amsterdam|dubai/iu.test(cand)) continue; // konum
+    return cand.slice(0, 160);
+  }
+  return '';
+}
