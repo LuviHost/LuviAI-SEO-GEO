@@ -720,3 +720,37 @@ describe('LinkedinOutreachService.tick — sayac, ritim, pencere, engel', () => 
     expect(calls.shots).toEqual(['q1-hata']);
   });
 });
+
+describe('arastirma unvan filtresi (isMarketingTitle / researchKademe)', () => {
+  it('pazarlama unvanlari gecer, muhendis/QA/tasarimci elenir', async () => {
+    const m = await import('./linkedin-outreach-rules.js');
+    expect(m.isMarketingTitle('Dijital Pazarlama Direktörü')).toBe(true);
+    expect(m.isMarketingTitle('Brand Marketing Manager')).toBe(true);
+    expect(m.isMarketingTitle('Growth Lead')).toBe(true);
+    expect(m.isMarketingTitle('Senior Android Engineer')).toBe(false);
+    expect(m.isMarketingTitle('Senior QA Engineer at Getir')).toBe(false);
+    expect(m.isMarketingTitle('Product Designer - Getir')).toBe(false);
+    expect(m.isMarketingTitle('Marketing Data Engineer')).toBe(false);
+    expect(m.isMarketingTitle('')).toBe(false);
+  });
+  it('kademe: direktor/mudur/head → 1, uzman → 2', async () => {
+    const m = await import('./linkedin-outreach-rules.js');
+    expect(m.researchKademe('Pazarlama Direktörü')).toBe(1);
+    expect(m.researchKademe('Head of Growth')).toBe(1);
+    expect(m.researchKademe('Dijital Pazarlama Uzmanı')).toBe(2);
+  });
+  it('parseSearchResults: unvan satiri manager kelimesi olmadan da okunur, konum satiri unvan sanilmaz', async () => {
+    const m = await import('./linkedin-outreach-rules.js');
+    const snap = [
+      '- link "Nilay Yıldız Sayar" [ref=e10] /url: https://www.linkedin.com/in/nilay-yildiz-sayar/',
+      '- generic "Senior Android Engineer"',
+      '- generic "Ankara, Türkiye"',
+      '- link "Ayşe Demir" [ref=e20] /url: https://www.linkedin.com/in/ayse-demir-123/',
+      '- generic "Dijital Pazarlama Direktörü"',
+      '- generic "İstanbul, Türkiye"',
+    ].join('\n');
+    const hits = m.parseSearchResults(snap);
+    expect(hits.map((h) => h.unvan)).toEqual(['Senior Android Engineer', 'Dijital Pazarlama Direktörü']);
+    expect(hits.filter((h) => m.isMarketingTitle(h.unvan)).map((h) => h.soyad)).toEqual(['Demir']);
+  });
+});

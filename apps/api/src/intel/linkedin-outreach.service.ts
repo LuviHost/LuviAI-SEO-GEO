@@ -31,6 +31,8 @@ import {
   normalizeProfileUrl,
   parseDegree,
   parseSearchResults,
+  isMarketingTitle,
+  researchKademe,
   planTick,
   profileReadDelayMs,
   renderMessage,
@@ -582,7 +584,8 @@ export class LinkedinOutreachService {
     }
     if (hits.length === 0) {
       const snap = await this.snapshot(['--urls']);
-      for (const h of parseSearchResults(snap).slice(0, MAX_RESEARCH_HITS)) if (!seen.has(h.profileUrl)) { seen.add(h.profileUrl); hits.push(h); }
+      // NEDEN filtre: arama sonucundaki muhendis/QA'ler aday olmasin; yalniz pazarlama unvanlilar
+      for (const h of parseSearchResults(snap).filter((x) => isMarketingTitle(x.unvan)).slice(0, MAX_RESEARCH_HITS)) if (!seen.has(h.profileUrl)) { seen.add(h.profileUrl); hits.push(h); }
       if (hits.length === 0) {
         // Kisisel veri loga basilmaz: yalniz sayi
         const nameless = extractProfileUrls(snap).length;
@@ -597,7 +600,7 @@ export class LinkedinOutreachService {
     for (const h of hits) {
       try {
         await this.prisma.linkedinProspect.create({
-          data: { ad: h.ad, soyad: h.soyad, firma, unvan: h.unvan || null, sektor: null, kademe: 2, profileUrl: h.profileUrl, status: 'QUEUED' },
+          data: { ad: h.ad, soyad: h.soyad, firma, unvan: h.unvan || null, sektor: null, kademe: researchKademe(h.unvan), profileUrl: h.profileUrl, status: 'QUEUED' },
         });
         created++;
       } catch {

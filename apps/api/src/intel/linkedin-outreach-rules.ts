@@ -829,10 +829,17 @@ export function parseSearchResults(text: string | null | undefined): ResearchHit
       const cand = (q.length ? q : [lines[k].replace(/^-\s*\w+\s*/, '')]).find((s) => /^[\p{Lu}][\p{L}.'-]+(?:\s+[\p{Lu}][\p{L}.'-]+)+$/u.test(s.trim()));
       if (cand) name = cand.trim();
     }
-    for (let k = i + 1; k < Math.min(lines.length, i + 5) && !unvan; k++) {
+    // NEDEN: unvan satiri her zaman "Manager" gibi bir kelime icermez ("Senior Android Engineer");
+    // isimden sonraki ilk konum/"Mevcut:" olmayan metin unvandir. Filtre isMarketingTitle'da.
+    for (let k = i + 1; k < Math.min(lines.length, i + 6) && !unvan; k++) {
       const q = quotedTexts(lines[k]);
       const cand = (q.length ? q[0] : lines[k].replace(/^-\s*\w+\s*/, '')).trim();
-      if (/\b(müdür|direktör|yönetici|başkan|manager|director|head|chief|cmo|cdo|lead|uzman|specialist)\b/iu.test(cand)) unvan = cand.slice(0, 160);
+      if (!cand || cand.length < 3 || !/\p{L}{3,}/u.test(cand)) continue; // "· 2." gibi derece isaretleri
+      if (/^(mevcut|geçmiş|current|past|önceki)\s*:/iu.test(cand)) continue;
+      if (/ortak bağlantı|mutual connection|takipçi|followers|bağlantı kur|connect|mesaj|message/iu.test(cand)) continue;
+      if (/^[\p{L}\s.]+,\s*[\p{L}\s.]+$/u.test(cand) && /türkiye|turkey|istanbul|ankara|izmir|bursa|antalya|kocaeli|london|berlin/iu.test(cand)) continue; // "Ankara, Türkiye"
+      if (/^[\p{Lu}][\p{L}.'-]+(?:\s+[\p{Lu}][\p{L}.'-]+)+$/u.test(cand) && cand.split(/\s+/).length <= 3 && !/\b(engineer|manager|director|müdür|direktör|uzman|specialist|lead|head)\b/iu.test(cand)) continue; // baska bir isim satiri
+      unvan = cand.slice(0, 160);
     }
     if (!name) continue;
     const parts = name.split(/\s+/);
@@ -840,4 +847,27 @@ export function parseSearchResults(text: string | null | undefined): ResearchHit
     out.push({ ad: parts.slice(0, -1).join(' '), soyad: parts[parts.length - 1], unvan, profileUrl: url });
   }
   return out;
+}
+
+/**
+ * Arastirma adayi PAZARLAMA tarafinda mi? NEDEN: "<firma> Pazarlama" aramasi muhendis/QA
+ * dahil herkesi getiriyor (29.08 kuru tick: Getir sonuclari). Unvan bos ya da pazarlama
+ * disiysa aday DEGIL — yanlis kisiye baglanti istegi hem israf hem spam sinyali.
+ */
+const PAZARLAMA_POZITIF = /(pazarlama|marketing|marka|brand|dijital|digital|growth|büyüme|buyume|\bcmo\b|\bcdo\b|iletişim|iletisim|communications?|müşteri deneyimi|musteri deneyimi|customer experience|e-?ticaret|e-?commerce|performance|kampanya|campaign|crm|içerik|icerik|content|seo|sosyal medya|social media|reklam|advertis)/iu;
+const PAZARLAMA_NEGATIF = /(engineer|mühendis|muhendis|developer|yazılım|yazilim|software|\bqa\b|test|data scien|veri bilim|devops|\bit\b|bilgi teknolojileri|security|güvenlik|guvenlik|finance|finans|muhasebe|accounting|hukuk|legal|insan kaynakları|insan kaynaklari|\bhr\b|recruit|işe alım|ise alim|operasyon|operations|lojistik|logistic|satın alma|satin alma|procurement|product designer|ux|ui designer|intern|stajyer|öğrenci|ogrenci|student)/iu;
+
+export function isMarketingTitle(unvan: string | null | undefined): boolean {
+  const t = (unvan ?? '').trim();
+  if (!t) return false;
+  if (!PAZARLAMA_POZITIF.test(t)) return false;
+  // "Marketing Data Engineer" gibi karisik unvanlar: negatif kelime baskin sayilir
+  if (PAZARLAMA_NEGATIF.test(t)) return false;
+  return true;
+}
+
+/** Karar verici mi (kademe 1) yoksa etkileyici mi (kademe 2) — arastirma adayi icin */
+export function researchKademe(unvan: string | null | undefined): 1 | 2 {
+  const t = (unvan ?? '');
+  return /(direktör|direktor|director|müdür|mudur|manager|başkan|baskan|head|chief|\bcmo\b|\bcdo\b|\bvp\b|genel müdür|gmy|lider|lead|yönetici|yonetici)/iu.test(t) ? 1 : 2;
 }
