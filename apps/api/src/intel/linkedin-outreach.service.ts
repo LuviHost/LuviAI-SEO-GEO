@@ -16,6 +16,7 @@ import {
   type TickQueue,
   type UnreadConversation,
   acceptRateWindow,
+  cardCompanyMatch,
   cutAtSidebar,
   delayBetweenActionsMs,
   detectBlock,
@@ -31,15 +32,17 @@ import {
   normalizeProfileUrl,
   parseDegree,
   parseSearchResults,
-  isMarketingTitle,
+  isTargetTitle,
   researchKademe,
   pickTitleFromCard,
   planTick,
   profileReadDelayMs,
   renderMessage,
   renderNote,
+  researchSearchUrl,
   resolveLimits,
   shouldPause,
+  urlMatchesTarget,
 } from './linkedin-outreach-rules.js';
 
 /**
@@ -571,7 +574,7 @@ export class LinkedinOutreachService {
   // ── (0) Arastirma ───────────────────────────────────────────
 
   private async research(firma: string, dryRun: boolean, limits: OutreachLimits): Promise<TickAction> {
-    const url = `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(`${firma} Pazarlama`)}`;
+    const url = researchSearchUrl(firma);
     await this.goto(url);
     await sleep(SETTLE_MS + 1_000);
     const page = await this.readPage();
@@ -582,24 +585,33 @@ export class LinkedinOutreachService {
     const hits: Array<{ ad: string; soyad: string; unvan: string; profileUrl: string }> = [];
     const seen = new Set<string>();
     let elenen = 0;
+    let firmaDisi = 0;
     for (const l of links?.result ?? []) {
       const u = normalizeProfileUrl(l.href);
       if (!u || seen.has(u)) continue;
       const name = l.text.trim();
       if (!/^[\p{Lu}][\p{L}.'-]+(?:\s+[\p{Lu}][\p{L}.'-]+)+$/u.test(name)) continue;
       const parts = name.split(/\s+/);
-      const unvan = pickTitleFromCard(l.lines ?? l.card.split(/\s{2,}|·/), name);
+      const lines = l.lines ?? l.card.split(/\s{2,}|·/);
+      const unvan = pickTitleFromCard(lines, name);
       seen.add(u);
       // NEDEN filtre: "<firma> Pazarlama" aramasi muhendis/QA/tasarimci dahil herkesi getirir
-      if (!isMarketingTitle(unvan)) { elenen++; continue; }
+      if (!isTargetTitle(unvan)) { elenen++; continue; }
+      // NEDEN firma filtresi: anahtar kelime eski calisanlari da getirir ("Geçmiş: Papara şirketinde …");
+      // kart su anki firmayi gostermiyorsa aday degil — yanlis kisiye istek atilmaz
+      const cm = cardCompanyMatch(lines, firma, unvan);
+      if (cm === 'past' || cm === 'none') { firmaDisi++; continue; }
       hits.push({ ad: parts.slice(0, -1).join(' '), soyad: parts[parts.length - 1], unvan: unvan.slice(0, 160), profileUrl: u });
-      if (hits.length >= MAX_RESEARCH_HITS) break;
     }
-    if (elenen) this.log.debug(`arastirma "${firma}": ${elenen} aday pazarlama disi unvanla elendi`);
+    // NEDEN siralama: sayfa sirasi rastgele; karar vericiler (kademe 1) kotaya once girsin
+    hits.sort((a, b) => researchKademe(a.unvan) - researchKademe(b.unvan));
+    hits.splice(MAX_RESEARCH_HITS);
+    if (elenen || firmaDisi) this.log.debug(`arastirma "${firma}": ${elenen} aday pazarlama disi unvanla, ${firmaDisi} aday firma eslesmeyince elendi`);
     if (hits.length === 0) {
       const snap = await this.snapshot(['--urls']);
-      // NEDEN filtre: arama sonucundaki muhendis/QA'ler aday olmasin; yalniz pazarlama unvanlilar
-      for (const h of parseSearchResults(snap).filter((x) => isMarketingTitle(x.unvan)).slice(0, MAX_RESEARCH_HITS)) if (!seen.has(h.profileUrl)) { seen.add(h.profileUrl); hits.push(h); }
+      // NEDEN filtre: arama sonucundaki muhendis/QA'ler aday olmasin; yalniz pazarlama unvanlilar.
+      // Snapshot yolunda kart satiri yok → firma yalniz basliktan dogrulanabilir ('headline')
+      for (const h of parseSearchResults(snap).filter((x) => isTargetTitle(x.unvan) && cardCompanyMatch([], firma, x.unvan) === 'headline').slice(0, MAX_RESEARCH_HITS)) if (!seen.has(h.profileUrl)) { seen.add(h.profileUrl); hits.push(h); }
       if (hits.length === 0) {
         // Kisisel veri loga basilmaz: yalniz sayi
         const nameless = extractProfileUrls(snap).length;
@@ -870,7 +882,16 @@ export class LinkedinOutreachService {
       const opened = await this.browser<{ tabId?: string; targetId?: string }>(['open', url]);
       this.tab = opened?.tabId ?? opened?.targetId ?? 'acik';
     } else {
-      await this.browser(['navigate', url]);
+      try {
+        await this.browser(['navigate', url]);
+      } catch (err: any) {
+        // NEDEN: tunel uzerinden LinkedIn arama sayfasi gateway'in navigate suresini (20 sn) asabiliyor
+        // (29.08.2026 Getir turu); sayfa cogu zaman yine de yuklenmistir → URL dogrulanir, degilse bir kez daha
+        if (!/timeout|zaman aşımı/iu.test(String(err?.message ?? err))) throw err;
+        await sleep(SETTLE_MS);
+        const here = await this.readPage().catch(() => null);
+        if (!urlMatchesTarget(here?.url, url)) await this.browser(['navigate', url]);
+      }
     }
     await sleep(SETTLE_MS);
   }

@@ -830,7 +830,7 @@ export function parseSearchResults(text: string | null | undefined): ResearchHit
       if (cand) name = cand.trim();
     }
     // NEDEN: unvan satiri her zaman "Manager" gibi bir kelime icermez ("Senior Android Engineer");
-    // isimden sonraki ilk konum/"Mevcut:" olmayan metin unvandir. Filtre isMarketingTitle'da.
+    // isimden sonraki ilk konum/"Mevcut:" olmayan metin unvandir. Filtre isTargetTitle'da.
     for (let k = i + 1; k < Math.min(lines.length, i + 6) && !unvan; k++) {
       const q = quotedTexts(lines[k]);
       const cand = (q.length ? q[0] : lines[k].replace(/^-\s*\w+\s*/, '')).trim();
@@ -850,26 +850,43 @@ export function parseSearchResults(text: string | null | undefined): ResearchHit
 }
 
 /**
- * Arastirma adayi PAZARLAMA tarafinda mi? NEDEN: "<firma> Pazarlama" aramasi muhendis/QA
- * dahil herkesi getiriyor (29.08 kuru tick: Getir sonuclari). Unvan bos ya da pazarlama
- * disiysa aday DEGIL — yanlis kisiye baglanti istegi hem israf hem spam sinyali.
+ * Arastirma adayi HEDEF unvanda mi? Iki aile kabul edilir (kullanici karari 29.08.2026:
+ * "yalniz pazarlama degil; CEO/CTO, founder/co-founder, manager tarzi"):
+ *   1) Ust yonetim / kurucu: CEO, CTO, CMO, COO, chief…, founder/kurucu, genel mudur/GMY,
+ *      managing director, country/general manager, direktor/director, head, VP, baskan, icra/yonetim kurulu
+ *   2) Pazarlama ailesi (her kademe): pazarlama/marketing, marka/brand, dijital, growth, iletisim,
+ *      musteri deneyimi, e-ticaret, performans, CRM, icerik, SEO, sosyal medya, reklam
+ * Duz "Manager" tek basina yeterli DEGIL (muhendislik/operasyon yoneticilerini getirir); yalniz 2. aileyle.
+ * Negatif kelimeler (muhendis, yazilim, IK, finans, hukuk, operasyon, satin alma, stajyer…) her iki
+ * ailede baskindir — "Marketing Data Engineer", "CFO", "Chief Legal Officer" aday degil.
+ * Unvan bos ya da hedef disiysa aday DEGIL — yanlis kisiye baglanti istegi hem israf hem spam sinyali.
  */
-const PAZARLAMA_POZITIF = /(pazarlama|marketing|marka|brand|dijital|digital|growth|büyüme|buyume|\bcmo\b|\bcdo\b|iletişim|iletisim|communications?|müşteri deneyimi|musteri deneyimi|customer experience|e-?ticaret|e-?commerce|performance|kampanya|campaign|crm|içerik|icerik|content|seo|sosyal medya|social media|reklam|advertis)/iu;
-const PAZARLAMA_NEGATIF = /(engineer|mühendis|muhendis|developer|yazılım|yazilim|software|\bqa\b|test|data scien|veri bilim|devops|\bit\b|bilgi teknolojileri|security|güvenlik|guvenlik|finance|finans|muhasebe|accounting|hukuk|legal|insan kaynakları|insan kaynaklari|\bhr\b|recruit|işe alım|ise alim|operasyon|operations|lojistik|logistic|satın alma|satin alma|procurement|product designer|ux|ui designer|intern|stajyer|öğrenci|ogrenci|student)/iu;
+const UST_YONETIM = /(\bceo\b|\bcto\b|\bcmo\b|\bcdo\b|\bcgo\b|\bcoo\b|\bcpo\b|\bcro\b|\bchief\b|co-?founder|founder|kurucu|genel müdür|genel mudur|\bgmy\b|managing director|general manager|country manager|başkan|baskan|president|\bvp\b|vice president|direktör|direktor|director|head of|\bhead\b|yönetim kurulu|yonetim kurulu|board member|icra kurulu|executive)/iu;
+const PAZARLAMA_POZITIF = /(pazarlama|marketing|marka|brand|dijital|digital|growth|büyüme|buyume|iletişim|iletisim|communications?|müşteri deneyimi|musteri deneyimi|customer experience|e-?ticaret|e-?commerce|performance|kampanya|campaign|crm|içerik|icerik|content|seo|sosyal medya|social media|reklam|advertis)/iu;
+const HEDEF_NEGATIF = /(engineer|mühendis|muhendis|developer|yazılım|yazilim|software|\bqa\b|\btest|data scien|veri bilim|devops|\bit\b|bilgi teknolojileri|security|güvenlik|guvenlik|financ|finans|muhasebe|account(?:ing|ant)|hukuk|legal|\brisk\b|insan kaynakları|insan kaynaklari|human resources|chief people|people officer|\bhr\b|recruit|işe alım|ise alim|operasyon|operations|lojistik|logistic|satın alma|satin alma|procurement|product designer|\bux\b|ui designer|intern\b|stajyer|öğrenci|ogrenci|student)/iu;
 
-export function isMarketingTitle(unvan: string | null | undefined): boolean {
-  const t = (unvan ?? '').trim();
+/**
+ * NEDEN: JS regex `i` bayragi U+0130 (İ) harfini "i"ye katlamaz — "İcra Kurulu", "İletişim"
+ * eslesmiyordu. Once İ→i, sonra toLowerCase (Ingilizce buyuk harfli "MARKETING DIRECTOR" bozulmasin;
+ * toLocaleLowerCase('tr') I→ı yapar ve "director"i kirar).
+ */
+function titleKey(unvan: string | null | undefined): string {
+  return (unvan ?? '').trim().replace(/İ/g, 'i').toLowerCase();
+}
+
+export function isTargetTitle(unvan: string | null | undefined): boolean {
+  const t = titleKey(unvan);
   if (!t) return false;
-  if (!PAZARLAMA_POZITIF.test(t)) return false;
-  // "Marketing Data Engineer" gibi karisik unvanlar: negatif kelime baskin sayilir
-  if (PAZARLAMA_NEGATIF.test(t)) return false;
+  if (!UST_YONETIM.test(t) && !PAZARLAMA_POZITIF.test(t)) return false;
+  // "Marketing Data Engineer", "CFO" gibi karisik/hedef disi unvanlar: negatif kelime baskin sayilir
+  if (HEDEF_NEGATIF.test(t)) return false;
   return true;
 }
 
 /** Karar verici mi (kademe 1) yoksa etkileyici mi (kademe 2) — arastirma adayi icin */
 export function researchKademe(unvan: string | null | undefined): 1 | 2 {
-  const t = (unvan ?? '');
-  return /(direktör|direktor|director|müdür|mudur|manager|başkan|baskan|head|chief|\bcmo\b|\bcdo\b|\bvp\b|genel müdür|gmy|lider|lead|yönetici|yonetici)/iu.test(t) ? 1 : 2;
+  const t = titleKey(unvan);
+  return UST_YONETIM.test(t) || /(müdür|mudur|manager|lider|\blead\b|yönetici|yonetici)/iu.test(t) ? 1 : 2;
 }
 
 /**
@@ -892,4 +909,70 @@ export function pickTitleFromCard(lines: string[], name: string): string {
     return cand.slice(0, 160);
   }
   return '';
+}
+
+// ── Arastirma: arama URL'si + firma eslesmesi ─────────────────
+
+/**
+ * Unvan filtresi (LinkedIn "Tüm filtreler → Unvan", boolean OR destekler).
+ * NEDEN: `keywords="<firma> Pazarlama"` aramasi Papara/Getir icin eski calisan
+ * muhendisleri getirdi, pazarlama unvanli kimse cikmadi (29.08.2026, 3 firma 0 aday).
+ */
+export const RESEARCH_TITLE_QUERY = 'CEO OR CTO OR CMO OR COO OR Chief OR Founder OR Kurucu OR "Genel Müdür" OR Director OR Direktör OR Head OR VP OR Pazarlama OR Marketing OR Marka OR Brand OR Growth OR Dijital OR Digital';
+
+/** Kisi arama URL'si: anahtar kelime = firma (kartta "Mevcut:/Geçmiş:" eslesme satiri cikar), unvan filtresi pazarlama */
+export function researchSearchUrl(firma: string): string {
+  const q = new URLSearchParams({ keywords: firma.trim(), title: RESEARCH_TITLE_QUERY, origin: 'FACETED_SEARCH' });
+  return `https://www.linkedin.com/search/results/people/?${q.toString()}`;
+}
+
+export type CardCompanyMatch = 'current' | 'headline' | 'past' | 'none';
+
+/**
+ * Kart bu kisinin SU AN aranan firmada oldugunu gosteriyor mu?
+ *   'current'  — "Mevcut: <firma> şirketinde …" / "Current: … at <firma>"
+ *   'headline' — basligin kendisinde firma adi ("Pazarlama Müdürü @ Papara")
+ *   'past'     — yalniz "Geçmiş:/Past:" satirinda firma → eski calisan, aday DEGIL
+ *   'none'     — hicbir satirda firma yok → aday DEGIL (yanlis kisiye istek = israf + spam sinyali)
+ * Firma eslesmesi firmaKey uzerinden (A.Ş./Grup/buyuk-kucuk harf farki yok; "Papara'da" → papara da).
+ */
+export function cardCompanyMatch(lines: readonly string[], firma: string, unvan?: string | null): CardCompanyMatch {
+  const tokens = firmaKey(firma).split(' ').filter((t) => t.length >= 2);
+  if (tokens.length === 0) return 'none';
+  const has = (s: string): boolean => {
+    const k = ` ${firmaKey(s)} `;
+    return tokens.every((t) => k.includes(t));
+  };
+  let past = false;
+  for (const raw of lines) {
+    const m = /^(mevcut|current|geçmiş|gecmis|past|önceki|onceki|previous)\s*:\s*(.+)$/iu.exec(raw.trim());
+    if (!m) continue;
+    if (!has(m[2])) continue;
+    if (/^(mevcut|current)$/iu.test(m[1])) return 'current';
+    past = true;
+  }
+  if (unvan && has(unvan)) return 'headline';
+  return past ? 'past' : 'none';
+}
+
+/**
+ * Tarayici gercekten hedef sayfada mi? Yol ayni + hedefin her sorgu parametresi mevcut URL'de ayni.
+ * NEDEN: tunel uzerinden LinkedIn aramasi gateway'in 20 sn navigate suresini asabiliyor;
+ * zaman asimi sayfanin yuklenmedigi anlamina gelmiyor — URL ile dogrulanir.
+ */
+export function urlMatchesTarget(current: string | null | undefined, target: string): boolean {
+  if (!current) return false;
+  try {
+    const a = new URL(current);
+    const b = new URL(target);
+    if (a.hostname.replace(/^www\./, '') !== b.hostname.replace(/^www\./, '')) return false;
+    if (a.pathname.replace(/\/+$/, '') !== b.pathname.replace(/\/+$/, '')) return false;
+    for (const [k, v] of b.searchParams) {
+      if (k === 'origin') continue;
+      if (a.searchParams.get(k) !== v) return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
 }

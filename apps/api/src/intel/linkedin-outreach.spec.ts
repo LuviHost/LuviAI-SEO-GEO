@@ -721,17 +721,17 @@ describe('LinkedinOutreachService.tick — sayac, ritim, pencere, engel', () => 
   });
 });
 
-describe('arastirma unvan filtresi (isMarketingTitle / researchKademe)', () => {
+describe('arastirma unvan filtresi (isTargetTitle / researchKademe)', () => {
   it('pazarlama unvanlari gecer, muhendis/QA/tasarimci elenir', async () => {
     const m = await import('./linkedin-outreach-rules.js');
-    expect(m.isMarketingTitle('Dijital Pazarlama Direktörü')).toBe(true);
-    expect(m.isMarketingTitle('Brand Marketing Manager')).toBe(true);
-    expect(m.isMarketingTitle('Growth Lead')).toBe(true);
-    expect(m.isMarketingTitle('Senior Android Engineer')).toBe(false);
-    expect(m.isMarketingTitle('Senior QA Engineer at Getir')).toBe(false);
-    expect(m.isMarketingTitle('Product Designer - Getir')).toBe(false);
-    expect(m.isMarketingTitle('Marketing Data Engineer')).toBe(false);
-    expect(m.isMarketingTitle('')).toBe(false);
+    expect(m.isTargetTitle('Dijital Pazarlama Direktörü')).toBe(true);
+    expect(m.isTargetTitle('Brand Marketing Manager')).toBe(true);
+    expect(m.isTargetTitle('Growth Lead')).toBe(true);
+    expect(m.isTargetTitle('Senior Android Engineer')).toBe(false);
+    expect(m.isTargetTitle('Senior QA Engineer at Getir')).toBe(false);
+    expect(m.isTargetTitle('Product Designer - Getir')).toBe(false);
+    expect(m.isTargetTitle('Marketing Data Engineer')).toBe(false);
+    expect(m.isTargetTitle('')).toBe(false);
   });
   it('kademe: direktor/mudur/head → 1, uzman → 2', async () => {
     const m = await import('./linkedin-outreach-rules.js');
@@ -751,7 +751,7 @@ describe('arastirma unvan filtresi (isMarketingTitle / researchKademe)', () => {
     ].join('\n');
     const hits = m.parseSearchResults(snap);
     expect(hits.map((h) => h.unvan)).toEqual(['Senior Android Engineer', 'Dijital Pazarlama Direktörü']);
-    expect(hits.filter((h) => m.isMarketingTitle(h.unvan)).map((h) => h.soyad)).toEqual(['Demir']);
+    expect(hits.filter((h) => m.isTargetTitle(h.unvan)).map((h) => h.soyad)).toEqual(['Demir']);
   });
 });
 
@@ -760,9 +760,78 @@ describe('pickTitleFromCard — DOM kart satirlarindan unvan', () => {
     const m = await import('./linkedin-outreach-rules.js');
     const lines = ['Nilay Yıldız Sayar', '· 2.', 'Senior Android Engineer', 'Ankara, Türkiye', 'Mevcut: Getir şirketinde Senior Software Engineer - I', 'HARUN KÖR, Hande Hoşkal ve 38 diğer ortak bağlantınız', 'Bağlantı kur'];
     expect(m.pickTitleFromCard(lines, 'Nilay Yıldız Sayar')).toBe('Senior Android Engineer');
-    expect(m.isMarketingTitle(m.pickTitleFromCard(lines, 'Nilay Yıldız Sayar'))).toBe(false);
+    expect(m.isTargetTitle(m.pickTitleFromCard(lines, 'Nilay Yıldız Sayar'))).toBe(false);
     const l2 = ['Ayşe Demir', '· 2.', 'Dijital Pazarlama Direktörü @ Papara', 'İstanbul, Türkiye', 'Bağlantı kur'];
     expect(m.pickTitleFromCard(l2, 'Ayşe Demir')).toBe('Dijital Pazarlama Direktörü @ Papara');
     expect(m.pickTitleFromCard(['Bağlantı kur'], 'Ali Veli')).toBe('');
+  });
+});
+
+describe('arastirma — arama URL\'si ve firma eslesmesi', () => {
+  it('researchSearchUrl: anahtar kelime firma, unvan filtresi pazarlama terimleri (OR)', async () => {
+    const m = await import('./linkedin-outreach-rules.js');
+    const u = new URL(m.researchSearchUrl(' Papara '));
+    expect(u.pathname).toBe('/search/results/people/');
+    expect(u.searchParams.get('keywords')).toBe('Papara');
+    expect(u.searchParams.get('title')).toContain('CEO OR CTO');
+    expect(u.searchParams.get('title')).toContain('Founder OR Kurucu');
+    expect(u.searchParams.get('title')).toContain('Pazarlama OR Marketing');
+    // Eski kalip ("Papara Pazarlama" anahtar kelimesi) artik yok
+    expect(u.searchParams.get('keywords')).not.toContain('Pazarlama');
+  });
+
+  it('cardCompanyMatch: Mevcut/Current → current; yalniz Geçmiş → past; baslikta firma → headline; hicbiri → none', async () => {
+    const m = await import('./linkedin-outreach-rules.js');
+    expect(m.cardCompanyMatch(['Ayşe Demir', '· 2.', 'Pazarlama Müdürü', 'İstanbul, Türkiye', 'Mevcut: Papara Elektronik Para A.Ş. şirketinde Pazarlama Müdürü'], 'Papara', 'Pazarlama Müdürü')).toBe('current');
+    expect(m.cardCompanyMatch(['John Doe', '· 2nd', 'Marketing Manager', 'Current: Marketing Manager at Getir'], 'Getir', 'Marketing Manager')).toBe('current');
+    expect(m.cardCompanyMatch(['Okan Özmen • 2.', 'Software Engineer', 'Ordu, Türkiye', 'Bağlantı kur', 'Geçmiş: Papara şirketinde Senior Software Engineer'], 'Papara', 'Software Engineer')).toBe('past');
+    expect(m.cardCompanyMatch(['Ayşe Demir', '· 2.', 'Dijital Pazarlama Direktörü @ Papara', 'İstanbul, Türkiye'], 'Papara', 'Dijital Pazarlama Direktörü @ Papara')).toBe('headline');
+    expect(m.cardCompanyMatch(['Ali Veli', "Trendyol'da Marka Müdürü"], 'Trendyol', "Trendyol'da Marka Müdürü")).toBe('headline');
+    // Baska firmada pazarlamaci: "Papara" aramasinda cikti ama firma yok → none
+    expect(m.cardCompanyMatch(['Deniz Lök', '· 2.', 'Satış uzmanı', 'Mevcut: Samka Metal Ambalaj şirketinde Satış ve Pazarlama Uzmanı'], 'Papara', 'Satış uzmanı')).toBe('none');
+    // Cok kelimeli firma: tum anlamli parcalar gerekli
+    expect(m.cardCompanyMatch(['X Y', 'Mevcut: Türk Hava Yolları şirketinde Pazarlama Müdürü'], 'Türk Hava Yolları', 'Pazarlama Müdürü')).toBe('current');
+    expect(m.cardCompanyMatch(['X Y', 'Mevcut: Türk Telekom şirketinde Pazarlama Müdürü'], 'Türk Hava Yolları', 'Pazarlama Müdürü')).toBe('none');
+    expect(m.cardCompanyMatch([], '', 'Pazarlama Müdürü')).toBe('none');
+  });
+
+  it('urlMatchesTarget: yol + hedef sorgu parametreleri (origin haric) ayni olmali', async () => {
+    const m = await import('./linkedin-outreach-rules.js');
+    const target = m.researchSearchUrl('Papara');
+    expect(m.urlMatchesTarget(target, target)).toBe(true);
+    expect(m.urlMatchesTarget(target.replace('origin=FACETED_SEARCH', 'origin=GLOBAL_SEARCH_HEADER') + '&sid=abc', target)).toBe(true);
+    expect(m.urlMatchesTarget(m.researchSearchUrl('Getir'), target)).toBe(false);
+    expect(m.urlMatchesTarget('https://www.linkedin.com/feed/', target)).toBe(false);
+    expect(m.urlMatchesTarget('https://www.linkedin.com/checkpoint/challenge/', target)).toBe(false);
+    expect(m.urlMatchesTarget('', target)).toBe(false);
+    expect(m.urlMatchesTarget('bozuk', target)).toBe(false);
+  });
+});
+
+describe('isTargetTitle — ust yonetim/kurucu + pazarlama ailesi', () => {
+  it('CEO/CTO/founder/kurucu/genel mudur/direktor/head/VP kabul, kademe 1', async () => {
+    const m = await import('./linkedin-outreach-rules.js');
+    for (const t of ['CEO', 'Chief Executive Officer', 'CTO at Papara', 'Co-Founder & CEO', 'Kurucu Ortak', 'Founder', 'Genel Müdür', 'Genel Müdür Yardımcısı (GMY)', 'Managing Director', 'Country Manager Turkey', 'Satış Direktörü', 'Head of Product', 'VP of Sales', 'İcra Kurulu Üyesi', 'Chief Product Officer', 'Chief Revenue Officer']) {
+      expect(m.isTargetTitle(t), t).toBe(true);
+      expect(m.researchKademe(t), t).toBe(1);
+    }
+  });
+  it('pazarlama ailesi her kademede kabul; mudur/manager kademe 1, uzman kademe 2', async () => {
+    const m = await import('./linkedin-outreach-rules.js');
+    expect(m.isTargetTitle('Dijital Pazarlama Müdürü')).toBe(true);
+    expect(m.researchKademe('Dijital Pazarlama Müdürü')).toBe(1);
+    expect(m.isTargetTitle('Brand Marketing Manager')).toBe(true);
+    expect(m.isTargetTitle('Growth Specialist')).toBe(true);
+    expect(m.researchKademe('Growth Specialist')).toBe(2);
+    expect(m.isTargetTitle('Marketing Director, Luxury Brands')).toBe(true); // "ux" alt dizesi elemesin
+    expect(m.isTargetTitle('İletişim Direktörü')).toBe(true); // buyuk İ (U+0130) regex i-bayragina takilmasin
+    expect(m.isTargetTitle('MARKETING DIRECTOR')).toBe(true);
+    expect(m.isTargetTitle('İNSAN KAYNAKLARI DİREKTÖRÜ')).toBe(false);
+  });
+  it('hedef disi: CFO/CHRO/CISO/CLO, muhendislik yoneticisi, duz manager, IK, stajyer', async () => {
+    const m = await import('./linkedin-outreach-rules.js');
+    for (const t of ['CFO', 'Chief Financial Officer', 'Chief Human Resources Officer', 'Chief People Officer', 'Chief Information Security Officer', 'Chief Legal Officer', 'Chief Risk Officer', 'Engineering Manager', 'Software Development Manager', 'Product Manager', 'Project Manager', 'Operations Director', 'Finans Direktörü', 'İnsan Kaynakları Müdürü', 'Marketing Intern', 'Senior Software Engineer', 'Head of IT', 'Chief Accountant', '']) {
+      expect(m.isTargetTitle(t), t).toBe(false);
+    }
   });
 });
