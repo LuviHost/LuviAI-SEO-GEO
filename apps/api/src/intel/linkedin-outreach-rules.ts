@@ -861,7 +861,7 @@ export function parseSearchResults(text: string | null | undefined): ResearchHit
  * ailede baskindir — "Marketing Data Engineer", "CFO", "Chief Legal Officer" aday degil.
  * Unvan bos ya da hedef disiysa aday DEGIL — yanlis kisiye baglanti istegi hem israf hem spam sinyali.
  */
-const UST_YONETIM = /(\bceo\b|\bcto\b|\bcmo\b|\bcdo\b|\bcgo\b|\bcoo\b|\bcpo\b|\bcro\b|\bchief\b|co-?founder|founder|kurucu|genel müdür|genel mudur|\bgmy\b|managing director|general manager|country manager|başkan|baskan|president|\bvp\b|vice president|direktör|direktor|director|head of|\bhead\b|yönetim kurulu|yonetim kurulu|board member|icra kurulu|executive)/iu;
+const UST_YONETIM = /(\bceo\b|\bcto\b|\bcmo\b|\bcdo\b|\bcgo\b|\bcoo\b|\bcpo\b|\bcro\b|\bchief\b|co-?founder|founder|kurucu|genel müdür|genel mudur|\bgmy\b|managing director|general manager|country manager|başkan|baskan|president|\bvp\b|vice president|direktör|direktor|director|head of|\bhead\b|yönetim kurulu|yonetim kurulu|board member|icra kurulu|chief executive|executive director|executive vice)/iu;
 const PAZARLAMA_POZITIF = /(pazarlama|marketing|marka|brand|dijital|digital|growth|büyüme|buyume|iletişim|iletisim|communications?|müşteri deneyimi|musteri deneyimi|customer experience|e-?ticaret|e-?commerce|performance|kampanya|campaign|crm|içerik|icerik|content|seo|sosyal medya|social media|reklam|advertis)/iu;
 const HEDEF_NEGATIF = /(engineer|mühendis|muhendis|developer|yazılım|yazilim|software|\bqa\b|\btest|data scien|veri bilim|devops|\bit\b|bilgi teknolojileri|security|güvenlik|guvenlik|financ|finans|muhasebe|account(?:ing|ant)|hukuk|legal|avukat|attorney|lawyer|counsel|\brisk\b|insan kaynakları|insan kaynaklari|human resources|chief people|people officer|people (?:&|and) culture|business intelligence|analytics|analitik|\bdata\b|\bveri\b|\bhr\b|recruit|işe alım|ise alim|operasyon|operations|lojistik|logistic|satın alma|satin alma|procurement|product designer|\bux\b|ui designer|intern\b|stajyer|öğrenci|ogrenci|student|assistant|asistan|secretary|sekreter|trainer|eğitmen|egitmen|\bcoach\b|\bkoç\b|\bkoc\b)/iu;
 
@@ -1081,5 +1081,21 @@ export function headlineNamesOtherCompany(unvan: string | null | undefined, firm
   const t = (unvan ?? '').trim();
   if (!t) return false;
   if (cardCompanyMatch([], firma, t) === 'headline') return false;
-  return /(\s+at\s+\S|\s*@\s*\S|\s+şirketinde\b|\s+sirketinde\b|\S['’](?:da|de|ta|te)\s+\S)/iu.test(t);
+  if (/(\s+at\s+\S|\s*@\s*\S|\s+şirketinde\b|\s+sirketinde\b|\S['’](?:da|de|ta|te)\s+\S)/iu.test(t)) return true;
+  // "Founder - MLS Marine Ship Supply Co.": sirket eki (Co./Ltd/A.Ş./Inc/GmbH/LLC/Şti) gecen baslik baska firma
+  return /(?<![\p{L}\p{N}])(co\.|ltd\.?|şti\.?|sti\.?|a\.ş\.?|a\.s\.?|inc\.?|gmbh|llc|holding|sanayi|ticaret)(?![\p{L}\p{N}])/iu.test(t);
 }
+
+/**
+ * Arama sonucu satiri gercek bir kisi adi gibi mi? NEDEN: "BF AYDINLATMA", "ACME LTD" gibi sirket-hesaplari
+ * kisi aramasina dusuyor; iki buyuk harfli kelime ad regex'ini geciyor. Kural: en az bir kucuk harf,
+ * rakam yok, sirket kelimesi yok.
+ */
+export function looksLikePersonName(name: string | null | undefined): boolean {
+  const n = (name ?? '').trim();
+  if (!n || /\d/.test(n)) return false;
+  if (!/\p{Ll}/u.test(n)) return false;
+  if (/(?<![\p{L}\p{N}])(ltd|şti|sti|a\.ş|a\.s|inc|gmbh|llc|holding|sanayi|ticaret|aydınlatma|aydinlatma|bilişim|bilisim|teknoloji|yazılım|yazilim|ajans|agency|group|grup)(?![\p{L}\p{N}])/iu.test(n)) return false;
+  return true;
+}
+

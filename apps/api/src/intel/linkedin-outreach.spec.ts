@@ -880,7 +880,7 @@ describe('isTargetTitle — ust yonetim/kurucu + pazarlama ailesi', () => {
   });
   it('hedef disi: CFO/CHRO/CISO/CLO, muhendislik yoneticisi, duz manager, IK, stajyer', async () => {
     const m = await import('./linkedin-outreach-rules.js');
-    for (const t of ['CFO', 'Chief Financial Officer', 'Chief Human Resources Officer', 'Chief People Officer', 'Chief Information Security Officer', 'Chief Legal Officer', 'Chief Risk Officer', 'Engineering Manager', 'Software Development Manager', 'Product Manager', 'Project Manager', 'Operations Director', 'Finans Direktörü', 'İnsan Kaynakları Müdürü', 'Marketing Intern', 'Senior Software Engineer', 'Head of IT', 'Chief Accountant', 'People & Culture Director', 'Business Intelligence Director', 'Chief Data Officer', 'Kurucu Avukat', 'General Counsel', 'Executive Assistant to CEO', 'CEO Asistanı', 'Co-Founder & Trainer', 'Growth Coach', '']) {
+    for (const t of ['CFO', 'Chief Financial Officer', 'Chief Human Resources Officer', 'Chief People Officer', 'Chief Information Security Officer', 'Chief Legal Officer', 'Chief Risk Officer', 'Engineering Manager', 'Software Development Manager', 'Product Manager', 'Project Manager', 'Operations Director', 'Finans Direktörü', 'İnsan Kaynakları Müdürü', 'Marketing Intern', 'Senior Software Engineer', 'Head of IT', 'Chief Accountant', 'People & Culture Director', 'Business Intelligence Director', 'Chief Data Officer', 'Kurucu Avukat', 'General Counsel', 'Executive Assistant to CEO', 'CEO Asistanı', 'Co-Founder & Trainer', 'Growth Coach', 'CS Business Strategy Executive at Getir', 'Sales Executive', '']) {
       expect(m.isTargetTitle(t), t).toBe(false);
     }
   });
@@ -910,6 +910,21 @@ describe('headlineNamesOtherCompany — facet modunda baska firma basligi', () =
     expect(m.headlineNamesOtherCompany("Papara'da Marka Müdürü", 'Papara')).toBe(false);
     expect(m.headlineNamesOtherCompany('CTO', 'Papara')).toBe(false);
     expect(m.headlineNamesOtherCompany('SuperMassive CEO (Esports Investment)', 'Papara')).toBe(false);
+    expect(m.headlineNamesOtherCompany('Founder - MLS Marine Ship Supply Co.', 'Getir')).toBe(true); // sirket eki
+    expect(m.headlineNamesOtherCompany('Founder - CEO', 'Papara')).toBe(false);
     expect(m.headlineNamesOtherCompany('', 'Papara')).toBe(false);
+  });
+});
+
+describe('looksLikePersonName — sirket hesaplari kisi degil', () => {
+  it('kucuk harf sart, rakam/sirket kelimesi yok', async () => {
+    const m = await import('./linkedin-outreach-rules.js');
+    for (const ok of ['Fatih BAYINDIR', 'Ayşe Demir', 'Ahmed F. Karslı', 'İnci Seda Cankurtaran Cuco', "Deniz O'Neil"]) expect(m.looksLikePersonName(ok), ok).toBe(true);
+    for (const bad of ['BF AYDINLATMA', 'ACME LTD', 'Acme Bilişim', 'Papara Teknoloji', 'Ali 123', 'X Y Holding', '']) expect(m.looksLikePersonName(bad), bad).toBe(false);
+    // Chief Executive Officer / Executive Director hala ust yonetim; duz "Executive" degil
+    expect(m.isTargetTitle('Chief Executive Officer')).toBe(true);
+    expect(m.isTargetTitle('Executive Director')).toBe(true);
+    expect(m.isTargetTitle('Corporate Communications Executive at Getir')).toBe(true); // iletisim ailesi, kademe 2
+    expect(m.researchKademe('Corporate Communications Executive at Getir')).toBe(2);
   });
 });

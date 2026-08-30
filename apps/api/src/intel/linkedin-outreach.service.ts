@@ -29,6 +29,7 @@ import {
   headlineNamesOtherCompany,
   isAnonymousMember,
   isWorkWindow,
+  looksLikePersonName,
   istanbulDayStart,
   istanbulParts,
   matchUnreadToProspects,
@@ -660,7 +661,7 @@ export class LinkedinOutreachService {
         const u = normalizeProfileUrl(l.href);
         if (!u || seen.has(u)) continue;
         const name = l.text.trim();
-        if (isAnonymousMember(name)) continue;
+        if (isAnonymousMember(name) || !looksLikePersonName(name)) continue;
         if (!/^[\p{Lu}][\p{L}.'-]+(?:\s+[\p{Lu}][\p{L}.'-]+)+$/u.test(name)) continue;
         const parts = name.split(/\s+/);
         const lines = l.lines ?? l.card.split(/\s{2,}|·/);
