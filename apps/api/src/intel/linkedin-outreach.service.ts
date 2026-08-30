@@ -1208,7 +1208,9 @@ export class LinkedinOutreachService {
       return await this.browserOnce<T>(args);
     } catch (err: any) {
       const msg = String(err?.message ?? err);
-      if (!READ_RETRY_COMMANDS.has(args[0]) || !/gateway timeout|GatewayTransportError|zaman aşımı/iu.test(msg)) throw err;
+      // NEDEN genis kalip: tunel uzerinden hem RPC zaman asimi hem ani kapanma (1006 abnormal closure)
+      // goruluyor; ikisi de gecici — yalniz SALT-OKUMA komutlarda tekrar
+      if (!READ_RETRY_COMMANDS.has(args[0]) || !/gateway timeout|gateway closed|abnormal closure|1006|ECONNREFUSED|socket hang up|GatewayTransportError|zaman aşımı/iu.test(msg)) throw err;
       this.log.debug(`openclaw browser ${args[0]} zaman asimi — 5 sn sonra tekrar`);
       await sleep(5_000);
       return await this.browserOnce<T>(args);

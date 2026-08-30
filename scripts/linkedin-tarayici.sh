@@ -29,10 +29,13 @@ case "$KOMUT" in
     sleep 6
     openclaw browser start --json >/dev/null 2>&1 || true
     sleep 3
-    gizle
+    # NEDEN once oturum kontrolu, sonra gizleme: tarayici komutu (CDP baglantisi) pencereyi
+    # one getiriyor — gizleme en son adim olmali
+    openclaw browser evaluate --fn '() => document.title' 2>/dev/null | head -c 120; echo
     # Mac uyursa tarama durur
     pgrep -f "caffeinate -i -s" >/dev/null || { caffeinate -i -s & disown; echo "caffeinate acildi"; }
-    openclaw browser evaluate --fn '() => document.title' 2>/dev/null | head -c 120; echo
+    sleep 1
+    gizle
     ;;
   goster)
     pid=$(chrome_pid); [ -z "$pid" ] && { echo "calismiyor"; exit 1; }
