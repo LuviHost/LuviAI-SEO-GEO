@@ -741,7 +741,10 @@ export class LinkedinOutreachService {
     urls: string[],
     opts: { kampanya?: Kampanya | string; sektor?: string | null; dryRun?: boolean } = {},
   ): Promise<{ ok: boolean; reason?: string; sonuclar: Array<{ url: string; aday: number; yeni: number; elenen: number; firmasiz: number; hata?: string }> }> {
-    if (!this.enabled) return { ok: false, reason: 'LinkedIn botu kapalı (OPENCLAW_LINKEDIN_OUTREACH_ENABLED=1 değil)', sonuclar: [] };
+    // NEDEN enabled kontrolu YOK: OPENCLAW_LINKEDIN_OUTREACH_ENABLED "gonderim izni" bayragidir; link
+    // taramasi yalniz okur ve kuyruga yazar, LinkedIn'e istek/mesaj gondermez. Bayrak kapaliyken de
+    // kuyruk hazirlanabilmeli (30.08: panelden verilen link sessizce "bot kapali" ile dondu).
+    if (process.env.OPENCLAW_ENABLED === '0') return { ok: false, reason: 'OpenClaw kapalı (OPENCLAW_ENABLED=0)', sonuclar: [] };
     const paused = await this.pausedReason();
     if (paused !== null) return { ok: false, reason: `Servis duraklatıldı: ${paused}`, sonuclar: [] };
     const temiz = urls.map((u) => String(u ?? '').trim()).filter(Boolean).slice(0, MAX_RESEARCH_URLS);
