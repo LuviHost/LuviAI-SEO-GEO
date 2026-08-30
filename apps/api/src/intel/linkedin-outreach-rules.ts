@@ -718,8 +718,10 @@ export function findRef(snapshotText: string | null | undefined, labels: readonl
     const l = norm(line);
     if (excludes.length && excludes.some((x) => quoted.some((q) => q === x || hasWord(q, x)) || (x.length >= 6 && l.includes(x)))) continue;
     if (includes.length) {
+      // NEDEN kelime siniri: ham alt dizgi ("ali" ⊂ "alican") YABANCININ dugmesini secip daveti/DM'i
+      // ona gonderiyordu (30.08 denetimi). exclude zaten hasWord kullaniyordu; include de kullanmali.
       const lk = nameKey(line);
-      if (!includes.every((inc) => lk.includes(inc))) continue;
+      if (!includes.every((inc) => hasWord(lk, inc))) continue;
     }
     if (wants.length === 0) {
       exactHits.push(ref);
@@ -883,20 +885,26 @@ export function matchUnreadToProspects(conversations: UnreadConversation[], pros
     const slugs = new Set((c.links ?? []).map((u) => normalizeProfileUrl(u)).filter((u): u is string => !!u));
     const t = nameKey(c.text);
 
-    // 1) slug — kesin
-    let hitBySlug = false;
-    for (const p of prospects) {
+    // 1) slug — kesin. NEDEN tek eslesme sarti: bir konusma kartinda birden cok profil linki
+    // gecebiliyor (grup/onerilen kisiler); hepsini REPLIED isaretlemek, cevap vermemis kisiyi
+    // "cevap verdi" sayip mesaj akisindan dusuruyordu (30.08 denetimi).
+    const slugHits = prospects.filter((p) => {
       const u = normalizeProfileUrl(p.profileUrl);
-      if (u && slugs.has(u)) {
-        hitBySlug = true;
-        if (conversationHasReply(c, p.messagedAt)) replied.add(p.id);
-      }
+      return !!u && slugs.has(u);
+    });
+    if (slugHits.length === 1) {
+      if (conversationHasReply(c, slugHits[0].messagedAt)) replied.add(slugHits[0].id);
+      continue;
     }
-    if (hitBySlug) continue;
+    if (slugHits.length > 1) {
+      // Hangisi cevap verdi belli degil → insan baksin
+      for (const p of slugHits) if (conversationHasReply(c, p.messagedAt)) ambiguous.add(p.id);
+      continue;
+    }
 
-    // 2) ad + soyad
+    // 2) ad + soyad — kelime siniriyla ("Ali Can" kaydi "Ali Candan" konusmasiyla eslesmesin)
     for (const [k, group] of byName) {
-      if (!t.includes(k)) continue;
+      if (!hasWord(t, k)) continue;
       const cands = group.filter((p) => conversationHasReply(c, p.messagedAt));
       if (cands.length === 0) continue;
       if (cands.length === 1) { replied.add(cands[0].id); continue; }
@@ -1303,8 +1311,18 @@ export function currentCompanyFromCard(lines: readonly string[], unvan?: string 
   // "CTO - Getmobil" / "CTO, Getmobil": tire/virgul sonrasi BUYUK harfle baslayan firma adi.
   // NEDEN buyuk harf sarti: "Chief Technology Officer - fintech" bir firma degil, alan tanimi.
   const tire = /[-–—,]\s*(\p{Lu}[\p{L}\p{N}&.'’-]*(?:\s+\p{Lu}[\p{L}\p{N}&.'’-]*){0,3})\s*$/u.exec(t);
-  if (tire) return temizFirma(tire[1]);
+  if (tire && !rolKelimesi(tire[1])) return temizFirma(tire[1]);
   return '';
+}
+
+/**
+ * Bu metin firma degil ROL mu? "CFO & Co-Founder" basliginda tire/virgul sonrasi "Founder" firma
+ * sanilip baglanti notuna giriyordu (30.08 denetimi). Firma adi olarak sadece rol kelimesi kabul edilmez.
+ */
+function rolKelimesi(s: string): boolean {
+  const t = titleKey(s).trim();
+  if (!t) return true;
+  return /^(co-?founder|founder|kurucu|ceo|cto|cmo|coo|cfo|chief.*|genel müdür|genel mudur|direktör|direktor|director|manager|müdür|mudur|head|owner|partner|ortak|danışman|danisman|consultant|advisor|freelance|serbest|emekli|retired)$/iu.test(t);
 }
 
 function temizFirma(s: string): string {
@@ -1364,7 +1382,11 @@ export function normalizePanelAyarlari(input: unknown): PanelAyarlari {
   const raw = (input ?? {}) as Record<string, unknown>;
   const out: PanelAyarlari = {};
   for (const [key, { min, max }] of Object.entries(AYAR_TAVAN)) {
-    const v = Number(raw[key]);
+    // NEDEN null/'' atlanir: panelde kutu temizlenince gelen bos deger 0 sayilip min'e kirpiliyordu;
+    // MAX_ACTIONS_PER_TICK icin bu SESSIZCE botu durduruyordu (30.08 denetimi)
+    const ham = raw[key];
+    if (ham === null || ham === undefined || ham === '') continue;
+    const v = Number(ham);
     if (!Number.isFinite(v)) continue;
     out[key as keyof typeof AYAR_TAVAN] = Math.max(min, Math.min(max, Math.floor(v)));
   }
@@ -1378,13 +1400,26 @@ export function normalizePanelAyarlari(input: unknown): PanelAyarlari {
   return out;
 }
 
-/** Kod sabitleri + env (yalniz asagi) + PANEL ayarlari (tavanlarla kirpilmis) */
-export function applyPanelAyarlari(base: OutreachLimits, ayar: PanelAyarlari | null | undefined): OutreachLimits {
+/**
+ * Kod sabitleri + env (yalniz asagi) + PANEL ayarlari (tavanlarla kirpilmis).
+ *
+ * ENV FRENI PANELI EZER: env ile daraltilmis bir deger (ozellikle acil durum icin verilen
+ * LINKEDIN_MAX_ACTIONS_PER_TICK=0 oldurme anahtari) panelden GEVSETILEMEZ — panel yalniz daha
+ * SIKI degeri uygulayabilir (30.08 denetimi). Calisma saatleri/gunleri bu kuralin disinda:
+ * onlar guvenlik freni degil, tercih.
+ */
+export function applyPanelAyarlari(base: OutreachLimits, ayar: PanelAyarlari | null | undefined, env: Record<string, string | undefined> = process.env): OutreachLimits {
   if (!ayar) return base;
   const out: OutreachLimits = { ...base };
   for (const key of Object.keys(AYAR_TAVAN) as Array<keyof typeof AYAR_TAVAN>) {
     const v = ayar[key];
-    if (typeof v === 'number') (out as any)[key] = v;
+    if (typeof v !== 'number') continue;
+    if (key === 'WORK_HOUR_START' || key === 'WORK_HOUR_END') { (out[key] as number) = v; continue; }
+    const envRaw = env[`LINKEDIN_${key}`];
+    const envN = envRaw === undefined || envRaw === '' ? null : Number(envRaw);
+    const envVar = envN !== null && Number.isFinite(envN);
+    // env bir tavan koymussa panel onu asamaz
+    (out[key] as number) = envVar ? Math.min(v, Math.max(0, Math.floor(envN))) : v;
   }
   if (ayar.WORK_DAYS?.length) out.WORK_DAYS = ayar.WORK_DAYS;
   return out;

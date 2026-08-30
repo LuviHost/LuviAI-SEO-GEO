@@ -1107,3 +1107,64 @@ describe('panel ayarlari (fren + calisma penceresi)', () => {
     expect(m.isWorkWindow(pazartesi7, limits)).toBe(false); // pazartesi WORK_DAYS'te yok
   });
 });
+
+describe('30.08 denetim duzeltmeleri', () => {
+  it('findRef include: kelime siniri — "Ali" kaydi "Alican" satirini secmez', async () => {
+    const m = await import('./linkedin-outreach-rules.js');
+    const snap = [
+      '- button "Alican Demirtaş adlı kişiyi bağlantı kurmaya davet et" [ref=e10]',
+      '- button "Ali Can adlı kişiyi bağlantı kurmaya davet et" [ref=e11]',
+    ].join('\n');
+    expect(m.findRef(snap, ['bağlantı'], { role: 'button', include: ['ali', 'can'] })).toBe('e11');
+    // Yalniz yabancinin satiri varsa HICBIR SEY donmemeli
+    const yalnizYabanci = '- button "Alican Demirtaş adlı kişiyi bağlantı kurmaya davet et" [ref=e10]';
+    expect(m.findRef(yalnizYabanci, ['bağlantı'], { role: 'button', include: ['ali', 'can'] })).toBeNull();
+  });
+
+  it('matchUnreadToProspects: kartta birden cok profil linki varsa hepsi REPLIED olmaz', async () => {
+    const m = await import('./linkedin-outreach-rules.js');
+    const eski = new Date('2026-08-20T10:00:00Z');
+    const konusma = {
+      text: 'Ayşe Kaya Burak Şen Siz: Merhaba Burak Şen, bağlantı için teşekkürler Cem Ak',
+      unread: true,
+      links: ['https://www.linkedin.com/in/ayse-kaya/', 'https://www.linkedin.com/in/burak-sen/', 'https://www.linkedin.com/in/cem-ak/'],
+      lastAt: new Date('2026-08-25T10:00:00Z'),
+    } as any;
+    const kisiler = [
+      { id: 'a', ad: 'Ayşe', soyad: 'Kaya', firma: 'X', profileUrl: 'https://www.linkedin.com/in/ayse-kaya/', messagedAt: eski },
+      { id: 'b', ad: 'Burak', soyad: 'Şen', firma: 'Y', profileUrl: 'https://www.linkedin.com/in/burak-sen/', messagedAt: eski },
+    ] as any;
+    const r = m.matchUnreadToProspects([konusma], kisiler);
+    expect(r.replied).toEqual([]); // ikisi birden isaretlenmez
+    expect(r.ambiguous.sort()).toEqual(['a', 'b']); // insan baksin
+  });
+
+  it('applyPanelAyarlari: env freni panelden GEVSETILEMEZ (oldurme anahtari korunur)', async () => {
+    const m = await import('./linkedin-outreach-rules.js');
+    const env = { LINKEDIN_MAX_ACTIONS_PER_TICK: '0', LINKEDIN_MAX_REQUESTS_PER_DAY: '5' };
+    const l = m.applyPanelAyarlari(m.DEFAULT_LIMITS, { MAX_ACTIONS_PER_TICK: 6, MAX_REQUESTS_PER_DAY: 20, WORK_HOUR_START: 8 }, env);
+    expect(l.MAX_ACTIONS_PER_TICK).toBe(0); // env kill-switch kazanir
+    expect(l.MAX_REQUESTS_PER_DAY).toBe(5); // env tavani kazanir
+    expect(l.WORK_HOUR_START).toBe(8); // saat tercihi env kapsaminda degil
+    // env yoksa panel degeri gecerli
+    const l2 = m.applyPanelAyarlari(m.DEFAULT_LIMITS, { MAX_REQUESTS_PER_DAY: 8 }, {});
+    expect(l2.MAX_REQUESTS_PER_DAY).toBe(8);
+  });
+
+  it('normalizePanelAyarlari: bos/null deger 0 sayilmaz (kutu temizlenince bot durmasin)', async () => {
+    const m = await import('./linkedin-outreach-rules.js');
+    const a = m.normalizePanelAyarlari({ MAX_ACTIONS_PER_TICK: '', MAX_REQUESTS_PER_DAY: null, MAX_MESSAGES_PER_DAY: 7 });
+    expect(a.MAX_ACTIONS_PER_TICK).toBeUndefined();
+    expect(a.MAX_REQUESTS_PER_DAY).toBeUndefined();
+    expect(a.MAX_MESSAGES_PER_DAY).toBe(7);
+    // Bilincli 0 (oldurme anahtari) yine gecerli
+    expect(m.normalizePanelAyarlari({ MAX_ACTIONS_PER_TICK: 0 }).MAX_ACTIONS_PER_TICK).toBe(0);
+  });
+
+  it('currentCompanyFromCard: rol kelimesi firma sanilmaz ("CFO & Co-Founder")', async () => {
+    const m = await import('./linkedin-outreach-rules.js');
+    expect(m.currentCompanyFromCard([], 'CFO & Co-Founder')).toBe('');
+    expect(m.currentCompanyFromCard([], 'CTO - Getmobil')).toBe('Getmobil'); // gercek firma bozulmadi
+    expect(m.currentCompanyFromCard([], 'Growth Lead, Freelance')).toBe('');
+  });
+});

@@ -246,6 +246,8 @@ export interface TickOptions {
 }
 
 export interface ImportRow {
+  /** MUSTERI | YATIRIMCI | ISBIRLIGI — bos ise MUSTERI */
+  kampanya?: string;
   ad?: string;
   soyad?: string;
   firma?: string;
@@ -319,7 +321,10 @@ export class LinkedinOutreachService {
 
   /** Panelden fren/saat ayarlarini kaydet (gecersiz degerler tavana kirpilir) */
   async setAyarlar(input: unknown): Promise<{ ayarlar: PanelAyarlari; limits: OutreachLimits }> {
-    const ayarlar = normalizePanelAyarlari(input);
+    // NEDEN birlestirme: panel yalniz degistirilen alanlari gonderiyor; tam degistirme daha once
+    // daraltilmis frenleri sessizce varsayilana dondururdu (30.08 denetimi)
+    const mevcut = await this.getAyarlar();
+    const ayarlar = { ...mevcut, ...normalizePanelAyarlari(input) };
     const value = JSON.stringify(ayarlar);
     await this.prisma.kvStore.upsert({ where: { key: KV_AYARLAR }, create: { key: KV_AYARLAR, value }, update: { value } });
     this.log.warn(`LinkedIn ayarlari guncellendi: ${value}`);
@@ -372,7 +377,8 @@ export class LinkedinOutreachService {
     if (!bypassWindow && !isWorkWindow(new Date(), limits) && !opts.researchOnly) {
       return { actions: [], reason: `Çalışma penceresi dışı (hafta içi 09-18 Europe/Istanbul)${dryRun ? ' — kuru tick için force:true' : ''}` };
     }
-    if (!(await this.acquireLock())) return { actions: [], reason: 'Başka bir tick çalışıyor' };
+    const kilit = await this.acquireLock();
+    if (!kilit) return { actions: [], reason: 'Başka bir tick çalışıyor' };
 
     try {
       const { counters, requestsMatured, acceptedMatured } = await this.counters();
@@ -393,6 +399,12 @@ export class LinkedinOutreachService {
         for (let i = 0; i < plan.length; i++) {
           if (i > 0) await sleep(dryRun ? 1_000 : delayBetweenActionsMs());
           const planned = plan[i];
+          // NEDEN her adimda yeniden kontrol: tick 17:57'de baslayip islemler arasi 2-6 dk beklerken
+          // pencere kapaniyor, 18:09'da hala istek gidiyordu (30.08 denetimi). Okuma adimlari serbest.
+          if (!dryRun && MUTATING_ACTIONS.has(planned.type) && !bypassWindow && !isWorkWindow(new Date(), limits)) {
+            actions.push({ type: planned.type, prospectId: 'prospectId' in planned ? planned.prospectId : undefined, ok: false, note: 'Çalışma penceresi kapandı — bu işlem yapılmadı' });
+            break;
+          }
           const prospectId = 'prospectId' in planned ? planned.prospectId : undefined;
           const mutating = MUTATING_ACTIONS.has(planned.type);
           try {
@@ -429,7 +441,7 @@ export class LinkedinOutreachService {
       }
       return { actions };
     } finally {
-      await this.releaseLock();
+      await this.releaseLock(kilit);
     }
   }
 
@@ -485,6 +497,20 @@ export class LinkedinOutreachService {
       await this.press('Escape').catch(() => undefined);
       throw new Error('top card connect yok — bu kişi adına "Bağlantı kur" düğmesi bulunamadı (yan panel dışlandı)');
     }
+    if (dryRun) {
+      // KURU TICK GONDERMEZ: "Bağlantı kur" tiklanirsa LinkedIn bazi profillerde daveti NOTSUZ dogrudan
+      // gonderiyor (30.08 denetimi) — panel "GÖNDERMEZ" dedigi halde gercek davet cikardi. Kuru modda
+      // dugme yalnizca BULUNUR, tiklanmaz; not metni yine uretilip kanit olarak dondurulur.
+      const kuruNot = renderNote(p);
+      await this.press('Escape').catch(() => undefined);
+      const kuruShot = await this.screenshot(id, 'kuru-hazir');
+      return {
+        type: 'request',
+        prospectId: id,
+        ok: true,
+        note: `kuru: "Bağlantı kur" bulundu, TIKLANMADI · not (${kuruNot.length}/${NOTE_MAX_CHARS}): ${kuruNot.slice(0, 120)}…${kuruShot ? ` (${path.basename(kuruShot)})` : ''}`,
+      };
+    }
     await this.click(connect);
     await sleep(UI_MS);
 
@@ -501,7 +527,7 @@ export class LinkedinOutreachService {
           where: { id },
           data: { status: 'REQUESTED', requestedAt: new Date(), noteText: null, screenshotPath: shot, lastError: null },
         });
-        return { type: 'request', prospectId: id, ok: true, note: `istek not modalı açılmadan gitti → REQUESTED (not yok)${dryRun ? ' — kuru tickte gerçek gönderim oldu' : ''}` };
+        return { type: 'request', prospectId: id, ok: true, note: 'istek not modalı açılmadan gitti → REQUESTED (not yok)' };
       }
       throw new Error('"Not ekle" düğmesi bulunamadı');
     }
@@ -518,24 +544,22 @@ export class LinkedinOutreachService {
     await sleep(800);
     let shot = await this.screenshot(id, 'note');
 
-    if (dryRun) {
-      await this.press('Escape').catch(() => undefined);
-      return { type: 'request', prospectId: id, ok: true, note: `kuru: not dolduruldu, GÖNDERİLMEDİ${shot ? ` (${path.basename(shot)})` : ''}` };
-    }
-
     snap = await this.snapshot();
     const send = findRef(snap, L.gonder, { role: 'button', exact: true }) ?? findRef(snap, L.gonder, { role: 'button' });
     if (!send) throw new Error('"Gönder" düğmesi bulunamadı');
     await this.click(send);
-    await sleep(2_500);
-    const after = await this.readPage();
-    this.assertNoBlock(after); // haftalik limit uyarisi gonderim ANINDA cikar (tum metinde aranir)
-    shot = (await this.screenshot(id, 'sent')) ?? shot;
-
+    // NEDEN once DB: "Gönder"e basildiktan sonra okuma/ekran goruntusu patlarsa davet YINE DE gitmis olur;
+    // once REQUESTED yazilmazsa gunluk/haftalik kota bu daveti saymaz ve kisi kuyrukta kalip TEKRAR davet alir
+    // (30.08 denetimi). Kayit hemen yazilir, kanit alanlari sonra tamamlanir.
     await this.prisma.linkedinProspect.update({
       where: { id },
       data: { status: 'REQUESTED', requestedAt: new Date(), noteText: note, screenshotPath: shot, lastError: null },
     });
+    await sleep(2_500);
+    const after = await this.readPage();
+    this.assertNoBlock(after); // haftalik limit uyarisi gonderim ANINDA cikar (tum metinde aranir)
+    shot = (await this.screenshot(id, 'sent')) ?? shot;
+    await this.prisma.linkedinProspect.update({ where: { id }, data: { screenshotPath: shot } }).catch(() => undefined);
     return { type: 'request', prospectId: id, ok: true, note: 'istek gönderildi' };
   }
 
@@ -828,13 +852,24 @@ export class LinkedinOutreachService {
     const dryRun = opts.dryRun === true;
     // Kac sonuc sayfasi gezilecek (LinkedIn sayfa basina ~10 kisi gosterir)
     const sayfaSayisi = Math.max(1, Math.min(MAX_SEARCH_PAGES, Math.floor(Number(opts.sayfa) || VARSAYILAN_SAYFA)));
-    if (!(await this.acquireLock())) return { ok: false, reason: 'Başka bir tick çalışıyor', sonuclar: [] };
+    const kilit = await this.acquireLock();
+    if (!kilit) return { ok: false, reason: 'Başka bir tick çalışıyor', sonuclar: [] };
     const sonuclar: Array<{ url: string; sayfa?: number; aday: number; yeni: number; elenen: number; firmasiz: number; hata?: string }> = [];
     try {
       const limits = await this.getLimits();
       dis: for (const url of temiz) {
         for (let sayfa = 1; sayfa <= sayfaSayisi; sayfa++) {
           const sayfaUrl = searchUrlWithPage(url, sayfa);
+          // Kilit hala bizde mi? Degilse baskasi (cron tick) devraldi → ayni tarayicida cakismayalim
+          if (!(await this.renewLock(kilit))) {
+            sonuclar.push({ url, sayfa, aday: 0, yeni: 0, elenen: 0, firmasiz: 0, hata: 'Kilit devredildi — tarama durduruldu' });
+            break dis;
+          }
+          // Gunluk tarama freni: sayfa basina uygulanir (bumpResearch tavana oturunca durur)
+          if ((await this.researchCountToday()) >= limits.MAX_RESEARCH_PER_DAY) {
+            sonuclar.push({ url, sayfa, aday: 0, yeni: 0, elenen: 0, firmasiz: 0, hata: `Günlük tarama sınırı (${limits.MAX_RESEARCH_PER_DAY}) doldu` });
+            break dis;
+          }
           try {
             const r = await this.researchOneUrl(sayfaUrl, { kampanya, sektor, dryRun });
             sonuclar.push({ ...r, url, sayfa });
@@ -857,7 +892,7 @@ export class LinkedinOutreachService {
       }
     } finally {
       await this.closeTab().catch(() => undefined);
-      await this.releaseLock();
+      await this.releaseLock(kilit);
     }
     return { ok: true, sonuclar };
   }
@@ -1012,16 +1047,20 @@ export class LinkedinOutreachService {
       const firma = (r.firma ?? '').trim().slice(0, 160);
       if (!profileUrl || !ad || !firma) { skipped++; continue; }
       const kademeN = Number(r.kademe);
-      const data = {
-        ad, soyad, firma,
-        unvan: (r.unvan ?? '').trim().slice(0, 160) || null,
-        sektor: (r.sektor ?? '').trim().toLocaleLowerCase('tr').slice(0, 64) || null,
-        kademe: kademeN === 2 ? 2 : 1,
-      };
+      const unvan = (r.unvan ?? '').trim().slice(0, 160) || null;
+      const sektor = (r.sektor ?? '').trim().toLocaleLowerCase('tr').slice(0, 64) || null;
+      const kampanya = normalizeKampanya((r as { kampanya?: string }).kampanya);
+      const data = { ad, soyad, firma, unvan, sektor, kademe: kademeN === 2 ? 2 : 1, kampanya };
+      // NEDEN update'te bos alanlar atlanir: sutunu olmayan bir CSV yeniden aktarilinca mevcut
+      // kaydin unvan/sektor bilgisi siliniyordu (30.08 denetimi)
+      const update: Record<string, unknown> = { ad, soyad, firma, kademe: data.kademe };
+      if (unvan) update.unvan = unvan;
+      if (sektor) update.sektor = sektor;
+      if ((r as { kampanya?: string }).kampanya) update.kampanya = kampanya;
       await this.prisma.linkedinProspect.upsert({
         where: { profileUrl },
         create: { ...data, profileUrl },
-        update: data,
+        update,
       });
       upserted++;
     }
@@ -1134,6 +1173,13 @@ export class LinkedinOutreachService {
     return n;
   }
 
+  /** Bugunku arastirma sayaci (Istanbul gunu) */
+  private async researchCountToday(): Promise<number> {
+    const key = KV_RESEARCH + istanbulParts(new Date()).ymd;
+    const row = await this.prisma.kvStore.findUnique({ where: { key } }).catch(() => null);
+    return Number(row?.value ?? 0) || 0;
+  }
+
   private async bumpResearch(limits: OutreachLimits): Promise<void> {
     const key = KV_RESEARCH + istanbulParts(new Date()).ymd;
     const row = await this.prisma.kvStore.findUnique({ where: { key } }).catch(() => null);
@@ -1159,29 +1205,46 @@ export class LinkedinOutreachService {
    * sahibin kilidini de silmesine yol aciyordu). Bayat (expiresAt gecmis)
    * kilit degeriyle birlikte silinir.
    */
-  private async acquireLock(attempt = 0): Promise<boolean> {
+  /**
+   * Kilidi al ve TOKEN dondur. NEDEN token dondurulur (servis alaninda tutulmaz): ayni surecte iki is
+   * cakistiginda (uzun link taramasi + cron tick) eski is, yeni isin kilidini siliyordu (30.08 denetimi).
+   * Kilidi yalnizca token sahibi birakabilir/yenileyebilir.
+   */
+  private async acquireLock(attempt = 0): Promise<string | null> {
     const now = new Date();
     const token = randomUUID();
     try {
       await this.prisma.kvStore.create({ data: { key: KV_LOCK, value: token, expiresAt: new Date(now.getTime() + LOCK_TTL_MS) } });
       this.lockToken = token;
-      return true;
+      return token;
     } catch {
-      if (attempt >= 1) return false;
+      if (attempt >= 1) return null;
       const row = await this.prisma.kvStore.findUnique({ where: { key: KV_LOCK } }).catch(() => null);
       if (row?.expiresAt && row.expiresAt.getTime() < now.getTime()) {
         await this.prisma.kvStore.deleteMany({ where: { key: KV_LOCK, value: row.value } }).catch(() => undefined);
         return this.acquireLock(attempt + 1);
       }
-      return false;
+      return null;
     }
   }
 
-  private async releaseLock(): Promise<void> {
-    const token = this.lockToken;
-    this.lockToken = undefined;
-    if (!token) return;
-    await this.prisma.kvStore.deleteMany({ where: { key: KV_LOCK, value: token } }).catch(() => undefined);
+  /**
+   * Uzun isler icin kilit omrunu uzat (heartbeat). NEDEN: 45 dk'lik TTL, 12 link x 10 sayfa taramasindan
+   * kisa kaliyordu; cron tick kilidi bayat sayip AYNI tarayicida gonderime giriyordu (30.08 denetimi).
+   * Kilit baskasina gectiyse false doner → cagiran isi durdurur.
+   */
+  private async renewLock(token: string): Promise<boolean> {
+    const r = await this.prisma.kvStore
+      .updateMany({ where: { key: KV_LOCK, value: token }, data: { expiresAt: new Date(Date.now() + LOCK_TTL_MS) } })
+      .catch(() => ({ count: 0 }));
+    return r.count > 0;
+  }
+
+  private async releaseLock(token?: string): Promise<void> {
+    const t = token ?? this.lockToken;
+    if (this.lockToken === t) this.lockToken = undefined;
+    if (!t) return;
+    await this.prisma.kvStore.deleteMany({ where: { key: KV_LOCK, value: t } }).catch(() => undefined);
   }
 
   /** Duraklatma ve cevap bildirimleri e-postayla da gider (insan devralmali) */

@@ -29,7 +29,9 @@ import { parseSearchUrls } from '../intel/linkedin-outreach-rules.js';
 
 const args = parseArgs(process.argv.slice(2));
 const RESEARCH_ONLY = args['research-only'] === true;
-const URL_MODE = typeof args.urls === 'string' || typeof args['urls-file'] === 'string';
+// NEDEN bos deger de URL modu sayilir: `--real --urls "$BOS"` kabugu, --yes onayini atlayip GERCEK
+// gonderim tick'i kosuyordu (30.08 denetimi). Bayrak verildiyse mod URL modudur; bos ise hata verip cikar.
+const URL_MODE = args.urls !== undefined || args['urls-file'] !== undefined;
 const DRY = args.real !== true && !RESEARCH_ONLY;
 // NEDEN --urls muaf: link taramasi yalniz kuyruga yazar, LinkedIn'e istek/mesaj GONDERMEZ
 if (!DRY && !RESEARCH_ONLY && !URL_MODE && args.yes !== true) {
@@ -57,6 +59,11 @@ async function main() {
       : typeof args['urls-file'] === 'string'
         ? readFileSync(String(args['urls-file']), 'utf8')
         : '';
+    if (URL_MODE && !urlGirdi.trim()) {
+      console.error('--urls/--urls-file verildi ama BOŞ. Gerçek tick\'e düşmemek için çıkılıyor.');
+      process.exitCode = 2;
+      return;
+    }
     if (urlGirdi.trim()) {
       const { urls, gecersiz } = parseSearchUrls(urlGirdi);
       log.log(`link taramasi: ${urls.length} gecerli link${gecersiz.length ? `, ${gecersiz.length} gecersiz satir` : ''} · kampanya=${args.kampanya ?? 'MUSTERI'} · sayfa=${args.sayfa ?? 'varsayilan (5)'}`);
