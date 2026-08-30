@@ -209,6 +209,10 @@ export interface LinkedinOverview {
   /** Arka uctaki etkin frenler (env ile yalniz asagi cekilmis olabilir) */
   limits?: Record<string, number>;
   recent: LinkedinProspect[];
+  /** Firma bazli dagilim — panel ozet seridi */
+  byFirma?: Array<{ firma: string; toplam: number; kuyrukta: number }>;
+  /** DB'deki toplam kayit (recent kesilmis olabilir) */
+  recentTotal?: number;
 }
 
 export interface LinkedinImportRow {

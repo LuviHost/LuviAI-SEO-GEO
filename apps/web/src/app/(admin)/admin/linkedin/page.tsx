@@ -205,6 +205,8 @@ export default function AdminLinkedinPage() {
   const [lastTick, setLastTick] = useState<LastTick | null>(null);
   const [forceDry, setForceDry] = useState(false);
   const [acik, setAcik] = useState<string | null>(null);
+  const [firmaFiltre, setFirmaFiltre] = useState<string>('hepsi');
+  const [durumFiltre, setDurumFiltre] = useState<string>('hepsi');
 
   const load = useCallback(async (sessiz = false) => {
     try {
@@ -304,7 +306,13 @@ export default function AdminLinkedinPage() {
   const week = overview?.week ?? { requests: 0 };
   const acceptPct = ratePct(overview?.acceptRate7d);
   const base = overview?.acceptRateBase;
-  const recent = overview?.recent ?? [];
+  const recentAll = overview?.recent ?? [];
+  const byFirma = overview?.byFirma ?? [];
+  // NEDEN filtre: kuyruk 100+ satira cikti; firma/durum secmeden gozden gecirmek zor (30.08)
+  const recent = recentAll.filter(
+    (p) => (firmaFiltre === 'hepsi' || p.firma === firmaFiltre) && (durumFiltre === 'hepsi' || p.status === durumFiltre),
+  );
+  const toplamKayit = overview?.recentTotal ?? recentAll.length;
   const L = overview?.limits;
   const limit = {
     dayRequests: limitOf(L, ['MAX_REQUESTS_PER_DAY', 'maxRequestsPerDay'], VARSAYILAN_LIMIT.dayRequests),
@@ -452,12 +460,57 @@ export default function AdminLinkedinPage() {
       {/* ── CSV içe aktar ── */}
       <ImportCard onDone={load} disabled={!!busy} />
 
+      {/* ── Firma dağılımı ── */}
+      {byFirma.length > 0 && (
+        <Card>
+          <CardContent className="p-4">
+            <div className="text-sm font-medium mb-3">Firma dağılımı <span className="text-muted-foreground font-normal">— {byFirma.length} firma, {byFirma.reduce((a, f) => a + f.kuyrukta, 0)} kişi kuyrukta</span></div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setFirmaFiltre('hepsi')}
+                className={cn('px-2.5 py-1.5 rounded-md border text-xs transition-colors', firmaFiltre === 'hepsi' ? 'bg-orange-500 text-white border-orange-500' : 'hover:bg-muted')}
+              >
+                Hepsi <span className="opacity-70">({toplamKayit})</span>
+              </button>
+              {byFirma.map((f) => (
+                <button
+                  key={f.firma}
+                  type="button"
+                  onClick={() => setFirmaFiltre(firmaFiltre === f.firma ? 'hepsi' : f.firma)}
+                  className={cn('px-2.5 py-1.5 rounded-md border text-xs transition-colors', firmaFiltre === f.firma ? 'bg-orange-500 text-white border-orange-500' : 'hover:bg-muted')}
+                  title={`${f.toplam} kayıt, ${f.kuyrukta} kuyrukta`}
+                >
+                  {f.firma} <span className="opacity-70">({f.kuyrukta})</span>
+                </button>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* ── Son kayıtlar ── */}
       <Card>
         <CardContent className="p-0 overflow-x-auto">
-          <div className="px-4 py-3 border-b flex items-center justify-between">
-            <div className="text-sm font-medium">Son {recent.length} kayıt</div>
-            <div className="text-xs text-muted-foreground">Ekran görüntüleri sunucuda <span className="font-mono">data/linkedin/</span> altında</div>
+          <div className="px-4 py-3 border-b flex flex-wrap items-center justify-between gap-2">
+            <div className="text-sm font-medium">
+              {recent.length} kayıt gösteriliyor
+              <span className="text-muted-foreground font-normal"> — toplam {toplamKayit}{recentAll.length < toplamKayit ? ` (son ${recentAll.length} yüklendi)` : ''}</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <select
+                value={durumFiltre}
+                onChange={(e) => setDurumFiltre(e.target.value)}
+                className="h-8 rounded-md border bg-background px-2 text-xs"
+                aria-label="Durum filtresi"
+              >
+                <option value="hepsi">Tüm durumlar</option>
+                {Object.entries(STATUS_META).map(([k, m]) => (
+                  <option key={k} value={k}>{m.label}</option>
+                ))}
+              </select>
+              <div className="text-xs text-muted-foreground">Ekran görüntüleri <span className="font-mono">data/linkedin/</span></div>
+            </div>
           </div>
           {recent.length === 0 ? (
             <div className="p-10 text-center text-muted-foreground text-sm">

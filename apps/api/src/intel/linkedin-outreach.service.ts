@@ -100,6 +100,8 @@ const KV_LOCK = 'linkedin-outreach:lock';
 const KV_RESEARCH = 'linkedin-outreach:research:'; // + YYYY-MM-DD
 /** Zaman asiminda tekrarlanabilir (yan etkisiz) tarayici komutlari */
 const READ_RETRY_COMMANDS: ReadonlySet<string> = new Set(['navigate', 'open', 'evaluate', 'snapshot', 'tabs', 'screenshot']);
+/** Panelde gosterilen kayit sayisi (kuyruk 100+ olabiliyor) */
+const PANEL_RECENT_TAKE = 500;
 const KV_COMPANY = 'linkedin-outreach:company:'; // + firmaKey → sayisal LinkedIn sirket kimligi
 const COMPANY_ID_TTL_MS = 90 * 86_400_000;
 
@@ -732,15 +734,17 @@ export class LinkedinOutreachService {
     const dayStart = istanbulDayStart(now);
     const weekAgo = new Date(now.getTime() - 7 * 86_400_000);
     const win = acceptRateWindow(now);
-    const [requestsToday, messagesToday, requestsWeek, queued, requestsMatured, acceptedMatured, recent, byStatus, pausedReason] = await Promise.all([
+    const [requestsToday, messagesToday, requestsWeek, queued, requestsMatured, acceptedMatured, recent, byStatus, byFirmaRaw, pausedReason] = await Promise.all([
       this.prisma.linkedinProspect.count({ where: { requestedAt: { gte: dayStart } } }),
       this.prisma.linkedinProspect.count({ where: { messagedAt: { gte: dayStart } } }),
       this.prisma.linkedinProspect.count({ where: { requestedAt: { gte: weekAgo } } }),
       this.prisma.linkedinProspect.count({ where: { status: 'QUEUED' } }),
       this.prisma.linkedinProspect.count({ where: { requestedAt: { gte: win.from, lte: win.to } } }),
       this.prisma.linkedinProspect.count({ where: { requestedAt: { gte: win.from, lte: win.to }, acceptedAt: { not: null } } }),
-      this.prisma.linkedinProspect.findMany({ orderBy: { updatedAt: 'desc' }, take: 50 }),
+      // NEDEN 500: panel 50 kayitla kesiliyordu, kuyruktaki 100+ adayin cogu gorunmuyordu (30.08 kullanici bildirimi)
+      this.prisma.linkedinProspect.findMany({ orderBy: [{ status: 'asc' }, { firma: 'asc' }, { kademe: 'asc' }, { updatedAt: 'desc' }], take: PANEL_RECENT_TAKE }),
       this.prisma.linkedinProspect.groupBy({ by: ['status'], _count: true }),
+      this.prisma.linkedinProspect.groupBy({ by: ['firma', 'status'], _count: true }),
       this.pausedReason(),
     ]);
     return {
@@ -756,6 +760,17 @@ export class LinkedinOutreachService {
       acceptRateWindow: 'matured-72h-14d' as const,
       acceptRateBase: { requests: requestsMatured, accepted: acceptedMatured, minRequests: limits.ACCEPT_RATE_MIN_REQUESTS },
       byStatus: Object.fromEntries(byStatus.map((s) => [s.status, s._count])),
+      // Firma bazli dagilim (panel ozet seridi): { firma, toplam, kuyrukta }
+      byFirma: Object.values(
+        byFirmaRaw.reduce<Record<string, { firma: string; toplam: number; kuyrukta: number }>>((acc, r) => {
+          const k = r.firma;
+          acc[k] ??= { firma: k, toplam: 0, kuyrukta: 0 };
+          acc[k].toplam += r._count;
+          if (r.status === 'QUEUED') acc[k].kuyrukta += r._count;
+          return acc;
+        }, {}),
+      ).sort((a, b) => b.kuyrukta - a.kuyrukta || a.firma.localeCompare(b.firma, 'tr')),
+      recentTotal: Object.values(Object.fromEntries(byStatus.map((s) => [s.status, s._count as number]))).reduce((a: number, b: number) => a + b, 0),
       limits,
       recent,
     };
