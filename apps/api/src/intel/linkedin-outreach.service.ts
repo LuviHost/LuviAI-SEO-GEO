@@ -98,6 +98,8 @@ const KV_PAUSED = 'linkedin-outreach:paused';
 const KV_FAILS = 'linkedin-outreach:fails';
 const KV_LOCK = 'linkedin-outreach:lock';
 const KV_RESEARCH = 'linkedin-outreach:research:'; // + YYYY-MM-DD
+/** Zaman asiminda tekrarlanabilir (yan etkisiz) tarayici komutlari */
+const READ_RETRY_COMMANDS: ReadonlySet<string> = new Set(['navigate', 'open', 'evaluate', 'snapshot', 'tabs', 'screenshot']);
 const KV_COMPANY = 'linkedin-outreach:company:'; // + firmaKey → sayisal LinkedIn sirket kimligi
 const COMPANY_ID_TTL_MS = 90 * 86_400_000;
 
@@ -1068,8 +1070,25 @@ export class LinkedinOutreachService {
     }
   }
 
-  /** x-curation ile ayni kopru: openclaw browser <args> --json --timeout */
-  private browser<T = any>(args: string[]): Promise<T | null> {
+  /**
+   * x-curation ile ayni kopru: openclaw browser <args> --json --timeout.
+   * NEDEN tekrar: ters tunel uzerinden gateway RPC zaman asimi (navigate 20 sn / evaluate 25 sn, CLI --timeout'u
+   * dinlemiyor) ara ara dusuyor (30.08 Akbank/Yapı Kredi turu). Yalniz SALT-OKUMA komutlar bir kez tekrarlanir;
+   * click/type/press/fill asla (cift tiklama = cift istek).
+   */
+  private async browser<T = any>(args: string[]): Promise<T | null> {
+    try {
+      return await this.browserOnce<T>(args);
+    } catch (err: any) {
+      const msg = String(err?.message ?? err);
+      if (!READ_RETRY_COMMANDS.has(args[0]) || !/gateway timeout|GatewayTransportError|zaman aşımı/iu.test(msg)) throw err;
+      this.log.debug(`openclaw browser ${args[0]} zaman asimi — 5 sn sonra tekrar`);
+      await sleep(5_000);
+      return await this.browserOnce<T>(args);
+    }
+  }
+
+  private browserOnce<T = any>(args: string[]): Promise<T | null> {
     const bin = process.env.OPENCLAW_BIN ?? 'openclaw';
     const full = ['browser', ...args, '--json', '--timeout', String(DEFAULT_TIMEOUT_MS)];
     // NEDEN LinkedIn'e ozel gateway: VPS IP'sini LinkedIn dakikalar icinde 429/redirect ile kesiyor
