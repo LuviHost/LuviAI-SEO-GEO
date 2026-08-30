@@ -1078,17 +1078,17 @@ export const api = {
       body: JSON.stringify({ dryRun: opts.dryRun, force: opts.force === true }),
     }),
   /** Kullanicinin yapistirdigi LinkedIn arama linklerini tara (gonderim yok) */
-  researchLinkedinUrls: (opts: { urls: string; kampanya?: LinkedinKampanya; sektor?: string | null; dryRun?: boolean }) =>
+  researchLinkedinUrls: (opts: { urls: string; kampanya?: LinkedinKampanya; sektor?: string | null; dryRun?: boolean; sayfa?: number }) =>
     request<{
       started: boolean;
       urls: number;
       gecersiz: string[];
       reason?: string;
       ok?: boolean;
-      sonuclar?: Array<{ url: string; aday: number; yeni: number; elenen: number; firmasiz: number; hata?: string }>;
+      sonuclar?: Array<{ url: string; sayfa?: number; aday: number; yeni: number; elenen: number; firmasiz: number; hata?: string }>;
     }>('/intel/linkedin/research-urls', {
       method: 'POST',
-      body: JSON.stringify({ urls: opts.urls, kampanya: opts.kampanya, sektor: opts.sektor ?? null, dryRun: opts.dryRun === true }),
+      body: JSON.stringify({ urls: opts.urls, kampanya: opts.kampanya, sektor: opts.sektor ?? null, dryRun: opts.dryRun === true, sayfa: opts.sayfa }),
     }),
   setLinkedinKampanya: (ids: string[], kampanya: LinkedinKampanya) =>
     request<{ updated: number }>('/intel/linkedin/prospects/kampanya', {

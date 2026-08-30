@@ -447,7 +447,7 @@ export class IntelController {
   @Post('linkedin/research-urls')
   async linkedinResearchUrls(
     @Req() req: Request,
-    @Body() body: { urls?: string; kampanya?: string; sektor?: string; dryRun?: boolean },
+    @Body() body: { urls?: string; kampanya?: string; sektor?: string; dryRun?: boolean; sayfa?: number },
   ) {
     assertAdmin(req);
     const { urls, gecersiz } = parseSearchUrls(body?.urls ?? '');
@@ -458,7 +458,7 @@ export class IntelController {
     if (CALISAN_ASAMALAR.has(kilit)) return { started: false, urls: urls.length, gecersiz, reason: 'Tick zaten çalışıyor' };
     CALISAN_ASAMALAR.add(kilit);
 
-    const opts = { kampanya: body?.kampanya, sektor: body?.sektor ?? null, dryRun: body?.dryRun === true };
+    const opts = { kampanya: body?.kampanya, sektor: body?.sektor ?? null, dryRun: body?.dryRun === true, sayfa: Number(body?.sayfa) || undefined };
     if (opts.dryRun) {
       try {
         return { started: true, urls: urls.length, gecersiz, ...(await this.linkedin.researchUrls(urls, opts)) };
@@ -473,7 +473,8 @@ export class IntelController {
       .catch((err) => this.log.warn(`LinkedIn link taramasi hatası: ${err?.message ?? err}`))
       .finally(() => CALISAN_ASAMALAR.delete(kilit));
 
-    return { started: true, urls: urls.length, gecersiz, reason: `${urls.length} link arka planda taranıyor — sonuç son kayıtlarda` };
+    const sayfa = Math.max(1, Math.min(10, Number(body?.sayfa) || 5));
+    return { started: true, urls: urls.length, gecersiz, reason: `${urls.length} link × ${sayfa} sayfa arka planda taranıyor — sonuç son kayıtlarda` };
   }
 
   /** Kayitlarin kampanyasini toplu degistir (panelden secim) */

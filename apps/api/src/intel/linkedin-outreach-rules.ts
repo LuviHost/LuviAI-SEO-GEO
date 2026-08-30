@@ -985,10 +985,23 @@ function titleKey(unvan: string | null | undefined): string {
   return (unvan ?? '').trim().replace(/İ/g, 'i').toLowerCase();
 }
 
+/**
+ * Cekirdek hedef unvanlar — negatif kelimelerden MUAF. NEDEN: "Founder & CTO at FinPay Software"
+ * firma adindaki "Software" yuzunden, "CTO & Head of Engineering at Vakko" ise "Engineering"
+ * yuzunden eleniyordu (30.08 kullanici ekrani). Bu kisiler tam da hedef kitle.
+ * CFO/CHRO/CISO/CIO/CLO burada YOK — onlar hedef disi kalir.
+ */
+/** Cekirdek hedef muafiyetini bozan meslek unvanlari (kisi sirket lideri degil, serbest meslek) */
+const MESLEK_NEGATIF = /(avukat|attorney|lawyer|counsel|doktor|\bdr\.|hekim|mali müşavir|mali musavir|muhasebeci|accountant|eğitmen|egitmen|trainer|\bcoach\b|assistant|asistan|secretary|sekreter|intern\b|stajyer|chief of staff|ceo office|office of the ceo|private investor|angel investor|melek yatırımcı|melek yatirimci)/iu;
+const CEKIRDEK_HEDEF = /(\bceo\b|chief executive|\bcto\b|chief technology|\bcmo\b|chief marketing|\bcoo\b|chief operating|\bcgo\b|chief growth|\bcpo\b|chief product|co-?founder|founder|kurucu|genel müdür|genel mudur|\bgmy\b|managing director|yönetim kurulu başkan|yonetim kurulu baskan)/iu;
+
 export function isTargetTitle(unvan: string | null | undefined): boolean {
   const t = titleKey(unvan);
   if (!t) return false;
   if (!UST_YONETIM.test(t) && !PAZARLAMA_POZITIF.test(t)) return false;
+  // Cekirdek hedef (CEO/CTO/CMO/kurucu/genel mudur): negatif kelime ELEMEZ.
+  // Istisna: meslek unvani ("Kurucu Avukat", "Founder & Lawyer") — kisi bizim hedefimiz degil
+  if (CEKIRDEK_HEDEF.test(t) && !MESLEK_NEGATIF.test(t)) return true;
   // "Marketing Data Engineer", "CFO" gibi karisik/hedef disi unvanlar: negatif kelime baskin sayilir
   if (HEDEF_NEGATIF.test(t)) return false;
   return true;
@@ -1282,13 +1295,38 @@ export function currentCompanyFromCard(lines: readonly string[], unvan?: string 
   // NEDEN $ yok: "Head of Product @ Getir | Products People Love" — firma ilk ayraca kadar
   const h = /(?:\s+at\s+|\s*@\s*)([^|·—–]+)/iu.exec(t);
   if (h) return temizFirma(h[1]);
+  // "CTO - Getmobil" / "CTO, Getmobil": tire/virgul sonrasi BUYUK harfle baslayan firma adi.
+  // NEDEN buyuk harf sarti: "Chief Technology Officer - fintech" bir firma degil, alan tanimi.
+  const tire = /[-–—,]\s*(\p{Lu}[\p{L}\p{N}&.'’-]*(?:\s+\p{Lu}[\p{L}\p{N}&.'’-]*){0,3})\s*$/u.exec(t);
+  if (tire) return temizFirma(tire[1]);
   return '';
 }
 
 function temizFirma(s: string): string {
   return s
     .replace(/[|·—–].*$/u, '')
+    // "Hepsiburada - İstanbul" gibi ek konum/aciklama parcasi
+    .replace(/\s+[-–—]\s+.*$/u, '')
     .replace(/\s*\((?:acquired|part of)[^)]*\)/iu, '')
     .trim()
     .slice(0, 160);
+}
+
+/** LinkedIn arama sonuc sayfasi sayisi (1'den baslar); tek turda gezilecek ust sinir */
+export const MAX_SEARCH_PAGES = 10;
+
+/**
+ * Arama linkinin N. sayfasi. LinkedIn sayfalamasi `&page=N` ile yurur.
+ * Sayfa 1 icin parametre eklenmez (kanonik URL degismesin).
+ */
+export function searchUrlWithPage(url: string, page: number): string {
+  const n = Math.max(1, Math.min(MAX_SEARCH_PAGES, Math.floor(page)));
+  try {
+    const u = new URL(url);
+    if (n <= 1) u.searchParams.delete('page');
+    else u.searchParams.set('page', String(n));
+    return u.toString();
+  } catch {
+    return url;
+  }
 }

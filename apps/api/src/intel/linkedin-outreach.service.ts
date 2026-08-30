@@ -20,6 +20,8 @@ import {
   companySearchUrl,
   currentCompanyFromCard,
   currentTitleFromCard,
+  MAX_SEARCH_PAGES,
+  searchUrlWithPage,
   cutAtSidebar,
   delayBetweenActionsMs,
   detectBlock,
@@ -103,8 +105,10 @@ const KV_LOCK = 'linkedin-outreach:lock';
 const KV_RESEARCH = 'linkedin-outreach:research:'; // + YYYY-MM-DD
 /** Zaman asiminda tekrarlanabilir (yan etkisiz) tarayici komutlari */
 const READ_RETRY_COMMANDS: ReadonlySet<string> = new Set(['navigate', 'open', 'evaluate', 'snapshot', 'tabs', 'screenshot']);
-/** Tek istekte gezilecek en fazla arama linki (her biri ~1 dk) */
+/** Tek istekte gezilecek en fazla arama linki (her biri ~1 dk/sayfa) */
 const MAX_RESEARCH_URLS = 12;
+/** Link basina varsayilan sonuc sayfasi (LinkedIn sayfa basina ~10 kisi) */
+const VARSAYILAN_SAYFA = 5;
 /** Panelde gosterilen kayit sayisi (kuyruk 100+ olabiliyor) */
 const PANEL_RECENT_TAKE = 500;
 const KV_COMPANY = 'linkedin-outreach:company:'; // + firmaKey → sayisal LinkedIn sirket kimligi
@@ -739,8 +743,8 @@ export class LinkedinOutreachService {
    */
   async researchUrls(
     urls: string[],
-    opts: { kampanya?: Kampanya | string; sektor?: string | null; dryRun?: boolean } = {},
-  ): Promise<{ ok: boolean; reason?: string; sonuclar: Array<{ url: string; aday: number; yeni: number; elenen: number; firmasiz: number; hata?: string }> }> {
+    opts: { kampanya?: Kampanya | string; sektor?: string | null; dryRun?: boolean; sayfa?: number } = {},
+  ): Promise<{ ok: boolean; reason?: string; sonuclar: Array<{ url: string; sayfa?: number; aday: number; yeni: number; elenen: number; firmasiz: number; hata?: string }> }> {
     // NEDEN enabled kontrolu YOK: OPENCLAW_LINKEDIN_OUTREACH_ENABLED "gonderim izni" bayragidir; link
     // taramasi yalniz okur ve kuyruga yazar, LinkedIn'e istek/mesaj gondermez. Bayrak kapaliyken de
     // kuyruk hazirlanabilmeli (30.08: panelden verilen link sessizce "bot kapali" ile dondu).
@@ -753,21 +757,32 @@ export class LinkedinOutreachService {
     const kampanya = normalizeKampanya(opts.kampanya);
     const sektor = (opts.sektor ?? '').trim() || null;
     const dryRun = opts.dryRun === true;
+    // Kac sonuc sayfasi gezilecek (LinkedIn sayfa basina ~10 kisi gosterir)
+    const sayfaSayisi = Math.max(1, Math.min(MAX_SEARCH_PAGES, Math.floor(Number(opts.sayfa) || VARSAYILAN_SAYFA)));
     if (!(await this.acquireLock())) return { ok: false, reason: 'Başka bir tick çalışıyor', sonuclar: [] };
-    const sonuclar: Array<{ url: string; aday: number; yeni: number; elenen: number; firmasiz: number; hata?: string }> = [];
+    const sonuclar: Array<{ url: string; sayfa?: number; aday: number; yeni: number; elenen: number; firmasiz: number; hata?: string }> = [];
     try {
       const limits = resolveLimits();
-      for (const url of temiz) {
-        try {
-          sonuclar.push(await this.researchOneUrl(url, { kampanya, sektor, dryRun }));
-          await this.bumpResearch(limits);
-        } catch (err: any) {
-          const msg = String(err?.message ?? err).slice(0, 300);
-          sonuclar.push({ url, aday: 0, yeni: 0, elenen: 0, firmasiz: 0, hata: msg });
-          if (err instanceof BlockError) {
-            await this.pauseWithNotice(err.message);
-            break;
+      dis: for (const url of temiz) {
+        for (let sayfa = 1; sayfa <= sayfaSayisi; sayfa++) {
+          const sayfaUrl = searchUrlWithPage(url, sayfa);
+          try {
+            const r = await this.researchOneUrl(sayfaUrl, { kampanya, sektor, dryRun });
+            sonuclar.push({ ...r, url, sayfa });
+            await this.bumpResearch(limits);
+            // NEDEN erken cikis: sonuc kalmadiysa (bos sayfa) sonraki sayfalar da bostur
+            if (r.kart === 0) break;
+          } catch (err: any) {
+            const msg = String(err?.message ?? err).slice(0, 300);
+            sonuclar.push({ url, sayfa, aday: 0, yeni: 0, elenen: 0, firmasiz: 0, hata: msg });
+            if (err instanceof BlockError) {
+              await this.pauseWithNotice(err.message);
+              break dis;
+            }
+            break; // bu linkte sonraki sayfalari deneme
           }
+          // Sayfalar arasi insan ritmi
+          await sleep(dryRun ? 800 : Math.round(delayBetweenActionsMs() / 3));
         }
         await sleep(dryRun ? 1_000 : delayBetweenActionsMs());
       }
@@ -782,7 +797,7 @@ export class LinkedinOutreachService {
   private async researchOneUrl(
     url: string,
     opts: { kampanya: Kampanya; sektor: string | null; dryRun: boolean },
-  ): Promise<{ url: string; aday: number; yeni: number; elenen: number; firmasiz: number }> {
+  ): Promise<{ url: string; aday: number; yeni: number; elenen: number; firmasiz: number; kart: number }> {
     await this.goto(url);
     await sleep(SETTLE_MS + 1_000);
     this.assertNoBlock(await this.readPage());
@@ -808,10 +823,9 @@ export class LinkedinOutreachService {
       const parts = name.split(/\s+/);
       hits.push({ ad: parts.slice(0, -1).join(' '), soyad: parts[parts.length - 1], unvan: unvan.slice(0, 160), firma, profileUrl: u });
     }
+    const kart = links?.result?.length ?? 0;
     hits.sort((a, b) => researchKademe(a.unvan) - researchKademe(b.unvan));
-    const kesilen = Math.max(0, hits.length - MAX_RESEARCH_HITS);
-    hits.splice(MAX_RESEARCH_HITS);
-    this.log.log(`arastirma (link): ${links?.result?.length ?? 0} kart, ${elenen} unvan disi, ${firmasiz} firmasiz, ${hits.length} aday${kesilen ? `, ${kesilen} kota disi` : ''}`);
+    this.log.log(`arastirma (link): ${kart} kart, ${elenen} unvan disi, ${firmasiz} firmasiz, ${hits.length} aday`);
     await this.screenshot('research-url', String(seen.size));
 
     let yeni = 0;
@@ -830,7 +844,7 @@ export class LinkedinOutreachService {
         }
       }
     }
-    return { url, aday: hits.length, yeni, elenen, firmasiz };
+    return { url, aday: hits.length, yeni, elenen, firmasiz, kart };
   }
 
   /** Toplu kampanya degistirme (panelden secim) — yalniz henuz istek gitmemis kayitlar */

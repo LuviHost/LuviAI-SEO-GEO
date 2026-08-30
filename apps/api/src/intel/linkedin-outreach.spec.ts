@@ -1021,3 +1021,45 @@ describe('parseSearchUrls / currentCompanyFromCard', () => {
     expect(m.currentCompanyFromCard([])).toBe('');
   });
 });
+
+describe('sayfalama ve firma cikarimi (30.08 kullanici ekrani)', () => {
+  it('searchUrlWithPage: sayfa 1 parametresiz, 2+ page=N, sinir 10', async () => {
+    const m = await import('./linkedin-outreach-rules.js');
+    const u = 'https://www.linkedin.com/search/results/people/?keywords=cto&origin=SWITCH_SEARCH_VERTICAL';
+    expect(m.searchUrlWithPage(u, 1)).not.toContain('page=');
+    expect(new URL(m.searchUrlWithPage(u, 3)).searchParams.get('page')).toBe('3');
+    expect(new URL(m.searchUrlWithPage(u, 99)).searchParams.get('page')).toBe(String(m.MAX_SEARCH_PAGES));
+    expect(new URL(m.searchUrlWithPage(u, 0)).searchParams.get('page')).toBeNull();
+    // Mevcut page parametresi degistirilir, digerleri korunur
+    const withPage = m.searchUrlWithPage(`${u}&page=2`, 4);
+    expect(new URL(withPage).searchParams.get('page')).toBe('4');
+    expect(new URL(withPage).searchParams.get('keywords')).toBe('cto');
+    expect(m.searchUrlWithPage('bozuk-url', 2)).toBe('bozuk-url');
+  });
+
+  it('cekirdek hedef unvanlar negatif kelimeye ragmen kabul; hedef disi C-level yine elenir', async () => {
+    const m = await import('./linkedin-outreach-rules.js');
+    // Kullanicinin ekranindaki gercek ornekler
+    expect(m.isTargetTitle('Founder & CTO at FinPay Software')).toBe(true);
+    expect(m.isTargetTitle('CTO & Head of Engineering at Vakko')).toBe(true);
+    expect(m.isTargetTitle('Co-founder & CTO at Cypher Games')).toBe(true);
+    expect(m.isTargetTitle('Chief Technology Officer  - fintech')).toBe(true);
+    // Muafiyet hedef disi C-level'lari geri getirmez
+    expect(m.isTargetTitle('CFO')).toBe(false);
+    expect(m.isTargetTitle('Chief Human Resources Officer')).toBe(false);
+    expect(m.isTargetTitle('Chief Information Security Officer')).toBe(false);
+    // Orta kademe muhendislik hala elenir
+    expect(m.isTargetTitle('Engineering Manager')).toBe(false);
+    expect(m.isTargetTitle('Software Engineering Manager at Papara')).toBe(false);
+  });
+
+  it('currentCompanyFromCard: tire/virgul kalibi buyuk harfli firmayi alir, alan tanimini almaz', async () => {
+    const m = await import('./linkedin-outreach-rules.js');
+    expect(m.currentCompanyFromCard([], 'CTO - Getmobil')).toBe('Getmobil');
+    expect(m.currentCompanyFromCard([], 'CTO, Cypher Games')).toBe('Cypher Games');
+    expect(m.currentCompanyFromCard([], 'Chief Technology Officer  - fintech')).toBe('');
+    expect(m.currentCompanyFromCard([], 'Founder & CTO')).toBe('');
+    // "at" kalibi tireden once gelir
+    expect(m.currentCompanyFromCard([], 'CTO at Hepsiburada - İstanbul')).toBe('Hepsiburada');
+  });
+});

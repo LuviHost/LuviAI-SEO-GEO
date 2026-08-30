@@ -666,6 +666,7 @@ function Counter({ label, value, limit }: { label: string; value: number; limit?
 function SearchUrlCard({ onDone, disabled }: { onDone: () => Promise<void>; disabled: boolean }) {
   const [text, setText] = useState('');
   const [kampanya, setKampanya] = useState<LinkedinKampanya>('MUSTERI');
+  const [sayfa, setSayfa] = useState(5);
   const [sending, setSending] = useState(false);
   const linkSayisi = useMemo(
     () => text.split(/[\n,;]+/).map((t) => t.trim()).filter((t) => /linkedin\.com\/search\/results\/people/i.test(t)).length,
@@ -676,12 +677,12 @@ function SearchUrlCard({ onDone, disabled }: { onDone: () => Promise<void>; disa
     if (linkSayisi === 0) return;
     setSending(true);
     try {
-      const res = await api.researchLinkedinUrls({ urls: text, kampanya });
+      const res = await api.researchLinkedinUrls({ urls: text, kampanya, sayfa });
       if (!res?.started) {
         toast.error(res?.reason ?? 'Tarama başlatılamadı');
         return;
       }
-      toast.success(`${res.urls} link taranıyor — sonuçlar aşağıdaki listeye düşecek`);
+      toast.success(`${res.urls} link × ${sayfa} sayfa taranıyor — sonuçlar aşağıdaki listeye düşecek`);
       if (res.gecersiz?.length) toast.warning(`${res.gecersiz.length} satır anlaşılmadı (kişi arama linki değil)`);
       setText('');
       setTimeout(() => { void onDone(); }, 4000);
@@ -728,6 +729,21 @@ function SearchUrlCard({ onDone, disabled }: { onDone: () => Promise<void>; disa
           <span className="text-xs text-muted-foreground">{KAMPANYA.find((k) => k.key === kampanya)?.aciklama}</span>
         </div>
 
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs text-muted-foreground">Kaç sonuç sayfası:</span>
+          {[1, 3, 5, 10].map((n) => (
+            <button
+              key={n}
+              type="button"
+              onClick={() => setSayfa(n)}
+              className={cn('px-2.5 py-1.5 rounded-md border text-xs transition-colors', sayfa === n ? 'bg-orange-500 text-white border-orange-500' : 'hover:bg-muted')}
+            >
+              {n} sayfa
+            </button>
+          ))}
+          <span className="text-xs text-muted-foreground">≈ {sayfa * 10} kişi taranır · her sayfa ~1 dk</span>
+        </div>
+
         <Textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
@@ -737,7 +753,8 @@ function SearchUrlCard({ onDone, disabled }: { onDone: () => Promise<void>; disa
           className="font-mono text-xs"
         />
         <div className="text-xs text-muted-foreground">
-          Firma bilgisi kartın &quot;Mevcut: … şirketinde …&quot; satırından okunur; firması okunamayan kişi kaydedilmez. Tek seferde en fazla 12 link.
+          Firma bilgisi kartın &quot;Mevcut: … şirketinde …&quot; satırından ya da başlıktan (&quot;CTO at X&quot;, &quot;CTO - X&quot;) okunur; firması okunamayan kişi kaydedilmez.
+          Tek seferde en fazla 12 link × 10 sayfa.
         </div>
       </CardContent>
     </Card>
