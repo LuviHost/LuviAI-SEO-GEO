@@ -59,9 +59,14 @@ async function main() {
         : '';
     if (urlGirdi.trim()) {
       const { urls, gecersiz } = parseSearchUrls(urlGirdi);
-      log.log(`link taramasi: ${urls.length} gecerli link${gecersiz.length ? `, ${gecersiz.length} gecersiz satir` : ''} · kampanya=${args.kampanya ?? 'MUSTERI'}`);
+      log.log(`link taramasi: ${urls.length} gecerli link${gecersiz.length ? `, ${gecersiz.length} gecersiz satir` : ''} · kampanya=${args.kampanya ?? 'MUSTERI'} · sayfa=${args.sayfa ?? 'varsayilan (5)'}`);
       if (urls.length === 0) { console.log(JSON.stringify({ ok: false, reason: 'Gecerli LinkedIn kisi arama linki yok', gecersiz }, null, 2)); return; }
-      const r = await svc.researchUrls(urls, { kampanya: typeof args.kampanya === 'string' ? args.kampanya : undefined, sektor: typeof args.sektor === 'string' ? args.sektor : null, dryRun: args.real !== true });
+      const r = await svc.researchUrls(urls, {
+        kampanya: typeof args.kampanya === 'string' ? args.kampanya : undefined,
+        sektor: typeof args.sektor === 'string' ? args.sektor : null,
+        dryRun: args.real !== true,
+        sayfa: Number(args.sayfa) || undefined,
+      });
       console.log(JSON.stringify({ ...r, gecersiz }, null, 2));
       return;
     }
