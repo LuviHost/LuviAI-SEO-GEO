@@ -217,6 +217,8 @@ export interface LinkedinOverview {
   byFirma?: Array<{ firma: string; toplam: number; kuyrukta: number }>;
   /** DB'deki toplam kayit (recent kesilmis olabilir) */
   recentTotal?: number;
+  /** Kampanya sablonlari — panelde onizleme */
+  sablonlar?: Array<{ kampanya: LinkedinKampanya; ad: string; not: string; notUzunluk: number; notSinir: number; mesaj: string }>;
 }
 
 export interface LinkedinImportRow {

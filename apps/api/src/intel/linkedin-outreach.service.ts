@@ -51,6 +51,9 @@ import {
   renderMessage,
   renderNote,
   normalizeKampanya,
+  KAMPANYALAR,
+  KAMPANYA_ADI,
+  NOTE_MAX_CHARS,
   type Kampanya,
   RESEARCH_KEYWORD_QUERIES,
   researchSearchUrls,
@@ -847,6 +850,24 @@ export class LinkedinOutreachService {
     return { url, aday: hits.length, yeni, elenen, firmasiz, kart };
   }
 
+  /**
+   * Panelde gosterilecek sablon onizlemesi: her kampanya icin ornek kisiyle uretilmis
+   * baglanti notu + mesaj. NEDEN: kullanici kampanyayi secerken ne gonderilecegini
+   * gormeden karar veremiyordu (30.08 "mesaj sablonlari nerede?").
+   */
+  sablonOnizleme(ornek?: { ad?: string; soyad?: string; firma?: string; sektor?: string | null }) {
+    const p = {
+      ad: ornek?.ad?.trim() || 'Ayşe',
+      soyad: ornek?.soyad?.trim() || 'Demir',
+      firma: ornek?.firma?.trim() || 'Örnek Şirket',
+      sektor: ornek?.sektor ?? null,
+    };
+    return KAMPANYALAR.map((k) => {
+      const not = renderNote({ ...p, kampanya: k });
+      return { kampanya: k, ad: KAMPANYA_ADI[k], not, notUzunluk: not.length, notSinir: NOTE_MAX_CHARS, mesaj: renderMessage({ ...p, kampanya: k }) };
+    });
+  }
+
   /** Toplu kampanya degistirme (panelden secim) — yalniz henuz istek gitmemis kayitlar */
   async setKampanya(ids: string[], kampanya?: string | null): Promise<{ updated: number }> {
     const k = normalizeKampanya(kampanya);
@@ -889,6 +910,8 @@ export class LinkedinOutreachService {
       acceptRateWindow: 'matured-72h-14d' as const,
       acceptRateBase: { requests: requestsMatured, accepted: acceptedMatured, minRequests: limits.ACCEPT_RATE_MIN_REQUESTS },
       byStatus: Object.fromEntries(byStatus.map((s) => [s.status, s._count])),
+      // Kampanya sablonlari (panelde onizleme) — ornek kisiyle uretilir
+      sablonlar: this.sablonOnizleme(),
       // Firma bazli dagilim (panel ozet seridi): { firma, toplam, kuyrukta }
       byFirma: Object.values(
         byFirmaRaw.reduce<Record<string, { firma: string; toplam: number; kuyrukta: number }>>((acc, r) => {

@@ -467,7 +467,7 @@ export default function AdminLinkedinPage() {
       )}
 
       {/* ── Arama linkleriyle tarama ── */}
-      <SearchUrlCard onDone={load} disabled={!!busy} />
+      <SearchUrlCard onDone={load} disabled={!!busy} sablonlar={overview?.sablonlar} />
 
       {/* ── CSV içe aktar ── */}
       <ImportCard onDone={load} disabled={!!busy} />
@@ -663,10 +663,11 @@ function Counter({ label, value, limit }: { label: string; value: number; limit?
  * (unvan, konum, sirket, baglanti derecesi), linki buraya yapistirir; bot sayfayi
  * gezip hedef unvanli kisileri kuyruga yazar. GONDERIM YOK — yalniz kuyruk.
  */
-function SearchUrlCard({ onDone, disabled }: { onDone: () => Promise<void>; disabled: boolean }) {
+function SearchUrlCard({ onDone, disabled, sablonlar }: { onDone: () => Promise<void>; disabled: boolean; sablonlar?: LinkedinOverview['sablonlar'] }) {
   const [text, setText] = useState('');
   const [kampanya, setKampanya] = useState<LinkedinKampanya>('MUSTERI');
   const [sayfa, setSayfa] = useState(5);
+  const [sablonAcik, setSablonAcik] = useState(false);
   const [sending, setSending] = useState(false);
   const linkSayisi = useMemo(
     () => text.split(/[\n,;]+/).map((t) => t.trim()).filter((t) => /linkedin\.com\/search\/results\/people/i.test(t)).length,
@@ -728,6 +729,44 @@ function SearchUrlCard({ onDone, disabled }: { onDone: () => Promise<void>; disa
           ))}
           <span className="text-xs text-muted-foreground">{KAMPANYA.find((k) => k.key === kampanya)?.aciklama}</span>
         </div>
+
+        {/* Secili kampanyanin gercek metinleri — ne gonderilecegi gorunmeden secim yapilmasin */}
+        {(() => {
+          const sablon = sablonlar?.find((x) => x.kampanya === kampanya);
+          if (!sablon) return null;
+          return (
+            <div className="rounded-md border bg-muted/30 p-3 space-y-2">
+              <button
+                type="button"
+                onClick={() => setSablonAcik((v) => !v)}
+                className="text-xs font-medium inline-flex items-center gap-1.5 hover:underline"
+              >
+                <MessageSquareText className="h-3.5 w-3.5" />
+                {sablonAcik ? 'Şablonu gizle' : 'Bu kampanyada ne gönderilecek? (şablonu gör)'}
+              </button>
+              {sablonAcik && (
+                <div className="space-y-3 text-xs">
+                  <div>
+                    <div className="font-medium text-foreground mb-1">
+                      1) Bağlantı isteği notu <span className="text-muted-foreground font-normal">({sablon.notUzunluk}/{sablon.notSinir} karakter)</span>
+                    </div>
+                    <div className="whitespace-pre-wrap text-muted-foreground bg-background rounded p-2 border">{sablon.not}</div>
+                  </div>
+                  <div>
+                    <div className="font-medium text-foreground mb-1">
+                      2) Kabul edince gönderilen mesaj
+                    </div>
+                    <div className="whitespace-pre-wrap text-muted-foreground bg-background rounded p-2 border">{sablon.mesaj}</div>
+                  </div>
+                  <div className="text-muted-foreground">
+                    Örnek kişi <span className="font-medium">Ayşe Demir / Örnek Şirket</span> ile üretildi; gerçekte kişinin adı ve firması yazılır.
+                    Metinler <span className="font-mono">linkedin-outreach-rules.ts</span> içinde.
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs text-muted-foreground">Kaç sonuç sayfası:</span>
