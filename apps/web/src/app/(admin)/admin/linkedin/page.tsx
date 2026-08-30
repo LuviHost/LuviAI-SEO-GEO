@@ -466,8 +466,11 @@ export default function AdminLinkedinPage() {
         </Card>
       )}
 
+      {/* ── Mesaj şablonları ── */}
+      <SablonCard sablonlar={overview?.sablonlar} />
+
       {/* ── Arama linkleriyle tarama ── */}
-      <SearchUrlCard onDone={load} disabled={!!busy} sablonlar={overview?.sablonlar} />
+      <SearchUrlCard onDone={load} disabled={!!busy} />
 
       {/* ── CSV içe aktar ── */}
       <ImportCard onDone={load} disabled={!!busy} />
@@ -659,15 +662,118 @@ function Counter({ label, value, limit }: { label: string; value: number; limit?
 }
 
 /**
+ * Kampanya mesaj sablonlari — LinkedIn gorunumunde. NEDEN ayri kart: kullanici gonderilecek
+ * metni secim aninda ve bir bakista gormek istiyor (30.08 "panelden gorelim mesajlari").
+ * Metinler arka uctan gelir (overview.sablonlar) — panel kendi kopyasini tasimaz, sapma olmaz.
+ */
+function SablonCard({ sablonlar }: { sablonlar?: LinkedinOverview['sablonlar'] }) {
+  const [secili, setSecili] = useState<LinkedinKampanya>('MUSTERI');
+  const [kopyalanan, setKopyalanan] = useState<string | null>(null);
+  const aktif = sablonlar?.find((x) => x.kampanya === secili);
+
+  const kopyala = async (metin: string, etiket: string) => {
+    try {
+      await navigator.clipboard.writeText(metin);
+      setKopyalanan(etiket);
+      setTimeout(() => setKopyalanan(null), 1500);
+    } catch {
+      toast.error('Kopyalanamadı');
+    }
+  };
+
+  if (!sablonlar?.length) return null;
+
+  return (
+    <Card>
+      <CardContent className="p-4 space-y-4">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div>
+            <div className="text-sm font-medium flex items-center gap-2">
+              <MessageSquareText className="h-4 w-4" />
+              Mesaj şablonları
+            </div>
+            <div className="text-xs text-muted-foreground mt-0.5">
+              Kişiye önce <span className="font-medium">bağlantı isteği notu</span> gider; kabul ederse{' '}
+              <span className="font-medium">mesaj</span> gönderilir. Örnek kişi: Ayşe Demir / Örnek Şirket.
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {sablonlar.map((s) => (
+              <button
+                key={s.kampanya}
+                type="button"
+                onClick={() => setSecili(s.kampanya)}
+                className={cn('px-2.5 py-1.5 rounded-md border text-xs transition-colors', secili === s.kampanya ? 'bg-orange-500 text-white border-orange-500' : 'hover:bg-muted')}
+              >
+                {s.ad}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {aktif && (
+          <div className="grid gap-4 md:grid-cols-2">
+            {/* 1) Bağlantı isteği notu */}
+            <div className="rounded-lg border bg-muted/20 overflow-hidden">
+              <div className="px-3 py-2 border-b bg-muted/40 flex items-center justify-between gap-2">
+                <div className="text-xs font-medium">1. Bağlantı isteği notu</div>
+                <div className="flex items-center gap-2">
+                  <span className={cn('text-[11px] tabular-nums', aktif.notUzunluk > aktif.notSinir ? 'text-rose-600' : 'text-muted-foreground')}>
+                    {aktif.notUzunluk}/{aktif.notSinir}
+                  </span>
+                  <button type="button" onClick={() => kopyala(aktif.not, 'not')} className="text-[11px] text-orange-600 hover:underline">
+                    {kopyalanan === 'not' ? 'kopyalandı' : 'kopyala'}
+                  </button>
+                </div>
+              </div>
+              <div className="p-3">
+                <div className="flex gap-2">
+                  <div className="h-7 w-7 rounded-full bg-orange-500/15 text-orange-600 grid place-items-center text-[11px] font-semibold shrink-0">RU</div>
+                  <div className="rounded-2xl rounded-tl-sm bg-background border px-3 py-2 text-xs leading-relaxed whitespace-pre-wrap">
+                    {aktif.not}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* 2) Kabul sonrası mesaj */}
+            <div className="rounded-lg border bg-muted/20 overflow-hidden">
+              <div className="px-3 py-2 border-b bg-muted/40 flex items-center justify-between gap-2">
+                <div className="text-xs font-medium">2. Kabul edince gönderilen mesaj</div>
+                <button type="button" onClick={() => kopyala(aktif.mesaj, 'mesaj')} className="text-[11px] text-orange-600 hover:underline">
+                  {kopyalanan === 'mesaj' ? 'kopyalandı' : 'kopyala'}
+                </button>
+              </div>
+              <div className="p-3">
+                <div className="flex gap-2">
+                  <div className="h-7 w-7 rounded-full bg-orange-500/15 text-orange-600 grid place-items-center text-[11px] font-semibold shrink-0">RU</div>
+                  <div className="rounded-2xl rounded-tl-sm bg-background border px-3 py-2 text-xs leading-relaxed whitespace-pre-wrap">
+                    {aktif.mesaj}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="text-[11px] text-muted-foreground">
+          Metinler <span className="font-mono">apps/api/src/intel/linkedin-outreach-rules.ts</span> içinde; değiştirmek istersen söyle.
+          Üçü de kimlik açıklar ve &quot;istemezseniz bir daha yazmayacağım&quot; ile biter (6563 md. 8/3 ret hakkı).
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
  * LinkedIn arama linkleriyle tarama. Kullanici LinkedIn'de kendi filtresini kurar
  * (unvan, konum, sirket, baglanti derecesi), linki buraya yapistirir; bot sayfayi
  * gezip hedef unvanli kisileri kuyruga yazar. GONDERIM YOK — yalniz kuyruk.
  */
-function SearchUrlCard({ onDone, disabled, sablonlar }: { onDone: () => Promise<void>; disabled: boolean; sablonlar?: LinkedinOverview['sablonlar'] }) {
+function SearchUrlCard({ onDone, disabled }: { onDone: () => Promise<void>; disabled: boolean }) {
   const [text, setText] = useState('');
   const [kampanya, setKampanya] = useState<LinkedinKampanya>('MUSTERI');
   const [sayfa, setSayfa] = useState(5);
-  const [sablonAcik, setSablonAcik] = useState(false);
   const [sending, setSending] = useState(false);
   const linkSayisi = useMemo(
     () => text.split(/[\n,;]+/).map((t) => t.trim()).filter((t) => /linkedin\.com\/search\/results\/people/i.test(t)).length,
@@ -729,44 +835,6 @@ function SearchUrlCard({ onDone, disabled, sablonlar }: { onDone: () => Promise<
           ))}
           <span className="text-xs text-muted-foreground">{KAMPANYA.find((k) => k.key === kampanya)?.aciklama}</span>
         </div>
-
-        {/* Secili kampanyanin gercek metinleri — ne gonderilecegi gorunmeden secim yapilmasin */}
-        {(() => {
-          const sablon = sablonlar?.find((x) => x.kampanya === kampanya);
-          if (!sablon) return null;
-          return (
-            <div className="rounded-md border bg-muted/30 p-3 space-y-2">
-              <button
-                type="button"
-                onClick={() => setSablonAcik((v) => !v)}
-                className="text-xs font-medium inline-flex items-center gap-1.5 hover:underline"
-              >
-                <MessageSquareText className="h-3.5 w-3.5" />
-                {sablonAcik ? 'Şablonu gizle' : 'Bu kampanyada ne gönderilecek? (şablonu gör)'}
-              </button>
-              {sablonAcik && (
-                <div className="space-y-3 text-xs">
-                  <div>
-                    <div className="font-medium text-foreground mb-1">
-                      1) Bağlantı isteği notu <span className="text-muted-foreground font-normal">({sablon.notUzunluk}/{sablon.notSinir} karakter)</span>
-                    </div>
-                    <div className="whitespace-pre-wrap text-muted-foreground bg-background rounded p-2 border">{sablon.not}</div>
-                  </div>
-                  <div>
-                    <div className="font-medium text-foreground mb-1">
-                      2) Kabul edince gönderilen mesaj
-                    </div>
-                    <div className="whitespace-pre-wrap text-muted-foreground bg-background rounded p-2 border">{sablon.mesaj}</div>
-                  </div>
-                  <div className="text-muted-foreground">
-                    Örnek kişi <span className="font-medium">Ayşe Demir / Örnek Şirket</span> ile üretildi; gerçekte kişinin adı ve firması yazılır.
-                    Metinler <span className="font-mono">linkedin-outreach-rules.ts</span> içinde.
-                  </div>
-                </div>
-              )}
-            </div>
-          );
-        })()}
 
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs text-muted-foreground">Kaç sonuç sayfası:</span>
