@@ -23,12 +23,16 @@ import { NestFactory } from '@nestjs/core';
 import { Logger } from '@nestjs/common';
 import { AppModule } from '../app.module.js';
 import { LinkedinOutreachService } from '../intel/linkedin-outreach.service.js';
+import { readFileSync } from 'node:fs';
 import { parseArgs } from '../prospect/prospect-utils.js';
+import { parseSearchUrls } from '../intel/linkedin-outreach-rules.js';
 
 const args = parseArgs(process.argv.slice(2));
 const RESEARCH_ONLY = args['research-only'] === true;
+const URL_MODE = typeof args.urls === 'string' || typeof args['urls-file'] === 'string';
 const DRY = args.real !== true && !RESEARCH_ONLY;
-if (!DRY && !RESEARCH_ONLY && args.yes !== true) {
+// NEDEN --urls muaf: link taramasi yalniz kuyruga yazar, LinkedIn'e istek/mesaj GONDERMEZ
+if (!DRY && !RESEARCH_ONLY && !URL_MODE && args.yes !== true) {
   console.error('GERCEK tick icin --real --yes gerekli (LinkedIn\'de gercekten istek/mesaj gonderir).');
   process.exit(2);
 }
@@ -45,6 +49,20 @@ async function main() {
       const o: any = await svc.overview();
       const { recent, ...rest } = o;
       console.log(JSON.stringify({ ...rest, recentCount: recent?.length ?? 0, recentStatuses: (recent ?? []).map((r: any) => r.status) }, null, 2));
+      return;
+    }
+    // --urls "<link1> <link2>" ya da --urls-file <yol>: kullanicinin LinkedIn arama linkleri
+    const urlGirdi = typeof args.urls === 'string'
+      ? String(args.urls)
+      : typeof args['urls-file'] === 'string'
+        ? readFileSync(String(args['urls-file']), 'utf8')
+        : '';
+    if (urlGirdi.trim()) {
+      const { urls, gecersiz } = parseSearchUrls(urlGirdi);
+      log.log(`link taramasi: ${urls.length} gecerli link${gecersiz.length ? `, ${gecersiz.length} gecersiz satir` : ''} · kampanya=${args.kampanya ?? 'MUSTERI'}`);
+      if (urls.length === 0) { console.log(JSON.stringify({ ok: false, reason: 'Gecerli LinkedIn kisi arama linki yok', gecersiz }, null, 2)); return; }
+      const r = await svc.researchUrls(urls, { kampanya: typeof args.kampanya === 'string' ? args.kampanya : undefined, sektor: typeof args.sektor === 'string' ? args.sektor : null, dryRun: args.real !== true });
+      console.log(JSON.stringify({ ...r, gecersiz }, null, 2));
       return;
     }
     const research = typeof args.research === 'string' ? String(args.research).split(',').map((s) => s.trim()).filter(Boolean) : undefined;

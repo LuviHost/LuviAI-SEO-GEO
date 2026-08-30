@@ -21,6 +21,7 @@ import { IntelDigestService } from './digest.service.js';
 import { XSearchService } from './x-search.service.js';
 import { OpenClawService } from './openclaw.service.js';
 import { LinkedinOutreachService, type ImportRow } from './linkedin-outreach.service.js';
+import { parseSearchUrls } from './linkedin-outreach-rules.js';
 import { DISABLED_SOURCES } from './source-registry.js';
 
 /**
@@ -437,6 +438,51 @@ export class IntelController {
       .finally(() => CALISAN_ASAMALAR.delete(kilit));
 
     return { started: true, dryRun: false, actions: [], reason: 'Gerçek tick arka planda başladı — sonuç durum kartında ve son kayıtlarda' };
+  }
+
+  /**
+   * Kullanicinin yapistirdigi LinkedIn kisi arama linklerini gezip aday yazar (GONDERIM YOK).
+   * Uzun surdugu icin arka planda calisir; sonuc panelde "son kayitlar" listesinde gorunur.
+   */
+  @Post('linkedin/research-urls')
+  async linkedinResearchUrls(
+    @Req() req: Request,
+    @Body() body: { urls?: string; kampanya?: string; sektor?: string; dryRun?: boolean },
+  ) {
+    assertAdmin(req);
+    const { urls, gecersiz } = parseSearchUrls(body?.urls ?? '');
+    if (urls.length === 0) {
+      return { started: false, urls: 0, gecersiz, reason: 'Geçerli LinkedIn kişi arama linki bulunamadı' };
+    }
+    const kilit = 'linkedin:tick';
+    if (CALISAN_ASAMALAR.has(kilit)) return { started: false, urls: urls.length, gecersiz, reason: 'Tick zaten çalışıyor' };
+    CALISAN_ASAMALAR.add(kilit);
+
+    const opts = { kampanya: body?.kampanya, sektor: body?.sektor ?? null, dryRun: body?.dryRun === true };
+    if (opts.dryRun) {
+      try {
+        return { started: true, urls: urls.length, gecersiz, ...(await this.linkedin.researchUrls(urls, opts)) };
+      } finally {
+        CALISAN_ASAMALAR.delete(kilit);
+      }
+    }
+
+    this.linkedin
+      .researchUrls(urls, opts)
+      .then((r) => this.log.log(`LinkedIn link taramasi bitti: ${r.sonuclar.reduce((a, x) => a + x.yeni, 0)} yeni aday`))
+      .catch((err) => this.log.warn(`LinkedIn link taramasi hatası: ${err?.message ?? err}`))
+      .finally(() => CALISAN_ASAMALAR.delete(kilit));
+
+    return { started: true, urls: urls.length, gecersiz, reason: `${urls.length} link arka planda taranıyor — sonuç son kayıtlarda` };
+  }
+
+  /** Kayitlarin kampanyasini toplu degistir (panelden secim) */
+  @Post('linkedin/prospects/kampanya')
+  async linkedinSetKampanya(@Req() req: Request, @Body() body: { ids?: string[]; kampanya?: string }) {
+    assertAdmin(req);
+    const ids = Array.isArray(body?.ids) ? body.ids.filter((x) => typeof x === 'string').slice(0, 500) : [];
+    if (ids.length === 0) return { updated: 0 };
+    return this.linkedin.setKampanya(ids, body?.kampanya);
   }
 
   @Post('linkedin/prospects/:id/skip')

@@ -193,11 +193,11 @@ model VerificationToken {
 // ═══════════════════════════════════════════════════════════════
 
 model Site {
-  id       String     @id @default(cuid())
-  userId   String
-  url      String // https://luvihost.com.tr
-  name     String // "LuviHost"
-  niche    String? // hosting | ecommerce | saas | ...
+  id          String     @id @default(cuid())
+  userId      String
+  url         String // https://luvihost.com.tr
+  name        String // "LuviHost"
+  niche       String? // hosting | ecommerce | saas | ...
   /**
    * Spesifik kategori etiketi — 20 elemanli kaba `niche` listesi cogu siteyi
    * tam anlatmiyor (ör. futbol canli skor platformu "haber/medya"ya dusuyordu).
@@ -205,8 +205,8 @@ model Site {
    * da doldurulur. Rakip/sorgu ureten tum servisler ONCE bunu kullanir.
    */
   customNiche String?
-  language String     @default("tr") // tr | en | both
-  status   SiteStatus @default(ONBOARDING)
+  language    String     @default("tr") // tr | en | both
+  status      SiteStatus @default(ONBOARDING)
 
   // GSC OAuth token (per-site, kullanıcı isterse her site için ayrı GSC hesabı)
   gscPropertyUrl  String? // sc-domain:luvihost.com
@@ -275,22 +275,22 @@ model Site {
   updatedAt DateTime @updatedAt
 
   // Relations
-  user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
-  brain              Brain?
-  publishTargets     PublishTarget[]
-  audits             Audit[]
-  siteReports        SiteReport[]
-  appliedFixes       AppliedFix[]
-  topicQueues        TopicQueue[]
-  articles           Article[]
-  jobs               Job[]
-  analyticsSnapshots AnalyticsSnapshot[]
+  user                     User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  brain                    Brain?
+  publishTargets           PublishTarget[]
+  audits                   Audit[]
+  siteReports              SiteReport[]
+  appliedFixes             AppliedFix[]
+  topicQueues              TopicQueue[]
+  articles                 Article[]
+  jobs                     Job[]
+  analyticsSnapshots       AnalyticsSnapshot[]
   gscAiVisibilitySnapshots GscAiVisibilitySnapshot[]
-  socialChannels     SocialChannel[]
-  adCampaigns        AdCampaign[]
-  aiProviderKeys     SiteAiProviderKey[]
-  trackedApps        TrackedApp[]
-  stuckPages         StuckPage[]
+  socialChannels           SocialChannel[]
+  adCampaigns              AdCampaign[]
+  aiProviderKeys           SiteAiProviderKey[]
+  trackedApps              TrackedApp[]
+  stuckPages               StuckPage[]
 
   // ASO Faz 1/2/3 — Apple Search Ads + App Store Connect + RanksUp SDK
   asaAccounts       AsaAccount[]
@@ -307,14 +307,14 @@ model Site {
   geoPrompts        GeoPrompt[]
 
   // Maya-parity dalgasi (2026-08)
-  agentReadinessScans  AgentReadinessScan[]
-  actionPlanItems      ActionPlanItem[]
-  contentOpportunities ContentOpportunity[]
-  chatConversations    ChatConversation[]
-  productRadarSnapshots ProductRadarSnapshot[]
+  agentReadinessScans    AgentReadinessScan[]
+  actionPlanItems        ActionPlanItem[]
+  contentOpportunities   ContentOpportunity[]
+  chatConversations      ChatConversation[]
+  productRadarSnapshots  ProductRadarSnapshot[]
   communityOpportunities CommunityOpportunity[]
   // Live Crawler dalgasi (2026-08)
-  crawlerHitEvents     CrawlerHitEvent[]
+  crawlerHitEvents       CrawlerHitEvent[]
 
   @@unique([userId, url])
   @@index([userId])
@@ -421,7 +421,7 @@ model Audit {
   checks Json
 
   // Eksik & hata listesi
-  issues Json // [{ severity, type, page, description, fixable, checkId }]
+  issues      Json // [{ severity, type, page, description, fixable, checkId }]
   /// Sorunlarin sablon (URL deseni) ve kontrol bazli ozeti — UI gruplama (issue-grouping.ts). Eski taramalarda null.
   issueGroups Json?
 
@@ -540,10 +540,10 @@ model Article {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  site        Site         @relation(fields: [siteId], references: [id], onDelete: Cascade)
-  socialPosts SocialPost[]
-  videos      Video[]
-  stuckPages  StuckPage[]
+  site                 Site                 @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  socialPosts          SocialPost[]
+  videos               Video[]
+  stuckPages           StuckPage[]
   contentOpportunities ContentOpportunity[]
 
   @@unique([siteId, slug])
@@ -705,7 +705,6 @@ model AnalyticsSnapshot {
 
 /**
  * GSC "Generative AI" performans raporu — AI Overviews + AI Mode gorunumleri.
- *
  * Google bu raporu YALNIZ GOSTERIM olarak, AIO/AI Mode AYRIMSIZ verir; API ve
  * BigQuery yok, tek cikis UI'dan CSV export. Kullanici export'u yukler,
  * gsc-ai-csv.ts parse eder (yanlis-dosya korumali), buraya gunluk yazilir.
@@ -761,7 +760,6 @@ model AiCitationSnapshot {
 
 /**
  * AI gorunurluk testi KOSUMLARI — append-only.
- *
  * NEDEN AYRI TABLO: AiCitationSnapshot siteId+date+provider ile gunluk TEK
  * satir tutar; ayni gun ikinci "Yeniden Test" oncekinin uzerine yaziyordu.
  * Musteri onceki sonucu kaybetmemeli ve iki testi kiyaslayabilmeli. Snapshot
@@ -969,12 +967,18 @@ model Invoice {
   userId String
 
   paytrTransactionId String?       @unique
-  /** Tahsil edilen tutar — PayTR TL ile calisir, bu alan TL'dir */
+  /**
+   * Tahsil edilen tutar — PayTR TL ile calisir, bu alan TL'dir
+   */
   amount             Decimal       @db.Decimal(10, 2)
   currency           String        @default("TRY")
-  /** Fiyatin kanonik hali (USD). Fiyat listesi USD bazli tutulur. */
+  /**
+   * Fiyatin kanonik hali (USD). Fiyat listesi USD bazli tutulur.
+   */
   amountUsd          Decimal?      @db.Decimal(10, 2)
-  /** Siparis anindaki TCMB USD/TRY kuru — fatura/denetim icin sabitlenir */
+  /**
+   * Siparis anindaki TCMB USD/TRY kuru — fatura/denetim icin sabitlenir
+   */
   fxRate             Decimal?      @db.Decimal(12, 4)
   status             InvoiceStatus @default(PENDING)
 
@@ -1017,9 +1021,9 @@ model UsageEvent {
 
 /// Gerçek müşteri testimonial'ı — dashboard'dan toplanır, admin onaylar, landing'de gösterilir.
 model Testimonial {
-  id     String  @id @default(cuid())
+  id         String    @id @default(cuid())
   /// Panelden yorum bırakan user. Dışarıdan alınan referanslarda NULL olur.
-  userId String?
+  userId     String?
   /// Panel kullanıcısı olmayan referanslar için görünen ad — ör. bir müşteri
   /// firmanın kurucusu. Doluysa listPublic user tablosuna hiç bakmaz.
   /// NOT: bu alan doluyken kayıt, kişinin YAZILI ONAYI alınmadan
@@ -2262,12 +2266,10 @@ model GeoPromptRun {
   brandMentioned Boolean @default(false)
   /**
    * SORUNUN KENDISINDE marka adi geciyor mu?
-   *
    * Sorguda markanin adi gecince asistanin markayi anmasi neredeyse
    * totolojik. (Sektorde "33 kat" diye dolasan sayi tek hesapli bir deneyin
    * cift sayimi cikti — yon dogru, sayi tasinmaz; defter analizi 2026-08.)
    * Ikisi ayni havuzda toplanirsa skor gorunurlugu degil prompt bilesimini olcer.
-   *
    * Manset metrikleri (mentionRate, citationRate, sentiment, shareOfVoice)
    * yalnizca `false` satirlardan hesaplanir; `true` satirlar ayrica
    * "taninirlik" olarak raporlanir. bkz. audit/brand-in-query.ts
@@ -2329,7 +2331,7 @@ model AgentReadinessScan {
 
   /**
    * [{ id, title, score, maxScore, checks: [{ id, name, ok, impact,
-   *    statusText, howTo, agentPrompt, audit: [{ step, detail, ok }] }] }]
+   * statusText, howTo, agentPrompt, audit: [{ step, detail, ok }] }] }]
    */
   levels Json
 
@@ -2362,9 +2364,13 @@ model ActionPlanItem {
   title       String
   description String? @db.Text
 
-  /** audit | geo | agent_readiness | citation | prompt_lab | aso | ads | qa | chat | product_radar | community | manual */
+  /**
+   * audit | geo | agent_readiness | citation | prompt_lab | aso | ads | qa | chat | product_radar | community | manual
+   */
   source    String  @default("manual")
-  /** Kaynak kaydin id'si (check id, prompt id, opportunity id...) */
+  /**
+   * Kaynak kaydin id'si (check id, prompt id, opportunity id...)
+   */
   sourceRef String?
 
   impact String @default("medium") // high | medium | low
@@ -2395,7 +2401,9 @@ model ContentOpportunity {
   id     String @id @default(cuid())
   siteId String
 
-  /** prompt = Prompt Lab kaybi, reviews = ASO review temasi, radar = product radar, manual */
+  /**
+   * prompt = Prompt Lab kaybi, reviews = ASO review temasi, radar = product radar, manual
+   */
   source   String  @default("prompt")
   promptId String? // GeoPrompt kaynagi (source=prompt ise)
   fanoutId String?
@@ -2403,17 +2411,23 @@ model ContentOpportunity {
   title String @db.Text // onerilen icerik basligi
   query String @db.Text // kaybedilen/tetikleyen sorgu
 
-  /** LOST = hic gorunmuyor, WEAK = kismi, MISSING = veri yok, WON = kazanildi */
+  /**
+   * LOST = hic gorunmuyor, WEAK = kismi, MISSING = veri yok, WON = kazanildi
+   */
   coverage      String @default("LOST")
   providersLost Json? // ["openai", "gemini"]
   score         Int    @default(0) // onceliklendirme 0-100
 
-  /** OPEN | PLANNED | GENERATED | PUBLISHED | REMEASURED | DISMISSED */
+  /**
+   * OPEN | PLANNED | GENERATED | PUBLISHED | REMEASURED | DISMISSED
+   */
   status    String  @default("OPEN")
   articleId String?
 
   remeasuredAt    DateTime?
-  /** { before: { cited, total }, after: { cited, total }, wonProviders: [...] } */
+  /**
+   * { before: { cited, total }, after: { cited, total }, wonProviders: [...] }
+   */
   remeasureResult Json?
   meta            Json?
 
@@ -2457,9 +2471,13 @@ model ChatMessage {
   role    String // user | assistant
   content String @db.LongText
 
-  /** Asistanin bu mesajda kullandigi tool cagrilari: [{ name, input, resultSummary }] */
+  /**
+   * Asistanin bu mesajda kullandigi tool cagrilari: [{ name, input, resultSummary }]
+   */
   toolCalls Json?
-  /** Mesaji tetikleyen skill preset'i (weekly-plan, visibility-report, ...) */
+  /**
+   * Mesaji tetikleyen skill preset'i (weekly-plan, visibility-report, ...)
+   */
   skill     String?
   costUsd   Decimal? @db.Decimal(10, 4)
 
@@ -2482,9 +2500,11 @@ model ProductRadarSnapshot {
   date     DateTime @db.Date
   provider String // anthropic | openai | gemini | perplexity | ...
   category String // sorgunun kategorisi (site.niche tabanli)
-  query    String @db.Text
+  query    String   @db.Text
 
-  /** [{ name, url?, rank, isBrand }] — cevaptaki oneri listesi */
+  /**
+   * [{ name, url?, rank, isBrand }] — cevaptaki oneri listesi
+   */
   products    Json
   brandListed Boolean @default(false)
   brandRank   Int?
@@ -2515,7 +2535,9 @@ model CommunityOpportunity {
   relevance  Int     @default(50) // brandFitScore 0-100
   draftReply String? @db.Text
 
-  /** NEW | DRAFTED | APPROVED | POSTED | IGNORED */
+  /**
+   * NEW | DRAFTED | APPROVED | POSTED | IGNORED
+   */
   status   String    @default("NEW")
   postedAt DateTime?
   meta     Json?
@@ -2555,7 +2577,9 @@ model CrawlerHitEvent {
    */
   isCiteFetch Boolean @default(false)
 
-  /** worker (Cloudflare) | wp (WordPress eklentisi) | log (nginx ajani) | beacon */
+  /**
+   * worker (Cloudflare) | wp (WordPress eklentisi) | log (nginx ajani) | beacon
+   */
   source String @default("worker")
   meta   Json?
 
@@ -2584,17 +2608,22 @@ model CrawlerHitEvent {
 
 model IntelSource {
   id   String @id @default(cuid())
-  /** source-registry.ts'teki slug — upsert anahtari */
+  /**
+   * source-registry.ts'teki slug — upsert anahtari
+   */
   key  String @unique
   name String
 
-  /** rss | reddit | hn | x | github */
-  kind   String
-  /** feed URL'i, subreddit adi ya da arama sorgusu — KATALOG degeri */
-  target String @db.Text
+  /**
+   * rss | reddit | hn | x | github
+   */
+  kind           String
+  /**
+   * feed URL'i, subreddit adi ya da arama sorgusu — KATALOG degeri
+   */
+  target         String  @db.Text
   /**
    * Panelden elle girilen sorgu. Doluysa `target` yerine BU kullanilir.
-   *
    * NEDEN AYRI ALAN: syncCatalog() her senkronda `target`'i koddaki
    * INTEL_SOURCES'tan eziyor. Elle duzenleme dogrudan `target`'a yazilsaydi
    * bir sonraki acilista sessizce geri alinirdi. Override ayri durdugu icin
@@ -2602,18 +2631,26 @@ model IntelSource {
    */
   targetOverride String? @db.Text
 
-  /** official | primary-research | practitioner | news | community */
+  /**
+   * official | primary-research | practitioner | news | community
+   */
   tier          String
-  /** IntelTopic listesi (JSON string dizisi) */
+  /**
+   * IntelTopic listesi (JSON string dizisi)
+   */
   topics        Json
-  /** Kaynak on-agirligi 0-100 — kanit skorunun carpani */
+  /**
+   * Kaynak on-agirligi 0-100 — kanit skorunun carpani
+   */
   weight        Int     @default(50)
   intervalHours Int     @default(24)
   enabled       Boolean @default(true)
   note          String? @db.Text
 
   lastFetchedAt DateTime?
-  /** Ust uste hata sayaci — esigi asinca otomatik devre disi kalir */
+  /**
+   * Ust uste hata sayaci — esigi asinca otomatik devre disi kalir
+   */
   failCount     Int       @default(0)
   lastError     String?   @db.Text
 
@@ -2630,29 +2667,45 @@ model IntelItem {
   id       String @id @default(cuid())
   sourceId String
 
-  /** Icerik parmak izi (normalize URL + baslik) — ayni yazi birden fazla feed'de cikabilir */
+  /**
+   * Icerik parmak izi (normalize URL + baslik) — ayni yazi birden fazla feed'de cikabilir
+   */
   fingerprint String @unique
 
   url         String    @db.Text
   title       String    @db.Text
   author      String?
   publishedAt DateTime?
-  /** Feed ozeti — triage bunun uzerinden calisir, tam metin cekilmez */
+  /**
+   * Feed ozeti — triage bunun uzerinden calisir, tam metin cekilmez
+   */
   summary     String?   @db.Text
-  /** Analiz asamasinda cekilen tam metin (yalnizca triage'i gecenler) */
+  /**
+   * Analiz asamasinda cekilen tam metin (yalnizca triage'i gecenler)
+   */
   fullText    String?   @db.LongText
 
-  /** PENDING | RELEVANT | IRRELEVANT | ANALYZED | FAILED */
+  /**
+   * PENDING | RELEVANT | IRRELEVANT | ANALYZED | FAILED
+   */
   status String @default("PENDING")
 
-  /** Triage ciktisi: 0-100 alaka puani */
+  /**
+   * Triage ciktisi: 0-100 alaka puani
+   */
   relevance  Int?
-  /** Triage ciktisi: IntelTopic listesi */
+  /**
+   * Triage ciktisi: IntelTopic listesi
+   */
   topics     Json?
-  /** Triage'in tek cumlelik gerekcesi — yanlis elemeleri denetlemek icin */
+  /**
+   * Triage'in tek cumlelik gerekcesi — yanlis elemeleri denetlemek icin
+   */
   triageNote String? @db.Text
 
-  /** Toplulukta ilgi olcusu: HN puani, Reddit upvote, X begeni */
+  /**
+   * Toplulukta ilgi olcusu: HN puani, Reddit upvote, X begeni
+   */
   engagement Int?
 
   meta Json?
@@ -2672,26 +2725,42 @@ model IntelItem {
 model IntelClaim {
   id String @id @default(cuid())
 
-  /** Iddianin kanonik ifadesi — tek cumle, dogrulanabilir bicimde */
+  /**
+   * Iddianin kanonik ifadesi — tek cumle, dogrulanabilir bicimde
+   */
   statement String @db.Text
-  /** Eslestirme anahtari: normalize edilmis konu ifadesi */
+  /**
+   * Eslestirme anahtari: normalize edilmis konu ifadesi
+   */
   slug      String @unique
 
-  /** IntelTopic listesi */
+  /**
+   * IntelTopic listesi
+   */
   topics Json
 
-  /** CONFIRMED | CONTESTED | EMERGING | MYTH | STALE */
+  /**
+   * CONFIRMED | CONTESTED | EMERGING | MYTH | STALE
+   */
   status        String @default("EMERGING")
-  /** -1..+1 — destek/karsit kefelerinin normalize farki */
+  /**
+   * -1..+1 — destek/karsit kefelerinin normalize farki
+   */
   confidence    Float  @default(0)
   supportWeight Int    @default(0)
   refuteWeight  Int    @default(0)
 
-  /** Bu iddia RanksUp'in NESINI etkiliyor (citation-scoring, agent-readiness, ...) */
+  /**
+   * Bu iddia RanksUp'in NESINI etkiliyor (citation-scoring, agent-readiness, ...)
+   */
   productAreas Json?
-  /** Ekip icin tek cumlelik kullanim talimati */
+  /**
+   * Ekip icin tek cumlelik kullanim talimati
+   */
   guidance     String? @db.Text
-  /** OPEN | PLANNED | APPLIED | REJECTED — bulgunun urun tarafinda kapanmasi */
+  /**
+   * OPEN | PLANNED | APPLIED | REJECTED — bulgunun urun tarafinda kapanmasi
+   */
   actionStatus String  @default("OPEN")
   actionNote   String? @db.Text
 
@@ -2702,7 +2771,6 @@ model IntelClaim {
   /**
    * HUKMUN gercekten degistigi an — status/confidence/agirlik alanlarindan
    * biri baska bir degere yazildiginda guncellenir.
-   *
    * NEDEN updatedAt YETMIYOR: recomputeAll() her gece tum defteri yeniden
    * tartiyor ve deger degismese bile update() cagirdigi icin @updatedAt her
    * satirda taze goruniyordu. Ozet "donem icinde degisen iddialar" diye
@@ -2716,7 +2784,9 @@ model IntelClaim {
 
   @@index([status, confidence])
   @@index([actionStatus])
-  /** Ozet "bu donemde ne degisti" sorgusu */
+  /**
+   * Ozet "bu donemde ne degisti" sorgusu
+   */
   @@index([lastChangedAt])
   @@map("intel_claims")
 }
@@ -2726,16 +2796,26 @@ model IntelEvidence {
   claimId String
   itemId  String
 
-  /** official-doc | large-n-study | controlled-test | case-study | expert-opinion | anecdote | speculation */
+  /**
+   * official-doc | large-n-study | controlled-test | case-study | expert-opinion | anecdote | speculation
+   */
   grade  String
-  /** supports | refutes | mixed */
+  /**
+   * supports | refutes | mixed
+   */
   stance String
 
-  /** Yayindan birebir alinti — kanit zinciri denetlenebilir olsun diye */
+  /**
+   * Yayindan birebir alinti — kanit zinciri denetlenebilir olsun diye
+   */
   quote      String? @db.Text
-  /** Calismanin orneklem buyuklugu; large-n-study dogrulamasinda kullanilir */
+  /**
+   * Calismanin orneklem buyuklugu; large-n-study dogrulamasinda kullanilir
+   */
   sampleSize Int?
-  /** Hesaplanmis etkili agirlik (grade x kaynak x tazelik) */
+  /**
+   * Hesaplanmis etkili agirlik (grade x kaynak x tazelik)
+   */
   weight     Int     @default(0)
 
   claim IntelClaim @relation(fields: [claimId], references: [id], onDelete: Cascade)
@@ -2743,7 +2823,9 @@ model IntelEvidence {
 
   createdAt DateTime @default(now())
 
-  /** Ayni yayin ayni iddiaya iki kez kanit olamaz */
+  /**
+   * Ayni yayin ayni iddiaya iki kez kanit olamaz
+   */
   @@unique([claimId, itemId])
   @@index([claimId, weight])
   @@map("intel_evidence")
@@ -2752,14 +2834,22 @@ model IntelEvidence {
 model IntelDigest {
   id String @id @default(cuid())
 
-  /** daily | weekly */
+  /**
+   * daily | weekly
+   */
   period String
-  /** Kapsanan donemin bitis gunu (UTC gun basi) */
+  /**
+   * Kapsanan donemin bitis gunu (UTC gun basi)
+   */
   date   DateTime
 
-  /** Markdown ozet — e-posta ve panelde ayni govde kullanilir */
+  /**
+   * Markdown ozet — e-posta ve panelde ayni govde kullanilir
+   */
   body  String @db.LongText
-  /** Ozet istatistikleri: kac yayin tarandi, kac iddia degisti vs. */
+  /**
+   * Ozet istatistikleri: kac yayin tarandi, kac iddia degisti vs.
+   */
   stats Json?
 
   emailedAt DateTime?
@@ -2777,18 +2867,16 @@ model IntelDigest {
 
 /**
  * Kullanicinin calistirdigi bir raporun KALICI kaydi.
- *
  * NEDEN TABLO GEREKIYOR — turetilmis hesap "gecmis" olamaz:
  * ReportsService.overview() her cagrida sifirdan hesapliyor ve altindaki
  * kaynaklarin bir kismi degisiyor/siliniyor. Ayni rapor iki hafta sonra
  * acildiginda FARKLI sayi gosterir:
- *   - AdCampaign metrik kolonlarini cron uzerine yaziyor (gunluk snapshot yok)
- *   - AiCrawlerHit / CrawlerHitEvent belirli sure sonra temizleniyor
- *   - User.articlesUsedThisMonth ve aiCostThisMonthUsd her ay sifirlaniyor
+ * - AdCampaign metrik kolonlarini cron uzerine yaziyor (gunluk snapshot yok)
+ * - AiCrawlerHit / CrawlerHitEvent belirli sure sonra temizleniyor
+ * - User.articlesUsedThisMonth ve aiCostThisMonthUsd her ay sifirlaniyor
  * Musteriye "Temmuz raporu" diye gonderilen bir belgenin Eylul'de baska
  * rakam gostermesi kabul edilemez. Bu yuzden rapor URETILDIGI ANDA
  * dondurulur ve bir daha hesaplanmaz.
- *
  * TEK TABLO, DORT ALAN: SEO / GEO / ASO / ASA ayri tablolara bolunmedi.
  * Kullanici "bu proje ne kadar buyudu" diye soruyor; cevap tek bir belge
  * olmali. ASO ve ASA da site eksenine toplanabiliyor
@@ -2827,14 +2915,14 @@ model SiteReport {
   geoScore          Int?
   aiVisibility      Int?
   asoAvgRank        Float?
-  clicks            Int      @default(0)
-  impressions       Int      @default(0)
-  articlesPublished Int      @default(0)
-  costUsd           Decimal  @default(0) @db.Decimal(10, 4)
+  clicks            Int     @default(0)
+  impressions       Int     @default(0)
+  articlesPublished Int     @default(0)
+  costUsd           Decimal @default(0) @db.Decimal(10, 4)
 
-  status     String    @default("READY") @db.VarChar(16)
-  error      String?   @db.Text
-  durationMs Int?
+  status      String   @default("READY") @db.VarChar(16)
+  error       String?  @db.Text
+  durationMs  Int?
   generatedAt DateTime @default(now())
 
   site Site @relation(fields: [siteId], references: [id], onDelete: Cascade)
@@ -2850,18 +2938,15 @@ model SiteReport {
 
 /**
  * Siteye GERCEKTEN uygulanan bir duzeltmenin kalici kaydi.
- *
  * NEDEN GEREKIYOR: uc ayri servis siteye degisiklik yaziyordu ve HICBIRI iz
  * birakmiyordu:
- *   - snippet-applier.service.ts  meta/OG/JSON-LD'yi yayin hedefine yaziyor
- *   - static-html-fixer.service.ts statik HTML'e yaziyor
- *   - auto-fix.service.ts          en son Audit satirinin fixesApplied
- *     alaninin UZERINE yaziyor; ikinci kosum birincinin izini siliyor
- *
+ * - snippet-applier.service.ts  meta/OG/JSON-LD'yi yayin hedefine yaziyor
+ * - static-html-fixer.service.ts statik HTML'e yaziyor
+ * - auto-fix.service.ts          en son Audit satirinin fixesApplied
+ * alaninin UZERINE yaziyor; ikinci kosum birincinin izini siliyor
  * Sonuc: "bu donemde kac duzeltme uygulandi" sorusu cevaplanamiyordu ve
  * rapora "N sayfaya meta uygulandi" yazmak uydurma olurdu. Bu tablo o
  * boslugu kapatir; rapor artik sayabilir.
- *
  * Neden Audit'e kolon degil de ayri tablo: bir tarama ile bir duzeltme
  * arasinda 1-N iliski var, duzeltmeler taramadan bagimsiz da uygulanabiliyor
  * (kullanici tek bir sayfayi elle duzeltebiliyor) ve geri alma zamani da
@@ -2874,16 +2959,16 @@ model AppliedFix {
   userId String?
 
   /// snippet | static_html | auto_fix — hangi servis uyguladi
-  kind String @db.VarChar(24)
+  kind    String  @db.VarChar(24)
   /// meta_title | canonical | jsonld_article | sitemap_xml ...
-  fixType String @db.VarChar(48)
+  fixType String  @db.VarChar(48)
   /// Hangi sayfaya/kaynaga uygulandi (URL ya da dosya yolu)
-  target String? @db.Text
+  target  String? @db.Text
 
   /// APPLIED | FAILED | REVERTED
-  status String @default("APPLIED") @db.VarChar(12)
+  status String  @default("APPLIED") @db.VarChar(12)
   /// Basarisizsa nedeni — sessiz basarisizlik "uygulandi" sayilmasin
-  error String? @db.Text
+  error  String? @db.Text
 
   /// Uygulanan degerin ozeti. Tam govde saklanmiyor: sayfa HTML'i buyuk
   /// olabiliyor ve raporun ihtiyaci olan sey ne yazildigi degil, ne tur bir
@@ -2923,23 +3008,35 @@ enum LinkedinProspectStatus {
   FAILED // son islem hata verdi (lastError)
 }
 
+/// LinkedIn erisiminde kullanilan kampanya turu — her biri farkli not/mesaj sablonu
+enum LinkedinKampanya {
+  /// Musteri adayi: AI gorunurluk arastirmasi daveti (karne)
+  MUSTERI
+  /// Yatirimci: RanksUp yatirim gorusmesi
+  YATIRIMCI
+  /// Is birligi: ajans / danismanlik / cozum ortakligi
+  ISBIRLIGI
+}
+
 model LinkedinProspect {
-  id    String @id @default(cuid())
-  ad    String @db.VarChar(80)
-  soyad String @db.VarChar(80)
-  firma String @db.VarChar(160)
-  unvan String? @db.VarChar(160)
+  id         String           @id @default(cuid())
+  ad         String           @db.VarChar(80)
+  soyad      String           @db.VarChar(80)
+  firma      String           @db.VarChar(160)
+  unvan      String?          @db.VarChar(160)
   /// finans | eticaret-perakende-teknoloji | turizm-havayolu-telekom-otomotiv (sablon secimi)
-  sektor String? @db.VarChar(64)
+  sektor     String?          @db.VarChar(64)
   /// 1 karar verici / 2 etkileyici (kisiler.csv ile ayni)
-  kademe Int @default(1)
+  kademe     Int              @default(1)
+  /// Hangi kampanya sablonu kullanilacak (not + mesaj metni buna gore uretilir)
+  kampanya   LinkedinKampanya @default(MUSTERI)
   /// Normalize: https://www.linkedin.com/in/<slug>/
-  profileUrl String @unique @db.VarChar(255)
+  profileUrl String           @unique @db.VarChar(255)
 
   status LinkedinProspectStatus @default(QUEUED)
 
   /// Gonderilen baglanti notu (<=300 karakter) — kanit
-  noteText String? @db.Text
+  noteText    String? @db.Text
   /// Gonderilen mesaj — kanit
   messageText String? @db.Text
 
@@ -2948,7 +3045,7 @@ model LinkedinProspect {
   messagedAt  DateTime?
   repliedAt   DateTime?
 
-  lastError String? @db.Text
+  lastError      String? @db.Text
   /// Son adimin ekran goruntusu (data/linkedin/<id>-<adim>.png)
   screenshotPath String? @db.VarChar(255)
 

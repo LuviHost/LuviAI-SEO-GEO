@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import {
   api,
   type LinkedinImportRow,
+  type LinkedinKampanya,
   type LinkedinOverview,
   type LinkedinProspect,
   type LinkedinProspectStatus,
@@ -18,8 +19,16 @@ import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import {
   Users, RefreshCw, Pause, Play, FlaskConical, Send, Upload,
-  AlertTriangle, SkipForward, Camera, ExternalLink, CheckCircle2, XCircle, MessageSquareText,
+  AlertTriangle, SkipForward, Camera, ExternalLink, CheckCircle2, XCircle, MessageSquareText, Link2, Search,
 } from 'lucide-react';
+
+/** Kampanya turleri — arka uctaki LinkedinKampanya ile birebir */
+const KAMPANYA: Array<{ key: LinkedinKampanya; label: string; aciklama: string }> = [
+  { key: 'MUSTERI', label: 'Müşteri adayı', aciklama: 'AI görünürlük araştırması daveti — ücretsiz karne' },
+  { key: 'YATIRIMCI', label: 'Yatırımcı', aciklama: 'Ürün tanıtımı + 20 dakikalık tanışma görüşmesi' },
+  { key: 'ISBIRLIGI', label: 'İş birliği', aciklama: 'Ajans / çözüm ortaklığı — ortak müşteri çalışması' },
+];
+const KAMPANYA_LABEL: Record<string, string> = Object.fromEntries(KAMPANYA.map((k) => [k.key, k.label]));
 
 /**
  * LinkedIn outreach botu — kurucu hesabindan siki frenli baglanti istegi
@@ -457,6 +466,9 @@ export default function AdminLinkedinPage() {
         </Card>
       )}
 
+      {/* ── Arama linkleriyle tarama ── */}
+      <SearchUrlCard onDone={load} disabled={!!busy} />
+
       {/* ── CSV içe aktar ── */}
       <ImportCard onDone={load} disabled={!!busy} />
 
@@ -554,7 +566,12 @@ export default function AdminLinkedinPage() {
                         </a>
                       </td>
                       <td className="px-4 py-3">
-                        <div className="font-medium">{p.firma}</div>
+                        <div className="font-medium flex items-center gap-2">
+                          {p.firma}
+                          {p.kampanya && p.kampanya !== 'MUSTERI' && (
+                            <span className="px-1.5 py-0.5 rounded bg-muted text-[10px] uppercase tracking-wide">{KAMPANYA_LABEL[p.kampanya] ?? p.kampanya}</span>
+                          )}
+                        </div>
                         <div className="text-xs text-muted-foreground">{p.unvan || '—'}</div>
                       </td>
                       <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">
@@ -636,6 +653,92 @@ function Counter({ label, value, limit }: { label: string; value: number; limit?
         {limit !== undefined && (
           <div className="text-[11px] text-muted-foreground mt-1">{dolu ? 'limit doldu' : `${limit - value} kaldı`}</div>
         )}
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * LinkedIn arama linkleriyle tarama. Kullanici LinkedIn'de kendi filtresini kurar
+ * (unvan, konum, sirket, baglanti derecesi), linki buraya yapistirir; bot sayfayi
+ * gezip hedef unvanli kisileri kuyruga yazar. GONDERIM YOK — yalniz kuyruk.
+ */
+function SearchUrlCard({ onDone, disabled }: { onDone: () => Promise<void>; disabled: boolean }) {
+  const [text, setText] = useState('');
+  const [kampanya, setKampanya] = useState<LinkedinKampanya>('MUSTERI');
+  const [sending, setSending] = useState(false);
+  const linkSayisi = useMemo(
+    () => text.split(/[\n,;]+/).map((t) => t.trim()).filter((t) => /linkedin\.com\/search\/results\/people/i.test(t)).length,
+    [text],
+  );
+
+  const submit = async () => {
+    if (linkSayisi === 0) return;
+    setSending(true);
+    try {
+      const res = await api.researchLinkedinUrls({ urls: text, kampanya });
+      if (!res?.started) {
+        toast.error(res?.reason ?? 'Tarama başlatılamadı');
+        return;
+      }
+      toast.success(`${res.urls} link taranıyor — sonuçlar aşağıdaki listeye düşecek`);
+      if (res.gecersiz?.length) toast.warning(`${res.gecersiz.length} satır anlaşılmadı (kişi arama linki değil)`);
+      setText('');
+      setTimeout(() => { void onDone(); }, 4000);
+    } catch (err: any) {
+      toast.error(`Tarama başlatılamadı: ${err.message}`);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardContent className="p-4 space-y-3">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div>
+            <div className="text-sm font-medium flex items-center gap-2">
+              <Link2 className="h-4 w-4" />
+              Arama linkleriyle tara
+            </div>
+            <div className="text-xs text-muted-foreground mt-0.5">
+              LinkedIn&apos;de aramanı yap (ünvan, konum, şirket filtreleri), adres çubuğundaki linki buraya yapıştır — her satıra bir link.
+              Bot sayfayı gezip <span className="font-medium">hedef ünvanlı</span> kişileri kuyruğa yazar; <span className="font-medium">mesaj göndermez</span>.
+            </div>
+          </div>
+          <Button size="sm" onClick={submit} disabled={disabled || sending || linkSayisi === 0}>
+            {sending ? <RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Search className="h-3.5 w-3.5 mr-1.5" />}
+            Taramayı başlat{linkSayisi > 0 ? ` (${linkSayisi})` : ''}
+          </Button>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs text-muted-foreground">Kampanya:</span>
+          {KAMPANYA.map((k) => (
+            <button
+              key={k.key}
+              type="button"
+              onClick={() => setKampanya(k.key)}
+              title={k.aciklama}
+              className={cn('px-2.5 py-1.5 rounded-md border text-xs transition-colors', kampanya === k.key ? 'bg-orange-500 text-white border-orange-500' : 'hover:bg-muted')}
+            >
+              {k.label}
+            </button>
+          ))}
+          <span className="text-xs text-muted-foreground">{KAMPANYA.find((k) => k.key === kampanya)?.aciklama}</span>
+        </div>
+
+        <Textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          rows={4}
+          spellCheck={false}
+          placeholder={'https://www.linkedin.com/search/results/people/?keywords=CEO&origin=SWITCH_SEARCH_VERTICAL\nhttps://www.linkedin.com/search/results/people/?keywords=CMO'}
+          className="font-mono text-xs"
+        />
+        <div className="text-xs text-muted-foreground">
+          Firma bilgisi kartın &quot;Mevcut: … şirketinde …&quot; satırından okunur; firması okunamayan kişi kaydedilmez. Tek seferde en fazla 12 link.
+        </div>
       </CardContent>
     </Card>
   );

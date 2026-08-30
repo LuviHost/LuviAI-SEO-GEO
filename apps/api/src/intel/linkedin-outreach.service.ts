@@ -18,6 +18,7 @@ import {
   acceptRateWindow,
   cardCompanyMatch,
   companySearchUrl,
+  currentCompanyFromCard,
   currentTitleFromCard,
   cutAtSidebar,
   delayBetweenActionsMs,
@@ -47,6 +48,8 @@ import {
   profileReadDelayMs,
   renderMessage,
   renderNote,
+  normalizeKampanya,
+  type Kampanya,
   RESEARCH_KEYWORD_QUERIES,
   researchSearchUrls,
   resolveLimits,
@@ -100,6 +103,8 @@ const KV_LOCK = 'linkedin-outreach:lock';
 const KV_RESEARCH = 'linkedin-outreach:research:'; // + YYYY-MM-DD
 /** Zaman asiminda tekrarlanabilir (yan etkisiz) tarayici komutlari */
 const READ_RETRY_COMMANDS: ReadonlySet<string> = new Set(['navigate', 'open', 'evaluate', 'snapshot', 'tabs', 'screenshot']);
+/** Tek istekte gezilecek en fazla arama linki (her biri ~1 dk) */
+const MAX_RESEARCH_URLS = 12;
 /** Panelde gosterilen kayit sayisi (kuyruk 100+ olabiliyor) */
 const PANEL_RECENT_TAKE = 500;
 const KV_COMPANY = 'linkedin-outreach:company:'; // + firmaKey → sayisal LinkedIn sirket kimligi
@@ -638,7 +643,7 @@ export class LinkedinOutreachService {
     return id;
   }
 
-  private async research(firma: string, dryRun: boolean, limits: OutreachLimits): Promise<TickAction> {
+  private async research(firma: string, dryRun: boolean, limits: OutreachLimits, kampanya: Kampanya = 'MUSTERI'): Promise<TickAction> {
     const companyId = await this.resolveCompanyId(firma).catch((err: any) => {
       if (err instanceof BlockError) throw err;
       this.log.warn(`sirket kimligi cozumlenemedi ("${firma}"): ${err?.message ?? err} — anahtar kelime yedegi`);
@@ -715,7 +720,7 @@ export class LinkedinOutreachService {
     for (const h of hits) {
       try {
         await this.prisma.linkedinProspect.create({
-          data: { ad: h.ad, soyad: h.soyad, firma, unvan: h.unvan || null, sektor: null, kademe: researchKademe(h.unvan), profileUrl: h.profileUrl, status: 'QUEUED' },
+          data: { ad: h.ad, soyad: h.soyad, firma, unvan: h.unvan || null, sektor: null, kademe: researchKademe(h.unvan), profileUrl: h.profileUrl, status: 'QUEUED', kampanya },
         });
         created++;
       } catch {
@@ -724,6 +729,113 @@ export class LinkedinOutreachService {
     }
     await this.bumpResearch(limits);
     return { type: 'research', ok: true, note: `"${firma}" → ${hits.length} aday, ${created} yeni QUEUED` };
+  }
+
+  /**
+   * Kullanicinin verdigi LinkedIn KISI ARAMA linklerini gezip aday yazar (gonderim YOK).
+   * NEDEN: firma adiyla otomatik arama her zaman istenen kitleyi getirmiyor; kullanici kendi
+   * filtresini (unvan, konum, sektor, baglanti derecesi) LinkedIn'de kurup linki yapistiriyor.
+   * Firma bilgisi kartin "Mevcut:" satirindan cikarilir; cikmayan aday KAYDEDILMEZ (firma zorunlu).
+   */
+  async researchUrls(
+    urls: string[],
+    opts: { kampanya?: Kampanya | string; sektor?: string | null; dryRun?: boolean } = {},
+  ): Promise<{ ok: boolean; reason?: string; sonuclar: Array<{ url: string; aday: number; yeni: number; elenen: number; firmasiz: number; hata?: string }> }> {
+    if (!this.enabled) return { ok: false, reason: 'LinkedIn botu kapalı (OPENCLAW_LINKEDIN_OUTREACH_ENABLED=1 değil)', sonuclar: [] };
+    const paused = await this.pausedReason();
+    if (paused !== null) return { ok: false, reason: `Servis duraklatıldı: ${paused}`, sonuclar: [] };
+    const temiz = urls.map((u) => String(u ?? '').trim()).filter(Boolean).slice(0, MAX_RESEARCH_URLS);
+    if (temiz.length === 0) return { ok: false, reason: 'Geçerli arama linki yok', sonuclar: [] };
+
+    const kampanya = normalizeKampanya(opts.kampanya);
+    const sektor = (opts.sektor ?? '').trim() || null;
+    const dryRun = opts.dryRun === true;
+    if (!(await this.acquireLock())) return { ok: false, reason: 'Başka bir tick çalışıyor', sonuclar: [] };
+    const sonuclar: Array<{ url: string; aday: number; yeni: number; elenen: number; firmasiz: number; hata?: string }> = [];
+    try {
+      const limits = resolveLimits();
+      for (const url of temiz) {
+        try {
+          sonuclar.push(await this.researchOneUrl(url, { kampanya, sektor, dryRun }));
+          await this.bumpResearch(limits);
+        } catch (err: any) {
+          const msg = String(err?.message ?? err).slice(0, 300);
+          sonuclar.push({ url, aday: 0, yeni: 0, elenen: 0, firmasiz: 0, hata: msg });
+          if (err instanceof BlockError) {
+            await this.pauseWithNotice(err.message);
+            break;
+          }
+        }
+        await sleep(dryRun ? 1_000 : delayBetweenActionsMs());
+      }
+    } finally {
+      await this.closeTab().catch(() => undefined);
+      await this.releaseLock();
+    }
+    return { ok: true, sonuclar };
+  }
+
+  /** Tek arama sayfasi: kartlari oku → hedef unvan + firma filtresi → QUEUED yaz */
+  private async researchOneUrl(
+    url: string,
+    opts: { kampanya: Kampanya; sektor: string | null; dryRun: boolean },
+  ): Promise<{ url: string; aday: number; yeni: number; elenen: number; firmasiz: number }> {
+    await this.goto(url);
+    await sleep(SETTLE_MS + 1_000);
+    this.assertNoBlock(await this.readPage());
+
+    const links = await this.browser<{ result?: Array<{ href: string; text: string; card: string; lines?: string[] }> }>(['evaluate', '--fn', SEARCH_LINKS_FN]);
+    const seen = new Set<string>();
+    const hits: Array<{ ad: string; soyad: string; unvan: string; firma: string; profileUrl: string }> = [];
+    let elenen = 0;
+    let firmasiz = 0;
+    for (const l of links?.result ?? []) {
+      const u = normalizeProfileUrl(l.href);
+      if (!u || seen.has(u)) continue;
+      const name = l.text.trim();
+      if (isAnonymousMember(name) || !looksLikePersonName(name)) continue;
+      if (!/^[\p{Lu}][\p{L}.'-]+(?:\s+[\p{Lu}][\p{L}.'-]+)+$/u.test(name)) continue;
+      seen.add(u);
+      const lines = l.lines ?? l.card.split(/\s{2,}|·/);
+      const unvan = currentTitleFromCard(lines) || pickTitleFromCard(lines, name);
+      if (!isTargetTitle(unvan)) { elenen++; continue; }
+      // Firma karttan: kullanicinin linki firma facet'i icermeyebilir (ör. keywords=CEO)
+      const firma = currentCompanyFromCard(lines, unvan);
+      if (!firma) { firmasiz++; continue; }
+      const parts = name.split(/\s+/);
+      hits.push({ ad: parts.slice(0, -1).join(' '), soyad: parts[parts.length - 1], unvan: unvan.slice(0, 160), firma, profileUrl: u });
+    }
+    hits.sort((a, b) => researchKademe(a.unvan) - researchKademe(b.unvan));
+    const kesilen = Math.max(0, hits.length - MAX_RESEARCH_HITS);
+    hits.splice(MAX_RESEARCH_HITS);
+    this.log.log(`arastirma (link): ${links?.result?.length ?? 0} kart, ${elenen} unvan disi, ${firmasiz} firmasiz, ${hits.length} aday${kesilen ? `, ${kesilen} kota disi` : ''}`);
+    await this.screenshot('research-url', String(seen.size));
+
+    let yeni = 0;
+    if (!opts.dryRun) {
+      for (const h of hits) {
+        try {
+          await this.prisma.linkedinProspect.create({
+            data: {
+              ad: h.ad, soyad: h.soyad, firma: h.firma, unvan: h.unvan || null, sektor: opts.sektor,
+              kademe: researchKademe(h.unvan), profileUrl: h.profileUrl, status: 'QUEUED', kampanya: opts.kampanya,
+            },
+          });
+          yeni++;
+        } catch {
+          // profileUrl zaten var — atla
+        }
+      }
+    }
+    return { url, aday: hits.length, yeni, elenen, firmasiz };
+  }
+
+  /** Toplu kampanya degistirme (panelden secim) — yalniz henuz istek gitmemis kayitlar */
+  async setKampanya(ids: string[], kampanya?: string | null): Promise<{ updated: number }> {
+    const k = normalizeKampanya(kampanya);
+    // NEDEN yalniz QUEUED: istek/mesaj gonderilmis kisinin sablonu degistirilirse kanit metniyle celisir
+    const r = await this.prisma.linkedinProspect.updateMany({ where: { id: { in: ids }, status: 'QUEUED' }, data: { kampanya: k } });
+    return { updated: r.count };
   }
 
   // ── Panel / API ─────────────────────────────────────────────

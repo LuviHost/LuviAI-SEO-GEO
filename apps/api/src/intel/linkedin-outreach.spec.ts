@@ -951,3 +951,73 @@ describe('planTick — researchOnly', () => {
     expect(limited).toEqual([]);
   });
 });
+
+describe('kampanya sablonlari (musteri / yatirimci / is birligi)', () => {
+  it('renderNote: her kampanya farkli metin, hepsi <=300 karakter, hitap dogru', async () => {
+    const m = await import('./linkedin-outreach-rules.js');
+    const p = { ad: 'Ayşe', soyad: 'Demir', firma: 'Trendyol', sektor: 'eticaret-perakende-teknoloji' };
+    const musteri = m.renderNote({ ...p, kampanya: 'MUSTERI' });
+    const yatirimci = m.renderNote({ ...p, kampanya: 'YATIRIMCI' });
+    const isbirligi = m.renderNote({ ...p, kampanya: 'ISBIRLIGI' });
+    for (const n of [musteri, yatirimci, isbirligi]) {
+      expect(n.length).toBeLessThanOrEqual(m.NOTE_MAX_CHARS);
+      expect(n.startsWith('Merhaba Ayşe Demir')).toBe(true);
+    }
+    expect(new Set([musteri, yatirimci, isbirligi]).size).toBe(3);
+    expect(yatirimci).toMatch(/kurucusuyum/);
+    expect(isbirligi).toMatch(/iş birliği|İş birliği/);
+    // Kampanya verilmezse musteri sablonu
+    expect(m.renderNote(p)).toBe(musteri);
+    expect(m.renderNote({ ...p, kampanya: 'BILINMEYEN' as any })).toBe(musteri);
+  });
+
+  it('renderMessage: yatirimci/isbirligi mesajlari ret garantisi tasir, dogrulanmamis sayi icermez', async () => {
+    const m = await import('./linkedin-outreach-rules.js');
+    const p = { ad: 'Ali', soyad: 'Veli', firma: 'Migros', sektor: null };
+    for (const k of ['MUSTERI', 'YATIRIMCI', 'ISBIRLIGI'] as const) {
+      const msg = m.renderMessage({ ...p, kampanya: k });
+      expect(msg).toMatch(/bir daha yazmayacağım/);
+      // Sablonda hicbir yuzde/adet iddiasi olmamali (tek kaynakli sayi yasagi)
+      expect(msg).not.toMatch(/%\d|\d+\s*(müşteri|kurum|marka|kullanıcı)/);
+    }
+    expect(m.renderMessage({ ...p, kampanya: 'YATIRIMCI' })).toMatch(/20 dakika/);
+  });
+
+  it('normalizeKampanya: bilinmeyen deger MUSTERI', async () => {
+    const m = await import('./linkedin-outreach-rules.js');
+    expect(m.normalizeKampanya('yatirimci')).toBe('YATIRIMCI');
+    expect(m.normalizeKampanya('ISBIRLIGI')).toBe('ISBIRLIGI');
+    expect(m.normalizeKampanya(null)).toBe('MUSTERI');
+    expect(m.normalizeKampanya('x')).toBe('MUSTERI');
+  });
+});
+
+describe('parseSearchUrls / currentCompanyFromCard', () => {
+  it('yalniz linkedin kisi arama URL\'leri kabul; tekrar temizlenir; gecersizler sayilir', async () => {
+    const m = await import('./linkedin-outreach-rules.js');
+    const r = m.parseSearchUrls([
+      'https://www.linkedin.com/search/results/people/?keywords=CEO&origin=SWITCH_SEARCH_VERTICAL',
+      'linkedin.com/search/results/people/?keywords=CMO',
+      'https://www.linkedin.com/search/results/people/?keywords=CEO&origin=SWITCH_SEARCH_VERTICAL',
+      'https://www.linkedin.com/in/ayse-demir/',
+      'https://www.linkedin.com/search/results/companies/?keywords=Papara',
+      'https://google.com/search?q=ceo',
+      'saçma satır',
+    ].join('\n'));
+    expect(r.urls).toHaveLength(2);
+    expect(r.urls[0]).toContain('keywords=CEO');
+    expect(r.urls[1]).toBe('https://www.linkedin.com/search/results/people/?keywords=CMO');
+    expect(r.gecersiz).toHaveLength(4); // profil, sirket aramasi, google, 'saçma satır'
+    expect(m.parseSearchUrls('').urls).toEqual([]);
+  });
+
+  it('currentCompanyFromCard: Mevcut/Current satiri, yoksa baslik; bulunamazsa bos', async () => {
+    const m = await import('./linkedin-outreach-rules.js');
+    expect(m.currentCompanyFromCard(['Ayşe Demir', '• 2.', 'Pazarlama Müdürü', 'Mevcut: Trendyol Grup şirketinde Pazarlama Müdürü'])).toBe('Trendyol Grup');
+    expect(m.currentCompanyFromCard(['John', 'Current: Marketing Manager at Getir'])).toBe('Getir');
+    expect(m.currentCompanyFromCard(['Ali'], 'CTO at Papara')).toBe('Papara');
+    expect(m.currentCompanyFromCard(['Ali'], 'Head of Product @ Getir | Products People Love')).toBe('Getir');
+    expect(m.currentCompanyFromCard(['Ali'], 'CTO')).toBe('');
+    expect(m.currentCompanyFromCard([])).toBe('');
+  });
+});

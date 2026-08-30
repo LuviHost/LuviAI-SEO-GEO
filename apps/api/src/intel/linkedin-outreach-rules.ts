@@ -405,6 +405,23 @@ export interface ProspectLike {
   soyad: string;
   firma: string;
   sektor?: string | null;
+  /** Kampanya turu — not/mesaj sablonunu belirler (varsayilan MUSTERI) */
+  kampanya?: Kampanya | null;
+}
+
+/** Kampanya turleri — Prisma enum LinkedinKampanya ile birebir */
+export const KAMPANYALAR = ['MUSTERI', 'YATIRIMCI', 'ISBIRLIGI'] as const;
+export type Kampanya = (typeof KAMPANYALAR)[number];
+
+export const KAMPANYA_ADI: Record<Kampanya, string> = {
+  MUSTERI: 'Müşteri adayı',
+  YATIRIMCI: 'Yatırımcı',
+  ISBIRLIGI: 'İş birliği',
+};
+
+export function normalizeKampanya(v: unknown): Kampanya {
+  const k = String(v ?? '').trim().toUpperCase();
+  return (KAMPANYALAR as readonly string[]).includes(k) ? (k as Kampanya) : 'MUSTERI';
 }
 
 export const NOTE_MAX_CHARS = 300;
@@ -488,6 +505,9 @@ function hitap(p: ProspectLike): string {
  * Hitap "Merhaba {{ad}} {{soyad}}," — Bey/Hanim YOK (cinsiyet verisi yok).
  */
 export function renderNote(p: ProspectLike): string {
+  const kampanya = normalizeKampanya(p.kampanya);
+  if (kampanya === 'YATIRIMCI') return renderNoteYatirimci(p);
+  if (kampanya === 'ISBIRLIGI') return renderNoteIsbirligi(p);
   const sektor = sektorAdi(p.sektor);
   const firma = p.firma.trim();
   const full =
@@ -503,8 +523,51 @@ export function renderNote(p: ProspectLike): string {
   return (sp > 200 ? cut.slice(0, sp) : cut).trim();
 }
 
+/**
+ * 300 karakter siniri: once tam metin, sirmazsa kisa metin, o da sirmazsa kelime sinirindan kes.
+ * NEDEN ortak yardimci: her kampanya ayni siniri kendi kesme mantigiyla tekrar etmesin.
+ */
+function fitNote(full: string, short: string): string {
+  if (full.length <= NOTE_MAX_CHARS) return full;
+  if (short.length <= NOTE_MAX_CHARS) return short;
+  const cut = short.slice(0, NOTE_MAX_CHARS);
+  const sp = cut.lastIndexOf(' ');
+  return (sp > 200 ? cut.slice(0, sp) : cut).trim();
+}
+
+/**
+ * Yatirimci notu. Dogrulanabilir olmayan hicbir sayi/iddia YOK (yatirimci iletisimi):
+ * urun tanimi + gorusme daveti. Tur/degerleme/buyume rakami sablonda gecmez.
+ */
+function renderNoteYatirimci(p: ProspectLike): string {
+  const full =
+    `${hitap(p)}, RanksUp'ın kurucusuyum — markaların ChatGPT, Gemini ve Perplexity gibi AI asistanlarında ` +
+    `nasıl göründüğünü ölçen bir Türkiye ürünü geliştiriyoruz. Yatırım tarafındaki çalışmalarınız için kısa bir ` +
+    `tanışma görüşmesi açık olur mu? Bağlantı kurmak isterim.`;
+  const short =
+    `${hitap(p)}, RanksUp'ın kurucusuyum — markaların AI asistanlarındaki görünürlüğünü ölçen bir Türkiye ürünü ` +
+    `geliştiriyoruz. Kısa bir tanışma görüşmesi için bağlantı kurmak isterim.`;
+  return fitNote(full, short);
+}
+
+/** Is birligi notu: ajans / danismanlik / cozum ortakligi */
+function renderNoteIsbirligi(p: ProspectLike): string {
+  const firma = p.firma.trim();
+  const full =
+    `${hitap(p)}, RanksUp'ta markaların ChatGPT ve Gemini gibi AI asistanlarındaki görünürlüğünü ölçüyoruz. ` +
+    `${firma} ile iş birliği (ortak müşteri çalışmaları / çözüm ortaklığı) konuşmak isterim; ` +
+    `bağlantı kurabilir miyiz?`;
+  const short =
+    `${hitap(p)}, RanksUp'ta markaların AI asistanlarındaki görünürlüğünü ölçüyoruz. ` +
+    `İş birliği konuşmak için bağlantı kurmak isterim.`;
+  return fitNote(full, short);
+}
+
 /** Kabul sonrasi mesaj (~80 kelime) — CTA "Evet", ret garantisi icerir */
 export function renderMessage(p: ProspectLike): string {
+  const kampanya = normalizeKampanya(p.kampanya);
+  if (kampanya === 'YATIRIMCI') return renderMessageYatirimci(p);
+  if (kampanya === 'ISBIRLIGI') return renderMessageIsbirligi(p);
   const firma = p.firma.trim();
   return (
     `${hitap(p)}, bağlantı için teşekkürler.\n\n` +
@@ -512,6 +575,35 @@ export function renderMessage(p: ProspectLike): string {
     `RanksUp olarak 7 AI asistanında, marka adı geçmeyen gerçek sorularla ${genitiveOrSafe(firma)} nerede göründüğünü ölçüp ` +
     `yalnız size iletebilirim — kurum bazlı sonuç kamuya açılmaz.\n\n` +
     `Karnenizi çıkarmamı ister misiniz? "Evet" yeterli, 2 iş günü içinde iletiyorum. İstemezseniz bir daha yazmayacağım.`
+  );
+}
+
+/**
+ * Yatirimci mesaji. Yalniz dogrulanabilir seyler: ne yaptigimiz, kimin icin, nasil olctugumuz.
+ * Traction/ciro/kullanici sayisi YOK — bunlar gorusmede, kaynagiyla paylasilir.
+ */
+function renderMessageYatirimci(p: ProspectLike): string {
+  return (
+    `${hitap(p)}, bağlantı için teşekkürler.\n\n` +
+    `RanksUp, markaların ChatGPT, Gemini, Perplexity gibi asistanlarda ne zaman ve nasıl önerildiğini ölçen bir ` +
+    `Türkiye ürünü: marka adı geçmeyen gerçek müşteri sorularıyla 7 asistanı tarıyor, görünürlüğü ve rakip payını ` +
+    `raporluyor, eksikleri kapatacak içerik planını çıkarıyoruz. Arama trafiği asistanlara kaydıkça kurumsal ` +
+    `pazarlama bütçesinin bu tarafa açılacağını düşünüyoruz.\n\n` +
+    `Ürünü 20 dakikada gösterebilirim; sayılar ve yol haritası görüşmede. Uygun olur musunuz? ` +
+    `İlgi alanınız değilse bir daha yazmayacağım.`
+  );
+}
+
+/** Is birligi mesaji: ortak musteri / cozum ortakligi */
+function renderMessageIsbirligi(p: ProspectLike): string {
+  const firma = p.firma.trim();
+  return (
+    `${hitap(p)}, bağlantı için teşekkürler.\n\n` +
+    `RanksUp olarak markaların AI asistanlarındaki (ChatGPT, Gemini, Perplexity) görünürlüğünü ölçüyor ve ` +
+    `kapatma planını çıkarıyoruz. ${genitiveOrSafe(firma)} müşterileri için bunu birlikte sunabileceğimizi ` +
+    `düşünüyorum: ölçümü biz yapalım, müşteri ilişkisi ve uygulama sizde kalsın.\n\n` +
+    `Örnek bir kurum için ücretsiz karne çıkarıp gösterebilirim — ilginizi çeker mi? ` +
+    `İstemezseniz bir daha yazmayacağım.`
   );
 }
 
@@ -1126,3 +1218,77 @@ export function looksLikePersonName(name: string | null | undefined): boolean {
   return true;
 }
 
+
+// ── Arama linki listesinden arastirma ────────────────────────────────────────
+
+/**
+ * Kullanicinin panele yapistirdigi metinden LinkedIn KISI ARAMA URL'lerini cikar.
+ * Kabul: her satirda bir URL ya da bosluk/virgul ayrilmis. Yalniz linkedin.com kisi
+ * aramasi (/search/results/people/) kabul edilir; profil linki, sirket linki, baska
+ * site sessizce ATLANMAZ — sayilir (panelde "N satır anlaşılmadı" gosterilir).
+ */
+export function parseSearchUrls(input: string | null | undefined): { urls: string[]; gecersiz: string[] } {
+  const urls: string[] = [];
+  const gecersiz: string[] = [];
+  const seen = new Set<string>();
+  // NEDEN satir bazli: "saçma satır" iki gecersiz sayilmasin; satirda birden cok URL varsa boslukla ayrilir
+  for (const satir of String(input ?? '').split(/[\n,;]+/)) {
+    const trimmed = satir.trim();
+    if (!trimmed) continue;
+    const tokens = trimmed.split(/\s+/).filter(Boolean);
+    const adaylar = tokens.filter((x) => /^https?:\/\//i.test(x) || /^(?:www\.)?linkedin\.com\//i.test(x));
+    if (adaylar.length === 0) { gecersiz.push(trimmed.slice(0, 120)); continue; }
+    for (const t of adaylar) {
+      let u: URL;
+      try {
+        u = new URL(t.startsWith('http') ? t : `https://${t}`);
+      } catch {
+        gecersiz.push(t.slice(0, 120));
+        continue;
+      }
+      if (!/(^|\.)linkedin\.com$/i.test(u.hostname) || !/^\/search\/results\/people\/?$/i.test(u.pathname.replace(/\/+$/, '/'))) {
+        gecersiz.push(t.slice(0, 120));
+        continue;
+      }
+      u.protocol = 'https:';
+      u.hostname = 'www.linkedin.com';
+      u.hash = '';
+      const key = u.toString();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      urls.push(key);
+    }
+  }
+  return { urls, gecersiz };
+}
+
+/**
+ * Karttaki "Mevcut: <firma> şirketinde <unvan>" / "Current: <unvan> at <firma>" satirindan FIRMA.
+ * NEDEN: kullanicinin verdigi arama linki firma facet'i icermeyebilir ("keywords=CEO"); firma
+ * bilgisi yalnizca kartta gecer. Bulunamazsa '' → aday kaydedilmez (firma zorunlu alan).
+ */
+export function currentCompanyFromCard(lines: readonly string[], unvan?: string | null): string {
+  for (const raw of lines) {
+    const m = /^(mevcut|current)\s*:\s*(.+)$/iu.exec(raw.trim());
+    if (!m) continue;
+    const rest = m[2].trim();
+    const tr = /^(.+?)\s+(?:şirketinde|sirketinde)\s+/iu.exec(rest);
+    if (tr) return temizFirma(tr[1]);
+    const en = /\s+at\s+(.+)$/iu.exec(rest);
+    if (en) return temizFirma(en[1]);
+  }
+  // Baslikta "… at X" / "… @ X" varsa oradan
+  const t = (unvan ?? '').trim();
+  // NEDEN $ yok: "Head of Product @ Getir | Products People Love" — firma ilk ayraca kadar
+  const h = /(?:\s+at\s+|\s*@\s*)([^|·—–]+)/iu.exec(t);
+  if (h) return temizFirma(h[1]);
+  return '';
+}
+
+function temizFirma(s: string): string {
+  return s
+    .replace(/[|·—–].*$/u, '')
+    .replace(/\s*\((?:acquired|part of)[^)]*\)/iu, '')
+    .trim()
+    .slice(0, 160);
+}

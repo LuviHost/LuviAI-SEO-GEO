@@ -168,6 +168,8 @@ export type LinkedinProspectStatus =
   | 'QUEUED' | 'REQUESTED' | 'ACCEPTED' | 'MESSAGED'
   | 'REPLIED' | 'SKIPPED' | 'FAILED';
 
+export type LinkedinKampanya = 'MUSTERI' | 'YATIRIMCI' | 'ISBIRLIGI';
+
 export interface LinkedinProspect {
   id: string;
   ad: string;
@@ -178,6 +180,8 @@ export interface LinkedinProspect {
   sektor: string | null;
   /** 1 = karar verici, 2 = etkileyici */
   kademe: number | null;
+  /** Kampanya turu — not/mesaj sablonunu belirler */
+  kampanya?: LinkedinKampanya | null;
   status: LinkedinProspectStatus;
   noteText?: string | null;
   messageText?: string | null;
@@ -1072,6 +1076,24 @@ export const api = {
     request<LinkedinTickResult>('/intel/linkedin/tick', {
       method: 'POST',
       body: JSON.stringify({ dryRun: opts.dryRun, force: opts.force === true }),
+    }),
+  /** Kullanicinin yapistirdigi LinkedIn arama linklerini tara (gonderim yok) */
+  researchLinkedinUrls: (opts: { urls: string; kampanya?: LinkedinKampanya; sektor?: string | null; dryRun?: boolean }) =>
+    request<{
+      started: boolean;
+      urls: number;
+      gecersiz: string[];
+      reason?: string;
+      ok?: boolean;
+      sonuclar?: Array<{ url: string; aday: number; yeni: number; elenen: number; firmasiz: number; hata?: string }>;
+    }>('/intel/linkedin/research-urls', {
+      method: 'POST',
+      body: JSON.stringify({ urls: opts.urls, kampanya: opts.kampanya, sektor: opts.sektor ?? null, dryRun: opts.dryRun === true }),
+    }),
+  setLinkedinKampanya: (ids: string[], kampanya: LinkedinKampanya) =>
+    request<{ updated: number }>('/intel/linkedin/prospects/kampanya', {
+      method: 'POST',
+      body: JSON.stringify({ ids, kampanya }),
     }),
   skipLinkedinProspect: (id: string) =>
     request<{ ok?: boolean; status?: LinkedinProspectStatus }>(
