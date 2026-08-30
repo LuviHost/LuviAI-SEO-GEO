@@ -217,6 +217,8 @@ export interface LinkedinOverview {
   byFirma?: Array<{ firma: string; toplam: number; kuyrukta: number }>;
   /** DB'deki toplam kayit (recent kesilmis olabilir) */
   recentTotal?: number;
+  /** Bayrak nereden: 'panel' (KvStore) ya da 'env' */
+  enabledSource?: 'panel' | 'env';
   /** Kampanya sablonlari — panelde onizleme */
   sablonlar?: Array<{ kampanya: LinkedinKampanya; ad: string; not: string; notUzunluk: number; notSinir: number; mesaj: string }>;
 }
@@ -1066,6 +1068,12 @@ export const api = {
     request<{ upserted: number }>('/intel/linkedin/import', {
       method: 'POST',
       body: JSON.stringify({ rows }),
+    }),
+  /** Gonderimi panelden ac/kapat (kalici) */
+  setLinkedinEnabled: (enabled: boolean) =>
+    request<{ enabled: boolean; kaynak?: string }>('/intel/linkedin/enabled', {
+      method: 'POST',
+      body: JSON.stringify({ enabled }),
     }),
   pauseLinkedin: (reason?: string) =>
     request<{ ok?: boolean; paused?: boolean; pauseReason?: string | null }>('/intel/linkedin/pause', {

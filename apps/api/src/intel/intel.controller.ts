@@ -391,6 +391,16 @@ export class IntelController {
     return this.linkedin.importRows(rows);
   }
 
+  /**
+   * Gonderimi PANELDEN ac/kapat (kalici; sunucuda .env duzenlemeye gerek yok).
+   * Acik = worker hafta ici 09-18 arasi baglanti istegi/mesaj gonderir.
+   */
+  @Post('linkedin/enabled')
+  async linkedinSetEnabled(@Req() req: Request, @Body() body: { enabled?: boolean }) {
+    assertAdmin(req);
+    return this.linkedin.setEnabled(body?.enabled === true);
+  }
+
   @Post('linkedin/pause')
   async linkedinPause(@Req() req: Request, @Body() body: { reason?: string }) {
     assertAdmin(req);

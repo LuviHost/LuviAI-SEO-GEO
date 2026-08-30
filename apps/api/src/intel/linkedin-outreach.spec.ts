@@ -590,7 +590,9 @@ type Stubs = {
 };
 
 function makeService(stubs: Stubs = {}) {
-  const svc = new LinkedinOutreachService({} as any, {} as any);
+  // NEDEN prisma stub'i: isEnabled() panel ayarini KvStore'dan okur (varsayilan: kayit yok → env gecerli)
+  const prisma: any = { kvStore: { findUnique: async () => null, upsert: async () => undefined, deleteMany: async () => undefined } };
+  const svc = new LinkedinOutreachService(prisma, {} as any);
   const s = svc as any;
   const calls = { setFails: [] as number[], bumps: 0, errors: [] as Array<{ id: string; msg: string; fail: boolean }>, paused: [] as string[], shots: [] as string[], locked: 0 };
   s.pausedReason = async () => null;
@@ -633,11 +635,21 @@ describe('LinkedinOutreachService.tick — sayac, ritim, pencere, engel', () => 
     process.env = { ...env };
   });
 
-  it('bayrak: OPENCLAW_LINKEDIN_OUTREACH_ENABLED tek basina yeter; OPENCLAW_ENABLED aranmaz', async () => {
+  it('bayrak: env tek basina yeter; PANEL ayari env\'i ezer (acik/kapali)', async () => {
     const { svc } = makeService();
-    expect(svc.enabled).toBe(true);
+    expect(svc.envEnabled).toBe(true);
+    expect(await svc.isEnabled()).toBe(true);
     delete process.env.OPENCLAW_LINKEDIN_OUTREACH_ENABLED;
-    expect(svc.enabled).toBe(false);
+    expect(svc.envEnabled).toBe(false);
+    expect(await svc.isEnabled()).toBe(false);
+    expect((await svc.tick({ dryRun: true })).reason).toMatch(/Kapalı/);
+    // Panelden acilinca env kapali olsa da calisir
+    (svc as any).prisma.kvStore.findUnique = async ({ where }: any) => (where?.key === 'linkedin-outreach:enabled' ? { value: '1' } : null);
+    expect(await svc.isEnabled()).toBe(true);
+    // Panelden kapatilinca env acik olsa da durur
+    process.env.OPENCLAW_LINKEDIN_OUTREACH_ENABLED = '1';
+    (svc as any).prisma.kvStore.findUnique = async ({ where }: any) => (where?.key === 'linkedin-outreach:enabled' ? { value: '0' } : null);
+    expect(await svc.isEnabled()).toBe(false);
     expect((await svc.tick({ dryRun: true })).reason).toMatch(/Kapalı/);
   });
 

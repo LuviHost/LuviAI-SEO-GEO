@@ -51,7 +51,8 @@ const log = new Logger('Worker');
 /** Gunluk otomatik AI olcumu kapali mi (musteri tetikli mod) */
 const isCitationDailyDisabled = () => process.env.AI_CITATION_DAILY_CRON === 'false';
 /** LinkedIn outreach botu (Faz 8) — varsayilan KAPALI; yalniz bayrak 1 iken tekrar isi kurulur */
-const isLinkedinOutreachEnabled = () => process.env.OPENCLAW_LINKEDIN_OUTREACH_ENABLED === '1';
+/** Env varsayilani — gercek karar serviste (panel ayari KvStore'da env'i ezer) */
+const isLinkedinOutreachEnvDefault = () => process.env.OPENCLAW_LINKEDIN_OUTREACH_ENABLED === '1';
 
 async function bootstrap() {
   // NestJS application context — HTTP listen yok, sadece DI
@@ -703,13 +704,13 @@ async function bootstrap() {
       },
     );
 
-    // 9) LINKEDIN_OUTREACH_TICK — her 30 dk, YALNIZ OPENCLAW_LINKEDIN_OUTREACH_ENABLED=1.
+    // 9) LINKEDIN_OUTREACH_TICK — her 30 dk (gonderim anahtari panelden).
     //    Bayrak kapaliyken Redis'teki tekrar isi de SILINIR (AI_CITATION_DAILY kalibi):
     //    yoksa eski zamanlama worker yeniden baslasa da kosar, bot istemeden calisirdi.
-    if (!isLinkedinOutreachEnabled()) {
-      await queue.removeRepeatable('LINKEDIN_OUTREACH_TICK', { every: 30 * 60 * 1000 }, 'cron:linkedin-outreach-tick').catch(() => undefined);
-      log.warn('LINKEDIN_OUTREACH_TICK kayit edilmedi ve varsa tekrar isi silindi (OPENCLAW_LINKEDIN_OUTREACH_ENABLED!=1)');
-    } else {
+    // NEDEN her zaman kayitli: gonderim anahtari artik PANELDEN (KvStore) yonetiliyor; cron'u env'e
+    // baglamak panelden acildiginda worker restart'i gerektiriyordu. Kapaliyken tick hemen
+    // "Kapalı" ile doner, tarayiciya DOKUNMAZ.
+    {
       await queue.add(
         'LINKEDIN_OUTREACH_TICK',
         { trigger: 'cron' },
@@ -722,7 +723,7 @@ async function bootstrap() {
       );
     }
 
-    log.log(`⏰ Cron: PROCESS_SCHEDULED 30dk · LLMS_FULL_BUILD haftalik · AI_CITATION_DAILY ${isCitationDailyDisabled() ? 'KAPALI (musteri tetikli)' : 'gunluk'} · CONTENT_PIVOT_CHECK haftalik · AI_MENTION_ALARM gunluk · CRAWLER_ERROR_ALARM 6saat · ADS_AUTOPILOT 6saat · STUCK_PAGE_DETECT_ALL haftalik · LINKEDIN_OUTREACH_TICK ${isLinkedinOutreachEnabled() ? '30dk' : 'KAPALI'}`);
+    log.log(`⏰ Cron: PROCESS_SCHEDULED 30dk · LLMS_FULL_BUILD haftalik · AI_CITATION_DAILY ${isCitationDailyDisabled() ? 'KAPALI (musteri tetikli)' : 'gunluk'} · CONTENT_PIVOT_CHECK haftalik · AI_MENTION_ALARM gunluk · CRAWLER_ERROR_ALARM 6saat · ADS_AUTOPILOT 6saat · STUCK_PAGE_DETECT_ALL haftalik · LINKEDIN_OUTREACH_TICK 30dk (gonderim anahtari panelden; env varsayilani: ${isLinkedinOutreachEnvDefault() ? 'acik' : 'kapali'})`);
   } catch (err: any) {
     log.warn(`Cron kurulumu basarisiz: ${err.message}`);
   }

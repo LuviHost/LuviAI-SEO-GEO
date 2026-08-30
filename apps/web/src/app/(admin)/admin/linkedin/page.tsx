@@ -310,6 +310,29 @@ export default function AdminLinkedinPage() {
 
   const paused = overview?.paused ?? false;
   const enabled = overview?.enabled ?? true;
+
+  /** Gonderimi ac/kapat — dis dunyaya cikan eylem, onay ister */
+  const toggleEnabled = async () => {
+    const acilyor = !enabled;
+    if (acilyor) {
+      const onay = window.confirm(
+        `Gönderim açılsın mı?\n\nKuyrukta ${overview?.queued ?? 0} kişi var. Açtığında bot hafta içi 09-18 arasında ` +
+        `günde en fazla ${limit.dayRequests} bağlantı isteği ve ${limit.dayMessages} mesaj gönderir. ` +
+        `İstediğin an "Duraklat" ya da bu düğmeyle kapatabilirsin.`,
+      );
+      if (!onay) return;
+    }
+    setBusy('enabled');
+    try {
+      await api.setLinkedinEnabled(acilyor);
+      toast.success(acilyor ? 'Gönderim açıldı — ilk tur çalışma penceresinde başlayacak' : 'Gönderim kapatıldı');
+      await load();
+    } catch (err: any) {
+      toast.error(`Değiştirilemedi: ${err.message}`);
+    } finally {
+      setBusy(null);
+    }
+  };
   const inWindow = overview?.workWindow;
   const today = overview?.today ?? { requests: 0, messages: 0 };
   const week = overview?.week ?? { requests: 0 };
@@ -359,7 +382,7 @@ export default function AdminLinkedinPage() {
               Duraklat
             </Button>
           )}
-          <Button size="sm" variant="outline" onClick={() => tick(true)} disabled={!!busy || !enabled} title={!enabled ? 'OPENCLAW_LINKEDIN_OUTREACH_ENABLED=1 değil' : 'Açar, okur, doldurur; GÖNDERMEZ'}>
+          <Button size="sm" variant="outline" onClick={() => tick(true)} disabled={!!busy || !enabled} title={!enabled ? 'Gönderim kapalı — Durum kartından açabilirsin' : 'Açar, okur, doldurur; GÖNDERMEZ'}>
             {busy === 'dry' ? <RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <FlaskConical className="h-3.5 w-3.5 mr-1.5" />}
             Kuru tick
           </Button>
@@ -372,7 +395,7 @@ export default function AdminLinkedinPage() {
             variant="destructive"
             onClick={() => tick(false)}
             disabled={!!busy || paused || !enabled}
-            title={!enabled ? 'Bayrak kapalı' : paused ? 'Bot duraklatılmış' : 'Gerçekten gönderir — onay ister, arka planda çalışır'}
+            title={!enabled ? 'Gönderim kapalı — Durum kartından açabilirsin' : paused ? 'Bot duraklatılmış' : 'Gerçekten gönderir — onay ister, arka planda çalışır'}
           >
             {busy === 'real' ? <RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Send className="h-3.5 w-3.5 mr-1.5" />}
             Gerçek tick
@@ -409,20 +432,38 @@ export default function AdminLinkedinPage() {
             </div>
           </CardContent>
         </Card>
-        <Card className={cn('border', !enabled ? 'border-zinc-500/40 bg-zinc-500/5' : paused ? 'border-rose-500/40 bg-rose-500/5' : 'border-emerald-500/40 bg-emerald-500/5')}>
+        <Card className={cn('border md:col-span-1', !enabled ? 'border-zinc-500/40 bg-zinc-500/5' : paused ? 'border-rose-500/40 bg-rose-500/5' : 'border-emerald-500/40 bg-emerald-500/5')}>
           <CardContent className="p-4">
             <div className="text-xs font-medium text-muted-foreground">Durum</div>
             <div className={cn('text-xl font-semibold mt-2 flex items-center gap-1.5', !enabled ? 'text-zinc-500' : paused ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400')}>
               {!enabled ? <Pause className="h-4 w-4" /> : paused ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-              {!enabled ? 'Bayrak kapalı' : paused ? 'Duraklatıldı' : 'Çalışıyor'}
+              {!enabled ? 'Gönderim kapalı' : paused ? 'Duraklatıldı' : 'Çalışıyor'}
             </div>
             <div className="text-[11px] text-muted-foreground mt-1 line-clamp-2" title={overview?.pauseReason ?? ''}>
               {!enabled
-                ? 'OPENCLAW_LINKEDIN_OUTREACH_ENABLED=1 değil'
+                ? 'aşağıdaki düğmeyle açabilirsin'
                 : paused
                   ? (overview?.pauseReason || 'neden belirtilmedi')
                   : inWindow === undefined ? '' : inWindow ? 'çalışma penceresinde (09–18 TR)' : 'pencere dışı — tick beklemede'}
             </div>
+            {/* Gonderim anahtari: panelden kalici ac/kapat */}
+            <Button
+              size="sm"
+              variant={enabled ? 'outline' : 'default'}
+              className="mt-3 w-full"
+              onClick={toggleEnabled}
+              disabled={!!busy}
+              title={enabled ? 'Gönderimi kapat (kuyruk durur, veri silinmez)' : 'Gönderimi aç — hafta içi 09-18 arasında istek göndermeye başlar'}
+            >
+              {busy === 'enabled' ? (
+                <RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+              ) : enabled ? (
+                <Pause className="h-3.5 w-3.5 mr-1.5" />
+              ) : (
+                <Play className="h-3.5 w-3.5 mr-1.5" />
+              )}
+              {enabled ? 'Gönderimi kapat' : 'Gönderimi başlat'}
+            </Button>
           </CardContent>
         </Card>
       </div>

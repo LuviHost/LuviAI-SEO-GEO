@@ -114,6 +114,8 @@ const MAX_RESEARCH_URLS = 12;
 const VARSAYILAN_SAYFA = 5;
 /** Panelde gosterilen kayit sayisi (kuyruk 100+ olabiliyor) */
 const PANEL_RECENT_TAKE = 500;
+/** Panelden ayarlanan gonderim anahtari ('1' acik / '0' kapali); yoksa env bayragi gecerli */
+const KV_ENABLED = 'linkedin-outreach:enabled';
 const KV_COMPANY = 'linkedin-outreach:company:'; // + firmaKey → sayisal LinkedIn sirket kimligi
 const COMPANY_ID_TTL_MS = 90 * 86_400_000;
 
@@ -277,8 +279,35 @@ export class LinkedinOutreachService {
    * KAPALI). OPENCLAW_ENABLED LLM'li arama yolunun bayragidir; burada
    * aranmaz — kopru ayni `openclaw` ikilisi, yoksa ilk komutta hata verir.
    */
-  get enabled(): boolean {
+  /** Env bayragi — panelden ayar yapilmamissa gecerli olan varsayilan */
+  get envEnabled(): boolean {
     return process.env.OPENCLAW_LINKEDIN_OUTREACH_ENABLED === '1';
+  }
+
+  /**
+   * Gonderim acik mi? Once PANEL ayari (KvStore), yoksa env bayragi.
+   * NEDEN KvStore: kullanici botu panelden acip kapatabilmeli — sunucuya girip .env
+   * duzenlemek ve pm2 restart gerekmesin (30.08 "panelden baslatalim").
+   */
+  async isEnabled(): Promise<boolean> {
+    const row = await this.prisma.kvStore.findUnique({ where: { key: KV_ENABLED } }).catch(() => null);
+    if (row?.value === '1') return true;
+    if (row?.value === '0') return false;
+    return this.envEnabled;
+  }
+
+  /** Panelden gonderimi ac/kapat (kalici; env'i ezer) */
+  async setEnabled(acik: boolean): Promise<{ enabled: boolean; kaynak: 'panel' }> {
+    const value = acik ? '1' : '0';
+    await this.prisma.kvStore.upsert({ where: { key: KV_ENABLED }, create: { key: KV_ENABLED, value }, update: { value } });
+    this.log.warn(`LinkedIn gonderimi panelden ${acik ? 'ACILDI' : 'KAPATILDI'}`);
+    if (acik) {
+      await this.notifyAdmin(
+        'LinkedIn botu açıldı',
+        'Bağlantı istekleri hafta içi 09-18 arasında gönderilmeye başlayacak (günde ≤20 istek, ≤15 mesaj). Panelden "Duraklat" ile durdurabilirsiniz.',
+      ).catch(() => undefined);
+    }
+    return { enabled: acik, kaynak: 'panel' };
   }
 
   // ── Tick ────────────────────────────────────────────────────
@@ -289,8 +318,8 @@ export class LinkedinOutreachService {
    */
   async tick(opts: TickOptions = {}): Promise<TickResult> {
     const dryRun = !!opts.dryRun;
-    if (!this.enabled) {
-      return { actions: [], reason: 'Kapalı: OPENCLAW_LINKEDIN_OUTREACH_ENABLED=1 gerekli' };
+    if (!(await this.isEnabled())) {
+      return { actions: [], reason: 'Kapalı: gönderim panelden (ya da OPENCLAW_LINKEDIN_OUTREACH_ENABLED=1 ile) açılmalı' };
     }
     const pausedReason = await this.pausedReason();
     if (pausedReason !== null) return { actions: [], paused: true, reason: pausedReason };
@@ -884,7 +913,7 @@ export class LinkedinOutreachService {
     const dayStart = istanbulDayStart(now);
     const weekAgo = new Date(now.getTime() - 7 * 86_400_000);
     const win = acceptRateWindow(now);
-    const [requestsToday, messagesToday, requestsWeek, queued, requestsMatured, acceptedMatured, recent, byStatus, byFirmaRaw, pausedReason] = await Promise.all([
+    const [requestsToday, messagesToday, requestsWeek, queued, requestsMatured, acceptedMatured, recent, byStatus, byFirmaRaw, pausedReason, enabled] = await Promise.all([
       this.prisma.linkedinProspect.count({ where: { requestedAt: { gte: dayStart } } }),
       this.prisma.linkedinProspect.count({ where: { messagedAt: { gte: dayStart } } }),
       this.prisma.linkedinProspect.count({ where: { requestedAt: { gte: weekAgo } } }),
@@ -896,9 +925,12 @@ export class LinkedinOutreachService {
       this.prisma.linkedinProspect.groupBy({ by: ['status'], _count: true }),
       this.prisma.linkedinProspect.groupBy({ by: ['firma', 'status'], _count: true }),
       this.pausedReason(),
+      this.isEnabled(),
     ]);
     return {
-      enabled: this.enabled,
+      enabled,
+      /** Bayrak nereden geliyor: panel ayari mi env mi (panelde gosterilir) */
+      enabledSource: enabled === this.envEnabled ? 'env' : 'panel',
       paused: pausedReason !== null,
       pauseReason: pausedReason ?? undefined,
       workWindow: isWorkWindow(now, limits),
