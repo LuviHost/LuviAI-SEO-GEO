@@ -28,6 +28,7 @@ import {
   firmaKey,
   headlineNamesOtherCompany,
   isAnonymousMember,
+  isFounderOrCLevel,
   isWorkWindow,
   looksLikePersonName,
   istanbulDayStart,
@@ -678,6 +679,10 @@ export class LinkedinOutreachService {
           if (cm === 'past' || cm === 'none') { firmaDisi++; continue; }
         } else if (cm === 'none' && headlineNamesOtherCompany(unvan, firma)) {
           // Facet: kayit firmada ama baslik baska sirketteki asil rolu anlatiyor ("Co-Founder at Finfree Co")
+          firmaDisi++; continue;
+        } else if (cm !== 'current' && cm !== 'headline' && isFounderOrCLevel(unvan)) {
+          // Facet: "Co-Founder" / "CEO" basligi ama kartta firma kaniti yok → buyuk ihtimalle yan girisim
+          // (Migros'ta 3 "Co-Founder", 30.08). Gercek CEO/kurucuda "Mevcut: <firma> şirketinde CEO" satiri cikar.
           firmaDisi++; continue;
         }
         hits.push({ ad: parts.slice(0, -1).join(' '), soyad: parts[parts.length - 1], unvan: unvan.slice(0, 160), profileUrl: u });

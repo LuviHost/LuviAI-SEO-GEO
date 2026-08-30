@@ -880,7 +880,7 @@ describe('isTargetTitle — ust yonetim/kurucu + pazarlama ailesi', () => {
   });
   it('hedef disi: CFO/CHRO/CISO/CLO, muhendislik yoneticisi, duz manager, IK, stajyer', async () => {
     const m = await import('./linkedin-outreach-rules.js');
-    for (const t of ['CFO', 'Chief Financial Officer', 'Chief Human Resources Officer', 'Chief People Officer', 'Chief Information Security Officer', 'Chief Legal Officer', 'Chief Risk Officer', 'Engineering Manager', 'Software Development Manager', 'Product Manager', 'Project Manager', 'Operations Director', 'Finans Direktörü', 'İnsan Kaynakları Müdürü', 'Marketing Intern', 'Senior Software Engineer', 'Head of IT', 'Chief Accountant', 'People & Culture Director', 'Business Intelligence Director', 'Chief Data Officer', 'Kurucu Avukat', 'General Counsel', 'Executive Assistant to CEO', 'CEO Asistanı', 'Co-Founder & Trainer', 'Growth Coach', 'CS Business Strategy Executive at Getir', 'Sales Executive', '']) {
+    for (const t of ['CFO', 'Chief Financial Officer', 'Chief Human Resources Officer', 'Chief People Officer', 'Chief Information Security Officer', 'Chief Legal Officer', 'Chief Risk Officer', 'Engineering Manager', 'Software Development Manager', 'Product Manager', 'Project Manager', 'Operations Director', 'Finans Direktörü', 'İnsan Kaynakları Müdürü', 'Marketing Intern', 'Senior Software Engineer', 'Head of IT', 'Chief Accountant', 'People & Culture Director', 'Business Intelligence Director', 'Chief Data Officer', 'Kurucu Avukat', 'General Counsel', 'Executive Assistant to CEO', 'CEO Asistanı', 'Co-Founder & Trainer', 'Growth Coach', 'CS Business Strategy Executive at Getir', 'Sales Executive', 'CEO Office', 'Head of CEO Office', 'CEO Office Senior Lead', 'CEO | CFO | Private Investor', 'DİREKTÖR /ENDÜSTRİ İLİŞKİLERİ & DESTEK HİZMETLER', 'CIO', '']) {
       expect(m.isTargetTitle(t), t).toBe(false);
     }
   });
@@ -912,6 +912,12 @@ describe('headlineNamesOtherCompany — facet modunda baska firma basligi', () =
     expect(m.headlineNamesOtherCompany('SuperMassive CEO (Esports Investment)', 'Papara')).toBe(false);
     expect(m.headlineNamesOtherCompany('Founder - MLS Marine Ship Supply Co.', 'Getir')).toBe(true); // sirket eki
     expect(m.headlineNamesOtherCompany('Founder - CEO', 'Papara')).toBe(false);
+    expect(m.headlineNamesOtherCompany('Kurucu | VizeFirmalari.com | Dijital Platform Geliştiricisi', 'Migros')).toBe(true); // alan adi
+    expect(m.headlineNamesOtherCompany('Tazeantep.com Founder', 'Trendyol')).toBe(true);
+    expect(m.headlineNamesOtherCompany('Trendyol.com Marka Müdürü', 'Trendyol')).toBe(false); // firma kendi alan adi
+    expect(m.isFounderOrCLevel('Co-Founder')).toBe(true);
+    expect(m.isFounderOrCLevel('CTO')).toBe(true);
+    expect(m.isFounderOrCLevel('Performance Marketing Director')).toBe(false);
     expect(m.headlineNamesOtherCompany('', 'Papara')).toBe(false);
   });
 });

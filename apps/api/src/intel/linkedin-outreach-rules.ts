@@ -882,7 +882,7 @@ export function parseSearchResults(text: string | null | undefined): ResearchHit
  */
 const UST_YONETIM = /(\bceo\b|\bcto\b|\bcmo\b|\bcdo\b|\bcgo\b|\bcoo\b|\bcpo\b|\bcro\b|\bchief\b|co-?founder|founder|kurucu|genel müdür|genel mudur|\bgmy\b|managing director|general manager|country manager|başkan|baskan|president|\bvp\b|vice president|direktör|direktor|director|head of|\bhead\b|yönetim kurulu|yonetim kurulu|board member|icra kurulu|chief executive|executive director|executive vice)/iu;
 const PAZARLAMA_POZITIF = /(pazarlama|marketing|marka|brand|dijital|digital|growth|büyüme|buyume|iletişim|iletisim|communications?|müşteri deneyimi|musteri deneyimi|customer experience|e-?ticaret|e-?commerce|performance|kampanya|campaign|crm|içerik|icerik|content|seo|sosyal medya|social media|reklam|advertis)/iu;
-const HEDEF_NEGATIF = /(engineer|mühendis|muhendis|developer|yazılım|yazilim|software|\bqa\b|\btest|data scien|veri bilim|devops|\bit\b|bilgi teknolojileri|security|güvenlik|guvenlik|financ|finans|muhasebe|account(?:ing|ant)|hukuk|legal|avukat|attorney|lawyer|counsel|\brisk\b|insan kaynakları|insan kaynaklari|human resources|chief people|people officer|people (?:&|and) culture|business intelligence|analytics|analitik|\bdata\b|\bveri\b|\bhr\b|recruit|işe alım|ise alim|operasyon|operations|lojistik|logistic|satın alma|satin alma|procurement|product designer|\bux\b|ui designer|intern\b|stajyer|öğrenci|ogrenci|student|assistant|asistan|secretary|sekreter|trainer|eğitmen|egitmen|\bcoach\b|\bkoç\b|\bkoc\b)/iu;
+const HEDEF_NEGATIF = /(engineer|mühendis|muhendis|developer|yazılım|yazilim|software|\bqa\b|\btest|data scien|veri bilim|devops|\bit\b|bilgi teknolojileri|security|güvenlik|guvenlik|financ|finans|muhasebe|account(?:ing|ant)|hukuk|legal|avukat|attorney|lawyer|counsel|\brisk\b|insan kaynakları|insan kaynaklari|human resources|chief people|people officer|people (?:&|and) culture|business intelligence|analytics|analitik|\bdata\b|\bveri\b|\bhr\b|recruit|işe alım|ise alim|operasyon|operations|lojistik|logistic|satın alma|satin alma|procurement|product designer|\bux\b|ui designer|intern\b|stajyer|öğrenci|ogrenci|student|assistant|asistan|secretary|sekreter|trainer|eğitmen|egitmen|\bcoach\b|\bkoç\b|\bkoc\b|ceo office|office of the ceo|chief of staff|\bcfo\b|\bchro\b|\bciso\b|\bcio\b|\bclo\b|\bcao\b|destek hizmet|endüstri ilişkileri|endustri iliskileri|industrial relations|facilit|private investor|yatırımcı|yatirimci|investor)/iu;
 
 /**
  * NEDEN: JS regex `i` bayragi U+0130 (İ) harfini "i"ye katlamaz — "İcra Kurulu", "İletişim"
@@ -1102,7 +1102,15 @@ export function headlineNamesOtherCompany(unvan: string | null | undefined, firm
   if (cardCompanyMatch([], firma, t) === 'headline') return false;
   if (/(\s+at\s+\S|\s*@\s*\S|\s+şirketinde\b|\s+sirketinde\b|\S['’](?:da|de|ta|te)\s+\S)/iu.test(t)) return true;
   // "Founder - MLS Marine Ship Supply Co.": sirket eki (Co./Ltd/A.Ş./Inc/GmbH/LLC/Şti) gecen baslik baska firma
-  return /(?<![\p{L}\p{N}])(co\.|ltd\.?|şti\.?|sti\.?|a\.ş\.?|a\.s\.?|inc\.?|gmbh|llc|holding|sanayi|ticaret)(?![\p{L}\p{N}])/iu.test(t);
+  if (/(?<![\p{L}\p{N}])(co\.|ltd\.?|şti\.?|sti\.?|a\.ş\.?|a\.s\.?|inc\.?|gmbh|llc|holding|sanayi|ticaret)(?![\p{L}\p{N}])/iu.test(t)) return true;
+  // "Kurucu | VizeFirmalari.com | …", "Tazeantep.com Founder": firma disi alan adi baska girisim
+  return /[\p{L}\p{N}-]+\.(com|net|org|io|co|app|tr|ai)(?![\p{L}])/iu.test(t);
+}
+
+/** Baslik kurucu / C-level mi? (facet modunda firma kaniti zorunlu — yan girisim kurucusu elenmesi icin) */
+export function isFounderOrCLevel(unvan: string | null | undefined): boolean {
+  const t = titleKey(unvan);
+  return /(co-?founder|founder|kurucu|\bceo\b|\bcto\b|\bcmo\b|\bcoo\b|\bcdo\b|\bcgo\b|\bcpo\b|\bcro\b|\bchief\b|yönetim kurulu|yonetim kurulu|board member)/iu.test(t);
 }
 
 /**
