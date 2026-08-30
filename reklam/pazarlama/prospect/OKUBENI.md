@@ -422,7 +422,22 @@ Bayrak kapalıyken tarayıcı hiç açılmaz.
   `PAUSED`), tarihler, son hata, ekran görüntüsü dosya adı (yalnız ad; görüntü servis edilmez), **Atla**.
 - Uçlar: `GET /intel/linkedin/overview`, `POST /intel/linkedin/import | pause | resume | tick`,
   `POST /intel/linkedin/prospects/:id/skip`.
-- **Araştırma adımı** (firma → LinkedIn'den ad + unvan + profil URL) panelde düğme yok; sunucuda CLI:
+### 5.3.1 Arama linkleriyle tarama (önerilen yol, 30.08.2026)
+
+Panelde **"Arama linkleriyle tara"** kartı: LinkedIn'de aramanı kendin kur (ünvan, konum, şirket, bağlantı
+derecesi filtreleri), adres çubuğundaki linki yapıştır — her satıra bir link, tek seferde ≤ 12 link.
+Kampanya seç (**Müşteri adayı / Yatırımcı / İş birliği**) → "Taramayı başlat". Bot sayfayı gezer, hedef ünvanlı
+kişileri kuyruğa yazar, **mesaj göndermez**. Firma kartın "Mevcut: … şirketinde …" satırından okunur; firması
+okunamayan kişi kaydedilmez. CLI karşılığı:
+`node dist/cli/linkedin-tick.js --urls "https://www.linkedin.com/search/results/people/?keywords=CMO" --kampanya YATIRIMCI --real`
+(`--real` yalnız DB'ye yazar; LinkedIn'e istek/mesaj göndermez. `--urls-file <yol>` ile dosyadan da okunur.)
+
+**Tarayıcı Mac'te ve GİZLİ çalışır** — `scripts/linkedin-tarayici.sh gizle` (gateway'i tazeler, Chrome'u başlatır,
+pencereyi macOS "uygulamayı gizle" ile görünmez yapar, caffeinate açar). `durum` ile kontrol, `goster` ile geri al.
+Neden Mac: LinkedIn veri merkezi IP'sini 429 + yönlendirme döngüsüyle kesiyor (29.08 denendi); headless Chrome ise
+tespit riski taşıyor.
+
+- **Firma adıyla otomatik araştırma** (alternatif) panelde düğme yok; sunucuda CLI:
   `cd /var/www/luviai/apps/api && set -a && . /var/www/luviai/.env && set +a && node dist/cli/linkedin-tick.js --research-only --research "Papara,Getir"`
   (`--research-only`: yalnız kuyruk doldurur, istek/mesaj atmaz, çalışma penceresine bakmaz — hafta sonu
   hazırlık için) ya da API `POST /intel/linkedin/tick` gövde `{ "dryRun": true, "research": [...] }`.
@@ -439,6 +454,18 @@ Bayrak kapalıyken tarayıcı hiç açılmaz.
   ailesi (müdür/uzman dahil); CFO/İK/hukuk/IT/mühendislik/operasyon/veri/stajyer elenir. Düz "Manager" tek
   başına yetmez. Kart okuma: yeni arayüzde `<li>` yok, profil bağlantısı kartı sarar — "Mevcut: X şirketinde Y"
   satırındaki pozisyon unvanı başlığa tercih edilir.
+
+### 5.3.2 Kampanya şablonları
+
+| Kampanya | Bağlantı notu (≤300 karakter) | Kabul sonrası mesaj |
+| --- | --- | --- |
+| **Müşteri adayı** (varsayılan) | Sektör araştırması + kuruma özel ücretsiz karne daveti | 7 asistanda markasız sorularla ölçüm, "Evet" yeterli |
+| **Yatırımcı** | "RanksUp'ın kurucusuyum… kısa bir tanışma görüşmesi" | Ürün ne yapıyor + pazar tezi + 20 dk demo daveti; **rakam/traction şablonda YOK** (görüşmede, kaynağıyla) |
+| **İş birliği** | Ajans / çözüm ortaklığı önerisi | Ölçüm bizde, müşteri ilişkisi sizde; örnek kurum için ücretsiz karne |
+
+Üçü de kimlik açıklar ve **"istemezseniz bir daha yazmayacağım"** cümlesiyle biter (6563 md. 8/3 ret hakkı).
+Kampanya kayıt bazındadır; panelden yalnız **Kuyrukta** olan kayıtlarda değiştirilebilir (istek gitmiş kişinin
+şablonu değiştirilirse gönderilen metinle çelişir). Şablon metinleri `linkedin-outreach-rules.ts` içinde.
 
 ### 5.4 Frenler (kod sabiti; env ile yalnız **aşağı** çekilir — `LINKEDIN_MAX_REQUESTS_PER_DAY=10` gibi)
 
