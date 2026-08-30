@@ -1075,3 +1075,35 @@ describe('sayfalama ve firma cikarimi (30.08 kullanici ekrani)', () => {
     expect(m.currentCompanyFromCard([], 'CTO at Hepsiburada - İstanbul')).toBe('Hepsiburada');
   });
 });
+
+describe('panel ayarlari (fren + calisma penceresi)', () => {
+  it('normalizePanelAyarlari: tavana kirpar, gecersizi atar, bozuk pencereyi varsayilana birakir', async () => {
+    const m = await import('./linkedin-outreach-rules.js');
+    const a = m.normalizePanelAyarlari({ MAX_REQUESTS_PER_DAY: 999, MAX_MESSAGES_PER_DAY: 0, WORK_HOUR_START: 8, WORK_HOUR_END: 20, WORK_DAYS: [1, 2, 3, 4, 5, 6], bilinmeyen: 5 });
+    expect(a.MAX_REQUESTS_PER_DAY).toBe(m.AYAR_TAVAN.MAX_REQUESTS_PER_DAY.max); // 999 → tavan
+    expect(a.MAX_MESSAGES_PER_DAY).toBe(1); // 0 → alt sinir
+    expect(a.WORK_HOUR_START).toBe(8);
+    expect(a.WORK_HOUR_END).toBe(20);
+    expect(a.WORK_DAYS).toEqual([1, 2, 3, 4, 5, 6]);
+    expect((a as any).bilinmeyen).toBeUndefined();
+    // Bitis <= baslangic → pencere ayari yok sayilir
+    const b = m.normalizePanelAyarlari({ WORK_HOUR_START: 18, WORK_HOUR_END: 9 });
+    expect(b.WORK_HOUR_START).toBeUndefined();
+    expect(b.WORK_HOUR_END).toBeUndefined();
+    expect(m.normalizePanelAyarlari(null)).toEqual({});
+    expect(m.normalizePanelAyarlari({ WORK_DAYS: [] }).WORK_DAYS).toBeUndefined();
+    expect(m.normalizePanelAyarlari({ WORK_DAYS: [9, -1, 3] }).WORK_DAYS).toEqual([3]);
+  });
+
+  it('applyPanelAyarlari + isWorkWindow: panelden verilen saat/gun gecerli olur', async () => {
+    const m = await import('./linkedin-outreach-rules.js');
+    const limits = m.applyPanelAyarlari(m.DEFAULT_LIMITS, m.normalizePanelAyarlari({ WORK_HOUR_START: 8, WORK_HOUR_END: 22, WORK_DAYS: [0, 6] }));
+    expect(limits.WORK_HOUR_START).toBe(8);
+    expect(limits.MAX_REQUESTS_PER_DAY).toBe(m.DEFAULT_LIMITS.MAX_REQUESTS_PER_DAY); // dokunulmayan alan korunur
+    const pazar20 = new Date('2026-08-30T17:00:00Z'); // Pazar 20:00 TR
+    expect(m.isWorkWindow(pazar20, m.DEFAULT_LIMITS)).toBe(false); // varsayilan: hafta ici
+    expect(m.isWorkWindow(pazar20, limits)).toBe(true); // panelde hafta sonu + 08-22 acildi
+    const pazartesi7 = new Date('2026-08-31T04:00:00Z'); // Pazartesi 07:00 TR
+    expect(m.isWorkWindow(pazartesi7, limits)).toBe(false); // pazartesi WORK_DAYS'te yok
+  });
+});

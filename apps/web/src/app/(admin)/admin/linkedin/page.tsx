@@ -19,7 +19,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import {
   Users, RefreshCw, Pause, Play, FlaskConical, Send, Upload,
-  AlertTriangle, SkipForward, Camera, ExternalLink, CheckCircle2, XCircle, MessageSquareText, Link2, Search,
+  AlertTriangle, SkipForward, Camera, ExternalLink, CheckCircle2, XCircle, MessageSquareText, Link2, Search, Clock,
 } from 'lucide-react';
 
 /** Kampanya turleri — arka uctaki LinkedinKampanya ile birebir */
@@ -507,6 +507,9 @@ export default function AdminLinkedinPage() {
         </Card>
       )}
 
+      {/* ── Çalışma ayarları ── */}
+      <AyarCard overview={overview ?? undefined} onDone={load} disabled={!!busy} />
+
       {/* ── Mesaj şablonları ── */}
       <SablonCard sablonlar={overview?.sablonlar} />
 
@@ -697,6 +700,150 @@ function Counter({ label, value, limit }: { label: string; value: number; limit?
         {limit !== undefined && (
           <div className="text-[11px] text-muted-foreground mt-1">{dolu ? 'limit doldu' : `${limit - value} kaldı`}</div>
         )}
+      </CardContent>
+    </Card>
+  );
+}
+
+const GUN_ADI = ['Paz', 'Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt'];
+
+/** Panelden degistirilebilen ayarlar: etiket, aciklama, alan adi */
+const AYAR_ALANLARI: Array<{ key: string; label: string; ipucu: string }> = [
+  { key: 'MAX_REQUESTS_PER_DAY', label: 'Günlük bağlantı isteği', ipucu: 'Bir günde gönderilecek en fazla bağlantı isteği' },
+  { key: 'MAX_MESSAGES_PER_DAY', label: 'Günlük mesaj', ipucu: 'Kabul edenlere bir günde gönderilecek en fazla mesaj' },
+  { key: 'MAX_REQUESTS_PER_WEEK', label: 'Haftalık istek', ipucu: 'LinkedIn haftalık davet sınırı için üst güvenlik freni' },
+  { key: 'MAX_ACTIONS_PER_TICK', label: 'Tur başına işlem', ipucu: '0 = öldürme anahtarı: bot hiçbir işlem yapmaz' },
+  { key: 'SAME_COMPANY_PER_DAY', label: 'Aynı firmadan / gün', ipucu: 'Bir firmadan günde en fazla kaç kişiye yazılsın' },
+  { key: 'MAX_RESEARCH_PER_DAY', label: 'Günlük tarama', ipucu: 'Arama sayfası tarama sayısı (gönderim değil)' },
+];
+
+/**
+ * Calisma saati ve fren ayarlari — panelden. NEDEN: kullanici saatleri ve limitleri
+ * sunucuya girmeden degistirmek istiyor (30.08). Degerler guvenlik tavanlarina kirpilir;
+ * tavanlar arka uctan (ayarTavan) gelir, panel kendi kopyasini tasimaz.
+ */
+function AyarCard({ overview, onDone, disabled }: { overview?: LinkedinOverview; onDone: () => Promise<void>; disabled: boolean }) {
+  const L = (overview?.limits ?? {}) as Record<string, number | number[]>;
+  const tavan = overview?.ayarTavan ?? {};
+  const [taslak, setTaslak] = useState<Record<string, number> | null>(null);
+  const [gunler, setGunler] = useState<number[] | null>(null);
+  const [kaydediliyor, setKaydediliyor] = useState(false);
+
+  const deger = (k: string): number => (taslak?.[k] ?? (typeof L[k] === 'number' ? (L[k] as number) : 0));
+  const aktifGunler = gunler ?? (Array.isArray(L.WORK_DAYS) ? (L.WORK_DAYS as number[]) : [1, 2, 3, 4, 5]);
+  const degisti = taslak !== null || gunler !== null;
+
+  const kaydet = async () => {
+    setKaydediliyor(true);
+    try {
+      const govde: Record<string, number | number[]> = { ...(taslak ?? {}), WORK_DAYS: aktifGunler };
+      for (const k of ['WORK_HOUR_START', 'WORK_HOUR_END']) if (govde[k] === undefined) govde[k] = deger(k);
+      await api.setLinkedinAyarlar(govde);
+      toast.success('Ayarlar kaydedildi — sonraki turdan itibaren geçerli');
+      setTaslak(null);
+      setGunler(null);
+      await onDone();
+    } catch (err: any) {
+      toast.error(`Kaydedilemedi: ${err.message}`);
+    } finally {
+      setKaydediliyor(false);
+    }
+  };
+
+  const setDeger = (k: string, v: number) => setTaslak((t) => ({ ...(t ?? {}), [k]: v }));
+
+  return (
+    <Card>
+      <CardContent className="p-4 space-y-4">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div>
+            <div className="text-sm font-medium flex items-center gap-2">
+              <Clock className="h-4 w-4" />
+              Çalışma ayarları
+            </div>
+            <div className="text-xs text-muted-foreground mt-0.5">
+              Saat ve limitler burada; kaydettiğinde sunucuya girmeye gerek yok. Değerler güvenlik aralığına kırpılır
+              (hesap kısıtlanmasın diye üst sınırlar var).
+            </div>
+          </div>
+          <Button size="sm" onClick={kaydet} disabled={disabled || kaydediliyor || !degisti}>
+            {kaydediliyor ? <RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : null}
+            Kaydet
+          </Button>
+        </div>
+
+        {/* Çalışma penceresi */}
+        <div className="rounded-md border p-3 space-y-3">
+          <div className="text-xs font-medium">Çalışma penceresi (Europe/Istanbul)</div>
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="text-xs text-muted-foreground flex items-center gap-2">
+              Başlangıç
+              <select
+                value={deger('WORK_HOUR_START')}
+                onChange={(e) => setDeger('WORK_HOUR_START', Number(e.target.value))}
+                className="h-8 rounded-md border bg-background px-2 text-xs tabular-nums"
+              >
+                {Array.from({ length: 24 }, (_, h) => <option key={h} value={h}>{String(h).padStart(2, '0')}:00</option>)}
+              </select>
+            </label>
+            <label className="text-xs text-muted-foreground flex items-center gap-2">
+              Bitiş
+              <select
+                value={deger('WORK_HOUR_END')}
+                onChange={(e) => setDeger('WORK_HOUR_END', Number(e.target.value))}
+                className="h-8 rounded-md border bg-background px-2 text-xs tabular-nums"
+              >
+                {Array.from({ length: 24 }, (_, h) => h + 1).map((h) => <option key={h} value={h}>{String(h).padStart(2, '0')}:00</option>)}
+              </select>
+            </label>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-xs text-muted-foreground mr-1">Günler:</span>
+              {GUN_ADI.map((ad, i) => {
+                const secili = aktifGunler.includes(i);
+                return (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => {
+                      const yeni = secili ? aktifGunler.filter((d) => d !== i) : [...aktifGunler, i].sort();
+                      setGunler(yeni.length ? yeni : aktifGunler);
+                    }}
+                    className={cn('px-2 py-1 rounded border text-[11px] transition-colors', secili ? 'bg-orange-500 text-white border-orange-500' : 'hover:bg-muted')}
+                  >
+                    {ad}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <div className="text-[11px] text-muted-foreground">
+            Bot yalnız seçili gün ve saatlerde bağlantı isteği/mesaj gönderir; tarama (arama linki) bu pencereye bakmaz.
+          </div>
+        </div>
+
+        {/* Frenler */}
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {AYAR_ALANLARI.map((a) => {
+            const t = tavan[a.key];
+            return (
+              <label key={a.key} className="rounded-md border p-3 space-y-1.5 block">
+                <div className="text-xs font-medium">{a.label}</div>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    value={deger(a.key)}
+                    min={t?.min ?? 0}
+                    max={t?.max ?? 999}
+                    onChange={(e) => setDeger(a.key, Number(e.target.value))}
+                    className="h-8 w-20 rounded-md border bg-background px-2 text-xs tabular-nums"
+                  />
+                  {t ? <span className="text-[11px] text-muted-foreground">{t.min}–{t.max} arası</span> : null}
+                </div>
+                <div className="text-[11px] text-muted-foreground">{a.ipucu}</div>
+              </label>
+            );
+          })}
+        </div>
       </CardContent>
     </Card>
   );

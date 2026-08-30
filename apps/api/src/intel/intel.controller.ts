@@ -401,6 +401,13 @@ export class IntelController {
     return this.linkedin.setEnabled(body?.enabled === true);
   }
 
+  /** Fren ve calisma saati ayarlari (panelden) — gecersiz degerler tavana kirpilir */
+  @Post('linkedin/ayarlar')
+  async linkedinSetAyarlar(@Req() req: Request, @Body() body: Record<string, unknown>) {
+    assertAdmin(req);
+    return this.linkedin.setAyarlar(body ?? {});
+  }
+
   @Post('linkedin/pause')
   async linkedinPause(@Req() req: Request, @Body() body: { reason?: string }) {
     assertAdmin(req);

@@ -219,6 +219,10 @@ export interface LinkedinOverview {
   recentTotal?: number;
   /** Bayrak nereden: 'panel' (KvStore) ya da 'env' */
   enabledSource?: 'panel' | 'env';
+  /** Panelden kaydedilmis ayarlar (bos = varsayilan) */
+  ayarlar?: Record<string, number | number[]>;
+  /** Her ayarin izin verilen araligi */
+  ayarTavan?: Record<string, { min: number; max: number }>;
   /** Kampanya sablonlari — panelde onizleme */
   sablonlar?: Array<{ kampanya: LinkedinKampanya; ad: string; not: string; notUzunluk: number; notSinir: number; mesaj: string }>;
 }
@@ -1074,6 +1078,12 @@ export const api = {
     request<{ enabled: boolean; kaynak?: string }>('/intel/linkedin/enabled', {
       method: 'POST',
       body: JSON.stringify({ enabled }),
+    }),
+  /** Fren ve calisma saati ayarlarini kaydet */
+  setLinkedinAyarlar: (ayarlar: Record<string, number | number[]>) =>
+    request<{ ayarlar: Record<string, number | number[]>; limits: Record<string, number | number[]> }>('/intel/linkedin/ayarlar', {
+      method: 'POST',
+      body: JSON.stringify(ayarlar),
     }),
   pauseLinkedin: (reason?: string) =>
     request<{ ok?: boolean; paused?: boolean; pauseReason?: string | null }>('/intel/linkedin/pause', {

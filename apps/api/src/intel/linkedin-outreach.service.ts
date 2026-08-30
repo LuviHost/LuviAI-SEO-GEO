@@ -51,6 +51,10 @@ import {
   renderMessage,
   renderNote,
   normalizeKampanya,
+  normalizePanelAyarlari,
+  applyPanelAyarlari,
+  AYAR_TAVAN,
+  type PanelAyarlari,
   KAMPANYALAR,
   KAMPANYA_ADI,
   NOTE_MAX_CHARS,
@@ -116,6 +120,8 @@ const VARSAYILAN_SAYFA = 5;
 const PANEL_RECENT_TAKE = 500;
 /** Panelden ayarlanan gonderim anahtari ('1' acik / '0' kapali); yoksa env bayragi gecerli */
 const KV_ENABLED = 'linkedin-outreach:enabled';
+/** Panelden ayarlanan frenler ve calisma penceresi (JSON) */
+const KV_AYARLAR = 'linkedin-outreach:ayarlar';
 const KV_COMPANY = 'linkedin-outreach:company:'; // + firmaKey → sayisal LinkedIn sirket kimligi
 const COMPANY_ID_TTL_MS = 90 * 86_400_000;
 
@@ -296,6 +302,37 @@ export class LinkedinOutreachService {
     return this.envEnabled;
   }
 
+  /**
+   * Yururlukteki frenler: kod sabitleri → env (yalniz asagi) → PANEL ayarlari (tavanlarla kirpili).
+   * NEDEN async: panel ayarlari KvStore'da (30.08 "saat ayarlarini panelden yapmak istiyorum").
+   */
+  async getLimits(): Promise<OutreachLimits> {
+    const base = resolveLimits();
+    const row = await this.prisma.kvStore.findUnique({ where: { key: KV_AYARLAR } }).catch(() => null);
+    if (!row?.value) return base;
+    try {
+      return applyPanelAyarlari(base, normalizePanelAyarlari(JSON.parse(row.value)));
+    } catch {
+      return base;
+    }
+  }
+
+  /** Panelden fren/saat ayarlarini kaydet (gecersiz degerler tavana kirpilir) */
+  async setAyarlar(input: unknown): Promise<{ ayarlar: PanelAyarlari; limits: OutreachLimits }> {
+    const ayarlar = normalizePanelAyarlari(input);
+    const value = JSON.stringify(ayarlar);
+    await this.prisma.kvStore.upsert({ where: { key: KV_AYARLAR }, create: { key: KV_AYARLAR, value }, update: { value } });
+    this.log.warn(`LinkedIn ayarlari guncellendi: ${value}`);
+    return { ayarlar, limits: await this.getLimits() };
+  }
+
+  /** Panelde gosterilecek kayitli ayarlar (bos = varsayilan) */
+  async getAyarlar(): Promise<PanelAyarlari> {
+    const row = await this.prisma.kvStore.findUnique({ where: { key: KV_AYARLAR } }).catch(() => null);
+    if (!row?.value) return {};
+    try { return normalizePanelAyarlari(JSON.parse(row.value)); } catch { return {}; }
+  }
+
   /** Panelden gonderimi ac/kapat (kalici; env'i ezer) */
   async setEnabled(acik: boolean): Promise<{ enabled: boolean; kaynak: 'panel' }> {
     const value = acik ? '1' : '0';
@@ -330,7 +367,7 @@ export class LinkedinOutreachService {
       return { actions: [], skipped: true, reason: 'Rastgele atlandı (ritim: sabit 30 dk yerine 20-40 dk)' };
     }
 
-    const limits = resolveLimits();
+    const limits = await this.getLimits();
     const bypassWindow = dryRun && opts.force === true;
     if (!bypassWindow && !isWorkWindow(new Date(), limits) && !opts.researchOnly) {
       return { actions: [], reason: `Çalışma penceresi dışı (hafta içi 09-18 Europe/Istanbul)${dryRun ? ' — kuru tick için force:true' : ''}` };
@@ -794,7 +831,7 @@ export class LinkedinOutreachService {
     if (!(await this.acquireLock())) return { ok: false, reason: 'Başka bir tick çalışıyor', sonuclar: [] };
     const sonuclar: Array<{ url: string; sayfa?: number; aday: number; yeni: number; elenen: number; firmasiz: number; hata?: string }> = [];
     try {
-      const limits = resolveLimits();
+      const limits = await this.getLimits();
       dis: for (const url of temiz) {
         for (let sayfa = 1; sayfa <= sayfaSayisi; sayfa++) {
           const sayfaUrl = searchUrlWithPage(url, sayfa);
@@ -908,12 +945,12 @@ export class LinkedinOutreachService {
   // ── Panel / API ─────────────────────────────────────────────
 
   async overview() {
-    const limits = resolveLimits();
+    const limits = await this.getLimits();
     const now = new Date();
     const dayStart = istanbulDayStart(now);
     const weekAgo = new Date(now.getTime() - 7 * 86_400_000);
     const win = acceptRateWindow(now);
-    const [requestsToday, messagesToday, requestsWeek, queued, requestsMatured, acceptedMatured, recent, byStatus, byFirmaRaw, pausedReason, enabled] = await Promise.all([
+    const [requestsToday, messagesToday, requestsWeek, queued, requestsMatured, acceptedMatured, recent, byStatus, byFirmaRaw, pausedReason, enabled, ayarlar] = await Promise.all([
       this.prisma.linkedinProspect.count({ where: { requestedAt: { gte: dayStart } } }),
       this.prisma.linkedinProspect.count({ where: { messagedAt: { gte: dayStart } } }),
       this.prisma.linkedinProspect.count({ where: { requestedAt: { gte: weekAgo } } }),
@@ -926,6 +963,7 @@ export class LinkedinOutreachService {
       this.prisma.linkedinProspect.groupBy({ by: ['firma', 'status'], _count: true }),
       this.pausedReason(),
       this.isEnabled(),
+      this.getAyarlar(),
     ]);
     return {
       enabled,
@@ -944,6 +982,9 @@ export class LinkedinOutreachService {
       byStatus: Object.fromEntries(byStatus.map((s) => [s.status, s._count])),
       // Kampanya sablonlari (panelde onizleme) — ornek kisiyle uretilir
       sablonlar: this.sablonOnizleme(),
+      // Panelden degistirilebilen ayarlar ve guvenlik tavanlari
+      ayarlar,
+      ayarTavan: AYAR_TAVAN,
       // Firma bazli dagilim (panel ozet seridi): { firma, toplam, kuyrukta }
       byFirma: Object.values(
         byFirmaRaw.reduce<Record<string, { firma: string; toplam: number; kuyrukta: number }>>((acc, r) => {

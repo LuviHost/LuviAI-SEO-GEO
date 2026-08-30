@@ -33,9 +33,11 @@ export interface OutreachLimits {
   ACCEPT_RATE_MIN_REQUESTS: number;
   /** Her tick'te kac REQUESTED profil kabul icin kontrol edilir */
   ACCEPT_CHECK_PER_TICK: number;
-  /** Calisma penceresi — Europe/Istanbul, hafta ici, [START, END) */
+  /** Calisma penceresi — Europe/Istanbul, [START, END) */
   WORK_HOUR_START: number;
   WORK_HOUR_END: number;
+  /** Calisilan gunler (0=Pazar … 6=Cumartesi); varsayilan hafta ici */
+  WORK_DAYS: number[];
 }
 
 export const DEFAULT_LIMITS: Readonly<OutreachLimits> = Object.freeze({
@@ -51,6 +53,7 @@ export const DEFAULT_LIMITS: Readonly<OutreachLimits> = Object.freeze({
   ACCEPT_CHECK_PER_TICK: 5,
   WORK_HOUR_START: 9,
   WORK_HOUR_END: 18,
+  WORK_DAYS: [1, 2, 3, 4, 5],
 });
 
 export const WORK_TIMEZONE = 'Europe/Istanbul';
@@ -61,7 +64,7 @@ export const ACCEPT_RATE_MATURE_HOURS = 72;
 export const ACCEPT_RATE_WINDOW_DAYS = 14;
 
 /** env'de LINKEDIN_<AD> varsa ve KUCUKSE onu kullan; buyuk/gecersiz deger yok sayilir */
-const ENV_LOWERABLE: Array<keyof OutreachLimits> = [
+const ENV_LOWERABLE: Array<Exclude<keyof OutreachLimits, 'WORK_DAYS' | 'ACCEPT_RATE_MIN'>> = [
   'MAX_REQUESTS_PER_DAY', 'MAX_MESSAGES_PER_DAY', 'MAX_REQUESTS_PER_WEEK', 'MAX_RESEARCH_PER_DAY',
   'MAX_ACTIONS_PER_TICK', 'SAME_COMPANY_PER_DAY', 'CONSECUTIVE_FAIL_PAUSE', 'ACCEPT_CHECK_PER_TICK',
 ];
@@ -85,7 +88,8 @@ export function resolveLimits(env: Record<string, string | undefined> = process.
     if (!Number.isFinite(n) || n < 0) continue;
     const floor = key === 'MAX_ACTIONS_PER_TICK' ? 0 : 1;
     const v = Math.max(floor, Math.floor(n));
-    if (v < out[key]) out[key] = v;
+    const mevcut = out[key] as number;
+    if (v < mevcut) (out[key] as number) = v;
   }
   const rate = Number(env.LINKEDIN_ACCEPT_RATE_MIN);
   if (Number.isFinite(rate) && rate > out.ACCEPT_RATE_MIN && rate <= 1) out.ACCEPT_RATE_MIN = rate;
@@ -122,7 +126,8 @@ export function istanbulDayStart(date: Date = new Date()): Date {
 /** Hafta ici 09:00-18:00 Europe/Istanbul mu? */
 export function isWorkWindow(date: Date = new Date(), limits: OutreachLimits = DEFAULT_LIMITS): boolean {
   const { weekday, hour } = istanbulParts(date);
-  if (weekday === 0 || weekday === 6) return false;
+  const gunler = limits.WORK_DAYS?.length ? limits.WORK_DAYS : DEFAULT_LIMITS.WORK_DAYS;
+  if (!gunler.includes(weekday)) return false;
   return hour >= limits.WORK_HOUR_START && hour < limits.WORK_HOUR_END;
 }
 
@@ -1329,4 +1334,58 @@ export function searchUrlWithPage(url: string, page: number): string {
   } catch {
     return url;
   }
+}
+
+// ── Panel ayarlari ───────────────────────────────────────────────────────────
+
+/** Panelden ayarlanabilen alanlar ve guvenlik tavanlari (hesap kisitlanma riski) */
+export const AYAR_TAVAN: Record<string, { min: number; max: number }> = {
+  MAX_REQUESTS_PER_DAY: { min: 1, max: 30 },
+  MAX_MESSAGES_PER_DAY: { min: 1, max: 30 },
+  MAX_REQUESTS_PER_WEEK: { min: 1, max: 120 },
+  MAX_RESEARCH_PER_DAY: { min: 1, max: 100 },
+  MAX_ACTIONS_PER_TICK: { min: 0, max: 6 },
+  SAME_COMPANY_PER_DAY: { min: 1, max: 10 },
+  ACCEPT_CHECK_PER_TICK: { min: 1, max: 10 },
+  CONSECUTIVE_FAIL_PAUSE: { min: 1, max: 10 },
+  WORK_HOUR_START: { min: 0, max: 23 },
+  WORK_HOUR_END: { min: 1, max: 24 },
+};
+
+export type PanelAyarlari = Partial<Record<keyof typeof AYAR_TAVAN, number>> & { WORK_DAYS?: number[] };
+
+/**
+ * Panelden gelen ayarlari dogrula ve kirp. NEDEN tavan: gunde 100 baglanti istegi
+ * hesabi kisitlatir; panel serbest birakilsa "daha hizli olsun" diye acilirdi.
+ * Gecersiz/aralik disi degerler sessizce KIRPILIR (istek reddedilmez), WORK_DAYS
+ * bos verilirse hafta ici varsayilana doner, END <= START ise varsayilan pencere.
+ */
+export function normalizePanelAyarlari(input: unknown): PanelAyarlari {
+  const raw = (input ?? {}) as Record<string, unknown>;
+  const out: PanelAyarlari = {};
+  for (const [key, { min, max }] of Object.entries(AYAR_TAVAN)) {
+    const v = Number(raw[key]);
+    if (!Number.isFinite(v)) continue;
+    out[key as keyof typeof AYAR_TAVAN] = Math.max(min, Math.min(max, Math.floor(v)));
+  }
+  if (Array.isArray(raw.WORK_DAYS)) {
+    const gunler = [...new Set(raw.WORK_DAYS.map((d) => Math.floor(Number(d))).filter((d) => Number.isFinite(d) && d >= 0 && d <= 6))].sort();
+    if (gunler.length > 0) out.WORK_DAYS = gunler;
+  }
+  const bas = out.WORK_HOUR_START ?? DEFAULT_LIMITS.WORK_HOUR_START;
+  const bit = out.WORK_HOUR_END ?? DEFAULT_LIMITS.WORK_HOUR_END;
+  if (bit <= bas) { delete out.WORK_HOUR_START; delete out.WORK_HOUR_END; }
+  return out;
+}
+
+/** Kod sabitleri + env (yalniz asagi) + PANEL ayarlari (tavanlarla kirpilmis) */
+export function applyPanelAyarlari(base: OutreachLimits, ayar: PanelAyarlari | null | undefined): OutreachLimits {
+  if (!ayar) return base;
+  const out: OutreachLimits = { ...base };
+  for (const key of Object.keys(AYAR_TAVAN) as Array<keyof typeof AYAR_TAVAN>) {
+    const v = ayar[key];
+    if (typeof v === 'number') (out as any)[key] = v;
+  }
+  if (ayar.WORK_DAYS?.length) out.WORK_DAYS = ayar.WORK_DAYS;
+  return out;
 }
