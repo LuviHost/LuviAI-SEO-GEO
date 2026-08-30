@@ -300,8 +300,8 @@ export class LinkedinOutreachService {
       }
 
       const queue = await this.buildQueue(opts.research);
-      let plan = planTick(counters, queue, limits);
-      if (opts.researchOnly) plan = plan.filter((a) => a.type === 'research'); // yalniz arastirma: istek/mesaj yok
+      // yalniz arastirma: istek/mesaj plana girmez (kota arastirmaya kalir)
+      const plan = planTick(counters, queue, limits, { researchOnly: opts.researchOnly === true });
       if (plan.length === 0) return { actions: [], reason: 'Yapılacak iş yok' };
       this.log.log(`LinkedIn tick${dryRun ? ' (kuru)' : ''}: ${plan.map((p) => p.type).join(', ')}`);
 

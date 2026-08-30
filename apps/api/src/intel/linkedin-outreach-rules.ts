@@ -212,9 +212,28 @@ export function firmaKey(firma: string): string {
  *   5) research (yalniz hedef verilmisse; gunluk arastirma siniri)
  * Toplam islem MAX_ACTIONS_PER_TICK ile sinirli.
  */
-export function planTick(counters: TickCounters, queue: TickQueue, limits: OutreachLimits = DEFAULT_LIMITS): PlannedAction[] {
+export interface PlanOptions {
+  /**
+   * Yalniz arastirma: istek/mesaj/kabul/cevap adimlari plana HIC girmez. NEDEN: kuyrukta QUEUED varken
+   * plan once 'request' ile doluyor, arastirmaya 1 slot kaliyordu (30.08: 3 firma istendi, yalniz Getir arandi);
+   * sonradan filtrelemek yetmez, kota planlama asamasinda ayrilmali.
+   */
+  researchOnly?: boolean;
+}
+
+export function planTick(counters: TickCounters, queue: TickQueue, limits: OutreachLimits = DEFAULT_LIMITS, opts: PlanOptions = {}): PlannedAction[] {
   const out: PlannedAction[] = [];
   const full = () => out.length >= limits.MAX_ACTIONS_PER_TICK;
+
+  if (opts.researchOnly) {
+    let research = counters.researchToday;
+    for (const firma of queue.researchTargets ?? []) {
+      if (full() || research >= limits.MAX_RESEARCH_PER_DAY) break;
+      out.push({ type: 'research', firma });
+      research++;
+    }
+    return out;
+  }
 
   if (queue.messagedCount > 0 && !full()) out.push({ type: 'reply-check' });
 

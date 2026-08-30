@@ -54,6 +54,9 @@ async function main() {
     console.log(JSON.stringify({ paused: r.paused ?? false, reason: r.reason ?? '', actions }, null, 2));
   } finally {
     await app.close();
+    // NEDEN: app.close() sonrasi acik tutamaclar (Redis/BullMQ zamanlayicilari) sureci canli tutuyor; tick
+    // bitince 10 saat asili kalan surec goruldu (30.08). Cikti yazildi, temiz cikis.
+    setTimeout(() => process.exit(0), 500).unref();
   }
 }
 

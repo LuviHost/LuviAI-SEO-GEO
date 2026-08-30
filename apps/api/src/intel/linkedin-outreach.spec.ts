@@ -928,3 +928,20 @@ describe('looksLikePersonName — sirket hesaplari kisi degil', () => {
     expect(m.researchKademe('Corporate Communications Executive at Getir')).toBe(2);
   });
 });
+
+describe('planTick — researchOnly', () => {
+  it('kuyrukta QUEUED varken bile 3 slot arastirmaya kalir; istek/mesaj plana girmez', () => {
+    const counters: TickCounters = { requestsToday: 0, messagesToday: 0, requestsWeek: 0, researchToday: 0, companyRequestsToday: {} };
+    const q = (id: string, firma = 'Papara') => ({ id, firma }) as any;
+    const queue: TickQueue = { accepted: [q('a1')], requested: [q('r1')], queued: [q('q1'), q('q2'), q('q3', 'Getir')], messagedCount: 2, researchTargets: ['Getir', 'Trendyol', 'Hepsiburada', 'Migros'] };
+    const plan = planTick(counters, queue, DEFAULT_LIMITS, { researchOnly: true });
+    expect(plan.map((p) => p.type)).toEqual(['research', 'research', 'research']);
+    expect(plan.map((p: any) => p.firma)).toEqual(['Getir', 'Trendyol', 'Hepsiburada']);
+    // Normal planda istekler once gelir, arastirmaya en fazla kalan slot
+    const normal = planTick(counters, queue, DEFAULT_LIMITS);
+    expect(normal.filter((p) => p.type === 'research').length).toBeLessThan(3);
+    // Gunluk arastirma siniri researchOnly'de de gecerli
+    const limited = planTick({ ...counters, researchToday: DEFAULT_LIMITS.MAX_RESEARCH_PER_DAY }, queue, DEFAULT_LIMITS, { researchOnly: true });
+    expect(limited).toEqual([]);
+  });
+});
