@@ -965,7 +965,16 @@ export class LinkedinOutreachService {
     };
     return KAMPANYALAR.map((k) => {
       const not = renderNote({ ...p, kampanya: k });
-      return { kampanya: k, ad: KAMPANYA_ADI[k], not, notUzunluk: not.length, notSinir: NOTE_MAX_CHARS, mesaj: renderMessage({ ...p, kampanya: k }) };
+      return {
+        kampanya: k,
+        ad: KAMPANYA_ADI[k],
+        not,
+        notUzunluk: not.length,
+        notSinir: NOTE_MAX_CHARS,
+        mesaj: renderMessage({ ...p, kampanya: k }),
+        // Panelde vurgulamak icin: metindeki hangi parcalar kisiye gore degisiyor
+        ornek: { kisi: `${p.ad} ${p.soyad}`, firma: p.firma },
+      };
     });
   }
 
@@ -985,7 +994,7 @@ export class LinkedinOutreachService {
     const dayStart = istanbulDayStart(now);
     const weekAgo = new Date(now.getTime() - 7 * 86_400_000);
     const win = acceptRateWindow(now);
-    const [requestsToday, messagesToday, requestsWeek, queued, requestsMatured, acceptedMatured, recent, byStatus, byFirmaRaw, pausedReason, enabled, ayarlar] = await Promise.all([
+    const [requestsToday, messagesToday, requestsWeek, queued, requestsMatured, acceptedMatured, recent, byStatus, byFirmaRaw, pausedReason, enabled, ayarlar, ilkKuyruk] = await Promise.all([
       this.prisma.linkedinProspect.count({ where: { requestedAt: { gte: dayStart } } }),
       this.prisma.linkedinProspect.count({ where: { messagedAt: { gte: dayStart } } }),
       this.prisma.linkedinProspect.count({ where: { requestedAt: { gte: weekAgo } } }),
@@ -999,6 +1008,11 @@ export class LinkedinOutreachService {
       this.pausedReason(),
       this.isEnabled(),
       this.getAyarlar(),
+      this.prisma.linkedinProspect.findFirst({
+        where: { status: 'QUEUED' },
+        orderBy: { createdAt: 'asc' },
+        select: { ad: true, soyad: true, firma: true, sektor: true },
+      }).catch(() => null),
     ]);
     return {
       enabled,
@@ -1015,8 +1029,10 @@ export class LinkedinOutreachService {
       acceptRateWindow: 'matured-72h-14d' as const,
       acceptRateBase: { requests: requestsMatured, accepted: acceptedMatured, minRequests: limits.ACCEPT_RATE_MIN_REQUESTS },
       byStatus: Object.fromEntries(byStatus.map((s) => [s.status, s._count])),
-      // Kampanya sablonlari (panelde onizleme) — ornek kisiyle uretilir
-      sablonlar: this.sablonOnizleme(),
+      // Kampanya sablonlari (panelde onizleme) — KUYRUKTAKI ILK kisiyle uretilir (yoksa ornek kisi).
+      // NEDEN gercek kayit: panelde sabit "Ayşe Demir" gorunce "sablonda isim degisiyor mu?" sorusu
+      // dogdu (30.08); gercek adla gostermek soruyu ortadan kaldiriyor.
+      sablonlar: this.sablonOnizleme(ilkKuyruk ?? undefined),
       // Panelden degistirilebilen ayarlar ve guvenlik tavanlari
       ayarlar,
       ayarTavan: AYAR_TAVAN,

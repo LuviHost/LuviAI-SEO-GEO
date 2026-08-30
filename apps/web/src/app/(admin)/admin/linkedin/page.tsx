@@ -869,6 +869,18 @@ function SablonCard({ sablonlar }: { sablonlar?: LinkedinOverview['sablonlar'] }
     }
   };
 
+  /** Kisiye gore degisen parcalari (ad, firma) vurgula */
+  const vurgula = (metin: string, ornek?: { kisi: string; firma: string }) => {
+    const parcalar = [ornek?.kisi, ornek?.firma].filter((x): x is string => !!x && x.length > 1);
+    if (parcalar.length === 0) return metin;
+    const kalip = new RegExp(`(${parcalar.map((x) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`, 'g');
+    return metin.split(kalip).map((par, i) =>
+      parcalar.includes(par)
+        ? <mark key={i} className="bg-orange-500/15 text-orange-700 dark:text-orange-300 rounded px-0.5">{par}</mark>
+        : <span key={i}>{par}</span>,
+    );
+  };
+
   if (!sablonlar?.length) return null;
 
   return (
@@ -882,7 +894,12 @@ function SablonCard({ sablonlar }: { sablonlar?: LinkedinOverview['sablonlar'] }
             </div>
             <div className="text-xs text-muted-foreground mt-0.5">
               Kişiye önce <span className="font-medium">bağlantı isteği notu</span> gider; kabul ederse{' '}
-              <span className="font-medium">mesaj</span> gönderilir. Örnek kişi: Ayşe Demir / Örnek Şirket.
+              <span className="font-medium">mesaj</span> gönderilir.
+              {aktif?.ornek ? (
+                <> Önizleme kuyruktaki kişiyle: <span className="font-medium text-foreground">{aktif.ornek.kisi} / {aktif.ornek.firma}</span> —{' '}
+                  <span className="bg-orange-500/15 text-orange-700 dark:text-orange-300 px-1 rounded">turuncu</span> kısımlar her kişide değişir.
+                </>
+              ) : null}
             </div>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -918,7 +935,7 @@ function SablonCard({ sablonlar }: { sablonlar?: LinkedinOverview['sablonlar'] }
                 <div className="flex gap-2">
                   <div className="h-7 w-7 rounded-full bg-orange-500/15 text-orange-600 grid place-items-center text-[11px] font-semibold shrink-0">RU</div>
                   <div className="rounded-2xl rounded-tl-sm bg-background border px-3 py-2 text-xs leading-relaxed whitespace-pre-wrap">
-                    {aktif.not}
+                    {vurgula(aktif.not, aktif.ornek)}
                   </div>
                 </div>
               </div>
@@ -936,7 +953,7 @@ function SablonCard({ sablonlar }: { sablonlar?: LinkedinOverview['sablonlar'] }
                 <div className="flex gap-2">
                   <div className="h-7 w-7 rounded-full bg-orange-500/15 text-orange-600 grid place-items-center text-[11px] font-semibold shrink-0">RU</div>
                   <div className="rounded-2xl rounded-tl-sm bg-background border px-3 py-2 text-xs leading-relaxed whitespace-pre-wrap">
-                    {aktif.mesaj}
+                    {vurgula(aktif.mesaj, aktif.ornek)}
                   </div>
                 </div>
               </div>
@@ -945,7 +962,8 @@ function SablonCard({ sablonlar }: { sablonlar?: LinkedinOverview['sablonlar'] }
         )}
 
         <div className="text-[11px] text-muted-foreground">
-          Metinler <span className="font-mono">apps/api/src/intel/linkedin-outreach-rules.ts</span> içinde; değiştirmek istersen söyle.
+          Her kişiye kendi adı ve firması yazılır (yukarıdaki turuncu kısımlar). Metinler{' '}
+          <span className="font-mono">apps/api/src/intel/linkedin-outreach-rules.ts</span> içinde; değiştirmek istersen söyle.
           Üçü de kimlik açıklar ve &quot;istemezseniz bir daha yazmayacağım&quot; ile biter (6563 md. 8/3 ret hakkı).
         </div>
       </CardContent>

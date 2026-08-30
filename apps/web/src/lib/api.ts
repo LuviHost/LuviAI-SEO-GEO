@@ -224,7 +224,16 @@ export interface LinkedinOverview {
   /** Her ayarin izin verilen araligi */
   ayarTavan?: Record<string, { min: number; max: number }>;
   /** Kampanya sablonlari — panelde onizleme */
-  sablonlar?: Array<{ kampanya: LinkedinKampanya; ad: string; not: string; notUzunluk: number; notSinir: number; mesaj: string }>;
+  sablonlar?: Array<{
+    kampanya: LinkedinKampanya;
+    ad: string;
+    not: string;
+    notUzunluk: number;
+    notSinir: number;
+    mesaj: string;
+    /** Metinde kisiye gore degisen parcalar (panelde vurgulanir) */
+    ornek?: { kisi: string; firma: string };
+  }>;
 }
 
 export interface LinkedinImportRow {
