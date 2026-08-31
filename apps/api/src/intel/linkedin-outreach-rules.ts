@@ -1523,7 +1523,7 @@ export function renderInMail(p: ProspectLike): string {
     `Bir şey dikkatimi çekti: insanlar "${sektorSorusu(p.sektor)}" gibi soruları artık Google yerine ` +
     `ChatGPT'ye soruyor ve cevapta sadece birkaç marka adı geçiyor. Çoğu şirketin o cevaplarda nerede ` +
     `durduğuna dair hiçbir verisi yok.\n\n` +
-    `Ben RanksUp'ta tam olarak bunu ölçüyorum. ${genitiveOrSafe(firma)} için de çıkarıp size ` +
+    `Ben RanksUp'ta tam olarak bunu ölçüyorum. ${firma} için de çıkarıp size ` +
     `gönderebilirim: hangi sorularda geçiyorsunuz, o cevaplarda kim öneriliyor, nerede boşluk var. ` +
     `Ücret yok, sonuç yalnız sizde kalır.\n\n` +
     `İlginizi çekerse kısaca konuşmak isterim; denk gelmezse de sorun değil.`
