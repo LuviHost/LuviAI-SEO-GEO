@@ -715,6 +715,14 @@ const AYAR_ALANLARI: Array<{ key: string; label: string; ipucu: string }> = [
   { key: 'MAX_ACTIONS_PER_TICK', label: 'Tur başına işlem', ipucu: '0 = öldürme anahtarı: bot hiçbir işlem yapmaz' },
   { key: 'SAME_COMPANY_PER_DAY', label: 'Aynı firmadan / gün', ipucu: 'Bir firmadan günde en fazla kaç kişiye yazılsın' },
   { key: 'MAX_RESEARCH_PER_DAY', label: 'Günlük tarama', ipucu: 'Arama sayfası tarama sayısı (gönderim değil)' },
+  { key: 'MAX_INMAILS_PER_DAY', label: 'Günlük InMail', ipucu: 'Premium ile bağlantı beklemeden gönderilen doğrudan mesaj (kredi harcar)' },
+];
+
+/** İletişim yöntemleri */
+const MODLAR: Array<{ key: 'baglanti' | 'inmail' | 'karma'; label: string; aciklama: string }> = [
+  { key: 'baglanti', label: 'Bağlantı isteği', aciklama: 'Önce notlu bağlantı isteği; kabul ederse mesaj. Kredi harcamaz, kabul beklenir.' },
+  { key: 'inmail', label: 'Doğrudan mesaj (Premium)', aciklama: 'Bağlantı beklemeden InMail gönderir — Premium kredisi harcar, cevap çok daha hızlı gelir.' },
+  { key: 'karma', label: 'Önce InMail, sonra bağlantı', aciklama: 'Günlük InMail kotası dolunca kalan kişilere bağlantı isteği gönderir.' },
 ];
 
 /**
@@ -727,21 +735,24 @@ function AyarCard({ overview, onDone, disabled }: { overview?: LinkedinOverview;
   const tavan = overview?.ayarTavan ?? {};
   const [taslak, setTaslak] = useState<Record<string, number> | null>(null);
   const [gunler, setGunler] = useState<number[] | null>(null);
+  const [taslakMod, setTaslakMod] = useState<'baglanti' | 'inmail' | 'karma' | null>(null);
   const [kaydediliyor, setKaydediliyor] = useState(false);
 
   const deger = (k: string): number => (taslak?.[k] ?? (typeof L[k] === 'number' ? (L[k] as number) : 0));
   const aktifGunler = gunler ?? (Array.isArray(L.WORK_DAYS) ? (L.WORK_DAYS as number[]) : [1, 2, 3, 4, 5]);
-  const degisti = taslak !== null || gunler !== null;
+  const degisti = taslak !== null || gunler !== null || (taslakMod !== null && taslakMod !== overview?.mod);
 
   const kaydet = async () => {
     setKaydediliyor(true);
     try {
-      const govde: Record<string, number | number[]> = { ...(taslak ?? {}), WORK_DAYS: aktifGunler };
+      const govde: Record<string, number | number[] | string> = { ...(taslak ?? {}), WORK_DAYS: aktifGunler };
       for (const k of ['WORK_HOUR_START', 'WORK_HOUR_END']) if (govde[k] === undefined) govde[k] = deger(k);
+      if (taslakMod) govde.MOD = taslakMod;
       await api.setLinkedinAyarlar(govde);
       toast.success('Ayarlar kaydedildi — sonraki turdan itibaren geçerli');
       setTaslak(null);
       setGunler(null);
+      setTaslakMod(null);
       await onDone();
     } catch (err: any) {
       toast.error(`Kaydedilemedi: ${err.message}`);
@@ -770,6 +781,30 @@ function AyarCard({ overview, onDone, disabled }: { overview?: LinkedinOverview;
             {kaydediliyor ? <RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : null}
             Kaydet
           </Button>
+        </div>
+
+        {/* İletişim modu */}
+        <div className="rounded-md border p-3 space-y-2">
+          <div className="text-xs font-medium">İletişim yöntemi</div>
+          <div className="flex flex-wrap gap-2">
+            {MODLAR.map((m) => {
+              const secili = (taslakMod ?? overview?.mod ?? 'baglanti') === m.key;
+              return (
+                <button
+                  key={m.key}
+                  type="button"
+                  onClick={() => setTaslakMod(m.key)}
+                  className={cn('px-2.5 py-1.5 rounded-md border text-xs transition-colors', secili ? 'bg-orange-500 text-white border-orange-500' : 'hover:bg-muted')}
+                  title={m.aciklama}
+                >
+                  {m.label}
+                </button>
+              );
+            })}
+          </div>
+          <div className="text-[11px] text-muted-foreground">
+            {MODLAR.find((m) => m.key === (taslakMod ?? overview?.mod ?? 'baglanti'))?.aciklama}
+          </div>
         </div>
 
         {/* Çalışma penceresi */}
@@ -917,7 +952,7 @@ function SablonCard({ sablonlar }: { sablonlar?: LinkedinOverview['sablonlar'] }
         </div>
 
         {aktif && (
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {/* 1) Bağlantı isteği notu */}
             <div className="rounded-lg border bg-muted/20 overflow-hidden">
               <div className="px-3 py-2 border-b bg-muted/40 flex items-center justify-between gap-2">
@@ -941,7 +976,7 @@ function SablonCard({ sablonlar }: { sablonlar?: LinkedinOverview['sablonlar'] }
               </div>
             </div>
 
-            {/* 2) Kabul sonrası mesaj */}
+            {/* 2) InMail ya da kabul sonrası mesaj */}
             <div className="rounded-lg border bg-muted/20 overflow-hidden">
               <div className="px-3 py-2 border-b bg-muted/40 flex items-center justify-between gap-2">
                 <div className="text-xs font-medium">2. Kabul edince gönderilen mesaj</div>

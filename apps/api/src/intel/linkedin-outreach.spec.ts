@@ -44,7 +44,7 @@ vi.mock('../prisma/prisma.service.js', () => ({ PrismaService: class {} }));
 vi.mock('../notifications/notifications.service.js', () => ({ NotificationsService: class {} }));
 
 const emptyCounters = (over: Partial<TickCounters> = {}): TickCounters => ({
-  requestsToday: 0, messagesToday: 0, requestsWeek: 0, researchToday: 0, companyRequestsToday: {}, ...over,
+  requestsToday: 0, messagesToday: 0, requestsWeek: 0, researchToday: 0, inmailsToday: 0, companyRequestsToday: {}, ...over,
 });
 const emptyQueue = (over: Partial<TickQueue> = {}): TickQueue => ({
   accepted: [], requested: [], queued: [], messagedCount: 0, ...over,
@@ -949,7 +949,7 @@ describe('looksLikePersonName — sirket hesaplari kisi degil', () => {
 
 describe('planTick — researchOnly', () => {
   it('kuyrukta QUEUED varken bile 3 slot arastirmaya kalir; istek/mesaj plana girmez', () => {
-    const counters: TickCounters = { requestsToday: 0, messagesToday: 0, requestsWeek: 0, researchToday: 0, companyRequestsToday: {} };
+    const counters: TickCounters = { requestsToday: 0, messagesToday: 0, requestsWeek: 0, researchToday: 0, inmailsToday: 0, companyRequestsToday: {} };
     const q = (id: string, firma = 'Papara') => ({ id, firma }) as any;
     const queue: TickQueue = { accepted: [q('a1')], requested: [q('r1')], queued: [q('q1'), q('q2'), q('q3', 'Getir')], messagedCount: 2, researchTargets: ['Getir', 'Trendyol', 'Hepsiburada', 'Migros'] };
     const plan = planTick(counters, queue, DEFAULT_LIMITS, { researchOnly: true });
@@ -1166,5 +1166,57 @@ describe('30.08 denetim duzeltmeleri', () => {
     expect(m.currentCompanyFromCard([], 'CFO & Co-Founder')).toBe('');
     expect(m.currentCompanyFromCard([], 'CTO - Getmobil')).toBe('Getmobil'); // gercek firma bozulmadi
     expect(m.currentCompanyFromCard([], 'Growth Lead, Freelance')).toBe('');
+  });
+});
+
+describe('Premium InMail modu (dogrudan mesaj)', () => {
+  it('planTick mod=inmail: QUEUED kayitlara request degil INMAIL planlanir, gunluk kota uygulanir', () => {
+    const q = (id: string, firma: string) => ({ id, firma }) as any;
+    const queue: TickQueue = { accepted: [], requested: [], queued: [q('a', 'A'), q('b', 'B'), q('c', 'C')], messagedCount: 0 };
+    const plan = planTick(emptyCounters(), queue, DEFAULT_LIMITS, { mod: 'inmail' });
+    expect(plan.map((p) => p.type)).toEqual(['inmail', 'inmail', 'inmail']);
+    // Gunluk InMail kotasi dolu → saf inmail modunda hicbir sey planlanmaz
+    const dolu = planTick(emptyCounters({ inmailsToday: DEFAULT_LIMITS.MAX_INMAILS_PER_DAY }), queue, DEFAULT_LIMITS, { mod: 'inmail' });
+    expect(dolu).toEqual([]);
+  });
+
+  it('mod=karma: InMail kotasi dolunca baglanti istegine duser', () => {
+    const q = (id: string, firma: string) => ({ id, firma }) as any;
+    const queue: TickQueue = { accepted: [], requested: [], queued: [q('a', 'A'), q('b', 'B')], messagedCount: 0 };
+    const plan = planTick(emptyCounters({ inmailsToday: DEFAULT_LIMITS.MAX_INMAILS_PER_DAY }), queue, DEFAULT_LIMITS, { mod: 'karma' });
+    expect(plan.map((p) => p.type)).toEqual(['request', 'request']);
+  });
+
+  it('mod=baglanti (varsayilan): InMail planlanmaz', () => {
+    const q = (id: string, firma: string) => ({ id, firma }) as any;
+    const queue: TickQueue = { accepted: [], requested: [], queued: [q('a', 'A')], messagedCount: 0 };
+    expect(planTick(emptyCounters(), queue, DEFAULT_LIMITS).map((p) => p.type)).toEqual(['request']);
+    expect(planTick(emptyCounters(), queue, DEFAULT_LIMITS, { mod: 'baglanti' }).map((p) => p.type)).toEqual(['request']);
+  });
+
+  it('renderInMail: ILK TEMAS metni — "bağlantı için teşekkürler" YOK, ret garantisi var', async () => {
+    const m = await import('./linkedin-outreach-rules.js');
+    const p = { ad: 'Ayşe', soyad: 'Demir', firma: 'Trendyol', sektor: 'eticaret-perakende-teknoloji' };
+    for (const k of ['MUSTERI', 'YATIRIMCI', 'ISBIRLIGI'] as const) {
+      const metin = m.renderInMail({ ...p, kampanya: k });
+      expect(metin).toMatch(/^Merhaba Ayşe Demir,/);
+      expect(metin).not.toMatch(/bağlantı için teşekkürler/);
+      expect(metin).toMatch(/bir daha yazmayacağım/);
+      const konu = m.renderInMailKonu({ ...p, kampanya: k });
+      expect(konu.length).toBeGreaterThan(5);
+      expect(konu.length).toBeLessThanOrEqual(70);
+    }
+    expect(m.renderInMailKonu({ ...p, kampanya: 'MUSTERI' })).toContain('Trendyol');
+  });
+
+  it('normalizeMod: bilinmeyen deger baglanti', async () => {
+    const m = await import('./linkedin-outreach-rules.js');
+    expect(m.normalizeMod('inmail')).toBe('inmail');
+    expect(m.normalizeMod('KARMA')).toBe('karma');
+    expect(m.normalizeMod('x')).toBe('baglanti');
+    expect(m.normalizeMod(undefined)).toBe('baglanti');
+    // Panel ayarinda mod saklanir
+    expect(m.normalizePanelAyarlari({ MOD: 'inmail' }).MOD).toBe('inmail');
+    expect(m.normalizePanelAyarlari({ MOD: '' }).MOD).toBeUndefined();
   });
 });

@@ -219,6 +219,8 @@ export interface LinkedinOverview {
   recentTotal?: number;
   /** Bayrak nereden: 'panel' (KvStore) ya da 'env' */
   enabledSource?: 'panel' | 'env';
+  /** Iletisim modu: baglanti istegi / Premium InMail / karma */
+  mod?: 'baglanti' | 'inmail' | 'karma';
   /** Panelden kaydedilmis ayarlar (bos = varsayilan) */
   ayarlar?: Record<string, number | number[]>;
   /** Her ayarin izin verilen araligi */
@@ -231,6 +233,9 @@ export interface LinkedinOverview {
     notUzunluk: number;
     notSinir: number;
     mesaj: string;
+    /** Premium InMail (dogrudan mesaj) metni ve konusu */
+    inmail?: string;
+    inmailKonu?: string;
     /** Metinde kisiye gore degisen parcalar (panelde vurgulanir) */
     ornek?: { kisi: string; firma: string };
   }>;
@@ -1089,7 +1094,7 @@ export const api = {
       body: JSON.stringify({ enabled }),
     }),
   /** Fren ve calisma saati ayarlarini kaydet */
-  setLinkedinAyarlar: (ayarlar: Record<string, number | number[]>) =>
+  setLinkedinAyarlar: (ayarlar: Record<string, number | number[] | string>) =>
     request<{ ayarlar: Record<string, number | number[]>; limits: Record<string, number | number[]> }>('/intel/linkedin/ayarlar', {
       method: 'POST',
       body: JSON.stringify(ayarlar),

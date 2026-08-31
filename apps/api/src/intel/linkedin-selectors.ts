@@ -36,6 +36,18 @@ export const LINKEDIN_LABELS = {
    * mesaj kutusu sanilirsa DM yanlis yere yazilir.
    */
   aramaKutusu: ['Mesajlarda ara', 'Search messages', 'Ara', 'Search', 'Arama'],
+  /** InMail (Premium) penceresindeki konu alani */
+  konuAlani: ['Konu', 'Subject'],
+  /**
+   * InMail kredisi bitti / gonderilemiyor uyarilari — gorulurse SERVIS DURUR.
+   * NEDEN: kredi bitince LinkedIn pencereyi acar ama gonderim sessizce basarisiz olur;
+   * bot bunu "gonderildi" sanip kaydi MESSAGED yapardi.
+   */
+  inmailKrediYok: [
+    'InMail kredisi kalmadı', 'InMail krediniz kalmadı', 'kredi kalmadı',
+    'You have no InMail credits', 'no InMail credits left', 'out of InMail credits',
+    'InMail kredi', 'InMail credits',
+  ],
 } as const;
 
 export type LinkedinLabelKey = keyof typeof LINKEDIN_LABELS;

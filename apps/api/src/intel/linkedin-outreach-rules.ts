@@ -18,6 +18,8 @@ export interface OutreachLimits {
   MAX_MESSAGES_PER_DAY: number;
   MAX_REQUESTS_PER_WEEK: number;
   MAX_RESEARCH_PER_DAY: number;
+  /** Premium InMail (dogrudan mesaj) — gunluk ust sinir; kredi kotasi aylıktır, gunluk fren ayri */
+  MAX_INMAILS_PER_DAY: number;
   MAX_ACTIONS_PER_TICK: number;
   SAME_COMPANY_PER_DAY: number;
   CONSECUTIVE_FAIL_PAUSE: number;
@@ -45,6 +47,7 @@ export const DEFAULT_LIMITS: Readonly<OutreachLimits> = Object.freeze({
   MAX_MESSAGES_PER_DAY: 15,
   MAX_REQUESTS_PER_WEEK: 80,
   MAX_RESEARCH_PER_DAY: 50,
+  MAX_INMAILS_PER_DAY: 10,
   MAX_ACTIONS_PER_TICK: 3,
   SAME_COMPANY_PER_DAY: 2,
   CONSECUTIVE_FAIL_PAUSE: 3,
@@ -65,7 +68,7 @@ export const ACCEPT_RATE_WINDOW_DAYS = 14;
 
 /** env'de LINKEDIN_<AD> varsa ve KUCUKSE onu kullan; buyuk/gecersiz deger yok sayilir */
 const ENV_LOWERABLE: Array<Exclude<keyof OutreachLimits, 'WORK_DAYS' | 'ACCEPT_RATE_MIN'>> = [
-  'MAX_REQUESTS_PER_DAY', 'MAX_MESSAGES_PER_DAY', 'MAX_REQUESTS_PER_WEEK', 'MAX_RESEARCH_PER_DAY',
+  'MAX_REQUESTS_PER_DAY', 'MAX_MESSAGES_PER_DAY', 'MAX_REQUESTS_PER_WEEK', 'MAX_RESEARCH_PER_DAY', 'MAX_INMAILS_PER_DAY',
   'MAX_ACTIONS_PER_TICK', 'SAME_COMPANY_PER_DAY', 'CONSECUTIVE_FAIL_PAUSE', 'ACCEPT_CHECK_PER_TICK',
 ];
 
@@ -168,6 +171,8 @@ export interface TickCounters {
   messagesToday: number;
   requestsWeek: number;
   researchToday: number;
+  /** Bugun gonderilen InMail sayisi */
+  inmailsToday: number;
   /** firmaKey(firma) → bugun o firmaya gonderilen istek sayisi */
   companyRequestsToday: Record<string, number>;
 }
@@ -195,6 +200,8 @@ export type PlannedAction =
   | { type: 'message'; prospectId: string }
   | { type: 'accept-check'; prospectIds: string[] }
   | { type: 'request'; prospectId: string }
+  /** Premium InMail: baglanti beklemeden dogrudan mesaj (kredi harcar) */
+  | { type: 'inmail'; prospectId: string }
   | { type: 'research'; firma: string };
 
 /** Ayni firmanin farkli yazimlarini (A.S., buyuk/kucuk, Grup) tek anahtara indirger */
@@ -218,6 +225,8 @@ export function firmaKey(firma: string): string {
  * Toplam islem MAX_ACTIONS_PER_TICK ile sinirli.
  */
 export interface PlanOptions {
+  /** Iletisim modu (varsayilan 'baglanti') */
+  mod?: IletisimModu;
   /**
    * Yalniz arastirma: istek/mesaj/kabul/cevap adimlari plana HIC girmez. NEDEN: kuyrukta QUEUED varken
    * plan once 'request' ile doluyor, arastirmaya 1 slot kaliyordu (30.08: 3 firma istendi, yalniz Getir arandi);
@@ -227,6 +236,7 @@ export interface PlanOptions {
 }
 
 export function planTick(counters: TickCounters, queue: TickQueue, limits: OutreachLimits = DEFAULT_LIMITS, opts: PlanOptions = {}): PlannedAction[] {
+  const mod = opts.mod ?? 'baglanti';
   const out: PlannedAction[] = [];
   const full = () => out.length >= limits.MAX_ACTIONS_PER_TICK;
 
@@ -255,11 +265,25 @@ export function planTick(counters: TickCounters, queue: TickQueue, limits: Outre
 
   let day = counters.requestsToday;
   let week = counters.requestsWeek;
+  let inmail = counters.inmailsToday ?? 0;
   const company: Record<string, number> = { ...counters.companyRequestsToday };
   for (const p of queue.queued) {
-    if (full() || day >= limits.MAX_REQUESTS_PER_DAY || week >= limits.MAX_REQUESTS_PER_WEEK) break;
+    if (full()) break;
     const key = firmaKey(p.firma);
     if ((company[key] ?? 0) >= limits.SAME_COMPANY_PER_DAY) continue;
+    // 'inmail'/'karma': baglanti beklemeden dogrudan mesaj (Premium kredisi harcar)
+    if (mod !== 'baglanti') {
+      if (inmail >= limits.MAX_INMAILS_PER_DAY) {
+        if (mod === 'inmail') break; // saf InMail modunda gunluk kota bitti
+      } else {
+        out.push({ type: 'inmail', prospectId: p.id });
+        company[key] = (company[key] ?? 0) + 1;
+        inmail++;
+        continue;
+      }
+    }
+    // 'baglanti' modu ya da 'karma'da InMail kotasi dolduysa: baglanti istegi
+    if (day >= limits.MAX_REQUESTS_PER_DAY || week >= limits.MAX_REQUESTS_PER_WEEK) break;
     out.push({ type: 'request', prospectId: p.id });
     company[key] = (company[key] ?? 0) + 1;
     day++;
@@ -1362,6 +1386,7 @@ export const AYAR_TAVAN: Record<string, { min: number; max: number }> = {
   MAX_MESSAGES_PER_DAY: { min: 1, max: 30 },
   MAX_REQUESTS_PER_WEEK: { min: 1, max: 120 },
   MAX_RESEARCH_PER_DAY: { min: 1, max: 100 },
+  MAX_INMAILS_PER_DAY: { min: 1, max: 30 },
   MAX_ACTIONS_PER_TICK: { min: 0, max: 6 },
   SAME_COMPANY_PER_DAY: { min: 1, max: 10 },
   ACCEPT_CHECK_PER_TICK: { min: 1, max: 10 },
@@ -1370,7 +1395,21 @@ export const AYAR_TAVAN: Record<string, { min: number; max: number }> = {
   WORK_HOUR_END: { min: 1, max: 24 },
 };
 
-export type PanelAyarlari = Partial<Record<keyof typeof AYAR_TAVAN, number>> & { WORK_DAYS?: number[] };
+/**
+ * Iletisim modu:
+ *  - 'baglanti': once baglanti istegi (not ile), kabul edilirse mesaj (varsayilan, kredi harcamaz)
+ *  - 'inmail'  : Premium InMail — baglanti beklemeden DOGRUDAN mesaj (kredi harcar)
+ *  - 'karma'   : once InMail dene; kota dolduysa/pencere acilmazsa baglanti istegine dus
+ */
+export const ILETISIM_MODLARI = ['baglanti', 'inmail', 'karma'] as const;
+export type IletisimModu = (typeof ILETISIM_MODLARI)[number];
+
+export function normalizeMod(v: unknown): IletisimModu {
+  const m = String(v ?? '').trim().toLowerCase();
+  return (ILETISIM_MODLARI as readonly string[]).includes(m) ? (m as IletisimModu) : 'baglanti';
+}
+
+export type PanelAyarlari = Partial<Record<keyof typeof AYAR_TAVAN, number>> & { WORK_DAYS?: number[]; MOD?: IletisimModu };
 
 /**
  * Panelden gelen ayarlari dogrula ve kirp. NEDEN tavan: gunde 100 baglanti istegi
@@ -1390,6 +1429,7 @@ export function normalizePanelAyarlari(input: unknown): PanelAyarlari {
     if (!Number.isFinite(v)) continue;
     out[key as keyof typeof AYAR_TAVAN] = Math.max(min, Math.min(max, Math.floor(v)));
   }
+  if (raw.MOD !== undefined && raw.MOD !== null && raw.MOD !== '') out.MOD = normalizeMod(raw.MOD);
   if (Array.isArray(raw.WORK_DAYS)) {
     const gunler = [...new Set(raw.WORK_DAYS.map((d) => Math.floor(Number(d))).filter((d) => Number.isFinite(d) && d >= 0 && d <= 6))].sort();
     if (gunler.length > 0) out.WORK_DAYS = gunler;
@@ -1423,4 +1463,57 @@ export function applyPanelAyarlari(base: OutreachLimits, ayar: PanelAyarlari | n
   }
   if (ayar.WORK_DAYS?.length) out.WORK_DAYS = ayar.WORK_DAYS;
   return out;
+}
+
+// ── InMail (Premium, dogrudan mesaj) ─────────────────────────────────────────
+
+/** InMail konu satiri — kampanyaya gore; kisa ve net, tiklama tuzagi yok */
+export function renderInMailKonu(p: ProspectLike): string {
+  const kampanya = normalizeKampanya(p.kampanya);
+  const firma = p.firma.trim();
+  if (kampanya === 'YATIRIMCI') return 'RanksUp — AI görünürlük ölçümü (kısa tanışma)';
+  if (kampanya === 'ISBIRLIGI') return `${firma} ile iş birliği — AI görünürlük ölçümü`;
+  return `${firma} — AI görünürlük karnesi (ücretsiz)`;
+}
+
+/**
+ * InMail govdesi. NEDEN ayri sablon: renderMessage "bağlantı için teşekkürler" ile basliyor —
+ * InMail ILK TEMAS oldugu icin o cumle yanlis olur. Burada kimlik + neden yaziyorum + tek soru +
+ * ret garantisi var (6563 md. 8/3). Kisa tutulur: InMail'de uzun metin okunmuyor.
+ */
+export function renderInMail(p: ProspectLike): string {
+  const kampanya = normalizeKampanya(p.kampanya);
+  const firma = p.firma.trim();
+  const ad = `${p.ad} ${p.soyad}`.replace(/\s+/g, ' ').trim();
+
+  if (kampanya === 'YATIRIMCI') {
+    return (
+      `Merhaba ${ad},\n\n` +
+      `RanksUp'ın kurucusuyum. Markaların ChatGPT, Gemini ve Perplexity gibi AI asistanlarında ne zaman ve ` +
+      `nasıl önerildiğini ölçen bir Türkiye ürünü geliştiriyoruz: marka adı geçmeyen gerçek müşteri sorularıyla ` +
+      `7 asistanı tarıyor, görünürlüğü ve rakip payını raporluyoruz.\n\n` +
+      `Arama trafiği asistanlara kaydıkça kurumsal pazarlama bütçesinin bu tarafa açılacağını düşünüyoruz. ` +
+      `Ürünü 20 dakikada gösterebilirim; sayılar ve yol haritası görüşmede.\n\n` +
+      `Uygun olur musunuz? İlgi alanınız değilse bir daha yazmayacağım.`
+    );
+  }
+  if (kampanya === 'ISBIRLIGI') {
+    return (
+      `Merhaba ${ad},\n\n` +
+      `RanksUp'ta markaların AI asistanlarındaki (ChatGPT, Gemini, Perplexity) görünürlüğünü ölçüyor ve ` +
+      `kapatma planını çıkarıyoruz. ${genitiveOrSafe(firma)} müşterileri için bunu birlikte sunabileceğimizi ` +
+      `düşünüyorum: ölçümü biz yapalım, müşteri ilişkisi ve uygulama sizde kalsın.\n\n` +
+      `Örnek bir kurum için ücretsiz karne çıkarıp gösterebilirim — ilginizi çeker mi? ` +
+      `İstemezseniz bir daha yazmayacağım.`
+    );
+  }
+  return (
+    `Merhaba ${ad},\n\n` +
+    `RanksUp'ta Türkiye ${sektorAdi(p.sektor)} sektörü için bağımsız bir AI görünürlük araştırması yürütüyorum. ` +
+    `Müşteriler artık "${sektorSorusu(p.sektor)}" sorusunu Google'a değil ChatGPT'ye soruyor ve cevapta 3 isim geçiyor.\n\n` +
+    `7 AI asistanında, marka adı geçmeyen gerçek sorularla ${genitiveOrSafe(firma)} nerede göründüğünü ölçüp ` +
+    `yalnız size iletebilirim — kurum bazlı sonuç kamuya açılmaz, ücret yok.\n\n` +
+    `Karnenizi çıkarmamı ister misiniz? "Evet" yeterli, 2 iş günü içinde iletiyorum. ` +
+    `İstemezseniz bir daha yazmayacağım.`
+  );
 }

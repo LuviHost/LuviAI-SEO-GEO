@@ -51,6 +51,10 @@ import {
   renderMessage,
   renderNote,
   normalizeKampanya,
+  normalizeMod,
+  type IletisimModu,
+  renderInMail,
+  renderInMailKonu,
   normalizePanelAyarlari,
   applyPanelAyarlari,
   AYAR_TAVAN,
@@ -390,7 +394,8 @@ export class LinkedinOutreachService {
 
       const queue = await this.buildQueue(opts.research);
       // yalniz arastirma: istek/mesaj plana girmez (kota arastirmaya kalir)
-      const plan = planTick(counters, queue, limits, { researchOnly: opts.researchOnly === true });
+      const mod = await this.getMod();
+      const plan = planTick(counters, queue, limits, { researchOnly: opts.researchOnly === true, mod });
       if (plan.length === 0) return { actions: [], reason: 'Yapılacak iş yok' };
       this.log.log(`LinkedIn tick${dryRun ? ' (kuru)' : ''}: ${plan.map((p) => p.type).join(', ')}`);
 
@@ -451,8 +456,104 @@ export class LinkedinOutreachService {
       case 'message': return this.sendMessage(a.prospectId, dryRun);
       case 'accept-check': return this.acceptCheck(a.prospectIds, dryRun);
       case 'request': return this.sendRequest(a.prospectId, dryRun);
+      case 'inmail': return this.sendInMail(a.prospectId, dryRun);
       case 'research': return this.research(a.firma, dryRun, limits);
     }
+  }
+
+  /** Panelden secili iletisim modu ('baglanti' | 'inmail' | 'karma') */
+  async getMod(): Promise<IletisimModu> {
+    const a = await this.getAyarlar();
+    return normalizeMod(a.MOD);
+  }
+
+  /**
+   * (1b) Premium InMail — baglanti beklemeden DOGRUDAN mesaj.
+   * NEDEN ayri akis: kullanicinin Premium'u var (31.08); baglanti istegi kabul beklerken zaman kaybediliyordu.
+   * Kredi harcar; kredi bittiginde LinkedIn pencereyi acar ama gonderim sessizce basarisiz olabilir → uyari
+   * metni goruldugunde SERVIS DURUR (yanlis "gonderildi" kaydi olusmasin).
+   */
+  private async sendInMail(id: string, dryRun: boolean): Promise<TickAction> {
+    const p = await this.prisma.linkedinProspect.findUnique({ where: { id } });
+    if (!p || p.status !== 'QUEUED') return { type: 'inmail', prospectId: id, ok: false, note: 'kayıt QUEUED değil' };
+    const who = nameTokens(p);
+    if (who.length === 0) throw new Error('kayıtta ad yok — üst kart eşlemesi yapılamaz');
+
+    await this.goto(p.profileUrl);
+    await this.humanRead(dryRun);
+    const page = await this.readPage();
+    this.assertNoBlock(page);
+    this.assertInMailKredisi(page.text);
+
+    // Ust kartta KISININ ADINI tasiyan "Mesaj" dugmesi (Premium'da baglanti olmayanlarda da cikar)
+    let snap = await this.snapshot();
+    const msgBtn = findRef(cutAtSidebar(snap), L.mesaj, { role: 'button', include: who });
+    if (!msgBtn) throw new Error('bu kişi adına "Mesaj" düğmesi bulunamadı (InMail açık değil ya da profil kısıtlı)');
+
+    if (dryRun) {
+      const kuruMetin = renderInMail(p);
+      await this.press('Escape').catch(() => undefined);
+      const kuruShot = await this.screenshot(id, 'kuru-inmail');
+      return {
+        type: 'inmail',
+        prospectId: id,
+        ok: true,
+        note: `kuru: "Mesaj" düğmesi bulundu, TIKLANMADI · konu: ${renderInMailKonu(p)} · metin: ${kuruMetin.slice(0, 100)}…${kuruShot ? ` (${path.basename(kuruShot)})` : ''}`,
+      };
+    }
+
+    await this.click(msgBtn);
+    await sleep(UI_MS + 800);
+    snap = await this.snapshot();
+    this.assertInMailKredisi(snap);
+
+    // InMail penceresinde KONU alani olabilir (Premium); varsa doldurulur
+    const konu = renderInMailKonu(p);
+    const konuBox = findRef(snap, [...L.konuAlani], { role: 'textbox', after: msgBtn, exclude: [...L.aramaKutusu] });
+    if (konuBox) {
+      await this.type(konuBox, konu);
+      await sleep(400);
+      snap = await this.snapshot();
+    }
+
+    const disla = [...L.aramaKutusu, ...L.konuAlani];
+    const box = findRef(snap, [...L.mesajKutusu], { role: 'textbox', after: konuBox ?? msgBtn, exclude: disla, pick: 'last' })
+      ?? findRef(snap, [], { role: 'textbox', after: konuBox ?? msgBtn, exclude: disla, pick: 'last' });
+    if (!box) throw new Error('InMail mesaj kutusu bulunamadı');
+
+    const metin = renderInMail(p);
+    const satirlar = metin.split('\n');
+    for (let i = 0; i < satirlar.length; i++) {
+      if (satirlar[i]) await this.type(box, satirlar[i]);
+      if (i < satirlar.length - 1) await this.press('Shift+Enter');
+    }
+    await sleep(800);
+    let shot = await this.screenshot(id, 'inmail');
+
+    snap = await this.snapshot();
+    this.assertInMailKredisi(snap);
+    const send = findRef(snap, [...L.gonder], { role: 'button', exact: true, after: box }) ?? findRef(snap, [...L.gonder], { role: 'button', after: box });
+    if (!send) throw new Error('InMail "Gönder" düğmesi bulunamadı');
+    await this.click(send);
+    // Once DB (gonderim sonrasi okuma patlarsa kayit kaybolmasin) — request akisiyla ayni kural
+    await this.prisma.linkedinProspect.update({
+      where: { id },
+      data: { status: 'MESSAGED', messagedAt: new Date(), messageText: `[InMail] ${konu}\n\n${metin}`, screenshotPath: shot, lastError: null },
+    });
+    await sleep(2_000);
+    const after = await this.readPage();
+    this.assertNoBlock(after);
+    this.assertInMailKredisi(after.text);
+    shot = (await this.screenshot(id, 'sent-inmail')) ?? shot;
+    await this.prisma.linkedinProspect.update({ where: { id }, data: { screenshotPath: shot } }).catch(() => undefined);
+    return { type: 'inmail', prospectId: id, ok: true, note: 'InMail gönderildi (bağlantı beklenmedi)' };
+  }
+
+  /** InMail kredisi bitti uyarisi → BlockError (servis durur, yanlis kayit olusmaz) */
+  private assertInMailKredisi(metin: string | null | undefined): void {
+    const t = String(metin ?? '').toLocaleLowerCase('tr');
+    const hit = L.inmailKrediYok.find((k) => t.includes(k.toLocaleLowerCase('tr')));
+    if (hit) throw new BlockError({ blocked: true, kind: 'verification', match: `InMail kredisi: ${hit}` });
   }
 
   // ── (1) Istek ───────────────────────────────────────────────
@@ -972,6 +1073,9 @@ export class LinkedinOutreachService {
         notUzunluk: not.length,
         notSinir: NOTE_MAX_CHARS,
         mesaj: renderMessage({ ...p, kampanya: k }),
+        // Premium InMail (dogrudan mesaj) — ayri metin: "bağlantı için teşekkürler" yok
+        inmailKonu: renderInMailKonu({ ...p, kampanya: k }),
+        inmail: renderInMail({ ...p, kampanya: k }),
         // Panelde vurgulamak icin: metindeki hangi parcalar kisiye gore degisiyor
         ornek: { kisi: `${p.ad} ${p.soyad}`, firma: p.firma },
       };
@@ -994,9 +1098,10 @@ export class LinkedinOutreachService {
     const dayStart = istanbulDayStart(now);
     const weekAgo = new Date(now.getTime() - 7 * 86_400_000);
     const win = acceptRateWindow(now);
-    const [requestsToday, messagesToday, requestsWeek, queued, requestsMatured, acceptedMatured, recent, byStatus, byFirmaRaw, pausedReason, enabled, ayarlar, ilkKuyruk] = await Promise.all([
+    const [requestsToday, messagesToday, inmailsToday, requestsWeek, queued, requestsMatured, acceptedMatured, recent, byStatus, byFirmaRaw, pausedReason, enabled, ayarlar, ilkKuyruk] = await Promise.all([
       this.prisma.linkedinProspect.count({ where: { requestedAt: { gte: dayStart } } }),
       this.prisma.linkedinProspect.count({ where: { messagedAt: { gte: dayStart } } }),
+      this.prisma.linkedinProspect.count({ where: { messagedAt: { gte: dayStart }, requestedAt: null } }),
       this.prisma.linkedinProspect.count({ where: { requestedAt: { gte: weekAgo } } }),
       this.prisma.linkedinProspect.count({ where: { status: 'QUEUED' } }),
       this.prisma.linkedinProspect.count({ where: { requestedAt: { gte: win.from, lte: win.to } } }),
@@ -1021,7 +1126,7 @@ export class LinkedinOutreachService {
       paused: pausedReason !== null,
       pauseReason: pausedReason ?? undefined,
       workWindow: isWorkWindow(now, limits),
-      today: { requests: requestsToday, messages: messagesToday },
+      today: { requests: requestsToday, messages: messagesToday, inmails: inmailsToday },
       week: { requests: requestsWeek },
       queued,
       // Alan adi panel sozlesmesi icin sabit; deger OLGUN pencere orani (72 sa–14 gun), 20 istek altinda null
@@ -1036,6 +1141,7 @@ export class LinkedinOutreachService {
       // Panelden degistirilebilen ayarlar ve guvenlik tavanlari
       ayarlar,
       ayarTavan: AYAR_TAVAN,
+      mod: normalizeMod(ayarlar.MOD),
       // Firma bazli dagilim (panel ozet seridi): { firma, toplam, kuyrukta }
       byFirma: Object.values(
         byFirmaRaw.reduce<Record<string, { firma: string; toplam: number; kuyrukta: number }>>((acc, r) => {
@@ -1107,9 +1213,11 @@ export class LinkedinOutreachService {
     const dayStart = istanbulDayStart(now);
     const weekAgo = new Date(now.getTime() - 7 * 86_400_000);
     const win = acceptRateWindow(now);
-    const [requestsToday, messagesToday, requestsWeek, requestsMatured, acceptedMatured, todayRows, failsRow, researchRow] = await Promise.all([
+    const [requestsToday, messagesToday, inmailsToday, requestsWeek, requestsMatured, acceptedMatured, todayRows, failsRow, researchRow] = await Promise.all([
       this.prisma.linkedinProspect.count({ where: { requestedAt: { gte: dayStart } } }),
       this.prisma.linkedinProspect.count({ where: { messagedAt: { gte: dayStart } } }),
+      // InMail = bugun mesaj gitmis ama HIC baglanti istegi gonderilmemis kayit (dogrudan mesaj)
+      this.prisma.linkedinProspect.count({ where: { messagedAt: { gte: dayStart }, requestedAt: null } }),
       this.prisma.linkedinProspect.count({ where: { requestedAt: { gte: weekAgo } } }),
       this.prisma.linkedinProspect.count({ where: { requestedAt: { gte: win.from, lte: win.to } } }),
       this.prisma.linkedinProspect.count({ where: { requestedAt: { gte: win.from, lte: win.to }, acceptedAt: { not: null } } }),
@@ -1128,6 +1236,7 @@ export class LinkedinOutreachService {
         messagesToday,
         requestsWeek,
         researchToday: Number(researchRow?.value ?? 0) || 0,
+        inmailsToday,
         companyRequestsToday,
         fails: Number(failsRow?.value ?? 0) || 0,
       },
