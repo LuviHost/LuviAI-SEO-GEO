@@ -804,6 +804,9 @@ function AyarCard({ overview, onDone, disabled }: { overview?: LinkedinOverview;
           </div>
           <div className="text-[11px] text-muted-foreground">
             {MODLAR.find((m) => m.key === (taslakMod ?? overview?.mod ?? 'baglanti'))?.aciklama}
+            {typeof overview?.inmailKredi === 'number' && (
+              <> · Kalan InMail kredisi: <span className="font-medium text-foreground">{overview.inmailKredi}</span></>
+            )}
           </div>
         </div>
 

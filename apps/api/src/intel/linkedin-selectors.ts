@@ -29,7 +29,7 @@ export const LINKEDIN_LABELS = {
   /** Not alani (textarea) — modal icindeki metin kutusu */
   notAlani: ['Not ekle', 'Add a note', 'not', 'note'],
   /** Mesaj yazma kutusu (contenteditable, role=textbox) */
-  mesajKutusu: ['Mesaj yaz', 'Write a message', 'mesaj', 'message'],
+  mesajKutusu: ['Bir mesaj yazın…', 'Bir mesaj yazın', 'Mesaj yaz', 'Write a message…', 'Write a message', 'mesaj', 'message'],
   /**
    * Arama kutulari — metin kutusu ararken HER ZAMAN dislanir (uzunluktan
    * bagimsiz). "Mesajlarda ara" mesaj penceresinin ustundeki arama kutusudur;
@@ -37,7 +37,7 @@ export const LINKEDIN_LABELS = {
    */
   aramaKutusu: ['Mesajlarda ara', 'Search messages', 'Ara', 'Search', 'Arama'],
   /** InMail (Premium) penceresindeki konu alani */
-  konuAlani: ['Konu', 'Subject'],
+  konuAlani: ['Konu (isteğe bağlı)', 'Konu', 'Subject (optional)', 'Subject'],
   /**
    * InMail kredisi bitti / gonderilemiyor uyarilari — gorulurse SERVIS DURUR.
    * NEDEN: kredi bitince LinkedIn pencereyi acar ama gonderim sessizce basarisiz olur;
@@ -48,6 +48,8 @@ export const LINKEDIN_LABELS = {
     'You have no InMail credits', 'no InMail credits left', 'out of InMail credits',
     'InMail kredi', 'InMail credits',
   ],
+  /** InMail compose penceresi acildiginin isareti */
+  inmailRozet: ['InMail'],
 } as const;
 
 export type LinkedinLabelKey = keyof typeof LINKEDIN_LABELS;

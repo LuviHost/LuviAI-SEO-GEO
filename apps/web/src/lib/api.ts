@@ -202,7 +202,7 @@ export interface LinkedinOverview {
   pauseReason?: string | null;
   /** Su an hafta ici 09-18 Europe/Istanbul penceresinde miyiz */
   workWindow?: boolean;
-  today: { requests: number; messages: number };
+  today: { requests: number; messages: number; inmails?: number };
   week: { requests: number };
   queued: number;
   /** ORAN (0-1): olgunlasmis isteklerde (72 sa - 14 gun) kabul / istek; 20 istek altinda null */
@@ -221,6 +221,8 @@ export interface LinkedinOverview {
   enabledSource?: 'panel' | 'env';
   /** Iletisim modu: baglanti istegi / Premium InMail / karma */
   mod?: 'baglanti' | 'inmail' | 'karma';
+  /** Son gorulen InMail kredisi */
+  inmailKredi?: number | null;
   /** Panelden kaydedilmis ayarlar (bos = varsayilan) */
   ayarlar?: Record<string, number | number[]>;
   /** Her ayarin izin verilen araligi */

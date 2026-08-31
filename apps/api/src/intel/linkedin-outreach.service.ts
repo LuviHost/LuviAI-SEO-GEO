@@ -124,6 +124,8 @@ const VARSAYILAN_SAYFA = 5;
 const PANEL_RECENT_TAKE = 500;
 /** Panelden ayarlanan gonderim anahtari ('1' acik / '0' kapali); yoksa env bayragi gecerli */
 const KV_ENABLED = 'linkedin-outreach:enabled';
+/** Son gorulen InMail kredisi (panelde gosterilir) */
+const KV_INMAIL_KREDI = 'linkedin-outreach:inmail-kredi';
 /** Panelden ayarlanan frenler ve calisma penceresi (JSON) */
 const KV_AYARLAR = 'linkedin-outreach:ayarlar';
 const KV_COMPANY = 'linkedin-outreach:company:'; // + firmaKey → sayisal LinkedIn sirket kimligi
@@ -204,6 +206,25 @@ const SEARCH_LINKS_FN = `() => {
     const text = (c.lines[0] || '').replace(/\\s*[•·]\\s*[123]\\.?\\+?.*$/u, '').replace(/\\s+\\b(1st|2nd|3rd)\\b.*$/u, '').trim();
     return { href: c.href, text, card: c.lines.join(' ').slice(0, 400), lines: c.lines };
   });
+}`;
+
+/**
+ * Profil ust kartindaki "Mesaj gönder" baglantisinin ADRESI.
+ * NEDEN href: link tiklamasi bazen pencere acmiyor (31.08 canli deneme: tiklandi, kutu cikmadi);
+ * adres `/messaging/compose/?recipient=<urn>` — dogrudan gitmek hem kararli hem alici garantili.
+ */
+const MESSAGE_HREF_FN = `() => {
+  const a = [...document.querySelectorAll('a')].find((x) =>
+    /mesaj g|send message/i.test((x.innerText || '').trim()) &&
+    (x.getAttribute('href') || '').includes('/messaging/compose'));
+  return a ? a.href : '';
+}`;
+
+/** InMail compose sayfasindaki kalan kredi ("14 InMail kredisi arasından 1 krediyi kullan") */
+const INMAIL_KREDI_FN = `() => {
+  const t = document.body.innerText || '';
+  const m = t.match(/(\\d+)\\s*InMail\\s*kredi/i) || t.match(/(\\d+)\\s*InMail\\s*credit/i);
+  return m ? Number(m[1]) : null;
 }`;
 
 /** Sirket arama sayfasi: /company/ baglantilari (slug secimi rules.pickCompanySlug) */
@@ -485,40 +506,64 @@ export class LinkedinOutreachService {
     this.assertNoBlock(page);
     this.assertInMailKredisi(page.text);
 
-    // Ust kartta KISININ ADINI tasiyan "Mesaj" dugmesi (Premium'da baglanti olmayanlarda da cikar)
+    // Ust karttaki "Mesaj gönder" baglantisinin ADRESI (tiklama yerine dogrudan gidilir)
     let snap = await this.snapshot();
-    const msgBtn = this.messageFor(cutAtSidebar(snap), who);
-    if (!msgBtn) throw new Error('bu kişi adına "Mesaj gönder" bağlantısı bulunamadı (InMail açık değil ya da profil kısıtlı)');
-
-    if (dryRun) {
+    const hrefRes = await this.browser<{ result?: string }>(['evaluate', '--fn', MESSAGE_HREF_FN]);
+    const composeUrl = String(hrefRes?.result ?? '').trim();
+    if (!composeUrl) {
+      // Yedek: eski arayuzde ust kart dugmesi (etikette ad var)
+      const msgBtn = this.messageFor(cutAtSidebar(snap), who);
+      if (!msgBtn) throw new Error('bu kişi için "Mesaj gönder" bağlantısı bulunamadı (InMail açık değil ya da profil kısıtlı)');
+      if (dryRun) {
+        await this.press('Escape').catch(() => undefined);
+        return { type: 'inmail', prospectId: id, ok: true, note: `kuru: mesaj düğmesi bulundu (adres yok), TIKLANMADI · konu: ${renderInMailKonu(p)}` };
+      }
+      await this.click(msgBtn);
+      await sleep(UI_MS + 1_200);
+    } else if (dryRun) {
       const kuruMetin = renderInMail(p);
-      await this.press('Escape').catch(() => undefined);
       const kuruShot = await this.screenshot(id, 'kuru-inmail');
       return {
         type: 'inmail',
         prospectId: id,
         ok: true,
-        note: `kuru: "Mesaj" düğmesi bulundu, TIKLANMADI · konu: ${renderInMailKonu(p)} · metin: ${kuruMetin.slice(0, 100)}…${kuruShot ? ` (${path.basename(kuruShot)})` : ''}`,
+        note: `kuru: InMail adresi bulundu, AÇILMADI · konu: ${renderInMailKonu(p)} · metin: ${kuruMetin.slice(0, 90)}…${kuruShot ? ` (${path.basename(kuruShot)})` : ''}`,
       };
+    } else {
+      await this.goto(composeUrl);
+      await sleep(SETTLE_MS + 1_500);
     }
 
-    await this.click(msgBtn);
-    await sleep(UI_MS + 800);
     snap = await this.snapshot();
     this.assertInMailKredisi(snap);
 
-    // InMail penceresinde KONU alani olabilir (Premium); varsa doldurulur
-    const konu = renderInMailKonu(p);
-    const konuBox = findRef(snap, [...L.konuAlani], { role: 'textbox', after: msgBtn, exclude: [...L.aramaKutusu] });
-    if (konuBox) {
-      await this.type(konuBox, konu);
-      await sleep(400);
-      snap = await this.snapshot();
+    // ALICI DOGRULAMASI: compose sayfasinda kisinin adi gecmeli — yanlis kisiye InMail gitmesin
+    if (!findRef(snap, [], { include: who })) {
+      throw new Error('InMail penceresinde alıcı adı doğrulanamadı — gönderilmedi');
     }
 
+    // Kalan kredi (panelde/loga): "14 InMail kredisi arasından 1 krediyi kullan"
+    const krediRes = await this.browser<{ result?: number | null }>(['evaluate', '--fn', INMAIL_KREDI_FN]).catch(() => null);
+    const kalanKredi = typeof krediRes?.result === 'number' ? krediRes.result : null;
+    if (kalanKredi !== null) {
+      await this.prisma.kvStore.upsert({
+        where: { key: KV_INMAIL_KREDI },
+        create: { key: KV_INMAIL_KREDI, value: String(kalanKredi) },
+        update: { value: String(kalanKredi) },
+      }).catch(() => undefined);
+      if (kalanKredi <= 0) throw new BlockError({ blocked: true, kind: 'verification', match: 'InMail kredisi bitti' });
+    }
+
+    // Konu (istege bagli alan) ve govde
+    const konu = renderInMailKonu(p);
+    const konuBox = findRef(snap, [...L.konuAlani], { role: 'textbox', exclude: [...L.aramaKutusu] });
+    if (konuBox) {
+      await this.type(konuBox, konu);
+      await sleep(500);
+      snap = await this.snapshot();
+    }
     const disla = [...L.aramaKutusu, ...L.konuAlani];
-    const box = findRef(snap, [...L.mesajKutusu], { role: 'textbox', after: konuBox ?? msgBtn, exclude: disla, pick: 'last' })
-      ?? findRef(snap, [], { role: 'textbox', after: konuBox ?? msgBtn, exclude: disla, pick: 'last' });
+    const box = findRef(snap, [...L.mesajKutusu], { role: 'textbox', exclude: disla, pick: 'last' });
     if (!box) throw new Error('InMail mesaj kutusu bulunamadı');
 
     const metin = renderInMail(p);
@@ -527,12 +572,14 @@ export class LinkedinOutreachService {
       if (satirlar[i]) await this.type(box, satirlar[i]);
       if (i < satirlar.length - 1) await this.press('Shift+Enter');
     }
-    await sleep(800);
+    await sleep(1_000);
     let shot = await this.screenshot(id, 'inmail');
 
     snap = await this.snapshot();
     this.assertInMailKredisi(snap);
-    const send = findRef(snap, [...L.gonder], { role: 'button', exact: true, after: box }) ?? findRef(snap, [...L.gonder], { role: 'button', after: box });
+    const send = findRef(snap, [...L.gonder], { role: ['button', 'link'], exact: true, after: box })
+      ?? findRef(snap, [...L.gonder], { role: ['button', 'link'], after: box })
+      ?? findRef(snap, [...L.gonder], { role: ['button', 'link'], exact: true, pick: 'last' });
     if (!send) throw new Error('InMail "Gönder" düğmesi bulunamadı');
     await this.click(send);
     // Once DB (gonderim sonrasi okuma patlarsa kayit kaybolmasin) — request akisiyla ayni kural
@@ -540,13 +587,12 @@ export class LinkedinOutreachService {
       where: { id },
       data: { status: 'MESSAGED', messagedAt: new Date(), messageText: `[InMail] ${konu}\n\n${metin}`, screenshotPath: shot, lastError: null },
     });
-    await sleep(2_000);
+    await sleep(2_500);
     const after = await this.readPage();
     this.assertNoBlock(after);
-    this.assertInMailKredisi(after.text);
     shot = (await this.screenshot(id, 'sent-inmail')) ?? shot;
     await this.prisma.linkedinProspect.update({ where: { id }, data: { screenshotPath: shot } }).catch(() => undefined);
-    return { type: 'inmail', prospectId: id, ok: true, note: 'InMail gönderildi (bağlantı beklenmedi)' };
+    return { type: 'inmail', prospectId: id, ok: true, note: `InMail gönderildi (bağlantı beklenmedi)${kalanKredi !== null ? ` · kalan kredi ~${kalanKredi - 1}` : ''}` };
   }
 
   /** InMail kredisi bitti uyarisi → BlockError (servis durur, yanlis kayit olusmaz) */
@@ -1116,7 +1162,7 @@ export class LinkedinOutreachService {
     const dayStart = istanbulDayStart(now);
     const weekAgo = new Date(now.getTime() - 7 * 86_400_000);
     const win = acceptRateWindow(now);
-    const [requestsToday, messagesToday, inmailsToday, requestsWeek, queued, requestsMatured, acceptedMatured, recent, byStatus, byFirmaRaw, pausedReason, enabled, ayarlar, ilkKuyruk] = await Promise.all([
+    const [requestsToday, messagesToday, inmailsToday, requestsWeek, queued, requestsMatured, acceptedMatured, recent, byStatus, byFirmaRaw, pausedReason, enabled, ayarlar, krediRow, ilkKuyruk] = await Promise.all([
       this.prisma.linkedinProspect.count({ where: { requestedAt: { gte: dayStart } } }),
       this.prisma.linkedinProspect.count({ where: { messagedAt: { gte: dayStart } } }),
       this.prisma.linkedinProspect.count({ where: { messagedAt: { gte: dayStart }, requestedAt: null } }),
@@ -1131,6 +1177,7 @@ export class LinkedinOutreachService {
       this.pausedReason(),
       this.isEnabled(),
       this.getAyarlar(),
+      this.prisma.kvStore.findUnique({ where: { key: KV_INMAIL_KREDI } }).catch(() => null),
       this.prisma.linkedinProspect.findFirst({
         where: { status: 'QUEUED' },
         orderBy: { createdAt: 'asc' },
@@ -1160,6 +1207,8 @@ export class LinkedinOutreachService {
       ayarlar,
       ayarTavan: AYAR_TAVAN,
       mod: normalizeMod(ayarlar.MOD),
+      /** Son gorulen InMail kredisi (compose penceresinden okundu) */
+      inmailKredi: krediRow?.value ? Number(krediRow.value) : null,
       // Firma bazli dagilim (panel ozet seridi): { firma, toplam, kuyrukta }
       byFirma: Object.values(
         byFirmaRaw.reduce<Record<string, { firma: string; toplam: number; kuyrukta: number }>>((acc, r) => {
