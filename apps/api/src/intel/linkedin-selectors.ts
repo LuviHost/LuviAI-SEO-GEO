@@ -44,9 +44,12 @@ export const LINKEDIN_LABELS = {
    * bot bunu "gonderildi" sanip kaydi MESSAGED yapardi.
    */
   inmailKrediYok: [
-    'InMail kredisi kalmadı', 'InMail krediniz kalmadı', 'kredi kalmadı',
+    // NEDEN dar kalip: "14 InMail kredisi arasından 1 krediyi kullan" NORMAL durumdur; genis kalip
+    // ("InMail kredi") bunu "kredi bitti" sanip botu duraklatti (31.08). Yalniz TUKENME ifadeleri.
+    'InMail kredisi kalmadı', 'InMail krediniz kalmadı', 'InMail kredin kalmadı',
+    'kredi kalmadı', 'krediniz kalmadı', 'yeterli InMail krediniz yok', 'InMail krediniz yok',
     'You have no InMail credits', 'no InMail credits left', 'out of InMail credits',
-    'InMail kredi', 'InMail credits',
+    "You've used all your InMail", 'not enough InMail credits',
   ],
   /** InMail compose penceresi acildiginin isareti */
   inmailRozet: ['InMail'],
