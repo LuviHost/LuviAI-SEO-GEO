@@ -97,8 +97,11 @@ describe('planTick — oncelik ve frenler', () => {
       requested: [{ id: 'r1', firma: 'X' }, { id: 'r2', firma: 'Y' }],
       queued: [{ id: 'q1', firma: 'Z' }],
     }));
-    expect(plan.map((p) => p.type)).toEqual(['reply-check', 'message', 'accept-check']);
-    expect(plan.length).toBe(DEFAULT_LIMITS.MAX_ACTIONS_PER_TICK);
+    // 31.08: okuma adimlari (reply-check/accept-check) gonderim slotunu yemez → ek olarak istek de planlanir
+    expect(plan.map((p) => p.type).slice(0, 3)).toEqual(['reply-check', 'message', 'accept-check']);
+    // Gonderim adimlari (message/request/inmail/research) MAX_ACTIONS_PER_TICK ile sinirli; okuma adimlari muaf
+    const gonderim = plan.filter((p) => ['message', 'request', 'inmail', 'research'].includes(p.type));
+    expect(gonderim.length).toBeLessThanOrEqual(DEFAULT_LIMITS.MAX_ACTIONS_PER_TICK);
   });
   it('MESSAGED yoksa reply-check planlanmaz; request kuyruktan gelir', () => {
     const plan = planTick(emptyCounters(), emptyQueue({ queued: [{ id: 'q1', firma: 'A' }, { id: 'q2', firma: 'B' }] }));
@@ -158,12 +161,14 @@ describe('resolveLimits — env yalniz asagi, alt sinir 1, MAX_ACTIONS_PER_TICK=
     expect(resolveLimits({ LINKEDIN_ACCEPT_RATE_MIN: '0.01' }).ACCEPT_RATE_MIN).toBe(0.15);
     expect(resolveLimits({ LINKEDIN_ACCEPT_RATE_MIN: '2' }).ACCEPT_RATE_MIN).toBe(0.15);
   });
-  it('MAX_ACTIONS_PER_TICK=0 → plan bos (oldurme anahtari); 1 → yalniz reply-check', () => {
+  it('MAX_ACTIONS_PER_TICK=0 → plan bos (oldurme anahtari); 1 → reply-check + 1 gonderim', () => {
     const l0 = resolveLimits({ LINKEDIN_MAX_ACTIONS_PER_TICK: '0' });
     expect(l0.MAX_ACTIONS_PER_TICK).toBe(0);
     expect(planTick(emptyCounters(), emptyQueue({ messagedCount: 1, queued: [{ id: 'a', firma: 'X' }] }), l0)).toEqual([]);
     const l1 = resolveLimits({ LINKEDIN_MAX_ACTIONS_PER_TICK: '1' });
-    expect(planTick(emptyCounters(), emptyQueue({ messagedCount: 1, queued: [{ id: 'a', firma: 'X' }] }), l1)).toEqual([{ type: 'reply-check' }]);
+    // 31.08: okuma adimi gonderim slotunu yemez → reply-check + 1 istek
+    expect(planTick(emptyCounters(), emptyQueue({ messagedCount: 1, queued: [{ id: 'a', firma: 'X' }] }), l1).map((p) => p.type))
+      .toEqual(['reply-check', 'request']);
   });
   it('negatif / NaN / bos yok sayilir; ondalik asagi yuvarlanir; 0 diger anahtarlarda 1e kirpilir', () => {
     const l = resolveLimits({

@@ -238,7 +238,15 @@ export interface PlanOptions {
 export function planTick(counters: TickCounters, queue: TickQueue, limits: OutreachLimits = DEFAULT_LIMITS, opts: PlanOptions = {}): PlannedAction[] {
   const mod = opts.mod ?? 'baglanti';
   const out: PlannedAction[] = [];
-  const full = () => out.length >= limits.MAX_ACTIONS_PER_TICK;
+  /**
+   * MAX_ACTIONS_PER_TICK GONDERIM freni: yalniz istek/mesaj/InMail sayilir. NEDEN: okuma adimlari
+   * (cevap kontrolu, kabul kontrolu) slotu yiyordu — "tur basina 1 islem" ayarinda bot her turda
+   * yalniz reply-check yapip hic mesaj gondermiyordu (31.08 canli kanit).
+   */
+  const gonderimSayisi = () => out.filter((a) => a.type === 'request' || a.type === 'message' || a.type === 'inmail' || a.type === 'research').length;
+  const full = () => gonderimSayisi() >= limits.MAX_ACTIONS_PER_TICK;
+  // Oldurme anahtari: 0 ise okuma adimlari da planlanmaz
+  if (limits.MAX_ACTIONS_PER_TICK <= 0) return out;
 
   if (opts.researchOnly) {
     let research = counters.researchToday;
