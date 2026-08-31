@@ -220,6 +220,21 @@ const MESSAGE_HREF_FN = `() => {
   return a ? a.href : '';
 }`;
 
+/**
+ * InMail penceresindeki GONDER dugmesine tikla. NEDEN JS: dugmenin metni ve aria-label'i YOK
+ * (31.08 canli inceleme: yalnizca `class="msg-form__send-btn"`), bu yuzden snapshot etiketiyle
+ * bulunamiyor. Tek eslesen secici; sonuc metni cagirana doner ("tiklandi" / "pasif" / "yok").
+ * DIKKAT: bu cagri ASLA tekrarlanmaz (browserOnce) — tekrar iki kez gonderim demek olurdu.
+ */
+const INMAIL_SEND_FN = `() => {
+  const b = document.querySelector('.msg-form__send-btn')
+    || [...document.querySelectorAll('button')].find((x) => /msg-form__send/.test(String(x.className || '')));
+  if (!b) return 'yok';
+  if (b.disabled || b.getAttribute('aria-disabled') === 'true') return 'pasif';
+  b.click();
+  return 'tiklandi';
+}`;
+
 /** InMail compose sayfasindaki kalan kredi ("14 InMail kredisi arasından 1 krediyi kullan") */
 const INMAIL_KREDI_FN = `() => {
   const t = document.body.innerText || '';
@@ -578,10 +593,15 @@ export class LinkedinOutreachService {
     snap = await this.snapshot();
     this.assertInMailKredisi(snap);
     const send = findRef(snap, [...L.gonder], { role: ['button', 'link'], exact: true, after: box })
-      ?? findRef(snap, [...L.gonder], { role: ['button', 'link'], after: box })
-      ?? findRef(snap, [...L.gonder], { role: ['button', 'link'], exact: true, pick: 'last' });
-    if (!send) throw new Error('InMail "Gönder" düğmesi bulunamadı');
-    await this.click(send);
+      ?? findRef(snap, [...L.gonder], { role: ['button', 'link'], after: box });
+    if (send) {
+      await this.click(send);
+    } else {
+      // Etiketsiz gonder dugmesi (yeni arayuz) — TEK SEFERLIK JS tiklamasi, tekrar YOK
+      const r = await this.browserOnce<{ result?: string }>(['evaluate', '--fn', INMAIL_SEND_FN]);
+      const sonuc = String(r?.result ?? '');
+      if (sonuc !== 'tiklandi') throw new Error(`InMail "Gönder" düğmesi ${sonuc === 'pasif' ? 'pasif (metin boş olabilir)' : 'bulunamadı'}`);
+    }
     // Once DB (gonderim sonrasi okuma patlarsa kayit kaybolmasin) — request akisiyla ayni kural
     await this.prisma.linkedinProspect.update({
       where: { id },
