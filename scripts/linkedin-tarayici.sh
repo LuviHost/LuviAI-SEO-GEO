@@ -11,9 +11,21 @@ set -euo pipefail
 export PATH=/opt/homebrew/opt/node@24/bin:/opt/homebrew/bin:$PATH
 KOMUT="${1:-gizle}"
 
+# NEDEN Helper elenir: yardimci surecler de ayni user-data-dir ile calisiyor; AppleScript yalniz
+# ANA uygulama surecini taniyor ("Can't get process ... Invalid index" hatasi buradan geliyordu).
 chrome_pid() {
-  ps -Ao pid,command | grep "[-]-user-data-dir=$HOME/.openclaw/browser/openclaw" | awk '{print $1}' | head -1
+  # NEDEN pgrep + tur suzgeci: `ps | grep <desen>` ciktisina GREP/AWK SURECININ KENDISI dusuyordu
+  # (donen pid AppleScript'te "Invalid index" veriyordu); comm alani da bosluk icerdigi icin awk ile
+  # bolunuyordu. pgrep kendi surecini listelemez; `--type=` iceren satirlar renderer/helper alt sureclerdir.
+  local pid args
+  for pid in $(pgrep -f -- "--user-data-dir=$HOME/.openclaw/browser/openclaw" 2>/dev/null); do
+    args=$(ps -o args= -p "$pid" 2>/dev/null)
+    case "$args" in *"--type="*) continue;; esac
+    case "$args" in *"MacOS/Google Chrome"*) echo "$pid"; return 0;; esac
+  done
+  return 1
 }
+
 
 gizle() {
   local pid; pid=$(chrome_pid)
