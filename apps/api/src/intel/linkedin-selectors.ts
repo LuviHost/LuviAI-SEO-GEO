@@ -8,14 +8,14 @@
  * Yeni bir dil/etiket cikinca yalniz bu dosya guncellenir.
  */
 export const LINKEDIN_LABELS = {
-  /** Profildeki birincil "baglanti kur" dugmesi */
-  baglantiKur: ['Bağlantı kur', 'Connect'],
+  /** Profildeki birincil "baglanti kur" dugmesi (yeni arayuzde LINK) */
+  baglantiKur: ['Bağlantı kur', 'Connect', 'bağlantı kurmak için davet et', 'to connect'],
   /** Baglanti isteginde not ekleme dugmesi */
   notEkle: ['Not ekle', 'Add a note'],
   /** Not / mesaj gonderme dugmesi */
   gonder: ['Gönder', 'Send'],
   /** Profildeki mesaj dugmesi (1. derece baglantilarda) */
-  mesaj: ['Mesaj', 'Message'],
+  mesaj: ['Mesaj gönder', 'Mesaj', 'Send message', 'Message'],
   /** Istek gonderilmis, kabul bekliyor */
   bekliyor: ['Bekliyor', 'Pending'],
   /** Takip et — "Baglanti kur" yerine birincil dugme olabilir */

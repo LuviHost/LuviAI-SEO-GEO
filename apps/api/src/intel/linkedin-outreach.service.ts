@@ -487,8 +487,8 @@ export class LinkedinOutreachService {
 
     // Ust kartta KISININ ADINI tasiyan "Mesaj" dugmesi (Premium'da baglanti olmayanlarda da cikar)
     let snap = await this.snapshot();
-    const msgBtn = findRef(cutAtSidebar(snap), L.mesaj, { role: 'button', include: who });
-    if (!msgBtn) throw new Error('bu kişi adına "Mesaj" düğmesi bulunamadı (InMail açık değil ya da profil kısıtlı)');
+    const msgBtn = this.messageFor(cutAtSidebar(snap), who);
+    if (!msgBtn) throw new Error('bu kişi adına "Mesaj gönder" bağlantısı bulunamadı (InMail açık değil ya da profil kısıtlı)');
 
     if (dryRun) {
       const kuruMetin = renderInMail(p);
@@ -670,9 +670,27 @@ export class LinkedinOutreachService {
   }
 
   /** Bu kisi icin "Bağlantı kur" — dugme ya da menu ogesi; etikette ad sart */
+  /** Ust kartta BU KISIYE ait "Bağlantı kur" — yeni arayuzde link, eskisinde button/menuitem */
   private connectFor(topSnapshot: string, who: string[]): string | null {
-    return findRef(topSnapshot, L.baglantiKur, { role: 'button', include: who })
-      ?? findRef(topSnapshot, L.baglantiKur, { role: 'menuitem', include: who });
+    return findRef(topSnapshot, [...L.baglantiKur], { role: ['button', 'link'], include: who })
+      ?? findRef(topSnapshot, [...L.baglantiKur], { role: 'menuitem', include: who });
+  }
+
+  /**
+   * Ust kartta BU KISIYE ait "Mesaj gönder". NEDEN capa: yeni arayuzde mesaj linki kisinin adini
+   * TASIMIYOR (`- link "Mesaj gönder"`), bu yuzden `include` ile ayirt edilemiyor. Once kisinin adini
+   * tasiyan bir ust kart ogesi (baglanti-kur linki ya da baslik) bulunur, mesaj linki ondan SONRA aranir;
+   * yan panel zaten cutAtSidebar ile kesilmistir. Boylece yabancinin mesaj dugmesi secilemez.
+   */
+  private messageFor(topSnapshot: string, who: string[]): string | null {
+    const adli = findRef(topSnapshot, [...L.mesaj], { role: ['button', 'link'], include: who });
+    if (adli) return adli; // eski arayuz: etikette ad var
+    const capa =
+      findRef(topSnapshot, [], { role: ['button', 'link'], include: who }) ??
+      findRef(topSnapshot, [], { role: 'heading', include: who });
+    if (!capa) return null;
+    return findRef(topSnapshot, [...L.mesaj], { role: ['button', 'link'], after: capa, exact: true })
+      ?? findRef(topSnapshot, [...L.mesaj], { role: ['button', 'link'], after: capa });
   }
 
   // ── (2) Kabul kontrolu ──────────────────────────────────────
@@ -718,7 +736,7 @@ export class LinkedinOutreachService {
     // Yalniz DUGME, etikette kisinin adi ("Message Ayşe Kaya" / "Ayşe Kaya adlı kişiye mesaj gönder");
     // link fallback YOK — nav'daki "Mesajlaşma" linki yakalaniyordu
     let snap = await this.snapshot();
-    const msgBtn = findRef(cutAtSidebar(snap), L.mesaj, { role: 'button', include: who });
+    const msgBtn = this.messageFor(cutAtSidebar(snap), who);
     if (!msgBtn) throw new Error('bu kişi adına "Mesaj" düğmesi bulunamadı (1. derece değil mi?)');
     await this.click(msgBtn);
     await sleep(UI_MS + 800);

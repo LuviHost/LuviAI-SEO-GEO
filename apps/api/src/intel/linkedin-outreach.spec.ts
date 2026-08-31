@@ -1220,3 +1220,36 @@ describe('Premium InMail modu (dogrudan mesaj)', () => {
     expect(m.normalizePanelAyarlari({ MOD: '' }).MOD).toBeUndefined();
   });
 });
+
+describe('yeni LinkedIn ust karti (31.08): dugmeler LINK', () => {
+  const SNAP = [
+    '- heading "Ali Ersin Demir" [level=2] [ref=e193]',
+    '- link "Ali Ersin Demir adlı kullanıcıyı bağlantı kurmak için davet et" [ref=e239] [cursor=pointer]:',
+    '- generic [ref=e244]: Bağlantı kur',
+    '- link "Mesaj gönder" [ref=e246] [cursor=pointer]:',
+    '- generic [ref=e250]: Mesaj gönder',
+    '- button "Daha fazla" [ref=e252] [cursor=pointer]:',
+    '- paragraph [ref=e281]: Ali Ersin Demir ile tanışın',
+    '- link "Mesaj gönder" [ref=e999] [cursor=pointer]:',
+  ].join('\n');
+
+  it('findRef: role dizisi (button|link) — link olan "Bağlantı kur" bulunur', async () => {
+    const m = await import('./linkedin-outreach-rules.js');
+    const ref = m.findRef(SNAP, ['Bağlantı kur', 'bağlantı kurmak için davet et'], { role: ['button', 'link'], include: ['ali', 'ersin', 'demir'] });
+    expect(ref).toBe('e239');
+    // Yalniz 'button' istenirse bulunamaz (eski davranis)
+    expect(m.findRef(SNAP, ['Bağlantı kur'], { role: 'button', include: ['ali', 'ersin', 'demir'] })).toBeNull();
+  });
+
+  it('mesaj linki adsizdir → capa (ad tasiyan oge) sonrasi ilk "Mesaj gönder" secilir', async () => {
+    const m = await import('./linkedin-outreach-rules.js');
+    const who = ['ali', 'ersin', 'demir'];
+    // include ile bulunamaz (etikette ad yok)
+    expect(m.findRef(SNAP, ['Mesaj gönder'], { role: ['button', 'link'], include: who })).toBeNull();
+    // capa: ad tasiyan link/baslik
+    const capa = m.findRef(SNAP, [], { role: ['button', 'link'], include: who }) ?? m.findRef(SNAP, [], { role: 'heading', include: who });
+    expect(capa).toBe('e239');
+    const msg = m.findRef(SNAP, ['Mesaj gönder'], { role: ['button', 'link'], after: capa!, exact: true });
+    expect(msg).toBe('e246'); // ust karttaki, yan bolumdeki e999 degil
+  });
+});

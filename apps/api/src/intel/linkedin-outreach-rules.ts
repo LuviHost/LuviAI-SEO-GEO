@@ -675,8 +675,12 @@ function quotedTexts(line: string): string[] {
 }
 
 export interface FindRefOptions {
-  /** Yalniz bu roldeki satirlar (button, textbox, link, ...) */
-  role?: string;
+  /**
+   * Yalniz bu rol(ler)deki satirlar (button, textbox, link, ...). Dizi verilirse HERHANGI BIRI.
+   * NEDEN dizi: LinkedIn'in yeni profil ust kartinda "Bağlantı kur" ve "Mesaj gönder"
+   * BUTTON degil LINK (31.08.2026 snapshot) — tek role kisiti ikisini de bulamiyordu.
+   */
+  role?: string | readonly string[];
   /** Etiket tam eslesmeli (tirnakli metin == etiket); varsayilan: once tam, sonra icerir */
   exact?: boolean;
   /**
@@ -737,7 +741,11 @@ export function findRef(snapshotText: string | null | undefined, labels: readonl
       if (ref === opts.after) armed = true;
       continue;
     }
-    if (opts.role && lineRole(line) !== opts.role.toLowerCase()) continue;
+    if (opts.role) {
+      const roller = (Array.isArray(opts.role) ? opts.role : [opts.role]).map((r) => String(r).toLowerCase());
+      const rol = lineRole(line);
+      if (!rol || !roller.includes(rol)) continue;
+    }
     const quoted = quotedTexts(line).map(norm);
     const l = norm(line);
     if (excludes.length && excludes.some((x) => quoted.some((q) => q === x || hasWord(q, x)) || (x.length >= 6 && l.includes(x)))) continue;
