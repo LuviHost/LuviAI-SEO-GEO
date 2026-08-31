@@ -1201,12 +1201,19 @@ describe('Premium InMail modu (dogrudan mesaj)', () => {
       const metin = m.renderInMail({ ...p, kampanya: k });
       expect(metin).toMatch(/^Merhaba Ayşe Demir,/);
       expect(metin).not.toMatch(/bağlantı için teşekkürler/);
-      expect(metin).toMatch(/bir daha yazmayacağım/);
+      // Ret garantisi: "bir daha yazmayacağım" ya da "rahatsız etmem" (31.08 daha dogal ton)
+      expect(metin).toMatch(/bir daha yazmayacağım|rahatsız etmem/);
       const konu = m.renderInMailKonu({ ...p, kampanya: k });
       expect(konu.length).toBeGreaterThan(5);
       expect(konu.length).toBeLessThanOrEqual(70);
+      // Konu reklam kalibinda olmamali
+      expect(konu).not.toMatch(/ücretsiz|bedava|kampanya|fırsat/i);
     }
     expect(m.renderInMailKonu({ ...p, kampanya: 'MUSTERI' })).toContain('Trendyol');
+    // Govde: tek net soru + kisi adiyla baslar, sablon kalibi ("bağımsız araştırma yürütüyorum") yok
+    const musteri = m.renderInMail({ ...p, kampanya: 'MUSTERI' });
+    expect(musteri).not.toMatch(/bağımsız bir AI görünürlük araştırması yürütüyorum/);
+    expect(musteri.length).toBeLessThan(700);
   });
 
   it('normalizeMod: bilinmeyen deger baglanti', async () => {

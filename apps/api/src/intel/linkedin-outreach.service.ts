@@ -221,6 +221,45 @@ const MESSAGE_HREF_FN = `() => {
 }`;
 
 /**
+ * InMail konu + govdesini TEK SEFERDE doldur. NEDEN JS: `type` komutu contenteditable kutuda her
+ * cagrida icerigi SIFIRLIYOR — satir satir yazinca yalniz SON paragraf kaliyordu ve Türker Karakaş'a
+ * mesajin ilk iki paragrafi gitmeden ulasti (31.08 canli kanit). insertText satir sonlarini korur ve
+ * Enter tetiklemez (Enter = gonder). Donen deger yazilan govde uzunlugu — cagiran DOGRULAR.
+ */
+function inmailFillFn(konu: string, govde: string): string {
+  // NEDEN gomulu deger: `openclaw browser evaluate` argüman gecirmeyi desteklemiyor (yalniz --fn).
+  // JSON.stringify kacisi metni guvenle gomer.
+  return `() => {
+  const konu = ${JSON.stringify(konu)};
+  const govde = ${JSON.stringify(govde)};
+  const el = (sec) => [...document.querySelectorAll('[role=textbox], textarea, input[type=text]')]
+    .find((x) => sec.test((x.getAttribute('aria-label') || x.getAttribute('placeholder') || '')));
+  const konuBox = el(/konu|subject/i);
+  const box = el(/bir mesaj yaz|write a message/i);
+  if (!box) return { ok: false, hata: 'kutu-yok' };
+  if (konuBox && konu) {
+    konuBox.focus();
+    if (konuBox.tagName === 'INPUT' || konuBox.tagName === 'TEXTAREA') {
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set
+        || Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value')?.set;
+      setter ? setter.call(konuBox, konu) : (konuBox.value = konu);
+      konuBox.dispatchEvent(new Event('input', { bubbles: true }));
+    } else {
+      document.execCommand('selectAll'); document.execCommand('delete');
+      document.execCommand('insertText', false, konu);
+    }
+  }
+  box.focus();
+  document.execCommand('selectAll');
+  document.execCommand('delete');
+  document.execCommand('insertText', false, govde);
+  box.dispatchEvent(new Event('input', { bubbles: true }));
+  const yazilan = (box.innerText || box.textContent || '').trim();
+  return { ok: true, uzunluk: yazilan.length, konuUzunluk: konuBox ? String(konuBox.value || konuBox.innerText || '').trim().length : 0 };
+}`;
+}
+
+/**
  * InMail penceresindeki GONDER dugmesine tikla. NEDEN JS: dugmenin metni ve aria-label'i YOK
  * (31.08 canli inceleme: yalnizca `class="msg-form__send-btn"`), bu yuzden snapshot etiketiyle
  * bulunamiyor. Tek eslesen secici; sonuc metni cagirana doner ("tiklandi" / "pasif" / "yok").
@@ -569,31 +608,26 @@ export class LinkedinOutreachService {
       if (kalanKredi <= 0) throw new BlockError({ blocked: true, kind: 'verification', match: 'InMail kredisi bitti' });
     }
 
-    // Konu (istege bagli alan) ve govde
+    // Konu + govde TEK SEFERDE (satir satir yazim son paragraf disinda hepsini siliyordu)
     const konu = renderInMailKonu(p);
-    const konuBox = findRef(snap, [...L.konuAlani], { role: 'textbox', exclude: [...L.aramaKutusu] });
-    if (konuBox) {
-      await this.type(konuBox, konu);
-      await sleep(500);
-      snap = await this.snapshot();
-    }
-    const disla = [...L.aramaKutusu, ...L.konuAlani];
-    const box = findRef(snap, [...L.mesajKutusu], { role: 'textbox', exclude: disla, pick: 'last' });
-    if (!box) throw new Error('InMail mesaj kutusu bulunamadı');
-
     const metin = renderInMail(p);
-    const satirlar = metin.split('\n');
-    for (let i = 0; i < satirlar.length; i++) {
-      if (satirlar[i]) await this.type(box, satirlar[i]);
-      if (i < satirlar.length - 1) await this.press('Shift+Enter');
+    const dolum = await this.browserOnce<{ result?: { ok?: boolean; hata?: string; uzunluk?: number; konuUzunluk?: number } }>([
+      'evaluate', '--fn', inmailFillFn(konu, metin),
+    ]).catch(() => null);
+    const d = dolum?.result;
+    if (!d?.ok) throw new Error(`InMail metni yazılamadı (${d?.hata ?? 'kutu bulunamadı'})`);
+    // DOGRULAMA: kutuda metnin tamami olmali — eksik yazim yarim mesaj demek
+    const beklenen = metin.trim().length;
+    if ((d.uzunluk ?? 0) < beklenen * 0.9) {
+      throw new Error(`InMail metni eksik yazıldı (${d.uzunluk ?? 0}/${beklenen} karakter) — gönderilmedi`);
     }
-    await sleep(1_000);
+    await sleep(800);
     let shot = await this.screenshot(id, 'inmail');
 
     snap = await this.snapshot();
     this.assertInMailKredisi(snap);
-    const send = findRef(snap, [...L.gonder], { role: ['button', 'link'], exact: true, after: box })
-      ?? findRef(snap, [...L.gonder], { role: ['button', 'link'], after: box });
+    const send = findRef(snap, [...L.gonder], { role: ['button', 'link'], exact: true })
+      ?? findRef(snap, [...L.gonder], { role: ['button', 'link'] });
     if (send) {
       await this.click(send);
     } else {
