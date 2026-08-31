@@ -309,8 +309,10 @@ describe('sablonlar', () => {
     expect(m.startsWith('Merhaba Ayşe Kaya, bağlantı için teşekkürler.')).toBe(true);
     expect(m).toContain('"telefon almak için hangi site güvenilir"');
     expect(m).toContain("Trendyol'un nerede göründüğünü");
-    expect(m).toContain('"Evet" yeterli');
-    expect(m).toContain('İstemezseniz bir daha yazmayacağım.');
+    // Kapanis dogallastirildi (31.08): kalip CTA yerine "konusmak isterim" tonu; yumusak cikis sart
+    expect(m).toMatch(/sorun değil|anlarım|uygun değilse/);
+    // 31.08: kapanis dogallastirildi — kalip ret cumlesi yerine yumusak cikis
+    expect(m).toMatch(/sorun değil|anlarım|uygun değilse/);
     expect(m).not.toMatch(/Bey|Hanım/);
     expect(m.split(/\s+/).length).toBeLessThan(110);
     const thy = renderMessage({ ad: 'Ali', soyad: 'Veli', firma: 'Türk Hava Yolları', sektor: 'turizm-havayolu-telekom-otomotiv' });
@@ -988,7 +990,7 @@ describe('kampanya sablonlari (musteri / yatirimci / is birligi)', () => {
     const p = { ad: 'Ali', soyad: 'Veli', firma: 'Migros', sektor: null };
     for (const k of ['MUSTERI', 'YATIRIMCI', 'ISBIRLIGI'] as const) {
       const msg = m.renderMessage({ ...p, kampanya: k });
-      expect(msg).toMatch(/bir daha yazmayacağım/);
+      expect(msg).toMatch(/sorun değil|anlarım|uygun değilse/);
       // Sablonda hicbir yuzde/adet iddiasi olmamali (tek kaynakli sayi yasagi)
       expect(msg).not.toMatch(/%\d|\d+\s*(müşteri|kurum|marka|kullanıcı)/);
     }
@@ -1202,7 +1204,8 @@ describe('Premium InMail modu (dogrudan mesaj)', () => {
       expect(metin).toMatch(/^Merhaba Ayşe Demir,/);
       expect(metin).not.toMatch(/bağlantı için teşekkürler/);
       // Ret garantisi: "bir daha yazmayacağım" ya da "rahatsız etmem" (31.08 daha dogal ton)
-      expect(metin).toMatch(/bir daha yazmayacağım|rahatsız etmem/);
+      // Yumusak cikis: karsi taraf "hayir" diyebilsin diye her metin bir kapi birakir
+      expect(metin).toMatch(/sorun değil|anlarım|uygun değilse/);
       const konu = m.renderInMailKonu({ ...p, kampanya: k });
       expect(konu.length).toBeGreaterThan(5);
       expect(konu.length).toBeLessThanOrEqual(70);

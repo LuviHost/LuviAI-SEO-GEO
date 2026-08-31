@@ -603,7 +603,7 @@ export function renderMessage(p: ProspectLike): string {
     `Müşteriler artık "${sektorSorusu(p.sektor)}" sorusunu Google'a değil ChatGPT'ye soruyor ve cevapta 3 isim geçiyor. ` +
     `RanksUp olarak 7 AI asistanında, marka adı geçmeyen gerçek sorularla ${genitiveOrSafe(firma)} nerede göründüğünü ölçüp ` +
     `yalnız size iletebilirim — kurum bazlı sonuç kamuya açılmaz.\n\n` +
-    `Karnenizi çıkarmamı ister misiniz? "Evet" yeterli, 2 iş günü içinde iletiyorum. İstemezseniz bir daha yazmayacağım.`
+    `İlginizi çekerse çıkarıp göndereyim; denk gelmezse de sorun değil.`
   );
 }
 
@@ -618,8 +618,8 @@ function renderMessageYatirimci(p: ProspectLike): string {
     `Türkiye ürünü: marka adı geçmeyen gerçek müşteri sorularıyla 7 asistanı tarıyor, görünürlüğü ve rakip payını ` +
     `raporluyor, eksikleri kapatacak içerik planını çıkarıyoruz. Arama trafiği asistanlara kaydıkça kurumsal ` +
     `pazarlama bütçesinin bu tarafa açılacağını düşünüyoruz.\n\n` +
-    `Ürünü 20 dakikada gösterebilirim; sayılar ve yol haritası görüşmede. Uygun olur musunuz? ` +
-    `İlgi alanınız değilse bir daha yazmayacağım.`
+    `Ürünü 20 dakikada gösterebilirim; sayılar ve yol haritası görüşmede. ` +
+    `Görüşmek isterseniz memnun olurum; uygun değilse de anlarım.`
   );
 }
 
@@ -631,8 +631,8 @@ function renderMessageIsbirligi(p: ProspectLike): string {
     `RanksUp olarak markaların AI asistanlarındaki (ChatGPT, Gemini, Perplexity) görünürlüğünü ölçüyor ve ` +
     `kapatma planını çıkarıyoruz. ${genitiveOrSafe(firma)} müşterileri için bunu birlikte sunabileceğimizi ` +
     `düşünüyorum: ölçümü biz yapalım, müşteri ilişkisi ve uygulama sizde kalsın.\n\n` +
-    `Örnek bir kurum için ücretsiz karne çıkarıp gösterebilirim — ilginizi çeker mi? ` +
-    `İstemezseniz bir daha yazmayacağım.`
+    `Örnek bir marka için çıkarıp gösterebilirim. ` +
+    `Konuşmak isterseniz sevinirim; şimdilik uygun değilse de sorun değil.`
   );
 }
 
@@ -1503,7 +1503,7 @@ export function renderInMail(p: ProspectLike): string {
       `görünmedikleri yerleri kapatıyoruz.\n\n` +
       `Türkiye'de bu tarafta erken davranan azınlıktayız; ürünü 20 dakikada gösterebilirim, ` +
       `sayıları ve yol haritasını da orada konuşuruz.\n\n` +
-      `Görüşmeye açık mısınız? Alanınız değilse rahatsız etmem.`
+      `Görüşmek isterseniz memnun olurum; uygun değilse de anlarım.`
     );
   }
   if (kampanya === 'ISBIRLIGI') {
@@ -1513,7 +1513,7 @@ export function renderInMail(p: ProspectLike): string {
       `hangi sorularda geçiyorlar, kim öneriliyor, nerede boşluk var.\n\n` +
       `${genitiveOrSafe(firma)} işlerinde bunu birlikte sunabiliriz: ölçüm bizde, müşteri ilişkisi sizde. ` +
       `Örnek bir marka için ücretsiz çıkarıp göstereyim, siz karar verirsiniz.\n\n` +
-      `Konuşalım mı? İlgilenmezseniz rahatsız etmem.`
+      `Konuşmak isterseniz sevinirim; şimdilik uygun değilse de sorun değil.`
     );
   }
   // NEDEN bu ton: ilk surum "cok hazir mesaj gibi" bulundu (31.08). Kisa, tek fikir, tek soru;
@@ -1526,6 +1526,6 @@ export function renderInMail(p: ProspectLike): string {
     `Ben RanksUp'ta tam olarak bunu ölçüyorum. ${genitiveOrSafe(firma)} için de çıkarıp size ` +
     `gönderebilirim: hangi sorularda geçiyorsunuz, o cevaplarda kim öneriliyor, nerede boşluk var. ` +
     `Ücret yok, sonuç yalnız sizde kalır.\n\n` +
-    `İlgilenirseniz "olur" demeniz yeterli. İlgilenmezseniz rahatsız etmem.`
+    `İlginizi çekerse kısaca konuşmak isterim; denk gelmezse de sorun değil.`
   );
 }
