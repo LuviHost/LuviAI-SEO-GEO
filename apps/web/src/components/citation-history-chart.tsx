@@ -433,6 +433,25 @@ export function CitationHistoryChart({
               <div className="mt-4 pt-4 border-t">
                 <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
                   <p className="text-xs font-semibold">Test geçmişi <span className="font-normal text-muted-foreground">({runs.length} koşum — hiçbiri silinmez; iki tanesini seçip karşılaştır)</span></p>
+                  {comparison && selectedRuns.length === 2 && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="mr-2"
+                      onClick={() => {
+                        // NEDEN yeni sekme: rapor A4 yazdirilabilir tek dosya HTML; kullanici Ctrl+P ile PDF alir
+                        const base = process.env.NEXT_PUBLIC_API_URL ?? '';
+                        window.open(
+                          `${base}/api/sites/${siteId}/audit/citation-runs/rapor?a=${encodeURIComponent(selectedRuns[0])}&b=${encodeURIComponent(selectedRuns[1])}`,
+                          '_blank',
+                          'noopener',
+                        );
+                      }}
+                      title="A4 yazdırılabilir GEO karşılaştırma raporu — müşteriye gönderilebilir"
+                    >
+                      Rapor
+                    </Button>
+                  )}
                   <Button size="sm" variant="outline" onClick={compareSelected} disabled={selectedRuns.length !== 2 || comparing}>
                     {comparing ? 'Karşılaştırılıyor…' : `Karşılaştır (${selectedRuns.length}/2)`}
                   </Button>

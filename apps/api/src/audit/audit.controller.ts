@@ -4,6 +4,8 @@ import { AuditService } from './audit.service.js';
 import { AutoFixService } from './auto-fix.service.js';
 import { AiCitationService } from './ai-citation.service.js';
 import { AiCitationTrackerService } from './ai-citation-tracker.service.js';
+import { geoRaporHtml } from './geo-rapor-html.js';
+import { PrismaService } from '../prisma/prisma.service.js';
 import { AiIndexingPingerService } from './ai-indexing-pinger.service.js';
 import { LlmsFullBuilderService } from './llms-full-builder.service.js';
 import { GeoHeatmapService } from './geo-heatmap.service.js';
@@ -85,6 +87,7 @@ export class AuditController {
     private readonly productRadar: ProductRadarService,
     private readonly communityAgent: CommunityAgentService,
     private readonly liveCrawler: LiveCrawlerService,
+    private readonly prisma: PrismaService,
   ) {}
 
   // ────────────────────────────────────────────────────────────
@@ -601,6 +604,28 @@ export class AuditController {
     const res = await this.tracker.compareRuns(siteId, a, b);
     if (!res) throw new BadRequestException('Kosum bulunamadi');
     return res;
+  }
+
+  /**
+   * GET /sites/:siteId/audit/citation-runs/rapor?a=&b= — iki kosumun A4 YAZDIRILABILIR raporu.
+   * NEDEN HTML: rapor musteriye gonderilir/yazdirilir; panel yeni sekmede acar, kullanici Ctrl+P ile PDF alir.
+   */
+  @Get('citation-runs/rapor')
+  @Header('Content-Type', 'text/html; charset=utf-8')
+  @Header('X-Robots-Tag', 'noindex, nofollow')
+  async citationRunsRapor(
+    @Param('siteId') siteId: string,
+    @Query('a') a: string,
+    @Query('b') b: string,
+  ): Promise<string> {
+    const karsilastirma = await this.tracker.compareRuns(siteId, a, b);
+    if (!karsilastirma) throw new BadRequestException('Kosum bulunamadi');
+    const site = await this.prisma.site.findUnique({ where: { id: siteId }, select: { name: true, url: true } });
+    const gecmis = await this.tracker.getHistory(siteId, 30, true).catch(() => null);
+    const trend = (gecmis as { headline?: { daily?: Array<{ date: string; score: number | null }> } } | null)?.headline?.daily ?? [];
+    let host = site?.url ?? '';
+    try { host = new URL(site?.url ?? '').hostname.replace(/^www\./, ''); } catch { /* url bozuksa oldugu gibi */ }
+    return geoRaporHtml({ karsilastirma, brand: site?.name ?? host, host, trend });
   }
 
   /** GET /sites/:siteId/audit/citation-runs/:id — tek kosumun tam sonucu */
