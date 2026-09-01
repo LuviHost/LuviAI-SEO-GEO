@@ -439,13 +439,9 @@ export function CitationHistoryChart({
                       variant="outline"
                       className="mr-2"
                       onClick={() => {
-                        // NEDEN yeni sekme: rapor A4 yazdirilabilir tek dosya HTML; kullanici Ctrl+P ile PDF alir
-                        const base = process.env.NEXT_PUBLIC_API_URL ?? '';
-                        window.open(
-                          `${base}/api/sites/${siteId}/audit/citation-runs/rapor?a=${encodeURIComponent(selectedRuns[0])}&b=${encodeURIComponent(selectedRuns[1])}`,
-                          '_blank',
-                          'noopener',
-                        );
+                        // NEDEN kendi sayfamiz: rapor ucu oturum ister; ham API adresini yeni sekmede acmak
+                        // popup engeline takiliyor ve hata gibi gorunuyordu (01.09 kullanici bildirimi)
+                        window.location.href = `/sites/${siteId}/gorunurluk-raporu?a=${encodeURIComponent(selectedRuns[0])}&b=${encodeURIComponent(selectedRuns[1])}`;
                       }}
                       title="A4 yazdırılabilir GEO karşılaştırma raporu — müşteriye gönderilebilir"
                     >
