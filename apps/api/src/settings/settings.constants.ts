@@ -358,6 +358,14 @@ export const SETTINGS_CATALOG: SettingMeta[] = [
     envFallback: true,
     enumValues: ['gemini', 'dalle', 'midjourney', 'none'],
   },
+  {
+    key: 'SATIS_RANDEVU_URL',
+    type: 'string',
+    category: 'toggle',
+    default: '',
+    description: 'Satış görüşmesi randevu linki (Cal.com/Calendly). Doluysa LinkedIn mesajlarına ve ücretsiz karnenin kapanışına eklenir; boşsa o cümle metinden düşer.',
+    envFallback: true,
+  },
 ];
 
 export const SETTINGS_KEYS = SETTINGS_CATALOG.map((s) => s.key);

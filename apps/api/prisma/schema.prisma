@@ -3049,10 +3049,74 @@ model LinkedinProspect {
   /// Son adimin ekran goruntusu (data/linkedin/<id>-<adim>.png)
   screenshotPath String? @db.VarChar(255)
 
+  /// INSAN EKSENI — bot bu alanlara DOKUNMAZ. `status` botun nerede oldugunu, `satisAsamasi`
+  /// satisin nerede oldugunu soyler; ikisi bagimsiz ilerler.
+  satisAsamasi LinkedinSatisAsamasi @default(YOK)
+  satisNotu    String?              @db.Text
+  /// Bu tarihte bu kisiyle ilgilenilecek (panelde "Bugun ilgilenilecekler")
+  hatirlatmaAt DateTime?
+
+  karneler ProspectKarne[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@index([status])
   @@index([requestedAt])
+  @@index([satisAsamasi])
+  @@index([hatirlatmaAt])
   @@map("linkedin_prospects")
+}
+
+/// Cevap sonrasi satis hunisi — insan tarafindan elle ilerletilir
+enum LinkedinSatisAsamasi {
+  /// Henuz dokunulmadi
+  YOK
+  /// Cevap geldi, konusma basladi
+  GORUSULDU
+  /// Ucretsiz karne uretildi ve paylasildi
+  KARNE_GONDERILDI
+  /// Toplanti/demo ayarlandi
+  TOPLANTI
+  /// Teklif iletildi
+  TEKLIF
+  KAZANILDI
+  KAYBEDILDI
+}
+
+/// Satis oncesi ucretsiz "AI gorunurluk karnesi" — paylasilabilir link ile teslim edilir.
+/// NEDEN DB: karne bugune kadar yalniz yerel dosyaydi; link verilemiyor, acilip acilmadigi
+/// gorulemiyordu. `token` tahmin edilemez; sayfa noindex ve yalniz link bilenle paylasilir.
+model ProspectKarne {
+  id    String @id @default(cuid())
+  /// Paylasim adresindeki gizli anahtar (/karne/<token>)
+  token String @unique @db.VarChar(64)
+
+  brand     String  @db.VarChar(160)
+  host      String  @db.VarChar(255)
+  sektor    String  @db.VarChar(64)
+  altsektor String? @db.VarChar(64)
+
+  /// karneOzeti() ciktisi — sayilar, hucre matrisi, rakip payi, bosluklar
+  ozet Json
+  /// Hazir rapor (karneHtml) — sayfa bunu servis eder
+  html String @db.LongText
+
+  /// Hangi LinkedIn adayina uretildi (elle uretimde bos olabilir)
+  prospectId String?           @db.VarChar(191)
+  prospect   LinkedinProspect? @relation(fields: [prospectId], references: [id], onDelete: SetNull)
+
+  cagriSayisi Int   @default(0)
+  maliyetUsd  Float @default(0)
+
+  /// Karsi taraf linki kac kez acti (sicak sinyal)
+  gorulmeSayisi Int       @default(0)
+  sonGorulmeAt  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([host, createdAt])
+  @@index([prospectId])
+  @@map("prospect_karneler")
 }

@@ -27,11 +27,17 @@
  *   --yes                  "devam? (y/N)" sorusunu atla
  *   --force                ayni gunun mevcut ciktisinin uzerine yaz
  *   --pdf                  Chrome headless ile PDF (bulunamazsa uyari, HTML kalir)
+ *   --kaydet               karneyi DB'ye de yaz ve PAYLASILABILIR LINK bas (/karne/<token>).
+ *                          NEDEN: "olur" diyen kuruma dosya degil link gonderilir; link acildiginda
+ *                          gorulme sayaci artar (sicak sinyal, panelde gorunur).
  *
  * Ciktilar: reklam/pazarlama/prospect/data/karne/<host>-<yyyymmdd>.json | .html | .pdf (gitignore'da).
  * NEDEN tarihli ad: karnenin kendi metodolojisi ve iki-kaynak kurali "kesin hukum
  * icin >= 2 farkli gun" ister; 2. gunun kosumu 1. gunun kanitini ezmemeli.
  * Ayni gun tekrar kosum --force ister.
+ *
+ * NOT: --kaydet, asagida anlatilan --persist DEGILDIR. Ayri tabloya (prospect_karneler) yazar;
+ * PublicCitationCheck'e ve abone retest deltasina dokunmaz, yalniz token bilen erisir.
  *
  * NEDEN --persist YOK: PublicCitationCheck kaydi @Public GET /citation-check/history?domain=
  * uzerinden herkese doner (getHistory source filtrelemez) ve compareWithPast abone
@@ -334,7 +340,12 @@ async function main() {
     const sure = Math.round((Date.now() - basladi) / 1000);
 
     const ozet = karneOzeti({ brand, host, sektor, altsektor: altAnahtar ?? altsektor, sorular, saglayicilar: sonuc, rakipler, tarih });
-    const html = karneHtml(ozet);
+    // Randevu linki ayardan (yoksa gorusme cumlesi rapordan duser)
+    const randevuUrl = await prisma.appSetting
+      .findUnique({ where: { key: 'SATIS_RANDEVU_URL' }, select: { value: true } })
+      .then((r) => (r?.value ?? process.env.SATIS_RANDEVU_URL ?? '').trim() || null)
+      .catch(() => null);
+    const html = karneHtml(ozet, { randevuUrl });
     fs.mkdirSync(cikti, { recursive: true });
     fs.writeFileSync(jsonYolu, JSON.stringify(ozet, null, 2), 'utf8');
     fs.writeFileSync(htmlYolu, html, 'utf8');
@@ -352,6 +363,28 @@ async function main() {
 
     if (args.pdf) {
       if (pdfUret(htmlYolu, pdfYolu)) console.log(`PDF        : ${pdfYolu}`);
+    }
+
+    if (args.kaydet) {
+      // NEDEN burada (servisi cagirmak yerine): CLI Nest DI kurmuyor (bkz. dosya basi) — ayni
+      // karne zaten uretildi; yalniz kalici kayit + token gerekiyor.
+      const { randomBytes } = await import('node:crypto');
+      const token = randomBytes(24).toString('base64url');
+      await prisma.prospectKarne.create({
+        data: {
+          token,
+          brand,
+          host,
+          sektor,
+          altsektor: altAnahtar ?? altsektor ?? null,
+          ozet: ozet as unknown as object,
+          html,
+          cagriSayisi: ozet.cagriSayisi,
+          maliyetUsd: ozet.maliyetUsd,
+        },
+      });
+      const base = (process.env.WEB_BASE_URL ?? 'https://ranksup.ai').replace(/\/+$/, '');
+      console.log(`Paylaşım   : ${base}/karne/${token}`);
     }
   } finally {
     await prisma.$disconnect().catch(() => undefined);

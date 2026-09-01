@@ -6,6 +6,7 @@ import {
   api,
   type LinkedinImportRow,
   type LinkedinKampanya,
+  type LinkedinSatisAsamasi,
   type LinkedinOverview,
   type LinkedinProspect,
   type LinkedinProspectStatus,
@@ -20,7 +21,19 @@ import { cn } from '@/lib/utils';
 import {
   Users, RefreshCw, Pause, Play, FlaskConical, Send, Upload,
   AlertTriangle, SkipForward, Camera, ExternalLink, CheckCircle2, XCircle, MessageSquareText, Link2, Search, Clock,
+  FileBarChart, CalendarClock,
 } from 'lucide-react';
+
+/** Cevap sonrasi satis hunisi — insan elle ilerletir (bot dokunmaz) */
+const SATIS_ASAMALARI: Array<{ key: LinkedinSatisAsamasi; label: string }> = [
+  { key: 'YOK', label: '—' },
+  { key: 'GORUSULDU', label: 'Görüşüldü' },
+  { key: 'KARNE_GONDERILDI', label: 'Karne gönderildi' },
+  { key: 'TOPLANTI', label: 'Toplantı' },
+  { key: 'TEKLIF', label: 'Teklif' },
+  { key: 'KAZANILDI', label: 'Kazanıldı' },
+  { key: 'KAYBEDILDI', label: 'Kaybedildi' },
+];
 
 /** Kampanya turleri — arka uctaki LinkedinKampanya ile birebir */
 const KAMPANYA: Array<{ key: LinkedinKampanya; label: string; aciklama: string }> = [
@@ -312,6 +325,30 @@ export default function AdminLinkedinPage() {
   const enabled = overview?.enabled ?? true;
 
   /** Gonderimi ac/kapat — dis dunyaya cikan eylem, onay ister */
+  /**
+   * Bu aday için ücretsiz karne üret. Host panelden sorulur: kayıtta alan adı yok
+   * (LinkedIn araştırması firma adı verir, alan adı vermez).
+   */
+  const karneUret = async (p: LinkedinProspect) => {
+    const host = window.prompt(`${p.firma} için kurum alan adı (örn. papara.com):`, '');
+    if (!host?.trim()) return;
+    const sektor = p.sektor?.trim() || window.prompt('Sektör (finans | eticaret-perakende-teknoloji | turizm-havayolu-telekom-otomotiv):', 'finans') || '';
+    if (!sektor.trim()) return;
+    setBusy(`karne:${p.id}`);
+    try {
+      const res = await api.uretLinkedinKarne(p.id, { host: host.trim(), sektor: sektor.trim() });
+      if (!res?.started) {
+        toast.error(res?.reason ?? 'Karne başlatılamadı');
+        return;
+      }
+      toast.success(res.reason ?? 'Karne üretiliyor — bitince bildirim gelecek');
+    } catch (err: any) {
+      toast.error(`Karne üretilemedi: ${err.message}`);
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const toggleEnabled = async () => {
     const acilyor = !enabled;
     if (acilyor) {
@@ -507,6 +544,9 @@ export default function AdminLinkedinPage() {
         </Card>
       )}
 
+      {/* ── Bugün ilgilenilecekler ── */}
+      <TakipCard overview={overview ?? undefined} onDone={load} disabled={!!busy} />
+
       {/* ── Çalışma ayarları ── */}
       <AyarCard overview={overview ?? undefined} onDone={load} disabled={!!busy} />
 
@@ -669,6 +709,24 @@ export default function AdminLinkedinPage() {
                           <SkipForward className="h-3.5 w-3.5 mr-1" />
                           Atla
                         </Button>
+                        {/* Cevap gelmis kayitta ucretsiz karne — satisin acilis hamlesi */}
+                        {(p.status === 'REPLIED' || p.status === 'MESSAGED' || p.status === 'ACCEPTED') && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="ml-2"
+                            onClick={() => karneUret(p)}
+                            disabled={!!busy}
+                            title="Bu kurum için ücretsiz AI görünürlük karnesi üret (paylaşılabilir link)"
+                          >
+                            {busy === `karne:${p.id}` ? (
+                              <RefreshCw className="h-3.5 w-3.5 mr-1 animate-spin" />
+                            ) : (
+                              <FileBarChart className="h-3.5 w-3.5 mr-1" />
+                            )}
+                            Karne
+                          </Button>
+                        )}
                       </td>
                     </tr>
                   );
@@ -700,6 +758,68 @@ function Counter({ label, value, limit }: { label: string; value: number; limit?
         {limit !== undefined && (
           <div className="text-[11px] text-muted-foreground mt-1">{dolu ? 'limit doldu' : `${limit - value} kaldı`}</div>
         )}
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * Cevap verip beklemede kalanlar + hatirlatmasi gelenler. NEDEN ayri kart: cevap geldiginde
+ * bot susuyor ve is insana geciyor; bu liste olmadan cevaplar 148 satirlik tablonun icinde kayboluyordu.
+ */
+function TakipCard({ overview, onDone, disabled }: { overview?: LinkedinOverview; onDone: () => Promise<void>; disabled: boolean }) {
+  const liste = overview?.ilgilenilecek ?? [];
+  const [calisan, setCalisan] = useState<string | null>(null);
+  if (liste.length === 0) return null;
+
+  const asamaYaz = async (id: string, asama: LinkedinSatisAsamasi) => {
+    setCalisan(id);
+    try {
+      await api.setLinkedinSatis(id, { asama });
+      toast.success('Aşama güncellendi');
+      await onDone();
+    } catch (err: any) {
+      toast.error(`Güncellenemedi: ${err.message}`);
+    } finally {
+      setCalisan(null);
+    }
+  };
+
+  return (
+    <Card className="border-emerald-500/40 bg-emerald-500/5">
+      <CardContent className="p-4 space-y-3">
+        <div className="text-sm font-medium flex items-center gap-2">
+          <CalendarClock className="h-4 w-4" />
+          Bugün ilgilenilecekler <span className="text-muted-foreground font-normal">({liste.length})</span>
+        </div>
+        <div className="text-xs text-muted-foreground">
+          Cevap verip beklemede kalanlar ve hatırlatma tarihi gelenler. Bot bu kişilere bir daha yazmaz — konuşmayı sen sürdürürsün.
+        </div>
+        <div className="space-y-2">
+          {liste.map((k) => (
+            <div key={k.id} className="flex flex-wrap items-center gap-2 rounded-md border bg-background p-2.5">
+              <div className="min-w-[190px] flex-1">
+                <div className="text-sm font-medium">{k.ad} {k.soyad}</div>
+                <div className="text-xs text-muted-foreground">{k.firma}{k.unvan ? ` · ${k.unvan}` : ''}</div>
+              </div>
+              <a href={k.profileUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-orange-600 hover:underline inline-flex items-center gap-1">
+                profil <ExternalLink className="h-3 w-3" />
+              </a>
+              {k.hatirlatmaAt && (
+                <span className="text-[11px] text-muted-foreground">hatırlatma: {fmtDate(k.hatirlatmaAt)}</span>
+              )}
+              <select
+                value={k.satisAsamasi ?? 'YOK'}
+                onChange={(e) => asamaYaz(k.id, e.target.value as LinkedinSatisAsamasi)}
+                disabled={disabled || calisan === k.id}
+                className="h-8 rounded-md border bg-background px-2 text-xs"
+                aria-label="Satış aşaması"
+              >
+                {SATIS_ASAMALARI.map((a) => <option key={a.key} value={a.key}>{a.label}</option>)}
+              </select>
+            </div>
+          ))}
+        </div>
       </CardContent>
     </Card>
   );

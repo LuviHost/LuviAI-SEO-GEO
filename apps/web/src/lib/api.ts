@@ -169,6 +169,9 @@ export type LinkedinProspectStatus =
   | 'REPLIED' | 'SKIPPED' | 'FAILED';
 
 export type LinkedinKampanya = 'MUSTERI' | 'YATIRIMCI' | 'ISBIRLIGI';
+/** Cevap sonrasi satis hunisi (insan ekseni) */
+export type LinkedinSatisAsamasi =
+  | 'YOK' | 'GORUSULDU' | 'KARNE_GONDERILDI' | 'TOPLANTI' | 'TEKLIF' | 'KAZANILDI' | 'KAYBEDILDI';
 
 export interface LinkedinProspect {
   id: string;
@@ -182,6 +185,10 @@ export interface LinkedinProspect {
   kademe: number | null;
   /** Kampanya turu — not/mesaj sablonunu belirler */
   kampanya?: LinkedinKampanya | null;
+  /** Satis asamasi (insan ekseni; bot dokunmaz) */
+  satisAsamasi?: LinkedinSatisAsamasi | null;
+  satisNotu?: string | null;
+  hatirlatmaAt?: string | null;
   status: LinkedinProspectStatus;
   noteText?: string | null;
   messageText?: string | null;
@@ -223,6 +230,19 @@ export interface LinkedinOverview {
   mod?: 'baglanti' | 'inmail' | 'karma';
   /** Son gorulen InMail kredisi */
   inmailKredi?: number | null;
+  /** Cevap verip beklemede kalanlar + hatirlatmasi gelenler */
+  ilgilenilecek?: Array<{
+    id: string;
+    ad: string;
+    soyad: string;
+    firma: string;
+    unvan: string | null;
+    status: LinkedinProspectStatus;
+    satisAsamasi: LinkedinSatisAsamasi;
+    hatirlatmaAt: string | null;
+    repliedAt: string | null;
+    profileUrl: string;
+  }>;
   /** Panelden kaydedilmis ayarlar (bos = varsayilan) */
   ayarlar?: Record<string, number | number[]>;
   /** Her ayarin izin verilen araligi */
@@ -1131,6 +1151,23 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ ids, kampanya }),
     }),
+  /** Cevap sonrasi satis asamasi / not / hatirlatma */
+  setLinkedinSatis: (id: string, veri: { asama?: LinkedinSatisAsamasi; not?: string | null; hatirlatmaAt?: string | null }) =>
+    request<{ ok: boolean }>(`/intel/linkedin/prospects/${encodeURIComponent(id)}/satis`, {
+      method: 'POST',
+      body: JSON.stringify(veri),
+    }),
+  /** Bu aday icin ucretsiz karne uret (arka planda; bitince bildirim) */
+  uretLinkedinKarne: (id: string, opts: { host: string; sektor?: string; altsektor?: string; rakipler?: string[] }) =>
+    request<{ started: boolean; reason?: string }>(`/intel/linkedin/prospects/${encodeURIComponent(id)}/karne`, {
+      method: 'POST',
+      body: JSON.stringify(opts),
+    }),
+  /** Bu adaya uretilmis karneler (link + goruntulenme) */
+  getLinkedinKarneler: (id: string) =>
+    request<Array<{ id: string; token: string; url: string; host: string; gorulmeSayisi: number; sonGorulmeAt: string | null; createdAt: string }>>(
+      `/intel/linkedin/prospects/${encodeURIComponent(id)}/karneler`,
+    ),
   skipLinkedinProspect: (id: string) =>
     request<{ ok?: boolean; status?: LinkedinProspectStatus }>(
       `/intel/linkedin/prospects/${encodeURIComponent(id)}/skip`,

@@ -314,7 +314,12 @@ const CSS = `
   @media print { body { padding:0; } h2 { break-after:avoid; } .kart, table, .not { break-inside:avoid; } }
 `;
 
-export function karneHtml(o: KarneOzet): string {
+export interface KarneHtmlSecenek {
+  /** Randevu linki (Settings: SATIS_RANDEVU_URL). Bos ise gorusme cumlesi metinden DUSER. */
+  randevuUrl?: string | null;
+}
+
+export function karneHtml(o: KarneOzet, secenek: KarneHtmlSecenek = {}): string {
   const baslik = karneBasligi(o.brand);
   const e = escapeHtml;
   const t = o.toplam;
@@ -448,6 +453,14 @@ ${boslukBlok}
   <li>Rakip alan adları cevap metninden otomatik çıkarıldı; arama motorları, sosyal ağlar, ansiklopediler ve AI sağlayıcıları sayılmaz.</li>
   <li>Toplam ${o.cagriSayisi} asistan çağrısı. Ölçüm tarihi: ${e(o.tarihMetni)}.</li>
 </ul></div>
+
+<div class="not" style="margin-top:18px">
+  <!-- NEDEN tek satir: rapor bagimsiz olcum belgesi; satis brosurune cevrilmez. Sonraki adim
+       bir yerde yazmali ama one cikmamali. Randevu linki yoksa o parca hic basilmaz. -->
+  Bu ölçümü sürekli takip etmek isterseniz: <a href="https://ranksup.ai/pricing">ranksup.ai/pricing</a>${
+    secenek.randevuUrl ? ` · görüşme: <a href="${e(secenek.randevuUrl)}">${e(secenek.randevuUrl)}</a>` : ''
+  }
+</div>
 
 <div class="alt">RanksUp (Luvi Host) · ${e(o.tarihMetni)} · Bu belge ${e(o.brand)} için hazırlanmış gizli bir çalışmadır; kurum dışına çıkarılmaz, kamuya yalnız isimsiz toplu istatistik açıklanır.</div>
 </body>

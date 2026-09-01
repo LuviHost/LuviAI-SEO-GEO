@@ -14,6 +14,7 @@ import { IntelActionService } from './intel-action.service.js';
 import { ActionPlansModule } from '../action-plans/action-plans.module.js';
 import { NotificationsModule } from '../notifications/notifications.module.js';
 import { LinkedinOutreachService } from './linkedin-outreach.service.js';
+import { ProspectModule } from '../prospect/prospect.module.js';
 
 /**
  * Intel — sektor istihbarati boru hatti.
@@ -26,7 +27,7 @@ import { LinkedinOutreachService } from './linkedin-outreach.service.js';
  * bildirimi icin (global degil).
  */
 @Module({
-  imports: [LLMModule, ActionPlansModule, NotificationsModule],
+  imports: [ProspectModule, LLMModule, ActionPlansModule, NotificationsModule],
   controllers: [IntelController],
   providers: [
     IntelCollectorService,

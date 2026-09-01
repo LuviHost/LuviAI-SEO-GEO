@@ -22,6 +22,7 @@ import { XSearchService } from './x-search.service.js';
 import { OpenClawService } from './openclaw.service.js';
 import { LinkedinOutreachService, type ImportRow } from './linkedin-outreach.service.js';
 import { parseSearchUrls } from './linkedin-outreach-rules.js';
+import { KarneService } from '../prospect/karne.service.js';
 import { DISABLED_SOURCES } from './source-registry.js';
 
 /**
@@ -58,6 +59,7 @@ export class IntelController {
     private readonly xSearch: XSearchService,
     private readonly openClaw: OpenClawService,
     private readonly linkedin: LinkedinOutreachService,
+    private readonly karne: KarneService,
   ) {}
 
   // ────────────────────────────────────────────────────────────
@@ -501,6 +503,67 @@ export class IntelController {
     const ids = Array.isArray(body?.ids) ? body.ids.filter((x) => typeof x === 'string').slice(0, 500) : [];
     if (ids.length === 0) return { updated: 0 };
     return this.linkedin.setKampanya(ids, body?.kampanya);
+  }
+
+  /**
+   * Cevap sonrasi satis asamasi / not / hatirlatma. Bot alanlarina (status) DOKUNMAZ.
+   */
+  @Post('linkedin/prospects/:id/satis')
+  async linkedinSetSatis(
+    @Req() req: Request,
+    @Param('id') id: string,
+    @Body() body: { asama?: string; not?: string | null; hatirlatmaAt?: string | null },
+  ) {
+    assertAdmin(req);
+    return this.linkedin.setSatis(id, body ?? {});
+  }
+
+  /**
+   * Bu aday icin UCRETSIZ KARNE uret ve paylasilabilir link dondur.
+   * Uzun surer (7 asistan x 10 soru ~ 60-90 sn) → arka planda calisir, sonuc bildirimle gelir.
+   */
+  @Post('linkedin/prospects/:id/karne')
+  async linkedinKarneUret(
+    @Req() req: Request,
+    @Param('id') id: string,
+    @Body() body: { host?: string; sektor?: string; altsektor?: string; rakipler?: string[] },
+  ) {
+    assertAdmin(req);
+    const kilit = `linkedin:karne:${id}`;
+    if (CALISAN_ASAMALAR.has(kilit)) return { started: false, reason: 'Bu aday için karne zaten üretiliyor' };
+
+    const p = await this.linkedin.prospectDetay(id);
+    if (!p) return { started: false, reason: 'Aday bulunamadı' };
+    const host = (body?.host ?? '').trim();
+    if (!host) return { started: false, reason: 'Kurum alan adı (host) gerekli' };
+    const sektor = (body?.sektor ?? p.sektor ?? '').trim();
+    if (!sektor) return { started: false, reason: 'Sektör gerekli' };
+
+    CALISAN_ASAMALAR.add(kilit);
+    this.karne
+      .uret({
+        brand: p.firma,
+        host,
+        sektor,
+        altsektor: body?.altsektor ?? null,
+        rakipler: Array.isArray(body?.rakipler) ? body.rakipler : [],
+        prospectId: id,
+      })
+      .then(async (k) => {
+        this.log.log(`Karne hazır: ${p.firma} → ${k.url}`);
+        await this.linkedin.karneBildir(p.firma, k.url).catch(() => undefined);
+      })
+      .catch((err) => this.log.warn(`Karne üretilemedi (${p.firma}): ${err?.message ?? err}`))
+      .finally(() => CALISAN_ASAMALAR.delete(kilit));
+
+    return { started: true, reason: `${p.firma} için karne üretiliyor — bitince bildirim gelecek (~1-2 dk)` };
+  }
+
+  /** Bu adaya uretilmis karneler (link + goruntulenme) */
+  @Get('linkedin/prospects/:id/karneler')
+  async linkedinKarneler(@Req() req: Request, @Param('id') id: string) {
+    assertAdmin(req);
+    return this.karne.prospectKarneleri(id);
   }
 
   @Post('linkedin/prospects/:id/skip')

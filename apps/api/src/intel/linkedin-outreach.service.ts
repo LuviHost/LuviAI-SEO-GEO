@@ -1200,6 +1200,51 @@ export class LinkedinOutreachService {
     });
   }
 
+  /**
+   * Cevap sonrasi SATIS asamasi (insan ekseni). Botun `status` alanina DOKUNMAZ:
+   * bot nerede oldugunu `status` ile, satis nerede oldugunu `satisAsamasi` ile soyler.
+   */
+  async setSatis(
+    id: string,
+    veri: { asama?: string | null; not?: string | null; hatirlatmaAt?: string | null },
+  ): Promise<{ ok: boolean }> {
+    const gecerli = ['YOK', 'GORUSULDU', 'KARNE_GONDERILDI', 'TOPLANTI', 'TEKLIF', 'KAZANILDI', 'KAYBEDILDI'];
+    const data: Record<string, unknown> = {};
+    if (veri.asama !== undefined && veri.asama !== null) {
+      const a = String(veri.asama).toUpperCase();
+      if (!gecerli.includes(a)) throw new Error(`Bilinmeyen satış aşaması: ${veri.asama}`);
+      data.satisAsamasi = a;
+    }
+    if (veri.not !== undefined) data.satisNotu = veri.not ? String(veri.not).slice(0, 4000) : null;
+    if (veri.hatirlatmaAt !== undefined) {
+      if (!veri.hatirlatmaAt) data.hatirlatmaAt = null;
+      else {
+        const d = new Date(veri.hatirlatmaAt);
+        if (Number.isNaN(d.getTime())) throw new Error('Hatırlatma tarihi okunamadı');
+        data.hatirlatmaAt = d;
+      }
+    }
+    if (Object.keys(data).length === 0) return { ok: false };
+    await this.prisma.linkedinProspect.update({ where: { id }, data });
+    return { ok: true };
+  }
+
+  /** Panel/karne icin aday ozeti */
+  async prospectDetay(id: string) {
+    return this.prisma.linkedinProspect.findUnique({
+      where: { id },
+      select: { id: true, ad: true, soyad: true, firma: true, unvan: true, sektor: true, status: true, profileUrl: true },
+    });
+  }
+
+  /** Karne hazir olunca admin'e bildir (e-posta + panel) */
+  async karneBildir(firma: string, url: string): Promise<void> {
+    await this.notifyAdmin(
+      `Karne hazır: ${firma}`,
+      `${firma} için ücretsiz AI görünürlük karnesi üretildi. Paylaşım linki: ${url}\n\nLinki kişiye gönderin; açıldığında panelde görüntülenme sayısı artar.`,
+    );
+  }
+
   /** Toplu kampanya degistirme (panelden secim) — yalniz henuz istek gitmemis kayitlar */
   async setKampanya(ids: string[], kampanya?: string | null): Promise<{ updated: number }> {
     const k = normalizeKampanya(kampanya);
@@ -1216,7 +1261,7 @@ export class LinkedinOutreachService {
     const dayStart = istanbulDayStart(now);
     const weekAgo = new Date(now.getTime() - 7 * 86_400_000);
     const win = acceptRateWindow(now);
-    const [requestsToday, messagesToday, inmailsToday, requestsWeek, queued, requestsMatured, acceptedMatured, recent, byStatus, byFirmaRaw, pausedReason, enabled, ayarlar, krediRow, ilkKuyruk] = await Promise.all([
+    const [requestsToday, messagesToday, inmailsToday, requestsWeek, queued, requestsMatured, acceptedMatured, recent, byStatus, byFirmaRaw, pausedReason, enabled, ayarlar, krediRow, ilgilenilecek, ilkKuyruk] = await Promise.all([
       this.prisma.linkedinProspect.count({ where: { requestedAt: { gte: dayStart } } }),
       this.prisma.linkedinProspect.count({ where: { messagedAt: { gte: dayStart } } }),
       this.prisma.linkedinProspect.count({ where: { messagedAt: { gte: dayStart }, requestedAt: null } }),
@@ -1232,6 +1277,18 @@ export class LinkedinOutreachService {
       this.isEnabled(),
       this.getAyarlar(),
       this.prisma.kvStore.findUnique({ where: { key: KV_INMAIL_KREDI } }).catch(() => null),
+      // "Bugun ilgilenilecekler": cevap verip beklemede kalanlar + hatirlatmasi gelmis olanlar
+      this.prisma.linkedinProspect.findMany({
+        where: {
+          OR: [
+            { status: 'REPLIED', satisAsamasi: 'YOK' },
+            { hatirlatmaAt: { lte: new Date() }, satisAsamasi: { notIn: ['KAZANILDI', 'KAYBEDILDI'] } },
+          ],
+        },
+        orderBy: [{ hatirlatmaAt: 'asc' }, { repliedAt: 'desc' }],
+        take: 25,
+        select: { id: true, ad: true, soyad: true, firma: true, unvan: true, status: true, satisAsamasi: true, hatirlatmaAt: true, repliedAt: true, profileUrl: true },
+      }).catch(() => []),
       this.prisma.linkedinProspect.findFirst({
         where: { status: 'QUEUED' },
         orderBy: { createdAt: 'asc' },
@@ -1257,6 +1314,8 @@ export class LinkedinOutreachService {
       // NEDEN gercek kayit: panelde sabit "Ayşe Demir" gorunce "sablonda isim degisiyor mu?" sorusu
       // dogdu (30.08); gercek adla gostermek soruyu ortadan kaldiriyor.
       sablonlar: this.sablonOnizleme(ilkKuyruk ?? undefined),
+      // Cevap gelmis ama satis asamasi girilmemis + hatirlatmasi gecmis kayitlar
+      ilgilenilecek,
       // Panelden degistirilebilen ayarlar ve guvenlik tavanlari
       ayarlar,
       ayarTavan: AYAR_TAVAN,
