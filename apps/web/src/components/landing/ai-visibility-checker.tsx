@@ -5,6 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { ArrowRight, X, Loader2, AlertCircle, Globe, Crown } from 'lucide-react';
 import { api, ApiError } from '@/lib/api';
+import { trackCta } from '@/lib/landing-track';
 import { useT } from '@/lib/i18n';
 import { VendorLogo, type VendorName } from '@/components/vendor-logo';
 import { QueryCard, UnlockCta } from '@/components/citation/query-card';
@@ -231,6 +232,7 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
         }),
       });
       setOptinStatus('sent');
+      trackCta('checker_optin');
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : (err as Error)?.message || c.optinError;
       setOptinErrorMsg(msg);
@@ -345,11 +347,15 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
     }
     setPhase('loading');
     setError(null);
+    // NEDEN olcum: sitenin ANA CTA'si bu; bugune kadar hic izlenmiyordu, dolayisiyla
+    // "kac ziyaretci gercekten test yapti" bilinmiyordu (01.09.2026 tespiti)
+    trackCta('checker_submit', { mode });
     try {
       const token = (await getTurnstileToken()) ?? undefined;
       const res = await api.publicCitationCheck(cleaned, token);
       setResult(res);
       setPhase('result');
+      trackCta('checker_result', { mode, sorular: res?.queries?.length ?? 0 });
     } catch (err) {
       const msg = err instanceof ApiError ? err.message : (err as Error)?.message || 'Hata';
       setError(msg);

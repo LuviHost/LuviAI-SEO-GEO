@@ -21,6 +21,7 @@
 import { Suspense, useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
+import { track } from '@/lib/landing-track';
 import { toast } from 'sonner';
 import { Rocket, ChevronRight, Globe } from 'lucide-react';
 import { api } from '@/lib/api';
@@ -36,6 +37,8 @@ import {
 const POLL_INTERVAL_MS = 2000;          // 4s → 2s, ilk wow için
 const ESTIMATED_TOTAL_MS = 60_000;       // 90s → 60s hedef
 const RESUME_KEY = 'luviai-quickmission-active-site';
+/** signup_complete yalniz bir kez gonderilsin */
+const SIGNUP_EVENT_KEY = 'luvi_signup_tracked';
 
 export default function OnboardingPage() {
   return (
@@ -63,6 +66,21 @@ function OnboardingInner() {
     } catch (_e) { /* noop */ }
     setHydratedResume(true);
   }, []);
+
+  /**
+   * Funnel'in SON basamagi. NEDEN burasi: `signup_complete` eventi bugune kadar hicbir yerde
+   * uretilmiyordu — /admin/landing'deki "Signup" metrigi ve session→signup orani her zaman 0
+   * gorunuyordu (01.09.2026 tespiti). Kullanicinin urune ilk girisi dogru sinyaldir; oturum
+   * basina bir kez gonderilir.
+   */
+  useEffect(() => {
+    if (sessionStatus !== 'authenticated') return;
+    try {
+      if (localStorage.getItem(SIGNUP_EVENT_KEY)) return;
+      localStorage.setItem(SIGNUP_EVENT_KEY, String(Date.now()));
+      track('signup_complete');
+    } catch { /* localStorage kapaliysa olcum atlanir, akis etkilenmez */ }
+  }, [sessionStatus]);
 
   if (!hydratedResume) {
     return (

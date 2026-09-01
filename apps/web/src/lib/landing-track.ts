@@ -6,6 +6,8 @@
  */
 
 const STORAGE_KEY = 'luvi_lsid';
+/** Ilk gorulen UTM oturuma yapisir — kampanya atifi sayfa degisince kaybolmasin */
+const UTM_KEY = 'luvi_utm';
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? '';
 
 function getSessionId(): string {
@@ -18,16 +20,34 @@ function getSessionId(): string {
   return sid;
 }
 
+/**
+ * Kampanya atfi. NEDEN yapistiriyoruz: eskiden her event yalniz O ANKI URL'i okuyordu; ziyaretci
+ * `/?utm_source=linkedin` ile girip `/pricing`'e gecince kampanya bilgisi kayboluyor, dolayisiyla
+ * "LinkedIn'den gelen kac kisi fiyatlara bakti" sorusu cevapsiz kaliyordu (01.09.2026 tespiti).
+ * Ilk gorulen UTM oturum boyunca saklanir; sonradan gelen YENI bir UTM onu gunceller.
+ */
 function getUtm(): { source?: string; medium?: string; campaign?: string } | undefined {
   if (typeof window === 'undefined') return undefined;
   const sp = new URLSearchParams(window.location.search);
-  const utm: any = {};
+  const utm: Record<string, string> = {};
   const s = sp.get('utm_source');
   const m = sp.get('utm_medium');
   const c = sp.get('utm_campaign');
   if (s) utm.source = s;
   if (m) utm.medium = m;
   if (c) utm.campaign = c;
+
+  try {
+    if (Object.keys(utm).length > 0) {
+      localStorage.setItem(UTM_KEY, JSON.stringify(utm));
+      return utm;
+    }
+    const kayitli = localStorage.getItem(UTM_KEY);
+    if (kayitli) {
+      const parsed = JSON.parse(kayitli) as Record<string, string>;
+      if (parsed && typeof parsed === 'object' && Object.keys(parsed).length > 0) return parsed;
+    }
+  } catch { /* localStorage kapaliysa URL'deki degerle devam */ }
   return Object.keys(utm).length > 0 ? utm : undefined;
 }
 
