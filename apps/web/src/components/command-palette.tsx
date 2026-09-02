@@ -116,7 +116,7 @@ export function CommandPalette() {
 
   const globalCmds: Cmd[] = useMemo(() => [
     { id: 'global:dashboard', label: 'Sitelerim', group: 'global', icon: Home, href: '/dashboard', keywords: ['dashboard', 'sitelerim', 'home'] },
-    { id: 'global:onboarding', label: 'Yeni Site Ekle', group: 'global', icon: Plus, href: '/onboarding', keywords: ['new', 'yeni', 'site', 'ekle', 'onboarding'] },
+    { id: 'global:onboarding', label: 'Yeni Site Ekle', group: 'global', icon: Plus, href: '/onboarding?new=1', keywords: ['new', 'yeni', 'site', 'ekle', 'onboarding'] },
     { id: 'global:billing', label: 'Abonelik', group: 'global', icon: CreditCard, href: '/billing', keywords: ['billing', 'abonelik', 'plan', 'pricing'] },
     { id: 'global:affiliate', label: 'Affiliate', group: 'global', icon: UsersIcon, href: '/affiliate', keywords: ['affiliate', 'referans', 'partner'] },
   ], []);

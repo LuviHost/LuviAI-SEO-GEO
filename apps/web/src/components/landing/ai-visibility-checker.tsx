@@ -857,13 +857,13 @@ export function AiVisibilityChecker({ mode = 'standalone' }: AiVisibilityChecker
                   <p className="text-xs text-white/90 mb-4 leading-relaxed">{c.ctaBoxBody}</p>
                   <div className="space-y-2">
                     <Link
-                      href="/onboarding"
+                      href="/onboarding?new=1"
                       className="block w-full text-center bg-white text-brand-600 hover:bg-white/95 font-bold text-sm px-4 py-2.5 rounded-lg transition-colors"
                     >
                       {c.ctaPrimary}
                     </Link>
                     <Link
-                      href="/onboarding?demo=1"
+                      href="/onboarding?demo=1&new=1"
                       className="block w-full text-center bg-transparent border border-white/40 text-white hover:bg-white/10 font-semibold text-sm px-4 py-2 rounded-lg transition-colors"
                     >
                       {c.ctaSecondary}

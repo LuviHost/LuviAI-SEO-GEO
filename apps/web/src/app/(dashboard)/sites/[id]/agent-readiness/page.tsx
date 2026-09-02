@@ -10,6 +10,7 @@ import { api } from '@/lib/api';
 import { useEntitlements } from '@/lib/entitlements';
 import { PlanLockedCard } from '@/components/plan-locked-card';
 import { cn } from '@/lib/utils';
+import { CHART_SEMANTIC } from '@/lib/chart-colors';
 import {
   Bot, RefreshCw, Check, X, ChevronDown, Copy, Wrench, Loader2,
   ShieldCheck, AlertTriangle, ListPlus,
@@ -42,13 +43,16 @@ function Gauge({ score }: { score: number }) {
   const rad = (a: number) => ((a - 180) * Math.PI) / 180;
   const x = 60 + 50 * Math.cos(rad(angle));
   const y = 60 + 50 * Math.sin(rad(angle));
-  const large = angle > 90 ? 1 : 0;
-  const color = score >= 85 ? '#10b981' : score >= 65 ? '#22c55e' : score >= 40 ? '#f59e0b' : '#ef4444';
+  // NEDEN large-arc bayragi HEP 0: ray yarim daire, ilerleme yayi hicbir skorda 180°'yi
+  // gecmez. Eski `angle > 90 ? 1 : 0` 50 ustu skorlarda tarayiciya "uzun yayi ciz" diyordu;
+  // uzun yay obur merkezden 245° donup viewBox altindan kirpiliyor, ekranda yalniz iki uc
+  // kaliyordu ("bar kaymis" — 02.09.2026, kobipratik skor 64). 50 altinda gorunmuyordu.
+  const color = score >= 65 ? CHART_SEMANTIC.good : score >= 40 ? CHART_SEMANTIC.warn : CHART_SEMANTIC.crit;
   return (
     <svg viewBox="0 0 120 70" className="w-44">
       <path d="M 10 60 A 50 50 0 0 1 110 60" fill="none" stroke="currentColor" strokeOpacity="0.12" strokeWidth="10" strokeLinecap="round" />
       {score > 0 && (
-        <path d={`M 10 60 A 50 50 0 ${large} 1 ${x} ${y}`} fill="none" stroke={color} strokeWidth="10" strokeLinecap="round" />
+        <path d={`M 10 60 A 50 50 0 0 1 ${x.toFixed(2)} ${y.toFixed(2)}`} fill="none" stroke={color} strokeWidth="10" strokeLinecap="round" />
       )}
       <text x="60" y="52" textAnchor="middle" className="fill-current" style={{ fontSize: 26, fontWeight: 700 }}>{score}</text>
       <text x="60" y="66" textAnchor="middle" className="fill-current opacity-50" style={{ fontSize: 8 }}>/ 100</text>

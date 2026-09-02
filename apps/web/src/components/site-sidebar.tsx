@@ -317,7 +317,7 @@ export function SiteSidebar({ onClose }: { onClose?: () => void }) {
                   Tüm sitelerim →
                 </Link>
                 <Link
-                  href="/onboarding"
+                  href="/onboarding?new=1"
                   onClick={() => setSwitcherOpen(false)}
                   className="block w-full text-center text-xs text-brand px-3 py-2 rounded-md hover:bg-brand/15 transition-colors font-semibold"
                 >

@@ -37,6 +37,57 @@ import {
 const POLL_INTERVAL_MS = 2000;          // 4s → 2s, ilk wow için
 const ESTIMATED_TOTAL_MS = 60_000;       // 90s → 60s hedef
 const RESUME_KEY = 'luviai-quickmission-active-site';
+/**
+ * Bayat anahtar TTL'i. NEDEN: anahtar yalniz gorev bitince siliniyordu; zinciri yarida
+ * kalan bir site (orn. ONBOARDING_CHAIN "job stalled") gorevi HIC bitiremedigi icin anahtar
+ * haftalarca kaliyor ve her "Yeni Site" tiklamasi o eski siteyi "devam ettiriyordu"
+ * (02.09.2026 tespiti: 12.08'de eklenen site 3 hafta sonra hala aciliyordu).
+ * Kural: yalniz son 30 dk icinde baslamis VE sunucuda hala onboarding'de olan gorev devam eder.
+ */
+const RESUME_TTL_MS = 30 * 60_000;
+
+type ResumeKaydi = { siteId: string; at: number };
+
+function resumeKaydiOku(): ResumeKaydi | null {
+  try {
+    const raw = localStorage.getItem(RESUME_KEY);
+    if (!raw) return null;
+    // Eski format duz siteId string'iydi — tarihsiz oldugu icin bayat sayilir ve temizlenir
+    if (!raw.startsWith('{')) { localStorage.removeItem(RESUME_KEY); return null; }
+    const k = JSON.parse(raw) as Partial<ResumeKaydi>;
+    if (!k.siteId || typeof k.at !== 'number') { localStorage.removeItem(RESUME_KEY); return null; }
+    if (Date.now() - k.at > RESUME_TTL_MS) { localStorage.removeItem(RESUME_KEY); return null; }
+    return { siteId: k.siteId, at: k.at };
+  } catch { return null; }
+}
+
+function resumeKaydiYaz(siteId: string) {
+  try { localStorage.setItem(RESUME_KEY, JSON.stringify({ siteId, at: Date.now() })); } catch (_e) { /* noop */ }
+}
+
+function resumeKaydiSil() {
+  try { localStorage.removeItem(RESUME_KEY); } catch (_e) { /* noop */ }
+}
+
+/**
+ * Devam edilebilir sunucu durumlari: ONBOARDING_CHAIN worker'i ACTIVE'i yalnizca zincirin
+ * en sonunda yazar (apps/worker/src/index.ts); bu uc durum "zincir henuz bitmedi" demektir.
+ */
+const RESUMABLE_STATUSES = new Set(['ONBOARDING', 'AUDIT_PENDING', 'AUDIT_COMPLETE']);
+
+/**
+ * Sunucu gercegi: devam ANLAMSIZ ise true. Tamamlanma damgasi var, durum bitmis (ACTIVE/PAUSED/ERROR)
+ * ya da site 30 dk'dan eski (zincir normalde 1-3 dk surer; daha eskisi olmus sayilir —
+ * AUDIT_COMPLETE her haftalik taramada yeniden yazildigi icin tek basina "devam ediyor" kaniti degildir).
+ */
+function onboardingGecmis(site: any): boolean {
+  if (!site) return false;
+  if (site.onboardingCompletedAt) return true;
+  if (!RESUMABLE_STATUSES.has(String(site.status))) return true;
+  const olusturma = site.createdAt ? Date.parse(site.createdAt) : NaN;
+  if (!Number.isNaN(olusturma) && Date.now() - olusturma > RESUME_TTL_MS) return true;
+  return false;
+}
 /** signup_complete yalniz bir kez gonderilsin */
 const SIGNUP_EVENT_KEY = 'luvi_signup_tracked';
 
@@ -53,19 +104,59 @@ function OnboardingInner() {
   const params = useSearchParams();
   const { data: session, status: sessionStatus } = useSession();
 
-  // ?siteId=X ile devam edilebilir (kullanıcı sayfayı yenilerse)
+  // ?siteId=X ile devam edilebilir (kullanıcı sayfayı yenilerse — onCreated URL'i buna cevirir)
   const queryId = params.get('siteId');
+  // ?new=1 → "Yeni Site" niyeti: bayat anahtar ne olursa olsun TAZE form
+  const yeniNiyeti = params.get('new') === '1';
+  // ?url=https://... → unlock/landing akisindan gelen alan adi; forma onceden doldurulur
+  const onDoluUrl = params.get('url') ?? '';
   const [resumeId, setResumeId] = useState<string | null>(queryId);
   const [hydratedResume, setHydratedResume] = useState(false);
+  // Guncel niyet: hydrate'in asenkron dallari (getSite bekleme penceresi ≤8 sn) bittiginde
+  // arada ?new=1 gelmis olabilir; gecikmis sonuc niyeti ezmesin diye ref'ten okunur.
+  const yeniNiyetiRef = useRef(yeniNiyeti);
+  yeniNiyetiRef.current = yeniNiyeti;
 
   useEffect(() => {
+    let iptal = false;
     if (resumeId) { setHydratedResume(true); return; }
-    try {
-      const sid = localStorage.getItem(RESUME_KEY);
-      if (sid) setResumeId(sid);
-    } catch (_e) { /* noop */ }
-    setHydratedResume(true);
-  }, []);
+    if (yeniNiyeti || onDoluUrl) { resumeKaydiSil(); setHydratedResume(true); return; }
+    const kayit = resumeKaydiOku();
+    if (!kayit) { setHydratedResume(true); return; }
+    // Anahtar taze; yine de sunucuya sor — site silinmis/baskasinin (404/403) ya da onboarding'i
+    // bitmisse devam etme. Ag/5xx hatasinda sunucu gercegi bilinmiyor → anahtar KORUNUR, devam edilir
+    // (MissionStage kendi 404/403 kontrolunu yapar). 8 sn zaman asimi: API asili kalirsa sayfa
+    // "Mission console hazirlaniyor" ekraninda kilitlenmesin — devam et, polling kendi halleder.
+    Promise.race([
+      api.getSite(kayit.siteId),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), 8_000)),
+    ])
+      .then((site) => {
+        if (iptal) return;
+        if (yeniNiyetiRef.current) { resumeKaydiSil(); return; } // bekleme sirasinda "Yeni Site" dendi
+        if (site === null) { setResumeId(kayit.siteId); return; } // zaman asimi: devam et
+        if (onboardingGecmis(site)) { resumeKaydiSil(); return; }
+        setResumeId(kayit.siteId);
+      })
+      .catch((err: any) => {
+        if (iptal) return;
+        if (yeniNiyetiRef.current) { resumeKaydiSil(); return; }
+        if (err?.status === 404 || err?.status === 403) { resumeKaydiSil(); return; }
+        setResumeId(kayit.siteId);
+      })
+      .finally(() => { if (!iptal) setHydratedResume(true); });
+    return () => { iptal = true; };
+  }, []); // yalniz ilk mount: ilk yuklemedeki niyet/anahtar degerlendirilir
+
+  /**
+   * Ayni sayfada yalniz arama parametresi degisen navigasyon (orn. Mission ekranindayken Cmd+K
+   * "Yeni Site Ekle" → ?new=1) App Router'da bileseni YENIDEN MOUNT ETMEZ; ilk-mount effect'i
+   * kosmaz. Bu effect niyeti/siteId'yi state'e senkronlar.
+   */
+  useEffect(() => {
+    if (yeniNiyeti) { resumeKaydiSil(); if (resumeId) setResumeId(null); return; }
+    if (queryId && queryId !== resumeId) setResumeId(queryId);
+  }, [yeniNiyeti, queryId]); // resumeId bilerek disarida: yalniz URL degisince kossun
 
   /**
    * Funnel'in SON basamagi. NEDEN burasi: `signup_complete` eventi bugune kadar hicbir yerde
@@ -96,12 +187,15 @@ function OnboardingInner() {
         <MissionStage
           siteId={resumeId}
           onComplete={(id) => {
-            try { localStorage.removeItem(RESUME_KEY); } catch (_e) { /* noop */ }
-            router.push(`/sites/${id}?tab=flow&onboarding=done`);
+            resumeKaydiSil();
+            // replace: onCreated adres cubugunu ?siteId=X yaptigi icin push ile gidilirse Geri tusu
+            // Mission ekranina duser ve 1.4 sn sonra yeniden /sites/X'e itilir (geri tusu tuzagi)
+            router.replace(`/sites/${id}?tab=flow&onboarding=done`);
           }}
           onAbort={() => {
-            try { localStorage.removeItem(RESUME_KEY); } catch (_e) { /* noop */ }
+            resumeKaydiSil();
             setResumeId(null);
+            router.replace('/onboarding?new=1');
           }}
         />
       </MissionShell>
@@ -113,9 +207,12 @@ function OnboardingInner() {
       <InputStage
         sessionUserId={session?.user?.id ?? null}
         sessionStatus={sessionStatus}
+        initialUrl={onDoluUrl}
         onCreated={(siteId) => {
-          try { localStorage.setItem(RESUME_KEY, siteId); } catch (_e) { /* noop */ }
+          resumeKaydiYaz(siteId);
           setResumeId(siteId);
+          // F5 sozlesmesi: adres cubugunda siteId dursun — devam localStorage'a muhtac olmasin
+          router.replace(`/onboarding?siteId=${encodeURIComponent(siteId)}`);
         }}
       />
     </MissionShell>
@@ -129,13 +226,16 @@ function InputStage({
   sessionUserId,
   sessionStatus,
   onCreated,
+  initialUrl = '',
 }: {
   sessionUserId: string | null;
   sessionStatus: 'authenticated' | 'unauthenticated' | 'loading';
   onCreated: (siteId: string) => void;
+  /** ?url= ile gelen alan adi (unlock/landing) — eskiden okunmuyordu, parametre bosa gidiyordu */
+  initialUrl?: string;
 }) {
   const router = useRouter();
-  const [url, setUrl] = useState('');
+  const [url, setUrl] = useState(initialUrl);
   const [creating, setCreating] = useState(false);
   const [demoLoading, setDemoLoading] = useState(false);
 
@@ -149,7 +249,7 @@ function InputStage({
   const submit = async () => {
     if (!valid) { toast.error('Geçerli bir URL gir (https:// ile başlamalı)'); return; }
     if (sessionStatus !== 'authenticated' || !sessionUserId) {
-      router.push('/signin?callbackUrl=/onboarding');
+      router.push(`/signin?callbackUrl=${encodeURIComponent(window.location.pathname + window.location.search)}`);
       return;
     }
     setCreating(true);
@@ -195,7 +295,7 @@ function InputStage({
 
   const launchDemo = async () => {
     if (sessionStatus !== 'authenticated') {
-      router.push('/signin?callbackUrl=/onboarding');
+      router.push(`/signin?callbackUrl=${encodeURIComponent(window.location.pathname + window.location.search)}`);
       return;
     }
     setDemoLoading(true);
@@ -399,8 +499,8 @@ function MissionStage({
         const audit: any = auditR.status === 'fulfilled' ? auditR.value : null;
         const queue: any = queueR.status === 'fulfilled' ? queueR.value : null;
 
-        // Site missing → silinmiş
-        if (siteR.status === 'rejected' && (siteR.reason?.status === 404)) {
+        // Site yok (404) ya da baska kullaniciya ait bayat id (403, assertOwnership) → gorevi iptal et
+        if (siteR.status === 'rejected' && (siteR.reason?.status === 404 || siteR.reason?.status === 403)) {
           toast.error('Site bulunamadı — yeniden başlatın');
           try { window.localStorage.removeItem(`luviai-mission-startedAt-${siteId}`); } catch (_e) { /* noop */ }
           onAbort();

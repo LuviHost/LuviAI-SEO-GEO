@@ -285,7 +285,7 @@ function UnlockView() {
           </div>
 
           <Link
-            href={`/onboarding?url=${encodeURIComponent(`https://${result.domain}`)}`}
+            href={`/onboarding?url=${encodeURIComponent(`https://${result.domain}`)}&new=1`}
             className="w-full inline-flex items-center justify-center gap-2 bg-brand-600 hover:bg-brand-700 text-white px-5 py-3 rounded-lg text-sm font-bold transition-colors"
           >
             {c.addSite}
