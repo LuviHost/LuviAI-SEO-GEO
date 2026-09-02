@@ -10,8 +10,9 @@ import Animated, {
   withTiming,
   withSequence,
   Easing,
+  useReducedMotion,
 } from 'react-native-reanimated';
-import { colors, fonts, radii } from './theme';
+import { colors, fonts, radii, type as tip, tint } from './theme';
 
 /* ══════════════ İkonlar ══════════════ */
 type IconName =
@@ -174,7 +175,9 @@ export function DomainFavicon({ domain, brand, size = 44 }: { domain: string; br
 /* ══════════════ Nefes alan orb ══════════════ */
 export function Orb({ size = 64 }: { size?: number }) {
   const scale = useSharedValue(1);
+  const reduced = useReducedMotion();
   useEffect(() => {
+    if (reduced) return; // OS "hareketi azalt": nefes animasyonu hic baslamaz
     scale.value = withRepeat(
       withSequence(
         withTiming(1.06, { duration: 1600, easing: Easing.inOut(Easing.quad) }),
@@ -183,7 +186,7 @@ export function Orb({ size = 64 }: { size?: number }) {
       -1,
       false,
     );
-  }, [scale]);
+  }, [scale, reduced]);
   const style = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
   return (
     <Animated.View
@@ -250,9 +253,11 @@ export function ScreenBg() {
 export function Spinner({ size = 18, color = colors.ember, track = 'rgba(243,109,50,0.25)', border = 2, duration = 800 }:
   { size?: number; color?: string; track?: string; border?: number; duration?: number }) {
   const rot = useSharedValue(0);
+  const reduced = useReducedMotion();
   useEffect(() => {
+    if (reduced) return; // reduced-motion: halka sabit durur, gosterge yine gorunur
     rot.value = withRepeat(withTiming(360, { duration, easing: Easing.linear }), -1, false);
-  }, [rot, duration]);
+  }, [rot, duration, reduced]);
   const style = useAnimatedStyle(() => ({ transform: [{ rotate: `${rot.value}deg` }] }));
   return (
     <Animated.View
@@ -284,6 +289,88 @@ export function Pill({ text, color, bg, border }: { text: string; color: string;
     <View style={{ paddingHorizontal: 11, paddingVertical: 6, borderRadius: radii.pill, backgroundColor: bg, borderWidth: 1, borderColor: border }}>
       <Text style={{ fontFamily: fonts.monoSemi, fontSize: 10, color }}>{text}</Text>
     </View>
+  );
+}
+
+/* ══════════════ Metrik karti — web ui/metric.tsx'in RN esleseni ══════════════ */
+/** Deger + etiket + istege bagli delta ve sparkline. Tip olcegi theme.type'tan. */
+export function Metric({
+  label, value, delta, iyiYon = 'yukari', spark, sparkColor = colors.ember, style,
+}: {
+  label: string;
+  value: string | number;
+  delta?: number;
+  /** dususun iyi oldugu metrikler icin 'asagi' */
+  iyiYon?: 'yukari' | 'asagi';
+  spark?: number[];
+  sparkColor?: string;
+  style?: StyleProp<ViewStyle>;
+}) {
+  return (
+    <Card style={[{ padding: 16 }, style]}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Text style={[tip.label, { color: colors.textDim }]}>{label}</Text>
+        {delta !== undefined && <Delta value={delta} iyiYon={iyiYon} />}
+      </View>
+      <Text style={[tip.metricLg, { color: colors.text, marginTop: 6, fontVariant: ['tabular-nums'] }]}>
+        {value}
+      </Text>
+      {spark && spark.length > 1 && (
+        <View style={{ marginTop: 10 }}>
+          <MiniSparkline data={spark} color={sparkColor} />
+        </View>
+      )}
+    </Card>
+  );
+}
+
+/** Degisim rozeti — web delta-badge sozlesmesi: artis good, dusus crit, notr dim */
+export function Delta({ value, iyiYon = 'yukari' }: { value: number; iyiYon?: 'yukari' | 'asagi' }) {
+  const yon = value > 0 ? 1 : value < 0 ? -1 : 0;
+  const iyi = yon === 0 ? null : (yon > 0) === (iyiYon === 'yukari');
+  const renk = iyi === null ? colors.textFaint : iyi ? colors.good : colors.crit;
+  const zemin = iyi === null ? 'rgba(247,240,234,0.08)' : tint(renk, 0.12);
+  return (
+    <View style={{ paddingHorizontal: 7, paddingVertical: 3, borderRadius: radii.pill, backgroundColor: zemin }}>
+      <Text style={[tip.micro, { color: renk, fontVariant: ['tabular-nums'] }]}>
+        {yon > 0 ? '+' : ''}{value}
+      </Text>
+    </View>
+  );
+}
+
+/* ══════════════ Sparkline — trend cizgisi (react-native-svg) ══════════════ */
+/** Web chart-container'in mini esleseni: dolgu gradyanli kucuk trend cizgisi. */
+export function MiniSparkline({
+  data, color = colors.ember, width = 120, height = 32,
+}: { data: number[]; color?: string; width?: number; height?: number }) {
+  if (data.length < 2) return null;
+  const max = Math.max(...data);
+  const min = Math.min(...data);
+  const range = max - min || 1;
+  const stepX = width / (data.length - 1);
+  const pts = data.map((v, i) => {
+    const x = i * stepX;
+    const y = height - 3 - ((v - min) / range) * (height - 6);
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  });
+  const cizgi = `M ${pts.join(' L ')}`;
+  const dolgu = `${cizgi} L ${width} ${height} L 0 ${height} Z`;
+  const gid = `mini-${color.replace(/[^a-zA-Z0-9]/g, '')}`;
+  const son = pts[pts.length - 1].split(',').map(Number);
+  return (
+    <Svg width={width} height={height}>
+      <Defs>
+        <SvgLinearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
+          <Stop offset="0%" stopColor={color} stopOpacity={0.3} />
+          <Stop offset="100%" stopColor={color} stopOpacity={0} />
+        </SvgLinearGradient>
+      </Defs>
+      <Path d={dolgu} fill={`url(#${gid})`} />
+      <Path d={cizgi} stroke={color} strokeWidth={1.8} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+      {/* vurgulu uc nokta — "simdi" */}
+      <Circle cx={son[0]} cy={son[1]} r={2.6} fill={color} />
+    </Svg>
   );
 }
 

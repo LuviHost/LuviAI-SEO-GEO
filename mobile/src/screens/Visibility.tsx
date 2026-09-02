@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { View, Text, Pressable, ActivityIndicator } from 'react-native';
+import Animated, { FadeInDown, useReducedMotion } from 'react-native-reanimated';
 import Svg, { Circle } from 'react-native-svg';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -14,6 +15,8 @@ export function VisibilityScreen() {
   const { result, domain, loading } = useAnalysis();
 
   const vis = useMemo(() => (result ? deriveVisibility(result) : null), [result]);
+  // OS "hareketi azalt" acikken giris animasyonlari hic verilmez
+  const reduced = useReducedMotion();
 
   return (
     <View>
@@ -84,10 +87,13 @@ export function VisibilityScreen() {
           </View>
 
           <View style={{ gap: 8 }}>
-            {vis.engines.map((e) => {
+            {vis.engines.map((e, motorIdx) => {
               const barW = `${Math.max(3, e.rate)}%` as const;
               return (
-                <View key={e.provider} style={{ flexDirection: 'row', alignItems: 'center', gap: 11, paddingHorizontal: 12, paddingVertical: 11, borderRadius: radii.lg, backgroundColor: colors.bgElev, borderWidth: 1, borderColor: colors.lineSoft }}>
+                <Animated.View
+                  key={e.provider}
+                  entering={reduced ? undefined : FadeInDown.duration(400).delay(motorIdx * 60)}
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 11, paddingHorizontal: 12, paddingVertical: 11, borderRadius: radii.lg, backgroundColor: colors.bgElev, borderWidth: 1, borderColor: colors.lineSoft }}>
                   <View style={{ width: 32, height: 32, borderRadius: 10, backgroundColor: '#F5F0EA', alignItems: 'center', justifyContent: 'center' }}>
                     <VendorLogo provider={e.provider} size={20} />
                   </View>
@@ -103,7 +109,7 @@ export function VisibilityScreen() {
                       <View style={{ height: '100%', borderRadius: radii.pill, backgroundColor: e.cited > 0 ? e.color : 'rgba(247,240,234,0.18)', width: barW }} />
                     </View>
                   </View>
-                </View>
+                </Animated.View>
               );
             })}
           </View>

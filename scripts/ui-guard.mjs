@@ -17,6 +17,7 @@ import { join } from 'node:path';
 
 const ROOT = new URL('..', import.meta.url).pathname;
 const SRC = join(ROOT, 'apps/web/src');
+const MOBIL = [join(ROOT, 'mobile/app'), join(ROOT, 'mobile/src')];
 const BASELINE_PATH = join(ROOT, 'scripts/ui-guard-baseline.json');
 const UPDATE = process.argv.includes('--update-baseline');
 
@@ -47,9 +48,34 @@ for (const f of files) {
   }
 }
 
+// ── Mobil ratchet: theme.type disinda inline fontSize + hex sayimi ──
+// theme.ts (olcek tanimi) ve components.tsx'teki tanimlar bilincli — sayima girer
+// ama taban dusuruldukce ekranlardaki inline'lar theme.type'a goc eder.
+let mobilFont = 0, mobilHex = 0;
+const mobilFiles = [];
+for (const dir of MOBIL) {
+  try {
+    (function walkM(d) {
+      for (const e of readdirSync(d)) {
+        const q = join(d, e);
+        const st = statSync(q);
+        if (st.isDirectory()) { if (e !== 'node_modules') walkM(q); }
+        else if (/\.tsx?$/.test(e)) mobilFiles.push(q);
+      }
+    })(dir);
+  } catch { /* mobil dizini olmayan ortamlar (CI parcasi) sessiz gecer */ }
+}
+for (const f of mobilFiles) {
+  const t = readFileSync(f, 'utf8');
+  // theme.ts'in kendisi olcegin tek kaynagi — sayilmaz
+  if (f.endsWith('/theme.ts')) continue;
+  mobilFont += (t.match(/fontSize:\s*\d/g) ?? []).length;
+  mobilHex += (t.match(HEX) ?? []).length;
+}
+
 if (UPDATE) {
-  writeFileSync(BASELINE_PATH, JSON.stringify({ arbitraryTextPx: arbCount, hexInTsx: hexCount, animejsAllowed: animeBad.sort() }, null, 2) + '\n');
-  console.log(`Taban guncellendi: text-[Npx]=${arbCount}, hex=${hexCount}, animejs=${animeBad.length} dosya`);
+  writeFileSync(BASELINE_PATH, JSON.stringify({ arbitraryTextPx: arbCount, hexInTsx: hexCount, animejsAllowed: animeBad.sort(), mobilFontSize: mobilFont, mobilHex }, null, 2) + '\n');
+  console.log(`Taban guncellendi: text-[Npx]=${arbCount}, hex=${hexCount}, animejs=${animeBad.length} dosya, mobil fontSize=${mobilFont}, mobil hex=${mobilHex}`);
   process.exit(0);
 }
 
@@ -63,6 +89,8 @@ if (arbCount > baseline.arbitraryTextPx) errors.push(`text-[Npx] artti: ${arbCou
 if (hexCount > baseline.hexInTsx) errors.push(`sabit hex artti: ${hexCount} > taban ${baseline.hexInTsx} (chart-colors.ts / token kullan)`);
 const animeYeni = animeBad.filter((f) => !(baseline.animejsAllowed ?? []).includes(f));
 if (animeYeni.length) errors.push(`animejs yalniz ai-scan'de kalabilir (yeni ihlal):\n  ${animeYeni.join('\n  ')}`);
+if (baseline.mobilFontSize !== undefined && mobilFont > baseline.mobilFontSize) errors.push(`mobil inline fontSize artti: ${mobilFont} > taban ${baseline.mobilFontSize} (theme.type kullan)`);
+if (baseline.mobilHex !== undefined && mobilHex > baseline.mobilHex) errors.push(`mobil sabit hex artti: ${mobilHex} > taban ${baseline.mobilHex} (theme colors/paper kullan)`);
 
 if (errors.length) { console.error('UI bekci HATA:\n\n' + errors.join('\n\n')); process.exit(1); }
-console.log(`UI bekci temiz — text-[Npx]=${arbCount}/${baseline.arbitraryTextPx}, hex=${hexCount}/${baseline.hexInTsx}, animejs=${animeBad.length}/${(baseline.animejsAllowed ?? []).length}`);
+console.log(`UI bekci temiz — text-[Npx]=${arbCount}/${baseline.arbitraryTextPx}, hex=${hexCount}/${baseline.hexInTsx}, animejs=${animeBad.length}/${(baseline.animejsAllowed ?? []).length}, mobil fs=${mobilFont}/${baseline.mobilFontSize ?? '-'}, mobil hex=${mobilHex}/${baseline.mobilHex ?? '-'}`);

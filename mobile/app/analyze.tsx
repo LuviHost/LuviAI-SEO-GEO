@@ -3,32 +3,13 @@ import { View, Text, TextInput, Pressable, ScrollView, ActivityIndicator, Keyboa
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
-import { colors, fonts, radii } from '../src/theme';
+import { colors, fonts, radii, paper } from '../src/theme';
 import { Orb, Icon, EmberButton, ScreenBg, VendorLogo, DomainFavicon } from '../src/components';
 import { subscribeCitation, PROVIDER_META, type AnalyzeResult } from '../src/api';
 import { useAnalysis } from '../src/store';
 
-/* ══════════════ Açık "rapor" paleti (web'deki sonuç kartıyla aynı his) ══════════════ */
-const R = {
-  surface: '#F6F1EA', // rapor zemini (sıcak kâğıt)
-  card: '#FFFFFF', // soru / sıralama alt kartları
-  ink: '#221711', // birincil metin (sıcak siyaha yakın)
-  inkDim: 'rgba(34,23,17,0.6)',
-  inkFaint: 'rgba(34,23,17,0.42)',
-  line: 'rgba(34,23,17,0.10)',
-  lineSoft: 'rgba(34,23,17,0.06)',
-  muted: '#ECE5DC', // nötr rozet kutucuğu
-  good: '#0E9F6E',
-  goodBg: '#E4F5EC',
-  goodRing: 'rgba(14,159,110,0.55)',
-  warn: '#B7791F',
-  warnBg: '#FBF3DE',
-  warnRing: 'rgba(183,121,31,0.5)',
-  ember: '#E0551F',
-  emberDeep: '#B63325',
-  brandTint: 'rgba(224,85,31,0.10)',
-  info: '#2E7DB8',
-} as const;
+/* Açık "rapor" paleti artık src/theme.ts'te (paper) — ekran-içi kopya kaldırıldı */
+const R = paper;
 
 export default function Analyze() {
   const insets = useSafeAreaInsets();
