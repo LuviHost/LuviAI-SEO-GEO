@@ -32,7 +32,7 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
     <div className="min-h-screen flex items-center justify-center px-4 relative overflow-hidden">
       {/* gradient blobs */}
       <div className="absolute inset-0 -z-10 pointer-events-none">
-        <div className="absolute top-20 -left-20 w-96 h-96 bg-orange-500/20 rounded-full blur-3xl" />
+        <div className="absolute top-20 -left-20 w-96 h-96 bg-brand-500/20 rounded-full blur-3xl" />
         <div className="absolute bottom-20 -right-20 w-96 h-96 bg-purple-500/20 rounded-full blur-3xl" />
       </div>
 
@@ -66,7 +66,7 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
               await signIn('google', { redirectTo: callbackUrl });
             }}
           >
-            <Button type="submit" variant="outline" className="w-full h-12 text-base hover:border-orange-500/30 transition-colors" size="lg">
+            <Button type="submit" variant="outline" className="w-full h-12 text-base hover:border-brand-500/30 transition-colors" size="lg">
               <GoogleIcon className="h-5 w-5 mr-3" />
               Google ile devam et
             </Button>
@@ -80,11 +80,11 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
 
           <p className="text-xs text-center text-muted-foreground leading-relaxed">
             Devam ederek{' '}
-            <Link href="/terms" className="underline hover:text-orange-600 transition-colors">
+            <Link href="/terms" className="underline hover:text-brand-600 transition-colors">
               Kullanım Koşulları
             </Link>{' '}
             ve{' '}
-            <Link href="/privacy" className="underline hover:text-orange-600 transition-colors">
+            <Link href="/privacy" className="underline hover:text-brand-600 transition-colors">
               Gizlilik Politikası
             </Link>
             &apos;nı kabul etmiş olursun.
@@ -92,7 +92,7 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
         </div>
 
         <p className="text-center text-sm">
-          <Link href="/" className="text-muted-foreground hover:text-orange-600 transition-colors">
+          <Link href="/" className="text-muted-foreground hover:text-brand-600 transition-colors">
             ← Ana sayfaya dön
           </Link>
         </p>

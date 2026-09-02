@@ -78,23 +78,23 @@ export function HelpArticle({
         />
       )}
       <div className="absolute inset-0 -z-10 overflow-hidden pointer-events-none">
-        <div className="absolute top-0 -left-20 w-96 h-96 bg-orange-500/8 rounded-full blur-3xl" />
+        <div className="absolute top-0 -left-20 w-96 h-96 bg-brand-500/8 rounded-full blur-3xl" />
       </div>
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <Link href={'/help' as any} className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground mb-6">
           <ArrowLeft className="h-4 w-4" /> Tüm rehberler
         </Link>
         <div className="flex items-start gap-4 mb-8">
-          <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-orange-500/15 to-orange-600/10 grid place-items-center shrink-0">
-            <Icon className="h-6 w-6 text-orange-600" />
+          <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-brand-500/15 to-brand-600/10 grid place-items-center shrink-0">
+            <Icon className="h-6 w-6 text-brand-600" />
           </div>
           <div>
-            <div className="text-xs font-bold uppercase tracking-wider text-orange-600 mb-1">{badge}</div>
+            <div className="text-xs font-bold uppercase tracking-wider text-brand-600 mb-1">{badge}</div>
             <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight leading-tight mb-2">{title}</h1>
             <p className="help-intro text-muted-foreground leading-relaxed">{intro}</p>
           </div>
         </div>
-        <article className="prose prose-neutral dark:prose-invert prose-headings:font-bold prose-h2:text-xl prose-h2:mt-10 prose-h2:mb-3 prose-h3:text-base prose-h3:mt-6 prose-h3:mb-2 prose-p:leading-relaxed prose-li:my-1 prose-strong:font-bold prose-a:text-orange-600 prose-a:no-underline hover:prose-a:underline max-w-none">
+        <article className="prose prose-neutral dark:prose-invert prose-headings:font-bold prose-h2:text-xl prose-h2:mt-10 prose-h2:mb-3 prose-h3:text-base prose-h3:mt-6 prose-h3:mb-2 prose-p:leading-relaxed prose-li:my-1 prose-strong:font-bold prose-a:text-brand-600 prose-a:no-underline hover:prose-a:underline max-w-none">
           {children}
         </article>
 
@@ -105,7 +105,7 @@ export function HelpArticle({
           </div>
           <a
             href="mailto:destek@luvihost.com"
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white text-sm font-semibold"
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-gradient-to-br from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white text-sm font-semibold"
           >
             destek@luvihost.com <ChevronRight className="h-3.5 w-3.5" />
           </a>
@@ -119,7 +119,7 @@ export function HelpArticle({
 export function Step({ n, title, children }: { n: number; title: string; children: ReactNode }) {
   return (
     <div className="not-prose flex gap-3 my-4">
-      <div className="h-7 w-7 rounded-full bg-orange-500 text-white grid place-items-center text-sm font-bold shrink-0">{n}</div>
+      <div className="h-7 w-7 rounded-full bg-brand-500 text-white grid place-items-center text-sm font-bold shrink-0">{n}</div>
       <div className="flex-1 min-w-0">
         <p className="font-bold text-sm mb-1">{title}</p>
         <div className="text-sm text-muted-foreground leading-relaxed">{children}</div>

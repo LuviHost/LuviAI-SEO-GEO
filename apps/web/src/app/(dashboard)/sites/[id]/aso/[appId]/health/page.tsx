@@ -26,7 +26,7 @@ const GRADE_COLOR: Record<string, string> = {
   A: 'text-emerald-600 dark:text-emerald-400',
   B: 'text-blue-600 dark:text-blue-400',
   C: 'text-amber-600 dark:text-amber-400',
-  D: 'text-orange-600 dark:text-orange-400',
+  D: 'text-brand-600 dark:text-brand-400',
   F: 'text-rose-600 dark:text-rose-400',
 };
 

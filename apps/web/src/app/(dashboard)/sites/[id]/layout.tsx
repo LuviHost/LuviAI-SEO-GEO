@@ -2,11 +2,11 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import Link from 'next/link';
-import { ArrowLeft, ExternalLink } from 'lucide-react';
+import { ExternalLink } from 'lucide-react';
 import { api } from '@/lib/api';
 import { Skeleton } from '@/components/ui/skeleton';
 import { SiteContext } from './site-context';
+import { PageHeader } from '@/components/ui/page-header';
 
 export default function SiteLayout({ children }: { children: React.ReactNode }) {
   const params = useParams();
@@ -94,24 +94,22 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
       }}
     >
       <div className="space-y-6">
-        {/* Top bar — site title + URL (tab nav kaldırıldı, sidebar yönetiyor) */}
-        <div>
-          <Link
-            href="/dashboard"
-            className="text-sm text-muted-foreground hover:text-brand inline-flex items-center gap-1"
-          >
-            <ArrowLeft className="h-3 w-3" /> Dashboard
-          </Link>
-          <h1 className="text-3xl font-bold mt-2">{site.name}</h1>
-          <a
-            href={site.url}
-            target="_blank"
-            rel="noopener"
-            className="text-sm text-muted-foreground hover:text-brand inline-flex items-center gap-1 mt-1"
-          >
-            {site.url} <ExternalLink className="h-3 w-3" />
-          </a>
-        </div>
+        {/* Tek h1 sozlesmesi: PageHeader (eski text-3xl font-bold cift basligin cozumu) */}
+        <PageHeader
+          backHref="/dashboard"
+          backLabel="Dashboard"
+          title={site.name}
+          meta={
+            <a
+              href={site.url}
+              target="_blank"
+              rel="noopener"
+              className="hover:text-brand inline-flex items-center gap-1"
+            >
+              {site.url} <ExternalLink className="h-3 w-3" />
+            </a>
+          }
+        />
 
         {children}
       </div>

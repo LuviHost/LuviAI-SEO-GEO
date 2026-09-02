@@ -204,9 +204,9 @@ export function SiteSidebar({ onClose }: { onClose?: () => void }) {
       <>
         <div className="p-6">
           <Link href="/" className="inline-flex items-center">
-            <BrandWordmark size={26} reversed />
+            <span className="dark:hidden"><BrandWordmark size={26} /></span><span className="hidden dark:inline"><BrandWordmark size={26} reversed /></span>
           </Link>
-          <div className="text-xs text-slate-500 mt-2">v0.7 Faz 2 Beta</div>
+          <div className="text-xs text-sidebar-muted mt-2">v0.7 Faz 2 Beta</div>
         </div>
         <nav className="px-3 space-y-1">
           {GLOBAL_NAV.map((item) => {
@@ -220,8 +220,8 @@ export function SiteSidebar({ onClose }: { onClose?: () => void }) {
                 className={cn(
                   'flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors',
                   active
-                    ? 'bg-gradient-to-br from-orange-500 to-orange-600 text-white shadow-md'
-                    : 'text-slate-300 hover:bg-slate-800 hover:text-white',
+                    ? 'bg-gradient-to-br from-brand-500 to-brand-600 text-white shadow-md'
+                    : 'text-sidebar-foreground/75 hover:bg-sidebar-hover hover:text-sidebar-foreground',
                 )}
               >
                 <Icon className="h-4 w-4" />
@@ -241,8 +241,8 @@ export function SiteSidebar({ onClose }: { onClose?: () => void }) {
     <>
       <div className="p-4">
         <Link href="/dashboard" className="inline-flex items-center gap-2 mb-3">
-          <BrandWordmark size={19} reversed />
-          <span className="text-[9px] uppercase tracking-widest text-slate-500 font-mono ml-1">Site</span>
+          <span className="dark:hidden"><BrandWordmark size={19} /></span><span className="hidden dark:inline"><BrandWordmark size={19} reversed /></span>
+          <span className="text-[9px] uppercase tracking-widest text-sidebar-muted font-mono ml-1">Site</span>
         </Link>
 
         {/* Site Switcher */}
@@ -251,37 +251,37 @@ export function SiteSidebar({ onClose }: { onClose?: () => void }) {
             type="button"
             onClick={() => setSwitcherOpen((v) => !v)}
             className={cn(
-              'w-full text-left rounded-lg border border-slate-800 bg-slate-900 hover:bg-slate-800 transition-colors px-3 py-2.5 flex items-center gap-2',
+              'w-full text-left rounded-lg border border-sidebar-border bg-sidebar-hover/60 hover:bg-sidebar-hover transition-colors px-3 py-2.5 flex items-center gap-2',
               switcherOpen && 'ring-2 ring-brand/40',
             )}
           >
-            <Globe className="h-4 w-4 text-slate-400 shrink-0" />
+            <Globe className="h-4 w-4 text-sidebar-muted shrink-0" />
             <div className="flex-1 min-w-0">
-              <div className="text-sm font-semibold text-slate-100 truncate">
+              <div className="text-sm font-semibold text-sidebar-foreground truncate">
                 {currentSite?.name ?? 'Yükleniyor…'}
               </div>
               {currentSite?.url && (
-                <div className="text-[10px] text-slate-500 truncate">
+                <div className="text-[10px] text-sidebar-muted truncate">
                   {currentSite.url.replace(/^https?:\/\//, '')}
                 </div>
               )}
             </div>
             <ChevronDown
               className={cn(
-                'h-3.5 w-3.5 text-slate-500 transition-transform',
+                'h-3.5 w-3.5 text-sidebar-muted transition-transform',
                 switcherOpen && 'rotate-180',
               )}
             />
           </button>
 
           {switcherOpen && (
-            <div className="absolute top-full left-0 right-0 mt-1.5 z-50 rounded-lg border border-slate-800 bg-slate-900 shadow-xl overflow-hidden">
+            <div className="absolute top-full left-0 right-0 mt-1.5 z-50 rounded-lg border border-sidebar-border bg-sidebar shadow-apple-md overflow-hidden">
               <div className="p-2 max-h-64 overflow-y-auto">
                 {sites === null && (
-                  <div className="text-xs text-slate-500 px-3 py-2">Yükleniyor…</div>
+                  <div className="text-xs text-sidebar-muted px-3 py-2">Yükleniyor…</div>
                 )}
                 {sites?.length === 0 && (
-                  <div className="text-xs text-slate-500 px-3 py-2">Site yok</div>
+                  <div className="text-xs text-sidebar-muted px-3 py-2">Site yok</div>
                 )}
                 {sites?.map((s) => (
                   <button
@@ -294,13 +294,13 @@ export function SiteSidebar({ onClose }: { onClose?: () => void }) {
                       router.push(`/sites/${s.id}${subpath}` as any);
                     }}
                     className={cn(
-                      'w-full text-left px-3 py-2 rounded-md hover:bg-slate-800 transition-colors flex items-center gap-2',
-                      s.id === siteId && 'bg-slate-800',
+                      'w-full text-left px-3 py-2 rounded-md hover:bg-sidebar-hover transition-colors flex items-center gap-2',
+                      s.id === siteId && 'bg-sidebar-hover',
                     )}
                   >
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium text-slate-100 truncate">{s.name}</div>
-                      <div className="text-[10px] text-slate-500 truncate">
+                      <div className="text-sm font-medium text-sidebar-foreground truncate">{s.name}</div>
+                      <div className="text-[10px] text-sidebar-muted truncate">
                         {s.url.replace(/^https?:\/\//, '')}
                       </div>
                     </div>
@@ -308,18 +308,18 @@ export function SiteSidebar({ onClose }: { onClose?: () => void }) {
                   </button>
                 ))}
               </div>
-              <div className="border-t border-slate-800 p-2 space-y-1">
+              <div className="border-t border-sidebar-border p-2 space-y-1">
                 <Link
                   href="/dashboard"
                   onClick={() => setSwitcherOpen(false)}
-                  className="block w-full text-center text-xs text-slate-300 hover:text-white px-3 py-2 rounded-md hover:bg-slate-800 transition-colors"
+                  className="block w-full text-center text-xs text-sidebar-foreground/75 hover:text-sidebar-foreground px-3 py-2 rounded-md hover:bg-sidebar-hover transition-colors"
                 >
                   Tüm sitelerim →
                 </Link>
                 <Link
                   href="/onboarding"
                   onClick={() => setSwitcherOpen(false)}
-                  className="block w-full text-center text-xs text-brand hover:text-white px-3 py-2 rounded-md hover:bg-brand/30 transition-colors font-semibold"
+                  className="block w-full text-center text-xs text-brand px-3 py-2 rounded-md hover:bg-brand/15 transition-colors font-semibold"
                 >
                   + Yeni Site Ekle
                 </Link>
@@ -344,7 +344,7 @@ export function SiteSidebar({ onClose }: { onClose?: () => void }) {
                 <button
                   type="button"
                   onClick={() => toggleGroup(group.id)}
-                  className="w-full px-3 mb-1.5 flex items-center justify-between text-[10px] font-bold uppercase tracking-widest text-slate-500 hover:text-slate-300 transition-colors"
+                  className="w-full px-3 mb-1.5 flex items-center justify-between text-[10px] font-bold uppercase tracking-widest text-sidebar-muted hover:text-sidebar-foreground/80 transition-colors"
                 >
                   <span>{group.label}</span>
                   <ChevronDown
@@ -374,10 +374,10 @@ export function SiteSidebar({ onClose }: { onClose?: () => void }) {
                         className={cn(
                           'flex items-center gap-2.5 px-3 py-1.5 rounded-md text-[13px] font-medium transition-colors',
                           active
-                            ? 'bg-gradient-to-br from-orange-500 to-orange-600 text-white shadow-sm'
+                            ? 'bg-gradient-to-br from-brand-500 to-brand-600 text-white shadow-sm'
                             : locked
-                              ? 'text-slate-500 hover:bg-slate-800 hover:text-slate-300'
-                              : 'text-slate-300 hover:bg-slate-800 hover:text-white',
+                              ? 'text-sidebar-muted hover:bg-sidebar-hover hover:text-sidebar-foreground/80'
+                              : 'text-sidebar-foreground/75 hover:bg-sidebar-hover hover:text-sidebar-foreground',
                         )}
                       >
                         <Icon className="h-3.5 w-3.5 shrink-0" />

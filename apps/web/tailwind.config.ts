@@ -49,6 +49,13 @@ const config: Config = {
         'display': ['5.5rem', { lineHeight: '0.92', letterSpacing: '-0.045em' }],
         'display-lg': ['7rem', { lineHeight: '0.9', letterSpacing: '-0.05em' }],
         'display-xl': ['8.5rem', { lineHeight: '0.88', letterSpacing: '-0.055em' }],
+        // Dashboard analitik olcegi (02.09.2026 "temiz analitik UI"):
+        // metrik degeri / etiket / filtre — TEK sozlesme, sayfa sayfa degisen
+        // text-2xl/3xl + font-bold/semibold karmasasinin yerine.
+        'metric':    ['1.125rem',  { lineHeight: '1.5rem', letterSpacing: '-0.006em', fontWeight: '600' }],
+        'metric-lg': ['1.75rem',   { lineHeight: '2rem',   letterSpacing: '-0.02em',  fontWeight: '600' }],
+        'label':     ['0.75rem',   { lineHeight: '1rem',   fontWeight: '500' }],
+        'filter':    ['0.8125rem', { lineHeight: '1rem',   fontWeight: '500' }],
       },
       colors: {
         background: 'hsl(var(--background))',
@@ -63,6 +70,13 @@ const config: Config = {
         },
         border: 'hsl(var(--border))',
         ring: 'hsl(var(--ring))',
+        sidebar: {
+          DEFAULT: 'hsl(var(--sidebar))',
+          foreground: 'hsl(var(--sidebar-foreground))',
+          muted: 'hsl(var(--sidebar-muted))',
+          border: 'hsl(var(--sidebar-border))',
+          hover: 'hsl(var(--sidebar-hover))',
+        },
         // Apple-style neutrals — sicak gri tonu
         neutral: {
           50:  '#fafafa',
@@ -95,9 +109,10 @@ const config: Config = {
         lg: 'var(--radius)',
         md: 'calc(var(--radius) - 2px)',
         sm: 'calc(var(--radius) - 4px)',
-        // Apple uses 18-28px on big cards
-        'apple': '1.75rem',   // 28px
-        'apple-lg': '2.5rem', // 40px
+        // Apple 28px buyuk kart — yalniz .card-apple (globals) kullaniyor
+        'apple': '1.75rem',
+        // Filtre cipleri (28px yukseklik + 6px yaricap sozlesmesi)
+        'chip': '6px',
       },
       boxShadow: {
         // Premium multi-layer shadows — kart, button, modal icin
@@ -106,20 +121,14 @@ const config: Config = {
         'apple-md': '0 8px 32px rgba(0, 0, 0, 0.08), 0 2px 8px rgba(0, 0, 0, 0.05)',
         'apple-lg': '0 24px 64px rgba(0, 0, 0, 0.10), 0 8px 24px rgba(0, 0, 0, 0.06)',
         'apple-xl': '0 48px 128px rgba(0, 0, 0, 0.14), 0 16px 48px rgba(0, 0, 0, 0.08)',
-        // Brand-tinted (orange-glow) — premium CTA icin
-        'glow':     '0 0 0 1px rgba(249, 115, 22, 0.20), 0 8px 32px rgba(249, 115, 22, 0.18)',
-        'glow-lg':  '0 0 0 1px rgba(249, 115, 22, 0.24), 0 24px 64px rgba(249, 115, 22, 0.24)',
         // Inset for inputs / cards
         'apple-inset': 'inset 0 1px 0 rgba(255, 255, 255, 0.6)',
       },
       backgroundImage: {
         // Hero gradient mesh — premium, soft, multi-color blend
         'mesh-warm': 'radial-gradient(at 20% 30%, rgba(249, 115, 22, 0.18) 0px, transparent 50%), radial-gradient(at 80% 20%, rgba(244, 63, 94, 0.12) 0px, transparent 50%), radial-gradient(at 70% 80%, rgba(245, 158, 11, 0.10) 0px, transparent 50%), radial-gradient(at 20% 80%, rgba(168, 85, 247, 0.08) 0px, transparent 50%)',
-        'mesh-cool': 'radial-gradient(at 30% 20%, rgba(99, 102, 241, 0.10) 0px, transparent 50%), radial-gradient(at 80% 40%, rgba(59, 130, 246, 0.08) 0px, transparent 50%)',
         // Noise overlay — Anthropic skill specifically mentions "noise textures"
         'noise': "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.5'/%3E%3C/svg%3E\")",
-        // Subtle diagonal stripes for section dividers
-        'stripes-subtle': 'linear-gradient(135deg, transparent 49%, rgba(0,0,0,0.02) 50%, transparent 51%)',
       },
       transitionTimingFunction: {
         // Apple-grade easings

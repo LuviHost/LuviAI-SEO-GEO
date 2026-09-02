@@ -84,7 +84,7 @@ export function AdminSidebar({ userEmail }: { userEmail: string }) {
         <div className="h-14 px-4 flex items-center justify-between border-b shrink-0">
           <Link href="/admin" className="flex items-center gap-2 font-bold" onClick={() => setOpen(false)}>
             <BrandWordmark size={20} />
-            <span className="text-[9px] uppercase tracking-widest font-semibold px-1.5 py-0.5 rounded bg-orange-500/10 text-orange-600 dark:text-orange-400">
+            <span className="text-[9px] uppercase tracking-widest font-semibold px-1.5 py-0.5 rounded bg-brand-500/10 text-brand-600 dark:text-brand-400">
               Admin
             </span>
           </Link>
@@ -115,13 +115,13 @@ export function AdminSidebar({ userEmail }: { userEmail: string }) {
                       onClick={() => setOpen(false)}
                       className={`flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm transition-colors ${
                         active
-                          ? 'bg-gradient-to-r from-orange-500/15 to-orange-500/5 text-orange-700 dark:text-orange-400 font-semibold'
+                          ? 'bg-gradient-to-r from-brand-500/15 to-brand-500/5 text-brand-700 dark:text-brand-400 font-semibold'
                           : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                       }`}
                     >
-                      <item.icon className={`h-4 w-4 shrink-0 ${active ? 'text-orange-600' : ''}`} />
+                      <item.icon className={`h-4 w-4 shrink-0 ${active ? 'text-brand-600' : ''}`} />
                       <span className="truncate">{item.label}</span>
-                      {active && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-orange-500" />}
+                      {active && <span className="ml-auto h-1.5 w-1.5 rounded-full bg-brand-500" />}
                     </Link>
                   );
                 })}
@@ -133,7 +133,7 @@ export function AdminSidebar({ userEmail }: { userEmail: string }) {
         {/* Footer — user email */}
         <div className="border-t p-3 shrink-0">
           <div className="flex items-center gap-2 px-2 py-1.5 rounded-lg bg-muted/40">
-            <div className="h-7 w-7 rounded-full bg-gradient-to-br from-orange-500 to-orange-700 text-white grid place-items-center text-[10px] font-bold">
+            <div className="h-7 w-7 rounded-full bg-gradient-to-br from-brand-500 to-brand-700 text-white grid place-items-center text-[10px] font-bold">
               {(userEmail[0] || 'A').toUpperCase()}
             </div>
             <div className="flex-1 min-w-0">

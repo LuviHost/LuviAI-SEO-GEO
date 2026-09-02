@@ -406,19 +406,19 @@ export default function ComparePage() {
 
       <main className="relative">
         <div className="absolute inset-0 -z-10 overflow-hidden pointer-events-none">
-          <div className="absolute top-20 -left-20 w-96 h-96 bg-orange-500/10 rounded-full blur-3xl" />
+          <div className="absolute top-20 -left-20 w-96 h-96 bg-brand-500/10 rounded-full blur-3xl" />
           <div className="absolute top-60 -right-20 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl" />
         </div>
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         {/* HERO */}
         <div className="text-center max-w-3xl mx-auto mb-12">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-500/10 border border-orange-500/20 text-orange-600 text-xs font-semibold mb-5">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-500/10 border border-brand-500/20 text-brand-600 text-xs font-semibold mb-5">
             {c.eyebrow}
           </div>
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-tight mb-4">
             {c.titleA}{' '}
-            <span className="bg-gradient-to-r from-orange-500 via-orange-600 to-red-600 bg-clip-text text-transparent">
+            <span className="bg-gradient-to-r from-brand-500 via-brand-600 to-red-600 bg-clip-text text-transparent">
               {c.titleB}
             </span>
           </h1>
@@ -428,7 +428,7 @@ export default function ComparePage() {
           <div className="flex flex-wrap justify-center gap-2 text-xs">
             <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/30">{c.badge1}</Badge>
             <Badge className="bg-brand/10 text-brand border-brand/30">{c.badge2}</Badge>
-            <Badge className="bg-orange-500/10 text-orange-600 border-orange-500/30">{c.badge3}</Badge>
+            <Badge className="bg-brand-500/10 text-brand-600 border-brand-500/30">{c.badge3}</Badge>
             <Badge className="bg-purple-500/10 text-purple-600 border-purple-500/30">{c.badge4}</Badge>
           </div>
         </div>
@@ -449,9 +449,9 @@ export default function ComparePage() {
               <p className="text-xs text-muted-foreground">{c.hc2Desc}</p>
             </CardContent>
           </Card>
-          <Card className="border-orange-500/20 bg-orange-500/5">
+          <Card className="border-brand-500/20 bg-brand-500/5">
             <CardContent className="p-5">
-              <div className="text-2xl font-bold text-orange-600 mb-1">{c.hc3Num}</div>
+              <div className="text-2xl font-bold text-brand-600 mb-1">{c.hc3Num}</div>
               <div className="text-sm font-semibold mb-1">{c.hc3Title}</div>
               <p className="text-xs text-muted-foreground">{c.hc3Desc}</p>
             </CardContent>
@@ -588,11 +588,11 @@ export default function ComparePage() {
         </div>
 
         {/* FINAL CTA */}
-        <div className="mt-16 rounded-2xl bg-gradient-to-br from-orange-500 via-orange-600 to-red-600 text-white p-10 text-center">
+        <div className="mt-16 rounded-2xl bg-gradient-to-br from-brand-500 via-brand-600 to-red-600 text-white p-10 text-center">
           <h3 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold mb-3">{c.ctaTitle}</h3>
           <p className="text-white/90 mb-6 max-w-xl mx-auto">{c.ctaSub}</p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
-            <Button asChild size="lg" className="bg-white text-orange-600 hover:bg-white/90 shadow-xl">
+            <Button asChild size="lg" className="bg-white text-brand-600 hover:bg-white/90 shadow-xl">
               <Link href="/onboarding">{c.ctaPrimary}</Link>
             </Button>
             <Button asChild size="lg" variant="outline" className="bg-transparent border-white/30 text-white hover:bg-white/10">

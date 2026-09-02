@@ -92,7 +92,7 @@ export function QuotaMonitor() {
           const danger = pct >= 90;
           const warn = pct >= 70;
           const colorMap: Record<string, string> = {
-            orange: 'from-orange-500 to-orange-600',
+            orange: 'from-brand-500 to-brand-600',
             purple: 'from-purple-500 to-purple-600',
             blue: 'from-blue-500 to-blue-600',
           };

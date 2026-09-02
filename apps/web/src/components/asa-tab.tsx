@@ -185,7 +185,7 @@ export function AsaTab({ siteId, prefillKeyword, onPrefillConsumed }: { siteId: 
                   <Button
                     size="sm"
                     onClick={() => setShowNewCampaign({ accountId: acc.id })}
-                    className="bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white"
+                    className="bg-gradient-to-br from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white"
                   >
                     <Plus className="h-3.5 w-3.5 mr-1" /> Yeni Kampanya
                   </Button>
@@ -489,8 +489,8 @@ function AutoPilotPanel({ account, onChanged }: { account: Account; onChanged: (
 function ConnectScreen({ onConnect }: { onConnect: () => void }) {
   return (
     <div className="rounded-2xl border bg-card p-8 text-center">
-      <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-orange-500/20 to-orange-600/20 grid place-items-center mx-auto mb-4">
-        <Link2 className="h-7 w-7 text-orange-600" />
+      <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-brand-500/20 to-brand-600/20 grid place-items-center mx-auto mb-4">
+        <Link2 className="h-7 w-7 text-brand-600" />
       </div>
       <h3 className="text-lg font-bold mb-2">Apple Search Ads Bağla</h3>
       <p className="text-sm text-muted-foreground max-w-md mx-auto mb-5">
@@ -531,7 +531,7 @@ function ConnectScreen({ onConnect }: { onConnect: () => void }) {
       <div className="flex flex-col sm:flex-row gap-2 justify-center">
         <Button
           onClick={onConnect}
-          className="bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white"
+          className="bg-gradient-to-br from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white"
         >
           <Link2 className="h-4 w-4 mr-1.5" /> Key'imi yapıştır + bağla
         </Button>
@@ -704,7 +704,7 @@ function ConnectModal({
                 <Button
                   onClick={generateKeypair}
                   disabled={generating}
-                  className="w-full h-12 bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white text-base"
+                  className="w-full h-12 bg-gradient-to-br from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white text-base"
                 >
                   {generating ? (
                     <><Loader2 className="h-5 w-5 mr-2 animate-spin" /> Üretiliyor…</>
@@ -1015,7 +1015,7 @@ keyId     xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`}</pre>
               <Button
                 onClick={() => setStep((step + 1) as 1 | 2 | 3)}
                 disabled={(step === 1 && !canGoStep2) || (step === 2 && !canGoStep3)}
-                className="bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white"
+                className="bg-gradient-to-br from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white"
               >
                 İleri →
               </Button>
@@ -1023,7 +1023,7 @@ keyId     xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`}</pre>
               <Button
                 onClick={submit}
                 disabled={submitting}
-                className="bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white"
+                className="bg-gradient-to-br from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white"
               >
                 {submitting ? (
                   <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> Bağlanıyor…</>
@@ -1157,7 +1157,7 @@ function NewCampaignModal({
           {/* AI ile Doldur butonu */}
           <div className="rounded-xl border-2 border-brand/30 bg-gradient-to-br from-brand/5 to-brand/10 p-3">
             <div className="flex items-start gap-3">
-              <div className="h-9 w-9 rounded-full bg-gradient-to-br from-orange-500 to-orange-600 text-white grid place-items-center shrink-0">
+              <div className="h-9 w-9 rounded-full bg-gradient-to-br from-brand-500 to-brand-600 text-white grid place-items-center shrink-0">
                 <Sparkles className="h-4 w-4" />
               </div>
               <div className="flex-1 min-w-0">
@@ -1255,7 +1255,7 @@ function NewCampaignModal({
           <Button
             onClick={submit}
             disabled={submitting}
-            className="bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white"
+            className="bg-gradient-to-br from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white"
           >
             {submitting ? (
               <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> Oluşturuluyor…</>
@@ -1286,7 +1286,7 @@ function MetricCard({
     blue:    'bg-blue-500/10 text-blue-600 dark:text-blue-400',
     violet:  'bg-violet-500/10 text-violet-600 dark:text-violet-400',
     emerald: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400',
-    orange:  'bg-orange-500/10 text-orange-600 dark:text-orange-400',
+    orange:  'bg-brand-500/10 text-brand-600 dark:text-brand-400',
   }[color];
   return (
     <Card>

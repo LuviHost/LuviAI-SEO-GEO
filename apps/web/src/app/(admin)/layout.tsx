@@ -16,7 +16,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   }
 
   return (
-    <div className="min-h-screen flex bg-muted/30">
+    <div className="min-h-screen flex bg-muted/30 tabular-nums">
       {/* ── Sol sidebar (desktop) + sliding drawer (mobile) ── */}
       <AdminSidebar userEmail={session.user.email ?? ''} />
 
@@ -67,7 +67,9 @@ export default async function AdminLayout({ children }: { children: React.ReactN
           </div>
         </header>
 
-        <main className="p-4 sm:p-6 lg:p-8">{children}</main>
+        <main className="p-4 sm:p-6 lg:p-8">
+          <div className="max-w-[1440px] mx-auto w-full">{children}</div>
+        </main>
       </div>
     </div>
   );

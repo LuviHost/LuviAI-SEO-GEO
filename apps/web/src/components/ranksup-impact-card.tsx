@@ -89,9 +89,9 @@ export function RanksUpImpactCard({ siteId, days = 90 }: { siteId: string; days?
   }
 
   return (
-    <div className="rounded-2xl border border-orange-500/25 bg-gradient-to-br from-orange-500/[0.07] via-card to-emerald-500/[0.04] p-5 shadow-sm">
+    <div className="rounded-2xl border border-brand-500/25 bg-gradient-to-br from-brand-500/[0.07] via-card to-emerald-500/[0.04] p-5 shadow-sm">
       <div className="flex items-center gap-2 mb-4">
-        <span className="grid place-items-center w-7 h-7 rounded-lg bg-gradient-to-br from-orange-500 to-orange-700 text-white">
+        <span className="grid place-items-center w-7 h-7 rounded-lg bg-gradient-to-br from-brand-500 to-brand-700 text-white">
           <Sparkles className="h-4 w-4" />
         </span>
         <div>
@@ -110,7 +110,7 @@ export function RanksUpImpactCard({ siteId, days = 90 }: { siteId: string; days?
             <p className="text-sm text-muted-foreground">Henüz AI ölçümü yok.</p>
           ) : geoEarly ? (
             <div className="flex items-center gap-2 text-sm">
-              <Rocket className="h-4 w-4 text-orange-500" />
+              <Rocket className="h-4 w-4 text-brand-500" />
               <span>Başlangıç: <strong>{enginesNow}/{totalEngines}</strong> motor · skor <strong>{geoLastAvg}</strong>. Büyüme yakında.</span>
             </div>
           ) : (

@@ -99,7 +99,7 @@ export function GoogleAiSurfaceCard({ siteId, site }: { siteId: string; site?: a
         <CardHeader className="flex flex-row items-start justify-between gap-3 flex-wrap">
           <div>
             <h3 className="font-semibold flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-orange-500" /> Google üretken AI görünümleri (AI Overviews + AI Mode)
+              <Sparkles className="h-4 w-4 text-brand-500" /> Google üretken AI görünümleri (AI Overviews + AI Mode)
             </h3>
             <p className="text-xs text-muted-foreground mt-0.5 max-w-2xl">
               Google bu veriyi API ile vermiyor. Search Console → Performans → <strong>Üretken AI</strong> raporu → Dışa aktar → <strong>tarih tablosu (CSV)</strong> dosyasını yükle. Yalnız gösterim gelir; AI Overviews / AI Mode ayrımı yok.

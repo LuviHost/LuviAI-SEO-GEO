@@ -2,7 +2,7 @@ import Link from 'next/link';
 
 export default function FailurePage() {
   return (
-    <main className="min-h-screen flex items-center justify-center bg-gradient-to-br from-red-50 to-orange-50">
+    <main className="min-h-screen flex items-center justify-center bg-gradient-to-br from-red-50 to-brand-50">
       <div className="max-w-md text-center bg-white p-12 rounded-2xl shadow">
         <div className="text-6xl mb-4">❌</div>
         <h1 className="text-3xl font-bold mb-2">Ödeme Başarısız</h1>

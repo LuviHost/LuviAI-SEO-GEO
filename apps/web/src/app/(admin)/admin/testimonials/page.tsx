@@ -64,7 +64,7 @@ export default function TestimonialsAdminPage() {
     <div className="space-y-5">
       <div>
         <h2 className="text-2xl font-bold flex items-center gap-2">
-          <MessageSquare className="h-6 w-6 text-orange-600" />
+          <MessageSquare className="h-6 w-6 text-brand-600" />
           Müşteri Yorumları
         </h2>
         <p className="text-sm text-muted-foreground">Kullanıcı yorumları onayına. Onayladıkların landing'de görünür.</p>
@@ -110,7 +110,7 @@ export default function TestimonialsAdminPage() {
                     <span className="text-xs text-muted-foreground">{new Date(t.createdAt).toLocaleDateString('tr-TR')}</span>
                   </div>
                   <div className="flex gap-1">
-                    {t.featured && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-orange-500/15 text-orange-700">⭐ FEATURED</span>}
+                    {t.featured && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-brand-500/15 text-brand-700">⭐ FEATURED</span>}
                     {t.approved && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-700">ONAYLI</span>}
                     {t.rejected && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-rose-500/15 text-rose-700">RED</span>}
                   </div>

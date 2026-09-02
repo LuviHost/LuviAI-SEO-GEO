@@ -176,7 +176,7 @@ export function CrawlerHitsPanel({ siteId }: { siteId: string }) {
                           <span className="text-[11px] text-muted-foreground">tarandı</span>
                         </div>
                         <div className="h-1.5 rounded-full bg-muted overflow-hidden mb-1.5">
-                          <div className="h-full bg-gradient-to-r from-orange-500 to-orange-600" style={{ width: `${data.coverage.pagesCrawledPct ?? 0}%` }} />
+                          <div className="h-full bg-gradient-to-r from-brand-500 to-brand-600" style={{ width: `${data.coverage.pagesCrawledPct ?? 0}%` }} />
                         </div>
                         <p className="text-[10px] text-muted-foreground">
                           <strong>{data.coverage.uniquePathsVisited}</strong> / {data.coverage.sitePagesTotal} sayfa (sitemap'e göre)

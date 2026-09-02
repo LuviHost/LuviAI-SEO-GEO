@@ -60,7 +60,7 @@ export default function VisibilityPage() {
   return (
     <div className="space-y-5">
       <div className="flex items-start gap-3">
-        <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-orange-500/15 to-orange-600/10 text-orange-600 dark:text-orange-400 grid place-items-center ring-1 ring-orange-500/20">
+        <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-brand-500/15 to-brand-600/10 text-brand-600 dark:text-brand-400 grid place-items-center ring-1 ring-brand-500/20">
           <Sparkles className="h-5 w-5" />
         </div>
         <div>
@@ -73,9 +73,9 @@ export default function VisibilityPage() {
 
       {/* GEO Roadmap — Maya tarzı öneri kutusu */}
       <div className="rounded-2xl border bg-card overflow-hidden">
-        <div className="p-5 border-b bg-gradient-to-br from-orange-500/5 to-transparent flex items-center justify-between gap-3">
+        <div className="p-5 border-b bg-gradient-to-br from-brand-500/5 to-transparent flex items-center justify-between gap-3">
           <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 text-white grid place-items-center shadow-lg shadow-orange-500/20">
+            <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-brand-500 to-brand-600 text-white grid place-items-center shadow-lg shadow-brand-500/20">
               <Compass className="h-4 w-4" />
             </div>
             <div>
@@ -87,7 +87,7 @@ export default function VisibilityPage() {
             size="sm"
             onClick={runRoadmap}
             disabled={roadmapLoading}
-            className="bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white"
+            className="bg-gradient-to-br from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white"
           >
             {roadmapLoading ? (
               <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> Analiz ediliyor</>
@@ -106,14 +106,14 @@ export default function VisibilityPage() {
 
         {roadmap && (
           <div className="p-5 space-y-4">
-            <div className="rounded-lg bg-muted/30 p-3 border-l-4 border-orange-500">
+            <div className="rounded-lg bg-muted/30 p-3 border-l-4 border-brand-500">
               <p className="text-sm font-medium">{roadmap.summary}</p>
             </div>
             <div className="space-y-2">
               <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Eylem listesi</p>
               {roadmap.actions.map((a, i) => (
-                <div key={i} className="rounded-lg border bg-background p-3 flex items-start gap-3 hover:border-orange-500/30 transition">
-                  <div className="h-6 w-6 rounded-full bg-orange-500/15 text-orange-600 grid place-items-center text-xs font-bold shrink-0">
+                <div key={i} className="rounded-lg border bg-background p-3 flex items-start gap-3 hover:border-brand-500/30 transition">
+                  <div className="h-6 w-6 rounded-full bg-brand-500/15 text-brand-600 grid place-items-center text-xs font-bold shrink-0">
                     {i + 1}
                   </div>
                   <div className="flex-1 min-w-0">

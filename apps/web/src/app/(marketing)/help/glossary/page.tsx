@@ -73,7 +73,7 @@ export default function GlossaryPage() {
       />
 
       <div className="absolute inset-0 -z-10 overflow-hidden pointer-events-none">
-        <div className="absolute top-0 -left-20 w-96 h-96 bg-orange-500/8 rounded-full blur-3xl" />
+        <div className="absolute top-0 -left-20 w-96 h-96 bg-brand-500/8 rounded-full blur-3xl" />
         <div className="absolute top-40 -right-20 w-96 h-96 bg-amber-400/8 rounded-full blur-3xl" />
       </div>
 
@@ -86,11 +86,11 @@ export default function GlossaryPage() {
         </Link>
 
         <div className="flex items-start gap-4 mb-8">
-          <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-orange-500/15 to-orange-600/10 grid place-items-center shrink-0">
-            <BookOpen className="h-6 w-6 text-orange-600" />
+          <div className="h-12 w-12 rounded-2xl bg-gradient-to-br from-brand-500/15 to-brand-600/10 grid place-items-center shrink-0">
+            <BookOpen className="h-6 w-6 text-brand-600" />
           </div>
           <div>
-            <div className="text-xs font-bold uppercase tracking-wider text-orange-600 mb-1">
+            <div className="text-xs font-bold uppercase tracking-wider text-brand-600 mb-1">
               SÖZLÜK
             </div>
             <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight leading-tight mb-2">
@@ -125,7 +125,7 @@ export default function GlossaryPage() {
           </div>
           <a
             href="mailto:destek@luvihost.com"
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white text-sm font-semibold"
+            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-gradient-to-br from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white text-sm font-semibold"
           >
             destek@luvihost.com
           </a>

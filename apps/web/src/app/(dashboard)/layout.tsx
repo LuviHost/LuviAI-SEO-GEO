@@ -17,25 +17,29 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="min-h-screen flex bg-background">
+    // tabular-nums KALITSAL: tum dashboard sayilari tablosal — bilesen bilesen tekrar edilmez
+    <div className="min-h-screen flex bg-background tabular-nums">
       {/* Mobile top bar */}
-      <div className="md:hidden fixed top-0 left-0 right-0 z-40 h-12 bg-slate-950 border-b border-slate-800 flex items-center justify-between px-3">
+      <div className="md:hidden fixed top-0 left-0 right-0 z-40 h-12 bg-sidebar border-b border-sidebar-border flex items-center justify-between px-3">
         <Button
           variant="ghost"
           size="icon"
-          className="text-slate-100 hover:bg-slate-800 hover:text-white h-9 w-9"
+          className="text-sidebar-foreground hover:bg-sidebar-hover h-9 w-9"
           onClick={() => setOpen(!open)}
         >
           {open ? <X /> : <Menu />}
         </Button>
-        <Link href="/" className="inline-flex items-center"><BrandWordmark size={18} reversed /></Link>
+        <Link href="/" className="inline-flex items-center">
+          <span className="dark:hidden"><BrandWordmark size={18} /></span>
+          <span className="hidden dark:inline"><BrandWordmark size={18} reversed /></span>
+        </Link>
         <div className="w-9" />
       </div>
 
       {/* Sidebar */}
       <aside
         className={cn(
-          'fixed md:sticky top-0 left-0 z-50 h-screen w-64 bg-slate-950 text-slate-100 transition-transform md:translate-x-0 overflow-y-auto flex flex-col',
+          'fixed md:sticky top-0 left-0 z-50 h-screen w-64 bg-sidebar text-sidebar-foreground border-r border-sidebar-border transition-transform md:translate-x-0 overflow-y-auto flex flex-col',
           open ? 'translate-x-0' : '-translate-x-full',
         )}
       >
@@ -43,7 +47,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <SiteSidebar onClose={() => setOpen(false)} />
         </div>
 
-        <div className="p-4 space-y-3 border-t border-slate-800">
+        <div className="p-4 space-y-3 border-t border-sidebar-border">
           <UserMenu />
           <div className="flex justify-between items-center">
             <LocaleSwitch />
@@ -60,7 +64,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <div className="md:hidden fixed inset-0 bg-black/50 z-40" onClick={() => setOpen(false)} />
       )}
 
-      <main className="flex-1 p-4 sm:p-6 md:p-10 overflow-x-hidden pt-16 md:pt-10">{children}</main>
+      <main className="flex-1 p-4 sm:p-6 md:p-10 overflow-x-hidden pt-16 md:pt-10">
+        {/* 1440px sinir: genis ekranda icerik duvara yapismasin (analitik UI sozlesmesi) */}
+        <div className="max-w-[1440px] mx-auto w-full">{children}</div>
+      </main>
 
       {/* Cmd+K command palette */}
       <CommandPalette />

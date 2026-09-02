@@ -162,18 +162,18 @@ export default function UseCasesPage() {
   return (
     <main className="relative">
       <div className="absolute inset-0 -z-10 overflow-hidden pointer-events-none">
-        <div className="absolute top-20 -left-20 w-96 h-96 bg-orange-500/10 rounded-full blur-3xl" />
+        <div className="absolute top-20 -left-20 w-96 h-96 bg-brand-500/10 rounded-full blur-3xl" />
         <div className="absolute top-60 -right-20 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl" />
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         <div className="text-center mb-12 max-w-3xl mx-auto">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-500/10 border border-orange-500/20 text-orange-600 text-xs font-semibold mb-5">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-500/10 border border-brand-500/20 text-brand-600 text-xs font-semibold mb-5">
             {data.eyebrow}
           </div>
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-tight mb-4">
             {data.titleA}{' '}
-            <span className="bg-gradient-to-r from-orange-500 via-orange-600 to-red-600 bg-clip-text text-transparent">
+            <span className="bg-gradient-to-r from-brand-500 via-brand-600 to-red-600 bg-clip-text text-transparent">
               {data.titleB}
             </span>
           </h1>
@@ -182,18 +182,18 @@ export default function UseCasesPage() {
 
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {data.items.map((u) => (
-            <div key={u.title} className="p-6 rounded-2xl border bg-background hover:border-orange-500/30 hover:shadow-lg hover:shadow-orange-500/5 transition-all group flex flex-col">
+            <div key={u.title} className="p-6 rounded-2xl border bg-background hover:border-brand-500/30 hover:shadow-lg hover:shadow-brand-500/5 transition-all group flex flex-col">
               <div className="text-4xl mb-4 group-hover:scale-110 transition-transform inline-block">{u.icon}</div>
               <h2 className="text-xl font-bold mb-3">{u.title}</h2>
               <ul className="space-y-2 text-sm text-muted-foreground mb-6 flex-1">
                 {u.bullets.map((b, i) => (
                   <li key={i} className="flex items-start gap-2">
-                    <span className="text-orange-600 shrink-0">•</span>
+                    <span className="text-brand-600 shrink-0">•</span>
                     <span>{b}</span>
                   </li>
                 ))}
               </ul>
-              <Button asChild className="w-full bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white">
+              <Button asChild className="w-full bg-gradient-to-br from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white">
                 <Link href="/onboarding">{u.cta}</Link>
               </Button>
             </div>

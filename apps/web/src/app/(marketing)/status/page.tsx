@@ -22,7 +22,7 @@ export default function StatusPage() {
     <div className="relative">
       <div className="absolute inset-0 -z-10 overflow-hidden pointer-events-none">
         <div className="absolute top-20 -left-20 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl" />
-        <div className="absolute top-40 -right-20 w-96 h-96 bg-orange-500/10 rounded-full blur-3xl" />
+        <div className="absolute top-40 -right-20 w-96 h-96 bg-brand-500/10 rounded-full blur-3xl" />
       </div>
 
       <main className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
@@ -64,7 +64,7 @@ export default function StatusPage() {
 
         <p className="text-xs text-muted-foreground text-center mt-8">
           Detaylı geçmiş ve incident raporları için{' '}
-          <a href="https://stats.uptimerobot.com/luviai" className="text-orange-600 hover:underline" target="_blank" rel="noopener">
+          <a href="https://stats.uptimerobot.com/luviai" className="text-brand-600 hover:underline" target="_blank" rel="noopener">
             stats.uptimerobot.com/luviai
           </a>
         </p>

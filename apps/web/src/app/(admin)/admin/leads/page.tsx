@@ -77,7 +77,7 @@ export default function AdminLeadsPage() {
           <div className="text-sm text-muted-foreground">Toplam test</div>
         </CardContent></Card>
         <Card><CardContent className="pt-6">
-          <div className="text-3xl font-bold text-orange-600">{data?.uniqueDomains ?? '—'}</div>
+          <div className="text-3xl font-bold text-brand-600">{data?.uniqueDomains ?? '—'}</div>
           <div className="text-sm text-muted-foreground">Tekil domain (lead)</div>
         </CardContent></Card>
         <Card><CardContent className="pt-6">
@@ -112,7 +112,7 @@ export default function AdminLeadsPage() {
                   <tr key={l.id} className="border-b last:border-0 hover:bg-muted/30">
                     <td className="px-4 py-3">
                       <div className="font-medium">{l.brand || l.domain}</div>
-                      <a href={`https://${l.domain}`} target="_blank" rel="noopener" className="text-xs text-orange-600 hover:underline">{l.domain}</a>
+                      <a href={`https://${l.domain}`} target="_blank" rel="noopener" className="text-xs text-brand-600 hover:underline">{l.domain}</a>
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">{l.niche ?? '—'}</td>
                     <td className="px-4 py-3">

@@ -20,7 +20,7 @@ const GRADE_COLOR: Record<string, string> = {
   'A': 'text-green-400',
   'B': 'text-blue-500',
   'C': 'text-yellow-500',
-  'D': 'text-orange-500',
+  'D': 'text-brand-500',
   'F': 'text-red-500',
 };
 

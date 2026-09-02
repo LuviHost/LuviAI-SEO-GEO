@@ -53,8 +53,8 @@ export function BeforeAfterCard({ data }: { data: any }) {
 
   if (tooEarly) {
     return (
-      <div className="mb-4 rounded-xl border border-orange-500/30 bg-gradient-to-br from-orange-500/[0.07] to-purple-500/[0.04] p-4">
-        <div className="flex items-center gap-2 text-orange-700 dark:text-orange-300 font-semibold text-sm">
+      <div className="mb-4 rounded-xl border border-brand-500/30 bg-gradient-to-br from-brand-500/[0.07] to-purple-500/[0.04] p-4">
+        <div className="flex items-center gap-2 text-brand-700 dark:text-brand-300 font-semibold text-sm">
           <Rocket className="h-4 w-4" /> RanksUp Etkisi — Başlangıç ölçümü alındı
         </div>
         <p className="text-sm text-muted-foreground mt-1.5">
@@ -71,13 +71,13 @@ export function BeforeAfterCard({ data }: { data: any }) {
   const toneText = grew ? 'text-emerald-700 dark:text-emerald-300' : 'text-red-700 dark:text-red-300';
   const toneBorder = grew ? 'border-emerald-500/30' : 'border-red-500/30';
   const toneBg = grew
-    ? 'from-emerald-500/[0.08] to-orange-500/[0.04]'
-    : 'from-red-500/[0.08] to-orange-500/[0.04]';
+    ? 'from-emerald-500/[0.08] to-brand-500/[0.04]'
+    : 'from-red-500/[0.08] to-brand-500/[0.04]';
 
   return (
     <div className={`mb-4 rounded-xl border ${toneBorder} bg-gradient-to-br ${toneBg} p-4`}>
       <div className="flex items-center gap-2 mb-3">
-        <Sparkles className="h-4 w-4 text-orange-500" />
+        <Sparkles className="h-4 w-4 text-brand-500" />
         <span className="font-semibold text-sm">RanksUp Etkisi</span>
         <span className="text-xs text-muted-foreground">· son {spanDays} gün</span>
       </div>

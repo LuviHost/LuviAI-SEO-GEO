@@ -353,7 +353,7 @@ export function DondurulmusRapor({ rapor }: { rapor: { data: any; periodStart: s
       {/* ═══ ASA ═══════════════════════════════════════════════ */}
       <Card>
         <CardContent className="p-4">
-          <Baslik ikon={Megaphone} renk="bg-orange-500/10 text-orange-600 dark:text-orange-400">
+          <Baslik ikon={Megaphone} renk="bg-brand-500/10 text-brand-600 dark:text-brand-400">
             Apple Search Ads (ASA)
           </Baslik>
           {asa.olculemedi ? (

@@ -58,7 +58,7 @@ export function AiCheckerHero() {
     <div className="grid lg:grid-cols-2 gap-10 lg:gap-14 items-center">
       {/* LEFT — message + input */}
       <div className="text-center lg:text-left">
-        <div className="text-[11px] font-bold uppercase tracking-[0.25em] text-orange-600 mb-5">
+        <div className="text-[11px] font-bold uppercase tracking-[0.25em] text-brand-600 mb-5">
           {c.eyebrow}
         </div>
 
@@ -67,11 +67,11 @@ export function AiCheckerHero() {
           <span className="relative inline-block">
             <span
               key={rotateIdx}
-              className="inline-block bg-gradient-to-br from-orange-500 to-orange-700 bg-clip-text text-transparent animate-[fadeInUp_400ms_ease-out]"
+              className="inline-block bg-gradient-to-br from-brand-500 to-brand-700 bg-clip-text text-transparent animate-[fadeInUp_400ms_ease-out]"
             >
               {c.rotating[rotateIdx]}
             </span>
-            <span className="absolute -bottom-1.5 left-0 right-0 h-[5px] bg-gradient-to-r from-orange-500/40 via-orange-500 to-orange-500/40 rounded-full" />
+            <span className="absolute -bottom-1.5 left-0 right-0 h-[5px] bg-gradient-to-r from-brand-500/40 via-brand-500 to-brand-500/40 rounded-full" />
           </span>
           {c.titleB}
         </h1>
@@ -110,7 +110,7 @@ function OrbitalDiagram({ centerLabel }: { centerLabel: string }) {
   return (
     <div className="relative" style={{ width: size, height: size }}>
       {/* Background subtle glow */}
-      <div className="absolute inset-8 rounded-full bg-gradient-to-br from-orange-500/8 via-amber-400/4 to-transparent blur-2xl" />
+      <div className="absolute inset-8 rounded-full bg-gradient-to-br from-brand-500/8 via-amber-400/4 to-transparent blur-2xl" />
 
       {/* SVG: circle outlines + connecting lines */}
       <svg
@@ -194,9 +194,9 @@ function OrbitalDiagram({ centerLabel }: { centerLabel: string }) {
         }}
       >
         <div className="relative w-full h-full">
-          <div className="absolute inset-0 rounded-full bg-gradient-to-br from-orange-500 to-red-600 animate-pulse opacity-25 blur-xl" />
-          <div className="absolute inset-0 rounded-full border-2 border-orange-500/60 animate-ping opacity-40" />
-          <div className="absolute inset-2 rounded-full bg-gradient-to-br from-orange-500 via-orange-600 to-red-600 grid place-items-center shadow-2xl shadow-orange-500/40">
+          <div className="absolute inset-0 rounded-full bg-gradient-to-br from-brand-500 to-red-600 animate-pulse opacity-25 blur-xl" />
+          <div className="absolute inset-0 rounded-full border-2 border-brand-500/60 animate-ping opacity-40" />
+          <div className="absolute inset-2 rounded-full bg-gradient-to-br from-brand-500 via-brand-600 to-red-600 grid place-items-center shadow-2xl shadow-brand-500/40">
             <div className="text-center text-white">
               <div className="text-[10px] font-bold uppercase tracking-widest opacity-90">
                 {centerLabel}
@@ -225,7 +225,7 @@ function OrbitalDiagram({ centerLabel }: { centerLabel: string }) {
           >
             <div className="group relative w-full h-full">
               {/* Force white background so colored brand icons stay visible in dark mode */}
-              <div className="absolute inset-0 rounded-full bg-white shadow-lg shadow-orange-500/10 ring-1 ring-orange-500/20 grid place-items-center hover:ring-2 hover:ring-orange-500/60 hover:scale-110 transition-all duration-300 overflow-hidden">
+              <div className="absolute inset-0 rounded-full bg-white shadow-lg shadow-brand-500/10 ring-1 ring-brand-500/20 grid place-items-center hover:ring-2 hover:ring-brand-500/60 hover:scale-110 transition-all duration-300 overflow-hidden">
                 <VendorLogo name={engine.name} size={48} />
               </div>
               <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground dark:text-white/70 whitespace-nowrap">

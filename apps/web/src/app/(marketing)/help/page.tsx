@@ -69,7 +69,7 @@ const COPY = {
 } as const;
 
 const COLORS: Record<string, string> = {
-  orange: 'from-orange-500/15 to-orange-600/10 text-orange-600',
+  orange: 'from-brand-500/15 to-brand-600/10 text-brand-600',
   purple: 'from-purple-500/15 to-purple-600/10 text-purple-600',
   blue: 'from-blue-500/15 to-blue-600/10 text-blue-600',
   amber: 'from-amber-500/15 to-amber-600/10 text-amber-600',
@@ -87,18 +87,18 @@ export default function HelpPage() {
   return (
     <main className="relative min-h-screen">
       <div className="absolute inset-0 -z-10 overflow-hidden pointer-events-none">
-        <div className="absolute top-20 -left-20 w-96 h-96 bg-orange-500/10 rounded-full blur-3xl" />
+        <div className="absolute top-20 -left-20 w-96 h-96 bg-brand-500/10 rounded-full blur-3xl" />
         <div className="absolute top-60 -right-20 w-96 h-96 bg-amber-400/10 rounded-full blur-3xl" />
       </div>
 
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         <div className="text-center mb-14 max-w-3xl mx-auto">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-500/10 border border-orange-500/20 text-orange-600 text-xs font-semibold mb-5">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-500/10 border border-brand-500/20 text-brand-600 text-xs font-semibold mb-5">
             {c.eyebrow}
           </div>
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-tight mb-4">
             {c.titleA}{' '}
-            <span className="bg-gradient-to-r from-orange-500 via-orange-600 to-red-600 bg-clip-text text-transparent">
+            <span className="bg-gradient-to-r from-brand-500 via-brand-600 to-red-600 bg-clip-text text-transparent">
               {c.titleB}
             </span>
           </h1>
@@ -106,7 +106,7 @@ export default function HelpPage() {
             {c.lead1}{' '}
             <br />
             {c.lead2}
-            <a href="mailto:destek@luvihost.com" className="text-orange-600 hover:underline font-semibold">destek@luvihost.com</a>
+            <a href="mailto:destek@luvihost.com" className="text-brand-600 hover:underline font-semibold">destek@luvihost.com</a>
           </p>
         </div>
 
@@ -117,14 +117,14 @@ export default function HelpPage() {
               <Link
                 key={t.href}
                 href={t.href as any}
-                className="p-6 rounded-2xl border bg-background hover:border-orange-500/40 hover:shadow-xl hover:shadow-orange-500/5 transition-all group"
+                className="p-6 rounded-2xl border bg-background hover:border-brand-500/40 hover:shadow-xl hover:shadow-brand-500/5 transition-all group"
               >
                 <div className={`h-11 w-11 rounded-xl bg-gradient-to-br ${COLORS[t.color]} grid place-items-center mb-3 group-hover:scale-110 transition-transform`}>
                   <t.icon className="h-5 w-5" />
                 </div>
                 <h2 className="font-bold text-lg mb-1.5">{topic.title}</h2>
                 <p className="text-sm text-muted-foreground leading-relaxed">{topic.desc}</p>
-                <div className="mt-4 text-xs font-bold text-orange-600 group-hover:translate-x-0.5 transition-transform">
+                <div className="mt-4 text-xs font-bold text-brand-600 group-hover:translate-x-0.5 transition-transform">
                   {c.readGuide}
                 </div>
               </Link>
@@ -133,14 +133,14 @@ export default function HelpPage() {
         </div>
 
         {/* Quick links */}
-        <div className="mt-16 rounded-2xl border-2 border-orange-500/30 bg-gradient-to-br from-orange-500/5 to-amber-400/5 p-8 text-center">
-          <BarChart3 className="h-10 w-10 text-orange-600 mx-auto mb-3" />
+        <div className="mt-16 rounded-2xl border-2 border-brand-500/30 bg-gradient-to-br from-brand-500/5 to-amber-400/5 p-8 text-center">
+          <BarChart3 className="h-10 w-10 text-brand-600 mx-auto mb-3" />
           <h3 className="text-2xl font-bold mb-2">{c.stuckTitle}</h3>
           <p className="text-muted-foreground mb-5 max-w-xl mx-auto">{c.stuckBody}</p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
             <a
               href="mailto:destek@luvihost.com"
-              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white text-sm font-semibold shadow-lg shadow-orange-500/20"
+              className="inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-gradient-to-br from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white text-sm font-semibold shadow-lg shadow-brand-500/20"
             >
               {c.mailBtn}
             </a>

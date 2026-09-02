@@ -132,7 +132,7 @@ export default function SettingsPage() {
   return (
     <div className="space-y-5 max-w-3xl">
       <div className="flex items-start gap-3">
-        <div className="h-10 w-10 rounded-xl bg-orange-500/10 text-orange-600 grid place-items-center">
+        <div className="h-10 w-10 rounded-xl bg-brand-500/10 text-brand-600 grid place-items-center">
           <SettingsIcon className="h-5 w-5" />
         </div>
         <div>
@@ -237,7 +237,7 @@ export default function SettingsPage() {
           <Button
             onClick={save}
             disabled={!isDirty || saving}
-            className="bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white"
+            className="bg-gradient-to-br from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white"
           >
             <Save className="h-4 w-4 mr-1.5" />
             {saving ? 'Kaydediliyor…' : 'Kaydet'}
@@ -292,8 +292,8 @@ export default function SettingsPage() {
 
       <div className="text-sm text-muted-foreground">
         Daha kapsamlı ayar için{' '}
-        <Link href={`/sites/${site.id}/connections`} className="text-orange-600 hover:underline">Bağlantılar</Link>{' '}veya{' '}
-        <Link href={`/sites/${site.id}/autopilot`} className="text-orange-600 hover:underline">Otomatik Akış</Link>{' '}
+        <Link href={`/sites/${site.id}/connections`} className="text-brand-600 hover:underline">Bağlantılar</Link>{' '}veya{' '}
+        <Link href={`/sites/${site.id}/autopilot`} className="text-brand-600 hover:underline">Otomatik Akış</Link>{' '}
         sayfalarına bak.
       </div>
     </div>

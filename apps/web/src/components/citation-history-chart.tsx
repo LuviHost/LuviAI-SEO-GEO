@@ -7,26 +7,8 @@ import { api } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { BeforeAfterCard } from '@/components/before-after-card';
+import { PROVIDER_COLORS, PROVIDER_LABELS, PROVIDER_FALLBACK } from '@/lib/chart-colors';
 
-const PROVIDER_COLORS: Record<string, string> = {
-  anthropic: '#a78bfa',  // mor — Claude
-  gemini: '#60a5fa',     // mavi — Gemini
-  openai: '#34d399',     // yesil — ChatGPT
-  perplexity: '#fb923c', // turuncu — Perplexity
-  xai: '#f87171',        // kirmizi — xAI Grok (backend "xai" dondurur)
-  grok: '#f87171',       // alias (geri uyum)
-  deepseek: '#38bdf8',   // mavi — DeepSeek (gri yerine canli ton)
-};
-
-const PROVIDER_LABELS: Record<string, string> = {
-  anthropic: 'Claude',
-  gemini: 'Gemini',
-  openai: 'ChatGPT',
-  perplexity: 'Perplexity',
-  xai: 'Grok (xAI)',     // backend "xai" dondurur ama UI'da "Grok" daha taninir
-  grok: 'Grok (xAI)',    // alias
-  deepseek: 'DeepSeek',
-};
 
 
 /**
@@ -203,7 +185,7 @@ export function CitationHistoryChart({
         <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
           <div>
             <p className="text-sm font-semibold inline-flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-orange-500" /> AI Görünürlük Trendi
+              <Sparkles className="h-4 w-4 text-brand-500" /> AI Görünürlük Trendi
             </p>
             <p className="text-xs text-muted-foreground mt-0.5 max-w-2xl">
               ChatGPT, Claude, Gemini, Perplexity, Grok, DeepSeek ve Meta — 7 AI'a markanla ilgili soru sorduğumuzda <strong>cevapta site URL'in veya marka adın geçiyor mu</strong> ölçüyoruz. <strong>0-100 skor:</strong> URL geçerse 100 puan, sadece marka adı geçerse 50 puan/soru.
@@ -277,7 +259,7 @@ export function CitationHistoryChart({
 
               const toneClasses: Record<string, string> = {
                 emerald: 'border-emerald-500/30 bg-gradient-to-br from-emerald-500/[0.06] to-emerald-500/[0.02] text-emerald-700 dark:text-emerald-300',
-                orange:  'border-orange-500/30 bg-gradient-to-br from-orange-500/[0.06] to-orange-500/[0.02] text-orange-700 dark:text-orange-300',
+                orange:  'border-brand-500/30 bg-gradient-to-br from-brand-500/[0.06] to-brand-500/[0.02] text-brand-700 dark:text-brand-300',
                 amber:   'border-amber-500/30 bg-gradient-to-br from-amber-500/[0.06] to-amber-500/[0.02] text-amber-700 dark:text-amber-300',
                 red:     'border-red-500/30 bg-gradient-to-br from-red-500/[0.06] to-red-500/[0.02] text-red-700 dark:text-red-300',
               };
@@ -326,7 +308,7 @@ export function CitationHistoryChart({
             {/* Trend rozetler */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
               {trends.map((t: any) => {
-                const color = PROVIDER_COLORS[t.provider] ?? '#94a3b8';
+                const color = PROVIDER_COLORS[t.provider] ?? PROVIDER_FALLBACK;
                 const label = PROVIDER_LABELS[t.provider] ?? t.provider;
                 return (
                   <div key={t.provider} className="rounded-md border p-2 flex items-center gap-2">
@@ -371,7 +353,7 @@ export function CitationHistoryChart({
 
                 {/* Lines per provider */}
                 {providers.map((p) => {
-                  const color = PROVIDER_COLORS[p] ?? '#94a3b8';
+                  const color = PROVIDER_COLORS[p] ?? PROVIDER_FALLBACK;
                   const points = sortedDates
                     .map((d, i) => {
                       const s = scoreMap[p][d];
@@ -441,14 +423,14 @@ export function CitationHistoryChart({
                     <div key={r.id} className="flex items-center gap-3 px-3 py-1.5 text-xs">
                       <input type="checkbox" checked={selectedRuns.includes(r.id)} onChange={() => toggleRun(r.id)} aria-label="karşılaştırmak için seç" />
                       <span className="tabular-nums w-[120px] shrink-0">{new Date(r.runAt).toLocaleString('tr-TR', { dateStyle: 'short', timeStyle: 'short' })}</span>
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded border ${r.trigger === 'system' ? 'text-muted-foreground' : 'text-orange-700 dark:text-orange-300 border-orange-500/30 bg-orange-500/10'}`}>
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded border ${r.trigger === 'system' ? 'text-muted-foreground' : 'text-brand-700 dark:text-brand-300 border-brand-500/30 bg-brand-500/10'}`}>
                         {r.trigger === 'system' ? 'otomatik' : 'senin testin'}
                       </span>
                       <span className="font-semibold tabular-nums">{r.headlineScore ?? '—'}<span className="text-muted-foreground font-normal">/100</span></span>
                       <span className="text-muted-foreground truncate flex-1 min-w-0">
                         {r.providers.filter((p: any) => p.available).map((p: any) => `${PROVIDER_LABELS[p.provider] ?? p.provider} ${p.score ?? '—'}`).join(' · ')}
                       </span>
-                      <button type="button" className="text-orange-600 dark:text-orange-400 hover:underline shrink-0" onClick={() => showRun(r.id)}>detay</button>
+                      <button type="button" className="text-brand-600 dark:text-brand-400 hover:underline shrink-0" onClick={() => showRun(r.id)}>detay</button>
                     </div>
                   ))}
                 </div>
@@ -462,7 +444,7 @@ export function CitationHistoryChart({
                 <button
                   type="button"
                   onClick={() => setShowDetails((v) => !v)}
-                  className="text-xs font-semibold text-orange-600 dark:text-orange-400 hover:underline inline-flex items-center gap-1"
+                  className="text-xs font-semibold text-brand-600 dark:text-brand-400 hover:underline inline-flex items-center gap-1"
                 >
                   {showDetails ? '▾' : '▸'} Son test detaylarını {showDetails ? 'gizle' : 'göster'} — hangi sorularda neye cevap geldi?
                 </button>
@@ -479,7 +461,7 @@ export function CitationHistoryChart({
                             <div className="flex items-center gap-2">
                               <span
                                 className="h-2.5 w-2.5 rounded-full"
-                                style={{ backgroundColor: PROVIDER_COLORS[r.provider] ?? '#94a3b8' }}
+                                style={{ backgroundColor: PROVIDER_COLORS[r.provider] ?? PROVIDER_FALLBACK }}
                               />
                               <span className="text-xs font-semibold">{PROVIDER_LABELS[r.provider] ?? r.label ?? r.provider}</span>
                             </div>
@@ -530,7 +512,7 @@ export function CitationHistoryChart({
                                     {r.shareOfVoice.slice(0, 5).map((sov: any, i: number) => (
                                       <div
                                         key={i}
-                                        className={sov.isBrand ? 'bg-orange-500' : ['bg-slate-400', 'bg-slate-500', 'bg-slate-600', 'bg-slate-700'][i % 4]}
+                                        className={sov.isBrand ? 'bg-brand-500' : ['bg-slate-400', 'bg-slate-500', 'bg-slate-600', 'bg-slate-700'][i % 4]}
                                         style={{ width: `${sov.pct}%` }}
                                         title={`${sov.name}: %${sov.pct} (${sov.mentions}x)`}
                                       />
@@ -538,7 +520,7 @@ export function CitationHistoryChart({
                                   </div>
                                   <div className="flex flex-wrap gap-x-2 gap-y-0.5 mt-1">
                                     {r.shareOfVoice.slice(0, 4).map((sov: any, i: number) => (
-                                      <span key={i} className={`text-[9px] ${sov.isBrand ? 'text-orange-600 dark:text-orange-400 font-bold' : 'text-muted-foreground'}`}>
+                                      <span key={i} className={`text-[9px] ${sov.isBrand ? 'text-brand-600 dark:text-brand-400 font-bold' : 'text-muted-foreground'}`}>
                                         <span className="inline-block w-1.5 h-1.5 rounded-full mr-0.5 align-middle" style={{ backgroundColor: sov.isBrand ? '#f97316' : '#94a3b8' }} />
                                         {sov.name} %{sov.pct}
                                       </span>

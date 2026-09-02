@@ -82,7 +82,7 @@ export function QueryCard({ q, idx, brand, lang, isOpen, onToggle, labels }: Que
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium leading-relaxed">{q.query}</p>
               {catLabel && (
-                <span className="inline-block mt-1.5 text-[10px] font-bold uppercase tracking-wider text-orange-600 bg-orange-500/10 px-1.5 py-0.5 rounded">
+                <span className="inline-block mt-1.5 text-[10px] font-bold uppercase tracking-wider text-brand-600 bg-brand-500/10 px-1.5 py-0.5 rounded">
                   {catLabel}
                 </span>
               )}
@@ -116,7 +116,7 @@ export function QueryCard({ q, idx, brand, lang, isOpen, onToggle, labels }: Que
             {(catLabel || q.brandInQuery) && (
             <span className="inline-flex items-center gap-1.5 mt-1.5">
               {catLabel && (
-                <span className="text-[10px] font-bold uppercase tracking-wider text-orange-600 bg-orange-500/10 px-1.5 py-0.5 rounded">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-brand-600 bg-brand-500/10 px-1.5 py-0.5 rounded">
                   {catLabel}
                 </span>
               )}
@@ -192,16 +192,16 @@ export function UnlockCta({ lockedCount, unlockedCount, domain, onNavigate, labe
     .replace('{open}', String(unlockedCount ?? 0))
     .replace('{locked}', String(lockedCount));
   return (
-    <div className="rounded-2xl border-2 border-orange-500/40 bg-orange-500/5 p-5 text-center">
-      <div className="inline-grid place-items-center w-10 h-10 rounded-full bg-orange-500/10 mb-3">
-        <Lock className="h-5 w-5 text-orange-600" />
+    <div className="rounded-2xl border-2 border-brand-500/40 bg-brand-500/5 p-5 text-center">
+      <div className="inline-grid place-items-center w-10 h-10 rounded-full bg-brand-500/10 mb-3">
+        <Lock className="h-5 w-5 text-brand-600" />
       </div>
       <h5 className="font-bold text-base mb-1.5">{labels.title.replace('{n}', String(lockedCount))}</h5>
       <p className="text-xs text-muted-foreground mb-4 leading-relaxed max-w-md mx-auto">{body}</p>
       <Link
         href={`/signin?callbackUrl=${encodeURIComponent(`/unlock?domain=${encodeURIComponent(domain)}`)}`}
         onClick={onNavigate}
-        className="inline-flex items-center justify-center gap-2 bg-orange-600 hover:bg-orange-700 text-white px-6 py-2.5 text-sm font-bold rounded-lg transition-colors"
+        className="inline-flex items-center justify-center gap-2 bg-brand-600 hover:bg-brand-700 text-white px-6 py-2.5 text-sm font-bold rounded-lg transition-colors"
       >
         {labels.cta}
         <ArrowRight className="h-4 w-4" />
@@ -235,7 +235,7 @@ function ResponsesToggle({
     <div className="mt-4">
       <button
         onClick={onToggle}
-        className="text-xs font-semibold text-orange-600 hover:text-orange-700 inline-flex items-center gap-1.5 transition-colors"
+        className="text-xs font-semibold text-brand-600 hover:text-brand-700 inline-flex items-center gap-1.5 transition-colors"
         type="button"
       >
         {isOpen ? labels.hide : labels.show}

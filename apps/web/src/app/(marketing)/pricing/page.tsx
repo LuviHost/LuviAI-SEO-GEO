@@ -108,19 +108,19 @@ export default function PricingPage() {
     <div className="relative">
       {/* gradient blob accents */}
       <div className="absolute inset-0 -z-10 overflow-hidden pointer-events-none">
-        <div className="absolute top-10 -left-20 w-96 h-96 bg-orange-500/10 rounded-full blur-3xl" />
+        <div className="absolute top-10 -left-20 w-96 h-96 bg-brand-500/10 rounded-full blur-3xl" />
         <div className="absolute top-40 -right-20 w-96 h-96 bg-purple-500/10 rounded-full blur-3xl" />
       </div>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-24">
         <div className="max-w-3xl mx-auto text-center mb-12">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-500/10 border border-orange-500/20 text-orange-600 text-xs font-semibold mb-5">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-500/10 border border-brand-500/20 text-brand-600 text-xs font-semibold mb-5">
             <Sparkles className="h-3 w-3" />
             <span>2 makale ücretsiz · Kredi kartı yok</span>
           </div>
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-tight">
             Şeffaf fiyat,{' '}
-            <span className="bg-gradient-to-r from-orange-500 via-orange-600 to-red-600 bg-clip-text text-transparent">
+            <span className="bg-gradient-to-r from-brand-500 via-brand-600 to-red-600 bg-clip-text text-transparent">
               ölçeklenebilir plan
             </span>
           </h1>
@@ -160,7 +160,7 @@ export default function PricingPage() {
               onClick={() => setCycle('monthly')}
               className={`px-6 py-2 text-sm font-medium rounded-full transition-all ${
                 cycle === 'monthly'
-                  ? 'bg-gradient-to-br from-orange-500 to-orange-600 text-white shadow-md'
+                  ? 'bg-gradient-to-br from-brand-500 to-brand-600 text-white shadow-md'
                   : 'text-muted-foreground hover:text-foreground'
               }`}
             >
@@ -170,7 +170,7 @@ export default function PricingPage() {
               onClick={() => setCycle('annual')}
               className={`px-6 py-2 text-sm font-medium rounded-full transition-all flex items-center gap-2 ${
                 cycle === 'annual'
-                  ? 'bg-gradient-to-br from-orange-500 to-orange-600 text-white shadow-md'
+                  ? 'bg-gradient-to-br from-brand-500 to-brand-600 text-white shadow-md'
                   : 'text-muted-foreground hover:text-foreground'
               }`}
             >
@@ -211,12 +211,12 @@ export default function PricingPage() {
                 key={p.id}
                 className={`p-8 rounded-2xl border flex flex-col relative ${
                   highlighted
-                    ? 'bg-gradient-to-br from-orange-500/10 to-orange-500/5 border-orange-500/30 shadow-xl shadow-orange-500/10 lg:scale-105'
-                    : 'bg-background hover:border-orange-500/30 transition-colors'
+                    ? 'bg-gradient-to-br from-brand-500/10 to-brand-500/5 border-brand-500/30 shadow-xl shadow-brand-500/10 lg:scale-105'
+                    : 'bg-background hover:border-brand-500/30 transition-colors'
                 }`}
               >
                 {highlighted && (
-                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-gradient-to-br from-orange-500 to-orange-600 text-white text-[10px] font-bold uppercase tracking-wider shadow-md">
+                  <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-gradient-to-br from-brand-500 to-brand-600 text-white text-[10px] font-bold uppercase tracking-wider shadow-md">
                     {t('pricing.popular')}
                   </div>
                 )}
@@ -275,7 +275,7 @@ export default function PricingPage() {
                     disabled={loading === p.id}
                     className={`w-full ${
                       highlighted
-                        ? 'bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white shadow-md'
+                        ? 'bg-gradient-to-br from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white shadow-md'
                         : ''
                     }`}
                     variant={highlighted ? 'default' : 'outline'}
@@ -309,7 +309,7 @@ function Feat({ children, highlight, muted }: { children: React.ReactNode; highl
   return (
     <li className={`flex items-start gap-2 ${muted ? 'text-muted-foreground' : 'text-foreground/90'}`}>
       <CheckCircle2 className={`h-4 w-4 mt-0.5 shrink-0 ${
-        muted ? 'text-muted-foreground/50' : highlight ? 'text-orange-600' : 'text-emerald-600'
+        muted ? 'text-muted-foreground/50' : highlight ? 'text-brand-600' : 'text-emerald-600'
       }`} />
       <span>{children}</span>
     </li>

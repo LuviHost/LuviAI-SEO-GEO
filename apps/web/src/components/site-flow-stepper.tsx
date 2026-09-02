@@ -1155,13 +1155,13 @@ export function SnippetPanel({ siteId, initialUrl }: { siteId: string; initialUr
       )}
 
       {snippets && snippets.length > 0 && resolvedUrl && (
-        <div className="mt-3 rounded-md border border-orange-500/30 bg-orange-500/5 p-2.5">
+        <div className="mt-3 rounded-md border border-brand-500/30 bg-brand-500/5 p-2.5">
           <div className="flex items-center justify-between gap-2 flex-wrap">
             <div className="text-xs">
               <p className="font-medium">Statik HTML auto-write (FTP/SFTP/cPanel için)</p>
               <p className="text-muted-foreground mt-0.5">
                 Önce "Önizle" — sayfanın <code>&lt;head&gt;</code>'ine snippet'ler ekleniyor, diff gösterilir. Onay sonrası canlı dosya overwrite.{' '}
-                <Link href={`/sites/${siteId}?tab=settings`} className="underline text-orange-700 hover:text-orange-800">
+                <Link href={`/sites/${siteId}?tab=settings`} className="underline text-brand-700 hover:text-brand-800">
                   FTP/SFTP/cPanel target ekle →
                 </Link>
               </p>

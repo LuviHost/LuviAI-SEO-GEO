@@ -8,7 +8,7 @@ export default function AdsPage() {
   return (
     <div className="space-y-5">
       <div className="flex items-start gap-3">
-        <div className="h-10 w-10 rounded-xl bg-orange-500/10 text-orange-500 grid place-items-center">
+        <div className="h-10 w-10 rounded-xl bg-brand-500/10 text-brand-500 grid place-items-center">
           <TrendingUp className="h-5 w-5" />
         </div>
         <div>

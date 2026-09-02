@@ -27,10 +27,10 @@ export function AdsLabPanel({ site }: { site: any }) {
   const noAccounts = conn !== null && !conn.google && !conn.meta;
 
   return (
-    <div className="rounded-lg border border-orange-500/30 bg-gradient-to-br from-orange-500/5 to-transparent p-4 space-y-3">
+    <div className="rounded-lg border border-brand-500/30 bg-gradient-to-br from-brand-500/5 to-transparent p-4 space-y-3">
       <div>
         <p className="text-sm font-semibold inline-flex items-center gap-2">
-          <Megaphone className="h-4 w-4 text-orange-500" /> Ads Lab — Google Ads + Meta Ads
+          <Megaphone className="h-4 w-4 text-brand-500" /> Ads Lab — Google Ads + Meta Ads
         </p>
         <p className="text-xs text-muted-foreground mt-0.5">
           AI ile reklam hedefle, metin üret, görsel hazırla, bütçe ayarla, yayınla. Resmi Google Ads + Meta Marketing API'leri ile direkt entegrasyon — 3. parti SaaS yok.
@@ -65,7 +65,7 @@ export function AdsLabPanel({ site }: { site: any }) {
           <button
             key={id}
             onClick={() => setTab(id as any)}
-            className={`px-3 py-1.5 text-xs font-medium inline-flex items-center gap-1 ${tab === id ? 'bg-orange-500 text-white' : 'bg-card text-muted-foreground hover:bg-muted'}`}
+            className={`px-3 py-1.5 text-xs font-medium inline-flex items-center gap-1 ${tab === id ? 'bg-brand-500 text-white' : 'bg-card text-muted-foreground hover:bg-muted'}`}
           >
             {icon} {label}
           </button>
@@ -99,7 +99,7 @@ function AutopilotToggle({ site, disabled }: { site: any; disabled: boolean }) {
   };
 
   return (
-    <label className="flex items-center gap-2 text-xs cursor-pointer p-3 rounded-md border bg-orange-500/5">
+    <label className="flex items-center gap-2 text-xs cursor-pointer p-3 rounded-md border bg-brand-500/5">
       <input
         type="checkbox"
         checked={autopilot}

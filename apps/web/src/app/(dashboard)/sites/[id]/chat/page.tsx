@@ -39,7 +39,7 @@ const TAG_CLS: Record<string, string> = {
   CONTENT: 'bg-pink-500/10 text-pink-600 border-pink-500/30',
   YOUTUBE: 'bg-red-500/10 text-red-600 border-red-500/30',
   LINKEDIN: 'bg-sky-500/10 text-sky-600 border-sky-500/30',
-  ASO: 'bg-orange-500/10 text-orange-600 border-orange-500/30',
+  ASO: 'bg-brand-500/10 text-brand-600 border-brand-500/30',
 };
 
 export default function ChatPage() {
@@ -187,7 +187,7 @@ export default function ChatPage() {
                 <div className={cn(
                   'max-w-[85%] rounded-xl px-4 py-2.5 text-sm',
                   m.role === 'user'
-                    ? 'bg-gradient-to-br from-orange-500 to-orange-600 text-white'
+                    ? 'bg-gradient-to-br from-brand-500 to-brand-600 text-white'
                     : 'bg-muted/60',
                 )}>
                   {m.role === 'assistant' ? (

@@ -132,7 +132,7 @@ export default function AsoPage() {
       {/* HEADER */}
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div className="flex items-start gap-3">
-          <div className="h-10 w-10 rounded-xl bg-orange-500/10 text-orange-600 dark:text-orange-400 grid place-items-center">
+          <div className="h-10 w-10 rounded-xl bg-brand-500/10 text-brand-600 dark:text-brand-400 grid place-items-center">
             <Smartphone className="h-5 w-5" />
           </div>
           <div>
@@ -1195,7 +1195,7 @@ function AppDetailModal({ app, siteId, onClose, onChanged }: {
                                 <Button
                                   size="sm"
                                   variant="ghost"
-                                  className="h-7 px-2 text-orange-600 hover:bg-orange-500/10"
+                                  className="h-7 px-2 text-brand-600 hover:bg-brand-500/10"
                                   onClick={() => { setAsaPrefillKeyword(kw.keyword); setTab('asa'); }}
                                   title="Apple Search Ads kampanyasına ekle"
                                 >
@@ -1249,7 +1249,7 @@ function AppDetailModal({ app, siteId, onClose, onChanged }: {
                     size="sm"
                     onClick={addAllAiKeywords}
                     disabled={bulkAdding}
-                    className="bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white"
+                    className="bg-gradient-to-br from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white"
                   >
                     {bulkAdding ? (
                       <><RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" /> Ekleniyor…</>

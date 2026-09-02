@@ -79,7 +79,7 @@ export default function UnlockPage() {
     <Suspense
       fallback={
         <div className="max-w-xl mx-auto p-10 text-center">
-          <Loader2 className="h-10 w-10 mx-auto animate-spin text-orange-600" />
+          <Loader2 className="h-10 w-10 mx-auto animate-spin text-brand-600" />
         </div>
       }
     >
@@ -130,7 +130,7 @@ function UnlockView() {
     return (
       <div className="max-w-xl mx-auto p-8 text-center">
         <p className="text-sm text-muted-foreground mb-4">{c.missingDomain}</p>
-        <Link href="/" className="inline-flex bg-orange-600 hover:bg-orange-700 text-white px-5 py-2.5 rounded-lg text-sm font-bold transition-colors">
+        <Link href="/" className="inline-flex bg-brand-600 hover:bg-brand-700 text-white px-5 py-2.5 rounded-lg text-sm font-bold transition-colors">
           {c.backHome}
         </Link>
       </div>
@@ -144,8 +144,8 @@ function UnlockView() {
     return (
       <div className="max-w-lg mx-auto p-6 sm:p-10">
         <div className="bg-muted/30 rounded-2xl border p-6 sm:p-8 text-center">
-          <div className="inline-grid place-items-center w-12 h-12 rounded-full bg-orange-500/10 mb-4">
-            <Lock className="h-6 w-6 text-orange-600" />
+          <div className="inline-grid place-items-center w-12 h-12 rounded-full bg-brand-500/10 mb-4">
+            <Lock className="h-6 w-6 text-brand-600" />
           </div>
           <h1 className="text-xl font-bold mb-2">{c.payTitle}</h1>
           <p className="text-sm text-muted-foreground leading-relaxed mb-5">
@@ -169,7 +169,7 @@ function UnlockView() {
             onClick={() => {
               try { localStorage.setItem(UNLOCK_DOMAIN_KEY, domain); } catch { /* noop */ }
             }}
-            className="w-full inline-flex items-center justify-center gap-2 bg-orange-600 hover:bg-orange-700 text-white px-5 py-3 rounded-lg text-sm font-bold transition-colors"
+            className="w-full inline-flex items-center justify-center gap-2 bg-brand-600 hover:bg-brand-700 text-white px-5 py-3 rounded-lg text-sm font-bold transition-colors"
           >
             {c.payCta}
             <ArrowRight className="h-4 w-4" />
@@ -192,7 +192,7 @@ function UnlockView() {
             <div>{error}</div>
           </div>
         </div>
-        <Link href="/" className="mt-4 inline-flex text-sm font-semibold text-orange-600 hover:underline">
+        <Link href="/" className="mt-4 inline-flex text-sm font-semibold text-brand-600 hover:underline">
           {c.backHome}
         </Link>
       </div>
@@ -202,7 +202,7 @@ function UnlockView() {
   if (!result) {
     return (
       <div className="max-w-xl mx-auto p-10 text-center">
-        <Loader2 className="h-10 w-10 mx-auto mb-5 animate-spin text-orange-600" />
+        <Loader2 className="h-10 w-10 mx-auto mb-5 animate-spin text-brand-600" />
         <p className="font-bold text-base mb-1">{c.running}</p>
         <p className="text-sm text-muted-foreground">{c.runningSub}</p>
       </div>
@@ -212,8 +212,8 @@ function UnlockView() {
   return (
     <div className="max-w-5xl mx-auto p-4 sm:p-8 space-y-6">
       <div className="flex items-center gap-3">
-        <div className="inline-grid place-items-center w-10 h-10 rounded-full bg-orange-500/10 shrink-0">
-          <Unlock className="h-5 w-5 text-orange-600" />
+        <div className="inline-grid place-items-center w-10 h-10 rounded-full bg-brand-500/10 shrink-0">
+          <Unlock className="h-5 w-5 text-brand-600" />
         </div>
         <div className="min-w-0">
           <h1 className="text-xl font-bold truncate">
@@ -260,21 +260,21 @@ function UnlockView() {
                 {result.competitorRanking.slice(0, 8).map((comp, idx) => (
                   <div
                     key={comp.name + idx}
-                    className={`flex items-center gap-3 p-2 rounded-lg ${comp.isBrand ? 'bg-orange-500/10 ring-1 ring-orange-500/30' : ''}`}
+                    className={`flex items-center gap-3 p-2 rounded-lg ${comp.isBrand ? 'bg-brand-500/10 ring-1 ring-brand-500/30' : ''}`}
                   >
                     <span
-                      className={`inline-grid place-items-center w-6 h-6 rounded-md text-xs font-bold shrink-0 ${comp.isBrand ? 'bg-orange-600 text-white' : 'bg-muted text-foreground'}`}
+                      className={`inline-grid place-items-center w-6 h-6 rounded-md text-xs font-bold shrink-0 ${comp.isBrand ? 'bg-brand-600 text-white' : 'bg-muted text-foreground'}`}
                     >
                       {idx + 1}
                     </span>
                     <span className="flex-1 text-sm font-medium truncate">
                       {comp.name}
                       {comp.isBrand && (
-                        <span className="text-orange-600 text-xs ml-1.5 font-bold">{c.youLabel}</span>
+                        <span className="text-brand-600 text-xs ml-1.5 font-bold">{c.youLabel}</span>
                       )}
                     </span>
                     <span
-                      className={`text-sm font-bold shrink-0 ${comp.isBrand ? 'text-orange-600' : 'text-muted-foreground'}`}
+                      className={`text-sm font-bold shrink-0 ${comp.isBrand ? 'text-brand-600' : 'text-muted-foreground'}`}
                     >
                       {comp.pct}%
                     </span>
@@ -286,7 +286,7 @@ function UnlockView() {
 
           <Link
             href={`/onboarding?url=${encodeURIComponent(`https://${result.domain}`)}`}
-            className="w-full inline-flex items-center justify-center gap-2 bg-orange-600 hover:bg-orange-700 text-white px-5 py-3 rounded-lg text-sm font-bold transition-colors"
+            className="w-full inline-flex items-center justify-center gap-2 bg-brand-600 hover:bg-brand-700 text-white px-5 py-3 rounded-lg text-sm font-bold transition-colors"
           >
             {c.addSite}
             <ArrowRight className="h-4 w-4" />

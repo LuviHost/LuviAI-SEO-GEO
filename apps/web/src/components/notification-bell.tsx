@@ -77,7 +77,7 @@ export function NotificationBell() {
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen(o => !o)}
-        className="relative p-2 rounded hover:bg-slate-800 text-slate-200"
+        className="relative p-2 rounded hover:bg-sidebar-hover text-sidebar-foreground/85"
         aria-label="Bildirimler"
       >
         <Bell className="h-4 w-4" />

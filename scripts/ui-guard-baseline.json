@@ -1,0 +1,10 @@
+{
+  "arbitraryTextPx": 670,
+  "hexInTsx": 465,
+  "animejsAllowed": [
+    "apps/web/src/app/(dashboard)/affiliate/page.tsx",
+    "apps/web/src/app/(dashboard)/billing/page.tsx",
+    "apps/web/src/components/analytics-row.tsx",
+    "apps/web/src/components/pipeline-gauge.tsx"
+  ]
+}

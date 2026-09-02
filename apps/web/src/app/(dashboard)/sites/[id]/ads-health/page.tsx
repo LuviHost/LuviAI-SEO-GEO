@@ -121,7 +121,7 @@ export default function AdsHealthPage() {
     <div className="space-y-5">
       {/* Header */}
       <div className="flex items-start gap-3">
-        <div className="h-10 w-10 rounded-xl bg-orange-500/10 text-orange-600 dark:text-orange-400 grid place-items-center">
+        <div className="h-10 w-10 rounded-xl bg-brand-500/10 text-brand-600 dark:text-brand-400 grid place-items-center">
           <Target className="h-5 w-5" />
         </div>
         <div className="flex-1">
@@ -177,8 +177,8 @@ export default function AdsHealthPage() {
       {!loading && !audit && (
         <Card>
           <CardContent className="p-8 text-center space-y-3">
-            <div className="h-14 w-14 mx-auto rounded-full bg-orange-500/10 grid place-items-center">
-              <Target className="h-7 w-7 text-orange-600" />
+            <div className="h-14 w-14 mx-auto rounded-full bg-brand-500/10 grid place-items-center">
+              <Target className="h-7 w-7 text-brand-600" />
             </div>
             <p className="font-semibold">Kampanya Skoru henüz hesaplanmadı</p>
             <p className="text-sm text-muted-foreground max-w-md mx-auto">

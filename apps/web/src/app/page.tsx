@@ -67,12 +67,12 @@ const INTEGRATION_LABELS: Partial<Record<VendorName, string>> = {
 };
 
 const AVATAR_BGS = [
-  'from-orange-500 to-rose-500',
-  'from-orange-400 to-amber-500',
-  'from-orange-500 to-purple-500',
-  'from-amber-400 to-orange-500',
-  'from-rose-400 to-orange-500',
-  'from-orange-600 to-amber-600',
+  'from-brand-500 to-rose-500',
+  'from-brand-400 to-amber-500',
+  'from-brand-500 to-purple-500',
+  'from-amber-400 to-brand-500',
+  'from-rose-400 to-brand-500',
+  'from-brand-600 to-amber-600',
 ];
 
 type PublicTestimonial = {
@@ -174,11 +174,11 @@ export default function LandingPage() {
             <BrandWordmark size={24} />
           </Link>
           <div className="hidden md:flex items-center gap-7 text-sm">
-            <a href="#cozum" className="hover:text-orange-600 transition-colors">{t('land.nav.solution')}</a>
-            <a href="#nasil" className="hover:text-orange-600 transition-colors">{t('land.nav.how')}</a>
-            <a href="#sonuc" className="hover:text-orange-600 transition-colors">{t('land.nav.results')}</a>
-            <a href="#fiyat" className="hover:text-orange-600 transition-colors">{t('land.nav.pricing')}</a>
-            <a href="#sss" className="hover:text-orange-600 transition-colors">{t('land.nav.faq')}</a>
+            <a href="#cozum" className="hover:text-brand-600 transition-colors">{t('land.nav.solution')}</a>
+            <a href="#nasil" className="hover:text-brand-600 transition-colors">{t('land.nav.how')}</a>
+            <a href="#sonuc" className="hover:text-brand-600 transition-colors">{t('land.nav.results')}</a>
+            <a href="#fiyat" className="hover:text-brand-600 transition-colors">{t('land.nav.pricing')}</a>
+            <a href="#sss" className="hover:text-brand-600 transition-colors">{t('land.nav.faq')}</a>
           </div>
           <div className="flex items-center gap-1.5">
             <LocaleSwitch />
@@ -187,7 +187,7 @@ export default function LandingPage() {
               <Button variant="ghost" size="sm">{t('land.nav.login')}</Button>
             </Link>
             <Link href="/signin?signup=1">
-              <Button size="sm" className="bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white shadow-lg shadow-orange-500/20">
+              <Button size="sm" className="bg-gradient-to-br from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white shadow-lg shadow-brand-500/20">
                 {t('land.nav.signup')} <ArrowRight className="h-3.5 w-3.5 ml-1" />
               </Button>
             </Link>
@@ -199,9 +199,9 @@ export default function LandingPage() {
       <section className="relative pt-14 pb-16 lg:pt-20 lg:pb-20">
         {/* gradient blobs */}
         <div className="absolute inset-0 -z-10 overflow-hidden pointer-events-none">
-          <div className="absolute top-0 -left-32 w-[36rem] h-[36rem] bg-orange-500/15 rounded-full blur-3xl" />
+          <div className="absolute top-0 -left-32 w-[36rem] h-[36rem] bg-brand-500/15 rounded-full blur-3xl" />
           <div className="absolute -bottom-20 -right-24 w-[40rem] h-[40rem] bg-amber-400/10 rounded-full blur-3xl" />
-          <div className="absolute top-40 right-1/3 w-72 h-72 bg-orange-400/8 rounded-full blur-3xl" />
+          <div className="absolute top-40 right-1/3 w-72 h-72 bg-brand-400/8 rounded-full blur-3xl" />
         </div>
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -210,17 +210,17 @@ export default function LandingPage() {
 
           {/* SUB-HERO: full-platform message + signup CTA (after the test catches attention) */}
           <div className="mt-20 lg:mt-24 pt-12 border-t border-border/50 text-center max-w-3xl mx-auto">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-orange-500/30 bg-orange-500/5 text-xs font-semibold text-orange-700 dark:text-orange-400 mb-5">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-brand-500/30 bg-brand-500/5 text-xs font-semibold text-brand-700 dark:text-brand-400 mb-5">
               <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-500 opacity-75" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-orange-500" />
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-500 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-brand-500" />
               </span>
               {t('land.hero.badge')}
             </div>
 
             <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight leading-[1.1] mb-4">
               {t('land.hero.title_pre')}{' '}
-              <span className="bg-gradient-to-br from-orange-500 to-orange-700 bg-clip-text text-transparent">{t('land.hero.title_brand')}</span>{t('land.hero.title_dot')}
+              <span className="bg-gradient-to-br from-brand-500 to-brand-700 bg-clip-text text-transparent">{t('land.hero.title_brand')}</span>{t('land.hero.title_dot')}
             </h2>
 
             <p className="text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto leading-relaxed mb-7">
@@ -229,7 +229,7 @@ export default function LandingPage() {
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
               <Link href="/signin?signup=1" onClick={() => trackCta('hero_primary')}>
-                <Button size="lg" className="h-13 px-7 text-base bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white shadow-2xl shadow-orange-500/30">
+                <Button size="lg" className="h-13 px-7 text-base bg-gradient-to-br from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white shadow-2xl shadow-brand-500/30">
                   {t('land.hero.cta_primary')}
                   <ArrowRight className="h-5 w-5 ml-2" />
                 </Button>
@@ -298,7 +298,7 @@ export default function LandingPage() {
       <section className="py-20 border-y bg-muted/30">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12 max-w-3xl mx-auto">
-            <p className="text-sm font-semibold text-orange-600 uppercase tracking-wider mb-2">{t('land.pain.eyebrow')}</p>
+            <p className="text-sm font-semibold text-brand-600 uppercase tracking-wider mb-2">{t('land.pain.eyebrow')}</p>
             <h2 className="text-3xl sm:text-4xl font-bold">
               {t('land.pain.title')}
             </h2>
@@ -330,10 +330,10 @@ export default function LandingPage() {
       <section id="cozum" className="py-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16 max-w-3xl mx-auto">
-            <p className="text-sm font-semibold text-orange-600 uppercase tracking-wider mb-2">{t('land.sol.eyebrow')}</p>
+            <p className="text-sm font-semibold text-brand-600 uppercase tracking-wider mb-2">{t('land.sol.eyebrow')}</p>
             <h2 className="text-3xl sm:text-5xl font-bold tracking-tight">
               {t('land.sol.title_a')}<br />
-              <span className="bg-gradient-to-br from-orange-500 to-orange-700 bg-clip-text text-transparent">
+              <span className="bg-gradient-to-br from-brand-500 to-brand-700 bg-clip-text text-transparent">
                 {t('land.sol.title_b')}
               </span>
             </h2>
@@ -376,7 +376,7 @@ export default function LandingPage() {
       <section id="nasil" className="py-24 bg-muted/30 border-y">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
-            <p className="text-sm font-semibold text-orange-600 uppercase tracking-wider mb-2">{t('land.how.eyebrow')}</p>
+            <p className="text-sm font-semibold text-brand-600 uppercase tracking-wider mb-2">{t('land.how.eyebrow')}</p>
             <h2 className="text-3xl sm:text-5xl font-bold tracking-tight">
               {t('land.how.title')}
             </h2>
@@ -395,7 +395,7 @@ export default function LandingPage() {
       <section id="sonuc" className="py-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-14">
-            <p className="text-sm font-semibold text-orange-600 uppercase tracking-wider mb-2">{t('land.res.eyebrow')}</p>
+            <p className="text-sm font-semibold text-brand-600 uppercase tracking-wider mb-2">{t('land.res.eyebrow')}</p>
             <h2 className="text-3xl sm:text-5xl font-bold tracking-tight">
               {t('land.res.title')}
             </h2>
@@ -421,7 +421,7 @@ export default function LandingPage() {
       <section className="py-24 bg-muted/30 border-y">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
-            <p className="text-sm font-semibold text-orange-600 uppercase tracking-wider mb-2">{t('land.cmp.eyebrow')}</p>
+            <p className="text-sm font-semibold text-brand-600 uppercase tracking-wider mb-2">{t('land.cmp.eyebrow')}</p>
             <h2 className="text-3xl sm:text-5xl font-bold tracking-tight">
               {t('land.cmp.title')}
             </h2>
@@ -437,7 +437,7 @@ export default function LandingPage() {
                   <th className="text-center p-4 font-semibold">AppTweak</th>
                   <th className="text-center p-4 font-semibold">Hootsuite</th>
                   <th className="text-center p-4 font-semibold">ChatGPT Team</th>
-                  <th className="text-center p-4 font-bold bg-orange-500/10 text-orange-700 dark:text-orange-400">RanksUp</th>
+                  <th className="text-center p-4 font-bold bg-brand-500/10 text-brand-700 dark:text-brand-400">RanksUp</th>
                 </tr>
               </thead>
               <tbody>
@@ -461,7 +461,7 @@ export default function LandingPage() {
                       kurdan bagimsiz sabit kaldigi icin iyice bayatlamisti
                       (bugunku kurla $149 ≈ ₺7.100). Artik /billing/plans ile
                       ayni kaynak. */}
-                  <td className="text-center p-4 bg-orange-500/10 font-bold text-orange-700 dark:text-orange-400">
+                  <td className="text-center p-4 bg-brand-500/10 font-bold text-brand-700 dark:text-brand-400">
                     {comparePlan ? `$${comparePlan.monthly.toLocaleString('en-US')}` : '—'}
                   </td>
                 </tr>
@@ -478,7 +478,7 @@ export default function LandingPage() {
       <section className="py-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-14">
-            <p className="text-sm font-semibold text-orange-600 uppercase tracking-wider mb-2">{t('land.uc.eyebrow')}</p>
+            <p className="text-sm font-semibold text-brand-600 uppercase tracking-wider mb-2">{t('land.uc.eyebrow')}</p>
             <h2 className="text-3xl sm:text-5xl font-bold tracking-tight">
               {t('land.uc.title')}
             </h2>
@@ -517,7 +517,7 @@ export default function LandingPage() {
       <section className="py-24 bg-muted/30 border-y">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-14">
-            <p className="text-sm font-semibold text-orange-600 uppercase tracking-wider mb-2">{t('land.test.eyebrow')}</p>
+            <p className="text-sm font-semibold text-brand-600 uppercase tracking-wider mb-2">{t('land.test.eyebrow')}</p>
             <h2 className="text-3xl sm:text-5xl font-bold tracking-tight">
               {t('land.test.title')}
             </h2>
@@ -569,7 +569,7 @@ export default function LandingPage() {
       <section id="fiyat" className="py-24">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-10">
-            <p className="text-sm font-semibold text-orange-600 uppercase tracking-wider mb-2">{t('land.pricing.eyebrow')}</p>
+            <p className="text-sm font-semibold text-brand-600 uppercase tracking-wider mb-2">{t('land.pricing.eyebrow')}</p>
             <h2 className="text-3xl sm:text-5xl font-bold tracking-tight">
               {t('land.pricing.title')}
             </h2>
@@ -683,7 +683,7 @@ export default function LandingPage() {
         />
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
-            <p className="text-sm font-semibold text-orange-600 uppercase tracking-wider mb-2">{t('land.faq.eyebrow')}</p>
+            <p className="text-sm font-semibold text-brand-600 uppercase tracking-wider mb-2">{t('land.faq.eyebrow')}</p>
             <h2 className="text-3xl sm:text-4xl font-bold tracking-tight">{t('land.faq.title')}</h2>
           </div>
 
@@ -703,7 +703,7 @@ export default function LandingPage() {
 
       {/* ─── FINAL CTA ───────────────────────────────────────── */}
       <section className="py-24 relative overflow-hidden">
-        <div className="absolute inset-0 -z-10 bg-gradient-to-br from-orange-500/10 via-amber-400/5 to-transparent" />
+        <div className="absolute inset-0 -z-10 bg-gradient-to-br from-brand-500/10 via-amber-400/5 to-transparent" />
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-4xl sm:text-6xl font-extrabold tracking-tight">
             {t('land.cta.title')}
@@ -713,7 +713,7 @@ export default function LandingPage() {
           </p>
           <div className="mt-9 flex flex-col sm:flex-row items-center justify-center gap-3">
             <Link href="/signin?signup=1" onClick={() => trackCta('final_primary')}>
-              <Button size="lg" className="h-14 px-8 text-base bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white shadow-2xl shadow-orange-500/40">
+              <Button size="lg" className="h-14 px-8 text-base bg-gradient-to-br from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white shadow-2xl shadow-brand-500/40">
                 {t('land.cta.button')} <ArrowRight className="h-5 w-5 ml-2" />
               </Button>
             </Link>
@@ -769,7 +769,7 @@ function ProductPreview() {
   return (
     <div className="relative">
       {/* Browser chrome */}
-      <div className="rounded-2xl border bg-card shadow-2xl shadow-orange-500/10 overflow-hidden">
+      <div className="rounded-2xl border bg-card shadow-2xl shadow-brand-500/10 overflow-hidden">
         {/* Top bar — sahte tarayıcı */}
         <div className="flex items-center gap-2 px-4 py-2.5 border-b bg-muted/40">
           <div className="flex gap-1.5">
@@ -807,13 +807,13 @@ function ProductPreview() {
                 </div>
                 <div className="flex gap-1 text-[10px]">
                   <span className="px-2 py-0.5 rounded bg-muted text-muted-foreground">7g</span>
-                  <span className="px-2 py-0.5 rounded bg-orange-500/15 text-orange-700 dark:text-orange-400 font-semibold">30g</span>
+                  <span className="px-2 py-0.5 rounded bg-brand-500/15 text-brand-700 dark:text-brand-400 font-semibold">30g</span>
                   <span className="px-2 py-0.5 rounded bg-muted text-muted-foreground">90g</span>
                 </div>
               </div>
               <CitationChart />
               <div className="mt-2 flex items-center gap-3 text-[10px] text-muted-foreground">
-                <span className="inline-flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-orange-500" /> ChatGPT</span>
+                <span className="inline-flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-brand-500" /> ChatGPT</span>
                 <span className="inline-flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-purple-500" /> Claude</span>
                 <span className="inline-flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> Gemini</span>
                 <span className="inline-flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-blue-500" /> Perplexity</span>
@@ -834,7 +834,7 @@ function ProductPreview() {
               </div>
 
               {/* ASA Perf */}
-              <div className="rounded-xl border bg-gradient-to-br from-orange-500/5 to-transparent p-4">
+              <div className="rounded-xl border bg-gradient-to-br from-brand-500/5 to-transparent p-4">
                 <div className="flex items-center justify-between mb-3">
                   <div className="text-xs font-semibold">Apple Search Ads</div>
                   <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-700">Auto-Pilot</span>
@@ -986,19 +986,19 @@ function FeatureCard({
   icon: any; tag: string; title: string; body: string; bullets: string[];
 }) {
   return (
-    <div className="p-7 rounded-2xl border bg-card hover:border-orange-500/40 hover:shadow-xl hover:shadow-orange-500/5 transition-all">
+    <div className="p-7 rounded-2xl border bg-card hover:border-brand-500/40 hover:shadow-xl hover:shadow-brand-500/5 transition-all">
       <div className="flex items-center gap-3 mb-4">
-        <div className="h-11 w-11 rounded-xl bg-gradient-to-br from-orange-500/15 to-orange-600/10 grid place-items-center">
-          <Icon className="h-5 w-5 text-orange-600" />
+        <div className="h-11 w-11 rounded-xl bg-gradient-to-br from-brand-500/15 to-brand-600/10 grid place-items-center">
+          <Icon className="h-5 w-5 text-brand-600" />
         </div>
-        <span className="text-[10px] font-bold uppercase tracking-wider text-orange-600">{tag}</span>
+        <span className="text-[10px] font-bold uppercase tracking-wider text-brand-600">{tag}</span>
       </div>
       <h3 className="text-xl font-bold mb-2">{title}</h3>
       <p className="text-sm text-muted-foreground leading-relaxed mb-4">{body}</p>
       <ul className="space-y-1.5">
         {bullets.map((b, i) => (
           <li key={i} className="text-sm flex items-start gap-2">
-            <Check className="h-4 w-4 text-orange-600 shrink-0 mt-0.5" />
+            <Check className="h-4 w-4 text-brand-600 shrink-0 mt-0.5" />
             <span>{b}</span>
           </li>
         ))}
@@ -1010,11 +1010,11 @@ function FeatureCard({
 function StepCard({ n, title, body, icon: Icon }: { n: number; title: string; body: string; icon: any }) {
   return (
     <div className="relative p-7 rounded-2xl border bg-background">
-      <div className="absolute -top-4 -left-2 text-7xl font-extrabold text-orange-500/10 leading-none select-none">
+      <div className="absolute -top-4 -left-2 text-7xl font-extrabold text-brand-500/10 leading-none select-none">
         {n}
       </div>
       <div className="relative">
-        <Icon className="h-7 w-7 text-orange-600 mb-3" />
+        <Icon className="h-7 w-7 text-brand-600 mb-3" />
         <h3 className="text-lg font-bold mb-2">{title}</h3>
         <p className="text-sm text-muted-foreground leading-relaxed">{body}</p>
       </div>
@@ -1024,8 +1024,8 @@ function StepCard({ n, title, body, icon: Icon }: { n: number; title: string; bo
 
 function StatCard({ num, label, sub }: { num: string; label: string; sub: string }) {
   return (
-    <div className="p-8 rounded-2xl border bg-gradient-to-br from-orange-500/5 to-transparent text-center">
-      <div className="text-5xl md:text-6xl font-extrabold bg-gradient-to-br from-orange-500 to-orange-700 bg-clip-text text-transparent">
+    <div className="p-8 rounded-2xl border bg-gradient-to-br from-brand-500/5 to-transparent text-center">
+      <div className="text-5xl md:text-6xl font-extrabold bg-gradient-to-br from-brand-500 to-brand-700 bg-clip-text text-transparent">
         <AnimatedNumber raw={num} />
       </div>
       <div className="mt-2 font-semibold">{label}</div>
@@ -1079,7 +1079,7 @@ function AnimatedNumber({ raw }: { raw: string }) {
 function AuthorityBadge({ icon: Icon, text }: { icon: any; text: string }) {
   return (
     <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-border/60 bg-background/50 backdrop-blur-sm text-[11px] font-semibold">
-      <Icon className="h-3.5 w-3.5 text-orange-600" />
+      <Icon className="h-3.5 w-3.5 text-brand-600" />
       <span>{text}</span>
     </div>
   );
@@ -1092,7 +1092,7 @@ function Testimonial({
   avatar: string; avatarBg: string; metric: string; quote: string;
 }) {
   return (
-    <div className="p-7 rounded-2xl border bg-background flex flex-col hover:shadow-xl hover:shadow-orange-500/5 hover:border-orange-500/30 transition-all">
+    <div className="p-7 rounded-2xl border bg-background flex flex-col hover:shadow-xl hover:shadow-brand-500/5 hover:border-brand-500/30 transition-all">
       {/* Stars */}
       <div className="flex gap-0.5 mb-3">
         {[1, 2, 3, 4, 5].map((i) => (
@@ -1125,7 +1125,7 @@ function CompareRow({ row }: { row: [string, ...boolean[]] }) {
     <tr className="border-t">
       <td className="p-4 font-medium">{label}</td>
       {vals.map((v, i) => (
-        <td key={i} className={`p-4 text-center ${i === vals.length - 1 ? 'bg-orange-500/5' : ''}`}>
+        <td key={i} className={`p-4 text-center ${i === vals.length - 1 ? 'bg-brand-500/5' : ''}`}>
           {v ? <Check className="h-4 w-4 text-emerald-600 inline" /> : <XIcon className="h-4 w-4 text-muted-foreground/40 inline" />}
         </td>
       ))}
@@ -1139,10 +1139,10 @@ function UseCaseCard({
   icon: any; audience: string; hook: string; body: string; before: string; after: string;
 }) {
   return (
-    <div className="p-7 rounded-2xl border bg-card hover:border-orange-500/40 transition">
+    <div className="p-7 rounded-2xl border bg-card hover:border-brand-500/40 transition">
       <div className="flex items-center gap-2 mb-3">
-        <Icon className="h-5 w-5 text-orange-600" />
-        <span className="text-xs font-bold uppercase tracking-wider text-orange-600">{audience}</span>
+        <Icon className="h-5 w-5 text-brand-600" />
+        <span className="text-xs font-bold uppercase tracking-wider text-brand-600">{audience}</span>
       </div>
       <h3 className="text-lg font-bold mb-2">{hook}</h3>
       <p className="text-sm text-muted-foreground leading-relaxed mb-5">{body}</p>
@@ -1151,8 +1151,8 @@ function UseCaseCard({
           <div className="text-[10px] font-bold text-muted-foreground uppercase mb-1">Önce</div>
           <div className="font-semibold">{before}</div>
         </div>
-        <div className="p-3 rounded-lg bg-orange-500/10">
-          <div className="text-[10px] font-bold text-orange-600 uppercase mb-1">Sonra</div>
+        <div className="p-3 rounded-lg bg-brand-500/10">
+          <div className="text-[10px] font-bold text-brand-600 uppercase mb-1">Sonra</div>
           <div className="font-semibold">{after}</div>
         </div>
       </div>
@@ -1173,11 +1173,11 @@ function PriceCard({
   return (
     <div className={`relative p-7 rounded-2xl border flex flex-col ${
       highlighted
-        ? 'bg-gradient-to-br from-orange-500/10 to-orange-500/5 border-orange-500/40 shadow-xl shadow-orange-500/10 lg:scale-[1.03]'
+        ? 'bg-gradient-to-br from-brand-500/10 to-brand-500/5 border-brand-500/40 shadow-xl shadow-brand-500/10 lg:scale-[1.03]'
         : 'bg-background'
     }`}>
       {highlighted && (
-        <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wide bg-gradient-to-br from-orange-500 to-orange-600 text-white shadow-lg whitespace-nowrap">
+        <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wide bg-gradient-to-br from-brand-500 to-brand-600 text-white shadow-lg whitespace-nowrap">
           ⭐ En Çok Tercih Edilen
         </div>
       )}
@@ -1195,14 +1195,14 @@ function PriceCard({
       <ul className={`space-y-2 text-sm mb-6 flex-1 ${inheritLabel ? 'mt-3' : 'mt-5'}`}>
         {bullets.map((b, i) => (
           <li key={i} className="flex items-start gap-2">
-            <Check className={`h-4 w-4 mt-0.5 shrink-0 ${highlighted ? 'text-orange-600' : 'text-emerald-600'}`} />
+            <Check className={`h-4 w-4 mt-0.5 shrink-0 ${highlighted ? 'text-brand-600' : 'text-emerald-600'}`} />
             <span>{b}</span>
           </li>
         ))}
       </ul>
       <Link href={href} onClick={onCtaClick}>
         <Button
-          className={`w-full ${highlighted ? 'bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white' : ''}`}
+          className={`w-full ${highlighted ? 'bg-gradient-to-br from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white' : ''}`}
           variant={highlighted ? 'default' : 'outline'}
         >
           {cta}

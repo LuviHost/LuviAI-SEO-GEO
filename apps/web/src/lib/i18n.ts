@@ -91,7 +91,7 @@ const dictionary = {
     'ads.b2': 'AI ile reklam görseli (Gemini) + metin draft\'ı',
     'ads.b3': 'Multi-platform tek panel (Google + Meta + GA4 conversion)',
     'ads.b4': 'A/B test sürekli — kazanan creative\'i otomatik scale',
-    'ads.impact': '<strong class="text-orange-500">Etki:</strong> Ortalama bir KOBİ Google + Meta\'ya ayda 5-15k ₺ harcıyor. Kötü yönetilirse %30-50\'si israf olur. <strong>RanksUp bunu otomatik kapatır → ayda 1.5-7.5k ₺ tasarruf.</strong>',
+    'ads.impact': '<strong class="text-brand-500">Etki:</strong> Ortalama bir KOBİ Google + Meta\'ya ayda 5-15k ₺ harcıyor. Kötü yönetilirse %30-50\'si israf olur. <strong>RanksUp bunu otomatik kapatır → ayda 1.5-7.5k ₺ tasarruf.</strong>',
 
     // Comparison table
     'compare.title': 'RanksUp vs klasik kadro',
@@ -468,7 +468,7 @@ const dictionary = {
     'ads.b2': 'AI ad creative (Gemini) + copy drafts',
     'ads.b3': 'Multi-platform single panel (Google + Meta + GA4 conversion)',
     'ads.b4': 'Continuous A/B test — auto-scale winning creatives',
-    'ads.impact': '<strong class="text-orange-500">Impact:</strong> An average SMB spends 5-15k ₺/month on Google + Meta. Without good management, 30-50% gets wasted. <strong>RanksUp plugs the leak — saving 1.5-7.5k ₺/month.</strong>',
+    'ads.impact': '<strong class="text-brand-500">Impact:</strong> An average SMB spends 5-15k ₺/month on Google + Meta. Without good management, 30-50% gets wasted. <strong>RanksUp plugs the leak — saving 1.5-7.5k ₺/month.</strong>',
 
     // Comparison
     'compare.title': 'RanksUp vs the classic team',

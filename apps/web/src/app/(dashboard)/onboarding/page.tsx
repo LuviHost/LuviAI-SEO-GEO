@@ -472,12 +472,12 @@ function MissionStage({
       {/* Wow preview — aşamalar bittikçe AI'nın bulduklarını anında göster */}
       {(wow.platform || wow.competitors || wow.siteScore || wow.topTopic) && (
         <div className="mt-6 max-w-2xl mx-auto space-y-2 animate-in fade-in slide-in-from-bottom-2 duration-500">
-          <p className="text-[10px] font-mono uppercase tracking-widest text-orange-600 text-center mb-2">
+          <p className="text-[10px] font-mono uppercase tracking-widest text-brand-600 text-center mb-2">
             ⚡ AI bulguları geliyor
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {wow.platform && (
-              <div className="rounded-lg border bg-card p-3 flex items-center gap-2.5 hover:border-orange-500/30 transition">
+              <div className="rounded-lg border bg-card p-3 flex items-center gap-2.5 hover:border-brand-500/30 transition">
                 <span className="text-xl">🛠️</span>
                 <div className="min-w-0">
                   <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Platform</p>
@@ -486,7 +486,7 @@ function MissionStage({
               </div>
             )}
             {wow.persona && (
-              <div className="rounded-lg border bg-card p-3 flex items-center gap-2.5 hover:border-orange-500/30 transition">
+              <div className="rounded-lg border bg-card p-3 flex items-center gap-2.5 hover:border-brand-500/30 transition">
                 <span className="text-xl">👤</span>
                 <div className="min-w-0">
                   <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Hedef persona</p>
@@ -495,7 +495,7 @@ function MissionStage({
               </div>
             )}
             {wow.competitors && wow.competitors.length > 0 && (
-              <div className="rounded-lg border bg-card p-3 flex items-center gap-2.5 hover:border-orange-500/30 transition sm:col-span-2">
+              <div className="rounded-lg border bg-card p-3 flex items-center gap-2.5 hover:border-brand-500/30 transition sm:col-span-2">
                 <span className="text-xl">🎯</span>
                 <div className="min-w-0">
                   <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">{wow.competitors.length} rakip bulundu</p>
@@ -504,7 +504,7 @@ function MissionStage({
               </div>
             )}
             {wow.siteScore !== undefined && (
-              <div className="rounded-lg border bg-card p-3 flex items-center gap-2.5 hover:border-orange-500/30 transition">
+              <div className="rounded-lg border bg-card p-3 flex items-center gap-2.5 hover:border-brand-500/30 transition">
                 <span className="text-xl">📊</span>
                 <div className="min-w-0">
                   <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Site skoru</p>
@@ -513,7 +513,7 @@ function MissionStage({
               </div>
             )}
             {wow.topIssue && (
-              <div className="rounded-lg border bg-card p-3 flex items-center gap-2.5 hover:border-orange-500/30 transition">
+              <div className="rounded-lg border bg-card p-3 flex items-center gap-2.5 hover:border-brand-500/30 transition">
                 <span className="text-xl">⚠️</span>
                 <div className="min-w-0">
                   <p className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">İlk düzeltilecek</p>
@@ -522,10 +522,10 @@ function MissionStage({
               </div>
             )}
             {wow.topTopic && (
-              <div className="rounded-lg border-2 border-orange-500/40 bg-orange-50/30 dark:bg-orange-950/10 p-3 flex items-center gap-2.5 sm:col-span-2">
+              <div className="rounded-lg border-2 border-brand-500/40 bg-brand-50/30 dark:bg-brand-950/10 p-3 flex items-center gap-2.5 sm:col-span-2">
                 <span className="text-xl">✍️</span>
                 <div className="min-w-0">
-                  <p className="text-[10px] uppercase font-bold text-orange-600 tracking-wider">İlk yazılacak içerik</p>
+                  <p className="text-[10px] uppercase font-bold text-brand-600 tracking-wider">İlk yazılacak içerik</p>
                   <p className="text-sm font-semibold truncate">{wow.topTopic}</p>
                 </div>
               </div>
@@ -554,7 +554,7 @@ function MissionStage({
               type="button"
               onClick={handleRetryChain}
               disabled={retrying}
-              className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-lg bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white text-sm font-semibold transition-colors disabled:opacity-60"
+              className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-lg bg-gradient-to-br from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white text-sm font-semibold transition-colors disabled:opacity-60"
             >
               {retrying ? '↻ Yeniden başlatılıyor…' : '↻ Onboarding\'i yeniden başlat'}
             </button>

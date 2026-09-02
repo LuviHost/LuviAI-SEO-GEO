@@ -58,15 +58,15 @@ export function TestimonialWidget({ siteId, defaultMetric }: { siteId?: string; 
 
   if (!open) {
     return (
-      <div className="rounded-2xl border-2 border-orange-500/30 bg-gradient-to-br from-orange-500/10 to-amber-400/5 p-4 flex items-center gap-3">
-        <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 text-white grid place-items-center shadow-lg shrink-0">
+      <div className="rounded-2xl border-2 border-brand-500/30 bg-gradient-to-br from-brand-500/10 to-amber-400/5 p-4 flex items-center gap-3">
+        <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-brand-500 to-brand-600 text-white grid place-items-center shadow-lg shrink-0">
           <MessageSquare className="h-5 w-5" />
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-bold">RanksUp'ı nasıl buldun?</p>
           <p className="text-xs text-muted-foreground">1 cümle yorumun landing'imizde görünebilir — gerçek müşteri sosyal kanıtı oluştur.</p>
         </div>
-        <Button size="sm" onClick={() => setOpen(true)} className="bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white shrink-0">
+        <Button size="sm" onClick={() => setOpen(true)} className="bg-gradient-to-br from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white shrink-0">
           Yorum yaz
         </Button>
         <button onClick={dismiss} className="h-8 w-8 grid place-items-center rounded hover:bg-muted text-muted-foreground shrink-0" title="Kapat">
@@ -77,7 +77,7 @@ export function TestimonialWidget({ siteId, defaultMetric }: { siteId?: string; 
   }
 
   return (
-    <div className="rounded-2xl border-2 border-orange-500/30 bg-card p-5 space-y-3">
+    <div className="rounded-2xl border-2 border-brand-500/30 bg-card p-5 space-y-3">
       <div className="flex items-center justify-between">
         <h3 className="font-bold">Deneyimini paylaş</h3>
         <button onClick={() => setOpen(false)} className="h-8 w-8 grid place-items-center rounded hover:bg-muted text-muted-foreground">
@@ -132,7 +132,7 @@ export function TestimonialWidget({ siteId, defaultMetric }: { siteId?: string; 
         <Button
           onClick={submit}
           disabled={submitting || body.trim().length < 10}
-          className="flex-1 bg-gradient-to-br from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white"
+          className="flex-1 bg-gradient-to-br from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white"
         >
           {submitting ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> Gönderiliyor</> : 'Gönder'}
         </Button>

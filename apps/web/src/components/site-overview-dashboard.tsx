@@ -94,9 +94,9 @@ export function SiteOverviewDashboard({
           <CardContent className="p-5">
             <div className="flex items-center justify-between mb-3.5">
               <p className="text-sm font-semibold inline-flex items-center gap-2">
-                <Zap className="h-4 w-4 text-orange-500" /> Sırada Yayınlanacaklar
+                <Zap className="h-4 w-4 text-brand-500" /> Sırada Yayınlanacaklar
               </p>
-              <Link href={`/sites/${site.id}?tab=content`} className="text-xs text-orange-600 dark:text-orange-400 hover:underline font-medium">
+              <Link href={`/sites/${site.id}?tab=content`} className="text-xs text-brand-600 dark:text-brand-400 hover:underline font-medium">
                 Takvimi aç →
               </Link>
             </div>
@@ -104,8 +104,8 @@ export function SiteOverviewDashboard({
               {nextScheduled.map((a) => {
                 const d = new Date(a.scheduledAt);
                 return (
-                  <div key={a.id} className="flex items-center gap-3 p-2.5 rounded-xl border hover:border-orange-500/40 hover:bg-orange-500/[0.02] transition-colors">
-                    <div className="text-center min-w-[68px] bg-gradient-to-br from-orange-500/15 to-orange-600/10 text-orange-700 dark:text-orange-300 rounded-lg px-2 py-1.5 ring-1 ring-orange-500/20">
+                  <div key={a.id} className="flex items-center gap-3 p-2.5 rounded-xl border hover:border-brand-500/40 hover:bg-brand-500/[0.02] transition-colors">
+                    <div className="text-center min-w-[68px] bg-gradient-to-br from-brand-500/15 to-brand-600/10 text-brand-700 dark:text-brand-300 rounded-lg px-2 py-1.5 ring-1 ring-brand-500/20">
                       <div className="text-[10px] font-bold tracking-wide uppercase">
                         {d.toLocaleDateString('tr-TR', { weekday: 'short' })}
                       </div>
@@ -136,32 +136,32 @@ export function SiteOverviewDashboard({
 
       {/* Quick links to deep-dive panels — GeoLab, Ads, Report (artık ayrı route'larda) */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <Link href={`/sites/${site.id}/geo-lab`} className="group rounded-2xl border bg-card p-4 hover:border-orange-500/40 hover:shadow-lg hover:shadow-orange-500/5 hover:-translate-y-0.5 transition-all">
+        <Link href={`/sites/${site.id}/geo-lab`} className="group rounded-2xl border bg-card p-4 hover:border-brand-500/40 hover:shadow-lg hover:shadow-brand-500/5 hover:-translate-y-0.5 transition-all">
           <div className="flex items-center justify-between mb-2.5">
             <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-amber-500/15 to-amber-600/10 text-amber-600 dark:text-amber-400 grid place-items-center ring-1 ring-amber-500/20">
               <Sparkles className="h-4 w-4" />
             </div>
-            <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/40 group-hover:text-orange-500 group-hover:translate-x-0.5 transition-all" />
+            <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/40 group-hover:text-brand-500 group-hover:translate-x-0.5 transition-all" />
           </div>
           <p className="text-sm font-semibold mb-0.5">GEO Lab</p>
           <p className="text-xs text-muted-foreground">6 pillar AI search optimizasyonu — heatmap, Wikidata, training.</p>
         </Link>
-        <Link href={`/sites/${site.id}/ads`} className="group rounded-2xl border bg-card p-4 hover:border-orange-500/40 hover:shadow-lg hover:shadow-orange-500/5 hover:-translate-y-0.5 transition-all">
+        <Link href={`/sites/${site.id}/ads`} className="group rounded-2xl border bg-card p-4 hover:border-brand-500/40 hover:shadow-lg hover:shadow-brand-500/5 hover:-translate-y-0.5 transition-all">
           <div className="flex items-center justify-between mb-2.5">
-            <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-orange-500/15 to-orange-600/10 text-orange-600 dark:text-orange-400 grid place-items-center ring-1 ring-orange-500/20">
+            <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-brand-500/15 to-brand-600/10 text-brand-600 dark:text-brand-400 grid place-items-center ring-1 ring-brand-500/20">
               <TrendingUp className="h-4 w-4" />
             </div>
-            <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/40 group-hover:text-orange-500 group-hover:translate-x-0.5 transition-all" />
+            <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/40 group-hover:text-brand-500 group-hover:translate-x-0.5 transition-all" />
           </div>
           <p className="text-sm font-semibold mb-0.5">Reklam Autopilot</p>
           <p className="text-xs text-muted-foreground">Google + Meta ads ROAS optimize — 6 saatte bir bütçe ayarı.</p>
         </Link>
-        <Link href={`/sites/${site.id}/report`} className="group rounded-2xl border bg-card p-4 hover:border-orange-500/40 hover:shadow-lg hover:shadow-orange-500/5 hover:-translate-y-0.5 transition-all">
+        <Link href={`/sites/${site.id}/report`} className="group rounded-2xl border bg-card p-4 hover:border-brand-500/40 hover:shadow-lg hover:shadow-brand-500/5 hover:-translate-y-0.5 transition-all">
           <div className="flex items-center justify-between mb-2.5">
             <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-indigo-500/15 to-indigo-600/10 text-indigo-600 dark:text-indigo-400 grid place-items-center ring-1 ring-indigo-500/20">
               <FileBarChart className="h-4 w-4" />
             </div>
-            <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/40 group-hover:text-orange-500 group-hover:translate-x-0.5 transition-all" />
+            <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/40 group-hover:text-brand-500 group-hover:translate-x-0.5 transition-all" />
           </div>
           <p className="text-sm font-semibold mb-0.5">Detaylı Rapor</p>
           <p className="text-xs text-muted-foreground">Toplam performans, makale-bazlı metrikler, 30 günlük özet.</p>
@@ -189,7 +189,7 @@ export function SiteOverviewDashboard({
                   <span className="h-2 w-2 rounded-full bg-emerald-500" />
                   <strong>{ready.length}</strong> makale yayına hazır
                 </p>
-                <Link href={`/sites/${site.id}?tab=content`} className="text-xs text-orange-600 dark:text-orange-400 hover:underline font-medium">
+                <Link href={`/sites/${site.id}?tab=content`} className="text-xs text-brand-600 dark:text-brand-400 hover:underline font-medium">
                   İncele →
                 </Link>
               </div>
@@ -226,7 +226,7 @@ function ScoreCard({
     muted: 'text-muted-foreground',
   };
   return (
-    <div className="rounded-2xl border bg-card p-4 hover:border-orange-500/40 hover:shadow-md transition-all">
+    <div className="rounded-2xl border bg-card p-4 hover:border-brand-500/40 hover:shadow-md transition-all">
       <div className={`flex items-center gap-2 text-xs font-medium ${colorMap[color]}`}>
         {icon}
         <span className="uppercase tracking-wide">{label}</span>
@@ -458,17 +458,17 @@ function NextActionWidget({ site, audit, articles, publishTargets, onRefresh }: 
   const rest = visible.slice(1);
 
   return (
-    <div className="rounded-2xl border border-orange-500/40 bg-gradient-to-br from-orange-500/[0.07] via-amber-500/[0.04] to-orange-500/[0.06] p-5 shadow-[0_8px_30px_-12px_rgba(249,115,22,0.25)]">
+    <div className="rounded-2xl border border-brand-500/40 bg-gradient-to-br from-brand-500/[0.07] via-amber-500/[0.04] to-brand-500/[0.06] p-5 shadow-[0_8px_30px_-12px_rgba(249,115,22,0.25)]">
       <div className="flex items-center gap-2 mb-4">
-        <span className="inline-flex items-center justify-center h-8 w-8 rounded-xl bg-gradient-to-br from-orange-500 to-orange-600 text-white shadow-sm shadow-orange-500/20">
+        <span className="inline-flex items-center justify-center h-8 w-8 rounded-xl bg-gradient-to-br from-brand-500 to-brand-600 text-white shadow-sm shadow-brand-500/20">
           <Sparkles className="h-4 w-4" />
         </span>
         <p className="font-bold text-base">Sıradaki Aksiyon{visible.length > 1 ? 'lar' : ''}</p>
-        <span className="text-[10px] uppercase tracking-widest text-orange-600/80 dark:text-orange-400/80 font-mono ml-auto">en yüksek etki için</span>
+        <span className="text-[10px] uppercase tracking-widest text-brand-600/80 dark:text-brand-400/80 font-mono ml-auto">en yüksek etki için</span>
       </div>
 
       {/* Birincil aksiyon — büyük ve baskın */}
-      <div className="rounded-xl bg-card border border-orange-500/25 p-4 flex items-center gap-4 flex-wrap mb-2 shadow-sm">
+      <div className="rounded-xl bg-card border border-brand-500/25 p-4 flex items-center gap-4 flex-wrap mb-2 shadow-sm">
         <span className="text-3xl shrink-0">{primary.icon}</span>
         <div className="flex-1 min-w-[220px]">
           <p className="text-base font-semibold leading-snug">{primary.title}</p>

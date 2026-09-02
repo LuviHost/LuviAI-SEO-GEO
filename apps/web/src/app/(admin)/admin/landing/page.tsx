@@ -35,7 +35,7 @@ export default function LandingAnalyticsPage() {
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
           <h2 className="text-2xl font-bold flex items-center gap-2">
-            <BarChart3 className="h-6 w-6 text-orange-600" />
+            <BarChart3 className="h-6 w-6 text-brand-600" />
             Landing Analytics
           </h2>
           <p className="text-sm text-muted-foreground">Anonim funnel takibi — KVKK uyumlu, IP yok.</p>
@@ -75,7 +75,7 @@ export default function LandingAnalyticsPage() {
           <Card>
             <CardContent className="p-5">
               <h3 className="text-base font-bold mb-4 flex items-center gap-2">
-                <TrendingUp className="h-4 w-4 text-orange-600" />
+                <TrendingUp className="h-4 w-4 text-brand-600" />
                 Funnel
               </h3>
               <div className="space-y-3">
@@ -219,7 +219,7 @@ function FunnelStage({ label, count, pct, maxCount }: { label: string; count: nu
       </div>
       <div className="h-2.5 rounded-full bg-muted overflow-hidden">
         <div
-          className="h-full bg-gradient-to-r from-orange-500 to-orange-600 transition-all"
+          className="h-full bg-gradient-to-r from-brand-500 to-brand-600 transition-all"
           style={{ width: `${widthPct}%` }}
         />
       </div>

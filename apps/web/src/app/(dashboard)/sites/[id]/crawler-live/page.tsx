@@ -21,7 +21,7 @@ import {
 
 const BOT_COLOR: Record<string, string> = {
   'GPTBot': 'text-emerald-500', 'ChatGPT-User': 'text-emerald-400', 'OAI-SearchBot': 'text-emerald-300',
-  'ClaudeBot': 'text-orange-500', 'Claude-User': 'text-orange-400', 'Claude-Web': 'text-orange-400', 'Claude-SearchBot': 'text-orange-300',
+  'ClaudeBot': 'text-brand-500', 'Claude-User': 'text-brand-400', 'Claude-Web': 'text-brand-400', 'Claude-SearchBot': 'text-brand-300',
   'PerplexityBot': 'text-cyan-500', 'Perplexity-User': 'text-cyan-400',
   'Googlebot': 'text-blue-500', 'Google-Extended': 'text-blue-400', 'GoogleOther': 'text-blue-300',
   'Bingbot': 'text-sky-500', 'Amazonbot': 'text-yellow-600', 'Bytespider': 'text-purple-500',
