@@ -401,3 +401,17 @@
     margin: 14mm 12mm;
   }
 }
+
+/* pipeline-gauge halka donusleri — animejs sokumu (02.09.2026).
+   transform-box: fill-box olmadan SVG <g> kendi merkezi yerine viewBox
+   kokeni etrafinda doner. */
+.pg-spin-yavas, .pg-spin-ters {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.pg-spin-yavas { animation: pg-spin 40s linear infinite; }
+.pg-spin-ters { animation: pg-spin 120s linear infinite reverse; }
+@keyframes pg-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .pg-spin-yavas, .pg-spin-ters { animation: none; }
+}

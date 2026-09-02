@@ -4,7 +4,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { toast } from 'sonner';
 import { Copy, Network, Wallet, Layers as LayersIcon, Sparkles, DollarSign, Users, RefreshCw } from 'lucide-react';
-import { animate, stagger } from 'animejs';
+import { motion } from 'motion/react';
+import { NumberTicker } from '@/components/ui/number-ticker';
+import { EASE_APPLE } from '@/lib/motion-presets';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -166,83 +168,10 @@ function AffiliateDashboard({
     });
   }, [tier2, tier1Pos]);
 
-  const svgRef = useRef<SVGSVGElement | null>(null);
-  const playedRef = useRef(false);
+  // Giris orkestrasyonu motion bilesenlerinin initial/animate + delay'lerine tasindi
+  // (animejs sokumu 02.09.2026); sahne siralamasi ayni: merkez -> T1 -> T2 -> akis.
+  const t1Son = 0.9 + tier1Pos.length * 0.11;
 
-  useEffect(() => {
-    if (!svgRef.current || playedRef.current) return;
-    playedRef.current = true;
-
-    // 1) Merkez pop in
-    animate('.aff-node-center, .aff-node-center-glow, .aff-node-center-label', {
-      scale: [0, 1],
-      opacity: [0, 1],
-      duration: 700,
-      easing: 'cubicBezier(0.16, 1, 0.3, 1)',
-    });
-
-    // 2) Tier 1 çizgileri (varsa)
-    if (tier1Pos.length > 0) {
-      animate('.aff-line-tier1', {
-        strokeDashoffset: [TIER1_R, 0],
-        opacity: [0, 0.7],
-        duration: 600,
-        easing: 'easeOutQuad',
-        delay: stagger(110, { start: 500 }),
-      });
-      animate('.aff-node-tier1', {
-        scale: [0, 1],
-        opacity: [0, 1],
-        duration: 500,
-        easing: 'outBack(1.7)',
-        delay: stagger(110, { start: 900 }),
-      });
-    }
-
-    // 3) Tier 2 çizgileri + düğümler
-    if (tier2Pos.length > 0) {
-      const t1End = 900 + tier1Pos.length * 110;
-      animate('.aff-line-tier2', {
-        strokeDashoffset: [TIER2_R - TIER1_R, 0],
-        opacity: [0, 0.45],
-        duration: 500,
-        easing: 'easeOutQuad',
-        delay: stagger(70, { start: t1End + 200 }),
-      });
-      animate('.aff-node-tier2', {
-        scale: [0, 1],
-        opacity: [0, 1],
-        duration: 400,
-        easing: 'outBack(1.5)',
-        delay: stagger(70, { start: t1End + 500 }),
-      });
-    }
-
-    // 4) Para akışı: paid statüsündeki line'larda akan parçacık (sürekli loop)
-    animate('.aff-flow-particle', {
-      offsetDistance: ['0%', '100%'],
-      opacity: [0, 1, 0],
-      duration: 2200,
-      loop: true,
-      easing: 'linear',
-      delay: stagger(280),
-    });
-
-    // 5) Background money emoji floating
-    animate('.aff-money', {
-      translateY: [0, -8, 0],
-      opacity: [0.15, 0.35, 0.15],
-      duration: 3000,
-      loop: true,
-      easing: 'easeInOutSine',
-      delay: stagger(400),
-    });
-
-    // 6) Count-up
-    animateCountUp('.aff-kpi-money', Number(stats.totalCommission), 1500, '₺');
-    animateCountUp('.aff-kpi-pending', Number(stats.pendingPayout), 1500, '₺');
-    animateCountUp('.aff-kpi-refs', Number(stats.networkSize ?? stats.totalReferred), 1500);
-  }, [tier1Pos.length, tier2Pos.length, stats.totalCommission, stats.pendingPayout, stats.networkSize, stats.totalReferred]);
 
   const networkLevels = stats.networkLevels ?? (tier2.length > 0 ? 2 : tier1.length > 0 ? 1 : 0);
 
@@ -254,9 +183,9 @@ function AffiliateDashboard({
       {/* KPI üst bar */}
       <div className="relative z-10 grid grid-cols-1 md:grid-cols-3 gap-4 mb-4 max-w-6xl mx-auto">
         <KpiBox icon={<DollarSign className="h-4 w-4" />} label="Toplam Komisyon"
-          value={<span className="aff-kpi-money text-yellow-300">₺0</span>} accent="yellow" />
+          value={<span className="text-yellow-300"><NumberTicker value={Number(stats.totalCommission)} prefix="₺" /></span>} accent="yellow" />
         <KpiBox icon={<Users className="h-4 w-4" />} label="Toplam Referans (T1+T2)"
-          value={<span className="aff-kpi-refs">0</span>} accent="violet" />
+          value={<NumberTicker value={Number(stats.networkSize ?? stats.totalReferred)} />} accent="violet" />
         <KpiBox icon={<LayersIcon className="h-4 w-4" />} label="Ağ Seviyeleri"
           value={<span>{networkLevels}</span>} accent="violet" />
       </div>
@@ -278,7 +207,7 @@ function AffiliateDashboard({
 
       {/* SVG network */}
       <div className="relative z-10 max-w-5xl mx-auto">
-        <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" style={{ maxHeight: '660px' }}>
+        <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" style={{ maxHeight: '660px' }}>
           <defs>
             <radialGradient id="centerGlow" cx="50%" cy="50%" r="50%">
               <stop offset="0%" stopColor="#fb923c" stopOpacity="0.7" />
@@ -302,15 +231,15 @@ function AffiliateDashboard({
             const len = Math.sqrt(dx * dx + dy * dy);
             const isPaid = p.ref.status === 'paid';
             return (
-              <line
+              <motion.line
                 key={`l1-${i}`}
-                className="aff-line-tier1"
                 x1={CX} y1={CY} x2={p.x} y2={p.y}
                 stroke={isPaid ? 'rgba(250, 204, 21, 0.85)' : 'rgba(96, 165, 250, 0.6)'}
                 strokeWidth={isPaid ? 2.5 : 2}
                 strokeDasharray={len}
-                strokeDashoffset={len}
-                style={{ opacity: 0 }}
+                initial={{ strokeDashoffset: len, opacity: 0 }}
+                animate={{ strokeDashoffset: 0, opacity: 0.7 }}
+                transition={{ duration: 0.6, ease: 'easeOut', delay: 0.5 + i * 0.11 }}
               />
             );
           })}
@@ -323,38 +252,45 @@ function AffiliateDashboard({
             const len = Math.sqrt(dx * dx + dy * dy);
             const isPaid = p.ref.status === 'paid';
             return (
-              <line
+              <motion.line
                 key={`l2-${i}`}
-                className="aff-line-tier2"
                 x1={parent.x} y1={parent.y} x2={p.x} y2={p.y}
                 stroke={isPaid ? 'rgba(250, 204, 21, 0.7)' : 'rgba(74, 222, 128, 0.45)'}
                 strokeWidth={isPaid ? 2 : 1.5}
                 strokeDasharray={len}
-                strokeDashoffset={len}
-                style={{ opacity: 0 }}
+                initial={{ strokeDashoffset: len, opacity: 0 }}
+                animate={{ strokeDashoffset: 0, opacity: 0.45 }}
+                transition={{ duration: 0.5, ease: 'easeOut', delay: t1Son + 0.2 + i * 0.07 }}
               />
             );
           })}
 
           {/* Merkez */}
-          <circle className="aff-node-center-glow" cx={CX} cy={CY} r={70}
+          <motion.circle cx={CX} cy={CY} r={70}
             fill="url(#centerGlow)"
-            style={{ opacity: 0, transformOrigin: `${CX}px ${CY}px` }} />
-          <circle className="aff-node-center" cx={CX} cy={CY} r={36}
+            initial={{ opacity: 0, scale: 0 }} animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.7, ease: EASE_APPLE }}
+            style={{ transformOrigin: `${CX}px ${CY}px` }} />
+          <motion.circle cx={CX} cy={CY} r={36}
             fill="#fb923c" stroke="#fdba74" strokeWidth={3}
-            style={{ opacity: 0, transformOrigin: `${CX}px ${CY}px`, filter: 'drop-shadow(0 0 24px rgba(251,146,60,0.7))' }} />
-          <text className="aff-node-center-label" x={CX} y={CY + 60}
+            initial={{ opacity: 0, scale: 0 }} animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.7, ease: EASE_APPLE }}
+            style={{ transformOrigin: `${CX}px ${CY}px`, filter: 'drop-shadow(0 0 24px rgba(251,146,60,0.7))' }} />
+          <motion.text x={CX} y={CY + 60}
             textAnchor="middle" fontSize={13} fill="#fed7aa" fontWeight={600}
-            style={{ opacity: 0 }}>
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+            transition={{ duration: 0.7, ease: EASE_APPLE }}>
             siz
-          </text>
+          </motion.text>
 
           {/* Tier 1 düğümler */}
           {tier1Pos.map((p, i) => {
             const isPaid = p.ref.status === 'paid';
             return (
-              <g key={`n1-${i}`} className="aff-node-tier1"
-                style={{ opacity: 0, transformOrigin: `${p.x}px ${p.y}px` }}>
+              <motion.g key={`n1-${i}`}
+                initial={{ opacity: 0, scale: 0 }} animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.5, ease: [0.34, 1.56, 0.64, 1], delay: 0.9 + i * 0.11 }}
+                style={{ transformOrigin: `${p.x}px ${p.y}px` }}>
                 <circle cx={p.x} cy={p.y} r={26} fill="url(#tier1Glow)" />
                 <circle cx={p.x} cy={p.y} r={16}
                   fill={isPaid ? '#facc15' : '#3b82f6'}
@@ -365,7 +301,7 @@ function AffiliateDashboard({
                   textAnchor="middle" fontSize={10} fill="#bfdbfe" fontWeight={500}>
                   T1 · {refLabel(p.ref, i + 1)}
                 </text>
-              </g>
+              </motion.g>
             );
           })}
 
@@ -373,8 +309,10 @@ function AffiliateDashboard({
           {tier2Pos.map((p, i) => {
             const isPaid = p.ref.status === 'paid';
             return (
-              <g key={`n2-${i}`} className="aff-node-tier2"
-                style={{ opacity: 0, transformOrigin: `${p.x}px ${p.y}px` }}>
+              <motion.g key={`n2-${i}`}
+                initial={{ opacity: 0, scale: 0 }} animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.4, ease: [0.34, 1.56, 0.64, 1], delay: t1Son + 0.5 + i * 0.07 }}
+                style={{ transformOrigin: `${p.x}px ${p.y}px` }}>
                 <circle cx={p.x} cy={p.y} r={18} fill="url(#tier2Glow)" />
                 <circle cx={p.x} cy={p.y} r={10}
                   fill={isPaid ? '#facc15' : '#22c55e'}
@@ -385,18 +323,18 @@ function AffiliateDashboard({
                   textAnchor="middle" fontSize={9} fill="#bbf7d0" fontWeight={500}>
                   T2 · {refLabel(p.ref, i + 1)}
                 </text>
-              </g>
+              </motion.g>
             );
           })}
 
           {/* Paid line akan parçacıklar — komisyon akışı görseli */}
           {tier1Pos.filter((p) => p.ref.status === 'paid').map((p, i) => (
-            <FlowParticleOnLine key={`fp1-${i}`} x1={p.x} y1={p.y} x2={CX} y2={CY} />
+            <FlowParticleOnLine key={`fp1-${i}`} x1={p.x} y1={p.y} x2={CX} y2={CY} delay={i * 0.28} />
           ))}
           {tier2Pos.filter((p) => p.ref.status === 'paid').map((p, i) => {
             const parent = tier1Pos[p.parentIdx];
             return (
-              <FlowParticleOnLine key={`fp2-${i}`} x1={p.x} y1={p.y} x2={parent.x} y2={parent.y} />
+              <FlowParticleOnLine key={`fp2-${i}`} x1={p.x} y1={p.y} x2={parent.x} y2={parent.y} delay={0.5 + i * 0.28} />
             );
           })}
         </svg>
@@ -444,8 +382,8 @@ function AffiliateDashboard({
               <Wallet className="h-3.5 w-3.5" />
               Bekleyen Ödeme
             </div>
-            <div className="text-2xl font-bold text-yellow-300 aff-kpi-pending">
-              ₺{Number(stats.pendingPayout ?? 0).toLocaleString('tr-TR')}
+            <div className="text-2xl font-bold text-yellow-300">
+              <NumberTicker value={Number(stats.pendingPayout ?? 0)} prefix="₺" />
             </div>
             <p className="text-[10px] text-white/60 mt-1">Aylık otomatik IBAN/Papara transfer</p>
           </div>
@@ -510,21 +448,23 @@ function AffiliateDashboard({
 //  Flow particle — paid line üzerinde akan komisyon noktası
 // ──────────────────────────────────────────────────────────────────
 
-function FlowParticleOnLine({ x1, y1, x2, y2 }: { x1: number; y1: number; x2: number; y2: number }) {
-  // CSS offset-path ile path takip ediyoruz — anime.js bunu offsetDistance ile sürer
+function FlowParticleOnLine({ x1, y1, x2, y2, delay = 0 }: { x1: number; y1: number; x2: number; y2: number; delay?: number }) {
+  // CSS offset-path ile path takibi — motion offsetDistance'i surer (animejs sokumu)
   const path = `path('M ${x1} ${y1} L ${x2} ${y2}')`;
   return (
     <foreignObject x="0" y="0" width={W} height={H} style={{ pointerEvents: 'none' }}>
-      <div className="aff-flow-particle" style={{
-        position: 'absolute',
-        width: 6, height: 6,
-        borderRadius: '50%',
-        background: '#facc15',
-        boxShadow: '0 0 12px rgba(250, 204, 21, 0.9), 0 0 6px #fde68a',
-        offsetPath: path,
-        offsetRotate: '0deg',
-        opacity: 0,
-      } as React.CSSProperties} />
+      <motion.div
+        animate={{ offsetDistance: ['0%', '100%'], opacity: [0, 1, 0] }}
+        transition={{ duration: 2.2, repeat: Infinity, ease: 'linear', delay }}
+        style={{
+          position: 'absolute',
+          width: 6, height: 6,
+          borderRadius: '50%',
+          background: '#facc15',
+          boxShadow: '0 0 12px rgba(250, 204, 21, 0.9), 0 0 6px #fde68a',
+          offsetPath: path,
+          offsetRotate: '0deg',
+        } as React.CSSProperties} />
     </foreignObject>
   );
 }
@@ -658,29 +598,14 @@ function MoneyField() {
   return (
     <div className="absolute inset-0 pointer-events-none">
       {items.map((it, i) => (
-        <div key={i} className="aff-money absolute text-xl"
-          style={{ left: `${it.x}%`, top: `${it.y}%`, transform: `rotate(${it.r}deg)`, opacity: 0.15 }}>
+        <motion.div key={i} className="absolute text-xl"
+          animate={{ y: [0, -8, 0], opacity: [0.15, 0.35, 0.15] }}
+          transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut', delay: i * 0.4 }}
+          style={{ left: `${it.x}%`, top: `${it.y}%`, rotate: `${it.r}deg` }}>
           💰
-        </div>
+        </motion.div>
       ))}
     </div>
   );
 }
 
-function animateCountUp(selector: string, target: number, durationMs: number, prefix: string = '') {
-  if (!Number.isFinite(target) || target <= 0) {
-    document.querySelectorAll<HTMLElement>(selector).forEach((el) => { el.textContent = `${prefix}0`; });
-    return;
-  }
-  const els = document.querySelectorAll<HTMLElement>(selector);
-  if (els.length === 0) return;
-  const t0 = performance.now();
-  const tick = (now: number) => {
-    const p = Math.min(1, (now - t0) / durationMs);
-    const eased = 1 - Math.pow(1 - p, 3);
-    const v = Math.round(target * eased);
-    els.forEach((el) => { el.textContent = `${prefix}${v.toLocaleString('tr-TR')}`; });
-    if (p < 1) requestAnimationFrame(tick);
-  };
-  requestAnimationFrame(tick);
-}

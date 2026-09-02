@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
-import { animate } from 'animejs';
 import { useReducedMotion } from '@/components/ai-scan';
 
 /*
@@ -55,8 +54,6 @@ export function PipelineGauge({
   className?: string;
 }) {
   const reduced = useReducedMotion();
-  const ringGroupRef = useRef<SVGGElement>(null);
-  const tickRingRef = useRef<SVGGElement>(null);
 
   // 5 yaylık halka, totalSteps -> 5 arcs map
   const activeArcIdx = totalSteps > 0
@@ -64,29 +61,10 @@ export function PipelineGauge({
     : 0;
   const activeColor = PASTEL_COLORS[activeArcIdx];
 
-  // Ring grup — sürekli yumuşak dönüş
-  useEffect(() => {
-    if (reduced || !ringGroupRef.current) return;
-    const a = animate(ringGroupRef.current, {
-      rotate: [0, 360],
-      duration: 40_000,
-      ease: 'linear',
-      loop: true,
-    });
-    return () => { a.pause(); };
-  }, [reduced]);
-
-  // Tick ring — ters yön
-  useEffect(() => {
-    if (reduced || !tickRingRef.current) return;
-    const a = animate(tickRingRef.current, {
-      rotate: [0, -360],
-      duration: 120_000,
-      ease: 'linear',
-      loop: true,
-    });
-    return () => { a.pause(); };
-  }, [reduced]);
+  // Donusler CSS'e tasindi (animejs sokumu 02.09.2026): sonsuz spin —
+  // GPU dostu, JS calistirmaz; reduced'da sinif hic eklenmez.
+  const spinYavas = reduced ? undefined : 'pg-spin-yavas';
+  const spinTers = reduced ? undefined : 'pg-spin-ters';
 
   return (
     <div className={`relative grid place-items-center ${className ?? ''}`}>
@@ -130,7 +108,7 @@ export function PipelineGauge({
 
           {/* Halka — 5 pastel yay, sürekli döner */}
           <g
-            ref={ringGroupRef}
+            className={spinYavas}
             style={{ transformOrigin: `${CENTER}px ${CENTER}px` }}
             filter="url(#pgArcGlow)"
           >
@@ -156,7 +134,7 @@ export function PipelineGauge({
           </g>
 
           {/* Tick ring */}
-          <g ref={tickRingRef} style={{ transformOrigin: `${CENTER}px ${CENTER}px` }}>
+          <g className={spinTers} style={{ transformOrigin: `${CENTER}px ${CENTER}px` }}>
             {Array.from({ length: TOTAL_TICKS }).map((_, i) => {
               const angle = (i / TOTAL_TICKS) * 360 - 90;
               const rad = (angle * Math.PI) / 180;

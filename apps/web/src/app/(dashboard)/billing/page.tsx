@@ -4,7 +4,9 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 import { toast } from 'sonner';
-import { animate, stagger } from 'animejs';
+import { motion } from 'motion/react';
+import { NumberTicker } from '@/components/ui/number-ticker';
+import { fadeUp, staggerContainer } from '@/lib/motion-presets';
 import {
   CreditCard, Sparkles, TrendingUp, Calendar, Receipt,
   CheckCircle2, AlertCircle, Clock, XCircle, ArrowUpRight,
@@ -34,9 +36,8 @@ export default function BillingPage() {
   const [cancelling, setCancelling] = useState(false);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
 
-  const playedRef = useRef(false);
-  const usageBarRef = useRef<HTMLDivElement | null>(null);
-  const priceRef = useRef<HTMLSpanElement | null>(null);
+  // Kullanim bari dolum animasyonu: animejs yerine CSS width gecisi (02.09.2026)
+  const [barGenislik, setBarGenislik] = useState(0);
 
   useEffect(() => {
     if (status === 'loading') return;
@@ -56,51 +57,15 @@ export default function BillingPage() {
       .finally(() => setLoading(false));
   }, [userId, status]);
 
-  // Animations — sayfa yüklenince bir kez
+  // Bar dolumu: veri gelince 300ms sonra hedef yuzdeye gecis (CSS transition surer)
   useEffect(() => {
-    if (loading || !current || playedRef.current) return;
-    playedRef.current = true;
-
-    const articleUsage = quota?.articles ?? { remaining: 0, limit: 0 };
-    const used = Math.max(0, articleUsage.limit - articleUsage.remaining);
-    const usagePct = articleUsage.limit > 0 ? Math.round((used / articleUsage.limit) * 100) : 0;
-
-    // Plan card breathing glow
-    animate('.bil-plan-glow', {
-      opacity: [0.3, 0.6, 0.3],
-      duration: 3200,
-      loop: true,
-      easing: 'easeInOutSine',
-    });
-
-    // Usage bar fill (0% → usagePct%)
-    if (usageBarRef.current) {
-      animate(usageBarRef.current, {
-        width: ['0%', `${usagePct}%`],
-        duration: 1400,
-        easing: 'cubicBezier(0.16, 1, 0.3, 1)',
-        delay: 300,
-      });
-    }
-
-    // Count-up: used number + price
-    countUp('.bil-used', used, 1200);
-    countUp('.bil-limit', articleUsage.limit, 1200);
-    if (current.plan?.monthly) {
-      countUp('.bil-price', current.plan.monthly, 1300, '₺');
-    }
-
-    // Invoice rows stagger
-    if (invoices.length > 0) {
-      animate('.bil-invoice-row', {
-        opacity: [0, 1],
-        translateY: [12, 0],
-        duration: 500,
-        easing: 'cubicBezier(0.16, 1, 0.3, 1)',
-        delay: stagger(60, { start: 600 }),
-      });
-    }
-  }, [loading, current, quota, invoices.length]);
+    if (loading || !current) return;
+    const u = quota?.articles ?? { remaining: 0, limit: 0 };
+    const kullanilan = Math.max(0, u.limit - u.remaining);
+    const pct = u.limit > 0 ? Math.round((kullanilan / u.limit) * 100) : 0;
+    const t = setTimeout(() => setBarGenislik(pct), 300);
+    return () => clearTimeout(t);
+  }, [loading, current, quota]);
 
   const cancel = async () => {
     if (!userId) return;
@@ -168,7 +133,7 @@ export default function BillingPage() {
         style={{ animationDelay: '100ms' }}
       >
         {/* Animated gradient glow background */}
-        <div className="bil-plan-glow absolute inset-0 bg-gradient-to-br from-brand/15 via-violet-500/8 to-fuchsia-500/12 pointer-events-none" />
+        <div className="absolute inset-0 bg-gradient-to-br from-brand/15 via-violet-500/8 to-fuchsia-500/12 pointer-events-none animate-breath" />
         {/* Top accent bar */}
         <div className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-brand via-violet-500 to-fuchsia-500" />
 
@@ -201,7 +166,7 @@ export default function BillingPage() {
             {plan?.monthly > 0 && (
               <div className="text-right">
                 <div className="text-3xl sm:text-4xl font-bold tabular-nums font-mono text-brand">
-                  <span ref={priceRef} className="bil-price">₺0</span>
+                  <span><NumberTicker value={Number(plan?.monthly ?? 0)} prefix="₺" /></span>
                   <span className="text-sm text-muted-foreground font-sans font-normal">/ay</span>
                 </div>
                 <div className="text-[10px] text-muted-foreground/70 mt-1 font-mono uppercase tracking-widest">
@@ -219,20 +184,19 @@ export default function BillingPage() {
                 <span>Bu ay kullanım</span>
               </div>
               <span className="font-mono tabular-nums text-foreground/90">
-                <span className="bil-used">0</span> / <span className="bil-limit">0</span> makale
+                <NumberTicker value={used} /> / <NumberTicker value={articleUsage.limit} /> makale
               </span>
             </div>
             <div className="relative h-2.5 bg-muted/60 rounded-full overflow-hidden">
               <div
-                ref={usageBarRef}
-                className={`absolute inset-y-0 left-0 rounded-full ${
+                className={`absolute inset-y-0 left-0 rounded-full transition-[width] duration-[1400ms] ease-apple ${
                   usagePct > 90
                     ? 'bg-gradient-to-r from-red-500 to-red-400'
                     : usagePct > 70
                       ? 'bg-gradient-to-r from-amber-500 to-yellow-400'
                       : 'bg-gradient-to-r from-brand to-violet-500'
                 } shadow-[0_0_12px_currentColor]`}
-                style={{ width: '0%' }}
+                style={{ width: `${barGenislik}%` }}
               />
               {/* Shimmer overlay during fill */}
               <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent opacity-0 animate-[shimmer_2s_ease-in-out_infinite]" />
@@ -303,12 +267,12 @@ export default function BillingPage() {
                     <th className="text-left px-4 py-3 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Durum</th>
                   </tr>
                 </thead>
-                <tbody>
+                <motion.tbody variants={staggerContainer} initial="hidden" animate="show">
                   {invoices.map((inv) => (
-                    <tr
+                    <motion.tr
                       key={inv.id}
-                      className="bil-invoice-row border-t hover:bg-muted/20 transition-colors"
-                      style={{ opacity: 0 }}
+                      variants={fadeUp}
+                      className="border-t hover:bg-muted/20 transition-colors"
                     >
                       <td className="px-4 py-3.5">
                         <div className="inline-flex items-center gap-2">
@@ -323,9 +287,9 @@ export default function BillingPage() {
                       <td className="px-4 py-3.5">
                         <InvoiceStatusBadge status={inv.status} />
                       </td>
-                    </tr>
+                    </motion.tr>
                   ))}
-                </tbody>
+                </motion.tbody>
               </table>
             </div>
           </div>
@@ -463,22 +427,3 @@ function CancelDialog({
   );
 }
 
-function countUp(selector: string, target: number, durationMs: number, prefix: string = '') {
-  if (!Number.isFinite(target) || target <= 0) {
-    document.querySelectorAll<HTMLElement>(selector).forEach((el) => {
-      el.textContent = `${prefix}0`;
-    });
-    return;
-  }
-  const els = document.querySelectorAll<HTMLElement>(selector);
-  if (els.length === 0) return;
-  const t0 = performance.now();
-  const tick = (now: number) => {
-    const p = Math.min(1, (now - t0) / durationMs);
-    const eased = 1 - Math.pow(1 - p, 3);
-    const v = Math.round(target * eased);
-    els.forEach((el) => { el.textContent = `${prefix}${v.toLocaleString('tr-TR')}`; });
-    if (p < 1) requestAnimationFrame(tick);
-  };
-  requestAnimationFrame(tick);
-}

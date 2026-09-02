@@ -2,7 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { animate, stagger } from 'animejs';
+import { motion } from 'motion/react';
+import { CHART } from '@/lib/chart-colors';
+import { fadeUp, staggerContainer, EASE_APPLE } from '@/lib/motion-presets';
 import {
   ShieldCheck,
   Sparkles,
@@ -46,18 +48,17 @@ type StatCardData = {
   href?: string;
 };
 
-const ACCENT_MAP: Record<StatCardData['accent'], { bg: string; text: string; sparkColor: string; gradFrom: string; gradTo: string }> = {
-  brand:   { bg: 'bg-brand/10',   text: 'text-brand',                              sparkColor: '#7c3aed', gradFrom: 'from-brand/20',         gradTo: 'to-transparent' },
-  emerald: { bg: 'bg-emerald-500/10', text: 'text-emerald-600 dark:text-emerald-400', sparkColor: '#10b981', gradFrom: 'from-emerald-500/20', gradTo: 'to-transparent' },
-  sky:     { bg: 'bg-sky-500/10',     text: 'text-sky-600 dark:text-sky-400',         sparkColor: '#0ea5e9', gradFrom: 'from-sky-500/20',     gradTo: 'to-transparent' },
-  amber:   { bg: 'bg-amber-500/10',   text: 'text-amber-600 dark:text-amber-400',     sparkColor: '#f59e0b', gradFrom: 'from-amber-500/20',   gradTo: 'to-transparent' },
-  rose:    { bg: 'bg-rose-500/10',    text: 'text-rose-600 dark:text-rose-400',       sparkColor: '#f43f5e', gradFrom: 'from-rose-500/20',    gradTo: 'to-transparent' },
+// sparkId: SVG gradient id'si (renk stringi hsl(var()) oldugu icin id'ye giremez)
+const ACCENT_MAP: Record<StatCardData['accent'], { bg: string; text: string; sparkColor: string; sparkId: string; gradFrom: string; gradTo: string }> = {
+  // NOT: 'brand' eskiden mor #7c3aed idi (reddedilen marka denemesi kalintisi) — marka turuncusuna cekildi
+  brand:   { bg: 'bg-brand/10',       text: 'text-brand',                              sparkColor: CHART[1], sparkId: 'brand',   gradFrom: 'from-brand/20',         gradTo: 'to-transparent' },
+  emerald: { bg: 'bg-emerald-500/10', text: 'text-emerald-600 dark:text-emerald-400', sparkColor: CHART[2], sparkId: 'emerald', gradFrom: 'from-emerald-500/20', gradTo: 'to-transparent' },
+  sky:     { bg: 'bg-sky-500/10',     text: 'text-sky-600 dark:text-sky-400',         sparkColor: CHART[5], sparkId: 'sky',     gradFrom: 'from-sky-500/20',     gradTo: 'to-transparent' },
+  amber:   { bg: 'bg-amber-500/10',   text: 'text-amber-600 dark:text-amber-400',     sparkColor: CHART[7], sparkId: 'amber',   gradFrom: 'from-amber-500/20',   gradTo: 'to-transparent' },
+  rose:    { bg: 'bg-rose-500/10',    text: 'text-rose-600 dark:text-rose-400',       sparkColor: CHART[6], sparkId: 'rose',    gradFrom: 'from-rose-500/20',    gradTo: 'to-transparent' },
 };
 
-function Sparkline({ data, color, animated = true }: { data: number[]; color: string; animated?: boolean }) {
-  const pathRef = useRef<SVGPathElement>(null);
-  const fillRef = useRef<SVGPathElement>(null);
-
+function Sparkline({ data, color, sparkId, animated = true }: { data: number[]; color: string; sparkId: string; animated?: boolean }) {
   // Build SVG path
   const W = 200;
   const H = 50;
@@ -75,44 +76,31 @@ function Sparkline({ data, color, animated = true }: { data: number[]; color: st
   const lineD = points.map(([x, y], i) => `${i === 0 ? 'M' : 'L'} ${x.toFixed(1)} ${y.toFixed(1)}`).join(' ');
   const fillD = `${lineD} L ${W} ${H} L 0 ${H} Z`;
 
-  useEffect(() => {
-    if (!animated || !pathRef.current) return;
-    const path = pathRef.current;
-    const total = path.getTotalLength();
-    path.style.strokeDasharray = `${total}`;
-    path.style.strokeDashoffset = `${total}`;
-    animate(path, {
-      strokeDashoffset: [{ to: 0, duration: 900, ease: 'outQuad' }],
-    });
-    if (fillRef.current) {
-      animate(fillRef.current, {
-        opacity: [{ to: 0, duration: 0 }, { to: 1, duration: 700, delay: 400, ease: 'outQuad' }],
-      });
-    }
-  }, [animated]);
-
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-12" preserveAspectRatio="none">
       <defs>
-        <linearGradient id={`spark-grad-${color.replace('#', '')}`} x1="0" y1="0" x2="0" y2="1">
+        <linearGradient id={`spark-grad-${sparkId}`} x1="0" y1="0" x2="0" y2="1">
           <stop offset="0%" stopColor={color} stopOpacity="0.35" />
           <stop offset="100%" stopColor={color} stopOpacity="0" />
         </linearGradient>
       </defs>
-      <path
-        ref={fillRef}
+      <motion.path
         d={fillD}
-        fill={`url(#spark-grad-${color.replace('#', '')})`}
-        style={{ opacity: animated ? 0 : 1 }}
+        fill={`url(#spark-grad-${sparkId})`}
+        initial={animated ? { opacity: 0 } : false}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.7, delay: 0.4 }}
       />
-      <path
-        ref={pathRef}
+      <motion.path
         d={lineD}
         stroke={color}
         strokeWidth="1.8"
         fill="none"
         strokeLinecap="round"
         strokeLinejoin="round"
+        initial={animated ? { pathLength: 0 } : false}
+        animate={{ pathLength: 1 }}
+        transition={{ duration: 0.9, ease: EASE_APPLE }}
       />
     </svg>
   );
@@ -144,24 +132,17 @@ function DeltaPill({ delta, suffix }: { delta?: number; suffix?: string }) {
 function StatCard({ data, idx }: { data: StatCardData; idx: number }) {
   const a = ACCENT_MAP[data.accent];
   const Icon = data.icon;
-  const cardRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!cardRef.current) return;
-    animate(cardRef.current, {
-      opacity: [{ to: 0, duration: 0 }, { to: 1, duration: 500, delay: idx * 100, ease: 'outQuad' }],
-      translateY: [{ to: 12, duration: 0 }, { to: 0, duration: 500, delay: idx * 100, ease: 'outQuad' }],
-    });
-  }, [idx]);
 
   const Wrapper: any = data.href ? Link : 'div';
   const wrapperProps: any = data.href ? { href: data.href } : {};
 
   return (
     <Wrapper {...wrapperProps} className="block">
-      <div
-        ref={cardRef}
-        className="group rounded-2xl border bg-card p-4 sm:p-5 hover:border-brand/30 hover:shadow-md transition-all duration-300 cursor-pointer"
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: idx * 0.1, ease: EASE_APPLE }}
+        className="group rounded-lg border bg-card p-4 sm:p-5 hover:border-brand/30 hover:shadow-apple transition-all duration-300 cursor-pointer"
       >
         {/* Header */}
         <div className="flex items-center justify-between mb-3">
@@ -204,9 +185,9 @@ function StatCard({ data, idx }: { data: StatCardData; idx: number }) {
 
         {/* Sparkline */}
         <div className="mt-1">
-          <Sparkline data={data.sparkline} color={a.sparkColor} />
+          <Sparkline data={data.sparkline} color={a.sparkColor} sparkId={a.sparkId} />
         </div>
-      </div>
+      </motion.div>
     </Wrapper>
   );
 }
@@ -387,7 +368,6 @@ type ActivityEvent = {
 };
 
 export function RecentActivity({ articles, audit, siteId }: { articles: any[]; audit: any; siteId: string }) {
-  const containerRef = useRef<HTMLDivElement>(null);
 
   const events: ActivityEvent[] = [];
 
@@ -444,37 +424,25 @@ export function RecentActivity({ articles, audit, siteId }: { articles: any[]; a
   // Sort + limit
   const sorted = events.sort((a, b) => b.timestamp - a.timestamp).slice(0, 6);
 
-  useEffect(() => {
-    if (!containerRef.current) return;
-    const items = containerRef.current.querySelectorAll('.activity-item');
-    if (items.length === 0) return;
-    animate(items, {
-      opacity: [{ to: 0, duration: 0 }, { to: 1, duration: 400 }],
-      translateX: [{ to: -8, duration: 0 }, { to: 0, duration: 400, ease: 'outQuad' }],
-      delay: stagger(60),
-    });
-  }, [sorted.length]);
-
   if (sorted.length === 0) return null;
 
   return (
-    <div className="rounded-2xl border bg-card overflow-hidden">
+    <div className="rounded-lg border bg-card overflow-hidden">
       <div className="flex items-center justify-between px-4 py-3 border-b bg-muted/20">
         <p className="text-sm font-semibold inline-flex items-center gap-2">
           <Activity className="h-4 w-4 text-brand" /> Son Aktivite
         </p>
         <span className="text-[11px] font-mono text-muted-foreground">son 6 olay</span>
       </div>
-      <div ref={containerRef} className="divide-y">
+      <motion.div variants={staggerContainer} initial="hidden" animate="show" className="divide-y">
         {sorted.map((event, i) => {
           const Icon = ACTIVITY_ICON[event.type];
           const accent = ACTIVITY_ACCENT[event.type];
           return (
+            <motion.div key={`${event.type}-${i}`} variants={fadeUp}>
             <Link
-              key={`${event.type}-${i}`}
               href={(event.href ?? '#') as any}
-              className="activity-item flex items-center gap-3 px-4 py-2.5 hover:bg-muted/30 transition-colors"
-              style={{ opacity: 0 }}
+              className="flex items-center gap-3 px-4 py-2.5 hover:bg-muted/30 transition-colors"
             >
               <div className={cn('h-8 w-8 rounded-lg grid place-items-center shrink-0', accent.bg, accent.text)}>
                 <Icon className="h-3.5 w-3.5" />
@@ -487,9 +455,10 @@ export function RecentActivity({ articles, audit, siteId }: { articles: any[]; a
                 {timeAgo(event.timestamp)}
               </div>
             </Link>
+            </motion.div>
           );
         })}
-      </div>
+      </motion.div>
     </div>
   );
 }
