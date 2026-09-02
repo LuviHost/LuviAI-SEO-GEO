@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { TrendingUp, TrendingDown, Minus, Sparkles, RefreshCw, Download } from 'lucide-react';
+import { TrendingUp, TrendingDown, Minus, Sparkles, RefreshCw, Download, FileText } from 'lucide-react';
 import { api } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -486,6 +486,17 @@ export function CitationHistoryChart({
                       <span className="text-muted-foreground">
                         {comparison.gained} soru kazanıldı · {comparison.lost} kaybedildi · {comparison.unchanged} aynı
                       </span>
+                      {/* NEDEN burada da: ust satirdaki kucuk dugme fark edilmiyordu (02.09 kullanici bildirimi) */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          window.location.href = `/sites/${siteId}/gorunurluk-raporu?a=${encodeURIComponent(selectedRuns[0])}&b=${encodeURIComponent(selectedRuns[1])}`;
+                        }}
+                        className="ml-auto inline-flex items-center gap-1.5 rounded-md bg-brand px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand/90"
+                        title="A4 yazdırılabilir GEO karşılaştırma raporu — müşteriye gönderilebilir"
+                      >
+                        <FileText className="h-3.5 w-3.5" /> Raporu aç
+                      </button>
                     </div>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-1.5">
                       {comparison.providers.map((p: any) => (
