@@ -28,7 +28,6 @@ const PROVIDER_LABELS: Record<string, string> = {
   deepseek: 'DeepSeek',
 };
 
-const OUTCOME_TR: Record<string, string> = { cited: 'URL geçti', mentioned: 'yalnız marka', none: 'geçmedi', 'n/a': 'sorulmadı' };
 
 /**
  * AI Citation gunluk gorunurluk trendi — provider bazli SVG line chart.
@@ -104,21 +103,11 @@ export function CitationHistoryChart({
   // Test geçmişi — her koşum kalıcı (AiCitationRun); iki koşum karşılaştırılabilir
   const [runs, setRuns] = useState<any[]>([]);
   const [selectedRuns, setSelectedRuns] = useState<string[]>([]);
-  const [comparison, setComparison] = useState<any>(null);
-  const [comparing, setComparing] = useState(false);
   const loadRuns = async () => {
     try { setRuns(await api.getCitationRuns(siteId, 30)); } catch { /* gecmis yoksa sessiz */ }
   };
   const toggleRun = (id: string) => {
-    setComparison(null);
     setSelectedRuns((cur) => cur.includes(id) ? cur.filter((x) => x !== id) : [...cur.slice(-1), id]);
-  };
-  const compareSelected = async () => {
-    if (selectedRuns.length !== 2) return;
-    setComparing(true);
-    try { setComparison(await api.compareCitationRuns(siteId, selectedRuns[0], selectedRuns[1])); }
-    catch (err: any) { toast.error(err.message); }
-    finally { setComparing(false); }
   };
   const showRun = async (id: string) => {
     try {
@@ -433,23 +422,18 @@ export function CitationHistoryChart({
               <div className="mt-4 pt-4 border-t">
                 <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
                   <p className="text-xs font-semibold">Test geçmişi <span className="font-normal text-muted-foreground">({runs.length} koşum — hiçbiri silinmez; iki tanesini seçip karşılaştır)</span></p>
-                  {comparison && selectedRuns.length === 2 && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="mr-2"
-                      onClick={() => {
-                        // NEDEN kendi sayfamiz: rapor ucu oturum ister; ham API adresini yeni sekmede acmak
-                        // popup engeline takiliyor ve hata gibi gorunuyordu (01.09 kullanici bildirimi)
-                        window.location.href = `/sites/${siteId}/gorunurluk-raporu?a=${encodeURIComponent(selectedRuns[0])}&b=${encodeURIComponent(selectedRuns[1])}`;
-                      }}
-                      title="A4 yazdırılabilir GEO karşılaştırma raporu — müşteriye gönderilebilir"
-                    >
-                      Rapor
-                    </Button>
-                  )}
-                  <Button size="sm" variant="outline" onClick={compareSelected} disabled={selectedRuns.length !== 2 || comparing}>
-                    {comparing ? 'Karşılaştırılıyor…' : `Karşılaştır (${selectedRuns.length}/2)`}
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      // NEDEN dogrudan rapor: kullanici karsilastirmayi panelde ozet olarak degil
+                      // A4 rapor olarak istiyor (02.09). Iki adim (karsilastir → raporu ac) kaldirildi.
+                      window.location.href = `/sites/${siteId}/gorunurluk-raporu?a=${encodeURIComponent(selectedRuns[0])}&b=${encodeURIComponent(selectedRuns[1])}`;
+                    }}
+                    disabled={selectedRuns.length !== 2}
+                    title="Seçili iki koşumun A4 yazdırılabilir karşılaştırma raporunu aç"
+                  >
+                    <FileText className="h-3.5 w-3.5 mr-1.5" />
+                    Karşılaştır ({selectedRuns.length}/2)
                   </Button>
                 </div>
                 <div className="max-h-56 overflow-y-auto rounded-md border divide-y divide-border/50">
@@ -469,66 +453,6 @@ export function CitationHistoryChart({
                   ))}
                 </div>
 
-                {comparison && (
-                  <div className="mt-3 rounded-lg border p-3 text-xs space-y-2 bg-muted/20">
-                    <div className="flex items-baseline gap-3 flex-wrap">
-                      <span className="font-semibold">
-                        {new Date(comparison.a.runAt).toLocaleString('tr-TR', { dateStyle: 'short', timeStyle: 'short' })} → {new Date(comparison.b.runAt).toLocaleString('tr-TR', { dateStyle: 'short', timeStyle: 'short' })}
-                      </span>
-                      <span className="text-lg font-bold tabular-nums">
-                        {comparison.a.headlineScore ?? '—'} → {comparison.b.headlineScore ?? '—'}
-                        {comparison.headlineDelta !== null && (
-                          <span className={`ml-1 text-sm ${comparison.headlineDelta > 0 ? 'text-emerald-600' : comparison.headlineDelta < 0 ? 'text-red-600' : 'text-muted-foreground'}`}>
-                            ({comparison.headlineDelta > 0 ? '+' : ''}{comparison.headlineDelta})
-                          </span>
-                        )}
-                      </span>
-                      <span className="text-muted-foreground">
-                        {comparison.gained} soru kazanıldı · {comparison.lost} kaybedildi · {comparison.unchanged} aynı
-                      </span>
-                      {/* NEDEN burada da: ust satirdaki kucuk dugme fark edilmiyordu (02.09 kullanici bildirimi) */}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          window.location.href = `/sites/${siteId}/gorunurluk-raporu?a=${encodeURIComponent(selectedRuns[0])}&b=${encodeURIComponent(selectedRuns[1])}`;
-                        }}
-                        className="ml-auto inline-flex items-center gap-1.5 rounded-md bg-brand px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand/90"
-                        title="A4 yazdırılabilir GEO karşılaştırma raporu — müşteriye gönderilebilir"
-                      >
-                        <FileText className="h-3.5 w-3.5" /> Raporu aç
-                      </button>
-                    </div>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-1.5">
-                      {comparison.providers.map((p: any) => (
-                        <div key={p.provider} className="rounded border px-2 py-1 flex items-center justify-between gap-2">
-                          <span className="truncate">{PROVIDER_LABELS[p.provider] ?? p.provider}</span>
-                          <span className="tabular-nums whitespace-nowrap">
-                            {p.before ?? '—'} → <strong>{p.after ?? '—'}</strong>
-                            {p.delta !== null && p.delta !== 0 && (
-                              <span className={`ml-1 ${p.delta > 0 ? 'text-emerald-600' : 'text-red-600'}`}>{p.delta > 0 ? '+' : ''}{p.delta}</span>
-                            )}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                    {comparison.changed.length > 0 ? (
-                      <div className="space-y-1">
-                        <div className="text-[10px] uppercase tracking-wider font-bold text-muted-foreground">Değişen sorular</div>
-                        {comparison.changed.map((c: any, i: number) => (
-                          <div key={i} className="flex items-start gap-2">
-                            <span className={c.direction > 0 ? 'text-emerald-600' : 'text-red-600'}>{c.direction > 0 ? '▲' : '▼'}</span>
-                            <span className="text-muted-foreground w-[70px] shrink-0 truncate">{PROVIDER_LABELS[c.provider] ?? c.provider}</span>
-                            <span className="flex-1 min-w-0 truncate">{c.query}</span>
-                            <span className="text-muted-foreground whitespace-nowrap">{OUTCOME_TR[c.before] ?? c.before} → <strong>{OUTCOME_TR[c.after] ?? c.after}</strong></span>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-muted-foreground">Soru bazında değişiklik yok — iki test aynı sonucu verdi.</div>
-                    )}
-                    <div className="text-[10px] text-muted-foreground">AI cevapları koşumdan koşuma oynak olabilir; tek testler arası farkı karar için değil gözlem için kullan — manşet 7 günlük ortalamadır.</div>
-                  </div>
-                )}
               </div>
             )}
 
