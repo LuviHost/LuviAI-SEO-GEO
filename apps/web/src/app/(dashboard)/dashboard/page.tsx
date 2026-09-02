@@ -9,6 +9,7 @@ import { api } from '@/lib/api';
 import { useT } from '@/lib/i18n';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { MetricCard } from '@/components/ui/metric';
 import {
   ExternalLink, Plus, Trash2, AlertTriangle,
   Globe2, FileText, Zap, Crown, Sparkles, ChevronRight, Activity, Rocket,
@@ -134,35 +135,34 @@ export default function DashboardPage() {
         </div>
       ) : me ? (
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 relative">
-          <StatCard
+          <MetricCard
             icon={Globe2}
             label="Sitelerim"
             value={me.sitesCount ?? 0}
             accent="brand"
-            delay={80}
-          />
-          <StatCard
+            style={{ animation: `fadeInUp 500ms ease-out 80ms both` }}
+            />
+          <MetricCard
             icon={FileText}
             label="Yayınlanan makale"
             value={me.articlesPublished ?? 0}
             accent="emerald"
-            delay={160}
-          />
-          <StatCard
+            style={{ animation: `fadeInUp 500ms ease-out 160ms both` }}
+            />
+          <MetricCard
             icon={Zap}
             label="Bu ay üretilen"
             value={me.articlesUsedThisMonth ?? 0}
             accent="amber"
-            delay={240}
-          />
-          <StatCard
+            style={{ animation: `fadeInUp 500ms ease-out 240ms both` }}
+            />
+          <MetricCard
             icon={Crown}
             label={isTrial ? 'Ücretsiz hak' : (me.plan ?? 'Plan')}
             value={planLabel}
             accent="violet"
-            stringValue
-            delay={320}
-          />
+            style={{ animation: `fadeInUp 500ms ease-out 320ms both` }}
+            />
         </div>
       ) : null}
 
@@ -367,71 +367,8 @@ function DotLoader() {
   );
 }
 
-const ACCENT_CLASSES: Record<string, { ring: string; iconBg: string; iconText: string; bar: string; hoverBorder: string }> = {
-  brand:    { ring: 'ring-brand/0',         iconBg: 'bg-brand/15',         iconText: 'text-brand',                    bar: 'from-brand to-brand/40',                       hoverBorder: 'hover:border-brand/40' },
-  emerald:  { ring: 'ring-emerald-500/0',   iconBg: 'bg-emerald-500/15',   iconText: 'text-emerald-600 dark:text-emerald-400',  bar: 'from-emerald-500 to-emerald-500/40',  hoverBorder: 'hover:border-emerald-500/40' },
-  amber:    { ring: 'ring-amber-500/0',     iconBg: 'bg-amber-500/15',     iconText: 'text-amber-600 dark:text-amber-400',      bar: 'from-amber-500 to-amber-500/40',      hoverBorder: 'hover:border-amber-500/40' },
-  violet:   { ring: 'ring-violet-500/0',    iconBg: 'bg-violet-500/15',    iconText: 'text-violet-600 dark:text-violet-400',    bar: 'from-violet-500 to-violet-500/40',    hoverBorder: 'hover:border-violet-500/40' },
-};
 
-function StatCard({
-  icon: Icon, label, value, accent = 'brand', stringValue = false, delay = 0,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-  value: number | string;
-  accent?: keyof typeof ACCENT_CLASSES;
-  stringValue?: boolean;
-  delay?: number;
-}) {
-  const cls = ACCENT_CLASSES[accent];
-  const numericValue = typeof value === 'number' ? value : null;
-  const displayed = numericValue !== null ? <CountUp to={numericValue} /> : value;
 
-  return (
-    <div
-      className={`group relative rounded-xl border bg-card p-5 transition-all duration-300 hover:-translate-y-0.5 ${cls.hoverBorder} hover:shadow-[0_8px_28px_-12px_rgb(0_0_0/0.18)] dark:hover:shadow-[0_8px_28px_-12px_rgb(0_0_0/0.5)] overflow-hidden`}
-      style={{ animation: `fadeInUp 500ms ease-out ${delay}ms both` }}
-    >
-      {/* Top accent bar */}
-      <div className={`absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r ${cls.bar} opacity-60 group-hover:opacity-100 transition-opacity`} />
-      {/* Subtle accent glow on hover */}
-      <div className={`absolute -inset-px rounded-xl bg-gradient-to-br ${cls.bar} opacity-0 group-hover:opacity-[0.04] transition-opacity duration-300 pointer-events-none`} />
-
-      <div className="flex items-start justify-between gap-3 mb-3">
-        <div className={`h-9 w-9 rounded-lg ${cls.iconBg} grid place-items-center transition-transform duration-300 group-hover:scale-110`}>
-          <Icon className={`h-4 w-4 ${cls.iconText}`} />
-        </div>
-      </div>
-      <div className={`${stringValue ? 'text-xl sm:text-2xl' : 'text-3xl sm:text-4xl'} font-bold tracking-tight ${cls.iconText} font-mono tabular-nums leading-none`}>
-        {displayed}
-      </div>
-      <div className="text-[11px] sm:text-xs text-muted-foreground mt-2 font-medium">{label}</div>
-    </div>
-  );
-}
-
-function CountUp({ to, durationMs = 700 }: { to: number; durationMs?: number }) {
-  const [val, setVal] = useState(0);
-  const startedRef = useRef(false);
-  useEffect(() => {
-    if (startedRef.current) { setVal(to); return; }
-    startedRef.current = true;
-    if (to === 0) { setVal(0); return; }
-    const t0 = performance.now();
-    let raf = 0;
-    const tick = (now: number) => {
-      const p = Math.min(1, (now - t0) / durationMs);
-      // easeOutCubic
-      const eased = 1 - Math.pow(1 - p, 3);
-      setVal(Math.round(to * eased));
-      if (p < 1) raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, [to, durationMs]);
-  return <>{val}</>;
-}
 
 function SiteCard({
   site, index, onDelete, isLeaving, isAnyLeaving, onNavigate,
@@ -459,10 +396,10 @@ function SiteCard({
         'block group relative rounded-xl border bg-card overflow-hidden cursor-pointer',
         'transition-all duration-500 ease-out will-change-transform focus:outline-none focus:ring-2 focus:ring-brand/40',
         isLeaving
-          ? 'scale-[1.04] border-brand/80 shadow-[0_0_0_2px_rgb(124_58_237/0.5),0_30px_80px_-12px_rgb(124_58_237/0.7),0_0_120px_-30px_rgb(217_70_239/0.6)] z-20'
+          ? 'scale-[1.04] border-brand/80 shadow-[0_0_0_2px_hsl(var(--ring)/0.5),0_30px_80px_-12px_hsl(var(--ring)/0.55)] z-20'
           : isAnyLeaving
             ? 'opacity-25 scale-[0.96] blur-[2px] pointer-events-none'
-            : 'hover:-translate-y-0.5 hover:border-brand/30 hover:shadow-[0_8px_28px_-12px_rgb(124_58_237/0.25)]',
+            : 'hover:-translate-y-0.5 hover:border-brand/30 hover:shadow-apple-md',
       ].join(' ')}
       style={{ animation: `fadeInUp 450ms ease-out ${index * 60 + 120}ms both` }}
       aria-label={`${site.name} sitesini aç`}
