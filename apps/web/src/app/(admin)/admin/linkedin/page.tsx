@@ -462,7 +462,7 @@ export default function AdminLinkedinPage() {
             <div className="text-3xl font-semibold mt-2 tabular-nums">
               {acceptPct === null ? '—' : `%${acceptPct.toFixed(0)}`}
             </div>
-            <div className="text-[11px] text-muted-foreground mt-1">
+            <div className="text-xs text-muted-foreground mt-1">
               {acceptPct === null
                 ? `henüz örnek yok${base ? ` (${base.requests}/${base.minRequests} olgun istek)` : ''}`
                 : `${base ? `${base.accepted}/${base.requests} · ` : ''}%${ACCEPT_RATE_FLOOR_PCT} altı → oto-duraklama`}
@@ -476,7 +476,7 @@ export default function AdminLinkedinPage() {
               {!enabled ? <Pause className="h-4 w-4" /> : paused ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
               {!enabled ? 'Gönderim kapalı' : paused ? 'Duraklatıldı' : 'Çalışıyor'}
             </div>
-            <div className="text-[11px] text-muted-foreground mt-1 line-clamp-2" title={overview?.pauseReason ?? ''}>
+            <div className="text-xs text-muted-foreground mt-1 line-clamp-2" title={overview?.pauseReason ?? ''}>
               {!enabled
                 ? 'aşağıdaki düğmeyle açabilirsin'
                 : paused
@@ -756,7 +756,7 @@ function Counter({ label, value, limit }: { label: string; value: number; limit?
           {limit !== undefined && <span className="text-base font-normal text-muted-foreground">/{limit}</span>}
         </div>
         {limit !== undefined && (
-          <div className="text-[11px] text-muted-foreground mt-1">{dolu ? 'limit doldu' : `${limit - value} kaldı`}</div>
+          <div className="text-xs text-muted-foreground mt-1">{dolu ? 'limit doldu' : `${limit - value} kaldı`}</div>
         )}
       </CardContent>
     </Card>
@@ -806,7 +806,7 @@ function TakipCard({ overview, onDone, disabled }: { overview?: LinkedinOverview
                 profil <ExternalLink className="h-3 w-3" />
               </a>
               {k.hatirlatmaAt && (
-                <span className="text-[11px] text-muted-foreground">hatırlatma: {fmtDate(k.hatirlatmaAt)}</span>
+                <span className="text-xs text-muted-foreground">hatırlatma: {fmtDate(k.hatirlatmaAt)}</span>
               )}
               <select
                 value={k.satisAsamasi ?? 'YOK'}
@@ -922,7 +922,7 @@ function AyarCard({ overview, onDone, disabled }: { overview?: LinkedinOverview;
               );
             })}
           </div>
-          <div className="text-[11px] text-muted-foreground">
+          <div className="text-xs text-muted-foreground">
             {MODLAR.find((m) => m.key === (taslakMod ?? overview?.mod ?? 'baglanti'))?.aciklama}
             {typeof overview?.inmailKredi === 'number' && (
               <> · Kalan InMail kredisi: <span className="font-medium text-foreground">{overview.inmailKredi}</span></>
@@ -966,7 +966,7 @@ function AyarCard({ overview, onDone, disabled }: { overview?: LinkedinOverview;
                       const yeni = secili ? aktifGunler.filter((d) => d !== i) : [...aktifGunler, i].sort();
                       setGunler(yeni.length ? yeni : aktifGunler);
                     }}
-                    className={cn('px-2 py-1 rounded border text-[11px] transition-colors', secili ? 'bg-brand-500 text-white border-brand-500' : 'hover:bg-muted')}
+                    className={cn('px-2 py-1 rounded border text-xs transition-colors', secili ? 'bg-brand-500 text-white border-brand-500' : 'hover:bg-muted')}
                   >
                     {ad}
                   </button>
@@ -974,7 +974,7 @@ function AyarCard({ overview, onDone, disabled }: { overview?: LinkedinOverview;
               })}
             </div>
           </div>
-          <div className="text-[11px] text-muted-foreground">
+          <div className="text-xs text-muted-foreground">
             Bot yalnız seçili gün ve saatlerde bağlantı isteği/mesaj gönderir; tarama (arama linki) bu pencereye bakmaz.
           </div>
         </div>
@@ -995,9 +995,9 @@ function AyarCard({ overview, onDone, disabled }: { overview?: LinkedinOverview;
                     onChange={(e) => setDeger(a.key, Number(e.target.value))}
                     className="h-8 w-20 rounded-md border bg-background px-2 text-xs tabular-nums"
                   />
-                  {t ? <span className="text-[11px] text-muted-foreground">{t.min}–{t.max} arası</span> : null}
+                  {t ? <span className="text-xs text-muted-foreground">{t.min}–{t.max} arası</span> : null}
                 </div>
-                <div className="text-[11px] text-muted-foreground">{a.ipucu}</div>
+                <div className="text-xs text-muted-foreground">{a.ipucu}</div>
               </label>
             );
           })}
@@ -1081,17 +1081,17 @@ function SablonCard({ sablonlar }: { sablonlar?: LinkedinOverview['sablonlar'] }
               <div className="px-3 py-2 border-b bg-muted/40 flex items-center justify-between gap-2">
                 <div className="text-xs font-medium">1. Bağlantı isteği notu</div>
                 <div className="flex items-center gap-2">
-                  <span className={cn('text-[11px] tabular-nums', aktif.notUzunluk > aktif.notSinir ? 'text-rose-600' : 'text-muted-foreground')}>
+                  <span className={cn('text-xs tabular-nums', aktif.notUzunluk > aktif.notSinir ? 'text-rose-600' : 'text-muted-foreground')}>
                     {aktif.notUzunluk}/{aktif.notSinir}
                   </span>
-                  <button type="button" onClick={() => kopyala(aktif.not, 'not')} className="text-[11px] text-brand-600 hover:underline">
+                  <button type="button" onClick={() => kopyala(aktif.not, 'not')} className="text-xs text-brand-600 hover:underline">
                     {kopyalanan === 'not' ? 'kopyalandı' : 'kopyala'}
                   </button>
                 </div>
               </div>
               <div className="p-3">
                 <div className="flex gap-2">
-                  <div className="h-7 w-7 rounded-full bg-brand-500/15 text-brand-600 grid place-items-center text-[11px] font-semibold shrink-0">RU</div>
+                  <div className="h-7 w-7 rounded-full bg-brand-500/15 text-brand-600 grid place-items-center text-xs font-semibold shrink-0">RU</div>
                   <div className="rounded-2xl rounded-tl-sm bg-background border px-3 py-2 text-xs leading-relaxed whitespace-pre-wrap">
                     {vurgula(aktif.not, aktif.ornek)}
                   </div>
@@ -1103,13 +1103,13 @@ function SablonCard({ sablonlar }: { sablonlar?: LinkedinOverview['sablonlar'] }
             <div className="rounded-lg border bg-muted/20 overflow-hidden">
               <div className="px-3 py-2 border-b bg-muted/40 flex items-center justify-between gap-2">
                 <div className="text-xs font-medium">2. Kabul edince gönderilen mesaj</div>
-                <button type="button" onClick={() => kopyala(aktif.mesaj, 'mesaj')} className="text-[11px] text-brand-600 hover:underline">
+                <button type="button" onClick={() => kopyala(aktif.mesaj, 'mesaj')} className="text-xs text-brand-600 hover:underline">
                   {kopyalanan === 'mesaj' ? 'kopyalandı' : 'kopyala'}
                 </button>
               </div>
               <div className="p-3">
                 <div className="flex gap-2">
-                  <div className="h-7 w-7 rounded-full bg-brand-500/15 text-brand-600 grid place-items-center text-[11px] font-semibold shrink-0">RU</div>
+                  <div className="h-7 w-7 rounded-full bg-brand-500/15 text-brand-600 grid place-items-center text-xs font-semibold shrink-0">RU</div>
                   <div className="rounded-2xl rounded-tl-sm bg-background border px-3 py-2 text-xs leading-relaxed whitespace-pre-wrap">
                     {vurgula(aktif.mesaj, aktif.ornek)}
                   </div>
@@ -1119,7 +1119,7 @@ function SablonCard({ sablonlar }: { sablonlar?: LinkedinOverview['sablonlar'] }
           </div>
         )}
 
-        <div className="text-[11px] text-muted-foreground">
+        <div className="text-xs text-muted-foreground">
           Her kişiye kendi adı ve firması yazılır (yukarıdaki turuncu kısımlar). Metinler{' '}
           <span className="font-mono">apps/api/src/intel/linkedin-outreach-rules.ts</span> içinde; değiştirmek istersen söyle.
           Üçü de kimlik açıklar ve &quot;istemezseniz bir daha yazmayacağım&quot; ile biter (6563 md. 8/3 ret hakkı).

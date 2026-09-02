@@ -392,7 +392,7 @@ function ClaimsTab({ onChange }: { onChange: () => void }) {
                             key={s}
                             onClick={() => setAction(c.id, s)}
                             className={cn(
-                              'px-2 py-1 rounded text-[11px] border transition-colors',
+                              'px-2 py-1 rounded text-xs border transition-colors',
                               c.actionStatus === s ? 'bg-primary text-primary-foreground border-primary' : 'hover:bg-muted',
                             )}
                           >
@@ -487,7 +487,7 @@ function ToActionForm({ claim, onDone }: { claim: any; onDone: () => void }) {
               <button
                 key={v}
                 onClick={() => setImpact(v)}
-                className={cn('px-2 py-0.5 rounded text-[11px] border', impact === v ? 'bg-primary text-primary-foreground border-primary' : 'hover:bg-muted')}
+                className={cn('px-2 py-0.5 rounded text-xs border', impact === v ? 'bg-primary text-primary-foreground border-primary' : 'hover:bg-muted')}
               >
                 {v === 'high' ? 'Yüksek' : v === 'medium' ? 'Orta' : 'Düşük'}
               </button>
@@ -603,7 +603,7 @@ function SourcesTab({ sources, disabled, onChange }: { sources: any[]; disabled:
                 <tr key={s.id} className={cn('border-b last:border-0', !s.enabled && 'opacity-55')}>
                   <td className="px-3 py-2 max-w-md">
                     <div className="font-medium">{s.name}</div>
-                    <div className="text-[11px] text-muted-foreground font-mono">{s.key}</div>
+                    <div className="text-xs text-muted-foreground font-mono">{s.key}</div>
 
                     {duzenlenen === s.id ? (
                       <div className="mt-1.5 space-y-1.5">
@@ -611,27 +611,27 @@ function SourcesTab({ sources, disabled, onChange }: { sources: any[]; disabled:
                           value={taslak}
                           onChange={(e) => setTaslak(e.target.value)}
                           rows={3}
-                          className="w-full text-[11px] font-mono rounded border bg-background p-1.5 leading-relaxed"
+                          className="w-full text-xs font-mono rounded border bg-background p-1.5 leading-relaxed"
                           placeholder="Boş bırakılırsa katalogdaki sorguya dönülür"
                         />
                         <div className="flex items-center gap-1.5">
                           <button
                             onClick={() => sorguKaydet(s.id)}
                             disabled={busy === s.id}
-                            className="px-2 py-0.5 rounded text-[11px] bg-primary text-primary-foreground disabled:opacity-50"
+                            className="px-2 py-0.5 rounded text-xs bg-primary text-primary-foreground disabled:opacity-50"
                           >
                             Kaydet
                           </button>
                           <button
                             onClick={() => setDuzenlenen(null)}
-                            className="px-2 py-0.5 rounded text-[11px] border"
+                            className="px-2 py-0.5 rounded text-xs border"
                           >
                             Vazgeç
                           </button>
                           {s.targetOverride && (
                             <button
                               onClick={() => { setTaslak(''); sorguKaydet(s.id); }}
-                              className="px-2 py-0.5 rounded text-[11px] text-muted-foreground hover:text-foreground"
+                              className="px-2 py-0.5 rounded text-xs text-muted-foreground hover:text-foreground"
                             >
                               varsayılana dön
                             </button>
@@ -641,7 +641,7 @@ function SourcesTab({ sources, disabled, onChange }: { sources: any[]; disabled:
                     ) : (
                       <button
                         onClick={() => { setDuzenlenen(s.id); setTaslak(s.targetOverride ?? s.target ?? ''); }}
-                        className="mt-1 block text-left text-[11px] font-mono text-muted-foreground hover:text-foreground transition-colors break-words"
+                        className="mt-1 block text-left text-xs font-mono text-muted-foreground hover:text-foreground transition-colors break-words"
                         title="Düzenlemek için tıkla"
                       >
                         {s.targetOverride && (
@@ -816,12 +816,12 @@ function FeedTab() {
                     ))}
                   </div>
                   {it.triageNote && (
-                    <div className="text-[11px] text-muted-foreground mt-1 italic">{it.triageNote}</div>
+                    <div className="text-xs text-muted-foreground mt-1 italic">{it.triageNote}</div>
                   )}
 
                   <button
                     onClick={() => satirAc(it.id)}
-                    className="text-[11px] text-muted-foreground hover:text-foreground mt-1.5 inline-flex items-center gap-1 transition-colors"
+                    className="text-xs text-muted-foreground hover:text-foreground mt-1.5 inline-flex items-center gap-1 transition-colors"
                   >
                     {acikId === it.id ? '▾ okunan metni gizle' : '▸ okunan metni göster'}
                   </button>
@@ -870,7 +870,7 @@ function FeedTab() {
                             {Array.isArray(m.repoUrls) && m.repoUrls.length > 0 && (
                               <div className="border-t pt-2 space-y-1">
                                 {m.repoUrls.map((u: string) => (
-                                  <a key={u} href={u} target="_blank" rel="noreferrer" className="block text-[11px] hover:underline">
+                                  <a key={u} href={u} target="_blank" rel="noreferrer" className="block text-xs hover:underline">
                                     {u}
                                   </a>
                                 ))}

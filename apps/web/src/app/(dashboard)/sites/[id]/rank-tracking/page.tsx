@@ -434,14 +434,15 @@ export default function RankTrackingPage() {
 }
 
 function KpiCard({ label, value, icon, accent }: { label: string; value: string; icon: React.ReactNode; accent?: string }) {
+  // Tipografi sozlesmesi: text-metric-lg deger + text-label etiket (dense kart, 16px pad)
   return (
-    <Card>
-      <CardContent className="p-4">
+    <Card density="dense">
+      <CardContent className="pt-4">
         <div className="flex items-center justify-between mb-1.5">
-          <span className="text-xs text-muted-foreground">{label}</span>
+          <span className="text-label text-muted-foreground">{label}</span>
           <span className={accent ?? 'text-muted-foreground'}>{icon}</span>
         </div>
-        <div className={`text-2xl font-bold tabular-nums ${accent ?? ''}`}>{value}</div>
+        <div className={`text-metric-lg tabular-nums ${accent ?? ''}`}>{value}</div>
       </CardContent>
     </Card>
   );

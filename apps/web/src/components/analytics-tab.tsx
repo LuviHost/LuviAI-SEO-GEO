@@ -1,7 +1,9 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
+import { ChartContainer, ChartTooltip, CHART_AXIS, CHART_GRID } from '@/components/ui/chart-container';
+import { CHART } from '@/lib/chart-colors';
 import { TrendingUp, Lightbulb, BarChart3, MousePointerClick, Eye, Activity, Target as TargetIcon, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
@@ -151,26 +153,19 @@ export function AnalyticsTab({ siteId, site }: { siteId: string; site?: any }) {
           </Button>
         </CardHeader>
         <CardContent>
-          <div className="h-64">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={overview.timeSeries}>
-                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-                <YAxis yAxisId="left" tick={{ fontSize: 11 }} />
-                <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11 }} />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: 'hsl(var(--card))',
-                    border: '1px solid hsl(var(--border))',
-                    borderRadius: 8,
-                  }}
-                />
-                <Legend />
-                <Line yAxisId="left" type="monotone" dataKey="clicks" stroke="#6c5ce7" strokeWidth={2} name="Tıklama" />
-                <Line yAxisId="right" type="monotone" dataKey="impressions" stroke="#a29bfe" strokeWidth={2} name="Gösterim" />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
+          {/* Mor #6c5ce7/#a29bfe (reddedilen marka denemesi kalintisi) -> chart token'lari */}
+          <ChartContainer height={256}>
+            <LineChart data={overview.timeSeries}>
+              <CartesianGrid {...CHART_GRID} strokeDasharray="3 3" />
+              <XAxis dataKey="date" {...CHART_AXIS} />
+              <YAxis yAxisId="left" {...CHART_AXIS} width={44} />
+              <YAxis yAxisId="right" orientation="right" {...CHART_AXIS} width={52} />
+              <Tooltip content={<ChartTooltip />} />
+              <Legend />
+              <Line yAxisId="left" type="monotone" dataKey="clicks" stroke={CHART[1]} strokeWidth={2} dot={false} name="Tıklama" />
+              <Line yAxisId="right" type="monotone" dataKey="impressions" stroke={CHART[8]} strokeWidth={2} dot={false} name="Gösterim" />
+            </LineChart>
+          </ChartContainer>
         </CardContent>
       </Card>
 
@@ -310,14 +305,16 @@ export function AnalyticsTab({ siteId, site }: { siteId: string; site?: any }) {
 }
 
 function MetricCard({ icon, label, value }: { icon?: React.ReactNode; label: string; value: string }) {
+  // Deger onceden bicimlenmis string geldigi icin ui/metric yerine ince sarmalayici;
+  // tipografi sozlesmesi ayni: text-metric-lg + text-label.
   return (
-    <Card>
-      <CardContent className="p-4">
-        <div className="flex items-center gap-2 text-xs text-muted-foreground mb-1">
+    <Card density="dense">
+      <CardContent className="pt-4">
+        <div className="flex items-center gap-2 text-label text-muted-foreground mb-1">
           {icon}
           {label}
         </div>
-        <div className="text-2xl font-bold">{value}</div>
+        <div className="text-metric-lg tabular-nums">{value}</div>
       </CardContent>
     </Card>
   );

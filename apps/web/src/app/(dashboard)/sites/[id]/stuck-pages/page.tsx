@@ -502,7 +502,7 @@ export default function StuckPagesPage() {
         </div>
         <div className="flex-1">
           <div className="flex items-center gap-2">
-            <h2 className="text-2xl font-bold">Stuck Pages</h2>
+            <h2 className="text-h6 font-semibold tracking-tight">Stuck Pages</h2>
             <InfoTooltip text="Google'da ilk sayfada (pozisyon 4-15) ama top 3'te değil olan sayfaların listesi. Yeniden tarama her hafta otomatik (Pazartesi 06:00 UTC) yapılır; manuel tetiklemek için sağ üstte 'Yeniden Tara'." />
           </div>
           <p className="text-sm text-muted-foreground">
@@ -722,7 +722,7 @@ function KpiCard({
           </span>
         )}
       </div>
-      <div className={cn('text-xl font-bold', colorMap[accent])}>{value}</div>
+      <div className={cn('text-metric-lg tabular-nums', colorMap[accent])}>{value}</div>
     </button>
   );
 }
