@@ -21,7 +21,6 @@ import { RanksUpImpactCard } from '@/components/ranksup-impact-card';
 import { GeoLabPanel } from '@/components/geo-lab-panel';
 import { TestimonialWidget } from '@/components/testimonial-widget';
 import { QuotaMonitor } from '@/components/quota-monitor';
-import { GeoScoreCard } from '@/components/geo-score-card';
 import { CrawlerHitsPanel } from '@/components/crawler-hits-panel';
 import { AdsLabPanel } from '@/components/ads-lab-panel';
 import { AiKpiStrip } from '@/components/ai-kpi-strip';
@@ -90,7 +89,7 @@ export function SiteOverviewDashboard({
 
       {/* Sirada Yayinlanacaklar */}
       {nextScheduled.length > 0 && (
-        <Card className="rounded-2xl shadow-sm">
+        <Card className="rounded-lg shadow-sm">
           <CardContent className="p-5">
             <div className="flex items-center justify-between mb-3.5">
               <p className="text-sm font-semibold inline-flex items-center gap-2">
@@ -136,7 +135,7 @@ export function SiteOverviewDashboard({
 
       {/* Quick links to deep-dive panels — GeoLab, Ads, Report (artık ayrı route'larda) */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <Link href={`/sites/${site.id}/geo-lab`} className="group rounded-2xl border bg-card p-4 hover:border-brand-500/40 hover:shadow-lg hover:shadow-brand-500/5 hover:-translate-y-0.5 transition-all">
+        <Link href={`/sites/${site.id}/geo-lab`} className="group rounded-lg border bg-card p-4 hover:border-brand-500/40 hover:shadow-lg hover:shadow-brand-500/5 hover:-translate-y-0.5 transition-all">
           <div className="flex items-center justify-between mb-2.5">
             <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-amber-500/15 to-amber-600/10 text-amber-600 dark:text-amber-400 grid place-items-center ring-1 ring-amber-500/20">
               <Sparkles className="h-4 w-4" />
@@ -146,7 +145,7 @@ export function SiteOverviewDashboard({
           <p className="text-sm font-semibold mb-0.5">GEO Lab</p>
           <p className="text-xs text-muted-foreground">6 pillar AI search optimizasyonu — heatmap, Wikidata, training.</p>
         </Link>
-        <Link href={`/sites/${site.id}/ads`} className="group rounded-2xl border bg-card p-4 hover:border-brand-500/40 hover:shadow-lg hover:shadow-brand-500/5 hover:-translate-y-0.5 transition-all">
+        <Link href={`/sites/${site.id}/ads`} className="group rounded-lg border bg-card p-4 hover:border-brand-500/40 hover:shadow-lg hover:shadow-brand-500/5 hover:-translate-y-0.5 transition-all">
           <div className="flex items-center justify-between mb-2.5">
             <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-brand-500/15 to-brand-600/10 text-brand-600 dark:text-brand-400 grid place-items-center ring-1 ring-brand-500/20">
               <TrendingUp className="h-4 w-4" />
@@ -156,7 +155,7 @@ export function SiteOverviewDashboard({
           <p className="text-sm font-semibold mb-0.5">Reklam Autopilot</p>
           <p className="text-xs text-muted-foreground">Google + Meta ads ROAS optimize — 6 saatte bir bütçe ayarı.</p>
         </Link>
-        <Link href={`/sites/${site.id}/report`} className="group rounded-2xl border bg-card p-4 hover:border-brand-500/40 hover:shadow-lg hover:shadow-brand-500/5 hover:-translate-y-0.5 transition-all">
+        <Link href={`/sites/${site.id}/report`} className="group rounded-lg border bg-card p-4 hover:border-brand-500/40 hover:shadow-lg hover:shadow-brand-500/5 hover:-translate-y-0.5 transition-all">
           <div className="flex items-center justify-between mb-2.5">
             <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-indigo-500/15 to-indigo-600/10 text-indigo-600 dark:text-indigo-400 grid place-items-center ring-1 ring-indigo-500/20">
               <FileBarChart className="h-4 w-4" />
@@ -172,7 +171,7 @@ export function SiteOverviewDashboard({
 
       {/* Generating / Ready bandi */}
       {(generating.length > 0 || ready.length > 0) && (
-        <Card className="rounded-2xl shadow-sm">
+        <Card className="rounded-lg shadow-sm">
           <CardContent className="p-4 space-y-2.5">
             {generating.length > 0 && (
               <div className="flex items-center justify-between flex-wrap gap-2">
@@ -209,33 +208,6 @@ export function SiteOverviewDashboard({
   );
 }
 
-function ScoreCard({
-  icon, label, value, subtext, color,
-}: {
-  icon: React.ReactNode;
-  label: React.ReactNode;
-  value: string;
-  subtext: string;
-  color: 'green' | 'yellow' | 'red' | 'brand' | 'muted';
-}) {
-  const colorMap: Record<string, string> = {
-    green: 'text-green-500',
-    yellow: 'text-yellow-500',
-    red: 'text-red-500',
-    brand: 'text-brand',
-    muted: 'text-muted-foreground',
-  };
-  return (
-    <div className="rounded-2xl border bg-card p-4 hover:border-brand-500/40 hover:shadow-md transition-all">
-      <div className={`flex items-center gap-2 text-xs font-medium ${colorMap[color]}`}>
-        {icon}
-        <span className="uppercase tracking-wide">{label}</span>
-      </div>
-      <div className={`text-3xl font-bold mt-2 ${colorMap[color]}`}>{value}</div>
-      <p className="text-[11px] text-muted-foreground mt-1 leading-snug">{subtext}</p>
-    </div>
-  );
-}
 
 function QuickLink({ href, icon, label }: { href: string; icon: React.ReactNode; label: string }) {
   return (
@@ -458,7 +430,7 @@ function NextActionWidget({ site, audit, articles, publishTargets, onRefresh }: 
   const rest = visible.slice(1);
 
   return (
-    <div className="rounded-2xl border border-brand-500/40 bg-gradient-to-br from-brand-500/[0.07] via-amber-500/[0.04] to-brand-500/[0.06] p-5 shadow-[0_8px_30px_-12px_rgba(249,115,22,0.25)]">
+    <div className="rounded-lg border border-brand-500/40 bg-gradient-to-br from-brand-500/[0.07] via-amber-500/[0.04] to-brand-500/[0.06] p-5 shadow-[0_8px_30px_-12px_rgba(249,115,22,0.25)]">
       <div className="flex items-center gap-2 mb-4">
         <span className="inline-flex items-center justify-center h-8 w-8 rounded-xl bg-gradient-to-br from-brand-500 to-brand-600 text-white shadow-sm shadow-brand-500/20">
           <Sparkles className="h-4 w-4" />
@@ -649,7 +621,7 @@ function AuditSummaryInline({ site, audit }: { site: any; audit: any }) {
             </div>
           </div>
           <div className="flex items-center gap-4 text-xs font-mono">
-            <span className={cn('text-2xl font-bold', scoreColor)}>{overallScore ?? '—'}</span>
+            <span className={cn('text-metric-lg tabular-nums', scoreColor)}>{overallScore ?? '—'}</span>
             <div className="flex items-center gap-3">
               <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
                 <CheckCircle2 className="h-3.5 w-3.5" /> {passing}
@@ -874,7 +846,7 @@ function StuckPagesKpiCard({ siteId }: { siteId: string }) {
   if (count === null || count === 0) return null;
 
   return (
-    <Card className="rounded-2xl shadow-sm border-amber-500/40 bg-amber-500/5">
+    <Card className="rounded-lg shadow-sm border-amber-500/40 bg-amber-500/5">
       <CardContent className="p-5">
         <div className="flex items-center gap-4">
           <div className="h-11 w-11 rounded-xl bg-amber-500/15 text-amber-600 grid place-items-center shrink-0">

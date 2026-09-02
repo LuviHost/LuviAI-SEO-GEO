@@ -8,6 +8,10 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { BeforeAfterCard } from '@/components/before-after-card';
 import { PROVIDER_COLORS, PROVIDER_LABELS, PROVIDER_FALLBACK } from '@/lib/chart-colors';
+import { CHART } from '@/lib/chart-colors';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
+import { ChartContainer, ChartTooltip, CHART_AXIS, CHART_GRID } from '@/components/ui/chart-container';
+import { FilterChip } from '@/components/ui/filter-chip';
 
 
 
@@ -170,14 +174,12 @@ export function CitationHistoryChart({
     }
   }
 
-  const chartW = 720;
-  const chartH = 200;
-  const pad = { top: 16, right: 12, bottom: 24, left: 32 };
-  const innerW = chartW - pad.left - pad.right;
-  const innerH = chartH - pad.top - pad.bottom;
-
-  const xStep = sortedDates.length > 1 ? innerW / (sortedDates.length - 1) : innerW;
-  const y = (score: number) => innerH - (score / 100) * innerH;
+  // recharts veri formati: [{date, anthropic: 80, gemini: 40, ...}] — null'lar atlanir
+  const chartData = sortedDates.map((d) => {
+    const row: Record<string, string | number | null> = { date: d.slice(5) };
+    for (const pr of providers) row[pr] = scoreMap[pr][d] ?? null;
+    return row;
+  });
 
   return (
     <Card>
@@ -195,17 +197,11 @@ export function CitationHistoryChart({
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <div className="inline-flex border rounded-md overflow-hidden">
+            <div className="inline-flex gap-1">
               {[7, 30, 90, 365].map((d) => (
-                <button
-                  key={d}
-                  onClick={() => setDays(d)}
-                  className={`px-2.5 py-1 text-xs font-medium ${
-                    days === d ? 'bg-brand text-white' : 'bg-card text-muted-foreground hover:bg-muted'
-                  }`}
-                >
+                <FilterChip key={d} selected={days === d} onClick={() => setDays(d)}>
                   {d}g
-                </button>
+                </FilterChip>
               ))}
             </div>
             <Button size="sm" variant="outline" onClick={triggerSnapshot} disabled={running}>
@@ -334,70 +330,29 @@ export function CitationHistoryChart({
               })}
             </div>
 
-            {/* Line chart */}
-            <div className="overflow-x-auto">
-              <svg width={chartW} height={chartH} className="text-muted-foreground">
-                {/* Grid */}
-                {[0, 25, 50, 75, 100].map((g) => (
-                  <g key={g}>
-                    <line
-                      x1={pad.left} y1={pad.top + y(g)}
-                      x2={pad.left + innerW} y2={pad.top + y(g)}
-                      stroke="currentColor" strokeOpacity={0.1} strokeDasharray="2 4"
-                    />
-                    <text x={pad.left - 6} y={pad.top + y(g) + 3} textAnchor="end" fontSize={10} fill="currentColor">
-                      {g}
-                    </text>
-                  </g>
+            {/* Trend grafigi — recharts: responsive (eski sabit 720px SVG yerine), tooltip'li */}
+            <ChartContainer height={220}>
+              <LineChart data={chartData} margin={{ top: 8, right: 8, bottom: 0, left: -18 }}>
+                <CartesianGrid {...CHART_GRID} strokeDasharray="2 4" />
+                <XAxis dataKey="date" {...CHART_AXIS} interval="preserveStartEnd" minTickGap={28} />
+                <YAxis domain={[0, 100]} ticks={[0, 25, 50, 75, 100]} {...CHART_AXIS} width={38} />
+                <Tooltip content={<ChartTooltip />} />
+                {providers.map((p) => (
+                  <Line
+                    key={p}
+                    type="monotone"
+                    dataKey={p}
+                    name={PROVIDER_LABELS[p] ?? p}
+                    stroke={PROVIDER_COLORS[p] ?? PROVIDER_FALLBACK}
+                    strokeWidth={2}
+                    dot={{ r: 2.5, strokeWidth: 0, fill: PROVIDER_COLORS[p] ?? PROVIDER_FALLBACK }}
+                    activeDot={{ r: 4 }}
+                    connectNulls
+                    isAnimationActive={false}
+                  />
                 ))}
-
-                {/* Lines per provider */}
-                {providers.map((p) => {
-                  const color = PROVIDER_COLORS[p] ?? PROVIDER_FALLBACK;
-                  const points = sortedDates
-                    .map((d, i) => {
-                      const s = scoreMap[p][d];
-                      if (s === null || s === undefined) return null;
-                      return `${pad.left + i * xStep},${pad.top + y(s)}`;
-                    })
-                    .filter(Boolean) as string[];
-                  if (points.length === 0) return null;
-                  return (
-                    <g key={p}>
-                      <polyline
-                        points={points.join(' ')}
-                        fill="none"
-                        stroke={color}
-                        strokeWidth={2}
-                        strokeLinejoin="round"
-                        strokeLinecap="round"
-                      />
-                      {points.map((pt, idx) => {
-                        const [x, py] = pt.split(',').map(Number);
-                        return <circle key={idx} cx={x} cy={py} r={3} fill={color} />;
-                      })}
-                    </g>
-                  );
-                })}
-
-                {/* X axis dates (her 5 noktada bir label) */}
-                {sortedDates.map((d, i) => {
-                  if (i % Math.max(1, Math.floor(sortedDates.length / 6)) !== 0) return null;
-                  return (
-                    <text
-                      key={d}
-                      x={pad.left + i * xStep}
-                      y={chartH - 6}
-                      textAnchor="middle"
-                      fontSize={9}
-                      fill="currentColor"
-                    >
-                      {d.slice(5)}
-                    </text>
-                  );
-                })}
-              </svg>
-            </div>
+              </LineChart>
+            </ChartContainer>
 
             {/* Test geçmişi — her koşum kalıcı; iki koşumu karşılaştır */}
             {runs.length > 0 && (
@@ -521,7 +476,7 @@ export function CitationHistoryChart({
                                   <div className="flex flex-wrap gap-x-2 gap-y-0.5 mt-1">
                                     {r.shareOfVoice.slice(0, 4).map((sov: any, i: number) => (
                                       <span key={i} className={`text-[9px] ${sov.isBrand ? 'text-brand-600 dark:text-brand-400 font-bold' : 'text-muted-foreground'}`}>
-                                        <span className="inline-block w-1.5 h-1.5 rounded-full mr-0.5 align-middle" style={{ backgroundColor: sov.isBrand ? '#f97316' : '#94a3b8' }} />
+                                        <span className="inline-block w-1.5 h-1.5 rounded-full mr-0.5 align-middle" style={{ backgroundColor: sov.isBrand ? CHART[1] : CHART[8] }} />
                                         {sov.name} %{sov.pct}
                                       </span>
                                     ))}

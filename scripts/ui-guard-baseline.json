@@ -1,6 +1,6 @@
 {
-  "arbitraryTextPx": 670,
-  "hexInTsx": 465,
+  "arbitraryTextPx": 669,
+  "hexInTsx": 463,
   "animejsAllowed": [
     "apps/web/src/app/(dashboard)/affiliate/page.tsx",
     "apps/web/src/app/(dashboard)/billing/page.tsx",

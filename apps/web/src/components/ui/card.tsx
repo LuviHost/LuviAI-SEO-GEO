@@ -2,35 +2,39 @@ import * as React from 'react';
 import { cn } from '@/lib/utils';
 
 /**
- * Kart — token refactor (02.09.2026): slate sabitleri yerine bg-card/border-border,
+ * Kart — token refactor (02.09.2026): slate yerine bg-card/border-border,
  * 14px yaricap (rounded-lg = var(--radius)), shadow-apple-sm.
+ *
  * `density`: default p-6, dense p-4 (16px — analitik grid sozlesmesi).
- * Header/Content/Footer pad'i Card'daki density'den kalitsal alir.
+ * NEDEN data-attribute + group (Context DEGIL): Card server bilesenlerinden de
+ * import ediliyor (orn. admin-unlock/page.tsx). React.createContext server
+ * bileseninde build'i dusurur ("Failed to collect page data" — 02.09 prod
+ * deploy'unda yakalandi). data-density + group-data varyanti runtime'siz cozer.
  */
-
-type Density = 'default' | 'dense';
-const DensityContext = React.createContext<Density>('default');
-const PAD: Record<Density, string> = { default: 'p-6', dense: 'p-4' };
 
 const Card = React.forwardRef<
   HTMLDivElement,
-  React.HTMLAttributes<HTMLDivElement> & { density?: Density }
+  React.HTMLAttributes<HTMLDivElement> & { density?: 'default' | 'dense' }
 >(({ className, density = 'default', ...props }, ref) => (
-  <DensityContext.Provider value={density}>
-    <div
-      ref={ref}
-      className={cn('rounded-lg border border-border bg-card text-card-foreground shadow-apple-sm', className)}
-      {...props}
-    />
-  </DensityContext.Provider>
+  <div
+    ref={ref}
+    data-density={density}
+    className={cn(
+      'group/card rounded-lg border border-border bg-card text-card-foreground shadow-apple-sm',
+      className,
+    )}
+    {...props}
+  />
 ));
 Card.displayName = 'Card';
 
+/** Card'in data-density'sine gore pad: default 24px, dense 16px */
+const PAD = 'p-6 group-data-[density=dense]/card:p-4';
+
 const CardHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
-  ({ className, ...props }, ref) => {
-    const d = React.useContext(DensityContext);
-    return <div ref={ref} className={cn('flex flex-col space-y-1.5', PAD[d], className)} {...props} />;
-  },
+  ({ className, ...props }, ref) => (
+    <div ref={ref} className={cn('flex flex-col space-y-1.5', PAD, className)} {...props} />
+  ),
 );
 CardHeader.displayName = 'CardHeader';
 
@@ -49,18 +53,16 @@ const CardDescription = React.forwardRef<HTMLParagraphElement, React.HTMLAttribu
 CardDescription.displayName = 'CardDescription';
 
 const CardContent = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
-  ({ className, ...props }, ref) => {
-    const d = React.useContext(DensityContext);
-    return <div ref={ref} className={cn(PAD[d], 'pt-0', className)} {...props} />;
-  },
+  ({ className, ...props }, ref) => (
+    <div ref={ref} className={cn(PAD, 'pt-0', className)} {...props} />
+  ),
 );
 CardContent.displayName = 'CardContent';
 
 const CardFooter = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
-  ({ className, ...props }, ref) => {
-    const d = React.useContext(DensityContext);
-    return <div ref={ref} className={cn('flex items-center', PAD[d], 'pt-0', className)} {...props} />;
-  },
+  ({ className, ...props }, ref) => (
+    <div ref={ref} className={cn('flex items-center', PAD, 'pt-0', className)} {...props} />
+  ),
 );
 CardFooter.displayName = 'CardFooter';
 
