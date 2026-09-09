@@ -4,10 +4,16 @@ Hedef: büyük kurumlarda **pazarlama tarafındaki karar verici** (CMO / Pazarla
 Dijital Pazarlama Müdürü, Marka ve İletişim Müdürü, Dijital Kanallar, Büyüme). IT / uyum /
 hukuk tarafına ilk mesaj **atılmaz** — orada "yeni tedarikçi" sürecine girer, aylarca bekler.
 
-Kurgu: **sektör araştırması daveti**. Ön ölçüm yapılmadı; bu yüzden "ölçtük" DENMEZ.
-"Kurumunuzu araştırma kapsamına almak istiyoruz; 'evet' derseniz 2 iş günü içinde karnenizi
-çıkarıp yalnız size iletiyoruz." Karne birebir ve gizli; kamuya yalnız toplu istatistik.
-Karne üretimi: `apps/api/scripts/prospect-karne.ts` (bkz. `prospect/OKUBENI.md`).
+Kurgu: **kurucudan kısa bir gözlem + ücretsiz ölçüm teklifi.** Ön ölçüm yapılmadı; bu yüzden
+"sizi ölçtük" DENMEZ — "ölçüyoruz" (genel yetkinlik) denir. Çağrı, metindeki "kısa bir görüşme"
+cümlesidir; alıcı doğrudan yanıt yazar. Sonuç birebir ve gizli ("sonucu yalnız sizinle
+paylaşıyoruz"). Rapor üretimi: `apps/api/src/cli/prospect-karne.ts` (bkz. `prospect/OKUBENI.md`).
+
+Ton (kurucunun LinkedIn mesajlarına verdiği geri bildirim): "çok hazır / bot gibi" metin
+**reddedildi**. İstenen: doğal, tek fikir, gözlem dili, yumuşak kapanış ("Uygun değilse de
+anlayışla karşılarım."). Ölçülmemiş sayı ("cevapta 3 isim geçiyor"), buton CTA ve "bu maile
+kısa bir yanıt yazın" tipi talimat **yok**; konu satırı ≤ 60 karakter, büyük harf/ünlem yok.
+Kaynaksız sayı YOK — "yedi AI asistanı" kodda doğrulanmış tek sayıdır.
 
 KOBİ hunisi (`mail-sablonlari.md`) ile **karıştırma**: oradaki "bankaları çıkar" kuralı o
 huniye özeldir; bu kampanya bankaları hedefler.
@@ -21,31 +27,38 @@ huniye özeldir; bu kampanya bankaları hedefler.
    yüklenir, **ret listesi** kontrol edilir. Ret → 3 iş günü içinde İYS'ye bildir ve dur.
 2. **KVKK:** isimli iş adresi kişisel veridir. Kurul 2022/861'de arama motorundan bulunan iş
    e-postasına pazarlama için 150.000 TL kesti. Bu yüzden: yalnız kurumsal alan adı, unvan
-   bazlı iş amacı, her mailde aydınlatma linki (`ranksup.ai/kvkk`), ilk itirazda sil, kişisel
-   adres (gmail vb.) asla. Risk sıfır değil — karar kurucunun.
-3. **Gönderim alanı `go.ranksup.ai`** (Resend işlemsel için `mail.ranksup.ai` ayrı kalır).
-   SPF + DKIM (Jetmail anahtarı) + DMARC `p=quarantine`. Test: mail-tester ≥ 9/10, Gmail +
-   Outlook + kurumsal M365 adresine deneme.
-4. **Isındırma:** gün 100 → 200 → 400. 6.000 ≈ 4 hafta. Salı-Perşembe 09:30-11:30.
+   bazlı iş amacı, her mailde aydınlatma linki (`ranksup.ai/kvkk#kurumsal-iletisim`), ilk
+   itirazda sil, kişisel adres (gmail vb.) asla. Risk sıfır değil — karar kurucunun.
+3. **Gönderim adresi `info@ranksup.ai`** (ana alan adı; karar: ayrı bir `go.` alt alanı
+   şimdilik YOK, ileride itibar ayrımı gerekirse açılır. Resend işlemsel için
+   `mail.ranksup.ai` ayrı kalır). Mailjet Send API v3.1 (`06-mailjet.ts`); SPF + DKIM
+   (Mailjet anahtarı) + DMARC durumu `--dns` ile bakılır. Test: mail-tester ≥ 9/10, Gmail +
+   Outlook + kurumsal M365 adresine deneme (`--test` GERÇEK mail atar; yalnız kendi adresine).
+4. **Isındırma:** gün 100 → 200 (script üst sınırı 200; 400 için GUNLUK_KOTA bilinçli yükseltilir). 6.000 ≈ 4 hafta. Salı-Perşembe 09:30-11:30.
    Bounce > %3 veya şikâyet > %0,2 → dalga durur, liste yeniden doğrulanır.
 5. **Yasak ifadeler:** SSO, SOC 2, ekip koltuğu (yok, vaat edilmez); tek kaynaklı sayılar
-   (%34,5 / 33× / %68,9); "40+ kurum ölçtük" tipi yer tutucular; BDDK/düzenleyici ilişkisi iması
-   ("bağımsız araştırma" denir); Kobipratik adı **yazılı onaysız** geçmez — geçerse ortak
-   kurucu ilişkisi de yazılır.
+   (%34,5 / 33× / %68,9); "40+ kurum ölçtük" tipi yer tutucular; "cevapta 3 isim / 2-3 marka
+   geçiyor" gibi ölçülmemiş sayılar (→ "birkaç kurum adı"); BDDK/düzenleyici ilişkisi
+   iması; Kobipratik adı **yazılı onaysız** geçmez — geçerse ortak kurucu ilişkisi de yazılır.
 6. Fiyat sorulursa tek kaynak `apps/api/src/billing/plans.ts` (Kurumsal: iletişime geçin;
    $1.499/ay, 50 site, API + MCP + BYOK, hesap yöneticisi + SLA). `docs/PRICING.md` bayat.
 
-Merge alanları (Jetmail): `{{ad}}` `{{soyad}}` `{{firma}}` `{{unvan}}` `{{sektor_sorusu}}`
-`{{unsubscribe}}`. Jetmail'in kendi söz dizimi farklıysa (`%ad%` gibi) panelden eşle.
+Merge alanları (script `{{x}}` → Mailjet `{{var:x}}` çevirir): `{{ad}}` `{{soyad}}` `{{firma}}`
+(kısa marka adı, ek almaz — cümle eksiz kurulur) `{{unvan}}` `{{sektor_sorusu}}` `{{gonderen_ad}}`
+`{{gonderen_unvan}}` `{{gonderen_adres}}` `{{mersis}}` `{{gonderen_eposta}}` `{{unsubscribe}}`
+(→ `[[UNSUB_LINK_EN]]` (Mailjet TR etiketi sunmuyorsa; panelden doğrula)) · HTML'de `{{var:varyant}}` (konu varyantı A/B, utm_campaign'e gömülü).
 
 ---
 
-## 1. Konu satırları (A/B — 2 varyant dönüşümlü, etiketle)
+## 1. Konu satırları (A/B — 2 varyant dönüşümlü, etiketle; ≤ 60 karakter, büyük harf/ünlem yok)
 
-- `{{firma}} — AI görünürlük karnesi (sektör araştırması)`
-- `ChatGPT "{{sektor_sorusu}}" dendiğinde {{firma}} geçiyor mu?`
-- `{{firma}} için 2 iş günlük bir soru`
-- `Müşteriniz artık Google'a değil ChatGPT'ye soruyor — {{firma}} nerede?`
+- A: `{{firma}} — AI asistanlarında görünürlük`
+- B: `ChatGPT {{firma}} hakkında ne söylüyor?`
+- Ön izleme (preheader, HTML'de): `İnsanlar "{{sektor_sorusu}}" sorusunu artık bir AI asistanına soruyor.`
+
+(Eski "…dendiğinde {{firma}} geçiyor mu?" kalıbı soru metniyle 60 karakteri aşıyordu;
+`06-mailjet.ts` içindeki `KONU` haritası bu iki satırla eşlenmeli. En uzun kısa ad
+"Wyndham Grand İstanbul Europe" ile A tam 60 karakter; `--dry-run` aşanları uyarır.)
 
 ---
 
@@ -57,29 +70,21 @@ Merge alanları (Jetmail): `{{ad}}` `{{soyad}}` `{{firma}}` `{{unvan}}` `{{sekto
 ```
 Sayın {{ad}} {{soyad}},
 
-RanksUp olarak Türkiye finans sektörü için bağımsız bir AI görünürlük araştırması yürütüyoruz.
+Ben {{gonderen_ad}}, RanksUp'ın kurucusuyum. Markaların ChatGPT, Gemini, Perplexity gibi AI asistanlarında nasıl göründüğünü ölçüyoruz.
 
-Müşteriler artık "en iyi dijital banka" diye Google'da aramak yerine ChatGPT, Gemini ve
-Perplexity'ye "{{sektor_sorusu}}" diye soruyor; cevapta 10 sonuç değil 3 isim geçiyor.
-O üç isimden biri değilseniz o müşteri kurumunuzu hiç değerlendirmedi.
+Bir gözlemi paylaşmak istedim: insanlar "{{sektor_sorusu}}" gibi soruları artık arama motoruna değil bir AI asistanına soruyor. Asistanın cevabında birkaç kurum adı geçiyor; o listede olmayan kurum, o müşterinin gündemine hiç girmiyor. Bunun yeni bir görünürlük kanalı olduğunu ve çoğu kurumun burada nerede durduğunu bilmediğini görüyoruz.
 
-{{firma}}'yı araştırma kapsamına almak istiyoruz. Onayınızla, 7 AI asistanında (ChatGPT,
-Claude, Gemini, Perplexity, Grok, DeepSeek, Meta AI) marka adı geçmeyen gerçek müşteri
-sorularıyla ölçüp yalnız size iletiyoruz:
+{{firma}} için bunu somut olarak gösterebiliriz: yedi AI asistanına marka adı geçmeyen gerçek müşteri soruları sorup hangi asistanın sizi önerdiğini, yanınızda kimin öne çıktığını ve hangi sorularda hiç görünmediğinizi tek bir raporda ortaya koyuyoruz. Çalışma ücretsiz; sonucu yalnız sizinle paylaşıyoruz.
 
-1. Görünürlük karnesi — hangi asistan sizi öneriyor, hangisi rakibi
-2. Aynı sorularda kimin önerildiği ve kaçıncı sırada geçtiğiniz
-3. Hiç görünmediğiniz sorular ve kapatma planı
-
-Kurum bazlı sonuç kamuya açılmaz; yalnız toplu sektör istatistiği paylaşılır.
-Veri tarafı: KVKK uyumlu, Türkiye'de barındırma, AES-256-GCM.
-
-Karnenizi çıkarmamı ister misiniz? Kısa bir "evet" yeterli, 2 iş günü içinde iletiyorum.
+İlgilenirseniz kısa bir görüşmede nasıl ölçtüğümüzü ve {{firma}} için neler görebileceğimizi anlatmak isterim. Uygun değilse de anlayışla karşılarım.
 
 Saygılarımla,
-[Ad Soyad] · Kurucu, RanksUp (Luvi Host)
-[adres] · [MERSİS] · ranksup.ai
-Aydınlatma metni: ranksup.ai/kvkk · Bu iletiyi almak istemiyorsanız: {{unsubscribe}}
+{{gonderen_ad}}
+{{gonderen_unvan}}
+{{gonderen_adres}} · MERSİS {{mersis}} · ranksup.ai
+
+Bu ileti, 6563 sayılı Kanun md. 6/2 kapsamında tacir alıcıya gönderilen bir ticari elektronik iletidir; İYS üzerinden kaydedilmiştir.
+Aydınlatma metni: ranksup.ai/kvkk#kurumsal-iletisim · Bu iletiyi almak istemiyorsanız: {{unsubscribe}}
 (3 iş günü içinde durduruyoruz.)
 ```
 
@@ -92,26 +97,22 @@ tablet nereden alınır"
 ```
 Sayın {{ad}} {{soyad}},
 
-RanksUp olarak Türkiye e-ticaret ve perakende sektörü için bağımsız bir AI görünürlük
-araştırması yürütüyoruz.
+Ben {{gonderen_ad}}, RanksUp'ın kurucusuyum. Markaların ChatGPT, Gemini, Perplexity gibi AI asistanlarında nasıl göründüğünü ölçüyoruz.
 
-Alışveriş kararı artık çoğu zaman bir AI cevabıyla başlıyor: müşteri ChatGPT'ye
-"{{sektor_sorusu}}" diye soruyor ve cevapta 2-3 marka geçiyor. Reklamla o cevaba
-girilmiyor; içerik ve yapısal sinyallerle giriliyor.
+Bir gözlemi paylaşmak istedim: insanlar "{{sektor_sorusu}}" gibi alışveriş sorularını artık arama motoruna değil bir AI asistanına soruyor. Asistanın cevabında birkaç marka adı geçiyor; o listede olmayan marka, o müşterinin gündemine hiç girmiyor. Reklamla o cevaba girilmiyor; içerik ve yapısal sinyallerle giriliyor. Bunun yeni bir görünürlük kanalı olduğunu ve çoğu markanın burada nerede durduğunu bilmediğini görüyoruz.
 
-{{firma}}'yı araştırma kapsamına almak istiyoruz. Onayınızla 7 AI asistanında, marka adı
-geçmeyen gerçek alışveriş sorularıyla ölçüp yalnız size iletiyoruz: hangi asistanlar sizi
-öneriyor, aynı sorularda kim öne çıkıyor, hangi ürün kategorilerinde hiç görünmüyorsunuz
-ve bunu kapatmak için 90 günlük plan.
+{{firma}} için bunu somut olarak gösterebiliriz: yedi AI asistanına marka adı geçmeyen gerçek alışveriş soruları sorup hangi asistanın sizi önerdiğini, yanınızda kimin öne çıktığını ve hangi sorularda hiç görünmediğinizi tek bir raporda ortaya koyuyoruz. Çalışma ücretsiz; sonucu yalnız sizinle paylaşıyoruz.
 
-Kurum bazlı sonuç kamuya açılmaz. Veri tarafı: KVKK uyumlu, Türkiye'de barındırma.
-
-Karnenizi çıkarmamı ister misiniz? "Evet" yeterli, 2 iş günü içinde iletiyorum.
+İlgilenirseniz kısa bir görüşmede nasıl ölçtüğümüzü ve {{firma}} için neler görebileceğimizi anlatmak isterim. Uygun değilse de anlayışla karşılarım.
 
 Saygılarımla,
-[Ad Soyad] · Kurucu, RanksUp (Luvi Host)
-[adres] · [MERSİS] · ranksup.ai
-Aydınlatma metni: ranksup.ai/kvkk · Bu iletiyi almak istemiyorsanız: {{unsubscribe}}
+{{gonderen_ad}}
+{{gonderen_unvan}}
+{{gonderen_adres}} · MERSİS {{mersis}} · ranksup.ai
+
+Bu ileti, 6563 sayılı Kanun md. 6/2 kapsamında tacir alıcıya gönderilen bir ticari elektronik iletidir; İYS üzerinden kaydedilmiştir.
+Aydınlatma metni: ranksup.ai/kvkk#kurumsal-iletisim · Bu iletiyi almak istemiyorsanız: {{unsubscribe}}
+(3 iş günü içinde durduruyoruz.)
 ```
 
 ## 4. Şablon C — Turizm / havayolu / telekom / otomotiv
@@ -122,59 +123,57 @@ için hangi operatör" · "aile için hangi SUV" · "Antalya'da çocuklu aile i�
 ```
 Sayın {{ad}} {{soyad}},
 
-RanksUp olarak Türkiye'de seyahat, telekom ve otomotiv markaları için bağımsız bir AI
-görünürlük araştırması yürütüyoruz.
+Ben {{gonderen_ad}}, RanksUp'ın kurucusuyum. Markaların ChatGPT, Gemini, Perplexity gibi AI asistanlarında nasıl göründüğünü ölçüyoruz.
 
-Müşteri artık karşılaştırma sitesi gezmek yerine ChatGPT'ye "{{sektor_sorusu}}" diye
-soruyor. Cevapta 3 marka geçiyor; gerisi değerlendirmeye bile girmiyor.
+Bir gözlemi paylaşmak istedim: insanlar "{{sektor_sorusu}}" gibi soruları artık karşılaştırma sitesi gezmek yerine bir AI asistanına soruyor. Asistanın cevabında birkaç marka adı geçiyor; o listede olmayan marka, o müşterinin gündemine hiç girmiyor. Bunun yeni bir görünürlük kanalı olduğunu ve çoğu markanın burada nerede durduğunu bilmediğini görüyoruz.
 
-{{firma}}'yı araştırma kapsamına almak istiyoruz. Onayınızla 7 AI asistanında, marka adı
-geçmeyen gerçek müşteri sorularıyla ölçüp yalnız size iletiyoruz: hangi asistan sizi
-öneriyor, aynı soruda kim önde, hangi senaryolarda hiç yoksunuz ve kapatma planı.
+{{firma}} için bunu somut olarak gösterebiliriz: yedi AI asistanına marka adı geçmeyen gerçek müşteri soruları sorup hangi asistanın sizi önerdiğini, yanınızda kimin öne çıktığını ve hangi senaryolarda hiç görünmediğinizi tek bir raporda ortaya koyuyoruz. Çalışma ücretsiz; sonucu yalnız sizinle paylaşıyoruz.
 
-Kurum bazlı sonuç kamuya açılmaz. Veri tarafı: KVKK uyumlu, Türkiye'de barındırma.
-
-Karnenizi çıkarmamı ister misiniz? "Evet" yeterli, 2 iş günü içinde iletiyorum.
+İlgilenirseniz kısa bir görüşmede nasıl ölçtüğümüzü ve {{firma}} için neler görebileceğimizi anlatmak isterim. Uygun değilse de anlayışla karşılarım.
 
 Saygılarımla,
-[Ad Soyad] · Kurucu, RanksUp (Luvi Host)
-[adres] · [MERSİS] · ranksup.ai
-Aydınlatma metni: ranksup.ai/kvkk · Bu iletiyi almak istemiyorsanız: {{unsubscribe}}
+{{gonderen_ad}}
+{{gonderen_unvan}}
+{{gonderen_adres}} · MERSİS {{mersis}} · ranksup.ai
+
+Bu ileti, 6563 sayılı Kanun md. 6/2 kapsamında tacir alıcıya gönderilen bir ticari elektronik iletidir; İYS üzerinden kaydedilmiştir.
+Aydınlatma metni: ranksup.ai/kvkk#kurumsal-iletisim · Bu iletiyi almak istemiyorsanız: {{unsubscribe}}
+(3 iş günü içinde durduruyoruz.)
 ```
 
 ---
 
 ## 5. Takip 1 (D+4, yalnız açanlara)
 
-Konu: `Re: {{firma}} — AI görünürlük karnesi`
+Konu: `Re: {{firma}} — AI asistanlarında görünürlük`
 
 ```
 Sayın {{ad}} {{soyad}},
 
-Geçen hafta {{firma}} için sektör araştırması karnesi teklif etmiştim. Tek soru:
-"{{sektor_sorusu}}" sorusuna AI asistanlarının verdiği cevapta {{firma}}'nın geçip
-geçmediğini görmek ister misiniz?
+Geçen hafta {{firma}} için AI asistanlarındaki görünürlüğü ücretsiz ölçmeyi önermiştim.
+Tek soru: "{{sektor_sorusu}}" sorusuna AI asistanlarının verdiği cevapta {{firma}} adının
+geçip geçmediğini görmek ister misiniz?
 
-"Evet" yazmanız yeterli; 2 iş günü içinde yalnız size iletiyorum. Cevap vermezseniz
-bir kez daha yazıp kapatacağım.
+Kısa bir görüşme yeterli; sonucu yalnız sizinle paylaşıyoruz. Uygun değilse de anlayışla
+karşılarım; bir kez daha yazıp kapatacağım.
 
-[Ad Soyad] · RanksUp · {{unsubscribe}}
+{{gonderen_ad}} · {{gonderen_unvan}} · Bu iletiyi almak istemiyorsanız: {{unsubscribe}}
 ```
 
 ## 6. Takip 2 (D+9, son)
 
-Konu: `Son mesaj — {{firma}} sektör bulguları`
+Konu: `Son mesaj — {{firma}} için AI görünürlük`
 
 ```
 Sayın {{ad}} {{soyad}},
 
 Bu son mesajım; bir daha yazmayacağım.
 
-Araştırmanın toplu bulgusunu (kurum adı yok, sektör geneli) rapor yayımlandığında
-isterseniz iletebilirim. {{firma}}'ya özel karne teklifi de açık kalıyor — "evet" yeterli.
+{{firma}} için ücretsiz ölçüm teklifi açık kalıyor; ilgilenirseniz bu maile yanıt vermeniz
+yeterli, kısa bir görüşmede nasıl ölçtüğümüzü anlatırım.
 
 Zaman ayırdığınız için teşekkürler.
-[Ad Soyad] · RanksUp · {{unsubscribe}}
+{{gonderen_ad}} · {{gonderen_unvan}} · Bu iletiyi almak istemiyorsanız: {{unsubscribe}}
 ```
 
 ---
@@ -183,9 +182,9 @@ Zaman ayırdığınız için teşekkürler.
 
 **Bağlantı notu (≤300 karakter):**
 ```
-Merhaba {{ad}} Bey/Hanım, RanksUp'ta Türkiye {{sektor_adi}} sektörü için bağımsız bir AI
-görünürlük araştırması yürütüyorum; {{firma}} kapsamda. Kurumunuza özel karneyi ücretsiz
-paylaşmak için bağlantı kurmak isterim.
+Merhaba {{ad}} {{soyad}}, RanksUp'ın kurucusuyum; markaların ChatGPT, Gemini, Perplexity
+gibi AI asistanlarında nasıl göründüğünü ölçüyoruz. {{firma}} için bunu ücretsiz
+gösterebilirim; bağlantı kurmak isterim.
 ```
 (Bey/Hanım eki: `kisiler.csv`'de cinsiyet alanı YOK; bot bunu bilemez → notta hitap
 **"Merhaba {{ad}} {{soyad}},"** kullanılır, Bey/Hanım eklenmez.)
@@ -194,21 +193,22 @@ paylaşmak için bağlantı kurmak isterim.
 ```
 Merhaba {{ad}} {{soyad}}, bağlantı için teşekkürler.
 
-Müşteriler artık "{{sektor_sorusu}}" sorusunu Google'a değil ChatGPT'ye soruyor ve cevapta
-3 isim geçiyor. RanksUp olarak 7 AI asistanında, marka adı geçmeyen gerçek sorularla
-{{firma}}'nın nerede göründüğünü ölçüp yalnız size iletebilirim — kurum bazlı sonuç
-kamuya açılmaz.
+Bir gözlemi paylaşmak istedim: insanlar "{{sektor_sorusu}}" gibi soruları artık arama
+motoruna değil bir AI asistanına soruyor; cevapta birkaç kurum adı geçiyor, o listede
+olmayan kurum o müşterinin gündemine hiç girmiyor. {{firma}} için yedi AI asistanına
+marka adı geçmeyen gerçek sorular sorup nerede göründüğünüzü tek raporda gösterebiliriz;
+ücretsiz, sonucu yalnız sizinle paylaşıyoruz.
 
-Karnenizi çıkarmamı ister misiniz? "Evet" yeterli, 2 iş günü içinde iletiyorum.
-İstemezseniz bir daha yazmayacağım.
+İlgilenirseniz kısa bir görüşmede anlatmak isterim. Uygun değilse de anlayışla karşılarım.
 ```
 
 ---
 
 ## 8. Ölçüm
 
-- Linkler: `?utm_source=jetmail&utm_medium=email&utm_campaign=kurumsal-<sektor>-<varyant>`
-  (`landing-track.ts` yalnız source/medium/campaign yakalar; varyant campaign'e gömülü).
-- Hedef: açılma ≥ %30, cevap %1-2 (6.000 → 60-120), toplantı 15-25, karne teslimi ≤ 2 iş günü.
-- Cevaplar `prospect/data/cevaplar.csv` (firma, kişi, tarih, sonuç: evet / hayır / toplantı / ret).
+- Linkler: `?utm_source=jetmail&utm_medium=email&utm_campaign=kurumsal-<sektor>-{{var:varyant}}`
+  (`landing-track.ts` yalnız source/medium/campaign yakalar; varyant campaign'e gömülü,
+  Mailjet `var:varyant` değişkenini script doldurur).
+- Hedef: açılma ≥ %30, cevap %1-2 (6.000 → 60-120), toplantı 15-25, rapor teslimi ≤ 2 iş günü.
+- Cevaplar `prospect/data/cevaplar.csv` (firma, kişi, tarih, sonuç: olumlu / olumsuz / toplantı / ret).
 - Kendi testini koşan kurumlar `PublicCitationCheck` → `/admin/leads` ile listeyle eşlenir.

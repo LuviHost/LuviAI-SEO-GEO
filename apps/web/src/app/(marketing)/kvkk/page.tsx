@@ -46,7 +46,7 @@ export default function KvkkPage() {
           <section>
             <h2 className="text-xl font-bold mb-2">Aktarılan Taraflar</h2>
             <p className="text-muted-foreground">
-              Anthropic (AI içerik), Google (Gemini, GSC API), PayTR (ödeme), Resend (email), Cloudflare (CDN).
+              Anthropic (AI içerik), Google (Gemini, GSC API), PayTR (ödeme), Resend (email), Mailjet (kurumsal e-posta gönderimi), Cloudflare (CDN).
               Hiçbir veri pazarlama amaçlı 3. taraflara satılmaz.
             </p>
           </section>
@@ -59,6 +59,50 @@ export default function KvkkPage() {
               <a href="mailto:kvkk@luvihost.com" className="text-brand-600">kvkk@luvihost.com</a>{' '}
               adresine yapılır.
             </p>
+          </section>
+
+          {/* Kurumsal soğuk e-posta / araştırma daveti kampanyası için ayrı aydınlatma: alıcılar
+              RanksUp kullanıcısı değil, kamuya açık kurumsal kaynaklardan derlenen yetkililer olduğu
+              için yukarıdaki hesap-temelli bölümler bu işlemeyi kapsamıyor. Gönderilen e-postalar
+              bu bölüme #kurumsal-iletisim çapasıyla bağlantı verir; id'yi değiştirme. */}
+          <section id="kurumsal-iletisim" className="scroll-mt-24">
+            <h2 className="text-xl font-bold mb-2">Kurumsal İletişim ve Araştırma Davetleri</h2>
+            <p className="text-muted-foreground mb-3">
+              RanksUp, kurumsal karar vericilere ürün tanıtımı ve araştırma/görüşme daveti amacıyla
+              e-posta gönderebilir. Bu iletişim kapsamında işlenen veriler ve koşullar aşağıdadır.
+            </p>
+            <ul className="text-muted-foreground space-y-2">
+              <li>
+                <strong className="text-foreground">İşlenen veriler:</strong> ad, soyad, unvan ve kurumsal
+                e-posta adresi.
+              </li>
+              <li>
+                <strong className="text-foreground">Veri kaynağı:</strong> kamuya açık kurumsal kaynaklar
+                (KAP bildirimleri, şirket web siteleri, basın ve atama haberleri). Veriler ilgili kişiden
+                doğrudan toplanmamıştır; bu bölüm KVKK md. 10 kapsamındaki aydınlatma yükümlülüğünü
+                yerine getirir.
+              </li>
+              <li>
+                <strong className="text-foreground">Hukuki sebep:</strong> KVKK md. 5/2-f uyarınca veri
+                sorumlusunun meşru menfaati ile 6563 sayılı Elektronik Ticaretin Düzenlenmesi Hakkında
+                Kanun md. 6/2 uyarınca tacir ve esnafa yönelik ticari elektronik ileti istisnası.
+              </li>
+              <li>
+                <strong className="text-foreground">Aktarım:</strong> e-postalar, e-posta gönderim hizmeti sağlayıcısı
+                Mailjet üzerinden iletilir; veriler yalnızca gönderim amacıyla bu sağlayıcıya aktarılır.
+              </li>
+              <li>
+                <strong className="text-foreground">Saklama:</strong> veriler, ilgili kişi ret veya itiraz
+                bildirene kadar saklanır. Ret talepleri 3 iş günü içinde işlenir ve İleti Yönetim Sistemi
+                (İYS) kaydına ret olarak işlenir; sonrasında ilgili adrese yeniden ticari ileti gönderilmez.
+              </li>
+              <li>
+                <strong className="text-foreground">Haklar ve itiraz:</strong> KVKK md. 11 kapsamındaki
+                haklarınızı kullanmak, işlemeye itiraz etmek veya ileti almayı reddetmek için{' '}
+                <a href="mailto:kvkk@luvihost.com" className="text-brand-600">kvkk@luvihost.com</a>{' '}
+                adresine yazabilir ya da e-postadaki ret bağlantısını kullanabilirsiniz.
+              </li>
+            </ul>
           </section>
         </div>
       </div>
