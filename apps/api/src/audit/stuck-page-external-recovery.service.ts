@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import Anthropic from '@anthropic-ai/sdk';
 import * as cheerio from 'cheerio';
+import type { PublishTargetType } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { WebhookNotifierService } from './webhook-notifier.service.js';
 import { GeoRunnerService } from './geo-runner.service.js';
@@ -414,14 +415,33 @@ ONEMLI: "before" sayfada BIREBIR varolmali. Max 6 edit.`;
   //  Publish target arama + overwrite
   // ─────────────────────────────────────────────────────────────
   private async findOverwriteTarget(siteId: string, _url: string): Promise<any | null> {
-    // Sirayla overwrite-yetenekli adapter tipleri
-    const overwriteCapable = ['wordpress-rest', 'wordpress-xmlrpc', 'ftp', 'sftp', 'cpanel-api'];
+    /*
+     * Overwrite yetenekli hedef tipleri.
+     *
+     * DEĞERLER `PublishTargetType` ENUM'UNDAN — Prisma onları
+     * SCREAMING_SNAKE olarak saklıyor (`WORDPRESS_REST`). Burada eskiden
+     * kebab-lowercase (`'wordpress-rest'`) yazılıydı ve HİÇBİR SATIR
+     * EŞLEŞEMEZDİ: sorgu her zaman boş dönüyor, `findOverwriteTarget` hep
+     * `null` veriyor ve takılı sayfa kurtarma hiçbir zaman dışarı yazmıyordu.
+     * Hata SESSİZDİ çünkü çağıran taraf `null` durumunu meşru sayıyor
+     * ("hedef yok, kullanıcı elle uygulasın") ve yalnız audit kaydı yazıyor.
+     *
+     * `as any` KALDIRILDI — hatayı maskeleyen şey oydu. Tipli `where` ile
+     * yanlış yazılan bir değer artık DERLEMEDE kırılır.
+     */
+    const overwriteCapable: PublishTargetType[] = [
+      'WORDPRESS_REST',
+      'WORDPRESS_XMLRPC',
+      'FTP',
+      'SFTP',
+      'CPANEL_API',
+    ];
     const targets = await this.prisma.publishTarget.findMany({
       where: {
         siteId,
         isActive: true,
         type: { in: overwriteCapable },
-      } as any,
+      },
       orderBy: [{ isDefault: 'desc' as const }, { createdAt: 'asc' as const }],
     });
     return targets[0] ?? null;
