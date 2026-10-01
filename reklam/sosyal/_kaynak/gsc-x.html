@@ -1,0 +1,147 @@
+<!doctype html>
+<html lang="tr"><head><meta charset="utf-8">
+<link rel="stylesheet" href="fonts/fonts.css">
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{width:1600px;height:900px;overflow:hidden}
+  body{font-family:'Geist',system-ui,sans-serif;background:#100904;color:#fff;
+    -webkit-font-smoothing:antialiased;position:relative}
+  .g1{position:absolute;inset:0;background:
+    radial-gradient(820px 700px at 74% 46%,rgba(243,109,50,.24) 0%,rgba(243,109,50,.07) 44%,transparent 72%),
+    radial-gradient(820px 560px at 4% 6%,rgba(182,51,37,.20) 0%,transparent 62%)}
+  .grid{position:absolute;inset:0;opacity:.26;
+    background-image:linear-gradient(rgba(255,255,255,.055) 1px,transparent 1px),
+                     linear-gradient(90deg,rgba(255,255,255,.055) 1px,transparent 1px);
+    background-size:64px 64px;
+    -webkit-mask-image:radial-gradient(900px 700px at 42% 45%,#000 0%,transparent 78%)}
+
+  .frame{position:relative;height:100%;display:flex;align-items:stretch}
+
+  /* ---------- sol ---------- */
+  .left{width:700px;padding:70px 24px 66px 84px;display:flex;flex-direction:column}
+  .top{display:flex;align-items:center;gap:18px}
+  .mid{flex:1;display:flex;flex-direction:column;justify-content:center}
+  .wm{display:inline-flex;align-items:center;font-family:'Sora';font-weight:700;font-size:36px;
+    letter-spacing:-.03em;line-height:1;white-space:nowrap}
+  .wm .ink{color:#fff}.wm .up{color:#F88750}
+  .badge{font-family:'Sora';font-weight:700;font-size:13px;letter-spacing:.16em;color:#fff;
+    background:linear-gradient(135deg,#F36D32,#C63A28);border-radius:999px;padding:9px 16px;
+    box-shadow:0 10px 22px -10px rgba(243,109,50,.8)}
+
+  h1{font-family:'Sora';font-weight:800;font-size:62px;line-height:1.04;letter-spacing:-.042em;
+    color:#fff;margin:30px 0 16px}
+  h1 .hl{background:linear-gradient(100deg,#FF9A5E 0%,#F0532B 82%);
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  .site{font-size:21px;color:#B49F93;font-weight:500;margin-bottom:34px}
+  .site b{color:#fff;font-weight:600}
+
+  .rows{display:flex;flex-direction:column;gap:14px}
+  .row{display:flex;align-items:baseline;gap:15px}
+  .row b{font-family:'Sora';font-weight:800;font-size:31px;letter-spacing:-.03em;color:#F88750;
+    min-width:120px}
+  .row span{font-size:20px;color:#C3ADA2;font-weight:500;line-height:1.3}
+  .row span i{font-style:normal;color:#8A7264;font-size:18px}
+
+  .cta{margin-top:auto;display:flex;align-items:center;gap:20px}
+  .btn{font-family:'Sora';font-weight:700;font-size:24px;letter-spacing:-.02em;color:#fff;
+    background:linear-gradient(135deg,#F36D32,#C63A28);border-radius:15px;padding:17px 30px;
+    box-shadow:0 18px 38px -14px rgba(243,109,50,.62);display:inline-flex;align-items:center;gap:11px}
+  .cta em{font-style:normal;font-size:18px;color:#8A7264;font-weight:500;line-height:1.4}
+
+  /* ---------- sag: rozet ---------- */
+  .right{flex:1;display:flex;align-items:center;justify-content:center;padding-right:76px}
+  .panel{width:100%;background:rgba(255,255,255,.045);border:1.5px solid rgba(255,255,255,.11);
+    border-radius:24px;padding:24px 30px 22px;backdrop-filter:blur(8px);
+    box-shadow:0 32px 70px -30px rgba(0,0,0,.85)}
+  .p-top{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:6px}
+  .p-t{font-family:'Sora';font-weight:700;font-size:20px;letter-spacing:-.015em;color:#fff}
+  .p-s{font-size:15px;color:#8A7264;font-weight:500}
+  .quote{text-align:center;font-size:17px;line-height:1.45;color:#A08B7F;font-weight:500;margin-top:2px}
+  .quote b{color:#E6D6CC;font-weight:600}
+</style></head>
+<body>
+  <div class="g1"></div><div class="grid"></div>
+
+  <div class="frame">
+    <div class="left">
+      <div class="top">
+        <span class="wm"><span class="ink">Ranks</span><svg width="22" height="22" viewBox="0 0 40 40" fill="none" style="margin:0 -1px 0 2px"><path d="M10 30 L30 10" stroke="#F88750" stroke-width="5.5" stroke-linecap="round"/><path d="M17 8.5 L31.5 8.5 L31.5 23" stroke="#F88750" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="up">Up</span></span>
+        <span class="badge">REFERANS</span>
+      </div>
+
+      <div class="mid">
+        <h1>28 günde Google'dan<br><span class="hl">12.000 tıklama.</span></h1>
+        <p class="site"><b>kobipratik.com</b> · RanksUp referansı · Search Console, 19 Ağu 2026</p>
+
+        <div class="rows">
+          <div class="row"><b>12K</b><span>tıklama <i>— son 28 gün, Google Arama</i></span></div>
+          <div class="row"><b>5,4×</b><span>büyüme <i>— Nisan'da günde ~80, şimdi ~430</i></span></div>
+          <div class="row"><b>3. sıra</b><span>“damga vergisi hesaplama” <i>— 15K aylık arama</i></span></div>
+          <div class="row"><b>%100</b><span>organik <i>— reklam tıklaması değil</i></span></div>
+        </div>
+      </div>
+
+      <div class="cta">
+        <span class="btn">ranksup.ai <span style="opacity:.85">→</span></span>
+        <em>Markanı 30 saniyede test et<br>Üyelik yok · kart yok</em>
+      </div>
+    </div>
+
+    <div class="right">
+      <div class="panel">
+        <div class="p-top">
+          <span class="p-t">Google Arama Etkisi</span>
+          <span class="p-s">Search Console · birinci el veri</span>
+        </div>
+
+        <svg width="100%" height="330" viewBox="0 0 470 300" fill="none">
+          <defs>
+            <linearGradient id="hexOut" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="#FBD24E"/><stop offset="1" stop-color="#E9A426"/>
+            </linearGradient>
+            <linearGradient id="hexIn" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="#FDE9A6"/><stop offset="1" stop-color="#FAD05C"/>
+            </linearGradient>
+            <linearGradient id="starG" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#FBD24E"/><stop offset="1" stop-color="#EFAE2C"/>
+            </linearGradient>
+          </defs>
+
+          <g fill="#F0B93C" opacity=".75">
+            <circle cx="36" cy="118" r="7"/><circle cx="63" cy="236" r="8"/>
+            <circle cx="424" cy="96" r="8"/><circle cx="404" cy="238" r="7"/>
+            <circle cx="118" cy="42" r="5"/><circle cx="352" cy="30" r="5.5"/>
+          </g>
+          <g fill="#EDB443" opacity=".8">
+            <rect x="86" y="72" width="9" height="26" rx="4.5" transform="rotate(-28 90 85)"/>
+            <rect x="374" y="66" width="9" height="26" rx="4.5" transform="rotate(24 378 79)"/>
+            <rect x="62" y="182" width="9" height="24" rx="4.5" transform="rotate(38 66 194)"/>
+            <rect x="400" y="176" width="9" height="24" rx="4.5" transform="rotate(-34 404 188)"/>
+          </g>
+          <g fill="#F6C23F" opacity=".9">
+            <path d="M235 12 l7 17 17 7 -17 7 -7 17 -7 -17 -17 -7 17 -7z"/>
+            <path d="M64 60 l5 12 12 5 -12 5 -5 12 -5 -12 -12 -5 12 -5z" opacity=".8"/>
+            <path d="M410 200 l5 12 12 5 -12 5 -5 12 -5 -12 -12 -5 12 -5z" opacity=".8"/>
+          </g>
+
+          <path d="M155 44 H315 L390 150 L315 256 H155 L80 150 Z"
+                fill="url(#hexOut)" stroke="url(#hexOut)" stroke-width="18" stroke-linejoin="round"/>
+          <path d="M164 62 H306 L370 150 L306 238 H164 L100 150 Z"
+                fill="url(#hexIn)" stroke="url(#hexIn)" stroke-width="12" stroke-linejoin="round"/>
+
+          <path d="M235 62 l13.5 27.4 30.2 4.4 -21.9 21.3 5.2 30.1 -27-14.2 -27 14.2 5.2-30.1 -21.9-21.3 30.2-4.4z"
+                fill="url(#starG)" stroke="#F2B733" stroke-width="3" stroke-linejoin="round"/>
+          <circle cx="233" cy="100" r="11" stroke="#D9611B" stroke-width="4.5" fill="none"/>
+          <path d="M241 108 L249 116" stroke="#D9611B" stroke-width="5" stroke-linecap="round"/>
+
+          <rect x="128" y="150" width="214" height="72" rx="36" fill="#fff"/>
+          <text x="235" y="203" font-family="Sora" font-weight="700" font-size="52"
+                fill="#1A73E8" text-anchor="middle" letter-spacing="-1">12K</text>
+        </svg>
+
+        <p class="quote">“Son 28 gün içinde Google Arama'dan aldığınız tıklama sayısı,
+          <b>12K sınırına ulaştı.</b>”</p>
+      </div>
+    </div>
+  </div>
+</body></html>

@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="tr"><head><meta charset="utf-8">
+<link rel="stylesheet" href="fonts/fonts.css">
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{width:1600px;height:900px}
+  body{font-family:'Geist',system-ui,sans-serif;background:#FCFAF8;color:#1C0F09;
+    -webkit-font-smoothing:antialiased;position:relative;overflow:hidden}
+  .glow{position:absolute;width:900px;height:900px;right:-320px;top:-380px;border-radius:50%;
+    background:radial-gradient(circle,rgba(243,109,50,.16) 0%,rgba(243,109,50,.05) 46%,transparent 72%)}
+  .glow2{position:absolute;width:700px;height:700px;left:-300px;bottom:-340px;border-radius:50%;
+    background:radial-gradient(circle,rgba(182,51,37,.10) 0%,transparent 66%)}
+  .rail{position:absolute;left:0;top:0;bottom:0;width:14px;
+    background:linear-gradient(180deg,#F36D32,#B63325)}
+  .frame{position:relative;height:100%;padding:56px 84px 48px 98px;display:flex;flex-direction:column}
+  .top{display:flex;align-items:center;justify-content:space-between;
+    padding-bottom:20px;border-bottom:2px solid rgba(28,15,9,.12)}
+  .wm{display:inline-flex;align-items:center;font-family:'Sora';font-weight:700;font-size:36px;
+    letter-spacing:-.03em;line-height:1;white-space:nowrap}
+  .wm .ink{color:#1C0F09}.wm .up{color:#E04E24}
+  .pill{font-family:'Sora';font-weight:700;font-size:15px;letter-spacing:.19em;color:#B63325;
+    border:2px solid rgba(224,78,36,.35);border-radius:999px;padding:9px 19px}
+  .eyebrow{font-family:'Sora';font-weight:700;font-size:18px;letter-spacing:.20em;color:#8A7469;
+    text-transform:uppercase;margin-bottom:20px}
+  .hl{background:linear-gradient(100deg,#F36D32 0%,#B63325 82%);
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  h1{font-family:'Sora';font-weight:800;font-size:58px;line-height:1.08;letter-spacing:-.04em}
+  .mid{flex:1;display:flex;align-items:center;gap:64px;padding:8px 0}
+  .sol{flex:1.02;min-width:0}
+  .sag{flex:.98;min-width:0;display:flex;flex-direction:column;gap:16px}
+  .sub{font-size:24px;line-height:1.5;color:#6B564B;margin-top:22px}
+  .sub b{color:#1C0F09;font-weight:600}
+  .madde{display:flex;gap:14px;align-items:flex-start;font-size:24px;line-height:1.42;color:#6B564B}
+  .madde b{color:#1C0F09;font-weight:600}
+  .madde code{font-family:'Geist Mono',monospace;font-size:22px;color:#1C0F09}
+  .yes{font-family:'Sora';font-weight:800;color:#2E7D4F;font-size:24px;flex:none;margin-top:1px}
+  .no{font-family:'Sora';font-weight:800;color:#B63325;font-size:24px;flex:none;margin-top:1px}
+  .vs{background:#fff;border:2px solid rgba(28,15,9,.10);border-radius:18px;padding:22px 26px;
+    box-shadow:0 12px 26px -18px rgba(70,30,15,.22)}
+  .vs h3{font-family:'Sora';font-weight:800;font-size:26px;letter-spacing:-.02em;margin-bottom:8px}
+  .vs p{font-size:22px;line-height:1.42;color:#6B564B}
+  .vs p b{color:#1C0F09}
+  .kanit{font-family:'Geist Mono',monospace;font-size:15px;letter-spacing:.06em;color:#8A7469}
+  .chip{font-family:'Sora';font-weight:700;font-size:21px;letter-spacing:-.015em;color:#3A241B;
+    background:#F4EDE7;border-radius:12px;padding:12px 18px;display:inline-flex;align-items:center;gap:9px}
+  .chip i{width:8px;height:8px;border-radius:50%;background:#E04E24;display:block;flex:none}
+  .foot{display:flex;align-items:center;justify-content:space-between;gap:32px;
+    padding-top:20px;border-top:2px solid rgba(28,15,9,.12)}
+  .foot .l{font-family:'Sora';font-weight:700;font-size:22px;letter-spacing:-.02em;color:#1C0F09}
+  .foot .r{font-size:17px;color:#8A7469;font-weight:500}
+</style></head>
+<body>
+  <div class="glow"></div><div class="glow2"></div><div class="rail"></div>
+  <div class="frame">
+    <div class="top"><span class="wm"><span class="ink">Ranks</span><svg width="22" height="22" viewBox="0 0 40 40" fill="none" style="margin:0 -1px 0 2px"><path d="M10 30 L30 10" stroke="#E04E24" stroke-width="5.5" stroke-linecap="round"/><path d="M17 8.5 L31.5 8.5 L31.5 23" stroke="#E04E24" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="up">Up</span></span><span class="pill">SÖZLÜK</span></div>
+    <div class="mid">
+      <div class="sol"><div class="eyebrow">GEO — Generative Engine Optimization</div>
+     <h1>SEO'yu biliyorsun.<br><span class="hl">GEO nedir?</span></h1>
+     <p class="sub">Kullanıcı sormayı bıraktı, <b>danışmaya başladı</b>. Google'da
+     1. olup AI cevabında hiç geçmemek mümkün — klasik araçlar bunu göremez.</p></div>
+      <div class="sag"><div class="vs"><h3>SEO</h3><p>Google'da <b>sıralanmak</b>. 10 mavi link, tıklama, trafik.</p></div>
+     <div class="vs"><h3 class="hl">GEO</h3><p>AI cevabında <b>anılmak</b>. ChatGPT 3 isim sayıyor — biri sen misin?</p></div></div>
+    </div>
+    <div class="foot"><span class="l">ranksup.ai</span><span class="r">AI çağının görünürlüğü</span></div>
+  </div>
+</body></html>

@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="tr"><head><meta charset="utf-8">
+<link rel="stylesheet" href="fonts/fonts.css">
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{width:1200px;height:1200px;overflow:hidden}
+  body{font-family:'Geist',system-ui,sans-serif;background:#FCFAF8;color:#1C0F09;
+    -webkit-font-smoothing:antialiased;position:relative}
+  .glow{position:absolute;width:820px;height:820px;right:-330px;top:-390px;border-radius:50%;
+    background:radial-gradient(circle,rgba(243,109,50,.15) 0%,rgba(243,109,50,.05) 44%,transparent 70%)}
+  .rail{position:absolute;left:0;top:0;bottom:0;width:10px;
+    background:linear-gradient(180deg,#F36D32,#B63325)}
+
+  .frame{position:relative;height:100%;padding:70px 74px 62px 84px;display:flex;flex-direction:column}
+
+  .top{display:flex;align-items:center;justify-content:space-between;
+    padding-bottom:22px;border-bottom:2px solid rgba(28,15,9,.12)}
+  .wm{display:inline-flex;align-items:center;font-family:'Sora';font-weight:700;font-size:36px;
+    letter-spacing:-.03em;line-height:1;white-space:nowrap}
+  .wm .ink{color:#1C0F09}.wm .up{color:#E04E24}
+  .pill{font-family:'Sora';font-weight:700;font-size:15px;letter-spacing:.19em;color:#B63325;
+    border:2px solid rgba(224,78,36,.35);border-radius:999px;padding:10px 20px}
+
+  .eyebrow{margin:40px 0 22px;font-family:'Sora';font-weight:700;font-size:17px;letter-spacing:.19em;
+    color:#8A7469}
+  h1{font-family:'Sora';font-weight:800;font-size:73px;line-height:1.04;letter-spacing:-.04em}
+  h1 .hl{background:linear-gradient(100deg,#F36D32 0%,#B63325 82%);
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  .sub{margin-top:26px;font-size:26px;line-height:1.5;color:#6B564B;max-width:980px}
+
+  .scope{margin-top:32px;display:flex;gap:10px;flex-wrap:wrap}
+  .sc{font-family:'Sora';font-weight:600;font-size:19px;color:#3A241B;background:#F4EDE7;
+    border-radius:11px;padding:11px 17px}
+
+  .qcard{margin-top:32px;background:#fff;border:1.5px solid rgba(28,15,9,.10);border-radius:22px;
+    padding:28px 30px 30px;box-shadow:0 18px 44px -24px rgba(70,30,15,.22)}
+  .qh{font-family:'Sora';font-weight:700;font-size:15px;letter-spacing:.15em;color:#9A8478;
+    margin-bottom:18px}
+  .q{display:flex;gap:14px;align-items:flex-start;font-size:23px;line-height:1.42;color:#2C1B12;
+    font-weight:500;padding:13px 0}
+  .q + .q{border-top:1.5px solid rgba(28,15,9,.07);padding-top:17px;margin-top:4px}
+  .q em{font-style:normal;font-family:'Sora';font-weight:800;font-size:23px;color:#E04E24;
+    flex:none;line-height:1.42}
+
+  .offer{margin-top:30px;background:linear-gradient(120deg,#F36D32,#B63325);border-radius:20px;
+    padding:24px 30px;display:flex;align-items:center;justify-content:space-between;gap:20px;
+    box-shadow:0 20px 44px -22px rgba(224,78,36,.85)}
+  .offer b{display:block;font-family:'Sora';font-weight:800;font-size:29px;letter-spacing:-.025em;
+    color:#fff;line-height:1.22}
+  .offer span{display:block;font-size:19px;color:rgba(255,255,255,.85);margin-top:6px;font-weight:500}
+  .offer i{font-style:normal;font-family:'Sora';font-weight:700;font-size:24px;color:#B63325;
+    background:#fff;border-radius:13px;padding:15px 24px;white-space:nowrap}
+
+  .foot{margin-top:auto;padding-top:30px;display:flex;align-items:center;justify-content:space-between;
+    font-size:17px;color:#8A7469;font-weight:500}
+  .foot .cmp{display:flex;align-items:center;gap:0}
+  .foot .cmp b{font-weight:500}
+  .foot .cmp s{text-decoration:none;margin:0 11px;opacity:.4}
+  .proof{font-size:17px;color:#6B564B}
+  .proof b{color:#1C0F09;font-weight:600}
+</style></head>
+<body>
+  <div class="glow"></div><div class="rail"></div>
+  <div class="frame">
+
+    <div class="top">
+      <span class="wm"><span class="ink">Ranks</span><svg width="22" height="22" viewBox="0 0 40 40" fill="none" style="margin:0 -1px 0 2px"><path d="M10 30 L30 10" stroke="#E04E24" stroke-width="5.5" stroke-linecap="round"/><path d="M17 8.5 L31.5 8.5 L31.5 23" stroke="#E04E24" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="up">Up</span></span>
+      <span class="pill">KATILIM DAVETİ</span>
+    </div>
+
+    <div class="eyebrow">SEKTÖR ARAŞTIRMASI · AĞUSTOS 2026</div>
+    <h1>Türkiye finans sektörü<br><span class="hl">AI görünürlük raporu.</span></h1>
+    <p class="sub">Bankalar ve ödeme kuruluşları; ChatGPT, Claude, Gemini ve Perplexity yanıtlarında nasıl görünüyor? Ölçüyoruz.</p>
+
+    <div class="scope">
+      <span class="sc">7 AI motoru</span>
+      <span class="sc">40+ kurum</span>
+      <span class="sc">100+ senaryo sorusu</span>
+      <span class="sc">Bağımsız · ücretsiz</span>
+    </div>
+
+    <div class="qcard">
+      <div class="qh">ÖLÇTÜĞÜMÜZ SORULARDAN DÖRDÜ</div>
+      <div class="q"><em>“</em>Türkiye'de dijital bankacılık için hangi bankayı önerirsin?</div>
+      <div class="q"><em>“</em>KOBİ'ler için en uygun POS çözümü hangisi?</div>
+      <div class="q"><em>“</em>Yurt dışından ödeme almak için hangi kuruluşu kullanmalıyım?</div>
+      <div class="q"><em>“</em>Düşük komisyonlu kredi kartı için hangi bankaya başvurmalıyım?</div>
+    </div>
+
+    <div class="offer">
+      <div>
+        <b>Kurumunuzun karnesini ücretsiz paylaşıyoruz.</b>
+        <span>Rakip karşılaştırması ve görünmediğiniz sorular dahil.</span>
+      </div>
+      <i>ranksup.ai</i>
+    </div>
+
+    <div class="foot">
+      <span class="proof">Metodoloji kanıtı: <b>kobipratik.com — 3 ayda 0 → 16.000</b> aylık organik ziyaret (Ahrefs)</span>
+      <span class="cmp"><b>KVKK uyumlu</b><s>·</s><b>TR sunucu</b><s>·</s><b>AES-256</b></span>
+    </div>
+  </div>
+</body></html>

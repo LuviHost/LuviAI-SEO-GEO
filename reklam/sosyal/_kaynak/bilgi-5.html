@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="tr"><head><meta charset="utf-8">
+<link rel="stylesheet" href="fonts/fonts.css">
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{width:1200px;height:1200px}
+  body{font-family:'Geist',system-ui,sans-serif;background:#FCFAF8;color:#1C0F09;
+    -webkit-font-smoothing:antialiased;position:relative;overflow:hidden}
+  .glow{position:absolute;width:900px;height:900px;right:-320px;top:-380px;border-radius:50%;
+    background:radial-gradient(circle,rgba(243,109,50,.16) 0%,rgba(243,109,50,.05) 46%,transparent 72%)}
+  .glow2{position:absolute;width:760px;height:760px;left:-300px;bottom:-340px;border-radius:50%;
+    background:radial-gradient(circle,rgba(182,51,37,.10) 0%,transparent 66%)}
+  .rail{position:absolute;left:0;top:0;bottom:0;width:14px;
+    background:linear-gradient(180deg,#F36D32,#B63325)}
+  .frame{position:relative;height:100%;padding:72px 80px 64px 94px;display:flex;flex-direction:column}
+  .top{display:flex;align-items:center;justify-content:space-between;
+    padding-bottom:24px;border-bottom:2px solid rgba(28,15,9,.12)}
+  .wm{display:inline-flex;align-items:center;font-family:'Sora';font-weight:700;font-size:38px;
+    letter-spacing:-.03em;line-height:1;white-space:nowrap}
+  .wm .ink{color:#1C0F09}.wm .up{color:#E04E24}
+  .pill{font-family:'Sora';font-weight:700;font-size:15px;letter-spacing:.19em;color:#B63325;
+    border:2px solid rgba(224,78,36,.35);border-radius:999px;padding:10px 20px}
+  .eyebrow{font-family:'Sora';font-weight:700;font-size:19px;letter-spacing:.20em;color:#8A7469;
+    text-transform:uppercase}
+  .hl{background:linear-gradient(100deg,#F36D32 0%,#B63325 82%);
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  h1{font-family:'Sora';font-weight:800;font-size:82px;line-height:1.05;letter-spacing:-.045em}
+  .mid{flex:1;display:flex;flex-direction:column;justify-content:center;gap:30px}
+  .sub{font-size:28px;line-height:1.5;color:#6B564B}
+  .sub b{color:#1C0F09;font-weight:600}
+  .foot{display:flex;align-items:center;justify-content:space-between;gap:32px;
+    padding-top:24px;border-top:2px solid rgba(28,15,9,.12)}
+  .foot .l{font-family:'Sora';font-weight:700;font-size:24px;letter-spacing:-.02em;color:#1C0F09}
+  .foot .r{font-size:18px;color:#8A7469;font-weight:500}
+  .madde{display:flex;gap:18px;align-items:flex-start;font-size:28px;line-height:1.45;color:#6B564B}
+  .madde b{color:#1C0F09;font-weight:600}
+  .madde code{font-family:'Geist Mono',monospace;font-size:26px;color:#1C0F09}
+  .yes{font-family:'Sora';font-weight:800;color:#2E7D4F;font-size:28px;flex:none;margin-top:2px}
+  .no{font-family:'Sora';font-weight:800;color:#B63325;font-size:28px;flex:none;margin-top:2px}
+  .vs{display:flex;gap:20px}
+  .vs>div{flex:1;background:#fff;border:2px solid rgba(28,15,9,.10);border-radius:20px;padding:28px 30px;
+    box-shadow:0 14px 30px -20px rgba(70,30,15,.22)}
+  .vs h3{font-family:'Sora';font-weight:800;font-size:30px;letter-spacing:-.02em;margin-bottom:12px}
+  .vs p{font-size:25px;line-height:1.45;color:#6B564B}
+  .kanit{font-family:'Geist Mono',monospace;font-size:16px;letter-spacing:.06em;color:#8A7469}
+  .chip{font-family:'Sora';font-weight:700;font-size:24px;letter-spacing:-.015em;color:#3A241B;
+    background:#F4EDE7;border-radius:14px;padding:14px 22px;display:inline-flex;align-items:center;gap:10px}
+  .chip i{width:9px;height:9px;border-radius:50%;background:#E04E24;display:block;flex:none}
+</style></head>
+<body>
+  <div class="glow"></div><div class="glow2"></div><div class="rail"></div>
+  <div class="frame">
+    <div class="top"><span class="wm"><span class="ink">Ranks</span><svg width="23" height="23" viewBox="0 0 40 40" fill="none" style="margin:0 -1px 0 2px"><path d="M10 30 L30 10" stroke="#E04E24" stroke-width="5.5" stroke-linecap="round"/><path d="M17 8.5 L31.5 8.5 L31.5 23" stroke="#E04E24" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="up">Up</span></span><span class="pill">ÖLÇÜM</span></div>
+    <div class="mid">
+
+      <div class="eyebrow">Sık yapılan ölçüm hatası</div>
+      <h1>"X güvenilir mi?"<br>sorusunda anılmak<br><span class="hl">görünürlük değil.</span></h1>
+      <div style="display:flex;flex-direction:column;gap:16px">
+        <div class="madde"><span class="no">✗</span><p>Soruda adın geçiyorsa asistanın seni anması <b>beklenen sonuç</b> — ölçüm değil</p></div>
+        <div class="madde"><span class="yes">✓</span><p>Gerçek test: <b>adının geçmediği</b> soruda önerilip önerilmediğin</p></div>
+      </div>
+      <p class="sub">Soruda adı geçen marka cevapta neredeyse kaçınılmaz olarak anılır —
+      bu totoloji. Birçok "AI görünürlük" raporu ikisini aynı ortalamada eritiyor;
+      o skor görünürlüğü değil, <b>soru listeni</b> ölçer.</p>
+      <p class="kanit">KAYNAK: SEKTÖR ÖLÇÜMÜ (TEK DENEY, YÖNSEL)</p>
+    </div>
+    <div class="foot"><span class="l">ranksup.ai</span><span class="r">Tanınırlık ≠ görünürlük</span></div>
+  </div>
+</body></html>

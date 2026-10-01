@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="tr"><head><meta charset="utf-8">
+<link rel="stylesheet" href="fonts/fonts.css">
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{width:1200px;height:1200px;overflow:hidden}
+  body{font-family:'Geist',system-ui,sans-serif;background:#FDF9F5;color:#271610;
+    -webkit-font-smoothing:antialiased;position:relative}
+  .glow-a{position:absolute;width:880px;height:880px;right:-330px;top:-400px;border-radius:50%;
+    background:radial-gradient(circle,rgba(243,109,50,.20) 0%,rgba(243,109,50,.06) 44%,transparent 70%)}
+  .glow-b{position:absolute;width:700px;height:700px;left:-300px;bottom:-320px;border-radius:50%;
+    background:radial-gradient(circle,rgba(182,51,37,.11) 0%,transparent 66%)}
+
+  .frame{position:relative;height:100%;padding:74px 76px 68px;display:flex;flex-direction:column}
+
+  .top{display:flex;align-items:center;justify-content:space-between;margin-bottom:44px}
+  .wm{display:inline-flex;align-items:center;font-family:'Sora';font-weight:700;font-size:40px;
+    letter-spacing:-.03em;line-height:1;white-space:nowrap}
+  .wm .ink{color:#271610}.wm .up{color:#E04E24}
+  .badge{font-family:'Sora';font-weight:700;font-size:16px;letter-spacing:.16em;color:#fff;
+    background:linear-gradient(135deg,#F36D32,#C63A28);border-radius:999px;padding:12px 22px;
+    box-shadow:0 12px 26px -12px rgba(224,78,36,.7)}
+
+  h1{font-family:'Sora';font-weight:800;font-size:84px;line-height:1.03;letter-spacing:-.042em;
+    color:#1C0F09;margin-bottom:14px}
+  h1 .hl{background:linear-gradient(100deg,#F36D32 0%,#B63325 82%);
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  .site{font-size:25px;color:#7A6459;font-weight:500;margin-bottom:32px}
+  .site b{color:#271610;font-weight:600}
+
+  /* ---- chart card ---- */
+  .card{background:#fff;border:1.5px solid rgba(39,22,16,.09);border-radius:24px;padding:26px 30px 22px;
+    box-shadow:0 22px 50px -24px rgba(70,30,15,.24),0 3px 10px rgba(70,30,15,.04)}
+  .card-top{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:8px}
+  .card-t{font-family:'Sora';font-weight:700;font-size:21px;letter-spacing:-.015em;color:#271610}
+  .card-s{font-size:16px;color:#9A8478;font-weight:500}
+  .months{display:flex;justify-content:space-between;margin-top:10px;padding:0 2px;
+    font-size:17px;color:#9A8478;font-weight:500;font-family:'Sora'}
+
+  /* ---- stats ---- */
+  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:22px}
+  .st{background:#fff;border:1.5px solid rgba(39,22,16,.09);border-radius:20px;padding:22px 24px;
+    box-shadow:0 10px 26px -18px rgba(70,30,15,.22)}
+  .st b{display:block;font-family:'Sora';font-weight:800;font-size:46px;letter-spacing:-.035em;
+    line-height:1;margin-bottom:9px;
+    background:linear-gradient(100deg,#F36D32 0%,#B63325 82%);
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  .st span{display:block;font-size:19px;color:#4A342A;font-weight:600;line-height:1.28}
+  .st em{display:block;font-style:normal;font-size:16px;color:#9A8478;font-weight:500;margin-top:4px}
+
+  .foot{margin-top:auto;padding-top:26px;display:flex;align-items:center;justify-content:space-between}
+  .foot-l{font-family:'Sora';font-weight:700;font-size:25px;letter-spacing:-.02em;color:#271610}
+  .foot-r{font-size:19px;color:#8A7469;font-weight:500}
+</style></head>
+<body>
+  <div class="glow-a"></div><div class="glow-b"></div>
+  <div class="frame">
+
+    <div class="top">
+      <span class="wm"><span class="ink">Ranks</span><svg width="24" height="24" viewBox="0 0 40 40" fill="none" style="margin:0 -1px 0 2px"><path d="M10 30 L30 10" stroke="#E04E24" stroke-width="5.5" stroke-linecap="round"/><path d="M17 8.5 L31.5 8.5 L31.5 23" stroke="#E04E24" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="up">Up</span></span>
+      <span class="badge">VAKA ÇALIŞMASI</span>
+    </div>
+
+    <h1>3 ayda sıfırdan<br><span class="hl">16.000 ziyaretçi.</span></h1>
+    <p class="site"><b>kobipratik.com</b> · aylık organik arama trafiği · RanksUp ile</p>
+
+    <div class="card">
+      <div class="card-top">
+        <span class="card-t">Organik trafik</span>
+        <span class="card-s">Kaynak: Ahrefs · Ağustos 2026</span>
+      </div>
+
+      <svg width="1000" height="320" viewBox="0 0 1000 320" fill="none">
+        <defs>
+          <linearGradient id="area" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#F36D32" stop-opacity=".34"/>
+            <stop offset="1" stop-color="#F36D32" stop-opacity="0"/>
+          </linearGradient>
+          <linearGradient id="line" x1="0" y1="1" x2="1" y2="0">
+            <stop offset="0" stop-color="#F0913F"/><stop offset="1" stop-color="#D1401F"/>
+          </linearGradient>
+        </defs>
+
+        <!-- grid: 0=y285 · 4.5K=220 · 9K=155 · 13.5K=90 · 18K=25 -->
+        <g stroke="#EDE3DC" stroke-width="1.5">
+          <line x1="56" y1="285" x2="1000" y2="285"/>
+          <line x1="56" y1="220" x2="1000" y2="220"/>
+          <line x1="56" y1="155" x2="1000" y2="155"/>
+          <line x1="56" y1="90"  x2="1000" y2="90"/>
+          <line x1="56" y1="25"  x2="1000" y2="25"/>
+        </g>
+        <g font-family="Geist" font-size="15" fill="#B6A79D" text-anchor="end">
+          <text x="44" y="290">0</text><text x="44" y="225">4.5K</text>
+          <text x="44" y="160">9K</text><text x="44" y="95">13.5K</text>
+          <text x="44" y="30">18K</text>
+        </g>
+
+        <!-- Nis .3K · May .9K · Haz 1.9K · Tem 4.6K · Ağu 18K -->
+        <path d="M56 281 C130 280 203 275 277 272 C351 269 424 266 498 258 C572 250 645 238 719 219 C793 200 866 130 940 25 L940 285 L56 285 Z"
+              fill="url(#area)"/>
+        <path d="M56 281 C130 280 203 275 277 272 C351 269 424 266 498 258 C572 250 645 238 719 219 C793 200 866 130 940 25"
+              stroke="url(#line)" stroke-width="6" stroke-linecap="round" fill="none"/>
+
+        <circle cx="940" cy="25" r="16" fill="#E04E24" opacity=".16"/>
+        <circle cx="940" cy="25" r="8.5" fill="#E04E24" stroke="#fff" stroke-width="3.5"/>
+        <circle cx="56" cy="281" r="7" fill="#C9B4A8" stroke="#fff" stroke-width="3"/>
+
+        <g font-family="Sora" font-weight="500" font-size="17" fill="#9A8478" text-anchor="middle">
+          <text x="56" y="314">Nisan</text><text x="277" y="314">Mayıs</text>
+          <text x="498" y="314">Haziran</text><text x="719" y="314">Temmuz</text>
+          <text x="940" y="314">Ağustos</text>
+        </g>
+      </svg>
+    </div>
+
+    <div class="stats">
+      <div class="st"><b>16K</b><span>aylık organik ziyaret</span><em>Nisan'da ~0'dı</em></div>
+      <div class="st"><b>3. sıra</b><span>Google'da "yaş hesaplama"</span><em>146K aylık arama hacmi</em></div>
+      <div class="st"><b>%100</b><span>Türkiye trafiği</span><em>hedef kitlenin tamamı</em></div>
+    </div>
+
+    <div class="foot">
+      <span class="foot-l">ranksup.ai</span>
+      <span class="foot-r">Senin yerine pazarlama yapan AI.</span>
+    </div>
+  </div>
+</body></html>

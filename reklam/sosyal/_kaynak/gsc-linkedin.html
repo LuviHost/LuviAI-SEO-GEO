@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="tr"><head><meta charset="utf-8">
+<link rel="stylesheet" href="fonts/fonts.css">
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{width:1200px;height:1200px;overflow:hidden}
+  body{font-family:'Geist',system-ui,sans-serif;background:#FDF9F5;color:#271610;
+    -webkit-font-smoothing:antialiased;position:relative}
+  .glow-a{position:absolute;width:880px;height:880px;right:-330px;top:-400px;border-radius:50%;
+    background:radial-gradient(circle,rgba(243,109,50,.20) 0%,rgba(243,109,50,.06) 44%,transparent 70%)}
+  .glow-b{position:absolute;width:700px;height:700px;left:-300px;bottom:-320px;border-radius:50%;
+    background:radial-gradient(circle,rgba(182,51,37,.11) 0%,transparent 66%)}
+
+  .frame{position:relative;height:100%;padding:74px 76px 68px;display:flex;flex-direction:column}
+
+  .top{display:flex;align-items:center;justify-content:space-between;margin-bottom:40px}
+  .wm{display:inline-flex;align-items:center;font-family:'Sora';font-weight:700;font-size:40px;
+    letter-spacing:-.03em;line-height:1;white-space:nowrap}
+  .wm .ink{color:#271610}.wm .up{color:#E04E24}
+  .badge{font-family:'Sora';font-weight:700;font-size:16px;letter-spacing:.16em;color:#fff;
+    background:linear-gradient(135deg,#F36D32,#C63A28);border-radius:999px;padding:12px 22px;
+    box-shadow:0 12px 26px -12px rgba(224,78,36,.7)}
+
+  h1{font-family:'Sora';font-weight:800;font-size:78px;line-height:1.03;letter-spacing:-.042em;
+    color:#1C0F09;margin-bottom:14px}
+  h1 .hl{background:linear-gradient(100deg,#F36D32 0%,#B63325 82%);
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  .site{font-size:24px;color:#7A6459;font-weight:500;margin-bottom:28px}
+  .site b{color:#271610;font-weight:600}
+
+  /* ---- rozet kartı ---- */
+  .card{flex:1;background:#fff;border:1.5px solid rgba(39,22,16,.09);border-radius:24px;
+    padding:24px 30px 26px;display:flex;flex-direction:column;
+    box-shadow:0 22px 50px -24px rgba(70,30,15,.24),0 3px 10px rgba(70,30,15,.04)}
+  .card-top{display:flex;align-items:baseline;justify-content:space-between}
+  .card-t{font-family:'Sora';font-weight:700;font-size:21px;letter-spacing:-.015em;color:#271610}
+  .card-s{font-size:16px;color:#9A8478;font-weight:500}
+  .badgewrap{flex:1;display:flex;align-items:center;justify-content:center}
+  .quote{text-align:center;font-size:18px;line-height:1.45;color:#8A7469;font-weight:500;
+    max-width:840px;margin:0 auto}
+  .quote b{color:#4A342A;font-weight:600}
+
+  /* ---- stats ---- */
+  .stats{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:20px}
+  .st{background:#fff;border:1.5px solid rgba(39,22,16,.09);border-radius:20px;padding:20px 22px;
+    box-shadow:0 10px 26px -18px rgba(70,30,15,.22)}
+  .st b{display:block;font-family:'Sora';font-weight:800;font-size:42px;letter-spacing:-.035em;
+    line-height:1;margin-bottom:9px;
+    background:linear-gradient(100deg,#F36D32 0%,#B63325 82%);
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  .st span{display:block;font-size:18px;color:#4A342A;font-weight:600;line-height:1.28}
+  .st em{display:block;font-style:normal;font-size:15px;color:#9A8478;font-weight:500;margin-top:4px}
+
+  .foot{margin-top:22px;display:flex;align-items:center;justify-content:space-between}
+  .foot-l{font-family:'Sora';font-weight:700;font-size:25px;letter-spacing:-.02em;color:#271610}
+  .foot-r{font-size:19px;color:#8A7469;font-weight:500}
+</style></head>
+<body>
+  <div class="glow-a"></div><div class="glow-b"></div>
+  <div class="frame">
+
+    <div class="top">
+      <span class="wm"><span class="ink">Ranks</span><svg width="24" height="24" viewBox="0 0 40 40" fill="none" style="margin:0 -1px 0 2px"><path d="M10 30 L30 10" stroke="#E04E24" stroke-width="5.5" stroke-linecap="round"/><path d="M17 8.5 L31.5 8.5 L31.5 23" stroke="#E04E24" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="up">Up</span></span>
+      <span class="badge">REFERANS</span>
+    </div>
+
+    <h1>28 günde Google'dan<br><span class="hl">12.000 tıklama.</span></h1>
+    <p class="site"><b>kobipratik.com</b> · RanksUp referansı · Search Console, 19 Ağu 2026</p>
+
+    <div class="card">
+      <div class="card-top">
+        <span class="card-t">Google Arama Etkisi</span>
+        <span class="card-s">Search Console rozeti · birinci el veri</span>
+      </div>
+
+      <div class="badgewrap">
+        <svg width="580" height="370" viewBox="0 0 470 300" fill="none">
+          <defs>
+            <linearGradient id="hexOut" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="#FBD24E"/><stop offset="1" stop-color="#E9A426"/>
+            </linearGradient>
+            <linearGradient id="hexIn" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="#FDE9A6"/><stop offset="1" stop-color="#FAD05C"/>
+            </linearGradient>
+            <linearGradient id="starG" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#FBD24E"/><stop offset="1" stop-color="#EFAE2C"/>
+            </linearGradient>
+          </defs>
+
+          <!-- konfeti -->
+          <g fill="#FAD470">
+            <circle cx="36" cy="118" r="7"/><circle cx="63" cy="236" r="8"/>
+            <circle cx="424" cy="96" r="8"/><circle cx="404" cy="238" r="7"/>
+            <circle cx="118" cy="42" r="5"/><circle cx="352" cy="30" r="5.5"/>
+          </g>
+          <g fill="#F8CB57">
+            <rect x="86" y="72" width="9" height="26" rx="4.5" transform="rotate(-28 90 85)"/>
+            <rect x="374" y="66" width="9" height="26" rx="4.5" transform="rotate(24 378 79)"/>
+            <rect x="62" y="182" width="9" height="24" rx="4.5" transform="rotate(38 66 194)"/>
+            <rect x="400" y="176" width="9" height="24" rx="4.5" transform="rotate(-34 404 188)"/>
+          </g>
+          <!-- pırıltılar -->
+          <g fill="#F6C23F">
+            <path d="M235 12 l7 17 17 7 -17 7 -7 17 -7 -17 -17 -7 17 -7z"/>
+            <path d="M64 60 l5 12 12 5 -12 5 -5 12 -5 -12 -12 -5 12 -5z" opacity=".85"/>
+            <path d="M410 200 l5 12 12 5 -12 5 -5 12 -5 -12 -12 -5 12 -5z" opacity=".85"/>
+          </g>
+
+          <!-- altıgen -->
+          <path d="M155 44 H315 L390 150 L315 256 H155 L80 150 Z"
+                fill="url(#hexOut)" stroke="url(#hexOut)" stroke-width="18" stroke-linejoin="round"/>
+          <path d="M164 62 H306 L370 150 L306 238 H164 L100 150 Z"
+                fill="url(#hexIn)" stroke="url(#hexIn)" stroke-width="12" stroke-linejoin="round"/>
+
+          <!-- yildiz + buyutec -->
+          <path d="M235 62 l13.5 27.4 30.2 4.4 -21.9 21.3 5.2 30.1 -27-14.2 -27 14.2 5.2-30.1 -21.9-21.3 30.2-4.4z"
+                fill="url(#starG)" stroke="#F2B733" stroke-width="3" stroke-linejoin="round"/>
+          <circle cx="233" cy="100" r="11" stroke="#D9611B" stroke-width="4.5" fill="none"/>
+          <path d="M241 108 L249 116" stroke="#D9611B" stroke-width="5" stroke-linecap="round"/>
+
+          <!-- 12K hapi -->
+          <rect x="128" y="150" width="214" height="72" rx="36" fill="#fff"/>
+          <text x="235" y="203" font-family="Sora" font-weight="700" font-size="52"
+                fill="#1A73E8" text-anchor="middle" letter-spacing="-1">12K</text>
+        </svg>
+      </div>
+
+      <p class="quote">“Sitenizin son 28 gün içinde Google Arama'dan aldığı tıklama sayısı,
+        <b>12K sınırına ulaştı.</b>”</p>
+    </div>
+
+    <div class="stats">
+      <div class="st"><b>5,4×</b><span>4 ayda organik büyüme</span><em>günde ~80 → ~430 tıklama</em></div>
+      <div class="st"><b>3. sıra</b><span>“damga vergisi hesaplama”</span><em>15K aylık arama · Google</em></div>
+      <div class="st"><b>%100</b><span>organik arama</span><em>reklam tıklaması değil</em></div>
+    </div>
+
+    <div class="foot">
+      <span class="foot-l">ranksup.ai</span>
+      <span class="foot-r">Senin yerine pazarlama yapan AI.</span>
+    </div>
+  </div>
+</body></html>

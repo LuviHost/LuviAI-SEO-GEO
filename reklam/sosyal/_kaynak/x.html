@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="tr"><head><meta charset="utf-8">
+<link rel="stylesheet" href="fonts/fonts.css">
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{width:1600px;height:900px;overflow:hidden}
+  body{font-family:'Geist',system-ui,sans-serif;background:#100904;color:#fff;
+    -webkit-font-smoothing:antialiased;position:relative}
+
+  .g1{position:absolute;inset:0;background:
+    radial-gradient(760px 760px at 76% 50%,rgba(243,109,50,.30) 0%,rgba(243,109,50,.10) 40%,transparent 70%),
+    radial-gradient(900px 600px at 6% 8%,rgba(182,51,37,.20) 0%,transparent 62%)}
+  .grid{position:absolute;inset:0;opacity:.30;
+    background-image:linear-gradient(rgba(255,255,255,.055) 1px,transparent 1px),
+                     linear-gradient(90deg,rgba(255,255,255,.055) 1px,transparent 1px);
+    background-size:64px 64px;
+    -webkit-mask-image:radial-gradient(900px 700px at 45% 45%,#000 0%,transparent 78%)}
+
+  .frame{position:relative;height:100%;display:flex;align-items:stretch}
+
+  /* ---------- left ---------- */
+  .left{width:900px;padding:78px 40px 74px 88px;display:flex;flex-direction:column}
+  .wm{display:inline-flex;align-items:center;font-family:'Sora';font-weight:700;font-size:40px;
+    letter-spacing:-.03em;line-height:1;white-space:nowrap}
+  .wm .ink{color:#fff}.wm .up{color:#F88750}
+  .wm svg{margin:0 -1px 0 2px}
+
+  .mid{flex:1;display:flex;flex-direction:column;justify-content:center;padding-bottom:6px}
+  .eyebrow{font-family:'Sora';font-weight:700;font-size:17px;letter-spacing:.20em;text-transform:uppercase;
+    color:#F88750;margin-bottom:26px;display:flex;align-items:center;gap:13px}
+  .eyebrow::before{content:'';width:32px;height:3px;border-radius:2px;background:#F88750}
+
+  h1{font-family:'Sora';font-weight:800;font-size:94px;line-height:1.02;letter-spacing:-.042em;color:#fff}
+  h1 .hl{background:linear-gradient(100deg,#FF9A5E 0%,#F0532B 82%);
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+
+  .sub{margin-top:32px;font-size:29px;line-height:1.5;color:#C3ADA2;font-weight:400;max-width:760px}
+
+  .ctas{margin-top:44px;display:flex;align-items:center;gap:24px}
+  .btn{font-family:'Sora';font-weight:700;font-size:27px;letter-spacing:-.02em;color:#fff;
+    background:linear-gradient(135deg,#F36D32,#C63A28);border-radius:16px;padding:19px 34px;
+    box-shadow:0 18px 40px -14px rgba(243,109,50,.62);display:inline-flex;align-items:center;gap:12px}
+  .meta{font-size:21px;color:#93796C;font-weight:500;line-height:1.45}
+
+  .trust{margin-top:8px;padding-top:26px;border-top:1.5px solid rgba(255,255,255,.09);max-width:780px;
+    display:flex;align-items:center;gap:0;flex-wrap:wrap;
+    font-size:18px;color:#8A7264;font-weight:500}
+  .trust span{display:inline-flex;align-items:center;gap:9px}
+  .trust span::before{content:'';width:6px;height:6px;border-radius:50%;background:#F88750;opacity:.65}
+  .trust em{font-style:normal;margin:0 16px;opacity:.35}
+
+  /* ---------- right: orbit ---------- */
+  .right{flex:1;position:relative}
+  .orbit{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:520px;height:520px}
+  .ring{position:absolute;border-radius:50%;border:1.5px dashed rgba(248,135,80,.30);
+    left:50%;top:50%;transform:translate(-50%,-50%)}
+  .r1{width:410px;height:410px}
+  .r2{width:520px;height:520px;border-style:solid;border-color:rgba(248,135,80,.13)}
+  .core{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
+    width:172px;height:172px;border-radius:50%;
+    background:radial-gradient(circle at 34% 28%,#FF9E63 0%,#F0532B 52%,#B02F22 100%);
+    box-shadow:0 0 0 14px rgba(243,109,50,.13),0 0 90px 20px rgba(243,109,50,.42);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px}
+  .core b{font-family:'Sora';font-weight:800;font-size:23px;letter-spacing:.06em;color:#fff}
+  .core s{font-size:15px;color:rgba(255,255,255,.82);text-decoration:none;letter-spacing:.02em}
+
+  .node{position:absolute;transform:translate(-50%,-50%);
+    font-family:'Sora';font-weight:600;font-size:19px;letter-spacing:-.01em;color:#F1E4DD;
+    background:rgba(255,255,255,.055);border:1.5px solid rgba(255,255,255,.15);
+    border-radius:12px;padding:11px 16px;white-space:nowrap;backdrop-filter:blur(6px);
+    display:inline-flex;align-items:center;gap:9px;
+    box-shadow:0 10px 26px -12px rgba(0,0,0,.7)}
+  .node i{width:7px;height:7px;border-radius:50%;background:#F88750;display:block;
+    box-shadow:0 0 9px rgba(248,135,80,.9)}
+</style></head>
+<body>
+  <div class="g1"></div><div class="grid"></div>
+
+  <div class="frame">
+    <div class="left">
+      <span class="wm"><span class="ink">Ranks</span><svg width="24" height="24" viewBox="0 0 40 40" fill="none"><path d="M10 30 L30 10" stroke="#F88750" stroke-width="5.5" stroke-linecap="round"/><path d="M17 8.5 L31.5 8.5 L31.5 23" stroke="#F88750" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="up">Up</span></span>
+
+      <div class="mid">
+        <div class="eyebrow">AI Görünürlük Platformu</div>
+        <h1>ChatGPT seni<br><span class="hl">öneriyor mu?</span></h1>
+        <p class="sub">7 AI motorunda markanın nasıl tanındığını gör.<br>30 saniye · üyelik yok · kart yok.</p>
+        <div class="ctas">
+          <span class="btn">ranksup.ai <span style="opacity:.85">→</span></span>
+          <span class="meta">Ücretsiz görünürlük testi<br>Sonuç 30 saniyede ekranında</span>
+        </div>
+      </div>
+
+      <div class="trust">
+        <span>Apple Search Ads Open API Partner</span><em>|</em>
+        <span>KVKK uyumlu</span><em>|</em>
+        <span>%99.9 SLA</span>
+      </div>
+    </div>
+
+    <div class="right">
+      <div class="orbit">
+        <div class="ring r2"></div>
+        <div class="ring r1"></div>
+        <div class="core"><b>MARKAN</b><s>görünürlük</s></div>
+
+        <span class="node" style="left:260px;top:55px"><i></i>ChatGPT</span>
+        <span class="node" style="left:420px;top:132px"><i></i>Claude</span>
+        <span class="node" style="left:460px;top:306px"><i></i>Gemini</span>
+        <span class="node" style="left:349px;top:445px"><i></i>Perplexity</span>
+        <span class="node" style="left:171px;top:445px"><i></i>Grok</span>
+        <span class="node" style="left:60px;top:306px"><i></i>DeepSeek</span>
+        <span class="node" style="left:100px;top:132px"><i></i>Meta AI</span>
+      </div>
+    </div>
+  </div>
+</body></html>

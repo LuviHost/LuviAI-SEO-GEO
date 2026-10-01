@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="tr"><head><meta charset="utf-8">
+<link rel="stylesheet" href="fonts/fonts.css">
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{width:1600px;height:900px;overflow:hidden}
+  body{font-family:'Geist',system-ui,sans-serif;background:#100904;color:#fff;
+    -webkit-font-smoothing:antialiased;position:relative}
+  .g1{position:absolute;inset:0;background:
+    radial-gradient(820px 700px at 74% 46%,rgba(243,109,50,.24) 0%,rgba(243,109,50,.07) 44%,transparent 72%),
+    radial-gradient(820px 560px at 4% 6%,rgba(182,51,37,.20) 0%,transparent 62%)}
+  .grid{position:absolute;inset:0;opacity:.26;
+    background-image:linear-gradient(rgba(255,255,255,.055) 1px,transparent 1px),
+                     linear-gradient(90deg,rgba(255,255,255,.055) 1px,transparent 1px);
+    background-size:64px 64px;
+    -webkit-mask-image:radial-gradient(900px 700px at 42% 45%,#000 0%,transparent 78%)}
+
+  .frame{position:relative;height:100%;display:flex;align-items:stretch}
+
+  /* ---------- left ---------- */
+  .left{width:672px;padding:70px 24px 66px 84px;display:flex;flex-direction:column}
+  .top{display:flex;align-items:center;gap:18px}
+  .mid{flex:1;display:flex;flex-direction:column;justify-content:center}
+  .wm{display:inline-flex;align-items:center;font-family:'Sora';font-weight:700;font-size:36px;
+    letter-spacing:-.03em;line-height:1;white-space:nowrap}
+  .wm .ink{color:#fff}.wm .up{color:#F88750}
+  .badge{font-family:'Sora';font-weight:700;font-size:13px;letter-spacing:.16em;color:#fff;
+    background:linear-gradient(135deg,#F36D32,#C63A28);border-radius:999px;padding:9px 16px;
+    box-shadow:0 10px 22px -10px rgba(243,109,50,.8)}
+
+  h1{font-family:'Sora';font-weight:800;font-size:64px;line-height:1.04;letter-spacing:-.042em;
+    color:#fff;margin:30px 0 16px}
+  h1 .hl{background:linear-gradient(100deg,#FF9A5E 0%,#F0532B 82%);
+    -webkit-background-clip:text;background-clip:text;color:transparent}
+  .site{font-size:22px;color:#B49F93;font-weight:500;margin-bottom:34px}
+  .site b{color:#fff;font-weight:600}
+
+  .rows{display:flex;flex-direction:column;gap:15px}
+  .row{display:flex;align-items:baseline;gap:15px}
+  .row b{font-family:'Sora';font-weight:800;font-size:31px;letter-spacing:-.03em;color:#F88750;
+    min-width:112px}
+  .row span{font-size:20px;color:#C3ADA2;font-weight:500;line-height:1.3}
+  .row span i{font-style:normal;color:#8A7264;font-size:18px}
+
+  .cta{margin-top:auto;display:flex;align-items:center;gap:20px}
+  .btn{font-family:'Sora';font-weight:700;font-size:24px;letter-spacing:-.02em;color:#fff;
+    background:linear-gradient(135deg,#F36D32,#C63A28);border-radius:15px;padding:17px 30px;
+    box-shadow:0 18px 38px -14px rgba(243,109,50,.62);display:inline-flex;align-items:center;gap:11px}
+  .cta em{font-style:normal;font-size:18px;color:#8A7264;font-weight:500;line-height:1.4}
+
+  /* ---------- right: chart ---------- */
+  .right{flex:1;display:flex;align-items:center;justify-content:center;padding-right:76px}
+  .panel{width:100%;background:rgba(255,255,255,.045);border:1.5px solid rgba(255,255,255,.11);
+    border-radius:24px;padding:26px 30px 20px;backdrop-filter:blur(8px);
+    box-shadow:0 32px 70px -30px rgba(0,0,0,.85)}
+  .p-top{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:10px}
+  .p-t{font-family:'Sora';font-weight:700;font-size:20px;letter-spacing:-.015em;color:#fff}
+  .p-s{font-size:15px;color:#8A7264;font-weight:500}
+</style></head>
+<body>
+  <div class="g1"></div><div class="grid"></div>
+
+  <div class="frame">
+    <div class="left">
+      <div class="top">
+        <span class="wm"><span class="ink">Ranks</span><svg width="22" height="22" viewBox="0 0 40 40" fill="none" style="margin:0 -1px 0 2px"><path d="M10 30 L30 10" stroke="#F88750" stroke-width="5.5" stroke-linecap="round"/><path d="M17 8.5 L31.5 8.5 L31.5 23" stroke="#F88750" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="up">Up</span></span>
+        <span class="badge">VAKA ÇALIŞMASI</span>
+      </div>
+
+      <div class="mid">
+      <h1>3 ayda sıfırdan<br><span class="hl">16.000 ziyaretçi.</span></h1>
+      <p class="site"><b>kobipratik.com</b> · aylık organik arama trafiği</p>
+
+      <div class="rows">
+        <div class="row"><b>16K</b><span>aylık organik ziyaret <i>— Nisan'da ~0'dı</i></span></div>
+        <div class="row"><b>3. sıra</b><span>"yaş hesaplama" <i>— 146K aylık arama</i></span></div>
+        <div class="row"><b>%100</b><span>Türkiye trafiği <i>— hedef kitlenin tamamı</i></span></div>
+      </div>
+      </div>
+
+      <div class="cta">
+        <span class="btn">ranksup.ai <span style="opacity:.85">→</span></span>
+        <em>Markanı 30 saniyede test et<br>Üyelik yok · kart yok</em>
+      </div>
+    </div>
+
+    <div class="right">
+      <div class="panel">
+        <div class="p-top">
+          <span class="p-t">Organik trafik</span>
+          <span class="p-s">Kaynak: Ahrefs · Ağustos 2026</span>
+        </div>
+
+        <svg width="100%" height="310" viewBox="0 0 820 310" fill="none">
+          <defs>
+            <linearGradient id="area" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#F36D32" stop-opacity=".42"/>
+              <stop offset="1" stop-color="#F36D32" stop-opacity="0"/>
+            </linearGradient>
+            <linearGradient id="line" x1="0" y1="1" x2="1" y2="0">
+              <stop offset="0" stop-color="#F0913F"/><stop offset="1" stop-color="#FF7A45"/>
+            </linearGradient>
+          </defs>
+
+          <!-- 0=270 · 4.5K=209 · 9K=147 · 13.5K=86 · 18K=25 -->
+          <g stroke="rgba(255,255,255,.09)" stroke-width="1.5">
+            <line x1="52" y1="270" x2="820" y2="270"/>
+            <line x1="52" y1="209" x2="820" y2="209"/>
+            <line x1="52" y1="147" x2="820" y2="147"/>
+            <line x1="52" y1="86"  x2="820" y2="86"/>
+            <line x1="52" y1="25"  x2="820" y2="25"/>
+          </g>
+          <g font-family="Geist" font-size="14" fill="#7C665A" text-anchor="end">
+            <text x="40" y="275">0</text><text x="40" y="214">4.5K</text>
+            <text x="40" y="152">9K</text><text x="40" y="91">13.5K</text>
+            <text x="40" y="30">18K</text>
+          </g>
+
+          <path d="M52 266 C110 265 168 261 226 258 C284 255 342 251 400 244 C458 237 516 226 574 207 C632 188 690 120 748 25 L748 270 L52 270 Z"
+                fill="url(#area)"/>
+          <path d="M52 266 C110 265 168 261 226 258 C284 255 342 251 400 244 C458 237 516 226 574 207 C632 188 690 120 748 25"
+                stroke="url(#line)" stroke-width="5.5" stroke-linecap="round" fill="none"/>
+
+          <circle cx="748" cy="25" r="15" fill="#F88750" opacity=".22"/>
+          <circle cx="748" cy="25" r="8" fill="#FF7A45" stroke="#1A0E07" stroke-width="3"/>
+          <circle cx="52" cy="266" r="6" fill="#6B5348" stroke="#1A0E07" stroke-width="2.5"/>
+
+          <g font-family="Sora" font-weight="500" font-size="16" fill="#8A7264" text-anchor="middle">
+            <text x="52" y="300">Nisan</text><text x="226" y="300">Mayıs</text>
+            <text x="400" y="300">Haziran</text><text x="574" y="300">Temmuz</text>
+            <text x="748" y="300">Ağustos</text>
+          </g>
+        </svg>
+      </div>
+    </div>
+  </div>
+</body></html>
