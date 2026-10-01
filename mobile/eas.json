@@ -21,6 +21,13 @@
     }
   },
   "submit": {
-    "production": {}
+    "production": {
+      "ios": {
+        "ascAppId": "6800496220",
+        "ascApiKeyPath": "../AuthKey_KRB3S45VT9.p8",
+        "ascApiKeyId": "KRB3S45VT9",
+        "ascApiKeyIssuerId": "8392c925-5445-4b7e-9743-2913b7d1d976"
+      }
+    }
   }
 }
