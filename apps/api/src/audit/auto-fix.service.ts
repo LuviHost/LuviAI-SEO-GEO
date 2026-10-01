@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { SiteCrawlerService } from '../sites/site-crawler.service.js';
 import { GeneratorsService } from './generators.service.js';
-import { decrypt } from '@luviai/shared';
+import { decryptCredentials } from '@luviai/shared';
 import { getAdapter } from '@luviai/adapters';
 import { AppliedFixService } from './applied-fix.service.js';
 
@@ -192,7 +192,7 @@ export class AutoFixService {
       return { ok: false, error: `Adapter yok: ${target.type}` };
     }
 
-    const adapter = new Adapter(this.decryptCreds(target.credentials as Record<string, any>), target.config ?? {});
+    const adapter = new Adapter(decryptCredentials(target.credentials as Record<string, any>), target.config ?? {});
 
     // Kök dosya yazımı — slug.html DEĞİL, dosya adı birebir web root'a.
     const contentType = filename.endsWith('.xml')
@@ -221,23 +221,5 @@ export class AutoFixService {
     return capable.find((t) => t.isDefault) ?? capable[0];
   }
 
-  /** credentials decrypt — hem yeni {enc} formatı hem eski per-field formatı. */
-  private decryptCreds(creds: Record<string, any>): Record<string, any> {
-    if (!creds || typeof creds !== 'object') return {};
-    if (typeof creds.enc === 'string' && creds.enc.includes(':')) {
-      try {
-        const parsed = JSON.parse(decrypt(creds.enc));
-        if (parsed && typeof parsed === 'object') return parsed;
-      } catch { /* per-field'e düş */ }
-    }
-    const out: Record<string, any> = {};
-    for (const [k, v] of Object.entries(creds)) {
-      out[k] = typeof v === 'string' && v.includes(':') ? this.tryDecrypt(v) : v;
-    }
-    return out;
-  }
 
-  private tryDecrypt(value: string): string {
-    try { return decrypt(value); } catch { return value; }
-  }
 }

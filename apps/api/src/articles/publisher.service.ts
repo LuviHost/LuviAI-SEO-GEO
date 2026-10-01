@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { decrypt, mdToHtml, parseFrontmatter } from '@luviai/shared';
+import { decryptCredentials, mdToHtml, parseFrontmatter } from '@luviai/shared';
 import { getAdapter } from '@luviai/adapters';
 import { ImageGeneratorService } from './image-generator.service.js';
 import { AiIndexingPingerService } from '../audit/ai-indexing-pinger.service.js';
@@ -427,7 +427,7 @@ export class PublisherService {
         continue;
       }
 
-      const credentials = this.decryptCredentials(target.credentials as Record<string, any>);
+      const credentials = decryptCredentials(target.credentials as Record<string, any>);
       const adapter = new Adapter(credentials, target.config ?? {});
 
       try {
@@ -543,7 +543,7 @@ export class PublisherService {
     for (const target of targets) {
       const Adapter = getAdapter(target.type) as any;
       if (!Adapter) continue;
-      const adapter = new Adapter(this.decryptCredentials(target.credentials as Record<string, any>), target.config ?? {});
+      const adapter = new Adapter(decryptCredentials(target.credentials as Record<string, any>), target.config ?? {});
       if (typeof adapter.pushLlms !== 'function') continue;
 
       try {
@@ -559,30 +559,4 @@ export class PublisherService {
     }
   }
 
-  private decryptCredentials(creds: Record<string, any>): Record<string, any> {
-    if (!creds || typeof creds !== 'object') return {};
-
-    // Yeni format: { enc: "iv:tag:ciphertext" } — tum credentials tek JSON
-    // string'inde sifrelenmis. Decrypt + JSON.parse yapip alanlari ust seviyeye yay.
-    if (typeof creds.enc === 'string' && creds.enc.includes(':')) {
-      try {
-        const decrypted = decrypt(creds.enc);
-        const parsed = JSON.parse(decrypted);
-        if (parsed && typeof parsed === 'object') return parsed;
-      } catch {
-        // duser fallback yola
-      }
-    }
-
-    // Eski format: her alan ayri ayri encrypted (geriye uyumluluk)
-    const out: Record<string, any> = {};
-    for (const [k, v] of Object.entries(creds)) {
-      if (typeof v === 'string' && v.includes(':')) {
-        try { out[k] = decrypt(v); } catch { out[k] = v; }
-      } else {
-        out[k] = v;
-      }
-    }
-    return out;
-  }
 }

@@ -1,4 +1,4 @@
-export { encrypt, decrypt } from './utils/crypto.js';
+export { encrypt, decrypt, decryptCredentials } from './utils/crypto.js';
 export { turkishSlug } from './utils/slug.js';
 export { mdToHtml, extractFAQs, readingTime, parseFrontmatter } from './utils/markdown.js';
 export type { ExtractedFaq } from './utils/markdown.js';

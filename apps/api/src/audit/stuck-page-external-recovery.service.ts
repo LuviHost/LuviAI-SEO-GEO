@@ -6,7 +6,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { WebhookNotifierService } from './webhook-notifier.service.js';
 import { GeoRunnerService } from './geo-runner.service.js';
 import { JobQueueService } from '../jobs/job-queue.service.js';
-import { decrypt } from '@luviai/shared';
+import { decryptCredentials } from '@luviai/shared';
 import { getAdapter } from '@luviai/adapters';
 import { safeParseJson } from '../common/safe-json.js';
 import { readBodyCapped } from '../common/fetch-capped.js';
@@ -429,12 +429,33 @@ ONEMLI: "before" sayfada BIREBIR varolmali. Max 6 edit.`;
      * `as any` KALDIRILDI — hatayı maskeleyen şey oydu. Tipli `where` ile
      * yanlış yazılan bir değer artık DERLEMEDE kırılır.
      */
+    /*
+     * KOBIPRATIK VE CUSTOM_PHP EKLENDI — ikisi de uzerine yazabiliyor ama
+     * listede YOKTU, yani bu iki tiple kurulmus bir site icin takili sayfa
+     * kurtarma SESSIZCE hic calismiyordu (cagiran taraf `null`i mesru sayiyor,
+     * yalnizca audit kaydi yaziyor).
+     *
+     * ADAPTOR KODUNDAN DOGRULANDI, varsayilmadi:
+     *   KOBIPRATIK  -> `bodyHtmlOverride` / `bodyMdOverride` alanlarini
+     *                  gonderiyor (`kobipratik.ts:53-54`). Govdenin uzerine
+     *                  yazmak zaten bu alanlarin VAROLUS SEBEBI.
+     *   CUSTOM_PHP  -> `slug` + `body_html` gonderiyor (`custom-php.ts:30-41`);
+     *                  alici ucun slug'a gore upsert etmesi bekleniyor —
+     *                  endpoint kullanicinin kendisinin oldugu icin ustune
+     *                  yazma semantigi de onun kontrolunde.
+     *
+     * Listede OLMAYANLAR da bilincli: GITHUB/MARKDOWN_ZIP `needsFullPage`
+     * istiyor, WEBFLOW/SANITY/CONTENTFUL/GHOST/STRAPI gibi headless CMS'lerde
+     * URL tabanli guncelleme yolu yok (dosya basi yorumundaki sinirlama notu).
+     */
     const overwriteCapable: PublishTargetType[] = [
       'WORDPRESS_REST',
       'WORDPRESS_XMLRPC',
       'FTP',
       'SFTP',
       'CPANEL_API',
+      'KOBIPRATIK',
+      'CUSTOM_PHP',
     ];
     const targets = await this.prisma.publishTarget.findMany({
       where: {
@@ -451,14 +472,25 @@ ONEMLI: "before" sayfada BIREBIR varolmali. Max 6 edit.`;
     const Adapter = getAdapter(target.type) as any;
     if (!Adapter) return false;
 
-    // Credentials decrypt
-    const decrypted = Object.fromEntries(
-      Object.entries(target.credentials as Record<string, any>).map(([k, v]) => [
-        k,
-        typeof v === 'string' && v.includes(':') ? decrypt(v) : v,
-      ]),
-    );
-    const adapter = new Adapter(decrypted, target.config ?? {});
+    /*
+     * CREDENTIALS COZME — BURADA BOZUKTU, ENUM DUZELTMESI TEK BASINA YETMIYORDU.
+     *
+     * Burada eskiden yalnizca ALAN-BAZLI cozme vardi: her degeri tek tek
+     * `decrypt()`ten geciriyordu. Ama `publish-targets.service.ts:109,136`
+     * bugun TUM credential'i tek JSON'a sifirleyip `{ enc: "iv:tag:ct" }`
+     * olarak yaziyor. Eski yol o nesneye uygulaninca sonuc
+     * `{ enc: '{"baseUrl":...}' }` oluyordu — yani `baseUrl`/`apiKey`
+     * adaptore HIC ULASMIYOR, `publish()` "credentials eksik" donuyordu.
+     *
+     * Sonuc: `95eead4`te enum yazimi (`wordpress-rest` -> `WORDPRESS_REST`)
+     * duzeltildikten SONRA BILE bu ozellik disariya hicbir sey yazamiyordu.
+     * Iki ayri hata ust uste binmisti; ilki duzeltilince ikincisi ortaya cikti.
+     *
+     * Artik tek kaynak: `@luviai/shared` icindeki `decryptCredentials`.
+     * Ayni mantik `publisher.service.ts` ve `auto-fix.service.ts`te de
+     * KOPYALANMISTI; ucu birden oraya baglandi.
+     */
+    const adapter = new Adapter(decryptCredentials(target.credentials as Record<string, any>), target.config ?? {});
 
     // Slug url'den cikar
     let slug = '';

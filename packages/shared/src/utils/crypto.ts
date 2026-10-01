@@ -17,3 +17,47 @@ export function decrypt(payload: string): string {
   const decrypted = Buffer.concat([decipher.update(Buffer.from(dataHex, 'hex')), decipher.final()]);
   return decrypted.toString('utf8');
 }
+
+/**
+ * PublishTarget.credentials'i coz — IKI FORMATI DA bilir.
+ *
+ * NEDEN BURADA: bu mantik UC yerde ayri ayri yaziliydi
+ * (`publisher.service.ts`, `auto-fix.service.ts`,
+ * `stuck-page-external-recovery.service.ts`) ve UCUNCUSU EKSIKTI:
+ * yalnizca eski alan-bazli yolu uyguluyordu. `create()`/`update()`
+ * bugun `{ enc: "iv:tag:ciphertext" }` yaziyor
+ * (`publish-targets.service.ts:109,136`), dolayisiyla o dosya adaptore
+ * `{ enc: '{"baseUrl":...}' }` veriyordu: `baseUrl` hic ulasmiyor,
+ * `publish()` "credentials eksik" donuyordu. Takili sayfa kurtarma
+ * ozelligi bu yuzden — enum yazimi duzeltildikten SONRA BILE —
+ * disariya hic yazamiyordu.
+ *
+ * Kopyalanan bir yardimci, kopyalardan biri geride kalinca sessiz
+ * bir hataya donusuyor. Tek kaynak burada.
+ *
+ * Yeni format: { enc: "<iv>:<tag>:<ciphertext>" } — tum alanlar tek JSON
+ * string'inde. Eski format: her alan ayri ayri sifreli (geriye uyumluluk;
+ * eski kayitlar migrate EDILMEDI, o yuzden ikinci yol silinemez).
+ */
+export function decryptCredentials(creds: Record<string, any> | null | undefined): Record<string, any> {
+  if (!creds || typeof creds !== 'object') return {};
+
+  if (typeof creds.enc === 'string' && creds.enc.includes(':')) {
+    try {
+      const parsed = JSON.parse(decrypt(creds.enc));
+      if (parsed && typeof parsed === 'object') return parsed;
+    } catch {
+      // bozuk/eski kayit — asagidaki alan-bazli yola dus
+    }
+  }
+
+  const out: Record<string, any> = {};
+  for (const [k, v] of Object.entries(creds)) {
+    if (typeof v === 'string' && v.includes(':')) {
+      try { out[k] = decrypt(v); } catch { out[k] = v; }
+    } else {
+      out[k] = v;
+    }
+  }
+  return out;
+}
