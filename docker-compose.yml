@@ -7,6 +7,10 @@ services:
     image: mysql:8.4
     container_name: luviai-mysql
     restart: unless-stopped
+    # MySQL 8.4 varsayilan collation'i utf8mb4_0900_ai_ci — eski tablolar
+    # utf8mb4_unicode_ci oldugu icin prisma migrate dev'in shadow DB replay'i
+    # FK 3780 hatasi veriyordu. Sunucu varsayilanini sabitliyoruz.
+    command: ['--character-set-server=utf8mb4', '--collation-server=utf8mb4_unicode_ci']
     environment:
       MYSQL_ROOT_PASSWORD: luviai_root_dev
       MYSQL_DATABASE: luviai
