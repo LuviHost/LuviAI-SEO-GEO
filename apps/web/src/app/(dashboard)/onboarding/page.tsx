@@ -262,6 +262,7 @@ function InputStage({
       // AI ile niş tespit — site oluşturmadan önce paralel başlat.
       // Başarısız olursa 'diğer' fallback, akış kesilmez.
       let detectedNiche = 'diğer';
+      let detectedCustomNiche: string | undefined;
       try {
         const detection = await Promise.race([
           api.detectNiche(url),
@@ -269,12 +270,14 @@ function InputStage({
         ]);
         if (detection && (detection as any).niche) {
           const d = detection as any;
-          // Confidence yüksekse customNiche varsa onu, yoksa standardı kullan
+          // Confidence yüksekse: standart niş enum'u `niche`'e, serbest metin niş
+          // ise AYRI `customNiche` alanına yazılır (backend ikisini ayrı saklar).
           if (d.confidence >= 0.5) {
-            detectedNiche = (d.niche === 'diğer' && d.customNiche)
-              ? d.customNiche
-              : d.niche;
-            toast.success(`Niş tespit edildi: ${detectedNiche}`);
+            detectedNiche = d.niche;
+            if (d.niche === 'diğer' && d.customNiche) {
+              detectedCustomNiche = d.customNiche;
+            }
+            toast.success(`Niş tespit edildi: ${detectedCustomNiche || detectedNiche}`);
           }
         }
       } catch (_e) { /* fallback to 'diğer' */ }
@@ -283,6 +286,7 @@ function InputStage({
         url,
         name: guessedName,
         niche: detectedNiche,
+        customNiche: detectedCustomNiche,
         language: 'tr',
       } as any);
       toast.success('Görev başlatıldı — AI çalışıyor');

@@ -294,7 +294,7 @@ export const api = {
   request: <T = any>(path: string, options?: RequestInit) => request<T>(path, options),
 
   // Sites
-  createSite: (body: { url: string; name: string; niche?: string; language?: string }) =>
+  createSite: (body: { url: string; name: string; niche?: string; customNiche?: string; language?: string }) =>
     request<any>('/sites', { method: 'POST', body: JSON.stringify(body) }),
 
   // Sprint Onboarding

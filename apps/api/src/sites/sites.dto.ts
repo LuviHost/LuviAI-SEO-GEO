@@ -11,6 +11,9 @@ export class CreateSiteDto {
   @IsOptional()
   @IsString()
   niche?: string;
+
+  @IsOptional()
+  @IsString()
   customNiche?: string;
 
   @IsOptional()
