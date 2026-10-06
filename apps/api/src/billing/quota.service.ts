@@ -109,9 +109,14 @@ export class QuotaService {
 
   async enforceSiteQuota(userId: string) {
     const { allowed, current, limit } = await this.checkSiteQuota(userId);
-    if (!allowed) {
-      throw new ForbiddenException(`Plan limit: ${limit} site. Şu an ${current} siteniz var. Profesyonel veya Kurumsal'a yükseltin.`);
-    }
+    if (allowed) return;
+    // ADMIN (platform sahibi/ekip) site kotasina takilmaz. Site limiti bir
+    // FIYATLANDIRMA kademesidir ve son kullanici (USER) icindir; owner kendi
+    // hesabina dogfood/demo sitesi ekleyebilmeli. Yalniz kota asildiginda (nadir)
+    // ek sorgu yapilir. Rapor/limit gosterimi (checkSiteQuota) DEGISMEDI.
+    const u = await this.prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+    if (u?.role === 'ADMIN') return;
+    throw new ForbiddenException(`Plan limit: ${limit} site. Şu an ${current} siteniz var. Profesyonel veya Kurumsal'a yükseltin.`);
   }
 
   // ────────────────────────────────────────────
