@@ -63,6 +63,21 @@ apps/api/public/studio-images/
 *.p8
 AuthKey_*.p8
 
+# Ozel anahtarlar / imza dosyalari — repo HERKESE ACIK, asla commitleme.
+# luviai-asa-key/asa-private.pem 48e4284'te sizdi: anahtar iptal edilip
+# yenilenmeli (gecmisten silmek yetmez, gecmis zaten acikta).
+luviai-asa-key/
+*.pem
+*.key
+*.p12
+*.mobileprovision
+
+# ASO ajanlarinin rapor ciktilari (.claude/agents/aso) ve asc CLI ile cekilen
+# magaza metadata'si — keywords + App Review iletisim bilgisi GIZLI
+outputs/
+mobile/store/metadata/
+mobile/store/screenshots/
+
 # Kurumsal aday listesi — isimli kisi verisi (KVKK), asla commitleme
 reklam/pazarlama/prospect/data/
 apps/api/data/linkedin/
