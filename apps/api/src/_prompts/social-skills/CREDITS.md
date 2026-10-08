@@ -31,7 +31,7 @@ JSON çıkışı). Pattern aynı, çıktı formatı RanksUp servislerine göre.
 ```
 MIT License
 
-Copyright (c) 2025 Charlie Hills
+Copyright (c) 2026 Charlie Hills
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
