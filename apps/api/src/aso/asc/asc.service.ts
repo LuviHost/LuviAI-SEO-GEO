@@ -24,6 +24,19 @@ export class AscService {
     return site;
   }
 
+  /**
+   * App'i yükler; `user` verildiyse app'in hesabının sitesi o kullanıcıya ait
+   * olmalı. `user`'sız çağrı yalnızca iç kullanım (cron) içindir — controller
+   * HER ZAMAN user geçirir (önceden geçirmiyordu: herhangi bir oturum sahibi
+   * başkasının app'i için Apple API'sini tetikleyip yorumlarını okuyabiliyordu).
+   */
+  private async loadApp(appId: string, user?: RequestingUser) {
+    const app = await this.prisma.ascApp.findUnique({ where: { id: appId }, include: { account: true } });
+    if (!app) throw new NotFoundException('App bulunamadı');
+    if (user) await this.assertSiteOwner(app.account.siteId, user);
+    return app;
+  }
+
   /** ASC bağla — issuer ID + key ID + .p8 */
   async connectAccount(args: {
     siteId: string;
@@ -162,9 +175,8 @@ export class AscService {
   }
 
   /** Apple'dan release'leri çek + alert üret */
-  async syncReleases(appId: string) {
-    const app = await this.prisma.ascApp.findUnique({ where: { id: appId } });
-    if (!app) throw new NotFoundException('App bulunamadı');
+  async syncReleases(appId: string, user?: RequestingUser) {
+    const app = await this.loadApp(appId, user);
 
     const client = await this.getClient(app.accountId);
     try {
@@ -205,18 +217,28 @@ export class AscService {
         });
       }
 
-      // Alert: 60+ gündür update yoksa WARN, 120+ gün CRITICAL
+      // Alert: 60+ gündür update yoksa WARN, 120+ gün CRITICAL.
+      // Onaylanmamış alert varsa YENİSİ açılmaz, mevcut olan güncellenir —
+      // önceden her günlük sync (ve her manuel sync) aynı uyarıyı yeniden
+      // oluşturup listeyi kopyalarla dolduruyordu.
       if (latestReleaseDate) {
         const daysSince = Math.floor((Date.now() - latestReleaseDate.getTime()) / 86400_000);
         if (daysSince >= 60) {
-          await this.prisma.ascReleaseAlert.create({
-            data: {
-              appId,
-              severity: daysSince >= 120 ? 'CRITICAL' : 'WARN',
-              message: `${daysSince} gündür yeni bir release yayınlanmamış. App Store algoritması "abandonware" işareti koyabilir.`,
-              daysSinceUpdate: daysSince,
-            },
+          const data = {
+            severity: daysSince >= 120 ? 'CRITICAL' : 'WARN',
+            message: `${daysSince} gündür yeni bir release yayınlanmamış. App Store algoritması "abandonware" işareti koyabilir.`,
+            daysSinceUpdate: daysSince,
+          };
+          const open = await this.prisma.ascReleaseAlert.findFirst({
+            where: { appId, acknowledgedAt: null },
+            orderBy: { createdAt: 'desc' },
+            select: { id: true },
           });
+          if (open) {
+            await this.prisma.ascReleaseAlert.update({ where: { id: open.id }, data });
+          } else {
+            await this.prisma.ascReleaseAlert.create({ data: { appId, ...data } });
+          }
         }
       }
       return { synced };
@@ -227,9 +249,8 @@ export class AscService {
   }
 
   /** Müşteri yorumlarını çek */
-  async fetchReviews(appId: string, limit = 50) {
-    const app = await this.prisma.ascApp.findUnique({ where: { id: appId } });
-    if (!app) throw new NotFoundException('App bulunamadı');
+  async fetchReviews(appId: string, user?: RequestingUser, limit = 50) {
+    const app = await this.loadApp(appId, user);
 
     const client = await this.getClient(app.accountId);
     const { data: reviews } = await client.listCustomerReviews(app.appleAppId, { limit, sort: '-createdDate' });
@@ -253,9 +274,7 @@ export class AscService {
 
   /** Yoruma cevap ver */
   async replyToReview(appId: string, reviewId: string, body: string, user: RequestingUser) {
-    const app = await this.prisma.ascApp.findUnique({ where: { id: appId }, include: { account: true } });
-    if (!app) throw new NotFoundException('App bulunamadı');
-    await this.assertSiteOwner(app.account.siteId, user);
+    const app = await this.loadApp(appId, user);
     if (!body || body.length < 5 || body.length > 5970) {
       throw new BadRequestException('Yanıt 5-5970 karakter olmalı');
     }

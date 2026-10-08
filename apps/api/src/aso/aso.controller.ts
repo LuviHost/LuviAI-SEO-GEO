@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { AsoService } from './aso.service.js';
 import { AsoScreenshotService } from './screenshot.service.js';
 import { ASOScorerService } from './aso-scorer.service.js';
@@ -14,8 +14,12 @@ import { AppStore, KeywordSource } from '@prisma/client';
 import { AsoPromptLabService } from './aso-prompt-lab.service.js';
 import { AsoReviewContentService } from './aso-review-content.service.js';
 import { RequiresPlan } from '../billing/plan-feature.decorator.js';
+import { AsoResourceGuard } from './aso-resource.guard.js';
 
+// AsoResourceGuard: :appId / :keywordId'nin :siteId'ye ait oldugunu dogrular
+// (SiteAccessGuard yalnizca site sahipligine bakar).
 @Controller('sites/:siteId/aso')
+@UseGuards(AsoResourceGuard)
 export class AsoController {
   constructor(
     private readonly aso: AsoService,

@@ -38,22 +38,21 @@ export class AscController {
     return this.asc.disconnectAccount(accountId, ensureUser(req));
   }
 
+  // Bu uclarda :siteId yok → SiteAccessGuard devreye girmez; sahiplik
+  // servis tarafinda user uzerinden dogrulanir. user'i GECIRMEYI UNUTMA.
   @Post('aso/asc/accounts/:accountId/sync')
   syncApps(@Req() req: AuthedRequest, @Param('accountId') accountId: string) {
-    ensureUser(req);
-    return this.asc.syncApps(accountId);
+    return this.asc.syncApps(accountId, ensureUser(req));
   }
 
   @Post('aso/asc/apps/:appId/sync-releases')
   syncReleases(@Req() req: AuthedRequest, @Param('appId') appId: string) {
-    ensureUser(req);
-    return this.asc.syncReleases(appId);
+    return this.asc.syncReleases(appId, ensureUser(req));
   }
 
   @Get('aso/asc/apps/:appId/reviews')
   reviews(@Req() req: AuthedRequest, @Param('appId') appId: string) {
-    ensureUser(req);
-    return this.asc.fetchReviews(appId);
+    return this.asc.fetchReviews(appId, ensureUser(req));
   }
 
   @Post('aso/asc/apps/:appId/reviews/:reviewId/reply')
