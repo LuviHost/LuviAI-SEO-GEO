@@ -157,13 +157,27 @@ export class AnthropicProvider implements ILLMProvider {
     };
     // Vision yolunda ret yedegi: beta uc + fallbacks:"default". Diger cagrilar
     // degismeden kalir (paylasilan saglayici — kapsam bilerek dar).
-    const response = hasImages && supportsServerFallback(req.model)
-      ? await this.client.beta.messages.create({
+    let response: any;
+    if (hasImages && supportsServerFallback(req.model)) {
+      try {
+        response = await this.client.beta.messages.create({
           ...body,
           betas: ['server-side-fallback-2026-07-01'],
           fallbacks: 'default',
-        } as any)
-      : await this.client.messages.create(body as any);
+        } as any);
+      } catch (err: any) {
+        // Hesap/platform beta'yi kabul etmiyorsa (400) ozellik DUSMESIN:
+        // ayni istek ret yedegi olmadan duz uca bir kez gider.
+        if (err?.status === 400 && /fallback|beta/i.test(String(err?.message ?? ''))) {
+          this.log.warn(`[${req.context}] server-side fallback reddedildi, yedeksiz deneniyor: ${String(err.message).slice(0, 160)}`);
+          response = await this.client.messages.create(body as any);
+        } else {
+          throw err;
+        }
+      }
+    } else {
+      response = await this.client.messages.create(body as any);
+    }
 
     const text = (response.content as any[])
       .filter((b): b is Anthropic.Messages.TextBlock => b?.type === 'text')

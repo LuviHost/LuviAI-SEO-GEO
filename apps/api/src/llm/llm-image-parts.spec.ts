@@ -40,6 +40,32 @@ describe('AnthropicProvider — gorsel bloklari', () => {
     expect(res.costUsd).toBeCloseTo((10 / 1e6) * 4 + (5 / 1e6) * 20, 10);
   });
 
+  it('beta (ret yedegi) 400 ile reddedilirse ayni istek duz uca bir kez gider', async () => {
+    const p = new AnthropicProvider();
+    const client = fakeClient();
+    client.beta.messages.create = vi.fn(async () => { throw Object.assign(new Error('fallbacks: unsupported beta'), { status: 400 }); }) as any;
+    (p as any).client = client;
+    const res = await p.chat({
+      context: 't', model: 'claude-opus-5-5',
+      messages: [{ role: 'user', content: 'x', images: [{ mediaType: 'image/png', base64: 'QQ==' }] }],
+    });
+    expect(client.messages.create).toHaveBeenCalledOnce();
+    expect((client.messages.create.mock.calls[0] as any)[0].fallbacks).toBeUndefined();
+    expect(res.output).toBe('Kırmızı bisiklet');
+  });
+
+  it('baska 400 hatalari yutulmaz', async () => {
+    const p = new AnthropicProvider();
+    const client = fakeClient();
+    client.beta.messages.create = vi.fn(async () => { throw Object.assign(new Error('image too large'), { status: 400 }); }) as any;
+    (p as any).client = client;
+    await expect(p.chat({
+      context: 't', model: 'claude-opus-5-5',
+      messages: [{ role: 'user', content: 'x', images: [{ mediaType: 'image/png', base64: 'QQ==' }] }],
+    })).rejects.toThrow(/image too large/);
+    expect(client.messages.create).not.toHaveBeenCalled();
+  });
+
   it('gorselsiz cagri degismez: duz uc, metin icerik, ret yedegi yok', async () => {
     const p = new AnthropicProvider();
     const client = fakeClient();
