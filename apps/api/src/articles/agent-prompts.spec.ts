@@ -21,3 +21,10 @@ describe('ajan promptlari — kapsama haritasi ve lede kurali', () => {
     expect(AGENT_04_EDITOR.systemSuffix).toContain('kapsama haritası');
   });
 });
+
+describe('ajan promptlari — hero yer tutucusu', () => {
+  it('03-writer: hero yer tutucusu YAZDIRMAZ (QA her makaleyi BLOCKED yapiyordu)', () => {
+    expect(AGENT_03_WRITER.systemSuffix).not.toContain('placeholder-hero');
+    expect(AGENT_03_WRITER.systemSuffix).not.toMatch(/hero_image:/);
+  });
+});

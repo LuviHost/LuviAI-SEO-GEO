@@ -146,6 +146,9 @@ async function bootstrap() {
           skipImages: skipImages ?? false,
           maxRevize: 1,
           articleId,
+          // Hemen yayinlanacaksa QA'yi bekle — yoksa publisher ikinci kez
+          // kosturuyor (cift LLM cagrisi + yaris).
+          awaitQa: !!autoPublish,
         });
         // Mock veya gerçek pipeline — autoPublish çalıştır (mock 'editorVerdict' yok, mock=true var)
         const editorOk = (result as any).mock || result.editorVerdict === 'PASS';

@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { isHeroPlaceholder } from '../articles/hero-placeholder.js';
 
 export interface GeoScoreCard {
   overallScore: number;
@@ -310,7 +311,7 @@ export class GeoScoreCardService {
     // Frontmatter'da audio_url alani veya inlineImages'a eklenmis audio
     const articles: any[] = await this.prisma.article.findMany({
       where: { siteId, status: 'PUBLISHED' as any },
-      select: { frontmatter: true, inlineImages: true } as any,
+      select: { frontmatter: true, inlineImages: true, heroImageUrl: true } as any,
       take: 50,
     });
     const withAudio = articles.filter((a) =>
@@ -330,8 +331,12 @@ export class GeoScoreCardService {
       detail: withAudio >= 3 ? 'Spotify/Apple Podcasts hazir' : `${withAudio} audio (3+ olunca podcast feed aktif)`,
     });
 
-    // Image coverage
-    const withHero = articles.filter((a) => a.frontmatter?.hero_image).length;
+    // Image coverage — GERCEK hero sayilir. Eskiden frontmatter.hero_image
+    // bakiliyordu; yazar sablonu oraya her makalede "placeholder-hero.webp"
+    // yazdigi icin yer tutucu da "hero var" sayiliyordu (sisik olcum).
+    // Yayinda uretilen hero heroImageUrl kolonuna yazilir.
+    const realHero = (v: unknown) => typeof v === 'string' && v.trim() !== '' && !isHeroPlaceholder(v);
+    const withHero = articles.filter((a) => realHero(a.heroImageUrl) || realHero(a.frontmatter?.hero_image)).length;
     checks.push({
       id: 'hero-image', name: 'Hero görsel',
       ok: articles.length === 0 ? false : withHero / articles.length >= 0.7,

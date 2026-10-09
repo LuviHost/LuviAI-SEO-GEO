@@ -7,6 +7,7 @@ import { SettingsService } from '../settings/settings.service.js';
 import { SiteUrlInventoryService } from '../sites/site-url-inventory.service.js';
 import { LinkValidatorService } from './link-validator.service.js';
 import { QaGateService } from './qa-gate.service.js';
+import { stripHeroPlaceholder, isHeroPlaceholder } from './hero-placeholder.js';
 import {
   AGENT_01_KEYWORD,
   AGENT_02_OUTLINE,
@@ -172,6 +173,8 @@ export class PipelineService {
     skipImages?: boolean;
     maxRevize?: number;
     articleId?: string;
+    /** QA kapisini bekle (otomatik yayin oncesi — bkz. pipeline sonu) */
+    awaitQa?: boolean;
   }): Promise<PipelineResult> {
     // AI_GLOBAL_DISABLED=1 → mock pipeline (dummy article üret, gerçek API çağrısı yapma)
     if (await this.settings.getBoolean('AI_GLOBAL_DISABLED')) {
@@ -383,6 +386,10 @@ export class PipelineService {
       this.log.warn(`[${opts.siteId}] Link doğrulama atlandı: ${err.message}`);
     }
 
+    // Hero yer tutucusu kayda GİRMEZ: gerçek hero yayın anında üretiliyor.
+    // Kayıtta kalırsa QA kapısı onu doldurulmamış görsel sanıyordu.
+    cleaned = stripHeroPlaceholder(cleaned);
+
     const { data: fm, content: body } = parseFrontmatter(cleaned);
 
     // frontmatter.internal_links de aynı envantere göre süzülür — makale
@@ -441,7 +448,9 @@ export class PipelineService {
             metaDescription: (fm.meta_description as string) ?? null,
             datePublished: new Date().toISOString(),
             dateModified: new Date().toISOString(),
-            heroImage: ((fm as any).hero_image as string) ?? null,
+            // Yer tutucu göreli "placeholder-hero.webp" şemaya YAZILMAZ (geçersiz
+            // image); gerçek mutlak URL publisher'da hero üretilince eklenir.
+            heroImage: isHeroPlaceholder((fm as any).hero_image) ? null : (((fm as any).hero_image as string) ?? null),
             faqs,
             // author BİLEREK verilmiyor: fm.persona okuyucu profilidir (hedef
             // kitle), makalenin yazarı değil. Person olarak basmak schema.org
@@ -516,9 +525,13 @@ export class PipelineService {
     this.log.log(`[${opts.siteId}] ✅ Pipeline tamamlandı: ${slug} (${editorVerdict}, $${totalCost.toFixed(4)}, ${(durationMs / 1000).toFixed(0)}s, ${wordCount} kelime)`);
 
     // QA Gate — yayin oncesi son kontrol (uydurma atif / kaynaksiz iddia /
-    // placeholder). Fire-and-forget: pipeline suresini uzatmaz; publisher
-    // qaStatus'u yoksa yayin aninda kendisi kosar.
-    this.qaGate.checkSafe(article.id);
+    // placeholder). Varsayilan fire-and-forget: pipeline suresini uzatmaz;
+    // publisher qaStatus'u yoksa yayin aninda kendisi kosar.
+    // awaitQa: otomatik yayinda worker pipeline'in hemen ardindan publish
+    // ediyordu → QA iki kez (iki LLM cagrisi) kosuyor, hangisi son biterse o
+    // yaziyordu. Beklenince tek kosu, yaris yok.
+    if (opts.awaitQa) await this.qaGate.checkSafe(article.id);
+    else void this.qaGate.checkSafe(article.id);
 
     // Site sahibine "makale hazir" maili (PASS olduysa).
     // Mail gonderimi pipeline'i blok etmez — fail olsa da makale kaydi tamam.

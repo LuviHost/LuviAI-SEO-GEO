@@ -335,7 +335,6 @@ faqs:
   - q: "<SSS bolumundeki H3 sorusu — BIREBIR ayni metin>"
     a: "<gorunur cevabin 1-2 cumlelik ozeti>"
 schema_types: ["Article", "BreadcrumbList", "FAQPage"]
-hero_image: "placeholder-hero.webp"
 ---
 \`\`\`
 
@@ -352,10 +351,12 @@ atlama.
 2. # H1
 3. > **Hızlı cevap:** [40-60 kelime]
 4. Giriş paragrafı
-5. ![Hero](placeholder-hero.webp)
-6. ## H2-N başlıklar (4-7 adet)
-7. ## Sıkça Sorulan Sorular (3-6 H3)
-8. ## Sonuç + CTA
+5. ## H2-N başlıklar (4-7 adet)
+6. ## Sıkça Sorulan Sorular (3-6 H3)
+7. ## Sonuç + CTA
+
+Hero görseli EKLEME (ne frontmatter'a ne gövdeye): yayın sırasında otomatik
+üretilip sayfanın başına konuyor. Gövdeye görsel/yer tutucu satırı yazma.
 
 ## GEO Kuralları (AI search engines için zorunlu)
 

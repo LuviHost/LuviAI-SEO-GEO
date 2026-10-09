@@ -2,6 +2,9 @@ import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { LLMProviderService } from '../llm/llm-provider.service.js';
 import { parseJsonFromLlm } from '../common/safe-json.js';
+import { deterministicQaIssues, type QaIssue } from './qa-deterministic.js';
+
+export type { QaIssue } from './qa-deterministic.js';
 
 /**
  * QA Gate — yayin oncesi son kontrol.
@@ -20,12 +23,6 @@ import { parseJsonFromLlm } from '../common/safe-json.js';
  *   WARN    → uyarilar var, yayin serbest
  *   BLOCKED → publisher yayini reddeder (kullanici override edebilir)
  */
-
-export interface QaIssue {
-  type: string;      // fabricated_attribution | unsourced_claim | placeholder_image | template_leak | mock_content | empty_section
-  detail: string;    // kullaniciya gosterilen aciklama
-  excerpt?: string;  // makaledeki ilgili kesit
-}
 
 export interface QaReport {
   blockers: QaIssue[];
@@ -54,11 +51,9 @@ export class QaGateService {
     if (!article) throw new NotFoundException('Makale bulunamadi');
 
     const body = article.bodyMd ?? '';
-    const blockers: QaIssue[] = [];
-    const warnings: QaIssue[] = [];
 
-    // ── 1) Deterministik kontroller ──────────────────────────
-    this.checkDeterministic(article, body, blockers, warnings);
+    // ── 1) Deterministik kontroller (qa-deterministic.ts) ────
+    const { blockers, warnings } = deterministicQaIssues(article, body);
 
     // ── 2) LLM kontrolu (govde varsa) ────────────────────────
     let llmUsed = false;
@@ -87,7 +82,8 @@ export class QaGateService {
       warnings,
       stats: {
         wordCount: article.wordCount ?? body.split(/\s+/).filter(Boolean).length,
-        checkedBy: 'qa-gate-v1',
+        // v1.1: hero yer tutucusu engel degil + image_alt_empty uyarisi
+        checkedBy: 'qa-gate-v1.1',
         llmUsed,
       },
       checkedAt: new Date().toISOString(),
@@ -115,61 +111,6 @@ export class QaGateService {
   }
 
   // ────────────────────────────────────────────────────────────
-
-  private checkDeterministic(article: any, body: string, blockers: QaIssue[], warnings: QaIssue[]) {
-    // Placeholder gorsel — hero veya govde ici
-    if (article.heroImageUrl && /placeholder/i.test(article.heroImageUrl)) {
-      blockers.push({
-        type: 'placeholder_image',
-        detail: 'Hero görseli hâlâ placeholder — yayında kırık/boş görsel görünür.',
-        excerpt: article.heroImageUrl,
-      });
-    }
-    const imgPlaceholders = body.match(/!\[[^\]]*\]\((?:[^)]*placeholder[^)]*|\s*)\)/gi) ?? [];
-    if (imgPlaceholders.length > 0) {
-      blockers.push({
-        type: 'placeholder_image',
-        detail: `${imgPlaceholders.length} görsel placeholder'ı doldurulmamış.`,
-        excerpt: imgPlaceholders[0]?.slice(0, 200),
-      });
-    }
-
-    // Sablon kalintisi
-    const templateLeaks = body.match(/\{\{[^}]{1,60}\}\}|\[(?:GÖRSEL|GORSEL|IMAGE|TODO|PLACEHOLDER)[^\]]{0,60}\]/g) ?? [];
-    if (templateLeaks.length > 0) {
-      blockers.push({
-        type: 'template_leak',
-        detail: `Doldurulmamış şablon alanı: ${templateLeaks.slice(0, 3).join(', ')}`,
-      });
-    }
-
-    // Mock icerik izi (AI_GLOBAL_DISABLED uretimleri yayina cikmasin)
-    if (/MOCK ARTICLE|AI_GLOBAL_DISABLED/.test(body)) {
-      blockers.push({
-        type: 'mock_content',
-        detail: 'Makale mock pipeline çıktısı — gerçek üretim değil, yayınlanamaz.',
-      });
-    }
-
-    // Bos bolum: baslik + hemen ardindan baska baslik
-    const emptySections = body.match(/^#{2,3}\s+[^\n]+\n+(?=#{2,3}\s)/gm) ?? [];
-    if (emptySections.length > 0) {
-      warnings.push({
-        type: 'empty_section',
-        detail: `${emptySections.length} başlık altında içerik yok.`,
-        excerpt: emptySections[0]?.trim().slice(0, 120),
-      });
-    }
-
-    // Cok kisa govde
-    const wordCount = body.split(/\s+/).filter(Boolean).length;
-    if (wordCount > 0 && wordCount < 300) {
-      warnings.push({
-        type: 'thin_content',
-        detail: `Makale yalnızca ${wordCount} kelime — ince içerik AI aramalarında alıntılanmaz.`,
-      });
-    }
-  }
 
   private async checkWithLlm(siteId: string, body: string): Promise<Array<{
     severity: 'blocker' | 'warning';

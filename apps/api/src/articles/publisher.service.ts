@@ -11,6 +11,7 @@ import { LinkValidatorService } from './link-validator.service.js';
 import { SiteUrlInventoryService } from '../sites/site-url-inventory.service.js';
 import { resolveArticleUrl } from './article-url.util.js';
 import { QaGateService } from './qa-gate.service.js';
+import { stripHeroPlaceholder, applyHeroImageToJsonLd } from './hero-placeholder.js';
 
 /**
  * Markdown body'yi CMS gövdesine girecek HTML PARÇASI haline getirir.
@@ -309,9 +310,11 @@ export class PublisherService {
       sectionPath = resolved.sectionPath;
     }
     // GEO v7: schema JSON-LD + audio + tracker injection
+    // KOPYA: asagida yayina ozel FAQPage eklenir ve hero image duzeltilir;
+    // kayittaki schemaMarkup nesnesi bunlardan etkilenmemeli.
     const schemaJsonLd: any[] = (() => {
       const sm: any = (article as any).schemaMarkup;
-      return Array.isArray(sm?.jsonLd) ? sm.jsonLd : [];
+      return Array.isArray(sm?.jsonLd) ? structuredClone(sm.jsonLd) : [];
     })();
     const audioUrl: string | null = (() => {
       const fm: any = (article as any).frontmatter ?? {};
@@ -327,8 +330,9 @@ export class PublisherService {
     }
 
     // ── Hero görsel: yoksa veya placeholder ise gerçek görsel üret ──
-    // 05-visuals agent makaleye "placeholder-hero.webp" yazıyor; burada gerçeğini
-    // üretip hem og:image hem WordPress featured image (media upload) için kullanıyoruz.
+    // Yazar şablonu eskiden makaleye "placeholder-hero.webp" yazıyordu (artık
+    // yazmıyor; eski makalelerde duruyor). Gerçeğini burada üretip hem og:image
+    // hem WordPress featured image (media upload) için kullanıyoruz.
     let heroImageUrl: string | null = article.heroImageUrl ?? null;
     let heroImageBase64: string | undefined;
     let heroImageFilename: string | undefined;
@@ -368,8 +372,22 @@ export class PublisherService {
       }
     }
 
+    // JSON-LD image: eski makalelerde göreli "placeholder-hero.webp" duruyordu
+    // (39 makale, 5'i yayında — 09.10.2026). Yayında gerçek mutlak hero URL'i
+    // basılır; kayıt da düzeltilir ki sonraki okuyucular (llms, rapor) temiz görsün.
+    if (applyHeroImageToJsonLd(schemaJsonLd, heroImageUrl) > 0) {
+      const sm: any = (article as any).schemaMarkup;
+      const storedLd = Array.isArray(sm?.jsonLd) ? structuredClone(sm.jsonLd) : null;
+      if (storedLd && applyHeroImageToJsonLd(storedLd, heroImageUrl) > 0) {
+        await this.prisma.article.update({
+          where: { id: article.id },
+          data: { schemaMarkup: { ...sm, jsonLd: storedLd } },
+        }).catch((err: any) => this.log.warn(`[${articleId}] JSON-LD image kaydi duzeltilemedi: ${err.message}`));
+      }
+    }
+
     // Body markdown'daki placeholder hero referansını temizle (kırık img olmasın)
-    let cleanBodyMd = (article.bodyMd ?? '').replace(/!\[[^\]]*\]\(\s*placeholder-hero\.webp\s*\)/gi, '');
+    let cleanBodyMd = stripHeroPlaceholder(article.bodyMd ?? '');
 
     // ── Yayın öncesi son link kontrolü ────────────────────────
     // Pipeline'daki doğrulamadan sonra makale günlerce beklemiş, elle
