@@ -13,6 +13,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { AscMetadataPanel } from '@/components/asc-metadata-panel';
 import { AscScreenshotsPanel } from '@/components/asc-screenshots-panel';
+import { AscReviewReply } from '@/components/asc-review-reply';
 
 interface Account {
   id: string;
@@ -204,13 +205,14 @@ function AppReviewsPanel({ appId }: { appId: string }) {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<any>(null);
 
-  useEffect(() => {
+  const loadReviews = () => {
     setLoading(true);
     api.fetchAscReviews(appId)
       .then(setData)
       .catch((err) => toast.error(err.message))
       .finally(() => setLoading(false));
-  }, [appId]);
+  };
+  useEffect(loadReviews, [appId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading) {
     return <div className="mt-3 grid place-items-center py-4"><Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /></div>;
@@ -247,6 +249,7 @@ function AppReviewsPanel({ appId }: { appId: string }) {
               </div>
               <p className="text-[11px] text-muted-foreground leading-relaxed">{r.body}</p>
               <p className="text-[10px] text-muted-foreground mt-1">— {r.reviewerNickname}</p>
+              <AscReviewReply appId={appId} review={r} onSent={loadReviews} />
             </div>
           ))
         )}

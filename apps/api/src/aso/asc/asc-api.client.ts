@@ -247,15 +247,21 @@ export class AscApiClient {
     });
   }
 
-  /** App'in müşteri yorumları */
+  /** App'in müşteri yorumları (+ varsa yanıtımız: include=response, Apple şeması) */
   async listCustomerReviews(appleAppId: string, opts: { limit?: number; sort?: 'createdDate' | '-createdDate' } = {}) {
     const qs = new URLSearchParams();
     if (opts.limit) qs.set('limit', String(opts.limit));
     qs.set('sort', opts.sort ?? '-createdDate');
-    return this.request<{ data: any[]; meta?: any }>(
+    qs.set('include', 'response');
+    return this.request<{ data: any[]; included?: any[]; meta?: any }>(
       'GET',
       `/v1/apps/${appleAppId}/customerReviews?${qs.toString()}`,
     );
+  }
+
+  /** Tek yorum (+ yanıtı) */
+  async getCustomerReview(reviewId: string) {
+    return this.request<{ data: any; included?: any[] }>('GET', `/v1/customerReviews/${encodeURIComponent(reviewId)}?include=response`);
   }
 
   /** Müşteri yorumuna yanıt verebilirsin */

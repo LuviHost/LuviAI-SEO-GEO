@@ -2,6 +2,7 @@ import { Injectable, Logger, NotFoundException, BadRequestException, ForbiddenEx
 import { encrypt, decrypt } from '@luviai/shared';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { AscApiClient, type AscCredentials } from './asc-api.client.js';
+import { findPlaceholders } from './review-reply.js';
 
 /**
  * Canli surum + gercek yayin tarihi — Apple'in herkese acik iTunes Lookup'i.
@@ -274,19 +275,25 @@ export class AscService {
     const app = await this.loadApp(appId, user);
 
     const client = await this.getClient(app.accountId);
-    const { data: reviews } = await client.listCustomerReviews(app.appleAppId, { limit, sort: '-createdDate' });
+    const { data: reviews, included } = await client.listCustomerReviews(app.appleAppId, { limit, sort: '-createdDate' });
+    const responses = new Map((included ?? []).filter((x: any) => x?.type === 'customerReviewResponses').map((x: any) => [x.id, x.attributes ?? {}]));
     return {
       appId,
       appName: app.name,
-      reviews: (reviews ?? []).map((r: any) => ({
-        id: r.id,
-        rating: r.attributes?.rating ?? 0,
-        title: r.attributes?.title ?? '',
-        body: r.attributes?.body ?? '',
-        reviewerNickname: r.attributes?.reviewerNickname ?? '',
-        territory: r.attributes?.territory ?? '',
-        createdDate: r.attributes?.createdDate ?? null,
-      })),
+      reviews: (reviews ?? []).map((r: any) => {
+        const resp: any = responses.get(r.relationships?.response?.data?.id);
+        return {
+          id: r.id,
+          rating: r.attributes?.rating ?? 0,
+          title: r.attributes?.title ?? '',
+          body: r.attributes?.body ?? '',
+          reviewerNickname: r.attributes?.reviewerNickname ?? '',
+          territory: r.attributes?.territory ?? '',
+          createdDate: r.attributes?.createdDate ?? null,
+          // Yanit herkese acik; PENDING_PUBLISH = gonderildi, magazada henuz gorunmuyor
+          response: resp ? { body: resp.responseBody ?? '', state: resp.state ?? null, lastModifiedDate: resp.lastModifiedDate ?? null } : null,
+        };
+      }),
       avgRating: (reviews ?? []).length > 0
         ? (reviews.reduce((s: number, r: any) => s + (r.attributes?.rating ?? 0), 0) / reviews.length).toFixed(2)
         : null,
@@ -298,6 +305,11 @@ export class AscService {
     const app = await this.loadApp(appId, user);
     if (!body || body.length < 5 || body.length > 5970) {
       throw new BadRequestException('Yanıt 5-5970 karakter olmalı');
+    }
+    // Taslaktan kalan yer tutucu herkese acik yanitta yayinlanmasin
+    const placeholders = findPlaceholders(body);
+    if (placeholders.length) {
+      throw new BadRequestException(`Yanıtta doldurulmamış yer tutucu var: ${placeholders.join(', ')}`);
     }
     const client = await this.getClient(app.accountId);
     return client.replyToReview(reviewId, body);

@@ -548,8 +548,17 @@ export const api = {
       reviews: Array<{
         id: string; rating: number; title: string; body: string;
         reviewerNickname: string; territory: string; createdDate: string | null;
+        /** Herkese acik yanitimiz; PENDING_PUBLISH = gonderildi, magazada henuz yok */
+        response: { body: string; state: 'PUBLISHED' | 'PENDING_PUBLISH' | null; lastModifiedDate: string | null } | null;
       }>;
     }>(`/aso/asc/apps/${appId}/reviews`),
+
+  /** Yanit TASLAGI (gonderme yok) — notes: dogrulanmis bilgi ("1.2'de duzeldi") */
+  draftAscReviewReply: (appId: string, reviewId: string, body: { notes?: string; supportContact?: string }) =>
+    request<{ reply: string; report: boolean; reason: string | null; placeholders: string[]; existingResponse: string | null }>(
+      `/aso/asc/apps/${appId}/reviews/${reviewId}/draft`,
+      { method: 'POST', body: JSON.stringify(body) },
+    ),
 
   replyAscReview: (appId: string, reviewId: string, body: string) =>
     request<any>(`/aso/asc/apps/${appId}/reviews/${reviewId}/reply`, {

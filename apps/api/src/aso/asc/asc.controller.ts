@@ -2,6 +2,9 @@ import { Body, Controller, Delete, Get, Param, Post, Req, UnauthorizedException 
 import type { Request } from 'express';
 import { AscService } from './asc.service.js';
 import { QuotaService } from '../../billing/quota.service.js';
+import { RequiresPlan } from '../../billing/plan-feature.decorator.js';
+import { SessionOnly } from '../../auth/session-only.decorator.js';
+import { AscReviewReplyService } from './asc-review-reply.service.js';
 
 interface AuthedRequest extends Request { user?: { id: string; role: 'USER' | 'ADMIN' | 'AGENCY_OWNER' } }
 function ensureUser(req: AuthedRequest) {
@@ -14,6 +17,7 @@ export class AscController {
   constructor(
     private readonly asc: AscService,
     private readonly quota: QuotaService,
+    private readonly replies: AscReviewReplyService,
   ) {}
 
   /** Plan kapisi yalnizca baglamada — bkz. AsaController.connect gerekcesi. */
@@ -55,7 +59,23 @@ export class AscController {
     return this.asc.fetchReviews(appId, ensureUser(req));
   }
 
+  /** Taslak — gonderme yok; insan duzenler. LLM maliyeti → plan + butce kapisi */
+  @Post('aso/asc/apps/:appId/reviews/:reviewId/draft')
+  @SessionOnly()
+  @RequiresPlan('ascEnabled')
+  draftReply(
+    @Req() req: AuthedRequest,
+    @Param('appId') appId: string,
+    @Param('reviewId') reviewId: string,
+    @Body() body: { notes?: string; supportContact?: string },
+  ) {
+    return this.replies.draft(appId, reviewId, ensureUser(req), body ?? {});
+  }
+
+  /** Herkese acik yanit (varsa ustune yazar) — yalniz panel oturumuyla */
   @Post('aso/asc/apps/:appId/reviews/:reviewId/reply')
+  @SessionOnly()
+  @RequiresPlan('ascEnabled')
   replyReview(
     @Req() req: AuthedRequest,
     @Param('appId') appId: string,

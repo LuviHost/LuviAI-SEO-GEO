@@ -9,12 +9,14 @@ import { AscMetadataService } from './asc-metadata.service.js';
 import { AscScreenshotsController } from './asc-screenshots.controller.js';
 import { AscScreenshotsService } from './asc-screenshots.service.js';
 import { AppliedFixService } from '../../audit/applied-fix.service.js';
+import { AscReviewReplyService } from './asc-review-reply.service.js';
+import { LLMModule } from '../../llm/llm.module.js';
 
 @Module({
-  imports: [PrismaModule, AuthModule],
+  imports: [PrismaModule, AuthModule, LLMModule],
   controllers: [AscController, AscMetadataController, AscScreenshotsController],
   // AppliedFixService yalniz Prisma'ya bagli — AuditModule'u (LLM, e-posta...) cekmemek icin burada da saglanir
-  providers: [AscService, AscCronService, AscMetadataService, AscScreenshotsService, AppliedFixService],
+  providers: [AscService, AscCronService, AscMetadataService, AscScreenshotsService, AscReviewReplyService, AppliedFixService],
   exports: [AscService],
 })
 export class AscModule {}
