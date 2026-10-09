@@ -2,6 +2,7 @@ import { Body, Controller, Delete, Get, Logger, Post, Req, Res } from '@nestjs/c
 import type { Request, Response } from 'express';
 import { McpToolsService } from './mcp-tools.service.js';
 import { QuotaService } from '../billing/quota.service.js';
+import { ApiKeysService } from '../api-keys/api-keys.service.js';
 
 /**
  * RanksUp MCP Server — Streamable HTTP transport, STATELESS mod.
@@ -41,6 +42,7 @@ export class McpController {
   constructor(
     private readonly tools: McpToolsService,
     private readonly quota: QuotaService,
+    private readonly apiKeys: ApiKeysService,
   ) {}
 
   @Post()
@@ -72,7 +74,7 @@ export class McpController {
 
     const responses: any[] = [];
     for (const msg of messages) {
-      const r = await this.dispatch(user, msg, canWrite);
+      const r = await this.dispatch(user, msg, canWrite, apiKey?.scopes ?? null);
       if (r !== undefined) responses.push(r);
     }
 
@@ -98,7 +100,7 @@ export class McpController {
 
   // ────────────────────────────────────────────────────────────
 
-  private async dispatch(user: { id: string; role: string; plan?: string }, msg: JsonRpcMsg, canWrite = true): Promise<any | undefined> {
+  private async dispatch(user: { id: string; role: string; plan?: string }, msg: JsonRpcMsg, canWrite = true, keyScopes: string[] | null = null): Promise<any | undefined> {
     if (!msg || typeof msg !== 'object' || !msg.method) {
       return this.rpcError(msg?.id ?? null, -32600, 'Gecersiz istek');
     }
@@ -137,6 +139,14 @@ export class McpController {
           if (def?.mutating && !canWrite) {
             return this.rpcResult(msg.id!, {
               content: [{ type: 'text', text: 'Hata: bu API anahtari salt-okunur — ' + String(name) + ' icin :write scope\'lu anahtar gerekli.' }],
+              isError: true,
+            });
+          }
+          // Arac bazinda scope (API anahtari ile gelindiyse): ornek suggest_image_alts
+          // audit:write ister — social:write anahtari gecemez.
+          if (def?.scope && keyScopes && !this.apiKeys.hasScopeForRoute(keyScopes, def.scope)) {
+            return this.rpcResult(msg.id!, {
+              content: [{ type: 'text', text: `Hata: bu API anahtarinda "${def.scope}" scope'u yok.` }],
               isError: true,
             });
           }

@@ -29,7 +29,7 @@ function toolsService(plan: string): McpToolsService {
   const prisma = fakePrisma(plan);
   const quota = new QuotaService(prisma);
   const n = null as never;
-  return new McpToolsService(prisma, n, quota, n, n, n, n, n, n, n);
+  return new McpToolsService(prisma, n, quota, n, n, n, n, n, n, n, n);
 }
 
 const userOf = (plan: string, role = 'USER'): ToolUser => ({ id: 'u1', role, plan });

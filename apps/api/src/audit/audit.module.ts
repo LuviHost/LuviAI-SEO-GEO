@@ -121,6 +121,7 @@ import { AuditCron } from './audit.cron.js';
   exports: [
     AppliedFixService,
     ImageInventoryService,
+    ImageAltSuggestService,
     AuditService,
     AutoFixService,
     GeoRunnerService,

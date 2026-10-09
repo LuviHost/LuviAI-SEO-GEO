@@ -9,6 +9,7 @@ import { ContentOpportunityService } from '../audit/content-opportunity.service.
 import { ProductRadarService } from '../audit/product-radar.service.js';
 import { PromptLabService } from '../audit/prompt-lab.service.js';
 import { annotateAuditFixRoutes } from '../audit/fix-routes.js';
+import { ImageAltSuggestService, IMAGE_ALT_JOB_BATCH } from '../audit/image-alt/image-alt-suggest.service.js';
 import { ActionPlansService } from '../action-plans/action-plans.service.js';
 import { planHasFeature, type PlanFeature, type PlanId } from '../billing/plans.js';
 
@@ -65,6 +66,13 @@ export interface ToolDef {
    * REST ile hizalandi; kilit eylem araclarinda kaldi.
    */
   requiresFeature?: PlanFeature;
+  /**
+   * API anahtariyla cagrilirken gereken scope (orn. 'audit:write'). Verilmezse
+   * yalnizca kaba kural: mutating → herhangi bir :write. Eskiden TUM mutating
+   * araclar herhangi bir :write ile geciyordu — social:write anahtari audit
+   * isi baslatabiliyordu. Oturumla (sohbet) gelen cagrilarda uygulanmaz.
+   */
+  scope?: string;
   handler: (user: ToolUser, args: Record<string, any>) => Promise<any>;
 }
 
@@ -91,6 +99,7 @@ export class McpToolsService {
     private readonly productRadar: ProductRadarService,
     private readonly promptLab: PromptLabService,
     private readonly actionPlans: ActionPlansService,
+    private readonly imageAltSuggest: ImageAltSuggestService,
   ) {}
 
   list(): ToolDef[] {
@@ -278,6 +287,68 @@ export class McpToolsService {
             payload: { siteId: site.id },
           });
           return { queued: true, jobId: job.dbJobId };
+        },
+      },
+      {
+        name: 'list_image_alt_issues',
+        title: 'Gorsel alt metni sorunlari',
+        description: 'Alt metni olmayan ya da supheli (dosya adi, "resim" gibi) gorseller: durum sayilari + en cok sayfada gecen 20 gorsel (sayfa, durum, varsa oneri). Salt-okuma.',
+        inputSchema: this.schema(SITE_ID_PROP, ['site_id']),
+        scope: 'audit:read',
+        handler: async (user, args) => {
+          const site = await this.resolveSite(user, args.site_id);
+          const [byStatus, top] = await Promise.all([
+            this.prisma.siteImage.groupBy({ by: ['status'], where: { siteId: site.id }, _count: { _all: true } }),
+            this.prisma.siteImage.findMany({
+              where: { siteId: site.id, status: { notIn: ['DISMISSED', 'VERIFIED'] } },
+              orderBy: [{ pageCount: 'desc' }, { lastSeenAt: 'desc' }],
+              take: 20,
+              select: { id: true, src: true, firstPageUrl: true, pageCount: true, altState: true, currentAlt: true, status: true, suggestedAlt: true, approvedAlt: true },
+            }),
+          ]);
+          return {
+            byStatus: Object.fromEntries(byStatus.map((r) => [r.status, r._count._all])),
+            images: top,
+            panel: `/sites/${site.id}/images`,
+            note: 'Alt metinleri siteye yazmak yalnizca panelde kullanici onayiyla yapilir.',
+          };
+        },
+      },
+      {
+        name: 'suggest_image_alts',
+        title: 'Gorsel alt metni oner',
+        description: 'Alt metni olmayan gorseller icin gorseli GOREREK alt metni onerisi uretir (kuyruk, asenkron; maliyetli — site basina gunluk tavan var). Siteye HICBIR SEY yazmaz: oneriler panelde kullanicinin onayini bekler. Kullanici acikca istemeden cagirma.',
+        inputSchema: this.schema({
+          ...SITE_ID_PROP,
+          max: { type: 'number', description: 'En fazla kac gorsel (1-25, varsayilan 10)' },
+        }, ['site_id']),
+        mutating: true,
+        scope: 'audit:write',
+        handler: async (user, args) => {
+          const site = await this.resolveSite(user, args.site_id);
+          const max = Math.min(IMAGE_ALT_JOB_BATCH, Math.max(1, Number(args.max) || 10));
+          const room = await this.imageAltSuggest.remainingToday(site.id);
+          if (room <= 0) return { queued: 0, note: 'Bugunku oneri tavani doldu.' };
+          const rows = await this.prisma.siteImage.findMany({
+            where: { siteId: site.id, status: 'NEW' },
+            orderBy: [{ pageCount: 'desc' }],
+            take: Math.min(max, room),
+            select: { id: true },
+          });
+          if (rows.length === 0) return { queued: 0, note: 'Oneri bekleyen gorsel yok.' };
+          const job = await this.jobQueue.enqueue({
+            type: 'IMAGE_ALT_SUGGEST',
+            userId: site.userId,
+            siteId: site.id,
+            payload: { siteId: site.id, userId: user.id, imageIds: rows.map((r) => r.id) },
+            priority: 10,
+          });
+          return {
+            queued: rows.length,
+            jobId: job.dbJobId,
+            note: 'Oneriler hazirlaninca panelde onay bekler; siteye yazma yalnizca panelden yapilir.',
+            panel: `/sites/${site.id}/images`,
+          };
         },
       },
       {
