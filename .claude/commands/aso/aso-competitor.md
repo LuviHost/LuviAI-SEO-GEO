@@ -99,7 +99,8 @@ Next: Use these insights in your metadata
 
 - iTunes Search API (real-time competitor data)
 - WebFetch scraping (if API insufficient)
-- competitor_analyzer.py (Python analysis module)
+- RanksUp MCP `list_tracked_apps` / `get_app_keywords` (if connected — real ranks for tracked apps)
+- In-context comparison by the agent (no external scripts)
 
 ## Related Commands
 

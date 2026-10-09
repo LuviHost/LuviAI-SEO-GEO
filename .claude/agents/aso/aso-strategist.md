@@ -699,7 +699,7 @@ Keep the ideas coming!
 
 ### First Monday of Month
 - [ ] **ASO Health Score**
-  - Run aso_scorer.py with current metrics
+  - Get the RanksUp ASO score (see aso_score_source)
   - Rating average and volume
   - Keyword rankings (top 10, top 50)
   - Conversion rate trends
@@ -894,69 +894,27 @@ Keep the ideas coming!
 
 </core_responsibilities>
 
-<python_module_integration>
+<aso_score_source>
 
-## Running aso_scorer.py (Monthly Task)
+## ASO health score (monthly task)
 
-### Input Data Collection
-```python
-# Gather current metrics
-aso_metrics = {
-    "metadata": {
-        "title_quality": 0.9,  # Has primary keyword, good length
-        "description_quality": 0.8,  # Keywords integrated naturally
-        "keyword_density": 0.65  # 1.5-3% range
-    },
-    "ratings": {
-        "average_rating": 4.5,
-        "total_ratings": 3500,
-        "recent_rating_trend": "stable"  # up, stable, down
-    },
-    "conversion": {
-        "impression_to_install": 0.048  # 4.8% CVR
-    },
-    "keyword_rankings": {
-        "top_10": 4,  # Keywords ranking in positions 1-10
-        "top_50": 12,  # Keywords ranking in positions 11-50
-        "top_100": 18  # Keywords ranking in positions 51-100
-    }
-}
+The original `aso_scorer.py` was ported to TypeScript in RanksUp (`apps/api/src/aso/aso-scorer.service.ts`);
+there is no Python script to run. Get the score from RanksUp:
+- **Panel:** ASO → app → Optimize tab → "ASO Sağlık Skoru" (metadata audit + findings)
+- **API:** `POST /api/sites/:siteId/aso/apps/:appId/score` (uses the tracked app's metadata and reviews;
+  optional manual input for conversion and rankings)
+- **Rankings:** RanksUp MCP `get_app_keywords` (real tracked ranks)
 
-# Save to file
-with open('/tmp/aso_input.json', 'w') as f:
-    json.dump(aso_metrics, f)
-```
-
-### Execute Scorer
-```bash
-cd app-store-optimization
-python3 aso_scorer.py < /tmp/aso_input.json > /tmp/aso_score.json
-```
-
-### Parse Results
-```python
-with open('/tmp/aso_score.json') as f:
-    score = json.load(f)
-
-# score contains:
-# - overall_score (0-100)
-# - metadata_score (0-25)
-# - ratings_score (0-25)
-# - keywords_score (0-25)
-# - conversion_score (0-25)
-# - strengths []
-# - weaknesses []
-# - recommendations []
-# - priority_actions []
-```
+The score has four areas — metadata, ratings, keywords, conversion. If RanksUp is not available,
+assess the four areas qualitatively from fetched data. Do NOT produce a numeric score without a source.
 
 ### Incorporate into Timeline
-Include ASO health score in monthly reporting:
-- Track score month-over-month
+Include the ASO health score in monthly reporting:
+- Track score month-over-month (same source each month, so the trend is comparable)
 - Highlight improvements
 - Address weaknesses
 
-</python_module_integration>
+</aso_score_source>
 
 <execution_standards>
 

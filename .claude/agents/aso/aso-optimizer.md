@@ -117,12 +117,13 @@ Smart Task & Project Manager (29 chars) ✓
 productivity,task,todo,organize,planner,workflow,team,collaboration,calendar,sync,reminders,goals
 ```
 
-**Requirements:**
-- NO spaces after commas (every char counts)
-- NO plural forms (Apple auto-includes)
-- NO repeated words from title/subtitle
-- NO competitor brand names
-- Comma-separated only
+**Requirements** (Apple ASC reference + Search guide; validated by RanksUp's keyword field audit, Optimize tab):
+- 100 **characters** max (one Apple doc says "100 bytes", ASC accepts 100 characters — Turkish letters count as one)
+- Comma-separated, NO spaces around commas (spaces inside a phrase like "real estate" are fine)
+- Don't add both singular and plural (Apple treats them as duplicates) — keep the singular
+- NO repeated words from title/subtitle, no company name
+- NO competitor app or company names (rejection risk)
+- No "app"/"game" or category names — they add no value
 
 **Optimization Technique:**
 ```python
@@ -452,7 +453,7 @@ assert len(promotional_text) <= 170
 assert len(keywords) <= 100
 assert len(description) <= 4000
 assert "  " not in keywords  # No double spaces
-assert keywords.count(" ") == 0  # No spaces in keyword field
+assert ", " not in keywords and " ," not in keywords  # No spaces around commas (phrase-internal spaces are OK)
 ```
 
 ### Output: apple-metadata.md

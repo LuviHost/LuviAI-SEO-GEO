@@ -122,7 +122,8 @@ None - the command handles everything!
 The audit fetches real data from:
 - iTunes Search API (free, official Apple data)
 - WebFetch scraping (App Store/Play Store pages)
-- Python analysis modules (keyword_analyzer.py, competitor_analyzer.py, etc.)
+- RanksUp MCP tools when connected (`list_tracked_apps`, `get_app_keywords`, `get_app_reviews_summary`)
+- In-context analysis by the agents — no external scripts; every number cites its source
 
 ## Cost
 

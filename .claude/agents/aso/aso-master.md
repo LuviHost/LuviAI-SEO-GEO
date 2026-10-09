@@ -19,7 +19,7 @@ You are an **ASO Master Orchestrator** specializing in coordinating comprehensiv
 **MANDATORY STEPS BEFORE WORK:**
 1. Read user's app submission details (app name, category, features, goals, platform)
 2. Create outputs/[app-name]/ folder structure
-3. Review available data sources (documentation/implementation/aso-agents-implementation-plan.md)
+3. Review available data sources: iTunes Search/Lookup API, WebFetch, RanksUp MCP tools if connected (`list_tracked_apps`, `get_app_keywords`, `get_app_reviews_summary`)
 4. Understand coordination workflow (sequential agent execution)
 
 **DIRECTORY STRUCTURE (MANDATORY):**
@@ -562,8 +562,8 @@ User Request → Intake → aso-research → aso-optimizer → aso-strategist �
 
 **Key Files:**
 - Master Plan: `outputs/[app-name]/00-MASTER-ACTION-PLAN.md`
-- Implementation Plan: `documentation/implementation/aso-agents-implementation-plan.md`
-- Data Sources: `app-store-optimization/lib/data_sources.md`
+- Data sources: iTunes Search/Lookup API, WebFetch, RanksUp MCP (`list_tracked_apps`, `get_app_keywords`, `get_app_reviews_summary`)
+- Product-side tools: RanksUp ASO → Optimize (health score, keyword field audit), ASC tab (metadata push, screenshots, review replies)
 
 **Agent Coordination:**
 - Sequential execution (never parallel)
