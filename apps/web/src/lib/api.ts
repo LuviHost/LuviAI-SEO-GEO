@@ -113,8 +113,10 @@ export interface AuditComparison {
     oncekiScore: number | null;
     sonrakiScore: number | null;
     delta: number;
-    durum: 'iyilesti' | 'kotulesti' | 'ayni' | 'yeni' | 'kayboldu';
+    durum: 'iyilesti' | 'kotulesti' | 'ayni' | 'yeni' | 'kayboldu' | 'metodoloji_degisti';
   }>;
+  /** Ölçüm yöntemi değişen kontroller — genel skor farkının bir kısmı buradan */
+  metodolojiDegisen?: string[];
   issues: {
     cozulen: AuditIssueRecord[];
     yeniCikan: AuditIssueRecord[];

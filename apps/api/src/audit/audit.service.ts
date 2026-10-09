@@ -30,7 +30,12 @@ export interface AuditOzet {
   geoScore: number | null;
 }
 
-export type CheckDurum = 'iyilesti' | 'kotulesti' | 'ayni' | 'yeni' | 'kayboldu';
+/**
+ * metodoloji_degisti: kontrolun olcum yontemi iki tarama arasinda degisti
+ * (details.methodVersion). Skor farki sitenin degil OLCUNUN degisimidir →
+ * delta 0, sorunlari cozulen/yeni sayilmaz.
+ */
+export type CheckDurum = 'iyilesti' | 'kotulesti' | 'ayni' | 'yeni' | 'kayboldu' | 'metodoloji_degisti';
 
 export interface CheckDelta {
   id: string;
@@ -63,6 +68,14 @@ export interface AuditKarsilastirma {
   };
   ozet: { cozulenSayisi: number; yeniSayisi: number; devamEdenSayisi: number };
   yeterliVeriYok?: boolean;
+  /** Olcum yontemi degisen kontroller — genel skor farkinin bir kismi buradan */
+  metodolojiDegisen?: string[];
+}
+
+/** checks girdisinin olcum yontemi surumu; alan yoksa 1 (v2 oncesi) */
+function methodVersion(entry: unknown): number {
+  const v = (entry as { details?: { methodVersion?: unknown } } | null)?.details?.methodVersion;
+  return typeof v === 'number' && Number.isFinite(v) ? v : 1;
 }
 
 /**
@@ -147,6 +160,7 @@ export function compareAuditRows(fromRow: any, toRow: any): AuditKarsilastirma {
   );
 
   const checks: CheckDelta[] = [];
+  const metodolojiDegisen = new Set<string>();
   for (const id of checkIds) {
     const oncekiScore = checkScore(fromChecks[id]);
     const sonrakiScore = checkScore(toChecks[id]);
@@ -160,6 +174,11 @@ export function compareAuditRows(fromRow: any, toRow: any): AuditKarsilastirma {
       durum = 'yeni';
     } else if (sonrakiScore === null) {
       durum = 'kayboldu';
+    } else if (methodVersion(fromChecks[id]) !== methodVersion(toChecks[id])) {
+      // Ornek: image_alt v2 alt=""'yi artik cezalandirmiyor → skor siteye
+      // dokunulmadan yukselir. "iyilesti" demek yanlis olurdu.
+      durum = 'metodoloji_degisti';
+      metodolojiDegisen.add(id);
     } else {
       // delta yalnizca iki uc da olculebildiginde anlamli; yeni/kayboldu
       // durumlarinda 0 birakilir ki "+87 puan" gibi sahte sicramalar cikmasin.
@@ -174,8 +193,13 @@ export function compareAuditRows(fromRow: any, toRow: any): AuditKarsilastirma {
   checks.sort((a, b) => Math.abs(b.delta) - Math.abs(a.delta) || a.id.localeCompare(b.id));
 
   // ── Issue eslestirme ──────────────────────────────────────────
-  const oncekiIssues = issueListesi(fromRow);
-  const sonrakiIssues = issueListesi(toRow);
+  // Yontemi degisen kontrolun sorunlari (ornek: image_alt_low → image_alt_missing)
+  // "cozuldu + yeni cikti" diye ikiye bolunmesin: eski taraf hic sayilmaz,
+  // yeni taraf mevcut durum olarak devam edende gorunur.
+  const yontemi = (i: AuditIssueKaydi) => typeof i?.checkId === 'string' && metodolojiDegisen.has(i.checkId);
+  const oncekiIssues = issueListesi(fromRow).filter((i) => !yontemi(i));
+  const sonrakiIssuesTum = issueListesi(toRow);
+  const sonrakiIssues = sonrakiIssuesTum.filter((i) => !yontemi(i));
 
   const oncekiMap = new Map<string, AuditIssueKaydi>();
   for (const i of oncekiIssues) if (!oncekiMap.has(issueKey(i))) oncekiMap.set(issueKey(i), i);
@@ -192,6 +216,7 @@ export function compareAuditRows(fromRow: any, toRow: any): AuditKarsilastirma {
   for (const [key, issue] of sonrakiMap) {
     if (!oncekiMap.has(key)) yeniCikan.push(issue);
   }
+  for (const i of sonrakiIssuesTum) if (yontemi(i)) devamEden.push(i);
 
   return {
     from,
@@ -205,6 +230,7 @@ export function compareAuditRows(fromRow: any, toRow: any): AuditKarsilastirma {
       yeniSayisi: yeniCikan.length,
       devamEdenSayisi: devamEden.length,
     },
+    ...(metodolojiDegisen.size > 0 ? { metodolojiDegisen: [...metodolojiDegisen].sort() } : {}),
   };
 }
 

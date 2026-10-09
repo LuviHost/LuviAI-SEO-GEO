@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import * as cheerio from 'cheerio';
 import type { CrawlResult, CrawledPage } from '../sites/site-crawler.service.js';
+import { computeImageAltCheck } from './image-alt-check.js';
 
 export type Severity = 'critical' | 'warning' | 'info';
 
@@ -415,48 +416,9 @@ export class AuditChecksService {
   // ───────────────────────────────────────────────────────────
   //  12. Image alt text
   // ───────────────────────────────────────────────────────────
+  // Yontem v2 — alt="" (suslemeye ait) artik puan kirmaz; bkz. image-alt-check.ts
   private checkImageAltText(c: CrawlResult): CheckResult {
-    let totalImages = 0;
-    let withAlt = 0;
-    let emptyAlt = 0;
-    let pagesScanned = 0;
-
-    for (const p of c.pages) {
-      const stats = p.imageAltStats;
-      if (!stats) continue;
-      pagesScanned++;
-      totalImages += stats.total;
-      withAlt += stats.withAlt;
-      emptyAlt += stats.emptyAlt;
-    }
-
-    if (totalImages === 0) {
-      return {
-        id: 'image_alt', name: 'Image alt text',
-        found: true, valid: true, score: 100,
-        issues: [],
-        details: { totalImages: 0, withAlt: 0, emptyAlt: 0 },
-      };
-    }
-
-    const coverage = (withAlt / totalImages) * 100;
-    const issues: AuditIssue[] = [];
-    const missing = totalImages - withAlt - emptyAlt;
-    if (coverage < 80) {
-      issues.push({
-        severity: missing > totalImages * 0.5 ? 'warning' : 'info',
-        type: 'image_alt_low',
-        description: `${totalImages} resimden ${withAlt}'sinde alt text var (${coverage.toFixed(0)}% kapsama). Erişilebilirlik + SEO için 90%+ hedefle.`,
-        fixable: false,
-      });
-    }
-
-    return {
-      id: 'image_alt', name: 'Image alt text',
-      found: withAlt > 0, valid: coverage >= 90,
-      score: Math.round(coverage), issues,
-      details: { totalImages, withAlt, emptyAlt, missing, pagesScanned },
-    };
+    return computeImageAltCheck(c.pages);
   }
 
   // ───────────────────────────────────────────────────────────

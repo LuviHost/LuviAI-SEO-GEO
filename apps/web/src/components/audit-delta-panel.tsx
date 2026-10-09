@@ -139,6 +139,13 @@ export function AuditComparisonBody({
         )}
       </div>
 
+      {cmp.metodolojiDegisen && cmp.metodolojiDegisen.length > 0 && (
+        <p className="text-xs text-muted-foreground rounded-md border border-dashed px-3 py-2">
+          Ölçüm yöntemi güncellendi: <span className="font-medium">{cmp.metodolojiDegisen.join(', ')}</span>.
+          Genel skor farkının bir kısmı sitedeki bir değişiklikten değil yöntemden kaynaklanıyor; bu kontrolün sorunları çözülen/yeni olarak sayılmadı.
+        </p>
+      )}
+
       {/* Trend — son N taramanin genel skoru */}
       {history.length > 1 && <ScoreTrend history={history} />}
 

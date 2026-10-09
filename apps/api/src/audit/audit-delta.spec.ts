@@ -289,3 +289,29 @@ describe('getHistory', () => {
     expect(ikisi.map((h) => h.id)).toEqual(['c', 'b']);
   });
 });
+
+describe('compareAudits — olcum yontemi degisimi', () => {
+  it('methodVersion farkli kontrol "metodoloji_degisti" olur, delta 0; sorunlari cozulen/yeni sayilmaz', async () => {
+    const s = svc([
+      tarama({
+        id: 'yeni', ranAt: new Date('2026-02-01'),
+        checks: { image_alt: { score: 100, details: { methodVersion: 2 } }, meta_title: { score: 80 } },
+        issues: [{ type: 'image_alt_suspicious', checkId: 'image_alt' }],
+      }),
+      tarama({
+        id: 'eski', ranAt: new Date('2026-01-01'),
+        checks: { image_alt: { score: 40, details: {} }, meta_title: { score: 60 } },
+        issues: [{ type: 'image_alt_low', checkId: 'image_alt' }],
+      }),
+    ]);
+    const r = await s.compareAudits('s1');
+    const alt = r.checks.find((c) => c.id === 'image_alt')!;
+    expect(alt.durum).toBe('metodoloji_degisti');
+    expect(alt.delta).toBe(0);
+    expect(r.checks.find((c) => c.id === 'meta_title')!.durum).toBe('iyilesti');
+    expect(r.issues.cozulen).toEqual([]);
+    expect(r.issues.yeniCikan).toEqual([]);
+    expect(r.issues.devamEden.map((i) => i.type)).toEqual(['image_alt_suspicious']);
+    expect(r.metodolojiDegisen).toEqual(['image_alt']);
+  });
+});

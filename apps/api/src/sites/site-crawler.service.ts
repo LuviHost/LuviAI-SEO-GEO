@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import * as cheerio from 'cheerio';
 import { readBodyCapped, isBinaryContentType } from '../common/fetch-capped.js';
+import { extractImages, type ExtractedImage, type ImageAltStats } from './image-extract.js';
 
 export interface CrawledPage {
   url: string;
@@ -18,8 +19,14 @@ export interface CrawledPage {
   jsonLdBlocks: any[];                   // application/ld+json içerikleri (parse edilmiş)
   schemaTypes: string[];                 // ['Organization', 'Product', 'FAQPage'] vb. flatten edilmiş
 
+  /** <html lang> — alt metni onerisi sayfanin dilinde uretilir */
+  lang: string | null;
+
   // Resimler ve internal linkler
-  imageAltStats: { total: number; withAlt: number; emptyAlt: number };
+  imageAltStats: ImageAltStats;
+  /** Gorsel bazli kayit (sayfa basi en fazla 50; bkz. image-extract.ts) */
+  images: ExtractedImage[];
+  imagesCapped: boolean;
   outboundLinks: string[];
   inboundLinks?: string[];
 }
@@ -308,19 +315,8 @@ export class SiteCrawlerService {
       }
     });
 
-    // ── Image alt text istatistikleri ──────────────────────
-    let imgTotal = 0, imgWithAlt = 0, imgEmptyAlt = 0;
-    $('img').each((_, el) => {
-      imgTotal++;
-      const alt = $(el).attr('alt');
-      if (alt === undefined || alt === null) {
-        // alt attribute hiç yok
-      } else if (alt.trim() === '') {
-        imgEmptyAlt++; // alt="" decorative ya da eksik
-      } else {
-        imgWithAlt++;
-      }
-    });
+    // ── Gorseller: sayim + gorsel bazli kayit (image-extract.ts) ──
+    const { images, stats: imageAltStats, capped: imagesCapped } = extractImages($, url);
 
     // ── H1, H2'ler ────────────────────────────────────────
     const h2s: string[] = [];
@@ -362,7 +358,10 @@ export class SiteCrawlerService {
       hreflangs,
       jsonLdBlocks,
       schemaTypes,
-      imageAltStats: { total: imgTotal, withAlt: imgWithAlt, emptyAlt: imgEmptyAlt },
+      lang: ($('html').attr('lang') ?? '').trim() || null,
+      imageAltStats,
+      images,
+      imagesCapped,
       outboundLinks: outboundLinks.slice(0, 30),
     };
   }
