@@ -4,6 +4,7 @@ import type { Request } from 'express';
 import { decode } from 'next-auth/jwt';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { ApiKeysService } from '../api-keys/api-keys.service.js';
+import { SESSION_ONLY_KEY } from './session-only.decorator.js';
 
 /**
  * NextAuth session JWT'sini doğrular.
@@ -41,6 +42,11 @@ export class AuthGuard implements CanActivate {
       if (!apiKey) throw new UnauthorizedException('API key gecersiz');
       const user = await this.prisma.user.findUnique({ where: { id: apiKey.userId } });
       if (!user) throw new UnauthorizedException('User bulunamadi');
+
+      const sessionOnly = this.reflector.getAllAndOverride<boolean>(SESSION_ONLY_KEY, [ctx.getHandler(), ctx.getClass()]);
+      if (sessionOnly) {
+        throw new ForbiddenException('Bu işlem yalnız RanksUp panelinden yapılabilir — API anahtarıyla değil.');
+      }
 
       // ── Scope zorlamasi ──
       // Onceden scopes yari dekoratifti: guard yalnizca "mutasyon mu" diye

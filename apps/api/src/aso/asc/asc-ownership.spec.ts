@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { ForbiddenException } from '@nestjs/common';
 import { AscService } from './asc.service.js';
 
@@ -28,13 +28,23 @@ function build(opts: { openAlert?: boolean; releaseDaysAgo?: number } = {}) {
   };
   const svc = new AscService(prisma as any);
   const releaseDate = new Date(Date.now() - (opts.releaseDaysAgo ?? 90) * 86400_000).toISOString();
+  // Apple'in appStoreVersion kaynaginda yayin tarihi YOK (eski test `releaseDate`
+  // varmis gibi kurulmustu — gercekte hic gelmedigi icin alarm hic calismiyordu).
+  // Yayin tarihi iTunes Lookup'tan: currentVersionReleaseDate.
   const client = {
-    listAppStoreVersions: vi.fn(async () => ({ data: [{ id: 'r1', attributes: { versionString: '1.0', releaseDate, appStoreState: 'READY_FOR_SALE' } }] })),
+    listAppStoreVersions: vi.fn(async () => ({ data: [{ id: 'r1', attributes: { versionString: '1.0', appVersionState: 'READY_FOR_DISTRIBUTION' } }] })),
     listCustomerReviews: vi.fn(async () => ({ data: [] })),
   };
   vi.spyOn(svc as any, 'getClient').mockResolvedValue(client);
-  return { svc, prisma, client };
+  const fetchMock = vi.fn(async (url: string) => ({
+    ok: true,
+    json: async () => (String(url).includes('itunes.apple.com/lookup') ? { results: [{ version: '1.0', currentVersionReleaseDate: releaseDate }] } : {}),
+  }));
+  vi.stubGlobal('fetch', fetchMock);
+  return { svc, prisma, client, fetchMock };
 }
+
+afterEach(() => { vi.unstubAllGlobals(); });
 
 const userA = { id: 'user-a', role: 'USER' as const };
 const userB = { id: 'user-b', role: 'USER' as const };
@@ -76,6 +86,25 @@ describe('AscService release alert tekillestirme', () => {
     expect(prisma.ascReleaseAlert.create).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ appId: 'app-1', severity: 'WARN' }),
     }));
+  });
+
+  it('yayin tarihi iTunes Lookup\'tan; surum durumu appVersionState; ascRelease tarihi canli surume yazilir', async () => {
+    const { svc, prisma, fetchMock } = build({ openAlert: false, releaseDaysAgo: 70 });
+    await svc.syncReleases('app-1');
+    expect(fetchMock.mock.calls[0][0]).toMatch(/^https:\/\/itunes\.apple\.com\/lookup\?id=123&country=tr$/);
+    expect(prisma.ascRelease.upsert).toHaveBeenCalledWith(expect.objectContaining({
+      create: expect.objectContaining({ state: 'READY_FOR_DISTRIBUTION', releaseDate: expect.any(Date) }),
+    }));
+    expect(prisma.ascApp.update).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ latestVersion: '1.0' }) }));
+  });
+
+  it('iTunes yaniti yoksa tarih bilinmez: mevcut tarih silinmez, alarm yok', async () => {
+    const { svc, prisma } = build({ releaseDaysAgo: 200 });
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ results: [] }) })));
+    await svc.syncReleases('app-1');
+    const call = (prisma.ascRelease.upsert as any).mock.calls[0][0];
+    expect(call.update).toEqual({ state: 'READY_FOR_DISTRIBUTION' });
+    expect(prisma.ascReleaseAlert.create).not.toHaveBeenCalled();
   });
 
   it('60 gunden yeni release → alert yok', async () => {

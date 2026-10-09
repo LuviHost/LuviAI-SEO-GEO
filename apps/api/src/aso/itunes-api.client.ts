@@ -24,6 +24,7 @@ export interface RawITunesApp {
   userRatingCount?: number;
   formattedPrice?: string;
   releaseDate?: string;
+  currentVersionReleaseDate?: string;
   version?: string;
   fileSizeBytes?: string;
   contentAdvisoryRating?: string;
@@ -88,8 +89,9 @@ export class ItunesApiClient {
 
   /** App Store ID ile detay getir */
   async getAppById(appId: string, country = 'us'): Promise<RawITunesApp | null> {
+    // /search?id= HER ZAMAN 0 sonuc doner; kimlikle arama /lookup ucudur.
     const params = new URLSearchParams({ id: appId, country, entity: 'software' });
-    const res = await this.fetchJson<ITunesSearchResponse>(`${ItunesApiClient.BASE_URL}?${params}`);
+    const res = await this.fetchJson<ITunesSearchResponse>(`https://itunes.apple.com/lookup?${params}`);
     return res.resultCount > 0 ? res.results[0]! : null;
   }
 

@@ -22,11 +22,32 @@ import { createPrivateKey, createSign } from 'node:crypto';
  *   GET /v1/apps/{id}/appStoreVersions        — versiyonlar
  *   GET /v1/apps/{id}/customerReviews         — yorumlar
  *   GET /v1/customerReviewResponses/{id}      — yanıt
+ *   GET /v1/apps/{id}/appInfos, /v1/appInfos/{id}/appInfoLocalizations          — ad, alt baslik
+ *   GET /v1/appStoreVersions/{id}/appStoreVersionLocalizations                 — aciklama, keywords, promo, yenilikler
+ *   PATCH /v1/appInfoLocalizations/{id}, /v1/appStoreVersionLocalizations/{id} — metadata yazma
+ *
+ * Parametreler Apple'in endpoint semasindan (developer.apple.com docc JSON)
+ * dogrulandi: /v1/apps/{id}/appStoreVersions `sort` KABUL ETMEZ
+ * (400 PARAMETER_ERROR.ILLEGAL — kendi uygulamamizda denendi); siralama
+ * istemcide createdDate ile yapilir.
  *
  * Doc: https://developer.apple.com/documentation/appstoreconnectapi
  */
 
 const ASC_API_BASE = 'https://api.appstoreconnect.apple.com';
+
+/** Apple'in hata govdesini tasiyan hata — 403 (rol) ve 409 (durum) ayrimi icin */
+export class AscApiError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly code: string | null,
+    readonly detail: string | null,
+  ) {
+    super(message);
+    this.name = 'AscApiError';
+  }
+}
 
 export interface AscCredentials {
   issuerId: string;           // App Store Connect Issuer ID (UUID)
@@ -87,8 +108,16 @@ export class AscApiClient {
     });
     if (!res.ok) {
       const errText = await res.text().catch(() => '');
-      throw new Error(`ASC ${method} ${path} → ${res.status}: ${errText.slice(0, 400)}`);
+      let code: string | null = null;
+      let detail: string | null = null;
+      try {
+        const first = JSON.parse(errText)?.errors?.[0];
+        code = typeof first?.code === 'string' ? first.code : null;
+        detail = typeof first?.detail === 'string' ? first.detail : typeof first?.title === 'string' ? first.title : null;
+      } catch { /* JSON degil */ }
+      throw new AscApiError(`ASC ${method} ${path} → ${res.status}: ${errText.slice(0, 400)}`, res.status, code, detail);
     }
+    if (res.status === 204) return undefined as T;
     return (await res.json()) as T;
   }
 
@@ -104,9 +133,43 @@ export class AscApiClient {
     return this.request<{ data: any }>('GET', `/v1/apps/${appleAppId}`);
   }
 
-  /** App'in store versiyonları (release'ler) */
-  async listAppStoreVersions(appleAppId: string, limit = 50) {
-    return this.request<{ data: any[] }>('GET', `/v1/apps/${appleAppId}/appStoreVersions?limit=${limit}&sort=-createdDate`);
+  /**
+   * App'in store versiyonlari, en yeni once. `sort` bu uc icin GECERSIZ
+   * (eskiden gonderiliyordu → her sync 400 aliyordu); istemcide siralanir.
+   */
+  async listAppStoreVersions(appleAppId: string, limit = 50, platform?: 'IOS' | 'MAC_OS' | 'TV_OS' | 'VISION_OS') {
+    const qs = new URLSearchParams({ limit: String(Math.min(200, Math.max(1, limit))) });
+    if (platform) qs.set('filter[platform]', platform);
+    const res = await this.request<{ data: any[] }>('GET', `/v1/apps/${appleAppId}/appStoreVersions?${qs}`);
+    const t = (v: any) => Date.parse(v?.attributes?.createdDate ?? '') || 0;
+    return { ...res, data: [...(res.data ?? [])].sort((a, b) => t(b) - t(a)) };
+  }
+
+  /** App bilgisi kayitlari (ad/alt baslik bunlarin yerellestirmelerinde) */
+  async listAppInfos(appleAppId: string) {
+    return this.request<{ data: any[] }>('GET', `/v1/apps/${appleAppId}/appInfos?limit=10`);
+  }
+
+  async listAppInfoLocalizations(appInfoId: string) {
+    return this.request<{ data: any[] }>('GET', `/v1/appInfos/${appInfoId}/appInfoLocalizations?limit=50`);
+  }
+
+  async listVersionLocalizations(versionId: string) {
+    return this.request<{ data: any[] }>('GET', `/v1/appStoreVersions/${versionId}/appStoreVersionLocalizations?limit=50`);
+  }
+
+  /** PATCH — attributes: name | subtitle (AppInfoLocalizationUpdateRequest) */
+  async updateAppInfoLocalization(id: string, attributes: Record<string, string>) {
+    return this.request<{ data: any }>('PATCH', `/v1/appInfoLocalizations/${id}`, {
+      data: { type: 'appInfoLocalizations', id, attributes },
+    });
+  }
+
+  /** PATCH — attributes: description | keywords | promotionalText | whatsNew (AppStoreVersionLocalizationUpdateRequest) */
+  async updateVersionLocalization(id: string, attributes: Record<string, string>) {
+    return this.request<{ data: any }>('PATCH', `/v1/appStoreVersionLocalizations/${id}`, {
+      data: { type: 'appStoreVersionLocalizations', id, attributes },
+    });
   }
 
   /** App'in müşteri yorumları */

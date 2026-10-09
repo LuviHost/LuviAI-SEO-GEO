@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 
 /** Duzeltmeyi hangi servis uyguladi. */
-export type FixKind = 'snippet' | 'static_html' | 'auto_fix' | 'image_alt';
+export type FixKind = 'snippet' | 'static_html' | 'auto_fix' | 'image_alt' | 'asc_metadata';
 
 export interface FixKaydi {
   siteId: string;
@@ -94,7 +94,8 @@ export class AppliedFixService {
     const sayfalar = new Set<string>();
     for (const k of kayitlar) {
       turBazinda.set(k.fixType, (turBazinda.get(k.fixType) ?? 0) + 1);
-      if (k.target) sayfalar.add(k.target);
+      // asc_metadata hedefi bir web sayfasi degil (asc:<app>:<dil>) — sayfa sayilmaz
+      if (k.target && k.kind !== 'asc_metadata') sayfalar.add(k.target);
     }
 
     const [basarisiz, geriAlinan] = await Promise.all([

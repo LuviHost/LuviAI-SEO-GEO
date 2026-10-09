@@ -550,6 +550,18 @@ export const api = {
   acknowledgeAscAlert: (alertId: string) =>
     request<any>(`/aso/asc/alerts/${alertId}/acknowledge`, { method: 'POST' }),
 
+  // ASC metadata — cek / plan (dry-run) / uygula / gecmis / geri al (yalniz panel oturumu)
+  getAscMetadata: (siteId: string, ascAppId: string) =>
+    request<any>(`/sites/${siteId}/aso/asc/apps/${ascAppId}/metadata`),
+  planAscMetadata: (siteId: string, ascAppId: string, body: { locale: string; fields: Record<string, string> }) =>
+    request<any>(`/sites/${siteId}/aso/asc/apps/${ascAppId}/metadata/plan`, { method: 'POST', body: JSON.stringify(body) }),
+  applyAscMetadata: (siteId: string, ascAppId: string, planId: string) =>
+    request<any>(`/sites/${siteId}/aso/asc/apps/${ascAppId}/metadata/apply`, { method: 'POST', body: JSON.stringify({ planId, confirm: true }) }),
+  getAscMetadataHistory: (siteId: string, ascAppId: string) =>
+    request<any[]>(`/sites/${siteId}/aso/asc/apps/${ascAppId}/metadata/history`),
+  revertAscMetadata: (siteId: string, ascAppId: string, fixId: string) =>
+    request<any>(`/sites/${siteId}/aso/asc/apps/${ascAppId}/metadata/revert/${fixId}`, { method: 'POST' }),
+
   /** Testimonials */
   submitTestimonial: (body: { siteId?: string; rating: number; body: string; role?: string; company?: string; metric?: string }) =>
     request<{ id: string }>(`/testimonials`, { method: 'POST', body: JSON.stringify(body) }),

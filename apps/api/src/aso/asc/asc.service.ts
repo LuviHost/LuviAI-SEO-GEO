@@ -3,7 +3,31 @@ import { encrypt, decrypt } from '@luviai/shared';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { AscApiClient, type AscCredentials } from './asc-api.client.js';
 
-interface RequestingUser {
+/**
+ * Canli surum + gercek yayin tarihi — Apple'in herkese acik iTunes Lookup'i.
+ * ASC'nin appStoreVersion kaynaginda yayin tarihi alani YOK (semada
+ * releaseDate bulunmuyor); eskiden `attrs.releaseDate` okunuyordu → hep null
+ * → "60+ gundur guncelleme yok" uyarisi hic uretilmiyordu.
+ * Uygulama TR'de yoksa US vitrini denenir.
+ */
+async function fetchLiveVersion(appleAppId: string): Promise<{ version: string; releasedAt: Date } | null> {
+  for (const country of ['tr', 'us']) {
+    try {
+      const res = await fetch(`https://itunes.apple.com/lookup?id=${encodeURIComponent(appleAppId)}&country=${country}`, {
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!res.ok) continue;
+      const r = (await res.json())?.results?.[0];
+      const releasedAt = r?.currentVersionReleaseDate ? new Date(r.currentVersionReleaseDate) : null;
+      if (r?.version && releasedAt && !Number.isNaN(+releasedAt)) return { version: String(r.version), releasedAt };
+    } catch {
+      /* sonraki vitrin */
+    }
+  }
+  return null;
+}
+
+export interface RequestingUser {
   id: string;
   role: 'USER' | 'ADMIN' | 'AGENCY_OWNER';
 }
@@ -30,7 +54,7 @@ export class AscService {
    * HER ZAMAN user geçirir (önceden geçirmiyordu: herhangi bir oturum sahibi
    * başkasının app'i için Apple API'sini tetikleyip yorumlarını okuyabiliyordu).
    */
-  private async loadApp(appId: string, user?: RequestingUser) {
+  async loadApp(appId: string, user?: RequestingUser) {
     const app = await this.prisma.ascApp.findUnique({ where: { id: appId }, include: { account: true } });
     if (!app) throw new NotFoundException('App bulunamadı');
     if (user) await this.assertSiteOwner(app.account.siteId, user);
@@ -115,7 +139,7 @@ export class AscService {
     return { ok: true };
   }
 
-  private async getClient(accountId: string): Promise<AscApiClient> {
+  async getClient(accountId: string): Promise<AscApiClient> {
     const cached = this.clientCache.get(accountId);
     if (cached && Date.now() - cached.cachedAt < 5 * 60_000) return cached.client;
     const acc = await this.prisma.ascAccount.findUnique({ where: { id: accountId } });
@@ -181,13 +205,16 @@ export class AscService {
     const client = await this.getClient(app.accountId);
     try {
       const { data: versions } = await client.listAppStoreVersions(app.appleAppId, 20);
+      const live = await fetchLiveVersion(app.appleAppId);
       let synced = 0;
-      let latestReleaseDate: Date | null = null;
-      let latestVersion: string | null = null;
+      const latestReleaseDate: Date | null = live?.releasedAt ?? null;
+      const latestVersion: string | null = live?.version ?? null;
       for (const v of versions ?? []) {
         const releaseId = String(v.id);
         const attrs = v.attributes ?? {};
-        const releaseDate = attrs.releaseDate ? new Date(attrs.releaseDate) : null;
+        // appStoreState kullanimdan kalkti (Apple semasi) → appVersionState
+        const state = attrs.appVersionState ?? attrs.appStoreState ?? 'UNKNOWN';
+        const releaseDate = live && attrs.versionString === live.version ? live.releasedAt : null;
         await this.prisma.ascRelease.upsert({
           where: { appleReleaseId: releaseId },
           create: {
@@ -195,18 +222,12 @@ export class AscService {
             appleReleaseId: releaseId,
             versionString: attrs.versionString ?? '',
             releaseType: attrs.releaseType,
-            state: attrs.appStoreState ?? 'UNKNOWN',
+            state,
             releaseDate,
           },
-          update: {
-            state: attrs.appStoreState ?? 'UNKNOWN',
-            releaseDate,
-          },
+          // Bilinmeyen tarih mevcut degeri SILMEZ
+          update: { state, ...(releaseDate ? { releaseDate } : {}) },
         });
-        if (releaseDate && (!latestReleaseDate || releaseDate > latestReleaseDate)) {
-          latestReleaseDate = releaseDate;
-          latestVersion = attrs.versionString;
-        }
         synced++;
       }
       // App'in latest version + release date'ini güncelle
