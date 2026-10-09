@@ -47,6 +47,17 @@ Each ported file also names its source in a header comment.
 - Copyright (c) 2026 Charlie Hills
 - Used in: `apps/api/src/_prompts/social-skills/` (see `CREDITS.md` there).
 
+## every-app/open-seo — MIT
+
+- Source: https://github.com/every-app/open-seo
+- Copyright (c) 2026 Ben Senescu
+- Ported logic: `apps/api/src/analytics/search-opportunity.ts` (GSC × GA4
+  search opportunities: candidate filter, page key, percentile components,
+  from `SearchOpportunityService`).
+- Rules and parameters adopted, code rewritten: `apps/api/src/audit/host-match.ts`,
+  `audit/comparable-trend.ts`, `audit/image-alt-check.ts`,
+  `sites/image-extract.ts`, `sites/js-shell.ts`.
+
 ## Expo app template (650 Industries) — MIT
 
 - Source: https://github.com/expo/expo (create-expo-app template)

@@ -1260,6 +1260,10 @@ export const api = {
   getGaSummary: (siteId: string, days = 30) =>
     request<any>(`/sites/${siteId}/analytics/ga-summary?days=${days}`),
 
+  /** GSC 4–20. sira × GA4 organik acilis sayfalari — skor yok, bilesen kolonlu siralama */
+  getSearchOpportunities: (siteId: string, limit = 50) =>
+    request<any>(`/sites/${siteId}/analytics/search-opportunities?limit=${limit}`),
+
   // GSC OAuth
   getGscAuthUrl: (siteId: string) =>
     request<{ url: string }>(`/auth/gsc/start?siteId=${encodeURIComponent(siteId)}`),

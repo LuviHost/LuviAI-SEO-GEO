@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { google } from 'googleapis';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { GaOAuthService } from '../auth/ga-oauth.service.js';
+import type { GaLandingRow } from './search-opportunity.js';
 
 export interface GaPagePerf {
   pagePath: string;
@@ -54,7 +55,9 @@ export class GaService {
             { name: 'sessions' },
             { name: 'engagementRate' },
             { name: 'userEngagementDuration' },
-            { name: 'conversions' },
+            // 2024-05-06'da `conversions` → `keyEvents` (GA4 Data API changelog;
+            // guncel semada `conversions` yok). Donus alani adi web icin ayni kaldi.
+            { name: 'keyEvents' },
             { name: 'bounceRate' },
           ],
           orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
@@ -99,6 +102,64 @@ export class GaService {
       };
     } catch (err: any) {
       this.log.warn(`[${siteId}] GA fetch error: ${err.message}`);
+      return null;
+    }
+  }
+
+  /**
+   * Organik arama oturumlarinin acilis sayfalari (GSC × GA4 arama firsatlari icin).
+   * Boyut/metrik adlari GA4 Data API semasindan: hostName, landingPage (yalniz
+   * yol), sessionDefaultChannelGroup = "Organic Search"; keyEvents ve
+   * sessionKeyEventRate (eski conversions / sessionConversionRate).
+   * Site bagli degilse ya da GA hata verirse null — cagiran "veri yok" der.
+   */
+  async fetchOrganicLandingPages(
+    siteId: string,
+    startDate: string,
+    endDate: string,
+    limit = 1000,
+  ): Promise<{ rows: GaLandingRow[]; totalRows: number } | null> {
+    const site = await this.prisma.site.findUnique({ where: { id: siteId } });
+    if (!site?.gaPropertyId || !site?.gaRefreshToken) return null;
+
+    const client = await this.gaOAuth.getAuthenticatedClient(siteId);
+    if (!client) return null;
+
+    try {
+      const data = google.analyticsdata({ version: 'v1beta', auth: client as any });
+      const res = await data.properties.runReport({
+        property: `properties/${site.gaPropertyId}`,
+        requestBody: {
+          dateRanges: [{ startDate, endDate }],
+          dimensions: [{ name: 'hostName' }, { name: 'landingPage' }],
+          metrics: [
+            { name: 'sessions' },
+            { name: 'engagementRate' },
+            { name: 'keyEvents' },
+            { name: 'sessionKeyEventRate' },
+          ],
+          dimensionFilter: {
+            filter: {
+              fieldName: 'sessionDefaultChannelGroup',
+              stringFilter: { matchType: 'EXACT', value: 'Organic Search' },
+            },
+          },
+          orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
+          limit: String(limit),
+        },
+      } as any);
+
+      const rows: GaLandingRow[] = (res.data.rows ?? []).map((r: any) => ({
+        hostName: r.dimensionValues?.[0]?.value ?? '',
+        landingPage: r.dimensionValues?.[1]?.value ?? '',
+        sessions: Number(r.metricValues?.[0]?.value ?? 0),
+        engagementRate: Number(r.metricValues?.[1]?.value ?? 0),
+        keyEvents: Number(r.metricValues?.[2]?.value ?? 0),
+        sessionKeyEventRate: Number(r.metricValues?.[3]?.value ?? 0),
+      }));
+      return { rows, totalRows: Number(res.data.rowCount ?? rows.length) };
+    } catch (err: any) {
+      this.log.warn(`[${siteId}] GA organik acilis sayfalari hata: ${err.message}`);
       return null;
     }
   }

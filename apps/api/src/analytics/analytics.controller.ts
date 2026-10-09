@@ -5,6 +5,7 @@ import { GaService } from './ga.service.js';
 import { ReportsService, type ReportOpts, type ReportRange } from './reports.service.js';
 import { SiteReportService } from './site-report.service.js';
 import { GoogleAiSurfaceService } from './google-ai-surface.service.js';
+import { SearchOpportunityService } from './search-opportunity.service.js';
 
 /**
  * Sorgu parametrelerini rapor donemine cevirir.
@@ -36,6 +37,7 @@ export class AnalyticsController {
     private readonly reports: ReportsService,
     private readonly siteReports: SiteReportService,
     private readonly googleAi: GoogleAiSurfaceService,
+    private readonly searchOpportunities: SearchOpportunityService,
   ) {}
 
   // ──────────────────────────────────────────────────────────────
@@ -112,6 +114,16 @@ export class AnalyticsController {
   @Get('ga-summary')
   gaSummary(@Param('siteId') siteId: string, @Query('days') days?: string) {
     return this.ga.fetchSiteSummary(siteId, days ? parseInt(days, 10) : 30);
+  }
+
+  /**
+   * GET /sites/:siteId/analytics/search-opportunities?limit=50
+   * GSC 4–20. sira sayfalari × GA4 organik acilis sayfalari (open-seo portu).
+   * Skor yok: siralama + bilesen kolonlari (talep / deger / erisilebilirlik).
+   */
+  @Get('search-opportunities')
+  searchOpportunityList(@Param('siteId') siteId: string, @Query('limit') limit?: string) {
+    return this.searchOpportunities.get(siteId, limit ? parseInt(limit, 10) : undefined);
   }
 
   /**

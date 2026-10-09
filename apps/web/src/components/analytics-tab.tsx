@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { GoogleAiSurfaceCard } from '@/components/google-ai-surface-card';
+import { SearchOpportunitiesCard } from '@/components/search-opportunities-card';
 
 export function AnalyticsTab({ siteId, site }: { siteId: string; site?: any }) {
   const [overview, setOverview] = useState<any>(null);
@@ -215,6 +216,9 @@ export function AnalyticsTab({ siteId, site }: { siteId: string; site?: any }) {
               </CardContent>
             </Card>
           )}
+
+          {/* GSC × GA4 arama firsatlari — GA bagliysa (ozet geldiyse) */}
+          <SearchOpportunitiesCard siteId={siteId} />
         </>
       )}
 
