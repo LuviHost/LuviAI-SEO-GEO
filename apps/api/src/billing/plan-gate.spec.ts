@@ -14,9 +14,9 @@ import { FEATURE_MIN_PLAN, PLAN_RANK, planHasFeature, type PlanFeature, type Pla
  */
 
 /** Sadece user.findUniqueOrThrow ve trackedApp.count kullanan sahte Prisma. */
-function fakePrisma(plan: string, trackedApps = 0) {
+function fakePrisma(plan: string, trackedApps = 0, role: 'USER' | 'ADMIN' = 'USER') {
   return {
-    user: { findUniqueOrThrow: async () => ({ plan }) },
+    user: { findUniqueOrThrow: async () => ({ plan, role }) },
     trackedApp: { count: async () => trackedApps },
   } as never;
 }
@@ -97,6 +97,12 @@ describe('enforceTrackedAppQuota', () => {
     await expect(
       new QuotaService(fakePrisma('STARTER', 1)).enforceTrackedAppQuota('u1'),
     ).rejects.toThrow(/1 uygulama/);
+  });
+
+  it('ADMIN limitte de gecer (site kotasindaki muafiyetle tutarli); gosterilen kota degismez', async () => {
+    const q = new QuotaService(fakePrisma('PRO', 3, 'ADMIN'));
+    await expect(q.enforceTrackedAppQuota('u1')).resolves.toBeUndefined();
+    await expect(q.checkTrackedAppQuota('u1')).resolves.toEqual({ allowed: false, current: 3, limit: 3 });
   });
 });
 

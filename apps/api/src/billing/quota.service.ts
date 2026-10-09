@@ -200,23 +200,32 @@ export class QuotaService {
 
   /** ASO: takip edilen uygulama sayisi kotasi */
   async checkTrackedAppQuota(userId: string): Promise<{ allowed: boolean; current: number; limit: number }> {
+    const { allowed, current, limit } = await this.trackedAppQuota(userId);
+    return { allowed, current, limit };
+  }
+
+  private async trackedAppQuota(userId: string) {
     const user = await this.prisma.user.findUniqueOrThrow({
       where: { id: userId },
-      select: { plan: true },
+      select: { plan: true, role: true },
     });
     const limit = findPlan(user.plan.toLowerCase())?.trackedApps ?? 1;
     // TrackedApp Site'a bagli; kullanicinin tum sitelerindeki uygulamalar sayilir.
     const current = await this.prisma.trackedApp.count({ where: { site: { userId } } });
-    return { allowed: current < limit, current, limit };
+    return { allowed: current < limit, current, limit, role: user.role };
   }
 
   async enforceTrackedAppQuota(userId: string): Promise<void> {
-    const { allowed, current, limit } = await this.checkTrackedAppQuota(userId);
-    if (!allowed) {
-      throw new ForbiddenException(
-        `Plan limiti: ${limit} uygulama. Şu an ${current} uygulaman var. Daha fazlası için plan yükselt.`,
-      );
-    }
+    const { allowed, current, limit, role } = await this.trackedAppQuota(userId);
+    if (allowed) return;
+    // ADMIN (platform sahibi/ekip) uygulama kotasina takilmaz — enforceSiteQuota
+    // ile ayni gerekce: limit son kullanici icin bir fiyatlandirma kademesi,
+    // owner kendi hesabina dogfood/demo uygulamasi ekleyebilmeli. Onceden site
+    // kotasinda muaf olup burada takiliyordu (PRO = 3 uygulama, 4. reddediliyordu).
+    if (role === 'ADMIN') return;
+    throw new ForbiddenException(
+      `Plan limiti: ${limit} uygulama. Şu an ${current} uygulaman var. Daha fazlası için plan yükselt.`,
+    );
   }
 
   // ────────────────────────────────────────────
