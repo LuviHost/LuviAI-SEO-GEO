@@ -8,6 +8,7 @@ import { AsoReviewsService } from './reviews.service.js';
 import { AsoAiAgentService } from './ai-agent.service.js';
 import { QuotaService } from '../billing/quota.service.js';
 import { nextCreativeAssetState, buildIosCreativeAssetFindings } from './creative-asset-findings.js';
+import { auditKeywordField } from './keyword-field-audit.js';
 
 export interface ConnectAppDto {
   siteId: string;
@@ -702,6 +703,51 @@ export class AsoService {
       locale: opts.locale ?? 'tr',
       store: opts.store,
     });
+  }
+
+  /**
+   * App Store anahtar kelime alani denetimi — kurallar saf `keyword-field-audit.ts`'te.
+   * Alan herkese acik degil (iTunes dondurmez): kullanici yapistirir.
+   * Ad/alt baslik/gelistirici/kategori kayitli metadata'dan (istekle ezilebilir);
+   * rakip adlari benzer uygulamalardan (iTunes, LLM yok) — 8 sn'de gelmezse
+   * rakip kontrolu atlanir ve bu acikca doner.
+   */
+  async auditKeywordField(
+    trackedAppId: string,
+    body: { keywords?: unknown; appName?: string; subtitle?: string; competitorNames?: string[]; checkCompetitors?: boolean },
+  ) {
+    if (typeof body?.keywords !== 'string') throw new BadRequestException('keywords metin olmalı');
+    if (body.keywords.length > 1000) throw new BadRequestException('keywords en fazla 1000 karakter');
+    const app = await this.prisma.trackedApp.findUniqueOrThrow({ where: { id: trackedAppId } });
+    const ios: any = (app.metadata as any)?.ios ?? {};
+
+    let competitorNames = Array.isArray(body.competitorNames) ? body.competitorNames.filter((n) => typeof n === 'string').slice(0, 50) : [];
+    let competitorSource: 'body' | 'similar' | 'skipped' | 'failed' = competitorNames.length ? 'body' : 'skipped';
+    if (!competitorNames.length && body.checkCompetitors !== false && app.appStoreId) {
+      let timer: NodeJS.Timeout | undefined;
+      try {
+        const list = await Promise.race([
+          this.discoverCompetitors(trackedAppId),
+          new Promise<never>((_, rej) => { timer = setTimeout(() => rej(new Error('zaman asimi')), 8000); }),
+        ]);
+        competitorNames = list.filter((c) => c.store === 'IOS' && c.name).map((c) => c.name);
+        competitorSource = 'similar';
+      } catch (err: any) {
+        this.log.warn(`[${trackedAppId}] keyword denetimi: rakip adlari alinamadi — ${err.message}`);
+        competitorSource = 'failed';
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+
+    const appName = body.appName?.trim() || ios.title || app.name;
+    const subtitle = body.subtitle?.trim() || ios.subtitle || null;
+    const companyName = app.developer ?? ios.developer ?? null;
+    const categoryNames = [...new Set([app.category, ios.primaryGenre, ...(Array.isArray(ios.genres) ? ios.genres : [])].filter((c): c is string => typeof c === 'string' && !!c))];
+    return {
+      ...auditKeywordField({ keywords: body.keywords, appName, subtitle, companyName, competitorNames, categoryNames }),
+      context: { appName, subtitle, companyName, categoryNames, competitorSource, competitorCount: competitorNames.length },
+    };
   }
 
   // ─────────────────────────────────────────────

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSiteContext } from '../site-context';
 import { api } from '@/lib/api';
+import { KeywordFieldAuditCard } from '@/components/keyword-field-audit-card';
 import { toast } from 'sonner';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -1566,6 +1567,16 @@ function AppDetailModal({ app, siteId, onClose, onChanged }: {
                     )}
                   </CardContent>
                 </Card>
+
+                {/* App Store anahtar kelime alani denetimi (alan herkese acik degil — yapistirilir) */}
+                {app.appStoreId && (
+                  <KeywordFieldAuditCard
+                    siteId={siteId}
+                    appId={app.id}
+                    defaultSubtitle={auditData.currentMetadata?.ios?.subtitle ?? null}
+                    aiKeywordField={optimizeStore === 'IOS' ? optimizeResult?.keywordField ?? null : null}
+                  />
+                )}
 
                 {/* STEP-BY-STEP GUIDE */}
                 <Card className="border-blue-500/20 bg-blue-500/5">

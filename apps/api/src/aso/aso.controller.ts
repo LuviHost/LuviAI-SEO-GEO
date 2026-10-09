@@ -279,6 +279,19 @@ export class AsoController {
     return this.aso.auditMetadata(appId);
   }
 
+  /**
+   * POST /sites/:siteId/aso/apps/:appId/keyword-audit — App Store anahtar
+   * kelime alani denetimi (100 karakter, ayrac, tekrar, ad/alt baslik/sirket/
+   * rakip/kategori ortusmesi). Yazma yok; yalniz hesap.
+   */
+  @Post('apps/:appId/keyword-audit')
+  keywordAudit(
+    @Param('appId') appId: string,
+    @Body() body: { keywords?: unknown; appName?: string; subtitle?: string; competitorNames?: string[]; checkCompetitors?: boolean },
+  ) {
+    return this.aso.auditKeywordField(appId, body ?? {});
+  }
+
   // ─── Screenshot Studio ──────────────────────
   // Plan kapisi: yalnizca uretim uclarinda (background/captions/save/hand-photo).
   // library GET acik — plani dusen kullanici gecmis uretimlerini gorebilmeli;

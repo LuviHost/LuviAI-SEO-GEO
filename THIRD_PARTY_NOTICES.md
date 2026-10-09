@@ -58,6 +58,21 @@ Each ported file also names its source in a header comment.
   `audit/comparable-trend.ts`, `audit/image-alt-check.ts`,
   `sites/image-extract.ts`, `sites/js-shell.ts`.
 
+## rorkai/App-Store-Connect-CLI — MIT
+
+- Source: https://github.com/rorkai/App-Store-Connect-CLI
+- Copyright (c) 2026 Rudrank Riyam
+- Rules adopted, code rewritten: `apps/api/src/aso/keyword-field-audit.ts`
+  (keyword field scan: empty segments, non-canonical separators, duplicates,
+  name/subtitle overlap; character-based limit per its issue #1399).
+
+## appeeky/aso-skills — MIT
+
+- Source: https://github.com/appeeky/aso-skills
+- Copyright (c) 2026 Erencan
+- Rules adopted, code rewritten: `apps/api/src/aso/keyword-field-audit.ts`
+  (spaces after commas, singular forms, no "app"/category names).
+
 ## Expo app template (650 Industries) — MIT
 
 - Source: https://github.com/expo/expo (create-expo-app template)

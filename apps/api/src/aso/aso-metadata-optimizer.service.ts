@@ -1,4 +1,6 @@
 import { Injectable } from '@nestjs/common';
+import { foldForMatch, escapeRegex } from '../common/text-normalize.js';
+import { countCharacters, countBytes } from './keyword-field-audit.js';
 
 /**
  * Metadata optimizer — title/subtitle/description/keyword field için
@@ -15,12 +17,17 @@ export interface MetadataLimits {
   short_description?: number;
   description: number;
   keyword_field?: number;
+  promotional_text?: number;  // Apple: 170 karakter (ASC referansi)
+  whats_new?: number;         // Apple: 4000 karakter (ASC referansi)
 }
 
 const LIMITS: Record<Platform, MetadataLimits> = {
-  apple:  { title: 30, subtitle: 30, description: 4000, keyword_field: 100 },
+  apple:  { title: 30, subtitle: 30, description: 4000, keyword_field: 100, promotional_text: 170, whats_new: 4000 },
   google: { title: 30, short_description: 80, description: 4000 },
 };
+
+/** Eslesme icin kelimeler — Turkce harf guvenli (\w ASCII'dir: "çiçek" → ["i","ek"]) */
+const wordsOf = (s: string) => foldForMatch(s).split(/[^\p{L}\p{N}]+/u).filter(Boolean);
 
 export interface OptimizeTitleInput {
   brand: string;
@@ -133,41 +140,51 @@ export class AsoMetadataOptimizerService {
     };
   }
 
-  /** Apple keyword field (100 char) — virgülle ayrılmış, brand/title kelimelerini tekrar etme */
+  /**
+   * Apple keyword field (100 KARAKTER — bkz. keyword-field-audit.ts: Apple'in
+   * "100 bayt" ifadesi ASC'de uygulanmiyor) — virgulle, bosluksuz; title'daki
+   * kelimeler ve tekrarlar atlanir.
+   *
+   * Eskiden toLowerCase() kullaniyordu: "İzmir" → "i̇zmir" (gorunmez U+0307 ile
+   * 6 karakter) — hem alan israfi hem bozuk kelime. Artik yazim korunur,
+   * karsilastirma foldForMatch ile yapilir.
+   */
   optimizeKeywordField(
     keywords: string[],
     titleWords: string[] = [],
   ): { keyword_field: string; length: number; remaining: number; used: string[]; skipped: string[] } {
-    const limit = 100;
-    const titleLower = new Set(titleWords.map(w => w.toLowerCase()));
+    const limit = LIMITS.apple.keyword_field!;
+    const titleSet = new Set(titleWords.flatMap((w) => wordsOf(w)));
+    const seen = new Set<string>();
     const used: string[] = [];
     const skipped: string[] = [];
     let field = '';
 
     for (const kw of keywords) {
-      const clean = kw.trim().toLowerCase();
+      const clean = (kw ?? '').replace(/\s+/g, ' ').trim();
       if (!clean) continue;
-      // Title'da geçen tekil kelimeleri atla
-      const words = clean.split(/\s+/);
-      const noveltyParts = words.filter(w => !titleLower.has(w));
-      const final = noveltyParts.join(' ').trim();
-      if (!final) {
+      // Title'da geçen kelimeleri atla (karsilastirma katlanmis, yazim korunur)
+      const final = clean.split(' ').filter((w) => !wordsOf(w).every((f) => titleSet.has(f))).join(' ');
+      const key = wordsOf(final).join(' ');
+      if (!final || !key || seen.has(key)) {
         skipped.push(kw);
         continue;
       }
       const candidate = field ? `${field},${final}` : final;
-      if (candidate.length <= limit) {
+      if (countCharacters(candidate) <= limit) {
         field = candidate;
+        seen.add(key);
         used.push(kw);
       } else {
         skipped.push(kw);
       }
     }
 
+    const length = countCharacters(field);
     return {
       keyword_field: field,
-      length: field.length,
-      remaining: limit - field.length,
+      length,
+      remaining: limit - length,
       used,
       skipped,
     };
@@ -181,12 +198,14 @@ export class AsoMetadataOptimizerService {
     short_description?: string;
     description?: string;
     keyword_field?: string;
+    promotional_text?: string;
+    whats_new?: string;
   }): ValidationReport[] {
     const limits = LIMITS[metadata.platform];
     const reports: ValidationReport[] = [];
     const check = (field: string, value: string | undefined, limit: number | undefined) => {
       if (limit === undefined || value === undefined) return;
-      const len = value.length;
+      const len = countCharacters(value);
       const ok = len > 0 && len <= limit;
       reports.push({
         field,
@@ -199,6 +218,8 @@ export class AsoMetadataOptimizerService {
           ? `${field} ${len - limit} karakter fazla`
           : len < limit * 0.5
           ? `${field} kısa — ${limit - len} karakterlik alan boş`
+          : field === 'keyword_field' && countBytes(value) > limit
+          ? `OK (${countBytes(value)} bayt — Apple'ın bir belgesi 100 bayt diyor; ASC 100 karakteri kabul ediyor)`
           : 'OK',
       });
     };
@@ -207,24 +228,27 @@ export class AsoMetadataOptimizerService {
     if (limits.short_description !== undefined) check('short_description', metadata.short_description, limits.short_description);
     check('description', metadata.description, limits.description);
     if (limits.keyword_field !== undefined) check('keyword_field', metadata.keyword_field, limits.keyword_field);
+    if (limits.promotional_text !== undefined) check('promotional_text', metadata.promotional_text, limits.promotional_text);
+    if (limits.whats_new !== undefined) check('whats_new', metadata.whats_new, limits.whats_new);
     return reports;
   }
 
-  /** Description içindeki keyword yoğunluğu (%) */
+  /**
+   * Description içindeki keyword yoğunluğu (%).
+   * Eskiden \b\w+\b ile sayiyordu — \w ASCII oldugu icin "çiçek açtı"
+   * ["i","ek","a","t"] sayiliyordu; Turkce metinde hem toplam hem eslesme yanlisti.
+   */
   calculateKeywordDensity(text: string, keywords: string[]): Record<string, number> {
-    const total = (text.match(/\b\w+\b/g) ?? []).length;
+    const words = wordsOf(text);
+    const total = words.length;
     if (total === 0) return {};
-    const lower = text.toLowerCase();
+    const hay = ` ${words.join(' ')} `;
     const out: Record<string, number> = {};
     for (const kw of keywords) {
-      const re = new RegExp('\\b' + escapeRegex(kw.toLowerCase()) + '\\b', 'g');
-      const hits = (lower.match(re) ?? []).length;
+      const needle = wordsOf(kw).join(' ');
+      const hits = needle ? (hay.match(new RegExp(` ${escapeRegex(needle)}(?= )`, 'g')) ?? []).length : 0;
       out[kw] = Math.round((hits / total) * 1000) / 10;
     }
     return out;
   }
-}
-
-function escapeRegex(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }

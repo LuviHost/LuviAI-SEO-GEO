@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { countCharacters } from './keyword-field-audit.js';
 
 /**
  * Launch checklist — App Store ve Google Play için prelaunch + update checklist.
@@ -51,7 +52,8 @@ export class AsoLaunchChecklistService {
     if (meta.subtitle && meta.subtitle.length > 30) issues.push({ field: 'subtitle', problem: '30 karakteri aşıyor', how_to_fix: 'Kısalt' });
     if (!meta.description) issues.push({ field: 'description', problem: 'boş', how_to_fix: 'En az 500 karakter, ideal 1500-2000' });
     if (meta.description && meta.description.length < 500) issues.push({ field: 'description', problem: 'çok kısa', how_to_fix: 'Özellik listesi + sosyal kanıt + CTA ekle' });
-    if (meta.keywordField && meta.keywordField.length > 100) issues.push({ field: 'keyword_field', problem: '100 karakteri aşıyor', how_to_fix: 'Title/subtitle\'da geçen kelimeleri çıkar' });
+    // Kod noktasi sayilir (Apple "karakter"i; 100 bayt ifadesi ASC'de uygulanmiyor — keyword-field-audit.ts)
+    if (meta.keywordField && countCharacters(meta.keywordField) > 100) issues.push({ field: 'keyword_field', problem: '100 karakteri aşıyor', how_to_fix: 'Title/subtitle\'da geçen kelimeleri çıkar' });
     if (!meta.iconUrl) issues.push({ field: 'icon', problem: 'eksik', how_to_fix: '1024×1024 PNG, alpha kanalsız' });
     return { platform: 'apple', ok: issues.length === 0, issues };
   }
