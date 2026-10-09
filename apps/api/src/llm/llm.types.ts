@@ -13,6 +13,18 @@ export type TokenType = 'prompt' | 'completion' | 'cache_read' | 'cache_write';
 export interface ChatMessage {
   role: 'user' | 'assistant' | 'system';
   content: string;
+  /**
+   * Gorsel girdi (vision) — yalnizca `supportsImages` saglayicilar (Anthropic).
+   * Metinden ONCE yerlestirilir. Desteklemeyen saglayiciya gonderilirse
+   * LLMProviderService acik hata verir (sessizce yok sayilmaz).
+   */
+  images?: ChatImage[];
+}
+
+export interface ChatImage {
+  mediaType: 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp';
+  /** base64, satir sonu YOK */
+  base64: string;
 }
 
 export interface ChatRequest {
@@ -64,6 +76,8 @@ export interface ChatResponse {
   provider: ProviderName;
   usage: UsageMetadata;
   costUsd: number;
+  /** Saglayici bildiriyorsa: end_turn | max_tokens | refusal ... (refusal'da output bos olabilir) */
+  stopReason?: string;
 }
 
 /** USD per 1M tokens — model bazında pricing matrisi */
@@ -76,6 +90,8 @@ export interface ModelPricing {
 
 export interface ILLMProvider {
   readonly name: ProviderName;
+  /** ChatMessage.images destekleniyor mu (vision) */
+  readonly supportsImages?: boolean;
   /** Model adının bu provider'a ait olup olmadığını kontrol eder */
   supportsModel(model: string): boolean;
   /** Pricing tablosundan model fiyatını döndürür (USD per 1M token) */

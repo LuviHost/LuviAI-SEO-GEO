@@ -10,7 +10,11 @@ import type { ChatRequest, ChatResponse, ILLMProvider, ModelPricing, ProviderNam
  * Opus cagrisinin maliyeti panelde 3 KAT fazla gosteriliyordu.
  */
 const PRICING: Record<string, ModelPricing> = {
+  // Opus 5.5: Opus 5'in ardili, daha ucuz (claude-api skill tablosu, 2026-10-06).
+  // Onek eslesmesi bunu 'claude-opus-5'e dusuruyordu → maliyet %25 fazla.
+  'claude-opus-5-5':            { input: 4,  output: 20, cacheRead: 0.2,  cacheWrite: 5 },
   'claude-opus-5':              { input: 5,  output: 25, cacheRead: 0.5,  cacheWrite: 6.25 },
+  'claude-sonnet-5-5':          { input: 2,  output: 10, cacheRead: 0.2,  cacheWrite: 2.5 },
   'claude-opus-4-8':            { input: 5,  output: 25, cacheRead: 0.5,  cacheWrite: 6.25 },
   'claude-opus-4-7':            { input: 5,  output: 25, cacheRead: 0.5,  cacheWrite: 6.25 },
   // Sonnet 5: 2026-08-31'e kadar tanitim fiyati 2/10. Standart tarife
@@ -64,9 +68,21 @@ function clampEffort(model: string, effort: string): string {
   return effort;
 }
 
+/**
+ * Sunucu tarafi ret yedegi (server-side fallback) destekleyen modeller.
+ * claude-api skill: bu modellerde `fallbacks: "default"` (beta
+ * server-side-fallback-2026-07-01) varsayilan olarak eklenmeli — guvenlik
+ * siniflandiricisi istegi reddederse API ayni istegi uygun modelde yeniden
+ * calistirir. Simdilik yalnizca VISION yolunda (yeni kod) acik.
+ */
+function supportsServerFallback(model: string): boolean {
+  return /^claude-(opus-5|fable-5-1|sonnet-5-5)/.test(model);
+}
+
 @Injectable()
 export class AnthropicProvider implements ILLMProvider {
   readonly name: ProviderName = 'anthropic';
+  readonly supportsImages = true;
   private readonly log = new Logger(AnthropicProvider.name);
   private client: Anthropic;
 
@@ -115,21 +131,42 @@ export class AnthropicProvider implements ILLMProvider {
       ? { output_config: { effort: clampEffort(req.model, req.effort) } }
       : {};
 
-    const response = await this.client.messages.create({
+    const messages = req.messages.filter(m => m.role !== 'system').map(m => ({
+      role: m.role as 'user' | 'assistant',
+      // Gorsel varsa: once gorsel bloklari, sonra metin (vision dokumani)
+      content: m.images?.length
+        ? [
+            ...m.images.map((img) => ({
+              type: 'image' as const,
+              source: { type: 'base64' as const, media_type: img.mediaType, data: img.base64 },
+            })),
+            { type: 'text' as const, text: m.content },
+          ]
+        : m.content,
+    }));
+    const hasImages = req.messages.some((m) => (m.images?.length ?? 0) > 0);
+
+    const body = {
       model: req.model,
       max_tokens: req.maxTokens ?? 1024,
       ...sampling,
       ...thinking,
       ...outputConfig,
       system: systemBlocks,
-      messages: req.messages.filter(m => m.role !== 'system').map(m => ({
-        role: m.role as 'user' | 'assistant',
-        content: m.content,
-      })),
-    } as any);
+      messages,
+    };
+    // Vision yolunda ret yedegi: beta uc + fallbacks:"default". Diger cagrilar
+    // degismeden kalir (paylasilan saglayici — kapsam bilerek dar).
+    const response = hasImages && supportsServerFallback(req.model)
+      ? await this.client.beta.messages.create({
+          ...body,
+          betas: ['server-side-fallback-2026-07-01'],
+          fallbacks: 'default',
+        } as any)
+      : await this.client.messages.create(body as any);
 
-    const text = response.content
-      .filter((b): b is Anthropic.Messages.TextBlock => b.type === 'text')
+    const text = (response.content as any[])
+      .filter((b): b is Anthropic.Messages.TextBlock => b?.type === 'text')
       .map(b => b.text)
       .join('\n');
 
@@ -150,6 +187,6 @@ export class AnthropicProvider implements ILLMProvider {
 
     this.log.debug(`[${req.context}] ${req.model} ${((Date.now() - t0) / 1000).toFixed(1)}s in=${usage.inputTokens}+${usage.cacheReadTokens}/cache out=${usage.outputTokens} $${costUsd.toFixed(4)}`);
 
-    return { output: text, model: req.model, provider: this.name, usage, costUsd };
+    return { output: text, model: req.model, provider: this.name, usage, costUsd, stopReason: (response as any).stop_reason ?? undefined };
   }
 }

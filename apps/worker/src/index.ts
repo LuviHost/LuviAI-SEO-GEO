@@ -45,6 +45,7 @@ import { StuckPagePerformanceCheckService } from '../../api/dist/audit/stuck-pag
 import { StuckPageExternalRecoveryService } from '../../api/dist/audit/stuck-page-external-recovery.service.js';
 import { JobQueueService } from '../../api/dist/jobs/job-queue.service.js';
 import { LinkedinOutreachService } from '../../api/dist/intel/linkedin-outreach.service.js';
+import { ImageAltSuggestService } from '../../api/dist/audit/image-alt/image-alt-suggest.service.js';
 
 const log = new Logger('Worker');
 
@@ -89,6 +90,7 @@ async function bootstrap() {
     stuckExternal: app.get(StuckPageExternalRecoveryService),
     jobs: app.get(JobQueueService),
     linkedin: app.get(LinkedinOutreachService),
+    imageAltSuggest: app.get(ImageAltSuggestService),
   };
 
   log.log('🔧 Worker DI hazır, BullMQ bağlanıyor');
@@ -114,6 +116,15 @@ async function bootstrap() {
 
     AUTO_FIX: async ({ siteId, fixes }) => {
       return services.autoFix.runAutoFix(siteId, fixes);
+    },
+
+    // Gorsel alt metni onerisi (vision) — musteri sitesine YAZMAZ, yalnizca
+    // SiteImage.suggestedAlt doldurur. AI kapaliysa LLMProviderService zaten reddeder.
+    IMAGE_ALT_SUGGEST: async ({ siteId, imageIds, userId }) => {
+      if (await services.settings.getBoolean('AI_GLOBAL_DISABLED')) {
+        return { skipped: true, reason: 'AI_GLOBAL_DISABLED' };
+      }
+      return services.imageAltSuggest.suggestMany(siteId, Array.isArray(imageIds) ? imageIds : [], userId);
     },
 
     TOPIC_ENGINE: async ({ siteId }) => {

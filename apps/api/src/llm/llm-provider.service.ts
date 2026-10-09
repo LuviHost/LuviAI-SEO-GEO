@@ -97,6 +97,12 @@ export class LLMProviderService {
     }
 
     const provider = this.resolveProvider(effectiveReq.model);
+    // Gorsel girdi yalnizca destekleyen saglayiciya — OpenAI/Gemini saglayicilari
+    // images alanini tanimiyor; sessizce yok sayilsa model gorseli gormeden
+    // "alt metni" uydururdu.
+    if (effectiveReq.messages.some((m) => (m.images?.length ?? 0) > 0) && !provider.supportsImages) {
+      throw new Error(`"${effectiveReq.model}" (${provider.name}) gorsel girdi desteklemiyor`);
+    }
     const response = await provider.chat(effectiveReq);
 
     // Token usage kaydı (asenkron — başarısızlık ana akışı kırmasın)

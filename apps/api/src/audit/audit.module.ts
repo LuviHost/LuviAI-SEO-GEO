@@ -3,6 +3,8 @@ import { AuditController } from './audit.controller.js';
 import { AppliedFixService } from './applied-fix.service.js';
 import { AuditService } from './audit.service.js';
 import { ImageInventoryService } from './image-alt/image-inventory.service.js';
+import { ImageAltSuggestService } from './image-alt/image-alt-suggest.service.js';
+import { ImageAltController } from './image-alt/image-alt.controller.js';
 import { AuditChecksService } from './audit-checks.service.js';
 import { PageSpeedService } from './pagespeed.service.js';
 import { GeoRunnerService } from './geo-runner.service.js';
@@ -60,10 +62,11 @@ import { AuditCron } from './audit.cron.js';
 
 @Module({
   imports: [SitesModule, EmailModule, AuthModule, LLMModule, NotificationsModule],
-  controllers: [AuditController, TrackerController, PublicCitationController],
+  controllers: [AuditController, TrackerController, PublicCitationController, ImageAltController],
   providers: [
     AppliedFixService,
     ImageInventoryService,
+    ImageAltSuggestService,
     AuditService,
     AuditCron,
     AuditChecksService,
