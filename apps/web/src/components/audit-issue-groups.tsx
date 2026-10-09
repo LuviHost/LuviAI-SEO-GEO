@@ -1,8 +1,9 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { toast } from 'sonner';
-import { Layers, Zap, ChevronDown } from 'lucide-react';
+import { Layers, Zap, ChevronDown, Puzzle } from 'lucide-react';
 import { api } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -30,8 +31,16 @@ export function AuditIssueGroups({ siteId, groups, onRefresh }: { siteId: string
   const fixGroup = async (g: any) => {
     setFixing(g.template);
     try {
-      await api.applyAutoFix(siteId, g.fixableCheckIds);
-      toast.success(`${g.template} şablonu için otomatik düzeltme uygulandı`);
+      // Sonucu GERÇEĞE göre söyle — eskiden auto-fix hiçbir şey yapmasa da
+      // "uygulandı" deniyordu (snippet kontrolleri sessizce atlanıyordu).
+      const res: any = await api.applyAutoFix(siteId, g.fixableCheckIds);
+      const applied: string[] = Array.isArray(res?.applied) ? res.applied : [];
+      const errors: any[] = Array.isArray(res?.errors) ? res.errors : [];
+      const unsupported: string[] = Array.isArray(res?.unsupported) ? res.unsupported : [];
+      if (applied.length > 0) toast.success(`${g.template}: ${applied.join(', ')} uygulandı`);
+      if (errors.length > 0) toast.error(`${errors.length} düzeltme başarısız: ${errors.map((e) => e.error).join(' · ')}`);
+      if (unsupported.length > 0) toast.warning(`Otomatik düzeltilemez: ${unsupported.join(', ')} — snippet aracını kullan`);
+      if (applied.length === 0 && errors.length === 0 && unsupported.length === 0) toast.message('Uygulanacak otomatik düzeltme bulunmadı');
       onRefresh?.();
     } catch (err: any) {
       toast.error(err.message);
@@ -76,18 +85,28 @@ export function AuditIssueGroups({ siteId, groups, onRefresh }: { siteId: string
                           <Badge variant="outline" className={cn('text-[10px]', SEV_CLS[i.severity])}>{i.severity}</Badge>
                           <span className="font-medium">{i.type}</span>
                           <span className="text-muted-foreground">· {i.count} sayfa</span>
-                          {i.fixable && <span className="text-emerald-600 text-[10px]">otomatik düzeltilebilir</span>}
+                          {i.fixRoute === 'auto_fix' && <span className="text-emerald-600 text-label">otomatik düzeltilebilir</span>}
+                          {i.fixRoute === 'snippet' && <span className="text-brand text-label">snippet ile düzeltilir</span>}
                         </div>
                       ))}
                     </div>
                     <div className="text-xs text-muted-foreground">
                       Örnek: {g.samplePages.map((p: string) => { try { return new URL(p).pathname; } catch { return p; } }).join(' · ')}
                     </div>
-                    {g.fixableCheckIds.length > 0 && (
-                      <Button size="sm" variant="outline" onClick={() => fixGroup(g)} disabled={fixing !== null}>
-                        <Zap className="h-3.5 w-3.5 mr-1.5" /> {fixing === g.template ? 'Düzeltiliyor…' : `Bu şablonu düzelt (${g.fixableCheckIds.join(', ')})`}
-                      </Button>
-                    )}
+                    <div className="flex flex-wrap gap-2">
+                      {g.fixableCheckIds.length > 0 && (
+                        <Button size="sm" variant="outline" onClick={() => fixGroup(g)} disabled={fixing !== null}>
+                          <Zap className="h-3.5 w-3.5 mr-1.5" /> {fixing === g.template ? 'Düzeltiliyor…' : `Bu şablonu düzelt (${g.fixableCheckIds.join(', ')})`}
+                        </Button>
+                      )}
+                      {g.issues.some((i: any) => i.fixRoute === 'snippet') && (
+                        <Button size="sm" variant="outline" asChild>
+                          <Link href={`/sites/${siteId}/snippet`}>
+                            <Puzzle className="h-3.5 w-3.5 mr-1.5" /> Snippet aracında düzelt
+                          </Link>
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>

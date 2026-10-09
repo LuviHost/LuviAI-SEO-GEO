@@ -5,6 +5,8 @@ import { GeneratorsService } from './generators.service.js';
 import { decryptCredentials } from '@luviai/shared';
 import { getAdapter } from '@luviai/adapters';
 import { AppliedFixService } from './applied-fix.service.js';
+import { JobQueueService } from '../jobs/job-queue.service.js';
+import { partitionFixes } from './fix-routes.js';
 
 /**
  * Auto-fix engine — en kritik 3 düzeltmeyi otomatik yapar:
@@ -26,22 +28,36 @@ export class AutoFixService {
     private readonly crawler: SiteCrawlerService,
     private readonly generators: GeneratorsService,
     private readonly appliedFix: AppliedFixService,
+    private readonly jobQueue: JobQueueService,
   ) {}
 
+  /**
+   * Arka planda calistir (POST /auto-fix). Eskiden yalnizca DB'ye Job satiri
+   * aciyor, BullMQ'ya HIC eklemiyordu (ve payload'da worker'in bekledigi
+   * siteId yoktu) → is asla calismiyordu. Uretilemeyen anahtarlar hemen doner.
+   */
   async applyFixes(siteId: string, fixes: string[]) {
     const site = await this.prisma.site.findUniqueOrThrow({ where: { id: siteId } });
-    return this.prisma.job.create({
-      data: {
-        userId: site.userId,
-        siteId,
-        type: 'AUTO_FIX',
-        payload: { fixes },
-      },
+    const { supported, unsupported } = partitionFixes(fixes);
+    if (supported.length === 0) return { queued: false, jobId: null, unsupported };
+    const job = await this.jobQueue.enqueue({
+      type: 'AUTO_FIX',
+      userId: site.userId,
+      siteId,
+      payload: { siteId, fixes: supported },
     });
+    // jobId = DB Job id → GET /jobs/:id ile izlenir
+    return { queued: true, jobId: job.dbJobId, unsupported };
   }
 
-  /** Worker'dan çağrılır */
-  async runAutoFix(siteId: string, fixes: string[]) {
+  /** Worker'dan ve auto-fix-now ucundan çağrılır */
+  async runAutoFix(siteId: string, requested: string[]) {
+    // Uretilemeyen anahtarlar (meta_title, schema_markup, geo_*...) cagirana
+    // ACIKCA doner — eskiden sessizce atlanip UI yine "uygulandi" diyordu.
+    const { supported: fixes, unsupported } = partitionFixes(requested);
+    if (fixes.length === 0) {
+      return { applied: [], errors: [], files: [], unsupported, reason: 'nothing-auto-fixable' };
+    }
     const site = await this.prisma.site.findUniqueOrThrow({
       where: { id: siteId },
       include: {
@@ -52,7 +68,7 @@ export class AutoFixService {
 
     if (site.publishTargets.length === 0) {
       this.log.warn(`[${siteId}] Aktif publish target yok, fix uygulanamadı`);
-      return { applied: [], skipped: fixes, reason: 'no-publish-target' };
+      return { applied: [], skipped: fixes, unsupported, reason: 'no-publish-target' };
     }
 
     // Kök dosyalar (robots.txt / llms.txt / sitemap.xml) yalnızca dosya-tabanlı
@@ -66,6 +82,7 @@ export class AutoFixService {
       return {
         applied: [],
         skipped: fixes,
+        unsupported,
         reason: 'no-file-target',
         errors: fixes.map((fix) => ({
           fix,
@@ -131,7 +148,7 @@ export class AutoFixService {
       });
     }
 
-    return { applied, errors, files };
+    return { applied, errors, files, unsupported };
   }
 
   private generateContent(fix: string, site: any, crawl: any): string | null {

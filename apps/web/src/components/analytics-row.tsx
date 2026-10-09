@@ -204,7 +204,7 @@ export function AnalyticsRow({
   // Real data + fallback mocks for sparkline
   const overallScore = audit?.overallScore ?? null;
   const issues: any[] = Array.isArray(audit?.issues) ? audit.issues : [];
-  const autoFixable = issues.filter((i: any) => i.fixable).length;
+  const autoFixable = issues.filter((i: any) => i.fixRoute === 'auto_fix').length;
 
   const published = articles.filter((a) => a.status === 'PUBLISHED').length;
   const scheduled = articles.filter((a) => a.status === 'SCHEDULED').length;

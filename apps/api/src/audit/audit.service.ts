@@ -8,6 +8,7 @@ import { AiCitationService } from './ai-citation.service.js';
 import type { CheckResult } from './audit-checks.service.js';
 import { JobQueueService } from '../jobs/job-queue.service.js';
 import { groupIssues } from './issue-grouping.js';
+import { annotateAuditFixRoutes, withFixRoutes } from './fix-routes.js';
 
 /**
  * Taramayi kim baslatti.
@@ -222,10 +223,13 @@ export class AuditService {
   ) {}
 
   async getLatest(siteId: string) {
-    return this.prisma.audit.findFirst({
+    const audit = await this.prisma.audit.findFirst({
       where: { siteId },
       orderBy: { ranAt: 'desc' },
     });
+    // Eski taramalar dahil: her sorun "nerede duzeltilir" rotasini tasisin
+    // (UI artik auto-fix'e yalnizca gercekten uretilebilen anahtarlari yollar).
+    return audit ? annotateAuditFixRoutes(audit) : audit;
   }
 
   /**
@@ -481,9 +485,10 @@ export class AuditService {
             ranAt: new Date().toISOString(),
           } as any,
         },
-        issues: allIssues,
+        // fixRoute: auto_fix | snippet | images | manual (fix-routes.ts)
+        issues: withFixRoutes(allIssues as any[]) as any,
         // Sablon bazli ozet — "yuzlerce sayfa hatasi = tek bilesen duzeltmesi" (issue-grouping.ts)
-        issueGroups: groupIssues(allIssues as any, Object.fromEntries(checkResults.map(r => [r.id, r]))) as any,
+        issueGroups: groupIssues(withFixRoutes(allIssues as any[]) as any, Object.fromEntries(checkResults.map(r => [r.id, r]))) as any,
         durationMs: Date.now() - t0,
         // Taramayi kimin baslattigi KALICI olarak yaziliyor. Onceden bu deger
         // yalnizca kota kararinda kullanilip atiliyordu; sonuc olarak gecmiste

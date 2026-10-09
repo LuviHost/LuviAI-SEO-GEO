@@ -550,7 +550,8 @@ export function AuditStepBody({
   }
 
   const issues = audit.issues ?? [];
-  const fixable = issues.filter((i: any) => i.fixable);
+  // Yalnızca auto-fix'in GERÇEKTEN ürettiği kök dosyalar (fixRoute, /audit/latest)
+  const fixable = issues.filter((i: any) => i.fixRoute === 'auto_fix');
   const checks = audit.checks ?? {};
 
   const applyFix = async () => {
@@ -594,8 +595,13 @@ export function AuditStepBody({
       if (errors.length > 0) {
         toast.error(`${errors.length} düzeltme başarısız`, { duration: 8000 });
       }
-      if (applied.length === 0 && errors.length === 0) {
-        toast.message("Auto-fix queue'ya eklendi");
+      const unsupported: string[] = Array.isArray(result?.unsupported) ? result.unsupported : [];
+      if (unsupported.length > 0) {
+        toast.warning(`${unsupported.length} madde otomatik düzeltilemez (${unsupported.join(', ')}) — snippet aracında düzelt`, { duration: 9000 });
+      }
+      // Eskiden burada "queue'ya eklendi" yazıyordu; ortada kuyruk yoktu.
+      if (applied.length === 0 && errors.length === 0 && unsupported.length === 0) {
+        toast.message('Uygulanacak otomatik düzeltme bulunmadı');
       }
       setTimeout(() => { onRefresh(); setFixing(false); }, 5000);
     } catch (err: any) {
@@ -670,7 +676,7 @@ export function AuditStepBody({
                   </span>
                   <span className="flex-1">
                     {i.description}
-                    {i.fixable && <span className="ml-1.5 text-[10px] uppercase tracking-wide bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 rounded px-1 py-0.5 font-semibold">otomatik</span>}
+                    {i.fixRoute === 'auto_fix' && <span className="ml-1.5 text-[10px] uppercase tracking-wide bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 rounded px-1 py-0.5 font-semibold">otomatik</span>}
                   </span>
                 </li>
               ))}
@@ -845,7 +851,7 @@ export function AuditStepBody({
         <div className="divide-y text-sm">
           {Object.entries(checks).filter(([, v]: any) => v?.name && v?.id !== 'ai_citations').map(([k, v]: any) => {
             const firstIssue = Array.isArray(v.issues) && v.issues.length > 0 ? v.issues[0] : null;
-            const fixable = Array.isArray(v.issues) && v.issues.some((i: any) => i.fixable);
+            const fixable = Array.isArray(v.issues) && v.issues.some((i: any) => i.fixRoute === 'auto_fix');
             const statusColor = v.score >= 80 ? 'text-green-500' : v.score >= 50 ? 'text-yellow-500' : 'text-red-500';
             return (
               <div key={k} className="px-4 py-2.5">

@@ -234,8 +234,11 @@ function NextActionWidget({ site, audit, articles, publishTargets, onRefresh }: 
 
   const overallScore = audit?.overallScore ?? null;
   const issues: any[] = Array.isArray(audit?.issues) ? audit.issues : [];
-  // Server schema: AuditIssue.fixable (autoFixable DEĞİL)
-  const autoFixable = issues.filter((i: any) => i.fixable);
+  // fixRoute (API /audit/latest ekler): auto_fix = kök dosya üretilip yüklenir;
+  // snippet = meta/şema snippet aracında. Eskiden tüm `fixable` sorunlar
+  // auto-fix'e gidiyor, auto-fix ise yalnızca kök dosyaları üretebiliyordu.
+  const autoFixable = issues.filter((i: any) => i.fixRoute === 'auto_fix');
+  const snippetFixable = issues.filter((i: any) => i.fixRoute === 'snippet');
   const scheduled = articles.filter((a) => a.status === 'SCHEDULED');
   const ready = articles.filter((a) => a.status === 'READY_TO_PUBLISH');
 
@@ -323,6 +326,7 @@ function NextActionWidget({ site, audit, articles, publishTargets, onRefresh }: 
 
           const applied: string[] = Array.isArray(result?.applied) ? result.applied : [];
           const errors: Array<{ fix: string; error: string }> = Array.isArray(result?.errors) ? result.errors : [];
+          const unsupported: string[] = Array.isArray(result?.unsupported) ? result.unsupported : [];
 
           if (applied.length > 0) {
             const appliedLabels = applied.map((f) => FIX_LABEL[f] ?? f).join(', ');
@@ -332,7 +336,10 @@ function NextActionWidget({ site, audit, articles, publishTargets, onRefresh }: 
             const errLine = errors.map((e) => `${FIX_LABEL[e.fix] ?? e.fix}: ${e.error}`).join(' · ');
             toast.error(`${errors.length} düzeltme başarısız — ${errLine}`, { duration: 9000 });
           }
-          if (applied.length === 0 && errors.length === 0) {
+          if (unsupported.length > 0) {
+            toast.warning(`${unsupported.length} madde otomatik düzeltilemez: ${unsupported.map((f) => FIX_LABEL[f] ?? f).join(', ')}`, { duration: 9000 });
+          }
+          if (applied.length === 0 && errors.length === 0 && unsupported.length === 0) {
             toast.warning('Hiçbir değişiklik yapılmadı (boş response).');
           }
 
@@ -340,6 +347,19 @@ function NextActionWidget({ site, audit, articles, publishTargets, onRefresh }: 
         } catch (err: any) { toast.error(err.message); }
         finally { setAutoFixing(false); }
       },
+    });
+  }
+
+  // 2.2) Snippet ile düzeltilecekler — auto-fix bunları üretemez; snippet aracı
+  //      sayfa sayfa üretir, WordPress'e uygular ya da kopyala-yapıştır verir.
+  if (snippetFixable.length > 0) {
+    actions.push({
+      id: 'snippet-fix',
+      icon: '🧩',
+      title: `${snippetFixable.length} sorun snippet ile düzeltilir`,
+      desc: 'Meta, şema ve GEO işaretlemesi sayfa sayfa üretilir; desteklenen CMS\'e uygulanır ya da kopyala-yapıştır.',
+      cta: 'Snippet aracını aç',
+      href: `/sites/${site.id}/snippet`,
     });
   }
 
@@ -652,9 +672,9 @@ function AuditSummaryInline({ site, audit }: { site: any; audit: any }) {
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium leading-snug">{iss.description || iss.type}</p>
                 </div>
-                {iss.fixable && (
+                {(iss.fixRoute === 'auto_fix' || iss.fixRoute === 'snippet') && (
                   <Badge variant="outline" className="text-[10px] border-brand/40 text-brand shrink-0">
-                    auto-fix
+                    {iss.fixRoute === 'auto_fix' ? 'auto-fix' : 'snippet'}
                   </Badge>
                 )}
               </div>

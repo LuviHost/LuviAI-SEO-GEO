@@ -33,7 +33,9 @@ describe('groupIssues', () => {
     const blog = g.byTemplate.find((t) => t.template === '/blog/*')!;
     expect(blog.pageCount).toBe(3);           // a-1, b-2 (title) + c-3 (orphan)
     expect(blog.issues.map((i) => i.type).sort()).toEqual(['meta_title_missing', 'orphan_pages']);
-    expect(blog.fixableCheckIds).toEqual(['meta_title']);
+    // Sablon butonu auto-fix'i cagirir: meta_title SNIPPET rotasidir (auto-fix
+    // onu uretemez, eskiden sessizce atliyordu) → butona girmez.
+    expect(blog.fixableCheckIds).toEqual([]);
     expect(blog.criticalCount).toBe(1);
     const urun = g.byTemplate.find((t) => t.template === '/urunler/*/detay')!;
     expect(urun.pageCount).toBe(1);

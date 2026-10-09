@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AppliedFixService } from './applied-fix.service.js';
-import { decrypt } from '@luviai/shared';
+import { decryptCredentials } from '@luviai/shared';
 import { getAdapter } from '@luviai/adapters';
 // OnPageMeta tipleri base.ts içinde tanımlı; package exports root index'ten gelen tip
 // imzasını kullanmak yerine local tip kopyası — adapters package "."" path'inde
@@ -67,10 +67,10 @@ export class SnippetApplierService {
       return { ok: false, applied: [], skipped: [{ field: 'all', reason: `Adapter yok: ${target.type}` }], adapter: target.type };
     }
 
-    const credentials: Record<string, any> = {};
-    for (const [k, v] of Object.entries(target.credentials as Record<string, any>)) {
-      credentials[k] = typeof v === 'string' && v.includes(':') ? this.tryDecrypt(v) : v;
-    }
+    // Tek kaynak: hem yeni { enc } hem eski alan-bazli format (shared/crypto.ts).
+    // Alan-bazli kopya yeni formatta adaptore { enc: '{...}' } veriyordu →
+    // siteUrl hic ulasmiyor, uygulama sessizce basarisiz oluyordu.
+    const credentials = decryptCredentials(target.credentials as Record<string, any>);
     const adapter = new Adapter(credentials, target.config ?? {}) as { applyOnPageMeta: (p: OnPageMetaPayload) => Promise<OnPageMetaResult> };
 
     // Snippet array → OnPageMetaPayload transform
@@ -169,8 +169,5 @@ export class SnippetApplierService {
   }
   private decode(s: string): string {
     return s.replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
-  }
-  private tryDecrypt(v: string): string {
-    try { return decrypt(v); } catch { return v; }
   }
 }

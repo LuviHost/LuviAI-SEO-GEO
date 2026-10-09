@@ -11,6 +11,8 @@
  *   /                              → /
  */
 
+import { fixRouteFor } from './fix-routes.js';
+
 export type IssueSeverity = 'critical' | 'warning' | 'info';
 
 export interface GroupableIssue {
@@ -127,7 +129,9 @@ export function groupIssues(issues: GroupableIssue[], checks: Record<string, Che
       if (issue.severity === 'critical') g.criticalCount += 1;
       else if (issue.severity === 'warning') g.warningCount += 1;
       else g.infoCount += 1;
-      if (issue.fixable && !g.fixableCheckIds.includes(checkId)) g.fixableCheckIds.push(checkId);
+      // Sablon butonu auto-fix'i cagirir → yalnizca GERCEKTEN uretilebilen
+      // anahtarlar (snippet kontrolleri auto-fix'te sessizce atlaniyordu).
+      if (fixRouteFor(checkId) === 'auto_fix' && !g.fixableCheckIds.includes(checkId)) g.fixableCheckIds.push(checkId);
       byTemplate.set(template, g);
     }
   }

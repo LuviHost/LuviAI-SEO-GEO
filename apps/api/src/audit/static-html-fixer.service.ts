@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import * as cheerio from 'cheerio';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AppliedFixService } from './applied-fix.service.js';
-import { decrypt } from '@luviai/shared';
+import { decryptCredentials } from '@luviai/shared';
 import { getAdapter } from '@luviai/adapters';
 import type { PageSnippet } from './snippet-generator.service.js';
 import { readBodyCapped } from '../common/fetch-capped.js';
@@ -34,8 +34,9 @@ export class StaticHtmlFixerService {
   ) {}
 
   async preview(siteId: string, pageUrl: string, snippets: PageSnippet[]) {
-    const html = await this.fetch(pageUrl);
-    if (!html) throw new Error(`Sayfa indirilemedi: ${pageUrl}`);
+    const page = await this.fetch(pageUrl);
+    if (!page) throw new Error(`Sayfa indirilemedi: ${pageUrl}`);
+    const html = page.html;
     const { patched, applied, skipped } = this.patch(html, snippets);
     return {
       pageUrl,
@@ -43,6 +44,8 @@ export class StaticHtmlFixerService {
       patchedLength: patched.length,
       applied,
       skipped,
+      // Kesik sayfa YAZILAMAZ (write reddeder) — onizlemede de soyle
+      truncated: page.truncated,
       diff: this.headDiff(html, patched),
       preview: patched.slice(0, 4000),
     };
@@ -61,8 +64,14 @@ export class StaticHtmlFixerService {
       return { ok: false, error: `${target.type} statik HTML overwrite desteklemiyor — sadece FTP/SFTP/CPANEL_API` };
     }
 
-    const html = await this.fetch(pageUrl);
-    if (!html) return { ok: false, error: `Sayfa indirilemedi: ${pageUrl}` };
+    const page = await this.fetch(pageUrl);
+    if (!page) return { ok: false, error: `Sayfa indirilemedi: ${pageUrl}` };
+    // Sayfa 2 MB okuma sinirinda KESILDIYSE yamalanmis hali dosyanin
+    // TAMAMININ yerine yazilirdi → musteri sayfasinin geri kalani silinirdi.
+    if (page.truncated) {
+      return { ok: false, error: `Sayfa 2 MB okuma sinirini asiyor (${pageUrl}) — kesik icerikle uzerine yazmak sayfayi bozar; manuel uygula` };
+    }
+    const html = page.html;
 
     const { patched, applied, skipped } = this.patch(html, snippets);
     if (applied.length === 0) return { ok: false, error: 'Uygulanacak snippet yok', applied, skipped };
@@ -70,10 +79,8 @@ export class StaticHtmlFixerService {
     const Adapter = getAdapter(target.type) as any;
     if (!Adapter) return { ok: false, error: `Adapter bulunamadı: ${target.type}` };
 
-    const credentials: Record<string, any> = {};
-    for (const [k, v] of Object.entries(target.credentials as Record<string, any>)) {
-      credentials[k] = typeof v === 'string' && v.includes(':') ? this.tryDecrypt(v) : v;
-    }
+    // Tek kaynak: yeni { enc } + eski alan-bazli format (shared/crypto.ts)
+    const credentials = decryptCredentials(target.credentials as Record<string, any>);
 
     const { dir, slug, ext } = this.urlToPath(pageUrl);
     if (!ext) {
@@ -237,10 +244,7 @@ export class StaticHtmlFixerService {
   private esc(s: string): string {
     return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
-  private tryDecrypt(v: string): string {
-    try { return decrypt(v); } catch { return v; }
-  }
-  private async fetch(url: string): Promise<string | null> {
+  private async fetch(url: string): Promise<{ html: string; truncated: boolean } | null> {
     try {
       const res = await fetch(url, {
         headers: { 'User-Agent': 'RanksUp-StaticFixer/1.0' },
@@ -250,7 +254,8 @@ export class StaticHtmlFixerService {
         await res.body?.cancel().catch(() => {});
         return null;
       }
-      return (await readBodyCapped(res, 2 * 1024 * 1024))?.text ?? null;
+      const body = await readBodyCapped(res, 2 * 1024 * 1024);
+      return body ? { html: body.text, truncated: body.truncated } : null;
     } catch { return null; }
   }
 }

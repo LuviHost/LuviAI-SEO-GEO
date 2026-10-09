@@ -8,6 +8,7 @@ import { AiKpisService } from '../audit/ai-kpis.service.js';
 import { ContentOpportunityService } from '../audit/content-opportunity.service.js';
 import { ProductRadarService } from '../audit/product-radar.service.js';
 import { PromptLabService } from '../audit/prompt-lab.service.js';
+import { annotateAuditFixRoutes } from '../audit/fix-routes.js';
 import { ActionPlansService } from '../action-plans/action-plans.service.js';
 import { planHasFeature, type PlanFeature, type PlanId } from '../billing/plans.js';
 
@@ -250,11 +251,14 @@ export class McpToolsService {
           const site = await this.resolveSite(user, args.site_id);
           const audit = await this.prisma.audit.findFirst({ where: { siteId: site.id }, orderBy: { ranAt: 'desc' } });
           if (!audit) return { message: 'Henuz audit kosulmamis. run_audit ile baslatabilirsin.' };
+          // fixRoute: auto_fix | snippet | manual — ajan "otomatik duzeltilir"
+          // dedigi seyin gercekten auto-fix'te uretildigini bilsin.
+          const annotated = annotateAuditFixRoutes(audit);
           return {
             overallScore: audit.overallScore,
             geoScore: audit.geoScore,
             checks: audit.checks,
-            issues: audit.issues,
+            issues: annotated.issues,
             ranAt: audit.ranAt,
           };
         },
