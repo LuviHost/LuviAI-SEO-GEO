@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { ImageOff, Sparkles, CheckCircle2, AlertTriangle, Loader2, ExternalLink } from 'lucide-react';
+import { ImageOff, Sparkles, CheckCircle2, AlertTriangle, Loader2, ExternalLink, Upload, Undo2, Copy } from 'lucide-react';
 import { useSiteContext } from '../site-context';
 import { api } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
@@ -56,7 +56,10 @@ export default function SiteImagesPage() {
   const [items, setItems] = useState<any[] | null>(null);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<Record<string, boolean>>({});
-  const [bulk, setBulk] = useState<{ jobIds: string[]; queued: number } | null>(null);
+  const [bulk, setBulk] = useState<{ jobIds: string[]; queued: number; kind: 'suggest' | 'apply' } | null>(null);
+  const [confirmApply, setConfirmApply] = useState(false);
+  const [confirmRevert, setConfirmRevert] = useState<string | null>(null);
+  const [snippets, setSnippets] = useState<any[] | null>(null);
 
   const load = useCallback(async () => {
     const f = FILTERS.find((x) => x.id === filter);
@@ -80,8 +83,8 @@ export default function SiteImagesPage() {
         clearInterval(t);
         setBulk(null);
         const failed = states.filter((j: any) => j?.status === 'FAILED').length;
-        if (failed) toast.error(`${failed} öneri işi başarısız oldu`);
-        else toast.success('Öneriler hazır — kontrol edip onayla');
+        if (failed) toast.error(`${failed} iş başarısız oldu`);
+        else toast.success(bulk.kind === 'apply' ? 'Yazım tamamlandı — sonuçlar "Uygulandı" filtresinde' : 'Öneriler hazır — kontrol edip onayla');
         load();
       }
     }, 3000);
@@ -96,6 +99,7 @@ export default function SiteImagesPage() {
       suspicious: as.present ?? 0,
       pending: (st.SUGGESTED ?? 0) + (st.DECORATIVE_SUGGESTED ?? 0),
       applied: (st.APPLIED ?? 0) + (st.VERIFIED ?? 0),
+      approved: (st.APPROVED ?? 0) + (st.DECORATIVE ?? 0),
     };
   }, [summary]);
 
@@ -124,9 +128,32 @@ export default function SiteImagesPage() {
     try {
       const r = await api.suggestSiteImages(site.id, { all: true, max: 50 });
       if (r.queued === 0) { toast.message('Öneri bekleyen görsel yok'); return; }
-      setBulk({ jobIds: r.jobIds, queued: r.queued });
+      setBulk({ jobIds: r.jobIds, queued: r.queued, kind: 'suggest' });
       toast.message(`${r.queued} görsel için öneri üretiliyor…`);
     } catch (e: any) { toast.error(e.message); }
+  };
+
+  // Müşteri sitesine YAZAR — yalnızca onaylananlar, sayfa içi onay adımıyla
+  const applyApproved = async () => {
+    setConfirmApply(false);
+    try {
+      const r = await api.applySiteImages(site.id, { all: true });
+      if (r.queued === 0) { toast.message('Uygulanacak onaylı görsel yok'); return; }
+      setBulk({ jobIds: r.jobIds, queued: r.queued, kind: 'apply' });
+      toast.message(`${r.queued} onaylı alt metni sitene yazılıyor…`);
+    } catch (e: any) { toast.error(e.message); }
+  };
+
+  const revert = (id: string) => withBusy(id, async () => {
+    setConfirmRevert(null);
+    const r = await api.revertSiteImage(site.id, id);
+    if (r.ok) toast.success('Geri alındı — sitedeki önceki alt metni yerine kondu');
+    else toast.warning(r.note ?? 'Geri alınamadı: alt metni o arada değişmiş olabilir');
+    load();
+  });
+
+  const loadSnippets = async () => {
+    try { setSnippets(await api.getSiteImageSnippets(site.id)); } catch (e: any) { toast.error(e.message); }
   };
 
   const capability = summary?.writeCapability as 'wordpress' | 'static' | 'snippet' | undefined;
@@ -141,11 +168,53 @@ export default function SiteImagesPage() {
             Öneriler görseli <em>görerek</em> üretilir; her birini kontrol edip onaylarsın. Süs görselleri için boş alt (alt=&quot;&quot;) doğrudur.
           </p>
         </div>
-        <Button onClick={suggestAll} disabled={!!bulk || counts.missing + counts.suspicious === 0}>
-          {bulk ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Sparkles className="h-4 w-4 mr-1.5" />}
-          {bulk ? `${bulk.queued} öneri üretiliyor…` : 'Eksiklere öneri üret (50)'}
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={suggestAll} disabled={!!bulk || counts.missing + counts.suspicious === 0}>
+            {bulk?.kind === 'suggest' ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Sparkles className="h-4 w-4 mr-1.5" />}
+            {bulk?.kind === 'suggest' ? `${bulk.queued} öneri üretiliyor…` : 'Eksiklere öneri üret (50)'}
+          </Button>
+          {capability === 'snippet' ? (
+            <Button onClick={loadSnippets} disabled={counts.approved === 0}>
+              <Copy className="h-4 w-4 mr-1.5" /> Onaylananları kopyala ({counts.approved})
+            </Button>
+          ) : (
+            <Button onClick={() => setConfirmApply(true)} disabled={!!bulk || counts.approved === 0}>
+              {bulk?.kind === 'apply' ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Upload className="h-4 w-4 mr-1.5" />}
+              {bulk?.kind === 'apply' ? `${bulk.queued} alt metni yazılıyor…` : `Onaylananları siteye uygula (${counts.approved})`}
+            </Button>
+          )}
+        </div>
       </div>
+
+      {confirmApply && (
+        <Card><CardContent className="p-4 flex flex-wrap items-center gap-3">
+          <p className="text-sm flex-1 min-w-0">
+            <strong>{counts.approved}</strong> onaylı alt metni {capability === 'wordpress' ? 'WordPress medya kütüphanesine ve gönderilerdeki görsel etiketlerine' : 'sayfa HTML dosyalarına'} yazılacak.
+            Yalnızca ilgili görselin alt değeri değişir; önceki değerler saklanır ve her görsel tek tek geri alınabilir.
+          </p>
+          <Button size="sm" onClick={applyApproved}>Evet, uygula</Button>
+          <Button size="sm" variant="ghost" onClick={() => setConfirmApply(false)}>Vazgeç</Button>
+        </CardContent></Card>
+      )}
+
+      {snippets && (
+        <Card><CardContent className="p-4 space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-sm font-medium">Kopyala-yapıştır: onaylı alt metinleri ({snippets.length})</p>
+            <Button size="sm" variant="ghost" onClick={() => setSnippets(null)}>Kapat</Button>
+          </div>
+          <p className="text-label text-muted-foreground">Bu yayın hedefi alt metni yazamıyor. Her görselin alt metnini sitende ilgili görsele elle gir.</p>
+          {snippets.map((sn) => (
+            <div key={sn.id} className="flex flex-wrap items-center gap-2 text-sm border-t pt-2">
+              <span className="text-muted-foreground truncate max-w-full">{pathOf(sn.firstPageUrl)}</span>
+              <code className="text-label bg-muted rounded px-1.5 py-0.5 break-all">{sn.approvedAlt || '(boş — süs görseli)'}</code>
+              <Button size="sm" variant="ghost" className="ml-auto" onClick={() => navigator.clipboard?.writeText(sn.approvedAlt ?? '').then(() => toast.success('Kopyalandı'), () => toast.error('Kopyalanamadı'))}>
+                <Copy className="h-3.5 w-3.5 mr-1" /> Kopyala
+              </Button>
+            </div>
+          ))}
+        </CardContent></Card>
+      )}
 
       <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
         <MetricCard label="Alt metni yok" value={counts.missing} icon={ImageOff} accent="rose" size="sm" />
@@ -181,7 +250,8 @@ export default function SiteImagesPage() {
             const draft = drafts[img.id] ?? img.approvedAlt ?? img.suggestedAlt ?? '';
             const st = STATUS_LABEL[img.status] ?? { text: img.status, variant: 'outline' as const };
             const isBusy = !!busy[img.id];
-            const decided = ['APPROVED', 'DECORATIVE', 'DISMISSED', 'APPLIED', 'VERIFIED', 'PARTIAL'].includes(img.status);
+            const decided = ['APPROVED', 'DECORATIVE', 'DISMISSED'].includes(img.status);
+            const written = ['APPLIED', 'VERIFIED', 'PARTIAL'].includes(img.status);
             return (
               <Card key={img.id}>
                 <CardContent className="p-4 flex flex-col md:flex-row gap-4">
@@ -218,7 +288,18 @@ export default function SiteImagesPage() {
                         </Button>
                         <Button size="sm" disabled={isBusy || !draft.trim()} onClick={() => decide(img.id, 'approve', draft)}>Onayla</Button>
                         <Button size="sm" variant="outline" disabled={isBusy} onClick={() => decide(img.id, 'decorative')}>Süs görseli</Button>
-                        {decided
+                        {written ? (
+                          confirmRevert === img.id ? (
+                            <>
+                              <Button size="sm" variant="outline" disabled={isBusy} onClick={() => revert(img.id)}>Evet, sitede geri al</Button>
+                              <Button size="sm" variant="ghost" onClick={() => setConfirmRevert(null)}>Vazgeç</Button>
+                            </>
+                          ) : (
+                            <Button size="sm" variant="ghost" disabled={isBusy} onClick={() => setConfirmRevert(img.id)}>
+                              <Undo2 className="h-3.5 w-3.5 mr-1" /> Geri al
+                            </Button>
+                          )
+                        ) : decided
                           ? <Button size="sm" variant="ghost" disabled={isBusy} onClick={() => decide(img.id, 'reset')}>Sıfırla</Button>
                           : <Button size="sm" variant="ghost" disabled={isBusy} onClick={() => decide(img.id, 'dismiss')}>Yoksay</Button>}
                       </div>

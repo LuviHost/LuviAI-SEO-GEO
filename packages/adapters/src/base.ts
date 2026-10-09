@@ -51,6 +51,47 @@ export interface OnPageMetaResult {
 }
 
 /**
+ * Gorsel alt metni yazimi — onaylanmis alt'i musteri sitesine uygular.
+ * Adapter desteklemiyorsa varsayilan "unsupported" doner; cagiran kopyala-
+ * yapistir snippet'ine duser.
+ */
+export interface ImageAltPayload {
+  /** Gorselin bulundugu sayfa (gonderi icerigi bu URL'den cozulur) */
+  pageUrl: string;
+  srcRaw: string;
+  src: string;
+  wpAttachmentId?: number | null;
+  /** null = icerikteki alt attribute'unu KALDIR (geri alma; medyada '' yazilir) */
+  alt: string | null;
+  /** Medya kutuphanesi alt'i guncellensin mi (WordPress) */
+  updateMedia: boolean;
+  /** Gonderi/sayfa icerigindeki <img> etiketi guncellensin mi */
+  updateContent: boolean;
+  /**
+   * Geri alma guvenligi: verilirse YALNIZCA mevcut alt bu degerse yazilir
+   * (kullanici o arada elle degistirdiyse dokunulmaz).
+   */
+  expectCurrentAlt?: string;
+}
+
+export interface ImageAltResult {
+  ok: boolean;
+  /** 'media_library' | 'post_content' */
+  applied: string[];
+  skipped: { field: string; reason: string }[];
+  /** Geri alma icin onceki degerler */
+  previous?: {
+    mediaId?: number;
+    mediaAlt?: string | null;
+    postId?: number;
+    postType?: string;
+    contentAlt?: string | null;
+  };
+  externalUrl?: string;
+  error?: string;
+}
+
+/**
  * llms.txt / llms-full.txt push — GEO/AI-SEO için site geneli AI özet dosyalarını
  * hedef siteye gönderir (kendi backend'i llms üretmiyorsa RanksUp besler).
  * Adapter desteklemiyorsa default impl `skipped: 'unsupported'` döner.
@@ -95,6 +136,15 @@ export abstract class PublishAdapter {
    */
   async pushLlms(_payload: LlmsPushPayload): Promise<LlmsPushResult> {
     return { ok: false, skipped: 'unsupported' };
+  }
+
+  /**
+   * Gorsel alt metni yaz. Varsayilan: desteklenmiyor (HTTP yapmaz). WordPress
+   * override eder; dosya tabanli hedefler API tarafinda statik HTML yamasiyla
+   * yazilir (static-html-fixer).
+   */
+  async applyImageAlt(_payload: ImageAltPayload): Promise<ImageAltResult> {
+    return { ok: false, applied: [], skipped: [{ field: 'all', reason: 'unsupported' }] };
   }
 
   /**

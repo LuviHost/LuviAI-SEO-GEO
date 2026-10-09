@@ -46,6 +46,7 @@ import { StuckPageExternalRecoveryService } from '../../api/dist/audit/stuck-pag
 import { JobQueueService } from '../../api/dist/jobs/job-queue.service.js';
 import { LinkedinOutreachService } from '../../api/dist/intel/linkedin-outreach.service.js';
 import { ImageAltSuggestService } from '../../api/dist/audit/image-alt/image-alt-suggest.service.js';
+import { ImageAltApplyService } from '../../api/dist/audit/image-alt/image-alt-apply.service.js';
 
 const log = new Logger('Worker');
 
@@ -91,6 +92,7 @@ async function bootstrap() {
     jobs: app.get(JobQueueService),
     linkedin: app.get(LinkedinOutreachService),
     imageAltSuggest: app.get(ImageAltSuggestService),
+    imageAltApply: app.get(ImageAltApplyService),
   };
 
   log.log('🔧 Worker DI hazır, BullMQ bağlanıyor');
@@ -125,6 +127,12 @@ async function bootstrap() {
         return { skipped: true, reason: 'AI_GLOBAL_DISABLED' };
       }
       return services.imageAltSuggest.suggestMany(siteId, Array.isArray(imageIds) ? imageIds : [], userId);
+    },
+
+    // Onaylanmis alt metinlerini musteri sitesine yaz (yalnizca APPROVED/DECORATIVE;
+    // servis kendisi filtreler). AI cagrisi yok — AI_GLOBAL_DISABLED'dan etkilenmez.
+    IMAGE_ALT_APPLY: async ({ siteId, imageIds, userId }) => {
+      return services.imageAltApply.applyMany(siteId, Array.isArray(imageIds) ? imageIds : [], userId);
     },
 
     TOPIC_ENGINE: async ({ siteId }) => {

@@ -1,5 +1,7 @@
 export { PublishAdapter } from './base.js';
-export type { PublishPayload, PublishResult, OnPageMetaPayload, OnPageMetaResult } from './base.js';
+export type { PublishPayload, PublishResult, OnPageMetaPayload, OnPageMetaResult, ImageAltPayload, ImageAltResult } from './base.js';
+export { patchImgAlt, findImgTags, escapeAttr, readAlt } from './img-alt-patch.js';
+export type { ImgAltTarget, PatchResult, PatchReason } from './img-alt-patch.js';
 
 // Publish hedefleri
 export { WordPressRestAdapter } from './wordpress-rest.js';

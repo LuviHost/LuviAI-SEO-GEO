@@ -5,6 +5,7 @@ import { AuditService } from './audit.service.js';
 import { ImageInventoryService } from './image-alt/image-inventory.service.js';
 import { ImageAltSuggestService } from './image-alt/image-alt-suggest.service.js';
 import { ImageAltController } from './image-alt/image-alt.controller.js';
+import { ImageAltApplyService } from './image-alt/image-alt-apply.service.js';
 import { AuditChecksService } from './audit-checks.service.js';
 import { PageSpeedService } from './pagespeed.service.js';
 import { GeoRunnerService } from './geo-runner.service.js';
@@ -67,6 +68,7 @@ import { AuditCron } from './audit.cron.js';
     AppliedFixService,
     ImageInventoryService,
     ImageAltSuggestService,
+    ImageAltApplyService,
     AuditService,
     AuditCron,
     AuditChecksService,

@@ -1,5 +1,6 @@
 import { PublishAdapter } from './base.js';
-import type { PublishPayload, PublishResult, OnPageMetaPayload, OnPageMetaResult } from './base.js';
+import type { PublishPayload, PublishResult, OnPageMetaPayload, OnPageMetaResult, ImageAltPayload, ImageAltResult } from './base.js';
+import { patchImgAlt } from './img-alt-patch.js';
 
 /**
  * WordPress REST API adapter.
@@ -229,6 +230,112 @@ export class WordPressRestAdapter extends PublishAdapter {
       }
     } catch {}
     return 'none';
+  }
+
+  /**
+   * Gorsel alt metni yaz:
+   *  - medya kutuphanesi alt_text (one cikan gorsel, yeni eklemeler bunu kullanir)
+   *  - gonderi/sayfa icerigindeki <img alt> (WordPress eklenmis etiketin alt'ini
+   *    kutuphaneden GUNCELLEMEZ — ayri duzenleme gerekir; Trac #49165)
+   * Icerik yazimi cerrahidir (img-alt-patch) ve iyimser kilitlidir: yazmadan
+   * hemen once modified_gmt yeniden okunur, degistiyse yazilmaz.
+   */
+  async applyImageAlt(p: ImageAltPayload): Promise<ImageAltResult> {
+    const { siteUrl, username, appPassword } = this.credentials;
+    if (!siteUrl || !username || !appPassword) {
+      return { ok: false, applied: [], skipped: [{ field: 'all', reason: 'WP credentials eksik' }] };
+    }
+    const auth = 'Basic ' + Buffer.from(`${username}:${appPassword}`).toString('base64');
+    const base = String(siteUrl).replace(/\/+$/, '');
+    const json = { Authorization: auth, 'Content-Type': 'application/json' };
+    const applied: string[] = [];
+    const skipped: { field: string; reason: string }[] = [];
+    const previous: NonNullable<ImageAltResult['previous']> = {};
+    let externalUrl: string | undefined;
+
+    if (p.updateMedia) {
+      const mediaId = p.wpAttachmentId ?? await this.findMediaId(base, p.src, auth);
+      if (!mediaId) {
+        skipped.push({ field: 'media_library', reason: 'Medya kutuphanesinde bu gorsel bulunamadi' });
+      } else {
+        const cur = await fetch(`${base}/wp-json/wp/v2/media/${mediaId}?context=edit&_fields=id,alt_text`, { headers: { Authorization: auth } });
+        if (!cur.ok) {
+          skipped.push({ field: 'media_library', reason: `WP medya ${cur.status}` });
+        } else {
+          const m: any = await cur.json();
+          const oldAlt = typeof m?.alt_text === 'string' ? m.alt_text : '';
+          previous.mediaId = mediaId;
+          previous.mediaAlt = oldAlt;
+          if (p.expectCurrentAlt !== undefined && oldAlt.trim() !== p.expectCurrentAlt.trim()) {
+            skipped.push({ field: 'media_library', reason: 'Alt metni o arada degismis — dokunulmadi' });
+          } else if (oldAlt === (p.alt ?? '')) {
+            skipped.push({ field: 'media_library', reason: 'Zaten ayni' });
+          } else {
+            const up = await fetch(`${base}/wp-json/wp/v2/media/${mediaId}`, { method: 'POST', headers: json, body: JSON.stringify({ alt_text: p.alt ?? '' }) });
+            if (up.ok) applied.push('media_library');
+            else skipped.push({ field: 'media_library', reason: `WP medya ${up.status}: ${(await up.text()).slice(0, 150)}` });
+          }
+        }
+      }
+    }
+
+    if (p.updateContent) {
+      const target = await this.resolvePost(base, p.pageUrl, auth);
+      if (!target) {
+        skipped.push({ field: 'post_content', reason: 'Bu URL icin WordPress yazisi/sayfasi bulunamadi (ozel icerik turu olabilir)' });
+      } else {
+        externalUrl = target.link;
+        const read = async () => {
+          const r = await fetch(`${base}/wp-json/wp/v2/${target.type}/${target.id}?context=edit&_fields=id,content,modified_gmt`, { headers: { Authorization: auth } });
+          return r.ok ? (await r.json() as any) : null;
+        };
+        const post = await read();
+        const raw = post?.content?.raw;
+        if (typeof raw !== 'string' || !raw) {
+          skipped.push({ field: 'post_content', reason: 'Gonderinin ham icerigi okunamadi (sayfa olusturucu olabilir)' });
+        } else {
+          const patched = patchImgAlt(raw, { srcRaw: p.srcRaw, src: p.src, wpAttachmentId: p.wpAttachmentId }, p.alt, { expectCurrentAlt: p.expectCurrentAlt });
+          previous.postId = target.id;
+          previous.postType = target.type;
+          previous.contentAlt = patched.oldAlt;
+          if (!patched.changed) {
+            const why: Record<string, string> = {
+              not_found: 'Gorsel gonderi iceriginde yok (tema/sayfa olusturucu ekliyor olabilir)',
+              ambiguous: 'Ayni adli birden cok gorsel var — hangisi oldugu belirsiz, yazilmadi',
+              unchanged: 'Zaten ayni',
+              expect_mismatch: 'Alt metni o arada degismis — dokunulmadi',
+            };
+            skipped.push({ field: 'post_content', reason: why[patched.reason ?? 'not_found'] });
+          } else {
+            const again = await read();
+            if (!again || again.modified_gmt !== post.modified_gmt) {
+              skipped.push({ field: 'post_content', reason: 'Gonderi o sirada degisti — yazilmadi, tekrar dene' });
+            } else {
+              const up = await fetch(`${base}/wp-json/wp/v2/${target.type}/${target.id}`, { method: 'POST', headers: json, body: JSON.stringify({ content: patched.html }) });
+              if (up.ok) applied.push('post_content');
+              else skipped.push({ field: 'post_content', reason: `WP ${up.status}: ${(await up.text()).slice(0, 150)}` });
+            }
+          }
+        }
+      }
+    }
+
+    return { ok: applied.length > 0, applied, skipped, previous, externalUrl };
+  }
+
+  /** Mutlak gorsel URL'i → medya id (orijinal ya da boyutlandirilmis kopya) */
+  private async findMediaId(base: string, src: string, auth: string): Promise<number | null> {
+    const file = (src.split(/[?#]/)[0].split('/').pop() ?? '').replace(/\.[a-z0-9]{2,5}$/i, '').replace(/-(?:\d+x\d+|scaled)$/i, '');
+    if (!file) return null;
+    const res = await fetch(`${base}/wp-json/wp/v2/media?search=${encodeURIComponent(file)}&per_page=20&_fields=id,source_url,media_details`, { headers: { Authorization: auth } });
+    if (!res.ok) return null;
+    const items: any[] = await res.json().catch(() => []);
+    const clean = (u: string) => String(u ?? '').split(/[?#]/)[0];
+    const want = clean(src);
+    const hit = items.find((m) =>
+      clean(m?.source_url) === want
+      || Object.values(m?.media_details?.sizes ?? {}).some((s: any) => clean(s?.source_url) === want));
+    return hit ? Number(hit.id) : null;
   }
 
   private async coreUpdate(

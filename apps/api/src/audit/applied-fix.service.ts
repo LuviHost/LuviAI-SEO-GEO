@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 
 /** Duzeltmeyi hangi servis uyguladi. */
-export type FixKind = 'snippet' | 'static_html' | 'auto_fix';
+export type FixKind = 'snippet' | 'static_html' | 'auto_fix' | 'image_alt';
 
 export interface FixKaydi {
   siteId: string;

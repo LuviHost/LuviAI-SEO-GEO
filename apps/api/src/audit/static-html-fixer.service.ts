@@ -3,7 +3,7 @@ import * as cheerio from 'cheerio';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AppliedFixService } from './applied-fix.service.js';
 import { decryptCredentials } from '@luviai/shared';
-import { getAdapter } from '@luviai/adapters';
+import { getAdapter, patchImgAlt } from '@luviai/adapters';
 import type { PageSnippet } from './snippet-generator.service.js';
 import { readBodyCapped } from '../common/fetch-capped.js';
 
@@ -76,30 +76,9 @@ export class StaticHtmlFixerService {
     const { patched, applied, skipped } = this.patch(html, snippets);
     if (applied.length === 0) return { ok: false, error: 'Uygulanacak snippet yok', applied, skipped };
 
-    const Adapter = getAdapter(target.type) as any;
-    if (!Adapter) return { ok: false, error: `Adapter bulunamadı: ${target.type}` };
-
-    // Tek kaynak: yeni { enc } + eski alan-bazli format (shared/crypto.ts)
-    const credentials = decryptCredentials(target.credentials as Record<string, any>);
-
-    const { dir, slug, ext } = this.urlToPath(pageUrl);
-    if (!ext) {
-      return { ok: false, error: `URL pathname'inde dosya uzantısı yok (${pageUrl}) — root path \"/\" için anasayfa overwrite riski yüksek, manuel uygula` };
-    }
-    const filename = `${slug}.${ext}`;
-
-    // remotePath'i config'ten al, path prefix kadarını URL'in dir'i ile birleştir
-    const cfg = (target.config as Record<string, any> | null) ?? {};
-    const baseRemote = String(cfg.remotePath ?? 'public_html').replace(/^\/+|\/+$/g, '');
-    const remoteDir = dir ? `${baseRemote}/${dir}` : baseRemote;
-
-    const adapter = new Adapter(credentials, { ...cfg, remotePath: remoteDir });
-    const res = await adapter.publish({
-      slug,                 // dosya adı (uzantısız)
-      title: pageUrl,
-      bodyHtml: patched,
-      bodyMd: patched,
-    });
+    const up = await this.uploadPage(target, pageUrl, patched);
+    if (!('res' in up)) return { ok: false, error: up.error };
+    const { res, remoteDir, filename } = up;
 
     this.log.log(`[${siteId}] static-html-fix → ${pageUrl} → ${remoteDir}/${filename} : ${res.ok ? 'OK' : res.error}`);
 
@@ -128,6 +107,82 @@ export class StaticHtmlFixerService {
       error: res.error,
       externalUrl: res.externalUrl,
     };
+  }
+
+  /**
+   * Gorsel alt metinlerini bir sayfanin statik HTML'ine yazar (cerrahi yama —
+   * yalnizca eslesen <img alt> degisir). Ayni sayfadaki birden cok gorsel tek
+   * yazimda uygulanir. Kesik (2 MB) sayfaya YAZMAZ.
+   */
+  async writeImageAlts(
+    siteId: string,
+    pageUrl: string,
+    items: Array<{ id: string; srcRaw: string; src: string; wpAttachmentId?: number | null; alt: string | null; expectCurrentAlt?: string }>,
+  ): Promise<{
+    ok: boolean;
+    error?: string;
+    adapter?: string;
+    perImage: Record<string, { changed: boolean; oldAlt: string | null; reason?: string }>;
+    remoteDir?: string;
+    filename?: string;
+  }> {
+    const perImage: Record<string, { changed: boolean; oldAlt: string | null; reason?: string }> = {};
+    const site = await this.prisma.site.findUniqueOrThrow({
+      where: { id: siteId },
+      include: { publishTargets: { where: { isDefault: true, isActive: true }, take: 1 } },
+    });
+    const target = site.publishTargets[0];
+    if (!target || !this.fileTargets.includes(target.type)) {
+      return { ok: false, error: 'Varsayilan yayin hedefi FTP/SFTP/cPanel degil', perImage };
+    }
+    const page = await this.fetch(pageUrl);
+    if (!page) return { ok: false, error: `Sayfa indirilemedi: ${pageUrl}`, perImage };
+    if (page.truncated) return { ok: false, error: `Sayfa 2 MB okuma sinirini asiyor (${pageUrl}) — yazilmadi`, perImage };
+
+    let html = page.html;
+    for (const it of items) {
+      const r = patchImgAlt(html, { srcRaw: it.srcRaw, src: it.src, wpAttachmentId: it.wpAttachmentId }, it.alt, { expectCurrentAlt: it.expectCurrentAlt });
+      perImage[it.id] = { changed: r.changed, oldAlt: r.oldAlt, reason: r.reason };
+      if (r.changed) html = r.html;
+    }
+    if (!Object.values(perImage).some((p) => p.changed)) return { ok: true, perImage, adapter: target.type };
+
+    const up = await this.uploadPage(target, pageUrl, html);
+    if (!('res' in up)) return { ok: false, error: up.error, perImage, adapter: target.type };
+    this.log.log(`[${siteId}] image-alt → ${pageUrl} → ${up.remoteDir}/${up.filename} : ${up.res.ok ? 'OK' : up.res.error}`);
+    if (!up.res.ok) {
+      for (const k of Object.keys(perImage)) if (perImage[k].changed) perImage[k] = { ...perImage[k], changed: false, reason: 'write_failed' };
+    }
+    return { ok: !!up.res.ok, error: up.res.ok ? undefined : String(up.res.error ?? 'yazilamadi'), perImage, adapter: target.type, remoteDir: up.remoteDir, filename: up.filename };
+  }
+
+  /** Sayfanin dosyasini hedefe yazar (URL → dosya yolu; kok "/" yazmaz) */
+  private async uploadPage(target: any, pageUrl: string, html: string): Promise<{ error: string } | { res: any; remoteDir: string; filename: string }> {
+    const Adapter = getAdapter(target.type) as any;
+    if (!Adapter) return { error: `Adapter bulunamadı: ${target.type}` };
+
+    // Tek kaynak: yeni { enc } + eski alan-bazli format (shared/crypto.ts)
+    const credentials = decryptCredentials(target.credentials as Record<string, any>);
+
+    const { dir, slug, ext } = this.urlToPath(pageUrl);
+    if (!ext) {
+      return { error: `URL pathname'inde dosya uzantısı yok (${pageUrl}) — root path \"/\" için anasayfa overwrite riski yüksek, manuel uygula` };
+    }
+    const filename = `${slug}.${ext}`;
+
+    // remotePath'i config'ten al, path prefix kadarını URL'in dir'i ile birleştir
+    const cfg = (target.config as Record<string, any> | null) ?? {};
+    const baseRemote = String(cfg.remotePath ?? 'public_html').replace(/^\/+|\/+$/g, '');
+    const remoteDir = dir ? `${baseRemote}/${dir}` : baseRemote;
+
+    const adapter = new Adapter(credentials, { ...cfg, remotePath: remoteDir });
+    const res = await adapter.publish({
+      slug,                 // dosya adı (uzantısız)
+      title: pageUrl,
+      bodyHtml: html,
+      bodyMd: html,
+    });
+    return { res, remoteDir, filename };
   }
 
   // ──────────────────────────────────────────────────────────────────

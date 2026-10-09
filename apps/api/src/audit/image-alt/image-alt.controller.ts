@@ -3,13 +3,16 @@ import type { Request } from 'express';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { JobQueueService } from '../../jobs/job-queue.service.js';
 import { ImageAltSuggestService, IMAGE_ALT_DAILY_CAP, IMAGE_ALT_JOB_BATCH } from './image-alt-suggest.service.js';
+import { ImageAltApplyService } from './image-alt-apply.service.js';
+import { escapeAttr } from '@luviai/adapters';
 import { ALT_HARD_MAX } from './image-alt-prompt.js';
 
 /**
  * Gorsel alt metni — sites/:siteId/audit/images
  * Yol "audit" icerdigi icin API anahtarlarinda audit:read / audit:write
  * kapsami kendiliginden uygulanir; SiteAccessGuard site sahipligini dogrular.
- * Musteri sitesine YAZMA bu denetleyicide yok (bkz. apply — onay sonrasi).
+ * Musteri sitesine YAZMA yalnizca /apply ile ve yalnizca KULLANICININ ONAYLADIGI
+ * (APPROVED / DECORATIVE) gorseller icin yapilir; MCP/sohbette karsiligi yok.
  */
 const DECISIONS = ['approve', 'decorative', 'dismiss', 'reset'] as const;
 type Decision = typeof DECISIONS[number];
@@ -24,6 +27,7 @@ export class ImageAltController {
     private readonly prisma: PrismaService,
     private readonly jobQueue: JobQueueService,
     private readonly suggest: ImageAltSuggestService,
+    private readonly applier: ImageAltApplyService,
   ) {}
 
   private async ownRow(siteId: string, id: string) {
@@ -173,5 +177,57 @@ export class ImageAltController {
       data = { status: 'NEW', approvedAlt: null, approvedBy: null, approvedAt: null };
     }
     return this.prisma.siteImage.update({ where: { id: row.id }, data });
+  }
+
+  /** Onaylanmis alt metinlerini siteye yaz — kuyruga atilir (25'lik isler) */
+  @Post('apply')
+  async apply(
+    @Param('siteId') siteId: string,
+    @Body() body: { imageIds?: string[]; all?: boolean },
+    @Req() req: Request,
+  ) {
+    const where: any = { siteId, status: { in: ['APPROVED', 'DECORATIVE'] } };
+    if (Array.isArray(body?.imageIds) && body.imageIds.length > 0) where.id = { in: body.imageIds.slice(0, 100).map(String) };
+    else if (!body?.all) throw new BadRequestException('imageIds ya da all:true gerekli');
+    const rows = await this.prisma.siteImage.findMany({ where, select: { id: true }, take: 100 });
+    if (rows.length === 0) return { queued: 0, jobIds: [] };
+
+    const site = await this.prisma.site.findUniqueOrThrow({ where: { id: siteId }, select: { userId: true } });
+    const userId = userIdOf(req) ?? site.userId;
+    const ids = rows.map((r) => r.id);
+    const jobIds: string[] = [];
+    for (let i = 0; i < ids.length; i += IMAGE_ALT_JOB_BATCH) {
+      const job = await this.jobQueue.enqueue({
+        type: 'IMAGE_ALT_APPLY',
+        userId,
+        siteId,
+        payload: { siteId, userId, imageIds: ids.slice(i, i + IMAGE_ALT_JOB_BATCH) },
+        priority: 10,
+      });
+      jobIds.push(job.dbJobId);
+    }
+    return { queued: ids.length, jobIds };
+  }
+
+  /** Geri al — yalnizca bizim yazdigimiz alt hala duruyorsa */
+  @Post(':id/revert')
+  async revert(@Param('siteId') siteId: string, @Param('id') id: string, @Req() req: Request) {
+    await this.ownRow(siteId, id);
+    return this.applier.revert(siteId, id, userIdOf(req));
+  }
+
+  /** Yazamayan hedefler icin kopyala-yapistir listesi (onaylanmislar) */
+  @Get('snippets')
+  async snippets(@Param('siteId') siteId: string) {
+    const rows = await this.prisma.siteImage.findMany({
+      where: { siteId, status: { in: ['APPROVED', 'DECORATIVE'] } },
+      orderBy: [{ pageCount: 'desc' }],
+      take: 200,
+      select: { id: true, src: true, srcRaw: true, firstPageUrl: true, approvedAlt: true },
+    });
+    return rows.map((r) => ({
+      ...r,
+      html: `<img src="${escapeAttr(r.srcRaw)}" alt="${escapeAttr(r.approvedAlt ?? '')}">`,
+    }));
   }
 }

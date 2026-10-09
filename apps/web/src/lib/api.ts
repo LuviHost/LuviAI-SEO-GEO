@@ -702,6 +702,12 @@ export const api = {
     request<any>(`/sites/${siteId}/audit/images/${imageId}/suggest`, { method: 'POST' }),
   decideSiteImage: (siteId: string, imageId: string, body: { decision: 'approve' | 'decorative' | 'dismiss' | 'reset'; approvedAlt?: string }) =>
     request<any>(`/sites/${siteId}/audit/images/${imageId}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  applySiteImages: (siteId: string, body: { imageIds?: string[]; all?: boolean }) =>
+    request<{ queued: number; jobIds: string[] }>(`/sites/${siteId}/audit/images/apply`, { method: 'POST', body: JSON.stringify(body) }),
+  revertSiteImage: (siteId: string, imageId: string) =>
+    request<{ ok: boolean; status: string; note?: string }>(`/sites/${siteId}/audit/images/${imageId}/revert`, { method: 'POST' }),
+  getSiteImageSnippets: (siteId: string) =>
+    request<Array<{ id: string; src: string; firstPageUrl: string; approvedAlt: string | null; html: string }>>(`/sites/${siteId}/audit/images/snippets`),
 
   applyAutoFix: (siteId: string, fixes: string[]) =>
     request<any>(`/sites/${siteId}/audit/auto-fix-now`, {
