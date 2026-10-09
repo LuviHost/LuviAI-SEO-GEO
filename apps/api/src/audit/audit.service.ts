@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, Optional } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { SiteCrawlerService } from '../sites/site-crawler.service.js';
 import { AuditChecksService } from './audit-checks.service.js';
@@ -9,6 +9,7 @@ import type { CheckResult } from './audit-checks.service.js';
 import { JobQueueService } from '../jobs/job-queue.service.js';
 import { groupIssues } from './issue-grouping.js';
 import { annotateAuditFixRoutes, withFixRoutes } from './fix-routes.js';
+import { ImageInventoryService } from './image-alt/image-inventory.service.js';
 
 /**
  * Taramayi kim baslatti.
@@ -246,6 +247,7 @@ export class AuditService {
     private readonly geo: GeoRunnerService,
     private readonly aiCitation: AiCitationService,
     private readonly jobQueue: JobQueueService,
+    @Optional() private readonly imageInventory?: ImageInventoryService,
   ) {}
 
   async getLatest(siteId: string) {
@@ -530,6 +532,15 @@ export class AuditService {
       where: { id: siteId },
       data: { status: 'AUDIT_COMPLETE' },
     });
+
+    // 8) Gorsel alt metni envanteri — audit'i DUSURMEZ (yan urun; hata loglanir)
+    if (this.imageInventory) {
+      try {
+        await this.imageInventory.syncFromCrawl(siteId, audit.id, crawl.pages);
+      } catch (err: any) {
+        this.log.warn(`[${siteId}] Gorsel envanteri guncellenemedi: ${err.message}`);
+      }
+    }
 
     this.log.log(`[${siteId}] Audit bitti — skor: ${overallScore}/100, GEO: ${geoResult.score ?? '-'}/100, AI citation: ${aiCitationAvg ?? '-'}/100, ${allIssues.length} issue, ${(Date.now() - t0) / 1000}s`);
 

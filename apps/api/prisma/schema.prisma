@@ -315,6 +315,8 @@ model Site {
   communityOpportunities CommunityOpportunity[]
   // Live Crawler dalgasi (2026-08)
   crawlerHitEvents       CrawlerHitEvent[]
+  // Gorsel alt metni envanteri (2026-10)
+  siteImages             SiteImage[]
 
   @@unique([userId, url])
   @@index([userId])
@@ -948,6 +950,8 @@ enum JobType {
   STUCK_PAGE_RECOVER // Tek stuck sayfa icin LLM tabanli recovery
   STUCK_PAGE_PERFORMANCE_CHECK // 30 gun sonra GSC re-check + recovery effectiveness olcumu
   STUCK_PAGE_EXTERNAL_RECOVER // RanksUp disinda yazilan sayfa icin HTML fetch + LLM + adapter publish
+  IMAGE_ALT_SUGGEST // SiteImage'lar icin gorsel (vision) ile alt metni onerisi
+  IMAGE_ALT_APPLY // onaylanmis alt metinlerini musteri sitesine yaz (WP media / statik HTML)
 }
 
 enum JobStatus {
@@ -2986,6 +2990,70 @@ model AppliedFix {
   @@index([siteId, appliedAt])
   @@index([siteId, status, appliedAt])
   @@map("applied_fixes")
+}
+
+/// Gorsel alt metni envanteri — oner → kullanici onayi → siteye yaz → dogrula.
+///
+/// Audit JSON'u kosu basina tek anlik goruntu; bir gorselin durumu (oneri,
+/// duzenleme, onay, uygulama, geri alma) taramalar arasinda YASAMALI ve API /
+/// AppliedFix kayitlari ona sabit bir kimlikle baglanmali → ayri tablo.
+/// Site basina en fazla ~1000 satir (image-inventory.service.ts sinirlar).
+model SiteImage {
+  id      String @id @default(cuid())
+  siteId  String
+  /// sha1(mutlak src) — taramalar arasi kimlik (image-extract.ts)
+  srcHash String @db.Char(40)
+  src     String @db.Text
+  /// Sayfadaki yazimiyla (goreli olabilir) — siteye yazarken etiketi bulmak icin
+  srcRaw  String @db.Text
+
+  firstPageUrl String @db.Text
+  pageCount    Int    @default(1)
+  /// En fazla 5 sayfa URL'i
+  samplePages  Json?
+
+  /// absent | empty | present
+  altState       String  @db.VarChar(8)
+  currentAlt     String? @db.Text
+  /// ["filename_like","generic"]
+  flags          Json?
+  linked         Boolean @default(false)
+  linkHref       String? @db.Text
+  width          Int?
+  height         Int?
+  wpAttachmentId Int?
+  pageLang       String? @db.VarChar(16)
+  /// { heading, caption, nearText } — oneri bu baglamla uretilir
+  context        Json?
+
+  suggestedAlt   String?   @db.Text
+  /// Oneriyi ureten model
+  suggestedBy    String?   @db.VarChar(64)
+  suggestedAt    DateTime?
+  suggestionNote String?   @db.VarChar(255)
+
+  approvedAlt String?   @db.Text
+  approvedBy  String?
+  approvedAt  DateTime?
+
+  /// NEW | SUGGESTED | DECORATIVE_SUGGESTED | APPROVED | DECORATIVE | DISMISSED
+  /// | APPLYING | APPLIED | PARTIAL | FAILED | VERIFIED
+  status      String    @default("NEW") @db.VarChar(24)
+  /// Ne yazildi, nereye, eski deger (geri alma icin)
+  applyDetail Json?
+  appliedAt   DateTime?
+
+  lastSeenAuditId String?
+  lastSeenAt      DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  site Site @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  @@unique([siteId, srcHash])
+  @@index([siteId, status])
+  @@index([siteId, altState, lastSeenAt])
+  @@map("site_images")
 }
 
 // ─── LinkedIn outreach (Faz 8 botu) ──────────────────────────────────────────

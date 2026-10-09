@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { AuditController } from './audit.controller.js';
 import { AppliedFixService } from './applied-fix.service.js';
 import { AuditService } from './audit.service.js';
+import { ImageInventoryService } from './image-alt/image-inventory.service.js';
 import { AuditChecksService } from './audit-checks.service.js';
 import { PageSpeedService } from './pagespeed.service.js';
 import { GeoRunnerService } from './geo-runner.service.js';
@@ -62,6 +63,7 @@ import { AuditCron } from './audit.cron.js';
   controllers: [AuditController, TrackerController, PublicCitationController],
   providers: [
     AppliedFixService,
+    ImageInventoryService,
     AuditService,
     AuditCron,
     AuditChecksService,
@@ -113,6 +115,7 @@ import { AuditCron } from './audit.cron.js';
   ],
   exports: [
     AppliedFixService,
+    ImageInventoryService,
     AuditService,
     AutoFixService,
     GeoRunnerService,
