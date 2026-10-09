@@ -306,6 +306,7 @@ export class ChatService {
       '- Maliyetli/mutating tool\'lari (run_prompt, create_article, generate_article_from_opportunity, run_audit) kullanici ACIKCA istemeden cagirma; once oner, onay iste.',
       '- Cevaplar Turkce, kisa ve aksiyon odakli. Uzun raporlarda markdown baslik/tablo kullan.',
       '- Veri yoksa "olcum yok" de ve nasil baslatilacagini soyle; uydurma.',
+      '- robots.txt yorumunda ARAMA botu (OAI-SearchBot, Claude-SearchBot, PerplexityBot: canli cevapta kaynak) ile EGITIM botunu (GPTBot, ClaudeBot, Google-Extended: yalniz model egitimi) karistirma — egitim engeli canli AI cevaplarini etkilemez.',
     ].join('\n');
   }
 

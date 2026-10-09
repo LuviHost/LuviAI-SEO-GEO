@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import * as cheerio from 'cheerio';
 import type { CrawlResult, CrawledPage } from '../sites/site-crawler.service.js';
 import { computeImageAltCheck } from './image-alt-check.js';
+import { computeRobotsCheck } from './robots-check.js';
 
 export type Severity = 'critical' | 'warning' | 'info';
 
@@ -79,46 +80,9 @@ export class AuditChecksService {
   // ───────────────────────────────────────────────────────────
   //  2. robots.txt
   // ───────────────────────────────────────────────────────────
+  // Yontem v2 — RFC 9309 etkin erisim + bot kategorisi; bkz. robots-check.ts
   private checkRobotsTxt(c: CrawlResult): CheckResult {
-    const found = !!c.robotsTxt;
-    const issues: AuditIssue[] = [];
-    let score = 0;
-
-    if (!found) {
-      issues.push({
-        severity: 'critical',
-        type: 'robots_missing',
-        description: 'robots.txt yok — crawler kontrolü yapamıyorsun',
-        fixable: true,
-        fixCommand: 'auto-fix: robots',
-      });
-    } else {
-      score = 50;
-      const txt = c.robotsTxt!;
-
-      // Sitemap referansı var mı?
-      if (txt.match(/Sitemap:\s*\S+/i)) score += 20;
-      else issues.push({
-        severity: 'warning', type: 'robots_no_sitemap',
-        description: 'robots.txt içinde Sitemap referansı yok',
-        fixable: true,
-      });
-
-      // AI crawler whitelist (modern SEO)
-      const aiCrawlers = ['GPTBot', 'ClaudeBot', 'PerplexityBot', 'Google-Extended']; // Claude-Web bayat UA idi
-      const allowed = aiCrawlers.filter(c => txt.includes(c));
-      if (allowed.length >= 2) score += 30;
-      else issues.push({
-        severity: 'warning', type: 'robots_ai_crawlers',
-        description: `AI crawler izinleri eksik (${allowed.length}/${aiCrawlers.length})`,
-        fixable: true,
-      });
-    }
-
-    return {
-      id: 'robots_txt', name: 'Robots.txt',
-      found, valid: score >= 70, score, issues,
-    };
+    return computeRobotsCheck(c.robotsTxt);
   }
 
   // ───────────────────────────────────────────────────────────
