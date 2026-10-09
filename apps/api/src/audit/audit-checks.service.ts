@@ -345,7 +345,13 @@ export class AuditChecksService {
     let valid = 0, missing = 0;
     const seen = new Map<string, number>();
 
-    for (const p of c.pages) {
+    // JS kabugu sayfalar (sites/js-shell.ts) H1'i JS ile basar; ham HTML'de H1
+    // aramak her birine sahte KRITIK yaziyordu. Onlar ayri, durust bir uyari
+    // olarak raporlanir. (methodVersion 2)
+    const shells = c.pages.filter((p) => p.jsShell);
+    const pages = c.pages.filter((p) => !p.jsShell);
+
+    for (const p of pages) {
       if (!p.h1) { missing++; continue; }
       seen.set(p.h1, (seen.get(p.h1) ?? 0) + 1);
       valid++;
@@ -366,14 +372,26 @@ export class AuditChecksService {
         fixable: false,
       });
     }
+    if (shells.length > 0) {
+      issues.push({
+        severity: 'warning', type: 'js_shell_pages',
+        description: `${shells.length} sayfa sunucudan boş bir JavaScript iskeleti olarak geliyor (başlık, metin ve linkler JS ile oluşuyor). Google JavaScript çalıştırır, ancak ChatGPT, Claude ve Perplexity'nin tarayıcıları çalıştırmaz — bu sayfaların içeriğini göremezler. Sunucu tarafı render (SSR/SSG) önerilir.`,
+        fixable: false,
+      });
+    }
 
-    const total = c.pages.length;
-    const score = total > 0 ? Math.round(((total - missing - duplicates.length) / total) * 100) : 0;
+    const total = pages.length;
+    const score = total > 0 ? Math.round(((total - missing - duplicates.length) / total) * 100) : (shells.length > 0 ? 100 : 0);
     return {
       id: 'h1_uniqueness', name: 'H1 Uniqueness',
       found: valid > 0, valid: missing === 0 && duplicates.length === 0,
       score, issues,
-      details: { valid, missing, duplicates: duplicates.length },
+      details: {
+        methodVersion: 2,
+        valid, missing, duplicates: duplicates.length,
+        jsShellCount: shells.length,
+        jsShellPages: shells.slice(0, 50).map((p) => p.url),
+      },
     };
   }
 

@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import * as cheerio from 'cheerio';
 import { readBodyCapped, isBinaryContentType } from '../common/fetch-capped.js';
 import { extractImages, type ExtractedImage, type ImageAltStats } from './image-extract.js';
+import { isJsShell } from './js-shell.js';
 
 export interface CrawledPage {
   url: string;
@@ -21,6 +22,8 @@ export interface CrawledPage {
 
   /** <html lang> — alt metni onerisi sayfanin dilinde uretilir */
   lang: string | null;
+  /** Sunucu HTML'i bos JS iskeleti (SPA) — icerik yalniz JS sonrasi (js-shell.ts) */
+  jsShell?: boolean;
 
   // Resimler ve internal linkler
   imageAltStats: ImageAltStats;
@@ -359,6 +362,7 @@ export class SiteCrawlerService {
       jsonLdBlocks,
       schemaTypes,
       lang: ($('html').attr('lang') ?? '').trim() || null,
+      jsShell: isJsShell($),
       imageAltStats,
       images,
       imagesCapped,
