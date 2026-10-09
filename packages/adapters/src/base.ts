@@ -7,6 +7,8 @@ export interface PublishPayload {
   metaDescription?: string;
   category?: string;
   heroImageUrl?: string;
+  /** Hero alt metni — WordPress'te medya alt_text'e yazilir (one cikan gorsel bunu basar) */
+  heroImageAlt?: string;
   // Hero görsel ham verisi — WordPress media'ya yükleyip featured image yapmak için.
   // PublisherService üretip base64 olarak geçer; adapter destekliyorsa kullanır.
   heroImageBase64?: string;

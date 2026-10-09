@@ -12,6 +12,8 @@ import { SiteUrlInventoryService } from '../sites/site-url-inventory.service.js'
 import { resolveArticleUrl } from './article-url.util.js';
 import { QaGateService } from './qa-gate.service.js';
 import { stripHeroPlaceholder, applyHeroImageToJsonLd } from './hero-placeholder.js';
+import { describeHeroImage } from './hero-alt.js';
+import { LLMProviderService } from '../llm/llm-provider.service.js';
 
 /**
  * Markdown body'yi CMS gövdesine girecek HTML PARÇASI haline getirir.
@@ -28,6 +30,8 @@ import { stripHeroPlaceholder, applyHeroImageToJsonLd } from './hero-placeholder
 function renderArticleFragment(opts: {
   bodyMd: string;
   heroImageUrl?: string | null;
+  /** Hero alt metni (gorulerek uretilir; yoksa "" — susleme sayilir) */
+  heroImageAlt?: string | null;
   schemaJsonLd?: any[] | null;
   audioUrl?: string | null;
   trackerSiteId?: string | null;
@@ -58,7 +62,7 @@ function renderArticleFragment(opts: {
     : '';
 
   // Hero <img>: WordPress adapter featured image yüklerse bunu kendisi siler.
-  const hero = opts.heroImageUrl ? `<img src="${esc(opts.heroImageUrl)}" alt="" class="hero">` : '';
+  const hero = opts.heroImageUrl ? `<img src="${esc(opts.heroImageUrl)}" alt="${esc(opts.heroImageAlt ?? '')}" class="hero">` : '';
 
   return [hero, audioBlock, inner, schemaTags, trackerScript].filter(Boolean).join('\n');
 }
@@ -81,6 +85,7 @@ function renderArticleHtml(opts: {
   metaDescription?: string | null;
   canonical?: string | null;
   heroImageUrl?: string | null;
+  heroImageAlt?: string | null;
   siteName?: string | null;
   /** Makalenin bölüm yolu (ör. "/pratik-kobi-rehberi"). Yoksa nav linki basılmaz. */
   sectionPath?: string | null;
@@ -94,7 +99,8 @@ function renderArticleHtml(opts: {
   const title = esc(opts.metaTitle || opts.title || '');
   const desc = esc(opts.metaDescription || '');
   const canonical = esc(opts.canonical || '');
-  const hero = opts.heroImageUrl ? `<img src="${esc(opts.heroImageUrl)}" alt="" class="hero">` : '';
+  const heroAlt = esc(opts.heroImageAlt ?? '');
+  const hero = opts.heroImageUrl ? `<img src="${esc(opts.heroImageUrl)}" alt="${heroAlt}" class="hero">` : '';
   const brand = esc(opts.siteName || 'Blog');
   const year = new Date().getFullYear();
 
@@ -135,6 +141,7 @@ ${desc ? `<meta property="og:description" content="${desc}">` : ''}
 <meta property="og:type" content="article">
 ${canonical ? `<meta property="og:url" content="${canonical}">` : ''}
 ${opts.heroImageUrl ? `<meta property="og:image" content="${esc(opts.heroImageUrl)}">` : ''}
+${opts.heroImageUrl && heroAlt ? `<meta property="og:image:alt" content="${heroAlt}">\n<meta name="twitter:image:alt" content="${heroAlt}">` : ''}
 ${schemaTags}
 ${trackerScript}
 <style>
@@ -233,6 +240,7 @@ export class PublisherService {
     private readonly linkValidator: LinkValidatorService,
     private readonly urlInventory: SiteUrlInventoryService,
     private readonly qaGate: QaGateService,
+    private readonly llm: LLMProviderService,
   ) {}
 
   async publishArticle(articleId: string, targetIds: string[], opts: { overrideQa?: boolean } = {}): Promise<PublishResult[]> {
@@ -386,6 +394,35 @@ export class PublisherService {
       }
     }
 
+    // ── Hero alt metni ──
+    // Kayitli (onceki yayindan) alt varsa o; yoksa YENI uretilen gorselin yerel
+    // baytlari uzerinden gorerek uretilir. Hata/red → "" (eski davranis), yayin durmaz.
+    let heroImageAlt = '';
+    if (heroImageUrl) {
+      const stored: any[] = Array.isArray((article as any).inlineImages) ? (article as any).inlineImages : [];
+      const known = stored.find((i) => i?.position === 'hero' && i?.url === heroImageUrl && typeof i?.alt === 'string');
+      if (known) {
+        heroImageAlt = known.alt;
+      } else if (heroImageBase64) {
+        const d = await describeHeroImage(this.llm, {
+          bytes: Buffer.from(heroImageBase64, 'base64'),
+          title: article.title,
+          language: (article as any).language ?? null,
+          siteId: article.siteId,
+          userId: (article.site as any).userId,
+          articleId: article.id,
+        });
+        if (d) {
+          heroImageAlt = d.alt;
+          const others = stored.filter((i) => i?.position !== 'hero');
+          await this.prisma.article.update({
+            where: { id: article.id },
+            data: { inlineImages: [...others, { url: heroImageUrl, alt: d.alt, position: 'hero', model: d.model }] as any },
+          }).catch(() => {});
+        }
+      }
+    }
+
     // Body markdown'daki placeholder hero referansını temizle (kırık img olmasın)
     let cleanBodyMd = stripHeroPlaceholder(article.bodyMd ?? '');
 
@@ -415,6 +452,7 @@ export class PublisherService {
       metaDescription: article.metaDescription,
       canonical,
       heroImageUrl,
+      heroImageAlt,
       siteName: article.site.name,
       sectionPath,
       schemaJsonLd,
@@ -426,6 +464,7 @@ export class PublisherService {
     const fragmentHtml = renderArticleFragment({
       bodyMd: cleanBodyMd,
       heroImageUrl,
+      heroImageAlt,
       schemaJsonLd,
       audioUrl,
       trackerSiteId: article.siteId,
@@ -458,6 +497,7 @@ export class PublisherService {
           metaDescription: article.metaDescription ?? undefined,
           category: article.category ?? undefined,
           heroImageUrl: heroImageUrl ?? undefined,
+          heroImageAlt: heroImageAlt || undefined,
           heroImageBase64,
           heroImageFilename,
           heroImageMime,

@@ -41,6 +41,14 @@ export class WordPressRestAdapter extends PublishAdapter {
         if (up.ok) {
           const media: any = await up.json();
           featuredMediaId = media.id;
+          // Binary yukleme alt alamaz → ayri istek. Basarisizsa yayini durdurma.
+          if (payload.heroImageAlt && featuredMediaId) {
+            await fetch(`${siteUrl}/wp-json/wp/v2/media/${featuredMediaId}`, {
+              method: 'POST',
+              headers: { 'Authorization': `Basic ${auth}`, 'Content-Type': 'application/json' },
+              body: JSON.stringify({ alt_text: payload.heroImageAlt }),
+            }).catch(() => {});
+          }
           // Featured image tema tarafından üstte gösterileceği için body'deki
           // hero <img>'i kaldır (çift görsel olmasın).
           if (payload.heroImageUrl) {
