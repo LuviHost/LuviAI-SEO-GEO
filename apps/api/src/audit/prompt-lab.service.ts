@@ -1,5 +1,6 @@
 import { Injectable, Logger, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { CITATION_MATCH_VERSION } from './host-match.js';
 import { AiCitationService, type CitationProbe, type Provider } from './ai-citation.service.js';
 import { FanoutService } from './fanout.service.js';
 import { unbrandedOnly } from './brand-in-query.js';
@@ -558,6 +559,7 @@ export class PromptLabService {
           excerpt: probe.excerpt?.slice(0, 2000) ?? null,
           citedPages: probe.citedPages?.length ? probe.citedPages : undefined,
           competitors: probe.competitors?.length ? (probe.competitors as any) : undefined,
+          matchVersion: CITATION_MATCH_VERSION,
         })),
       });
     } catch (err: any) {

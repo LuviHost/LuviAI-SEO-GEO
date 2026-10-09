@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { CITATION_MATCH_VERSION } from '../audit/host-match.js';
 
 /**
  * Demo Seeder — yeni kullanici signup oldugunda ornek bir site + 5 dummy makale
@@ -181,6 +182,7 @@ export class DemoSeederService {
               probes: [{ query: 'demo soru', cited: score > 50, brandMentioned: true, excerpt: 'Demo veri' }] as any,
               citedCount: score > 50 ? 1 : 0,
               mentionedCount: score > 30 ? 1 : 0,
+              matchVersion: CITATION_MATCH_VERSION,
             },
           });
         } catch {}

@@ -751,6 +751,10 @@ model AiCitationSnapshot {
   probes         Json // [{ query, cited, brandMentioned, excerpt }]
   citedCount     Int  @default(0)
   mentionedCount Int  @default(0)
+  /// Alinti eslestirme yontemi surumu. 1 = metin.includes(host) (benzer alan
+  /// adlarini da sayiyordu), 2 = etiket sinirli (audit/host-match.ts). Trend ve
+  /// alarmlar farkli surumleri ayni seride kiyaslamaz.
+  matchVersion   Int  @default(1)
 
   createdAt DateTime @default(now())
 
@@ -780,7 +784,11 @@ model AiCitationRun {
   mentionedCount Int  @default(0)
   poolSize       Int  @default(0)
 
-  providers Json // [{ provider, label, available, score, reason, probes: [{ query, cited, brandMentioned, brandInQuery, position, sentiment, excerpt, citedPages }] }]
+  providers    Json // [{ provider, label, available, score, reason, probes: [{ query, cited, brandMentioned, brandInQuery, position, sentiment, excerpt, citedPages }] }]
+  /// Alinti eslestirme yontemi surumu. 1 = metin.includes(host) (benzer alan
+  /// adlarini da sayiyordu), 2 = etiket sinirli (audit/host-match.ts). Trend ve
+  /// alarmlar farkli surumleri ayni seride kiyaslamaz.
+  matchVersion Int  @default(1)
 
   @@index([siteId, runAt])
   @@map("ai_citation_runs")
@@ -2290,6 +2298,11 @@ model GeoPromptRun {
   excerpt        String? @db.Text
   citedPages     Json?
   competitors    Json?
+
+  /// Alinti eslestirme yontemi surumu. 1 = metin.includes(host) (benzer alan
+  /// adlarini da sayiyordu), 2 = etiket sinirli (audit/host-match.ts). Trend ve
+  /// alarmlar farkli surumleri ayni seride kiyaslamaz.
+  matchVersion Int @default(1)
 
   createdAt DateTime @default(now())
 

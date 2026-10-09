@@ -8,6 +8,7 @@ import { SettingsService } from '../settings/settings.service.js';
 import { modelForAudience, type Audience } from '../llm/model-tier.js';
 import { normalizeText, foldForMatch, sameLength, escapeRegex } from '../common/text-normalize.js';
 import { brandMatchIndexFolded, resolveSiteBrand, containsBrand, unbrandedOnly } from './brand-in-query.js';
+import { hostMentioned, urlHostMatches, citedPathsFor, registrableDomain, extractAppStoreRefs } from './host-match.js';
 import { shareOfVoiceList, rivalsFromCompetitors, type SovObservation } from './share-of-voice.js';
 import { citationScore } from './citation-score.js';
 
@@ -17,6 +18,8 @@ export interface CitationProbe {
   query: string;
   cited: boolean;
   brandMentioned: boolean;
+  /** Tam cevap metnindeki magaza referanslari (host-match.extractAppStoreRefs) */
+  appStoreRefs?: string[];
   /**
    * SORGUNUN kendisinde marka adi geciyor mu (cevapta degil).
    *
@@ -947,7 +950,8 @@ export class AiCitationService {
         const data = await res.json() as any;
         const text = data?.choices?.[0]?.message?.content ?? '';
         const citations: string[] = Array.isArray(data?.citations) ? data.citations : [];
-        const citedFromList = citations.some((u: string) => u.toLowerCase().includes(host));
+        // Etiket sinirli: 'notranksup.ai' / 'ranksup.ai.tr' artik bizim alinti sayilmaz
+        const citedFromList = citations.some((u: string) => urlHostMatches(u, host));
         const probe = this.buildProbe(q, text, host, brand, competitors);
         if (citedFromList) probe.cited = true;
         probes.push(probe);
@@ -1159,29 +1163,16 @@ export class AiCitationService {
     }
 
     // ── Per-page citation: response'ta host'umuza ait URL'leri çıkar
-    // Örnek: "luvihost.com/blog/x" → ['/blog/x']
-    const citedPages: string[] = [];
-    if (host) {
-      const escHost = host.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      // Matches: https://host/path veya host/path (https opsiyonel)
-      const urlRe = new RegExp(`(?:https?:\\/\\/)?${escHost}(\\/[\\w\\-./?#=&%+]*)`, 'gi');
-      // Path buyuk/kucuk harfi korunmali → katlanmis degil normalize metin.
-      const matches = [...baseText.matchAll(urlRe)];
-      const seen = new Set<string>();
-      for (const m of matches) {
-        let path = m[1] || '/';
-        // Trim trailing punctuation, fragment'ler ve query string sadeleştir
-        path = path.replace(/[.,;:)\]]+$/, '').split('#')[0].split('?')[0] || '/';
-        if (path.length > 0 && !seen.has(path) && path.length < 200) {
-          seen.add(path);
-          citedPages.push(path);
-        }
-      }
-    }
+    // Örnek: "luvihost.com/blog/x" → ['/blog/x']. Path buyuk/kucuk harfi
+    // korunmali → katlanmis degil normalize metin. Sol sinir: "notluvihost.com/x"
+    // bizim sayfamiz degil (host-match.ts).
+    const citedPages: string[] = host ? citedPathsFor(baseText, host) : [];
 
     return {
       query,
-      cited: folded.includes(host),
+      // Etiket sinirli eslesme (host-match.ts) — eski includes() benzer alan
+      // adlarini da 'alintilandi' sayiyordu. Olcum surumu: CITATION_MATCH_VERSION.
+      cited: hostMentioned(folded, host),
       brandMentioned,
       brandInQuery,
       excerpt: baseText.slice(0, 220),
@@ -1190,6 +1181,7 @@ export class AiCitationService {
       competitors: competitorStats,
       citedPages,
       mentionedDomains,
+      appStoreRefs: extractAppStoreRefs(baseText),
     };
   }
 
@@ -1217,15 +1209,18 @@ export class AiCitationService {
     const re = /\b((?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+(?:com|net|org|io|ai|co|app|dev|tv|gg|me|info|biz|news|shop|store|site|online|xyz|tr|de|uk|fr|es|it|nl|ru|az|com\.tr|net\.tr|org\.tr|gov\.tr|edu\.tr|co\.uk))\b/gi;
 
     const own = (ownHost || '').toLowerCase().replace(/^www\./, '');
-    const ownRoot = own.split('.').slice(-2).join('.');
+    // Kayit edilebilir alan (".com.tr" iki etiketli sonek). Eskiden son iki
+    // etiket aliniyordu: ofsayt.com.tr icin kok "com.tr" cikiyor ve TUM .com.tr
+    // rakipleri listeden dusuyordu.
+    const ownRoot = own ? registrableDomain(own) : '';
 
     const counts = new Map<string, number>();
     for (const m of text.matchAll(re)) {
       const d = m[1].toLowerCase().replace(/^www\./, '');
       if (d.length < 4 || d.length > 80) continue;
       if (own && (d === own || d.endsWith('.' + own))) continue;      // kendi sitemiz
-      if (ownRoot && d.split('.').slice(-2).join('.') === ownRoot) continue;
-      if (this.NOISE_DOMAINS.has(d) || this.NOISE_DOMAINS.has(d.split('.').slice(-2).join('.'))) continue;
+      if (ownRoot && registrableDomain(d) === ownRoot) continue;
+      if (this.NOISE_DOMAINS.has(d) || this.NOISE_DOMAINS.has(registrableDomain(d))) continue;
       counts.set(d, (counts.get(d) ?? 0) + 1);
     }
 

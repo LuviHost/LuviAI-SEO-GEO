@@ -1,5 +1,6 @@
 import { Injectable, Logger, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { CITATION_MATCH_VERSION } from '../audit/host-match.js';
 import { AiCitationService } from '../audit/ai-citation.service.js';
 import { containsBrand } from '../audit/brand-in-query.js';
 import { LLMProviderService } from '../llm/llm-provider.service.js';
@@ -180,7 +181,9 @@ export class AsoPromptLabService {
         continue;
       }
 
-      const storeLinked = this.detectStoreLink(probe.excerpt ?? '', app);
+      // Tam metinden cikarilan referanslar (alinti 220 karakterdi → sonda gecen
+      // magaza linkleri kaciyordu). Eski probe'larda alana dusulur.
+      const storeLinked = this.detectStoreLink(probe, app);
       providerRows.push({
         provider: r.provider,
         label: r.label,
@@ -207,6 +210,8 @@ export class AsoPromptLabService {
         sentiment: probe.sentiment ?? null,
         excerpt: probe.excerpt?.slice(0, 2000) ?? null,
         competitors: probe.competitors?.length ? (probe.competitors as any) : undefined,
+        // Magaza linki artik tam metinden (appStoreRefs) — olcum surumu 2
+        matchVersion: CITATION_MATCH_VERSION,
       });
     }
 
@@ -266,12 +271,18 @@ export class AsoPromptLabService {
   // ────────────────────────────────────────────────────────────
 
   /** Cevapta BIZIM uygulamamizin store linki var mi (genel store linki degil) */
-  private detectStoreLink(excerpt: string, app: { appStoreId: string | null; playStoreId: string | null; name: string }): boolean {
-    const text = excerpt.toLowerCase();
-    if (app.appStoreId && text.includes(`id${app.appStoreId}`)) return true;
-    if (app.playStoreId && text.includes(app.playStoreId.toLowerCase())) return true;
-    // Slug fallback: apps.apple.com/.../app-adi/ geciyorsa
+  private detectStoreLink(probe: { excerpt?: string; appStoreRefs?: string[] }, app: { appStoreId: string | null; playStoreId: string | null; name: string }): boolean {
     const slug = app.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    const refs = probe.appStoreRefs;
+    if (Array.isArray(refs)) {
+      if (app.appStoreId && refs.includes(`ios:${app.appStoreId}`)) return true;
+      if (app.playStoreId && refs.includes(`android:${app.playStoreId.toLowerCase()}`)) return true;
+      return slug.length >= 4 && refs.includes(`iosslug:${slug}`);
+    }
+    // Geriye uyum: refs olmayan eski probe — yalnizca alinti
+    const text = (probe.excerpt ?? '').toLowerCase();
+    if (app.appStoreId && new RegExp(`id${app.appStoreId}(?!\\d)`).test(text)) return true;
+    if (app.playStoreId && text.includes(app.playStoreId.toLowerCase())) return true;
     if (slug.length >= 4 && (text.includes(`apps.apple.com`) || text.includes('play.google.com')) && text.includes(slug)) return true;
     return false;
   }

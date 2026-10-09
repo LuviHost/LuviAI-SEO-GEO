@@ -5,6 +5,7 @@ import { buildHeadline, providerHeadline } from './citation-headline.js';
 import { assessStability } from './visibility-variance.js';
 import { compareCitationRuns, headlineOfProviders, type RunProvider, type RunSummary } from './citation-run-compare.js';
 import { AiCitationService } from './ai-citation.service.js';
+import { CITATION_MATCH_VERSION } from './host-match.js';
 
 /**
  * AI Citation Tracker — gunluk cron, her aktif site icin Claude/Gemini/OpenAI/Perplexity
@@ -62,6 +63,7 @@ export class AiCitationTrackerService {
             probes: probes as any,
             citedCount: cited,
             mentionedCount: mentioned,
+            matchVersion: CITATION_MATCH_VERSION,
           },
           create: {
             siteId,
@@ -72,6 +74,7 @@ export class AiCitationTrackerService {
             probes: probes as any,
             citedCount: cited,
             mentionedCount: mentioned,
+            matchVersion: CITATION_MATCH_VERSION,
           },
         });
         saved++;
@@ -114,6 +117,7 @@ export class AiCitationTrackerService {
           mentionedCount: counts.mentioned,
           poolSize: counts.poolSize,
           providers: providersJson as any,
+          matchVersion: CITATION_MATCH_VERSION,
         },
         select: { id: true },
       });
