@@ -26,11 +26,15 @@ const ScreenshotStage = dynamic(
   { ssr: false, loading: () => <div className="bg-muted/40 rounded animate-pulse" style={{ width: 320, height: 692 }} /> }
 );
 
+// Boyutlar Apple "Screenshot specifications" + asc CLI katalogu ile ayni:
+// 6.9" grubu 1320×2868 / 1290×2796, iPad 13" 2064×2752 / 2048×2732.
 const PRESETS = [
+  { id: 'ios-69', label: 'iPhone 6.9" (iOS)', width: 1320, height: 2868, store: 'IOS' as const },
   { id: 'ios-67', label: 'iPhone 6.7" (iOS)', width: 1290, height: 2796, store: 'IOS' as const },
   { id: 'ios-65', label: 'iPhone 6.5" (iOS)', width: 1242, height: 2688, store: 'IOS' as const },
   { id: 'android-phone', label: 'Android Phone', width: 1080, height: 1920, store: 'ANDROID' as const },
-  { id: 'ipad', label: 'iPad Pro 13"', width: 2048, height: 2732, store: 'IOS' as const },
+  { id: 'ipad-13', label: 'iPad 13" (M4)', width: 2064, height: 2752, store: 'IOS' as const },
+  { id: 'ipad', label: 'iPad Pro 12.9"', width: 2048, height: 2732, store: 'IOS' as const },
 ];
 
 // shots.so'da olan 15 Google Font seçeneği — Konva PNG export için tarayıcıya yüklenmesi şart.

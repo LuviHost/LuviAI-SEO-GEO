@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import {
   Link2, Unlink, RefreshCw, AlertCircle, Loader2, ExternalLink,
-  Star, MessageSquare, Package, AlertTriangle, CheckCircle2, X, Send, FileText,
+  Star, MessageSquare, Package, AlertTriangle, CheckCircle2, X, Send, FileText, Images,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
@@ -12,6 +12,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { AscMetadataPanel } from '@/components/asc-metadata-panel';
+import { AscScreenshotsPanel } from '@/components/asc-screenshots-panel';
 
 interface Account {
   id: string;
@@ -34,8 +35,8 @@ export function AscTab({ siteId }: { siteId: string }) {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [loading, setLoading] = useState(true);
   const [showConnect, setShowConnect] = useState(false);
-  const [openPanel, setOpenPanel] = useState<{ appId: string; kind: 'reviews' | 'metadata' } | null>(null);
-  const toggle = (appId: string, kind: 'reviews' | 'metadata') =>
+  const [openPanel, setOpenPanel] = useState<{ appId: string; kind: 'reviews' | 'metadata' | 'screenshots' } | null>(null);
+  const toggle = (appId: string, kind: 'reviews' | 'metadata' | 'screenshots') =>
     setOpenPanel(openPanel?.appId === appId && openPanel.kind === kind ? null : { appId, kind });
 
   const refresh = async () => {
@@ -176,6 +177,9 @@ export function AscTab({ siteId }: { siteId: string }) {
                           <Button size="sm" variant="outline" className="h-7 text-label" onClick={() => toggle(app.id, 'metadata')}>
                             <FileText className="h-3 w-3 mr-1" /> Metadata
                           </Button>
+                          <Button size="sm" variant="outline" className="h-7 text-label" onClick={() => toggle(app.id, 'screenshots')}>
+                            <Images className="h-3 w-3 mr-1" /> Ekran görüntüleri
+                          </Button>
                           <Button size="sm" variant="outline" className="h-7 text-label" onClick={() => toggle(app.id, 'reviews')}>
                             <MessageSquare className="h-3 w-3 mr-1" /> Yorumlar
                           </Button>
@@ -183,6 +187,7 @@ export function AscTab({ siteId }: { siteId: string }) {
                       </div>
                       {openPanel?.appId === app.id && openPanel.kind === 'reviews' && <AppReviewsPanel appId={app.id} />}
                       {openPanel?.appId === app.id && openPanel.kind === 'metadata' && <AscMetadataPanel siteId={siteId} ascAppId={app.id} />}
+                      {openPanel?.appId === app.id && openPanel.kind === 'screenshots' && <AscScreenshotsPanel siteId={siteId} ascAppId={app.id} />}
                     </div>
                   ))}
                 </div>

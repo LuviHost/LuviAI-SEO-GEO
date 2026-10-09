@@ -165,6 +165,81 @@ export class AscApiClient {
     });
   }
 
+  // ─── Ekran goruntuleri (Apple semasi + asc CLI ile dogrulandi) ───
+  // Akis: set bul/olustur → POST appScreenshots {fileName,fileSize} → donen
+  // uploadOperations parcalarini PUT → PATCH {uploaded:true, sourceFileChecksum: md5}
+  // → assetDeliveryState: AWAITING_UPLOAD → UPLOAD_COMPLETE → COMPLETE | FAILED.
+
+  async listScreenshotSets(versionLocId: string) {
+    return this.request<{ data: any[] }>('GET', `/v1/appStoreVersionLocalizations/${versionLocId}/appScreenshotSets?limit=50`);
+  }
+
+  async listScreenshots(setId: string) {
+    return this.request<{ data: any[] }>('GET', `/v1/appScreenshotSets/${setId}/appScreenshots?limit=50`);
+  }
+
+  async createScreenshotSet(versionLocId: string, screenshotDisplayType: string) {
+    return this.request<{ data: any }>('POST', '/v1/appScreenshotSets', {
+      data: {
+        type: 'appScreenshotSets',
+        attributes: { screenshotDisplayType },
+        relationships: { appStoreVersionLocalization: { data: { type: 'appStoreVersionLocalizations', id: versionLocId } } },
+      },
+    });
+  }
+
+  async createScreenshot(setId: string, fileName: string, fileSize: number) {
+    return this.request<{ data: any }>('POST', '/v1/appScreenshots', {
+      data: {
+        type: 'appScreenshots',
+        attributes: { fileName, fileSize },
+        relationships: { appScreenshotSet: { data: { type: 'appScreenshotSets', id: setId } } },
+      },
+    });
+  }
+
+  async commitScreenshot(id: string, md5Hex: string) {
+    return this.request<{ data: any }>('PATCH', `/v1/appScreenshots/${id}`, {
+      data: { type: 'appScreenshots', id, attributes: { uploaded: true, sourceFileChecksum: md5Hex } },
+    });
+  }
+
+  async getScreenshot(id: string) {
+    return this.request<{ data: any }>('GET', `/v1/appScreenshots/${id}`);
+  }
+
+  async deleteScreenshot(id: string) {
+    return this.request<void>('DELETE', `/v1/appScreenshots/${id}`);
+  }
+
+  /**
+   * Apple'in verdigi on-imzali parca adreslerine baytlari yukler (Authorization
+   * YOK; basliklar operasyondan gelir). Yonlendirme izlenmez; 5xx/ag hatasinda
+   * PUT bir kez yeniden denenir (asc CLI: PUT tekrar-guvenli).
+   */
+  async uploadParts(operations: Array<{ method?: string; url: string; length: number; offset: number; requestHeaders?: Array<{ name: string; value: string }> }>, bytes: Buffer) {
+    for (const op of operations) {
+      if (!op?.url || op.offset < 0 || op.length <= 0 || op.offset + op.length > bytes.length) {
+        throw new Error('Apple geçersiz yükleme parçası döndürdü');
+      }
+      const method = (op.method ?? 'PUT').toUpperCase();
+      const headers = Object.fromEntries((op.requestHeaders ?? []).map((h) => [h.name, h.value]));
+      const body = Uint8Array.from(bytes.subarray(op.offset, op.offset + op.length));
+      let lastErr: unknown;
+      for (let attempt = 0; attempt < (method === 'PUT' ? 2 : 1); attempt++) {
+        try {
+          const res = await fetch(op.url, { method, headers, body, redirect: 'error', signal: AbortSignal.timeout(120_000) });
+          if (res.ok) { lastErr = null; break; }
+          lastErr = new Error(`Parça yüklemesi ${res.status}`);
+          if (res.status < 500) break;
+        } catch (err) {
+          lastErr = err;
+        }
+      }
+      if (lastErr) throw lastErr;
+    }
+  }
+
   /** PATCH — attributes: description | keywords | promotionalText | whatsNew (AppStoreVersionLocalizationUpdateRequest) */
   async updateVersionLocalization(id: string, attributes: Record<string, string>) {
     return this.request<{ data: any }>('PATCH', `/v1/appStoreVersionLocalizations/${id}`, {

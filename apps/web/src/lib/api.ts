@@ -72,7 +72,24 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   } catch (err: unknown) {
     throw new ApiError(0, toUserMessage(0, null), (err as Error)?.message);
   }
+  return parseResponse<T>(res, path);
+}
 
+/**
+ * Cok parcali (multipart) yukleme — Content-Type'i TARAYICI koyar (boundary);
+ * JSON varsayilani burada olmamali. Hata isleme request() ile ayni.
+ */
+async function requestForm<T>(path: string, form: FormData): Promise<T> {
+  let res: Response;
+  try {
+    res = await fetch(`${API_BASE}/api${path}`, { method: 'POST', body: form, credentials: 'include' });
+  } catch (err: unknown) {
+    throw new ApiError(0, toUserMessage(0, null), (err as Error)?.message);
+  }
+  return parseResponse<T>(res, path);
+}
+
+async function parseResponse<T>(res: Response, path: string): Promise<T> {
   if (!res.ok) {
     let body: unknown = null;
     try {
@@ -561,6 +578,28 @@ export const api = {
     request<any[]>(`/sites/${siteId}/aso/asc/apps/${ascAppId}/metadata/history`),
   revertAscMetadata: (siteId: string, ascAppId: string, fixId: string) =>
     request<any>(`/sites/${siteId}/aso/asc/apps/${ascAppId}/metadata/revert/${fixId}`, { method: 'POST' }),
+
+  // ASC ekran goruntuleri — dosya basina tek istek (prod nginx 25 MB/istek)
+  getAscScreenshots: (siteId: string, ascAppId: string, locale?: string) =>
+    request<any>(`/sites/${siteId}/aso/asc/apps/${ascAppId}/screenshots${locale ? `?locale=${encodeURIComponent(locale)}` : ''}`),
+  checkAscScreenshot: (siteId: string, ascAppId: string, file: File, displayType: string) => {
+    const form = new FormData();
+    form.append('displayType', displayType);
+    form.append('file', file);
+    return requestForm<any>(`/sites/${siteId}/aso/asc/apps/${ascAppId}/screenshots/check`, form);
+  },
+  uploadAscScreenshot: (siteId: string, ascAppId: string, file: File, locale: string, displayType: string) => {
+    const form = new FormData();
+    form.append('locale', locale);
+    form.append('displayType', displayType);
+    form.append('confirm', 'true');
+    form.append('file', file);
+    return requestForm<any>(`/sites/${siteId}/aso/asc/apps/${ascAppId}/screenshots/upload`, form);
+  },
+  clearAscScreenshots: (siteId: string, ascAppId: string, locale: string, displayType: string) =>
+    request<{ deleted: number }>(`/sites/${siteId}/aso/asc/apps/${ascAppId}/screenshots/clear`, { method: 'POST', body: JSON.stringify({ locale, displayType, confirm: true }) }),
+  deleteAscScreenshot: (siteId: string, ascAppId: string, screenshotId: string) =>
+    request<{ deleted: number }>(`/sites/${siteId}/aso/asc/apps/${ascAppId}/screenshots/${screenshotId}/delete`, { method: 'POST', body: JSON.stringify({ confirm: true }) }),
 
   /** Testimonials */
   submitTestimonial: (body: { siteId?: string; rating: number; body: string; role?: string; company?: string; metric?: string }) =>
