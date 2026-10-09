@@ -34,6 +34,8 @@ export interface RunSummary {
   trigger: string;
   headlineScore: number | null;
   providers: RunProvider[];
+  /** Alinti eslestirme yontemi surumu (host-match.ts); yoksa 1 */
+  matchVersion?: number | null;
 }
 
 export type QueryOutcome = 'cited' | 'mentioned' | 'none' | 'n/a';
@@ -78,6 +80,15 @@ export interface RunComparison {
   gained: number;
   lost: number;
   unchanged: number;
+  /**
+   * Yalniz bir kosumda olculen soru/saglayici ciftleri. Eskiden 'n/a' → 'none'
+   * "kazanc", 'none' → 'n/a' "kayip" sayiliyordu: prompt eklemek/silmek
+   * gorunurluk degisimi gibi gorunuyordu.
+   */
+  added: number;
+  removed: number;
+  /** Iki kosumun alinti olcum yontemi farkli — alinti degisimleri yontemden olabilir */
+  methodChanged: boolean;
   /** Soru bazli ozet (degisen + degismeyen hepsi) — rapor icin */
   queries: QueryRollup[];
   /** Anilma/atif sayaclari: once ve sonra */
@@ -90,6 +101,8 @@ const RANK: Record<QueryOutcome, number> = { 'n/a': -1, none: 0, mentioned: 1, c
 
 export function outcomeOf(p: RunProbe | undefined): QueryOutcome {
   if (!p) return 'n/a';
+  // Saglayici hatasi olcum degildir — "gorunmedi" (none) sayilirsa hata kayip gibi okunur
+  if (typeof p.excerpt === 'string' && p.excerpt.startsWith('HATA:')) return 'n/a';
   if (p.cited) return 'cited';
   if (p.brandMentioned) return 'mentioned';
   return 'none';
@@ -113,7 +126,7 @@ export function compareCitationRuns(a: RunSummary, b: RunSummary): RunComparison
   });
 
   const changed: QueryDiff[] = [];
-  let gained = 0, lost = 0, unchanged = 0;
+  let gained = 0, lost = 0, unchanged = 0, added = 0, removed = 0;
   for (const name of providerNames) {
     const pa = a.providers.find((p) => p.provider === name);
     const pb = b.providers.find((p) => p.provider === name);
@@ -124,6 +137,12 @@ export function compareCitationRuns(a: RunSummary, b: RunSummary): RunComparison
       const before = outcomeOf(qa.get(q));
       const after = outcomeOf(qb.get(q));
       if (before === after) { unchanged++; continue; }
+      // Bir tarafta olculmeyen cift kiyaslanamaz: kazanc/kayip DEGIL
+      if (before === 'n/a' || after === 'n/a') {
+        if (before === 'n/a') added++; else removed++;
+        changed.push({ provider: name, query: (qb.get(q) ?? qa.get(q))!.query, before, after, direction: 0 });
+        continue;
+      }
       const direction: 1 | -1 | 0 = RANK[after] > RANK[before] ? 1 : RANK[after] < RANK[before] ? -1 : 0;
       if (direction === 1) gained++; else if (direction === -1) lost++;
       changed.push({ provider: name, query: (qb.get(q) ?? qa.get(q))!.query, before, after, direction });
@@ -139,6 +158,9 @@ export function compareCitationRuns(a: RunSummary, b: RunSummary): RunComparison
     gained,
     lost,
     unchanged,
+    added,
+    removed,
+    methodChanged: (a.matchVersion ?? 1) !== (b.matchVersion ?? 1),
     queries: soruOzeti(a, b),
     mentions: { before: anilmaSayaci(a), after: anilmaSayaci(b) },
     daysBetween: Math.max(0, Math.round((new Date(b.runAt).getTime() - new Date(a.runAt).getTime()) / 86_400_000)),

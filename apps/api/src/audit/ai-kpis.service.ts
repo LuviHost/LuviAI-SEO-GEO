@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { brandSharePct, rivalsFromCompetitors } from './share-of-voice.js';
 import { unbrandedOnly } from './brand-in-query.js';
+import { compareCells, type TrendState } from './comparable-trend.js';
 
 /**
  * AI KPI seridi — Overview dashboard'un ust blogu.
@@ -51,6 +52,20 @@ export interface AiKpis {
    */
   queryMix: { branded: number; unbranded: number };
 
+  /**
+   * Deltalarin karsilastirilabilirligi (comparable-trend.ts). 'comparable'
+   * degilse GEO deltalari null'dur: prompt seti/saglayici degisti
+   * (scope_changed) ya da alinti olcum yontemi guncellendi (method_changed)
+   * — fark sitenin degil olcunun degisimi olurdu.
+   */
+  comparability: {
+    mentions: TrendState;
+    citations: TrendState;
+    /** ortak hucre orani, % */
+    coveragePct: number;
+    matchedCells: number;
+  };
+
   aiCrawlerHits: KpiValue;    // adet — AI bot istekleri
   aiReferrerHits: KpiValue;   // adet — ChatGPT/Perplexity'den gelen insan trafigi
   citeFetches: KpiValue;      // adet — canli cite sinyali (ChatGPT-User vb. on-demand fetch)
@@ -78,7 +93,7 @@ export class AiKpisService {
         where: { siteId, date: { gte: d14 }, prompt: { trackedAppId: null } },
         select: {
           date: true, cited: true, brandMentioned: true, sentiment: true, competitors: true,
-          brandInQuery: true,
+          brandInQuery: true, promptId: true, fanoutId: true, provider: true, matchVersion: true,
         },
       }),
       this.prisma.aiCrawlerHit.findMany({
@@ -109,26 +124,21 @@ export class AiKpisService {
     const recent = unbranded.filter((r) => r.date >= d7);
     const prev = unbranded.filter((r) => r.date < d7);
     const brandedRecent = branded.filter((r) => r.date >= d7);
-    const brandedPrev = branded.filter((r) => r.date < d7);
 
     // ── Mention & citation rate
     const rate = (rows: typeof runs, key: 'brandMentioned' | 'cited') =>
       rows.length ? Math.round((rows.filter((r) => r[key]).length / rows.length) * 1000) / 10 : null;
 
     const mentionNow = rate(recent, 'brandMentioned');
-    const mentionPrev = rate(prev, 'brandMentioned');
     const citedNow = rate(recent, 'cited');
-    const citedPrev = rate(prev, 'cited');
 
     // Atif var, marka anilmadi — cited && !brandMentioned (citation-score.ts ile ayni tanim)
     const cnmRate = (rows: typeof runs) =>
       rows.length ? Math.round((rows.filter((r) => r.cited && !r.brandMentioned).length / rows.length) * 1000) / 10 : null;
     const cnmNow = cnmRate(recent);
-    const cnmPrev = cnmRate(prev);
 
     // Taninirlik — marka adi gecen sorularda
     const bMentionNow = rate(brandedRecent, 'brandMentioned');
-    const bMentionPrev = rate(brandedPrev, 'brandMentioned');
 
     // ── Sentiment: pozitif / etiketli
     const sentimentPct = (rows: typeof runs) => {
@@ -137,7 +147,6 @@ export class AiKpisService {
       return Math.round((labeled.filter((r) => r.sentiment === 'positive').length / labeled.length) * 1000) / 10;
     };
     const sentNow = sentimentPct(recent);
-    const sentPrev = sentimentPct(prev);
 
     // ── Share of Voice ──
     // Hesap share-of-voice.ts'te; ai-citation.service.ts de ayni fonksiyonu
@@ -156,6 +165,22 @@ export class AiKpisService {
       );
     const sovNow = sov(recent);
     const sovPrev = sov(prev);
+
+    // ── Karsilastirilabilir deltalar (comparable-trend.ts) ──
+    // Hucre = prompt|fan-out × saglayici; yalnizca IKI donemde de olculen
+    // hucreler kiyaslanir. Manset deger (value) havuzdan kalir; delta bundan.
+    // matchVersion yalnizca ALINTI olcumunu etkiler (host-match) → anilma
+    // metrikleri surume baglanmaz.
+    const cellOf = (r: (typeof runs)[number]) => `${r.promptId}|${r.fanoutId ?? ''}|${r.provider}`;
+    const trend = (pool: typeof runs, value: (r: (typeof runs)[number]) => number, versioned: boolean) =>
+      compareCells(pool.map((r) => ({ cell: cellOf(r), current: r.date >= d7, value: value(r), version: versioned ? r.matchVersion : 1 })));
+    const pp = (t: ReturnType<typeof compareCells>) => (t.state === 'comparable' && t.delta !== null ? Math.round(t.delta * 1000) / 10 : null);
+    const mentionTrend = trend(unbranded, (r) => (r.brandMentioned ? 1 : 0), false);
+    const citedTrend = trend(unbranded, (r) => (r.cited ? 1 : 0), true);
+    const cnmTrend = trend(unbranded, (r) => (r.cited && !r.brandMentioned ? 1 : 0), true);
+    const bMentionTrend = trend(branded, (r) => (r.brandMentioned ? 1 : 0), false);
+    const sentTrend = trend(unbranded.filter((r) => r.sentiment), (r) => (r.sentiment === 'positive' ? 1 : 0), false);
+    const sameScope = mentionTrend.state === 'comparable';
 
     // ── Crawler / referrer hit toplamlari
     const sumHits = (rows: Array<{ date: Date; hits: number }>, from: Date, to?: Date) =>
@@ -184,35 +209,42 @@ export class AiKpisService {
       // anlatmali, yoksa grafik sayiyi yalanlar.
       mentionRate: {
         value: mentionNow,
-        deltaPct: this.delta(mentionNow, mentionPrev),
+        deltaPct: pp(mentionTrend),
         series: dailySeries((rows) => rate(rows, 'brandMentioned'), unbranded),
       },
       citationRate: {
         value: citedNow,
-        deltaPct: this.delta(citedNow, citedPrev),
+        deltaPct: pp(citedTrend),
         series: dailySeries((rows) => rate(rows, 'cited'), unbranded),
       },
       citedNotMentionedRate: {
         value: cnmNow,
-        deltaPct: this.delta(cnmNow, cnmPrev),
+        deltaPct: pp(cnmTrend),
         series: dailySeries(cnmRate, unbranded),
       },
       sentiment: {
         value: sentNow,
-        deltaPct: this.delta(sentNow, sentPrev),
+        deltaPct: pp(sentTrend),
         series: dailySeries(sentimentPct, unbranded),
       },
       shareOfVoice: {
         value: sovNow,
-        deltaPct: this.delta(sovNow, sovPrev),
+        // SoV hucre bazli tanimlanamaz (rakip sayimi); kapsam ayniysa havuz farki
+        deltaPct: sameScope ? this.delta(sovNow, sovPrev) : null,
         series: dailySeries(sov, unbranded),
       },
       brandedMentionRate: {
         value: bMentionNow,
-        deltaPct: this.delta(bMentionNow, bMentionPrev),
+        deltaPct: pp(bMentionTrend),
         series: dailySeries((rows) => rate(rows, 'brandMentioned'), branded),
       },
       queryMix: { branded: brandedRecent.length, unbranded: recent.length },
+      comparability: {
+        mentions: mentionTrend.state,
+        citations: citedTrend.state,
+        coveragePct: Math.round(mentionTrend.coverage * 100),
+        matchedCells: mentionTrend.matchedCells,
+      },
       aiCrawlerHits: {
         value: crawlerNow,
         deltaPct: crawlerPrev > 0 ? Math.round(((crawlerNow - crawlerPrev) / crawlerPrev) * 1000) / 10 : null,

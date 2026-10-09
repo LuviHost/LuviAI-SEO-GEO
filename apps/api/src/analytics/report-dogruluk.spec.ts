@@ -259,13 +259,17 @@ describe('AI gorunurluk alarmi — sahte dusus', () => {
     expect(src, 'olculemeyen skor yine 0 sayiliyor').not.toMatch(/r\.score \?\? 0/);
   });
 
-  it('yalnizca olculebilen skorlar ortalaniyor', () => {
-    expect(src).toContain('olculebilenSkorlar');
-    expect(src).toMatch(/available !== false && typeof r\.score === 'number'/);
+  // Ortalama artik karsilastirilabilir hucrelerden (snapshotTrend →
+  // comparable-trend): olculemeyen snapshot ve HATA probe hucreye HIC girmez;
+  // olcum yoksa sonuc 'no_data'/'no_previous' (null) — sifir degil.
+  // Davranis testi: audit/ai-mention-alarm.spec.ts
+  it('yalnizca olculebilen snapshot/probe hucreye giriyor', () => {
+    expect(src).toContain('snapshotTrend');
+    expect(src).toMatch(/available !== false/);
+    expect(src).toMatch(/startsWith\('HATA:'\)/);
   });
 
-  it('avg bos dizide null donuyor', () => {
-    expect(src).toMatch(/private avg\(arr: number\[\]\): number \| null/);
-    expect(src).toMatch(/if \(arr\.length === 0\) return null;/);
+  it('karsilastirilamayan donemde alarm uretilmiyor', () => {
+    expect(src).toMatch(/t\.state !== 'comparable'/);
   });
 });

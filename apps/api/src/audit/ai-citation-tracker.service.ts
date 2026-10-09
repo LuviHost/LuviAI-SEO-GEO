@@ -178,7 +178,7 @@ export class AiCitationTrackerService {
   async getRun(siteId: string, id: string): Promise<RunSummary | null> {
     const r = await this.prisma.aiCitationRun.findFirst({ where: { id, siteId } });
     if (!r) return null;
-    return { id: r.id, runAt: r.runAt.toISOString(), trigger: r.trigger, headlineScore: r.headlineScore, providers: (r.providers as any[]) ?? [] };
+    return { id: r.id, runAt: r.runAt.toISOString(), trigger: r.trigger, headlineScore: r.headlineScore, providers: (r.providers as any[]) ?? [], matchVersion: r.matchVersion };
   }
 
   /** a = onceki, b = sonraki (siralama gonderen tarafa bagli degil; runAt'e gore duzeltilir) */

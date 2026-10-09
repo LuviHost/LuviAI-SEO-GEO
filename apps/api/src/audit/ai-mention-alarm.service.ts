@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { EmailService } from '../email/email.service.js';
+import { compareCells, type TrendResult, type TrendRow } from './comparable-trend.js';
 
 export interface AlarmTrigger {
   siteId: string;
@@ -19,16 +20,32 @@ export interface AlarmTrigger {
  * tespit eder. Eger 7 gun ortalamasi onceki 7 gunden %30+ dustuyse
  * site sahibine email gonderir.
  */
+type SnapshotLike = {
+  provider: string;
+  available?: boolean;
+  probes?: unknown;
+  matchVersion?: number | null;
+};
+
 /**
- * Yalnizca GERCEKTEN olculmus skorlar.
- *
- * AiCitationSnapshot, saglayici cevap veremediginde `available=false` ve
- * `score=null` satiri yazar. Bu bir olcum degil, olcumun yoklugudur; ortalamaya
- * 0 olarak girerse kota bitmesi ya da anahtar hatasi "gorunurlugun dustu"
- * alarmina donusur ve musteriye sahte e-posta gider.
+ * Snapshot'lari karsilastirilabilir hucrelere cevirir: hucre = saglayici ×
+ * sorgu, deger = citation-score.ts ile AYNI puan (alinti 100, yalniz anilma
+ * 50). Yalnizca markasiz (brandInQuery degil) ve olculebilen (HATA: degil)
+ * probe'lar; available=false snapshot hic girmez (kota bitmesi / anahtar
+ * hatasi "olcum yok"tur, "skor 0" degil — eskiden sahte dusus e-postasi).
  */
-function olculebilenSkorlar(kayitlar: Array<{ available?: boolean; score?: number | null }>): number[] {
-  return kayitlar.filter((r) => r.available !== false && typeof r.score === 'number').map((r) => r.score as number);
+export function snapshotTrend(recent: SnapshotLike[], previous: SnapshotLike[], provider?: string): TrendResult {
+  const rows = (snaps: SnapshotLike[], current: boolean): TrendRow[] => snaps
+    .filter((s) => s.available !== false && (!provider || s.provider === provider))
+    .flatMap((s) => (Array.isArray(s.probes) ? s.probes : [])
+      .filter((p: any) => p && typeof p.query === 'string' && !String(p.excerpt ?? '').startsWith('HATA:') && !p.brandInQuery)
+      .map((p: any) => ({
+        cell: `${s.provider}|${p.query.trim().toLowerCase()}`,
+        current,
+        value: p.cited ? 100 : p.brandMentioned ? 50 : 0,
+        version: s.matchVersion ?? 1,
+      })));
+  return compareCells([...rows(recent, true), ...rows(previous, false)]);
 }
 
 @Injectable()
@@ -103,21 +120,16 @@ export class AiMentionAlarmService {
 
     const triggers: AlarmTrigger[] = [];
 
-    // Provider basina kontrol
+    // Provider basina kontrol — YALNIZCA ayni sorular ayni saglayicida iki
+    // donemde de olculduyse (comparable-trend). Beyin yenilenip sorular
+    // degisince ya da alinti olcum yontemi guncellenince eskiden musteriye
+    // sahte "gorunurlugun %X dustu" e-postasi gidiyordu.
     const providers = ['anthropic', 'gemini', 'openai', 'perplexity'];
     for (const p of providers) {
-      const recentP = recent.filter((r) => r.provider === p);
-      const previousP = previous.filter((r) => r.provider === p);
-      if (recentP.length === 0 || previousP.length === 0) continue;
-
-      // OLCULEMEYEN SNAPSHOT ORTALAMAYA GIRMEZ. AiCitationSnapshot,
-      // saglayici cevap veremediginde available=false + score=null satiri
-      // yaziyor. `?? 0` bunu gercek bir sifir sanip "gorunurlugun %X dustu"
-      // alarmini tetikliyordu — kota bitmesi ya da anahtar hatasi musteriye
-      // sahte dusus e-postasi olarak gidiyordu.
-      const recentAvg = this.avg(olculebilenSkorlar(recentP));
-      const previousAvg = this.avg(olculebilenSkorlar(previousP));
-      if (recentAvg === null || previousAvg === null) continue;
+      const t = snapshotTrend(recent as any[], previous as any[], p);
+      if (t.state !== 'comparable' || t.current === null || t.previous === null) continue;
+      const recentAvg = t.current;
+      const previousAvg = t.previous;
       if (previousAvg < 5) continue; // anlamsiz baz
 
       const delta = (recentAvg - previousAvg) / previousAvg;
@@ -145,12 +157,11 @@ export class AiMentionAlarmService {
       }
     }
 
-    // Genel skor kontrol
-    const recentOverall = this.avg(olculebilenSkorlar(recent));
-    const prevOverall = this.avg(olculebilenSkorlar(previous));
-    // Iki donemden biri hic olculemediyse genel karsilastirma yapilamaz —
-    // saglayici bazli tetikler yukarida zaten toplandi, onlari kaybetmeyelim.
-    if (recentOverall !== null && prevOverall !== null && prevOverall >= 5) {
+    // Genel kontrol — tum saglayicilarin ortak hucreleri
+    const overall = snapshotTrend(recent as any[], previous as any[]);
+    if (overall.state === 'comparable' && overall.current !== null && overall.previous !== null && overall.previous >= 5) {
+      const recentOverall = overall.current;
+      const prevOverall = overall.previous;
       const delta = (recentOverall - prevOverall) / prevOverall;
       if (delta <= -this.DROP_THRESHOLD) {
         triggers.push({
@@ -166,18 +177,6 @@ export class AiMentionAlarmService {
     }
 
     return triggers;
-  }
-
-  /**
-   * Ortalama — BOS DIZIDE null, 0 DEGIL.
-   *
-   * Onceden 0 donuyordu ve bu, "olcum yok" durumunu "skor sifir" haline
-   * getiriyordu; yukaridaki delta hesabi da bunu gercek bir cokus sanip
-   * musteriye alarm e-postasi gonderiyordu.
-   */
-  private avg(arr: number[]): number | null {
-    if (arr.length === 0) return null;
-    return arr.reduce((a, b) => a + b, 0) / arr.length;
   }
 
   private providerLabel(p: string): string {

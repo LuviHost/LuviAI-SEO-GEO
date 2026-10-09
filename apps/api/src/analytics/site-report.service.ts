@@ -1,4 +1,5 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { snapshotTrend } from '../audit/ai-mention-alarm.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { ReportsService, donemHesapla, type ReportOpts, type ReportOverview } from './reports.service.js';
 import { AppliedFixService } from '../audit/applied-fix.service.js';
@@ -23,6 +24,12 @@ export interface GeoBolumu {
   /** Donem basindaki skor — karsilastirma referansi */
   ilkSkor: number | null;
   delta: number | null;
+  /**
+   * Ilk/son gun karsilastirilabilir mi (comparable-trend). scope_changed:
+   * olculen sorular/saglayicilar degisti; method_changed: alinti olcum yontemi
+   * guncellendi — her iki durumda delta null (fark siteden degil olcuden).
+   */
+  karsilastirma?: string;
   /** Kac farkli gunde olcum yapildi — seri yogunlugu, guven gostergesi */
   olcumGunu: number;
   /** Saglayici bazinda donem ortalamasi */
@@ -285,16 +292,23 @@ export class SiteReportService {
     const ilkSkor = ilkSkorHam === null ? null : Math.round(ilkSkorHam);
     const sonSkor = sonSkorHam === null ? null : Math.round(sonSkorHam);
 
+    // Sorular/saglayicilar ya da olcum yontemi degistiyse fark "gorunurluk
+    // degisti" degildir. Yalnizca OLUMLU tespitte (probe'lar var ve farkli)
+    // delta gizlenir; probe tasimayan eski kayitlarda eski davranis surer.
+    const karsilastirma = snapshotTrend(sonlar as any[], ilkler as any[]);
+    const kiyaslanamaz = (t: { state: string }) => t.state === 'scope_changed' || t.state === 'method_changed';
+
     // Saglayici kirilimi
     const adlar = [...new Set(snapshots.map((s) => s.provider))].sort();
     const saglayicilar = adlar.map((ad) => {
       const i = ort(gecerli(ilkler.filter((s) => s.provider === ad)));
       const so = ort(gecerli(sonlar.filter((s) => s.provider === ad)));
+      const saglayiciKiyas = snapshotTrend(sonlar as any[], ilkler as any[], ad);
       return {
         provider: ad,
         ilk: i === null ? null : Math.round(i),
         son: so === null ? null : Math.round(so),
-        delta: i === null || so === null ? null : Math.round(so - i),
+        delta: i === null || so === null || kiyaslanamaz(saglayiciKiyas) ? null : Math.round(so - i),
       };
     });
 
@@ -321,7 +335,8 @@ export class SiteReportService {
       olculemedi: false,
       sonSkor,
       ilkSkor,
-      delta: ilkSkor === null || sonSkor === null ? null : sonSkor - ilkSkor,
+      delta: ilkSkor === null || sonSkor === null || kiyaslanamaz(karsilastirma) ? null : sonSkor - ilkSkor,
+      karsilastirma: karsilastirma.state,
       olcumGunu: gunler.size,
       saglayicilar,
       teknikGeoSkoru: teknikSon,

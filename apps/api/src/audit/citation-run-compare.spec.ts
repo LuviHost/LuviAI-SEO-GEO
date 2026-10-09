@@ -32,11 +32,27 @@ describe('compareCitationRuns', () => {
     expect(c.headlineDelta).toBeNull();
   });
 
-  it('bir kosumda olmayan soru n/a olarak gorunur ama yon hesabina girer', () => {
-    const A = run('1', [{ provider: 'openai', available: true, score: 0, probes: [] }]);
+  it('bir kosumda olmayan soru n/a gorunur ama kazanc/kayip SAYILMAZ (eklendi/cikarildi)', () => {
+    const A = run('1', [{ provider: 'openai', available: true, score: 0, probes: [probe('eski soru', false, false)] }]);
     const B = run('2', [{ provider: 'openai', available: true, score: 100, probes: [probe('yeni soru', true, false)] }]);
     const c = compareCitationRuns(A, B);
-    expect(c.changed[0]).toMatchObject({ before: 'n/a', after: 'cited', direction: 1 });
+    expect(c.changed.find((x) => x.query === 'yeni soru')).toMatchObject({ before: 'n/a', after: 'cited', direction: 0 });
+    expect(c).toMatchObject({ gained: 0, lost: 0, added: 1, removed: 1 });
+  });
+
+  it('saglayici hatasi (HATA:) olcum degildir — n/a', () => {
+    const A = run('1', [{ provider: 'openai', available: true, score: 100, probes: [probe('q', true, true)] }]);
+    const B = run('2', [{ provider: 'openai', available: true, score: null, probes: [{ ...probe('q', false, false), excerpt: 'HATA: 429' }] }]);
+    const c = compareCitationRuns(A, B);
+    expect(c.lost).toBe(0);
+    expect(c.removed).toBe(1);
+  });
+
+  it('olcum yontemi farkli kosumlar isaretlenir', () => {
+    const A = { ...run('1', []), matchVersion: 1 };
+    const B = { ...run('2', []), matchVersion: 2 };
+    expect(compareCitationRuns(A, B).methodChanged).toBe(true);
+    expect(compareCitationRuns(B, B).methodChanged).toBe(false);
   });
 
   it('outcomeOf / headlineOfProviders', () => {

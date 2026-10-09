@@ -282,6 +282,10 @@ export function geoRaporHtml(g: GeoRaporGirdi): string {
       <div><div style="font-size:19px;font-weight:800;color:#E2E8F0;font-variant-numeric:tabular-nums;">${aktifMotor}</div><div style="font-size:9.5px;color:${R.gri};">skor &gt; 0 motor</div></div>
     </div>
   </div>
+  ${(k.added ?? 0) + (k.removed ?? 0) > 0 || k.methodChanged ? `<div style="margin-top:12px;font-size:10px;color:${R.gri};line-height:1.5;">
+    ${(k.added ?? 0) + (k.removed ?? 0) > 0 ? `${k.added ?? 0} soru yalnız B'de, ${k.removed ?? 0} soru yalnız A'da ölçüldü — bunlar kazanç/kayıp sayılmadı. ` : ''}
+    ${k.methodChanged ? 'Atıf ölçüm yöntemi iki test arasında güncellendi (benzer alan adları artık atıf sayılmıyor); atıf farkının bir kısmı yöntemden kaynaklanabilir.' : ''}
+  </div>` : ''}
 </div>
 
 <div style="margin-top:26px;break-inside:avoid;">

@@ -231,7 +231,9 @@ export function DondurulmusRapor({ rapor }: { rapor: { data: any; periodStart: s
                 <Kutu
                   etiket="AI görünürlük skoru"
                   deger={geo.sonSkor ?? '—'}
-                  alt={<Delta deger={geo.delta} />}
+                  alt={geo.karsilastirma === 'scope_changed' || geo.karsilastirma === 'method_changed'
+                    ? <span className="text-label text-muted-foreground">{geo.karsilastirma === 'scope_changed' ? 'ölçülen sorular değişti — kıyas yok' : 'ölçüm yöntemi güncellendi — kıyas yok'}</span>
+                    : <Delta deger={geo.delta} />}
                 />
                 <Kutu etiket="Kaynak gösterildi" deger={sayi(geo.alintilanan)} />
                 <Kutu etiket="Marka anıldı" deger={sayi(geo.anilan)} />

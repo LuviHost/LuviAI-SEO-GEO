@@ -58,7 +58,15 @@ export function AiKpiStrip({ siteId }: { siteId: string }) {
   const mix = data.queryMix as { branded: number; unbranded: number } | undefined;
   // "Kaynak oldun, öneri değilsin": URL atıf aldı ama marka adı cevapta geçmedi.
   const citedNotMentioned: number | null = data.citedNotMentionedRate?.value ?? null;
+  // Delta yoksa NEDENİ söyle (API comparable-trend): ölçülen sorular/sağlayıcılar
+  // değiştiyse ya da atıf ölçüm yöntemi güncellendiyse kıyas gösterilmez.
+  const cmp = data.comparability as { mentions?: string; citations?: string } | undefined;
+  const kiyasNotu = (state?: string) =>
+    state === 'scope_changed' ? 'Kıyas yok: ölçülen sorular değişti'
+      : state === 'method_changed' ? 'Kıyas yok: ölçüm yöntemi güncellendi'
+        : null;
   const mentionNote = [
+    kiyasNotu(cmp?.mentions),
     brandedMention !== null ? `Markalı sorularda %${brandedMention}` : null,
     citedNotMentioned !== null && citedNotMentioned > 0 ? `Atıf var · ad anılmadı %${citedNotMentioned}` : null,
   ].filter(Boolean).join(' · ');
@@ -85,12 +93,14 @@ export function AiKpiStrip({ siteId }: { siteId: string }) {
       value: data.sentiment.value !== null ? `${data.sentiment.value}%` : '—',
       delta: data.sentiment.deltaPct, series: data.sentiment.series,
       href: 'visibility',
+      note: kiyasNotu(cmp?.mentions) ?? undefined,
     },
     {
       key: 'sov', label: 'Share of Voice (7g)', icon: PieChart, color: '#8b5cf6',
       value: data.shareOfVoice.value !== null ? `${data.shareOfVoice.value}%` : '—',
       delta: data.shareOfVoice.deltaPct, series: data.shareOfVoice.series,
       href: 'competitors',
+      note: kiyasNotu(cmp?.mentions) ?? undefined,
     },
     {
       key: 'crawler', label: 'AI Crawler (7g)', icon: Activity, color: '#06b6d4',
