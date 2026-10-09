@@ -12,8 +12,11 @@ describe('fixRouteFor', () => {
       expect(fixRouteFor(k)).toBe('snippet');
     }
   });
-  it('otomatik yolu olmayanlar manual (image_alt gorseller sayfasi gelene kadar)', () => {
-    for (const k of ['image_alt', 'geo_freshness', 'ai_citation', 'https', 'pagespeed', 'internal_linking', undefined, null, '']) {
+  it('image_alt gorseller sayfasina yonlenir', () => {
+    expect(fixRouteFor('image_alt')).toBe('images');
+  });
+  it('otomatik yolu olmayanlar manual', () => {
+    for (const k of ['geo_freshness', 'ai_citation', 'https', 'pagespeed', 'internal_linking', undefined, null, '']) {
       expect(fixRouteFor(k as any)).toBe('manual');
     }
   });

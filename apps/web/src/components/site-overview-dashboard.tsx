@@ -239,6 +239,7 @@ function NextActionWidget({ site, audit, articles, publishTargets, onRefresh }: 
   // auto-fix'e gidiyor, auto-fix ise yalnızca kök dosyaları üretebiliyordu.
   const autoFixable = issues.filter((i: any) => i.fixRoute === 'auto_fix');
   const snippetFixable = issues.filter((i: any) => i.fixRoute === 'snippet');
+  const imageAltIssues = issues.filter((i: any) => i.fixRoute === 'images');
   const scheduled = articles.filter((a) => a.status === 'SCHEDULED');
   const ready = articles.filter((a) => a.status === 'READY_TO_PUBLISH');
 
@@ -360,6 +361,18 @@ function NextActionWidget({ site, audit, articles, publishTargets, onRefresh }: 
       desc: 'Meta, şema ve GEO işaretlemesi sayfa sayfa üretilir; desteklenen CMS\'e uygulanır ya da kopyala-yapıştır.',
       cta: 'Snippet aracını aç',
       href: `/sites/${site.id}/snippet`,
+    });
+  }
+
+  // 2.3) Görsel alt metni — görerek öneri + kullanıcı onayı (görseller sayfası)
+  if (imageAltIssues.length > 0) {
+    actions.push({
+      id: 'image-alt',
+      icon: '🖼️',
+      title: 'Görsellerde eksik alt metni',
+      desc: imageAltIssues.map((i: any) => i.description).filter(Boolean)[0] ?? 'Alt metni olmayan görseller var.',
+      cta: 'Görselleri düzelt',
+      href: `/sites/${site.id}/images`,
     });
   }
 
@@ -672,9 +685,9 @@ function AuditSummaryInline({ site, audit }: { site: any; audit: any }) {
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium leading-snug">{iss.description || iss.type}</p>
                 </div>
-                {(iss.fixRoute === 'auto_fix' || iss.fixRoute === 'snippet') && (
+                {(iss.fixRoute === 'auto_fix' || iss.fixRoute === 'snippet' || iss.fixRoute === 'images') && (
                   <Badge variant="outline" className="text-[10px] border-brand/40 text-brand shrink-0">
-                    {iss.fixRoute === 'auto_fix' ? 'auto-fix' : 'snippet'}
+                    {iss.fixRoute === 'auto_fix' ? 'auto-fix' : iss.fixRoute === 'snippet' ? 'snippet' : 'görseller'}
                   </Badge>
                 )}
               </div>

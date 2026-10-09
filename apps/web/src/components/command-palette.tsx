@@ -30,6 +30,7 @@ import {
   ClipboardList,
   Lightbulb,
   Activity as ActivityIcon,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
@@ -95,6 +96,7 @@ export function CommandPalette() {
       { id: 'site:visibility', label: 'AI Görünürlük', hint: 'Citation tracking', group: 'navigate', icon: Sparkles, href: `/sites/${siteId}/visibility`, keywords: ['ai', 'citation', 'görünürlük'] },
       { id: 'site:geo', label: 'GEO Lab', hint: '6 pillar AI search', group: 'navigate', icon: Award, href: `/sites/${siteId}/geo-lab`, keywords: ['geo', 'pillar', 'optimization'] },
       { id: 'site:chat', label: 'Asistan', hint: 'Verinin üstünde konuşan chat + skills', group: 'navigate', icon: MessageSquare, href: `/sites/${siteId}/chat`, keywords: ['chat', 'asistan', 'skill', 'sor'] },
+      { id: 'site:images', label: 'Görsel Alt Metinleri', hint: 'Eksik alt metnine görerek öneri + onay', group: 'navigate', icon: ImageIcon, href: `/sites/${siteId}/images`, keywords: ['alt', 'görsel', 'resim', 'image', 'erişilebilirlik', 'google görseller'] },
       { id: 'site:crawler-live', label: 'Live Crawler', hint: 'Anlık AI bot ziyaretleri + cite sinyali', group: 'navigate', icon: ActivityIcon, href: `/sites/${siteId}/crawler-live`, keywords: ['crawler', 'live', 'canlı', 'bot', 'gptbot', 'cite', 'worker'] },
       { id: 'site:agent-readiness', label: 'Agent Readiness', hint: 'AXO — domain AI ajanlarına hazır mı', group: 'navigate', icon: Bot, href: `/sites/${siteId}/agent-readiness`, keywords: ['axo', 'agent', 'ajan', 'readiness', 'robots', 'mcp', 'a2a'] },
       { id: 'site:product-radar', label: 'Product Radar', hint: 'AI asistanlar kategoride kimi öneriyor', group: 'navigate', icon: RadarIcon, href: `/sites/${siteId}/product-radar`, keywords: ['radar', 'product', 'öneri', 'rakip'] },

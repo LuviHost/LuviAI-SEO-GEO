@@ -38,6 +38,7 @@ import {
   ClipboardList,
   Activity,
   Lock,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useEntitlements, type PlanFeature } from '@/lib/entitlements';
@@ -111,6 +112,7 @@ const SITE_GROUPS = (siteId: string): Array<{ id: string; label?: string; items:
       { href: `/sites/${siteId}/product-radar`, label: 'Product Radar', icon: RadarIcon, feature: 'productRadar' },
       { href: `/sites/${siteId}/competitors`, label: 'Rakipler', icon: Network },
       { href: `/sites/${siteId}/snippet`, label: 'Sayfa SEO İyileştir', icon: FileText },
+      { href: `/sites/${siteId}/images`, label: 'Görsel Alt Metinleri', icon: ImageIcon },
       { href: `/sites/${siteId}/stuck-pages`, label: 'Stuck Pages', icon: Wrench, feature: 'stuckPages' },
     ],
   },

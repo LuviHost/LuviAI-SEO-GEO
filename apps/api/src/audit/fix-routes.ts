@@ -10,8 +10,7 @@
  *   auto_fix → AutoFixService kok dosyayi uretir + yayin hedefine yazar
  *   snippet  → Snippet araci (/sites/:id/snippet): uretilir, CMS'e uygulanir
  *              ya da kopyala-yapistir
- *   images   → Gorseller sayfasi (alt metni oner/onayla/yaz) — sayfa gelene
- *              kadar image_alt 'manual' kalir
+ *   images   → Gorseller sayfasi (/sites/:id/images): alt metni oner/onayla/yaz
  *   manual   → otomatik yol yok (icerik/strateji isi)
  */
 
@@ -50,6 +49,7 @@ export function fixRouteFor(checkId: string | null | undefined): FixRoute {
   if (!checkId) return 'manual';
   if (isAutoFixKey(checkId)) return 'auto_fix';
   if (SNIPPET_CHECKS.has(checkId)) return 'snippet';
+  if (checkId === 'image_alt') return 'images';
   return 'manual';
 }
 

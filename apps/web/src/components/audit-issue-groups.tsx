@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import { Layers, Zap, ChevronDown, Puzzle } from 'lucide-react';
+import { Layers, Zap, ChevronDown, Puzzle, Image as ImageIcon } from 'lucide-react';
 import { api } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -87,6 +87,7 @@ export function AuditIssueGroups({ siteId, groups, onRefresh }: { siteId: string
                           <span className="text-muted-foreground">· {i.count} sayfa</span>
                           {i.fixRoute === 'auto_fix' && <span className="text-emerald-600 text-label">otomatik düzeltilebilir</span>}
                           {i.fixRoute === 'snippet' && <span className="text-brand text-label">snippet ile düzeltilir</span>}
+                          {i.fixRoute === 'images' && <span className="text-brand text-label">görseller sayfasında düzeltilir</span>}
                         </div>
                       ))}
                     </div>
@@ -97,6 +98,13 @@ export function AuditIssueGroups({ siteId, groups, onRefresh }: { siteId: string
                       {g.fixableCheckIds.length > 0 && (
                         <Button size="sm" variant="outline" onClick={() => fixGroup(g)} disabled={fixing !== null}>
                           <Zap className="h-3.5 w-3.5 mr-1.5" /> {fixing === g.template ? 'Düzeltiliyor…' : `Bu şablonu düzelt (${g.fixableCheckIds.join(', ')})`}
+                        </Button>
+                      )}
+                      {g.issues.some((i: any) => i.fixRoute === 'images') && (
+                        <Button size="sm" variant="outline" asChild>
+                          <Link href={`/sites/${siteId}/images`}>
+                            <ImageIcon className="h-3.5 w-3.5 mr-1.5" /> Alt metinlerini düzelt
+                          </Link>
                         </Button>
                       )}
                       {g.issues.some((i: any) => i.fixRoute === 'snippet') && (

@@ -685,6 +685,24 @@ export const api = {
   retestAiKey: (siteId: string, provider: string) =>
     request<any>(`/sites/${siteId}/ai-keys/${provider}/test`, { method: 'POST' }),
 
+  // Görsel alt metni (sites/:id/audit/images) — öneri → onay → siteye yazma
+  listSiteImages: (siteId: string, params: { status?: string; state?: string; page?: number } = {}) => {
+    const qs = new URLSearchParams();
+    if (params.status) qs.set('status', params.status);
+    if (params.state) qs.set('state', params.state);
+    if (params.page) qs.set('page', String(params.page));
+    const q = qs.toString();
+    return request<{ items: any[]; total: number; page: number; pageSize: number }>(`/sites/${siteId}/audit/images${q ? `?${q}` : ''}`);
+  },
+  getSiteImagesSummary: (siteId: string) =>
+    request<any>(`/sites/${siteId}/audit/images/summary`),
+  suggestSiteImages: (siteId: string, body: { imageIds?: string[]; all?: boolean; max?: number }) =>
+    request<{ queued: number; jobIds: string[] }>(`/sites/${siteId}/audit/images/suggest`, { method: 'POST', body: JSON.stringify(body) }),
+  suggestSiteImage: (siteId: string, imageId: string) =>
+    request<any>(`/sites/${siteId}/audit/images/${imageId}/suggest`, { method: 'POST' }),
+  decideSiteImage: (siteId: string, imageId: string, body: { decision: 'approve' | 'decorative' | 'dismiss' | 'reset'; approvedAlt?: string }) =>
+    request<any>(`/sites/${siteId}/audit/images/${imageId}`, { method: 'PATCH', body: JSON.stringify(body) }),
+
   applyAutoFix: (siteId: string, fixes: string[]) =>
     request<any>(`/sites/${siteId}/audit/auto-fix-now`, {
       method: 'POST',
