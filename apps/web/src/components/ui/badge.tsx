@@ -9,9 +9,13 @@ const badgeVariants = cva(
       variant: {
         default: 'bg-brand text-white',
         secondary: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-200',
-        success: 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-200',
-        warning: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-200',
-        destructive: 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-200',
+        // Durum tonlari token'dan (globals.css --success/--warning/--danger/--info)
+        success: 'bg-success/10 text-success',
+        warning: 'bg-warning/10 text-warning',
+        destructive: 'bg-danger/10 text-danger',
+        danger: 'bg-danger/10 text-danger',
+        info: 'bg-info/10 text-info',
+        brand: 'bg-brand/10 text-brand-700 dark:text-brand-300',
         outline: 'border border-slate-300 text-slate-700 dark:border-slate-700 dark:text-slate-200',
       },
     },

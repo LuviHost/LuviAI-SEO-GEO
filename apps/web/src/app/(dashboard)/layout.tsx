@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { Menu, X } from 'lucide-react';
+import { ConfirmProvider } from '@/components/ui/confirm-dialog';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { LocaleSwitch } from '@/components/locale-switch';
 import { UserMenu } from '@/components/user-menu';
@@ -66,7 +67,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       <main className="flex-1 p-4 sm:p-6 md:p-10 overflow-x-hidden pt-16 md:pt-10">
         {/* 1440px sinir: genis ekranda icerik duvara yapismasin (analitik UI sozlesmesi) */}
-        <div className="max-w-[1440px] mx-auto w-full">{children}</div>
+        <div className="max-w-[1440px] mx-auto w-full"><ConfirmProvider>{children}</ConfirmProvider></div>
       </main>
 
       {/* Cmd+K command palette */}

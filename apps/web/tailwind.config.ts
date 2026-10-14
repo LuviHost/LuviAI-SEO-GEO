@@ -68,6 +68,10 @@ const config: Config = {
           DEFAULT: 'hsl(var(--card))',
           foreground: 'hsl(var(--card-foreground))',
         },
+        popover: {
+          DEFAULT: 'hsl(var(--popover))',
+          foreground: 'hsl(var(--popover-foreground))',
+        },
         border: 'hsl(var(--border))',
         ring: 'hsl(var(--ring))',
         sidebar: {
@@ -77,6 +81,11 @@ const config: Config = {
           border: 'hsl(var(--sidebar-border))',
           hover: 'hsl(var(--sidebar-hover))',
         },
+        // Durum tonlari (globals.css) — bg-success/10 text-success gibi alfa ile
+        success: 'hsl(var(--success) / <alpha-value>)',
+        warning: 'hsl(var(--warning) / <alpha-value>)',
+        danger: 'hsl(var(--danger) / <alpha-value>)',
+        info: 'hsl(var(--info) / <alpha-value>)',
         // Apple-style neutrals — sicak gri tonu
         neutral: {
           50:  '#fafafa',

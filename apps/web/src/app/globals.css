@@ -40,6 +40,13 @@
     --chart-6: 0 84% 60%;    /* red */
     --chart-7: 43 96% 56%;   /* amber */
     --chart-8: 215 16% 57%;  /* slate — "diger" */
+
+    /* Durum tonlari — rozet, serit, durum metni TEK kaynak (eskiden ekran ekran
+       amber/rose/emerald/blue siniflari). AI yuzeyleri ayri renk ALMAZ: marka. */
+    --success: 152 61% 34%;
+    --warning: 32 95% 40%;
+    --danger: 0 72% 48%;
+    --info: 217 91% 48%;
   }
 
   .dark {
@@ -59,6 +66,11 @@
     --chart-6: 0 84% 66%;
     --chart-7: 43 96% 62%;
     --chart-8: 215 16% 65%;
+
+    --success: 152 55% 52%;
+    --warning: 38 92% 58%;
+    --danger: 0 84% 66%;
+    --info: 213 94% 68%;
 
     --background: 222 47% 11%;
     --foreground: 210 40% 98%;
