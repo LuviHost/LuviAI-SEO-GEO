@@ -1,34 +1,40 @@
 'use client';
 
-import { siteHref } from '@/lib/site-routes';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
+import type { LucideIcon } from 'lucide-react';
 import {
-  Activity, Bot, Calendar, FileText, Sparkles, Zap, Search, Send, ShieldCheck, TrendingUp, ChevronRight,
-  AlertTriangle, AlertCircle, CheckCircle2, Power, FileBarChart, ArrowRight,
-  Wrench,
+  Activity, AlertCircle, AlertTriangle, ArrowRight, Bot, CalendarClock, CheckCircle2, ClipboardList,
+  Eye, FileText, Image as ImageIcon, Loader2, Pause, PenLine, Plug, PieChart, Power, Rocket,
+  ScanSearch, Send, ShieldCheck, Sparkles, Wand2, Wrench, XCircle,
 } from 'lucide-react';
-import { AnalyticsRow, RecentActivity } from '@/components/analytics-row';
-import { AiCostStrip } from '@/components/ai-cost-strip';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
-import { Card, CardContent } from '@/components/ui/card';
+import { siteHref, type SiteRoute } from '@/lib/site-routes';
+import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { InfoTooltip } from '@/components/info-tooltip';
+import { MetricCard } from '@/components/ui/metric';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CitationHistoryChart } from '@/components/citation-history-chart';
 import { RanksUpImpactCard } from '@/components/ranksup-impact-card';
-import { GeoLabPanel } from '@/components/geo-lab-panel';
 import { TestimonialWidget } from '@/components/testimonial-widget';
 import { QuotaMonitor } from '@/components/quota-monitor';
 import { CrawlerHitsPanel } from '@/components/crawler-hits-panel';
-import { AdsLabPanel } from '@/components/ads-lab-panel';
-import { AiKpiStrip } from '@/components/ai-kpi-strip';
+import { AiCostStrip } from '@/components/ai-cost-strip';
+import { RecentActivity } from '@/components/recent-activity';
 
 /**
- * Site detay sayfasinin VARSAYILAN gorunumu — kisanin tum panelin onunde
- * 4 kart + son aktivite ozeti gormesi icin. Detaylar 'Detayli Akis' sekmesinde.
+ * Site Genel Bakis — UC BOLGE:
+ *   (a) Siradaki adim: TEK kart. Eskiden HealthBanner ve NextActionWidget ayni
+ *       ilk-kurulum sinyalini FARKLI mantikla iki kez veriyordu ("Yayin hedefi
+ *       yok" herhangi bir hedefe, "Yayin hedefi ekle" varsayilan+aktif hedefe
+ *       bakiyordu). Artik tek liste, tek kural: AKTIF bir hedef var mi
+ *       (sunucudaki auto-fix de herhangi bir aktif hedefi kullaniyor).
+ *   (b) Tek KPI satiri (ui/metric) — her kutu kendi iskeletiyle.
+ *   (c) Sekmeler: trendler / sorunlar / AI tarayicilar / maliyet / aktivite.
  */
 export function SiteOverviewDashboard({
   site, audit, articles, publishTargets, onRefresh,
@@ -39,679 +45,783 @@ export function SiteOverviewDashboard({
   publishTargets?: any[];
   onRefresh: () => void;
 }) {
-
-  const scheduled = articles.filter((a) => a.status === 'SCHEDULED');
   const published = articles.filter((a) => a.status === 'PUBLISHED');
-  const generating = articles.filter((a) => a.status === 'GENERATING' || a.status === 'EDITING');
-  const ready = articles.filter((a) => a.status === 'READY_TO_PUBLISH');
-
-  const overallScore = audit?.overallScore ?? null;
-  const geoScore = audit?.geoScore ?? null;
-  const issues = Array.isArray(audit?.issues) ? audit.issues : [];
-  const criticalIssues = issues.filter((i: any) => i.severity === 'critical');
-
-  const nextScheduled = scheduled
-    .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime())
-    .slice(0, 3);
+  const showTestimonial =
+    published.length >= 1 ||
+    (articles.length >= 3 && new Date(site.createdAt ?? 0).getTime() < Date.now() - 7 * 86400_000);
 
   return (
-    <div className="space-y-5">
-      {/* Sprint 6 — Saglik / hata banner */}
-      <HealthBanner site={site} audit={audit} articles={articles} publishTargets={publishTargets ?? []} />
-
-      {/* Sıradaki Aksiyon — kullanıcı sayfaya inince ilk gördüğü öğe (KPI'lerin üstünde) */}
-      <NextActionWidget site={site} audit={audit} articles={articles} publishTargets={publishTargets ?? []} onRefresh={onRefresh} />
-
-      {/* RanksUp Etkisi — bütünsel before-after (GEO/AI + SEO/Google) değer kartı */}
-      <RanksUpImpactCard siteId={site.id} days={90} />
-
-      {/* AI KPI Şeridi — Mention Rate / Sentiment / SOV / AI Crawler / Agent Ready */}
-      <AiKpiStrip siteId={site.id} />
-
-      {/* Cloudflare-inspired analytics row: 3 stat cards with animated sparklines */}
-      <AnalyticsRow siteId={site.id} audit={audit} articles={articles} />
-      <AiCostStrip siteId={site.id} />
-
-      {/* Aylık kotalar + bütçe uyarısı */}
-      <QuotaMonitor />
-
-      {/* Testimonial widget — kullanıcı 7+ gün aktifse veya makale yayınladıysa göster */}
-      {(published.length >= 1 || (articles.length >= 3 && new Date(site.createdAt ?? 0).getTime() < Date.now() - 7 * 86400_000)) && (
-        <TestimonialWidget siteId={site.id} />
-      )}
-
-      {/* Site Skoru özeti — onboarding sonrası kullanıcı detayı doğrudan görsün */}
-      <AuditSummaryInline site={site} audit={audit} />
-
-      {/* ENH#5: Stuck Pages KPI — DETECTED durumdaki sayfa varsa goster */}
-      <StuckPagesKpiCard siteId={site.id} />
-
-      {/* Otomatik akış banner — İçerik tab'ına taşındı (yayın akışı = içerik kontrolü) */}
-
-      {/* Sirada Yayinlanacaklar */}
-      {nextScheduled.length > 0 && (
-        <Card className="rounded-lg shadow-sm">
-          <CardContent className="p-5">
-            <div className="flex items-center justify-between mb-3.5">
-              <p className="text-sm font-semibold inline-flex items-center gap-2">
-                <Zap className="h-4 w-4 text-brand-500" /> Sırada Yayınlanacaklar
-              </p>
-              <Link href={siteHref(site.id, 'articles')} className="text-xs text-brand-600 dark:text-brand-400 hover:underline font-medium">
-                Takvimi aç →
-              </Link>
-            </div>
-            <div className="space-y-2">
-              {nextScheduled.map((a) => {
-                const d = new Date(a.scheduledAt);
-                return (
-                  <div key={a.id} className="flex items-center gap-3 p-2.5 rounded-xl border hover:border-brand-500/40 hover:bg-brand-500/[0.02] transition-colors">
-                    <div className="text-center min-w-[68px] bg-gradient-to-br from-brand-500/15 to-brand-600/10 text-brand-700 dark:text-brand-300 rounded-lg px-2 py-1.5 ring-1 ring-brand-500/20">
-                      <div className="text-[10px] font-bold tracking-wide uppercase">
-                        {d.toLocaleDateString('tr-TR', { weekday: 'short' })}
-                      </div>
-                      <div className="text-sm font-bold leading-tight">
-                        {d.getDate()}.{(d.getMonth() + 1).toString().padStart(2, '0')}
-                      </div>
-                      <div className="text-[10px] font-mono">
-                        {d.getHours().toString().padStart(2, '0')}:{d.getMinutes().toString().padStart(2, '0')}
-                      </div>
-                    </div>
-                    <p className="text-sm font-medium flex-1 min-w-0 truncate">{a.title || a.topic}</p>
-                  </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Recent Activity — son 6 olay (Cloudflare audit log pattern) */}
-      <RecentActivity articles={articles} audit={audit} siteId={site.id} />
-
-      {/* AI Görünürlük Trendi (otomatik gunluk takip) */}
-      <CitationHistoryChart siteId={site.id} siteName={site.name} siteUrl={site.url} />
-
-      {/* AI Crawler Trafigi (sunucu log analitigi) */}
-      <CrawlerHitsPanel siteId={site.id} />
-
-      {/* Quick links to deep-dive panels — GeoLab, Ads, Report (artık ayrı route'larda) */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <Link href={`/sites/${site.id}/geo-lab`} className="group rounded-lg border bg-card p-4 hover:border-brand-500/40 hover:shadow-lg hover:shadow-brand-500/5 hover:-translate-y-0.5 transition-all">
-          <div className="flex items-center justify-between mb-2.5">
-            <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-amber-500/15 to-amber-600/10 text-amber-600 dark:text-amber-400 grid place-items-center ring-1 ring-amber-500/20">
-              <Sparkles className="h-4 w-4" />
-            </div>
-            <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/40 group-hover:text-brand-500 group-hover:translate-x-0.5 transition-all" />
-          </div>
-          <p className="text-sm font-semibold mb-0.5">GEO Lab</p>
-          <p className="text-xs text-muted-foreground">6 pillar AI search optimizasyonu — heatmap, Wikidata, training.</p>
-        </Link>
-        <Link href={`/sites/${site.id}/ads`} className="group rounded-lg border bg-card p-4 hover:border-brand-500/40 hover:shadow-lg hover:shadow-brand-500/5 hover:-translate-y-0.5 transition-all">
-          <div className="flex items-center justify-between mb-2.5">
-            <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-brand-500/15 to-brand-600/10 text-brand-600 dark:text-brand-400 grid place-items-center ring-1 ring-brand-500/20">
-              <TrendingUp className="h-4 w-4" />
-            </div>
-            <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/40 group-hover:text-brand-500 group-hover:translate-x-0.5 transition-all" />
-          </div>
-          <p className="text-sm font-semibold mb-0.5">Reklam Autopilot</p>
-          <p className="text-xs text-muted-foreground">Google + Meta ads ROAS optimize — 6 saatte bir bütçe ayarı.</p>
-        </Link>
-        <Link href={`/sites/${site.id}/report`} className="group rounded-lg border bg-card p-4 hover:border-brand-500/40 hover:shadow-lg hover:shadow-brand-500/5 hover:-translate-y-0.5 transition-all">
-          <div className="flex items-center justify-between mb-2.5">
-            <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-indigo-500/15 to-indigo-600/10 text-indigo-600 dark:text-indigo-400 grid place-items-center ring-1 ring-indigo-500/20">
-              <FileBarChart className="h-4 w-4" />
-            </div>
-            <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/40 group-hover:text-brand-500 group-hover:translate-x-0.5 transition-all" />
-          </div>
-          <p className="text-sm font-semibold mb-0.5">Detaylı Rapor</p>
-          <p className="text-xs text-muted-foreground">Toplam performans, makale-bazlı metrikler, 30 günlük özet.</p>
-        </Link>
-      </div>
-
-      
-
-      {/* Generating / Ready bandi */}
-      {(generating.length > 0 || ready.length > 0) && (
-        <Card className="rounded-lg shadow-sm">
-          <CardContent className="p-4 space-y-2.5">
-            {generating.length > 0 && (
-              <div className="flex items-center justify-between flex-wrap gap-2">
-                <p className="text-sm flex items-center gap-2">
-                  <span className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
-                  <strong>{generating.length}</strong> makale şu anda üretiliyor
-                </p>
-                <span className="text-xs text-muted-foreground">~3-4 dakika</span>
-              </div>
-            )}
-            {ready.length > 0 && (
-              <div className="flex items-center justify-between flex-wrap gap-2">
-                <p className="text-sm flex items-center gap-2">
-                  <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                  <strong>{ready.length}</strong> makale yayına hazır
-                </p>
-                <Link href={siteHref(site.id, 'articles')} className="text-xs text-brand-600 dark:text-brand-400 hover:underline font-medium">
-                  İncele →
-                </Link>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Hizli linkler */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-        <QuickLink href={siteHref(site.id, 'articles')} icon={<FileText className="h-4 w-4" />} label="Içerik" />
-        <QuickLink href={siteHref(site.id, 'report')} icon={<TrendingUp className="h-4 w-4" />} label="Rapor" />
-        <QuickLink href={siteHref(site.id, 'analytics')} icon={<Search className="h-4 w-4" />} label="Analytics" />
-        <QuickLink href={siteHref(site.id, 'settings')} icon={<ShieldCheck className="h-4 w-4" />} label="Ayarlar" />
-      </div>
+    <div className="space-y-6">
+      <NextStepCard site={site} audit={audit} articles={articles} publishTargets={publishTargets ?? []} onRefresh={onRefresh} />
+      <KpiRow siteId={site.id} audit={audit} articles={articles} />
+      <OverviewTabs site={site} audit={audit} articles={articles} />
+      {showTestimonial && <TestimonialWidget siteId={site.id} />}
     </div>
   );
 }
 
+// ──────────────────────────────────────────────────────────────────────
+// (a) SIRADAKI ADIM
+// ──────────────────────────────────────────────────────────────────────
 
-function QuickLink({ href, icon, label }: { href: string; icon: React.ReactNode; label: string }) {
+type Tone = 'danger' | 'warning' | 'brand' | 'info';
+
+const TONE_CHIP: Record<Tone, string> = {
+  danger: 'bg-danger/10 text-danger',
+  warning: 'bg-warning/10 text-warning',
+  brand: 'bg-brand/10 text-brand',
+  info: 'bg-info/10 text-info',
+};
+
+type Step = {
+  id: string;
+  tone: Tone;
+  icon: LucideIcon;
+  title: string;
+  desc: string;
+  cta: string;
+  href?: string;
+  run?: () => Promise<void>;
+};
+
+const FIX_LABEL: Record<string, string> = {
+  sitemap_xml: 'Sitemap.xml',
+  robots_txt: 'Robots.txt',
+  llms_txt: 'llms.txt (AI tarayıcı izni)',
+  faq_schema: 'FAQ şeması',
+  article_schema: 'Article şeması',
+  organization_schema: 'Organization şeması',
+  breadcrumb_schema: 'Breadcrumb şeması',
+  open_graph: 'Open Graph meta',
+  twitter_card: 'Twitter Card meta',
+  hreflang: 'Hreflang',
+  canonical: 'Canonical etiketi',
+};
+
+const fixLabel = (id: string) => FIX_LABEL[id] ?? id;
+
+function NextStepCard({ site, audit, articles, publishTargets, onRefresh }: {
+  site: any; audit: any; articles: any[]; publishTargets: any[]; onRefresh: () => void;
+}) {
+  const [busy, setBusy] = useState<string | null>(null);
+  const [stuckCount, setStuckCount] = useState(0);
+
+  // Takili sayfalar (DETECTED) — plan disindaysa API reddeder, sessizce 0
+  useEffect(() => {
+    let cancelled = false;
+    api.listStuckPages(site.id, 'DETECTED')
+      .then((rows) => { if (!cancelled) setStuckCount(Array.isArray(rows) ? rows.length : 0); })
+      .catch(() => { if (!cancelled) setStuckCount(0); });
+    return () => { cancelled = true; };
+  }, [site.id]);
+
+  const steps = useMemo(
+    () => buildSteps({ site, audit, articles, publishTargets, stuckCount, onRefresh }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [site, audit, articles, publishTargets, stuckCount],
+  );
+
+  const runStep = async (step: Step) => {
+    if (!step.run) return;
+    setBusy(step.id);
+    try { await step.run(); } finally { setBusy(null); }
+  };
+
+  const href = (route: SiteRoute) => siteHref(site.id, route);
+
+  if (steps.length === 0) {
+    return (
+      <Card className="flex flex-wrap items-center gap-4 p-5">
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-md bg-success/10 text-success">
+          <CheckCircle2 className="h-5 w-5" aria-hidden />
+        </span>
+        <div className="min-w-0 flex-1">
+          <h2 className="text-base font-semibold">Her şey yolunda</h2>
+          <p className="text-sm text-muted-foreground">Şu an bekleyen bir adım yok. Otomatik akış çalışmaya devam ediyor.</p>
+        </div>
+        <Button asChild variant="outline" size="sm">
+          <Link href={href('actionPlan')}>Aksiyon planı <ArrowRight className="h-3.5 w-3.5" aria-hidden /></Link>
+        </Button>
+      </Card>
+    );
+  }
+
+  const [primary, ...rest] = steps;
+  const visibleRest = rest.slice(0, 3);
+  const PrimaryIcon = primary.icon;
+
   return (
-    <Link href={href as any} className="rounded-lg border p-3 flex items-center justify-between gap-2 hover:border-brand/40 hover:bg-brand/5 transition-colors">
-      <span className="flex items-center gap-2 text-sm font-medium">
-        {icon} {label}
-      </span>
-      <ChevronRight className="h-4 w-4 text-muted-foreground" />
-    </Link>
+    <Card className="overflow-hidden">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b px-5 py-3">
+        <h2 className="inline-flex items-center gap-2 text-sm font-semibold">
+          Sıradaki adım
+          {steps.length > 1 && <Badge variant="brand">{steps.length} iş</Badge>}
+        </h2>
+        <Link href={href('actionPlan')} className="inline-flex items-center gap-1 text-label text-muted-foreground hover:text-brand">
+          <ClipboardList className="h-3.5 w-3.5" aria-hidden /> Tüm aksiyon planı
+        </Link>
+      </div>
+
+      {/* Birincil adim */}
+      <div className="flex flex-wrap items-center gap-4 p-5">
+        <span className={cn('grid h-11 w-11 shrink-0 place-items-center rounded-md', TONE_CHIP[primary.tone])}>
+          <PrimaryIcon className="h-5 w-5" aria-hidden />
+        </span>
+        <div className="min-w-[14rem] flex-1">
+          <p className="text-base font-semibold leading-snug">{primary.title}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{primary.desc}</p>
+        </div>
+        <StepAction step={primary} busy={busy === primary.id} onRun={runStep} primary />
+      </div>
+
+      {/* Diger adimlar */}
+      {visibleRest.length > 0 && (
+        <ul className="divide-y border-t">
+          {visibleRest.map((s) => {
+            const Icon = s.icon;
+            return (
+              <li key={s.id} className="flex flex-wrap items-center gap-3 px-5 py-3">
+                <span className={cn('grid h-8 w-8 shrink-0 place-items-center rounded-md', TONE_CHIP[s.tone])}>
+                  <Icon className="h-4 w-4" aria-hidden />
+                </span>
+                <div className="min-w-[12rem] flex-1">
+                  <p className="text-sm font-medium">{s.title}</p>
+                  <p className="text-label text-muted-foreground">{s.desc}</p>
+                </div>
+                <StepAction step={s} busy={busy === s.id} onRun={runStep} />
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </Card>
   );
 }
 
+function StepAction({ step, busy, onRun, primary }: { step: Step; busy: boolean; onRun: (s: Step) => void; primary?: boolean }) {
+  const variant = primary ? 'default' : 'outline';
+  const size = primary ? 'default' : 'sm';
+  if (step.href) {
+    return (
+      <Button asChild variant={variant} size={size} className="shrink-0">
+        <Link href={step.href as any}>
+          {step.cta} {primary && <ArrowRight className="h-4 w-4" aria-hidden />}
+        </Link>
+      </Button>
+    );
+  }
+  return (
+    <Button variant={variant} size={size} className="shrink-0" onClick={() => onRun(step)} disabled={busy} aria-busy={busy}>
+      {busy && <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden />}
+      {step.cta}
+    </Button>
+  );
+}
 
-// ──────────────────────────────────────────────────────────────────────
-// SIRADAKI AKSIYON — Sprint 5 (kullanıcıya ne yapacağını söyleyen widget)
-// ──────────────────────────────────────────────────────────────────────
-function NextActionWidget({ site, audit, articles, publishTargets, onRefresh }: {
-  site: any; audit: any; articles: any[]; publishTargets: any[]; onRefresh: () => void;
-}) {
-  // Aktif default publish target var mı? Auto-fix bunu gerektirir (FTP/SFTP/WordPress).
-  const activeTarget = (publishTargets ?? []).find((t: any) => t?.isDefault && t?.isActive);
+/**
+ * Adim listesi — ONCELIK SIRASIYLA. Ilk oge birincil kart olur.
+ * Saf fonksiyon: ayni girdi ayni listeyi verir (tek kural kaynagi).
+ */
+function buildSteps({ site, audit, articles, publishTargets, stuckCount, onRefresh }: {
+  site: any; audit: any; articles: any[]; publishTargets: any[]; stuckCount: number; onRefresh: () => void;
+}): Step[] {
+  const href = (route: SiteRoute) => siteHref(site.id, route);
+  const steps: Step[] = [];
+
+  // TEK KURAL: aktif hedef (varsayilan once). Sunucu auto-fix'i herhangi bir aktif hedefle yapar.
+  const activeTarget =
+    publishTargets.find((t: any) => t?.isActive && t?.isDefault) ?? publishTargets.find((t: any) => t?.isActive);
   const hasPublishTarget = !!activeTarget;
-  const [autoFixing, setAutoFixing] = useState(false);
 
-  const overallScore = audit?.overallScore ?? null;
+  const overallScore: number | null = audit?.overallScore ?? null;
+  const geoScore: number | null = audit?.geoScore ?? null;
   const issues: any[] = Array.isArray(audit?.issues) ? audit.issues : [];
-  // fixRoute (API /audit/latest ekler): auto_fix = kök dosya üretilip yüklenir;
-  // snippet = meta/şema snippet aracında. Eskiden tüm `fixable` sorunlar
-  // auto-fix'e gidiyor, auto-fix ise yalnızca kök dosyaları üretebiliyordu.
+  // fixRoute (API /audit/latest ekler): auto_fix = kok dosya uretilip yuklenir;
+  // snippet = meta/sema sayfa sayfa; images = alt metni
   const autoFixable = issues.filter((i: any) => i.fixRoute === 'auto_fix');
   const snippetFixable = issues.filter((i: any) => i.fixRoute === 'snippet');
   const imageAltIssues = issues.filter((i: any) => i.fixRoute === 'images');
   const scheduled = articles.filter((a) => a.status === 'SCHEDULED');
   const ready = articles.filter((a) => a.status === 'READY_TO_PUBLISH');
+  const failed = articles.filter((a) => a.status === 'FAILED');
+  const oldReady = ready.filter((a) => Date.now() - new Date(a.updatedAt ?? a.createdAt).getTime() > 3 * 86400000);
+  const onboarded = !!site?.onboardingCompletedAt;
 
-  const aiCitationProviders = audit?.checks?.aiCitations?.providers ?? [];
-  const noAiSnapshot = aiCitationProviders.length === 0 || aiCitationProviders.every((p: any) => !p.available);
+  const aiProviders: any[] = audit?.checks?.aiCitations?.providers ?? [];
+  const noAiSnapshot = aiProviders.length === 0 || aiProviders.every((p: any) => !p.available);
 
-  // Aksiyonları öncelik sırasına göre sırala
-  type Action = { id: string; icon: string; title: string; desc: string; cta: string; href?: string; onClick?: () => void; loading?: boolean };
-  const actions: Action[] = [];
-
-  // 1) Audit henüz yoksa — onboarding tamamlandıysa bile bu state'e düşebilir (timing).
-  //    Yine de "yeniden tara" değil, "tara" olarak göster.
+  // 1) Tarama yok
   if (overallScore === null) {
-    actions.push({
+    steps.push({
       id: 'audit',
-      icon: '🔎',
-      title: 'Site taramasını tamamla',
-      desc: 'Onboarding sonucunda audit henüz hazır değil. Tarama 30sn sürer — şu an başlat.',
-      cta: 'Taramayı çalıştır',
-      onClick: async () => {
+      tone: onboarded ? 'warning' : 'brand',
+      icon: ScanSearch,
+      title: 'Site taramasını başlat',
+      desc: 'SEO ve GEO sorunları henüz tespit edilmedi. Tarama yaklaşık 30 saniye sürer.',
+      cta: 'Taramayı başlat',
+      run: async () => {
         try {
           await api.runAuditNow(site.id);
-          toast.success('Tarama başlatıldı, ~30 sn sonra sonuç gelir');
+          toast.success('Tarama başladı, yaklaşık 30 saniye içinde sonuç gelir');
           setTimeout(onRefresh, 5000);
         } catch (err: any) { toast.error(err.message); }
       },
     });
   }
 
-  // 1.5) Auto-fix mümkün ama PUBLISH TARGET yok → öncelikle bunu çöz
-  //      Bu olmadan auto-fix dosyaları yükleyemez, kullanıcı tıklar boşa gider.
-  if (autoFixable.length > 0 && !hasPublishTarget) {
-    actions.push({
-      id: 'add-publish-target',
-      icon: '🔌',
-      title: 'Yayın hedefi ekle (auto-fix bunu gerektirir)',
-      desc: `${autoFixable.length} otomatik düzeltme uygulanabilir ama bağlı bir yayın hedefi yok. FTP/SFTP/WordPress ekle ki sitemap.xml, robots.txt gibi dosyalar yüklensin.`,
+  // 2) Aktif yayin hedefi yok — kurulum bittiyse ya da otomatik duzeltme bunu bekliyorsa
+  if (!hasPublishTarget && (onboarded || autoFixable.length > 0)) {
+    steps.push({
+      id: 'publish-target',
+      tone: 'danger',
+      icon: Plug,
+      title: 'Yayın hedefi ekle',
+      desc: autoFixable.length > 0
+        ? `${autoFixable.length} sorun otomatik düzeltilebilir ama bağlı bir yayın hedefi yok. WordPress, FTP ya da SFTP ekle; sitemap.xml, robots.txt gibi dosyalar yüklensin.`
+        : 'Üretilen yazıların nereye yayınlanacağı belli değil. WordPress, FTP ya da SFTP ekle.',
       cta: 'Yayın hedefi ekle',
-      href: siteHref(site.id, 'publishTargets'),
+      href: href('publishTargets'),
     });
   }
 
-  // 2) Auto-fix — neyin düzelteceğini description'da açık yaz (publish target VARSA)
-  if (autoFixable.length > 0 && hasPublishTarget) {
-    const FIX_LABEL: Record<string, string> = {
-      sitemap_xml: 'Sitemap.xml',
-      robots_txt: 'Robots.txt',
-      llms_txt: 'llms.txt (AI crawler izni)',
-      faq_schema: 'FAQ Schema',
-      article_schema: 'Article Schema',
-      organization_schema: 'Organization Schema',
-      breadcrumb_schema: 'Breadcrumb Schema',
-      open_graph: 'Open Graph meta',
-      twitter_card: 'Twitter Card meta',
-      hreflang: 'Hreflang',
-      canonical: 'Canonical tag',
-    };
-    const labels = autoFixable.map((i: any) => FIX_LABEL[i.checkId] ?? i.checkId).filter(Boolean);
-    const labelList = labels.length <= 3 ? labels.join(', ') : `${labels.slice(0, 3).join(', ')} +${labels.length - 3} daha`;
+  // 3) Uretimi basarisiz yazilar
+  if (failed.length > 0) {
+    steps.push({
+      id: 'failed',
+      tone: 'danger',
+      icon: XCircle,
+      title: `${failed.length} yazı üretilemedi`,
+      desc: 'AI anahtarının bakiyesi bitmiş ya da yayın hedefi erişilemez olabilir. Yazıyı açıp yeniden dene.',
+      cta: 'Yazıları gör',
+      href: href('articles'),
+    });
+  }
 
-    actions.push({
+  // 4) Otomatik duzeltme (aktif hedef VARSA)
+  if (autoFixable.length > 0 && hasPublishTarget) {
+    const labels = autoFixable.map((i: any) => fixLabel(i.checkId)).filter(Boolean);
+    const labelList = labels.length <= 3 ? labels.join(', ') : `${labels.slice(0, 3).join(', ')} ve ${labels.length - 3} tane daha`;
+    steps.push({
       id: 'autofix',
-      icon: '⚡',
+      tone: 'brand',
+      icon: Wand2,
       title: `${autoFixable.length} SEO sorununu otomatik düzelt`,
-      desc: `Şunlar oluşturulup ${activeTarget?.type ? activeTarget.type.toUpperCase() : 'yayın hedefi'}'ne yüklenecek: ${labelList}.`,
+      desc: `${activeTarget?.name || (activeTarget?.type ? String(activeTarget.type).toUpperCase() : 'Yayın hedefin')} üzerine yüklenecek: ${labelList}.`,
       cta: 'Şimdi düzelt',
-      loading: autoFixing,
-      onClick: async () => {
-        setAutoFixing(true);
+      run: async () => {
         try {
           const fixIds = autoFixable.map((i: any) => i.checkId).filter(Boolean);
           toast.message(`Uygulanıyor: ${labels.join(', ')}`, {
-            description: 'Backend dosyaları üretip yayın hedefine yüklüyor (~10-20sn).',
+            description: 'Dosyalar üretilip yayın hedefine yükleniyor (10-20 sn).',
           });
-
           const result: any = await api.applyAutoFix(site.id, fixIds);
-
-          // Yayın hedefi yoksa açık uyarı
           if (result?.reason === 'no-publish-target') {
-            toast.error('Yayın hedefi yok — önce Ayarlar > Yayın Hedefleri sekmesinden FTP/SFTP/WordPress ekle.', {
-              duration: 9000,
-            });
+            toast.error('Aktif yayın hedefi yok — önce Yayın Hedefleri sayfasından WordPress, FTP ya da SFTP ekle.', { duration: 9000 });
             return;
           }
-
           const applied: string[] = Array.isArray(result?.applied) ? result.applied : [];
           const errors: Array<{ fix: string; error: string }> = Array.isArray(result?.errors) ? result.errors : [];
           const unsupported: string[] = Array.isArray(result?.unsupported) ? result.unsupported : [];
-
-          if (applied.length > 0) {
-            const appliedLabels = applied.map((f) => FIX_LABEL[f] ?? f).join(', ');
-            toast.success(`${applied.length} düzeltme uygulandı: ${appliedLabels}`, { duration: 7000 });
-          }
-          if (errors.length > 0) {
-            const errLine = errors.map((e) => `${FIX_LABEL[e.fix] ?? e.fix}: ${e.error}`).join(' · ');
-            toast.error(`${errors.length} düzeltme başarısız — ${errLine}`, { duration: 9000 });
-          }
-          if (unsupported.length > 0) {
-            toast.warning(`${unsupported.length} madde otomatik düzeltilemez: ${unsupported.map((f) => FIX_LABEL[f] ?? f).join(', ')}`, { duration: 9000 });
-          }
-          if (applied.length === 0 && errors.length === 0 && unsupported.length === 0) {
-            toast.warning('Hiçbir değişiklik yapılmadı (boş response).');
-          }
-
+          if (applied.length > 0) toast.success(`${applied.length} düzeltme uygulandı: ${applied.map(fixLabel).join(', ')}`, { duration: 7000 });
+          if (errors.length > 0) toast.error(`${errors.length} düzeltme başarısız — ${errors.map((e) => `${fixLabel(e.fix)}: ${e.error}`).join(' · ')}`, { duration: 9000 });
+          if (unsupported.length > 0) toast.warning(`${unsupported.length} madde otomatik düzeltilemez: ${unsupported.map(fixLabel).join(', ')}`, { duration: 9000 });
+          if (applied.length === 0 && errors.length === 0 && unsupported.length === 0) toast.warning('Hiçbir değişiklik yapılmadı.');
           setTimeout(onRefresh, 3000);
         } catch (err: any) { toast.error(err.message); }
-        finally { setAutoFixing(false); }
       },
     });
   }
 
-  // 2.2) Snippet ile düzeltilecekler — auto-fix bunları üretemez; snippet aracı
-  //      sayfa sayfa üretir, WordPress'e uygular ya da kopyala-yapıştır verir.
-  if (snippetFixable.length > 0) {
-    actions.push({
-      id: 'snippet-fix',
-      icon: '🧩',
-      title: `${snippetFixable.length} sorun snippet ile düzeltilir`,
-      desc: 'Meta, şema ve GEO işaretlemesi sayfa sayfa üretilir; desteklenen CMS\'e uygulanır ya da kopyala-yapıştır.',
-      cta: 'Snippet aracını aç',
-      href: `/sites/${site.id}/snippet`,
+  // 5) Onay bekleyen yazilar (eski bekleyenler ayrica vurgulanir)
+  if (ready.length > 0) {
+    steps.push({
+      id: 'review',
+      tone: oldReady.length > 0 ? 'warning' : 'brand',
+      icon: Eye,
+      title: `${ready.length} yazı onayını bekliyor`,
+      desc: oldReady.length > 0
+        ? `${oldReady.length} tanesi 3 günden uzun süredir bekliyor. Önizle ve yayına al.`
+        : 'AI yazdı ama henüz yayınlanmadı. Önizle ve onayla.',
+      cta: 'Onaya git',
+      href: href('articles'),
     });
   }
 
-  // 2.3) Görsel alt metni — görerek öneri + kullanıcı onayı (görseller sayfası)
+  // 6) Sayfa bazli (snippet) duzeltmeler
+  if (snippetFixable.length > 0) {
+    steps.push({
+      id: 'snippet',
+      tone: 'brand',
+      icon: PenLine,
+      title: `${snippetFixable.length} sorun sayfa bazında düzeltilebilir`,
+      desc: 'Başlık, meta, şema ve GEO işaretlemesi sayfa sayfa üretilir; WordPress’e uygulanır ya da kopyalanır.',
+      cta: 'Sayfa SEO’yu aç',
+      href: href('snippet'),
+    });
+  }
+
+  // 7) Gorsel alt metni
   if (imageAltIssues.length > 0) {
-    actions.push({
+    steps.push({
       id: 'image-alt',
-      icon: '🖼️',
+      tone: 'info',
+      icon: ImageIcon,
       title: 'Görsellerde eksik alt metni',
       desc: imageAltIssues.map((i: any) => i.description).filter(Boolean)[0] ?? 'Alt metni olmayan görseller var.',
       cta: 'Görselleri düzelt',
-      href: `/sites/${site.id}/images`,
+      href: href('images'),
     });
   }
 
-  // 2.5) GEO Score düşük — manuel sayfa iyileştirmesi gerek
-  const geoScore = audit?.geoScore ?? null;
+  // 8) Takili sayfalar
+  if (stuckCount > 0) {
+    steps.push({
+      id: 'stuck',
+      tone: 'warning',
+      icon: Wrench,
+      title: `${stuckCount} sayfa ilk sayfada takılı`,
+      desc: 'Google’da ilk sayfadalar ama ilk 3’e giremiyorlar. Küçük iyileştirmelerle yukarı taşınabilirler.',
+      cta: 'Sayfaları kurtar',
+      href: href('stuckPages'),
+    });
+  }
+
+  // 9) GEO skoru dusuk ve otomatik duzeltme yok
   if (geoScore !== null && geoScore < 50 && autoFixable.length === 0) {
-    actions.push({
-      id: 'geo-improve',
-      icon: '🔍',
-      title: `GEO görünürlüğü zayıf (${geoScore}/100)`,
-      desc: 'Schema markup, FAQ, llms.txt, speakable content eksik. Sayfa bazlı snippet üreticisi ile iyileştir.',
-      cta: 'Snippet Üretici',
-      href: siteHref(site.id, 'snippet'),
+    steps.push({
+      id: 'geo',
+      tone: 'warning',
+      icon: Sparkles,
+      title: `AI görünürlük altyapısı zayıf (${geoScore}/100)`,
+      desc: 'Şema, SSS, llms.txt ve okunabilir içerik eksik. Sayfa SEO aracıyla sayfa sayfa iyileştir.',
+      cta: 'İyileştir',
+      href: href('snippet'),
     });
   }
 
-  // 2.7) Site skoru düşük + autofix yok = manuel issue listesi göster
+  // 10) Dusuk skor + elle duzeltilecek sorunlar
   if (overallScore !== null && overallScore < 60 && autoFixable.length === 0 && issues.length > 0) {
-    actions.push({
-      id: 'manual-issues',
-      icon: '⚠️',
-      title: `${issues.length} sorun manuel düzeltme bekliyor`,
-      desc: 'Otomatik düzeltilmeyen sorunları Site Skoru kartında satır satır gör — her birinin ne demek + nasıl düzelteceği yazılı.',
-      cta: 'Detayları gör',
-      href: siteHref(site.id, 'audit'),
+    steps.push({
+      id: 'manual',
+      tone: 'warning',
+      icon: AlertTriangle,
+      title: `${issues.length} sorun elle düzeltilmeyi bekliyor`,
+      desc: 'Site Skoru sayfasında her sorunun ne anlama geldiğini ve nasıl düzelteceğini gör.',
+      cta: 'Sorunları gör',
+      href: href('audit'),
     });
   }
 
-  // 3) AI snapshot yok
+  // 11) AI olcumu yok
   if (noAiSnapshot && overallScore !== null) {
-    actions.push({
+    steps.push({
       id: 'ai-citation',
-      icon: '🧠',
+      tone: 'info',
+      icon: Bot,
       title: 'AI görünürlüğünü ölç',
-      desc: 'ChatGPT, Claude, Gemini, Perplexity senin siteni biliyor mu? Test et.',
-      cta: 'AI testini çalıştır',
-      href: siteHref(site.id, 'visibility'),
+      desc: 'ChatGPT, Claude, Gemini ve Perplexity siteni biliyor mu? Ölç ve takibe al.',
+      cta: 'Ölçümü başlat',
+      href: href('visibility'),
     });
   }
 
-  // 4) Takvim boş
+  // 12) Takvim bos
   if (scheduled.length === 0 && ready.length === 0 && overallScore !== null) {
-    actions.push({
+    steps.push({
       id: 'topics',
-      icon: '🎯',
-      title: 'İçerik takvimi oluştur',
-      desc: 'AI başlık önerileri ile ilk yazıları takvime al — otomatik üretim ve yayın için.',
+      tone: 'brand',
+      icon: FileText,
+      title: 'İçerik takvimini oluştur',
+      desc: 'AI başlık önerilerinden ilk yazıları seç; üretim ve yayın otomatik ilerlesin.',
       cta: 'Başlık seç',
-      href: siteHref(site.id, 'articles'),
+      href: href('articles'),
     });
   }
 
-  // 5) Hazır yazı varsa onaya çağır
-  if (ready.length > 0) {
-    actions.push({
-      id: 'review',
-      icon: '👁️',
-      title: `${ready.length} yazı onayını bekliyor`,
-      desc: 'AI yazdı ama henüz yayınlanmadı — önizle ve onayla.',
-      cta: 'Onaya git',
-      href: siteHref(site.id, 'articles'),
-    });
-  }
-
-  // 6) Sıradaki yazı bilgisi
-  const nextScheduled = scheduled
-    .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime())[0];
-  if (nextScheduled && actions.length === 0) {
-    const dt = new Date(nextScheduled.scheduledAt);
-    actions.push({
+  // 13) Baska is yoksa siradaki yazi bilgisi
+  const next = [...scheduled].sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime())[0];
+  if (next && steps.length === 0) {
+    const dt = new Date(next.scheduledAt);
+    steps.push({
       id: 'next',
-      icon: '⏰',
-      title: `Sıradaki yazı: "${nextScheduled.title?.slice(0, 50) ?? 'Başlıksız'}"`,
+      tone: 'info',
+      icon: CalendarClock,
+      title: `Sıradaki yazı: “${next.title?.slice(0, 60) ?? 'Başlıksız'}”`,
       desc: `${dt.toLocaleString('tr-TR', { weekday: 'long', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} tarihinde otomatik üretilecek.`,
       cta: 'Takvimi gör',
-      href: siteHref(site.id, 'articles'),
+      href: href('articles'),
     });
   }
 
-  // Hiç aksiyon yoksa hiçbir şey gösterme
-  if (actions.length === 0) return null;
+  return steps;
+}
 
-  /* ↑ actions listesi yukarıda doluyor; aşağı görsel render. */
+// ──────────────────────────────────────────────────────────────────────
+// (b) KPI SATIRI
+// ──────────────────────────────────────────────────────────────────────
 
-  // Sadece ilk 3 aksiyonu göster
-  const visible = actions.slice(0, 3);
-  const primary = visible[0];
-  const rest = visible.slice(1);
+function KpiTile({ href, loading, title, children }: { href: string; loading?: boolean; title?: string; children: React.ReactNode }) {
+  if (loading) return <Skeleton className="h-full min-h-[150px] w-full" aria-label="Yükleniyor" />;
+  return (
+    <Link href={href as any} title={title} className="block h-full rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">
+      {children}
+    </Link>
+  );
+}
+
+const pct = (v: number | null | undefined) => (typeof v === 'number' ? v : null);
+
+function KpiRow({ siteId, audit, articles }: { siteId: string; audit: any; articles: any[] }) {
+  const [kpis, setKpis] = useState<any>(null);
+  const [kpisLoading, setKpisLoading] = useState(true);
+  const [headline, setHeadline] = useState<any>(null);
+  const [headlineLoading, setHeadlineLoading] = useState(true);
+
+  // Iki kaynak paralel; her kutu kendi kaynagi gelince acilir (veri hazir tablolardan, olcum KOSMAZ)
+  useEffect(() => {
+    let cancelled = false;
+    setKpisLoading(true);
+    setHeadlineLoading(true);
+    api.getAiKpis(siteId)
+      .then((d) => { if (!cancelled) setKpis(d); })
+      .catch(() => { if (!cancelled) setKpis(null); })
+      .finally(() => { if (!cancelled) setKpisLoading(false); });
+    api.getCitationHeadline(siteId, 14)
+      .then((r) => { if (!cancelled) setHeadline(r?.headline ?? null); })
+      .catch(() => { if (!cancelled) setHeadline(null); })
+      .finally(() => { if (!cancelled) setHeadlineLoading(false); });
+    return () => { cancelled = true; };
+  }, [siteId]);
+
+  const href = (route: SiteRoute) => siteHref(siteId, route);
+
+  // Site skoru — baglamdan
+  const overallScore: number | null = audit?.overallScore ?? null;
+  const issues: any[] = Array.isArray(audit?.issues) ? audit.issues : [];
+  const autoFixable = issues.filter((i: any) => i.fixRoute === 'auto_fix').length;
+
+  // Icerik — baglamdan
+  const published = articles.filter((a) => a.status === 'PUBLISHED').length;
+  const scheduled = articles.filter((a) => a.status === 'SCHEDULED').length;
+  const generating = articles.filter((a) => a.status === 'GENERATING' || a.status === 'EDITING').length;
+
+  // AI gorunurluk manseti — grafikle AYNI kaynak (7g ortalama); yoksa tarama anindaki skor
+  const aiScore: number | null = headline?.score ?? audit?.checks?.aiCitations?.score ?? null;
+  const aiHint = headline?.method === 'rolling' ? '7 günlük ortalama' : headline?.method === 'first-run' ? 'İlk ölçüm' : 'Atıf skoru';
+
+  // Mansetteki anilma YALNIZ markasiz sorulardan: marka adi soruda gecince anilmasi totolojik
+  const mention = pct(kpis?.mentionRate?.value);
+  const branded = pct(kpis?.brandedMentionRate?.value);
+  const citedNotMentioned = pct(kpis?.citedNotMentionedRate?.value);
+  const mix = kpis?.queryMix as { branded: number; unbranded: number } | undefined;
+  const cmp = kpis?.comparability as { mentions?: string } | undefined;
+  const scopeNote =
+    cmp?.mentions === 'scope_changed' ? 'Kıyas yok: ölçülen sorular değişti'
+      : cmp?.mentions === 'method_changed' ? 'Kıyas yok: ölçüm yöntemi güncellendi'
+        : null;
+  const mentionHint = [
+    scopeNote,
+    branded !== null ? `Markalı sorularda %${branded}` : null,
+    citedNotMentioned !== null && citedNotMentioned > 0 ? `Atıf var, ad anılmadı %${citedNotMentioned}` : null,
+  ].filter(Boolean).join(' · ') || 'Son 7 gün';
+  const mentionHelp =
+    'Marka adı sorunun içinde geçmeyen sorulardaki anılma oranı — asıl görünürlük ölçüsü budur. ' +
+    'Marka adı geçen sorularda anılmak beklenen bir sonuç olduğu için ayrı tutulur.' +
+    (mix ? ` Son 7 gün: ${mix.unbranded} markasız, ${mix.branded} markalı ölçüm.` : '') +
+    (citedNotMentioned !== null ? ' "Atıf var, ad anılmadı": siten kaynak gösterildi ama marka adın cevapta geçmedi.' : '');
+
+  const sov = pct(kpis?.shareOfVoice?.value);
+  const crawler = pct(kpis?.aiCrawlerHits?.value);
+  const delta = (v: unknown) => (typeof v === 'number' && v !== 0 && !scopeNote ? v : undefined);
 
   return (
-    <div className="rounded-lg border border-brand-500/40 bg-gradient-to-br from-brand-500/[0.07] via-amber-500/[0.04] to-brand-500/[0.06] p-5 shadow-[0_8px_30px_-12px_rgba(249,115,22,0.25)]">
-      <div className="flex items-center gap-2 mb-4">
-        <span className="inline-flex items-center justify-center h-8 w-8 rounded-xl bg-gradient-to-br from-brand-500 to-brand-600 text-white shadow-sm shadow-brand-500/20">
-          <Sparkles className="h-4 w-4" />
-        </span>
-        <p className="font-bold text-base">Sıradaki Aksiyon{visible.length > 1 ? 'lar' : ''}</p>
-        <span className="text-[10px] uppercase tracking-widest text-brand-600/80 dark:text-brand-400/80 font-mono ml-auto">en yüksek etki için</span>
+    <section aria-labelledby="kpi-heading">
+      <h2 id="kpi-heading" className="sr-only">Temel göstergeler</h2>
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+        <KpiTile href={href('audit')}>
+          <MetricCard
+            className="h-full"
+            icon={ShieldCheck}
+            label="Site skoru"
+            value={overallScore ?? '—'}
+            suffix={overallScore !== null ? '/100' : undefined}
+            hint={overallScore === null ? 'Tarama bekleniyor' : autoFixable > 0 ? `${issues.length} sorun · ${autoFixable} otomatik` : `${issues.length} sorun`}
+          />
+        </KpiTile>
+        <KpiTile href={href('visibility')} loading={headlineLoading}>
+          <MetricCard
+            className="h-full"
+            icon={Sparkles}
+            label="AI görünürlük"
+            value={aiScore ?? '—'}
+            delta={typeof headline?.deltaVsPrev === 'number' && headline.deltaVsPrev !== 0 ? headline.deltaVsPrev : undefined}
+            deltaSuffix=" puan"
+            hint={aiScore === null ? 'Henüz ölçülmedi' : aiHint}
+          />
+        </KpiTile>
+        {/* Aciklama title'da: link icine tiklanabilir ipucu koymak gezinmeyi tetikler */}
+        <KpiTile href={href('geoLab')} loading={kpisLoading} title={mentionHelp}>
+          <MetricCard
+            className="h-full"
+            icon={Bot}
+            label="Anılma oranı (markasız)"
+            value={mention ?? '—'}
+            suffix={mention !== null ? '%' : undefined}
+            delta={delta(kpis?.mentionRate?.deltaPct)}
+            deltaSuffix=" puan"
+            hint={mention === null ? 'Henüz ölçülmedi' : mentionHint}
+          />
+        </KpiTile>
+        <KpiTile href={href('competitors')} loading={kpisLoading}>
+          <MetricCard
+            className="h-full"
+            icon={PieChart}
+            label="Ses payı"
+            value={sov ?? '—'}
+            suffix={sov !== null ? '%' : undefined}
+            delta={delta(kpis?.shareOfVoice?.deltaPct)}
+            deltaSuffix=" puan"
+            hint={sov === null ? 'Henüz ölçülmedi' : 'Rakiplere göre · 7 gün'}
+          />
+        </KpiTile>
+        <KpiTile href={href('crawler')} loading={kpisLoading}>
+          <MetricCard
+            className="h-full"
+            icon={Activity}
+            label="AI bot ziyareti"
+            value={crawler ?? '—'}
+            delta={typeof kpis?.aiCrawlerHits?.deltaPct === 'number' && kpis.aiCrawlerHits.deltaPct !== 0 ? kpis.aiCrawlerHits.deltaPct : undefined}
+            deltaSuffix="%"
+            hint={crawler === null ? 'Veri yok' : 'Son 7 gün'}
+          />
+        </KpiTile>
+        <KpiTile href={href('articles')}>
+          <MetricCard
+            className="h-full"
+            icon={Send}
+            label="Yayında"
+            value={published}
+            hint={generating > 0 ? `${scheduled} takvimde · ${generating} üretiliyor` : `${scheduled} takvimde`}
+          />
+        </KpiTile>
       </div>
+    </section>
+  );
+}
 
-      {/* Birincil aksiyon — büyük ve baskın */}
-      <div className="rounded-xl bg-card border border-brand-500/25 p-4 flex items-center gap-4 flex-wrap mb-2 shadow-sm">
-        <span className="text-3xl shrink-0">{primary.icon}</span>
-        <div className="flex-1 min-w-[220px]">
-          <p className="text-base font-semibold leading-snug">{primary.title}</p>
-          <p className="text-xs text-muted-foreground mt-1">{primary.desc}</p>
-        </div>
-        {primary.href ? (
-          <Link href={primary.href}>
-            <Button size="lg" className="font-semibold">{primary.cta} →</Button>
-          </Link>
-        ) : (
-          <Button size="lg" onClick={primary.onClick} disabled={primary.loading} className="font-semibold">
-            {primary.loading ? '…' : `${primary.cta} →`}
-          </Button>
-        )}
-      </div>
+// ──────────────────────────────────────────────────────────────────────
+// (c) SEKMELER
+// ──────────────────────────────────────────────────────────────────────
 
-      {/* İkincil aksiyonlar — daha kompakt */}
-      {rest.length > 0 && (
-        <div className="space-y-2 mt-3">
-          {rest.map((a, idx) => (
-            <div key={a.id} className="rounded-lg bg-card/60 border p-3 flex items-center gap-3 flex-wrap">
-              <span className="text-lg shrink-0">{a.icon}</span>
-              <div className="flex-1 min-w-[180px]">
-                <p className="text-sm font-medium">
-                  {idx + 2}. {a.title}
-                </p>
-                <p className="text-xs text-muted-foreground mt-0.5">{a.desc}</p>
-              </div>
-              {a.href ? (
-                <Link href={a.href}>
-                  <Button size="sm" variant="outline">{a.cta}</Button>
-                </Link>
-              ) : (
-                <Button size="sm" variant="outline" onClick={a.onClick} disabled={a.loading}>
-                  {a.loading ? '…' : a.cta}
-                </Button>
-              )}
-            </div>
+const TAB_KEY = 'ranksup_overview_tab';
+const TABS = [
+  { id: 'trends', label: 'Trendler' },
+  { id: 'issues', label: 'Sorunlar' },
+  { id: 'crawler', label: 'AI tarayıcılar' },
+  { id: 'cost', label: 'Maliyet ve kota' },
+  { id: 'activity', label: 'Aktivite' },
+] as const;
+
+function OverviewTabs({ site, audit, articles }: { site: any; audit: any; articles: any[] }) {
+  const [tab, setTab] = useState<string>('trends');
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(TAB_KEY);
+      if (saved && TABS.some((t) => t.id === saved)) setTab(saved);
+    } catch { /* noop */ }
+  }, []);
+  const onChange = (v: string) => {
+    setTab(v);
+    try { window.localStorage.setItem(TAB_KEY, v); } catch { /* noop */ }
+  };
+
+  return (
+    <Tabs value={tab} onValueChange={onChange}>
+      <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+        <TabsList aria-label="Genel bakış bölümleri" className="w-max">
+          {TABS.map((t) => (
+            <TabsTrigger key={t.id} value={t.id}>{t.label}</TabsTrigger>
           ))}
+        </TabsList>
+      </div>
+
+      <TabsContent value="trends" className="mt-4 space-y-4">
+        <RanksUpImpactCard siteId={site.id} days={90} />
+        <CitationHistoryChart siteId={site.id} siteName={site.name} siteUrl={site.url} />
+      </TabsContent>
+
+      <TabsContent value="issues" className="mt-4">
+        <AuditSummary site={site} audit={audit} />
+      </TabsContent>
+
+      <TabsContent value="crawler" className="mt-4">
+        <CrawlerHitsPanel siteId={site.id} />
+      </TabsContent>
+
+      <TabsContent value="cost" className="mt-4 space-y-4">
+        <AiCostStrip siteId={site.id} />
+        <QuotaMonitor />
+      </TabsContent>
+
+      <TabsContent value="activity" className="mt-4 space-y-4">
+        <PipelineStatus siteId={site.id} articles={articles} />
+        <UpcomingArticles siteId={site.id} articles={articles} />
+        <RecentActivity articles={articles} audit={audit} siteId={site.id} />
+      </TabsContent>
+    </Tabs>
+  );
+}
+
+/** Uretimde / yayina hazir yazi sayilari */
+function PipelineStatus({ siteId, articles }: { siteId: string; articles: any[] }) {
+  const generating = articles.filter((a) => a.status === 'GENERATING' || a.status === 'EDITING').length;
+  const ready = articles.filter((a) => a.status === 'READY_TO_PUBLISH').length;
+  if (generating === 0 && ready === 0) return null;
+  return (
+    <Card className="divide-y">
+      {generating > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm">
+          <span className="inline-flex items-center gap-2">
+            <Loader2 className="h-4 w-4 animate-spin text-warning motion-reduce:animate-none" aria-hidden />
+            <strong className="tabular-nums">{generating}</strong> yazı şu anda üretiliyor
+          </span>
+          <span className="text-label text-muted-foreground">yaklaşık 3-4 dakika</span>
         </div>
       )}
-    </div>
+      {ready > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm">
+          <span className="inline-flex items-center gap-2">
+            <CheckCircle2 className="h-4 w-4 text-success" aria-hidden />
+            <strong className="tabular-nums">{ready}</strong> yazı yayına hazır
+          </span>
+          <Link href={siteHref(siteId, 'articles')} className="text-label font-medium text-brand hover:underline">
+            İncele
+          </Link>
+        </div>
+      )}
+    </Card>
   );
 }
 
-
-// ──────────────────────────────────────────────────────────────────────
-// HEALTH BANNER — Sprint 6 (kritik hatalari gosterir)
-// ──────────────────────────────────────────────────────────────────────
-function HealthBanner({ site, audit, articles, publishTargets }: { site: any; audit: any; articles: any[]; publishTargets: any[] }) {
-  const issues: { kind: 'error' | 'warning'; title: string; desc: string; cta?: { label: string; href: string } }[] = [];
-
-  // 1) Yayin hedefi yok mu?
-  const hasPublishTarget = (publishTargets?.length ?? 0) > 0;
-  if (!hasPublishTarget && site?.onboardingCompletedAt) {
-    issues.push({
-      kind: 'error',
-      title: 'Yayın hedefi yok',
-      desc: 'Üretilen yazılar nereye gidecek belirlenmemiş. Hemen bir hedef ekle.',
-      cta: { label: 'Hedef ekle', href: siteHref(site.id, 'settings') },
-    });
-  }
-
-  // 2) Audit yok mu?
-  if (!audit && site?.onboardingCompletedAt) {
-    issues.push({
-      kind: 'warning',
-      title: 'Site taraması yapılmadı',
-      desc: 'SEO + GEO sorunları henüz tespit edilmedi. Tarama başlatmak için Skoru Yenile butonuna bas.',
-    });
-  }
-
-  // 3) Failed article var mi?
-  const failedArticles = articles.filter((a) => a.status === 'FAILED');
-  if (failedArticles.length > 0) {
-    issues.push({
-      kind: 'error',
-      title: `${failedArticles.length} yazı üretiminde hata`,
-      desc: 'Yazı üretimi başarısız oldu — AI key bakiyesi bitmiş veya yayın hedefi düşmüş olabilir.',
-      cta: { label: 'Detayları gör', href: siteHref(site.id, 'audit') },
-    });
-  }
-
-  // 4) Onaya bekleyen ama eski yazi var mi (3 gunden uzun)?
-  const oldReady = articles.filter((a) => {
-    if (a.status !== 'READY_TO_PUBLISH') return false;
-    const created = new Date(a.updatedAt ?? a.createdAt);
-    return Date.now() - created.getTime() > 3 * 86400000;
-  });
-  if (oldReady.length > 0) {
-    issues.push({
-      kind: 'warning',
-      title: `${oldReady.length} yazı 3 günden uzun süredir onay bekliyor`,
-      desc: 'AI yazdı ama yayınlanmadı. Onaya gitmek istersen Detaylı Akış sekmesine geç.',
-      cta: { label: 'Onaya git', href: siteHref(site.id, 'articles') },
-    });
-  }
-
-  if (issues.length === 0) return null;
-
+/** Takvimdeki ilk 3 yazi */
+function UpcomingArticles({ siteId, articles }: { siteId: string; articles: any[] }) {
+  const next = articles
+    .filter((a) => a.status === 'SCHEDULED')
+    .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime())
+    .slice(0, 3);
+  if (next.length === 0) return null;
   return (
-    <div className="space-y-2">
-      {issues.map((iss, idx) => {
-        const isError = iss.kind === 'error';
-        return (
-          <div
-            key={idx}
-            className={cn(
-              'rounded-xl border-l-4 p-3.5 flex items-center gap-3 flex-wrap shadow-sm',
-              isError
-                ? 'border-l-red-500 bg-gradient-to-br from-red-500/[0.06] to-red-500/[0.02] border border-red-500/25'
-                : 'border-l-amber-500 bg-gradient-to-br from-amber-500/[0.06] to-amber-500/[0.02] border border-amber-500/25',
-            )}
-          >
-            <span className="text-xl shrink-0">{isError ? '🔴' : '⚠️'}</span>
-            <div className="flex-1 min-w-[200px]">
-              <p className="text-sm font-semibold">{iss.title}</p>
-              <p className="text-xs text-muted-foreground mt-0.5">{iss.desc}</p>
-            </div>
-            {iss.cta && (
-              <Link href={iss.cta.href}>
-                <Button size="sm" variant="outline">{iss.cta.label}</Button>
-              </Link>
-            )}
-          </div>
-        );
-      })}
-    </div>
+    <Card className="p-4">
+      <div className="mb-3 flex items-center justify-between">
+        <h3 className="inline-flex items-center gap-2 text-sm font-semibold">
+          <CalendarClock className="h-4 w-4 text-brand" aria-hidden /> Sırada yayınlanacaklar
+        </h3>
+        <Link href={siteHref(siteId, 'articles')} className="text-label font-medium text-brand hover:underline">
+          Takvimi aç
+        </Link>
+      </div>
+      <ul className="space-y-2">
+        {next.map((a) => {
+          const d = new Date(a.scheduledAt);
+          return (
+            <li key={a.id} className="flex items-center gap-3 rounded-md border p-2.5">
+              <span className="min-w-[68px] rounded-md bg-brand/10 px-2 py-1.5 text-center text-brand-700 dark:text-brand-300">
+                <span className="block text-label">{d.toLocaleDateString('tr-TR', { weekday: 'short' })}</span>
+                <span className="block text-sm font-semibold leading-tight tabular-nums">
+                  {d.toLocaleDateString('tr-TR', { day: '2-digit', month: '2-digit' })}
+                </span>
+                <span className="block text-label tabular-nums">
+                  {d.toLocaleTimeString('tr-TR', { hour: '2-digit', minute: '2-digit' })}
+                </span>
+              </span>
+              <span className="min-w-0 flex-1 truncate text-sm font-medium">{a.title || a.topic}</span>
+            </li>
+          );
+        })}
+      </ul>
+    </Card>
   );
 }
 
-// ──────────────────────────────────────────────────────────────────────
-// AUDIT SUMMARY INLINE — Sağlık tab'ı: Site Skoru özet + ilk 3 sorun + detay linki
-// ──────────────────────────────────────────────────────────────────────
-function AuditSummaryInline({ site, audit }: { site: any; audit: any }) {
-  if (!audit) return null;
-  const overallScore = audit?.overallScore ?? null;
+/** Site skoru ozeti: ilk 3 sorun + tamamina baglanti */
+function AuditSummary({ site, audit }: { site: any; audit: any }) {
+  if (!audit) {
+    return (
+      <div className="flex items-center gap-3 rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
+        <ScanSearch className="h-4 w-4 shrink-0" aria-hidden />
+        Henüz tarama yok. Sıradaki adım kartından taramayı başlatabilirsin.
+      </div>
+    );
+  }
+  const overallScore: number | null = audit?.overallScore ?? null;
   const issues: any[] = Array.isArray(audit?.issues) ? audit.issues : [];
-
   const critical = issues.filter((i) => i.severity === 'critical');
   const warning = issues.filter((i) => i.severity === 'warning' || i.severity === 'major');
   const info = issues.filter((i) => i.severity === 'info' || i.severity === 'minor');
-  const passing = Math.max(0, (audit?.totalChecks ?? 14) - issues.length);
-
+  const totalChecks = audit?.totalChecks ?? 14;
+  const passing = Math.max(0, totalChecks - issues.length);
   const topIssues = [...critical, ...warning, ...info].slice(0, 3);
 
-  if (topIssues.length === 0 && overallScore !== null && overallScore >= 90) {
+  if (topIssues.length === 0) {
     return (
-      <Card className="border-emerald-500/40 bg-emerald-500/5">
-        <CardContent className="p-4 flex items-center gap-3">
-          <CheckCircle2 className="h-6 w-6 text-emerald-500 shrink-0" />
-          <div className="flex-1">
-            <p className="text-sm font-semibold">Site skoru: {overallScore}/100 — Mükemmel</p>
-            <p className="text-xs text-muted-foreground">Tüm 14 SEO + GEO kontrolü temiz. İçerik üretimine odaklan.</p>
-          </div>
-        </CardContent>
+      <Card className="flex items-center gap-3 p-4">
+        <CheckCircle2 className="h-6 w-6 shrink-0 text-success" aria-hidden />
+        <div>
+          <p className="text-sm font-semibold">Site skoru {overallScore ?? '—'}/100 — sorun yok</p>
+          <p className="text-label text-muted-foreground">{totalChecks} SEO + GEO kontrolünün tamamı temiz. İçerik üretimine odaklan.</p>
+        </div>
       </Card>
     );
   }
 
-  if (topIssues.length === 0) return null;
-
-  const scoreColor =
+  const scoreTone =
     overallScore === null ? 'text-muted-foreground'
-      : overallScore >= 80 ? 'text-emerald-500'
-        : overallScore >= 60 ? 'text-amber-500'
-          : 'text-red-500';
+      : overallScore >= 80 ? 'text-success'
+        : overallScore >= 60 ? 'text-warning'
+          : 'text-danger';
 
   return (
-    <Card>
-      <CardContent className="p-4">
-        <div className="flex items-center justify-between flex-wrap gap-3 mb-3">
-          <div className="flex items-center gap-3">
-            <ShieldCheck className="h-5 w-5 text-brand" />
-            <div>
-              <p className="text-sm font-semibold">Site Skoru Özeti</p>
-              <p className="text-[11px] text-muted-foreground">14 SEO + GEO kontrolü</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-4 text-xs font-mono">
-            <span className={cn('text-metric-lg tabular-nums', scoreColor)}>{overallScore ?? '—'}</span>
-            <div className="flex items-center gap-3">
-              <span className="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
-                <CheckCircle2 className="h-3.5 w-3.5" /> {passing}
-              </span>
-              {critical.length > 0 && (
-                <span className="inline-flex items-center gap-1 text-red-500">
-                  <AlertCircle className="h-3.5 w-3.5" /> {critical.length}
-                </span>
-              )}
-              {warning.length > 0 && (
-                <span className="inline-flex items-center gap-1 text-amber-500">
-                  <AlertTriangle className="h-3.5 w-3.5" /> {warning.length}
-                </span>
-              )}
-            </div>
+    <Card className="p-4">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <span className={cn('text-metric-lg tabular-nums', scoreTone)}>{overallScore ?? '—'}</span>
+          <div>
+            <h3 className="text-sm font-semibold">Site skoru özeti</h3>
+            <p className="text-label text-muted-foreground">{totalChecks} SEO + GEO kontrolü</p>
           </div>
         </div>
-
-        <div className="space-y-1.5">
-          {topIssues.map((iss, i) => {
-            const isCritical = iss.severity === 'critical';
-            const isWarning = iss.severity === 'warning' || iss.severity === 'major';
-            const Icon = isCritical ? AlertCircle : isWarning ? AlertTriangle : CheckCircle2;
-            const colorClass = isCritical ? 'text-red-500' : isWarning ? 'text-amber-500' : 'text-muted-foreground';
-            return (
-              <div key={`${iss.checkId ?? iss.type}-${i}`} className="flex items-start gap-2.5 py-1.5 border-b last:border-0">
-                <Icon className={cn('h-4 w-4 shrink-0 mt-0.5', colorClass)} />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium leading-snug">{iss.description || iss.type}</p>
-                </div>
-                {(iss.fixRoute === 'auto_fix' || iss.fixRoute === 'snippet' || iss.fixRoute === 'images') && (
-                  <Badge variant="outline" className="text-[10px] border-brand/40 text-brand shrink-0">
-                    {iss.fixRoute === 'auto_fix' ? 'auto-fix' : iss.fixRoute === 'snippet' ? 'snippet' : 'görseller'}
-                  </Badge>
-                )}
-              </div>
-            );
-          })}
+        <div className="flex items-center gap-2">
+          <Badge variant="success" className="gap-1"><CheckCircle2 className="h-3 w-3" aria-hidden /> {passing} geçti</Badge>
+          {critical.length > 0 && <Badge variant="danger" className="gap-1"><AlertCircle className="h-3 w-3" aria-hidden /> {critical.length} kritik</Badge>}
+          {warning.length > 0 && <Badge variant="warning" className="gap-1"><AlertTriangle className="h-3 w-3" aria-hidden /> {warning.length} uyarı</Badge>}
         </div>
+      </div>
 
-        {issues.length > topIssues.length && (
-          <Link
-            href={siteHref(site.id, 'audit')}
-            className="text-xs text-brand hover:underline mt-3 inline-flex items-center gap-1"
-          >
-            {issues.length} sorunun tamamını gör <ChevronRight className="h-3 w-3" />
-          </Link>
-        )}
-      </CardContent>
+      <ul className="divide-y">
+        {topIssues.map((iss, i) => {
+          const isCritical = iss.severity === 'critical';
+          const isWarning = iss.severity === 'warning' || iss.severity === 'major';
+          const Icon = isCritical ? AlertCircle : isWarning ? AlertTriangle : CheckCircle2;
+          const route = iss.fixRoute === 'auto_fix' ? 'otomatik' : iss.fixRoute === 'snippet' ? 'sayfa SEO' : iss.fixRoute === 'images' ? 'görseller' : null;
+          return (
+            <li key={`${iss.checkId ?? iss.type}-${i}`} className="flex items-start gap-2.5 py-2">
+              <Icon className={cn('mt-0.5 h-4 w-4 shrink-0', isCritical ? 'text-danger' : isWarning ? 'text-warning' : 'text-muted-foreground')} aria-hidden />
+              <p className="min-w-0 flex-1 text-sm font-medium leading-snug">{iss.description || iss.type}</p>
+              {route && <Badge variant="brand" className="shrink-0">{route}</Badge>}
+            </li>
+          );
+        })}
+      </ul>
+
+      <Link href={siteHref(site.id, 'audit')} className="mt-3 inline-flex items-center gap-1 text-label font-medium text-brand hover:underline">
+        {issues.length > topIssues.length ? `${issues.length} sorunun tamamını gör` : 'Site skoruna git'} <ArrowRight className="h-3 w-3" aria-hidden />
+      </Link>
     </Card>
   );
 }
 
 // ──────────────────────────────────────────────────────────────────────
-// AUTOPILOT CONTROL — Yayın akış kontrolü + onay modu toggle'ı
-// (Eski Ayarlar > ApprovalModeCard ile birleştirildi)
+// OTOMATIK AKIS KONTROLU — Otomatik Akis sayfasi kullanir
 // ──────────────────────────────────────────────────────────────────────
 export function AutopilotControl({
   site, onRefresh,
@@ -752,159 +862,105 @@ export function AutopilotControl({
     }
   };
 
-  // 3 görsel state: paused (kapalı) | manual (yarı) | auto (tam)
+  // 3 durum: durduruldu | yari otomatik | tam otomatik
   const stateKey = !autopilot ? 'paused' : isAuto ? 'auto' : 'manual';
   const config = {
     paused: {
-      label: 'DURDURULDU',
-      icon: '⏸️',
-      ringClass: 'border-muted bg-muted/20',
-      badgeBg: 'bg-muted-foreground/20 text-muted-foreground',
-      badgeText: 'text-muted-foreground',
-      desc: 'Otomatik akış kapalı. Yeni yazı üretilmiyor — açmak için sağdaki butona tıkla.',
+      label: 'Durduruldu',
+      icon: Pause,
+      box: 'border-border bg-muted/30',
+      chip: 'bg-muted text-muted-foreground',
+      text: 'text-muted-foreground',
+      desc: 'Otomatik akış kapalı. Yeni yazı üretilmiyor — açmak için sağdaki düğmeye bas.',
     },
     manual: {
-      label: 'YARI OTOMATİK',
-      icon: '👁️',
-      ringClass: 'border-blue-500/40 bg-gradient-to-br from-blue-500/10 to-blue-500/5',
-      badgeBg: 'bg-blue-500 text-white',
-      badgeText: 'text-blue-600 dark:text-blue-400',
-      desc: 'AI yazıları üretip takvime alır. Her yazı YAYINLANMADAN önce onayını bekler — email/dashboard\'dan haber alırsın.',
+      label: 'Yarı otomatik',
+      icon: Eye,
+      box: 'border-info/30 bg-info/5',
+      chip: 'bg-info/15 text-info',
+      text: 'text-info',
+      desc: 'AI yazıları üretip takvime alır. Her yazı yayınlanmadan önce onayını bekler — e-posta ve panelden haber alırsın.',
     },
     auto: {
-      label: 'TAM OTOMATİK',
-      icon: '🚀',
-      ringClass: 'border-brand/40 bg-gradient-to-br from-brand/10 to-brand/5',
-      badgeBg: 'bg-brand text-white',
-      badgeText: 'text-brand',
-      desc: 'AI tüm akışı yönetiyor: üretim, görsel, schema, yayın ve sosyal post. Sen sadece haftalık raporu okursun.',
+      label: 'Tam otomatik',
+      icon: Rocket,
+      box: 'border-brand/30 bg-brand/5',
+      chip: 'bg-brand/15 text-brand',
+      text: 'text-brand',
+      desc: 'AI tüm akışı yönetir: üretim, görsel, şema, yayın ve sosyal paylaşım. Sen yalnızca haftalık raporu okursun.',
     },
   }[stateKey];
+  const StateIcon = config.icon;
 
   return (
-    <div className={`rounded-xl border-2 p-4 transition-colors ${config.ringClass}`}>
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        {/* Sol: icon + label + desc + mod toggle */}
-        <div className="flex items-start gap-3 flex-1 min-w-[260px]">
-          <div className={`h-11 w-11 rounded-full grid place-items-center shrink-0 text-xl ${config.badgeBg}`}>
-            {config.icon}
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="font-bold text-base flex items-center gap-2 flex-wrap">
-              <span className={config.badgeText}>{config.label}</span>
+    <div className={cn('rounded-lg border p-4 transition-colors', config.box)}>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex min-w-[260px] flex-1 items-start gap-3">
+          <span className={cn('grid h-11 w-11 shrink-0 place-items-center rounded-full', config.chip)}>
+            <StateIcon className="h-5 w-5" aria-hidden />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="flex flex-wrap items-center gap-2 text-base font-semibold">
+              <span className={config.text}>{config.label}</span>
               {autopilot && (
-                <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-wide bg-foreground/10 rounded-full px-2 py-0.5 font-bold">
-                  <Activity className="h-3 w-3 animate-pulse" /> Çalışıyor
-                </span>
+                <Badge variant="success" className="gap-1">
+                  <Activity className="h-3 w-3" aria-hidden /> Çalışıyor
+                </Badge>
               )}
             </p>
-            <p className="text-xs text-muted-foreground mt-1 max-w-xl">{config.desc}</p>
+            <p className="mt-1 max-w-xl text-sm text-muted-foreground">{config.desc}</p>
 
-            {/* Mod toggle — text bloğunun altında */}
-            <div className="flex items-center gap-1.5 p-1 rounded-full border bg-card/60 max-w-fit mt-3">
+            <div className="mt-3 flex max-w-fit items-center gap-1.5 rounded-full border bg-card/60 p-1" role="group" aria-label="Onay modu">
               <button
                 type="button"
                 onClick={() => setMode('manual_approve')}
                 disabled={!autopilot || modeBusy}
+                aria-pressed={autopilot && !isAuto}
                 className={cn(
-                  'inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full transition-all',
-                  !autopilot && 'opacity-40 cursor-not-allowed',
-                  autopilot && !isAuto && 'bg-blue-500 text-white shadow-sm',
+                  'inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-label font-semibold transition-all',
+                  !autopilot && 'cursor-not-allowed opacity-40',
+                  autopilot && !isAuto && 'bg-info text-white shadow-sm',
                   autopilot && isAuto && 'text-muted-foreground hover:text-foreground',
                 )}
               >
-                👁️ Yarı Otomatik
+                <Eye className="h-3.5 w-3.5" aria-hidden /> Yarı otomatik
               </button>
               <button
                 type="button"
                 onClick={() => setMode('auto_publish')}
                 disabled={!autopilot || modeBusy}
+                aria-pressed={autopilot && isAuto}
                 className={cn(
-                  'inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full transition-all',
-                  !autopilot && 'opacity-40 cursor-not-allowed',
+                  'inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-label font-semibold transition-all',
+                  !autopilot && 'cursor-not-allowed opacity-40',
                   autopilot && isAuto && 'bg-brand text-white shadow-sm',
                   autopilot && !isAuto && 'text-muted-foreground hover:text-foreground',
                 )}
               >
-                🚀 Tam Otomatik
+                <Rocket className="h-3.5 w-3.5" aria-hidden /> Tam otomatik
               </button>
             </div>
           </div>
         </div>
 
-        {/* Sağ: Power toggle — outer items-center sayesinde tüm sol sütunun ortasına hizalanır */}
         <button
           type="button"
           onClick={toggleAutopilot}
           disabled={autopilotBusy}
           aria-label={autopilot ? 'Akışı durdur' : 'Akışı aç'}
+          aria-pressed={autopilot}
           title={autopilot ? 'Akışı durdur' : 'Akışı aç'}
           className={cn(
-            'relative grid place-items-center h-11 w-11 rounded-full border-2 shrink-0 transition-all duration-300',
-            autopilotBusy && 'opacity-60 cursor-wait',
+            'grid h-11 w-11 shrink-0 place-items-center rounded-full border-2 transition-all duration-300',
+            autopilotBusy && 'cursor-wait opacity-60',
             autopilot
-              ? 'border-emerald-500/50 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/20 hover:border-emerald-500/70'
-              : 'border-brand/40 bg-brand/10 text-brand hover:bg-brand/20 hover:border-brand/60',
+              ? 'border-success/50 bg-success/10 text-success hover:border-success/70 hover:bg-success/20'
+              : 'border-brand/40 bg-brand/10 text-brand hover:border-brand/60 hover:bg-brand/20',
           )}
         >
-          {autopilot && (
-            <span className="absolute inset-0 rounded-full border-2 border-emerald-500/40 animate-ping" />
-          )}
-          <Power className="h-5 w-5 relative z-10" />
+          <Power className="h-5 w-5" aria-hidden />
         </button>
       </div>
     </div>
-  );
-}
-
-// ENH#5 — Stuck Pages KPI card. Genel Bakis'ta DETECTED durumdaki sayfa
-// varsa otomatik kart goster. Sifir ise hic gosterme.
-function StuckPagesKpiCard({ siteId }: { siteId: string }) {
-  const [count, setCount] = useState<number | null>(null);
-  const [latestUrl, setLatestUrl] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    api.listStuckPages(siteId, 'DETECTED')
-      .then((rows) => {
-        if (cancelled) return;
-        setCount(rows.length);
-        if (rows.length > 0) setLatestUrl(rows[0].title ?? rows[0].url);
-      })
-      .catch(() => {
-        if (!cancelled) setCount(0);
-      });
-    return () => { cancelled = true; };
-  }, [siteId]);
-
-  if (count === null || count === 0) return null;
-
-  return (
-    <Card className="rounded-lg shadow-sm border-amber-500/40 bg-amber-500/5">
-      <CardContent className="p-5">
-        <div className="flex items-center gap-4">
-          <div className="h-11 w-11 rounded-xl bg-amber-500/15 text-amber-600 grid place-items-center shrink-0">
-            <Wrench className="h-5 w-5" />
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <p className="text-sm font-semibold">{count} stuck sayfa tespit edildi</p>
-              <Badge variant="outline" className="text-[10px] border-amber-500/40 text-amber-700">
-                Auto-Pilot uygun
-              </Badge>
-            </div>
-            <p className="text-xs text-muted-foreground mt-1 truncate">
-              Örn: {latestUrl} — pozisyon ilk sayfada ama top 3 değil.
-            </p>
-          </div>
-          <Link
-            href={`/sites/${siteId}/stuck-pages`}
-            className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-amber-500 text-white hover:bg-amber-600 shrink-0"
-          >
-            Kurtar <ArrowRight className="h-3.5 w-3.5" />
-          </Link>
-        </div>
-      </CardContent>
-    </Card>
   );
 }

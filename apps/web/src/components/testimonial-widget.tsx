@@ -46,7 +46,7 @@ export function TestimonialWidget({ siteId, defaultMetric }: { siteId?: string; 
         company: company.trim() || undefined,
         metric: metric.trim() || undefined,
       });
-      toast.success('Teşekkürler! Yorumun admin onayından sonra landing\'de yayınlanacak.');
+      toast.success('Teşekkürler! Yorumun onaylandıktan sonra ana sayfamızda yayınlanacak.');
       setOpen(false);
       dismiss();
     } catch (err: any) {
@@ -58,38 +58,38 @@ export function TestimonialWidget({ siteId, defaultMetric }: { siteId?: string; 
 
   if (!open) {
     return (
-      <div className="rounded-2xl border-2 border-brand-500/30 bg-gradient-to-br from-brand-500/10 to-amber-400/5 p-4 flex items-center gap-3">
-        <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-brand-500 to-brand-600 text-white grid place-items-center shadow-lg shrink-0">
-          <MessageSquare className="h-5 w-5" />
+      <div className="rounded-lg border bg-card p-4 flex flex-wrap items-center gap-3">
+        <span className="h-9 w-9 rounded-md bg-brand/10 text-brand grid place-items-center shrink-0">
+          <MessageSquare className="h-4 w-4" aria-hidden />
+        </span>
+        <div className="flex-1 min-w-[12rem]">
+          <p className="text-sm font-semibold">RanksUp'ı nasıl buldun?</p>
+          <p className="text-label text-muted-foreground">Tek cümlelik yorumun ana sayfamızda görünebilir.</p>
         </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-bold">RanksUp'ı nasıl buldun?</p>
-          <p className="text-xs text-muted-foreground">1 cümle yorumun landing'imizde görünebilir — gerçek müşteri sosyal kanıtı oluştur.</p>
-        </div>
-        <Button size="sm" onClick={() => setOpen(true)} className="bg-gradient-to-br from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white shrink-0">
+        <Button size="sm" variant="outline" onClick={() => setOpen(true)} className="shrink-0">
           Yorum yaz
         </Button>
-        <button onClick={dismiss} className="h-8 w-8 grid place-items-center rounded hover:bg-muted text-muted-foreground shrink-0" title="Kapat">
-          <X className="h-4 w-4" />
+        <button type="button" onClick={dismiss} className="h-8 w-8 grid place-items-center rounded-md hover:bg-muted text-muted-foreground shrink-0" aria-label="Kapat">
+          <X className="h-4 w-4" aria-hidden />
         </button>
       </div>
     );
   }
 
   return (
-    <div className="rounded-2xl border-2 border-brand-500/30 bg-card p-5 space-y-3">
+    <div className="rounded-lg border bg-card p-5 space-y-3">
       <div className="flex items-center justify-between">
-        <h3 className="font-bold">Deneyimini paylaş</h3>
-        <button onClick={() => setOpen(false)} className="h-8 w-8 grid place-items-center rounded hover:bg-muted text-muted-foreground">
-          <X className="h-4 w-4" />
+        <h3 className="font-semibold">Deneyimini paylaş</h3>
+        <button type="button" onClick={() => setOpen(false)} className="h-8 w-8 grid place-items-center rounded-md hover:bg-muted text-muted-foreground" aria-label="Kapat">
+          <X className="h-4 w-4" aria-hidden />
         </button>
       </div>
 
       {/* Star rating */}
       <div className="flex items-center gap-1">
         {[1, 2, 3, 4, 5].map((n) => (
-          <button key={n} onClick={() => setRating(n)} type="button">
-            <Star className={`h-7 w-7 ${n <= rating ? 'fill-amber-400 text-amber-400' : 'text-muted-foreground/40'} transition`} />
+          <button key={n} onClick={() => setRating(n)} type="button" aria-label={`${n} yıldız`} aria-pressed={n <= rating}>
+            <Star className={`h-7 w-7 ${n <= rating ? 'fill-warning text-warning' : 'text-muted-foreground/40'} transition`} />
           </button>
         ))}
         <span className="text-xs text-muted-foreground ml-2">{rating}/5</span>
@@ -105,7 +105,7 @@ export function TestimonialWidget({ siteId, defaultMetric }: { siteId?: string; 
           rows={3}
           className="w-full px-3 py-2 rounded-md border bg-background text-sm resize-none"
         />
-        <p className="text-[10px] text-muted-foreground mt-1">{body.length}/500 · Min 10 karakter</p>
+        <p className="text-label text-muted-foreground mt-1">{body.length}/500 · en az 10 karakter</p>
       </div>
 
       {/* Role + Company */}
@@ -124,7 +124,7 @@ export function TestimonialWidget({ siteId, defaultMetric }: { siteId?: string; 
       <div>
         <label className="text-xs font-semibold mb-1 block">Spesifik kazanım (opsiyonel)</label>
         <Input value={metric} onChange={(e) => setMetric(e.target.value)} placeholder="40 saat/ay tasarruf · CPI -%62" className="h-9 text-sm" />
-        <p className="text-[10px] text-muted-foreground mt-1">Rakamla sosyal kanıt çok daha güçlü olur</p>
+        <p className="text-label text-muted-foreground mt-1">Rakamla anlatılan sonuç çok daha ikna edici olur</p>
       </div>
 
       <div className="flex gap-2 pt-1">
@@ -132,7 +132,7 @@ export function TestimonialWidget({ siteId, defaultMetric }: { siteId?: string; 
         <Button
           onClick={submit}
           disabled={submitting || body.trim().length < 10}
-          className="flex-1 bg-gradient-to-br from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white"
+          className="flex-1"
         >
           {submitting ? <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> Gönderiliyor</> : 'Gönder'}
         </Button>

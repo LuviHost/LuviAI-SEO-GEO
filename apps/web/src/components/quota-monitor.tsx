@@ -1,123 +1,118 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
+import { FileText, Globe, Sparkles } from 'lucide-react';
 import { api } from '@/lib/api';
-import { Card, CardContent } from '@/components/ui/card';
-import { FileText, Globe, Sparkles, AlertTriangle } from 'lucide-react';
+import { formatNum } from '@/lib/format';
+import { cn } from '@/lib/utils';
+import { Card } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
+import { ErrorState } from '@/components/ui/async-state';
+import { StatusBanner } from '@/components/ui/status-banner';
+
+type Quota = Awaited<ReturnType<typeof api.getUserQuota>>;
 
 /**
- * Dashboard'da kullanıcının aylık kotalarını + AI cost bütçesini gösterir.
- * Limit %80'i geçince sarı, %100 olunca kırmızı uyarı.
+ * Aylik kotalar + AI butce uyarisi. %70'te uyari, %90'da tehlike tonu.
+ * Yuklenirken iskelet, hata olursa tekrar dene — eskiden veri gelene kadar
+ * null donup bolum sonradan "patliyordu".
  */
 export function QuotaMonitor() {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
   const userId = (session?.user as any)?.id as string | undefined;
-  const [data, setData] = useState<Awaited<ReturnType<typeof api.getUserQuota>> | null>(null);
+  const [data, setData] = useState<Quota | null>(null);
+  const [error, setError] = useState<unknown>(null);
+
+  const load = useCallback(() => {
+    if (!userId) return;
+    api.getUserQuota(userId)
+      .then((d) => { setData(d); setError(null); })
+      .catch((e) => setError(e));
+  }, [userId]);
 
   useEffect(() => {
     if (!userId) return;
-    api.getUserQuota(userId).then(setData).catch(() => {});
-    // Her dakika refresh
-    const id = setInterval(() => {
-      api.getUserQuota(userId).then(setData).catch(() => {});
-    }, 60_000);
+    load();
+    const id = setInterval(load, 60_000);
     return () => clearInterval(id);
-  }, [userId]);
+  }, [userId, load]);
 
-  if (!data) return null;
+  if (error && !data) return <ErrorState error={error} onRetry={load} />;
+  if (!data) {
+    // Oturum yoksa (beklenmez) iskelet sonsuza dek donmesin
+    if (status === 'unauthenticated') return null;
+    return (
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3" aria-busy="true" aria-label="Kotalar yükleniyor">
+        {[0, 1, 2].map((i) => <Skeleton key={i} className="h-[68px]" />)}
+      </div>
+    );
+  }
 
-  // Eksik ekseni ATLA, patlama.
-  // Bu bilesen 'videos' eksenini okumaya devam ederken API o ekseni birakmisti
-  // ve tek bir undefined tum /sites/[id] sayfasini error boundary'ye
-  // dusuruyordu. Bir kotanin gorunmemesi, sayfanin olmesinden iyidir.
+  // Eksik ekseni ATLA, patlama: API bir ekseni biraktiginda (eski 'videos' gibi)
+  // tek bir undefined tum /sites/[id] sayfasini error boundary'ye dusuruyordu.
   const items = [
     data.articles && {
-      key: 'articles',
-      icon: FileText,
-      label: 'Makale',
-      used: data.articles.limit - data.articles.remaining,
-      limit: data.articles.limit,
-      color: 'orange',
+      key: 'articles', icon: FileText, label: 'Makale',
+      used: data.articles.limit - data.articles.remaining, limit: data.articles.limit,
     },
     data.aiRuns && {
-      key: 'aiRuns',
-      icon: Sparkles,
-      label: 'AI çalıştırma',
-      used: data.aiRuns.used,
-      limit: data.aiRuns.limit,
-      color: 'purple',
+      key: 'aiRuns', icon: Sparkles, label: 'AI çalıştırma',
+      used: data.aiRuns.used, limit: data.aiRuns.limit,
     },
     data.sites && {
-      key: 'sites',
-      icon: Globe,
-      label: 'Site',
-      used: data.sites.current,
-      limit: data.sites.limit,
-      color: 'blue',
+      key: 'sites', icon: Globe, label: 'Site',
+      used: data.sites.current, limit: data.sites.limit,
     },
-  ].filter(Boolean) as Array<{
-    key: string; icon: typeof FileText; label: string;
-    used: number; limit: number; color: string;
-  }>;
+  ].filter(Boolean) as Array<{ key: string; icon: typeof FileText; label: string; used: number; limit: number }>;
 
-  // Budget warning banner
-  const showBudgetWarn = !!data.budget && (data.budget.warn || data.budget.hardBlock);
+  const budget = data.budget;
+  const showBudgetWarn = !!budget && (budget.warn || budget.hardBlock);
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
       {showBudgetWarn && (
-        <div className={`rounded-xl border-2 p-3 flex items-start gap-2.5 ${
-          data.budget.hardBlock
-            ? 'border-rose-500/50 bg-rose-50/50 dark:bg-rose-950/20'
-            : 'border-amber-500/50 bg-amber-50/50 dark:bg-amber-950/20'
-        }`}>
-          <AlertTriangle className={`h-5 w-5 shrink-0 ${data.budget.hardBlock ? 'text-rose-600' : 'text-amber-600'}`} />
-          <div className="flex-1 min-w-0">
-            <p className={`text-sm font-bold ${data.budget.hardBlock ? 'text-rose-900 dark:text-rose-100' : 'text-amber-900 dark:text-amber-100'}`}>
-              {data.budget.hardBlock
-                ? `Aylık AI bütçen doldu (%${data.budget.pct})`
-                : `AI bütçenin %${data.budget.pct}'i kullanıldı`}
-            </p>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              ${data.budget.used.toFixed(2)} / ${data.budget.cap.toFixed(2)} · {data.budget.hardBlock ? 'Yeni AI istekleri durduruldu, plan yükselt.' : 'Limit yaklaşıyor, izlemeye al.'}
-            </p>
-          </div>
-        </div>
+        <StatusBanner
+          tone={budget.hardBlock ? 'danger' : 'warning'}
+          title={budget.hardBlock ? `Aylık AI bütçen doldu (%${budget.pct})` : `AI bütçenin %${budget.pct}'i kullanıldı`}
+        >
+          ${budget.used.toFixed(2)} / ${budget.cap.toFixed(2)} ·{' '}
+          {budget.hardBlock ? 'Yeni AI istekleri durduruldu, planını yükselt.' : 'Limit yaklaşıyor, takipte kal.'}
+        </StatusBanner>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         {items.map((it) => {
           const pct = it.limit > 0 ? Math.min(100, Math.round((it.used / it.limit) * 100)) : 0;
-          const danger = pct >= 90;
-          const warn = pct >= 70;
-          const colorMap: Record<string, string> = {
-            orange: 'from-brand-500 to-brand-600',
-            purple: 'from-purple-500 to-purple-600',
-            blue: 'from-blue-500 to-blue-600',
-          };
+          const tone = pct >= 90 ? 'danger' : pct >= 70 ? 'warning' : 'brand';
           return (
-            <Card key={it.key}>
-              <CardContent className="p-3">
-                <div className="flex items-center justify-between mb-1.5">
-                  <div className="flex items-center gap-1.5 text-xs font-semibold">
-                    <it.icon className={`h-3.5 w-3.5 ${danger ? 'text-rose-600' : warn ? 'text-amber-600' : 'text-muted-foreground'}`} />
-                    {it.label}
-                  </div>
-                  <div className="text-xs">
-                    <span className="font-bold tabular-nums">{it.used}</span>
-                    <span className="text-muted-foreground">/{it.limit}</span>
-                  </div>
-                </div>
-                <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-                  <div
-                    className={`h-full bg-gradient-to-r transition-all ${
-                      danger ? 'from-rose-500 to-rose-600' : warn ? 'from-amber-500 to-amber-600' : colorMap[it.color]
-                    }`}
-                    style={{ width: `${pct}%` }}
+            <Card key={it.key} className="p-3">
+              <div className="mb-2 flex items-center justify-between">
+                <span className="flex items-center gap-1.5 text-label">
+                  <it.icon
+                    className={cn('h-3.5 w-3.5', tone === 'danger' ? 'text-danger' : tone === 'warning' ? 'text-warning' : 'text-muted-foreground')}
+                    aria-hidden
                   />
-                </div>
-              </CardContent>
+                  {it.label}
+                </span>
+                <span className="text-label">
+                  <span className="font-semibold tabular-nums">{formatNum(it.used)}</span>
+                  <span className="text-muted-foreground">/{formatNum(it.limit)}</span>
+                </span>
+              </div>
+              <div
+                className="h-1.5 overflow-hidden rounded-full bg-muted"
+                role="progressbar"
+                aria-label={`${it.label} kotası`}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={pct}
+              >
+                <div
+                  className={cn('h-full rounded-full transition-all', tone === 'danger' ? 'bg-danger' : tone === 'warning' ? 'bg-warning' : 'bg-brand')}
+                  style={{ width: `${pct}%` }}
+                />
+              </div>
             </Card>
           );
         })}
