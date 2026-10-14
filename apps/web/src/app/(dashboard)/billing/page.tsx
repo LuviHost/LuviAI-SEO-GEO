@@ -115,8 +115,11 @@ export default function BillingPage() {
   const legacyTry = Number(current.legacyMonthlyPriceTry ?? 0);
   const isCanceled = current.status === 'CANCELED';
   const periodEnd = current.periodEnd ? new Date(current.periodEnd) : null;
-  const periodEndText = periodEnd
-    ? periodEnd.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })
+  // Geçmişte kalmış dönem sonu "bitiyor" diye gösterilmez (otomatik yenileme yok; aktif
+  // abonelikte dönem dolmuş olabilir). İptalde geçmiş tarih = bu gece düşer.
+  const periodEndFuture = periodEnd !== null && periodEnd.getTime() > Date.now();
+  const periodEndText = periodEndFuture
+    ? periodEnd!.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })
     : null;
   const usd = Number(plan?.monthly ?? 0);
 
@@ -235,7 +238,11 @@ export default function BillingPage() {
                       <td className="px-5 py-3 tabular-nums text-muted-foreground">{new Date(inv.createdAt).toLocaleDateString('tr-TR')}</td>
                       <td className="px-5 py-3">{inv.description}</td>
                       <td className="px-5 py-3 text-right font-medium tabular-nums">₺{Number(inv.amount).toLocaleString('tr-TR')}</td>
-                      <td className="px-5 py-3"><InvoiceStatusBadge status={inv.status} /></td>
+                      <td className="px-5 py-3">
+                        <InvoiceStatusBadge
+                          status={inv.status === 'PENDING' && Date.now() - new Date(inv.createdAt).getTime() > 86_400_000 ? 'ABANDONED' : inv.status}
+                        />
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -276,6 +283,8 @@ const INVOICE_STATUS: Record<string, { label: string; tone: 'success' | 'warning
   PENDING: { label: 'Bekliyor', tone: 'warning', icon: Clock },
   FAILED: { label: 'Başarısız', tone: 'danger', icon: XCircle },
   REFUNDED: { label: 'İade edildi', tone: 'secondary', icon: ArrowUpRight },
+  // 1 günden eski PENDING: ödeme sayfası açılmış ama tamamlanmamış (tahsilat yok)
+  ABANDONED: { label: 'Tamamlanmadı', tone: 'secondary', icon: XCircle },
 };
 
 function InvoiceStatusBadge({ status }: { status: string }) {
@@ -308,7 +317,7 @@ function CancelDialog({
             <li>
               {periodEndText
                 ? <>Ödediğin dönemin sonuna, <strong className="text-foreground">{periodEndText}</strong> tarihine kadar tüm özelliklerin açık kalır.</>
-                : 'Ödenmiş bir dönemin görünmüyor; hesabın bu gece deneme düzeyine geçer.'}
+                : 'Ödenmiş dönemin sona ermiş görünüyor; iptal edersen hesabın bu gece deneme düzeyine geçer.'}
             </li>
             <li>Dönem bitince hesabın deneme düzeyine geçer; sana onay e-postası gönderilir.</li>
             <li>Sitelerin, içeriklerin ve raporların silinmez.</li>
