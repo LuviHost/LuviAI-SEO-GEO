@@ -1,0 +1,33 @@
+{
+  "name": "@luviai/video",
+  "version": "0.1.0",
+  "private": true,
+  "description": "RanksUp urun videolari (Remotion) — HeroLoop, Explainer, AiScan",
+  "exports": {
+    "./ai-scan": "./src/ai-scan/AiScan.tsx",
+    "./tokens": "./src/tokens.ts"
+  },
+  "scripts": {
+    "studio": "remotion studio src/index.ts",
+    "render": "node scripts/render.mjs",
+    "render:hero": "node scripts/render.mjs HeroLoop",
+    "render:explainer": "node scripts/render.mjs Explainer",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "lucide-react": "^0.469.0",
+    "remotion": "4.0.530"
+  },
+  "devDependencies": {
+    "@remotion/cli": "4.0.530",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "typescript": "^5.7.0"
+  },
+  "peerDependencies": {
+    "react": ">=19",
+    "react-dom": ">=19"
+  }
+}

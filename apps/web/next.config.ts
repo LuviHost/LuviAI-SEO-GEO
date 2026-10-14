@@ -13,6 +13,11 @@ const config: NextConfig = {
   typescript: { ignoreBuildErrors: true },
   eslint: { ignoreDuringBuilds: true },
   output: 'standalone',
+  /**
+   * apps/video (Remotion) kaynak TSX olarak tuketilir — AiScan kompozisyonu landing'de
+   * @remotion/player ile oynatilir. Ayrica build adimi gerekmez; Next derler.
+   */
+  transpilePackages: ['@luviai/video'],
   async headers() {
     return [
       {
