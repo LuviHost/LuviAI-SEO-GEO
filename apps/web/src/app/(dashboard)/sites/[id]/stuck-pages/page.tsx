@@ -29,16 +29,22 @@ import {
   Send,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { SectionHeader } from '@/components/ui/section-header';
+import { Skeleton } from '@/components/ui/skeleton';
+import { siteHref } from '@/lib/site-routes';
+import { formatNum, formatPct } from '@/lib/format';
 
 type StuckPageRow = Awaited<ReturnType<typeof api.listStuckPages>>[number];
 
+// Durum tonlari token'dan — ham amber/blue/emerald/red yok
+const NEUTRAL_CLS = 'bg-muted text-muted-foreground border-border';
 const STATUS_LABEL: Record<string, { text: string; cls: string }> = {
-  DETECTED:   { text: 'Tespit edildi', cls: 'bg-amber-500/10 text-amber-600 border-amber-500/30' },
-  RECOVERING: { text: 'Düzeltiliyor',  cls: 'bg-blue-500/10 text-blue-600 border-blue-500/30' },
-  RECOVERED:  { text: 'Düzeltildi',    cls: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30' },
-  FAILED:     { text: 'Başarısız',     cls: 'bg-red-500/10 text-red-600 border-red-500/30' },
-  REVERTED:   { text: 'Geri alındı',   cls: 'bg-zinc-500/10 text-zinc-600 border-zinc-500/30' },
-  IGNORED:    { text: 'Gözardı',       cls: 'bg-zinc-500/10 text-zinc-600 border-zinc-500/30' },
+  DETECTED:   { text: 'Tespit edildi', cls: 'bg-warning/10 text-warning border-warning/30' },
+  RECOVERING: { text: 'Düzeltiliyor',  cls: 'bg-info/10 text-info border-info/30' },
+  RECOVERED:  { text: 'Düzeltildi',    cls: 'bg-success/10 text-success border-success/30' },
+  FAILED:     { text: 'Başarısız',     cls: 'bg-danger/10 text-danger border-danger/30' },
+  REVERTED:   { text: 'Geri alındı',   cls: NEUTRAL_CLS },
+  IGNORED:    { text: 'Gözardı',       cls: NEUTRAL_CLS },
 };
 
 // Status icin hover hint (title attribute)
@@ -66,13 +72,13 @@ function expectedCtrFor(position: number): number {
 
 function ScoreBadge({ score }: { score: number }) {
   const cls = score >= 70
-    ? 'bg-red-500/10 text-red-600 border-red-500/30'
+    ? 'bg-danger/10 text-danger border-danger/30'
     : score >= 50
-    ? 'bg-amber-500/10 text-amber-600 border-amber-500/30'
-    : 'bg-zinc-500/10 text-zinc-600 border-zinc-500/30';
+    ? 'bg-warning/10 text-warning border-warning/30'
+    : NEUTRAL_CLS;
   return (
     <span className={cn('inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-xs font-medium', cls)}>
-      <TrendingDown className="h-3 w-3" /> Stuck #{score}
+      <TrendingDown className="h-3 w-3" aria-hidden /> Öncelik {score}
     </span>
   );
 }
@@ -132,7 +138,7 @@ function StuckPageCard({
               </span>
               {page.articleId === null && (
                 <span
-                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-xs font-medium bg-zinc-500/10 text-zinc-600 border-zinc-500/30"
+                  className={cn('inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-xs font-medium', NEUTRAL_CLS)}
                   title="Bu sayfa RanksUp ile değil, sitende elle yazılmış. Recovery için site'ne WordPress / FTP / SFTP / cPanel publish target bağlamalısın."
                 >
                   <AlertTriangle className="h-3 w-3" /> RanksUp dışı
@@ -156,32 +162,32 @@ function StuckPageCard({
                   Gösterim (30g)
                   <InfoTooltip text="Son 30 günde Google arama sonuçlarında bu sayfa kaç kez gösterildi. Yüksek = sayfa zaten görünüyor, sadece tıklama almıyor." />
                 </div>
-                <div className="font-semibold">{page.impressions.toLocaleString('tr-TR')}</div>
+                <div className="font-semibold tabular-nums">{formatNum(page.impressions)}</div>
               </div>
               <div>
                 <div className="text-muted-foreground inline-flex items-center gap-1">
-                  CTR
+                  Tıklama oranı
                   <InfoTooltip text={`Görenlerin yüzde kaçı tıkladı. Pozisyon #${Math.round(page.position)} için beklenen CTR ~%${expectedCtrFor(page.position).toFixed(1)}. Şu anki: %${(page.ctr * 100).toFixed(2)}. Aradaki fark = kayıp potansiyel.`} />
                 </div>
-                <div className="font-semibold">%{(page.ctr * 100).toFixed(2)}</div>
+                <div className="font-semibold tabular-nums">{formatPct(page.ctr, 2)}</div>
               </div>
               <div>
                 <div className="text-muted-foreground inline-flex items-center gap-1">
                   Tıklama
                   <InfoTooltip text="Son 30 günde gerçek tıklama sayısı. AI ile recovery sonrası 24-48 saatte artış başlar, asıl etki 2-4 hafta sonra." />
                 </div>
-                <div className="font-semibold">{page.clicks}</div>
+                <div className="font-semibold tabular-nums">{formatNum(page.clicks)}</div>
               </div>
             </div>
             {Array.isArray(page.topQueries) && page.topQueries.length > 0 && (
               <div className="mt-3">
-                <div className="flex items-center gap-1 text-[11px] text-muted-foreground mb-1.5">
-                  <span>Top sorgular</span>
+                <div className="flex items-center gap-1 text-label text-muted-foreground mb-1.5">
+                  <span>En çok gösterim alan sorgular</span>
                   <InfoTooltip text="Bu sayfanın çıktığı arama terimleri (GSC son 30 gün). AI recovery bu sorgulara optimize cümle önerileri üretir." />
                 </div>
                 <div className="flex flex-wrap gap-1.5">
                   {page.topQueries.slice(0, 5).map((q) => (
-                    <span key={q} className="text-[11px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+                    <span key={q} className="text-label px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
                       {q}
                     </span>
                   ))}
@@ -201,11 +207,11 @@ function StuckPageCard({
             )}
             {canRecover && !page.articleId && (
               <Link
-                href={`/sites/${page.siteId}/publish-targets` as any}
-                title="External sayfaları (RanksUp dışı) kurtarmak için WordPress / FTP / SFTP / cPanel publish target bağlamak gerek."
-                className="inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-md text-xs font-medium border border-dashed border-brand-500/40 text-brand-600 hover:bg-brand-500/10 transition-colors"
+                href={siteHref(page.siteId, 'publishTargets') as any}
+                title="RanksUp dışı sayfaları kurtarmak için WordPress / FTP / SFTP / cPanel yayın hedefi bağlaman gerekir."
+                className="inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-md text-xs font-medium border border-dashed border-brand/40 text-brand hover:bg-brand/10 transition-colors"
               >
-                <Send className="h-3.5 w-3.5" /> Target bağla
+                <Send className="h-3.5 w-3.5" aria-hidden /> Yayın hedefi bağla
               </Link>
             )}
             {isRecovering && (
@@ -243,14 +249,14 @@ function StuckPageCard({
         {expanded && lastRecovery && (
           <div className="mt-4 pt-4 border-t space-y-3">
             <div className="flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-              <span className="text-sm font-medium">Son Recovery — {new Date(lastRecovery.appliedAt).toLocaleString('tr-TR')}</span>
+              <CheckCircle2 className="h-4 w-4 text-success" aria-hidden />
+              <span className="text-sm font-medium">Son onarım — {new Date(lastRecovery.appliedAt).toLocaleString('tr-TR')}</span>
             </div>
             <div className="text-xs">
-              <span className="text-muted-foreground">Eklenen entity'ler:</span>{' '}
+              <span className="text-muted-foreground">Eklenen varlıklar:</span>{' '}
               {Array.isArray(lastRecovery.entitiesAdded) && lastRecovery.entitiesAdded.length > 0 ? (
                 lastRecovery.entitiesAdded.map((e: string) => (
-                  <span key={e} className="inline-block ml-1 px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-700 text-[11px]">
+                  <span key={e} className="inline-block ml-1 px-1.5 py-0.5 rounded bg-success/10 text-success text-label">
                     {e}
                   </span>
                 ))
@@ -264,8 +270,8 @@ function StuckPageCard({
                 <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
                   {lastRecovery.edits.map((e: any, i: number) => (
                     <div key={i} className="rounded-lg border bg-muted/30 p-3 text-xs">
-                      <div className="text-red-600 line-through">{e.before}</div>
-                      <div className="text-emerald-700 mt-1">+ {e.after}</div>
+                      <div className="text-danger line-through">{e.before}</div>
+                      <div className="text-success mt-1">+ {e.after}</div>
                       {e.reason && <div className="mt-1.5 text-muted-foreground italic">{e.reason}</div>}
                     </div>
                   ))}
@@ -288,7 +294,7 @@ function StuckPageCard({
 const GUIDE_STEPS = [
   {
     icon: TrendingDown,
-    title: 'Stuck sayfa nedir?',
+    title: 'Takılı sayfa nedir?',
     body: 'Google\'da ilk sayfada (pozisyon 4-15) ama top 3\'te değil. Yarı yolda kalmış, biraz iyileştirmeyle yukarı çıkabilir.',
   },
   {
@@ -362,9 +368,9 @@ export default function StuckPagesPage() {
     try {
       const result = await api.detectStuckPages(site.id);
       if (result.found === 0) {
-        toast.success('Tarama tamam — stuck sayfa bulunamadı 🎉');
+        toast.success('Tarama tamam — takılı sayfa bulunmadı');
       } else {
-        toast.success(`${result.found} stuck sayfa bulundu (${result.created} yeni)`);
+        toast.success(`${result.found} takılı sayfa bulundu (${result.created} yeni)`);
       }
       await refresh();
     } catch (err: any) {
@@ -393,7 +399,7 @@ export default function StuckPagesPage() {
       }
       await refresh();
     } catch (err: any) {
-      toast.error(err.message || 'Recovery hata');
+      toast.error(err.message || 'Onarım başarısız');
     } finally {
       setBusy(id, false);
     }
@@ -435,14 +441,14 @@ export default function StuckPagesPage() {
       const okCount = result.results.filter((r) => r.ok).length;
       const failCount = result.results.length - okCount;
       if (failCount === 0) {
-        toast.success(`Toplu recovery: ${okCount} sayfa düzeltildi`);
+        toast.success(`Toplu onarım: ${okCount} sayfa düzeltildi`);
       } else {
         toast.warning(`${okCount} başarılı, ${failCount} başarısız — detay için sayfayı yenile`);
       }
       clearSelection();
       await refresh();
     } catch (err: any) {
-      toast.error(err.message || 'Bulk recovery hata');
+      toast.error(err.message || 'Toplu onarım başarısız');
     } finally {
       setBulkBusy(false);
     }
@@ -452,10 +458,10 @@ export default function StuckPagesPage() {
     setBusy(stuckPageId, true);
     try {
       await api.revertStuckPageRecovery(site.id, recoveryId);
-      toast.success('Recovery geri alındı, eski hali yeniden yayınlanıyor');
+      toast.success('Onarım geri alındı, eski hali yeniden yayınlanıyor');
       await refresh();
     } catch (err: any) {
-      toast.error(err.message || 'Revert hata');
+      toast.error(err.message || 'Geri alma başarısız');
     } finally {
       setBusy(stuckPageId, false);
     }
@@ -496,42 +502,44 @@ export default function StuckPagesPage() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-start gap-3">
-        <div className="h-10 w-10 rounded-xl bg-brand/10 text-brand grid place-items-center">
-          <Wrench className="h-5 w-5" />
-        </div>
-        <div className="flex-1">
-          <div className="flex items-center gap-2">
-            <h2 className="text-h6 font-semibold tracking-tight">Stuck Pages</h2>
-            <InfoTooltip text="Google'da ilk sayfada (pozisyon 4-15) ama top 3'te değil olan sayfaların listesi. Yeniden tarama her hafta otomatik (Pazartesi 06:00 UTC) yapılır; manuel tetiklemek için sağ üstte 'Yeniden Tara'." />
-          </div>
-          <p className="text-sm text-muted-foreground">
-            Google'da ilk sayfada ama ilk 3'te değil — AI ile cümle seviyesinde tamir, başlık ve yapı korunur.
+      <SectionHeader
+        icon={Wrench}
+        title={
+          <span className="inline-flex items-center gap-2">
+            Takılı Sayfalar
+            <InfoTooltip text="Google'da ilk sayfada (sıra 4-15) ama ilk 3'te olmayan sayfalar. Tarama her hafta otomatik (Pazartesi 06:00 UTC) yapılır; elle başlatmak için sağ üstteki 'Yeniden tara'." />
+          </span>
+        }
+        description={
+          <>
+            Google&apos;da ilk sayfada ama ilk 3&apos;te değil — AI cümle düzeyinde onarır, başlık ve yapı korunur.
             {!showGuide && (
               <>
                 {' · '}
-                <button onClick={restoreGuide} className="text-brand-600 hover:underline">
+                <button type="button" onClick={restoreGuide} className="text-brand hover:underline">
                   Nasıl çalışır?
                 </button>
               </>
             )}
-          </p>
-        </div>
-        <Button onClick={handleDetect} disabled={detecting} variant="outline" size="sm" className="shrink-0">
-          <RefreshCw className={cn('h-4 w-4 mr-1.5', detecting && 'animate-spin')} />
-          {detecting ? 'Taranıyor…' : 'Yeniden Tara'}
-        </Button>
-      </div>
+          </>
+        }
+        actions={
+          <Button onClick={handleDetect} disabled={detecting} variant="outline" size="sm">
+            <RefreshCw className={cn('h-4 w-4 mr-1.5', detecting && 'animate-spin')} aria-hidden />
+            {detecting ? 'Taranıyor…' : 'Yeniden tara'}
+          </Button>
+        }
+      />
 
       {/* "Nasıl çalışır" guide — dismissible, localStorage persist */}
       {showGuide && (
-        <Card className="border-brand-500/30 bg-gradient-to-br from-brand-500/[0.04] to-transparent">
+        <Card className="border-brand/30 bg-brand/[0.03]">
           <CardContent className="p-5">
             <div className="flex items-start gap-3 mb-4">
-              <Lightbulb className="h-5 w-5 text-brand-600 dark:text-brand-400 shrink-0 mt-0.5" />
+              <Lightbulb className="h-5 w-5 text-brand shrink-0 mt-0.5" aria-hidden />
               <div className="flex-1">
                 <p className="font-semibold text-sm">Nasıl çalışır?</p>
-                <p className="text-xs text-muted-foreground mt-0.5">4 adımda Stuck Page Recovery sistemi</p>
+                <p className="text-xs text-muted-foreground mt-0.5">4 adımda takılı sayfa onarımı</p>
               </div>
               <button
                 onClick={dismissGuide}
@@ -547,7 +555,7 @@ export default function StuckPagesPage() {
                 return (
                   <div key={i} className="flex flex-col gap-2">
                     <div className="flex items-center gap-2">
-                      <div className="h-7 w-7 rounded-lg bg-brand-500/10 text-brand-600 dark:text-brand-400 grid place-items-center shrink-0">
+                      <div className="h-7 w-7 rounded-lg bg-brand/10 text-brand grid place-items-center shrink-0">
                         <Icon className="h-3.5 w-3.5" />
                       </div>
                       <span className="text-xs font-semibold text-muted-foreground">0{i + 1}</span>
@@ -558,11 +566,11 @@ export default function StuckPagesPage() {
                 );
               })}
             </div>
-            <div className="mt-4 pt-4 border-t border-border/60 flex items-center justify-between text-xs">
-              <span className="text-muted-foreground">
-                💡 İlk önce <strong className="text-foreground">en yüksek gösterim alan</strong> sayfayı dene — etki orada daha hızlı görünür.
+            <div className="mt-4 pt-4 border-t border-border/60 flex items-center justify-between gap-3 flex-wrap text-xs">
+              <span className="inline-flex items-center gap-1.5 text-muted-foreground">
+                <Lightbulb className="h-3.5 w-3.5 shrink-0 text-brand" aria-hidden /> İlk önce <strong className="text-foreground">en yüksek gösterim alan</strong> sayfayı dene — etki orada daha hızlı görünür.
               </span>
-              <Link href={`/sites/${site.id}/publish-targets` as any} className="text-brand-600 hover:underline font-medium inline-flex items-center gap-1">
+              <Link href={siteHref(site.id, 'publishTargets') as any} className="text-brand hover:underline font-medium inline-flex items-center gap-1">
                 <Send className="h-3 w-3" /> Yayın hedefi ekle
               </Link>
             </div>
@@ -570,32 +578,32 @@ export default function StuckPagesPage() {
         </Card>
       )}
 
-      {/* KPI cards — InfoTooltip ile her durum aciklamali */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+      {/* KPI filtreleri — buton + bilgi ipucu kardes (ic ice buton yok), aria-pressed */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3" role="group" aria-label="Duruma göre filtrele">
         <KpiCard
           label="Toplam"
-          tooltip="Algılanan tüm stuck sayfalar — DETECTED + RECOVERED + FAILED + IGNORED toplamı."
+          tooltip="Algılanan tüm takılı sayfalar — tespit, düzeltildi, başarısız ve gözardı toplamı."
           value={counts.total} active={filter === 'all'} onClick={() => setFilter('all')}
         />
         <KpiCard
           label="Tespit"
           tooltip="AI henüz dokunmadı. 'AI Düzelt' tıklayarak recovery başlatabilirsin. Auto-Pilot ON ise her hafta otomatik düzeltilir."
-          value={counts.detected} active={filter === 'DETECTED'} onClick={() => setFilter('DETECTED')} accent="amber"
+          value={counts.detected} active={filter === 'DETECTED'} onClick={() => setFilter('DETECTED')} accent="warning"
         />
         <KpiCard
           label="Düzeltildi"
           tooltip="AI ile cümle-seviye iyileştirme uygulandı. 24-48 saat sonra Google ranking'i yansır. 30 gün sonra otomatik performans ölçümü yapılır."
-          value={counts.recovered} active={filter === 'RECOVERED'} onClick={() => setFilter('RECOVERED')} accent="emerald"
+          value={counts.recovered} active={filter === 'RECOVERED'} onClick={() => setFilter('RECOVERED')} accent="success"
         />
         <KpiCard
           label="Başarısız"
           tooltip="Recovery uygulanamadı. Genelde 2 sebep: (1) içerik çok ince, AI tamir önerisi üretemedi (2) external sayfa için uygun publish target (WP/FTP/SFTP/cPanel) bağlı değil."
-          value={counts.failed} active={filter === 'FAILED'} onClick={() => setFilter('FAILED')} accent="red"
+          value={counts.failed} active={filter === 'FAILED'} onClick={() => setFilter('FAILED')} accent="danger"
         />
         <KpiCard
           label="Gözardı"
           tooltip="'Bu sayfaya dokunulmasın' diye işaretledin. Listede bir daha öneri olarak çıkmaz, ama Detay'dan tekrar açabilirsin."
-          value={counts.ignored} active={filter === 'IGNORED'} onClick={() => setFilter('IGNORED')} accent="zinc"
+          value={counts.ignored} active={filter === 'IGNORED'} onClick={() => setFilter('IGNORED')} accent="muted"
         />
       </div>
 
@@ -608,7 +616,7 @@ export default function StuckPagesPage() {
               sayfa seçili
               <InfoTooltip text="Sadece DETECTED durumdaki + RanksUp içi sayfalar bulk seçilebilir. External (RanksUp dışı) sayfalar publish target gerektirdiği için tek tek elle yapılmalı." />
               {selectedIds.size > 0 && (
-                <button onClick={clearSelection} className="ml-2 text-xs text-muted-foreground hover:text-foreground underline">
+                <button type="button" onClick={clearSelection} className="ml-2 text-xs text-muted-foreground hover:text-foreground underline">
                   temizle
                 </button>
               )}
@@ -638,24 +646,35 @@ export default function StuckPagesPage() {
       )}
 
       {loading ? (
-        <Card>
-          <CardContent className="p-12 grid place-items-center text-muted-foreground">
-            <Loader2 className="h-6 w-6 animate-spin" />
-          </CardContent>
-        </Card>
+        <div className="space-y-3" aria-busy="true" aria-label="Takılı sayfalar yükleniyor">
+          {[0, 1, 2].map((i) => (
+            <Card key={i}>
+              <CardContent className="p-5 space-y-3">
+                <div className="flex gap-2">
+                  <Skeleton className="h-5 w-24 rounded-full" />
+                  <Skeleton className="h-5 w-20 rounded-full" />
+                </div>
+                <Skeleton className="h-5 w-2/3" />
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {[0, 1, 2, 3].map((j) => <Skeleton key={j} className="h-8" />)}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       ) : filteredRows.length === 0 ? (
         <Card>
           <CardContent className="p-12 text-center space-y-3">
-            <div className="h-12 w-12 mx-auto rounded-full bg-emerald-500/10 text-emerald-600 grid place-items-center">
+            <div className="h-12 w-12 mx-auto rounded-full bg-success/10 text-success grid place-items-center">
               <TrendingUp className="h-6 w-6" />
             </div>
             <h3 className="font-semibold">
-              {filter === 'all' ? 'Stuck sayfa yok' : 'Bu filtrede sonuç yok'}
+              {filter === 'all' ? 'Takılı sayfa yok' : 'Bu filtrede sonuç yok'}
             </h3>
             <p className="text-sm text-muted-foreground max-w-md mx-auto">
               {filter === 'all'
                 ? 'GSC verilerine göre tüm sayfaların ya ilk 3 sırada ya da yeterli izlenebilir gösterimi yok. Tarama haftalık otomatik çalışır.'
-                : 'Filtre seçimini değiştirerek diğer kayıtları görebilirsiniz.'}
+                : 'Filtreyi değiştirerek diğer kayıtları görebilirsin.'}
             </p>
             {filter === 'all' && (
               <Button onClick={handleDetect} disabled={detecting} variant="outline" size="sm">
@@ -699,30 +718,38 @@ function KpiCard({
   value: number;
   active: boolean;
   onClick: () => void;
-  accent?: 'brand' | 'amber' | 'emerald' | 'red' | 'zinc';
+  accent?: 'brand' | 'warning' | 'success' | 'danger' | 'muted';
   tooltip?: string;
 }) {
-  const ring = active
-    ? 'ring-2 ring-offset-1 ring-brand/30'
-    : 'hover:bg-muted/50';
   const colorMap: Record<string, string> = {
     brand: 'text-foreground',
-    amber: 'text-amber-600',
-    emerald: 'text-emerald-600',
-    red: 'text-red-600',
-    zinc: 'text-zinc-600',
+    warning: 'text-warning',
+    success: 'text-success',
+    danger: 'text-danger',
+    muted: 'text-muted-foreground',
   };
+  // Eskiden <button> icinde InfoTooltip (o da bir button) vardi → gecersiz ic ice
+  // etkilesim. Simdi filtre dugmesi ve ipucu kardes; ipucu kosede mutlak konumlu.
   return (
-    <button onClick={onClick} className={cn('rounded-xl border bg-card p-3 text-left transition-all relative group', ring)}>
-      <div className="text-xs text-muted-foreground inline-flex items-center gap-1">
-        {label}
-        {tooltip && (
-          <span onClick={(e) => e.stopPropagation()} className="inline-block">
-            <InfoTooltip text={tooltip} iconClassName="opacity-60 group-hover:opacity-100" />
-          </span>
+    <div className="relative">
+      <button
+        type="button"
+        aria-pressed={active}
+        onClick={onClick}
+        className={cn(
+          'w-full rounded-lg border bg-card p-3 pr-8 text-left transition-colors',
+          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-1',
+          active ? 'border-brand/40 bg-brand/5' : 'hover:bg-muted/50',
         )}
-      </div>
-      <div className={cn('text-metric-lg tabular-nums', colorMap[accent])}>{value}</div>
-    </button>
+      >
+        <span className={cn('block text-label', active ? 'text-brand-700 dark:text-brand-300' : 'text-muted-foreground')}>{label}</span>
+        <span className={cn('block text-metric-lg tabular-nums', colorMap[accent])}>{formatNum(value)}</span>
+      </button>
+      {tooltip && (
+        <span className="absolute right-2 top-2.5">
+          <InfoTooltip text={tooltip} iconClassName="opacity-60 hover:opacity-100" />
+        </span>
+      )}
+    </div>
   );
 }
