@@ -192,12 +192,12 @@ export function AscScreenshotsPanel({ siteId, ascAppId }: { siteId: string; ascA
               {rows.map((r, i) => (
                 <div key={i} className="flex items-start gap-2 text-xs">
                   {r.status === 'checking' || r.status === 'uploading' ? <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0 mt-0.5" />
-                    : r.status === 'ok' || r.status === 'done' ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0 mt-0.5" />
-                    : <AlertCircle className="h-3.5 w-3.5 text-rose-600 shrink-0 mt-0.5" />}
+                    : r.status === 'ok' || r.status === 'done' ? <CheckCircle2 className="h-3.5 w-3.5 text-success shrink-0 mt-0.5" />
+                    : <AlertCircle className="h-3.5 w-3.5 text-danger shrink-0 mt-0.5" />}
                   <span className="min-w-0">
                     <span className="font-medium">{r.file.name}</span>
                     {r.check?.width ? <span className="text-muted-foreground"> · {r.check.width}×{r.check.height}</span> : null}
-                    {r.message && <span className={cn(r.status === 'invalid' || r.status === 'failed' ? 'text-rose-600' : 'text-muted-foreground')}> · {r.message}</span>}
+                    {r.message && <span className={cn(r.status === 'invalid' || r.status === 'failed' ? 'text-danger' : 'text-muted-foreground')}> · {r.message}</span>}
                   </span>
                 </div>
               ))}
@@ -213,7 +213,7 @@ export function AscScreenshotsPanel({ siteId, ascAppId }: { siteId: string; ascA
                 </label>
               )}
               {overCapacity && (
-                <p className="text-xs text-rose-600">Sette yer yok: {okRows.length} görüntü için {capacity} yer var. Değiştir&apos;i seç ya da daha az görüntü seç.</p>
+                <p className="text-xs text-danger">Sette yer yok: {okRows.length} görüntü için {capacity} yer var. Değiştir&apos;i seç ya da daha az görüntü seç.</p>
               )}
               <label className="flex items-start gap-2 text-xs">
                 <input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} className="mt-0.5" />
