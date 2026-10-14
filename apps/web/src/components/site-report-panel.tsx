@@ -2,10 +2,15 @@
 
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { Download, TrendingUp, TrendingDown, Minus, BarChart3, Bot, FileText, Send, Sparkles } from 'lucide-react';
+import { Download, TrendingUp, BarChart3, FileText, Send, Sparkles } from 'lucide-react';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { MetricCard } from '@/components/ui/metric';
+import { FilterChip } from '@/components/ui/filter-chip';
+import { Skeleton } from '@/components/ui/skeleton';
+import { CHART } from '@/lib/chart-colors';
+import { formatNum, formatPct, formatPos } from '@/lib/format';
 import { CitationHistoryChart } from '@/components/citation-history-chart';
 
 type Range = 'week' | 'month' | 'year';
@@ -42,7 +47,15 @@ export function SiteReportPanel({ siteId, site }: { siteId: string; site: any })
   };
 
   if (loading || !data) {
-    return <div className="text-sm text-muted-foreground p-8 text-center">Rapor hazırlanıyor…</div>;
+    return (
+      <div className="space-y-3" aria-busy="true" aria-label="Rapor hazırlanıyor">
+        <Skeleton className="h-8 w-1/2" />
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-28" />)}
+        </div>
+        <Skeleton className="h-40 w-full" />
+      </div>
+    );
   }
 
   const rangeLabel = range === 'week' ? '7 gün' : range === 'month' ? '30 gün' : '365 gün';
@@ -52,23 +65,17 @@ export function SiteReportPanel({ siteId, site }: { siteId: string; site: any })
       {/* Range selector + export */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h2 className="text-xl font-bold">Performans Raporu</h2>
+          <h3 className="text-base font-semibold">Performans raporu</h3>
           <p className="text-xs text-muted-foreground">
             {site?.name} · son {rangeLabel} · {new Date(data.rangeStart).toLocaleDateString('tr-TR')} — {new Date(data.rangeEnd).toLocaleDateString('tr-TR')}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <div className="inline-flex border rounded-md overflow-hidden">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap gap-1.5" role="group" aria-label="Dönem">
             {(['week', 'month', 'year'] as Range[]).map((r) => (
-              <button
-                key={r}
-                onClick={() => setRange(r)}
-                className={`px-3 py-1.5 text-xs font-medium transition-colors ${
-                  range === r ? 'bg-brand text-white' : 'bg-card text-muted-foreground hover:bg-muted'
-                }`}
-              >
+              <FilterChip key={r} selected={range === r} onClick={() => setRange(r)}>
                 {r === 'week' ? 'Haftalık' : r === 'month' ? 'Aylık' : 'Yıllık'}
-              </button>
+              </FilterChip>
             ))}
           </div>
           <Button size="sm" variant="outline" onClick={downloadCsv}>
@@ -80,46 +87,53 @@ export function SiteReportPanel({ siteId, site }: { siteId: string; site: any })
         </div>
       </div>
 
-      {/* Buyuk metrik kartlari */}
+      {/* Buyuk metrik kartlari — ui/metric (NumberTicker + DeltaBadge) */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <BigMetric
-          label="Yayınlanan Makale"
+        <MetricCard
+          label="Yayınlanan makale"
           value={data.articles.published}
           delta={data.articles.publishedDelta}
-          icon={<FileText className="h-4 w-4" />}
+          hint="önceki döneme göre"
+          icon={FileText}
         />
-        <BigMetric
-          label="GSC Tıklama"
-          value={data.search.totalClicks.toLocaleString('tr-TR')}
+        <MetricCard
+          label="GSC tıklama"
+          value={data.search.totalClicks}
           delta={data.search.clicksDelta}
-          icon={<TrendingUp className="h-4 w-4" />}
+          hint="önceki döneme göre"
+          icon={TrendingUp}
+          accent="muted"
         />
-        <BigMetric
-          label="GSC Gösterim"
-          value={data.search.totalImpressions.toLocaleString('tr-TR')}
+        <MetricCard
+          label="GSC gösterim"
+          value={data.search.totalImpressions}
           delta={data.search.impressionsDelta}
-          icon={<BarChart3 className="h-4 w-4" />}
+          hint="önceki döneme göre"
+          icon={BarChart3}
+          accent="muted"
         />
-        <BigMetric
-          label="Sosyal Post"
+        <MetricCard
+          label="Sosyal gönderi"
           value={data.social.posts}
           delta={data.social.postsDelta}
-          icon={<Send className="h-4 w-4" />}
+          hint="önceki döneme göre"
+          icon={Send}
+          accent="muted"
         />
       </div>
 
       {/* Skorlar */}
       <Card>
         <CardContent className="p-4">
-          <p className="text-sm font-semibold mb-3">Skor Özeti</p>
+          <p className="text-sm font-semibold mb-3">Skor özeti</p>
           <div className="grid grid-cols-3 gap-4">
             <div className="text-center">
-              <div className="text-3xl font-bold text-brand">{data.audit.overallScore ?? '—'}<span className="text-sm text-muted-foreground font-normal">/100</span></div>
-              <p className="text-[11px] text-muted-foreground mt-1">SEO Skoru</p>
+              <div className="text-metric-lg tabular-nums text-brand">{data.audit.overallScore ?? '—'}<span className="text-sm text-muted-foreground font-normal">/100</span></div>
+              <p className="text-label text-muted-foreground mt-1">SEO Skoru</p>
             </div>
             <div className="text-center">
-              <div className="text-3xl font-bold">{data.audit.geoScore ?? '—'}<span className="text-sm text-muted-foreground font-normal">/100</span></div>
-              <p className="text-[11px] text-muted-foreground mt-1">GEO Skoru</p>
+              <div className="text-metric-lg tabular-nums">{data.audit.geoScore ?? '—'}<span className="text-sm text-muted-foreground font-normal">/100</span></div>
+              <p className="text-label text-muted-foreground mt-1">GEO Skoru</p>
             </div>
             <div className="text-center">
               {/*
@@ -127,13 +141,13 @@ export function SiteReportPanel({ siteId, site }: { siteId: string; site: any })
                 Sunucu artik hicbir saglayici cevap veremediginde null donuyor;
                 0 yazmak "AI gorunurlugun sifira dustu" yalanini uretiyordu.
               */}
-              <div className="text-3xl font-bold">
+              <div className="text-metric-lg tabular-nums">
                 {data.ai.citationScore ?? '—'}
                 <span className="text-sm text-muted-foreground font-normal">/100</span>
               </div>
-              <p className="text-[11px] text-muted-foreground mt-1">AI Görünürlük</p>
+              <p className="text-label text-muted-foreground mt-1">AI Görünürlük</p>
               {data.ai.citationScore === null && data.ai.citationOlcumYok && (
-                <p className="text-[10px] text-muted-foreground mt-0.5 leading-tight">{data.ai.citationOlcumYok}</p>
+                <p className="text-label text-muted-foreground mt-0.5 leading-tight">{data.ai.citationOlcumYok}</p>
               )}
             </div>
           </div>
@@ -148,7 +162,7 @@ export function SiteReportPanel({ siteId, site }: { siteId: string; site: any })
         <Card>
           <CardContent className="p-4">
             <p className="text-sm font-semibold mb-3 inline-flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-brand" /> AI Sağlayıcı Dağılımı
+              <Sparkles className="h-4 w-4 text-brand" aria-hidden /> AI sağlayıcı dağılımı
             </p>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
               {data.ai.providers.map((p: any) => (
@@ -157,7 +171,7 @@ export function SiteReportPanel({ siteId, site }: { siteId: string; site: any })
                     <span className="text-xs font-medium truncate">{p.label}</span>
                     <span className={`text-base font-bold ${
                       !p.available || p.score === null ? 'text-muted-foreground' :
-                      p.score >= 60 ? 'text-green-500' : p.score >= 30 ? 'text-yellow-500' : 'text-red-500'
+                      p.score >= 60 ? 'text-success' : p.score >= 30 ? 'text-warning' : 'text-danger'
                     }`}>
                       {p.available && p.score !== null ? p.score : '—'}
                     </span>
@@ -172,7 +186,7 @@ export function SiteReportPanel({ siteId, site }: { siteId: string; site: any })
       {/* Zaman serisi (basit bar chart) */}
       <Card>
         <CardContent className="p-4">
-          <p className="text-sm font-semibold mb-3">Aktivite Trendi</p>
+          <p className="text-sm font-semibold mb-3">Aktivite trendi</p>
           <SimpleBarChart series={data.timeSeries} />
         </CardContent>
       </Card>
@@ -181,14 +195,15 @@ export function SiteReportPanel({ siteId, site }: { siteId: string; site: any })
       {data.search.topQueries?.length > 0 && (
         <Card>
           <CardContent className="p-4">
-            <p className="text-sm font-semibold mb-3">En Çok Tıklanan Sorgular</p>
+            <p className="text-sm font-semibold mb-3">En çok tıklanan sorgular</p>
+            <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="text-[11px] text-muted-foreground uppercase border-b">
+              <thead className="text-label text-muted-foreground uppercase border-b">
                 <tr>
                   <th className="text-left py-2 font-medium">Sorgu</th>
                   <th className="text-right py-2 font-medium">Tıklama</th>
                   <th className="text-right py-2 font-medium">Gösterim</th>
-                  <th className="text-right py-2 font-medium">CTR</th>
+                  <th className="text-right py-2 font-medium">Tıklama oranı</th>
                   <th className="text-right py-2 font-medium">Sıra</th>
                 </tr>
               </thead>
@@ -196,14 +211,15 @@ export function SiteReportPanel({ siteId, site }: { siteId: string; site: any })
                 {data.search.topQueries.slice(0, 10).map((q: any, i: number) => (
                   <tr key={i}>
                     <td className="py-2 truncate max-w-[300px]">{q.query}</td>
-                    <td className="text-right font-mono text-xs">{q.clicks}</td>
-                    <td className="text-right font-mono text-xs">{q.impressions}</td>
-                    <td className="text-right font-mono text-xs">{(q.ctr * 100).toFixed(1)}%</td>
-                    <td className="text-right font-mono text-xs">{q.position?.toFixed(1) ?? '-'}</td>
+                    <td className="text-right tabular-nums text-xs">{formatNum(q.clicks)}</td>
+                    <td className="text-right tabular-nums text-xs">{formatNum(q.impressions)}</td>
+                    <td className="text-right tabular-nums text-xs">{formatPct(q.ctr)}</td>
+                    <td className="text-right tabular-nums text-xs">{formatPos(q.position)}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
+            </div>
           </CardContent>
         </Card>
       )}
@@ -212,12 +228,12 @@ export function SiteReportPanel({ siteId, site }: { siteId: string; site: any })
       {Object.keys(data.social.byChannel).length > 0 && (
         <Card>
           <CardContent className="p-4">
-            <p className="text-sm font-semibold mb-3">Sosyal Kanal Dağılımı</p>
+            <p className="text-sm font-semibold mb-3">Sosyal kanal dağılımı</p>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
               {Object.entries(data.social.byChannel).map(([ch, count]) => (
                 <div key={ch} className="rounded-md border p-2.5 text-center">
-                  <div className="text-2xl font-bold">{count as number}</div>
-                  <p className="text-[11px] text-muted-foreground mt-0.5">{ch}</p>
+                  <div className="text-metric-lg tabular-nums">{formatNum(count as number)}</div>
+                  <p className="text-label text-muted-foreground mt-0.5">{ch}</p>
                 </div>
               ))}
             </div>
@@ -229,12 +245,12 @@ export function SiteReportPanel({ siteId, site }: { siteId: string; site: any })
       <Card>
         <CardContent className="p-4 grid grid-cols-2 md:grid-cols-4 gap-4">
           <div>
-            <p className="text-[11px] uppercase text-muted-foreground">Üretim Maliyeti</p>
-            <p className="text-xl font-bold">${data.articles.totalCost.toFixed(2)}</p>
+            <p className="text-label uppercase text-muted-foreground">Üretim Maliyeti</p>
+            <p className="text-metric tabular-nums">${data.articles.totalCost.toFixed(2)}</p>
           </div>
           <div>
-            <p className="text-[11px] uppercase text-muted-foreground">Ortalama Editör Skoru</p>
-            <p className="text-xl font-bold">{data.articles.avgEditorScore?.toFixed(1) ?? '—'}/60</p>
+            <p className="text-label uppercase text-muted-foreground">Ortalama Editör Skoru</p>
+            <p className="text-metric tabular-nums">{data.articles.avgEditorScore?.toFixed(1) ?? '—'}/60</p>
           </div>
           {/*
             ONCEDEN tek bir "Duzeltilen Sorun" sayisi vardi ve sunucuda
@@ -245,28 +261,28 @@ export function SiteReportPanel({ siteId, site }: { siteId: string; site: any })
             hucrede birbirini yiyemez.
           */}
           <div>
-            <p className="text-[11px] uppercase text-muted-foreground">Çözülen Sorun</p>
-            <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400">
+            <p className="text-label uppercase text-muted-foreground">Çözülen Sorun</p>
+            <p className="text-metric tabular-nums text-success">
               {data.audit.karsilastirma ? data.audit.cozulenSayisi : '—'}
             </p>
             {!data.audit.karsilastirma && (
-              <p className="text-[10px] text-muted-foreground leading-tight">Karşılaştırma için en az 2 tarama gerekli</p>
+              <p className="text-label text-muted-foreground leading-tight">Karşılaştırma için en az 2 tarama gerekli</p>
             )}
           </div>
           <div>
-            <p className="text-[11px] uppercase text-muted-foreground">Yeni Çıkan Sorun</p>
-            <p className="text-xl font-bold text-amber-600 dark:text-amber-400">
+            <p className="text-label uppercase text-muted-foreground">Yeni Çıkan Sorun</p>
+            <p className="text-metric tabular-nums text-warning">
               {data.audit.karsilastirma ? data.audit.yeniCikanSayisi : '—'}
             </p>
           </div>
           <div>
-            <p className="text-[11px] uppercase text-muted-foreground">Bekleyen Sorun</p>
-            <p className="text-xl font-bold">{data.audit.issuesCount}</p>
+            <p className="text-label uppercase text-muted-foreground">Bekleyen Sorun</p>
+            <p className="text-metric tabular-nums">{data.audit.issuesCount}</p>
           </div>
           <div>
-            <p className="text-[11px] uppercase text-muted-foreground">Kullanıcı Taraması</p>
-            <p className="text-xl font-bold">{data.audit.kullaniciTaramaSayisi ?? '—'}</p>
-            <p className="text-[10px] text-muted-foreground leading-tight">Elle başlatılan (cron/test hariç)</p>
+            <p className="text-label uppercase text-muted-foreground">Kullanıcı Taraması</p>
+            <p className="text-metric tabular-nums">{data.audit.kullaniciTaramaSayisi ?? '—'}</p>
+            <p className="text-label text-muted-foreground leading-tight">Elle başlatılan (cron/test hariç)</p>
           </div>
         </CardContent>
       </Card>
@@ -274,36 +290,16 @@ export function SiteReportPanel({ siteId, site }: { siteId: string; site: any })
   );
 }
 
-function BigMetric({
-  label, value, delta, icon,
-}: {
-  label: string;
-  value: string | number;
-  delta: number;
-  icon: React.ReactNode;
-}) {
-  const positive = delta > 0;
-  const negative = delta < 0;
-  return (
-    <div className="rounded-lg border p-4">
-      <div className="flex items-center gap-2 text-xs text-muted-foreground uppercase tracking-wide font-medium">
-        {icon} {label}
-      </div>
-      <div className="text-3xl font-bold mt-2">{value}</div>
-      <div className={`text-xs mt-1 inline-flex items-center gap-1 font-medium ${
-        positive ? 'text-green-500' : negative ? 'text-red-500' : 'text-muted-foreground'
-      }`}>
-        {positive ? <TrendingUp className="h-3 w-3" /> : negative ? <TrendingDown className="h-3 w-3" /> : <Minus className="h-3 w-3" />}
-        {delta > 0 ? '+' : ''}{delta.toLocaleString('tr-TR')}
-        <span className="text-muted-foreground">önceki dönem</span>
-      </div>
-    </div>
-  );
-}
-
 /**
- * Saf SVG bar chart — bagimsiz, bagimliligi yok.
+ * Sade CSS bar grafigi — renkler YALNIZ lib/chart-colors (CHART), etiketler text-label.
+ * Eskiden bg-info/bg-success ve text-label kullaniyordu.
  */
+const SERIES = [
+  { key: 'articles', label: 'Makale', color: CHART[1] },
+  { key: 'social', label: 'Sosyal gönderi', color: CHART[3] },
+  { key: 'clicks', label: 'GSC tıklama (ayrı ölçek)', color: CHART[2] },
+] as const;
+
 function SimpleBarChart({ series }: { series: any }) {
   const dates: string[] = series.dates ?? [];
   const articles: number[] = series.publishedArticles ?? [];
@@ -312,34 +308,32 @@ function SimpleBarChart({ series }: { series: any }) {
 
   const maxArticles = Math.max(1, ...articles);
   const maxClicks = Math.max(1, ...clicks);
+  // 12px etiketler sikisirsa ust uste biner — en fazla ~12 tarih etiketi
+  const labelEvery = Math.max(1, Math.ceil(dates.length / 12));
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
-        <span className="inline-flex items-center gap-1">
-          <span className="h-2 w-3 bg-brand rounded-sm" /> Makale
-        </span>
-        <span className="inline-flex items-center gap-1">
-          <span className="h-2 w-3 bg-blue-500 rounded-sm" /> Sosyal post
-        </span>
-        <span className="inline-flex items-center gap-1">
-          <span className="h-2 w-3 bg-green-500 rounded-sm" /> GSC tıklama (sağ)
-        </span>
+      <div className="flex flex-wrap items-center gap-3 text-label text-muted-foreground">
+        {SERIES.map((s) => (
+          <span key={s.key} className="inline-flex items-center gap-1">
+            <span className="h-2 w-3 rounded-sm" style={{ background: s.color }} aria-hidden /> {s.label}
+          </span>
+        ))}
       </div>
 
-      <div className="flex items-end gap-0.5 h-32 overflow-x-auto pb-2">
+      <div className="flex items-end gap-0.5 h-36 overflow-x-auto pb-2" role="img" aria-label="Dönem boyunca makale, sosyal gönderi ve tıklama dağılımı">
         {dates.map((d, i) => {
           const articlesH = (articles[i] / maxArticles) * 80;
           const socialH = (social[i] / maxArticles) * 80;
           const clicksH = (clicks[i] / maxClicks) * 80;
           return (
-            <div key={i} className="flex flex-col items-center gap-0.5 min-w-[20px]" title={`${d}: ${articles[i]} makale, ${social[i]} post, ${clicks[i]} tıklama`}>
+            <div key={i} className="flex flex-col items-center gap-0.5 min-w-[20px]" title={`${d}: ${articles[i]} makale, ${social[i]} gönderi, ${clicks[i]} tıklama`}>
               <div className="flex items-end gap-0.5 h-24">
-                <div className="w-1.5 bg-brand rounded-t" style={{ height: `${articlesH}%` }} />
-                <div className="w-1.5 bg-blue-500 rounded-t" style={{ height: `${socialH}%` }} />
-                <div className="w-1.5 bg-green-500 rounded-t" style={{ height: `${clicksH}%` }} />
+                <div className="w-1.5 rounded-t" style={{ height: `${articlesH}%`, background: SERIES[0].color }} />
+                <div className="w-1.5 rounded-t" style={{ height: `${socialH}%`, background: SERIES[1].color }} />
+                <div className="w-1.5 rounded-t" style={{ height: `${clicksH}%`, background: SERIES[2].color }} />
               </div>
-              <span className="text-[9px] text-muted-foreground rotate-[-45deg] origin-top-left mt-1">
+              <span className={`text-label text-muted-foreground whitespace-nowrap mt-1 ${i % labelEvery === 0 ? '' : 'invisible'}`}>
                 {d.slice(5)}
               </span>
             </div>
