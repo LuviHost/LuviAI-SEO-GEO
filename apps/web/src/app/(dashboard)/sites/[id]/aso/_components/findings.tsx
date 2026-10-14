@@ -18,6 +18,7 @@ const FIELD_LABEL: Record<string, string> = {
   shortDesc: 'Kısa açıklama',
   // Sunucu bu bulguyu sürüm notlarından (releaseNotes) üretiyor — mağazada "Yenilikler"
   promo: 'Yenilikler',
+  whatsNew: 'Yenilikler',
   reviews: 'Yorumlar',
   rating: 'Puan',
   screenshots: 'Ekran görüntüleri',
@@ -37,7 +38,8 @@ export function findingLabel(f: AuditFinding): string {
 }
 
 export function findingMessage(f: AuditFinding): string | undefined {
-  // "Promotional text boş" aslında sürüm notlarının boş olduğu anlamına geliyor
+  // Eski kayıtlar: API eskiden sürüm notlarını "Promotional text" diye raporluyordu
+  // (artık field 'whatsNew', etiket "Yenilikler" — mesaj API'den doğru geliyor).
   if (f.field === 'promo') return 'Yenilikler (sürüm notları) mağaza verisinde boş görünüyor.';
   return f.message;
 }

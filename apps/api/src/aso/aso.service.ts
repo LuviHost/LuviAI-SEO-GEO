@@ -813,10 +813,13 @@ export class AsoService {
         findings.push({ severity: 'ok', store: 'IOS', field: 'description', label: 'Description', current: `${descLen}/4000 char` });
       }
 
-      // Promotional Text (170 char) — kolay update edilebilir
-      const promo = (ios.releaseNotes ?? '').toString();
-      if (!promo) {
-        findings.push({ severity: 'info', store: 'IOS', field: 'promo', label: 'Promotional Text', current: '', message: 'Promotional text boş', recommendation: '170 char, app review GEREKMEZ — yeni release notes / kampanya için kolay araç.' });
+      // Yenilikler (release notes). Eskiden bu alan "Promotional Text" diye
+      // raporlaniyordu — promosyon metni herkese acik magaza verisinde YOK
+      // (yalniz ASC'den okunur, bkz. ASC Metadata paneli), releaseNotes ise
+      // "What's New" alanidir.
+      const whatsNew = (ios.releaseNotes ?? '').toString();
+      if (!whatsNew) {
+        findings.push({ severity: 'info', store: 'IOS', field: 'whatsNew', label: 'Yenilikler', current: '', message: 'Son sürümün "Yenilikler" notu boş', recommendation: 'Her güncellemede neyin değiştiğini 2-3 maddede anlat; ilk sürümde bu alan girilemez.' });
       }
 
       // Reviews & Ratings

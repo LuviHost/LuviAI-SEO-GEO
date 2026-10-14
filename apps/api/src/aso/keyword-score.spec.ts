@@ -92,8 +92,9 @@ describe('ham deger cikarimi', () => {
 });
 
 describe('arayuz — ikili sinyal sayi gibi cizilmiyor', () => {
+  // Faz 4 (UX): kelime tablosu modal yerine /aso/[appId]/keywords rotasinda
   const UI = readFileSync(
-    new URL('../../../web/src/app/(dashboard)/sites/[id]/aso/page.tsx', import.meta.url),
+    new URL('../../../web/src/app/(dashboard)/sites/[id]/aso/[appId]/keywords/page.tsx', import.meta.url),
     'utf8',
   );
 
@@ -109,25 +110,25 @@ describe('arayuz — ikili sinyal sayi gibi cizilmiyor', () => {
   });
 
   it('oneri sinyali AYRI rozet — talep sayisina karistirilmamis', () => {
-    expect(UI).toContain('kw.suggested');
-    expect(UI).toContain('✦');
+    expect(UI).toMatch(/\b(kw|k)\.suggested/);
+    expect(UI, 'oneri rozeti talep sayisindan ayri bir isaret olmali').toMatch(/✦|<Sparkle\b/);
   });
 
   it('talep 0/null iken sayi degil "olculemedi" gosteriliyor', () => {
-    expect(UI).toMatch(/kw\.popularity \?/);
+    expect(UI).toMatch(/\b(kw|k)\.popularity \?/);
     expect(UI).toContain('bu terimde sıralanan uygulama bulunamadı');
   });
 
   it('Rank tooltip\'i magaza derinligini dogru soyluyor', () => {
     expect(UI, 'Android icin 100 vaat ediliyor').not.toMatch(/gerçek sırası \(1-100\)/);
-    expect(UI).toContain('~25-30');
+    expect(UI, 'Play derinligi ~30 olarak anlatilmali').toMatch(/~25-30|~30'da/);
   });
 
   it('Diff/Traffic hucrelerinde `> 0` suzgeci kalmamis', () => {
     // Sunucu artik olculemeyeni null donuyor; `> 0` gercek bir 0'i da
     // gizlerdi (gerci aso-v2 tabani 1.0 oldugu icin gercek 0 uretilemez).
-    expect(UI).not.toMatch(/kw\.difficulty != null && kw\.difficulty > 0/);
-    expect(UI).not.toMatch(/kw\.traffic != null && kw\.traffic > 0/);
+    expect(UI).not.toMatch(/\b(kw|k)\.difficulty != null && \b(kw|k)\.difficulty > 0/);
+    expect(UI).not.toMatch(/\b(kw|k)\.traffic != null && \b(kw|k)\.traffic > 0/);
   });
 });
 
