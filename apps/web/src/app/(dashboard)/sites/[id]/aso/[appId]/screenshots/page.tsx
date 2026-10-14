@@ -1029,7 +1029,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                     <p className="text-label text-muted-foreground mb-2">
                       Tıkla = aktif slota uygula · <Copy className="h-2.5 w-2.5 inline" /> ikonu = {slotCount} slota uygula
                     </p>
-                    <div className="grid grid-cols-3 gap-1.5 max-h-[260px] overflow-y-auto">
+                    <div className="grid grid-cols-3 gap-1.5">
                       {library.map(item => {
                         const fullUrl = (process.env.NEXT_PUBLIC_API_URL ?? '') + item.url;
                         return (
@@ -1368,7 +1368,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                 {/* Phone Frame */}
                 <div className="border-t pt-3">
                   <label className="text-xs font-medium mb-1.5 block">Phone Frame</label>
-                  <div className="grid grid-cols-2 gap-1.5 max-h-[200px] overflow-y-auto">
+                  <div className="grid grid-cols-2 gap-1.5">
                     {PHONE_FRAMES.map(f => (
                       <button
                         key={f.id}
@@ -1735,15 +1735,16 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                             <div className="text-xs text-muted-foreground">
                               {rating ? (
                                 <span className="flex items-center gap-1">
-                                  <Star className="h-3 w-3 fill-amber-500 text-amber-500" />
+                                  <Star className="h-3 w-3 fill-warning text-warning" />
                                   <span className="font-semibold text-foreground">{Number(rating).toFixed(1)}</span>
                                   {ratingCount && <span>· {Number(ratingCount).toLocaleString('tr-TR')}</span>}
                                 </span>
                               ) : 'Yeni'}
                             </div>
-                            <button className="px-4 py-1 rounded-full bg-blue-600 text-white text-xs font-semibold">
+                            {/* Mağaza taklidi — App Store "Edin" düğmesinin kendi rengi bilinçli; tıklanmaz */}
+                            <span aria-hidden className="px-4 py-1 rounded-full bg-blue-600 text-white text-xs font-semibold">
                               EDİN
-                            </button>
+                            </span>
                           </div>
                         </div>
                       </div>
@@ -1775,8 +1776,8 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                       </div>
                     </div>
                     <div className="mt-4 flex gap-2">
-                      <button className="flex-1 py-2 rounded-md bg-emerald-600 text-white text-sm font-semibold">Yükle</button>
-                      <button className="px-4 py-2 rounded-md border text-sm">Liste</button>
+                      <span aria-hidden className="flex-1 py-2 rounded-md bg-emerald-600 text-center text-white text-sm font-semibold">Yükle</span>
+                      <span aria-hidden className="px-4 py-2 rounded-md border text-sm">Liste</span>
                     </div>
                   </div>
                 );
