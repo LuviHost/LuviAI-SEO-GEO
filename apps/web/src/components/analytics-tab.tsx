@@ -1,18 +1,24 @@
 'use client';
 
-import { formatNum, formatPct, formatPos } from '@/lib/format';
+import { formatDuration, formatNum, formatPct, formatPos } from '@/lib/format';
 import { siteHref } from '@/lib/site-routes';
 import { useEffect, useRef, useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
 import { ChartContainer, ChartTooltip, CHART_AXIS, CHART_GRID } from '@/components/ui/chart-container';
 import { CHART } from '@/lib/chart-colors';
-import { TrendingUp, Lightbulb, BarChart3, MousePointerClick, Eye, Activity, Target as TargetIcon, Clock } from 'lucide-react';
+import {
+  TrendingUp, Lightbulb, BarChart3, MousePointerClick, Eye, Activity, Target as TargetIcon, Clock,
+  FileText, Sparkles, Trophy, Percent, Hash, LogOut, RefreshCw, Search,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { MetricCard } from '@/components/ui/metric';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { EmptyState } from '@/components/empty-state';
 import { GoogleAiSurfaceCard } from '@/components/google-ai-surface-card';
 import { SearchOpportunitiesCard } from '@/components/search-opportunities-card';
 
@@ -83,7 +89,7 @@ export function AnalyticsTab({ siteId, site }: { siteId: string; site?: any }) {
     setRefreshing(true);
     try {
       await api.triggerSnapshotNow(siteId);
-      toast.success('Snapshot tamamlandı');
+      toast.success('Veriler güncellendi');
       await refresh();
     } catch (err: any) {
       toast.error(err.message);
@@ -107,222 +113,245 @@ export function AnalyticsTab({ siteId, site }: { siteId: string; site?: any }) {
 
   const totals = overview.totals;
 
+  // Eskiden ~9 kart tek uzun kaydirmaydi; simdi bes sekme. GSC ozeti ilk sekmede.
   return (
-    <div className="space-y-6">
-      {/* Top metrics */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <MetricCard icon={<MousePointerClick />} label="Tıklama" value={totals.clicks.toLocaleString('tr-TR')} />
-        <MetricCard icon={<Eye />} label="Gösterim" value={totals.impressions.toLocaleString('tr-TR')} />
-        <MetricCard label="Tıklama oranı" value={formatPct(totals.avgCtr, 2)} />
-        <MetricCard label="Ort. sıra" value={formatPos(totals.avgPosition)} />
+    <Tabs defaultValue="genel" className="space-y-4">
+      <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+        <TabsList className="w-max">
+          <TabsTrigger value="genel">
+            <BarChart3 className="h-3.5 w-3.5 mr-1.5" aria-hidden /> Genel
+          </TabsTrigger>
+          <TabsTrigger value="sayfalar">
+            <FileText className="h-3.5 w-3.5 mr-1.5" aria-hidden /> Sayfalar &amp; sorgular
+          </TabsTrigger>
+          <TabsTrigger value="ga4">
+            <Activity className="h-3.5 w-3.5 mr-1.5" aria-hidden /> GA4
+          </TabsTrigger>
+          <TabsTrigger value="firsatlar">
+            <Lightbulb className="h-3.5 w-3.5 mr-1.5" aria-hidden /> Fırsatlar
+          </TabsTrigger>
+          <TabsTrigger value="google-ai">
+            <Sparkles className="h-3.5 w-3.5 mr-1.5" aria-hidden /> Google AI
+          </TabsTrigger>
+        </TabsList>
       </div>
 
-      {/* Markasız tıklama payı — organik "keşif kanalı" ölçüsü (AI tarafındaki brandInQuery ayrımının ikizi) */}
-      {overview.brandSplit && (
-        <Card>
-          <CardContent className="p-4 flex items-start gap-4 flex-wrap">
-            <div className="min-w-[120px]">
-              <div className="text-xs text-muted-foreground mb-1">Markasız tıklama payı</div>
-              <div className="text-2xl font-bold tabular-nums">
-                {overview.brandSplit.unbrandedClickSharePct !== null ? `%${overview.brandSplit.unbrandedClickSharePct}` : '—'}
-              </div>
-            </div>
-            <div className="flex-1 min-w-[240px] text-xs text-muted-foreground leading-relaxed">
-              <div>
-                <strong>{overview.brandSplit.unbranded.clicks.toLocaleString('tr-TR')}</strong> markasız ·{' '}
-                <strong>{overview.brandSplit.branded.clicks.toLocaleString('tr-TR')}</strong> markalı tıklama
-                {' '}({overview.brandSplit.unbranded.queries + overview.brandSplit.branded.queries} sorgu örneklemi, {overview.brandSplit.daysWithQueries} gün)
-              </div>
-              <div className="mt-1">
-                Marka adını (<em>{overview.brandSplit.brand}</em>) içeren sorgular seni zaten bilenlerden gelir — bu hafıza, keşif değil.
-                Markasız pay ne kadar yüksekse Google o kadar gerçek bir keşif kanalı. Örneklem: gün başına en çok tıklanan 100 sorgu.
-              </div>
-              {overview.brandSplit.unbrandedClickSharePct !== null && overview.brandSplit.unbrandedClickSharePct < 20 && (
-                <div className="mt-1 text-amber-700 dark:text-amber-300">
-                  Tıklamaların %80'inden fazlası adını bilenlerden — henüz bir SEO keşif kanalın yok; markasız sorulara cevap veren içerik gerekiyor.
+      {/* ── Genel: GSC KPI + grafik ── */}
+      <TabsContent value="genel" className="space-y-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          <MetricCard icon={MousePointerClick} label="Tıklama (30 gün)" value={totals.clicks} />
+          <MetricCard icon={Eye} label="Gösterim (30 gün)" value={totals.impressions} accent="muted" />
+          <MetricCard icon={Percent} label="Tıklama oranı" value={formatPct(totals.avgCtr, 2)} accent="muted" />
+          <MetricCard icon={Hash} label="Ort. sıra" value={formatPos(totals.avgPosition)} accent="muted" />
+        </div>
+
+        {/* Markasız tıklama payı — organik "keşif kanalı" ölçüsü (AI tarafındaki brandInQuery ayrımının ikizi) */}
+        {overview.brandSplit && (
+          <Card>
+            <CardContent className="p-4 flex items-start gap-4 flex-wrap">
+              <div className="min-w-[120px]">
+                <div className="text-label text-muted-foreground mb-1">Markasız tıklama payı</div>
+                <div className="text-metric-lg tabular-nums">
+                  {overview.brandSplit.unbrandedClickSharePct !== null ? `%${overview.brandSplit.unbrandedClickSharePct}` : '—'}
                 </div>
-              )}
-            </div>
+              </div>
+              <div className="flex-1 min-w-[240px] text-xs text-muted-foreground leading-relaxed">
+                <div>
+                  <strong>{formatNum(overview.brandSplit.unbranded.clicks)}</strong> markasız ·{' '}
+                  <strong>{formatNum(overview.brandSplit.branded.clicks)}</strong> markalı tıklama
+                  {' '}({formatNum(overview.brandSplit.unbranded.queries + overview.brandSplit.branded.queries)} sorgu örneklemi, {overview.brandSplit.daysWithQueries} gün)
+                </div>
+                <div className="mt-1">
+                  Marka adını (<em>{overview.brandSplit.brand}</em>) içeren sorgular seni zaten bilenlerden gelir — bu hafıza, keşif değil.
+                  Markasız pay ne kadar yüksekse Google o kadar gerçek bir keşif kanalı. Örneklem: gün başına en çok tıklanan 100 sorgu.
+                </div>
+                {overview.brandSplit.unbrandedClickSharePct !== null && overview.brandSplit.unbrandedClickSharePct < 20 && (
+                  <div className="mt-1 text-warning">
+                    Tıklamaların %80&apos;inden fazlası adını bilenlerden — henüz bir SEO keşif kanalın yok; markasız sorulara cevap veren içerik gerekiyor.
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between gap-3">
+            <h3 className="font-semibold">Son 30 gün — tıklama ve gösterim</h3>
+            <Button size="sm" variant="outline" onClick={triggerSnapshot} disabled={refreshing}>
+              <RefreshCw className={`h-3.5 w-3.5 mr-1.5 ${refreshing ? 'animate-spin' : ''}`} aria-hidden />
+              {refreshing ? 'Yenileniyor…' : 'Yenile'}
+            </Button>
+          </CardHeader>
+          <CardContent>
+            <ChartContainer height={256}>
+              <LineChart data={overview.timeSeries}>
+                <CartesianGrid {...CHART_GRID} strokeDasharray="3 3" />
+                <XAxis dataKey="date" {...CHART_AXIS} />
+                <YAxis yAxisId="left" {...CHART_AXIS} width={44} />
+                <YAxis yAxisId="right" orientation="right" {...CHART_AXIS} width={52} />
+                <Tooltip content={<ChartTooltip />} />
+                <Legend />
+                <Line yAxisId="left" type="monotone" dataKey="clicks" stroke={CHART[1]} strokeWidth={2} dot={false} name="Tıklama" />
+                <Line yAxisId="right" type="monotone" dataKey="impressions" stroke={CHART[8]} strokeWidth={2} dot={false} name="Gösterim" />
+              </LineChart>
+            </ChartContainer>
           </CardContent>
         </Card>
-      )}
+      </TabsContent>
 
-      {/* Chart */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <h3 className="font-semibold">Son 30 Gün — Tıklama & Gösterim</h3>
-          <Button size="sm" variant="outline" onClick={triggerSnapshot} disabled={refreshing}>
-            {refreshing ? '…' : 'Yenile'}
-          </Button>
-        </CardHeader>
-        <CardContent>
-          {/* Mor #6c5ce7/#a29bfe (reddedilen marka denemesi kalintisi) -> chart token'lari */}
-          <ChartContainer height={256}>
-            <LineChart data={overview.timeSeries}>
-              <CartesianGrid {...CHART_GRID} strokeDasharray="3 3" />
-              <XAxis dataKey="date" {...CHART_AXIS} />
-              <YAxis yAxisId="left" {...CHART_AXIS} width={44} />
-              <YAxis yAxisId="right" orientation="right" {...CHART_AXIS} width={52} />
-              <Tooltip content={<ChartTooltip />} />
-              <Legend />
-              <Line yAxisId="left" type="monotone" dataKey="clicks" stroke={CHART[1]} strokeWidth={2} dot={false} name="Tıklama" />
-              <Line yAxisId="right" type="monotone" dataKey="impressions" stroke={CHART[8]} strokeWidth={2} dot={false} name="Gösterim" />
-            </LineChart>
-          </ChartContainer>
-        </CardContent>
-      </Card>
-
-      {/* Google AI yüzeyi — AIO/AI Mode gösterimleri (CSV import), AI-Mode-şüpheli sorgular, Preferred Sources rehberi */}
-      <GoogleAiSurfaceCard siteId={siteId} site={site} />
-
-      {/* GA4 davranış metrikleri (opsiyonel) */}
-      {gaSummary && (
-        <>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <MetricCard icon={<Activity />} label="Oturum (30g)" value={gaSummary.totalSessions.toLocaleString('tr-TR')} />
-            <MetricCard icon={<TargetIcon />} label="Dönüşüm (30g)" value={gaSummary.totalConversions.toLocaleString('tr-TR')} />
-            <MetricCard
-              icon={<Clock />}
-              label="Ort. etkileşim"
-              value={`${Math.round(gaSummary.avgEngagementSec)} sn`}
-            />
-            <MetricCard
-              label="Hemen çıkma oranı"
-              value={formatPct(gaSummary.avgBounceRate)}
-            />
-          </div>
-
-          {gaSummary.topPages?.length > 0 && (
-            <Card>
-              <CardHeader>
-                <h3 className="font-semibold">📈 GA4 — En çok ziyaret edilen sayfalar</h3>
-              </CardHeader>
-              <CardContent className="p-0">
-                <div className="divide-y">
-                  {gaSummary.topPages.slice(0, 10).map((p: any, i: number) => (
-                    <div key={i} className="px-5 py-3 flex items-center justify-between gap-4 text-sm">
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium truncate">{p.pagePath}</div>
-                        <div className="text-xs text-muted-foreground flex gap-3 mt-0.5 flex-wrap">
-                          <span>{p.sessions} oturum</span>
-                          <span>{p.conversions} dönüşüm</span>
-                          <span>{Math.round(p.avgEngagementSec)} sn etkileşim</span>
-                          <span className={p.bounceRate >= 0.7 ? 'text-red-500 font-medium' : ''}>
-                            {formatPct(p.bounceRate, 0)} hemen çıkma
-                          </span>
-                        </div>
+      {/* ── Sayfalar & sorgular ── */}
+      <TabsContent value="sayfalar" className="space-y-4">
+        <Card>
+          <CardHeader>
+            <h3 className="font-semibold flex items-center gap-2">
+              <Trophy className="h-4 w-4 text-brand" aria-hidden /> En iyi performans gösteren makaleler
+            </h3>
+          </CardHeader>
+          <CardContent className="p-0">
+            {topArticles.length === 0 ? (
+              <div className="p-8 text-center text-muted-foreground text-sm">
+                Henüz performans verisi olan makale yok.
+              </div>
+            ) : (
+              <div className="divide-y">
+                {topArticles.map((a) => (
+                  <div key={a.id} className="px-5 py-3 flex items-center justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-semibold text-sm truncate">{a.title}</h4>
+                      <div className="text-xs text-muted-foreground flex flex-wrap gap-x-4 gap-y-1 mt-1">
+                        <span>{formatNum(a.clicks)} tıklama</span>
+                        <span>{formatNum(a.impressions)} gösterim</span>
+                        <span>Tıklama oranı {formatPct(a.ctr)}</span>
+                        <span>Ort. sıra {formatPos(a.position)}</span>
                       </div>
                     </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
-          {/* GSC × GA4 arama firsatlari — GA bagliysa (ozet geldiyse) */}
-          <SearchOpportunitiesCard siteId={siteId} />
-        </>
-      )}
-
-      {/* Top articles */}
-      <Card>
-        <CardHeader>
-          <h3 className="font-semibold">🏆 En İyi Performans Gösteren Makaleler</h3>
-        </CardHeader>
-        <CardContent className="p-0">
-          {topArticles.length === 0 ? (
-            <div className="p-8 text-center text-muted-foreground text-sm">
-              Henüz performans verisi olan makale yok.
-            </div>
-          ) : (
-            <div className="divide-y">
-              {topArticles.map((a) => (
-                <div key={a.id} className="px-5 py-3 flex items-center justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    <h4 className="font-semibold text-sm truncate">{a.title}</h4>
-                    <div className="text-xs text-muted-foreground flex gap-4 mt-1">
-                      <span>{a.clicks} tıklama</span>
-                      <span>{a.impressions} gösterim</span>
-                      <span>Tıklama oranı {formatPct(a.ctr)}</span>
-                      <span>Ort. sıra {formatPos(a.position)}</span>
+        <Card>
+          <CardHeader>
+            <h3 className="font-semibold flex items-center gap-2">
+              <TrendingUp className="h-4 w-4 text-success" aria-hidden /> Yükselen sorgular (son 7 gün)
+            </h3>
+          </CardHeader>
+          <CardContent className="p-0">
+            {trending.length === 0 ? (
+              <div className="p-8 text-center text-muted-foreground text-sm">
+                Son 7 günde belirgin yükselen sorgu yok.
+              </div>
+            ) : (
+              <div className="divide-y">
+                {trending.map((t, i) => (
+                  <div key={i} className="px-5 py-3 flex items-center justify-between gap-3 text-sm">
+                    <span className="font-medium min-w-0 truncate">{t.query}</span>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <span className="text-xs text-muted-foreground">{formatNum(t.recentImp)} gösterim</span>
+                      <Badge variant="success">+{t.growthPct}%</Badge>
                     </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </TabsContent>
 
-      {/* Trending */}
-      {trending.length > 0 && (
+      {/* ── GA4 davranış metrikleri (opsiyonel) ── */}
+      <TabsContent value="ga4" className="space-y-4">
+        {gaSummary ? (
+          <>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <MetricCard icon={Activity} label="Oturum (30 gün)" value={gaSummary.totalSessions} />
+              <MetricCard icon={TargetIcon} label="Dönüşüm (30 gün)" value={gaSummary.totalConversions} accent="muted" />
+              <MetricCard icon={Clock} label="Ort. etkileşim" value={formatDuration(gaSummary.avgEngagementSec)} accent="muted" />
+              <MetricCard icon={LogOut} label="Hemen çıkma oranı" value={formatPct(gaSummary.avgBounceRate)} accent="muted" />
+            </div>
+
+            {gaSummary.topPages?.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <h3 className="font-semibold">En çok ziyaret edilen sayfalar</h3>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <div className="divide-y">
+                    {gaSummary.topPages.slice(0, 10).map((p: any, i: number) => (
+                      <div key={i} className="px-5 py-3 flex items-center justify-between gap-4 text-sm">
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium truncate">{p.pagePath}</div>
+                          <div className="text-xs text-muted-foreground flex gap-3 mt-0.5 flex-wrap">
+                            <span>{formatNum(p.sessions)} oturum</span>
+                            <span>{formatNum(p.conversions)} dönüşüm</span>
+                            <span>{formatDuration(p.avgEngagementSec)} etkileşim</span>
+                            <span className={p.bounceRate >= 0.7 ? 'text-danger font-medium' : ''}>
+                              {formatPct(p.bounceRate, 0)} hemen çıkma
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </>
+        ) : (
+          <EmptyState
+            icon={Activity}
+            title="GA4 bağlı değil"
+            description="Oturum, dönüşüm ve hemen çıkma verisi için Google Analytics 4 mülkünü bağla."
+            primary={{ label: 'Bağlantılara git', href: siteHref(siteId, 'connections') }}
+          />
+        )}
+      </TabsContent>
+
+      {/* ── Fırsatlar: GSC × GA4 + iyileştirme önerileri ── */}
+      <TabsContent value="firsatlar" className="space-y-4">
+        {/* GSC × GA4 arama firsatlari — GA bagliysa (ozet geldiyse) */}
+        {gaSummary && <SearchOpportunitiesCard siteId={siteId} />}
+
         <Card>
           <CardHeader>
             <h3 className="font-semibold flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-green-500" /> Yükselen Sorgular (son 7g)
+              <Lightbulb className="h-4 w-4 text-warning" aria-hidden /> İyileştirme önerileri
             </h3>
           </CardHeader>
           <CardContent className="p-0">
-            <div className="divide-y">
-              {trending.map((t, i) => (
-                <div key={i} className="px-5 py-3 flex items-center justify-between text-sm">
-                  <span className="font-medium">{t.query}</span>
-                  <div className="flex items-center gap-3">
-                    <span className="text-xs text-muted-foreground">{formatNum(t.recentImp)} gösterim</span>
-                    <Badge variant="success">+{t.growthPct}%</Badge>
+            {suggestions.length === 0 ? (
+              <div className="p-8 text-center text-muted-foreground text-sm">
+                Şu an ilk sayfaya yakın ya da tıklama oranı düşük sorgu bulunmadı.
+              </div>
+            ) : (
+              <div className="divide-y">
+                {suggestions.slice(0, 10).map((s, i) => (
+                  <div key={i} className="px-5 py-3 text-sm">
+                    <div className="flex items-center gap-2 mb-1 min-w-0">
+                      <Badge variant={s.type === 'near-miss' ? 'warning' : 'secondary'} className="shrink-0">
+                        {s.type === 'near-miss' ? 'İlk sayfaya yakın' : 'Düşük tıklama oranı'}
+                      </Badge>
+                      <span className="font-medium truncate">{s.query}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground ml-1">{s.recommendation}</p>
+                    <div className="text-xs text-muted-foreground mt-1 ml-1">
+                      {formatNum(s.impressions)} gösterim · ort. sıra {formatPos(s.position)} · tıklama oranı {formatPct(s.ctr ?? 0)}
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
-      )}
+      </TabsContent>
 
-      {/* Suggestions */}
-      {suggestions.length > 0 && (
-        <Card>
-          <CardHeader>
-            <h3 className="font-semibold flex items-center gap-2">
-              <Lightbulb className="h-4 w-4 text-yellow-500" /> İyileştirme Önerileri
-            </h3>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="divide-y">
-              {suggestions.slice(0, 10).map((s, i) => (
-                <div key={i} className="px-5 py-3 text-sm">
-                  <div className="flex items-center gap-2 mb-1">
-                    <Badge variant={s.type === 'near-miss' ? 'warning' : 'secondary'}>
-                      {s.type === 'near-miss' ? 'İLK SAYFAYA YAKIN' : 'DÜŞÜK TIKLAMA ORANI'}
-                    </Badge>
-                    <span className="font-medium truncate">{s.query}</span>
-                  </div>
-                  <p className="text-xs text-muted-foreground ml-1">{s.recommendation}</p>
-                  <div className="text-xs text-muted-foreground mt-1 ml-1">
-                    {formatNum(s.impressions)} gösterim · ort. sıra {formatPos(s.position)} · tıklama oranı {formatPct(s.ctr ?? 0)}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-    </div>
-  );
-}
-
-function MetricCard({ icon, label, value }: { icon?: React.ReactNode; label: string; value: string }) {
-  // Deger onceden bicimlenmis string geldigi icin ui/metric yerine ince sarmalayici;
-  // tipografi sozlesmesi ayni: text-metric-lg + text-label.
-  return (
-    <Card density="dense">
-      <CardContent className="pt-4">
-        <div className="flex items-center gap-2 text-label text-muted-foreground mb-1">
-          {icon}
-          {label}
-        </div>
-        <div className="text-metric-lg tabular-nums">{value}</div>
-      </CardContent>
-    </Card>
+      {/* ── Google AI yüzeyi — AIO/AI Mode gösterimleri (CSV import), AI-Mode-şüpheli sorgular, Preferred Sources ── */}
+      <TabsContent value="google-ai">
+        <GoogleAiSurfaceCard siteId={siteId} site={site} />
+      </TabsContent>
+    </Tabs>
   );
 }
 
@@ -362,10 +391,10 @@ function AnalyticsEmptyState({
     return (
       <Card>
         <CardContent className="p-10 sm:p-12 text-center">
-          <div className="mx-auto mb-5 h-14 w-14 rounded-2xl bg-gradient-to-br from-brand/15 to-violet-500/15 grid place-items-center border border-brand/20">
+          <div className="mx-auto mb-5 h-14 w-14 rounded-2xl bg-brand/10 grid place-items-center border border-brand/20">
             <BarChart3 className="h-6 w-6 text-brand" />
           </div>
-          <h3 className="text-lg font-semibold mb-1">Analytics henüz aktif değil</h3>
+          <h3 className="text-h6 font-semibold mb-1">Analitik henüz aktif değil</h3>
           <p className="text-sm text-muted-foreground mb-6 max-w-md mx-auto">
             Performans verisini görmek için önce Google Search Console'u bağla.
             Bağlandıktan ~24 saat sonra ilk veri görünür.
@@ -374,13 +403,13 @@ function AnalyticsEmptyState({
             Search Console AI cevaplarında nerede görünmediğini ve tıklamayı nerede kaybettiğini söyleyemez; onu RanksUp doğrudan ölçer. GSC burada Google'daki gerçek tıklamayı — tahmini değil — markalı/markasız ayrımıyla gösterir.
           </p>
           <div className="flex justify-center">
-            <Button onClick={connectGsc} disabled={connecting} size="lg" className="font-mono text-xs uppercase tracking-widest">
-              <span aria-hidden className="mr-2">🔍</span>
-              {connecting ? 'Yönlendiriliyor…' : 'Google Search Console Bağla'}
+            <Button onClick={connectGsc} disabled={connecting} size="lg">
+              <Search className="h-4 w-4 mr-2" aria-hidden />
+              {connecting ? 'Yönlendiriliyor…' : 'Google Search Console bağla'}
             </Button>
 
           </div>
-          <p className="text-[10px] text-muted-foreground/70 font-mono uppercase tracking-wider mt-5">
+          <p className="text-label text-muted-foreground mt-5">
             OAuth · sadece okuma izni · istediğin zaman bağlantıyı kesebilirsin
           </p>
         </CardContent>
@@ -393,16 +422,16 @@ function AnalyticsEmptyState({
     return (
       <Card>
         <CardContent className="p-10 sm:p-12 text-center">
-          <div className="mx-auto mb-5 h-14 w-14 rounded-2xl bg-amber-500/10 grid place-items-center border border-amber-500/20">
-            <BarChart3 className="h-6 w-6 text-amber-600 dark:text-amber-400" />
+          <div className="mx-auto mb-5 h-14 w-14 rounded-2xl bg-warning/10 grid place-items-center border border-warning/20">
+            <BarChart3 className="h-6 w-6 text-warning" />
           </div>
-          <h3 className="text-lg font-semibold mb-1">GSC bağlandı — şimdi property seç</h3>
+          <h3 className="text-h6 font-semibold mb-1">GSC bağlandı — şimdi mülk seç</h3>
           <p className="text-sm text-muted-foreground mb-6 max-w-md mx-auto">
-            Google Search Console hesabın bağlı, ama hangi property'nin verisinin çekileceğini henüz seçmedin.
-            Veri tab'ına gidip property'yi seç, sonra geri gel.
+            Google Search Console hesabın bağlı, ama hangi mülkün verisinin çekileceğini henüz seçmedin.
+            Bağlantılar sayfasından mülkü seç, sonra geri gel.
           </p>
-          <Button asChild size="lg" className="font-mono text-xs uppercase tracking-widest">
-            <a href={siteHref(siteId, 'connections')}>Property Seç →</a>
+          <Button asChild size="lg">
+            <a href={siteHref(siteId, 'connections')}>Mülk seç</a>
           </Button>
         </CardContent>
       </Card>
@@ -413,23 +442,23 @@ function AnalyticsEmptyState({
   return (
     <Card>
       <CardContent className="p-10 sm:p-12 text-center">
-        <div className="mx-auto mb-5 h-14 w-14 rounded-2xl bg-emerald-500/10 grid place-items-center border border-emerald-500/20 relative">
-          <BarChart3 className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
+        <div className="mx-auto mb-5 h-14 w-14 rounded-2xl bg-success/10 grid place-items-center border border-success/20 relative">
+          <BarChart3 className="h-6 w-6 text-success" />
           {refreshing && (
-            <span className="absolute -inset-1 rounded-2xl border-2 border-emerald-500/40 animate-pulse" />
+            <span className="absolute -inset-1 rounded-2xl border-2 border-success/40 animate-pulse" />
           )}
         </div>
-        <h3 className="text-lg font-semibold mb-1">
-          {refreshing ? 'Snapshot alınıyor…' : 'GSC bağlı — ilk veri yolda'}
+        <h3 className="text-h6 font-semibold mb-1">
+          {refreshing ? 'Veri çekiliyor…' : 'GSC bağlı — ilk veri yolda'}
         </h3>
         <p className="text-sm text-muted-foreground max-w-md mx-auto">
           {refreshing
             ? 'Google Search Console\'dan veri otomatik çekiliyor. Bu birkaç saniye sürebilir.'
-            : 'Property\'inde henüz indekslenmiş veri olmayabilir. Veri görünmeye başladığında otomatik gelir (~24 saat).'}
+            : 'Mülkünde henüz indekslenmiş veri olmayabilir. Veri görünmeye başladığında otomatik gelir (~24 saat).'}
         </p>
-        <div className="flex items-center justify-center gap-2 mt-5 font-mono text-[10px] uppercase tracking-widest text-muted-foreground/70">
-          <span className={`h-1.5 w-1.5 rounded-full ${refreshing ? 'bg-emerald-500 animate-pulse' : 'bg-muted-foreground/40'}`} />
-          {refreshing ? 'Snapshot · running' : 'GSC · connected'}
+        <div className="flex items-center justify-center gap-2 mt-5 text-label text-muted-foreground">
+          <span className={`h-1.5 w-1.5 rounded-full ${refreshing ? 'bg-success animate-pulse' : 'bg-muted-foreground/40'}`} />
+          {refreshing ? 'Veri çekiliyor' : 'GSC bağlı'}
         </div>
       </CardContent>
     </Card>

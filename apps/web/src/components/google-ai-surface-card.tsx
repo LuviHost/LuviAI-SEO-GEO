@@ -1,7 +1,10 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
+import { ChartContainer, ChartTooltip, CHART_AXIS, CHART_GRID } from '@/components/ui/chart-container';
+import { CHART } from '@/lib/chart-colors';
+import { formatNum } from '@/lib/format';
 import { Sparkles, Upload, Copy, ExternalLink, Info } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
@@ -99,7 +102,7 @@ export function GoogleAiSurfaceCard({ siteId, site }: { siteId: string; site?: a
         <CardHeader className="flex flex-row items-start justify-between gap-3 flex-wrap">
           <div>
             <h3 className="font-semibold flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-brand-500" /> Google üretken AI görünümleri (AI Overviews + AI Mode)
+              <Sparkles className="h-4 w-4 text-brand" aria-hidden /> Google üretken AI görünümleri (AI Overviews + AI Mode)
             </h3>
             <p className="text-xs text-muted-foreground mt-0.5 max-w-2xl">
               Google bu veriyi API ile vermiyor. Search Console → Performans → <strong>Üretken AI</strong> raporu → Dışa aktar → <strong>tarih tablosu (CSV)</strong> dosyasını yükle. Yalnız gösterim gelir; AI Overviews / AI Mode ayrımı yok.
@@ -117,11 +120,11 @@ export function GoogleAiSurfaceCard({ siteId, site }: { siteId: string; site?: a
             <div className="mb-4 rounded-lg border p-3 text-sm space-y-1.5 bg-muted/30">
               <div className="font-medium">Önizleme — {fileName}</div>
               <div className="text-xs text-muted-foreground">
-                {preview.rows} gün · {preview.from} → {preview.to} · toplam {preview.totalImpressions.toLocaleString('tr-TR')} gösterim
+                {preview.rows} gün · {preview.from} → {preview.to} · toplam {formatNum(preview.totalImpressions)} gösterim
                 · kolon: {Object.entries(preview.mapping ?? {}).map(([k, v]) => `${k}=${v}`).join(', ')}
               </div>
               {preview.suspiciousNote && (
-                <div className="text-xs text-amber-700 dark:text-amber-300 flex items-start gap-1.5"><Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />{preview.suspiciousNote}</div>
+                <div className="text-xs text-warning flex items-start gap-1.5"><Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />{preview.suspiciousNote}</div>
               )}
               {preview.warnings?.length > 0 && (
                 <div className="text-xs text-muted-foreground">Uyarılar: {preview.warnings.slice(0, 3).join(' · ')}</div>
@@ -137,25 +140,23 @@ export function GoogleAiSurfaceCard({ siteId, site }: { siteId: string; site?: a
             <>
               <div className="flex items-baseline gap-4 mb-3 flex-wrap">
                 <div>
-                  <div className="text-2xl font-bold tabular-nums">{series.totals.last28.toLocaleString('tr-TR')}</div>
-                  <div className="text-[11px] text-muted-foreground">son 28 gün AI gösterimi</div>
+                  <div className="text-metric-lg tabular-nums">{formatNum(series.totals.last28)}</div>
+                  <div className="text-label text-muted-foreground">son 28 gün AI gösterimi</div>
                 </div>
                 {series.totals.deltaPct !== null && (
                   <Badge variant={series.totals.deltaPct >= 0 ? 'success' : 'warning'}>{series.totals.deltaPct >= 0 ? '+' : ''}{series.totals.deltaPct}% önceki 28 güne göre</Badge>
                 )}
-                {series.lastImportAt && <span className="text-[11px] text-muted-foreground">son yükleme {new Date(series.lastImportAt).toLocaleDateString('tr-TR')}</span>}
+                {series.lastImportAt && <span className="text-label text-muted-foreground">son yükleme {new Date(series.lastImportAt).toLocaleDateString('tr-TR')}</span>}
               </div>
-              <div className="h-52">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={series.series}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-                    <YAxis tick={{ fontSize: 11 }} />
-                    <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: 8 }} />
-                    <Line type="monotone" dataKey="impressions" stroke="#f97316" strokeWidth={2} name="AI gösterimi" dot={false} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
+              <ChartContainer height={208}>
+                <LineChart data={series.series}>
+                  <CartesianGrid {...CHART_GRID} strokeDasharray="3 3" />
+                  <XAxis dataKey="date" {...CHART_AXIS} />
+                  <YAxis {...CHART_AXIS} width={44} />
+                  <Tooltip content={<ChartTooltip />} />
+                  <Line type="monotone" dataKey="impressions" stroke={CHART[1]} strokeWidth={2} name="AI gösterimi" dot={false} />
+                </LineChart>
+              </ChartContainer>
             </>
           ) : (
             <div className="text-sm text-muted-foreground py-6 text-center">
@@ -183,8 +184,8 @@ export function GoogleAiSurfaceCard({ siteId, site }: { siteId: string; site?: a
                   <div key={i} className="px-5 py-2.5 text-sm flex items-center justify-between gap-3 flex-wrap">
                     <span className="font-medium min-w-0 truncate">{q.query}</span>
                     <div className="flex items-center gap-1.5 flex-wrap">
-                      {q.signals.map((sg: string) => <Badge key={sg} variant="secondary" className="text-[10px]">{SIGNAL_LABEL[sg] ?? sg}</Badge>)}
-                      <span className="text-[11px] text-muted-foreground tabular-nums">{q.impressions} göst · {q.clicks} tık{q.position !== null ? ` · poz ${q.position}` : ''}</span>
+                      {q.signals.map((sg: string) => <Badge key={sg} variant="secondary" className="text-label">{SIGNAL_LABEL[sg] ?? sg}</Badge>)}
+                      <span className="text-label text-muted-foreground tabular-nums">{formatNum(q.impressions)} gösterim · {formatNum(q.clicks)} tık{q.position !== null ? ` · sıra ${q.position}` : ''}</span>
                     </div>
                   </div>
                 ))}
@@ -207,7 +208,7 @@ export function GoogleAiSurfaceCard({ siteId, site }: { siteId: string; site?: a
             <Info className="h-3.5 w-3.5 mt-0.5 shrink-0" />
             <span>Uygunluk: yalnız alan adı / alt alan adı seviyesinde (alt dizin olmaz) ve sitenin Google'ın kaynak aracında listelenmiş olması gerekir. Buton görünmüyorsa siten henüz listelenmemiş olabilir — o zaman alttaki bağlantıyı kullan.</span>
           </div>
-          <pre className="text-[11px] rounded-md border bg-muted/40 p-3 overflow-x-auto whitespace-pre">{snippet}</pre>
+          <pre className="text-label font-mono rounded-md border bg-muted/40 p-3 overflow-x-auto whitespace-pre">{snippet}</pre>
           <div className="flex items-center gap-2 flex-wrap">
             <Button size="sm" variant="outline" onClick={() => copy(snippet)}><Copy className="h-3.5 w-3.5 mr-1.5" /> Kodu kopyala</Button>
             <Button size="sm" variant="outline" onClick={() => copy(deepLink)}><Copy className="h-3.5 w-3.5 mr-1.5" /> Bağlantıyı kopyala</Button>
