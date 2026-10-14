@@ -2,81 +2,102 @@
 
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { Building2, Users, Plus, Settings, Mail, Globe, Award, FileText, AlertCircle } from 'lucide-react';
+import { Users, Settings, Mail, Globe, Award, FileText, Copy } from 'lucide-react';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { PageHeader } from '@/components/ui/page-header';
+import { MetricCard } from '@/components/ui/metric';
+import { AsyncState } from '@/components/ui/async-state';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { EmptyState } from '@/components/empty-state';
 
 export default function AgencyDashboardPage() {
   const [tab, setTab] = useState<'clients' | 'whitelabel' | 'invite'>('clients');
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<unknown>(null);
 
   const load = async () => {
     setLoading(true);
+    setError(null);
     try {
       const res = await api.getAgencyOverview();
       setData(res);
     } catch (err: any) {
-      toast.error(err.message);
+      setError(err);
     } finally { setLoading(false); }
   };
 
   useEffect(() => { load(); }, []);
 
-  if (loading) return <div className="text-sm text-muted-foreground p-12 text-center">Yükleniyor…</div>;
-  if (!data) return null;
+  const mrr = Number(data?.totals?.monthlyRevenueTRY ?? 0);
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold flex items-center gap-2"><Building2 className="h-7 w-7 text-brand" /> Ajans Paneli</h1>
-        <p className="text-sm text-muted-foreground mt-1">{data.agencyName} · {data.totals.clients} müşteri yönetiyorsun</p>
-      </div>
+      <PageHeader
+        title="Ajans paneli"
+        description={data ? `${data.agencyName} · ${data.totals.clients} müşteri` : 'Müşterilerini, sitelerini ve markalı paneli tek yerden yönet.'}
+      />
 
-      {/* Top metrics */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <Card><CardContent className="p-4"><Users className="h-4 w-4 text-brand mb-2" /><div className="text-2xl font-bold">{data.totals.clients}</div><p className="text-xs text-muted-foreground">Müşteri</p></CardContent></Card>
-        <Card><CardContent className="p-4"><Globe className="h-4 w-4 text-brand mb-2" /><div className="text-2xl font-bold">{data.totals.sites}</div><p className="text-xs text-muted-foreground">Toplam Site</p></CardContent></Card>
-        <Card><CardContent className="p-4"><FileText className="h-4 w-4 text-brand mb-2" /><div className="text-2xl font-bold">{data.totals.articlesPublished30d}</div><p className="text-xs text-muted-foreground">30g Makale</p></CardContent></Card>
-        <Card><CardContent className="p-4"><Award className="h-4 w-4 text-brand mb-2" /><div className="text-2xl font-bold">{(data.totals.monthlyRevenueTRY / 1000).toFixed(1)}K ₺</div><p className="text-xs text-muted-foreground">MRR</p></CardContent></Card>
-      </div>
+      <AsyncState
+        loading={loading}
+        error={error}
+        onRetry={load}
+        skeleton={<><div className="grid grid-cols-2 gap-3 md:grid-cols-4">{[0, 1, 2, 3].map((i) => <div key={i} className="h-28 animate-pulse rounded-lg bg-muted" />)}</div><div className="h-48 animate-pulse rounded-lg bg-muted" /></>}
+      >
+        {data && (
+          <>
+            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+              <MetricCard icon={Users} label="Müşteri" value={data.totals.clients} />
+              <MetricCard icon={Globe} label="Toplam site" value={data.totals.sites} />
+              <MetricCard icon={FileText} label="Son 30 günde yayınlanan" value={data.totals.articlesPublished30d} />
+              <MetricCard icon={Award} label="Aylık gelir (MRR)" value={mrr} prefix="₺" format={{ maximumFractionDigits: 0 }} />
+            </div>
 
-      <div className="inline-flex border rounded-md overflow-hidden">
-        {([
-          ['clients', 'Müşteriler', <Users key="c" className="h-3 w-3" />],
-          ['invite', 'Davet Et', <Mail key="i" className="h-3 w-3" />],
-          ['whitelabel', 'Whitelabel', <Settings key="w" className="h-3 w-3" />],
-        ] as const).map(([id, label, icon]) => (
-          <button key={id} onClick={() => setTab(id as any)} className={`px-3 py-1.5 text-xs font-medium inline-flex items-center gap-1 ${tab === id ? 'bg-brand text-white' : 'bg-card text-muted-foreground hover:bg-muted'}`}>
-            {icon} {label}
-          </button>
-        ))}
-      </div>
-
-      {tab === 'clients' && <ClientsTab clients={data.clients} />}
-      {tab === 'invite' && <InviteTab onInvited={load} />}
-      {tab === 'whitelabel' && <WhitelabelTab whitelabel={data.whitelabel} onSaved={load} />}
+            <Tabs value={tab} onValueChange={(v) => setTab(v as typeof tab)} className="mt-6">
+              <TabsList>
+                <TabsTrigger value="clients"><Users className="h-3.5 w-3.5" aria-hidden /> Müşteriler</TabsTrigger>
+                <TabsTrigger value="invite"><Mail className="h-3.5 w-3.5" aria-hidden /> Davet et</TabsTrigger>
+                <TabsTrigger value="whitelabel"><Settings className="h-3.5 w-3.5" aria-hidden /> Markalı panel</TabsTrigger>
+              </TabsList>
+              <TabsContent value="clients" className="mt-4"><ClientsTab clients={data.clients} onInvite={() => setTab('invite')} /></TabsContent>
+              <TabsContent value="invite" className="mt-4"><InviteTab onInvited={load} /></TabsContent>
+              <TabsContent value="whitelabel" className="mt-4"><WhitelabelTab whitelabel={data.whitelabel} onSaved={load} /></TabsContent>
+            </Tabs>
+          </>
+        )}
+      </AsyncState>
     </div>
   );
 }
 
-function ClientsTab({ clients }: { clients: any[] }) {
-  if (clients.length === 0) return <div className="p-8 text-center text-sm text-muted-foreground">Henüz müşterin yok. "Davet Et" sekmesinden client ekleyebilirsin.</div>;
+function ClientsTab({ clients, onInvite }: { clients: any[]; onInvite: () => void }) {
+  if (clients.length === 0) {
+    return (
+      <EmptyState
+        icon={Users}
+        title="Henüz müşterin yok"
+        description="Müşterine davet linki gönder; linkten kayıt olan hesap otomatik olarak senin ajansına bağlanır."
+        primary={{ label: 'Müşteri davet et', onClick: onInvite }}
+      />
+    );
+  }
   return (
     <div className="space-y-2">
       {clients.map((c) => (
-        <div key={c.userId} className="rounded-md border p-3 hover:border-brand/40">
+        <div key={c.userId} className="rounded-lg border bg-card p-4 transition-colors hover:border-foreground/20">
           <div className="flex items-start justify-between gap-3 flex-wrap">
             <div>
               <p className="font-semibold text-sm">{c.name ?? c.email}</p>
-              <p className="text-[11px] text-muted-foreground">{c.email} · {new Date(c.createdAt).toLocaleDateString('tr-TR')}</p>
+              <p className="text-label text-muted-foreground">{c.email} · {new Date(c.createdAt).toLocaleDateString('tr-TR')}</p>
             </div>
             <div className="flex items-center gap-2">
               <Badge variant="outline">{c.plan}</Badge>
               {c.geoScoreAvg !== null && (
-                <Badge className={c.geoScoreAvg >= 70 ? 'bg-green-500' : c.geoScoreAvg >= 50 ? 'bg-yellow-500' : 'bg-red-500'}>
+                <Badge variant={c.geoScoreAvg >= 70 ? 'success' : c.geoScoreAvg >= 50 ? 'warning' : 'danger'}>
                   GEO: {c.geoScoreAvg}
                 </Badge>
               )}
@@ -84,7 +105,7 @@ function ClientsTab({ clients }: { clients: any[] }) {
           </div>
           <div className="grid grid-cols-3 gap-2 mt-2 text-xs">
             <div><span className="text-muted-foreground">Site:</span> <strong>{c.sitesActive}/{c.sitesCount}</strong></div>
-            <div><span className="text-muted-foreground">Sorun:</span> <strong className={c.issuesCount > 5 ? 'text-red-500' : ''}>{c.issuesCount}</strong></div>
+            <div><span className="text-muted-foreground">Sorun:</span> <strong className={c.issuesCount > 5 ? 'text-danger' : ''}>{c.issuesCount}</strong></div>
             <div><span className="text-muted-foreground">Plan:</span> <strong>{c.plan}</strong></div>
           </div>
         </div>
@@ -100,7 +121,7 @@ function InviteTab({ onInvited }: { onInvited: () => void }) {
   const [inviteUrl, setInviteUrl] = useState<string | null>(null);
 
   const invite = async () => {
-    if (!email.includes('@')) { toast.error('Geçerli email girin'); return; }
+    if (!email.includes('@')) { toast.error('Geçerli bir e-posta adresi yaz'); return; }
     setLoading(true);
     try {
       const r = await api.inviteAgencyClient({ email, name: name || undefined });
@@ -114,16 +135,16 @@ function InviteTab({ onInvited }: { onInvited: () => void }) {
   return (
     <div className="space-y-3 max-w-xl">
       <Card><CardContent className="p-4 space-y-3">
-        <p className="text-xs text-muted-foreground">Müşterine bir davet linki gönder. Link'ten kayıt olunca otomatik senin altına bağlanır.</p>
-        <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="musteri@email.com" className="w-full px-3 py-2 border rounded text-sm bg-background" />
-        <input value={name} onChange={(e) => setName(e.target.value)} placeholder="İsim (opsiyonel)" className="w-full px-3 py-2 border rounded text-sm bg-background" />
-        <Button onClick={invite} disabled={loading} className="w-full">{loading ? 'Üretiliyor…' : 'Davet Linki Üret'}</Button>
+        <p className="text-sm text-muted-foreground">Müşterine bir davet linki gönder. Linkten kayıt olunca hesap otomatik olarak senin ajansına bağlanır.</p>
+        <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="musteri@firma.com" aria-label="Müşteri e-postası" />
+        <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ad (isteğe bağlı)" aria-label="Müşteri adı" />
+        <Button onClick={invite} disabled={loading} className="w-full">{loading ? 'Oluşturuluyor…' : 'Davet linki oluştur'}</Button>
       </CardContent></Card>
       {inviteUrl && (
         <Card><CardContent className="p-4 space-y-2">
-          <p className="text-xs font-semibold">📨 Davet linki (14 gün geçerli):</p>
-          <input value={inviteUrl} readOnly className="w-full px-3 py-2 border rounded text-xs font-mono bg-muted/30" onClick={(e) => (e.target as HTMLInputElement).select()} />
-          <Button size="sm" variant="outline" onClick={() => { navigator.clipboard.writeText(inviteUrl); toast.success('Kopyalandı'); }}>Kopyala</Button>
+          <p className="text-sm font-medium">Davet linki <span className="font-normal text-muted-foreground">· 14 gün geçerli</span></p>
+          <Input value={inviteUrl} readOnly className="font-mono text-xs" onClick={(e) => (e.target as HTMLInputElement).select()} aria-label="Davet linki" />
+          <Button size="sm" variant="outline" onClick={() => { navigator.clipboard.writeText(inviteUrl); toast.success('Link kopyalandı'); }}><Copy className="h-4 w-4" aria-hidden /> Linki kopyala</Button>
         </CardContent></Card>
       )}
     </div>
@@ -145,7 +166,7 @@ function WhitelabelTab({ whitelabel, onSaved }: { whitelabel: any; onSaved: () =
     setSaving(true);
     try {
       await api.updateWhitelabel(form);
-      toast.success('Whitelabel ayarları kaydedildi');
+      toast.success('Markalı panel ayarları kaydedildi');
       onSaved();
     } catch (err: any) { toast.error(err.message); }
     finally { setSaving(false); }
@@ -157,33 +178,33 @@ function WhitelabelTab({ whitelabel, onSaved }: { whitelabel: any; onSaved: () =
         <label className="flex items-start gap-2 cursor-pointer">
           <input type="checkbox" checked={form.enabled} onChange={(e) => setForm({ ...form, enabled: e.target.checked })} className="mt-1" />
           <div>
-            <p className="text-sm font-semibold">Whitelabel aktif</p>
-            <p className="text-xs text-muted-foreground">Custom domain'den giriş yapan müşterileriniz "powered by RanksUp" yerine sizin markanızı görür.</p>
+            <p className="text-sm font-semibold">Markalı paneli aç</p>
+            <p className="text-xs text-muted-foreground">Kendi alan adından giriş yapan müşterilerin RanksUp yerine senin markanı görür.</p>
           </div>
         </label>
       </CardContent></Card>
 
       <Card><CardContent className="p-4 space-y-3">
         <label className="block">
-          <span className="text-xs font-medium">Marka Adı</span>
-          <input value={form.brandName} onChange={(e) => setForm({ ...form, brandName: e.target.value })} className="w-full mt-1 px-3 py-2 border rounded text-sm bg-background" placeholder="Webmasters Ajansı" />
+          <span className="text-xs font-medium">Marka adı</span>
+          <Input value={form.brandName} onChange={(e) => setForm({ ...form, brandName: e.target.value })} className="mt-1" placeholder="Webmasters Ajansı" />
         </label>
         <label className="block">
-          <span className="text-xs font-medium">Logo URL</span>
-          <input value={form.logoUrl} onChange={(e) => setForm({ ...form, logoUrl: e.target.value })} className="w-full mt-1 px-3 py-2 border rounded text-sm bg-background" placeholder="https://ajansadi.com.tr/logo.png" />
+          <span className="text-xs font-medium">Logo adresi (URL)</span>
+          <Input value={form.logoUrl} onChange={(e) => setForm({ ...form, logoUrl: e.target.value })} className="mt-1" placeholder="https://ajansadi.com.tr/logo.png" />
         </label>
         <label className="block">
-          <span className="text-xs font-medium">Marka Rengi (hex)</span>
-          <input value={form.primaryColor} onChange={(e) => setForm({ ...form, primaryColor: e.target.value })} className="w-full mt-1 px-3 py-2 border rounded text-sm bg-background font-mono" placeholder="#6c5ce7" />
+          <span className="text-xs font-medium">Marka rengi (hex)</span>
+          <Input value={form.primaryColor} onChange={(e) => setForm({ ...form, primaryColor: e.target.value })} className="mt-1 font-mono" placeholder="#6c5ce7" />
         </label>
         <label className="block">
-          <span className="text-xs font-medium">Custom Domain (CNAME)</span>
-          <input value={form.domain} onChange={(e) => setForm({ ...form, domain: e.target.value })} className="w-full mt-1 px-3 py-2 border rounded text-sm bg-background" placeholder="ai.ajansadi.com.tr" />
-          <p className="text-[11px] text-muted-foreground mt-1">CNAME → ranksup.ai'a yönlendirin</p>
+          <span className="text-xs font-medium">Alan adı (CNAME)</span>
+          <Input value={form.domain} onChange={(e) => setForm({ ...form, domain: e.target.value })} className="mt-1" placeholder="ai.ajansadi.com.tr" />
+          <p className="text-label text-muted-foreground mt-1">Alan adının CNAME kaydını ranksup.ai'ye yönlendir.</p>
         </label>
         <label className="block">
-          <span className="text-xs font-medium">Email Sender</span>
-          <input value={form.emailFrom} onChange={(e) => setForm({ ...form, emailFrom: e.target.value })} className="w-full mt-1 px-3 py-2 border rounded text-sm bg-background" placeholder="noreply@ajansadi.com.tr" />
+          <span className="text-xs font-medium">Gönderen e-posta</span>
+          <Input value={form.emailFrom} onChange={(e) => setForm({ ...form, emailFrom: e.target.value })} className="mt-1" placeholder="noreply@ajansadi.com.tr" />
         </label>
 
         <Button onClick={save} disabled={saving}>{saving ? 'Kaydediliyor…' : 'Kaydet'}</Button>

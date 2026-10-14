@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import {
   Link2, Unlink, RefreshCw, Plus, TrendingUp, Eye, MousePointer,
   Download, DollarSign, AlertCircle, ExternalLink, CheckCircle2, Loader2,
-  Sparkles, Bot,
+  Sparkles, Bot, ChevronDown,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
@@ -137,16 +137,16 @@ export function AsaTab({ siteId, prefillKeyword, onPrefillConsumed }: { siteId: 
       {/* Account list */}
       <div className="grid gap-3">
         {accounts.map((acc) => (
-          <Card key={acc.id} className="border-brand/20 bg-brand/5">
+          <Card key={acc.id}>
             <CardContent className="p-4">
               <div className="flex items-start justify-between gap-3 flex-wrap">
                 <div className="flex items-start gap-3 min-w-0">
-                  <div className="h-10 w-10 rounded-xl bg-white dark:bg-slate-900 border border-brand/30 grid place-items-center shrink-0">
-                    <Link2 className="h-5 w-5 text-brand" />
+                  <div className="h-10 w-10 rounded-xl border bg-muted/50 text-foreground/70 grid place-items-center shrink-0">
+                    <Link2 className="h-5 w-5" aria-hidden />
                   </div>
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="text-sm font-bold">Apple Search Ads Hesabı</h3>
+                      <h3 className="font-brand text-sm font-semibold">Apple Search Ads hesabı</h3>
                       {acc.isActive ? (
                         <Badge variant={'success' as any} className="text-label">Aktif</Badge>
                       ) : (
@@ -154,10 +154,10 @@ export function AsaTab({ siteId, prefillKeyword, onPrefillConsumed }: { siteId: 
                       )}
                     </div>
                     <div className="text-label text-muted-foreground mt-0.5 font-mono">
-                      Org ID: {acc.orgId} · Key: {acc.keyId.slice(0, 8)}…
+                      Kuruluş: {acc.orgId} · Anahtar: {acc.keyId.slice(0, 8)}…
                     </div>
                     <div className="text-label text-muted-foreground mt-0.5">
-                      {acc._count.campaigns} kampanya · son sync:{' '}
+                      {acc._count.campaigns} kampanya · son eşitleme:{' '}
                       {acc.lastSyncAt ? new Date(acc.lastSyncAt).toLocaleString('tr-TR') : 'henüz yok'}
                     </div>
                     {acc.lastError && (
@@ -174,22 +174,22 @@ export function AsaTab({ siteId, prefillKeyword, onPrefillConsumed }: { siteId: 
                     onClick={async () => {
                       try {
                         const r = await api.syncAsaCampaigns(acc.id);
-                        const parts = [`${r.synced} kampanya sync`];
+                        const parts = [`${r.synced} kampanya eşitlendi`];
                         if (r.removed && r.removed > 0) parts.push(`${r.removed} silindi`);
                         toast.success(parts.join(' · '));
                         refresh();
                       } catch (err: any) {
-                        toast.error(`Sync hatası: ${err.message}`);
+                        toast.error(`Eşitleme başarısız: ${err.message}`);
                       }
                     }}
                   >
-                    <RefreshCw className="h-3.5 w-3.5 mr-1" /> Sync
+                    <RefreshCw className="h-3.5 w-3.5 mr-1" /> Eşitle
                   </Button>
                   <Button
                     size="sm"
                     onClick={() => setShowNewCampaign({ accountId: acc.id })}
                   >
-                    <Plus className="h-3.5 w-3.5 mr-1" /> Yeni Kampanya
+                    <Plus className="h-3.5 w-3.5 mr-1" /> Yeni kampanya
                   </Button>
                   <button
                     aria-label="Hesabı kaldır"
@@ -233,7 +233,7 @@ export function AsaTab({ siteId, prefillKeyword, onPrefillConsumed }: { siteId: 
       {performance && (
         <div>
           <div className="flex items-center justify-between mb-2">
-            <h4 className="text-sm font-bold">Son 30 Gün Performans</h4>
+            <h4 className="font-brand text-sm font-semibold">Son 30 gün</h4>
             <span className="text-label text-muted-foreground">
               {performance.dailyRows.length} günlük veri
             </span>
@@ -248,19 +248,19 @@ export function AsaTab({ siteId, prefillKeyword, onPrefillConsumed }: { siteId: 
               icon={MousePointer}
               label="Tıklama"
               value={fmtNum(performance.totals.taps)}
-              subtext={`%${(performance.totals.ttr * 100).toFixed(2)} TTR`}
+              subtext={`Tıklama oranı %${(performance.totals.ttr * 100).toFixed(2)}`}
             />
             <MetricCard
               icon={Download}
               label="Kurulum"
               value={fmtNum(performance.totals.installs)}
-              subtext={`%${(performance.totals.conversionRate * 100).toFixed(2)} CR`}
+              subtext={`Dönüşüm oranı %${(performance.totals.conversionRate * 100).toFixed(2)}`}
             />
             <MetricCard
               icon={DollarSign}
               label="Harcama"
               value={`$${performance.totals.spendUsd.toFixed(2)}`}
-              subtext={`CPI $${performance.totals.avgCpa.toFixed(2)}`}
+              subtext={`Kurulum başı $${performance.totals.avgCpa.toFixed(2)}`}
             />
           </div>
         </div>
@@ -268,13 +268,13 @@ export function AsaTab({ siteId, prefillKeyword, onPrefillConsumed }: { siteId: 
 
       {/* Campaign list */}
       <div>
-        <h4 className="text-sm font-bold mb-2">Kampanyalar</h4>
+        <h4 className="font-brand text-sm font-semibold mb-2">Kampanyalar</h4>
         {campaigns.length === 0 ? (
           <div className="rounded-xl border-2 border-dashed border-border p-6 text-center">
             <TrendingUp className="h-8 w-8 text-muted-foreground/40 mx-auto mb-2" />
             <p className="text-sm font-medium">Henüz kampanya yok</p>
             <p className="text-xs text-muted-foreground mt-1">
-              Yukarıdaki <strong>+ Yeni Kampanya</strong> ile başla, ya da Apple tarafında oluşturduysan <strong>Sync</strong> ile çek.
+              <strong>Yeni kampanya</strong> ile başla; Apple tarafında oluşturduysan <strong>Eşitle</strong> ile buraya getir.
             </p>
           </div>
         ) : (
@@ -289,7 +289,7 @@ export function AsaTab({ siteId, prefillKeyword, onPrefillConsumed }: { siteId: 
                         variant={c.status === 'ENABLED' ? ('success' as any) : 'outline'}
                         className="text-label"
                       >
-                        {c.status}
+                        {c.status === 'ENABLED' ? 'Yayında' : c.status === 'PAUSED' ? 'Duraklatıldı' : c.status}
                       </Badge>
                       <span className="text-label text-muted-foreground">
                         ID: {c.asaCampaignId}
@@ -372,7 +372,7 @@ function AutoPilotPanel({ account, onChanged }: { account: Account; onChanged: (
         enabled: nextEnabled ?? enabled,
         budgetCapUsd: isNaN(cap) ? null : cap,
       });
-      toast.success(nextEnabled === true ? 'Otomatik pilot açıldı' : nextEnabled === false ? 'Auto-Pilot kapatıldı' : 'Bütçe limiti güncellendi');
+      toast.success(nextEnabled === true ? 'Otopilot açıldı' : nextEnabled === false ? 'Otopilot kapatıldı' : 'Bütçe sınırı güncellendi');
       onChanged();
     } catch (err: any) {
       toast.error(err.message);
@@ -394,7 +394,7 @@ function AutoPilotPanel({ account, onChanged }: { account: Account; onChanged: (
       if (r.added.length) parts.push(`+${r.added.length} keyword`);
       if (r.paused.length) parts.push(`-${r.paused.length} pause`);
       if (r.reason) parts.push(r.reason);
-      toast.success(`Auto-Pilot bitti: ${parts.join(' · ') || 'değişiklik yok'}`);
+      toast.success(`Otopilot tamamlandı: ${parts.join(' · ') || 'değişiklik yok'}`);
       onChanged();
     } catch (err: any) {
       toast.error(err.message);
@@ -418,22 +418,22 @@ function AutoPilotPanel({ account, onChanged }: { account: Account; onChanged: (
           </div>
           <div>
             <p className="text-sm font-semibold">
-              Auto-Pilot {enabled ? <Badge className="ml-1 bg-success text-white text-label">AKTİF</Badge> : <Badge variant="outline" className="ml-1 text-label">Kapalı</Badge>}
+              Otopilot {enabled ? <Badge variant="success" className="ml-1">Açık</Badge> : <Badge variant="secondary" className="ml-1">Kapalı</Badge>}
             </p>
             <p className="text-label text-muted-foreground">
               {enabled
-                ? `Her gece otomatik · Bütçe cap: $${account.autoPilotBudgetCap ?? '—'}/ay`
-                : 'Haftalık AI keyword ekle + düşük perf. pause et'}
+                ? `Her gece çalışır · aylık bütçe sınırı $${account.autoPilotBudgetCap ?? '—'}`
+                : 'Her gece AI ile anahtar kelime ekler, düşük performanslıları durdurur'}
             </p>
           </div>
         </div>
-        <span className="text-xs text-muted-foreground">{expanded ? '▲' : '▼'}</span>
+        <ChevronDown className={cn('h-4 w-4 text-muted-foreground transition-transform', expanded && 'rotate-180')} aria-hidden />
       </button>
 
       {expanded && (
         <div className="px-3 pb-3 pt-1 space-y-3 border-t border-border/40">
           <div className="flex items-center justify-between gap-2">
-            <label className="text-xs">Auto-Pilot</label>
+            <label className="text-xs">Otopilot</label>
             <Button
               size="sm"
               variant={enabled ? 'default' : 'outline'}
@@ -462,7 +462,7 @@ function AutoPilotPanel({ account, onChanged }: { account: Account; onChanged: (
               </Button>
             </div>
             <p className="text-label text-muted-foreground mt-1">
-              Bu sınır aşılırsa Auto-Pilot yeni keyword eklemez (mevcut kampanyalar Apple tarafında çalışmaya devam eder).
+              Bu sınır aşılırsa otopilot yeni anahtar kelime eklemez (mevcut kampanyalar Apple tarafında çalışmaya devam eder).
             </p>
           </div>
 
@@ -508,7 +508,7 @@ function ConnectScreen({ onConnect }: { onConnect: () => void }) {
       </p>
 
       <div className="max-w-md mx-auto text-left rounded-lg border bg-muted/30 p-4 mb-5">
-        <p className="text-xs font-semibold mb-2 text-muted-foreground uppercase tracking-wider">
+        <p className="text-xs font-semibold mb-2 text-muted-foreground">
           Ön gereksinimler
         </p>
         <ul className="text-xs space-y-1.5">
@@ -1281,7 +1281,7 @@ function MetricCard({
           <div className={`h-7 w-7 rounded-lg grid place-items-center border border-border bg-muted/50 text-foreground/70`}>
             <Icon className="h-4 w-4" />
           </div>
-          <span className="text-label text-muted-foreground uppercase tracking-wider font-semibold">{label}</span>
+          <span className="text-label font-medium text-muted-foreground">{label}</span>
         </div>
         <div className="text-metric tabular-nums">{value}</div>
         {subtext && <div className="text-label text-muted-foreground mt-0.5">{subtext}</div>}

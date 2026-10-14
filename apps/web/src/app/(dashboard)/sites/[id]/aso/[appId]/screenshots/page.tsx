@@ -380,6 +380,15 @@ const SOLID_COLORS = [
   { name: 'LuviHost Brand', value: '#6c5ce7' },
 ];
 
+/** AI arka plan stilleri — API anahtarlari Ingilizce, ekranda Turkce */
+const BG_STYLE_LABEL: Record<'gradient' | 'mesh' | 'minimalist' | 'bold' | 'illustrative', string> = {
+  gradient: 'Renk geçişi',
+  mesh: 'Yumuşak doku',
+  minimalist: 'Sade',
+  bold: 'Canlı',
+  illustrative: 'Çizim',
+};
+
 export default function ScreenshotStudioPage({ params }: { params: Promise<{ id: string; appId: string }> }) {
   const { id: siteId, appId } = use(params);
   const { site } = useSiteContext();
@@ -987,20 +996,20 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
             {sidebar === 'ai' && (
               <div className="space-y-3">
                 <div>
-                  <h3 className="text-sm font-semibold mb-1">AI Caption Generator</h3>
-                  <p className="text-xs text-muted-foreground mb-2">{slotCount} slot için Türkçe hook + subtitle üretir (Claude Haiku)</p>
+                  <h3 className="text-sm font-semibold mb-1">AI ile başlık yaz</h3>
+                  <p className="text-xs text-muted-foreground mb-2">{slotCount} görsel için dikkat çeken başlık ve alt başlık üretir.</p>
                   <Button size="sm" className="w-full" onClick={generateCaptions} disabled={generatingCaptions}>
                     <Sparkles className={`h-4 w-4 mr-1 ${generatingCaptions ? 'animate-spin' : ''}`} />
-                    {generatingCaptions ? 'AI çalışıyor...' : `${slotCount} Caption Üret`}
+                    {generatingCaptions ? 'Yazılıyor…' : `${slotCount} başlık üret`}
                   </Button>
                 </div>
                 <div className="border-t pt-3">
-                  <h3 className="text-sm font-semibold mb-1">AI Background</h3>
-                  <p className="text-xs text-muted-foreground mb-2">Gemini Imagen 3 ile bu slot için background (~10 sn)</p>
+                  <h3 className="text-sm font-semibold mb-1">AI ile arka plan</h3>
+                  <p className="text-xs text-muted-foreground mb-2">Seçili görsel için bir stil seç; arka plan yaklaşık 10 saniyede hazırlanır.</p>
                   <div className="grid grid-cols-2 gap-1.5">
                     {(['gradient', 'mesh', 'minimalist', 'bold', 'illustrative'] as const).map(s => (
                       <Button key={s} size="sm" variant="outline" onClick={() => generateBackground(s)} disabled={generatingBg} className="text-xs h-8">
-                        {generatingBg ? <Loader2 className="h-3 w-3 animate-spin" /> : s}
+                        {generatingBg ? <Loader2 className="h-3 w-3 animate-spin" /> : BG_STYLE_LABEL[s]}
                       </Button>
                     ))}
                   </div>

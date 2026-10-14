@@ -12,6 +12,11 @@ import {
   ClipboardList, Plus, Loader2, Circle, CircleDot, CheckCircle2,
   Trash2, X,
 } from 'lucide-react';
+import { SectionHeader } from '@/components/ui/section-header';
+import { Input } from '@/components/ui/input';
+import { Skeleton } from '@/components/ui/skeleton';
+import { EmptyState } from '@/components/empty-state';
+import { siteHref } from '@/lib/site-routes';
 
 /**
  * Aksiyon Planı — tüm modüllerden toplanan iş listesi.
@@ -28,16 +33,17 @@ const SOURCE_LABEL: Record<string, string> = {
   ads: 'Reklam',
   qa: 'QA',
   chat: 'Asistan',
-  product_radar: 'Product Radar',
+  product_radar: 'Ürün Radarı',
   community: 'Topluluk',
   intel: 'İstihbarat',
   manual: 'Manuel',
 };
 
-const IMPACT_CLS: Record<string, string> = {
-  high: 'bg-red-500/10 text-red-600 border-red-500/30',
-  medium: 'bg-amber-500/10 text-amber-600 border-amber-500/30',
-  low: 'bg-zinc-500/10 text-zinc-500 border-zinc-500/30',
+/** Etki → rozet tonu + Turkce ad (eskiden ham "high/medium/low" gorunuyordu) */
+const IMPACT: Record<string, { label: string; tone: 'danger' | 'warning' | 'secondary' }> = {
+  high: { label: 'Yüksek etki', tone: 'danger' },
+  medium: { label: 'Orta etki', tone: 'warning' },
+  low: { label: 'Düşük etki', tone: 'secondary' },
 };
 
 const COLUMNS: Array<{ key: string; title: string; icon: any }> = [
@@ -107,44 +113,49 @@ export default function ActionPlanPage() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-start justify-between flex-wrap gap-3">
-        <div className="flex items-start gap-3">
-          <div className="h-10 w-10 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 grid place-items-center">
-            <ClipboardList className="h-5 w-5" />
-          </div>
-          <div>
-            <h2 className="text-2xl font-bold">Aksiyon Planı</h2>
-            <p className="text-sm text-muted-foreground">
-              Audit, GEO, Agent Readiness, ASO ve asistandan gelen işler tek listede — rapor değil, iş yönetimi.
-            </p>
-          </div>
-        </div>
-        <Button onClick={() => setShowForm((v) => !v)}>
-          <Plus className="h-4 w-4 mr-1.5" /> Madde Ekle
-        </Button>
-      </div>
+      <SectionHeader
+        icon={ClipboardList}
+        title="Aksiyon Planı"
+        description="Site denetimi, GEO, ajan hazırlığı, ASO ve asistandan gelen işler tek listede."
+        actions={
+          <Button onClick={() => setShowForm((v) => !v)}>
+            <Plus className="h-4 w-4 mr-1.5" /> İş ekle
+          </Button>
+        }
+      />
 
       {showForm && (
         <Card>
           <CardContent className="p-3 flex items-center gap-2">
-            <input
+            <Input
               value={newTitle}
               onChange={(e) => setNewTitle(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && add()}
               placeholder="Yapılacak işi yaz…"
-              className="flex-1 bg-transparent outline-none text-sm px-2 py-1.5"
+              aria-label="Yeni iş"
+              className="flex-1"
               autoFocus
             />
             <Button size="sm" onClick={add} disabled={adding || newTitle.trim().length < 3}>
               {adding ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Ekle'}
             </Button>
-            <Button size="sm" variant="ghost" onClick={() => setShowForm(false)}><X className="h-3.5 w-3.5" /></Button>
+            <Button size="sm" variant="ghost" onClick={() => setShowForm(false)} aria-label="Vazgeç"><X className="h-3.5 w-3.5" /></Button>
           </CardContent>
         </Card>
       )}
 
       {loading ? (
-        <div className="text-sm text-muted-foreground p-6 text-center">Yükleniyor…</div>
+        <div className="grid gap-4 lg:grid-cols-3" aria-busy="true" aria-label="Yükleniyor">
+          {[0, 1, 2].map((i) => <Skeleton key={i} className="h-40" />)}
+        </div>
+      ) : items.length === 0 && !showForm ? (
+        <EmptyState
+          icon={ClipboardList}
+          title="Henüz iş yok"
+          description="Site Skoru, GEO Lab ve diğer ekranlarda “Aksiyon planına ekle” dediğin işler burada toplanır. Kendi işini de ekleyebilirsin."
+          primary={{ label: 'İlk işi ekle', onClick: () => setShowForm(true) }}
+          secondary={{ label: 'Site Skoru’na git', href: siteHref(site.id, 'audit') }}
+        />
       ) : (
         <div className="grid lg:grid-cols-3 gap-4">
           {COLUMNS.map((col) => {
@@ -153,9 +164,9 @@ export default function ActionPlanPage() {
             return (
               <div key={col.key} className="space-y-2">
                 <div className="flex items-center gap-2 px-1">
-                  <ColIcon className={cn('h-4 w-4', col.key === 'done' ? 'text-emerald-500' : col.key === 'in_progress' ? 'text-blue-500' : 'text-muted-foreground')} />
+                  <ColIcon className={cn('h-4 w-4', col.key === 'done' ? 'text-success' : col.key === 'in_progress' ? 'text-info' : 'text-muted-foreground')} />
                   <span className="text-sm font-semibold">{col.title}</span>
-                  <Badge variant="outline" className="text-[10px]">{colItems.length}</Badge>
+                  <span className="text-label tabular-nums text-muted-foreground">{colItems.length}</span>
                 </div>
                 <div className="space-y-2 min-h-[80px]">
                   {colItems.map((item) => (
@@ -170,13 +181,13 @@ export default function ActionPlanPage() {
                               <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{item.description}</p>
                             )}
                           </div>
-                          <button type="button" onClick={() => remove(item)} className="text-muted-foreground/50 hover:text-red-500 shrink-0">
+                          <button type="button" onClick={() => remove(item)} className="shrink-0 rounded text-muted-foreground/60 hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger/50" aria-label={`${item.title} işini sil`}>
                             <Trash2 className="h-3.5 w-3.5" />
                           </button>
                         </div>
                         <div className="flex items-center gap-1.5 flex-wrap">
-                          <Badge variant="outline" className="text-[9px]">{SOURCE_LABEL[item.source] ?? item.source}</Badge>
-                          <Badge variant="outline" className={cn('text-[9px]', IMPACT_CLS[item.impact])}>{item.impact}</Badge>
+                          <Badge variant="secondary">{SOURCE_LABEL[item.source] ?? item.source}</Badge>
+                          {IMPACT[item.impact] && <Badge variant={IMPACT[item.impact].tone}>{IMPACT[item.impact].label}</Badge>}
                           <div className="flex-1" />
                           {item.status === 'todo' && (
                             <Button size="sm" variant="outline" className="h-6 text-[10px] px-2" onClick={() => setStatus(item, 'in_progress')}>
@@ -190,7 +201,7 @@ export default function ActionPlanPage() {
                           )}
                           {item.status === 'done' && (
                             <Button size="sm" variant="ghost" className="h-6 text-[10px] px-2" onClick={() => setStatus(item, 'todo')}>
-                              Geri Al
+                              Geri al
                             </Button>
                           )}
                         </div>
@@ -198,8 +209,8 @@ export default function ActionPlanPage() {
                     </Card>
                   ))}
                   {colItems.length === 0 && (
-                    <div className="rounded-lg border border-dashed p-4 text-center text-xs text-muted-foreground/60">
-                      Boş
+                    <div className="rounded-lg border border-dashed p-4 text-center text-label text-muted-foreground">
+                      {col.key === 'todo' ? 'Bekleyen iş yok' : col.key === 'in_progress' ? 'Üzerinde çalışılan iş yok' : 'Henüz biten iş yok'}
                     </div>
                   )}
                 </div>

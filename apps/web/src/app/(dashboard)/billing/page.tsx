@@ -1,29 +1,32 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useSession } from 'next-auth/react';
 import { toast } from 'sonner';
-import { motion } from 'motion/react';
-import { NumberTicker } from '@/components/ui/number-ticker';
-import { fadeUp, staggerContainer } from '@/lib/motion-presets';
 import {
-  CreditCard, Sparkles, TrendingUp, Calendar, Receipt,
-  CheckCircle2, AlertCircle, Clock, XCircle, ArrowUpRight,
-  ChevronRight, Activity, Crown,
+  CheckCircle2, AlertCircle, Clock, XCircle, ArrowUpRight, Receipt, TrendingUp, Crown,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
+import { PageHeader } from '@/components/ui/page-header';
+import { SectionHeader } from '@/components/ui/section-header';
+import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { EmptyState } from '@/components/empty-state';
+import { cn } from '@/lib/utils';
 
 /**
- * Abonelik & Faturalama — premium tasarım, anime.js v4 ile staggered animasyonlar.
+ * Abonelik & faturalama — panelin sakin diliyle (Ekim 2026).
  *
- * Animasyon zaman çizgisi:
- *   0ms     Header fadeInUp
- *   100ms   Plan kartı scaleIn + price count-up + usage bar animated fill
- *   400ms   CTA buttonlar slide-in
- *   600ms   Invoice tablosu satır satır stagger fade-in (60ms/satır)
- *   Loop:   Status badge pulse halo (ACTIVE iken)
+ * FIYAT: plan.monthly USD'dir (billing.service toDefinition: monthly = monthly_usd).
+ * Eskiden "₺{monthly} KDV dahil" yaziyordu — Pro'da $349, ekranda "₺349" demekti.
+ * Artik: eski fiyati korunan kullaniciya legacyMonthlyPriceTry (TL), digerlerine USD +
+ * "TL tutari odeme anindaki kurla hesaplanir" (plans.ts sozlesmesi).
+ *
+ * IPTAL: paytr.cancelSubscription yalniz durumu CANCELED yapar ve onay e-postasi
+ * gonderir; plani dusurmez, iade yapmaz. Pencere yalniz bu dogrulanmis sonuclari soyler.
  */
 
 export default function BillingPage() {
@@ -35,9 +38,8 @@ export default function BillingPage() {
   const [loading, setLoading] = useState(true);
   const [cancelling, setCancelling] = useState(false);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const [loadError, setLoadError] = useState(false);
 
-  // Kullanim bari dolum animasyonu: animejs yerine CSS width gecisi (02.09.2026)
-  const [barGenislik, setBarGenislik] = useState(0);
 
   useEffect(() => {
     if (status === 'loading') return;
@@ -53,30 +55,22 @@ export default function BillingPage() {
         setInvoices(Array.isArray(i) ? i : []);
         setQuota(q);
       })
-      .catch(() => toast.error('Veri yüklenemedi'))
+      .catch(() => setLoadError(true))
       .finally(() => setLoading(false));
   }, [userId, status]);
-
-  // Bar dolumu: veri gelince 300ms sonra hedef yuzdeye gecis (CSS transition surer)
-  useEffect(() => {
-    if (loading || !current) return;
-    const u = quota?.articles ?? { remaining: 0, limit: 0 };
-    const kullanilan = Math.max(0, u.limit - u.remaining);
-    const pct = u.limit > 0 ? Math.round((kullanilan / u.limit) * 100) : 0;
-    const t = setTimeout(() => setBarGenislik(pct), 300);
-    return () => clearTimeout(t);
-  }, [loading, current, quota]);
 
   const cancel = async () => {
     if (!userId) return;
     setCancelling(true);
     const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
     try {
-      await fetch(`${apiBase}/api/billing/users/${userId}/cancel`, {
+      const res = await fetch(`${apiBase}/api/billing/users/${userId}/cancel`, {
         method: 'POST',
         credentials: 'include',
       });
-      toast.success('Abonelik iptal edildi');
+      // Eskiden yanit kontrol edilmeden "iptal edildi" deniyordu
+      if (!res.ok) throw new Error(`İptal tamamlanamadı (${res.status}). Tekrar dene ya da destek ekibine yaz.`);
+      toast.success('Aboneliğin iptal edildi');
       location.reload();
     } catch (err: any) {
       toast.error(err.message);
@@ -84,346 +78,225 @@ export default function BillingPage() {
     }
   };
 
+  const header = <PageHeader title="Abonelik ve faturalar" description="Planını, bu ayki kullanımını ve faturalarını gör." />;
+
   if (loading) {
     return (
       <div className="space-y-6">
-        <Skeleton className="h-12 w-1/3" />
-        <Skeleton className="h-56 rounded-2xl" />
-        <Skeleton className="h-64 rounded-xl" />
+        {header}
+        <Skeleton className="h-56 rounded-xl" />
+        <Skeleton className="h-48 rounded-xl" />
       </div>
     );
   }
 
-  if (!current) {
-    return <div className="text-muted-foreground">Veri yüklenemedi.</div>;
+  if (!current || loadError) {
+    return (
+      <div className="space-y-6">
+        {header}
+        <EmptyState
+          icon={AlertCircle}
+          accent="rose"
+          title="Abonelik bilgisi alınamadı"
+          description="Bağlantı kesilmiş ya da oturumun sona ermiş olabilir. Sayfayı yenile; sorun sürerse yeniden giriş yap."
+          primary={{ label: 'Sayfayı yenile', onClick: () => location.reload() }}
+        />
+      </div>
+    );
   }
 
   const plan = current.plan;
   const articleUsage = quota?.articles ?? { remaining: 0, limit: 0 };
   const used = Math.max(0, articleUsage.limit - articleUsage.remaining);
-  const usagePct = articleUsage.limit > 0 ? Math.round((used / articleUsage.limit) * 100) : 0;
+  const usagePct = articleUsage.limit > 0 ? Math.min(100, Math.round((used / articleUsage.limit) * 100)) : 0;
   const isActive = current.status === 'ACTIVE';
   const isTrial = current.status === 'TRIAL';
+  const legacyTry = Number(current.legacyMonthlyPriceTry ?? 0);
+  const usd = Number(plan?.monthly ?? 0);
 
   return (
-    <div className="relative space-y-8">
-      {/* Background gradient orbs (subtle) */}
-      <div className="pointer-events-none absolute -top-32 -right-20 h-72 w-72 rounded-full bg-brand/15 blur-[120px]" />
-      <div className="pointer-events-none absolute top-40 -left-32 h-72 w-72 rounded-full bg-violet-500/10 blur-[120px]" />
+    <div className="space-y-6">
+      {header}
 
-      {/* Header */}
-      <div className="relative animate-[fadeInUp_500ms_ease-out_both]">
-        <div className="flex items-center gap-2 mb-1">
-          <span className="h-1.5 w-1.5 rounded-full bg-brand animate-pulse" />
-          <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-brand font-semibold">
-            Faturalama Merkezi
-          </span>
-        </div>
-        <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">
-          Abonelik &amp; Faturalama
-        </h1>
-        <p className="text-sm text-muted-foreground mt-1.5">
-          Mevcut planını gör, kullanımını takip et, dilediğin zaman değiştir.
-        </p>
-      </div>
-
-      {/* Plan Card — premium */}
-      <div
-        className="relative rounded-2xl border bg-card overflow-hidden animate-[scaleIn_600ms_cubic-bezier(0.16,1,0.3,1)_both]"
-        style={{ animationDelay: '100ms' }}
-      >
-        {/* Animated gradient glow background */}
-        <div className="absolute inset-0 bg-gradient-to-br from-brand/15 via-violet-500/8 to-fuchsia-500/12 pointer-events-none animate-breath" />
-        {/* Top accent bar */}
-        <div className="absolute top-0 left-0 right-0 h-[3px] bg-gradient-to-r from-brand via-violet-500 to-fuchsia-500" />
-
-        <div className="relative p-6 sm:p-8">
-          <div className="flex justify-between items-start flex-wrap gap-4 mb-6">
-            {/* Plan info */}
-            <div className="flex items-start gap-4">
-              <div className="shrink-0 h-14 w-14 rounded-2xl bg-gradient-to-br from-brand/20 to-violet-500/20 grid place-items-center border border-brand/30">
-                <Crown className="h-6 w-6 text-brand" />
-              </div>
-              <div>
-                <div className="text-xs uppercase tracking-widest text-muted-foreground font-mono mb-1">
-                  Mevcut Planınız
-                </div>
-                <h2 className="text-2xl sm:text-3xl font-bold tracking-tight">
-                  {plan?.name ?? 'Ücretsiz'}
-                </h2>
-                <div className="mt-2 flex items-center gap-2">
-                  <StatusBadge status={current.status} />
-                  {isTrial && current.trialEndsAt && (
-                    <span className="text-[11px] text-muted-foreground font-mono">
-                      Trial bitiş: {new Date(current.trialEndsAt).toLocaleDateString('tr-TR')}
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Price */}
-            {plan?.monthly > 0 && (
-              <div className="text-right">
-                <div className="text-3xl sm:text-4xl font-bold tabular-nums font-mono text-brand">
-                  <span><NumberTicker value={Number(plan?.monthly ?? 0)} prefix="₺" /></span>
-                  <span className="text-sm text-muted-foreground font-sans font-normal">/ay</span>
-                </div>
-                <div className="text-[10px] text-muted-foreground/70 mt-1 font-mono uppercase tracking-widest">
-                  KDV dahil · TR
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Usage bar */}
-          <div className="space-y-2 mb-6">
-            <div className="flex items-center justify-between text-sm">
-              <div className="inline-flex items-center gap-1.5 text-foreground/80">
-                <Activity className="h-3.5 w-3.5 text-brand" />
-                <span>Bu ay kullanım</span>
-              </div>
-              <span className="font-mono tabular-nums text-foreground/90">
-                <NumberTicker value={used} /> / <NumberTicker value={articleUsage.limit} /> makale
-              </span>
-            </div>
-            <div className="relative h-2.5 bg-muted/60 rounded-full overflow-hidden">
-              <div
-                className={`absolute inset-y-0 left-0 rounded-full transition-[width] duration-[1400ms] ease-apple ${
-                  usagePct > 90
-                    ? 'bg-gradient-to-r from-red-500 to-red-400'
-                    : usagePct > 70
-                      ? 'bg-gradient-to-r from-amber-500 to-yellow-400'
-                      : 'bg-gradient-to-r from-brand to-violet-500'
-                } shadow-[0_0_12px_currentColor]`}
-                style={{ width: `${barGenislik}%` }}
-              />
-              {/* Shimmer overlay during fill */}
-              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent opacity-0 animate-[shimmer_2s_ease-in-out_infinite]" />
-            </div>
-            {usagePct > 80 && (
-              <p className="text-[11px] text-amber-600 dark:text-amber-400 inline-flex items-center gap-1.5 mt-1">
-                <AlertCircle className="h-3 w-3" />
-                Limitin %80&apos;ini geçtin — yeni plan değerlendirmek isteyebilirsin.
-              </p>
-            )}
-          </div>
-
-          {/* CTAs */}
-          <div className="flex gap-2 flex-wrap">
-            <Button
-              asChild
-              size="lg"
-              className="group relative overflow-hidden bg-gradient-to-r from-brand to-violet-500 shadow-[0_0_0_1px_rgb(124_58_237/0.3),0_8px_24px_-6px_rgb(124_58_237/0.5)] hover:shadow-[0_0_0_1px_rgb(124_58_237/0.5),0_12px_36px_-6px_rgb(124_58_237/0.7)] transition-shadow duration-300"
-            >
-              <Link href="/pricing" className="font-mono text-xs uppercase tracking-widest">
-                <TrendingUp className="h-4 w-4 mr-2" />
-                Plan Yükselt
-                <ChevronRight className="h-3.5 w-3.5 ml-1.5 group-hover:translate-x-0.5 transition-transform" />
-                <span aria-hidden className="absolute inset-y-0 -left-1/2 w-1/2 bg-gradient-to-r from-transparent via-white/25 to-transparent skew-x-12 group-hover:translate-x-[400%] transition-transform duration-700" />
-              </Link>
-            </Button>
-            {isActive && (
-              <Button
-                variant="outline"
-                size="lg"
-                onClick={() => setShowCancelDialog(true)}
-                className="font-mono text-xs uppercase tracking-widest text-red-500 border-red-300/50 hover:bg-red-500/10 hover:border-red-500/60"
-              >
-                <XCircle className="h-4 w-4 mr-2" />
-                İptal Et
-              </Button>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* Invoice table */}
-      <div
-        className="relative animate-[fadeInUp_500ms_ease-out_both]"
-        style={{ animationDelay: '400ms' }}
-      >
-        <div className="flex items-center gap-2 mb-4">
-          <Receipt className="h-4 w-4 text-muted-foreground" />
-          <h2 className="text-lg font-semibold">Fatura Geçmişi</h2>
-          {invoices.length > 0 && (
-            <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-              · {invoices.length} kayıt
+      {/* Plan */}
+      <Card className="p-6">
+        <div className="flex flex-wrap items-start justify-between gap-6">
+          <div className="flex items-start gap-4">
+            <span className="grid h-12 w-12 shrink-0 place-items-center rounded-xl border bg-muted/50 text-foreground/70" aria-hidden>
+              <Crown className="h-5 w-5" />
             </span>
+            <div>
+              <p className="text-label text-muted-foreground">Mevcut planın</p>
+              <h2 className="font-brand text-h4 font-semibold tracking-tight">{plan?.name ?? 'Ücretsiz'}</h2>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <StatusBadge status={current.status} />
+                {isTrial && current.trialEndsAt && (
+                  <span className="text-label text-muted-foreground">
+                    Deneme {new Date(current.trialEndsAt).toLocaleDateString('tr-TR')} tarihinde bitiyor
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {(legacyTry > 0 || usd > 0) && (
+            <div className="text-right">
+              <p className="font-brand text-h4 font-semibold tabular-nums">
+                {legacyTry > 0 ? `₺${legacyTry.toLocaleString('tr-TR')}` : `$${usd.toLocaleString('en-US')}`}
+                <span className="ml-1 text-sm font-normal text-muted-foreground">/ ay</span>
+              </p>
+              <p className="mt-1 text-label text-muted-foreground">
+                {legacyTry > 0 ? 'Eski fiyatın korunuyor' : 'TL tutarı ödeme anındaki kurla hesaplanır'}
+              </p>
+            </div>
           )}
         </div>
 
+        {/* Kullanim */}
+        <div className="mt-6 space-y-2">
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-muted-foreground">Bu ay üretilen içerik</span>
+            <span className="tabular-nums font-medium">{used} / {articleUsage.limit}</span>
+          </div>
+          <div
+            className="h-2 overflow-hidden rounded-full bg-muted"
+            role="progressbar"
+            aria-valuenow={usagePct}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-label="Aylık içerik kotası kullanımı"
+          >
+            <div
+              className={cn(
+                'h-full rounded-full motion-safe:transition-[width] motion-safe:duration-700',
+                usagePct > 90 ? 'bg-danger' : usagePct > 70 ? 'bg-warning' : 'bg-brand',
+              )}
+              style={{ width: `${usagePct}%` }}
+            />
+          </div>
+          {usagePct > 80 && (
+            <p className="inline-flex items-center gap-1.5 text-label text-warning">
+              <AlertCircle className="h-3.5 w-3.5" aria-hidden />
+              Aylık kotanın %{usagePct}&apos;ini kullandın. Daha fazlası için planını yükseltebilirsin.
+            </p>
+          )}
+        </div>
+
+        <div className="mt-6 flex flex-wrap gap-2">
+          <Button asChild>
+            <Link href="/pricing"><TrendingUp className="h-4 w-4" aria-hidden /> Planları karşılaştır</Link>
+          </Button>
+          {isActive && (
+            <Button variant="ghost" className="text-danger hover:bg-danger/10 hover:text-danger" onClick={() => setShowCancelDialog(true)}>
+              Aboneliği iptal et
+            </Button>
+          )}
+        </div>
+      </Card>
+
+      {/* Faturalar */}
+      <section className="space-y-3">
+        <SectionHeader title="Fatura geçmişi" description={invoices.length > 0 ? `${invoices.length} kayıt` : undefined} />
         {invoices.length === 0 ? (
-          <EmptyInvoices />
+          <EmptyState icon={Receipt} title="Henüz fatura yok" description="Bir plan satın aldığında faturaların burada listelenir." />
         ) : (
-          <div className="rounded-xl border bg-card overflow-hidden">
+          <Card className="overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b bg-muted/30">
-                    <th className="text-left px-4 py-3 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Tarih</th>
-                    <th className="text-left px-4 py-3 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Açıklama</th>
-                    <th className="text-right px-4 py-3 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Tutar</th>
-                    <th className="text-left px-4 py-3 font-mono text-[10px] uppercase tracking-widest text-muted-foreground">Durum</th>
+                <thead className="bg-muted/40 text-left text-label text-muted-foreground">
+                  <tr>
+                    <th className="px-5 py-2.5 font-medium">Tarih</th>
+                    <th className="px-5 py-2.5 font-medium">Açıklama</th>
+                    <th className="px-5 py-2.5 text-right font-medium">Tutar</th>
+                    <th className="px-5 py-2.5 font-medium">Durum</th>
                   </tr>
                 </thead>
-                <motion.tbody variants={staggerContainer} initial="hidden" animate="show">
+                <tbody>
                   {invoices.map((inv) => (
-                    <motion.tr
-                      key={inv.id}
-                      variants={fadeUp}
-                      className="border-t hover:bg-muted/20 transition-colors"
-                    >
-                      <td className="px-4 py-3.5">
-                        <div className="inline-flex items-center gap-2">
-                          <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-                          <span>{new Date(inv.createdAt).toLocaleDateString('tr-TR')}</span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3.5 text-foreground/90">{inv.description}</td>
-                      <td className="px-4 py-3.5 text-right font-mono tabular-nums font-semibold">
-                        ₺{Number(inv.amount).toLocaleString('tr-TR')}
-                      </td>
-                      <td className="px-4 py-3.5">
-                        <InvoiceStatusBadge status={inv.status} />
-                      </td>
-                    </motion.tr>
+                    <tr key={inv.id} className="border-t">
+                      <td className="px-5 py-3 tabular-nums text-muted-foreground">{new Date(inv.createdAt).toLocaleDateString('tr-TR')}</td>
+                      <td className="px-5 py-3">{inv.description}</td>
+                      <td className="px-5 py-3 text-right font-medium tabular-nums">₺{Number(inv.amount).toLocaleString('tr-TR')}</td>
+                      <td className="px-5 py-3"><InvoiceStatusBadge status={inv.status} /></td>
+                    </tr>
                   ))}
-                </motion.tbody>
+                </tbody>
               </table>
             </div>
-          </div>
+          </Card>
         )}
-      </div>
+      </section>
 
-      {/* Cancel dialog */}
-      {showCancelDialog && (
-        <CancelDialog
-          onCancel={() => setShowCancelDialog(false)}
-          onConfirm={cancel}
-          loading={cancelling}
-          plan={plan?.name}
-        />
-      )}
-
-      <style jsx global>{`
-        @keyframes fadeInUp {
-          from { opacity: 0; transform: translateY(12px); }
-          to   { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes scaleIn {
-          from { opacity: 0; transform: scale(0.96); }
-          to   { opacity: 1; transform: scale(1); }
-        }
-        @keyframes shimmer {
-          0%   { opacity: 0; transform: translateX(-100%); }
-          50%  { opacity: 0.3; }
-          100% { opacity: 0; transform: translateX(100%); }
-        }
-      `}</style>
+      <CancelDialog
+        open={showCancelDialog}
+        onCancel={() => setShowCancelDialog(false)}
+        onConfirm={cancel}
+        loading={cancelling}
+        plan={plan?.name}
+      />
     </div>
   );
 }
+
+const STATUS: Record<string, { label: string; tone: 'success' | 'brand' | 'secondary' | 'danger' | 'warning'; icon: React.ComponentType<{ className?: string }> }> = {
+  ACTIVE: { label: 'Aktif', tone: 'success', icon: CheckCircle2 },
+  TRIAL: { label: 'Deneme', tone: 'brand', icon: Clock },
+  CANCELED: { label: 'İptal edildi', tone: 'secondary', icon: XCircle },
+  EXPIRED: { label: 'Süresi doldu', tone: 'danger', icon: AlertCircle },
+  PAST_DUE: { label: 'Ödeme gecikti', tone: 'warning', icon: Clock },
+};
 
 function StatusBadge({ status }: { status: string }) {
-  const map: Record<string, { label: string; cls: string; icon: React.ComponentType<{ className?: string }>; pulse?: boolean }> = {
-    ACTIVE:    { label: 'AKTİF',     cls: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30', icon: CheckCircle2, pulse: true },
-    TRIAL:     { label: 'DENEME',    cls: 'bg-brand/15 text-brand border-brand/30',                                        icon: Sparkles },
-    CANCELED:  { label: 'İPTAL',     cls: 'bg-muted text-muted-foreground border-border',                                  icon: XCircle },
-    EXPIRED:   { label: 'SÜRE DOLDU', cls: 'bg-red-500/15 text-red-700 dark:text-red-400 border-red-500/30',               icon: AlertCircle },
-    PAST_DUE:  { label: 'GECİKME',   cls: 'bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30',        icon: Clock, pulse: true },
-  };
-  const m = map[status] ?? { label: status, cls: 'bg-muted text-muted-foreground border-border', icon: AlertCircle };
+  const m = STATUS[status] ?? { label: status, tone: 'secondary' as const, icon: AlertCircle };
   const Icon = m.icon;
-  return (
-    <span className={`inline-flex items-center gap-1.5 px-2 h-6 rounded-md border text-[10px] font-mono uppercase tracking-widest font-semibold ${m.cls}`}>
-      {m.pulse && <span className="h-1.5 w-1.5 rounded-full bg-current animate-pulse" />}
-      <Icon className="h-3 w-3" />
-      {m.label}
-    </span>
-  );
+  return <Badge variant={m.tone} className="gap-1"><Icon className="h-3 w-3" aria-hidden />{m.label}</Badge>;
 }
+
+const INVOICE_STATUS: Record<string, { label: string; tone: 'success' | 'warning' | 'danger' | 'secondary'; icon: React.ComponentType<{ className?: string }> }> = {
+  PAID: { label: 'Ödendi', tone: 'success', icon: CheckCircle2 },
+  PENDING: { label: 'Bekliyor', tone: 'warning', icon: Clock },
+  FAILED: { label: 'Başarısız', tone: 'danger', icon: XCircle },
+  REFUNDED: { label: 'İade edildi', tone: 'secondary', icon: ArrowUpRight },
+};
 
 function InvoiceStatusBadge({ status }: { status: string }) {
-  const map: Record<string, { label: string; cls: string; icon: React.ComponentType<{ className?: string }>; pulse?: boolean }> = {
-    PAID:     { label: 'ÖDENDİ',  cls: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30', icon: CheckCircle2 },
-    PENDING:  { label: 'BEKLEMEDE', cls: 'bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30',       icon: Clock, pulse: true },
-    FAILED:   { label: 'BAŞARISIZ', cls: 'bg-red-500/15 text-red-700 dark:text-red-400 border-red-500/30',               icon: XCircle },
-    REFUNDED: { label: 'İADE',    cls: 'bg-violet-500/15 text-violet-700 dark:text-violet-400 border-violet-500/30',     icon: ArrowUpRight },
-  };
-  const m = map[status] ?? { label: status, cls: 'bg-muted text-muted-foreground border-border', icon: AlertCircle };
+  const m = INVOICE_STATUS[status] ?? { label: status, tone: 'secondary' as const, icon: AlertCircle };
   const Icon = m.icon;
-  return (
-    <span className={`inline-flex items-center gap-1.5 px-2 h-6 rounded-md border text-[10px] font-mono uppercase tracking-widest font-semibold ${m.cls}`}>
-      {m.pulse && <span className="h-1.5 w-1.5 rounded-full bg-current animate-pulse" />}
-      <Icon className="h-3 w-3" />
-      {m.label}
-    </span>
-  );
-}
-
-function EmptyInvoices() {
-  return (
-    <div className="rounded-2xl border-2 border-dashed border-brand/20 bg-card overflow-hidden animate-[scaleIn_500ms_ease-out_both]">
-      <div className="absolute inset-0 bg-gradient-to-br from-brand/[0.04] via-transparent to-violet-500/[0.04] pointer-events-none" />
-      <div className="relative p-12 text-center">
-        <div className="mx-auto mb-5 h-14 w-14 rounded-2xl bg-gradient-to-br from-brand/15 to-violet-500/15 grid place-items-center border border-brand/20">
-          <Receipt className="h-6 w-6 text-brand" />
-        </div>
-        <h3 className="text-base font-semibold mb-1">Henüz fatura yok</h3>
-        <p className="text-sm text-muted-foreground">
-          Bir plan satın aldığında burada listelenecek.
-        </p>
-      </div>
-    </div>
-  );
+  return <Badge variant={m.tone} className="gap-1"><Icon className="h-3 w-3" aria-hidden />{m.label}</Badge>;
 }
 
 function CancelDialog({
-  onCancel, onConfirm, loading, plan,
+  open, onCancel, onConfirm, loading, plan,
 }: {
+  open: boolean;
   onCancel: () => void;
   onConfirm: () => void;
   loading: boolean;
   plan?: string;
 }) {
   return (
-    <div
-      className="fixed inset-0 z-50 grid place-items-center bg-black/60 backdrop-blur-sm p-4 animate-[fadeInUp_200ms_ease-out_both]"
-      onClick={(e) => { if (e.target === e.currentTarget) onCancel(); }}
-    >
-      <div className="bg-card border border-red-500/30 rounded-xl p-6 max-w-md w-full shadow-2xl animate-[scaleIn_300ms_cubic-bezier(0.16,1,0.3,1)_both]">
-        <div className="flex items-start gap-3 mb-4">
-          <div className="h-12 w-12 rounded-2xl bg-red-500/10 grid place-items-center shrink-0 border border-red-500/30">
-            <AlertCircle className="h-6 w-6 text-red-500" />
-          </div>
-          <div>
-            <h3 className="text-lg font-semibold">Aboneliği iptal et</h3>
-            <p className="text-sm text-muted-foreground mt-1.5">
-              {plan ? <><strong>{plan}</strong> aboneliğini iptal etmek üzeresin.</> : 'Aboneliğini iptal etmek üzeresin.'}
-            </p>
-          </div>
-        </div>
-        <div className="rounded-lg bg-muted/40 border p-3 mb-5 text-xs text-muted-foreground space-y-1">
-          <p>• İptal sonrası mevcut dönem sonuna kadar aktif kalır</p>
-          <p>• Yeni faturalama yapılmaz, ücret iadesi ayrı bir taleple yapılır</p>
-          <p>• Ücretsiz plana otomatik geçilir, içerikler korunur</p>
-          <p>• İstediğin zaman tekrar abone olabilirsin</p>
-        </div>
-        <div className="flex justify-end gap-2">
-          <Button variant="outline" onClick={onCancel} disabled={loading}>
-            Vazgeç
-          </Button>
-          <Button
-            variant="destructive"
-            onClick={onConfirm}
-            disabled={loading}
-          >
+    <Dialog open={open} onOpenChange={(o) => { if (!o && !loading) onCancel(); }}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Abonelik iptal edilsin mi?</DialogTitle>
+          <DialogDescription>
+            {plan ? <><strong>{plan}</strong> aboneliğini iptal etmek üzeresin.</> : 'Aboneliğini iptal etmek üzeresin.'}
+          </DialogDescription>
+        </DialogHeader>
+        <DialogBody>
+          <ul className="space-y-1.5 text-sm text-muted-foreground">
+            <li>Aboneliğin iptal olarak işaretlenir ve sana onay e-postası gönderilir.</li>
+            <li>Sitelerin, içeriklerin ve raporların silinmez.</li>
+            <li>Ücret iadesi için destek ekibine yazman gerekir.</li>
+          </ul>
+        </DialogBody>
+        <DialogFooter>
+          <Button variant="outline" onClick={onCancel} disabled={loading}>Vazgeç</Button>
+          <Button variant="destructive" onClick={onConfirm} disabled={loading}>
             {loading ? 'İptal ediliyor…' : 'Aboneliği iptal et'}
           </Button>
-        </div>
-      </div>
-    </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
-

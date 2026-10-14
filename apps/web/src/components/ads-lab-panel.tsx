@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { Megaphone, Play, Pause, Plus, Target, Activity, Zap, Link2, Check, X, Loader2 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
+import { SectionHeader } from '@/components/ui/section-header';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { InfoTooltip } from '@/components/info-tooltip';
@@ -28,45 +29,45 @@ export function AdsLabPanel({ site }: { site: any }) {
   const noAccounts = conn !== null && !conn.google && !conn.meta;
 
   return (
-    <div className="rounded-lg border border-brand-500/30 bg-gradient-to-br from-brand-500/5 to-transparent p-4 space-y-3">
-      <div>
-        <p className="text-sm font-semibold inline-flex items-center gap-2">
-          <Megaphone className="h-4 w-4 text-muted-foreground" /> Ads Lab — Google Ads + Meta Ads
-        </p>
-        <p className="text-xs text-muted-foreground mt-0.5">
-          AI ile reklam hedefle, metin üret, görsel hazırla, bütçe ayarla, yayınla. Resmi Google Ads + Meta Marketing API'leri ile direkt entegrasyon — 3. parti SaaS yok.
-        </p>
-      </div>
+    <div className="rounded-lg border bg-card p-5 space-y-4">
+      <SectionHeader
+        as="h3"
+        icon={Megaphone}
+        title="Kampanya oluştur"
+        description="Hedef kitleyi, reklam metnini, görseli ve bütçeyi AI hazırlar; Google Ads ve Meta hesabına doğrudan gönderilir."
+      />
 
       {noAccounts && (
-        <div className="rounded-md border border-amber-500/40 bg-amber-500/5 p-3 flex items-start gap-3">
-          <Link2 className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
-          <div className="flex-1 text-xs">
-            <p className="font-semibold text-amber-700 dark:text-amber-400">Önce reklam hesabı bağla</p>
+        <div className="rounded-lg border border-warning/30 bg-warning/5 p-3 flex items-start gap-3">
+          <Link2 className="h-4 w-4 text-warning shrink-0 mt-0.5" aria-hidden />
+          <div className="flex-1 text-sm">
+            <p className="font-medium">Önce reklam hesabı bağla</p>
             <p className="text-muted-foreground mt-0.5">
               Kampanya kurmak için en az bir Google Ads veya Meta Ads hesabına ihtiyacın var.
             </p>
             <a
               href={siteHref(site.id, 'connections')}
-              className="mt-2 inline-flex items-center gap-1 text-amber-700 dark:text-amber-400 font-semibold hover:underline"
+              className="mt-2 inline-flex items-center gap-1 font-medium text-foreground underline decoration-brand underline-offset-4 hover:text-brand"
             >
-              Ayarlar → Reklam Hesapları'na git →
+              Bağlantılar sayfasını aç
             </a>
           </div>
         </div>
       )}
 
-      <div className="inline-flex border rounded-md overflow-hidden flex-wrap">
+      <div className="inline-flex flex-wrap gap-1 rounded-lg bg-muted p-1" role="tablist">
         {([
-          ['builder', 'Yeni Kampanya', <Plus key="b" className="h-3 w-3" />],
-          ['active', 'Aktifler', <Play key="a" className="h-3 w-3" />],
-          ['performance', 'Performans', <Target key="p" className="h-3 w-3" />],
-          ['autopilot', 'Otopilot Geçmişi', <Zap key="ap" className="h-3 w-3" />],
+          ['builder', 'Yeni kampanya', <Plus key="b" className="h-3.5 w-3.5" />],
+          ['active', 'Yayındakiler', <Play key="a" className="h-3.5 w-3.5" />],
+          ['performance', 'Performans', <Target key="p" className="h-3.5 w-3.5" />],
+          ['autopilot', 'Otopilot geçmişi', <Zap key="ap" className="h-3.5 w-3.5" />],
         ] as const).map(([id, label, icon]) => (
           <button
             key={id}
+            role="tab"
+            aria-selected={tab === id}
             onClick={() => setTab(id as any)}
-            className={`px-3 py-1.5 text-xs font-medium inline-flex items-center gap-1 ${tab === id ? 'bg-brand-500 text-white' : 'bg-card text-muted-foreground hover:bg-muted'}`}
+            className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${tab === id ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
           >
             {icon} {label}
           </button>
@@ -328,7 +329,7 @@ function BuilderTab({ site }: { site: any }) {
       <div className="grid grid-cols-2 gap-2">
         <label className="block">
           <span className="text-xs font-medium">Platform</span>
-          <select value={form.platform} onChange={(e) => setForm({ ...form, platform: e.target.value as any })} className="w-full mt-1 px-3 py-2 border rounded text-sm bg-background">
+          <select value={form.platform} onChange={(e) => setForm({ ...form, platform: e.target.value as any })} className="mt-1 flex h-10 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2">
             <option value="both">Google + Meta</option>
             <option value="google_ads">Sadece Google</option>
             <option value="meta_ads">Sadece Meta</option>
@@ -336,7 +337,7 @@ function BuilderTab({ site }: { site: any }) {
         </label>
         <label className="block">
           <span className="text-xs font-medium">Hedef</span>
-          <select value={form.objective} onChange={(e) => setForm({ ...form, objective: e.target.value as any })} className="w-full mt-1 px-3 py-2 border rounded text-sm bg-background">
+          <select value={form.objective} onChange={(e) => setForm({ ...form, objective: e.target.value as any })} className="mt-1 flex h-10 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2">
             <option value="traffic">Trafik</option>
             <option value="leads">Lead toplama</option>
             <option value="conversions">Dönüşüm</option>
@@ -348,40 +349,40 @@ function BuilderTab({ site }: { site: any }) {
 
       <label className="block">
         <span className="text-xs font-medium">Ürün / Hizmet</span>
-        <input value={form.productOrService} onChange={(e) => setForm({ ...form, productOrService: e.target.value })} className="w-full mt-1 px-3 py-2 border rounded text-sm bg-background" placeholder="Örn: Shared hosting paketleri 49 TL'den" />
+        <input value={form.productOrService} onChange={(e) => setForm({ ...form, productOrService: e.target.value })} className="mt-1 flex h-10 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2" placeholder="Örn: Shared hosting paketleri 49 TL'den" />
       </label>
 
       <label className="block">
         <span className="text-xs font-medium">Ana Fayda (opsiyonel)</span>
-        <input value={form.keyBenefit} onChange={(e) => setForm({ ...form, keyBenefit: e.target.value })} className="w-full mt-1 px-3 py-2 border rounded text-sm bg-background" placeholder="Örn: 7/24 Türkçe destek + ücretsiz SSL" />
+        <input value={form.keyBenefit} onChange={(e) => setForm({ ...form, keyBenefit: e.target.value })} className="mt-1 flex h-10 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2" placeholder="Örn: 7/24 Türkçe destek + ücretsiz SSL" />
       </label>
 
       <label className="block">
         <span className="text-xs font-medium">Landing URL</span>
-        <input type="url" value={form.landingUrl} onChange={(e) => setForm({ ...form, landingUrl: e.target.value })} className="w-full mt-1 px-3 py-2 border rounded text-sm bg-background" />
+        <input type="url" value={form.landingUrl} onChange={(e) => setForm({ ...form, landingUrl: e.target.value })} className="mt-1 flex h-10 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2" />
       </label>
 
       <div className="grid grid-cols-2 gap-2">
         <label className="block">
           <span className="text-xs font-medium">Bütçe Tipi</span>
-          <select value={form.budgetType} onChange={(e) => setForm({ ...form, budgetType: e.target.value as any })} className="w-full mt-1 px-3 py-2 border rounded text-sm bg-background">
+          <select value={form.budgetType} onChange={(e) => setForm({ ...form, budgetType: e.target.value as any })} className="mt-1 flex h-10 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2">
             <option value="daily">Günlük</option>
             <option value="lifetime">Toplam</option>
           </select>
         </label>
         <label className="block">
           <span className="text-xs font-medium">Bütçe (TL)</span>
-          <input type="number" min={50} value={form.budgetAmount} onChange={(e) => setForm({ ...form, budgetAmount: parseFloat(e.target.value) || 0 })} className="w-full mt-1 px-3 py-2 border rounded text-sm bg-background" />
+          <input type="number" min={50} value={form.budgetAmount} onChange={(e) => setForm({ ...form, budgetAmount: parseFloat(e.target.value) || 0 })} className="mt-1 flex h-10 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2" />
         </label>
       </div>
 
       <label className="flex items-center gap-2 text-xs cursor-pointer">
         <input type="checkbox" checked={form.autoLaunch} onChange={(e) => setForm({ ...form, autoLaunch: e.target.checked })} />
-        <span><strong>Hazır olunca otomatik yayına al</strong> (Reklam Hesabı bağlı olmalı). Kapalı bırakırsan DRAFT'ta kalır, sen "Yayınla" tıklarsın.</span>
+        <span><strong>Hazır olunca otomatik yayına al.</strong> Reklam hesabı bağlı olmalı. Kapalı bırakırsan kampanya taslak olarak kalır, yayını sen başlatırsın.</span>
       </label>
 
-      <Button onClick={build} disabled={building} size="lg" className="w-full">
-        {building ? 'Hazırlanıyor (~60s)…' : '🚀 Kampanyayı Hazırla'}
+      <Button onClick={build} disabled={building} size="lg">
+        {building ? 'Hazırlanıyor (yaklaşık 1 dk)…' : 'Kampanyayı hazırla'}
       </Button>
     </div>
   );

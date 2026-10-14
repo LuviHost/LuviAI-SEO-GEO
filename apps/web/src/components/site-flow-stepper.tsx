@@ -23,6 +23,7 @@ import { PipelineProgress, PIPELINE_STEPS } from '@/components/pipeline-progress
 import { ScanOrb } from '@/components/ai-scan';
 import { VendorLogo, type VendorName } from '@/components/vendor-logo';
 import { EngineLogo } from '@/components/engine-logo';
+import { SiteFavicon } from '@/components/site-favicon';
 import { PROVIDER_LABELS } from '@/lib/chart-colors';
 
 // Channel type → VendorLogo name eşlemesi (dahili SVG'lerden gelir, CDN bağımlılığı yok)
@@ -857,7 +858,7 @@ export function AuditStepBody({
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-medium">{v.name}</span>
-                        <span className={`text-label uppercase tracking-wide font-semibold ${stateCls}`}>
+                        <span className={`text-label font-semibold ${stateCls}`}>
                           {ok ? 'VAR' : v.found ? 'EKSİK' : 'YOK'}
                         </span>
                         {fixable && (
@@ -1315,8 +1316,8 @@ export function CompetitorsStepBody({
   return (
     <div className="space-y-4">
       <p className="text-xs text-muted-foreground">
-        Topic engine ve makale üretimi bu listeyi kullanır. AI sana 5-10 rakip önerdi;
-        senle yarışan başka siteler varsa ekle, alakasız olanları kaldır.
+        Konu önerileri ve içerik üretimi bu listeyi kullanır. AI senin için rakip önerdi;
+        seninle yarışan başka siteler varsa ekle, alakasız olanları kaldır.
       </p>
 
       {list.length === 0 ? (
@@ -1326,22 +1327,26 @@ export function CompetitorsStepBody({
       ) : (
         <ul className="divide-y border rounded-lg">
           {list.map((c) => (
-            <li key={c.url} className="px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
+            <li key={c.url} className="px-4 py-3 flex items-start justify-between gap-3">
+              <SiteFavicon url={c.url} name={c.name} size="sm" className="mt-0.5" />
               <div className="min-w-0 flex-1">
                 <div className="font-medium text-sm">{c.name}</div>
                 <a href={c.url} target="_blank" rel="noopener" className="text-xs text-muted-foreground hover:text-brand inline-flex items-center gap-1">
                   {c.url} <ExternalLink className="h-3 w-3" />
                 </a>
                 {(c.strengths?.length || c.weaknesses?.length) ? (
-                  <div className="text-[11px] text-muted-foreground mt-1">
-                    {c.strengths?.length ? <span>💪 {c.strengths.join(', ')}</span> : null}
-                    {c.strengths?.length && c.weaknesses?.length ? ' · ' : null}
-                    {c.weaknesses?.length ? <span>🩹 {c.weaknesses.join(', ')}</span> : null}
-                  </div>
+                  <dl className="mt-2 grid gap-1 text-xs sm:grid-cols-2 sm:gap-4">
+                    {c.strengths?.length ? (
+                      <div><dt className="font-medium text-success">Güçlü yanları</dt><dd className="text-muted-foreground">{c.strengths.join(', ')}</dd></div>
+                    ) : null}
+                    {c.weaknesses?.length ? (
+                      <div><dt className="font-medium text-warning">Açıkları</dt><dd className="text-muted-foreground">{c.weaknesses.join(', ')}</dd></div>
+                    ) : null}
+                  </dl>
                 ) : null}
               </div>
-              <Button size="sm" variant="ghost" onClick={() => remove(c.url)} disabled={saving} title="Kaldır">
-                <Trash2 className="h-4 w-4 text-red-500" />
+              <Button size="sm" variant="ghost" onClick={() => remove(c.url)} disabled={saving} title="Kaldır" aria-label={`${c.name} rakibini kaldır`} className="text-muted-foreground hover:text-danger">
+                <Trash2 className="h-4 w-4" />
               </Button>
             </li>
           ))}
@@ -1349,7 +1354,7 @@ export function CompetitorsStepBody({
       )}
 
       <div className="rounded-lg border p-3 space-y-2">
-        <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Manuel ekle</div>
+        <div className="text-xs font-semibold text-muted-foreground">Manuel ekle</div>
         <div className="flex gap-2 flex-wrap">
           <Input placeholder="Marka adı" value={draftName} onChange={(e) => setDraftName(e.target.value)} className="flex-1 min-w-[140px]" />
           <Input placeholder="https://rakip.com" value={draftUrl} onChange={(e) => setDraftUrl(e.target.value)} className="flex-[2] min-w-[200px]" />
@@ -1456,7 +1461,7 @@ export function GscStepBody({ site, onChanged }: { site: any; onChanged: () => v
       {site.gscConnectedAt ? (
         <div className="space-y-3">
           <div className="rounded-lg border p-3 space-y-2">
-            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <div className="text-xs font-semibold text-muted-foreground">
               Aktif property
             </div>
             {loadingProps ? (
@@ -1597,7 +1602,7 @@ export function Ga4StepBody({ site, onChanged }: { site: any; onChanged: () => v
       {site.gaConnectedAt ? (
         <div className="space-y-3">
           <div className="rounded-lg border p-3 space-y-2">
-            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <div className="text-xs font-semibold text-muted-foreground">
               Aktif property
             </div>
             {loadingProps ? (
@@ -1921,7 +1926,7 @@ export function ArticlesStepBody({
       {otherArticles.length > 0 && (
         <div className="space-y-3">
           {scheduled.length > 0 && (
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide pt-2">
+            <p className="text-xs font-semibold text-muted-foreground pt-2">
               Üretilen Makaleler ({otherArticles.length})
             </p>
           )}
@@ -2203,7 +2208,7 @@ export function ContentCalendarPanel({
         </div>
         <div className="flex items-center gap-2">
           {otherArticlesCount === 0 && (
-            <span className="text-[11px] uppercase tracking-wide bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 rounded px-2 py-1 font-semibold">
+            <span className="text-label bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 rounded px-2 py-1 font-semibold">
               TRIAL · 1.makale ücretsiz
             </span>
           )}
@@ -2280,7 +2285,7 @@ export function ContentCalendarPanel({
       {/* Hafta günü başlıkları */}
       <div className="grid grid-cols-7 gap-1.5 mb-1">
         {days.map((d) => (
-          <div key={d} className="text-[10px] font-semibold text-muted-foreground/70 uppercase tracking-wide text-center py-1">
+          <div key={d} className="text-label font-semibold text-muted-foreground/70 text-center py-1">
             {d}
           </div>
         ))}

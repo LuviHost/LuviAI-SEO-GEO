@@ -199,7 +199,7 @@ function StuckPageCard({
             {canRecover && page.articleId && (
               <Button
                 onClick={onRecover} disabled={busy} size="sm" className="gap-1.5"
-                title="Claude Sonnet 4.6 ile cümle-seviye edit. ~30 saniye. Başlık, slug ve yapı korunur — sadece eksik anahtar kelimeler doğal akışta eklenir."
+                title="Cümle düzeyinde düzenleme, yaklaşık 30 saniye. Başlık, adres ve yapı korunur; yalnız eksik anahtar kelimeler doğal akışta eklenir."
               >
                 {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
                 AI Düzelt
@@ -295,22 +295,22 @@ const GUIDE_STEPS = [
   {
     icon: TrendingDown,
     title: 'Takılı sayfa nedir?',
-    body: 'Google\'da ilk sayfada (pozisyon 4-15) ama top 3\'te değil. Yarı yolda kalmış, biraz iyileştirmeyle yukarı çıkabilir.',
+    body: 'Google\'da ilk sayfada (4–15. sıra) ama ilk 3\'te değil. Küçük iyileştirmelerle yukarı çıkabilir.',
   },
   {
     icon: Sparkles,
     title: 'AI ne yapıyor?',
-    body: 'Claude Sonnet 4.6 cümle-seviye edit yapar: eksik anahtar kelimeleri doğal akışta ekler, thin paragraf varsa genişletir. Başlık + slug + yapı dokunulmaz.',
+    body: 'Cümle düzeyinde düzenler: eksik anahtar kelimeleri doğal akışta ekler, zayıf paragrafları genişletir. Başlık, adres ve sayfa yapısı değişmez.',
   },
   {
     icon: Send,
     title: 'Etki ne zaman?',
-    body: 'AI Düzelt sonrası ~30 sn'+'de yayın güncellenir. Google 24-48 saatte yeniden tarar. 30 gün sonra otomatik performans ölçümü yapılır.',
+    body: 'Düzeltmeden yaklaşık 30 saniye sonra sayfa güncellenir. Google 24–48 saatte yeniden tarar; 30 gün sonra etki otomatik ölçülür.',
   },
   {
     icon: AlertTriangle,
     title: '"RanksUp dışı" rozeti?',
-    body: 'Bu sayfa RanksUp ile yazılmadı, sitende elle yazılmış. Recovery için WordPress / FTP / SFTP / cPanel publish target bağlı olmalı.',
+    body: 'Bu sayfa RanksUp ile yazılmamış. Düzeltebilmemiz için WordPress, FTP, SFTP ya da cPanel yayın hedefi bağlı olmalı.',
   },
 ];
 
@@ -533,13 +533,12 @@ export default function StuckPagesPage() {
 
       {/* "Nasıl çalışır" guide — dismissible, localStorage persist */}
       {showGuide && (
-        <Card className="border-brand/30 bg-brand/[0.03]">
+        <Card className="bg-muted/20">
           <CardContent className="p-5">
             <div className="flex items-start gap-3 mb-4">
-              <Lightbulb className="h-5 w-5 text-brand shrink-0 mt-0.5" aria-hidden />
+              <Lightbulb className="h-5 w-5 text-muted-foreground shrink-0 mt-0.5" aria-hidden />
               <div className="flex-1">
-                <p className="font-semibold text-sm">Nasıl çalışır?</p>
-                <p className="text-xs text-muted-foreground mt-0.5">4 adımda takılı sayfa onarımı</p>
+                <p className="font-brand font-semibold text-sm">Nasıl çalışır?</p>
               </div>
               <button
                 onClick={dismissGuide}
@@ -558,7 +557,6 @@ export default function StuckPagesPage() {
                       <div className="h-7 w-7 rounded-lg border border-border bg-muted/50 text-foreground/70 grid place-items-center shrink-0">
                         <Icon className="h-3.5 w-3.5" />
                       </div>
-                      <span className="text-xs font-semibold text-muted-foreground">0{i + 1}</span>
                       <p className="text-sm font-medium tracking-[-0.01em]">{s.title}</p>
                     </div>
                     <p className="text-xs text-muted-foreground leading-[1.55]">{s.body}</p>
@@ -568,7 +566,7 @@ export default function StuckPagesPage() {
             </div>
             <div className="mt-4 pt-4 border-t border-border/60 flex items-center justify-between gap-3 flex-wrap text-xs">
               <span className="inline-flex items-center gap-1.5 text-muted-foreground">
-                <Lightbulb className="h-3.5 w-3.5 shrink-0 text-brand" aria-hidden /> İlk önce <strong className="text-foreground">en yüksek gösterim alan</strong> sayfayı dene — etki orada daha hızlı görünür.
+                İlk önce <strong className="text-foreground">en yüksek gösterim alan</strong> sayfayı dene — etki orada daha hızlı görünür.
               </span>
               <Link href={siteHref(site.id, 'publishTargets') as any} className="text-brand hover:underline font-medium inline-flex items-center gap-1">
                 <Send className="h-3 w-3" /> Yayın hedefi ekle

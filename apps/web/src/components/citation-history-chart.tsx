@@ -266,7 +266,7 @@ export function CitationHistoryChart({
                   <div className="flex items-start gap-3 flex-wrap">
                     <div className="text-center min-w-[78px] shrink-0">
                       <div className="text-3xl font-bold leading-none">{avg}</div>
-                      <div className="text-[10px] uppercase tracking-wider font-bold mt-1 opacity-70">/ 100</div>
+                      <div className="text-label font-medium mt-1 opacity-70">/ 100</div>
                     </div>
                     <div className="flex-1 min-w-[220px]">
                       <p className="text-sm font-bold flex items-center gap-2 flex-wrap">

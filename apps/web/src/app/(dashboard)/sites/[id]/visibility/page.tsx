@@ -116,7 +116,7 @@ export default function VisibilityPage() {
               <p className="text-sm font-medium">{roadmap.summary}</p>
             </div>
             <div className="space-y-2">
-              <p className="text-label uppercase tracking-wider text-muted-foreground">Eylem listesi</p>
+              <p className="text-label text-muted-foreground">Eylem listesi</p>
               {/* Satirlar tiklanabilir degil — yaniltici ChevronRight kaldirildi */}
               <ol className="space-y-2">
                 {roadmap.actions.map((a, i) => (
@@ -179,7 +179,7 @@ export default function VisibilityPage() {
           <div className="p-5 grid md:grid-cols-2 gap-5">
             {/* En çok alıntılanan sayfalar */}
             <div>
-              <p className="flex items-center gap-1.5 text-label uppercase tracking-wider text-muted-foreground mb-2.5">
+              <p className="flex items-center gap-1.5 text-label text-muted-foreground mb-2.5">
                 <Star className="h-3.5 w-3.5" aria-hidden /> En çok alıntılanan sayfalar
               </p>
               <ol className="space-y-1.5">
@@ -197,7 +197,7 @@ export default function VisibilityPage() {
 
             {/* Alıntıyı tetikleyen sorgular */}
             <div>
-              <p className="flex items-center gap-1.5 text-label uppercase tracking-wider text-muted-foreground mb-2.5">
+              <p className="flex items-center gap-1.5 text-label text-muted-foreground mb-2.5">
                 <Target className="h-3.5 w-3.5" aria-hidden /> Alıntıyı tetikleyen sorgular
               </p>
               <div className="space-y-1.5">

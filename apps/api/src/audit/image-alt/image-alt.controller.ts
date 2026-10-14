@@ -85,7 +85,7 @@ export class ImageAltController {
       targetType: type || null,
       suggestionsLeftToday: remaining,
       dailyCap: IMAGE_ALT_DAILY_CAP,
-      note: 'Yalnizca sunucunun gonderdigi HTML taranir; JavaScript ile sonradan yuklenen gorseller gorunmez.',
+      note: 'Yalnızca sunucunun gönderdiği HTML taranır; JavaScript ile sonradan yüklenen görseller görünmez.',
     };
   }
 

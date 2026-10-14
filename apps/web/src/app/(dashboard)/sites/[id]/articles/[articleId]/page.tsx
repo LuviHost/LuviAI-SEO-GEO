@@ -73,6 +73,8 @@ const PUBLISH_STEPS = [
   { label: 'Yayın doğrulaması', sublabel: 'URL erişilebilir mi kontrol', durationMs: 4000 },
 ];
 
+const HERO_PLACEHOLDER_LINE_RE = /^[ \t]*!\[[^\]]*\]\(\s*placeholder-hero\.webp\s*\)[ \t]*(?:\r?\n|$)/gim;
+
 export default function ArticleDetailPage() {
   const params = useParams();
   const siteId = params.id as string;
@@ -120,7 +122,9 @@ export default function ArticleDetailPage() {
   // Her iki yol da sanitize edilir: bodyHtml DB'den gelse de sink tek standarttan geçer.
   const renderedHtml = useMemo<string>(() => {
     if (article?.bodyHtml) return DOMPurify.sanitize(article.bodyHtml as string);
-    if (article?.bodyMd) return renderMarkdownToHtml(article.bodyMd as string);
+    // Eski makalelerde yazar şablonunun "![Hero](placeholder-hero.webp)" satırı kalmış olabilir
+    // (api articles/hero-placeholder.ts ile aynı kural) — önizlemede kırık görsel olarak çıkıyordu.
+    if (article?.bodyMd) return renderMarkdownToHtml((article.bodyMd as string).replace(HERO_PLACEHOLDER_LINE_RE, ''));
     return '';
   }, [article?.bodyHtml, article?.bodyMd]);
 
@@ -737,7 +741,7 @@ function Field({
 }) {
   return (
     <div>
-      <div className="text-xs text-muted-foreground uppercase tracking-wide mb-1">{label}</div>
+      <div className="text-xs text-muted-foreground mb-1">{label}</div>
       <div
         className={`${mono ? 'font-mono text-xs' : ''} ${
           multiline ? 'whitespace-pre-wrap' : ''

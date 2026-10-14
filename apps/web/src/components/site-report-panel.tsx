@@ -198,7 +198,7 @@ export function SiteReportPanel({ siteId, site }: { siteId: string; site: any })
             <p className="text-sm font-semibold mb-3">En çok tıklanan sorgular</p>
             <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="text-label text-muted-foreground uppercase border-b">
+              <thead className="text-label text-muted-foreground border-b">
                 <tr>
                   <th className="text-left py-2 font-medium">Sorgu</th>
                   <th className="text-right py-2 font-medium">Tıklama</th>
@@ -245,11 +245,11 @@ export function SiteReportPanel({ siteId, site }: { siteId: string; site: any })
       <Card>
         <CardContent className="p-4 grid grid-cols-2 md:grid-cols-4 gap-4">
           <div>
-            <p className="text-label uppercase text-muted-foreground">Üretim Maliyeti</p>
+            <p className="text-label text-muted-foreground">Üretim Maliyeti</p>
             <p className="text-metric tabular-nums">${data.articles.totalCost.toFixed(2)}</p>
           </div>
           <div>
-            <p className="text-label uppercase text-muted-foreground">Ortalama Editör Skoru</p>
+            <p className="text-label text-muted-foreground">Ortalama Editör Skoru</p>
             <p className="text-metric tabular-nums">{data.articles.avgEditorScore?.toFixed(1) ?? '—'}/60</p>
           </div>
           {/*
@@ -261,7 +261,7 @@ export function SiteReportPanel({ siteId, site }: { siteId: string; site: any })
             hucrede birbirini yiyemez.
           */}
           <div>
-            <p className="text-label uppercase text-muted-foreground">Çözülen Sorun</p>
+            <p className="text-label text-muted-foreground">Çözülen Sorun</p>
             <p className="text-metric tabular-nums text-success">
               {data.audit.karsilastirma ? data.audit.cozulenSayisi : '—'}
             </p>
@@ -270,17 +270,17 @@ export function SiteReportPanel({ siteId, site }: { siteId: string; site: any })
             )}
           </div>
           <div>
-            <p className="text-label uppercase text-muted-foreground">Yeni Çıkan Sorun</p>
+            <p className="text-label text-muted-foreground">Yeni Çıkan Sorun</p>
             <p className="text-metric tabular-nums text-warning">
               {data.audit.karsilastirma ? data.audit.yeniCikanSayisi : '—'}
             </p>
           </div>
           <div>
-            <p className="text-label uppercase text-muted-foreground">Bekleyen Sorun</p>
+            <p className="text-label text-muted-foreground">Bekleyen Sorun</p>
             <p className="text-metric tabular-nums">{data.audit.issuesCount}</p>
           </div>
           <div>
-            <p className="text-label uppercase text-muted-foreground">Kullanıcı Taraması</p>
+            <p className="text-label text-muted-foreground">Kullanıcı Taraması</p>
             <p className="text-metric tabular-nums">{data.audit.kullaniciTaramaSayisi ?? '—'}</p>
             <p className="text-label text-muted-foreground leading-tight">Elle başlatılan (cron/test hariç)</p>
           </div>

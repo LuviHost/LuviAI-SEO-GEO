@@ -13,6 +13,9 @@ import {
   Zap, Sparkles, Megaphone, Settings, ChevronDown, ChevronRight, Award,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { SectionHeader } from '@/components/ui/section-header';
+import { SEVERITY_LABEL, label } from '@/lib/labels';
+import { VendorLogo, type VendorName } from '@/components/vendor-logo';
 
 const INDUSTRIES = [
   { id: 'saas', label: 'SaaS' },
@@ -30,8 +33,8 @@ const INDUSTRIES = [
 ];
 
 const PLATFORMS = [
-  { id: 'google', label: 'Google Ads', icon: '🔵', accent: 'sky' },
-  { id: 'meta', label: 'Meta (Facebook + Instagram)', icon: '🟣', accent: 'violet' },
+  { id: 'google', label: 'Google Ads', icon: 'google', accent: 'sky' },
+  { id: 'meta', label: 'Meta (Facebook + Instagram)', icon: 'facebook', accent: 'violet' },
 ] as const;
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -120,21 +123,17 @@ export default function AdsHealthPage() {
   return (
     <div className="space-y-5">
       {/* Header */}
-      <div className="flex items-start gap-3">
-        <div className="h-10 w-10 rounded-xl bg-brand-500/10 text-brand-600 dark:text-brand-400 grid place-items-center">
-          <Target className="h-5 w-5" />
-        </div>
-        <div className="flex-1">
-          <h2 className="text-2xl font-bold">Kampanya Skoru</h2>
-          <p className="text-sm text-muted-foreground">
-            <strong>124</strong> Google Ads + Meta Ads kontrol noktasından oluşan kapsamlı denetim. Quick Wins tek tıkla aksiyon.
-          </p>
-        </div>
-        <Button onClick={run} disabled={running} variant="default" size="sm" className="shrink-0">
-          <RefreshCw className={`h-4 w-4 mr-1.5 ${running ? 'animate-spin' : ''}`} />
-          {running ? 'Taranıyor…' : audit ? 'Yeniden Tara' : 'İlk Tarama'}
-        </Button>
-      </div>
+      <SectionHeader
+        icon={Target}
+        title="Kampanya Skoru"
+        description="Google Ads ve Meta Ads hesabını 124 kontrol noktasında denetler; hızlı kazanımları tek tıkla uygularsın."
+        actions={
+          <Button onClick={run} disabled={running} size="sm">
+            <RefreshCw className={`h-4 w-4 mr-1.5 ${running ? 'animate-spin' : ''}`} />
+            {running ? 'Taranıyor…' : audit ? 'Yeniden tara' : 'İlk taramayı başlat'}
+          </Button>
+        }
+      />
 
       {/* Platform + industry seçicileri */}
       <Card>
@@ -145,11 +144,11 @@ export default function AdsHealthPage() {
                 key={p.id}
                 onClick={() => setPlatform(p.id)}
                 className={cn(
-                  'px-3 py-1.5 rounded-md border text-sm font-medium transition-colors',
+                  'inline-flex items-center gap-2 px-3 py-1.5 rounded-md border text-sm font-medium transition-colors',
                   platform === p.id ? 'bg-card border-brand text-brand' : 'border-muted text-muted-foreground hover:bg-muted/30',
                 )}
               >
-                {p.icon} {p.label}
+                <VendorLogo name={p.icon as VendorName} size={16} alt="" /> {p.label}
               </button>
             ))}
           </div>
@@ -183,9 +182,9 @@ export default function AdsHealthPage() {
             <p className="font-semibold">Kampanya Skoru henüz hesaplanmadı</p>
             <p className="text-sm text-muted-foreground max-w-md mx-auto">
               İlk taramada {platform === 'google' ? '74' : '50'} {platform === 'google' ? 'Google' : 'Meta'} Ads kontrol noktası analiz edilir
-              (deterministik metrik kontrolü + AI judge ile yargı). Quick Wins (15 dk altı kritik aksiyonlar) listesi çıkar.
+              (kurala dayalı kontroller ve AI değerlendirmesi). Ardından 15 dakikadan kısa sürede yapılabilecek kritik düzeltmeler listelenir.
               <br /><br />
-              <em className="text-xs">Snapshot taramaları 30-90 saniye sürebilir.</em>
+              <em className="text-xs">Tarama 30–90 saniye sürebilir.</em>
             </p>
             <Button onClick={run} disabled={running}>
               <RefreshCw className={`h-4 w-4 mr-1.5 ${running ? 'animate-spin' : ''}`} />
@@ -204,7 +203,7 @@ export default function AdsHealthPage() {
                 <div className="md:col-span-1 flex items-center gap-4">
                   <ScoreRing value={audit.total ?? 0} grade={audit.grade ?? 'F'} />
                   <div>
-                    <p className="text-xs text-muted-foreground uppercase tracking-wider">Kampanya Skoru</p>
+                    <p className="text-xs text-muted-foreground">Kampanya Skoru</p>
                     <p className="text-3xl font-bold tabular-nums">{audit.total}<span className="text-base text-muted-foreground">/100</span></p>
                     <p className="text-xs text-muted-foreground">
                       {audit.ranAt ? new Date(audit.ranAt).toLocaleString('tr-TR') : ''}
@@ -232,7 +231,7 @@ export default function AdsHealthPage() {
                     <Zap className="h-4 w-4" />
                   </div>
                   <div>
-                    <p className="font-semibold text-emerald-700 dark:text-emerald-400">Quick Wins</p>
+                    <p className="font-semibold text-success">Hızlı kazanımlar</p>
                     <p className="text-xs text-muted-foreground">15 dakikadan kısa, yüksek etkili düzeltmeler</p>
                   </div>
                   <span className="ml-auto text-xs font-mono px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-700">{quickWins.length}</span>
@@ -240,8 +239,8 @@ export default function AdsHealthPage() {
                 <ul className="space-y-2">
                   {quickWins.slice(0, 6).map((w: any) => (
                     <li key={w.ruleId} className="flex items-start gap-3 p-2.5 rounded-md bg-card border">
-                      <span className={cn('text-[10px] font-bold uppercase px-1.5 py-0.5 rounded border shrink-0 mt-0.5', SEVERITY_STYLE[w.severity])}>
-                        {w.severity}
+                      <span className={cn('text-label font-medium px-1.5 py-0.5 rounded border shrink-0 mt-0.5', SEVERITY_STYLE[w.severity])}>
+                        {label(SEVERITY_LABEL, w.severity)}
                       </span>
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium">{w.name}</p>
@@ -291,10 +290,10 @@ export default function AdsHealthPage() {
                                   <div className="flex items-center gap-2 flex-wrap">
                                     <span className="text-[10px] font-mono text-muted-foreground">{f.ruleId}</span>
                                     <p className="text-sm font-medium">{f.name}</p>
-                                    <span className={cn('text-[9px] font-bold uppercase px-1.5 py-0.5 rounded border', SEVERITY_STYLE[f.severity])}>{f.severity}</span>
+                                    <span className={cn('text-label font-medium px-1.5 py-0.5 rounded border', SEVERITY_STYLE[f.severity])}>{label(SEVERITY_LABEL, f.severity)}</span>
                                     {f.isQuickWin && (
-                                      <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-700 border border-emerald-500/30 inline-flex items-center gap-0.5">
-                                        <Zap className="h-2.5 w-2.5" /> QUICK WIN
+                                      <span className="text-label font-medium px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-700 border border-emerald-500/30 inline-flex items-center gap-0.5">
+                                        <Zap className="h-2.5 w-2.5" /> Hızlı kazanım
                                       </span>
                                     )}
                                   </div>
@@ -324,10 +323,10 @@ export default function AdsHealthPage() {
 
       <RelatedLinks
         links={[
-          { href: `/sites/${site.id}/ads`, label: 'Reklamlar', description: 'Kampanya yönetimi + creative üretici', icon: Megaphone },
+          { href: `/sites/${site.id}/ads`, label: 'Reklamlar', description: 'Kampanya oluşturma ve yönetimi', icon: Megaphone },
           { href: `/sites/${site.id}/audit`, label: 'Site Skoru', description: '14 SEO + GEO kontrol noktası', icon: Award },
-          { href: `/sites/${site.id}/connections`, label: 'Bağlantılar', description: 'Google Ads + Meta token kurulumu', icon: Settings },
-          { href: `/sites/${site.id}/visibility`, label: 'AI Görünürlük', description: 'ChatGPT/Claude/Gemini citation tracking', icon: Sparkles },
+          { href: `/sites/${site.id}/connections`, label: 'Bağlantılar', description: 'Google Ads ve Meta hesabını bağla', icon: Settings },
+          { href: `/sites/${site.id}/visibility`, label: 'AI Görünürlük', description: '7 AI asistanında marka ve atıf takibi', icon: Sparkles },
         ]}
       />
     </div>
@@ -364,7 +363,7 @@ function SummaryChip({ label, value, accent }: { label: string; value: number; a
   };
   return (
     <div className={cn('rounded-lg border px-3 py-2.5', styles[accent])}>
-      <div className="text-[10px] uppercase tracking-widest font-semibold opacity-80">{label}</div>
+      <div className="text-label font-semibold opacity-80">{label}</div>
       <div className="text-2xl font-bold tabular-nums leading-tight mt-0.5">{value}</div>
     </div>
   );

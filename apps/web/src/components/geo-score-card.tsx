@@ -113,7 +113,7 @@ export function GeoScoreCard({ siteId }: { siteId: string }) {
             {data.pillars.map((p: any) => (
               <div key={p.id} className="rounded-lg border p-3">
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-label uppercase tracking-wide">{p.name}</span>
+                  <span className="text-label">{p.name}</span>
                   <span className={`text-metric tabular-nums ${(STATUS_COLOR[p.status] ?? '').split(' ')[0]}`}>{p.score}</span>
                 </div>
                 <ul className="space-y-1 text-label font-normal">

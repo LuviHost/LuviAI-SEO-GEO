@@ -2,20 +2,13 @@
 import { useSiteContext } from '../site-context';
 import { AutopilotControl } from '@/components/site-overview-dashboard';
 import { Zap } from 'lucide-react';
+import { SectionHeader } from '@/components/ui/section-header';
 
 export default function AutopilotPage() {
   const { site, refresh } = useSiteContext();
   return (
     <div className="space-y-5">
-      <div className="flex items-start gap-3">
-        <div className="h-10 w-10 rounded-xl border border-border bg-muted/50 text-foreground/70 grid place-items-center">
-          <Zap className="h-5 w-5" />
-        </div>
-        <div>
-          <h2 className="text-2xl font-bold">Otomatik Akış</h2>
-          <p className="text-sm text-muted-foreground">Yarı otomatik (manuel onay) veya tam otomatik (otopilot) modunu seç. Akışı durdur/aç.</p>
-        </div>
-      </div>
+      <SectionHeader icon={Zap} title="Otomatik Akış" description="Yarı otomatik (manuel onay) veya tam otomatik (otopilot) modunu seç. Akışı durdur/aç." />
       <AutopilotControl site={site} onRefresh={refresh} />
     </div>
   );

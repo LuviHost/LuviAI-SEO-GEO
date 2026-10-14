@@ -89,7 +89,7 @@ export function InfoTooltip({
           }}
         >
           {term && (
-            <p className="font-semibold text-brand mb-1 text-[11px] uppercase tracking-wide">{term}</p>
+            <p className="font-semibold text-brand mb-1 text-label">{term}</p>
           )}
           <p className="text-muted-foreground">{displayText}</p>
           {link && (

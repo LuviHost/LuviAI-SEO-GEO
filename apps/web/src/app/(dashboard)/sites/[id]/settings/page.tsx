@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input';
 import { useSiteContext } from '../site-context';
 import { api } from '@/lib/api';
 import { NICHES } from '@/lib/niches';
+import { SectionHeader } from '@/components/ui/section-header';
 
 export default function SettingsPage() {
   const { site, refresh } = useSiteContext();
@@ -81,12 +82,12 @@ export default function SettingsPage() {
     setRegenerating(true);
     try {
       await api.regenerateBrain(site.id);
-      toast.success('Brain üretimi başladı — ~1-2 dk içinde hazır olur', { duration: 8000 });
+      toast.success('Marka beyni üretimi başladı — 1–2 dakikada hazır olur', { duration: 8000 });
       // Görsel feedback için min 2.5 sn loading
       const elapsed = Date.now() - startTs;
       if (elapsed < 2500) await new Promise((r) => setTimeout(r, 2500 - elapsed));
     } catch (err: any) {
-      toast.error(`Brain regenerate başarısız: ${err.message}`);
+      toast.error(`Marka beyni üretilemedi: ${err.message}`);
       setRegenerating(false);
       regenStartedAt.current = null;
     }
@@ -107,7 +108,7 @@ export default function SettingsPage() {
           setRegenerating(false);
           setBrainJustReady(true);
           regenStartedAt.current = null;
-          toast.success('✅ Brain yeniden üretildi — AI Citation testi yeni niş ile çalışacak', { duration: 6000 });
+          toast.success('Marka beyni güncellendi — AI görünürlük testleri yeni sektörle çalışacak', { duration: 6000 });
           setTimeout(() => setBrainJustReady(false), 8000);
         }
       } catch { /* polling devam */ }
@@ -119,7 +120,7 @@ export default function SettingsPage() {
       if (cancelled) return;
       setRegenerating(false);
       regenStartedAt.current = null;
-      toast.info('Brain üretimi henüz tamamlanmadı — birkaç dakika sonra sayfayı yenile', { duration: 6000 });
+      toast.info('Marka beyni henüz hazır değil — birkaç dakika sonra sayfayı yenile', { duration: 6000 });
     }, 180_000);
 
     return () => {
@@ -131,21 +132,13 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-5 max-w-3xl">
-      <div className="flex items-start gap-3">
-        <div className="h-10 w-10 rounded-xl bg-brand-500/10 text-brand-600 grid place-items-center">
-          <SettingsIcon className="h-5 w-5" />
-        </div>
-        <div>
-          <h2 className="text-2xl font-bold">Ayarlar</h2>
-          <p className="text-sm text-muted-foreground">Site adı, niş ve dil ayarlarını düzenle. Brain'i yeniden üretebilirsin.</p>
-        </div>
-      </div>
+      <SectionHeader icon={SettingsIcon} title="Ayarlar" description="Site adını, sektörünü ve dilini düzenle; gerekirse marka beynini yeniden üret." />
 
       {/* Form */}
       <div className="rounded-2xl border bg-card p-6 space-y-5">
         <div>
-          <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 block">
-            Site Adı
+          <label className="text-xs font-semibold text-muted-foreground mb-1.5 block">
+            Site adı
           </label>
           <Input
             value={name}
@@ -155,7 +148,7 @@ export default function SettingsPage() {
         </div>
 
         <div>
-          <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 block">
+          <label className="text-xs font-semibold text-muted-foreground mb-1.5 block">
             URL
           </label>
           <Input value={site.url} disabled className="font-mono text-sm" />
@@ -163,8 +156,8 @@ export default function SettingsPage() {
         </div>
 
         <div>
-          <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 block">
-            Niş / Sektör
+          <label className="text-xs font-semibold text-muted-foreground mb-1.5 block">
+            Sektör
           </label>
           <select
             value={useCustomNiche ? 'custom' : niche}
@@ -195,8 +188,8 @@ export default function SettingsPage() {
             />
           )}
           <p className="text-[10px] text-muted-foreground mt-1.5">
-            Spesifik niş yazmak AI Citation testlerinde daha anlamlı sorgu üretir.{' '}
-            <strong>"diğer"</strong> seçeneği AI motorlarına generic sorgu gönderir, atıf alma şansı düşer.
+            Sektörü doğru seçmek AI görünürlük testlerinde daha anlamlı sorular üretir.{' '}
+            <strong>“Diğer”</strong> seçilirse AI asistanlarına genel sorular gider ve anılma şansı düşer.
           </p>
         </div>
 
@@ -204,8 +197,8 @@ export default function SettingsPage() {
             (ör. futbol canlı skor platformu "haber/medya"ya düşüyordu). Rakip ve
             sorgu üreten tüm modüller ÖNCE bu alanı kullanır. */}
         <div>
-          <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 block">
-            Spesifik Kategori <span className="normal-case font-normal text-[10px]">(Product Radar & rakip tespiti bunu kullanır)</span>
+          <label className="text-xs font-semibold text-muted-foreground mb-1.5 block">
+            Özel kategori <span className="font-normal text-label">(Ürün Radarı ve rakip tespiti bunu kullanır)</span>
           </label>
           <Input
             value={specificCategory}
@@ -213,13 +206,13 @@ export default function SettingsPage() {
             placeholder="Örn: futbol canlı skor platformu, tüplü dalış okulu, B2B SaaS analitik"
           />
           <p className="text-[10px] text-muted-foreground mt-1.5">
-            Boş bırakırsan Brain üretiminde otomatik doldurulur. Yukarıdaki geniş niş etiketiyle
+            Boş bırakırsan marka beyni üretilirken otomatik doldurulur. Yukarıdaki geniş niş etiketiyle
             çelişirse <strong>bu alan kazanır</strong> — rakiplerin doğru bulunması için en kritik alan.
           </p>
         </div>
 
         <div>
-          <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5 block">
+          <label className="text-xs font-semibold text-muted-foreground mb-1.5 block">
             Dil
           </label>
           <select
@@ -248,44 +241,30 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      {/* Brain regenerate */}
-      <div className={`rounded-2xl border bg-card p-6 transition-all ${
-        regenerating ? 'border-purple-500/40 shadow-lg shadow-purple-500/10' : ''
-      } ${brainJustReady ? 'border-emerald-500/40 bg-emerald-500/5' : ''}`}>
+      {/* Marka beyni yeniden uretimi */}
+      <div className={`rounded-xl border bg-card p-6 transition-colors ${brainJustReady ? 'border-success/40 bg-success/5' : ''}`}>
         <div className="flex items-start gap-4">
-          <div className={`h-10 w-10 rounded-xl grid place-items-center shrink-0 ${
-            brainJustReady
-              ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
-              : 'bg-purple-500/10 text-purple-600 dark:text-purple-400'
+          <div className={`h-10 w-10 rounded-xl border grid place-items-center shrink-0 ${
+            brainJustReady ? 'bg-success/10 text-success' : 'bg-muted/50 text-foreground/70'
           }`}>
-            {brainJustReady ? <CheckCircle2 className="h-5 w-5" /> : <Brain className={`h-5 w-5 ${regenerating ? 'animate-pulse' : ''}`} />}
+            {brainJustReady ? <CheckCircle2 className="h-5 w-5" aria-hidden /> : <Brain className={`h-5 w-5 ${regenerating ? 'motion-safe:animate-pulse' : ''}`} aria-hidden />}
           </div>
           <div className="flex-1">
-            <h3 className="font-semibold mb-1">
-              {brainJustReady ? '✅ Brain hazır' : regenerating ? '🧠 Brain üretiliyor…' : "Brain'i yeniden üret"}
+            <h3 className="font-brand font-semibold mb-1">
+              {brainJustReady ? 'Marka beyni güncellendi' : regenerating ? 'Marka beyni üretiliyor…' : 'Marka beynini yeniden üret'}
             </h3>
             <p className="text-sm text-muted-foreground mb-3">
               {regenerating
-                ? 'Sayfa kapansa bile arka planda devam eder. Hazır olunca otomatik bildirilir (~1-2 dk).'
+                ? 'Sayfadan çıksan da arka planda devam eder; hazır olunca bildirilir (1–2 dk).'
                 : brainJustReady
-                  ? 'Yeni marka sesi, pillar konular ve AEO/GEO sorguları DB\'ye yazıldı. AI Citation testi artık güncel niş ile çalışır.'
-                  : <>Niş veya dil değiştirdiysen, brain'i yeniden ürettiğinde yeni marka sesi, pillar konular ve AEO/GEO sorguları üretilir. AI Citation skoru için kritik. <br /><span className="text-xs">~1-2 dakika sürer. Mevcut audit sonuçları korunur.</span></>
+                  ? 'Yeni marka sesi, ana konular ve AI soruları kaydedildi. AI görünürlük testleri artık güncel sektörle çalışır.'
+                  : <>Sektörü ya da dili değiştirdiysen marka beynini yeniden üret: marka sesi, ana konular ve AI'a sorulan sorular yenilenir. AI görünürlük ölçümünün doğruluğu buna bağlıdır. <br /><span className="text-xs">1–2 dakika sürer; mevcut site taraması sonuçları korunur.</span></>
               }
             </p>
-            <Button
-              onClick={regenerateBrain}
-              disabled={regenerating}
-              variant={regenerating ? 'default' : 'outline'}
-              className={regenerating ? 'bg-gradient-to-br from-purple-500 to-purple-600 text-white' : ''}
-            >
+            <Button onClick={regenerateBrain} disabled={regenerating} variant="outline">
               <RefreshCw className={`h-4 w-4 mr-1.5 ${regenerating ? 'animate-spin' : ''}`} />
-              {regenerating ? 'Brain üretiliyor… (1-2 dk)' : "Brain'i yeniden üret"}
+              {regenerating ? 'Üretiliyor… (1–2 dk)' : 'Marka beynini yeniden üret'}
             </Button>
-            {regenerating && (
-              <div className="mt-3 h-1 bg-purple-500/10 rounded-full overflow-hidden">
-                <div className="h-full bg-gradient-to-r from-purple-500 to-purple-600 animate-pulse" style={{ width: '100%' }} />
-              </div>
-            )}
           </div>
         </div>
       </div>

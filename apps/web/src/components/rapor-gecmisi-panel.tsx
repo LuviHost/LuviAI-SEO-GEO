@@ -210,7 +210,7 @@ export function RaporGecmisiPanel({ siteId }: { siteId: string }) {
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
-                  <tr className="text-left text-[11px] uppercase text-muted-foreground border-b">
+                  <tr className="text-left text-label text-muted-foreground border-b">
                     <th className="py-2 pr-3 font-medium">Oluşturulma</th>
                     <th className="py-2 pr-3 font-medium">Dönem</th>
                     <th className="py-2 pr-3 font-medium text-right">SEO</th>

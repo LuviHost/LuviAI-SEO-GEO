@@ -14,6 +14,7 @@ import {
   MessageSquare, Send, Loader2, Sparkles, History, Plus, Trash2,
   Wrench, ChevronDown, Database,
 } from 'lucide-react';
+import { SectionHeader } from '@/components/ui/section-header';
 
 /**
  * RanksUp Chat — verinin üstünde konuşan asistan + skill kataloğu.
@@ -29,17 +30,29 @@ type Msg = {
   skill?: string | null;
 };
 
-const TAG_CLS: Record<string, string> = {
-  AGENT: 'bg-violet-500/10 text-violet-600 border-violet-500/30',
-  PROMPTS: 'bg-blue-500/10 text-blue-600 border-blue-500/30',
-  REPORT: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30',
-  BRIEFING: 'bg-cyan-500/10 text-cyan-600 border-cyan-500/30',
-  TREND: 'bg-amber-500/10 text-amber-600 border-amber-500/30',
-  DIAGNOSTIC: 'bg-red-500/10 text-red-600 border-red-500/30',
-  CONTENT: 'bg-pink-500/10 text-pink-600 border-pink-500/30',
-  YOUTUBE: 'bg-red-500/10 text-red-600 border-red-500/30',
-  LINKEDIN: 'bg-sky-500/10 text-sky-600 border-sky-500/30',
-  ASO: 'bg-brand-500/10 text-brand-600 border-brand-500/30',
+/** Gorev turu → Turkce ad (API etiketleri Ingilizce gelir) */
+const TAG_LABEL: Record<string, string> = {
+  AGENT: 'Plan',
+  PROMPTS: 'Soru seti',
+  REPORT: 'Rapor',
+  BRIEFING: 'Özet',
+  TREND: 'Trend',
+  DIAGNOSTIC: 'Teşhis',
+  CONTENT: 'İçerik',
+  YOUTUBE: 'YouTube',
+  LINKEDIN: 'LinkedIn',
+  ASO: 'ASO',
+};
+
+/** Gorevin kullandigi veri adlari — kullanicinin panelde gordugu adlarla */
+const ACCESS_LABEL: Record<string, string> = {
+  Citations: 'Atıflar',
+  KPI: 'Göstergeler',
+  Fanout: 'Alt sorular',
+  Promptlar: 'Takip edilen sorular',
+  'Agent Readiness': 'Ajan hazırlığı',
+  Keywords: 'Anahtar kelimeler',
+  Reviews: 'Yorumlar',
 };
 
 export default function ChatPage() {
@@ -133,17 +146,7 @@ export default function ChatPage() {
   return (
     <div className="space-y-5">
       <div className="flex items-start justify-between flex-wrap gap-3">
-        <div className="flex items-start gap-3">
-          <div className="h-10 w-10 rounded-xl border border-border bg-muted/50 text-foreground/70 grid place-items-center">
-            <MessageSquare className="h-5 w-5" />
-          </div>
-          <div>
-            <h2 className="text-2xl font-bold">Asistan</h2>
-            <p className="text-sm text-muted-foreground">
-              Verinin üstünde konuşur — citation'lar, prompt sonuçları, skorlar ve ASO verisi sohbetin içinden erişilir.
-            </p>
-          </div>
-        </div>
+        <SectionHeader icon={MessageSquare} title="Asistan" description="Verilerin üzerinden soru sor: atıflar, takip ettiğin soruların sonuçları, skorlar ve ASO verisi sohbetin içinde." />
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={() => setShowHistory((v) => !v)}>
             <History className="h-4 w-4 mr-1.5" /> Geçmiş
@@ -266,9 +269,7 @@ export default function ChatPage() {
       {/* Skill kataloğu */}
       <div>
         <div className="flex items-center justify-between mb-2">
-          <div className="text-[11px] font-bold uppercase tracking-widest text-muted-foreground flex items-center gap-1.5">
-            <Sparkles className="h-3.5 w-3.5" /> RanksUp Skills
-          </div>
+          <h3 className="font-brand text-sm font-semibold">Hazır görevler</h3>
         </div>
         <div className="grid md:grid-cols-2 gap-2.5">
           {skills.map((s) => (
@@ -283,15 +284,15 @@ export default function ChatPage() {
                 }
                 send({ skill: s.key, message: input });
               }}
-              className="text-left rounded-lg border bg-card hover:border-brand/50 transition-colors p-3.5 space-y-1 disabled:opacity-50"
+              className="text-left rounded-lg border bg-card hover:border-foreground/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand transition-colors p-4 space-y-1 disabled:opacity-50"
             >
               <div className="flex items-center gap-2">
                 <span className="text-sm font-semibold">{s.name}</span>
-                <Badge variant="outline" className={cn('text-[9px]', TAG_CLS[s.tag] ?? '')}>{s.tag}</Badge>
+                <Badge variant="secondary">{TAG_LABEL[s.tag] ?? s.tag}</Badge>
               </div>
               <p className="text-xs text-muted-foreground">{s.description}</p>
-              <div className="flex items-center gap-1 text-[10px] text-muted-foreground/70">
-                <Wrench className="h-3 w-3" /> Erişir: {s.accesses.join(' · ')}
+              <div className="flex items-center gap-1 text-label text-muted-foreground/80">
+                <Wrench className="h-3 w-3" aria-hidden /> Kullandığı veri: {s.accesses.map((a: string) => ACCESS_LABEL[a] ?? a).join(', ')}
               </div>
             </button>
           ))}

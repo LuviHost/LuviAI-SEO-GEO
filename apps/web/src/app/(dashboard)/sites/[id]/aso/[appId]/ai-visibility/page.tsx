@@ -250,7 +250,7 @@ export default function AppAiVisibilityPage() {
 
               <div className="rounded-lg bg-muted/40 p-3 space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">What's New (store)</span>
+                  <span className="text-xs font-medium text-muted-foreground">What's New (store)</span>
                   <Button size="sm" variant="ghost" onClick={() => copyText(pack.whatsNew, "What's New")}>
                     <Copy className="h-3 w-3" />
                   </Button>
@@ -261,7 +261,7 @@ export default function AppAiVisibilityPage() {
               {pack.faqs.length > 0 && (
                 <div className="rounded-lg bg-muted/40 p-3 space-y-2">
                   <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Web FAQ (FAQPage schema için)</span>
+                    <span className="text-xs font-medium text-muted-foreground">Web FAQ (FAQPage schema için)</span>
                     <Button size="sm" variant="ghost" onClick={() => copyText(pack.faqs.map((f: any) => `S: ${f.q}\nC: ${f.a}`).join('\n\n'), 'FAQ')}>
                       <Copy className="h-3 w-3" />
                     </Button>
@@ -277,7 +277,7 @@ export default function AppAiVisibilityPage() {
 
               {pack.blogTopics.length > 0 && (
                 <div className="rounded-lg bg-muted/40 p-3 space-y-1.5">
-                  <span className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Blog Konuları → İçerik Fırsatları</span>
+                  <span className="text-xs font-medium text-muted-foreground">Blog Konuları → İçerik Fırsatları</span>
                   {pack.blogTopics.map((t: any, i: number) => (
                     <div key={i} className="text-xs flex items-center gap-2">
                       <Sparkles className="h-3 w-3 text-brand shrink-0" />

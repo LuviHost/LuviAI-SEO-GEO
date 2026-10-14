@@ -312,7 +312,7 @@ function ScoreTrend({ history }: { history: Array<{ id: string; ranAt: string; o
 
   return (
     <div>
-      <p className="text-label uppercase tracking-wide text-muted-foreground font-medium mb-2">
+      <p className="text-label text-muted-foreground font-medium mb-2">
         Son {seri.length} tarama
       </p>
       <div className="flex items-end gap-1 h-16">

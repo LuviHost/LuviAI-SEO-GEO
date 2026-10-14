@@ -78,7 +78,7 @@ describe('enforcePlanFeature', () => {
 
   it('hata mesaji ozelligin kullanici-yuzu adini iceriyor', async () => {
     await expect(gate('TRIAL').enforcePlanFeature('u1', 'geoHeatmap'))
-      .rejects.toThrow(/GEO Heatmap/);
+      .rejects.toThrow(/GEO ısı haritası/);
   });
 });
 
@@ -226,7 +226,7 @@ describe('entitlements — web icin ozellik haklari', () => {
     expect(e.required.productRadar.planName).toBe('Ajans');
     expect(e.required.agentReadiness.planName).toBe('Profesyonel');
     expect(e.required.mcpAccess.planName).toBe('Kurumsal');
-    expect(e.required.productRadar.label).toBe('Product Radar');
+    expect(e.required.productRadar.label).toBe('Ürün Radarı');
   });
 
   it('bilinmeyen/bos plan guvenli tarafa duser (hicbir ozellik acilmaz)', async () => {

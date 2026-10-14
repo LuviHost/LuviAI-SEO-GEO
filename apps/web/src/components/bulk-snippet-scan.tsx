@@ -206,7 +206,7 @@ function SummaryChip({ label, value, accent }: { label: string; value: string | 
   };
   return (
     <div className={cn('rounded-lg border px-3 py-2', colors[accent])}>
-      <div className="text-[10px] uppercase tracking-widest font-semibold opacity-80">{label}</div>
+      <div className="text-label font-semibold opacity-80">{label}</div>
       <div className="text-xl font-bold tabular-nums leading-tight mt-0.5">{value}</div>
     </div>
   );

@@ -25,6 +25,9 @@ export const SITE_STATUS_LABEL: Record<string, string> = {
 
 export const SEVERITY_LABEL: Record<string, string> = {
   critical: 'Kritik',
+  high: 'Yüksek',
+  medium: 'Orta',
+  low: 'Düşük',
   error: 'Hata',
   warning: 'Uyarı',
   info: 'Bilgi',

@@ -130,10 +130,10 @@ export function AiKeysPanel({ siteId }: { siteId: string }) {
     <div className="rounded-lg border p-4 space-y-3">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
-          <p className="text-sm font-semibold">AI Sağlayıcı Anahtarları (BYOK)</p>
+          <p className="font-brand text-sm font-semibold">AI sağlayıcı anahtarları</p>
           <p className="text-xs text-muted-foreground mt-0.5">
-            <strong>{planLabel}</strong> planı: aylık <strong>{status.quota.limit}</strong> AI Citation testi havuzdan ({status.quota.used}/{status.quota.limit} kullanıldı).
-            Kendi API anahtarını bağlarsan o sağlayıcı için <strong>sınırsız</strong> kullanabilir, kotanı tüketmezsin.
+            <strong>{planLabel}</strong> planında ayda <strong>{status.quota.limit}</strong> AI görünürlük testi var; bu ay {status.quota.used} tanesini kullandın.
+            Bir sağlayıcıya kendi API anahtarını bağlarsan o sağlayıcıdaki testler kotandan düşmez.
           </p>
         </div>
       </div>
@@ -144,10 +144,10 @@ export function AiKeysPanel({ siteId }: { siteId: string }) {
           const hint = PROVIDER_HINTS[p.provider];
           const sourceBadge =
             p.effectiveSource === 'byok'
-              ? { text: p.byokVerified ? '🔑 Senin anahtarın' : '⚠️ Senin anahtarın (test başarısız)', cls: p.byokVerified ? 'text-green-500' : 'text-yellow-500' }
+              ? { text: p.byokVerified ? 'Senin anahtarınla çalışıyor' : 'Senin anahtarın — test başarısız', cls: p.byokVerified ? 'text-success' : 'text-warning' }
               : p.effectiveSource === 'pool'
-              ? { text: '🏛️ RanksUp havuzu (plana dahil)', cls: 'text-blue-500' }
-              : { text: '🔒 Bu plana dahil değil — anahtarını bağla', cls: 'text-muted-foreground' };
+              ? { text: 'Planına dahil', cls: 'text-muted-foreground' }
+              : { text: 'Planına dahil değil — kendi anahtarını bağla', cls: 'text-muted-foreground' };
 
           return (
             <div key={p.provider} className="rounded-md border p-3 space-y-2">
@@ -156,7 +156,7 @@ export function AiKeysPanel({ siteId }: { siteId: string }) {
                   <VendorLogo name={PROVIDER_TO_VENDOR[p.provider] ?? 'openai'} size={24} className="shrink-0" />
                   <div className="min-w-0">
                     <p className="text-sm font-medium truncate">{p.label}</p>
-                    <p className={`text-[11px] ${sourceBadge.cls}`}>{sourceBadge.text}</p>
+                    <p className={`text-label ${sourceBadge.cls}`}>{sourceBadge.text}</p>
                   </div>
                 </div>
                 {p.hasByok && (
@@ -221,9 +221,9 @@ export function AiKeysPanel({ siteId }: { siteId: string }) {
         })}
       </div>
 
-      <p className="text-[11px] text-muted-foreground border-t pt-2">
-        💡 Anahtar şifreli (AES-256) saklanır, panelde sadece ilk 8 karakteri gösterilir.
-        BYOK ile yapılan testler kotaya dahil <strong>değildir</strong> — kullanım faturası kendi sağlayıcı hesabına gider.
+      <p className="text-label text-muted-foreground border-t pt-2">
+        Anahtarın şifreli saklanır; panelde yalnız ilk 8 karakteri görünür.
+        Kendi anahtarınla yapılan testler kotandan düşmez — kullanım ücreti kendi sağlayıcı hesabına yansır.
       </p>
     </div>
   );

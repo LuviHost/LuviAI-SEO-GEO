@@ -92,7 +92,7 @@ export function PipelineProgress({
           <Sparkles className="h-4 w-4 text-brand animate-pulse" />
           <p className="text-sm font-semibold">{title ?? 'Pipeline çalışıyor'}</p>
         </div>
-        <span className="text-[10px] font-mono uppercase tracking-widest text-muted-foreground">
+        <span className="text-label text-muted-foreground">
           ~{totalSec}sn
         </span>
       </div>
@@ -106,7 +106,7 @@ export function PipelineProgress({
 
         <div className="space-y-2">
           <div>
-            <p className="text-[10px] font-mono uppercase tracking-[0.2em] text-brand/70 mb-1">
+            <p className="text-label tracking-[0.2em] text-brand/70 mb-1">
               Adım {Math.min(currentIdx + 1, steps.length)} / {steps.length}
             </p>
             <p className="text-base sm:text-lg font-semibold leading-snug">

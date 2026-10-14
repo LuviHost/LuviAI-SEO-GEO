@@ -15,6 +15,7 @@ import {
   Bot, RefreshCw, Check, X, ChevronDown, Copy, Wrench, Loader2,
   ShieldCheck, AlertTriangle, ListPlus,
 } from 'lucide-react';
+import { SectionHeader } from '@/components/ui/section-header';
 
 /**
  * Agent Readiness (AXO) — domain AI ajanlarina hazir mi?
@@ -161,17 +162,11 @@ export default function AgentReadinessPage() {
     <div className="space-y-5">
       {/* Başlık */}
       <div className="flex items-start justify-between flex-wrap gap-3">
-        <div className="flex items-start gap-3">
-          <div className="h-10 w-10 rounded-xl bg-violet-500/10 text-violet-600 dark:text-violet-400 grid place-items-center">
-            <Bot className="h-5 w-5" />
-          </div>
-          <div>
-            <h2 className="text-2xl font-bold">Agent Readiness <span className="text-sm font-mono text-muted-foreground align-middle">AXO</span></h2>
-            <p className="text-sm text-muted-foreground">
-              Domain'in AI ajanlarına hazırlığı — 4 seviye, haftalık otomatik tarama. GEO "görünüyor musun" ölçer; bu ekran "ajanlar seni <em>kullanabiliyor mu</em>" ölçer.
-            </p>
-          </div>
-        </div>
+        <SectionHeader
+          icon={Bot}
+          title="Ajan Hazırlığı"
+          description={<>AI ajanları siteni kullanabiliyor mu? 4 seviyede, haftada bir otomatik test edilir. GEO görünürlüğü ölçer; bu ekran ajanların sitende iş yapabilmesini ölçer.</>}
+        />
         <Button onClick={runScan} disabled={running}>
           {running ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-1.5" />}
           {running ? 'Taranıyor…' : 'Testleri Çalıştır'}
@@ -215,11 +210,11 @@ export default function AgentReadinessPage() {
                     <div className="rounded-lg border p-3">
                       <div className="text-xs text-muted-foreground mb-1">robots.txt AI duruşu</div>
                       <div className="text-sm font-semibold">
-                        <span className="text-emerald-500">{stance.allow} allow</span>
+                        <span className="text-success">{stance.allow} izinli</span>
                         <span className="text-muted-foreground mx-1.5">·</span>
-                        <span className="text-red-500">{stance.block} block</span>
+                        <span className="text-danger">{stance.block} engelli</span>
                         <span className="text-muted-foreground mx-1.5">·</span>
-                        <span className="text-muted-foreground">{stance.unspecified} belirsiz</span>
+                        <span className="text-muted-foreground">{stance.unspecified} kural yok</span>
                       </div>
                       {stance.scored && (
                         <div className="text-[10px] text-muted-foreground mt-1" title="ChatGPT-User, Perplexity-User, Claude-User gibi kullanıcı-tetikli fetcher'lar bir insanın AI sohbeti sırasında sayfayı canlı çeker ve robots.txt'e güvenilir uymaz — bu yüzden 'bilinçli duruş' skoruna katılmazlar.">
@@ -303,14 +298,14 @@ export default function AgentReadinessPage() {
                           <div className="px-3 pb-3 space-y-3 border-t pt-3">
                             {/* Nasıl yapılır */}
                             <div>
-                              <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">Nasıl düzeltilir</div>
+                              <div className="text-label font-medium text-muted-foreground mb-1">Nasıl düzeltilir</div>
                               <p className="text-xs leading-relaxed">{check.howTo}</p>
                             </div>
 
                             {/* Audit detayı — FETCH/PARSE/CONCLUDE */}
                             {Array.isArray(check.audit) && check.audit.length > 0 && (
                               <div>
-                                <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground mb-1">Denetim Detayı</div>
+                                <div className="text-label font-medium text-muted-foreground mb-1">Denetim Detayı</div>
                                 <div className="rounded-md bg-muted/40 divide-y divide-border/50">
                                   {check.audit.map((step: any, i: number) => (
                                     <div key={i} className="flex items-start gap-3 px-3 py-2">

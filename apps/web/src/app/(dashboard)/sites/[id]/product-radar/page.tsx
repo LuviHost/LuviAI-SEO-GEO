@@ -12,6 +12,7 @@ import { useEntitlements } from '@/lib/entitlements';
 import { PlanLockedCard } from '@/components/plan-locked-card';
 import { cn } from '@/lib/utils';
 import { Radar, RefreshCw, Loader2, Trophy, AlertTriangle } from 'lucide-react';
+import { SectionHeader } from '@/components/ui/section-header';
 
 /**
  * Product Radar — AI asistanlar kategorinde HANGİ ürünleri öneriyor?
@@ -80,17 +81,7 @@ export default function ProductRadarPage() {
   return (
     <div className="space-y-5">
       <div className="flex items-start justify-between flex-wrap gap-3">
-        <div className="flex items-start gap-3">
-          <div className="h-10 w-10 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 grid place-items-center">
-            <Radar className="h-5 w-5" />
-          </div>
-          <div>
-            <h2 className="text-2xl font-bold">Product Radar</h2>
-            <p className="text-sm text-muted-foreground">
-              AI asistanlar "{site.niche ?? 'kategorinde'}" hangi ürünleri öneriyor — sen listede misin, kimler önünde?
-            </p>
-          </div>
-        </div>
+        <SectionHeader icon={Radar} title="Ürün Radarı" description={<>AI asistanlar "{site.niche ?? 'kategorinde'}" hangi ürünleri öneriyor — sen listede misin, kimler önünde?</>} />
         <Button onClick={run} disabled={running}>
           {running ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-1.5" />}
           {running ? 'Taranıyor… (~1 dk)' : 'Şimdi Tara'}

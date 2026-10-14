@@ -216,7 +216,7 @@ export function CrawlerHitsPanel({ siteId }: { siteId: string }) {
                           <span className={`h-2 w-2 rounded-full shrink-0 ${CATEGORY_COLOR[info?.category] ?? 'bg-muted'}`} />
                           <span className="font-medium truncate">{info?.label ?? bot}</span>
                           {recent && (
-                            <span className="inline-flex items-center gap-0.5 text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 shrink-0">
+                            <span className="inline-flex items-center gap-0.5 text-label font-medium px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 shrink-0">
                               <Sparkle className="h-2.5 w-2.5" /> Yeni
                             </span>
                           )}

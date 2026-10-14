@@ -9,9 +9,11 @@
  * gösterilir; yazdırma iframe'in kendi içeriğinden yapılır (sayfa çerçevesi kâğıda girmez).
  */
 
+import { EmptyState } from '@/components/empty-state';
+import { siteHref } from '@/lib/site-routes';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { ArrowLeft, Printer, RefreshCw, AlertTriangle } from 'lucide-react';
+import { ArrowLeft, Printer, RefreshCw, AlertTriangle, FileBarChart } from 'lucide-react';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? '';
 
@@ -30,10 +32,7 @@ export default function GorunurlukRaporuPage() {
 
   useEffect(() => {
     let iptal = false;
-    if (!siteId || !a || !b) {
-      setHata('Karşılaştırılacak iki koşum seçilmedi.');
-      return;
-    }
+    if (!siteId || !a || !b) return; // seçim yok → yönlendiren boş durum gösterilir
     (async () => {
       try {
         const res = await fetch(
@@ -69,20 +68,30 @@ export default function GorunurlukRaporuPage() {
           <ArrowLeft className="h-4 w-4" /> Geri
         </button>
         <div className="text-sm font-medium ml-2">GEO Karşılaştırma Raporu</div>
-        <button
-          type="button"
-          onClick={yazdir}
-          disabled={!html}
-          className="ml-auto inline-flex items-center gap-1.5 rounded-md bg-brand px-3 py-1.5 text-sm font-semibold text-white hover:bg-brand/90 disabled:opacity-50"
-        >
-          <Printer className="h-4 w-4" /> Yazdır / PDF
-        </button>
+        {html && (
+          <button
+            type="button"
+            onClick={yazdir}
+            className="ml-auto inline-flex items-center gap-1.5 rounded-md bg-brand px-3 py-1.5 text-sm font-semibold text-white hover:bg-brand/90"
+          >
+            <Printer className="h-4 w-4" /> Yazdır / PDF
+          </button>
+        )}
       </div>
 
-      {hata ? (
+      {!a || !b ? (
+        <div className="flex-1 p-6">
+          <EmptyState
+            icon={FileBarChart}
+            title="Karşılaştırılacak iki ölçüm seç"
+            description="Rapor iki AI görünürlük ölçümünü yan yana koyar. AI Görünürlük sayfasındaki test geçmişinden ikisini seçip “Karşılaştır” dediğinde burada açılır."
+            primary={{ label: 'AI Görünürlük’e git', href: siteHref(String(siteId ?? ''), 'visibility') }}
+          />
+        </div>
+      ) : hata ? (
         <div className="flex-1 grid place-items-center p-8 text-center">
           <div className="max-w-sm">
-            <AlertTriangle className="h-8 w-8 text-rose-500 mx-auto mb-3" />
+            <AlertTriangle className="h-8 w-8 text-danger mx-auto mb-3" />
             <p className="text-sm text-muted-foreground">{hata}</p>
           </div>
         </div>

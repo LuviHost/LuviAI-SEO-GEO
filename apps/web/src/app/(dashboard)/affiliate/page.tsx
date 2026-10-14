@@ -1,35 +1,40 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { toast } from 'sonner';
-import { Copy, Network, Wallet, Layers as LayersIcon, Sparkles, DollarSign, Users, RefreshCw } from 'lucide-react';
+import { Check, Copy, Link2, RefreshCw, Users, Wallet, Receipt } from 'lucide-react';
 import { motion } from 'motion/react';
-import { NumberTicker } from '@/components/ui/number-ticker';
 import { EASE_APPLE } from '@/lib/motion-presets';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { PageHeader } from '@/components/ui/page-header';
+import { SectionHeader } from '@/components/ui/section-header';
+import { MetricCard } from '@/components/ui/metric';
+import { cn } from '@/lib/utils';
 
 /**
- * Affiliate Page — gerçek multi-level network graph + para akışı animasyonu.
+ * Ortaklik programi — panelin sakin diliyle (Ekim 2026; eski mor/sari "uzay"
+ * temasi, ucusan para emojileri ve buyuk harfli etiketler kaldirildi).
  *
- * Veri akışı:
- *   - Backend getStats → { referrals: [tier 1], tier2Referrals: [tier 2], ... }
- *   - Frontend graph dinamik olarak gerçek tier sayısına göre düğüm üretir
- *   - paid statüsündeki line'larda akan parçacık animasyonu (komisyon akışı görseli)
- *
- * Empty state: hiç referans yok → sadece merkez "siz" + büyük "Linkini Paylaş" CTA
- * 1 tier: merkez + N mavi düğüm (tier 1)
- * 2 tier: merkez + tier1 + tier2, tier2 her biri parentUserId ile tier1'e bağlanır
+ * DURUSTLUK (koddan dogrulandi, affiliate.service.ts):
+ *  - Komisyon yalniz DOGRUDAN davetlinin odemelerinden: recordCommission
+ *    referral.affiliate'e yazar. 2. seviye davetler senin kazancini ARTIRMAZ —
+ *    agda gosterilir ama "ag buyudukce daha cok kazanirsin" denmez.
+ *  - Sure: kayittan sonraki 90 gun (commissionUntil); oran Affiliate.commissionPct (varsayilan %30).
+ *  - Davet cerezi 60 gun (ref-tracker.tsx).
+ *  - Otomatik odeme altyapisi YOK → "aylik otomatik IBAN/Papara" vaadi kaldirildi.
+ *  - Sabit "₺1.169 / Pro davet" kaldirildi: fiyat USD bazli, TL tutari kura gore degisir.
  */
 
 const W = 900;
-const H = 660;
+const H = 560;
 const CX = W / 2;
 const CY = H / 2;
-const TIER1_R = 175;
-const TIER2_R = 295;
+const TIER1_R = 160;
+const TIER2_R = 250;
 
 type Referral = {
   id: string;
@@ -60,6 +65,20 @@ type Stats = {
   networkLevels?: number;
 };
 
+const STATUS_LABEL: Record<string, string> = {
+  clicked: 'Tıkladı',
+  signed_up: 'Kayıt oldu',
+  paid: 'Ödeme yaptı',
+};
+const STATUS_TONE: Record<string, 'success' | 'info' | 'secondary'> = {
+  paid: 'success',
+  signed_up: 'info',
+};
+
+const tl = (n: number | string | null | undefined) =>
+  `₺${Number(n ?? 0).toLocaleString('tr-TR', { maximumFractionDigits: 2 })}`;
+const tarih = (d?: string | null) => (d ? new Date(d).toLocaleDateString('tr-TR') : '—');
+
 export default function AffiliatePage() {
   const { data: session, status } = useSession();
   const userId = (session?.user as any)?.id;
@@ -86,7 +105,7 @@ export default function AffiliatePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, status]);
 
-  // Aktif referans varsa 30sn'de bir polling — ödeme akışı canlı görünür
+  // Aktif referans varsa 30 sn'de bir yenile — odeme durumu canli gorunur
   useEffect(() => {
     if (!stats?.enrolled) return;
     const hasActive = (stats.referrals ?? []).some((r) => r.status === 'signed_up' || r.status === 'paid')
@@ -107,505 +126,278 @@ export default function AffiliatePage() {
         credentials: 'include',
         body: JSON.stringify({ userId }),
       });
-      toast.success('Affiliate programına kayıt oldunuz!');
+      toast.success('Ortaklık programına katıldın');
       refresh();
     } catch (err: any) {
       toast.error(err.message);
     }
   };
 
-  const copyLink = (url: string) => {
-    navigator.clipboard.writeText(url);
-    toast.success('Link kopyalandı');
-  };
-
-  if (loading) return <Skeleton className="h-screen" />;
-  if (!stats?.enrolled) return <EnrollHero onEnroll={enroll} />;
-
-  return <AffiliateDashboard stats={stats} onCopy={copyLink} onRefresh={refresh} refreshing={refreshing} />;
+  return (
+    <div className="space-y-6">
+      <PageHeader
+        title="Ortaklık programı"
+        description="RanksUp'ı önerdiğin işletmeler ödeme yaptıkça komisyon kazan."
+        actions={stats?.enrolled ? (
+          <Button variant="outline" size="sm" onClick={refresh} disabled={refreshing}>
+            <RefreshCw className={cn('h-4 w-4', refreshing && 'animate-spin')} aria-hidden />
+            {refreshing ? 'Yenileniyor' : 'Yenile'}
+          </Button>
+        ) : undefined}
+      />
+      {loading ? (
+        <div className="space-y-4">
+          <Skeleton className="h-28" />
+          <Skeleton className="h-72" />
+        </div>
+      ) : !stats?.enrolled ? (
+        <EnrollCard onEnroll={enroll} />
+      ) : (
+        <AffiliateDashboard stats={stats} />
+      )}
+    </div>
+  );
 }
 
 // ──────────────────────────────────────────────────────────────────
-//  Network graph — gerçek veriye bağlı
+//  Katilim (henuz uye degil)
 // ──────────────────────────────────────────────────────────────────
 
-function AffiliateDashboard({
-  stats, onCopy, onRefresh, refreshing,
-}: {
-  stats: Stats;
-  onCopy: (s: string) => void;
-  onRefresh: () => void;
-  refreshing: boolean;
-}) {
-  const tier1 = (stats.referrals ?? []).filter((r) => (r.tier ?? 1) === 1).slice(0, 8);
-  const tier2 = (stats.tier2Referrals ?? []).slice(0, 16);
+const STEPS = [
+  { title: 'Linkini paylaş', body: 'Sana özel davet linkini müşterilerine, takipçilerine ya da ekibine gönder.' },
+  { title: 'Davetlin abone olur', body: 'Link 60 gün geçerli; bu sürede kayıt olan kişi senin davetlin sayılır.' },
+  { title: 'Komisyonun yazılır', body: 'Davetlinin kayıttan sonraki 3 ay içindeki ödemelerinin %30\'u hesabına eklenir.' },
+];
 
-  const tier1Pos = useMemo(() => {
-    if (tier1.length === 0) return [];
-    return tier1.map((r, i) => {
-      const a = (i / tier1.length) * Math.PI * 2 - Math.PI / 2;
-      return { x: CX + Math.cos(a) * TIER1_R, y: CY + Math.sin(a) * TIER1_R, ref: r };
-    });
-  }, [tier1]);
+function EnrollCard({ onEnroll }: { onEnroll: () => void }) {
+  return (
+    <Card className="overflow-hidden">
+      <div className="grid gap-8 p-6 sm:p-8 lg:grid-cols-[1fr_1.1fr] lg:items-center">
+        <div>
+          <p className="font-brand text-h4 font-semibold tracking-tight [text-wrap:balance]">
+            Önerdiğin her işletmeden %30 komisyon
+          </p>
+          <p className="mt-3 max-w-md text-sm leading-relaxed text-muted-foreground">
+            Davet ettiğin kişi abone olduğunda, ilk 3 ayındaki ödemelerinin %30&apos;u senin olur.
+            Katılım ücretsiz, linkin hemen oluşur.
+          </p>
+          <Button onClick={onEnroll} size="lg" className="mt-6">
+            Programa katıl
+          </Button>
+        </div>
+        <ol className="space-y-4">
+          {STEPS.map((s, i) => (
+            <li key={s.title} className="flex gap-4">
+              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-border font-brand text-sm font-semibold tabular-nums">
+                {i + 1}
+              </span>
+              <div>
+                <p className="font-medium">{s.title}</p>
+                <p className="mt-0.5 text-sm text-muted-foreground">{s.body}</p>
+              </div>
+            </li>
+          ))}
+        </ol>
+      </div>
+    </Card>
+  );
+}
 
-  // Tier 2 her biri parent userId üzerinden tier 1'deki düğüme bağlanır
+// ──────────────────────────────────────────────────────────────────
+//  Uye paneli
+// ──────────────────────────────────────────────────────────────────
+
+function AffiliateDashboard({ stats }: { stats: Stats }) {
+  const tier1 = (stats.referrals ?? []).filter((r) => (r.tier ?? 1) === 1);
+  const tier2 = stats.tier2Referrals ?? [];
+  const paidCount = tier1.filter((r) => r.status === 'paid').length;
+
+  return (
+    <div className="space-y-6">
+      <ShareLink url={stats.shareUrl} refCode={stats.refCode} />
+
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <MetricCard icon={Receipt} label="Toplam komisyon" value={Number(stats.totalCommission ?? 0)} prefix="₺" />
+        <MetricCard icon={Wallet} label="Ödenmeyi bekleyen" value={Number(stats.pendingPayout ?? 0)} prefix="₺"
+          hint={Number(stats.totalPaid) > 0 ? `${tl(stats.totalPaid)} ödendi` : undefined} />
+        <MetricCard icon={Users} label="Doğrudan davet" value={tier1.length}
+          hint={paidCount > 0 ? `${paidCount} tanesi ödeme yaptı` : 'Komisyon bunlardan gelir'} />
+        <MetricCard icon={Link2} label="Davetlilerin ödemeleri" value={Number(stats.totalRevenue ?? 0)} prefix="₺" />
+      </div>
+
+      <Card className="p-5">
+        <SectionHeader
+          as="h3"
+          title="Davet ağın"
+          description={tier1.length === 0
+            ? 'Henüz davet yok. Linkini paylaştığında davet ettiklerin burada görünür.'
+            : `${tier1.length} doğrudan davet${tier2.length > 0 ? `, onların ${tier2.length} daveti` : ''}. Komisyon yalnız doğrudan davetlilerinin ödemelerinden gelir.`}
+        />
+        <NetworkGraph tier1={tier1.slice(0, 8)} tier2={tier2.slice(0, 16)} />
+      </Card>
+
+      {tier1.length + tier2.length > 0 && <ReferralTable rows={[...tier1, ...tier2]} />}
+    </div>
+  );
+}
+
+function ShareLink({ url, refCode }: { url: string; refCode: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      toast.success('Link kopyalandı');
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error('Kopyalanamadı — linki elle seç');
+    }
+  };
+  return (
+    <Card className="p-5">
+      <SectionHeader as="h3" title="Davet linkin" description={`Kodun: ${refCode} · 60 gün geçerli`} />
+      <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+        <code className="flex-1 break-all rounded-lg border border-border bg-muted/40 px-3 py-2.5 font-mono text-sm">
+          {url}
+        </code>
+        <Button onClick={copy} className="shrink-0">
+          {copied ? <Check className="h-4 w-4" aria-hidden /> : <Copy className="h-4 w-4" aria-hidden />}
+          {copied ? 'Kopyalandı' : 'Linki kopyala'}
+        </Button>
+      </div>
+    </Card>
+  );
+}
+
+function ReferralTable({ rows }: { rows: Referral[] }) {
+  return (
+    <Card className="overflow-hidden">
+      <div className="border-b px-5 py-4">
+        <SectionHeader as="h3" title="Tüm davetler" description={`${rows.length} kayıt`} />
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead className="bg-muted/40 text-left text-label text-muted-foreground">
+            <tr>
+              <th className="px-5 py-2.5 font-medium">Kişi</th>
+              <th className="px-5 py-2.5 font-medium">Seviye</th>
+              <th className="px-5 py-2.5 font-medium">Tıklama</th>
+              <th className="px-5 py-2.5 font-medium">Kayıt</th>
+              <th className="px-5 py-2.5 font-medium">İlk ödeme</th>
+              <th className="px-5 py-2.5 text-right font-medium">Komisyon</th>
+              <th className="px-5 py-2.5 font-medium">Durum</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r, i) => (
+              <tr key={r.id} className="border-t">
+                <td className="px-5 py-2.5 font-medium">{refLabel(r, i + 1)}</td>
+                <td className="px-5 py-2.5 text-muted-foreground">{(r.tier ?? 1) === 1 ? 'Doğrudan' : '2. seviye'}</td>
+                <td className="px-5 py-2.5 tabular-nums text-muted-foreground">{tarih(r.clickedAt)}</td>
+                <td className="px-5 py-2.5 tabular-nums text-muted-foreground">{tarih(r.signedUpAt)}</td>
+                <td className="px-5 py-2.5 tabular-nums text-muted-foreground">{tarih(r.firstPaidAt)}</td>
+                <td className="px-5 py-2.5 text-right tabular-nums">
+                  {(r.tier ?? 1) === 1 ? tl(r.totalCommissionEarned) : <span className="text-muted-foreground">—</span>}
+                </td>
+                <td className="px-5 py-2.5">
+                  <Badge variant={STATUS_TONE[r.status] ?? 'secondary'}>{STATUS_LABEL[r.status] ?? r.status}</Badge>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </Card>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────
+//  Ag grafigi — token renkleri; odeme yapan baglar turuncu
+// ──────────────────────────────────────────────────────────────────
+
+function NetworkGraph({ tier1, tier2 }: { tier1: Referral[]; tier2: Referral[] }) {
+  const tier1Pos = useMemo(() => tier1.map((r, i) => {
+    const a = (i / Math.max(1, tier1.length)) * Math.PI * 2 - Math.PI / 2;
+    return { x: CX + Math.cos(a) * TIER1_R, y: CY + Math.sin(a) * TIER1_R, ref: r };
+  }), [tier1]);
+
+  // 2. seviye: parentUserId ile 1. seviyedeki dugume baglanir
   const tier2Pos = useMemo(() => {
-    if (tier2.length === 0 || tier1Pos.length === 0) return [];
+    if (tier1Pos.length === 0) return [];
     return tier2.map((r, i) => {
-      const parentIdx = tier1Pos.findIndex((p) => p.ref.referredUserId === r.parentUserId);
-      const safeParent = parentIdx >= 0 ? parentIdx : (i % tier1Pos.length);
-      const parent = tier1Pos[safeParent];
-      // parent'in üzerine doğru sapan açı + offset
-      const baseA = Math.atan2(parent.y - CY, parent.x - CX);
-      const spreadIdx = (i % 3) - 1; // -1, 0, +1 — 3 yan dizilim
-      const a = baseA + (spreadIdx * 0.35);
-      return {
-        x: CX + Math.cos(a) * TIER2_R,
-        y: CY + Math.sin(a) * TIER2_R,
-        ref: r,
-        parentIdx: safeParent,
-      };
+      const idx = tier1Pos.findIndex((p) => p.ref.referredUserId === r.parentUserId);
+      const parentIdx = idx >= 0 ? idx : i % tier1Pos.length;
+      const parent = tier1Pos[parentIdx];
+      const a = Math.atan2(parent.y - CY, parent.x - CX) + ((i % 3) - 1) * 0.35;
+      return { x: CX + Math.cos(a) * TIER2_R, y: CY + Math.sin(a) * TIER2_R, ref: r, parentIdx };
     });
   }, [tier2, tier1Pos]);
 
-  // Giris orkestrasyonu motion bilesenlerinin initial/animate + delay'lerine tasindi
-  // (animejs sokumu 02.09.2026); sahne siralamasi ayni: merkez -> T1 -> T2 -> akis.
-  const t1Son = 0.9 + tier1Pos.length * 0.11;
-
-
-  const networkLevels = stats.networkLevels ?? (tier2.length > 0 ? 2 : tier1.length > 0 ? 1 : 0);
-
   return (
-    <div className="relative -mx-4 -my-6 sm:-mx-6 sm:-my-8 px-4 py-6 sm:px-6 sm:py-8 min-h-[calc(100vh-3rem)] overflow-hidden bg-gradient-to-br from-violet-950 via-purple-950 to-indigo-950 text-white">
-      <StarField />
-      <MoneyField />
+    <div className="mt-4">
+      <svg viewBox={`0 0 ${W} ${H}`} className="h-auto w-full" style={{ maxHeight: 520 }} role="img" aria-label="Davet ağı">
+        {tier1Pos.map((p, i) => (
+          <motion.line
+            key={`l1-${i}`} x1={CX} y1={CY} x2={p.x} y2={p.y}
+            className={p.ref.status === 'paid' ? 'stroke-brand' : 'stroke-border'}
+            strokeWidth={p.ref.status === 'paid' ? 2.5 : 1.5}
+            initial={{ pathLength: 0 }} animate={{ pathLength: 1 }}
+            transition={{ duration: 0.5, ease: EASE_APPLE, delay: 0.2 + i * 0.06 }}
+          />
+        ))}
+        {tier2Pos.map((p, i) => {
+          const parent = tier1Pos[p.parentIdx];
+          return (
+            <motion.line
+              key={`l2-${i}`} x1={parent.x} y1={parent.y} x2={p.x} y2={p.y}
+              className="stroke-border" strokeWidth={1} strokeDasharray="3 4"
+              initial={{ pathLength: 0 }} animate={{ pathLength: 1 }}
+              transition={{ duration: 0.4, ease: EASE_APPLE, delay: 0.6 + i * 0.04 }}
+            />
+          );
+        })}
 
-      {/* KPI üst bar */}
-      <div className="relative z-10 grid grid-cols-1 md:grid-cols-3 gap-4 mb-4 max-w-6xl mx-auto">
-        <KpiBox icon={<DollarSign className="h-4 w-4" />} label="Toplam Komisyon"
-          value={<span className="text-yellow-300"><NumberTicker value={Number(stats.totalCommission)} prefix="₺" /></span>} accent="yellow" />
-        <KpiBox icon={<Users className="h-4 w-4" />} label="Toplam Referans (T1+T2)"
-          value={<NumberTicker value={Number(stats.networkSize ?? stats.totalReferred)} />} accent="violet" />
-        <KpiBox icon={<LayersIcon className="h-4 w-4" />} label="Ağ Seviyeleri"
-          value={<span>{networkLevels}</span>} accent="violet" />
-      </div>
+        {/* Sen */}
+        <circle cx={CX} cy={CY} r={30} className="fill-brand" />
+        <text x={CX} y={CY + 5} textAnchor="middle" className="fill-white font-brand text-[14px] font-semibold">Sen</text>
 
-      {/* Graph header — refresh */}
-      <div className="relative z-10 max-w-5xl mx-auto mb-2 flex items-center justify-between">
-        <div className="text-[11px] uppercase tracking-widest text-white/60 font-mono">
-          {tier1.length === 0 ? 'Henüz davet yok' : `${tier1.length} doğrudan · ${tier2.length} alt seviye`}
-        </div>
-        <button
-          onClick={onRefresh}
-          disabled={refreshing}
-          className="inline-flex items-center gap-1.5 text-[11px] text-white/60 hover:text-white font-mono uppercase tracking-widest"
-        >
-          <RefreshCw className={`h-3 w-3 ${refreshing ? 'animate-spin' : ''}`} />
-          {refreshing ? 'yenileniyor' : 'yenile'}
-        </button>
-      </div>
+        {tier1Pos.map((p, i) => {
+          const paid = p.ref.status === 'paid';
+          return (
+            <g key={`n1-${i}`}>
+              <circle cx={p.x} cy={p.y} r={15} className={cn('stroke-[2.5]', paid ? 'fill-brand/15 stroke-brand' : 'fill-card stroke-foreground/40')} />
+              <text x={p.x} y={p.y < CY ? p.y - 24 : p.y + 32} textAnchor="middle" className="fill-foreground text-[12px] font-medium">
+                {refLabel(p.ref, i + 1)}
+              </text>
+            </g>
+          );
+        })}
+        {tier2Pos.map((p, i) => (
+          <g key={`n2-${i}`}>
+            <circle cx={p.x} cy={p.y} r={8} className="fill-muted stroke-foreground/25 stroke-[1.5]" />
+            <text x={p.x} y={p.y < CY ? p.y - 15 : p.y + 22} textAnchor="middle" className="fill-muted-foreground text-[11px]">
+              {refLabel(p.ref, i + 1)}
+            </text>
+          </g>
+        ))}
+      </svg>
 
-      {/* SVG network */}
-      <div className="relative z-10 max-w-5xl mx-auto">
-        <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" style={{ maxHeight: '660px' }}>
-          <defs>
-            <radialGradient id="centerGlow" cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stopColor="#fb923c" stopOpacity="0.7" />
-              <stop offset="60%" stopColor="#f97316" stopOpacity="0.2" />
-              <stop offset="100%" stopColor="#f97316" stopOpacity="0" />
-            </radialGradient>
-            <radialGradient id="tier1Glow" cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.6" />
-              <stop offset="100%" stopColor="#3b82f6" stopOpacity="0" />
-            </radialGradient>
-            <radialGradient id="tier2Glow" cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stopColor="#22c55e" stopOpacity="0.6" />
-              <stop offset="100%" stopColor="#22c55e" stopOpacity="0" />
-            </radialGradient>
-          </defs>
-
-          {/* Tier 1 çizgileri */}
-          {tier1Pos.map((p, i) => {
-            const dx = p.x - CX;
-            const dy = p.y - CY;
-            const len = Math.sqrt(dx * dx + dy * dy);
-            const isPaid = p.ref.status === 'paid';
-            return (
-              <motion.line
-                key={`l1-${i}`}
-                x1={CX} y1={CY} x2={p.x} y2={p.y}
-                stroke={isPaid ? 'rgba(250, 204, 21, 0.85)' : 'rgba(96, 165, 250, 0.6)'}
-                strokeWidth={isPaid ? 2.5 : 2}
-                strokeDasharray={len}
-                initial={{ strokeDashoffset: len, opacity: 0 }}
-                animate={{ strokeDashoffset: 0, opacity: 0.7 }}
-                transition={{ duration: 0.6, ease: 'easeOut', delay: 0.5 + i * 0.11 }}
-              />
-            );
-          })}
-
-          {/* Tier 2 çizgileri */}
-          {tier2Pos.map((p, i) => {
-            const parent = tier1Pos[p.parentIdx];
-            const dx = p.x - parent.x;
-            const dy = p.y - parent.y;
-            const len = Math.sqrt(dx * dx + dy * dy);
-            const isPaid = p.ref.status === 'paid';
-            return (
-              <motion.line
-                key={`l2-${i}`}
-                x1={parent.x} y1={parent.y} x2={p.x} y2={p.y}
-                stroke={isPaid ? 'rgba(250, 204, 21, 0.7)' : 'rgba(74, 222, 128, 0.45)'}
-                strokeWidth={isPaid ? 2 : 1.5}
-                strokeDasharray={len}
-                initial={{ strokeDashoffset: len, opacity: 0 }}
-                animate={{ strokeDashoffset: 0, opacity: 0.45 }}
-                transition={{ duration: 0.5, ease: 'easeOut', delay: t1Son + 0.2 + i * 0.07 }}
-              />
-            );
-          })}
-
-          {/* Merkez */}
-          <motion.circle cx={CX} cy={CY} r={70}
-            fill="url(#centerGlow)"
-            initial={{ opacity: 0, scale: 0 }} animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.7, ease: EASE_APPLE }}
-            style={{ transformOrigin: `${CX}px ${CY}px` }} />
-          <motion.circle cx={CX} cy={CY} r={36}
-            fill="#fb923c" stroke="#fdba74" strokeWidth={3}
-            initial={{ opacity: 0, scale: 0 }} animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.7, ease: EASE_APPLE }}
-            style={{ transformOrigin: `${CX}px ${CY}px`, filter: 'drop-shadow(0 0 24px rgba(251,146,60,0.7))' }} />
-          <motion.text x={CX} y={CY + 60}
-            textAnchor="middle" fontSize={13} fill="#fed7aa" fontWeight={600}
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-            transition={{ duration: 0.7, ease: EASE_APPLE }}>
-            siz
-          </motion.text>
-
-          {/* Tier 1 düğümler */}
-          {tier1Pos.map((p, i) => {
-            const isPaid = p.ref.status === 'paid';
-            return (
-              <motion.g key={`n1-${i}`}
-                initial={{ opacity: 0, scale: 0 }} animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.5, ease: [0.34, 1.56, 0.64, 1], delay: 0.9 + i * 0.11 }}
-                style={{ transformOrigin: `${p.x}px ${p.y}px` }}>
-                <circle cx={p.x} cy={p.y} r={26} fill="url(#tier1Glow)" />
-                <circle cx={p.x} cy={p.y} r={16}
-                  fill={isPaid ? '#facc15' : '#3b82f6'}
-                  stroke={isPaid ? '#fde68a' : '#93c5fd'}
-                  strokeWidth={2.5}
-                  style={{ filter: `drop-shadow(0 0 12px ${isPaid ? 'rgba(250,204,21,0.7)' : 'rgba(59,130,246,0.6)'})` }} />
-                <text x={p.x} y={clampLabelY(p.y, p.y < CY, 28, 36)}
-                  textAnchor="middle" fontSize={10} fill="#bfdbfe" fontWeight={500}>
-                  T1 · {refLabel(p.ref, i + 1)}
-                </text>
-              </motion.g>
-            );
-          })}
-
-          {/* Tier 2 düğümler */}
-          {tier2Pos.map((p, i) => {
-            const isPaid = p.ref.status === 'paid';
-            return (
-              <motion.g key={`n2-${i}`}
-                initial={{ opacity: 0, scale: 0 }} animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.4, ease: [0.34, 1.56, 0.64, 1], delay: t1Son + 0.5 + i * 0.07 }}
-                style={{ transformOrigin: `${p.x}px ${p.y}px` }}>
-                <circle cx={p.x} cy={p.y} r={18} fill="url(#tier2Glow)" />
-                <circle cx={p.x} cy={p.y} r={10}
-                  fill={isPaid ? '#facc15' : '#22c55e'}
-                  stroke={isPaid ? '#fde68a' : '#86efac'}
-                  strokeWidth={2}
-                  style={{ filter: `drop-shadow(0 0 8px ${isPaid ? 'rgba(250,204,21,0.6)' : 'rgba(34,197,94,0.5)'})` }} />
-                <text x={p.x} y={clampLabelY(p.y, p.y < CY, 16, 22)}
-                  textAnchor="middle" fontSize={9} fill="#bbf7d0" fontWeight={500}>
-                  T2 · {refLabel(p.ref, i + 1)}
-                </text>
-              </motion.g>
-            );
-          })}
-
-          {/* Paid line akan parçacıklar — komisyon akışı görseli */}
-          {tier1Pos.filter((p) => p.ref.status === 'paid').map((p, i) => (
-            <FlowParticleOnLine key={`fp1-${i}`} x1={p.x} y1={p.y} x2={CX} y2={CY} delay={i * 0.28} />
-          ))}
-          {tier2Pos.filter((p) => p.ref.status === 'paid').map((p, i) => {
-            const parent = tier1Pos[p.parentIdx];
-            return (
-              <FlowParticleOnLine key={`fp2-${i}`} x1={p.x} y1={p.y} x2={parent.x} y2={parent.y} delay={0.5 + i * 0.28} />
-            );
-          })}
-        </svg>
-
-        {/* Empty state — hiç davet yoksa CTA */}
-        {tier1.length === 0 && (
-          <div className="-mt-32 text-center pointer-events-none">
-            <p className="text-sm text-white/70 mb-1">Henüz davet etmedin.</p>
-            <p className="text-xs text-white/50 mb-4">Linkini paylaş — tıklayan ilk kullanıcı tier 1, onun davetlileri tier 2 olarak ağına eklenir.</p>
-          </div>
-        )}
-
-        {/* Legend */}
-        <div className="mt-2 flex flex-wrap gap-3 justify-center text-xs">
-          <LegendDot color="#fb923c" label="Ana Hesap (siz)" />
-          <LegendDot color="#3b82f6" label="Tier 1 — Doğrudan davet" />
-          <LegendDot color="#22c55e" label="Tier 2 — Alt seviye" />
-          <LegendDot color="#facc15" label="Ödeme yapan (komisyon akıyor)" />
-        </div>
-      </div>
-
-      {/* Davet linki + bilgi */}
-      <div className="relative z-10 max-w-3xl mx-auto mt-8 space-y-4">
-        <div className="rounded-xl border border-white/10 bg-white/5 backdrop-blur-sm p-4">
-          <div className="flex items-center gap-2 mb-2 text-xs uppercase tracking-widest text-white/60 font-mono">
-            <Network className="h-3.5 w-3.5" />
-            Davet Linkin
-          </div>
-          <div className="flex flex-col sm:flex-row gap-2">
-            <code className="flex-1 px-3 py-2.5 bg-black/40 rounded-lg text-xs sm:text-sm font-mono break-all text-white/90 border border-white/10">
-              {stats.shareUrl}
-            </code>
-            <Button onClick={() => onCopy(stats.shareUrl)} className="bg-yellow-400 text-black hover:bg-yellow-300 font-semibold">
-              <Copy className="h-4 w-4 mr-2" /> Kopyala
-            </Button>
-          </div>
-          <p className="text-[10px] text-white/50 mt-2 font-mono">
-            Ref: <strong className="text-white/80">{stats.refCode}</strong> · 60 gün cookie · 3 ay komisyon · multi-level (siz → T1 → T2)
-          </p>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div className="rounded-xl border border-yellow-400/30 bg-gradient-to-br from-yellow-400/10 to-amber-500/5 p-4">
-            <div className="flex items-center gap-2 text-xs uppercase tracking-widest text-yellow-300/80 font-mono mb-2">
-              <Wallet className="h-3.5 w-3.5" />
-              Bekleyen Ödeme
-            </div>
-            <div className="text-2xl font-bold text-yellow-300">
-              <NumberTicker value={Number(stats.pendingPayout ?? 0)} prefix="₺" />
-            </div>
-            <p className="text-[10px] text-white/60 mt-1">Aylık otomatik IBAN/Papara transfer</p>
-          </div>
-          <div className="rounded-xl border border-violet-400/30 bg-gradient-to-br from-violet-500/10 to-fuchsia-500/5 p-4">
-            <div className="flex items-center gap-2 text-xs uppercase tracking-widest text-violet-300/80 font-mono mb-2">
-              <Sparkles className="h-3.5 w-3.5" />
-              Toplam Gelir (Davetliler)
-            </div>
-            <div className="text-2xl font-bold text-violet-200">
-              ₺{Number(stats.totalRevenue).toLocaleString('tr-TR')}
-            </div>
-            <p className="text-[10px] text-white/60 mt-1">Davetlilerinin tüm ödemeleri</p>
-          </div>
-        </div>
-
-        {/* Davetler tablosu */}
-        {tier1.length + tier2.length > 0 && (
-          <div className="rounded-xl border border-white/10 bg-white/5 backdrop-blur-sm overflow-hidden">
-            <div className="px-4 py-3 border-b border-white/10 text-xs uppercase tracking-widest text-white/60 font-mono">
-              Tüm Davetler ({tier1.length + tier2.length})
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-white/5">
-                  <tr className="text-white/60">
-                    <th className="text-left px-4 py-2 font-medium">Seviye</th>
-                    <th className="text-left px-4 py-2 font-medium">Tıklama</th>
-                    <th className="text-left px-4 py-2 font-medium">Kayıt</th>
-                    <th className="text-left px-4 py-2 font-medium">Ödeme</th>
-                    <th className="text-right px-4 py-2 font-medium">Kazanç</th>
-                    <th className="text-left px-4 py-2 font-medium">Durum</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {[...tier1, ...tier2].map((r) => (
-                    <tr key={r.id} className="border-t border-white/5">
-                      <td className="px-4 py-2 text-white/80">
-                        <span className={`text-[10px] font-mono uppercase tracking-widest px-1.5 py-0.5 rounded border ${(r.tier ?? 1) === 1 ? 'border-blue-400/40 text-blue-300' : 'border-emerald-400/40 text-emerald-300'}`}>
-                          T{r.tier ?? 1}
-                        </span>
-                      </td>
-                      <td className="px-4 py-2 text-white/80">{new Date(r.clickedAt).toLocaleDateString('tr-TR')}</td>
-                      <td className="px-4 py-2 text-white/80">{r.signedUpAt ? new Date(r.signedUpAt).toLocaleDateString('tr-TR') : '-'}</td>
-                      <td className="px-4 py-2 text-white/80">{r.firstPaidAt ? new Date(r.firstPaidAt).toLocaleDateString('tr-TR') : '-'}</td>
-                      <td className="px-4 py-2 text-right font-mono text-yellow-300">
-                        ₺{Number(r.totalCommissionEarned ?? 0).toLocaleString('tr-TR')}
-                      </td>
-                      <td className="px-4 py-2"><Badge variant={r.status === 'paid' ? 'success' : r.status === 'signed_up' ? 'default' : 'secondary'}>{r.status}</Badge></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-      </div>
+      <ul className="mt-2 flex flex-wrap justify-center gap-x-5 gap-y-2 text-label text-muted-foreground">
+        <li className="inline-flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-brand" aria-hidden />Ödeme yapan doğrudan davet</li>
+        <li className="inline-flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full border-2 border-foreground/40" aria-hidden />Doğrudan davet</li>
+        <li className="inline-flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-muted ring-1 ring-foreground/25" aria-hidden />2. seviye (komisyon yok)</li>
+      </ul>
     </div>
   );
-}
-
-// ──────────────────────────────────────────────────────────────────
-//  Flow particle — paid line üzerinde akan komisyon noktası
-// ──────────────────────────────────────────────────────────────────
-
-function FlowParticleOnLine({ x1, y1, x2, y2, delay = 0 }: { x1: number; y1: number; x2: number; y2: number; delay?: number }) {
-  // CSS offset-path ile path takibi — motion offsetDistance'i surer (animejs sokumu)
-  const path = `path('M ${x1} ${y1} L ${x2} ${y2}')`;
-  return (
-    <foreignObject x="0" y="0" width={W} height={H} style={{ pointerEvents: 'none' }}>
-      <motion.div
-        animate={{ offsetDistance: ['0%', '100%'], opacity: [0, 1, 0] }}
-        transition={{ duration: 2.2, repeat: Infinity, ease: 'linear', delay }}
-        style={{
-          position: 'absolute',
-          width: 6, height: 6,
-          borderRadius: '50%',
-          background: '#facc15',
-          boxShadow: '0 0 12px rgba(250, 204, 21, 0.9), 0 0 6px #fde68a',
-          offsetPath: path,
-          offsetRotate: '0deg',
-        } as React.CSSProperties} />
-    </foreignObject>
-  );
-}
-
-// ──────────────────────────────────────────────────────────────────
-//  Helpers
-// ──────────────────────────────────────────────────────────────────
-
-function clampLabelY(nodeY: number, above: boolean, aboveOffset: number, belowOffset: number): number {
-  // Label SVG viewBox'ının (0..H) üst/alt kenarına taşıyorsa otomatik öbür tarafa çevir.
-  if (above) {
-    const proposed = nodeY - aboveOffset;
-    if (proposed < 14) return nodeY + belowOffset;
-    return proposed;
-  }
-  const proposed = nodeY + belowOffset;
-  if (proposed > H - 8) return nodeY - aboveOffset;
-  return proposed;
 }
 
 function refLabel(r: Referral, idx: number): string {
-  if (r.referredName && r.referredName.trim()) {
-    const n = r.referredName.trim();
-    return n.length > 14 ? n.slice(0, 12) + '…' : n;
-  }
+  const kisalt = (s: string) => (s.length > 14 ? s.slice(0, 12) + '…' : s);
+  if (r.referredName?.trim()) return kisalt(r.referredName.trim());
   if (r.referredEmail) {
     const at = r.referredEmail.indexOf('@');
-    const local = at > 0 ? r.referredEmail.slice(0, at) : r.referredEmail;
-    return local.length > 14 ? local.slice(0, 12) + '…' : local;
+    return kisalt(at > 0 ? r.referredEmail.slice(0, at) : r.referredEmail);
   }
-  if (r.referredUserId) return r.referredUserId.slice(-4);
-  return String(idx);
+  if (r.referredUserId) return `Davetli ${r.referredUserId.slice(-4)}`;
+  return `Davetli ${idx}`;
 }
-
-function EnrollHero({ onEnroll }: { onEnroll: () => void }) {
-  return (
-    <div className="relative -mx-4 -my-6 sm:-mx-6 sm:-my-8 px-4 py-12 sm:px-6 sm:py-20 min-h-[calc(100vh-3rem)] overflow-hidden bg-gradient-to-br from-violet-950 via-purple-950 to-indigo-950 text-white grid place-items-center">
-      <StarField />
-      <MoneyField />
-      <div className="relative z-10 max-w-2xl text-center">
-        <div className="inline-flex items-center gap-2 mb-4 px-3 py-1.5 rounded-full border border-yellow-400/40 bg-yellow-400/10 font-mono text-[10px] uppercase tracking-[0.3em] text-yellow-300">
-          <Sparkles className="h-3 w-3" />
-          Affiliate Programı · Multi-level · %30
-        </div>
-        <h1 className="text-4xl sm:text-5xl font-bold tracking-tight mb-4">
-          Davet Et, <span className="text-yellow-300">Kazan</span>
-        </h1>
-        <p className="text-lg text-white/70 mb-8 max-w-xl mx-auto">
-          Davet ettiğin kullanıcının 3 ay boyunca yaptığı ödemelerin <strong className="text-yellow-300">%30'u</strong> komisyonun olur.
-          Onlar da kendi linklerini paylaşırsa ağ büyür, sen daha çok kazanırsın.
-        </p>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-10 max-w-xl mx-auto">
-          <FeatureBox icon="💰" label="₺1.169 / Pro davet" />
-          <FeatureBox icon="🌐" label="Multi-level network" />
-          <FeatureBox icon="🔁" label="Aylık otomatik ödeme" />
-        </div>
-        <Button onClick={onEnroll} size="lg"
-          className="bg-yellow-400 text-black hover:bg-yellow-300 font-semibold text-base px-8 py-6 shadow-[0_0_40px_-10px_rgba(250,204,21,0.6)]">
-          Programa Kayıt Ol →
-        </Button>
-        <p className="text-xs text-white/50 mt-4 font-mono">60 gün cookie · 3 ay komisyon süresi</p>
-      </div>
-    </div>
-  );
-}
-
-function KpiBox({ icon, label, value, accent }: { icon: React.ReactNode; label: string; value: React.ReactNode; accent: 'yellow' | 'violet' }) {
-  const cls = accent === 'yellow'
-    ? 'border-yellow-400/40 bg-gradient-to-br from-yellow-400/10 to-amber-500/5'
-    : 'border-violet-400/30 bg-gradient-to-br from-violet-500/10 to-fuchsia-500/5';
-  const valueCls = accent === 'yellow' ? 'text-yellow-300' : 'text-violet-200';
-  return (
-    <div className={`rounded-xl border ${cls} backdrop-blur-sm p-4`}>
-      <div className="flex items-center gap-2 text-xs uppercase tracking-widest text-white/70 font-mono mb-2">
-        {icon}
-        {label}
-      </div>
-      <div className={`text-3xl font-bold tabular-nums ${valueCls} font-mono`}>{value}</div>
-    </div>
-  );
-}
-
-function LegendDot({ color, label }: { color: string; label: string }) {
-  return (
-    <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10">
-      <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: color, boxShadow: `0 0 8px ${color}` }} />
-      <span className="text-white/80">{label}</span>
-    </div>
-  );
-}
-
-function FeatureBox({ icon, label }: { icon: string; label: string }) {
-  return (
-    <div className="rounded-lg border border-white/10 bg-white/5 backdrop-blur-sm py-3 px-2 text-sm">
-      <div className="text-2xl mb-1">{icon}</div>
-      <div className="text-white/80">{label}</div>
-    </div>
-  );
-}
-
-function StarField() {
-  const stars = useMemo(() => {
-    const out: { x: number; y: number; s: number; o: number }[] = [];
-    let seed = 1337;
-    const rnd = () => { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; };
-    for (let i = 0; i < 60; i++) {
-      out.push({ x: rnd() * 100, y: rnd() * 100, s: rnd() * 1.5 + 0.5, o: rnd() * 0.5 + 0.2 });
-    }
-    return out;
-  }, []);
-  return (
-    <div className="absolute inset-0 pointer-events-none">
-      {stars.map((s, i) => (
-        <div key={i} className="absolute rounded-full bg-white"
-          style={{ left: `${s.x}%`, top: `${s.y}%`, width: `${s.s}px`, height: `${s.s}px`, opacity: s.o }} />
-      ))}
-    </div>
-  );
-}
-
-function MoneyField() {
-  const items = useMemo(() => {
-    const out: { x: number; y: number; r: number }[] = [];
-    let seed = 7331;
-    const rnd = () => { seed = (seed * 9301 + 49297) % 233280; return seed / 233280; };
-    for (let i = 0; i < 8; i++) {
-      out.push({ x: rnd() * 90 + 2, y: rnd() * 80 + 10, r: rnd() * 30 - 15 });
-    }
-    return out;
-  }, []);
-  return (
-    <div className="absolute inset-0 pointer-events-none">
-      {items.map((it, i) => (
-        <motion.div key={i} className="absolute text-xl"
-          animate={{ y: [0, -8, 0], opacity: [0.15, 0.35, 0.15] }}
-          transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut', delay: i * 0.4 }}
-          style={{ left: `${it.x}%`, top: `${it.y}%`, rotate: `${it.r}deg` }}>
-          💰
-        </motion.div>
-      ))}
-    </div>
-  );
-}
-

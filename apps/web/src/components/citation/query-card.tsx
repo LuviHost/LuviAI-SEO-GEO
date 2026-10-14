@@ -82,7 +82,7 @@ export function QueryCard({ q, idx, brand, lang, isOpen, onToggle, labels }: Que
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium leading-relaxed">{q.query}</p>
               {catLabel && (
-                <span className="inline-block mt-1.5 text-[10px] font-bold uppercase tracking-wider text-brand-600 bg-brand-500/10 px-1.5 py-0.5 rounded">
+                <span className="inline-block mt-1.5 text-label font-medium text-brand-600 bg-brand-500/10 px-1.5 py-0.5 rounded">
                   {catLabel}
                 </span>
               )}
@@ -116,13 +116,13 @@ export function QueryCard({ q, idx, brand, lang, isOpen, onToggle, labels }: Que
             {(catLabel || q.brandInQuery) && (
             <span className="inline-flex items-center gap-1.5 mt-1.5">
               {catLabel && (
-                <span className="text-[10px] font-bold uppercase tracking-wider text-brand-600 bg-brand-500/10 px-1.5 py-0.5 rounded">
+                <span className="text-label font-medium text-brand-600 bg-brand-500/10 px-1.5 py-0.5 rounded">
                   {catLabel}
                 </span>
               )}
               {q.brandInQuery && (
                 <span
-                  className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground bg-muted px-1.5 py-0.5 rounded"
+                  className="text-label font-medium text-muted-foreground bg-muted px-1.5 py-0.5 rounded"
                   title={lang === 'tr'
                     ? 'Soruda marka adı geçiyor — burada anılmak beklenen sonuç, görünürlük skoruna katılmaz'
                     : 'The query contains the brand name — a mention here is expected and excluded from the visibility score'}
@@ -157,7 +157,7 @@ export function QueryCard({ q, idx, brand, lang, isOpen, onToggle, labels }: Que
                   {ok ? <Check className="h-3 w-3" strokeWidth={3} /> : <X className="h-3 w-3" strokeWidth={3} />}
                 </div>
               </div>
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">{short}</span>
+              <span className="text-label font-semibold text-muted-foreground">{short}</span>
             </div>
           );
         })}

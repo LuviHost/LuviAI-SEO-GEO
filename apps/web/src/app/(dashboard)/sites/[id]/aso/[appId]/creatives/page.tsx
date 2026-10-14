@@ -82,7 +82,10 @@ export default function AsoCreativesPage() {
   );
 }
 
-function Gallery({ title, urls }: { title: string; urls: string[] }) {
+function Gallery({ title, urls: raw }: { title: string; urls: string[] }) {
+  // Mağaza verisi aynı görseli birden fazla kez döndürebiliyor; adres React anahtarı
+  // olduğu için tekrarlar "aynı anahtar" hatası verip görselleri bozuyordu.
+  const urls = Array.from(new Set(raw.filter(Boolean)));
   return (
     <div>
       <p className="mb-2 text-label text-muted-foreground">{title} · {urls.length} görsel</p>
@@ -94,7 +97,14 @@ function Gallery({ title, urls }: { title: string; urls: string[] }) {
           {urls.map((u, i) => (
             <li key={u} className="shrink-0">
               <a href={u} target="_blank" rel="noopener noreferrer" className="block rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand">
-                <img src={u} alt={`${title} ekran görüntüsü ${i + 1}`} loading="lazy" className="h-56 w-auto rounded-md border object-contain" />
+                <img
+                  src={u}
+                  alt={`${title} ekran görüntüsü ${i + 1}`}
+                  loading="lazy"
+                  referrerPolicy="no-referrer"
+                  className="h-56 w-auto rounded-md border bg-muted object-contain"
+                  onError={(e) => { (e.currentTarget.closest('li') as HTMLElement | null)?.setAttribute('hidden', ''); }}
+                />
               </a>
             </li>
           ))}

@@ -383,7 +383,7 @@ function HaroTab({ siteId }: { siteId: string }) {
               </div>
               <p className="text-xs italic">"{q.query.slice(0, 200)}…"</p>
               <div className="rounded bg-muted/30 p-2 border-l-2 border-brand">
-                <p className="text-label uppercase font-semibold text-muted-foreground mb-1">AI taslak pitch:</p>
+                <p className="text-label font-semibold text-muted-foreground mb-1">AI taslak pitch:</p>
                 <p className="text-xs whitespace-pre-wrap">{q.draftPitch}</p>
               </div>
               <div className="flex items-center gap-2">
@@ -443,7 +443,7 @@ function ProgrammaticTab({ siteId }: { siteId: string }) {
           <input
             value={template}
             onChange={(e) => setTemplate(e.target.value)}
-            className="w-full mt-1 px-3 py-2 border rounded text-sm bg-background"
+            className="mt-1 flex h-10 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
             placeholder="{location} için shared hosting önerileri"
           />
         </label>
@@ -455,7 +455,7 @@ function ProgrammaticTab({ siteId }: { siteId: string }) {
               type="number"
               value={spreadDays}
               onChange={(e) => setSpreadDays(parseInt(e.target.value, 10) || 30)}
-              className="w-full mt-1 px-3 py-2 border rounded text-sm bg-background"
+              className="mt-1 flex h-10 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
               min={1}
               max={365}
             />
@@ -466,7 +466,7 @@ function ProgrammaticTab({ siteId }: { siteId: string }) {
               type="number"
               value={maxQuota}
               onChange={(e) => setMaxQuota(parseInt(e.target.value, 10) || 1)}
-              className="w-full mt-1 px-3 py-2 border rounded text-sm bg-background"
+              className="mt-1 flex h-10 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2"
               min={1}
               max={81}
             />
@@ -691,7 +691,7 @@ function CommunityTab({ siteId }: { siteId: string }) {
               </div>
               <p className="text-xs text-muted-foreground line-clamp-2">{op.snippet}</p>
               <div className="rounded bg-muted/30 p-2 border-l-2 border-brand">
-                <p className="text-label uppercase font-semibold text-muted-foreground mb-1">AI taslak yanıt:</p>
+                <p className="text-label font-semibold text-muted-foreground mb-1">AI taslak yanıt:</p>
                 <p className="text-xs whitespace-pre-wrap">{op.draftReply}</p>
               </div>
               <div className="flex items-center gap-2">
@@ -1219,7 +1219,7 @@ function WikipediaTab({ siteId }: { siteId: string }) {
 function Field({ label, value, onCopy }: { label: string; value: string; onCopy: (text: string) => void }) {
   return (
     <div className="rounded-md border px-3 py-2 flex items-center gap-2">
-      <span className="text-label text-muted-foreground uppercase tracking-wide font-medium min-w-[120px]">{label}</span>
+      <span className="text-label text-muted-foreground font-medium min-w-[120px]">{label}</span>
       <span className="flex-1 text-sm">{value}</span>
       <button onClick={() => onCopy(value)} className="text-xs text-brand hover:underline">
         <Copy className="h-3 w-3" />

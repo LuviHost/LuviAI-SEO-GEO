@@ -132,7 +132,7 @@ export function PublishTargetsManager({
     toast.message(`"${target.name}" bağlantısı test ediliyor…`);
     try {
       const res = await api.testPublishTarget(target.id);
-      if (res.ok) toast.success(res.message ?? 'Bağlantı başarılı ✓');
+      if (res.ok) toast.success(res.message ?? 'Bağlantı başarılı');
       else toast.error(res.message ?? 'Bağlantı başarısız');
     } catch (err: any) { toast.error(err.message); }
   };
@@ -148,15 +148,14 @@ export function PublishTargetsManager({
       <CardHeader>
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div>
-            <h2 className="font-semibold">Yayın Hedefleri</h2>
+            <h3 className="font-brand font-semibold">Bağlı hedefler</h3>
             <p className="text-xs text-muted-foreground mt-1">
-              Üretilen makaleler buraya yayınlanır. Birden fazla hedef ekleyebilir,
-              bir tanesini varsayılan yapabilirsin.
+              Birden fazla hedef ekleyebilir, birini varsayılan yapabilirsin.
             </p>
           </div>
           {!loading && targets.length > 0 && !showCatalog && (
             <Button size="sm" variant="outline" onClick={() => setShowCatalog(true)}>
-              <Plus className="h-4 w-4 mr-1" /> Yeni Hedef
+              <Plus className="h-4 w-4 mr-1" /> Yeni hedef
             </Button>
           )}
         </div>
@@ -193,10 +192,10 @@ export function PublishTargetsManager({
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-medium">{t.name}</span>
                         {t.isDefault && (
-                          <Badge className="text-[10px]">VARSAYILAN</Badge>
+                          <Badge variant="brand">Varsayılan</Badge>
                         )}
                         {!t.isActive && (
-                          <Badge variant="outline" className="text-[10px]">PASİF</Badge>
+                          <Badge variant="secondary">Pasif</Badge>
                         )}
                       </div>
                       <div className="text-xs text-muted-foreground">
@@ -608,7 +607,7 @@ function TargetForm({
                   className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-400 mb-4"
                   style={{ animation: `stepIn 360ms ease-out ${guide.steps.length * 80}ms both` }}
                 >
-                  💡 <strong>İpucu:</strong> {guide.tip}
+                  <strong>İpucu:</strong> {guide.tip}
                 </div>
               )}
 
@@ -634,12 +633,12 @@ function TargetForm({
 
           {catalog.fields.length > 0 && (
             <div>
-              <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+              <h4 className="text-xs font-semibold text-muted-foreground mb-2">
                 Bağlantı Bilgileri
               </h4>
               {existing && (
                 <p className="text-[11px] text-muted-foreground mb-2">
-                  💡 Mevcut credential'ları değiştirmek istemiyorsan boş bırak.
+                  Mevcut giriş bilgilerini değiştirmek istemiyorsan boş bırak.
                 </p>
               )}
               <div className="space-y-3">
@@ -658,7 +657,7 @@ function TargetForm({
 
           {catalog.configFields.length > 0 && (
             <div>
-              <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+              <h4 className="text-xs font-semibold text-muted-foreground mb-2">
                 Yayın Ayarları
               </h4>
               <div className="space-y-3">
@@ -820,7 +819,7 @@ function GscConnectionCard({ siteId }: { siteId: string }) {
   // Callback'ten dönüldüyse kullanıcıya bilgi ver, URL'i temizle
   useEffect(() => {
     if (search.get('gsc') === 'connected') {
-      toast.success('Google Search Console bağlandı ✓');
+      toast.success('Google Search Console bağlandı');
       window.history.replaceState({}, '', siteHref(siteId, 'connections'));
       refresh();
     } else if (search.get('gsc') === 'error') {
@@ -865,7 +864,7 @@ function GscConnectionCard({ siteId }: { siteId: string }) {
             <div>
               <h2 className="font-semibold">Google Search Console</h2>
               <p className="text-xs text-muted-foreground mt-1">
-                Topic engine'e arama verisi besler ve Performans sekmesini açar. Opsiyonel — bağlamadığında pipeline yine çalışır.
+                Konu önerilerine gerçek arama verisini katar ve Performans sekmesini açar. İsteğe bağlı; bağlamasan da RanksUp çalışır.
                 Not: Search Console AI cevaplarında görünüp görünmediğini ve tıklamayı nerede kaybettiğini söyleyemez — RanksUp bunu 7 AI asistanına doğrudan sorarak ölçer; GSC bunun yanına Google'daki gerçek tıklamayı koyar (markalı/markasız ayrımıyla).
               </p>
             </div>
@@ -883,8 +882,8 @@ function GscConnectionCard({ siteId }: { siteId: string }) {
         ) : connected ? (
           <div className="space-y-3">
             <div className="space-y-2">
-              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Aktif property
+              <div className="text-xs font-semibold text-muted-foreground">
+                Seçili mülk
               </div>
               {loadingProps ? (
                 <Skeleton className="h-9 w-full" />
@@ -1003,7 +1002,7 @@ function Ga4ConnectionCard({ siteId }: { siteId: string }) {
 
   useEffect(() => {
     if (search.get('ga') === 'connected') {
-      toast.success('Google Analytics bağlandı ✓');
+      toast.success('Google Analytics bağlandı');
       window.history.replaceState({}, '', siteHref(siteId, 'connections'));
       refresh();
     } else if (search.get('ga') === 'error') {
@@ -1048,7 +1047,7 @@ function Ga4ConnectionCard({ siteId }: { siteId: string }) {
             <div>
               <h2 className="font-semibold">Google Analytics</h2>
               <p className="text-xs text-muted-foreground mt-1">
-                Bounce rate, oturum süresi, conversion verisi topic engine'e sinyal olur. Opsiyonel.
+                Hemen çıkma oranı, oturum süresi ve dönüşüm verisi konu önerilerini iyileştirir. İsteğe bağlı.
               </p>
             </div>
           </div>
@@ -1065,8 +1064,8 @@ function Ga4ConnectionCard({ siteId }: { siteId: string }) {
         ) : connected ? (
           <div className="space-y-3">
             <div className="space-y-2">
-              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                Aktif property
+              <div className="text-xs font-semibold text-muted-foreground">
+                Seçili mülk
               </div>
               {loadingProps ? (
                 <Skeleton className="h-9 w-full" />
@@ -1225,7 +1224,7 @@ function ApprovalModeCard({ siteId, onRefresh }: { siteId: string; onRefresh?: (
             mode === 'manual_approve' ? 'border-blue-500 bg-blue-500/5' : 'hover:border-blue-500/40'
           }`}
         >
-          <p className="font-medium text-sm">👁️ Yari Otomatik (Onerilen)</p>
+          <p className="font-medium text-sm">Yarı otomatik (önerilen)</p>
           <p className="text-xs text-muted-foreground mt-0.5">
             AI yazsin → DRAFT olarak dursun → sen onaylayinca yayinlansin. Email/dashboard'dan haber alirsin.
           </p>
@@ -1239,7 +1238,7 @@ function ApprovalModeCard({ siteId, onRefresh }: { siteId: string; onRefresh?: (
             mode === 'auto_publish' ? 'border-brand bg-brand/5' : 'hover:border-brand/40'
           }`}
         >
-          <p className="font-medium text-sm">🚀 Tam Otomatik</p>
+          <p className="font-medium text-sm">Tam otomatik</p>
           <p className="text-xs text-muted-foreground mt-0.5">
             AI yazsin ve direkt yayinlansin. Hizli icin ideal — sen sadece haftalik raporu okursun.
           </p>

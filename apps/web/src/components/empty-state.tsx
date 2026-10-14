@@ -26,29 +26,22 @@ export function EmptyState({
   accent?: 'brand' | 'amber' | 'sky' | 'emerald' | 'rose';
   children?: React.ReactNode;
 }) {
-  const accentMap: Record<string, { ring: string; bg: string; iconColor: string }> = {
-    brand: { ring: 'ring-brand/20', bg: 'bg-brand/5', iconColor: 'text-brand' },
-    amber: { ring: 'ring-amber-500/20', bg: 'bg-amber-500/5', iconColor: 'text-amber-600 dark:text-amber-400' },
-    sky: { ring: 'ring-sky-500/20', bg: 'bg-sky-500/5', iconColor: 'text-sky-600 dark:text-sky-400' },
-    emerald: { ring: 'ring-emerald-500/20', bg: 'bg-emerald-500/5', iconColor: 'text-emerald-600 dark:text-emerald-400' },
-    rose: { ring: 'ring-rose-500/20', bg: 'bg-rose-500/5', iconColor: 'text-rose-600 dark:text-rose-400' },
+  // Ekim 2026: renkli kesikli cerceve + renkli zemin kaldirildi (bos durum sayfanin en
+  // "bagiran" ogesiydi). accent yalniz ikon rengini hafifce belirler.
+  const iconColor: Record<string, string> = {
+    brand: 'text-foreground/70',
+    amber: 'text-warning',
+    sky: 'text-info',
+    emerald: 'text-success',
+    rose: 'text-danger',
   };
-  const a = accentMap[accent] ?? accentMap.brand;
 
   return (
-    <div className={cn(
-      'rounded-2xl border-2 border-dashed p-8 sm:p-12 text-center',
-      a.ring.replace('ring-', 'border-'),
-      a.bg,
-    )}>
-      <div className={cn(
-        'h-16 w-16 mx-auto mb-4 rounded-2xl grid place-items-center',
-        'bg-card border shadow-sm',
-        a.iconColor,
-      )}>
-        <Icon className="h-7 w-7" />
+    <div className="rounded-xl border border-dashed border-border bg-muted/20 p-8 text-center sm:p-12">
+      <div className={cn('mx-auto mb-4 grid h-12 w-12 place-items-center rounded-xl border bg-card', iconColor[accent] ?? iconColor.brand)}>
+        <Icon className="h-6 w-6" />
       </div>
-      <h3 className="text-xl sm:text-2xl font-bold mb-2">{title}</h3>
+      <h3 className="mb-2 font-brand text-h5 font-semibold tracking-tight">{title}</h3>
       {description && (
         <p className="text-sm text-muted-foreground max-w-md mx-auto mb-5 leading-relaxed">
           {description}

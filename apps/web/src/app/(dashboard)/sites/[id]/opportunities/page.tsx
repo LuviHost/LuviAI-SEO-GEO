@@ -50,7 +50,7 @@ const STATUS_LABEL: Record<string, string> = {
 const SOURCE_LABEL: Record<string, { text: string; icon: any }> = {
   prompt:  { text: 'Prompt Lab', icon: Sparkles },
   reviews: { text: 'App Yorumları', icon: MessageSquareWarning },
-  radar:   { text: 'Product Radar', icon: TrendingUp },
+  radar:   { text: 'Ürün Radarı', icon: TrendingUp },
   manual:  { text: 'Manuel', icon: Lightbulb },
 };
 

@@ -12,6 +12,7 @@ import {
   Activity, Flame, Copy, Wifi, WifiOff, Pause, Play, Cloud, Server,
   RefreshCw, KeyRound, AlertTriangle,
 } from 'lucide-react';
+import { SectionHeader } from '@/components/ui/section-header';
 
 /**
  * Live Crawler — AI botlarının siteye CANLI ziyaret akışı.
@@ -113,22 +114,19 @@ export default function CrawlerLivePage() {
     <div className="space-y-5">
       {/* Başlık */}
       <div className="flex items-start justify-between flex-wrap gap-3">
-        <div className="flex items-start gap-3">
-          <div className="h-10 w-10 rounded-xl bg-cyan-500/10 text-cyan-600 dark:text-cyan-400 grid place-items-center">
-            <Activity className="h-5 w-5" />
-          </div>
-          <div>
-            <h2 className="text-2xl font-bold flex items-center gap-2">
-              Live Crawler
-              <Badge variant="outline" className={cn('text-[10px]', connected ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30' : 'bg-zinc-500/10 text-zinc-500')}>
-                {connected ? <><span className="relative flex h-1.5 w-1.5 mr-1"><span className="animate-ping absolute h-full w-full rounded-full bg-emerald-500 opacity-75" /><span className="relative rounded-full h-1.5 w-1.5 bg-emerald-500" /></span> LIVE</> : 'BEKLEMEDE'}
+        <SectionHeader
+          icon={Activity}
+          title={
+            <span className="inline-flex items-center gap-2">
+              Canlı Tarayıcı
+              <Badge variant={connected ? 'success' : 'secondary'} className="gap-1.5">
+                {connected && <span className="h-1.5 w-1.5 rounded-full bg-current motion-safe:animate-pulse" aria-hidden />}
+                {connected ? 'Canlı' : 'Bekliyor'}
               </Badge>
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              AI botlarının siteye <strong>anlık</strong> ziyaretleri (son {data?.windowMinutes ?? 10} dk). JS gerekmez — edge'den beslenir, GPTBot/ClaudeBot dahil her bot görünür.
-            </p>
-          </div>
-        </div>
+            </span>
+          }
+          description={<>AI botlarının sitene son {data?.windowMinutes ?? 10} dakikadaki ziyaretleri. JavaScript gerekmez; GPTBot ve ClaudeBot dahil her bot görünür.</>}
+        />
         <Button variant="outline" size="sm" onClick={() => setPaused((v) => !v)}>
           {paused ? <Play className="h-3.5 w-3.5 mr-1.5" /> : <Pause className="h-3.5 w-3.5 mr-1.5" />}
           {paused ? 'Devam' : 'Duraklat'}
@@ -181,7 +179,7 @@ export default function CrawlerLivePage() {
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
           <Card>
             <CardContent className="p-3.5">
-              <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1">Toplam İstek</div>
+              <div className="text-label font-semibold text-muted-foreground mb-1">Toplam İstek</div>
               <div className="text-2xl font-bold">{data.total}</div>
               <div className="text-[10px] text-muted-foreground">son {data.windowMinutes} dk</div>
             </CardContent>
@@ -189,7 +187,7 @@ export default function CrawlerLivePage() {
           {(data.byBot ?? []).slice(0, 5).map((b: any) => (
             <Card key={b.bot}>
               <CardContent className="p-3.5">
-                <div className={cn('text-[10px] font-semibold uppercase tracking-wide mb-1 truncate', BOT_COLOR[b.bot] ?? 'text-muted-foreground')}>{b.bot}</div>
+                <div className={cn('text-label font-semibold mb-1 truncate', BOT_COLOR[b.bot] ?? 'text-muted-foreground')}>{b.bot}</div>
                 <div className="text-2xl font-bold">{b.hits}</div>
               </CardContent>
             </Card>
@@ -200,7 +198,7 @@ export default function CrawlerLivePage() {
       {/* Canlı akış tablosu */}
       <Card>
         <CardContent className="p-4">
-          <div className="text-sm font-semibold mb-3">Son {data?.events?.length ?? 0} Ziyaret</div>
+          <div className="text-sm font-semibold mb-3">Son ziyaretler <span className="font-normal text-muted-foreground">({data?.events?.length ?? 0})</span></div>
           {loading ? (
             <div className="text-sm text-muted-foreground p-4 text-center">Yükleniyor…</div>
           ) : !data || data.events.length === 0 ? (

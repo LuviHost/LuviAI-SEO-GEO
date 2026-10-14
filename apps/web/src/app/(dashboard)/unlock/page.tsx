@@ -249,7 +249,7 @@ function UnlockView() {
         </div>
 
         <div className="lg:col-span-1 space-y-4">
-          <h4 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+          <h4 className="text-sm font-semibold text-muted-foreground">
             {c.competitorHeader}
           </h4>
           <div className="bg-muted/30 rounded-2xl border p-5">

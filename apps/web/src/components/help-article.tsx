@@ -89,7 +89,7 @@ export function HelpArticle({
             <Icon className="h-6 w-6 text-brand-600" />
           </div>
           <div>
-            <div className="text-xs font-bold uppercase tracking-wider text-brand-600 mb-1">{badge}</div>
+            <div className="text-xs font-medium text-brand-600 mb-1">{badge}</div>
             <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight leading-tight mb-2">{title}</h1>
             <p className="help-intro text-muted-foreground leading-relaxed">{intro}</p>
           </div>

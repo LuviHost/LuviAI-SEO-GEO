@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { VendorLogo } from '@/components/vendor-logo';
 import { cn } from '@/lib/utils';
 import {
   Bot,
@@ -14,6 +15,7 @@ import {
   ChevronDown,
   ChevronRight,
   ExternalLink,
+  FileCode,
 } from 'lucide-react';
 
 /**
@@ -30,7 +32,7 @@ const PLATFORMS = [
   {
     id: 'wordpress',
     name: 'WordPress',
-    icon: '📝',
+    logo: 'wordpress' as const,
     steps: [
       'WP-Admin → Plugins → Add New → "Insert Headers and Footers" plugin\'ini yükle (veya WPCode, Header Footer Code Manager)',
       'Plugin > Settings > "Scripts in Header" alanına aşağıdaki kodu yapıştır',
@@ -41,10 +43,10 @@ const PLATFORMS = [
   {
     id: 'webflow',
     name: 'Webflow',
-    icon: '🌊',
+    logo: 'webflow' as const,
     steps: [
       'Webflow Designer → Project Settings (sol-alt çark ikon)',
-      'Custom Code → Head Code (Inside &lt;head&gt; tag)',
+      'Custom Code → Head Code (<head> içi)',
       'Aşağıdaki kodu yapıştır → Save',
       'Yayınla (Publish) — değişiklikler birkaç dakika içinde canlıda',
     ],
@@ -52,21 +54,21 @@ const PLATFORMS = [
   {
     id: 'shopify',
     name: 'Shopify',
-    icon: '🛍️',
+    logo: 'shopify' as const,
     steps: [
       'Shopify Admin → Online Store → Themes',
       'Active theme > Actions > Edit code',
       'Layout > theme.liquid dosyasını aç',
-      '&lt;/head&gt; etiketinden HEMEN ÖNCE aşağıdaki kodu yapıştır → Save',
+      '</head> etiketinden hemen önce aşağıdaki kodu yapıştır → Save',
     ],
   },
   {
     id: 'static',
-    name: 'Static HTML / Custom',
-    icon: '📄',
+    name: 'Statik HTML / özel site',
+    logo: null,
     steps: [
       'index.html (veya tüm sayfalar) dosyalarını aç',
-      'Her sayfanın &lt;head&gt; bölümüne aşağıdaki kodu yapıştır',
+      'Her sayfanın <head> bölümüne aşağıdaki kodu yapıştır',
       'Tek seferlik bir include kullanıyorsan (header.html / partial), sadece oraya yapıştır',
       'FTP/SFTP ile sunucuya yükle, browser cache temizle (Ctrl+F5)',
     ],
@@ -74,7 +76,7 @@ const PLATFORMS = [
   {
     id: 'ghost-medium',
     name: 'Ghost / Medium / Substack',
-    icon: '👻',
+    logo: 'ghost' as const,
     steps: [
       'Ghost: Settings > Code Injection > Site Header → kodu yapıştır → Save',
       'Medium/Substack: kendi domain (custom domain) ile yayın yapıyorsan DNS\'e CNAME üzerinden değil, sadece custom HTML embed destekliyorsa kullanılabilir',
@@ -98,10 +100,10 @@ export function TrackerInstall({ siteId, siteUrl }: { siteId: string; siteUrl?: 
     try {
       await navigator.clipboard.writeText(snippet);
       setCopied(true);
-      toast.success('Snippet kopyalandı');
+      toast.success('Kod kopyalandı');
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      toast.error('Kopyalama başarısız — manuel seç-kopyala dene');
+      toast.error('Kopyalanamadı — kodu elle seçip kopyala');
     }
   };
 
@@ -109,25 +111,25 @@ export function TrackerInstall({ siteId, siteUrl }: { siteId: string; siteUrl?: 
     <Card>
       <CardContent className="p-5 space-y-4">
         <div className="flex items-start gap-3">
-          <div className="h-10 w-10 rounded-xl bg-violet-500/10 text-violet-600 dark:text-violet-400 grid place-items-center shrink-0">
-            <Bot className="h-5 w-5" />
+          <div className="h-10 w-10 rounded-xl border bg-muted/50 text-foreground/70 grid place-items-center shrink-0">
+            <Bot className="h-5 w-5" aria-hidden />
           </div>
           <div className="flex-1">
-            <h3 className="font-semibold text-base">AI Crawler Tracker — Sitene Yapıştır</h3>
-            <p className="text-xs text-muted-foreground mt-0.5 max-w-2xl">
-              Sitenin <code className="bg-muted/50 px-1 py-0.5 rounded text-[10px]">&lt;head&gt;</code> kısmına aşağıdaki tek satır kodu yapıştır.
-              GPTBot, ClaudeBot, PerplexityBot gibi AI bot ziyaretleri ile chatgpt.com / perplexity.ai gibi
-              AI referrer'lardan gelen kullanıcılar **otomatik kaydedilir**.
+            <h3 className="font-brand font-semibold text-base">AI bot takibi</h3>
+            <p className="text-sm text-muted-foreground mt-0.5 max-w-2xl">
+              Sitenin <code className="bg-muted/60 px-1 py-0.5 rounded text-label">&lt;head&gt;</code> bölümüne aşağıdaki tek satırı yapıştır.
+              GPTBot, ClaudeBot, PerplexityBot gibi AI botlarının ziyaretleri ve chatgpt.com, perplexity.ai gibi
+              AI asistanlarından gelen ziyaretçiler otomatik kaydedilir.
             </p>
           </div>
         </div>
 
         {/* Snippet box */}
-        <div className="rounded-xl border-2 border-violet-500/30 bg-violet-500/[0.04] p-3">
+        <div className="rounded-xl border bg-muted/30 p-3">
           <div className="flex items-center gap-2 mb-2">
-            <Code className="h-3.5 w-3.5 text-violet-600 dark:text-violet-400" />
-            <span className="text-[10px] font-bold uppercase tracking-widest text-violet-600 dark:text-violet-400">
-              Bu site için özel snippet
+            <Code className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />
+            <span className="text-label font-medium text-muted-foreground">
+              Bu siteye özel kod
             </span>
             <span className="text-[10px] font-mono text-muted-foreground ml-auto">site={siteId.slice(0, 12)}…</span>
           </div>
@@ -139,21 +141,20 @@ export function TrackerInstall({ siteId, siteUrl }: { siteId: string; siteUrl?: 
               {copied ? <><Check className="h-4 w-4 mr-1" /> Kopyalandı</> : <><Copy className="h-4 w-4 mr-1" /> Kopyala</>}
             </Button>
           </div>
-          <p className="text-[10px] text-muted-foreground mt-2 leading-relaxed">
-            ⚡ Async yüklenir, sayfanın hızını etkilemez (~2 KB).
-            🔒 Sadece AI bot/referrer tespit edilince beacon atar.
-            🌐 GDPR/KVKK uyumlu (kişisel veri toplamaz, sadece UA + URL kaydeder).
+          <p className="text-label text-muted-foreground mt-2 leading-relaxed">
+            Kod asenkron yüklenir, sayfa hızını etkilemez. Yalnız bir AI botu ya da AI asistanından gelen ziyaretçi
+            tespit edildiğinde kayıt gönderir; kişisel veri toplamaz, yalnız tarayıcı bilgisi ve sayfa adresi kaydedilir.
           </p>
         </div>
 
         {/* Verification hint */}
         {siteUrl && (
-          <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 flex items-start gap-2">
-            <Globe className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
-            <div className="flex-1 text-xs">
-              <strong className="text-amber-700 dark:text-amber-400">Doğrulama:</strong>{' '}
+          <div className="rounded-lg border p-3 flex items-start gap-2">
+            <Globe className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" aria-hidden />
+            <div className="flex-1 text-sm">
+              <strong>Kurulumu doğrula:</strong>{' '}
               <span className="text-foreground/80">
-                Snippet'i yapıştırdıktan sonra{' '}
+                Kodu yapıştırdıktan sonra{' '}
                 <a
                   href={siteUrl}
                   target="_blank"
@@ -162,8 +163,8 @@ export function TrackerInstall({ siteId, siteUrl }: { siteId: string; siteUrl?: 
                 >
                   {siteUrl.replace(/^https?:\/\//, '')}<ExternalLink className="h-3 w-3" />
                 </a>{' '}
-                aç, sayfa kaynağında snippet olduğunu kontrol et. İlk AI bot ziyareti 1-7 gün içinde gelir
-                (Genel Bakış'ta görünür).
+                adresini aç ve sayfa kaynağında kodu ara. İlk AI bot ziyareti genelde 1–7 gün içinde gelir
+                ve Genel Bakış'ta görünür.
               </span>
             </div>
           </div>
@@ -171,7 +172,7 @@ export function TrackerInstall({ siteId, siteUrl }: { siteId: string; siteUrl?: 
 
         {/* Platform talimatları (accordion) */}
         <div className="space-y-2">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
+          <p className="text-label font-medium text-muted-foreground">
             Platforma göre kurulum rehberi
           </p>
           <div className="rounded-lg border divide-y overflow-hidden">
@@ -187,7 +188,7 @@ export function TrackerInstall({ siteId, siteUrl }: { siteId: string; siteUrl?: 
                       expanded && 'bg-muted/30',
                     )}
                   >
-                    <span className="text-xl">{p.icon}</span>
+                    {p.logo ? <VendorLogo name={p.logo} size={20} alt="" /> : <FileCode className="h-5 w-5 text-muted-foreground" aria-hidden />}
                     <span className="flex-1 text-sm font-medium">{p.name}</span>
                     {expanded ? (
                       <ChevronDown className="h-4 w-4 text-muted-foreground" />

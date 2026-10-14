@@ -13,6 +13,7 @@ import {
   MessagesSquare, RefreshCw, Loader2, ExternalLink, Check, X,
   Copy, Send,
 } from 'lucide-react';
+import { SectionHeader } from '@/components/ui/section-header';
 
 /**
  * Topluluk Ajanı — Reddit/Quora'da markanla ilgili cevaplanabilir sorular +
@@ -92,17 +93,7 @@ export default function CommunitiesPage() {
   return (
     <div className="space-y-5">
       <div className="flex items-start justify-between flex-wrap gap-3">
-        <div className="flex items-start gap-3">
-          <div className="h-10 w-10 rounded-xl bg-brand-500/10 text-brand-600 dark:text-brand-400 grid place-items-center">
-            <MessagesSquare className="h-5 w-5" />
-          </div>
-          <div>
-            <h2 className="text-2xl font-bold">Topluluk Ajanı</h2>
-            <p className="text-sm text-muted-foreground">
-              Reddit/Quora'da nişinle ilgili sorular + markanın sesinde AI taslak cevaplar. Paylaşım her zaman senin onayınla — spam değil, gerçek değer.
-            </p>
-          </div>
-        </div>
+        <SectionHeader icon={MessagesSquare} title="Topluluk Ajanı" description="Reddit ve Quora'da sektörünle ilgili sorular ve markanın sesiyle hazırlanmış taslak cevaplar. Hiçbir şey senin onayın olmadan paylaşılmaz." />
         <Button onClick={scan} disabled={scanning}>
           {scanning ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-1.5" />}
           {scanning ? 'Taranıyor…' : 'Fırsat Tara'}

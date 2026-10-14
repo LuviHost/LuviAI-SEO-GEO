@@ -2,11 +2,18 @@
 
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { Key, Copy, Trash2, Plus, AlertTriangle, Code } from 'lucide-react';
+import { Copy, Trash2, Plus, AlertTriangle, KeyRound, Terminal } from 'lucide-react';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { PageHeader } from '@/components/ui/page-header';
+import { SectionHeader } from '@/components/ui/section-header';
+import { FilterChip } from '@/components/ui/filter-chip';
+import { AsyncState } from '@/components/ui/async-state';
+import { useConfirm } from '@/components/ui/confirm-dialog';
+import { EmptyState } from '@/components/empty-state';
 
 const ALL_SCOPES = [
   'articles:read', 'articles:write',
@@ -23,29 +30,47 @@ const ALL_SCOPES = [
 // sessizce 403 aliyordu.
 const DEFAULT_SCOPES = ALL_SCOPES.filter((s) => s.endsWith(':read'));
 
+/** Yetki kaynaklari — cipler kaynak basina okuma/yazma ciftleri halinde gruplanir */
+const RESOURCE_LABEL: Record<string, string> = {
+  articles: 'İçerikler',
+  sites: 'Siteler',
+  audit: 'Site denetimi',
+  ads: 'Reklam',
+  analytics: 'Analitik',
+  social: 'Sosyal',
+};
+const RESOURCES = Array.from(new Set(ALL_SCOPES.map((s) => s.split(':')[0])));
+
+// NOT: @luviai/sdk npm'de yayinda degil (registry 404) — eski "npm install"
+// ornegi kullaniciyi hataya goturuyordu. Ornek gercek REST ucunu gosterir.
+const CURL_EXAMPLE = `curl https://ranksup.ai/api/sites \\
+  -H "Authorization: Bearer luvi_..."`;
+
 export default function ApiKeysPage() {
+  const confirm = useConfirm();
   const [keys, setKeys] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<unknown>(null);
   const [creating, setCreating] = useState(false);
   const [newToken, setNewToken] = useState<string | null>(null);
   const [form, setForm] = useState({ name: '', scopes: DEFAULT_SCOPES });
 
   const load = async () => {
     setLoading(true);
+    setError(null);
     try {
-      const res = await api.listApiKeys();
-      setKeys(res);
-    } catch (err: any) { toast.error(err.message); }
+      setKeys(await api.listApiKeys());
+    } catch (err) { setError(err); }
     finally { setLoading(false); }
   };
 
   useEffect(() => { load(); }, []);
 
   const create = async () => {
-    if (!form.name) { toast.error('Key adı gerekli'); return; }
+    if (!form.name.trim()) { toast.error('Anahtara bir ad ver'); return; }
     setCreating(true);
     try {
-      const r = await api.createApiKey({ name: form.name, scopes: form.scopes });
+      const r = await api.createApiKey({ name: form.name.trim(), scopes: form.scopes });
       setNewToken(r.token);
       setForm({ name: '', scopes: DEFAULT_SCOPES });
       load();
@@ -53,9 +78,15 @@ export default function ApiKeysPage() {
     finally { setCreating(false); }
   };
 
-  const revoke = async (id: string) => {
-    if (!confirm('Bu key\'i iptal etmek istediğinden emin misin?')) return;
-    try { await api.revokeApiKey(id); toast.success('Key iptal edildi'); load(); }
+  const revoke = async (k: any) => {
+    const ok = await confirm({
+      title: `"${k.name}" anahtarı iptal edilsin mi?`,
+      description: 'Bu anahtarı kullanan entegrasyonlar hemen çalışmayı durdurur. Geri alınamaz.',
+      confirmLabel: 'Anahtarı iptal et',
+      danger: true,
+    });
+    if (!ok) return;
+    try { await api.revokeApiKey(k.id); toast.success('Anahtar iptal edildi'); load(); }
     catch (err: any) { toast.error(err.message); }
   };
 
@@ -63,89 +94,103 @@ export default function ApiKeysPage() {
     setForm({ ...form, scopes: form.scopes.includes(scope) ? form.scopes.filter((s) => s !== scope) : [...form.scopes, scope] });
   };
 
+  const copy = async (text: string) => {
+    try { await navigator.clipboard.writeText(text); toast.success('Kopyalandı'); }
+    catch { toast.error('Kopyalanamadı — elle seç'); }
+  };
+
   return (
-    <div className="space-y-6 max-w-4xl">
-      <div>
-        <h1 className="text-3xl font-bold flex items-center gap-2"><Key className="h-7 w-7 text-brand" /> API Keys</h1>
-        <p className="text-sm text-muted-foreground mt-1">RanksUp Public REST API + SDK ile programatik erişim</p>
-      </div>
+    <div className="max-w-4xl space-y-6">
+      <PageHeader title="API anahtarları" description="RanksUp verilerine kendi yazılımından REST API ile eriş." />
 
-      {/* SDK quick start */}
-      <Card><CardContent className="p-4">
-        <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
-          <p className="text-sm font-semibold inline-flex items-center gap-2"><Code className="h-4 w-4 text-muted-foreground" /> Node.js SDK</p>
-          <code className="text-xs bg-muted px-2 py-1 rounded">npm install @luviai/sdk</code>
-        </div>
-        <pre className="text-[11px] bg-muted/30 p-3 rounded font-mono overflow-x-auto">
-{`import { RanksUp } from '@luviai/sdk';
-
-const luvi = new RanksUp({ apiKey: process.env.LUVIAI_API_KEY });
-
-const article = await luvi.articles.generate({
-  siteId: 'site_123',
-  topic: 'WordPress hosting nasıl seçilir',
-});`}
-        </pre>
-      </CardContent></Card>
-
-      {/* Yeni token uyari */}
+      {/* Yeni anahtar — yalniz bir kez gosterilir */}
       {newToken && (
-        <Card><CardContent className="p-4 border-2 border-yellow-500/40 bg-yellow-500/5 rounded">
-          <p className="text-sm font-semibold flex items-center gap-2 mb-2">
-            <AlertTriangle className="h-4 w-4 text-yellow-500" /> Token sadece BIR DEFA gösterilir
+        <Card className="border-warning/40 bg-warning/5 p-5">
+          <p className="flex items-center gap-2 font-medium">
+            <AlertTriangle className="h-4 w-4 text-warning" aria-hidden /> Anahtar yalnız şimdi gösteriliyor
           </p>
-          <p className="text-xs text-muted-foreground mb-3">Bu pencere kapandığında token tekrar gösterilemez. Hemen kopyalayıp güvenli bir yere kaydedin.</p>
-          <div className="flex items-center gap-2">
-            <input value={newToken} readOnly className="flex-1 px-3 py-2 border rounded text-xs font-mono bg-background" onClick={(e) => (e.target as HTMLInputElement).select()} />
-            <Button size="sm" onClick={() => { navigator.clipboard.writeText(newToken); toast.success('Kopyalandı'); }}>
-              <Copy className="h-3 w-3 mr-1" /> Kopyala
-            </Button>
+          <p className="mt-1 text-sm text-muted-foreground">Bu kutuyu kapattıktan sonra tekrar göremezsin. Kopyalayıp güvenli bir yere kaydet.</p>
+          <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+            <Input value={newToken} readOnly className="font-mono text-xs" onClick={(e) => (e.target as HTMLInputElement).select()} aria-label="Yeni API anahtarı" />
+            <Button onClick={() => copy(newToken)} className="shrink-0"><Copy className="h-4 w-4" aria-hidden /> Kopyala</Button>
           </div>
-          <Button size="sm" variant="outline" className="mt-2" onClick={() => setNewToken(null)}>Anladım, kapat</Button>
-        </CardContent></Card>
+          <Button size="sm" variant="ghost" className="mt-2" onClick={() => setNewToken(null)}>Kaydettim, kapat</Button>
+        </Card>
       )}
 
-      {/* Yeni key form */}
-      <Card><CardContent className="p-4 space-y-3">
-        <p className="text-sm font-semibold">+ Yeni API Key</p>
-        <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Örn: Production server" className="w-full px-3 py-2 border rounded text-sm bg-background" />
-        <div>
-          <p className="text-xs font-medium mb-2">Scopes (yetki):</p>
-          <div className="flex flex-wrap gap-1">
-            {ALL_SCOPES.map((s) => (
-              <button key={s} type="button" onClick={() => toggleScope(s)} className={`text-[11px] px-2 py-1 rounded border ${form.scopes.includes(s) ? 'bg-brand text-white border-brand' : 'bg-card text-muted-foreground'}`}>
-                {s}
-              </button>
+      {/* Yeni anahtar formu */}
+      <Card className="p-5">
+        <SectionHeader as="h3" icon={KeyRound} title="Yeni anahtar" description="Yalnız ihtiyacın olan yetkileri seç. Varsayılan: her şeyi okuyabilir, hiçbir şeyi değiştiremez." />
+        <div className="mt-4 space-y-4">
+          <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Anahtar adı — örn. Muhasebe entegrasyonu" aria-label="Anahtar adı" />
+          <div className="space-y-2">
+            {RESOURCES.map((res) => (
+              <div key={res} className="flex flex-wrap items-center gap-2">
+                <span className="w-28 shrink-0 text-sm text-muted-foreground">{RESOURCE_LABEL[res] ?? res}</span>
+                {ALL_SCOPES.filter((s) => s.startsWith(`${res}:`)).map((s) => (
+                  <FilterChip key={s} selected={form.scopes.includes(s)} onClick={() => toggleScope(s)}>
+                    {s.endsWith(':read') ? 'Okuma' : 'Yazma'}
+                  </FilterChip>
+                ))}
+              </div>
             ))}
           </div>
+          <Button onClick={create} disabled={creating}>
+            <Plus className="h-4 w-4" aria-hidden /> {creating ? 'Oluşturuluyor…' : 'Anahtar oluştur'}
+          </Button>
         </div>
-        <Button onClick={create} disabled={creating}><Plus className="h-3 w-3 mr-1" /> {creating ? 'Üretiliyor…' : 'Key Üret'}</Button>
-      </CardContent></Card>
+      </Card>
 
-      {/* Mevcut key'ler */}
-      {loading ? <p className="text-sm text-muted-foreground p-6 text-center">Yükleniyor…</p> :
-        keys.length === 0 ? <p className="text-sm text-muted-foreground p-6 text-center">Henüz key yok.</p> :
-        <div className="space-y-2">
-          {keys.map((k) => (
-            <Card key={k.id}><CardContent className="p-4">
-              <div className="flex items-start justify-between gap-3 flex-wrap">
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-sm">{k.name}</p>
-                  <p className="text-[11px] text-muted-foreground font-mono">{k.prefix}…</p>
-                  <div className="flex flex-wrap gap-1 mt-2">
-                    {(k.scopes ?? []).map((s: string) => <Badge key={s} variant="outline" className="text-[10px]">{s}</Badge>)}
+      {/* Mevcut anahtarlar */}
+      <section className="space-y-3">
+        <SectionHeader title="Anahtarların" description={keys.length ? `${keys.length} aktif anahtar` : undefined} />
+        <AsyncState
+          loading={loading}
+          error={error}
+          onRetry={load}
+          empty={keys.length === 0}
+          emptyView={<EmptyState icon={KeyRound} title="Henüz anahtar yok" description="Yukarıdan ilk anahtarını oluştur; entegrasyonun bu anahtarla RanksUp verilerine erişir." />}
+        >
+          <div className="space-y-2">
+            {keys.map((k) => (
+              <Card key={k.id} className="p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium">{k.name}</p>
+                    <p className="font-mono text-label text-muted-foreground">{k.prefix}…</p>
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {(k.scopes ?? []).map((s: string) => (
+                        <Badge key={s} variant={s.endsWith(':write') ? 'warning' : 'secondary'}>
+                          {RESOURCE_LABEL[s.split(':')[0]] ?? s.split(':')[0]} · {s.endsWith(':write') ? 'yazma' : 'okuma'}
+                        </Badge>
+                      ))}
+                    </div>
+                    <p className="mt-2 text-label text-muted-foreground">
+                      {k.lastUsedAt ? `Son kullanım ${new Date(k.lastUsedAt).toLocaleString('tr-TR')}` : 'Henüz kullanılmadı'}
+                      {k.expiresAt ? ` · ${new Date(k.expiresAt).toLocaleDateString('tr-TR')} tarihinde sona erer` : ''}
+                    </p>
                   </div>
-                  <p className="text-[10px] text-muted-foreground mt-1">
-                    {k.lastUsedAt ? `Son kullanım: ${new Date(k.lastUsedAt).toLocaleString('tr-TR')}` : 'Henüz kullanılmadı'}
-                    {k.expiresAt ? ` · Son tarih: ${new Date(k.expiresAt).toLocaleDateString('tr-TR')}` : ''}
-                  </p>
+                  <Button size="sm" variant="outline" onClick={() => revoke(k)}>
+                    <Trash2 className="h-4 w-4" aria-hidden /> İptal et
+                  </Button>
                 </div>
-                <Button size="sm" variant="outline" onClick={() => revoke(k.id)}><Trash2 className="h-3 w-3 mr-1" /> İptal</Button>
-              </div>
-            </CardContent></Card>
-          ))}
-        </div>
-      }
+              </Card>
+            ))}
+          </div>
+        </AsyncState>
+      </section>
+
+      {/* Kullanim ornegi */}
+      <Card className="p-5">
+        <SectionHeader
+          as="h3"
+          icon={Terminal}
+          title="Nasıl kullanılır"
+          description="Anahtarı her isteğin Authorization başlığında gönder."
+          actions={<Button size="sm" variant="outline" onClick={() => copy(CURL_EXAMPLE)}><Copy className="h-4 w-4" aria-hidden /> Kopyala</Button>}
+        />
+        <pre className="mt-4 overflow-x-auto rounded-lg border bg-muted/40 p-4 font-mono text-xs leading-relaxed">{CURL_EXAMPLE}</pre>
+      </Card>
     </div>
   );
 }
