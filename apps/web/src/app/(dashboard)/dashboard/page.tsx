@@ -1,28 +1,36 @@
 'use client';
 
 import { SITE_STATUS_LABEL, label } from '@/lib/labels';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { toast } from 'sonner';
+import { motion } from 'motion/react';
+import { ChevronRight, Crown, ExternalLink, FileText, Globe2, Plus, Trash2, Zap } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useT } from '@/lib/i18n';
+import { fadeUp, staggerContainer } from '@/lib/motion-presets';
+import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { Badge, type BadgeProps } from '@/components/ui/badge';
+import { Card } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { MetricCard } from '@/components/ui/metric';
+import { PageHeader } from '@/components/ui/page-header';
+import { SectionHeader } from '@/components/ui/section-header';
+import { EmptyState } from '@/components/empty-state';
 import {
-  ExternalLink, Plus, Trash2, AlertTriangle,
-  Globe2, FileText, Zap, Crown, Sparkles, ChevronRight, Activity, Rocket,
-} from 'lucide-react';
+  Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from '@/components/ui/dialog';
 
-const STATUS_CLASS: Record<string, string> = {
-  ONBOARDING: 'bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30',
-  AUDIT_PENDING: 'bg-blue-500/15 text-blue-700 dark:text-blue-400 border-blue-500/30',
-  AUDIT_COMPLETE: 'bg-violet-500/15 text-violet-700 dark:text-violet-400 border-violet-500/30',
-  ACTIVE: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30',
-  PAUSED: 'bg-muted text-muted-foreground border-border',
-  ERROR: 'bg-red-500/15 text-red-700 dark:text-red-400 border-red-500/30',
+const STATUS_TONE: Record<string, BadgeProps['variant']> = {
+  ONBOARDING: 'warning',
+  AUDIT_PENDING: 'info',
+  AUDIT_COMPLETE: 'info',
+  ACTIVE: 'success',
+  PAUSED: 'secondary',
+  ERROR: 'danger',
 };
 
 export default function DashboardPage() {
@@ -47,6 +55,7 @@ export default function DashboardPage() {
   useEffect(() => {
     if (status === 'loading') return;
     reload().finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
 
   const confirmDelete = async () => {
@@ -67,374 +76,211 @@ export default function DashboardPage() {
   const isTrial = me?.subscriptionStatus === 'TRIAL';
   const articlesUsed = me?.articlesUsedThisMonth ?? 0;
   const freeArticleRemaining = isTrial ? Math.max(0, 1 - articlesUsed) : null;
-  const planLabel = isTrial ? `${freeArticleRemaining}/1 kaldı` : (me?.plan ?? '-');
-
-  // Hangi karta tıklandığında "leaving" animasyonu çalışıyor
-  const [leavingId, setLeavingId] = useState<string | null>(null);
-  const router = useRouter();
-
-  /**
-   * Karta tıklayınca kart geri bildirim animasyonuna girer ve HEMEN gidilir.
-   * Eskiden 1500 ms yapay bekleme vardı (her site açılışında 1,5 sn kayıp +
-   * ardından üç ayrı yükleme ekranı); hedef sayfa kendi iskeletiyle yüklenir.
-   */
-  const navigateToSite = (siteId: string) => {
-    if (leavingId) return;
-    setLeavingId(siteId);
-    router.push(`/sites/${siteId}`);
-  };
+  const planLabel = isTrial ? `${freeArticleRemaining}/1 kaldı` : (me?.plan ?? '—');
 
   return (
-    <div className="relative space-y-10">
-      {/* Subtle background gradient orb */}
-      <div className="pointer-events-none absolute -top-32 -right-20 h-72 w-72 rounded-full bg-brand/15 blur-[120px]" />
-      <div className="pointer-events-none absolute top-40 -left-32 h-72 w-72 rounded-full bg-violet-500/10 blur-[120px]" />
-
-      {/* Header */}
-      <div className="relative flex justify-between items-end flex-wrap gap-4 animate-[fadeInUp_500ms_ease-out_both]">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="h-1.5 w-1.5 rounded-full bg-brand animate-pulse" />
-            <span className="font-mono text-[10px] uppercase tracking-[0.3em] text-brand font-semibold">
-              Mission Control
-            </span>
-          </div>
-          <h1 className="text-3xl sm:text-4xl font-bold tracking-tight">
-            {t('dashboard.title')}
-          </h1>
-          {session?.user?.name && (
-            <p className="text-sm text-muted-foreground mt-1.5">
-              Hoş geldin, <strong className="text-foreground">{session.user.name}</strong>
-            </p>
-          )}
-        </div>
-        {sites.length > 0 && (
-          <Button asChild size="lg" className="group relative overflow-hidden bg-gradient-to-r from-brand to-brand/85 shadow-[0_0_0_1px_rgb(124_58_237/0.3),0_8px_24px_-6px_rgb(124_58_237/0.5)] hover:shadow-[0_0_0_1px_rgb(124_58_237/0.5),0_12px_36px_-6px_rgb(124_58_237/0.7)] transition-shadow duration-300">
-            <Link href="/onboarding?new=1" className="font-mono text-xs uppercase tracking-widest">
-              <Plus className="h-4 w-4 mr-2 group-hover:rotate-90 transition-transform duration-300" />
+    <div className="space-y-8">
+      <PageHeader
+        title={t('dashboard.title')}
+        description={session?.user?.name ? <>Hoş geldin, <strong className="text-foreground">{session.user.name}</strong></> : undefined}
+        actions={sites.length > 0 ? (
+          <Button asChild>
+            <Link href="/onboarding?new=1">
+              <Plus className="h-4 w-4" aria-hidden />
               {t('dashboard.new_site')}
-              <span aria-hidden className="absolute inset-y-0 -left-1/2 w-1/2 bg-gradient-to-r from-transparent via-white/25 to-transparent skew-x-12 group-hover:translate-x-[400%] transition-transform duration-700" />
             </Link>
           </Button>
-        )}
-      </div>
+        ) : undefined}
+      />
 
-      {/* KPI grid */}
+      {/* Hesap ozeti */}
       {loading ? (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-28 rounded-xl" />)}
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-[124px]" />)}
         </div>
       ) : me ? (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 relative">
-          <MetricCard
-            icon={Globe2}
-            label="Sitelerim"
-            value={me.sitesCount ?? 0}
-            accent="brand"
-            style={{ animation: `fadeInUp 500ms ease-out 80ms both` }}
-            />
-          <MetricCard
-            icon={FileText}
-            label="Yayınlanan makale"
-            value={me.articlesPublished ?? 0}
-            accent="emerald"
-            style={{ animation: `fadeInUp 500ms ease-out 160ms both` }}
-            />
-          <MetricCard
-            icon={Zap}
-            label="Bu ay üretilen"
-            value={me.articlesUsedThisMonth ?? 0}
-            accent="amber"
-            style={{ animation: `fadeInUp 500ms ease-out 240ms both` }}
-            />
-          <MetricCard
-            icon={Crown}
-            label={isTrial ? 'Ücretsiz hak' : (me.plan ?? 'Plan')}
-            value={planLabel}
-            accent="violet"
-            style={{ animation: `fadeInUp 500ms ease-out 320ms both` }}
-            />
-        </div>
+        <motion.div
+          variants={staggerContainer}
+          initial="hidden"
+          animate="show"
+          className="grid grid-cols-2 gap-3 lg:grid-cols-4"
+        >
+          <motion.div variants={fadeUp}>
+            <MetricCard className="h-full" icon={Globe2} label="Sitelerim" value={me.sitesCount ?? 0} />
+          </motion.div>
+          <motion.div variants={fadeUp}>
+            <MetricCard className="h-full" icon={FileText} label="Yayınlanan yazı" value={me.articlesPublished ?? 0} />
+          </motion.div>
+          <motion.div variants={fadeUp}>
+            <MetricCard className="h-full" icon={Zap} label="Bu ay üretilen" value={me.articlesUsedThisMonth ?? 0} />
+          </motion.div>
+          <motion.div variants={fadeUp}>
+            <MetricCard className="h-full" icon={Crown} label={isTrial ? 'Ücretsiz hak' : 'Plan'} value={planLabel} />
+          </motion.div>
+        </motion.div>
       ) : null}
 
-      {/* Sites */}
-      <section className="relative animate-[fadeInUp_500ms_ease-out_400ms_both]">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <Activity className="h-4 w-4 text-brand" />
-            <h2 className="text-lg font-semibold">{t('dashboard.sites')}</h2>
-            {!loading && sites.length > 0 && (
-              <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">
-                · {sites.length} {sites.length === 1 ? 'site' : 'site'}
-              </span>
-            )}
-          </div>
-        </div>
+      {/* Siteler */}
+      <section className="space-y-4">
+        <SectionHeader
+          title={
+            <span className="inline-flex items-center gap-2">
+              {t('dashboard.sites')}
+              {!loading && sites.length > 0 && <Badge variant="secondary">{sites.length}</Badge>}
+            </span>
+          }
+        />
 
         {loading ? (
           <div className="space-y-2">
-            {[0, 1, 2].map((i) => <Skeleton key={i} className="h-20 rounded-xl" />)}
+            {[0, 1, 2].map((i) => <Skeleton key={i} className="h-[76px]" />)}
           </div>
         ) : sites.length === 0 ? (
-          <EmptyState />
+          <EmptyState
+            icon={Globe2}
+            title={t('dashboard.add_first')}
+            description={t('dashboard.empty')}
+            primary={{ label: 'Site ekle', href: '/onboarding?new=1' }}
+          />
         ) : (
-          <div className="space-y-2">
-            {sites.map((s, idx) => (
-              <SiteCard
-                key={s.id}
-                site={s}
-                index={idx}
-                onDelete={() => setDeleteTarget(s)}
-                isLeaving={leavingId === s.id}
-                isAnyLeaving={!!leavingId}
-                onNavigate={() => navigateToSite(s.id)}
-              />
+          <motion.ul variants={staggerContainer} initial="hidden" animate="show" className="space-y-2">
+            {sites.map((s) => (
+              <motion.li key={s.id} variants={fadeUp}>
+                <SiteCard site={s} onDelete={() => setDeleteTarget(s)} />
+              </motion.li>
             ))}
-          </div>
+          </motion.ul>
         )}
       </section>
 
-      {deleteTarget && (
-        <DeleteSiteDialog
-          site={deleteTarget}
-          deleting={deleting}
-          onCancel={() => setDeleteTarget(null)}
-          onConfirm={confirmDelete}
-        />
-      )}
-
-      {/* Local keyframes (Tailwind-extended olmadan da çalışır) */}
-      <style jsx global>{`
-        @keyframes fadeInUp {
-          from { opacity: 0; transform: translateY(12px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes scaleIn {
-          from { opacity: 0; transform: scale(0.96); }
-          to { opacity: 1; transform: scale(1); }
-        }
-        @keyframes orbitalSpin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-        @keyframes orbitalSpinReverse {
-          from { transform: rotate(360deg); }
-          to { transform: rotate(0deg); }
-        }
-        @keyframes pulseRing {
-          0%   { transform: scale(0.6); opacity: 0.7; }
-          80%  { opacity: 0; }
-          100% { transform: scale(2.4); opacity: 0; }
-        }
-        @keyframes orbBreathe {
-          0%, 100% { transform: scale(1);   filter: brightness(1); }
-          50%      { transform: scale(1.08); filter: brightness(1.25); }
-        }
-        @keyframes overlayIn {
-          from { opacity: 0; backdrop-filter: blur(0px); }
-          to   { opacity: 1; backdrop-filter: blur(20px); }
-        }
-        @keyframes textShimmer {
-          0%, 100% { opacity: 0.55; }
-          50%      { opacity: 1; }
-        }
-      `}</style>
+      <DeleteSiteDialog
+        site={deleteTarget}
+        deleting={deleting}
+        onCancel={() => { if (!deleting) setDeleteTarget(null); }}
+        onConfirm={confirmDelete}
+      />
     </div>
   );
 }
 
-function SiteCard({
-  site, index, onDelete, isLeaving, isAnyLeaving, onNavigate,
-}: {
-  site: any;
-  index: number;
-  onDelete: () => void;
-  isLeaving: boolean;
-  isAnyLeaving: boolean;
-  onNavigate: () => void;
-}) {
-  const statusCls = STATUS_CLASS[site.status] ?? 'bg-muted text-muted-foreground border-border';
+/**
+ * Site karti — tum kart tek baglanti (genisletilmis link deseni); dis baglanti
+ * ve silme dugmesi ustte (z-10) kendi eylemleriyle. Eskiden role="button" div
+ * icinde baglanti + dugme vardi (ic ice etkilesimli oge).
+ */
+function SiteCard({ site, onDelete }: { site: any; onDelete: () => void }) {
+  const host = String(site.url ?? '').replace(/^https?:\/\//, '').replace(/\/$/, '');
   return (
-    <div
-      role="button"
-      tabIndex={0}
-      onClick={onNavigate}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          onNavigate();
-        }
-      }}
-      className={[
-        'block group relative rounded-xl border bg-card overflow-hidden cursor-pointer',
-        'transition-all duration-500 ease-out will-change-transform focus:outline-none focus:ring-2 focus:ring-brand/40',
-        isLeaving
-          ? 'scale-[1.04] border-brand/80 shadow-[0_0_0_2px_hsl(var(--ring)/0.5),0_30px_80px_-12px_hsl(var(--ring)/0.55)] z-20'
-          : isAnyLeaving
-            ? 'opacity-25 scale-[0.96] blur-[2px] pointer-events-none'
-            : 'hover:-translate-y-0.5 hover:border-brand/30 hover:shadow-apple-md',
-      ].join(' ')}
-      style={{ animation: `fadeInUp 450ms ease-out ${index * 60 + 120}ms both` }}
-      aria-label={`${site.name} sitesini aç`}
-    >
-      {/* Hover glow */}
-      <div className="absolute inset-0 bg-gradient-to-r from-brand/0 via-brand/[0.04] to-brand/0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none" />
-      {/* Leaving glow — sayfa gecisi sirasinda parlama */}
-      {isLeaving && (
-        <div className="absolute inset-0 bg-gradient-to-r from-brand/20 via-violet-500/15 to-brand/20 pointer-events-none animate-pulse" />
-      )}
+    <Card className="group relative flex flex-wrap items-center gap-4 p-4 transition-all hover:-translate-y-0.5 hover:border-brand/30 hover:shadow-apple-md focus-within:ring-2 focus-within:ring-brand/40 motion-reduce:transition-none motion-reduce:hover:translate-y-0">
+      <span
+        className="grid h-11 w-11 shrink-0 place-items-center rounded-md border border-brand/20 bg-brand/10 text-sm font-semibold text-brand"
+        aria-hidden
+      >
+        {site.name?.slice(0, 2).toLocaleUpperCase('tr-TR') ?? '??'}
+      </span>
 
-      <div className="relative p-5 flex items-center gap-4 flex-wrap">
-        {/* Site avatar/initial */}
-        <div className={[
-          'shrink-0 h-11 w-11 rounded-lg bg-gradient-to-br from-brand/20 to-violet-500/20 grid place-items-center font-semibold text-brand text-sm border border-brand/20',
-          'transition-transform duration-300',
-          isLeaving ? 'scale-110 rotate-3' : 'group-hover:scale-105',
-        ].join(' ')}>
-          {site.name?.slice(0, 2).toUpperCase() ?? '??'}
+      <div className="min-w-0 flex-1">
+        <div className="mb-0.5 flex flex-wrap items-center gap-2">
+          <h3 className="truncate font-semibold">
+            <Link
+              href={`/sites/${site.id}`}
+              className="after:absolute after:inset-0 after:rounded-lg after:content-[''] focus-visible:outline-none"
+            >
+              {site.name}
+            </Link>
+          </h3>
+          <Badge variant={STATUS_TONE[site.status] ?? 'secondary'}>{label(SITE_STATUS_LABEL, site.status)}</Badge>
         </div>
-
-        {/* Title + url */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1 flex-wrap">
-            <h3 className="font-semibold truncate text-foreground">{site.name}</h3>
-            <span className={`inline-flex items-center gap-1 px-1.5 h-5 rounded text-[10px] font-mono uppercase tracking-wider border ${statusCls}`}>
-              {site.status === 'ACTIVE' && <span className="h-1 w-1 rounded-full bg-current animate-pulse" />}
-              {label(SITE_STATUS_LABEL, site.status)}
-            </span>
-          </div>
+        <div className="flex min-w-0 flex-wrap items-center gap-x-2 text-label text-muted-foreground">
           <a
             href={site.url}
             target="_blank"
             rel="noopener"
-            onClick={(e) => { e.stopPropagation(); }}
-            className="text-xs text-muted-foreground hover:text-brand inline-flex items-center gap-1 truncate max-w-full relative z-10"
+            className="relative z-10 inline-flex max-w-full items-center gap-1 truncate hover:text-brand"
           >
-            <span className="truncate">{site.url}</span>
-            <ExternalLink className="h-3 w-3 shrink-0" />
+            <span className="truncate">{host}</span>
+            <ExternalLink className="h-3 w-3 shrink-0" aria-hidden />
+            <span className="sr-only">(yeni sekmede açılır)</span>
           </a>
-          {site.niche && (
-            <span className="text-[10px] text-muted-foreground/70 ml-2 font-mono uppercase tracking-wider">· {site.niche}</span>
-          )}
-        </div>
-
-        {/* Actions */}
-        <div className="flex items-center gap-1.5 shrink-0">
-          <span className={[
-            'inline-flex items-center gap-1 h-8 px-3 rounded-md border bg-background/50 font-mono text-[10px] uppercase tracking-widest text-foreground/80',
-            'transition-all duration-300',
-            isLeaving ? 'border-brand bg-brand text-white' : 'group-hover:border-brand/40 group-hover:bg-brand/5',
-          ].join(' ')}>
-            Aç
-            <ChevronRight className={[
-              'h-3 w-3 transition-transform duration-300',
-              isLeaving ? 'translate-x-1' : 'group-hover:translate-x-0.5',
-            ].join(' ')} />
-          </span>
-          <button
-            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDelete(); }}
-            className="h-8 w-8 grid place-items-center rounded-md text-muted-foreground hover:text-red-500 hover:bg-red-500/10 transition-colors relative z-10"
-            title="Siteyi sil"
-            aria-label="Siteyi sil"
-          >
-            <Trash2 className="h-4 w-4" />
-          </button>
+          {site.niche && <span className="truncate">· {site.niche}</span>}
         </div>
       </div>
-    </div>
-  );
-}
 
-function EmptyState() {
-  const { t } = useT();
-  return (
-    <div className="relative rounded-2xl border-2 border-dashed border-brand/20 bg-card overflow-hidden animate-[scaleIn_500ms_ease-out_both]">
-      <div className="absolute inset-0 bg-gradient-to-br from-brand/[0.04] via-transparent to-violet-500/[0.04] pointer-events-none" />
-      <div className="relative p-12 text-center">
-        <div className="mx-auto mb-5 h-16 w-16 rounded-2xl bg-gradient-to-br from-brand/20 to-violet-500/20 grid place-items-center border border-brand/20">
-          <Sparkles className="h-7 w-7 text-brand animate-pulse" />
-        </div>
-        <h3 className="text-lg font-semibold mb-1">İlk sitenizi ekleyin</h3>
-        <p className="text-sm text-muted-foreground mb-6 max-w-md mx-auto">
-          {t('dashboard.empty')}
-        </p>
-        <Button asChild size="lg" className="group relative overflow-hidden">
-          <Link href="/onboarding?new=1" className="font-mono text-xs uppercase tracking-widest">
-            <Plus className="h-4 w-4 mr-2 group-hover:rotate-90 transition-transform duration-300" />
-            {t('dashboard.add_first')}
-            <span aria-hidden className="absolute inset-y-0 -left-1/2 w-1/2 bg-gradient-to-r from-transparent via-white/20 to-transparent skew-x-12 group-hover:translate-x-[400%] transition-transform duration-700" />
-          </Link>
-        </Button>
+      <div className="flex shrink-0 items-center gap-1">
+        <span className="hidden items-center gap-1 text-label text-muted-foreground transition-colors group-hover:text-brand sm:inline-flex" aria-hidden>
+          Aç <ChevronRight className="h-3.5 w-3.5 transition-transform group-hover:translate-x-0.5" />
+        </span>
+        <button
+          type="button"
+          onClick={onDelete}
+          className="relative z-10 grid h-8 w-8 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-danger/10 hover:text-danger focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger/50"
+          aria-label={`${site.name} sitesini sil`}
+        >
+          <Trash2 className="h-4 w-4" aria-hidden />
+        </button>
       </div>
-    </div>
+    </Card>
   );
 }
 
 function DeleteSiteDialog({
   site, deleting, onCancel, onConfirm,
 }: {
-  site: any;
+  site: any | null;
   deleting: boolean;
   onCancel: () => void;
   onConfirm: () => void;
 }) {
   const [typed, setTyped] = useState('');
-  const expected = site.name;
-  const canDelete = typed.trim() === expected && !deleting;
+  const expected = site?.name ?? '';
+  const canDelete = !!site && typed.trim() === expected && !deleting;
+
+  // Her acilista onay kutusu bos baslasin
+  useEffect(() => { setTyped(''); }, [site?.id]);
 
   return (
-    <div
-      className="fixed inset-0 z-50 grid place-items-center bg-black/60 backdrop-blur-sm p-4 animate-[fadeInUp_200ms_ease-out_both]"
-      onClick={(e) => { if (e.target === e.currentTarget) onCancel(); }}
-    >
-      <div className="bg-card border border-red-500/30 rounded-xl p-6 max-w-md w-full shadow-2xl animate-[scaleIn_200ms_ease-out_both]">
-        <div className="flex items-start gap-3 mb-4">
-          <div className="h-10 w-10 rounded-full bg-red-500/10 grid place-items-center shrink-0">
-            <AlertTriangle className="h-5 w-5 text-red-500" />
+    <Dialog open={!!site} onOpenChange={(o) => { if (!o) onCancel(); }}>
+      <DialogContent size="sm">
+        <DialogHeader>
+          <DialogTitle>Siteyi sil</DialogTitle>
+          <DialogDescription>
+            <strong className="text-foreground">{expected}</strong> ile birlikte aşağıdakilerin tamamı silinir. Bu işlem geri alınamaz.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogBody className="space-y-4">
+          <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+            <li>Marka beyni (rakipler, persona, SEO stratejisi)</li>
+            <li>Tüm tarama kayıtları</li>
+            <li>Konu kuyruğu, üretilmiş ve yayınlanmış yazılar</li>
+            <li>Sosyal kanal bağlantıları ve paylaşım takvimi</li>
+            <li>Yayın hedefleri (WordPress, FTP, GitHub vb.)</li>
+            <li>Analitik kayıtları ve iş kuyruğu</li>
+          </ul>
+          <div className="space-y-1.5">
+            <label htmlFor="delete-confirm" className="text-label text-muted-foreground">
+              Onaylamak için site adını yaz: <span className="font-mono text-danger">{expected}</span>
+            </label>
+            <Input
+              id="delete-confirm"
+              value={typed}
+              onChange={(e) => setTyped(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter' && canDelete) onConfirm(); }}
+              placeholder={expected}
+              disabled={deleting}
+              autoComplete="off"
+              className={cn('font-mono', typed && typed.trim() !== expected && 'border-danger/50')}
+            />
           </div>
-          <div>
-            <h3 className="text-lg font-semibold">Siteyi sil</h3>
-            <p className="text-sm text-muted-foreground mt-1">
-              <strong>{site.name}</strong> ile birlikte aşağıdakilerin tamamı silinir, geri alınamaz:
-            </p>
-          </div>
-        </div>
-        <ul className="text-xs text-muted-foreground space-y-1 mb-4 ml-13" style={{ paddingLeft: '52px' }}>
-          <li>• Brain (rakipler, persona, SEO stratejisi)</li>
-          <li>• Tüm denetim (audit) kayıtları</li>
-          <li>• Topic queue + üretilmiş & yayınlanmış makaleler</li>
-          <li>• Sosyal kanal bağlantıları (X, LinkedIn vb.) + post takvimi</li>
-          <li>• Yayın hedefleri (FTP, WordPress, GitHub vb.)</li>
-          <li>• Analitik snapshot'lar + iş kuyruğu kayıtları</li>
-        </ul>
-        <div className="space-y-2 mb-5">
-          <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-            Onaylamak için site adını yaz: <span className="text-red-500 font-mono">{expected}</span>
-          </label>
-          <input
-            type="text"
-            value={typed}
-            onChange={(e) => setTyped(e.target.value)}
-            placeholder={expected}
-            disabled={deleting}
-            className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm font-mono outline-none focus:border-red-500"
-            autoFocus
-          />
-        </div>
-        <div className="flex justify-end gap-2">
+        </DialogBody>
+        <DialogFooter>
           <Button variant="outline" size="sm" onClick={onCancel} disabled={deleting}>
-            İptal
+            Vazgeç
           </Button>
-          <Button
-            variant="destructive"
-            size="sm"
-            onClick={onConfirm}
-            disabled={!canDelete}
-          >
+          <Button variant="destructive" size="sm" onClick={onConfirm} disabled={!canDelete}>
             {deleting ? 'Siliniyor…' : 'Kalıcı olarak sil'}
           </Button>
-        </div>
-      </div>
-    </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
