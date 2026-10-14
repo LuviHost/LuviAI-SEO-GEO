@@ -42,15 +42,18 @@ type Row = {
   hasBody?: boolean; // gerçek içerik üretildi mi (Detay butonu için)
 };
 
+export type ContentRowState = Row['state'];
+
+// Durum tonlari token'dan (success/warning/danger/info) — yeni renk yok
 const STATE_CONFIG: Record<Row['state'], { label: string; color: string; bg: string; border: string; Icon: any }> = {
-  suggested: { label: 'Önerilen', color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/30', Icon: Lightbulb },
+  suggested: { label: 'Önerilen', color: 'text-warning', bg: 'bg-warning/10', border: 'border-warning/30', Icon: Lightbulb },
   generating: { label: 'Üretiliyor', color: 'text-brand', bg: 'bg-brand/10', border: 'border-brand/30', Icon: Loader2 },
-  editing: { label: 'Editörde', color: 'text-violet-600 dark:text-violet-400', bg: 'bg-violet-500/10', border: 'border-violet-500/30', Icon: Loader2 },
-  scheduled: { label: 'Takvimde', color: 'text-blue-600 dark:text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/30', Icon: Calendar },
-  queued: { label: 'Sırada (tarihsiz)', color: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-500/10', border: 'border-amber-500/30', Icon: Calendar },
-  ready: { label: 'Hazır (onay)', color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/30', Icon: FileCheck2 },
-  published: { label: 'Yayında', color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-500/10', border: 'border-emerald-500/30', Icon: Send },
-  failed: { label: 'Başarısız', color: 'text-red-600', bg: 'bg-red-500/10', border: 'border-red-500/30', Icon: Lightbulb },
+  editing: { label: 'Editörde', color: 'text-brand', bg: 'bg-brand/10', border: 'border-brand/30', Icon: Loader2 },
+  scheduled: { label: 'Takvimde', color: 'text-info', bg: 'bg-info/10', border: 'border-info/30', Icon: Calendar },
+  queued: { label: 'Sırada (tarihsiz)', color: 'text-warning', bg: 'bg-warning/10', border: 'border-warning/30', Icon: Calendar },
+  ready: { label: 'Hazır (onay)', color: 'text-success', bg: 'bg-success/10', border: 'border-success/30', Icon: FileCheck2 },
+  published: { label: 'Yayında', color: 'text-success', bg: 'bg-success/10', border: 'border-success/30', Icon: Send },
+  failed: { label: 'Başarısız', color: 'text-danger', bg: 'bg-danger/10', border: 'border-danger/30', Icon: Lightbulb },
 };
 
 export function ContentFlowTable({
@@ -59,12 +62,15 @@ export function ContentFlowTable({
   siteId,
   onRefresh,
   onboardingMode,
+  stateFilter,
 }: {
   queue: any;
   articles?: any[];
   siteId: string;
   onRefresh: () => void;
   onboardingMode?: boolean;
+  /** Verilirse yalnizca bu durumlardaki satirlar gosterilir (sayfa ustundeki filtre cipleri) */
+  stateFilter?: ReadonlyArray<Row['state']> | null;
 }) {
   const [running, setRunning] = useState(false);
   // Birden fazla bağımsız üretim için Set
@@ -258,6 +264,8 @@ export function ContentFlowTable({
     return all.sort((a, b) => order[a.state] - order[b.state]);
   }, [articles, tier1]);
 
+  const visibleRows = stateFilter && stateFilter.length > 0 ? rows.filter((r) => stateFilter.includes(r.state)) : rows;
+
   if (!queue && articles.length === 0) {
     if (onboardingMode || running) {
       return (
@@ -309,10 +317,10 @@ export function ContentFlowTable({
             <div>
               <h2 className="font-semibold flex items-center gap-2">
                 İçerik Akışı
-                <span className="inline-flex items-center gap-1 text-[10px] font-normal text-amber-600 dark:text-amber-400">
-                  <span className="h-2 w-0.5 bg-amber-400/70 rounded" /> AI önerisi
+                <span className="inline-flex items-center gap-1 text-label font-normal text-warning">
+                  <span className="h-2 w-0.5 bg-warning/70 rounded" /> AI önerisi
                 </span>
-                <span className="inline-flex items-center gap-1 text-[10px] font-normal text-brand">
+                <span className="inline-flex items-center gap-1 text-label font-normal text-brand">
                   <span className="h-2 w-0.5 bg-brand rounded" /> üretilen
                 </span>
               </h2>
@@ -332,9 +340,9 @@ export function ContentFlowTable({
           </div>
         </CardHeader>
         <CardContent className="p-0">
-          {rows.length === 0 ? (
+          {visibleRows.length === 0 ? (
             <div className="p-12 text-center border-t">
-              <p className="text-sm text-muted-foreground">Henüz içerik yok.</p>
+              <p className="text-sm text-muted-foreground">{rows.length === 0 ? 'Henüz içerik yok.' : 'Bu filtrede içerik yok.'}</p>
             </div>
           ) : (
             <div className="overflow-x-auto border-t">
@@ -349,7 +357,7 @@ export function ContentFlowTable({
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {rows.map((row) => {
+                  {visibleRows.map((row) => {
                     const cfg = STATE_CONFIG[row.state];
                     const Icon = cfg.Icon;
                     const isInflight = row.state === 'generating' || row.state === 'editing';
@@ -358,15 +366,15 @@ export function ContentFlowTable({
                     // Sol border accent kullanılır — kullanıcı tek bakışta anlasın.
                     const isAISuggestion = row.state === 'suggested';
                     const leftAccent = isAISuggestion
-                      ? 'border-l-4 border-l-amber-400/70'
+                      ? 'border-l-4 border-l-warning/70'
                       : isInflight
                         ? 'border-l-4 border-l-brand'
                         : row.state === 'published'
-                          ? 'border-l-4 border-l-emerald-500/70'
+                          ? 'border-l-4 border-l-success/70'
                           : row.state === 'scheduled'
-                            ? 'border-l-4 border-l-blue-500/50'
+                            ? 'border-l-4 border-l-info/50'
                             : row.state === 'ready'
-                              ? 'border-l-4 border-l-emerald-400/70'
+                              ? 'border-l-4 border-l-success/70'
                               : 'border-l-4 border-l-transparent';
 
                     return (
@@ -376,7 +384,7 @@ export function ContentFlowTable({
                           'transition-colors',
                           leftAccent,
                           isInflight && 'bg-brand/5',
-                          isAISuggestion && 'bg-amber-500/[0.025] hover:bg-amber-500/5',
+                          isAISuggestion && 'bg-warning/[0.025] hover:bg-warning/5',
                           !isAISuggestion && !isInflight && 'hover:bg-muted/30',
                         )}
                       >
@@ -396,10 +404,10 @@ export function ContentFlowTable({
                                 );
                                 e.dataTransfer.effectAllowed = 'copyMove';
                               }}
-                              className="cursor-grab active:cursor-grabbing inline-flex items-start gap-2 -mx-1 -my-0.5 px-2 py-1 rounded hover:bg-amber-500/5 hover:ring-1 hover:ring-amber-500/30 transition-all"
+                              className="cursor-grab active:cursor-grabbing inline-flex items-start gap-2 -mx-1 -my-0.5 px-2 py-1 rounded hover:bg-warning/5 hover:ring-1 hover:ring-warning/30 transition-all"
                               title="Sürükleyip takvime bırak"
                             >
-                              <span className="text-amber-500 mt-0.5 select-none" aria-hidden>⠿</span>
+                              <span className="text-warning mt-0.5 select-none" aria-hidden>⠿</span>
                               <span className="font-medium leading-snug">{row.topic}</span>
                             </div>
                           ) : (row.state === 'queued' || row.state === 'scheduled') && row.articleId ? (
@@ -415,13 +423,13 @@ export function ContentFlowTable({
                               className={cn(
                                 'cursor-grab active:cursor-grabbing inline-flex items-start gap-2 -mx-1 -my-0.5 px-2 py-1 rounded transition-all',
                                 row.state === 'queued'
-                                  ? 'hover:bg-amber-500/5 hover:ring-1 hover:ring-amber-500/30'
-                                  : 'hover:bg-blue-500/5 hover:ring-1 hover:ring-blue-500/30',
+                                  ? 'hover:bg-warning/5 hover:ring-1 hover:ring-warning/30'
+                                  : 'hover:bg-info/5 hover:ring-1 hover:ring-info/30',
                               )}
                               title={row.state === 'queued' ? 'Sürükleyip takvime bırak (tarih ata)' : 'Sürükleyip takvimde başka güne taşı'}
                             >
                               <span
-                                className={cn('mt-0.5 select-none', row.state === 'queued' ? 'text-amber-500' : 'text-blue-500')}
+                                className={cn('mt-0.5 select-none', row.state === 'queued' ? 'text-warning' : 'text-info')}
                                 aria-hidden
                               >⠿</span>
                               <span className="font-medium leading-snug">{row.topic}</span>
@@ -435,8 +443,8 @@ export function ContentFlowTable({
                             const sameMonth = d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth();
                             return (
                               <div className={cn(
-                                'text-[11px] mt-0.5 font-mono',
-                                sameMonth ? 'text-muted-foreground' : 'text-amber-600 dark:text-amber-400 font-semibold',
+                                'text-label mt-0.5 font-mono',
+                                sameMonth ? 'text-muted-foreground' : 'text-warning font-semibold',
                               )}>
                                 {d.toLocaleString('tr-TR', {
                                   weekday: 'short',
@@ -451,7 +459,7 @@ export function ContentFlowTable({
                             );
                           })()}
                           {row.publishedAt && row.state === 'published' && (
-                            <div className="text-[11px] text-muted-foreground mt-0.5 font-mono">
+                            <div className="text-label text-muted-foreground mt-0.5 font-mono">
                               Yayın: {new Date(row.publishedAt).toLocaleDateString('tr-TR')}
                             </div>
                           )}
@@ -465,7 +473,7 @@ export function ContentFlowTable({
                         <td className="px-4 py-3 align-top">
                           <span
                             className={cn(
-                              'inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-semibold border',
+                              'inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-label font-semibold border',
                               cfg.color,
                               cfg.bg,
                               cfg.border,
@@ -609,7 +617,7 @@ export function ContentFlowTable({
                             </div>
                           )}
                           {row.state === 'failed' && (
-                            <span className="text-xs text-red-500 italic">başarısız</span>
+                            <span className="text-xs text-danger italic">başarısız</span>
                           )}
                         </td>
                       </tr>
