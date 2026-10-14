@@ -101,7 +101,7 @@ export default async function LandingPage() {
       </nav>
 
       {/* ─── HERO ─────────────────────────────────────────────── */}
-      <section id="test" className="scroll-mt-16 pb-24 pt-14 lg:pb-32 lg:pt-20">
+      <section id="test" className="scroll-mt-16 overflow-x-clip pb-24 pt-14 lg:pb-32 lg:pt-20">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <AiCheckerHero />
         </div>

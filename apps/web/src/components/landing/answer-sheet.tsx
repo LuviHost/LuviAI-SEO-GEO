@@ -32,6 +32,78 @@ const MEASURED: Array<{ label: string; vendor: VendorName }> = [
   { label: 'DeepSeek', vendor: 'deepseek' },
   { label: 'Meta AI', vendor: 'meta-ai' },
 ];
+/** Yay uzerindeki yatay konumlar (%): ust yayda sekmelerdeki 4 asistan, altta digerleri */
+const TOP_ORBIT = ENGINES.map((e, i) => ({ ...e, x: 20 + i * 20 }));
+const BOTTOM_ORBIT = MEASURED.slice(ENGINES.length).map((e, i) => ({ ...e, x: 30 + i * 20 }));
+
+/**
+ * Yay geometrisi (viewBox 100x100, kutuya gerilir): merkez (50, ARC_CY), dikey yaricap
+ * ARC_R, yatay yaricap 50. Logolar ayni fonksiyonla konumlanir ki cizgiye tam otursun.
+ */
+const ARC_CY = 160;
+const ARC_R = 130;
+function arcY(x: number): number {
+  const dx = (x - 50) / 50;
+  return ARC_CY - ARC_R * Math.sqrt(Math.max(0, 1 - dx * dx));
+}
+const ARC_PATH = (() => {
+  const pts: string[] = [];
+  for (let x = 0; x <= 100; x += 2) pts.push(`${x},${arcY(x).toFixed(2)}`);
+  return `M${pts.join(' L')}`;
+})();
+
+function OrbitArc({ side, items, active }: {
+  side: 'top' | 'bottom';
+  items: Array<{ label: string; vendor: VendorName; x: number }>;
+  active: number;
+}) {
+  const top = side === 'top';
+  return (
+    <div
+      className={cn(
+        'pointer-events-none absolute -inset-x-2 h-20 sm:h-24 lg:-inset-x-6',
+        top ? 'top-0' : 'bottom-0 -scale-y-100',
+      )}
+    >
+      <svg
+        viewBox="0 0 100 100"
+        preserveAspectRatio="none"
+        aria-hidden
+        className="absolute inset-0 h-full w-full overflow-visible text-brand/45 [mask-image:linear-gradient(to_bottom,black_45%,transparent_150%)]"
+      >
+        <path d={ARC_PATH} fill="none" stroke="currentColor" strokeWidth={1.25} strokeDasharray="4 6" vectorEffect="non-scaling-stroke" />
+      </svg>
+      <ul className="contents">
+        {items.map((m, i) => {
+          const on = i === active;
+          const tile = TILE_LOGOS.has(m.vendor);
+          return (
+            <li
+              key={m.vendor}
+              title={m.label}
+              style={{ left: `${m.x}%`, top: `${arcY(m.x)}%` }}
+              className={cn(
+                'absolute grid h-11 w-11 -translate-x-1/2 -translate-y-1/2 place-items-center rounded-full bg-white sm:h-14 sm:w-14',
+                // alt yay aynalaniyor; logo duz kalsin
+                !top && '-scale-y-100',
+                'motion-safe:transition-[transform,box-shadow] motion-safe:duration-500',
+                on
+                  ? 'z-10 shadow-lg shadow-brand/30 ring-[3px] ring-brand motion-safe:scale-110'
+                  : 'shadow-md ring-1 ring-border',
+              )}
+            >
+              {/* Beyaz zemin: renkli logolar koyu temada da gorunsun; kare ikonlar daireye kirpilip kucultulur */}
+              <span className={cn('block', tile ? 'h-6 w-6 sm:h-8 sm:w-8' : 'h-6 w-6 sm:h-[30px] sm:w-[30px]')}>
+                <VendorLogo name={m.vendor} size={32} alt="" className={cn('h-full w-full', tile && 'rounded-full')} />
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
 const FALLBACK_BRAND = 'markan.com';
 const TYPE_STEP = 2;         // her tikte kac karakter
 const TYPE_MS = 22;
@@ -93,37 +165,13 @@ export function AnswerSheet() {
   const done = shown >= total;
 
   return (
-    <div>
-      {/* 7 asistan logosu — o an yazilan asistan turuncu halkayla one cikar */}
-      <div className="mb-5 flex flex-wrap items-center gap-x-4 gap-y-3">
-        <ul className="flex -space-x-2" aria-label={MEASURED.map((m) => m.label).join(', ')}>
-          {MEASURED.map((m, i) => {
-            const active = i === engine;
-            const tile = TILE_LOGOS.has(m.vendor);
-            return (
-              <li
-                key={m.vendor}
-                title={m.label}
-                className={cn(
-                  'relative grid h-14 w-14 place-items-center rounded-full bg-white shadow-sm ring-[3px] ring-background',
-                  'motion-safe:transition-[transform,box-shadow] motion-safe:duration-300',
-                  active ? 'z-10 shadow-lg ring-brand motion-safe:-translate-y-1.5' : 'outline outline-1 -outline-offset-1 outline-border',
-                )}
-              >
-                {/* Beyaz zemin: renkli logolar koyu temada da gorunsun. Kare ikonlar
-                    daireye kirpilip kucultulur ki gorsel agirliklari yalin isaretlerle esitlensin. */}
-                <VendorLogo name={m.vendor} size={tile ? 34 : 30} alt="" className={tile ? 'rounded-full' : undefined} />
-              </li>
-            );
-          })}
-        </ul>
-        <p className="text-sm leading-snug text-muted-foreground">
-          <span className="block font-semibold text-foreground">{MEASURED[engine]?.label}</span>
-          {t('land2.sheet.measured')}
-        </p>
-      </div>
+    <div className="relative py-20 sm:py-24">
+      {/* Yorunge: kartin ustunde ve altinda iki kesik yay, 7 asistan logosu yaylarin
+          uzerinde. Kartin yanlari yazi dolu oldugu icin logo yalniz ust/alt bosluktadir. */}
+      <OrbitArc side="top" items={TOP_ORBIT} active={engine} />
+      <OrbitArc side="bottom" items={BOTTOM_ORBIT} active={-1} />
 
-    <figure className="relative rounded-[20px] border border-border bg-card shadow-[0_1px_0_hsl(var(--border)),0_24px_60px_-28px_rgb(0_0_0/0.25)]">
+    <figure className="relative z-10 rounded-[20px] border border-border bg-card shadow-[0_1px_0_hsl(var(--border)),0_24px_60px_-28px_rgb(0_0_0/0.25)]">
       {/* Asistan secimi */}
       <div className="flex items-center justify-between gap-3 border-b border-border px-4 sm:px-5">
         <div role="tablist" aria-label={t('land2.sheet.engines')} className="-mb-px flex min-w-0 gap-1 overflow-x-auto">
