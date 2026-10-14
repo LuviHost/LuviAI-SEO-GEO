@@ -1,97 +1,119 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { ArrowRight } from 'lucide-react';
+import Link from 'next/link';
+import { AnimatePresence, motion } from 'motion/react';
+import { ArrowRight, Sparkles } from 'lucide-react';
 import { useT } from '@/lib/i18n';
+import { trackCta } from '@/lib/landing-track';
+import { fadeUp } from '@/lib/motion-presets';
 import { VendorLogo, type VendorName } from '@/components/vendor-logo';
 import { AiVisibilityChecker } from './ai-visibility-checker';
+import { WatchVideoButton } from './explainer-dialog';
+
+/**
+ * Landing'in TEK hero'su (Faz 6). Eskiden alan adi testi + ikinci bir "Senin yerine
+ * pazarlama yapan AI" hero'su ust uste iki birincil CTA yaristiriyordu. Simdi:
+ *   birincil  — alan adi testi (AiVisibilityChecker)
+ *   ikincil   — ucretsiz hesap baglantisi + aciklama videosu
+ * Alt satir SEO/GEO/ASO kapsamini tek cumlede soyler. Dil: "sen".
+ */
+
+/** Turkce ek unlu uyumuna uyar: ChatGPT'de, Claude'da, Grok'ta... */
+const ROTATING_TR: Array<[string, string]> = [
+  ['ChatGPT', "'de"],
+  ['Claude', "'da"],
+  ['Gemini', "'de"],
+  ['Perplexity', "'de"],
+  ['Grok', "'ta"],
+  ['DeepSeek', "'te"],
+  ['Meta AI', "'da"],
+];
 
 const COPY = {
   tr: {
-    eyebrow: 'AI VISIBILITY PLATFORM',
-    titleA: 'Markanız',
-    rotating: ['ChatGPT', 'Claude', 'Gemini', 'Perplexity', 'Grok', 'DeepSeek', 'Meta AI'],
-    titleB: "'de görünüyor mu?",
-    subtitle: 'ChatGPT, Claude, Gemini, Perplexity, Grok, DeepSeek ve Meta AI\'da markanızın nasıl tanındığını test edin. 30 saniyede sonuç, üye olmadan, kart bilgisi yok.',
-    placeholder: 'yourdomain.com',
-    btnTest: 'Test Et',
-    socialProof: '7 AI motorunda hızlı görünürlük testi',
-    centerLabel: 'MARKANIZ',
+    titleA: 'Markan',
+    titleB: ' görünüyor mu?',
+    subtitle:
+      '7 AI asistanında markanın nasıl anıldığını 30 saniyede, üye olmadan test et. Sonra RanksUp; SEO, GEO içerik ve App Store sıralamanı (ASO) tek panelden büyütür.',
+    centerLabel: 'MARKAN',
   },
   en: {
-    eyebrow: 'AI VISIBILITY PLATFORM',
     titleA: 'Is your brand on',
-    rotating: ['ChatGPT', 'Claude', 'Gemini', 'Perplexity', 'Grok', 'DeepSeek', 'Meta AI'],
     titleB: '?',
-    subtitle: 'See how ChatGPT, Claude, Gemini, Perplexity, Grok, DeepSeek and Meta AI recognize your brand. Results in 30 seconds, no signup, no card.',
-    placeholder: 'yourdomain.com',
-    btnTest: 'Test',
-    socialProof: 'Fast visibility test across 7 AI engines',
+    subtitle:
+      'Test how 7 AI assistants mention your brand — in 30 seconds, no signup. Then RanksUp grows your SEO, GEO content and App Store ranking (ASO) from one panel.',
     centerLabel: 'YOUR BRAND',
   },
 } as const;
 
 const ENGINES: Array<{ name: VendorName; label: string }> = [
-  { name: 'chatgpt', label: 'CHATGPT' },       // Yesil iOS app icon
-  { name: 'claude-ai', label: 'CLAUDE' },      // Turuncu yildiz/burst (Claude AI app icon)
+  { name: 'chatgpt', label: 'CHATGPT' },
+  { name: 'claude-ai', label: 'CLAUDE' },
   { name: 'gemini', label: 'GEMINI' },
   { name: 'perplexity', label: 'PERPLEXITY' },
   { name: 'grok', label: 'GROK' },
   { name: 'deepseek', label: 'DEEPSEEK' },
-  { name: 'meta-ai', label: 'META AI' },       // Llama via Groq, gradient ring
+  { name: 'meta-ai', label: 'META AI' },
 ];
 
 export function AiCheckerHero() {
-  const { locale } = useT();
+  const { t, locale } = useT();
   const c = COPY[locale];
   const [rotateIdx, setRotateIdx] = useState(0);
 
-  // Rotate engine name in headline every 2s
   useEffect(() => {
-    const id = setInterval(() => {
-      setRotateIdx((i) => (i + 1) % c.rotating.length);
-    }, 2200);
+    const id = setInterval(() => setRotateIdx((i) => (i + 1) % ROTATING_TR.length), 2200);
     return () => clearInterval(id);
-  }, [c.rotating.length]);
+  }, []);
+
+  const [engine, suffix] = ROTATING_TR[rotateIdx];
 
   return (
     <div className="grid lg:grid-cols-2 gap-10 lg:gap-14 items-center">
-      {/* LEFT — message + input */}
       <div className="text-center lg:text-left">
-        <div className="text-[11px] font-bold uppercase tracking-[0.25em] text-brand-600 mb-5">
-          {c.eyebrow}
-        </div>
+        <p className="text-eyebrow uppercase text-brand-600 mb-5">{t('land.hero.eyebrow')}</p>
 
-        <h1 className="text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-extrabold tracking-tight leading-[1.05] mb-5">
+        <h1 className="hero-headline text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-extrabold tracking-tight leading-[1.05] mb-5">
           {c.titleA}{' '}
           <span className="relative inline-block">
-            <span
-              key={rotateIdx}
-              className="inline-block bg-gradient-to-br from-brand-500 to-brand-700 bg-clip-text text-transparent animate-[fadeInUp_400ms_ease-out]"
-            >
-              {c.rotating[rotateIdx]}
-            </span>
-            <span className="absolute -bottom-1.5 left-0 right-0 h-[5px] bg-gradient-to-r from-brand-500/40 via-brand-500 to-brand-500/40 rounded-full" />
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.span
+                key={rotateIdx}
+                variants={fadeUp}
+                initial="hidden"
+                animate="show"
+                exit="hidden"
+                className="inline-block bg-gradient-to-br from-brand-500 to-brand-700 bg-clip-text text-transparent"
+              >
+                {engine}
+                {locale === 'tr' ? suffix : ''}
+              </motion.span>
+            </AnimatePresence>
+            <span className="absolute -bottom-1.5 left-0 right-0 h-1.5 bg-gradient-to-r from-brand-500/40 via-brand-500 to-brand-500/40 rounded-full" />
           </span>
           {c.titleB}
         </h1>
 
-        <p className="text-base sm:text-lg text-muted-foreground max-w-xl mx-auto lg:mx-0 leading-relaxed mb-7">
+        <p className="hero-subtitle text-base sm:text-lg text-muted-foreground max-w-xl mx-auto lg:mx-0 leading-relaxed mb-7">
           {c.subtitle}
         </p>
 
-        {/* Embedded compact input — re-uses AiVisibilityChecker hero mode */}
-        <div className="mb-3">
-          <AiVisibilityChecker mode="hero" />
-        </div>
+        <AiVisibilityChecker />
 
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mt-4">
-          {c.socialProof}
-        </p>
+        <div className="mt-6 flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-x-6 gap-y-3">
+          <Link
+            href="/signin?signup=1"
+            onClick={() => trackCta('hero_signup')}
+            className="inline-flex items-center gap-1.5 text-sm font-semibold text-foreground underline-offset-4 hover:text-brand-600 hover:underline"
+          >
+            {t('land.hero.signup_link')} <ArrowRight className="h-4 w-4" aria-hidden />
+          </Link>
+          <WatchVideoButton label="land.hero.watch" source="hero" variant="link" size="sm" className="h-auto px-0 text-sm font-semibold" />
+        </div>
       </div>
 
-      {/* RIGHT — Orbital diagram (6 engines around YOUR BRAND) */}
-      <div className="relative hidden lg:flex items-center justify-center">
+      <div className="relative hidden lg:flex items-center justify-center" aria-hidden>
         <OrbitalDiagram centerLabel={c.centerLabel} />
       </div>
     </div>
@@ -99,136 +121,70 @@ export function AiCheckerHero() {
 }
 
 function OrbitalDiagram({ centerLabel }: { centerLabel: string }) {
-  // Diagram is a 480x480 canvas. Engines on a circle of radius 190 from center.
-  // Spacing is 360°/N starting from -90° (top), clockwise.
+  // 480x480 tuval; motorlar merkezden 190px yaricapli cemberde, tepeden saat yonunde.
   const size = 480;
   const radius = 190;
   const centerX = size / 2;
   const centerY = size / 2;
   const angleStep = 360 / ENGINES.length;
+  const stroke = 'rgb(249 115 22)';
 
   return (
     <div className="relative" style={{ width: size, height: size }}>
-      {/* Background subtle glow */}
-      <div className="absolute inset-8 rounded-full bg-gradient-to-br from-brand-500/8 via-amber-400/4 to-transparent blur-2xl" />
-
-      {/* SVG: circle outlines + connecting lines */}
-      <svg
-        viewBox={`0 0 ${size} ${size}`}
-        className="absolute inset-0"
-        xmlns="http://www.w3.org/2000/svg"
-      >
-        <defs>
-          <radialGradient id="orbital-line" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stopColor="rgb(249 115 22)" stopOpacity="0.45" />
-            <stop offset="60%" stopColor="rgb(249 115 22)" stopOpacity="0.25" />
-            <stop offset="100%" stopColor="rgb(249 115 22)" stopOpacity="0.08" />
-          </radialGradient>
-          <linearGradient id="orbital-ring" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="rgb(249 115 22)" stopOpacity="0.35" />
-            <stop offset="100%" stopColor="rgb(245 158 11)" stopOpacity="0.15" />
-          </linearGradient>
-        </defs>
-
-        {/* Outer ring */}
-        <circle
-          cx={centerX} cy={centerY} r={radius}
-          fill="none"
-          stroke="url(#orbital-ring)"
-          strokeWidth="1.5"
-          strokeDasharray="4 4"
-        />
-        {/* Middle ring */}
-        <circle
-          cx={centerX} cy={centerY} r={radius * 0.65}
-          fill="none"
-          stroke="rgb(249 115 22)"
-          strokeOpacity="0.15"
-          strokeWidth="1"
-        />
-        {/* Inner highlight ring */}
-        <circle
-          cx={centerX} cy={centerY} r={64}
-          fill="url(#orbital-line)"
-          opacity="0.5"
-        />
-        {/* Connection lines from center to each engine */}
+      <div className="absolute inset-12 rounded-full bg-brand-500/[0.06]" />
+      <svg viewBox={`0 0 ${size} ${size}`} className="absolute inset-0">
+        <circle cx={centerX} cy={centerY} r={radius} fill="none" stroke={stroke} strokeOpacity="0.3" strokeWidth="1.5" strokeDasharray="4 4" />
+        <circle cx={centerX} cy={centerY} r={radius * 0.65} fill="none" stroke={stroke} strokeOpacity="0.15" strokeWidth="1" />
         {ENGINES.map((_, i) => {
           const angle = (-90 + i * angleStep) * (Math.PI / 180);
-          const x = centerX + radius * Math.cos(angle);
-          const y = centerY + radius * Math.sin(angle);
           return (
             <line
               key={i}
-              x1={centerX} y1={centerY} x2={x} y2={y}
-              stroke="rgb(249 115 22)"
+              x1={centerX}
+              y1={centerY}
+              x2={centerX + radius * Math.cos(angle)}
+              y2={centerY + radius * Math.sin(angle)}
+              stroke={stroke}
               strokeOpacity="0.18"
               strokeWidth="1"
               strokeDasharray="2 6"
             />
           );
         })}
-
-        {/* Orbiting pulse dots along each line */}
         {ENGINES.map((_, i) => {
           const angle = (-90 + i * angleStep) * (Math.PI / 180);
-          const x = centerX + radius * 0.55 * Math.cos(angle);
-          const y = centerY + radius * 0.55 * Math.sin(angle);
           return (
-            <circle key={`d${i}`} cx={x} cy={y} r="3" fill="rgb(249 115 22)" opacity="0.6">
+            <circle key={`d${i}`} cx={centerX + radius * 0.55 * Math.cos(angle)} cy={centerY + radius * 0.55 * Math.sin(angle)} r="3" fill={stroke} opacity="0.6">
               <animate attributeName="opacity" values="0.2;1;0.2" dur="2.2s" begin={`${i * 0.3}s`} repeatCount="indefinite" />
-              <animate attributeName="r" values="2;4;2" dur="2.2s" begin={`${i * 0.3}s`} repeatCount="indefinite" />
             </circle>
           );
         })}
       </svg>
 
-      {/* CENTER badge — YOUR BRAND */}
-      <div
-        className="absolute"
-        style={{
-          left: centerX - 70,
-          top: centerY - 70,
-          width: 140,
-          height: 140,
-        }}
-      >
+      <div className="absolute" style={{ left: centerX - 70, top: centerY - 70, width: 140, height: 140 }}>
         <div className="relative w-full h-full">
-          <div className="absolute inset-0 rounded-full bg-gradient-to-br from-brand-500 to-red-600 animate-pulse opacity-25 blur-xl" />
-          <div className="absolute inset-0 rounded-full border-2 border-brand-500/60 animate-ping opacity-40" />
-          <div className="absolute inset-2 rounded-full bg-gradient-to-br from-brand-500 via-brand-600 to-red-600 grid place-items-center shadow-2xl shadow-brand-500/40">
+          <div className="absolute inset-0 rounded-full border-2 border-brand-500/50 motion-safe:animate-ping opacity-30" />
+          <div className="absolute inset-2 rounded-full bg-gradient-to-br from-brand-500 via-brand-600 to-brand-700 grid place-items-center shadow-2xl shadow-brand-500/40">
             <div className="text-center text-white">
-              <div className="text-[10px] font-bold uppercase tracking-widest opacity-90">
-                {centerLabel}
-              </div>
-              <div className="mt-1 text-2xl">✨</div>
+              <div className="text-label font-bold uppercase tracking-widest opacity-90">{centerLabel}</div>
+              <Sparkles className="mx-auto mt-1 h-6 w-6" />
             </div>
           </div>
         </div>
       </div>
 
-      {/* Engine nodes (6 around the circle) */}
       {ENGINES.map((engine, i) => {
         const angle = (-90 + i * angleStep) * (Math.PI / 180);
         const x = centerX + radius * Math.cos(angle);
         const y = centerY + radius * Math.sin(angle);
         return (
-          <div
-            key={engine.name}
-            className="absolute"
-            style={{
-              left: x - 36,
-              top: y - 36,
-              width: 72,
-              height: 72,
-            }}
-          >
-            <div className="group relative w-full h-full">
-              {/* Force white background so colored brand icons stay visible in dark mode */}
-              <div className="absolute inset-0 rounded-full bg-white shadow-lg shadow-brand-500/10 ring-1 ring-brand-500/20 grid place-items-center hover:ring-2 hover:ring-brand-500/60 hover:scale-110 transition-all duration-300 overflow-hidden">
+          <div key={engine.name} className="absolute" style={{ left: x - 36, top: y - 36, width: 72, height: 72 }}>
+            <div className="relative w-full h-full">
+              {/* Beyaz zemin: renkli marka ikonlari koyu temada da gorunsun */}
+              <div className="absolute inset-0 rounded-full bg-white shadow-lg shadow-brand-500/10 ring-1 ring-brand-500/20 grid place-items-center overflow-hidden">
                 <VendorLogo name={engine.name} size={48} />
               </div>
-              <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 text-[10px] font-bold uppercase tracking-wider text-muted-foreground dark:text-white/70 whitespace-nowrap">
+              <div className="absolute -bottom-6 left-1/2 -translate-x-1/2 text-label font-bold uppercase tracking-wider text-muted-foreground whitespace-nowrap">
                 {engine.label}
               </div>
             </div>

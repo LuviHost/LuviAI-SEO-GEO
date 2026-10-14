@@ -192,13 +192,13 @@ const dictionary = {
     'land.pain.c3_cost': '₺8.000/ay',
     'land.pain.c3_title': 'Freelance içerik yazarı',
     'land.pain.c3_body': 'GEO bilmeyen yazar, AI cevaplarında hiç çıkmayan içerik üretir. Üstüne her seferinde 2 hafta gecikme.',
-    'land.pain.total': 'Aylık toplam: ₺48.000+ · RanksUp: $149\'dan başlar',
+    'land.pain.total': 'Aylık toplam: ₺48.000+ · RanksUp hepsini tek panelde yapar',
 
     // ─── Landing — Pricing section ──────────────────────────────
     'land.pricing.eyebrow': 'Şeffaf fiyat',
     'land.pricing.title': 'Bugün başla, kart sonra.',
     'land.pricing.subtitle': '2 makale ücretsiz · İstediğin zaman iptal · Gizli ücret yok',
-    'land.pricing.most_popular': '⭐ En Çok Tercih Edilen',
+    'land.pricing.most_popular': 'En çok tercih edilen',
     'land.pricing.per_month': '/ay',
     'land.pricing.per_year': '/yıl',
     'land.pricing.annual_billing': 'Yıllık faturalandırılır',
@@ -355,7 +355,7 @@ const dictionary = {
     'land.cta.title': 'AI çağının pazarlamasına başla',
     'land.cta.subtitle': 'İlk 2 makale ücretsiz, kart gerekmez. 5 dakikada kurulum.',
     'land.cta.button': 'Ücretsiz başla',
-    'land.cta.secondary': 'Önce demoyu izle',
+    'land.cta.secondary': 'Önce videoyu izle',
 
     // ─── Footer ─────────────────────────────────────────────────
     'land.footer.product': 'Ürün',
@@ -364,6 +364,43 @@ const dictionary = {
     'land.footer.legal': 'Yasal',
     'land.footer.tagline': 'AI çağının pazarlama platformu — Türkiye',
     'land.footer.rights': 'Tüm hakları saklıdır',
+    'land.footer.use_cases': 'Kullanım senaryoları',
+    'land.footer.compare': 'Karşılaştır',
+    'land.footer.about': 'Hakkımızda',
+    'land.footer.help': 'Yardım',
+    'land.footer.status': 'Sistem durumu',
+    'land.footer.privacy': 'Gizlilik',
+    'land.footer.terms': 'Kullanım koşulları',
+    'land.footer.kvkk': 'KVKK',
+    'land.cmp.yes': 'Var',
+    'land.cmp.no': 'Yok',
+    'land.footer.made_in': "Türkiye'de geliştirildi",
+
+    // ─── Faz 6: tek hero + kanit seridi + video ───────────────────
+    'land.hero.eyebrow': 'AI görünürlük platformu',
+    'land.hero.signup_link': 'Ya da ücretsiz hesap aç',
+    'land.hero.watch': 'Nasıl çalışır? Videoyu izle',
+    'land.hero.video_label': 'RanksUp panelinin kısa tanıtım videosu: KobiPratik örneğinde trafik, AI görünürlük ve App Store sıralaması',
+    'land.proof.label': 'Gerçek vaka · KobiPratik',
+    'land.proof.details': 'Vakanın ayrıntıları',
+    'land.how.video_cta': 'Videoyu izle (70 sn)',
+    'land.how.video_title': 'RanksUp nasıl çalışır?',
+    'land.how.video_desc': 'Siteni bağla, AI analiz etsin, yayına alsın ve ölçsün — 3 adımda.',
+    'land.how.video_fallback': 'Tarayıcın bu videoyu oynatamıyor.',
+    'land.res.case_title': 'KobiPratik: 3 ayda ne değişti?',
+    'land.res.col_metric': 'Ölçüm',
+    'land.res.col_before': 'Başlangıç',
+    'land.res.col_after': '3 ay sonra',
+    'land.res.d1': 'Günlük ortalama tıklama',
+    'land.res.d2': '30 günlük toplam tıklama',
+    'land.res.d3': '30 günlük arama gösterimi',
+    'land.res.d4': 'App Store ortalama sırası',
+    'land.res.source': 'Kaynak: Google Search Console (kobipratik.com) ve App Store sıralama ölçümleri (16 Mayıs – 13 Ağustos, 1.264 ölçüm).',
+    'land.uc.link': 'Senin iş modeline nasıl uyar? Kullanım senaryolarına bak',
+    'land.test.from_reviews': 'yorumdan',
+    'land.preview.live': 'CANLI',
+    'land.preview.activity': 'Canlı aktivite',
+    'land.preview.sample': 'Örnek ekran',
 
     // Dashboard
     'dashboard.title': 'Panel',
@@ -569,13 +606,13 @@ const dictionary = {
     'land.pain.c3_cost': '₺8,000/mo',
     'land.pain.c3_title': 'Freelance content writer',
     'land.pain.c3_body': 'A writer who does not know GEO produces content that never shows up in AI answers. Always 2 weeks behind schedule.',
-    'land.pain.total': 'Monthly total: ₺48,000+ · RanksUp: starts from $149',
+    'land.pain.total': 'Monthly total: ₺48,000+ · RanksUp does it all in one panel',
 
     // ─── Landing — Pricing section ──────────────────────────────
     'land.pricing.eyebrow': 'Transparent pricing',
     'land.pricing.title': 'Start today, pay later.',
     'land.pricing.subtitle': '2 free articles · Cancel anytime · No hidden fees',
-    'land.pricing.most_popular': '⭐ Most Popular',
+    'land.pricing.most_popular': 'Most popular',
     'land.pricing.per_month': '/mo',
     'land.pricing.per_year': '/yr',
     'land.pricing.annual_billing': 'Billed annually',
@@ -732,7 +769,7 @@ const dictionary = {
     'land.cta.title': 'Start your AI-era marketing',
     'land.cta.subtitle': 'First 2 articles free, no card required. Setup in 5 minutes.',
     'land.cta.button': 'Start free',
-    'land.cta.secondary': 'Watch demo first',
+    'land.cta.secondary': 'Watch the video first',
 
     // ─── Footer ─────────────────────────────────────────────────
     'land.footer.product': 'Product',
@@ -741,6 +778,43 @@ const dictionary = {
     'land.footer.legal': 'Legal',
     'land.footer.tagline': 'AI-era marketing platform — Türkiye',
     'land.footer.rights': 'All rights reserved',
+    'land.footer.use_cases': 'Use cases',
+    'land.footer.compare': 'Compare',
+    'land.footer.about': 'About',
+    'land.footer.help': 'Help',
+    'land.footer.status': 'Status',
+    'land.footer.privacy': 'Privacy',
+    'land.footer.terms': 'Terms',
+    'land.footer.kvkk': 'KVKK (TR data law)',
+    'land.cmp.yes': 'Yes',
+    'land.cmp.no': 'No',
+    'land.footer.made_in': 'Made in Türkiye',
+
+    // ─── Phase 6: single hero + proof strip + video ───────────────
+    'land.hero.eyebrow': 'AI visibility platform',
+    'land.hero.signup_link': 'Or create a free account',
+    'land.hero.watch': 'How it works? Watch the video',
+    'land.hero.video_label': 'Short RanksUp dashboard video: traffic, AI visibility and App Store ranking for the KobiPratik case',
+    'land.proof.label': 'Real case · KobiPratik',
+    'land.proof.details': 'Case details',
+    'land.how.video_cta': 'Watch the video (70 sec)',
+    'land.how.video_title': 'How does RanksUp work?',
+    'land.how.video_desc': 'Connect your site, let AI analyze it, publish and measure — in 3 steps.',
+    'land.how.video_fallback': 'Your browser cannot play this video.',
+    'land.res.case_title': 'KobiPratik: what changed in 3 months?',
+    'land.res.col_metric': 'Metric',
+    'land.res.col_before': 'Start',
+    'land.res.col_after': 'After 3 months',
+    'land.res.d1': 'Average daily clicks',
+    'land.res.d2': 'Total clicks (30 days)',
+    'land.res.d3': 'Search impressions (30 days)',
+    'land.res.d4': 'Average App Store rank',
+    'land.res.source': 'Source: Google Search Console (kobipratik.com) and App Store ranking measurements (May 16 – Aug 13, 1,264 measurements).',
+    'land.uc.link': 'How does it fit your business? See use cases',
+    'land.test.from_reviews': 'reviews',
+    'land.preview.live': 'LIVE',
+    'land.preview.activity': 'Live activity',
+    'land.preview.sample': 'Sample screen',
 
     // Dashboard
     'dashboard.title': 'Dashboard',
@@ -762,7 +836,7 @@ const dictionary = {
   },
 } as const;
 
-type Key = keyof typeof dictionary['tr'];
+export type Key = keyof typeof dictionary['tr'];
 
 const LOCALE_KEY = 'luviai_locale';
 const LOCALE_EVENT = 'luviai:locale-change';
