@@ -189,7 +189,7 @@ export function AiVisibilityChecker() {
           </label>
           <button
             type="submit"
-            disabled={!domain.trim() || phase === 'loading'}
+            disabled={phase === 'loading'}
             className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand px-6 py-3 text-base font-semibold text-white transition-colors hover:bg-brand-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-55"
           >
             {phase === 'loading' ? <Loader2 className="h-5 w-5 animate-spin" aria-hidden /> : c.btnStart}

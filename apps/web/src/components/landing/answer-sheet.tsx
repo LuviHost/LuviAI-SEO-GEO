@@ -23,6 +23,8 @@ const ENGINES: Array<{ label: string; vendor: VendorName }> = [
   { label: 'Claude', vendor: 'claude-ai' },
   { label: 'Perplexity', vendor: 'perplexity' },
 ];
+/** Kare "uygulama ikonu" bicimindeki SVG'ler: baloncugu tamamen doldurur (digerleri beyaz zeminde yalin isaret) */
+const TILE_LOGOS = new Set<VendorName>(['chatgpt', 'claude-ai']);
 /** Olculen 7 asistanin logo dizisi — dikkat ceken ust serit (eski orbital diyagramin yerine) */
 const MEASURED: Array<{ label: string; vendor: VendorName }> = [
   ...ENGINES,
@@ -94,26 +96,31 @@ export function AnswerSheet() {
     <div>
       {/* 7 asistan logosu — o an yazilan asistan turuncu halkayla one cikar */}
       <div className="mb-5 flex flex-wrap items-center gap-x-4 gap-y-3">
-        <ul className="flex -space-x-3" aria-label={MEASURED.map((m) => m.label).join(', ')}>
+        <ul className="flex -space-x-2" aria-label={MEASURED.map((m) => m.label).join(', ')}>
           {MEASURED.map((m, i) => {
             const active = i === engine;
+            const tile = TILE_LOGOS.has(m.vendor);
             return (
               <li
                 key={m.vendor}
                 title={m.label}
                 className={cn(
-                  'grid h-14 w-14 place-items-center rounded-full bg-white shadow-[0_6px_16px_-6px_rgb(0_0_0/0.25)] ring-[3px] ring-background',
-                  'motion-safe:transition-transform motion-safe:duration-300',
-                  active && 'relative z-10 ring-brand motion-safe:-translate-y-1.5',
+                  'relative grid h-14 w-14 place-items-center rounded-full bg-white shadow-sm ring-[3px] ring-background',
+                  'motion-safe:transition-[transform,box-shadow] motion-safe:duration-300',
+                  active ? 'z-10 shadow-lg ring-brand motion-safe:-translate-y-1.5' : 'outline outline-1 -outline-offset-1 outline-border',
                 )}
               >
-                {/* Beyaz zemin: renkli logolar koyu temada da gorunsun */}
-                <VendorLogo name={m.vendor} size={30} alt="" />
+                {/* Beyaz zemin: renkli logolar koyu temada da gorunsun. Kare ikonlar
+                    daireye kirpilip kucultulur ki gorsel agirliklari yalin isaretlerle esitlensin. */}
+                <VendorLogo name={m.vendor} size={tile ? 34 : 30} alt="" className={tile ? 'rounded-full' : undefined} />
               </li>
             );
           })}
         </ul>
-        <p className="text-sm font-medium text-muted-foreground">{t('land2.sheet.measured')}</p>
+        <p className="text-sm leading-snug text-muted-foreground">
+          <span className="block font-semibold text-foreground">{MEASURED[engine]?.label}</span>
+          {t('land2.sheet.measured')}
+        </p>
       </div>
 
     <figure className="relative rounded-[20px] border border-border bg-card shadow-[0_1px_0_hsl(var(--border)),0_24px_60px_-28px_rgb(0_0_0/0.25)]">
@@ -132,7 +139,7 @@ export function AnswerSheet() {
                 engine === i ? 'border-brand font-semibold text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground',
               )}
             >
-              <VendorLogo name={vendor} size={16} alt="" />
+              <VendorLogo name={vendor} size={16} alt="" className={TILE_LOGOS.has(vendor) ? 'rounded-full' : undefined} />
               {name}
             </button>
           ))}
