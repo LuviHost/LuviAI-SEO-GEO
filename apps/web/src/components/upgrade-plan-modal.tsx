@@ -1,5 +1,6 @@
 'use client';
 
+import { CHECKOUT_STORAGE_KEY } from '@/components/direct-checkout-form';
 import { useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { toast } from 'sonner';
@@ -119,6 +120,12 @@ export function UpgradePlanModal({
         }),
       });
       const data = await res.json();
+      // Otomatik yenileme açık: imzalı kart formu → kendi ödeme sayfamız
+      if (data.mode === 'direct') {
+        try { sessionStorage.setItem(CHECKOUT_STORAGE_KEY, JSON.stringify(data)); } catch (_e) { /* noop */ }
+        window.location.href = '/billing/checkout';
+        return;
+      }
       if (data.iframeUrl) {
         setIframeUrl(data.iframeUrl);
         // Test mode dev-confirm icin merchantOid'i sakla

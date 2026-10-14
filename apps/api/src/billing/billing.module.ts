@@ -4,6 +4,7 @@ import { BillingService } from './billing.service.js';
 import { PaytrService } from './paytr.service.js';
 import { QuotaService } from './quota.service.js';
 import { FxService } from './fx.service.js';
+import { RenewalService } from './renewal.service.js';
 import { EmailModule } from '../email/email.module.js';
 
 /**
@@ -15,7 +16,7 @@ import { EmailModule } from '../email/email.module.js';
 @Module({
   imports: [EmailModule],
   controllers: [BillingController],
-  providers: [BillingService, PaytrService, QuotaService, FxService],
+  providers: [BillingService, PaytrService, QuotaService, FxService, RenewalService],
   exports: [BillingService, PaytrService, QuotaService, FxService],
 })
 export class BillingModule {}

@@ -5,7 +5,8 @@ import { AffiliateService } from '../affiliate/affiliate.service.js';
 import { EmailService } from '../email/email.service.js';
 import { FxService } from './fx.service.js';
 import { findPlan, PURCHASABLE_PLAN_IDS } from './plans.js';
-import { periodEndFromInvoice } from './subscription-period.js';
+import { cycleFromDescription, periodEndFromInvoice } from './subscription-period.js';
+import { RENEWAL_MAX_ATTEMPTS } from './renewal-policy.js';
 
 /**
  * PayTR iframe API + webhook entegrasyonu.
@@ -26,6 +27,15 @@ export class PaytrService {
   private readonly merchantKey = process.env.PAYTR_MERCHANT_KEY ?? '';
   private readonly merchantSalt = process.env.PAYTR_MERCHANT_SALT ?? '';
   private readonly testMode = process.env.PAYTR_TEST_MODE ?? '1';
+
+  /**
+   * Otomatik yenileme (Direkt API + kart saklama + tekrarlayan odeme).
+   * PayTR magaza hesabinda Direkt API, Non3D ve tekrarlayan odeme yetkisi
+   * ACILMADAN '1' yapilmamali — kapaliyken eski iFrame akisi aynen calisir.
+   */
+  get recurringEnabled(): boolean {
+    return process.env.PAYTR_RECURRING_ENABLED === '1';
+  }
 
   private readonly notifyUrl = process.env.PAYTR_NOTIFICATION_URL
     ?? 'https://api.ranksup.ai/api/billing/webhooks/paytr';
@@ -54,10 +64,14 @@ export class PaytrService {
     userName: string;
     userPhone?: string;
     userAddress?: string;
-  }): Promise<{ token: string; iframeUrl: string; merchantOid: string }> {
+  }): Promise<
+    | { mode: 'iframe'; token: string; iframeUrl: string; merchantOid: string }
+    | DirectCheckout
+  > {
     if (!this.merchantId) {
       throw new BadRequestException('PayTR Merchant credentials .env\'de tanımlı değil');
     }
+    if (this.recurringEnabled) return this.createDirectCheckout(opts);
 
     const plan = await this.getPlanDetails(opts.planId, opts.cycle);
     const merchantOid = this.generateOrderId(opts.userId, opts.planId);
@@ -135,10 +149,225 @@ export class PaytrService {
     });
 
     return {
+      mode: 'iframe' as const,
       token: data.token,
       iframeUrl: `https://www.paytr.com/odeme/guvenli/${data.token}`,
       merchantOid,
     };
+  }
+
+  /**
+   * Direkt API odeme formu (otomatik yenileme acikken).
+   *
+   * Kart alanlari (cc_owner, card_number, expiry_*, cvv) TARAYICIDAN DOGRUDAN
+   * PayTR'ye post edilir — sunucumuza ugramaz. Biz yalniz imzali gizli alanlari
+   * uretiriz. store_card=1 kullanici otomatik yenileme onay kutusunu isaretlediginde
+   * formda gonderilir (imzaya dahil degil); bildirimde gelen utoken kullaniciya yazilir.
+   * Docs: dev.paytr.com/direkt-api/direkt-api-1-adim, .../kart-saklama-api/yeni-kart-ekleme
+   */
+  private async createDirectCheckout(opts: {
+    userId: string;
+    planId: 'starter' | 'pro' | 'agency';
+    cycle: 'monthly' | 'annual';
+    userIp: string;
+    userEmail: string;
+    userName: string;
+    userPhone?: string;
+    userAddress?: string;
+  }): Promise<DirectCheckout> {
+    const plan = await this.getPlanPriceForUser(opts.userId, opts.planId, opts.cycle);
+    const fx = await this.fx.getRate();
+    if (fx.stale) {
+      throw new BadRequestException(
+        'Güncel döviz kuru alınamadı, ödeme başlatılamıyor. Lütfen birkaç dakika sonra tekrar deneyin.',
+      );
+    }
+    const merchantOid = this.generateOrderId(opts.userId, opts.planId);
+    const paymentAmount = plan.price.toFixed(2);
+    const fields: Record<string, string> = {
+      merchant_id: this.merchantId,
+      user_ip: opts.userIp,
+      merchant_oid: merchantOid,
+      email: opts.userEmail,
+      payment_amount: paymentAmount,
+      payment_type: 'card',
+      installment_count: '0',
+      currency: 'TL',
+      test_mode: this.testMode,
+      non_3d: '0',
+      client_lang: 'tr',
+      merchant_ok_url: this.okUrl,
+      merchant_fail_url: this.failUrl,
+      user_name: opts.userName,
+      user_address: opts.userAddress ?? 'N/A',
+      user_phone: opts.userPhone ?? '0000000000',
+      user_basket: JSON.stringify([[`RanksUp ${plan.name} ${opts.cycle === 'annual' ? 'Yıllık' : 'Aylık'}`, paymentAmount, 1]]),
+      debug_on: this.testMode === '1' ? '1' : '0',
+    };
+    fields.paytr_token = this.directToken(fields);
+
+    // Kullanicinin onceki kartlari ayni utoken altinda toplansin (yoksa PayTR yenisini uretir)
+    const user = await this.prisma.user.findUnique({ where: { id: opts.userId }, select: { paytrUtoken: true } });
+
+    await this.prisma.invoice.create({
+      data: {
+        userId: opts.userId,
+        paytrTransactionId: merchantOid,
+        amount: plan.price,
+        currency: 'TRY',
+        amountUsd: plan.priceUsd,
+        fxRate: plan.fxRate,
+        status: 'PENDING',
+        // Onay kutusu form tarafinda; kart saklanirsa bildirimde utoken gelir.
+        storeCard: true,
+        description: `RanksUp ${plan.name} — ${opts.cycle} ($${plan.priceUsd} @ ${plan.fxRate})`,
+      },
+    });
+
+    return {
+      mode: 'direct',
+      action: 'https://www.paytr.com/odeme',
+      fields,
+      utoken: user?.paytrUtoken ?? null,
+      merchantOid,
+      amountText: `₺${plan.price.toLocaleString('tr-TR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      planName: plan.name,
+      cycle: opts.cycle,
+    };
+  }
+
+  /** Direkt API paytr_token: merchant_id+user_ip+merchant_oid+email+payment_amount+payment_type+installment_count+currency+test_mode+non_3d + salt */
+  private directToken(f: Record<string, string>): string {
+    const str = `${f.merchant_id}${f.user_ip}${f.merchant_oid}${f.email}${f.payment_amount}${f.payment_type}${f.installment_count}${f.currency}${f.test_mode}${f.non_3d}${this.merchantSalt}`;
+    return createHmac('sha256', this.merchantKey).update(str).digest('base64');
+  }
+
+  /**
+   * Kayitli kart listesi (CAPI LIST). paytr_token = HMAC(utoken + salt).
+   * Docs: dev.paytr.com/direkt-api/kart-saklama-api/kayitli-kart-listesi
+   */
+  async listStoredCards(utoken: string): Promise<StoredCard[]> {
+    const paytrToken = createHmac('sha256', this.merchantKey).update(`${utoken}${this.merchantSalt}`).digest('base64');
+    const res = await fetch('https://www.paytr.com/odeme/capi/list', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({ merchant_id: this.merchantId, utoken, paytr_token: paytrToken }).toString(),
+    });
+    const data: any = await res.json().catch(() => ({}));
+    if (data?.status === 'error') throw new Error(`CAPI LIST: ${data.err_msg ?? 'bilinmeyen hata'}`);
+    // Yanit bicimi dokumanda net degil: dizi ya da tek kart nesnesi olabilir
+    const rows: any[] = Array.isArray(data) ? data : Array.isArray(data?.cards) ? data.cards : data?.ctoken ? [data] : [];
+    return rows
+      .filter((c) => c && c.ctoken)
+      .map((c) => ({ ctoken: String(c.ctoken), last4: c.last_4 ? String(c.last_4) : null, requireCvv: String(c.require_cvv) === '1' }));
+  }
+
+  /**
+   * Kayitli karttan yenileme cekimi (tekrarlayan odeme, Non3D, kullanici etkilesimi yok).
+   * Docs: dev.paytr.com/direkt-api/kart-saklama-api/kayitli-kart-tekrarlayan-odeme
+   *
+   * Sonuc: 'success' (fatura PAID + plan uzatildi), 'failed' (fatura FAILED + basarisizlik
+   * sayaci), 'pending' (wait_callback — bildirim karar verir), 'skipped' (kur bayat vb.;
+   * deneme sayilmaz).
+   */
+  async chargeStoredCard(userId: string): Promise<{ result: 'success' | 'failed' | 'pending' | 'skipped'; reason?: string }> {
+    const user = await this.prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { id: true, email: true, name: true, plan: true, paytrUtoken: true },
+    });
+    if (!user.paytrUtoken) return { result: 'skipped', reason: 'kayıtlı kart yok' };
+    const planId = user.plan.toLowerCase() as 'starter' | 'pro' | 'agency';
+    if (!['starter', 'pro', 'agency'].includes(planId)) return { result: 'skipped', reason: `yenilenemez plan: ${user.plan}` };
+
+    const lastPaid = await this.prisma.invoice.findFirst({
+      where: { userId, status: 'PAID' },
+      orderBy: { paidAt: 'desc' },
+      select: { description: true },
+    });
+    const cycle = cycleFromDescription(lastPaid?.description);
+
+    const fx = await this.fx.getRate();
+    if (fx.stale) return { result: 'skipped', reason: 'kur bayat' };
+    const plan = await this.getPlanPriceForUser(userId, planId, cycle);
+
+    const merchantOid = this.generateOrderId(userId, planId);
+    const paymentAmount = plan.price.toFixed(2);
+    const invoice = await this.prisma.invoice.create({
+      data: {
+        userId,
+        paytrTransactionId: merchantOid,
+        amount: plan.price,
+        currency: 'TRY',
+        amountUsd: plan.priceUsd,
+        fxRate: plan.fxRate,
+        status: 'PENDING',
+        isRenewal: true,
+        description: `RanksUp ${plan.name} — ${cycle} yenileme ($${plan.priceUsd} @ ${plan.fxRate})`,
+      },
+    });
+
+    let cards: StoredCard[] = [];
+    try {
+      cards = await this.listStoredCards(user.paytrUtoken);
+    } catch (err: any) {
+      await this.markInvoiceFailed(invoice.id, 'CAPI', err.message);
+      return { result: 'failed', reason: err.message };
+    }
+    const card = cards.find((c) => !c.requireCvv);
+    if (!card) {
+      const reason = cards.length ? 'Kayıtlı kart güvenlik kodu (CVV) istiyor; otomatik çekim yapılamaz' : 'Kayıtlı kart bulunamadı';
+      await this.markInvoiceFailed(invoice.id, 'NOCARD', reason);
+      return { result: 'failed', reason };
+    }
+
+    const fields: Record<string, string> = {
+      merchant_id: this.merchantId,
+      user_ip: process.env.PAYTR_SERVER_IP ?? '127.0.0.1',
+      merchant_oid: merchantOid,
+      email: user.email,
+      payment_amount: paymentAmount,
+      payment_type: 'card',
+      installment_count: '0',
+      currency: 'TL',
+      test_mode: this.testMode,
+      non_3d: '1',
+      client_lang: 'tr',
+      merchant_ok_url: this.okUrl,
+      merchant_fail_url: this.failUrl,
+      user_name: user.name ?? user.email,
+      user_address: 'N/A',
+      user_phone: '0000000000',
+      user_basket: JSON.stringify([[`RanksUp ${plan.name} ${cycle === 'annual' ? 'Yıllık' : 'Aylık'} yenileme`, paymentAmount, 1]]),
+      utoken: user.paytrUtoken,
+      ctoken: card.ctoken,
+      recurring_payment: '1',
+    };
+    fields.paytr_token = this.directToken(fields);
+
+    let data: any = {};
+    try {
+      const res = await fetch('https://www.paytr.com/odeme', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams(fields).toString(),
+      });
+      data = await res.json();
+    } catch (err: any) {
+      // Ag hatasi: sonucu bilmiyoruz — fatura PENDING kalir, bildirim gelirse o karar verir
+      this.log.warn(`[${merchantOid}] yenileme istegi yanitsiz: ${err.message}`);
+      return { result: 'pending', reason: 'PayTR yanıt vermedi' };
+    }
+
+    if (data.status === 'success') {
+      await this.markInvoicePaid(invoice.id);
+      return { result: 'success' };
+    }
+    if (data.status === 'wait_callback') return { result: 'pending' };
+    const reason = String(data.msg ?? data.reason ?? 'bilinmeyen hata');
+    // try_again=true: islem suruyor — deneme sayilmaz, fatura acik kalir
+    if (data.try_again === true || data.try_again === 'true') return { result: 'pending', reason };
+    await this.markInvoiceFailed(invoice.id, 'RECUR', reason);
+    return { result: 'failed', reason };
   }
 
   /**
@@ -159,18 +388,8 @@ export class PaytrService {
     const parsed = this.parseOrderId(merchantOid);
     if (!parsed) throw new BadRequestException('Gecersiz merchantOid');
 
-    await this.activateSubscription(invoice.userId, parsed.planId, merchantOid);
-    await this.prisma.invoice.update({
-      where: { id: invoice.id },
-      data: { status: 'PAID', paidAt: new Date() },
-    });
-
-    // Affiliate komisyonu — gerçek webhook akışıyla aynı behavior (test mode parity)
-    try {
-      await this.affiliate.recordCommission(invoice.userId, Number(invoice.amount));
-    } catch (err: any) {
-      this.log.warn(`[${merchantOid}] dev-confirm affiliate commission fail: ${err.message}`);
-    }
+    // Gercek bildirimle ayni yol (test mode parity) — atomik, tekrar guvenli
+    await this.markInvoicePaid(invoice.id);
 
     this.log.log(`[${merchantOid}] DEV-CONFIRM: ${invoice.userId} → ${parsed.planId}`);
     return { ok: true, planId: parsed.planId };
@@ -222,65 +441,144 @@ export class PaytrService {
       return 'OK';
     }
 
-    const parsed = this.parseOrderId(merchant_oid);
-    if (!parsed) return 'OK';
-
-    if (status === 'success') {
-      await this.activateSubscription(invoice.userId, parsed.planId, merchant_oid);
-      await this.prisma.invoice.update({
-        where: { id: invoice.id },
-        data: { status: 'PAID', paidAt: new Date() },
+    // Kart saklandiysa PayTR kullaniciya ozel utoken'i bildirimde iletir
+    // (dev.paytr.com kart-saklama: "post-payment notification"). Onay verilmis
+    // odemede kaydedilir; otomatik yenileme bu anahtarla yapilir.
+    if (status === 'success' && invoice.storeCard && payload.utoken) {
+      await this.prisma.user.update({
+        where: { id: invoice.userId },
+        data: { paytrUtoken: String(payload.utoken).slice(0, 255), autoRenew: true },
       });
-
-      // Affiliate komisyon
-      await this.affiliate.recordCommission(invoice.userId, Number(invoice.amount));
-
-      // Welcome email
-      const user = await this.prisma.user.findUnique({ where: { id: invoice.userId } });
-      if (user) {
-        await this.email.send({
-          userId: user.id,
-          to: user.email,
-          template: 'plan_upgraded',
-          data: {
-            name: user.name ?? 'kullanıcı',
-            planName: parsed.planId.toUpperCase(),
-            articleQuota: parsed.planId === 'starter' ? 10 : parsed.planId === 'pro' ? 50 : 250,
-            siteQuota: parsed.planId === 'starter' ? 1 : parsed.planId === 'pro' ? 3 : 10,
-          },
-        });
-      }
-
-      this.log.log(`[${merchant_oid}] ✅ Ödeme başarılı: ${invoice.userId} → ${parsed.planId}`);
-    } else {
-      await this.prisma.invoice.update({
-        where: { id: invoice.id },
-        data: {
-          status: 'FAILED',
-          failedAt: new Date(),
-          description: `${invoice.description} — ${failed_reason_code}: ${failed_reason_msg}`,
-        },
-      });
-
-      // Payment failed mail (fire-and-forget; webhook'u blok etme)
-      const failedUser = await this.prisma.user.findUnique({ where: { id: invoice.userId } });
-      if (failedUser?.email) {
-        this.email.send({
-          userId: failedUser.id,
-          to: failedUser.email,
-          template: 'payment_failed',
-          data: {
-            name: failedUser.name ?? 'kullanıcı',
-            reasonMsg: failed_reason_msg,
-            reasonCode: failed_reason_code,
-          },
-        }).catch((err) => this.log.warn(`payment_failed mail: ${err.message}`));
-      }
-
-      this.log.warn(`[${merchant_oid}] ❌ Ödeme başarısız: ${failed_reason_msg}`);
     }
 
+    if (status === 'success') {
+      await this.markInvoicePaid(invoice.id);
+    } else {
+      await this.markInvoiceFailed(invoice.id, failed_reason_code, failed_reason_msg);
+    }
     return 'OK';
+  }
+
+  /**
+   * Fatura PENDING → PAID (tek seferlik, atomik). Yalniz gercek gecis aninda plan
+   * etkinlesir, komisyon yazilir ve e-posta gider.
+   *
+   * NEDEN: PayTR "OK" alamazsa ayni bildirimi yeniden gonderir (dev.paytr.com
+   * direkt-api-2-adim). Eskiden her tekrar plani yeniden etkinlestiriyor ve
+   * ortaklik komisyonunu bir kez daha yaziyordu.
+   */
+  async markInvoicePaid(invoiceId: string): Promise<boolean> {
+    const moved = await this.prisma.invoice.updateMany({
+      where: { id: invoiceId, status: 'PENDING' },
+      data: { status: 'PAID', paidAt: new Date() },
+    });
+    if (moved.count === 0) return false;
+    const invoice = await this.prisma.invoice.findUniqueOrThrow({ where: { id: invoiceId } });
+    const parsed = invoice.paytrTransactionId ? this.parseOrderId(invoice.paytrTransactionId) : null;
+    if (!parsed) return true;
+
+    await this.activateSubscription(invoice.userId, parsed.planId, invoice.paytrTransactionId!);
+    try {
+      await this.affiliate.recordCommission(invoice.userId, Number(invoice.amount));
+    } catch (err: any) {
+      this.log.warn(`[${invoice.paytrTransactionId}] komisyon yazilamadi: ${err.message}`);
+    }
+
+    const user = await this.prisma.user.findUnique({ where: { id: invoice.userId } });
+    if (user && !invoice.isRenewal) {
+      this.email.send({
+        userId: user.id,
+        to: user.email,
+        template: 'plan_upgraded',
+        data: {
+          name: user.name ?? 'kullanıcı',
+          planName: parsed.planId.toUpperCase(),
+          articleQuota: parsed.planId === 'starter' ? 10 : parsed.planId === 'pro' ? 50 : 250,
+          siteQuota: parsed.planId === 'starter' ? 1 : parsed.planId === 'pro' ? 3 : 10,
+        },
+      }).catch((err) => this.log.warn(`plan_upgraded mail: ${err.message}`));
+    }
+    this.log.log(`[${invoice.paytrTransactionId}] ✅ Ödeme ${invoice.isRenewal ? '(yenileme) ' : ''}başarılı: ${invoice.userId} → ${parsed.planId}`);
+    return true;
+  }
+
+  /**
+   * Fatura PENDING → FAILED (tek seferlik, atomik). Yenileme faturasiysa basarisizlik
+   * sayaci artar; 3. basarisizlikta plan duser.
+   */
+  async markInvoiceFailed(invoiceId: string, code?: string, msg?: string): Promise<boolean> {
+    const invoice = await this.prisma.invoice.findUnique({ where: { id: invoiceId } });
+    if (!invoice) return false;
+    const moved = await this.prisma.invoice.updateMany({
+      where: { id: invoiceId, status: 'PENDING' },
+      data: {
+        status: 'FAILED',
+        failedAt: new Date(),
+        description: `${invoice.description ?? ''} — ${code ?? '?'}: ${msg ?? ''}`.slice(0, 500),
+      },
+    });
+    if (moved.count === 0) return false;
+
+    if (invoice.isRenewal) {
+      await this.recordRenewalFailure(invoice.userId, msg);
+    } else {
+      const u = await this.prisma.user.findUnique({ where: { id: invoice.userId } });
+      if (u?.email) {
+        this.email.send({
+          userId: u.id,
+          to: u.email,
+          template: 'payment_failed',
+          data: { name: u.name ?? 'kullanıcı', reasonMsg: msg, reasonCode: code },
+        }).catch((err) => this.log.warn(`payment_failed mail: ${err.message}`));
+      }
+    }
+    this.log.warn(`[${invoice.paytrTransactionId}] ❌ Ödeme başarısız${invoice.isRenewal ? ' (yenileme)' : ''}: ${msg}`);
+    return true;
+  }
+
+  /** Yenileme cekimi basarisiz: sayac++, durum PAST_DUE, e-posta; sinira ulasinca plan duser. */
+  async recordRenewalFailure(userId: string, reason?: string) {
+    const user = await this.prisma.user.update({
+      where: { id: userId },
+      data: {
+        renewalFailCount: { increment: 1 },
+        renewalLastAttemptAt: new Date(),
+        subscriptionStatus: 'PAST_DUE',
+      },
+      select: { id: true, email: true, name: true, plan: true, renewalFailCount: true },
+    });
+    const planName = findPlan(user.plan.toLowerCase())?.name_tr ?? user.plan;
+    if (user.renewalFailCount >= RENEWAL_MAX_ATTEMPTS) {
+      await this.downgradeForNonPayment(userId, reason);
+      return;
+    }
+    if (user.email) {
+      this.email.send({
+        userId: user.id,
+        to: user.email,
+        template: 'renewal_failed',
+        data: { name: user.name ?? 'kullanıcı', planName, attempt: user.renewalFailCount, maxAttempts: RENEWAL_MAX_ATTEMPTS, reasonMsg: reason },
+      }).catch((err) => this.log.warn(`renewal_failed mail: ${err.message}`));
+    }
+  }
+
+  /** Odeme alinamadi → plan deneme duzeyine, durum EXPIRED, otomatik yenileme kapali. */
+  async downgradeForNonPayment(userId: string, reason?: string) {
+    const before = await this.prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { plan: true, email: true, name: true } });
+    if (before.plan === 'TRIAL') return;
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { plan: 'TRIAL', subscriptionStatus: 'EXPIRED', autoRenew: false },
+    });
+    this.log.warn(`Odeme alinamadi, plan dustu: ${userId} (${before.plan} → TRIAL)${reason ? ` — ${reason}` : ''}`);
+    if (before.email) {
+      this.email.send({
+        userId,
+        to: before.email,
+        template: 'subscription_expired',
+        data: { name: before.name ?? 'kullanıcı', planName: findPlan(before.plan.toLowerCase())?.name_tr ?? before.plan },
+      }).catch((err) => this.log.warn(`subscription_expired mail: ${err.message}`));
+    }
   }
 
   /**
@@ -293,7 +591,8 @@ export class PaytrService {
   async cancelSubscription(userId: string) {
     const user = await this.prisma.user.update({
       where: { id: userId },
-      data: { subscriptionStatus: 'CANCELED' },
+      // Iptal: otomatik yenileme de kapanir (kart PayTR'de kayitli kalir, cekim yapilmaz)
+      data: { subscriptionStatus: 'CANCELED', autoRenew: false },
       select: { id: true, email: true, name: true, plan: true, subscriptionStatus: true },
     });
     const lastPaid = await this.prisma.invoice.findFirst({
@@ -338,6 +637,10 @@ export class PaytrService {
         subscriptionId,
         articlesUsedThisMonth: 0,
         articlesQuotaResetAt: new Date(),
+        // Yeni donem odendi: yenileme sayaclari sifirlanir
+        renewalFailCount: 0,
+        renewalLastAttemptAt: null,
+        renewalNoticeAt: null,
       },
     });
   }
@@ -532,4 +835,23 @@ export class PaytrService {
     if (!planId) return null;
     return { planId };
   }
+}
+
+export interface StoredCard {
+  ctoken: string;
+  last4: string | null;
+  requireCvv: boolean;
+}
+
+/** Direkt API odeme formu — kart alanlari tarayicidan dogrudan PayTR'ye post edilir */
+export interface DirectCheckout {
+  mode: 'direct';
+  action: string;
+  fields: Record<string, string>;
+  /** Kullanicinin mevcut PayTR utoken'i (varsa kart ayni gruba eklenir) */
+  utoken: string | null;
+  merchantOid: string;
+  amountText: string;
+  planName: string;
+  cycle: 'monthly' | 'annual';
 }

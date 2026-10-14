@@ -57,14 +57,16 @@ export class AdminService {
     };
   }
 
-  listTenants() {
-    return this.prisma.user.findMany({
+  async listTenants() {
+    const rows = await this.prisma.user.findMany({
       orderBy: { createdAt: 'desc' },
       include: {
         _count: { select: { sites: true, jobs: true, invoices: true } },
       },
       take: 200,
     });
+    // PayTR kart-saklama anahtari istemciye hicbir uctan donmez (admin dahil)
+    return rows.map(({ paytrUtoken: _gizli, ...u }) => u);
   }
 
   async listInvoices(opts: { status?: string; limit?: number } = {}) {

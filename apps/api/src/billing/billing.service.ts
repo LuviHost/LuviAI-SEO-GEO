@@ -132,6 +132,12 @@ export class BillingService {
       plan: planDef,
       status: user.subscriptionStatus,
       periodEnd: periodEndFromInvoice(lastPaid),
+      // Otomatik yenileme durumu — kart anahtarinin kendisi DONMEZ, yalniz var/yok
+      autoRenew: user.autoRenew && !!user.paytrUtoken,
+      renewalFailCount: user.renewalFailCount,
+      recurringEnabled: process.env.PAYTR_RECURRING_ENABLED === '1',
+      // Yenileme kuralindan muaf (admin) — panel "duşecek" uyarisi gostermesin
+      renewalExempt: user.role === 'ADMIN',
       trialEndsAt: user.trialEndsAt,
       articlesUsedThisMonth: user.articlesUsedThisMonth,
       articlesQuotaResetAt: user.articlesQuotaResetAt,

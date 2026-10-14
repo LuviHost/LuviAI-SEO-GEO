@@ -1,5 +1,6 @@
 'use client';
 
+import { CHECKOUT_STORAGE_KEY } from '@/components/direct-checkout-form';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -84,6 +85,12 @@ export default function PricingPage() {
         }),
       });
       const data = await res.json();
+      // Otomatik yenileme açık: imzalı kart formu → kendi ödeme sayfamız
+      if (data.mode === 'direct') {
+        try { sessionStorage.setItem(CHECKOUT_STORAGE_KEY, JSON.stringify(data)); } catch (_e) { /* noop */ }
+        router.push('/billing/checkout');
+        return;
+      }
       if (data.iframeUrl) {
         // Test mode dev-confirm için merchantOid'i sakla; success sayfası bunu okuyup
         // PayTR webhook gelmeden invoice'ı PAID + plan'ı upgrade eder.

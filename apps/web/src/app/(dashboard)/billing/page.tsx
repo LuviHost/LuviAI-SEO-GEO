@@ -118,6 +118,15 @@ export default function BillingPage() {
   // Geçmişte kalmış dönem sonu "bitiyor" diye gösterilmez (otomatik yenileme yok; aktif
   // abonelikte dönem dolmuş olabilir). İptalde geçmiş tarih = bu gece düşer.
   const periodEndFuture = periodEnd !== null && periodEnd.getTime() > Date.now();
+  const autoRenew = !!current.autoRenew;
+  const failCount = Number(current.renewalFailCount ?? 0);
+  const isPastDue = current.status === 'PAST_DUE';
+  // Kartı kayıtlı olmayan abone: dönem sonuna 3 gün kala ya da geçtiyse elle yenilemeli
+  const needsManualRenewal = (isActive || isPastDue) && !autoRenew && !current.renewalExempt && periodEnd !== null
+    && periodEnd.getTime() - Date.now() < 3 * 86_400_000;
+  const periodEndAnyText = periodEnd
+    ? periodEnd.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })
+    : null;
   const periodEndText = periodEndFuture
     ? periodEnd!.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })
     : null;
@@ -144,7 +153,10 @@ export default function BillingPage() {
                     Deneme {new Date(current.trialEndsAt).toLocaleDateString('tr-TR')} tarihinde bitiyor
                   </span>
                 )}
-                {isActive && periodEndText && (
+                {isActive && autoRenew && periodEndText && (
+                  <span className="text-label text-muted-foreground">Otomatik yenileme açık · sonraki ödeme {periodEndText}</span>
+                )}
+                {isActive && !autoRenew && periodEndText && (
                   <span className="text-label text-muted-foreground">Ödenen dönem {periodEndText} tarihinde bitiyor</span>
                 )}
               </div>
@@ -163,6 +175,23 @@ export default function BillingPage() {
             </div>
           )}
         </div>
+
+        {isPastDue && failCount > 0 && (
+          <p className="mt-5 rounded-lg border border-danger/30 bg-danger/5 px-4 py-3 text-sm">
+            Yenileme ödemesi kayıtlı kartından alınamadı ({failCount}/3 deneme). Yarın tekrar deneyeceğiz;
+            3 denemede de alınamazsa hesabın deneme düzeyine geçer. Kartını değiştirmek için{' '}
+            <Link href="/pricing" className="font-medium underline underline-offset-2">aboneliği yeniden başlat</Link>.
+          </p>
+        )}
+
+        {needsManualRenewal && !(isPastDue && failCount > 0) && (
+          <p className="mt-5 rounded-lg border border-warning/30 bg-warning/5 px-4 py-3 text-sm">
+            Ödenen dönemin {periodEndFuture ? <><strong>{periodEndAnyText}</strong> tarihinde bitiyor</> : 'sona erdi'} ve kayıtlı kartın yok.
+            Yenilemezsen hesabın 7 gün içinde deneme düzeyine geçer.{' '}
+            <Link href="/pricing" className="font-medium underline underline-offset-2">Aboneliği yenile</Link>
+            {' '}— kartını kaydedersen sonraki dönemler otomatik yenilenir.
+          </p>
+        )}
 
         {isCanceled && (
           <p className="mt-5 rounded-lg border border-warning/30 bg-warning/5 px-4 py-3 text-sm">
@@ -207,7 +236,7 @@ export default function BillingPage() {
           <Button asChild>
             <Link href="/pricing"><TrendingUp className="h-4 w-4" aria-hidden /> Planları karşılaştır</Link>
           </Button>
-          {isActive && (
+          {(isActive || isPastDue) && (
             <Button variant="ghost" className="text-danger hover:bg-danger/10 hover:text-danger" onClick={() => setShowCancelDialog(true)}>
               Aboneliği iptal et
             </Button>
@@ -319,6 +348,7 @@ function CancelDialog({
                 ? <>Ödediğin dönemin sonuna, <strong className="text-foreground">{periodEndText}</strong> tarihine kadar tüm özelliklerin açık kalır.</>
                 : 'Ödenmiş dönemin sona ermiş görünüyor; iptal edersen hesabın bu gece deneme düzeyine geçer.'}
             </li>
+            <li>Otomatik yenileme kapanır; kartından başka ödeme alınmaz.</li>
             <li>Dönem bitince hesabın deneme düzeyine geçer; sana onay e-postası gönderilir.</li>
             <li>Sitelerin, içeriklerin ve raporların silinmez.</li>
             <li>Ücret iadesi için destek ekibine yazman gerekir.</li>

@@ -22,6 +22,9 @@ export type EmailTemplate =
   | 'plan_upgraded'
   | 'plan_canceled'
   | 'payment_failed'
+  | 'renewal_failed'             // 2026-10 otomatik yenileme cekimi basarisiz (deneme n/3)
+  | 'renewal_required'           // karti kayitli olmayan aboneye: donem bitiyor, yenile
+  | 'subscription_expired'       // odeme alinamadi → plan deneme duzeyine dustu
   | 'grandfathering_expiring'   // 2026-05 Premium Pricing — 30 gün uyari
   | 'grandfathering_expired';   // 2026-05 Premium Pricing — yeni fiyata gectigi gun
 
@@ -412,6 +415,41 @@ export class EmailService {
               { etiket: 'Site', deger: sayi(data.siteQuota ?? 0) },
             ]) +
             dugme('Panele git', `${baseUrl}/dashboard`),
+        );
+
+      case 'renewal_failed': {
+        const kalan = Math.max(0, Number(data.maxAttempts ?? 3) - Number(data.attempt ?? 1));
+        return yap(
+          'Abonelik yenilemesi alınamadı',
+          kalan > 0 ? `Yarın tekrar deneyeceğiz (${kalan} deneme kaldı).` : 'Son deneme de başarısız oldu.',
+          h(`${name}, aboneliğini yenileyemedik`) +
+            p(`<strong>${kacisla(String(data.planName ?? 'Planın'))}</strong> aboneliğinin yenileme ödemesi kayıtlı kartından alınamadı (deneme ${kacisla(String(data.attempt ?? 1))}/${kacisla(String(data.maxAttempts ?? 3))}).`) +
+            p(kalan > 0
+              ? `Yarın otomatik olarak tekrar deneyeceğiz. ${kalan} deneme sonunda da ödeme alınamazsa hesabın deneme düzeyine geçer. Kartını güncellemek için aboneliğini yeniden başlatabilirsin.`
+              : 'Hesabın deneme düzeyine geçti. Aboneliği yeniden başlatarak kaldığın yerden devam edebilirsin.') +
+            (data.reasonMsg ? bilgiKutusu('Bankadan gelen yanıt', kacisla(String(data.reasonMsg))) : '') +
+            dugme('Aboneliği yönet', `${baseUrl}/billing`),
+        );
+      }
+
+      case 'renewal_required':
+        return yap(
+          'Aboneliğinin yenilenmesi gerekiyor',
+          `${kacisla(String(data.deadlineText ?? '7 gün içinde'))} tarihine kadar yenilemezsen hesabın deneme düzeyine geçer.`,
+          h(`${name}, aboneliğini yenilemen gerekiyor`) +
+            p(`<strong>${kacisla(String(data.planName ?? 'Planın'))}</strong> aboneliğinin ödenen dönemi ${data.periodEndText ? `<strong>${kacisla(String(data.periodEndText))}</strong> tarihinde bitiyor` : 'bitti'}. Kayıtlı bir kartın olmadığı için otomatik yenileyemiyoruz.`) +
+            p(`<strong>${kacisla(String(data.deadlineText ?? '7 gün içinde'))}</strong> tarihine kadar ödeme yapmazsan hesabın deneme düzeyine geçer; sitelerin ve içeriklerin silinmez. Yenilerken kartını kaydedersen sonraki dönemler otomatik yenilenir.`) +
+            dugme('Aboneliği yenile', `${baseUrl}/pricing`),
+        );
+
+      case 'subscription_expired':
+        return yap(
+          'Aboneliğin sona erdi',
+          'Ödeme alınamadığı için hesabın deneme düzeyine geçti.',
+          h(`${name}, aboneliğin sona erdi`) +
+            p(`Ödeme alınamadığı için <strong>${kacisla(String(data.planName ?? 'aboneliğin'))}</strong> sona erdi ve hesabın deneme düzeyine geçti. Sitelerin, içeriklerin ve raporların silinmedi.`) +
+            p('Aboneliği yeniden başlatarak tüm özelliklere hemen dönebilirsin.') +
+            dugme('Aboneliği yeniden başlat', `${baseUrl}/pricing`),
         );
 
       case 'payment_failed':
