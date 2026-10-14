@@ -104,7 +104,6 @@ function OrbitArc({ side, items, active }: {
   );
 }
 
-const FALLBACK_BRAND = 'markan.com';
 const TYPE_STEP = 2;         // her tikte kac karakter
 const TYPE_MS = 22;
 const HOLD_MS = 5200;        // cevap tamamlaninca bekleme
@@ -118,14 +117,16 @@ export function AnswerSheet() {
   const reduced = useReducedMotion();
   const [engine, setEngine] = useState(0);
   const [typed, setTyped] = useState(0);
-  const [brand, setBrand] = useState(FALLBACK_BRAND);
+  // null = ziyaretçi alan adı yazmadı → dile göre örnek marka (markan.com / yourbrand.com)
+  const [typedBrand, setTypedBrand] = useState<string | null>(null);
+  const brand = typedBrand ?? t('land2.sheet.brand');
   const [pinned, setPinned] = useState(false); // kullanici sekme secti → otomatik gecis durur
 
   // Alan adi kutusundan gelen yazim
   useEffect(() => {
     const onDomain = (e: Event) => {
       const v = cleanDomain(String((e as CustomEvent<string>).detail ?? ''));
-      setBrand(v.includes('.') ? v : FALLBACK_BRAND);
+      setTypedBrand(v.includes('.') ? v : null);
     };
     window.addEventListener(DOMAIN_EVENT, onDomain);
     return () => window.removeEventListener(DOMAIN_EVENT, onDomain);
@@ -240,7 +241,7 @@ export function AnswerSheet() {
             </li>
             <li className="flex items-center gap-2 text-muted-foreground">
               <span className="grid h-5 w-5 place-items-center rounded-full bg-muted text-label font-semibold">2</span>
-              hesapcik.example
+              {t('land2.sheet.source2')}
             </li>
           </ol>
         </div>
