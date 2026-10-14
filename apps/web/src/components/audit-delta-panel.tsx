@@ -4,9 +4,12 @@ import { useEffect, useState } from 'react';
 import {
   TrendingUp, TrendingDown, Minus, ChevronDown, CheckCircle2, AlertCircle, Clock, History,
 } from 'lucide-react';
+import { SEVERITY_LABEL, label } from '@/lib/labels';
 import { api, type AuditComparison, type AuditIssueRecord } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
+import { ErrorState } from '@/components/ui/async-state';
 
 /**
  * Iki tarama arasindaki degisimi gosterir.
@@ -15,17 +18,20 @@ import { Badge } from '@/components/ui/badge';
  * birikiyor (64 -> 86 gibi), ama arayuzde yalnizca SON tarama vardi; kullanici
  * yaptigi duzeltmenin ise yarayip yaramadigini goremiyordu.
  */
-export function AuditDeltaPanel({ siteId }: { siteId: string }) {
+export function AuditDeltaPanel({ siteId, collapsible = false }: { siteId: string; collapsible?: boolean }) {
   const [cmp, setCmp] = useState<AuditComparison | null>(null);
   const [history, setHistory] = useState<
     Array<{ id: string; ranAt: string; overallScore: number }>
   >([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<unknown>(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     let iptal = false;
     (async () => {
       setLoading(true);
+      setError(null);
       try {
         const [c, h] = await Promise.all([
           api.compareAudits(siteId),
@@ -34,34 +40,56 @@ export function AuditDeltaPanel({ siteId }: { siteId: string }) {
         if (iptal) return;
         setCmp(c);
         setHistory(h ?? []);
-      } catch {
-        // Delta paneli yardimci bir yuzey — hata durumunda sayfayi bozmak
-        // yerine sessizce gizlenir, asil audit sonucu zaten ustte duruyor.
-        if (!iptal) setCmp(null);
+      } catch (err) {
+        // Eskiden sessizce gizleniyordu — kullanici neden bos oldugunu bilemiyordu.
+        if (!iptal) {
+          setCmp(null);
+          setError(err ?? new Error('Karşılaştırma yüklenemedi.'));
+        }
       } finally {
         if (!iptal) setLoading(false);
       }
     })();
     return () => { iptal = true; };
-  }, [siteId]);
+  }, [siteId, reloadKey]);
 
-  if (loading) {
+  const body = loading ? (
+    <div className="space-y-2" aria-busy="true" aria-label="Karşılaştırma yükleniyor">
+      <Skeleton className="h-10 w-1/2" />
+      <Skeleton className="h-16 w-full" />
+    </div>
+  ) : error ? (
+    <ErrorState error={error} onRetry={() => setReloadKey((k) => k + 1)} />
+  ) : cmp ? (
+    <AuditComparisonBody cmp={cmp} history={history} />
+  ) : null;
+
+  if (!body) return null;
+
+  if (collapsible) {
+    const delta = !loading && cmp && !cmp.yeterliVeriYok ? cmp.scoreDelta : null;
     return (
       <Card>
-        <CardContent className="p-4 text-sm text-muted-foreground">
-          Karşılaştırma hazırlanıyor…
-        </CardContent>
+        <details className="group">
+          <summary className="flex cursor-pointer list-none items-center gap-2 p-4 [&::-webkit-details-marker]:hidden">
+            <History className="h-4 w-4 text-muted-foreground" aria-hidden />
+            <span className="text-sm font-medium">Önceki taramaya göre değişim</span>
+            {delta !== null && (
+              <Badge variant={delta > 0 ? 'success' : delta < 0 ? 'danger' : 'secondary'} className="ml-1">
+                {delta > 0 ? '+' : ''}{delta} puan
+              </Badge>
+            )}
+            <ChevronDown className="ml-auto h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180" aria-hidden />
+          </summary>
+          <div className="border-t p-4">{body}</div>
+        </details>
       </Card>
     );
   }
 
-  if (!cmp) return null;
-
   return (
     <Card>
-      <CardContent className="p-4">
-        <AuditComparisonBody cmp={cmp} history={history} />
-      </CardContent>
+      <CardContent className="p-4">{body}</CardContent>
     </Card>
   );
 }
@@ -110,10 +138,10 @@ export function AuditComparisonBody({
           <div
             className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-lg font-bold ${
               yon === 'up'
-                ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'
+                ? 'bg-success/10 text-success'
                 : yon === 'down'
-                  ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'
-                  : 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300'
+                  ? 'bg-danger/10 text-danger'
+                  : 'bg-muted text-muted-foreground'
             }`}
           >
             {yon === 'up' ? <TrendingUp className="h-5 w-5" />
@@ -126,7 +154,7 @@ export function AuditComparisonBody({
               {from?.overallScore} <span className="text-muted-foreground font-normal">→</span> {to?.overallScore}
               <span className="text-xs text-muted-foreground font-normal">/100</span>
             </p>
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-label text-muted-foreground">
               {tarih(from?.ranAt)} — {tarih(to?.ranAt)}
             </p>
           </div>
@@ -192,7 +220,7 @@ export function AuditComparisonBody({
                   {c.oncekiScore} → {c.sonrakiScore}
                   <span
                     className={`ml-2 font-semibold ${
-                      c.delta > 0 ? 'text-green-500' : 'text-red-500'
+                      c.delta > 0 ? 'text-success' : 'text-danger'
                     }`}
                   >
                     {c.delta > 0 ? '+' : ''}{c.delta}
@@ -218,9 +246,9 @@ function IssueGroup({
   icon: React.ReactNode;
 }) {
   const renk =
-    tonu === 'success' ? 'text-green-600 dark:text-green-400'
-      : tonu === 'destructive' ? 'text-red-600 dark:text-red-400'
-        : 'text-yellow-600 dark:text-yellow-400';
+    tonu === 'success' ? 'text-success'
+      : tonu === 'destructive' ? 'text-danger'
+        : 'text-warning';
 
   if (sayi === 0) {
     return (
@@ -252,20 +280,20 @@ function IssueGroup({
                   }
                   className="shrink-0 mt-0.5"
                 >
-                  {i.severity === 'critical' ? 'kritik' : i.severity === 'warning' ? 'uyarı' : 'bilgi'}
+                  {label(SEVERITY_LABEL, i.severity)}
                 </Badge>
               )}
               <div className="min-w-0">
                 <p className="text-xs leading-relaxed">{i.description ?? i.type}</p>
                 {i.page && (
-                  <p className="text-[11px] text-muted-foreground truncate mt-0.5">{i.page}</p>
+                  <p className="text-label text-muted-foreground truncate mt-0.5">{i.page}</p>
                 )}
               </div>
             </div>
           </li>
         ))}
         {issues.length > 50 && (
-          <li className="px-3 py-2 text-[11px] text-muted-foreground">
+          <li className="px-3 py-2 text-label text-muted-foreground">
             +{issues.length - 50} kayıt daha
           </li>
         )}
@@ -284,7 +312,7 @@ function ScoreTrend({ history }: { history: Array<{ id: string; ranAt: string; o
 
   return (
     <div>
-      <p className="text-[11px] uppercase tracking-wide text-muted-foreground font-medium mb-2">
+      <p className="text-label uppercase tracking-wide text-muted-foreground font-medium mb-2">
         Son {seri.length} tarama
       </p>
       <div className="flex items-end gap-1 h-16">

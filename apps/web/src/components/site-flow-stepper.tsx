@@ -10,7 +10,9 @@ import {
   BarChart3, Link2, Unlink, Activity, Sparkles, FileText, Send, Share2, Calendar,
   Twitter as TwitterIcon, Linkedin as LinkedinIcon, Instagram as InstagramIcon,
   Facebook as FacebookIcon, Youtube as YoutubeIcon, Globe as GlobeIcon,
+  Zap, Plug, OctagonAlert, Eye, Download, Copy, Info,
 } from 'lucide-react';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { api } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -477,12 +479,16 @@ function publicUrlForFix(siteUrl: string | undefined, fix: string): string | nul
 }
 
 export function AuditStepBody({
-  audit, siteId, onRefresh, onboardingMode,
+  audit, siteId, onRefresh, onboardingMode, afterSummary, hideRefresh,
 }: {
   audit: any;
   siteId: string;
   onRefresh: () => void;
   onboardingMode?: boolean;
+  /** Skor + otomatik düzelt satırından HEMEN sonra gösterilecek içerik (ör. şablona göre sorunlar) */
+  afterSummary?: React.ReactNode;
+  /** Sayfa başlığında zaten "Yeniden tara" varsa alttaki ikinci yenile düğmesini gizle */
+  hideRefresh?: boolean;
 }) {
   const [running, setRunning] = useState(false);
   const [fixing, setFixing] = useState(false);
@@ -554,6 +560,8 @@ export function AuditStepBody({
   // Yalnızca auto-fix'in GERÇEKTEN ürettiği kök dosyalar (fixRoute, /audit/latest)
   const fixable = issues.filter((i: any) => i.fixRoute === 'auto_fix');
   const checks = audit.checks ?? {};
+  const failedCount = Object.values(checks).filter((v: any) => v?.name && (v?.score ?? 0) < 100).length;
+  const totalCount = Object.values(checks).filter((v: any) => v?.name).length;
 
   const applyFix = async () => {
     if (hasPublishTarget === false) {
@@ -611,6 +619,22 @@ export function AuditStepBody({
     }
   };
 
+  const downloadText = (filename: string, content: string) => {
+    const blob = new Blob([content], {
+      type: filename.endsWith('.xml') ? 'application/xml' : 'text/plain;charset=utf-8',
+    });
+    const blobUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = blobUrl;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+  };
+
+  const scoreTone = (s: number) => (s >= 80 ? 'text-success' : s >= 50 ? 'text-warning' : 'text-danger');
+
   return (
     <div className="space-y-4">
       {(running || fixing) && (
@@ -621,28 +645,45 @@ export function AuditStepBody({
         />
       )}
 
+      {/* Önce skor, hemen altında birincil eylem — eskiden en altta kalıyordu */}
       <div className="grid grid-cols-3 gap-3">
         <div className="rounded-lg border p-3 text-center">
-          <div className="text-3xl font-bold text-brand">{audit.overallScore}</div>
-          <div className="text-xs text-muted-foreground mt-0.5">Site Skoru / 100</div>
+          <div className="text-metric-lg tabular-nums text-brand">{audit.overallScore}</div>
+          <div className="text-label text-muted-foreground mt-1">Site skoru / 100</div>
         </div>
         <div className="rounded-lg border p-3 text-center">
-          <div className="text-3xl font-bold">{audit.geoScore ?? '-'}</div>
-          <div className="text-xs text-muted-foreground mt-0.5">AI Search / 100</div>
+          <div className="text-metric-lg tabular-nums">{audit.geoScore ?? '—'}</div>
+          <div className="text-label text-muted-foreground mt-1">AI arama / 100</div>
         </div>
         <div className="rounded-lg border p-3 text-center">
-          {(() => {
-            const failedCount = Object.values(checks).filter((v: any) => v?.name && (v?.score ?? 0) < 100).length;
-            const totalCount = Object.values(checks).filter((v: any) => v?.name).length;
-            return (
-              <>
-                <div className="text-3xl font-bold text-red-500">{failedCount}<span className="text-base text-muted-foreground font-normal">/{totalCount}</span></div>
-                <div className="text-xs text-muted-foreground mt-0.5">Sorunlu Kontrol ({issues.length} bulgu)</div>
-              </>
-            );
-          })()}
+          <div className="text-metric-lg tabular-nums text-danger">
+            {failedCount}
+            <span className="text-base text-muted-foreground font-normal">/{totalCount}</span>
+          </div>
+          <div className="text-label text-muted-foreground mt-1">Sorunlu kontrol ({issues.length} bulgu)</div>
         </div>
       </div>
+
+      {fixable.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-brand/25 bg-brand/5 p-3">
+          <div className="min-w-0">
+            <p className="text-sm font-medium">{fixable.length} sorun tek tıkla düzeltilebilir</p>
+            <p className="text-xs text-muted-foreground">sitemap, robots.txt, llms.txt gibi kök dosyalar yayın hedefine yüklenir.</p>
+          </div>
+          {hasPublishTarget === false ? (
+            <Button size="sm" variant="outline" asChild>
+              <Link href={siteHref(siteId, 'publishTargets')}>
+                <Plug className="h-4 w-4 mr-1.5" aria-hidden /> Yayın hedefi ekle
+              </Link>
+            </Button>
+          ) : (
+            <Button size="sm" onClick={applyFix} disabled={fixing}>
+              <Zap className="h-4 w-4 mr-1.5" aria-hidden />
+              {fixing ? 'Düzeltiliyor…' : `Otomatik düzelt (${fixable.length})`}
+            </Button>
+          )}
+        </div>
+      )}
 
       {/* Kritik bulgular — açık liste (artık accordion'a saklanmıyor) */}
       {issues.length > 0 && (() => {
@@ -650,34 +691,23 @@ export function AuditStepBody({
         const warnings = issues.filter((i: any) => i.severity === 'warning');
         const top = [...critical, ...warnings].slice(0, 6);
         return (
-          <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-3 space-y-2">
-            <div className="flex items-center justify-between flex-wrap gap-2">
-              <p className="text-sm font-semibold">
-                🔴 {critical.length} kritik · ⚠ {warnings.length} uyarı bulundu
-              </p>
-              {fixable.length > 0 && (
-                hasPublishTarget === false ? (
-                  <Link href={siteHref(siteId, 'publishTargets')}>
-                    <Button size="sm" variant="outline">
-                      🔌 Yayın hedefi ekle ({fixable.length} otomatik düzeltme bekliyor)
-                    </Button>
-                  </Link>
-                ) : (
-                  <Button size="sm" onClick={applyFix} disabled={fixing}>
-                    ⚡ {fixable.length} sorunu otomatik düzelt
-                  </Button>
-                )
-              )}
-            </div>
+          <div className="rounded-lg border border-danger/25 bg-danger/5 p-3 space-y-2">
+            <p className="flex items-center gap-2 text-sm font-semibold">
+              <OctagonAlert className="h-4 w-4 text-danger" aria-hidden />
+              {critical.length} kritik · {warnings.length} uyarı bulundu
+            </p>
             <ul className="space-y-1.5 text-xs">
               {top.map((i: any, idx: number) => (
                 <li key={idx} className="flex items-start gap-2 leading-relaxed">
-                  <span className={i.severity === 'critical' ? 'text-red-500' : 'text-yellow-500'}>
-                    {i.severity === 'critical' ? '●' : '○'}
-                  </span>
+                  <span
+                    aria-hidden
+                    className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${i.severity === 'critical' ? 'bg-danger' : 'bg-warning'}`}
+                  />
                   <span className="flex-1">
                     {i.description}
-                    {i.fixRoute === 'auto_fix' && <span className="ml-1.5 text-[10px] uppercase tracking-wide bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 rounded px-1 py-0.5 font-semibold">otomatik</span>}
+                    {i.fixRoute === 'auto_fix' && (
+                      <Badge variant="warning" className="ml-1.5 px-1.5 py-0 text-label">otomatik</Badge>
+                    )}
                   </span>
                 </li>
               ))}
@@ -689,16 +719,16 @@ export function AuditStepBody({
         );
       })()}
 
+      {afterSummary}
+
       {/* Son düzeltilenler — auto-fix sonrası dosyaların public URL'leri */}
       {lastApplied.length > 0 && (
-        <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-4">
+        <div className="rounded-lg border border-success/25 bg-success/5 p-4">
           <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
-            <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">
-              ✓ Son düzeltilenler ({lastApplied.length})
+            <p className="flex items-center gap-1.5 text-sm font-semibold text-success">
+              <CheckCircle2 className="h-4 w-4" aria-hidden /> Son düzeltilenler ({lastApplied.length})
             </p>
-            <span className="text-[11px] text-muted-foreground font-mono">
-              dosyalar yayın hedefine yüklendi
-            </span>
+            <span className="text-label text-muted-foreground">dosyalar yayın hedefine yüklendi</span>
           </div>
           <ul className="space-y-2">
             {lastApplied.map((item) => {
@@ -710,10 +740,10 @@ export function AuditStepBody({
                   className="flex items-center justify-between gap-3 flex-wrap rounded-md bg-card border p-2.5"
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
-                    <span className="text-lg">📄</span>
+                    <FileText className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
                     <div className="min-w-0">
                       <div className="text-sm font-medium">{label}</div>
-                      <div className="text-[11px] text-muted-foreground font-mono truncate">
+                      <div className="text-label text-muted-foreground font-mono truncate">
                         {item.url ?? `/${filename}`}
                       </div>
                     </div>
@@ -721,162 +751,115 @@ export function AuditStepBody({
                   <div className="flex items-center gap-1.5 shrink-0">
                     {/* Görüntüle: backend content varsa modal, yoksa public URL'i yeni tab */}
                     {item.content ? (
-                      <button
-                        type="button"
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 px-2.5 text-xs"
                         onClick={() => setPreviewFile({
                           filename: item.filename ?? filename,
                           content: item.content!,
                         })}
-                        className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded border hover:border-brand hover:text-brand transition-colors"
                       >
-                        🔍 Görüntüle
-                      </button>
+                        <Eye className="h-3.5 w-3.5 mr-1" aria-hidden /> Görüntüle
+                      </Button>
                     ) : item.url ? (
-                      <a
-                        href={item.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded border hover:border-brand hover:text-brand transition-colors"
-                      >
-                        🔗 Yayınlanan dosya
-                      </a>
+                      <Button size="sm" variant="outline" className="h-7 px-2.5 text-xs" asChild>
+                        <a href={item.url} target="_blank" rel="noopener noreferrer">
+                          <ExternalLink className="h-3.5 w-3.5 mr-1" aria-hidden /> Yayınlanan dosya
+                        </a>
+                      </Button>
                     ) : null}
 
                     {/* İndir: backend content varsa Blob download (cross-origin sorununu çözer) */}
                     {item.content ? (
-                      <button
-                        type="button"
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 px-2.5 text-xs"
                         onClick={() => {
-                          const blob = new Blob([item.content!], {
-                            type: filename.endsWith('.xml') ? 'application/xml' : 'text/plain;charset=utf-8',
-                          });
-                          const blobUrl = URL.createObjectURL(blob);
-                          const a = document.createElement('a');
-                          a.href = blobUrl;
-                          a.download = item.filename ?? filename;
-                          document.body.appendChild(a);
-                          a.click();
-                          a.remove();
-                          setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+                          downloadText(item.filename ?? filename, item.content!);
                           toast.success(`${item.filename ?? filename} indirildi`);
                         }}
-                        className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded border hover:border-brand hover:text-brand transition-colors"
                       >
-                        ⬇ İndir
-                      </button>
+                        <Download className="h-3.5 w-3.5 mr-1" aria-hidden /> İndir
+                      </Button>
                     ) : null}
                   </div>
                 </li>
               );
             })}
           </ul>
-          <p className="text-[11px] text-muted-foreground mt-3">
-            ⓘ Görüntüle/İndir → backend'in ürettiği gerçek dosya. "Yayınlanan dosya" → yayın hedefindeki canlı sürüm (cross-origin nedeniyle indirilemez, sadece açılır).
+          <p className="flex items-start gap-1.5 text-label text-muted-foreground mt-3">
+            <Info className="h-3.5 w-3.5 mt-px shrink-0" aria-hidden />
+            Görüntüle/İndir → backend&apos;in ürettiği gerçek dosya. &quot;Yayınlanan dosya&quot; → yayın hedefindeki canlı sürüm (cross-origin nedeniyle indirilemez, sadece açılır).
           </p>
         </div>
       )}
 
-      {/* Preview Modal — generated file content */}
-      {previewFile && (
-        <div
-          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm grid place-items-center p-4"
-          onClick={() => setPreviewFile(null)}
-        >
-          <div
-            className="bg-card border rounded-2xl shadow-2xl w-full max-w-3xl max-h-[85vh] flex flex-col overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center justify-between gap-3 px-5 py-3 border-b bg-muted/30">
-              <div className="flex items-center gap-2 min-w-0">
-                <span className="text-lg">📄</span>
-                <span className="font-mono text-sm font-semibold truncate">{previewFile.filename}</span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setPreviewFile(null)}
-                className="text-muted-foreground hover:text-foreground transition-colors text-sm font-mono"
-              >
-                ✕ Kapat
-              </button>
-            </div>
-            <pre className="flex-1 overflow-auto p-5 text-xs font-mono whitespace-pre-wrap break-all bg-card">
-              {previewFile.content}
-            </pre>
-            <div className="flex items-center justify-end gap-2 px-5 py-3 border-t bg-muted/20">
-              <button
-                type="button"
-                onClick={async () => {
-                  try {
-                    await navigator.clipboard.writeText(previewFile.content);
-                    toast.success('Kopyalandı');
-                  } catch {
-                    toast.error('Kopyalanamadı');
-                  }
-                }}
-                className="text-xs px-3 py-1.5 rounded border hover:border-brand hover:text-brand transition-colors"
-              >
-                📋 Kopyala
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  const blob = new Blob([previewFile.content], {
-                    type: previewFile.filename.endsWith('.xml') ? 'application/xml' : 'text/plain;charset=utf-8',
-                  });
-                  const blobUrl = URL.createObjectURL(blob);
-                  const a = document.createElement('a');
-                  a.href = blobUrl;
-                  a.download = previewFile.filename;
-                  document.body.appendChild(a);
-                  a.click();
-                  a.remove();
-                  setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
-                }}
-                className="text-xs px-3 py-1.5 rounded bg-brand text-white font-medium hover:bg-brand/90 transition-colors"
-              >
-                ⬇ İndir
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Üretilen dosyanın önizlemesi — ui/dialog (Esc + odak tuzağı) */}
+      <Dialog open={!!previewFile} onOpenChange={(o) => { if (!o) setPreviewFile(null); }}>
+        <DialogContent size="xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 font-mono text-sm">
+              <FileText className="h-4 w-4 text-muted-foreground" aria-hidden />
+              {previewFile?.filename}
+            </DialogTitle>
+          </DialogHeader>
+          <pre className="max-h-[60vh] overflow-auto p-5 text-xs font-mono whitespace-pre-wrap break-all">
+            {previewFile?.content}
+          </pre>
+          <DialogFooter>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={async () => {
+                if (!previewFile) return;
+                try {
+                  await navigator.clipboard.writeText(previewFile.content);
+                  toast.success('Kopyalandı');
+                } catch {
+                  toast.error('Kopyalanamadı');
+                }
+              }}
+            >
+              <Copy className="h-3.5 w-3.5 mr-1.5" aria-hidden /> Kopyala
+            </Button>
+            <Button size="sm" onClick={() => previewFile && downloadText(previewFile.filename, previewFile.content)}>
+              <Download className="h-3.5 w-3.5 mr-1.5" aria-hidden /> İndir
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* 14 nokta kontrol listesi — varsayilan olarak acik, her satirda durum */}
       <div className="rounded-lg border">
         <div className="px-4 py-2 border-b bg-muted/30 flex items-center justify-between">
           <span className="text-sm font-semibold">14 SEO + GEO kontrol noktası</span>
-          <span className="text-[11px] text-muted-foreground">
-            ✓ Var · ✗ Yok / Eksik
-          </span>
+          <span className="text-label text-muted-foreground">Var · Eksik · Yok</span>
         </div>
         <div className="divide-y text-sm">
           {Object.entries(checks).filter(([, v]: any) => v?.name && v?.id !== 'ai_citations').map(([k, v]: any) => {
             const firstIssue = Array.isArray(v.issues) && v.issues.length > 0 ? v.issues[0] : null;
             const fixable = Array.isArray(v.issues) && v.issues.some((i: any) => i.fixRoute === 'auto_fix');
-            const statusColor = v.score >= 80 ? 'text-green-500' : v.score >= 50 ? 'text-yellow-500' : 'text-red-500';
+            const ok = v.found && v.valid;
+            const stateCls = ok ? 'text-success' : v.found ? 'text-warning' : 'text-danger';
             return (
               <div key={k} className="px-4 py-2.5">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-start gap-2 flex-1 min-w-0">
-                    {v.found && v.valid ? (
-                      <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0 mt-0.5" />
-                    ) : v.found ? (
-                      <Circle className="h-4 w-4 text-yellow-500 shrink-0 mt-0.5" />
+                    {ok ? (
+                      <CheckCircle2 className="h-4 w-4 text-success shrink-0 mt-0.5" aria-hidden />
                     ) : (
-                      <Circle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
+                      <Circle className={`h-4 w-4 shrink-0 mt-0.5 ${stateCls}`} aria-hidden />
                     )}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-medium">{v.name}</span>
-                        <span className={`text-[11px] uppercase tracking-wide font-semibold ${
-                          v.found && v.valid ? 'text-green-600' : v.found ? 'text-yellow-600' : 'text-red-600'
-                        }`}>
-                          {v.found && v.valid ? 'VAR' : v.found ? 'EKSİK' : 'YOK'}
+                        <span className={`text-label uppercase tracking-wide font-semibold ${stateCls}`}>
+                          {ok ? 'VAR' : v.found ? 'EKSİK' : 'YOK'}
                         </span>
                         {fixable && (
-                          <span className="text-[10px] uppercase tracking-wide bg-yellow-500/20 text-yellow-700 dark:text-yellow-400 rounded px-1.5 py-0.5 font-semibold">
-                            otomatik
-                          </span>
+                          <Badge variant="warning" className="px-1.5 py-0 text-label">otomatik</Badge>
                         )}
                       </div>
                       {firstIssue && (
@@ -886,7 +869,7 @@ export function AuditStepBody({
                       )}
                     </div>
                   </div>
-                  <span className={`font-mono text-xs font-bold shrink-0 ${statusColor}`}>{v.score}/100</span>
+                  <span className={`font-mono text-xs font-bold shrink-0 ${scoreTone(v.score)}`}>{v.score}/100</span>
                 </div>
               </div>
             );
@@ -902,7 +885,7 @@ export function AuditStepBody({
               <p className="text-sm font-semibold">AI Arama Görünürlüğü (otomatik)</p>
               <p className="text-xs text-muted-foreground">Claude · Gemini · ChatGPT · Perplexity</p>
             </div>
-            <span className="text-2xl font-bold text-brand">{checks.aiCitations.score ?? 0}/100</span>
+            <span className="text-metric-lg tabular-nums text-brand">{checks.aiCitations.score ?? 0}/100</span>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
             {(checks.aiCitations.providers as any[]).map((p) => (
@@ -911,14 +894,14 @@ export function AuditStepBody({
                   <span className="text-xs font-medium truncate">{p.label}</span>
                   <span className={`text-sm font-bold ${
                     p.score === null ? 'text-muted-foreground' :
-                    p.score >= 60 ? 'text-green-500' :
-                    p.score >= 30 ? 'text-yellow-500' : 'text-red-500'
+                    p.score >= 60 ? 'text-success' :
+                    p.score >= 30 ? 'text-warning' : 'text-danger'
                   }`}>
                     {p.available && p.score !== null ? p.score : '—'}
                   </span>
                 </div>
                 {!p.available && p.reason && (
-                  <p className="text-[10px] text-muted-foreground mt-1 leading-snug">{p.reason}</p>
+                  <p className="text-label text-muted-foreground mt-1 leading-snug">{p.reason}</p>
                 )}
               </div>
             ))}
@@ -926,11 +909,13 @@ export function AuditStepBody({
         </div>
       )}
 
-      <div className="flex justify-end pt-2">
-        <Button size="sm" variant="outline" onClick={run} disabled={running || fixing}>
-          {running ? 'Hesaplanıyor…' : 'Skoru Yenile'}
-        </Button>
-      </div>
+      {!hideRefresh && (
+        <div className="flex justify-end pt-2">
+          <Button size="sm" variant="outline" onClick={run} disabled={running || fixing}>
+            {running ? 'Hesaplanıyor…' : 'Skoru Yenile'}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
