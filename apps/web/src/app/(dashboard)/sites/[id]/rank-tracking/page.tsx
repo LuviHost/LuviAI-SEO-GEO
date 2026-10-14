@@ -1,6 +1,7 @@
 'use client';
 
-import { formatPct } from '@/lib/format';
+import { formatNum, formatPct, formatPos } from '@/lib/format';
+import { siteHref } from '@/lib/site-routes';
 import { useEffect, useState, useMemo } from 'react';
 import { useSiteContext } from '../site-context';
 import { api } from '@/lib/api';
@@ -10,7 +11,11 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
-import { TrendingUp, TrendingDown, Minus, BarChart3, Trophy, Target, ArrowUp, ArrowDown, Search, ExternalLink, RefreshCw, Info } from 'lucide-react';
+import { TrendingUp, TrendingDown, Minus, BarChart3, Trophy, Target, ArrowUp, ArrowDown, Search, ExternalLink, RefreshCw, Info, Download, Sparkles } from 'lucide-react';
+import { SectionHeader } from '@/components/ui/section-header';
+import { FilterChip } from '@/components/ui/filter-chip';
+import { DataTable, type Column } from '@/components/ui/data-table';
+import { EmptyState } from '@/components/empty-state';
 import Link from 'next/link';
 
 interface KeywordRanking {
@@ -43,11 +48,11 @@ interface RankingsResponse {
   period?: { days: number; startDate: string; endDate: string };
 }
 
-const TIER_BADGES: Record<KeywordRanking['tier'], { label: string; className: string }> = {
-  top3: { label: 'Top 3', className: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30' },
-  top10: { label: 'Top 10', className: 'bg-blue-500/10 text-blue-600 border-blue-500/30' },
-  near: { label: 'Yaklaşan', className: 'bg-amber-500/10 text-amber-600 border-amber-500/30' },
-  low: { label: '20+', className: 'bg-muted text-muted-foreground' },
+const TIER_BADGES: Record<KeywordRanking['tier'], { label: string; variant: 'success' | 'info' | 'warning' | 'secondary' }> = {
+  top3: { label: 'İlk 3', variant: 'success' },
+  top10: { label: 'İlk 10', variant: 'info' },
+  near: { label: 'Yaklaşan', variant: 'warning' },
+  low: { label: '20+', variant: 'secondary' },
 };
 
 function Sparkline({ data }: { data: { date: string; position: number }[] }) {
@@ -72,7 +77,7 @@ function Sparkline({ data }: { data: { date: string; position: number }[] }) {
     })
     .join(' ');
   return (
-    <svg width={w} height={h} className="inline-block">
+    <svg width={w} height={h} className="inline-block" aria-hidden>
       <polyline
         points={points}
         fill="none"
@@ -89,37 +94,49 @@ function PositionDelta({ delta }: { delta: number | null }) {
   if (Math.abs(delta) < 0.5) {
     return (
       <span className="inline-flex items-center gap-0.5 text-xs text-muted-foreground">
-        <Minus className="h-3 w-3" /> 0
+        <Minus className="h-3 w-3" aria-hidden /> 0
       </span>
     );
   }
   if (delta > 0) {
     // Position düştü = iyileşti (yeşil yukarı ok)
     return (
-      <span className="inline-flex items-center gap-0.5 text-xs text-emerald-600 font-medium">
-        <ArrowUp className="h-3 w-3" /> {delta.toFixed(1)}
+      <span className="inline-flex items-center gap-0.5 text-xs text-success font-medium">
+        <ArrowUp className="h-3 w-3" aria-label="yükseldi" /> {formatPos(delta)}
       </span>
     );
   }
   return (
-    <span className="inline-flex items-center gap-0.5 text-xs text-rose-600 font-medium">
-      <ArrowDown className="h-3 w-3" /> {Math.abs(delta).toFixed(1)}
+    <span className="inline-flex items-center gap-0.5 text-xs text-danger font-medium">
+      <ArrowDown className="h-3 w-3" aria-label="düştü" /> {formatPos(Math.abs(delta))}
     </span>
   );
 }
 
 function PositionBadge({ position, tier }: { position: number; tier: KeywordRanking['tier'] }) {
   const colorMap = {
-    top3: 'bg-emerald-500 text-white',
-    top10: 'bg-blue-500 text-white',
-    near: 'bg-amber-500 text-white',
+    top3: 'bg-success/15 text-success',
+    top10: 'bg-info/15 text-info',
+    near: 'bg-warning/15 text-warning',
     low: 'bg-muted text-muted-foreground',
   };
   return (
     <span className={`inline-flex items-center justify-center min-w-[32px] h-7 px-2 rounded-md text-sm font-bold tabular-nums ${colorMap[tier]}`}>
-      {position > 0 ? position.toFixed(1) : '—'}
+      {position > 0 ? formatPos(position) : '—'}
     </span>
   );
+}
+
+const TIER_FILTERS: Array<{ key: 'all' | KeywordRanking['tier']; label: string }> = [
+  { key: 'all', label: 'Tümü' },
+  { key: 'top3', label: 'İlk 3' },
+  { key: 'top10', label: 'İlk 10' },
+  { key: 'near', label: 'Yaklaşan (11-20)' },
+  { key: 'low', label: '20+' },
+];
+
+function pathOf(url: string) {
+  try { return new URL(url).pathname; } catch { return url; }
 }
 
 export default function RankTrackingPage() {
@@ -130,7 +147,6 @@ export default function RankTrackingPage() {
   const [days, setDays] = useState<7 | 30 | 90>(30);
   const [filter, setFilter] = useState('');
   const [tierFilter, setTierFilter] = useState<'all' | KeywordRanking['tier']>('all');
-  const [sortBy, setSortBy] = useState<'impressions' | 'position' | 'delta' | 'clicks'>('impressions');
 
   const load = async () => {
     try {
@@ -146,13 +162,14 @@ export default function RankTrackingPage() {
   useEffect(() => {
     setLoading(true);
     load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [site.id, days]);
 
   const refresh = async () => {
     setRefreshing(true);
     try {
       await api.request(`/sites/${site.id}/analytics/snapshot-now`, { method: 'POST' });
-      toast.success('Snapshot tetiklendi, verilerin güncelleniyor.');
+      toast.success('Yenileme başladı, verilerin güncelleniyor.');
       setTimeout(load, 2000);
     } catch (err: any) {
       toast.error(err.message);
@@ -161,25 +178,19 @@ export default function RankTrackingPage() {
     }
   };
 
+  // Siralama artik tablo basliklarinda (DataTable, aria-sort) — burada yalniz filtre
   const filtered = useMemo(() => {
     if (!data?.keywords) return [];
-    let kws = [...data.keywords];
+    let kws = data.keywords;
     if (filter) {
-      const f = filter.toLowerCase();
-      kws = kws.filter(k => k.query.toLowerCase().includes(f) || k.page.toLowerCase().includes(f));
+      const f = filter.toLocaleLowerCase('tr');
+      kws = kws.filter(k => k.query.toLocaleLowerCase('tr').includes(f) || k.page.toLocaleLowerCase('tr').includes(f));
     }
     if (tierFilter !== 'all') {
       kws = kws.filter(k => k.tier === tierFilter);
     }
-    kws.sort((a, b) => {
-      if (sortBy === 'impressions') return b.impressions - a.impressions;
-      if (sortBy === 'clicks') return b.clicks - a.clicks;
-      if (sortBy === 'position') return a.position - b.position;
-      if (sortBy === 'delta') return (b.delta ?? -999) - (a.delta ?? -999);
-      return 0;
-    });
     return kws;
-  }, [data, filter, tierFilter, sortBy]);
+  }, [data, filter, tierFilter]);
 
   const exportCsv = () => {
     if (!data?.keywords) return;
@@ -197,66 +208,145 @@ export default function RankTrackingPage() {
     URL.revokeObjectURL(url);
   };
 
+  const columns: Column<KeywordRanking>[] = [
+    {
+      key: 'query',
+      header: 'Anahtar kelime',
+      sortValue: (k) => k.query,
+      className: 'max-w-[280px]',
+      cell: (kw) => (
+        <>
+          <div className="font-medium truncate" title={kw.query}>{kw.query}</div>
+          <Badge variant={TIER_BADGES[kw.tier].variant} className="mt-1 text-label">
+            {TIER_BADGES[kw.tier].label}
+          </Badge>
+        </>
+      ),
+    },
+    {
+      key: 'position',
+      header: 'Sıra',
+      sortValue: (k) => (k.position > 0 ? k.position : null),
+      cell: (kw) => <PositionBadge position={kw.position} tier={kw.tier} />,
+    },
+    {
+      key: 'delta',
+      header: 'Değişim',
+      sortValue: (k) => k.delta,
+      cell: (kw) => <PositionDelta delta={kw.delta} />,
+    },
+    {
+      key: 'trend',
+      header: 'Trend',
+      hideBelow: 'md',
+      cell: (kw) => <Sparkline data={kw.sparkline} />,
+    },
+    {
+      key: 'clicks',
+      header: 'Tıklama',
+      align: 'right',
+      sortValue: (k) => k.clicks,
+      cell: (kw) => formatNum(kw.clicks),
+    },
+    {
+      key: 'impressions',
+      header: 'Gösterim',
+      align: 'right',
+      hideBelow: 'sm',
+      sortValue: (k) => k.impressions,
+      cell: (kw) => formatNum(kw.impressions),
+    },
+    {
+      key: 'ctr',
+      header: 'Tıklama oranı',
+      align: 'right',
+      hideBelow: 'lg',
+      sortValue: (k) => k.ctr,
+      cell: (kw) => formatPct(kw.ctr / 100, 2),
+    },
+    {
+      key: 'page',
+      header: 'Sayfa',
+      hideBelow: 'lg',
+      className: 'max-w-[200px]',
+      cell: (kw) =>
+        kw.page ? (
+          <a
+            href={kw.page}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-muted-foreground hover:text-brand truncate inline-flex items-center gap-1 max-w-full"
+            title={kw.page}
+          >
+            <span className="truncate">{pathOf(kw.page)}</span>
+            <ExternalLink className="h-3 w-3 shrink-0" aria-hidden />
+          </a>
+        ) : (
+          <span className="text-xs text-muted-foreground/50">—</span>
+        ),
+    },
+    {
+      key: 'action',
+      header: <span className="sr-only">Eylem</span>,
+      align: 'right',
+      // 11-20: ilk sayfaya bir adim — sayfa varsa sayfa SEO'sunu iyilestir, yoksa icerik firsatina git
+      cell: (kw) =>
+        kw.tier === 'near' ? (
+          <Button size="sm" variant="outline" className="h-7 px-2.5 text-xs" asChild>
+            <Link
+              href={kw.page ? siteHref(site.id, 'snippet') : siteHref(site.id, 'opportunities')}
+              title={kw.page ? `${pathOf(kw.page)} sayfasının başlık, meta ve SSS'sini güçlendir` : 'Bu sorgu için içerik fırsatı oluştur'}
+            >
+              <Sparkles className="h-3.5 w-3.5 mr-1" aria-hidden /> {kw.page ? 'Sayfayı güçlendir' : 'İçerik üret'}
+            </Link>
+          </Button>
+        ) : null,
+    },
+  ];
+
   return (
     <div className="space-y-5">
-      {/* HEADER */}
-      <div className="flex items-start justify-between gap-3 flex-wrap">
-        <div className="flex items-start gap-3">
-          <div className="h-10 w-10 rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400 grid place-items-center">
-            <BarChart3 className="h-5 w-5" />
-          </div>
-          <div>
-            <h2 className="text-2xl font-bold flex items-center gap-2">
-              Keyword Sıralama Takibi
-              <Badge variant="outline" className="text-xs">GSC tabanlı</Badge>
-            </h2>
-            <p className="text-sm text-muted-foreground">
-              Google Search Console'dan günlük çekilen verilerle her keyword'ünün sırası, trendi ve fırsatları.
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button size="sm" variant="outline" onClick={refresh} disabled={refreshing}>
-            <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-            Yenile
-          </Button>
-          <Button size="sm" variant="outline" onClick={exportCsv} disabled={!data?.hasData}>
-            CSV indir
-          </Button>
-        </div>
-      </div>
+      <SectionHeader
+        icon={BarChart3}
+        title={
+          <span className="inline-flex flex-wrap items-center gap-2">
+            Anahtar kelime sıralaması
+            <Badge variant="outline" className="text-label">GSC</Badge>
+          </span>
+        }
+        description="Search Console'dan her gün çekilen verilerle her sorgunun sırası, trendi ve fırsatları."
+        actions={
+          <>
+            <Button size="sm" variant="outline" onClick={refresh} disabled={refreshing}>
+              <RefreshCw className={`h-4 w-4 mr-1.5 ${refreshing ? 'animate-spin' : ''}`} aria-hidden />
+              Yenile
+            </Button>
+            <Button size="sm" variant="outline" onClick={exportCsv} disabled={!data?.hasData}>
+              <Download className="h-4 w-4 mr-1.5" aria-hidden />
+              CSV indir
+            </Button>
+          </>
+        }
+      />
 
-      {/* PERIOD SELECTOR */}
-      <div className="flex items-center gap-2">
-        <span className="text-xs text-muted-foreground">Dönem:</span>
+      {/* Dönem — FilterChip (28px / aria-pressed) */}
+      <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Dönem">
+        <span className="text-label text-muted-foreground">Dönem:</span>
         {([7, 30, 90] as const).map((d) => (
-          <button
-            key={d}
-            onClick={() => setDays(d)}
-            className={`text-xs px-3 py-1 rounded-md border transition-colors ${
-              days === d ? 'border-brand bg-brand/10 text-brand font-medium' : 'border-border hover:border-foreground/30'
-            }`}
-          >
+          <FilterChip key={d} selected={days === d} onClick={() => setDays(d)}>
             Son {d} gün
-          </button>
+          </FilterChip>
         ))}
       </div>
 
-      {/* GSC NOT BAĞLI MESAJI */}
+      {/* Henuz veri yok — uyari degil, notr bos durum */}
       {!loading && !data?.hasData && (
-        <Card className="border-amber-500/30 bg-amber-500/5">
-          <CardContent className="p-6 text-center">
-            <Info className="h-8 w-8 mx-auto mb-3 text-amber-600" />
-            <h3 className="font-semibold mb-2">Henüz GSC verisi yok</h3>
-            <p className="text-sm text-muted-foreground mb-4 max-w-md mx-auto">
-              Keyword takibi için Google Search Console bağlanmış ve en az birkaç gün veri toplanmış olmalı.
-              Henüz GSC bağlamadıysan veya yeni bağladıysan birkaç gün sonra tekrar gel.
-            </p>
-            <Button asChild size="sm">
-              <Link href={`/sites/${site.id}/connections`}>GSC bağlantısını kontrol et</Link>
-            </Button>
-          </CardContent>
-        </Card>
+        <EmptyState
+          icon={BarChart3}
+          title="Henüz sıralama verisi yok"
+          description="Sıralama takibi için Google Search Console bağlı olmalı ve birkaç gün veri birikmeli. Yeni bağladıysan birkaç gün sonra tekrar bak."
+          primary={{ label: 'GSC bağlantısını kontrol et', href: siteHref(site.id, 'connections') }}
+        />
       )}
 
       {/* SUMMARY KPIS */}
@@ -266,38 +356,36 @@ export default function RankTrackingPage() {
         </div>
       ) : data?.summary ? (
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
-          <KpiCard label="Toplam Keyword" value={data.summary.total.toLocaleString('tr-TR')} icon={<BarChart3 className="h-4 w-4" />} />
-          <KpiCard label="Top 3" value={data.summary.winning.toLocaleString('tr-TR')} icon={<Trophy className="h-4 w-4" />} accent="text-emerald-600" />
-          <KpiCard label="Top 10" value={data.summary.top10.toLocaleString('tr-TR')} icon={<Trophy className="h-4 w-4" />} accent="text-blue-600" />
-          <KpiCard label="Yaklaşan (11-20)" value={data.summary.opportunities.toLocaleString('tr-TR')} icon={<Target className="h-4 w-4" />} accent="text-amber-600" />
-          <KpiCard label="Yükselen" value={data.summary.improving.toLocaleString('tr-TR')} icon={<TrendingUp className="h-4 w-4" />} accent="text-emerald-600" />
-          <KpiCard label="Düşen" value={data.summary.declining.toLocaleString('tr-TR')} icon={<TrendingDown className="h-4 w-4" />} accent="text-rose-600" />
+          <KpiCard label="Toplam sorgu" value={formatNum(data.summary.total)} icon={<BarChart3 className="h-4 w-4" />} />
+          <KpiCard label="İlk 3" value={formatNum(data.summary.winning)} icon={<Trophy className="h-4 w-4" />} accent="text-success" />
+          <KpiCard label="İlk 10" value={formatNum(data.summary.top10)} icon={<Trophy className="h-4 w-4" />} accent="text-info" />
+          <KpiCard label="Yaklaşan (11-20)" value={formatNum(data.summary.opportunities)} icon={<Target className="h-4 w-4" />} accent="text-warning" />
+          <KpiCard label="Yükselen" value={formatNum(data.summary.improving)} icon={<TrendingUp className="h-4 w-4" />} accent="text-success" />
+          <KpiCard label="Düşen" value={formatNum(data.summary.declining)} icon={<TrendingDown className="h-4 w-4" />} accent="text-danger" />
         </div>
       ) : null}
 
       {/* AVG POSITION CARD */}
       {data?.summary && (
-        <Card className="bg-gradient-to-r from-brand/5 via-transparent to-transparent">
+        <Card>
           <CardContent className="p-5 flex items-center justify-between flex-wrap gap-3">
             <div>
-              <div className="text-xs text-muted-foreground mb-1">Ortalama Pozisyon</div>
-              <div className="text-3xl font-bold">{data.summary.avgPosition.toFixed(1)}</div>
+              <div className="text-label text-muted-foreground mb-1">Ortalama sıra</div>
+              <div className="text-metric-lg tabular-nums">{formatPos(data.summary.avgPosition)}</div>
             </div>
-            <div className="flex gap-6 text-sm">
+            <div className="flex flex-wrap gap-6 text-sm">
               <div>
-                <div className="text-xs text-muted-foreground">Toplam tıklama</div>
-                <div className="font-bold">{data.summary.totalClicks.toLocaleString('tr-TR')}</div>
+                <div className="text-label text-muted-foreground">Toplam tıklama</div>
+                <div className="font-semibold tabular-nums">{formatNum(data.summary.totalClicks)}</div>
               </div>
               <div>
-                <div className="text-xs text-muted-foreground">Toplam gösterim</div>
-                <div className="font-bold">{data.summary.totalImpressions.toLocaleString('tr-TR')}</div>
+                <div className="text-label text-muted-foreground">Toplam gösterim</div>
+                <div className="font-semibold tabular-nums">{formatNum(data.summary.totalImpressions)}</div>
               </div>
               <div>
-                <div className="text-xs text-muted-foreground">Ortalama CTR</div>
-                <div className="font-bold">
-                  {data.summary.totalImpressions > 0
-                    ? ((data.summary.totalClicks / data.summary.totalImpressions) * 100).toFixed(2)
-                    : '0.00'}%
+                <div className="text-label text-muted-foreground">Ortalama tıklama oranı</div>
+                <div className="font-semibold tabular-nums">
+                  {formatPct(data.summary.totalImpressions > 0 ? data.summary.totalClicks / data.summary.totalImpressions : 0, 2)}
                 </div>
               </div>
             </div>
@@ -305,128 +393,65 @@ export default function RankTrackingPage() {
         </Card>
       )}
 
-      {/* KEYWORD TABLE */}
+      {/* KEYWORD TABLE — basliktan siralanir (aria-sort) */}
       {data?.hasData && (
         <Card>
-          <CardHeader>
+          <CardHeader className="space-y-3">
             <div className="flex items-center justify-between gap-3 flex-wrap">
-              <div className="flex items-center gap-2 flex-wrap">
-                <div className="relative">
-                  <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
-                  <Input
-                    placeholder="Keyword ara..."
-                    value={filter}
-                    onChange={e => setFilter(e.target.value)}
-                    className="pl-8 h-9 w-56 text-sm"
-                  />
-                </div>
-                <select
-                  value={tierFilter}
-                  onChange={e => setTierFilter(e.target.value as any)}
-                  className="h-9 px-2 rounded-md border border-input text-sm bg-background"
-                >
-                  <option value="all">Tümü</option>
-                  <option value="top3">Top 3</option>
-                  <option value="top10">Top 10</option>
-                  <option value="near">Yaklaşan (11-20)</option>
-                  <option value="low">20+</option>
-                </select>
-                <select
-                  value={sortBy}
-                  onChange={e => setSortBy(e.target.value as any)}
-                  className="h-9 px-2 rounded-md border border-input text-sm bg-background"
-                >
-                  <option value="impressions">Gösterim ↓</option>
-                  <option value="clicks">Tıklama ↓</option>
-                  <option value="position">Pozisyon ↑</option>
-                  <option value="delta">İyileşme ↓</option>
-                </select>
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" aria-hidden />
+                <Input
+                  placeholder="Sorgu veya sayfa ara…"
+                  aria-label="Sorgu veya sayfa ara"
+                  value={filter}
+                  onChange={e => setFilter(e.target.value)}
+                  className="pl-8 h-9 w-56 text-sm"
+                />
               </div>
-              <span className="text-xs text-muted-foreground">
-                {filtered.length} / {data.keywords.length} keyword
+              <span className="text-label text-muted-foreground tabular-nums">
+                {formatNum(filtered.length)} / {formatNum(data.keywords.length)} sorgu
               </span>
             </div>
+            <div className="flex flex-wrap gap-2" role="group" aria-label="Sıra aralığı">
+              {TIER_FILTERS.map((t) => (
+                <FilterChip key={t.key} selected={tierFilter === t.key} onClick={() => setTierFilter(t.key)}>
+                  {t.label}
+                </FilterChip>
+              ))}
+            </div>
           </CardHeader>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="bg-muted/30 text-xs">
-                <tr>
-                  <th className="text-left px-4 py-2.5 font-semibold">Keyword</th>
-                  <th className="text-center px-3 py-2.5 font-semibold">Pozisyon</th>
-                  <th className="text-center px-3 py-2.5 font-semibold">Δ</th>
-                  <th className="text-center px-3 py-2.5 font-semibold hidden md:table-cell">Trend</th>
-                  <th className="text-right px-3 py-2.5 font-semibold">Tıklama</th>
-                  <th className="text-right px-3 py-2.5 font-semibold hidden sm:table-cell">Gösterim</th>
-                  <th className="text-right px-3 py-2.5 font-semibold hidden lg:table-cell">CTR</th>
-                  <th className="text-left px-3 py-2.5 font-semibold hidden lg:table-cell">Sayfa</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border/40">
-                {filtered.slice(0, 200).map((kw) => (
-                  <tr key={kw.query + kw.page} className="hover:bg-muted/30">
-                    <td className="px-4 py-2.5 max-w-[280px]">
-                      <div className="font-medium truncate" title={kw.query}>{kw.query}</div>
-                      <Badge variant="outline" className={`mt-1 text-[10px] ${TIER_BADGES[kw.tier].className}`}>
-                        {TIER_BADGES[kw.tier].label}
-                      </Badge>
-                    </td>
-                    <td className="px-3 py-2.5 text-center">
-                      <PositionBadge position={kw.position} tier={kw.tier} />
-                    </td>
-                    <td className="px-3 py-2.5 text-center">
-                      <PositionDelta delta={kw.delta} />
-                    </td>
-                    <td className="px-3 py-2.5 text-center hidden md:table-cell">
-                      <Sparkline data={kw.sparkline} />
-                    </td>
-                    <td className="px-3 py-2.5 text-right tabular-nums">{kw.clicks.toLocaleString('tr-TR')}</td>
-                    <td className="px-3 py-2.5 text-right tabular-nums hidden sm:table-cell">{kw.impressions.toLocaleString('tr-TR')}</td>
-                    <td className="px-3 py-2.5 text-right tabular-nums hidden lg:table-cell">{formatPct(kw.ctr / 100, 2)}</td>
-                    <td className="px-3 py-2.5 hidden lg:table-cell max-w-[200px]">
-                      {kw.page ? (
-                        <a
-                          href={kw.page}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-xs text-muted-foreground hover:text-brand truncate inline-flex items-center gap-1 max-w-full"
-                          title={kw.page}
-                        >
-                          <span className="truncate">{(() => { try { return new URL(kw.page).pathname; } catch { return kw.page; } })()}</span>
-                          <ExternalLink className="h-3 w-3 shrink-0" />
-                        </a>
-                      ) : (
-                        <span className="text-xs text-muted-foreground/50">—</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-                {filtered.length === 0 && (
-                  <tr>
-                    <td colSpan={8} className="px-4 py-12 text-center text-sm text-muted-foreground">
-                      Filtreyle eşleşen keyword bulunamadı.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-            {filtered.length > 200 && (
-              <div className="px-4 py-3 text-xs text-muted-foreground border-t bg-muted/20">
-                İlk 200 sonuç gösteriliyor. CSV indirip tamamına bakabilirsin.
-              </div>
-            )}
-          </div>
+          {filtered.length === 0 ? (
+            <div className="border-t px-4 py-12 text-center text-sm text-muted-foreground">
+              Filtreyle eşleşen sorgu bulunamadı.
+            </div>
+          ) : (
+            <DataTable
+              className="border-t"
+              caption="Anahtar kelime sıralamaları"
+              columns={columns}
+              rows={filtered}
+              rowKey={(k) => k.query + k.page}
+              initialSort={{ key: 'impressions', dir: 'desc' }}
+              maxRows={200}
+            />
+          )}
+          {filtered.length > 200 && (
+            <div className="px-4 py-3 text-xs text-muted-foreground border-t bg-muted/20">
+              İlk 200 sonuç gösteriliyor. CSV indirip tamamına bakabilirsin.
+            </div>
+          )}
         </Card>
       )}
 
       {/* INFO PANEL */}
       <Card className="bg-muted/20 border-dashed">
         <CardContent className="p-4 text-xs text-muted-foreground flex items-start gap-3">
-          <Info className="h-4 w-4 shrink-0 mt-0.5" />
+          <Info className="h-4 w-4 shrink-0 mt-0.5" aria-hidden />
           <div>
             <strong className="text-foreground">Veri kaynağı:</strong> Google Search Console.
-            GSC, kendi sitenin sıralama verisini gösterir — rakip sıralamaları için bu sayfa kullanılamaz.
-            Pozisyonlar GSC'nin verdiği <em>ortalama pozisyon</em>'dur (kullanıcı, lokasyon, cihaz farklılıkları yumuşatılır).
-            Yeni eklenen keyword'lerin görünmesi için 2-3 gün veri birikmesi gerek.
+            GSC yalnız kendi sitenin sıralama verisini gösterir — rakip sıralamaları burada görünmez.
+            Sıralar GSC&apos;nin verdiği <em>ortalama sıra</em>dır (kullanıcı, konum ve cihaz farkları yumuşatılır).
+            Yeni sorguların görünmesi için 2-3 gün veri birikmesi gerekir.
           </div>
         </CardContent>
       </Card>
@@ -441,7 +466,7 @@ function KpiCard({ label, value, icon, accent }: { label: string; value: string;
       <CardContent className="pt-4">
         <div className="flex items-center justify-between mb-1.5">
           <span className="text-label text-muted-foreground">{label}</span>
-          <span className={accent ?? 'text-muted-foreground'}>{icon}</span>
+          <span className={accent ?? 'text-muted-foreground'} aria-hidden>{icon}</span>
         </div>
         <div className={`text-metric-lg tabular-nums ${accent ?? ''}`}>{value}</div>
       </CardContent>

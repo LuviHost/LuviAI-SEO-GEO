@@ -1,17 +1,30 @@
 'use client';
 import { useState } from 'react';
 import { useSiteContext } from '../site-context';
-import { ContentFlowTable } from '@/components/content-flow-table';
 import { EmptyState, RelatedLinks } from '@/components/empty-state';
-import { FileText, Sparkles, Calendar, Send, RefreshCw } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { ContentFlowTable, type ContentRowState } from '@/components/content-flow-table';
+import { FileText, Sparkles, Lightbulb, Send } from 'lucide-react';
+import { FilterChip } from '@/components/ui/filter-chip';
+import { SectionHeader } from '@/components/ui/section-header';
 import { api } from '@/lib/api';
+import { formatNum } from '@/lib/format';
+import { siteHref } from '@/lib/site-routes';
 import { toast } from 'sonner';
-import { cn } from '@/lib/utils';
+
+type FilterKey = 'suggested' | 'pipeline' | 'scheduled' | 'published';
+
+// Sayfa cipleri → tablo satir durumlari
+const FILTER_STATES: Record<FilterKey, ContentRowState[]> = {
+  suggested: ['suggested'],
+  pipeline: ['generating', 'editing', 'ready'],
+  scheduled: ['scheduled', 'queued'],
+  published: ['published'],
+};
 
 export default function ArticlesPage() {
   const { site, queue, articles, refresh, onboardingMode } = useSiteContext();
   const [running, setRunning] = useState(false);
+  const [filter, setFilter] = useState<FilterKey | null>(null);
 
   const runEngine = async () => {
     setRunning(true);
@@ -45,36 +58,37 @@ export default function ArticlesPage() {
     published: (articles ?? []).filter((a: any) => a.status === 'PUBLISHED').length,
   };
 
+  const FILTERS: Array<{ key: FilterKey; label: string; count: number }> = [
+    { key: 'suggested', label: 'Önerilen', count: counts.suggested },
+    { key: 'pipeline', label: 'Üretimde', count: counts.pipeline },
+    { key: 'scheduled', label: 'Takvimde', count: counts.scheduled },
+    { key: 'published', label: 'Yayında', count: counts.published },
+  ];
+
   return (
     <div className="space-y-5">
-      <div className="flex items-start justify-between flex-wrap gap-3">
-        <div className="flex items-start gap-3">
-          <div className="h-10 w-10 rounded-xl bg-violet-500/10 text-violet-600 dark:text-violet-400 grid place-items-center">
-            <FileText className="h-5 w-5" />
-          </div>
-          <div>
-            <h2 className="text-2xl font-bold">İçerikler</h2>
-            <p className="text-sm text-muted-foreground max-w-2xl">
-              AI önerilerini, üretim akışındaki ve yayında olan makaleleri tek listede gör.
-              Önerileri sürükleyip takvime al veya direkt üret.
-            </p>
-          </div>
-        </div>
-        {!isFullyEmpty && (
-          <Button size="sm" variant="outline" onClick={runEngine} disabled={running}>
-            <RefreshCw className={cn('h-4 w-4 mr-1', running && 'animate-spin')} />
-            {running ? 'Yenileniyor…' : 'Yeni öneriler'}
-          </Button>
-        )}
-      </div>
+      <SectionHeader
+        icon={FileText}
+        title="İçerikler"
+        description="AI önerileri, üretimdeki ve yayındaki makaleler tek listede. Önerileri takvime al ya da hemen üret."
+      />
 
-      {/* Mini özet bar — durum sayıları */}
+      {/* Durum sayilari artik tiklanabilir filtre — eskiden sadece gosterge ciplerdi */}
       {!isFullyEmpty && (
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
-          <CountChip label="Önerilen" value={counts.suggested} accent="amber" />
-          <CountChip label="Pipeline'da" value={counts.pipeline} accent="brand" />
-          <CountChip label="Takvimde" value={counts.scheduled} accent="sky" />
-          <CountChip label="Yayında" value={counts.published} accent="emerald" />
+        <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Duruma göre filtrele">
+          <FilterChip selected={filter === null} onClick={() => setFilter(null)}>
+            Tümü
+          </FilterChip>
+          {FILTERS.map((f) => (
+            <FilterChip
+              key={f.key}
+              selected={filter === f.key}
+              onClick={() => setFilter(filter === f.key ? null : f.key)}
+            >
+              {f.label}
+              <span className="tabular-nums text-muted-foreground">{formatNum(f.count)}</span>
+            </FilterChip>
+          ))}
         </div>
       )}
 
@@ -82,55 +96,36 @@ export default function ArticlesPage() {
         <EmptyState
           icon={Sparkles}
           accent="amber"
-          title={running ? 'Topic engine çalışıyor…' : 'Henüz içerik yok'}
+          title={running ? 'Konu motoru çalışıyor…' : 'Henüz içerik yok'}
           description={
             running
-              ? 'Plan + GSC + GEO + rakip analizi → 6 tier-1 konu üretilecek (~60sn).'
-              : 'Topic engine sitenin nişine ve rakiplerine göre 6 öneri çıkarır. Her birini takvime alabilir veya direkt üretebilirsin.'
+              ? 'Plan + GSC + GEO + rakip analizi → 6 öncelikli konu üretilecek (~60 sn).'
+              : 'Konu motoru sitenin nişine ve rakiplerine göre 6 öneri çıkarır. Her birini takvime alabilir veya hemen üretebilirsin.'
           }
           primary={{
-            label: running ? 'Çalışıyor…' : 'Topic Engine Çalıştır',
+            label: running ? 'Çalışıyor…' : 'Konu önerisi üret',
             onClick: runEngine,
           }}
         />
       ) : (
+        // "Yeni öneriler" dugmesi tablonun basliginda — sayfada ikinci kopya yok
         <ContentFlowTable
           queue={queue}
           articles={articles}
           siteId={site.id}
           onRefresh={refresh}
           onboardingMode={onboardingMode}
+          stateFilter={filter ? FILTER_STATES[filter] : null}
         />
       )}
 
       <RelatedLinks
         links={[
-          { href: `/sites/${site.id}/calendar`, label: 'Takvim', description: 'Planlanan yayın saatlerini gör + yeniden düzenle', icon: Calendar },
-          { href: `/sites/${site.id}/publish-targets`, label: 'Yayın Hedefleri', description: 'Makaleler nereye gidecek (WP, FTP, vb.)', icon: Send },
-          { href: `/sites/${site.id}/audit`, label: 'Site Skoru', description: 'SEO + GEO 14 kontrol noktası', icon: Sparkles },
+          { href: siteHref(site.id, 'publishTargets'), label: 'Yayın Hedefleri', description: 'Makaleler nereye gidecek (WP, FTP, vb.)', icon: Send },
+          { href: siteHref(site.id, 'opportunities'), label: 'Fırsatlar', description: 'Sıralaması yükselebilecek sorgular için içerik üret', icon: Lightbulb },
+          { href: siteHref(site.id, 'audit'), label: 'Site Skoru', description: 'SEO + GEO 14 kontrol noktası', icon: Sparkles },
         ]}
       />
-    </div>
-  );
-}
-
-function CountChip({
-  label, value, accent,
-}: {
-  label: string;
-  value: number;
-  accent: 'amber' | 'brand' | 'sky' | 'emerald';
-}) {
-  const colors: Record<string, string> = {
-    amber: 'border-amber-500/30 bg-amber-500/5 text-amber-700 dark:text-amber-400',
-    brand: 'border-brand/30 bg-brand/5 text-brand',
-    sky: 'border-sky-500/30 bg-sky-500/5 text-sky-700 dark:text-sky-400',
-    emerald: 'border-emerald-500/30 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400',
-  };
-  return (
-    <div className={`rounded-lg border px-3 py-2 ${colors[accent]}`}>
-      <div className="text-2xl font-bold tabular-nums leading-none">{value}</div>
-      <div className="text-[10px] uppercase tracking-widest font-semibold mt-1">{label}</div>
     </div>
   );
 }

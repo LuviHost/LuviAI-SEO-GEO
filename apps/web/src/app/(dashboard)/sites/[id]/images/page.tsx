@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { ImageOff, Sparkles, CheckCircle2, AlertTriangle, Loader2, ExternalLink, Upload, Undo2, Copy } from 'lucide-react';
+import { ImageOff, Sparkles, CheckCircle2, AlertTriangle, Loader2, ExternalLink, Upload, Undo2, Copy, Image as ImageIcon } from 'lucide-react';
+import { SectionHeader } from '@/components/ui/section-header';
 import { useSiteContext } from '../site-context';
 import { api } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
@@ -160,15 +161,16 @@ export default function SiteImagesPage() {
 
   return (
     <div className="space-y-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="max-w-2xl">
-          <h2 className="text-h6 font-semibold tracking-tight">Görsel alt metinleri</h2>
-          <p className="text-sm text-muted-foreground mt-1">
-            Alt metni olmayan görseller ekran okuyucuda dosya adı olarak okunur, Google da görselin konusunu daha zor anlar.
-            Öneriler görseli <em>görerek</em> üretilir; her birini kontrol edip onaylarsın. Süs görselleri için boş alt (alt=&quot;&quot;) doğrudur.
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
+      <SectionHeader
+        icon={ImageIcon}
+        title="Görsel alt metinleri"
+        description={
+          <>
+            AI görseli görerek alt metin önerir, sen onaylarsın. Süs görselleri için boş alt (alt=&quot;&quot;) doğrudur.
+          </>
+        }
+        actions={
+          <>
           <Button variant="outline" onClick={suggestAll} disabled={!!bulk || counts.missing + counts.suspicious === 0}>
             {bulk?.kind === 'suggest' ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Sparkles className="h-4 w-4 mr-1.5" />}
             {bulk?.kind === 'suggest' ? `${bulk.queued} öneri üretiliyor…` : 'Eksiklere öneri üret (50)'}
@@ -183,8 +185,9 @@ export default function SiteImagesPage() {
               {bulk?.kind === 'apply' ? `${bulk.queued} alt metni yazılıyor…` : `Onaylananları siteye uygula (${counts.approved})`}
             </Button>
           )}
-        </div>
-      </div>
+          </>
+        }
+      />
 
       {confirmApply && (
         <Card><CardContent className="p-4 flex flex-wrap items-center gap-3">

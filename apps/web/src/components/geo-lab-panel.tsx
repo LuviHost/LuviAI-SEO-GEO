@@ -2,7 +2,14 @@
 
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { Sparkles, Network, Globe, Check, X, AlertCircle, Copy, ExternalLink, Play, MessageSquare, Link2, Download, Code, Activity, MapPin, Mail, User, BarChart3, Bot } from 'lucide-react';
+import {
+  Sparkles, Network, Globe, Check, X, AlertCircle, Copy, ExternalLink, Play, MessageSquare, Link2, Download, Code, Activity, MapPin, Mail, User, BarChart3, Bot,
+  Gauge, Award, Wrench, Send, BookOpen, Target, Lightbulb, Package, FileText, Search, Map as MapIcon, Trophy, CheckCircle2, XCircle, AlertTriangle, Tags,
+} from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { SectionHeader } from '@/components/ui/section-header';
+import { Skeleton } from '@/components/ui/skeleton';
+import { formatNum } from '@/lib/format';
 import { api } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -14,62 +21,146 @@ import { Badge } from '@/components/ui/badge';
  *  2. Wikidata draft (Knowledge Graph icin)
  *  3. Wikipedia article draft
  */
+type ToolId = 'heatmap' | 'wikidata' | 'wikipedia' | 'community' | 'cross-link' | 'training' | 'schema-validate' | 'tracker' | 'sitemap-ai' | 'haro' | 'programmatic' | 'ai-console' | 'chat-widget';
+
+type Tool = { id: ToolId; label: string; icon: React.ComponentType<{ className?: string }> };
+
+// 13 arac tek satirda telefonda kirilip tasiyordu → 4 kategori, her biri kendi sekme listesinde
+const CATEGORIES: Array<{ id: string; label: string; icon: React.ComponentType<{ className?: string }>; description: string; tools: Tool[] }> = [
+  {
+    id: 'olc',
+    label: 'Ölç',
+    icon: Gauge,
+    description: 'AI cevaplarında nerede alıntılandığını ve AI kaynaklı trafiği ölç.',
+    tools: [
+      { id: 'heatmap', label: 'Isı haritası', icon: Network },
+      { id: 'ai-console', label: 'AI trafik konsolu', icon: BarChart3 },
+      { id: 'tracker', label: 'Bot izleyici', icon: Activity },
+    ],
+  },
+  {
+    id: 'otorite',
+    label: 'Otorite',
+    icon: Award,
+    description: 'Bilgi grafiği, ansiklopedi ve topluluk sinyalleriyle güven kazan.',
+    tools: [
+      { id: 'wikidata', label: 'Wikidata', icon: Globe },
+      { id: 'wikipedia', label: 'Wikipedia', icon: BookOpen },
+      { id: 'community', label: 'Reddit', icon: MessageSquare },
+      { id: 'haro', label: 'HARO', icon: Mail },
+      { id: 'cross-link', label: 'Çapraz bağlantı', icon: Link2 },
+    ],
+  },
+  {
+    id: 'teknik',
+    label: 'Teknik',
+    icon: Wrench,
+    description: 'AI tarayıcılarının siteni doğru okuması için yapısal veriler.',
+    tools: [
+      { id: 'schema-validate', label: 'Şema doğrula', icon: Code },
+      { id: 'sitemap-ai', label: 'AI site haritası', icon: Globe },
+      { id: 'training', label: 'Eğitim verisi', icon: Download },
+    ],
+  },
+  {
+    id: 'dagitim',
+    label: 'Dağıtım',
+    icon: Send,
+    description: 'İçeriğini ölçekle çoğalt ve sitende AI sohbetiyle sun.',
+    tools: [
+      { id: 'programmatic', label: '81 il sayfası', icon: MapPin },
+      { id: 'chat-widget', label: 'Sohbet aracı', icon: Bot },
+    ],
+  },
+];
+
+function ToolBody({ id, siteId }: { id: ToolId; siteId: string }) {
+  switch (id) {
+    case 'heatmap': return <HeatmapTab siteId={siteId} />;
+    case 'wikidata': return <WikidataTab siteId={siteId} />;
+    case 'wikipedia': return <WikipediaTab siteId={siteId} />;
+    case 'community': return <CommunityTab siteId={siteId} />;
+    case 'cross-link': return <CrossLinkTab siteId={siteId} />;
+    case 'training': return <TrainingDataTab siteId={siteId} />;
+    case 'schema-validate': return <SchemaValidateTab siteId={siteId} />;
+    case 'tracker': return <TrackerEmbedTab siteId={siteId} />;
+    case 'sitemap-ai': return <AiSitemapTab siteId={siteId} />;
+    case 'haro': return <HaroTab siteId={siteId} />;
+    case 'programmatic': return <ProgrammaticTab siteId={siteId} />;
+    case 'ai-console': return <AiSearchConsoleTab siteId={siteId} />;
+    case 'chat-widget': return <ChatWidgetTab siteId={siteId} />;
+  }
+}
+
+/**
+ * GEO Lab — gelismis GEO arac kutusu. ui/tabs (Radix: klavye + ARIA), iki seviye:
+ * kategori → arac. Sekme listeleri yatay kayar; telefonda satir kirilmaz.
+ */
 export function GeoLabPanel({ siteId }: { siteId: string }) {
-  const [tab, setTab] = useState<'heatmap' | 'wikidata' | 'wikipedia' | 'community' | 'cross-link' | 'training' | 'schema-validate' | 'tracker' | 'sitemap-ai' | 'haro' | 'programmatic' | 'ai-console' | 'chat-widget'>('heatmap');
+  const [category, setCategory] = useState(CATEGORIES[0].id);
+  // Her kategoride son secilen arac hatirlanir
+  const [toolByCat, setToolByCat] = useState<Record<string, ToolId>>(
+    () => Object.fromEntries(CATEGORIES.map((c) => [c.id, c.tools[0].id])) as Record<string, ToolId>,
+  );
 
   return (
-    <div className="rounded-lg border p-4 space-y-3">
-      <div>
-        <p className="text-sm font-semibold inline-flex items-center gap-2">
-          <Sparkles className="h-4 w-4 text-brand" /> GEO Lab — Gelişmiş AI Görünürlük Araçları
-        </p>
-        <p className="text-xs text-muted-foreground mt-0.5">
-          Heatmap · Wikidata · Wikipedia · Reddit · Cross-link · AI Training Data
-        </p>
-      </div>
+    <Card>
+      <CardContent className="p-4 space-y-4">
+        <SectionHeader
+          as="h3"
+          icon={Sparkles}
+          title="Gelişmiş AI görünürlük araçları"
+          description="Ölç, otorite kazan, teknik altyapıyı düzelt ve içeriğini dağıt."
+        />
 
-      <div className="inline-flex border rounded-md overflow-hidden flex-wrap">
-        {([
-          ['heatmap', 'Heatmap', <Network key="h" className="h-3 w-3" />],
-          ['wikidata', 'Wikidata', <Globe key="d" className="h-3 w-3" />],
-          ['wikipedia', 'Wikipedia', <Globe key="w" className="h-3 w-3" />],
-          ['community', 'Reddit', <MessageSquare key="r" className="h-3 w-3" />],
-          ['cross-link', 'Cross-Link', <Link2 key="c" className="h-3 w-3" />],
-          ['training', 'Training Data', <Download key="t" className="h-3 w-3" />],
-          ['schema-validate', 'Schema Doğrula', <Code key="sv" className="h-3 w-3" />],
-          ['tracker', 'Bot Tracker', <Activity key="tr" className="h-3 w-3" />],
-          ['sitemap-ai', 'AI Sitemap', <Globe key="sa" className="h-3 w-3" />],
-          ['haro', 'HARO', <Mail key="ha" className="h-3 w-3" />],
-          ['programmatic', '81 İl', <MapPin key="pg" className="h-3 w-3" />],
-          ['ai-console', 'AI Search Console', <BarChart3 key="ac" className="h-3 w-3" />],
-          ['chat-widget', 'Chat Widget', <Bot key="cw" className="h-3 w-3" />],
-        ] as const).map(([id, label, icon]) => (
-          <button
-            key={id}
-            onClick={() => setTab(id as any)}
-            className={`px-3 py-1.5 text-xs font-medium inline-flex items-center gap-1 ${
-              tab === id ? 'bg-brand text-white' : 'bg-card text-muted-foreground hover:bg-muted'
-            }`}
-          >
-            {icon} {label}
-          </button>
-        ))}
-      </div>
+        <Tabs value={category} onValueChange={setCategory}>
+          <div className="-mx-4 overflow-x-auto px-4">
+            <TabsList className="w-max" aria-label="Araç kategorisi">
+              {CATEGORIES.map((c) => {
+                const Icon = c.icon;
+                return (
+                  <TabsTrigger key={c.id} value={c.id}>
+                    <Icon className="h-3.5 w-3.5 mr-1.5" aria-hidden /> {c.label}
+                  </TabsTrigger>
+                );
+              })}
+            </TabsList>
+          </div>
 
-      {tab === 'heatmap' && <HeatmapTab siteId={siteId} />}
-      {tab === 'wikidata' && <WikidataTab siteId={siteId} />}
-      {tab === 'wikipedia' && <WikipediaTab siteId={siteId} />}
-      {tab === 'community' && <CommunityTab siteId={siteId} />}
-      {tab === 'cross-link' && <CrossLinkTab siteId={siteId} />}
-      {tab === 'training' && <TrainingDataTab siteId={siteId} />}
-      {tab === 'schema-validate' && <SchemaValidateTab siteId={siteId} />}
-      {tab === 'tracker' && <TrackerEmbedTab siteId={siteId} />}
-      {tab === 'sitemap-ai' && <AiSitemapTab siteId={siteId} />}
-      {tab === 'haro' && <HaroTab siteId={siteId} />}
-      {tab === 'programmatic' && <ProgrammaticTab siteId={siteId} />}
-      {tab === 'ai-console' && <AiSearchConsoleTab siteId={siteId} />}
-      {tab === 'chat-widget' && <ChatWidgetTab siteId={siteId} />}
-    </div>
+          {CATEGORIES.map((c) => (
+            <TabsContent key={c.id} value={c.id} className="mt-3 space-y-3">
+              <p className="text-xs text-muted-foreground">{c.description}</p>
+              <Tabs
+                value={toolByCat[c.id]}
+                onValueChange={(v) => setToolByCat((prev) => ({ ...prev, [c.id]: v as ToolId }))}
+              >
+                <div className="-mx-4 overflow-x-auto border-b px-4">
+                  <TabsList className="h-auto w-max justify-start gap-1 rounded-none bg-transparent p-0" aria-label={`${c.label} araçları`}>
+                    {c.tools.map((t) => {
+                      const Icon = t.icon;
+                      return (
+                        <TabsTrigger
+                          key={t.id}
+                          value={t.id}
+                          className="rounded-none border-b-2 border-transparent px-3 py-2 text-xs data-[state=active]:border-brand data-[state=active]:bg-transparent data-[state=active]:text-foreground data-[state=active]:shadow-none dark:data-[state=active]:bg-transparent"
+                        >
+                          <Icon className="h-3.5 w-3.5 mr-1.5" aria-hidden /> {t.label}
+                        </TabsTrigger>
+                      );
+                    })}
+                  </TabsList>
+                </div>
+                {c.tools.map((t) => (
+                  <TabsContent key={t.id} value={t.id} className="mt-3">
+                    <ToolBody id={t.id} siteId={siteId} />
+                  </TabsContent>
+                ))}
+              </Tabs>
+            </TabsContent>
+          ))}
+        </Tabs>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -92,7 +183,15 @@ function AiSearchConsoleTab({ siteId }: { siteId: string }) {
 
   useEffect(() => { load(); }, [days, siteId]);
 
-  if (loading || !data) return <div className="text-sm text-muted-foreground p-6 text-center">Yükleniyor…</div>;
+  if (loading || !data) {
+    return (
+      <div className="space-y-2" aria-busy="true" aria-label="Yükleniyor">
+        <Skeleton className="h-4 w-2/3" />
+        <Skeleton className="h-14 w-full" />
+        <Skeleton className="h-14 w-full" />
+      </div>
+    );
+  }
 
   const sortedReferrers = Object.entries(data.byReferrer ?? {}).sort((a, b) => (b[1] as number) - (a[1] as number));
 
@@ -101,17 +200,17 @@ function AiSearchConsoleTab({ siteId }: { siteId: string }) {
       <p className="text-xs text-muted-foreground">
         Bu sayfa <strong>AI cevap kutucuklarından gelen kullanıcı trafiği</strong>nı gösterir. ChatGPT/Perplexity/Claude'da sitenizin URL'i alıntılandığında, kullanıcı linke tıkladıkça referer header'ı yakalanır. <strong>Bot trafiği değil — gerçek satın alma niyetli ziyaretçi.</strong>
       </p>
-      <p className="text-[11px] text-muted-foreground">
+      <p className="text-label text-muted-foreground">
         Bağlam: sektör genelinde AI asistanlarından gelen ziyaret çoğu site için toplam trafiğin %1'inin altında — burada hacim değil niyet önemli (bu ziyaretçi soruyu sormuş, cevabı okumuş, sonra tıklamış). Ayrıca ChatGPT trafiğinin büyük bölümü analitikte sorgu bilgisi olmadan "Direct/Referral" görünür; bu sayfa <strong>ölçülebilen alt küme</strong>dir, tamamı değil.
       </p>
 
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="inline-flex border rounded-md overflow-hidden">
           {[7, 30, 90].map((d) => (
-            <button key={d} onClick={() => setDays(d)} className={`px-2.5 py-1 text-xs font-medium ${days === d ? 'bg-brand text-white' : 'bg-card text-muted-foreground hover:bg-muted'}`}>{d}g</button>
+            <button key={d} type="button" aria-pressed={days === d} onClick={() => setDays(d)} className={`px-2.5 py-1 text-xs font-medium ${days === d ? 'bg-brand text-white' : 'bg-card text-muted-foreground hover:bg-muted'}`}>{d}g</button>
           ))}
         </div>
-        <span className="text-xs text-muted-foreground">Toplam: <strong>{data.totalHits.toLocaleString('tr-TR')}</strong> tıklama</span>
+        <span className="text-xs text-muted-foreground">Toplam: <strong>{formatNum(data.totalHits)}</strong> tıklama</span>
       </div>
 
       {data.totalHits === 0 ? (
@@ -128,7 +227,7 @@ function AiSearchConsoleTab({ siteId }: { siteId: string }) {
               <div key={key} className="rounded-md border p-3">
                 <div className="flex items-center justify-between mb-2">
                   <span className="font-semibold text-sm">{label}</span>
-                  <span className="font-mono text-xs">{(hits as number).toLocaleString('tr-TR')} ({pct.toFixed(1)}%)</span>
+                  <span className="font-mono text-xs">{formatNum(hits as number)} (%{pct.toFixed(1)})</span>
                 </div>
                 <div className="h-2 bg-muted rounded-full overflow-hidden">
                   <div className="h-full bg-brand" style={{ width: `${pct}%` }} />
@@ -161,23 +260,23 @@ function ChatWidgetTab({ siteId }: { siteId: string }) {
             <Copy className="h-3 w-3" /> Kopyala
           </button>
         </div>
-        <pre className="p-3 text-[11px] font-mono whitespace-pre-wrap break-all">{snippet}</pre>
+        <pre className="p-3 text-label font-mono whitespace-pre-wrap break-all">{snippet}</pre>
       </div>
 
       <div className="rounded-md border bg-muted/20 p-3">
         <p className="text-xs font-semibold mb-2">Özellikler</p>
         <ul className="space-y-1 text-xs text-muted-foreground">
-          <li>✓ Otomatik FAB (sağ alt köşe, tıklanınca açılır)</li>
-          <li>✓ Marka rengi + RanksUp gradient</li>
-          <li>✓ AI brain context'i + son 30 makale ile cevap üretir</li>
-          <li>✓ Cevap içinde ilgili makale linki otomatik</li>
-          <li>✓ Mobil uyumlu, responsive</li>
+          <li className="flex items-start gap-1.5"><Check className="h-3 w-3 mt-0.5 shrink-0 text-success" aria-hidden />Otomatik FAB (sağ alt köşe, tıklanınca açılır)</li>
+          <li className="flex items-start gap-1.5"><Check className="h-3 w-3 mt-0.5 shrink-0 text-success" aria-hidden />Marka rengi + RanksUp gradient</li>
+          <li className="flex items-start gap-1.5"><Check className="h-3 w-3 mt-0.5 shrink-0 text-success" aria-hidden />AI brain context'i + son 30 makale ile cevap üretir</li>
+          <li className="flex items-start gap-1.5"><Check className="h-3 w-3 mt-0.5 shrink-0 text-success" aria-hidden />Cevap içinde ilgili makale linki otomatik</li>
+          <li className="flex items-start gap-1.5"><Check className="h-3 w-3 mt-0.5 shrink-0 text-success" aria-hidden />Mobil uyumlu, responsive</li>
         </ul>
       </div>
 
-      <div className="rounded-md border border-blue-500/30 bg-blue-500/5 p-3">
+      <div className="rounded-md border border-info/30 bg-info/5 p-3">
         <p className="text-xs">
-          🎯 <strong>SEO ve GEO etkisi:</strong> Widget'ta sorulan sorular Google'a "kullanıcı niyeti" sinyali gönderir. Ayrıca cevap içindeki internal link'ler crawler'lar için bonus erişim noktası.
+          <Target className="inline h-3.5 w-3.5 mr-1 align-[-2px]" aria-hidden /><strong>SEO ve GEO etkisi:</strong> Widget'ta sorulan sorular Google'a "kullanıcı niyeti" sinyali gönderir. Ayrıca cevap içindeki internal link'ler crawler'lar için bonus erişim noktası.
         </p>
       </div>
     </div>
@@ -207,7 +306,7 @@ function AiSitemapTab({ siteId }: { siteId: string }) {
             <Copy className="h-3 w-3" /> Kopyala
           </button>
         </div>
-        <pre className="p-3 text-[11px] font-mono whitespace-pre-wrap break-all">{url}</pre>
+        <pre className="p-3 text-label font-mono whitespace-pre-wrap break-all">{url}</pre>
       </div>
 
       <div className="flex items-center gap-2">
@@ -222,7 +321,7 @@ function AiSitemapTab({ siteId }: { siteId: string }) {
 
       <div className="rounded-md border bg-muted/20 p-3">
         <p className="text-xs font-semibold mb-2">robots.txt'e ekleyin</p>
-        <pre className="text-[11px] font-mono">{robotsLine}</pre>
+        <pre className="text-label font-mono">{robotsLine}</pre>
       </div>
     </div>
   );
@@ -267,7 +366,7 @@ function HaroTab({ siteId }: { siteId: string }) {
       />
 
       <Button size="sm" onClick={parse} disabled={loading}>
-        {loading ? 'Parse ediliyor (~30s)…' : '📧 HARO Parse + Pitch Üret'}
+        {loading ? 'Ayrıştırılıyor (~30 sn)…' : <><Mail className="h-3.5 w-3.5 mr-1.5" aria-hidden />HARO ayrıştır + yanıt üret</>}
       </Button>
 
       {queries.length > 0 && (
@@ -277,13 +376,13 @@ function HaroTab({ siteId }: { siteId: string }) {
               <div className="flex items-start justify-between gap-2">
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-sm">{q.publication}</p>
-                  <p className="text-[11px] text-muted-foreground">{q.reporter} · {q.category} · Deadline: {q.deadline}</p>
+                  <p className="text-label text-muted-foreground">{q.reporter} · {q.category} · Deadline: {q.deadline}</p>
                 </div>
                 <Badge variant={q.brandFitScore >= 70 ? 'default' : 'outline'}>{q.brandFitScore}/100</Badge>
               </div>
               <p className="text-xs italic">"{q.query.slice(0, 200)}…"</p>
               <div className="rounded bg-muted/30 p-2 border-l-2 border-brand">
-                <p className="text-[10px] uppercase font-semibold text-muted-foreground mb-1">AI taslak pitch:</p>
+                <p className="text-label uppercase font-semibold text-muted-foreground mb-1">AI taslak pitch:</p>
                 <p className="text-xs whitespace-pre-wrap">{q.draftPitch}</p>
               </div>
               <div className="flex items-center gap-2">
@@ -375,15 +474,15 @@ function ProgrammaticTab({ siteId }: { siteId: string }) {
       </div>
 
       <Button size="sm" onClick={generate} disabled={loading}>
-        {loading ? 'Şehirler ekleniyor…' : `🗺️ ${maxQuota} Şehri Takvime Ekle`}
+        {loading ? 'Şehirler ekleniyor…' : <><MapIcon className="h-3.5 w-3.5 mr-1.5" aria-hidden />{maxQuota} şehri takvime ekle</>}
       </Button>
 
       {result && (
-        <div className="rounded-md border p-3 bg-green-500/5 space-y-2">
-          <p className="text-sm font-semibold">✓ {result.scheduled} şehir takvime eklendi</p>
+        <div className="rounded-md border p-3 bg-success/5 space-y-2">
+          <p className="flex items-center gap-1.5 text-sm font-semibold"><CheckCircle2 className="h-4 w-4 text-success" aria-hidden />{result.scheduled} şehir takvime eklendi</p>
           <details>
             <summary className="text-xs cursor-pointer text-muted-foreground">Eklenen başlıklar</summary>
-            <ul className="mt-2 space-y-0.5 text-[11px]">
+            <ul className="mt-2 space-y-0.5 text-label">
               {(result.topics ?? []).map((t: string, i: number) => (
                 <li key={i}>• {t}</li>
               ))}
@@ -442,32 +541,32 @@ function SchemaValidateTab({ siteId }: { siteId: string }) {
         <div className="space-y-3">
           <div className="grid grid-cols-3 gap-2">
             <div className="rounded-md border p-3 text-center">
-              <p className={`text-2xl font-bold ${data.valid ? 'text-green-500' : 'text-red-500'}`}>
-                {data.valid ? '✓' : '✗'}
+              <p className={`text-metric-lg tabular-nums ${data.valid ? 'text-success' : 'text-danger'}`}>
+                {data.valid ? <CheckCircle2 className="mx-auto h-7 w-7" aria-label="Geçerli" /> : <XCircle className="mx-auto h-7 w-7" aria-label="Sorunlu" />}
               </p>
-              <p className="text-[11px] text-muted-foreground">{data.valid ? 'Geçerli' : 'Sorunlu'}</p>
+              <p className="text-label text-muted-foreground">{data.valid ? 'Geçerli' : 'Sorunlu'}</p>
             </div>
             <div className="rounded-md border p-3 text-center">
-              <p className="text-2xl font-bold">{data.schemaCount}</p>
-              <p className="text-[11px] text-muted-foreground">JSON-LD blok</p>
+              <p className="text-metric-lg tabular-nums">{data.schemaCount}</p>
+              <p className="text-label text-muted-foreground">JSON-LD blok</p>
             </div>
             <div className="rounded-md border p-3 text-center">
-              <p className="text-2xl font-bold">{data.types.length}</p>
-              <p className="text-[11px] text-muted-foreground">Schema tipi</p>
+              <p className="text-metric-lg tabular-nums">{data.types.length}</p>
+              <p className="text-label text-muted-foreground">Schema tipi</p>
             </div>
           </div>
 
           {data.types.length > 0 && (
             <div className="flex flex-wrap gap-1">
               {data.types.map((t: string) => (
-                <Badge key={t} variant="outline" className="text-[10px]">{t}</Badge>
+                <Badge key={t} variant="outline" className="text-label">{t}</Badge>
               ))}
             </div>
           )}
 
           {data.errors.length > 0 && (
-            <div className="rounded-md border border-red-500/30 bg-red-500/5 p-3">
-              <p className="text-xs font-semibold text-red-700 dark:text-red-400 mb-1.5">❌ Hatalar ({data.errors.length})</p>
+            <div className="rounded-md border border-danger/30 bg-danger/5 p-3">
+              <p className="text-xs font-semibold text-danger mb-1.5 flex items-center gap-1.5"><XCircle className="h-3.5 w-3.5" aria-hidden />Hatalar ({data.errors.length})</p>
               <ul className="space-y-0.5 text-xs">
                 {data.errors.map((e: string, i: number) => <li key={i}>• {e}</li>)}
               </ul>
@@ -475,8 +574,8 @@ function SchemaValidateTab({ siteId }: { siteId: string }) {
           )}
 
           {data.warnings.length > 0 && (
-            <div className="rounded-md border border-yellow-500/30 bg-yellow-500/5 p-3">
-              <p className="text-xs font-semibold text-yellow-700 dark:text-yellow-400 mb-1.5">⚠ Uyarılar ({data.warnings.length})</p>
+            <div className="rounded-md border border-warning/30 bg-warning/5 p-3">
+              <p className="text-xs font-semibold text-warning mb-1.5 flex items-center gap-1.5"><AlertTriangle className="h-3.5 w-3.5" aria-hidden />Uyarılar ({data.warnings.length})</p>
               <ul className="space-y-0.5 text-xs">
                 {data.warnings.map((w: string, i: number) => <li key={i}>• {w}</li>)}
               </ul>
@@ -484,8 +583,8 @@ function SchemaValidateTab({ siteId }: { siteId: string }) {
           )}
 
           {data.recommendations.length > 0 && (
-            <div className="rounded-md border border-blue-500/30 bg-blue-500/5 p-3">
-              <p className="text-xs font-semibold text-blue-700 dark:text-blue-400 mb-1.5">💡 Öneriler ({data.recommendations.length})</p>
+            <div className="rounded-md border border-info/30 bg-info/5 p-3">
+              <p className="text-xs font-semibold text-info mb-1.5 flex items-center gap-1.5"><Lightbulb className="h-3.5 w-3.5" aria-hidden />Öneriler ({data.recommendations.length})</p>
               <ul className="space-y-0.5 text-xs">
                 {data.recommendations.map((r: string, i: number) => <li key={i}>• {r}</li>)}
               </ul>
@@ -520,7 +619,7 @@ function TrackerEmbedTab({ siteId }: { siteId: string }) {
             <Copy className="h-3 w-3" /> Kopyala
           </button>
         </div>
-        <pre className="p-3 text-[11px] font-mono whitespace-pre-wrap break-all">{snippet}</pre>
+        <pre className="p-3 text-label font-mono whitespace-pre-wrap break-all">{snippet}</pre>
       </div>
 
       <div className="rounded-md border bg-muted/20 p-3">
@@ -533,9 +632,9 @@ function TrackerEmbedTab({ siteId }: { siteId: string }) {
         </ul>
       </div>
 
-      <div className="rounded-md border border-blue-500/30 bg-blue-500/5 p-3">
+      <div className="rounded-md border border-info/30 bg-info/5 p-3">
         <p className="text-xs">
-          <strong>📊 Veri akışı:</strong> Bot ziyaret ettiğinde tracker.js çalışır → beacon.gif fetch eder → API middleware bot UA'sını yakalar → 60sn'de bir DB'ye flush eder. <strong>AI Crawler Trafiği</strong> paneli bu verilerle dolar.
+          <BarChart3 className="inline h-3.5 w-3.5 mr-1 align-[-2px]" aria-hidden /><strong>Veri akışı:</strong> Bot ziyaret ettiğinde tracker.js çalışır → beacon.gif fetch eder → API middleware bot UA'sını yakalar → 60sn'de bir DB'ye flush eder. <strong>AI Crawler Trafiği</strong> paneli bu verilerle dolar.
         </p>
       </div>
     </div>
@@ -571,10 +670,10 @@ function CommunityTab({ siteId }: { siteId: string }) {
     <div className="space-y-3">
       <p className="text-xs text-muted-foreground">
         AI'lar (özellikle ChatGPT ve Perplexity) Reddit'i <strong>birinci kaynak</strong> olarak kullanıyor. RanksUp sektör sorularınızla ilgili Reddit postlarını tarayıp marka sesinizde taslak cevap önerir. Spam değil — gerçek değer.
-        <strong className="text-yellow-700 dark:text-yellow-400"> Manuel onay zorunlu</strong>, otomatik post YOK.
+        <strong className="text-warning"> Manuel onay zorunlu</strong>, otomatik post YOK.
       </p>
       <Button size="sm" onClick={find} disabled={loading}>
-        {loading ? 'Reddit taranıyor (~30s)…' : '🔍 Fırsat Bul'}
+        {loading ? 'Reddit taranıyor (~30 sn)…' : <><Search className="h-3.5 w-3.5 mr-1.5" aria-hidden />Fırsat bul</>}
       </Button>
       {opportunities.length > 0 && (
         <div className="space-y-2">
@@ -583,7 +682,7 @@ function CommunityTab({ siteId }: { siteId: string }) {
               <div className="flex items-start justify-between gap-2">
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-sm">{op.title}</p>
-                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                  <p className="text-label text-muted-foreground mt-0.5">
                     r/{op.subreddit ?? 'unknown'} · {op.publishedAt ? new Date(op.publishedAt).toLocaleDateString('tr-TR') : ''}
                   </p>
                 </div>
@@ -591,7 +690,7 @@ function CommunityTab({ siteId }: { siteId: string }) {
               </div>
               <p className="text-xs text-muted-foreground line-clamp-2">{op.snippet}</p>
               <div className="rounded bg-muted/30 p-2 border-l-2 border-brand">
-                <p className="text-[10px] uppercase font-semibold text-muted-foreground mb-1">AI taslak yanıt:</p>
+                <p className="text-label uppercase font-semibold text-muted-foreground mb-1">AI taslak yanıt:</p>
                 <p className="text-xs whitespace-pre-wrap">{op.draftReply}</p>
               </div>
               <div className="flex items-center gap-2">
@@ -689,7 +788,7 @@ function CrossLinkTab({ siteId }: { siteId: string }) {
               <div className="flex items-start justify-between gap-2">
                 <div>
                   <p className="text-sm font-semibold">{s.toArticleTitle}</p>
-                  <p className="text-[11px] text-muted-foreground">
+                  <p className="text-label text-muted-foreground">
                     {s.toSiteName} · {s.insertionPoint}
                   </p>
                 </div>
@@ -698,7 +797,7 @@ function CrossLinkTab({ siteId }: { siteId: string }) {
               <p className="text-xs text-muted-foreground italic">"{s.contextSnippet}"</p>
               <div className="flex items-center gap-2">
                 <Button size="sm" onClick={() => apply(s)} disabled={applying === s.toArticleId}>
-                  {applying === s.toArticleId ? 'Uygulanıyor…' : '✓ Cross-link Ekle'}
+                  {applying === s.toArticleId ? 'Uygulanıyor…' : <><Check className="h-3.5 w-3.5 mr-1.5" aria-hidden />Çapraz bağlantı ekle</>}
                 </Button>
                 <a href={s.toArticleUrl} target="_blank" rel="noopener" className="text-xs text-brand hover:underline inline-flex items-center gap-1">
                   Hedef makale <ExternalLink className="h-3 w-3" />
@@ -737,27 +836,27 @@ function TrainingDataTab({ siteId }: { siteId: string }) {
     <div className="space-y-3">
       <p className="text-xs text-muted-foreground">
         AI'ların eğitim verisinin <strong>%30+'ı</strong> public dataset'lerden geliyor. Sitenizin makalelerini Hugging Face'e <strong>CC-BY-4.0</strong> lisansla yüklerseniz Mistral, Llama, Claude bir sonraki eğitiminde markanızı öğrenir.
-        <strong className="text-green-700 dark:text-green-400"> Kalıcı GEO etkisi</strong> — içerik silinse bile AI hatırlar.
+        <strong className="text-success"> Kalıcı GEO etkisi</strong> — içerik silinse bile AI hatırlar.
       </p>
       {!data && (
         <Button size="sm" onClick={load} disabled={loading}>
-          {loading ? 'Hazırlanıyor…' : '📦 Training Data Hazırla'}
+          {loading ? 'Hazırlanıyor…' : <><Package className="h-3.5 w-3.5 mr-1.5" aria-hidden />Eğitim verisini hazırla</>}
         </Button>
       )}
       {data && (
         <div className="space-y-3">
           <div className="grid grid-cols-3 gap-2">
             <div className="rounded-md border p-3 text-center">
-              <p className="text-2xl font-bold">{data.records}</p>
-              <p className="text-[11px] text-muted-foreground">Kayıt</p>
+              <p className="text-metric-lg tabular-nums">{data.records}</p>
+              <p className="text-label text-muted-foreground">Kayıt</p>
             </div>
             <div className="rounded-md border p-3 text-center">
-              <p className="text-2xl font-bold">{(data.bytes / 1024).toFixed(1)} <span className="text-sm text-muted-foreground">KB</span></p>
-              <p className="text-[11px] text-muted-foreground">Boyut</p>
+              <p className="text-metric-lg tabular-nums">{(data.bytes / 1024).toFixed(1)} <span className="text-sm text-muted-foreground">KB</span></p>
+              <p className="text-label text-muted-foreground">Boyut</p>
             </div>
             <div className="rounded-md border p-3 text-center">
               <p className="text-sm font-bold">CC-BY-4.0</p>
-              <p className="text-[11px] text-muted-foreground">Lisans</p>
+              <p className="text-label text-muted-foreground">Lisans</p>
             </div>
           </div>
 
@@ -780,7 +879,7 @@ function TrainingDataTab({ siteId }: { siteId: string }) {
             <summary className="px-3 py-2 cursor-pointer text-xs font-semibold bg-muted/30">
               Örnek Kayıt (ilk 2 KB)
             </summary>
-            <pre className="p-3 text-[10px] font-mono whitespace-pre-wrap max-h-[300px] overflow-y-auto">{data.sample}</pre>
+            <pre className="p-3 text-label font-mono whitespace-pre-wrap max-h-[300px] overflow-y-auto">{data.sample}</pre>
           </details>
         </div>
       )}
@@ -812,10 +911,10 @@ function HeatmapTab({ siteId }: { siteId: string }) {
     <div className="space-y-3">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <p className="text-xs text-muted-foreground max-w-2xl">
-          Sektör sorgularını Claude/Gemini/ChatGPT/Perplexity'ye sorar. Her hücre: <span className="text-green-500 font-bold">●</span> alıntılandın · <span className="text-yellow-500 font-bold">●</span> sadece marka adı geçti · <span className="text-red-500 font-bold">●</span> rakip alıntılandı · <span className="text-muted-foreground font-bold">●</span> kimse alıntılanmadı (fırsat)
+          Sektör sorgularını Claude/Gemini/ChatGPT/Perplexity'ye sorar. Her hücre: <span className="text-success font-bold">●</span> alıntılandın · <span className="text-warning font-bold">●</span> sadece marka adı geçti · <span className="text-danger font-bold">●</span> rakip alıntılandı · <span className="text-muted-foreground font-bold">●</span> kimse alıntılanmadı (fırsat)
         </p>
         <Button size="sm" onClick={run} disabled={running}>
-          {running ? 'Test ediliyor (~60s)…' : '🎯 Heatmap Çalıştır'}
+          {running ? 'Test ediliyor (~60 sn)…' : <><Play className="h-3.5 w-3.5 mr-1.5" aria-hidden />Isı haritasını çalıştır</>}
         </Button>
       </div>
 
@@ -826,11 +925,11 @@ function HeatmapTab({ siteId }: { siteId: string }) {
             {data.providers.map((p: string, i: number) => {
               const pid = ['anthropic','gemini','openai','perplexity'][i];
               const score = data.scoreByProvider[pid] ?? 0;
-              const color = score >= 60 ? 'text-green-500' : score >= 30 ? 'text-yellow-500' : 'text-red-500';
+              const color = score >= 60 ? 'text-success' : score >= 30 ? 'text-warning' : 'text-danger';
               return (
                 <div key={p} className="rounded-md border p-2 text-center">
                   <p className="text-xs text-muted-foreground">{p}</p>
-                  <p className={`text-2xl font-bold ${color}`}>{score}</p>
+                  <p className={`text-metric-lg tabular-nums ${color}`}>{score}</p>
                 </div>
               );
             })}
@@ -857,9 +956,9 @@ function HeatmapTab({ siteId }: { siteId: string }) {
                       const pid = ['anthropic','gemini','openai','perplexity'][i];
                       const cell = data.cells.find((c: any) => c.query === q && c.provider === pid);
                       const status = cell?.status ?? 'none';
-                      const bg = status === 'cited' ? 'bg-green-500/30 border-green-500'
-                              : status === 'mentioned' ? 'bg-yellow-500/30 border-yellow-500'
-                              : status === 'competitor' ? 'bg-red-500/30 border-red-500'
+                      const bg = status === 'cited' ? 'bg-success/30 border-success'
+                              : status === 'mentioned' ? 'bg-warning/30 border-warning'
+                              : status === 'competitor' ? 'bg-danger/30 border-danger'
                               : 'bg-muted/30 border-muted';
                       const icon = status === 'cited' ? '✓'
                               : status === 'mentioned' ? '~'
@@ -867,7 +966,7 @@ function HeatmapTab({ siteId }: { siteId: string }) {
                               : '—';
                       return (
                         <td key={p} className={`p-2 text-center border ${bg}`} title={cell?.excerpt}>
-                          <span className="font-bold text-[11px]">{icon}</span>
+                          <span className="font-bold text-label">{icon}</span>
                         </td>
                       );
                     })}
@@ -898,11 +997,11 @@ function HeatmapTab({ siteId }: { siteId: string }) {
 
           {/* Rakip kazanmalari */}
           {Object.keys(data.competitorWins).length > 0 && (
-            <div className="rounded-md border p-3 bg-red-500/5">
-              <p className="text-xs font-semibold mb-2">🏆 Rakip Kazanma Sayıları</p>
+            <div className="rounded-md border p-3 bg-danger/5">
+              <p className="flex items-center gap-1.5 text-xs font-semibold mb-2"><Trophy className="h-3.5 w-3.5" aria-hidden />Rakip kazanma sayıları</p>
               <div className="flex flex-wrap gap-2">
                 {Object.entries(data.competitorWins).map(([host, wins]) => (
-                  <Badge key={host} variant="outline" className="text-[11px]">
+                  <Badge key={host} variant="outline" className="text-label">
                     {host} · {wins as number} kez
                   </Badge>
                 ))}
@@ -916,18 +1015,18 @@ function HeatmapTab({ siteId }: { siteId: string }) {
 }
 
 function InsightBlock({ title, items, color }: { title: string; items: string[]; color: 'green' | 'red' | 'muted' }) {
-  const bg = color === 'green' ? 'bg-green-500/10 border-green-500/30'
-          : color === 'red' ? 'bg-red-500/10 border-red-500/30'
+  const bg = color === 'green' ? 'bg-success/10 border-success/30'
+          : color === 'red' ? 'bg-danger/10 border-danger/30'
           : 'bg-muted/30 border-muted';
   return (
     <div className={`rounded-md border p-3 ${bg}`}>
       <p className="text-xs font-semibold mb-1.5">{title}</p>
       {items.length === 0 ? (
-        <p className="text-[11px] text-muted-foreground italic">—</p>
+        <p className="text-label text-muted-foreground italic">—</p>
       ) : (
         <ul className="space-y-0.5">
           {items.map((q, i) => (
-            <li key={i} className="text-[11px] truncate">• {q}</li>
+            <li key={i} className="text-label truncate">• {q}</li>
           ))}
         </ul>
       )}
@@ -966,7 +1065,7 @@ function WikidataTab({ siteId }: { siteId: string }) {
       </p>
       {!data && (
         <Button size="sm" onClick={load} disabled={loading}>
-          {loading ? 'Hazırlanıyor…' : '📝 Wikidata Taslağı Hazırla'}
+          {loading ? 'Hazırlanıyor…' : <><FileText className="h-3.5 w-3.5 mr-1.5" aria-hidden />Wikidata taslağı hazırla</>}
         </Button>
       )}
       {data && (
@@ -975,17 +1074,17 @@ function WikidataTab({ siteId }: { siteId: string }) {
           <div className="rounded-md border p-3">
             <div className="flex items-center justify-between mb-2">
               <p className="text-sm font-semibold">Notability Skoru</p>
-              <span className={`text-2xl font-bold ${
-                data.notabilityScore >= 60 ? 'text-green-500' :
-                data.notabilityScore >= 40 ? 'text-yellow-500' : 'text-red-500'
+              <span className={`text-metric-lg tabular-nums ${
+                data.notabilityScore >= 60 ? 'text-success' :
+                data.notabilityScore >= 40 ? 'text-warning' : 'text-danger'
               }`}>{data.notabilityScore}/100</span>
             </div>
             <ul className="space-y-1 text-xs">
               {data.notabilityNotes.map((n: string, i: number) => (
                 <li key={i} className="flex items-start gap-1.5">
-                  {n.startsWith('✓') ? <Check className="h-3 w-3 text-green-500 mt-0.5 shrink-0" /> :
-                   n.startsWith('⚠') ? <AlertCircle className="h-3 w-3 text-yellow-500 mt-0.5 shrink-0" /> :
-                   <X className="h-3 w-3 text-red-500 mt-0.5 shrink-0" />}
+                  {n.startsWith('✓') ? <Check className="h-3 w-3 text-success mt-0.5 shrink-0" /> :
+                   n.startsWith('⚠') ? <AlertCircle className="h-3 w-3 text-warning mt-0.5 shrink-0" /> :
+                   <X className="h-3 w-3 text-danger mt-0.5 shrink-0" />}
                   <span>{n.replace(/^[✓⚠]\s*/, '')}</span>
                 </li>
               ))}
@@ -1013,7 +1112,7 @@ function WikidataTab({ siteId }: { siteId: string }) {
                     <span className="text-muted-foreground ml-1">{c.propertyLabel}</span>
                     <span className="ml-2 font-medium">{c.value}</span>
                   </div>
-                  <Badge variant="outline" className="text-[10px] shrink-0">{c.valueType}</Badge>
+                  <Badge variant="outline" className="text-label shrink-0">{c.valueType}</Badge>
                 </div>
               ))}
             </div>
@@ -1021,7 +1120,7 @@ function WikidataTab({ siteId }: { siteId: string }) {
 
           <div className="flex items-center gap-3 flex-wrap">
             <a href={data.createUrl} target="_blank" rel="noopener" className="inline-flex items-center gap-1 text-sm text-brand hover:underline">
-              🌐 Manuel: Wikidata'da Yeni Item Oluştur <ExternalLink className="h-3 w-3" />
+              <Globe className="h-3.5 w-3.5" aria-hidden /> Elle: Wikidata&apos;da yeni öğe oluştur <ExternalLink className="h-3 w-3" aria-hidden />
             </a>
             <Button
               size="sm"
@@ -1029,7 +1128,7 @@ function WikidataTab({ siteId }: { siteId: string }) {
               onClick={async () => {
                 try {
                   const res = await api.submitKnowledge(siteId, 'wikidata', data);
-                  if (res.ok) toast.success(`✓ Wikidata item oluşturuldu: ${res.itemId}`);
+                  if (res.ok) toast.success(`Wikidata öğesi oluşturuldu: ${res.itemId}`);
                   else if (res.warning) toast.warning(res.warning);
                   else toast.error(res.error ?? 'Bilinmeyen hata');
                 } catch (err: any) {
@@ -1037,7 +1136,7 @@ function WikidataTab({ siteId }: { siteId: string }) {
                 }
               }}
             >
-              🤖 Otomatik Submit (Bot)
+              <Bot className="h-3.5 w-3.5 mr-1.5" aria-hidden /> Otomatik gönder (bot)
             </Button>
           </div>
         </div>
@@ -1077,7 +1176,7 @@ function WikipediaTab({ siteId }: { siteId: string }) {
       </p>
       {!data && (
         <Button size="sm" onClick={load} disabled={loading}>
-          {loading ? 'AI hazırlıyor (Sonnet 4.6, ~30s)…' : '📝 Wikipedia Makale Taslağı Hazırla'}
+          {loading ? 'AI hazırlıyor (~30 sn)…' : <><FileText className="h-3.5 w-3.5 mr-1.5" aria-hidden />Wikipedia madde taslağı hazırla</>}
         </Button>
       )}
       {data && (
@@ -1085,11 +1184,11 @@ function WikipediaTab({ siteId }: { siteId: string }) {
           <div className="rounded-md border p-3">
             <div className="flex items-center justify-between mb-2">
               <p className="text-sm font-semibold">{data.title}</p>
-              <span className={`text-xl font-bold ${
-                data.notabilityScore >= 60 ? 'text-green-500' : 'text-yellow-500'
+              <span className={`text-metric tabular-nums ${
+                data.notabilityScore >= 60 ? 'text-success' : 'text-warning'
               }`}>{data.notabilityScore}/100</span>
             </div>
-            <p className="text-[11px] text-muted-foreground">Notability skoru. 60+ değilse Wikipedia editörleri reddedebilir.</p>
+            <p className="text-label text-muted-foreground">Notability skoru. 60+ değilse Wikipedia editörleri reddedebilir.</p>
           </div>
 
           <div className="rounded-md border">
@@ -1099,11 +1198,11 @@ function WikipediaTab({ siteId }: { siteId: string }) {
                 <Copy className="h-3 w-3" /> Kopyala
               </button>
             </div>
-            <pre className="p-3 text-[11px] font-mono whitespace-pre-wrap max-h-[400px] overflow-y-auto">{data.content}</pre>
+            <pre className="p-3 text-label font-mono whitespace-pre-wrap max-h-[400px] overflow-y-auto">{data.content}</pre>
           </div>
 
-          <p className="text-[11px] text-muted-foreground">
-            🔗 Kategoriler: {data.category.join(', ')}
+          <p className="text-label text-muted-foreground">
+            <Tags className="inline h-3.5 w-3.5 mr-1 align-[-2px]" aria-hidden />Kategoriler: {data.category.join(', ')}
           </p>
         </div>
       )}
@@ -1114,7 +1213,7 @@ function WikipediaTab({ siteId }: { siteId: string }) {
 function Field({ label, value, onCopy }: { label: string; value: string; onCopy: (text: string) => void }) {
   return (
     <div className="rounded-md border px-3 py-2 flex items-center gap-2">
-      <span className="text-[11px] text-muted-foreground uppercase tracking-wide font-medium min-w-[120px]">{label}</span>
+      <span className="text-label text-muted-foreground uppercase tracking-wide font-medium min-w-[120px]">{label}</span>
       <span className="flex-1 text-sm">{value}</span>
       <button onClick={() => onCopy(value)} className="text-xs text-brand hover:underline">
         <Copy className="h-3 w-3" />

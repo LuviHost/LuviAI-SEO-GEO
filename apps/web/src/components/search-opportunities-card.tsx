@@ -1,6 +1,6 @@
 'use client';
 
-import { formatPct } from '@/lib/format';
+import { formatNum, formatPct, formatPos } from '@/lib/format';
 import { useEffect, useMemo, useState } from 'react';
 import { ExternalLink, Search } from 'lucide-react';
 import { api } from '@/lib/api';
@@ -81,7 +81,7 @@ export function SearchOpportunitiesCard({ siteId }: { siteId: string }) {
     <Card>
       <CardHeader className="space-y-3">
         <div>
-          <h3 className="font-semibold flex items-center gap-2"><Search className="h-4 w-4" /> Arama fırsatları — GSC × GA4</h3>
+          <h3 className="font-semibold flex items-center gap-2"><Search className="h-4 w-4" aria-hidden /> Arama fırsatları — GSC × GA4</h3>
           <p className="text-xs text-muted-foreground mt-1">
             Google&apos;da 4–20. sırada görünen sayfalar. Organik ziyaretçiye değer üretenler ve ilk 3&apos;e yakın olanlar üstte.
             {data?.status === 'ok' && <> Son 28 gün ({data.dateRange.startDate} – {data.dateRange.endDate}).</>}
@@ -128,15 +128,15 @@ export function SearchOpportunitiesCard({ siteId }: { siteId: string }) {
                   {!r.ga && <Badge variant="outline" className="shrink-0">GA4 eşleşmedi</Badge>}
                 </div>
                 <div className="text-xs text-muted-foreground flex flex-wrap gap-x-3 gap-y-1">
-                  <span>{r.impressions.toLocaleString('tr-TR')} gösterim</span>
-                  <span>{r.clicks.toLocaleString('tr-TR')} tıklama</span>
-                  <span>CTR {(r.ctr * 100).toFixed(1)}%</span>
-                  <span>ort. sıra {r.position.toLocaleString('tr-TR')}</span>
+                  <span>{formatNum(r.impressions)} gösterim</span>
+                  <span>{formatNum(r.clicks)} tıklama</span>
+                  <span>tıklama oranı {formatPct(r.ctr)}</span>
+                  <span>ort. sıra {formatPos(r.position)}</span>
                   {r.ga && (
                     <>
-                      <span>{r.ga.sessions.toLocaleString('tr-TR')} organik oturum</span>
+                      <span>{formatNum(r.ga.sessions)} organik oturum</span>
                       <span>etkileşim {pct(r.ga.engagementRate)}</span>
-                      <span>{r.ga.keyEvents.toLocaleString('tr-TR')} anahtar olay</span>
+                      <span>{formatNum(r.ga.keyEvents)} anahtar olay</span>
                     </>
                   )}
                 </div>

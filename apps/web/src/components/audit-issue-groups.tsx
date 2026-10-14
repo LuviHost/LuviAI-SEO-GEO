@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { toast } from 'sonner';
 import { Layers, Zap, ChevronDown, Puzzle, Image as ImageIcon } from 'lucide-react';
 import { api } from '@/lib/api';
-import { Card, CardContent } from '@/components/ui/card';
+import { siteHref } from '@/lib/site-routes';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -16,10 +16,11 @@ import { cn } from '@/lib/utils';
  * Veri backend'de audit üretilirken hesaplanır (Audit.issueGroups, issue-grouping.ts);
  * alan yoksa (eski taramalar) bileşen hiç görünmez.
  */
-const SEV_CLS: Record<string, string> = {
-  critical: 'bg-red-500/10 text-red-600 border-red-500/30',
-  warning: 'bg-amber-500/10 text-amber-600 border-amber-500/30',
-  info: 'bg-zinc-500/10 text-zinc-500 border-zinc-500/30',
+const SEV_VARIANT: Record<string, 'danger' | 'warning' | 'secondary'> = {
+  critical: 'danger',
+  error: 'danger',
+  warning: 'warning',
+  info: 'secondary',
 };
 
 export function AuditIssueGroups({ siteId, groups, onRefresh }: { siteId: string; groups: any; onRefresh?: () => void }) {
@@ -51,11 +52,11 @@ export function AuditIssueGroups({ siteId, groups, onRefresh }: { siteId: string
   };
 
   return (
-    <Card>
-      <CardContent className="p-5">
+    // Site Skoru kartinin icinde durdugu icin ikinci bir Card yerine cerceveli bolum
+    <section className="rounded-lg border p-4">
         <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
           <div>
-            <h3 className="font-semibold flex items-center gap-2"><Layers className="h-4 w-4 text-brand" /> Şablona göre sorunlar</h3>
+            <h3 className="text-sm font-semibold flex items-center gap-2"><Layers className="h-4 w-4 text-brand" /> Şablona göre sorunlar</h3>
             <p className="text-xs text-muted-foreground">Aynı URL desenindeki sayfalar tek satırda — çoğu zaman yüzlerce sayfa hatası tek bir tema/bileşen düzeltmesidir.</p>
           </div>
           {siteWide.length > 0 && (
@@ -68,13 +69,13 @@ export function AuditIssueGroups({ siteId, groups, onRefresh }: { siteId: string
             const isOpen = open === g.template;
             return (
               <div key={g.template} className="rounded-lg border">
-                <button type="button" onClick={() => setOpen(isOpen ? null : g.template)} className="w-full flex items-center gap-3 px-3 py-2.5 text-left">
+                <button type="button" aria-expanded={isOpen} onClick={() => setOpen(isOpen ? null : g.template)} className="w-full flex items-center gap-3 px-3 py-2.5 text-left">
                   <code className="text-sm font-semibold">{g.template}</code>
                   <span className="text-xs text-muted-foreground">{g.pageCount} sayfa</span>
                   <div className="flex items-center gap-1 ml-auto">
-                    {g.criticalCount > 0 && <Badge variant="outline" className={cn('text-[10px]', SEV_CLS.critical)}>{g.criticalCount} kritik</Badge>}
-                    {g.warningCount > 0 && <Badge variant="outline" className={cn('text-[10px]', SEV_CLS.warning)}>{g.warningCount} uyarı</Badge>}
-                    {g.infoCount > 0 && <Badge variant="outline" className={cn('text-[10px]', SEV_CLS.info)}>{g.infoCount} bilgi</Badge>}
+                    {g.criticalCount > 0 && <Badge variant="danger" className="text-label">{g.criticalCount} kritik</Badge>}
+                    {g.warningCount > 0 && <Badge variant="warning" className="text-label">{g.warningCount} uyarı</Badge>}
+                    {g.infoCount > 0 && <Badge variant="secondary" className="text-label">{g.infoCount} bilgi</Badge>}
                   </div>
                   <ChevronDown className={cn('h-4 w-4 text-muted-foreground transition-transform', isOpen && 'rotate-180')} />
                 </button>
@@ -83,10 +84,10 @@ export function AuditIssueGroups({ siteId, groups, onRefresh }: { siteId: string
                     <div className="space-y-1">
                       {g.issues.map((i: any) => (
                         <div key={`${i.checkId}-${i.type}`} className="flex items-center gap-2 text-xs">
-                          <Badge variant="outline" className={cn('text-label', SEV_CLS[i.severity])}>{label(SEVERITY_LABEL, i.severity)}</Badge>
+                          <Badge variant={SEV_VARIANT[i.severity] ?? 'secondary'} className="text-label">{label(SEVERITY_LABEL, i.severity)}</Badge>
                           <span className="font-medium">{i.description ?? label({}, i.type)}</span>
                           <span className="text-muted-foreground">· {i.count} sayfa</span>
-                          {i.fixRoute === 'auto_fix' && <span className="text-emerald-600 text-label">otomatik düzeltilebilir</span>}
+                          {i.fixRoute === 'auto_fix' && <span className="text-success text-label">otomatik düzeltilebilir</span>}
                           {i.fixRoute === 'snippet' && <span className="text-brand text-label">snippet ile düzeltilir</span>}
                           {i.fixRoute === 'images' && <span className="text-brand text-label">görseller sayfasında düzeltilir</span>}
                         </div>
@@ -103,14 +104,14 @@ export function AuditIssueGroups({ siteId, groups, onRefresh }: { siteId: string
                       )}
                       {g.issues.some((i: any) => i.fixRoute === 'images') && (
                         <Button size="sm" variant="outline" asChild>
-                          <Link href={`/sites/${siteId}/images`}>
+                          <Link href={siteHref(siteId, 'images')}>
                             <ImageIcon className="h-3.5 w-3.5 mr-1.5" /> Alt metinlerini düzelt
                           </Link>
                         </Button>
                       )}
                       {g.issues.some((i: any) => i.fixRoute === 'snippet') && (
                         <Button size="sm" variant="outline" asChild>
-                          <Link href={`/sites/${siteId}/snippet`}>
+                          <Link href={siteHref(siteId, 'snippet')}>
                             <Puzzle className="h-3.5 w-3.5 mr-1.5" /> Snippet aracında düzelt
                           </Link>
                         </Button>
@@ -122,7 +123,6 @@ export function AuditIssueGroups({ siteId, groups, onRefresh }: { siteId: string
             );
           })}
         </div>
-      </CardContent>
-    </Card>
+    </section>
   );
 }

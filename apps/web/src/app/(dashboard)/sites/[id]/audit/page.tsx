@@ -8,7 +8,9 @@ import { AuditIssueGroups } from '@/components/audit-issue-groups';
 import { RelatedLinks } from '@/components/empty-state';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { SectionHeader } from '@/components/ui/section-header';
 import { api } from '@/lib/api';
+import { siteHref } from '@/lib/site-routes';
 import { ShieldCheck, Sparkles, FileText, Send, Award, RefreshCw } from 'lucide-react';
 
 export default function AuditPage() {
@@ -34,34 +36,43 @@ export default function AuditPage() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-start gap-3">
-        <div className="h-10 w-10 rounded-xl bg-brand/10 text-brand grid place-items-center">
-          <ShieldCheck className="h-5 w-5" />
-        </div>
-        <div className="flex-1">
-          <h2 className="text-2xl font-bold">Site Skoru</h2>
-          <p className="text-sm text-muted-foreground">14 SEO + GEO kontrol noktası. Otomatik düzeltilebilenler tek tıkla.</p>
-        </div>
-        <Button onClick={runAudit} disabled={running} variant="outline" size="sm" className="shrink-0">
-          <RefreshCw className={`h-4 w-4 mr-1.5 ${running ? 'animate-spin' : ''}`} />
-          {running ? 'Taranıyor…' : 'Yeniden Tara'}
-        </Button>
-      </div>
-      {/* Onceki taramaya gore ne degisti — asil audit sonucunun ustunde durur */}
-      <AuditDeltaPanel key={deltaKey} siteId={site.id} />
-      {/* Sablona gore sorunlar — yuzlerce sayfa hatasi cogu zaman tek bilesen duzeltmesi */}
-      <AuditIssueGroups siteId={site.id} groups={audit?.issueGroups} onRefresh={refresh} />
+      <SectionHeader
+        icon={ShieldCheck}
+        title="Site Skoru"
+        description="14 SEO + GEO kontrol noktası. Otomatik düzeltilebilenler tek tıkla."
+        actions={
+          // Tek "yeniden tara" burada — AuditStepBody'nin alttaki ikinci düğmesi gizli (hideRefresh)
+          <Button onClick={runAudit} disabled={running} variant="outline" size="sm">
+            <RefreshCw className={`h-4 w-4 mr-1.5 ${running ? 'animate-spin' : ''}`} aria-hidden />
+            {running ? 'Taranıyor…' : 'Yeniden tara'}
+          </Button>
+        }
+      />
+      {/* Sıra: skor + "Otomatik düzelt" → şablona göre sorunlar → kontrol listesi → (katlı) değişim.
+          Eskiden delta en üstteydi ve asıl skor/eylem sayfanın sonunda kalıyordu. */}
       <Card>
         <CardContent className="p-5">
-          <AuditStepBody audit={audit} siteId={site.id} onRefresh={refresh} onboardingMode={onboardingMode} />
+          <AuditStepBody
+            audit={audit}
+            siteId={site.id}
+            onRefresh={refresh}
+            onboardingMode={onboardingMode}
+            hideRefresh
+            afterSummary={
+              // Sablona gore sorunlar — yuzlerce sayfa hatasi cogu zaman tek bilesen duzeltmesi
+              <AuditIssueGroups siteId={site.id} groups={audit?.issueGroups} onRefresh={refresh} />
+            }
+          />
         </CardContent>
       </Card>
+      {/* Onceki taramaya gore ne degisti — varsayilan katli */}
+      <AuditDeltaPanel key={deltaKey} siteId={site.id} collapsible />
       <RelatedLinks
         links={[
-          { href: `/sites/${site.id}/snippet`, label: 'Sayfa SEO İyileştir', description: 'On-page meta + FAQ otomatik düzeltme', icon: FileText },
-          { href: `/sites/${site.id}/geo-lab`, label: 'GEO Lab', description: 'AI search optimization (6 pillar)', icon: Award },
-          { href: `/sites/${site.id}/visibility`, label: 'AI Görünürlük', description: 'ChatGPT/Claude/Gemini citation tracking', icon: Sparkles },
-          { href: `/sites/${site.id}/publish-targets`, label: 'Yayın Hedefleri', description: 'Auto-fix dosyaları buraya yüklenir', icon: Send },
+          { href: siteHref(site.id, 'snippet'), label: 'Sayfa SEO İyileştir', description: 'Meta + SSS otomatik düzeltme', icon: FileText },
+          { href: siteHref(site.id, 'geoLab'), label: 'GEO Lab', description: 'AI arama optimizasyonu (6 sütun)', icon: Award },
+          { href: siteHref(site.id, 'visibility'), label: 'AI Görünürlük', description: 'ChatGPT/Claude/Gemini alıntı takibi', icon: Sparkles },
+          { href: siteHref(site.id, 'publishTargets'), label: 'Yayın Hedefleri', description: 'Otomatik düzeltme dosyaları buraya yüklenir', icon: Send },
         ]}
       />
     </div>

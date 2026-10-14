@@ -8,7 +8,7 @@ import Link from 'next/link';
 import { marked } from 'marked';
 import DOMPurify from 'dompurify';
 import { toast } from 'sonner';
-import { ArrowLeft, Download, Send, ExternalLink, Calendar, Clock, FileText, ImageIcon, Wrench } from 'lucide-react';
+import { ArrowLeft, Download, Send, ExternalLink, Calendar, Clock, FileText, ImageIcon, Wrench, User, Gauge, Settings2, HelpCircle, RotateCw } from 'lucide-react';
 import { api } from '@/lib/api';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -17,6 +17,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { PipelineProgress } from '@/components/pipeline-progress';
 import { InfoTooltip } from '@/components/info-tooltip';
+import { StatusBanner } from '@/components/ui/status-banner';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 
 /**
  * "## Sıkça Sorulan Sorular" altındaki H3 sorularını ve cevap paragraflarını
@@ -83,6 +85,7 @@ export default function ArticleDetailPage() {
   const [selectedTargets, setSelectedTargets] = useState<Set<string>>(new Set());
   const [stuckPage, setStuckPage] = useState<any | null>(null);
   const [qaRunning, setQaRunning] = useState(false);
+  const confirm = useConfirm();
 
   const refresh = async () => {
     try {
@@ -324,7 +327,9 @@ ${body}
         <CardContent className="p-12 text-center">
           <p className="text-muted-foreground mb-4">Makale bulunamadı.</p>
           <Button asChild variant="outline">
-            <Link href={`/sites/${siteId}` as any}>← Site detayına dön</Link>
+            <Link href={siteHref(siteId, 'articles') as any}>
+              <ArrowLeft className="h-4 w-4 mr-1.5" aria-hidden /> İçeriklere dön
+            </Link>
           </Button>
         </CardContent>
       </Card>
@@ -337,18 +342,24 @@ ${body}
     <div className="space-y-5 sm:space-y-6 max-w-5xl mx-auto">
       <div>
         <Link
-          href={`/sites/${siteId}` as any}
+          href={siteHref(siteId, 'articles') as any}
           className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
         >
-          <ArrowLeft className="h-4 w-4" />
-          {article.site?.name ?? 'Site'} dashboard
+          <ArrowLeft className="h-4 w-4" aria-hidden />
+          İçerikler
         </Link>
         <div className="flex items-start justify-between gap-4 flex-wrap mt-3">
           <div className="flex-1 min-w-0">
-            <h1 className="text-2xl sm:text-3xl font-bold leading-tight">{article.title}</h1>
+            {/* Tek h1 layout'taki PageHeader'da — makale basligi h2 (text-h6 ustune cikmaz) */}
+            <h2 className="text-h6 font-semibold leading-snug">{article.title}</h2>
             <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground flex-wrap">
               <Badge variant={STATUS_VARIANT[article.status] ?? 'outline'}>{label(ARTICLE_STATUS_LABEL, article.status)}</Badge>
-              {article.persona && <span>👤 {article.persona}</span>}
+              {article.persona && (
+                <span className="inline-flex items-center gap-1">
+                  <User className="h-3 w-3" aria-hidden />
+                  {article.persona}
+                </span>
+              )}
               {article.wordCount && (
                 <span className="inline-flex items-center gap-1">
                   <FileText className="h-3 w-3" />
@@ -367,7 +378,8 @@ ${body}
               </span>
               {article.editorScore != null && (
                 <span className="inline-flex items-center gap-1">
-                  📊 <InfoTooltip term="Editor Score">Editör skoru</InfoTooltip>: {article.editorScore}/100
+                  <Gauge className="h-3 w-3" aria-hidden />
+                  <InfoTooltip term="Editor Score">Editör skoru</InfoTooltip>: {article.editorScore}/100
                 </span>
               )}
             </div>
@@ -390,96 +402,95 @@ ${body}
         const warnings: any[] = Array.isArray(qaReport?.warnings) ? qaReport.warnings : [];
         const qaStatus: string | null = article.qaStatus ?? null;
         if (!qaStatus && article.status !== 'READY_TO_PUBLISH' && article.status !== 'PUBLISHED') return null;
+        const tone = qaStatus === 'BLOCKED' ? 'danger' : qaStatus === 'WARN' ? 'warning' : qaStatus === 'PASS' ? 'success' : 'info';
+        const title =
+          qaStatus === 'BLOCKED' ? 'Yayın engellendi — makalede çözülmemiş sorunlar var'
+          : qaStatus === 'WARN' ? 'QA uyarıları — yayın serbest, gözden geçirmen önerilir'
+          : qaStatus === 'PASS' ? 'QA temiz — uydurma atıf, kaynaksız iddia veya yer tutucu yok'
+          : 'QA kontrolü henüz yapılmadı';
         return (
-          <Card className={
-            qaStatus === 'BLOCKED' ? 'border-red-500/40 bg-red-500/5'
-            : qaStatus === 'WARN' ? 'border-amber-500/40 bg-amber-500/5'
-            : qaStatus === 'PASS' ? 'border-emerald-500/30'
-            : ''
-          }>
-            <CardContent className="p-4 space-y-2.5">
-              <div className="flex items-center justify-between gap-3 flex-wrap">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-semibold">
-                    {qaStatus === 'BLOCKED' && '⛔ Yayın engellendi — makalede çözülmemiş sorunlar var'}
-                    {qaStatus === 'WARN' && '⚠️ QA uyarıları — yayın serbest, gözden geçirmen önerilir'}
-                    {qaStatus === 'PASS' && '✅ QA temiz — uydurma atıf / kaynaksız iddia / placeholder yok'}
-                    {!qaStatus && 'QA kontrolü henüz koşulmadı'}
-                  </span>
-                  {qaReport?.checkedAt && (
-                    <span className="text-[10px] text-muted-foreground">
-                      {new Date(qaReport.checkedAt).toLocaleString('tr-TR')}
-                    </span>
-                  )}
-                </div>
-                <div className="flex gap-2">
-                  <Button size="sm" variant="outline" onClick={runQaCheck} disabled={qaRunning}>
-                    {qaRunning ? 'Kontrol ediliyor…' : qaStatus ? 'Yeniden Kontrol Et' : 'QA Kontrolü Koş'}
+          <StatusBanner
+            tone={tone}
+            title={title}
+            action={
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" variant="outline" onClick={runQaCheck} disabled={qaRunning}>
+                  <RotateCw className={`h-3.5 w-3.5 mr-1.5 ${qaRunning ? 'animate-spin' : ''}`} aria-hidden />
+                  {qaRunning ? 'Kontrol ediliyor…' : qaStatus ? 'Yeniden kontrol et' : 'QA kontrolü yap'}
+                </Button>
+                {qaStatus === 'BLOCKED' && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-danger/40 text-danger hover:bg-danger/10 hover:text-danger"
+                    onClick={async () => {
+                      // QA engelini asmak geri alinamaz bir yayin — once acik onay
+                      const ok = await confirm({
+                        title: 'QA engeline rağmen yayınlansın mı?',
+                        description: `Bu makalede ${blockers.length} çözülmemiş sorun var (uydurma atıf, kaynaksız iddia veya yer tutucu olabilir). Yayınlanan içerik seçili hedeflerde herkese açık olur.`,
+                        confirmLabel: 'Yine de yayınla',
+                        danger: true,
+                      });
+                      if (ok) publish(true);
+                    }}
+                    disabled={publishing || selectedTargets.size === 0}
+                  >
+                    Yine de yayınla
                   </Button>
-                  {qaStatus === 'BLOCKED' && (
-                    <Button size="sm" variant="outline" className="border-red-500/40 text-red-600"
-                      onClick={() => publish(true)} disabled={publishing || selectedTargets.size === 0}>
-                      Yine de Yayınla
-                    </Button>
-                  )}
-                </div>
+                )}
               </div>
-              {blockers.length > 0 && (
-                <ul className="space-y-1">
-                  {blockers.map((b: any, i: number) => (
-                    <li key={i} className="text-xs">
-                      <span className="font-semibold text-red-600">[BLOCKER]</span> {b.detail}
-                      {b.excerpt && <span className="text-muted-foreground font-mono"> — "{b.excerpt}"</span>}
-                    </li>
-                  ))}
-                </ul>
-              )}
-              {warnings.length > 0 && (
-                <ul className="space-y-1">
-                  {warnings.map((w: any, i: number) => (
-                    <li key={i} className="text-xs">
-                      <span className="font-semibold text-amber-600">[UYARI]</span> {w.detail}
-                      {w.excerpt && <span className="text-muted-foreground font-mono"> — "{w.excerpt}"</span>}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </CardContent>
-          </Card>
+            }
+          >
+            {qaReport?.checkedAt && (
+              <p className="text-label">Son kontrol: {new Date(qaReport.checkedAt).toLocaleString('tr-TR')}</p>
+            )}
+            {blockers.length > 0 && (
+              <ul className="mt-2 space-y-1">
+                {blockers.map((b: any, i: number) => (
+                  <li key={i} className="text-xs text-foreground">
+                    <span className="font-semibold text-danger">Engel:</span> {b.detail}
+                    {b.excerpt && <span className="text-muted-foreground font-mono"> — &quot;{b.excerpt}&quot;</span>}
+                  </li>
+                ))}
+              </ul>
+            )}
+            {warnings.length > 0 && (
+              <ul className="mt-2 space-y-1">
+                {warnings.map((w: any, i: number) => (
+                  <li key={i} className="text-xs text-foreground">
+                    <span className="font-semibold text-warning">Uyarı:</span> {w.detail}
+                    {w.excerpt && <span className="text-muted-foreground font-mono"> — &quot;{w.excerpt}&quot;</span>}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </StatusBanner>
         );
       })()}
 
       {/* ENH#6 — Stuck page banner: bu makale Google'da #4-15 araliginda kaldi */}
       {stuckPage && (
-        <Card className="border-amber-500/40 bg-amber-500/5">
-          <CardContent className="p-4">
-            <div className="flex items-start gap-3 flex-wrap">
-              <div className="h-9 w-9 rounded-xl bg-amber-500/15 text-amber-600 grid place-items-center shrink-0">
-                <Wrench className="h-4 w-4" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold">Bu sayfa Google'da #{Math.round(stuckPage.position)}. sırada — kurtarmaya uygun.</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Son 30 gün: {stuckPage.impressions.toLocaleString('tr-TR')} gösterim, CTR %{(stuckPage.ctr * 100).toFixed(2)}.
-                  AI ile cümle-seviyesinde tamir başlık ve yapıyı bozmaz; etki 24-48 saat.
-                </p>
-              </div>
-              <Link
-                href={`/sites/${siteId}/stuck-pages` as any}
-                className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-amber-500 text-white hover:bg-amber-600 shrink-0"
-              >
-                Stuck Pages →
+        <StatusBanner
+          tone="warning"
+          title={`Bu sayfa Google'da ${Math.round(stuckPage.position)}. sırada — kurtarmaya uygun.`}
+          action={
+            <Button size="sm" variant="outline" asChild>
+              <Link href={siteHref(siteId, 'stuckPages') as any}>
+                <Wrench className="h-3.5 w-3.5 mr-1.5" aria-hidden /> Takılı sayfalar
               </Link>
-            </div>
-          </CardContent>
-        </Card>
+            </Button>
+          }
+        >
+          Son 30 gün: {stuckPage.impressions.toLocaleString('tr-TR')} gösterim, TO %{(stuckPage.ctr * 100).toFixed(2)}.
+          AI ile cümle düzeyinde onarım başlığı ve yapıyı bozmaz; etkisi 24-48 saatte görülür.
+        </StatusBanner>
       )}
 
       <Card>
         <CardContent className="p-5">
           <div className="flex items-center justify-between gap-3 flex-wrap">
             <div>
-              <h2 className="font-semibold mb-1">Yayınla</h2>
+              <h3 className="font-semibold mb-1">Yayınla</h3>
               <p className="text-xs text-muted-foreground">
                 {targets.length === 0
                   ? 'Henüz yayın hedefi yok. Önce site ayarlarından bir hedef ekle.'
@@ -513,6 +524,8 @@ ${body}
                 return (
                   <button
                     key={t.id}
+                    type="button"
+                    aria-pressed={checked}
                     onClick={() => toggleTarget(t.id)}
                     disabled={!t.isActive}
                     className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors border ${
@@ -566,11 +579,17 @@ ${body}
       <Tabs defaultValue="content" className="space-y-4">
         <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
           <TabsList className="w-max sm:w-auto">
-            <TabsTrigger value="content">📄 İçerik</TabsTrigger>
-            <TabsTrigger value="meta">🔧 Meta + SEO</TabsTrigger>
-            <TabsTrigger value="faq">❓ FAQ ({fallbackFaqs.length})</TabsTrigger>
+            <TabsTrigger value="content">
+              <FileText className="h-3.5 w-3.5 mr-1.5" aria-hidden /> İçerik
+            </TabsTrigger>
+            <TabsTrigger value="meta">
+              <Settings2 className="h-3.5 w-3.5 mr-1.5" aria-hidden /> Meta + SEO
+            </TabsTrigger>
+            <TabsTrigger value="faq">
+              <HelpCircle className="h-3.5 w-3.5 mr-1.5" aria-hidden /> SSS ({fallbackFaqs.length})
+            </TabsTrigger>
             <TabsTrigger value="media">
-              <ImageIcon className="h-3.5 w-3.5 mr-1.5" /> Görseller
+              <ImageIcon className="h-3.5 w-3.5 mr-1.5" aria-hidden /> Görseller
             </TabsTrigger>
           </TabsList>
         </div>
@@ -665,7 +684,7 @@ ${body}
           ) : (
             <Card>
               <CardContent className="p-8 text-center text-muted-foreground text-sm">
-                FAQ üretilmemiş.
+                SSS üretilmemiş.
               </CardContent>
             </Card>
           )}
