@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { AnimatePresence, motion } from 'motion/react';
+import { LazyMotion } from 'motion/react';
+import * as m from 'motion/react-m';
 import { ArrowRight, Sparkles } from 'lucide-react';
 import { useT } from '@/lib/i18n';
 import { trackCta } from '@/lib/landing-track';
@@ -47,6 +48,12 @@ const COPY = {
   },
 } as const;
 
+/**
+ * Animasyon ozellikleri ayri parcada: motion'in tam paketi ilk yuklemede ~38 KB (gzip)
+ * ekliyordu. LazyMotion + m ile hero yalniz cekirdegi tasir, domAnimation sonradan iner.
+ */
+const loadMotionFeatures = () => import('./motion-features').then((mod) => mod.default);
+
 const ENGINES: Array<{ name: VendorName; label: string }> = [
   { name: 'chatgpt', label: 'CHATGPT' },
   { name: 'claude-ai', label: 'CLAUDE' },
@@ -60,14 +67,15 @@ const ENGINES: Array<{ name: VendorName; label: string }> = [
 export function AiCheckerHero() {
   const { t, locale } = useT();
   const c = COPY[locale];
-  const [rotateIdx, setRotateIdx] = useState(0);
+  // tick monoton artar: ilk (SSR) kare animasyonsuz basilir — LCP metni gizlenmez
+  const [tick, setTick] = useState(0);
 
   useEffect(() => {
-    const id = setInterval(() => setRotateIdx((i) => (i + 1) % ROTATING_TR.length), 2200);
+    const id = setInterval(() => setTick((i) => i + 1), 2200);
     return () => clearInterval(id);
   }, []);
 
-  const [engine, suffix] = ROTATING_TR[rotateIdx];
+  const [engine, suffix] = ROTATING_TR[tick % ROTATING_TR.length];
 
   return (
     <div className="grid lg:grid-cols-2 gap-10 lg:gap-14 items-center">
@@ -77,19 +85,18 @@ export function AiCheckerHero() {
         <h1 className="hero-headline text-4xl sm:text-5xl lg:text-6xl xl:text-7xl font-extrabold tracking-tight leading-[1.05] mb-5">
           {c.titleA}{' '}
           <span className="relative inline-block">
-            <AnimatePresence mode="wait" initial={false}>
-              <motion.span
-                key={rotateIdx}
+            <LazyMotion features={loadMotionFeatures} strict>
+              <m.span
+                key={tick}
                 variants={fadeUp}
-                initial="hidden"
+                initial={tick === 0 ? false : 'hidden'}
                 animate="show"
-                exit="hidden"
                 className="inline-block bg-gradient-to-br from-brand-500 to-brand-700 bg-clip-text text-transparent"
               >
                 {engine}
                 {locale === 'tr' ? suffix : ''}
-              </motion.span>
-            </AnimatePresence>
+              </m.span>
+            </LazyMotion>
             <span className="absolute -bottom-1.5 left-0 right-0 h-1.5 bg-gradient-to-r from-brand-500/40 via-brand-500 to-brand-500/40 rounded-full" />
           </span>
           {c.titleB}

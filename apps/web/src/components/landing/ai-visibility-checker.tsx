@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { ArrowRight, Loader2, AlertCircle, Globe, Check } from 'lucide-react';
-import { api, ApiError } from '@/lib/api';
+import type { api } from '@/lib/api';
 import { trackCta } from '@/lib/landing-track';
 import { useT } from '@/lib/i18n';
 import { CHECKER_COPY } from './checker-copy';
@@ -136,9 +136,11 @@ export function AiVisibilityChecker() {
     setError(null);
     // NEDEN olcum: sitenin ANA CTA'si bu (01.09.2026 tespiti)
     trackCta('checker_submit', { mode: 'hero' });
+    // api.ts (tum uygulama istemcisi, ~1900 satir) ilk yuklemeye girmesin diye istekte yuklenir
+    const { api: client, ApiError } = await import('@/lib/api');
     try {
       const token = (await getTurnstileToken()) ?? undefined;
-      const res = await api.publicCitationCheck(cleaned, token);
+      const res = await client.publicCitationCheck(cleaned, token);
       setResult(res);
       setPhase('result');
       trackCta('checker_result', { mode: 'hero', sorular: res?.queries?.length ?? 0 });
@@ -171,7 +173,7 @@ export function AiVisibilityChecker() {
               inputMode="url"
               value={domain}
               onChange={(e) => setDomain(e.target.value)}
-              onFocus={() => { void loadOverlay(); }}
+              onFocus={() => { void loadOverlay(); void import('@/lib/api'); }}
               placeholder={c.placeholder}
               autoComplete="off"
               spellCheck={false}

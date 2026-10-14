@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Check, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { api } from '@/lib/api';
 import { useT, type Locale } from '@/lib/i18n';
 import { trackCta } from '@/lib/landing-track';
 import { cn } from '@/lib/utils';
@@ -24,8 +23,9 @@ export function PricingSection({ initialPlans }: { initialPlans: Record<Locale, 
 
   useEffect(() => {
     if (initialPlans[locale]?.length || fetched[locale]) return;
-    api
-      .getPlans(locale)
+    // Yedek yol (sunucu cekimi bos geldiyse) — api.ts yalniz burada, gerekince yuklenir
+    import('@/lib/api')
+      .then(({ api }) => api.getPlans(locale))
       .then((r) => setFetched((f) => ({ ...f, [locale]: (r?.plans as LandingPlan[]) ?? [] })))
       .catch(() => {});
   }, [locale, initialPlans, fetched]);

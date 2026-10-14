@@ -2,17 +2,19 @@
 
 import { useEffect, useState } from 'react';
 import { PlayCircle } from 'lucide-react';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import dynamic from 'next/dynamic';
 import { Button } from '@/components/ui/button';
 import { trackCta } from '@/lib/landing-track';
 import { useT, type Key } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 
+const ExplainerDialogContent = dynamic(() => import('./explainer-dialog-content'), { ssr: false });
+
 /**
  * "Nasil calisir" aciklama videosu (apps/video → Explainer, 70 sn, Turkce altyazili,
  * sessiz). Sayfada TEK diyalog bulunur; hero, "Nasil calisir" bolumu, son CTA ve test
- * sonucu ekrani openExplainer() ile acar. Video preload="none": diyalog acilmadan tek
- * bayt inmez.
+ * sonucu ekrani openExplainer() ile acar. Diyalog (Radix) ve video ilk acilista yuklenir;
+ * oncesinde tek bayt inmez.
  */
 
 const OPEN_EVENT = 'ranksup:open-explainer';
@@ -23,42 +25,17 @@ export function openExplainer(source: string) {
 }
 
 export function ExplainerDialog() {
-  const { t } = useT();
   const [open, setOpen] = useState(false);
+  // Bir kez acildiktan sonra icerik bagli kalir ki kapanis animasyonu calissin
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    const onOpen = () => setOpen(true);
+    const onOpen = () => { setLoaded(true); setOpen(true); };
     window.addEventListener(OPEN_EVENT, onOpen);
     return () => window.removeEventListener(OPEN_EVENT, onOpen);
   }, []);
 
-  return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent size="xl" className="max-w-5xl overflow-hidden">
-        <DialogHeader>
-          <DialogTitle>{t('land.how.video_title')}</DialogTitle>
-          <DialogDescription>{t('land.how.video_desc')}</DialogDescription>
-        </DialogHeader>
-        <div className="bg-background">
-          {open && (
-            <video
-              className="block aspect-video w-full"
-              controls
-              autoPlay
-              muted
-              playsInline
-              preload="none"
-              poster="/videos/explainer.jpg"
-            >
-              <source src="/videos/explainer.mp4" type="video/mp4" />
-              <source src="/videos/explainer.webm" type="video/webm" />
-              {t('land.how.video_fallback')}
-            </video>
-          )}
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
+  return loaded ? <ExplainerDialogContent open={open} onOpenChange={setOpen} /> : null;
 }
 
 /** Diyalogu acan dugme — server bilesenlerden de kullanilir (yalniz serilestirilebilir prop) */
