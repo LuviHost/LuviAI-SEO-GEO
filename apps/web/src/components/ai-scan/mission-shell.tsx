@@ -6,7 +6,7 @@ import { cn } from '@/lib/utils';
 import { useReducedMotion } from './use-reduced-motion';
 
 /**
- * Mission Console arka plan kabuğu — animejs.com tarzı dijital sahne.
+ * Kurulum ekranı arka plan kabuğu — animejs.com tarzı dijital sahne.
  *
  * Katmanlar:
  *  - Radial brand glow (sol-üst + sağ-alt vignette)
@@ -48,7 +48,7 @@ export function MissionShell({
     <div
       className={cn(
         'relative min-h-[calc(100vh-4rem)] overflow-hidden',
-        'bg-[radial-gradient(ellipse_at_top_left,rgb(124_58_237/0.08),transparent_45%),radial-gradient(ellipse_at_bottom_right,rgb(56_189_248/0.05),transparent_50%)]',
+        'bg-[radial-gradient(ellipse_at_top_left,rgb(249_115_22/0.07),transparent_45%),radial-gradient(ellipse_at_bottom_right,rgb(56_189_248/0.05),transparent_50%)]',
         className,
       )}
     >
@@ -57,7 +57,7 @@ export function MissionShell({
         className="absolute inset-0 opacity-[0.07] pointer-events-none"
         style={{
           backgroundImage:
-            'linear-gradient(rgb(124 58 237) 1px, transparent 1px), linear-gradient(90deg, rgb(124 58 237) 1px, transparent 1px)',
+            'linear-gradient(rgb(249 115 22) 1px, transparent 1px), linear-gradient(90deg, rgb(249 115 22) 1px, transparent 1px)',
           backgroundSize: '36px 36px',
           maskImage: 'radial-gradient(ellipse at center, black 30%, transparent 75%)',
           WebkitMaskImage: 'radial-gradient(ellipse at center, black 30%, transparent 75%)',

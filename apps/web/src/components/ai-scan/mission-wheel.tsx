@@ -40,7 +40,7 @@ const TASK_ICON: Record<MissionTaskKey, React.ComponentType<React.SVGProps<SVGSV
 // soft = gauge arc rengi (300), mid = label/ring için biraz koyu (400) okunaklılık için
 const TASK_COLOR: Record<MissionTaskKey, { soft: string; mid: string }> = {
   brain: { soft: '#7dd3fc', mid: '#38bdf8' }, // sky-300 / sky-400
-  audit: { soft: '#c4b5fd', mid: '#a78bfa' }, // violet-300 / violet-400
+  audit: { soft: '#fdba74', mid: '#fb923c' }, // brand-300 / brand-400
   topics: { soft: '#fda4af', mid: '#fb7185' }, // rose-300 / rose-400
   platform: { soft: '#fcd34d', mid: '#fbbf24' }, // amber-300 / amber-400
   schedule: { soft: '#86efac', mid: '#4ade80' }, // green-300 / green-400
@@ -108,7 +108,7 @@ export function MissionWheel({
       <div ref={labelRef} className="text-center mt-6 mb-1">
         <div className="text-2xl sm:text-3xl font-bold tracking-tight mt-1.5">
           {allDone ? 'Hazır! Yönlendiriliyorsun…' : ROTATING_MESSAGES[msgIdx]}
-          <span className="inline-block w-3 text-brand animate-pulse ml-0.5">…</span>
+          <span className="inline-block w-3 text-brand motion-safe:animate-pulse ml-0.5">…</span>
         </div>
       </div>
 
@@ -146,7 +146,7 @@ export function MissionWheel({
                     {/* Pulse ring (sadece pending) — task'in pastel rengi */}
                     {!t.done && (
                       <span
-                        className="absolute inset-0 rounded-full border-2 animate-ping"
+                        className="absolute inset-0 rounded-full border-2 motion-safe:animate-ping"
                         style={{ borderColor: `${c.soft}88` }}
                       />
                     )}
@@ -177,7 +177,7 @@ export function MissionWheel({
                   </div>
                   <span
                     className={cn(
-                      'text-[10px] font-mono uppercase tracking-[0.12em] leading-tight max-w-[80px] transition-colors duration-500',
+                      'text-label leading-tight max-w-[80px] transition-colors duration-500',
                       t.done ? 'font-semibold' : 'text-muted-foreground',
                     )}
                     style={t.done ? { color: c.mid } : undefined}
@@ -192,8 +192,8 @@ export function MissionWheel({
       </div>
 
       {/* footer note */}
-      <p className="mt-8 text-center text-xs text-muted-foreground font-mono">
-        Tarayıcıyı kapatabilirsin — işlem arka planda devam eder. Hazır olunca dashboard'a yönlendirileceksin.
+      <p className="mt-8 text-center text-xs text-muted-foreground">
+        Tarayıcıyı kapatabilirsin — işlem arka planda devam eder. Hazır olunca panele yönlendirileceksin.
       </p>
     </div>
   );

@@ -26,7 +26,7 @@ type Phase = {
 
 const PHASES: Phase[] = [
   { key: 'data', label: 'Veriler işleniyor', color: '#7dd3fc', Icon: Database }, // sky-300
-  { key: 'ai', label: 'AI çalışıyor', color: '#c4b5fd', Icon: Brain }, // violet-300
+  { key: 'ai', label: 'AI çalışıyor', color: '#fdba74', Icon: Brain }, // brand-300
   { key: 'seo', label: 'SEO yapılıyor', color: '#fda4af', Icon: TrendingUp }, // rose-300
   { key: 'geo', label: 'GEO yapılıyor', color: '#fcd34d', Icon: Globe2 }, // amber-300
   { key: 'aeo', label: 'AEO yapılıyor', color: '#86efac', Icon: AudioLines }, // green-300
@@ -189,7 +189,7 @@ export function FuturisticGauge({
           </defs>
 
           {/* Dot grid */}
-          <g className="text-violet-400/45">
+          <g className="text-brand-400/45">
             <circle cx={CENTER} cy={CENTER} r={RING_RADIUS - 18} fill="url(#dotGrid)" opacity="0.5" />
           </g>
 
@@ -239,7 +239,7 @@ export function FuturisticGauge({
                   y1={y1}
                   x2={x2}
                   y2={y2}
-                  stroke="#7c3aed"
+                  stroke="#ea580c"
                   strokeOpacity={major ? 0.5 : 0.16}
                   strokeWidth={major ? 1.4 : 0.7}
                 />
@@ -265,7 +265,7 @@ export function FuturisticGauge({
             cy={CENTER}
             r={GLOBE_RADIUS - 8}
             fill="none"
-            stroke="#7c3aed"
+            stroke="#ea580c"
             strokeOpacity={0.08}
             strokeWidth={0.8}
           />
@@ -290,7 +290,7 @@ export function FuturisticGauge({
                 border: `1px solid ${phase.color}55`,
               }}
             >
-              <span className="h-1 w-1 rounded-full animate-pulse" style={{ backgroundColor: phase.color }} />
+              <span className="h-1 w-1 rounded-full motion-safe:animate-pulse" style={{ backgroundColor: phase.color }} />
               {phase.key.toUpperCase()}
             </div>
 
