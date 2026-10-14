@@ -1,5 +1,6 @@
 'use client';
 
+import { SITE_STATUS_LABEL, label } from '@/lib/labels';
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -73,25 +74,15 @@ export default function DashboardPage() {
   const router = useRouter();
 
   /**
-   * Karta tıklayınca:
-   *   1. setLeavingId → kart "expanding" animasyonuna girer (kart kendi yerinde scale-up + glow)
-   *   2. Aynı anda full-screen overlay (PageTransitionOverlay) belirir
-   *   3. ~1500ms sonra router.push → /sites/[id] yüklenir
-   *   4. Hedef sayfa loading.tsx ile devam eder
-   * Toplam algılanan süre ~2-3 sn (kullanıcı sıçramayı net görür)
+   * Karta tıklayınca kart geri bildirim animasyonuna girer ve HEMEN gidilir.
+   * Eskiden 1500 ms yapay bekleme vardı (her site açılışında 1,5 sn kayıp +
+   * ardından üç ayrı yükleme ekranı); hedef sayfa kendi iskeletiyle yüklenir.
    */
   const navigateToSite = (siteId: string) => {
-    if (leavingId) return; // Bir geçiş zaten başladı
+    if (leavingId) return;
     setLeavingId(siteId);
-    // Prefetch — Next.js cache'i ısıtsın
-    router.prefetch(`/sites/${siteId}`);
-    // 1500ms sahnede tut, sonra navigate
-    window.setTimeout(() => {
-      router.push(`/sites/${siteId}`);
-    }, 1500);
+    router.push(`/sites/${siteId}`);
   };
-
-  const leavingSite = leavingId ? sites.find((s) => s.id === leavingId) : null;
 
   return (
     <div className="relative space-y-10">
@@ -212,9 +203,6 @@ export default function DashboardPage() {
         />
       )}
 
-      {/* Sayfa geçiş overlay — site tıklandığında 1.5 sn sahnede kal */}
-      {leavingSite && <PageTransitionOverlay siteName={leavingSite.name} />}
-
       {/* Local keyframes (Tailwind-extended olmadan da çalışır) */}
       <style jsx global>{`
         @keyframes fadeInUp {
@@ -254,121 +242,6 @@ export default function DashboardPage() {
     </div>
   );
 }
-
-/**
- * Sayfa geçiş overlay — site tıklandığında 1.5 sn sahnede kalır.
- * Tasarım: full-screen brand vortex + center'da rotating ring + nabız glow + site adı.
- * Apple Vision OS / Apple Intelligence-style animasyon hissi.
- */
-function PageTransitionOverlay({ siteName }: { siteName: string }) {
-  return (
-    <div
-      className="fixed inset-0 z-[100] grid place-items-center bg-black/70"
-      style={{ animation: 'overlayIn 350ms ease-out both', backdropFilter: 'blur(20px)' }}
-    >
-      {/* Background gradient mesh */}
-      <div className="absolute inset-0 pointer-events-none overflow-hidden">
-        <div
-          className="absolute -top-1/4 left-1/2 -translate-x-1/2 h-[120vh] w-[120vh] rounded-full bg-brand/20 blur-[120px]"
-          style={{ animation: 'orbBreathe 2.4s ease-in-out infinite' }}
-        />
-        <div
-          className="absolute top-1/3 left-1/4 h-72 w-72 rounded-full bg-violet-500/30 blur-[100px]"
-          style={{ animation: 'orbBreathe 3s ease-in-out infinite 0.4s' }}
-        />
-        <div
-          className="absolute bottom-1/4 right-1/4 h-72 w-72 rounded-full bg-fuchsia-500/20 blur-[100px]"
-          style={{ animation: 'orbBreathe 2.6s ease-in-out infinite 0.8s' }}
-        />
-      </div>
-
-      {/* Merkez orbital sistem */}
-      <div className="relative flex flex-col items-center gap-8" style={{ animation: 'scaleIn 600ms cubic-bezier(0.16, 1, 0.3, 1) both' }}>
-        {/* Orbital ring sistemi */}
-        <div className="relative h-44 w-44 sm:h-56 sm:w-56">
-          {/* Pulse ring 1 */}
-          <div
-            className="absolute inset-0 rounded-full border-2 border-brand/50"
-            style={{ animation: 'pulseRing 1.6s ease-out infinite' }}
-          />
-          {/* Pulse ring 2 (delayed) */}
-          <div
-            className="absolute inset-0 rounded-full border-2 border-violet-500/40"
-            style={{ animation: 'pulseRing 1.6s ease-out infinite 0.5s' }}
-          />
-          {/* Pulse ring 3 (delayed) */}
-          <div
-            className="absolute inset-0 rounded-full border-2 border-fuchsia-500/30"
-            style={{ animation: 'pulseRing 1.6s ease-out infinite 1s' }}
-          />
-
-          {/* Orbital ring (rotating) */}
-          <div
-            className="absolute inset-2 rounded-full border border-dashed border-brand/40"
-            style={{ animation: 'orbitalSpin 8s linear infinite' }}
-          >
-            {/* Yörüngede dolaşan parçacık */}
-            <div className="absolute -top-1.5 left-1/2 -translate-x-1/2 h-3 w-3 rounded-full bg-brand shadow-[0_0_20px_rgb(124_58_237/0.8)]" />
-          </div>
-
-          {/* İç orbital ring (ters yön) */}
-          <div
-            className="absolute inset-6 rounded-full border border-violet-400/30"
-            style={{ animation: 'orbitalSpinReverse 5s linear infinite' }}
-          >
-            <div className="absolute top-1/2 -right-1 -translate-y-1/2 h-2 w-2 rounded-full bg-violet-400 shadow-[0_0_12px_rgb(167_139_250/0.9)]" />
-          </div>
-
-          {/* Merkez orb */}
-          <div
-            className="absolute inset-12 rounded-full bg-gradient-to-br from-brand via-violet-500 to-fuchsia-500 shadow-[0_0_60px_rgba(124,58,237,0.7),0_0_120px_rgba(217,70,239,0.4)] grid place-items-center"
-            style={{ animation: 'orbBreathe 1.8s ease-in-out infinite' }}
-          >
-            <Rocket className="h-7 w-7 sm:h-9 sm:w-9 text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.4)]" />
-          </div>
-        </div>
-
-        {/* Text */}
-        <div className="text-center" style={{ animation: 'fadeInUp 600ms ease-out 200ms both' }}>
-          <div className="flex items-center justify-center gap-2 mb-3">
-            <span className="h-1.5 w-1.5 rounded-full bg-brand animate-pulse" />
-            <span className="font-mono text-[10px] uppercase tracking-[0.4em] text-brand/90 font-semibold">
-              Site Agent · Connecting
-            </span>
-            <span className="h-1.5 w-1.5 rounded-full bg-brand animate-pulse" />
-          </div>
-          <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
-            {siteName}
-          </h2>
-          <div
-            className="mt-3 inline-flex items-center gap-1.5 font-mono text-xs uppercase tracking-[0.25em] text-white/70"
-            style={{ animation: 'textShimmer 1.4s ease-in-out infinite' }}
-          >
-            <span>Brain hazırlanıyor</span>
-            <DotLoader />
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function DotLoader() {
-  return (
-    <span className="inline-flex gap-1">
-      {[0, 1, 2].map((i) => (
-        <span
-          key={i}
-          className="inline-block h-1 w-1 rounded-full bg-current"
-          style={{ animation: `textShimmer 1s ease-in-out infinite ${i * 0.2}s` }}
-        />
-      ))}
-    </span>
-  );
-}
-
-
-
 
 function SiteCard({
   site, index, onDelete, isLeaving, isAnyLeaving, onNavigate,
@@ -427,7 +300,7 @@ function SiteCard({
             <h3 className="font-semibold truncate text-foreground">{site.name}</h3>
             <span className={`inline-flex items-center gap-1 px-1.5 h-5 rounded text-[10px] font-mono uppercase tracking-wider border ${statusCls}`}>
               {site.status === 'ACTIVE' && <span className="h-1 w-1 rounded-full bg-current animate-pulse" />}
-              {site.status}
+              {label(SITE_STATUS_LABEL, site.status)}
             </span>
           </div>
           <a

@@ -38,14 +38,14 @@ export interface TemplateGroup {
   warningCount: number;
   infoCount: number;
   fixableCheckIds: string[];
-  issues: Array<{ type: string; checkId: string; severity: IssueSeverity; count: number; fixable: boolean }>;
+  issues: Array<{ type: string; checkId: string; severity: IssueSeverity; count: number; fixable: boolean; description?: string }>;
 }
 
 export interface IssueGroups {
   byTemplate: TemplateGroup[];
   byCheck: Array<{ checkId: string; name: string; count: number; worstSeverity: IssueSeverity; fixable: boolean }>;
   /** Sayfa bilgisi olmayan site-geneli sorunlar (sitemap/robots/https/llms...) */
-  siteWide: Array<{ type: string; checkId: string; severity: IssueSeverity; fixable: boolean }>;
+  siteWide: Array<{ type: string; checkId: string; severity: IssueSeverity; fixable: boolean; description?: string }>;
 }
 
 const SEV_RANK: Record<IssueSeverity, number> = { info: 0, warning: 1, critical: 2 };
@@ -107,7 +107,7 @@ export function groupIssues(issues: GroupableIssue[], checks: Record<string, Che
     for (const p of pagesFromDetails(checks[checkId]?.details)) pages.add(p);
 
     if (pages.size === 0) {
-      siteWide.push({ type: issue.type, checkId, severity: issue.severity, fixable: issue.fixable });
+      siteWide.push({ type: issue.type, checkId, severity: issue.severity, fixable: issue.fixable, description: issue.description });
       continue;
     }
     // Sayfalari sablona dagit
@@ -125,7 +125,7 @@ export function groupIssues(issues: GroupableIssue[], checks: Record<string, Che
       for (const p of tPages) g._pages.add(p);
       const existing = g.issues.find((i) => i.type === issue.type && i.checkId === checkId);
       if (existing) existing.count += tPages.length;
-      else g.issues.push({ type: issue.type, checkId, severity: issue.severity, count: tPages.length, fixable: issue.fixable });
+      else g.issues.push({ type: issue.type, checkId, severity: issue.severity, count: tPages.length, fixable: issue.fixable, description: issue.description });
       if (issue.severity === 'critical') g.criticalCount += 1;
       else if (issue.severity === 'warning') g.warningCount += 1;
       else g.infoCount += 1;

@@ -1,5 +1,6 @@
 'use client';
 
+import { SEVERITY_LABEL, label } from '@/lib/labels';
 import { useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
@@ -82,8 +83,8 @@ export function AuditIssueGroups({ siteId, groups, onRefresh }: { siteId: string
                     <div className="space-y-1">
                       {g.issues.map((i: any) => (
                         <div key={`${i.checkId}-${i.type}`} className="flex items-center gap-2 text-xs">
-                          <Badge variant="outline" className={cn('text-[10px]', SEV_CLS[i.severity])}>{i.severity}</Badge>
-                          <span className="font-medium">{i.type}</span>
+                          <Badge variant="outline" className={cn('text-label', SEV_CLS[i.severity])}>{label(SEVERITY_LABEL, i.severity)}</Badge>
+                          <span className="font-medium">{i.description ?? label({}, i.type)}</span>
                           <span className="text-muted-foreground">· {i.count} sayfa</span>
                           {i.fixRoute === 'auto_fix' && <span className="text-emerald-600 text-label">otomatik düzeltilebilir</span>}
                           {i.fixRoute === 'snippet' && <span className="text-brand text-label">snippet ile düzeltilir</span>}

@@ -1,5 +1,6 @@
 'use client';
 
+import { siteHref } from '@/lib/site-routes';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -656,7 +657,7 @@ export function AuditStepBody({
               </p>
               {fixable.length > 0 && (
                 hasPublishTarget === false ? (
-                  <Link href={`/sites/${siteId}?tab=content#publish-targets`}>
+                  <Link href={siteHref(siteId, 'publishTargets')}>
                     <Button size="sm" variant="outline">
                       🔌 Yayın hedefi ekle ({fixable.length} otomatik düzeltme bekliyor)
                     </Button>
@@ -1135,7 +1136,7 @@ export function SnippetPanel({ siteId, initialUrl }: { siteId: string; initialUr
             <p className="font-medium">Otomatik yazım (deneysel)</p>
             <p className="text-muted-foreground mt-0.5">
               WordPress (Yoast/RankMath), Webflow veya Shopify default target'ı varsa otomatik yazar.{' '}
-              <Link href={`/sites/${siteId}?tab=settings`} className="underline text-blue-600 hover:text-blue-700">
+              <Link href={siteHref(siteId, 'connections')} className="underline text-blue-600 hover:text-blue-700">
                 Publish target ekle/düzenle →
               </Link>
             </p>
@@ -1167,7 +1168,7 @@ export function SnippetPanel({ siteId, initialUrl }: { siteId: string; initialUr
               <p className="font-medium">Statik HTML auto-write (FTP/SFTP/cPanel için)</p>
               <p className="text-muted-foreground mt-0.5">
                 Önce "Önizle" — sayfanın <code>&lt;head&gt;</code>'ine snippet'ler ekleniyor, diff gösterilir. Onay sonrası canlı dosya overwrite.{' '}
-                <Link href={`/sites/${siteId}?tab=settings`} className="underline text-brand-700 hover:text-brand-800">
+                <Link href={siteHref(siteId, 'connections')} className="underline text-brand-700 hover:text-brand-800">
                   FTP/SFTP/cPanel target ekle →
                 </Link>
               </p>
@@ -2436,7 +2437,7 @@ export function ContentCalendarPanel({
                 return (
                   <a
                     key={post.id}
-                    href={`/sites/${siteId}/studio?tab=publish`}
+                    href={siteHref(siteId, 'connections', 'social-channels')}
                     title={`${meta.shortName} · ${post.text?.slice(0, 100) ?? ''}`}
                     className="group rounded text-[10px] p-1 leading-tight border bg-brand/10 border-brand/30 hover:bg-brand/15 transition-colors no-underline text-foreground block"
                   >
@@ -2539,7 +2540,7 @@ function TimePickerDialog({
 function DigerSection({ siteId }: { siteId: string }) {
   return (
     <div className="pt-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
-      <Link href={`/sites/${siteId}?tab=analytics` as any} className="block">
+      <Link href={siteHref(siteId, 'analytics') as any} className="block">
         <Card className="hover:border-brand/40 transition-colors">
           <CardContent className="p-4 flex items-center gap-3">
             <BarChart3 className="h-5 w-5 text-brand" />
@@ -2550,7 +2551,7 @@ function DigerSection({ siteId }: { siteId: string }) {
           </CardContent>
         </Card>
       </Link>
-      <Link href={`/sites/${siteId}?tab=settings` as any} className="block">
+      <Link href={siteHref(siteId, 'connections') as any} className="block">
         <Card className="hover:border-brand/40 transition-colors">
           <CardContent className="p-4 flex items-center gap-3">
             <Send className="h-5 w-5 text-brand" />

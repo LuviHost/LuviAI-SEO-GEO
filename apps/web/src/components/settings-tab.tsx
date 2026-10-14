@@ -1,5 +1,6 @@
 'use client';
 
+import { siteHref } from '@/lib/site-routes';
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useSession } from 'next-auth/react';
@@ -820,11 +821,11 @@ function GscConnectionCard({ siteId }: { siteId: string }) {
   useEffect(() => {
     if (search.get('gsc') === 'connected') {
       toast.success('Google Search Console bağlandı ✓');
-      window.history.replaceState({}, '', `/sites/${siteId}?tab=settings`);
+      window.history.replaceState({}, '', siteHref(siteId, 'connections'));
       refresh();
     } else if (search.get('gsc') === 'error') {
       toast.error('GSC bağlantısı tamamlanamadı, tekrar dene.');
-      window.history.replaceState({}, '', `/sites/${siteId}?tab=settings`);
+      window.history.replaceState({}, '', siteHref(siteId, 'connections'));
     }
   }, [search, siteId]);
 
@@ -1003,11 +1004,11 @@ function Ga4ConnectionCard({ siteId }: { siteId: string }) {
   useEffect(() => {
     if (search.get('ga') === 'connected') {
       toast.success('Google Analytics bağlandı ✓');
-      window.history.replaceState({}, '', `/sites/${siteId}?tab=settings`);
+      window.history.replaceState({}, '', siteHref(siteId, 'connections'));
       refresh();
     } else if (search.get('ga') === 'error') {
       toast.error('GA bağlantısı tamamlanamadı, tekrar dene.');
-      window.history.replaceState({}, '', `/sites/${siteId}?tab=settings`);
+      window.history.replaceState({}, '', siteHref(siteId, 'connections'));
     }
   }, [search, siteId]);
 

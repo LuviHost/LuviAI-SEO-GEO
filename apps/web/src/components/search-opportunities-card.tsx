@@ -1,5 +1,6 @@
 'use client';
 
+import { formatPct } from '@/lib/format';
 import { useEffect, useMemo, useState } from 'react';
 import { ExternalLink, Search } from 'lucide-react';
 import { api } from '@/lib/api';
@@ -23,7 +24,7 @@ const SORTS: { key: SortKey; label: string }[] = [
   { key: 'value', label: 'Değer' },
 ];
 
-const pct = (n: number) => `%${Math.round(n * 100)}`;
+const pct = (n: number) => formatPct(n, 0);
 
 function pathOf(url: string) {
   try {

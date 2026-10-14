@@ -1,5 +1,7 @@
 'use client';
 
+import { formatNum, formatPct, formatPos } from '@/lib/format';
+import { siteHref } from '@/lib/site-routes';
 import { useEffect, useRef, useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
 import { ChartContainer, ChartTooltip, CHART_AXIS, CHART_GRID } from '@/components/ui/chart-container';
@@ -111,8 +113,8 @@ export function AnalyticsTab({ siteId, site }: { siteId: string; site?: any }) {
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <MetricCard icon={<MousePointerClick />} label="Tıklama" value={totals.clicks.toLocaleString('tr-TR')} />
         <MetricCard icon={<Eye />} label="Gösterim" value={totals.impressions.toLocaleString('tr-TR')} />
-        <MetricCard label="CTR" value={`${(totals.avgCtr * 100).toFixed(2)}%`} />
-        <MetricCard label="Sıralama" value={totals.avgPosition.toFixed(1)} />
+        <MetricCard label="Tıklama oranı" value={formatPct(totals.avgCtr, 2)} />
+        <MetricCard label="Ort. sıra" value={formatPos(totals.avgPosition)} />
       </div>
 
       {/* Markasız tıklama payı — organik "keşif kanalı" ölçüsü (AI tarafındaki brandInQuery ayrımının ikizi) */}
@@ -178,15 +180,15 @@ export function AnalyticsTab({ siteId, site }: { siteId: string; site?: any }) {
         <>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <MetricCard icon={<Activity />} label="Oturum (30g)" value={gaSummary.totalSessions.toLocaleString('tr-TR')} />
-            <MetricCard icon={<TargetIcon />} label="Conversion (30g)" value={gaSummary.totalConversions.toLocaleString('tr-TR')} />
+            <MetricCard icon={<TargetIcon />} label="Dönüşüm (30g)" value={gaSummary.totalConversions.toLocaleString('tr-TR')} />
             <MetricCard
               icon={<Clock />}
               label="Ort. etkileşim"
               value={`${Math.round(gaSummary.avgEngagementSec)} sn`}
             />
             <MetricCard
-              label="Bounce rate"
-              value={`${(gaSummary.avgBounceRate * 100).toFixed(1)}%`}
+              label="Hemen çıkma oranı"
+              value={formatPct(gaSummary.avgBounceRate)}
             />
           </div>
 
@@ -206,7 +208,7 @@ export function AnalyticsTab({ siteId, site }: { siteId: string; site?: any }) {
                           <span>{p.conversions} dönüşüm</span>
                           <span>{Math.round(p.avgEngagementSec)} sn etkileşim</span>
                           <span className={p.bounceRate >= 0.7 ? 'text-red-500 font-medium' : ''}>
-                            {(p.bounceRate * 100).toFixed(0)}% bounce
+                            {formatPct(p.bounceRate, 0)} hemen çıkma
                           </span>
                         </div>
                       </div>
@@ -241,8 +243,8 @@ export function AnalyticsTab({ siteId, site }: { siteId: string; site?: any }) {
                     <div className="text-xs text-muted-foreground flex gap-4 mt-1">
                       <span>{a.clicks} tıklama</span>
                       <span>{a.impressions} gösterim</span>
-                      <span>CTR {(a.ctr * 100).toFixed(1)}%</span>
-                      <span>Pos {a.position.toFixed(1)}</span>
+                      <span>Tıklama oranı {formatPct(a.ctr)}</span>
+                      <span>Ort. sıra {formatPos(a.position)}</span>
                     </div>
                   </div>
                 </div>
@@ -266,7 +268,7 @@ export function AnalyticsTab({ siteId, site }: { siteId: string; site?: any }) {
                 <div key={i} className="px-5 py-3 flex items-center justify-between text-sm">
                   <span className="font-medium">{t.query}</span>
                   <div className="flex items-center gap-3">
-                    <span className="text-xs text-muted-foreground">{t.recentImp} imp</span>
+                    <span className="text-xs text-muted-foreground">{formatNum(t.recentImp)} gösterim</span>
                     <Badge variant="success">+{t.growthPct}%</Badge>
                   </div>
                 </div>
@@ -290,13 +292,13 @@ export function AnalyticsTab({ siteId, site }: { siteId: string; site?: any }) {
                 <div key={i} className="px-5 py-3 text-sm">
                   <div className="flex items-center gap-2 mb-1">
                     <Badge variant={s.type === 'near-miss' ? 'warning' : 'secondary'}>
-                      {s.type === 'near-miss' ? 'YAKIN MISS' : 'DÜŞÜK CTR'}
+                      {s.type === 'near-miss' ? 'İLK SAYFAYA YAKIN' : 'DÜŞÜK TIKLAMA ORANI'}
                     </Badge>
                     <span className="font-medium truncate">{s.query}</span>
                   </div>
                   <p className="text-xs text-muted-foreground ml-1">{s.recommendation}</p>
                   <div className="text-xs text-muted-foreground mt-1 ml-1">
-                    {s.impressions} imp · pos {s.position?.toFixed(1) ?? '-'} · CTR {((s.ctr ?? 0) * 100).toFixed(1)}%
+                    {formatNum(s.impressions)} gösterim · ort. sıra {formatPos(s.position)} · tıklama oranı {formatPct(s.ctr ?? 0)}
                   </div>
                 </div>
               ))}
@@ -400,7 +402,7 @@ function AnalyticsEmptyState({
             Veri tab'ına gidip property'yi seç, sonra geri gel.
           </p>
           <Button asChild size="lg" className="font-mono text-xs uppercase tracking-widest">
-            <a href={`/sites/${siteId}?tab=data#gsc`}>Property Seç →</a>
+            <a href={siteHref(siteId, 'connections')}>Property Seç →</a>
           </Button>
         </CardContent>
       </Card>

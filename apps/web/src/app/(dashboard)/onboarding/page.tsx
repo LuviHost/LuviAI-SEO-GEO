@@ -239,15 +239,23 @@ function InputStage({
   const [creating, setCreating] = useState(false);
   const [demoLoading, setDemoLoading] = useState(false);
 
+  // "siteniz.com" yazan kullanici dugmeyi gri gorup takiliyordu (https:// sarti,
+  // uyari da devre disi dugme yuzunden hic cikmiyordu) → sema yoksa https eklenir.
+  const normalized = (() => {
+    const t = url.trim();
+    if (!t) return '';
+    return /^[a-z][a-z0-9+.-]*:\/\//i.test(t) ? t : `https://${t}`;
+  })();
   const valid = (() => {
     try {
-      const u = new URL(url);
-      return u.protocol === 'http:' || u.protocol === 'https:';
+      const u = new URL(normalized);
+      return (u.protocol === 'http:' || u.protocol === 'https:') && u.hostname.includes('.');
     } catch { return false; }
   })();
+  const showHint = url.trim().length > 3 && !valid;
 
   const submit = async () => {
-    if (!valid) { toast.error('Geçerli bir URL gir (https:// ile başlamalı)'); return; }
+    if (!valid) { toast.error('Geçerli bir alan adı gir (ör. siteniz.com)'); return; }
     if (sessionStatus !== 'authenticated' || !sessionUserId) {
       router.push(`/signin?callbackUrl=${encodeURIComponent(window.location.pathname + window.location.search)}`);
       return;
@@ -255,7 +263,7 @@ function InputStage({
     setCreating(true);
     try {
       const guessedName = (() => {
-        try { return new URL(url).hostname.replace(/^www\./, '').split('.')[0]; }
+        try { return new URL(normalized).hostname.replace(/^www\./, '').split('.')[0]; }
         catch { return 'Site'; }
       })();
 
@@ -265,7 +273,7 @@ function InputStage({
       let detectedCustomNiche: string | undefined;
       try {
         const detection = await Promise.race([
-          api.detectNiche(url),
+          api.detectNiche(normalized),
           new Promise<null>((resolve) => setTimeout(() => resolve(null), 12_000)), // 12sn cap
         ]);
         if (detection && (detection as any).niche) {
@@ -283,7 +291,7 @@ function InputStage({
       } catch (_e) { /* fallback to 'diğer' */ }
 
       const created = await api.createSite({
-        url,
+        url: normalized,
         name: guessedName,
         niche: detectedNiche,
         customNiche: detectedCustomNiche,
@@ -338,7 +346,10 @@ function InputStage({
           <Globe className="h-5 w-5 text-brand/70 ml-3 shrink-0" />
           <Input
             type="url"
-            placeholder="https://siteniz.com"
+            placeholder="siteniz.com"
+            aria-label="Site adresi"
+            aria-invalid={showHint || undefined}
+            aria-describedby="site-url-hint"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter' && valid && !creating) submit(); }}
@@ -364,6 +375,10 @@ function InputStage({
           </Button>
         </div>
       </div>
+
+      <p id="site-url-hint" className={cn('mt-2 text-xs', showHint ? 'text-rose-600' : 'text-muted-foreground')}>
+        {showHint ? 'Bu bir alan adına benzemiyor — ör. siteniz.com' : 'https:// yazmana gerek yok.'}
+      </p>
 
       {/* mini features */}
       <ul className="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-3 text-center">

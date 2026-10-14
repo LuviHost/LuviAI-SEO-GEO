@@ -1,5 +1,6 @@
 'use client';
 
+import { formatPct } from '@/lib/format';
 import { useEffect, useState, useMemo } from 'react';
 import { useSiteContext } from '../site-context';
 import { api } from '@/lib/api';
@@ -380,7 +381,7 @@ export default function RankTrackingPage() {
                     </td>
                     <td className="px-3 py-2.5 text-right tabular-nums">{kw.clicks.toLocaleString('tr-TR')}</td>
                     <td className="px-3 py-2.5 text-right tabular-nums hidden sm:table-cell">{kw.impressions.toLocaleString('tr-TR')}</td>
-                    <td className="px-3 py-2.5 text-right tabular-nums hidden lg:table-cell">{kw.ctr.toFixed(2)}%</td>
+                    <td className="px-3 py-2.5 text-right tabular-nums hidden lg:table-cell">{formatPct(kw.ctr / 100, 2)}</td>
                     <td className="px-3 py-2.5 hidden lg:table-cell max-w-[200px]">
                       {kw.page ? (
                         <a

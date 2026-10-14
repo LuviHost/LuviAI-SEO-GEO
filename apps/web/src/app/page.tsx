@@ -643,7 +643,7 @@ export default function LandingPage() {
       {/* ─── SOCIAL PROOF / METRICS ──────────────────────────── */}
       <section className="py-20">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
+          <div className="grid grid-cols-3 gap-8 text-center">
             <div>
               <div className="text-3xl md:text-4xl font-extrabold"><AnimatedNumber raw="10dk" /></div>
               <div className="text-xs text-muted-foreground mt-1">{t('land.stats.setup')}</div>
@@ -651,10 +651,6 @@ export default function LandingPage() {
             <div>
               <div className="text-3xl md:text-4xl font-extrabold"><AnimatedNumber raw="35+" /></div>
               <div className="text-xs text-muted-foreground mt-1">{t('land.stats.integrations')}</div>
-            </div>
-            <div>
-              <div className="text-3xl md:text-4xl font-extrabold"><AnimatedNumber raw="240+" /></div>
-              <div className="text-xs text-muted-foreground mt-1">{t('land.stats.team')}</div>
             </div>
             <div>
               <div className="text-3xl md:text-4xl font-extrabold"><AnimatedNumber raw="%99.9" /></div>
@@ -724,7 +720,6 @@ export default function LandingPage() {
             </Link>
           </div>
           <div className="mt-6 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs text-muted-foreground">
-            <span className="inline-flex items-center gap-1"><ShieldCheck className="h-3.5 w-3.5 text-emerald-600" /> SOC-2 uyumlu</span>
             <span className="inline-flex items-center gap-1"><Zap className="h-3.5 w-3.5 text-emerald-600" /> %99.9 uptime</span>
             <span className="inline-flex items-center gap-1"><Clock className="h-3.5 w-3.5 text-emerald-600" /> 7/24 izleme</span>
           </div>

@@ -1,5 +1,7 @@
 'use client';
 
+import { ARTICLE_STATUS_LABEL, label } from '@/lib/labels';
+import { siteHref } from '@/lib/site-routes';
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
@@ -345,7 +347,7 @@ ${body}
           <div className="flex-1 min-w-0">
             <h1 className="text-2xl sm:text-3xl font-bold leading-tight">{article.title}</h1>
             <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground flex-wrap">
-              <Badge variant={STATUS_VARIANT[article.status] ?? 'outline'}>{article.status}</Badge>
+              <Badge variant={STATUS_VARIANT[article.status] ?? 'outline'}>{label(ARTICLE_STATUS_LABEL, article.status)}</Badge>
               {article.persona && <span>👤 {article.persona}</span>}
               {article.wordCount && (
                 <span className="inline-flex items-center gap-1">
@@ -493,7 +495,7 @@ ${body}
               </Button>
               {targets.length === 0 ? (
                 <Button asChild>
-                  <Link href={`/sites/${siteId}?tab=settings` as any}>+ Yayın Hedefi Ekle</Link>
+                  <Link href={siteHref(siteId, 'publishTargets') as any}>+ Yayın Hedefi Ekle</Link>
                 </Button>
               ) : (
                 <Button onClick={() => publish()} disabled={publishing || selectedTargets.size === 0}>

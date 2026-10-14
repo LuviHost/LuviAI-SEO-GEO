@@ -119,7 +119,7 @@ export default function AsoHealthPage({ params }: { params: Promise<{ id: string
     <div className="p-6 max-w-[1500px] mx-auto space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
-          <Button size="sm" variant="ghost" onClick={() => router.push(`/sites/${siteId}/aso/${appId}`)}>
+          <Button size="sm" variant="ghost" onClick={() => router.push(`/sites/${siteId}/aso`)}>
             <ArrowLeft className="h-4 w-4 mr-1" /> ASO
           </Button>
           <div>

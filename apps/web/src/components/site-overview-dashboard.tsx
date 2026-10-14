@@ -1,5 +1,6 @@
 'use client';
 
+import { siteHref } from '@/lib/site-routes';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
@@ -95,7 +96,7 @@ export function SiteOverviewDashboard({
               <p className="text-sm font-semibold inline-flex items-center gap-2">
                 <Zap className="h-4 w-4 text-brand-500" /> Sırada Yayınlanacaklar
               </p>
-              <Link href={`/sites/${site.id}?tab=content`} className="text-xs text-brand-600 dark:text-brand-400 hover:underline font-medium">
+              <Link href={siteHref(site.id, 'articles')} className="text-xs text-brand-600 dark:text-brand-400 hover:underline font-medium">
                 Takvimi aç →
               </Link>
             </div>
@@ -188,7 +189,7 @@ export function SiteOverviewDashboard({
                   <span className="h-2 w-2 rounded-full bg-emerald-500" />
                   <strong>{ready.length}</strong> makale yayına hazır
                 </p>
-                <Link href={`/sites/${site.id}?tab=content`} className="text-xs text-brand-600 dark:text-brand-400 hover:underline font-medium">
+                <Link href={siteHref(site.id, 'articles')} className="text-xs text-brand-600 dark:text-brand-400 hover:underline font-medium">
                   İncele →
                 </Link>
               </div>
@@ -199,10 +200,10 @@ export function SiteOverviewDashboard({
 
       {/* Hizli linkler */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-        <QuickLink href={`/sites/${site.id}?tab=content`} icon={<FileText className="h-4 w-4" />} label="Içerik" />
-        <QuickLink href={`/sites/${site.id}?tab=report`} icon={<TrendingUp className="h-4 w-4" />} label="Rapor" />
-        <QuickLink href={`/sites/${site.id}?tab=analytics`} icon={<Search className="h-4 w-4" />} label="Analytics" />
-        <QuickLink href={`/sites/${site.id}?tab=settings`} icon={<ShieldCheck className="h-4 w-4" />} label="Ayarlar" />
+        <QuickLink href={siteHref(site.id, 'articles')} icon={<FileText className="h-4 w-4" />} label="Içerik" />
+        <QuickLink href={siteHref(site.id, 'report')} icon={<TrendingUp className="h-4 w-4" />} label="Rapor" />
+        <QuickLink href={siteHref(site.id, 'analytics')} icon={<Search className="h-4 w-4" />} label="Analytics" />
+        <QuickLink href={siteHref(site.id, 'settings')} icon={<ShieldCheck className="h-4 w-4" />} label="Ayarlar" />
       </div>
     </div>
   );
@@ -278,7 +279,7 @@ function NextActionWidget({ site, audit, articles, publishTargets, onRefresh }: 
       title: 'Yayın hedefi ekle (auto-fix bunu gerektirir)',
       desc: `${autoFixable.length} otomatik düzeltme uygulanabilir ama bağlı bir yayın hedefi yok. FTP/SFTP/WordPress ekle ki sitemap.xml, robots.txt gibi dosyalar yüklensin.`,
       cta: 'Yayın hedefi ekle',
-      href: `/sites/${site.id}?tab=settings#publish-targets`,
+      href: siteHref(site.id, 'publishTargets'),
     });
   }
 
@@ -385,7 +386,7 @@ function NextActionWidget({ site, audit, articles, publishTargets, onRefresh }: 
       title: `GEO görünürlüğü zayıf (${geoScore}/100)`,
       desc: 'Schema markup, FAQ, llms.txt, speakable content eksik. Sayfa bazlı snippet üreticisi ile iyileştir.',
       cta: 'Snippet Üretici',
-      href: `/sites/${site.id}?tab=data#snippet`,
+      href: siteHref(site.id, 'snippet'),
     });
   }
 
@@ -397,7 +398,7 @@ function NextActionWidget({ site, audit, articles, publishTargets, onRefresh }: 
       title: `${issues.length} sorun manuel düzeltme bekliyor`,
       desc: 'Otomatik düzeltilmeyen sorunları Site Skoru kartında satır satır gör — her birinin ne demek + nasıl düzelteceği yazılı.',
       cta: 'Detayları gör',
-      href: `/sites/${site.id}?tab=data#audit`,
+      href: siteHref(site.id, 'audit'),
     });
   }
 
@@ -409,7 +410,7 @@ function NextActionWidget({ site, audit, articles, publishTargets, onRefresh }: 
       title: 'AI görünürlüğünü ölç',
       desc: 'ChatGPT, Claude, Gemini, Perplexity senin siteni biliyor mu? Test et.',
       cta: 'AI testini çalıştır',
-      href: `/sites/${site.id}?tab=data#citation`,
+      href: siteHref(site.id, 'visibility'),
     });
   }
 
@@ -421,7 +422,7 @@ function NextActionWidget({ site, audit, articles, publishTargets, onRefresh }: 
       title: 'İçerik takvimi oluştur',
       desc: 'AI başlık önerileri ile ilk yazıları takvime al — otomatik üretim ve yayın için.',
       cta: 'Başlık seç',
-      href: `/sites/${site.id}?tab=content`,
+      href: siteHref(site.id, 'articles'),
     });
   }
 
@@ -433,7 +434,7 @@ function NextActionWidget({ site, audit, articles, publishTargets, onRefresh }: 
       title: `${ready.length} yazı onayını bekliyor`,
       desc: 'AI yazdı ama henüz yayınlanmadı — önizle ve onayla.',
       cta: 'Onaya git',
-      href: `/sites/${site.id}?tab=content`,
+      href: siteHref(site.id, 'articles'),
     });
   }
 
@@ -448,7 +449,7 @@ function NextActionWidget({ site, audit, articles, publishTargets, onRefresh }: 
       title: `Sıradaki yazı: "${nextScheduled.title?.slice(0, 50) ?? 'Başlıksız'}"`,
       desc: `${dt.toLocaleString('tr-TR', { weekday: 'long', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} tarihinde otomatik üretilecek.`,
       cta: 'Takvimi gör',
-      href: `/sites/${site.id}?tab=content`,
+      href: siteHref(site.id, 'articles'),
     });
   }
 
@@ -533,7 +534,7 @@ function HealthBanner({ site, audit, articles, publishTargets }: { site: any; au
       kind: 'error',
       title: 'Yayın hedefi yok',
       desc: 'Üretilen yazılar nereye gidecek belirlenmemiş. Hemen bir hedef ekle.',
-      cta: { label: 'Hedef ekle', href: `/sites/${site.id}?tab=settings` },
+      cta: { label: 'Hedef ekle', href: siteHref(site.id, 'settings') },
     });
   }
 
@@ -553,7 +554,7 @@ function HealthBanner({ site, audit, articles, publishTargets }: { site: any; au
       kind: 'error',
       title: `${failedArticles.length} yazı üretiminde hata`,
       desc: 'Yazı üretimi başarısız oldu — AI key bakiyesi bitmiş veya yayın hedefi düşmüş olabilir.',
-      cta: { label: 'Detayları gör', href: `/sites/${site.id}?tab=data` },
+      cta: { label: 'Detayları gör', href: siteHref(site.id, 'audit') },
     });
   }
 
@@ -568,7 +569,7 @@ function HealthBanner({ site, audit, articles, publishTargets }: { site: any; au
       kind: 'warning',
       title: `${oldReady.length} yazı 3 günden uzun süredir onay bekliyor`,
       desc: 'AI yazdı ama yayınlanmadı. Onaya gitmek istersen Detaylı Akış sekmesine geç.',
-      cta: { label: 'Onaya git', href: `/sites/${site.id}?tab=content` },
+      cta: { label: 'Onaya git', href: siteHref(site.id, 'articles') },
     });
   }
 
@@ -697,7 +698,7 @@ function AuditSummaryInline({ site, audit }: { site: any; audit: any }) {
 
         {issues.length > topIssues.length && (
           <Link
-            href={`/sites/${site.id}?tab=data#audit`}
+            href={siteHref(site.id, 'audit')}
             className="text-xs text-brand hover:underline mt-3 inline-flex items-center gap-1"
           >
             {issues.length} sorunun tamamını gör <ChevronRight className="h-3 w-3" />

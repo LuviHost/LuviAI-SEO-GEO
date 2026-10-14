@@ -22,7 +22,6 @@ import { SiteOverviewDashboard } from '@/components/site-overview-dashboard';
 const TAB_REDIRECT_MAP: Record<string, string> = {
   content: '/articles',
   data: '/audit',
-  videos: '/videos',
   report: '/report',
   analytics: '/analytics',
   settings: '/connections',

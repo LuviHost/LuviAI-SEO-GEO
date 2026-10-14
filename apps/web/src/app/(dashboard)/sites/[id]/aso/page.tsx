@@ -1,5 +1,6 @@
 'use client';
 
+import { SENTIMENT_LABEL, label } from '@/lib/labels';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useSiteContext } from '../site-context';
@@ -1320,7 +1321,7 @@ function AppDetailModal({ app, siteId, onClose, onChanged }: {
                             r.sentiment === 'NEGATIVE' ? 'bg-rose-500/10 text-rose-600 border-rose-500/30' :
                             'bg-muted text-muted-foreground'
                           }`}>
-                            {r.sentiment}
+                            {label(SENTIMENT_LABEL, r.sentiment)}
                           </Badge>
                         )}
                         {Array.isArray(r.topics) && r.topics.map((t: string) => (

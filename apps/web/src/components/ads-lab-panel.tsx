@@ -1,5 +1,6 @@
 'use client';
 
+import { siteHref } from '@/lib/site-routes';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { Megaphone, Play, Pause, Plus, Target, Activity, Zap, Link2, Check, X, Loader2 } from 'lucide-react';
@@ -46,7 +47,7 @@ export function AdsLabPanel({ site }: { site: any }) {
               Kampanya kurmak için en az bir Google Ads veya Meta Ads hesabına ihtiyacın var.
             </p>
             <a
-              href={`/sites/${site.id}?tab=settings#ads-accounts`}
+              href={siteHref(site.id, 'connections')}
               className="mt-2 inline-flex items-center gap-1 text-amber-700 dark:text-amber-400 font-semibold hover:underline"
             >
               Ayarlar → Reklam Hesapları'na git →
