@@ -33,6 +33,7 @@ export function DataTable<T>({
   onRowClick,
   caption,
   className,
+  maxRows,
 }: {
   columns: Column<T>[];
   rows: T[];
@@ -42,6 +43,8 @@ export function DataTable<T>({
   /** Ekran okuyucu için tablo adı */
   caption?: string;
   className?: string;
+  /** Tümü sıralanır, yalnız ilk N satır çizilir (büyük listelerde performans) */
+  maxRows?: number;
 }) {
   const [sort, setSort] = React.useState<Sort>(initialSort);
 
@@ -102,7 +105,7 @@ export function DataTable<T>({
           </tr>
         </thead>
         <tbody className="divide-y">
-          {sorted.map((row) => (
+          {(maxRows ? sorted.slice(0, maxRows) : sorted).map((row) => (
             <tr
               key={rowKey(row)}
               onClick={onRowClick ? () => onRowClick(row) : undefined}
