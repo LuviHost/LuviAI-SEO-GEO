@@ -11,6 +11,7 @@ import { api } from '@/lib/api';
 import { useT } from '@/lib/i18n';
 import { fadeUp, staggerContainer } from '@/lib/motion-presets';
 import { cn } from '@/lib/utils';
+import { siteHref } from '@/lib/site-routes';
 import { Button } from '@/components/ui/button';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
@@ -183,7 +184,7 @@ function SiteCard({ site, onDelete }: { site: any; onDelete: () => void }) {
         <div className="mb-0.5 flex flex-wrap items-center gap-2">
           <h3 className="truncate font-semibold">
             <Link
-              href={`/sites/${site.id}`}
+              href={siteHref(site.id, 'overview')}
               className="after:absolute after:inset-0 after:rounded-lg after:content-[''] focus-visible:outline-none"
             >
               {site.name}

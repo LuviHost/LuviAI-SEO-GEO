@@ -142,15 +142,13 @@ function SiteNav({ siteId, path, onClose }: { siteId: string; path: string; onCl
                   />
                 </button>
               )}
-              {expanded && (
-                <ul id={listId} className="space-y-0.5">
-                  {group.items.map((item) => (
-                    <li key={item.href}>
-                      <NavLink item={item} path={path} locked={!!item.feature && can(item.feature) === false} onClose={onClose} />
-                    </li>
-                  ))}
-                </ul>
-              )}
+              <ul id={listId} hidden={!expanded} className="space-y-0.5">
+                {group.items.map((item) => (
+                  <li key={item.href}>
+                    <NavLink item={item} path={path} locked={!!item.feature && can(item.feature) === false} onClose={onClose} />
+                  </li>
+                ))}
+              </ul>
             </div>
           );
         })}
