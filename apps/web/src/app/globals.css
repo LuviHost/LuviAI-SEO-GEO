@@ -47,6 +47,9 @@
     --warning: 32 95% 40%;
     --danger: 0 72% 48%;
     --info: 217 91% 48%;
+
+    /* Landing: AI cevabinda markanin anildigi yeri isaretleyen fosforlu kalem */
+    --highlighter: 31 97% 83%;
   }
 
   .dark {
@@ -71,6 +74,7 @@
     --warning: 38 92% 58%;
     --danger: 0 84% 66%;
     --info: 213 94% 68%;
+    --highlighter: 21 72% 30%;
 
     --background: 222 47% 11%;
     --foreground: 210 40% 98%;

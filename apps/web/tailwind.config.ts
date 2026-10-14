@@ -32,6 +32,8 @@ const config: Config = {
     extend: {
       fontFamily: {
         sans: ['var(--font-sans)', 'system-ui', '-apple-system', 'Segoe UI', 'sans-serif'],
+        // Sora — markanin imza fontu (logotype); landing basliklarinda
+        brand: ['var(--font-sora)', 'var(--font-sans)', 'system-ui', 'sans-serif'],
         display: ['var(--font-display)', 'Georgia', 'Times New Roman', 'serif'],
         mono: ['var(--font-mono)', 'ui-monospace', 'monospace'],
       },

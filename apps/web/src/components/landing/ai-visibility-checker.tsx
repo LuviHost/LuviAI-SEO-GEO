@@ -2,11 +2,12 @@
 
 import { useEffect, useRef, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { ArrowRight, Loader2, AlertCircle, Globe, Check } from 'lucide-react';
+import { Loader2, AlertCircle, Globe } from 'lucide-react';
 import type { api } from '@/lib/api';
 import { trackCta } from '@/lib/landing-track';
 import { useT } from '@/lib/i18n';
 import { CHECKER_COPY } from './checker-copy';
+import { DOMAIN_EVENT } from './answer-sheet';
 
 /**
  * Landing hero'sundaki AI gorunurluk testi — YALNIZ form + istek mantigi.
@@ -163,47 +164,37 @@ export function AiVisibilityChecker() {
       <div className="relative">
         <form
           onSubmit={(e) => { e.preventDefault(); handleStart(); }}
-          className="flex flex-col sm:flex-row gap-2 bg-background border-2 border-brand-500/30 hover:border-brand-500/50 focus-within:border-brand-500/70 rounded-2xl p-2 shadow-2xl shadow-brand-500/10 transition-colors"
+          className="flex flex-col gap-2 rounded-2xl border border-border bg-background p-1.5 transition-colors focus-within:border-brand sm:flex-row"
         >
-          <label className="flex-1 flex items-center gap-3 px-4">
-            <Globe className="h-5 w-5 text-brand-600 shrink-0" aria-hidden />
+          <label className="flex flex-1 items-center gap-3 px-3.5">
+            <Globe className="h-5 w-5 shrink-0 text-muted-foreground" aria-hidden />
             <span className="sr-only">{c.domainHint}</span>
             <input
               type="text"
               inputMode="url"
               value={domain}
-              onChange={(e) => setDomain(e.target.value)}
+              onChange={(e) => {
+                setDomain(e.target.value);
+                // Hero'daki ornek cevap karti alan adini canli gostersin
+                window.dispatchEvent(new CustomEvent(DOMAIN_EVENT, { detail: e.target.value }));
+              }}
               onFocus={() => { void loadOverlay(); void import('@/lib/api'); }}
               placeholder={c.placeholder}
               autoComplete="off"
               spellCheck={false}
+              aria-describedby="checker-hint"
               disabled={phase === 'loading'}
-              className="flex-1 min-w-0 bg-transparent outline-none text-lg sm:text-xl font-medium placeholder:text-muted-foreground/50 py-3 sm:py-4"
+              className="min-w-0 flex-1 bg-transparent py-3 text-lg font-medium outline-none placeholder:text-muted-foreground/60"
             />
           </label>
           <button
             type="submit"
             disabled={!domain.trim() || phase === 'loading'}
-            className="inline-flex items-center justify-center gap-2 px-7 sm:px-8 py-3 sm:py-4 rounded-xl bg-gradient-to-br from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 disabled:from-muted disabled:to-muted disabled:text-muted-foreground disabled:cursor-not-allowed text-white font-bold text-base sm:text-lg shadow-lg shadow-brand-500/40 transition-all hover:scale-[1.02] active:scale-[0.98]"
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-brand px-6 py-3 text-base font-semibold text-white transition-colors hover:bg-brand-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-55"
           >
-            {phase === 'loading' ? (
-              <Loader2 className="h-5 w-5 animate-spin" />
-            ) : (
-              <>
-                {c.btnStart}
-                <ArrowRight className="h-5 w-5" />
-              </>
-            )}
+            {phase === 'loading' ? <Loader2 className="h-5 w-5 animate-spin" aria-hidden /> : c.btnStart}
           </button>
         </form>
-
-        <ul className="flex flex-wrap items-center justify-center lg:justify-start gap-x-4 gap-y-1 mt-3 text-xs text-muted-foreground">
-          {[c.tagFree, c.tagNoCard, c.tagFast].map((tag) => (
-            <li key={tag} className="inline-flex items-center gap-1">
-              <Check className="h-3.5 w-3.5 text-success" aria-hidden /> {tag}
-            </li>
-          ))}
-        </ul>
 
         {phase === 'error' && error && (
           <div role="alert" className="mt-3 flex items-start gap-2 p-3 rounded-lg border border-danger/30 bg-danger/10 text-danger text-xs">

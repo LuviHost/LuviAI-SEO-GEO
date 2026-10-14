@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { Check, Star } from 'lucide-react';
+import { Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useT, type Locale } from '@/lib/i18n';
 import { trackCta } from '@/lib/landing-track';
@@ -102,35 +102,33 @@ function PriceCard({
   return (
     <div
       className={cn(
-        'relative p-7 rounded-2xl border flex flex-col',
-        highlighted
-          ? 'bg-gradient-to-br from-brand-500/10 to-brand-500/5 border-brand-500/40 shadow-xl shadow-brand-500/10 lg:scale-[1.03]'
-          : 'bg-background',
+        'relative flex flex-col rounded-[20px] border bg-card p-7',
+        highlighted ? 'border-brand ring-1 ring-brand' : 'border-border',
       )}
     >
       {highlighted && (
-        <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wide bg-gradient-to-br from-brand-500 to-brand-600 text-white shadow-lg whitespace-nowrap">
-          <Star className="h-3.5 w-3.5 fill-current" aria-hidden /> {popularLabel}
-        </div>
+        <p className="absolute -top-3 left-6 whitespace-nowrap rounded-full bg-brand px-3 py-1 text-label font-semibold text-white">
+          {popularLabel}
+        </p>
       )}
-      <h3 className="text-lg font-bold">{name}</h3>
+      <h3 className="font-brand text-lg font-semibold">{name}</h3>
       <div className="mt-4 mb-1">
-        <span className="text-4xl font-extrabold">{price}</span>
+        <span className="font-brand text-4xl font-semibold tracking-[-0.03em] tabular-nums">{price}</span>
         <span className="text-muted-foreground text-sm">{period}</span>
       </div>
       <p className="text-xs text-muted-foreground min-h-4">{annualNote}</p>
-      {inheritLabel && <p className="mt-5 text-label uppercase tracking-wider text-muted-foreground">{inheritLabel}</p>}
+      {inheritLabel && <p className="mt-5 text-sm font-medium text-muted-foreground">{inheritLabel}</p>}
       <ul className={cn('space-y-2 text-sm mb-6 flex-1', inheritLabel ? 'mt-3' : 'mt-5')}>
         {bullets.map((b, i) => (
           <li key={i} className="flex items-start gap-2">
-            <Check className={cn('h-4 w-4 mt-0.5 shrink-0', highlighted ? 'text-brand-600' : 'text-success')} aria-hidden />
+            <Check className="mt-0.5 h-4 w-4 shrink-0 text-brand-700 dark:text-brand-300" aria-hidden />
             <span>{b}</span>
           </li>
         ))}
       </ul>
       <Button
         asChild
-        className={cn('w-full', highlighted && 'bg-gradient-to-br from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white')}
+        className={cn('w-full', highlighted && 'bg-brand text-white hover:bg-brand-600')}
         variant={highlighted ? 'default' : 'outline'}
       >
         <Link href="/pricing" onClick={onCtaClick}>
