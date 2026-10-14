@@ -1,122 +1,85 @@
-'use client';
-
 import Link from 'next/link';
-import { useEffect, useRef, useState } from 'react';
+import type { LucideIcon } from 'lucide-react';
+import {
+  Sparkles, ArrowRight, Check, X as XIcon, Search, Smartphone, Wand2, Bot, Star,
+  TrendingUp, Globe, Rocket, Apple, Lock, Cpu, Cloud, BadgeCheck,
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { LocaleSwitch } from '@/components/locale-switch';
-import { useT } from '@/lib/i18n';
-import { api } from '@/lib/api';
-import { trackPageview, trackCta, setupScrollDepthTracking, setupSectionTracking } from '@/lib/landing-track';
 import { VendorLogo, type VendorName } from '@/components/vendor-logo';
 import { BrandWordmark } from '@/components/brand-logo';
-import { AiVisibilityChecker } from '@/components/landing/ai-visibility-checker';
+import type { Key } from '@/lib/i18n';
 import { AiCheckerHero } from '@/components/landing/ai-checker-hero';
-import {
-  Sparkles, ArrowRight, Check, X as XIcon, ChevronDown,
-  Rocket, Search, Smartphone, Wand2, Bot, Star,
-  TrendingUp, Zap, ShieldCheck, Clock, BarChart3, Globe,
-  PlayCircle, MousePointer2, MessageSquare, FileText, Apple,
-  Lock, Cpu, Cloud, BadgeCheck,
-} from 'lucide-react';
+import { HeroVideo } from '@/components/landing/hero-video';
+import { ExplainerDialog, WatchVideoButton } from '@/components/landing/explainer-dialog';
+import { PricingSection } from '@/components/landing/pricing-section';
+import { FaqSection } from '@/components/landing/faq-section';
+import { T, TrackedLink, LandingAnalytics, AnimatedNumber, LocaleNumber } from '@/components/landing/landing-islands';
+import { fetchPlans, fetchTestimonials, type PublicTestimonial } from '@/components/landing/landing-data';
 
 // ───────────────────────────────────────────────────────────────
-//  RanksUp — Landing (yeni, dönüşüm odaklı)
-//  AIDA + PAS + Risk Reversal · brand orange · plan verisi /api/billing/plans'tan
+//  RanksUp — Landing (Faz 6)
+//
+//  SERVER bilesen + istemci adaciklari. Plan ve yorumlar sunucuda ISR ile
+//  cekilir (ilk boyamada fiyat dolu). Metinler <T/> yapraklarinda cozulur cunku
+//  dil secimi istemcide (localStorage) — SSR 'tr' basar.
+//
+//  Sira: Hero → Kanit seridi → Nasil calisir (video) → Cozum → Sonuclar →
+//        (Yorumlar, yalniz ≥3 onayli) → Karsilastirma → Fiyat → SSS → Son CTA
 // ───────────────────────────────────────────────────────────────
 
-type Plan = {
-  id: string;
-  name: string;
-  /** Kanonik fiyat — USD */
-  monthly: number;
-  annual: number;
-  currency: string;
-  /** Gunun TCMB kuruyla hesaplanmis TL karsiligi */
-  monthlyTry: number;
-  annualTry: number;
-  articlesPerMonth: number;
-  sites: number | string;
-  /** Aylik AI gorunurluk calistirmasi — QuotaService citationTests ile ayni */
-  aiRunsPerMonth: number;
-  aiProviders: number;
-  publishTargets: string;
-  support: string;
-  /** Kart maddeleri — tek kaynak apps/api/src/billing/plans.ts */
-  features: string[];
-  /** "Buyume'deki her sey, arti:" — kok planda undefined */
-  inheritsLabel?: string;
-  popular?: boolean;
-  contactSales?: boolean;
-};
+/** Fiyat/yorumlar 10 dakikada bir yeniden uretilir (landing-data LANDING_REVALIDATE ile ayni) */
+export const revalidate = 600;
 
 const AI_LABELS: Partial<Record<VendorName, string>> = {
-  'chatgpt': 'ChatGPT',
+  chatgpt: 'ChatGPT',
   'claude-ai': 'Claude',
-  'gemini': 'Gemini',
-  'perplexity': 'Perplexity',
-  'grok': 'Grok',
-  'deepseek': 'DeepSeek',
-  'mistral': 'Mistral',
-};
-
-const INTEGRATION_LABELS: Partial<Record<VendorName, string>> = {
-  'linkedin': 'LinkedIn', 'twitter': 'X (Twitter)', 'facebook': 'Facebook',
-  'instagram': 'Instagram', 'tiktok': 'TikTok', 'youtube': 'YouTube',
-  'google': 'Google Ads', 'wordpress': 'WordPress', 'shopify': 'Shopify', 'webflow': 'Webflow',
+  gemini: 'Gemini',
+  perplexity: 'Perplexity',
+  grok: 'Grok',
+  deepseek: 'DeepSeek',
+  mistral: 'Mistral',
 };
 
 const AVATAR_BGS = [
-  'from-brand-500 to-rose-500',
+  'from-brand-500 to-brand-700',
   'from-brand-400 to-amber-500',
-  'from-brand-500 to-purple-500',
   'from-amber-400 to-brand-500',
-  'from-rose-400 to-brand-500',
   'from-brand-600 to-amber-600',
 ];
 
-type PublicTestimonial = {
-  id: string;
-  rating: number;
-  body: string;
-  role: string | null;
-  company: string | null;
-  metric: string | null;
-  displayName: string;
-  initials: string;
-};
+/**
+ * KobiPratik — OLCULMUS tek vaka. Kaynaklar:
+ *   - trafik/gosterim: Search Console (sc-domain:kobipratik.com), ilk 30 gun
+ *     1.559 tiklama (gunde 52,0) -> son 30 gun 10.202 (gunde 340,1) = 6,54x;
+ *     gosterim 79.852 -> 728.565
+ *   - siralama: app_rankings, 16 May - 13 Agu, 1.264 konumlu olcum, 4.8 -> 2.9
+ * Bu dosyada baska metrik YOK; yeni rakam eklenecekse once olculmeli.
+ */
+const CASE_ROWS: Array<{ label: Key; before: number; after: number; decimals?: number }> = [
+  { label: 'land.res.d1', before: 52, after: 340 },
+  { label: 'land.res.d2', before: 1559, after: 10202 },
+  { label: 'land.res.d3', before: 79852, after: 728565 },
+  { label: 'land.res.d4', before: 4.8, after: 2.9, decimals: 1 },
+];
 
-export default function LandingPage() {
-  const { t, locale } = useT();
-  const [plans, setPlans] = useState<Plan[]>([]);
-  const [billing, setBilling] = useState<'monthly' | 'annual'>('annual');
-  const [openFaq, setOpenFaq] = useState<number | null>(0);
-  const [testimonials, setTestimonials] = useState<PublicTestimonial[]>([]);
-
-  // Karsilastirma tablosundaki RanksUp fiyati — rakipler aylik liste fiyatiyla
-  // veriliyor, biz de giris planinin AYLIK fiyatini gosteriyoruz. plans
-  // yuklenene kadar '—' basilir; sabit yazmak iki ekranin birbirinden
-  // kaymasina yol aciyordu.
-  const comparePlan = plans.find((p) => p.id === 'starter');
-
-  // Locale'i API'ye gecirmek sart: plan adi ve destek metni orada cevriliyor.
-  // Sabit 'tr' oldugu surece EN ziyaretci Turkce destek metni goruyordu.
-  useEffect(() => {
-    api.getPlans(locale).then((r) => setPlans((r?.plans as Plan[]) ?? [])).catch(() => {});
-  }, [locale]);
-
-  useEffect(() => {
-    api.listPublicTestimonials(6).then((t) => setTestimonials(t ?? [])).catch(() => {});
-    // Landing analytics — dil degisiminde tekrar kurulmamali
-    trackPageview();
-    const offScroll = setupScrollDepthTracking();
-    const offSection = setupSectionTracking(['cozum', 'nasil', 'sonuc', 'fiyat', 'sss']);
-    return () => { offScroll?.(); offSection?.(); };
-  }, []);
+export default async function LandingPage() {
+  const [plansTr, plansEn, testimonials] = await Promise.all([
+    fetchPlans('tr'),
+    fetchPlans('en'),
+    fetchTestimonials(6),
+  ]);
+  // Karsilastirma tablosundaki RanksUp fiyati plan verisinden — elle yazilmaz
+  const comparePlan = plansTr.find((p) => p.id === 'starter');
+  const showTestimonials = testimonials.length >= 3;
 
   return (
     <div className="min-h-screen bg-background text-foreground antialiased overflow-x-hidden">
-      {/* Speakable schema — Voice search / Assistant için hero okunabilir */}
+      <LandingAnalytics sections={['nasil', 'cozum', 'sonuc', 'fiyat', 'sss']} />
+      <ExplainerDialog />
+
+      {/* Speakable schema — sesli asistanlar hero'yu okuyabilsin */}
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{
@@ -124,343 +87,217 @@ export default function LandingPage() {
             '@context': 'https://schema.org',
             '@type': 'WebPage',
             url: 'https://ranksup.ai/',
-            name: 'RanksUp — Senin yerine pazarlama yapan AI',
-            speakable: {
-              '@type': 'SpeakableSpecification',
-              cssSelector: ['.hero-headline', '.hero-subtitle'],
-            },
+            name: 'RanksUp — Markan ChatGPT\'de görünüyor mu?',
+            speakable: { '@type': 'SpeakableSpecification', cssSelector: ['.hero-headline', '.hero-subtitle'] },
           }),
         }}
       />
-
-      {/* AggregateRating + Review schema — sadece 3+ onaylı testimonial varsa */}
-      {testimonials.length >= 3 && (
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{
-            __html: JSON.stringify({
-              '@context': 'https://schema.org',
-              '@type': 'SoftwareApplication',
-              name: 'RanksUp',
-              url: 'https://ranksup.ai/',
-              applicationCategory: 'BusinessApplication',
-              operatingSystem: 'Web',
-              aggregateRating: {
-                '@type': 'AggregateRating',
-                ratingValue: (testimonials.reduce((s, t) => s + t.rating, 0) / testimonials.length).toFixed(1),
-                reviewCount: testimonials.length,
-                bestRating: 5,
-                worstRating: 1,
-              },
-              review: testimonials.slice(0, 5).map((t) => ({
-                '@type': 'Review',
-                reviewRating: { '@type': 'Rating', ratingValue: t.rating, bestRating: 5 },
-                author: {
-                  '@type': 'Person',
-                  name: t.displayName,
-                  ...(t.role || t.company ? { jobTitle: [t.role, t.company].filter(Boolean).join(' · ') } : {}),
-                },
-                reviewBody: t.body,
-              })),
-            }),
-          }}
-        />
-      )}
+      {showTestimonials && <ReviewSchema testimonials={testimonials} />}
 
       {/* ─── NAV ──────────────────────────────────────────────── */}
       <nav className="sticky top-0 z-50 bg-background/85 backdrop-blur-xl border-b border-border/60">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          <Link href="/" className="flex items-center">
-            <BrandWordmark size={24} />
+          <Link href="/" className="flex items-center" aria-label="RanksUp">
+            <ThemedWordmark size={24} />
           </Link>
           <div className="hidden md:flex items-center gap-7 text-sm">
-            <a href="#cozum" className="hover:text-brand-600 transition-colors">{t('land.nav.solution')}</a>
-            <a href="#nasil" className="hover:text-brand-600 transition-colors">{t('land.nav.how')}</a>
-            <a href="#sonuc" className="hover:text-brand-600 transition-colors">{t('land.nav.results')}</a>
-            <a href="#fiyat" className="hover:text-brand-600 transition-colors">{t('land.nav.pricing')}</a>
-            <a href="#sss" className="hover:text-brand-600 transition-colors">{t('land.nav.faq')}</a>
+            <a href="#nasil" className="hover:text-brand-600 transition-colors"><T k="land.nav.how" /></a>
+            <a href="#cozum" className="hover:text-brand-600 transition-colors"><T k="land.nav.solution" /></a>
+            <a href="#sonuc" className="hover:text-brand-600 transition-colors"><T k="land.nav.results" /></a>
+            <a href="#fiyat" className="hover:text-brand-600 transition-colors"><T k="land.nav.pricing" /></a>
+            <a href="#sss" className="hover:text-brand-600 transition-colors"><T k="land.nav.faq" /></a>
           </div>
           <div className="flex items-center gap-1.5">
             <LocaleSwitch />
             <ThemeToggle />
-            <Link href="/signin" className="hidden sm:inline-block">
-              <Button variant="ghost" size="sm">{t('land.nav.login')}</Button>
-            </Link>
-            <Link href="/signin?signup=1">
-              <Button size="sm" className="bg-gradient-to-br from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white shadow-lg shadow-brand-500/20">
-                {t('land.nav.signup')} <ArrowRight className="h-3.5 w-3.5 ml-1" />
-              </Button>
-            </Link>
+            <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex">
+              <Link href="/signin"><T k="land.nav.login" /></Link>
+            </Button>
+            <Button asChild size="sm" className="bg-gradient-to-br from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white shadow-lg shadow-brand-500/20">
+              <TrackedLink href="/signin?signup=1" cta="nav_signup">
+                <T k="land.nav.signup" /> <ArrowRight className="h-3.5 w-3.5" aria-hidden />
+              </TrackedLink>
+            </Button>
           </div>
         </div>
       </nav>
 
-      {/* ─── HERO ─────────────────────────────────────────────── */}
-      <section className="relative pt-14 pb-16 lg:pt-20 lg:pb-20">
-        {/* gradient blobs */}
-        <div className="absolute inset-0 -z-10 overflow-hidden pointer-events-none">
-          <div className="absolute top-0 -left-32 w-[36rem] h-[36rem] bg-brand-500/15 rounded-full blur-3xl" />
-          <div className="absolute -bottom-20 -right-24 w-[40rem] h-[40rem] bg-amber-400/10 rounded-full blur-3xl" />
-          <div className="absolute top-40 right-1/3 w-72 h-72 bg-brand-400/8 rounded-full blur-3xl" />
-        </div>
+      {/* ─── HERO (tek) ───────────────────────────────────────── */}
+      <section className="relative pt-12 pb-14 lg:pt-20 lg:pb-16">
+        {/* Tek, bulaniksiz arka plan gecisi — eski 3 dev blur-3xl katmani yerine */}
+        <div className="absolute inset-x-0 top-0 -z-10 h-[38rem] bg-gradient-to-b from-brand-500/[0.07] via-amber-400/[0.03] to-transparent pointer-events-none" aria-hidden />
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          {/* PRIMARY: Big AI Visibility Test hero (Maya-style — domain test as the main CTA) */}
           <AiCheckerHero />
-
-          {/* SUB-HERO: full-platform message + signup CTA (after the test catches attention) */}
-          <div className="mt-20 lg:mt-24 pt-12 border-t border-border/50 text-center max-w-3xl mx-auto">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-brand-500/30 bg-brand-500/5 text-xs font-semibold text-brand-700 dark:text-brand-400 mb-5">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand-500 opacity-75" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-brand-500" />
-              </span>
-              {t('land.hero.badge')}
-            </div>
-
-            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight leading-[1.1] mb-4">
-              {t('land.hero.title_pre')}{' '}
-              <span className="bg-gradient-to-br from-brand-500 to-brand-700 bg-clip-text text-transparent">{t('land.hero.title_brand')}</span>{t('land.hero.title_dot')}
-            </h2>
-
-            <p className="text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto leading-relaxed mb-7">
-              {t('land.hero.subtitle')}
-            </p>
-
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
-              <Link href="/signin?signup=1" onClick={() => trackCta('hero_primary')}>
-                <Button size="lg" className="h-13 px-7 text-base bg-gradient-to-br from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white shadow-2xl shadow-brand-500/30">
-                  {t('land.hero.cta_primary')}
-                  <ArrowRight className="h-5 w-5 ml-2" />
-                </Button>
-              </Link>
-              <a href="#nasil" onClick={() => trackCta('hero_secondary_demo')}>
-                <Button size="lg" variant="outline" className="h-13 px-7 text-base">
-                  <PlayCircle className="h-5 w-5 mr-2" /> {t('land.hero.cta_secondary')}
-                </Button>
-              </a>
-            </div>
-
-            <div className="mt-5 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs text-muted-foreground">
-              <span className="inline-flex items-center gap-1"><Check className="h-3.5 w-3.5 text-emerald-600" /> {t('land.hero.tag_no_card')}</span>
-              <span className="inline-flex items-center gap-1"><Check className="h-3.5 w-3.5 text-emerald-600" /> {t('land.hero.tag_free_articles')}</span>
-              <span className="inline-flex items-center gap-1"><Check className="h-3.5 w-3.5 text-emerald-600" /> {t('land.hero.tag_cancel')}</span>
-              <span className="inline-flex items-center gap-1"><Check className="h-3.5 w-3.5 text-emerald-600" /> {t('land.hero.tag_setup')}</span>
-            </div>
-          </div>
         </div>
 
-        {/* ─── Live Product Preview (dashboard mockup) ─── */}
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 mt-16">
-          <ProductPreview />
+        {/* Urun videosu — mobilde de hero gorseli (orbital diyagram yalniz lg+) */}
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 mt-12 lg:mt-16">
+          <HeroVideo />
         </div>
 
-        {/* Authority badges + integrations */}
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-16">
-          {/* Authority rozet bar */}
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-12">
           <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-3 mb-8">
-            <AuthorityBadge icon={Apple} text={t('land.hero.authority_apple')} />
-            <AuthorityBadge icon={Cpu} text={t('land.hero.authority_ai')} />
-            <AuthorityBadge icon={Lock} text={t('land.hero.authority_security')} />
-            <AuthorityBadge icon={BadgeCheck} text={t('land.hero.authority_kvkk')} />
-            <AuthorityBadge icon={Cloud} text={t('land.hero.authority_uptime')} />
+            <AuthorityBadge icon={Apple} text="land.hero.authority_apple" />
+            <AuthorityBadge icon={Cpu} text="land.hero.authority_ai" />
+            <AuthorityBadge icon={Lock} text="land.hero.authority_security" />
+            <AuthorityBadge icon={BadgeCheck} text="land.hero.authority_kvkk" />
+            <AuthorityBadge icon={Cloud} text="land.hero.authority_uptime" />
           </div>
-
-          {/* AI Provider logo bar — Maya tarzı */}
-          <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground text-center mb-5">
-            {t('land.hero.ai_bar')}
+          <p className="text-eyebrow uppercase text-muted-foreground text-center mb-5">
+            <T k="land.hero.ai_bar" />
           </p>
-          <div className="flex flex-wrap items-center justify-center gap-x-7 gap-y-4 mb-8">
+          <ul className="flex flex-wrap items-center justify-center gap-x-7 gap-y-4">
             {(['chatgpt', 'claude-ai', 'gemini', 'perplexity', 'grok', 'deepseek', 'mistral'] as VendorName[]).map((v) => (
-              <div key={v} className="flex items-center gap-2 opacity-80 hover:opacity-100 transition">
-                <VendorLogo name={v} size={22} />
+              <li key={v} className="flex items-center gap-2 opacity-80">
+                <VendorLogo name={v} size={22} alt="" />
                 <span className="text-sm font-semibold">{AI_LABELS[v] ?? v}</span>
-              </div>
+              </li>
             ))}
-          </div>
+          </ul>
+        </div>
+      </section>
 
-          {/* Diğer entegrasyon platformları */}
-          <p className="text-[11px] font-semibold uppercase tracking-widest text-muted-foreground text-center mb-4 mt-4">
-            {t('land.hero.integration_bar')}
+      {/* ─── KANIT SERIDI (gercek vaka) ───────────────────────── */}
+      <section aria-labelledby="kanit-baslik" className="border-y bg-muted/30">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col lg:flex-row items-center gap-6 lg:gap-10">
+          <p id="kanit-baslik" className="text-eyebrow uppercase text-brand-600 shrink-0">
+            <T k="land.proof.label" />
           </p>
-          <div className="flex flex-wrap items-center justify-center gap-x-7 gap-y-4 opacity-80">
-            {(['linkedin', 'twitter', 'facebook', 'instagram', 'tiktok', 'youtube', 'google', 'wordpress', 'shopify', 'webflow'] as VendorName[]).map((v) => (
-              <div key={v} className="flex items-center gap-1.5 hover:opacity-100 transition" title={INTEGRATION_LABELS[v] ?? v}>
-                <VendorLogo name={v} size={20} />
-              </div>
-            ))}
-            <span className="text-xs font-bold text-muted-foreground ml-2">+ Apple Search Ads · App Store Connect</span>
+          <dl className="grid grid-cols-3 gap-4 sm:gap-8 flex-1 w-full text-center lg:text-left">
+            <ProofStat value="6.5x" label="land.res.r1.title" />
+            <ProofStat value="729K" label="land.res.r2.title" />
+            <ProofStat value="2.9" label="land.res.r3.title" />
+          </dl>
+          <a href="#sonuc" className="inline-flex items-center gap-1 text-sm font-semibold text-brand-600 hover:underline underline-offset-4 shrink-0">
+            <T k="land.proof.details" /> <ArrowRight className="h-4 w-4" aria-hidden />
+          </a>
+        </div>
+      </section>
+
+      {/* ─── NASIL CALISIR (video) ────────────────────────────── */}
+      <section id="nasil" className="py-24 scroll-mt-16">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+          <SectionHead eyebrow="land.how.eyebrow" title="land.how.title" subtitle="land.how.subtitle" />
+          <div className="grid md:grid-cols-3 gap-6">
+            <StepCard n={1} title="land.how.s1.title" body="land.how.s1.body" icon={Globe} />
+            <StepCard n={2} title="land.how.s2.title" body="land.how.s2.body" icon={Sparkles} />
+            <StepCard n={3} title="land.how.s3.title" body="land.how.s3.body" icon={Rocket} />
+          </div>
+          <div className="mt-10 flex justify-center">
+            <WatchVideoButton label="land.how.video_cta" source="how_section" />
           </div>
         </div>
       </section>
 
-      {/* ─── PAIN (PAS) ───────────────────────────────────────── */}
-      <section className="py-20 border-y bg-muted/30">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12 max-w-3xl mx-auto">
-            <p className="text-sm font-semibold text-brand-600 uppercase tracking-wider mb-2">{t('land.pain.eyebrow')}</p>
-            <h2 className="text-3xl sm:text-4xl font-bold">
-              {t('land.pain.title')}
-            </h2>
-          </div>
-          <div className="grid md:grid-cols-3 gap-5">
-            <PainCard
-              cost={t('land.pain.c1_cost')}
-              title={t('land.pain.c1_title')}
-              body={t('land.pain.c1_body')}
-            />
-            <PainCard
-              cost={t('land.pain.c2_cost')}
-              title={t('land.pain.c2_title')}
-              body={t('land.pain.c2_body')}
-            />
-            <PainCard
-              cost={t('land.pain.c3_cost')}
-              title={t('land.pain.c3_title')}
-              body={t('land.pain.c3_body')}
-            />
-          </div>
-          <p className="text-center mt-10 text-lg font-bold">
-            {t('land.pain.total')}
-          </p>
-        </div>
-      </section>
-
-      {/* ─── SOLUTION ─────────────────────────────────────────── */}
-      <section id="cozum" className="py-24">
+      {/* ─── COZUM ────────────────────────────────────────────── */}
+      <section id="cozum" className="py-24 bg-muted/30 border-y scroll-mt-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16 max-w-3xl mx-auto">
-            <p className="text-sm font-semibold text-brand-600 uppercase tracking-wider mb-2">{t('land.sol.eyebrow')}</p>
+            <p className="text-sm font-semibold text-brand-600 uppercase tracking-wider mb-2"><T k="land.sol.eyebrow" /></p>
             <h2 className="text-3xl sm:text-5xl font-bold tracking-tight">
-              {t('land.sol.title_a')}<br />
+              <T k="land.sol.title_a" />
+              <br />
               <span className="bg-gradient-to-br from-brand-500 to-brand-700 bg-clip-text text-transparent">
-                {t('land.sol.title_b')}
+                <T k="land.sol.title_b" />
               </span>
             </h2>
           </div>
-
           <div className="grid md:grid-cols-2 gap-5">
-            <FeatureCard
-              icon={Search}
-              tag={t('land.sol.c1.tag')}
-              title={t('land.sol.c1.title')}
-              body={t('land.sol.c1.body')}
-              bullets={[t('land.sol.c1.b1'), t('land.sol.c1.b2'), t('land.sol.c1.b3'), t('land.sol.c1.b4'), t('land.sol.c1.b5')]}
-            />
-            <FeatureCard
-              icon={Smartphone}
-              tag={t('land.sol.c2.tag')}
-              title={t('land.sol.c2.title')}
-              body={t('land.sol.c2.body')}
-              bullets={[t('land.sol.c2.b1'), t('land.sol.c2.b2'), t('land.sol.c2.b3'), t('land.sol.c2.b4')]}
-            />
-            <FeatureCard
-              icon={Wand2}
-              tag={t('land.sol.c3.tag')}
-              title={t('land.sol.c3.title')}
-              body={t('land.sol.c3.body')}
-              bullets={[t('land.sol.c3.b1'), t('land.sol.c3.b2'), t('land.sol.c3.b3'), t('land.sol.c3.b4')]}
-            />
-            <FeatureCard
-              icon={Bot}
-              tag={t('land.sol.c4.tag')}
-              title={t('land.sol.c4.title')}
-              body={t('land.sol.c4.body')}
-              bullets={[t('land.sol.c4.b1'), t('land.sol.c4.b2'), t('land.sol.c4.b3'), t('land.sol.c4.b4')]}
-            />
+            <FeatureCard icon={Search} prefix="land.sol.c1" bullets={5} />
+            <FeatureCard icon={Smartphone} prefix="land.sol.c2" bullets={4} />
+            <FeatureCard icon={Wand2} prefix="land.sol.c3" bullets={4} />
+            <FeatureCard icon={Bot} prefix="land.sol.c4" bullets={4} />
+          </div>
+          <div className="mt-10 text-center">
+            <Link href="/use-cases" className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand-600 hover:underline underline-offset-4">
+              <T k="land.uc.link" /> <ArrowRight className="h-4 w-4" aria-hidden />
+            </Link>
           </div>
         </div>
       </section>
 
-      {/* ─── HOW IT WORKS ─────────────────────────────────────── */}
-      <section id="nasil" className="py-24 bg-muted/30 border-y">
+      {/* ─── SONUCLAR (vaka ayrintisi) ────────────────────────── */}
+      <section id="sonuc" className="py-24 scroll-mt-16">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+          <SectionHead eyebrow="land.res.eyebrow" title="land.res.title" />
+          <div className="grid sm:grid-cols-3 gap-6 mb-10">
+            <StatCard num="6.5x" label="land.res.r1.title" sub="land.res.r1.sub" />
+            <StatCard num="729K" label="land.res.r2.title" sub="land.res.r2.sub" />
+            <StatCard num="2.9" label="land.res.r3.title" sub="land.res.r3.sub" />
+          </div>
+          <div className="rounded-2xl border bg-card overflow-hidden">
+            <h3 className="px-5 py-4 border-b font-bold"><T k="land.res.case_title" /></h3>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/40 text-left">
+                  <tr>
+                    <th scope="col" className="p-4 font-semibold"><T k="land.res.col_metric" /></th>
+                    <th scope="col" className="p-4 font-semibold text-right"><T k="land.res.col_before" /></th>
+                    <th scope="col" className="p-4 font-semibold text-right"><T k="land.res.col_after" /></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {CASE_ROWS.map((r) => (
+                    <tr key={r.label} className="border-t">
+                      <th scope="row" className="p-4 font-medium text-left"><T k={r.label} /></th>
+                      <td className="p-4 text-right tabular-nums text-muted-foreground"><LocaleNumber value={r.before} decimals={r.decimals} /></td>
+                      <td className="p-4 text-right tabular-nums font-bold text-success"><LocaleNumber value={r.after} decimals={r.decimals} /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <p className="px-5 py-3 border-t text-xs text-muted-foreground"><T k="land.res.source" /></p>
+          </div>
+        </div>
+      </section>
+
+      {/* ─── YORUMLAR — yalniz ≥3 onayli yorum varsa ──────────── */}
+      {showTestimonials && (
+        <section className="py-24 bg-muted/30 border-y">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <SectionHead eyebrow="land.test.eyebrow" title="land.test.title" />
+            <div className="grid md:grid-cols-3 gap-5">
+              {testimonials.slice(0, 6).map((item, i) => (
+                <Testimonial key={item.id} item={item} avatarBg={AVATAR_BGS[i % AVATAR_BGS.length]} />
+              ))}
+            </div>
+            <AggregateStars testimonials={testimonials} />
+          </div>
+        </section>
+      )}
+
+      {/* ─── KARSILASTIRMA ────────────────────────────────────── */}
+      <section className={`py-24 ${showTestimonials ? '' : 'bg-muted/30 border-y'}`}>
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
-            <p className="text-sm font-semibold text-brand-600 uppercase tracking-wider mb-2">{t('land.how.eyebrow')}</p>
-            <h2 className="text-3xl sm:text-5xl font-bold tracking-tight">
-              {t('land.how.title')}
-            </h2>
-            <p className="mt-3 text-lg text-muted-foreground">{t('land.how.subtitle')}</p>
-          </div>
-
-          <div className="grid md:grid-cols-3 gap-6">
-            <StepCard n={1} title={t('land.how.s1.title')} body={t('land.how.s1.body')} icon={Globe} />
-            <StepCard n={2} title={t('land.how.s2.title')} body={t('land.how.s2.body')} icon={Sparkles} />
-            <StepCard n={3} title={t('land.how.s3.title')} body={t('land.how.s3.body')} icon={Rocket} />
-          </div>
-        </div>
-      </section>
-
-      {/* ─── RESULTS ──────────────────────────────────────────── */}
-      <section id="sonuc" className="py-24">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-14">
-            <p className="text-sm font-semibold text-brand-600 uppercase tracking-wider mb-2">{t('land.res.eyebrow')}</p>
-            <h2 className="text-3xl sm:text-5xl font-bold tracking-tight">
-              {t('land.res.title')}
-            </h2>
-          </div>
-
-          <div className="grid sm:grid-cols-3 gap-6 max-w-5xl mx-auto">
-            {/* Uc rakam da OLCULMUS tek bir vakadan (KobiPratik) geliyor.
-                Onceki +%47 / -%62 / 10x hicbir veriye dayanmiyordu; CPI icin
-                asa_performance_daily tablosu bugun de bos, o yuzden yerine
-                gercekten olculen ASO sirasi kondu. Kaynaklar:
-                  - trafik/gosterim: Search Console (sc-domain:kobipratik.com),
-                    ilk 30 gun 1.559 tiklama (gunde 52,0) -> son 30 gun 10.202
-                    (gunde 340,1) = 6,54x; gosterim 79.852 -> 728.565
-                  - siralama: app_rankings, 16 May - 13 Agu, 1.264 konumlu olcum */}
-            <StatCard num="6.5x" label={t('land.res.r1.title')} sub={t('land.res.r1.sub')} />
-            <StatCard num="729K" label={t('land.res.r2.title')} sub={t('land.res.r2.sub')} />
-            <StatCard num="2.9" label={t('land.res.r3.title')} sub={t('land.res.r3.sub')} />
-          </div>
-        </div>
-      </section>
-
-      {/* ─── COMPARISON ──────────────────────────────────────── */}
-      <section className="py-24 bg-muted/30 border-y">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <p className="text-sm font-semibold text-brand-600 uppercase tracking-wider mb-2">{t('land.cmp.eyebrow')}</p>
-            <h2 className="text-3xl sm:text-5xl font-bold tracking-tight">
-              {t('land.cmp.title')}
-            </h2>
-            <p className="mt-3 text-muted-foreground">{t('land.cmp.subtitle')}</p>
-          </div>
-
+          <SectionHead eyebrow="land.cmp.eyebrow" title="land.cmp.title" subtitle="land.cmp.subtitle" />
           <div className="overflow-x-auto rounded-2xl border bg-background">
-            <table className="w-full text-sm">
-              <thead className="bg-muted/40">
-                <tr>
-                  <th className="text-left p-4 font-semibold">{t('land.cmp.col_feature')}</th>
-                  <th className="text-center p-4 font-semibold">SEMrush</th>
-                  <th className="text-center p-4 font-semibold">AppTweak</th>
-                  <th className="text-center p-4 font-semibold">Hootsuite</th>
-                  <th className="text-center p-4 font-semibold">ChatGPT Team</th>
-                  <th className="text-center p-4 font-bold bg-brand-500/10 text-brand-700 dark:text-brand-400">RanksUp</th>
+            <table className="w-full min-w-[42rem] text-sm">
+              <thead>
+                <tr className="bg-muted">
+                  <th scope="col" className="sticky left-0 z-10 bg-muted text-left p-4 font-semibold"><T k="land.cmp.col_feature" /></th>
+                  {['SEMrush', 'AppTweak', 'Hootsuite', 'ChatGPT Team'].map((n) => (
+                    <th key={n} scope="col" className="text-center p-4 font-semibold">{n}</th>
+                  ))}
+                  <th scope="col" className="text-center p-4 font-bold bg-brand-500/10 text-brand-700 dark:text-brand-400">RanksUp</th>
                 </tr>
               </thead>
               <tbody>
-                <CompareRow row={[t('land.cmp.row1'), true, false, false, false, true]} />
-                <CompareRow row={[t('land.cmp.row2'), false, false, false, false, true]} />
-                <CompareRow row={[t('land.cmp.row3'), false, true, false, false, true]} />
-                <CompareRow row={[t('land.cmp.row4'), false, false, false, false, true]} />
-                <CompareRow row={[t('land.cmp.row5'), false, false, true, false, true]} />
-                <CompareRow row={[t('land.cmp.row6'), false, false, false, true, true]} />
-                <CompareRow row={[t('land.cmp.row7'), false, false, false, true, true]} />
-                <CompareRow row={[t('land.cmp.row8'), false, false, false, false, true]} />
-                <tr className="border-t bg-muted/20">
-                  <td className="p-4 font-bold">{t('land.cmp.row_price')}</td>
-                  <td className="text-center p-4 text-muted-foreground">$140</td>
-                  <td className="text-center p-4 text-muted-foreground">$200</td>
-                  <td className="text-center p-4 text-muted-foreground">$99</td>
-                  <td className="text-center p-4 text-muted-foreground">$60</td>
-                  {/* Fiyat ELLE YAZILMAZ — plan verisinden gelir.
-                      Burada "₺4.999 ($125)" sabiti duruyordu: fiyat karti ayni
-                      plan icin $124 gosterirken tablo $125 diyordu ve TL tutari
-                      kurdan bagimsiz sabit kaldigi icin iyice bayatlamisti
-                      (bugunku kurla $149 ≈ ₺7.100). Artik /billing/plans ile
-                      ayni kaynak. */}
+                <CompareRow label="land.cmp.row1" vals={[true, false, false, false, true]} />
+                <CompareRow label="land.cmp.row2" vals={[false, false, false, false, true]} />
+                <CompareRow label="land.cmp.row3" vals={[false, true, false, false, true]} />
+                <CompareRow label="land.cmp.row4" vals={[false, false, false, false, true]} />
+                <CompareRow label="land.cmp.row5" vals={[false, false, true, false, true]} />
+                <CompareRow label="land.cmp.row6" vals={[false, false, false, true, true]} />
+                <CompareRow label="land.cmp.row7" vals={[false, false, false, true, true]} />
+                <CompareRow label="land.cmp.row8" vals={[false, false, false, false, true]} />
+                <tr className="border-t">
+                  <th scope="row" className="sticky left-0 z-10 bg-background text-left p-4 font-bold"><T k="land.cmp.row_price" /></th>
+                  {['$140', '$200', '$99', '$60'].map((p) => (
+                    <td key={p} className="text-center p-4 text-muted-foreground">{p}</td>
+                  ))}
+                  {/* Fiyat ELLE YAZILMAZ — /billing/plans ile ayni kaynak (sunucuda cekildi) */}
                   <td className="text-center p-4 bg-brand-500/10 font-bold text-brand-700 dark:text-brand-400">
                     {comparePlan ? `$${comparePlan.monthly.toLocaleString('en-US')}` : '—'}
                   </td>
@@ -468,288 +305,74 @@ export default function LandingPage() {
               </tbody>
             </table>
           </div>
-          <p className="text-center text-xs text-muted-foreground mt-4">
-            {t('land.cmp.note')}
-          </p>
+          <p className="text-center text-xs text-muted-foreground mt-4"><T k="land.cmp.note" /></p>
         </div>
       </section>
 
-      {/* ─── USE CASES ────────────────────────────────────────── */}
-      <section className="py-24">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-14">
-            <p className="text-sm font-semibold text-brand-600 uppercase tracking-wider mb-2">{t('land.uc.eyebrow')}</p>
-            <h2 className="text-3xl sm:text-5xl font-bold tracking-tight">
-              {t('land.uc.title')}
-            </h2>
-          </div>
-
-          <div className="grid md:grid-cols-3 gap-5">
-            <UseCaseCard
-              icon={FileText}
-              audience={t('land.uc.c1.tag')}
-              hook={t('land.uc.c1.title')}
-              body={t('land.uc.c1.body')}
-              before={t('land.uc.c1.before')}
-              after={t('land.uc.c1.after')}
-            />
-            <UseCaseCard
-              icon={Smartphone}
-              audience={t('land.uc.c2.tag')}
-              hook={t('land.uc.c2.title')}
-              body={t('land.uc.c2.body')}
-              before={t('land.uc.c2.before')}
-              after={t('land.uc.c2.after')}
-            />
-            <UseCaseCard
-              icon={MessageSquare}
-              audience={t('land.uc.c3.tag')}
-              hook={t('land.uc.c3.title')}
-              body={t('land.uc.c3.body')}
-              before={t('land.uc.c3.before')}
-              after={t('land.uc.c3.after')}
-            />
-          </div>
-        </div>
-      </section>
-
-      {/* ─── TESTIMONIALS ─────────────────────────────────────── */}
-      <section className="py-24 bg-muted/30 border-y">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-14">
-            <p className="text-sm font-semibold text-brand-600 uppercase tracking-wider mb-2">{t('land.test.eyebrow')}</p>
-            <h2 className="text-3xl sm:text-5xl font-bold tracking-tight">
-              {t('land.test.title')}
-            </h2>
-          </div>
-
-          {testimonials.length > 0 ? (
-            <div className="grid md:grid-cols-3 gap-5">
-              {testimonials.slice(0, 6).map((item, i) => (
-                <Testimonial
-                  key={item.id}
-                  name={item.displayName}
-                  role={item.role ?? 'RanksUp user'}
-                  company={item.company ?? ''}
-                  avatar={item.initials}
-                  avatarBg={AVATAR_BGS[i % AVATAR_BGS.length]}
-                  metric={item.metric ?? `${item.rating}/5`}
-                  quote={item.body}
-                />
-              ))}
-            </div>
-          ) : (
-            /* Henüz onaylı yorum yok — kısa placeholder */
-            <div className="rounded-2xl border-2 border-dashed border-border bg-card p-12 text-center max-w-2xl mx-auto">
-              <Star className="h-10 w-10 text-amber-400 mx-auto mb-3" />
-              <p className="text-sm text-muted-foreground">
-                {t('land.test.empty')}
-              </p>
-            </div>
-          )}
-
-          {/* Aggregate stat */}
-          {testimonials.length > 0 && (
-            <div className="mt-12 flex items-center justify-center gap-2 text-sm">
-              <div className="flex gap-0.5">
-                {[1, 2, 3, 4, 5].map((i) => (
-                  <Star key={i} className={`h-5 w-5 ${i <= Math.round(testimonials.reduce((s, t) => s + t.rating, 0) / testimonials.length) ? 'fill-amber-400 text-amber-400' : 'text-muted-foreground/30'}`} />
-                ))}
-              </div>
-              <span className="font-bold">
-                {(testimonials.reduce((s, t) => s + t.rating, 0) / testimonials.length).toFixed(1)} / 5.0
-              </span>
-              <span className="text-muted-foreground">— {testimonials.length}+ ekipten</span>
-            </div>
-          )}
-        </div>
-      </section>
-
-      {/* ─── PRICING ──────────────────────────────────────────── */}
-      <section id="fiyat" className="py-24">
+      {/* ─── FIYAT ────────────────────────────────────────────── */}
+      <section id="fiyat" className={`py-24 scroll-mt-16 ${showTestimonials ? 'bg-muted/30 border-y' : ''}`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-10">
-            <p className="text-sm font-semibold text-brand-600 uppercase tracking-wider mb-2">{t('land.pricing.eyebrow')}</p>
-            <h2 className="text-3xl sm:text-5xl font-bold tracking-tight">
-              {t('land.pricing.title')}
-            </h2>
-            <p className="mt-3 text-muted-foreground text-lg">
-              {t('land.pricing.subtitle')}
-            </p>
+            <p className="text-sm font-semibold text-brand-600 uppercase tracking-wider mb-2"><T k="land.pricing.eyebrow" /></p>
+            <h2 className="text-3xl sm:text-5xl font-bold tracking-tight"><T k="land.pricing.title" /></h2>
+            <p className="mt-3 text-muted-foreground text-lg"><T k="land.pricing.subtitle" /></p>
           </div>
-
-          {/* Billing toggle */}
-          <div className="flex items-center justify-center gap-3 mb-12">
-            <button
-              onClick={() => setBilling('monthly')}
-              className={`px-4 py-2 rounded-lg text-sm font-semibold transition ${
-                billing === 'monthly' ? 'bg-foreground text-background' : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              {t('land.pric.monthly')}
-            </button>
-            <button
-              onClick={() => setBilling('annual')}
-              className={`px-4 py-2 rounded-lg text-sm font-semibold transition relative ${
-                billing === 'annual' ? 'bg-foreground text-background' : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              {t('land.pric.annual')}
-              <span className="absolute -top-3 -right-3 text-[10px] bg-emerald-500 text-white px-1.5 py-0.5 rounded-full font-bold">
-                {t('land.pric.discount_badge')}
-              </span>
-            </button>
-          </div>
-
-          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-5 max-w-7xl mx-auto">
-            {plans.filter((p) => p.id !== 'trial').map((p) => {
-              const monthlyEq = billing === 'annual' ? Math.round(p.annual / 12) : p.monthly;
-              // Kartlarda TL karsiligi GOSTERILMEZ — fiyat USD'de kanonik,
-              // TL tutari odeme aninda hesaplaniyor. Iki para birimini yan yana
-              // basmak hem karti kalabaliklastiriyor hem de kur oynadikca
-              // ekrandaki rakamla tahsil edilen tutar birbirini tutmuyordu.
-              // Plan adi VE madde listesi tek kaynaktan: plans.ts (API locale'e gore
-              // cevirip yolluyor). Burada ikinci bir i18n sozlugu tutuldugunda ikisi
-              // birbirinden kaydi — landing "Baslangic" derken /pricing ayni plana
-              // "Buyume" diyordu.
-              return (
-                <PriceCard
-                  key={p.id}
-                  name={p.name}
-                  price={p.contactSales ? t('land.pric.enterprise_label') : `$${monthlyEq.toLocaleString('en-US')}`}
-                  period={p.contactSales ? '' : t('land.pric.per_month')}
-                  annualNote={p.contactSales
-                    ? ''
-                    : billing === 'annual'
-                      ? `${t('land.pric.annual_billed_prefix')} $${p.annual.toLocaleString('en-US')} ${t('land.pric.annual_billed_suffix')}`
-                      : t('land.pric.monthly_billed')}
-                  bullets={p.features ?? []}
-                  inheritLabel={p.inheritsLabel}
-                  cta={p.contactSales ? t('land.pric.cta_contact') : t('land.pric.cta_free')}
-                  href="/pricing"
-                  highlighted={!!p.popular}
-                  onCtaClick={() => trackCta('pricing_cta', { planId: p.id, billing })}
-                />
-              );
-            })}
-          </div>
-
-          <p className="text-center mt-8 text-sm text-muted-foreground">
-            {t('land.pric.footer_note')}
-          </p>
+          <PricingSection initialPlans={{ tr: plansTr, en: plansEn }} />
+          <p className="text-center mt-8 text-sm text-muted-foreground"><T k="land.pric.footer_note" /></p>
         </div>
       </section>
 
-      {/* ─── SOCIAL PROOF / METRICS ──────────────────────────── */}
-      <section className="py-20">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <div className="grid grid-cols-3 gap-8 text-center">
-            <div>
-              <div className="text-3xl md:text-4xl font-extrabold"><AnimatedNumber raw="10dk" /></div>
-              <div className="text-xs text-muted-foreground mt-1">{t('land.stats.setup')}</div>
-            </div>
-            <div>
-              <div className="text-3xl md:text-4xl font-extrabold"><AnimatedNumber raw="35+" /></div>
-              <div className="text-xs text-muted-foreground mt-1">{t('land.stats.integrations')}</div>
-            </div>
-            <div>
-              <div className="text-3xl md:text-4xl font-extrabold"><AnimatedNumber raw="%99.9" /></div>
-              <div className="text-xs text-muted-foreground mt-1">{t('land.stats.uptime')}</div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* ─── FAQ ──────────────────────────────────────────────── */}
-      <section id="sss" className="py-24 bg-muted/30 border-y">
-        {/* FAQPage schema — AI'lar bunu cevap kaynağı olarak çok kullanır */}
-        <script
-          type="application/ld+json"
-          dangerouslySetInnerHTML={{
-            __html: JSON.stringify({
-              '@context': 'https://schema.org',
-              '@type': 'FAQPage',
-              mainEntity: getFaqs(t).map((q) => ({
-                '@type': 'Question',
-                name: q.q,
-                acceptedAnswer: { '@type': 'Answer', text: q.a },
-              })),
-            }),
-          }}
-        />
+      {/* ─── SSS ──────────────────────────────────────────────── */}
+      <section id="sss" className={`py-24 scroll-mt-16 ${showTestimonials ? '' : 'bg-muted/30 border-y'}`}>
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
-            <p className="text-sm font-semibold text-brand-600 uppercase tracking-wider mb-2">{t('land.faq.eyebrow')}</p>
-            <h2 className="text-3xl sm:text-4xl font-bold tracking-tight">{t('land.faq.title')}</h2>
+            <p className="text-sm font-semibold text-brand-600 uppercase tracking-wider mb-2"><T k="land.faq.eyebrow" /></p>
+            <h2 className="text-3xl sm:text-4xl font-bold tracking-tight"><T k="land.faq.title" /></h2>
           </div>
-
-          <div className="space-y-3">
-            {getFaqs(t).map((q, i) => (
-              <FaqItem
-                key={i}
-                question={q.q}
-                answer={q.a}
-                open={openFaq === i}
-                onToggle={() => setOpenFaq(openFaq === i ? null : i)}
-              />
-            ))}
-          </div>
+          <FaqSection />
         </div>
       </section>
 
-      {/* ─── FINAL CTA ───────────────────────────────────────── */}
+      {/* ─── SON CTA ──────────────────────────────────────────── */}
       <section className="py-24 relative overflow-hidden">
-        <div className="absolute inset-0 -z-10 bg-gradient-to-br from-brand-500/10 via-amber-400/5 to-transparent" />
+        <div className="absolute inset-0 -z-10 bg-gradient-to-br from-brand-500/10 via-amber-400/5 to-transparent" aria-hidden />
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-4xl sm:text-6xl font-extrabold tracking-tight">
-            {t('land.cta.title')}
-          </h2>
-          <p className="mt-6 text-lg text-muted-foreground max-w-2xl mx-auto">
-            {t('land.cta.subtitle')}
-          </p>
+          <h2 className="text-4xl sm:text-6xl font-extrabold tracking-tight"><T k="land.cta.title" /></h2>
+          <p className="mt-6 text-lg text-muted-foreground max-w-2xl mx-auto"><T k="land.cta.subtitle" /></p>
           <div className="mt-9 flex flex-col sm:flex-row items-center justify-center gap-3">
-            <Link href="/signin?signup=1" onClick={() => trackCta('final_primary')}>
-              <Button size="lg" className="h-14 px-8 text-base bg-gradient-to-br from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white shadow-2xl shadow-brand-500/40">
-                {t('land.cta.button')} <ArrowRight className="h-5 w-5 ml-2" />
-              </Button>
-            </Link>
-            <Link href="/pricing" onClick={() => trackCta('final_secondary_pricing')}>
-              <Button size="lg" variant="outline" className="h-14 px-8 text-base">
-                {t('land.cta.secondary')}
-              </Button>
-            </Link>
+            <Button asChild size="lg" className="h-14 px-8 text-base bg-gradient-to-br from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white shadow-2xl shadow-brand-500/40">
+              <TrackedLink href="/signin?signup=1" cta="final_primary">
+                <T k="land.cta.button" /> <ArrowRight className="h-5 w-5" aria-hidden />
+              </TrackedLink>
+            </Button>
+            <WatchVideoButton label="land.cta.secondary" source="final_cta" className="h-14 px-8 text-base" />
           </div>
-          <div className="mt-6 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs text-muted-foreground">
-            <span className="inline-flex items-center gap-1"><Zap className="h-3.5 w-3.5 text-emerald-600" /> %99.9 uptime</span>
-            <span className="inline-flex items-center gap-1"><Clock className="h-3.5 w-3.5 text-emerald-600" /> 7/24 izleme</span>
-          </div>
+          <ul className="mt-6 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs text-muted-foreground">
+            {(['land.hero.tag_no_card', 'land.hero.tag_free_articles', 'land.hero.tag_cancel'] as Key[]).map((k) => (
+              <li key={k} className="inline-flex items-center gap-1">
+                <Check className="h-3.5 w-3.5 text-success" aria-hidden /> <T k={k} />
+              </li>
+            ))}
+          </ul>
         </div>
       </section>
 
       {/* ─── FOOTER ───────────────────────────────────────────── */}
       <footer className="border-t py-12 text-sm text-muted-foreground">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid md:grid-cols-4 gap-8">
-          <div>
-            <Link href="/" className="flex items-center">
-              <BrandWordmark size={20} />
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid grid-cols-2 md:grid-cols-4 gap-8">
+          <div className="col-span-2 md:col-span-1">
+            <Link href="/" className="flex items-center" aria-label="RanksUp">
+              <ThemedWordmark size={20} />
             </Link>
-            <p className="mt-3 text-xs leading-relaxed">
-              {t('land.footer.tagline')}
-            </p>
+            <p className="mt-3 text-xs leading-relaxed"><T k="land.footer.tagline" /></p>
           </div>
-          <FooterCol title={t('land.footer.product')} links={[
-            [t('land.nav.solution'), '#cozum'], [t('land.nav.pricing'), '/pricing'], ['Use Cases', '/use-cases'], ['Compare', '/compare'],
-          ]} />
-          <FooterCol title={t('land.footer.company')} links={[
-            ['About', '/about'], ['Help', '/help'], [t('land.nav.faq'), '/faq'], ['Status', '/status'],
-          ]} />
-          <FooterCol title={t('land.footer.legal')} links={[
-            ['Privacy', '/privacy'], ['Terms', '/terms'], ['KVKK', '/kvkk'],
-          ]} />
+          <FooterCol title="land.footer.product" links={[['land.nav.pricing', '/pricing'], ['land.footer.use_cases', '/use-cases'], ['land.footer.compare', '/compare']]} />
+          <FooterCol title="land.footer.company" links={[['land.footer.about', '/about'], ['land.footer.help', '/help'], ['land.nav.faq', '/faq'], ['land.footer.status', '/status']]} />
+          <FooterCol title="land.footer.legal" links={[['land.footer.privacy', '/privacy'], ['land.footer.terms', '/terms'], ['land.footer.kvkk', '/kvkk']]} />
         </div>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-10 pt-6 border-t text-xs flex flex-wrap justify-between gap-3">
-          <span>© {new Date().getFullYear()} RanksUp. {t('land.footer.rights')}.</span>
-          <span>Made with ❤️ in Türkiye</span>
+          <span>© {new Date().getFullYear()} RanksUp. <T k="land.footer.rights" />.</span>
+          <span><T k="land.footer.made_in" /></span>
         </div>
       </footer>
     </div>
@@ -757,244 +380,57 @@ export default function LandingPage() {
 }
 
 // ─────────────────────────────────────────────────────────────
-//  Product Preview (dashboard mockup — hero altına)
+//  Sunucu alt bilesenleri (metin yapraklari <T/>)
 // ─────────────────────────────────────────────────────────────
 
-function ProductPreview() {
+/** BrandWordmark koyu temada "reversed" ister; inline display stili sinifi ezdigi icin sarmalanir */
+function ThemedWordmark({ size }: { size: number }) {
   return (
-    <div className="relative">
-      {/* Browser chrome */}
-      <div className="rounded-2xl border bg-card shadow-2xl shadow-brand-500/10 overflow-hidden">
-        {/* Top bar — sahte tarayıcı */}
-        <div className="flex items-center gap-2 px-4 py-2.5 border-b bg-muted/40">
-          <div className="flex gap-1.5">
-            <span className="h-3 w-3 rounded-full bg-rose-400/70" />
-            <span className="h-3 w-3 rounded-full bg-amber-400/70" />
-            <span className="h-3 w-3 rounded-full bg-emerald-400/70" />
-          </div>
-          <div className="flex-1 mx-3 px-3 py-1 rounded-md bg-background border text-[11px] font-mono text-muted-foreground text-center">
-            ranksup.ai/sites/kobipratik
-          </div>
-          <div className="hidden sm:flex items-center gap-1 text-[10px] text-muted-foreground">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-            CANLI
-          </div>
-        </div>
+    <>
+      <span className="dark:hidden"><BrandWordmark size={size} /></span>
+      <span className="hidden dark:inline"><BrandWordmark size={size} reversed /></span>
+    </>
+  );
+}
 
-        {/* Dashboard içeriği */}
-        <div className="grid lg:grid-cols-[1fr_320px] gap-0">
-          {/* Sol: ana içerik */}
-          <div className="p-5 space-y-4">
-            {/* Top stat strip */}
-            <div className="grid grid-cols-4 gap-2">
-              <MiniStat label="AI Citation" value="47" delta="+12" deltaColor="emerald" />
-              <MiniStat label="ASO Skor" value="78" delta="+5" deltaColor="emerald" />
-              <MiniStat label="ASA CPI" value="$0.42" delta="-23%" deltaColor="emerald" />
-              <MiniStat label="AI Payı" value="%38" delta="+9" deltaColor="emerald" />
-            </div>
-
-            {/* Citation chart */}
-            <div className="rounded-xl border bg-background p-4">
-              <div className="flex items-center justify-between mb-3">
-                <div>
-                  <div className="text-xs font-semibold">AI Görünürlük (30 gün)</div>
-                  <div className="text-[10px] text-muted-foreground">ChatGPT, Claude, Gemini, Perplexity</div>
-                </div>
-                <div className="flex gap-1 text-[10px]">
-                  <span className="px-2 py-0.5 rounded bg-muted text-muted-foreground">7g</span>
-                  <span className="px-2 py-0.5 rounded bg-brand-500/15 text-brand-700 dark:text-brand-400 font-semibold">30g</span>
-                  <span className="px-2 py-0.5 rounded bg-muted text-muted-foreground">90g</span>
-                </div>
-              </div>
-              <CitationChart />
-              <div className="mt-2 flex items-center gap-3 text-[10px] text-muted-foreground">
-                <span className="inline-flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-brand-500" /> ChatGPT</span>
-                <span className="inline-flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-purple-500" /> Claude</span>
-                <span className="inline-flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> Gemini</span>
-                <span className="inline-flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-blue-500" /> Perplexity</span>
-              </div>
-            </div>
-
-            {/* ASO + ASA grid */}
-            <div className="grid grid-cols-2 gap-3">
-              {/* ASO Keywords */}
-              <div className="rounded-xl border bg-background p-4">
-                <div className="text-xs font-semibold mb-3">App Store sıralama</div>
-                <div className="space-y-2 text-[11px]">
-                  <KeywordRow kw="ön muhasebe" rank={3} delta={5} />
-                  <KeywordRow kw="kobi kredisi" rank={8} delta={2} />
-                  <KeywordRow kw="esnaf finansman" rank={12} delta={-1} />
-                  <KeywordRow kw="ticari pos" rank={23} delta={7} />
-                </div>
-              </div>
-
-              {/* ASA Perf */}
-              <div className="rounded-xl border bg-gradient-to-br from-brand-500/5 to-transparent p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="text-xs font-semibold">Apple Search Ads</div>
-                  <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-700">Auto-Pilot</span>
-                </div>
-                <div className="grid grid-cols-2 gap-2 text-[11px]">
-                  <MiniBox label="Gösterim" value="12.4K" />
-                  <MiniBox label="Tıklama" value="487" />
-                  <MiniBox label="İndirme" value="62" />
-                  <MiniBox label="Harcama" value="$26" />
-                </div>
-                <div className="mt-2 text-[10px] text-muted-foreground">
-                  Son 7 gün · CR %12.7
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Sağ: live activity feed */}
-          <div className="border-t lg:border-t-0 lg:border-l bg-muted/20 p-4">
-            <div className="flex items-center gap-2 mb-3">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-              <div className="text-xs font-semibold">Canlı aktivite</div>
-            </div>
-            <div className="space-y-3 text-[11px]">
-              <FeedItem time="şimdi" icon="📈" text="Sıralaman yükseldi: 'ön muhasebe' #8 → #3" />
-              <FeedItem time="2dk" icon="🤖" text="Auto-Pilot 3 yeni keyword ekledi" />
-              <FeedItem time="14dk" icon="✍️" text="AI yeni makale üretti: 'KOBİ vergi takvimi 2026'" />
-              <FeedItem time="42dk" icon="🚀" text="Agent Readiness taraması: llms.txt eksik → düzeltildi" />
-              <FeedItem time="1s" icon="⚡" text="ASA bid optimize edildi: $0.50 → $0.38" />
-              <FeedItem time="2s" icon="🎯" text="ChatGPT'de marka mentionı +1" />
-              <FeedItem time="3s" icon="📊" text="Günlük rank check tamamlandı (50 kw)" />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Floating UI badges (cosmetic) */}
-      <div className="hidden lg:block absolute -top-4 -left-4 px-3 py-1.5 rounded-full bg-card border shadow-lg text-[11px] font-semibold">
-        <span className="text-emerald-600">●</span> 247 keyword izleniyor
-      </div>
-      <div className="hidden lg:block absolute -bottom-4 -right-4 px-3 py-1.5 rounded-full bg-card border shadow-lg text-[11px] font-semibold">
-        🤖 Auto-Pilot aktif
-      </div>
+function SectionHead({ eyebrow, title, subtitle }: { eyebrow: Key; title: Key; subtitle?: Key }) {
+  return (
+    <div className="text-center mb-14">
+      <p className="text-sm font-semibold text-brand-600 uppercase tracking-wider mb-2"><T k={eyebrow} /></p>
+      <h2 className="text-3xl sm:text-5xl font-bold tracking-tight"><T k={title} /></h2>
+      {subtitle && <p className="mt-3 text-lg text-muted-foreground"><T k={subtitle} /></p>}
     </div>
   );
 }
 
-function MiniStat({ label, value, delta, deltaColor }: { label: string; value: string; delta: string; deltaColor: 'emerald' | 'rose' }) {
-  const colorClass = deltaColor === 'emerald' ? 'text-emerald-600' : 'text-rose-600';
+function ProofStat({ value, label }: { value: string; label: Key }) {
   return (
-    <div className="rounded-lg border bg-background p-2.5">
-      <div className="text-[9px] uppercase tracking-wider text-muted-foreground">{label}</div>
-      <div className="flex items-baseline gap-1.5 mt-0.5">
-        <span className="text-base font-bold">{value}</span>
-        <span className={`text-[10px] font-semibold ${colorClass}`}>{delta}</span>
-      </div>
+    <div>
+      <dd className="text-2xl sm:text-3xl font-extrabold text-foreground">
+        <AnimatedNumber raw={value} />
+      </dd>
+      <dt className="text-xs text-muted-foreground mt-0.5"><T k={label} /></dt>
     </div>
   );
 }
 
-function CitationChart() {
-  // 4 line chart — mock points
-  const lines = [
-    { color: '#f97316', points: [30, 28, 35, 32, 40, 45, 42, 50, 55, 58, 62, 70] },     // ChatGPT
-    { color: '#a855f7', points: [22, 25, 28, 30, 32, 35, 38, 42, 45, 48, 52, 55] },     // Claude
-    { color: '#10b981', points: [18, 20, 19, 24, 26, 28, 30, 32, 34, 36, 38, 40] },     // Gemini
-    { color: '#3b82f6', points: [12, 14, 15, 17, 19, 22, 24, 26, 28, 30, 32, 35] },     // Perplexity
-  ];
-  const w = 500, h = 110, max = 80;
-  const path = (pts: number[]) => {
-    const step = w / (pts.length - 1);
-    return pts.map((y, i) => `${i === 0 ? 'M' : 'L'}${(i * step).toFixed(1)},${(h - (y / max) * h).toFixed(1)}`).join(' ');
-  };
+function FeatureCard({ icon: Icon, prefix, bullets }: { icon: LucideIcon; prefix: 'land.sol.c1' | 'land.sol.c2' | 'land.sol.c3' | 'land.sol.c4'; bullets: number }) {
+  const bulletKeys = Array.from({ length: bullets }, (_, i) => `${prefix}.b${i + 1}` as Key);
   return (
-    <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-[110px]">
-      <defs>
-        <linearGradient id="g-orange" x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0%" stopColor="#f97316" stopOpacity="0.25" />
-          <stop offset="100%" stopColor="#f97316" stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      {/* horizontal grid */}
-      {[0, 0.25, 0.5, 0.75, 1].map((p, i) => (
-        <line key={i} x1="0" x2={w} y1={p * h} y2={p * h} stroke="currentColor" strokeOpacity="0.06" strokeWidth="1" />
-      ))}
-      {/* area fill under ChatGPT line */}
-      <path d={`${path(lines[0].points)} L${w},${h} L0,${h} Z`} fill="url(#g-orange)" />
-      {/* lines */}
-      {lines.map((l, i) => (
-        <path key={i} d={path(l.points)} fill="none" stroke={l.color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-      ))}
-    </svg>
-  );
-}
-
-function KeywordRow({ kw, rank, delta }: { kw: string; rank: number; delta: number }) {
-  const up = delta > 0;
-  return (
-    <div className="flex items-center justify-between">
-      <span className="truncate">{kw}</span>
-      <div className="flex items-center gap-2 shrink-0">
-        <span className="font-bold">#{rank}</span>
-        <span className={`text-[10px] font-semibold ${up ? 'text-emerald-600' : 'text-rose-600'}`}>
-          {up ? '↑' : '↓'}{Math.abs(delta)}
-        </span>
-      </div>
-    </div>
-  );
-}
-
-function MiniBox({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded bg-background/60 border border-border/40 px-2 py-1.5">
-      <div className="text-[9px] uppercase text-muted-foreground">{label}</div>
-      <div className="font-bold text-sm">{value}</div>
-    </div>
-  );
-}
-
-function FeedItem({ time, icon, text }: { time: string; icon: string; text: string }) {
-  return (
-    <div className="flex gap-2.5">
-      <span className="text-base leading-none mt-0.5">{icon}</span>
-      <div className="flex-1 min-w-0">
-        <div className="leading-snug">{text}</div>
-        <div className="text-[9px] text-muted-foreground mt-0.5">{time}</div>
-      </div>
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────
-//  Sub-components
-// ─────────────────────────────────────────────────────────────
-
-function PainCard({ cost, title, body }: { cost: string; title: string; body: string }) {
-  return (
-    <div className="p-6 rounded-2xl border bg-background hover:border-rose-500/40 transition">
-      <div className="text-xs font-semibold text-rose-600 uppercase tracking-wider mb-2">{cost}</div>
-      <h3 className="text-lg font-bold mb-2">{title}</h3>
-      <p className="text-sm text-muted-foreground leading-relaxed">{body}</p>
-    </div>
-  );
-}
-
-function FeatureCard({
-  icon: Icon, tag, title, body, bullets,
-}: {
-  icon: any; tag: string; title: string; body: string; bullets: string[];
-}) {
-  return (
-    <div className="p-7 rounded-2xl border bg-card hover:border-brand-500/40 hover:shadow-xl hover:shadow-brand-500/5 transition-all">
+    <div className="p-7 rounded-2xl border bg-card hover:border-brand-500/40 transition-colors">
       <div className="flex items-center gap-3 mb-4">
-        <div className="h-11 w-11 rounded-xl bg-gradient-to-br from-brand-500/15 to-brand-600/10 grid place-items-center">
-          <Icon className="h-5 w-5 text-brand-600" />
+        <div className="h-11 w-11 rounded-xl bg-brand-500/10 grid place-items-center">
+          <Icon className="h-5 w-5 text-brand-600" aria-hidden />
         </div>
-        <span className="text-[10px] font-bold uppercase tracking-wider text-brand-600">{tag}</span>
+        <span className="text-label font-bold uppercase tracking-wider text-brand-600"><T k={`${prefix}.tag` as Key} /></span>
       </div>
-      <h3 className="text-xl font-bold mb-2">{title}</h3>
-      <p className="text-sm text-muted-foreground leading-relaxed mb-4">{body}</p>
+      <h3 className="text-xl font-bold mb-2"><T k={`${prefix}.title` as Key} /></h3>
+      <p className="text-sm text-muted-foreground leading-relaxed mb-4"><T k={`${prefix}.body` as Key} /></p>
       <ul className="space-y-1.5">
-        {bullets.map((b, i) => (
-          <li key={i} className="text-sm flex items-start gap-2">
-            <Check className="h-4 w-4 text-brand-600 shrink-0 mt-0.5" />
-            <span>{b}</span>
+        {bulletKeys.map((k) => (
+          <li key={k} className="text-sm flex items-start gap-2">
+            <Check className="h-4 w-4 text-brand-600 shrink-0 mt-0.5" aria-hidden />
+            <span><T k={k} /></span>
           </li>
         ))}
       </ul>
@@ -1002,253 +438,147 @@ function FeatureCard({
   );
 }
 
-function StepCard({ n, title, body, icon: Icon }: { n: number; title: string; body: string; icon: any }) {
+function StepCard({ n, title, body, icon: Icon }: { n: number; title: Key; body: Key; icon: LucideIcon }) {
   return (
     <div className="relative p-7 rounded-2xl border bg-background">
-      <div className="absolute -top-4 -left-2 text-7xl font-extrabold text-brand-500/10 leading-none select-none">
+      <div className="absolute -top-4 -left-2 text-7xl font-extrabold text-brand-500/10 leading-none select-none" aria-hidden>
         {n}
       </div>
       <div className="relative">
-        <Icon className="h-7 w-7 text-brand-600 mb-3" />
-        <h3 className="text-lg font-bold mb-2">{title}</h3>
-        <p className="text-sm text-muted-foreground leading-relaxed">{body}</p>
+        <Icon className="h-7 w-7 text-brand-600 mb-3" aria-hidden />
+        <h3 className="text-lg font-bold mb-2"><T k={title} /></h3>
+        <p className="text-sm text-muted-foreground leading-relaxed"><T k={body} /></p>
       </div>
     </div>
   );
 }
 
-function StatCard({ num, label, sub }: { num: string; label: string; sub: string }) {
+function StatCard({ num, label, sub }: { num: string; label: Key; sub: Key }) {
   return (
     <div className="p-8 rounded-2xl border bg-gradient-to-br from-brand-500/5 to-transparent text-center">
       <div className="text-5xl md:text-6xl font-extrabold bg-gradient-to-br from-brand-500 to-brand-700 bg-clip-text text-transparent">
         <AnimatedNumber raw={num} />
       </div>
-      <div className="mt-2 font-semibold">{label}</div>
-      <div className="text-xs text-muted-foreground mt-1">{sub}</div>
+      <div className="mt-2 font-semibold"><T k={label} /></div>
+      <div className="text-xs text-muted-foreground mt-1"><T k={sub} /></div>
     </div>
   );
 }
 
-/** Scroll'da viewport'a girince 0'dan hedefe animate eden sayı.
- *  raw "+%47" / "-%62" / "10x" gibi format'ı korur, sadece sayıyı animate eder. */
-function AnimatedNumber({ raw }: { raw: string }) {
-  const ref = useRef<HTMLSpanElement>(null);
-  const [val, setVal] = useState(0);
-  const match = raw.match(/-?[\d.]+/);
-  const target = match ? parseFloat(match[0]) : 0;
-  const prefix = match ? raw.slice(0, match.index!) : '';
-  const suffix = match ? raw.slice(match.index! + match[0].length) : raw;
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    let started = false;
-    const obs = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && !started) {
-          started = true;
-          const start = performance.now();
-          const dur = 1400;
-          const tick = (t: number) => {
-            const p = Math.min(1, (t - start) / dur);
-            // easeOutCubic
-            const eased = 1 - Math.pow(1 - p, 3);
-            setVal(target * eased);
-            if (p < 1) requestAnimationFrame(tick);
-          };
-          requestAnimationFrame(tick);
-        }
-      },
-      { threshold: 0.4 },
-    );
-    obs.observe(el);
-    return () => obs.disconnect();
-  }, [target]);
-
-  // integer ise yuvarla, ondalık varsa 1 basamak
-  const isInt = Number.isInteger(target);
-  const displayed = isInt ? Math.round(val).toString() : val.toFixed(1);
-  return <span ref={ref}>{prefix}{displayed}{suffix}</span>;
-}
-
-function AuthorityBadge({ icon: Icon, text }: { icon: any; text: string }) {
+function AuthorityBadge({ icon: Icon, text }: { icon: LucideIcon; text: Key }) {
   return (
-    <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-border/60 bg-background/50 backdrop-blur-sm text-[11px] font-semibold">
-      <Icon className="h-3.5 w-3.5 text-brand-600" />
-      <span>{text}</span>
+    <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-border/60 bg-background/50 text-label font-semibold">
+      <Icon className="h-3.5 w-3.5 text-brand-600" aria-hidden />
+      <T k={text} />
     </div>
   );
 }
 
-function Testimonial({
-  name, role, company, avatar, avatarBg, metric, quote,
-}: {
-  name: string; role: string; company: string;
-  avatar: string; avatarBg: string; metric: string; quote: string;
-}) {
-  return (
-    <div className="p-7 rounded-2xl border bg-background flex flex-col hover:shadow-xl hover:shadow-brand-500/5 hover:border-brand-500/30 transition-all">
-      {/* Stars */}
-      <div className="flex gap-0.5 mb-3">
-        {[1, 2, 3, 4, 5].map((i) => (
-          <Star key={i} className="h-4 w-4 fill-amber-400 text-amber-400" />
-        ))}
-      </div>
-      {/* Quote */}
-      <p className="text-sm leading-relaxed flex-1 mb-5">"{quote}"</p>
-      {/* Metric badge */}
-      <div className="mb-5 inline-flex self-start items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 text-[11px] font-bold">
-        <TrendingUp className="h-3 w-3" /> {metric}
-      </div>
-      {/* Author */}
-      <div className="flex items-center gap-3 pt-4 border-t">
-        <div className={`h-10 w-10 rounded-full bg-gradient-to-br ${avatarBg} text-white grid place-items-center font-bold text-sm shrink-0`}>
-          {avatar}
-        </div>
-        <div className="min-w-0">
-          <div className="font-bold text-sm">{name}</div>
-          <div className="text-[11px] text-muted-foreground truncate">{role} · {company}</div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function CompareRow({ row }: { row: [string, ...boolean[]] }) {
-  const [label, ...vals] = row;
+function CompareRow({ label, vals }: { label: Key; vals: boolean[] }) {
   return (
     <tr className="border-t">
-      <td className="p-4 font-medium">{label}</td>
+      <th scope="row" className="sticky left-0 z-10 bg-background text-left p-4 font-medium"><T k={label} /></th>
       {vals.map((v, i) => (
         <td key={i} className={`p-4 text-center ${i === vals.length - 1 ? 'bg-brand-500/5' : ''}`}>
-          {v ? <Check className="h-4 w-4 text-emerald-600 inline" /> : <XIcon className="h-4 w-4 text-muted-foreground/40 inline" />}
+          {v ? <Check className="h-4 w-4 text-success inline" aria-hidden /> : <XIcon className="h-4 w-4 text-muted-foreground/40 inline" aria-hidden />}
+          <span className="sr-only"><T k={v ? 'land.cmp.yes' : 'land.cmp.no'} /></span>
         </td>
       ))}
     </tr>
   );
 }
 
-function UseCaseCard({
-  icon: Icon, audience, hook, body, before, after,
-}: {
-  icon: any; audience: string; hook: string; body: string; before: string; after: string;
-}) {
+function Testimonial({ item, avatarBg }: { item: PublicTestimonial; avatarBg: string }) {
   return (
-    <div className="p-7 rounded-2xl border bg-card hover:border-brand-500/40 transition">
-      <div className="flex items-center gap-2 mb-3">
-        <Icon className="h-5 w-5 text-brand-600" />
-        <span className="text-xs font-bold uppercase tracking-wider text-brand-600">{audience}</span>
-      </div>
-      <h3 className="text-lg font-bold mb-2">{hook}</h3>
-      <p className="text-sm text-muted-foreground leading-relaxed mb-5">{body}</p>
-      <div className="grid grid-cols-2 gap-2 text-xs">
-        <div className="p-3 rounded-lg bg-muted/40">
-          <div className="text-[10px] font-bold text-muted-foreground uppercase mb-1">Önce</div>
-          <div className="font-semibold">{before}</div>
-        </div>
-        <div className="p-3 rounded-lg bg-brand-500/10">
-          <div className="text-[10px] font-bold text-brand-600 uppercase mb-1">Sonra</div>
-          <div className="font-semibold">{after}</div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function PriceCard({
-  name, price, period, annualNote, bullets, inheritLabel, cta, href, highlighted, onCtaClick,
-}: {
-  name: string; price: string; period: string; annualNote: string;
-  bullets: string[];
-  /** "X'teki her sey, arti:" — ust planlar sadece FARKI listeler, kart sismez */
-  inheritLabel?: string;
-  cta: string; href: string; highlighted?: boolean;
-  onCtaClick?: () => void;
-}) {
-  return (
-    <div className={`relative p-7 rounded-2xl border flex flex-col ${
-      highlighted
-        ? 'bg-gradient-to-br from-brand-500/10 to-brand-500/5 border-brand-500/40 shadow-xl shadow-brand-500/10 lg:scale-[1.03]'
-        : 'bg-background'
-    }`}>
-      {highlighted && (
-        <div className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-wide bg-gradient-to-br from-brand-500 to-brand-600 text-white shadow-lg whitespace-nowrap">
-          ⭐ En Çok Tercih Edilen
-        </div>
-      )}
-      <h3 className="text-lg font-bold">{name}</h3>
-      <div className="mt-4 mb-1">
-        <span className="text-4xl font-extrabold">{price}</span>
-        <span className="text-muted-foreground text-sm">{period}</span>
-      </div>
-      <p className="text-xs text-muted-foreground min-h-[16px]">{annualNote}</p>
-      {inheritLabel && (
-        <p className="mt-5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-          {inheritLabel}
-        </p>
-      )}
-      <ul className={`space-y-2 text-sm mb-6 flex-1 ${inheritLabel ? 'mt-3' : 'mt-5'}`}>
-        {bullets.map((b, i) => (
-          <li key={i} className="flex items-start gap-2">
-            <Check className={`h-4 w-4 mt-0.5 shrink-0 ${highlighted ? 'text-brand-600' : 'text-emerald-600'}`} />
-            <span>{b}</span>
-          </li>
+    <figure className="p-7 rounded-2xl border bg-background flex flex-col">
+      <div className="flex gap-0.5 mb-3" aria-label={`${item.rating}/5`}>
+        {[1, 2, 3, 4, 5].map((i) => (
+          <Star key={i} className={`h-4 w-4 ${i <= item.rating ? 'fill-amber-400 text-amber-400' : 'text-muted-foreground/30'}`} aria-hidden />
         ))}
-      </ul>
-      <Link href={href} onClick={onCtaClick}>
-        <Button
-          className={`w-full ${highlighted ? 'bg-gradient-to-br from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white' : ''}`}
-          variant={highlighted ? 'default' : 'outline'}
-        >
-          {cta}
-        </Button>
-      </Link>
-    </div>
-  );
-}
-
-function FaqItem({ question, answer, open, onToggle }: { question: string; answer: string; open: boolean; onToggle: () => void }) {
-  return (
-    <div className="rounded-xl border bg-background overflow-hidden">
-      <button
-        onClick={onToggle}
-        className="w-full p-5 flex items-center justify-between text-left hover:bg-muted/30 transition"
-      >
-        <span className="font-semibold">{question}</span>
-        <ChevronDown className={`h-4 w-4 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
-      </button>
-      {open && (
-        <div className="px-5 pb-5 text-sm text-muted-foreground leading-relaxed border-t pt-4">
-          {answer}
+      </div>
+      <blockquote className="text-sm leading-relaxed flex-1 mb-5">“{item.body}”</blockquote>
+      {item.metric && (
+        <div className="mb-5 inline-flex self-start items-center gap-1.5 px-2.5 py-1 rounded-full bg-success/10 text-success text-label font-bold">
+          <TrendingUp className="h-3 w-3" aria-hidden /> {item.metric}
         </div>
       )}
+      <figcaption className="flex items-center gap-3 pt-4 border-t">
+        <div className={`h-10 w-10 rounded-full bg-gradient-to-br ${avatarBg} text-white grid place-items-center font-bold text-sm shrink-0`} aria-hidden>
+          {item.initials}
+        </div>
+        <div className="min-w-0">
+          <div className="font-bold text-sm">{item.displayName}</div>
+          {(item.role || item.company) && (
+            <div className="text-label text-muted-foreground truncate">{[item.role, item.company].filter(Boolean).join(' · ')}</div>
+          )}
+        </div>
+      </figcaption>
+    </figure>
+  );
+}
+
+function AggregateStars({ testimonials }: { testimonials: PublicTestimonial[] }) {
+  const avg = testimonials.reduce((s, t) => s + t.rating, 0) / testimonials.length;
+  return (
+    <div className="mt-12 flex items-center justify-center gap-2 text-sm">
+      <div className="flex gap-0.5" aria-hidden>
+        {[1, 2, 3, 4, 5].map((i) => (
+          <Star key={i} className={`h-5 w-5 ${i <= Math.round(avg) ? 'fill-amber-400 text-amber-400' : 'text-muted-foreground/30'}`} />
+        ))}
+      </div>
+      <span className="font-bold">{avg.toFixed(1)} / 5.0</span>
+      <span className="text-muted-foreground">— {testimonials.length} <T k="land.test.from_reviews" /></span>
     </div>
   );
 }
 
-function FooterCol({ title, links }: { title: string; links: [string, string][] }) {
+/** AggregateRating + Review schema — yalniz 3+ onayli yorum varsa */
+function ReviewSchema({ testimonials }: { testimonials: PublicTestimonial[] }) {
+  return (
+    <script
+      type="application/ld+json"
+      dangerouslySetInnerHTML={{
+        __html: JSON.stringify({
+          '@context': 'https://schema.org',
+          '@type': 'SoftwareApplication',
+          name: 'RanksUp',
+          url: 'https://ranksup.ai/',
+          applicationCategory: 'BusinessApplication',
+          operatingSystem: 'Web',
+          aggregateRating: {
+            '@type': 'AggregateRating',
+            ratingValue: (testimonials.reduce((s, t) => s + t.rating, 0) / testimonials.length).toFixed(1),
+            reviewCount: testimonials.length,
+            bestRating: 5,
+            worstRating: 1,
+          },
+          review: testimonials.slice(0, 5).map((t) => ({
+            '@type': 'Review',
+            reviewRating: { '@type': 'Rating', ratingValue: t.rating, bestRating: 5 },
+            author: {
+              '@type': 'Person',
+              name: t.displayName,
+              ...(t.role || t.company ? { jobTitle: [t.role, t.company].filter(Boolean).join(' · ') } : {}),
+            },
+            reviewBody: t.body,
+          })),
+        }),
+      }}
+    />
+  );
+}
+
+function FooterCol({ title, links }: { title: Key; links: Array<[Key, string]> }) {
   return (
     <div>
-      <h4 className="font-semibold text-foreground mb-3">{title}</h4>
+      <h4 className="font-semibold text-foreground mb-3"><T k={title} /></h4>
       <ul className="space-y-2 text-xs">
         {links.map(([label, href]) => (
           <li key={href}>
-            <Link href={href} className="hover:text-foreground transition">{label}</Link>
+            <Link href={href} className="hover:text-foreground transition-colors"><T k={label} /></Link>
           </li>
         ))}
       </ul>
     </div>
   );
-}
-
-function getFaqs(t: (k: string) => string): Array<{ q: string; a: string }> {
-  return [
-    { q: t('land.faq.q1'), a: t('land.faq.a1') },
-    { q: t('land.faq.q2'), a: t('land.faq.a2') },
-    { q: t('land.faq.q3'), a: t('land.faq.a3') },
-    { q: t('land.faq.q4'), a: t('land.faq.a4') },
-    { q: t('land.faq.q5'), a: t('land.faq.a5') },
-    { q: t('land.faq.q6'), a: t('land.faq.a6') },
-    { q: t('land.faq.q7'), a: t('land.faq.a7') },
-  ];
 }
