@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useT } from '@/lib/i18n';
 import { cn } from '@/lib/utils';
 import { useReducedMotion } from '@/lib/use-reduced-motion';
+import { VendorLogo, type VendorName } from '@/components/vendor-logo';
 
 /**
  * Hero'nun tek "cesur" ogesi: bir AI asistaninin ornek cevabi yazilir, markanin
@@ -15,7 +16,20 @@ import { useReducedMotion } from '@/lib/use-reduced-motion';
  */
 export const DOMAIN_EVENT = 'ranksup:domain';
 
-const ENGINES = ['ChatGPT', 'Gemini', 'Claude', 'Perplexity'] as const;
+/** Sekmeler (ornek cevap bu dort asistanda doner) */
+const ENGINES: Array<{ label: string; vendor: VendorName }> = [
+  { label: 'ChatGPT', vendor: 'chatgpt' },
+  { label: 'Gemini', vendor: 'gemini' },
+  { label: 'Claude', vendor: 'claude-ai' },
+  { label: 'Perplexity', vendor: 'perplexity' },
+];
+/** Olculen 7 asistanin logo dizisi — dikkat ceken ust serit (eski orbital diyagramin yerine) */
+const MEASURED: Array<{ label: string; vendor: VendorName }> = [
+  ...ENGINES,
+  { label: 'Grok', vendor: 'grok' },
+  { label: 'DeepSeek', vendor: 'deepseek' },
+  { label: 'Meta AI', vendor: 'meta-ai' },
+];
 const FALLBACK_BRAND = 'markan.com';
 const TYPE_STEP = 2;         // her tikte kac karakter
 const TYPE_MS = 22;
@@ -77,11 +91,36 @@ export function AnswerSheet() {
   const done = shown >= total;
 
   return (
+    <div>
+      {/* 7 asistan logosu — o an yazilan asistan turuncu halkayla one cikar */}
+      <div className="mb-5 flex flex-wrap items-center gap-x-4 gap-y-3">
+        <ul className="flex -space-x-3" aria-label={MEASURED.map((m) => m.label).join(', ')}>
+          {MEASURED.map((m, i) => {
+            const active = i === engine;
+            return (
+              <li
+                key={m.vendor}
+                title={m.label}
+                className={cn(
+                  'grid h-14 w-14 place-items-center rounded-full bg-white shadow-[0_6px_16px_-6px_rgb(0_0_0/0.25)] ring-[3px] ring-background',
+                  'motion-safe:transition-transform motion-safe:duration-300',
+                  active && 'relative z-10 ring-brand motion-safe:-translate-y-1.5',
+                )}
+              >
+                {/* Beyaz zemin: renkli logolar koyu temada da gorunsun */}
+                <VendorLogo name={m.vendor} size={30} alt="" />
+              </li>
+            );
+          })}
+        </ul>
+        <p className="text-sm font-medium text-muted-foreground">{t('land2.sheet.measured')}</p>
+      </div>
+
     <figure className="relative rounded-[20px] border border-border bg-card shadow-[0_1px_0_hsl(var(--border)),0_24px_60px_-28px_rgb(0_0_0/0.25)]">
       {/* Asistan secimi */}
       <div className="flex items-center justify-between gap-3 border-b border-border px-4 sm:px-5">
         <div role="tablist" aria-label={t('land2.sheet.engines')} className="-mb-px flex min-w-0 gap-1 overflow-x-auto">
-          {ENGINES.map((name, i) => (
+          {ENGINES.map(({ label: name, vendor }, i) => (
             <button
               key={name}
               type="button"
@@ -89,10 +128,11 @@ export function AnswerSheet() {
               aria-selected={engine === i}
               onClick={() => { setEngine(i); setTyped(reduced ? total : 0); setPinned(true); }}
               className={cn(
-                'whitespace-nowrap border-b-2 px-2.5 py-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2',
+                'inline-flex items-center gap-1.5 whitespace-nowrap border-b-2 px-2.5 py-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2',
                 engine === i ? 'border-brand font-semibold text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground',
               )}
             >
+              <VendorLogo name={vendor} size={16} alt="" />
               {name}
             </button>
           ))}
@@ -155,5 +195,6 @@ export function AnswerSheet() {
         {t('land2.sheet.note')}
       </figcaption>
     </figure>
+    </div>
   );
 }
