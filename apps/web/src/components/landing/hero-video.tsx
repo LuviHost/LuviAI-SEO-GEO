@@ -42,9 +42,9 @@ export function HeroVideo() {
       {!mounted || reduced ? (
         <>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/videos/hero-loop-light.jpg" alt={label} width={W} height={H} className="block h-full w-full object-cover dark:hidden" />
+          <img src="/landing-media/hero-loop-light.jpg" alt={label} width={W} height={H} className="block h-full w-full object-cover dark:hidden" />
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/videos/hero-loop-dark.jpg" alt={label} width={W} height={H} className="hidden h-full w-full object-cover dark:block" />
+          <img src="/landing-media/hero-loop-dark.jpg" alt={label} width={W} height={H} className="hidden h-full w-full object-cover dark:block" />
         </>
       ) : (
         <video
@@ -55,7 +55,7 @@ export function HeroVideo() {
           loop
           playsInline
           preload="metadata"
-          poster={`/videos/hero-loop-${variant}.jpg`}
+          poster={`/landing-media/hero-loop-${variant}.jpg`}
           width={W}
           height={H}
           aria-label={label}
@@ -66,9 +66,9 @@ export function HeroVideo() {
             if (v.duration > POSTER_SECONDS) v.currentTime = POSTER_SECONDS;
           }}
         >
-          <source src={`/videos/hero-loop-${variant}.mp4`} type="video/mp4" />
+          <source src={`/landing-media/hero-loop-${variant}.mp4`} type="video/mp4" />
           {/* Son kaynak da yuklenemezse hata yalniz burada tetiklenir */}
-          <source src={`/videos/hero-loop-${variant}.webm`} type="video/webm" onError={() => setFailed(true)} />
+          <source src={`/landing-media/hero-loop-${variant}.webm`} type="video/webm" onError={() => setFailed(true)} />
         </video>
       )}
     </div>

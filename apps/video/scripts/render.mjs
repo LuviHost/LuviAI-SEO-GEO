@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Videolari render edip apps/web/public/videos/ altina yazar.
+ * Videolari render edip apps/web/public/landing-media/ altina yazar.
  *
  *   pnpm --filter @luviai/video render              # hepsi
  *   pnpm --filter @luviai/video render HeroLoop     # yalniz HeroLoop (light + dark)
@@ -15,7 +15,8 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-const OUT = join(ROOT, '..', 'web', 'public', 'videos');
+// /videos/ nginx'te apps/api/public/videos'a alias'li (video factory) — landing ayri yolda
+const OUT = join(ROOT, '..', 'web', 'public', 'landing-media');
 const ENTRY = 'src/index.ts';
 
 /**

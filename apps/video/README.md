@@ -1,7 +1,7 @@
 # @luviai/video — RanksUp ürün videoları (Remotion)
 
 Landing sayfasındaki videolar kod olarak burada yazılır ve [Remotion](https://www.remotion.dev) ile
-render edilir. Çıktılar `apps/web/public/videos/` altına gider ve repoya commit'lenir; web uygulamasının
+render edilir. Çıktılar `apps/web/public/landing-media/` altına gider ve repoya commit'lenir; web uygulamasının
 build'i bu paketi derlemeyi **gerektirmez** (yalnız `AiScan` kaynak TSX olarak `transpilePackages`
 ile tüketilir).
 
@@ -17,7 +17,7 @@ ile tüketilir).
 # Studio (önizleme / düzenleme)
 pnpm --filter @luviai/video studio
 
-# Hepsini render et → apps/web/public/videos/{hero-loop-light,hero-loop-dark,explainer}.{mp4,webm,jpg}
+# Hepsini render et → apps/web/public/landing-media/{hero-loop-light,hero-loop-dark,explainer}.{mp4,webm,jpg}
 pnpm --filter @luviai/video render
 
 # Yalnız biri

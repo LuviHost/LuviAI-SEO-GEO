@@ -25,10 +25,10 @@ export default function ExplainerDialogContent({ open, onOpenChange }: { open: b
               muted
               playsInline
               preload="none"
-              poster="/videos/explainer.jpg"
+              poster="/landing-media/explainer.jpg"
             >
-              <source src="/videos/explainer.mp4" type="video/mp4" />
-              <source src="/videos/explainer.webm" type="video/webm" />
+              <source src="/landing-media/explainer.mp4" type="video/mp4" />
+              <source src="/landing-media/explainer.webm" type="video/webm" />
               {t('land.how.video_fallback')}
             </video>
           )}
