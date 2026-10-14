@@ -1,49 +1,37 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { useRouter, useParams, usePathname } from 'next/navigation';
-import {
-  Search,
-  ShieldCheck,
-  Sparkles,
-  Award,
-  Network,
-  FileText,
-  Send,
-  BarChart3,
-  TrendingUp,
-  FileBarChart,
-  Zap,
-  Plug,
-  Settings as SettingsIcon,
-  Home,
-  Plus,
-  CreditCard,
-  Users as UsersIcon,
-  Globe,
-  CornerDownLeft,
-  ArrowRight,
-  Bot,
-  Radar as RadarIcon,
-  MessageSquare,
-  MessagesSquare,
-  ClipboardList,
-  Lightbulb,
-  Activity as ActivityIcon,
-  Image as ImageIcon,
-} from 'lucide-react';
+import { CornerDownLeft, Globe, Plus, Search } from 'lucide-react';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
+import { GLOBAL_NAV, SITE_NAV_GROUPS, SITE_NAV_ITEMS } from '@/lib/site-nav';
+import { siteHref } from '@/lib/site-routes';
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 
 type Cmd = {
   id: string;
   label: string;
   hint?: string;
-  group: 'site' | 'global' | 'action' | 'navigate';
-  icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
-  href?: string;
-  onSelect?: () => void;
+  group: 'navigate' | 'site' | 'global';
+  /** Bu sitede: menudeki grup adi (Saglik, Icerik…) — sonuc satirinda gosterilir */
+  section?: string;
+  icon: React.ComponentType<{ className?: string }>;
+  href: string;
   keywords?: string[];
+};
+
+const OPEN_EVENT = 'ranksup:command-palette';
+
+/** Ust cubuktaki mobil arama dugmesi gibi paletin disindaki tetikleyiciler icin */
+export function openCommandPalette() {
+  window.dispatchEvent(new Event(OPEN_EVENT));
+}
+
+const GROUP_LABEL: Record<Cmd['group'], string> = {
+  navigate: 'Bu sitede',
+  site: 'Site değiştir',
+  global: 'Hesap',
 };
 
 export function CommandPalette() {
@@ -56,74 +44,66 @@ export function CommandPalette() {
   const [query, setQuery] = useState('');
   const [activeIdx, setActiveIdx] = useState(0);
   const [sites, setSites] = useState<Array<{ id: string; name: string; url: string }>>([]);
-  const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const listId = useId();
 
-  // Cmd+K / Ctrl+K shortcut
+  // Cmd+K / Ctrl+K + dis tetikleyici olayi
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => {
+    const onKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
         e.preventDefault();
         setOpen((v) => !v);
-      } else if (e.key === 'Escape' && open) {
-        setOpen(false);
       }
     };
-    document.addEventListener('keydown', handler);
-    return () => document.removeEventListener('keydown', handler);
-  }, [open]);
+    const onOpen = () => setOpen(true);
+    document.addEventListener('keydown', onKey);
+    window.addEventListener(OPEN_EVENT, onOpen);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      window.removeEventListener(OPEN_EVENT, onOpen);
+    };
+  }, []);
 
-  // Reset on open
+  // Acilista sifirla + siteleri tembel yukle
   useEffect(() => {
-    if (open) {
-      setQuery('');
-      setActiveIdx(0);
-      // Focus after render
-      setTimeout(() => inputRef.current?.focus(), 0);
-      // Lazy fetch sites
-      if (sites.length === 0) {
-        api.listSites().then((rows) => setSites(rows)).catch(() => {});
-      }
+    if (!open) return;
+    setQuery('');
+    setActiveIdx(0);
+    if (sites.length === 0) {
+      api.listSites().then((rows) => setSites(rows)).catch(() => {});
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  // Site-context commands (only if in site)
+  // Site ici komutlar — kenar cubuguyla AYNI kaynak (lib/site-nav)
   const siteCmds: Cmd[] = useMemo(() => {
     if (!siteId) return [];
-    return [
-      { id: 'site:overview', label: 'Genel Bakış', group: 'navigate', icon: Home, href: `/sites/${siteId}`, keywords: ['overview', 'dashboard', 'ana'] },
-      { id: 'site:audit', label: 'Site Skoru', hint: 'SEO + GEO 14 kontrol', group: 'navigate', icon: ShieldCheck, href: `/sites/${siteId}/audit`, keywords: ['seo', 'audit', 'skor', 'tarama'] },
-      { id: 'site:visibility', label: 'AI Görünürlük', hint: 'Citation tracking', group: 'navigate', icon: Sparkles, href: `/sites/${siteId}/visibility`, keywords: ['ai', 'citation', 'görünürlük'] },
-      { id: 'site:geo', label: 'GEO Lab', hint: '6 pillar AI search', group: 'navigate', icon: Award, href: `/sites/${siteId}/geo-lab`, keywords: ['geo', 'pillar', 'optimization'] },
-      { id: 'site:chat', label: 'Asistan', hint: 'Verinin üstünde konuşan chat + skills', group: 'navigate', icon: MessageSquare, href: `/sites/${siteId}/chat`, keywords: ['chat', 'asistan', 'skill', 'sor'] },
-      { id: 'site:images', label: 'Görsel Alt Metinleri', hint: 'Eksik alt metnine görerek öneri + onay', group: 'navigate', icon: ImageIcon, href: `/sites/${siteId}/images`, keywords: ['alt', 'görsel', 'resim', 'image', 'erişilebilirlik', 'google görseller'] },
-      { id: 'site:crawler-live', label: 'Live Crawler', hint: 'Anlık AI bot ziyaretleri + cite sinyali', group: 'navigate', icon: ActivityIcon, href: `/sites/${siteId}/crawler-live`, keywords: ['crawler', 'live', 'canlı', 'bot', 'gptbot', 'cite', 'worker'] },
-      { id: 'site:agent-readiness', label: 'Agent Readiness', hint: 'AXO — domain AI ajanlarına hazır mı', group: 'navigate', icon: Bot, href: `/sites/${siteId}/agent-readiness`, keywords: ['axo', 'agent', 'ajan', 'readiness', 'robots', 'mcp', 'a2a'] },
-      { id: 'site:product-radar', label: 'Product Radar', hint: 'AI asistanlar kategoride kimi öneriyor', group: 'navigate', icon: RadarIcon, href: `/sites/${siteId}/product-radar`, keywords: ['radar', 'product', 'öneri', 'rakip'] },
-      { id: 'site:opportunities', label: 'İçerik Fırsatları', hint: 'Kaybedilen sorgu → makale → yeniden ölçüm', group: 'navigate', icon: Lightbulb, href: `/sites/${siteId}/opportunities`, keywords: ['fırsat', 'opportunity', 'kayıp', 'lost', 'içerik'] },
-      { id: 'site:action-plan', label: 'Aksiyon Planı', hint: 'Tüm modüllerden iş listesi', group: 'navigate', icon: ClipboardList, href: `/sites/${siteId}/action-plan`, keywords: ['aksiyon', 'action', 'plan', 'todo', 'görev'] },
-      { id: 'site:communities', label: 'Topluluk Ajanı', hint: 'Reddit/Quora fırsatları + AI taslaklar', group: 'navigate', icon: MessagesSquare, href: `/sites/${siteId}/communities`, keywords: ['reddit', 'quora', 'topluluk', 'community'] },
-      { id: 'site:competitors', label: 'Rakipler', group: 'navigate', icon: Network, href: `/sites/${siteId}/competitors`, keywords: ['competitor', 'rakip'] },
-      { id: 'site:snippet', label: 'Sayfa SEO İyileştir', hint: 'Title/meta/FAQ üret + uygula', group: 'navigate', icon: FileText, href: `/sites/${siteId}/snippet`, keywords: ['snippet', 'meta', 'title', 'on-page', 'seo', 'sayfa', 'faq'] },
-      { id: 'site:articles', label: 'İçerikler', hint: 'Önerilen konular + üretilen makaleler', group: 'navigate', icon: FileText, href: `/sites/${siteId}/articles`, keywords: ['article', 'makale', 'topic', 'konu', 'öneri', 'içerik'] },
-      { id: 'site:publish-targets', label: 'Yayın Hedefleri', group: 'navigate', icon: Send, href: `/sites/${siteId}/publish-targets`, keywords: ['wordpress', 'ftp', 'wp', 'publish'] },
-      { id: 'site:analytics', label: 'Analytics', hint: 'GSC + GA4', group: 'navigate', icon: BarChart3, href: `/sites/${siteId}/analytics`, keywords: ['analytics', 'gsc', 'ga4'] },
-      { id: 'site:ads', label: 'Reklam', hint: 'Google + Meta autopilot', group: 'navigate', icon: TrendingUp, href: `/sites/${siteId}/ads`, keywords: ['ads', 'reklam', 'google', 'meta'] },
-      { id: 'site:report', label: 'Rapor', group: 'navigate', icon: FileBarChart, href: `/sites/${siteId}/report`, keywords: ['report', 'rapor'] },
-      { id: 'site:autopilot', label: 'Otomatik Akış', hint: 'Yarı / tam otomatik', group: 'navigate', icon: Zap, href: `/sites/${siteId}/autopilot`, keywords: ['autopilot', 'otomatik', 'akış'] },
-      { id: 'site:connections', label: 'Bağlantılar', hint: 'GSC, GA4, AI keys', group: 'navigate', icon: Plug, href: `/sites/${siteId}/connections`, keywords: ['connection', 'bağlantı', 'gsc', 'ga4'] },
-      { id: 'site:settings', label: 'Ayarlar', group: 'navigate', icon: SettingsIcon, href: `/sites/${siteId}/settings`, keywords: ['settings', 'ayar'] },
-    ];
+    const sectionOf = Object.fromEntries(SITE_NAV_GROUPS.map((g) => [g.id, g.label]));
+    return SITE_NAV_ITEMS.map((item) => ({
+      id: `site:${item.route}`,
+      label: item.label,
+      hint: item.hint,
+      section: sectionOf[item.group],
+      group: 'navigate' as const,
+      icon: item.icon,
+      href: siteHref(siteId, item.route),
+      keywords: [...(item.keywords ?? []), sectionOf[item.group] ?? ''],
+    }));
   }, [siteId]);
 
   const globalCmds: Cmd[] = useMemo(() => [
-    { id: 'global:dashboard', label: 'Sitelerim', group: 'global', icon: Home, href: '/dashboard', keywords: ['dashboard', 'sitelerim', 'home'] },
-    { id: 'global:onboarding', label: 'Yeni Site Ekle', group: 'global', icon: Plus, href: '/onboarding?new=1', keywords: ['new', 'yeni', 'site', 'ekle', 'onboarding'] },
-    { id: 'global:billing', label: 'Abonelik', group: 'global', icon: CreditCard, href: '/billing', keywords: ['billing', 'abonelik', 'plan', 'pricing'] },
-    { id: 'global:affiliate', label: 'Affiliate', group: 'global', icon: UsersIcon, href: '/affiliate', keywords: ['affiliate', 'referans', 'partner'] },
+    ...GLOBAL_NAV.map((g) => ({
+      id: `global:${g.href}`,
+      label: g.label,
+      group: 'global' as const,
+      icon: g.icon,
+      href: g.href,
+      keywords: g.keywords,
+    })),
+    { id: 'global:onboarding', label: 'Yeni site ekle', group: 'global', icon: Plus, href: '/onboarding?new=1', keywords: ['new', 'yeni', 'site', 'ekle', 'onboarding'] },
   ], []);
 
-  // Site switcher commands (jump to same subpath under different site)
+  // Site degistir: ayni alt sayfayi baska sitede ac
   const siteSwitchCmds: Cmd[] = useMemo(() => {
     if (!siteId) return [];
     const subpath = pathname.replace(`/sites/${siteId}`, '');
@@ -132,7 +112,7 @@ export function CommandPalette() {
       .map((s) => ({
         id: `switch:${s.id}`,
         label: s.name,
-        hint: `→ ${s.url.replace(/^https?:\/\//, '')}`,
+        hint: s.url.replace(/^https?:\/\//, ''),
         group: 'site' as const,
         icon: Globe,
         href: `/sites/${s.id}${subpath}`,
@@ -140,174 +120,159 @@ export function CommandPalette() {
       }));
   }, [sites, siteId, pathname]);
 
-  const allCmds = useMemo(() => [
-    ...siteCmds,
-    ...siteSwitchCmds,
-    ...globalCmds,
-  ], [siteCmds, siteSwitchCmds, globalCmds]);
+  const allCmds = useMemo(() => [...siteCmds, ...siteSwitchCmds, ...globalCmds], [siteCmds, siteSwitchCmds, globalCmds]);
 
-  // Fuzzy filter
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
+    const q = query.trim().toLocaleLowerCase('tr-TR');
     if (!q) return allCmds;
     return allCmds.filter((c) => {
-      const haystack = [c.label, c.hint ?? '', ...(c.keywords ?? [])].join(' ').toLowerCase();
+      const haystack = [c.label, c.hint ?? '', ...(c.keywords ?? [])].join(' ').toLocaleLowerCase('tr-TR');
       return q.split(/\s+/).every((token) => haystack.includes(token));
     });
   }, [allCmds, query]);
 
-  // Group filtered
   const grouped = useMemo(() => {
-    const order: Cmd['group'][] = ['navigate', 'site', 'global', 'action'];
-    const labels: Record<Cmd['group'], string> = {
-      navigate: 'Bu sitede',
-      site: 'Site değiştir',
-      global: 'Genel',
-      action: 'Aksiyonlar',
-    };
+    const order: Cmd['group'][] = ['navigate', 'site', 'global'];
     return order
-      .map((g) => ({ group: g, label: labels[g], items: filtered.filter((c) => c.group === g) }))
+      .map((g) => ({ group: g, label: GROUP_LABEL[g], items: filtered.filter((c) => c.group === g) }))
       .filter((g) => g.items.length > 0);
   }, [filtered]);
 
-  // Reset active idx when filtered changes
-  useEffect(() => {
-    setActiveIdx(0);
-  }, [query]);
+  useEffect(() => { setActiveIdx(0); }, [query]);
 
-  // Keyboard nav
-  useEffect(() => {
-    if (!open) return;
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        setActiveIdx((i) => Math.min(i + 1, filtered.length - 1));
-      } else if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        setActiveIdx((i) => Math.max(i - 1, 0));
-      } else if (e.key === 'Enter') {
-        e.preventDefault();
-        const cmd = filtered[activeIdx];
-        if (cmd) selectCmd(cmd);
-      }
-    };
-    document.addEventListener('keydown', handler);
-    return () => document.removeEventListener('keydown', handler);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, filtered, activeIdx]);
-
-  // Scroll active into view
   useEffect(() => {
     if (!listRef.current) return;
-    const item = listRef.current.querySelector(`[data-cmd-idx="${activeIdx}"]`) as HTMLElement | null;
-    item?.scrollIntoView({ block: 'nearest' });
+    const el = listRef.current.querySelector(`[data-cmd-idx="${activeIdx}"]`) as HTMLElement | null;
+    el?.scrollIntoView({ block: 'nearest' });
   }, [activeIdx]);
 
   const selectCmd = (cmd: Cmd) => {
     setOpen(false);
-    if (cmd.href) {
-      router.push(cmd.href as any);
-    }
-    cmd.onSelect?.();
+    router.push(cmd.href as any);
   };
 
-  if (!open) {
-    return (
-      // Hint badge at bottom-right (subtle)
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        className="hidden md:flex fixed bottom-5 right-5 z-30 items-center gap-2 px-3 py-1.5 rounded-full bg-card/80 backdrop-blur-sm border border-border shadow-sm hover:border-brand/40 hover:shadow-md transition-all text-xs text-muted-foreground"
-        aria-label="Komut paneli aç"
-      >
-        <Search className="h-3 w-3" />
-        <span>Ara</span>
-        <kbd className="ml-1 inline-flex items-center gap-0.5 rounded border border-border bg-background px-1.5 py-0.5 font-mono text-[10px]">
-          <span>⌘</span>K
-        </kbd>
-      </button>
-    );
-  }
+  const onInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setActiveIdx((i) => Math.min(i + 1, filtered.length - 1));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setActiveIdx((i) => Math.max(i - 1, 0));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      const cmd = filtered[activeIdx];
+      if (cmd) selectCmd(cmd);
+    }
+  };
+
+  const activeId = filtered[activeIdx] ? `${listId}-opt-${activeIdx}` : undefined;
 
   return (
-    <div
-      className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm grid place-items-start sm:place-items-center pt-[8vh] sm:pt-0 px-4"
-      onClick={() => setOpen(false)}
-    >
-      <div
-        className="w-full max-w-2xl rounded-2xl border bg-card shadow-2xl overflow-hidden"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center gap-3 px-4 py-3 border-b">
-          <Search className="h-4 w-4 text-muted-foreground shrink-0" />
-          <input
-            ref={inputRef}
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Ara: sayfa, site, aksiyon..."
-            className="flex-1 bg-transparent border-none outline-none text-sm placeholder:text-muted-foreground/60"
-          />
-          <kbd className="text-[10px] font-mono text-muted-foreground/60 border rounded px-1.5 py-0.5">ESC</kbd>
-        </div>
+    <>
+      {/* Masaustu ipucu dugmesi — telefonda ust cubuktaki arama dugmesi kullanilir */}
+      {!open && (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="fixed bottom-5 right-5 z-30 hidden items-center gap-2 rounded-full border border-border bg-card/80 px-3 py-1.5 text-label text-muted-foreground shadow-sm backdrop-blur-sm transition-all hover:border-brand/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand md:flex"
+          aria-label="Komut paletini aç (⌘K)"
+        >
+          <Search className="h-3 w-3" aria-hidden />
+          <span>Ara</span>
+          <kbd className="ml-1 inline-flex items-center gap-0.5 rounded border border-border bg-background px-1.5 py-0.5 font-mono text-label">⌘K</kbd>
+        </button>
+      )}
 
-        <div ref={listRef} className="max-h-[60vh] overflow-y-auto">
-          {filtered.length === 0 ? (
-            <div className="px-4 py-12 text-center text-sm text-muted-foreground">
-              "{query}" için sonuç yok.
-            </div>
-          ) : (
-            grouped.map((g, gi) => (
-              <div key={g.group} className={cn(gi > 0 && 'border-t')}>
-                <div className="px-4 pt-3 pb-1.5 text-[10px] font-bold uppercase tracking-widest text-muted-foreground/70">
-                  {g.label}
-                </div>
-                <div className="pb-1">
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent
+          size="lg"
+          hideClose
+          className="top-[10vh] translate-y-0 overflow-hidden p-0 data-[state=open]:slide-in-from-top-2"
+          onOpenAutoFocus={(e) => {
+            // Radix varsayilani ilk odaklanabiliri secer; arama kutusuna odaklan
+            e.preventDefault();
+            (e.currentTarget as HTMLElement).querySelector('input')?.focus();
+          }}
+        >
+          <DialogTitle className="sr-only">Komut paleti</DialogTitle>
+          <DialogDescription className="sr-only">
+            Sayfa ya da site ara. Ok tuşlarıyla gez, Enter ile aç, Esc ile kapat.
+          </DialogDescription>
+
+          <div className="flex items-center gap-3 border-b px-4 py-3">
+            <Search className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={onInputKeyDown}
+              placeholder="Sayfa ya da site ara…"
+              aria-label="Sayfa ya da site ara"
+              role="combobox"
+              aria-expanded="true"
+              aria-controls={listId}
+              aria-activedescendant={activeId}
+              aria-autocomplete="list"
+              className="flex-1 border-none bg-transparent text-sm outline-none placeholder:text-muted-foreground/70"
+            />
+            <kbd className="rounded border px-1.5 py-0.5 font-mono text-label text-muted-foreground">Esc</kbd>
+          </div>
+
+          <div ref={listRef} id={listId} role="listbox" aria-label="Sonuçlar" className="max-h-[60vh] overflow-y-auto py-1">
+            {filtered.length === 0 ? (
+              <p className="px-4 py-12 text-center text-sm text-muted-foreground">
+                “{query}” için sonuç yok.
+              </p>
+            ) : (
+              grouped.map((g, gi) => (
+                <div key={g.group} role="group" aria-label={g.label} className={cn(gi > 0 && 'mt-1 border-t pt-1')}>
+                  <div className="px-4 pb-1 pt-2 text-label text-muted-foreground">{g.label}</div>
                   {g.items.map((cmd) => {
-                    const idx = filtered.findIndex((c) => c.id === cmd.id);
+                    const idx = filtered.indexOf(cmd);
                     const isActive = idx === activeIdx;
                     const Icon = cmd.icon;
                     return (
-                      <button
+                      <div
                         key={cmd.id}
+                        id={`${listId}-opt-${idx}`}
+                        role="option"
+                        aria-selected={isActive}
                         data-cmd-idx={idx}
-                        type="button"
                         onClick={() => selectCmd(cmd)}
-                        onMouseEnter={() => setActiveIdx(idx)}
+                        onMouseMove={() => { if (!isActive) setActiveIdx(idx); }}
                         className={cn(
-                          'w-full text-left px-4 py-2 flex items-center gap-3 transition-colors',
-                          isActive ? 'bg-brand/10 text-brand' : 'hover:bg-muted/50',
+                          'mx-1 flex cursor-pointer items-center gap-3 rounded-md px-3 py-2 transition-colors',
+                          isActive ? 'bg-brand/10 text-brand-700 dark:text-brand-300' : 'text-foreground',
                         )}
                       >
                         <Icon className={cn('h-4 w-4 shrink-0', isActive ? 'text-brand' : 'text-muted-foreground')} />
-                        <span className="text-sm font-medium flex-1">{cmd.label}</span>
+                        <span className="min-w-0 flex-1 truncate text-sm font-medium">{cmd.label}</span>
                         {cmd.hint && (
-                          <span className="text-[11px] text-muted-foreground hidden sm:inline">{cmd.hint}</span>
+                          <span className="hidden max-w-[45%] truncate text-label text-muted-foreground sm:inline">{cmd.hint}</span>
                         )}
-                        {isActive && <CornerDownLeft className="h-3 w-3 text-brand/60" />}
-                      </button>
+                        {cmd.section && (
+                          <span className="hidden shrink-0 rounded bg-muted px-1.5 py-0.5 text-label text-muted-foreground md:inline">
+                            {cmd.section}
+                          </span>
+                        )}
+                        {isActive && <CornerDownLeft className="h-3 w-3 shrink-0 text-brand/60" aria-hidden />}
+                      </div>
                     );
                   })}
                 </div>
-              </div>
-            ))
-          )}
-        </div>
-
-        <div className="border-t px-4 py-2 flex items-center justify-between text-[10px] text-muted-foreground/70 bg-muted/20">
-          <div className="flex items-center gap-3">
-            <span className="inline-flex items-center gap-1">
-              <kbd className="border rounded px-1 py-0.5 font-mono">↑↓</kbd> gez
-            </span>
-            <span className="inline-flex items-center gap-1">
-              <kbd className="border rounded px-1 py-0.5 font-mono">↵</kbd> seç
-            </span>
-            <span className="inline-flex items-center gap-1">
-              <kbd className="border rounded px-1 py-0.5 font-mono">ESC</kbd> kapat
-            </span>
+              ))
+            )}
           </div>
-          <span className="font-mono">{filtered.length} sonuç</span>
-        </div>
-      </div>
-    </div>
+
+          <div className="flex items-center justify-between border-t bg-muted/30 px-4 py-2 text-label text-muted-foreground">
+            <div className="flex items-center gap-3">
+              <span className="inline-flex items-center gap-1"><kbd className="rounded border px-1 font-mono">↑↓</kbd> gez</span>
+              <span className="inline-flex items-center gap-1"><kbd className="rounded border px-1 font-mono">↵</kbd> aç</span>
+              <span className="inline-flex items-center gap-1"><kbd className="rounded border px-1 font-mono">Esc</kbd> kapat</span>
+            </div>
+            <span className="tabular-nums" aria-live="polite">{filtered.length} sonuç</span>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

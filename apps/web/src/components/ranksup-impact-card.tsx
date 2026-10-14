@@ -1,8 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { TrendingUp, TrendingDown, Sparkles, Rocket, Bot, Search } from 'lucide-react';
+import { TrendingUp, TrendingDown, Sparkles, Rocket, Bot, Search, PartyPopper } from 'lucide-react';
 import { api } from '@/lib/api';
+import { cn } from '@/lib/utils';
+import { Card } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const LABELS: Record<string, string> = {
   anthropic: 'Claude', gemini: 'Gemini', openai: 'ChatGPT',
@@ -49,7 +52,7 @@ export function RanksUpImpactCard({ siteId, days = 90 }: { siteId: string; days?
   }, [siteId, days]);
 
   if (loading) {
-    return <div className="rounded-2xl border bg-muted/30 h-28 animate-pulse" />;
+    return <Skeleton className="h-44 w-full" aria-label="RanksUp etkisi yükleniyor" />;
   }
 
   // ── GEO / AI ──────────────────────────────────────────────
@@ -85,39 +88,42 @@ export function RanksUpImpactCard({ siteId, days = 90 }: { siteId: string; days?
   const clicksGrowth = (clicksStart != null && clicksNow != null) ? pct(clicksStart, clicksNow) : null;
 
   if (!hasGeo && !hasSeo) {
-    return null; // hiç veri yok — kartı gösterme
+    return null; // hiç veri yok — kartı gösterme (altındaki trend grafiği kendi boş durumunu basar)
   }
 
+  const up = 'text-success';
+  const down = 'text-danger';
+
   return (
-    <div className="rounded-2xl border border-brand-500/25 bg-gradient-to-br from-brand-500/[0.07] via-card to-emerald-500/[0.04] p-5 shadow-sm">
-      <div className="flex items-center gap-2 mb-4">
-        <span className="grid place-items-center w-7 h-7 rounded-lg bg-gradient-to-br from-brand-500 to-brand-700 text-white">
-          <Sparkles className="h-4 w-4" />
+    <Card className="p-5">
+      <div className="flex items-center gap-2.5 mb-4">
+        <span className="grid place-items-center h-8 w-8 rounded-md bg-brand/10 text-brand">
+          <Sparkles className="h-4 w-4" aria-hidden />
         </span>
         <div>
-          <p className="font-semibold text-sm leading-none">RanksUp Etkisi</p>
-          <p className="text-xs text-muted-foreground mt-0.5">Markanın AI ve Google'da büyümesi · son {days} gün</p>
+          <h3 className="font-semibold text-sm leading-none">RanksUp etkisi</h3>
+          <p className="text-label text-muted-foreground mt-1">Markanın AI ve Google'da büyümesi · son {days} gün</p>
         </div>
       </div>
 
       <div className="grid md:grid-cols-2 gap-4">
         {/* ── AI Görünürlük (GEO) ── */}
-        <div className="rounded-xl border bg-card/60 p-4">
-          <div className="flex items-center gap-1.5 text-xs font-semibold text-purple-600 dark:text-purple-300 mb-2">
-            <Bot className="h-3.5 w-3.5" /> AI GÖRÜNÜRLÜK (GEO)
+        <div className="rounded-md border bg-muted/20 p-4">
+          <div className="flex items-center gap-1.5 text-label text-muted-foreground mb-2">
+            <Bot className="h-3.5 w-3.5 text-brand" aria-hidden /> AI görünürlük (GEO)
           </div>
           {!hasGeo ? (
             <p className="text-sm text-muted-foreground">Henüz AI ölçümü yok.</p>
           ) : geoEarly ? (
             <div className="flex items-center gap-2 text-sm">
-              <Rocket className="h-4 w-4 text-brand-500" />
+              <Rocket className="h-4 w-4 text-brand" aria-hidden />
               <span>Başlangıç: <strong>{enginesNow}/{totalEngines}</strong> motor · skor <strong>{geoLastAvg}</strong>. Büyüme yakında.</span>
             </div>
           ) : (
             <>
               <div className="flex items-baseline gap-2">
-                {(geoGrowth ?? 0) >= 0 ? <TrendingUp className="h-5 w-5 text-emerald-500 self-center" /> : <TrendingDown className="h-5 w-5 text-red-500 self-center" />}
-                <span className={`text-3xl font-extrabold ${(geoGrowth ?? 1) >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600'}`}>
+                {(geoGrowth ?? 0) >= 0 ? <TrendingUp className={cn('h-5 w-5 self-center', up)} aria-hidden /> : <TrendingDown className={cn('h-5 w-5 self-center', down)} aria-hidden />}
+                <span className={cn('text-metric-lg tabular-nums', (geoGrowth ?? 1) >= 0 ? up : down)}>
                   {geoGrowth === null ? `+${geoLastAvg}` : `${geoGrowth >= 0 ? '+' : ''}${geoGrowth}%`}
                 </span>
               </div>
@@ -126,16 +132,16 @@ export function RanksUpImpactCard({ siteId, days = 90 }: { siteId: string; days?
                 <div>Ort. AI skoru: <strong className="text-foreground">{geoFirstAvg} → {geoLastAvg}</strong></div>
               </div>
               {newEngines.length > 0 && (
-                <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1.5">🎉 {newEngines.join(', ')} artık tanıyor</p>
+                <p className="text-label text-success mt-1.5 inline-flex items-center gap-1"><PartyPopper className="h-3.5 w-3.5" aria-hidden /> {newEngines.join(', ')} artık tanıyor</p>
               )}
             </>
           )}
         </div>
 
         {/* ── Google (SEO) ── */}
-        <div className="rounded-xl border bg-card/60 p-4">
-          <div className="flex items-center gap-1.5 text-xs font-semibold text-blue-600 dark:text-blue-300 mb-2">
-            <Search className="h-3.5 w-3.5" /> GOOGLE (SEO)
+        <div className="rounded-md border bg-muted/20 p-4">
+          <div className="flex items-center gap-1.5 text-label text-muted-foreground mb-2">
+            <Search className="h-3.5 w-3.5 text-info" aria-hidden /> Google (SEO)
           </div>
           {!hasSeo ? (
             <p className="text-sm text-muted-foreground">
@@ -144,8 +150,8 @@ export function RanksUpImpactCard({ siteId, days = 90 }: { siteId: string; days?
           ) : (
             <>
               <div className="flex items-baseline gap-2">
-                {(clicksGrowth ?? 0) >= 0 ? <TrendingUp className="h-5 w-5 text-emerald-500 self-center" /> : <TrendingDown className="h-5 w-5 text-red-500 self-center" />}
-                <span className={`text-3xl font-extrabold ${(clicksGrowth ?? 1) >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600'}`}>
+                {(clicksGrowth ?? 0) >= 0 ? <TrendingUp className={cn('h-5 w-5 self-center', up)} aria-hidden /> : <TrendingDown className={cn('h-5 w-5 self-center', down)} aria-hidden />}
+                <span className={cn('text-metric-lg tabular-nums', (clicksGrowth ?? 1) >= 0 ? up : down)}>
                   {clicksGrowth === null ? `+${Math.round(clicksNow ?? 0)}` : `${clicksGrowth >= 0 ? '+' : ''}${clicksGrowth}%`}
                 </span>
                 <span className="text-xs text-muted-foreground">tıklama</span>
@@ -156,7 +162,7 @@ export function RanksUpImpactCard({ siteId, days = 90 }: { siteId: string; days?
                 {posStart != null && posNow != null && (
                   <div>
                     Ort. sıra: <strong className="text-foreground">{posStart.toFixed(1)} → {posNow.toFixed(1)}</strong>{' '}
-                    <span className={posNow <= posStart ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600'}>
+                    <span className={posNow <= posStart ? up : down}>
                       {posNow <= posStart ? '↑ daha iyi' : '↓ düştü'}
                     </span>
                   </div>
@@ -166,6 +172,6 @@ export function RanksUpImpactCard({ siteId, days = 90 }: { siteId: string; days?
           )}
         </div>
       </div>
-    </div>
+    </Card>
   );
 }

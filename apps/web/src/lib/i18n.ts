@@ -367,10 +367,10 @@ const dictionary = {
 
     // Dashboard
     'dashboard.title': 'Panel',
-    'dashboard.new_site': '+ Yeni Site',
+    'dashboard.new_site': 'Yeni site',
     'dashboard.sites': 'Sitelerim',
-    'dashboard.empty': 'Henüz site eklenmemiş.',
-    'dashboard.add_first': 'İlk siteni ekle →',
+    'dashboard.empty': 'Site adresini gir; AI markanı, rakiplerini ve SEO + GEO durumunu yaklaşık bir dakikada çıkarsın.',
+    'dashboard.add_first': 'İlk siteni ekle',
 
     // Common
     'common.loading': 'Yükleniyor…',
@@ -744,10 +744,10 @@ const dictionary = {
 
     // Dashboard
     'dashboard.title': 'Dashboard',
-    'dashboard.new_site': '+ New Site',
+    'dashboard.new_site': 'New site',
     'dashboard.sites': 'My Sites',
-    'dashboard.empty': 'No sites yet.',
-    'dashboard.add_first': 'Add your first site →',
+    'dashboard.empty': 'Enter your site address and AI maps your brand, competitors and SEO + GEO status in about a minute.',
+    'dashboard.add_first': 'Add your first site',
 
     // Common
     'common.loading': 'Loading…',
