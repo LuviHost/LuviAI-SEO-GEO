@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { Loader2, RotateCcw, Eye, Send } from 'lucide-react';
 import { api, ApiError } from '@/lib/api';
@@ -41,7 +41,18 @@ function lockReason(field: Field, snap: any): string | null {
   return null;
 }
 
-export function AscMetadataPanel({ siteId, ascAppId }: { siteId: string; ascAppId: string }) {
+export type AscMetadataPrefill = { nonce: number; fields: Partial<Record<Field, string>> };
+
+export function AscMetadataPanel({
+  siteId,
+  ascAppId,
+  prefill,
+}: {
+  siteId: string;
+  ascAppId: string;
+  /** Dışarıdan (ör. AI önerisi) taslağa aktarılacak alanlar — nonce değişince uygulanır */
+  prefill?: AscMetadataPrefill | null;
+}) {
   const [snap, setSnap] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [locale, setLocale] = useState<string>('');
@@ -73,6 +84,27 @@ export function AscMetadataPanel({ siteId, ascAppId }: { siteId: string; ascAppI
   };
 
   useEffect(() => { load(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [siteId, ascAppId]);
+
+  const appliedNonce = useRef<number | null>(null);
+  // Önerileri taslağa aktar — yalnız düzenlenebilir alanlar; hiçbir şey yazılmaz,
+  // kullanıcı yine "Farkı gör" → onay → "Uygula" adımlarından geçer
+  useEffect(() => {
+    if (!prefill || !snap || appliedNonce.current === prefill.nonce) return;
+    appliedNonce.current = prefill.nonce;
+    const applied: Record<string, string> = {};
+    for (const f of FIELDS) {
+      const v = prefill.fields[f.key];
+      if (v != null && v !== '' && !lockReason(f.key, snap)) applied[f.key] = v;
+    }
+    if (Object.keys(applied).length === 0) {
+      toast.info('Aktarılabilecek düzenlenebilir alan yok');
+      return;
+    }
+    setDraft((d) => ({ ...d, ...applied }));
+    setPlan(null);
+    toast.success(`${Object.keys(applied).length} alan taslağa aktarıldı — "Farkı gör" ile kontrol et`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefill?.nonce, snap]);
 
   const current = snap?.locales?.[locale]?.values ?? {};
   const changed = useMemo(
@@ -169,7 +201,7 @@ export function AscMetadataPanel({ siteId, ascAppId }: { siteId: string; ascAppI
                 <div key={f.key}>
                   <div className="flex items-center justify-between mb-1">
                     <label htmlFor={`asc-${f.key}`} className="text-xs font-medium">{f.label}</label>
-                    <span className={cn('text-label', n > f.limit ? 'text-rose-600' : 'text-muted-foreground')}>{n}/{f.limit}</span>
+                    <span className={cn('text-label', n > f.limit ? 'text-danger' : 'text-muted-foreground')}>{n}/{f.limit}</span>
                   </div>
                   <Comp
                     id={`asc-${f.key}`}
@@ -196,7 +228,7 @@ export function AscMetadataPanel({ siteId, ascAppId }: { siteId: string; ascAppI
       )}
 
       {conflicts && (
-        <div className="rounded-md border border-rose-500/30 bg-rose-500/5 p-3 text-xs space-y-1">
+        <div className="rounded-md border border-danger/30 bg-danger/5 p-3 text-xs space-y-1">
           <p className="font-medium">Plandan sonra App Store Connect&apos;te değişmiş — hiçbir şey yazılmadı:</p>
           {conflicts.map((c: any, i: number) => <p key={i}>{c.locale} · {LABEL[c.field] ?? c.field}: şu an &quot;{c.actual}&quot;</p>)}
         </div>
@@ -210,7 +242,7 @@ export function AscMetadataPanel({ siteId, ascAppId }: { siteId: string; ascAppI
           ) : (
             <div className="space-y-2">
               {plan.changes.map((c: any, i: number) => (
-                <div key={i} className={cn('rounded border p-2 text-xs space-y-1', c.ok ? 'border-emerald-500/20' : 'border-rose-500/30 bg-rose-500/5')}>
+                <div key={i} className={cn('rounded border p-2 text-xs space-y-1', c.ok ? 'border-success/20' : 'border-danger/30 bg-danger/5')}>
                   <div className="flex items-center gap-2">
                     <span className="font-medium">{c.locale} · {LABEL[c.field] ?? c.field}</span>
                     <span className="text-muted-foreground">{c.length}/{c.limit}</span>
@@ -218,7 +250,7 @@ export function AscMetadataPanel({ siteId, ascAppId }: { siteId: string; ascAppI
                   </div>
                   <p className="text-muted-foreground line-through break-words whitespace-pre-wrap">{c.from || '(boş)'}</p>
                   <p className="break-words whitespace-pre-wrap">{c.to || '(boş)'}</p>
-                  {c.reason && <p className="text-rose-600">{c.reason}</p>}
+                  {c.reason && <p className="text-danger">{c.reason}</p>}
                 </div>
               ))}
             </div>
@@ -227,7 +259,7 @@ export function AscMetadataPanel({ siteId, ascAppId }: { siteId: string; ascAppI
             <div className="space-y-1 text-xs">
               <p className="font-medium">Anahtar kelime denetimi</p>
               {plan.keywordAudit.findings.map((f: any, i: number) => (
-                <p key={i} className={f.severity === 'error' ? 'text-rose-600' : f.severity === 'warning' ? 'text-amber-600' : 'text-muted-foreground'}>• {f.message}</p>
+                <p key={i} className={f.severity === 'error' ? 'text-danger' : f.severity === 'warning' ? 'text-warning' : 'text-muted-foreground'}>• {f.message}</p>
               ))}
             </div>
           )}
@@ -257,7 +289,7 @@ export function AscMetadataPanel({ siteId, ascAppId }: { siteId: string; ascAppI
                   <span className="font-medium">{h.detail?.locale}</span> · {Object.keys(h.detail?.fields ?? {}).map((f) => LABEL[f] ?? f).join(', ') || '—'}
                   <span className="text-muted-foreground"> · {new Date(h.appliedAt).toLocaleString('tr-TR')}</span>
                 </p>
-                {h.error && <p className="text-rose-600">{h.error}</p>}
+                {h.error && <p className="text-danger">{h.error}</p>}
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 <Badge variant={h.status === 'APPLIED' ? 'success' : h.status === 'FAILED' ? 'destructive' : 'secondary'}>

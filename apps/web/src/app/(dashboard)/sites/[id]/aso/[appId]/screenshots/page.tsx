@@ -1,7 +1,7 @@
 'use client';
 
 import { use, useEffect, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { useSiteContext } from '../../../site-context';
 import { api } from '@/lib/api';
@@ -10,10 +10,16 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
+import { StatusBanner } from '@/components/ui/status-banner';
+import { FilterChip } from '@/components/ui/filter-chip';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import {
   ArrowLeft, Sparkles, Download, Image as ImageIcon, Type, Palette,
   Smartphone, RotateCw, Loader2, Upload, Trash2, Copy, Eye,
-  Star, AlertCircle, CheckCircle2, X as XIcon, Wand2,
+  Star, AlertCircle, CheckCircle2, Wand2, ChevronDown,
 } from 'lucide-react';
 import { PHONE_FRAMES, FRAME_STYLE_OPTIONS } from './phone-frames';
 import { TEMPLATES } from './templates';
@@ -72,6 +78,10 @@ interface SlotState {
   phoneScale: number;
   phoneLayout?: 'single' | 'duo' | 'trio';
   phoneVerticalAlign?: 'top' | 'center' | 'bottom';
+  // Gölge yoğunlukları (0-100) — ScreenshotStage SlotData ile aynı alanlar;
+  // tipte eksik oldukları için kaydırıcılar derlenmiyordu
+  phoneShadow?: number;
+  textShadow?: number;
   // Reflection (shots.so polish)
   phoneReflection?: boolean;
   phoneReflectionOpacity?: number;
@@ -226,16 +236,16 @@ function SuggestionField({ label, value, limit, multiline }: {
   return (
     <div className="rounded-md border bg-background p-2.5">
       <div className="flex items-center justify-between mb-1">
-        <div className="text-[11px] font-semibold flex items-center gap-1.5">
+        <div className="text-label font-semibold flex items-center gap-1.5">
           {label}
-          <span className={`text-[10px] font-normal ${overLimit ? 'text-rose-600' : 'text-muted-foreground'}`}>
+          <span className={`text-label font-normal ${overLimit ? 'text-danger' : 'text-muted-foreground'}`}>
             ({len}/{limit})
           </span>
         </div>
         <button
           onClick={handleCopy}
-          className={`text-[10px] px-2 py-0.5 rounded border transition-colors flex items-center gap-1 ${
-            copied ? 'border-emerald-500 text-emerald-600 bg-emerald-50 dark:bg-emerald-950/30' : 'border-border hover:border-brand hover:text-brand'
+          className={`text-label px-2 py-0.5 rounded border transition-colors flex items-center gap-1 ${
+            copied ? 'border-success text-success bg-success/10' : 'border-border hover:border-brand hover:text-brand'
           }`}
         >
           {copied ? <><CheckCircle2 className="h-3 w-3" /> Kopyalandı</> : <><Copy className="h-3 w-3" /> Kopyala</>}
@@ -246,7 +256,7 @@ function SuggestionField({ label, value, limit, multiline }: {
           readOnly
           value={value}
           onFocus={e => e.target.select()}
-          className="w-full text-[11px] leading-relaxed bg-transparent resize-none max-h-32 outline-none cursor-text"
+          className="w-full text-label leading-relaxed bg-transparent resize-none max-h-32 outline-none cursor-text"
           rows={Math.min(6, value.split('\n').length + 1)}
         />
       ) : (
@@ -254,7 +264,7 @@ function SuggestionField({ label, value, limit, multiline }: {
           readOnly
           value={value}
           onFocus={e => e.target.select()}
-          className="w-full text-[11px] bg-transparent outline-none cursor-text"
+          className="w-full text-label bg-transparent outline-none cursor-text"
         />
       )}
     </div>
@@ -262,7 +272,17 @@ function SuggestionField({ label, value, limit, multiline }: {
 }
 
 // Layout preset preview — config'e göre minik SVG mockup. Telefon, yazı bloğu pozisyonu görünür.
-function LayoutPreview({ config }: { config: typeof LAYOUT_PRESETS[number]['config'] }) {
+// Önizleme tüm hizalama kombinasyonlarını çizebilmeli — preset literal'lerinin
+// birleşimi değil (o birleşim 'top'+'top' durumunu 'never' yapıyordu)
+type LayoutConfig = {
+  phoneLayout: 'single' | 'duo' | 'trio';
+  textPosition: 'top' | 'bottom';
+  phoneVerticalAlign: 'top' | 'center' | 'bottom';
+  phoneScale: number;
+  phoneTilt: number;
+};
+
+function LayoutPreview({ config }: { config: LayoutConfig }) {
   const W = 60, H = 100;
   const textY = config.textPosition === 'top' ? 6 : H - 16;
 
@@ -302,10 +322,10 @@ function LayoutPreview({ config }: { config: typeof LAYOUT_PRESETS[number]['conf
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto rounded" preserveAspectRatio="xMidYMid meet">
       {/* canvas bg */}
-      <rect width={W} height={H} fill="#f1f1f4" rx={2} />
+      <rect width={W} height={H} className="fill-muted" rx={2} />
       {/* text bars */}
-      <rect x={8} y={textY} width={44} height={3} rx={1} fill="#333" opacity={0.55} />
-      <rect x={8} y={textY + 5} width={32} height={2} rx={1} fill="#333" opacity={0.3} />
+      <rect x={8} y={textY} width={44} height={3} rx={1} className="fill-foreground" opacity={0.55} />
+      <rect x={8} y={textY + 5} width={32} height={2} rx={1} className="fill-foreground" opacity={0.3} />
       {/* phones */}
       {phones.map((p, i) => (
         <g key={i} transform={`rotate(${p.tilt} ${p.cx} ${p.cy})`} opacity={p.opacity}>
@@ -313,8 +333,7 @@ function LayoutPreview({ config }: { config: typeof LAYOUT_PRESETS[number]['conf
             x={p.cx - p.w / 2} y={p.cy - p.h / 2}
             width={p.w} height={p.h}
             rx={2.2}
-            fill="#ffffff"
-            stroke="#1a1a1a"
+            className="fill-background stroke-foreground"
             strokeOpacity={0.7}
             strokeWidth={0.6}
           />
@@ -322,7 +341,7 @@ function LayoutPreview({ config }: { config: typeof LAYOUT_PRESETS[number]['conf
             x={p.cx - p.w / 2 + 1} y={p.cy - p.h / 2 + 1.5}
             width={p.w - 2} height={p.h - 3}
             rx={1.5}
-            fill="#6c5ce7"
+            className="fill-brand"
             opacity={0.28}
           />
         </g>
@@ -364,7 +383,6 @@ const SOLID_COLORS = [
 export default function ScreenshotStudioPage({ params }: { params: Promise<{ id: string; appId: string }> }) {
   const { id: siteId, appId } = use(params);
   const { site } = useSiteContext();
-  const router = useRouter();
 
   const [app, setApp] = useState<any>(null);
   const [appLoading, setAppLoading] = useState(true);
@@ -828,42 +846,58 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
   if (appLoading) return <div className="p-8"><Skeleton className="h-[600px]" /></div>;
 
   return (
-    <div className="h-[calc(100vh-72px)] flex flex-col bg-muted/20">
+    <div className="flex flex-col bg-muted/20 lg:h-[calc(100vh-72px)]">
       {/* TOP BAR */}
       <div className="bg-background border-b px-4 py-3 flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-3">
-          <Button size="sm" variant="ghost" onClick={() => router.push(`/sites/${siteId}/aso`)}>
-            <ArrowLeft className="h-4 w-4 mr-1" /> ASO
+        <div className="flex items-center gap-3 min-w-0">
+          <Button asChild size="sm" variant="ghost">
+            <Link href={`/sites/${siteId}/aso/${appId}/creatives`}>
+              <ArrowLeft className="h-4 w-4" aria-hidden /> Görseller
+            </Link>
           </Button>
           {app?.iconUrl && <img src={app.iconUrl} alt="" className="h-8 w-8 rounded-lg" />}
-          <div>
-            <h1 className="text-sm font-bold">{app?.name} · Screenshot Studio</h1>
-            <p className="text-xs text-muted-foreground">{slotCount} slot · App Store/Play Store dimensions · AI-generated</p>
+          <div className="min-w-0">
+            <h2 className="truncate text-sm font-semibold">{app?.name} · Screenshot Studio</h2>
+            <p className="text-label text-muted-foreground">{slotCount} slot · mağaza boyutları · AI destekli</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <select value={presetId} onChange={e => setPresetId(e.target.value)} className="h-9 px-2 rounded-md border border-input text-sm bg-background">
+        <div className="flex flex-wrap items-center gap-2">
+          <label htmlFor="studio-preset" className="sr-only">Boyut</label>
+          <select id="studio-preset" value={presetId} onChange={e => setPresetId(e.target.value)} className="h-9 max-w-[220px] px-2 rounded-md border border-input text-sm bg-background">
             {PRESETS.map(p => <option key={p.id} value={p.id}>{p.label} · {p.width}×{p.height}</option>)}
           </select>
           <Button size="sm" variant="outline" onClick={() => setShowPreview(true)}>
-            <Eye className="h-4 w-4 mr-1" />
-            Store'da Önizle
+            <Eye className="h-4 w-4" aria-hidden />
+            Mağazada önizle
           </Button>
-          <Button size="sm" variant="outline" onClick={exportPng} disabled={exporting}>
-            <Download className="h-4 w-4 mr-1" />
-            {exporting ? 'İndiriliyor...' : 'Bu slotu indir'}
-          </Button>
-          <Button size="sm" onClick={exportAll} disabled={bulkExporting || bulkExportingAllPresets}>
-            <Download className={`h-4 w-4 mr-1 ${bulkExporting ? 'animate-spin' : ''}`} />
-            {bulkExporting ? 'Render...' : `${slotCount} slotu indir`}
-          </Button>
-          <Button size="sm" variant="default" onClick={exportAllPresets} disabled={bulkExporting || bulkExportingAllPresets} title={`${PRESETS.length} store × ${slotCount} slot = ${PRESETS.length * slotCount} görsel`}>
-            <Download className={`h-4 w-4 mr-1 ${bulkExportingAllPresets ? 'animate-spin' : ''}`} />
-            {bulkExportingAllPresets
-              ? (bulkExportProgress ? `${bulkExportProgress.current}/${bulkExportProgress.total}` : 'Render...')
-              : `Tüm storeları indir (${PRESETS.length}×${slotCount})`}
-          </Button>
+          <DropdownMenu modal={false}>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm" disabled={exporting || bulkExporting || bulkExportingAllPresets}>
+                {exporting || bulkExporting || bulkExportingAllPresets ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Download className="h-4 w-4" aria-hidden />}
+                {bulkExportingAllPresets && bulkExportProgress
+                  ? `${bulkExportProgress.current}/${bulkExportProgress.total}`
+                  : exporting || bulkExporting || bulkExportingAllPresets ? 'Hazırlanıyor…' : 'İndir'}
+                <ChevronDown className="h-3.5 w-3.5 opacity-70" aria-hidden />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent className="min-w-[16rem]">
+              <DropdownMenuItem onSelect={exportPng}>
+                <Download aria-hidden /> Bu slotu indir ({preset.width}×{preset.height})
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={exportAll}>
+                <Download aria-hidden /> {slotCount} slotu indir
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={exportAllPresets}>
+                <Download aria-hidden /> Tüm mağaza boyutları ({PRESETS.length}×{slotCount} = {PRESETS.length * slotCount} görsel)
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
+      </div>
+      <div className="px-4 pt-3 lg:hidden">
+        <StatusBanner tone="info" title="Masaüstü önerilir">
+          Studio geniş ekranda en rahat çalışır. Dar ekranda slotlar üstte yatay, düzenleme paneli tuvalin altında.
+        </StatusBanner>
       </div>
       {bulkExportingAllPresets && bulkExportProgress && (
         <div className="bg-brand/10 border-b border-brand/30 px-4 py-1.5 text-xs flex items-center gap-2">
@@ -879,15 +913,15 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
         </div>
       )}
 
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex flex-1 flex-col lg:flex-row lg:overflow-hidden">
         {/* SLOT NAVIGATOR — her slot için mini Konva render (decorations + phone + text birebir) */}
-        <div className="w-32 bg-background border-r overflow-y-auto p-2 space-y-1">
-          <div className="text-[10px] uppercase tracking-wider text-muted-foreground font-bold mb-2 px-1">{slotCount} SLOT</div>
+        <div className="flex gap-2 overflow-x-auto border-b bg-background p-2 lg:block lg:w-32 lg:shrink-0 lg:space-y-1 lg:overflow-y-auto lg:overflow-x-visible lg:border-b-0 lg:border-r">
+          <div className="mb-2 hidden px-1 text-label uppercase tracking-wider text-muted-foreground lg:block">{slotCount} slot</div>
           {slots.map((s, i) => (
             <button
               key={i}
               onClick={() => setActiveSlot(i)}
-              className={`w-full p-2 rounded border text-left transition-colors ${
+              className={`w-32 shrink-0 lg:w-full p-2 rounded border text-left transition-colors ${
                 activeSlot === i ? 'border-brand bg-brand/10' : 'border-border hover:border-foreground/20'
               }`}
             >
@@ -896,17 +930,17 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                 <ScreenshotStage slot={s} width={preset.width} height={preset.height} viewWidth={104} />
                 {!s.screenshotUrl && (
                   <div className="absolute inset-0 grid place-items-center pointer-events-none">
-                    <span className="text-[7px] text-white/70 bg-black/30 px-1 rounded">No img</span>
+                    <ImageIcon className="h-4 w-4 text-white/70" aria-label="Ekran görüntüsü yok" />
                   </div>
                 )}
               </div>
-              <div className="text-[10px] text-muted-foreground line-clamp-1">{s.hook || 'Boş'}</div>
+              <div className="text-label text-muted-foreground line-clamp-1">{s.hook || 'Boş'}</div>
             </button>
           ))}
         </div>
 
         {/* CANVAS */}
-        <div className="flex-1 grid place-items-center overflow-auto p-6">
+        <div className="grid flex-1 place-items-center overflow-x-auto p-2 sm:p-4 lg:overflow-auto lg:p-6">
           <Card className="shadow-2xl">
             <CardContent className="p-2">
               <ScreenshotStage
@@ -916,22 +950,22 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                 height={preset.height}
                 viewWidth={canvasViewWidth}
               />
-              <div className="text-center text-[10px] text-muted-foreground mt-2">
-                {preset.width}×{preset.height} · Slot {activeSlot + 1}/10
+              <div className="text-center text-label text-muted-foreground mt-2">
+                {preset.width}×{preset.height} · Slot {activeSlot + 1}/{slots.length}
               </div>
             </CardContent>
           </Card>
         </div>
 
         {/* SIDEBAR */}
-        <div className="w-96 bg-background border-l overflow-y-auto">
+        <div className="w-full border-t bg-background lg:w-96 lg:shrink-0 lg:overflow-y-auto lg:border-l lg:border-t-0">
           <div className="border-b grid grid-cols-6 text-xs sticky top-0 bg-background z-10">
             {[
               { id: 'ai', label: 'AI', icon: Sparkles },
               { id: 'templates', label: 'Tema', icon: ImageIcon },
-              { id: 'layout', label: 'Layout', icon: RotateCw },
+              { id: 'layout', label: 'Düzen', icon: RotateCw },
               { id: 'phone', label: 'Telefon', icon: Smartphone },
-              { id: 'background', label: 'BG', icon: Palette },
+              { id: 'background', label: 'Zemin', icon: Palette },
               { id: 'text', label: 'Yazı', icon: Type },
             ].map(t => {
               const Icon = t.icon;
@@ -939,10 +973,11 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                 <button
                   key={t.id}
                   onClick={() => setSidebar(t.id as any)}
+                  aria-pressed={sidebar === t.id}
                   className={`p-2 flex flex-col items-center gap-0.5 border-r last:border-r-0 ${sidebar === t.id ? 'bg-brand/10 text-brand' : 'hover:bg-muted/50'}`}
                 >
                   <Icon className="h-3.5 w-3.5" />
-                  <span className="text-[10px]">{t.label}</span>
+                  <span className="text-label">{t.label}</span>
                 </button>
               );
             })}
@@ -972,7 +1007,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                   {slot.background.type === 'image' && (
                     <button
                       onClick={applyCurrentBackgroundToAllSlots}
-                      className="w-full mt-2 text-[11px] py-1.5 px-2 rounded border border-dashed border-foreground/30 hover:border-brand hover:bg-brand/5 transition-colors flex items-center justify-center gap-1"
+                      className="w-full mt-2 text-label py-1.5 px-2 rounded border border-dashed border-foreground/30 hover:border-brand hover:bg-brand/5 transition-colors flex items-center justify-center gap-1"
                     >
                       <Copy className="h-3 w-3" /> Bu BG'yi {slotCount} slota uygula
                     </button>
@@ -984,17 +1019,17 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                   <div className="border-t pt-3">
                     <div className="flex items-center justify-between mb-2">
                       <h3 className="text-sm font-semibold flex items-center gap-1.5">
-                        <ImageIcon className="h-4 w-4 text-emerald-600" />
+                        <ImageIcon className="h-4 w-4 text-success" />
                         Galeri · {library.length}
                       </h3>
-                      <button onClick={loadLibrary} className="text-[10px] text-muted-foreground hover:text-foreground">
+                      <button onClick={loadLibrary} className="text-label text-muted-foreground hover:text-foreground">
                         Yenile
                       </button>
                     </div>
-                    <p className="text-[10px] text-muted-foreground mb-2">
+                    <p className="text-label text-muted-foreground mb-2">
                       Tıkla = aktif slota uygula · <Copy className="h-2.5 w-2.5 inline" /> ikonu = {slotCount} slota uygula
                     </p>
-                    <div className="grid grid-cols-3 gap-1.5 max-h-[260px] overflow-y-auto">
+                    <div className="grid grid-cols-3 gap-1.5">
                       {library.map(item => {
                         const fullUrl = (process.env.NEXT_PUBLIC_API_URL ?? '') + item.url;
                         return (
@@ -1002,12 +1037,12 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                             <button
                               onClick={() => applyLibraryItem(item)}
                               className="block w-full aspect-[9/19.5] rounded border-2 border-border hover:border-brand overflow-hidden bg-muted"
-                              title={`${item.type === 'hand' ? '🖐️ Hand Photo' : 'Background'} — ${new Date(item.timestamp).toLocaleString('tr-TR')}`}
+                              title={`${item.type === 'hand' ? 'El fotoğrafı' : 'Arka plan'} — ${new Date(item.timestamp).toLocaleString('tr-TR')}`}
                             >
                               <img src={fullUrl} alt="" className="w-full h-full object-cover" loading="lazy" />
                               {item.type === 'hand' && (
-                                <span className="absolute top-1 left-1 text-[8px] bg-purple-600 text-white px-1 py-0.5 rounded">
-                                  🖐️
+                                <span className="absolute top-1 left-1 rounded bg-brand px-1 text-label text-white">
+                                  El
                                 </span>
                               )}
                             </button>
@@ -1020,7 +1055,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                             </button>
                             <button
                               onClick={() => deleteLibraryItem(item.filename)}
-                              className="absolute top-1 right-1 h-5 w-5 rounded bg-rose-600 text-white grid place-items-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-rose-700"
+                              className="absolute top-1 right-1 h-5 w-5 rounded bg-danger text-white grid place-items-center opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity hover:bg-danger/90"
                               title="Sil"
                             >
                               <Trash2 className="h-3 w-3" />
@@ -1043,14 +1078,14 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                     <Sparkles className="h-3.5 w-3.5 text-brand" />
                     <h3 className="text-sm font-semibold">Panorama Setleri</h3>
                   </div>
-                  <p className="text-[11px] text-muted-foreground mb-2 leading-snug">
+                  <p className="text-label text-muted-foreground mb-2 leading-snug">
                     Dekoratif şekiller slot sınırlarını aşar — Vatan/Akakçe stilinde birleşik tasarım.
                   </p>
 
                   {/* Slot sayısı + pattern seçici */}
                   <div className="mb-2.5 rounded border bg-muted/30 p-2">
                     {/* Slot sayısı */}
-                    <label className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1.5 block">
+                    <label className="text-label font-semibold uppercase tracking-wide text-muted-foreground mb-1.5 block">
                       Slot sayısı
                     </label>
                     <div className="grid grid-cols-3 gap-1 mb-2.5">
@@ -1062,8 +1097,8 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                             slotCount === n ? 'bg-brand text-white' : 'bg-background hover:bg-muted border border-border'
                           }`}
                         >
-                          <div className="text-[11px] font-bold leading-tight">{n} slot</div>
-                          <div className={`text-[9px] leading-tight ${slotCount === n ? 'text-white/80' : 'text-muted-foreground'}`}>
+                          <div className="text-label font-bold leading-tight">{n} slot</div>
+                          <div className={`text-label leading-tight ${slotCount === n ? 'text-white/80' : 'text-muted-foreground'}`}>
                             {n === 5 ? 'App Store typical' : n === 8 ? 'Play Store max' : 'Apple max'}
                           </div>
                         </button>
@@ -1071,7 +1106,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                     </div>
 
                     {/* Pattern seçici — slot sayısına göre dinamik preset'ler */}
-                    <label className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1.5 block">
+                    <label className="text-label font-semibold uppercase tracking-wide text-muted-foreground mb-1.5 block">
                       Pattern (toplam {slotCount})
                     </label>
                     <div className="grid grid-cols-2 gap-1 mb-2">
@@ -1106,8 +1141,8 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                               isActive ? 'bg-brand text-white' : 'bg-background hover:bg-muted border border-border'
                             }`}
                           >
-                            <div className="text-[11px] font-bold leading-tight">{opt.label}</div>
-                            <div className={`text-[9px] leading-tight font-mono ${isActive ? 'text-white/80' : 'text-muted-foreground'}`}>
+                            <div className="text-label font-bold leading-tight">{opt.label}</div>
+                            <div className={`text-label leading-tight font-mono ${isActive ? 'text-white/80' : 'text-muted-foreground'}`}>
                               {opt.p.join('-')}
                             </div>
                           </button>
@@ -1117,7 +1152,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
 
                     {/* Custom pattern input */}
                     <details className="mb-2">
-                      <summary className="text-[10px] font-semibold cursor-pointer text-muted-foreground hover:text-foreground">
+                      <summary className="text-label font-semibold cursor-pointer text-muted-foreground hover:text-foreground">
                         Özel pattern yaz (toplam {slotCount} olmalı)
                       </summary>
                       <div className="mt-1.5 flex gap-1">
@@ -1126,7 +1161,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                           placeholder={slotCount === 5 ? '2,1,1,1' : slotCount === 8 ? '2,1,1,1,1,1,1' : '2,1,2,1,1,3'}
                           value={customPatternInput}
                           onChange={e => setCustomPatternInput(e.target.value)}
-                          className="flex-1 px-2 py-1 text-[11px] rounded border border-input bg-background"
+                          className="flex-1 px-2 py-1 text-label rounded border border-input bg-background"
                         />
                         <button
                           onClick={() => {
@@ -1138,7 +1173,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                               toast.error(`Toplam ${slotCount} olmalı (şu an ${sum})`);
                             }
                           }}
-                          className="px-2 py-1 text-[11px] rounded border border-input hover:bg-muted"
+                          className="px-2 py-1 text-label rounded border border-input hover:bg-muted"
                         >
                           Uygula
                         </button>
@@ -1156,7 +1191,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                         />
                       ))}
                     </div>
-                    <p className="text-[10px] text-muted-foreground leading-snug">
+                    <p className="text-label text-muted-foreground leading-snug">
                       Pattern: <span className="font-mono">{panoramaPattern.join('-')}</span>
                       {' · '}
                       {panoramaPattern.filter(s => s > 1).length} panorama,{' '}
@@ -1176,8 +1211,8 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                           <PanoramaPreview theme={t} />
                         </div>
                         <div className="px-2 py-1.5 bg-background">
-                          <div className="text-[11px] font-bold leading-tight">{t.name}</div>
-                          <div className="text-[9px] text-muted-foreground leading-tight mt-0.5 line-clamp-1">{t.description}</div>
+                          <div className="text-label font-bold leading-tight">{t.name}</div>
+                          <div className="text-label text-muted-foreground leading-tight mt-0.5 line-clamp-1">{t.description}</div>
                         </div>
                       </button>
                     ))}
@@ -1194,7 +1229,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                         onClick={() => updateAllSlots({
                           background: t.solid
                             ? { type: 'solid', value: t.solid }
-                            : { type: 'gradient', value: t.gradient },
+                            : { type: 'gradient', value: t.gradient ?? '' },
                           textColor: t.textColor,
                           hookFontSize: t.hookFontSize,
                           textPosition: t.textPosition,
@@ -1205,7 +1240,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                         style={{ background: t.solid ?? t.gradient }}
                       >
                         <div className="absolute inset-0 flex items-center justify-center p-2">
-                          <span className="text-[10px] font-bold text-center leading-tight" style={{ color: t.textColor }}>
+                          <span className="text-label font-bold text-center leading-tight" style={{ color: t.textColor }}>
                             {t.name}
                           </span>
                         </div>
@@ -1224,7 +1259,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                     <Sparkles className="h-4 w-4 text-brand" />
                     <h3 className="text-sm font-semibold">Set Tasarımı (10 Slot Birlikte)</h3>
                   </div>
-                  <p className="text-[11px] text-muted-foreground mb-2 leading-snug">
+                  <p className="text-label text-muted-foreground mb-2 leading-snug">
                     AI bg üret + {slotCount} slota uygula + App Store akışıyla layout dağıt. Tüm slotlar aynı tasarım dünyasında.
                   </p>
                   <div className="grid grid-cols-3 gap-1.5 mb-2">
@@ -1235,7 +1270,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                         variant="outline"
                         onClick={() => generateSetDesign(s)}
                         disabled={generatingBg}
-                        className="text-[11px] h-8"
+                        className="text-label h-8"
                       >
                         {generatingBg ? <Loader2 className="h-3 w-3 animate-spin" /> : s}
                       </Button>
@@ -1244,7 +1279,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                   <button
                     onClick={applyAutoLayout}
                     disabled={generatingBg}
-                    className="w-full text-[11px] py-1.5 px-2 rounded border border-dashed border-foreground/30 hover:border-brand hover:bg-brand/5 transition-colors flex items-center justify-center gap-1 disabled:opacity-50"
+                    className="w-full text-label py-1.5 px-2 rounded border border-dashed border-foreground/30 hover:border-brand hover:bg-brand/5 transition-colors flex items-center justify-center gap-1 disabled:opacity-50"
                   >
                     <Sparkles className="h-3 w-3" /> Sadece layout dağıt (BG'yi koru)
                   </button>
@@ -1271,8 +1306,8 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                           <div className="mb-1.5">
                             <LayoutPreview config={p.config} />
                           </div>
-                          <div className="text-[11px] font-bold leading-tight">{p.name}</div>
-                          <div className="text-[9.5px] text-muted-foreground leading-tight mt-0.5">{p.description}</div>
+                          <div className="text-label font-bold leading-tight">{p.name}</div>
+                          <div className="text-label text-muted-foreground leading-tight mt-0.5">{p.description}</div>
                         </button>
                       );
                     })}
@@ -1333,14 +1368,14 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                 {/* Phone Frame */}
                 <div className="border-t pt-3">
                   <label className="text-xs font-medium mb-1.5 block">Phone Frame</label>
-                  <div className="grid grid-cols-2 gap-1.5 max-h-[200px] overflow-y-auto">
+                  <div className="grid grid-cols-2 gap-1.5">
                     {PHONE_FRAMES.map(f => (
                       <button
                         key={f.id}
                         onClick={() => updateSlot({ phoneFrameId: f.id })}
                         className={`p-2 rounded border text-xs transition-colors text-left ${slot.phoneFrameId === f.id ? 'border-brand bg-brand/5' : 'border-border hover:border-foreground/20'}`}
                       >
-                        <div className="text-[10px] font-medium leading-tight">{f.label}</div>
+                        <div className="text-label font-medium leading-tight">{f.label}</div>
                       </button>
                     ))}
                   </div>
@@ -1357,11 +1392,11 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                         title={opt.description}
                         className={`p-2 rounded border text-xs transition-colors text-center ${(slot.phoneFrameStyle ?? 'solid') === opt.id ? 'border-brand bg-brand/5' : 'border-border hover:border-foreground/20'}`}
                       >
-                        <div className="text-[11px] font-medium">{opt.label}</div>
+                        <div className="text-label font-medium">{opt.label}</div>
                       </button>
                     ))}
                   </div>
-                  <p className="text-[10px] text-muted-foreground mt-1">Glass = şeffaf gövde + glow · Outline = sadece kontur</p>
+                  <p className="text-label text-muted-foreground mt-1">Glass = şeffaf gövde + glow · Outline = sadece kontur</p>
                 </div>
 
                 {/* Screenshot uploads — duo/trio için 3 ayrı upload */}
@@ -1371,7 +1406,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                   {slot.screenshotUrl && (
                     <div className="mt-2 flex items-center gap-2">
                       <img src={slot.screenshotUrl} alt="" className="h-16 rounded border" />
-                      <button onClick={() => updateSlot({ screenshot: undefined, screenshotUrl: undefined })} className="text-xs text-rose-600 hover:underline">
+                      <button onClick={() => updateSlot({ screenshot: undefined, screenshotUrl: undefined })} className="text-xs text-danger hover:underline">
                         Sil
                       </button>
                     </div>
@@ -1384,7 +1419,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                     {slot.screenshot2Url && (
                       <div className="mt-2 flex items-center gap-2">
                         <img src={slot.screenshot2Url} alt="" className="h-16 rounded border" />
-                        <button onClick={() => updateSlot({ screenshot2: undefined, screenshot2Url: undefined })} className="text-xs text-rose-600 hover:underline">
+                        <button onClick={() => updateSlot({ screenshot2: undefined, screenshot2Url: undefined })} className="text-xs text-danger hover:underline">
                           Sil
                         </button>
                       </div>
@@ -1398,7 +1433,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                     {slot.screenshot3Url && (
                       <div className="mt-2 flex items-center gap-2">
                         <img src={slot.screenshot3Url} alt="" className="h-16 rounded border" />
-                        <button onClick={() => updateSlot({ screenshot3: undefined, screenshot3Url: undefined })} className="text-xs text-rose-600 hover:underline">
+                        <button onClick={() => updateSlot({ screenshot3: undefined, screenshot3Url: undefined })} className="text-xs text-danger hover:underline">
                           Sil
                         </button>
                       </div>
@@ -1429,7 +1464,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                   </label>
                   {slot.phoneReflection && (
                     <div>
-                      <label className="text-[10px] text-muted-foreground block">Yansıma yoğunluğu: {slot.phoneReflectionOpacity ?? 40}%</label>
+                      <label className="text-label text-muted-foreground block">Yansıma yoğunluğu: {slot.phoneReflectionOpacity ?? 40}%</label>
                       <input
                         type="range" min="10" max="80" step="5"
                         value={slot.phoneReflectionOpacity ?? 40}
@@ -1438,7 +1473,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                       />
                     </div>
                   )}
-                  <p className="text-[10px] text-muted-foreground">Telefon altında ayna yansıması — premium görünüm için.</p>
+                  <p className="text-label text-muted-foreground">Telefon altında ayna yansıması — premium görünüm için.</p>
                 </div>
 
                 <div>
@@ -1518,7 +1553,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                         background: { type: 'gradient', value: GRADIENTS[0] },
                         backgroundIsHand: false,
                         phoneScale: slot.phoneScale === 0 ? 0.7 : slot.phoneScale,
-                      })} className="text-xs text-rose-600 hover:underline">
+                      })} className="text-xs text-danger hover:underline">
                         Kaldır
                       </button>
                     </div>
@@ -1539,13 +1574,13 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                       <button
                         key={o.id}
                         onClick={() => updateSlot({ bgOverlay: o.id })}
-                        className={`text-[10px] py-1.5 rounded border ${(slot.bgOverlay ?? 'none') === o.id ? 'border-brand bg-brand/5' : 'border-border'}`}
+                        className={`text-label py-1.5 rounded border ${(slot.bgOverlay ?? 'none') === o.id ? 'border-brand bg-brand/5' : 'border-border'}`}
                       >
                         {o.label}
                       </button>
                     ))}
                   </div>
-                  <p className="text-[10px] text-muted-foreground mt-1.5">
+                  <p className="text-label text-muted-foreground mt-1.5">
                     Background image kullandığında yazı netleşmiyor mu? Overlay ekle.
                   </p>
                 </div>
@@ -1599,7 +1634,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                       </option>
                     ))}
                   </select>
-                  <p className="text-[10px] text-muted-foreground mt-0.5">Google Fonts &mdash; Konva canvas'a font yüklenir, PNG'de doğru render edilir.</p>
+                  <p className="text-label text-muted-foreground mt-0.5">Google Fonts &mdash; Konva canvas'a font yüklenir, PNG'de doğru render edilir.</p>
                 </div>
                 <div className="border border-input rounded-md p-2 space-y-2">
                   <label className="flex items-center justify-between text-xs font-medium">
@@ -1617,7 +1652,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                   {slot.textGradient && (
                     <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <label className="text-[10px] text-muted-foreground block">Üst renk</label>
+                        <label className="text-label text-muted-foreground block">Üst renk</label>
                         <input
                           type="color"
                           value={slot.textGradient.from}
@@ -1626,7 +1661,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                         />
                       </div>
                       <div>
-                        <label className="text-[10px] text-muted-foreground block">Alt renk</label>
+                        <label className="text-label text-muted-foreground block">Alt renk</label>
                         <input
                           type="color"
                           value={slot.textGradient.to}
@@ -1644,7 +1679,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                 <div>
                   <label className="text-xs font-medium mb-1 block">Yazı gölgesi: {slot.textShadow ?? 30}%</label>
                   <input type="range" min="0" max="100" step="5" value={slot.textShadow ?? 30} onChange={e => updateSlot({ textShadow: parseInt(e.target.value) })} className="w-full" />
-                  <p className="text-[10px] text-muted-foreground mt-0.5">
+                  <p className="text-label text-muted-foreground mt-0.5">
                     Açık yazı + parlak background'da %50+ ile okunaklılık artar.
                   </p>
                 </div>
@@ -1655,48 +1690,21 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
       </div>
 
       {/* STORE PREVIEW MODAL */}
-      {showPreview && (
-        <div
-          className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-start justify-center p-4 overflow-y-auto"
-          onClick={() => setShowPreview(false)}
-        >
-          <div
-            className="bg-background rounded-2xl max-w-6xl w-full my-6 shadow-2xl"
-            onClick={e => e.stopPropagation()}
-          >
-            {/* Modal header */}
-            <div className="sticky top-0 z-10 bg-background rounded-t-2xl border-b px-6 py-4 flex items-center justify-between gap-4 flex-wrap">
+      <Dialog open={showPreview} onOpenChange={setShowPreview}>
+        <DialogContent size="xl" className="max-w-6xl">
+            <DialogHeader className="flex flex-wrap items-center justify-between gap-4 space-y-0">
               <div className="flex items-center gap-3 min-w-0">
                 {app?.iconUrl && <img src={app.iconUrl} alt="" className="h-12 w-12 rounded-xl shadow shrink-0" />}
                 <div className="min-w-0">
-                  <h2 className="text-base font-bold truncate">{app?.name ?? 'App'} · Store Önizleme</h2>
-                  <p className="text-xs text-muted-foreground">Yayınlamadan önce nasıl gözüktüğünü gör</p>
+                  <DialogTitle className="truncate">{app?.name ?? 'Uygulama'} · mağaza önizlemesi</DialogTitle>
+                  <DialogDescription>Yayınlamadan önce nasıl göründüğünü gör.</DialogDescription>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <div className="flex border rounded-md overflow-hidden h-9">
-                  <button
-                    onClick={() => setPreviewStore('IOS')}
-                    className={`px-3 text-xs font-medium ${previewStore === 'IOS' ? 'bg-brand text-white' : 'bg-background hover:bg-muted'}`}
-                  >
-                    iOS App Store
-                  </button>
-                  <button
-                    onClick={() => setPreviewStore('ANDROID')}
-                    className={`px-3 text-xs font-medium ${previewStore === 'ANDROID' ? 'bg-brand text-white' : 'bg-background hover:bg-muted'}`}
-                  >
-                    Play Store
-                  </button>
-                </div>
-                <button
-                  onClick={() => setShowPreview(false)}
-                  className="h-9 w-9 rounded-md border hover:bg-muted grid place-items-center"
-                  title="Kapat"
-                >
-                  <XIcon className="h-4 w-4" />
-                </button>
+              <div className="flex items-center gap-1.5" role="group" aria-label="Mağaza">
+                <FilterChip selected={previewStore === 'IOS'} onClick={() => setPreviewStore('IOS')}>App Store</FilterChip>
+                <FilterChip selected={previewStore === 'ANDROID'} onClick={() => setPreviewStore('ANDROID')}>Google Play</FilterChip>
               </div>
-            </div>
+            </DialogHeader>
 
             <div className="p-6 space-y-6">
               {/* Store-style app header card */}
@@ -1727,15 +1735,16 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                             <div className="text-xs text-muted-foreground">
                               {rating ? (
                                 <span className="flex items-center gap-1">
-                                  <Star className="h-3 w-3 fill-amber-500 text-amber-500" />
+                                  <Star className="h-3 w-3 fill-warning text-warning" />
                                   <span className="font-semibold text-foreground">{Number(rating).toFixed(1)}</span>
                                   {ratingCount && <span>· {Number(ratingCount).toLocaleString('tr-TR')}</span>}
                                 </span>
                               ) : 'Yeni'}
                             </div>
-                            <button className="px-4 py-1 rounded-full bg-blue-600 text-white text-xs font-semibold">
+                            {/* Mağaza taklidi — App Store "Edin" düğmesinin kendi rengi bilinçli; tıklanmaz */}
+                            <span aria-hidden className="px-4 py-1 rounded-full bg-blue-600 text-white text-xs font-semibold">
                               EDİN
-                            </button>
+                            </span>
                           </div>
                         </div>
                       </div>
@@ -1767,8 +1776,8 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                       </div>
                     </div>
                     <div className="mt-4 flex gap-2">
-                      <button className="flex-1 py-2 rounded-md bg-emerald-600 text-white text-sm font-semibold">Yükle</button>
-                      <button className="px-4 py-2 rounded-md border text-sm">Liste</button>
+                      <span aria-hidden className="flex-1 py-2 rounded-md bg-emerald-600 text-center text-white text-sm font-semibold">Yükle</span>
+                      <span aria-hidden className="px-4 py-2 rounded-md border text-sm">Liste</span>
                     </div>
                   </div>
                 );
@@ -1796,7 +1805,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                     })}
                   </div>
                 </div>
-                <p className="text-[11px] text-muted-foreground mt-1">Soldan sağa kaydır — 10 slot arka arkaya gösterilir, kullanıcı app sayfasında bu sırada görür.</p>
+                <p className="text-label text-muted-foreground mt-1">Soldan sağa kaydır — {slots.length} slot kullanıcının uygulama sayfasında bu sırayla görünür.</p>
               </div>
 
               {/* Description preview */}
@@ -1810,7 +1819,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                     <h3 className="text-sm font-semibold mb-2 flex items-center gap-2">
                       <Type className="h-4 w-4" /> Açıklama (ilk paragraf)
                     </h3>
-                    <div className="rounded-lg border p-4 text-sm leading-relaxed whitespace-pre-wrap max-h-40 overflow-y-auto">
+                    <div className="rounded-lg border p-4 text-sm leading-relaxed whitespace-pre-wrap">
                       {displayDesc.slice(0, 350)}{displayDesc.length > 350 ? '…' : ''}
                     </div>
                   </div>
@@ -1821,48 +1830,48 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
               <div className="border-t pt-6">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="text-sm font-semibold flex items-center gap-2">
-                    <AlertCircle className="h-4 w-4 text-amber-500" /> Analiz · Eksikler & Sorunlar
+                    <AlertCircle className="h-4 w-4 text-warning" /> Analiz · eksikler ve sorunlar
                   </h3>
                   <Button size="sm" onClick={aiOptimizeMetadata} disabled={optimizing}>
                     <Wand2 className={`h-3.5 w-3.5 mr-1 ${optimizing ? 'animate-spin' : ''}`} />
-                    {optimizing ? 'AI çalışıyor...' : 'AI ile Düzelt'}
+                    {optimizing ? 'AI çalışıyor…' : 'AI ile düzelt'}
                   </Button>
                 </div>
 
                 {auditLoading && (
                   <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
-                    <Loader2 className="h-4 w-4 animate-spin" /> Audit yükleniyor…
+                    <Loader2 className="h-4 w-4 animate-spin" /> Denetim yükleniyor…
                   </div>
                 )}
 
                 {!auditLoading && audit && (
-                  <div className="space-y-2 max-h-64 overflow-y-auto">
+                  <div className="space-y-2">
                     {audit.findings
                       .filter(f => f.store === previewStore || f.store === 'BOTH')
                       .filter(f => f.severity !== 'ok')
                       .map((f, i) => {
-                        const color = f.severity === 'error' ? 'border-rose-300 bg-rose-50 dark:bg-rose-950/30'
-                                    : f.severity === 'warning' ? 'border-amber-300 bg-amber-50 dark:bg-amber-950/30'
-                                    : 'border-blue-300 bg-blue-50 dark:bg-blue-950/30';
+                        const color = f.severity === 'error' ? 'border-danger/30 bg-danger/5'
+                                    : f.severity === 'warning' ? 'border-warning/30 bg-warning/5'
+                                    : 'border-info/25 bg-info/5';
                         return (
                           <div key={i} className={`rounded-lg border ${color} p-3`}>
                             <div className="flex items-start gap-2">
                               {f.severity === 'error'
-                                ? <AlertCircle className="h-4 w-4 text-rose-600 shrink-0 mt-0.5" />
-                                : <AlertCircle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                                ? <AlertCircle className="h-4 w-4 text-danger shrink-0 mt-0.5" />
+                                : <AlertCircle className="h-4 w-4 text-warning shrink-0 mt-0.5" />
                               }
                               <div className="flex-1 min-w-0">
                                 <div className="text-xs font-semibold">{f.label} <span className="text-muted-foreground font-normal">({String(f.current)})</span></div>
                                 {f.message && <div className="text-xs text-muted-foreground mt-0.5">{f.message}</div>}
-                                {f.recommendation && <div className="text-[11px] mt-1 opacity-80">{f.recommendation}</div>}
+                                {f.recommendation && <div className="text-label mt-1 opacity-80">{f.recommendation}</div>}
                               </div>
                             </div>
                           </div>
                         );
                       })}
                     {audit.findings.filter(f => (f.store === previewStore || f.store === 'BOTH') && f.severity !== 'ok').length === 0 && (
-                      <div className="rounded-lg border border-emerald-300 bg-emerald-50 dark:bg-emerald-950/30 p-3 text-sm flex items-center gap-2">
-                        <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                      <div className="rounded-lg border border-success/30 bg-success/5 p-3 text-sm flex items-center gap-2">
+                        <CheckCircle2 className="h-4 w-4 text-success" />
                         Tüm metadata alanları temiz görünüyor.
                       </div>
                     )}
@@ -1874,60 +1883,59 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                   <div className="mt-4 rounded-lg border-2 border-brand bg-brand/5 p-4">
                     <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
                       <div className="text-xs font-bold flex items-center gap-1.5">
-                        <Sparkles className="h-3.5 w-3.5 text-brand" /> AI Önerisi (önizleme yukarıda güncellendi)
+                        <Sparkles className="h-3.5 w-3.5 text-brand" /> AI önerisi (önizleme yukarıda güncellendi)
                       </div>
                       <div className="flex items-center gap-2">
                         <Button
                           size="sm"
                           variant="outline"
-                          className="h-7 text-[11px]"
+                          className="h-7 text-label"
                           onClick={() => {
                             const fields = [
-                              aiSuggestion.title && `Title (${aiSuggestion.title.length}/30):\n${aiSuggestion.title}`,
-                              aiSuggestion.subtitle && `Subtitle (${aiSuggestion.subtitle.length}/30):\n${aiSuggestion.subtitle}`,
-                              aiSuggestion.keywords && `Keywords (${aiSuggestion.keywords.length}/100):\n${aiSuggestion.keywords}`,
-                              aiSuggestion.promotionalText && `Promotional Text (${aiSuggestion.promotionalText.length}/170):\n${aiSuggestion.promotionalText}`,
-                              aiSuggestion.description && `Description (${aiSuggestion.description.length}/4000):\n${aiSuggestion.description}`,
+                              aiSuggestion.title && `Ad (${aiSuggestion.title.length}/30):\n${aiSuggestion.title}`,
+                              aiSuggestion.subtitle && `Alt başlık (${aiSuggestion.subtitle.length}/30):\n${aiSuggestion.subtitle}`,
+                              aiSuggestion.keywords && `Anahtar kelimeler (${aiSuggestion.keywords.length}/100):\n${aiSuggestion.keywords}`,
+                              aiSuggestion.promotionalText && `Promosyon metni (${aiSuggestion.promotionalText.length}/170):\n${aiSuggestion.promotionalText}`,
+                              aiSuggestion.description && `Açıklama (${aiSuggestion.description.length}/4000):\n${aiSuggestion.description}`,
                             ].filter(Boolean).join('\n\n');
                             navigator.clipboard.writeText(fields).then(() => toast.success('Tüm öneriler panoya kopyalandı'));
                           }}
                         >
-                          <Copy className="h-3 w-3 mr-1" /> Tümünü Kopyala
+                          <Copy className="h-3 w-3" /> Tümünü kopyala
                         </Button>
-                        <button onClick={() => setAiSuggestion(null)} className="text-[11px] text-muted-foreground hover:text-foreground">
-                          Geri Al
+                        <button onClick={() => setAiSuggestion(null)} className="text-label text-muted-foreground hover:text-foreground">
+                          Öneriyi kaldır
                         </button>
                       </div>
                     </div>
 
                     <div className="space-y-2 text-xs">
                       {aiSuggestion.title && (
-                        <SuggestionField label="Title" value={aiSuggestion.title} limit={30} />
+                        <SuggestionField label="Ad" value={aiSuggestion.title} limit={30} />
                       )}
                       {aiSuggestion.subtitle && (
-                        <SuggestionField label="Subtitle" value={aiSuggestion.subtitle} limit={30} />
+                        <SuggestionField label="Alt başlık" value={aiSuggestion.subtitle} limit={30} />
                       )}
                       {aiSuggestion.keywords && (
-                        <SuggestionField label="Keywords" value={aiSuggestion.keywords} limit={100} />
+                        <SuggestionField label="Anahtar kelimeler" value={aiSuggestion.keywords} limit={100} />
                       )}
                       {aiSuggestion.promotionalText && (
-                        <SuggestionField label="Promotional Text" value={aiSuggestion.promotionalText} limit={170} />
+                        <SuggestionField label="Promosyon metni" value={aiSuggestion.promotionalText} limit={170} />
                       )}
                       {aiSuggestion.description && (
-                        <SuggestionField label="Description" value={aiSuggestion.description} limit={4000} multiline />
+                        <SuggestionField label="Açıklama" value={aiSuggestion.description} limit={4000} multiline />
                       )}
                     </div>
 
-                    <p className="text-[10px] text-muted-foreground mt-3">
-                      Kaydetmek için kopyala → App Store Connect / Play Console / ASO sayfasındaki metadata editörüne yapıştır.
+                    <p className="text-label text-muted-foreground mt-3">
+                      Kaydetmek için kopyala → App Store Connect / Play Console ya da uygulamanın Metadata sekmesindeki editöre yapıştır.
                     </p>
                   </div>
                 )}
               </div>
             </div>
-          </div>
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

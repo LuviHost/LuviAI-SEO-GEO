@@ -8,9 +8,10 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { api } from '@/lib/api';
+import { SectionHeader } from '@/components/ui/section-header';
 import { cn } from '@/lib/utils';
 import {
-  ArrowLeft, Smartphone, Sparkles, Plus, Loader2, Play, Trash2,
+  Sparkles, Plus, Loader2, Play, Trash2,
   Check, X, Wand2, PackageOpen, Copy,
 } from 'lucide-react';
 
@@ -118,22 +119,12 @@ export default function AppAiVisibilityPage() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <Link href={`/sites/${siteId}/aso` as any} className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1">
-          <ArrowLeft className="h-4 w-4" /> ASO
-        </Link>
-        <div className="flex items-start gap-3 mt-3">
-          <div className="h-10 w-10 rounded-xl bg-violet-500/10 text-violet-600 dark:text-violet-400 grid place-items-center">
-            <Smartphone className="h-5 w-5" />
-          </div>
-          <div>
-            <h2 className="text-2xl font-bold">App AI Görünürlük</h2>
-            <p className="text-sm text-muted-foreground">
-              Kullanıcılar app tavsiyesini artık ChatGPT'ye soruyor. "En iyi X uygulaması" sorularında <strong>senin app'in</strong> öneriliyor mu — 7 AI sağlayıcıda ölç.
-            </p>
-          </div>
-        </div>
-      </div>
+      <SectionHeader
+        as="h3"
+        icon={Sparkles}
+        title="AI görünürlük"
+        description={<>Kullanıcılar uygulama tavsiyesini artık ChatGPT&apos;ye soruyor. &quot;En iyi X uygulaması&quot; sorularında uygulaman öneriliyor mu — 7 AI sağlayıcıda ölç.</>}
+      />
 
       {/* Soru ekleme */}
       <Card>
@@ -172,20 +163,15 @@ export default function AppAiVisibilityPage() {
               <CardContent className="p-3.5 flex items-center gap-3 flex-wrap">
                 <div className="flex-1 min-w-[200px]">
                   <div className="text-sm font-medium">"{p.text}"</div>
-                  <div className="text-[11px] text-muted-foreground mt-0.5">
+                  <div className="text-label text-muted-foreground mt-0.5">
                     {p.lastRunAt
                       ? <>Son ölçüm: {new Date(p.lastRunAt).toLocaleDateString('tr-TR')} · store linki {p.lastLinkedCount}/{p.lastTotalCount}</>
                       : 'Henüz ölçülmedi'}
-                    {p.source === 'suggested' && <Badge variant="outline" className="ml-2 text-[9px]">AI önerdi</Badge>}
+                    {p.source === 'suggested' && <Badge variant="outline" className="ml-2 text-label">AI önerdi</Badge>}
                   </div>
                 </div>
                 {p.lastScore !== null && (
-                  <Badge variant="outline" className={cn(
-                    'text-[10px]',
-                    p.lastScore >= 50 ? 'bg-emerald-500/10 text-emerald-600 border-emerald-500/30'
-                    : p.lastScore > 0 ? 'bg-amber-500/10 text-amber-600 border-amber-500/30'
-                    : 'bg-red-500/10 text-red-600 border-red-500/30',
-                  )}>
+                  <Badge variant={p.lastScore >= 50 ? 'success' : p.lastScore > 0 ? 'warning' : 'danger'} className="px-2 text-label">
                     %{p.lastScore}
                   </Badge>
                 )}
@@ -220,17 +206,17 @@ export default function AppAiVisibilityPage() {
                   <div className="flex items-center justify-between mb-1.5">
                     <span className="text-xs font-semibold">{pr.label}</span>
                     <div className="flex gap-1.5">
-                      <Badge variant="outline" className={cn('text-[9px]', pr.appMentioned ? 'bg-emerald-500/10 text-emerald-600' : 'bg-red-500/10 text-red-600')}>
+                      <Badge variant={pr.appMentioned ? 'success' : 'danger'} className="px-1.5 text-label">
                         {pr.appMentioned ? <Check className="h-2.5 w-2.5 mr-0.5" /> : <X className="h-2.5 w-2.5 mr-0.5" />} anıldı
                       </Badge>
-                      <Badge variant="outline" className={cn('text-[9px]', pr.storeLinked ? 'bg-emerald-500/10 text-emerald-600' : 'bg-zinc-500/10 text-zinc-500')}>
+                      <Badge variant={pr.storeLinked ? 'success' : 'secondary'} className="px-1.5 text-label">
                         {pr.storeLinked ? <Check className="h-2.5 w-2.5 mr-0.5" /> : <X className="h-2.5 w-2.5 mr-0.5" />} link
                       </Badge>
                     </div>
                   </div>
                   {pr.available
-                    ? <p className="text-[11px] text-muted-foreground line-clamp-4">{pr.excerpt}</p>
-                    : <p className="text-[11px] text-muted-foreground">Kullanılamadı: {pr.reason ?? 'anahtar yok'}</p>}
+                    ? <p className="text-label text-muted-foreground line-clamp-4">{pr.excerpt}</p>
+                    : <p className="text-label text-muted-foreground">Kullanılamadı: {pr.reason ?? 'anahtar yok'}</p>}
                 </div>
               ))}
             </div>
@@ -258,7 +244,7 @@ export default function AppAiVisibilityPage() {
 
           {pack && (
             <div className="space-y-3 pt-2 border-t">
-              <div className="text-[11px] text-muted-foreground">
+              <div className="text-label text-muted-foreground">
                 {pack.basedOn.negativeCount} yorum · temalar: {pack.basedOn.themes.map((t: any) => `${t.theme}(${t.count})`).join(', ') || '—'}
               </div>
 
@@ -297,7 +283,7 @@ export default function AppAiVisibilityPage() {
                       <Sparkles className="h-3 w-3 text-brand shrink-0" />
                       <span className="flex-1">{t.title}</span>
                       {t.opportunityId && (
-                        <Link href={`/sites/${siteId}/opportunities` as any} className="text-brand underline text-[10px] shrink-0">
+                        <Link href={`/sites/${siteId}/opportunities` as any} className="text-brand underline text-label shrink-0">
                           Fırsatlarda →
                         </Link>
                       )}

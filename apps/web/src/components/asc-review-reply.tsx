@@ -102,7 +102,7 @@ export function AscReviewReply({
             {drafting ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Sparkles className="h-3 w-3 mr-1" />} AI taslak
           </Button>
           {report && (
-            <p className="text-xs text-amber-700 dark:text-amber-400">
+            <p className="text-xs text-warning">
               {report}. Yanıtlamak yerine App Store Connect&apos;te yorumun altındaki &quot;Report a Concern&quot; ile bildir.
             </p>
           )}
@@ -114,7 +114,7 @@ export function AscReviewReply({
           />
           <div className="flex items-center justify-between text-label text-muted-foreground">
             <span>{len}/{MAX}</span>
-            {placeholders.length > 0 && <span className="text-rose-600">Doldurulmamış yer tutucu: {placeholders.join(', ')}</span>}
+            {placeholders.length > 0 && <span className="text-danger">Doldurulmamış yer tutucu: {placeholders.join(', ')}</span>}
           </div>
           <label className="flex items-start gap-2 text-xs">
             <input type="checkbox" checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)} className="mt-0.5" />

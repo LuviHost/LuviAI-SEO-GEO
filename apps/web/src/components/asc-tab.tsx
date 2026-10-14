@@ -3,17 +3,32 @@
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import {
-  Link2, Unlink, RefreshCw, AlertCircle, Loader2, ExternalLink,
-  Star, MessageSquare, Package, AlertTriangle, CheckCircle2, X, Send, FileText, Images,
+  AlertCircle, CheckCircle2, ExternalLink, FileText, Images, KeyRound, Loader2, MessageSquare, Package,
+  RefreshCw, Star, Unlink, X,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
+import { StatusBanner } from '@/components/ui/status-banner';
+import { useConfirm } from '@/components/ui/confirm-dialog';
+import {
+  Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from '@/components/ui/dialog';
 import { AscMetadataPanel } from '@/components/asc-metadata-panel';
 import { AscScreenshotsPanel } from '@/components/asc-screenshots-panel';
 import { AscReviewReply } from '@/components/asc-review-reply';
+import { cn } from '@/lib/utils';
+
+/**
+ * App Store Connect — site düzeyi hesap bağlantısı (/aso/connect).
+ * Eskiden tek bir uygulamanın modalının sekmesiydi; artık site genelinde
+ * ayrı sayfa. Uygulama görünümü yalnız eşleşen ASC uygulamasının panellerini
+ * (metadata, ekran görüntüleri, yorumlar) kullanır.
+ */
 
 interface Account {
   id: string;
@@ -31,13 +46,16 @@ interface Alert {
   app: { name: string; appleAppId: string };
 }
 
+type PanelKind = 'reviews' | 'metadata' | 'screenshots';
+
 export function AscTab({ siteId }: { siteId: string }) {
+  const confirm = useConfirm();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [loading, setLoading] = useState(true);
   const [showConnect, setShowConnect] = useState(false);
-  const [openPanel, setOpenPanel] = useState<{ appId: string; kind: 'reviews' | 'metadata' | 'screenshots' } | null>(null);
-  const toggle = (appId: string, kind: 'reviews' | 'metadata' | 'screenshots') =>
+  const [openPanel, setOpenPanel] = useState<{ appId: string; kind: PanelKind } | null>(null);
+  const toggle = (appId: string, kind: PanelKind) =>
     setOpenPanel(openPanel?.appId === appId && openPanel.kind === kind ? null : { appId, kind });
 
   const refresh = async () => {
@@ -56,142 +74,148 @@ export function AscTab({ siteId }: { siteId: string }) {
     }
   };
 
-  useEffect(() => { refresh(); }, [siteId]);
+  useEffect(() => { refresh(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [siteId]);
+
+  const disconnect = async (acc: Account) => {
+    const ok = await confirm({
+      title: 'App Store Connect bağlantısı kaldırılsın mı?',
+      description: 'Apple tarafında hiçbir şey silinmez; yalnız RanksUp bağlantısı kesilir.',
+      confirmLabel: 'Bağlantıyı kaldır',
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      await api.disconnectAsc(acc.id);
+      toast.success('Bağlantı kaldırıldı');
+      refresh();
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  };
+
+  const sync = async (acc: Account) => {
+    try {
+      const r = await api.syncAscApps(acc.id);
+      toast.success(`${r.synced} uygulama eşitlendi`);
+      refresh();
+    } catch (err: any) {
+      toast.error(err.message);
+    }
+  };
 
   if (loading) {
-    return (
-      <div className="rounded-xl border bg-card p-8 grid place-items-center">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-      </div>
-    );
+    return <div className="space-y-3" aria-busy="true"><Skeleton className="h-24" /><Skeleton className="h-40" /></div>;
   }
 
   if (accounts.length === 0) {
     return (
       <>
-        <ConnectScreen onConnect={() => setShowConnect(true)} />
-        {showConnect && <ConnectModal siteId={siteId} onClose={() => setShowConnect(false)} onSuccess={() => { setShowConnect(false); refresh(); }} />}
+        <AscConnectScreen onConnect={() => setShowConnect(true)} />
+        <AscConnectDialog siteId={siteId} open={showConnect} onOpenChange={setShowConnect} onSuccess={() => { setShowConnect(false); refresh(); }} />
       </>
     );
   }
 
   return (
     <div className="space-y-5">
-      {/* Alerts banner */}
       {alerts.length > 0 && (
-        <div className="rounded-xl border-2 border-amber-500/40 bg-amber-50/50 dark:bg-amber-950/20 p-4 space-y-2">
-          <div className="flex items-center gap-2">
-            <AlertTriangle className="h-4 w-4 text-amber-600" />
-            <span className="text-sm font-bold">{alerts.length} aktif uyarı</span>
-          </div>
-          {alerts.slice(0, 3).map((a) => (
-            <div key={a.id} className="text-xs flex items-start gap-2">
-              <span className={`shrink-0 text-[9px] font-bold px-1.5 py-0.5 rounded ${a.severity === 'CRITICAL' ? 'bg-rose-500/15 text-rose-700' : 'bg-amber-500/15 text-amber-700'}`}>
-                {a.severity}
-              </span>
-              <div className="flex-1">
-                <span className="font-semibold">{a.app.name}:</span> {a.message}
-              </div>
-              <button
-                onClick={async () => { await api.acknowledgeAscAlert(a.id); refresh(); }}
-                className="text-muted-foreground hover:text-foreground shrink-0"
-                title="Onayla"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          ))}
-        </div>
+        <StatusBanner tone="warning" title={`${alerts.length} aktif uyarı`}>
+          <ul className="mt-1 space-y-1.5">
+            {alerts.slice(0, 3).map((a) => (
+              <li key={a.id} className="flex items-start gap-2">
+                <Badge variant={a.severity === 'CRITICAL' ? 'danger' : 'warning'} className="shrink-0 px-1.5 text-label">
+                  {a.severity === 'CRITICAL' ? 'Kritik' : 'Uyarı'}
+                </Badge>
+                <span className="flex-1 text-foreground"><span className="font-medium">{a.app.name}:</span> {a.message}</span>
+                <button
+                  type="button"
+                  onClick={async () => { await api.acknowledgeAscAlert(a.id); refresh(); }}
+                  className="shrink-0 rounded p-0.5 text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand"
+                  aria-label="Uyarıyı kapat"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </StatusBanner>
       )}
 
-      {/* Accounts */}
       <div className="space-y-3">
         {accounts.map((acc) => (
           <Card key={acc.id}>
-            <CardContent className="p-4 space-y-3">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-start gap-3 min-w-0 flex-1">
-                  <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-blue-500/15 to-blue-600/10 grid place-items-center shrink-0">
-                    <Link2 className="h-4 w-4 text-blue-600" />
-                  </div>
+            <CardContent className="space-y-3 p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="flex min-w-0 flex-1 items-start gap-3">
+                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-brand/10 text-brand" aria-hidden>
+                    <KeyRound className="h-4 w-4" />
+                  </span>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-bold">App Store Connect</span>
-                      <Badge variant="outline" className="text-[10px]">Aktif</Badge>
+                      <span className="text-sm font-semibold">App Store Connect</span>
+                      <Badge variant="success" className="px-2 text-label">Aktif</Badge>
                     </div>
-                    <p className="text-[11px] text-muted-foreground font-mono mt-0.5">Issuer: {acc.issuerId.slice(0, 8)}… · Key: {acc.keyId.slice(0, 8)}…</p>
-                    <p className="text-[11px] text-muted-foreground mt-0.5">{acc.apps.length} app · son sync: {acc.lastSyncAt ? new Date(acc.lastSyncAt).toLocaleString('tr-TR') : 'henüz yok'}</p>
+                    <p className="mt-0.5 font-mono text-label text-muted-foreground">Issuer: {acc.issuerId.slice(0, 8)}… · Anahtar: {acc.keyId.slice(0, 8)}…</p>
+                    <p className="mt-0.5 text-label text-muted-foreground">
+                      {acc.apps.length} uygulama · son eşitleme: {acc.lastSyncAt ? new Date(acc.lastSyncAt).toLocaleString('tr-TR') : 'henüz yok'}
+                    </p>
                     {acc.lastError && (
-                      <p className="text-[11px] text-rose-600 dark:text-rose-400 mt-1 flex items-center gap-1">
-                        <AlertCircle className="h-3 w-3" /> {acc.lastError.slice(0, 120)}
+                      <p className="mt-1 flex items-center gap-1 text-label text-danger">
+                        <AlertCircle className="h-3 w-3" aria-hidden /> {acc.lastError.slice(0, 120)}
                       </p>
                     )}
                   </div>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={async () => {
-                      try {
-                        const r = await api.syncAscApps(acc.id);
-                        toast.success(`${r.synced} app sync edildi`);
-                        refresh();
-                      } catch (err: any) {
-                        toast.error(err.message);
-                      }
-                    }}
-                  >
-                    <RefreshCw className="h-3.5 w-3.5 mr-1" /> Sync
+                  <Button size="sm" variant="outline" onClick={() => sync(acc)}>
+                    <RefreshCw className="h-3.5 w-3.5" aria-hidden /> Eşitle
                   </Button>
-                  <button
-                    onClick={async () => {
-                      if (!confirm('ASC bağlantısı kaldırılsın mı?')) return;
-                      await api.disconnectAsc(acc.id);
-                      toast.success('Kaldırıldı');
-                      refresh();
-                    }}
-                    className="h-8 w-8 grid place-items-center rounded hover:bg-rose-500/10 text-rose-500"
-                  >
+                  <Button size="sm" variant="ghost" className="w-9 px-0 text-danger hover:bg-danger/10" onClick={() => disconnect(acc)} aria-label="Bağlantıyı kaldır">
                     <Unlink className="h-4 w-4" />
-                  </button>
+                  </Button>
                 </div>
               </div>
 
-              {/* Apps */}
               {acc.apps.length === 0 ? (
-                <p className="text-xs text-muted-foreground italic">App bulunamadı — "Sync" ile çek.</p>
+                <p className="text-sm text-muted-foreground">Uygulama bulunamadı — "Eşitle" ile çek.</p>
               ) : (
-                <div className="space-y-2 pl-12">
+                <ul className="space-y-2 sm:pl-12">
                   {acc.apps.map((app) => (
-                    <div key={app.id} className="rounded-lg border bg-background p-3">
-                      <div className="flex items-center justify-between gap-2">
+                    <li key={app.id} className="rounded-lg border bg-background p-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2">
-                            <Package className="h-3.5 w-3.5 text-blue-600 shrink-0" />
-                            <span className="text-sm font-semibold truncate">{app.name}</span>
-                            {app.latestVersion && <Badge variant="outline" className="text-[10px]">v{app.latestVersion}</Badge>}
+                            <Package className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
+                            <span className="truncate text-sm font-semibold">{app.name}</span>
+                            {app.latestVersion && <Badge variant="outline" className="px-1.5 text-label">v{app.latestVersion}</Badge>}
                           </div>
-                          <p className="text-[10px] text-muted-foreground font-mono mt-0.5">{app.bundleId} · {app.appleAppId}</p>
+                          <p className="mt-0.5 font-mono text-label text-muted-foreground">{app.bundleId} · {app.appleAppId}</p>
                         </div>
-                        <div className="flex gap-1">
-                          <Button size="sm" variant="outline" className="h-7 text-label" onClick={() => toggle(app.id, 'metadata')}>
-                            <FileText className="h-3 w-3 mr-1" /> Metadata
-                          </Button>
-                          <Button size="sm" variant="outline" className="h-7 text-label" onClick={() => toggle(app.id, 'screenshots')}>
-                            <Images className="h-3 w-3 mr-1" /> Ekran görüntüleri
-                          </Button>
-                          <Button size="sm" variant="outline" className="h-7 text-label" onClick={() => toggle(app.id, 'reviews')}>
-                            <MessageSquare className="h-3 w-3 mr-1" /> Yorumlar
-                          </Button>
+                        <div className="flex flex-wrap gap-1">
+                          {([
+                            ['metadata', FileText, 'Metadata'],
+                            ['screenshots', Images, 'Ekran görüntüleri'],
+                            ['reviews', MessageSquare, 'Yorumlar'],
+                          ] as const).map(([kind, Icon, label]) => (
+                            <Button
+                              key={kind}
+                              size="sm"
+                              variant={openPanel?.appId === app.id && openPanel.kind === kind ? 'secondary' : 'outline'}
+                              className="h-8 text-label"
+                              aria-expanded={openPanel?.appId === app.id && openPanel.kind === kind}
+                              onClick={() => toggle(app.id, kind)}
+                            >
+                              <Icon className="h-3.5 w-3.5" aria-hidden /> {label}
+                            </Button>
+                          ))}
                         </div>
                       </div>
-                      {openPanel?.appId === app.id && openPanel.kind === 'reviews' && <AppReviewsPanel appId={app.id} />}
+                      {openPanel?.appId === app.id && openPanel.kind === 'reviews' && <AscReviewsPanel ascAppId={app.id} />}
                       {openPanel?.appId === app.id && openPanel.kind === 'metadata' && <AscMetadataPanel siteId={siteId} ascAppId={app.id} />}
                       {openPanel?.appId === app.id && openPanel.kind === 'screenshots' && <AscScreenshotsPanel siteId={siteId} ascAppId={app.id} />}
-                    </div>
+                    </li>
                   ))}
-                </div>
+                </ul>
               )}
             </CardContent>
           </Card>
@@ -201,89 +225,109 @@ export function AscTab({ siteId }: { siteId: string }) {
   );
 }
 
-function AppReviewsPanel({ appId }: { appId: string }) {
+/**
+ * Bir ASC uygulamasının yorumları + yanıt (AI taslak, insan düzenler).
+ * Kendi kaydırıcısı yok — sayfa kayar; uzun listede "daha fazla" ile açılır.
+ */
+export function AscReviewsPanel({ ascAppId, className }: { ascAppId: string; className?: string }) {
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<unknown>(null);
   const [data, setData] = useState<any>(null);
+  const [limit, setLimit] = useState(10);
 
   const loadReviews = () => {
     setLoading(true);
-    api.fetchAscReviews(appId)
+    setError(null);
+    api.fetchAscReviews(ascAppId)
       .then(setData)
-      .catch((err) => toast.error(err.message))
+      .catch((err) => setError(err))
       .finally(() => setLoading(false));
   };
-  useEffect(loadReviews, [appId]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(loadReviews, [ascAppId]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (loading) {
-    return <div className="mt-3 grid place-items-center py-4"><Loader2 className="h-4 w-4 animate-spin text-muted-foreground" /></div>;
+  if (loading && !data) {
+    return <div className={cn('mt-3 space-y-2', className)} aria-busy="true"><Skeleton className="h-16" /><Skeleton className="h-16" /></div>;
+  }
+  if (error && !data) {
+    return (
+      <div className={cn('mt-3 flex items-center gap-2 text-sm text-danger', className)} role="alert">
+        <AlertCircle className="h-4 w-4" aria-hidden /> {(error as any)?.message ?? 'Yorumlar alınamadı'}
+        <Button size="sm" variant="outline" onClick={loadReviews}>Tekrar dene</Button>
+      </div>
+    );
   }
   if (!data) return null;
 
-  return (
-    <div className="mt-3 pt-3 border-t space-y-2.5">
-      <div className="flex items-center gap-2 text-xs">
-        <span className="font-bold">{data.appName} Yorumları</span>
-        {data.avgRating && (
-          <div className="inline-flex items-center gap-1">
-            <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
-            <span className="font-bold">{data.avgRating}</span>
-            <span className="text-muted-foreground">({data.reviews.length} yorum)</span>
-          </div>
-        )}
-      </div>
+  const reviews: any[] = data.reviews ?? [];
 
-      <div className="space-y-2 max-h-96 overflow-y-auto">
-        {data.reviews.length === 0 ? (
-          <p className="text-xs text-muted-foreground italic">Yorum yok.</p>
-        ) : (
-          data.reviews.map((r: any) => (
-            <div key={r.id} className="rounded border bg-muted/20 p-2 text-xs">
-              <div className="flex items-center gap-2 mb-1">
-                <div className="flex gap-0.5">
+  return (
+    <div className={cn('mt-3 space-y-2.5 border-t pt-3', className)}>
+      <div className="flex items-center gap-2 text-sm">
+        <span className="font-semibold">{data.appName} yorumları</span>
+        {data.avgRating && <span className="text-muted-foreground">· ort. {data.avgRating} · {reviews.length} yorum</span>}
+      </div>
+      {reviews.length === 0 ? (
+        <p className="text-sm text-muted-foreground">Yorum yok.</p>
+      ) : (
+        <ul className="space-y-2">
+          {reviews.slice(0, limit).map((r: any) => (
+            <li key={r.id} className="rounded-md border bg-muted/20 p-3 text-sm">
+              <div className="mb-1 flex flex-wrap items-center gap-2">
+                <span className="inline-flex gap-0.5" aria-label={`${r.rating} / 5 yıldız`}>
                   {[1, 2, 3, 4, 5].map((n) => (
-                    <Star key={n} className={`h-3 w-3 ${n <= r.rating ? 'fill-amber-400 text-amber-400' : 'text-muted-foreground/30'}`} />
+                    <Star key={n} className={cn('h-3 w-3', n <= r.rating ? 'fill-warning text-warning' : 'text-muted-foreground/30')} aria-hidden />
                   ))}
-                </div>
-                <span className="font-semibold">{r.title || '(başlıksız)'}</span>
-                <span className="text-muted-foreground ml-auto text-[10px]">{r.territory} · {r.createdDate ? new Date(r.createdDate).toLocaleDateString('tr-TR') : '?'}</span>
+                </span>
+                <span className="font-medium">{r.title || '(başlıksız)'}</span>
+                <span className="ml-auto text-label text-muted-foreground">
+                  {r.territory} · {r.createdDate ? new Date(r.createdDate).toLocaleDateString('tr-TR') : '—'}
+                </span>
               </div>
-              <p className="text-[11px] text-muted-foreground leading-relaxed">{r.body}</p>
-              <p className="text-[10px] text-muted-foreground mt-1">— {r.reviewerNickname}</p>
-              <AscReviewReply appId={appId} review={r} onSent={loadReviews} />
-            </div>
-          ))
-        )}
-      </div>
+              <p className="leading-relaxed text-muted-foreground">{r.body}</p>
+              <p className="mt-1 text-label text-muted-foreground">— {r.reviewerNickname}</p>
+              <AscReviewReply appId={ascAppId} review={r} onSent={loadReviews} />
+            </li>
+          ))}
+        </ul>
+      )}
+      {reviews.length > limit && (
+        <Button size="sm" variant="ghost" onClick={() => setLimit(limit + 10)}>Daha fazla göster ({reviews.length - limit})</Button>
+      )}
     </div>
   );
 }
 
-function ConnectScreen({ onConnect }: { onConnect: () => void }) {
+function AscConnectScreen({ onConnect }: { onConnect: () => void }) {
   return (
-    <div className="rounded-2xl border bg-card p-8 text-center">
-      <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-blue-500/20 to-blue-600/20 grid place-items-center mx-auto mb-4">
-        <Package className="h-7 w-7 text-blue-600" />
+    <div className="rounded-lg border bg-card p-8 text-center">
+      <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-xl bg-brand/10 text-brand" aria-hidden>
+        <Package className="h-6 w-6" />
       </div>
-      <h3 className="text-xl font-bold mb-2">App Store Connect bağla</h3>
-      <p className="text-sm text-muted-foreground mb-5 max-w-md mx-auto">
-        Müşteri yorumları, release takibi ve "abandonware" uyarıları için Apple Developer hesabını bağla.
+      <h3 className="mb-2 text-h6 font-semibold">App Store Connect&apos;i bağla</h3>
+      <p className="mx-auto mb-5 max-w-md text-sm text-muted-foreground">
+        Yorumlara yanıt, sürüm takibi, metadata ve ekran görüntüsü yükleme için Apple geliştirici hesabını bir kez bağla.
+        Uygulamaların App Store kimliğiyle otomatik eşleşir.
       </p>
-      <Button onClick={onConnect} className="bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white">
-        <Link2 className="h-4 w-4 mr-2" /> Hesap bağla
+      <Button onClick={onConnect}>
+        <KeyRound className="h-4 w-4" aria-hidden /> Hesap bağla
       </Button>
-      <a
-        href="https://appstoreconnect.apple.com/access/api"
-        target="_blank"
-        rel="noopener noreferrer"
-        className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1 mt-3"
-      >
-        <ExternalLink className="h-3 w-3" /> App Store Connect → Users and Access → Keys
-      </a>
+      <div>
+        <a
+          href="https://appstoreconnect.apple.com/access/api"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-3 inline-flex items-center gap-1 text-label text-muted-foreground hover:text-foreground"
+        >
+          <ExternalLink className="h-3 w-3" aria-hidden /> App Store Connect → Users and Access → Keys
+        </a>
+      </div>
     </div>
   );
 }
 
-function ConnectModal({ siteId, onClose, onSuccess }: { siteId: string; onClose: () => void; onSuccess: () => void }) {
+function AscConnectDialog({
+  siteId, open, onOpenChange, onSuccess,
+}: { siteId: string; open: boolean; onOpenChange: (v: boolean) => void; onSuccess: () => void }) {
   const [issuerId, setIssuerId] = useState('');
   const [keyId, setKeyId] = useState('');
   const [privateKeyPem, setPrivateKeyPem] = useState('');
@@ -297,69 +341,62 @@ function ConnectModal({ siteId, onClose, onSuccess }: { siteId: string; onClose:
     setSubmitting(true);
     try {
       await api.connectAsc(siteId, { issuerId: issuerId.trim(), keyId: keyId.trim(), privateKeyPem: privateKeyPem.trim() });
-      toast.success('✅ App Store Connect bağlandı');
+      toast.success('App Store Connect bağlandı');
       onSuccess();
     } catch (err: any) {
-      toast.error(`Hata: ${err.message}`);
+      toast.error(err.message);
     } finally {
       setSubmitting(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4" onClick={onClose}>
-      <div className="bg-card border rounded-2xl shadow-2xl max-w-xl w-full max-h-[92vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-start justify-between px-6 py-4 border-b">
-          <div>
-            <h2 className="text-lg font-bold">App Store Connect Bağla</h2>
-            <p className="text-xs text-muted-foreground mt-0.5">Apple Developer hesabından .p8 key gerekir.</p>
-          </div>
-          <button onClick={onClose} className="text-muted-foreground hover:text-foreground p-1">
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-        <div className="px-6 py-5 space-y-4 overflow-y-auto">
-          <div className="rounded-lg border bg-muted/30 p-3 text-xs">
-            <p className="font-semibold mb-1">Bilgileri nereden alırım?</p>
-            <ol className="list-decimal pl-4 space-y-0.5 text-muted-foreground">
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent size="lg">
+        <DialogHeader>
+          <DialogTitle>App Store Connect bağla</DialogTitle>
+          <DialogDescription>Apple geliştirici hesabından bir API anahtarı (.p8) gerekir.</DialogDescription>
+        </DialogHeader>
+        <DialogBody className="space-y-4">
+          <div className="rounded-lg border bg-muted/30 p-3 text-sm">
+            <p className="mb-1 font-medium">Bilgileri nereden alırım?</p>
+            <ol className="list-decimal space-y-0.5 pl-4 text-muted-foreground">
               <li><a href="https://appstoreconnect.apple.com/access/integrations/api" target="_blank" rel="noopener noreferrer" className="text-brand hover:underline">App Store Connect → Users and Access → Integrations → App Store Connect API</a></li>
               <li>"Generate API Key" — App Manager rolü</li>
-              <li>Issuer ID (üstte yazıyor) + Key ID (yeni key satırı) + .p8 dosyasını indir</li>
-              <li>3 bilgiyi aşağıya yapıştır</li>
+              <li>Issuer ID (üstte), Key ID (yeni satır) ve .p8 dosyası</li>
+              <li>Üçünü aşağıya yapıştır</li>
             </ol>
           </div>
-
           <div>
-            <label className="text-xs font-semibold mb-1 block">Issuer ID *</label>
-            <Input value={issuerId} onChange={(e) => setIssuerId(e.target.value)} placeholder="69a6de8a-1234-..." className="font-mono text-xs" />
+            <label htmlFor="asc-issuer" className="mb-1 block text-label">Issuer ID</label>
+            <Input id="asc-issuer" value={issuerId} onChange={(e) => setIssuerId(e.target.value)} placeholder="69a6de8a-1234-…" className="font-mono" required />
           </div>
           <div>
-            <label className="text-xs font-semibold mb-1 block">Key ID *</label>
-            <Input value={keyId} onChange={(e) => setKeyId(e.target.value)} placeholder="2X9XYZ12AB" className="font-mono text-xs" />
+            <label htmlFor="asc-key" className="mb-1 block text-label">Key ID</label>
+            <Input id="asc-key" value={keyId} onChange={(e) => setKeyId(e.target.value)} placeholder="2X9XYZ12AB" className="font-mono" required />
           </div>
           <div>
-            <label className="text-xs font-semibold mb-1 block">.p8 Private Key *</label>
-            <textarea
+            <label htmlFor="asc-pem" className="mb-1 block text-label">.p8 özel anahtar</label>
+            <Textarea
+              id="asc-pem"
               value={privateKeyPem}
               onChange={(e) => setPrivateKeyPem(e.target.value)}
-              placeholder="-----BEGIN PRIVATE KEY-----&#10;MIGTAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBHkwdwIBAQQg..."
+              placeholder={'-----BEGIN PRIVATE KEY-----\nMIGTAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBHkwdwIBAQQg…'}
               rows={6}
-              className="w-full font-mono text-[10px] px-2 py-2 rounded border bg-background"
+              className="font-mono text-label"
+              required
             />
-            <p className="text-[10px] text-muted-foreground mt-1">AuthKey_XXXX.p8 dosyasının ham içeriği. Şifrelenmiş (AES-256) saklanır.</p>
+            <p className="mt-1 text-label text-muted-foreground">AuthKey_XXXX.p8 dosyasının ham içeriği. Şifrelenmiş (AES-256) saklanır.</p>
           </div>
-        </div>
-        <div className="px-6 py-4 border-t flex justify-end gap-2">
-          <Button variant="outline" onClick={onClose} disabled={submitting}>İptal</Button>
-          <Button
-            onClick={submit}
-            disabled={submitting || !issuerId || !keyId || !privateKeyPem}
-            className="bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white"
-          >
-            {submitting ? <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> Bağlanıyor</> : <><CheckCircle2 className="h-4 w-4 mr-1.5" /> Bağla</>}
+        </DialogBody>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={submitting}>Vazgeç</Button>
+          <Button onClick={submit} disabled={submitting || !issuerId || !keyId || !privateKeyPem}>
+            {submitting ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <CheckCircle2 className="h-4 w-4" aria-hidden />}
+            {submitting ? 'Bağlanıyor…' : 'Bağla'}
           </Button>
-        </div>
-      </div>
-    </div>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }

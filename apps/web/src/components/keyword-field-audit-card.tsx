@@ -18,9 +18,9 @@ import { cn } from '@/lib/utils';
  */
 
 const SEVERITY_STYLE: Record<string, { box: string; label: string; variant: 'destructive' | 'warning' | 'secondary' }> = {
-  error: { box: 'border-rose-500/20 bg-rose-500/5', label: 'Hata', variant: 'destructive' },
-  warning: { box: 'border-amber-500/20 bg-amber-500/5', label: 'Uyarı', variant: 'warning' },
-  info: { box: 'border-blue-500/20 bg-blue-500/5', label: 'Bilgi', variant: 'secondary' },
+  error: { box: 'border-danger/25 bg-danger/5', label: 'Hata', variant: 'destructive' },
+  warning: { box: 'border-warning/30 bg-warning/5', label: 'Uyarı', variant: 'warning' },
+  info: { box: 'border-info/25 bg-info/5', label: 'Bilgi', variant: 'secondary' },
 };
 
 const COMPETITOR_NOTE: Record<string, string> = {
@@ -90,7 +90,7 @@ export function KeywordFieldAuditCard({
         <div>
           <div className="flex items-center justify-between mb-1">
             <label htmlFor="kw-field" className="text-xs font-medium">Anahtar kelimeler</label>
-            <span className={cn('text-label', live.c > 100 ? 'text-rose-600' : 'text-muted-foreground')}>
+            <span className={cn('text-label', live.c > 100 ? 'text-danger' : 'text-muted-foreground')}>
               {live.c}/100 karakter · {live.b} bayt
             </span>
           </div>
