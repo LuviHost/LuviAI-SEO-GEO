@@ -1,8 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
-import { Menu, X } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { usePathname } from 'next/navigation';
+import { Menu, Search, X } from 'lucide-react';
 import { ConfirmProvider } from '@/components/ui/confirm-dialog';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { LocaleSwitch } from '@/components/locale-switch';
@@ -10,37 +11,90 @@ import { UserMenu } from '@/components/user-menu';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { SiteSidebar } from '@/components/site-sidebar';
-import { CommandPalette } from '@/components/command-palette';
+import { CommandPalette, openCommandPalette } from '@/components/command-palette';
 import { NotificationBell } from '@/components/notification-bell';
 import { BrandWordmark } from '@/components/brand-logo';
 
+/** md kirilimi (768px) — tailwind.config ile ayni */
+const DESKTOP_QUERY = '(min-width: 768px)';
+
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
+  // Masaustunde cekmece hep gorunur; inert yalniz telefonda KAPALI cekmeceye uygulanir.
+  // Varsayilan true: SSR/ilk boyamada masaustu klavye erisimi hic kesilmesin.
+  const [isDesktop, setIsDesktop] = useState(true);
+  const pathname = usePathname();
+  const asideRef = useRef<HTMLElement>(null);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    const mq = window.matchMedia(DESKTOP_QUERY);
+    const sync = () => setIsDesktop(mq.matches);
+    sync();
+    mq.addEventListener('change', sync);
+    return () => mq.removeEventListener('change', sync);
+  }, []);
+
+  // Sayfa degisince cekmeceyi kapat (site degistirici gibi onClose cagirmayan yollar icin)
+  useEffect(() => { setOpen(false); }, [pathname]);
+
+  // Acik cekmece: Esc kapatir, odak cekmeceye girer; kapaninca menu dugmesine doner
+  useEffect(() => {
+    if (!open || isDesktop) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('keydown', onKey);
+    asideRef.current?.querySelector<HTMLElement>('a, button')?.focus();
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      menuButtonRef.current?.focus();
+    };
+  }, [open, isDesktop]);
+
+  const drawerHidden = !isDesktop && !open;
 
   return (
     // tabular-nums KALITSAL: tum dashboard sayilari tablosal — bilesen bilesen tekrar edilmez
-    <div className="min-h-screen flex bg-background tabular-nums">
-      {/* Mobile top bar */}
-      <div className="md:hidden fixed top-0 left-0 right-0 z-40 h-12 bg-sidebar border-b border-sidebar-border flex items-center justify-between px-3">
+    <div className="flex min-h-screen bg-background tabular-nums">
+      {/* Mobil ust cubuk */}
+      <div className="fixed inset-x-0 top-0 z-40 flex h-12 items-center justify-between border-b border-sidebar-border bg-sidebar px-3 md:hidden">
         <Button
+          ref={menuButtonRef}
           variant="ghost"
           size="icon"
-          className="text-sidebar-foreground hover:bg-sidebar-hover h-9 w-9"
+          className="h-9 w-9 text-sidebar-foreground hover:bg-sidebar-hover"
           onClick={() => setOpen(!open)}
+          aria-label={open ? 'Menüyü kapat' : 'Menüyü aç'}
+          aria-expanded={open}
+          aria-controls="app-sidebar"
         >
-          {open ? <X /> : <Menu />}
+          {open ? <X aria-hidden /> : <Menu aria-hidden />}
         </Button>
-        <Link href="/" className="inline-flex items-center">
+        <Link href="/dashboard" className="inline-flex items-center" aria-label="RanksUp — Sitelerim">
           <span className="dark:hidden"><BrandWordmark size={18} /></span>
           <span className="hidden dark:inline"><BrandWordmark size={18} reversed /></span>
         </Link>
-        <div className="w-9" />
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-9 w-9 text-sidebar-foreground hover:bg-sidebar-hover"
+          onClick={openCommandPalette}
+          aria-label="Ara"
+        >
+          <Search className="h-4 w-4" aria-hidden />
+        </Button>
       </div>
 
-      {/* Sidebar */}
+      {/* Kenar cubugu — telefonda cekmece */}
       <aside
+        id="app-sidebar"
+        ref={asideRef}
+        aria-label="Ana menü"
+        inert={drawerHidden || undefined}
+        aria-hidden={drawerHidden || undefined}
         className={cn(
-          'fixed md:sticky top-0 left-0 z-50 h-screen w-64 bg-sidebar text-sidebar-foreground border-r border-sidebar-border transition-transform md:translate-x-0 overflow-y-auto flex flex-col',
+          'fixed left-0 top-0 z-50 flex h-screen w-64 flex-col overflow-y-auto border-r border-sidebar-border bg-sidebar text-sidebar-foreground transition-transform motion-reduce:transition-none md:sticky md:translate-x-0',
           open ? 'translate-x-0' : '-translate-x-full',
         )}
       >
@@ -48,9 +102,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <SiteSidebar onClose={() => setOpen(false)} />
         </div>
 
-        <div className="p-4 space-y-3 border-t border-sidebar-border">
+        <div className="space-y-3 border-t border-sidebar-border p-4">
           <UserMenu />
-          <div className="flex justify-between items-center">
+          <div className="flex items-center justify-between">
             <LocaleSwitch />
             <div className="flex items-center gap-1">
               <NotificationBell />
@@ -60,17 +114,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
       </aside>
 
-      {/* Backdrop */}
+      {/* Arka perde */}
       {open && (
-        <div className="md:hidden fixed inset-0 bg-black/50 z-40" onClick={() => setOpen(false)} />
+        <div className="fixed inset-0 z-40 bg-black/50 md:hidden" onClick={() => setOpen(false)} aria-hidden />
       )}
 
-      <main className="flex-1 p-4 sm:p-6 md:p-10 overflow-x-hidden pt-16 md:pt-10">
+      <main className="flex-1 overflow-x-hidden p-4 pt-16 sm:p-6 sm:pt-16 md:p-10">
         {/* 1440px sinir: genis ekranda icerik duvara yapismasin (analitik UI sozlesmesi) */}
-        <div className="max-w-[1440px] mx-auto w-full"><ConfirmProvider>{children}</ConfirmProvider></div>
+        <div className="mx-auto w-full max-w-[1440px]"><ConfirmProvider>{children}</ConfirmProvider></div>
       </main>
 
-      {/* Cmd+K command palette */}
+      {/* ⌘K komut paleti */}
       <CommandPalette />
     </div>
   );
