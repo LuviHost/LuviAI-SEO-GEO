@@ -41,7 +41,9 @@ export function middleware(req: NextRequest) {
   if (!needsAuth) return NextResponse.next();
 
   const hasSession = SESSION_COOKIE_NAMES.some((n) => req.cookies.has(n));
-  if (!hasSession) {
+  // Yerel önizleme (lib/api.ts PREVIEW_AUTH): oturum çerezi yok, anahtar var
+  const preview = process.env.NODE_ENV !== 'production' && !!process.env.NEXT_PUBLIC_PREVIEW_API_KEY;
+  if (!hasSession && !preview) {
     // Reverse proxy arkasinda req.nextUrl.host bazen upstream bind adresine
     // (127.0.0.1:3000) duser; absolute redirect olusunca tarayici localhost'a
     // gider. Forwarded host header'larindan dogru host'u tespit edip absolute

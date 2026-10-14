@@ -58,6 +58,16 @@ function toUserMessage(status: number, body: unknown): string {
   return 'Beklenmeyen bir hata oluştu, lütfen tekrar dene.';
 }
 
+/**
+ * Yerel önizleme: `next dev` + NEXT_PUBLIC_PREVIEW_API_KEY (canlı panelden
+ * oluşturulan SALT-OKUNUR anahtar) → istekler oturum çerezi yerine anahtarla
+ * gider; yazma uçları kapsam yüzünden 403 alır. Üretim build'inde boş.
+ */
+const PREVIEW_AUTH: Record<string, string> =
+  process.env.NODE_ENV !== 'production' && process.env.NEXT_PUBLIC_PREVIEW_API_KEY
+    ? { Authorization: `Bearer ${process.env.NEXT_PUBLIC_PREVIEW_API_KEY}` }
+    : {};
+
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   let res: Response;
   try {
@@ -65,6 +75,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
       ...init,
       headers: {
         'Content-Type': 'application/json',
+        ...PREVIEW_AUTH,
         ...init.headers,
       },
       credentials: 'include',
@@ -82,7 +93,7 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 async function requestForm<T>(path: string, form: FormData): Promise<T> {
   let res: Response;
   try {
-    res = await fetch(`${API_BASE}/api${path}`, { method: 'POST', body: form, credentials: 'include' });
+    res = await fetch(`${API_BASE}/api${path}`, { method: 'POST', body: form, credentials: 'include', headers: PREVIEW_AUTH });
   } catch (err: unknown) {
     throw new ApiError(0, toUserMessage(0, null), (err as Error)?.message);
   }
