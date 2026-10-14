@@ -82,7 +82,7 @@ export function CrawlerHitsPanel({ siteId }: { siteId: string }) {
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div>
             <p className="text-sm font-semibold inline-flex items-center gap-2">
-              <Bot className="h-4 w-4 text-brand" /> AI Crawler Trafiği
+              <Bot className="h-4 w-4 text-muted-foreground" /> AI Crawler Trafiği
             </p>
             <p className="text-xs text-muted-foreground mt-0.5">
               GPTBot · ClaudeBot · PerplexityBot · Google-Extended sitenizi taradı mı?

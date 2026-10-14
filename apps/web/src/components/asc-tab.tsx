@@ -147,7 +147,7 @@ export function AscTab({ siteId }: { siteId: string }) {
             <CardContent className="space-y-3 p-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="flex min-w-0 flex-1 items-start gap-3">
-                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-brand/10 text-brand" aria-hidden>
+                  <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-border bg-muted/50 text-foreground/70" aria-hidden>
                     <KeyRound className="h-4 w-4" />
                   </span>
                   <div className="min-w-0 flex-1">
@@ -300,7 +300,7 @@ export function AscReviewsPanel({ ascAppId, className }: { ascAppId: string; cla
 function AscConnectScreen({ onConnect }: { onConnect: () => void }) {
   return (
     <div className="rounded-lg border bg-card p-8 text-center">
-      <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-xl bg-brand/10 text-brand" aria-hidden>
+      <div className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-xl border border-border bg-muted/50 text-foreground/70" aria-hidden>
         <Package className="h-6 w-6" />
       </div>
       <h3 className="mb-2 text-h6 font-semibold">App Store Connect&apos;i bağla</h3>

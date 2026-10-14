@@ -63,7 +63,7 @@ export default function SnippetPage() {
           <div className="flex items-center justify-between mb-3">
             <div>
               <h3 className="font-semibold text-base inline-flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-brand" /> Tek Sayfa AI Üretici
+                <Sparkles className="h-4 w-4 text-muted-foreground" /> Tek Sayfa AI Üretici
               </h3>
               <p className="text-xs text-muted-foreground mt-0.5">
                 {activeUrl ? `Aktif: ${activeUrl}` : 'Bir URL seç (tablodan veya manuel) → AI snippet üret'}

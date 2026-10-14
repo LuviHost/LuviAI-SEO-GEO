@@ -39,7 +39,7 @@ export const PROVIDER_LABELS: Record<string, string> = {
   xai: 'Grok (xAI)',
   grok: 'Grok (xAI)',
   deepseek: 'DeepSeek',
-  meta: 'meta',
+  meta: 'Meta AI',
 };
 
 /** Bilinmeyen saglayici icin guvenli varsayilan */

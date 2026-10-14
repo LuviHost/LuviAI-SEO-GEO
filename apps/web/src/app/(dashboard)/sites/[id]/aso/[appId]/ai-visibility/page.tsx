@@ -230,7 +230,7 @@ export default function AppAiVisibilityPage() {
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div>
               <div className="text-sm font-semibold flex items-center gap-2">
-                <PackageOpen className="h-4 w-4 text-brand" /> Review → İçerik Paketi
+                <PackageOpen className="h-4 w-4 text-muted-foreground" /> Review → İçerik Paketi
               </div>
               <p className="text-xs text-muted-foreground mt-0.5">
                 Olumsuz yorum temalarından What's New metni + web FAQ + blog konusu üret. Blog konuları İçerik Fırsatları'na düşer.

@@ -77,7 +77,7 @@ export function BulkSnippetScan({
       <CardContent className="p-5 space-y-4">
         <div>
           <h3 className="font-semibold text-base inline-flex items-center gap-2">
-            <Globe className="h-4 w-4 text-brand" /> Toplu Sayfa Tarama
+            <Globe className="h-4 w-4 text-muted-foreground" /> Toplu Sayfa Tarama
           </h3>
           <p className="text-xs text-muted-foreground mt-1 max-w-2xl">
             Site adresini gir → tüm alt sayfalar otomatik taranır → her birinin Title, Meta, OG, Twitter, Schema durumu tablo olarak çıkar.

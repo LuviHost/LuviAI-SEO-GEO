@@ -8,6 +8,7 @@ import { Sparkles, Compass, Loader2, FileText, Search, Star, Target } from 'luci
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { SectionHeader } from '@/components/ui/section-header';
+import { EngineStrip } from '@/components/engine-logo';
 import { formatNum } from '@/lib/format';
 import { Button } from '@/components/ui/button';
 import { api } from '@/lib/api';
@@ -72,7 +73,12 @@ export default function VisibilityPage() {
       <SectionHeader
         icon={Sparkles}
         title="AI Görünürlük"
-        description="Claude, Gemini, ChatGPT, Perplexity, Grok, DeepSeek ve Meta'da marka takibi, duygu, ses payı ve rakip analizi."
+        description={
+          <>
+            <span className="block">7 AI asistanında marka takibi, duygu, ses payı ve rakip analizi.</span>
+            <EngineStrip className="mt-2.5" />
+          </>
+        }
       />
 
       <CitationHistoryChart siteId={site.id} siteName={site.name} siteUrl={site.url} />

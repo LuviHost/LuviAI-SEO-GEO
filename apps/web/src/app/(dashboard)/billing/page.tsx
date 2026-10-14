@@ -244,7 +244,7 @@ export default function BillingPage() {
         style={{ animationDelay: '400ms' }}
       >
         <div className="flex items-center gap-2 mb-4">
-          <Receipt className="h-4 w-4 text-brand" />
+          <Receipt className="h-4 w-4 text-muted-foreground" />
           <h2 className="text-lg font-semibold">Fatura Geçmişi</h2>
           {invoices.length > 0 && (
             <span className="font-mono text-[10px] uppercase tracking-widest text-muted-foreground">

@@ -187,7 +187,7 @@ export function AuditReportsPanel({ siteId }: { siteId: string }) {
       {/* a) Baslik + manuel tetikleme */}
       <Card>
         <CardContent className="p-4 flex items-start gap-3 flex-wrap">
-          <div className="h-10 w-10 rounded-xl bg-brand/10 text-brand grid place-items-center shrink-0">
+          <div className="h-10 w-10 rounded-xl border border-border bg-muted/50 text-foreground/70 grid place-items-center shrink-0">
             <History className="h-5 w-5" />
           </div>
           <div className="flex-1 min-w-[200px]">

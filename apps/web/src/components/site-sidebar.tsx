@@ -4,7 +4,8 @@ import Link from 'next/link';
 import { useParams, usePathname, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 import { BrandWordmark } from '@/components/brand-logo';
-import { Check, ChevronDown, ChevronsUpDown, Globe, LayoutGrid, Lock, Plus } from 'lucide-react';
+import { Check, ChevronDown, ChevronsUpDown, LayoutGrid, Lock, Plus } from 'lucide-react';
+import { SiteFavicon } from '@/components/site-favicon';
 import { api } from '@/lib/api';
 import { useEntitlements } from '@/lib/entitlements';
 import { GLOBAL_NAV, isNavActive, siteNavGroups, type ResolvedNavItem } from '@/lib/site-nav';
@@ -212,7 +213,7 @@ function SiteSwitcher({ siteId, path, onClose }: { siteId: string; path: string;
         className="flex w-full items-center gap-2 rounded-lg border border-sidebar-border bg-sidebar-hover/60 px-3 py-2.5 text-left transition-colors hover:bg-sidebar-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/60 data-[state=open]:ring-2 data-[state=open]:ring-brand/40"
         aria-label={currentSite ? `Site değiştir — şu an ${currentSite.name}` : 'Site değiştir'}
       >
-        <Globe className="h-4 w-4 shrink-0 text-sidebar-muted" aria-hidden />
+        <SiteFavicon url={currentSite?.url} name={currentSite?.name} size="sm" />
         <span className="min-w-0 flex-1">
           <span className="block truncate text-sm font-semibold text-sidebar-foreground">
             {currentSite?.name ?? 'Yükleniyor…'}
@@ -237,6 +238,7 @@ function SiteSwitcher({ siteId, path, onClose }: { siteId: string; path: string;
                 router.push(`/sites/${s.id}${subpath}` as any);
               }}
             >
+              <SiteFavicon url={s.url} name={s.name} size="sm" className="h-6 w-6 rounded" />
               <span className="min-w-0 flex-1">
                 <span className="block truncate font-medium">{s.name}</span>
                 <span className="block truncate text-label text-muted-foreground">{host(s.url)}</span>

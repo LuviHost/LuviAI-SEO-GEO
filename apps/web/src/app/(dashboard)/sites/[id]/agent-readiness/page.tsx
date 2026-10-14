@@ -257,7 +257,7 @@ export default function AgentReadinessPage() {
               <CardContent className="p-5 space-y-3">
                 <div className="flex items-center justify-between flex-wrap gap-2">
                   <div className="flex items-center gap-2">
-                    <ShieldCheck className="h-4 w-4 text-brand" />
+                    <ShieldCheck className="h-4 w-4 text-muted-foreground" />
                     <span className="font-semibold text-sm">{level.title}</span>
                     {!level.applicable && (
                       <Badge variant="outline" className="text-[10px]">Bu site için geçerli değil</Badge>

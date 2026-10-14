@@ -1,5 +1,6 @@
 'use client';
 
+import { EngineLogo } from '@/components/engine-logo';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { useSiteContext } from '../site-context';
@@ -173,7 +174,7 @@ export default function ProductRadarPage() {
               <Card key={i}>
                 <CardContent className="p-4 space-y-2">
                   <div className="flex items-center justify-between">
-                    <Badge variant="outline" className="text-[10px]">{PROVIDER_LABEL[s.provider] ?? s.provider}</Badge>
+                    <Badge variant="outline" className="gap-1 text-[10px]"><EngineLogo provider={s.provider} size={12} />{PROVIDER_LABEL[s.provider] ?? s.provider}</Badge>
                     {s.brandListed
                       ? <Badge className="text-[10px] bg-emerald-500/15 text-emerald-600 border-emerald-500/30" variant="outline">Listede{s.brandRank ? ` · ${s.brandRank}.` : ''}</Badge>
                       : <Badge variant="outline" className="text-[10px] bg-red-500/10 text-red-600 border-red-500/30">Listede yok</Badge>}

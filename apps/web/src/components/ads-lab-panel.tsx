@@ -31,7 +31,7 @@ export function AdsLabPanel({ site }: { site: any }) {
     <div className="rounded-lg border border-brand-500/30 bg-gradient-to-br from-brand-500/5 to-transparent p-4 space-y-3">
       <div>
         <p className="text-sm font-semibold inline-flex items-center gap-2">
-          <Megaphone className="h-4 w-4 text-brand-500" /> Ads Lab — Google Ads + Meta Ads
+          <Megaphone className="h-4 w-4 text-muted-foreground" /> Ads Lab — Google Ads + Meta Ads
         </p>
         <p className="text-xs text-muted-foreground mt-0.5">
           AI ile reklam hedefle, metin üret, görsel hazırla, bütçe ayarla, yayınla. Resmi Google Ads + Meta Marketing API'leri ile direkt entegrasyon — 3. parti SaaS yok.

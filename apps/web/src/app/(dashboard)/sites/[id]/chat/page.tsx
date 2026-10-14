@@ -134,7 +134,7 @@ export default function ChatPage() {
     <div className="space-y-5">
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div className="flex items-start gap-3">
-          <div className="h-10 w-10 rounded-xl bg-brand/10 text-brand grid place-items-center">
+          <div className="h-10 w-10 rounded-xl border border-border bg-muted/50 text-foreground/70 grid place-items-center">
             <MessageSquare className="h-5 w-5" />
           </div>
           <div>

@@ -56,7 +56,7 @@ export function AuditIssueGroups({ siteId, groups, onRefresh }: { siteId: string
     <section className="rounded-lg border p-4">
         <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
           <div>
-            <h3 className="text-sm font-semibold flex items-center gap-2"><Layers className="h-4 w-4 text-brand" /> Şablona göre sorunlar</h3>
+            <h3 className="text-sm font-semibold flex items-center gap-2"><Layers className="h-4 w-4 text-muted-foreground" /> Şablona göre sorunlar</h3>
             <p className="text-xs text-muted-foreground">Aynı URL desenindeki sayfalar tek satırda — çoğu zaman yüzlerce sayfa hatası tek bir tema/bileşen düzeltmesidir.</p>
           </div>
           {siteWide.length > 0 && (

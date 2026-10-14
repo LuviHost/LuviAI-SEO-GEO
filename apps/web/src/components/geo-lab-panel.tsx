@@ -1,5 +1,6 @@
 'use client';
 
+import { EngineLogo } from '@/components/engine-logo';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import {
@@ -928,7 +929,7 @@ function HeatmapTab({ siteId }: { siteId: string }) {
               const color = score >= 60 ? 'text-success' : score >= 30 ? 'text-warning' : 'text-danger';
               return (
                 <div key={p} className="rounded-md border p-2 text-center">
-                  <p className="text-xs text-muted-foreground">{p}</p>
+                  <p className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground"><EngineLogo provider={pid} size={16} />{p}</p>
                   <p className={`text-metric-lg tabular-nums ${color}`}>{score}</p>
                 </div>
               );
@@ -941,8 +942,13 @@ function HeatmapTab({ siteId }: { siteId: string }) {
               <thead>
                 <tr>
                   <th className="text-left p-2 font-medium border-b">Sorgu</th>
-                  {data.providers.map((p: string) => (
-                    <th key={p} className="text-center p-2 font-medium border-b min-w-[80px]">{p}</th>
+                  {data.providers.map((p: string, i: number) => (
+                    <th key={p} className="text-center p-2 font-medium border-b min-w-[80px]">
+                      <span className="inline-flex items-center gap-1.5">
+                        <EngineLogo provider={['anthropic', 'gemini', 'openai', 'perplexity'][i] ?? p} size={16} />
+                        {p}
+                      </span>
+                    </th>
                   ))}
                 </tr>
               </thead>

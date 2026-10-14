@@ -259,7 +259,7 @@ export default function AdsHealthPage() {
           <Card>
             <CardContent className="p-5">
               <p className="font-semibold mb-3 inline-flex items-center gap-2">
-                <TrendingUp className="h-4 w-4 text-brand" /> Kategori Dağılımı
+                <TrendingUp className="h-4 w-4 text-muted-foreground" /> Kategori Dağılımı
               </p>
               <div className="space-y-2">
                 {categories.map(([cat, c]) => {

@@ -498,7 +498,7 @@ function AutoPilotPanel({ account, onChanged }: { account: Account; onChanged: (
 function ConnectScreen({ onConnect }: { onConnect: () => void }) {
   return (
     <div className="rounded-2xl border bg-card p-8 text-center">
-      <div className="h-16 w-16 rounded-2xl bg-brand/10 text-brand grid place-items-center mx-auto mb-4">
+      <div className="h-16 w-16 rounded-2xl border border-border bg-muted/50 text-foreground/70 grid place-items-center mx-auto mb-4">
         <Link2 className="h-7 w-7 text-brand-600" />
       </div>
       <h3 className="text-lg font-bold mb-2">Apple Search Ads Bağla</h3>
@@ -1278,7 +1278,7 @@ function MetricCard({
     <Card>
       <CardContent className="p-3">
         <div className="flex items-center gap-2 mb-1.5">
-          <div className={`h-7 w-7 rounded-lg grid place-items-center bg-brand/10 text-brand`}>
+          <div className={`h-7 w-7 rounded-lg grid place-items-center border border-border bg-muted/50 text-foreground/70`}>
             <Icon className="h-4 w-4" />
           </div>
           <span className="text-label text-muted-foreground uppercase tracking-wider font-semibold">{label}</span>

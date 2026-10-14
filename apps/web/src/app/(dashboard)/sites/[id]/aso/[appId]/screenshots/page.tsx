@@ -1256,7 +1256,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                 {/* Set Tasarımı — AI bg üret + {slotCount} slota uygula + layout dağıt */}
                 <div className="rounded-lg border border-brand/40 bg-brand/5 p-3">
                   <div className="flex items-center gap-2 mb-1">
-                    <Sparkles className="h-4 w-4 text-brand" />
+                    <Sparkles className="h-4 w-4 text-muted-foreground" />
                     <h3 className="text-sm font-semibold">Set Tasarımı (10 Slot Birlikte)</h3>
                   </div>
                   <p className="text-label text-muted-foreground mb-2 leading-snug">

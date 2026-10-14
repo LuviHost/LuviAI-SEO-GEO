@@ -7,6 +7,7 @@ import { api } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { BeforeAfterCard } from '@/components/before-after-card';
+import { EngineLogo } from '@/components/engine-logo';
 import { PROVIDER_COLORS, PROVIDER_LABELS, PROVIDER_FALLBACK } from '@/lib/chart-colors';
 import { CHART } from '@/lib/chart-colors';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
@@ -187,7 +188,7 @@ export function CitationHistoryChart({
         <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
           <div>
             <p className="text-sm font-semibold inline-flex items-center gap-2">
-              <Sparkles className="h-4 w-4 text-brand-500" /> AI Görünürlük Trendi
+              <Sparkles className="h-4 w-4 text-muted-foreground" /> AI Görünürlük Trendi
             </p>
             <p className="text-xs text-muted-foreground mt-0.5 max-w-2xl">
               ChatGPT, Claude, Gemini, Perplexity, Grok, DeepSeek ve Meta — 7 AI'a markanla ilgili soru sorduğumuzda <strong>cevapta site URL'in veya marka adın geçiyor mu</strong> ölçüyoruz. <strong>0-100 skor:</strong> URL geçerse 100 puan, sadece marka adı geçerse 50 puan/soru.
@@ -308,9 +309,13 @@ export function CitationHistoryChart({
                 const label = PROVIDER_LABELS[t.provider] ?? t.provider;
                 return (
                   <div key={t.provider} className="rounded-md border p-2 flex items-center gap-2">
-                    <span className="h-3 w-3 rounded-full shrink-0" style={{ backgroundColor: color }} />
+                    <EngineLogo provider={t.provider} size={20} className="shrink-0" />
                     <div className="flex-1 min-w-0">
-                      <p className="text-xs font-medium truncate">{label}</p>
+                      <p className="flex items-center gap-1.5 text-xs font-medium">
+                        <span className="truncate">{label}</span>
+                        {/* Grafik cizgisinin rengi — lejant isareti */}
+                        <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: color }} aria-hidden />
+                      </p>
                       <p className="text-[10px] text-muted-foreground">
                         {t.first ?? '—'} → <strong>{t.last ?? '—'}</strong>
                         {t.delta !== null && (
@@ -414,10 +419,7 @@ export function CitationHistoryChart({
                         <div key={r.provider} className="rounded-lg border p-3 bg-card">
                           <div className="flex items-center justify-between mb-2">
                             <div className="flex items-center gap-2">
-                              <span
-                                className="h-2.5 w-2.5 rounded-full"
-                                style={{ backgroundColor: PROVIDER_COLORS[r.provider] ?? PROVIDER_FALLBACK }}
-                              />
+                              <EngineLogo provider={r.provider} size={18} />
                               <span className="text-xs font-semibold">{PROVIDER_LABELS[r.provider] ?? r.label ?? r.provider}</span>
                             </div>
                             <span className={`text-lg font-bold ${colorForScore(r.score)}`}>

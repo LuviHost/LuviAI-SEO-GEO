@@ -77,7 +77,7 @@ export function BeforeAfterCard({ data }: { data: any }) {
   return (
     <div className={`mb-4 rounded-xl border ${toneBorder} bg-gradient-to-br ${toneBg} p-4`}>
       <div className="flex items-center gap-2 mb-3">
-        <Sparkles className="h-4 w-4 text-brand-500" />
+        <Sparkles className="h-4 w-4 text-muted-foreground" />
         <span className="font-semibold text-sm">RanksUp Etkisi</span>
         <span className="text-xs text-muted-foreground">· son {spanDays} gün</span>
       </div>

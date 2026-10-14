@@ -19,6 +19,7 @@ import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { MetricCard } from '@/components/ui/metric';
 import { PageHeader } from '@/components/ui/page-header';
+import { SiteFavicon } from '@/components/site-favicon';
 import { SectionHeader } from '@/components/ui/section-header';
 import { EmptyState } from '@/components/empty-state';
 import {
@@ -173,16 +174,11 @@ function SiteCard({ site, onDelete }: { site: any; onDelete: () => void }) {
   const host = String(site.url ?? '').replace(/^https?:\/\//, '').replace(/\/$/, '');
   return (
     <Card className="group relative flex flex-wrap items-center gap-4 p-4 transition-all hover:-translate-y-0.5 hover:border-brand/30 hover:shadow-apple-md focus-within:ring-2 focus-within:ring-brand/40 motion-reduce:transition-none motion-reduce:hover:translate-y-0">
-      <span
-        className="grid h-11 w-11 shrink-0 place-items-center rounded-md border border-brand/20 bg-brand/10 text-sm font-semibold text-brand"
-        aria-hidden
-      >
-        {site.name?.slice(0, 2).toLocaleUpperCase('tr-TR') ?? '??'}
-      </span>
+      <SiteFavicon url={site.url} name={site.name} />
 
       <div className="min-w-0 flex-1">
         <div className="mb-0.5 flex flex-wrap items-center gap-2">
-          <h3 className="truncate font-semibold">
+          <h3 className="truncate font-brand font-semibold">
             <Link
               href={siteHref(site.id, 'overview')}
               className="after:absolute after:inset-0 after:rounded-lg after:content-[''] focus-visible:outline-none"

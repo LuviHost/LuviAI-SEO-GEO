@@ -73,7 +73,7 @@ export default function ApiKeysPage() {
       {/* SDK quick start */}
       <Card><CardContent className="p-4">
         <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
-          <p className="text-sm font-semibold inline-flex items-center gap-2"><Code className="h-4 w-4 text-brand" /> Node.js SDK</p>
+          <p className="text-sm font-semibold inline-flex items-center gap-2"><Code className="h-4 w-4 text-muted-foreground" /> Node.js SDK</p>
           <code className="text-xs bg-muted px-2 py-1 rounded">npm install @luviai/sdk</code>
         </div>
         <pre className="text-[11px] bg-muted/30 p-3 rounded font-mono overflow-x-auto">

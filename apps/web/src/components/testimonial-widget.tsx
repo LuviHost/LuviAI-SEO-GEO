@@ -59,7 +59,7 @@ export function TestimonialWidget({ siteId, defaultMetric }: { siteId?: string; 
   if (!open) {
     return (
       <div className="rounded-lg border bg-card p-4 flex flex-wrap items-center gap-3">
-        <span className="h-9 w-9 rounded-md bg-brand/10 text-brand grid place-items-center shrink-0">
+        <span className="h-9 w-9 rounded-md border border-border bg-muted/50 text-foreground/70 grid place-items-center shrink-0">
           <MessageSquare className="h-4 w-4" aria-hidden />
         </span>
         <div className="flex-1 min-w-[12rem]">

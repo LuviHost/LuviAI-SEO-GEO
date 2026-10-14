@@ -63,7 +63,7 @@ export function AiCostStrip({ siteId }: { siteId: string }) {
 
   return (
     <Card className="flex flex-wrap items-center gap-3 p-4">
-      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-brand/10 text-brand">
+      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-md border border-border bg-muted/50 text-foreground/70">
         <Sparkles className="h-4 w-4" aria-hidden />
       </span>
       <div className="min-w-0 flex-1">

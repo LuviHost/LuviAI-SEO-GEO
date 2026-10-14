@@ -89,7 +89,7 @@ export function RelatedLinks({
 }) {
   return (
     <div className="rounded-xl border bg-muted/20 p-5 mt-6">
-      <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-3">{title}</p>
+      <p className="mb-3 font-brand text-sm font-semibold text-foreground">{title}</p>
       <div className="grid sm:grid-cols-2 gap-2">
         {links.map((link) => {
           const Icon = link.icon;
@@ -100,7 +100,7 @@ export function RelatedLinks({
               className="group flex items-start gap-3 rounded-lg p-3 hover:bg-card hover:border-brand/30 border border-transparent transition-all"
             >
               {Icon && (
-                <div className="h-9 w-9 rounded-lg bg-card border grid place-items-center text-brand shrink-0 group-hover:bg-brand/10 transition-colors">
+                <div className="h-9 w-9 rounded-lg bg-card border grid place-items-center text-foreground/70 shrink-0 transition-colors group-hover:text-brand">
                   <Icon className="h-4 w-4" />
                 </div>
               )}

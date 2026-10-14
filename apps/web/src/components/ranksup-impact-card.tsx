@@ -97,7 +97,7 @@ export function RanksUpImpactCard({ siteId, days = 90 }: { siteId: string; days?
   return (
     <Card className="p-5">
       <div className="flex items-center gap-2.5 mb-4">
-        <span className="grid place-items-center h-8 w-8 rounded-md bg-brand/10 text-brand">
+        <span className="grid place-items-center h-8 w-8 rounded-md border border-border bg-muted/50 text-foreground/70">
           <Sparkles className="h-4 w-4" aria-hidden />
         </span>
         <div>

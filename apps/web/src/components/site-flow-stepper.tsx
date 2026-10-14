@@ -22,6 +22,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { PipelineProgress, PIPELINE_STEPS } from '@/components/pipeline-progress';
 import { ScanOrb } from '@/components/ai-scan';
 import { VendorLogo, type VendorName } from '@/components/vendor-logo';
+import { EngineLogo } from '@/components/engine-logo';
+import { PROVIDER_LABELS } from '@/lib/chart-colors';
 
 // Channel type → VendorLogo name eşlemesi (dahili SVG'lerden gelir, CDN bağımlılığı yok)
 const CHANNEL_TO_VENDOR_NAME: Record<string, VendorName> = {
@@ -350,7 +352,7 @@ function ConnectAccountsInvite({ onOpenStep }: { onOpenStep: (id: string) => voi
     <div className="rounded-xl border border-brand/30 bg-gradient-to-br from-brand/5 to-transparent p-4 space-y-3">
       <div className="flex items-start gap-3">
         <div className="h-9 w-9 rounded-full bg-brand/10 grid place-items-center shrink-0">
-          <Link2 className="h-4 w-4 text-brand" />
+          <Link2 className="h-4 w-4 text-muted-foreground" />
         </div>
         <div className="flex-1 min-w-0">
           <div className="font-semibold text-sm">Hesaplarini bagla — opsiyonel ama tavsiye edilir</div>
@@ -883,7 +885,7 @@ export function AuditStepBody({
           <div className="flex items-center justify-between mb-2">
             <div>
               <p className="text-sm font-semibold">AI Arama Görünürlüğü (otomatik)</p>
-              <p className="text-xs text-muted-foreground">Claude · Gemini · ChatGPT · Perplexity</p>
+              <p className="text-xs text-muted-foreground">{(checks.aiCitations.providers as any[]).length} AI asistanında ölçüldü</p>
             </div>
             <span className="text-metric-lg tabular-nums text-brand">{checks.aiCitations.score ?? 0}/100</span>
           </div>
@@ -891,7 +893,10 @@ export function AuditStepBody({
             {(checks.aiCitations.providers as any[]).map((p) => (
               <div key={p.provider} className="rounded-md border p-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-medium truncate">{p.label}</span>
+                  <span className="flex min-w-0 items-center gap-1.5 text-xs font-medium">
+                    <EngineLogo provider={p.provider} size={16} />
+                    <span className="truncate">{PROVIDER_LABELS[p.provider] ?? p.label}</span>
+                  </span>
                   <span className={`text-sm font-bold ${
                     p.score === null ? 'text-muted-foreground' :
                     p.score >= 60 ? 'text-success' :
@@ -2189,7 +2194,7 @@ export function ContentCalendarPanel({
       <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
         <div>
           <p className="text-sm font-semibold flex items-center gap-2">
-            <Calendar className="h-4 w-4 text-brand" />
+            <Calendar className="h-4 w-4 text-muted-foreground" />
             İçerik Takvimi
           </p>
           <p className="text-xs text-muted-foreground mt-0.5">

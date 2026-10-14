@@ -12,8 +12,10 @@ import { DeltaBadge } from '@/components/ui/delta-badge';
  * 24 yerel metrik-kart kopyasinin yerini alir; yeni metrik yazan HERKES bunu kullanir.
  *
  * Sozlesme: 14px kart yaricapi (rounded-lg) · 16px pad (p-4) · deger text-metric(-lg)
- * · etiket text-label · sayilar NumberTicker (reduced-motion'i kendi tanir)
- * · aksan cubugu + ikon cipi + oturmus hover kalibi.
+ * · etiket text-label · sayilar NumberTicker (reduced-motion'i kendi tanir).
+ * Ekim 2026: aksan cubugu + renkli ikon cipi + turuncu deger kaldirildi (her kart
+ * turuncuydu, vurgu anlamini yitirmisti); etiket ustte, deger notr Sora, renk
+ * yalniz kucuk ikonda.
  */
 
 const ACCENTS = {
@@ -107,42 +109,28 @@ export function MetricCard({
   return (
     <div
       className={cn(
-        'group relative overflow-hidden rounded-lg border bg-card p-4 transition-all duration-300',
-        'hover:-translate-y-0.5 hover:shadow-apple',
+        // Landing ile ayni sakin dil: renk yalniz kucuk ikonda; deger notr ve Sora
+        'group relative flex flex-col rounded-lg border bg-card p-4 transition-colors duration-200',
         a.hoverBorder,
         className,
       )}
       {...props}
     >
-      {/* Aksan cubugu */}
-      <div
-        className={cn(
-          'absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r opacity-60 transition-opacity group-hover:opacity-100',
-          a.bar,
-        )}
-      />
       <div className="flex items-start justify-between gap-3">
-        {Icon && (
-          <div
-            className={cn(
-              'grid h-9 w-9 place-items-center rounded-lg transition-transform duration-300 group-hover:scale-110',
-              a.iconBg,
-            )}
-          >
-            <Icon className={cn('h-4 w-4', a.iconText)} />
-          </div>
-        )}
+        <div className="text-label font-medium text-muted-foreground">{label}</div>
+        {Icon && <Icon className={cn('h-4 w-4 shrink-0', a.iconText)} aria-hidden />}
+      </div>
+      <div className="mt-3 flex flex-wrap items-baseline gap-x-2 gap-y-1">
+        <div className={cn(metricValue({ size }), 'font-brand text-foreground')}>
+          {typeof value === 'number' ? (
+            <NumberTicker value={value} format={format} prefix={prefix} suffix={suffix} />
+          ) : (
+            value
+          )}
+        </div>
         {delta !== undefined && <DeltaBadge delta={delta} suffix={deltaSuffix} iyiYon={iyiYon} />}
       </div>
-      <div className={cn(metricValue({ size }), a.iconText, Icon ? 'mt-3' : 'mt-0.5')}>
-        {typeof value === 'number' ? (
-          <NumberTicker value={value} format={format} prefix={prefix} suffix={suffix} />
-        ) : (
-          value
-        )}
-      </div>
-      <div className="mt-2 text-label text-muted-foreground">{label}</div>
-      {hint && <div className="mt-1 text-label text-muted-foreground/70">{hint}</div>}
+      {hint && <div className="mt-auto pt-2 text-label text-muted-foreground/80">{hint}</div>}
     </div>
   );
 }

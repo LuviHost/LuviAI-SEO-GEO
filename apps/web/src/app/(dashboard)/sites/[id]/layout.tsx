@@ -7,6 +7,7 @@ import { api } from '@/lib/api';
 import { Skeleton } from '@/components/ui/skeleton';
 import { SiteContext } from './site-context';
 import { PageHeader } from '@/components/ui/page-header';
+import { SiteFavicon } from '@/components/site-favicon';
 
 export default function SiteLayout({ children }: { children: React.ReactNode }) {
   const params = useParams();
@@ -99,6 +100,7 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
           backHref="/dashboard"
           backLabel="Dashboard"
           title={site.name}
+          leading={<SiteFavicon url={site.url} name={site.name} size="lg" />}
           meta={
             <a
               href={site.url}
