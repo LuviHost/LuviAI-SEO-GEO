@@ -432,9 +432,9 @@ export class EmailService {
       case 'plan_canceled':
         return yap(
           'Aboneliğin iptal edildi',
-          'Mevcut dönem sonuna kadar erişimin devam ediyor.',
+          data.accessUntilText ? `${kacisla(String(data.accessUntilText))} tarihine kadar erişimin devam ediyor.` : 'Mevcut dönem sonuna kadar erişimin devam ediyor.',
           h(`${name}, aboneliğin iptal edildi`) +
-            p(`${data.planName ? `<strong>${kacisla(String(data.planName))}</strong> planın iptal edildi. ` : ''}Mevcut dönem sonuna kadar erişimin devam eder.`) +
+            p(`${data.planName ? `<strong>${kacisla(String(data.planName))}</strong> planın iptal edildi. ` : ''}${data.accessUntilText ? `<strong>${kacisla(String(data.accessUntilText))}</strong> tarihine kadar` : 'Mevcut dönem sonuna kadar'} tüm özelliklerin açık kalır; sonra hesabın deneme düzeyine geçer.`) +
             p('Sonrasında ürettiğin makaleleri indirip saklayabilir, ya da tekrar abone olup kaldığın yerden devam edebilirsin.') +
             dugme('Planları gör', `${baseUrl}/pricing`) +
             p('<span style="font-size:13px;">Bir sorun yaşadıysan bu maili yanıtla — okuyoruz.</span>'),

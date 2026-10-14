@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { FxService } from './fx.service.js';
 import { BASE_PLANS, type BasePlan, type PlanId } from './plans.js';
+import { periodEndFromInvoice } from './subscription-period.js';
 
 export interface PlanDefinition {
   id: PlanId;
@@ -121,9 +122,16 @@ export class BillingService {
   async getCurrentPlan(userId: string) {
     const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
     const planDef = PLANS.find(p => p.id.toUpperCase() === user.plan) ?? PLANS[0];
+    // Odenen donemin sonu (son odenen fatura + dongu). Iptal edilmisse plan bu tarihte duser.
+    const lastPaid = await this.prisma.invoice.findFirst({
+      where: { userId, status: 'PAID' },
+      orderBy: { paidAt: 'desc' },
+      select: { paidAt: true, createdAt: true, description: true },
+    });
     return {
       plan: planDef,
       status: user.subscriptionStatus,
+      periodEnd: periodEndFromInvoice(lastPaid),
       trialEndsAt: user.trialEndsAt,
       articlesUsedThisMonth: user.articlesUsedThisMonth,
       articlesQuotaResetAt: user.articlesQuotaResetAt,

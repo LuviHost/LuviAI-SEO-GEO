@@ -5,6 +5,7 @@ import { AffiliateService } from '../affiliate/affiliate.service.js';
 import { EmailService } from '../email/email.service.js';
 import { FxService } from './fx.service.js';
 import { findPlan, PURCHASABLE_PLAN_IDS } from './plans.js';
+import { periodEndFromInvoice } from './subscription-period.js';
 
 /**
  * PayTR iframe API + webhook entegrasyonu.
@@ -282,15 +283,26 @@ export class PaytrService {
     return 'OK';
   }
 
-  /** Subscription iptal — kullanıcı tarafından çağrılır */
+  /**
+   * Abonelik iptali — kullanici tarafindan cagrilir.
+   *
+   * Plan HEMEN dusmez: odenen donemin sonuna kadar acik kalir; donem bitince
+   * QuotaService.expireCanceledSubscriptions plani TRIAL'a indirir. Yanit yalniz
+   * gereken alanlari doner (eskiden User satirinin tamami istemciye gidiyordu).
+   */
   async cancelSubscription(userId: string) {
     const user = await this.prisma.user.update({
       where: { id: userId },
-      data: {
-        subscriptionStatus: 'CANCELED',
-      },
+      data: { subscriptionStatus: 'CANCELED' },
+      select: { id: true, email: true, name: true, plan: true, subscriptionStatus: true },
     });
-    if (user?.email) {
+    const lastPaid = await this.prisma.invoice.findFirst({
+      where: { userId, status: 'PAID' },
+      orderBy: { paidAt: 'desc' },
+      select: { paidAt: true, createdAt: true, description: true },
+    });
+    const accessUntil = periodEndFromInvoice(lastPaid);
+    if (user.email) {
       this.email.send({
         userId: user.id,
         to: user.email,
@@ -298,10 +310,13 @@ export class PaytrService {
         data: {
           name: user.name ?? 'kullanıcı',
           planName: user.plan,
+          accessUntilText: accessUntil
+            ? accessUntil.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Istanbul' })
+            : null,
         },
       }).catch((err) => this.log.warn(`plan_canceled mail: ${err.message}`));
     }
-    return user;
+    return { plan: user.plan, status: user.subscriptionStatus, accessUntil };
   }
 
   private async activateSubscription(

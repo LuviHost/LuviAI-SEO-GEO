@@ -25,8 +25,9 @@ import { cn } from '@/lib/utils';
  * Artik: eski fiyati korunan kullaniciya legacyMonthlyPriceTry (TL), digerlerine USD +
  * "TL tutari odeme anindaki kurla hesaplanir" (plans.ts sozlesmesi).
  *
- * IPTAL: paytr.cancelSubscription yalniz durumu CANCELED yapar ve onay e-postasi
- * gonderir; plani dusurmez, iade yapmaz. Pencere yalniz bu dogrulanmis sonuclari soyler.
+ * IPTAL: paytr.cancelSubscription durumu CANCELED yapar; plan odenen donemin sonunda
+ * (periodEnd = son odenen fatura + dongu) QuotaService.expireCanceledSubscriptions ile
+ * TRIAL'a duser. Iade otomatik degil.
  */
 
 export default function BillingPage() {
@@ -112,6 +113,11 @@ export default function BillingPage() {
   const isActive = current.status === 'ACTIVE';
   const isTrial = current.status === 'TRIAL';
   const legacyTry = Number(current.legacyMonthlyPriceTry ?? 0);
+  const isCanceled = current.status === 'CANCELED';
+  const periodEnd = current.periodEnd ? new Date(current.periodEnd) : null;
+  const periodEndText = periodEnd
+    ? periodEnd.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })
+    : null;
   const usd = Number(plan?.monthly ?? 0);
 
   return (
@@ -135,6 +141,9 @@ export default function BillingPage() {
                     Deneme {new Date(current.trialEndsAt).toLocaleDateString('tr-TR')} tarihinde bitiyor
                   </span>
                 )}
+                {isActive && periodEndText && (
+                  <span className="text-label text-muted-foreground">Ödenen dönem {periodEndText} tarihinde bitiyor</span>
+                )}
               </div>
             </div>
           </div>
@@ -151,6 +160,15 @@ export default function BillingPage() {
             </div>
           )}
         </div>
+
+        {isCanceled && (
+          <p className="mt-5 rounded-lg border border-warning/30 bg-warning/5 px-4 py-3 text-sm">
+            {periodEndText
+              ? <>Aboneliğin iptal edildi. <strong>{periodEndText}</strong> tarihine kadar tüm özelliklerin açık; sonra hesabın deneme düzeyine geçer.</>
+              : <>Aboneliğin iptal edildi; hesabın bu gece deneme düzeyine geçecek.</>}
+            {' '}Fikrini değiştirirsen planı yeniden satın alabilirsin.
+          </p>
+        )}
 
         {/* Kullanim */}
         <div className="mt-6 space-y-2">
@@ -233,6 +251,7 @@ export default function BillingPage() {
         onConfirm={cancel}
         loading={cancelling}
         plan={plan?.name}
+        periodEndText={periodEndText}
       />
     </div>
   );
@@ -266,13 +285,14 @@ function InvoiceStatusBadge({ status }: { status: string }) {
 }
 
 function CancelDialog({
-  open, onCancel, onConfirm, loading, plan,
+  open, onCancel, onConfirm, loading, plan, periodEndText,
 }: {
   open: boolean;
   onCancel: () => void;
   onConfirm: () => void;
   loading: boolean;
   plan?: string;
+  periodEndText?: string | null;
 }) {
   return (
     <Dialog open={open} onOpenChange={(o) => { if (!o && !loading) onCancel(); }}>
@@ -285,7 +305,12 @@ function CancelDialog({
         </DialogHeader>
         <DialogBody>
           <ul className="space-y-1.5 text-sm text-muted-foreground">
-            <li>Aboneliğin iptal olarak işaretlenir ve sana onay e-postası gönderilir.</li>
+            <li>
+              {periodEndText
+                ? <>Ödediğin dönemin sonuna, <strong className="text-foreground">{periodEndText}</strong> tarihine kadar tüm özelliklerin açık kalır.</>
+                : 'Ödenmiş bir dönemin görünmüyor; hesabın bu gece deneme düzeyine geçer.'}
+            </li>
+            <li>Dönem bitince hesabın deneme düzeyine geçer; sana onay e-postası gönderilir.</li>
             <li>Sitelerin, içeriklerin ve raporların silinmez.</li>
             <li>Ücret iadesi için destek ekibine yazman gerekir.</li>
           </ul>

@@ -6,6 +6,7 @@ import {
   type PlanFeature, type PlanId,
 } from './plans.js';
 import { acquireCronLock } from '../common/cron-lock.js';
+import { periodEndFromInvoice, shouldDowngrade } from './subscription-period.js';
 
 /**
  * Plan-based quota enforcer.
@@ -281,6 +282,45 @@ export class QuotaService {
       this.log.log(`${result.count} trial süresi doldu`);
     }
     return result.count;
+  }
+
+  /**
+   * Iptal edilen ve odenmis donemi biten abonelikleri dusurur: plan → TRIAL,
+   * durum → EXPIRED.
+   *
+   * NEDEN: cancelSubscription yalniz durumu CANCELED yapiyordu; plan/kota
+   * kapilari yalniz `plan` alanina baktigindan iptal eden kullanici ucretli
+   * ozellikleri suresiz kullanabiliyordu. Kullanici odedigi donemin sonuna kadar
+   * planini korur (donem = son odenen fatura + dongu; bkz. subscription-period.ts).
+   * Gunluk 04:15, cift-calisma kilidiyle (API ve worker ayni modulu yukler).
+   */
+  @Cron('15 4 * * *', { timeZone: 'Europe/Istanbul' })
+  async expireCanceledSubscriptionsCron() {
+    if (!(await acquireCronLock(this.prisma, 'canceled-sub-expiry', 'daily'))) return;
+    await this.expireCanceledSubscriptions();
+  }
+
+  async expireCanceledSubscriptions(now: Date = new Date()): Promise<number> {
+    const canceled = await this.prisma.user.findMany({
+      where: { subscriptionStatus: 'CANCELED', plan: { not: 'TRIAL' } },
+      select: { id: true, plan: true },
+    });
+    let downgraded = 0;
+    for (const u of canceled) {
+      const lastPaid = await this.prisma.invoice.findFirst({
+        where: { userId: u.id, status: 'PAID' },
+        orderBy: { paidAt: 'desc' },
+        select: { paidAt: true, createdAt: true, description: true },
+      });
+      if (!shouldDowngrade(periodEndFromInvoice(lastPaid), now)) continue;
+      await this.prisma.user.update({
+        where: { id: u.id },
+        data: { plan: 'TRIAL', subscriptionStatus: 'EXPIRED' },
+      });
+      downgraded++;
+      this.log.log(`Iptal edilen abonelik dustu: ${u.id} (${u.plan} → TRIAL)`);
+    }
+    return downgraded;
   }
 
   // ────────────────────────────────────────────
