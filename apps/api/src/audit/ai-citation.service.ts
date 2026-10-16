@@ -11,6 +11,9 @@ import { brandMatchIndexFolded, resolveSiteBrand, containsBrand, unbrandedOnly }
 import { hostMentioned, urlHostMatches, citedPathsFor, registrableDomain, extractAppStoreRefs } from './host-match.js';
 import { shareOfVoiceList, rivalsFromCompetitors, type SovObservation } from './share-of-voice.js';
 import { citationScore } from './citation-score.js';
+import { withProbeRetry, ProviderConfigError, isFatalProviderError } from './probe-retry.js';
+import { MeasurementAllowanceService } from '../billing/measurement-allowance.service.js';
+import { noteMeasured } from '../billing/measurement-allowance.js';
 
 export type Provider = 'anthropic' | 'gemini' | 'openai' | 'perplexity' | 'xai' | 'deepseek' | 'meta';
 
@@ -116,8 +119,10 @@ export class AiCitationService {
     // demektir (eski kurulumda ~2000 idi). Kapasiteyi geri istiyorsan
     // AI_BUDGET_ANTHROPIC_USD=60 yap; maliyeti kismak istiyorsan dusur.
     anthropic:  parseFloat(process.env.AI_BUDGET_ANTHROPIC_USD  ?? '30'),
-    gemini:     parseFloat(process.env.AI_BUDGET_GEMINI_USD     ?? '5'),
-    openai:     parseFloat(process.env.AI_BUDGET_OPENAI_USD     ?? '5'),
+    // Ekim 2026: ChatGPT ve Gemini web aramali olculuyor — probe basi tavan
+    // ~0.03-0.04 USD. 15 USD ≈ gunde ~400 probe (~80 site taramasi).
+    gemini:     parseFloat(process.env.AI_BUDGET_GEMINI_USD     ?? '15'),
+    openai:     parseFloat(process.env.AI_BUDGET_OPENAI_USD     ?? '15'),
     perplexity: parseFloat(process.env.AI_BUDGET_PERPLEXITY_USD ?? '5'),
     xai:        parseFloat(process.env.AI_BUDGET_GROK_USD       ?? '3'),
     deepseek:   parseFloat(process.env.AI_BUDGET_DEEPSEEK_USD   ?? '3'),
@@ -130,31 +135,42 @@ export class AiCitationService {
   // guard harcamayi cagri ONCESI projekte eder, gercek fatura sabitten buyukse
   // gunluk cap sessizce asilir.
   //
-  // anthropic (Opus 5, 2026-08): girdi ~150 tok x $5/1M = $0.00075
-  //                              cikti max_tokens 1000 x $25/1M = $0.025
-  //                              → tavan $0.026, guvenli pay ile 0.03
-  // Opus 5'te thinking VARSAYILAN ACIK ve thinking tokenlari da cikti olarak
-  // faturalanir; bu yuzden tavan max_tokens uzerinden hesaplanir (olculen
-  // ortalama ~400 tok / $0.011 idi, ama guard ortalamaya guvenemez).
-  // Model veya max_tokens degistirirken BURAYI da guncelle.
+  // anthropic (Opus 5.5 + web_search, 2026-10): olculen ~23K girdi (arama
+  //   sonuclari dahil) x $4/1M = $0.09 + cikti max_tokens 3000 x $20/1M = $0.06
+  //   + en fazla 2 arama x $0.01 → tavan ~$0.17, guvenli pay ile 0.2.
+  // Thinking Opus 5.5'te kapatilamiyor ve thinking tokenlari da cikti olarak
+  // faturalanir; bu yuzden tavan max_tokens uzerinden hesaplanir.
+  // Model, max_tokens veya max_uses degistirirken BURAYI da guncelle.
   private readonly COST_PER_PROBE_USD: Record<Provider, number> = {
-    anthropic:  0.03,
-    // Gemini SIFIR OLAMAZ. Sifirken projected maliyet hicbir zaman cap'i
-    // asmiyordu, yani gemini icin gunluk butce guard'i HIC calismiyordu ve
-    // her planin havuzunda gemini bulundugu icin bu en genis acikti.
-    // Deger Gemini Flash listesinden: ~150 girdi + ~400 cikti token/probe.
-    gemini:     0.00013,
-    openai:     0.0004,
+    anthropic:  0.2,
+    // Gemini SIFIR OLAMAZ (sifirken butce guard'i hic calismiyordu).
+    // Ekim 2026: Google Search grounding — istek basi $14–35/1K + ~1K token.
+    gemini:     0.04,
+    // Ekim 2026: Responses API web_search — arama basi $10–25/1K +
+    // ~9K arama icerigi girdi tokeni (gpt-4o-mini $0.15/1M) + cikti.
+    openai:     0.03,
     perplexity: 0.0006,
     xai:        0.0003,
     deepseek:   0.0006,
     meta:       0.0002,        // Groq Llama 3.3 70B ~$0.59/1M in + $0.79/1M out → ~$0.0002/probe
   };
 
+  // Saglayici modelleri env ile degistirilebilir — saglayicilar model
+  // kaldirdiginda (Groq llama-3.3-70b-versatile, Agustos 2026) kod
+  // degisikligi gerekmesin.
+  private readonly MODELS = {
+    anthropic: process.env.ANTHROPIC_CITATION_MODEL ?? 'claude-opus-5-5',
+    gemini:    process.env.GEMINI_CITATION_MODEL    ?? 'gemini-2.5-flash',
+    openai:    process.env.OPENAI_CITATION_MODEL    ?? 'gpt-4o-mini',
+    deepseek:  process.env.DEEPSEEK_CITATION_MODEL  ?? 'deepseek-chat',
+    meta:      process.env.GROQ_LLAMA_MODEL         ?? 'llama-3.3-70b-versatile',
+  };
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly quota: QuotaService,
     private readonly settings: SettingsService,
+    private readonly allowance: MeasurementAllowanceService,
   ) {}
 
   // ────────────────────────────────────────────────────────────
@@ -405,7 +421,7 @@ export class AiCitationService {
 
     const site = await this.prisma.site.findUnique({
       where: { id: siteId },
-      include: { brain: true, user: { select: { id: true, plan: true } } },
+      include: { brain: true, user: { select: { id: true, plan: true, role: true } } },
     });
     if (!site) return [];
 
@@ -456,9 +472,9 @@ export class AiCitationService {
       }));
     }
 
-    const results = await Promise.all(
+    const results = await this.measured(trigger, site.user, () => Promise.all(
       effectiveProviders.map(p => this.runProvider(p, siteId, plan, brand, site.url, queries, competitors, site.userId)),
-    );
+    ));
 
     // Havuz kullanan basarili test varsa kota +1 (runForSite ile ayni davranis; sistem kosumu saymaz)
     if (trigger === 'user' && results.some(r => r.source === 'pool' && this.hasRealProbes(r))) {
@@ -497,7 +513,7 @@ export class AiCitationService {
 
     const site = await this.prisma.site.findUnique({
       where: { id: siteId },
-      include: { brain: true, user: { select: { id: true, plan: true } } },
+      include: { brain: true, user: { select: { id: true, plan: true, role: true } } },
     });
     if (!site) return [];
 
@@ -568,9 +584,9 @@ export class AiCitationService {
 
     const uniqueCompetitors = await this.resolveCompetitors(siteId, site.brain, brand);
 
-    const results = await Promise.all(
+    const results = await this.measured(trigger, site.user, () => Promise.all(
       providers.map(p => this.runProvider(p, siteId, plan, brand, url, probeQueries, uniqueCompetitors, userId)),
-    );
+    ));
 
     // Havuz kullanan en az bir basarili test varsa kota +1.
     // Sistem tetikli calistirmalar sayaci ARTIRMAZ — yukaridaki (1) numarali not.
@@ -605,7 +621,7 @@ export class AiCitationService {
     const systemPrompt = this.buildSystemPrompt();
     const providers: Provider[] = ['anthropic', 'gemini', 'openai', 'perplexity', 'xai', 'deepseek', 'meta'];
 
-    return Promise.all(providers.map(async (provider) => {
+    const out = await Promise.all(providers.map(async (provider) => {
       const label = PROVIDER_LABELS[provider];
       const key = process.env[POOL_ENV_KEY[provider]];
       if (!key) {
@@ -630,6 +646,9 @@ export class AiCitationService {
         return { provider, label, available: false, probes: [], reason: err.message?.slice(0, 200), cost: 0 };
       }
     }));
+    // Oturum icindeyse (ASO Prompt Lab, tam rapor kilidi) haftalik hak sayilsin
+    if (out.some((r) => this.hasRealProbes(r))) noteMeasured();
+    return out;
   }
 
   /** Public aggregate — PublicCitationService bunu cagirir, kendi shareOfVoice'unu hesaplar. */
@@ -844,28 +863,56 @@ export class AiCitationService {
   // ────────────────────────────────────────────────────────────
   //  PROBE IMPLEMENTASYONLARI (key parametre olarak gelir)
   // ────────────────────────────────────────────────────────────
+  //
+  // Her probe ayni kalibi izler:
+  //   - istek withProbeRetry ile sarilir: gecici hatalar (503 "high demand",
+  //     "fetch failed", zaman asimi) yeniden denenir
+  //   - kalici yapilandirma hatasi (kaldirilmis model, gecersiz anahtar)
+  //     ProviderConfigError olarak YUKARI firlatilir; runProvider saglayiciyi
+  //     "kullanilamaz" isaretler — her soru icin ayri HATA satiri uretmez
+  //   - kalan hatalar "HATA:" satiri olur; skor/alarm bunlari zaten saymaz
+
+  /**
+   * Opus 5.5: thinking kapatilamaz, efor varsayilani 'medium'. Eskiden
+   * (Opus 5, efor 'high', max_tokens 1000) thinking butcenin tamamini yiyip
+   * BOS cevap birakiyordu (Agustos 2026'da probe'larin %16'si). Kisa olgusal
+   * cevap icin 'low' efor yeterli.
+   *
+   * Web aramasi ACIK (Ekim 2026, CITATION_MATCH_VERSION 3) — claude.ai bu tur
+   * sorularda web'i ariyor. Opus 5.5 zorunlu tool_choice'u reddettigi (400)
+   * icin arama talimatla istenir. ALINTI = cevap metninde site gecmesi ya da
+   * metin citation'larinda URL'in olmasi; yalnizca arama SONUCLARINDA
+   * gorunmek alinti sayilmaz (model okudu ama onermedi).
+   *
+   * Sunucu tarafi refusal fallback'i bilerek KULLANILMIYOR: baska modelin
+   * cevabi "Claude ne diyor" olcumunu bozar; refusal HATA satiri olur.
+   */
   private async probeAnthropic(key: string, host: string, brand: string, queries: string[], systemPrompt: string, competitors: string[] = []): Promise<CitationProbe[]> {
-    const client = new Anthropic({ apiKey: key });
+    const client = new Anthropic({ apiKey: key, maxRetries: 3, timeout: 120_000 });
     const probes: CitationProbe[] = [];
     for (const q of queries) {
       try {
         const resp = await client.messages.create({
-          model: 'claude-opus-5',
-          max_tokens: 1000,
-          system: systemPrompt,
+          model: this.MODELS.anthropic,
+          max_tokens: 3000,
+          system: `${systemPrompt} Cevaplamadan once mutlaka web aramasi yap ve guncel kaynaklara dayan.`,
           messages: [{ role: 'user', content: q }],
-        });
+          // SDK 0.71 tiplerinde yok; API'de GA
+          output_config: { effort: 'low' },
+          tools: [{ type: 'web_search_20260209', name: 'web_search', max_uses: 2 }],
+        } as any) as Anthropic.Message;
         const text = resp.content
           .filter((b: any) => b.type === 'text')
           .map((b: any) => b.text)
           .join(' ');
 
-        // Opus 5 guvenlik siniflandiricilari istegi REDDEDEBILIR: HTTP 200 +
+        // Guvenlik siniflandiricilari istegi REDDEDEBILIR: HTTP 200 +
         // stop_reason 'refusal' + BOS content doner, SDK exception FIRLATMAZ.
         // Kontrol edilmezse bu "marka anilmadi" gibi kaydedilir ve skoru haksiz
         // yere dusurur. HATA: onekiyle isaretlenirse persistRuns bu satiri
         // DB'ye hic yazmaz (bkz. prompt-lab.service.ts isErrorProbe).
         const stopReason = (resp as any).stop_reason;
+        // pause_turn: sunucu araci uzun surdu; o ana kadarki metin kullanilir
         if (stopReason === 'refusal' || (!text.trim() && stopReason !== 'end_turn')) {
           const reason = stopReason === 'refusal' ? 'saglayici reddi (refusal)' : `bos cevap (stop_reason=${stopReason})`;
           this.log.warn(`Anthropic probe olculemedi (${q}): ${reason}`);
@@ -873,8 +920,12 @@ export class AiCitationService {
           continue;
         }
 
-        probes.push(this.buildProbe(q, text, host, brand, competitors));
+        const citedUrls: string[] = resp.content
+          .filter((b: any) => b.type === 'text' && Array.isArray(b.citations))
+          .flatMap((b: any) => b.citations.map((c: any) => c?.url).filter((u: unknown): u is string => typeof u === 'string'));
+        probes.push(this.withSources(this.buildProbe(q, text, host, brand, competitors), citedUrls, host));
       } catch (err: any) {
+        if (this.isFatal(err)) throw new ProviderConfigError(err.message);
         this.log.warn(`Anthropic probe failed (${q}): ${err.message}`);
         probes.push({ query: q, cited: false, brandMentioned: false, excerpt: `HATA: ${err.message}` });
       }
@@ -882,19 +933,34 @@ export class AiCitationService {
     return probes;
   }
 
+  /**
+   * Gemini — Google Search grounding ACIK (Ekim 2026, CITATION_MATCH_VERSION 3).
+   * Gemini uygulamasi bu tur sorularda web'i ariyor; API'yi aramasiz sormak
+   * yalnizca egitim bilgisini olcuyordu ve 2026'da buyuyen siteler hic
+   * gorunmuyordu. Kaynaklar groundingChunks'ta: uri bir yonlendirme adresi,
+   * title ise kaynagin alan adi ("bankateklifi.com").
+   */
   private async probeGemini(key: string, host: string, brand: string, queries: string[], systemPrompt: string, competitors: string[] = []): Promise<CitationProbe[]> {
     const client = new GoogleGenAI({ apiKey: key });
     const probes: CitationProbe[] = [];
     for (const q of queries) {
       try {
-        const resp = await client.models.generateContent({
-          model: 'gemini-2.5-flash',
+        const resp = await withProbeRetry(() => client.models.generateContent({
+          model: this.MODELS.gemini,
           contents: `${systemPrompt}\n\nSoru: ${q}`,
-          config: { maxOutputTokens: 1000 } as any,
-        });
+          config: { maxOutputTokens: 2000, tools: [{ googleSearch: {} }] },
+        }));
         const text = resp.text ?? '';
-        probes.push(this.buildProbe(q, text, host, brand, competitors));
+        if (!text.trim()) {
+          const finish = resp.candidates?.[0]?.finishReason ?? 'bilinmiyor';
+          probes.push({ query: q, cited: false, brandMentioned: false, excerpt: `HATA: bos cevap (finishReason=${finish})` });
+          continue;
+        }
+        const chunks = resp.candidates?.[0]?.groundingMetadata?.groundingChunks ?? [];
+        const sources = chunks.flatMap((c) => [c.web?.title, c.web?.uri]).filter((s): s is string => !!s);
+        probes.push(this.withSources(this.buildProbe(q, text, host, brand, competitors), sources, host));
       } catch (err: any) {
+        if (err instanceof ProviderConfigError) throw err;
         this.log.warn(`Gemini probe failed (${q}): ${err.message}`);
         probes.push({ query: q, cited: false, brandMentioned: false, excerpt: `HATA: ${err.message}` });
       }
@@ -902,27 +968,40 @@ export class AiCitationService {
     return probes;
   }
 
+  /**
+   * ChatGPT — Responses API + web_search (Ekim 2026, CITATION_MATCH_VERSION 3).
+   * tool_choice 'required': model arama yapmadan cevaplamayi secebiliyor;
+   * ChatGPT uygulamasi bu tur "hangi site/platform" sorularinda arama yaptigi
+   * icin olcum her seferinde aramali yapilir (tutarli kiyas). Kaynaklar
+   * output_text.annotations icinde url_citation olarak gelir.
+   */
   private async probeOpenAI(key: string, host: string, brand: string, queries: string[], systemPrompt: string, competitors: string[] = []): Promise<CitationProbe[]> {
     const probes: CitationProbe[] = [];
     for (const q of queries) {
       try {
-        const res = await fetch('https://api.openai.com/v1/chat/completions', {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            model: 'gpt-4o-mini',
-            max_tokens: 1000,
-            messages: [
-              { role: 'system', content: systemPrompt },
-              { role: 'user', content: q },
-            ],
-          }),
-        });
-        if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text().catch(() => '')}`.slice(0, 200));
-        const data = await res.json() as any;
-        const text = data?.choices?.[0]?.message?.content ?? '';
-        probes.push(this.buildProbe(q, text, host, brand, competitors));
+        const data = await withProbeRetry(() => this.postJson('https://api.openai.com/v1/responses', key, {
+          model: this.MODELS.openai,
+          instructions: systemPrompt,
+          input: q,
+          tools: [{ type: 'web_search' }],
+          tool_choice: 'required',
+          max_output_tokens: 1500,
+        }));
+        const parts = (Array.isArray(data?.output) ? data.output : [])
+          .filter((o: any) => o?.type === 'message')
+          .flatMap((o: any) => (Array.isArray(o.content) ? o.content : []))
+          .filter((p: any) => p?.type === 'output_text');
+        const text = parts.map((p: any) => p.text ?? '').join('\n');
+        if (!text.trim()) {
+          probes.push({ query: q, cited: false, brandMentioned: false, excerpt: `HATA: bos cevap (status=${data?.status ?? 'bilinmiyor'})` });
+          continue;
+        }
+        const sources: string[] = parts.flatMap((p: any) => (Array.isArray(p.annotations) ? p.annotations : [])
+          .filter((a: any) => a?.type === 'url_citation' && typeof a.url === 'string')
+          .map((a: any) => a.url));
+        probes.push(this.withSources(this.buildProbe(q, text, host, brand, competitors), sources, host));
       } catch (err: any) {
+        if (err instanceof ProviderConfigError) throw err;
         this.log.warn(`OpenAI probe failed (${q}): ${err.message}`);
         probes.push({ query: q, cited: false, brandMentioned: false, excerpt: `HATA: ${err.message}` });
       }
@@ -934,28 +1013,20 @@ export class AiCitationService {
     const probes: CitationProbe[] = [];
     for (const q of queries) {
       try {
-        const res = await fetch('https://api.perplexity.ai/chat/completions', {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            model: 'sonar',
-            max_tokens: 1000,
-            messages: [
-              { role: 'system', content: systemPrompt },
-              { role: 'user', content: q },
-            ],
-          }),
-        });
-        if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text().catch(() => '')}`.slice(0, 200));
-        const data = await res.json() as any;
+        const data = await withProbeRetry(() => this.postJson('https://api.perplexity.ai/chat/completions', key, {
+          model: 'sonar',
+          max_tokens: 1000,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: q },
+          ],
+        }));
         const text = data?.choices?.[0]?.message?.content ?? '';
         const citations: string[] = Array.isArray(data?.citations) ? data.citations : [];
         // Etiket sinirli: 'notranksup.ai' / 'ranksup.ai.tr' artik bizim alinti sayilmaz
-        const citedFromList = citations.some((u: string) => urlHostMatches(u, host));
-        const probe = this.buildProbe(q, text, host, brand, competitors);
-        if (citedFromList) probe.cited = true;
-        probes.push(probe);
+        probes.push(this.withSources(this.buildProbe(q, text, host, brand, competitors), citations, host));
       } catch (err: any) {
+        if (err instanceof ProviderConfigError) throw err;
         this.log.warn(`Perplexity probe failed (${q}): ${err.message}`);
         probes.push({ query: q, cited: false, brandMentioned: false, excerpt: `HATA: ${err.message}` });
       }
@@ -964,89 +1035,80 @@ export class AiCitationService {
   }
 
   private async probeXai(key: string, host: string, brand: string, queries: string[], systemPrompt: string, competitors: string[] = []): Promise<CitationProbe[]> {
-    const probes: CitationProbe[] = [];
-    for (const q of queries) {
-      try {
-        const res = await fetch('https://api.x.ai/v1/chat/completions', {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            model: 'grok-4-fast-non-reasoning',
-            max_tokens: 1000,
-            messages: [
-              { role: 'system', content: systemPrompt },
-              { role: 'user', content: q },
-            ],
-          }),
-        });
-        if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text().catch(() => '')}`.slice(0, 200));
-        const data = await res.json() as any;
-        const text = data?.choices?.[0]?.message?.content ?? '';
-        probes.push(this.buildProbe(q, text, host, brand, competitors));
-      } catch (err: any) {
-        this.log.warn(`Grok probe failed (${q}): ${err.message}`);
-        probes.push({ query: q, cited: false, brandMentioned: false, excerpt: `HATA: ${err.message}` });
-      }
-    }
-    return probes;
+    return this.probeChatCompletions('Grok', 'https://api.x.ai/v1/chat/completions', 'grok-4-fast-non-reasoning', key, host, brand, queries, systemPrompt, competitors);
   }
 
+  /** deepseek-chat = deepseek-flash'in dusunmesiz modu; dogrudan 'deepseek-flash' reasoning'e girip butceyi yiyor */
   private async probeDeepseek(key: string, host: string, brand: string, queries: string[], systemPrompt: string, competitors: string[] = []): Promise<CitationProbe[]> {
+    return this.probeChatCompletions('DeepSeek', 'https://api.deepseek.com/chat/completions', this.MODELS.deepseek, key, host, brand, queries, systemPrompt, competitors);
+  }
+
+  /**
+   * Meta AI (Llama) via Groq — OpenAI-compatible endpoint.
+   * Ekim 2026: Groq'ta Llama sohbet modeli kalmadi (llama-3.3-70b-versatile
+   * kaldirildi). GROQ_LLAMA_MODEL ile yeni model verilene kadar saglayici
+   * "kullanilamaz" doner (ProviderConfigError), HATA satiri uretmez.
+   */
+  private async probeMeta(key: string, host: string, brand: string, queries: string[], systemPrompt: string, competitors: string[] = []): Promise<CitationProbe[]> {
+    return this.probeChatCompletions('Meta/Llama', 'https://api.groq.com/openai/v1/chat/completions', this.MODELS.meta, key, host, brand, queries, systemPrompt, competitors);
+  }
+
+  /** OpenAI uyumlu chat/completions ucu olan aramasiz saglayicilar (Grok, DeepSeek, Llama) */
+  private async probeChatCompletions(
+    label: string, url: string, model: string,
+    key: string, host: string, brand: string, queries: string[], systemPrompt: string, competitors: string[],
+  ): Promise<CitationProbe[]> {
     const probes: CitationProbe[] = [];
     for (const q of queries) {
       try {
-        const res = await fetch('https://api.deepseek.com/chat/completions', {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            model: 'deepseek-chat',
-            max_tokens: 1000,
-            messages: [
-              { role: 'system', content: systemPrompt },
-              { role: 'user', content: q },
-            ],
-          }),
-        });
-        if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text().catch(() => '')}`.slice(0, 200));
-        const data = await res.json() as any;
+        const data = await withProbeRetry(() => this.postJson(url, key, {
+          model,
+          max_tokens: 1000,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: q },
+          ],
+        }));
         const text = data?.choices?.[0]?.message?.content ?? '';
+        if (!text.trim()) {
+          probes.push({ query: q, cited: false, brandMentioned: false, excerpt: `HATA: bos cevap (finish_reason=${data?.choices?.[0]?.finish_reason ?? 'bilinmiyor'})` });
+          continue;
+        }
         probes.push(this.buildProbe(q, text, host, brand, competitors));
       } catch (err: any) {
-        this.log.warn(`DeepSeek probe failed (${q}): ${err.message}`);
+        if (err instanceof ProviderConfigError) throw err;
+        this.log.warn(`${label} probe failed (${q}): ${err.message}`);
         probes.push({ query: q, cited: false, brandMentioned: false, excerpt: `HATA: ${err.message}` });
       }
     }
     return probes;
   }
 
-  /** Meta AI (Llama) via Groq — OpenAI-compatible endpoint, free tier friendly */
-  private async probeMeta(key: string, host: string, brand: string, queries: string[], systemPrompt: string, competitors: string[] = []): Promise<CitationProbe[]> {
-    const probes: CitationProbe[] = [];
-    const model = process.env.GROQ_LLAMA_MODEL ?? 'llama-3.3-70b-versatile';
-    for (const q of queries) {
-      try {
-        const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            model,
-            max_tokens: 1000,
-            messages: [
-              { role: 'system', content: systemPrompt },
-              { role: 'user', content: q },
-            ],
-          }),
-        });
-        if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text().catch(() => '')}`.slice(0, 200));
-        const data = await res.json() as any;
-        const text = data?.choices?.[0]?.message?.content ?? '';
-        probes.push(this.buildProbe(q, text, host, brand, competitors));
-      } catch (err: any) {
-        this.log.warn(`Meta/Llama probe failed (${q}): ${err.message}`);
-        probes.push({ query: q, cited: false, brandMentioned: false, excerpt: `HATA: ${err.message}` });
-      }
-    }
-    return probes;
+  /** POST + JSON; 2xx disi cevap "HTTP <kod>: <govde>" hatasi olur (probe-retry bu bicimi siniflar) */
+  private async postJson(url: string, key: string, body: unknown): Promise<any> {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(120_000),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}: ${await res.text().catch(() => '')}`.slice(0, 300));
+    return res.json();
+  }
+
+  /**
+   * Arama yapan saglayicinin kaynak listesini probe'a isler: listede bizim
+   * alan adimiz varsa alinti sayilir (cevap metninde URL yazmasa bile).
+   */
+  private withSources(probe: CitationProbe, sources: string[], host: string): CitationProbe {
+    if (sources.some((u) => urlHostMatches(u, host))) probe.cited = true;
+    return probe;
+  }
+
+  private isFatal(err: unknown): boolean {
+    // Anthropic SDK hata mesajinda model adi sona gelir ("404 ... not_found_error ... model: x"); durum koduna bak
+    const status = (err as any)?.status;
+    return err instanceof ProviderConfigError || status === 401 || status === 403 || status === 404 || isFatalProviderError(err);
   }
 
   // ────────────────────────────────────────────────────────────
@@ -1054,6 +1116,30 @@ export class AiCitationService {
   // ────────────────────────────────────────────────────────────
   private buildSystemPrompt(): string {
     return 'Kullanicinin sorusuna kisa ve dogrudan cevap ver. Tanidigin Turkiye kaynaklarini, web sitelerini ve markalari ismiyle ve URL siyle birlikte belirt. Bilmiyorsan acikca soyle.';
+  }
+
+  /**
+   * Haftalik olcum hakki (measurement-allowance.ts). Kullanici tetikli olcum
+   * bir olcum oturumu (rota interceptor'u) icinde degilse — worker'daki site
+   * denetimi gibi — hak burada ayrilir; hak yoksa 429 firlatir. Gercek olcum
+   * olmazsa (tum saglayicilar hata) hak iade edilir.
+   */
+  private async measured<T extends Array<{ available: boolean; probes: CitationProbe[] }>>(
+    trigger: 'user' | 'system',
+    user: { id: string; role?: string | null },
+    fn: () => Promise<T>,
+  ): Promise<T> {
+    const reservation = trigger === 'user' ? await this.allowance.reserveOutsideSession(user) : null;
+    let results: T;
+    try {
+      results = await fn();
+    } catch (err) {
+      if (reservation) await this.allowance.release(reservation);
+      throw err;
+    }
+    if (results.some((r) => this.hasRealProbes(r))) noteMeasured();
+    else if (reservation) await this.allowance.release(reservation);
+    return results;
   }
 
   /**

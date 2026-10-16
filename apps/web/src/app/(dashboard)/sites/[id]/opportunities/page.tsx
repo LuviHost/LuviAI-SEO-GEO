@@ -8,6 +8,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { api } from '@/lib/api';
+import { MeasurementLimitNote } from '@/components/measurement-limit-note';
+import { isWeeklyMeasurementLimitError, refreshMeasurementAllowance, useMeasurementAllowance } from '@/lib/measurement-allowance';
 import { useEntitlements } from '@/lib/entitlements';
 import { PlanLockedCard } from '@/components/plan-locked-card';
 import { cn } from '@/lib/utils';
@@ -61,6 +63,7 @@ export default function OpportunitiesPage() {
   const [loading, setLoading] = useState(true);
   const [deriving, setDeriving] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
+  const { blocked: measurementBlocked } = useMeasurementAllowance();
   const [showDismissed, setShowDismissed] = useState(false);
 
   const allowed = can('contentOpportunities');
@@ -120,8 +123,10 @@ export default function OpportunitiesPage() {
       const res = await api.remeasureOpportunity(site.id, item.id);
       const { before, after } = res;
       toast.success(`Yeniden ölçüldü: ${before.cited}/${before.total} → ${after.cited}/${after.total}`);
+      refreshMeasurementAllowance();
       await load();
     } catch (err: any) {
+      if (isWeeklyMeasurementLimitError(err)) refreshMeasurementAllowance();
       toast.error(err.message);
     } finally {
       setBusy(null);
@@ -190,6 +195,7 @@ export default function OpportunitiesPage() {
           </>
         }
       />
+      <MeasurementLimitNote />
 
       {loading ? (
         <div className="space-y-3" aria-busy="true" aria-label="Fırsatlar yükleniyor">
@@ -292,7 +298,7 @@ export default function OpportunitiesPage() {
                         </Button>
                       )}
                       {(item.status === 'PUBLISHED' || item.status === 'GENERATED' || (item.status === 'REMEASURED' && remeasureResult?.verdict === 'PRELIMINARY')) && item.promptId && (
-                        <Button size="sm" variant="outline" onClick={() => remeasure(item)} disabled={busy !== null}>
+                        <Button size="sm" variant="outline" onClick={() => remeasure(item)} disabled={busy !== null || measurementBlocked}>
                           {busy === item.id ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Repeat className="h-3.5 w-3.5 mr-1.5" />}
                           Yeniden ölç
                         </Button>

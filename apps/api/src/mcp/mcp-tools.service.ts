@@ -12,6 +12,7 @@ import { annotateAuditFixRoutes } from '../audit/fix-routes.js';
 import { ImageAltSuggestService, IMAGE_ALT_JOB_BATCH } from '../audit/image-alt/image-alt-suggest.service.js';
 import { ActionPlansService } from '../action-plans/action-plans.service.js';
 import { planHasFeature, type PlanFeature, type PlanId } from '../billing/plans.js';
+import { MeasurementAllowanceService } from '../billing/measurement-allowance.service.js';
 
 /**
  * RanksUp Tool Registry — MCP server VE uygulama ici Chat'in ORTAK tool seti.
@@ -100,6 +101,7 @@ export class McpToolsService {
     private readonly promptLab: PromptLabService,
     private readonly actionPlans: ActionPlansService,
     private readonly imageAltSuggest: ImageAltSuggestService,
+    private readonly measurement: MeasurementAllowanceService,
   ) {}
 
   list(): ToolDef[] {
@@ -419,7 +421,8 @@ export class McpToolsService {
         mutating: true,
         handler: async (user, args) => {
           const site = await this.resolveSite(user, args.site_id);
-          return this.promptLab.runPrompt(site.id, String(args.prompt_id), {});
+          // Haftalik AI olcum hakki — panel uclariyla ayni kural (measurement-allowance.ts)
+          return this.measurement.run(user, () => this.promptLab.runPrompt(site.id, String(args.prompt_id), {}));
         },
       },
       {

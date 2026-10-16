@@ -12,9 +12,12 @@ import { EngineStrip } from '@/components/engine-logo';
 import { formatNum } from '@/lib/format';
 import { Button } from '@/components/ui/button';
 import { api } from '@/lib/api';
+import { isWeeklyMeasurementLimitError, refreshMeasurementAllowance, useMeasurementAllowance } from '@/lib/measurement-allowance';
 
 export default function VisibilityPage() {
   const { site } = useSiteContext();
+  // Haftalik AI olcum hakki — not grafikteki "Yeniden Test"in altinda gorunur
+  const { blocked: measurementBlocked } = useMeasurementAllowance();
   const [roadmapLoading, setRoadmapLoading] = useState(false);
   const [roadmap, setRoadmap] = useState<{
     summary: string;
@@ -32,6 +35,7 @@ export default function VisibilityPage() {
     setPerPageLoading(true);
     try {
       const r = await api.runCitationPerPage(site.id);
+      refreshMeasurementAllowance();
       setPerPage(r.breakdown);
       if (r.breakdown.totalCites === 0) {
         toast.message('Henüz alıntı alan sayfa yok — daha fazla içerik üret ve testi tekrarla');
@@ -39,6 +43,7 @@ export default function VisibilityPage() {
         toast.success(`${r.breakdown.totalCites} alıntı analiz edildi`);
       }
     } catch (err: any) {
+      if (isWeeklyMeasurementLimitError(err)) refreshMeasurementAllowance();
       toast.error(err.message || 'Sayfa bazında analiz başarısız');
     } finally {
       setPerPageLoading(false);
@@ -49,6 +54,7 @@ export default function VisibilityPage() {
     setRoadmapLoading(true);
     try {
       const r = await api.runCitationRoadmap(site.id);
+      refreshMeasurementAllowance();
       if (r.roadmap) {
         setRoadmap(r.roadmap);
         toast.success('AI önerileri hazır');
@@ -56,6 +62,7 @@ export default function VisibilityPage() {
         toast.message('Yeterli veri yok — önce alıntı testini çalıştır');
       }
     } catch (err: any) {
+      if (isWeeklyMeasurementLimitError(err)) refreshMeasurementAllowance();
       toast.error(err.message || 'Yol haritası üretilemedi');
     } finally {
       setRoadmapLoading(false);
@@ -92,7 +99,7 @@ export default function VisibilityPage() {
             title="GEO yol haritası"
             description="AI mevcut sonuçlarını okur, ne yapman gerektiğini önerir."
             actions={
-              <Button size="sm" onClick={runRoadmap} disabled={roadmapLoading}>
+              <Button size="sm" onClick={runRoadmap} disabled={roadmapLoading || measurementBlocked}>
                 {roadmapLoading ? (
                   <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" aria-hidden /> Analiz ediliyor</>
                 ) : (
@@ -150,7 +157,7 @@ export default function VisibilityPage() {
             title="Sayfa bazında alıntılar ve kaynak sorgular"
             description="Hangi sayfan hangi sorgu için AI cevabında alıntılandı?"
             actions={
-              <Button size="sm" variant="outline" onClick={runPerPage} disabled={perPageLoading}>
+              <Button size="sm" variant="outline" onClick={runPerPage} disabled={perPageLoading || measurementBlocked}>
                 {perPageLoading ? (
                   <><Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" aria-hidden /> Analiz ediliyor</>
                 ) : (

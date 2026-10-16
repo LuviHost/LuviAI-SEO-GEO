@@ -8,6 +8,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { api } from '@/lib/api';
+import { MeasurementLimitNote } from '@/components/measurement-limit-note';
+import { isWeeklyMeasurementLimitError, refreshMeasurementAllowance, useMeasurementAllowance } from '@/lib/measurement-allowance';
 import { SectionHeader } from '@/components/ui/section-header';
 import { cn } from '@/lib/utils';
 import {
@@ -32,6 +34,7 @@ export default function AppAiVisibilityPage() {
   const [loading, setLoading] = useState(true);
   const [newText, setNewText] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
+  const { blocked: measurementBlocked } = useMeasurementAllowance();
   const [suggesting, setSuggesting] = useState(false);
   const [runResult, setRunResult] = useState<any>(null);
   const [pack, setPack] = useState<any>(null);
@@ -80,8 +83,10 @@ export default function AppAiVisibilityPage() {
       const res = await api.runAppPrompt(siteId, appId, promptId);
       setRunResult(res);
       toast.success(`Ölçüm bitti: ${res.summary.mentioned}/${res.summary.total} sağlayıcı uygulamayı andı`);
+      refreshMeasurementAllowance();
       await load();
     } catch (err: any) {
+      if (isWeeklyMeasurementLimitError(err)) refreshMeasurementAllowance();
       toast.error(err.message);
     } finally {
       setBusy(null);
@@ -125,6 +130,7 @@ export default function AppAiVisibilityPage() {
         title="AI görünürlük"
         description={<>Kullanıcılar uygulama tavsiyesini artık ChatGPT&apos;ye soruyor. &quot;En iyi X uygulaması&quot; sorularında uygulaman öneriliyor mu — 7 AI sağlayıcıda ölç.</>}
       />
+      <MeasurementLimitNote />
 
       {/* Soru ekleme */}
       <Card>
@@ -176,7 +182,7 @@ export default function AppAiVisibilityPage() {
                   </Badge>
                 )}
                 <div className="flex gap-1.5">
-                  <Button size="sm" onClick={() => run(p.id)} disabled={busy !== null}>
+                  <Button size="sm" onClick={() => run(p.id)} disabled={busy !== null || measurementBlocked}>
                     {busy === p.id ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Play className="h-3.5 w-3.5 mr-1" />}
                     Ölç
                   </Button>

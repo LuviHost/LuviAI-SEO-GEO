@@ -13,6 +13,8 @@ import { CHART } from '@/lib/chart-colors';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
 import { ChartContainer, ChartTooltip, CHART_AXIS, CHART_GRID } from '@/components/ui/chart-container';
 import { FilterChip } from '@/components/ui/filter-chip';
+import { MeasurementLimitNote } from '@/components/measurement-limit-note';
+import { isWeeklyMeasurementLimitError, refreshMeasurementAllowance, useMeasurementAllowance } from '@/lib/measurement-allowance';
 
 
 
@@ -125,6 +127,8 @@ export function CitationHistoryChart({
   useEffect(() => { load(days); }, [days, siteId]);
   useEffect(() => { loadRuns(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [siteId]);
 
+  const { blocked: measurementBlocked } = useMeasurementAllowance();
+
   const triggerSnapshot = async () => {
     setRunning(true);
     try {
@@ -135,9 +139,11 @@ export function CitationHistoryChart({
         setShowDetails(true);
       }
       toast.success('AI görünürlük testi çalıştı — önceki testler geçmişte duruyor, grafik ve detaylar güncellendi');
+      refreshMeasurementAllowance();
       await load(days);
       await loadRuns();
     } catch (err: any) {
+      if (isWeeklyMeasurementLimitError(err)) refreshMeasurementAllowance();
       toast.error(err.message);
     } finally {
       setRunning(false);
@@ -205,11 +211,12 @@ export function CitationHistoryChart({
                 </FilterChip>
               ))}
             </div>
-            <Button size="sm" variant="outline" onClick={triggerSnapshot} disabled={running}>
+            <Button size="sm" variant="outline" onClick={triggerSnapshot} disabled={running || measurementBlocked}>
               <RefreshCw className={`h-3.5 w-3.5 mr-1 ${running ? 'animate-spin' : ''}`} /> Yeniden Test
             </Button>
           </div>
         </div>
+        <MeasurementLimitNote className="mb-3" />
 
         {sortedDates.length === 0 ? (
           <div className="text-center py-8 text-sm text-muted-foreground">

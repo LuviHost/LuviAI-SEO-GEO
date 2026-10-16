@@ -6,6 +6,8 @@ import { QuotaService } from './quota.service.js';
 import { FxService } from './fx.service.js';
 import { RenewalService } from './renewal.service.js';
 import { EmailModule } from '../email/email.module.js';
+import { MeasurementAllowanceService } from './measurement-allowance.service.js';
+import { MeasurementSessionInterceptor } from './measurement-session.interceptor.js';
 
 /**
  * PayTR + plan-based quota.
@@ -16,7 +18,7 @@ import { EmailModule } from '../email/email.module.js';
 @Module({
   imports: [EmailModule],
   controllers: [BillingController],
-  providers: [BillingService, PaytrService, QuotaService, FxService, RenewalService],
-  exports: [BillingService, PaytrService, QuotaService, FxService],
+  providers: [BillingService, PaytrService, QuotaService, FxService, RenewalService, MeasurementAllowanceService, MeasurementSessionInterceptor],
+  exports: [BillingService, PaytrService, QuotaService, FxService, MeasurementAllowanceService, MeasurementSessionInterceptor],
 })
 export class BillingModule {}

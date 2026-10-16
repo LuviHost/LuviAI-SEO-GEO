@@ -14,6 +14,8 @@ import {
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { api } from '@/lib/api';
+import { MeasurementLimitNote } from '@/components/measurement-limit-note';
+import { isWeeklyMeasurementLimitError, refreshMeasurementAllowance, useMeasurementAllowance } from '@/lib/measurement-allowance';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -931,6 +933,7 @@ export function AuditStepBody({
 // ──────────────────────────────────────────────────────────────────────
 export function CitationPanel({ siteId }: { siteId: string }) {
   const [running, setRunning] = useState(false);
+  const { blocked: measurementBlocked } = useMeasurementAllowance();
   const [results, setResults] = useState<any[] | null>(null);
   const [runAt, setRunAt] = useState<string | null>(null);
 
@@ -940,7 +943,9 @@ export function CitationPanel({ siteId }: { siteId: string }) {
       const res = await api.runCitationTest(siteId);
       setResults(res.results ?? []);
       setRunAt(res.runAt ?? null);
+      refreshMeasurementAllowance();
     } catch (err: any) {
+      if (isWeeklyMeasurementLimitError(err)) refreshMeasurementAllowance();
       toast.error(err.message);
     } finally {
       setRunning(false);
@@ -961,10 +966,11 @@ export function CitationPanel({ siteId }: { siteId: string }) {
           <p className="text-sm font-semibold">AI Citation Testi</p>
           <p className="text-xs text-muted-foreground mt-0.5">Site brain AEO/GEO sorularını LLM'lere sorar — cevapta site URL'i veya marka adı geçiyor mu? URL geçerse 100 puan, sadece marka adı geçerse 50 puan/probe.</p>
         </div>
-        <Button size="sm" variant="outline" onClick={run} disabled={running}>
+        <Button size="sm" variant="outline" onClick={run} disabled={running || measurementBlocked}>
           {running ? 'Test ediliyor…' : 'AI Testini Çalıştır'}
         </Button>
       </div>
+      <MeasurementLimitNote className="mt-2" />
 
       {results && (
         <div className="mt-3 space-y-2">

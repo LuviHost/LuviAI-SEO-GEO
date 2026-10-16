@@ -8,6 +8,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { api } from '@/lib/api';
+import { MeasurementLimitNote } from '@/components/measurement-limit-note';
+import { isWeeklyMeasurementLimitError, refreshMeasurementAllowance, useMeasurementAllowance } from '@/lib/measurement-allowance';
 import { useEntitlements } from '@/lib/entitlements';
 import { PlanLockedCard } from '@/components/plan-locked-card';
 import { cn } from '@/lib/utils';
@@ -32,6 +34,7 @@ export default function ProductRadarPage() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
+  const { blocked: measurementBlocked } = useMeasurementAllowance();
 
   const allowed = can('productRadar');
 
@@ -68,8 +71,10 @@ export default function ProductRadarPage() {
     try {
       const res = await api.runProductRadar(site.id);
       toast.success(`Tarama bitti — ${res.snapshots} ölçüm kaydedildi`);
+      refreshMeasurementAllowance();
       await load();
     } catch (err: any) {
+      if (isWeeklyMeasurementLimitError(err)) refreshMeasurementAllowance();
       toast.error(err.message);
     } finally {
       setRunning(false);
@@ -82,11 +87,12 @@ export default function ProductRadarPage() {
     <div className="space-y-5">
       <div className="flex items-start justify-between flex-wrap gap-3">
         <SectionHeader icon={Radar} title="Ürün Radarı" description={<>AI asistanlar "{site.niche ?? 'kategorinde'}" hangi ürünleri öneriyor — sen listede misin, kimler önünde?</>} />
-        <Button onClick={run} disabled={running}>
+        <Button onClick={run} disabled={running || measurementBlocked}>
           {running ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-1.5" />}
           {running ? 'Taranıyor… (~1 dk)' : 'Şimdi Tara'}
         </Button>
       </div>
+      <MeasurementLimitNote />
 
       {loading ? (
         <div className="text-sm text-muted-foreground p-6 text-center">Yükleniyor…</div>

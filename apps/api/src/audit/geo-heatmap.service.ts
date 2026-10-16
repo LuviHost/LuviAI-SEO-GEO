@@ -4,6 +4,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { GoogleGenAI } from '@google/genai';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { SettingsService } from '../settings/settings.service.js';
+import { noteMeasured } from '../billing/measurement-allowance.js';
 
 export interface HeatmapCell {
   query: string;
@@ -129,6 +130,7 @@ export class GeoHeatmapService {
         }
         try {
           const text = await this.askProvider(p.id, q);
+          noteMeasured(); // haftalik olcum hakki (rota oturumu icinde sayilir)
           const lower = text.toLowerCase();
           // Once site URL alintilandi mi?
           if (lower.includes(brandHost)) {

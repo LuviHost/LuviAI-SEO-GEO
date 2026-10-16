@@ -14,6 +14,7 @@ import { AppStore, KeywordSource } from '@prisma/client';
 import { AsoPromptLabService } from './aso-prompt-lab.service.js';
 import { AsoReviewContentService } from './aso-review-content.service.js';
 import { RequiresPlan } from '../billing/plan-feature.decorator.js';
+import { MeasurementSession } from '../billing/measurement-session.interceptor.js';
 import { AsoResourceGuard } from './aso-resource.guard.js';
 
 // AsoResourceGuard: :appId / :keywordId'nin :siteId'ye ait oldugunu dogrular
@@ -67,6 +68,7 @@ export class AsoController {
   }
 
   /** POST /sites/:siteId/aso/apps/:appId/prompts/:promptId/run — 7 saglayicida olc */
+  @MeasurementSession()
   @Post('apps/:appId/prompts/:promptId/run')
   @RequiresPlan('appPromptLab')
   runAppPrompt(

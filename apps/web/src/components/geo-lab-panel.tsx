@@ -12,6 +12,8 @@ import { SectionHeader } from '@/components/ui/section-header';
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatNum } from '@/lib/format';
 import { api } from '@/lib/api';
+import { MeasurementLimitNote } from '@/components/measurement-limit-note';
+import { isWeeklyMeasurementLimitError, refreshMeasurementAllowance, useMeasurementAllowance } from '@/lib/measurement-allowance';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -893,6 +895,7 @@ function TrainingDataTab({ siteId }: { siteId: string }) {
 // ──────────────────────────────────────────────────────────────────
 function HeatmapTab({ siteId }: { siteId: string }) {
   const [running, setRunning] = useState(false);
+  const { blocked: measurementBlocked } = useMeasurementAllowance();
   const [data, setData] = useState<any>(null);
 
   const run = async () => {
@@ -901,7 +904,9 @@ function HeatmapTab({ siteId }: { siteId: string }) {
       const res = await api.runGeoHeatmap(siteId, 10);
       setData(res);
       toast.success(`Heatmap hazır: ${res.queries.length} sorgu × ${res.providers.length} AI`);
+      refreshMeasurementAllowance();
     } catch (err: any) {
+      if (isWeeklyMeasurementLimitError(err)) refreshMeasurementAllowance();
       toast.error(err.message);
     } finally {
       setRunning(false);
@@ -914,10 +919,11 @@ function HeatmapTab({ siteId }: { siteId: string }) {
         <p className="text-xs text-muted-foreground max-w-2xl">
           Sektör sorgularını Claude/Gemini/ChatGPT/Perplexity'ye sorar. Her hücre: <span className="text-success font-bold">●</span> alıntılandın · <span className="text-warning font-bold">●</span> sadece marka adı geçti · <span className="text-danger font-bold">●</span> rakip alıntılandı · <span className="text-muted-foreground font-bold">●</span> kimse alıntılanmadı (fırsat)
         </p>
-        <Button size="sm" onClick={run} disabled={running}>
+        <Button size="sm" onClick={run} disabled={running || measurementBlocked}>
           {running ? 'Test ediliyor (~60 sn)…' : <><Play className="h-3.5 w-3.5 mr-1.5" aria-hidden />Isı haritasını çalıştır</>}
         </Button>
       </div>
+      <MeasurementLimitNote />
 
       {data && (
         <div className="space-y-3">

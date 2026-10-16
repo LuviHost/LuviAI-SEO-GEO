@@ -343,6 +343,15 @@ export const api = {
       budget: { used: number; cap: number; pct: number; warn: boolean; hardBlock: boolean };
     }>(`/billing/users/${userId}/quota`),
 
+  /** Haftalik AI olcum hakki — hesap basina 7 gunde 1 (ADMIN: limited=false) */
+  getMeasurementAllowance: () =>
+    request<{
+      limited: boolean;
+      allowed: boolean;
+      lastMeasuredAt: string | null;
+      nextAvailableAt: string | null;
+    }>('/billing/measurement-allowance'),
+
   detectNiche: (url: string) =>
     request<{
       niche: string;

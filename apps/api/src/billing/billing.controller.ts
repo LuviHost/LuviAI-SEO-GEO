@@ -5,6 +5,7 @@ import { Public } from '../auth/public.decorator.js';
 import { BillingService } from './billing.service.js';
 import { PaytrService } from './paytr.service.js';
 import { QuotaService } from './quota.service.js';
+import { MeasurementAllowanceService } from './measurement-allowance.service.js';
 
 function ensureSelf(req: Request, requestedUserId: string) {
   const user = (req as any).user;
@@ -20,7 +21,17 @@ export class BillingController {
     private readonly billing: BillingService,
     private readonly paytr: PaytrService,
     private readonly quota: QuotaService,
+    private readonly measurement: MeasurementAllowanceService,
   ) {}
+
+  /**
+   * GET /api/billing/measurement-allowance — oturumdaki hesabin haftalik AI
+   * olcum hakki. Panel butonlari bunu okuyup kilitlenir; asil kapi sunucuda.
+   */
+  @Get('measurement-allowance')
+  measurementAllowance(@Req() req: Request) {
+    return this.measurement.status((req as any).user);
+  }
 
   /**
    * GET /api/billing/plans — herkes plan listesini görebilir.

@@ -7,6 +7,8 @@ import {
   ChevronDown, ChevronRight, AlertTriangle, Check, Loader2, X,
 } from 'lucide-react';
 import { api } from '@/lib/api';
+import { MeasurementLimitNote } from '@/components/measurement-limit-note';
+import { isWeeklyMeasurementLimitError, refreshMeasurementAllowance, useMeasurementAllowance } from '@/lib/measurement-allowance';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
@@ -107,6 +109,7 @@ function PromptsTab({ siteId }: { siteId: string }) {
   const [adding, setAdding] = useState(false);
   const [importing, setImporting] = useState(false);
   const [runningAll, setRunningAll] = useState(false);
+  const { blocked: measurementBlocked } = useMeasurementAllowance();
   const [expanded, setExpanded] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -158,8 +161,10 @@ function PromptsTab({ siteId }: { siteId: string }) {
     try {
       const res = await api.runAllPrompts(siteId, { withFanout: false, limit: 25 });
       toast.success(`${res.ran} soru çalıştırıldı`);
+      refreshMeasurementAllowance();
       await load();
     } catch (err: any) {
+      if (isWeeklyMeasurementLimitError(err)) refreshMeasurementAllowance();
       toast.error(err?.message ?? 'Çalıştırılamadı');
     } finally {
       setRunningAll(false);
@@ -206,11 +211,12 @@ function PromptsTab({ siteId }: { siteId: string }) {
           {importing ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
           Brain'den aktar
         </Button>
-        <Button size="sm" variant="outline" onClick={runAll} disabled={runningAll || prompts.length === 0}>
+        <Button size="sm" variant="outline" onClick={runAll} disabled={runningAll || prompts.length === 0 || measurementBlocked}>
           {runningAll ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />}
           Tümünü çalıştır
         </Button>
       </div>
+      <MeasurementLimitNote />
 
       {loading ? (
         <div className="space-y-1.5" aria-busy="true" aria-label="Sorular yükleniyor">
@@ -258,6 +264,7 @@ function PromptRow({
   const [loadingBranches, setLoadingBranches] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [running, setRunning] = useState(false);
+  const { blocked: measurementBlocked } = useMeasurementAllowance();
   const [lastRun, setLastRun] = useState<Awaited<ReturnType<typeof api.runPrompt>> | null>(null);
 
   useEffect(() => {
@@ -294,8 +301,10 @@ function PromptRow({
       const res = await api.runPrompt(siteId, prompt.id, { withFanout });
       setLastRun(res);
       toast.success(`Ana soru: %${res.main.score}${res.fanout ? ` · Dallar: %${res.fanout.score}` : ''}`);
+      refreshMeasurementAllowance();
       onRan();
     } catch (err: any) {
+      if (isWeeklyMeasurementLimitError(err)) refreshMeasurementAllowance();
       toast.error(err?.message ?? 'Çalıştırılamadı');
     } finally {
       setRunning(false);
@@ -349,7 +358,7 @@ function PromptRow({
           </p>
         </div>
 
-        <Button size="sm" variant="ghost" onClick={() => run(false)} disabled={running} title="Ana soruyu çalıştır">
+        <Button size="sm" variant="ghost" onClick={() => run(false)} disabled={running || measurementBlocked} title="Ana soruyu çalıştır">
           {running ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />}
         </Button>
         <Button size="sm" variant="ghost" onClick={onDelete} title="Sil">
@@ -374,7 +383,7 @@ function PromptRow({
               {branches.length ? 'Dalları yenile' : 'Dalları üret'}
             </Button>
             {branches.length > 0 && (
-              <Button size="sm" variant="outline" onClick={() => run(true)} disabled={running}>
+              <Button size="sm" variant="outline" onClick={() => run(true)} disabled={running || measurementBlocked}>
                 {running ? <Loader2 className="h-3 w-3 animate-spin" /> : <Play className="h-3 w-3" />}
                 Dallarla çalıştır
               </Button>

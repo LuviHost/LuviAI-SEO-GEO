@@ -312,6 +312,7 @@ async function main() {
   const { PrismaService } = await import('../prisma/prisma.service.js');
   const { QuotaService } = await import('../billing/quota.service.js');
   const { SettingsService } = await import('../settings/settings.service.js');
+  const { MeasurementAllowanceService } = await import('../billing/measurement-allowance.service.js');
   const { AiCitationService } = await import('../audit/ai-citation.service.js');
   Logger.overrideLogger(['error', 'warn']);
 
@@ -325,7 +326,7 @@ async function main() {
     process.exit(1);
   }
   try {
-    const svc = new AiCitationService(prisma, new QuotaService(prisma), new SettingsService(prisma));
+    const svc = new AiCitationService(prisma, new QuotaService(prisma), new SettingsService(prisma), new MeasurementAllowanceService(prisma));
     const sapma = tahminSapmasi(svc, aktif);
     if (sapma.length) console.warn(`UYARI: ön tahmin tablosu servisten sapmış — ${sapma.join('; ')} (TAHMINI_MALIYET_USD güncellenmeli).`);
     if (only) {

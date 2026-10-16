@@ -16,8 +16,11 @@ import { escapeRegex } from '../common/text-normalize.js';
 /**
  * Alinti olcum yontemi surumu — AiCitationSnapshot/AiCitationRun/GeoPromptRun
  * .matchVersion'a yazilir. 2 = etiket sinirli eslesme (bu dosya).
+ * 3 = ChatGPT, Gemini ve Claude web aramali olculuyor (Ekim 2026); kaynak listesindeki
+ *     alan adi da alinti sayilir. 2 ile 3 arasi karsilastirma "yontem degisti"
+ *     olarak isaretlenir (citation-run-compare, ai-mention-alarm).
  */
-export const CITATION_MATCH_VERSION = 2;
+export const CITATION_MATCH_VERSION = 3;
 
 /** Iki etiketli kayit edilebilir sonekler (kurate — PSL'nin bizi ilgilendiren kismi) */
 const MULTI_PART_SUFFIXES = new Set([

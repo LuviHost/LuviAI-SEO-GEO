@@ -1,4 +1,5 @@
 import { Body, Controller, Get, HttpException, HttpStatus, Logger, Post, Query, Req, Res } from '@nestjs/common';
+import { MeasurementAllowanceService } from '../billing/measurement-allowance.service.js';
 import type { Request, Response } from 'express';
 import { Public } from '../auth/public.decorator.js';
 import { PublicCitationService, type PublicCheckResult } from './public-citation.service.js';
@@ -40,6 +41,7 @@ export class PublicCitationController {
     private readonly citation: PublicCitationService,
     private readonly subscribers: PublicCitationSubscriberService,
     private readonly quota: QuotaService,
+    private readonly measurement: MeasurementAllowanceService,
   ) {}
 
   @Public()
@@ -119,7 +121,10 @@ export class PublicCitationController {
 
     await this.quota.enforceCitationQuota(user.id);
     try {
-      const result = await this.citation.check(body.domain, this.extractIp(req), 'signup_baseline');
+      // Haftalik AI olcum hakki — odeme kapisindan SONRA: odememis kullanici
+      // 402 (satin al) gormeli, 429 degil. Onbellekten donus olcum sayilmaz.
+      const domain = body.domain;
+      const result = await this.measurement.run(user, () => this.citation.check(domain, this.extractIp(req), 'signup_baseline'));
       // Cache'ten donduyse yeni olcum YAPILMADI — kota dusulmez. Aksi halde
       // sayfayi yenilemek her seferinde hak yakardi.
       if (!result.fromCache) await this.quota.incrementCitationUsage(user.id);

@@ -42,6 +42,7 @@ import { ProductRadarService } from './product-radar.service.js';
 import { CommunityAgentService } from './community-agent.service.js';
 import { LiveCrawlerService } from './live-crawler.service.js';
 import { RequiresPlan } from '../billing/plan-feature.decorator.js';
+import { MeasurementSession } from '../billing/measurement-session.interceptor.js';
 
 // PLAN KAPILARI — bu dosyada yalnizca EYLEM uclari plana baglidir:
 // calistirma/uretme/uygulama gibi pahali POST'lar. Duz listeleme ve gecmis
@@ -206,6 +207,7 @@ export class AuditController {
 
   /** POST /sites/:siteId/audit/opportunities/:id/remeasure — yayin sonrasi yeniden olc */
   @RequiresPlan('contentOpportunities')
+  @MeasurementSession()
   @Post('opportunities/:id/remeasure')
   remeasureOpportunity(@Param('siteId') siteId: string, @Param('id') id: string) {
     return this.opportunities.remeasure(siteId, id);
@@ -234,6 +236,7 @@ export class AuditController {
 
   /** POST /sites/:siteId/audit/product-radar/run — tarama baslatir (plan kapisi) */
   @RequiresPlan('productRadar')
+  @MeasurementSession()
   @Post('product-radar/run')
   productRadarRun(@Param('siteId') siteId: string) {
     return this.productRadar.run(siteId);
@@ -451,6 +454,7 @@ export class AuditController {
   }
 
   /** POST /sites/:siteId/audit/prompts/run-all — tum aktif promptlari calistir */
+  @MeasurementSession()
   @Post('prompts/run-all')
   runAllPrompts(
     @Param('siteId') siteId: string,
@@ -488,6 +492,7 @@ export class AuditController {
   }
 
   /** POST /sites/:siteId/audit/prompts/:promptId/run — tek prompt calistir */
+  @MeasurementSession()
   @Post('prompts/:promptId/run')
   runPrompt(
     @Param('siteId') siteId: string,
@@ -557,6 +562,7 @@ export class AuditController {
   // kotasi dayatilir (runForSite varsayilani trigger:'user'). GET
   // citation-history sadece gecmis listeler — kotasi dolan kullanici da
   // gormeli, o yuzden kapi yok.
+  @MeasurementSession()
   @Post('citation-test')
   async citationTest(@Param('siteId') siteId: string) {
     const results = await this.citation.runForSite(siteId, 5);
@@ -564,6 +570,7 @@ export class AuditController {
   }
 
   /** POST /sites/:siteId/audit/citation-roadmap — son sonuçlardan AI önerisi */
+  @MeasurementSession()
   @Post('citation-roadmap')
   async citationRoadmap(@Param('siteId') siteId: string) {
     const results = await this.citation.runForSite(siteId, 5);
@@ -572,6 +579,7 @@ export class AuditController {
   }
 
   /** POST /sites/:siteId/audit/citation-per-page — Clarity-style per-page cite + grounding queries */
+  @MeasurementSession()
   @Post('citation-per-page')
   async citationPerPage(@Param('siteId') siteId: string) {
     const results = await this.citation.runForSite(siteId, 5);
@@ -637,6 +645,7 @@ export class AuditController {
   }
 
   /** POST /sites/:siteId/audit/citation-snapshot — snapshot al ve DB'ye yaz */
+  @MeasurementSession()
   @Post('citation-snapshot')
   citationSnapshot(@Param('siteId') siteId: string) {
     return this.tracker.snapshotSite(siteId);
@@ -665,6 +674,7 @@ export class AuditController {
 
   /** POST /sites/:siteId/audit/geo-heatmap — sektor sorularini AI'lara test et + rakiplerle karsilastir */
   @RequiresPlan('geoHeatmap')
+  @MeasurementSession()
   @Post('geo-heatmap')
   geoHeatmap(@Param('siteId') siteId: string, @Body() body: { maxQueries?: number }) {
     return this.heatmap.runForSite(siteId, { maxQueries: body?.maxQueries });
