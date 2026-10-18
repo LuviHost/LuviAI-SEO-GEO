@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { SettingsService } from '../settings/settings.service.js';
 import { modelForAudience } from '../llm/model-tier.js';
 import { PERSONA_MESSAGE_MAX } from './audit.dto.js';
+import { articlePublicUrl, loadArticleTargets } from './ai-sitemap.service.js';
 
 export interface ChatMessage {
   role: 'user' | 'assistant';
@@ -25,6 +26,14 @@ export const PERSONA_HISTORY_MAX = 10;
  * maliyeti tavanina izin veriyordu. 1024 kisa cevabi kesmeden kalir.
  */
 const PERSONA_MAX_TOKENS = 1024;
+
+/** Site butcesi asildiginda ziyaretciye giden kibar cevap (hata degil) */
+export const PERSONA_BUDGET_REPLY = 'Bu sitenin sohbet asistanı bugünlük yanıt sınırına ulaştı. Lütfen daha sonra tekrar deneyin.';
+
+function positiveInt(raw: string | undefined, fallback: number): number {
+  const n = Number.parseInt(raw ?? '', 10);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+}
 
 /**
  * Istemcinin gonderdigi gecmisi modele uygun hale getirir:
@@ -79,7 +88,9 @@ export function normalizePersonaHistory(raw: unknown): ChatMessage[] {
  *   Sag alt kose Floating Action Button + chat penceresi.
  *
  * HIZ SINIRI: uc @Public; ziyaretci IP'si + site ve site toplami kovalari
- * persona-chat-throttler.guard.ts'te.
+ * persona-chat-throttler.guard.ts'te. Onlar surec belleginde tutulur ve her
+ * yeniden baslatmada sifirlanir; ucretli model cagrisinin asil tavani asagidaki
+ * KALICI gunluk sayaclardir (site basina + tum siteler toplami, kv_store).
  */
 @Injectable()
 export class PersonaChatService {
@@ -112,17 +123,37 @@ export class PersonaChatService {
     // calismaz; kanonik bicim denetimi orada, bu ikinci kapi (common/site-id.ts).
     if (!site || site.id !== siteId) throw new NotFoundException('Site bulunamadı.');
 
-    // En guncel 30 makale title + slug + meta
+    // MALIYET TAVANI (kalici): her cagri RanksUp anahtariyla ucretli bir model
+    // istegi. Bellekteki hiz siniri yeniden baslatmada sifirlanir ve tum
+    // sitelerin toplamini sinirlamaz; kamuya acik widget kimlikleriyle cok sayida
+    // siteye dagitilan istek toplam maliyeti buyutebilirdi.
+    if (!(await this.withinDailyBudget(site.id))) {
+      return { reply: PERSONA_BUDGET_REPLY, sources: [], cited: false };
+    }
+
+    // En guncel 30 makale title + slug + meta + yayin kayitlari
     const articles = await this.prisma.article.findMany({
       where: { siteId, status: 'PUBLISHED' as any },
       orderBy: { publishedAt: 'desc' },
       take: 30,
-      select: { title: true, slug: true, metaDescription: true, topic: true } as any,
+      select: { title: true, slug: true, metaDescription: true, topic: true, publishedTo: true } as any,
     });
-    const baseUrl = site.url.replace(/\/+$/, '');
 
-    const articleList = articles.map((a: any, i: number) =>
-      `${i + 1}. "${a.title}" — ${a.metaDescription ?? a.topic} (${baseUrl}/blog/${a.slug}.html)`
+    // Makale adresi yazinin GERCEK yayin adresidir (site haritasi ve llms-full
+    // ile ayni kural: articlePublicUrl). Eskiden her makale icin
+    // `${site}/blog/${slug}.html` veriliyordu: bu yol yalniz bazi statik
+    // sitelerde var, WordPress ve digerlerinde ziyaretciye 404 baglanti
+    // gidiyordu. Adresi bilinmeyen yazi bagsiz listelenir; model adres uydurmaz.
+    let siteUrl: URL | null = null;
+    try { siteUrl = new URL(String(site.url)); } catch { siteUrl = null; }
+    const targets = siteUrl ? await loadArticleTargets(this.prisma as any, siteId, siteUrl, articles as any[]) : new Map();
+    const withUrls = (articles as any[]).map((a) => ({
+      ...a,
+      url: siteUrl ? articlePublicUrl(siteUrl, String(a.slug ?? ''), a.publishedTo, targets) : null,
+    }));
+
+    const articleList = withUrls.map((a: any, i: number) =>
+      `${i + 1}. "${a.title}" — ${a.metaDescription ?? a.topic}${a.url ? ` (${a.url})` : ' (adres yok — bağlantı verme)'}`
     ).join('\n');
 
     const brand = site.name;
@@ -138,14 +169,14 @@ Uzmanlik: ${(persona.expertise ?? []).slice(0, 5).join(', ')}
 KURALLAR:
 - Kisa, net, samimi cevap ver (max 4-5 cumle)
 - Bilmiyorsan, bilmedigini soyle
-- Mumkunse asagidaki yayinlanmis makalelerden birine link ver (URL ile)
+- Mumkunse asagidaki yayinlanmis makalelerden birine link ver; YALNIZ listede yazan adresi aynen kullan, adres UYDURMA
 - Reklam YAPMA, gercek deger ver
 - Karmasik soru ise "Bunu detayli yazimizda anlatmistik" deyip link ver
 
 YAYINLANMIS MAKALELER:
 ${articleList}
 
-Cevabin sonunda kullandigin makale URL'lerini parantez icinde belirt: (kaynak: ${baseUrl}/blog/...).`;
+Cevabin sonunda kullandigin makale adreslerini parantez icinde belirt: (kaynak: <listedeki adres>).`;
 
     try {
       // Widget ziyaretcisi anonim → 'anon' kademesi (admin panelden MODEL_ANON).
@@ -157,13 +188,10 @@ Cevabin sonunda kullandigin makale URL'lerini parantez icinde belirt: (kaynak: $
       });
       const text = resp.content.filter((b: any) => b.type === 'text').map((b: any) => b.text).join('\n');
 
-      // Cevapta gecen makale URL'lerini extract et
+      // Cevapta gecen makale adreslerini cikar (yalniz gercek adresi bilinenler)
       const cited: Array<{ url: string; title: string }> = [];
-      for (const a of articles as any[]) {
-        const url = `${baseUrl}/blog/${a.slug}.html`;
-        if (text.includes(url) || text.includes(`/blog/${a.slug}`)) {
-          cited.push({ url, title: a.title });
-        }
+      for (const a of withUrls) {
+        if (a.url && text.includes(a.url)) cited.push({ url: a.url, title: a.title });
       }
 
       return {
@@ -174,6 +202,39 @@ Cevabin sonunda kullandigin makale URL'lerini parantez icinde belirt: (kaynak: $
     } catch (err: any) {
       this.log.warn(`Persona chat fail: ${err.message}`);
       return { reply: 'Bir hata oluştu, biraz sonra tekrar deneyin.', sources: [], cited: false };
+    }
+  }
+
+  /**
+   * Site ve tum sistem icin gunluk sayaci atomik artirir; tavan asildiysa false.
+   * Sayaclar kv_store'da gun anahtariyla tutulur (UTC gun), 2 gun sonra suresi
+   * dolar (KvSweepCron temizler). Site anahtari kanonik site kimligiyle kurulur.
+   * Varsayilanlar: site basina 300 (PERSONA_CHAT_SITE_DAILY_LIMIT; bellekteki
+   * site kovasiyla ayni deger), toplam 3000 (PERSONA_CHAT_GLOBAL_DAILY_LIMIT).
+   */
+  private async withinDailyBudget(siteId: string): Promise<boolean> {
+    const day = new Date().toISOString().slice(0, 10);
+    const siteLimit = positiveInt(process.env.PERSONA_CHAT_SITE_DAILY_LIMIT, 300);
+    const globalLimit = positiveInt(process.env.PERSONA_CHAT_GLOBAL_DAILY_LIMIT, 3000);
+    const expiresAt = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000);
+    const bump = async (key: string): Promise<number> => {
+      await this.prisma.$executeRawUnsafe(
+        'INSERT INTO `kv_store` (`key`, `value`, `expiresAt`, `updatedAt`) VALUES (?, ?, ?, NOW(3)) ' +
+        'ON DUPLICATE KEY UPDATE `value` = CAST(CAST(`value` AS UNSIGNED) + 1 AS CHAR)',
+        key, '1', expiresAt,
+      );
+      const row = await this.prisma.kvStore.findUnique({ where: { key } });
+      return Number.parseInt(row?.value ?? '0', 10) || 0;
+    };
+    try {
+      const siteCount = await bump(`persona-chat:${day}:site:${siteId}`);
+      if (siteCount > siteLimit) return false;
+      const total = await bump(`persona-chat:${day}:all`);
+      return total <= globalLimit;
+    } catch (err: any) {
+      // Sayac yazilamazsa (DB sorunu) ucretli cagriyi yapma — guvenli taraf
+      this.log.warn(`Persona chat butce sayaci yazilamadi: ${err.message}`);
+      return false;
     }
   }
 

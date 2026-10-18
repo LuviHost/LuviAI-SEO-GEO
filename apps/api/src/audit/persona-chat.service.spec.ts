@@ -67,20 +67,34 @@ describe('PersonaChatService.ask', () => {
     expect((svc as any).anthropic.messages.create).not.toHaveBeenCalled();
   });
 
-  it('modele normalize gecmis ve dusuk cikti tavani gider', async () => {
+  it('modele normalize gecmis ve dusuk cikti tavani gider; kaynak yazinin GERCEK adresi', async () => {
     const prisma = {
       site: { findUnique: vi.fn(async () => ({ id: 's1', name: 'Örnek', url: 'https://ornek.com/', niche: 'kuafor', brain: null })) },
-      article: { findMany: vi.fn(async () => [{ title: 'Saç bakımı', slug: 'sac-bakimi', metaDescription: 'm', topic: 't' }]) },
+      article: {
+        findMany: vi.fn(async () => [
+          // WordPress'te yayinda: adres yayin kaydindan
+          { title: 'Saç bakımı', slug: 'sac-bakimi', metaDescription: 'm', topic: 't', publishedTo: [{ targetId: 't1', targetType: 'WORDPRESS_REST', ok: true, externalUrl: 'https://ornek.com/sac-bakimi/' }] },
+          // Adresi bilinmeyen yazi (yalniz Markdown ZIP): baglanti verilmez
+          { title: 'Boya rehberi', slug: 'boya-rehberi', metaDescription: 'b', topic: 'b', publishedTo: [{ targetId: 'z1', targetType: 'MARKDOWN_ZIP', ok: true, externalUrl: '/tmp/x.zip' }] },
+        ]),
+      },
+      publishTarget: { findMany: vi.fn(async () => [{ id: 'z1', type: 'MARKDOWN_ZIP', config: {} }]) },
+      $executeRawUnsafe: vi.fn(async () => 1),
+      kvStore: { findUnique: vi.fn(async () => ({ value: '1' })) },
     };
-    const create = vi.fn(async () => ({ content: [{ type: 'text', text: 'Bkz. https://ornek.com/blog/sac-bakimi.html' }] }));
+    const create = vi.fn(async () => ({ content: [{ type: 'text', text: 'Bkz. https://ornek.com/sac-bakimi/' }] }));
     const svc = new PersonaChatService(prisma as any, { getString: vi.fn(async () => null) } as any);
     (svc as any).anthropic = { messages: { create } };
     const r = await svc.ask('s1', [{ role: 'assistant', content: 'selam' }, { role: 'user', content: 'Saç bakımı?' }]);
     const args = (create.mock.calls[0] as any[])[0];
     expect(args.max_tokens).toBe(1024);
     expect(args.messages).toEqual([{ role: 'user', content: 'Saç bakımı?' }]);
+    // Uydurma /blog/<slug>.html adresi istemde hic yok; adresi bilinmeyen yazi bagsiz
+    expect(args.system).toContain('(https://ornek.com/sac-bakimi/)');
+    expect(args.system).not.toContain('/blog/');
+    expect(args.system).toContain('"Boya rehberi" — b (adres yok — bağlantı verme)');
     expect(r.cited).toBe(true);
-    expect(r.sources).toEqual([{ url: 'https://ornek.com/blog/sac-bakimi.html', title: 'Saç bakımı' }]);
+    expect(r.sources).toEqual([{ url: 'https://ornek.com/sac-bakimi/', title: 'Saç bakımı' }]);
   });
 });
 

@@ -147,6 +147,9 @@ describe('PersonaChatService.ask — satirdaki kimlik birebir ayni olmali', () =
     const prisma = {
       site: { findUnique: ciSites(rows) },
       article: { findMany: vi.fn(async () => []) },
+      // Kalici gunluk butce sayaci (kv_store): tavanin altinda
+      $executeRawUnsafe: vi.fn(async () => 1),
+      kvStore: { findUnique: vi.fn(async () => ({ value: '1' })) },
     };
     const s = new PersonaChatService(prisma as any, { getString: vi.fn(async () => null) } as any);
     const create = vi.fn(async () => ({ content: [{ type: 'text', text: 'Merhaba' }] }));
