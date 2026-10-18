@@ -29,7 +29,7 @@ export class AscController {
   ) {
     const user = ensureUser(req);
     await this.quota.enforcePlanFeature(user.id, 'ascEnabled');
-    return this.asc.connectAccount({ siteId, ...body }, user);
+    return this.asc.connectAccount({ ...body, siteId }, user);
   }
 
   @Get('sites/:siteId/aso/asc/accounts')

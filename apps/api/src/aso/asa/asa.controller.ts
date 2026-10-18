@@ -33,7 +33,7 @@ export class AsaController {
   ) {
     const user = ensureUser(req);
     await this.quota.enforcePlanFeature(user.id, 'asaEnabled');
-    return this.asa.connectAccount({ siteId, ...body }, user);
+    return this.asa.connectAccount({ ...body, siteId }, user);
   }
 
   /** GET /api/sites/:siteId/aso/asa/accounts */

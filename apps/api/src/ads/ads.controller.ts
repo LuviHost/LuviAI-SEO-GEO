@@ -4,6 +4,19 @@ import { AdsClientService } from './ads-client.service.js';
 import { AdsAuditService } from './ads-audit.service.js';
 import type { Industry, Platform } from './rules/types.js';
 import { encrypt } from '@luviai/shared';
+import { AdsSettingsDto, GoogleAdsManualDto, MetaAdsManualDto } from './ads-settings.dto.js';
+
+/** Yanita sifreli token / ingestSecret gibi alanlar girmesin — yalniz baglanti durumu */
+const ADS_STATE_SELECT = {
+  id: true,
+  adsAutopilot: true,
+  googleAdsCustomerId: true,
+  googleAdsConnectedAt: true,
+  metaAdsAccountId: true,
+  metaAdsConnectedAt: true,
+  metaPageId: true,
+  metaInstagramActorId: true,
+} as const;
 
 @Controller('sites/:siteId/ads')
 export class AdsController {
@@ -103,7 +116,7 @@ export class AdsController {
   @Patch('google-ads')
   async setGoogleAds(
     @Param('siteId') siteId: string,
-    @Body() body: { customerId?: string; refreshToken?: string },
+    @Body() body: GoogleAdsManualDto,
   ) {
     return this.prisma.site.update({
       where: { id: siteId },
@@ -111,7 +124,8 @@ export class AdsController {
         googleAdsCustomerId: body.customerId ?? null,
         googleAdsRefreshToken: body.refreshToken ? encrypt(body.refreshToken) : null,
         googleAdsConnectedAt: body.refreshToken ? new Date() : null,
-      } as any,
+      },
+      select: ADS_STATE_SELECT,
     });
   }
 
@@ -119,7 +133,7 @@ export class AdsController {
   @Patch('meta-ads')
   async setMetaAds(
     @Param('siteId') siteId: string,
-    @Body() body: { accountId?: string; accessToken?: string; pageId?: string; instagramActorId?: string },
+    @Body() body: MetaAdsManualDto,
   ) {
     return this.prisma.site.update({
       where: { id: siteId },
@@ -129,7 +143,8 @@ export class AdsController {
         metaAdsConnectedAt: body.accessToken ? new Date() : null,
         metaPageId: body.pageId ?? null,
         metaInstagramActorId: body.instagramActorId ?? null,
-      } as any,
+      },
+      select: ADS_STATE_SELECT,
     });
   }
 
@@ -137,11 +152,15 @@ export class AdsController {
   @Patch('settings')
   async updateSettings(
     @Param('siteId') siteId: string,
-    @Body() body: { adsAutopilot?: boolean },
+    @Body() body: AdsSettingsDto,
   ) {
+    // Govde ASLA dogrudan Prisma'ya verilmez: yalniz izin verilen alan, tek tek.
+    const data: { adsAutopilot?: boolean } = {};
+    if (typeof body?.adsAutopilot === 'boolean') data.adsAutopilot = body.adsAutopilot;
     return this.prisma.site.update({
       where: { id: siteId },
-      data: body as any,
+      data,
+      select: ADS_STATE_SELECT,
     });
   }
 }

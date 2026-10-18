@@ -126,6 +126,13 @@ export class AsoController {
     return this.aso.searchApps({ term, store, country });
   }
 
+  // GUVENLIK KURALI: yoldan gelen ve AsoResourceGuard'in sahipligini
+  // denetledigi kimlik (siteId / trackedAppId) govde yayilimindan SONRA
+  // yazilir. Govde satir ici tipli oldugu icin ValidationPipe onu denetlemez;
+  // kimligi once, govdeyi sonra yazmak govdedeki trackedAppId'nin
+  // denetlenmis kimligi ezmesine, yani baska bir musterinin uygulamasi
+  // uzerinde islem yapilmasina izin veriyordu.
+
   // ─── Apps ───────────────────────────────────
 
   @Get('apps')
@@ -138,7 +145,7 @@ export class AsoController {
     @Param('siteId') siteId: string,
     @Body() body: { appStoreId?: string; playStoreId?: string; country?: string },
   ) {
-    return this.aso.connectApp({ siteId, ...body });
+    return this.aso.connectApp({ ...body, siteId });
   }
 
   @Get('apps/:appId')
@@ -166,7 +173,7 @@ export class AsoController {
     @Param('appId') appId: string,
     @Body() body: { appStoreId?: string; playStoreId?: string },
   ) {
-    return this.aso.linkStore({ trackedAppId: appId, ...body });
+    return this.aso.linkStore({ ...body, trackedAppId: appId });
   }
 
   // ─── Keywords ───────────────────────────────
@@ -265,7 +272,7 @@ export class AsoController {
     @Param('appId') appId: string,
     @Body() body?: { competitorAppIds?: Array<{ appId: string; store: 'IOS' | 'ANDROID' }>; locale?: 'tr' | 'en' },
   ) {
-    return this.aso.aiKeywordResearch({ trackedAppId: appId, ...body });
+    return this.aso.aiKeywordResearch({ ...body, trackedAppId: appId });
   }
 
   @Post('apps/:appId/optimize-metadata')
@@ -273,7 +280,7 @@ export class AsoController {
     @Param('appId') appId: string,
     @Body() body: { targetKeywords: string[]; store: 'IOS' | 'ANDROID'; locale?: 'tr' | 'en' },
   ) {
-    return this.aso.optimizeMetadata({ trackedAppId: appId, ...body });
+    return this.aso.optimizeMetadata({ ...body, trackedAppId: appId });
   }
 
   @Get('apps/:appId/audit')
@@ -312,7 +319,7 @@ export class AsoController {
       height?: number;
     },
   ) {
-    return this.screenshots.generateBackground({ trackedAppId: appId, ...body });
+    return this.screenshots.generateBackground({ ...body, trackedAppId: appId });
   }
 
   /** POST /aso/apps/:appId/screenshots/captions — AI caption text önerileri (10 slot) */
@@ -322,17 +329,7 @@ export class AsoController {
     @Param('appId') appId: string,
     @Body() body: { targetKeywords?: string[]; locale?: 'tr' | 'en'; slotCount?: number },
   ) {
-    return this.screenshots.generateCaptions({ trackedAppId: appId, ...body });
-  }
-
-  /** POST /aso/apps/:appId/screenshots/save — final PNG'i sunucuda sakla */
-  @Post('apps/:appId/screenshots/save')
-  @RequiresPlan('screenshotStudio')
-  saveScreenshot(
-    @Param('appId') appId: string,
-    @Body() body: { base64Png: string; slotIndex: number; store: 'IOS' | 'ANDROID' },
-  ) {
-    return this.screenshots.saveScreenshot({ trackedAppId: appId, ...body });
+    return this.screenshots.generateCaptions({ ...body, trackedAppId: appId });
   }
 
   /**
@@ -345,7 +342,7 @@ export class AsoController {
     @Param('appId') appId: string,
     @Body() body: { screenshotBase64: string; brandColor?: string; width?: number; height?: number },
   ) {
-    return this.screenshots.generateHandPhotoWithScreenshot({ trackedAppId: appId, ...body });
+    return this.screenshots.generateHandPhotoWithScreenshot({ ...body, trackedAppId: appId });
   }
 
   /** GET /aso/apps/:appId/screenshots/library — bu app için üretilmiş tüm AI background'lar */

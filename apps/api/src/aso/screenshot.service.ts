@@ -305,19 +305,4 @@ JSON formatında dön:
     }
   }
 
-  /**
-   * Final screenshot kaydet (frontend'den export edilen PNG'i sunucuda sakla).
-   */
-  async saveScreenshot(opts: {
-    trackedAppId: string;
-    base64Png: string;
-    slotIndex: number;
-    store: 'IOS' | 'ANDROID';
-  }) {
-    const buffer = Buffer.from(opts.base64Png.replace(/^data:image\/png;base64,/, ''), 'base64');
-    const filename = `final-${opts.trackedAppId}-${opts.store}-slot${opts.slotIndex}-${Date.now()}.png`;
-    const filepath = path.join(this.STORAGE_DIR, filename);
-    await fs.writeFile(filepath, buffer);
-    return { url: `/screenshots/${filename}`, size: buffer.length };
-  }
 }
