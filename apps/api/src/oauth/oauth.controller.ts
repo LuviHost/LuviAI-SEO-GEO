@@ -1,4 +1,5 @@
 import { BadRequestException, Body, Controller, ForbiddenException, Get, Post, Query, Req, Res } from '@nestjs/common';
+import { SessionOnly } from '../auth/session-only.decorator.js';
 import type { Request, Response } from 'express';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { OAuthService } from './oauth.service.js';
@@ -104,6 +105,7 @@ export class OAuthController {
    * POST /oauth/google-ads/select  body:{customerId}
    */
   @Post('google-ads/select')
+  @SessionOnly()
   async selectGoogleAds(
     @Query('siteId') siteId: string,
     @Body() body: { customerId: string },
@@ -206,6 +208,7 @@ export class OAuthController {
   }
 
   @Post('meta-ads/select')
+  @SessionOnly()
   async selectMetaAds(
     @Query('siteId') siteId: string,
     @Body() body: { adAccountId?: string; pageId?: string; instagramActorId?: string },

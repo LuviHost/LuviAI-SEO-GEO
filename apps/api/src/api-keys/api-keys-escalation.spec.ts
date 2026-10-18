@@ -58,3 +58,45 @@ describe('API anahtari ile anahtar uretme/iptal — AuthGuard', () => {
     expect(req.apiKey).toBeTruthy();
   });
 });
+
+/**
+ * Express rotalari harf duyarsiz: /api/SITES/:id de /api/sites/:id ucuna
+ * gider. Kaynak eslemesi duyarli olunca 'SITES' haritada bulunmuyor, scope
+ * null donuyor ve kaba kurala (GET serbest, mutasyonda herhangi bir ':write')
+ * dusuluyordu. Ayrica "/mcp ile biten her yol" scope denetiminden muaftı.
+ */
+describe('Scope eslemesi — harf varyantlari ve MCP muafiyeti', () => {
+  const svc = new ApiKeysService({} as never);
+  // Metadata'siz duz handler: @Public/@SessionOnly yok, yalniz scope kurali.
+  const handler = function rota() {};
+
+  it('requiredScope buyuk/karisik harfli yollari kucuk harfli gibi esler', () => {
+    expect(svc.requiredScope('DELETE', '/api/SITES/s1')).toBe('sites:write');
+    expect(svc.requiredScope('PATCH', '/api/sites/s1/ADS/google-ads')).toBe('ads:write');
+    expect(svc.requiredScope('GET', '/API/Sites')).toBe('sites:read');
+    expect(svc.requiredScope('GET', '/api/sites/s1/Articles?x=1')).toBe('articles:read');
+  });
+
+  it("'social:write' anahtari DELETE /api/SITES/:id cagiramaz → 403", async () => {
+    const { ctx: c, req } = ctx(handler, 'DELETE', '/api/SITES/s1');
+    await expect(guardFor(['social:write']).canActivate(c)).rejects.toBeInstanceOf(ForbiddenException);
+    expect(req.user).toBeUndefined();
+  });
+
+  it("'social:read' anahtari GET /api/Sites/:id/ARTICLES okuyamaz → 403", async () => {
+    const { ctx: c } = ctx(handler, 'GET', '/api/Sites/s1/ARTICLES');
+    await expect(guardFor(['social:read']).canActivate(c)).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it("'/mcp' ile biten baska bir yol scope denetiminden muaf degil", async () => {
+    const { ctx: c } = ctx(handler, 'DELETE', '/api/sites/s1/articles/mcp');
+    await expect(guardFor(['social:write']).canActivate(c)).rejects.toBeInstanceOf(ForbiddenException);
+  });
+
+  it('MCP transport ucu (harf varyanti dahil) guard\'dan gecer; tool denetimi McpController\'da', async () => {
+    for (const p of ['/api/mcp', '/API/MCP/', '/api/Mcp?session=1']) {
+      const { ctx: c } = ctx(handler, 'POST', p);
+      await expect(guardFor(['sites:read']).canActivate(c)).resolves.toBe(true);
+    }
+  });
+});

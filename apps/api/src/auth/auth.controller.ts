@@ -1,10 +1,11 @@
-import { BadRequestException, Body, Controller, ForbiddenException, Get, Headers, Param, Patch, Post, Query, Req, Res } from '@nestjs/common';
+import { BadRequestException, Body, Controller, ForbiddenException, Get, Headers, NotFoundException, Param, Patch, Post, Query, Req, Res } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { encode } from 'next-auth/jwt';
 import { createHash } from 'node:crypto';
 import { OAuth2Client } from 'google-auth-library';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { Public } from './public.decorator.js';
+import { SessionOnly } from './session-only.decorator.js';
 import { AuthService } from './auth.service.js';
 import { GscOAuthService } from './gsc-oauth.service.js';
 import { GaOAuthService } from './ga-oauth.service.js';
@@ -214,7 +215,8 @@ export class AuthController {
 
   /** GET /api/auth/gsc/start?siteId=xxx → Google OAuth consent URL üret */
   @Get('gsc/start')
-  async startGscOAuth(@Query('siteId') siteId: string) {
+  async startGscOAuth(@Query('siteId') siteId: string, @Req() req: Request) {
+    await this.assertOwnSite(req, siteId);
     return { url: await this.gsc.buildAuthorizationUrl(siteId) };
   }
 
@@ -240,8 +242,13 @@ export class AuthController {
     }
   }
 
+  // siteId govdede geldigi icin global SiteAccessGuard (yalniz :siteId
+  // parametresine bakar) devreye girmiyordu: oturum acmis herkes baska bir
+  // musterinin GSC baglantisini koparabiliyordu. Sahiplik burada dogrulanir.
   @Post('gsc/disconnect')
-  async disconnectGsc(@Body() body: { siteId: string }) {
+  @SessionOnly()
+  async disconnectGsc(@Body() body: { siteId: string }, @Req() req: Request) {
+    await this.assertOwnSite(req, body?.siteId);
     return this.gsc.disconnect(body.siteId);
   }
 
@@ -249,7 +256,8 @@ export class AuthController {
 
   /** GET /api/auth/ga/start?siteId=xxx → Google OAuth consent URL üret */
   @Get('ga/start')
-  async startGaOAuth(@Query('siteId') siteId: string) {
+  async startGaOAuth(@Query('siteId') siteId: string, @Req() req: Request) {
+    await this.assertOwnSite(req, siteId);
     return { url: await this.ga.buildAuthorizationUrl(siteId) };
   }
 
@@ -271,7 +279,20 @@ export class AuthController {
   }
 
   @Post('ga/disconnect')
-  async disconnectGa(@Body() body: { siteId: string }) {
+  @SessionOnly()
+  async disconnectGa(@Body() body: { siteId: string }, @Req() req: Request) {
+    await this.assertOwnSite(req, body?.siteId);
     return this.ga.disconnect(body.siteId);
+  }
+
+  /** Govde/sorgu ile gelen siteId icin sahiplik (ADMIN tum sitelere erisir). */
+  private async assertOwnSite(req: Request, siteId: string | undefined): Promise<void> {
+    const user = (req as any).user as { id: string; role?: string } | undefined;
+    if (!user) throw new ForbiddenException('Oturum gerekli');
+    if (typeof siteId !== 'string' || !siteId) throw new BadRequestException('siteId zorunlu');
+    const site = await this.prisma.site.findUnique({ where: { id: siteId }, select: { id: true, userId: true } });
+    // Harf varyanti (MySQL harf duyarsiz eslesir) de bulunamadi sayilir.
+    if (!site || site.id !== siteId) throw new NotFoundException('Site bulunamadi');
+    if (user.role !== 'ADMIN' && site.userId !== user.id) throw new ForbiddenException('Bu site sana ait degil');
   }
 }

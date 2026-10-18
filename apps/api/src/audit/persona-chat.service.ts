@@ -56,13 +56,16 @@ export class PersonaChatService {
       where: { id: siteId },
       include: { brain: true },
     });
-    if (!site) throw new NotFoundException('Site bulunamadi');
+    // MySQL karsilastirmasi harf duyarsiz (utf8mb4_unicode_ci): 'CLX..' de
+    // 'clx..' satirini bulur. Butce anahtari parametreden kurulsaydi her harf
+    // varyanti yeni bir site kovasi acardi; yalniz kanonik kimlik kabul edilir.
+    if (!site || site.id !== siteId) throw new NotFoundException('Site bulunamadi');
 
     // MALIYET TAVANI: bu uc kimliksiz ve her cagri RanksUp anahtariyla ucretli
     // bir model istegi. IP sinirlamasi tek basina yetmez (origin'e dogrudan
     // gelen istemci CF-Connecting-IP'yi kendisi yazabilir, IPv6 adresi
     // degistirilebilir); site basina ve toplam gunluk butce bunu sinirlar.
-    if (!(await this.withinDailyBudget(siteId))) {
+    if (!(await this.withinDailyBudget(site.id))) {
       return {
         reply: 'Bu sitenin sohbet asistani bugunluk yanit sinirina ulasti. Lutfen daha sonra tekrar deneyin.',
         sources: [],

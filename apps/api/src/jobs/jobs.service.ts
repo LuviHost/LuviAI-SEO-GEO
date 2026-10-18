@@ -22,11 +22,4 @@ export class JobsService {
     }
     return job;
   }
-
-  async retry(id: string) {
-    return this.prisma.job.update({
-      where: { id },
-      data: { status: 'QUEUED', attempts: 0, error: null },
-    });
-  }
 }

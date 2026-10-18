@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Post, Req } from '@nestjs/common';
+import { Controller, Get, Param, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import { JobsService } from './jobs.service.js';
 
@@ -12,6 +12,8 @@ export class JobsController {
     return this.jobs.findOne(id, user);
   }
 
-  @Post(':id/retry')
-  retry(@Param('id') id: string) { return this.jobs.retry(id); }
+  // POST /jobs/:id/retry kaldirildi: sahiplik denetimi yoktu (baskasinin isini
+  // QUEUED'a cekip tum satiri, payload dahil, donduruyordu) ve kuyruga yeniden
+  // eklemedigi icin isi gercekte de yeniden calistirmiyordu. Panel bu ucu
+  // kullanmiyor; yoneticiler /admin/queue/jobs/:id/retry ile yeniden dener.
 }

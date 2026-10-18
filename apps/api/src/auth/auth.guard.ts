@@ -68,7 +68,10 @@ export class AuthGuard implements CanActivate {
       const method = req.method.toUpperCase();
       const isMutating = !['GET', 'HEAD', 'OPTIONS'].includes(method);
       const path = (req.path ?? req.url ?? '');
-      const isMcpTransport = /\/mcp\/?$/.test(path.split('?')[0] ?? '');
+      // Yalniz MCP transport'unun kendisi (/api/mcp) muaf: eski desen "/mcp
+      // ile biten her yol"u muaf sayiyordu (orn. DELETE /sites/:id/x/mcp).
+      // Express harf duyarsiz yonlendirdigi icin /API/MCP de ayni uctur.
+      const isMcpTransport = /^\/(api\/)?mcp\/?$/i.test(path.split('?')[0] ?? '');
       if (!isMcpTransport) {
         const required = this.apiKeys.requiredScope(method, path);
         if (required) {

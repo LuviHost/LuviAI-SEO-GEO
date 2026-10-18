@@ -9,7 +9,8 @@ import { PersonaChatService } from './persona-chat.service.js';
  */
 function service(counts: { site: number; all: number }, opts: { failCounter?: boolean } = {}) {
   const prisma: any = {
-    site: { findUnique: vi.fn(async ({ where }: any) => (where.id === 's1' ? { id: 's1', url: 'https://ornek.com', name: 'Ornek', brain: null } : null)) },
+    // MySQL gibi harf duyarsiz eslesme (utf8mb4_unicode_ci): 'S1' de 's1' satirini bulur.
+    site: { findUnique: vi.fn(async ({ where }: any) => (String(where.id).toLowerCase() === 's1' ? { id: 's1', url: 'https://ornek.com', name: 'Ornek', brain: null } : null)) },
     article: { findMany: vi.fn(async () => []) },
     $executeRawUnsafe: vi.fn(async () => { if (opts.failCounter) throw new Error('db yok'); return 1; }),
     kvStore: { findUnique: vi.fn(async ({ where }: any) => ({ value: String(where.key.endsWith(':all') ? counts.all : counts.site) })) },
@@ -56,6 +57,20 @@ describe('persona sohbeti gunluk butcesi', () => {
     const { svc, prisma } = service({ site: 1, all: 1 });
     await expect(svc.ask('yok', [{ role: 'user', content: 'x' }] as any)).rejects.toBeInstanceOf(NotFoundException);
     expect(prisma.$executeRawUnsafe).not.toHaveBeenCalled();
+  });
+
+  it('site kimliginin harf varyanti yeni butce kovasi acmaz: 404, sayac artmaz', async () => {
+    const { svc, prisma, create } = service({ site: 1, all: 1 });
+    await expect(svc.ask('S1', [{ role: 'user', content: 'x' }] as any)).rejects.toBeInstanceOf(NotFoundException);
+    expect(prisma.$executeRawUnsafe).not.toHaveBeenCalled();
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('butce sayaci kanonik site kimligiyle tutulur', async () => {
+    const { svc, prisma } = service({ site: 1, all: 1 });
+    await svc.ask('s1', [{ role: 'user', content: 'merhaba' }] as any);
+    const keys = prisma.$executeRawUnsafe.mock.calls.flatMap((c: any[]) => c.slice(1)).map(String);
+    expect(keys.some((k: string) => k.endsWith(':site:s1'))).toBe(true);
   });
 
   it('widget girisi soru sinirini bilir ve hata mesajini gosterir', () => {

@@ -22,6 +22,7 @@ export class AscController {
 
   /** Plan kapisi yalnizca baglamada — bkz. AsaController.connect gerekcesi. */
   @Post('sites/:siteId/aso/asc/connect')
+  @SessionOnly()
   async connect(
     @Req() req: AuthedRequest,
     @Param('siteId') siteId: string,
@@ -38,6 +39,7 @@ export class AscController {
   }
 
   @Delete('aso/asc/accounts/:accountId')
+  @SessionOnly()
   disconnect(@Req() req: AuthedRequest, @Param('accountId') accountId: string) {
     return this.asc.disconnectAccount(accountId, ensureUser(req));
   }

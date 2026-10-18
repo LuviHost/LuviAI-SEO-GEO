@@ -195,7 +195,12 @@ export class ApiKeysService {
    * Eslesme yoksa null doner.
    */
   resolveResource(path: string): string | null {
-    const clean = (path.split('?')[0] ?? '').replace(/\/+$/, '');
+    // Express rotalari varsayilan olarak buyuk/kucuk harf duyarsizdir:
+    // /api/SITES/:id de /api/sites/:id ucuna gider. Burada duyarli
+    // karsilastirsaydik 'SITES' haritada bulunmaz, null doner ve kaynak
+    // scope'u atlanirdi (GET serbest, mutasyonda herhangi bir ':write').
+    // Yonlendirmeyle ayni kurali uygulamak icin yol kucuk harfe indirilir.
+    const clean = (path.split('?')[0] ?? '').replace(/\/+$/, '').toLowerCase();
     const segs = clean.split('/').filter(Boolean);
     if (segs[0] === 'api') segs.shift(); // main.ts: setGlobalPrefix('api')
     if (!segs.length) return null;
