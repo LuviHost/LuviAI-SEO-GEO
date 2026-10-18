@@ -1,6 +1,7 @@
 import * as crypto from 'node:crypto';
 import { PublishAdapter } from './base.js';
 import type { PublishPayload, PublishResult } from './base.js';
+import { adapterFetch, httpErrorText, sanitizeErrorText } from './transport.js';
 
 /**
  * Custom PHP endpoint adapter — kullanıcı kendi PHP API'ını yazar, biz POST atarız.
@@ -52,16 +53,17 @@ export class CustomPhpAdapter extends PublishAdapter {
     }
 
     try {
-      const res = await fetch(endpointUrl, { method, headers, body });
+      const res = await adapterFetch(endpointUrl, { method, headers, body });
 
       if (!res.ok) {
-        return { ok: false, error: `HTTP ${res.status}: ${(await res.text()).slice(0, 200)}` };
+        return { ok: false, error: await httpErrorText('HTTP', res) };
       }
 
       const data: any = await res.json().catch(() => ({}));
 
       if (data.ok === false) {
-        return { ok: false, error: data.error ?? 'Unknown error' };
+        // Sunucunun yazdigi metin — kisa ve temiz tutulur
+        return { ok: false, error: sanitizeErrorText(data.error ?? 'Unknown error') };
       }
 
       return {
@@ -78,7 +80,7 @@ export class CustomPhpAdapter extends PublishAdapter {
     const { endpointUrl, apiKey } = this.credentials;
     try {
       // OPTIONS veya GET ile bağlantı testi
-      const res = await fetch(endpointUrl, {
+      const res = await adapterFetch(endpointUrl, {
         method: 'OPTIONS',
         headers: apiKey ? { 'Authorization': `Bearer ${apiKey}` } : {},
       });

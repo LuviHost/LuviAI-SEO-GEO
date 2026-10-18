@@ -2,6 +2,69 @@ import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { google } from 'googleapis';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { GscOAuthService } from '../auth/gsc-oauth.service.js';
+import { STUCK_PAGE_NOT_FOUND } from './stuck-page-messages.js';
+// Kopya artik canli degil: cop kutusunda (trashedAt) ya da hedefte yok (missingAt,
+// paylasilan sozlesme D3) — ikisi ayni kurala tabi (stuck-page-autopilot.ts)
+import { STUCK_FAILED_COOLDOWN_DAYS, isRetiredStuckEntry } from './stuck-page-autopilot.js';
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Adres karsilastirma anahtari (makale eslemesi): sema, www ve sondaki bolu
+ * atilir, kucuk harf. Metin olmayan deger bos anahtar verir (hicbir seyle eslesmez).
+ */
+function urlKey(u: unknown): string {
+  return typeof u === 'string' ? u.trim().replace(/^https?:\/\/(www\.)?/i, '').replace(/\/+$/, '').toLowerCase() : '';
+}
+
+/** publishedTo'daki nesne kayitlar (eski kayitlarda targetId olmayabilir; adres `url` alaninda olabilir) */
+function entryObjects(publishedTo: unknown): Array<Record<string, unknown>> {
+  return (Array.isArray(publishedTo) ? publishedTo : []).filter((e): e is Record<string, unknown> => !!e && typeof e === 'object');
+}
+
+/** Kayit bu adresteki kopya mi? Yayinci adresi externalUrl'e yazar; eski kayitlarda url */
+function entryAt(e: Record<string, unknown>, key: string): boolean {
+  return key !== '' && (urlKey(e.externalUrl) === key || urlKey(e.url) === key);
+}
+
+/** Yazinin bu adreste CANLI (cop kutusunda / hedefte yok olmayan) kopyasi var mi */
+function liveCopyAt(publishedTo: unknown, key: string): boolean {
+  return entryObjects(publishedTo).some((e) => !isRetiredStuckEntry(e) && entryAt(e, key));
+}
+
+/**
+ * Bu adresteki kopya artik canli degil mi (ve ayni adreste canli kopya yok mu)?
+ * Kayitta trashedAt: yayinci yerinde guncellemede yazinin WordPress cop
+ * kutusunda oldugunu gordu; missingAt: yazi hedefte hic yok (404/410, yeniden
+ * olusturulmadi — D3). Ikisi de ziyaretciye acik degildir; Search Console
+ * adresi verisi eskiyene kadar listelemeye devam eder.
+ */
+function trashedCopyAt(publishedTo: unknown, key: string): boolean {
+  const list = entryObjects(publishedTo);
+  return list.some((e) => isRetiredStuckEntry(e) && entryAt(e, key)) && !list.some((e) => !isRetiredStuckEntry(e) && entryAt(e, key));
+}
+
+/**
+ * Satir guncellemesinde top sorgular: yeni sorgu yoksa alan HIC yazilmaz (eski
+ * deger kalir). Eskiden eski deger geri yaziliyordu; sorgusuz acilan satirda o
+ * deger DB NULL'dur ve Prisma bos Json alanina duz null kabul etmez (kurulu
+ * istemcide StuckPageUpdateManyMutationInput.topQueries:
+ * NullableJsonNullValueInput | InputJsonValue, InputJsonValue null icermez;
+ * prisma.io/docs .../working-with-json-fields null yazimi icin Prisma.DbNull /
+ * Prisma.JsonNull ister).
+ */
+function freshTopQueries(topQueries: string[]): { topQueries?: string[] } {
+  return topQueries.length > 0 ? { topQueries } : {};
+}
+
+/** Yeniden kullanilan "Basarisiz" satirin okunan alanlari */
+interface FailedStuckRow {
+  id: string;
+  updatedAt: Date;
+  title: string | null;
+  articleId: string | null;
+  recoveries?: Array<{ id: string }>;
+}
 
 /**
  * Stuck Page Detector — On-page.ai Recipe 1 esleyicisi.
@@ -40,6 +103,9 @@ export class StuckPageDetectorService {
    * Site icin tum sayfalari tara, stuck olanlari DB'ye yazip listeyi don.
    * Daha onceden DETECTED/RECOVERING durumunda olanlar update edilir (yeni metriklerle).
    * RECOVERED/REVERTED/IGNORED olanlar atlanir (kullanici kararini bozma).
+   * FAILED satir YENIDEN KULLANILIR (yeni satir acilmaz; refreshFailedRow).
+   * Yazinin cop kutusundaki ya da hedefte silinmis bulunan (D3) kopyasinin adresi
+   * atlanir (satir acilmaz, guncellenmez).
    */
   async detect(siteId: string): Promise<{ found: number; created: number; updated: number; skipped: number }> {
     const pages = await this.fetchPagePerformance(siteId, 30);
@@ -97,12 +163,30 @@ export class StuckPageDetectorService {
       where: { siteId, status: 'PUBLISHED' as any },
       select: { id: true, title: true, publishedTo: true, slug: true },
     });
+    // Cop kutusu kaniti icin yayinda OLMAYAN yazilarin kayitlari da okunur:
+    // bilinen tek kopyasi cop kutusunda bulunan yazi READY_TO_PUBLISH'e duser
+    // (publisher.service recordUnwrittenLiveState) ve yukaridaki listede yoktur
+    const otherEntries = await this.prisma.article.findMany({
+      where: { siteId, status: { not: 'PUBLISHED' as any } },
+      select: { publishedTo: true },
+    });
 
     // GSC'den per-URL top sorgular (recovery'de kullanilmak uzere snapshot)
     const queriesByUrl = await this.fetchTopQueriesByUrl(siteId);
+    const now = new Date();
 
     for (const s of stuckResults) {
       const matchedArticle = this.matchArticle(s.url, articles);
+
+      // Adres yazinin COP KUTUSUNDAKI ya da hedefte SILINMIS bulunan kopyasi
+      // (ve hicbir yazinin canli kopyasi degil): sayfa takili degil, musteri
+      // kaldirdi. Satir acilmaz, guncellenmez: makale akisi bu kopyalara yazmaz
+      // (stuck-page-autopilot planStuckRepublish live_copy_trashed /
+      // live_copy_missing); "RanksUp disi" satir da yanlis olurdu.
+      if (!matchedArticle && this.isTrashedCopyUrl(s.url, [...articles, ...otherEntries])) {
+        skipped++;
+        continue;
+      }
 
       // Bu URL icin son 30 gunde DETECTED/RECOVERING kaydi var mi?
       const existing = await this.prisma.stuckPage.findFirst({
@@ -114,12 +198,18 @@ export class StuckPageDetectorService {
         orderBy: { detectedAt: 'desc' },
       });
 
-      // RECOVERED/REVERTED/IGNORED kayit varsa atla
+      // RECOVERED/REVERTED/IGNORED kayit varsa atla. REVERTED eskiden listede
+      // yoktu: musterinin geri aldigi sayfaya yeni bir DETECTED satiri aciliyor,
+      // haftalik tarama (runStuckPageSweep yalniz DETECTED secer) ayni AI
+      // duzenlemesini otomatik yeniden uyguluyordu. Geri alma kullanicinin
+      // karari; panel de REVERTED satiri icin onarim dugmesi gostermiyor.
+      // Bekleyen geri alma (yayin kuyrukta) da REVERTED'dir; yayin olmazsa
+      // satir RECOVERED'a doner ve yine atlanir.
       const closedExisting = await this.prisma.stuckPage.findFirst({
         where: {
           siteId,
           url: s.url,
-          status: { in: ['RECOVERED', 'IGNORED'] as any[] },
+          status: { in: ['RECOVERED', 'REVERTED', 'IGNORED'] as any[] },
         },
       });
       if (closedExisting) {
@@ -130,8 +220,16 @@ export class StuckPageDetectorService {
       const topQueries = queriesByUrl.get(this.urlPath(s.url)) ?? [];
 
       if (existing) {
-        await this.prisma.stuckPage.update({
-          where: { id: existing.id },
+        // KOSULLU ve RECOVERING satirda updatedAt AYNEN: sahiplenme kirasi
+        // (stuck-page-autopilot.ts STUCK_CLAIM_LEASE_MS) satirin updatedAt'inden
+        // olculur; haftalik tazeleme onu "simdi" yapsaydi sahipsiz kalan
+        // sahiplenme hic bayatlamaz, kiradaki an da artik satira uymazdi
+        // (Prisma @updatedAt yalniz deger verilmezse yazilir — refreshFailedRow
+        // notundaki iki kaynak). Durum okunandan farkliysa (arada sahiplenildi ya
+        // da birakildi) tazeleme bu tur atlanir.
+        const recovering = String(existing.status) === 'RECOVERING';
+        const r = await this.prisma.stuckPage.updateMany({
+          where: { id: existing.id, status: existing.status, ...(recovering ? { updatedAt: existing.updatedAt } : {}) },
           data: {
             impressions: s.impressions,
             clicks: s.clicks,
@@ -140,10 +238,24 @@ export class StuckPageDetectorService {
             stuckScore: s.stuckScore,
             title: matchedArticle?.title ?? existing.title,
             articleId: matchedArticle?.id ?? existing.articleId,
-            topQueries: topQueries.length > 0 ? topQueries : (existing.topQueries as any),
+            ...freshTopQueries(topQueries),
+            ...(recovering ? { updatedAt: existing.updatedAt } : {}),
           },
         });
-        updated++;
+        if (r.count === 1) updated++;
+        else skipped++;
+        continue;
+      }
+
+      // Acik satir yok; adresin "Basarisiz" satiri varsa yeni satir ACILMAZ
+      const failed = (await this.prisma.stuckPage.findFirst({
+        where: { siteId, url: s.url, status: { in: ['FAILED'] as any[] } },
+        orderBy: { updatedAt: 'desc' },
+        select: { id: true, updatedAt: true, title: true, articleId: true, recoveries: { select: { id: true }, take: 1 } },
+      })) as FailedStuckRow | null;
+      if (failed) {
+        if (await this.refreshFailedRow(failed, s, matchedArticle, topQueries, now)) updated++;
+        else skipped++;
       } else {
         await this.prisma.stuckPage.create({
           data: {
@@ -168,27 +280,109 @@ export class StuckPageDetectorService {
     return { found: stuckResults.length, created, updated, skipped };
   }
 
-  /** URL'i RanksUp'da var olan bir article ile eslestir. */
+  /**
+   * URL'i RanksUp'da var olan bir article ile eslestir.
+   *
+   * Cop kutusundaki kopyalar (kayitta trashedAt) eslesme kaniti DEGILDIR: o
+   * adres yazinin canli sayfasi degil, onarilacak bir sey yok. Slug eslesmesi de
+   * yazinin BU ADRESTEKI kopyasi cop kutusundaysa kullanilmaz: WordPress kalici
+   * baglantisinin son parcasi yazinin slug'idir, yoksa adres eslemesindeki suzgec
+   * WordPress kopyalarinda hic devreye girmezdi.
+   */
   private matchArticle(
     url: string,
     articles: Array<{ id: string; slug: string; title: string; publishedTo: any }>,
   ): { id: string; title: string } | null {
     let urlPath = '';
     try { urlPath = new URL(url).pathname; } catch { return null; }
-    const slug = urlPath.replace(/^\/|\/$/g, '').split('/').pop() ?? '';
+    // Statik hedefler (FTP/SFTP/cPanel) yaziyi '<slug>.html' olarak yayinlar;
+    // uzanti atilmazsa bu sitelerde hicbir takili sayfa makaleyle eslesmiyordu
+    const slug = (urlPath.replace(/^\/|\/$/g, '').split('/').pop() ?? '').replace(/\.(html?|php)$/i, '');
+    const target = urlKey(url);
 
-    // 1) Exact slug match
-    const bySlug = articles.find((a) => a.slug === slug);
+    // 1) Exact slug match (bu adresteki kopyasi cop kutusunda olan yazi haric)
+    const bySlug = articles.find((a) => a.slug === slug && !trashedCopyAt(a.publishedTo, target));
     if (bySlug) return { id: bySlug.id, title: bySlug.title };
 
-    // 2) publishedTo[].url icinde tam URL var mi?
+    // 2) publishedTo[] icinde tam URL var mi? Yayinci alani externalUrl olarak
+    //    yaziyor (publisher.service.ts); eski kayitlar icin url de okunur.
+    //    Yalniz canli kopyalar (cop kutusundaki kayit haric).
     for (const a of articles) {
-      const targets = (a.publishedTo ?? []) as Array<{ url?: string }>;
-      if (Array.isArray(targets) && targets.some((t) => t.url === url)) {
-        return { id: a.id, title: a.title };
-      }
+      if (liveCopyAt(a.publishedTo, target)) return { id: a.id, title: a.title };
     }
     return null;
+  }
+
+  /**
+   * Adres bir yazinin cop kutusundaki / silinmis bulunan kopyasinin adresi mi ve hicbir yazinin
+   * canli kopyasi bu adreste degil mi? (Yazinin durumu fark etmez: tek kopyasi
+   * cop kutusunda bulunan yazi artik PUBLISHED degildir.)
+   */
+  private isTrashedCopyUrl(url: string, articles: Array<{ publishedTo: unknown }>): boolean {
+    const key = urlKey(url);
+    if (!key) return false;
+    if (articles.some((a) => liveCopyAt(a.publishedTo, key))) return false;
+    return articles.some((a) => trashedCopyAt(a.publishedTo, key));
+  }
+
+  /**
+   * Adresin "Basarisiz" satirini yeniden kullanir; yeni DETECTED satiri ACMAZ.
+   *
+   * NEDEN: dedektor acik satiri yalniz DETECTED / RECOVERING arasinda ariyordu;
+   * son satiri FAILED olan adrese her taramada yeni bir satir aciyor, satirlar
+   * panelde birikiyordu (her basarisiz deneme bir satir daha).
+   *
+   * Otopilot bekleme suresi (stuck-page-autopilot.ts STUCK_FAILED_COOLDOWN_DAYS,
+   * hasRecentFailure) korunur; basarisizlik ani satirin updatedAt'idir (kurtarma
+   * servisi markFailed onu acikca yazar):
+   *  - Bekleme suresi icinde: satir FAILED kalir, yalniz metrikler tazelenir ve
+   *    updatedAt AYNEN yazilir. Yazilmasa Prisma @updatedAt'i "simdi" yapardi;
+   *    her hafta tazelenen basarisizlik ani bekleme suresini hic bitirmezdi.
+   *    Iki kaynak: prisma.io/docs/orm/reference/prisma-schema-reference
+   *    (@updatedAt: "If you do not supply a time yourself, Prisma Client will
+   *    automatically set the value") ve kurulu motor surumunun kaynagi
+   *    (prisma-engines c2990dca, @prisma/client 6.19.3)
+   *    query-engine/query-structure/src/write_args.rs add_datetimes: "if
+   *    self.args.get(f.db_name()).is_none()" iken simdiki zamani ekler;
+   *    update_record_node ve update_many_record_node ikisi de update_datetimes cagirir.
+   *  - Bekleme suresi dolmus ve satirda hic kurtarma kaydi yok: satir yeniden
+   *    DETECTED olur; otopilot (yalniz DETECTED secer) adresi yeniden deneyebilir;
+   *    eskiden bu, sure dolunca acilan yeni satirla oluyordu.
+   *  - Kurtarma kaydi olan FAILED satir FAILED kalir: kayit kismen yayina gitmis
+   *    bir duzeltme olabilir (republishFailed anyLive). Panel DETECTED satirdaki
+   *    kaydi "Oneri: uygulanmadi ve yayinlanmadi" diye gosterir; bu yanlis bir
+   *    iddia olurdu. Kullanici "AI Duzelt" ile her zaman yeniden deneyebilir.
+   * Yazim kosullu (ayni FAILED satir, ayni updatedAt): arada kullanici yeniden
+   * denediyse (RECOVERING) satir ezilmez; o zaman false doner.
+   */
+  private async refreshFailedRow(
+    failed: FailedStuckRow,
+    s: { impressions: number; clicks: number; ctr: number; position: number; stuckScore: number },
+    matchedArticle: { id: string; title: string } | null,
+    topQueries: string[],
+    now: Date,
+  ): Promise<boolean> {
+    const failedAt = failed.updatedAt instanceof Date ? failed.updatedAt.getTime() : Number.NaN;
+    // Taramanin kurali ile ayni sinir (hasRecentFailure: updatedAt >= simdi - sure).
+    // Basarisizlik ani bilinmiyorsa bekleme suresinde sayilir (emin olmadan yeniden acilmaz)
+    const coolingDown = !Number.isFinite(failedAt) || failedAt >= now.getTime() - STUCK_FAILED_COOLDOWN_DAYS * DAY_MS;
+    const hasHistory = Array.isArray(failed.recoveries) && failed.recoveries.length > 0;
+    const reopen = !coolingDown && !hasHistory;
+    const r = await this.prisma.stuckPage.updateMany({
+      where: { id: failed.id, status: 'FAILED' as any, updatedAt: failed.updatedAt },
+      data: {
+        impressions: s.impressions,
+        clicks: s.clicks,
+        ctr: s.ctr,
+        position: s.position,
+        stuckScore: s.stuckScore,
+        title: matchedArticle?.title ?? failed.title,
+        articleId: matchedArticle?.id ?? failed.articleId,
+        ...freshTopQueries(topQueries),
+        ...(reopen ? { status: 'DETECTED' as any, updatedAt: now } : { updatedAt: failed.updatedAt }),
+      },
+    });
+    return r.count === 1;
   }
 
   private expectedCtr(position: number): number {
@@ -310,7 +504,7 @@ export class StuckPageDetectorService {
       where: { id: stuckPageId, siteId },
       select: { id: true },
     });
-    if (!existing) throw new NotFoundException('Stuck page bulunamadi');
+    if (!existing) throw new NotFoundException(STUCK_PAGE_NOT_FOUND);
     await this.prisma.stuckPage.update({
       where: { id: stuckPageId },
       data: { status: 'IGNORED' as any },

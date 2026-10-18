@@ -9,8 +9,6 @@ import { ArticleSchedulerService } from './article-scheduler.service.js';
 import { SchemaClassifierService } from './schema-classifier.service.js';
 import { ContentPivotService } from './content-pivot.service.js';
 import { ProgrammaticSeoService } from './programmatic-seo.service.js';
-import { TiktokPublisherService } from './tiktok-publisher.service.js';
-import { InstagramPublisherService } from './instagram-publisher.service.js';
 import { TranslatorService } from './translator.service.js';
 import { LinkValidatorService } from './link-validator.service.js';
 import { QaGateService } from './qa-gate.service.js';
@@ -39,8 +37,6 @@ import { SitesModule } from '../sites/sites.module.js';
     SchemaClassifierService,
     ContentPivotService,
     ProgrammaticSeoService,
-    TiktokPublisherService,
-    InstagramPublisherService,
     TranslatorService,
     LinkValidatorService,
     QaGateService,
@@ -55,8 +51,6 @@ import { SitesModule } from '../sites/sites.module.js';
     SchemaClassifierService,
     ContentPivotService,
     ProgrammaticSeoService,
-    TiktokPublisherService,
-    InstagramPublisherService,
     TranslatorService,
     LinkValidatorService,
     QaGateService,

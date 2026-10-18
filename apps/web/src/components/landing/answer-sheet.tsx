@@ -25,16 +25,20 @@ const ENGINES: Array<{ label: string; vendor: VendorName }> = [
 ];
 /** Kare "uygulama ikonu" bicimindeki SVG'ler: baloncugu tamamen doldurur (digerleri beyaz zeminde yalin isaret) */
 const TILE_LOGOS = new Set<VendorName>(['chatgpt', 'claude-ai']);
-/** Olculen 7 asistanin logo dizisi — dikkat ceken ust serit (eski orbital diyagramin yerine) */
+/**
+ * Olculen 6 asistanin logo dizisi (plans.ts ile ayni) — dikkat ceken ust serit (eski orbital
+ * diyagramin yerine). Meta AI (Llama) yok: yalniz GROQ_LLAMA_MODEL tanimliyken olculur
+ * (ai-citation.service.ts); "olculen" diye kosulsuz gostermek yanlis vaat olurdu.
+ */
 const MEASURED: Array<{ label: string; vendor: VendorName }> = [
   ...ENGINES,
   { label: 'Grok', vendor: 'grok' },
   { label: 'DeepSeek', vendor: 'deepseek' },
-  { label: 'Meta AI', vendor: 'meta-ai' },
 ];
-/** Yay uzerindeki yatay konumlar (%): ust yayda sekmelerdeki 4 asistan, altta digerleri */
+/** Yay uzerindeki yatay konumlar (%): ust yayda sekmelerdeki 4 asistan, altta digerleri 50 etrafinda ortali */
 const TOP_ORBIT = ENGINES.map((e, i) => ({ ...e, x: 20 + i * 20 }));
-const BOTTOM_ORBIT = MEASURED.slice(ENGINES.length).map((e, i) => ({ ...e, x: 30 + i * 20 }));
+const BOTTOM = MEASURED.slice(ENGINES.length);
+const BOTTOM_ORBIT = BOTTOM.map((e, i) => ({ ...e, x: 50 + (i - (BOTTOM.length - 1) / 2) * 20 }));
 
 /**
  * Yay geometrisi (viewBox 100x100, kutuya gerilir): merkez (50, ARC_CY), dikey yaricap
@@ -167,7 +171,7 @@ export function AnswerSheet() {
 
   return (
     <div className="relative py-20 sm:py-24">
-      {/* Yorunge: kartin ustunde ve altinda iki kesik yay, 7 asistan logosu yaylarin
+      {/* Yorunge: kartin ustunde ve altinda iki kesik yay, 6 asistan logosu yaylarin
           uzerinde. Kartin yanlari yazi dolu oldugu icin logo yalniz ust/alt bosluktadir. */}
       <OrbitArc side="top" items={TOP_ORBIT} active={engine} />
       <OrbitArc side="bottom" items={BOTTOM_ORBIT} active={-1} />

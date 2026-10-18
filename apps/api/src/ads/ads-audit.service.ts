@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { AgentRunnerService } from '../articles/agent-runner.service.js';
+import { LLMProviderService } from '../llm/llm-provider.service.js';
+import { parseJsonFromLlm } from '../common/safe-json.js';
 import { AdsSnapshotCollectorService } from './snapshot-collector.service.js';
 import { GOOGLE_RULES } from './rules/google-rules.js';
 import { META_RULES } from './rules/meta-rules.js';
@@ -15,6 +16,30 @@ interface RawResult {
   recommendation: string;
 }
 
+/** Varsayilan hakem modeli — eski kodun niyeti ('opus' → agent-runner MODEL_MAP) */
+export const ADS_AUDIT_DEFAULT_MODEL = 'claude-opus-5';
+
+/** LLM kurali icin model: ADS_AUDIT_MODEL, yoksa varsayilan (makale ajan ayarlari etkilemez) */
+export function adsAuditModel(env: NodeJS.ProcessEnv = process.env): string {
+  return env.ADS_AUDIT_MODEL?.trim() || ADS_AUDIT_DEFAULT_MODEL;
+}
+
+const VERDICTS: ReadonlySet<string> = new Set(['pass', 'warning', 'fail', 'na']);
+
+/**
+ * Modelin verdict'ini skorlayicinin sozlugune indirger. Bilinmeyen deger 'na':
+ * scorer summary[verdict]++ yaptigindan "PASS" / "n/a" gibi bir deger ozeti
+ * NaN'a ceviriyordu.
+ */
+export function normalizeVerdict(raw: unknown): Verdict {
+  const v = String(raw ?? '').trim().toLowerCase().replace(/[\s/_-]/g, '');
+  if (v === 'na' || v === 'none' || v === 'notapplicable') return 'na';
+  if (v === 'warn') return 'warning';
+  return VERDICTS.has(v) ? (v as Verdict) : 'na';
+}
+
+const JUDGE_SYSTEM_PROMPT = 'Sen bir reklam hesabı denetçisisin. SADECE geçerli JSON döndür, açıklama yazma.';
+
 /**
  * Reklam Hesabı Audit Service.
  * Kuralları sırayla çalıştırır; deterministik olanları check() ile,
@@ -22,6 +47,16 @@ interface RawResult {
  *
  * Sonucu DB'ye `Audit` kaydı olarak yazar (kind: 'ads_audit'),
  * frontend `getLatestAdsAudit()` ile çeker.
+ *
+ * LLM hakemi LLMProviderService'i DOGRUDAN cagirir. Eskiden agent-runner'a
+ * ('04-editor' adiyla) gidiyordu: (1) verilen baglamda `brain` alani yoktu,
+ * buildBrainContext 'Cannot read properties of undefined (reading
+ * brandVoice)' firlatiyor ve LLM ile degerlendirilen HER kural 'na' / 'LLM
+ * değerlendirme hatası' donuyordu — Kampanya Skoru yalniz deterministik
+ * kurallardan cikiyordu; (2) EDITOR_MODEL env'i hakem modelini eziyordu;
+ * (3) makale editorunun 'high' dusunme eforu basit bir siniflandirmaya
+ * harcaniyordu. Model ADS_AUDIT_MODEL ile secilir, harcama site'ye yazilir
+ * (context 'ads-audit-llm').
  */
 @Injectable()
 export class AdsAuditService {
@@ -30,7 +65,7 @@ export class AdsAuditService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly collector: AdsSnapshotCollectorService,
-    private readonly agentRunner: AgentRunnerService,
+    private readonly llm: LLMProviderService,
   ) {}
 
   async run(siteId: string, platform: Platform, industry: Industry = 'saas'): Promise<AuditScore> {
@@ -73,7 +108,7 @@ export class AdsAuditService {
     }
 
     // 2) LLM kuralları — paralel (max 5 eşzamanlı)
-    const llmResults = await this.runLlmRules(llmRules, snapshot);
+    const llmResults = await this.runLlmRules(llmRules, snapshot, siteId);
 
     const allResults = [...detResults, ...llmResults];
     const score = scoreAudit(platform, allResults);
@@ -117,7 +152,7 @@ export class AdsAuditService {
     };
   }
 
-  private async runLlmRules(rules: AuditRule[], snap: AccountSnapshot): Promise<RawResult[]> {
+  private async runLlmRules(rules: AuditRule[], snap: AccountSnapshot, siteId: string): Promise<RawResult[]> {
     if (rules.length === 0) return [];
 
     // Snapshot'ın kullanışlı içerik düzeyini ölç — boş hesapsa LLM'e bedava sormaya gerek yok
@@ -145,34 +180,37 @@ export class AdsAuditService {
     const BATCH_SIZE = 5;
     for (let i = 0; i < rules.length; i += BATCH_SIZE) {
       const chunk = rules.slice(i, i + BATCH_SIZE);
-      const results = await Promise.all(chunk.map(r => this.judgeOne(r, snap)));
+      const results = await Promise.all(chunk.map(r => this.judgeOne(r, snap, siteId)));
       out.push(...results);
       this.log.debug(`LLM batch ${i / BATCH_SIZE + 1}/${Math.ceil(rules.length / BATCH_SIZE)} tamamlandı`);
     }
     return out;
   }
 
-  private async judgeOne(rule: AuditRule, snap: AccountSnapshot): Promise<RawResult> {
+  private async judgeOne(rule: AuditRule, snap: AccountSnapshot, siteId: string): Promise<RawResult> {
     if (!rule.llm || !rule.llmPrompt) {
       return { rule, verdict: 'na', finding: 'LLM prompt yok', recommendation: '' };
     }
     const prompt = rule.llmPrompt(snap);
     try {
-      const result = await this.agentRunner.run({
-        agentName: '04-editor',
-        agentSystemSuffix: 'Sen bir reklam hesabı denetçisisin. SADECE geçerli JSON döndür, açıklama yazma.',
-        brainContext: { brand: 'RanksUp Ads Audit', voice: 'analitik', goals: [], stoplist: [] } as any,
-        input: prompt,
-        maxTokens: 400,
-        preferredModel: 'opus',
+      const result = await this.llm.chat({
+        context: 'ads-audit-llm',
+        siteId,
+        model: adsAuditModel(),
+        systemPrompt: JUDGE_SYSTEM_PROMPT,
+        messages: [{ role: 'user', content: prompt }],
+        // Thinking'li modellerde tavan cevap + dusunmeyi birlikte sinirlar
+        // (LLMProviderService tabani 4000); kisa siniflandirma icin dusuk efor.
+        maxTokens: 4000,
+        effort: 'low',
       });
-      // JSON parse et
-      const json = JSON.parse(result.output.match(/\{[\s\S]*\}/)?.[0] ?? '{}');
+      const json = parseJsonFromLlm<any>(result.output);
+      if (!json || typeof json !== 'object' || Array.isArray(json)) throw new Error('JSON nesnesi yok');
       return {
         rule,
-        verdict: (json.verdict ?? 'na') as Verdict,
-        finding: json.finding ?? '',
-        recommendation: json.recommendation ?? '',
+        verdict: normalizeVerdict(json.verdict),
+        finding: typeof json.finding === 'string' ? json.finding.slice(0, 600) : '',
+        recommendation: typeof json.recommendation === 'string' ? json.recommendation.slice(0, 600) : '',
       };
     } catch (err: any) {
       this.log.warn(`LLM rule ${rule.id} hatası: ${err.message}`);

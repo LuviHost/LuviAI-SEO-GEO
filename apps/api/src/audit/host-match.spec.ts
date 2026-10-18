@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { hostMentioned, urlHostMatches, citedPathsFor, registrableDomain, extractAppStoreRefs } from './host-match.js';
+import { hostMentioned, hostMentionIndex, urlHostMatches, citedPathsFor, registrableDomain, extractAppStoreRefs, CITATION_MATCH_VERSION } from './host-match.js';
 
 describe('hostMentioned — etiket sinirli', () => {
   it('kendi alan adi ve alt alan adi eslesir; cumle sonu noktasi sorun degil', () => {
@@ -53,5 +53,18 @@ describe('extractAppStoreRefs — tam metinden magaza referanslari', () => {
   it('id123 artik id1234 ile eslesmez (rakam siniri)', () => {
     expect(extractAppStoreRefs('https://apps.apple.com/app/id1234567')).toEqual(['ios:1234567']);
     expect(extractAppStoreRefs('https://apps.apple.com/app/id1234567').includes('ios:123456')).toBe(false);
+  });
+});
+
+describe('hostMentionIndex', () => {
+  it('hostMentioned ile ayni kural; ilk gecisin indeksi', () => {
+    const t = 'bkz. notranksup.ai ve sonra ranksup.ai/blog';
+    expect(hostMentionIndex(t, 'ranksup.ai')).toBe(t.lastIndexOf('ranksup.ai'));
+    expect(hostMentionIndex('ranksup.ai.tr', 'ranksup.ai')).toBeNull();
+    expect(hostMentionIndex('', 'ranksup.ai')).toBeNull();
+  });
+
+  it('olcum surumu 4: jenerik marka korumasi anilma olcumunu degistirdi', () => {
+    expect(CITATION_MATCH_VERSION).toBe(4);
   });
 });

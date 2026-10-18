@@ -2,6 +2,7 @@ import { Controller, ForbiddenException, Get, NotFoundException, Query, Req } fr
 import type { Request } from 'express';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { containsBrand, resolveSiteBrand } from '../audit/brand-in-query.js';
+import { brandHostFromUrl } from './organic-brand-split.js';
 
 /**
  * Looker Studio / BI data connector uclari.
@@ -116,13 +117,16 @@ export class LookerController {
     });
     // Markali promptlar tabloda kalir ama ISARETLI gider — Looker tarafinda
     // alinan her ortalama bu kolonla suzulebilsin. Isaret prompt metninden
-    // hesaplanir (satir bazli degil): tablo prompt-seviyesi bir ozet.
+    // hesaplanir (satir bazli degil): tablo prompt-seviyesi bir ozet. Host
+    // verilir: GeoPromptRun.brandInQuery damgasi (buildProbe) jenerik
+    // turetilmis markada yalniz alan adini arar; ayni karar burada da.
     const brand = resolveSiteBrand(site.name, site.url);
+    const host = brandHostFromUrl(site.url);
     return {
       rows: prompts.map((p) => ({
         prompt: p.text,
         intent: p.intent,
-        brand_in_query: containsBrand(p.text, brand),
+        brand_in_query: containsBrand(p.text, brand, host),
         last_run: p.lastRunAt?.toISOString().slice(0, 10) ?? null,
         score: p.lastTotalCount > 0 ? Math.round((p.lastCitedCount / p.lastTotalCount) * 100) : null,
       })),
@@ -138,7 +142,7 @@ export class LookerController {
     const site = await this.ensureSite(req, siteId);
     const hits = await this.prisma.aiCrawlerHit.findMany({
       where: { siteId: site.id, date: { gte: this.days(days) } },
-      select: { date: true, bot: true, hits: true, status2xx: true, status4xx: true },
+      select: { date: true, bot: true, hits: true, status2xx: true, status4xx: true, status5xx: true },
       orderBy: { date: 'asc' },
     });
     return {
@@ -146,8 +150,10 @@ export class LookerController {
         date: h.date.toISOString().slice(0, 10),
         bot: h.bot,
         hits: h.hits,
+        // ok: basarili yanit (status2xx kovasi: 2xx + 304). errors eskiden
+        // yalniz 4xx'ti; sunucu hatalari (5xx) disa aktarimda kayboluyordu.
         ok: h.status2xx,
-        errors: h.status4xx,
+        errors: h.status4xx + h.status5xx,
       })),
     };
   }

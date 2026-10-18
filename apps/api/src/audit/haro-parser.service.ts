@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import Anthropic from '@anthropic-ai/sdk';
 import { PrismaService } from '../prisma/prisma.service.js';
 
@@ -11,8 +11,33 @@ export interface HaroQuery {
   requirements: string;
   category: string;
   brandFitScore: number;
+  /** Bos dize: taslak uretilmedi (pitchSkipped) */
   draftPitch: string;
+  /**
+   * true: uygunluk puani ilk HARO_PITCH_TOP_N icinde degil, taslak (model
+   * cagrisi) uretilmedi. Panel "taslak hazırlanmadı" gosterir.
+   */
+  pitchSkipped?: boolean;
 }
+
+/** HARO ozetini soru bloklarina ayiran desen ("N) Summary:") */
+export const HARO_BLOCK_SPLIT = /\n\d+\)\s*Summary:/i;
+/**
+ * Tek istekte islenecek en fazla soru blogu. audit.controller haroParse ayni
+ * kurali (HARO_MAX_QUERIES = 30, ayni desen) govde uzerinde uygular; servis
+ * de uygular cunku dogrudan cagiran yollar (MCP, worker, test) controller'dan
+ * gecmez ve 100 KB'lik bir govdeye binlerce kisa blok sigar.
+ */
+export const HARO_MAX_BLOCKS = 30;
+/**
+ * Taslak yanit (soru basina bir model cagrisi) yalniz uygunluk puani en
+ * yuksek bu kadar soru icin uretilir. Eskiden HER blok icin sirayla cagri
+ * yapiliyordu (30 blokta 30 cagri, ~dakikalar); musteri zaten en uygun
+ * sorulara yanit verir, digerleri listede taslaksiz kalir.
+ */
+export const HARO_PITCH_TOP_N = 10;
+/** Ayni anda en fazla bu kadar taslak cagrisi (saglayici hiz sinirina takilmasin) */
+const PITCH_CONCURRENCY = 5;
 
 /**
  * HARO Parser — kullanici RanksUp'ye HARO emaillerini forward eder veya
@@ -31,17 +56,11 @@ export class HaroParserService {
   constructor(private readonly prisma: PrismaService) {}
 
   /**
-   * HARO email icerigini parse et + her sorgu icin draft pitch uret.
+   * HARO email icerigini parse et + uygunluk puani en yuksek HARO_PITCH_TOP_N
+   * sorgu icin draft pitch uret (digerleri pitchSkipped). En fazla
+   * HARO_MAX_BLOCKS blok; fazlasi 400.
    */
   async parseDigest(siteId: string, emailContent: string): Promise<HaroQuery[]> {
-    const site: any = await this.prisma.site.findUniqueOrThrow({
-      where: { id: siteId },
-      include: { brain: true },
-    });
-    const brand = site.name;
-    const niche = site.niche ?? '';
-    const brandVoice: any = site.brain?.brandVoice ?? {};
-
     // HARO format genelde:
     // 1) Summary: <text>
     // 2) Name: <reporter>
@@ -52,9 +71,25 @@ export class HaroParserService {
     //    Query: <multi-line>
     //    Requirements: <multi-line>
     //
-    // Regex ile blok blok parse et
-    const blocks = emailContent.split(/\n\d+\)\s*Summary:/i).slice(1);
-    const queries: HaroQuery[] = [];
+    // Regex ile blok blok parse et. Tavan DB'ye ve modele gitmeden once.
+    const content = typeof emailContent === 'string' ? emailContent : '';
+    const blocks = content.split(HARO_BLOCK_SPLIT).slice(1);
+    if (blocks.length > HARO_MAX_BLOCKS) {
+      throw new BadRequestException(
+        `Tek seferde en fazla ${HARO_MAX_BLOCKS} HARO sorusu işlenebilir (bu metinde ${blocks.length} soru var). E-postayı bölerek yapıştırın.`,
+      );
+    }
+
+    const site: any = await this.prisma.site.findUniqueOrThrow({
+      where: { id: siteId },
+      include: { brain: true },
+    });
+    const brand = site.name;
+    const niche = site.niche ?? '';
+    const brandVoice: any = site.brain?.brandVoice ?? {};
+
+    // 1) Once tum bloklar ayristirilir ve puanlanir (model cagrisi yok)
+    const parsed: Array<{ q: HaroQuery; summary: string }> = [];
 
     for (const block of blocks) {
       const get = (label: string) => {
@@ -83,20 +118,34 @@ export class HaroParserService {
 
       if (!query) continue;
 
-      const fitScore = this.scoreFit(category, summary, query, niche);
-      const draftPitch = await this.generatePitch({
-        brand, niche, brandTone: brandVoice.tone,
-        reporterName: name, publication, query, requirements, summary,
-      });
-
-      queries.push({
-        publication, reporter: name, email, deadline,
-        query, requirements, category,
-        brandFitScore: fitScore, draftPitch,
+      parsed.push({
+        summary,
+        q: {
+          publication, reporter: name, email, deadline,
+          query, requirements, category,
+          brandFitScore: this.scoreFit(category, summary, query, niche),
+          draftPitch: '',
+        },
       });
     }
 
-    return queries.sort((a, b) => b.brandFitScore - a.brandFitScore);
+    // 2) Uygunluga gore sirala (Array#sort kararli: esit puanda e-postadaki sira)
+    parsed.sort((a, b) => b.q.brandFitScore - a.q.brandFitScore);
+
+    // 3) Taslak yalniz ilk HARO_PITCH_TOP_N icin, en fazla PITCH_CONCURRENCY paralel
+    const withPitch = parsed.slice(0, HARO_PITCH_TOP_N);
+    for (let i = 0; i < withPitch.length; i += PITCH_CONCURRENCY) {
+      await Promise.all(withPitch.slice(i, i + PITCH_CONCURRENCY).map(async (p) => {
+        p.q.draftPitch = await this.generatePitch({
+          brand, niche, brandTone: brandVoice.tone,
+          reporterName: p.q.reporter, publication: p.q.publication,
+          query: p.q.query, requirements: p.q.requirements, summary: p.summary,
+        });
+      }));
+    }
+    for (const p of parsed.slice(HARO_PITCH_TOP_N)) p.q.pitchSkipped = true;
+
+    return parsed.map((p) => p.q);
   }
 
   private scoreFit(category: string, summary: string, query: string, niche: string): number {

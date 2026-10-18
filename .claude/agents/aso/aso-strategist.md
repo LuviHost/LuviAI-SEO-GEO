@@ -77,7 +77,7 @@ Create comprehensive launch and optimization strategies with specific dates, act
 
 ### Google Play Store
 - [ ] App name reserved in Play Console
-- [ ] Title finalized (XX/50 chars) ✓
+- [ ] Title finalized (XX/30 chars) ✓
 - [ ] Short description written (XX/80 chars) ✓
 - [ ] Full description written (XXXX/4000 chars) ✓
 - [ ] All character limits validated ✓

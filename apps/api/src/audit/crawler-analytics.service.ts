@@ -1,6 +1,153 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { readBodyCapped } from '../common/fetch-capped.js';
+import { safeFetchText, type SafeTextResult } from '../common/safe-fetch.js';
+import { detectBlock } from '../common/block-detect.js';
+import { CRAWLER_EVENT_RETENTION_DAYS } from './crawler-event-retention.js';
+
+/** Sitemap duz metin ama devasa olabilir — belge basina 8 MB tavan */
+const SITEMAP_MAX_BYTES = 8 * 1024 * 1024;
+/** Indeksten en fazla bu kadar alt sitemap okunur; fazlasinda oran hesaplanmaz */
+const MAX_CHILD_SITEMAPS = 25;
+/**
+ * Kapsam icin sitemap adresleri bellekte (onbellekte) tutulur; tek bir
+ * sitemap dosyasinin protokol tavani kadarina izin var. Fazlasinda oran
+ * hesaplanmaz — kismi listeyle oran yanlis cikardi.
+ */
+const MAX_SITEMAP_URLS = 50_000;
+/** Panel ucu bekletilmesin: tum sitemap okumasi icin toplam sure */
+const SITEMAP_BUDGET_MS = 8_000;
+/** Ayni site icin sitemap her panel acilisinda yeniden indirilmesin */
+const SITEMAP_CACHE_MS = 15 * 60 * 1000;
+/** Onbellekte en fazla bu kadar site — adres listeleri bellegi sisirmesin */
+const SITEMAP_CACHE_MAX_SITES = 20;
+/** Edge ham yollarindan en fazla bu kadar tekil yol okunur; fazlasinda oran "en az" */
+const MAX_EVENT_PATHS = 20_000;
+
+const XML_ENTITY: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'" };
+
+function decodeXmlEntities(s: string): string {
+  return s.replace(/&(#x[0-9a-f]+|#\d+|amp|lt|gt|quot|apos);/gi, (m, e: string) => {
+    if (e[0] === '#') {
+      const cp = e[1] === 'x' || e[1] === 'X' ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10);
+      return Number.isFinite(cp) && cp >= 0 && cp <= 0x10ffff ? String.fromCodePoint(cp) : m;
+    }
+    return XML_ENTITY[e.toLowerCase()] ?? m;
+  });
+}
+
+/**
+ * Sitemap belgesindeki <loc> adresleri ve belge turu. Indeksteki <loc>'lar
+ * SAYFA degil alt sitemap adresidir — ayrimi burada yapilir.
+ *
+ * XML kacislari cozulur (protokol & isaretini &amp; yazdirir: ?p=1&amp;lang=tr)
+ * ve CDATA icindeki adres de okunur; yoksa sorgulu adresler ziyaret edilen
+ * adresle hic eslesmezdi. <image:loc> / <video:content_loc> sayfa degildir,
+ * desen onlari almaz.
+ *
+ * Desendeki tekrarlar sinirli, birbiriyle ortusmez ve '<' gorunce durur:
+ * belge musteri sitesinden gelir (8 MB'a kadar); kapanmayan <loc> / CDATA
+ * yigini geri izleme patlamasiyla (ReDoS) sureci kilitleyemesin (8 MB'lik
+ * kotu niyetli belgelerde ~10 ms olculdu). Protokolde adres 2048 karakterden
+ * kisa olmali; 4096 bosluklu yazima pay birakir.
+ */
+export function readSitemapLocs(xml: string): { kind: 'urlset' | 'index' | 'none'; locs: string[] } {
+  const kind = /<sitemapindex[\s>]/i.test(xml) ? 'index' : /<urlset[\s>]/i.test(xml) ? 'urlset' : 'none';
+  const locs = kind === 'none'
+    ? []
+    : [...xml.matchAll(/<loc>(?:\s*<!\[CDATA\[([^<]{0,4096}?)\]\]>\s*|([^<]{0,4096}))<\/loc>/gi)]
+      .map((m) => decodeXmlEntities((m[1] ?? m[2] ?? '').trim()))
+      .filter(Boolean);
+  return { kind, locs };
+}
+
+/** "www." farki ayni site; sondaki nokta ve buyuk harf yok sayilir */
+function hostKey(hostname: string): string {
+  return hostname.toLowerCase().replace(/\.+$/, '').replace(/^www\./, '');
+}
+
+/**
+/**
+ * Sayfayi degistirmeyen izleme parametreleri — "/blog/a?utm_source=x" ayni
+ * sayfadir. srsltid: Google'in arama sonucundaki urun adreslerine ekledigi parametre.
+ */
+const TRACKING_PARAM = /^(?:utm_[a-z0-9_]*|gclid|fbclid|msclkid|yclid|dclid|gbraid|wbraid|_ga|_gl|mc_cid|mc_eid|igshid|srsltid)$/i;
+
+/** Izleme parametresiz, sirali sorgu ("" ya da "?a=1&b=2") — iki taraf ayni bicime gelsin */
+function canonicalQuery(search: string): string {
+  if (!search || search === '?') return '';
+  const kept = [...new URLSearchParams(search)]
+    .filter(([k]) => !TRACKING_PARAM.test(k))
+    .sort(([a, av], [b, bv]) => (a === b ? (av < bv ? -1 : av > bv ? 1 : 0) : a < b ? -1 : 1));
+  return kept.length > 0 ? `?${new URLSearchParams(kept).toString()}` : '';
+}
+
+/**
+ * Ziyaret ya da sitemap adresi → karsilastirma bicimi. null: gecersiz ya da
+ * baska bir alan adina ait (sitemap baska host listeleyebilir; log satirinda
+ * mutlak adres olabilir).
+ *  - Goreli yol (log satiri, edge yolu) sitenin kendi alan adinda sayilir.
+ *  - Alan adi www'siz ve kucuk harfle karsilastirilir; http/https farki yok.
+ *  - Yolun %-kacislari cozulur (%C3%A7 = ç; buyuk/kucuk onaltilik farki kalmaz).
+ *  - Sondaki / atilir, kok "/" kalir: /blog/a/ = /blog/a.
+ *  - #parca atilir. Sorgu KORUNUR (sitemap ?p=123 gibi sorgulu adres
+ *    listeleyebilir; "/?s=ara" ana sayfa ziyareti sayilmaz) ama izleme
+ *    parametreleri atilir ve kalanlar siralanir.
+ */
+export function normalizeCoverageUrl(raw: string, site: URL): { path: string; query: string } | null {
+  let u: URL;
+  try { u = new URL(raw.trim(), site); } catch { return null; }
+  if (u.protocol !== 'http:' && u.protocol !== 'https:') return null;
+  if (hostKey(u.hostname) !== hostKey(site.hostname)) return null;
+  let path = u.pathname;
+  try { path = decodeURIComponent(path); } catch { /* bozuk kacis — ham yol */ }
+  if (path.length > 1) path = path.replace(/\/+$/, '') || '/';
+  return { path, query: canonicalQuery(u.search) };
+}
+
+export type CoverageUnavailableReason =
+  /** Site kaydi / adresi yok */
+  | 'no_site'
+  /** Ziyaretlerde adres bilgisi yok — oranin payi bilinmiyor */
+  | 'no_visits'
+  /** /sitemap.xml okunamadi ya da site haritasi degil */
+  | 'sitemap_unavailable'
+  /** Site haritasina erisimimiz engellendi (WAF, bot dogrulamasi...) */
+  | 'sitemap_blocked'
+  /** Bir alt site haritasi okunamadi, belge kesildi ya da sure doldu */
+  | 'sitemap_incomplete'
+  /** Alt site haritasi ya da adres sayisi tavanin ustunde */
+  | 'sitemap_too_large'
+  /** Site haritasinda bu alan adina ait sayfa yok */
+  | 'sitemap_empty';
+
+/**
+ * Sayfa tarama kapsami: sitemap'teki sayfalarin kacini en az bir bot ziyaret
+ * etti. Oran = |ziyaret edilen ∩ sitemap| / |sitemap|.
+ */
+export interface CrawlCoverage {
+  /** Botlarin istedigi tekil yol sayisi — robots.txt, feed, wp-json gibi sayfa olmayanlar DAHIL */
+  uniquePathsVisited: number;
+  /** Sitemap'teki tekil sayfa sayisi (sitenin alan adinda); okunamadiysa null */
+  sitePagesTotal: number | null;
+  /** Sitemap sayfalarindan en az bir bot ziyareti gorenlerin sayisi */
+  sitemapPagesVisited: number | null;
+  /** sitemapPagesVisited / sitePagesTotal, yuzde (0.1 hassasiyet); hesaplanamadiysa null */
+  pagesCrawledPct: number | null;
+  /** Ziyaret listesi eksik/orneklem: oran gercegin ALT siniridir ("en az") */
+  partial: boolean;
+  unavailableReason: CoverageUnavailableReason | null;
+  /** Kullaniciya gosterilecek tek cumle (unavailableReason varken) */
+  unavailableText: string | null;
+}
+
+type SitemapPages =
+  | { ok: true; keys: Set<string> }
+  | { ok: false; reason: CoverageUnavailableReason; text: string };
+
+/** Karsilastirma anahtari — ziyaret ve sitemap tarafi AYNI bicimle */
+function coverageKey(n: { path: string; query: string }): string {
+  return `${n.path}${n.query}`;
+}
 
 export interface CrawlerLogEntry {
   ip: string;
@@ -17,11 +164,57 @@ export interface CrawlerSummary {
   hits: number;
   uniqueUrls: number;
   topUrls: Array<{ url: string; count: number }>;
+  /** Basarili son cevap: 2xx + 304 Not Modified (isSuccessfulCrawlStatus) */
   status2xx: number;
   status4xx: number;
   status5xx: number;
   bytesServed: number;
 }
+
+/**
+ * Durum kodu AiCrawlerHit.status2xx ("basarili istek") kovasina mi yazilir —
+ * iki guvenilir yazicinin ORTAK kurali: log yuklemesi (summarize) ve imzali
+ * edge ingest (live-crawler.service updateDailyAggregates).
+ *
+ * 2xx ve 304 Not Modified. NEDEN 304: kosullu GET'e verilen basarili SON
+ * cevaptir. RFC 9110 15.4.5: "would have resulted in a 200 (OK) response if it
+ * were not for the fact that the condition evaluated to false"; Google'in
+ * tarayici belgesi: "the content is the same as last time it was crawled"
+ * (https://developers.google.com/crawling/docs/troubleshooting/http-status-codes,
+ * 2026-10-18'de okundu). Eskiden 304 hicbir kovaya girmiyordu: onbellekli,
+ * saglikli sitede Bingbot'un 304'leri hata oraninin paydasindan dusuyor ve
+ * sahte "sitene ulaşamıyor" alarmi gidiyordu (inceleme R16); yalniz 304 alan
+ * bot da "site ayakta" kaniti sayilmadigi icin gercek bir engel alarmsiz
+ * kalabiliyordu.
+ *
+ * NEDEN 301/302/307/308 DEGIL: yonlendirme son cevap degildir (RFC 9110 15.4:
+ * "further action needs to be taken by the user agent"); bot hedefi izler ve
+ * hedefin cevabi ayri bir istek olarak sayilir (Google en fazla 10 adim izler,
+ * ayni belge). Basarili sayilsaydi uygulamasi 502 veren ama nginx'te
+ * http→https yonlendirmesi calisan bir sitede botlar "basarili yanit aliyor"
+ * gorunur, alarm site komple dusukken "bu bota ozel engel var" derdi.
+ * Yonlendirmeler hits'te kalir; alarm onlari "ulasildi" olarak paydaya kendisi
+ * ekler (crawler-error-alarm.service trustedStatusRow).
+ */
+export function isSuccessfulCrawlStatus(status: number): boolean {
+  return (status >= 200 && status < 300) || status === 304;
+}
+
+/**
+ * Yalniz robots.txt'te KONTROL belirteci olan, kendi HTTP kullanici ajani
+ * OLMAYAN adlar — sunucu logunda hic gorunmezler, ziyaret takibine girmezler.
+ *
+ * Google-Extended: "Google-Extended doesn't have a separate HTTP request user
+ * agent string. Crawling is done with existing Google user agent strings; the
+ * robots.txt user-agent token is used in a control capacity."
+ * (https://developers.google.com/search/docs/crawling-indexing/google-common-crawlers,
+ * 2026-10-18'de dogrulandi). Eskiden /Google-Extended/ ile aranip "Google
+ * Gemini training" diye listeleniyordu: gercek bir istekle hic eslesemez,
+ * eslesen satir ancak sahte (taklit) bir kullanici ajanindan gelir. Bu taramayi
+ * Googlebot yapar ve oyle sayilir. Robots.txt durusu agent-readiness /
+ * robots-check'te (known-ai-bots.ts) olculmeye devam eder.
+ */
+export const ROBOTS_ONLY_TOKENS: ReadonlySet<string> = new Set(['Google-Extended']);
 
 const BOT_REGISTRY: Record<string, { match: RegExp; category: CrawlerSummary['category']; label: string }> = {
   'GPTBot': { match: /GPTBot/i, category: 'training', label: 'OpenAI GPTBot' },
@@ -31,7 +224,6 @@ const BOT_REGISTRY: Record<string, { match: RegExp; category: CrawlerSummary['ca
   'Claude-Web': { match: /Claude-Web/i, category: 'ai-search', label: 'Claude.ai' },
   'PerplexityBot': { match: /PerplexityBot/i, category: 'ai-search', label: 'Perplexity' },
   'Perplexity-User': { match: /Perplexity-User/i, category: 'ai-search', label: 'Perplexity (user)' },
-  'Google-Extended': { match: /Google-Extended/i, category: 'training', label: 'Google Gemini training' },
   'Googlebot': { match: /Googlebot[^-]/i, category: 'classic-search', label: 'Googlebot' },
   'Bingbot': { match: /Bingbot/i, category: 'classic-search', label: 'Bingbot (Copilot)' },
   'Applebot': { match: /Applebot[^-]/i, category: 'classic-search', label: 'Applebot' },
@@ -67,6 +259,9 @@ export class CrawlerAnalyticsService {
   private readonly log = new Logger(CrawlerAnalyticsService.name);
 
   constructor(private readonly prisma: PrismaService) {}
+
+  /** site.url → sitemap sayfa anahtarlari ya da okunamama nedeni */
+  private readonly sitemapCache = new Map<string, { at: number; result: SitemapPages }>();
 
   /**
    * Apache combined log format parser:
@@ -135,7 +330,8 @@ export class CrawlerAnalyticsService {
 
       s.hits++;
       s.bytesServed += entry.bytes;
-      if (entry.status >= 200 && entry.status < 300) s.status2xx++;
+      // 304 basarili kovada; diger 3xx yalniz hits'te (isSuccessfulCrawlStatus)
+      if (isSuccessfulCrawlStatus(entry.status)) s.status2xx++;
       else if (entry.status >= 400 && entry.status < 500) s.status4xx++;
       else if (entry.status >= 500) s.status5xx++;
     }
@@ -228,19 +424,25 @@ export class CrawlerAnalyticsService {
   /**
    * Frontend icin: son N gun crawler trafigi.
    */
-  async getHistory(siteId: string, days = 30) {
+  async getHistory(siteId: string, rawDays = 30) {
+    // ?days=abc → NaN: gecersiz tarih Prisma'da 500 veriyordu; varsayilana dus
+    const days = Number.isFinite(rawDays) && rawDays > 0 ? rawDays : 30;
     const since = new Date(Date.now() - days * 86400000);
     since.setHours(0, 0, 0, 0);
 
+    // Robots-only belirtecler (Google-Extended) gercek bir istekle eslesemez;
+    // baska yollardan yazilmis satirlari (eski kayit, taklit kullanici ajani)
+    // ziyaret diye gostermeyiz — toplam ile kategori dagilimi de tutarli kalir.
+    const realBots = { notIn: [...ROBOTS_ONLY_TOKENS] };
     const hits = await this.prisma.aiCrawlerHit.findMany({
-      where: { siteId, date: { gte: since } },
+      where: { siteId, date: { gte: since }, bot: realBots },
       orderBy: { date: 'asc' },
     });
 
     // Bu site icin her bot'un TUM zamanlardaki ilk kayit tarihi (firstSeen alarmi icin)
     const firstSeenRows = await this.prisma.aiCrawlerHit.groupBy({
       by: ['bot'],
-      where: { siteId },
+      where: { siteId, bot: realBots },
       _min: { date: true },
     });
     const firstSeen: Record<string, string> = {};
@@ -272,7 +474,6 @@ export class CrawlerAnalyticsService {
     const totalHits = hits.reduce((a, h) => a + h.hits, 0);
     const aiSearchHits = byCategory['ai-search'] ?? 0;
     const trainingHits = byCategory['training'] ?? 0;
-    const aiTotalHits = aiSearchHits + trainingHits;
     const purposeSplit = {
       aiSearchPct: totalHits > 0 ? Math.round((aiSearchHits / totalHits) * 1000) / 10 : 0,
       trainingPct: totalHits > 0 ? Math.round((trainingHits / totalHits) * 1000) / 10 : 0,
@@ -280,39 +481,8 @@ export class CrawlerAnalyticsService {
       otherPct: totalHits > 0 ? Math.round(((byCategory['social'] ?? 0) / totalHits) * 1000) / 10 : 0,
     };
 
-    // 2) Pages crawled coverage — topUrls'den unique URL listesi çıkar
-    const uniquePathSet = new Set<string>();
-    for (const h of hits) {
-      const topUrls = (h.topUrls as any[]) ?? [];
-      for (const u of topUrls) {
-        if (u?.url) {
-          try {
-            const path = new URL(u.url, 'https://_dummy').pathname;
-            uniquePathSet.add(path);
-          } catch { /* skip invalid */ }
-        }
-      }
-    }
-
-    // Sitemap pages count — site'in sitemap.xml'ini fetch et (varsa)
-    let sitePagesTotal: number | null = null;
-    let pagesCrawledPct: number | null = null;
-    try {
-      const site = await this.prisma.site.findUnique({ where: { id: siteId }, select: { url: true } });
-      if (site?.url) {
-        const sitemapUrl = `${site.url.replace(/\/+$/, '')}/sitemap.xml`;
-        const res = await fetch(sitemapUrl, { signal: AbortSignal.timeout(5000) }).catch(() => null);
-        if (res?.ok) {
-          // Sitemap duz metin ama devasa olabilir — 8 MB tavan.
-          const xml = (await readBodyCapped(res, 8 * 1024 * 1024))?.text ?? '';
-          const urlMatches = xml.match(/<loc>/gi) ?? [];
-          sitePagesTotal = urlMatches.length;
-          if (sitePagesTotal > 0) {
-            pagesCrawledPct = Math.min(100, Math.round((uniquePathSet.size / sitePagesTotal) * 1000) / 10);
-          }
-        }
-      }
-    } catch { /* sitemap fail, sessiz geç */ }
+    // 2) Sayfa tarama kapsami — |ziyaret edilen ∩ sitemap| / |sitemap|
+    const coverage = await this.computeCoverage(siteId, hits, since, days);
 
     return {
       days,
@@ -325,11 +495,210 @@ export class CrawlerAnalyticsService {
       registry: Object.fromEntries(Object.entries(BOT_REGISTRY).map(([k, v]) => [k, { label: v.label, category: v.category }])),
       // Yeni — Clarity-style
       purposeSplit,
-      coverage: {
-        uniquePathsVisited: uniquePathSet.size,
-        sitePagesTotal,
-        pagesCrawledPct,
-      },
+      coverage,
     };
+  }
+
+  /**
+   * Sitemap'teki sayfalarin kacini en az bir bot ziyaret etti.
+   *
+   * NEDEN: eski oran "botlarin istedigi TUM tekil yollar / sitemap sayfa
+   * sayisi" idi ve %100'de kirpiliyordu. Pay robots.txt, feed, wp-json,
+   * ?utm'li tekrarlar ve sitemap'te olmayan adresleri de sayiyordu; sitemap'in
+   * hic ziyaret edilmemis yarisi olan bir site "%100 tarandi" gorunebiliyordu.
+   * Simdi yalniz sitemap'te olan ve ziyaret edilen sayfalar sayilir; sitemap
+   * listesi okunamazsa oran null + neden doner (yanlis oran gostermektense hic).
+   *
+   * Ziyaret edilen adresler iki kaynaktan: log yukleme / ara katman satirlarinin
+   * topUrls'i (gun-bot basina en cok ziyaret edilen 10 adres) ve edge ajanlarinin
+   * ham yollari (CrawlerHitEvent). topUrls orneklem oldugunda oran "en az" isaretlenir.
+   */
+  private async computeCoverage(
+    siteId: string,
+    hits: Array<{ topUrls: unknown; uniqueUrls: number | null }>,
+    since: Date,
+    days: number,
+  ): Promise<CrawlCoverage> {
+    const none = { sitePagesTotal: null, sitemapPagesVisited: null, pagesCrawledPct: null };
+    const site = await this.prisma.site.findUnique({ where: { id: siteId }, select: { url: true } }).catch(() => null);
+    let origin: URL | null = null;
+    try { origin = site?.url ? new URL(site.url) : null; } catch { origin = null; }
+    if (!site?.url || !origin) {
+      return { uniquePathsVisited: 0, ...none, partial: false, unavailableReason: 'no_site', unavailableText: 'Site adresi okunamadı; oran hesaplanamıyor.' };
+    }
+    const siteOrigin = origin;
+
+    /** Eslesme anahtarlari (bkz. normalizeCoverageUrl): "/blog/a/?utm_source=x" sitemap'teki "/blog/a" ile eslesir */
+    const visitedKeys = new Set<string>();
+    /** Tekil yol sayisi (uniquePathsVisited) */
+    const visitedPaths = new Set<string>();
+    let partial = false;
+    const addVisited = (raw: unknown) => {
+      if (typeof raw !== 'string' || !raw) return;
+      const n = normalizeCoverageUrl(raw, siteOrigin);
+      if (!n) return;
+      visitedPaths.add(n.path);
+      visitedKeys.add(coverageKey(n));
+    };
+
+    for (const h of hits) {
+      const top = Array.isArray(h.topUrls) ? h.topUrls : [];
+      // topUrls en cok ziyaret edilen 10 adres: daha fazla tekil adres varsa liste orneklemdir
+      if ((h.uniqueUrls ?? 0) > top.length) partial = true;
+      for (const u of top) addVisited((u as { url?: unknown } | null)?.url);
+    }
+
+    try {
+      const rows = await this.prisma.crawlerHitEvent.groupBy({
+        by: ['path'],
+        where: { siteId, ts: { gte: since }, bot: { notIn: [...ROBOTS_ONLY_TOKENS] } },
+        orderBy: { path: 'asc' },
+        take: MAX_EVENT_PATHS,
+      });
+      for (const r of rows) addVisited(r.path);
+      if (rows.length >= MAX_EVENT_PATHS) partial = true;
+      // Ham satirlar saklama suresinden eski degil: daha uzun pencerede eski yollar silinmis
+      if (rows.length > 0 && days > CRAWLER_EVENT_RETENTION_DAYS) partial = true;
+    } catch (err: any) {
+      this.log.warn(`[${siteId}] Ham ziyaret yollari okunamadi: ${err?.message ?? err}`);
+      partial = true;
+    }
+
+    const base = { uniquePathsVisited: visitedPaths.size, partial };
+    if (visitedPaths.size === 0) {
+      // Pay bilinmiyor — sitemap'i bosuna indirme
+      return { ...base, ...none, unavailableReason: 'no_visits', unavailableText: 'Bu dönemdeki bot ziyaretlerinde sayfa adresi kaydı yok; oran hesaplanamıyor.' };
+    }
+
+    const sitemap = await this.sitemapPages(site.url, siteOrigin);
+    if (!sitemap.ok) return { ...base, ...none, unavailableReason: sitemap.reason, unavailableText: sitemap.text };
+    if (sitemap.keys.size === 0) {
+      return { ...base, ...none, sitePagesTotal: 0, unavailableReason: 'sitemap_empty', unavailableText: 'Site haritasında bu alan adına ait sayfa bulunamadı; oran hesaplanamıyor.' };
+    }
+    let matched = 0;
+    for (const k of sitemap.keys) if (visitedKeys.has(k)) matched++;
+    return {
+      ...base,
+      sitePagesTotal: sitemap.keys.size,
+      sitemapPagesVisited: matched,
+      pagesCrawledPct: Math.round((matched / sitemap.keys.size) * 1000) / 10,
+      unavailableReason: null,
+      unavailableText: null,
+    };
+  }
+
+  /**
+   * Sitemap'teki SAYFA adresleri (karsilastirma anahtari olarak); tam liste
+   * okunamiyorsa neden — yanlis oran gostermektense hic gostermemek dogru.
+   *
+   * NEDEN: /sitemap.xml cogu sitede bir <sitemapindex>'tir (WordPress'te
+   * Yoast sitemap_index.xml'e yonlendirir). 2026-10-17'de /sitemap.xml sunan
+   * 7 ornek sitenin 7'sinde de indeks dondu (3 ile 2061 arasi alt sitemap).
+   * Eski kod indeksteki <loc> sayisini — yani ALT SITEMAP sayisini — sayfa
+   * sayisi saniyordu. Alt sitemap'ler okunup sayfalar toplanir; ayni adres iki
+   * kez sayilmaz, baska alan adina ait adres sayilmaz. Adres musteri sitesinden
+   * gelir: SSRF korumali okuma (common/safe-fetch.ts); engel sayfasi "sitemap
+   * yok" sayilmaz, engel olarak raporlanir (block-detect.ts).
+   */
+  private async sitemapPages(siteUrl: string, origin: URL): Promise<SitemapPages> {
+    const cached = this.sitemapCache.get(siteUrl);
+    if (cached && Date.now() - cached.at < SITEMAP_CACHE_MS) return cached.result;
+    const result = await this.readSitemapPages(siteUrl, origin);
+    this.cacheSitemap(siteUrl, result);
+    return result;
+  }
+
+  private async readSitemapPages(siteUrl: string, origin: URL): Promise<SitemapPages> {
+    type Read =
+      | { doc: { kind: 'urlset' | 'index' | 'none'; locs: string[] } }
+      | { fail: 'missing' | 'incomplete' }
+      | { fail: 'blocked'; reason: string };
+    const deadline = Date.now() + SITEMAP_BUDGET_MS;
+    const read = async (url: string): Promise<Read> => {
+      const left = deadline - Date.now();
+      if (left < 500) return { fail: 'incomplete' };
+      let res: SafeTextResult;
+      try {
+        res = await safeFetchText(url, {
+          timeoutMs: Math.min(5000, left),
+          maxBytes: SITEMAP_MAX_BYTES,
+          accept: 'application/xml,text/xml;q=0.9,*/*;q=0.8',
+        });
+      } catch {
+        return { fail: 'missing' };
+      }
+      const block = detectBlock(res);
+      if (block) return { fail: 'blocked', reason: block.reason };
+      if (!res.ok) return { fail: 'missing' };
+      // Kesik belgede adresler eksik kalir → liste tam degil
+      if (res.truncated) return { fail: 'incomplete' };
+      return { doc: readSitemapLocs(res.text) };
+    };
+
+    const INCOMPLETE: SitemapPages = {
+      ok: false,
+      reason: 'sitemap_incomplete',
+      text: 'Site haritasının tamamı okunamadı (bir alt site haritası açılmadı, belge kesildi ya da süre doldu); eksik listeyle oran yanlış çıkacağı için hesaplanmadı.',
+    };
+    const blocked = (reason: string): SitemapPages => ({
+      ok: false,
+      reason: 'sitemap_blocked',
+      text: `Site haritası okunamadı: ${reason} Oran hesaplanamıyor.`,
+    });
+    const tooManyUrls: SitemapPages = {
+      ok: false,
+      reason: 'sitemap_too_large',
+      text: `Site haritasında ${MAX_SITEMAP_URLS.toLocaleString('tr-TR')} adresten fazlası var; oran hesaplanmadı.`,
+    };
+
+    const keys = new Set<string>();
+    const addLocs = (locs: string[]): boolean => {
+      for (const loc of locs) {
+        const n = normalizeCoverageUrl(loc, origin);
+        if (n) keys.add(coverageKey(n));
+        if (keys.size > MAX_SITEMAP_URLS) return false;
+      }
+      return true;
+    };
+
+    const root = await read(`${siteUrl.replace(/\/+$/, '')}/sitemap.xml`);
+    if ('fail' in root) {
+      if (root.fail === 'blocked') return blocked(root.reason);
+      if (root.fail === 'incomplete') return INCOMPLETE;
+      return { ok: false, reason: 'sitemap_unavailable', text: 'Site haritası (/sitemap.xml) okunamadı ya da geçerli bir site haritası değil; oran hesaplanamıyor.' };
+    }
+    if (root.doc.kind === 'none') {
+      return { ok: false, reason: 'sitemap_unavailable', text: 'Site haritası (/sitemap.xml) okunamadı ya da geçerli bir site haritası değil; oran hesaplanamıyor.' };
+    }
+    if (root.doc.kind === 'urlset') return addLocs(root.doc.locs) ? { ok: true, keys } : tooManyUrls;
+
+    if (root.doc.locs.length > MAX_CHILD_SITEMAPS) {
+      return {
+        ok: false,
+        reason: 'sitemap_too_large',
+        text: `Site haritası dizininde ${MAX_CHILD_SITEMAPS}’ten fazla alt site haritası var; oran hesaplanmadı.`,
+      };
+    }
+    for (const child of root.doc.locs) {
+      const doc = await read(child);
+      if ('fail' in doc) return doc.fail === 'blocked' ? blocked(doc.reason) : INCOMPLETE;
+      // Indeks icinde indeks protokolde yok; okunamayan alt belge kismi liste demek
+      if (doc.doc.kind !== 'urlset') return INCOMPLETE;
+      if (!addLocs(doc.doc.locs)) return tooManyUrls;
+    }
+    return { ok: true, keys };
+  }
+
+  /** Suresi dolanlari at, site sayisini sinirla — adres listeleri bellekte birikmesin */
+  private cacheSitemap(siteUrl: string, result: SitemapPages): void {
+    const now = Date.now();
+    for (const [k, v] of this.sitemapCache) if (now - v.at >= SITEMAP_CACHE_MS) this.sitemapCache.delete(k);
+    this.sitemapCache.delete(siteUrl);
+    while (this.sitemapCache.size >= SITEMAP_CACHE_MAX_SITES) {
+      const oldest = this.sitemapCache.keys().next().value;
+      if (oldest === undefined) break;
+      this.sitemapCache.delete(oldest);
+    }
+    this.sitemapCache.set(siteUrl, { at: now, result });
   }
 }

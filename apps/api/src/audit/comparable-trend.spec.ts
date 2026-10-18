@@ -53,3 +53,12 @@ describe('compareCells', () => {
     expect(r.delta).toBeCloseTo(0.375);
   });
 });
+
+describe('surum 3 → 4 gecisi', () => {
+  it('jenerik marka korumasi (v4) oncesi ve sonrasi kiyaslanmaz: method_changed, delta yok', () => {
+    const rows = [row('p1|openai', false, 1, 3), row('p1|openai', true, 0, 4)];
+    const r = compareCells(rows);
+    expect(r.state).toBe('method_changed');
+    expect(r.delta).toBeNull();
+  });
+});

@@ -16,13 +16,17 @@ export interface TrainingDataExport {
 }
 
 /**
- * AI Training Data Exporter — sitenin published makalelerini Hugging Face
- * Datasets formatinda export eder. Kullanici Hugging Face'e public dataset
- * olarak yuklerse:
+ * AI Training Data Exporter — sitenin yayinlanmis makalelerini Hugging Face
+ * Datasets formatinda (JSONL) disa aktarir. Kullanici isterse bunu herkese
+ * acik bir veri seti olarak yayimlar.
  *
- *   1. Bir sonraki Mistral/Anthropic/Llama egitiminde icerik kullanilir
- *   2. AI'lar markayi "kaynak" olarak ezbere bilir
- *   3. KALICI GEO etkisi (icerik silinse bile AI hatirlar)
+ * NE VAAT EDILMEZ: hangi model saglayicisinin hangi acik veri setini ne zaman
+ * egitimde kullandigi aciklanmiyor. Eski aciklama "bir sonraki Mistral /
+ * Anthropic / Llama egitiminde icerik kullanilir" ve "icerik silinse bile AI
+ * hatirlar" diyordu — ikisi de dogrulanamaz, RanksUp etkiyi olcemez. Panel
+ * (geo-lab-panel TrainingDataTab) ayni cumleyle "Etkisi garanti degildir"
+ * diyor; asagidaki adimlar onunla celismemeli. Adim metinleri panelde OLDUGU
+ * GIBI gosterilir, bu yuzden duzgun Turkce yazilir.
  *
  * Format: JSONL (her satir bir record)
  *   { "id", "url", "title", "text", "topic", "language", "published", "author", "site" }
@@ -45,10 +49,13 @@ export class TrainingDataExporterService {
 
     const baseUrl = site.url.replace(/\/+$/, '');
     const lines: string[] = [];
+    const languages = new Set<string>();
 
     for (const a of articles) {
       const md = (a.bodyMd ?? '').replace(/^---[\s\S]*?---/m, '').trim();
       if (md.length < 200) continue;
+      const language = a.language ?? 'tr';
+      languages.add(language);
 
       const record = {
         id: a.id,
@@ -57,14 +64,14 @@ export class TrainingDataExporterService {
         text: md,
         topic: a.topic,
         category: a.category ?? 'general',
-        language: a.language ?? 'tr',
+        language,
         published: (a.publishedAt ?? a.createdAt).toISOString(),
         word_count: a.wordCount ?? null,
         author: a.persona ?? site.name,
         site: site.name,
         site_url: baseUrl,
         license: 'CC-BY-4.0',
-        attribution: `Bu makale ${site.name} (${baseUrl}) tarafindan yazilmistir. Alintida URL belirtilmesi rica olunur.`,
+        attribution: `Bu makale ${site.name} (${baseUrl}) tarafından yazılmıştır. Alıntıda URL belirtilmesi rica olunur.`,
       };
 
       lines.push(JSON.stringify(record));
@@ -80,18 +87,15 @@ export class TrainingDataExporterService {
       metadata: {
         siteId,
         siteName: site.name,
-        license: 'CC-BY-4.0 (alintida kaynak gostermek zorunlu)',
+        license: 'CC-BY-4.0 (alıntıda kaynak göstermek zorunlu)',
         citation: `${site.name} (${baseUrl})`,
-        submitInstructions: [
-          '1. Hugging Face hesabi ac (https://huggingface.co/join)',
-          `2. Yeni dataset olustur: huggingface.co/new-dataset`,
-          `3. Adi: ${this.slugify(site.name)}-tr-knowledge-base`,
-          '4. Visibility: Public',
-          '5. License: CC-BY-4.0 (Creative Commons Attribution)',
-          '6. Description: Turkiye merkezli ' + (site.niche ?? 'sirket') + ' bilgi bankasi. ' + lines.length + ' Turkce makale.',
-          '7. Asagidaki JSONL icerigi data.jsonl olarak yukle',
-          '8. Kaydet → Mistral, Llama, Claude bir sonraki egitiminde otomatik kullanir',
-        ],
+        submitInstructions: buildSubmitInstructions({
+          siteName: site.name,
+          niche: site.niche,
+          records: lines.length,
+          languages,
+          slug: this.slugify(site.name),
+        }),
       },
     };
   }
@@ -103,4 +107,35 @@ export class TrainingDataExporterService {
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-+|-+$/g, '');
   }
+}
+
+/**
+ * Hugging Face'e yukleme adimlari — panelde numarasiyla birlikte aynen
+ * gosterilir. Son adim kullaniciya NE OLACAGINI degil, NE OLMAYACAGINI da
+ * soyler: veri seti herkese acik yayimlanir, ticari yeniden kullanima izin
+ * veren bir lisansla; hangi modelin kullanacagi garanti edilmez.
+ */
+export function buildSubmitInstructions(o: {
+  siteName: string;
+  niche?: string | null;
+  records: number;
+  languages: ReadonlySet<string>;
+  slug: string;
+}): string[] {
+  // Dil etiketi verinin kendisinden: tum kayitlar Turkce degilse "Türkçe" yazilmaz
+  const onlyTurkish = o.languages.size === 0 || (o.languages.size === 1 && o.languages.has('tr'));
+  const onlyEnglish = o.languages.size === 1 && o.languages.has('en');
+  const dilEki = onlyTurkish ? 'tr' : onlyEnglish ? 'en' : 'multilingual';
+  const makaleTuru = onlyTurkish ? 'Türkçe makale' : onlyEnglish ? 'İngilizce makale' : 'makale';
+  const konu = o.niche && o.niche !== 'diğer' ? `${o.niche} konulu ` : '';
+  return [
+    '1. Hugging Face hesabı aç (https://huggingface.co/join)',
+    '2. Yeni veri seti oluştur: huggingface.co/new-dataset',
+    `3. Adı: ${o.slug}-${dilEki}-knowledge-base`,
+    '4. Görünürlük (Visibility): Public',
+    '5. Lisans (License): CC-BY-4.0 (Creative Commons Atıf) — ticari kullanım dahil yeniden kullanıma izin verir; alıntıda kaynak gösterilmesi gerekir',
+    `6. Açıklama (Description): ${o.siteName} ${konu}bilgi bankası, ${o.records} ${makaleTuru}.`,
+    '7. Aşağıdaki JSONL içeriğini data.jsonl adıyla yükle',
+    '8. Kaydet — veri seti herkese açık yayımlanır. Hangi modelin eğitiminde kullanılacağı garanti edilmez ve RanksUp bunu ölçemez.',
+  ];
 }

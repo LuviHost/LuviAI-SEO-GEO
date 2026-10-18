@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { countCharacters } from './keyword-field-audit.js';
+import { APP_STORE_LIMITS as A, GOOGLE_PLAY_LIMITS as G } from './store-limits.js';
 
 /**
  * Launch checklist — App Store ve Google Play için prelaunch + update checklist.
@@ -47,13 +48,14 @@ export class AsoLaunchChecklistService {
   /** App Store metadata uyumluluk kontrolü */
   validateAppleCompliance(meta: { title: string; subtitle?: string; description: string; keywordField?: string; iconUrl?: string }): ComplianceReport {
     const issues: ComplianceReport['issues'] = [];
-    if (!meta.title) issues.push({ field: 'title', problem: 'boş', how_to_fix: 'Marka + ana keyword (30 karakter max)' });
-    if (meta.title && meta.title.length > 30) issues.push({ field: 'title', problem: '30 karakteri aşıyor', how_to_fix: 'Kısalt veya keyword\'ü subtitle\'a taşı' });
-    if (meta.subtitle && meta.subtitle.length > 30) issues.push({ field: 'subtitle', problem: '30 karakteri aşıyor', how_to_fix: 'Kısalt' });
+    // Sinirlar store-limits.ts'ten; karakter = kod noktasi
+    if (!meta.title) issues.push({ field: 'title', problem: 'boş', how_to_fix: `Marka + ana keyword (${A.name} karakter max)` });
+    if (meta.title && countCharacters(meta.title) > A.name) issues.push({ field: 'title', problem: `${A.name} karakteri aşıyor`, how_to_fix: 'Kısalt veya keyword\'ü subtitle\'a taşı' });
+    if (meta.subtitle && countCharacters(meta.subtitle) > A.subtitle) issues.push({ field: 'subtitle', problem: `${A.subtitle} karakteri aşıyor`, how_to_fix: 'Kısalt' });
     if (!meta.description) issues.push({ field: 'description', problem: 'boş', how_to_fix: 'En az 500 karakter, ideal 1500-2000' });
     if (meta.description && meta.description.length < 500) issues.push({ field: 'description', problem: 'çok kısa', how_to_fix: 'Özellik listesi + sosyal kanıt + CTA ekle' });
     // Kod noktasi sayilir (Apple "karakter"i; 100 bayt ifadesi ASC'de uygulanmiyor — keyword-field-audit.ts)
-    if (meta.keywordField && countCharacters(meta.keywordField) > 100) issues.push({ field: 'keyword_field', problem: '100 karakteri aşıyor', how_to_fix: 'Title/subtitle\'da geçen kelimeleri çıkar' });
+    if (meta.keywordField && countCharacters(meta.keywordField) > A.keywords) issues.push({ field: 'keyword_field', problem: `${A.keywords} karakteri aşıyor`, how_to_fix: 'Title/subtitle\'da geçen kelimeleri çıkar' });
     if (!meta.iconUrl) issues.push({ field: 'icon', problem: 'eksik', how_to_fix: '1024×1024 PNG, alpha kanalsız' });
     return { platform: 'apple', ok: issues.length === 0, issues };
   }
@@ -61,10 +63,10 @@ export class AsoLaunchChecklistService {
   /** Google Play metadata uyumluluk kontrolü */
   validateGoogleCompliance(meta: { title: string; shortDescription?: string; description: string; iconUrl?: string }): ComplianceReport {
     const issues: ComplianceReport['issues'] = [];
-    if (!meta.title) issues.push({ field: 'title', problem: 'boş', how_to_fix: '30 karakter max' });
-    if (meta.title && meta.title.length > 30) issues.push({ field: 'title', problem: '30 karakteri aşıyor', how_to_fix: 'Kısalt' });
-    if (!meta.shortDescription) issues.push({ field: 'short_description', problem: 'eksik', how_to_fix: '80 karakter, listing\'in en görünür kısmı' });
-    if (meta.shortDescription && meta.shortDescription.length > 80) issues.push({ field: 'short_description', problem: '80 karakteri aşıyor', how_to_fix: 'Kısalt' });
+    if (!meta.title) issues.push({ field: 'title', problem: 'boş', how_to_fix: `${G.title} karakter max` });
+    if (meta.title && countCharacters(meta.title) > G.title) issues.push({ field: 'title', problem: `${G.title} karakteri aşıyor`, how_to_fix: 'Kısalt' });
+    if (!meta.shortDescription) issues.push({ field: 'short_description', problem: 'eksik', how_to_fix: `${G.shortDescription} karakter, listing'in en görünür kısmı` });
+    if (meta.shortDescription && countCharacters(meta.shortDescription) > G.shortDescription) issues.push({ field: 'short_description', problem: `${G.shortDescription} karakteri aşıyor`, how_to_fix: 'Kısalt' });
     if (!meta.description || meta.description.length < 500) issues.push({ field: 'description', problem: 'çok kısa', how_to_fix: 'Madde madde özellik + CTA' });
     if (!meta.iconUrl) issues.push({ field: 'icon', problem: 'eksik', how_to_fix: '512×512 32-bit PNG' });
     return { platform: 'google', ok: issues.length === 0, issues };
@@ -91,6 +93,8 @@ export class AsoLaunchChecklistService {
   }
 
   /** Mevsimsel kampanya takvimi */
+  // Imza controller icin korunuyor (ulke/kategori geciyor); liste henuz statik
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   planSeasonalCampaigns(opts: { country?: string; appCategory?: string } = {}): Array<{
     event: string; month: string; recommendation: string;
   }> {

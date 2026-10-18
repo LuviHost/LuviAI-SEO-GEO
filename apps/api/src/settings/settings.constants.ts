@@ -1,18 +1,39 @@
 /**
- * SETTINGS_CATALOG — admin panelden yonetilen tum runtime ayarlari.
+ * SETTINGS_CATALOG — admin panelden yonetilen runtime ayarlari.
  *
  * Kategoriler:
- *  - toggle: boolean on/off (FEATURE_*, ARTICLE_GENERATION_DISABLED, vb.)
- *  - plan:   plan fiyat/kota/limit (PLAN_*_PRICE, PLAN_TRIAL_DAYS)
- *  - model:  AI model secimleri (WRITER_MODEL, IMAGE_PROVIDER)
- *  - limit:  rate limit / quota
- *  - log:    LOG_LEVEL, DEBUG
+ *  - toggle: operasyonel anahtarlar (AI_GLOBAL_DISABLED, ARTICLE_GENERATION_DISABLED)
+ *            ve satis / intel ayarlari (SATIS_RANDEVU_URL, INTEL_DIGEST_TO)
+ *  - model:  AI model secimleri (MODEL_ANON, MODEL_MEMBER, MODEL_INTEL_*);
+ *            makale ajan modelleri yalniz env — bkz. "AI model secimi" notu
+ *  - env:    YALNIZ .env — kodun dogrudan process.env'den okudugu degerler.
+ *            Panel bunlari SALT OKUNUR gosterir (envOnly), degistirilemez.
  *
  * envFallback: DB de kayit yoksa process.env den okunur (geriye donuk uyumluluk).
- * default: ne env ne db de varsa bu kullanilir.
+ * default: ne env ne db de varsa bu kullanilir. envOnly anahtarda default,
+ *          KODUN kendi varsayilaniyla ayni olmak zorunda (settings-catalog-honesty.spec).
+ *
+ * KURAL: buraya yalniz bir kodun GERCEKTEN okudugu anahtar girer. Panelde
+ * gorunup hicbir yere baglanmayan ayar, admini "degistirdim" diye yaniltir.
+ * settings-catalog-honesty.spec.ts her DB anahtarinin kodda okundugunu, kodun
+ * ayardan okudugu her anahtarin da katalogda oldugunu denetler.
+ *
+ * KATALOGDAN CIKARILANLAR (2026-10) — hicbiri hicbir yerde ayardan okunmuyordu:
+ *  - FEATURE_PAYMENT_REQUIRED, FEATURE_AUTO_FIRST_ARTICLE, FEATURE_WHITE_LABEL,
+ *    FEATURE_PUBLIC_API, FEATURE_MULTI_LANG, GEO_OPTIMIZER_ENABLED, DEBUG,
+ *    LOG_LEVEL: kodda tek okuyani yok; acip kapatmak hicbir seyi degistirmiyordu.
+ *  - PLAN_*_PRICE / _ARTICLES / _SITES: fiyat ve kotalar billing/plans.ts'ten
+ *    (BASE_PLANS) ve QuotaService.LIMITS'ten gelir. PLAN_TRIAL_DAYS: deneme
+ *    suresi QuotaService.startTrial'da 14 gun sabit.
+ *  - SPEND_CAP_*_USD / SPEND_CAP_ENABLED: tavanlar QuotaService.SPEND_CAP_USD
+ *    (ve admin gorunumunde admin.controller) sabit haritasindan okunur;
+ *    "kill-switch" diye listelenen SPEND_CAP_ENABLED'in kodda karsiligi yoktu.
+ * Eski app_settings satirlari zararsiz kalir: listAll yalniz bu katalogu dolasir.
+ * Biri gercekten panelden yonetilsin istenirse once okuyan kod yazilmali,
+ * sonra buraya geri eklenmeli.
  */
 export type SettingType = 'boolean' | 'int' | 'string' | 'enum';
-export type SettingCategory = 'toggle' | 'plan' | 'model' | 'limit' | 'log';
+export type SettingCategory = 'toggle' | 'model' | 'env';
 
 export interface SettingMeta {
   key: string;
@@ -24,6 +45,16 @@ export interface SettingMeta {
   enumValues?: string[];
   /** Bu ayar degisince worker un job env i guncellenmeli mi? */
   hot?: boolean;
+  /**
+   * Deger YALNIZ process.env'den okunur; DB satiri yok sayilir, panelden
+   * yazilamaz (SettingsService.set 400 doner), acilista DB'ye tohumlanmaz.
+   *
+   * NEDEN: PAYTR_TEST_MODE gibi anahtarlar katalogda duzenlenebilir
+   * listeleniyordu ama kod onlari process.env'den okuyordu (paytr.service
+   * kurulurken). Admin panelden "test modu acik" gorup canli odeme alindigini
+   * bilmeyebilirdi. Deger artik kodun gercekten kullandigi kaynaktan gosterilir.
+   */
+  envOnly?: boolean;
 }
 
 export const SETTINGS_CATALOG: SettingMeta[] = [
@@ -33,7 +64,14 @@ export const SETTINGS_CATALOG: SettingMeta[] = [
     type: 'boolean',
     category: 'toggle',
     default: '0',
-    description: 'TEST: 1 = TUM AI cagrilari (Anthropic / OpenAI / Gemini) kapanir. Brain, Topic engine, Article generation, AI citation, LLMS-full build hepsi no-op olur. UI mock veriyle calisir.',
+    // Kapsam elle dogrulandi: anahtari okuyan yerler worker isleri (Brain,
+    // konu motoru, llms-full, gorsel alt metni, takili sayfa kurtarma),
+    // pipeline (mock makale), ai-citation runForSite/runQueries, geo-heatmap,
+    // chat, image-generator ve LLMProviderService. SDK'yi dogrudan cagiran
+    // servisler (runPublicProbes, translator, persona-chat, snippet-generator,
+    // niche-detector, screenshot gorselleri...) OKUMAZ — "tum AI cagrilari
+    // kapanir" yazmak acil durumda admini yaniltirdi.
+    description: 'Test / acil durum anahtarı. 1 iken makale hattı gerçek AI yerine örnek (mock) makale üretir; Brain, konu motoru, llms-full, görsel alt metni ve takılı sayfa kurtarma işleri atlanır; site AI görünürlük ölçümü, Prompt Lab, GEO ısı haritası, panel sohbeti, görsel üretimi ve ortak LLM katmanından (LLMProviderService) geçen çağrılar durur. Tüm AI harcamasını durdurmaz: SDK\'yı doğrudan çağıran servisler (ör. herkese açık AI kontrolü, çeviri, persona sohbet widget\'ı, snippet üretimi, niş tespiti, ekran görüntüsü stüdyosu görselleri) bu anahtarı okumaz.',
     envFallback: true,
     hot: true,
   },
@@ -42,266 +80,51 @@ export const SETTINGS_CATALOG: SettingMeta[] = [
     type: 'boolean',
     category: 'toggle',
     default: '0',
-    description: 'TEST: 1 = onboarding chain article scheduling + GENERATE_ARTICLE + PROCESS_SCHEDULED kapanir. LLM/image API harcamasi durur.',
+    description: 'Test anahtarı. 1 iken onboarding\'in ilk makale takvimi, GENERATE_ARTICLE ve PROCESS_SCHEDULED işleri atlanır (makaleler SCHEDULED durumunda bekler); makale üretimine bağlı LLM ve görsel harcaması durur. Diğer AI işlerini etkilemez.',
     envFallback: true,
     hot: true,
   },
   {
-    key: 'PAYTR_TEST_MODE',
-    type: 'boolean',
+    key: 'SATIS_RANDEVU_URL',
+    type: 'string',
     category: 'toggle',
-    default: '1',
-    description: 'PayTR odeme test modu. 1 = test, 0 = canli.',
+    default: '',
+    // Okuyan yerler yalniz kurum karnesi: prospect/karne.service.ts (panel) ve
+    // cli/prospect-karne.ts. Eski metin "LinkedIn mesajlarina eklenir" diyordu;
+    // linkedin-outreach bu anahtari okumuyor.
+    description: 'Satış görüşmesi randevu linki (Cal.com/Calendly). Doluysa ücretsiz kurum karnesinin kapanış satırına eklenir (panel ve karne CLI\'ı); boşsa o cümle metinden düşer.',
     envFallback: true,
   },
   {
-    key: 'FEATURE_PAYMENT_REQUIRED',
-    type: 'boolean',
+    key: 'INTEL_DIGEST_TO',
+    type: 'string',
     category: 'toggle',
-    default: 'false',
-    description: 'true = kullanici plan satin almadan makale uretemez.',
-    envFallback: true,
-  },
-  {
-    key: 'FEATURE_AUTO_FIRST_ARTICLE',
-    type: 'boolean',
-    category: 'toggle',
-    default: 'true',
-    description: 'true = onboarding sonrasi tier-1 ilk makale otomatik uretime girer.',
-    envFallback: true,
-  },
-  {
-    key: 'FEATURE_WHITE_LABEL',
-    type: 'boolean',
-    category: 'toggle',
-    default: 'false',
-    description: 'true = ajans icin white-label modu acilir.',
-    envFallback: true,
-  },
-  {
-    key: 'FEATURE_PUBLIC_API',
-    type: 'boolean',
-    category: 'toggle',
-    default: 'false',
-    description: 'true = harici API anahtariyla makale uretimi (api-keys modulu) acilir.',
-    envFallback: true,
-  },
-  {
-    key: 'FEATURE_MULTI_LANG',
-    type: 'boolean',
-    category: 'toggle',
-    default: 'true',
-    description: 'true = tr/en disinda dilde makale uretimi.',
-    envFallback: true,
-  },
-  {
-    key: 'GEO_OPTIMIZER_ENABLED',
-    type: 'boolean',
-    category: 'toggle',
-    default: 'false',
-    description: 'true = GEO CLI uzerinden ek optimizasyon adimlari calisir.',
-    envFallback: true,
-  },
-
-  // Loglama
-  {
-    key: 'DEBUG',
-    type: 'boolean',
-    category: 'log',
-    default: 'false',
-    description: 'Detayli debug log u acar (verbose pipeline + AI istek body si).',
-    envFallback: true,
-  },
-  {
-    key: 'LOG_LEVEL',
-    type: 'enum',
-    category: 'log',
-    default: 'info',
-    description: 'Worker/API log seviyesi.',
-    envFallback: true,
-    enumValues: ['error', 'warn', 'info', 'debug', 'verbose'],
-  },
-
-  // Plan & limit
-  {
-    key: 'PLAN_TRIAL_DAYS',
-    type: 'int',
-    category: 'plan',
-    default: '14',
-    description: 'TRIAL plan suresi (gun).',
-    envFallback: true,
-  },
-  {
-    key: 'PLAN_STARTER_PRICE',
-    type: 'int',
-    category: 'plan',
-    default: '499',
-    description: 'STARTER plan aylik fiyat (TL).',
-    envFallback: true,
-  },
-  {
-    key: 'PLAN_STARTER_ARTICLES',
-    type: 'int',
-    category: 'plan',
-    default: '10',
-    description: 'STARTER plan aylik makale kotasi.',
-    envFallback: true,
-  },
-  {
-    key: 'PLAN_STARTER_SITES',
-    type: 'int',
-    category: 'plan',
-    default: '1',
-    description: 'STARTER plan max site sayisi.',
-    envFallback: true,
-  },
-  {
-    key: 'PLAN_PRO_PRICE',
-    type: 'int',
-    category: 'plan',
-    default: '1299',
-    description: 'PRO plan aylik fiyat (TL).',
-    envFallback: true,
-  },
-  {
-    key: 'PLAN_PRO_ARTICLES',
-    type: 'int',
-    category: 'plan',
-    default: '50',
-    description: 'PRO plan aylik makale kotasi.',
-    envFallback: true,
-  },
-  {
-    key: 'PLAN_PRO_SITES',
-    type: 'int',
-    category: 'plan',
-    default: '3',
-    description: 'PRO plan max site sayisi.',
-    envFallback: true,
-  },
-  {
-    key: 'PLAN_AGENCY_PRICE',
-    type: 'int',
-    category: 'plan',
-    default: '3299',
-    description: 'AGENCY plan aylik fiyat (TL).',
-    envFallback: true,
-  },
-  {
-    key: 'PLAN_AGENCY_ARTICLES',
-    type: 'int',
-    category: 'plan',
-    default: '250',
-    description: 'AGENCY plan aylik makale kotasi.',
-    envFallback: true,
-  },
-  {
-    key: 'PLAN_AGENCY_SITES',
-    type: 'int',
-    category: 'plan',
-    default: '10',
-    description: 'AGENCY plan max site sayisi.',
-    envFallback: true,
-  },
-
-  // ─── PLAN SPEND CAP (Cost Guard, 2026-05) ────────────────────────────
-  // Plan basina aylik USD harcama tavani. Kullanici bu degeri asarsa pipeline
-  // pause edilir + admin ve kullaniciya email gider. AI maliyetlerinin firma
-  // pleyte kontrolu icin kritik. Default'lar realistic kullanim baz alindi.
-  {
-    key: 'SPEND_CAP_TRIAL_USD',
-    type: 'int',
-    category: 'plan',
-    default: '3',
-    description: 'TRIAL plan aylik max USD harcama (cost guard).',
+    default: '',
+    // intel/digest.service.ts sendEmail bu anahtari settings.getString ile
+    // okuyordu ama katalogda YOKTU: getRaw bilinmeyen anahtarda hata atiyor,
+    // `.catch(() => null)` yutuyor ve her seferinde env'e dusuluyordu (eski
+    // MODEL_INTEL_* hatasinin aynisi). envFallback BILEREK false: satir bos
+    // tohumlanir, bos deger env'e duser — env'den okuyan bugunku davranis
+    // aynen kalir; panelden yazilan deger env'in onune gecer.
+    description: 'İstihbarat (intel) özet e-postasının alıcısı. Boşsa sunucudaki INTEL_DIGEST_TO ortam değişkeni kullanılır; o da yoksa özet yalnız panelde kalır.',
     envFallback: false,
-  },
-  {
-    key: 'SPEND_CAP_STARTER_USD',
-    type: 'int',
-    category: 'plan',
-    default: '25',
-    description: 'STARTER plan aylik max USD harcama (cost guard).',
-    envFallback: false,
-  },
-  {
-    key: 'SPEND_CAP_PRO_USD',
-    type: 'int',
-    category: 'plan',
-    default: '80',
-    description: 'PRO plan aylik max USD harcama (cost guard).',
-    envFallback: false,
-  },
-  {
-    key: 'SPEND_CAP_AGENCY_USD',
-    type: 'int',
-    category: 'plan',
-    default: '200',
-    description: 'AGENCY plan aylik max USD harcama (cost guard).',
-    envFallback: false,
-  },
-  {
-    key: 'SPEND_CAP_ENTERPRISE_USD',
-    type: 'int',
-    category: 'plan',
-    default: '700',
-    description: 'ENTERPRISE plan aylik max USD harcama (cost guard, ek aşımda contact sales).',
-    envFallback: false,
-  },
-  {
-    key: 'SPEND_CAP_ENABLED',
-    type: 'boolean',
-    category: 'plan',
-    default: 'true',
-    description: 'Cost guard aktif mi (false ise sinirsiz). Acil durum kill-switch.',
-    envFallback: false,
-  },
-
-  {
-    key: 'RATE_LIMIT_WINDOW_MS',
-    type: 'int',
-    category: 'limit',
-    default: '60000',
-    description: 'Rate limit penceresi (ms).',
-    envFallback: true,
-  },
-  {
-    key: 'RATE_LIMIT_MAX',
-    type: 'int',
-    category: 'limit',
-    default: '60',
-    description: 'Pencere icinde max istek sayisi.',
-    envFallback: true,
   },
 
   // AI model secimi
-  {
-    key: 'WRITER_MODEL',
-    type: 'enum',
-    category: 'model',
-    default: 'claude-opus-5',
-    description: 'Yazar ajaninin kullanacagi Anthropic modeli.',
-    envFallback: true,
-    enumValues: ['claude-opus-5', 'claude-sonnet-5', 'claude-haiku-4-5'],
-  },
-  {
-    key: 'EDITOR_MODEL',
-    type: 'enum',
-    category: 'model',
-    default: 'claude-opus-5',
-    description: 'Editor ajaninin kullanacagi Anthropic modeli.',
-    envFallback: true,
-    enumValues: ['claude-opus-5', 'claude-sonnet-5', 'claude-haiku-4-5'],
-  },
-  {
-    key: 'ROUTING_MODEL',
-    type: 'enum',
-    category: 'model',
-    default: 'claude-opus-5',
-    description: 'Routing/topic engine modeli. Varsayilan Opus 5 (kalite tercihi); maliyet icin admin panelden Haiku secilebilir.',
-    envFallback: true,
-    enumValues: ['claude-opus-5', 'claude-sonnet-5', 'claude-haiku-4-5'],
-  },
+  //
+  // WRITER_MODEL / EDITOR_MODEL / ROUTING_MODEL BILEREK BURADA YOK — yalniz
+  // ortam degiskeni (.env). Makale ajanlari modeli process.env'den okur
+  // (articles/agent-runner.service.ts resolveModel; ROUTING_MODEL ayrica
+  // sites/brain-generator.service.ts). Bu uc anahtar katalogda "varsayilan
+  // claude-opus-5" diye listeleniyordu ama hicbir kod onlari ayardan okumuyordu:
+  // panelde gorunen deger kullanilan model degildi, degistirmek etkisizdi.
+  // Ajanin ayari okumasi yerine katalogdan cikarildi, cunku DB'deki satirlar
+  // ilk acilista env'den ya da katalog varsayilanindan (claude-opus-5) tohumlandi
+  // ve sonradan elle degismis olabilir: okumaya baslamak uretimdeki modeli
+  // (dolayisiyla maliyeti) sessizce degistirebilirdi. Eski app_settings
+  // satirlari zararsiz kalir; listAll yalniz bu katalogu dolasir.
+  // Panelden yonetilsin istenirse: once DB degerleri dogrulanmali, sonra
+  // ajan ayari env'den ONCE okumali ve buraya geri eklenmeli.
   // ─── AUDIENCE MODEL TIER (2026-08) ───────────────────────────────────
   // Oturum acmamis ziyaretcinin tetikledigi AI cagrilari (landing citation
   // checker'in nis tespiti + rakip filtresi, persona chat widget'i) bedava
@@ -321,7 +144,10 @@ export const SETTINGS_CATALOG: SettingMeta[] = [
     type: 'enum',
     category: 'model',
     default: 'claude-opus-5',
-    description: 'Giris yapmis kullanicinin AI cagrilari (onboarding nis tespiti, dashboard). Kalite tercihi.',
+    // modelForAudience(…, 'member') cagiranlari: sites.controller detect-niche
+    // (onboarding) ve public-citation.service'in signup_baseline yolu (nis
+    // tespiti + classifyRealCompetitors). Eski metindeki "dashboard" cagrisi yok.
+    description: 'Giriş yapmış kullanıcının tetiklediği iki çağrının modeli: onboarding niş tespiti ve kayıt sonrası ilk AI kontrolündeki niş tespiti ile rakip filtresi. Makale ajanlarının, Brain\'in ve ölçülen asistanların modelini değiştirmez.',
     envFallback: true,
     enumValues: ['claude-opus-5', 'claude-sonnet-5', 'claude-haiku-4-5'],
   },
@@ -349,22 +175,56 @@ export const SETTINGS_CATALOG: SettingMeta[] = [
     envFallback: true,
     enumValues: ['claude-opus-5', 'claude-sonnet-5', 'claude-haiku-4-5'],
   },
+
+  // ─── YALNIZ .env (SALT OKUNUR) ───────────────────────────────────────
+  // Bu dort anahtar katalogda DUZENLENEBILIR listeleniyordu ama kod onlari
+  // yalniz process.env'den okuyor; panelden yazilan deger hicbir yere
+  // ulasmiyordu. Silmek yerine salt okunur tutuldu: panel, kodun gercekten
+  // kullandigi degeri (env ya da kodun varsayilani) gostersin — ozellikle
+  // PayTR'nin test mi canli mi oldugu operasyonel olarak bilinmeli.
+  // default = kodun varsayilani (settings-catalog-honesty.spec denetler).
   {
-    key: 'IMAGE_PROVIDER',
-    type: 'enum',
-    category: 'model',
-    default: 'gemini',
-    description: 'Hero/inline gorsel uretici.',
-    envFallback: true,
-    enumValues: ['gemini', 'dalle', 'midjourney', 'none'],
+    key: 'PAYTR_TEST_MODE',
+    type: 'boolean',
+    category: 'env',
+    default: '1',
+    // PayTR dokumani (18.10.2026'da dogrulandi,
+    // https://dev.paytr.com/iframe-api/iframe-api-1-adim): test_mode "Mağaza
+    // canlı modda iken test işlem yapmak için 1 olarak gönderilebilir".
+    // paytr.service degeri ham haliyle test_mode'a koyar; devConfirmPayment
+    // yalniz '1' iken calisir.
+    description: 'PayTR ödeme isteğindeki test_mode değeri: 1 = test işlemi (mağaza canlı moddayken bile), 0 = mağazanın kendi modu (canlı mağazada gerçek ödeme). paytr.service değeri yalnız ortam değişkeninden okur; .env\'de yoksa 1. Test onayı ucu (dev-confirm) yalnız 1 iken çalışır.',
+    envFallback: false,
+    envOnly: true,
   },
   {
-    key: 'SATIS_RANDEVU_URL',
+    key: 'IMAGE_PROVIDER',
     type: 'string',
-    category: 'toggle',
-    default: '',
-    description: 'Satış görüşmesi randevu linki (Cal.com/Calendly). Doluysa LinkedIn mesajlarına ve ücretsiz karnenin kapanışına eklenir; boşsa o cümle metinden düşer.',
-    envFallback: true,
+    category: 'env',
+    default: 'gemini-flash',
+    // Eski kayit enum ['gemini','dalle','midjourney','none'] listeliyordu;
+    // image-generator.service dispatchProvider bunlarin hicbirini tanimiyor.
+    description: 'Makale görsel üreticisi (image-generator.service). Geçerli değerler: gemini-flash, gemini-pro, gpt-image-1, gpt-image-1-mini, flux-pro, ideogram-v3. Birincil üretici başarısız olursa gemini-flash\'a düşer.',
+    envFallback: false,
+    envOnly: true,
+  },
+  {
+    key: 'RATE_LIMIT_WINDOW_MS',
+    type: 'int',
+    category: 'env',
+    default: '60000',
+    description: 'Genel istek sınırının penceresi (ms), IP başına. API açılışında ThrottlerModule\'e bir kez okunur; kendi sınırı olan uçlar ayrı sayılır.',
+    envFallback: false,
+    envOnly: true,
+  },
+  {
+    key: 'RATE_LIMIT_MAX',
+    type: 'int',
+    category: 'env',
+    default: '60',
+    description: 'Genel istek sınırında pencere başına IP başına izin verilen istek sayısı. API açılışında bir kez okunur.',
+    envFallback: false,
+    envOnly: true,
   },
 ];
 

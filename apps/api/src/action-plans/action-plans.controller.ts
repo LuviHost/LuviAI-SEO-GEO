@@ -1,5 +1,6 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { ActionPlansService } from './action-plans.service.js';
+import { CreateActionPlanDto, UpdateActionPlanDto } from './action-plans.dto.js';
 
 @Controller('sites/:siteId/action-plan')
 export class ActionPlansController {
@@ -23,14 +24,31 @@ export class ActionPlansController {
 
   /** POST /sites/:siteId/action-plan — "Aksiyon Planina Ekle" */
   @Post()
-  create(@Param('siteId') siteId: string, @Body() body: any) {
-    return this.actionPlans.create(siteId, body);
+  create(@Param('siteId') siteId: string, @Body() body: CreateActionPlanDto) {
+    // Alanlar tek tek — siteId yalniz yoldan (SiteAccessGuard dogruladi)
+    return this.actionPlans.create(siteId, {
+      title: body.title,
+      description: body.description,
+      source: body.source,
+      sourceRef: body.sourceRef,
+      impact: body.impact,
+      effort: body.effort,
+      dueAt: body.dueAt,
+      meta: body.meta,
+    });
   }
 
   /** PATCH /sites/:siteId/action-plan/:id */
   @Patch(':id')
-  update(@Param('siteId') siteId: string, @Param('id') id: string, @Body() body: any) {
-    return this.actionPlans.update(siteId, id, body);
+  update(@Param('siteId') siteId: string, @Param('id') id: string, @Body() body: UpdateActionPlanDto) {
+    return this.actionPlans.update(siteId, id, {
+      title: body.title,
+      description: body.description,
+      status: body.status,
+      impact: body.impact,
+      effort: body.effort,
+      dueAt: body.dueAt,
+    });
   }
 
   /** DELETE /sites/:siteId/action-plan/:id */

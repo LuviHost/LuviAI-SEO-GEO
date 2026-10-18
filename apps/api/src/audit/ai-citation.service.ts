@@ -7,13 +7,18 @@ import { QuotaService } from '../billing/quota.service.js';
 import { SettingsService } from '../settings/settings.service.js';
 import { modelForAudience, type Audience } from '../llm/model-tier.js';
 import { normalizeText, foldForMatch, sameLength, escapeRegex } from '../common/text-normalize.js';
-import { brandMatchIndexFolded, resolveSiteBrand, containsBrand, unbrandedOnly } from './brand-in-query.js';
+import { brandMatcher, resolveSiteBrand, unbrandedOnly } from './brand-in-query.js';
 import { hostMentioned, urlHostMatches, citedPathsFor, registrableDomain, extractAppStoreRefs } from './host-match.js';
 import { shareOfVoiceList, rivalsFromCompetitors, type SovObservation } from './share-of-voice.js';
-import { citationScore } from './citation-score.js';
-import { withProbeRetry, ProviderConfigError, isFatalProviderError } from './probe-retry.js';
+import { citationScore, isErrorProbe, measuredOnly, providerOutcome } from './citation-score.js';
+import { COST_PER_PROBE_USD, POOL_ENV_KEY, isUnconfiguredProvider, llamaModelConfigured } from './citation-providers.js';
+import {
+  withProbeRetry, ProviderConfigError, isFatalProviderError,
+  probeErrorExcerpt, safeErrorText, safeReasonToken,
+} from './probe-retry.js';
 import { MeasurementAllowanceService } from '../billing/measurement-allowance.service.js';
 import { noteMeasured } from '../billing/measurement-allowance.js';
+import { answerNapSignal, type AnswerNapSignal } from './local-nap.js';
 
 export type Provider = 'anthropic' | 'gemini' | 'openai' | 'perplexity' | 'xai' | 'deepseek' | 'meta';
 
@@ -50,6 +55,12 @@ export interface CitationProbe {
    * Bu alan cevabin kendisinden kesfedilen adaylari tasir.
    */
   mentionedDomains?: string[];
+  /**
+   * Cevapta markanin gectigi madde/paragrafta yazan telefon/adres (yerel
+   * olcum — local-nap.ts). null = cevap incelendi, bulunmadi; alan YOKSA
+   * cevap NAP icin incelenmedi (HATA satiri, eski kayit ya da ayristirma hatasi).
+   */
+  nap?: AnswerNapSignal | null;
 }
 
 export interface CitationResult {
@@ -84,15 +95,36 @@ const PROVIDER_LABELS: Record<Provider, string> = {
   meta:       'Meta AI (Llama)',
 };
 
-const POOL_ENV_KEY: Record<Provider, string> = {
-  anthropic:  'ANTHROPIC_API_KEY',
-  gemini:     'GOOGLE_AI_API_KEY',
-  openai:     'OPENAI_API_KEY',
-  perplexity: 'PERPLEXITY_API_KEY',
-  xai:        'XAI_API_KEY',
-  deepseek:   'DEEPSEEK_API_KEY',
-  meta:       'GROQ_API_KEY',          // Llama via Groq
-};
+// Havuz anahtari env adlari (POOL_ENV_KEY) ve probe maliyet tavanlari
+// (COST_PER_PROBE_USD) citation-providers.ts'te: kurum karnesi CLI'i ayni
+// tablolari servisi yuklemeden okur.
+
+/**
+ * Gunluk maliyet sayaci satirinin (ai-cost:<saglayici>:<gun>[:u:<kullanici>])
+ * kv_store omru. Sayac yalniz kendi gununde okunur; 3 gun, UTC gun sinirina
+ * ve sunucu saat farkina yeterli pay birakir (bkz. addCost).
+ */
+export const AI_COST_KV_TTL_DAYS = 3;
+
+/**
+ * Site olcumunde Meta AI (Llama) satirinin nedeni — GROQ_LLAMA_MODEL tanimsiz.
+ * Panelde aynen gosterilir (site-flow-stepper displayProbeText). Dayanak: Groq
+ * llama-3.3-70b-versatile'i 16.08.2026'da kapatti (citation-providers.ts kaynagi).
+ */
+export const LLAMA_UNCONFIGURED_REASON = 'Meta AI (Llama) şu an ölçülmüyor: Groq, ölçümde kullanılan Llama modelini kapattı.';
+
+/**
+ * resolveKey nedenleri — musteriye aynen gosterilir, teknik env adi icermez.
+ * "Anahtar" RanksUp'in kendi saglayici anahtari (havuz, POOL_ENV_KEY); BYOK
+ * onerilmez: yalniz Kurumsal planda var ve olcum motoru once BYOK'a bakar,
+ * yani bu noktaya gelindiyse musterinin anahtari da yok.
+ */
+export const noPoolKeyReason = (provider: Provider): string =>
+  `${PROVIDER_LABELS[provider]} şu an ölçülmüyor: RanksUp anahtarı tanımlı değil.`;
+/** Llama modeli (GROQ_LLAMA_MODEL) tanimli, Groq havuz anahtari (GROQ_API_KEY) yok */
+export const LLAMA_NO_POOL_KEY_REASON = 'Meta AI (Llama) şu an ölçülmüyor: RanksUp’ın Groq anahtarı tanımlı değil.';
+/** Llama modeli tanimsiz (resolveKey'e runProvider disindan gelinirse) */
+export const LLAMA_NO_MODEL_REASON = 'Meta AI (Llama) şu an ölçülmüyor: RanksUp’ın Groq modeli tanımlı değil.';
 
 /**
  * AI Citation Test — site brain icindeki AEO/GEO sorularini gercek LLM lara
@@ -105,7 +137,8 @@ const POOL_ENV_KEY: Record<Provider, string> = {
  * Sprint BYOK — Hibrit anahtar cozumlemesi:
  *   1. Site BYOK varsa onu kullan (sinirsiz, kota dusurmez — kullanicinin kendi parasi)
  *   2. Plan havuzundaysa ortak ENV key'i kullan (kotaya tabi)
- *   3. Yoksa "BYOK_REQUIRED veya plan yukselt" dondur
+ *   3. Yoksa saglayici olculmez; neden "<Saglayici> şu an ölçülmüyor: ..." olur
+ *      (resolveKey — noPoolKeyReason / LLAMA_NO_POOL_KEY_REASON)
  */
 @Injectable()
 export class AiCitationService {
@@ -129,31 +162,11 @@ export class AiCitationService {
     meta:       parseFloat(process.env.AI_BUDGET_META_USD       ?? '3'),
   };
 
-  // Approx cost per probe (input ~150 tok + output ~400 tok)
-  //
-  // DIKKAT — bu sabitler MATEMATIKSEL UST SINIR olmak zorunda, ortalama degil:
-  // guard harcamayi cagri ONCESI projekte eder, gercek fatura sabitten buyukse
-  // gunluk cap sessizce asilir.
-  //
-  // anthropic (Opus 5.5 + web_search, 2026-10): olculen ~23K girdi (arama
-  //   sonuclari dahil) x $4/1M = $0.09 + cikti max_tokens 3000 x $20/1M = $0.06
-  //   + en fazla 2 arama x $0.01 → tavan ~$0.17, guvenli pay ile 0.2.
-  // Thinking Opus 5.5'te kapatilamiyor ve thinking tokenlari da cikti olarak
-  // faturalanir; bu yuzden tavan max_tokens uzerinden hesaplanir.
-  // Model, max_tokens veya max_uses degistirirken BURAYI da guncelle.
-  private readonly COST_PER_PROBE_USD: Record<Provider, number> = {
-    anthropic:  0.2,
-    // Gemini SIFIR OLAMAZ (sifirken butce guard'i hic calismiyordu).
-    // Ekim 2026: Google Search grounding — istek basi $14–35/1K + ~1K token.
-    gemini:     0.04,
-    // Ekim 2026: Responses API web_search — arama basi $10–25/1K +
-    // ~9K arama icerigi girdi tokeni (gpt-4o-mini $0.15/1M) + cikti.
-    openai:     0.03,
-    perplexity: 0.0006,
-    xai:        0.0003,
-    deepseek:   0.0006,
-    meta:       0.0002,        // Groq Llama 3.3 70B ~$0.59/1M in + $0.79/1M out → ~$0.0002/probe
-  };
+  // Probe basina maliyet TAVANI — tablo ve gerekceleri citation-providers.ts'te
+  // (MATEMATIKSEL UST SINIR olmak zorunda; model, max_tokens ya da max_uses
+  // degisince ORADA guncellenir). Kurum karnesi CLI'i on tahminini ayni
+  // tablodan yapar; kopya tutulmaz.
+  private readonly COST_PER_PROBE_USD: Readonly<Record<Provider, number>> = COST_PER_PROBE_USD;
 
   // Saglayici modelleri env ile degistirilebilir — saglayicilar model
   // kaldirdiginda (Groq llama-3.3-70b-versatile, Agustos 2026) kod
@@ -165,6 +178,21 @@ export class AiCitationService {
     deepseek:  process.env.DEEPSEEK_CITATION_MODEL  ?? 'deepseek-chat',
     meta:      process.env.GROQ_LLAMA_MODEL         ?? 'llama-3.3-70b-versatile',
   };
+
+  /**
+   * buildProbe'un inceledigi cevap metninin TAMAMI — yalniz bellekte.
+   *
+   * NEDEN: probe.excerpt ilk 220 karakter; Product Radar onerilen urunleri bu
+   * kirpintidan cikariyordu ve listenin alt siralarindaki markalar hic
+   * gorunmuyordu (rakipler sistematik olarak eksik raporlaniyordu).
+   *
+   * NEDEN WeakMap (probe'a alan degil): probe nesneleri snapshot, audit JSON'u,
+   * GeoPromptRun ve API cevaplarina oldugu gibi serilestiriliyor. Metin probe'un
+   * bir alani olsaydi tek bir unutulan yerde kalici kayda ya da anonim cevaba
+   * sizardi. Burada nesne kimligine bagli: JSON.stringify / spread / Prisma
+   * goremez, probe birakilinca metin de cop toplanir.
+   */
+  private readonly answerTexts = new WeakMap<CitationProbe, string>();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -202,17 +230,24 @@ export class AiCitationService {
     const envKey = process.env[POOL_ENV_KEY[provider]];
     if (envKey) return { key: envKey, source: 'pool' };
 
-    // 3) Plan pool'da ama ENV yok → açık mesaj
+    // Buradan sonrasi musteriye neden olarak gider (panel ve olcum gecmisi):
+    // teknik env adi yazilmaz. Eski metinler "<ENV> env yok" ve "kendi API
+    // anahtarini bagla (BYOK)" idi; BYOK yalniz Kurumsal planda ve Meta icin
+    // hic yok (site-ai-keys.service VALID_PROVIDERS).
+
+    // 3) Plan listesinde ama RanksUp anahtari tanimsiz
     if (this.quota.getPlanPool(plan).includes(provider)) {
-      return { key: null, source: 'none', reason: `${POOL_ENV_KEY[provider]} env yok` };
+      return { key: null, source: 'none', reason: noPoolKeyReason(provider) };
     }
 
-    // 4) None — kullanici BYOK girmeli
-    return {
-      key: null,
-      source: 'none',
-      reason: `${PROVIDER_LABELS[provider]} icin API anahtari yok — kendi API anahtarini bagla (BYOK)`,
-    };
+    // 4) Plan listesinde olmayan saglayici: bugun yalniz Meta AI (Llama)
+    // (PLAN_POOL_PROVIDERS'ta yok). runProvider model tanimsizken buraya hic
+    // gelmez (LLAMA_UNCONFIGURED_REASON); gelirse eksik olan Groq anahtaridir.
+    // Model kontrolu yine de burada: baska bir cagiran icin de dogru soylesin.
+    if (provider === 'meta') {
+      return { key: null, source: 'none', reason: llamaModelConfigured() ? LLAMA_NO_POOL_KEY_REASON : LLAMA_NO_MODEL_REASON };
+    }
+    return { key: null, source: 'none', reason: noPoolKeyReason(provider) };
   }
 
   /**
@@ -236,9 +271,12 @@ export class AiCitationService {
     return providers.map(provider => {
       const byok = byokMap.get(provider);
       const hasEnvKey = !!process.env[POOL_ENV_KEY[provider]];
-      // ENV key varsa effectively havuzdadır; planın sembolik pool listesini de dikkate al.
+      // inPool plan listesini bilgi olarak tasir; ETKIN kaynak olcum motorunun
+      // resolveKey kuraliyla ayni olmali: BYOK > RanksUp env anahtari > yok.
+      // Plan listesinde olup env anahtari olmayan saglayici 'pool' sayilirsa
+      // kota karari olculemeyen bir saglayiciyi olculuyor sanir.
       const inPool = pool.includes(provider) || hasEnvKey;
-      const effective: 'pool' | 'byok' | 'none' = byok ? 'byok' : (inPool ? 'pool' : 'none');
+      const effective: 'pool' | 'byok' | 'none' = byok ? 'byok' : (hasEnvKey ? 'pool' : 'none');
       return {
         provider,
         label: PROVIDER_LABELS[provider],
@@ -302,6 +340,13 @@ export class AiCitationService {
    * Maliyeti hem global hem kullanici defterine ATOMIK yazar.
    * Onceden oku-degistir-yaz yapiliyordu; es zamanli istekler birbirinin
    * yazimini eziyor ve harcama oldugundan dusuk gorunuyordu.
+   *
+   * SURE (expiresAt): sayac anahtari gunu tasir ve yalniz O GUN okunur
+   * (isOverBudget, getTodayCosts). Eskiden expiresAt yazilmiyordu; her
+   * saglayici x gun (x kullanici) icin bir satir kv_store'da sonsuza dek
+   * kaliyordu. Artik AI_COST_KV_TTL_DAYS sonra KvSweepCron (common/kv-sweep.cron.ts)
+   * siler. Sure gunun bitiminden en az 2 gun sonra doldugu icin bugunun
+   * sayaci okunurken asla silinmez — sayac anlami degismez.
    */
   private async addCost(provider: Provider, probeCount: number, userId?: string): Promise<number> {
     if (probeCount === 0) return 0;
@@ -314,10 +359,14 @@ export class AiCitationService {
 
     for (const key of keys) {
       try {
-        // MySQL ON DUPLICATE KEY UPDATE — tek ifadede oku+topla+yaz
+        // MySQL ON DUPLICATE KEY UPDATE — tek ifadede oku+topla+yaz. Zamanlar
+        // UTC_TIMESTAMP ile: Prisma DateTime'i UTC saklar ve sweep UTC "simdi"
+        // ile karsilastirir; NOW() oturum saat dilimine baglidir.
         await this.prisma.$executeRawUnsafe(
-          'INSERT INTO `kv_store` (`key`, `value`, `updatedAt`) VALUES (?, ?, NOW(3)) ' +
-          'ON DUPLICATE KEY UPDATE `value` = CAST(CAST(`value` AS DECIMAL(18,8)) + ? AS CHAR)',
+          'INSERT INTO `kv_store` (`key`, `value`, `expiresAt`, `updatedAt`) ' +
+          `VALUES (?, ?, UTC_TIMESTAMP(3) + INTERVAL ${AI_COST_KV_TTL_DAYS} DAY, UTC_TIMESTAMP(3)) ` +
+          'ON DUPLICATE KEY UPDATE `value` = CAST(CAST(`value` AS DECIMAL(18,8)) + ? AS CHAR), ' +
+          `\`expiresAt\` = UTC_TIMESTAMP(3) + INTERVAL ${AI_COST_KV_TTL_DAYS} DAY, \`updatedAt\` = UTC_TIMESTAMP(3)`,
           key, String(cost), cost,
         );
       } catch (err: any) {
@@ -417,7 +466,7 @@ export class AiCitationService {
         this.log.warn(`[${siteId}] Prompt Lab probe atlandi: AI_GLOBAL_DISABLED=1`);
         return [];
       }
-    } catch (_err) { /* tablo yoksa devam et */ }
+    } catch { /* tablo yoksa devam et */ }
 
     const site = await this.prisma.site.findUnique({
       where: { id: siteId },
@@ -478,7 +527,7 @@ export class AiCitationService {
 
     // Havuz kullanan basarili test varsa kota +1 (runForSite ile ayni davranis; sistem kosumu saymaz)
     if (trigger === 'user' && results.some(r => r.source === 'pool' && this.hasRealProbes(r))) {
-      try { await this.quota.incrementCitationUsage(site.userId); } catch (_e) { /* noop */ }
+      try { await this.quota.incrementCitationUsage(site.userId); } catch { /* noop */ }
     }
     return results;
   }
@@ -509,7 +558,7 @@ export class AiCitationService {
         this.log.warn(`[${siteId}] AI Citation atlandi: AI_GLOBAL_DISABLED=1`);
         return [];
       }
-    } catch (_err) { /* tablo yoksa devam et */ }
+    } catch { /* tablo yoksa devam et */ }
 
     const site = await this.prisma.site.findUnique({
       where: { id: siteId },
@@ -592,7 +641,7 @@ export class AiCitationService {
     // Sistem tetikli calistirmalar sayaci ARTIRMAZ — yukaridaki (1) numarali not.
     const anyPoolSuccess = results.some(r => r.source === 'pool' && this.hasRealProbes(r));
     if (trigger === 'user' && anyPoolSuccess) {
-      try { await this.quota.incrementCitationUsage(userId); } catch (e) { /* noop */ }
+      try { await this.quota.incrementCitationUsage(userId); } catch { /* noop */ }
     }
 
     return results;
@@ -624,7 +673,13 @@ export class AiCitationService {
     const out = await Promise.all(providers.map(async (provider) => {
       const label = PROVIDER_LABELS[provider];
       const key = process.env[POOL_ENV_KEY[provider]];
-      if (!key) {
+      // Yapilandirilmamis saglayici CAGRILMAZ: anahtar yok ya da Meta/Llama
+      // icin GROQ_LLAMA_MODEL tanimsiz. Eskiden GROQ_API_KEY varken Llama her
+      // kontrolde Groq'un kaldirdigi modele soruluyordu; panel karnesi
+      // (prospect/karne.service.ts) "Meta AI (Llama) — ölçülemedi" yaziyordu.
+      // reason TAM OLARAK 'NO_KEY' kalmali: karne-html yalniz bunu kapsam disi
+      // sayar; App Prompt Lab ve public checker bu satiri listeden duser.
+      if (!key || isUnconfiguredProvider(provider)) {
         return { provider, label, available: false, probes: [], reason: 'NO_KEY', cost: 0 };
       }
       try {
@@ -642,8 +697,9 @@ export class AiCitationService {
         const cost = await this.addCost(provider, probes.length).catch(() => 0);
         return { provider, label, available: true, probes, cost };
       } catch (err: any) {
-        this.log.warn(`Public probe failed (${provider}): ${err.message}`);
-        return { provider, label, available: false, probes: [], reason: err.message?.slice(0, 200), cost: 0 };
+        // Anonim uc: saglayici govdesi (hesap kimligi, kota ayrintisi) disari cikmaz — yalniz kod
+        this.log.warn(`Public probe failed (${provider}): ${safeErrorText(err)}`);
+        return { provider, label, available: false, probes: [], reason: probeErrorExcerpt(err), cost: 0 };
       }
     }));
     // Oturum icindeyse (ASO Prompt Lab, tam rapor kilidi) haftalik hak sayilsin
@@ -763,7 +819,7 @@ export class AiCitationService {
       }
       return keep;
     } catch (err: any) {
-      this.log.warn(`classifyRealCompetitors basarisiz, adaylar korunuyor: ${err.message}`);
+      this.log.warn(`classifyRealCompetitors basarisiz, adaylar korunuyor: ${safeErrorText(err)}`);
       return new Set(candidates);
     }
   }
@@ -783,6 +839,14 @@ export class AiCitationService {
     userId?: string,
   ): Promise<CitationResult> {
     const label = PROVIDER_LABELS[provider];
+    // Llama modeli tanimsizken (GROQ_LLAMA_MODEL; Groq varsayilan modeli
+    // kapatti — citation-providers.ts) site olcumu de Groq'a gitmez. Eskiden
+    // anahtar varsa kaldirilmis modele bosuna istek atiliyor, yoksa musteriye
+    // "kendi API anahtarini bagla (BYOK)" deniyordu; model olmadan anahtar da
+    // ise yaramazdi.
+    if (provider === 'meta' && !llamaModelConfigured()) {
+      return { provider, label, available: false, score: null, probes: [], reason: LLAMA_UNCONFIGURED_REASON };
+    }
     const resolved = await this.resolveKey(siteId, provider, plan);
 
     if (!resolved.key) {
@@ -836,16 +900,32 @@ export class AiCitationService {
           break;
       }
     } catch (err: any) {
-      this.log.warn(`${provider} probe failed (whole batch): ${err.message}`);
+      this.log.warn(`${provider} probe failed (whole batch): ${safeErrorText(err)}`);
       return {
         provider, label, available: false, score: null, probes: [],
-        reason: `HATA: ${err.message}`,
+        // Kalici hata mesaji 401 govdesini (maskeli anahtar, org kimligi) tasiyabilir — yalniz kod
+        reason: probeErrorExcerpt(err),
         source: resolved.source as 'pool' | 'byok',
       };
     }
 
     if (resolved.source === 'pool') {
-      await this.addCost(provider, probes.filter((p) => !p.excerpt?.startsWith('HATA:')).length, userId);
+      await this.addCost(provider, measuredOnly(probes).length, userId);
+    }
+
+    // Hicbir soru olculemediyse (hepsi HATA: 429, 503, bos cevap) saglayici
+    // "olculemedi"dir, "0 puan" degil. Eskiden available:true + skor 0
+    // donuyordu: manset dusuyor, grafik "En zayif: Gemini (0 puan)" diyor,
+    // audit ortalamasi 0'i sayip sahte ai_citation_low uyarisi uretiyordu.
+    // Kural citation-score.ts'te (providerOutcome) — kosum/snapshot backfill'i
+    // ayni fonksiyonu kullanir. Probe'lar gosterim icin (soru bazli neden) kalir.
+    const outcome = providerOutcome(probes, { available: true });
+    if (!outcome.available) {
+      return {
+        provider, label, available: false, score: null, probes,
+        reason: outcome.reason ?? 'HATA: unknown',
+        source: resolved.source as 'pool' | 'byok',
+      };
     }
 
     const agg = this.aggregateProbes(probes, brand);
@@ -870,7 +950,10 @@ export class AiCitationService {
   //   - kalici yapilandirma hatasi (kaldirilmis model, gecersiz anahtar)
   //     ProviderConfigError olarak YUKARI firlatilir; runProvider saglayiciyi
   //     "kullanilamaz" isaretler — her soru icin ayri HATA satiri uretmez
-  //   - kalan hatalar "HATA:" satiri olur; skor/alarm bunlari zaten saymaz
+  //   - kalan hatalar "HATA:" satiri olur. Skor, snapshot/kosum sayaclari,
+  //     SoV/ton dagilimi ve alarm bunlari saymaz (citation-score.ts
+  //     isErrorProbe); TUM satirlar HATA ise runProvider saglayiciyi
+  //     available:false + skor null dondurur (0 puan degil)
 
   /**
    * Opus 5.5: thinking kapatilamaz, efor varsayilani 'medium'. Eskiden
@@ -912,9 +995,11 @@ export class AiCitationService {
         // yere dusurur. HATA: onekiyle isaretlenirse persistRuns bu satiri
         // DB'ye hic yazmaz (bkz. prompt-lab.service.ts isErrorProbe).
         const stopReason = (resp as any).stop_reason;
-        // pause_turn: sunucu araci uzun surdu; o ana kadarki metin kullanilir
-        if (stopReason === 'refusal' || (!text.trim() && stopReason !== 'end_turn')) {
-          const reason = stopReason === 'refusal' ? 'saglayici reddi (refusal)' : `bos cevap (stop_reason=${stopReason})`;
+        // pause_turn: sunucu araci uzun surdu; o ana kadarki metin kullanilir.
+        // Bos metin stop_reason ne olursa olsun olcum DEGILDIR — eskiden
+        // end_turn + bos metin "anilmadi" diye sayiliyordu.
+        if (stopReason === 'refusal' || !text.trim()) {
+          const reason = stopReason === 'refusal' ? 'saglayici reddi (refusal)' : `bos cevap (stop_reason=${safeReasonToken(stopReason)})`;
           this.log.warn(`Anthropic probe olculemedi (${q}): ${reason}`);
           probes.push({ query: q, cited: false, brandMentioned: false, excerpt: `HATA: ${reason}` });
           continue;
@@ -926,8 +1011,8 @@ export class AiCitationService {
         probes.push(this.withSources(this.buildProbe(q, text, host, brand, competitors), citedUrls, host));
       } catch (err: any) {
         if (this.isFatal(err)) throw new ProviderConfigError(err.message);
-        this.log.warn(`Anthropic probe failed (${q}): ${err.message}`);
-        probes.push({ query: q, cited: false, brandMentioned: false, excerpt: `HATA: ${err.message}` });
+        this.log.warn(`Anthropic probe failed (${q}): ${safeErrorText(err)}`);
+        probes.push({ query: q, cited: false, brandMentioned: false, excerpt: probeErrorExcerpt(err) });
       }
     }
     return probes;
@@ -952,7 +1037,7 @@ export class AiCitationService {
         }));
         const text = resp.text ?? '';
         if (!text.trim()) {
-          const finish = resp.candidates?.[0]?.finishReason ?? 'bilinmiyor';
+          const finish = safeReasonToken(resp.candidates?.[0]?.finishReason);
           probes.push({ query: q, cited: false, brandMentioned: false, excerpt: `HATA: bos cevap (finishReason=${finish})` });
           continue;
         }
@@ -961,8 +1046,8 @@ export class AiCitationService {
         probes.push(this.withSources(this.buildProbe(q, text, host, brand, competitors), sources, host));
       } catch (err: any) {
         if (err instanceof ProviderConfigError) throw err;
-        this.log.warn(`Gemini probe failed (${q}): ${err.message}`);
-        probes.push({ query: q, cited: false, brandMentioned: false, excerpt: `HATA: ${err.message}` });
+        this.log.warn(`Gemini probe failed (${q}): ${safeErrorText(err)}`);
+        probes.push({ query: q, cited: false, brandMentioned: false, excerpt: probeErrorExcerpt(err) });
       }
     }
     return probes;
@@ -993,7 +1078,7 @@ export class AiCitationService {
           .filter((p: any) => p?.type === 'output_text');
         const text = parts.map((p: any) => p.text ?? '').join('\n');
         if (!text.trim()) {
-          probes.push({ query: q, cited: false, brandMentioned: false, excerpt: `HATA: bos cevap (status=${data?.status ?? 'bilinmiyor'})` });
+          probes.push({ query: q, cited: false, brandMentioned: false, excerpt: `HATA: bos cevap (status=${safeReasonToken(data?.status)})` });
           continue;
         }
         const sources: string[] = parts.flatMap((p: any) => (Array.isArray(p.annotations) ? p.annotations : [])
@@ -1002,8 +1087,8 @@ export class AiCitationService {
         probes.push(this.withSources(this.buildProbe(q, text, host, brand, competitors), sources, host));
       } catch (err: any) {
         if (err instanceof ProviderConfigError) throw err;
-        this.log.warn(`OpenAI probe failed (${q}): ${err.message}`);
-        probes.push({ query: q, cited: false, brandMentioned: false, excerpt: `HATA: ${err.message}` });
+        this.log.warn(`OpenAI probe failed (${q}): ${safeErrorText(err)}`);
+        probes.push({ query: q, cited: false, brandMentioned: false, excerpt: probeErrorExcerpt(err) });
       }
     }
     return probes;
@@ -1022,13 +1107,18 @@ export class AiCitationService {
           ],
         }));
         const text = data?.choices?.[0]?.message?.content ?? '';
+        // Diger saglayicilarla ayni kural: bos cevap olcum degildir ("anilmadi" sayilmaz)
+        if (!String(text).trim()) {
+          probes.push({ query: q, cited: false, brandMentioned: false, excerpt: `HATA: bos cevap (finish_reason=${safeReasonToken(data?.choices?.[0]?.finish_reason)})` });
+          continue;
+        }
         const citations: string[] = Array.isArray(data?.citations) ? data.citations : [];
         // Etiket sinirli: 'notranksup.ai' / 'ranksup.ai.tr' artik bizim alinti sayilmaz
         probes.push(this.withSources(this.buildProbe(q, text, host, brand, competitors), citations, host));
       } catch (err: any) {
         if (err instanceof ProviderConfigError) throw err;
-        this.log.warn(`Perplexity probe failed (${q}): ${err.message}`);
-        probes.push({ query: q, cited: false, brandMentioned: false, excerpt: `HATA: ${err.message}` });
+        this.log.warn(`Perplexity probe failed (${q}): ${safeErrorText(err)}`);
+        probes.push({ query: q, cited: false, brandMentioned: false, excerpt: probeErrorExcerpt(err) });
       }
     }
     return probes;
@@ -1046,8 +1136,10 @@ export class AiCitationService {
   /**
    * Meta AI (Llama) via Groq — OpenAI-compatible endpoint.
    * Ekim 2026: Groq'ta Llama sohbet modeli kalmadi (llama-3.3-70b-versatile
-   * kaldirildi). GROQ_LLAMA_MODEL ile yeni model verilene kadar saglayici
-   * "kullanilamaz" doner (ProviderConfigError), HATA satiri uretmez.
+   * kaldirildi). GROQ_LLAMA_MODEL tanimsizken Llama HIC cagrilmaz: public yol
+   * (runPublicProbes) 'NO_KEY', site yolu (runProvider) LLAMA_UNCONFIGURED_REASON
+   * doner. Verilen model Groq'ta yoksa 404 saglayiciyi "kullanilamaz" yapar
+   * (ProviderConfigError), HATA satiri uretmez.
    */
   private async probeMeta(key: string, host: string, brand: string, queries: string[], systemPrompt: string, competitors: string[] = []): Promise<CitationProbe[]> {
     return this.probeChatCompletions('Meta/Llama', 'https://api.groq.com/openai/v1/chat/completions', this.MODELS.meta, key, host, brand, queries, systemPrompt, competitors);
@@ -1071,20 +1163,24 @@ export class AiCitationService {
         }));
         const text = data?.choices?.[0]?.message?.content ?? '';
         if (!text.trim()) {
-          probes.push({ query: q, cited: false, brandMentioned: false, excerpt: `HATA: bos cevap (finish_reason=${data?.choices?.[0]?.finish_reason ?? 'bilinmiyor'})` });
+          probes.push({ query: q, cited: false, brandMentioned: false, excerpt: `HATA: bos cevap (finish_reason=${safeReasonToken(data?.choices?.[0]?.finish_reason)})` });
           continue;
         }
         probes.push(this.buildProbe(q, text, host, brand, competitors));
       } catch (err: any) {
         if (err instanceof ProviderConfigError) throw err;
-        this.log.warn(`${label} probe failed (${q}): ${err.message}`);
-        probes.push({ query: q, cited: false, brandMentioned: false, excerpt: `HATA: ${err.message}` });
+        this.log.warn(`${label} probe failed (${q}): ${safeErrorText(err)}`);
+        probes.push({ query: q, cited: false, brandMentioned: false, excerpt: probeErrorExcerpt(err) });
       }
     }
     return probes;
   }
 
-  /** POST + JSON; 2xx disi cevap "HTTP <kod>: <govde>" hatasi olur (probe-retry bu bicimi siniflar) */
+  /**
+   * POST + JSON; 2xx disi cevap "HTTP <kod>: <govde>" hatasi olur (probe-retry bu
+   * bicimi siniflar). Govde YALNIZCA siniflandirma ve maskelenmis log icindir —
+   * musteriye giden satira probeErrorExcerpt ile kod olarak cevrilir.
+   */
   private async postJson(url: string, key: string, body: unknown): Promise<any> {
     const res = await fetch(url, {
       method: 'POST',
@@ -1151,7 +1247,7 @@ export class AiCitationService {
    * Olcut probe'un varligi: HATA'li satirlar olcum sayilmaz.
    */
   private hasRealProbes(r: { available: boolean; probes: CitationProbe[] }): boolean {
-    return r.available && r.probes.some((p) => !p.excerpt?.startsWith('HATA:'));
+    return r.available && r.probes.some((p) => !isErrorProbe(p));
   }
 
   private extractHost(url: string): string {
@@ -1162,8 +1258,8 @@ export class AiCitationService {
   private scoreFromProbes(probes: CitationProbe[]): number | null {
     // Formul citation-score.ts'te tek yerde — gecmis snapshot'lari yeniden
     // hesaplayan backfill script'i de AYNI fonksiyonu kullanir; ayrisirlarsa
-    // tarihsel grafik guvenilmez olur. Kural: yalnizca markasiz sorgular,
-    // havuz bossa null.
+    // tarihsel grafik guvenilmez olur. Kural: yalnizca markasiz ve HATA
+    // olmayan sorgular, havuz bossa null.
     return citationScore(probes);
   }
 
@@ -1188,10 +1284,15 @@ export class AiCitationService {
     // Katlanmis metin zaten elimizde — brandMatchIndex'in ic katlamasini
     // tekrarlamamak icin folded varyanti kullanilir (cevap 2-8 KB, probe
     // basina ikinci tam-metin NFKC+regex gecisi saf israfti).
-    const brandFirstIdx = brandMatchIndexFolded(folded, brandFolded);
+    //
+    // Jenerik marka korumasi (CITATION_MATCH_VERSION 4): alan adindan
+    // turetilmis "emlak"/"sigorta" gibi bir markada yalin kelime sayilmaz,
+    // yalniz alan adi gecisi sayilir — cevap ve soru AYNI matcher'dan gecer.
+    const matcher = brandMatcher(brand, host);
+    const brandFirstIdx = matcher.indexInFolded(folded);
     const brandMentioned = brandFirstIdx !== null;
     // Sorgu kimligi — tum saglayicilar buradan gectigi icin tek damga noktasi.
-    const brandInQuery = containsBrand(query, brand);
+    const brandInQuery = matcher.inText(query);
 
     // ── Position: response'u paragraflara böl, brand ilk hangi paragrafta?
     let position: number | null = null;
@@ -1210,7 +1311,7 @@ export class AiCitationService {
     let sentiment: 'positive' | 'neutral' | 'negative' | null = null;
     if (brandMentioned && brandFirstIdx !== null) {
       const ctxStart = Math.max(0, brandFirstIdx - 80);
-      const ctxEnd = Math.min(ctxSource.length, brandFirstIdx + brandFolded.length + 80);
+      const ctxEnd = Math.min(ctxSource.length, brandFirstIdx + matcher.matchLength + 80);
       // Sentiment kaliplari Turkce harf iceriyor ('sıkıntı', 'kullanışlı') —
       // bu yuzden I-katlamasi YAPILMAMIS metin uzerinde arama yapilir.
       const ctx = ctxSource.slice(ctxStart, ctxEnd).toLowerCase();
@@ -1254,7 +1355,7 @@ export class AiCitationService {
     // bizim sayfamiz degil (host-match.ts).
     const citedPages: string[] = host ? citedPathsFor(baseText, host) : [];
 
-    return {
+    const probe: CitationProbe = {
       query,
       // Etiket sinirli eslesme (host-match.ts) — eski includes() benzer alan
       // adlarini da 'alintilandi' sayiyordu. Olcum surumu: CITATION_MATCH_VERSION.
@@ -1269,6 +1370,30 @@ export class AiCitationService {
       mentionedDomains,
       appStoreRefs: extractAppStoreRefs(baseText),
     };
+    // Yerel olcum: cevabin TAMAMI yalniz burada elde — excerpt 220 karakterle sinirli.
+    // NAP ayristirmasi yan urun: hata verirse alan YAZILMAZ (= "incelenmedi",
+    // yerel ozet "olculmedi" der); asil olcum HATA satirina donmez.
+    try {
+      probe.nap = answerNapSignal(baseText, folded, matcher);
+    } catch (err) {
+      this.log.warn(`Cevap NAP'i ayristirilamadi (${query.slice(0, 80)}): ${safeErrorText(err)}`);
+    }
+    // Tam metin probe'a YAZILMAZ — bkz. answerTexts notu
+    this.answerTexts.set(probe, baseText);
+    return probe;
+  }
+
+  /**
+   * Probe'un uretildigi cevabin tam metni (normalizeText'ten gecmis). Yalniz
+   * bu servisin buildProbe'undan cikan, hala bellekte duran probe icin dolu;
+   * HATA satiri, kayittan okunan ya da kopyalanan probe icin undefined —
+   * cagiran excerpt'e dusmeli.
+   *
+   * Metni SAKLAMAYIN ve istemciye DONMEYIN: amac cevabin tamamindan turetilen
+   * sonucu (orn. Product Radar urun listesi) uretmek, ham metni tasimak degil.
+   */
+  answerTextOf(probe: CitationProbe): string | undefined {
+    return this.answerTexts.get(probe);
   }
 
   /**
@@ -1345,10 +1470,14 @@ export class AiCitationService {
     sentimentMix: { positive: number; neutral: number; negative: number; absent: number };
     shareOfVoice: Array<{ name: string; mentions: number; pct: number; isBrand?: boolean }>;
   } {
+    // HATA satirlari (saglayici hatasi / bos cevap) hicbir toplama girmez:
+    // eskiden ton dagiliminda "absent" (marka yok) sayiliyordu — olculemeyen
+    // soru "markan anilmadi" gibi okunuyordu (citation-score.ts isErrorProbe).
+    const measured = measuredOnly(probes);
     // avgPosition ve sentiment YALNIZCA markasiz probe'lardan: markali sorguda
     // marka dogal olarak 1. paragrafta gecer ve ton olcumu totolojik anilmayla
     // kirlenir. SoV icin kural asagida farkli — bkz. observations notu.
-    const unbranded = unbrandedOnly(probes);
+    const unbranded = unbrandedOnly(measured);
 
     // avgPosition
     const positions = unbranded.map((p) => p.position).filter((x): x is number => typeof x === 'number');
@@ -1378,7 +1507,7 @@ export class AiCitationService {
     //    tamamen bosaltiyordu (7 LLM cagrisi yapilmis testte "rakip yok").
     //  - Markanin "gorundu" kredisi markali cevapta sayilmaz — soruda adi
     //    gecen markanin cevapta gecmesi pay degil, totolojidir.
-    const observations: SovObservation[] = probes.map((p) => ({
+    const observations: SovObservation[] = measured.map((p) => ({
       brandPresent: !p.brandInQuery && !!p.brandMentioned,
       rivals: [
         ...rivalsFromCompetitors(p.competitors),
@@ -1469,7 +1598,8 @@ export class AiCitationService {
     // Roadmap LLM'ine giden "%X anilma" ve hitRate<0.2 sezgisel kapisi
     // markasiz havuzdan beslenmeli — markali sorgular hitRate'i esik ustune
     // itip temel onerileri (marka H1, Wikipedia varligi vb.) atlatiyordu.
-    const allProbes = unbrandedOnly(successfulResults.flatMap((r) => r.probes));
+    // HATA satirlari paydaya girmez: olculemeyen soru "anilmadi" degildir.
+    const allProbes = unbrandedOnly(measuredOnly(successfulResults.flatMap((r) => r.probes)));
     const totalProbes = allProbes.length;
     // Havuzda hic markasiz sorgu kalmadiysa roadmap uretme — "0 probe ile
     // %0 anilma" verisinden LLM'e yorum yaptirmak uydurma oneri uretir.
@@ -1538,7 +1668,7 @@ Sadece JSON dön, başka şey yazma.`;
           }
         }
       } catch (err: any) {
-        this.log.warn(`generateRoadmap LLM failed: ${err.message} — heuristic fallback`);
+        this.log.warn(`generateRoadmap LLM failed: ${safeErrorText(err)} — heuristic fallback`);
       }
     }
 

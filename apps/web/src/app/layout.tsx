@@ -19,7 +19,8 @@ const SITE_URL = 'https://ranksup.ai';
 // Browser tab + Google snippet için uzun başlık (60 char)
 const TITLE = 'RanksUp — AI çağının pazarlama platformu';
 // Tüm sayfalarda fallback (max 160 char Google için)
-const DESCRIPTION = 'AI çağının görünürlük platformu. GEO, SEO, ASO ve Apple Search Ads tek panelde — markanı ChatGPT, Claude ve Gemini cevaplarında ölç, App Store sıralamanı yükselt.';
+// "Sıralamanı yükselt" bir sonuç vaadiydi; Kullanım Şartları SEO sonucunu garanti etmiyor.
+const DESCRIPTION = 'AI çağının görünürlük platformu. GEO, SEO, ASO ve Apple Search Ads tek panelde — markanı ChatGPT, Claude ve Gemini cevaplarında ölç, App Store sıralamanı takip et.';
 // WhatsApp / Telegram / Discord unfurl için kısa versiyon (max 90 char, sosyal görseli güzelleştirir)
 const OG_TITLE = 'RanksUp — Senin yerine pazarlama yapan AI';
 const OG_DESCRIPTION = 'GEO · SEO · ASO · Apple Search Ads — hepsi tek panel. 2 makale ücretsiz, kart gerekmez.';
@@ -32,11 +33,13 @@ export const metadata: Metadata = {
   },
   description: DESCRIPTION,
   applicationName: 'RanksUp',
+  // Yalniz calisan ozellikler. Sosyal medya modulu (planlayici, X / LinkedIn
+  // otomatik post) 0db5a1c'de kaldirildi; anahtar kelimelerde kalmisti.
   keywords: [
     'SEO otomasyonu', 'AI içerik üretimi', 'GEO optimizasyonu', 'AI search optimization',
     'Generative Engine Optimization', 'ChatGPT görünürlük', 'Perplexity SEO',
     'WordPress otomatik yayın', 'Türkçe AI yazar', 'site denetimi', 'meta tag üretici',
-    'sosyal medya planlayıcı', 'X otomatik post', 'LinkedIn otomatik post',
+    'App Store optimizasyonu', 'ASO', 'Apple Search Ads',
     'Google Ads denetimi', 'Meta Ads denetimi', 'kampanya skoru',
   ],
   authors: [{ name: 'RanksUp', url: SITE_URL }],
@@ -151,7 +154,7 @@ const orgJsonLd = {
         'Generative Engine Optimization',
         'AI Search Optimization',
         'Content Marketing Automation',
-        'Social Media Management',
+        'App Store Optimization',
         'WordPress Publishing',
         'Google Ads',
         'Meta Ads',
@@ -179,21 +182,30 @@ const orgJsonLd = {
       applicationSubCategory: 'SEO + Content Automation',
       operatingSystem: 'Web',
       description: DESCRIPTION,
+      // Fiyat USD'de kanonik (apps/api/src/billing/plans.ts); TL gunun kuruyla
+      // hesaplandigi icin schema'ya yazilamaz. Eskiden bayat TL araligi
+      // (₺1.499 - ₺34.999) yayinlaniyordu. Deger pricing/layout.tsx ile ayni;
+      // public-docs.spec.ts denetler.
       offers: {
         '@type': 'AggregateOffer',
-        priceCurrency: 'TRY',
-        lowPrice: '1499',
-        highPrice: '34999',
+        priceCurrency: 'USD',
+        lowPrice: '149',
+        highPrice: '1499',
         offerCount: 4,
       },
+      // Yalniz calisan ozellikler: Shopify yayin hedefi yok (14 hedef:
+      // publish-targets.service TARGET_TYPES), sosyal medya modulu kaldirildi,
+      // makale uzunlugu sabit degil (yazar istemi: dolgu yok).
       featureList: [
         'AI site denetimi (SEO + GEO)',
-        'AI makale üretimi (1800-2500 kelime)',
-        'WordPress, Webflow, Shopify otomatik yayın',
-        'X + LinkedIn sosyal medya planlayıcı',
+        'AI makale üretimi (5 ajanlı üretim hattı + yayın öncesi kalite kapısı)',
+        'WordPress, Webflow, Ghost, FTP/SFTP, cPanel ve GitHub dahil 14 yayın hedefine otomatik yayın',
+        'AI görünürlük ölçümü (ChatGPT, Claude, Gemini, Perplexity, Grok, DeepSeek)',
+        'Ajan Hazırlığı (AXO) taraması ve önizlemeli robots.txt / llms.txt / sitemap düzeltmesi',
+        'ASO: App Store ve Google Play metadata optimizasyonu, anahtar kelime sıra takibi',
+        'Apple Search Ads ve App Store Connect entegrasyonu',
         'Google Ads + Meta Ads kampanya denetimi',
         'AI crawler trafiği takibi (GPTBot, ClaudeBot, PerplexityBot)',
-        'AI citation tracking (ChatGPT, Claude, Gemini, Perplexity)',
       ],
       provider: { '@id': `${SITE_URL}/#organization` },
     },

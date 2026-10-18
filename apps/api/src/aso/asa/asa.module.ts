@@ -17,6 +17,10 @@ import { AuthModule } from '../../auth/auth.module.js';
  *   POST /api/aso/asa/campaigns                   (yeni kampanya)
  *   PUT  /api/aso/asa/keyword-bids/:id            (bid güncelle)
  *   GET  /api/sites/:siteId/aso/asa/performance   (son N gün metrik)
+ *   GET  /api/sites/:siteId/aso/asa/search-term-popularity  (göreli skor, yalnız Platform API)
+ *   GET  /api/sites/:siteId/aso/asa/impression-share        (göreli pay, yalnız Platform API)
+ *
+ * Apple API surumu: ASA_API_VERSION=v5 | platform (asa-client.factory.ts).
  */
 @Module({
   imports: [PrismaModule, AuthModule],

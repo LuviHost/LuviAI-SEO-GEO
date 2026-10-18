@@ -261,6 +261,12 @@ export class ContentOpportunityService {
     });
     const match = matchArticleForQuery(item.query || topic, published);
     if (match) {
+      // KULLANICININ baslattigi guncelleme: is verisinde automatedRewrite YOK.
+      // Hat yayindaki yaziyi bugunku anlamla ezer (PASS → READY_TO_PUBLISH,
+      // degilse REVIZE_NEEDED) ama adres (slug) ve ilk yayin tarihi korunur,
+      // JSON-LD dateModified bugun olur, canli metnin goruntusu saklanir
+      // (pipeline.service / live-rewrite.ts). autoPublish yok: yeni metin
+      // kullanicinin onayiyla yayinlanir.
       const job = await this.jobQueue.enqueue({
         type: 'GENERATE_ARTICLE',
         userId: site.userId,
@@ -270,7 +276,7 @@ export class ContentOpportunityService {
           topic: match.article.topic || match.article.title,
           articleId: match.article.id, // var olan kayit guncellenir
           skipImages: true,
-          pivotReason: `Kapali dongu: "${item.query}" sorusunda gorunmuyoruz — mevcut makale guncellendi, tarih tazelendi`,
+          pivotReason: `Kapalı döngü: "${item.query}" sorusunda görünmüyoruz — mevcut makale yeniden yazılıyor (adres ve ilk yayın tarihi korunur, son güncelleme tarihi yenilenir)`,
           lostQuery: item.query,
         } as any,
       });

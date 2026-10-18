@@ -1,8 +1,14 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { compareAuditRows, type AuditKarsilastirma } from '../audit/audit.service.js';
+import { aiCitationsOlculdu, compareAuditRows, type AuditKarsilastirma } from '../audit/audit.service.js';
+import { OVERALL_SCORE_WEIGHTS } from '../audit/audit-checks.service.js';
+import type { Provider } from '../audit/ai-citation.service.js';
+import type { GeoAccessBlock } from '../audit/geo-runner.service.js';
+import {
+  crawlAccessMessage, crawlAccessNewerThanAudit, readCrawlAccess, type CrawlAccessRecord,
+} from '../sites/crawl-access.js';
 import { resolveSiteBrand } from '../audit/brand-in-query.js';
-import { splitQueriesByBrand, type OrganicQueryRow, type OrganicBrandSplit } from './organic-brand-split.js';
+import { splitQueriesByBrand, brandHostFromUrl, type OrganicQueryRow, type OrganicBrandSplit } from './organic-brand-split.js';
 
 export type ReportRange = 'week' | 'month' | 'year' | 'custom';
 
@@ -41,6 +47,11 @@ export interface ReportOverview {
     avgEditorScore: number | null;
     totalCost: number; // USD
   };
+  /**
+   * ESKI ALAN — geriye uyumluluk icin JSON'da kalir. Sosyal yayin modulu
+   * kaldirildi (SocialPost artik yazilmiyor); yeni donemlerde hep 0. CSV'ye
+   * yalniz sifirdan farkliysa (modul varken dondurulmus eski rapor) yazilir.
+   */
   social: {
     posts: number;
     postsDelta: number;
@@ -75,10 +86,11 @@ export interface ReportOverview {
   };
   ai: {
     /**
-     * Son taramanin AI gorunurluk ortalamasi. HIC saglayici olculemediyse
-     * `null` — 0 DEGIL. runAudit `aiCitationAvg ?? 0` yaziyor ve o 0 trend
-     * grafiginde sahte bir cokus uretiyordu ("gorunurlugun sifira dustu"),
-     * halbuki olcum hic yapilamamisti.
+     * Son taramanin AI gorunurluk ortalamasi. HIC saglayici olculemediyse ya da
+     * adim atlandiysa (haftalik hak, kota) `null` — 0 DEGIL. Eski taramalar bu
+     * durumda 0 yaziyordu ve o 0 trend grafiginde sahte bir cokus uretiyordu
+     * ("gorunurlugun sifira dustu"), halbuki olcum hic yapilamamisti. Son tarama
+     * denemesi siteye erisemediyse de null (eski deger tarihiyle citationOlcumYok'ta).
      */
     citationScore: number | null;
     /** citationScore null ise nedeni — arayuz "olcum yok" yazabilsin */
@@ -86,8 +98,34 @@ export interface ReportOverview {
     providers: Array<{ provider: string; label: string; score: number | null; available: boolean }>;
   };
   audit: {
+    /**
+     * Son basarili taramanin skoru. accessBlocked doluysa null: eldeki skor
+     * guncel degil (eski deger yalniz tarihiyle birlikte sonBasarili'da).
+     */
     overallScore: number | null;
+    /** Ayni kural: accessBlocked doluysa null */
     geoScore: number | null;
+    /** Son basarili taramanin zamani (ISO); hic tarama yoksa null. Eski raporlarda yok. */
+    ranAt?: string | null;
+    /**
+     * Bu taramadan SONRAKI tarama denemesi siteye erisemedi (kural:
+     * crawl-access.ts crawlAccessNewerThanAudit — panel ve MCP ile ayni).
+     * Neden ve cozum burada. Eski raporlarda yok (undefined).
+     */
+    accessBlocked?: CrawlAccessRecord | null;
+    /** accessBlocked doluyken son basarili taramanin skorlari, TARIHIYLE; yoksa null */
+    sonBasarili?: { ranAt: string; overallScore: number; geoScore: number | null } | null;
+    /**
+     * Son taramanin GEO olcumu erisim engeline takildiysa (geoScore null) neden
+     * ve cozum — audit.checks.geo.blocked (geo-runner.service.ts). Yoksa null.
+     *
+     * NEDEN RAPORDA: panel bunu canli SiteContext'ten okuyordu; dondurulmus
+     * raporda o, raporun degil BUGUNUN taramasidir. Alan rapor govdesiyle
+     * birlikte donar. Bu alandan ONCE uretilmis raporlarda yok (undefined).
+     */
+    geoBlocked: GeoAccessBlock | null;
+    /** GEO skorunun dayandigi orneklem (olculen / engele takilan sayfa); yoksa null */
+    geoSample: GeoSample | null;
     issuesCount: number;
     /**
      * Donem icinde GERCEKTEN cozulen sorun sayisi.
@@ -101,6 +139,11 @@ export interface ReportOverview {
     cozulenSayisi: number;
     yeniCikanSayisi: number;
     devamEdenSayisi: number;
+    /**
+     * Ilk taramadaki sorun son taramada YENIDEN OLCULEMEDI (erisim engeli,
+     * atlanan AI olcumu, dar sayfa kapsami) — cozulen sayilmaz. Eski raporlarda yok.
+     */
+    olculemeyenSayisi?: number;
     /** Donemin ilk ve son taramasi arasindaki tam karsilastirma; tek tarama varsa null */
     karsilastirma: AuditKarsilastirma | null;
     /** Donemde kullanicinin ELLE calistirdigi tarama sayisi (cron/test haric) */
@@ -110,6 +153,7 @@ export interface ReportOverview {
   timeSeries: {
     dates: string[]; // ISO date YYYY-MM-DD
     publishedArticles: number[];
+    /** ESKI ALAN (bkz. social) — yeni donemlerde hep 0 */
     socialPosts: number[];
     clicks: number[];
     impressions: number[];
@@ -211,22 +255,215 @@ export function detaylariTopla(
 /**
  * AI gorunurluk skoru olculebildi mi?
  *
- * runAudit hicbir saglayici cevap veremediginde `aiCitationAvg ?? 0` yaziyor.
- * O 0 bir OLCUM degil, olcumun YOKLUGU — ama grafikte gercek bir cokus gibi
- * gorunuyor ve "AI gorunurlugun sifira dustu" yalanini uretiyor.
+ * Eski taramalar hicbir saglayici cevap veremediginde `score: 0` yaziyordu;
+ * yenileri `score: null` + `skipped` (neden) yazar (audit.service runAudit).
+ * O 0 bir OLCUM degil, olcumun YOKLUGU — grafikte gercek bir cokus gibi
+ * gorunup "AI gorunurlugun sifira dustu" yalanini uretiyordu. Olcum kurali
+ * tek yerde: audit.service aiCitationsOlculdu (karsilastirma da onu kullanir).
  */
 export function citationDegerlendir(aiCitations: any): { skor: number | null; olcumYok: string | null } {
-  if (!aiCitations) return { skor: null, olcumYok: 'Bu sitede henuz AI gorunurluk olcumu yapilmadi' };
+  if (!aiCitations) return { skor: null, olcumYok: 'Bu sitede henüz AI görünürlük ölçümü yapılmadı.' };
+  if (aiCitationsOlculdu(aiCitations)) return { skor: aiCitations.score, olcumYok: null };
+  const atlama = aiCitations.skipped;
+  if (atlama && typeof atlama.message === 'string' && atlama.message) return { skor: null, olcumYok: atlama.message };
   const providers: any[] = Array.isArray(aiCitations.providers) ? aiCitations.providers : [];
-  const olculebilen = providers.filter((p) => p?.available);
-  if (providers.length > 0 && olculebilen.length === 0) {
-    return { skor: null, olcumYok: 'Hicbir AI saglayicisi olcum donduremedi (kota, anahtar veya servis hatasi)' };
+  if (providers.length > 0 && !providers.some((p) => p?.available)) {
+    return { skor: null, olcumYok: 'Hiçbir AI asistanı ölçüm döndüremedi (anahtar, kota ya da servis hatası).' };
   }
-  const skor = typeof aiCitations.score === 'number' ? aiCitations.score : null;
-  if (skor === 0 && olculebilen.length === 0) {
-    return { skor: null, olcumYok: 'Olcum yapilamadi' };
+  return { skor: null, olcumYok: 'Bu taramada AI ölçümü yapılmadı.' };
+}
+
+/** GEO skorunun dayandigi orneklem — geo-runner.service.ts GeoAuditResult.sample */
+export interface GeoSample {
+  measured: number;
+  blocked: number;
+}
+
+/**
+ * audit.checks.geo → erisim engeli + orneklem (web lib/api.ts geoAccessOf ile
+ * ayni kural). Eski taramalarda ya da bozuk JSON'da ikisi de null — engel
+ * uydurulmaz. Yalniz belgelenmis alanlar tasinir.
+ */
+export function geoAccessFromChecks(checks: unknown): { blocked: GeoAccessBlock | null; sample: GeoSample | null } {
+  const geo = (checks as { geo?: { blocked?: any; sample?: any } } | null | undefined)?.geo;
+  const b = geo?.blocked;
+  const s = geo?.sample;
+  const blocked: GeoAccessBlock | null = b && typeof b === 'object' && typeof b.reason === 'string'
+    ? {
+        kind: b.kind,
+        vendor: typeof b.vendor === 'string' ? b.vendor : null,
+        status: b.status,
+        reason: b.reason,
+        hint: typeof b.hint === 'string' ? b.hint : '',
+        url: typeof b.url === 'string' ? b.url : '',
+      }
+    : null;
+  const sample = s && Number.isFinite(s.measured) && Number.isFinite(s.blocked)
+    ? { measured: Number(s.measured), blocked: Number(s.blocked) }
+    : null;
+  return { blocked, sample };
+}
+
+/**
+ * CSV / dondurulmus rapor GEO hucresi: skor yoksa NEDEN — bos ya da cikiplak
+ * "olcum yok" degil. Engel nedeni ve cozumu (RanksUpBot'a izin) yazilir; diger
+ * hucrelerle ayni "olcum yok (neden)" kalibi. Eski raporda geoBlocked yoktur.
+ */
+export function geoSkorHucresi(audit: {
+  geoScore: number | null;
+  geoBlocked?: GeoAccessBlock | null;
+  accessBlocked?: CrawlAccessRecord | null;
+  sonBasarili?: { ranAt: string; geoScore: number | null } | null;
+}): string | number {
+  if (typeof audit.geoScore === 'number') return audit.geoScore;
+  // Son tarama denemesi siteye erisemedi: neden bu kayit (eski taramanin
+  // geoBlocked'i o taramayi anlatir, bugunu degil)
+  if (audit.accessBlocked?.reason) {
+    return erisimYokHucresi(audit.accessBlocked, audit.sonBasarili?.ranAt, audit.sonBasarili?.geoScore);
   }
-  return { skor, olcumYok: null };
+  const b = audit.geoBlocked;
+  if (!b?.reason) return 'olcum yok';
+  return `olcum yok (${[b.reason, b.hint].filter(Boolean).join(' ')})`;
+}
+
+/** Gecerli tarihse ISO zaman, degilse null (bozuk/eksik alan raporu dusurmez) */
+const isoZaman = (v: string | Date | null | undefined): string | null => {
+  if (!v) return null;
+  const t = new Date(v);
+  return Number.isFinite(t.getTime()) ? t.toISOString() : null;
+};
+
+const isoGun = (v: string | Date | null | undefined): string | null => isoZaman(v)?.slice(0, 10) ?? null;
+
+/** "olcum yok (Erişim engellendi: neden çözüm; son başarılı tarama 2026-08-28: 78/100)" */
+function erisimYokHucresi(access: CrawlAccessRecord, sonRanAt?: string | null, sonSkor?: number | null): string {
+  const gun = isoGun(sonRanAt);
+  const son = gun ? `; son başarılı tarama ${gun}${typeof sonSkor === 'number' ? `: ${sonSkor}/100` : ''}` : '';
+  return `olcum yok (${crawlAccessMessage(access)}${son})`;
+}
+
+/**
+ * CSV site skoru hucresi. Son tarama denemesi siteye erisemediyse eski skor
+ * GUNCEL diye yazilmaz: neden + son basarili taramanin tarihi ve skoru.
+ * Bu alanlardan once dondurulmus raporda eski davranis surer.
+ */
+export function siteSkorHucresi(audit: {
+  overallScore: number | null;
+  accessBlocked?: CrawlAccessRecord | null;
+  sonBasarili?: { ranAt: string; overallScore: number } | null;
+}): string | number {
+  if (typeof audit.overallScore === 'number') return audit.overallScore;
+  if (audit.accessBlocked?.reason) {
+    return erisimYokHucresi(audit.accessBlocked, audit.sonBasarili?.ranAt, audit.sonBasarili?.overallScore);
+  }
+  return 'olcum yok';
+}
+
+/** Skorun bir kismi engele takilan orneklemden mi — web geoSampleNote ile ayni metin; degilse null */
+export function geoOrneklemNotu(audit: { geoScore: number | null; geoSample?: GeoSample | null }): string | null {
+  const s = audit.geoSample;
+  if (typeof audit.geoScore !== 'number' || !s || !(s.blocked > 0) || !(s.measured > 0)) return null;
+  return `${s.blocked} sayfa erişim engeline takıldı; skor ${s.measured} sayfadan hesaplandı.`;
+}
+
+/**
+ * Kismi tarama karsilastirmasinin tek satirlik nedeni (CSV "kismi_karsilastirma").
+ * Tam karsilastirmada ve bu alandan once dondurulmus raporda null.
+ */
+export function kismiKarsilastirmaNotu(k: Pick<AuditKarsilastirma, 'kismi' | 'ozet'> | null | undefined): string | null {
+  const ks = k?.kismi;
+  if (!ks) return null;
+  const parcalar: string[] = [];
+  const olculemeyenKontroller = ks.olculemeyenKontroller ?? [];
+  const skorKapsami = ks.skorKapsamiFarkli ?? [];
+  if (olculemeyenKontroller.length) parcalar.push(`son taramada ölçülemeyen kontroller: ${olculemeyenKontroller.join(', ')}`);
+  if (ks.sayfaKapsami) {
+    parcalar.push(ks.sayfaKapsami.erkenDurdu
+      ? 'son tarama bot koruması nedeniyle erken durdu'
+      : `son taramada ${ks.sayfaKapsami.engellenenSayfa} sayfa erişim engeli nedeniyle taranamadı`);
+  }
+  if (skorKapsami.length) parcalar.push(`genel skora giren ${skorKapsami.join(', ')} iki taramadan yalnız birinde ölçülebildi`);
+  const olculemeyen = k?.ozet?.olculemeyenSayisi ?? 0;
+  if (olculemeyen > 0) parcalar.push(`${olculemeyen} eski sorun yeniden ölçülemediği için çözülmüş sayılmadı`);
+  return parcalar.length ? parcalar.join('; ') : null;
+}
+
+/** Karsilastirma alanindaki kimlik listesi: dize olmayan/bos ogeler (bozuk eski govde) atilir */
+const kimlikListesi = (v: unknown): string[] =>
+  Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string' && x.length > 0) : [];
+
+/**
+ * CSV notundaki AI asistan adlari — ai-citation.service.ts PROVIDER_LABELS ile
+ * ayni adlar (o tablo disa acik degil). Record<Provider, ...> oldugu icin yeni
+ * bir asistan eklendiginde tsc burayi da ister; bilinmeyen kimlik oldugu gibi yazilir.
+ */
+const AI_SAGLAYICI_ADI: Record<Provider, string> = {
+  anthropic: 'Anthropic Claude',
+  gemini: 'Google Gemini',
+  openai: 'OpenAI ChatGPT',
+  perplexity: 'Perplexity',
+  xai: 'xAI Grok',
+  deepseek: 'DeepSeek',
+  meta: 'Meta AI (Llama)',
+};
+const saglayiciAdlari = (ids: string[]) =>
+  ids.map((p) => (Object.hasOwn(AI_SAGLAYICI_ADI, p) ? AI_SAGLAYICI_ADI[p as Provider] : p)).join(', ');
+
+/**
+ * Olcum yontemi degisen kontrollerin CSV notu ("olcum_yontemi_notu").
+ *
+ * NEDEN: panel (audit-delta-panel) ayni karsilastirmada "Olcum yontemi
+ * guncellendi" uyarisini gosterir; CSV yalniz kontrol kimliklerini yaziyordu
+ * (olcum_yontemi_degisen). Disa aktarilan rapor, bu kontrollerin farkinin
+ * neden 0 yazildigini (durum metodoloji_degisti, compareAuditRows) ve
+ * sorunlarinin neden cozulen/yeni sayilmadigini soylemiyordu. GEO yontemi
+ * degistiyse geo_skor_farki da 0 yazilir.
+ * Genel skor YALNIZ OVERALL_SCORE_WEIGHTS kontrollerinden hesaplanir
+ * (computeOverallScore; GEO, AI gorunurluk ve PageSpeed girmez): skor_farki
+ * uyarisi yalniz o kontrollerden biri degistiyse yazilir, yoksa yanlis olurdu.
+ * Alan yoksa (yontem ayni ya da alandan once dondurulmus rapor) null.
+ */
+export function olcumYontemiNotu(k: Pick<AuditKarsilastirma, 'metodolojiDegisen'> | null | undefined): string | null {
+  const ids = kimlikListesi(k?.metodolojiDegisen);
+  if (ids.length === 0) return null;
+  const parcalar = [
+    `Ölçüm yöntemi iki tarama arasında güncellendi: ${ids.join(', ')}.`,
+    'Bu kontrollerin farkı 0 yazıldı (durum metodoloji_degisti) ve sorunları çözülen/yeni sayılmadı; skorlarındaki değişim siteden değil yöntemden kaynaklanabilir.',
+  ];
+  if (ids.includes('geo')) parcalar.push('GEO skorları kıyaslanmadı (geo_skor_farki 0).');
+  const genelSkorda = ids.filter((id) => Object.hasOwn(OVERALL_SCORE_WEIGHTS, id));
+  if (genelSkorda.length > 0) {
+    parcalar.push(`${genelSkorda.join(', ')} genel skora girdiği için skor_farki değerinin bir kısmı da yöntem değişikliğinden kaynaklanabilir.`);
+  }
+  return parcalar.join(' ');
+}
+
+/**
+ * AI gorunurlukte iki taramanin OLCULEN asistan kumesi farkliysa CSV notu
+ * ("ai_saglayici_kapsami").
+ *
+ * NEDEN: compareAuditRows bu durumda aiCitations farkini yalniz IKI taramada da
+ * olculen asistanlar uzerinden hesaplar (aiSaglayiciKapsami) ve AI gorunurluk
+ * sorunlarini cozulen/yeni saymaz; ortak asistan yoksa satir uretmez. CSV bunu
+ * soylemedigi icin aiCitations satirindaki onceki/sonraki degerler
+ * ai_gorunurluk_skoru ile celisir gorunuyor, satirin neden olmadigi
+ * anlasilmiyordu. Kume ayniysa ya da alandan once dondurulmus raporda null.
+ */
+export function aiSaglayiciKapsamNotu(k: Pick<AuditKarsilastirma, 'aiSaglayiciKapsami'> | null | undefined): string | null {
+  const ks = k?.aiSaglayiciKapsami;
+  if (!ks) return null;
+  const ortak = kimlikListesi(ks.ortak);
+  const yalnizOnceki = kimlikListesi(ks.yalnizOnceki);
+  const yalnizSonraki = kimlikListesi(ks.yalnizSonraki);
+  const farklar = [
+    yalnizOnceki.length ? `yalnız ilk taramada ölçülen: ${saglayiciAdlari(yalnizOnceki)}` : null,
+    yalnizSonraki.length ? `yalnız son taramada ölçülen: ${saglayiciAdlari(yalnizSonraki)}` : null,
+  ].filter((p): p is string => p !== null);
+  const giris = `AI görünürlük ölçümünde iki taramada ölçülebilen asistanlar farklı${farklar.length ? ` (${farklar.join('; ')})` : ''}.`;
+  const kiyas = ortak.length
+    ? `aiCitations farkı yalnız iki taramada da ölçülen asistanlar (${saglayiciAdlari(ortak)}) üzerinden hesaplandı; satırdaki önceki/sonraki değerler bu asistanların ortalamasıdır.`
+    : 'İki taramada ortak ölçülen asistan olmadığı için AI görünürlük kıyaslanmadı.';
+  return `${giris} ${kiyas} AI görünürlük sorunları çözülen/yeni sayılmadı.`;
 }
 
 /**
@@ -342,17 +579,43 @@ export class ReportsService {
       ? splitQueriesByBrand(
           snapshots.flatMap((s) => (Array.isArray(s.queryDetails) ? (s.queryDetails as unknown as OrganicQueryRow[]) : [])),
           brand,
+          // Overview ile ayni: jenerik turetilmis markada yalniz alan adi markali
+          brandHostFromUrl(brandSite?.url),
         )
       : null;
 
     // ── AI citation + audit ────────────────────────────────────
-    const lastAudit = await this.prisma.audit.findFirst({
-      where: { siteId },
-      orderBy: { ranAt: 'desc' },
-    });
+    // Donem sonundan SONRAKI tarama gecmis bir donemin raporuna girmesin
+    // (dondurulmus "Temmuz" raporu Ekim skorunu gostermesin).
+    const [lastAudit, erisimKaydi] = await Promise.all([
+      this.prisma.audit.findFirst({
+        where: { siteId, ranAt: { lte: rangeEnd } },
+        orderBy: { ranAt: 'desc' },
+      }),
+      // Hata atmaz (kv sorunu raporu dusurmez)
+      readCrawlAccess(this.prisma, siteId),
+    ]);
+    // Anasayfa okunamayan taramada Audit satiri yazilmaz; son satir eski bir
+    // olcumdur. Ondan SONRAKI deneme siteye erisemediyse skor guncel degil —
+    // panel ve MCP ile ayni kural (crawl-access.ts). Donemden sonraki deneme
+    // gecmis donemin raporunu etkilemez.
+    const erisimDonemde = erisimKaydi && Date.parse(erisimKaydi.at) <= rangeEnd.getTime() ? erisimKaydi : null;
+    const accessBlocked = crawlAccessNewerThanAudit(erisimDonemde, lastAudit?.ranAt);
     const aiCitations = (lastAudit?.checks as any)?.aiCitations;
-    const providers = aiCitations?.providers ?? [];
     const citationDurumu = citationDegerlendir(aiCitations);
+    const eskiCitationSkor = citationDurumu.skor;
+    // Erisim engelli: o denetimin AI olcumu de eski (deneme AI adimina hic
+    // gelmedi). Deger yalniz tarihiyle anilir; saglayici kirilimi verilmez.
+    if (accessBlocked) {
+      const gun = isoGun(lastAudit?.ranAt);
+      citationDurumu.skor = null;
+      citationDurumu.olcumYok = `Son tarama denemesi siteye erişemediği için AI ölçümü yapılmadı${
+        gun && typeof eskiCitationSkor === 'number' ? `; son başarılı ölçüm ${gun}: ${eskiCitationSkor}/100` : ''
+      }.`;
+    }
+    const providers = accessBlocked ? [] : aiCitations?.providers ?? [];
+    // GEO skoru ile AYNI taramadan: skor yoksa neden, varsa orneklem
+    const geoErisim = geoAccessFromChecks(lastAudit?.checks);
 
     // Donemdeki taramalar — karsilastirma icin TAM satir gerekiyor
     // (compareAuditRows checks + issues okuyor, sadece sayilari degil).
@@ -444,12 +707,22 @@ export class ReportsService {
         })),
       },
       audit: {
-        overallScore: lastAudit?.overallScore ?? null,
-        geoScore: lastAudit?.geoScore ?? null,
+        // Erisim engelliyse eski skor guncel diye verilmez (MCP get_site_overview kurali)
+        overallScore: accessBlocked ? null : lastAudit?.overallScore ?? null,
+        geoScore: accessBlocked ? null : lastAudit?.geoScore ?? null,
+        ranAt: isoZaman(lastAudit?.ranAt),
+        accessBlocked,
+        sonBasarili: accessBlocked && lastAudit
+          ? { ranAt: isoZaman(lastAudit.ranAt) ?? '', overallScore: lastAudit.overallScore, geoScore: lastAudit.geoScore ?? null }
+          : null,
+        // Eski taramanin GEO engeli/orneklemi bugunu anlatmaz
+        geoBlocked: accessBlocked ? null : geoErisim.blocked,
+        geoSample: accessBlocked ? null : geoErisim.sample,
         issuesCount: lastIssuesCount,
         cozulenSayisi: karsilastirma?.ozet.cozulenSayisi ?? 0,
         yeniCikanSayisi: karsilastirma?.ozet.yeniSayisi ?? 0,
         devamEdenSayisi: karsilastirma?.ozet.devamEdenSayisi ?? 0,
+        olculemeyenSayisi: karsilastirma?.ozet.olculemeyenSayisi ?? 0,
         karsilastirma,
         kullaniciTaramaSayisi,
       },
@@ -483,13 +756,18 @@ export class ReportsService {
     yaz('onceki_donem', `${report.prevStart.slice(0, 10)} - ${report.prevEnd.slice(0, 10)}`);
     satirlar.push('');
 
+    // sosyal_post sutunu YALNIZ sifirdan farkliysa: sosyal yayin modulu
+    // kaldirildi, yeni donemlerde hep 0 ve "paylasim yapilmadi" gibi okunuyordu.
+    // Modul varken dondurulmus eski raporlar (reportByIdCsv) degerini korur.
+    const sosyalVar = (report.social?.posts ?? 0) > 0 || (report.timeSeries.socialPosts ?? []).some((n) => n > 0);
+
     yaz('# Zaman serisi');
-    yaz('tarih', 'yayinlanan_makale', 'sosyal_post', 'tiklama', 'gosterim');
+    yaz('tarih', 'yayinlanan_makale', ...(sosyalVar ? ['sosyal_post'] : []), 'tiklama', 'gosterim');
     for (let i = 0; i < report.timeSeries.dates.length; i++) {
       yaz(
         report.timeSeries.dates[i],
         report.timeSeries.publishedArticles[i],
-        report.timeSeries.socialPosts[i],
+        ...(sosyalVar ? [report.timeSeries.socialPosts?.[i] ?? 0] : []),
         report.timeSeries.clicks[i],
         report.timeSeries.impressions[i],
       );
@@ -501,21 +779,29 @@ export class ReportsService {
     yaz('yayinlanan_makale_onceki_doneme_fark', report.articles.publishedDelta);
     yaz('planlanan_makale', report.articles.scheduled);
     yaz('basarisiz_makale', report.articles.failed);
-    yaz('sosyal_post', report.social.posts);
+    if (sosyalVar) yaz('sosyal_post', report.social.posts);
     yaz('toplam_tiklama', report.search.totalClicks);
     yaz('tiklama_farki', report.search.clicksDelta ?? 'onceki donemde olcum yok');
     yaz('toplam_gosterim', report.search.totalImpressions);
     yaz('gosterim_farki', report.search.impressionsDelta ?? 'onceki donemde olcum yok');
     yaz('ortalama_ctr', `${(report.search.avgCtr * 100).toFixed(2)}%`);
     yaz('ortalama_pozisyon', report.search.avgPosition.toFixed(1));
-    yaz('site_skoru', report.audit.overallScore ?? 'olcum yok');
-    yaz('geo_skoru', report.audit.geoScore ?? 'olcum yok');
+    // Dondurulmus rapor da buradan gecer (analytics.controller reportByIdCsv);
+    // eski govdede accessBlocked/geoBlocked/geoSample yoktur — yardimcilar
+    // undefined'i tasir, eski cikti aynen kalir.
+    yaz('site_skoru', siteSkorHucresi(report.audit));
+    yaz('geo_skoru', geoSkorHucresi(report.audit));
+    const geoNot = geoOrneklemNotu(report.audit);
+    if (geoNot) yaz('geo_orneklem', geoNot);
     // 0 yerine "olcum yok": olculemeyen bir metrigi 0 yazmak sahte dusus uretir.
     yaz('ai_gorunurluk_skoru', report.ai.citationScore ?? `olcum yok${report.ai.citationOlcumYok ? ` (${report.ai.citationOlcumYok})` : ''}`);
     yaz('acik_sorun', report.audit.issuesCount);
     yaz('cozulen_sorun', report.audit.cozulenSayisi);
     yaz('yeni_cikan_sorun', report.audit.yeniCikanSayisi);
     yaz('devam_eden_sorun', report.audit.devamEdenSayisi);
+    // Yeniden olculemeyen eski sorunlar — cozulen_sorun'a girmez. Bu alandan
+    // once dondurulmus raporda yok; bilinmeyen sayi 0 diye uydurulmaz.
+    if (typeof report.audit.olculemeyenSayisi === 'number') yaz('olculemeyen_sorun', report.audit.olculemeyenSayisi);
     yaz('kullanici_taramasi', report.audit.kullaniciTaramaSayisi);
     yaz('makale_maliyeti_usd', report.articles.totalCost.toFixed(2));
     satirlar.push('');
@@ -548,6 +834,15 @@ export class ReportsService {
       yaz('son_tarama', new Date(k.to.ranAt).toISOString().slice(0, 10), k.to.overallScore);
       yaz('skor_farki', k.scoreDelta);
       yaz('geo_skor_farki', k.geoScoreDelta);
+      if (k.metodolojiDegisen?.length) yaz('olcum_yontemi_degisen', k.metodolojiDegisen.join(' '));
+      // Panelin yontem/kapsam uyarilari CSV'de de (eklemeli satirlar; eski
+      // satirlar ayni). Gerekce olcumYontemiNotu / aiSaglayiciKapsamNotu.
+      const yontemNot = olcumYontemiNotu(k);
+      if (yontemNot) yaz('olcum_yontemi_notu', yontemNot);
+      const kapsamNot = aiSaglayiciKapsamNotu(k);
+      if (kapsamNot) yaz('ai_saglayici_kapsami', kapsamNot);
+      const kismiNot = kismiKarsilastirmaNotu(k);
+      if (kismiNot) yaz('kismi_karsilastirma', kismiNot);
       satirlar.push('');
       yaz('kontrol', 'onceki', 'sonraki', 'fark', 'durum');
       for (const c of k.checks) {

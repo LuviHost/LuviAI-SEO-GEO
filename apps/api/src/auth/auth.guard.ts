@@ -5,6 +5,10 @@ import { decode } from 'next-auth/jwt';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { ApiKeysService } from '../api-keys/api-keys.service.js';
 import { SESSION_ONLY_KEY } from './session-only.decorator.js';
+import { extractSessionToken } from './session-cookie.js';
+
+/** Silme talebi olan hesabin istekleri — istemciler 401 ile oturumu kapatir */
+export const DELETED_ACCOUNT_MESSAGE = 'Bu hesap için silme talebi alındı; hesaba erişim kapatıldı.';
 
 /**
  * NextAuth session JWT'sini doğrular.
@@ -42,6 +46,8 @@ export class AuthGuard implements CanActivate {
       if (!apiKey) throw new UnauthorizedException('API key gecersiz');
       const user = await this.prisma.user.findUnique({ where: { id: apiKey.userId } });
       if (!user) throw new UnauthorizedException('User bulunamadi');
+      // Anahtarlar silme aninda iptal edilir; bu kontrol iptal kacsa bile erisimi keser
+      if (user.deletionRequestedAt) throw new UnauthorizedException(DELETED_ACCOUNT_MESSAGE);
 
       const sessionOnly = this.reflector.getAllAndOverride<boolean>(SESSION_ONLY_KEY, [ctx.getHandler(), ctx.getClass()]);
       if (sessionOnly) {
@@ -65,13 +71,16 @@ export class AuthGuard implements CanActivate {
       // /mcp harici tutulur — MCP transport'u POST'tur ama salt-okuma
       // tool'lari da tasir; yazma denetimi tool bazinda McpController'da
       // yapilir (mutating tool + read-only key = ret).
+      //
+      // Desen YALNIZ transport yolunu tanir (/api/mcp, sonda tek '/'):
+      // eskiden "/mcp ile biten her yol" muaf sayiliyordu; ileride
+      // sites/:siteId/.../mcp gibi bir rota eklenirse scope denetimini sessizce
+      // atlardi. Harf duyarsiz: Express /api/MCP'yi de ayni handler'a yollar
+      // (resolveResource ile ayni kural).
       const method = req.method.toUpperCase();
       const isMutating = !['GET', 'HEAD', 'OPTIONS'].includes(method);
       const path = (req.path ?? req.url ?? '');
-      // Yalniz MCP transport'unun kendisi (/api/mcp) muaf: eski desen "/mcp
-      // ile biten her yol"u muaf sayiyordu (orn. DELETE /sites/:id/x/mcp).
-      // Express harf duyarsiz yonlendirdigi icin /API/MCP de ayni uctur.
-      const isMcpTransport = /^\/(api\/)?mcp\/?$/i.test(path.split('?')[0] ?? '');
+      const isMcpTransport = /^(?:\/api)?\/mcp\/?$/i.test(path.split('?')[0] ?? '');
       if (!isMcpTransport) {
         const required = this.apiKeys.requiredScope(method, path);
         if (required) {
@@ -107,6 +116,9 @@ export class AuthGuard implements CanActivate {
 
       const user = await this.prisma.user.findUnique({ where: { id: decoded.sub as string } });
       if (!user) throw new UnauthorizedException('Kullanıcı bulunamadı');
+      // Oturum JWT'si durumsuz (30 gun) — tek tek iptal edilemez; silme talebi
+      // olan hesabin TUM oturumlari burada kapanir (web cerezi + mobil Bearer)
+      if (user.deletionRequestedAt) throw new UnauthorizedException(DELETED_ACCOUNT_MESSAGE);
 
       (req as any).user = user;
       return true;
@@ -117,28 +129,10 @@ export class AuthGuard implements CanActivate {
 
   /**
    * Cookie veya Authorization header'dan token + salt çıkartır.
-   * NextAuth v5'te cookie name'i (`authjs.session-token` veya
-   * `__Secure-authjs.session-token`) decode salt'ı olarak da kullanılır.
-   * Backwards-compat için v4 isimleri (`next-auth.session-token`) de kabul edilir.
+   * Cerez adlari ve salt kurali session-cookie.ts'te — OAuth callback'leri de
+   * oturumu AYNI kuralla okur (iki liste ayrisirsa biri sessizce oturumsuz kalir).
    */
   private extractToken(req: Request): { token: string; salt: string } | null {
-    const authHeader = req.headers.authorization;
-    if (authHeader?.startsWith('Bearer ')) {
-      return { token: authHeader.slice(7), salt: 'authjs.session-token' };
-    }
-
-    const cookies = req.headers.cookie ?? '';
-    const candidates = [
-      'authjs.session-token',
-      '__Secure-authjs.session-token',
-      'next-auth.session-token',
-      '__Secure-next-auth.session-token',
-    ];
-    for (const name of candidates) {
-      const re = new RegExp(`(?:^|;\\s*)${name.replace(/[\\^$.*+?()[\]{}|]/g, '\\$&')}=([^;]+)`);
-      const m = cookies.match(re);
-      if (m) return { token: decodeURIComponent(m[1]), salt: name };
-    }
-    return null;
+    return extractSessionToken(req);
   }
 }

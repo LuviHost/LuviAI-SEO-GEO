@@ -45,6 +45,20 @@ describe('parseRobotsAiStance', () => {
     expect(find(r, 'ClaudeBot').stance).toBe('block');
   });
 
+  it('yalniz-CR dosya (RFC 9309 NL): wildcard Disallow okunur, botlar etkin block', () => {
+    const r = parseRobotsAiStance('User-agent: *\rDisallow: /\r');
+    expect(find(r, 'GPTBot').effective).toBe('block');
+    expect(find(r, 'ClaudeBot').effective).toBe('block');
+    const named = parseRobotsAiStance('User-agent: GPTBot\rDisallow: /\r\rUser-agent: *\rAllow: /\r');
+    expect(find(named, 'GPTBot').stance).toBe('block');
+    expect(find(named, 'ClaudeBot').effective).toBe('allow');
+  });
+
+  it('bastaki UTF-8 BOM ilk User-agent satirini gizlemez', () => {
+    const r = parseRobotsAiStance('\uFEFFUser-agent: GPTBot\nDisallow: /\n');
+    expect(find(r, 'GPTBot').stance).toBe('block');
+  });
+
   it('bot adi buyuk/kucuk harf duyarsiz, yorumlar atlanir', () => {
     const r = parseRobotsAiStance('# yorum\nuser-agent: gptbot # satir sonu yorum\nallow: /\n');
     expect(find(r, 'GPTBot').stance).toBe('allow');

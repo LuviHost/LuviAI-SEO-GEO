@@ -2,6 +2,7 @@ import { Body, Controller, ForbiddenException, Get, Param, Post, Req } from '@ne
 import type { Request } from 'express';
 import { Public } from '../auth/public.decorator.js';
 import { AffiliateService } from './affiliate.service.js';
+import { AttributeAffiliateDto, EnrollAffiliateDto } from './affiliate.dto.js';
 
 function ensureSelf(req: Request, requestedUserId: string) {
   const user = (req as any).user;
@@ -15,9 +16,12 @@ export class AffiliateController {
   constructor(private readonly affiliate: AffiliateService) {}
 
   @Post('enroll')
-  enroll(@Req() req: Request, @Body() body: { userId: string }) {
-    ensureSelf(req, body.userId);
-    return this.affiliate.enroll(body.userId);
+  enroll(@Req() req: Request, @Body() body: EnrollAffiliateDto) {
+    // userId verilmezse oturum sahibi; verilirse oturumla eslesmeli (ADMIN haric)
+    const sessionUserId: string | undefined = (req as any).user?.id;
+    const target = body.userId ?? sessionUserId ?? '';
+    ensureSelf(req, target);
+    return this.affiliate.enroll(target);
   }
 
   @Get('users/:userId/stats')
@@ -39,7 +43,7 @@ export class AffiliateController {
    */
   @Public()
   @Post('attribute')
-  async attribute(@Req() req: Request, @Body() body: { userId: string; refCode: string }) {
+  async attribute(@Req() req: Request, @Body() body: AttributeAffiliateDto) {
     const internalKey = req.headers['x-internal-key'];
     const expected = process.env.INTERNAL_API_KEY ?? process.env.NEXTAUTH_SECRET ?? process.env.AUTH_SECRET;
     if (!expected || internalKey !== expected) {

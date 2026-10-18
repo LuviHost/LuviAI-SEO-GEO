@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import Anthropic from '@anthropic-ai/sdk';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { COMMUNITY_MAX_LIMIT, clampLimit } from './audit-limits.js';
 
 export interface OutreachOpportunity {
   source: 'reddit' | 'quora' | 'haro' | 'twitter';
@@ -33,7 +34,10 @@ export class CommunityOutreachService {
   constructor(private readonly prisma: PrismaService) {}
 
   async findOpportunities(siteId: string, opts: { limit?: number } = {}): Promise<OutreachOpportunity[]> {
-    const limit = opts.limit ?? 10;
+    // Firsat basina bir model cagrisi (generateReply). Tavan yalniz controller'da
+    // ve DTO'daydi; servisi dogrudan cagiran yollar (community-agent.service,
+    // MCP, worker) limit=1000 gecip yuzlerce cagri yaptirabilirdi.
+    const limit = clampLimit(opts.limit, COMMUNITY_MAX_LIMIT, 10);
     const site = await this.prisma.site.findUniqueOrThrow({
       where: { id: siteId },
       include: { brain: true },

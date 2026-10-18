@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Check, X, Lock, ArrowRight } from 'lucide-react';
+import { Check, X, Minus, Lock, ArrowRight } from 'lucide-react';
 import { VendorLogo, type VendorName } from '@/components/vendor-logo';
 import type { api } from '@/lib/api';
 
@@ -16,10 +16,22 @@ import type { api } from '@/lib/api';
  * KILITLI DURUM: soru metni ve kategorisi gorunur, sonuc alani yer tutucu.
  * Buradaki gizleme kozmetiktir — asil kilit sunucuda: kilitli sorgu icin LLM
  * cagrisi hic yapilmaz ve `providers` bos dizi olarak gelir.
+ *
+ * SAYILAR: "x / y" sunucunun citedCount / totalProviders'i — payda yalniz o
+ * soruda gercekten olculen asistanlar. Calismayan saglayici (uretimde Meta
+ * Llama) satir olarak gelmez; hata veren saglayici notr kutu olarak cizilir.
  */
 
 type CheckResult = Awaited<ReturnType<typeof api.publicCitationCheck>>;
 export type QueryRow = CheckResult['queries'][number];
+
+/**
+ * Sunucu her saglayici satirina `measured` yazar (public-citation.service.ts
+ * withMeasuredCounts): false = saglayici bu soruda hata verdi, sayilara girmez.
+ * Alan yoksa (eski istemci tipi / eski cevap) satir olculmus sayilir.
+ */
+export type ProviderRow = QueryRow['providers'][number] & { measured?: boolean };
+export const isMeasuredRow = (p: ProviderRow): boolean => p.measured !== false;
 
 export const CATEGORY_LABELS: Record<string, { tr: string; en: string }> = {
   DISCOVERY: { tr: 'KEŞİF', en: 'DISCOVERY' },
@@ -91,8 +103,10 @@ export function QueryCard({ q, idx, brand, lang, isOpen, onToggle, labels }: Que
           <Lock className="h-4 w-4 text-muted-foreground/60 shrink-0 mt-1.5" aria-hidden />
         </div>
 
+        {/* Yer tutucu sayisi cevaptan: kilitli satirin totalProviders'i bu olcumde
+            calisan asistan sayisi (sabit 7 eskiden olculmeyen Meta'yi da ciziyordu). */}
         <div className="flex items-center gap-3 flex-wrap" aria-label={labels.lockedHint}>
-          {Array.from({ length: Math.min(q.totalProviders || 7, 7) }).map((_, i) => (
+          {Array.from({ length: Math.max(0, Math.min(q.totalProviders, 7)) }).map((_, i) => (
             <div key={i} className="flex flex-col items-center gap-1">
               <div className="w-11 h-11 rounded-xl bg-muted/60 ring-1 ring-border animate-pulse" />
               <div className="h-2 w-9 rounded bg-muted/60" />
@@ -145,9 +159,26 @@ export function QueryCard({ q, idx, brand, lang, isOpen, onToggle, labels }: Que
       </div>
 
       <div className="flex items-center gap-3 flex-wrap">
-        {q.providers.map((p) => {
+        {(q.providers as ProviderRow[]).map((p) => {
           const logo = PROVIDER_LOGOS[p.provider];
           const short = PROVIDER_SHORT[p.provider] || p.label;
+          // Olculemeyen satir (saglayici hatasi) notr: ne "anildi" ne "anilmadi",
+          // sayiya da girmez — sunucunun citedCount/totalProviders'i ile ayni kural.
+          if (!isMeasuredRow(p)) {
+            const hint = lang === 'tr' ? `${short}: bu soruda yanıt alınamadı, ölçüme girmedi` : `${short}: no answer for this query, not counted`;
+            return (
+              <div key={p.provider} className="flex flex-col items-center gap-1" title={hint}>
+                <div className="relative w-11 h-11 rounded-xl grid place-items-center bg-muted/30 border border-dashed border-border opacity-60">
+                  {logo && <VendorLogo name={logo} size={22} />}
+                  <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full grid place-items-center ring-2 ring-background bg-muted text-muted-foreground">
+                    <Minus className="h-3 w-3" strokeWidth={3} aria-hidden />
+                  </div>
+                </div>
+                <span className="text-label font-semibold text-muted-foreground/70">{short}</span>
+                <span className="sr-only">{hint}</span>
+              </div>
+            );
+          }
           const ok = p.cited || p.brandMentioned;
           return (
             <div key={p.provider} className="flex flex-col items-center gap-1">
@@ -224,8 +255,8 @@ function ResponsesToggle({
   onToggle: () => void;
   labels: QueryCardLabels;
 }) {
-  // "HATA:" ile isaretli excerpt'ler olculemeyen probe'lardir — gosterilmez.
-  const withResponse = providers.filter((p) => p.excerpt && !p.excerpt.startsWith('HATA:'));
+  // "HATA:" ile isaretli / measured=false satirlar olculemeyen probe'lardir — gosterilmez.
+  const withResponse = (providers as ProviderRow[]).filter((p) => isMeasuredRow(p) && p.excerpt && !p.excerpt.startsWith('HATA:'));
   if (withResponse.length === 0) return null;
 
   const cited = withResponse.filter((p) => p.cited || p.brandMentioned);

@@ -6,6 +6,7 @@ import { LLMProviderService } from '../llm/llm-provider.service.js';
 import { parseJsonFromLlm } from '../common/safe-json.js';
 import { acquireCronLock } from '../common/cron-lock.js';
 import { siteWhereForFeature } from '../billing/plan-site-filter.js';
+import { brandMatcher, resolveSiteBrand, type BrandMatcher } from './brand-in-query.js';
 
 /**
  * Product Radar — AI asistanlar kullanicinin KATEGORISINDE hangi urunleri
@@ -37,7 +38,19 @@ export class ProductRadarService {
 
   // ────────────────────────────────────────────────────────────
 
-  async run(siteId: string): Promise<{ snapshots: number; queries: string[] }> {
+  /**
+   * @param opts.trigger 'user' (VARSAYILAN) — kullanici "Tara"ya basti; uc
+   *   @MeasurementSession ile sarili, haftalik olcum hakki istek basina BIR kez
+   *   ayrilir ve 3 sorgu ayni hakki paylasir. 'system' — haftalik cron:
+   *   platformun kendi otomasyonu, kullanicinin haftalik hakkini ve aylik
+   *   citation kotasini tuketmez (snapshotAllActive ile ayni kural). Havuz
+   *   harcamasi yine runProvider'daki saglayici basi gunluk butce sinirina tabi.
+   */
+  async run(
+    siteId: string,
+    opts: { trigger?: 'user' | 'system' } = {},
+  ): Promise<{ snapshots: number; queries: string[] }> {
+    const trigger = opts.trigger ?? 'user';
     const site = await this.prisma.site.findUniqueOrThrow({
       where: { id: siteId },
       include: { brain: true },
@@ -51,19 +64,29 @@ export class ProductRadarService {
     // Kategori etiketi: spesifik olan ONCE. Kaba `niche` listesi (20 secenek)
     // cogu siteyi yanlis kovaya koyuyor (futbol canli skor → "haber/medya").
     const category = (site.customNiche ?? site.niche ?? 'genel').trim();
-    const brand = site.name;
+    // Olcumle (probe.brandMentioned) AYNI marka ve AYNI eslesme kurali. Eskiden
+    // ham site.name ile alt-dize karsilastirmasi vardi: "emlak" markasi
+    // "Hepsiemlak" urununu, bos adli urun her markayi "biz" sayiyordu.
+    const matcher = brandMatcher(resolveSiteBrand(site.name, site.url), this.hostOf(site.url));
     const today = this.utcToday();
     let saved = 0;
 
     for (const query of queries) {
-      const results = await this.citation.runQueries(siteId, [query], { providers: RADAR_PROVIDERS });
+      // trigger AKTARILMAZSA runQueries 'user' varsayar: cron'da oturum
+      // olmadigi icin ilk sorgu sahibin haftalik hakkini yakiyor, ikinci sorgu
+      // 429 alip taramayi kesiyordu (3 sorgudan yalniz 1'i kaydediliyordu).
+      const results = await this.citation.runQueries(siteId, [query], { providers: RADAR_PROVIDERS, trigger });
 
       for (const r of results) {
         if (!r.available || r.probes.length === 0) continue;
         const probe = r.probes[0];
         if (probe.excerpt?.startsWith('HATA:')) continue;
 
-        const products = await this.extractProducts(siteId, probe.excerpt ?? '', brand);
+        // Cevabin TAMAMI: excerpt yalniz ilk 220 karakter — listenin alt
+        // siralarindaki urunler (cogu zaman rakipler) hic gorunmuyordu. Tam
+        // metin yalniz bellekte (answerTextOf); kayda yalniz urun listesi gider.
+        const answer = this.citation.answerTextOf(probe) ?? probe.excerpt ?? '';
+        const products = await this.extractProducts(siteId, answer, matcher);
         // Bos cikti kaydetme — leaderboard'a gurultu, UI'da bos kart olusturuyordu
         if (products.length === 0 && !probe.brandMentioned) continue;
         const brandEntry = products.find((p) => p.isBrand);
@@ -171,7 +194,8 @@ export class ProductRadarService {
     this.log.log(`Haftalik Product Radar: ${sites.length} site`);
     for (const s of sites) {
       try {
-        await this.run(s.id);
+        // Sistem kosumu: musterinin haftalik olcum hakki ve citation kotasi dusmez
+        await this.run(s.id, { trigger: 'system' });
       } catch (err: any) {
         this.log.warn(`Product radar fail (${s.id}): ${err.message}`);
       }
@@ -254,13 +278,16 @@ export class ProductRadarService {
         ]).slice(0, MAX_QUERIES);
   }
 
-  /** AI cevabindan oneri listesi cikar — ucuz LLM parse, hatada bos liste */
-  private async extractProducts(siteId: string, excerpt: string, brand: string): Promise<Array<{
+  /**
+   * AI cevabindan oneri listesi cikar — ucuz LLM parse, hatada bos liste.
+   * `answer` cevabin tam metni (8000 karaktere kadar gonderilir).
+   */
+  private async extractProducts(siteId: string, answer: string, matcher: BrandMatcher): Promise<Array<{
     name: string;
     rank: number;
     isBrand: boolean;
   }>> {
-    if (!excerpt || excerpt.length < 40) return [];
+    if (!answer || answer.length < 40) return [];
     try {
       const res = await this.llm.chat({
         context: 'product-radar-extract',
@@ -274,28 +301,43 @@ export class ProductRadarService {
           'ALMA: kavramlar ("SEO"), KATEGORI/TUR adlari ("Haber Sitesi CMS\'leri", "Sosyal Medya Yonetim Araclari", "Medya Takip Araclari" gibi cogul jenerik ifadeler).',
           'Cevapta hic somut marka yoksa [] dondur.',
         ].join('\n'),
-        messages: [{ role: 'user', content: excerpt.slice(0, 8000) }],
+        messages: [{ role: 'user', content: answer.slice(0, 8000) }],
       });
       const parsed = parseJsonFromLlm<any>(res.output);
       if (!Array.isArray(parsed)) return [];
-      const brandNorm = this.foldName(brand);
       return parsed
         .filter((p) => p && typeof p.name === 'string' && p.name.trim())
         // Jenerik kategori adlari LLM'den kacarsa son savunma (ör. "... Araçları")
         .filter((p) => !GENERIC_NAME_RE.test(p.name.trim()))
         .slice(0, 15)
-        .map((p, i) => {
-          const nameNorm = this.foldName(p.name);
-          return {
-            name: p.name.trim().slice(0, 120),
-            rank: typeof p.rank === 'number' ? p.rank : i + 1,
-            isBrand: nameNorm.includes(brandNorm) || brandNorm.includes(nameNorm),
-          };
-        });
+        .map((p, i) => ({
+          name: p.name.trim().slice(0, 120),
+          rank: typeof p.rank === 'number' ? p.rank : i + 1,
+          isBrand: this.isBrandProduct(p.name, matcher),
+        }));
     } catch (err: any) {
       this.log.warn(`Product extract fail: ${err.message}`);
       return [];
     }
+  }
+
+  /**
+   * Cikarilan urun adi bizim marka mi? Marka urun adinda kelime sinirli gecmeli
+   * ("Kobipratik", "Kobipratik.com") ya da adlar bosluksuz esit olmali
+   * ("Kobi Pratik"). Ters yon (urun adi markanin icinde: "Kobi") ve bos ad
+   * marka SAYILMAZ. Jenerik + alan adindan turetilmis markada yalniz alan adi.
+   */
+  isBrandProduct(name: string, matcher: BrandMatcher): boolean {
+    if (matcher.inText(name)) return true;
+    if (matcher.mode === 'domain') return false;
+    const compact = (s: string) => this.foldName(s).replace(/ /g, '');
+    const n = compact(name);
+    return n.length >= 4 && n === compact(matcher.brand);
+  }
+
+  private hostOf(url: string): string {
+    try { return new URL(url).hostname.replace(/^www\./, '').toLowerCase(); }
+    catch { return ''; }
   }
 
   /**

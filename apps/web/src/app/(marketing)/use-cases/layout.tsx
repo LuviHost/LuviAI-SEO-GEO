@@ -4,11 +4,12 @@ const SITE_URL = 'https://ranksup.ai';
 
 export const metadata: Metadata = {
   title: 'Kullanım Senaryoları — KOBİ, e-ticaret, ajans için AI otomasyon',
-  description: 'KOBİ, e-ticaret, dijital ajans, freelancer, blog yazarı için RanksUp nasıl kullanılır — gerçek senaryolar, beklenen sonuçlar, ROI tahmini.',
+  // Sayfada ROI tahmini ya da 'beklenen sonuc' yok — metadata yalniz sayfadakini anlatir.
+  description: 'E-ticaret, SaaS, ajans, blog, kurumsal ve hosting siteleri için RanksUp nasıl kullanılır — sektöre göre örnek akışlar.',
   alternates: { canonical: `${SITE_URL}/use-cases` },
   openGraph: {
     title: 'RanksUp Kullanım Senaryoları',
-    description: 'KOBİ, e-ticaret, ajans ve freelancer için somut senaryolar.',
+    description: 'E-ticaret, SaaS, ajans, blog, kurumsal ve hosting siteleri için örnek akışlar.',
     url: `${SITE_URL}/use-cases`,
   },
 };

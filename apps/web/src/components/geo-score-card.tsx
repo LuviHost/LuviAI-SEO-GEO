@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { Award, Check, X, AlertTriangle, RefreshCw, ChevronDown } from 'lucide-react';
+import { Award, Check, X, Info, AlertTriangle, RefreshCw, ChevronDown } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { api } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
@@ -119,10 +119,17 @@ export function GeoScoreCard({ siteId }: { siteId: string }) {
                 <ul className="space-y-1 text-label font-normal">
                   {p.checks.map((c: any) => (
                     <li key={c.id} className="flex items-start gap-1.5">
-                      {c.ok ? <Check className="h-3 w-3 text-success mt-0.5 shrink-0" aria-label="tamam" /> :
+                      {/*
+                        unverified: denetim dosyayi OKUYAMADI (erisim engeli / sunucu hatasi —
+                        geo-score-card.service.ts). Kirmizi X ve "eksik" yalan olurdu: dosya var
+                        olabilir, biz goremedik. Notr ikon + "dogrulanamadi" + API'nin nedeni.
+                      */}
+                      {c.unverified ? <Info className="h-3 w-3 text-muted-foreground mt-0.5 shrink-0" aria-label="doğrulanamadı" /> :
+                       c.ok ? <Check className="h-3 w-3 text-success mt-0.5 shrink-0" aria-label="tamam" /> :
                               <X className="h-3 w-3 text-danger mt-0.5 shrink-0" aria-label="eksik" />}
                       <div className="flex-1 min-w-0">
                         <span className="font-medium">{c.name}</span>
+                        {c.unverified && <span className="text-muted-foreground font-semibold"> · doğrulanamadı</span>}
                         <span className="text-muted-foreground"> — {c.detail}</span>
                       </div>
                     </li>

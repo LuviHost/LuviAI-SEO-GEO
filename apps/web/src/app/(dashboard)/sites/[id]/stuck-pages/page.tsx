@@ -1,12 +1,11 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { useSiteContext } from '../site-context';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { InfoTooltip } from '@/components/info-tooltip';
 import { PlanLockedCard } from '@/components/plan-locked-card';
 import { api } from '@/lib/api';
@@ -23,7 +22,6 @@ import {
   AlertTriangle,
   CheckCircle2,
   Loader2,
-  ChevronDown,
   X,
   Lightbulb,
   Send,
@@ -33,6 +31,13 @@ import { SectionHeader } from '@/components/ui/section-header';
 import { Skeleton } from '@/components/ui/skeleton';
 import { siteHref } from '@/lib/site-routes';
 import { formatNum, formatPct } from '@/lib/format';
+import {
+  batchRecoveryNotice, pageOutcomeNote, pruneBatchSelection, queuedBatchNotice, queuedBatchSettledNotice,
+  queuedPageBaseline, readBatchResponse, readStuckBatchStore, sharedPollBudget, stuckBatchStoreKey, stuckBatchWatcher,
+  stuckRecheckPages, stuckRecoveryCopy, stuckRecoveryKind, summarizeBatchRecovery, visiblePageOutcome, type BatchPageOutcome,
+  type QueuedPageBaseline, type StoredPageOutcome, type StoredQueuedPage, type StuckBatchWatcher, type TrackedQueuedPage,
+} from '@/lib/stuck-recovery';
+import { showNotice } from '@/lib/notice';
 
 type StuckPageRow = Awaited<ReturnType<typeof api.listStuckPages>>[number];
 
@@ -47,14 +52,17 @@ const STATUS_LABEL: Record<string, { text: string; cls: string }> = {
   IGNORED:    { text: 'Gözardı',       cls: NEUTRAL_CLS },
 };
 
-// Status icin hover hint (title attribute)
+// Status icin hover hint (title attribute). Gecisler api stuck-page-recovery.service.ts:
+// makale duzeltmesi once RECOVERING kalir, yeniden yayin basarilinca RECOVERED olur;
+// geri alma hemen REVERTED yazar, eski metin hicbir hedefe gidemezse geri alma geri alinir.
+// Etki iddiasi yalniz olculen sey: 30 gun sonraki otomatik olcum (STUCK_PAGE_PERFORMANCE_CHECK).
 function getStatusHint(status: string): string {
   switch (status) {
-    case 'DETECTED':   return 'AI henüz dokunmadı. AI Düzelt tıklayarak recovery başlatabilirsin.';
-    case 'RECOVERING': return 'AI şu an çalışıyor. ~30 saniye sürer.';
-    case 'RECOVERED':  return 'AI ile iyileştirildi ve yeniden yayınlandı. 24-48 saatte Google etkisi başlar, 30 gün sonra otomatik performans ölçümü.';
-    case 'FAILED':     return 'Recovery uygulanamadı. Sebep: içerik çok ince, LLM önerisi üretemedi VEYA external sayfa için publish target eksik.';
-    case 'REVERTED':   return 'AI iyileştirmesi geri alındı, sayfanın eski hali tekrar yayında.';
+    case 'DETECTED':   return 'Henüz uygulanmış bir düzeltme yok. RanksUp sayfalarında AI Düzelt ile başlatabilirsin.';
+    case 'RECOVERING': return 'Düzeltme hazırlanıyor ya da yazı yeniden yayınlanıyor. Yayın tamamlanınca sayfa “Düzeltildi” olur.';
+    case 'RECOVERED':  return 'AI ile iyileştirildi ve sitende yayına alındı. Etkisi 30 gün sonra otomatik ölçülür.';
+    case 'FAILED':     return 'Düzeltme tamamlanamadı: sayfa okunamadı ya da çok kısa, AI öneri üretemedi, önerilen cümleler sayfada bulunamadı, sayfa dosyası yazılamadı ya da yeniden yayın başarısız oldu (yayın hedefi hatası veya yayın öncesi kalite kontrolü).';
+    case 'REVERTED':   return 'AI iyileştirmesi geri alındı; yazının eski hali yeniden yayınlanır. Eski hal hiçbir yayın hedefine gönderilemezse geri alma iptal edilir ve sayfa yeniden “Düzeltildi” görünür.';
     case 'IGNORED':    return 'Bu sayfa "dokunma" işaretiyle gözardı edildi.';
     default: return '';
   }
@@ -83,9 +91,19 @@ function ScoreBadge({ score }: { score: number }) {
   );
 }
 
+// Kartta son eylemin sonucu — tonlar token'dan (lib/stuck-recovery.ts pageOutcomeNote)
+const OUTCOME_TONE_CLS: Record<'success' | 'info' | 'warning' | 'danger', string> = {
+  success: 'text-success',
+  info: 'text-info',
+  warning: 'text-warning',
+  danger: 'text-danger',
+};
+
 function StuckPageCard({
   page,
   busy,
+  queued,
+  outcome,
   onRecover,
   onIgnore,
   onRevert,
@@ -97,6 +115,10 @@ function StuckPageCard({
 }: {
   page: StuckPageRow;
   busy: boolean;
+  /** Toplu onarimla kuyruga alindi, sonucu bekleniyor */
+  queued: boolean;
+  /** Sayfanin son eyleminin sonucu (toplu onarim isi ya da tekil "AI Düzelt") */
+  outcome: BatchPageOutcome | null;
   onRecover: () => void;
   onIgnore: () => void;
   onRevert: (recoveryId: string) => void;
@@ -107,10 +129,23 @@ function StuckPageCard({
   selectable: boolean;
 }) {
   const lastRecovery = page.recoveries?.[0];
+  // Son kayit oneri mi, yayina giden duzeltme mi? Kayit bunu tasimaz; sayfa durumundan
+  // cikar (lib/stuck-recovery.ts). Oneri notu: bu onerinin API'deki kesin nedeni (is sonucu
+  // ya da "AI Duzelt" cevabi) biliniyorsa o, yoksa olasi nedenleri sayan notr metin — eski
+  // not her oneriye "yerinde güncelleyemiyor" diyordu, WordPress icin yanlisti (S22).
+  const recoveryKind = stuckRecoveryKind(page);
+  const isProposal = recoveryKind === 'proposal';
+  const copy = recoveryKind
+    ? stuckRecoveryCopy(recoveryKind, !!page.articleId, outcome?.kind === 'proposal' ? outcome.reason : null)
+    : null;
+  const outcomeNote = !queued && outcome ? pageOutcomeNote(outcome) : null;
+  const paragraph = lastRecovery?.paragraphAdded;
   const status = STATUS_LABEL[page.status] ?? STATUS_LABEL.DETECTED;
   const canRecover = page.status === 'DETECTED' || page.status === 'FAILED';
   const isRecovering = page.status === 'RECOVERING';
-  const canRevert = page.status === 'RECOVERED' && lastRecovery && !lastRecovery.revertedAt;
+  // Geri alma yalniz RanksUp makalesinde var (eski govde yeniden yayinlanir); RanksUp disi
+  // sayfanin dosyasini API geri yazmaz — dugme her seferinde hata verirdi
+  const canRevert = page.status === 'RECOVERED' && !!page.articleId && lastRecovery && !lastRecovery.revertedAt;
 
   return (
     <Card className={cn('transition-all', expanded && 'ring-2 ring-brand/30', selected && 'ring-2 ring-brand/50 bg-brand/[0.02]')}>
@@ -139,9 +174,17 @@ function StuckPageCard({
               {page.articleId === null && (
                 <span
                   className={cn('inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-xs font-medium', NEUTRAL_CLS)}
-                  title="Bu sayfa RanksUp ile değil, sitende elle yazılmış. Recovery için site'ne WordPress / FTP / SFTP / cPanel publish target bağlamalısın."
+                  title="Bu sayfa RanksUp ile değil, sitende elle yazılmış. Otomatik güncelleme yalnız FTP / SFTP / cPanel ile bağlı statik HTML sitelerde, sayfanın dosyası doğrulanınca yapılır. WordPress ve diğer içerik yönetim sistemlerinde sayfa otomatik yazılmaz; öneriler elle uygulanır."
                 >
                   <AlertTriangle className="h-3 w-3" /> RanksUp dışı
+                </span>
+              )}
+              {isProposal && (
+                <span
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-xs font-medium bg-info/10 text-info border-info/30"
+                  title="Değişiklik önerileri hazırlandı ama sitene yazılmadı. Detay'dan görüp sayfana elle uygula."
+                >
+                  <Lightbulb className="h-3 w-3" aria-hidden /> Öneri hazır
                 </span>
               )}
             </div>
@@ -149,6 +192,17 @@ function StuckPageCard({
             <a href={page.url} target="_blank" rel="noreferrer" className="text-xs text-muted-foreground hover:underline truncate block">
               {page.url}
             </a>
+            {queued && (
+              <p className="mt-1.5 inline-flex items-center gap-1.5 text-xs text-muted-foreground" role="status">
+                <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
+                Sırada: sonuç hazır olunca burada görünür.
+              </p>
+            )}
+            {outcomeNote && (
+              <p className={cn('mt-1.5 text-xs', OUTCOME_TONE_CLS[outcomeNote.tone])} role="status">
+                <span className="font-medium">Son deneme:</span> {outcomeNote.text}
+              </p>
+            )}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3 text-xs">
               <div>
                 <div className="text-muted-foreground inline-flex items-center gap-1">
@@ -174,7 +228,7 @@ function StuckPageCard({
               <div>
                 <div className="text-muted-foreground inline-flex items-center gap-1">
                   Tıklama
-                  <InfoTooltip text="Son 30 günde gerçek tıklama sayısı. AI ile recovery sonrası 24-48 saatte artış başlar, asıl etki 2-4 hafta sonra." />
+                  <InfoTooltip text="Son 30 günde gerçek tıklama sayısı (Search Console). Düzeltmenin etkisi 30 gün sonra otomatik ölçülür." />
                 </div>
                 <div className="font-semibold tabular-nums">{formatNum(page.clicks)}</div>
               </div>
@@ -199,7 +253,7 @@ function StuckPageCard({
             {canRecover && page.articleId && (
               <Button
                 onClick={onRecover} disabled={busy} size="sm" className="gap-1.5"
-                title="Cümle düzeyinde düzenleme, yaklaşık 30 saniye. Başlık, adres ve yapı korunur; yalnız eksik anahtar kelimeler doğal akışta eklenir."
+                title="Cümle düzeyinde düzenleme, yaklaşık 30 saniye. Başlık, adres ve yapı korunur; yalnız eksik anahtar kelimeler doğal akışta eklenir. RanksUp yazıyı takılı adreste güvenle güncelleyemezse (yazı sitende değiştirilmiş, kayıtlı adres takılı adresle eşleşmiyor ya da yayın hedefi yerinde güncellemeyi desteklemiyor) değişiklikler yalnız öneri olarak kaydedilir."
               >
                 {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
                 AI Düzelt
@@ -208,7 +262,7 @@ function StuckPageCard({
             {canRecover && !page.articleId && (
               <Link
                 href={siteHref(page.siteId, 'publishTargets') as any}
-                title="RanksUp dışı sayfaları kurtarmak için WordPress / FTP / SFTP / cPanel yayın hedefi bağlaman gerekir."
+                title="RanksUp dışı bir sayfanın otomatik güncellenmesi için statik HTML sitende FTP / SFTP / cPanel yayın hedefi gerekir. WordPress ve diğer içerik yönetim sistemlerinde sayfa otomatik yazılmaz."
                 className="inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-md text-xs font-medium border border-dashed border-brand/40 text-brand hover:bg-brand/10 transition-colors"
               >
                 <Send className="h-3.5 w-3.5" aria-hidden /> Yayın hedefi bağla
@@ -222,7 +276,7 @@ function StuckPageCard({
             {canRevert && (
               <Button
                 onClick={() => onRevert(lastRecovery!.id)} disabled={busy} size="sm" variant="outline" className="gap-1.5"
-                title="AI edit'leri sil, sayfanın recovery öncesi haline yeniden publish et."
+                title="Yazıyı düzeltme öncesi haline döndürür ve yayında olduğu hedeflerde yeniden yayınlar. Yalnız son düzeltme geri alınabilir."
               >
                 <Undo2 className="h-3.5 w-3.5" /> Geri Al
               </Button>
@@ -238,7 +292,7 @@ function StuckPageCard({
             {(page.recoveries?.length ?? 0) > 0 && (
               <Button
                 onClick={onToggle} size="sm" variant="ghost" className="gap-1.5"
-                title="Audit trail: hangi cümleler değişti, eklenen entity'ler, before/after — hepsi burada."
+                title="Son kayıt: önerilen ya da uygulanan cümle değişiklikleri, varlıklar, öncesi ve sonrası."
               >
                 <Eye className="h-3.5 w-3.5" /> {expanded ? 'Detay Kapat' : 'Detay'}
               </Button>
@@ -246,14 +300,25 @@ function StuckPageCard({
           </div>
         </div>
 
-        {expanded && lastRecovery && (
+        {expanded && lastRecovery && copy && (
           <div className="mt-4 pt-4 border-t space-y-3">
             <div className="flex items-center gap-2">
-              <CheckCircle2 className="h-4 w-4 text-success" aria-hidden />
-              <span className="text-sm font-medium">Son onarım — {new Date(lastRecovery.appliedAt).toLocaleString('tr-TR')}</span>
+              {recoveryKind === 'proposal'
+                ? <Lightbulb className="h-4 w-4 text-info" aria-hidden />
+                : recoveryKind === 'applied'
+                  ? <CheckCircle2 className="h-4 w-4 text-success" aria-hidden />
+                  : recoveryKind === 'pending'
+                    ? <RefreshCw className="h-4 w-4 text-info" aria-hidden />
+                    : <AlertTriangle className="h-4 w-4 text-warning" aria-hidden />}
+              <span className="text-sm font-medium">
+                {copy.heading} — {new Date(lastRecovery.appliedAt).toLocaleString('tr-TR')}
+              </span>
             </div>
+            {copy.note && (
+              <p className="text-xs text-muted-foreground">{copy.note}</p>
+            )}
             <div className="text-xs">
-              <span className="text-muted-foreground">Eklenen varlıklar:</span>{' '}
+              <span className="text-muted-foreground">{copy.entitiesLabel}</span>{' '}
               {Array.isArray(lastRecovery.entitiesAdded) && lastRecovery.entitiesAdded.length > 0 ? (
                 lastRecovery.entitiesAdded.map((e: string) => (
                   <span key={e} className="inline-block ml-1 px-1.5 py-0.5 rounded bg-success/10 text-success text-label">
@@ -266,7 +331,9 @@ function StuckPageCard({
             </div>
             {Array.isArray(lastRecovery.edits) && lastRecovery.edits.length > 0 && (
               <div className="space-y-2">
-                <div className="text-xs font-medium">Uygulanan değişiklikler ({lastRecovery.edits.length}):</div>
+                <div className="text-xs font-medium">
+                  {copy.editsLabel} ({lastRecovery.edits.length}):
+                </div>
                 <div className="space-y-2 max-h-72 overflow-y-auto pr-1">
                   {lastRecovery.edits.map((e: any, i: number) => (
                     <div key={i} className="rounded-lg border bg-muted/30 p-3 text-xs">
@@ -276,6 +343,12 @@ function StuckPageCard({
                     </div>
                   ))}
                 </div>
+              </div>
+            )}
+            {paragraph && (
+              <div className="space-y-1 text-xs">
+                <div className="font-medium">{copy.paragraphLabel}</div>
+                <div className="rounded-lg border bg-muted/30 p-3 text-success">+ {paragraph}</div>
               </div>
             )}
             {lastRecovery.revertedAt && (
@@ -305,12 +378,14 @@ const GUIDE_STEPS = [
   {
     icon: Send,
     title: 'Etki ne zaman?',
-    body: 'Düzeltmeden yaklaşık 30 saniye sonra sayfa güncellenir. Google 24–48 saatte yeniden tarar; 30 gün sonra etki otomatik ölçülür.',
+    // Yayin ikinci asamada (api stuck-page-recovery.service.ts republish); dogrulanmamis
+    // "Google 24-48 saatte tarar" iddiasi yerine olculen tek sey: 30 gunluk otomatik olcum
+    body: 'Düzeltilen yazı yayın sırasına alınır; yayında olduğu hedefte yerinde güncellenince sayfa “Düzeltildi” olur. RanksUp yazıyı takılı adreste güvenle güncelleyemezse (örneğin yazı sitende değiştirilmişse ya da kayıtlı adres takılı adresle eşleşmiyorsa) değişiklikler öneri olarak kaydedilir. Etkisi 30 gün sonra otomatik ölçülür.',
   },
   {
     icon: AlertTriangle,
     title: '"RanksUp dışı" rozeti?',
-    body: 'Bu sayfa RanksUp ile yazılmamış. Düzeltebilmemiz için WordPress, FTP, SFTP ya da cPanel yayın hedefi bağlı olmalı.',
+    body: 'Bu sayfa RanksUp ile yazılmamış. Otomatik güncelleme yalnız FTP, SFTP ya da cPanel ile bağlı statik HTML sitelerde, sayfanın dosyası doğrulandığında yapılır. WordPress ve diğer içerik yönetim sistemlerinde sayfa otomatik yazılmaz; öneriler sayfaya elle uygulanır.',
   },
 ];
 
@@ -341,19 +416,41 @@ export default function StuckPagesPage() {
     try { window.localStorage.removeItem('luviai_stuck_guide_dismissed'); } catch {/* noop */}
   };
   const [bulkBusy, setBulkBusy] = useState(false);
+  // Toplu onarimla kuyruga alinip sonucu beklenen sayfalar (lib/stuck-recovery.ts C4/D4):
+  // kartlari mesgul, secilemez; her sayfa kendi sonucu gelince (is kaydi ya da liste)
+  // serbest kalir. Tarayicida da tutulur: sayfa yenilenince kart "sırada" kalir, yoklama surer.
+  const [tracked, setTracked] = useState<Record<string, StoredQueuedPage>>({});
+  const queuedIds = useMemo(() => new Set(Object.keys(tracked)), [tracked]);
+  // Sayfanin son eyleminin sonucu (toplu ya da tekil) — kartta kisa not, oneride kesin neden
+  const [outcomes, setOutcomes] = useState<Record<string, StoredPageOutcome>>({});
+  // Depo bu site icin okundu mu (okunmadan yazilirsa onceki kayit silinirdi)
+  const storeSite = useRef<string | null>(null);
+  // Gosterilen site: baska siteye gecilince onceki sitenin yoklamasi durur
+  const siteRef = useRef(site.id);
+  siteRef.current = site.id;
+  // Sayfadan cikilinca yoklama dursun, gec gelen sonuc state yazmasin
+  const alive = useRef(true);
+  useEffect(() => {
+    alive.current = true;
+    return () => { alive.current = false; };
+  }, []);
 
   const { can, requirementFor } = useEntitlements();
   const allowed = can('stuckPages');
 
-  const refresh = useCallback(async () => {
-    setLoading(true);
+  // Tazelenen satirlar doner (toplu onarim sonucu bu durumlarla siniflanir); okunamazsa null.
+  // silent: yoklama — iskelet gosterilmez, hata bildirimi atilmaz (bir sonraki turda yeniden denenir)
+  const refresh = useCallback(async (opts: { silent?: boolean } = {}): Promise<StuckPageRow[] | null> => {
+    if (!opts.silent) setLoading(true);
     try {
       const data = await api.listStuckPages(site.id);
-      setRows(data);
+      if (alive.current) setRows(data);
+      return data;
     } catch (err: any) {
-      toast.error(err.message || 'Liste alınamadı');
+      if (!opts.silent) toast.error(err.message || 'Liste alınamadı');
+      return null;
     } finally {
-      setLoading(false);
+      if (!opts.silent && alive.current) setLoading(false);
     }
   }, [site.id]);
 
@@ -362,6 +459,111 @@ export default function StuckPagesPage() {
     if (allowed !== true) return;
     refresh();
   }, [refresh, allowed]);
+
+  /**
+   * Sayfanin son eyleminin sonucunu yazar; status sonucun ait oldugu sayfa durumu, extra.recoveryId
+   * sonucun ait oldugu son kurtarma kaydi (undefined: bilinmiyor, kart denetlemez). Sure dolup
+   * 'unknown' kalan sayfanin is kimligi de saklanir: sayfa yenilenince is kaydi yeniden okunur.
+   */
+  const recordOutcome = useCallback((
+    id: string,
+    outcome: BatchPageOutcome,
+    status: string | null,
+    extra: { recoveryId?: string | null; jobId?: string | null; base?: QueuedPageBaseline; recheck?: boolean } = {},
+  ) => {
+    setOutcomes((prev) => {
+      // Yenileme okumasi isi hala bitmemis buldu: onceki 'unknown' kaydi ilk zamaniyla kalir
+      // (her yenileme 2 saatlik sureyi uzatmasin)
+      if (extra.recheck && outcome.kind === 'unknown') return prev;
+      const kayit: StoredPageOutcome = { outcome, status, at: Date.now() };
+      if (extra.recoveryId !== undefined) kayit.recoveryId = extra.recoveryId;
+      if (outcome.kind === 'unknown' && extra.jobId && extra.base) {
+        kayit.jobId = extra.jobId;
+        kayit.base = extra.base;
+      }
+      return { ...prev, [id]: kayit };
+    });
+  }, []);
+
+  // Site basina TEK yoklayici (lib/stuck-recovery.ts stuckBatchWatcher). NEDEN: her gonderim ve
+  // her sayfa yenileme kendi dongusunu kendi istek butcesiyle calistiriyordu; iki gonderim +
+  // ikinci sekme dakikada ~70 istek atiyor, API'nin dakikada 60 siniri kullanicinin kendi
+  // isteklerine 429 donduruyordu (S13 yan etkisi). Yeni gonderim calisan donguye katilir;
+  // sekmeler arasi tavan localStorage'daki paylasilan butceyle (sharedPollBudget).
+  const watcherRef = useRef<{ siteId: string; w: StuckBatchWatcher } | null>(null);
+
+  /**
+   * Kuyruktaki sayfalarin sonucunu okur: her sayfa sonucu gelince serbest kalir ve kartinda
+   * sonucu (atlandiysa nedeni) gorunur; hicbiri beklemeyince ozet bildirilir. Eskiden atlanan
+   * tek bir sayfa butun secimi 15 dk mesgul tutuyor, ozet hic gelmiyordu (S13).
+   */
+  const watchQueued = useCallback((pages: TrackedQueuedPage[]) => {
+    if (pages.length === 0) return;
+    let izleyici = watcherRef.current;
+    if (!izleyici || izleyici.siteId !== site.id) {
+      const siteId = site.id;
+      // Yerine yenisi kurulan yoklayicinin dongusu de durur (A → B → A gecisinde iki dongu olmasin)
+      const gecerli = (): boolean => alive.current && siteRef.current === siteId && watcherRef.current?.w === w;
+      let depo: Storage | null = null;
+      try {
+        depo = window.localStorage;
+      } catch {
+        depo = null;
+      }
+      const w = stuckBatchWatcher({
+        load: () => refresh({ silent: true }),
+        getJob: (jobId) => api.getJob(jobId),
+        isAlive: gecerli,
+        budget: sharedPollBudget(depo),
+        onSettle: (id, outcome, status, info) => {
+          if (!gecerli()) return;
+          setTracked((prev) => {
+            if (!(id in prev)) return prev;
+            const next = { ...prev };
+            delete next[id];
+            return next;
+          });
+          recordOutcome(id, outcome, status, info);
+        },
+        onAllSettled: (all) => {
+          if (gecerli()) showNotice(queuedBatchSettledNotice(all.values()));
+        },
+      });
+      izleyici = { siteId, w };
+      watcherRef.current = izleyici;
+    }
+    izleyici.w.add(pages);
+  }, [site.id, refresh, recordOutcome]);
+
+  // Sayfa yenilendiyse: sirada bekleyen sayfalar ve son sonuclar tarayicidan geri gelir,
+  // bekleyenlerin yoklamasi surer. Suresi dolup "Sonuç henüz gelmedi" kalan sayfalarin is
+  // kaydi bir kez yeniden okunur — kart notunun "yenileyince güncel durumu görürsün" sozu
+  // budur; eskiden yenileme isi hic okumuyordu (S13 yan etkisi). Depolama yoksa (gizli
+  // pencere, engelli site verisi) liste sunucudaki durumla calisir; API ayni sayfaya ikinci
+  // isi zaten reddeder (D4).
+  useEffect(() => {
+    if (allowed !== true || storeSite.current === site.id) return;
+    storeSite.current = site.id;
+    let store;
+    try {
+      store = readStuckBatchStore(window.localStorage.getItem(stuckBatchStoreKey(site.id)), Date.now());
+    } catch {
+      return;
+    }
+    setOutcomes(store.outcomes);
+    setTracked(Object.fromEntries(store.pages.map((p) => [p.id, p])));
+    watchQueued([...store.pages, ...stuckRecheckPages(store.outcomes, store.pages)]);
+  }, [allowed, site.id, watchQueued]);
+
+  useEffect(() => {
+    if (storeSite.current !== site.id) return;
+    try {
+      const key = stuckBatchStoreKey(site.id);
+      const pages = Object.values(tracked);
+      if (pages.length === 0 && Object.keys(outcomes).length === 0) window.localStorage.removeItem(key);
+      else window.localStorage.setItem(key, JSON.stringify({ pages, outcomes }));
+    } catch {/* depolama yok — yalniz bu oturum */}
+  }, [tracked, outcomes, site.id]);
 
   const handleDetect = async () => {
     setDetecting(true);
@@ -390,16 +592,49 @@ export default function StuckPagesPage() {
 
   const handleRecover = async (id: string) => {
     setBusy(id, true);
+    // RanksUp makalesi yeniden yayin isiyle, RanksUp disi sayfa dogrulanmis statik
+    // dosyaya dogrudan yazilarak duzelir (yayin isi yok) — basari metni buna gore
+    const isArticle = !!rows.find((row) => row.id === id)?.articleId;
     try {
       const r = await api.recoverStuckPage(site.id, id);
+      let outcome: BatchPageOutcome;
       if (r.success) {
-        toast.success(`Düzeltildi: ${r.editsCount} değişiklik uygulandı. Re-publish kuyruğa alındı.`);
+        // Makalede sayfa yeniden yayin basarilinca "Duzeltildi" olur (o ana kadar RECOVERING)
+        toast.success(isArticle
+          ? `${r.editsCount} değişiklik yazıya uygulandı; yeniden yayın kuyruğa alındı. Yayın tamamlanınca sayfa “Düzeltildi” olur.`
+          : `Düzeltildi: ${r.editsCount} değişiklik sayfa dosyasına yazıldı.`);
+        outcome = isArticle ? { kind: 'republishing' } : { kind: 'recovered' };
+      } else if (r.manual) {
+        // Sitede hicbir sey degismedi, oneri kaydedildi: RanksUp disi sayfa otomatik
+        // yazilamadi ya da makale yazisi takili adreste guvenle guncellenemedi (neden API
+        // metninde; api stuck-page-*-recovery.service.ts). Basarisizlik degil; "Tespit edildi"de.
+        toast.message('Öneri kaydedildi; elle uygula', { description: r.reason });
+        outcome = { kind: 'proposal', reason: r.reason?.trim() || null };
+      } else if (r.skipped) {
+        // Sayfa bu istekte islenmedi, hicbir sey degismedi (or. zaten isleniyor ya da
+        // duzeltildi): API'nin Turkce nedeni oldugu gibi (sozlesme C5) — "basarisiz" degil
+        toast.message(r.reason || 'Bu sayfa şu an işlenmedi; hiçbir şey değişmedi.');
+        outcome = { kind: 'skipped', reason: r.reason?.trim() || 'Bu sayfa şu an işlenmedi; hiçbir şey değişmedi.' };
       } else {
         toast.error(`Düzeltme başarısız: ${r.reason ?? 'bilinmiyor'}`);
+        outcome = { kind: 'failed', reason: r.reason?.trim() || null };
       }
-      await refresh();
+      const after = await refresh();
+      const satir = after?.find((row) => row.id === id);
+      // Kartta da kalsin: oneride kesin neden Detay notunda (toast kaybolunca da gorunur). Not
+      // kendi kaydina baglanir: oneri / uygulama API'nin actigi kayda (r.recoveryId), digerleri
+      // listedeki son kayda; baska cihazdan sonraki yeni oneri bu notla gosterilmez (S22).
+      // Liste okunamadiysa son kayit bilinmiyor (undefined): kart denetlemez.
+      const kendiKaydi = outcome.kind === 'proposal' || outcome.kind === 'republishing' || outcome.kind === 'recovered'
+        ? r.recoveryId ?? undefined
+        : undefined;
+      const listedeki = after ? satir?.recoveries?.[0]?.id ?? null : undefined;
+      recordOutcome(id, outcome, satir?.status ?? null, { recoveryId: kendiKaydi ?? listedeki });
     } catch (err: any) {
       toast.error(err.message || 'Onarım başarısız');
+      // Istek zaman asimina ugradiysa sunucu onarimi yine de surduruyor olabilir: kart
+      // durumu tazelenir (RECOVERING gorunur), kor yeniden deneme davet edilmez
+      void refresh({ silent: true });
     } finally {
       setBusy(id, false);
     }
@@ -433,24 +668,72 @@ export default function StuckPagesPage() {
 
   const clearSelection = () => setSelectedIds(new Set());
 
+  /**
+   * Toplu onarim KUYRUGA alinir (sozlesme C4/D4): uc her uygun sayfa icin bir is acip hemen
+   * doner, duzeltme arka planda calisir. Eskiden tum LLM onarimlari tek istekte sirayla
+   * calisiyordu; ~100 sn'lik vekil siniri istegi kesiyor, panel "tekrar dene" derken
+   * sunucu duzenlemeye devam ediyordu. Kuyruga alinmayan sayfanin nedeni HEMEN kartinda;
+   * kuyruktaki her sayfanin sonucu is kaydindan (jobId) ve listeden okunur (watchQueued).
+   */
   const handleBulkRecover = async () => {
     if (selectedIds.size === 0) return;
+    const ids = Array.from(selectedIds);
+    // Kuyruga alindigi andaki durum: sonuc bundan ayrisinca okunur (yeni kayit, durum)
+    const before = new Map(rows.map((row) => [row.id, row]));
     setBulkBusy(true);
     try {
-      const result = await api.recoverStuckPagesBatch(site.id, Array.from(selectedIds));
-      const okCount = result.results.filter((r) => r.ok).length;
-      const failCount = result.results.length - okCount;
-      if (failCount === 0) {
-        toast.success(`Toplu onarım: ${okCount} sayfa düzeltildi`);
-      } else {
-        toast.warning(`${okCount} başarılı, ${failCount} başarısız — detay için sayfayı yenile`);
-      }
+      const raw = await api.recoverStuckPagesBatch(site.id, ids);
       clearSelection();
-      await refresh();
+      const view = readBatchResponse(raw);
+      if (view.kind === 'legacy') {
+        // Eski (senkron) API — dagitim aninda: sonuc tazelenen durumlarla, ozet sunucudan (K1)
+        const after = await refresh();
+        const statusOf = new Map((after ?? []).map((row) => [row.id, row.status]));
+        showNotice(batchRecoveryNotice(summarizeBatchRecovery(view.results, (id) => statusOf.get(id), view.summary)));
+        return;
+      }
+      showNotice(queuedBatchNotice(view));
+      const t = Date.now();
+      // Kuyruga alinmayan sayfalar (D4: is kosarken atlanacagi belli olan, durumu uygun
+      // olmayan, sinir ustu, kuyruga yazilamayan): API nedeni hemen kartinda. Zaten sirada
+      // olan sayfa (bekleyen isin kimligiyle doner) "islenmedi" degil: o is izlenir.
+      const alinmayan = view.rows.filter((r) => !r.queued && !r.alreadyQueued && r.id);
+      if (alinmayan.length > 0) {
+        setOutcomes((prev) => ({
+          ...prev,
+          ...Object.fromEntries(alinmayan.map((r): [string, StoredPageOutcome] => [r.id, {
+            outcome: { kind: 'notProcessed', reason: r.message },
+            status: before.get(r.id)?.status ?? null,
+            at: t,
+            // Not o anki son kayda bagli: sonradan acilan kayit (baska cihazdan oneri) notu eskitir
+            recoveryId: before.get(r.id)?.recoveries?.[0]?.id ?? null,
+          }])),
+        }));
+      }
+      const pages: StoredQueuedPage[] = view.rows
+        .filter((r) => (r.queued || r.alreadyQueued) && r.id && !(r.id in tracked))
+        .map((r) => ({ id: r.id, jobId: r.jobId, base: queuedPageBaseline(r.id, before.get(r.id)), queuedAt: t }));
+      if (pages.length === 0) {
+        await refresh({ silent: true });
+        return;
+      }
+      setTracked((prev) => ({ ...prev, ...Object.fromEntries(pages.map((p) => [p.id, p])) }));
+      // Yeni is basladi: onceki denemenin notu kalkar
+      setOutcomes((prev) => {
+        const next = { ...prev };
+        for (const p of pages) delete next[p.id];
+        return next;
+      });
+      watchQueued(pages);
     } catch (err: any) {
-      toast.error(err.message || 'Toplu onarım başarısız');
+      toast.error(err.message || 'Toplu onarım başlatılamadı');
+      // Istek zaman asimina ugradiysa sunucu isleri yine de almis olabilir: liste tazelenir,
+      // artik uygun olmayan (isleniyor / duzeltildi) sayfalar secimden cikar — kor yeniden
+      // deneme ayni yazilari ikinci kez duzenlemesin
+      const after = await refresh({ silent: true });
+      if (after && alive.current) setSelectedIds((prev) => pruneBatchSelection(prev, after));
     } finally {
-      setBulkBusy(false);
+      if (alive.current) setBulkBusy(false);
     }
   };
 
@@ -458,7 +741,9 @@ export default function StuckPagesPage() {
     setBusy(stuckPageId, true);
     try {
       await api.revertStuckPageRecovery(site.id, recoveryId);
-      toast.success('Onarım geri alındı, eski hali yeniden yayınlanıyor');
+      // API eski metni geri yukleyip yeniden yayini kuyruga atar; yayin hicbir hedefe
+      // gidemezse geri almayi geri alir (stuck-page-recovery.service.ts republishFailed)
+      toast.success('Onarım geri alındı; yazının eski hali yeniden yayın sırasına alındı.');
       await refresh();
     } catch (err: any) {
       toast.error(err.message || 'Geri alma başarısız');
@@ -583,19 +868,22 @@ export default function StuckPagesPage() {
           tooltip="Algılanan tüm takılı sayfalar — tespit, düzeltildi, başarısız ve gözardı toplamı."
           value={counts.total} active={filter === 'all'} onClick={() => setFilter('all')}
         />
+        {/* Otomatik kurtarma: haftalik tarama, yalniz akis acik + Tam otomatik, yalniz
+            yayin hedefi yaziyi yerinde guncelleyebilen RanksUp makalesi, site basina en
+            fazla 5 (api audit/stuck-page-autopilot.ts runStuckPageSweep) */}
         <KpiCard
           label="Tespit"
-          tooltip="AI henüz dokunmadı. 'AI Düzelt' tıklayarak recovery başlatabilirsin. Auto-Pilot ON ise her hafta otomatik düzeltilir."
+          tooltip={'Henüz uygulanmış bir düzeltme yok. Otomatik akış açık ve Tam otomatik moddaysa RanksUp ile yazılmış sayfalar her hafta otomatik düzeltilip yeniden yayınlanır (yalnız yayında olduğu hedefte yerinde güncellenebilen yazılar, site başına en fazla 5 sayfa); Yarı otomatikte "AI Düzelt" ile sen başlatırsın. Otomatik yazılamayan sayfalar için hazırlanan öneriler de burada, Detay\'da durur.'}
           value={counts.detected} active={filter === 'DETECTED'} onClick={() => setFilter('DETECTED')} accent="warning"
         />
         <KpiCard
           label="Düzeltildi"
-          tooltip="AI ile cümle-seviye iyileştirme uygulandı. 24-48 saat sonra Google ranking'i yansır. 30 gün sonra otomatik performans ölçümü yapılır."
+          tooltip="AI ile cümle düzeyinde iyileştirme uygulandı ve sayfa sitende güncellendi. Etkisi 30 gün sonra otomatik ölçülür."
           value={counts.recovered} active={filter === 'RECOVERED'} onClick={() => setFilter('RECOVERED')} accent="success"
         />
         <KpiCard
           label="Başarısız"
-          tooltip="Recovery uygulanamadı. Genelde 2 sebep: (1) içerik çok ince, AI tamir önerisi üretemedi (2) external sayfa için uygun publish target (WP/FTP/SFTP/cPanel) bağlı değil."
+          tooltip="Düzeltme tamamlanamadı: sayfa okunamadı ya da çok kısa, AI öneri üretemedi, önerilen cümleler sayfada bulunamadı, sayfa dosyası yazılamadı ya da yeniden yayın başarısız oldu. Sitede değişiklik yapılamadığı için hazırlanan öneriler başarısız sayılmaz; 'Tespit' altında, Detay'da durur."
           value={counts.failed} active={filter === 'FAILED'} onClick={() => setFilter('FAILED')} accent="danger"
         />
         <KpiCard
@@ -612,7 +900,7 @@ export default function StuckPagesPage() {
             <div className="text-sm flex-1 min-w-0 inline-flex items-center gap-1.5">
               <span className="font-semibold">{selectedIds.size}</span>{' '}
               sayfa seçili
-              <InfoTooltip text="Sadece DETECTED durumdaki + RanksUp içi sayfalar bulk seçilebilir. External (RanksUp dışı) sayfalar publish target gerektirdiği için tek tek elle yapılmalı." />
+              <InfoTooltip text="Toplu düzeltmeye yalnız 'Tespit edildi' durumundaki RanksUp sayfaları alınır; RanksUp dışı sayfalar toplu düzeltilmez. Sıraya alınan sayfalar arka planda sırayla işlenir; her sayfanın sonucu hazır olunca kartında görünür. Sırada bekleyen bir sayfa yeniden sıraya alınmaz." />
               {selectedIds.size > 0 && (
                 <button type="button" onClick={clearSelection} className="ml-2 text-xs text-muted-foreground hover:text-foreground underline">
                   temizle
@@ -623,9 +911,9 @@ export default function StuckPagesPage() {
               size="sm"
               variant="outline"
               onClick={() => selectAllVisible(
-                filteredRows.filter((r) => r.status === 'DETECTED' && r.articleId).map((r) => r.id),
+                filteredRows.filter((r) => r.status === 'DETECTED' && r.articleId && !queuedIds.has(r.id)).map((r) => r.id),
               )}
-              title="Görünür listedeki tüm DETECTED + RanksUp içi sayfaları seç (filter aktifse sadece filtreli olanlar)"
+              title="Görünür listedeki tüm DETECTED + RanksUp içi sayfaları seç (filter aktifse sadece filtreli olanlar; sıradaki sayfalar hariç)"
             >
               Tümünü seç (DETECTED)
             </Button>
@@ -634,13 +922,20 @@ export default function StuckPagesPage() {
               onClick={handleBulkRecover}
               disabled={selectedIds.size === 0 || bulkBusy}
               className="gap-1.5"
-              title={`Seçili ${selectedIds.size} sayfa için AI Düzelt'i sırayla çalıştır. Her biri ~30 sn, toplam yaklaşık ${Math.max(1, selectedIds.size * 30)} sn.`}
+              title={`Seçili ${selectedIds.size} sayfa sıraya alınır; her biri arka planda yaklaşık 30 sn sürer. Sonuçlar hazır olunca listede görünür.`}
             >
               {bulkBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
               Seçilenleri AI ile Düzelt ({selectedIds.size})
             </Button>
           </CardContent>
         </Card>
+      )}
+
+      {queuedIds.size > 0 && (
+        <p className="inline-flex items-center gap-1.5 text-xs text-muted-foreground" role="status">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+          {queuedIds.size} sayfa sırada; her sayfanın sonucu hazır olunca kartında görünür.
+        </p>
       )}
 
       {loading ? (
@@ -687,10 +982,12 @@ export default function StuckPagesPage() {
             <StuckPageCard
               key={row.id}
               page={row}
-              busy={busyIds.has(row.id)}
+              busy={busyIds.has(row.id) || queuedIds.has(row.id)}
+              queued={queuedIds.has(row.id)}
+              outcome={visiblePageOutcome(outcomes[row.id], row.status, row.recoveries?.[0]?.id ?? null)}
               expanded={expandedIds.has(row.id)}
               selected={selectedIds.has(row.id)}
-              selectable={row.status === 'DETECTED' && !!row.articleId}
+              selectable={row.status === 'DETECTED' && !!row.articleId && !queuedIds.has(row.id)}
               onSelect={() => toggleSelected(row.id)}
               onToggle={() => toggleExpand(row.id)}
               onRecover={() => handleRecover(row.id)}

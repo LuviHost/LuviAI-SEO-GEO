@@ -3,75 +3,117 @@ import { HelpArticle, Step, Tip } from '@/components/help-article';
 
 export const metadata = { title: 'Auto-Pilot — RanksUp Help' };
 
+// Metin kodla dogrulandi (Ekim 2026):
+//  - ASA Auto-Pilot: asa.cron.ts 04:30 UTC, asa-rules.ts (7 gun, 20+ dokunma,
+//    0 indirme → durdur), asa.service.ts (en fazla 5 yeni kelime, butce siniri).
+//  - ASC: asc.cron.ts 05:30 UTC uygulama + surum senkronu ve uyarilar; yorumlar
+//    cron'la CEKILMEZ (runDailySyncAll yalniz syncApps + syncReleases).
+//  - AI gorunurluk: gunluk otomatik olcum KAPALI (AI_CITATION_DAILY_CRON);
+//    otomatik akis acikken yalniz site eklenirken bir baslangic olcumu alinir
+//    (worker ONBOARDING_CHAIN, trigger 'system'). Eski "her gece snapshot"
+//    bolumu yanlisti.
+//  - Butce uyarisi quota.service.ts checkAiCostBudget: %80 uyari, %100 sinir.
+//  - Site akisi (18.10.2026, api article-scheduler.service.ts):
+//    * Ilk takvim: worker ONBOARDING_CHAIN scheduleInitialBatch(count: akis
+//      acik 8 / kapali 3) konu motorunun Tier 1 listesinden ALIR; ranker istemi
+//      Tier 1'i en fazla 6 konuyla sinirliyor, bu yuzden "en fazla". Ilk yazi
+//      hemen kuyruga girer, kalanlar SCHEDULED.
+//    * Kalanlari saatlik tarama (PROCESS_SCHEDULED, 60 dk) yalniz akis acikken
+//      ve articlesUsedThisMonth < plans.ts articlesPerMonth ise alir. Sayaci
+//      yalniz kullanicinin kendi baslattigi uretimler artirir (Uret, Simdi uret,
+//      MCP create_article, icerik firsati); takvim uretimi artirmaz. Eski
+//      "deneme hesabinda plan secilene kadar bekler" kodda yoktu.
+//    * "15 dk once" yalniz gecikmeli iste dogru: scheduleTopic (Takvime ekle)
+//      ve rescheduleArticle (tarih ata / tasi) LEAD_TIME_MS ile is kurar.
+//      Ilk takvim ve programatik SEO yazilari icin is kurulmaz; tarama esigi
+//      simdi + 15 dk oldugundan uretim slottan 15 dk once ile ~45 dk sonra
+//      arasinda kuyruga girer.
+//  - Yeniden yazim (content-pivot.service.ts, Pzt 02:30 UTC): PUBLISHED ve en az
+//    30 gunluk yazi, veri yalniz GSC senkronunun yazdigi performanceMetrics;
+//    kurallar gosterim > 500 ve CTR < %2, sira 4-15 ve gosterim > 100, sira > 30
+//    ve gosterim > 100. Kuyruga yalniz akis aciksa girer; onaysiz yayin yalniz
+//    Tam otomatikte (publish-approval.ts). Eski kosulsuz "30 gun sonra" yanlisti.
+//  - Takili sayfa otopilotu (audit/stuck-page-autopilot.ts, Pzt 06:00 UTC):
+//    Profesyonel+ (FEATURE_MIN_PLAN.stuckPages), GSC bagli (detector), akis
+//    acik + Tam otomatik; yalniz RanksUp makaleleri, site basina en fazla 5
+//    (STUCK_AUTO_RECOVER_PER_SITE); tespit sira 4-15, 30 gunde >= 50 gosterim.
 export default function Page() {
   return (
     <HelpArticle slug="auto-pilot"
       icon={Bot}
       badge="Otomasyon"
-      title="Sen uyurken AI çalışır"
-      intro="Auto-Pilot, manuel müdahaleye gerek kalmadan haftalık keyword ekler, düşük performanslı kampanyaları durdurur, AI Citation günlük takip eder, ranking düştüğünde alarm verir."
+      title="Otomatik akış ve Auto-Pilot"
+      intro="Otomatik akış site içeriğini takvime göre üretir ve yayına hazırlar; Apple Search Ads Auto-Pilot her gün düşük performanslı anahtar kelimeleri durdurur ve yenilerini ekler. AI görünürlük ölçümünü ise sen başlatırsın."
     >
-      <h2>3 farklı Auto-Pilot</h2>
+      <h2>3 farklı otomasyon</h2>
 
       <h3>1. ASA Auto-Pilot — Apple Search Ads</h3>
-      <p>Her ASA hesabı altında collapsible "Auto-Pilot" paneli. Açtığında günlük cron (04:30 UTC):</p>
+      <p>Profesyonel ve üstü planlarda, her Apple Search Ads hesabının altında &ldquo;Auto-Pilot&rdquo; paneli bulunur. Açtığında her gün 04:30 UTC&apos;de çalışır:</p>
       <ul>
-        <li>Son 7g'de 20+ tap aldı ama 0 install — keyword <strong>otomatik pause</strong></li>
-        <li>AI önerisinden mevcut'ta olmayan top 5 keyword <strong>otomatik ekle</strong></li>
-        <li>Aylık bütçe cap aşıldıysa <strong>SKIP</strong> (zarar önleme)</li>
+        <li>Son 7 günde 20 ya da daha fazla dokunma alıp hiç indirme getirmeyen anahtar kelime <strong>durdurulur</strong></li>
+        <li>AI önerisinden, hesapta henüz olmayan en fazla 5 anahtar kelime <strong>eklenir</strong></li>
+        <li>Bu ayki harcama bütçe sınırına ulaştıysa Auto-Pilot o gün <strong>hiçbir işlem yapmaz</strong></li>
       </ul>
 
       <Step n={1} title="ASA bağlı olmalı">
-        Önce ASA hesabını bağla (<a href="/help/asa-asc">ASA rehberi</a>).
+        Önce Apple Search Ads hesabını bağla (<a href="/help/asa-asc">ASA rehberi</a>).
       </Step>
       <Step n={2} title="Auto-Pilot panelini aç">
-        ASA tab'ında hesap satırı altında <strong>Auto-Pilot</strong> bölümü. Toggle ile açtığınızda:
+        ASA sekmesinde hesap satırının altındaki <strong>Auto-Pilot</strong> bölümünden açıp kapatırsın.
       </Step>
-      <Step n={3} title="Aylık bütçe cap ayarla">
-        Default $500/ay. Aşılırsa Auto-Pilot durur, mevcut kampanyalar çalışmaya devam eder.
+      <Step n={3} title="Aylık bütçe sınırını ayarla">
+        Alan aylık 500 (hesap para birimi) değeriyle gelir; değiştirebilirsin. Tutar Apple Ads hesabının para birimindedir: USD hesapta 500 USD, EUR hesapta 500 EUR. Sınıra ulaşılınca Auto-Pilot durur, ancak mevcut kampanyaların Apple&apos;da çalışmaya ve harcamaya devam eder.
       </Step>
-      <Step n={4} title="⚡ Şimdi çalıştır (test)">
-        Manuel tetik — Auto-Pilot tek seferlik çalışır, son çalışma sonucu kart altında görünür.
+      <Step n={4} title="Şimdi çalıştır (test)">
+        Elle tetikleme: Auto-Pilot bir kez çalışır, son çalışmanın sonucu kartın altında görünür.
       </Step>
 
-      <h3>2. AI Visibility Daily Snapshot</h3>
+      <h3>2. Site otomatik akışı</h3>
       <p>
-        Auto-Pilot ON sitelerde her gece AI Citation snapshot alınır. Her gün her provider için skor + brand mention sayısı kaydedilir.
-        Sonra Visibility sayfasındaki <strong>Citation History Chart</strong>'ta günden güne karşılaştırırsın.
+        Site menüsündeki <strong>Otomatik Akış</strong> sayfasından açıp durdurursun. Site eklediğinde açık başlar.
       </p>
-
-      <h3>3. ASC (App Store Connect) Cron</h3>
-      <p>05:30 UTC her gün — tüm ASC hesapları için:</p>
       <ul>
-        <li>App'leri sync</li>
-        <li>Release'leri çek</li>
-        <li>60g+ release yok → <strong>WARN</strong>, 120g+ → <strong>CRITICAL</strong> alert</li>
-        <li>Yorumlar çekilir (planlanmış)</li>
+        <li>Site eklenince konu motorunun öncelikli konuları takvime yerleşir (otomatik akış açıkken en fazla 8, kapalıyken en fazla 3) ve ilk makale hemen üretilir. Bu ilk takvimin diğer makaleleri otomatik akış açıkken zamanı gelince üretilir, akış durdurulmuşsa bekler; kendi başlattığın üretimler makale hakkını doldurduysa (deneme hesabında toplam 2 makale) onlar da bekler</li>
+        <li>Site eklenirken FTP, SFTP ya da cPanel yayın hedefi tanımlıysa eksik sitemap.xml ve llms.txt oluşturulup yüklenir; hedefi sonradan eklersen düzeltmeyi Site Skoru sayfasından başlatırsın. robots.txt değişikliği yalnızca sen önizleyip onayladığında yazılır</li>
+        <li>Akış açıkken takvime kendin eklediğin, tarih atadığın ya da başka güne taşıdığın makaleler planlanan saatten 15 dakika önce üretime alınır; site eklenirken takvime yerleşenleri saatlik tarama alır (planlanan saatin en fazla 15 dakika öncesinden yaklaşık 45 dakika sonrasına kadar). Akış durdurulmuşsa takvim bekler; üretim birkaç dakika sürer</li>
+        <li>Otomatik akış açık ve Search Console bağlıysa, yayından en az 30 gün geçmiş ve Search Console verisinde gösterim alıp tıklaması ya da sırası zayıf kalan makaleler haftalık taramada yeniden yazılabilir; Yarı otomatikte yeni hali onayını bekler</li>
+        <li>Profesyonel ve üstü planlarda, Search Console bağlı, akış açık ve Tam otomatik moddaysan Google&apos;da 4-15. sırada takılı kalan RanksUp makaleleri her hafta (site başına en fazla 5) iyileştirilip yeniden yayınlanır; Yarı otomatikte bunları Takılı Sayfalar ekranından sen başlatırsın</li>
       </ul>
 
-      <h2>Auto-Pilot ile manuel mod farkı</h2>
+      <h3>AI görünürlük ölçümü otomatik değil</h3>
+      <p>
+        Otomatik günlük ölçüm yoktur. Otomatik akış açıkken site eklenirken bir başlangıç ölçümü alınır; sonraki ölçümleri AI Görünürlük
+        sayfasındaki <strong>&ldquo;Yeniden Test&rdquo;</strong> ile sen başlatırsın. Hesap başına 7 günde bir AI ölçümü yapılabilir.
+        Ayrıntılar: <a href="/help/ai-visibility">AI Görünürlük rehberi</a>.
+      </p>
+
+      <h3>3. App Store Connect günlük senkronu</h3>
+      <p>Her gün 05:30 UTC&apos;de bağlı tüm App Store Connect hesapları için:</p>
       <ul>
-        <li><strong>Manuel</strong>: AI önerir, sen onaylarsın. Tam kontrol, daha yavaş.</li>
-        <li><strong>Auto-Pilot</strong>: AI önerir + uygular. Hızlı, ölçeklenebilir, bütçe cap'in altında kalır.</li>
+        <li>Uygulamalar senkronlanır</li>
+        <li>Sürümler (release) çekilir</li>
+        <li>60 günden uzun süredir yeni sürüm yoksa <strong>uyarı</strong>, 120 günü geçtiyse <strong>kritik</strong> uyarı oluşur</li>
+        <li>Yorumlar otomatik çekilmez; uygulamanın altındaki <strong>Yorumlar</strong> butonuyla çekersin</li>
+      </ul>
+
+      <h2>Auto-Pilot ile elle kullanım farkı</h2>
+      <ul>
+        <li><strong>Elle</strong>: AI önerir, sen uygularsın. Tam kontrol, daha yavaş.</li>
+        <li><strong>Auto-Pilot</strong>: AI önerir ve uygular. Hızlıdır; bütçe sınırı yalnızca Auto-Pilot&apos;un kendi işlemlerini durdurur.</li>
       </ul>
 
       <Tip kind="warn">
-        Auto-Pilot real money harcar (ASA kampanyaları için). <strong>Mutlaka bütçe cap ayarla</strong> ve ilk hafta günlük "Son çalışma" sonuçlarını incele.
+        ASA Auto-Pilot gerçek reklam bütçesi harcatan değişiklikler yapar. <strong>Mutlaka bütçe sınırı ayarla</strong> ve ilk hafta &ldquo;Son çalışma&rdquo; sonuçlarını incele.
       </Tip>
 
-      <h2>Cost monitoring</h2>
+      <h2>Kullanım takibi</h2>
       <p>
-        Dashboard üst kısmında <strong>QuotaMonitor</strong> widget'ı:
+        Sitenin <strong>Genel Bakış</strong> sayfasındaki kota kartları:
       </p>
       <ul>
-        <li>Aylık makale / video / site kullanımı + limit progress bar</li>
-        <li>AI bütçe (USD) yüzdesi — plan revenue'nun %60'ı aşıldığında uyarı</li>
-        <li>%80'de sarı, %100'de kırmızı + hard block notification</li>
+        <li>Bu ayki makale, AI görünürlük çalıştırması ve site kullanımı, limitleriyle birlikte</li>
+        <li>Aylık AI bütçenin %80&apos;i geçilince uyarı; %100&apos;e ulaşınca görsel alt metni önerisi ve App Store yorum yanıtı taslağı gibi işlemler durur</li>
       </ul>
-
-      <Tip kind="success">
-        Auto-Pilot + Cost Monitor birlikte: sen uyurken AI çalışır, sürpriz fatura olmaz.
-      </Tip>
     </HelpArticle>
   );
 }

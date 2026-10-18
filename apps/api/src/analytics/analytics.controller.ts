@@ -6,6 +6,7 @@ import { ReportsService, type ReportOpts, type ReportRange } from './reports.ser
 import { SiteReportService } from './site-report.service.js';
 import { GoogleAiSurfaceService } from './google-ai-surface.service.js';
 import { SearchOpportunityService } from './search-opportunity.service.js';
+import { GscAiCsvImportDto, GscAiCsvPreviewDto } from './analytics-body.dto.js';
 
 /**
  * Sorgu parametrelerini rapor donemine cevirir.
@@ -47,13 +48,13 @@ export class AnalyticsController {
 
   /** POST /sites/:siteId/analytics/gsc-ai-csv/preview — parse + yanlis-dosya kontrolu, yazmaz */
   @Post('gsc-ai-csv/preview')
-  previewGscAiCsv(@Param('siteId') siteId: string, @Body() body: { csv?: string }) {
+  previewGscAiCsv(@Param('siteId') siteId: string, @Body() body: GscAiCsvPreviewDto) {
     return this.googleAi.preview(siteId, body?.csv ?? '');
   }
 
   /** POST /sites/:siteId/analytics/gsc-ai-csv — idempotent upsert (siteId+date+surface) */
   @Post('gsc-ai-csv')
-  importGscAiCsv(@Param('siteId') siteId: string, @Body() body: { csv?: string; fileName?: string }) {
+  importGscAiCsv(@Param('siteId') siteId: string, @Body() body: GscAiCsvImportDto) {
     return this.googleAi.import(siteId, body?.csv ?? '', { fileName: body?.fileName });
   }
 
@@ -114,6 +115,16 @@ export class AnalyticsController {
   @Get('ga-summary')
   gaSummary(@Param('siteId') siteId: string, @Query('days') days?: string) {
     return this.ga.fetchSiteSummary(siteId, days ? parseInt(days, 10) : 30);
+  }
+
+  /**
+   * GET /sites/:siteId/analytics/ga-key-events?days=28 — telefon tiklamasi ve
+   * form/randevu gonderimi GA4'te onemli etkinlik olarak olculuyor mu.
+   * Yalniz okuma; GA4 ayarina dokunmaz.
+   */
+  @Get('ga-key-events')
+  gaKeyEvents(@Param('siteId') siteId: string, @Query('days') days?: string) {
+    return this.ga.fetchKeyEventSetup(siteId, days ? parseInt(days, 10) : 28);
   }
 
   /**

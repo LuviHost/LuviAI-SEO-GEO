@@ -99,12 +99,24 @@ export interface AiKeywordSuggestion {
   relevance: number;
 }
 
+/** API'nin politika bekçisi: AI metninden çıkardığı ya da işaretlediği ifade (metadata-guard.ts) */
+export interface GuardIssue {
+  field: string;
+  code: string;
+  action: 'removed' | 'flagged';
+  excerpt: string;
+  message: string;
+  source: string;
+}
+
 export interface OptimizeResult {
   title?: string;
+  /** iOS: alt başlık · Android: kısa açıklama */
   subtitle?: string;
   keywordField?: string;
   description?: string;
   suggestions?: string[];
+  issues?: GuardIssue[];
 }
 
 export interface AscApp {

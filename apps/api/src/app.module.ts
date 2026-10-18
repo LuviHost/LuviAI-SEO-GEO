@@ -5,7 +5,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { ThrottlerModule } from '@nestjs/throttler';
 
 import { ProxyThrottlerGuard } from './common/proxy-throttler.guard.js';
-import { CrawlerTrackingMiddleware } from './audit/crawler-tracking.middleware.js';
+import { CRAWLER_TRACKING_ROUTES, CrawlerTrackingMiddleware } from './audit/crawler-tracking.middleware.js';
 import { AuthModule } from './auth/auth.module.js';
 import { AuthGuard } from './auth/auth.guard.js';
 import { SiteAccessGuard } from './auth/site-access.guard.js';
@@ -101,7 +101,10 @@ import { ProspectModule } from './prospect/prospect.module.js';
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    // Tum API request'lerini AI bot tracking icin gec
-    consumer.apply(CrawlerTrackingMiddleware).forRoutes('*');
+    // AI bot sayimi YALNIZ betik/beacon uclarinda (GET tracker.js, GET
+    // tracker/beacon). Eskiden forRoutes('*') ile her istekte, guard'lardan
+    // once calisiyor ve ?site=&status= ile istenen siteye sahte bot ziyareti
+    // ve hata kodu yazdirilabiliyordu. Bkz. CRAWLER_TRACKING_ROUTES.
+    consumer.apply(CrawlerTrackingMiddleware).forRoutes(...CRAWLER_TRACKING_ROUTES);
   }
 }

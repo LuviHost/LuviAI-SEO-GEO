@@ -12,15 +12,18 @@ import { MeasurementLimitNote } from '@/components/measurement-limit-note';
 import { isWeeklyMeasurementLimitError, refreshMeasurementAllowance, useMeasurementAllowance } from '@/lib/measurement-allowance';
 import { SectionHeader } from '@/components/ui/section-header';
 import { cn } from '@/lib/utils';
+import { displayProbeText } from '@/lib/probe-error-text';
 import {
   Sparkles, Plus, Loader2, Play, Trash2,
   Check, X, Wand2, PackageOpen, Copy,
 } from 'lucide-react';
+import { GuardIssues } from '../../_components/guard-issues';
 
 /**
  * App AI Görünürlük — App Prompt Lab (GEO ⨉ ASO, rakipte yok).
  *
- * "en iyi X uygulaması" sorusunu 7 AI sağlayıcıya sorar:
+ * "en iyi X uygulaması" sorusunu olculen AI asistanlarina sorar (saglayici listesi API'den,
+ * ai-citation.service.ts runPublicProbes; Llama yalniz GROQ_LLAMA_MODEL tanimliyken):
  * uygulama önerildi mi, store linki verildi mi, rakip appler kim?
  * + Review → İçerik Paketi (What's New + FAQ + blog konusu).
  */
@@ -128,7 +131,7 @@ export default function AppAiVisibilityPage() {
         as="h3"
         icon={Sparkles}
         title="AI görünürlük"
-        description={<>Kullanıcılar uygulama tavsiyesini artık ChatGPT&apos;ye soruyor. &quot;En iyi X uygulaması&quot; sorularında uygulaman öneriliyor mu — 7 AI sağlayıcıda ölç.</>}
+        description={<>Kullanıcılar uygulama tavsiyesini artık ChatGPT&apos;ye soruyor. &quot;En iyi X uygulaması&quot; sorularında uygulaman öneriliyor mu — ChatGPT, Claude, Gemini, Perplexity, Grok ve DeepSeek&apos;te ölç.</>}
       />
       <MeasurementLimitNote />
 
@@ -204,25 +207,32 @@ export default function AppAiVisibilityPage() {
               Ölçüm sonucu — "{runResult.text}"
               <span className="text-muted-foreground font-normal ml-2 text-xs">
                 {runResult.summary.mentioned}/{runResult.summary.total} anıldı · {runResult.summary.storeLinked}/{runResult.summary.total} store linki
+                {/* Hata veren asistan toplama girmez; kaç tane olduğu açıkça söylenir (eski API'de alan yok) */}
+                {runResult.summary.unmeasured > 0 && <> · {runResult.summary.unmeasured} asistan ölçülemedi</>}
               </span>
             </div>
             <div className="grid md:grid-cols-2 gap-2">
               {runResult.providers.map((pr: any) => (
-                <div key={pr.provider} className={cn('rounded-lg border p-3', !pr.available && 'opacity-50')}>
+                <div key={pr.provider} className={cn('rounded-lg border p-3', !pr.available && 'opacity-60')}>
                   <div className="flex items-center justify-between mb-1.5">
                     <span className="text-xs font-semibold">{pr.label}</span>
-                    <div className="flex gap-1.5">
-                      <Badge variant={pr.appMentioned ? 'success' : 'danger'} className="px-1.5 text-label">
-                        {pr.appMentioned ? <Check className="h-2.5 w-2.5 mr-0.5" /> : <X className="h-2.5 w-2.5 mr-0.5" />} anıldı
-                      </Badge>
-                      <Badge variant={pr.storeLinked ? 'success' : 'secondary'} className="px-1.5 text-label">
-                        {pr.storeLinked ? <Check className="h-2.5 w-2.5 mr-0.5" /> : <X className="h-2.5 w-2.5 mr-0.5" />} link
-                      </Badge>
-                    </div>
+                    {pr.available ? (
+                      <div className="flex gap-1.5">
+                        <Badge variant={pr.appMentioned ? 'success' : 'danger'} className="px-1.5 text-label">
+                          {pr.appMentioned ? <Check className="h-2.5 w-2.5 mr-0.5" /> : <X className="h-2.5 w-2.5 mr-0.5" />} anıldı
+                        </Badge>
+                        <Badge variant={pr.storeLinked ? 'success' : 'secondary'} className="px-1.5 text-label">
+                          {pr.storeLinked ? <Check className="h-2.5 w-2.5 mr-0.5" /> : <X className="h-2.5 w-2.5 mr-0.5" />} link
+                        </Badge>
+                      </div>
+                    ) : (
+                      // Ölçülemeyen asistan "anılmadı" sayılmaz: kırmızı ✗ yerine nötr etiket
+                      <Badge variant="secondary" className="px-1.5 text-label">ölçülemedi</Badge>
+                    )}
                   </div>
                   {pr.available
                     ? <p className="text-label text-muted-foreground line-clamp-4">{pr.excerpt}</p>
-                    : <p className="text-label text-muted-foreground">Kullanılamadı: {pr.reason ?? 'anahtar yok'}</p>}
+                    : <p className="text-label text-muted-foreground">Ölçülemedi: {displayProbeText(pr.reason) ?? 'sağlayıcı yanıt vermedi'}</p>}
                 </div>
               ))}
             </div>
@@ -262,7 +272,10 @@ export default function AppAiVisibilityPage() {
                   </Button>
                 </div>
                 <p className="text-xs whitespace-pre-wrap">{pack.whatsNew}</p>
+                {/* API taslak uyarısı: AI hangi düzeltmenin yayınlandığını bilmez */}
+                {pack.whatsNewNote && <p className="text-label text-warning">{pack.whatsNewNote}</p>}
               </div>
+              <GuardIssues issues={pack.whatsNewIssues} />
 
               {pack.faqs.length > 0 && (
                 <div className="rounded-lg bg-muted/40 p-3 space-y-2">

@@ -1,6 +1,7 @@
 'use client';
 
-import { TrendingUp, TrendingDown, Sparkles, Rocket } from 'lucide-react';
+import { TrendingUp, TrendingDown, Minus, Sparkles, Rocket, Info } from 'lucide-react';
+import { geoImpact, formatTrDate } from '@/components/geo-impact';
 
 const LABELS: Record<string, string> = {
   anthropic: 'Claude', gemini: 'Gemini', openai: 'ChatGPT',
@@ -9,104 +10,100 @@ const LABELS: Record<string, string> = {
 
 /**
  * "RanksUp Etkisi" before-after değer kartı.
- * İlk ölçüm (baseline) ile son ölçüm arasındaki AI görünürlük büyümesini
- * pazarlama/değer-kanıtı diliyle gösterir. Veri citation-history (trends + byProvider).
+ * İlk ölçüm (baseline) ile son ölçüm arasındaki AI görünürlük değişimini gösterir.
+ * Veri citation-history (trends + byProvider). Kıyas yalnız GÜNCEL ölçüm
+ * yöntemiyle yapılan ölçümler arasında (geo-impact.ts): yöntem değiştiyse eski
+ * yöntemle yeni yöntem kıyaslanmaz, "kıyas yok" gösterilir.
  */
 export function BeforeAfterCard({ data }: { data: any }) {
-  const trends: any[] = data?.trends ?? [];
-  const byProvider: Record<string, any[]> = data?.byProvider ?? {};
-  if (!trends.length) return null;
+  const g = geoImpact(data);
+  if (g.state === 'none') return null;
 
-  // Tarih aralığı + mention (cited+mentioned) ilk vs son
-  let firstDate: string | null = null;
-  let lastDate: string | null = null;
-  let mentionsStart = 0;
-  let mentionsNow = 0;
-  for (const series of Object.values(byProvider)) {
-    if (!series?.length) continue;
-    const f = series[0];
-    const l = series[series.length - 1];
-    mentionsStart += (f.cited ?? 0) + (f.mentioned ?? 0);
-    mentionsNow += (l.cited ?? 0) + (l.mentioned ?? 0);
-    if (!firstDate || f.date < firstDate) firstDate = f.date;
-    if (!lastDate || l.date > lastDate) lastDate = l.date;
+  // Yöntem değişti ve yeni yöntemle henüz ikinci ölçüm yok → nötr durum (kırmızı/yeşil yok)
+  if (g.state === 'method-changed') {
+    return (
+      <div className="mb-4 rounded-xl border border-border bg-muted/30 p-4">
+        <div className="flex items-center gap-2 font-semibold text-sm">
+          <Info className="h-4 w-4 text-muted-foreground" aria-hidden /> RanksUp Etkisi · Ölçüm yöntemi güncellendi — kıyas yok
+        </div>
+        <p className="text-sm text-muted-foreground mt-1.5">
+          AI görünürlük ölçüm yöntemi{g.methodChangedAt ? <> <strong>{formatTrDate(g.methodChangedAt)}</strong> tarihinde</> : null} güncellendi; önceki ölçümler yeni yöntemle kıyaslanmaz.
+          Şu an <strong>{g.enginesNow}/{g.totalEngines}</strong> AI asistanının cevabında görünüyorsun (markan anılıyor ya da sitene atıf var)
+          {g.lastAvg !== null && <>, ort. skor <strong>{g.lastAvg}</strong></>}. Yeni yöntemle ikinci ölçümünden sonra değişim burada görünür.
+        </p>
+      </div>
+    );
   }
-  const spanDays = firstDate && lastDate
-    ? Math.round((+new Date(lastDate) - +new Date(firstDate)) / 86400000)
-    : 0;
 
-  const avg = (a: number[]) => (a.length ? Math.round(a.reduce((x, y) => x + y, 0) / a.length) : 0);
-  const firstAvg = avg(trends.map((t) => t.first).filter((v) => typeof v === 'number'));
-  const lastAvg = avg(trends.map((t) => t.last).filter((v) => typeof v === 'number'));
-
-  const enginesStart = trends.filter((t) => (t.first ?? 0) > 0).length;
-  const enginesNow = trends.filter((t) => (t.last ?? 0) > 0).length;
-  const totalEngines = trends.length;
-
-  const growthPct = firstAvg > 0 ? Math.round(((lastAvg - firstAvg) / firstAvg) * 100) : null;
-  const newEngines = trends
-    .filter((t) => (t.last ?? 0) > 0 && (t.first ?? 0) <= 0)
-    .map((t) => LABELS[t.provider] ?? t.provider);
-
-  // Henüz yeterli zaman geçmemiş (tek snapshot / ilk gün) → baseline durumu
-  const tooEarly = spanDays < 2 || (firstAvg === lastAvg && mentionsStart === mentionsNow && enginesStart === enginesNow);
-
-  if (tooEarly) {
+  // Kıyas için ikinci ölçüm yok → başlangıç noktası
+  if (g.state === 'baseline') {
     return (
       <div className="mb-4 rounded-xl border border-brand-500/30 bg-gradient-to-br from-brand-500/[0.07] to-purple-500/[0.04] p-4">
         <div className="flex items-center gap-2 text-brand-700 dark:text-brand-300 font-semibold text-sm">
           <Rocket className="h-4 w-4" /> RanksUp Etkisi — Başlangıç ölçümü alındı
         </div>
         <p className="text-sm text-muted-foreground mt-1.5">
-          Şu an <strong>{enginesNow}/{totalEngines}</strong> motor markanı tanıyor (ort. skor <strong>{lastAvg}</strong>).
-          Bu senin <strong>başlangıç noktan</strong>. Her gün otomatik ölçüyoruz; birkaç gün/hafta içinde
-          <strong> büyümeyi</strong> burada göreceksin.
+          Şu an <strong>{g.enginesNow}/{g.totalEngines}</strong> AI asistanının cevabında görünüyorsun (markan anılıyor ya da sitene atıf var)
+          {g.lastAvg !== null && <>, ort. skor <strong>{g.lastAvg}</strong></>}. Bu senin <strong>başlangıç noktan</strong>.
+          Yeni ölçüm yaptıkça (her hesap 7 günde 1 AI ölçümü yapabilir) değişimi burada göreceksin.
         </p>
       </div>
     );
   }
 
-  const grew = lastAvg >= firstAvg;
-  const tone = grew ? 'emerald' : 'red';
-  const toneText = grew ? 'text-emerald-700 dark:text-emerald-300' : 'text-red-700 dark:text-red-300';
-  const toneBorder = grew ? 'border-emerald-500/30' : 'border-red-500/30';
-  const toneBg = grew
+  const firstAvg = g.firstAvg ?? 0;
+  const lastAvg = g.lastAvg ?? 0;
+  const direction = lastAvg > firstAvg ? 'up' : lastAvg < firstAvg ? 'down' : 'flat';
+  const toneText = direction === 'up' ? 'text-emerald-700 dark:text-emerald-300'
+    : direction === 'down' ? 'text-red-700 dark:text-red-300'
+    : 'text-muted-foreground';
+  const toneBorder = direction === 'up' ? 'border-emerald-500/30' : direction === 'down' ? 'border-red-500/30' : 'border-border';
+  const toneBg = direction === 'up'
     ? 'from-emerald-500/[0.08] to-brand-500/[0.04]'
-    : 'from-red-500/[0.08] to-brand-500/[0.04]';
+    : direction === 'down' ? 'from-red-500/[0.08] to-brand-500/[0.04]'
+    : 'from-muted/40 to-muted/10';
+  const newEngines = g.newEngines.map((p) => LABELS[p] ?? p);
 
   return (
     <div className={`mb-4 rounded-xl border ${toneBorder} bg-gradient-to-br ${toneBg} p-4`}>
-      <div className="flex items-center gap-2 mb-3">
+      <div className="flex items-center gap-2 mb-3 flex-wrap">
         <Sparkles className="h-4 w-4 text-muted-foreground" />
         <span className="font-semibold text-sm">RanksUp Etkisi</span>
-        <span className="text-xs text-muted-foreground">· son {spanDays} gün</span>
+        <span className="text-xs text-muted-foreground">· {g.spanDays} günlük aralık</span>
       </div>
 
       <div className="flex items-end gap-6 flex-wrap">
-        {/* Büyük büyüme % */}
+        {/* Büyük değişim % */}
         <div className="flex items-center gap-2">
-          {grew ? <TrendingUp className={`h-7 w-7 ${toneText}`} /> : <TrendingDown className={`h-7 w-7 ${toneText}`} />}
+          {direction === 'up' ? <TrendingUp className={`h-7 w-7 ${toneText}`} />
+            : direction === 'down' ? <TrendingDown className={`h-7 w-7 ${toneText}`} />
+            : <Minus className={`h-7 w-7 ${toneText}`} />}
           <div>
             <div className={`text-4xl font-extrabold leading-none ${toneText}`}>
-              {growthPct === null ? `+${lastAvg}` : `${growthPct >= 0 ? '+' : ''}${growthPct}%`}
+              {g.growthPct === null ? `+${lastAvg}` : `${g.growthPct > 0 ? '+' : ''}${g.growthPct}%`}
             </div>
             <div className="text-xs text-muted-foreground mt-1">
-              {growthPct === null ? 'AI görünürlük (0\'dan başladı)' : 'AI görünürlük değişimi'}
+              {g.growthPct === null ? 'AI görünürlük (0\'dan başladı)' : 'AI görünürlük değişimi'}
             </div>
           </div>
         </div>
 
         {/* Mini metrikler */}
         <div className="grid grid-cols-3 gap-x-6 gap-y-1 text-sm">
-          <Metric label="Tanıyan motor" before={`${enginesStart}`} after={`${enginesNow}`} suffix={`/${totalEngines}`} up={enginesNow >= enginesStart} />
+          <Metric label="Görünür olduğun asistan" before={`${g.enginesStart}`} after={`${g.enginesNow}`} suffix={`/${g.totalEngines}`} up={g.enginesNow >= g.enginesStart} />
           <Metric label="Ort. skor" before={`${firstAvg}`} after={`${lastAvg}`} up={lastAvg >= firstAvg} />
-          <Metric label="Mention" before={`${mentionsStart}`} after={`${mentionsNow}`} up={mentionsNow >= mentionsStart} />
+          <Metric label="Anılma + atıf" before={`${g.mentionsStart}`} after={`${g.mentionsNow}`} up={g.mentionsNow >= g.mentionsStart} />
         </div>
       </div>
 
       {newEngines.length > 0 && (
         <p className={`text-sm mt-3 ${toneText}`}>
-          🎉 <strong>{newEngines.join(', ')}</strong> artık markanı tanıyor — başlangıçta tanımıyordu.
+          <strong>{newEngines.join(', ')}</strong> cevaplarında artık görünüyorsun — başlangıç ölçümünde görünmüyordun.
+        </p>
+      )}
+      {g.methodChanged && g.methodChangedAt && (
+        <p className="text-label text-muted-foreground mt-2">
+          Ölçüm yöntemi {formatTrDate(g.methodChangedAt)} tarihinde güncellendi; kıyas yalnız bu tarihten sonraki ölçümler arasında yapılır.
         </p>
       )}
     </div>

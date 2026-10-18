@@ -2,10 +2,12 @@ import { Body, Controller, ForbiddenException, Get, HttpCode, Param, Post, Query
 import type { Request } from 'express';
 import { SkipThrottle } from '@nestjs/throttler';
 import { Public } from '../auth/public.decorator.js';
+import { SessionOnly } from '../auth/session-only.decorator.js';
 import { BillingService } from './billing.service.js';
 import { PaytrService } from './paytr.service.js';
 import { QuotaService } from './quota.service.js';
 import { MeasurementAllowanceService } from './measurement-allowance.service.js';
+import { clientIp } from '../common/client-ip.js';
 
 function ensureSelf(req: Request, requestedUserId: string) {
   const user = (req as any).user;
@@ -71,10 +73,18 @@ export class BillingController {
     return { articles, sites, aiRuns, budget };
   }
 
+  // ─── Abonelik mutasyonlari yalniz panel oturumuyla ─────────────────
+  // /billing, api-keys.service ROUTE_RESOURCE eslesmesinde yok: AuthGuard bilinmeyen kaynakta
+  // HERHANGI bir ':write' anahtarini (orn. yalniz 'social:write') yeterli
+  // sayiyordu. Odeme baslatmak, aboneligi iptal etmek (autoRenew'i kapatir)
+  // ve test odemesini onaylamak insan karari; anahtar 403 alir. SDK ve MCP
+  // bu uclari cagirmiyor. GET uclari (plan, fatura, kota) anahtarla okunur.
+
   /**
    * POST /api/billing/subscribe
    * Body'de userId varsa session.user.id ile eşleşmeli (cross-user koruması).
    */
+  @SessionOnly()
   @Post('subscribe')
   async subscribe(
     @Req() req: Request,
@@ -89,13 +99,15 @@ export class BillingController {
     },
   ) {
     ensureSelf(req, body.userId);
-    const userIp = (req.headers['x-forwarded-for'] as string)?.split(',')[0]
-      ?? req.socket.remoteAddress
-      ?? '127.0.0.1';
+    // PayTR user_ip = musterinin IP'si. XFF'in ilk adresi istemcinin kendi
+    // yazdigi deger olabilir; ortak kural CF-Connecting-IP / nginx'in ekledigi
+    // adresi okur (common/client-ip.ts). Bos kalirsa eski varsayilan.
+    const userIp = clientIp(req) || '127.0.0.1';
 
     return this.paytr.createPaymentToken({ ...body, userIp });
   }
 
+  @SessionOnly()
   @Post('users/:userId/cancel')
   cancel(@Req() req: Request, @Param('userId') userId: string) {
     ensureSelf(req, userId);
@@ -103,6 +115,7 @@ export class BillingController {
   }
 
   /** DEV/TEST mode: PayTR webhook gelmiyorsa user kendi tetikler */
+  @SessionOnly()
   @Post('dev-confirm/:merchantOid')
   async devConfirm(@Req() req: Request, @Param('merchantOid') merchantOid: string) {
     const user = (req as any).user;

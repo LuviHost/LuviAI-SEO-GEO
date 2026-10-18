@@ -11,6 +11,8 @@
  * docs/OPENCLAW-KURULUM.md §11.3.
  */
 
+import { BASE_PLANS } from '../billing/plans.js';
+
 // ─── Frenler ────────────────────────────────────────────────────────────────
 
 export interface OutreachLimits {
@@ -463,6 +465,22 @@ export function normalizeKampanya(v: unknown): Kampanya {
 
 export const NOTE_MAX_CHARS = 300;
 
+/**
+ * Mesajlarda adi gecen OLCULEN asistanlar — tek kaynak plans.ts fiyat karti
+ * maddesi ('ChatGPT · Claude · Gemini · Perplexity · Grok · DeepSeek').
+ * NEDEN: sablon "7 AI asistani" diyordu; Meta Llama yalniz GROQ_LLAMA_MODEL
+ * tanimliyken olculur (ai-citation.service.ts), uretimde olculmuyor. Sayi
+ * elle yazildiginda plan degisince mesaj yine sessizce bayatlardi.
+ */
+const MEASURED_ASSISTANTS: readonly string[] = (() => {
+  const madde = BASE_PLANS.flatMap((p) => p.features_tr).find((m) => m.startsWith('ChatGPT · '));
+  return madde ? madde.split(' · ').map((a) => a.trim()) : ['ChatGPT', 'Claude', 'Gemini', 'Perplexity', 'Grok', 'DeepSeek'];
+})();
+export const MEASURED_ASSISTANT_COUNT = MEASURED_ASSISTANTS.length;
+/** "ChatGPT, Claude, Gemini, Perplexity, Grok ve DeepSeek" */
+export const MEASURED_ASSISTANTS_TEXT =
+  `${MEASURED_ASSISTANTS.slice(0, -1).join(', ')} ve ${MEASURED_ASSISTANTS[MEASURED_ASSISTANTS.length - 1]}`;
+
 const SEKTOR_ADI: Record<string, string> = {
   finans: 'finans',
   'eticaret-perakende-teknoloji': 'e-ticaret, perakende ve teknoloji',
@@ -609,7 +627,9 @@ export function renderMessage(p: ProspectLike): string {
   return (
     `${hitap(p)}, bağlantı için teşekkürler.\n\n` +
     `Müşteriler artık "${sektorSorusu(p.sektor)}" sorusunu Google'a değil ChatGPT'ye soruyor ve cevapta 3 isim geçiyor. ` +
-    `RanksUp olarak 7 AI asistanında, marka adı geçmeyen gerçek sorularla ${genitiveOrSafe(firma)} nerede göründüğünü ölçüp ` +
+    // Asistan sayisi ve adlari plans.ts ile ayni (ChatGPT · Claude · Gemini · Perplexity · Grok · DeepSeek):
+    // Llama yalniz GROQ_LLAMA_MODEL tanimliyken olculur, uretimde olculmuyor — "7" yanlis vaatti.
+    `RanksUp olarak ${MEASURED_ASSISTANT_COUNT} AI asistanında (${MEASURED_ASSISTANTS_TEXT}), marka adı geçmeyen gerçek sorularla ${genitiveOrSafe(firma)} nerede göründüğünü ölçüp ` +
     `yalnız size iletebilirim — kurum bazlı sonuç kamuya açılmaz.\n\n` +
     `İlginizi çekerse çıkarıp göndereyim; denk gelmezse de sorun değil.`
   );
@@ -623,7 +643,7 @@ function renderMessageYatirimci(p: ProspectLike): string {
   return (
     `${hitap(p)}, bağlantı için teşekkürler.\n\n` +
     `RanksUp, markaların ChatGPT, Gemini, Perplexity gibi asistanlarda ne zaman ve nasıl önerildiğini ölçen bir ` +
-    `Türkiye ürünü: marka adı geçmeyen gerçek müşteri sorularıyla 7 asistanı tarıyor, görünürlüğü ve rakip payını ` +
+    `Türkiye ürünü: marka adı geçmeyen gerçek müşteri sorularıyla ${MEASURED_ASSISTANT_COUNT} asistanı tarıyor, görünürlüğü ve rakip payını ` +
     `raporluyor, eksikleri kapatacak içerik planını çıkarıyoruz. Arama trafiği asistanlara kaydıkça kurumsal ` +
     `pazarlama bütçesinin bu tarafa açılacağını düşünüyoruz.\n\n` +
     `Ürünü 20 dakikada gösterebilirim; sayılar ve yol haritası görüşmede. ` +

@@ -3,6 +3,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { SiteCrawlerService } from './site-crawler.service.js';
 import type { CrawlResult } from './site-crawler.service.js';
+import { clearCrawlAccess, CrawlAccessError, recordCrawlAccess } from './crawl-access.js';
 
 /**
  * Brain Generator: kullanıcı sitesinin AI bağlamını otomatik üretir.
@@ -51,9 +52,24 @@ export class BrainGeneratorService {
     this.log.log(`${siteId}: Site crawl başlıyor (${site.url})`);
     const crawlResult = await this.crawler.crawl(site.url, 30);
 
+    // Anasayfa okunamadi ve elde hic sayfa yok: "Site erisilemedi" yerine
+    // NEDENI (WAF, robots.txt, DNS...) ve cozumu kaydet — panel ve kurulum
+    // ekrani bunu gosterir. Sitemap'ten sayfa okunabildiyse beyin onlarla uretilir.
+    if (crawlResult.pages.length === 0 && crawlResult.homeAccess) {
+      await recordCrawlAccess(this.prisma, siteId, crawlResult.homeAccess, 'brain').catch((err) =>
+        this.log.warn(`${siteId}: Erisim durumu yazilamadi: ${err.message}`),
+      );
+      this.log.error(`${siteId}: Site okunamadı — ${crawlResult.homeAccess.reason}`);
+      throw new CrawlAccessError(crawlResult.homeAccess);
+    }
     if (crawlResult.pages.length === 0) {
       this.log.error(`${siteId}: Hiç sayfa crawl edilemedi`);
       throw new Error('Site erişilemedi');
+    }
+    if (!crawlResult.homeAccess) {
+      await clearCrawlAccess(this.prisma, siteId).catch((err) =>
+        this.log.warn(`${siteId}: Erisim durumu temizlenemedi: ${err.message}`),
+      );
     }
 
     this.log.log(`${siteId}: ${crawlResult.pages.length} sayfa crawl edildi, AI analizi başlıyor`);

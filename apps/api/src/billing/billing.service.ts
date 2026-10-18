@@ -1,8 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { FxService } from './fx.service.js';
 import { BASE_PLANS, type BasePlan, type PlanId } from './plans.js';
 import { periodEndFromInvoice } from './subscription-period.js';
+import { QuotaService } from './quota.service.js';
+import { articleQuotaView, resetAwareArticleLimit } from './article-quota-view.js';
 
 export interface PlanDefinition {
   id: PlanId;
@@ -97,6 +99,8 @@ export class BillingService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly fx: FxService,
+    // Ayni modulde (BillingModule); opsiyonel cunku testler servisi elle kurar
+    @Optional() private readonly quota?: QuotaService,
   ) {}
 
   /**
@@ -120,6 +124,9 @@ export class BillingService {
   }
 
   async getCurrentPlan(userId: string) {
+    // Ay basi sifirlamasi once uygulanir, sayac sonra okunur (article-quota-view.ts):
+    // eskiden yeni ayda gecen ayin articlesUsedThisMonth degeri donuyordu.
+    const articleLimit = await resetAwareArticleLimit(this.quota, userId);
     const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
     const planDef = PLANS.find(p => p.id.toUpperCase() === user.plan) ?? PLANS[0];
     // Odenen donemin sonu (son odenen fatura + dongu). Iptal edilmisse plan bu tarihte duser.
@@ -141,6 +148,7 @@ export class BillingService {
       trialEndsAt: user.trialEndsAt,
       articlesUsedThisMonth: user.articlesUsedThisMonth,
       articlesQuotaResetAt: user.articlesQuotaResetAt,
+      articleQuota: articleQuotaView(articleLimit, user.articlesUsedThisMonth),
       // 2026-05 Premium Pricing — grandfathering bilgisi (frontend banner için)
       grandfatheredUntil: (user as any).grandfatheredUntil ?? null,
       legacyMonthlyPriceTry: (user as any).legacyMonthlyPriceTry ?? null,

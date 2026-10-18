@@ -124,7 +124,7 @@ Expected Outputs:
 
 **Validation Gates:**
 - [ ] Apple metadata fits character limits (30/30/170/100/4000)
-- [ ] Google metadata fits character limits (50/80/4000)
+- [ ] Google metadata fits character limits (30/80/4000)
 - [ ] Keywords naturally integrated (not stuffed)
 - [ ] Metadata is copy-paste ready (no placeholders)
 - [ ] A/B test has step-by-step instructions

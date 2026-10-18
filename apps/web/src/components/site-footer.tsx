@@ -78,7 +78,7 @@ export function SiteFooter() {
               <h4 className="text-eyebrow text-neutral-400 dark:text-neutral-500 mb-5">Şirket</h4>
               <ul className="space-y-3 text-[13px]">
                 <li><Link href="/about" className="text-neutral-600 dark:text-neutral-400 hover:text-foreground transition-colors duration-300 ease-apple">Hakkımızda</Link></li>
-                <li><Link href="/status" className="text-neutral-600 dark:text-neutral-400 hover:text-foreground transition-colors duration-300 ease-apple">Sistem Durumu</Link></li>
+                <li><Link href="/bot" className="text-neutral-600 dark:text-neutral-400 hover:text-foreground transition-colors duration-300 ease-apple">RanksUpBot</Link></li>
                 <li><a href={`mailto:${SUPPORT_EMAIL}`} className="text-neutral-600 dark:text-neutral-400 hover:text-foreground transition-colors duration-300 ease-apple">İletişim</a></li>
                 <li><a href="https://luvihost.com" target="_blank" rel="noopener" className="text-neutral-600 dark:text-neutral-400 hover:text-foreground transition-colors duration-300 ease-apple">LuviHost ↗</a></li>
               </ul>

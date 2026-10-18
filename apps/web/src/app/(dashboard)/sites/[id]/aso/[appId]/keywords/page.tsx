@@ -31,6 +31,9 @@ import { cn } from '@/lib/utils';
 import { useAsoApp } from '../../_components/app-context';
 import { STORE_LABEL, type AiKeywordSuggestion, type Store, type TrackedKeyword } from '../../_components/types';
 
+/** Tek istekte eklenebilecek kelime — API AddKeywordDto (aso.dto.ts) ile aynı: her kelime için mağaza skoru çekiliyor */
+const BULK_KEYWORD_LIMIT = 100;
+
 const COLUMN_HELP: Array<{ label: string; text: string }> = [
   { label: 'Talep', text: "Bu terimde sıralanan uygulamaların büyüklüğü (Play'de indirme, App Store'da değerlendirme sayısı). Yüksek = terim rağbet görüyor; iki mağazada aynı şeyi ölçer. Yıldız işareti ayrı bir sinyal: mağazanın otomatik tamamlaması bu terimi öneriyor. — = ölçülemedi." },
   { label: 'Zorluk', text: 'Bu kelimede üst sıralara çıkmak ne kadar zor (0-100): başlık eşleşmeleri, rakip sayısı, indirme hacmi, puan ortalaması ve son güncellemeden geçen süre. Yüksek = rakipler güçlü.' },
@@ -50,6 +53,7 @@ export default function AsoKeywordsPage() {
   const [adding, setAdding] = useState(false);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [bulkText, setBulkText] = useState('');
+  const bulkCount = bulkText.split('\n').filter((l) => l.trim()).length;
   const [aiResearching, setAiResearching] = useState(false);
   const [showAllAi, setShowAllAi] = useState(false);
   const [bulkAdding, setBulkAdding] = useState(false);
@@ -85,6 +89,10 @@ export default function AsoKeywordsPage() {
   const addBulk = async () => {
     const lines = bulkText.split('\n').map((l) => l.trim()).filter(Boolean);
     if (lines.length === 0) return;
+    if (lines.length > BULK_KEYWORD_LIMIT) {
+      toast.error(`Tek seferde en fazla ${BULK_KEYWORD_LIMIT} kelime eklenebilir`);
+      return;
+    }
     setAdding(true);
     try {
       const r = await api.request<{ count: number }>(`/sites/${siteId}/aso/apps/${app.id}/keywords`, {
@@ -493,7 +501,7 @@ export default function AsoKeywordsPage() {
         <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-muted/30 p-3">
           <Sparkles className="h-4 w-4 shrink-0 text-brand" aria-hidden />
           <p className="min-w-[200px] flex-1 text-sm">
-            Yeni kelime fikri mi lazım? AI uygulamanı ve rakiplerinin metinlerini inceleyip 30+ öneri çıkarır.
+            Yeni kelime fikri mi lazım? AI uygulamanı ve rakiplerinin metinlerini inceleyip en fazla 50 öneri çıkarır; rakip uygulama adları ve fiyat/“en iyi” gibi mağaza kurallarına aykırı terimler ayıklanır.
           </p>
           <Button size="sm" variant="outline" onClick={aiResearch} disabled={aiResearching}>
             {aiResearching ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Sparkles className="h-4 w-4" aria-hidden />}
@@ -545,13 +553,13 @@ export default function AsoKeywordsPage() {
               rows={8}
               placeholder={'bütçe takibi\nharcama takibi\naile bütçesi'}
             />
-            <p className="mt-1 text-label text-muted-foreground">
-              {bulkText.split('\n').filter((l) => l.trim()).length} kelime
+            <p className={cn('mt-1 text-label', bulkCount > BULK_KEYWORD_LIMIT ? 'text-danger' : 'text-muted-foreground')}>
+              {bulkCount} / {BULK_KEYWORD_LIMIT} kelime
             </p>
           </DialogBody>
           <DialogFooter>
             <Button size="sm" variant="outline" onClick={() => setBulkOpen(false)}>Vazgeç</Button>
-            <Button size="sm" onClick={addBulk} disabled={adding || !bulkText.trim()}>
+            <Button size="sm" onClick={addBulk} disabled={adding || !bulkText.trim() || bulkCount > BULK_KEYWORD_LIMIT}>
               <ListPlus className="h-4 w-4" aria-hidden /> {adding ? 'Ekleniyor…' : 'Ekle'}
             </Button>
           </DialogFooter>

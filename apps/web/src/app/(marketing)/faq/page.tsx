@@ -6,169 +6,224 @@ import { ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useT } from '@/lib/i18n';
 
+/*
+ * Cevaplar kodla dogrulandi (18.10.2026). Kaynaklar:
+ *  - Uretim hatti 5 ajan: apps/api/src/articles/pipeline.service.ts
+ *    (keyword, outline, writer, editor, visuals). Yayin bir ajan degil.
+ *  - Uzunluk sabit degil: yazar istemi "konuyu kapsayacak kadar, dolgu yok"
+ *    (packages/shared/src/prompts/agents) → "1800-2500 kelime" kaldirildi.
+ *  - Modeller: makale ajanlari Anthropic Claude (agent-runner.service.ts,
+ *    WRITER_MODEL / EDITOR_MODEL / ROUTING_MODEL), gorsel varsayilan
+ *    gemini-2.5-flash-image (image-generator.service.ts). Musteri basina
+ *    "Opus opt-in" yok.
+ *  - GEO analizi uygulama ici 8 sinyal (geo-runner.service.ts); "Auriti GEO
+ *    Optimizer 47 metrik" ve "tek tikla duzeltir" dogru degildi.
+ *  - Ortaklik: %30 (Affiliate.commissionPct), kayittan sonra 90 gun
+ *    (affiliate.service commissionUntil), davet cerezi 60 gun (ref-tracker.tsx),
+ *    yalniz dogrudan davetliler; otomatik odeme altyapisi YOK.
+ *  - Otopilot varsayilan acik (schema.prisma Site.autopilot @default(true));
+ *    gunluk AI olcumu yok, haftada bir kullanici tetikli
+ *    (billing/measurement-allowance.ts).
+ *  - Madde (2)-(3) takvim (article-scheduler.service.ts): ilk takvim Tier 1
+ *    listesinden en fazla 8 konu (worker ONBOARDING_CHAIN count 8; ranker
+ *    istemi Tier 1'i 6 konuyla sinirlar). "15 dk once" (LEAD_TIME_MS) yalniz
+ *    gecikmeli iste: scheduleTopic ve rescheduleArticle. Ilk takvim ve
+ *    programatik SEO yazilarini saatlik tarama (PROCESS_SCHEDULED, 60 dk,
+ *    esik simdi + 15 dk) alir: slottan 15 dk once ile ~45 dk sonra arasi.
+ *  - Madde (6) takili sayfa otopilotu (audit/stuck-page-autopilot.ts):
+ *    Profesyonel+ (FEATURE_MIN_PLAN.stuckPages), GSC bagli, akis acik + Tam
+ *    otomatik, yalniz RanksUp makaleleri, site basina en fazla 5, haftalik
+ *    (Pzt 06:00 UTC); tespit sira 4-15 ve 30 gunde >= 50 gosterim.
+ *  - Madde (5) yeniden yazim: content-pivot.service haftalik (Pzt 02:30 UTC),
+ *    yalniz PUBLISHED ve en az 30 gunluk makale; veri Article.performanceMetrics,
+ *    onu yalniz gunluk GSC senkronu yazar (analytics.service
+ *    updateArticleMetrics) — Search Console bagli olmali. Kurallar: gosterim
+ *    > 500 ve CTR < %2, sira 4-15 ve gosterim > 100, sira > 30 ve gosterim > 100.
+ *    Kuyruga yalniz otopilot aciksa girer; onaysiz yayin yalniz Tam otomatikte
+ *    (publish-approval.ts). AI atif kurali 7 olculen gun ister, haftalik olcumle
+ *    tetiklenmez — metinde yok.
+ *  - Reklam: resmi Google Ads / Meta Marketing API (ads.module.ts); Ryze AI
+ *    MCP kaldirildi; reklam otopilotu Site.adsAutopilot @default(false).
+ *  - Demo: 2 yayinda, 1 uretiliyor, 2 takvimde (demo-seeder.service.ts).
+ *  - Google'in AI icerik tutumu:
+ *    https://developers.google.com/search/blog/2023/02/google-search-and-ai-content
+ *    AI ozellikleri icin ozel dosya gerekmez:
+ *    https://developers.google.com/search/docs/appearance/ai-features
+ *    llms.txt bir oneri: https://llmstxt.org/ (Jeremy Howard, 3 Eylul 2024)
+ *  - AB AI Act md. 50 (2 Agustos 2026'dan itibaren):
+ *    https://artificialintelligenceact.eu/article/50/
+ *  - GEO Skor Karti: apps/api/src/audit/geo-score-card.service.ts — 6 sutun,
+ *    agirlik 3/3/3/2/2/1, sutun puani = gecen kontrol orani; AI Citation olculen
+ *    6 asistanin (OLCULEN_ASISTANLAR) son 7 gunu, asistan basina ortalama >= 30
+ *    gecer, 7 gunde olcumu olmayan asistan sayilmaz; Otorite sameAs (>= 2 profil)
+ *    + rakip (>= 3) + GSC; Tazelik 30 gunde >= 4, 7 gunde >= 1, 90+ gunluk
+ *    guncellenmemis < 10; Multi-Modal yalniz hero gorsel (>= %70). TTS ses ve
+ *    podcast RSS urunden cikti (0db5a1c), skora girmez. public-docs.spec.ts
+ *    asistan adlarini servisle karsilastirir.
+ */
 const FAQS_TR = [
   {
     q: 'RanksUp nasıl çalışır?',
-    a: 'Sitenizin URL\'ini bağlarsınız. AI önce sitenizi crawl edip "marka beyni" oluşturur (ton, persona, rakipler). Sonra GSC verisi + AI analiziyle Tier 1/2/3 konu listesi çıkarır. Her makale 6-ajan zincirinden geçer (anahtar kelime → outline → yazar → editör → görsel → yayıncı) ve seçtiğiniz hedefe (WordPress, FTP, GitHub, vb.) yayınlanır.',
+    a: 'Sitenin adresini eklersin. AI önce siteni tarayıp "marka beyni" oluşturur (ton, persona, rakipler). Sonra Search Console verisi (bağladıysan) ve AI analiziyle Tier 1/2/3 konu listesi çıkarır. Her makale 5 ajanlı üretim hattından geçer (anahtar kelime → taslak → yazar → editör → görsel), yayın öncesi kalite kapısından sonra seçtiğin hedefe (WordPress, FTP, GitHub vb.) yayınlanır.',
   },
   {
     q: 'Hangi dilleri destekliyor?',
-    a: 'Türkçe ve İngilizce. Onboarding\'de seçersiniz, isterseniz "her ikisi" deyip her makale için ayrı ayrı seçebilirsiniz. Faz 3\'te 10 dil planlanıyor.',
+    a: 'Arayüz Türkçe ve İngilizce. Makalelerin dili site ayarlarından seçilir: Türkçe ya da İngilizce.',
   },
   {
     q: 'Ücretsiz olarak ne kadar kullanabilirim?',
-    a: 'Kayıt olunca 2 makale tamamen ücretsiz üretilir (süre sınırı yok, kart bilgisi gerekmez). Markdown ZIP olarak indirebilir veya temel yayın hedeflerine gönderebilirsin. Quota bitince bir plan seçmen gerekir; plan seçince WordPress/FTP/SFTP gibi tüm yayın hedefleri + AI Video Studio açılır.',
+    a: 'Kayıt olunca 2 makale ücretsiz üretilir (süre sınırı yok, kart bilgisi gerekmez); ayrıca 3 AI görünürlük çalıştırması ve 1 site hakkın olur. Denemede makaleleri Markdown ZIP olarak indirebilir ya da WordPress (REST) sitene gönderebilirsin. Ücretli bir plan seçince FTP/SFTP, cPanel, GitHub gibi diğer yayın hedefleri de açılır.',
   },
   {
     q: 'AI içeriği Google\'da cezalandırılır mı?',
-    a: 'Hayır. Google AI içerik politikası "kalite" odaklıdır, yöntem odaklı değil. RanksUp editör katmanı AI klişelerini siler, marka sesi tutarlılığını sağlar ve tüm makaleler 1800-2500 kelime, FAQ + Schema markup ile gerçek değer yaratacak şekilde yapılandırılır.',
+    a: 'AI ile üretildiği için cezalandırılmaz: Google, AI\'ın ya da otomasyonun uygun kullanımının yönergelerine aykırı olmadığını söylüyor. Ancak asıl amacı arama sıralamasını manipüle etmek olan otomatik içerik Google\'ın spam politikalarına aykırıdır; ölçüt yöntem değil kalitedir. RanksUp\'ta her makale editör ajanından ve yayın öncesi kalite kapısından geçer (kaynaksız sayı, uydurma iç bağlantı ve yapı kontrolleri). Yine de yayından önce içeriği gözden geçirmen gerekir.',
   },
   {
     q: 'GEO (AI search) optimizasyonu nedir?',
-    a: 'ChatGPT, Perplexity, Claude gibi AI asistanlarının cevaplarında alıntılanma için içerik optimizasyonu. İki ayrı pist çalışır: (1) Google AI Overviews için klasik teknik SEO + benzersiz bakış açısı + E-E-A-T (Google\'ın resmi rehberi bunu söylüyor — özel "AI dosyası" gerekmiyor). (2) Perplexity / ChatGPT browse / Claude.ai gibi non-Google AI motorları için llms.txt + llms-full.txt + structured data + Q&A formatları kurulur. Auriti GEO Optimizer 47 metrik üzerinden tarama yapar, eksikleri tek tıkla düzeltir.',
+    a: 'ChatGPT, Perplexity, Claude gibi AI asistanlarının cevaplarında anılmak ve kaynak gösterilmek için yapılan optimizasyon. Google\'ın AI özellikleri için resmî rehber, özel bir "AI dosyası" gerekmediğini söylüyor; temel olan teknik SEO, benzersiz bakış açısı ve güvenilir içeriktir. RanksUp sitenin GEO analizini 8 sinyale göre yapar (llms.txt, JSON-LD şema, SSS / soru-cevap, tanım yoğunluğu, başlık hiyerarşisi, OG / canonical, tazelik ve alıntı biçimi; anasayfa ve en fazla 5 iç sayfa örneklenir) ve asıl sonucu 6 AI asistanında ölçer. robots.txt, sitemap.xml ve llms.txt için önizlemeli düzeltme sunar.',
   },
   {
     q: 'Kendi WordPress\'ime nasıl bağlarım?',
-    a: 'WordPress yönetim panelinde Users → Profile → Application Passwords altından bir App Password oluşturursunuz. RanksUp onboarding 5. adımında WordPress REST seçer, site URL + kullanıcı adı + app password girersiniz. Sonra her üretilen makale otomatik yayına geçer.',
+    a: 'WordPress yönetim panelinde Kullanıcılar → Profil altındaki "Application Passwords" bölümünden bir uygulama parolası oluşturursun. RanksUp\'ta site menüsü → Yayın Hedefleri → WordPress (REST API) seçip site adresini, kendi WordPress kullanıcı adını ve uygulama parolasını girersin. Yayın durumunu "Taslak" seçersen makaleler WordPress\'e taslak olarak gider, sen inceleyip yayınlarsın; "Yayında" seçersen doğrudan yayına çıkar.',
   },
   {
     q: 'Aboneliğimi istediğim zaman iptal edebilir miyim?',
-    a: 'Evet. Dashboard → Abonelik → İptal Et. Aylık planda ay sonuna kadar erişiminiz devam eder. Yıllık planda ilk 30 gün full iade, sonrası kalan ay başına orantılı iade.',
+    a: 'Evet. Abonelik sayfasında "Aboneliği iptal et". Ödenen dönemin sonuna kadar erişimin sürer. Kullanım Şartları\'na göre yıllık planda ilk 30 gün tam iade, sonrasında kalan ay başına orantılı iade yapılır; iade talebi için destek@luvihost.com.',
   },
   {
     q: 'Verilerim güvende mi?',
-    a: 'Tüm credentials (FTP/SFTP/WP/cPanel passwords, GSC OAuth tokens) AES-256-GCM ile şifrelenir. KVKK uyumlu. Hesabınızı silerseniz veriler 30 gün saklanır, sonra geri dönüşsüz silinir.',
+    a: 'Tüm bağlantı bilgileri (FTP/SFTP/WordPress/cPanel parolaları, Search Console OAuth token\'ları) AES-256-GCM ile şifrelenir. Sunucular LuviHost İstanbul veri merkezinde. Hesabını silersen erişim hemen kapanır, verilerin 30 gün sonra geri dönüşsüz silinir; fatura ve ödeme kayıtları mevzuat gereği kişisel bağlantısı kaldırılarak saklanır.',
   },
   {
     q: 'AB Yapay Zekâ Yasası (AI Act) RanksUp içeriğini etkiler mi?',
-    a: 'AI Act Madde 50, üretken AI çıktılarının makine-okunur biçimde işaretlenmesini şart koşuyor; yükümlülük öncelikle model sağlayıcılarında (Anthropic, Google, OpenAI). AB\'ye içerik yayınlayan müşteriler için RanksUp: makalelerde AI katkısını gizlemez, yazar/editör bilgisini şemada tutar (Person + author) ve sağlayıcıların işaretleme uygulamalarını istihbarat defterinde izler. Türkiye\'ye yayın için ek yükümlülük yok; bir zorunluluk doğduğunda ürün güncellenir, sizin bir şey yapmanız gerekmez.',
+    a: 'AI Act Madde 50 (2 Ağustos 2026\'dan itibaren uygulanır), üretken AI çıktılarının makine-okunur biçimde işaretlenmesini AI sistemi sağlayıcılarına (Anthropic, Google, OpenAI gibi) yükler. Ayrıca kamuoyunu kamu yararını ilgilendiren konularda bilgilendirmek için yayımlanan AI metinlerinde, yayımlayanın bunu açıklaması gerekir; metin insan tarafından gözden geçirildiyse ve yayın sorumluluğunu bir kişi ya da kurum üstleniyorsa bu açıklama gerekmez. RanksUp makaleleri yayından önce gözden geçirmeni ister (Kullanım Şartları) ve yazar bilgisini şemada (Person + author) tutar. Kendi durumun için hukuki danışmanlık almanı öneririz.',
   },
   {
     q: 'AI hangi modeli kullanıyor?',
-    a: 'Default: Claude Sonnet 4.6 (yazar + editör). Kalite öncelikli müşteriler için Opus 4.7 opt-in. Görsel: Gemini 2.5 Flash Image. Tüm modeller maliyet/kalite dengesi için seçildi.',
+    a: 'Makale ajanları (anahtar kelime, taslak, yazar, editör, görsel istemi) Anthropic\'in Claude modelleriyle çalışır; hangi Claude sürümünün kullanılacağı platform genelinde yönetilir, müşteri başına seçilmez. Görseller varsayılan olarak Google\'ın Gemini görsel modeliyle (gemini-2.5-flash-image) üretilir. AI görünürlük ölçümü ise ChatGPT, Claude, Gemini, Perplexity, Grok ve DeepSeek\'in kendi modellerine sorularak yapılır.',
   },
   {
     q: 'Aylık makale kotamı aşarsam ne olur?',
-    a: 'Sistem makale üretmeyi durdurur ve plan yükseltme önerir. Ay sonunda kota otomatik sıfırlanır. Profesyonel → Kurumsal upgrade tek tık.',
+    a: 'Sistem makale üretmeyi durdurur ve plan yükseltme önerir. Sayaç her takvim ayının başında sıfırlanır (deneme hesabındaki 2 ücretsiz makale hakkı sıfırlanmaz). Büyüme, Profesyonel ve Ajans planlarını panelden satın alırsın; Kurumsal plan satış ekibiyle, sözleşmeli kurulur.',
   },
   {
-    q: 'Affiliate programı nasıl çalışır?',
-    a: 'Plan seçtikten sonra dashboard\'dan affiliate enroll yaparsınız. Size özel link verilir. Davet ettiğiniz kullanıcıların 3 ay boyunca yaptığı ödemelerin %30\'u komisyonunuz olur. Aylık otomatik PayTR transfer ile ödenir.',
+    q: 'Ortaklık (affiliate) programı nasıl çalışır?',
+    a: 'Panelde Ortaklık Programı sayfasından ücretsiz katılırsın; sana özel bir davet linki oluşur. Link 60 gün geçerlidir: bu sürede kayıt olan kişi senin davetlin sayılır. Davetlinin kayıttan sonraki 3 ay (90 gün) içinde yaptığı ödemelerin %30\'u hesabına komisyon olarak yazılır. Komisyon yalnızca doğrudan davetlilerinin ödemelerinden gelir. Otomatik ödeme aktarımı şu an yok; biriken tutarı panelde "Ödenmeyi bekleyen" olarak görürsün.',
   },
   {
     q: 'Kendi geliştirici takımım API kullanabilir mi?',
-    a: 'Faz 3\'te (Q3 2026) public REST API + npm/pip SDK + Zapier/Make/n8n integration\'ları gelir. Şu an dashboard üzerinden manuel/otomatik kullanıyorsunuz.',
+    a: 'Kurumsal planda evet: REST API (kapsamı sınırlandırılabilen API anahtarlarıyla) ve MCP sunucusu (Claude Code, Cursor gibi ajanlardan bağlantı) açıktır. Diğer planlarda ürün panelden kullanılır. Hazır npm/pip SDK ve Zapier/Make/n8n entegrasyonu şu an yok.',
   },
   {
     q: 'Reklam (Google Ads + Meta) yönetimi nasıl çalışıyor?',
-    a: 'Ryze AI MCP entegrasyonu ile Google Ads + Meta + GA4 bağlanır. AI hedef kitle önerir (interest + keyword + lookalike), reklam metni yazar (Google RSA + Meta primaryText), 3 format görsel hazırlar (square/portrait/landscape), bütçe ayarlar. Otopilot her 6 saatte ROAS analizi yapar — düşükse pause, yüksekse bütçe %20 artır, alakasız search term\'leri negative keyword olarak ekler.',
+    a: 'Google Ads ve Meta Ads hesabını resmî API\'leri üzerinden bağlarsın. Kampanya Skoru, reklam hesabını kurallara göre denetleyip öneri çıkarır. Reklam otopilotunu açarsan (varsayılan kapalı, site otopilotundan ayrı) RanksUp\'ta kayıtlı etkin kampanyalar 6 saatte bir değerlendirilir ve hesabında şu değişiklikler yapılabilir: getirisi (ROAS) düşük ve harcaması yüksek kampanya durdurulur; tıklama oranı ve ROAS\'ı yüksek kampanyanın günlük bütçesi %20 artırılır; aynı reklam grubunda ya da reklam setinde, yeterli gösterim almış reklamlardan tıklama oranı kazanandan istatistiksel olarak belirgin biçimde düşük olan ve daha iyi dönüşüm getirmeyenler durdurulur (bir grubun son reklamı hiçbir zaman durdurulmaz); Google Ads arama terimlerinden alakasız olanlar negatif anahtar kelime olarak eklenir; iki platform arasında ROAS farkı büyükse zayıf kampanyanın günlük bütçesinin %20\'si güçlü olana kaydırılır (iki reklam hesabı aynı para birimindeyse). Bütçe artışının emniyet sınırı var: aynı kampanyada 24 saatte en fazla bir, 7 günde en fazla iki artış yapılır ve bütçe, otopilotun o kampanyada ilk değişiklik yaptığı andaki bütçenin 2 katını geçmez. RanksUp\'ın Facebook sayfanda paylaştığı bir gönderi son 7 günde ortalamanın iki katı etkileşim alırsa günlük 50 bütçeyle (reklam hesabının para birimiyle: TL hesapta 50 TL, USD hesapta 50 USD) 7 gün öne çıkarılır; RanksUp şu an sosyal medyada paylaşım yapmadığı için bu adımda aday gönderi oluşmuyor. Bu işlemler reklam hesabından harcama yapar.',
   },
   {
     q: 'AI Citation testi tam olarak ne ölçüyor?',
-    a: 'Site brain\'inizdeki AEO/GEO sorgularını 7 AI asistanına sorar: ChatGPT · Claude · Gemini · Perplexity · Grok · DeepSeek · Meta. Ölçümü siz tetiklersiniz ("Yeniden Test"); her test kalıcı kaydedilir, iki testi yan yana karşılaştırabilirsiniz. Marka adınızın geçtiği sorular skora girmez (o tanınırlık, görünürlük değil). Cevapta site URL\'iniz alıntılanırsa 100, sadece marka adı geçerse 50, hiç geçmezse 0 puan; manşet 7 günlük ortalama. %30+ düşüş tespit edilirse otomatik email gelir.',
+    a: 'Marka beynindeki sorulardan en fazla 5\'ini 6 AI asistanına sorar: ChatGPT · Claude · Gemini · Perplexity · Grok · DeepSeek. Ölçümü siz başlatırsınız ("Yeniden Test"); hesap başına haftada bir AI ölçümü yapılabilir. Her test kalıcı kaydedilir, iki testi yan yana karşılaştırabilirsiniz. Marka adınızın geçtiği sorular skora girmez (o tanınırlık, görünürlük değil). Cevapta site URL\'iniz alıntılanırsa 100, sadece marka adı geçerse 50, hiç geçmezse 0 puan; manşet 7 günlük ortalama. Son 7 günün ortalaması önceki 7 güne göre %30 ya da daha fazla düşerse otomatik e-posta gelir.',
   },
   {
     q: 'GEO Score nedir, nasıl hesaplanır?',
-    a: '6 pillar üzerinden ağırlıklı ortalama: (1) Crawler Erişimi — robots.txt + llms.txt + llms-full.txt + sitemap (Perplexity, ChatGPT browse, Claude.ai gibi non-Google AI motorları için faydalı; Google AI Overviews\'da resmi olarak gerekli değil ama klasik teknik SEO altyapısı olarak puanlanır), (2) Yapısal Veri — schema kapsama + Speakable + FAQPage (rich result + non-Google AI için), (3) AI Citation — 7 sağlayıcı son 7 gün ortalama (gerçek AI cevaplarında alıntılanma — en kritik pillar), (4) Otorite — sameAs + competitive landscape + sosyal kanal + GSC (Google\'ın E-E-A-T sinyali), (5) Tazelik — son 7/30 gün yayın, (6) Multi-Modal — TTS audio + podcast + hero görseller. Sonuç: A+ → F harf notu.',
+    a: '6 başlığın ağırlıklı ortalamasıdır; her başlığın puanı geçilen kontrollerin oranıdır. (1) AI tarayıcı erişimi — robots.txt, llms.txt, sitemap.xml ve RanksUp\'ın ürettiği llms-full.txt; (2) Yapısal veri — RanksUp ile yayınlanan makalelerde şema kapsamı (en az %80), en az 5 farklı şema tipi, Speakable ve FAQPage; (3) AI atıfları — ölçülen AI asistanlarının (ChatGPT, Claude, Gemini, Perplexity, Grok, DeepSeek) son 7 gün ortalaması: ortalaması 30 ve üstü olan asistan geçer, son 7 günde ölçüm alınamayan asistan hesaba katılmaz; (4) Otorite — sosyal profil (sameAs) bağlantıları, en az 3 tanımlı rakip ve Search Console bağlantısı; (5) Tazelik — son 30 günde en az 4, son 7 günde en az 1 yayın ve 90 günden uzun süredir güncellenmeyen makalenin 10\'dan az olması; (6) Çoklu ortam — yayınlanan makalelerin en az %70\'inde kapak görseli. İlk üç başlığın ağırlığı en yüksektir. Sonuç A+ ile F arasında bir harf notudur.',
   },
   {
     q: 'Otopilot tam olarak ne yapıyor?',
-    a: 'Site eklediğinizde varsayılan AÇIK gelir. Otopilot ON ise: (1) Site denetimi → otomatik düzeltme (sitemap/robots/llms cPanel\'e yazılır), (2) 8 makale takvime yerleşir, (3) İlk makale hemen üretilir, (4) Sonraki makaleler 15dk öncesinden üretime girer, yayın saatinde otomatik publish, (5) AI Citation günlük + içerik 30 gün sonra performansa göre revize, (6) Reklam autopilot 6 saatte ROAS optimize. Sen sadece raporu maille okursun.',
+    a: 'Site eklediğinde otomatik akış (otopilot) açık başlar; Otomatik Akış sayfasından durdurabilirsin. Açıkken: (1) Site eklenirken FTP/SFTP/cPanel yayın hedefi tanımlıysa eksik sitemap.xml ve llms.txt oluşturulup yüklenir; robots.txt değişikliği yalnızca sen önizleyip onayladığında yazılır, (2) konu motorunun öncelikli konularından en fazla 8\'i takvime yerleşir ve ilk makale hemen üretilir, (3) takvime kendin eklediğin ya da tarihini değiştirdiğin makaleler planlanan saatten 15 dakika önce, site eklenirken takvime yerleşenler saatlik taramayla (planlanan saatin en fazla 15 dakika öncesinden yaklaşık 45 dakika sonrasına kadar) üretime alınır, (4) bir başlangıç AI görünürlük ölçümü alınır; sonraki ölçümleri "Yeniden Test" ile sen başlatırsın (hesap başına haftada bir), (5) Search Console bağlıysa, yayından en az 30 gün geçmiş makaleler haftalık taramada Search Console verisine göre değerlendirilir; gösterim alıp tıklaması ya da sırası zayıf kalan makale yeniden yazılabilir, Yarı otomatikte yeni hali onayını bekler, (6) Profesyonel ve üstü planlarda, Search Console bağlıysa ve Tam otomatik moddaysan Google\'da 4-15. sırada takılı kalan RanksUp makaleleri her hafta (site başına en fazla 5) iyileştirilip yeniden yayınlanır; Yarı otomatikte bunları Takılı Sayfalar ekranından sen başlatırsın. Reklam otopilotu ayrı bir ayardır ve varsayılan olarak kapalıdır.',
   },
   {
-    q: 'Türkçe SEO uzmanı maaşına vermek yerine RanksUp almak gerçekten mantıklı mı?',
-    a: 'Bir Türkçe SEO uzmanı 35-60k ₺/ay. Bir içerik yazarı 10-20k ₺/ay. ASO uzmanı 15-25k ₺/ay. Reklam uzmanı 20-40k ₺/ay. Toplam ~100k ₺/ay. RanksUp Profesyonel paket 6.980 ₺/ay ve hepsini yapıyor. Üstelik AI search optimizasyonu (Türkçe pazarda yok) + 7/24 çalışıyor + tatil yapmıyor + ayrılmıyor.',
+    q: 'Bir SEO uzmanıyla çalışmak yerine RanksUp kullanmak mantıklı mı?',
+    a: 'RanksUp bir uzmanın yerini tümüyle tutmaz; tekrarlayan işleri otomatikleştirir: site denetimi, içerik üretimi ve yayın, AI görünürlük ölçümü ve ASO tek panelde. Profesyonel plan aylık $349 (TL tutarı ödeme günündeki TCMB kuruyla hesaplanır). Bir uzmanla ya da ajansla çalışıyorsan RanksUp ona ölçüm verisi ve zaman kazandırır.',
   },
   {
     q: 'Google llms.txt\'i kullanıyor mu? Bu dosya gerçekten gerekli mi?',
-    a: 'Google resmi rehberinde "AI Overviews ve generatif arama için yeni bir machine-readable dosya, AI text dosyası, markup veya Markdown oluşturmanıza gerek yok" diyor — yani Google için llms.txt zorunlu değil. Ancak Perplexity, ChatGPT browse modu, Claude.ai web erişimi gibi non-Google AI motorları llms.txt + llms-full.txt\'i okuyarak içeriği daha hızlı parse ediyor. RanksUp bu dosyaları "multi-engine GEO optimizasyonu" için üretiyor — Google\'a yarar yok zararı yok, diğer AI motorlarına net yarar. Google\'da AI Overviews için asıl odak: benzersiz bakış açısı, first-hand deneyim, E-E-A-T sinyalleri ve klasik teknik SEO (indekslenebilirlik + snippet uygunluğu). RanksUp\'nın Brain Generator + içerik pipeline\'ı bu sinyalleri zaten optimize ediyor.',
+    a: 'Google\'ın AI özellikleri rehberi, bu özelliklerde görünmek için yeni makine-okunur dosyalar, AI metin dosyaları ya da işaretleme oluşturmanın gerekmediğini söylüyor; yani Google için llms.txt zorunlu değil. llms.txt, sitenin yapay zekâ araçlarına yönelik özetini sunmak için önerilmiş bir standart taslağıdır (llmstxt.org, 2024). Hangi AI asistanının bu dosyayı okuduğu resmî olarak açıklanmış değil; RanksUp dosyayı düşük maliyetli bir ek olarak üretir. Google\'da asıl odak benzersiz bakış açısı, ilk elden deneyim, güvenilirlik ve klasik teknik SEO\'dur (indekslenebilirlik ve snippet uygunluğu).',
   },
   {
     q: 'Demo görmek istiyorum, nasıl?',
-    a: 'Onboarding ekranında "Demo Aç" butonuna tıkla. 30 saniyede tam dolu örnek site açılır: 5 dummy makale (1 yayında, 1 üretiliyor, 3 takvimde) + audit raporu + AI Citation 14 günlük trend + GEO Score Card. Tek tıkla RanksUp\'ı keşfedebilirsin, kendi siteni bağlamadan.',
+    a: 'Site ekleme ekranında "Demo siteyi aç" butonuna tıkla. Örnek verilerle dolu bir demo site açılır: 5 makale (2 yayında, 1 üretiliyor, 2 takvimde), site taraması ve 14 günlük örnek AI görünürlük verisi. Demo verileri gerçek ölçüm değildir; RanksUp\'ı kendi siteni bağlamadan keşfetmen içindir.',
   },
 ];
 
 const FAQS_EN = [
   {
     q: 'How does RanksUp work?',
-    a: 'You connect your site URL. The AI first crawls your site and builds a "brand brain" (tone, persona, competitors). It then uses GSC data + AI analysis to produce a Tier 1/2/3 topic list. Every article flows through a 6-agent chain (keyword → outline → writer → editor → image → publisher) and is published to your chosen target (WordPress, FTP, GitHub, etc.).',
+    a: 'You add your site address. The AI first crawls your site and builds a "brand brain" (tone, persona, competitors). It then uses Search Console data (if connected) and AI analysis to produce a Tier 1/2/3 topic list. Every article flows through a 5-agent pipeline (keyword → outline → writer → editor → visuals) and, after a pre-publish quality gate, is published to your chosen target (WordPress, FTP, GitHub, etc.).',
   },
   {
     q: 'Which languages are supported?',
-    a: 'Turkish and English. You pick during onboarding, or choose "both" and select per-article. 10 languages planned for Phase 3.',
+    a: 'The interface is in Turkish and English. Article language is set in site settings: Turkish or English.',
   },
   {
     q: 'How much can I use for free?',
-    a: 'On signup, 2 articles are generated completely free (no time limit, no credit card). You can download them as a Markdown ZIP or send to basic publish targets. When the quota is used, pick a plan; doing so unlocks all publish targets like WordPress/FTP/SFTP + AI Video Studio.',
+    a: 'On signup you get 2 free articles (no time limit, no credit card), plus 3 AI visibility runs and 1 site. On the trial you can download articles as a Markdown ZIP or send them to your WordPress (REST) site. A paid plan unlocks the other publish targets such as FTP/SFTP, cPanel and GitHub.',
   },
   {
     q: 'Will Google penalize AI content?',
-    a: 'No. Google\'s AI content policy is quality-focused, not method-focused. RanksUp\'s editor layer removes AI clichés, enforces brand voice consistency, and every article is 1800-2500 words structured with FAQ + Schema markup to deliver real value.',
+    a: 'Not for being AI-generated: Google says appropriate use of AI or automation is not against its guidelines. Automation used primarily to manipulate search rankings does violate Google\'s spam policies, so the bar is quality, not method. In RanksUp every article goes through an editor agent and a pre-publish quality gate (unsourced numbers, made-up internal links, structure checks). You should still review content before it goes live.',
   },
   {
     q: 'What is GEO (AI search) optimization?',
-    a: 'Content optimization to be cited in answers from AI assistants like ChatGPT, Perplexity, Claude. Two tracks run in parallel: (1) For Google AI Overviews — classic technical SEO + unique perspective + E-E-A-T (Google\'s official guide says this — no special "AI file" required). (2) For non-Google AI engines like Perplexity / ChatGPT browse / Claude.ai — llms.txt + llms-full.txt + structured data + Q&A formats are set up. The Auriti GEO Optimizer scans across 47 metrics and one-click fixes the gaps.',
+    a: 'Optimization to be mentioned and cited in answers from AI assistants like ChatGPT, Perplexity and Claude. Google\'s official guide for its AI features says no special "AI file" is required; the basics are technical SEO, a unique perspective and trustworthy content. RanksUp runs a GEO analysis of your site on 8 signals (llms.txt, JSON-LD schema, FAQ / Q&A, definition density, heading hierarchy, OG / canonical, freshness and citation format; the homepage and up to 5 inner pages are sampled) and measures the actual outcome on 6 AI assistants. It offers previewed fixes for robots.txt, sitemap.xml and llms.txt.',
   },
   {
     q: 'How do I connect my own WordPress?',
-    a: 'In the WordPress admin under Users → Profile → Application Passwords, create an App Password. In RanksUp onboarding step 5, pick WordPress REST, enter site URL + username + app password. After that every generated article is auto-published.',
+    a: 'In the WordPress admin under Users → Profile, create an application password in the "Application Passwords" section. In RanksUp go to the site menu → "Yayın Hedefleri" (publish targets) → WordPress (REST API) and enter your site address, your own WordPress username and the application password. If you set the publish status to "Taslak" (draft), articles arrive in WordPress as drafts for you to review; "Yayında" (published) sends them live directly.',
   },
   {
     q: 'Can I cancel my subscription anytime?',
-    a: 'Yes. Dashboard → Subscription → Cancel. On monthly plans your access continues until end of period. On yearly plans full refund within first 30 days, then pro-rata refund per remaining month.',
+    a: 'Yes. On the Subscription (Abonelik) page, click "Aboneliği iptal et" (cancel subscription). Your access continues until the end of the paid period. Under the Terms of Service, yearly plans get a full refund in the first 30 days and a pro-rata refund per remaining month after that; email destek@luvihost.com to request a refund.',
   },
   {
     q: 'Is my data safe?',
-    a: 'All credentials (FTP/SFTP/WP/cPanel passwords, GSC OAuth tokens) are AES-256-GCM encrypted. GDPR/KVKK compliant. If you delete your account, data is retained 30 days then permanently deleted.',
+    a: 'All connection credentials (FTP/SFTP/WordPress/cPanel passwords, Search Console OAuth tokens) are AES-256-GCM encrypted. Servers are in the LuviHost Istanbul data center. If you delete your account, access ends immediately and your data is permanently deleted after 30 days; invoices and payment records are kept with the personal link removed, as the law requires.',
   },
   {
     q: 'Does the EU AI Act affect content made with RanksUp?',
-    a: 'Article 50 of the AI Act requires generative-AI output to be marked in a machine-readable way; the obligation sits primarily with model providers (Anthropic, Google, OpenAI). For customers publishing into the EU, RanksUp does not hide AI involvement, keeps author/editor information in schema (Person + author) and tracks providers\' marking practices in its intelligence ledger. No extra obligation for Turkish publishing; if one arises the product is updated — nothing for you to do.',
+    a: 'Article 50 of the AI Act (applicable from 2 August 2026) requires providers of AI systems (such as Anthropic, Google and OpenAI) to mark generative output in a machine-readable way. In addition, whoever publishes AI-generated text to inform the public on matters of public interest must disclose it, unless the text has undergone human review and a person or organization holds editorial responsibility for it. RanksUp asks you to review articles before publishing (Terms of Service) and keeps author information in schema (Person + author). We recommend getting legal advice for your own case.',
   },
   {
     q: 'Which AI model do you use?',
-    a: 'Default: Claude Sonnet 4.6 (writer + editor). Quality-first customers can opt in to Opus 4.7. Images: Gemini 2.5 Flash Image. All models chosen for cost/quality balance.',
+    a: 'The article agents (keyword, outline, writer, editor, image prompt) run on Anthropic\'s Claude models; the Claude version is managed platform-wide, not chosen per customer. Images are generated by default with Google\'s Gemini image model (gemini-2.5-flash-image). AI visibility measurement asks ChatGPT, Claude, Gemini, Perplexity, Grok and DeepSeek through their own models.',
   },
   {
     q: 'What happens if I exceed my monthly article quota?',
-    a: 'The system stops generation and suggests a plan upgrade. The quota auto-resets at month end. Professional → Enterprise upgrade is one click.',
+    a: 'The system stops generation and suggests a plan upgrade. The counter resets at the start of each calendar month (the 2 free trial articles do not reset). You buy the Growth, Professional and Agency plans from the dashboard; the Enterprise plan is set up under contract with our sales team.',
   },
   {
     q: 'How does the affiliate program work?',
-    a: 'After selecting a plan, enroll in affiliate from the dashboard. You get a unique link. You earn 30% of all payments your invitees make for 3 months. Paid monthly via automatic PayTR transfer.',
+    a: 'Join for free from the "Ortaklık Programı" (affiliate program) page in the dashboard; you get a unique invite link. The link is valid for 60 days: anyone who signs up within that time counts as your referral. You earn 30% of the payments your referral makes within 3 months (90 days) of signing up. Commission comes only from your direct referrals\' payments. There is no automatic payout yet; the accrued amount shows in the dashboard as "Ödenmeyi bekleyen" (pending payout).',
   },
   {
     q: 'Can my developer team use the API?',
-    a: 'In Phase 3 (Q3 2026), a public REST API + npm/pip SDK + Zapier/Make/n8n integrations will ship. For now you operate manually/automated through the dashboard.',
+    a: 'Yes, on the Enterprise plan: a REST API (with scoped API keys) and an MCP server (connect from agents such as Claude Code or Cursor). On other plans you use the product through the dashboard. There is no ready-made npm/pip SDK or Zapier/Make/n8n integration at the moment.',
   },
   {
     q: 'How does ad management (Google Ads + Meta) work?',
-    a: 'Via the Ryze AI MCP integration, Google Ads + Meta + GA4 connect. AI suggests audiences (interest + keyword + lookalike), writes ad copy (Google RSA + Meta primaryText), prepares 3 image formats (square/portrait/landscape), and sets budget. Autopilot analyzes ROAS every 6h — pause if low, boost budget 20% if high, add irrelevant search terms as negative keywords.',
+    a: 'You connect your Google Ads and Meta Ads accounts through their official APIs. Campaign Score (Kampanya Skoru) audits the ad account against a rule set and suggests fixes. If you turn on the ads autopilot (off by default, separate from the site autopilot), active campaigns registered in RanksUp are reviewed every 6 hours and these changes can be made in your account: a campaign with low return on ad spend (ROAS) and high spend is paused; a campaign with high click-through rate and ROAS gets a 20% daily budget increase; the winning ad variant is kept and the others are paused; irrelevant Google Ads search terms are added as negative keywords; when ROAS differs widely between the two platforms, 20% of the weaker campaign\'s daily budget moves to the stronger one (only if both ad accounts use the same currency). Budget increases have a safety limit: at most one increase per campaign in 24 hours and two in 7 days, and the budget never exceeds twice what it was when the autopilot first changed that campaign. If a post that RanksUp shared on your Facebook Page gets twice the average engagement in the last 7 days, it is boosted for 7 days with a daily budget of 50 in your ad account\'s currency (50 TRY on a TRY account, 50 USD on a USD account); RanksUp currently does not share posts on social media, so no post qualifies for this step. These actions spend money from your ad accounts.',
   },
   {
     q: 'What exactly does the AI Citation test measure?',
-    a: 'It asks your site brain\'s AEO/GEO queries to 7 AI assistants: ChatGPT · Claude · Gemini · Perplexity · Grok · DeepSeek · Meta. You trigger the measurement ("Re-test"); every run is stored permanently and any two runs can be compared side by side. Questions that already contain your brand are excluded from the score (that is recognition, not visibility). URL cited = 100, brand name only = 50, absent = 0; the headline is a 7-day rolling average. A 30%+ drop triggers an automatic email alert.',
+    a: 'It asks up to 5 questions from your brand brain to 6 AI assistants: ChatGPT · Claude · Gemini · Perplexity · Grok · DeepSeek. You trigger the measurement ("Yeniden Test", re-test); one AI measurement per account per week. Every run is stored permanently and any two runs can be compared side by side. Questions that already contain your brand are excluded from the score (that is recognition, not visibility). URL cited = 100, brand name only = 50, absent = 0; the headline is a 7-day rolling average. If the last 7 days\' average drops 30% or more against the previous 7 days, you get an automatic email.',
   },
   {
     q: 'What is GEO Score, how is it calculated?',
-    a: 'Weighted average across 6 pillars: (1) Crawler Access — robots.txt + llms.txt + llms-full.txt + sitemap (helpful for non-Google AI engines like Perplexity, ChatGPT browse, Claude.ai; not officially required by Google AI Overviews but scored as classic technical SEO foundation), (2) Structured Data — schema coverage + Speakable + FAQPage (for rich results + non-Google AI), (3) AI Citation — 7-provider 7-day average (citation in real AI answers — the most critical pillar), (4) Authority — sameAs + competitive landscape + social channels + GSC (Google\'s E-E-A-T signal), (5) Freshness — last 7/30-day publishing, (6) Multi-Modal — TTS audio + podcast + hero images. Result: A+ → F letter grade.',
+    a: 'A weighted average of 6 pillars; each pillar scores the share of its checks that pass. (1) AI crawler access — robots.txt, llms.txt, sitemap.xml and the llms-full.txt RanksUp generates; (2) Structured data — on articles published through RanksUp: schema coverage (at least 80%), at least 5 distinct schema types, Speakable and FAQPage; (3) AI citations — the 7-day average of each measured AI assistant (ChatGPT, Claude, Gemini, Perplexity, Grok, DeepSeek): an assistant passes at 30 or above, and an assistant with no measurement in the last 7 days is left out; (4) Authority — social profile (sameAs) links, at least 3 defined competitors and a Search Console connection; (5) Freshness — at least 4 articles in the last 30 days, at least 1 in the last 7 days, and fewer than 10 articles left without an update for over 90 days; (6) Multi-modal — a cover image on at least 70% of published articles. The first three pillars carry the highest weight. The result is a letter grade from A+ to F.',
   },
   {
     q: 'What exactly does Autopilot do?',
-    a: 'It\'s ON by default when you add a site. When ON: (1) Site audit → auto-fix (sitemap/robots/llms written to cPanel), (2) 8 articles scheduled, (3) First article generated immediately, (4) Subsequent articles enter generation 15min ahead, auto-publish at scheduled time, (5) AI Citation daily + content auto-revised after 30 days based on performance, (6) Ads autopilot optimizes ROAS every 6h. You just read the report via email.',
+    a: 'Automation (autopilot) is on by default when you add a site; you can pause it on the "Otomatik Akış" (automation) page. When on: (1) when the site is added, if an FTP/SFTP/cPanel publish target exists, missing sitemap.xml and llms.txt are created and uploaded; a robots.txt change is written only after you preview and confirm it, (2) up to 8 of the topic engine\'s priority topics are scheduled and the first article is generated immediately, (3) articles you add to the calendar or reschedule yourself enter generation 15 minutes before their scheduled time, while those scheduled when the site was added are picked up by an hourly scan (from up to 15 minutes before to about 45 minutes after their scheduled time), (4) a baseline AI visibility measurement is taken; you start later measurements with "Yeniden Test" (re-test; one per account per week), (5) if Search Console is connected, articles published at least 30 days ago are checked against Search Console data in a weekly scan; an article that gets impressions but has a weak click-through rate or position can be rewritten, and in "Yarı otomatik" (semi-auto) mode the new version waits for your approval, (6) on Professional and higher plans, if Search Console is connected and you use "Tam otomatik" (full auto) mode, RanksUp articles stuck at positions 4-15 on Google are improved and republished every week (up to 5 per site); in "Yarı otomatik" you start these yourself from the "Takılı Sayfalar" (stuck pages) screen. The ads autopilot is a separate setting and is off by default.',
   },
   {
-    q: 'Is RanksUp really cheaper than hiring a Turkish SEO specialist?',
-    a: 'A Turkish SEO specialist costs ₺35-60k/mo. A content writer ₺10-20k/mo. An ASO specialist ₺1ger ₺15-25k/mo. An ads specialist ₺20-40k/mo. Total ~₺100k/mo. RanksUp Professional is ₺6,980/mo and does it all. Plus AI search optimization (rare in the Turkish market) + 24/7 + no vacation + no resignation.',
+    q: 'Does RanksUp make sense instead of working with an SEO specialist?',
+    a: 'RanksUp does not fully replace a specialist; it automates the repetitive work: site audit, content generation and publishing, AI visibility measurement and ASO in one dashboard. The Professional plan is $349/mo (the TRY amount is calculated at the CBRT rate on the payment date). If you work with a specialist or an agency, RanksUp gives them measurement data and saves them time.',
   },
   {
     q: 'Does Google use llms.txt? Is this file actually needed?',
-    a: 'Google\'s official guide states: "You don\'t need to create a new machine-readable file, AI text file, markup or Markdown for AI Overviews and generative search" — so llms.txt is not required for Google. However Perplexity, ChatGPT browse mode, Claude.ai web access read llms.txt + llms-full.txt to parse content faster. RanksUp produces these files for "multi-engine GEO optimization" — neutral for Google, clear benefit for other AI engines. For Google AI Overviews the real focus is: unique perspective, first-hand experience, E-E-A-T signals and classic technical SEO (indexability + snippet eligibility). RanksUp\'s Brain Generator + content pipeline already optimizes these signals.',
+    a: 'Google\'s guide for its AI features says you don\'t need to create new machine-readable files, AI text files or markup to appear in those features, so llms.txt is not required for Google. llms.txt is a proposed standard for offering an AI-friendly summary of a site (llmstxt.org, 2024). Which AI assistants read the file has not been officially disclosed; RanksUp produces it as a low-cost extra. For Google, the real focus is a unique perspective, first-hand experience, trustworthiness and classic technical SEO (indexability and snippet eligibility).',
   },
   {
     q: 'I want a demo, how?',
-    a: 'In the onboarding screen, click "Open Demo". In 30 seconds a fully-loaded example site opens: 5 dummy articles (1 live, 1 generating, 3 scheduled) + audit report + AI Citation 14-day trend + GEO Score Card. One click to explore RanksUp without connecting your own site.',
+    a: 'On the add-site screen, click "Demo siteyi aç" (open demo site). A demo site filled with sample data opens: 5 articles (2 published, 1 generating, 2 scheduled), a site audit and 14 days of sample AI visibility data. Demo data is not a real measurement; it lets you explore RanksUp without connecting your own site.',
   },
 ];
 

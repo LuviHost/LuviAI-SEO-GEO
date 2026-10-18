@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import Anthropic from '@anthropic-ai/sdk';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { safeParseJson } from '../common/safe-json.js';
@@ -18,18 +18,42 @@ export interface CrossLinkSuggestion {
   insertionPoint: string; // makalede hangi cumlenin sonuna eklenecek
 }
 
+/** Oneri basina bir model cagrisi (aiRefine) — controller da ayni tavani uygular */
+const MAX_SUGGESTIONS = 10;
+
+/**
+ * Cross-link havuzuna giren baska siteler. Panel (geo-lab-panel CrossLinkTab)
+ * kullaniciya "Sadece Otopilot ON olan siteler dahil edilir (onay)" diyor;
+ * eskiden otopilot yalnizca siralamada +10 puandi, otopilotu KAPALI sitelerin
+ * makaleleri ve site adlari da baska musterilere oneriliyordu. Kural artik
+ * sorguda: oneride de, uygulamada da ayni kosul.
+ */
+const CANDIDATE_SITE_WHERE = {
+  status: { in: ['ACTIVE', 'AUDIT_COMPLETE'] as any[] },
+  autopilot: true,
+};
+
+/** Markdown satirina girecek serbest metin: tek satir, koseli parantez ve HTML acisi yok */
+function inlineText(value: unknown, max: number): string {
+  if (typeof value !== 'string') return '';
+  return value.replace(/[\r\n]+/g, ' ').replace(/[[\]<>]/g, '').replace(/\s+/g, ' ').trim().slice(0, max);
+}
+
 /**
  * Cross-Linking — RanksUp ekosistemindeki sitelerin makalelerini akilli bir
- * sekilde birbirine baglar. Sadece OPT-IN siteler dahil edilir.
+ * sekilde birbirine baglar. Sadece OPT-IN siteler dahil edilir (otopilot
+ * acik — CANDIDATE_SITE_WHERE).
  *
  * Calisma:
  *   1. Tum opted-in sitelerin published makalelerini topla
  *   2. Her cift icin: AI ile semantic relevance hesapla
- *   3. Score >= 70 olanlar icin cross-link onerisi uret
+ *   3. Score >= 50 olanlar icin cross-link onerisi uret
  *   4. Manuel onaydan sonra makalenin "Ayrica bakiniz" bolumune eklenir
  *
- * AI'lar bu cross-link'leri "kurulus ekosistemi" olarak ogrenir → tum siteler
- * birden alintilanir.
+ * KIRACI KAPSAMI: kaynak makale her zaman findFirst({ id, siteId }) ile
+ * okunur. Controller ayrica kontrol ediyor (assertArticleInSite); servis de
+ * kendini korur — kimligi siteyle sinirlamayan bir cagiran baska musterinin
+ * makalesini okutup govdesine yazdiramasin.
  */
 @Injectable()
 export class CrossLinkingService {
@@ -43,26 +67,28 @@ export class CrossLinkingService {
   /**
    * Bir makale icin tum ekosistemden ilgili cross-link onerileri.
    */
-  async suggestForArticle(articleId: string, opts: { limit?: number } = {}): Promise<CrossLinkSuggestion[]> {
-    const limit = opts.limit ?? 5;
-    const articleRaw = await this.prisma.article.findUniqueOrThrow({
-      where: { id: articleId },
-    });
-    const article: any = articleRaw;
+  async suggestForArticle(siteId: string, articleId: string, opts: { limit?: number } = {}): Promise<CrossLinkSuggestion[]> {
+    const rawLimit = typeof opts.limit === 'number' && Number.isFinite(opts.limit) ? Math.trunc(opts.limit) : 5;
+    const limit = Math.min(Math.max(rawLimit, 1), MAX_SUGGESTIONS);
+    if (!siteId || !articleId) throw new NotFoundException('Makale bulunamadı.');
+    const article: any = await this.prisma.article.findFirst({ where: { id: articleId, siteId } });
+    if (!article) throw new NotFoundException('Makale bulunamadı.');
 
-    const sourceSiteRaw = await this.prisma.site.findUniqueOrThrow({
-      where: { id: article.siteId },
+    const sourceSite: any = await this.prisma.site.findUnique({
+      where: { id: siteId },
+      select: { url: true, niche: true },
     });
-    const sourceSite: any = sourceSiteRaw;
+    if (!sourceSite) throw new NotFoundException('Site bulunamadı.');
 
-    // Sadece kendi sitesi olmayan, ACTIVE/AUDIT_COMPLETE olan siteler
+    // Kendi sitesi olmayan, yayinda ve cross-link'e acik (otopilot) siteler
     const candidateArticles = await this.prisma.article.findMany({
       where: {
-        siteId: { not: article.siteId },
+        siteId: { not: siteId },
         status: 'PUBLISHED' as any,
-        site: { status: { in: ['ACTIVE', 'AUDIT_COMPLETE'] as any[] } },
+        site: CANDIDATE_SITE_WHERE,
       },
-      include: { site: true },
+      // Yalniz gereken site alanlari: tam satir sirlari (token'lar) bellege tasirdi
+      include: { site: { select: { name: true, url: true, niche: true } } },
       orderBy: { publishedAt: 'desc' },
       take: 30,
     });
@@ -78,11 +104,8 @@ export class CrossLinkingService {
       const matches = sourceKeywords.filter((k: string) => cTopic.includes(k)).length;
       const overlap = sourceKeywords.length > 0 ? matches / sourceKeywords.length : 0;
       const sameNiche = sourceSite.niche && c.site.niche === sourceSite.niche;
-      let score = overlap * 60 + (sameNiche ? 20 : 0);
-
-      // Otopilot ON olan siteleri prioritize (consent var)
-      if ((c.site as any).autopilot) score += 10;
-
+      // Otopilot eskiden +10 puandi; artik havuzdaki her site otopilotlu
+      const score = overlap * 60 + (sameNiche ? 20 : 0);
       return { article: c, score };
     });
 
@@ -122,18 +145,50 @@ export class CrossLinkingService {
 
   /**
    * Onaylanan oneri'yi makalenin bodyMd'sine direkt ekle.
+   *
+   * Oneri nesnesi istemciden geri gelir; yalniz kimlikler ve iki serbest
+   * metin (baglanti metni, baglam) kullanilir. Hedef ADRES istemcinin
+   * gonderdigi toArticleUrl'den DEGIL, kayitli hedef makaleden kurulur:
+   * eskiden makaleye istenen herhangi bir adres (javascript: dahil)
+   * yazilabiliyordu ve hedefin hala yayinda / paylasima acik olup olmadigina
+   * bakilmiyordu.
    */
-  async applyLinkSuggestion(suggestion: CrossLinkSuggestion): Promise<{ ok: boolean; error?: string }> {
-    const article = await this.prisma.article.findUniqueOrThrow({ where: { id: suggestion.fromArticleId } });
+  async applyLinkSuggestion(
+    siteId: string,
+    suggestion: Partial<CrossLinkSuggestion> | Record<string, unknown>,
+  ): Promise<{ ok: boolean; error?: string; toArticleUrl?: string }> {
+    const s = (suggestion ?? {}) as Record<string, unknown>;
+    const fromId = typeof s.fromArticleId === 'string' ? s.fromArticleId : '';
+    const toId = typeof s.toArticleId === 'string' ? s.toArticleId : '';
+    if (!fromId || !toId) {
+      throw new BadRequestException('Öneride kaynak ve hedef makale kimliği (fromArticleId, toArticleId) gerekli.');
+    }
+
+    if (!siteId) throw new NotFoundException('Makale bulunamadı.');
+    const article = await this.prisma.article.findFirst({ where: { id: fromId, siteId } });
+    if (!article) throw new NotFoundException('Makale bulunamadı.');
+
+    const target = await this.prisma.article.findFirst({
+      where: { id: toId, siteId: { not: siteId }, status: 'PUBLISHED' as any, site: CANDIDATE_SITE_WHERE },
+      select: { title: true, slug: true, site: { select: { url: true } } },
+    });
+    if (!target) {
+      throw new BadRequestException('Hedef makale artık önerilemiyor: yayından kalkmış ya da sitesi çapraz bağlantıya kapalı.');
+    }
+    const toUrl = `${target.site.url.replace(/\/+$/, '')}/blog/${target.slug}.html`;
+    const anchor = inlineText(s.anchorText, 120) || inlineText(target.title, 60);
+    const context = inlineText(s.contextSnippet, 300);
+
     const md = article.bodyMd ?? '';
 
     // "Ayrica bakiniz" bolumu var mi?
     let newMd = md;
-    const linkLine = `- [${suggestion.anchorText}](${suggestion.toArticleUrl}) — ${suggestion.contextSnippet}`;
+    const linkLine = `- [${anchor}](${toUrl})${context ? ` — ${context}` : ''}`;
 
     if (/##\s*Ayrıca\s*bakınız/i.test(md) || /##\s*Ayrica\s*bakiniz/i.test(md)) {
-      // Mevcut bolume ekle (basit string replace)
-      newMd = md.replace(/(##\s*Ayr[ıi]ca\s*bak[ıi]n[ıi]z\s*\n)/i, `$1${linkLine}\n`);
+      // Mevcut bolume ekle. Degistirme FONKSIYONLA: metindeki "$1"/"$&" kaliplari
+      // dize degistirmede ozel anlam tasir ve satiri bozardi.
+      newMd = md.replace(/(##\s*Ayr[ıi]ca\s*bak[ıi]n[ıi]z\s*\n)/i, (_m, heading: string) => `${heading}${linkLine}\n`);
     } else {
       // Yeni bolum yarat (Sonuc bolumunden once)
       const sonucIdx = md.search(/##\s*Sonuc|##\s*Sonuç/i);
@@ -146,11 +201,11 @@ export class CrossLinkingService {
     }
 
     await this.prisma.article.update({
-      where: { id: suggestion.fromArticleId },
+      where: { id: article.id },
       data: { bodyMd: newMd },
     });
 
-    return { ok: true };
+    return { ok: true, toArticleUrl: toUrl };
   }
 
   // ────────────────────────────────────────────────────────────

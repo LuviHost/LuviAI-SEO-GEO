@@ -9,7 +9,8 @@ import { OAuthService } from './oauth.service.js';
  *
  * Env gerekli:
  *   GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET   (NextAuth ile paylasimli)
- *   GOOGLE_ADS_DEV_TOKEN                     (Ads API icin)
+ *   (Google Ads developer token 9 Eylul 2026'da kaldirildi; erisim seviyesi
+ *    GOOGLE_CLIENT_ID'nin Cloud projesinden gelir — ads/google-ads-api.ts)
  *   META_APP_ID, META_APP_SECRET
  *   API_BASE_URL, WEB_BASE_URL
  */

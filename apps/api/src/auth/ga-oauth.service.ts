@@ -5,6 +5,8 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { encrypt, decrypt } from '@luviai/shared';
 import * as https from 'node:https';
 import { URLSearchParams } from 'node:url';
+import { OAuthFlowError } from './oauth-state.js';
+import { DEFAULT_GA_SCOPES, GA_DATA_SCOPES, hasGrantedScope, scopesFromEnv } from './oauth-scopes.js';
 
 // Native https.request — googleapis gaxios IPv6 ETIMEDOUT bypass icin (GSC ile ayni pattern)
 function nativeHttpsJson(opts: {
@@ -51,9 +53,9 @@ function nativeHttpsJson(opts: {
  * (analytics.readonly). Kullanici site bazli ayri OAuth akisindan gecer.
  *
  * Akis:
- *   1) /api/auth/ga/start?siteId=xxx -> Google consent URL
- *   2) Kullanici izin -> /api/auth/ga/callback?code&state
- *   3) refresh_token sifrelenip Site.gaRefreshToken'a yazilir
+ *   1) /api/auth/ga/start?siteId=xxx -> sahiplik + tek kullanimlik state (oauth-state.ts) -> Google consent URL
+ *   2) Kullanici izin -> /api/auth/ga/callback?code&state (siteId yalniz sunucudaki state kaydindan)
+ *   3) Verilen kapsam dogrulanir; refresh_token sifrelenip Site.gaRefreshToken'a yazilir
  *   4) Property listesinden ilki Site.gaPropertyId'a yazilir
  */
 @Injectable()
@@ -73,17 +75,28 @@ export class GaOAuthService {
     );
   }
 
-  async buildAuthorizationUrl(siteId: string): Promise<string> {
+  /** Istenen kapsamlar — callback'teki kapsam kontrolu de ayni listeyi kullanir */
+  requestedScopes(): string[] {
+    return scopesFromEnv(process.env.GA_SCOPES, DEFAULT_GA_SCOPES);
+  }
+
+  /** `state` ham siteId DEGIL: issueOAuthState'in urettigi tek kullanimlik nonce */
+  buildAuthorizationUrl(state: string): string {
     const client = this.getClient();
     return client.generateAuthUrl({
       access_type: 'offline',
       prompt: 'consent',
-      scope: process.env.GA_SCOPES?.split(',') ?? ['https://www.googleapis.com/auth/analytics.readonly'],
-      state: siteId,
+      scope: this.requestedScopes(),
+      state,
     });
   }
 
-  async handleCallback(code: string, state: string) {
+  /**
+   * Code → token, kapsam kontrolu, sifreli refresh_token'i yaz. siteId sunucudaki
+   * state kaydindan gelir. Hatalar OAuthFlowError kodudur; Google'in ham cevabi
+   * yalniz loga gider.
+   */
+  async completeConnection(siteId: string, code: string) {
     // ─── Token exchange — native https.request (gaxios bypass) ───
     const clientId = process.env.GA_CLIENT_ID ?? process.env.GOOGLE_CLIENT_ID ?? '';
     const clientSecret = process.env.GA_CLIENT_SECRET ?? process.env.GOOGLE_CLIENT_SECRET ?? '';
@@ -107,11 +120,15 @@ export class GaOAuthService {
       },
       body: tokenBody,
       timeoutMs: 15_000,
+    }).catch((err: any) => {
+      this.log.warn(`GA token exchange request failed (${siteId}): ${String(err?.message ?? err).slice(0, 200)}`);
+      throw new OAuthFlowError('token_exchange_failed');
     });
 
     if (tokenRes.status >= 400) {
       const detail = tokenRes.body?.error_description ?? tokenRes.body?.error ?? `HTTP ${tokenRes.status}`;
-      throw new BadRequestException(`Google token exchange failed: ${detail}`);
+      this.log.warn(`GA token exchange failed (${siteId}): ${String(detail).slice(0, 200)}`);
+      throw new OAuthFlowError('token_exchange_failed');
     }
 
     const tokens = tokenRes.body as {
@@ -122,8 +139,14 @@ export class GaOAuthService {
       token_type?: string;
     };
 
+    // Analytics kutusu bos birakildiysa "bagli" gosterip veri getirmemek yerine reddet
+    if (!hasGrantedScope(tokens.scope, this.requestedScopes(), GA_DATA_SCOPES)) {
+      this.log.warn(`GA scope verilmedi (${siteId}): ${String(tokens.scope ?? '').slice(0, 200)}`);
+      throw new OAuthFlowError('scope_not_granted');
+    }
+
     if (!tokens.refresh_token) {
-      throw new Error('refresh_token gelmedi — Google hesabinin GA izinlerini sifirlayip tekrar dene');
+      throw new OAuthFlowError('no_refresh_token');
     }
 
     // ─── GA accountSummaries — native https.request ───
@@ -159,7 +182,7 @@ export class GaOAuthService {
 
     const encrypted = encrypt(tokens.refresh_token);
     await this.prisma.site.update({
-      where: { id: state },
+      where: { id: siteId },
       data: {
         gaRefreshToken: encrypted,
         gaConnectedAt: new Date(),
@@ -167,7 +190,7 @@ export class GaOAuthService {
       },
     });
 
-    return { siteId: state, propertyId: firstPropertyId };
+    return { siteId, propertyId: firstPropertyId };
   }
 
   async getAuthenticatedClient(siteId: string): Promise<OAuth2Client | null> {

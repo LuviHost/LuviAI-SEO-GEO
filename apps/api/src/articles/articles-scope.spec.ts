@@ -34,7 +34,8 @@ describe('makale kimligi :siteId ile sinirli', () => {
     await expect(ctl.reschedule('s1', FOREIGN, { scheduledAt: '2026-11-01T09:00:00.000Z' })).rejects.toBeInstanceOf(NotFoundException);
     expect(scheduler.rescheduleArticle).not.toHaveBeenCalled();
     await ctl.reschedule('s1', OWN, { scheduledAt: '2026-11-01T09:00:00.000Z' });
-    expect(scheduler.rescheduleArticle).toHaveBeenCalledWith(OWN, '2026-11-01T09:00:00.000Z');
+    // Servis site kimligini de alir (ikinci kat): controller denetimi + servis suzgeci
+    expect(scheduler.rescheduleArticle).toHaveBeenCalledWith('s1', OWN, '2026-11-01T09:00:00.000Z');
     expect(articles.findOne).toHaveBeenCalledWith(OWN, 's1');
   });
 
@@ -43,7 +44,7 @@ describe('makale kimligi :siteId ile sinirli', () => {
     await expect(ctl.unschedule('s1', FOREIGN)).rejects.toBeInstanceOf(NotFoundException);
     expect(scheduler.unscheduleArticle).not.toHaveBeenCalled();
     await ctl.unschedule('s1', OWN);
-    expect(scheduler.unscheduleArticle).toHaveBeenCalledWith(OWN);
+    expect(scheduler.unscheduleArticle).toHaveBeenCalledWith('s1', OWN);
   });
 
   it('translate: baska sitenin makalesi cevrilmez (LLM cagrisi yok)', async () => {
@@ -51,7 +52,7 @@ describe('makale kimligi :siteId ile sinirli', () => {
     await expect(ctl.translate('s1', FOREIGN, { toLanguage: 'en' })).rejects.toBeInstanceOf(NotFoundException);
     expect(translator.translate).not.toHaveBeenCalled();
     await ctl.translate('s1', OWN, { toLanguage: 'en' });
-    expect(translator.translate).toHaveBeenCalledWith(OWN, 'en');
+    expect(translator.translate).toHaveBeenCalledWith(OWN, 'en', 's1');
   });
 
   it('bos siteId site filtresini dusurmez (findOne siteId yoksa filtresiz arardi)', async () => {

@@ -4,7 +4,6 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import {
   api,
-  type LinkedinImportRow,
   type LinkedinKampanya,
   type LinkedinSatisAsamasi,
   type LinkedinOverview,
@@ -18,6 +17,9 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
+import {
+  IMPORT_BATCH_MAX_ROWS, IMPORT_MAX_ROWS_PER_RUN, importRunNotice, parseImportText, planImportBatches, remainingImportText, runImportBatches,
+} from '@/lib/linkedin-import';
 import {
   Users, RefreshCw, Pause, Play, FlaskConical, Send, Upload,
   AlertTriangle, SkipForward, Camera, ExternalLink, CheckCircle2, XCircle, MessageSquareText, Link2, Search, Clock,
@@ -98,121 +100,7 @@ function limitOf(limits: Record<string, number> | undefined, keys: string[], fal
   return fallback;
 }
 
-// ═══════════════════════════════════════════════════════════════
-//  CSV ayristirma (yapistirilan metin) — ad,soyad,firma,unvan,sektor,kademe,profileUrl
-// ═══════════════════════════════════════════════════════════════
-
-/** Tek satiri ayirici + cift tirnak kurallariyla boler ("a, b" tek alan kalir) */
-function splitCsvLine(line: string, sep: string): string[] {
-  const out: string[] = [];
-  let cur = '';
-  let quoted = false;
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i];
-    if (quoted) {
-      if (ch === '"' && line[i + 1] === '"') { cur += '"'; i++; }
-      else if (ch === '"') quoted = false;
-      else cur += ch;
-    } else if (ch === '"') {
-      quoted = true;
-    } else if (ch === sep) {
-      out.push(cur); cur = '';
-    } else {
-      cur += ch;
-    }
-  }
-  out.push(cur);
-  return out.map((s) => s.trim());
-}
-
-/** Ayirici: ilk dolu satirda en cok gecen (; , tab) — Excel TR ';' verir */
-function detectSep(line: string): string {
-  const adaylar = [',', ';', '\t'];
-  let best = ',';
-  let bestN = -1;
-  for (const s of adaylar) {
-    const n = line.split(s).length - 1;
-    if (n > bestN) { best = s; bestN = n; }
-  }
-  return best;
-}
-
-/**
- * Profil URL'sini kanonik hale getir: https://www.linkedin.com/in/<slug>/
- * NEDEN: www./cipsiz, tr.linkedin.com, ?trk=..., #, buyuk-kucuk harf varyantlari
- * ayni kisidir; arka uc profileUrl @unique oldugundan kanonik olmayan girdi
- * ayni kisi icin ikinci satir uretirdi.
- */
-function canonicalProfileUrl(raw: string): string | null {
-  let u: URL;
-  try {
-    u = new URL(raw.trim().replace(/^(?!https?:\/\/)/, 'https://'));
-  } catch {
-    return null;
-  }
-  if (!/(^|\.)linkedin\.com$/i.test(u.hostname)) return null;
-  const m = u.pathname.match(/^\/in\/([^/?#\s]+)/i);
-  if (!m) return null;
-  let slug: string;
-  try { slug = decodeURIComponent(m[1]); } catch { slug = m[1]; }
-  slug = slug.toLowerCase();
-  return `https://www.linkedin.com/in/${encodeURIComponent(slug)}/`;
-}
-
-function parseImportText(text: string): { rows: LinkedinImportRow[]; hatalar: string[] } {
-  const rows: LinkedinImportRow[] = [];
-  const hatalar: string[] = [];
-  const rawLines = text.split(/\r?\n/);
-  const firstNonEmpty = rawLines.find((l) => l.trim());
-  if (!firstNonEmpty) return { rows, hatalar };
-
-  const sep = detectSep(firstNonEmpty);
-  const gorulen = new Set<string>();
-  let basliqAtlandi = false;
-
-  // NEDEN ham satir numarasi: bos satirlar atilinca "Satir N" kayiyordu
-  rawLines.forEach((rawLine, idx) => {
-    const line = rawLine.trim();
-    if (!line) return;
-    const satir = idx + 1;
-    const cols = splitCsvLine(line, sep);
-    if (!basliqAtlandi) {
-      basliqAtlandi = true;
-      const low = cols.map((c) => c.toLowerCase());
-      if (low.includes('profileurl') || (low[0] === 'ad' && low[1] === 'soyad')) return;
-    }
-    const [ad = '', soyad = '', firma = '', unvan = '', sektor = '', kademeRaw = '', profileRaw = ''] = cols;
-
-    if (!ad || !soyad || !firma || !profileRaw) {
-      hatalar.push(`Satır ${satir}: ad, soyad, firma ve profileUrl zorunlu`);
-      return;
-    }
-    const profileUrl = canonicalProfileUrl(profileRaw);
-    if (!profileUrl) {
-      hatalar.push(`Satır ${satir}: profileUrl linkedin.com/in/... biçiminde olmalı`);
-      return;
-    }
-    if (gorulen.has(profileUrl)) {
-      hatalar.push(`Satır ${satir}: aynı profil tekrar ediyor, atlandı`);
-      return;
-    }
-    gorulen.add(profileUrl);
-
-    const kademeN = parseInt(kademeRaw, 10);
-    const kademe = kademeN === 1 || kademeN === 2 ? kademeN : undefined;
-    if (kademeRaw && kademe === undefined) hatalar.push(`Satır ${satir}: kademe 1 veya 2 olmalı (boş bırakıldı)`);
-
-    rows.push({
-      ad, soyad, firma,
-      unvan: unvan || undefined,
-      sektor: sektor || undefined,
-      kademe,
-      profileUrl,
-    });
-  });
-
-  return { rows, hatalar };
-}
+// CSV ayristirma ve partili gonderim: lib/linkedin-import.ts (saf, test edilir)
 
 // ═══════════════════════════════════════════════════════════════
 //  SAYFA
@@ -1235,21 +1123,49 @@ function SearchUrlCard({ onDone, disabled }: { onDone: () => Promise<void>; disa
 function ImportCard({ onDone, disabled }: { onDone: () => Promise<void>; disabled: boolean }) {
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
+  // Partili gonderimde ilerleme (tamamlanan / toplam parti)
+  const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
 
   const parsed = useMemo(() => parseImportText(text), [text]);
+  const gonderilecek = parsed.rows.length > IMPORT_MAX_ROWS_PER_RUN ? IMPORT_MAX_ROWS_PER_RUN : parsed.rows.length;
+  const partiSayisi = useMemo(() => planImportBatches(parsed.rows.slice(0, IMPORT_MAX_ROWS_PER_RUN)).length, [parsed.rows]);
 
+  /**
+   * Satirlar en fazla 400'luk partiler halinde SIRAYLA gider (lib/linkedin-import.ts).
+   * NEDEN: tek istek 100 KB govde sinirina ~575 satirda takiliyor, ice aktarma tumden 413
+   * aliyordu. Bir parti hata verirse durulur. Metin kutusundan YALNIZ aktarilan satirlar
+   * cikar; baslik, sorunlu ve gonderilmeyen satirlar kalir (remainingImportText). Eskiden kutu
+   * yalniz gonderilmeyen gecerli satirlarla yeniden yaziliyor, baslik ve sorunlu satirlar
+   * sessizce siliniyordu (S17 yan etkisi). Kutu gonderim boyunca kilitli; metin yine de
+   * degistiyse dokunulmaz (sunucu profileUrl ile upsert eder: yeniden deneme kopya uretmez).
+   */
   const submit = async () => {
     if (parsed.rows.length === 0) return;
+    // Gonderim anindaki metin ve ayristirmasi: kalan metin bunlardan hesaplanir
+    const gonderilenMetin = text;
+    const p = parsed;
+    const rows = p.rows.slice(0, IMPORT_MAX_ROWS_PER_RUN);
     setSending(true);
+    setProgress(null);
     try {
-      const res = await api.importLinkedinProspects(parsed.rows);
-      toast.success(`${res?.upserted ?? parsed.rows.length} kayıt eklendi/güncellendi`);
-      setText('');
-      await onDone();
+      const res = await runImportBatches({
+        rows,
+        send: (batch) => api.importLinkedinProspects(batch),
+        onProgress: (done, total) => setProgress({ done, total }),
+      });
+      // Gonderilen satirlar tam olarak ilk sentRows gecerli satir (partiler sirali)
+      const kalan = remainingImportText(gonderilenMetin, p, res.sentRows);
+      setText((cur) => (cur === gonderilenMetin ? kalan.text : cur));
+      const n = importRunNotice(res, { leftover: p.rows.length - rows.length, unsent: rows.length - res.sentRows, invalid: kalan.invalidLines });
+      if (n.tone === 'error') toast.error(n.title, { description: n.description, duration: 15_000 });
+      else if (n.tone === 'warning') toast.warning(n.title, { description: n.description, duration: 15_000 });
+      else toast.success(n.title, { description: n.description });
+      if (res.sentRows > 0) await onDone();
     } catch (err: any) {
-      toast.error(`İçe aktarılamadı: ${err.message}`);
+      toast.error(`İçe aktarılamadı: ${err?.message ?? 'beklenmeyen hata'}`);
     } finally {
       setSending(false);
+      setProgress(null);
     }
   };
 
@@ -1265,16 +1181,22 @@ function ImportCard({ onDone, disabled }: { onDone: () => Promise<void>; disable
             <div className="text-xs text-muted-foreground mt-0.5">
               Sütunlar: <span className="font-mono">ad,soyad,firma,unvan,sektor,kademe,profileUrl</span> — başlık satırı isteğe bağlı,
               ayırıcı virgül/noktalı virgül/sekme. Profil URL&apos;si kanonik hale getirilir (www, dil alt alanı, ?trk, büyük harf farkı kopya oluşturmaz).
+              Uzun listeler en fazla {IMPORT_BATCH_MAX_ROWS} satırlık partiler halinde sırayla gönderilir (tek seferde en fazla {IMPORT_MAX_ROWS_PER_RUN.toLocaleString('tr-TR')} satır).
+              Aktarılan satırlar metin kutusundan çıkarılır; başlık, sorunlu satırlar ve bir parti hata verirse gönderilmeyen satırlar kutuda kalır, tekrar denemek kopya oluşturmaz.
             </div>
           </div>
           <Button size="sm" onClick={submit} disabled={disabled || sending || parsed.rows.length === 0}>
             {sending ? <RefreshCw className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Upload className="h-3.5 w-3.5 mr-1.5" />}
-            İçe aktar{parsed.rows.length > 0 ? ` (${parsed.rows.length})` : ''}
+            {sending && progress && progress.total > 1
+              ? `Gönderiliyor… (${Math.min(progress.done + 1, progress.total)}/${progress.total}. parti)`
+              : `İçe aktar${gonderilecek > 0 ? ` (${gonderilecek}${partiSayisi > 1 ? `, ${partiSayisi} parti` : ''})` : ''}`}
           </Button>
         </div>
+        {/* Gonderim boyunca kilitli: partiler birkac istek surer, arada yazilan kaybolmasin */}
         <Textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
+          disabled={sending}
           rows={6}
           spellCheck={false}
           placeholder={'Ayşe,Yılmaz,Örnek Bank,Dijital Pazarlama Direktörü,finans,1,https://www.linkedin.com/in/ayse-yilmaz'}
@@ -1285,6 +1207,11 @@ function ImportCard({ onDone, disabled }: { onDone: () => Promise<void>; disable
             <span className="text-emerald-600 dark:text-emerald-400">{parsed.rows.length} geçerli satır</span>
             {parsed.hatalar.length > 0 && (
               <span className="text-rose-600 dark:text-rose-400">{parsed.hatalar.length} sorunlu satır</span>
+            )}
+            {parsed.rows.length > IMPORT_MAX_ROWS_PER_RUN && (
+              <span className="text-muted-foreground">
+                Bu seferde ilk {IMPORT_MAX_ROWS_PER_RUN.toLocaleString('tr-TR')} satır aktarılır; kalan {parsed.rows.length - IMPORT_MAX_ROWS_PER_RUN} satır metin kutusunda kalır.
+              </span>
             )}
           </div>
         )}

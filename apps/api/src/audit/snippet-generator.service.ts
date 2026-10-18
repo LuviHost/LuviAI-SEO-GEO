@@ -1,9 +1,76 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import Anthropic from '@anthropic-ai/sdk';
 import * as cheerio from 'cheerio';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { SiteCrawlerService } from '../sites/site-crawler.service.js';
-import { readBodyCapped } from '../common/fetch-capped.js';
+import { CrawlAccessError } from '../sites/crawl-access.js';
+import { fetchCustomerPage, pageFailureText, type CustomerPage, type CustomerPageBlocked, type CustomerPageFailed } from './customer-page-fetch.js';
+import { createLimiter } from './axo-fetch.js';
+
+/**
+ * Toplu taramada siteye ayni anda en fazla bu kadar sayfa istegi (AXO
+ * taramasiyla ayni sinir). NEDEN: 30-50 sayfa Promise.all ile ayni anda
+ * isteniyordu; WAF / hiz siniri (429) bu patlamaya takilinca sayfalar
+ * "erisim engellendi" isaretleniyordu — engeli KENDI istek yagmurumuz
+ * uretiyordu ve musteriye sitesi bize kapali gibi gosteriliyordu.
+ */
+const BULK_SCAN_CONCURRENCY = 4;
+
+/** "www." farki ayni site; sondaki nokta ve buyuk harf yok sayilir */
+function hostKey(hostname: string): string {
+  return hostname.toLowerCase().replace(/\.+$/, '').replace(/^www\./, '');
+}
+
+/**
+ * Toplu tarama adresi sitenin KENDI alan adinda mi: ayni host, www'li/www'suz
+ * hali ya da site host'unun alt alan adi (blog.ornek.com, ornek.com sitesi icin).
+ *
+ * NEDEN: rootUrl sorgu parametresi giris yapmis herhangi bir kullanicinin
+ * RanksUp'i baska bir siteyi taramak icin kullanmasina izin veriyordu (SSRF
+ * korumali ama kapsam disi kullanim; tarama istekleri bizim botumuzdan gider).
+ *
+ * Kayit edilebilir alan (registrableDomain) ile esleme BILEREK yapilmiyor:
+ * oradaki sonek listesi kurate ve paylasimli platform alanlarini
+ * (myshopify.com, wordpress.com, github.io...) bilmiyor; ornek.myshopify.com
+ * sitesi "myshopify.com" uzerinden baska magazalari tarayabilirdi.
+ */
+export function isWithinSiteHost(candidateUrl: string, siteUrl: string): boolean {
+  try {
+    const c = new URL(candidateUrl);
+    if (c.protocol !== 'http:' && c.protocol !== 'https:') return false;
+    const site = hostKey(new URL(siteUrl).hostname);
+    const host = hostKey(c.hostname);
+    return !!site && (host === site || host.endsWith(`.${site}`));
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Kullanicidan gelen sayfa adresi sitenin kendi alan adinda degilse Turkce 400;
+ * gecerse kirpilmis adresi doner. Her giris noktasi bunu fetch / model cagrisi /
+ * yazimdan ONCE cagirir (bkz. isWithinSiteHost — kapsam disi kullanim).
+ *
+ * NEDEN: snippet uretimi tek sayfa icin 10'a kadar ucretli model cagrisi
+ * yapabiliyor (bkz. generateForPage), statik yazici sayfayi musterinin
+ * sunucusuna yaziyor; ikisi de herhangi bir genel adresi kabul ediyordu.
+ *
+ * @param action cumlenin oznesi ("Toplu tarama", "Snippet üretimi"...)
+ */
+export function assertWithinSiteHost(candidateUrl: unknown, siteUrl: string, action: string): string {
+  const raw = typeof candidateUrl === 'string' ? candidateUrl.trim() : '';
+  if (raw && isWithinSiteHost(raw, siteUrl)) return raw;
+  let parsed: URL | null = null;
+  try { parsed = new URL(raw); } catch { /* asagida "gecersiz adres" */ }
+  if (!parsed || (parsed.protocol !== 'http:' && parsed.protocol !== 'https:')) {
+    throw new BadRequestException('Geçerli bir adres girin (http:// veya https:// ile başlamalı).');
+  }
+  let siteHost = siteUrl;
+  try { siteHost = new URL(siteUrl).hostname; } catch { /* gecersiz site adresi — ham hali yazilir */ }
+  throw new BadRequestException(
+    `${action} yalnızca sitenin kendi alan adında yapılabilir (${siteHost}; www'li/www'suz hali ve alt alan adları dahil). Girilen adres bu siteye ait değil.`,
+  );
+}
 
 export type SnippetType =
   | 'meta_description'
@@ -35,7 +102,10 @@ export interface PageSnippet {
  *
  * Strateji:
  *  - Sayfayı crawl et, h1/title/meta/canonical/og/twitter/jsonld eksiklerini bul
- *  - AI (Claude Haiku, ucuz) ile içerik üret
+ *  - AI ile içerik üret: ask() claude-opus-5 modelini kullanir, Haiku DEGIL
+ *    (eski yorum "Claude Haiku, ucuz" diyordu; model degismedi, yorum
+ *    duzeltildi). Sayfa basina 10'a kadar ucretli cagri olabildigi icin uretim
+ *    yalniz sitenin kendi sayfalarinda (assertWithinSiteHost).
  *  - HTML/JSON-LD formatında insert location ile birlikte döndür
  */
 @Injectable()
@@ -72,21 +142,53 @@ export class SnippetGeneratorService {
       hasFAQ: boolean;
       score: number; // 0-100
       issues: string[];
+      /** Erisimimiz engellendi (WAF / bot dogrulamasi) — skor olculmedi, ortalamaya girmez */
+      blocked: boolean;
+      /**
+       * Engel DISI bir nedenle okunamadi (HTTP 404/500, zaman asimi, DNS, HTML
+       * olmayan icerik) — skor olculmedi, ortalamaya girmez. blocked ile birlikte
+       * true olmaz.
+       */
+      failed: boolean;
+      /** failed ise kisa Turkce neden (customer-page-fetch pageFailureText) */
+      failReason?: string;
     }>;
     totalScanned: number;
+    /** Yalnizca GERCEKTEN okunan sayfalarin ortalamasi (engelli ve okunamayan haric) */
     averageScore: number;
+    /** Engel yuzunden olculemeyen sayfa sayisi */
+    blockedPages: number;
+    /** Engel disi nedenle okunamayan sayfa sayisi */
+    failedPages: number;
   }> {
     const site = await this.prisma.site.findUniqueOrThrow({ where: { id: siteId } });
-    const base = rootUrl ?? site.url;
+    const requested = rootUrl?.trim() || null;
+    const base = requested ? assertWithinSiteHost(requested, site.url, 'Toplu tarama') : site.url;
 
     // Crawler zaten 30 sayfaya kadar dolaşıp HTML'leri topluyor
     const crawl = await this.crawler.crawl(base, maxPages);
+    // Anasayfa okunamadi ve tarama durdu: "0 sayfa, ortalama 0" yerine neden +
+    // izin talimati (denetim ve marka beyniyle ayni hata tipi, 422)
+    if (crawl.homeAccess && crawl.pages.length === 0) {
+      throw new CrawlAccessError(crawl.homeAccess);
+    }
+    const blocks: CustomerPageBlocked[] = [];
+    const failures: CustomerPageFailed[] = [];
+    const limit = createLimiter(BULK_SCAN_CONCURRENCY);
 
+    // Sonuc sirasi tarama sirasidir (Promise.all); yalniz ayni andaki istek sayisi sinirli
     const results = await Promise.all(
-      crawl.pages.map(async (p) => {
+      crawl.pages.map((p) => limit(async () => {
         // Crawl edilen page metadata yetersiz → her sayfa için ham HTML çek
-        const html = await this.fetch(p.url);
-        if (!html) {
+        const page = await this.fetchPage(p.url);
+        if (page.kind !== 'ok') {
+          const blocked = page.kind === 'blocked';
+          if (page.kind === 'blocked') blocks.push(page);
+          else failures.push(page);
+          // Engel DISI okuma hatasi (404, zaman asimi, DNS, PDF...) da olcum
+          // DEGIL: eskiden skor 0 ile ortalamaya girip siteyi oldugundan kotu
+          // gosteriyordu ve tabloda "kotu sayfa"dan ayirt edilemiyordu.
+          const failReason = page.kind === 'failed' ? pageFailureText(page) : undefined;
           return {
             url: p.url,
             title: p.title || null,
@@ -100,11 +202,15 @@ export class SnippetGeneratorService {
             hasSchema: false,
             hasFAQ: false,
             score: 0,
-            issues: ['Sayfa indirilemedi'],
+            // Engel: "sayfa bozuk" degil, "bize kapali" — nedeni yaz
+            issues: [page.kind === 'blocked' ? page.signal.reason : failReason!],
+            blocked,
+            failed: !blocked,
+            ...(failReason ? { failReason } : {}),
           };
         }
 
-        const $ = cheerio.load(html);
+        const $ = cheerio.load(page.text);
         const title = $('title').text().trim() || null;
         const metaDescription = $('meta[name="description"]').attr('content')?.trim() ?? null;
         const h1 = $('h1').first().text().trim() || null;
@@ -156,28 +262,45 @@ export class SnippetGeneratorService {
           hasFAQ,
           score,
           issues,
+          blocked: false,
+          failed: false,
         };
-      }),
+      })),
     );
 
     const totalScanned = results.length;
-    const averageScore = totalScanned > 0
-      ? Math.round(results.reduce((s, r) => s + r.score, 0) / totalScanned)
+    const measured = results.filter((r) => !r.blocked && !r.failed);
+    const blockedPages = results.filter((r) => r.blocked).length;
+    const failedPages = results.filter((r) => r.failed).length;
+    // Taranan sayfalarin HICBIRI okunamadiysa tablo yalniz sifirlardan olusur
+    // ve "ortalama 0" siteyi bozuk gosterir; nedeni (engelde izin talimati
+    // dahil — o yuzden once engel) ve cozumu soyle.
+    if (totalScanned > 0 && measured.length === 0) {
+      const first = blocks[0] ?? failures[0];
+      throw new BadRequestException(`Sayfalar okunamadı: ${first ? pageFailureText(first) : 'Sayfaya bağlanılamadı.'}`);
+    }
+    const averageScore = measured.length > 0
+      ? Math.round(measured.reduce((s, r) => s + r.score, 0) / measured.length)
       : 0;
 
-    return { pages: results, totalScanned, averageScore };
+    return { pages: results, totalScanned, averageScore, blockedPages, failedPages };
   }
 
   /** Belirli sayfa için tüm eksik snippet'leri üret */
-  async generateForPage(siteId: string, pageUrl: string): Promise<PageSnippet[]> {
+  async generateForPage(siteId: string, rawPageUrl: string): Promise<PageSnippet[]> {
     const site = await this.prisma.site.findUniqueOrThrow({ where: { id: siteId } });
+    // Kapsam: sayfa basina 10'a kadar ucretli model cagrisi — yalniz sitenin
+    // kendi sayfalari icin, istekten ve modelden ONCE.
+    const pageUrl = assertWithinSiteHost(rawPageUrl, site.url, 'Snippet üretimi');
 
-    const html = await this.fetch(pageUrl);
-    if (!html) {
-      throw new Error(`Sayfa indirilemedi: ${pageUrl}`);
+    const page = await this.fetchPage(pageUrl);
+    if (page.kind !== 'ok') {
+      // Duz Error 500 "Internal server error" oluyordu; kullanici nedeni gorsun.
+      // Engel sayfasindan snippet uretmek dogrulama ekranini "icerik" sanmak olurdu.
+      throw new BadRequestException(`Sayfa indirilemedi: ${pageUrl} — ${pageFailureText(page)}`);
     }
 
-    const $ = cheerio.load(html);
+    const $ = cheerio.load(page.text);
     const snippets: PageSnippet[] = [];
 
     const title = $('title').text().trim();
@@ -530,17 +653,11 @@ Başlık: ${heading}
     return s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 
-  private async fetch(url: string): Promise<string | null> {
-    try {
-      const res = await fetch(url, {
-        headers: { 'User-Agent': 'RanksUp-Snippet/1.0' },
-        signal: AbortSignal.timeout(12000),
-      });
-      if (!res.ok) {
-        await res.body?.cancel().catch(() => {});
-        return null;
-      }
-      return (await readBodyCapped(res, 2 * 1024 * 1024))?.text ?? null;
-    } catch { return null; }
+  /**
+   * Sayfa — adres kullanicidan (pageUrl/rootUrl sorgu parametresi) ve
+   * taramadan gelir: SSRF korumali, 2 MB tavanli, engel sayfasi ayrilir.
+   */
+  private async fetchPage(url: string): Promise<CustomerPage> {
+    return fetchCustomerPage(url, { timeoutMs: 12_000, maxBytes: 2 * 1024 * 1024 });
   }
 }

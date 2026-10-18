@@ -28,6 +28,20 @@ export type EmailTemplate =
   | 'grandfathering_expiring'   // 2026-05 Premium Pricing — 30 gün uyari
   | 'grandfathering_expired';   // 2026-05 Premium Pricing — yeni fiyata gectigi gun
 
+/**
+ * "Makale hazir" e-postalarindaki editor skorunun paydasi.
+ *
+ * NEDEN 90: first_article_published ve article_ready yalniz
+ * pipeline.service notifyArticleReady'den gider; onu runPipeline (PASS
+ * sonrasi) ve worker (ayni kosunun hemen ardindan, yayin olmadiysa) cagirir.
+ * Ikisi de bugunku editor olcegiyle (9 kategori x 10, pipeline.service
+ * EDITOR_MAX_SCORE) yeni puanlanmis yazi icindir. Eski "/60" 16ab0d9
+ * (3 Agustos 2026) oncesi hattin olcegiydi; PASS alan bir yazi e-postada
+ * "75/60" gibi imkansiz bir skorla gorunuyordu. email-links.spec.ts iki
+ * sabitin ayni kaldigini denetler.
+ */
+export const EDITOR_SCORE_MAX = 90;
+
 @Injectable()
 export class EmailService {
   private readonly log = new Logger(EmailService.name);
@@ -69,7 +83,16 @@ export class EmailService {
     to: string;
     template: EmailTemplate;
     data?: Record<string, any>;
-  }): Promise<{ ok: boolean; resendId?: string }> {
+  }): Promise<{ ok: boolean; resendId?: string; skipped?: 'account_deletion' }> {
+    // Silme talebi olan hesaba sablon e-postasi (karsilama serisi, rapor, makale,
+    // odeme/plan bildirimi) GITMEZ: erisim kapandi, hesap 30 gun sonra kalici
+    // silinecek. Silme talebi ve tamamlandi e-postalari sendRaw ile gider ve bu
+    // kontrole bilerek takilmaz (me/account-deletion.service.ts, account-purge.service.ts).
+    if (opts.userId && (await this.deletionRequested(opts.userId))) {
+      this.log.log(`[EMAIL] ${opts.template} gönderilmedi — hesap için silme talebi var (${opts.userId})`);
+      return { ok: false, skipped: 'account_deletion' };
+    }
+
     const { subject, html } = this.renderTemplate(opts.template, opts.data ?? {});
 
     if (!this.client) {
@@ -119,7 +142,9 @@ export class EmailService {
             metadata: { kind: 'raw' } as any,
           },
         });
-      } catch {}
+      } catch {
+        // Gelistirme modu: kayit yazilamamasi gonderim sonucunu degistirmez
+      }
       return { ok: true };
     }
     try {
@@ -145,6 +170,12 @@ export class EmailService {
       this.log.error(`Raw email fail: ${err.message}`);
       return { ok: false };
     }
+  }
+
+  /** Hesapta silme talebi var mi — users.id uzerinden tek sorgu */
+  private async deletionRequested(userId: string): Promise<boolean> {
+    const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { deletionRequestedAt: true } });
+    return !!user?.deletionRequestedAt;
   }
 
   private async logEmail(
@@ -205,22 +236,32 @@ export class EmailService {
         );
 
       case 'welcome_day1':
+        // Gonderim kosulu yalniz "deneme hesabi, kayittan 1 gun sonra"
+        // (email.cron.ts): siteyi hic eklememis kullaniciya da gider. Bu yuzden
+        // "ilk makalen uretildi" diye kesin konusulmaz, iki durum da yazilir.
+        // Baglantilar yalniz VAR OLAN yardim sayfalarina gider
+        // (apps/web/src/app/(marketing)/help): eski /help/onboarding ve
+        // /help/publish-targets hic yoktu, ikisi de 404 veriyordu. Yayin hedefi
+        // icin ayri rehber yok; WordPress baglama adimlari SSS'de.
+        // email-links.spec.ts her baglantinin web'de bir sayfaya gittigini denetler.
         return yap(
           'İlk makalen hazır mı?',
-          'Onboarding sonrası ilk makalen üretildi. Henüz görmediysen panelde bekliyor.',
+          'Siteni eklediysen ilk makaleni panelden kontrol et; eklemediysen birkaç dakikada başlayabilirsin.',
           h(`Selam ${name}`) +
-            p('Onboarding sonrası ilk makalen üretildi. Henüz bakmadıysan panelde seni bekliyor.') +
+            p('Siteni eklediysen kurulum ilk makaleni de üretime alır; henüz bakmadıysan panelden kontrol edebilirsin. Siteni henüz eklemediysen, eklediğin anda tarama ve ilk makale kendiliğinden başlar.') +
             dugme('Panele git', `${baseUrl}/dashboard`) +
-            p('Takıldığın yer olursa: ' + baglanti('Onboarding rehberi', `${baseUrl}/help/onboarding`) + ' · ' +
-              baglanti('Yayın hedefi bağlama', `${baseUrl}/help/publish-targets`)),
+            p('Takıldığın yer olursa: ' + baglanti('Hızlı başlangıç rehberi', `${baseUrl}/help/getting-started`) + ' · ' +
+              baglanti('Sık sorulan sorular', `${baseUrl}/faq`) + ' (WordPress bağlama dahil)'),
         );
 
       case 'welcome_day3':
+        // email.cron.ts bunu GSC durumuna bakmadan her deneme hesabina gonderir:
+        // baslik "bagli degil" diye kesin konusmaz, bagli olana da dogru kalir.
         return yap(
           'Search Console bağlantısını yaptın mı?',
           'GSC bağlanınca konu önerileri tahminle değil, gerçek arama verisiyle üretilir.',
-          h(`${name}, Search Console bağlı değil`) +
-            p(`Google Search Console'u bağladığında ${kacisla(String(data.gscBenefit ?? 'konu önerileri tahminle değil, sitenin gerçek arama verisiyle üretilir'))}.`) +
+          h(`${name}, Search Console'u bağladın mı?`) +
+            p(`Google Search Console'u bağladığında ${kacisla(String(data.gscBenefit ?? 'konu önerileri tahminle değil, sitenin gerçek arama verisiyle üretilir'))}. Zaten bağladıysan yapman gereken bir şey yok.`) +
             bilgiKutusu(
               'Neden önemli',
               'GSC olmadan hangi sorguların sana gösterim aldığını bilemeyiz; öneriler genel kalır. Bağlandıktan sonra veri 2-3 gün içinde birikmeye başlar.',
@@ -233,35 +274,46 @@ export class EmailService {
           'İlk hafta nasıl geçti?',
           'Bir sorun ya da eksik gördüysen bu maili yanıtlaman yeterli.',
           h(`${name}, ilk hafta doldu`) +
-            p(`Şu ana kadar ${kacisla(String(data.articleCount ?? 'birkaç'))} makale üretildi.`) +
+            // Sayi yalniz verildiyse yazilir: email.cron.ts articleCount gecirmiyor,
+            // eski "birkac" yedegi hic makale uretmemis kullaniciya da gidiyordu
+            (typeof data.articleCount === 'number' ? p(`Şu ana kadar ${sayi(data.articleCount)} makale üretildi.`) : '') +
             p('Takıldığın, beklediğin gibi çalışmayan bir şey varsa <strong>bu maili yanıtlaman yeterli</strong> — doğrudan bize ulaşır.') +
             dugme('Panele git', `${baseUrl}/dashboard`),
         );
 
+      // Deneme bitis e-postalari (d11 ve d13'u email.cron.ts her gun trialEndsAt'e
+      // gore gonderir). Eski metin "plan secilmezse hesap pasiflesir, verilerin
+      // 30 gun saklanir / yarin hesabin pasiflesecek" diyordu; kodda boyle bir
+      // sey yok: quota.service expireOldTrials yalniz subscriptionStatus'u
+      // EXPIRED yapar, hicbir kapi bu duruma bakmaz, deneme haklari (plans.ts
+      // trial) aynen surer, silme isi yok. Metin yalniz dogru olani soyler:
+      // donemin bitis gunu ve plan secince verilerin oldugu gibi kalmasi.
+      // Deneme bitisi uygulanacaksa (urun karari) bu metinler de guncellenmeli;
+      // email-links.spec.ts "pasif" / "30 gun saklanir" iddiasini engeller.
       case 'trial_expiry_d11':
         return yap(
-          'Deneme sürene 3 gün kaldı',
-          'Plan seçilmezse hesap pasifleşir; verilerin 30 gün saklanır.',
-          h(`${name}, deneme sürene 3 gün kaldı`) +
-            p('14 günlük ücretsiz denemenin 11 günü doldu. Plan seçilmezse hesap pasifleşir — verilerin silinmez, 30 gün saklanır.') +
+          'Deneme dönemine 3 gün kaldı',
+          'Daha fazla makale, site ve AI görünürlük ölçümü için planlara göz atabilirsin.',
+          h(`${name}, deneme dönemine 3 gün kaldı`) +
+            p('14 günlük deneme döneminin 11 günü doldu. Daha fazla makale, site ve AI görünürlük ölçümü için bir plan seçebilirsin; plan seçtiğinde sitelerin, içeriklerin ve ölçüm geçmişin olduğu gibi kalır.') +
             dugme('Planları gör', `${baseUrl}/pricing`),
         );
 
       case 'trial_expiry_d13':
         return yap(
-          'Deneme süren yarın doluyor',
-          'Son 24 saat. Verilerin 30 gün saklanır, istediğinde kaldığın yerden devam edersin.',
-          h(`${name}, son 24 saat`) +
-            p('Yarın hesabın pasifleşecek. Ürettiğin içerikler ve ölçümler <strong>30 gün saklanır</strong>; plan seçtiğinde kaldığın yerden devam edersin.') +
-            dugme('Aboneliği başlat', `${baseUrl}/pricing`),
+          'Deneme dönemin yarın bitiyor',
+          'Plan seçtiğinde sitelerin, içeriklerin ve ölçüm geçmişin olduğu gibi kalır.',
+          h(`${name}, deneme dönemin yarın bitiyor`) +
+            p('Daha fazla makale, site ve AI görünürlük ölçümü için bir plan seçebilirsin. Plan seçtiğinde sitelerin, içeriklerin ve ölçüm geçmişin olduğu gibi kalır; kaldığın yerden devam edersin.') +
+            dugme('Planları gör', `${baseUrl}/pricing`),
         );
 
       case 'trial_expired':
         return yap(
-          'Deneme süren doldu',
-          'Verilerin 30 gün saklanıyor — plan seçtiğinde kaldığın yerden devam edersin.',
-          h(`${name}, deneme süren doldu`) +
-            p('Hesabın pasife alındı. Ürettiğin içerikler ve ölçüm geçmişin <strong>30 gün</strong> saklanıyor.') +
+          'Deneme dönemin doldu',
+          'Sitelerin, içeriklerin ve ölçüm geçmişin hesabında duruyor.',
+          h(`${name}, deneme dönemin doldu`) +
+            p('Sitelerin, içeriklerin ve ölçüm geçmişin hesabında duruyor. Daha fazla makale, site ve AI görünürlük ölçümü için bir plan seçebilirsin; plan seçtiğinde kaldığın yerden devam edersin.') +
             dugme('Planları gör', `${baseUrl}/pricing`),
         );
 
@@ -278,29 +330,46 @@ export class EmailService {
             olcuSatiri([
               { etiket: 'Kelime', deger: sayi(data.wordCount) },
               { etiket: 'FAQ', deger: sayi(data.faqs ?? 0) },
-              { etiket: 'Editör skoru', deger: data.editorScore != null ? `${data.editorScore}/60` : null },
+              { etiket: 'Editör skoru', deger: data.editorScore != null ? `${data.editorScore}/${EDITOR_SCORE_MAX}` : null },
             ]) +
             dugme('Makaleyi aç ve incele', String(data.publicUrl ?? `${baseUrl}/dashboard`)) +
-            p('<span style="font-size:13px;">Markdown veya HTML olarak indirebilir, ya da WordPress/FTP gibi bir yayın hedefine gönderebilirsin.</span>'),
+            // Deneme planinda yayin hedefi yalniz Markdown ZIP + WordPress REST
+            // (QuotaService.LIMITS.TRIAL); "WordPress/FTP" denemede FTP'yi vaat ediyordu
+            p('<span style="font-size:13px;">Markdown veya HTML olarak indirebilir, ya da WordPress gibi bir yayın hedefine gönderebilirsin; FTP, cPanel ve diğer hedefler ücretli planlarda açılır.</span>'),
         );
 
-      case 'article_ready':
+      case 'article_ready': {
+        // liveUpdate: yayindaki yazinin yeniden yazimi onay bekliyor (yari
+        // otomatik icerik pivotu PASS, kapali dongu "guncelle"; pipeline.service
+        // notifyArticleReady yazinin canli kopyasi varsa verir). NEDEN: tek metin
+        // "Henüz yayında değil — inceleyip yayına alman gerekiyor" diyordu; yazi
+        // yayindayken bu yanlis ve musteriyi "yayina almazsam sitemde yok" diye
+        // yanlis karara itiyordu. Bu sayi da "Bu sitede N. makale" yazmaz: yeni
+        // makale degil, var olan yazinin guncellenmis hali.
+        const guncelleme = data.liveUpdate === true;
         return yap(
-          `Makalen hazır: ${kacisla(String(data.title ?? ''))}`,
-          'Editörden geçti, onayını bekliyor.',
-          etiket('Onay bekliyor') +
+          guncelleme
+            ? `Güncelleme onayını bekliyor: ${kacisla(String(data.title ?? ''))}`
+            : `Makalen hazır: ${kacisla(String(data.title ?? ''))}`,
+          guncelleme
+            ? 'Yayındaki yazının güncellenmiş hali onayını bekliyor; onaylayana kadar eski hali yayında kalır.'
+            : 'Editörden geçti, onayını bekliyor.',
+          etiket(guncelleme ? 'Güncelleme onay bekliyor' : 'Onay bekliyor') +
             h(kacisla(String(data.title ?? 'Makalen hazır'))) +
-            p('Editörden geçti ve onayını bekliyor. <strong>Henüz yayında değil</strong> — inceleyip yayına alman gerekiyor.') +
+            p(guncelleme
+              ? 'Editörden geçti. <strong>Yayındaki yazının güncellenmiş hali onayını bekliyor</strong>; onaylayana kadar eski hali yayında kalır.'
+              : 'Editörden geçti ve onayını bekliyor. <strong>Henüz yayında değil</strong> — inceleyip yayına alman gerekiyor.') +
             olcuSatiri([
               { etiket: 'Kelime', deger: sayi(data.wordCount) },
               { etiket: 'FAQ', deger: sayi(data.faqs ?? 0) },
-              { etiket: 'Editör', deger: data.editorScore != null ? `${data.editorScore}/60` : null },
-              ...(typeof data.articlesPublished === 'number'
+              { etiket: 'Editör', deger: data.editorScore != null ? `${data.editorScore}/${EDITOR_SCORE_MAX}` : null },
+              ...(!guncelleme && typeof data.articlesPublished === 'number'
                 ? [{ etiket: 'Bu sitede', deger: `${data.articlesPublished}.` as string | number | null, alt: 'makale' }]
                 : []),
             ]) +
-            dugme('Makaleyi incele', String(data.publicUrl ?? `${baseUrl}/dashboard`)),
+            dugme(guncelleme ? 'Güncellemeyi incele' : 'Makaleyi incele', String(data.publicUrl ?? `${baseUrl}/dashboard`)),
         );
+      }
 
       case 'weekly_report': {
         const tik = data.totalClicks ?? null;

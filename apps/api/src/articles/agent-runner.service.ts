@@ -127,6 +127,13 @@ export class AgentRunnerService {
     return 'low';
   }
 
+  /**
+   * Model secimi YALNIZ ortam degiskeninden: WRITER_MODEL (03-writer),
+   * EDITOR_MODEL (04-editor), yoksa cagiranin tercihi, yoksa ROUTING_MODEL,
+   * yoksa claude-sonnet-5. Admin ayar katalogu bu anahtarlari listeliyordu ama
+   * buradan hic okunmadiklari icin katalogdan cikarildi — gerekce
+   * settings.constants.ts "AI model secimi" notunda.
+   */
   private resolveModel(preferred: string | undefined, agentName: string): string {
     if (agentName === '03-writer' && process.env.WRITER_MODEL) return process.env.WRITER_MODEL;
     if (agentName === '04-editor' && process.env.EDITOR_MODEL) return process.env.EDITOR_MODEL;

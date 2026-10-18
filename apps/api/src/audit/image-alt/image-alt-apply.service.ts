@@ -4,7 +4,11 @@ import { getAdapter, findImgTags, readAlt } from '@luviai/adapters';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { AppliedFixService } from '../applied-fix.service.js';
 import { StaticHtmlFixerService } from '../static-html-fixer.service.js';
-import { readBodyCapped } from '../../common/fetch-capped.js';
+import { fetchCustomerPage } from '../customer-page-fetch.js';
+// Adaptor istegi oncesi adres denetimi (reddedilirse Turkce neden, gecerse
+// null). Adaptor kullanicinin girdigi adrese duz fetch / FTP / SSH ile
+// baglanir; kayittan sonra DNS ic aga cevrilmis olabilir.
+import { publishTargetBlockReason } from '../../publish-targets/publish-target-url.js';
 
 const MAX_PAGES_PER_IMAGE = 5;
 const GAP_MS = 300;
@@ -67,13 +71,26 @@ export class ImageAltApplyService {
       return { outcomes: rows.map((r) => ({ id: r.id, status: 'SNIPPET' as const, pages: [], note: 'Bu yayin hedefi alt metni yazamiyor — kopyala-yapistir ile uygula' })) };
     }
 
+    // Hedef adresi reddedildiyse siteye hic dokunulmaz ve gorsel durumlari
+    // DEGISMEZ: onay durur, hedef duzeltilince yeniden uygulanabilir (FAILED'e
+    // dusurmek onayi silerdi). Uygulama arka plan isi oldugu icin neden gorsel
+    // listesinde gorunsun diye nota yazilir. Statik hedefte static-html-fixer
+    // ayrica denetler.
+    const credentials = decryptCredentials(target.credentials as Record<string, any>);
+    const unsafe = await publishTargetBlockReason(type, credentials, target.config);
+    if (unsafe) {
+      this.log.warn(`[${siteId}] alt metni yazimi atlandi (${type}): ${unsafe}`);
+      await this.prisma.siteImage.updateMany({ where: { id: { in: rows.map((r) => r.id) } }, data: { suggestionNote: unsafe.slice(0, 255) } });
+      return { outcomes: rows.map((r) => ({ id: r.id, status: 'FAILED' as const, pages: [], note: unsafe })) };
+    }
+
     await this.prisma.siteImage.updateMany({ where: { id: { in: rows.map((r) => r.id) } }, data: { status: 'APPLYING' } });
     const outcomes: ApplyOutcome[] = [];
 
     try {
       if (capability === 'wordpress') {
         const Adapter = getAdapter(type) as any;
-        const adapter = new Adapter(decryptCredentials(target.credentials as Record<string, any>), target.config ?? {});
+        const adapter = new Adapter(credentials, target.config ?? {});
         for (const row of rows) {
           const alt = row.approvedAlt ?? '';
           const pages: PageResult[] = [];
@@ -156,17 +173,29 @@ export class ImageAltApplyService {
     return { id: row.id, status, pages, note };
   }
 
-  /** Yazimdan sonra canli sayfada alt'i gor (CDN onbellegi geciktirebilir — o zaman APPLIED kalir) */
+  /**
+   * Yazimdan sonra canli sayfada alt'i gor (CDN onbellegi geciktirebilir — o
+   * zaman APPLIED kalir). Adres taranan sayfadan gelir: SSRF korumali okuma;
+   * engel/dogrulama sayfasi dogrulama SAYILMAZ.
+   */
   private async verifyOnPage(pageUrl: string, row: any, alt: string): Promise<boolean> {
+    let url: string;
     try {
-      const res = await fetch(pageUrl + (pageUrl.includes('?') ? '&' : '?') + '_rc=' + Date.now(), {
-        headers: { 'User-Agent': 'RanksUp-Crawler/1.0 (+https://ranksup.ai)', 'Cache-Control': 'no-cache' },
-        signal: AbortSignal.timeout(15_000),
-      });
-      if (!res.ok) { await res.body?.cancel().catch(() => {}); return false; }
-      const body = await readBodyCapped(res, 2 * 1024 * 1024);
-      if (!body) return false;
-      const { hits } = findImgTags(body.text, { srcRaw: row.srcRaw, src: row.src, wpAttachmentId: row.wpAttachmentId });
+      // Onbellek atlatma parametresi URL API ile: #parca varsa sonuna eklenip yutulmasin
+      const u = new URL(pageUrl);
+      u.searchParams.set('_rc', String(Date.now()));
+      url = u.toString();
+    } catch {
+      return false;
+    }
+    const page = await fetchCustomerPage(url, {
+      timeoutMs: 15_000,
+      maxBytes: 2 * 1024 * 1024,
+      headers: { 'cache-control': 'no-cache' },
+    });
+    if (page.kind !== 'ok') return false;
+    try {
+      const { hits } = findImgTags(page.text, { srcRaw: row.srcRaw, src: row.src, wpAttachmentId: row.wpAttachmentId });
       return hits.length > 0 && hits.every((h) => readAlt(h.tag) === alt);
     } catch {
       return false;
@@ -188,21 +217,30 @@ export class ImageAltApplyService {
     const type = String(target?.type ?? '');
     const applied = String(detail.alt ?? '');
     let reverted = 0;
+    /**
+     * Geri yazim YAPILAMADIYSA nedeni (hedef adresi reddedildi, sayfa okunamadi,
+     * dosya yazilamadi). Bos kalirsa yazim denendi ama alt eslesmedi.
+     */
+    let failReason: string | null = null;
 
     if (type === 'WORDPRESS_REST' && target) {
-      const Adapter = getAdapter(type) as any;
-      const adapter = new Adapter(decryptCredentials(target.credentials as Record<string, any>), target.config ?? {});
-      for (const p of detail.pages as PageResult[]) {
-        const prev = p.previous ?? {};
-        if (p.applied.includes('media_library')) {
-          const r = await adapter.applyImageAlt({ pageUrl: p.pageUrl, srcRaw: row.srcRaw, src: row.src, wpAttachmentId: prev.mediaId ?? row.wpAttachmentId, alt: prev.mediaAlt ?? '', updateMedia: true, updateContent: false, expectCurrentAlt: applied });
-          reverted += r.applied.length;
+      const credentials = decryptCredentials(target.credentials as Record<string, any>);
+      failReason = await publishTargetBlockReason(type, credentials, target.config);
+      if (!failReason) {
+        const Adapter = getAdapter(type) as any;
+        const adapter = new Adapter(credentials, target.config ?? {});
+        for (const p of detail.pages as PageResult[]) {
+          const prev = p.previous ?? {};
+          if (p.applied.includes('media_library')) {
+            const r = await adapter.applyImageAlt({ pageUrl: p.pageUrl, srcRaw: row.srcRaw, src: row.src, wpAttachmentId: prev.mediaId ?? row.wpAttachmentId, alt: prev.mediaAlt ?? '', updateMedia: true, updateContent: false, expectCurrentAlt: applied });
+            reverted += r.applied.length;
+          }
+          if (p.applied.includes('post_content')) {
+            const r = await adapter.applyImageAlt({ pageUrl: p.pageUrl, srcRaw: row.srcRaw, src: row.src, wpAttachmentId: row.wpAttachmentId, alt: prev.contentAlt ?? null, updateMedia: false, updateContent: true, expectCurrentAlt: applied });
+            reverted += r.applied.length;
+          }
+          await sleep(GAP_MS);
         }
-        if (p.applied.includes('post_content')) {
-          const r = await adapter.applyImageAlt({ pageUrl: p.pageUrl, srcRaw: row.srcRaw, src: row.src, wpAttachmentId: row.wpAttachmentId, alt: prev.contentAlt ?? null, updateMedia: false, updateContent: true, expectCurrentAlt: applied });
-          reverted += r.applied.length;
-        }
-        await sleep(GAP_MS);
       }
     } else if (FILE_TARGETS.includes(type)) {
       for (const p of detail.pages as PageResult[]) {
@@ -212,23 +250,27 @@ export class ImageAltApplyService {
           alt: p.previous?.contentAlt ?? null, expectCurrentAlt: applied,
         }]);
         if (r.perImage[row.id]?.changed) reverted++;
+        else if (!r.ok && r.error) failReason = r.error;
       }
     } else {
       return { ok: false, status: row.status, note: 'Yayin hedefi degisti — geri alma bu hedefte yapilamiyor' };
     }
 
     const status = reverted > 0 ? 'APPROVED' : row.status;
+    // Yazim hic yapilamadiysa "alt degismis olabilir" demek yanlis olur — gercek neden yazilir
+    const failNote = failReason ? `Geri alinamadi: ${failReason}` : 'Geri alinamadi: alt o arada degismis olabilir';
     await this.prisma.siteImage.update({
       where: { id: row.id },
       data: {
         status,
-        suggestionNote: reverted > 0 ? 'Geri alindi — onay duruyor, istersen tekrar uygula' : 'Geri alinamadi: alt o arada degismis olabilir',
+        suggestionNote: reverted > 0 ? 'Geri alindi — onay duruyor, istersen tekrar uygula' : failNote.slice(0, 255),
       },
     });
     await this.appliedFix.kaydet({
       siteId, userId: userId ?? null, kind: 'image_alt', fixType: 'image_alt_revert', target: row.src,
-      status: reverted > 0 ? 'REVERTED' : 'FAILED', adapter: type, detail: { imageId: row.id, reverted },
+      status: reverted > 0 ? 'REVERTED' : 'FAILED', error: reverted > 0 ? null : failReason,
+      adapter: type, detail: { imageId: row.id, reverted },
     });
-    return { ok: reverted > 0, status };
+    return reverted > 0 ? { ok: true, status } : { ok: false, status, note: failNote };
   }
 }

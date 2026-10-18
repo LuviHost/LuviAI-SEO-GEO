@@ -1,13 +1,48 @@
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
-import { auth, signIn } from '@/auth';
-import { Card, CardContent } from '@/components/ui/card';
+import { auth, signIn, ACCOUNT_DELETED_SIGNIN_ERROR } from '@/auth';
 import { Button } from '@/components/ui/button';
 import { BrandWordmark } from '@/components/brand-logo';
 
+/** Ayni parametre URL'de iki kez gelirse Next.js dizi verir */
+type SearchParam = string | string[] | undefined;
+
 type SignInPageProps = {
-  searchParams: Promise<{ callbackUrl?: string; error?: string }>;
+  searchParams: Promise<{ callbackUrl?: SearchParam; error?: SearchParam }>;
 };
+
+/**
+ * ?error= kodu -> gosterilecek sabit metin. URL'deki metin ASLA ekrana basilmaz:
+ * eskiden decodeURIComponent(error) yaziliyordu; herkes /signin?error=<istedigi
+ * cumle> linkiyle RanksUp sayfasinda sahte uyari gosterebiliyordu (icerik
+ * enjeksiyonu), bozuk bir % dizisi de sayfayi URIError ile dusuruyordu.
+ *
+ * Kodlar: AccountDeleted bizim (auth.ts signIn). Digerleri Auth.js'in istemciye
+ * actigi hata turleri; geri kalan her hata "Configuration" olarak gelir
+ * (@auth/core 0.41.2 errors.js clientErrors, index.js). Uygulamada yalniz
+ * Google OAuth + JWT oturumu var: Verification (e-posta linki), CredentialsSignin,
+ * AccountNotLinked / WebAuthnVerificationError (WebAuthn) uretilemez.
+ * Map: '__proto__' / 'constructor' gibi anahtarlar nesne prototipine dusmez.
+ */
+const SIGNIN_ERRORS = new Map<string, string>([
+  [ACCOUNT_DELETED_SIGNIN_ERROR, 'Bu hesap için silme talebi alındı; hesaba erişim kapatıldı. Verileriniz talepten 30 gün sonra kalıcı olarak silinir.'],
+  // signIn geri cevirdi (Google e-posta vermedi) ya da hesap kaydi sirasinda hata olustu
+  ['AccessDenied', 'Giriş onaylanmadı. Lütfen Google hesabınızla yeniden deneyin.'],
+  // Izin ekrani iptal edildi ya da Google hata dondu
+  ['OAuthCallbackError', 'Google ile giriş tamamlanmadı: izin ekranı kapatılmış ya da Google bir hata döndürmüş olabilir. Lütfen yeniden deneyin.'],
+  ['OAuthAccountNotLinked', 'Bu Google hesabı başka bir RanksUp hesabıyla ilişkili. Çıkış yapıp o hesapla giriş yapmayı deneyin.'],
+  ['MissingCSRF', 'Güvenlik doğrulaması tamamlanamadı. Sayfayı yenileyip yeniden deneyin.'],
+  // Cogunlukla durum (state/PKCE) cerezi eksik: cerez engeli ya da bekletilen giris sekmesi
+  ['Configuration', 'Giriş tamamlanamadı. Sayfayı yenileyip yeniden deneyin; tarayıcınızın çerezlere izin verdiğinden emin olun.'],
+]);
+const SIGNIN_ERROR_FALLBACK = 'Giriş tamamlanamadı. Lütfen yeniden deneyin.';
+
+const firstParam = (v: SearchParam): string | undefined => (Array.isArray(v) ? v[0] : v);
+
+function signInErrorText(code: string | undefined): string | null {
+  if (!code) return null;
+  return SIGNIN_ERRORS.get(code) ?? SIGNIN_ERROR_FALLBACK;
+}
 
 export const metadata = {
   title: 'Giriş yap veya hesap oluştur — RanksUp panele eriş',
@@ -19,12 +54,12 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
   const params = await searchParams;
   // Open-redirect engeli: yalnızca uygulama-içi göreli yol ('/...') kabul; protocol-relative ('//')
   // ve backslash kaçışları reddedilir, aksi halde /dashboard'a düşülür.
-  const rawCallback = params.callbackUrl ?? '/dashboard';
+  const rawCallback = firstParam(params.callbackUrl) ?? '/dashboard';
   const callbackUrl =
     rawCallback.startsWith('/') && !rawCallback.startsWith('//') && !rawCallback.startsWith('/\\')
       ? rawCallback
       : '/dashboard';
-  const error = params.error;
+  const errorText = signInErrorText(firstParam(params.error));
 
   if (session?.user) redirect(callbackUrl);
 
@@ -54,9 +89,9 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
             </p>
           </div>
 
-          {error && (
-            <div className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 text-red-700 dark:text-red-300 text-sm p-3 rounded-lg">
-              {decodeURIComponent(error)}
+          {errorText && (
+            <div role="alert" className="bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900 text-red-700 dark:text-red-300 text-sm p-3 rounded-lg">
+              {errorText}
             </div>
           )}
 

@@ -1,0 +1,137 @@
+RanksUp MCP sunucusu — ajan kurulum rehberi
+Son güncelleme: Ekim 2026
+
+RanksUp, Model Context Protocol (MCP) sunucusu üzerinden hesabındaki SEO, GEO
+(yapay zekâ asistanlarında görünürlük) ve ASO verilerini kendi yapay zekâ
+istemcine açar: siteler, site denetimi, GEO skor kartı, AI görünürlük
+ölçümleri, içerik fırsatları, makaleler, aksiyon planı, Search Console özeti ve
+izlenen uygulamaların anahtar kelime sıraları ile yorum analizi.
+
+Sunucu adresi : https://api.ranksup.ai/api/mcp
+Taşıma        : Streamable HTTP. Durumsuz çalışır: her istek tek bir JSON
+                yanıtı döner, SSE akışı açılmaz.
+Kimlik        : Authorization: Bearer luvi_... (RanksUp API anahtarı)
+Plan          : MCP sunucusu ve API anahtarı üretimi Kurumsal planda açıktır.
+Sunucu kartı  : https://api.ranksup.ai/api/mcp/server-card
+Keşif         : https://ranksup.ai/.well-known/ai-catalog.json
+
+
+1. API anahtarı oluştur
+-----------------------
+- RanksUp panelinde API Anahtarları sayfasını aç: https://ranksup.ai/api-keys
+- Yeni anahtar üret. Anahtar "luvi_" ile başlar ve yalnızca üretildiği anda
+  gösterilir; biz anahtarın kendisini değil özetini saklarız. Kaybedersen
+  yenisini üret.
+- Yetkiler: her MCP aracı, aynı işi yapan REST ucuyla aynı yetkiyi ister.
+  Varsayılan anahtar tüm okuma yetkilerini taşır ve hiçbir şeyi değiştiremez;
+  okuma araçlarının hepsi bu anahtarla çalışır. Yazma araçları için anahtarı
+  oluştururken ilgili satırda "Yazma"yı seç:
+    - Site denetimi → Yazma (audit:write): run_audit, run_agent_readiness_scan,
+      run_prompt (AI görünürlük ölçümü), derive_content_opportunities,
+      generate_article_from_opportunity, suggest_image_alts
+    - İçerikler → Yazma (articles:write): create_article
+    - Aksiyon planına yazan add_action_plan_item ve update_action_plan_item
+      için herhangi bir "Yazma" yetkisi yeterli.
+  Okuma araçları ilgili okuma yetkisini ister: Siteler (sites:read), Site
+  denetimi (audit:read), İçerikler (articles:read), Analitik (analytics:read).
+  Aksiyon planı ve uygulama (ASO) okuma araçları her anahtarla çalışır. Bir
+  kaynağın "Yazma" yetkisi, aynı kaynağın okuma araçlarını da açar. Anahtarın
+  yetkileri sonradan değiştirilemez; gerekirse yeni anahtar üret.
+- Anahtarı sohbetlere, ekran görüntülerine ya da paylaşılan dosyalara yazma.
+
+
+2. Claude Code
+--------------
+Komut:
+
+  claude mcp add --transport http ranksup https://api.ranksup.ai/api/mcp --header "Authorization: Bearer luvi_ANAHTARIN"
+
+Kontrol: terminalde "claude mcp list", Claude Code içinde "/mcp".
+
+Projede ekiple paylaşmak istersen .mcp.json kullan; anahtarı dosyaya yazma,
+ortam değişkeninden okut (önce terminalde RANKSUP_API_KEY tanımla):
+
+  {
+    "mcpServers": {
+      "ranksup": {
+        "type": "http",
+        "url": "https://api.ranksup.ai/api/mcp",
+        "headers": { "Authorization": "Bearer ${RANKSUP_API_KEY}" }
+      }
+    }
+  }
+
+Kaynak: https://code.claude.com/docs/en/mcp
+
+
+3. Cursor
+---------
+Tüm projeler için ~/.cursor/mcp.json, tek proje için projede .cursor/mcp.json:
+
+  {
+    "mcpServers": {
+      "ranksup": {
+        "url": "https://api.ranksup.ai/api/mcp",
+        "headers": { "Authorization": "Bearer ${env:RANKSUP_API_KEY}" }
+      }
+    }
+  }
+
+RANKSUP_API_KEY değişkenini kabuk profilinde ya da sistem ortamında tanımla.
+Kaynak: https://cursor.com/docs/context/mcp
+
+
+4. Özel başlık (header) gönderebilen diğer istemciler
+-----------------------------------------------------
+- Sunucu türü : Streamable HTTP (bazı istemcilerde "http")
+- URL         : https://api.ranksup.ai/api/mcp
+- Başlık      : Authorization: Bearer luvi_ANAHTARIN
+
+
+5. Henüz bağlanamayan istemciler (dürüst not)
+----------------------------------------------
+- claude.ai özel bağlayıcıları (custom connectors): istek başlığıyla kimlik
+  doğrulama beta aşamasında ve yalnızca sınırlı sayıda kuruluşta açık.
+  Bağlayıcı eklerken "Request headers" bölümünü görmüyorsan hesabında henüz
+  yok; RanksUp OAuth desteklemediği için bu durumda claude.ai üzerinden
+  bağlanamazsın. Bölüm varsa başlık adı "Authorization", değeri
+  "Bearer luvi_ANAHTARIN" olmalı (Bearer öneki dahil).
+  Kaynak: https://claude.com/docs/connectors/custom/remote-mcp
+- ChatGPT: kimlik doğrulamalı MCP sunucuları için OAuth 2.1 istiyor ve özel
+  API anahtarı gönderemiyor. RanksUp henüz OAuth desteklemediği için ChatGPT
+  bağlanamaz.
+  Kaynak: https://developers.openai.com/apps-sdk/build/auth
+OAuth desteği eklendiğinde bu rehber güncellenecek.
+
+
+6. Araçlar
+----------
+- Araç listesi bağlantı anında tools/list ile gelir ve zamanla değişebilir;
+  bu yüzden burada sabit bir liste yayımlamıyoruz.
+- Önce list_sites ile site kimliğini al; site kapsamlı araçlar site_id ister.
+  Uygulama araçları (get_app_keywords, get_app_reviews_summary) app_id ister;
+  onu list_tracked_apps verir.
+- Her araç MCP ipuçlarını taşır: readOnlyHint (yalnızca okur), destructiveHint
+  (var olan veriyi değiştirir). İstemcin onay isteyip istemeyeceğine bunlarla
+  karar verebilir.
+- Yazma araçları (denetim, ölçüm, makale üretimi) planındaki kotayı ya da
+  haftalık ölçüm hakkını kullanır.
+- get_app_keywords'teki popularity, Apple veya Google'ın arama hacmi değildir;
+  RanksUp'ın talep tahminidir (aracın açıklamasında nasıl hesaplandığı yazar).
+
+
+7. Sorun giderme
+----------------
+- HTTP 401: anahtar eksik, hatalı ya da iptal edilmiş. Başlığın
+  "Authorization: Bearer luvi_..." biçiminde olduğunu kontrol et.
+- HTTP 403, "MCP sunucusu Kurumsal planına dahildir": hesabın Kurumsal planda
+  değil.
+- 'bu API anahtarında "audit:write" yetkisi yok' (ya da başka bir yetki adı):
+  araç bu yetkiyi istiyor (1. bölümdeki Yetkiler listesi). Yetkiler sonradan
+  değiştirilemediği için bu yetkiyle yeni anahtar üret.
+- "bu API anahtarı salt okunur": araç aksiyon planına yazıyor; en az bir
+  "Yazma" yetkisi olan yeni anahtar üret.
+
+
+Destek: destek@luvihost.com
+RanksUp'ın sitelere gönderdiği RanksUpBot hakkında: https://ranksup.ai/bot

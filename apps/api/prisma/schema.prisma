@@ -71,6 +71,11 @@ model User {
   // Agency owner'in altinda calisan client kullanicilar parentAgencyId ile referans
   parentAgencyId         String?
 
+  // 2026-10 Hesap silme (Apple 5.1.1(v) + KVKK). Dolu = kullanici silme istedi:
+  // o andan itibaren giris/API erisimi kapali; 30 gun sonra hesap ve bagli
+  // icerik kalici silinir (me/account-purge.cron.ts). Faturalar anonim kalir.
+  deletionRequestedAt DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -92,6 +97,7 @@ model User {
   @@index([email])
   @@index([plan, subscriptionStatus])
   @@index([grandfatheredUntil])
+  @@index([deletionRequestedAt])
   @@map("users")
 }
 
@@ -985,8 +991,11 @@ enum JobStatus {
 // ═══════════════════════════════════════════════════════════════
 
 model Invoice {
-  id     String @id @default(cuid())
-  userId String
+  id     String  @id @default(cuid())
+  /// Hesap kalici silinince NULL olur, fatura KALIR: VUK md. 253 (5 yil) ve
+  /// TTK md. 82 (10 yil) defter/belge saklama yukumlulugu. Eskiden Cascade'di —
+  /// kullanici silinince muhasebe kaydi da gidiyordu.
+  userId String?
 
   paytrTransactionId String?       @unique
   /**
@@ -1015,7 +1024,7 @@ model Invoice {
   failedAt  DateTime?
   createdAt DateTime  @default(now())
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([userId, createdAt])
   @@map("invoices")
@@ -1650,7 +1659,7 @@ model AsaAccount {
 
   // ── Auto-Pilot (Seviye 2) ─────────────────────────
   autoPilotEnabled    Boolean   @default(false)
-  autoPilotBudgetCap  Float? // USD/ay — aşılırsa yeni kampanya açılmaz
+  autoPilotBudgetCap  Float? // Aylik sinir, adi USD dese de HESABIN para biriminde (asa-currency.ts): null = sinir yok, 0 = otopilot hic degisiklik yapmaz, pozitif = ay ici harcama bu degere ulasinca o ay degisiklik yapilmaz (asa.service runAutoPilot)
   autoPilotLastRunAt  DateTime?
   autoPilotLastResult String?   @db.Text // JSON: { added: [...], paused: [...], skipped: [...] }
 
@@ -2035,7 +2044,8 @@ enum StudioAssetType {
 
 model VideoCreditPurchase {
   id             String            @id @default(cuid())
-  userId         String
+  /// Odeme kaydi — hesap silinince NULL olur, kayit kalir (Invoice ile ayni gerekce)
+  userId         String?
   packSize       Int // 5 | 20 | 50
   priceTry       Int // 499 | 1799 | 3999
   status         VideoCreditStatus @default(PENDING) // PENDING → PAID → CONSUMED
@@ -2047,7 +2057,7 @@ model VideoCreditPurchase {
   paidAt         DateTime?
   createdAt      DateTime          @default(now())
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@index([userId, status])
   @@index([merchantOid])

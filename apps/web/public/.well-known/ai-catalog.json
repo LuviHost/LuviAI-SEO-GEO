@@ -1,0 +1,16 @@
+{
+  "specVersion": "1.0",
+  "host": {
+    "displayName": "RanksUp",
+    "identifier": "ranksup.ai",
+    "documentationUrl": "https://ranksup.ai/agent-setup.txt",
+    "logoUrl": "https://ranksup.ai/icon-512.png"
+  },
+  "entries": [
+    {
+      "identifier": "urn:air:ranksup.ai:mcp:ranksup",
+      "type": "application/mcp-server-card+json",
+      "url": "https://api.ranksup.ai/api/mcp/server-card"
+    }
+  ]
+}

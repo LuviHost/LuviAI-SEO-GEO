@@ -45,6 +45,48 @@ const INGEST_RATE_LIMIT = Number(process.env.INGEST_RATE_LIMIT) > 0
   ? Number(process.env.INGEST_RATE_LIMIT)
   : 300;
 
+/**
+ * Sorgu parametresi yalniz duz metin olarak kabul edilir. Express'in qs
+ * ayristiricisi `?site=a&site=b` girdisini diziye, `?site[x]=y` girdisini
+ * nesneye cevirir; sunulan betige ya da kayda dize disi deger gitmesin.
+ */
+function queryText(value: unknown): string {
+  return typeof value === 'string' ? value : '';
+}
+
+/**
+ * tracker.js govdesi. `site` istekten gelir ve sunulan betigin ICINE yazilir:
+ * eskiden ham haliyle (`site=${siteId}`) tek tirnakli JS dizesine konuyordu;
+ * `'` ya da satir sonu iceren bir deger dizeden cikip betige kod ekleyebilirdi
+ * (yansitilan girdi). Simdi once encodeURIComponent (URL bileseni), sonra
+ * JSON.stringify (gecerli JS dize sabiti) — deger her zaman veri kalir.
+ */
+export function buildTrackerJs(siteId: string, apiBase: string): string {
+  const beaconBase = `${apiBase}/api/tracker/beacon?site=${encodeURIComponent(siteId)}`;
+  // Google-Extended desende YOK: ayri bir HTTP kullanici ajani yok, yalniz
+  // robots.txt belirteci (https://developers.google.com/search/docs/crawling-indexing/google-common-crawlers)
+  return `
+(function(){
+  var ua = navigator.userAgent || '';
+  var botPatterns = /GPTBot|OAI-SearchBot|ChatGPT-User|ClaudeBot|Claude-Web|PerplexityBot|Bytespider|Amazonbot|CCBot|YouBot|cohere-ai|DuckAssistBot|Meta-ExternalAgent|Mistral|DeepSeek/i;
+  var aiReferrers = /chat\\.openai\\.com|chatgpt\\.com|perplexity\\.ai|claude\\.ai|gemini\\.google\\.com|bard\\.google\\.com|copilot\\.microsoft\\.com|you\\.com|phind\\.com|poe\\.com/i;
+
+  var ref = document.referrer || '';
+  var isBot = botPatterns.test(ua);
+  var isAiReferrer = aiReferrers.test(ref);
+
+  // Bot zaten gelmiş ya da AI'den yönlendirilmis kullanici — track et
+  if (!isBot && !isAiReferrer) return;
+
+  var img = new Image(1, 1);
+  img.src = ${JSON.stringify(beaconBase)} +
+    '&url=' + encodeURIComponent(location.href) +
+    '&ref=' + encodeURIComponent(ref) +
+    '&t=' + Date.now();
+})();
+    `.trim();
+}
+
 @SkipThrottle()
 @Controller()
 export class TrackerController {
@@ -96,7 +138,8 @@ export class TrackerController {
   @Get('widget.js')
   @Header('Content-Type', 'application/javascript; charset=utf-8')
   @Header('Cache-Control', 'public, max-age=3600')
-  widgetScript(@Query('site') siteId: string, @Res() res: Response) {
+  widgetScript(@Query('site') rawSite: unknown, @Res() res: Response) {
+    const siteId = queryText(rawSite);
     if (!siteId) {
       res.send('// RanksUp widget — site param missing');
       return;
@@ -110,33 +153,14 @@ export class TrackerController {
   @Get('tracker.js')
   @Header('Content-Type', 'application/javascript; charset=utf-8')
   @Header('Cache-Control', 'public, max-age=3600')
-  trackerScript(@Query('site') siteId: string, @Res() res: Response) {
+  trackerScript(@Query('site') rawSite: unknown, @Res() res: Response) {
+    const siteId = queryText(rawSite);
     if (!siteId) {
       res.send('// RanksUp tracker — site param missing');
       return;
     }
     const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'https://ranksup.ai';
-    const js = `
-(function(){
-  var ua = navigator.userAgent || '';
-  var botPatterns = /GPTBot|OAI-SearchBot|ChatGPT-User|ClaudeBot|Claude-Web|PerplexityBot|Google-Extended|Bytespider|Amazonbot|CCBot|YouBot|cohere-ai|DuckAssistBot|Meta-ExternalAgent|Mistral|DeepSeek/i;
-  var aiReferrers = /chat\\.openai\\.com|chatgpt\\.com|perplexity\\.ai|claude\\.ai|gemini\\.google\\.com|bard\\.google\\.com|copilot\\.microsoft\\.com|you\\.com|phind\\.com|poe\\.com/i;
-
-  var ref = document.referrer || '';
-  var isBot = botPatterns.test(ua);
-  var isAiReferrer = aiReferrers.test(ref);
-
-  // Bot zaten gelmiş ya da AI'den yönlendirilmis kullanici — track et
-  if (!isBot && !isAiReferrer) return;
-
-  var img = new Image(1, 1);
-  img.src = '${apiBase}/api/tracker/beacon?site=${siteId}&url=' +
-    encodeURIComponent(location.href) +
-    '&ref=' + encodeURIComponent(ref) +
-    '&t=' + Date.now();
-})();
-    `.trim();
-    res.send(js);
+    res.send(buildTrackerJs(siteId, apiBase));
   }
 
   /**
@@ -148,14 +172,16 @@ export class TrackerController {
   @Header('Content-Type', 'image/gif')
   @Header('Cache-Control', 'no-store, no-cache, must-revalidate')
   async beacon(
-    @Query('site') siteId: string,
-    @Query('url') url: string,
-    @Query('ref') ref: string,
+    @Query('site') rawSite: unknown,
+    @Query('url') rawUrl: unknown,
+    @Query('ref') rawRef: unknown,
     @Res() res: Response,
   ) {
+    const siteId = queryText(rawSite);
+    const ref = queryText(rawRef);
     // AI referrer match ediyorsa kaydet (bot olmayan kullanici)
     if (siteId && ref) {
-      this.aiReferrer.record(siteId, ref, url ?? '').catch(() => {});
+      this.aiReferrer.record(siteId, ref, queryText(rawUrl)).catch(() => {});
     }
 
     // Transparent 1x1 GIF

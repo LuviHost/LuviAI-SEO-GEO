@@ -3,6 +3,65 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { brandSharePct, rivalsFromCompetitors } from './share-of-voice.js';
 import { unbrandedOnly } from './brand-in-query.js';
 import { compareCells, type TrendState } from './comparable-trend.js';
+import { accessFromLevels, type ReadinessLevel } from './agent-readiness-checks.js';
+
+/**
+ * Son Agent Readiness (AXO) taramasinin vitrin degeri.
+ *
+ * NEDEN: blocked/unreachable taramada overallScore yalniz OLCULEBILEN
+ * kontrolleri yansitir (agent-readiness-checks.ts summarizeLevels) — ana sayfa
+ * ya da robots.txt okunamadiginda kalan birkac kontrolden cikan sayi "skor"
+ * diye gosterilirse yaniltir. score null olur, neden tasinir. Ayni kural
+ * agent-readiness.service history() trendinde de var.
+ */
+export interface ReadinessKpi {
+  score: number | null;
+  status: string | null;
+  /**
+   * false YALNIZ son tarama siteye erisemediyse (blocked/unreachable): skor
+   * olculemedi. Hic tarama yoksa status null'dur, measured false olmaz.
+   */
+  measured: boolean;
+  /** Olculemediyse nedeni ve cozumu (Turkce) — olculebilen taramada null */
+  reason: string | null;
+}
+
+const UNMEASURED_READINESS = new Set(['blocked', 'unreachable']);
+
+/** AXO taramasi siteye erisemedi mi (skor olcum degil) */
+export function isUnmeasuredReadinessStatus(status: string | null | undefined): boolean {
+  return !!status && UNMEASURED_READINESS.has(status);
+}
+
+/** Prisma'nin yalniz agentReadinessScan ucu — testte sahtelenebilir */
+export interface ReadinessScanReader {
+  agentReadinessScan: { findFirst(args: any): Promise<any> };
+}
+
+export async function latestReadinessKpi(prisma: ReadinessScanReader, siteId: string): Promise<ReadinessKpi | null> {
+  const scan = await prisma.agentReadinessScan.findFirst({
+    where: { siteId },
+    orderBy: { ranAt: 'desc' },
+    select: { id: true, overallScore: true, status: true },
+  });
+  if (!scan) return null;
+  if (!isUnmeasuredReadinessStatus(scan.status)) {
+    return { score: scan.overallScore ?? null, status: scan.status ?? null, measured: true, reason: null };
+  }
+  // Seviyeler (buyuk JSON) yalniz neden gerektiginde okunur
+  const full = await prisma.agentReadinessScan.findFirst({ where: { id: scan.id }, select: { levels: true } }).catch(() => null);
+  const levels = (Array.isArray(full?.levels) ? full.levels : []) as ReadinessLevel[];
+  const access = accessFromLevels(levels);
+  const fallback = scan.status === 'blocked'
+    ? 'Son tarama siteye erişemedi (erişim engellendi); skor ölçülemedi.'
+    : 'Son tarama siteye ulaşamadı; skor ölçülemedi.';
+  return {
+    score: null,
+    status: scan.status,
+    measured: false,
+    reason: access ? `Ölçülemedi: ${access.reason} ${access.hint}`.trim() : fallback,
+  };
+}
 
 /**
  * AI KPI seridi — Overview dashboard'un ust blogu.
@@ -69,7 +128,8 @@ export interface AiKpis {
   aiCrawlerHits: KpiValue;    // adet — AI bot istekleri
   aiReferrerHits: KpiValue;   // adet — ChatGPT/Perplexity'den gelen insan trafigi
   citeFetches: KpiValue;      // adet — canli cite sinyali (ChatGPT-User vb. on-demand fetch)
-  agentReadiness: { score: number | null; status: string | null };
+  /** blocked/unreachable taramada score null + reason (bkz. latestReadinessKpi) */
+  agentReadiness: ReadinessKpi;
   generatedAt: string;
 }
 
@@ -109,11 +169,7 @@ export class AiKpisService {
         where: { siteId, isCiteFetch: true, ts: { gte: d14 } },
         select: { ts: true },
       }),
-      this.prisma.agentReadinessScan.findFirst({
-        where: { siteId },
-        orderBy: { ranAt: 'desc' },
-        select: { overallScore: true, status: true },
-      }),
+      latestReadinessKpi(this.prisma, siteId),
     ]);
 
     // MANSET SUZGECI: sorusunda marka adi gecen satirlar disarida kalir.
@@ -169,17 +225,21 @@ export class AiKpisService {
     // ── Karsilastirilabilir deltalar (comparable-trend.ts) ──
     // Hucre = prompt|fan-out × saglayici; yalnizca IKI donemde de olculen
     // hucreler kiyaslanir. Manset deger (value) havuzdan kalir; delta bundan.
-    // matchVersion yalnizca ALINTI olcumunu etkiler (host-match) → anilma
-    // metrikleri surume baglanmaz.
+    // matchVersion ARTIK ANILMAYI DA etkiler: CITATION_MATCH_VERSION 4 jenerik
+    // turetilmis markada (eticaret.com → "eticaret") yalin kelimeyi anilma ve
+    // "soruda marka" saymiyor (host-match.ts). v3 → v4 gecisinde anilma,
+    // markali/markasiz ayrimi ve anilmaya bagli ton etiketi degisti; bu
+    // metrikler de surume baglanir ki gecis "gorunurluk degisti" diye
+    // okunmasin (method_changed, delta yok).
     const cellOf = (r: (typeof runs)[number]) => `${r.promptId}|${r.fanoutId ?? ''}|${r.provider}`;
-    const trend = (pool: typeof runs, value: (r: (typeof runs)[number]) => number, versioned: boolean) =>
-      compareCells(pool.map((r) => ({ cell: cellOf(r), current: r.date >= d7, value: value(r), version: versioned ? r.matchVersion : 1 })));
+    const trend = (pool: typeof runs, value: (r: (typeof runs)[number]) => number) =>
+      compareCells(pool.map((r) => ({ cell: cellOf(r), current: r.date >= d7, value: value(r), version: r.matchVersion })));
     const pp = (t: ReturnType<typeof compareCells>) => (t.state === 'comparable' && t.delta !== null ? Math.round(t.delta * 1000) / 10 : null);
-    const mentionTrend = trend(unbranded, (r) => (r.brandMentioned ? 1 : 0), false);
-    const citedTrend = trend(unbranded, (r) => (r.cited ? 1 : 0), true);
-    const cnmTrend = trend(unbranded, (r) => (r.cited && !r.brandMentioned ? 1 : 0), true);
-    const bMentionTrend = trend(branded, (r) => (r.brandMentioned ? 1 : 0), false);
-    const sentTrend = trend(unbranded.filter((r) => r.sentiment), (r) => (r.sentiment === 'positive' ? 1 : 0), false);
+    const mentionTrend = trend(unbranded, (r) => (r.brandMentioned ? 1 : 0));
+    const citedTrend = trend(unbranded, (r) => (r.cited ? 1 : 0));
+    const cnmTrend = trend(unbranded, (r) => (r.cited && !r.brandMentioned ? 1 : 0));
+    const bMentionTrend = trend(branded, (r) => (r.brandMentioned ? 1 : 0));
+    const sentTrend = trend(unbranded.filter((r) => r.sentiment), (r) => (r.sentiment === 'positive' ? 1 : 0));
     const sameScope = mentionTrend.state === 'comparable';
 
     // ── Crawler / referrer hit toplamlari
@@ -260,10 +320,8 @@ export class AiKpisService {
         deltaPct: citePrev > 0 ? Math.round(((citeNow - citePrev) / citePrev) * 1000) / 10 : null,
         series: hitSeries(citeRows),
       },
-      agentReadiness: {
-        score: readiness?.overallScore ?? null,
-        status: readiness?.status ?? null,
-      },
+      // Tarama hic yok: "olculemedi" degil "veri yok" — status null, measured false DEGIL
+      agentReadiness: readiness ?? { score: null, status: null, measured: true, reason: null },
       generatedAt: new Date().toISOString(),
     };
   }

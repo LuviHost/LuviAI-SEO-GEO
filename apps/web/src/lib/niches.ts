@@ -25,6 +25,8 @@ export const NICHES = [
   'hukuk',
   'danışmanlık',
   'üretim/sanayi',
+  'güzellik/bakım',
+  'yerel hizmetler',
   'diğer',
 ] as const;
 

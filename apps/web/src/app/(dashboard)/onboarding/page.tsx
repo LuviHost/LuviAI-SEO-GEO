@@ -34,6 +34,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { StatusBanner } from '@/components/ui/status-banner';
 import { useConfirm } from '@/components/ui/confirm-dialog';
+import { CrawlAccessNotice } from '@/components/crawl-access-notice';
+import { currentCrawlAccess, type CrawlAccess } from '@/lib/crawl-access';
 import { cn } from '@/lib/utils';
 import {
   MissionShell,
@@ -256,7 +258,11 @@ function InputStage({
   const valid = (() => {
     try {
       const u = new URL(normalized);
-      return (u.protocol === 'http:' || u.protocol === 'https:') && u.hostname.includes('.');
+      // Sunucu kuraliyla ayni: site bir alan adi olmali — IP adresi, ozel port
+      // ve kimlik bilgisi kabul edilmez (API de reddeder, burada erken uyar).
+      const ipHost = /^\d+(\.\d+){3}$/.test(u.hostname) || u.hostname.startsWith('[');
+      return (u.protocol === 'http:' || u.protocol === 'https:') && u.hostname.includes('.')
+        && !ipHost && !u.port && !u.username && !u.password;
     } catch { return false; }
   })();
   const showHint = url.trim().length > 3 && !valid;
@@ -459,6 +465,9 @@ function MissionStage({
   }>({});
   // Stuck-check: 8 dk'dan uzun sürüyorsa kullanıcıya çıkış yolu sun
   const [stuck, setStuck] = useState(false);
+  // Tarayıcımız siteyi okuyamıyorsa (WAF, robots.txt, DNS) zincir ilerlemez —
+  // 8 dakika beklemek yerine nedeni ve çözümü hemen göster
+  const [crawlAccess, setCrawlAccess] = useState<CrawlAccess | null>(null);
   // Tick: her 30sn'de bir elapsed'i kontrol et
   const [, forceTick] = useState(0);
   useEffect(() => {
@@ -522,6 +531,7 @@ function MissionStage({
         const topicsDone = !!(queue?.tier1Topics?.length);
         const platformDone = !!(site?.platform);
         const scheduleDone = site?.status === 'ACTIVE';
+        setCrawlAccess(currentCrawlAccess(site?.crawlAccess, audit));
 
         setTasks([
           { key: 'brain', label: 'Marka beyni', done: brainDone },
@@ -585,6 +595,23 @@ function MissionStage({
       <p className="mb-2 text-center text-label text-brand">Siten hazırlanıyor</p>
 
       <MissionWheel tasks={tasks} startedAt={startedAtRef.current} estimatedMs={ESTIMATED_TOTAL_MS} />
+
+      {crawlAccess && (
+        <div className="mx-auto mt-6 max-w-2xl space-y-3">
+          <CrawlAccessNotice access={crawlAccess} />
+          <div className="flex justify-center">
+            <Button
+              variant="outline"
+              onClick={() => {
+                try { window.localStorage.removeItem(`luviai-mission-startedAt-${siteId}`); } catch { /* depolama kapali olabilir */ }
+                onComplete(siteId);
+              }}
+            >
+              Panele git <ArrowRight className="h-4 w-4" aria-hidden />
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Ilk bulgular — asamalar bittikce AI'nin bulduklarini aninda goster */}
       {findings.length > 0 && (

@@ -1,15 +1,6 @@
 import 'dotenv/config';
 
-// IPv4'e zorla (sunucularda public IPv6 yoksa Node fetch ETIMEDOUT verir)
-try {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const undici = require('undici') as { setGlobalDispatcher: (d: unknown) => void; Agent: new (opts: unknown) => unknown };
-  undici.setGlobalDispatcher(new undici.Agent({ connect: { family: 4 } }));
-} catch {
-  // older Node — sessizce geç
-}
-
-import { Worker, Queue } from 'bullmq';
+import { Worker, Queue, UnrecoverableError, type Job } from 'bullmq';
 import IORedis from 'ioredis';
 import { NestFactory } from '@nestjs/core';
 import { Logger } from '@nestjs/common';
@@ -23,7 +14,8 @@ import { AutoFixService } from '../../api/dist/audit/auto-fix.service.js';
 import { TopicsService } from '../../api/dist/topics/topics.service.js';
 import { PipelineService } from '../../api/dist/articles/pipeline.service.js';
 import { PublisherService } from '../../api/dist/articles/publisher.service.js';
-import { ArticleSchedulerService } from '../../api/dist/articles/article-scheduler.service.js';
+import { ArticleSchedulerService, isScheduledGenerationJobId } from '../../api/dist/articles/article-scheduler.service.js';
+import { runGeneratingSweep, bullmqQueueInspector } from '../../api/dist/articles/generating-sweeper.js';
 import { PrismaService } from '../../api/dist/prisma/prisma.service.js';
 import { PlatformDetectorService } from '../../api/dist/sites/platform-detector.service.js';
 import { LlmsFullBuilderService } from '../../api/dist/audit/llms-full-builder.service.js';
@@ -47,14 +39,75 @@ import { JobQueueService } from '../../api/dist/jobs/job-queue.service.js';
 import { LinkedinOutreachService } from '../../api/dist/intel/linkedin-outreach.service.js';
 import { ImageAltSuggestService } from '../../api/dist/audit/image-alt/image-alt-suggest.service.js';
 import { ImageAltApplyService } from '../../api/dist/audit/image-alt/image-alt-apply.service.js';
+import { decideGeneratedArticlePublish, PUBLISH_SKIP_TEXT, scheduledGenerationPaused } from '../../api/dist/articles/publish-approval.js';
+import { autoPublishFollowUp } from '../../api/dist/articles/republish-policy.js';
+import { isStuckRepublishJob, runStuckPageSweep, stuckRecoverSkip, stuckRecoveryRoute } from '../../api/dist/audit/stuck-page-autopilot.js';
+import { pinProcessToIpv4 } from '../../api/dist/ipv4-pin.js';
 
+// IPv4'e sabitle: uretimde calisan IPv6 yolu yok, happy-eyeballs IPv6'ya
+// gecince istekler ETIMEDOUT ile duser (gerekce ve kaynaklar: api ipv4-pin.ts).
+// Eskiden burada require('undici') ile genel dagitici kuruluyordu; paket ESM
+// ("type": "module") oldugu icin require tanimsizdi, hata sessizce yutuluyor ve
+// sabitleme HIC uygulanmiyordu (undici worker'in bagimliligi da degil).
+// ESM'de importlar bu satirdan once degerlendirilir; hicbiri import aninda soket
+// acmaz — Redis/Prisma/HTTP baglantilari asagida bootstrap()'ta kurulur.
+// ALLOW_IPV6=1 sabitlemeyi kapatir.
 const log = new Logger('Worker');
+if (!pinProcessToIpv4()) log.warn('IPv4 sabitlemesi kapali (ALLOW_IPV6)');
 
 /** Gunluk otomatik AI olcumu kapali mi (musteri tetikli mod) */
 const isCitationDailyDisabled = () => process.env.AI_CITATION_DAILY_CRON === 'false';
 /** LinkedIn outreach botu (Faz 8) — varsayilan KAPALI; yalniz bayrak 1 iken tekrar isi kurulur */
 /** Env varsayilani — gercek karar serviste (panel ayari KvStore'da env'i ezer) */
 const isLinkedinOutreachEnvDefault = () => process.env.OPENCLAW_LINKEDIN_OUTREACH_ENABLED === '1';
+
+/**
+ * Kalici erisim engeli turleri: site sahibi RanksUpBot'a izin vermeden tekrar
+ * denemek ayni engele carpar (api/src/sites/crawl-access.ts CrawlAccessIssue,
+ * common/block-detect.ts BlockKind). rate_limited (429), unavailable (503) ve
+ * ulasilamama (timeout/dns/network/http_error) gecici olabilir; onlar normal
+ * yeniden deneme hakkini kullanir.
+ */
+const PERMANENT_BLOCK_KINDS = new Set(['waf', 'challenge', 'auth', 'forbidden', 'robots']);
+
+/**
+ * Anasayfa okunamadi diye denetim/brain'in attigi CrawlAccessError (HttpException
+ * 422, `issue` alani) kalici bir engel mi. Sinif api/dist'ten import edilmez:
+ * worker derlemesi dist'e bagli, alan kontrolu yeterli ve kirilgan degil.
+ */
+function isPermanentCrawlBlock(err: unknown): boolean {
+  const issue = (err as { issue?: { state?: unknown; kind?: unknown } } | null | undefined)?.issue;
+  return issue?.state === 'blocked' && typeof issue.kind === 'string' && PERMANENT_BLOCK_KINDS.has(issue.kind);
+}
+
+type AccountSkip = { skipped: true; reason: 'account_deletion' | 'job_canceled' };
+
+/**
+ * Isin DB kaydina bak: hesap silme talebi varsa ya da is iptal edildiyse handler
+ * HIC calismaz.
+ *
+ * NEDEN: silme talebi ve site silme kuyruktaki isleri DB'de CANCELED yapar ve
+ * BullMQ'dan silmeyi dener — ama bu en iyi caba: silinemeyen, o an yeniden
+ * denenen ya da gecikmeli is hesabi kapatmis birinin sitesine dokunmaya devam
+ * ederdi. Tek sorgu (bullJobId tekil indeks); DB kaydi olmayan isler (cron
+ * tekrarlari) ya da kaydi henuz yazilmamis is icin null doner, is normal calisir.
+ */
+async function accountSkip(prisma: any, bullJobId: string | undefined): Promise<AccountSkip | null> {
+  if (!bullJobId) return null;
+  const row = await prisma.job.findUnique({
+    where: { bullJobId },
+    select: { status: true, user: { select: { deletionRequestedAt: true } } },
+  });
+  if (!row) return null;
+  if (row.user?.deletionRequestedAt) return { skipped: true, reason: 'account_deletion' };
+  if (row.status === 'CANCELED') return { skipped: true, reason: 'job_canceled' };
+  return null;
+}
+
+const isAccountSkip = (value: unknown): value is AccountSkip => {
+  const v = value as Partial<AccountSkip> | null | undefined;
+  return v?.skipped === true && (v.reason === 'account_deletion' || v.reason === 'job_canceled');
+};
 
 async function bootstrap() {
   // NestJS application context — HTTP listen yok, sadece DI
@@ -101,7 +154,14 @@ async function bootstrap() {
     maxRetriesPerRequest: null,
   });
 
-  const handlers: Record<string, (data: any) => Promise<any>> = {
+  // Takili uretim supurucusunun BullMQ durum sorgulari (SWEEP_STUCK_GENERATING);
+  // ilk turda kurulur, worker'la ayni baglantiyi kullanir (cron Queue'su gibi)
+  let sweepQueueRef: Queue | null = null;
+  const sweepQueue = () => (sweepQueueRef ??= new Queue('luviai-jobs', { connection }));
+
+  // job: GENERATE_ARTICLE takvim isini (BullMQ kimligi) ve yeniden deneme
+  // hakkini okur; diger isler yalniz veriyi kullanir.
+  const handlers: Record<string, (data: any, job?: Job) => Promise<any>> = {
     BRAIN_GENERATE: async ({ siteId, forceRegenerate }) => {
       if (await services.settings.getBoolean('AI_GLOBAL_DISABLED')) {
         log.warn(`[${siteId}] BRAIN_GENERATE atlandı (AI_GLOBAL_DISABLED=1)`);
@@ -144,20 +204,64 @@ async function bootstrap() {
       return { queueId: queue.id, tier1Count: (queue.tier1Topics as any[])?.length ?? 0 };
     },
 
-    GENERATE_ARTICLE: async ({ siteId, topic, skipImages, autoPublish, targetIds, articleId }) => {
+    GENERATE_ARTICLE: async ({ siteId, topic, skipImages, autoPublish, targetIds, articleId, publishApproved, automatedRewrite }, job) => {
       // ARTICLE_GENERATION_DISABLED → article üretimini tamamen atla (SCHEDULED'da kalır).
       // AI_GLOBAL_DISABLED → pipeline mock moda düşer (içeride yönetilir, dosya yine WordPress/FTP'ye yüklenir).
       const articleOff = await services.settings.getBoolean('ARTICLE_GENERATION_DISABLED');
       if (articleOff) {
         log.warn(`[${siteId}] GENERATE_ARTICLE atlandı (ARTICLE_GENERATION_DISABLED=1) topic=${topic}`);
         if (articleId) {
-          await services.prisma.article.update({
-            where: { id: articleId },
+          // Yalniz uretim sahipligi birakilir (GENERATING → SCHEDULED). Eskiden her
+          // isin yazisi kosulsuz SCHEDULED yapiliyordu: yeniden yazilan YAYINDAKI
+          // makale (pivot, kapali dongu) yayindan dusup takvime donuyordu.
+          await services.prisma.article.updateMany({
+            where: { id: articleId, status: 'GENERATING' as any },
             data: { status: 'SCHEDULED' as any },
           }).catch(() => {});
         }
         return { skipped: true, reason: 'ARTICLE_GENERATION_DISABLED' };
       }
+      // Takvim isi + akis Durduruldu → uretme; yazi SCHEDULED kalir, akis
+      // acilinca saatlik tarama alir (api publish-approval.ts scheduledGenerationPaused)
+      if (await scheduledGenerationPaused(services.prisma, { articleId })) {
+        log.log(`[${siteId}] GENERATE_ARTICLE atlandı (otomatik akış durdurulmuş) article=${articleId}`);
+        return { skipped: true, reason: 'AUTOPILOT_PAUSED' };
+      }
+      // Takvimin gecikmeli isi (gen:article:<id>) URETMEZ: yaziyi saatlik taramayla
+      // ayni atomik sahiplenmeyle (SCHEDULED → GENERATING) alip normal uretim isi
+      // olarak kuyruga atar. Ikisi ayni yaziyi bulursa yalniz biri alir; eskiden
+      // ikisi de uretiyordu (api article-scheduler.service claimAndQueue).
+      if (isScheduledGenerationJobId(job?.id)) {
+        const dispatch = await services.scheduler.dispatchScheduledArticle(articleId);
+        if (dispatch.skipped) log.log(`[${siteId}] Takvim isi uretmeden dondu (${dispatch.reason}) article=${articleId}`);
+        return dispatch;
+      }
+      // Yazi hala SCHEDULED ise (kuyruga atan sahiplenmemis) once sahiplen;
+      // baskasi aldiysa ya da yazi silindiyse uretme (LLM maliyeti harcanmaz)
+      const claim = await services.scheduler.claimForGeneration(articleId);
+      if (claim !== 'proceed') {
+        log.log(`[${siteId}] GENERATE_ARTICLE atlandı (${claim}) article=${articleId}`);
+        return { skipped: true, reason: claim === 'article_missing' ? 'ARTICLE_MISSING' : 'ALREADY_CLAIMED' };
+      }
+      // OTOMATIK yeniden yazim (yalniz icerik pivotu koyar): tarama ile is
+      // arasinda yazi yayindan kalkmis ya da canli kopyasinin hedefi silinmis /
+      // pasiflesmis olabilir. Yeni metin canliya ulasamayacaksa 5 ajanli uretim
+      // (LLM butcesi) hic baslamaz (api content-pivot.service automatedRewriteBlock).
+      const automated = automatedRewrite === true && typeof articleId === 'string' && articleId !== '';
+      if (automated) {
+        const block = await services.contentPivot.automatedRewriteBlock(articleId);
+        if (block) {
+          log.log(`[${siteId}] Otomatik yeniden yazım başlatılmadı (${block.block}) article=${articleId}: ${block.blockReason}`);
+          return { skipped: true, reason: 'LIVE_REWRITE_BLOCKED', block: block.block, detail: block.blockReason };
+        }
+      }
+      // Yayin karari IS KOSARKEN (api publish-approval.ts): autoPublish yalniz
+      // bir istek. Site su an Tam otomatik + akis acik degilse (Yari otomatik
+      // varsayilan) yazi READY_TO_PUBLISH'te onayi bekler. Takvimin gecikmeli
+      // isleri ve bu duzeltmeden once kuyruga girmis autoPublish:true isler de
+      // boylece musterinin GUNCEL secimine uyar.
+      const jobPublish = { siteId, autoPublish, publishApproved, targetIds };
+      const plan = await decideGeneratedArticlePublish(services.prisma, jobPublish);
       try {
         const result = await services.pipeline.runPipeline({
           siteId,
@@ -167,32 +271,113 @@ async function bootstrap() {
           articleId,
           // Hemen yayinlanacaksa QA'yi bekle — yoksa publisher ikinci kez
           // kosturuyor (cift LLM cagrisi + yaris).
-          awaitQa: !!autoPublish,
+          awaitQa: plan.publish,
+          // "Onayini bekliyor / Henuz yayinda degil" e-postasi yalniz yazi onay
+          // bekleyecekse: Tam otomatikte yazi asagida hemen yayinlaniyor ve
+          // e-posta yanlis oluyordu. Yayin olmazsa e-posta asagida gonderilir.
+          notifyReady: !plan.publish,
+          // Editor PASS vermezse yayindaki kayit ezilmez (pipeline keepLiveRow)
+          automatedRewrite: automated,
         });
-        // Mock veya gerçek pipeline — autoPublish çalıştır (mock 'editorVerdict' yok, mock=true var)
-        const editorOk = (result as any).mock || result.editorVerdict === 'PASS';
-        if (autoPublish && editorOk) {
-          const publishResults = await services.publisher.publishArticle(
-            result.articleId,
-            targetIds ?? [],
-          );
-          return { ...result, publishResults };
+        if ((result as any).liveKept) {
+          log.log(`[${siteId}] ${result.articleId} otomatik yeniden yazım uygulanmadı (${result.editorVerdict}); yayındaki metin korundu`);
+          return result;
+        }
+        // Otomatik yayin planlanmisti ama yazi yayinlanmadi → yazi gercekten onay
+        // bekliyor; pipeline'in atladigi "onayini bekliyor" e-postasi simdi dogru.
+        const notifyAwaitingApproval = () => {
+          services.pipeline.notifyArticleReady(siteId, result.articleId).catch((err: any) => {
+            log.warn(`[${siteId}] ${result.articleId} onay e-postasi gonderilemedi: ${err?.message ?? err}`);
+          });
+        };
+        if (plan.publish && (result as any).mock) {
+          // AI_GLOBAL_DISABLED (TEST modu) sahte metni ("MOCK ARTICLE ...") musterinin
+          // sitesine ONAYSIZ yazilmaz; yazi READY_TO_PUBLISH'te kalir, test icin
+          // panelden elle yayinlanabilir.
+          log.warn(`[${siteId}] ${result.articleId} sahte (mock) icerik — otomatik yayinlanmadi`);
+          return { ...result, publishSkipped: 'mock' };
+        }
+        if (plan.publish && result.editorVerdict === 'PASS') {
+          // Uretim birkac dakika surer: bu arada Yari otomatige gecildiyse yayinlama
+          const now = await decideGeneratedArticlePublish(services.prisma, jobPublish);
+          if (!now.publish) {
+            log.log(`[${siteId}] ${result.articleId} yayinlanmadi: ${PUBLISH_SKIP_TEXT[now.reason]}`);
+            notifyAwaitingApproval();
+            return { ...result, publishSkipped: now.reason };
+          }
+          // Otomatik yayin (paylasilan sozlesme D2): yayinciya initiator VERILMEZ,
+          // varsayilani 'automation'dir — musterinin sildigi WordPress yazisi
+          // yeniden olusturulmaz ('live_entry_missing', kayda missingAt) ve hicbir
+          // canli kopyaya yazilamazsa sonuc agentOutputs.liveWriteBlocked'a
+          // kaydedilir (icerik pivotu 30 gun yeniden yazmaz). 'user' yalniz
+          // PUBLISH_ARTICLE'da (kullanicinin acik yayin istegi).
+          try {
+            const publishResults = await services.publisher.publishArticle(result.articleId, now.targetIds);
+            // Hicbir hedef yazamadiysa (aktif varsayilan hedef yok / hepsi hata)
+            // yazi READY_TO_PUBLISH'te kalir, kullanicinin onayini bekler.
+            // TUM hedefler bilerek atlandiysa (yayindaki yazi: kopya acilmadi,
+            // hedef pasif, cop kutusu) "onayini bekliyor / henuz yayinda degil"
+            // e-postasi YANLIS: eski hali yayinda ve onay bir sey degistirmez;
+            // yayinci yaziyi PUBLISHED'a dondurup kopyalari isaretler. Neden
+            // loga ve is sonucuna yazilir (api republish-policy.ts autoPublishFollowUp).
+            const follow = autoPublishFollowUp(publishResults);
+            if (follow.notifyAwaitingApproval) notifyAwaitingApproval();
+            if (!follow.written && follow.skipped.length > 0) {
+              log.warn(`[${siteId}] ${result.articleId} yeniden yayınlanmadı, hiçbir hedefe yazılmadı: ${follow.skipped.map((s) => `${s.targetType}=${s.skipped}`).join(', ')}`);
+              return { ...result, publishResults, publishSkipped: 'live_targets_skipped', skippedTargets: follow.skipped };
+            }
+            return { ...result, publishResults };
+          } catch (err: any) {
+            // Uretim TAMAM, yayin engellendi (QA_BLOCKED vb.). Asagidaki catch yaziyi
+            // FAILED'a cekip isi yeniden denetiyordu: saglam yazi "basarisiz"
+            // gorunuyor, her deneme 5 ajanli uretimi bastan kosturup LLM maliyetini
+            // katliyordu. Yazi READY_TO_PUBLISH'te kullanicinin kararini bekler.
+            log.warn(`[${siteId}] ${result.articleId} otomatik yayinlanamadi: ${err?.message ?? err}`);
+            notifyAwaitingApproval();
+            return { ...result, publishError: String(err?.message ?? err) };
+          }
+        }
+        if (autoPublish === true && !plan.publish) {
+          log.log(`[${siteId}] ${result.articleId} yayinlanmadi: ${PUBLISH_SKIP_TEXT[plan.reason]}`);
+          return { ...result, publishSkipped: plan.reason };
         }
         return result;
       } catch (err: any) {
-        // Pipeline patlarsa placeholder Article'i FAILED'a cek (kullanici listede gorebilir)
+        // Pipeline patlarsa uretimdeki yaziyi FAILED'a cek (kullanici listede gorebilir).
+        // Sahiplik bu iste kalir: BullMQ yeniden deneyecekse yazi GENERATING'de
+        // bekler. Eskiden ilk hatada FAILED yapiliyordu; bekleme arasinda panel
+        // "basarisiz" gosteriyor, "Simdi uret" (FAILED'i de alir) ayni yaziyi
+        // ikinci kez uretime sokabiliyordu. Yalniz uretimdeki (GENERATING /
+        // EDITING) yazi: yeniden yazilan YAYINDAKI makale (pivot, kapali dongu)
+        // basarisiz yeniden yazimla FAILED olmaz, canli kalir.
         if (articleId) {
-          await services.prisma.article.update({
-            where: { id: articleId },
-            data: { status: 'FAILED' as any },
-          }).catch(() => {});
+          const willRetry = !!job && job.attemptsMade + 1 < (job.opts?.attempts ?? 1) && !isPermanentCrawlBlock(err);
+          if (!willRetry) {
+            await services.prisma.article.updateMany({
+              where: { id: articleId, status: { in: ['GENERATING', 'EDITING'] as any } },
+              data: { status: 'FAILED' as any },
+            }).catch(() => {});
+          }
         }
         throw err;
       }
     },
 
-    PUBLISH_ARTICLE: async ({ articleId, targetIds, overrideQa }) => {
-      return services.publisher.publishArticle(articleId, targetIds ?? [], { overrideQa: !!overrideQa });
+    // overwriteRemoteEdits: kullanici panelde "WordPress'teki degisikliklerin
+    // uzerine yaz" dediyse API is verisine koyar (paylasilan sozlesme C1);
+    // yalniz acik true gecer. Otomasyon (pivot, takili sayfa, Tam otomatik
+    // uretim) bu isi acmaz ve bu secenegi hic vermez.
+    // initiator 'user' (paylasilan sozlesme D2): PUBLISH_ARTICLE'i yalniz API'nin
+    // yayin ucu kuyruga atar (api articles.service queuePublish; is verisinde de
+    // initiator 'user'). Alan eklenmeden once kuyruga girmis isler de oradan
+    // geldi, ayni sekilde 'user' sayilir. Yayinci silinen yaziyi yalniz boyle bir
+    // yayinda ve yalniz adi verilen hedefte yeniden olusturur.
+    PUBLISH_ARTICLE: async ({ articleId, targetIds, overrideQa, overwriteRemoteEdits }) => {
+      return services.publisher.publishArticle(articleId, targetIds ?? [], {
+        overrideQa: !!overrideQa,
+        overwriteRemoteEdits: overwriteRemoteEdits === true,
+        initiator: 'user',
+      });
     },
 
     IMPROVE_PAGE: async (data) => {
@@ -201,10 +386,13 @@ async function bootstrap() {
     },
 
     /**
-     * ONBOARDING_CHAIN — Otopilot
-     * brain → audit → topics → platform detect → tier-1 takvim
-     * Otopilot ON ise: 8 makale schedule + auto-fix tetikle (sitemap/robots/llms)
-     * Otopilot OFF ise: sadece audit + topics, kullanici manuel surucler.
+     * ONBOARDING_CHAIN — brain + denetim + platform tespiti (paralel) → konu
+     * motoru → tier-1 takvim (api article-scheduler.service scheduleInitialBatch).
+     * Akis acikken 8, kapaliyken 3 konu takvime yazilir; ilki her durumda hemen
+     * uretilir, digerlerini akis acikken saatlik tarama (PROCESS_SCHEDULED)
+     * zamani gelince uretir. Takvim uretimi makale hakkindan dusmez.
+     * Akis acikken ayrica auto-fix (sitemap + llms; robots onay ister) ve ilk AI
+     * gorunurluk olcumu (sistem modu, kotadan dusmez) kosar.
      */
     ONBOARDING_CHAIN: async ({ siteId }) => {
       log.log(`[${siteId}] Onboarding chain başlıyor`);
@@ -253,13 +441,23 @@ async function bootstrap() {
             throw err;
           });
 
-      const auditPromise = services.audit.runAudit(siteId).catch((err) => {
+      // SISTEM taramasi (asagidaki baseline snapshot gibi): kullanici
+      // tetiklemedi. 'user' olsaydi denetimin AI adimi yeni kullanicinin
+      // haftalik olcum hakkini ilk gun yiyor, "AI onerisi al" 7 gun kilitli
+      // kaliyordu (audit.service runAudit → aiCitation.runForSite trigger).
+      const auditPromise = services.audit.runAudit(siteId, { trigger: 'system' }).catch((err) => {
         log.error(`[${siteId}] audit hata: ${err.message}`);
         return null; // audit fail olsa bile zincir devam etsin
       });
 
       const platformPromise = services.platformDetector.detect(site.url)
         .then(async (detection) => {
+          // Site okunamadiysa (WAF/challenge, zaman asimi) sonuc bir tahmin degil:
+          // onceki tespitin uzerine 'unknown' yazilmaz (sites.controller detectPlatform ile ayni kural)
+          if (detection.unreadable) {
+            log.warn(`[${siteId}] Platform tespit edilemedi, site okunamadı: ${detection.unreadable.reason}`);
+            return detection;
+          }
           await services.prisma.site.update({
             where: { id: siteId },
             data: {
@@ -326,10 +524,13 @@ async function bootstrap() {
         });
       }
 
-      // Otopilot ON ise auto-fix (sitemap/robots/llms) tetikle + ilk citation snapshot
+      // Otopilot ON ise auto-fix (sitemap/llms) tetikle + ilk citation snapshot.
+      // robots BILEREK yok: robots.txt yazimi onizleme + acik onay ister,
+      // onaysiz kuyruk yolunda daima 'preview_required' doner (auto-fix.service.ts)
+      // ve yalniz hata gurultusu uretirdi. Kullanici panelden onizleyip onaylar.
       if (autopilot) {
         try {
-          await services.autoFix.runAutoFix(siteId, ['sitemap', 'robots', 'llms']);
+          await services.autoFix.runAutoFix(siteId, ['sitemap', 'llms']);
           log.log(`[${siteId}] Auto-fix tetiklendi (otopilot)`);
         } catch (err: any) {
           log.warn(`[${siteId}] Auto-fix atlandi: ${err.message}`);
@@ -355,7 +556,14 @@ async function bootstrap() {
         data: { status: 'ACTIVE' },
       });
 
-      log.log(`[${siteId}] ✅ Onboarding tamamlandi — audit, ${tier1Count} tier-1, ${scheduleResult.scheduled} makale takvimde${scheduleResult.isTrial ? ' (TRIAL: 1.makale uretiliyor, kalanlar paket bekliyor)' : ''}${autopilot ? ' [OTOPILOT]' : ''}`);
+      // Eski log deneme hesabinda takvimin plan satin alinmasini bekledigini
+      // yaziyordu; takvim uretimi hakka sayilmaz, deneme hesabi da ucretli plan
+      // gibi yalniz kendi uretimleri hakki doldurursa bekler (api
+      // article-scheduler.service processDueArticles)
+      const takvimNotu = scheduleResult.scheduled > 0
+        ? ` (${scheduleResult.immediate ? 'ilki hemen uretimde; ' : ''}digerleri ${autopilot ? 'zamani gelince saatlik taramayla uretilir' : 'akis acilana kadar bekler'}; makale hakkindan dusmez)`
+        : '';
+      log.log(`[${siteId}] ✅ Onboarding tamamlandi — audit, ${tier1Count} tier-1, ${scheduleResult.scheduled} makale takvimde${takvimNotu}${autopilot ? ' [OTOPILOT]' : ''}`);
       return {
         onboarded: true,
         audit: audit?.id ?? null,
@@ -369,8 +577,10 @@ async function bootstrap() {
     },
 
     /**
-     * PROCESS_SCHEDULED — saatlik tetiklenir, scheduledAt <= now olan
-     * SCHEDULED makaleleri kotasi yetenler icin uretime alir.
+     * PROCESS_SCHEDULED — saatlik: yayin saatine 15 dk ya da daha az kalan,
+     * akisi acik sitelerin SCHEDULED yazilarini uretime alir. Kullanicinin
+     * kendi uretimleri makale hakkini doldurduysa yazi bekler; takvim uretimi
+     * hakka sayilmaz (api article-scheduler.service processDueArticles).
      */
     PROCESS_SCHEDULED: async () => {
       if (await services.settings.getBoolean('ARTICLE_GENERATION_DISABLED')) {
@@ -378,6 +588,17 @@ async function bootstrap() {
         return { processed: 0, skippedQuota: 0, disabled: true };
       }
       return services.scheduler.processDueArticles();
+    },
+
+    /**
+     * SWEEP_STUCK_GENERATING — 30 dk'da bir: 2 saattir GENERATING'de duran ve
+     * canli BullMQ isi olmayan yazilari (worker sahiplenme ile kuyruga atma
+     * arasinda oldu, is maxStalledCount'u asti) takvim yazisiysa takvime geri
+     * koyar (en fazla 2 kez), degilse FAILED yapar. Kural ve guvenlik kosulu:
+     * api articles/generating-sweeper.ts.
+     */
+    SWEEP_STUCK_GENERATING: async () => {
+      return runGeneratingSweep({ prisma: services.prisma, inspector: bullmqQueueInspector(sweepQueue()), log });
     },
 
     /**
@@ -444,7 +665,8 @@ async function bootstrap() {
 
     /**
      * CRAWLER_ERROR_ALARM — 6 saatte bir: bir bot 4xx/5xx alirken digerleri
-     * 2xx aliyorsa (bot-ozel engel) bildirim. IRS.gov vakasi (Ağu 2026).
+     * basarili yanit (2xx ya da 304) aliyorsa (bot-ozel engel) bildirim.
+     * IRS.gov vakasi (Ağu 2026).
      */
     CRAWLER_ERROR_ALARM: async () => {
       return services.crawlerAlarm.scanAndAlert();
@@ -484,63 +706,99 @@ async function bootstrap() {
     },
 
     /**
-     * STUCK_PAGE_DETECT_ALL — haftalik cron: tum autopilot ON sitelerde tarama.
-     * Bulunanlardan autopilot ON ise otomatik recover dispatch.
+     * STUCK_PAGE_DETECT_ALL — haftalik cron. Kurallar api stuck-page-autopilot.ts:
+     * tespit yalniz plani Takili Sayfalar'i kapsayan (Profesyonel+) aktif
+     * sitelerde; otomatik kurtarma (yeniden yazip YAYINLAR) yalniz otopilot
+     * acik + Tam otomatik sitede, yalniz RanksUp makalelerinde, yalniz yazinin
+     * kayittaki metni canlidaysa (onay bekleyen yeniden yazim yok), yazi son 30
+     * gunde yayinlanmadiysa, adres yakin zamanda basarisiz olmadiysa ve yalniz
+     * yazinin TAKILI ADRESTEKI kopyasi yerinde guncellenebiliyorsa
+     * (WordPress / FTP / SFTP / cPanel / GitHub / KobiPratik). Yari otomatikte
+     * sayfalar "Tespit edildi"de kullanicinin "AI Duzelt"ini bekler.
      */
     STUCK_PAGE_DETECT_ALL: async () => {
-      const sites = await services.prisma.site.findMany({
-        where: { status: { in: ['ACTIVE', 'AUDIT_COMPLETE'] as any[] } },
-        select: { id: true, name: true, autopilot: true, userId: true },
+      const summary = await runStuckPageSweep({
+        prisma: services.prisma,
+        detector: services.stuckDetector,
+        jobs: services.jobs,
+        log,
       });
-      const summary = { totalSites: sites.length, totalDetected: 0, autoRecoveryQueued: 0 };
-      for (const site of sites) {
-        try {
-          const result = await services.stuckDetector.detect(site.id);
-          summary.totalDetected += result.found;
-          if (site.autopilot && result.found > 0) {
-            const newStuck = await services.prisma.stuckPage.findMany({
-              where: { siteId: site.id, status: 'DETECTED' as any, articleId: { not: null } },
-              orderBy: { stuckScore: 'desc' },
-              take: 5,
-            });
-            for (const sp of newStuck) {
-              await services.jobs.enqueue({
-                type: 'STUCK_PAGE_RECOVER',
-                userId: site.userId,
-                siteId: site.id,
-                payload: { stuckPageId: sp.id, triggeredBy: 'autopilot' },
-                priority: 5,
-              }).catch(() => null);
-              summary.autoRecoveryQueued++;
-            }
-          }
-        } catch (err: any) {
-          log.warn(`[${site.id}] stuck detect hata: ${err.message}`);
-        }
-      }
-      log.log(`STUCK_PAGE_DETECT_ALL: ${summary.totalSites} site, ${summary.totalDetected} stuck, ${summary.autoRecoveryQueued} otomatik recovery`);
+      // Atlanan her sayfa kendi kovasinda (eklemeli alanlar; eski dist'te yoksa 0)
+      log.log(
+        `STUCK_PAGE_DETECT_ALL: ${summary.totalSites} site, ${summary.totalDetected} stuck, ${summary.autoRecoveryQueued} otomatik recovery, `
+        + `${summary.awaitingApprovalSites} site onay bekliyor (Yari otomatik), `
+        + `${summary.notUpdatablePages ?? 0} sayfa takili adreste yerinde guncellenemiyor (oneri bekler), `
+        + `${summary.closedDuplicatePages ?? 0} sayfa ayni adreste kapali kayitli (eski cift satir), `
+        + `${summary.pendingRewritePages ?? 0} sayfanin yazisinin kayittaki metni canlida degil, `
+        + `${summary.recentlyPublishedPages ?? 0} sayfanin yazisi son 30 gunde yayinlandi, `
+        + `${summary.recentFailurePages ?? 0} sayfa yakin zamanda basarisiz oldu (bekleme suresinde), `
+        + `${summary.alreadyQueuedPages ?? 0} sayfanin bekleyen kurtarma isi zaten var, `
+        + `${summary.staleClaimsReleased ?? 0} sahipsiz kalan "duzeltiliyor" satiri birakildi`,
+      );
       return summary;
     },
 
     /**
      * STUCK_PAGE_RECOVER — tek stuck sayfa icin LLM tabanli recovery.
-     * Basarili olursa otomatik PUBLISH_ARTICLE kuyruga atilir (recovery service icinde).
+     * Kaynaklar: haftalik otopilot (triggeredBy 'autopilot') ve paneldeki toplu
+     * onarim (POST stuck-pages/recover-batch; triggeredBy oturumdaki kullanici,
+     * istek isi kuyruga alip hemen doner). Duzenleme yalniz yazinin takili
+     * adresteki kopyasi YERINDE guncellenebiliyorsa uygulanir; o zaman ikinci
+     * asama (phase 'republish') kuyruga girer ve sayfa ancak o yayin basarilinca
+     * RECOVERED olur (stuck-page-recovery.service recover / republish). Sayfanin
+     * durumu, yazinin canli metni ve otopilot kurallari servis icinde IS
+     * KOSARKEN denetlenir; sayfa atomik sahiplenilir (ayni anda iki is gelirse
+     * ikincisi hicbir sey yapmaz). Is kimligi (BullMQ) sahiplenme kirasina
+     * yazilir: dagitimda olen is BullMQ tarafindan yeniden teslim edilince sayfayi
+     * devralir (eskiden "zaten suruyor" deyip atliyor, sayfa sonsuza kadar
+     * "Çalışıyor" kaliyordu). requestedAt (kuyruga alma ani): sayfa o andan sonra
+     * baska bir yoldan islendiyse yapay zeka cagrilmaz. Atlanan her is sonucunda
+     * { skipped: true, reason: <Turkce>, code? } doner (Job.result; panel GET
+     * /jobs/:id ile okur — paylasilan sozlesme D4).
      */
-    STUCK_PAGE_RECOVER: async ({ stuckPageId, triggeredBy }) => {
+    STUCK_PAGE_RECOVER: async (data, job) => {
+      // Ikinci asama — LLM yok, yayin isi: AI anahtarindan once (PUBLISH_ARTICLE
+      // gibi). Son denemede de yayinlanamazsa sayfa FAILED olur, metin geri alinir.
+      if (isStuckRepublishJob(data)) {
+        const finalAttempt = !job || job.attemptsMade + 1 >= (job.opts?.attempts ?? 1);
+        return services.stuckRecovery.republish(
+          data,
+          // opts servisten gelir ({ recreateMissing: false, initiator: 'automation' }):
+          // musterinin sildigi WordPress yazisi takili sayfa yayininda yeniden
+          // acilmaz. Iki parametreli lambda derlenirdi ama secenegi sessizce dusururdu.
+          (articleId: string, targetIds: string[], opts?: { recreateMissing?: boolean; initiator?: 'user' | 'automation' }) =>
+            services.publisher.publishArticle(articleId, targetIds, opts),
+          { finalAttempt },
+        );
+      }
+      const { stuckPageId, triggeredBy, requestedAt } = data ?? {};
       if (await services.settings.getBoolean('AI_GLOBAL_DISABLED')) {
         log.warn(`[stuck:${stuckPageId}] atlandi (AI_GLOBAL_DISABLED=1)`);
-        return { skipped: true, reason: 'AI_GLOBAL_DISABLED' };
+        return stuckRecoverSkip('AI_GLOBAL_DISABLED');
       }
-      // Article varsa normal recovery, yoksa external
-      const sp = await services.stuckDetector.getDetail(stuckPageId);
-      if (sp?.articleId) {
-        return services.stuckRecovery.recover(stuckPageId, {
-          triggeredBy: triggeredBy || 'autopilot',
-        });
+      const by = triggeredBy || 'autopilot';
+      // Makale var mi — dogrudan kimlikle. Eskiden getDetail(stuckPageId) tek
+      // argumanla cagriliyordu (imza: siteId, stuckPageId); sorgu
+      // {id: undefined, siteId: <stuckPageId>} olup HER ZAMAN null donuyor,
+      // her is makale sayfasinda hata atan dis-sayfa servisine gidiyordu.
+      const route = await stuckRecoveryRoute(services.prisma, stuckPageId);
+      if (route === 'missing') {
+        // Sayfa silinmis / gozardi edilip temizlenmis: tekrar denemek ise yaramaz
+        log.warn(`[stuck:${stuckPageId}] atlandi (kayit yok)`);
+        return stuckRecoverSkip('STUCK_PAGE_NOT_FOUND');
       }
-      return services.stuckExternal.recover(stuckPageId, {
-        triggeredBy: triggeredBy || 'autopilot',
-      });
+      const recoverOpts = {
+        triggeredBy: by,
+        ...(job?.id ? { jobId: String(job.id) } : {}),
+        ...(typeof requestedAt === 'string' && requestedAt ? { requestedAt } : {}),
+      };
+      if (route === 'article') {
+        return services.stuckRecovery.recover(stuckPageId, recoverOpts);
+      }
+      // RanksUp disi sayfa: otopilot dokunmaz, yalniz kullanici baslatir
+      // (stuck-page-external-recovery.service.ts — oneri ya da dogrulanmis statik dosya)
+      if (by === 'autopilot') return stuckRecoverSkip('EXTERNAL_PAGE_MANUAL_ONLY');
+      return services.stuckExternal.recover(stuckPageId, recoverOpts);
     },
 
     /**
@@ -558,13 +816,22 @@ async function bootstrap() {
       const handler = handlers[job.name];
       if (!handler) throw new Error(`Bilinmeyen job tipi: ${job.name}`);
 
+      const skip = await accountSkip(services.prisma, job.id);
+      if (skip) {
+        log.warn(`${job.name} (${job.id}) atlandı: ${skip.reason === 'account_deletion' ? 'hesap için silme talebi var' : 'iş iptal edilmiş'}`);
+        return skip;
+      }
+
       const t0 = Date.now();
       try {
-        const result = await handler(job.data);
+        const result = await handler(job.data, job);
         log.log(`✅ ${job.name} (${job.id}) — ${((Date.now() - t0) / 1000).toFixed(1)}s`);
         return result;
       } catch (err: any) {
         log.error(`❌ ${job.name} (${job.id}): ${err.message}`);
+        // WAF / bot dogrulamasi / giris / 403 / robots engeli: 3 deneme ayni engele
+        // carpar, site sahibi izin verene kadar sonuc degismez — tek seferde FAILED
+        if (isPermanentCrawlBlock(err)) throw new UnrecoverableError(err.message);
         throw err;
       }
     },
@@ -592,9 +859,11 @@ async function bootstrap() {
 
   worker.on('completed', async (job) => {
     if (job.id) {
+      // Silme talebi / iptal yuzunden atlanan is COMPLETED gorunmez: CANCELED kalir
+      const status = isAccountSkip(job.returnvalue) ? 'CANCELED' : 'COMPLETED';
       await services.prisma.job.updateMany({
         where: { bullJobId: String(job.id) },
-        data: { status: 'COMPLETED', finishedAt: new Date(), result: job.returnvalue ?? {} },
+        data: { status, finishedAt: new Date(), result: job.returnvalue ?? {} },
       });
     }
   });
@@ -617,9 +886,12 @@ async function bootstrap() {
   try {
     const queue = new Queue('luviai-jobs', { connection });
 
-    // 1) PROCESS_SCHEDULED — SAFETY NET cron (her 60 dk).
-    //    Asıl tetikleme: ArticleSchedulerService delayed BullMQ jobs (saniyesinde tetiklenir).
-    //    Bu cron sadece backup — Redis çöktüyse, eski schedule'lar varsa, bullJobId ile eşleşmeyenler için.
+    // 1) PROCESS_SCHEDULED — saatlik takvim taramasi (her 60 dk).
+    //    Gecikmeli is (gen:article:<id>, yayin saatinden 15 dk once) yalniz elle
+    //    takvime eklenen ya da tasinan yazilarda kurulur (scheduleTopic /
+    //    rescheduleArticle). Onboarding takvimi ve programatik SEO yazilarinin
+    //    TEK tetikleyicisi bu taramadir; diger yazilar icin de yedektir (Redis
+    //    kaybi, akis yeniden acildi, hak yenilendi).
     await queue.add(
       'PROCESS_SCHEDULED',
       { trigger: 'cron' },
@@ -745,7 +1017,21 @@ async function bootstrap() {
       );
     }
 
-    log.log(`⏰ Cron: PROCESS_SCHEDULED 30dk · LLMS_FULL_BUILD haftalik · AI_CITATION_DAILY ${isCitationDailyDisabled() ? 'KAPALI (musteri tetikli)' : 'gunluk'} · CONTENT_PIVOT_CHECK haftalik · AI_MENTION_ALARM gunluk · CRAWLER_ERROR_ALARM 6saat · ADS_AUTOPILOT 6saat · STUCK_PAGE_DETECT_ALL haftalik · LINKEDIN_OUTREACH_TICK 30dk (gonderim anahtari panelden; env varsayilani: ${isLinkedinOutreachEnvDefault() ? 'acik' : 'kapali'})`);
+    // 10) SWEEP_STUCK_GENERATING — her 30 dk: GENERATING'de takili kalan (canli
+    //     isi olmayan) yazilari takvime geri koyar ya da FAILED yapar. Tur ayrica
+    //     cift-calisma kilidiyle korunur (api articles/generating-sweeper.ts).
+    await queue.add(
+      'SWEEP_STUCK_GENERATING',
+      { trigger: 'cron' },
+      {
+        repeat: { every: 30 * 60 * 1000 },
+        jobId: 'cron:sweep-stuck-generating',
+        removeOnComplete: { count: 20 },
+        removeOnFail: { count: 20 },
+      },
+    );
+
+    log.log(`⏰ Cron: PROCESS_SCHEDULED 60dk · SWEEP_STUCK_GENERATING 30dk · LLMS_FULL_BUILD haftalik · AI_CITATION_DAILY ${isCitationDailyDisabled() ? 'KAPALI (musteri tetikli)' : 'gunluk'} · CONTENT_PIVOT_CHECK haftalik · AI_MENTION_ALARM gunluk · CRAWLER_ERROR_ALARM 6saat · ADS_AUTOPILOT 6saat · STUCK_PAGE_DETECT_ALL haftalik · LINKEDIN_OUTREACH_TICK 30dk (gonderim anahtari panelden; env varsayilani: ${isLinkedinOutreachEnvDefault() ? 'acik' : 'kapali'})`);
   } catch (err: any) {
     log.warn(`Cron kurulumu basarisiz: ${err.message}`);
   }

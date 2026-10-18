@@ -17,7 +17,7 @@ import { colors, fonts, radii, type as tip, tint } from './theme';
 /* ══════════════ İkonlar ══════════════ */
 type IconName =
   | 'arrowRight' | 'check' | 'bell' | 'sparkle' | 'globe' | 'upArrow' | 'search'
-  | 'geo' | 'tabAgent' | 'tabVis' | 'tabAso' | 'tabStudio';
+  | 'geo' | 'tabAgent' | 'tabVis' | 'tabAso' | 'user' | 'lock';
 
 const P: Record<IconName, { d: string[]; fill?: boolean }> = {
   arrowRight: { d: ['M5 12h14', 'M13 6l6 6-6 6'] },
@@ -31,7 +31,8 @@ const P: Record<IconName, { d: string[]; fill?: boolean }> = {
   tabAgent: { d: ['M12 8.8a3.2 3.2 0 1 0 0 6.4 3.2 3.2 0 0 0 0-6.4', 'M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M18.7 5.3l-2.1 2.1M7.4 16.6l-2.1 2.1'] },
   tabVis: { d: ['M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9Z', 'M19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9Z'] },
   tabAso: { d: ['M5 20V10', 'M12 20V4', 'M19 20v-7'] },
-  tabStudio: { d: ['M3 5h18a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z', 'M10 9.5l4.5 2.5-4.5 2.5Z'] },
+  user: { d: ['M12 3a4 4 0 1 0 0 8 4 4 0 0 0 0-8', 'M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2'] },
+  lock: { d: ['M5 11h14a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2Z', 'M7 11V7a5 5 0 0 1 10 0v4'] },
 };
 
 export function Icon({
@@ -43,15 +44,6 @@ export function Icon({
       {def.d.map((d, i) => (
         <Path key={i} d={d} stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
       ))}
-    </Svg>
-  );
-}
-
-/** feed satırı gibi keyfi tek-path stroke ikon */
-export function PathIcon({ d, color, size = 13, strokeWidth = 2.2 }: { d: string; color: string; size?: number; strokeWidth?: number }) {
-  return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" fill="none">
-      <Path d={d} stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" />
     </Svg>
   );
 }
@@ -266,16 +258,6 @@ export function Spinner({ size = 18, color = colors.ember, track = 'rgba(243,109
         style,
       ]}
     />
-  );
-}
-
-/* ══════════════ "Örnek veri" rozeti (henüz canlıya bağlı değil) ══════════════ */
-export function DemoBadge({ note = 'Örnek veri · hesap bağlanınca canlı' }: { note?: string }) {
-  return (
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 6, borderRadius: radii.pill, backgroundColor: 'rgba(251,191,36,0.1)', borderWidth: 1, borderColor: 'rgba(251,191,36,0.28)', marginBottom: 14 }}>
-      <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: colors.warn }} />
-      <Text style={{ fontFamily: fonts.monoSemi, fontSize: 9.5, letterSpacing: 0.3, color: colors.warn }}>{note}</Text>
-    </View>
   );
 }
 

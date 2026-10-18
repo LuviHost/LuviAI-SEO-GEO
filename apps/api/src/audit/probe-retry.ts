@@ -84,3 +84,122 @@ function errorMessage(err: unknown): string {
   if (err instanceof Error) return err.message ?? '';
   return typeof err === 'string' ? err : JSON.stringify(err ?? '');
 }
+
+// ────────────────────────────────────────────────────────────
+//  Musteriye donen hata metni — kararli kod
+// ────────────────────────────────────────────────────────────
+//
+// NEDEN: probe catch bloklari 'HATA: ${err.message}' yaziyordu. postJson'in
+// mesaji saglayici govdesinin ilk 300 karakterini tasir: org/hesap kimligi,
+// kota ayrintisi, istek kimligi, maskeli anahtar parcasi, istemin yankisi.
+// Bu metin probe.excerpt olarak API'den (anonim landing kontrolu dahil)
+// donuyor ve snapshot'a yaziliyordu. Artik disariya yalnizca 'HATA: <kod>'
+// cikar; ham metin maskelenip sunucu loguna gider. Siniflandirma yukaridaki
+// gecici/kalici kurallarini DEGISTIRMEZ — yalnizca gosterilecek kodu secer.
+
+export type ProbeErrorCode =
+  | 'rate_limited'
+  | 'upstream_unavailable'
+  | 'timeout'
+  | 'network'
+  | 'auth_failed'
+  | 'model_unavailable'
+  | 'bad_request'
+  | 'unknown';
+
+export const PROBE_ERROR_CODES: readonly ProbeErrorCode[] = [
+  'rate_limited', 'upstream_unavailable', 'timeout', 'network',
+  'auth_failed', 'model_unavailable', 'bad_request', 'unknown',
+];
+
+/** Hata nesnesindeki ya da mesajdaki HTTP durum kodu (SDK .status, "HTTP 429", Gemini '"code": 503') */
+function statusOf(err: unknown, msg: string): number | null {
+  const s = Number((err as any)?.status ?? (err as any)?.statusCode);
+  if (Number.isInteger(s) && s >= 100 && s <= 599) return s;
+  const m = msg.match(/\bHTTP (\d{3})\b/) ?? msg.match(/"code"\s*:\s*(\d{3})\b/) ?? msg.match(/^(\d{3})\b/);
+  return m ? Number(m[1]) : null;
+}
+
+export function probeErrorCode(err: unknown): ProbeErrorCode {
+  const msg = errorMessage(err);
+  const status = statusOf(err, msg);
+  const name = String((err as any)?.name ?? '');
+
+  if (/model[^\n]{0,80}(does not exist|not found|decommissioned|deprecated)|model_not_found|model_decommissioned|supported API model names/i.test(msg)
+    // Anthropic SDK: '404 {"type":"error","error":{"type":"not_found_error","message":"model: x"}}'
+    || (status === 404 && /not_found_error|\bmodel\b/i.test(msg))) {
+    return 'model_unavailable';
+  }
+  if (status === 401 || status === 403
+    || /invalid[_ ]api[_ ]key|incorrect api key|API key not valid|PERMISSION_DENIED|UNAUTHENTICATED|authentication_error|permission_error/i.test(msg)) {
+    return 'auth_failed';
+  }
+  if (status === 429 || /rate.?limit|RESOURCE_EXHAUSTED|too many requests|exceeded your current quota/i.test(msg)) {
+    return 'rate_limited';
+  }
+  if (status === 408 || status === 504 || name === 'TimeoutError' || name === 'AbortError'
+    || /timed? ?out|ETIMEDOUT|DEADLINE_EXCEEDED|aborted due to timeout/i.test(msg)) {
+    return 'timeout';
+  }
+  if ((status !== null && status >= 500)
+    || /overloaded|high demand|too busy|temporarily|try again later|\bUNAVAILABLE\b|\bINTERNAL\b/i.test(msg)) {
+    return 'upstream_unavailable';
+  }
+  if (/fetch failed|ECONNRESET|ECONNREFUSED|EAI_AGAIN|ENOTFOUND|socket hang up|connection error|network/i.test(msg)) {
+    return 'network';
+  }
+  if (status !== null && status >= 400) return 'bad_request';
+  return 'unknown';
+}
+
+/** probe.excerpt / sonuc.reason icin guvenli satir. 'HATA:' oneki korunur (hasRealProbes, persistRuns, alarm buna bakar). */
+export function probeErrorExcerpt(err: unknown): string {
+  return `HATA: ${probeErrorCode(err)}`;
+}
+
+/**
+ * Saglayicinin dondugu durum degeri ('MAX_TOKENS', 'incomplete', 'end_turn')
+ * gibi kisa bir enum ise aynen, degilse 'bilinmiyor'. "bos cevap (...)"
+ * satirlarina saglayici metni sizmasin diye.
+ */
+export function safeReasonToken(v: unknown): string {
+  const s = typeof v === 'string' ? v : v == null ? '' : String(v);
+  return /^[A-Za-z0-9_.:-]{1,40}$/.test(s) ? s : 'bilinmiyor';
+}
+
+// Anahtar bicimleri: OpenAI/Anthropic/DeepSeek 'sk-', xAI 'xai-', Perplexity
+// 'pplx-', Groq 'gsk_', Google 'AIza'. Saglayici 401 mesajlari anahtarin
+// maskeli parcasini tekrar edebiliyor ("Incorrect API key provided: sk-proj-****").
+const SECRET_PATTERNS: Array<[RegExp, string]> = [
+  [/\b(?:sk|xai|pplx)-[A-Za-z0-9_*.-]{4,}/g, '[anahtar]'],
+  [/\bgsk_[A-Za-z0-9_*]{4,}/g, '[anahtar]'],
+  [/\bAIza[0-9A-Za-z_*-]{8,}/g, '[anahtar]'],
+  [/\bBearer\s+[A-Za-z0-9._~+/=*-]+/gi, 'Bearer [anahtar]'],
+  [/([?&](?:key|api_key|apikey|access_token|token)=)[^&\s"']+/gi, '$1[anahtar]'],
+];
+
+export function redactSecrets(text: string): string {
+  let out = String(text ?? '');
+  for (const [re, rep] of SECRET_PATTERNS) out = out.replace(re, rep);
+  return out;
+}
+
+/** Sunucu logu icin: maskelenmis, tek satir, kirpilmis hata metni */
+export function safeErrorText(err: unknown, max = 300): string {
+  return redactSecrets(errorMessage(err)).replace(/\s+/g, ' ').trim().slice(0, max);
+}
+
+const SAFE_HATA_TEXT = /^HATA: (?:bos cevap \([A-Za-z_]+=[A-Za-z0-9_.:-]{1,40}\)|saglayici reddi \(refusal\))$/;
+
+/**
+ * Kayitli (eski) bir excerpt'i guvenli bicime cevirir. Eski snapshot'larda
+ * 'HATA: HTTP 429: {...govde...}' gibi ham metinler duruyor; okuyan taraf
+ * bunlari musteriye gostermeden once buradan gecirmeli. HATA olmayan metin
+ * ve zaten guvenli bicimdeki satir aynen doner.
+ */
+export function sanitizeProbeExcerpt(excerpt: string | null | undefined): string | null | undefined {
+  if (typeof excerpt !== 'string' || !excerpt.startsWith('HATA:')) return excerpt;
+  const rest = excerpt.slice(5).trim();
+  if ((PROBE_ERROR_CODES as readonly string[]).includes(rest) || SAFE_HATA_TEXT.test(excerpt)) return excerpt;
+  return probeErrorExcerpt(new Error(rest));
+}

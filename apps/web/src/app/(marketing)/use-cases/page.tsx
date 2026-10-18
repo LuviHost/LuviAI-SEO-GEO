@@ -4,6 +4,11 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { useT } from '@/lib/i18n';
 
+// Maddeler plans.ts ile dogrulandi (Ekim 2026). Eskiden "Faz 3" yol haritasi
+// vaatleri (white-label panel, SLA'li kurumsal plan), calismayan white-label /
+// ozel alan adi ve dayanaksiz "KKB + ETBIS uyumlu icerik", "haftada 50+ makale"
+// (Ajans plani ayda 100) yaziyordu. WooCommerce'e ayri bir REST hedefi yok;
+// yayin WordPress REST hedefiyle yapilir.
 const USE_CASES = {
   tr: {
     eyebrow: '🎯 Kullanım Senaryoları',
@@ -15,9 +20,9 @@ const USE_CASES = {
         icon: '🛒',
         title: 'E-ticaret',
         bullets: [
-          'Şehir + ürün kategorisi sayfaları (programmatic SEO)',
+          'Şehir + ürün kategorisi sayfaları (programatik SEO, Ajans planı)',
           'Ürün karşılaştırma blogları (organic traffic)',
-          'WooCommerce REST API ile otomatik yayın',
+          'WordPress / WooCommerce sitelerine WordPress REST ile otomatik yayın',
           'Sezonsal kampanya yazıları (Black Friday, Sevgililer Günü)',
         ],
         cta: 'E-ticaret için başla',
@@ -37,10 +42,10 @@ const USE_CASES = {
         icon: '🎨',
         title: 'Ajans',
         bullets: [
-          'Müşteri başına ayrı brain + brand voice',
-          'White-label dashboard (Faz 3)',
-          'Toplu makale üretim (haftada 50+)',
-          'GSC + GEO raporlama otomatik',
+          'Müşteri sitesi başına ayrı marka beyni ve marka sesi',
+          'Ajans planında 15 site ve ayda 100 makale',
+          'Programatik SEO ve Ürün Radarı (Ajans planı)',
+          'Haftalık e-posta performans raporu',
         ],
         cta: 'Ajans için başla',
       },
@@ -59,10 +64,10 @@ const USE_CASES = {
         icon: '🏢',
         title: 'Kurumsal',
         bullets: [
-          'KVKK + KKB + ETBİS uyumlu içerik',
-          'Multi-site + multi-brand dashboard',
-          'SLA garantili enterprise plan (Faz 3)',
-          'Custom domain + custom branding',
+          'Kurumsal planda 50 site, ayda 350 makale',
+          'MCP sunucusu, REST API ve kapsamlı API anahtarları',
+          'Kendi sağlayıcı anahtarınla ölçüm (BYOK)',
+          'Özel hesap yöneticisi + SLA, sözleşmeli kurulum',
         ],
         cta: 'Kurumsal için başla',
       },
@@ -73,7 +78,7 @@ const USE_CASES = {
           '"X hosting nedir" tarz teknik makaleler',
           'WHMCS Knowledge Base entegrasyonu',
           'cPanel/SFTP/FTP otomatik yayın',
-          "GEO ile AI search'te alıntılan",
+          'AI aramadaki görünürlüğünü 6 asistanda ölç',
         ],
         cta: 'Hosting için başla',
       },
@@ -89,9 +94,9 @@ const USE_CASES = {
         icon: '🛒',
         title: 'E-commerce',
         bullets: [
-          'City + product category pages (programmatic SEO)',
+          'City + product category pages (programmatic SEO, Agency plan)',
           'Product comparison blogs (organic traffic)',
-          'WooCommerce REST API auto-publish',
+          'Auto-publish to WordPress / WooCommerce sites via WordPress REST',
           'Seasonal campaign articles (Black Friday, Valentine\'s Day)',
         ],
         cta: 'Start for E-commerce',
@@ -111,10 +116,10 @@ const USE_CASES = {
         icon: '🎨',
         title: 'Agency',
         bullets: [
-          'Per-client brain + brand voice',
-          'White-label dashboard (Phase 3)',
-          'Bulk article production (50+ per week)',
-          'GSC + GEO reporting on autopilot',
+          'Separate brand brain and brand voice per client site',
+          '15 sites and 100 articles a month on the Agency plan',
+          'Programmatic SEO and Product Radar (Agency plan)',
+          'Weekly performance report by email',
         ],
         cta: 'Start for Agency',
       },
@@ -133,10 +138,10 @@ const USE_CASES = {
         icon: '🏢',
         title: 'Enterprise',
         bullets: [
-          'GDPR/KVKK + KKB + ETBİS compliant content',
-          'Multi-site + multi-brand dashboard',
-          'SLA-backed enterprise plan (Phase 3)',
-          'Custom domain + custom branding',
+          '50 sites and 350 articles a month on the Enterprise plan',
+          'MCP server, REST API and scoped API keys',
+          'Measure with your own provider keys (BYOK)',
+          'Dedicated account manager + SLA, contracted onboarding',
         ],
         cta: 'Start for Enterprise',
       },
@@ -147,7 +152,7 @@ const USE_CASES = {
           '"What is X hosting" technical articles',
           'WHMCS Knowledge Base integration',
           'cPanel/SFTP/FTP auto-publish',
-          'Get cited in AI search via GEO',
+          'Measure your AI search visibility on 6 assistants',
         ],
         cta: 'Start for Hosting',
       },

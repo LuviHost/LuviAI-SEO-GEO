@@ -35,22 +35,15 @@ export interface RequestingUser {
 }
 
 /**
- * connectAccount cevabinin alan listesi. encryptedKey (.p8 ozel anahtarin
- * sifreli hali) ve tokenCacheValue YOK: eskiden tam satir donuyordu, sifreli
- * anahtar sunucudan disari cikiyordu. Allowlist — yeni bir sir kolonu buraya
- * yazilmadikca cevaba cikmaz.
+ * AscAccount satirindaki sirlar — API cevabina ASLA cikmamali.
+ * encryptedKey: musterinin App Store Connect .p8 ozel anahtari (sifreli);
+ * tokenCacheValue: imzali API JWT onbellegi. connectAccount eskiden tam
+ * satiri donuyordu. Tip acik yazili: yanlis alan adi derlemede yakalanir.
  */
-export const ASC_ACCOUNT_PUBLIC_SELECT = {
-  id: true,
-  siteId: true,
-  issuerId: true,
-  keyId: true,
-  isActive: true,
-  lastSyncAt: true,
-  lastError: true,
-  createdAt: true,
-  updatedAt: true,
-} satisfies Prisma.AscAccountSelect;
+export const ASC_ACCOUNT_SECRET_FIELDS: Prisma.AscAccountOmit = {
+  encryptedKey: true,
+  tokenCacheValue: true,
+};
 
 @Injectable()
 export class AscService {
@@ -119,7 +112,7 @@ export class AscService {
           isActive: true,
           lastError: null,
         },
-        select: ASC_ACCOUNT_PUBLIC_SELECT,
+        omit: ASC_ACCOUNT_SECRET_FIELDS,
       });
       this.clientCache.delete(updated.id);
       return updated;
@@ -131,7 +124,7 @@ export class AscService {
         keyId: args.keyId,
         encryptedKey,
       },
-      select: ASC_ACCOUNT_PUBLIC_SELECT,
+      omit: ASC_ACCOUNT_SECRET_FIELDS,
     });
   }
 

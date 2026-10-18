@@ -137,8 +137,14 @@ export interface BasePlan {
  *
  * REFERANS (rakip, Agu 2026): withmaya.ai — Starter $99 (yalniz ChatGPT,
  * 50 prompt run, 1.500 LLM yaniti), Premium $399 (4 platform, 200 run,
- * 24.000 yanit), Enterprise custom. Bizde 7 saglayici olcum + icerik uretimi +
+ * 24.000 yanit), Enterprise custom. Bizde 6 saglayici olcum (Llama yalniz
+ * GROQ_LLAMA_MODEL tanimliyken — ai-citation.service.ts) + icerik uretimi +
  * yayinlama + ASO ayni pakette.
+ *
+ * MADDE KURALI (2026-10): sabit MCP arac sayisi yazilmaz (kayit degistikce
+ * bayatliyor; agent-setup.txt de liste yayimlamiyor) ve Llama kosulsuz
+ * vaat edilmez: Groq Llama sohbet modelini kaldirdi, saglayici ozel env
+ * olmadan olculmuyor. public-docs.spec.ts ikisini de denetler.
  *
  * Mevcut aboneler: User.grandfatheredUntil / legacyMonthlyPriceTry alanlariyla
  * korunur — bkz. PaytrService.getPlanPriceForUser().
@@ -153,7 +159,7 @@ export const BASE_PLANS: BasePlan[] = [
     articlesPerMonth: 2,
     sites: 1,
     aiRunsPerMonth: 3,
-    aiProviders: 7,
+    aiProviders: 6,
     publishTargets: 'limited',
     trackedApps: 1,
     support_tr: 'topluluk',
@@ -178,15 +184,15 @@ export const BASE_PLANS: BasePlan[] = [
     articlesPerMonth: 15,
     sites: 2,
     aiRunsPerMonth: 20,
-    aiProviders: 7,
+    aiProviders: 6,
     publishTargets: 'all',
     trackedApps: 1,
     support_tr: 'e-posta 24 saat',
     support_en: 'email 24h',
     features_tr: [
       '15 AI makale / ay — 5 ajanlı üretim hattı, yayın öncesi QA kapısı',
-      '20 AI görünürlük çalıştırması / ay — her çalıştırma 7 asistanı birden sorgular',
-      'ChatGPT · Claude · Gemini · Perplexity · Grok · DeepSeek · Llama',
+      '20 AI görünürlük çalıştırması / ay — her çalıştırma 6 AI asistanını birden sorgular',
+      'ChatGPT · Claude · Gemini · Perplexity · Grok · DeepSeek',
       '2 site',
       'Site SEO/GEO denetimi — 14 teknik kontrol + PageSpeed + harf notu',
       'ASO: uygulamanı bağla, App Store + Google Play metadata’sını AI ile optimize et',
@@ -197,8 +203,8 @@ export const BASE_PLANS: BasePlan[] = [
     ],
     features_en: [
       '15 AI articles/mo — 5-agent pipeline with a pre-publish QA gate',
-      '20 AI visibility runs/mo — every run queries 7 assistants at once',
-      'ChatGPT · Claude · Gemini · Perplexity · Grok · DeepSeek · Llama',
+      '20 AI visibility runs/mo — every run queries 6 AI assistants at once',
+      'ChatGPT · Claude · Gemini · Perplexity · Grok · DeepSeek',
       '2 sites',
       'Site SEO/GEO audit — 14 technical checks + PageSpeed + letter grade',
       'ASO: connect your app, AI-optimize App Store + Google Play metadata',
@@ -217,7 +223,7 @@ export const BASE_PLANS: BasePlan[] = [
     articlesPerMonth: 40,
     sites: 5,
     aiRunsPerMonth: 75,
-    aiProviders: 7,
+    aiProviders: 6,
     publishTargets: 'all',
     trackedApps: 3,
     support_tr: 'e-posta 4 saat',
@@ -229,7 +235,7 @@ export const BASE_PLANS: BasePlan[] = [
       'App Store Connect — sürüm senkronu, yorum çekme + LLM duygu analizi',
       'App Prompt Lab — AI asistanları uygulamanı öneriyor mu, ölç',
       'Screenshot Studio — AI arka plan + caption, 1290×2796 canvas editör',
-      'Agent Readiness (AXO) — robots.txt / llms.txt / sitemap otomatik düzeltme',
+      'Agent Readiness (AXO) — AI bot ve ajan keşif dosyaları taraması; robots.txt / llms.txt / sitemap için önizlemeli düzeltme',
       'Takılmış sayfa tespiti — LLM ile kurtarma, tek tıkla geri alma',
       'İçerik fırsatları — kaybettiğin promptlardan makale üretip yeniden ölçen kapalı döngü',
     ],
@@ -239,7 +245,7 @@ export const BASE_PLANS: BasePlan[] = [
       'App Store Connect — release sync, review ingest + LLM sentiment analysis',
       'App Prompt Lab — measure whether AI assistants recommend your app',
       'Screenshot Studio — AI backgrounds + captions, 1290×2796 canvas editor',
-      'Agent Readiness (AXO) — automatic robots.txt / llms.txt / sitemap fixes',
+      'Agent Readiness (AXO) — AI bot and agent discovery scan; previewed robots.txt / llms.txt / sitemap fixes',
       'Stuck page detection — LLM-driven recovery, one-click revert',
       'Content opportunities — closed loop that writes for lost prompts and re-measures',
     ],
@@ -254,7 +260,7 @@ export const BASE_PLANS: BasePlan[] = [
     articlesPerMonth: 100,
     sites: 15,
     aiRunsPerMonth: 300,
-    aiProviders: 7,
+    aiProviders: 6,
     publishTargets: 'all',
     trackedApps: 10,
     support_tr: 'öncelikli + Slack',
@@ -286,7 +292,7 @@ export const BASE_PLANS: BasePlan[] = [
     articlesPerMonth: 350,
     sites: 50,
     aiRunsPerMonth: 1_000,
-    aiProviders: 7,
+    aiProviders: 6,
     publishTargets: 'all',
     trackedApps: 50,
     support_tr: 'özel hesap yöneticisi + SLA',
@@ -295,7 +301,7 @@ export const BASE_PLANS: BasePlan[] = [
     features_tr: [
       '350 AI makale / ay · 1.000 görünürlük çalıştırması · 50 site',
       'BYOK — kendi sağlayıcı anahtarların; havuz kotası dolsa bile ölçüm durmaz',
-      'MCP sunucusu — Claude, Cursor veya kendi ajanından 26 araçla bağlan',
+      'MCP sunucusu — Claude Code, Cursor ya da özel başlık gönderebilen kendi ajanından bağlan',
       'REST API + scope’lu API anahtarları',
       'AI maliyet ve token muhasebesi — sağlayıcı / bağlam / gün kırılımı',
       'Özel hesap yöneticisi + SLA, sözleşmeli kurulum',
@@ -303,7 +309,7 @@ export const BASE_PLANS: BasePlan[] = [
     features_en: [
       '350 AI articles/mo · 1,000 visibility runs · 50 sites',
       'BYOK — your own provider keys; measurement continues past pool quota',
-      'MCP server — connect from Claude, Cursor or your own agent via 26 tools',
+      'MCP server — connect from Claude Code, Cursor or your own agent that can send a custom header',
       'REST API + scoped API keys',
       'AI cost and token accounting — by provider / context / day',
       'Dedicated account manager + SLA, contracted onboarding',

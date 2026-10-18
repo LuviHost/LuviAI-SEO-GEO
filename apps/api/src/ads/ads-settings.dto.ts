@@ -1,4 +1,5 @@
-import { IsBoolean, IsOptional, IsString, MaxLength } from 'class-validator';
+import { IsBoolean, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
+import { Transform } from 'class-transformer';
 
 /*
  * NEDEN SINIF DTO: govde satir ici bir tiple ({ adsAutopilot?: boolean })
@@ -16,10 +17,13 @@ export class AdsSettingsDto {
   adsAutopilot?: boolean;
 }
 
+// Kimlikler platform API yoluna yazilir (customers/<id>/..., /act_<id>/...):
+// yalniz platformun kimlik bicimi kabul — oauth.dto.ts secim DTO'lariyla ayni kural.
 export class GoogleAdsManualDto {
   @IsOptional()
   @IsString()
   @MaxLength(64)
+  @Matches(/^\d[\d-]{0,19}$/, { message: 'customerId yalnızca rakam ve tire içerebilir' })
   customerId?: string;
 
   @IsOptional()
@@ -32,6 +36,7 @@ export class MetaAdsManualDto {
   @IsOptional()
   @IsString()
   @MaxLength(64)
+  @Matches(/^(act_)?\d{0,32}$/, { message: 'accountId geçersiz' })
   accountId?: string;
 
   @IsOptional()
@@ -42,10 +47,27 @@ export class MetaAdsManualDto {
   @IsOptional()
   @IsString()
   @MaxLength(64)
+  @Matches(/^\d{0,32}$/, { message: 'pageId geçersiz' })
   pageId?: string;
 
   @IsOptional()
   @IsString()
   @MaxLength(64)
+  @Matches(/^\d{0,32}$/, { message: 'instagramActorId geçersiz' })
   instagramActorId?: string;
+}
+
+/**
+ * POST /sites/:siteId/ads/:campaignId/launch { externalId? }
+ * Google Ads ve Meta kampanya kimlikleri sayisal; kimlik platform API yoluna
+ * yazilir (customers/<musteri>/campaigns/<id>, graph.facebook.com/<id>) —
+ * '/', '?' gibi karakterler istegi baska bir uca yonlendirebilirdi.
+ * Ads Manager'dan kopyalanan kimligin bas/son boslugu kirpilir.
+ */
+export class AdsLaunchDto {
+  @IsOptional()
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  @IsString()
+  @Matches(/^\d{1,32}$/, { message: 'externalId yalnızca rakamlardan oluşmalı' })
+  externalId?: string;
 }

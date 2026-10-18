@@ -7,7 +7,9 @@ import { useSession } from 'next-auth/react';
 import { toast } from 'sonner';
 import { motion } from 'motion/react';
 import { ChevronRight, Crown, ExternalLink, FileText, Globe2, Plus, Trash2, Zap } from 'lucide-react';
-import { api } from '@/lib/api';
+import { api, type MyDashboard } from '@/lib/api';
+import { dashboardQuotaCards } from '@/lib/article-quota';
+import { oauthCallbackErrorText } from '@/lib/oauth-connect';
 import { useT } from '@/lib/i18n';
 import { fadeUp, staggerContainer } from '@/lib/motion-presets';
 import { cn } from '@/lib/utils';
@@ -39,7 +41,7 @@ export default function DashboardPage() {
   const { t } = useT();
   const { data: session, status } = useSession();
   const [sites, setSites] = useState<any[]>([]);
-  const [me, setMe] = useState<any>(null);
+  const [me, setMe] = useState<MyDashboard | null>(null);
   const [loading, setLoading] = useState(true);
   const [deleteTarget, setDeleteTarget] = useState<any | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -60,6 +62,24 @@ export default function DashboardPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
 
+  // Google (GSC / GA) baglanti hatasi bir siteye yonlendirilemiyorsa API buraya
+  // doner: /dashboard?gsc=error&gscerror=<kod> (auth.controller.ts googleCallback —
+  // session_mismatch, site_access_denied ya da kayitsiz state). Eskiden bu sayfa
+  // parametreyi okumuyordu, kullanici hatayi hic gormuyordu. Google Ads / Meta
+  // popup postMessage kullanir, buraya parametre getirmez.
+  // useSearchParams yerine window.location: statik sayfada Suspense siniri gerektirmez.
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    let shown = false;
+    for (const provider of ['gsc', 'ga'] as const) {
+      if (q.get(provider) !== 'error') continue;
+      toast.error(oauthCallbackErrorText(provider, q.get(provider === 'gsc' ? 'gscerror' : 'gaerror')), { duration: 10000 });
+      shown = true;
+    }
+    // Yenilemede ayni hata yeniden gosterilmesin
+    if (shown) window.history.replaceState({}, '', '/dashboard');
+  }, []);
+
   const confirmDelete = async () => {
     if (!deleteTarget) return;
     setDeleting(true);
@@ -75,10 +95,11 @@ export default function DashboardPage() {
     }
   };
 
-  const isTrial = me?.subscriptionStatus === 'TRIAL';
-  const articlesUsed = me?.articlesUsedThisMonth ?? 0;
-  const freeArticleRemaining = isTrial ? Math.max(0, 1 - articlesUsed) : null;
-  const planLabel = isTrial ? `${freeArticleRemaining}/1 kaldı` : (me?.plan ?? '—');
+  // Deneme ayrimi PLANA gore (subscriptionStatus'a gore degil): suresi dolan deneme
+  // ve dusurulen abonelik plan TRIAL + durum EXPIRED olur, haklari aylik sifirlanmaz
+  // (QuotaService plana bakar). Sayilar API'nin articleQuota alanindan; alan yoksa
+  // kalan hak uydurulmaz. Kural ve gerekce lib/article-quota.ts'te.
+  const quotaCards = me ? dashboardQuotaCards(me) : null;
 
   return (
     <div className="space-y-8">
@@ -100,7 +121,7 @@ export default function DashboardPage() {
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           {[0, 1, 2, 3].map((i) => <Skeleton key={i} className="h-[124px]" />)}
         </div>
-      ) : me ? (
+      ) : me && quotaCards ? (
         <motion.div
           variants={staggerContainer}
           initial="hidden"
@@ -114,10 +135,11 @@ export default function DashboardPage() {
             <MetricCard className="h-full" icon={FileText} label="Yayınlanan yazı" value={me.articlesPublished ?? 0} />
           </motion.div>
           <motion.div variants={fadeUp}>
-            <MetricCard className="h-full" icon={Zap} label="Bu ay üretilen" value={me.articlesUsedThisMonth ?? 0} />
+            {/* Deneme hakki aylik sifirlanmaz (QuotaService): denemede "bu ay" demek yanlis olurdu */}
+            <MetricCard className="h-full" icon={Zap} label={quotaCards.used.label} value={quotaCards.used.value} />
           </motion.div>
           <motion.div variants={fadeUp}>
-            <MetricCard className="h-full" icon={Crown} label={isTrial ? 'Ücretsiz hak' : 'Plan'} value={planLabel} />
+            <MetricCard className="h-full" icon={Crown} label={quotaCards.plan.label} value={quotaCards.plan.value} />
           </motion.div>
         </motion.div>
       ) : null}

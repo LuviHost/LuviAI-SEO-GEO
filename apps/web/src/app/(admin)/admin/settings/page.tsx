@@ -8,17 +8,21 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
-import { History, Save, Settings2, Sliders, CreditCard, Brain, Gauge, FileText } from 'lucide-react';
+import { History, Save, Settings2, Sliders, Brain, Lock } from 'lucide-react';
 
 type Setting = {
   key: string;
   type: 'boolean' | 'int' | 'string' | 'enum';
-  category: 'toggle' | 'plan' | 'model' | 'limit' | 'log';
+  category: 'toggle' | 'model' | 'env';
   default: string;
   description: string;
   envFallback: boolean;
   enumValues?: string[];
   hot?: boolean;
+  /** Yalniz .env — kod degeri process.env'den okur, panelden yazilamaz (API 400 doner) */
+  envOnly?: boolean;
+  /** Degerin kaynagi: DB satiri, ortam degiskeni ya da kod varsayilani */
+  source?: 'db' | 'env' | 'default';
   value: string;
   updatedAt: string | null;
   updatedBy: string | null;
@@ -35,12 +39,15 @@ type AuditEntry = {
   userAgent?: string | null;
 };
 
+// Katalog: apps/api/src/settings/settings.constants.ts. Eskiden burada Plan,
+// Rate Limit ve Loglama bolumleri vardi; o anahtarlarin hicbiri koddan
+// okunmuyordu (fiyat/kota plans.ts'te, tavanlar quota.service.ts'te) ve
+// katalogdan cikarildi. "Yazar / editör / routing modelleri" yardimi da
+// yanlisti: makale ajan modelleri yalniz .env'den okunur.
 const CATEGORY_META: Record<Setting['category'], { label: string; icon: any; help: string; order: number }> = {
-  toggle: { label: 'Operasyonel Toggle', icon: Sliders, help: 'Feature flag ve test guard\'ları. Anlık etki — restart gerekmez.', order: 1 },
-  log: { label: 'Loglama', icon: FileText, help: 'Worker / API log seviyesi.', order: 2 },
-  plan: { label: 'Plan & Limit', icon: CreditCard, help: 'Plan fiyatları, makale kotaları, site limitleri.', order: 3 },
-  limit: { label: 'Rate Limit', icon: Gauge, help: 'API rate limit penceresi ve max istek.', order: 4 },
-  model: { label: 'AI Model Seçimi', icon: Brain, help: 'Yazar / editör / routing modelleri.', order: 5 },
+  toggle: { label: 'Operasyonel ayarlar', icon: Sliders, help: 'Test / acil durum anahtarları, satış ve intel ayarları. Değişiklik ~30 saniye içinde API ve worker\'a yansır; yeniden başlatma gerekmez.', order: 1 },
+  model: { label: 'AI model seçimi', icon: Brain, help: 'Ziyaretçi, üye ve intel çağrılarının modelleri. Makale ajanlarının modelleri (WRITER_MODEL / EDITOR_MODEL / ROUTING_MODEL) yalnız .env\'den okunur; burada listelenmez.', order: 2 },
+  env: { label: 'Yalnız .env (salt okunur)', icon: Lock, help: 'Bu değerleri kod doğrudan ortam değişkeninden okur; panelden değiştirilemez. Değiştirmek için sunucudaki .env düzenlenip API ve worker yeniden başlatılmalı. Gösterilen değer API sürecinin ortamından okunur.', order: 3 },
 };
 
 export default function AdminSettingsPage() {
@@ -97,7 +104,7 @@ export default function AdminSettingsPage() {
     const next = isTruthy(s.value) ? '0' : '1';
     setSaving(s.key);
     try {
-      const r = await api.updateAdminSetting(s.key, next);
+      await api.updateAdminSetting(s.key, next);
       toast.success(`${s.key} → ${next === '1' ? 'AÇIK' : 'KAPALI'}`);
       await refresh();
     } catch (err: any) {
@@ -134,8 +141,8 @@ export default function AdminSettingsPage() {
             <Settings2 className="h-7 w-7" /> Sistem Ayarları
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Runtime'da değiştirilebilen operasyonel toggle, plan & limit ve model ayarları.
-            Değişiklikler ~30 saniyede tüm process'lere yansır (cache TTL).
+            Çalışma anında değiştirilebilen operasyonel ayarlar ve model seçimleri; değişiklikler ~30 saniye içinde tüm süreçlere yansır (önbellek süresi).
+            Plan fiyatları ve kotaları <code className="font-mono text-xs">billing/plans.ts</code>, deneme süresi ve AI harcama tavanları <code className="font-mono text-xs">billing/quota.service.ts</code> içinde tanımlıdır; buradan değiştirilemez.
           </p>
         </div>
         <Button variant="outline" onClick={loadAudits} className="gap-2">
@@ -244,6 +251,7 @@ function SettingRow({
           <Badge variant="outline" className="text-[10px]">{s.type}</Badge>
           {s.hot && <Badge variant="outline" className="text-[10px] border-emerald-500/50 text-emerald-600">hot</Badge>}
           {s.envFallback && <Badge variant="outline" className="text-[10px]">env-fallback</Badge>}
+          {s.envOnly && <Badge variant="outline" className="text-label">yalnız .env · salt okunur</Badge>}
         </div>
         <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{s.description}</p>
         {s.updatedAt && (
@@ -255,7 +263,17 @@ function SettingRow({
       </div>
 
       <div className="flex items-center gap-3 shrink-0">
-        {s.type === 'boolean' ? (() => {
+        {s.envOnly ? (
+          // Salt okunur: kod degeri process.env'den okur. Anahtar ya da Kaydet
+          // gosterilmez — API yazmayi zaten 400 ile reddeder; ham deger
+          // gosterilir (PAYTR_TEST_MODE PayTR'ye ham haliyle gider).
+          <div className="md:text-right">
+            <code className="font-mono text-sm font-semibold">{s.value === '' ? '(boş)' : s.value}</code>
+            <p className="text-label text-muted-foreground mt-0.5">
+              {s.source === 'default' ? '.env\'de tanımlı değil — kodun varsayılanı' : '.env\'den okunuyor'}
+            </p>
+          </div>
+        ) : s.type === 'boolean' ? (() => {
           const on = isTruthy(s.value);
           return (
             <>
@@ -302,7 +320,7 @@ function SettingRow({
           />
         )}
 
-        {s.type !== 'boolean' && (
+        {!s.envOnly && s.type !== 'boolean' && (
           <Button
             size="sm"
             onClick={onSave}

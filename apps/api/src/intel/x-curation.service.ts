@@ -2,6 +2,8 @@ import { Injectable, Logger } from '@nestjs/common';
 import { spawn } from 'node:child_process';
 import type { RawItem } from './collector.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { safeFetchText, assertPublicUrl, SafeFetchError, RANKSUP_BOT_UA } from '../common/safe-fetch.js';
+import { detectBlock } from '../common/block-detect.js';
 import {
   classifyHref, urlsInText, canonicalizeUrl, sourceKeyForUrl, parseCurationTarget,
   splitThread, renderThread, type ThreadRow,
@@ -38,7 +40,14 @@ const SETTLE_MS = 5_000;
 const SCROLL_ROUNDS = 5;
 const MAX_LINKS_PER_PAGE = 80;
 const FETCH_TIMEOUT_MS = 8_000;
-const MAX_HTML_BYTES = 200_000;
+/**
+ * Baslik icin okunan en fazla bayt. <title> <head>'in basinda: 2026-10-17'de
+ * 14 makale/haber sitesinde olculdu, en gec 10.4 KB'ta (vercel.com/blog).
+ * 64 KB bol pay birakir; tum sayfayi indirmeye gerek yok.
+ */
+const TITLE_SCAN_BYTES = 64 * 1024;
+/** Bunlar KALICI — t.co hedefi ic/ozel adrese ya da gecersiz adrese cikiyor */
+const UNSAFE_TARGET = new Set(['blocked_address', 'protocol', 'port']);
 /** Bir turda en fazla kac YENI gonderi sayfasi acilir (her biri ~15 sn) */
 const MAX_THREADS_PER_RUN = 15;
 /** Gonderi sayfasinda kac kaydirma adimi — sanal liste ana gonderiyi dusurmeden once her adimda toplanir */
@@ -274,7 +283,8 @@ export class XCurationService {
 
       const found: string[] = [];
       for (const u of rawLinks) {
-        const r = u.includes('//t.co/') ? await this.resolveRedirect(u) : u;
+        // Host karsilastirmasi: "evil.com/?r=//t.co/x" t.co sayilmasin
+        const r = classifyHref(u).kind === 'tco' ? await this.resolveRedirect(u) : u;
         if (r && classifyHref(r).kind === 'external') found.push(r);
       }
       if (found.length === 0) {
@@ -308,19 +318,41 @@ export class XCurationService {
     return items;
   }
 
+  /**
+   * t.co → gercek adres (LLM yok).
+   *
+   * Ilk adim YALNIZCA t.co'ya gider — sabit, birinci taraf host; Location
+   * basligi hedefi verir ve hedef baglanmadan once denetlenir (ic/ozel adres,
+   * port, protokol). Sonraki adimlar (bit.ly gibi ikinci kisaltici) SSRF
+   * korumali safeFetchText ile izlenir; hedef yavas ya da erisilemez olsa da
+   * t.co'nun verdigi adres elde kalir (eski davranis: son bilinen adres).
+   * t.co bu UA'ya 301 + Location doner; tarayici UA'sina ise meta-refresh'li
+   * 200 sayfasi (2026-10-17'de olculdu).
+   */
   private async resolveRedirect(url: string): Promise<string | null> {
-    let cur = url;
-    for (let hop = 0; hop < 5; hop++) {
-      try {
-        const res = await fetch(cur, { method: 'HEAD', redirect: 'manual', signal: AbortSignal.timeout(FETCH_TIMEOUT_MS), headers: { 'User-Agent': 'RanksUpIntel/1.0' } });
-        const loc = res.headers.get('location');
-        if (res.status >= 300 && res.status < 400 && loc) { cur = new URL(loc, cur).toString(); continue; }
-        return cur;
-      } catch {
-        return hop === 0 ? null : cur;
-      }
+    let first: string;
+    try {
+      const code = new URL(url);
+      if (code.hostname.toLowerCase() !== 't.co') return null;
+      const res = await fetch(`https://t.co${code.pathname}`, {
+        method: 'HEAD',
+        redirect: 'manual',
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+        headers: { 'user-agent': RANKSUP_BOT_UA },
+      });
+      const loc = res.headers.get('location');
+      if (res.status < 300 || res.status >= 400 || !loc) return null;
+      first = assertPublicUrl(new URL(loc, 'https://t.co/').toString()).toString();
+    } catch {
+      return null; // t.co'ya ulasilamadi ya da hedef ic/ozel adres
     }
-    return cur;
+    try {
+      const res = await safeFetchText(first, { method: 'HEAD', timeoutMs: FETCH_TIMEOUT_MS, maxRedirects: 4 });
+      return res.url;
+    } catch (err) {
+      if (err instanceof SafeFetchError && UNSAFE_TARGET.has(err.code)) return null;
+      return first;
+    }
   }
 
   private async fetchTweet(id: string): Promise<{ url: string; text: string; createdAt: Date | null } | null> {
@@ -341,21 +373,13 @@ export class XCurationService {
     }
   }
 
+  /** Makale basligi — adres yer isaretindeki linkten gelir: SSRF korumali, tavanli */
   private async fetchTitle(url: string): Promise<string | null> {
     try {
-      const res = await fetch(url, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS), headers: { 'User-Agent': 'Mozilla/5.0 (compatible; RanksUpIntel/1.0)' } });
-      if (!res.ok) return null;
-      const reader = res.body?.getReader();
-      if (!reader) return null;
-      let html = '';
-      while (html.length < MAX_HTML_BYTES) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        html += Buffer.from(value).toString('utf8');
-        if (/<\/title>/i.test(html)) break;
-      }
-      reader.cancel().catch(() => undefined);
-      const m = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+      const res = await safeFetchText(url, { timeoutMs: FETCH_TIMEOUT_MS, maxBytes: TITLE_SCAN_BYTES, errorBodyBytes: 0 });
+      // Dogrulama ekraninin basligi ("Just a moment...") makale basligi degildir
+      if (!res.ok || res.binary || detectBlock(res)) return null;
+      const m = res.text.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
       return m ? m[1].replace(/\s+/g, ' ').trim().slice(0, 300) : null;
     } catch {
       return null;

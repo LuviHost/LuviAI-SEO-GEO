@@ -389,7 +389,9 @@ export class IntelController {
     assertAdmin(req);
     const rows = Array.isArray(body?.rows) ? body.rows : null;
     if (!rows) throw new BadRequestException('rows dizisi gerekli');
-    if (rows.length > 5000) throw new BadRequestException('Tek seferde en fazla 5000 satır');
+    // 5000 satir tavani controller'in kendi siniri; istek govdesi ayrica 100 KB
+    // ile sinirli (~550 tam satir). Panel bu yuzden 400'luk partilerle gonderir.
+    if (rows.length > 5000) throw new BadRequestException('Tek istekte en fazla 5000 satır gönderilebilir; istek gövdesi de 100 KB ile sınırlı olduğu için büyük listeleri parçalara bölün.');
     return this.linkedin.importRows(rows);
   }
 
@@ -520,7 +522,8 @@ export class IntelController {
 
   /**
    * Bu aday icin UCRETSIZ KARNE uret ve paylasilabilir link dondur.
-   * Uzun surer (7 asistan x 10 soru ~ 60-90 sn) → arka planda calisir, sonuc bildirimle gelir.
+   * Uzun surer (6 asistan — Llama yalniz GROQ_LLAMA_MODEL tanimliyken eklenir —
+   * x en fazla 10 soru, ~60-90 sn; KarneService.uret) → arka planda calisir, sonuc bildirimle gelir.
    */
   @Post('linkedin/prospects/:id/karne')
   async linkedinKarneUret(

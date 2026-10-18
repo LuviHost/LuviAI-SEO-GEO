@@ -103,10 +103,17 @@ export class NotificationsService {
     try {
       const user = await this.prisma.user.findUnique({
         where: { id: opts.userId },
-        select: { email: true },
+        select: { email: true, deletionRequestedAt: true },
       });
       if (!user?.email) {
         this.log.warn(`Bildirim e-postası atlandı: kullanıcı ${opts.userId} için adres yok`);
+        return;
+      }
+      // Silme talebi olan hesap 30 gunluk bekleme suresinde bildirim e-postasi
+      // almaz: erisim kapandi. sendRaw bu kontrolu bilerek yapmaz (silme
+      // e-postalari da sendRaw ile gider), o yuzden burada — ayni sorguda.
+      if (user.deletionRequestedAt) {
+        this.log.debug(`Bildirim e-postası atlandı: kullanıcı ${opts.userId} için silme talebi var`);
         return;
       }
       const base = process.env.WEB_BASE_URL ?? 'https://ranksup.ai';

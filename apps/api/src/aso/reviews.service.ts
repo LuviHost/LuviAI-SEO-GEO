@@ -2,11 +2,16 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AsoScrapersService } from './scrapers.service.js';
 import { LLMProviderService } from '../llm/llm-provider.service.js';
-
-interface ReviewSentimentResult {
-  sentiment: 'POSITIVE' | 'NEUTRAL' | 'NEGATIVE';
-  topics: string[];
-}
+import {
+  IOS_REVIEW_PAGE_SIZE,
+  RECENT_REVIEW_WINDOW_DAYS,
+  buildFetchRecord,
+  parseFetchRecord,
+  reviewFetchKey,
+  summarizeRecentReviews,
+  type RecentReviewSignal,
+  type ReviewStore,
+} from './recent-reviews.js';
 
 /**
  * App review fetch + LLM sentiment analizi.
@@ -43,7 +48,10 @@ export class AsoReviewsService {
         country: app.country,
         page: 1,
       });
-      for (const r of ios.slice(0, limit)) {
+      const iosBatch = ios.slice(0, limit);
+      // RSS ilk sayfasi en fazla 50 yorum verir; "son 30 gun" sayiminin tam mi alt sinir mi oldugu bu tavana gore anlasilir
+      await this.recordFetch(trackedAppId, 'IOS', iosBatch.map((r: any) => r.updated), Math.min(limit, IOS_REVIEW_PAGE_SIZE));
+      for (const r of iosBatch) {
         const created = await this.prisma.appReview.upsert({
           where: {
             trackedAppId_store_externalId: {
@@ -76,7 +84,9 @@ export class AsoReviewsService {
         country: app.country,
         num: limit,
       });
-      for (const r of android.slice(0, limit)) {
+      const androidBatch = android.slice(0, limit);
+      await this.recordFetch(trackedAppId, 'ANDROID', androidBatch.map((r: any) => r.date), limit);
+      for (const r of androidBatch) {
         const created = await this.prisma.appReview.upsert({
           where: {
             trackedAppId_store_externalId: {
@@ -165,6 +175,55 @@ ${reviews.map(r => `[${r.id}] (${r.rating}/5) "${r.text.slice(0, 300)}"`).join('
         // ignore individual failure
       }
     }
+  }
+
+  /** Son cekimin ozeti KvStore'a; yazilamazsa yorum cekimi yine basarili sayilir. */
+  private async recordFetch(trackedAppId: string, store: ReviewStore, dates: Array<string | Date | null | undefined>, cap: number) {
+    const record = buildFetchRecord(dates, cap, new Date());
+    if (!record) return;
+    const key = reviewFetchKey(trackedAppId, store);
+    const value = JSON.stringify(record);
+    await this.prisma.kvStore
+      .upsert({ where: { key }, create: { key, value }, update: { value } })
+      .catch((err: any) => this.log.warn(`[${trackedAppId}] yorum cekim kaydi yazilamadi: ${err.message}`));
+  }
+
+  /**
+   * ASO skorunun "son 30 gundeki yorum sayisi" bileseni — saklanan yorumlardan.
+   * Bagli her magaza ayri degerlendirilir; kurallar recent-reviews.ts'te.
+   */
+  async getRecentReviewSignal(trackedAppId: string, now: Date = new Date()): Promise<RecentReviewSignal> {
+    const app = await this.prisma.trackedApp.findUniqueOrThrow({
+      where: { id: trackedAppId },
+      select: { appStoreId: true, playStoreId: true },
+    });
+    const stores: ReviewStore[] = [
+      ...(app.appStoreId ? (['IOS'] as const) : []),
+      ...(app.playStoreId ? (['ANDROID'] as const) : []),
+    ];
+    const since = new Date(now.getTime() - RECENT_REVIEW_WINDOW_DAYS * 86_400_000);
+    const stats = await Promise.all(
+      stores.map(async (store) => {
+        const where = { trackedAppId, store };
+        const [storedTotal, storedDated, inWindow, agg, kv] = await Promise.all([
+          this.prisma.appReview.count({ where }),
+          this.prisma.appReview.count({ where: { ...where, reviewDate: { not: null } } }),
+          this.prisma.appReview.count({ where: { ...where, reviewDate: { gte: since, lte: now } } }),
+          this.prisma.appReview.aggregate({ where, _min: { reviewDate: true }, _max: { fetchedAt: true } }),
+          this.prisma.kvStore.findUnique({ where: { key: reviewFetchKey(trackedAppId, store) } }).catch(() => null),
+        ]);
+        return {
+          store,
+          storedTotal,
+          storedDated,
+          inWindow,
+          oldestStored: agg._min.reviewDate ?? null,
+          latestFetchedAt: agg._max.fetchedAt ?? null,
+          lastFetch: parseFetchRecord(kv?.value),
+        };
+      }),
+    );
+    return summarizeRecentReviews(stats, now);
   }
 
   /** App için review özet istatistikleri. */

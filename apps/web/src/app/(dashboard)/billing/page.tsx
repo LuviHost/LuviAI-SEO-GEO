@@ -16,6 +16,8 @@ import { SectionHeader } from '@/components/ui/section-header';
 import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { EmptyState } from '@/components/empty-state';
 import { cn } from '@/lib/utils';
+import { billingArticleUsage } from '@/lib/article-quota';
+import { DeleteAccountSection } from './delete-account-section';
 
 /**
  * Abonelik & faturalama — panelin sakin diliyle (Ekim 2026).
@@ -28,6 +30,9 @@ import { cn } from '@/lib/utils';
  * IPTAL: paytr.cancelSubscription durumu CANCELED yapar; plan odenen donemin sonunda
  * (periodEnd = son odenen fatura + dongu) QuotaService.expireCanceledSubscriptions ile
  * TRIAL'a duser. Iade otomatik degil.
+ *
+ * KULLANIM: /current'in articleQuota alanindan, PLANA gore (lib/article-quota.ts
+ * billingArticleUsage). Deneme hakki omur boyudur, "bu ay / aylik kota" denmez.
  */
 
 export default function BillingPage() {
@@ -35,7 +40,6 @@ export default function BillingPage() {
   const userId = session?.user?.id;
   const [current, setCurrent] = useState<any>(null);
   const [invoices, setInvoices] = useState<any[]>([]);
-  const [quota, setQuota] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [cancelling, setCancelling] = useState(false);
   const [showCancelDialog, setShowCancelDialog] = useState(false);
@@ -46,15 +50,15 @@ export default function BillingPage() {
     if (status === 'loading') return;
     if (!userId) { setLoading(false); return; }
     const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+    // /quota artik okunmuyor: icerik kullanimi /current'in articleQuota alanindan (gercek
+    // sayac). /quota'nin limit - remaining farki sayac limiti astiginda yanlis kullanim veriyordu.
     Promise.all([
       fetch(`${apiBase}/api/billing/users/${userId}/current`, { credentials: 'include' }).then((r) => r.json()),
       fetch(`${apiBase}/api/billing/users/${userId}/invoices`, { credentials: 'include' }).then((r) => r.json()),
-      fetch(`${apiBase}/api/billing/users/${userId}/quota`, { credentials: 'include' }).then((r) => r.json()),
     ])
-      .then(([c, i, q]) => {
+      .then(([c, i]) => {
         setCurrent(c);
         setInvoices(Array.isArray(i) ? i : []);
-        setQuota(q);
       })
       .catch(() => setLoadError(true))
       .finally(() => setLoading(false));
@@ -79,7 +83,7 @@ export default function BillingPage() {
     }
   };
 
-  const header = <PageHeader title="Abonelik ve faturalar" description="Planını, bu ayki kullanımını ve faturalarını gör." />;
+  const header = <PageHeader title="Abonelik ve faturalar" description="Planını, içerik kullanımını ve faturalarını gör." />;
 
   if (loading) {
     return (
@@ -102,14 +106,15 @@ export default function BillingPage() {
           description="Bağlantı kesilmiş ya da oturumun sona ermiş olabilir. Sayfayı yenile; sorun sürerse yeniden giriş yap."
           primary={{ label: 'Sayfayı yenile', onClick: () => location.reload() }}
         />
+        {/* Abonelik bilgisi gelmese de hesap silme erişilebilir kalmalı */}
+        {userId && <DeleteAccountSection />}
       </div>
     );
   }
 
   const plan = current.plan;
-  const articleUsage = quota?.articles ?? { remaining: 0, limit: 0 };
-  const used = Math.max(0, articleUsage.limit - articleUsage.remaining);
-  const usagePct = articleUsage.limit > 0 ? Math.min(100, Math.round((used / articleUsage.limit) * 100)) : 0;
+  // Deneme plani (suresi dolmus ya da dusen abonelik dahil) omur boyu hak; ucretli plan aylik kota
+  const usage = billingArticleUsage(current);
   const isActive = current.status === 'ACTIVE';
   const isTrial = current.status === 'TRIAL';
   const legacyTry = Number(current.legacyMonthlyPriceTry ?? 0);
@@ -202,32 +207,34 @@ export default function BillingPage() {
           </p>
         )}
 
-        {/* Kullanim */}
+        {/* Kullanim — plana gore etiket (lib/article-quota.ts billingArticleUsage) */}
         <div className="mt-6 space-y-2">
           <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">Bu ay üretilen içerik</span>
-            <span className="tabular-nums font-medium">{used} / {articleUsage.limit}</span>
+            <span className="text-muted-foreground">{usage.label}</span>
+            <span className="tabular-nums font-medium">{usage.value}</span>
           </div>
-          <div
-            className="h-2 overflow-hidden rounded-full bg-muted"
-            role="progressbar"
-            aria-valuenow={usagePct}
-            aria-valuemin={0}
-            aria-valuemax={100}
-            aria-label="Aylık içerik kotası kullanımı"
-          >
+          {usage.pct !== null && (
             <div
-              className={cn(
-                'h-full rounded-full motion-safe:transition-[width] motion-safe:duration-700',
-                usagePct > 90 ? 'bg-danger' : usagePct > 70 ? 'bg-warning' : 'bg-brand',
-              )}
-              style={{ width: `${usagePct}%` }}
-            />
-          </div>
-          {usagePct > 80 && (
-            <p className="inline-flex items-center gap-1.5 text-label text-warning">
-              <AlertCircle className="h-3.5 w-3.5" aria-hidden />
-              Aylık kotanın %{usagePct}&apos;ini kullandın. Daha fazlası için planını yükseltebilirsin.
+              className="h-2 overflow-hidden rounded-full bg-muted"
+              role="progressbar"
+              aria-valuenow={usage.pct}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label={usage.ariaLabel}
+            >
+              <div
+                className={cn(
+                  'h-full rounded-full motion-safe:transition-[width] motion-safe:duration-700',
+                  usage.pct > 90 ? 'bg-danger' : usage.pct > 70 ? 'bg-warning' : 'bg-brand',
+                )}
+                style={{ width: `${usage.pct}%` }}
+              />
+            </div>
+          )}
+          {usage.note && (
+            <p className={cn('inline-flex items-center gap-1.5 text-label', usage.note.tone === 'warning' ? 'text-warning' : 'text-muted-foreground')}>
+              {usage.note.tone === 'warning' && <AlertCircle className="h-3.5 w-3.5" aria-hidden />}
+              {usage.note.text}
             </p>
           )}
         </div>
@@ -289,6 +296,9 @@ export default function BillingPage() {
         plan={plan?.name}
         periodEndText={periodEndText}
       />
+
+      {/* Hesap silme: uygulama içi silme zorunluluğu (Apple 5.1.1(v)) + KVKK silme hakkı */}
+      <DeleteAccountSection />
     </div>
   );
 }

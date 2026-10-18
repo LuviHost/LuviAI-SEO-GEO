@@ -4,7 +4,7 @@ import { EngineLogo } from '@/components/engine-logo';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import {
-  Sparkles, Network, Globe, Check, X, AlertCircle, Copy, ExternalLink, Play, MessageSquare, Link2, Download, Code, Activity, MapPin, Mail, User, BarChart3, Bot,
+  Sparkles, Network, Globe, Check, X, AlertCircle, Copy, ExternalLink, Play, MessageSquare, Link2, Download, Code, Activity, MapPin, Mail, BarChart3, Bot,
   Gauge, Award, Wrench, Send, BookOpen, Target, Lightbulb, Package, FileText, Search, Map as MapIcon, Trophy, CheckCircle2, XCircle, AlertTriangle, Tags,
 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -14,6 +14,7 @@ import { formatNum } from '@/lib/format';
 import { api } from '@/lib/api';
 import { MeasurementLimitNote } from '@/components/measurement-limit-note';
 import { isWeeklyMeasurementLimitError, refreshMeasurementAllowance, useMeasurementAllowance } from '@/lib/measurement-allowance';
+import { displayProbeText } from '@/lib/probe-error-text';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -200,11 +201,18 @@ function AiSearchConsoleTab({ siteId }: { siteId: string }) {
 
   return (
     <div className="space-y-3">
+      {/*
+        Eski metin "gercek satin alma niyetli ziyaretci", "cogu site icin %1'in altinda" ve
+        "ChatGPT trafiginin buyuk bolumu Direct gorunur" diyordu — olculmemis niyet ve
+        kaynaksiz oranlar. Dogrulanan: Ahrefs, Mart 2026, 74.752 site — AI sohbet botlari
+        toplam web trafiginin %0,28'i; bazi asistanlar yonlendiren adresi iletmedigi icin
+        AI ziyaretleri eksik sayilabiliyor. https://ahrefs.com/blog/ai-chatbot-traffic/
+      */}
       <p className="text-xs text-muted-foreground">
-        Bu sayfa <strong>AI cevap kutucuklarından gelen kullanıcı trafiği</strong>nı gösterir. ChatGPT/Perplexity/Claude'da sitenizin URL'i alıntılandığında, kullanıcı linke tıkladıkça referer header'ı yakalanır. <strong>Bot trafiği değil — gerçek satın alma niyetli ziyaretçi.</strong>
+        Bu sayfa <strong>AI cevaplarındaki bağlantılardan gelen kullanıcı trafiği</strong>ni gösterir. ChatGPT/Perplexity/Claude cevabında sitenizin bağlantısı yer alıp kullanıcı tıkladığında, tarayıcının gönderdiği yönlendiren adres (referrer) yakalanır. <strong>Bot trafiği değil — AI cevabındaki bağlantıya tıklayan gerçek ziyaretçi.</strong>
       </p>
       <p className="text-label text-muted-foreground">
-        Bağlam: sektör genelinde AI asistanlarından gelen ziyaret çoğu site için toplam trafiğin %1'inin altında — burada hacim değil niyet önemli (bu ziyaretçi soruyu sormuş, cevabı okumuş, sonra tıklamış). Ayrıca ChatGPT trafiğinin büyük bölümü analitikte sorgu bilgisi olmadan "Direct/Referral" görünür; bu sayfa <strong>ölçülebilen alt küme</strong>dir, tamamı değil.
+        Bağlam: bağımsız ölçümler AI asistanlarından gelen ziyaretin toplam web trafiğinin küçük bir bölümü olduğunu gösteriyor (Ahrefs, Mart 2026: %0,28). Bu ziyaretçi soruyu sormuş, cevabı okumuş ve sonra tıklamıştır. Bazı AI uygulamaları yönlendiren adresi iletmediği için bu ziyaretlerin bir kısmı analitikte &quot;Direct&quot; görünür; bu sayfa <strong>ölçülebilen alt küme</strong>dir, tamamı değil.
       </p>
 
       <div className="flex items-center justify-between flex-wrap gap-2">
@@ -218,7 +226,7 @@ function AiSearchConsoleTab({ siteId }: { siteId: string }) {
 
       {data.totalHits === 0 ? (
         <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
-          Henüz AI referrer trafiği yok. Tracker.js sitenize embed edildikten sonra (Bot Tracker sekmesi) kullanıcılar AI'dan tıklayınca buradan görürsün. Sıfır olması normaldir: sektörde AI referral çoğu site için %1'in altında; önce atıf (kaynak olmak) gelir, tıklama sonra.
+          Henüz AI referrer trafiği yok. Tracker.js sitenize embed edildikten sonra (Bot Tracker sekmesi) kullanıcılar AI&apos;dan tıklayınca buradan görürsün. Sıfır olması olağandır: AI asistanlarından gelen ziyaret çoğu sitede toplam trafiğin küçük bir bölümüdür ve tıklama için önce cevapta kaynak (bağlantı) olarak yer almak gerekir.
         </div>
       ) : (
         <div className="space-y-2">
@@ -270,7 +278,8 @@ function ChatWidgetTab({ siteId }: { siteId: string }) {
         <p className="text-xs font-semibold mb-2">Özellikler</p>
         <ul className="space-y-1 text-xs text-muted-foreground">
           <li className="flex items-start gap-1.5"><Check className="h-3 w-3 mt-0.5 shrink-0 text-success" aria-hidden />Otomatik FAB (sağ alt köşe, tıklanınca açılır)</li>
-          <li className="flex items-start gap-1.5"><Check className="h-3 w-3 mt-0.5 shrink-0 text-success" aria-hidden />Marka rengi + RanksUp gradient</li>
+          {/* Eski madde "Marka rengi + RanksUp gradient" diyordu: widget renkleri persona-chat.service.ts buildWidgetJs icinde sabit mor degrade; site rengine gore ayar yok */}
+          <li className="flex items-start gap-1.5"><Check className="h-3 w-3 mt-0.5 shrink-0 text-success" aria-hidden />Mor renkli düğme ve sohbet penceresi (renkler sabittir)</li>
           <li className="flex items-start gap-1.5"><Check className="h-3 w-3 mt-0.5 shrink-0 text-success" aria-hidden />AI brain context'i + son 30 makale ile cevap üretir</li>
           <li className="flex items-start gap-1.5"><Check className="h-3 w-3 mt-0.5 shrink-0 text-success" aria-hidden />Cevap içinde ilgili makale linki otomatik</li>
           <li className="flex items-start gap-1.5"><Check className="h-3 w-3 mt-0.5 shrink-0 text-success" aria-hidden />Mobil uyumlu, responsive</li>
@@ -279,7 +288,8 @@ function ChatWidgetTab({ siteId }: { siteId: string }) {
 
       <div className="rounded-md border border-info/30 bg-info/5 p-3">
         <p className="text-xs">
-          <Target className="inline h-3.5 w-3.5 mr-1 align-[-2px]" aria-hidden /><strong>SEO ve GEO etkisi:</strong> Widget'ta sorulan sorular Google'a "kullanıcı niyeti" sinyali gönderir. Ayrıca cevap içindeki internal link'ler crawler'lar için bonus erişim noktası.
+          {/* Eski metin "sorular Google'a kullanici niyeti sinyali gonderir" diyordu: widget sorulari yalniz RanksUp API'sine gider, Google'a hicbir sey iletilmez */}
+          <Target className="inline h-3.5 w-3.5 mr-1 align-[-2px]" aria-hidden /><strong>Ne işe yarar:</strong> Ziyaretçinin sorusunu sitenizin içeriğiyle yanıtlar ve ilgili makaleye yönlendirir. Sorular yalnızca RanksUp&apos;a iletilir; arama motorlarına ya da AI asistanlarına bir sinyal gönderilmez ve sıralamaya doğrudan etkisi yoktur.
         </p>
       </div>
     </div>
@@ -296,12 +306,14 @@ function AiSitemapTab({ siteId }: { siteId: string }) {
   return (
     <div className="space-y-3">
       <p className="text-xs text-muted-foreground">
-        Standart <code className="bg-muted px-1 rounded">sitemap.xml</code>'in yanına <strong>AI-optimize sitemap</strong> ekler. Custom <code className="bg-muted px-1 rounded">ai:summary</code> namespace ile her URL için 200 kelimelik AI özet, <code className="bg-muted px-1 rounded">ai:topics</code> ile AEO sorguları, editor skoruna göre priority. AI search engines bu sitemap'i okuyup içeriği daha hızlı öğrenir.
+        {/* Eski metin "200 kelimelik AI ozet" ve "AI search engines bu sitemap'i okuyup daha hizli ogrenir" diyordu: ai-sitemap.service.ts meta aciklamanin ilk 200 KARAKTERINI yaziyor; ai: alanlari standart degil, okuyan motor aciklanmamis */}
+        {/* Harita RanksUp sunucusundan herkese acik sunulur (audit.controller sitemap-ai.xml @Public). Yalniz sitede adresi bilinen yayindaki yazilar listelenir (ai-sitemap.service articlePublicUrl) */}
+        Standart <code className="bg-muted px-1 rounded">sitemap.xml</code>&apos;ine ek olarak RanksUp, sitenin <strong>AI odaklı bir site haritasını</strong> kendi sunucusunda yayınlar: özel <code className="bg-muted px-1 rounded">ai:summary</code> alanında her yazının meta açıklaması (en fazla 200 karakter), <code className="bg-muted px-1 rounded">ai:topics</code> alanında AEO soruları, editör skoruna göre öncelik. Yalnız sitende yayınlanmış ve adresi bilinen yazılar listelenir; indirme olarak alınan ya da site dışındaki bir sisteme (GitHub deposu, Contentful/Sanity/Strapi gibi içerik yönetim sistemleri) gönderilen yazılar listelenmez. Harita kendiliğinden güncellenir. <code className="bg-muted px-1 rounded">ai:</code> alanları standart site haritası protokolünün parçası değildir; AI arama motorlarının bu alanları okuduğu açıklanmış değildir, etkisi garanti edilmez.
       </p>
 
       <div className="rounded-md border">
         <div className="px-3 py-2 border-b bg-muted/30 flex items-center justify-between">
-          <p className="text-xs font-semibold">Sitemap URL</p>
+          <p className="text-xs font-semibold">Site haritası adresi</p>
           <button
             onClick={() => { navigator.clipboard.writeText(url); toast.success('Kopyalandı'); }}
             className="text-xs text-brand hover:underline inline-flex items-center gap-1"
@@ -314,17 +326,29 @@ function AiSitemapTab({ siteId }: { siteId: string }) {
 
       <div className="flex items-center gap-2">
         <a href={url} target="_blank" rel="noopener" className="text-xs text-brand hover:underline inline-flex items-center gap-1">
-          Sitemap'i aç <ExternalLink className="h-3 w-3" />
-        </a>
-        <span className="text-xs text-muted-foreground">·</span>
-        <a href={`https://search.google.com/search-console/sitemaps?siteUrl=`} target="_blank" rel="noopener" className="text-xs text-brand hover:underline inline-flex items-center gap-1">
-          Google Search Console'a submit <ExternalLink className="h-3 w-3" />
+          Haritayı aç <ExternalLink className="h-3 w-3" />
         </a>
       </div>
 
       <div className="rounded-md border bg-muted/20 p-3">
-        <p className="text-xs font-semibold mb-2">robots.txt'e ekleyin</p>
-        <pre className="text-label font-mono">{robotsLine}</pre>
+        <p className="text-xs font-semibold mb-2">Sitenin robots.txt dosyasına ekle</p>
+        <pre className="text-label font-mono whitespace-pre-wrap break-all">{robotsLine}</pre>
+        {/*
+          Kaynaklar: sitemaps.org "Sitemaps & Cross Submits" (baska host'taki
+          harita robots.txt ile gosterilir; harita yalniz o host'un adreslerini
+          icerir) ve Google "Build and submit a sitemap" (robots.txt satiri bir
+          sonraki robots.txt taramasinda bulunur; Search Console'dan capraz
+          gonderim icin tum alan adlarinin sahipligi dogrulanmali) —
+          https://www.sitemaps.org/protocol.html#sitemaps_cross_submits
+          https://developers.google.com/search/docs/crawling-indexing/sitemaps/build-sitemap
+          Eski "Google Search Console'a submit" baglantisi kaldirildi: musteri
+          RanksUp'in alan adini dogrulayamaz, Site Haritalari raporu baska alan
+          adindaki adresi kabul etmez ("URL not allowed",
+          https://support.google.com/webmasters/answer/7451001).
+        */}
+        <p className="text-xs text-muted-foreground mt-2">
+          Harita RanksUp sunucusunda durur; sitenin robots.txt dosyasındaki bu satır, başka bir sunucudaki haritayı siteye bağlamanın standart yoludur. Google haritayı, robots.txt dosyanı bir sonraki taramasında bulur. Harita farklı bir alan adında olduğu için Search Console&apos;daki Site Haritaları raporundan gönderilemez: Google orada başka alan adındaki bir haritayı ancak iki alan adının da sahipliği doğrulanmışsa kabul eder.
+        </p>
       </div>
     </div>
   );
@@ -357,8 +381,13 @@ function HaroTab({ siteId }: { siteId: string }) {
 
   return (
     <div className="space-y-3">
+      {/*
+        Eski metin "AI sektörle ilgili olanları bulur" diyordu: ayristirma ve uygunluk
+        puani kural tabanli (haro-parser.service.ts scoreFit), AI yalniz taslak yazar —
+        ve artik yalniz uygunluk puani en yuksek sorulara (HARO_PITCH_TOP_N).
+      */}
       <p className="text-xs text-muted-foreground">
-        HARO (Help A Reporter Out) gazetecilerin sektör soruları için kaynak aradığı bir e-mail servisi. Aldığınız HARO digest'ini buraya yapıştırın — AI sektörle ilgili olanları bulur, marka tonunda <strong>taslak pitch</strong> hazırlar. Yanıtlanan her HARO = backlink + AI authority signal.
+        HARO (Help A Reporter Out) gazetecilerin sektör soruları için kaynak aradığı bir e-mail servisi. Aldığınız HARO digest&apos;ini buraya yapıştırın — sorular sektörünüze uygunluğa göre sıralanır, en uygun olanlara AI marka tonunda <strong>taslak pitch</strong> hazırlar. Gazeteci yanıtınızı kullanırsa haberde kaynak olarak anılabilir ve bağlantı alabilirsiniz; yayın ve bağlantı garanti değildir.
       </p>
 
       <textarea
@@ -384,14 +413,20 @@ function HaroTab({ siteId }: { siteId: string }) {
                 <Badge variant={q.brandFitScore >= 70 ? 'default' : 'outline'}>{q.brandFitScore}/100</Badge>
               </div>
               <p className="text-xs italic">"{q.query.slice(0, 200)}…"</p>
-              <div className="rounded bg-muted/30 p-2 border-l-2 border-brand">
-                <p className="text-label font-semibold text-muted-foreground mb-1">AI taslak pitch:</p>
-                <p className="text-xs whitespace-pre-wrap">{q.draftPitch}</p>
-              </div>
+              {q.pitchSkipped ? (
+                <p className="text-label text-muted-foreground">Taslak hazırlanmadı: AI taslağı yalnız uygunluk puanı en yüksek sorular için hazırlanır.</p>
+              ) : (
+                <div className="rounded bg-muted/30 p-2 border-l-2 border-brand">
+                  <p className="text-label font-semibold text-muted-foreground mb-1">AI taslak pitch:</p>
+                  <p className="text-xs whitespace-pre-wrap">{q.draftPitch}</p>
+                </div>
+              )}
               <div className="flex items-center gap-2">
-                <Button size="sm" variant="outline" onClick={() => { navigator.clipboard.writeText(q.draftPitch); toast.success('Kopyalandı'); }}>
-                  <Copy className="h-3 w-3 mr-1" /> Kopyala
-                </Button>
+                {!q.pitchSkipped && (
+                  <Button size="sm" variant="outline" onClick={() => { navigator.clipboard.writeText(q.draftPitch); toast.success('Kopyalandı'); }}>
+                    <Copy className="h-3 w-3 mr-1" /> Kopyala
+                  </Button>
+                )}
                 {q.email && (
                   <a href={`mailto:${q.email}?subject=HARO Response: ${encodeURIComponent(q.publication)}`} className="text-xs text-brand hover:underline inline-flex items-center gap-1">
                     Gazeteciye yaz <ExternalLink className="h-3 w-3" />
@@ -525,7 +560,8 @@ function SchemaValidateTab({ siteId }: { siteId: string }) {
   return (
     <div className="space-y-3">
       <p className="text-xs text-muted-foreground">
-        Yayınlanmış makalenizin URL'ini verin. Schema.org JSON-LD'leri çıkarılıp validate edilir. Google rich results + AI search citation için kritik.
+        {/* Google: yapilandirilmis veri zengin sonuclari etkinlestirebilir, zorunlu alanlar eksikse uygun olmaz — https://developers.google.com/search/docs/appearance/structured-data/intro-structured-data */}
+        Yayınlanmış makalenizin URL&apos;ini verin. Schema.org JSON-LD blokları çıkarılıp doğrulanır. Yapılandırılmış veri sayfayı Google zengin sonuçlarına uygun hâle getirebilir (gerekli alanlar eksiksizse); AI aramalarında atıf alma üzerindeki etkisi garanti değildir.
       </p>
       <div className="flex items-center gap-2">
         <input
@@ -608,8 +644,16 @@ function TrackerEmbedTab({ siteId }: { siteId: string }) {
 
   return (
     <div className="space-y-3">
+      {/*
+        Eski metin "GPTBot/ClaudeBot/PerplexityBot ziyaret ettiginde otomatik yakalanir, manuel log
+        gerekmez" diyordu. Mekanizma (tracker.controller.ts + crawler-tracking.middleware.ts): bot
+        betik dosyasini indirirse istek bot kimligiyle gelir ve kaydedilir; beacon yalniz betigi
+        CALISTIRAN ziyaretcide atilir. Vercel, 17.12.2024: "none of the major AI crawlers currently
+        render JavaScript"; ChatGPT ve Claude tarayicilari JS dosyasi indiriyor ama calistirmiyor —
+        https://vercel.com/blog/the-rise-of-the-ai-crawler (haber: https://www.searchenginejournal.com/ai-crawlers)
+      */}
       <p className="text-xs text-muted-foreground">
-        Sitenizdeki <strong>her sayfaya</strong> bu script tag'ini ekleyin. AI bot trafiğini <strong>gerçek zamanlı</strong> izler — manuel log upload gerekmez. GPTBot/ClaudeBot/PerplexityBot ziyaret ettiğinde otomatik yakalanır.
+        Sitenizdeki <strong>her sayfaya</strong> bu script tag&apos;ini ekleyin. Bir bot betik dosyasını indirdiğinde ya da betiği çalıştırdığında kaydedilir; AI cevaplarından gelen ziyaretçiler de yakalanır. JavaScript çalıştırmayan ve betik dosyasını indirmeyen tarayıcılar bu yöntemle görünmez — Vercel&apos;in Aralık 2024 analizine göre büyük AI tarayıcıları JavaScript çalıştırmıyor; bu yüzden bu yöntem bot ziyaretlerinin yalnızca bir kısmını gösterebilir. Eksiksiz ölçüm sunucu ya da CDN kayıtlarıyla mümkündür.
       </p>
 
       <div className="rounded-md border">
@@ -637,7 +681,7 @@ function TrackerEmbedTab({ siteId }: { siteId: string }) {
 
       <div className="rounded-md border border-info/30 bg-info/5 p-3">
         <p className="text-xs">
-          <BarChart3 className="inline h-3.5 w-3.5 mr-1 align-[-2px]" aria-hidden /><strong>Veri akışı:</strong> Bot ziyaret ettiğinde tracker.js çalışır → beacon.gif fetch eder → API middleware bot UA'sını yakalar → 60sn'de bir DB'ye flush eder. <strong>AI Crawler Trafiği</strong> paneli bu verilerle dolar.
+          <BarChart3 className="inline h-3.5 w-3.5 mr-1 align-[-2px]" aria-hidden /><strong>Veri akışı:</strong> Tarayıcı tracker.js dosyasını indirdiğinde istek botun kimliğiyle (User-Agent) API&apos;ye gelir ve kaydedilir; betiği çalıştıran ziyaretçide ayrıca beacon.gif isteği atılır. Kayıtlar 60 saniyede bir veritabanına yazılır; <strong>AI Crawler Trafiği</strong> paneli bu verilerle dolar.
         </p>
       </div>
     </div>
@@ -671,9 +715,20 @@ function CommunityTab({ siteId }: { siteId: string }) {
 
   return (
     <div className="space-y-3">
+      {/*
+        Eski metin "AI'lar (ozellikle ChatGPT ve Perplexity) Reddit'i birinci kaynak olarak
+        kullaniyor" diyordu; iki bagimsiz kaynak bu kesinligi desteklemiyor (ChatGPT'de bazi
+        veri setlerinde Wikipedia onde). Desteklenen ifade: Reddit en sik kaynak gosterilen
+        alan adlari arasinda, oran platforma ve doneme gore degisiyor.
+        - Peec AI, Mart 2026, ~30 milyon atif (ChatGPT, AI Mode, Gemini, Perplexity, AI Overviews):
+          Reddit 1. — https://docs.peec.ai/research/most-cited-domains-in-ai-search
+        - Evertune, Subat 2026, 200M+ istem: Perplexity atiflarinin bazi donemlerde ~1/5'i Reddit;
+          ChatGPT'de incelenen dort alan arasinda Wikipedia onde —
+          https://www.evertune.ai/resources/insights-on-ai/perplexity-loves-reddit-exploring-llms-top-sources
+      */}
       <p className="text-xs text-muted-foreground">
-        AI'lar (özellikle ChatGPT ve Perplexity) Reddit'i <strong>birinci kaynak</strong> olarak kullanıyor. RanksUp sektör sorularınızla ilgili Reddit postlarını tarayıp marka sesinizde taslak cevap önerir. Spam değil — gerçek değer.
-        <strong className="text-warning"> Manuel onay zorunlu</strong>, otomatik post YOK.
+        Bağımsız atıf analizleri Reddit&apos;i AI cevaplarında en sık kaynak gösterilen alan adları arasında buluyor; oran platforma ve döneme göre değişiyor. RanksUp sektör sorularınızla ilgili Reddit gönderilerini tarayıp marka sesinizde taslak yanıt önerir. Yanıtı yalnızca soruya gerçekten katkı sağlıyorsa ve topluluk kurallarına uyuyorsa paylaşın.
+        <strong className="text-warning"> Manuel onay zorunlu</strong>, otomatik gönderi YOK.
       </p>
       <Button size="sm" onClick={find} disabled={loading}>
         {loading ? 'Reddit taranıyor (~30 sn)…' : <><Search className="h-3.5 w-3.5 mr-1.5" aria-hidden />Fırsat bul</>}
@@ -763,7 +818,7 @@ function CrossLinkTab({ siteId }: { siteId: string }) {
   return (
     <div className="space-y-3">
       <p className="text-xs text-muted-foreground">
-        RanksUp ekosistemindeki diğer sitelerle <strong>akıllı cross-link</strong> kurar. AI'lar bu bağlantıları "ekosistem" olarak öğrenir → tüm siteler birden alıntılanır. Sadece <strong>Otopilot ON</strong> olan siteler dahil edilir (consent).
+        RanksUp ekosistemindeki diğer sitelerle konuyla ilgili <strong>çapraz bağlantı</strong> önerir; okuyucuya ilgili içeriği sunar. AI asistanlarının bu bağlantıları nasıl değerlendireceği garanti edilmez. Sadece <strong>Otopilot ON</strong> olan siteler dahil edilir (onay).
       </p>
       <div className="flex items-center gap-2 flex-wrap">
         <Button size="sm" variant="outline" onClick={loadArticles}>
@@ -837,9 +892,15 @@ function TrainingDataTab({ siteId }: { siteId: string }) {
 
   return (
     <div className="space-y-3">
+      {/*
+        Eski metin kaynaksiz bir oran ("%30+") ve garanti ("Mistral, Llama, Claude markanizi
+        ogrenir", "icerik silinse bile AI hatirlar") veriyordu. Hangi saglayicinin hangi acik
+        veri setini ne zaman kullandigi aciklanmiyor; etki olculemez — vaat edilmez.
+      */}
       <p className="text-xs text-muted-foreground">
-        AI'ların eğitim verisinin <strong>%30+'ı</strong> public dataset'lerden geliyor. Sitenizin makalelerini Hugging Face'e <strong>CC-BY-4.0</strong> lisansla yüklerseniz Mistral, Llama, Claude bir sonraki eğitiminde markanızı öğrenir.
-        <strong className="text-success"> Kalıcı GEO etkisi</strong> — içerik silinse bile AI hatırlar.
+        Makalelerinizi <strong>CC-BY-4.0</strong> lisansıyla Hugging Face&apos;te açık bir veri seti olarak yayımlayabilirsiniz.
+        Açık veri setleri bazı modellerin eğitiminde kullanılabilir; ancak hangi sağlayıcının hangi veri setini ne zaman kullandığı açıklanmaz.
+        Etkisi garanti değildir ve RanksUp bunu ölçemez.
       </p>
       {!data && (
         <Button size="sm" onClick={load} disabled={loading}>
@@ -917,7 +978,7 @@ function HeatmapTab({ siteId }: { siteId: string }) {
     <div className="space-y-3">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <p className="text-xs text-muted-foreground max-w-2xl">
-          Sektör sorgularını Claude/Gemini/ChatGPT/Perplexity'ye sorar. Her hücre: <span className="text-success font-bold">●</span> alıntılandın · <span className="text-warning font-bold">●</span> sadece marka adı geçti · <span className="text-danger font-bold">●</span> rakip alıntılandı · <span className="text-muted-foreground font-bold">●</span> kimse alıntılanmadı (fırsat)
+          Sektör sorgularını Claude/Gemini/ChatGPT/Perplexity'ye sorar. Her hücre: <span className="text-success font-bold">●</span> alıntılandın · <span className="text-warning font-bold">●</span> sadece marka adı geçti · <span className="text-danger font-bold">●</span> rakip alıntılandı · <span className="text-muted-foreground font-bold">●</span> kimse alıntılanmadı (fırsat) · <span className="text-muted-foreground">ölçülemedi</span> sağlayıcı hata verdi ya da etkin değil — skora ve önerilere girmez
         </p>
         <Button size="sm" onClick={run} disabled={running || measurementBlocked}>
           {running ? 'Test ediliyor (~60 sn)…' : <><Play className="h-3.5 w-3.5 mr-1.5" aria-hidden />Isı haritasını çalıştır</>}
@@ -927,16 +988,18 @@ function HeatmapTab({ siteId }: { siteId: string }) {
 
       {data && (
         <div className="space-y-3">
-          {/* Provider skor ozeti */}
+          {/* Provider skor ozeti — skor yalniz olculen hucrelerden; hic olculemeyen saglayici "—" (0 degil) */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
             {data.providers.map((p: string, i: number) => {
-              const pid = ['anthropic','gemini','openai','perplexity'][i];
-              const score = data.scoreByProvider[pid] ?? 0;
-              const color = score >= 60 ? 'text-success' : score >= 30 ? 'text-warning' : 'text-danger';
+              const pid = providerIdAt(data, i);
+              const raw = data.scoreByProvider?.[pid];
+              const score: number | null = typeof raw === 'number' ? raw : null;
+              const color = score === null ? 'text-muted-foreground' : score >= 60 ? 'text-success' : score >= 30 ? 'text-warning' : 'text-danger';
               return (
                 <div key={p} className="rounded-md border p-2 text-center">
                   <p className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground"><EngineLogo provider={pid} size={16} />{p}</p>
-                  <p className={`text-metric-lg tabular-nums ${color}`}>{score}</p>
+                  <p className={`text-metric-lg tabular-nums ${color}`}>{score ?? '—'}</p>
+                  {score === null && <p className="text-label text-muted-foreground">ölçülemedi</p>}
                 </div>
               );
             })}
@@ -951,7 +1014,7 @@ function HeatmapTab({ siteId }: { siteId: string }) {
                   {data.providers.map((p: string, i: number) => (
                     <th key={p} className="text-center p-2 font-medium border-b min-w-[80px]">
                       <span className="inline-flex items-center gap-1.5">
-                        <EngineLogo provider={['anthropic', 'gemini', 'openai', 'perplexity'][i] ?? p} size={16} />
+                        <EngineLogo provider={providerIdAt(data, i) || p} size={16} />
                         {p}
                       </span>
                     </th>
@@ -965,20 +1028,25 @@ function HeatmapTab({ siteId }: { siteId: string }) {
                       <p className="truncate" title={q}>{q}</p>
                     </td>
                     {data.providers.map((p: string, i: number) => {
-                      const pid = ['anthropic','gemini','openai','perplexity'][i];
+                      const pid = providerIdAt(data, i);
                       const cell = data.cells.find((c: any) => c.query === q && c.provider === pid);
-                      const status = cell?.status ?? 'none';
+                      // Hata / etkin olmayan saglayici olcum degildir: "kimse alintilanmadi" (gri) ile karismasin
+                      const status: string = cell?.status ?? 'error';
+                      const unmeasured = status === 'error' || status === 'disabled';
                       const bg = status === 'cited' ? 'bg-success/30 border-success'
                               : status === 'mentioned' ? 'bg-warning/30 border-warning'
                               : status === 'competitor' ? 'bg-danger/30 border-danger'
+                              : unmeasured ? 'bg-background border-muted border-dashed'
                               : 'bg-muted/30 border-muted';
                       const icon = status === 'cited' ? '✓'
                               : status === 'mentioned' ? '~'
                               : status === 'competitor' ? `→${cell?.competitor?.slice(0, 12)}…`
+                              : status === 'disabled' ? 'etkin değil'
+                              : unmeasured ? 'ölçülemedi'
                               : '—';
                       return (
-                        <td key={p} className={`p-2 text-center border ${bg}`} title={cell?.excerpt}>
-                          <span className="font-bold text-label">{icon}</span>
+                        <td key={p} className={`p-2 text-center border ${bg}`} title={displayProbeText(cell?.excerpt)}>
+                          <span className={unmeasured ? 'text-label text-muted-foreground' : 'font-bold text-label'}>{icon}</span>
                         </td>
                       );
                     })}
@@ -1006,6 +1074,11 @@ function HeatmapTab({ siteId }: { siteId: string }) {
               color="muted"
             />
           </div>
+          {(data.olculemeyenQueries?.length ?? 0) > 0 && (
+            <p className="text-label text-muted-foreground">
+              {data.olculemeyenQueries.length} sorgu hiçbir sağlayıcıda ölçülemedi (hata ya da boş cevap); skora ve yukarıdaki gruplara dahil edilmedi.
+            </p>
+          )}
 
           {/* Rakip kazanmalari */}
           {Object.keys(data.competitorWins).length > 0 && (
@@ -1024,6 +1097,11 @@ function HeatmapTab({ siteId }: { siteId: string }) {
       )}
     </div>
   );
+}
+
+/** Isi haritasi sutun kimligi: API providerIds dondurur; eski cevapta sabit sira (Claude, Gemini, ChatGPT, Perplexity) */
+function providerIdAt(data: any, i: number): string {
+  return data?.providerIds?.[i] ?? ['anthropic', 'gemini', 'openai', 'perplexity'][i] ?? '';
 }
 
 function InsightBlock({ title, items, color }: { title: string; items: string[]; color: 'green' | 'red' | 'muted' }) {
@@ -1072,8 +1150,14 @@ function WikidataTab({ siteId }: { siteId: string }) {
 
   return (
     <div className="space-y-3">
+      {/*
+        Eski metin "Wikidata = Google Knowledge Graph'in kaynagi ... AI'lar (ozellikle Gemini ve
+        Bard) sizi otomatik tanir" diyordu: Wikidata bilgi grafiklerinin kaynaklarindan yalnizca
+        biri, Bard adi 8 Subat 2024'te Gemini oldu (https://blog.google/products/gemini/bard-gemini-advanced-app/)
+        ve "otomatik tanima" vaat edilemez.
+      */}
       <p className="text-xs text-muted-foreground">
-        Wikidata = Google Knowledge Graph'in kaynağı. Markanızı Wikidata'ya eklerseniz AI'lar (özellikle Gemini ve Bard) sizi otomatik tanır. Aşağıdaki taslağı kopyalayın → "Wikidata'da Yeni Item" butonuna tıklayıp manuel girin.
+        Wikidata, herkesin düzenleyebildiği açık bir bilgi tabanıdır; arama motorları ve AI sistemleri bu tür yapılandırılmış kaynaklardan yararlanabilir. Bir öğe eklemek, AI asistanlarının markanızı tanıyacağını garanti etmez ve Wikidata&apos;nın kayda değerlik kuralları uygulanır. Aşağıdaki taslağı kopyalayın → &quot;Wikidata&apos;da yeni öğe oluştur&quot; bağlantısıyla elle girin.
       </p>
       {!data && (
         <Button size="sm" onClick={load} disabled={loading}>
@@ -1082,15 +1166,19 @@ function WikidataTab({ siteId }: { siteId: string }) {
       )}
       {data && (
         <div className="space-y-3">
-          {/* Notability skoru */}
+          {/*
+            Eski baslik "Notability Skoru · x/100" idi: puan Wikidata'nin kayda degerlik
+            olcutu degil, RanksUp'in gorebildigi sinyallerden (site, rakip listesi, SEO
+            stratejisi, ana sayfadaki Organization sameAs baglantilari) en fazla notabilityMax (50) uretir — "site yasi"
+            sinyali kaldirildi, cunku site.createdAt sitenin RanksUp'a eklenme tarihiydi
+            (knowledge-graph-builder.service.ts checkNotability / NOTABILITY_MAX).
+          */}
           <div className="rounded-md border p-3">
             <div className="flex items-center justify-between mb-2">
-              <p className="text-sm font-semibold">Notability Skoru</p>
-              <span className={`text-metric-lg tabular-nums ${
-                data.notabilityScore >= 60 ? 'text-success' :
-                data.notabilityScore >= 40 ? 'text-warning' : 'text-danger'
-              }`}>{data.notabilityScore}/100</span>
+              <p className="text-sm font-semibold">RanksUp ön kontrol puanı</p>
+              <NotabilityScore data={data} large />
             </div>
+            <p className="text-label text-muted-foreground mb-2">Site, RanksUp&apos;taki rakip listesi ve SEO stratejisi, ana sayfanızdaki kimlik bağlantıları (Organization sameAs) üzerinden hesaplanır. Wikidata&apos;nın kayda değerlik ölçütünü (ciddi ve herkese açık kaynaklarla tanımlanabilir olma) ölçmez; kaynakları kendiniz doğrulayın.</p>
             <ul className="space-y-1 text-xs">
               {data.notabilityNotes.map((n: string, i: number) => (
                 <li key={i} className="flex items-start gap-1.5">
@@ -1130,26 +1218,16 @@ function WikidataTab({ siteId }: { siteId: string }) {
             </div>
           </div>
 
+          {/*
+            "Otomatik gönder (bot)" dugmesi kaldirildi: RanksUp Wikidata'ya musteri adina
+            oge gondermez (knowledge-submitter.service.ts — bot hesabinin sorumlulugu
+            operatordedir); knowledge/submit her zaman elle ekleme yonergesi donuyordu,
+            dugme yalniz uyari gosteriyordu. Ekleme musterinin kendi hesabiyla, elle.
+          */}
           <div className="flex items-center gap-3 flex-wrap">
             <a href={data.createUrl} target="_blank" rel="noopener" className="inline-flex items-center gap-1 text-sm text-brand hover:underline">
               <Globe className="h-3.5 w-3.5" aria-hidden /> Elle: Wikidata&apos;da yeni öğe oluştur <ExternalLink className="h-3 w-3" aria-hidden />
             </a>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={async () => {
-                try {
-                  const res = await api.submitKnowledge(siteId, 'wikidata', data);
-                  if (res.ok) toast.success(`Wikidata öğesi oluşturuldu: ${res.itemId}`);
-                  else if (res.warning) toast.warning(res.warning);
-                  else toast.error(res.error ?? 'Bilinmeyen hata');
-                } catch (err: any) {
-                  toast.error(err.message);
-                }
-              }}
-            >
-              <Bot className="h-3.5 w-3.5 mr-1.5" aria-hidden /> Otomatik gönder (bot)
-            </Button>
           </div>
         </div>
       )}
@@ -1183,8 +1261,37 @@ function WikipediaTab({ siteId }: { siteId: string }) {
 
   return (
     <div className="space-y-3">
+      {/*
+        Eski metin kaynaksiz "%30+" oran ve "LLM'ler bir sonraki egitiminde sizi ogrenir"
+        garantisi veriyordu (Egitim verisi sekmesinden kaldirilan vaadin aynisi). Egitim karisimini
+        yayimlayan modellerde Wikipedia payi birkac yuzde:
+        - GPT-3 (Brown vd., 2020) Tablo 2.2: egitim karisiminda %3 — https://arxiv.org/abs/2005.14165
+        - LLaMA (Touvron vd., 2023) Tablo 1: ornekleme orani %4,5 — https://arxiv.org/abs/2302.13971
+        Bir maddenin hangi modelin egitimine ne zaman girecegi aciklanmaz; etki olculemez.
+
+        "Taslagi kopyalayin → Wikipedia'ya gonderin" kendi markasi hakkinda madde
+        acmayi ozendiriyordu. Vikipedi kurallari (18.10.2026 dogrulandi):
+        - Cikar catismasi (Vikipedi:Cikar_catismasi):
+          https://tr.wikipedia.org/wiki/Vikipedi:%C3%87%C4%B1kar_%C3%A7at%C4%B1%C5%9Fmas%C4%B1
+          "Genellikle kendiniz veya tanidiginiz herhangi birisi hakkinda maddeler
+          olusturmaktan kacinmalisiniz." / "Tartisma sayfalarina bir not birakarak
+          yapmak istediginiz degisiklikleri onerebilirsiniz."; ucretli katkida kimin
+          odedigi ve kimin adina duzenlendigi beyan edilir (Wikimedia Kullanim
+          Kosullari md. 4: https://foundation.wikimedia.org/wiki/Policy:Terms_of_Use).
+        - Kayda degerlik (Vikipedi:Kayda_degerlik):
+          https://tr.wikipedia.org/wiki/Vikipedi:Kayda_de%C4%9Ferlik
+          "Bir konu kendisinden bagimsiz, kapsamli, guvenilir, birden cok ikincil
+          kaynaklarca icerik edilmisse kayda degerdir."
+        notabilityScore Vikipedi olcutu DEGIL: knowledge-graph-builder.service.ts
+        checkNotability RanksUp verisinden (site, rakip listesi, SEO stratejisi,
+        ana sayfadaki Organization sameAs) en cok notabilityMax (50) puan uretir. "Sitenin RanksUp'a
+        eklenme tarihi" sinyali kaldirildi: site yasi diye puanlaniyordu.
+      */}
       <p className="text-xs text-muted-foreground">
-        Wikipedia = AI'ların eğitim verisinin <strong>%30+</strong>'ı. Wikipedia'da maddeniz olursa LLM'ler bir sonraki eğitiminde sizi öğrenir. Manuel review gerekir, "notability" eşiği yüksektir. Aşağıdaki taslağı kopyalayın → Wikipedia'ya gönderin.
+        Wikipedia, eğitim veri karışımını yayımlayan bazı dil modellerinin eğitim verisinde yer alır (ör. GPT-3 ve LLaMA makalelerinde birkaç yüzdelik pay). Ancak bir maddenin hangi modelin eğitimine ne zaman gireceği açıklanmaz; etkisi garanti değildir ve RanksUp bunu ölçemez.
+        Vikipedi&apos;ye göre bir konu, kendisinden bağımsız, güvenilir ve birden çok ikincil kaynakta kapsamlı yer alıyorsa kayda değerdir.
+        Kendi markan hakkında madde açmak Vikipedi&apos;nin çıkar çatışması yönergesine göre önerilmez: bağlantını açıkça belirtmen gerekir, değişiklikleri maddenin tartışma sayfasından önerebilirsin; ücretli katkılarda kimin adına düzenleme yaptığını beyan etmek zorunludur.
+        Aşağıdaki taslak bu süreçte kullanabileceğin bir başlangıç metnidir.
       </p>
       {!data && (
         <Button size="sm" onClick={load} disabled={loading}>
@@ -1196,11 +1303,9 @@ function WikipediaTab({ siteId }: { siteId: string }) {
           <div className="rounded-md border p-3">
             <div className="flex items-center justify-between mb-2">
               <p className="text-sm font-semibold">{data.title}</p>
-              <span className={`text-metric tabular-nums ${
-                data.notabilityScore >= 60 ? 'text-success' : 'text-warning'
-              }`}>{data.notabilityScore}/100</span>
+              <NotabilityScore data={data} />
             </div>
-            <p className="text-label text-muted-foreground">Notability skoru. 60+ değilse Wikipedia editörleri reddedebilir.</p>
+            <p className="text-label text-muted-foreground">RanksUp ön kontrol puanı: site, RanksUp&apos;taki rakip listesi ve SEO stratejisi, ana sayfanızdaki kimlik bağlantıları (Organization sameAs) üzerinden hesaplanır. Vikipedi&apos;nin kayda değerlik ölçütünü (bağımsız kaynaklarda yer alma) ölçmez.</p>
           </div>
 
           <div className="rounded-md border">
@@ -1220,6 +1325,19 @@ function WikipediaTab({ siteId }: { siteId: string }) {
       )}
     </div>
   );
+}
+
+/**
+ * RanksUp on kontrol puani "puan/tavan". Tavan API'den (notabilityMax = 50);
+ * eski cevapta yoksa 100. Renk orana gore: puan 100'e olceklenmez, cunku kalan
+ * kisim (bagimsiz kaynaklar) RanksUp'in olcemedigi, elle dogrulanacak kisimdir.
+ */
+function NotabilityScore({ data, large = false }: { data: { notabilityScore?: unknown; notabilityMax?: unknown }; large?: boolean }) {
+  const max = typeof data.notabilityMax === 'number' && data.notabilityMax > 0 ? data.notabilityMax : 100;
+  const score = typeof data.notabilityScore === 'number' ? data.notabilityScore : 0;
+  const ratio = score / max;
+  const tone = ratio >= 0.8 ? 'text-success' : ratio >= 0.4 ? 'text-warning' : 'text-danger';
+  return <span className={`${large ? 'text-metric-lg' : 'text-metric'} tabular-nums ${tone}`}>{score}/{max}</span>;
 }
 
 function Field({ label, value, onCopy }: { label: string; value: string; onCopy: (text: string) => void }) {

@@ -211,9 +211,9 @@ export class AgencyService {
     if (domain !== undefined) {
       const normalized = domain ? domain.toLowerCase() : null;
       if (normalized) {
-        // Duzeltme oncesi rol denetimi yoktu; ajans olmayan eski kayitlar
-        // alan adini bloklamasin (onlar resolveDomain'de de yok sayilir)
         const taken = await this.prisma.user.findFirst({
+          // Duzeltme oncesi rol denetimi yoktu; ajans olmayan eski kayitlar
+          // alan adini bloklamasin (onlar resolveDomain'de de yok sayilir)
           where: { whitelabelDomain: normalized, NOT: { id: agencyOwnerId }, role: { in: ['AGENCY_OWNER', 'ADMIN'] } },
           select: { id: true },
         });

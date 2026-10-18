@@ -79,6 +79,23 @@ export class AppliedFixService {
   }
 
   /**
+   * Uygulanan duzeltme geri alindi: kayit REVERTED olur (donem ozetinde
+   * "yapilan is" sayilmaz, geriAlinan'a girer). Geri yazma siteye zaten
+   * yapildigi icin kayit hatasi isi dusurmez — yukaridaki ilkeyle ayni.
+   */
+  async geriAlindi(id: string): Promise<void> {
+    try {
+      // userId'ye dokunulmaz: kaydin "kim uyguladi" bilgisi kaybolmasin
+      await this.prisma.appliedFix.update({
+        where: { id },
+        data: { status: 'REVERTED', revertedAt: new Date() },
+      });
+    } catch (err: any) {
+      this.log.warn(`Geri alma kaydi yazilamadi (${id}): ${err.message}`);
+    }
+  }
+
+  /**
    * Donem ozeti — rapor bunu kullanir.
    *
    * YALNIZCA status='APPLIED' sayilir. Basarisiz denemeler ve geri alinanlar

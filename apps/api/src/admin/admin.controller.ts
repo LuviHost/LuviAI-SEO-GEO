@@ -5,6 +5,9 @@ import { EmailService, type EmailTemplate } from '../email/email.service.js';
 import { AiCitationService } from '../audit/ai-citation.service.js';
 import { JobQueueService } from '../jobs/job-queue.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { QuotaService } from '../billing/quota.service.js';
+import { SessionOnly } from '../auth/session-only.decorator.js';
+import { EmailTestDto } from './admin.dto.js';
 
 function assertAdmin(req: Request) {
   const user = (req as any).user;
@@ -13,6 +16,18 @@ function assertAdmin(req: Request) {
   return user;
 }
 
+/**
+ * MUTASYONLAR YALNIZ PANEL OTURUMUYLA: kuyruk islemleri (yeniden dene, one al,
+ * sil, durdur, surdur), test e-postasi ve harcama sayaci sifirlama
+ * @SessionOnly — API anahtari 403 alir. NEDEN: /admin yolu anahtar kapsam
+ * haritasinda yok (api-keys.service ROUTE_RESOURCE); AuthGuard bilinmeyen
+ * kaynakta HERHANGI bir ':write' anahtarini yeterli sayiyordu. Yonetici
+ * hesabinin sizan bir anahtari tum musterilerin islerini silebilir, kuyrugu
+ * durdurabilir, harcama tavanini sifirlayabilir ya da RanksUp adina e-posta
+ * gonderebilirdi. Ayar yazimi (PUT /admin/settings/:key) ayni kuralla
+ * settings.controller'da. Okuma uclari degismedi. Web paneli oturumla cagirir;
+ * SDK ve MCP bu uclari kullanmiyor.
+ */
 @Controller('admin')
 export class AdminController {
   constructor(
@@ -21,6 +36,7 @@ export class AdminController {
     private readonly aiCitation: AiCitationService,
     private readonly jobQueue: JobQueueService,
     private readonly prisma: PrismaService,
+    private readonly quota: QuotaService,
   ) {}
 
   // ──────────────────────────────────────────────────────────────────────
@@ -46,6 +62,7 @@ export class AdminController {
     return this.jobQueue.listJobs(s, lim);
   }
 
+  @SessionOnly()
   @Post('queue/jobs/:jobId/retry')
   async queueRetryJob(@Req() req: Request, @Param('jobId') jobId: string) {
     assertAdmin(req);
@@ -53,6 +70,7 @@ export class AdminController {
     return { ok };
   }
 
+  @SessionOnly()
   @Post('queue/jobs/:jobId/promote')
   async queuePromoteJob(@Req() req: Request, @Param('jobId') jobId: string) {
     assertAdmin(req);
@@ -60,6 +78,7 @@ export class AdminController {
     return { ok };
   }
 
+  @SessionOnly()
   @Post('queue/jobs/:jobId/remove')
   async queueRemoveJob(@Req() req: Request, @Param('jobId') jobId: string) {
     assertAdmin(req);
@@ -67,6 +86,7 @@ export class AdminController {
     return { ok };
   }
 
+  @SessionOnly()
   @Post('queue/pause')
   async queuePause(@Req() req: Request) {
     assertAdmin(req);
@@ -74,6 +94,7 @@ export class AdminController {
     return { ok: true, paused: true };
   }
 
+  @SessionOnly()
   @Post('queue/resume')
   async queueResume(@Req() req: Request) {
     assertAdmin(req);
@@ -150,17 +171,18 @@ export class AdminController {
    * RESEND_API_KEY yoksa "log only" moda duser, "ok:true" doner ama gercek
    * mail atmaz — donus body'sinde uyari verilir.
    */
+  @SessionOnly()
   @Post('email-test')
   async emailTest(
     @Req() req: Request,
-    @Body() body: { to?: string; template?: EmailTemplate; name?: string },
+    @Body() body: EmailTestDto,
   ) {
     assertAdmin(req);
-    const to = body.to?.trim();
+    const to = typeof body?.to === 'string' ? body.to.trim() : '';
     if (!to || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) {
       throw new BadRequestException('Gecerli bir email adresi gerekli (to alani)');
     }
-    const template: EmailTemplate = body.template ?? 'welcome_day0';
+    const template = (body.template ?? 'welcome_day0') as EmailTemplate;
     const result = await this.email.send({
       to,
       template,
@@ -196,10 +218,6 @@ export class AdminController {
   async usersSpendStatus(@Req() req: Request) {
     assertAdmin(req);
 
-    const SPEND_CAP_USD: Record<string, number> = {
-      TRIAL: 3, STARTER: 25, PRO: 80, AGENCY: 200, ENTERPRISE: 700,
-    };
-
     const users = await this.prisma.user.findMany({
       where: { subscriptionStatus: { in: ['ACTIVE', 'TRIAL', 'PAST_DUE'] } as any },
       select: {
@@ -217,12 +235,18 @@ export class AdminController {
       take: 200,
     });
 
-    const enriched = users.map((u: any) => {
-      const cap = SPEND_CAP_USD[u.plan] ?? 25;
-      const used = u.aiCostThisMonthUsd ?? 0;
-      const pct = cap > 0 ? Math.round((used / cap) * 100) : 0;
-      const risk = pct >= 100 ? 'blocked' : pct >= 80 ? 'warn' : pct >= 50 ? 'normal' : 'low';
-      return {
+    // Tavan, kullanim ve yuzde DAYATMANIN hesabindan (QuotaService.checkAiCostBudget):
+    // eskiden burada elle yazilmis bir SPEND_CAP_USD kopyasi vardi; tavan
+    // degisince bu sayfa "engelli" olmayan kullaniciyi engelli (ya da tersi)
+    // gosterirdi. Okunamayan satir (liste ile okuma arasinda silinen kullanici)
+    // listeden duser.
+    const budgets = await Promise.all(users.map((u: any) => this.quota.checkAiCostBudget(u.id).catch(() => null)));
+    const enriched = users.flatMap((u: any, i: number) => {
+      const budget = budgets[i];
+      if (!budget) return [];
+      const { cap, used, pct } = budget;
+      const risk = budget.hardBlock ? 'blocked' : budget.warn ? 'warn' : pct >= 50 ? 'normal' : 'low';
+      return [{
         id: u.id,
         email: u.email,
         name: u.name,
@@ -237,7 +261,7 @@ export class AdminController {
         isGrandfathered: !!u.grandfatheredUntil,
         legacyMonthlyPriceTry: u.legacyMonthlyPriceTry,
         createdAt: u.createdAt,
-      };
+      }];
     });
 
     const summary = {
@@ -256,6 +280,7 @@ export class AdminController {
    * POST /admin/users/:userId/reset-spend
    * Spend cap'i manuel sıfırla (kullanıcı destek talebi sonrası, vs.).
    */
+  @SessionOnly()
   @Post('users/:userId/reset-spend')
   async resetSpend(@Req() req: Request, @Param('userId') userId: string) {
     assertAdmin(req);

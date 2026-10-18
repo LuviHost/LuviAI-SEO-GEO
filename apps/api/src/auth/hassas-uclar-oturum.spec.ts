@@ -55,11 +55,13 @@ describe('GSC/GA kesme ve baslatma — sahiplik', () => {
     const prisma = {
       // MySQL gibi harf duyarsiz eslesme: 'S1' de 's1' satirini bulur.
       site: { findUnique: vi.fn(async ({ where }: any) => (String(where.id).toLowerCase() === 's1' ? { id: 's1', userId: 'sahip' } : null)) },
+      // OAuth state'i kullaniciya + siteye bagli, tek kullanimlik kayit (oauth-state.ts)
+      kvStore: { deleteMany: vi.fn(async () => ({ count: 0 })), create: vi.fn(async () => ({})) },
     };
-    const gsc = { disconnect: vi.fn(async () => ({ ok: true })), buildAuthorizationUrl: vi.fn(async () => 'https://accounts.google.com/x') };
-    const ga = { disconnect: vi.fn(async () => ({ ok: true })), buildAuthorizationUrl: vi.fn(async () => 'https://accounts.google.com/y') };
-    const ctl = new AuthController({} as any, gsc as any, ga as any, {} as any, prisma as any);
-    return { ctl, gsc, ga };
+    const gsc = { disconnect: vi.fn(async () => ({ ok: true })), buildAuthorizationUrl: vi.fn(() => 'https://accounts.google.com/x') };
+    const ga = { disconnect: vi.fn(async () => ({ ok: true })), buildAuthorizationUrl: vi.fn(() => 'https://accounts.google.com/y') };
+    const ctl = new AuthController({} as any, gsc as any, ga as any, {} as any, prisma as any, {} as any);
+    return { ctl, gsc, ga, prisma };
   }
   const req = (id: string, role = 'USER') => ({ user: { id, role } }) as any;
 
@@ -85,12 +87,18 @@ describe('GSC/GA kesme ve baslatma — sahiplik', () => {
     await expect(ctl.disconnectGa({} as any, req('sahip'))).rejects.toBeInstanceOf(BadRequestException);
   });
 
-  it('site sahibi ve ADMIN kesebilir/baslatabilir', async () => {
-    const { ctl, gsc, ga } = controller();
+  it('site sahibi ve ADMIN kesebilir/baslatabilir; state kullaniciya ve siteye bagli', async () => {
+    const { ctl, gsc, ga, prisma } = controller();
     await ctl.disconnectGsc({ siteId: 's1' }, req('sahip'));
     await ctl.disconnectGa({ siteId: 's1' }, req('admin', 'ADMIN'));
     expect(gsc.disconnect).toHaveBeenCalledWith('s1');
     expect(ga.disconnect).toHaveBeenCalledWith('s1');
     await expect(ctl.startGscOAuth('s1', req('sahip'))).resolves.toEqual({ url: 'https://accounts.google.com/x' });
+    // Google'a giden state cipla site kimligi degil, kayitli tek kullanimlik bir anahtar
+    const state = (gsc.buildAuthorizationUrl.mock.calls[0] as any[])[0];
+    expect(state).not.toBe('s1');
+    const saved = (prisma.kvStore.create.mock.calls[0] as any[])[0].data;
+    expect(saved.key.endsWith(state)).toBe(true);
+    expect(JSON.parse(saved.value)).toMatchObject({ userId: 'sahip', siteId: 's1', provider: 'gsc' });
   });
 });

@@ -9,6 +9,11 @@ const CONTENT = {
     titleA: 'Gizlilik',
     titleB: 'Politikası',
     effective: 'Yürürlük: 27 Nisan 2026',
+    // Icerik degisti (KVKK silme yollari + silme sonrasi fatura saklama). Yururluk tarihi
+    // korunur; okuyan metnin degistigini gorsun diye son guncelleme ve not ayrica yazilir.
+    // Tarih yayin gunuyle guncellenmeli (sahip onayi bekliyor).
+    updated: 'Son güncelleme: 18 Ekim 2026',
+    changeNote: 'Değişiklik: hesap silme yolları (mobil uygulama ve web paneli) ile silme sonrası fatura ve ödeme kayıtlarının saklanması eklendi.',
     s1: '1. Toplanan Veriler',
     s1items: [
       'Hesap bilgileri: email, ad, varsa profil fotoğrafı',
@@ -39,7 +44,7 @@ const CONTENT = {
     s7items: [
       'Verilerinize erişim talep etme',
       'Düzeltme talep etme',
-      'Silme talep etme (hesap silindiğinde 30 gün sonra geri dönüşsüz silinir)',
+      'Silme talep etme: hesabınızı mobil uygulamada “Hesabı sil”, web panelinde “Hesabım & Abonelik” sayfasından silebilirsiniz. Erişim hemen kapanır, aboneliğiniz iptal edilir; verileriniz 30 gün sonra geri dönüşsüz silinir. Fatura ve ödeme kayıtları, vergi ve ticaret mevzuatı gereği saklanması zorunlu olduğundan kişisel bağlantısı kaldırılarak saklanır.',
       'Veri taşınabilirliği (JSON export)',
     ],
     s8: '8. İletişim',
@@ -50,6 +55,8 @@ const CONTENT = {
     titleA: 'Privacy',
     titleB: 'Policy',
     effective: 'Effective: April 27, 2026',
+    updated: 'Last updated: October 18, 2026',
+    changeNote: 'Change: added the account deletion paths (mobile app and web dashboard) and how invoices and payment records are kept after deletion.',
     s1: '1. Data Collected',
     s1items: [
       'Account info: email, name, profile photo if any',
@@ -80,7 +87,7 @@ const CONTENT = {
     s7items: [
       'Request access to your data',
       'Request correction',
-      'Request deletion (permanently removed 30 days after account deletion)',
+      'Request deletion: delete your account in the mobile app (“Delete account”) or on the dashboard’s account & subscription page. Access ends immediately and your subscription is canceled; your data is permanently removed 30 days later. Invoices and payment records are retained with the personal link removed, as tax and commercial law require.',
       'Data portability (JSON export)',
     ],
     s8: '8. Contact',
@@ -105,7 +112,9 @@ export default function PrivacyPage() {
           </span>{' '}
           {d.titleB}
         </h1>
-        <p className="text-sm text-muted-foreground mb-8">{d.effective}</p>
+        <p className="text-sm text-muted-foreground mb-1">{d.effective}</p>
+        <p className="text-sm text-muted-foreground mb-1">{d.updated}</p>
+        <p className="text-sm text-muted-foreground mb-8">{d.changeNote}</p>
 
         <h2 className="text-xl font-bold mt-8 mb-3">{d.s1}</h2>
         <ul className="space-y-1 text-sm">

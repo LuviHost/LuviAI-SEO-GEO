@@ -4,7 +4,7 @@
  * Girişsiz akış: son analiz edilen site tüm sekmeleri besler.
  */
 import React, { createContext, useCallback, useContext, useState } from 'react';
-import { analyzeSite, PROVIDER_META, type AnalyzeResult, type ProviderKey } from './api';
+import { analyzeSite, type AnalyzeResult } from './api';
 
 interface AnalysisState {
   domain: string | null;
@@ -56,63 +56,6 @@ export function useAnalysis(): AnalysisState {
 }
 
 /* ══════════════ Türetilmiş metrikler (citation-check → görünürlük paneli) ══════════════ */
-
-export interface EngineStat {
-  provider: ProviderKey;
-  name: string;
-  color: string;
-  cited: number; // markanın alıntılandığı soru sayısı
-  mentioned: number; // sadece adı geçen (alıntısız) soru sayısı
-  total: number; // toplam soru sayısı
-  rate: number; // görünürlük oranı % (cited / total)
-}
-
-export interface VisibilityDerived {
-  score: number; // genel görünürlük skoru 0-100
-  citedPairs: number; // alıntılanan (soru×motor) sayısı
-  totalPairs: number; // toplam (soru×motor) sayısı
-  engines: EngineStat[]; // motora göre, alıntı sayısına göre azalan
-  answeredQueries: number; // en az bir motorun alıntıladığı soru sayısı
-  totalQueries: number;
-}
-
-/** Bir citation-check sonucundan motor bazlı gerçek görünürlük metriklerini çıkarır. */
-export function deriveVisibility(result: AnalyzeResult): VisibilityDerived {
-  const totalQueries = result.queries.length;
-  const acc = new Map<ProviderKey, { cited: number; mentioned: number; total: number }>();
-
-  let citedPairs = 0;
-  let totalPairs = 0;
-  let answeredQueries = 0;
-
-  for (const q of result.queries) {
-    if (q.citedCount > 0) answeredQueries++;
-    for (const p of q.providers) {
-      const cur = acc.get(p.provider) ?? { cited: 0, mentioned: 0, total: 0 };
-      cur.total += 1;
-      totalPairs += 1;
-      if (p.cited) { cur.cited += 1; citedPairs += 1; }
-      else if (p.brandMentioned) cur.mentioned += 1;
-      acc.set(p.provider, cur);
-    }
-  }
-
-  const engines: EngineStat[] = Array.from(acc.entries())
-    .map(([provider, s]) => {
-      const meta = PROVIDER_META[provider];
-      return {
-        provider,
-        name: meta?.name ?? provider,
-        color: meta?.color ?? '#F47F46',
-        cited: s.cited,
-        mentioned: s.mentioned,
-        total: s.total,
-        rate: s.total > 0 ? Math.round((s.cited / s.total) * 100) : 0,
-      };
-    })
-    .sort((a, b) => b.cited - a.cited || b.mentioned - a.mentioned);
-
-  const score = totalPairs > 0 ? Math.round((citedPairs / totalPairs) * 100) : 0;
-
-  return { score, citedPairs, totalPairs, engines, answeredQueries, totalQueries };
-}
+// Hesap src/visibility.ts'te (saf modul, test edilir; web summarize() ile ayni tanim).
+// Buradan yeniden disa aktarilir ki mevcut importlar degismesin.
+export { deriveVisibility, type EngineStat, type VisibilityDerived } from './visibility';

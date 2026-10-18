@@ -1,11 +1,16 @@
-import { Body, Controller, Delete, Get, NotFoundException, Param, Patch, Post, Put, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, NotFoundException, Param, Patch, Post, Put, Query, UseGuards } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
+import { SiteUserThrottlerGuard, SITE_USER_THROTTLE } from '../audit/site-user-throttler.guard.js';
 import { ArticlesService } from './articles.service.js';
 import { ArticleSchedulerService } from './article-scheduler.service.js';
 import { ProgrammaticSeoService } from './programmatic-seo.service.js';
 import { TranslatorService } from './translator.service.js';
 import { QaGateService } from './qa-gate.service.js';
 import { RequiresPlan } from '../billing/plan-feature.decorator.js';
-import { TranslateArticleDto, TranslateBulkDto } from './articles.dto.js';
+import {
+  GenerateArticleDto, ProgrammaticCitiesDto, PublishArticleDto, PublishedEntryParamsDto, RescheduleArticleDto, RunPipelineNowDto,
+  ScheduleTopicDto, SocialPrePlanDto, TranslateArticleDto, TranslateBulkDto,
+} from './articles.dto.js';
 
 // PLAN KAPILARI — bu dosyada yalnizca EYLEM uclari plana baglidir.
 // Programmatic SEO fiyat kartinda Ajans plani maddesi olarak satiliyor, o yuzden
@@ -45,7 +50,8 @@ export class ArticlesController {
 
   @Get()
   list(@Param('siteId') siteId: string, @Query('status') status?: string) {
-    return this.articles.list(siteId, status);
+    // Yalniz dize suzgec (?status[not]=x nesne olur, Prisma'da filtreye donusurdu)
+    return this.articles.list(siteId, typeof status === 'string' && status ? status : undefined);
   }
 
   /** GET /sites/:siteId/articles/scheduled — takvim icin bekleyen makaleler */
@@ -58,9 +64,14 @@ export class ArticlesController {
   @Post('schedule-topic')
   scheduleTopic(
     @Param('siteId') siteId: string,
-    @Body() body: { topic: string; scheduledAt: string; slug?: string; pillar?: string },
+    @Body() body: ScheduleTopicDto,
   ) {
-    return this.scheduler.scheduleTopic(siteId, body);
+    return this.scheduler.scheduleTopic(siteId, {
+      topic: body.topic,
+      scheduledAt: body.scheduledAt,
+      slug: body.slug,
+      pillar: body.pillar,
+    });
   }
 
   /** PUT /sites/:siteId/articles/:id/reschedule — drag-drop: takvimde mevcut makaleyi tasi */
@@ -68,12 +79,12 @@ export class ArticlesController {
   async reschedule(
     @Param('siteId') siteId: string,
     @Param('id') id: string,
-    @Body() body: { scheduledAt: string },
+    @Body() body: RescheduleArticleDto,
   ) {
     // Servis makaleyi yalniz id ile okuyor: baska sitenin makalesi tasinabiliyor
     // (DRAFT → SCHEDULED, kurbanin kotasindan uretim) ve tam satiri donuyordu
     await this.requireArticle(siteId, id);
-    return this.scheduler.rescheduleArticle(id, body.scheduledAt);
+    return this.scheduler.rescheduleArticle(siteId, id, body.scheduledAt);
   }
 
   /** DELETE /sites/:siteId/articles/scheduled/:id — takvimden kaldir */
@@ -81,7 +92,7 @@ export class ArticlesController {
   async unschedule(@Param('siteId') siteId: string, @Param('id') id: string) {
     // Servis yalniz id ile siliyordu — baska sitenin takvimdeki makalesi silinebiliyordu
     await this.requireArticle(siteId, id);
-    return this.scheduler.unscheduleArticle(id);
+    return this.scheduler.unscheduleArticle(siteId, id);
   }
 
   /**
@@ -96,7 +107,7 @@ export class ArticlesController {
   setSocialPrePlan(
     @Param('siteId') siteId: string,
     @Param('id') id: string,
-    @Body() body: { channelIds: string[] | null },
+    @Body() body: SocialPrePlanDto,
   ) {
     return this.articles.setSocialPrePlan(siteId, id, body?.channelIds ?? null);
   }
@@ -108,13 +119,13 @@ export class ArticlesController {
 
   /** POST /sites/:siteId/articles/generate — queue */
   @Post('generate')
-  generate(@Param('siteId') siteId: string, @Body() body: { topic: string; targetIds?: string[] }) {
+  generate(@Param('siteId') siteId: string, @Body() body: GenerateArticleDto) {
     return this.articles.queueGeneration(siteId, body.topic, body.targetIds);
   }
 
   /** POST /sites/:siteId/articles/run-now — senkron pipeline (quota'li) */
   @Post('run-now')
-  runNow(@Param('siteId') siteId: string, @Body() body: { topic: string; skipImages?: boolean; maxRevize?: number }) {
+  runNow(@Param('siteId') siteId: string, @Body() body: RunPipelineNowDto) {
     return this.articles.runPipelineNow({
       siteId,
       topic: body.topic,
@@ -123,14 +134,48 @@ export class ArticlesController {
     });
   }
 
-  /** POST /sites/:siteId/articles/:id/publish */
+  /**
+   * POST /sites/:siteId/articles/:id/publish
+   * Govde: { targetIds?, overrideQa?, overwriteRemoteEdits? }. overwriteRemoteEdits
+   * (C1) yalniz kullanicinin acik onayidir: WordPress'te RanksUp disinda
+   * degismis yazinin ustune yazilir; verilmezse o yazi atlanir (live_entry_edited).
+   * targetIds doluysa aynen uygulanir (D1: secilmeyen canli kopya yazilmaz,
+   * 'live_target_not_selected'); is kullanicinin yayini olarak kuyruga girer
+   * (initiator 'user', D2: silinen yazi yalniz adi verilen hedefte yeniden olusturulur).
+   */
   @Post(':id/publish')
   publish(
     @Param('siteId') siteId: string,
     @Param('id') id: string,
-    @Body() body: { targetIds: string[]; overrideQa?: boolean },
+    @Body() body: PublishArticleDto,
   ) {
-    return this.articles.queuePublish(siteId, id, body.targetIds, { overrideQa: body.overrideQa });
+    return this.articles.queuePublish(siteId, id, body.targetIds ?? [], {
+      overrideQa: body.overrideQa === true,
+      overwriteRemoteEdits: body.overwriteRemoteEdits === true,
+    });
+  }
+
+  /**
+   * POST /sites/:siteId/articles/:articleId/published-to/:targetId/mark-updated
+   * Musteri, RanksUp'in guncelleyemedigi canli kopyayi kendi panelinden
+   * guncelledi → kaydin "elle guncelleme bekliyor" isareti kalkar. Kayit yoksa 404.
+   * Donus: { ok, status, publishedTo }. Sahiplik: SiteAccessGuard (:siteId) +
+   * makale bu siteye ait (serviste) + kimlikler kanonik (DTO).
+   */
+  @Post(':articleId/published-to/:targetId/mark-updated')
+  markPublishedEntryUpdated(@Param() params: PublishedEntryParamsDto) {
+    return this.articles.markPublishedEntryUpdated(params.siteId, params.articleId, params.targetId);
+  }
+
+  /**
+   * POST /sites/:siteId/articles/:articleId/published-to/:targetId/forget
+   * Musteri yazinin o hedefteki kopyasini sildi → kayit kaldirilir; o hedefe
+   * sonraki yayin yeni kayit acar. Canli kayit kalmazsa yazi READY_TO_PUBLISH.
+   * Kayit yoksa 404. Donus: { ok, status, publishedTo }.
+   */
+  @Post(':articleId/published-to/:targetId/forget')
+  forgetPublishedEntry(@Param() params: PublishedEntryParamsDto) {
+    return this.articles.forgetPublishedEntry(params.siteId, params.articleId, params.targetId);
   }
 
   /** POST /sites/:siteId/articles/:id/qa-check — yayin oncesi QA gate'i (yeniden) kos */
@@ -146,15 +191,22 @@ export class ArticlesController {
   }
 
   /** POST /sites/:siteId/articles/:id/translate — makaleyi farkli dile cevir */
+  // Her ceviri 32k cikti tavanli bir Sonnet cagrisi; plan kapisi yok, bu yuzden
+  // site+kullanici basina saatlik tavan (diger model cagiran rotalarla ayni koruma)
+  @UseGuards(SiteUserThrottlerGuard)
+  @Throttle({ [SITE_USER_THROTTLE]: { limit: 10, ttl: 60 * 60_000 } })
   @Post(':id/translate')
   async translate(@Param('siteId') siteId: string, @Param('id') id: string, @Body() body: TranslateArticleDto) {
     // Servis makaleyi yalniz id ile okuyor: baska sitenin makalesi o sitede
     // yeni bir ceviri kaydi olarak (LLM maliyetiyle) uretilebiliyordu
     await this.requireArticle(siteId, id);
-    return this.translator.translate(id, body.toLanguage);
+    return this.translator.translate(id, body.toLanguage, siteId);
   }
 
   /** POST /sites/:siteId/articles/translate-bulk — site icin bulk cevir */
+  // Tek istek 20 makale x N dil Sonnet cagrisi uretebilir
+  @UseGuards(SiteUserThrottlerGuard)
+  @Throttle({ [SITE_USER_THROTTLE]: { limit: 2, ttl: 60 * 60_000 } })
   @Post('translate-bulk')
   translateBulk(@Param('siteId') siteId: string, @Body() body: TranslateBulkDto) {
     return this.translator.bulkTranslateSite(siteId, body.languages ?? ['en']);
@@ -165,8 +217,13 @@ export class ArticlesController {
   @Post('programmatic/cities')
   programmaticCities(
     @Param('siteId') siteId: string,
-    @Body() body: { template: string; cities?: string[]; spreadDays?: number; maxQuota?: number },
+    @Body() body: ProgrammaticCitiesDto,
   ) {
-    return this.programmatic.generateCityPages(siteId, body);
+    return this.programmatic.generateCityPages(siteId, {
+      template: body.template,
+      cities: body.cities,
+      spreadDays: body.spreadDays,
+      maxQuota: body.maxQuota,
+    });
   }
 }

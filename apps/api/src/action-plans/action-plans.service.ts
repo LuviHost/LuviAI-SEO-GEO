@@ -19,16 +19,42 @@ const STATUSES = ['todo', 'in_progress', 'done', 'dismissed'] as const;
 const IMPACTS = ['high', 'medium', 'low'] as const;
 const EFFORTS = ['easy', 'medium', 'hard'] as const;
 
+/** meta JSON ust siniri — istemci verisi DB'ye sinirsiz yazilmasin */
+const META_MAX_CHARS = 10_000;
+/**
+ * title ve sourceRef kolonlari VARCHAR(191) (migration 20260812153747).
+ * Baslik kurali 3-300 karakter olarak kalir ama 191'i asan baslik kati SQL
+ * kipinde (MySQL 8 varsayilani) Prisma P2000 ile 500 verir (haftalik plan /
+ * istihbarat 300'e kadar kesiyordu) — yazmadan once 191'e kisaltilir.
+ */
+const DB_VARCHAR_MAX = 191;
+
+function fitTitle(t: string): string {
+  return t.length <= DB_VARCHAR_MAX ? t : `${t.slice(0, DB_VARCHAR_MAX - 1).trimEnd()}…`;
+}
+
+/** '' / null / undefined → tarih yok; gecersiz tarih Prisma'da 500 yerine 400 */
+function parseDueAt(v: unknown): Date | null {
+  if (v === undefined || v === null || v === '') return null;
+  const d = typeof v === 'string' ? new Date(v) : null;
+  if (!d || Number.isNaN(d.getTime())) throw new BadRequestException('dueAt geçerli bir tarih olmalı');
+  return d;
+}
+
 @Injectable()
 export class ActionPlansService {
   constructor(private readonly prisma: PrismaService) {}
 
   async list(siteId: string, opts: { status?: string; source?: string } = {}) {
+    // Yalniz dize suzgec: ?status[not]=x sorgu ayristiricida, MCP arguman
+    // JSON'unda nesne olur ve Prisma'da filtre islemine donusurdu
+    const status = typeof opts.status === 'string' && opts.status ? opts.status : undefined;
+    const source = typeof opts.source === 'string' && opts.source ? opts.source : undefined;
     return this.prisma.actionPlanItem.findMany({
       where: {
         siteId,
-        ...(opts.status ? { status: opts.status } : {}),
-        ...(opts.source ? { source: opts.source } : {}),
+        ...(status ? { status } : {}),
+        ...(source ? { source } : {}),
       },
       orderBy: [
         { status: 'asc' },
@@ -68,14 +94,22 @@ export class ActionPlansService {
   }) {
     const title = typeof input.title === 'string' ? input.title.trim() : '';
     if (title.length < 3 || title.length > 300) {
-      throw new BadRequestException('Baslik 3-300 karakter olmali');
+      throw new BadRequestException('Başlık 3-300 karakter olmalı');
     }
     const source = SOURCES.includes(input.source as any) ? input.source! : 'manual';
+    // Yalniz dize: nesne gelirse Prisma where'inde filtre olurdu ({ not: null })
+    const sourceRef = typeof input.sourceRef === 'string' && input.sourceRef ? input.sourceRef.slice(0, DB_VARCHAR_MAX) : null;
+    const description = typeof input.description === 'string' ? input.description.slice(0, 5000) : null;
+    const dueAt = parseDueAt(input.dueAt);
+    const meta = input.meta !== undefined && input.meta !== null ? input.meta : undefined;
+    if (meta !== undefined && (typeof meta !== 'object' || Array.isArray(meta) || JSON.stringify(meta).length > META_MAX_CHARS)) {
+      throw new BadRequestException(`meta en fazla ${META_MAX_CHARS} karakterlik bir nesne olmalı`);
+    }
 
     // Ayni kaynak + referanstan cift kayit acma (ör. ayni check iki kez eklenmesin)
-    if (input.sourceRef) {
+    if (sourceRef) {
       const dup = await this.prisma.actionPlanItem.findFirst({
-        where: { siteId, source, sourceRef: input.sourceRef, status: { in: ['todo', 'in_progress'] } },
+        where: { siteId, source, sourceRef, status: { in: ['todo', 'in_progress'] } },
       });
       if (dup) return dup;
     }
@@ -83,14 +117,14 @@ export class ActionPlansService {
     return this.prisma.actionPlanItem.create({
       data: {
         siteId,
-        title,
-        description: input.description?.slice(0, 5000) ?? null,
+        title: fitTitle(title),
+        description,
         source,
-        sourceRef: input.sourceRef?.slice(0, 200) ?? null,
+        sourceRef,
         impact: IMPACTS.includes(input.impact as any) ? input.impact! : 'medium',
         effort: EFFORTS.includes(input.effort as any) ? input.effort! : 'medium',
-        dueAt: input.dueAt ? new Date(input.dueAt) : null,
-        meta: input.meta ?? undefined,
+        dueAt: dueAt ?? null,
+        meta,
       },
     });
   }
@@ -108,10 +142,10 @@ export class ActionPlansService {
     const data: any = {};
     if (input.title !== undefined) {
       const t = String(input.title).trim();
-      if (t.length < 3 || t.length > 300) throw new BadRequestException('Baslik 3-300 karakter olmali');
-      data.title = t;
+      if (t.length < 3 || t.length > 300) throw new BadRequestException('Başlık 3-300 karakter olmalı');
+      data.title = fitTitle(t);
     }
-    if (input.description !== undefined) data.description = String(input.description).slice(0, 5000);
+    if (input.description !== undefined) data.description = input.description === null ? null : String(input.description).slice(0, 5000);
     if (input.status !== undefined) {
       if (!STATUSES.includes(input.status as any)) {
         throw new BadRequestException(`Durum yalnizca ${STATUSES.join('/')} olabilir`);
@@ -121,7 +155,7 @@ export class ActionPlansService {
     }
     if (input.impact !== undefined && IMPACTS.includes(input.impact as any)) data.impact = input.impact;
     if (input.effort !== undefined && EFFORTS.includes(input.effort as any)) data.effort = input.effort;
-    if (input.dueAt !== undefined) data.dueAt = input.dueAt ? new Date(input.dueAt) : null;
+    if (input.dueAt !== undefined) data.dueAt = parseDueAt(input.dueAt) ?? null;
 
     return this.prisma.actionPlanItem.update({ where: { id: item.id }, data });
   }

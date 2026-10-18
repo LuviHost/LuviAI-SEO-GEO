@@ -203,11 +203,24 @@ export class AsoKeywordService {
     store: 'IOS' | 'ANDROID';
     country?: string;
   }): Promise<string[]> {
+    return (await this.extractCompetitorTerms(opts)).keywords;
+  }
+
+  /**
+   * Rakibin adi + kelimeleri. Ad da donuyor cunku rakip MARKASI kendi
+   * aciklamasinda en sik gecen kelimelerden biri ve oneri listesine sizar;
+   * Apple 2.3.7 meta veride baska uygulama adini yasakliyor (bkz. ai-agent).
+   */
+  async extractCompetitorTerms(opts: {
+    competitorAppId: string;
+    store: 'IOS' | 'ANDROID';
+    country?: string;
+  }): Promise<{ title: string | null; keywords: string[] }> {
     const app = opts.store === 'IOS'
       ? await this.scrapers.getIosApp({ id: opts.competitorAppId, country: opts.country })
       : await this.scrapers.getAndroidApp({ appId: opts.competitorAppId, country: opts.country });
 
-    if (!app) return [];
+    if (!app) return { title: null, keywords: [] };
 
     const text = [
       app.title ?? '',
@@ -249,6 +262,6 @@ export class AsoKeywordService {
       .slice(0, 15)
       .map(([w]) => w);
 
-    return [...top, ...topBigrams];
+    return { title: typeof app.title === 'string' ? app.title : null, keywords: [...top, ...topBigrams] };
   }
 }

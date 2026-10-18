@@ -1,15 +1,27 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { containsBrand, resolveSiteBrand } from './brand-in-query.js';
+import { brandMatcher, resolveSiteBrand, type BrandMatcher } from './brand-in-query.js';
+import { hostMentioned } from './host-match.js';
+import { probeErrorExcerpt, safeErrorText } from './probe-retry.js';
+import { foldForMatch } from '../common/text-normalize.js';
 import Anthropic from '@anthropic-ai/sdk';
 import { GoogleGenAI } from '@google/genai';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { SettingsService } from '../settings/settings.service.js';
 import { noteMeasured } from '../billing/measurement-allowance.js';
+import { GEO_HEATMAP_MAX_QUERIES, clampLimit } from './audit-limits.js';
+
+/**
+ * Hucre durumu. 'error' (saglayici hatasi / bos cevap) ve 'disabled'
+ * (saglayici bu sunucuda etkin degil) OLCUM DEGILDIR: skor paydasina ve
+ * firsat/zayif/guzel siniflarina girmez. Eskiden ikisi de 'none' yaziliyordu;
+ * hata alan saglayici 0 puan, hata alan soru "fırsat (kimse yok)" gorunuyordu.
+ */
+export type HeatmapStatus = 'cited' | 'mentioned' | 'competitor' | 'none' | 'error' | 'disabled';
 
 export interface HeatmapCell {
   query: string;
   provider: string;
-  status: 'cited' | 'mentioned' | 'competitor' | 'none';
+  status: HeatmapStatus;
   competitor?: string; // hangi rakip alıntılandı
   excerpt: string;
 }
@@ -19,17 +31,95 @@ export interface HeatmapResult {
   brand: string;
   brandHost: string;
   competitors: string[];
+  /** Gorunen adlar (Claude, Gemini...) — providerIds ile ayni sirada */
   providers: string[];
+  /** Saglayici kimlikleri (anthropic, gemini...) — scoreByProvider anahtarlari */
+  providerIds: string[];
   queries: string[];
   cells: HeatmapCell[];
-  // Aggregations
-  scoreByProvider: Record<string, number>;       // 0-100
-  scoreByQuery: Record<string, number>;
+  // Aggregations — yalniz OLCULEN hucrelerden; hic olculen hucre yoksa null
+  scoreByProvider: Record<string, number | null>; // 0-100
+  scoreByQuery: Record<string, number | null>;
   competitorWins: Record<string, number>;        // rakip adi → kac kez alıntılandı
-  // Strategic insights
+  // Strategic insights (yalniz en az bir hucresi olculen sorgular)
   fırsatQueries: string[];                       // hiç kimse alıntılanmıyor — boşluk
   zayifQueries: string[];                        // rakip alıntılanıyor, biz değiliz
   guzelQueries: string[];                        // biz alıntılanıyoruz
+  /** Hicbir saglayicida olculemeyen sorgular — hicbir sinifa girmez */
+  olculemeyenQueries: string[];
+}
+
+/** Hucre bir olcum mu — hata ve etkin olmayan saglayici olcum degildir */
+export function isMeasuredCell(c: Pick<HeatmapCell, 'status'>): boolean {
+  return c.status !== 'error' && c.status !== 'disabled';
+}
+
+/** Ana olcumle (citation-score.ts) ayni puan: alinti 100, yalniz anilma 50; olculen hucre yoksa null */
+function cellScore(cells: HeatmapCell[]): number | null {
+  const measured = cells.filter(isMeasuredCell);
+  if (measured.length === 0) return null;
+  const cited = measured.filter((c) => c.status === 'cited').length;
+  const mentioned = measured.filter((c) => c.status === 'mentioned').length;
+  return Math.round((cited * 100 + mentioned * 50) / measured.length);
+}
+
+/**
+ * Izgara ozetleri (saf). Skorlar ve siniflar yalniz OLCULEN hucrelerden:
+ * bir saglayicinin tum hucreleri hataliysa skoru null ("olculemedi"), bir
+ * sorgunun tum hucreleri hataliysa sorgu olculemeyenler listesine gider —
+ * "fırsat (kimse yok)" diye gosterilmez.
+ */
+export function summarizeHeatmap(
+  cells: HeatmapCell[],
+  providerIds: string[],
+  queries: string[],
+): Pick<HeatmapResult, 'scoreByProvider' | 'scoreByQuery' | 'competitorWins' | 'fırsatQueries' | 'zayifQueries' | 'guzelQueries' | 'olculemeyenQueries'> {
+  const scoreByProvider: Record<string, number | null> = {};
+  const scoreByQuery: Record<string, number | null> = {};
+  const competitorWins: Record<string, number> = {};
+  for (const id of providerIds) scoreByProvider[id] = cellScore(cells.filter((c) => c.provider === id));
+  for (const q of queries) scoreByQuery[q] = cellScore(cells.filter((c) => c.query === q));
+  for (const c of cells) {
+    if (c.status === 'competitor' && c.competitor) {
+      competitorWins[c.competitor] = (competitorWins[c.competitor] ?? 0) + 1;
+    }
+  }
+
+  const fırsatQueries: string[] = [];
+  const zayifQueries: string[] = [];
+  const guzelQueries: string[] = [];
+  const olculemeyenQueries: string[] = [];
+  for (const q of queries) {
+    const measured = cells.filter((c) => c.query === q && isMeasuredCell(c));
+    if (measured.length === 0) olculemeyenQueries.push(q);
+    else if (measured.some((c) => c.status === 'cited')) guzelQueries.push(q);
+    else if (measured.some((c) => c.status === 'competitor')) zayifQueries.push(q);
+    else fırsatQueries.push(q);
+  }
+  return { scoreByProvider, scoreByQuery, competitorWins, fırsatQueries, zayifQueries, guzelQueries, olculemeyenQueries };
+}
+
+/**
+ * Tek cevabin hucre durumu — ana olcumle (ai-citation buildProbe) AYNI
+ * eslesme kurallari. Eskiden ham includes() vardi: "notsite.com" alinti,
+ * "Hepsiemlak" icindeki "emlak" anilma sayiliyordu.
+ *   1) site alan adi etiket sinirli gectiyse  → cited
+ *   2) rakip alan adi gectiyse                 → competitor
+ *   3) marka (kelime sinirli, jenerik korumali) → mentioned
+ */
+export function classifyHeatmapText(
+  text: string,
+  brandHost: string,
+  competitorHosts: string[],
+  matcher: BrandMatcher,
+): { status: 'cited' | 'mentioned' | 'competitor' | 'none'; competitor?: string } {
+  const folded = foldForMatch(text || '');
+  if (hostMentioned(folded, brandHost)) return { status: 'cited' };
+  for (const host of competitorHosts) {
+    if (hostMentioned(folded, host)) return { status: 'competitor', competitor: host };
+  }
+  if (matcher.indexInFolded(folded) !== null) return { status: 'mentioned' };
+  return { status: 'none' };
 }
 
 /**
@@ -41,6 +131,7 @@ export interface HeatmapResult {
  *   SARI  (mentioned) = Sadece marka adi gecti
  *   KIRMIZI (competitor) = Rakip site URL alintilandi
  *   GRI (none) = Kimse alintilamadi (firsat)
+ *   error / disabled = olculemedi — skora ve siniflara girmez
  */
 @Injectable()
 export class GeoHeatmapService {
@@ -60,7 +151,9 @@ export class GeoHeatmapService {
 
   async runForSite(siteId: string, opts: { maxQueries?: number } = {}): Promise<HeatmapResult> {
     await this.settings.assertAiEnabled('GEO heatmap');
-    const max = opts.maxQueries ?? 10;
+    // Sorgu basina 4 saglayici cagrisi. Tavan yalniz controller'da ve DTO'daydi;
+    // servisi dogrudan cagiran yollar (MCP, worker) sinirsiz sorgu gecebilirdi.
+    const max = clampLimit(opts.maxQueries, GEO_HEATMAP_MAX_QUERIES, 10);
     const site = await this.prisma.site.findUniqueOrThrow({
       where: { id: siteId },
       include: { brain: true },
@@ -72,6 +165,8 @@ export class GeoHeatmapService {
     const brand = resolveSiteBrand(site.name, site.url);
     const url = site.url;
     const brandHost = this.extractHost(url);
+    // Olcumle AYNI marka karari (jenerik + alan adindan turetilmis markada yalniz alan adi sayilir)
+    const matcher = brandMatcher(brand, brandHost);
 
     // Brain'den sorgular
     const seo: any = site.brain?.seoStrategy ?? {};
@@ -90,7 +185,7 @@ export class GeoHeatmapService {
     // ve markali soruda sari/yesil hucre neredeyse garanti — hem skorlari
     // sisiriyor hem firsat/zayif/guzel siniflamasini bozuyordu. Kaynaginda
     // suzmek ayrica markali hucre olcum maliyetini de sifirlar.
-    let unbrandedQueries = [...new Set(queries)].filter((q) => !containsBrand(q, brand));
+    let unbrandedQueries = [...new Set(queries)].filter((q) => !matcher.inText(q));
     if (unbrandedQueries.length === 0 && site.niche) {
       // Brain'in tum sorgulari markaliysa izgarayi bos birakma — bos grid
       // "her motorda gorunmezsin" gibi cizilir. Nis sablonlari markasizdir
@@ -124,94 +219,41 @@ export class GeoHeatmapService {
 
     const cells: HeatmapCell[] = [];
     for (const q of probeQueries) {
-      const tasks = providers.map(async (p) => {
+      const tasks = providers.map(async (p): Promise<HeatmapCell> => {
         if (!p.enabled) {
-          return { query: q, provider: p.id, status: 'none' as const, excerpt: '(saglayici aktif degil)' };
+          return { query: q, provider: p.id, status: 'disabled', excerpt: 'Sağlayıcı bu sunucuda etkin değil — ölçülmedi.' };
         }
         try {
           const text = await this.askProvider(p.id, q);
+          // Bos cevap olcum degildir (ana olcumle ayni kural): "kimse
+          // alintilanmadi" sayilsaydi skoru dusurur, soruyu firsat gosterirdi.
+          if (!text.trim()) {
+            return { query: q, provider: p.id, status: 'error', excerpt: 'HATA: bos cevap' };
+          }
           noteMeasured(); // haftalik olcum hakki (rota oturumu icinde sayilir)
-          const lower = text.toLowerCase();
-          // Once site URL alintilandi mi?
-          if (lower.includes(brandHost)) {
-            return { query: q, provider: p.id, status: 'cited' as const, excerpt: text.slice(0, 200) };
-          }
-          // Sonra rakip URL'i?
-          for (const c of competitors) {
-            if (lower.includes(c.host)) {
-              return { query: q, provider: p.id, status: 'competitor' as const, competitor: c.host, excerpt: text.slice(0, 200) };
-            }
-          }
-          // Marka adi gecti mi?
-          if (lower.includes(brand.toLowerCase())) {
-            return { query: q, provider: p.id, status: 'mentioned' as const, excerpt: text.slice(0, 200) };
-          }
-          return { query: q, provider: p.id, status: 'none' as const, excerpt: text.slice(0, 200) };
+          const verdict = classifyHeatmapText(text, brandHost, competitors.map((c) => c.host), matcher);
+          return { query: q, provider: p.id, ...verdict, excerpt: text.slice(0, 200) };
         } catch (err: any) {
-          this.log.warn(`Heatmap probe fail (${p.id}/${q}): ${err.message}`);
-          return { query: q, provider: p.id, status: 'none' as const, excerpt: `HATA: ${err.message}` };
+          this.log.warn(`Heatmap probe fail (${p.id}/${q}): ${safeErrorText(err)}`);
+          // Saglayici govdesi musteriye gitmez — yalniz kod (probe-retry.ts)
+          return { query: q, provider: p.id, status: 'error', excerpt: probeErrorExcerpt(err) };
         }
       });
       const queryCells = await Promise.all(tasks);
       cells.push(...queryCells);
     }
 
-    // Skor hesaplari
-    const scoreByProvider: Record<string, number> = {};
-    const scoreByQuery: Record<string, number> = {};
-    const competitorWins: Record<string, number> = {};
-
-    for (const p of providers) {
-      const pCells = cells.filter((c) => c.provider === p.id);
-      const cited = pCells.filter((c) => c.status === 'cited').length;
-      const mentioned = pCells.filter((c) => c.status === 'mentioned').length;
-      const total = pCells.length;
-      scoreByProvider[p.id] = total > 0 ? Math.round(((cited * 100 + mentioned * 50) / total)) : 0;
-    }
-    for (const q of probeQueries) {
-      const qCells = cells.filter((c) => c.query === q);
-      const cited = qCells.filter((c) => c.status === 'cited').length;
-      const mentioned = qCells.filter((c) => c.status === 'mentioned').length;
-      const total = qCells.length;
-      scoreByQuery[q] = total > 0 ? Math.round(((cited * 100 + mentioned * 50) / total)) : 0;
-    }
-    for (const c of cells) {
-      if (c.status === 'competitor' && c.competitor) {
-        competitorWins[c.competitor] = (competitorWins[c.competitor] ?? 0) + 1;
-      }
-    }
-
-    // Insight kategorileri
-    const fırsatQueries: string[] = [];
-    const zayifQueries: string[] = [];
-    const guzelQueries: string[] = [];
-    for (const q of probeQueries) {
-      const qCells = cells.filter((c) => c.query === q);
-      const cited = qCells.some((c) => c.status === 'cited');
-      const competitor = qCells.some((c) => c.status === 'competitor');
-      if (cited) {
-        guzelQueries.push(q);
-      } else if (competitor) {
-        zayifQueries.push(q);
-      } else {
-        fırsatQueries.push(q);
-      }
-    }
-
+    const providerIds = providers.map((p) => p.id);
     return {
       generatedAt: new Date().toISOString(),
       brand,
       brandHost,
       competitors: competitors.map((c) => c.host),
       providers: providers.map((p) => p.label),
+      providerIds,
       queries: probeQueries,
       cells,
-      scoreByProvider,
-      scoreByQuery,
-      competitorWins,
-      fırsatQueries,
-      zayifQueries,
-      guzelQueries,
+      ...summarizeHeatmap(cells, providerIds, probeQueries),
     };
   }
 

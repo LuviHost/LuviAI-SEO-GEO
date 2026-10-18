@@ -3,7 +3,7 @@ import { google } from 'googleapis';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { GscOAuthService } from '../auth/gsc-oauth.service.js';
 import { resolveSiteBrand } from '../audit/brand-in-query.js';
-import { splitQueriesByBrand, dailyUnbrandedShare, type OrganicQueryRow } from './organic-brand-split.js';
+import { splitQueriesByBrand, dailyUnbrandedShare, brandHostFromUrl, type OrganicQueryRow } from './organic-brand-split.js';
 
 interface GscRow {
   keys: string[];
@@ -296,7 +296,9 @@ export class AnalyticsService {
             },
           },
         });
-      } catch {}
+      } catch {
+        // Tek satirin hatasi (GSC'den gelen bozuk URL, arada silinmis makale) diger sayfalarin metrik guncellemesini durdurmasin
+      }
     }
   }
 
@@ -319,13 +321,16 @@ export class AnalyticsService {
     // "SEO kanalin var mi?" sorusunun cevabi markasiz payda. Orneklem:
     // queryDetails gun basina ilk 100 sorgu (bkz. organic-brand-split.ts).
     const brand = site ? resolveSiteBrand(site.name, site.url) : '';
+    // Host: jenerik turetilmis markada ("emlak" ← emlak.com) her sektor
+    // aramasi markali sayilmasin — AI olcumuyle ayni karar
+    const brandHost = brandHostFromUrl(site?.url);
     const allQueries = snapshots.flatMap((s) => (Array.isArray(s.queryDetails) ? (s.queryDetails as unknown as OrganicQueryRow[]) : []));
     const brandSplit = brand
       ? {
-          ...splitQueriesByBrand(allQueries, brand),
+          ...splitQueriesByBrand(allQueries, brand, brandHost),
           brand,
           daysWithQueries: snapshots.filter((s) => Array.isArray(s.queryDetails) && (s.queryDetails as any[]).length > 0).length,
-          series: dailyUnbrandedShare(snapshots, brand),
+          series: dailyUnbrandedShare(snapshots, brand, brandHost),
         }
       : null;
 

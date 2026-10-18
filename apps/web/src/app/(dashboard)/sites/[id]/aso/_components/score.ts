@@ -15,12 +15,43 @@ import type { AuditResult, TrackedKeyword } from './types';
  * Dönüşüm boyutu veri olmadığı için hesaba katılmaz.
  */
 
+/**
+ * Son 30 gündeki YORUM sayısı (çekilen yorumlardan; yalnız yıldız verenler
+ * dahil değil). Bilinmiyorsa ya da yalnız alt sınırı biliniyorsa ("en az N":
+ * son çekim eski ya da tavana dayandı) API bu alt bileşeni skora katmaz,
+ * sıfır saymaz. Yorumlar yalnız istenince çekildiği için son çekim zamanı
+ * kullanıcıya gösterilir (eski API yanıtında lastFetchAt/staleStores yok).
+ */
+export type RecentReviewSignal =
+  | {
+      status: 'known';
+      count: number;
+      lowerBound: boolean;
+      windowDays: number;
+      label: string;
+      lastFetchAt?: string;
+      staleStores?: Array<'IOS' | 'ANDROID'>;
+    }
+  | { status: 'unknown'; windowDays: number; reason: string; label: string };
+
+/** Puan ve yorumlar satırının alt metni: API etiketi + son çekim zamanı */
+export function recentReviewDetail(signal: RecentReviewSignal | undefined): string | undefined {
+  if (!signal) return undefined;
+  if (signal.status !== 'known' || !signal.lastFetchAt) return signal.label;
+  const at = new Date(signal.lastFetchAt);
+  if (Number.isNaN(at.getTime())) return signal.label;
+  const when = at.toLocaleString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  return `${signal.label} · Son çekim: ${when}`;
+}
+
 export type HealthResult = {
-  breakdown: Record<string, { score: number; weight: number; weighted_contribution: number }>;
+  breakdown: Record<string, { score: number; weight: number; weighted_contribution: number; notes?: string[] }>;
   recommendations: Array<{ category: string; priority: 'high' | 'medium' | 'low'; action: string; details: string; expected_impact: string }>;
+  /** Eski API yanıtında yok — opsiyonel */
+  signals?: { recentReviews30d?: RecentReviewSignal };
 };
 
-export type ScorePart = { key: 'store' | 'ratings' | 'keywords'; label: string; score: number | null; note?: string };
+export type ScorePart = { key: 'store' | 'ratings' | 'keywords'; label: string; score: number | null; note?: string; detail?: string };
 
 export function keywordPerformance(keywords: TrackedKeyword[]) {
   const ranked = keywords.filter((k) => k.currentRank != null);
@@ -40,7 +71,12 @@ export function mergeScore(audit: AuditResult | null, health: HealthResult | nul
   const measured = keywords.some((k) => k.lastCheckedAt);
   const parts: ScorePart[] = [
     { key: 'store', label: 'Mağaza sayfası', score: audit ? audit.score : null },
-    { key: 'ratings', label: 'Puan ve yorumlar', score: health ? Math.round(health.breakdown.ratings_reviews?.score ?? 0) : null },
+    {
+      key: 'ratings',
+      label: 'Puan ve yorumlar',
+      score: health ? Math.round(health.breakdown.ratings_reviews?.score ?? 0) : null,
+      detail: recentReviewDetail(health?.signals?.recentReviews30d),
+    },
     {
       key: 'keywords',
       label: 'Anahtar kelime sıraları',

@@ -2,18 +2,20 @@
 
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { TrendingUp, TrendingDown, Minus, Sparkles, RefreshCw, Download, FileText } from 'lucide-react';
+import { TrendingUp, TrendingDown, Minus, Sparkles, RefreshCw, FileText } from 'lucide-react';
 import { api } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { BeforeAfterCard } from '@/components/before-after-card';
+import { formatTrDate } from '@/components/geo-impact';
 import { EngineLogo } from '@/components/engine-logo';
 import { PROVIDER_COLORS, PROVIDER_LABELS, PROVIDER_FALLBACK } from '@/lib/chart-colors';
 import { CHART } from '@/lib/chart-colors';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine } from 'recharts';
 import { ChartContainer, ChartTooltip, CHART_AXIS, CHART_GRID } from '@/components/ui/chart-container';
 import { FilterChip } from '@/components/ui/filter-chip';
 import { MeasurementLimitNote } from '@/components/measurement-limit-note';
+import { displayProbeText, isProbeErrorText, probeErrorText } from '@/lib/probe-error-text';
 import { isWeeklyMeasurementLimitError, refreshMeasurementAllowance, useMeasurementAllowance } from '@/lib/measurement-allowance';
 
 
@@ -181,6 +183,10 @@ export function CitationHistoryChart({
     }
   }
 
+  // Olcum yontemi degisim gunu (API trends[].methodChangedAt) — grafikte kesikli cizgi
+  const breakDates: string[] = trends.map((t: any) => t.methodChangedAt).filter((d: unknown): d is string => typeof d === 'string').sort();
+  const methodBreak: string | null = breakDates.length > 0 && sortedDates.includes(breakDates[0]) ? breakDates[0].slice(5) : null;
+
   // recharts veri formati: [{date, anthropic: 80, gemini: 40, ...}] — null'lar atlanir
   const chartData = sortedDates.map((d) => {
     const row: Record<string, string | number | null> = { date: d.slice(5) };
@@ -197,10 +203,18 @@ export function CitationHistoryChart({
               <Sparkles className="h-4 w-4 text-muted-foreground" /> AI Görünürlük Trendi
             </p>
             <p className="text-xs text-muted-foreground mt-0.5 max-w-2xl">
-              ChatGPT, Claude, Gemini, Perplexity, Grok, DeepSeek ve Meta — 7 AI'a markanla ilgili soru sorduğumuzda <strong>cevapta site URL'in veya marka adın geçiyor mu</strong> ölçüyoruz. <strong>0-100 skor:</strong> URL geçerse 100 puan, sadece marka adı geçerse 50 puan/soru.
+              ChatGPT, Claude, Gemini, Perplexity, Grok ve DeepSeek — 6 AI asistanına sektörünle ilgili sorular sorduğumuzda <strong>cevapta site URL'in veya marka adın geçiyor mu</strong> ölçüyoruz. <strong>0-100 skor:</strong> URL geçerse 100 puan, sadece marka adı geçerse 50 puan/soru. Sorusunda marka adın geçen ve sağlayıcının yanıtlayamadığı sorular skora girmez.
             </p>
-            <p className="text-[10px] text-muted-foreground mt-0.5 max-w-2xl">
-              Ölçüm sağlayıcıların API yüzeyinde yapılır. Tüketici uygulamasında (ChatGPT web) ayrıca bir reklam katmanı var — cevapların yaklaşık dörtte biri reklam içeriyor ve reklam vermek atıf getirmiyor; kaynak olmak yalnız içerikle mümkün.
+            {/*
+              Eski metin "cevaplarin yaklasik dortte biri reklam iceriyor" diyordu: ucuncu taraf
+              izleyiciler 2026'da %3 ile %51 arasinda birbirini tutmayan oranlar olcuyor (bolgeye,
+              doneme, yonteme gore) — tek bir oran dogrulanamaz, kaldirildi. Dogrulanan: OpenAI'a gore
+              reklamlar cevabin altinda, ayri ve etiketli gosterilir ve cevaplari etkilemez.
+              - NBC News, 16.01.2026: https://www.nbcboston.com/news/tech/ads-are-coming-to-chatgpt/3879284/
+              - PPC Land, 16.01.2026: https://ppc.land/openai-finally-pulls-trigger-on-chatgpt-ads-after-monthslong-delay/
+            */}
+            <p className="text-label text-muted-foreground mt-0.5 max-w-2xl">
+              Ölçüm sağlayıcıların API&apos;si üzerinden yapılır; tüketici uygulamalarındaki reklamlar ölçüme girmez. OpenAI&apos;a göre ChatGPT&apos;de gösterilen reklamlar cevabın altında, ayrı ve etiketli durur ve cevapları etkilemez — yani reklam vermek cevapta kaynak gösterilmeyi sağlamaz.
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -285,6 +299,11 @@ export function CitationHistoryChart({
                         )}
                       </p>
                       <p className="text-xs opacity-90 mt-0.5">{grade.desc}</p>
+                      {headline.methodChanged && (
+                        <p className="text-label mt-1 opacity-80">
+                          Ölçüm yöntemi{headline.methodChangedAt ? ` ${formatTrDate(headline.methodChangedAt)} tarihinde` : ''} güncellendi — önceki haftayla kıyas yok; ortalama yalnız yeni yöntemle yapılan ölçümleri içerir.
+                        </p>
+                      )}
                       <div className="text-[11px] mt-2 opacity-80 leading-relaxed">
                         {best && (
                           <span>✅ En iyi: <strong>{PROVIDER_LABELS[best.provider] ?? best.provider}</strong> ({pick(best)} puan)</span>
@@ -300,7 +319,8 @@ export function CitationHistoryChart({
                       </div>
                       {avg < 50 && (
                         <div className="text-[11px] mt-2 opacity-90 leading-relaxed bg-card/50 rounded-md px-2 py-1.5 border border-current/10">
-                          💡 <strong>Ne yapmalı:</strong> Makale yayınla → IndexNow + Google Indexing ile hızlı indekslen → AI motorları siteyi web search'de bulup citation vermeye başlar. Genelde 2-4 hafta sonra skor +15-30 artar.
+                          {/* Eski metin "genelde 2-4 hafta sonra skor +15-30 artar" diyordu — kaynaksiz sayi ve sure vaadi, kaldirildi */}
+                          <strong>Ne yapmalı:</strong> Sektör sorularını yanıtlayan içerik yayınla ve indekslenmesini sağla. Ölçümde web araması yapan asistanlar (ChatGPT, Claude, Gemini, Perplexity) yeni içeriği kaynak olarak bulabilir; etkinin ne zaman ve ne kadar görüneceği garanti edilemez — değişimi sonraki ölçümlerle izle.
                         </div>
                       )}
                     </div>
@@ -323,14 +343,21 @@ export function CitationHistoryChart({
                         {/* Grafik cizgisinin rengi — lejant isareti */}
                         <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: color }} aria-hidden />
                       </p>
-                      <p className="text-[10px] text-muted-foreground">
-                        {t.first ?? '—'} → <strong>{t.last ?? '—'}</strong>
-                        {t.delta !== null && (
-                          <span className={`ml-1 ${t.delta > 0 ? 'text-green-500' : t.delta < 0 ? 'text-red-500' : ''}`}>
-                            {t.delta > 0 ? '+' : ''}{t.delta}
-                          </span>
-                        )}
-                      </p>
+                      {t.methodChanged && t.delta === null ? (
+                        // Yeni yontemle tek olcum: eski yontemli baslangicla kiyas yapilmaz
+                        <p className="text-label text-muted-foreground" title={t.methodChangedAt ? `Ölçüm yöntemi ${formatTrDate(t.methodChangedAt)} tarihinde güncellendi` : undefined}>
+                          <strong>{t.last ?? '—'}</strong> · ölçüm yöntemi güncellendi — kıyas yok
+                        </p>
+                      ) : (
+                        <p className="text-[10px] text-muted-foreground" title={t.methodChanged && t.methodChangedAt ? `Kıyas, ölçüm yönteminin güncellendiği ${formatTrDate(t.methodChangedAt)} tarihinden sonraki ölçümlerle` : undefined}>
+                          {t.first ?? '—'} → <strong>{t.last ?? '—'}</strong>
+                          {t.delta !== null && (
+                            <span className={`ml-1 ${t.delta > 0 ? 'text-green-500' : t.delta < 0 ? 'text-red-500' : ''}`}>
+                              {t.delta > 0 ? '+' : ''}{t.delta}
+                            </span>
+                          )}
+                        </p>
+                      )}
                     </div>
                     {t.delta !== null && (
                       t.delta > 0 ? <TrendingUp className="h-3.5 w-3.5 text-green-500" /> :
@@ -349,6 +376,15 @@ export function CitationHistoryChart({
                 <XAxis dataKey="date" {...CHART_AXIS} interval="preserveStartEnd" minTickGap={28} />
                 <YAxis domain={[0, 100]} ticks={[0, 25, 50, 75, 100]} {...CHART_AXIS} width={38} />
                 <Tooltip content={<ChartTooltip />} />
+                {/* Olcum yontemi degisim gunu — cizginin bu noktadaki kirilmasi yontemden olabilir */}
+                {methodBreak && (
+                  <ReferenceLine
+                    x={methodBreak}
+                    stroke={CHART[8]}
+                    strokeDasharray="4 4"
+                    label={{ value: 'yöntem güncellendi', position: 'insideTopRight', fill: 'hsl(var(--muted-foreground))', fontSize: 11 }}
+                  />
+                )}
                 {providers.map((p) => (
                   <Line
                     key={p}
@@ -419,7 +455,7 @@ export function CitationHistoryChart({
                 {showDetails && (
                   <div className="mt-3 space-y-2">
                     <p className="text-[11px] text-muted-foreground">
-                      Her AI'a 5 farklı soru sorduk. Aşağıda her sorunun cevabında <strong>URL geçti mi (✓)</strong>, sadece <strong>marka adı geçti mi (~)</strong> veya <strong>hiç geçmedi mi (✗)</strong> görüyorsun.
+                      Her AI asistanına aynı soruları (en fazla 5) sorduk. Aşağıda her sorunun cevabında <strong>URL geçti mi (✓)</strong>, sadece <strong>marka adı geçti mi (~)</strong> veya <strong>hiç geçmedi mi (✗)</strong> görüyorsun.
                     </p>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                       {lastResults.map((r: any) => (
@@ -433,9 +469,16 @@ export function CitationHistoryChart({
                               {r.score === null ? '—' : r.score}
                             </span>
                           </div>
-                          {r.reason && (
-                            <p className="text-[11px] text-muted-foreground mb-2 leading-snug">{r.reason}</p>
-                          )}
+                          {(() => {
+                            // Tum sorulari HATA olan saglayici "olculemedi"dir (API available:false, skor null);
+                            // soru bazli nedenler asagidaki satirlarda — burada genel durum
+                            const probes: any[] = Array.isArray(r.probes) ? r.probes : [];
+                            const allFailed = probes.length > 0 && probes.every((p: any) => isProbeErrorText(p.excerpt));
+                            if (allFailed) {
+                              return <p className="text-label text-muted-foreground mb-2 leading-snug">Bu sağlayıcıda hiçbir soru ölçülemedi; skor hesaplanmadı.</p>;
+                            }
+                            return r.reason ? <p className="text-[11px] text-muted-foreground mb-2 leading-snug">{displayProbeText(r.reason)}</p> : null;
+                          })()}
 
                           {/* Aggregate metrics — avg position + sentiment mix + share of voice */}
                           {(r.avgPosition || r.sentimentMix || r.shareOfVoice?.length) && (
@@ -500,7 +543,11 @@ export function CitationHistoryChart({
                               {r.probes.map((p: any, i: number) => {
                                 // Markalı soru: skor bu probe'ları saymaz — +100/+50 rozeti
                                 // basılırsa kullanıcı rozetleri toplayıp skoru tutturamaz.
-                                const status = p.brandInQuery
+                                // HATA satiri olcum degildir: "BAHSETMEDI 0" gosterilirse kullanici
+                                // olculemeyen soruyu sifir puan sanar (skor bu satirlari saymaz).
+                                const status = isProbeErrorText(p.excerpt)
+                                  ? { label: 'ÖLÇÜLEMEDİ · SKOR DIŞI', tone: 'slate', score: '—' }
+                                  : p.brandInQuery
                                   ? { label: 'MARKALI SORU · SKOR DIŞI', tone: 'slate', score: '—' }
                                   : p.cited
                                     ? { label: 'URL ALINTIDI', tone: 'emerald', score: '+100' }
@@ -533,7 +580,7 @@ export function CitationHistoryChart({
                                       <span className={`text-[9px] font-bold tracking-wide px-1.5 py-0.5 rounded ${c.badge}`}>
                                         {status.label}
                                       </span>
-                                      <span className={`text-[10px] font-mono font-bold ${status.tone === 'emerald' ? 'text-emerald-600 dark:text-emerald-400' : status.tone === 'amber' ? 'text-amber-600 dark:text-amber-400' : 'text-red-600 dark:text-red-400'}`}>
+                                      <span className={`text-[10px] font-mono font-bold ${status.tone === 'emerald' ? 'text-emerald-600 dark:text-emerald-400' : status.tone === 'amber' ? 'text-amber-600 dark:text-amber-400' : status.tone === 'slate' ? 'text-muted-foreground' : 'text-red-600 dark:text-red-400'}`}>
                                         {status.score}
                                       </span>
                                       {p.position && (
@@ -557,7 +604,11 @@ export function CitationHistoryChart({
                                       )}
                                     </div>
                                     <p className="text-[11px] font-medium leading-snug mb-1">{p.query}</p>
-                                    {p.excerpt && (
+                                    {/* Olculemeyen soru: ham saglayici metni degil, Turkce neden (lib/probe-error-text) */}
+                                    {isProbeErrorText(p.excerpt) && (
+                                      <p className="text-label text-muted-foreground">{probeErrorText(p.excerpt)}</p>
+                                    )}
+                                    {p.excerpt && !isProbeErrorText(p.excerpt) && (
                                       <details className="group">
                                         <summary className="text-[10px] cursor-pointer text-muted-foreground hover:text-foreground select-none list-none inline-flex items-center gap-1">
                                           <span className="group-open:rotate-90 inline-block transition-transform">▸</span>

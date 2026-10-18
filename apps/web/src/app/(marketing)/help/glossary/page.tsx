@@ -120,7 +120,7 @@ export default function GlossaryPage() {
           <div>
             <p className="font-semibold">Aradığın terim yok mu?</p>
             <p className="text-xs text-muted-foreground">
-              Bize yaz, sözlüğe ekleyelim. 15 dakika ücretsiz destek.
+              Bize yaz, sözlüğe ekleyelim.
             </p>
           </div>
           <a

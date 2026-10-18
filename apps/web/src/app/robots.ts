@@ -14,7 +14,11 @@ export default function robots(): MetadataRoute.Robots {
     rules: [
       {
         userAgent: '*',
-        allow: '/',
+        // api.ranksup.ai'de kok yollar bu Next uygulamasina gelir (next.config.ts), yani
+        // ayni robots.txt orada da sunulur. /api/ yasagi MCP sunucu kartini kayit
+        // tarayicilarindan sakliyordu; RFC 9309'da en uzun eslesen kural kazanir, bu
+        // Allow /api/ yasagini yalniz bu adres icin acar.
+        allow: ['/', '/api/mcp/server-card'],
         disallow: [
           '/api/',
           '/admin/',

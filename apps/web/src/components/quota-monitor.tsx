@@ -76,8 +76,16 @@ export function QuotaMonitor() {
           tone={budget.hardBlock ? 'danger' : 'warning'}
           title={budget.hardBlock ? `Aylık AI bütçen doldu (%${budget.pct})` : `AI bütçenin %${budget.pct}'i kullanıldı`}
         >
+          {/* Butce kapisi (QuotaService.enforceAiCostBudget) yalniz iki isi durdurur:
+              gorsel alt metni onerisi (image-alt-suggest.service) ve App Store
+              yorum yaniti taslagi (asc-review-reply.service). Eski "Yeni AI
+              istekleri durduruldu" metni makale ve olcumu de durmus gibi
+              gosteriyordu; onlar kendi kotalariyla calisir. public-docs.spec.ts
+              cagiran listesini denetler. */}
           ${budget.used.toFixed(2)} / ${budget.cap.toFixed(2)} ·{' '}
-          {budget.hardBlock ? 'Yeni AI istekleri durduruldu, planını yükselt.' : 'Limit yaklaşıyor, takipte kal.'}
+          {budget.hardBlock
+            ? 'Görsel alt metni önerisi ve App Store yorum yanıtı taslağı durdu; makale üretimi ve AI ölçümü kendi kotalarıyla sürer. Üst planlarda bütçe sınırı daha yüksek.'
+            : 'Bütçe dolarsa görsel alt metni önerisi ve App Store yorum yanıtı taslağı durur; makale üretimi ve AI ölçümü kendi kotalarıyla sürer.'}
         </StatusBanner>
       )}
 

@@ -1,0 +1,6 @@
+{
+  "resource": "https://api.ranksup.ai/api/mcp",
+  "bearer_methods_supported": ["header"],
+  "resource_name": "RanksUp MCP sunucusu",
+  "resource_documentation": "https://ranksup.ai/agent-setup.txt"
+}

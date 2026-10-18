@@ -2,6 +2,7 @@ import { Injectable, Logger, BadRequestException, NotFoundException } from '@nes
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CITATION_MATCH_VERSION } from '../audit/host-match.js';
 import { AiCitationService } from '../audit/ai-citation.service.js';
+import { isUnconfiguredProvider } from '../audit/citation-providers.js';
 import { containsBrand } from '../audit/brand-in-query.js';
 import { LLMProviderService } from '../llm/llm-provider.service.js';
 import { parseJsonFromLlm } from '../common/safe-json.js';
@@ -127,7 +128,10 @@ export class AsoPromptLabService {
   }
 
   /**
-   * Tek sorunun olcumu — 7 saglayiciya sorar.
+   * Tek sorunun olcumu — yapilandirilmis tum saglayicilara sorar (Llama yalniz
+   * GROQ_LLAMA_MODEL tanimliyken). Yapilandirilmamis saglayici sonucta yer
+   * almaz; hata veren saglayici available:false (ölçülemedi) olarak kalir ve
+   * toplamlara girmez.
    * cited = cevapta BIZIM store sayfamiza link var
    * brandMentioned = uygulama adi gecti
    */
@@ -165,6 +169,12 @@ export class AsoPromptLabService {
     // ayni katlama+regex'i tekrarlamaya gerek yok.
     const promptIsBranded = containsBrand(prompt.text, app.name);
     for (const r of results) {
+      // Hic yapilandirilmamis saglayici (anahtar yok ya da Meta/Llama icin
+      // GROQ_LLAMA_MODEL tanimsiz) "Kullanılamadı" karti olarak GOSTERILMEZ.
+      // Kural tek yerde (audit/citation-providers.ts): runPublicProbes ayni
+      // kuralla bu saglayiciyi hic cagirmaz ve 'NO_KEY' doner. Yapilandirilmis
+      // ama bu olcumde hata veren saglayici "ölçülemedi" olarak listede kalir.
+      if (isUnconfiguredProvider(r)) continue;
       if (!r.available || r.probes.length === 0) {
         providerRows.push({
           provider: r.provider, label: r.label, available: false, reason: r.reason,
@@ -233,6 +243,8 @@ export class AsoPromptLabService {
         mentioned: valid.filter((p) => p.appMentioned).length,
         storeLinked: valid.filter((p) => p.storeLinked).length,
         total: valid.length,
+        /** Yapilandirilmis ama bu olcumde hata veren saglayici sayisi (toplama girmez) */
+        unmeasured: providerRows.length - valid.length,
       },
       providers: providerRows,
       runAt: new Date().toISOString(),

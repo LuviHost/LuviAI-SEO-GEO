@@ -26,6 +26,65 @@ export interface PublishResult {
   externalUrl?: string;
   externalId?: string;
   error?: string;
+  /**
+   * Hedefin KENDI son degisiklik damgasi, RanksUp'in bu yaziminin hemen
+   * ardindan (ISO, UTC). Yalniz destekleyen adaptor doldurur (WordPress:
+   * modified_gmt). Yayinci publishedTo kaydina remoteModifiedAt diye yazar;
+   * sonraki yerinde guncelleme "yazi o zamandan beri hedefte degisti mi"
+   * sorusunu ayni saatle (hedefin saati) yanitlar.
+   */
+  remoteModifiedAt?: string;
+}
+
+/**
+ * Yayindaki kaydin hedefteki adresi: yazinin publishedTo girdisinde saklanan
+ * yayin sonucu (externalId / externalUrl). Yerinde guncelleme kaydi bununla bulur.
+ */
+export interface LiveEntryRef {
+  externalId?: string;
+  externalUrl?: string;
+  /** Kayittaki remoteModifiedAt: RanksUp'in son basarili yaziminin yanitindaki hedef damgasi (ISO) */
+  remoteModifiedAt?: string;
+  /**
+   * RanksUp'in bu kayda son yazim ani (ISO, RanksUp'in saati): publishedTo
+   * updatedAt ?? publishedAt ?? makalenin publishedAt'i. remoteModifiedAt
+   * olmayan (eski) kayitlarda cakisma denetimi buna saat payiyla bakar.
+   */
+  lastWriteAt?: string;
+}
+
+/** Yerinde guncelleme secenekleri */
+export interface UpdateOptions {
+  /**
+   * Kullanici ACIKCA onayladi: kayit RanksUp'in son yaziminden sonra hedefte
+   * degismis olsa da ustune yaz. Yalniz panelden gelen acik istek verir
+   * (overwriteRemoteEdits); otomasyon (takili sayfa otopilotu, pivot, Tam
+   * otomatik yayin) hicbir zaman vermez. Kimlik denetimi ve cop kutusu kurali
+   * force ile de gecerlidir: baska bir yazinin uzerine hicbir durumda yazilmaz.
+   */
+  force?: boolean;
+}
+
+/**
+ * Yerinde guncelleme sonucu. ok:false iken bayraklar cagiranin kararini verir:
+ *  - notFound: kayit hedefte artik YOK (kalici silinmis) — yeni yayin kopya acmaz
+ *  - trashed: kayit cop kutusunda — musteri bilerek kaldirmis, dokunulmadi
+ *  - edited: kayit RanksUp'in son yaziminden sonra hedefte degismis — musterinin
+ *    duzenlemesi ezilmedi (yalniz force ile yazilir)
+ *  - mismatch: kayitli kimlik artik BU yaziya ait degil (slug / tur tutmuyor) —
+ *    hicbir sey yazilmadi, kopya da acilmamali (force ile de yazilmaz)
+ * Hicbiri yoksa (yetki, ag, beklenmeyen yanit) yeni kayit ACILMAMALI: kayit
+ * hala yayinda olabilir ve yeni yayin ikinci bir kopya olur.
+ */
+export interface UpdateResult extends PublishResult {
+  notFound?: boolean;
+  trashed?: boolean;
+  edited?: boolean;
+  mismatch?: boolean;
+  /** mismatch'te hedefteki kaydin slug'i (Turkce nedende gosterilir) */
+  remoteSlug?: string;
+  /** Hedefteki durum (WordPress: publish, draft, pending, private, future, trash) */
+  status?: string;
 }
 
 /**
@@ -120,9 +179,27 @@ export abstract class PublishAdapter {
   abstract test(): Promise<boolean>;
 
   /**
+   * Yayindaki kaydi YERINDE gunceller: yalniz baslik, govde ve ozet (verildiyse
+   * yeni one cikan gorsel) degisir; adres (slug), durum, yazar, tarih ve
+   * kategoriler oldugu gibi kalir.
+   *
+   * Desteklemeyen adaptor bu metodu TANIMLAMAZ; cagiran (PublisherService)
+   * `typeof adapter.update === 'function'` ile bakar. NEDEN varsayilan govde
+   * yok: CMS adaptorlerinin publish()'i her cagride YENI kayit acar (WordPress
+   * /yazi-2/, Ghost / Strapi / Webflow POST...). "Guncelle" diye publish'e
+   * dusen bir varsayilan, onlenmek istenen kopyayi sessizce yeniden acardi.
+   *
+   * Yazmadan once kayit dogrulanir: kimlik hala bu yaziya ait mi (mismatch) ve
+   * kayit RanksUp'in son yaziminden sonra hedefte degisti mi (edited; yalniz
+   * opts.force ile ustune yazilir).
+   */
+  update?(ref: LiveEntryRef, payload: PublishPayload, opts?: UpdateOptions): Promise<UpdateResult>;
+
+  /**
    * Adapter destekliyorsa override eder; varsayılan implementasyon
    * "desteklenmiyor" döner. Çağıran taraf snippet copy-paste fallback yapar.
    */
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- varsayilan govde parametreyi kullanmaz; alt siniflar ayni imzayla override eder
   async applyOnPageMeta(_payload: OnPageMetaPayload): Promise<OnPageMetaResult> {
     return {
       ok: false,
@@ -136,6 +213,7 @@ export abstract class PublishAdapter {
    * Çağıran taraf (publisher) tüm hedeflerde güvenle çağırabilir; desteklemeyen
    * adapter HTTP yapmadan `skipped: 'unsupported'` döner.
    */
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- varsayilan govde parametreyi kullanmaz
   async pushLlms(_payload: LlmsPushPayload): Promise<LlmsPushResult> {
     return { ok: false, skipped: 'unsupported' };
   }
@@ -145,6 +223,7 @@ export abstract class PublishAdapter {
    * override eder; dosya tabanli hedefler API tarafinda statik HTML yamasiyla
    * yazilir (static-html-fixer).
    */
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- varsayilan govde parametreyi kullanmaz
   async applyImageAlt(_payload: ImageAltPayload): Promise<ImageAltResult> {
     return { ok: false, applied: [], skipped: [{ field: 'all', reason: 'unsupported' }] };
   }
@@ -182,6 +261,7 @@ export abstract class PublishAdapter {
    * Yalnızca supportsRootFiles=true adapter'lar override eder; diğerleri net
    * yönlendirici hata döner.
    */
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars -- varsayilan govde parametreleri kullanmaz
   async putRootFile(_filename: string, _content: string, _contentType?: string): Promise<PublishResult> {
     return {
       ok: false,

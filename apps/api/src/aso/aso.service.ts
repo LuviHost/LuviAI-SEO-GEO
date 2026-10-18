@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import { Prisma, AppStore, KeywordSource } from '@prisma/client';
+import { AppStore, KeywordSource } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AsoScrapersService } from './scrapers.service.js';
 import { AsoKeywordService } from './keyword.service.js';
@@ -8,7 +8,8 @@ import { AsoReviewsService } from './reviews.service.js';
 import { AsoAiAgentService } from './ai-agent.service.js';
 import { QuotaService } from '../billing/quota.service.js';
 import { nextCreativeAssetState, buildIosCreativeAssetFindings } from './creative-asset-findings.js';
-import { auditKeywordField } from './keyword-field-audit.js';
+import { auditKeywordField, countCharacters } from './keyword-field-audit.js';
+import { APP_STORE_LIMITS, GOOGLE_PLAY_LIMITS } from './store-limits.js';
 
 export interface ConnectAppDto {
   siteId: string;
@@ -638,6 +639,11 @@ export class AsoService {
     return this.reviews.getReviewStats(trackedAppId);
   }
 
+  /** ASO skoru: son 30 gundeki yorum sayisi (bilinmiyorsa skora katilmaz) */
+  getRecentReviewSignal(trackedAppId: string) {
+    return this.reviews.getRecentReviewSignal(trackedAppId);
+  }
+
   discoverCompetitors(trackedAppId: string) {
     return this.prisma.trackedApp.findUniqueOrThrow({ where: { id: trackedAppId } })
       .then(app => this.aiAgent.discoverCompetitors({
@@ -658,12 +664,15 @@ export class AsoService {
 
     // Eğer rakip verilmediyse otomatik bul
     let competitors = opts.competitorAppIds;
+    let competitorNames: string[] = [];
     if (!competitors || competitors.length === 0) {
       const discovered = await this.discoverCompetitors(opts.trackedAppId);
       competitors = discovered.slice(0, 5).map(c => ({
         appId: c.appId,
         store: c.store,
       }));
+      // Tum benzer uygulama adlari: marka adi oneriye sizarsa ayiklanir (Apple 2.3.7)
+      competitorNames = discovered.map((c) => c.name).filter((n): n is string => typeof n === 'string' && !!n);
     }
 
     const meta: any = app.metadata ?? {};
@@ -677,6 +686,7 @@ export class AsoService {
       appDescription: description,
       category: app.category ?? undefined,
       competitorAppIds: competitors,
+      competitorNames,
       country: app.country,
       targetLocale: opts.locale ?? 'tr',
     });
@@ -697,11 +707,16 @@ export class AsoService {
 
     return this.aiAgent.optimizeMetadata({
       currentTitle: source.title ?? '',
-      currentSubtitle: source.subtitle,
+      currentSubtitle: opts.store === 'IOS' ? source.subtitle : undefined,
+      // Play kisa aciklamasi scraper'da `summary`; eskiden modele hic gitmiyordu
+      currentShortDescription: opts.store === 'ANDROID' ? source.summary : undefined,
       currentDescription: source.description ?? '',
       targetKeywords: opts.targetKeywords,
       locale: opts.locale ?? 'tr',
       store: opts.store,
+      // Gercek puan: uretilen metindeki puan iddiasi yalniz bununla eslesirse kalir
+      rating: typeof source.score === 'number' ? source.score : null,
+      appName: app.name,
     });
   }
 
@@ -776,41 +791,50 @@ export class AsoService {
 
     const findings: Finding[] = [];
 
+    // Sinirlar tek kaynaktan (store-limits.ts); karakter = kod noktasi (emoji 2 sayilmasin)
+    const A = APP_STORE_LIMITS;
+    const G = GOOGLE_PLAY_LIMITS;
+
     // ─── iOS ───
     if (ios) {
       // Title (30 char limit)
       const title = (ios.title ?? '').toString();
-      const titleLen = title.length;
+      const titleLen = countCharacters(title);
       if (titleLen === 0) {
-        findings.push({ severity: 'error', store: 'IOS', field: 'title', label: 'App Name (Title)', current: title, message: 'Title boş', recommendation: 'En kritik alan — 30 char limit, ana keyword içersin.' });
+        findings.push({ severity: 'error', store: 'IOS', field: 'title', label: 'App Name (Title)', current: title, message: 'Title boş', recommendation: `En kritik alan — ${A.name} char limit, ana keyword içersin.` });
       } else if (titleLen < 15) {
-        findings.push({ severity: 'warning', store: 'IOS', field: 'title', label: 'App Name (Title)', current: `${titleLen}/30 char`, message: 'Title çok kısa — keyword kapasitesi kullanılmıyor', recommendation: '30 char limitini olabildiğince doldur. Örn: "PlanIn: Etkinlik Planlama" (28 char).' });
-      } else if (titleLen > 30) {
-        findings.push({ severity: 'error', store: 'IOS', field: 'title', label: 'App Name (Title)', current: `${titleLen}/30 char`, message: 'Title 30 karakter limitini aşıyor — Apple kabul etmez', recommendation: '30 char altına indir.' });
+        findings.push({ severity: 'warning', store: 'IOS', field: 'title', label: 'App Name (Title)', current: `${titleLen}/${A.name} char`, message: 'Title çok kısa — keyword kapasitesi kullanılmıyor', recommendation: `${A.name} char limitini olabildiğince doldur. Örn: "PlanIn: Etkinlik Planlama" (25 char).` });
+      } else if (titleLen > A.name) {
+        findings.push({ severity: 'error', store: 'IOS', field: 'title', label: 'App Name (Title)', current: `${titleLen}/${A.name} char`, message: `Title ${A.name} karakter limitini aşıyor — Apple kabul etmez`, recommendation: `${A.name} char altına indir.` });
       } else {
-        findings.push({ severity: 'ok', store: 'IOS', field: 'title', label: 'App Name (Title)', current: `${titleLen}/30 char` });
+        findings.push({ severity: 'ok', store: 'IOS', field: 'title', label: 'App Name (Title)', current: `${titleLen}/${A.name} char` });
       }
 
       // Subtitle (30 char)
       const subtitle = (ios.subtitle ?? '').toString();
-      const subLen = subtitle.length;
+      const subLen = countCharacters(subtitle);
       if (subLen === 0) {
-        findings.push({ severity: 'error', store: 'IOS', field: 'subtitle', label: 'Subtitle', current: '', message: 'Subtitle boş — büyük keyword fırsatı kaçıyor', recommendation: 'İkinci en güçlü ranking sinyali. 30 char limitini doldur, title\'da geçmeyen 2-3 kelime ekle.' });
+        findings.push({ severity: 'error', store: 'IOS', field: 'subtitle', label: 'Subtitle', current: '', message: 'Subtitle boş — büyük keyword fırsatı kaçıyor', recommendation: `İkinci en güçlü ranking sinyali. ${A.subtitle} char limitini doldur, title'da geçmeyen 2-3 kelime ekle.` });
+      } else if (subLen > A.subtitle) {
+        findings.push({ severity: 'error', store: 'IOS', field: 'subtitle', label: 'Subtitle', current: `${subLen}/${A.subtitle} char`, message: `Subtitle ${A.subtitle} karakter limitini aşıyor — Apple kabul etmez`, recommendation: `${A.subtitle} char altına indir.` });
       } else if (subLen < 15) {
-        findings.push({ severity: 'warning', store: 'IOS', field: 'subtitle', label: 'Subtitle', current: `${subLen}/30 char`, message: 'Subtitle çok kısa', recommendation: '30 char\'ı doldur, destekleyici keyword ekle.' });
+        findings.push({ severity: 'warning', store: 'IOS', field: 'subtitle', label: 'Subtitle', current: `${subLen}/${A.subtitle} char`, message: 'Subtitle çok kısa', recommendation: `${A.subtitle} char'ı doldur, destekleyici keyword ekle.` });
       } else {
-        findings.push({ severity: 'ok', store: 'IOS', field: 'subtitle', label: 'Subtitle', current: `${subLen}/30 char` });
+        findings.push({ severity: 'ok', store: 'IOS', field: 'subtitle', label: 'Subtitle', current: `${subLen}/${A.subtitle} char` });
       }
 
       // Description (4000 char) — iOS'ta INDEXLENMEZ ama conversion için kritik
       const desc = (ios.description ?? '').toString();
-      const descLen = desc.length;
+      const descLen = countCharacters(desc);
       if (descLen === 0) {
-        findings.push({ severity: 'error', store: 'IOS', field: 'description', label: 'Description', current: 0, message: 'Description boş', recommendation: 'Conversion için kritik. İlk 250 char\'da CTA + ana fayda yaz (Apple "More" diyene kadar bunu gösterir).' });
+        // Apple urun sayfasi rehberi: "The first sentence ... is what users can read without having to tap to read more"
+        findings.push({ severity: 'error', store: 'IOS', field: 'description', label: 'Description', current: 0, message: 'Description boş', recommendation: 'Conversion için kritik. Ana faydayı ilk cümlede yaz: kullanıcı "daha fazla"ya dokunmadan yalnızca onu görür.' });
+      } else if (descLen > A.description) {
+        findings.push({ severity: 'error', store: 'IOS', field: 'description', label: 'Description', current: `${descLen}/${A.description} char`, message: `Description ${A.description} karakter limitini aşıyor`, recommendation: `${A.description} char altına indir.` });
       } else if (descLen < 500) {
-        findings.push({ severity: 'warning', store: 'IOS', field: 'description', label: 'Description', current: `${descLen}/4000 char`, message: 'Description çok kısa — conversion düşürür', recommendation: '1500-3000 char hedefle. İlk 250 char hook + CTA, devamı feature listesi + sosyal kanıt.' });
+        findings.push({ severity: 'warning', store: 'IOS', field: 'description', label: 'Description', current: `${descLen}/${A.description} char`, message: 'Description çok kısa — conversion düşürür', recommendation: '1500-3000 char hedefle. İlk cümlede ana fayda, devamı özellik listesi. App Store açıklamayı arama sıralamasında kullanmaz: anahtar kelime doldurma.' });
       } else {
-        findings.push({ severity: 'ok', store: 'IOS', field: 'description', label: 'Description', current: `${descLen}/4000 char` });
+        findings.push({ severity: 'ok', store: 'IOS', field: 'description', label: 'Description', current: `${descLen}/${A.description} char` });
       }
 
       // Yenilikler (release notes). Eskiden bu alan "Promotional Text" diye
@@ -822,13 +846,16 @@ export class AsoService {
         findings.push({ severity: 'info', store: 'IOS', field: 'whatsNew', label: 'Yenilikler', current: '', message: 'Son sürümün "Yenilikler" notu boş', recommendation: 'Her güncellemede neyin değiştiğini 2-3 maddede anlat; ilk sürümde bu alan girilemez.' });
       }
 
-      // Reviews & Ratings
+      // Reviews & Ratings — "365 gunde en fazla 3 kez" ve zamanlama Apple'dan
+      // (https://developer.apple.com/app-store/ratings-and-reviews/); ozel istem
+      // yasagi App Review 5.6.1. Eski "ilk 3-5. gun" ve "on anket" tavsiyeleri
+      // kaynaksizdi (on anket filtreleme sayilabilir).
       const reviewCount = ios.reviews ?? app.iosReviewCount ?? 0;
       const rating = ios.score ?? app.iosRating ?? 0;
       if (reviewCount === 0) {
-        findings.push({ severity: 'error', store: 'IOS', field: 'reviews', label: 'Reviews', current: 0, message: 'Hiç review yok', recommendation: 'SKStoreReviewRequest API ile (3 kez/yıl limit) prompt göster. Pre-prompt survey ekle.' });
+        findings.push({ severity: 'error', store: 'IOS', field: 'reviews', label: 'Reviews', current: 0, message: 'Hiç review yok', recommendation: 'SKStoreReviewController (requestReview) ile iste: Apple 365 günde en fazla 3 kez gösterir. Kullanıcı bir işi tamamladığında iste; özel inceleme istemi kullanma (App Review 5.6.1).' });
       } else if (reviewCount < 10) {
-        findings.push({ severity: 'warning', store: 'IOS', field: 'reviews', label: 'Reviews', current: `${reviewCount} review`, message: 'Review sayısı düşük', recommendation: 'Algoritma için kritik. Onboarding\'in 3-5. günü prompt en iyi sonuç verir.' });
+        findings.push({ severity: 'warning', store: 'IOS', field: 'reviews', label: 'Reviews', current: `${reviewCount} review`, message: 'Review sayısı düşük', recommendation: 'Apple, isteği kullanıcının memnun olduğu anda (bir işi ya da seviyeyi tamamladığında) yapmanı öneriyor; akışı bölme.' });
       } else {
         findings.push({ severity: 'ok', store: 'IOS', field: 'reviews', label: 'Reviews', current: `${reviewCount} review · ${rating.toFixed?.(1) ?? rating}⭐` });
       }
@@ -836,12 +863,13 @@ export class AsoService {
         findings.push({ severity: 'warning', store: 'IOS', field: 'rating', label: 'Rating', current: `${rating.toFixed?.(1) ?? rating}⭐`, message: 'Rating 4.0 altında', recommendation: 'Negatif review\'lara HEAR framework ile yanıt ver. Kritik bug\'ları çöz.' });
       }
 
-      // Screenshots
+      // Screenshots — 10'a kadar; onizleme yoksa ilk 1-3 gorsel arama sonucunda
+      // (https://developer.apple.com/app-store/product-page/)
       const screenshotCount = (ios.screenshots ?? []).length;
       if (screenshotCount === 0) {
         findings.push({ severity: 'error', store: 'IOS', field: 'screenshots', label: 'Screenshots', current: 0, message: 'Screenshot yok' });
       } else if (screenshotCount < 5) {
-        findings.push({ severity: 'warning', store: 'IOS', field: 'screenshots', label: 'Screenshots', current: `${screenshotCount}/10`, message: 'Az screenshot', recommendation: '10 slot\'u doldur. İlk 3 slot tarama oranı en yüksek — en güçlü hook\'ları başa.' });
+        findings.push({ severity: 'warning', store: 'IOS', field: 'screenshots', label: 'Screenshots', current: `${screenshotCount}/10`, message: 'Az screenshot', recommendation: '10 slot\'a kadar ekleyebilirsin. Önizleme videosu yoksa ilk 1-3 görsel arama sonuçlarında görünür — en güçlü mesajları başa koy.' });
       } else {
         findings.push({ severity: 'ok', store: 'IOS', field: 'screenshots', label: 'Screenshots', current: `${screenshotCount}/10` });
       }
@@ -862,44 +890,53 @@ export class AsoService {
 
     // ─── Android ───
     if (android) {
-      // Title (50 char)
+      // Ad — Google Play siniri 30 karakter (eskiden 50 yaziyordu: denetim
+      // "kisa, 50'yi kullan" diyerek politika disi baslik oneriyordu)
       const title = (android.title ?? '').toString();
-      const titleLen = title.length;
+      const titleLen = countCharacters(title);
       if (titleLen === 0) {
         findings.push({ severity: 'error', store: 'ANDROID', field: 'title', label: 'Title', current: 0, message: 'Title boş' });
-      } else if (titleLen < 25) {
-        findings.push({ severity: 'warning', store: 'ANDROID', field: 'title', label: 'Title', current: `${titleLen}/50 char`, message: 'Title kısa — Play 50 char limit veriyor, kullan', recommendation: '25-50 char hedefle. Brand + 1-2 keyword.' });
+      } else if (titleLen > G.title) {
+        findings.push({ severity: 'error', store: 'ANDROID', field: 'title', label: 'Title', current: `${titleLen}/${G.title} char`, message: `Title ${G.title} karakter limitini aşıyor — Google Play kabul etmez`, recommendation: `${G.title} char altına indir.` });
+      } else if (titleLen < 15) {
+        findings.push({ severity: 'warning', store: 'ANDROID', field: 'title', label: 'Title', current: `${titleLen}/${G.title} char`, message: 'Title kısa — keyword kapasitesi kullanılmıyor', recommendation: `${G.title} char sınırında marka + 1-2 keyword. Emoji, "ücretsiz", "#1", "en iyi" gibi ifadeler Google Play politikasına aykırı.` });
       } else {
-        findings.push({ severity: 'ok', store: 'ANDROID', field: 'title', label: 'Title', current: `${titleLen}/50 char` });
+        findings.push({ severity: 'ok', store: 'ANDROID', field: 'title', label: 'Title', current: `${titleLen}/${G.title} char` });
       }
 
       // Short Description (80 char)
       const summary = (android.summary ?? '').toString();
-      const sumLen = summary.length;
+      const sumLen = countCharacters(summary);
       if (sumLen === 0) {
-        findings.push({ severity: 'error', store: 'ANDROID', field: 'shortDesc', label: 'Short Description', current: 0, message: 'Short description boş', recommendation: '80 char, kullanıcı genişletmeden önce gördüğü. Aksiyon fiili + USP.' });
+        findings.push({ severity: 'error', store: 'ANDROID', field: 'shortDesc', label: 'Short Description', current: 0, message: 'Short description boş', recommendation: `${G.shortDescription} char, kullanıcı genişletmeden önce gördüğü. Ana fayda + USP; "hemen indir" gibi eylem çağrısı ve fiyat bilgisi kullanma.` });
+      } else if (sumLen > G.shortDescription) {
+        findings.push({ severity: 'error', store: 'ANDROID', field: 'shortDesc', label: 'Short Description', current: `${sumLen}/${G.shortDescription} char`, message: `Short description ${G.shortDescription} karakter limitini aşıyor`, recommendation: `${G.shortDescription} char altına indir.` });
       } else if (sumLen < 50) {
-        findings.push({ severity: 'warning', store: 'ANDROID', field: 'shortDesc', label: 'Short Description', current: `${sumLen}/80 char`, message: 'Short desc kısa', recommendation: '80 char\'ı doldur, anahtar keyword ekle.' });
+        findings.push({ severity: 'warning', store: 'ANDROID', field: 'shortDesc', label: 'Short Description', current: `${sumLen}/${G.shortDescription} char`, message: 'Short desc kısa', recommendation: `${G.shortDescription} char'ı doldur, anahtar keyword ekle.` });
       } else {
-        findings.push({ severity: 'ok', store: 'ANDROID', field: 'shortDesc', label: 'Short Description', current: `${sumLen}/80 char` });
+        findings.push({ severity: 'ok', store: 'ANDROID', field: 'shortDesc', label: 'Short Description', current: `${sumLen}/${G.shortDescription} char` });
       }
 
       // Long Description (4000) — Play TAMAMINI indexler
       const desc = (android.description ?? '').toString();
-      const descLen = desc.length;
+      const descLen = countCharacters(desc);
       if (descLen === 0) {
         findings.push({ severity: 'error', store: 'ANDROID', field: 'description', label: 'Long Description', current: 0, message: 'Long description boş — Play\'in en kritik alanı', recommendation: 'Play algoritması TÜM long description\'ı indexler. iOS\'tan FARKLI! En az 2500 char yaz.' });
+      } else if (descLen > G.fullDescription) {
+        findings.push({ severity: 'error', store: 'ANDROID', field: 'description', label: 'Long Description', current: `${descLen}/${G.fullDescription} char`, message: `Long description ${G.fullDescription} karakter limitini aşıyor`, recommendation: `${G.fullDescription} char altına indir.` });
       } else if (descLen < 1500) {
-        findings.push({ severity: 'warning', store: 'ANDROID', field: 'description', label: 'Long Description', current: `${descLen}/4000 char`, message: 'Long description kısa — ranking için fırsat kaçıyor', recommendation: 'Play TÜM long desc\'i indexler. 2500-4000 char yaz, hedef keyword\'ler doğal şekilde 3-5 kez geçsin.' });
+        findings.push({ severity: 'warning', store: 'ANDROID', field: 'description', label: 'Long Description', current: `${descLen}/${G.fullDescription} char`, message: 'Long description kısa — ranking için fırsat kaçıyor', recommendation: 'Play TÜM long desc\'i indexler. 2500-4000 char yaz, hedef keyword\'ler doğal şekilde 3-5 kez geçsin.' });
       } else {
-        findings.push({ severity: 'ok', store: 'ANDROID', field: 'description', label: 'Long Description', current: `${descLen}/4000 char` });
+        findings.push({ severity: 'ok', store: 'ANDROID', field: 'description', label: 'Long Description', current: `${descLen}/${G.fullDescription} char` });
       }
 
-      // Reviews
+      // Reviews — kota Google'da "implementation detail", yayimlanmiyor
+      // (https://developer.android.com/guide/playcore/in-app-review); eski
+      // "5 kez/yil" sayisi kaynaksizdi.
       const reviewCount = android.reviews ?? app.androidReviewCount ?? 0;
       const rating = android.score ?? app.androidRating ?? 0;
       if (reviewCount < 10) {
-        findings.push({ severity: 'warning', store: 'ANDROID', field: 'reviews', label: 'Reviews', current: `${reviewCount} review`, message: 'Review sayısı düşük', recommendation: 'Play In-App Review API ile prompt göster (5 kez/yıl limit).' });
+        findings.push({ severity: 'warning', store: 'ANDROID', field: 'reviews', label: 'Reviews', current: `${reviewCount} review`, message: 'Review sayısı düşük', recommendation: 'Play In-App Review API ile iste. Google gösterim kotasını yayımlamıyor; kısa aralıkla tekrar çağrı diyalog göstermeyebilir, bu yüzden butona bağlama.' });
       } else {
         findings.push({ severity: 'ok', store: 'ANDROID', field: 'reviews', label: 'Reviews', current: `${reviewCount} review · ${rating.toFixed?.(1) ?? rating}⭐` });
       }
@@ -917,9 +954,10 @@ export class AsoService {
         findings.push({ severity: 'warning', store: 'ANDROID', field: 'featureGraphic', label: 'Feature Graphic', current: '', message: 'Feature graphic yok', recommendation: '1024x500 image. Play store öne çıkarma için kritik.' });
       }
 
-      // Video
+      // Video — reklamsiz ve yas kisitlamasiz olmali; eski "%15-25 donusum" iddiasi kaynaksizdi
+      // (https://support.google.com/googleplay/android-developer/answer/9866151)
       if (!android.video) {
-        findings.push({ severity: 'info', store: 'ANDROID', field: 'video', label: 'Video', current: '', message: 'YouTube videosu yok', recommendation: '30 sn YouTube videosu — conversion %15-25 artırır.' });
+        findings.push({ severity: 'info', store: 'ANDROID', field: 'video', label: 'Video', current: '', message: 'YouTube videosu yok', recommendation: 'Uygulamanın gerçek kullanımını gösteren bir YouTube tanıtım videosu ekle (reklamsız, yaş kısıtlamasız).' });
       }
     }
 

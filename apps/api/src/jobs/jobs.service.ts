@@ -22,4 +22,7 @@ export class JobsService {
     }
     return job;
   }
+
+  // retry(id) kaldirildi — sahipliksiz ve yalniz DB durumunu degistiriyordu;
+  // gerekce jobs.controller.ts'te. Yeniden deneme: JobQueueService.retryJob.
 }

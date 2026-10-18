@@ -1,5 +1,6 @@
 import { PublishAdapter } from './base.js';
 import type { PublishPayload, PublishResult, OnPageMetaPayload, OnPageMetaResult } from './base.js';
+import { adapterFetch, httpErrorText, sanitizeErrorText } from './transport.js';
 
 /**
  * Webflow adapter.
@@ -23,7 +24,7 @@ export class WebflowAdapter extends PublishAdapter {
       [fieldMap.excerpt]: payload.metaDescription ?? '',
     };
     try {
-      const res = await fetch(
+      const res = await adapterFetch(
         `https://api.webflow.com/v2/collections/${collectionId}/items${this.config.liveAfterPublish ? '/live' : ''}`,
         {
           method: 'POST',
@@ -36,8 +37,7 @@ export class WebflowAdapter extends PublishAdapter {
         },
       );
       if (!res.ok) {
-        const err = await res.text();
-        return { ok: false, error: `Webflow ${res.status}: ${err.slice(0, 200)}` };
+        return { ok: false, error: await httpErrorText('Webflow', res) };
       }
       const data: any = await res.json();
       return {
@@ -56,12 +56,23 @@ export class WebflowAdapter extends PublishAdapter {
       const url = collectionId
         ? `https://api.webflow.com/v2/collections/${collectionId}`
         : `https://api.webflow.com/v2/sites/${siteId}`;
-      const res = await fetch(url, { headers: { Authorization: `Bearer ${apiToken}`, 'accept-version': '2.0.0' } });
+      const res = await adapterFetch(url, { headers: { Authorization: `Bearer ${apiToken}`, 'accept-version': '2.0.0' } });
       return res.ok;
     } catch { return false; }
   }
 
   async applyOnPageMeta(payload: OnPageMetaPayload): Promise<OnPageMetaResult> {
+    try {
+      return await this.writeOnPageMeta(payload);
+    } catch (err: any) {
+      // Ag/adres hatasi (korumali fetch: ic adrese yonlendirme, cozulemeyen ad,
+      // baglanti hatasi) firlatilmaz: cagiran (snippet uygulayici) yapilandirilmis
+      // sonuc bekler ve basarisiz alani kaydeder.
+      return { ok: false, applied: [], skipped: [{ field: 'all', reason: sanitizeErrorText(err?.message ?? err) }] };
+    }
+  }
+
+  private async writeOnPageMeta(payload: OnPageMetaPayload): Promise<OnPageMetaResult> {
     const { apiToken, siteId } = this.credentials;
     if (!apiToken || !siteId) {
       return { ok: false, applied: [], skipped: [{ field: 'all', reason: 'Webflow apiToken veya siteId eksik' }] };
@@ -98,7 +109,7 @@ export class WebflowAdapter extends PublishAdapter {
       return { ok: false, applied, skipped: [{ field: 'all', reason: 'Uygulanacak alan yok' }] };
     }
 
-    const res = await fetch(`https://api.webflow.com/v2/pages/${page.id}`, {
+    const res = await adapterFetch(`https://api.webflow.com/v2/pages/${page.id}`, {
       method: 'PUT',
       headers: {
         Authorization: `Bearer ${apiToken}`,
@@ -111,7 +122,7 @@ export class WebflowAdapter extends PublishAdapter {
       return {
         ok: false,
         applied: [],
-        skipped: [{ field: 'all', reason: `Webflow Pages PUT ${res.status}: ${(await res.text()).slice(0, 180)}` }],
+        skipped: [{ field: 'all', reason: await httpErrorText('Webflow Pages PUT', res, 180) }],
       };
     }
     return { ok: true, applied, skipped, externalUrl: payload.pageUrl };
@@ -119,10 +130,10 @@ export class WebflowAdapter extends PublishAdapter {
 
   private async findPage(apiToken: string, siteId: string, pageUrl: string): Promise<{ id: string; slug: string } | null> {
     let pathname = '/';
-    try { pathname = new URL(pageUrl).pathname.replace(/\/$/, '') || '/'; } catch {}
+    try { pathname = new URL(pageUrl).pathname.replace(/\/$/, '') || '/'; } catch { /* goreli/bozuk URL — kok yol */ }
     const slug = pathname === '/' ? '' : pathname.split('/').filter(Boolean).pop() ?? '';
 
-    const res = await fetch(`https://api.webflow.com/v2/sites/${siteId}/pages?limit=100`, {
+    const res = await adapterFetch(`https://api.webflow.com/v2/sites/${siteId}/pages?limit=100`, {
       headers: { Authorization: `Bearer ${apiToken}`, 'accept-version': '2.0.0' },
     });
     if (!res.ok) return null;

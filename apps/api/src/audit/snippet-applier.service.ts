@@ -3,6 +3,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { AppliedFixService } from './applied-fix.service.js';
 import { decryptCredentials } from '@luviai/shared';
 import { getAdapter } from '@luviai/adapters';
+import { publishTargetBlockReason } from '../publish-targets/publish-target-url.js';
 // OnPageMeta tipleri base.ts içinde tanımlı; package exports root index'ten gelen tip
 // imzasını kullanmak yerine local tip kopyası — adapters package "."" path'inde
 // base'i re-export etmiyor.
@@ -24,7 +25,7 @@ interface OnPageMetaResult {
   externalUrl?: string;
   error?: string;
 }
-import type { PageSnippet } from './snippet-generator.service.js';
+import { assertWithinSiteHost, type PageSnippet } from './snippet-generator.service.js';
 
 /**
  * D2 — snippet'leri uygun adapter üzerinden hedef CMS'e yazar.
@@ -52,6 +53,12 @@ export class SnippetApplierService {
       },
     });
 
+    // Kapsam: adres istek govdesinden gelir ve adaptor o sayfayi bulup meta
+    // yazar — yalniz sitenin kendi sayfalari, adaptor isteginden ONCE (Turkce
+    // 400). Govdedeki her snippet denetlenir: yazim ilk snippet'in adresine
+    // yapilir, digerleri de ayni sayfaya gider.
+    const pageUrls = snippets.map((s) => assertWithinSiteHost(s?.pageUrl, site.url, 'Snippet uygulama'));
+
     const target = site.publishTargets[0];
     if (!target) {
       return {
@@ -71,10 +78,17 @@ export class SnippetApplierService {
     // Alan-bazli kopya yeni formatta adaptore { enc: '{...}' } veriyordu →
     // siteUrl hic ulasmiyor, uygulama sessizce basarisiz oluyordu.
     const credentials = decryptCredentials(target.credentials as Record<string, any>);
+    // Adaptor kullanicinin girdigi adrese duz fetch ile baglanir; kayittan sonra
+    // DNS ic aga cevrilmis olabilir — istekten HEMEN once denetim (publish-target-url.ts)
+    const reason = await publishTargetBlockReason(target.type, credentials, target.config);
+    if (reason) {
+      this.log.warn(`[${siteId}] applyOnPageMeta(${target.type}) atlandi: ${reason}`);
+      return { ok: false, applied: [], skipped: [{ field: 'all', reason }], adapter: target.type };
+    }
     const adapter = new Adapter(credentials, target.config ?? {}) as { applyOnPageMeta: (p: OnPageMetaPayload) => Promise<OnPageMetaResult> };
 
     // Snippet array → OnPageMetaPayload transform
-    const pageUrl = snippets[0].pageUrl;
+    const pageUrl = pageUrls[0];
     const payload: OnPageMetaPayload = { pageUrl };
     const jsonLd: Record<string, any>[] = [];
 

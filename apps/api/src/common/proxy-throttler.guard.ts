@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ThrottlerGuard } from '@nestjs/throttler';
+import { clientIp } from './client-ip.js';
 
 /**
  * Cloudflare + nginx arkasinda DOGRU kullanici IP'siyle rate limit.
@@ -12,10 +13,10 @@ import { ThrottlerGuard } from '@nestjs/throttler';
  * tek bir dashboard acilisi) siteyi herkese 429 ile kilitler. Yani rate limit
  * korumasi, farkinda olmadan bir oz-DoS'a donusur.
  *
- * COZUM: Gercek istemci IP'sini Cloudflare'in CF-Connecting-IP header'indan
- * okuruz (Cloudflare her istekte bunu set eder ve edge'de override eder, yani
- * son kullanici tarafindan spoof edilemez). Cloudflare devrede degilse
- * X-Forwarded-For'un ilk adresine, o da yoksa req.ip'ye duseriz.
+ * COZUM: istemci IP'si common/client-ip.ts ile okunur — once Cloudflare'in
+ * CF-Connecting-IP basligi, yoksa X-Forwarded-For'a nginx'in SONA ekledigi
+ * adres (soldaki adresler istemcinin kendi yazdigi, sahte olabilir; eskiden
+ * ilk adres aliniyordu ve istenen bucket secilebiliyordu), o da yoksa soket.
  *
  * GUVENLIK NOTU: Origin dogrudan internete acik oldugu icin (nginx 443 herkese
  * gorunur), Cloudflare'i bypass eden bir istemci CF-Connecting-IP'yi kendisi
@@ -26,17 +27,6 @@ import { ThrottlerGuard } from '@nestjs/throttler';
 @Injectable()
 export class ProxyThrottlerGuard extends ThrottlerGuard {
   protected async getTracker(req: Record<string, any>): Promise<string> {
-    const headers = req?.headers ?? {};
-
-    const cf = headers['cf-connecting-ip'];
-    if (typeof cf === 'string' && cf.trim()) return cf.trim();
-
-    const xff = headers['x-forwarded-for'];
-    if (typeof xff === 'string' && xff.trim()) {
-      // XFF bir zincirdir: "gercek-istemci, proxy1, proxy2". Ilk adres istemci.
-      return xff.split(',')[0].trim();
-    }
-
-    return req?.ip ?? 'unknown';
+    return clientIp(req) || 'unknown';
   }
 }

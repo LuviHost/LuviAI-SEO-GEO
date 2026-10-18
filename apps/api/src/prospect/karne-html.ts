@@ -12,7 +12,10 @@
  * SAYIM KURALLARI (audit/ai-citation.service.ts aggregateProbes ile ayni):
  *   - Marka kredisi yalnizca MARKASIZ sorulardan (brandInQuery false).
  *     Soru bankasi zaten markasiz ama damga probe'dan okunur; probe damgasi
- *     yoksa containsBrand ile ayni kuralla hesaplanir.
+ *     yoksa containsBrand ile ayni kuralla hesaplanir — host ILE: buildProbe
+ *     (runPublicProbes) alan adindan turetilmis jenerik markada yalniz alan
+ *     adini arar (CITATION_MATCH_VERSION 4); yedek hesap host'suz kalsaydi
+ *     "emlak" kelimesi gecen soruyu markali sayip skordan dusururdu.
  *   - HATA probe'u (excerpt 'HATA: ...' — saglayici reddi, API hatasi, bos
  *     cevap; servis 8 yerde uretir) OLCULMEMIS sayilir: ne "anilmadi" ne
  *     bosluk ne rakip gozlemi. Servisin kendi tuketicileri de boyle yapar
@@ -22,6 +25,12 @@
  *     her cevaptan toplanir, marka kredisi yalnizca markasiz cevaptan.
  *   - Bosluk = olculen (en az bir asistanin gercekten cevapladigi) markasiz
  *     soruda markanin HICBIR asistanda anilmamasi.
+ *   - Asistan paydasi = cevabi en az bir soruda gercekten olculen asistanlar
+ *     (toplam.olculenSaglayici). Eskiden payda girdideki tum saglayicilardi
+ *     ("3/7 asistan"): anahtari olmayan Meta Llama ve hic cevap vermeyen
+ *     asistan da "anmadi" sayiliyordu. Anahtari olmayan saglayici (NO_KEY)
+ *     hic cagrilmadigi icin karnede gorunmez; anahtari olup hata veren
+ *     "olculemedi" olarak listelenir.
  *
  * GIZLILIK: bu rapor birebir ve gizlidir; rakip alan adlari acik yazilir
  * (kamuya yalniz toplu istatistik cikar — plan Faz 4). Saglayici hata
@@ -87,6 +96,14 @@ export interface KarneSaglayiciOzeti {
   available: boolean;
   /** Ham neden (NO_KEY, HTTP govdesi...) — yalniz JSON; HTML'e girmez. */
   reason?: string;
+  /**
+   * Bu kosuma dahil mi: anahtari olmayan saglayici (reason 'NO_KEY') hic
+   * cagrilmadi — karnede "olculemedi" diye listelenmez, sayilara girmez.
+   * Anahtari olup hata veren saglayici dahildir ("olculemedi" gorunur).
+   */
+  kapsamda: boolean;
+  /** En az bir soruda cevabi gercekten olculdu (hatasiz probe) — asistan paydasina girer. */
+  olculdu: boolean;
   /** Kac markasiz soruda anildi / atif aldi. */
   anilanSoru: number;
   atifSoru: number;
@@ -110,8 +127,15 @@ export interface KarneOzet {
   markaliSorular: string[];
   saglayicilar: KarneSaglayiciOzeti[];
   toplam: {
+    /** Girdideki tum saglayicilar (anahtarsizlar dahil) — yalniz JSON icin; HTML paydasi DEGIL. */
     saglayici: number;
     aktifSaglayici: number;
+    /**
+     * Cevabi en az bir soruda gercekten olculen asistan sayisi — HTML'deki
+     * asistan paydasi. Eskiden payda `saglayici` idi: anahtari olmayan ya da
+     * hic cevap vermeyen asistan da "anmadi" sayiliyordu ("3/7 asistan").
+     */
+    olculenSaglayici: number;
     anilanSaglayici: number;
     atifSaglayici: number;
     /** Gercekten olculen markasiz cevap sayisi (hata ve markali haric). */
@@ -129,6 +153,15 @@ export interface KarneOzet {
   /** Denenen cagri sayisi (hatali olanlar dahil). */
   cagriSayisi: number;
   maliyetUsd: number;
+}
+
+/**
+ * Kurum adi (ya da jenerik turetilmis markada alan adi) gecen sorular —
+ * runPublicProbes'un buildProbe damgasiyla AYNI kural (containsBrand + host).
+ * CLI bu sorulari hic sormaz: skora girmeyecek cagriya para harcanmaz.
+ */
+export function markaGecenSorular(sorular: string[], brand: string, host: string): string[] {
+  return sorular.filter((q) => containsBrand(q, brand, host));
 }
 
 export function karneBasligi(brand: string): string {
@@ -151,8 +184,8 @@ export function karneOzeti(girdi: KarneGirdi): KarneOzet {
   const saglayicilar: KarneSaglayiciOzeti[] = girdi.saglayicilar.map((s) => {
     const hucreler: KarneHucre[] = sorular.map((soru) => {
       const probe = s.available ? s.probes.find((p) => p.query === soru) : undefined;
-      // Damga probe'dan; yoksa ayni kuralla metinden (ai-citation ile ayni tanim).
-      const markali = probe?.brandInQuery ?? containsBrand(soru, brand);
+      // Damga probe'dan; yoksa ayni kuralla metinden (ai-citation ile ayni tanim, host ile).
+      const markali = probe?.brandInQuery ?? containsBrand(soru, brand, host);
       if (markali) markaliSet.add(soru);
       if (!probe) return { olculdu: false, hata: false, markali, anildi: false, atif: false, sira: null };
       if (hataliProbe(probe)) return { olculdu: false, hata: true, markali, anildi: false, atif: false, sira: null };
@@ -172,6 +205,8 @@ export function karneOzeti(girdi: KarneGirdi): KarneOzet {
       label: s.label,
       available: s.available,
       reason: s.reason,
+      kapsamda: !(s.available === false && s.reason === 'NO_KEY'),
+      olculdu: hucreler.some((h) => h.olculdu),
       anilanSoru: hucreler.filter((h) => h.anildi).length,
       atifSoru: hucreler.filter((h) => h.atif).length,
       hataliSoru: hucreler.filter((h) => h.hata).length,
@@ -184,6 +219,7 @@ export function karneOzeti(girdi: KarneGirdi): KarneOzet {
   const toplam = {
     saglayici: saglayicilar.length,
     aktifSaglayici: saglayicilar.filter((s) => s.available).length,
+    olculenSaglayici: saglayicilar.filter((s) => s.olculdu).length,
     anilanSaglayici: saglayicilar.filter((s) => s.anilanSoru > 0).length,
     atifSaglayici: saglayicilar.filter((s) => s.atifSoru > 0).length,
     olculenCevap: hucrelerDuz.length,
@@ -198,7 +234,7 @@ export function karneOzeti(girdi: KarneGirdi): KarneOzet {
     .flatMap((s) => s.probes)
     .filter((p) => !hataliProbe(p))
     .map((p) => ({
-      brandPresent: !(p.brandInQuery ?? containsBrand(p.query, brand)) && !!p.brandMentioned,
+      brandPresent: !(p.brandInQuery ?? containsBrand(p.query, brand, host)) && !!p.brandMentioned,
       rivals: [...rivalsFromCompetitors(p.competitors), ...(p.mentionedDomains ?? [])],
     }));
   const rakipPayi = shareOfVoiceList(observations, brand);
@@ -326,13 +362,18 @@ export function karneHtml(o: KarneOzet, secenek: KarneHtmlSecenek = {}): string 
   const sektorAdi = SEKTOR_ADI[o.sektor] ?? o.sektor;
   // Hicbir hucre gercekten olculmediyse (anahtar yok / hepsi hata) bosluk listesi anlamsizdir.
   const olcumYok = !o.saglayicilar.some((s) => s.hucreler.some((h) => h.olculdu));
+  // Karnede gorunen asistanlar: bu kosuma dahil olanlar. Anahtari olmayan
+  // saglayici hic cagrilmadi; "olculemedi" diye listelemek denenip basarisiz
+  // olmus izlenimi verirdi (uretimde Meta Llama: GROQ_LLAMA_MODEL tanimsiz).
+  const kapsam = o.saglayicilar.filter((s) => s.kapsamda);
 
   // Ozet kartlari
   // NEDEN eksiz etiket: "3'ünde / 2'sinde" gibi Turkce ekler sayiya gore
   // degisir ve kesme isareti HTML'de kacislanir; sayi manset, etiket duz.
+  // Asistan paydasi = cevabi gercekten olculen asistan sayisi (olculenSaglayici).
   const kartlar = [
-    { sayi: `${t.anilanSaglayici}/${t.saglayici}`, etiket: 'asistan en az bir soruda kurumu andı' },
-    { sayi: `${t.atifSaglayici}/${t.saglayici}`, etiket: 'asistan atıf (kaynak/link) verdi' },
+    { sayi: `${t.anilanSaglayici}/${t.olculenSaglayici}`, etiket: 'asistan en az bir soruda kurumu andı' },
+    { sayi: `${t.atifSaglayici}/${t.olculenSaglayici}`, etiket: 'asistan atıf (kaynak/link) verdi' },
     { sayi: `${t.anilanCevap}/${t.olculenCevap}`, etiket: `ölçülen cevapta anıldı (${yuzde(t.anilanCevap, t.olculenCevap)})` },
     { sayi: `${t.atifCevap}/${t.olculenCevap}`, etiket: `ölçülen cevapta atıf (${yuzde(t.atifCevap, t.olculenCevap)})` },
     { sayi: `${o.bosluklar.length}/${o.olculenSoruSayisi}`, etiket: 'ölçülen soruda hiçbir asistan anmadı (boşluk)' },
@@ -340,8 +381,8 @@ export function karneHtml(o: KarneOzet, secenek: KarneHtmlSecenek = {}): string 
     .map((k) => `<div class="kart"><div class="sayi">${e(k.sayi)}</div><div class="etiket">${e(k.etiket)}</div></div>`)
     .join('');
 
-  // Asistan x soru tablosu — satir: soru, sutun: asistan
-  const basliklar = o.saglayicilar
+  // Asistan x soru tablosu — satir: soru, sutun: asistan (yalniz bu kosuma dahil olanlar)
+  const basliklar = kapsam
     .map((s) => {
       const ad = KISA_AD[s.provider] ?? s.label;
       const durum = saglayiciOlculemedi(s) ? ' <span style="font-weight:400;color:#a8a29e">(ölçülemedi)</span>' : '';
@@ -351,7 +392,7 @@ export function karneHtml(o: KarneOzet, secenek: KarneHtmlSecenek = {}): string 
   const satirlar = o.sorular
     .map((soru, i) => {
       const markali = o.markaliSorular.includes(soru);
-      const hucreler = o.saglayicilar
+      const hucreler = kapsam
         .map((s) => {
           const h = s.hucreler[i];
           if (h.hata) return '<td class="h hata" title="sağlayıcı hatası veya reddi — ölçülemedi, sayıma girmez">!</td>';
@@ -366,7 +407,7 @@ export function karneHtml(o: KarneOzet, secenek: KarneHtmlSecenek = {}): string 
       return `<tr><td>${i + 1}</td><td>${e(soru)}${etiket}</td>${hucreler}</tr>`;
     })
     .join('');
-  const toplamSatir = o.saglayicilar
+  const toplamSatir = kapsam
     .map((s) => (saglayiciOlculemedi(s) ? '<td class="h yok">—</td>' : `<td class="h">${s.anilanSoru} / ${s.atifSoru}</td>`))
     .join('');
 
@@ -394,7 +435,10 @@ export function karneHtml(o: KarneOzet, secenek: KarneHtmlSecenek = {}): string 
       : `<ul class="bosluk">${o.bosluklar.map((b) => `<li>${e(b)}</li>`).join('')}</ul>`;
 
   // NEDEN notr metin: ham reason operasyonel/ic bilgidir (anahtar durumu, HTTP govdesi).
-  const olculemeyen = o.saglayicilar.filter(saglayiciOlculemedi);
+  const olculemeyen = kapsam.filter(saglayiciOlculemedi);
+  const sorulanMetin = kapsam.length
+    ? `<li>${kapsam.length} asistana soruldu: ${kapsam.map((s) => e(s.label)).join(', ')}. Her asistana aynı ${o.sorular.length} soru, aynı gün, aynı sistem yönergesiyle soruldu.</li>`
+    : '<li>Bu koşumda hiçbir asistana soru gönderilemedi.</li>';
   const olculemeyenMetin = olculemeyen.length
     ? `<li>Ölçülemeyen asistanlar: ${olculemeyen.map((s) => e(s.label)).join(', ')} — ${OLCULEMEDI_METNI}; sayımlara girmedi.</li>`
     : '';
@@ -418,7 +462,7 @@ export function karneHtml(o: KarneOzet, secenek: KarneHtmlSecenek = {}): string 
 <header class="ust">
   <div class="marka">RanksUp · bağımsız sektör araştırması</div>
   <h1>${e(baslik)}</h1>
-  <div class="meta">${e(o.host)} · ${e(sektorAdi)}${o.altsektor ? ' · ' + e(o.altsektor) : ''} · ${e(o.tarihMetni)} · ${t.aktifSaglayici}/${t.saglayici} asistan · ${o.sorular.length} soru</div>
+  <div class="meta">${e(o.host)} · ${e(sektorAdi)}${o.altsektor ? ' · ' + e(o.altsektor) : ''} · ${e(o.tarihMetni)} · ${t.olculenSaglayici} asistan ölçüldü · ${o.sorular.length} soru</div>
   <div class="gizli">GİZLİ — yalnız ${e(o.brand)} için hazırlandı; üçüncü kişiyle paylaşılmaz</div>
 </header>
 
@@ -446,7 +490,7 @@ ${boslukBlok}
   <li>Sorular gerçek müşteri dilinde ve <strong>markasız</strong>dır: hiçbirinde kurum adı geçmez. Kurum adı geçen soruda anılmak görünürlük değil tanınırlıktır.</li>
   ${markaliMetin}
   <li>Bu karne <strong>tek koşumdur = anlık görüntü</strong>. Asistan cevapları günden güne değişir; kesin hüküm için aynı soruların <strong>en az 2 farklı günde</strong> sorulması gerekir. Buradaki sayılar "şu an böyle görünüyor" der, "hep böyle" demez.</li>
-  <li>${t.saglayici} asistan soruldu: ${o.saglayicilar.map((s) => e(s.label)).join(', ')}. Her asistana aynı ${o.sorular.length} soru, aynı gün, aynı sistem yönergesiyle soruldu.</li>
+  ${sorulanMetin}
   ${olculemeyenMetin}
   ${hataMetin}
   <li>"Anıldı" = cevapta kurum adı kelime sınırıyla geçti. "Atıf" = cevap kurumun alan adını kaynak/link olarak verdi. Sıra = kurumun cevapta ilk geçtiği satır/madde (1 = en üstte; liste maddeleri ayrı satır sayılır).</li>

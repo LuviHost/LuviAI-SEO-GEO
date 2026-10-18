@@ -4,6 +4,7 @@ import { RequiresPlan } from '../../billing/plan-feature.decorator.js';
 import { SessionOnly } from '../../auth/session-only.decorator.js';
 import { AscMetadataService } from './asc-metadata.service.js';
 import type { RequestingUser } from './asc.service.js';
+import { ApplyAscMetadataDto, PlanAscMetadataDto } from './asc.dto.js';
 
 interface AuthedRequest extends Request { user?: RequestingUser }
 function ensureUser(req: AuthedRequest) {
@@ -34,7 +35,7 @@ export class AscMetadataController {
     @Req() req: AuthedRequest,
     @Param('siteId') siteId: string,
     @Param('ascAppId') ascAppId: string,
-    @Body() body: { locale?: unknown; fields?: Record<string, unknown> },
+    @Body() body: PlanAscMetadataDto,
   ) {
     return this.meta.plan(siteId, ascAppId, ensureUser(req), body ?? {});
   }
@@ -45,7 +46,7 @@ export class AscMetadataController {
     @Req() req: AuthedRequest,
     @Param('siteId') siteId: string,
     @Param('ascAppId') ascAppId: string,
-    @Body() body: { planId?: unknown; confirm?: unknown },
+    @Body() body: ApplyAscMetadataDto,
   ) {
     return this.meta.apply(siteId, ascAppId, ensureUser(req), body ?? {});
   }

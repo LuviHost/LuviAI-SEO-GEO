@@ -3,6 +3,7 @@ import { google } from 'googleapis';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { GscOAuthService } from '../auth/gsc-oauth.service.js';
 import { WebhookNotifierService } from './webhook-notifier.service.js';
+import { STUCK_RECOVERY_NOT_FOUND } from './stuck-page-messages.js';
 
 /**
  * ENH#4 — Performance Feedback Loop.
@@ -40,9 +41,9 @@ export class StuckPagePerformanceCheckService {
       where: { id: recoveryId },
       include: { stuckPage: true },
     });
-    if (!recovery) throw new NotFoundException('Recovery bulunamadi');
+    if (!recovery) throw new NotFoundException(STUCK_RECOVERY_NOT_FOUND);
     if (recovery.revertedAt) {
-      return { ok: false, reason: 'Recovery geri alinmis — olcum yapilmaz' };
+      return { ok: false, reason: 'Düzeltme geri alınmış; ölçüm yapılmadı.' };
     }
     if (recovery.effectivenessCheckAt) {
       this.log.log(`[${recoveryId}] Zaten olculmus, atlandi`);
@@ -55,12 +56,12 @@ export class StuckPagePerformanceCheckService {
       select: { id: true, name: true, userId: true, gscPropertyUrl: true, gscRefreshToken: true },
     });
     if (!site?.gscPropertyUrl || !site.gscRefreshToken) {
-      return { ok: false, reason: 'GSC bagli degil' };
+      return { ok: false, reason: 'Search Console bağlı değil; ölçüm yapılmadı.' };
     }
 
     // Bu URL icin son 30 gun GSC verisini cek
     const client = await this.gscOAuth.getAuthenticatedClient(stuckPage.siteId);
-    if (!client) return { ok: false, reason: 'GSC auth failed' };
+    if (!client) return { ok: false, reason: 'Search Console oturumu açılamadı; ölçüm yapılmadı.' };
 
     const webmasters = google.webmasters({ version: 'v3', auth: client as any });
     const endDate = new Date().toISOString().slice(0, 10);
@@ -90,7 +91,7 @@ export class StuckPagePerformanceCheckService {
       }
     } catch (err: any) {
       this.log.warn(`[${recoveryId}] GSC fetch hata: ${err.message}`);
-      return { ok: false, reason: `GSC: ${err.message}` };
+      return { ok: false, reason: `Search Console verisi alınamadı: ${err.message}` };
     }
 
     if (position === null) {
@@ -103,7 +104,7 @@ export class StuckPagePerformanceCheckService {
           effectivenessScore: 0,
         },
       });
-      return { ok: true, effectivenessScore: 0, reason: 'GSC verisi henuz yok' };
+      return { ok: true, effectivenessScore: 0, reason: 'Bu adres için Search Console verisi henüz yok.' };
     }
 
     const positionBefore = recovery.positionBefore ?? stuckPage.position;
@@ -142,7 +143,7 @@ export class StuckPagePerformanceCheckService {
     });
 
     this.log.log(
-      `[${recoveryId}] Performance check: pos ${positionBefore.toFixed(1)}->${position.toFixed(1)} (${positionImprovement >= 0 ? '+' : ''}${positionImprovement.toFixed(1)}), ctr ${(ctrBefore * 100).toFixed(2)}%->${(ctr ?? 0 * 100).toFixed(2)}%, score=${score}`,
+      `[${recoveryId}] Performance check: pos ${positionBefore.toFixed(1)}->${position.toFixed(1)} (${positionImprovement >= 0 ? '+' : ''}${positionImprovement.toFixed(1)}), ctr ${(ctrBefore * 100).toFixed(2)}%->${ctr === null ? '?' : (ctr * 100).toFixed(2)}%, score=${score}`,
     );
 
     // Webhook bildirim — sadece anlamli sonuc varsa
@@ -152,12 +153,13 @@ export class StuckPagePerformanceCheckService {
         siteId: stuckPage.siteId,
         siteName: site.name,
         event: positive ? 'stuck_page_recovered' : 'ai_citation_drop',
+        // Musteriye giden metin Turkce; sayilar ek almadan yazilir (sira #7.2 → #4.1)
         title: positive
-          ? `Recovery basarili: ${stuckPage.title ?? stuckPage.url}`
-          : `Recovery beklenenden zayif: ${stuckPage.title ?? stuckPage.url}`,
+          ? `Takılı sayfa düzeltmesi işe yaradı: ${stuckPage.title ?? stuckPage.url}`
+          : `Takılı sayfa düzeltmesinin etkisi zayıf kaldı: ${stuckPage.title ?? stuckPage.url}`,
         message: positive
-          ? `30 gun sonra: pozisyon #${positionBefore.toFixed(1)}'den #${position.toFixed(1)}'e cikti. CTR ${(ctrBefore * 100).toFixed(2)}% -> ${(ctr! * 100).toFixed(2)}%. Etki skoru: ${score}/100`
-          : `30 gun sonra: pozisyon ${positionImprovement >= 0 ? 'sadece' : 'geri'} ${Math.abs(positionImprovement).toFixed(1)} sira degisti. Etki skoru: ${score}/100. Yeniden recover veya manuel inceleme onerilir.`,
+          ? `30 gün sonra Google sırası #${positionBefore.toFixed(1)} → #${position.toFixed(1)}; tıklama oranı %${(ctrBefore * 100).toFixed(2)} → %${ctr === null ? '?' : (ctr * 100).toFixed(2)}. Etki puanı: ${score}/100.`
+          : `30 gün sonra Google sırası ${positionImprovement >= 0 ? `yalnız ${Math.abs(positionImprovement).toFixed(1)} basamak yükseldi` : `${Math.abs(positionImprovement).toFixed(1)} basamak geriledi`}. Etki puanı: ${score}/100. Sayfayı yeniden düzeltmeyi ya da elle incelemeyi düşünebilirsin.`,
         url: stuckPage.url,
         meta: { recoveryId, score, positionImprovement, ctrChange, clicksChange },
       }).catch(() => null);

@@ -1,10 +1,23 @@
 export { PublishAdapter } from './base.js';
-export type { PublishPayload, PublishResult, OnPageMetaPayload, OnPageMetaResult, ImageAltPayload, ImageAltResult } from './base.js';
+export type {
+  PublishPayload, PublishResult, OnPageMetaPayload, OnPageMetaResult, ImageAltPayload, ImageAltResult, LiveEntryRef, UpdateResult, UpdateOptions,
+} from './base.js';
+// Yayindaki WordPress yazisinin adreslenmesi — API'deki yeniden yayin karari da kullanir
+export {
+  wordPressPostId, wordPressUrlSlug, wordPressEntryAddressable,
+  // Yerinde guncellemeden once kimlik ve cakisma denetimi (REST + XML-RPC ortak kural)
+  wordPressGmtToIso, normalizeWordPressSlug, wordPressSlugMatches, expectedWordPressSlugs, wordPressEditedSince, WP_CLOCK_SKEW_TOLERANCE_MS,
+  wordPressDateLabel, wordPressIdentityProblem, wordPressEditedText,
+} from './wordpress-post-ref.js';
+export type { WordPressIdentityProblem } from './wordpress-post-ref.js';
 export { patchImgAlt, findImgTags, escapeAttr, readAlt } from './img-alt-patch.js';
 export type { ImgAltTarget, PatchResult, PatchReason } from './img-alt-patch.js';
+// Ag erisimi: API/worker acilista korumali uygulamayi kaydeder (bkz. transport.ts)
+export { setAdapterFetch, setAdapterHostResolver, sanitizeErrorText } from './transport.js';
+export type { AdapterFetch, AdapterHostResolver } from './transport.js';
 
 // Publish hedefleri
-export { WordPressRestAdapter } from './wordpress-rest.js';
+export { WordPressRestAdapter, wordPressCategoryIds } from './wordpress-rest.js';
 export { WordPressXmlrpcAdapter } from './wordpress-xmlrpc.js';
 export { FtpAdapter } from './ftp.js';
 export { SftpAdapter } from './sftp.js';
@@ -41,6 +54,13 @@ import { ShopifyAdapter } from './shopify.js';
 import { WixAdapter } from './wix.js';
 import { KobipratikAdapter } from './kobipratik.js';
 
+/*
+ * Form alanlarinin (kimlik + ayar adlari, etiketler) TEK kaynagi API katalogudur:
+ * apps/api/src/publish-targets/publish-target-catalog.ts. Burada eskiden ikinci
+ * bir liste (ADAPTERS_CATALOG) vardi; hicbir yerden okunmuyordu ve eski alan
+ * adlarini (Ghost siteUrl, Strapi strapiUrl/apiToken, WHMCS whmcsUrl...)
+ * gosteriyordu — yaniltmasin diye kaldirildi.
+ */
 export function getAdapter(type: string): typeof PublishAdapter | null {
   const map: Record<string, any> = {
     WORDPRESS_REST:    WordPressRestAdapter,
@@ -63,23 +83,3 @@ export function getAdapter(type: string): typeof PublishAdapter | null {
   };
   return map[type] ?? null;
 }
-
-export const ADAPTERS_CATALOG = [
-  { type: 'WORDPRESS_REST',   label: 'WordPress REST API',  description: 'App Password ile otomatik yayın + on-page meta (Yoast/RankMath)', fields: ['siteUrl', 'username', 'appPassword'] },
-  { type: 'WORDPRESS_XMLRPC', label: 'WordPress XML-RPC',   description: 'Eski WP sürümleri (4.7 öncesi)',           fields: ['siteUrl', 'username', 'password'] },
-  { type: 'FTP',              label: 'FTP',                 description: 'Static HTML + FTP upload',                  fields: ['host', 'user', 'password'] },
-  { type: 'SFTP',             label: 'SFTP / SSH',          description: 'Static HTML + SSH key veya password',       fields: ['host', 'username', 'password|privateKey'] },
-  { type: 'CPANEL_API',       label: 'cPanel API Token',    description: 'cPanel File Manager UAPI',                  fields: ['cpanelUrl', 'username', 'apiToken'] },
-  { type: 'GITHUB',           label: 'GitHub Repo',         description: 'Static site generator (Hugo, Jekyll, Astro)', fields: ['token', 'owner', 'repo', 'branch'] },
-  { type: 'WEBFLOW',          label: 'Webflow CMS',         description: 'CMS item + on-page SEO/OG (Pages API)',     fields: ['apiToken', 'siteId', 'collectionId?'] },
-  { type: 'SANITY',           label: 'Sanity',              description: 'Headless CMS — Portable Text',              fields: ['projectId', 'dataset', 'token'] },
-  { type: 'CONTENTFUL',       label: 'Contentful',          description: 'Management API + publish',                  fields: ['spaceId', 'environmentId', 'managementToken'] },
-  { type: 'GHOST',            label: 'Ghost',               description: 'Ghost Admin API (JWT)',                     fields: ['siteUrl', 'adminApiKey'] },
-  { type: 'WHMCS_KB',         label: 'WHMCS Knowledgebase', description: 'WHMCS API ile bilgi bankası makalesi',     fields: ['whmcsUrl', 'identifier', 'secret'] },
-  { type: 'STRAPI',           label: 'Strapi',              description: 'Strapi 4+ REST API',                        fields: ['strapiUrl', 'apiToken'] },
-  { type: 'CUSTOM_PHP',       label: 'Custom PHP Endpoint', description: 'Kendi PHP API\'ınız + HMAC imza',          fields: ['endpointUrl', 'apiKey?', 'hmacSecret?'] },
-  { type: 'MARKDOWN_ZIP',     label: 'Markdown ZIP indir',  description: 'Manuel yayın için ZIP export',              fields: [] },
-  { type: 'SHOPIFY',          label: 'Shopify Admin API',   description: 'Blog post + product/page meta (title_tag/description_tag)', fields: ['storeDomain', 'accessToken', 'blogId?'] },
-  { type: 'WIX',              label: 'Wix (rehberli)',      description: 'Snippet panelinden manuel yapıştırma',      fields: ['apiKey', 'siteId'] },
-  { type: 'KOBIPRATIK',       label: 'KobiPratik (Luvihost içi)', description: 'Luvihost grubu özel adapter — admin only', fields: ['baseUrl', 'apiKey'] },
-] as const;

@@ -1,198 +1,269 @@
 /**
- * i18n + tasarım verisi — Claude Design "RanksUp Mobile" projesinden birebir.
- * Metinler ve veri listeleri tasarımdaki I18N/ENGINES/KW ile aynı.
+ * i18n — TR / EN metinler.
+ *
+ * Tasarim projesinden gelen ornek veriler (uydurma ajan akisi, "Sen uyurken 6
+ * islem yaptim", sabit motor/anahtar kelime/ASA rakamlari, Studio varyantlari,
+ * sahte onboarding taramasi) kaldirildi: ekranlar artik yalniz API'den gelen
+ * gercek veriyi gosterir ya da veri yoksa bunu acikca soyler. Burada sayi
+ * iceren tek metinler, cagiranin gercek veriden verdigi sayilardir.
  */
 import React, { createContext, useContext, useMemo, useState } from 'react';
 
 export type Lang = 'tr' | 'en';
 
 export interface Strings {
+  // ── Ilk acilis ──
   skip: string;
-  ob1_title: string; ob1_sub: string; ob1_ph: string; ob1_cta: string; ob1_note: string;
-  ob2_kicker: string; scan_titles: string[]; scan_steps: string[];
-  ob3_title: string; ob3_sub: string; ob3_sector: string; ob3_comp: string; ob3_plan: string; ob3_ready: string; ob3_found: string; ob3_cta: string;
-  home_kicker: string; home_title: string; home_sub: string; home_newkw: string; now: string;
-  pend_badge: string; pend_title: string; pend_desc: string; approve: string; reject: string;
-  approved_badge: string; rejected_badge: string; approved_msg: string; rejected_msg: string;
-  auto: string; queued: string; ask_ph: string; tab_agent: string; tab_vis: string;
-  feed: { title: string; desc: string; time: string; badge: 'auto' | 'queued' | null }[];
-  vis_title: string; vis_sub: string; vis_score: string; vis_caption: string; vis_engines: string; vis_road_sub: string;
+  ob1_kicker: string; ob1_title: string; ob1_sub: string; ob1_ph: string; ob1_cta: string; ob1_note: string; ob1_err: string;
+
+  // ── Sekmeler ve ust bar ──
+  tab_home: string; tab_vis: string; tab_account: string; tab_analyze: string;
+  hdr_account: string; hdr_bell: string; hdr_bell_unread: (n: number) => string;
+  retry: string; refresh: string; load_error: string;
+
+  // ── Ana sayfa (hesap bagli degil) ──
+  home_kicker: string; home_title: string; home_sub: string; home_cta: string;
+  home_connect_title: string; home_connect_body: string; home_connect_cta: string;
+  home_feat_title: string; home_feats: { title: string; body: string }[];
+
+  // ── Ana sayfa (hesap bagli) ──
+  home_in_kicker: string;
+  home_hello: (name: string | null) => string;
+  home_site: (site: string) => string;
+  home_no_site: string;
+  home_m_sites: string; home_m_published: string; home_m_drafts: string; home_m_month: string;
+  /**
+   * Deneme hesabi: hak aylik sifirlanmaz (sunucu QuotaService, plan TRIAL),
+   * "Bu ay uretilen" yanlis olur. Kalan/limit sunucunun articleQuota alanindan;
+   * alan yoksa yalniz kullanilan sayi (article-quota.ts).
+   */
+  home_m_trial: string; home_trial_left: (remaining: string, limit: string) => string; home_m_trial_used: string;
+  home_notif_title: string; home_notif_empty: string;
+
+  // ── AI gorunurluk ──
+  vis_title: string; vis_sub: string; vis_score: string; vis_engines: string; vis_engines_note: string;
+  vis_empty_title: string; vis_empty_body: string; vis_empty_cta: string;
+  vis_loading: (domain: string) => string; vis_snapshot: string;
+  vis_answered: (answered: number, total: number) => string;
+  vis_excluded: (locked: number, branded: number) => string;
+  vis_all_branded: string; vis_no_measured: string;
+  vis_pairs: (shown: number, total: number) => string;
+  vis_comp_title: string; vis_you: string;
+  vis_road_title: string; vis_road_sub: string;
   road: { title: string; why: string; eff: string }[];
-  aso_sub: string; aso_score: string; aso_thisweek: string; aso_meta: string; aso_kw: string;
-  asa_imp: string; asa_tap: string; asa_inst: string; asa_note: string;
-  st_sub: string; st_ph: string; st_gen: string; st_busy: string; st_variants: string; st_share: string; st_schedule: string;
-  variants: { channel: string; text: string; len: string }[];
+
+  // ── ASO ──
+  aso_sub: string;
+  aso_pill: (site: string) => string;
+  aso_search_title: string; aso_search_ios: string; aso_search_play: string; aso_search_btn: string; aso_no_results: string;
+  aso_apps_title: string; aso_apps_empty: string; aso_no_site: string;
+  aso_store_missing_ios: string; aso_store_missing_play: string;
+  aso_ratings: (n: string) => string; aso_reviews: (n: string) => string; aso_no_rating: string;
+  aso_kw_title: string; aso_kw_count: (n: string) => string; aso_kw_empty: string;
+  aso_kw_last: (date: string) => string; aso_kw_never: string; aso_kw_more: (n: number) => string; aso_kw_legend: string;
+  asa_period: string; asa_imp: string; asa_tap: string; asa_inst: string; asa_cr: string;
+  asa_empty: string; asa_last_day: (date: string) => string;
+  aso_out_title: string; aso_out_body: string; aso_out_cta: string;
 }
 
 export const I18N: Record<Lang, Strings> = {
   tr: {
     skip: 'Atla',
-    ob1_title: 'Senin yerine pazarlama yapan AI.',
-    ob1_sub: 'Siteni bağla — RanksUp tarasın, eksikleri bulsun, içeriği üretsin, App Store reklamını optimize etsin.',
-    ob1_ph: 'https://siteniz.com',
-    ob1_cta: 'Siteyi bağla',
-    ob1_note: 'KART GEREKMEZ · 2 MAKALE ÜCRETSİZ',
-    ob2_kicker: 'AI ANALİZ',
-    scan_titles: ['Siten taranıyor…', 'Sektör belirleniyor…', "Keyword'ler çıkarılıyor…", 'Rakipler analiz ediliyor…', 'İçerik planı hazırlanıyor…', 'Tamamlandı'],
-    scan_steps: ['Site tarandı', 'Sektör belirlendi: KOBİ finans', '50 keyword çıkarıldı', '3 rakip bulundu', 'İlk içerik planı hazır'],
-    ob3_title: 'Her şey hazır.',
-    ob3_sub: 'AI sektörünü anladı, planını kurdu. Auto-Pilot açık — ilk işlemler onayını bekleyecek.',
-    ob3_sector: 'SEKTÖR', ob3_comp: 'RAKİP', ob3_plan: 'İÇERİK PLANI', ob3_ready: 'Hazır', ob3_found: 'bulundu',
-    ob3_cta: 'Panele git',
-    home_kicker: 'AUTO-PILOT AKTİF',
-    home_title: 'Sen uyurken 6 işlem yaptım.',
-    home_sub: 'Son 24 saat · KobiPratik',
-    home_newkw: 'yeni kw',
-    now: 'şimdi',
-    pend_badge: 'ONAY BEKLİYOR',
-    pend_title: 'ASA bid artışı öneriyorum',
-    pend_desc: "'ön muhasebe' CPI hedefin %31 altında. $0.38 → $0.45 ile #1 pozisyon mümkün — tahmini +9 indirme/gün.",
-    approve: 'Onayla', reject: 'Reddet',
-    approved_badge: 'ONAYLANDI', rejected_badge: 'REDDEDİLDİ',
-    approved_msg: 'Bid $0.45 olarak güncellendi — etki 24 saat içinde raporlanır.',
-    rejected_msg: 'Öneri kapatıldı. Auto-Pilot mevcut bid ile devam ediyor.',
-    auto: 'OTOMATİK', queued: 'YAYIN KUYRUĞUNDA',
-    ask_ph: 'Ajana söyle: "X\'e bir post at…"',
-    tab_agent: 'Ajan', tab_vis: 'Görünürlük',
-    feed: [
-      { title: 'Sıralama yükseldi', desc: "'ön muhasebe' #8 → #3 — günlük rank check, 50 keyword tarandı.", time: '02:14', badge: 'auto' },
-      { title: 'Makale üretildi', desc: '"KOBİ vergi takvimi 2026" — 1.840 kelime, FAQ schema dahil. WordPress\'e yayına hazır.', time: '03:02', badge: 'queued' },
-      { title: "LinkedIn'de yayınlandı", desc: '"E-fatura geçişinde 5 kritik tarih" — 267 görüntüleme, 12 etkileşim.', time: '08:30', badge: 'auto' },
-      { title: "ChatGPT'de yeni mention", desc: '"KOBİ\'ler için ön muhasebe programı" sorgusunda markan önerildi.', time: '11:47', badge: null },
+    ob1_kicker: 'AI GÖRÜNÜRLÜK',
+    ob1_title: 'Markan AI cevaplarında görünüyor mu?',
+    ob1_sub: 'Sitenin adresini yaz; markanın 6 AI asistanının cevaplarında geçip geçmediğini ücretsiz ölçelim.',
+    ob1_ph: 'siteniz.com',
+    ob1_cta: 'Siteni analiz et',
+    ob1_note: 'ÜCRETSİZ · HESAP GEREKMEZ',
+    ob1_err: 'Bir alan adı gir (ör. siteniz.com)',
+
+    tab_home: 'Ana sayfa', tab_vis: 'Görünürlük', tab_account: 'Hesap', tab_analyze: 'Site analiz et',
+    hdr_account: 'Hesap', hdr_bell: 'Bildirimler',
+    hdr_bell_unread: (n) => `${n} okunmamış bildirim`,
+    retry: 'Tekrar dene', refresh: 'Yenile', load_error: 'Bilgiler alınamadı.',
+
+    home_kicker: 'AI GÖRÜNÜRLÜK',
+    home_title: 'Markan AI cevaplarında görünüyor mu?',
+    home_sub: 'Sitenin adresini yaz; ChatGPT, Claude, Gemini, Perplexity, Grok ve DeepSeek’in sektörüne dair sorulara verdiği cevaplarda markanın geçip geçmediğini ölçelim. Ücretsiz, hesap gerekmez.',
+    home_cta: 'Siteni analiz et',
+    home_connect_title: 'RanksUp hesabın var mı?',
+    home_connect_body: 'Hesabını bağla; sitelerin, bildirimlerin ve ASO verilerin burada görünsün.',
+    home_connect_cta: 'Hesabını bağla',
+    home_feat_title: 'Uygulamada neler var?',
+    home_feats: [
+      { title: 'AI görünürlük testi', body: 'Hesap gerekmez. Ücretsiz testte soruların bir kısmı ölçülür; hangilerinin ölçüldüğü sonuçta yazar.' },
+      { title: 'Hesap özeti ve bildirimler', body: 'Sitelerin, yazıların ve tarama sonuçların — hesabını bağlayınca.' },
+      { title: 'ASO', body: 'Takip ettiğin uygulamaların App Store ve Google Play anahtar kelime sıraları — hesabını bağlayınca.' },
     ],
+
+    home_in_kicker: 'HESAP ÖZETİ',
+    home_hello: (name) => (name ? `Merhaba, ${name}` : 'Merhaba'),
+    home_site: (site) => `Aktif site: ${site}`,
+    home_no_site: 'Bu hesapta henüz site yok. Web panelinden site ekleyince burada görünür.',
+    home_m_sites: 'Siteler', home_m_published: 'Yayınlanan yazı', home_m_drafts: 'Hazırlanan yazı', home_m_month: 'Bu ay üretilen',
+    home_m_trial: 'Deneme hakkı', home_trial_left: (r, l) => `${r}/${l} kaldı`, home_m_trial_used: 'Kullanılan deneme hakkı',
+    home_notif_title: 'Son bildirimler',
+    home_notif_empty: 'Henüz bildirim yok. Tarama ve ölçüm sonuçların burada görünür.',
+
     vis_title: 'AI Görünürlük',
-    vis_sub: '7 AI motorunda marka takibi · sentiment · share of voice',
-    vis_score: 'CITATION SKORU',
-    vis_caption: '128 cevapta alıntı · %34 artış',
-    vis_engines: 'Motor bazında',
-    vis_road_sub: 'AI sonuçlarını okur, ne yapman gerektiğini önerir',
+    vis_sub: '6 AI asistanında marka görünürlüğü ve rakip payı',
+    vis_score: 'GÖRÜNÜRLÜK SKORU',
+    vis_engines: 'Asistan bazında',
+    vis_engines_note: 'Markanın adının ya da sitenin bağlantısının geçtiği cevaplar.',
+    vis_empty_title: 'Görünürlüğünü ölç',
+    vis_empty_body: 'Bir site analiz et; markanın 6 AI asistanındaki gerçek görünürlüğünü burada gör.',
+    vis_empty_cta: 'Site analiz et',
+    vis_loading: (domain) => `${domain} taranıyor…`,
+    vis_snapshot: 'AI görünürlük · anlık görünüm',
+    vis_answered: (a, b) => `${a}/${b} soruda en az bir AI asistanı markanı gösterdi.`,
+    vis_excluded: (locked, branded) => {
+      const parts: string[] = [];
+      if (locked > 0) parts.push(`${locked} kilitli soru`);
+      if (branded > 0) parts.push(`marka adını içeren ${branded} soru`);
+      return parts.length ? `${parts.join(' ve ')} skora katılmadı.` : '';
+    },
+    vis_all_branded: 'Ölçülen soruların hepsi marka adını içeriyor; skor bu sorulardan hesaplandı.',
+    vis_no_measured: 'Bu sonuçta ölçülmüş soru yok, bu yüzden skor hesaplanmadı.',
+    vis_pairs: (a, b) => `${a}/${b} cevap`,
+    vis_comp_title: 'AI cevaplarında kim öne çıkıyor?',
+    vis_you: '(siz)',
+    vis_road_title: 'Genel öneriler',
+    vis_road_sub: 'Her site için geçerli adımlar — bu sonuca özel değildir',
     road: [
-      { title: 'llms.txt dosyası ekle', why: "AI crawler'ları site yapını daha iyi anlar — citation şansı artar.", eff: 'KOLAY' },
-      { title: 'FAQ schema genişlet', why: "'kobi kredisi' sorgularında Perplexity kaynağı olarak öne çıkarsın.", eff: 'KOLAY' },
-      { title: 'Karşılaştırma sayfası yaz', why: "'X vs Y' sorguları en çok cite tetikleyen format — sende hiç yok.", eff: 'ORTA' },
+      { title: 'llms.txt dosyası ekle', why: 'Sitenin ne yaptığını ve önemli sayfalarını AI araçlarına tek bir dosyada özetler.', eff: 'KOLAY' },
+      { title: 'Sık sorulan soruları cevapla', why: 'Müşterilerinin AI asistanlarına sorduğu soruların açık cevabını sitende yayınla.', eff: 'KOLAY' },
+      { title: 'Karşılaştırma sayfası yaz', why: '“X mi Y mi” sorularında markanı alternatifleriyle dürüstçe karşılaştıran bir sayfa.', eff: 'ORTA' },
     ],
-    aso_sub: 'App Store + Play Store keyword takibi ve reklam',
-    aso_score: 'ASO SKOR', aso_thisweek: 'bu hafta', aso_meta: 'Metadata 92 · Görsel 71 · Yorum 68',
-    aso_kw: 'Keyword sıralaması',
-    asa_imp: 'GÖSTERİM', asa_tap: 'TIKLAMA', asa_inst: 'İNDİRME',
-    asa_note: "Auto-Pilot dün 2 düşük performanslı keyword durdurdu, bid'i $0.50 → $0.38 düşürdü.",
-    st_sub: 'Tek konudan her kanala içerik — metin, görsel, video',
-    st_ph: 'Ne hakkında üretelim? ör. "e-fatura geçiş rehberi"',
-    st_gen: 'Üret', st_busy: 'GPT-5 3 varyant yazıyor · DALL-E görsel hazırlıyor…',
-    st_variants: '3 varyant hazır',
-    st_share: 'Paylaş', st_schedule: 'Planla',
-    variants: [
-      { channel: '𝕏 / TWITTER', text: "E-faturaya geçiş 1 Ocak'ta zorunlu oluyor ve KOBİ'lerin %60'ı hâlâ hazır değil. 5 adımda geçiş rehberini yazdık — vergi cezası yemeden tamamla. 🔗", len: '214 karakter' },
-      { channel: 'LINKEDIN', text: "2027'de e-fatura zorunluluğu kapsamı genişliyor. Muhasebe ekipleri için hazırladığımız kontrol listesi: ✓ Entegratör seçimi ✓ Test ortamı ✓ Arşiv düzeni. Detaylı rehber yorumlarda.", len: '312 karakter' },
-      { channel: 'INSTAGRAM', text: 'E-fatura paniği yaşamayın 📋 Carousel: 5 slaytta geçiş takvimi + son tarihler. Kaydet, muhasebecinle paylaş.', len: 'Carousel · 5 görsel' },
-    ],
+
+    aso_sub: 'App Store ve Google Play anahtar kelime sıraları',
+    aso_pill: (site) => `Bağlı site · ${site}`,
+    aso_search_title: 'Mağazada ara',
+    aso_search_ios: 'App Store’da uygulama ara…',
+    aso_search_play: 'Google Play’de uygulama ara…',
+    aso_search_btn: 'Ara',
+    aso_no_results: 'Sonuç bulunamadı.',
+    aso_apps_title: 'Takip edilen uygulamalar',
+    aso_apps_empty: 'Bu sitede takip edilen uygulama yok. Uygulamanı web panelindeki ASO bölümünden ekleyebilirsin.',
+    aso_no_site: 'Bu hesapta site yok. Web panelinden bir site ekleyince ASO verilerin burada görünür.',
+    aso_store_missing_ios: 'Bu uygulamanın App Store sürümü bağlı değil.',
+    aso_store_missing_play: 'Bu uygulamanın Google Play sürümü bağlı değil.',
+    aso_ratings: (n) => `${n} değerlendirme`,
+    aso_reviews: (n) => `${n} yorum`,
+    aso_no_rating: 'Puan yok',
+    aso_kw_title: 'Anahtar kelime sıraları',
+    aso_kw_count: (n) => `${n} kelime`,
+    aso_kw_empty: 'Bu mağaza için takip edilen anahtar kelime yok.',
+    aso_kw_last: (date) => `Son ölçüm: ${date}`,
+    aso_kw_never: 'Sıralar henüz ölçülmedi.',
+    aso_kw_more: (n) => `+${n} kelime daha web panelinde`,
+    aso_kw_legend: '“—”: ilk sonuçlarda yok ya da henüz ölçülmedi',
+    asa_period: 'Son 30 gün',
+    asa_imp: 'GÖSTERİM', asa_tap: 'DOKUNMA', asa_inst: 'İNDİRME', asa_cr: 'DÖNÜŞÜM',
+    asa_empty: 'Son 30 günde kayıtlı performans verisi yok.',
+    asa_last_day: (date) => `Son veri günü: ${date}`,
+    aso_out_title: 'Uygulamanın mağaza sıralarını gör',
+    aso_out_body: 'Hesabını bağladığında web panelinde takip ettiğin uygulamalar, anahtar kelime sıraları ve (bağlıysa) Apple Search Ads performansı burada görünür.',
+    aso_out_cta: 'Hesabını bağla',
   },
   en: {
     skip: 'Skip',
-    ob1_title: 'AI that does your marketing for you.',
-    ob1_sub: 'Connect your site — RanksUp scans it, finds the gaps, writes the content, optimizes your App Store ads.',
-    ob1_ph: 'https://yoursite.com',
-    ob1_cta: 'Connect site',
-    ob1_note: 'NO CARD NEEDED · 2 FREE ARTICLES',
-    ob2_kicker: 'AI ANALYSIS',
-    scan_titles: ['Scanning your site…', 'Detecting industry…', 'Extracting keywords…', 'Analyzing competitors…', 'Building content plan…', 'Done'],
-    scan_steps: ['Site crawled', 'Industry detected: SMB finance', '50 keywords extracted', '3 competitors found', 'First content plan ready'],
-    ob3_title: "You're all set.",
-    ob3_sub: 'AI understood your industry and built the plan. Auto-Pilot is on — first actions will wait for your approval.',
-    ob3_sector: 'INDUSTRY', ob3_comp: 'COMPETITORS', ob3_plan: 'CONTENT PLAN', ob3_ready: 'Ready', ob3_found: 'found',
-    ob3_cta: 'Open dashboard',
-    home_kicker: 'AUTO-PILOT ACTIVE',
-    home_title: 'I did 6 things while you slept.',
-    home_sub: 'Last 24 hours · KobiPratik',
-    home_newkw: 'new kw',
-    now: 'now',
-    pend_badge: 'NEEDS APPROVAL',
-    pend_title: 'I suggest raising the ASA bid',
-    pend_desc: "'ön muhasebe' CPI is 31% under target. $0.38 → $0.45 could win #1 — est. +9 installs/day.",
-    approve: 'Approve', reject: 'Reject',
-    approved_badge: 'APPROVED', rejected_badge: 'REJECTED',
-    approved_msg: 'Bid updated to $0.45 — impact reported within 24 hours.',
-    rejected_msg: 'Suggestion dismissed. Auto-Pilot continues with the current bid.',
-    auto: 'AUTOMATIC', queued: 'IN PUBLISH QUEUE',
-    ask_ph: 'Tell the agent: "post this to X…"',
-    tab_agent: 'Agent', tab_vis: 'Visibility',
-    feed: [
-      { title: 'Ranking climbed', desc: "'ön muhasebe' #8 → #3 — daily rank check, 50 keywords scanned.", time: '02:14', badge: 'auto' },
-      { title: 'Article generated', desc: '"SMB tax calendar 2026" — 1,840 words, FAQ schema included. Ready to publish to WordPress.', time: '03:02', badge: 'queued' },
-      { title: 'Published on LinkedIn', desc: '"5 critical dates for e-invoice transition" — 267 views, 12 interactions.', time: '08:30', badge: 'auto' },
-      { title: 'New ChatGPT mention', desc: 'Your brand was recommended for "accounting software for SMBs".', time: '11:47', badge: null },
+    ob1_kicker: 'AI VISIBILITY',
+    ob1_title: 'Does your brand show up in AI answers?',
+    ob1_sub: 'Enter your site and we will check, for free, whether 6 AI assistants mention your brand in their answers.',
+    ob1_ph: 'yoursite.com',
+    ob1_cta: 'Analyze your site',
+    ob1_note: 'FREE · NO ACCOUNT NEEDED',
+    ob1_err: 'Enter a domain (e.g. yoursite.com)',
+
+    tab_home: 'Home', tab_vis: 'Visibility', tab_account: 'Account', tab_analyze: 'Analyze a site',
+    hdr_account: 'Account', hdr_bell: 'Notifications',
+    hdr_bell_unread: (n) => `${n} unread notifications`,
+    retry: 'Try again', refresh: 'Refresh', load_error: 'Could not load the data.',
+
+    home_kicker: 'AI VISIBILITY',
+    home_title: 'Does your brand show up in AI answers?',
+    home_sub: 'Enter your site and we will check whether ChatGPT, Claude, Gemini, Perplexity, Grok and DeepSeek mention your brand when asked about your industry. Free, no account needed.',
+    home_cta: 'Analyze your site',
+    home_connect_title: 'Have a RanksUp account?',
+    home_connect_body: 'Connect it to see your sites, notifications and ASO data here.',
+    home_connect_cta: 'Connect account',
+    home_feat_title: 'What is in the app?',
+    home_feats: [
+      { title: 'AI visibility test', body: 'No account needed. The free test measures some of the questions; the result shows which ones.' },
+      { title: 'Account summary and notifications', body: 'Your sites, articles and scan results — once your account is connected.' },
+      { title: 'ASO', body: 'App Store and Google Play keyword rankings for the apps you track — once your account is connected.' },
     ],
+
+    home_in_kicker: 'ACCOUNT SUMMARY',
+    home_hello: (name) => (name ? `Hello, ${name}` : 'Hello'),
+    home_site: (site) => `Active site: ${site}`,
+    home_no_site: 'This account has no sites yet. Add one on the web dashboard and it will show up here.',
+    home_m_sites: 'Sites', home_m_published: 'Published articles', home_m_drafts: 'Articles in progress', home_m_month: 'Generated this month',
+    home_m_trial: 'Free trial articles', home_trial_left: (r, l) => `${r}/${l} left`, home_m_trial_used: 'Trial articles used',
+    home_notif_title: 'Recent notifications',
+    home_notif_empty: 'No notifications yet. Your scan and measurement results will show up here.',
+
     vis_title: 'AI Visibility',
-    vis_sub: 'Brand tracking across 7 AI engines · sentiment · share of voice',
-    vis_score: 'CITATION SCORE',
-    vis_caption: 'Cited in 128 answers · +34%',
-    vis_engines: 'By engine',
-    vis_road_sub: 'Reads your AI results, tells you what to do next',
+    vis_sub: 'Brand visibility and competitor share across 6 AI assistants',
+    vis_score: 'VISIBILITY SCORE',
+    vis_engines: 'By assistant',
+    vis_engines_note: 'Answers that mention your brand or link to your site.',
+    vis_empty_title: 'Measure your visibility',
+    vis_empty_body: 'Analyze a site to see your brand’s real visibility across 6 AI assistants here.',
+    vis_empty_cta: 'Analyze a site',
+    vis_loading: (domain) => `Scanning ${domain}…`,
+    vis_snapshot: 'AI visibility · snapshot',
+    vis_answered: (a, b) => `At least one AI assistant showed your brand in ${a} of ${b} questions.`,
+    vis_excluded: (locked, branded) => {
+      const parts: string[] = [];
+      if (locked > 0) parts.push(`${locked} locked ${locked === 1 ? 'question' : 'questions'}`);
+      if (branded > 0) parts.push(`${branded} ${branded === 1 ? 'question' : 'questions'} containing your brand name`);
+      return parts.length ? `${parts.join(' and ')} ${locked + branded === 1 ? 'was' : 'were'} not scored.` : '';
+    },
+    vis_all_branded: 'Every measured question contains your brand name, so the score uses all of them.',
+    vis_no_measured: 'This result has no measured questions, so there is no score.',
+    vis_pairs: (a, b) => `${a}/${b} answers`,
+    vis_comp_title: 'Who stands out in AI answers?',
+    vis_you: '(you)',
+    vis_road_title: 'General tips',
+    vis_road_sub: 'Steps that apply to any site — not specific to this result',
     road: [
-      { title: 'Add an llms.txt file', why: 'AI crawlers understand your site structure better — citation odds go up.', eff: 'EASY' },
-      { title: 'Expand FAQ schema', why: "You'd surface as a Perplexity source for 'kobi kredisi' queries.", eff: 'EASY' },
-      { title: 'Write a comparison page', why: "'X vs Y' queries trigger the most citations — you have none.", eff: 'MEDIUM' },
+      { title: 'Add an llms.txt file', why: 'Summarizes what your site does and its key pages for AI tools in a single file.', eff: 'EASY' },
+      { title: 'Answer common questions', why: 'Publish clear answers to the questions your customers ask AI assistants.', eff: 'EASY' },
+      { title: 'Write a comparison page', why: 'A page that honestly compares your brand with alternatives for “X or Y” questions.', eff: 'MEDIUM' },
     ],
-    aso_sub: 'App Store + Play Store keyword tracking and ads',
-    aso_score: 'ASO SCORE', aso_thisweek: 'this week', aso_meta: 'Metadata 92 · Visuals 71 · Reviews 68',
-    aso_kw: 'Keyword rankings',
-    asa_imp: 'IMPRESSIONS', asa_tap: 'TAPS', asa_inst: 'INSTALLS',
-    asa_note: 'Auto-Pilot paused 2 underperforming keywords yesterday, lowered the bid $0.50 → $0.38.',
-    st_sub: 'One topic, every channel — text, image, video',
-    st_ph: 'What should we create? e.g. "e-invoice transition guide"',
-    st_gen: 'Generate', st_busy: 'GPT-5 writing 3 variants · DALL-E preparing visuals…',
-    st_variants: '3 variants ready',
-    st_share: 'Share', st_schedule: 'Schedule',
-    variants: [
-      { channel: '𝕏 / TWITTER', text: "E-invoicing becomes mandatory Jan 1 and 60% of SMBs still aren't ready. We wrote the 5-step transition guide — finish it before the tax penalty. 🔗", len: '214 chars' },
-      { channel: 'LINKEDIN', text: 'E-invoice requirements expand in 2027. Our checklist for accounting teams: ✓ Integrator choice ✓ Test environment ✓ Archive setup. Full guide in comments.', len: '312 chars' },
-      { channel: 'INSTAGRAM', text: 'Skip the e-invoice panic 📋 Carousel: transition timeline + deadlines in 5 slides. Save it, share it with your accountant.', len: 'Carousel · 5 images' },
-    ],
+
+    aso_sub: 'App Store and Google Play keyword rankings',
+    aso_pill: (site) => `Connected site · ${site}`,
+    aso_search_title: 'Search the store',
+    aso_search_ios: 'Search the App Store…',
+    aso_search_play: 'Search Google Play…',
+    aso_search_btn: 'Search',
+    aso_no_results: 'No results.',
+    aso_apps_title: 'Tracked apps',
+    aso_apps_empty: 'This site tracks no apps yet. Add your app in the ASO section of the web dashboard.',
+    aso_no_site: 'This account has no sites. Add one on the web dashboard and your ASO data will show up here.',
+    aso_store_missing_ios: 'The App Store version of this app is not linked.',
+    aso_store_missing_play: 'The Google Play version of this app is not linked.',
+    aso_ratings: (n) => `${n} ratings`,
+    aso_reviews: (n) => `${n} reviews`,
+    aso_no_rating: 'No rating',
+    aso_kw_title: 'Keyword rankings',
+    aso_kw_count: (n) => `${n} keywords`,
+    aso_kw_empty: 'No keywords are tracked for this store.',
+    aso_kw_last: (date) => `Last checked: ${date}`,
+    aso_kw_never: 'Rankings have not been measured yet.',
+    aso_kw_more: (n) => `+${n} more on the web dashboard`,
+    aso_kw_legend: '“—”: not in the first results or not measured yet',
+    asa_period: 'Last 30 days',
+    asa_imp: 'IMPRESSIONS', asa_tap: 'TAPS', asa_inst: 'INSTALLS', asa_cr: 'CONVERSION',
+    asa_empty: 'No performance data recorded in the last 30 days.',
+    asa_last_day: (date) => `Latest data: ${date}`,
+    aso_out_title: 'See your app’s store rankings',
+    aso_out_body: 'Once your account is connected, the apps you track on the web dashboard, their keyword rankings and (if connected) Apple Search Ads performance show up here.',
+    aso_out_cta: 'Connect account',
   },
 };
-
-// ── Motor verisi (7 AI motoru, dönem bazında mention + delta) ──
-export type Period = '7g' | '30g' | '90g';
-export interface Engine {
-  name: string; mono: string; dot: string;
-  mentions: Record<Period, number>; delta: Record<Period, string>;
-}
-export const ENGINES: Engine[] = [
-  { name: 'ChatGPT', mono: 'G', dot: '#10A37F', mentions: { '7g': 6, '30g': 18, '90g': 41 }, delta: { '7g': '+2', '30g': '+5', '90g': '+11' } },
-  { name: 'Claude', mono: 'C', dot: '#D97757', mentions: { '7g': 3, '30g': 9, '90g': 22 }, delta: { '7g': '+1', '30g': '+3', '90g': '+8' } },
-  { name: 'Gemini', mono: 'G', dot: '#4E86F5', mentions: { '7g': 3, '30g': 8, '90g': 19 }, delta: { '7g': '+1', '30g': '+2', '90g': '+5' } },
-  { name: 'Perplexity', mono: 'P', dot: '#20B8CD', mentions: { '7g': 2, '30g': 6, '90g': 13 }, delta: { '7g': '0', '30g': '+1', '90g': '+4' } },
-  { name: 'Grok', mono: 'X', dot: '#E8E4DE', mentions: { '7g': 1, '30g': 3, '90g': 6 }, delta: { '7g': '0', '30g': '0', '90g': '+2' } },
-  { name: 'DeepSeek', mono: 'D', dot: '#4D6BFE', mentions: { '7g': 1, '30g': 2, '90g': 4 }, delta: { '7g': '0', '30g': '+1', '90g': '+1' } },
-  { name: 'Meta AI', mono: 'M', dot: '#0668E1', mentions: { '7g': 0, '30g': 1, '90g': 2 }, delta: { '7g': '0', '30g': '0', '90g': '+1' } },
-];
-
-export type Store = 'ios' | 'play';
-export interface Kw { name: string; rank: number; delta: string; dir: number; vol: string }
-export const KW: Record<Store, Kw[]> = {
-  ios: [
-    { name: 'ön muhasebe', rank: 3, delta: '↑5', dir: 1, vol: '9.9K' },
-    { name: 'kobi kredisi', rank: 8, delta: '↑2', dir: 1, vol: '6.1K' },
-    { name: 'esnaf finansman', rank: 12, delta: '↓1', dir: -1, vol: '3.4K' },
-    { name: 'ticari pos', rank: 23, delta: '↑7', dir: 1, vol: '2.8K' },
-    { name: 'e-fatura programı', rank: 17, delta: '↑3', dir: 1, vol: '5.2K' },
-  ],
-  play: [
-    { name: 'ön muhasebe', rank: 5, delta: '↑2', dir: 1, vol: '12K' },
-    { name: 'kobi muhasebe', rank: 7, delta: '→0', dir: 0, vol: '4.7K' },
-    { name: 'esnaf kredisi', rank: 9, delta: '↑4', dir: 1, vol: '3.9K' },
-    { name: 'fatura takip', rank: 14, delta: '↑1', dir: 1, vol: '6.3K' },
-    { name: 'ticari pos', rank: 31, delta: '↓2', dir: -1, vol: '2.1K' },
-  ],
-};
-
-/** feed satırlarının ikon rengi + SVG path'i (sırayla) */
-export const FEED_ICONS: [string, string][] = [
-  ['#34D399', 'M7 17L17 7M8 7h9v9'],
-  ['#F47F46', 'M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z'],
-  ['#38BDF8', 'M22 2L11 13M22 2l-7 20-4-9-9-4Z'],
-  ['#A78BFA', 'M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9Z'],
-];
 
 // ── Dil context'i ──
 interface LangCtx { lang: Lang; t: Strings; toggle: () => void; setLang: (l: Lang) => void }

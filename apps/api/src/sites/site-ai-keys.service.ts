@@ -4,10 +4,24 @@ import { GoogleGenAI } from '@google/genai';
 import { encrypt, decrypt } from '@luviai/shared';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { QuotaService } from '../billing/quota.service.js';
+// Havuz anahtarinin env adi TEK KAYNAKTAN: olcum motoru (ai-citation.service
+// resolveKey) da bu tabloyu okur. Eskiden burada yerel bir kopyasi vardi;
+// iki tablo ayrisirsa panel rozeti olcumden baska bir sey soylerdi.
+import { POOL_ENV_KEY } from '../audit/citation-providers.js';
 
 export type Provider = 'anthropic' | 'gemini' | 'openai' | 'perplexity' | 'xai' | 'deepseek';
 
+/**
+ * Kendi anahtarin (BYOK) baglanabilen saglayicilar. Meta AI (Llama) BILEREK
+ * yok: Llama olcumu Groq uzerinden yapilir ve yalniz sunucuda GROQ_LLAMA_MODEL
+ * tanimliyken calisir (audit/citation-providers.ts llamaModelConfigured) —
+ * musterinin Groq anahtari tek basina olcum yaptiramazdi.
+ */
 const VALID_PROVIDERS: Provider[] = ['anthropic', 'gemini', 'openai', 'perplexity', 'xai', 'deepseek'];
+
+/** upsertKey('meta') cevabi — panel Meta'yi sunmuyor, API'yi dogrudan cagirana durust gerekce */
+export const LLAMA_BYOK_UNSUPPORTED =
+  'Meta AI (Llama) için kendi anahtarını bağlayamazsın: Llama ölçümü RanksUp tarafında Groq üzerinden yapılır ve yalnız sunucuda bir Llama modeli tanımlıyken (GROQ_LLAMA_MODEL) çalışır; Groq anahtarı tek başına işe yaramaz.';
 
 const PROVIDER_LABELS: Record<Provider, string> = {
   anthropic:  'Anthropic Claude',
@@ -16,15 +30,6 @@ const PROVIDER_LABELS: Record<Provider, string> = {
   perplexity: 'Perplexity',
   xai:        'xAI Grok',
   deepseek:   'DeepSeek',
-};
-
-const POOL_ENV_KEY: Record<Provider, string> = {
-  anthropic:  'ANTHROPIC_API_KEY',
-  gemini:     'GOOGLE_AI_API_KEY',
-  openai:     'OPENAI_API_KEY',
-  perplexity: 'PERPLEXITY_API_KEY',
-  xai:        'XAI_API_KEY',
-  deepseek:   'DEEPSEEK_API_KEY',
 };
 
 @Injectable()
@@ -53,8 +58,14 @@ export class SiteAiKeysService {
 
     const providers = VALID_PROVIDERS.map((provider) => {
       const byok = byokMap.get(provider);
+      // inPool yalniz bilgi: planin olculen asistan listesi (QuotaService
+      // PLAN_POOL_PROVIDERS — her planda ayni 6 asistan).
       const inPool = pool.includes(provider);
-      const poolKeyAvailable = inPool && !!process.env[POOL_ENV_KEY[provider]];
+      // Rozet olcum motoruyla AYNI kuralla: ai-citation.service resolveKey
+      // once BYOK'a, sonra env anahtarina bakar ve env anahtari olan
+      // saglayiciyi HER planda olcer. Eskiden `inPool && env` idi; eski pool
+      // listesinde olmayan saglayici olculurken panel "anahtar yok" diyordu.
+      const poolKeyAvailable = !!process.env[POOL_ENV_KEY[provider]];
       const effectiveSource: 'byok' | 'pool' | 'none' =
         byok ? 'byok' : (poolKeyAvailable ? 'pool' : 'none');
 
@@ -81,10 +92,13 @@ export class SiteAiKeysService {
 
   /** Yeni BYOK ekle/guncelle. Once test eder, basariliysa kaydeder. */
   async upsertKey(siteId: string, provider: string, rawKey: string) {
+    if (provider === 'meta') throw new BadRequestException(LLAMA_BYOK_UNSUPPORTED);
     if (!VALID_PROVIDERS.includes(provider as Provider)) {
       throw new BadRequestException(`Gecersiz saglayici: ${provider}`);
     }
-    if (!rawKey || rawKey.trim().length < 10) {
+    // Govde DTO'suz (satir ici tip); dize olmayan anahtar .trim()'de 500
+    // verirdi — tip burada denetlenir
+    if (typeof rawKey !== 'string' || rawKey.trim().length < 10) {
       throw new BadRequestException('API anahtari cok kisa');
     }
 

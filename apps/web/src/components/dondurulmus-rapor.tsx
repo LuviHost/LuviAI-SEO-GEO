@@ -3,6 +3,23 @@
 import { useState } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { ArrowDown, ArrowUp, Minus, Search, Sparkles, Smartphone, Megaphone, Wrench } from 'lucide-react';
+import { geoAccessOf, geoSampleNote, type GeoAccessBlock, type GeoSample, type ReportAuditGeo } from '@/lib/api';
+import { PROVIDER_LABELS } from '@/lib/chart-colors';
+import { crawlAccessTitle, currentCrawlAccess } from '@/lib/crawl-access';
+
+/**
+ * Rapor govdesindeki GEO engel / orneklem: canli raporun `audit`'i, dondurulmus raporun
+ * `seo.audit`'i (reports.service.ts geoBlocked / geoSample — raporun kendi son taramasindan).
+ * Alanlar HIC yoksa (eski API ya da alanlar eklenmeden once dondurulmus rapor) undefined:
+ * canli panel son taramaya duser, dondurulmus rapor not gostermez. Sekil checks.geo ile
+ * ayni oldugu icin dogrulama geoAccessOf'tan gecer (site-report-panel.tsx de kullanir).
+ */
+export function reportGeoAccess(
+  audit: ReportAuditGeo | null | undefined,
+): { blocked: GeoAccessBlock | null; sample: GeoSample | null } | undefined {
+  if (!audit || (audit.geoBlocked === undefined && audit.geoSample === undefined)) return undefined;
+  return geoAccessOf({ checks: { geo: { blocked: audit.geoBlocked, sample: audit.geoSample } } });
+}
 
 /**
  * Dondurulmus raporun gorunumu — DORT ALAN: SEO / GEO / ASO / ASA.
@@ -98,6 +115,23 @@ export function DondurulmusRapor({ rapor }: { rapor: { data: any; periodStart: s
     rapor.periodEnd,
   ).toLocaleDateString('tr-TR')}`;
 
+  // Teknik GEO skoru icin engel / orneklem notu. seo.audit rapor anindaki SON tarama;
+  // teknikGeoSkoru ise donemdeki son SKORLU tarama. Son tarama engele takildiysa (skor yok)
+  // nedeni yazilir; orneklem notu yalniz iki skor ayniysa (ayni tarama) eklenir — yoksa
+  // not baska bir taramayi anlatirdi.
+  const geoErisim = reportGeoAccess(seo.audit);
+  const sonTaramaSkoru: number | null = seo.audit?.geoScore ?? null;
+  const teknikEngel = sonTaramaSkoru === null ? geoErisim?.blocked ?? null : null;
+  const teknikNot = !geo.olculemedi && geo.teknikGeoSkoru != null && geo.teknikGeoSkoru === sonTaramaSkoru
+    ? geoSampleNote(geoErisim?.sample)
+    : null;
+  const silinenKampanya = !asa.olculemedi && typeof asa.silinenKampanya === 'number' ? asa.silinenKampanya : 0;
+  // Rapor anında son tarama denemesi siteye erişemediyse skor dondurulmadı (null); eski değer yalnız
+  // tarihiyle (reports.service.ts sonBasarili). Bu alanlardan önce dondurulmuş raporda yok.
+  const erisim = currentCrawlAccess(seo.audit?.accessBlocked, null);
+  const sonBasarili = erisim ? seo.audit?.sonBasarili ?? null : null;
+  const olculemeyenSayisi: number = typeof seo.audit?.olculemeyenSayisi === 'number' ? seo.audit.olculemeyenSayisi : 0;
+
   return (
     <div className="space-y-4 print:space-y-3" id="rapor-govdesi">
       {/* Yazdirma basligi — ekranda gizli, kagitta ilk satir */}
@@ -154,11 +188,35 @@ export function DondurulmusRapor({ rapor }: { rapor: { data: any; periodStart: s
               etiket="Ortalama pozisyon"
               deger={seo.search?.avgPosition ? seo.search.avgPosition.toFixed(1) : '—'}
             />
-            <Kutu etiket="Site skoru" deger={seo.audit?.overallScore ?? '—'} />
+            {erisim ? (
+              <Kutu
+                etiket="Site skoru"
+                deger={<span className="text-sm font-semibold text-warning">Ölçülemedi</span>}
+                alt={
+                  <span className="text-label text-muted-foreground">
+                    {sonBasarili?.ranAt
+                      ? `Son başarılı tarama (${new Date(sonBasarili.ranAt).toLocaleDateString('tr-TR')}): ${sonBasarili.overallScore}/100`
+                      : 'Puanlanmış tarama yok'}
+                  </span>
+                }
+              />
+            ) : (
+              <Kutu etiket="Site skoru" deger={seo.audit?.overallScore ?? '—'} />
+            )}
           </div>
 
+          {erisim && (
+            <p className="text-label text-muted-foreground mt-2">
+              {crawlAccessTitle(erisim)}: {erisim.reason} {erisim.hint}{' '}
+              {erisim.state === 'blocked'
+                ? 'Tarayıcı siteyi okuyamadığı için site skoru hesaplanmadı'
+                : 'Tarayıcı siteye ulaşamadığı için site skoru hesaplanmadı'}
+              {Number.isFinite(new Date(erisim.at).getTime()) ? ` (son deneme: ${new Date(erisim.at).toLocaleDateString('tr-TR')}).` : '.'}
+            </p>
+          )}
+
           {(seo.audit?.karsilastirma || detay) && (
-            <div className="grid grid-cols-3 gap-4 mt-4 pt-3 border-t">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-4 pt-3 border-t">
               <Kutu
                 etiket="Çözülen sorun"
                 deger={
@@ -180,6 +238,14 @@ export function DondurulmusRapor({ rapor }: { rapor: { data: any; periodStart: s
                 }
               />
               <Kutu etiket="Açık sorun" deger={sayi(seo.audit?.issuesCount)} />
+              {/* Son taramada yeniden ölçülemeyen eski sorunlar — "Çözülen"e girmez */}
+              {seo.audit?.karsilastirma && olculemeyenSayisi > 0 && (
+                <Kutu
+                  etiket="Ölçülemedi"
+                  deger={<span className="text-muted-foreground">{olculemeyenSayisi}</span>}
+                  alt={<span className="text-label text-muted-foreground">çözülmüş sayılmadı</span>}
+                />
+              )}
             </div>
           )}
 
@@ -239,13 +305,32 @@ export function DondurulmusRapor({ rapor }: { rapor: { data: any; periodStart: s
                 <Kutu etiket="Marka anıldı" deger={sayi(geo.anilan)} />
                 <Kutu
                   etiket="Teknik GEO skoru"
-                  deger={geo.teknikGeoSkoru ?? '—'}
-                  alt={<Delta deger={geo.teknikGeoDelta} />}
+                  deger={
+                    geo.teknikGeoSkoru == null && teknikEngel
+                      ? <span className="text-sm font-semibold text-warning">Ölçülemedi</span>
+                      : geo.teknikGeoSkoru ?? '—'
+                  }
+                  alt={
+                    geo.teknikGeoSkoru == null && teknikEngel
+                      ? undefined
+                      : geo.teknikKarsilastirma === 'method_changed'
+                        // GEO ölçüm yöntemi dönem içinde güncellendi (site-report.service.ts)
+                        ? <span className="text-label text-muted-foreground">ölçüm yöntemi güncellendi — kıyas yok</span>
+                        : <Delta deger={geo.teknikGeoDelta} />
+                  }
                 />
               </div>
               <p className="text-[11px] text-muted-foreground mt-2">
                 Dönem boyunca {geo.olcumGunu} farklı günde ölçüldü.
               </p>
+              {/* Teknik GEO skorunun dayanagi: engel nedeni (ve cozumu) ya da kismi orneklem notu */}
+              {teknikEngel && (
+                <p className="text-label text-muted-foreground mt-1">
+                  {geo.teknikGeoSkoru == null ? 'Teknik GEO skoru ölçülemedi: ' : 'Son taramada teknik GEO skoru ölçülemedi: '}
+                  {teknikEngel.reason} {teknikEngel.hint}
+                </p>
+              )}
+              {teknikNot && <p className="text-label text-muted-foreground mt-1">Teknik GEO skoru: {teknikNot}</p>}
 
               {detay && geo.saglayicilar?.length > 0 && (
                 <div className="mt-4 pt-3 border-t overflow-x-auto print:overflow-visible">
@@ -262,7 +347,8 @@ export function DondurulmusRapor({ rapor }: { rapor: { data: any; periodStart: s
                     <tbody>
                       {geo.saglayicilar.map((s: any) => (
                         <tr key={s.provider} className="border-t">
-                          <td className="py-1 pr-2 capitalize">{s.provider}</td>
+                          {/* Ham kimlik (openai, xai) yerine urun adi: ChatGPT, Grok */}
+                          <td className="py-1 pr-2">{PROVIDER_LABELS[s.provider] ?? s.provider}</td>
                           <td className="py-1 text-right">{s.ilk ?? '—'}</td>
                           <td className="py-1 text-right">{s.son ?? '—'}</td>
                           <td className="py-1 text-right"><Delta deger={s.delta} /></td>
@@ -368,6 +454,13 @@ export function DondurulmusRapor({ rapor }: { rapor: { data: any; periodStart: s
                 <Kutu etiket="CPI" deger={asa.cpi !== null ? `$${asa.cpi.toFixed(2)}` : '—'} />
                 <Kutu etiket="Kampanya" deger={sayi(asa.kampanya)} />
               </div>
+              {/* Apple'da silinen kampanyanin donem harcamasi toplamlara GIRER, kampanya sayisina
+                  girmez (site-report.service.ts asaBolumu) — yazilmazsa harcama/sayi uyusmaz gorunur */}
+              {silinenKampanya > 0 && (
+                <p className="text-label text-muted-foreground mt-2">
+                  {silinenKampanya} silinmiş kampanyanın bu dönemdeki harcaması ve sonuçları toplamlara dahil; kampanya sayısına dahil değil.
+                </p>
+              )}
               {detay && (
                 <div className="grid grid-cols-2 gap-4 mt-4 pt-3 border-t">
                   <Kutu etiket="Gösterim" deger={sayi(asa.gosterim)} />
@@ -402,8 +495,11 @@ export function DondurulmusRapor({ rapor }: { rapor: { data: any; periodStart: s
                 ) : null
               }
             />
-            <Kutu etiket="Sosyal post" deger={sayi(is.sosyalPost)} />
-            <Kutu etiket="Studio görseli" deger={sayi(is.studioVarligi)} />
+            {/* Sosyal paylasim ve Studio modulleri kaldirildi (SocialPost / StudioAsset artik
+                yazilmiyor): yeni donemlerde hep 0 ve "is yapilmadi" diye okunuyordu. Yalniz
+                moduller varken dondurulmus eski raporlarda deger varsa gosterilir. */}
+            {Number(is.sosyalPost) > 0 && <Kutu etiket="Sosyal post" deger={sayi(is.sosyalPost)} />}
+            {Number(is.studioVarligi) > 0 && <Kutu etiket="Studio görseli" deger={sayi(is.studioVarligi)} />}
             <Kutu etiket="Çalıştırılan tarama" deger={sayi(is.kullaniciTaramasi)} />
           </div>
 

@@ -1,5 +1,6 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import { createHmac } from 'node:crypto';
+import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AffiliateService } from '../affiliate/affiliate.service.js';
 import { EmailService } from '../email/email.service.js';
@@ -7,6 +8,7 @@ import { FxService } from './fx.service.js';
 import { findPlan, PURCHASABLE_PLAN_IDS } from './plans.js';
 import { cycleFromDescription, periodEndFromInvoice } from './subscription-period.js';
 import { RENEWAL_MAX_ATTEMPTS } from './renewal-policy.js';
+import { capInvoiceDescription, failedInvoiceDescription } from './invoice-description.js';
 
 /**
  * PayTR iframe API + webhook entegrasyonu.
@@ -144,7 +146,7 @@ export class PaytrService {
         amountUsd: plan.priceUsd,
         fxRate: plan.fxRate,
         status: 'PENDING',
-        description: `RanksUp ${plan.name} — ${opts.cycle} ($${plan.priceUsd} @ ${plan.fxRate})`,
+        description: capInvoiceDescription(`RanksUp ${plan.name} — ${opts.cycle} ($${plan.priceUsd} @ ${plan.fxRate})`),
       },
     });
 
@@ -220,7 +222,7 @@ export class PaytrService {
         status: 'PENDING',
         // Onay kutusu form tarafinda; kart saklanirsa bildirimde utoken gelir.
         storeCard: true,
-        description: `RanksUp ${plan.name} — ${opts.cycle} ($${plan.priceUsd} @ ${plan.fxRate})`,
+        description: capInvoiceDescription(`RanksUp ${plan.name} — ${opts.cycle} ($${plan.priceUsd} @ ${plan.fxRate})`),
       },
     });
 
@@ -302,7 +304,7 @@ export class PaytrService {
         fxRate: plan.fxRate,
         status: 'PENDING',
         isRenewal: true,
-        description: `RanksUp ${plan.name} — ${cycle} yenileme ($${plan.priceUsd} @ ${plan.fxRate})`,
+        description: capInvoiceDescription(`RanksUp ${plan.name} — ${cycle} yenileme ($${plan.priceUsd} @ ${plan.fxRate})`),
       },
     });
 
@@ -404,6 +406,18 @@ export class PaytrService {
       failed_reason_code, failed_reason_msg,
     } = payload;
 
+    // KAPALI BASARISIZLIK: anahtar ya da tuz tanimsizsa bildirim ISLENMEZ.
+    // Bos anahtarla HMAC herkesce hesaplanabilir; eskiden boyle bir surecte
+    // (PAYTR_MERCHANT_KEY/SALT eksik) bu herkese acik uca gelen sahte bir
+    // status=success, PENDING faturayi PAID yapip plani acabiliyordu. Kimlik
+    // bilgisi yokken gercek bir PayTR odemesi de baslatilamaz (odeme jetonu ve
+    // Direkt API formu ayni anahtar + tuzla imzalanir), yani kaybedilecek
+    // mesru bildirim yok. 'OK' doner: imza uyusmazligi dalindaki gibi.
+    if (!this.merchantKey || !this.merchantSalt) {
+      this.log.error(`[${merchant_oid ?? '-'}] PayTR bildirimi işlenmedi: PAYTR_MERCHANT_KEY/PAYTR_MERCHANT_SALT tanımlı değil, imza doğrulanamaz`);
+      return 'OK';
+    }
+
     if (!merchant_oid) {
       this.log.warn('Webhook payload eksik');
       return 'OK';
@@ -444,9 +458,11 @@ export class PaytrService {
     // Kart saklandiysa PayTR kullaniciya ozel utoken'i bildirimde iletir
     // (dev.paytr.com kart-saklama: "post-payment notification"). Onay verilmis
     // odemede kaydedilir; otomatik yenileme bu anahtarla yapilir.
-    if (status === 'success' && invoice.storeCard && payload.utoken) {
-      await this.prisma.user.update({
-        where: { id: invoice.userId },
+    // Silme talebi olan (ya da silinmis) hesapta otomatik yenileme ASLA yeniden
+    // acilmaz — silme aninda kapatilan yenileme gec gelen bildirimle geri gelmesin.
+    if (status === 'success' && invoice.storeCard && payload.utoken && invoice.userId) {
+      await this.prisma.user.updateMany({
+        where: { id: invoice.userId, deletionRequestedAt: null },
         data: { paytrUtoken: String(payload.utoken).slice(0, 255), autoRenew: true },
       });
     }
@@ -477,15 +493,27 @@ export class PaytrService {
     const parsed = invoice.paytrTransactionId ? this.parseOrderId(invoice.paytrTransactionId) : null;
     if (!parsed) return true;
 
-    await this.activateSubscription(invoice.userId, parsed.planId, invoice.paytrTransactionId!);
+    // Silme talebinden sonra tamamlanan odeme (ornegin silmeden once acilmis odeme
+    // sayfasi): para tahsil edildigi icin fatura PAID kalir (muhasebe gercegi), ama
+    // abonelik yeniden ACILMAZ, komisyon yazilmaz — iade elle yapilmali.
+    const user = invoice.userId ? await this.prisma.user.findUnique({ where: { id: invoice.userId } }) : null;
+    if (!user || user.deletionRequestedAt) {
+      this.log.error(`[${invoice.paytrTransactionId}] Silinen/silme talebi olan hesaba ödeme geldi — abonelik açılmadı, ELLE İADE GEREKLİ (fatura ${invoice.id})`);
+      return true;
+    }
+
+    await this.activateSubscription(user, parsed.planId, invoice.paytrTransactionId!);
     try {
-      await this.affiliate.recordCommission(invoice.userId, Number(invoice.amount));
+      await this.affiliate.recordCommission(user.id, Number(invoice.amount));
     } catch (err: any) {
       this.log.warn(`[${invoice.paytrTransactionId}] komisyon yazilamadi: ${err.message}`);
     }
 
-    const user = await this.prisma.user.findUnique({ where: { id: invoice.userId } });
-    if (user && !invoice.isRenewal) {
+    if (!invoice.isRenewal) {
+      // Kota sayilari plans.ts'ten (tek kaynak; QuotaService.LIMITS ile ayni).
+      // Eskiden burada sabit 10/50/250 makale ve 1/3/10 site yaziyordu: Pro
+      // musterisine "50 makale, 3 site" deniyordu, gercek kota 40 makale, 5 site.
+      const purchased = findPlan(parsed.planId);
       this.email.send({
         userId: user.id,
         to: user.email,
@@ -493,8 +521,8 @@ export class PaytrService {
         data: {
           name: user.name ?? 'kullanıcı',
           planName: parsed.planId.toUpperCase(),
-          articleQuota: parsed.planId === 'starter' ? 10 : parsed.planId === 'pro' ? 50 : 250,
-          siteQuota: parsed.planId === 'starter' ? 1 : parsed.planId === 'pro' ? 3 : 10,
+          articleQuota: purchased?.articlesPerMonth ?? 0,
+          siteQuota: purchased?.sites ?? 0,
         },
       }).catch((err) => this.log.warn(`plan_upgraded mail: ${err.message}`));
     }
@@ -514,16 +542,23 @@ export class PaytrService {
       data: {
         status: 'FAILED',
         failedAt: new Date(),
-        description: `${invoice.description ?? ''} — ${code ?? '?'}: ${msg ?? ''}`.slice(0, 500),
+        // Sutun VARCHAR(191); eski .slice(0, 500) uzun PayTR mesajinda P2000 -> bildirim 500 -> sonsuz tekrar
+        description: failedInvoiceDescription(invoice.description, code, msg),
       },
     });
     if (moved.count === 0) return false;
 
+    // Hesap kalici silinmisse (userId NULL) islenecek kullanici yok — fatura FAILED kalir
+    if (!invoice.userId) {
+      this.log.warn(`[${invoice.paytrTransactionId}] Silinmiş hesabın ödemesi başarısız: ${msg}`);
+      return true;
+    }
     if (invoice.isRenewal) {
       await this.recordRenewalFailure(invoice.userId, msg);
     } else {
       const u = await this.prisma.user.findUnique({ where: { id: invoice.userId } });
-      if (u?.email) {
+      // Silme talebi olan hesaba "odeme basarisiz" e-postasi gitmez
+      if (u?.email && !u.deletionRequestedAt) {
         this.email.send({
           userId: u.id,
           to: u.email,
@@ -538,6 +573,10 @@ export class PaytrService {
 
   /** Yenileme cekimi basarisiz: sayac++, durum PAST_DUE, e-posta; sinira ulasinca plan duser. */
   async recordRenewalFailure(userId: string, reason?: string) {
+    // Silme talebi sonrasi sonuclanan cekim: iptal edilmis abonelik PAST_DUE'ya
+    // geri donmez, e-posta gitmez (yenileme turu PAST_DUE'yu yeniden ele alirdi)
+    const current = await this.prisma.user.findUnique({ where: { id: userId }, select: { deletionRequestedAt: true } });
+    if (!current || current.deletionRequestedAt) return;
     const user = await this.prisma.user.update({
       where: { id: userId },
       data: {
@@ -587,21 +626,29 @@ export class PaytrService {
    * Plan HEMEN dusmez: odenen donemin sonuna kadar acik kalir; donem bitince
    * QuotaService.expireCanceledSubscriptions plani TRIAL'a indirir. Yanit yalniz
    * gereken alanlari doner (eskiden User satirinin tamami istemciye gidiyordu).
+   *
+   * Hesap silme de BU iptali kullanir (tek iptal tanimi): `db` ile silme
+   * transaction'i icinde calisir, `notify:false` ile "donem sonuna kadar acik"
+   * e-postasi gitmez — silmede erisim hemen kapanir, o metin yanlis olurdu.
    */
-  async cancelSubscription(userId: string) {
-    const user = await this.prisma.user.update({
+  async cancelSubscription(
+    userId: string,
+    opts: { notify?: boolean; db?: Prisma.TransactionClient } = {},
+  ) {
+    const db = opts.db ?? this.prisma;
+    const user = await db.user.update({
       where: { id: userId },
       // Iptal: otomatik yenileme de kapanir (kart PayTR'de kayitli kalir, cekim yapilmaz)
       data: { subscriptionStatus: 'CANCELED', autoRenew: false },
       select: { id: true, email: true, name: true, plan: true, subscriptionStatus: true },
     });
-    const lastPaid = await this.prisma.invoice.findFirst({
+    const lastPaid = await db.invoice.findFirst({
       where: { userId, status: 'PAID' },
       orderBy: { paidAt: 'desc' },
       select: { paidAt: true, createdAt: true, description: true },
     });
     const accessUntil = periodEndFromInvoice(lastPaid);
-    if (user.email) {
+    if (user.email && opts.notify !== false) {
       this.email.send({
         userId: user.id,
         to: user.email,
@@ -618,8 +665,27 @@ export class PaytrService {
     return { plan: user.plan, status: user.subscriptionStatus, accessUntil };
   }
 
+  /**
+   * Odenen plani etkinlestirir.
+   *
+   * KOTA SAYACI yalniz GERCEK PLAN DEGISIMINDE sifirlanir: deneme (TRIAL) ya da
+   * suresi dolmus (EXPIRED) hesaptan ucretli plana gecis, ya da baska bir
+   * plana gecis. Ayni planin yenilemesi (otomatik, isRenewal) ve ayni planin
+   * elle yeniden satin alinmasi (otomatik yenileme kapaliyken canli yol budur)
+   * sayaca DOKUNMAZ. NEDEN: donem tanimi takvim ayi (QuotaService
+   * maybeResetMonthlyQuota; SSS, yardim ve sozluk de sayacin her takvim ayinin
+   * basinda sifirlandigini soyluyor). Eskiden her odeme de sifirliyordu: ayin
+   * 15'inde yenileyen Baslangic musterisi 1'inde 15, 15'inde 15 daha alip
+   * ayda 30 makale uretebiliyordu. invoice.isRenewal tek basina yetmez — elle
+   * alinan ayni plan isRenewal=false gelir.
+   *
+   * Sifirlamada ay isaretcisi (articlesQuotaResetAt) bu aya tasinir. Isaretci
+   * onceki bir aydaysa takvim sifirlamasi henuz yapilmamistir; o durumda
+   * video ve AI maliyet sayaclari da burada sifirlanir — yoksa isaretci bu aya
+   * gectigi icin maybeResetMonthlyQuota bu ay onlari hic sifirlamazdi.
+   */
   private async activateSubscription(
-    userId: string,
+    user: { id: string; plan?: string | null; subscriptionStatus?: string | null; articlesQuotaResetAt?: Date | string | null },
     planId: 'starter' | 'pro' | 'agency',
     subscriptionId: string,
   ) {
@@ -628,15 +694,29 @@ export class PaytrService {
       pro: 'PRO',
       agency: 'AGENCY',
     } as const;
+    const nextPlan = planMap[planId];
+    const now = new Date();
+
+    // TRIAL -> ucretli gecis plan farkiyla yakalanir (nextPlan hicbir zaman TRIAL degil)
+    const planChanged = user.subscriptionStatus === 'EXPIRED' || user.plan !== nextPlan;
+    const lastReset = user.articlesQuotaResetAt ? new Date(user.articlesQuotaResetAt) : null;
+    // QuotaService ile ayni ay tanimi (sunucu saati, yil + ay)
+    const markerInEarlierMonth = !lastReset || Number.isNaN(lastReset.getTime())
+      || lastReset.getFullYear() !== now.getFullYear() || lastReset.getMonth() !== now.getMonth();
 
     await this.prisma.user.update({
-      where: { id: userId },
+      where: { id: user.id },
       data: {
-        plan: planMap[planId],
+        plan: nextPlan,
         subscriptionStatus: 'ACTIVE',
         subscriptionId,
-        articlesUsedThisMonth: 0,
-        articlesQuotaResetAt: new Date(),
+        ...(planChanged
+          ? {
+            articlesUsedThisMonth: 0,
+            articlesQuotaResetAt: now,
+            ...(markerInEarlierMonth ? { videosUsedThisMonth: 0, aiCostThisMonthUsd: 0 } : {}),
+          }
+          : {}),
         // Yeni donem odendi: yenileme sayaclari sifirlanir
         renewalFailCount: 0,
         renewalLastAttemptAt: null,

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { containsBrand } from '../audit/brand-in-query.js';
 import { SEKTORLER } from './prospect-utils.js';
 import { sorulariGetir, altsektorAnahtari, sektorAltAnahtarlari, tumSorular, ALT_SEKTOR_ANAHTARLARI } from './karne-sorular.js';
-import { karneOzeti, karneHtml, karneBasligi, hataliProbe, type KarneSaglayiciSonucu } from './karne-html.js';
+import { karneOzeti, karneHtml, karneBasligi, hataliProbe, markaGecenSorular, type KarneSaglayiciSonucu } from './karne-html.js';
 
 /**
  * Ornek marka listesi — soru bankasi bunlarin HICBIRINI icermemeli.
@@ -142,8 +142,9 @@ function sahteSonuc(): KarneSaglayiciSonucu[] {
     saglayici('xai', 'xAI Grok', true, SORULAR.map((q, i) => probe(q, {
       brandMentioned: i === 9, brandInQuery: i === 9, position: i === 9 ? 1 : null, mentionedDomains: ['rakip.com.tr'],
     }))),
-    // Anahtari olmayan iki saglayici
-    saglayici('deepseek', 'DeepSeek', false, [], { reason: 'NO_KEY' }),
+    // Anahtari var ama hata verdi (kosuma dahil, "olculemedi" listelenir)
+    saglayici('deepseek', 'DeepSeek', false, [], { reason: 'HTTP 401: {"error":"invalid api key"}' }),
+    // Anahtari yok (uretimde Meta Llama): hic cagrilmadi — karneye girmez
     saglayici('meta', 'Meta AI (Llama)', false, [], { reason: 'NO_KEY' }),
   ];
 }
@@ -154,12 +155,19 @@ describe('karneOzeti', () => {
     saglayicilar: sahteSonuc(), rakipler: ['rakip.com.tr', 'gorunmeyen.com'], tarih: new Date('2026-08-29T10:00:00Z'),
   });
 
-  it('asistan sayimlari: 3/7 anildi, 2/7 atif, 5 aktif', () => {
+  it('asistan sayimlari: payda olculen asistan — 3/5 anildi, 2/5 atif (7 girdi, 5 olculen)', () => {
     expect(ozet.toplam).toEqual({
-      saglayici: 7, aktifSaglayici: 5, anilanSaglayici: 3, atifSaglayici: 2,
+      saglayici: 7, aktifSaglayici: 5, olculenSaglayici: 5, anilanSaglayici: 3, atifSaglayici: 2,
       // 5 aktif x 10 soru = 50; Grok'un markali damgali 1 hucresi dusuldu
       olculenCevap: 49, anilanCevap: 4, atifCevap: 2, hataliCevap: 0,
     });
+  });
+
+  it('kapsam: anahtarsiz saglayici kosuma dahil degil, hata veren dahil; olculdu en az bir hucreden', () => {
+    const bul = (p: string) => ozet.saglayicilar.find((s) => s.provider === p)!;
+    expect(bul('meta')).toMatchObject({ kapsamda: false, olculdu: false });
+    expect(bul('deepseek')).toMatchObject({ kapsamda: true, olculdu: false });
+    expect(bul('perplexity')).toMatchObject({ kapsamda: true, olculdu: true });
   });
 
   it('markali damgali probe skora girmez, markaliSorular listesine girer', () => {
@@ -218,7 +226,7 @@ describe('karneOzeti — HATA probe olcum sayilmaz', () => {
       saglayicilar: [saglayici('anthropic', 'Anthropic Claude', true, SORULAR.map((q) => hataProbe(q)))],
     });
     expect(ozet.toplam).toEqual({
-      saglayici: 1, aktifSaglayici: 1, anilanSaglayici: 0, atifSaglayici: 0,
+      saglayici: 1, aktifSaglayici: 1, olculenSaglayici: 0, anilanSaglayici: 0, atifSaglayici: 0,
       olculenCevap: 0, anilanCevap: 0, atifCevap: 0, hataliCevap: 10,
     });
     expect(ozet.bosluklar).toEqual([]);
@@ -270,8 +278,11 @@ describe('karneOzeti — HATA probe olcum sayilmaz', () => {
     expect(html).not.toContain('GIZLI');
     expect(html).not.toContain('HTTP 4');
     expect(html).not.toContain('rate_limit');
-    expect(html).toContain('Ölçülemeyen asistanlar: OpenAI ChatGPT, Meta AI (Llama) — bu koşumda ölçülemedi; sayımlara girmedi.');
+    // Hata veren (anahtari olan) saglayici listelenir; anahtarsiz Meta hic cagrilmadi — karnede yok
+    expect(html).toContain('Ölçülemeyen asistanlar: OpenAI ChatGPT — bu koşumda ölçülemedi; sayımlara girmedi.');
+    expect(html).not.toContain('Meta AI');
     expect(ozet.saglayicilar[1].reason).toContain('HTTP 401'); // JSON tarafinda kalir
+    expect(ozet.saglayicilar[2]).toMatchObject({ provider: 'meta', reason: 'NO_KEY', kapsamda: false }); // JSON'da durur
   });
 
   it('HTML: tum probe lari hatali asistan basligi "(ölçülemedi)" alir, bosluk listesi cikmaz', () => {
@@ -302,8 +313,11 @@ describe('karneHtml', () => {
   });
 
   it('ozet sayilari', () => {
-    expect(html).toContain('<div class="sayi">3/7</div><div class="etiket">asistan en az bir soruda kurumu andı</div>');
-    expect(html).toContain('<div class="sayi">2/7</div><div class="etiket">asistan atıf (kaynak/link) verdi</div>');
+    // Asistan paydasi: cevabi olculen 5 asistan (anahtarsiz Meta ve hata veren DeepSeek disarida)
+    expect(html).toContain('<div class="sayi">3/5</div><div class="etiket">asistan en az bir soruda kurumu andı</div>');
+    expect(html).toContain('<div class="sayi">2/5</div><div class="etiket">asistan atıf (kaynak/link) verdi</div>');
+    expect(html).toContain(' · 29.08.2026 · 5 asistan ölçüldü · 10 soru</div>');
+    expect(html).not.toMatch(/\d\/7\b/);
     expect(html).toContain('<div class="sayi">4/49</div><div class="etiket">ölçülen cevapta anıldı (%8)</div>');
     expect(html).toContain('<div class="sayi">2/49</div><div class="etiket">ölçülen cevapta atıf (%4)</div>');
     // Payda: en az bir asistanin gercekten olctugu markasiz soru sayisi (hata/markali haric)
@@ -313,15 +327,23 @@ describe('karneHtml', () => {
   });
 
   it('asistan x soru tablosu: basliklar, hucreler, olculemeyenler (ham neden yok)', () => {
-    for (const b of ['Claude', 'Gemini', 'ChatGPT', 'Perplexity', 'Grok', 'DeepSeek', 'Meta AI']) expect(html).toContain(`>${b}`);
+    for (const b of ['Claude', 'Gemini', 'ChatGPT', 'Perplexity', 'Grok', 'DeepSeek']) expect(html).toContain(`>${b}`);
     expect(html).toContain('◎ #1');
     expect(html).toContain('● #3');
     expect(html).toContain('title="markalı soru — skora girmez">m</td>');
-    expect((html.match(/\(ölçülemedi\)/g) ?? []).length).toBe(2);
-    expect(html).toContain('Ölçülemeyen asistanlar: DeepSeek, Meta AI (Llama) — bu koşumda ölçülemedi; sayımlara girmedi.');
+    // Yalniz hata veren DeepSeek "(ölçülemedi)"; anahtarsiz Meta tabloda ve listede yok
+    expect((html.match(/\(ölçülemedi\)/g) ?? []).length).toBe(1);
+    expect(html).toContain('Ölçülemeyen asistanlar: DeepSeek — bu koşumda ölçülemedi; sayımlara girmedi.');
+    expect(html).not.toContain('Meta AI');
     expect(html).not.toContain('NO_KEY');
+    expect(html).not.toContain('HTTP 401');
     expect(html).toContain('<th class="asistan" title="DeepSeek">DeepSeek');
     for (const q of SORULAR) expect(html).toContain(q.replace(/'/g, '&#39;'));
+  });
+
+  it('metodoloji: kosuma dahil asistanlar soruldu diye yazilir (anahtarsiz saglayici "soruldu" denmez)', () => {
+    expect(html).toContain('<li>6 asistana soruldu: Anthropic Claude, Google Gemini, OpenAI ChatGPT, Perplexity, xAI Grok, DeepSeek. Her asistana aynı 10 soru, aynı gün, aynı sistem yönergesiyle soruldu.</li>');
+    expect(html).not.toContain('7 asistan');
   });
 
   it('rakip payi gercek domainlerle, verilen rakip ★', () => {
@@ -368,5 +390,50 @@ describe('karneHtml', () => {
     }));
     expect(bos).toContain('Ölçüm yapılamadı');
     expect(bos).toContain('pay hesaplanamadı');
+  });
+});
+
+// ─── Jenerik turetilmis marka (CITATION_MATCH_VERSION 4) ────────────────────
+//
+// runPublicProbes'un buildProbe'u brandMatcher(brand, host) kullanir: alan
+// adindan turetilmis jenerik markada ("Emlak" ← emlak.com) yalnizca alan adi
+// gecisi markali/anilmis sayilir. Karnenin yedek hesabi (probe damgasi yoksa)
+// ve CLI'nin soru elemesi AYNI kurali host ile uygulamali.
+
+describe('markali soru — host ile (olcumle ayni v4 kurali)', () => {
+  const SORU_KELIME = 'Emlak alanında en güvenilir ilan siteleri hangileri?';
+  const SORU_ALAN = 'emlak.com güvenilir mi, yorumlar nasıl?';
+  const SORU_YOK = 'Kiralık daire ararken hangi platformlar güvenilir?';
+
+  it('markaGecenSorular: jenerik turetilmis markada yalnizca alan adi gecen soru elenir', () => {
+    expect(markaGecenSorular([SORU_KELIME, SORU_ALAN, SORU_YOK], 'Emlak', 'emlak.com')).toEqual([SORU_ALAN]);
+    // host'suz eski kural kelimeyi de markali sayiyordu — CLI bu soruyu bosuna eliyordu
+    expect(containsBrand(SORU_KELIME, 'Emlak')).toBe(true);
+  });
+
+  it('markaGecenSorular: jenerik olmayan markada ad gecen soru yine elenir', () => {
+    expect(markaGecenSorular(['Acme Bank kredi faizleri nasıl?', 'En iyi dijital bankalar hangileri?'], BRAND, HOST))
+      .toEqual(['Acme Bank kredi faizleri nasıl?']);
+  });
+
+  it('karneOzeti: damgasiz probe yedek hesabi host ile — "emlak" kelimesi gecen soru skora girer', () => {
+    // brandInQuery damgasi YOK: karne yedek hesaba duser
+    const damgasiz = (query: string, o: Record<string, unknown> = {}) => ({ query, cited: false, brandMentioned: false, ...o });
+    const ozet = karneOzeti({
+      brand: 'Emlak', host: 'emlak.com', sektor: 'finans', sorular: [SORU_KELIME, SORU_ALAN, SORU_YOK],
+      saglayicilar: [saglayici('openai', 'OpenAI ChatGPT', true, [
+        damgasiz(SORU_KELIME, { brandMentioned: true, cited: true, position: 1, mentionedDomains: ['rakip.com'] }),
+        damgasiz(SORU_ALAN, { brandMentioned: true, mentionedDomains: ['rakip.com'] }),
+        damgasiz(SORU_YOK, { mentionedDomains: ['rakip.com'] }),
+      ])],
+    });
+    expect(ozet.markaliSorular).toEqual([SORU_ALAN]);
+    const h = ozet.saglayicilar[0].hucreler;
+    expect(h[0]).toMatchObject({ markali: false, anildi: true, atif: true, sira: 1 });
+    expect(h[1]).toMatchObject({ markali: true, anildi: false });
+    expect(ozet.toplam).toMatchObject({ olculenCevap: 2, anilanCevap: 1, atifCevap: 1 });
+    // Rakip payi gozlemi ayni kuralla: markali soru (SORU_ALAN) marka kredisi vermez
+    expect(ozet.rakipPayi.find((r) => r.isBrand)?.mentions).toBe(1);
+    expect(ozet.bosluklar).toEqual([SORU_YOK]);
   });
 });

@@ -76,14 +76,17 @@ Bu listede ${niche} alaninda alakasiz, conversion uretmeyecek (free, ucretsiz, i
           // 3. Direkt Google Ads API ile negative keyword ekle
           const addRes = await this.adsClient.addNegativeKeywords(site.id, c.externalId, negatives);
           if (addRes.ok) {
-            addedKeywords += addRes.added ?? negatives.length;
-            this.log.log(`[${c.id}] ${addRes.added ?? negatives.length} negative keyword eklendi`);
+            // Google kismi basarida yalniz gecerli kelimeleri ekler (partialFailure);
+            // panel gecmisi "N negatif" sayisini bu listeden yazar, reddedilenler girmez
+            const accepted = Array.isArray(addRes.addedKeywords) ? addRes.addedKeywords : negatives;
+            addedKeywords += accepted.length;
+            this.log.log(`[${c.id}] ${accepted.length}/${negatives.length} negative keyword eklendi`);
 
             const history: any[] = Array.isArray(c.autopilotActions) ? (c.autopilotActions as any[]) : [];
             history.push({
               time: new Date().toISOString(),
               action: 'add-negative-keywords',
-              keywords: negatives,
+              keywords: accepted,
               reason: aiData.reason,
             });
             await this.prisma.adCampaign.update({

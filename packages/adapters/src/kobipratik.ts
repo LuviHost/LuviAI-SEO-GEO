@@ -1,4 +1,5 @@
 import { PublishAdapter } from './base.js';
+import { adapterFetch, httpErrorText } from './transport.js';
 import type {
   PublishPayload,
   PublishResult,
@@ -70,7 +71,7 @@ export class KobipratikAdapter extends PublishAdapter {
     }
 
     try {
-      const res = await fetch(url, {
+      const res = await adapterFetch(url, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${apiKey}`,
@@ -80,8 +81,7 @@ export class KobipratikAdapter extends PublishAdapter {
       });
 
       if (!res.ok) {
-        const errorText = await res.text();
-        return { ok: false, error: `kobipratik ${res.status}: ${errorText.slice(0, 300)}` };
+        return { ok: false, error: await httpErrorText('kobipratik', res, 300) };
       }
 
       const data: any = await res.json();
@@ -99,7 +99,7 @@ export class KobipratikAdapter extends PublishAdapter {
     const { baseUrl, apiKey } = this.credentials;
     if (!baseUrl || !apiKey) return false;
     try {
-      const res = await fetch(`${this.normalizeBase(baseUrl)}/api/v1/luviai/page-meta/ping`, {
+      const res = await adapterFetch(`${this.normalizeBase(baseUrl)}/api/v1/luviai/page-meta/ping`, {
         headers: { 'Authorization': `Bearer ${apiKey}` },
       });
       return res.ok;
@@ -145,7 +145,7 @@ export class KobipratikAdapter extends PublishAdapter {
     }
 
     try {
-      const res = await fetch(url, {
+      const res = await adapterFetch(url, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${apiKey}`,
@@ -155,12 +155,12 @@ export class KobipratikAdapter extends PublishAdapter {
       });
 
       if (!res.ok) {
-        const errorText = await res.text();
+        const reason = await httpErrorText('kobipratik', res);
         return {
           ok: false,
           applied: [],
-          skipped: [{ field: 'all', reason: `kobipratik ${res.status}: ${errorText.slice(0, 200)}` }],
-          error: errorText.slice(0, 300),
+          skipped: [{ field: 'all', reason }],
+          error: reason,
         };
       }
 
@@ -202,7 +202,7 @@ export class KobipratikAdapter extends PublishAdapter {
     };
 
     try {
-      const res = await fetch(url, {
+      const res = await adapterFetch(url, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${apiKey}`,
@@ -211,8 +211,7 @@ export class KobipratikAdapter extends PublishAdapter {
         body: JSON.stringify(body),
       });
       if (!res.ok) {
-        const errorText = await res.text();
-        return { ok: false, error: `kobipratik llms ${res.status}: ${errorText.slice(0, 300)}` };
+        return { ok: false, error: await httpErrorText('kobipratik llms', res, 300) };
       }
       return { ok: true, externalUrl: `${this.normalizeBase(baseUrl)}/llms.txt` };
     } catch (err: any) {

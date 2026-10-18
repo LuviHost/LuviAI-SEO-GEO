@@ -1,11 +1,17 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { readBodyCapped } from '../common/fetch-capped.js';
+import { safeFetchText, SafeFetchError } from '../common/safe-fetch.js';
+import { detectBlock } from '../common/block-detect.js';
 
 export interface PlatformDetection {
   platform: 'wordpress' | 'webflow' | 'wix' | 'ghost' | 'shopify' | 'squarespace' | 'cpanel-static' | 'next' | 'unknown';
   confidence: number; // 0..1
   hints: string[];
   suggestedAdapter: 'WORDPRESS_REST' | 'WEBFLOW' | 'GHOST' | 'CPANEL_API' | 'CUSTOM_PHP' | 'MARKDOWN_ZIP' | null;
+  /**
+   * Site bizi engelledi ya da okunamadi — sonuc bir tahmin DEGIL. Cagiran
+   * taraf onceki tespitin uzerine 'unknown' yazmamali.
+   */
+  unreadable?: { reason: string };
 }
 
 /**
@@ -20,21 +26,23 @@ export class PlatformDetectorService {
   async detect(siteUrl: string): Promise<PlatformDetection> {
     const hints: string[] = [];
     let html = '';
-    const headers: Record<string, string> = {};
+    let headers: Record<string, string> = {};
 
     try {
-      const res = await fetch(siteUrl, {
-        method: 'GET',
-        redirect: 'follow',
-        signal: AbortSignal.timeout(10000),
-      });
-      // 50 KB yetiyor (asagida zaten kirpiliyordu) — ama eski hali govdenin
-      // TAMAMINI indirip sonra kirpiyordu, yani bellek zaten harcanmis oluyordu.
-      html = ((await readBodyCapped(res, 512 * 1024))?.text ?? '').slice(0, 50000);
-      res.headers.forEach((v, k) => (headers[k.toLowerCase()] = v));
+      // SSRF korumali (common/safe-fetch.ts). 50 KB yetiyor; tavan okuma aninda.
+      const res = await safeFetchText(siteUrl, { maxBytes: 512 * 1024, timeoutMs: 10_000 });
+      const block = detectBlock(res);
+      if (block) {
+        // Engel sayfasindaki "server: cloudflare" sitenin platformu degil
+        this.log.warn(`Platform tespiti engellendi (${siteUrl}): ${block.reason}`);
+        return { platform: 'unknown', confidence: 0, hints: [`erişim engellendi: ${block.reason}`], suggestedAdapter: null, unreadable: { reason: block.reason } };
+      }
+      html = res.text.slice(0, 50000);
+      headers = res.headers;
     } catch (err: any) {
-      this.log.warn(`Platform fetch fail (${siteUrl}): ${err.message}`);
-      return { platform: 'unknown', confidence: 0, hints: [`fetch failed: ${err.message}`], suggestedAdapter: null };
+      const code = err instanceof SafeFetchError ? err.code : 'network';
+      this.log.warn(`Platform fetch fail (${siteUrl}): ${code}`);
+      return { platform: 'unknown', confidence: 0, hints: [`fetch failed: ${code}`], suggestedAdapter: null, unreadable: { reason: code } };
     }
 
     // Header probe
@@ -110,8 +118,9 @@ export class PlatformDetectorService {
 
   private async probe(url: string): Promise<boolean> {
     try {
-      const res = await fetch(url, { method: 'GET', signal: AbortSignal.timeout(5000) });
-      return res.ok;
+      // Yalnizca durum kodu lazim — govdeden 16 KB yeter
+      const res = await safeFetchText(url, { maxBytes: 16 * 1024, timeoutMs: 5000, accept: 'application/json,*/*' });
+      return res.ok && !detectBlock(res);
     } catch {
       return false;
     }

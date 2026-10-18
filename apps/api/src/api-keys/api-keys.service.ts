@@ -143,6 +143,24 @@ export class ApiKeysService {
   }
 
   /**
+   * Kullanicinin TUM aktif anahtarlarini iptal eder (hesap silme). `db` ile
+   * silme transaction'i icinde calisir: talep kaydedildiyse anahtarlar da
+   * ayni anda olur. Doner: iptal edilen anahtar sayisi.
+   */
+  async revokeAllForUser(
+    userId: string,
+    db: Pick<PrismaService, 'apiKey'> = this.prisma,
+    now: Date = new Date(),
+  ): Promise<number> {
+    const res = await db.apiKey.updateMany({
+      where: { userId, revokedAt: null },
+      data: { revokedAt: now },
+    });
+    if (res.count > 0) this.log.log(`[${userId}] ${res.count} API anahtari iptal edildi (hesap silme)`);
+    return res.count;
+  }
+
+  /**
    * Auth guard tarafindan cagrilir — token geldiyse user resolve et.
    * @returns { userId, scopes } veya null
    */
@@ -193,13 +211,17 @@ export class ApiKeysService {
    *   /sites/:id/<alt>/...               -> <alt> (eslesirse)
    *   /<kok>/...                         -> <kok> (eslesirse)
    * Eslesme yoksa null doner.
+   *
+   * HARF DUYARSIZ: Express rotalari buyuk/kucuk harfi ayirt etmeden eslestirir
+   * ('case sensitive routing' kapali), /api/SITES/:id ile /api/sites/:id ayni
+   * handler'a gider. Karsilastirma eskiden harf duyarliydi: /api/SITES/x null
+   * donuyor, AuthGuard da "herhangi bir :write" geri dususune iniyordu — yalniz
+   * 'social:write' tasiyan anahtar DELETE /api/SITES/:id ile siteyi silebiliyor,
+   * /api/sites/:id/ADS/... ile reklam kimligini degistirebiliyordu. Yol burada
+   * kucuk harfe cevrilir; yalniz segment ADLARI ROUTE_RESOURCE ile karsilastirilir,
+   * kimlikler donus degerine girmez.
    */
   resolveResource(path: string): string | null {
-    // Express rotalari varsayilan olarak buyuk/kucuk harf duyarsizdir:
-    // /api/SITES/:id de /api/sites/:id ucuna gider. Burada duyarli
-    // karsilastirsaydik 'SITES' haritada bulunmaz, null doner ve kaynak
-    // scope'u atlanirdi (GET serbest, mutasyonda herhangi bir ':write').
-    // Yonlendirmeyle ayni kurali uygulamak icin yol kucuk harfe indirilir.
     const clean = (path.split('?')[0] ?? '').replace(/\/+$/, '').toLowerCase();
     const segs = clean.split('/').filter(Boolean);
     if (segs[0] === 'api') segs.shift(); // main.ts: setGlobalPrefix('api')

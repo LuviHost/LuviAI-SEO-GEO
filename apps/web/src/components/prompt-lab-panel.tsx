@@ -4,11 +4,14 @@ import { useCallback, useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import {
   Beaker, Plus, Play, Trash2, GitBranch, Sparkles, Download,
-  ChevronDown, ChevronRight, AlertTriangle, Check, Loader2, X,
+  ChevronDown, ChevronRight, AlertTriangle, Check, Loader2, X, MapPin,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { MeasurementLimitNote } from '@/components/measurement-limit-note';
 import { isWeeklyMeasurementLimitError, refreshMeasurementAllowance, useMeasurementAllowance } from '@/lib/measurement-allowance';
+import { displayProbeText } from '@/lib/probe-error-text';
+import type { LocalPromptMeta, LocalRunSummary } from '@/lib/local-visibility';
+import { LocalPromptBadge, LocalPromptsTab, LocalResultView } from '@/components/prompt-lab-local';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
@@ -20,9 +23,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 /**
  * Prompt Lab — kullanicinin takip ettigi sorular + fan-out dallari.
  *
- * Iki sekme:
+ * Uc sekme:
  *  1. Sorular: takip listesi, tek tek veya toplu calistirma
  *  2. Kapsama: ana soru vs fan-out dallari farki (asil urun degeri)
+ *  3. Yerel: il/ilce + hizmet sorulari ve NAP dogrulugu (prompt-lab-local.tsx)
  */
 
 type Prompt = {
@@ -30,6 +34,10 @@ type Prompt = {
   isActive: boolean; fanoutCount: number;
   lastRunAt: string | null; lastCitedCount: number; lastTotalCount: number;
   lastScore: number | null; createdAt: string;
+  /** Yerel soru: il/ilce/hizmet */
+  local?: LocalPromptMeta | null;
+  /** Yerel sorunun son olcum sonucu (sayfa yenilense de gorunsun) */
+  lastLocal?: LocalRunSummary | null;
 };
 
 type Branch = {
@@ -73,7 +81,7 @@ export function PromptLabPanel({ siteId }: { siteId: string }) {
           as="h3"
           icon={Beaker}
           title="Prompt Lab — takip ettiğin sorular"
-          description="Kendi sorularını takibe al, modelin arka planda açtığı alt sorgu dallarını (fan-out) ölç."
+          description="Kendi sorularını takibe al, modelin arka planda açtığı alt sorgu dallarını (fan-out) ve yerel soruları ölç."
         />
 
         {/* Elle cizilmis sekme cubugu yerine ui/tabs (Radix: rol, klavye, aria-selected) */}
@@ -85,12 +93,18 @@ export function PromptLabPanel({ siteId }: { siteId: string }) {
             <TabsTrigger value="coverage">
               <GitBranch className="h-3.5 w-3.5 mr-1.5" aria-hidden /> Kapsama
             </TabsTrigger>
+            <TabsTrigger value="local">
+              <MapPin className="h-3.5 w-3.5 mr-1.5" aria-hidden /> Yerel
+            </TabsTrigger>
           </TabsList>
           <TabsContent value="prompts" className="mt-3">
             <PromptsTab siteId={siteId} />
           </TabsContent>
           <TabsContent value="coverage" className="mt-3">
             <CoverageTab siteId={siteId} />
+          </TabsContent>
+          <TabsContent value="local" className="mt-3">
+            <LocalPromptsTab siteId={siteId} />
           </TabsContent>
         </Tabs>
       </CardContent>
@@ -336,6 +350,7 @@ function PromptRow({
             {prompt.source === 'brain' && (
               <Badge variant="outline" className="text-label px-1 py-0">Brain</Badge>
             )}
+            {prompt.local && <LocalPromptBadge meta={prompt.local} />}
             {prompt.fanoutCount > 0 && (
               <span className="text-label text-muted-foreground inline-flex items-center gap-0.5">
                 <GitBranch className="h-2.5 w-2.5" /> {prompt.fanoutCount} dal
@@ -453,7 +468,7 @@ function PromptRow({
                     key={pr.provider}
                     variant="outline"
                     className="text-label px-1 py-0"
-                    title={pr.reason ?? pr.label}
+                    title={displayProbeText(pr.reason) ?? pr.label}
                   >
                     {pr.available
                       ? (pr.probes.some((x: any) => x.cited)
@@ -465,6 +480,11 @@ function PromptRow({
                 ))}
               </div>
             </div>
+          )}
+
+          {/* Yerel soru: marka + telefon/adres dogrulugu — bu oturumdaki calistirma ya da son kayitli olcum */}
+          {(lastRun?.local ?? prompt.lastLocal) && (
+            <LocalResultView result={(lastRun?.local ?? prompt.lastLocal)!} />
           )}
         </div>
       )}

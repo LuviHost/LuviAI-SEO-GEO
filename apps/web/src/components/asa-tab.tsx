@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import {
   Link2, Unlink, RefreshCw, Plus, TrendingUp, Eye, MousePointer,
-  Download, DollarSign, AlertCircle, ExternalLink, CheckCircle2, Loader2,
+  Download, Wallet, AlertCircle, ExternalLink, CheckCircle2, Loader2,
   Sparkles, Bot, ChevronDown,
 } from 'lucide-react';
 import { api } from '@/lib/api';
@@ -29,6 +29,8 @@ interface Account {
   autoPilotBudgetCap?: number | null;
   autoPilotLastRunAt?: string | null;
   autoPilotLastResult?: string | null;
+  /** Hesabin para birimi (ISO 4217) — asa.service listAccounts; bilinmiyorsa null */
+  currency?: string | null;
   _count: { campaigns: number };
 }
 
@@ -47,10 +49,17 @@ interface Campaign {
 
 interface PerformanceData {
   daysBack: number;
+  /**
+   * Hesabin para birimi (ISO 4217) — asa.service getPerformanceSummary, Apple
+   * raporundaki localSpend.currency'den. Sitenin hesaplari farkli birimdeyse ya
+   * da bilinmiyorsa null: sembol konmaz, etiket "hesap para birimi" der (fmtAsaMoney).
+   */
+  currency?: string | null;
   totals: {
     impressions: number;
     taps: number;
     installs: number;
+    /** Adi yaniltici: USD degil, Apple raporundaki hesap para birimi (bkz. fmtAsaMoney) */
     spendUsd: number;
     avgCpt: number;
     avgCpa: number;
@@ -257,10 +266,10 @@ export function AsaTab({ siteId, prefillKeyword, onPrefillConsumed }: { siteId: 
               subtext={`Dönüşüm oranı %${(performance.totals.conversionRate * 100).toFixed(2)}`}
             />
             <MetricCard
-              icon={DollarSign}
-              label="Harcama"
-              value={`$${performance.totals.spendUsd.toFixed(2)}`}
-              subtext={`Kurulum başı $${performance.totals.avgCpa.toFixed(2)}`}
+              icon={Wallet}
+              label={`Harcama${asaCurrencyLabel(performance.currency)}`}
+              value={fmtAsaMoney(performance.totals.spendUsd, performance.currency)}
+              subtext={`Kurulum başı ${fmtAsaMoney(performance.totals.avgCpa, performance.currency)}`}
             />
           </div>
         </div>
@@ -269,6 +278,9 @@ export function AsaTab({ siteId, prefillKeyword, onPrefillConsumed }: { siteId: 
       {/* Campaign list */}
       <div>
         <h4 className="font-brand text-sm font-semibold mb-2">Kampanyalar</h4>
+        {campaigns.length > 0 && !knownCurrency(performance?.currency) && (
+          <p className="text-label text-muted-foreground mb-2">Bütçeler Apple Ads hesabının para birimindedir.</p>
+        )}
         {campaigns.length === 0 ? (
           <div className="rounded-xl border-2 border-dashed border-border p-6 text-center">
             <TrendingUp className="h-8 w-8 text-muted-foreground/40 mx-auto mb-2" />
@@ -285,18 +297,27 @@ export function AsaTab({ siteId, prefillKeyword, onPrefillConsumed }: { siteId: 
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 mb-1 flex-wrap">
                       <span className="font-semibold text-sm">{c.name}</span>
+                      {/*
+                        status = reklamverenin sectigi durum (ENABLED / PAUSED). Apple kampanyayi
+                        yine de beklemeye alabilir (displayStatus ON_HOLD: gunluk butce, odeme
+                        yontemi, baslangic tarihi...) — "Yayinda" demek bunu gizliyordu.
+                        https://developer.apple.com/documentation/apple_ads/campaign
+                      */}
                       <Badge
-                        variant={c.status === 'ENABLED' ? ('success' as any) : 'outline'}
+                        variant={c.status === 'ENABLED' ? 'info' : 'outline'}
                         className="text-label"
+                        title={c.status === 'ENABLED'
+                          ? 'Kampanyayı etkin bıraktın. Apple bütçe, ödeme yöntemi ya da başlangıç tarihi gibi nedenlerle yine de beklemeye alabilir; gerçek yayın durumunu Apple Ads panelinde gör.'
+                          : undefined}
                       >
-                        {c.status === 'ENABLED' ? 'Yayında' : c.status === 'PAUSED' ? 'Duraklatıldı' : c.status}
+                        {c.status === 'ENABLED' ? 'Etkin' : c.status === 'PAUSED' ? 'Duraklatıldı' : c.status}
                       </Badge>
                       <span className="text-label text-muted-foreground">
                         ID: {c.asaCampaignId}
                       </span>
                     </div>
                     <div className="text-label text-muted-foreground flex items-center gap-2 flex-wrap">
-                      <span>${c.budget.toFixed(2)}/gün</span>
+                      <span>{fmtAsaMoney(c.budget, performance?.currency)}/gün</span>
                       <span>·</span>
                       <span>{c.countriesOrRegions.join(', ')}</span>
                       <span>·</span>
@@ -364,18 +385,41 @@ function AutoPilotPanel({ account, onChanged }: { account: Account; onChanged: (
     try { return JSON.parse(account.autoPilotLastResult) as { added: string[]; paused: string[]; skipped: string[]; reason?: string }; } catch { return null; }
   })();
 
-  const save = async (nextEnabled?: boolean) => {
+  /**
+   * Sinir kurali API ile ayni (asa.dto SetAsaAutoPilotDto: sayi ve >= 0; 0 =
+   * otopilot hic degisiklik yapmaz). Alan bir <form> icinde olmadigi icin
+   * input'un min degeri kaydi engellemiyordu; eskiden parseFloat ne verirse
+   * gidiyordu ("12abc" → 12, bos alan → null iken "güncellendi" deniyordu).
+   * Ac/kapat dugmesinde bos alan mevcut siniri korur (API null). Basari → true.
+   */
+  const save = async (nextEnabled?: boolean): Promise<boolean> => {
+    const raw = budgetCap.trim();
+    let cap: number | null = null;
+    if (raw === '') {
+      if (nextEnabled === undefined) {
+        toast.error('Aylık harcama sınırı gir: 0 ya da pozitif bir sayı.');
+        return false;
+      }
+    } else {
+      const n = Number(raw);
+      if (!Number.isFinite(n) || n < 0) {
+        toast.error('Bütçe sınırı 0 ya da pozitif bir sayı olmalı.');
+        return false;
+      }
+      cap = n;
+    }
     setSaving(true);
     try {
-      const cap = parseFloat(budgetCap);
       await api.setAsaAutoPilot(account.id, {
         enabled: nextEnabled ?? enabled,
-        budgetCapUsd: isNaN(cap) ? null : cap,
+        budgetCapUsd: cap,
       });
       toast.success(nextEnabled === true ? 'Otopilot açıldı' : nextEnabled === false ? 'Otopilot kapatıldı' : 'Bütçe sınırı güncellendi');
       onChanged();
+      return true;
     } catch (err: any) {
       toast.error(err.message);
+      return false;
     } finally {
       setSaving(false);
     }
@@ -422,8 +466,8 @@ function AutoPilotPanel({ account, onChanged }: { account: Account; onChanged: (
             </p>
             <p className="text-label text-muted-foreground">
               {enabled
-                ? `Her gece çalışır · aylık bütçe sınırı $${account.autoPilotBudgetCap ?? '—'}`
-                : 'Her gece AI ile anahtar kelime ekler, düşük performanslıları durdurur'}
+                ? `Günde bir kez çalışır · aylık harcama sınırı ${account.autoPilotBudgetCap ?? '—'}${knownCurrency(account.currency) ? ` ${account.currency}` : ' (hesap para birimi)'}`
+                : 'Günde bir kez: son 7 günde 20+ tıklama alıp yükleme getirmeyen anahtar kelimeleri duraklatır, AI önerisinden en fazla 5 yeni anahtar kelime ekler'}
             </p>
           </div>
         </div>
@@ -437,7 +481,7 @@ function AutoPilotPanel({ account, onChanged }: { account: Account; onChanged: (
             <Button
               size="sm"
               variant={enabled ? 'default' : 'outline'}
-              onClick={async () => { const next = !enabled; setEnabled(next); await save(next); }}
+              onClick={async () => { const next = !enabled; setEnabled(next); if (!(await save(next))) setEnabled(!next); }}
               disabled={saving}
               className={enabled ? 'bg-success hover:bg-success/90' : ''}
             >
@@ -446,11 +490,18 @@ function AutoPilotPanel({ account, onChanged }: { account: Account; onChanged: (
           </div>
 
           <div>
-            <label className="text-xs font-semibold mb-1 block">Aylık bütçe cap (USD)</label>
+            {/*
+              Sinir, ay basindan beri DB'deki spendUsd toplamiyla karsilastirilir (asa.service
+              runAutoPilot) — o sutun hesabin para birimini tasir; "(USD)" USD disi hesapta yanlisti.
+              Birim biliniyorsa (listAccounts currency) kodu yazilir.
+            */}
+            <label className="text-xs font-semibold mb-1 block">
+              Aylık harcama sınırı ({knownCurrency(account.currency) ? account.currency : 'hesap para birimi'})
+            </label>
             <div className="flex gap-2">
               <Input
                 type="number"
-                min={10}
+                min={0}
                 step={10}
                 value={budgetCap}
                 onChange={(e) => setBudgetCap(e.target.value)}
@@ -462,7 +513,7 @@ function AutoPilotPanel({ account, onChanged }: { account: Account; onChanged: (
               </Button>
             </div>
             <p className="text-label text-muted-foreground mt-1">
-              Bu sınır aşılırsa otopilot yeni anahtar kelime eklemez (mevcut kampanyalar Apple tarafında çalışmaya devam eder).
+              Ay başından beri harcama bu sınıra ulaşınca otopilot o ay değişiklik yapmaz (anahtar kelime eklemez, duraklatmaz); sınır 0 ise hiç değişiklik yapmaz. Harcamayı durdurmaz; kampanyalar Apple tarafında çalışmaya devam eder.
             </p>
           </div>
 
@@ -579,6 +630,7 @@ function ConnectModal({
   const [privateKeyPem, setPrivateKeyPem] = useState('');
   const [appleCredsRaw, setAppleCredsRaw] = useState('');
   const [parsedClientId, setParsedClientId] = useState('');
+  const [parsedTeamId, setParsedTeamId] = useState('');
   const [parsedKeyId, setParsedKeyId] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -613,23 +665,14 @@ function ConnectModal({
     }
   };
 
-  // ── Step 2: Apple'dan kopyalanan blok'tan clientId + keyId çıkar ───────
-  // Apple sayfasından kopyalanan format örnek:
-  //   clientId SEARCHADS.f5158481-84c4-4baa-86f1-7ef00725f85d
-  //   teamId   SEARCHADS.f5158481-84c4-4baa-86f1-7ef00725f85d
-  //   keyId    9b19f9eb-8aaf-486c-9a03-62d60f0b0c6d
+  // ── Step 2: Apple'dan kopyalanan bloktan clientId + teamId + keyId cikar ───────
+  // Bicim ve ayristirma kurallari: parseAppleCredentialBlock (dosya sonu)
   const parseAppleCreds = (text: string) => {
     setAppleCredsRaw(text);
-    // clientId: SEARCHADS.xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx (36 char + SEARCHADS. prefix)
-    const clientMatch = text.match(/SEARCHADS\.[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}/i);
-    // keyId: standalone UUID (clientId'den farklı, prefix yok)
-    const uuidMatches = text.match(/\b[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\b/gi) ?? [];
-    // SEARCHADS. prefix'li olmayanları al
-    const standaloneUuids = uuidMatches.filter((u) => !text.includes(`SEARCHADS.${u}`));
-    const keyMatch = standaloneUuids[0] ?? null;
-
-    setParsedClientId(clientMatch?.[0] ?? '');
-    setParsedKeyId(keyMatch ?? '');
+    const parsed = parseAppleCredentialBlock(text);
+    setParsedClientId(parsed.clientId);
+    setParsedTeamId(parsed.teamId);
+    setParsedKeyId(parsed.keyId);
   };
 
   // ── Step 3: Bağla ──────────────────────────────────────────────────────
@@ -645,6 +688,9 @@ function ConnectModal({
         orgId: parsedClientId, // backend "orgId" alanı clientId değerini taşır
         keyId: parsedKeyId,
         privateKeyPem,
+        // JWT iss = teamId (asa-http.ts); teamId clientId'den farkli hesaplarda eskiden
+        // iss'e clientId gidiyordu ve Apple invalid_client donuyordu
+        ...(parsedTeamId.trim() ? { teamId: parsedTeamId.trim() } : {}),
       });
       toast.success('Apple Search Ads bağlandı');
       onSuccess();
@@ -697,9 +743,12 @@ function ConnectModal({
             <div className="space-y-4">
               <div className="rounded-lg border bg-muted/30 p-4">
                 <p className="text-sm leading-relaxed">
-                  <strong>Tek tık güvenli anahtar üretimi.</strong> RanksUp tarayıcında ES256 keypair üretir.
-                  <strong className="text-success"> Private key sadece sende kalır</strong>,
-                  Apple ve RanksUp sunucusu hiç görmez (sadece encrypted blob saklanır).
+                  {/* Private key Apple Ads cagrilarini imzalamak icin sunucuya gider ve orada
+                      AES-256-GCM ile sifrelenip saklanir (asa.service.ts encrypt). Eski metin
+                      "RanksUp sunucusu hic gormez" diyordu — dogru degildi. */}
+                  <strong>Tek tık güvenli anahtar üretimi.</strong> RanksUp tarayıcında ES256 anahtar çifti üretir.
+                  Apple’a yalnız public key’i yüklersin; <strong className="text-success">private key Apple’a gönderilmez</strong>.
+                  Bağla adımında RanksUp’a HTTPS ile iletilir ve Apple Ads çağrılarını imzalamak için AES-256-GCM ile şifrelenerek saklanır.
                 </p>
               </div>
 
@@ -764,7 +813,7 @@ function ConnectModal({
                       variant="outline"
                       className="mt-2 border-brand/40 text-brand hover:bg-brand/10"
                       onClick={async () => {
-                        try { await navigator.clipboard.writeText(publicKeyPem); toast.success('Public key tekrar kopyalandı'); } catch {}
+                        try { await navigator.clipboard.writeText(publicKeyPem); toast.success('Public key tekrar kopyalandı'); } catch { /* pano izni yoksa sayfa yine acilir */ }
                         window.open('https://app-ads.apple.com/', '_blank', 'noopener,noreferrer');
                       }}
                     >
@@ -794,7 +843,7 @@ function ConnectModal({
                           className="h-8 shrink-0"
                           disabled={!appleLandingUrl || appleLandingUrl.length < 6}
                           onClick={async () => {
-                            try { await navigator.clipboard.writeText(publicKeyPem); } catch {}
+                            try { await navigator.clipboard.writeText(publicKeyPem); } catch { /* pano izni yoksa sayfa yine acilir */ }
                             window.open(`https://app-ads.apple.com/cm/app/${appleLandingUrl}/settings/apicertificates`, '_blank', 'noopener,noreferrer');
                             toast.success('API sayfası açıldı + public key panoda');
                           }}
@@ -860,6 +909,17 @@ keyId     xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`}</pre>
                     </code>
                   </div>
                   <div className="flex items-center gap-2">
+                    {parsedTeamId ? (
+                      <CheckCircle2 className="h-4 w-4 text-success" />
+                    ) : (
+                      <AlertCircle className="h-4 w-4 text-warning" />
+                    )}
+                    <span className="font-semibold w-20">Team ID:</span>
+                    <code className={parsedTeamId ? 'text-success' : 'text-warning'}>
+                      {parsedTeamId || 'bulunamadı — teamId satırını da yapıştır (yoksa Client ID kullanılır)'}
+                    </code>
+                  </div>
+                  <div className="flex items-center gap-2">
                     {parsedKeyId ? (
                       <CheckCircle2 className="h-4 w-4 text-success" />
                     ) : (
@@ -882,6 +942,7 @@ keyId     xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`}</pre>
                 <p className="text-sm font-semibold mb-2 text-foreground">Her şey hazır — son onay:</p>
                 <div className="space-y-1.5 text-xs font-mono">
                   <div className="flex gap-2"><span className="w-24 text-muted-foreground">Client ID:</span><span className="truncate">{parsedClientId}</span></div>
+                  <div className="flex gap-2"><span className="w-24 text-muted-foreground">Team ID:</span><span className="truncate">{parsedTeamId || 'yok — Client ID kullanılacak'}</span></div>
                   <div className="flex gap-2"><span className="w-24 text-muted-foreground">Key ID:</span><span>{parsedKeyId}</span></div>
                   <div className="flex gap-2"><span className="w-24 text-muted-foreground">Private key:</span><span className="text-success">Tarayıcıda üretildi, AES-256-GCM ile encrypt edilip kaydedilecek</span></div>
                 </div>
@@ -980,6 +1041,12 @@ keyId     xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`}</pre>
                 className="font-mono text-xs"
               />
               <Input
+                placeholder="Team ID (SEARCHADS.xxx) — boşsa Client ID kullanılır"
+                value={parsedTeamId}
+                onChange={(e) => setParsedTeamId(e.target.value)}
+                className="font-mono text-xs"
+              />
+              <Input
                 placeholder="Key ID (UUID, 8-4-4-4-12)"
                 value={parsedKeyId}
                 onChange={(e) => setParsedKeyId(e.target.value)}
@@ -1043,6 +1110,35 @@ keyId     xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`}</pre>
 // ─────────────────────────────────────────────────────────
 //  Helpers
 // ─────────────────────────────────────────────────────────
+
+/**
+ * Apple Ads > Account Settings > API'de public key kaydedilince gosterilen
+ * kimlik blogunu ayristirir. Apple'in belgeledigi bicim:
+ *   clientId SEARCHADS.aeb3ef5f-0c5a-4f2a-99c8-fca83f25a9
+ *   teamId SEARCHADS.hgw3ef3p-0w7a-8a2n-77c8-scv83f25a7
+ *   keyId a273d0d3-4d9e-458c-a173-0db8619ca7d7
+ * https://developer.apple.com/documentation/apple_ads/implementing-oauth-for-the-apple-search-ads-api
+ * JWT: iss = teamId, sub = clientId (ayni sayfa). Eski ayristirici yalniz clientId +
+ * keyId aliyordu ve onaltilik UUID bekliyordu; Apple'in kendi orneginde bile harf ve
+ * uzunluk farkli. Once etiketli satirlar okunur; etiket yoksa sira: ilk SEARCHADS.*
+ * clientId, ikincisi teamId, oneksiz UUID keyId.
+ */
+function parseAppleCredentialBlock(text: string): { clientId: string; teamId: string; keyId: string } {
+  const labeled = (label: string, pattern: string) =>
+    text.match(new RegExp(`\\b${label}\\b["']?\\s*[:=]?\\s*["']?(${pattern})`, 'i'))?.[1] ?? '';
+  const SEARCHADS = 'SEARCHADS\\.[A-Za-z0-9-]+';
+  let clientId = labeled('clientId', SEARCHADS);
+  let teamId = labeled('teamId', SEARCHADS);
+  let keyId = labeled('keyId', '[A-Za-z0-9-]{8,}');
+  const tokens = text.match(/SEARCHADS\.[A-Za-z0-9-]+/g) ?? [];
+  if (!clientId) clientId = tokens[0] ?? '';
+  if (!teamId) teamId = tokens.find((t) => t !== clientId) ?? (tokens.length > 1 ? tokens[1] : '');
+  if (!keyId) {
+    const uuids = text.match(/\b[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\b/gi) ?? [];
+    keyId = uuids.find((u) => !text.includes(`SEARCHADS.${u}`)) ?? '';
+  }
+  return { clientId, teamId, keyId };
+}
 
 function bufferToPem(buf: ArrayBuffer, label: string): string {
   const b64 = btoa(String.fromCharCode(...new Uint8Array(buf)));
@@ -1122,7 +1218,9 @@ function NewCampaignModal({
 
     setSubmitting(true);
     try {
-      await api.createAsaCampaign({
+      // API kismen basarisiz kelimeleri / reklam adimini `warnings` ile bildirir;
+      // basari mesaji eklenemeyen kelimeleri eklenmis gibi saymasin.
+      const res = await api.createAsaCampaign({
         accountId,
         name: name.trim(),
         dailyBudgetUsd,
@@ -1130,7 +1228,14 @@ function NewCampaignModal({
         appleAppId: adamId,
         keywords: kwList.length > 0 ? kwList : undefined,
       });
-      toast.success(`Kampanya oluşturuldu (${kwList.length} keyword)`);
+      const warnings = res.warnings ?? [];
+      if (warnings.length > 0) {
+        toast.warning(`Kampanya oluşturuldu, ${warnings.length} uyarı var`, {
+          description: warnings.slice(0, 3).join(' · '),
+        });
+      } else {
+        toast.success(`Kampanya oluşturuldu (${kwList.length} anahtar kelime)`);
+      }
       onSuccess();
     } catch (err: any) {
       toast.error(`Hata: ${err.message}`);
@@ -1288,6 +1393,31 @@ function MetricCard({
       </CardContent>
     </Card>
   );
+}
+
+/** ISO 4217 bicimli (3 buyuk harf) para birimi mi */
+function knownCurrency(currency?: string | null): currency is string {
+  return typeof currency === 'string' && /^[A-Z]{3}$/.test(currency);
+}
+
+/**
+ * ASA tutari. asa.service fetchPerformance Apple raporundaki localSpend'i —
+ * HESABIN para biriminde — spendUsd sutununa yazar ve birimi kv'de tutar;
+ * getPerformanceSummary / listAccounts bunu `currency` olarak doner (bkz.
+ * api aso/asa/asa-currency.ts). Kampanya butcesi de hesabin para birimindedir.
+ * "$" yalniz para birimi USD oldugu BILINIYORSA yazilir; bilinen baska kodda
+ * kod eklenir (12.50 EUR), bilinmiyorsa yalniz sayi (etiket "hesap para birimi" der).
+ */
+function fmtAsaMoney(amount: number, currency?: string | null): string {
+  const n = (Number.isFinite(amount) ? amount : 0).toFixed(2);
+  if (currency === 'USD') return `$${n}`;
+  if (knownCurrency(currency)) return `${n} ${currency}`;
+  return n;
+}
+
+/** Para birimi bilinmiyorsa etikete eklenen aciklama */
+function asaCurrencyLabel(currency?: string | null): string {
+  return knownCurrency(currency) ? '' : ' (hesap para birimi)';
 }
 
 function fmtNum(n: number): string {

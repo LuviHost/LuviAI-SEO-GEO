@@ -1,12 +1,13 @@
 # RanksUp — Mobil App (Expo)
 
-AI Ajan konsepti mobil uygulama. Claude Design "RanksUp Mobile" tasarımının
-gerçek Expo / React Native implementasyonu.
+RanksUp'ın mobil uygulaması: ücretsiz AI görünürlük testi, hesap özeti, bildirimler
+ve ASO. Ekranlar yalnız API'den gelen gerçek veriyi gösterir; veri yoksa bunu
+açıkça söyler (örnek/uydurma sayı yok).
 
-- **Estetik:** sıcak-koyu ("komuta"/ajan) — espresso zemin `#17100B`, ateş
-  gradyanı `#F36D32 → #B63325`, krem metin.
+- **Estetik:** sıcak-koyu — espresso zemin `#17100B`, ateş gradyanı
+  `#F36D32 → #B63325`, krem metin.
 - **Tipografi:** Sora (display), Plus Jakarta Sans (gövde), JetBrains Mono (veri).
-- **Ekranlar:** Onboarding (3) · Ajan feed · AI Görünürlük · ASO · Studio.
+- **Ekranlar:** İlk açılış (bir kez) · Ana sayfa · AI Görünürlük · ASO · Site analizi · Hesap · Hesabı sil.
 - **Diller:** TR / EN (header'daki TR/EN ile anlık geçiş).
 
 ## Çalıştır
@@ -17,36 +18,39 @@ npm install          # bağımlılıklar (ilk sefer)
 npx expo start       # Metro başlar, QR çıkar
 ```
 
-Telefonunda **Expo Go** uygulamasını aç, QR'ı okut → app cihazında açılır.
-Simülatör için: `npx expo start` sonrası `i` (iOS) veya `a` (Android).
+Google/Apple girişi native modül ister (Expo Go'da çalışmaz); EAS dev/prod build kullan.
 
 ## Yapı
 
 ```
 app/
-  _layout.tsx      root: font yükleme, dil provider, koyu tema
-  index.tsx        Onboarding (site bağla → AI analiz → hazır)
-  app.tsx          Uygulama kabuğu: header + içerik + alt bar (4 sekme)
+  _layout.tsx        root: font yükleme, dil + kimlik + analiz provider'ları
+  index.tsx          İlk açılış: alan adı → gerçek public test (/analyze); bir kez gösterilir
+  app.tsx            Uygulama kabuğu: header + içerik + alt bar (Ana sayfa · Görünürlük · [analiz] · ASO · Hesap)
+  analyze.tsx        Public AI görünürlük testi + 90 gün e-posta takibi (açık rıza kutusu)
+  connect.tsx        Hesap: Google / Apple / API anahtarı, bağlı hesap, yasal metinler
+  delete-account.tsx Hesabı sil (5.1.1(v)) — silinecek hesap maskeli e-postayla gösterilir
 src/
-  theme.ts         renk/font/spacing token'ları
-  i18n.ts          TR/EN metinler + veri (motorlar, keyword'ler, feed)
-  fonts.ts         Google Fonts (expo-font)
-  components.tsx    Orb, ikonlar, gradyan buton, kart, spinner, ekran zemini
+  api.ts             API istemcisi (public test, takip, /me, /notifications, ASO, ASA, hesap silme)
+  auth.tsx           Kimlik (SecureStore'da Bearer token) + GET /me
+  store.ts           Son analiz sonucu (sekmeler arası paylaşılır)
+  visibility.ts      Görünürlük skoru — web summarize() ile aynı tanım (kilitli/markalı/ölçülmeyen hariç)
+  aso-live.ts        ASO sıra etiketleri ve seçim yardımcıları
+  account.ts         maskEmail, bas harfler
+  format.ts          TR/EN sayı ve tarih biçimleri
+  legal.tsx          Gizlilik Politikası / KVKK / Kullanım Koşulları bağlantıları (5.1.1(i))
+  i18n.ts            TR/EN metinler
+  theme.ts           renk/font/tip ölçeği token'ları
+  components.tsx     Orb, ikonlar, buton, kart, metrik, logolar
   screens/
-    Agent.tsx      Ajan feed + onay bekleyen aksiyon kartı
-    Visibility.tsx AI görünürlük skoru + 7 motor + GEO roadmap
-    Aso.tsx        ASO skor halkası + keyword + Apple Search Ads
-    Studio.tsx     içerik üretimi → 3 varyant
+    Home.tsx         girişsiz: dürüst tanıtım · bağlı: /me/dashboard + /notifications
+    Visibility.tsx   AI görünürlük skoru + asistan bazında + rakip payı + genel öneriler
+    Aso.tsx          takip edilen uygulamalar, anahtar kelime sıraları, ASA (bağlıysa), mağaza araması
 ```
 
 ## Doğrulama
 
-- `npx tsc --noEmit` — tip kontrolü temiz.
-- `npx expo export -p ios` — Metro bundle başarılı (JS/import/babel çözülüyor).
-
-## Sıradaki (planlanan)
-
-- Push bildirimleri: `expo-notifications` + push token'ı `Site`/`User`'a kaydet.
-- Gerçek veri: `api.ranksup.ai` uçlarına bağlama (şu an tasarım verisi).
-- Kimlik: mobil için JWT giriş akışı.
-- EAS Build ile mağaza dağıtımı.
+- `npx tsc --noEmit` — tip kontrolü (spec dosyaları hariç tutulur).
+- Saf modül testleri (mobil kendi test koşucusunu taşımaz; API'nin vitest'i kullanılır):
+  `../apps/api/node_modules/.bin/vitest run --root . src`
+- `cd ../apps/web && npm run guard:ui` — mobil inline fontSize / sabit hex sayımı tabanı aşmamalı.

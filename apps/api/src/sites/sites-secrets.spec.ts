@@ -17,15 +17,29 @@ function expectSecretsOmitted(args: any) {
 }
 
 function service() {
+  const siteDelete = vi.fn(async (args: any) => ({ id: 's1', __args: args }));
+  // Silme tek transaction icinde, bagli tablolari temizleyerek yapilir
+  // (sites.service siteRemovalSteps): islem nesnesindeki her model okuma/silme
+  // cagrisina bos sonuc doner, yalniz site silme cagrisi kaydedilir.
+  const genericModel = {
+    findMany: vi.fn(async () => []),
+    deleteMany: vi.fn(async () => ({ count: 0 })),
+    updateMany: vi.fn(async () => ({ count: 0 })),
+  };
+  const tx = new Proxy({} as Record<string, unknown>, {
+    get: (_t, model) => (model === 'site' ? { delete: siteDelete } : genericModel),
+  });
   const prisma = {
     site: {
       findUnique: vi.fn(async () => ({ id: 's1', userId: 'u1', autoGenerationFrequency: 'weekly', autoGenerationHour: 9 })),
       update: vi.fn(async (args: any) => ({ id: 's1', __args: args })),
-      delete: vi.fn(async (args: any) => ({ id: 's1', __args: args })),
+      delete: siteDelete,
     },
     publishTarget: { count: vi.fn(async () => 1) },
+    $transaction: vi.fn(async (fn: any) => fn(tx)),
   };
-  return { svc: new SitesService(prisma as any, {} as any, {} as any), prisma };
+  const jobQueue = { removeJob: vi.fn(async () => true) };
+  return { svc: new SitesService(prisma as any, jobQueue as any, {} as any), prisma };
 }
 
 describe('site cevaplarinda sir yok', () => {

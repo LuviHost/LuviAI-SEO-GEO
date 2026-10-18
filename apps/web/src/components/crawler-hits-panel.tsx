@@ -8,6 +8,19 @@ import { api } from '@/lib/api';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 
+/**
+ * Yuklenebilecek en buyuk log (bayt). Sunucudaki CrawlerIngestDto
+ * @MaxLength(1_000_000) karakter siniriyla ayni: file.text() UTF-8 cozer ve
+ * karakter sayisi bayt sayisini asamaz, yani bu kontrolu gecen dosya DTO'yu da
+ * gecer. Duz metin log JSON'a kacislanirken en fazla ~2 katina cikar (", \ ve
+ * satir sonu iki bayt olur; ~2.000.000 bayt) ve API'nin 2 MiB govde sinirinin
+ * (apps/api/src/request-body.ts) altinda kalir. Ikili ya da bozuk dosya bunu
+ * asarsa sunucu 413 ve Turkce boyut mesaji doner. Eskiden kontrol yoktu:
+ * buyuk dosya sunucuya gidip genel bir hatayla donuyordu, musteri nedenini
+ * goremiyordu.
+ */
+const MAX_LOG_BYTES = 1_000_000;
+
 const CATEGORY_COLOR: Record<string, string> = {
   'ai-search': 'bg-purple-500',
   'training': 'bg-pink-500',
@@ -42,6 +55,12 @@ export function CrawlerHitsPanel({ siteId }: { siteId: string }) {
   const onFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (file.size > MAX_LOG_BYTES) {
+      toast.error('Log dosyası çok büyük (en fazla 1 MB). Daha kısa bir döneme ait ya da son satırlarıyla kısaltılmış bir log dosyası yükleyin.');
+      // Ayni dosya (kisaltilip) yeniden secilebilsin diye secim temizlenir
+      e.target.value = '';
+      return;
+    }
     setUploading(true);
     try {
       const text = await file.text();
@@ -84,8 +103,11 @@ export function CrawlerHitsPanel({ siteId }: { siteId: string }) {
             <p className="text-sm font-semibold inline-flex items-center gap-2">
               <Bot className="h-4 w-4 text-muted-foreground" /> AI Crawler Trafiği
             </p>
+            {/* Google-Extended yazilmaz: ayri bir HTTP kullanici ajani yok, yalniz robots.txt
+                belirteci — sunucu logunda hic gorunmez
+                (https://developers.google.com/search/docs/crawling-indexing/google-common-crawlers) */}
             <p className="text-xs text-muted-foreground mt-0.5">
-              GPTBot · ClaudeBot · PerplexityBot · Google-Extended sitenizi taradı mı?
+              GPTBot · OAI-SearchBot · ClaudeBot · PerplexityBot sitenizi taradı mı?
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -169,23 +191,42 @@ export function CrawlerHitsPanel({ siteId }: { siteId: string }) {
                 {data.coverage && (
                   <div className="rounded-md border p-3">
                     <p className="text-xs font-semibold mb-2">Sayfa Tarama Kapsamı</p>
-                    {data.coverage.sitePagesTotal != null ? (
+                    {/* Oran = site haritasindaki sayfalardan EN AZ BIR bot ziyareti gorenler /
+                        site haritasindaki sayfalar (crawler-analytics.service.ts computeCoverage).
+                        Eskiden pay botlarin istedigi tum tekil yollardi (robots.txt, feed,
+                        wp-json dahil) ve %100'de kirpiliyordu. Liste okunamazsa oran yok; nedeni
+                        API'den gelir. partial: ziyaret listesi eksik, oran alt sinir. */}
+                    {typeof data.coverage.pagesCrawledPct === 'number' && typeof data.coverage.sitePagesTotal === 'number' && data.coverage.sitePagesTotal > 0 ? (
                       <>
                         <div className="flex items-baseline gap-2 mb-1">
-                          <span className="text-2xl font-bold">%{data.coverage.pagesCrawledPct ?? 0}</span>
-                          <span className="text-[11px] text-muted-foreground">tarandı</span>
+                          <span className="text-2xl font-bold">
+                            {data.coverage.partial ? 'en az ' : ''}%{data.coverage.pagesCrawledPct}
+                          </span>
+                          <span className="text-label text-muted-foreground">ziyaret edildi</span>
                         </div>
                         <div className="h-1.5 rounded-full bg-muted overflow-hidden mb-1.5">
-                          <div className="h-full bg-gradient-to-r from-brand-500 to-brand-600" style={{ width: `${data.coverage.pagesCrawledPct ?? 0}%` }} />
+                          <div className="h-full bg-gradient-to-r from-brand-500 to-brand-600" style={{ width: `${data.coverage.pagesCrawledPct}%` }} />
                         </div>
-                        <p className="text-[10px] text-muted-foreground">
-                          <strong>{data.coverage.uniquePathsVisited}</strong> / {data.coverage.sitePagesTotal} sayfa (sitemap'e göre)
+                        <p className="text-label text-muted-foreground">
+                          Site haritasındaki {data.coverage.sitePagesTotal.toLocaleString('tr-TR')} sayfanın{' '}
+                          {/* Eski API (gecis aninda) sitemapPagesVisited dondurmez */}
+                          <strong>{Number(data.coverage.sitemapPagesVisited ?? data.coverage.uniquePathsVisited ?? 0).toLocaleString('tr-TR')}</strong> tanesini en az bir bot ziyaret etti.
                         </p>
+                        {data.coverage.partial && (
+                          <p className="text-label text-muted-foreground mt-1">
+                            Ziyaret edilen adreslerin yalnızca bir kısmı kayıtlı (yüklenen loglardan her bot için günde en çok ziyaret edilen 10 adres saklanır); gerçek oran daha yüksek olabilir.
+                          </p>
+                        )}
                       </>
                     ) : (
                       <>
-                        <p className="text-xs"><strong>{data.coverage.uniquePathsVisited}</strong> tekil sayfa tarandı</p>
-                        <p className="text-[10px] text-muted-foreground mt-1">Sitemap.xml bulunamadı, oran hesaplanamıyor.</p>
+                        <p className="text-xs"><strong>{data.coverage.uniquePathsVisited}</strong> tekil adres ziyaret edildi</p>
+                        <p className="text-label text-muted-foreground mt-1">
+                          {data.coverage.unavailableText
+                            ?? (data.coverage.sitePagesTotal === 0
+                              ? 'Site haritasında sayfa bulunamadı, oran hesaplanamıyor.'
+                              : 'Site haritası okunamadı, oran hesaplanamıyor.')}
+                        </p>
                       </>
                     )}
                   </div>
