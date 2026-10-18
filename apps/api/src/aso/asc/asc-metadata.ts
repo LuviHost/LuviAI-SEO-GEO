@@ -1,4 +1,5 @@
 import { countCharacters } from '../keyword-field-audit.js';
+import { APP_STORE_LIMITS } from '../store-limits.js';
 
 /**
  * App Store Connect metadata — saf plan / diff / cakisma mantigi.
@@ -25,9 +26,14 @@ export type AscField = 'name' | 'subtitle' | 'description' | 'keywords' | 'promo
 export const ASC_FIELDS: AscField[] = ['name', 'subtitle', 'description', 'keywords', 'promotionalText', 'whatsNew'];
 const APP_INFO_FIELDS = new Set<AscField>(['name', 'subtitle']);
 
-/** Karakter sinirlari — ASC referansi (keywords: karakter, bkz. keyword-field-audit.ts) */
+/** Karakter sinirlari — ASC referansi, tek kaynak store-limits.ts (keywords: karakter, bkz. keyword-field-audit.ts) */
 export const FIELD_LIMITS: Record<AscField, number> = {
-  name: 30, subtitle: 30, description: 4000, keywords: 100, promotionalText: 170, whatsNew: 4000,
+  name: APP_STORE_LIMITS.name,
+  subtitle: APP_STORE_LIMITS.subtitle,
+  description: APP_STORE_LIMITS.description,
+  keywords: APP_STORE_LIMITS.keywords,
+  promotionalText: APP_STORE_LIMITS.promotionalText,
+  whatsNew: APP_STORE_LIMITS.whatsNew,
 };
 /** Bos birakilamaz (ASC referansi: "This property is required") */
 const REQUIRED = new Set<AscField>(['name', 'description', 'keywords', 'whatsNew']);

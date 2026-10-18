@@ -54,7 +54,8 @@ export function HelpArticle({
           }),
         }}
       />
-      {/* HowTo schema — adım adım rehberler için Google rich snippet "Step 1, 2, 3..." */}
+      {/* HowTo schema — adim adim rehberin makine-okunur hali. totalTime yazilmaz:
+          eskiden her rehbere olculmemis sabit 'PT5M' (5 dk) basiliyordu. */}
       {steps && steps.length > 0 && (
         <script
           type="application/ld+json"
@@ -65,7 +66,6 @@ export function HelpArticle({
               name: title,
               description: intro,
               inLanguage: 'tr-TR',
-              totalTime: 'PT5M',
               step: steps.map((s, i) => ({
                 '@type': 'HowToStep',
                 position: i + 1,
@@ -98,10 +98,12 @@ export function HelpArticle({
           {children}
         </article>
 
+        {/* Destek metni plans.ts destek kademeleriyle ayni (help/page.tsx ile de).
+            Eski "15 dakika ucretsiz ekran paylasimi" hicbir plana dayanmiyordu. */}
         <div className="mt-12 rounded-2xl border bg-card p-5 flex items-center justify-between gap-3 flex-wrap">
           <div>
             <p className="font-semibold">Çözemedin mi?</p>
-            <p className="text-xs text-muted-foreground">15 dakika ücretsiz ekran paylaşımı destekleri.</p>
+            <p className="text-xs text-muted-foreground">Destek ekibine e-postayla yaz; yanıt süresi planına göre değişir.</p>
           </div>
           <a
             href="mailto:destek@luvihost.com"

@@ -1,11 +1,23 @@
 import { describe, it, expect } from 'vitest';
-import { fixRouteFor, partitionFixes, withFixRoutes, annotateAuditFixRoutes, isAutoFixKey } from './fix-routes.js';
+import { fixRouteFor, fixRouteForIssue, partitionFixes, withFixRoutes, annotateAuditFixRoutes, isAutoFixKey, canonicalFixKey, ROOT_FIX_FILENAME } from './fix-routes.js';
 
 describe('fixRouteFor', () => {
   it('kok dosyalar auto_fix', () => {
-    for (const k of ['sitemap_xml', 'robots_txt', 'llms_txt', 'sitemap', 'robots', 'llms', 'agent_json', 'auth_md']) {
+    for (const k of ['sitemap_xml', 'robots_txt', 'llms_txt', 'sitemap', 'robots', 'llms']) {
       expect(fixRouteFor(k)).toBe('auto_fix');
     }
+  });
+  it('agent_json / auth_md artik otomatik duzeltilmez (siteye dogrulanmamis bilgi yayinliyordu)', () => {
+    expect(fixRouteFor('agent_json')).toBe('manual');
+    expect(fixRouteFor('auth_md')).toBe('manual');
+    expect(partitionFixes(['auth_md', 'agent_json', 'robots_txt'])).toEqual({ supported: ['robots_txt'], unsupported: ['auth_md', 'agent_json'] });
+  });
+  it('kanonik anahtar ve dosya adi', () => {
+    expect(canonicalFixKey('robots_txt')).toBe('robots');
+    expect(canonicalFixKey('sitemap')).toBe('sitemap');
+    expect(canonicalFixKey('auth_md')).toBeNull();
+    expect(canonicalFixKey('__proto__')).toBeNull();
+    expect(ROOT_FIX_FILENAME.llms).toBe('llms.txt');
   });
   it('meta/sema/geo snippet kontrolleri snippet', () => {
     for (const k of ['meta_title', 'meta_description', 'canonical', 'open_graph', 'twitter_card', 'schema_markup', 'geo_faq', 'geo_definition', 'geo_citation_format']) {
@@ -78,5 +90,52 @@ describe('withFixRoutes / annotateAuditFixRoutes', () => {
 
   it('issueGroups olmayan cok eski audit patlamaz', () => {
     expect(annotateAuditFixRoutes({ issues: null, issueGroups: null } as any)).toEqual({ issues: null, issueGroups: null });
+  });
+});
+
+describe('tip istisnasi — robots engeli otomatik duzeltilmez', () => {
+  it('robots_txt altindaki AI arama/egitim botu engeli manual; robots_missing ve robots_no_sitemap auto_fix', () => {
+    const out = withFixRoutes([
+      { checkId: 'robots_txt', type: 'robots_ai_search_blocked', fixable: false },
+      { checkId: 'robots_txt', type: 'robots_ai_training_blocked', fixable: false },
+      { checkId: 'robots_txt', type: 'robots_missing', fixable: true },
+      { checkId: 'robots_txt', type: 'robots_no_sitemap', fixable: true },
+    ]);
+    expect(out.map((i) => [i.type, i.fixRoute, i.fixable])).toEqual([
+      ['robots_ai_search_blocked', 'manual', false],
+      ['robots_ai_training_blocked', 'manual', false],
+      ['robots_missing', 'auto_fix', true],
+      ['robots_no_sitemap', 'auto_fix', true],
+    ]);
+    expect(fixRouteForIssue({ checkId: 'robots_txt', type: 'robots_ai_search_blocked' })).toBe('manual');
+    // Tip yoksa eski kural: kontrol anahtari
+    expect(fixRouteForIssue({ checkId: 'robots_txt' })).toBe('auto_fix');
+  });
+
+  it('kayitli audit: checks[robots_txt].issues ve siteWide de manual okunur', () => {
+    const a: any = annotateAuditFixRoutes({
+      issues: [{ checkId: 'robots_txt', type: 'robots_ai_search_blocked', fixable: true }],
+      checks: { robots_txt: { id: 'robots_txt', issues: [{ type: 'robots_ai_search_blocked', fixable: false }, { type: 'robots_no_sitemap', fixable: true }] } },
+      issueGroups: { byTemplate: [], siteWide: [{ checkId: 'robots_txt', type: 'robots_ai_search_blocked', fixable: true }], byCheck: [] },
+    });
+    expect(a.issues[0]).toMatchObject({ fixRoute: 'manual', fixable: false });
+    expect(a.checks.robots_txt.issues.map((i: any) => i.fixRoute)).toEqual(['manual', 'auto_fix']);
+    expect(a.issueGroups.siteWide[0]).toMatchObject({ fixRoute: 'manual', fixable: false });
+  });
+
+  it('kayitli sablon: yalniz manual sorunu olan robots_txt butona girmez, auto_fix sorunu olan girer', () => {
+    const a: any = annotateAuditFixRoutes({
+      issueGroups: {
+        byTemplate: [
+          { template: '/a', fixableCheckIds: ['robots_txt'], issues: [{ checkId: 'robots_txt', type: 'robots_ai_search_blocked', fixable: true }] },
+          { template: '/b', fixableCheckIds: ['robots_txt'], issues: [{ checkId: 'robots_txt', type: 'robots_ai_search_blocked' }, { checkId: 'robots_txt', type: 'robots_no_sitemap' }] },
+          // Sorun listesi olmayan cok eski kayit: yalniz anahtara bakilir
+          { template: '/c', fixableCheckIds: ['sitemap_xml', 'meta_title'] },
+        ],
+        siteWide: [],
+        byCheck: [],
+      },
+    });
+    expect(a.issueGroups.byTemplate.map((t: any) => t.fixableCheckIds)).toEqual([[], ['robots_txt'], ['sitemap_xml']]);
   });
 });

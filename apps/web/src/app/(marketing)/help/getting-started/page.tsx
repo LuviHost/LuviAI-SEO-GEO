@@ -3,68 +3,85 @@ import { HelpArticle, Step, Tip } from '@/components/help-article';
 
 export const metadata = { title: 'Hızlı Başlangıç — RanksUp Help' };
 
+// Kodla dogrulandi (Ekim 2026):
+//  - Web'de kayit YALNIZ Google ile (apps/web/src/auth.ts tek saglayici);
+//    mobil uygulamada Google ya da iPhone'da Apple (mobile/app/connect.tsx).
+//    Eski metin "mail + şifre" formu vaat ediyordu.
+//  - "Yeniden Test" (citation-snapshot) ve "AI önerisi al" (citation-roadmap)
+//    AYNI haftalik olcum hakkini kullanir (@MeasurementSession). Rehber ikisini
+//    arka arkaya yaptiriyordu; ikinci buton 7 gun kilitli kaliyordu.
+//  - Onboarding'deki site taramasi AI testini de icerir ve haftalik hakki
+//    kullanabilir (worker ONBOARDING_CHAIN → audit.runAudit, trigger 'user').
+//    Otomatik akis acikken ayrica bir baslangic olcumu (trigger 'system') alinir.
 export default function Page() {
   return (
     <HelpArticle slug="getting-started"
       icon={Rocket}
       badge="Başlangıç"
       title="5 dakikada başla"
-      intro="RanksUp'da hesap aç, ilk siteni bağla, ilk AI çıktısını gör — toplam 5 dakika."
+      intro="RanksUp'ta hesap aç, ilk siteni ekle, ilk AI bulgularını gör."
       steps={[
-        { name: 'Hesap aç', text: 'Landing\'de "Ücretsiz başla" butonu ile mail/Google ile kayıt. Hesabın otomatik açılır, kart istenmez. İlk 2 makale ücretsiz.' },
-        { name: 'Site URL\'sini yapıştır', text: 'Dashboard üst köşedeki "Site Ekle" → URL gir. AI sektörünü ve dilini tespit eder.' },
-        { name: 'AI bulgularını gör (60sn)', text: 'Onboarding sırasında platform tespit, hedef persona, 3 rakip, site skoru, ilk yazılacak içerik sırasıyla görünür.' },
-        { name: 'AI Visibility test çalıştır', text: 'Sol menü → AI Görünürlük → Test Çalıştır. ChatGPT/Claude/Gemini/Perplexity sana 5 soru sorulur, 30-60 saniyede sonuç.' },
-        { name: 'GEO Roadmap önerisi al', text: 'Citation altında "AI Önerisi Al" → 5 actionable adım (FAQ schema, Wikipedia kaydı vb).' },
-        { name: 'İlk makaleni üret', text: 'İçerikler → Yeni Makale → AI önerilen topic\'ten birini seç → 2-3 dakikada uzun-form makale hazır.' },
+        { name: 'Hesap aç', text: 'Landing\'de "Ücretsiz başla" ya da "Ücretsiz hesap aç" → "Google ile devam et". Web\'de kayıt Google hesabıyla yapılır; mobil uygulamada Google ya da iPhone\'da Apple ile giriş yapılır. Kart istenmez; ilk 2 makale ücretsiz.' },
+        { name: 'Siteni ekle', text: 'Panelde "Site ekle" (sonradan sol menüde "Yeni site ekle") → alan adını yaz → "Analizi başlat". AI sitenin sektörünü tahmin eder; gerekirse site ayarlarından değiştirirsin.' },
+        { name: 'İlk bulguları gör', text: 'Kurulum ekranında aşamalar bittikçe ilk bulgular görünür: platform, hedef persona, rakipler, site skoru, ilk düzeltilecek madde ve ilk yazılacak içerik.' },
+        { name: 'AI görünürlük ölçümü ve yol haritası', text: 'Sol menü → AI Görünürlük → "AI önerisi al": ChatGPT, Claude, Gemini, Perplexity, Grok ve DeepSeek\'e en fazla 5 soru sorulur ve sonuca göre 5 uygulanabilir öneri üretilir. Hesap başına haftada bir AI ölçümü yapılabilir; ilk ölçüm kurulum sırasında alınmış olabilir.' },
+        { name: 'İlk makaleni üret', text: 'İçerikler → AI\'ın önerdiği bir konunun yanındaki "Üret" butonu. Makale 5 ajanlı üretim hattından ve yayın öncesi kalite kapısından geçer.' },
       ]}
     >
       <h2>Adım 1: Hesap aç</h2>
-      <Step n={1} title="Ücretsiz başla butonuna bas">
-        Landing'de turuncu <strong>"Ücretsiz başla — kart gerekmez"</strong> butonu ile başlarsın. Kayıt formunda mail + şifre veya Google ile tek tık.
+      <Step n={1} title="Ücretsiz başla">
+        Landing&apos;deki <strong>&ldquo;Ücretsiz başla&rdquo;</strong> ya da <strong>&ldquo;Ücretsiz hesap aç&rdquo;</strong> butonuna bas, ardından
+        <strong> &ldquo;Google ile devam et&rdquo;</strong>. Web&apos;de kayıt Google hesabınla tek tıkla yapılır; ayrı bir e-posta / şifre formu yoktur.
+        Mobil uygulamada Google ya da iPhone&apos;da Apple ile giriş yapabilirsin.
       </Step>
       <Step n={2} title="Ücretsiz deneme otomatik açılır">
-        Kart bilgisi istenmez. Trial'da <strong>2 ücretsiz makale</strong> + 5 sosyal post + 1 site hakkın var, tüm modüller görünür.
+        Kart bilgisi istenmez. Denemede <strong>2 ücretsiz makale</strong>, 3 AI görünürlük çalıştırması ve 1 site hakkın var; tüm modüller menüde görünür (plan gerektirenler kilitli gösterilir).
       </Step>
 
-      <h2>Adım 2: İlk siteni bağla</h2>
-      <Step n={1} title="Site URL'sini yapıştır">
-        Dashboard üst köşedeki <strong>"Site Ekle"</strong> butonuna bas. Sadece URL yapıştır: <code>https://siten.com</code>.
+      <h2>Adım 2: İlk siteni ekle</h2>
+      <Step n={1} title="Alan adını yaz">
+        Panelde <strong>&ldquo;Site ekle&rdquo;</strong> butonuna bas (sonradan sol menüde <strong>&ldquo;Yeni site ekle&rdquo;</strong>). Yalnızca alan adını yaz: <code>siten.com</code> — https:// yazman gerekmez. <strong>&ldquo;Analizi başlat&rdquo;</strong>.
       </Step>
-      <Step n={2} title="AI sektörünü ve dilini tespit eder">
-        Onboarding wizard URL'i tarar, sektörünü tahmin eder (KOBİ, e-ticaret, mobil app, finans, sağlık vs). Yanlış tahminse manuel düzeltebilirsin.
+      <Step n={2} title="AI sektörünü tahmin eder">
+        Kurulum sitenin sektörünü (niş) tahmin eder. Yanlışsa site <strong>Ayarlar</strong> sayfasından sektörü ve dili değiştirebilirsin.
       </Step>
-      <Step n={3} title="60 saniyede AI bulguları görünür">
-        Onboarding'de "Mission" ekranında her aşama bittikçe sol panelde bulgular gösterilir: platform tespit, hedef persona, 3 rakip, site skoru, ilk yazılacak içerik.
+      <Step n={3} title="İlk bulgular görünür">
+        Kurulum ekranında her aşama bittikçe bulgular listelenir: platform, hedef persona, rakipler, site skoru, ilk düzeltilecek madde ve ilk yazılacak içerik.
       </Step>
 
       <Tip kind="info">
-        Onboarding 60 saniye almazsa endişelenme — backend 5 paralel iş yürütüyor. 90 saniyeyi aşarsa dashboard'a yönlendir, eksikleri orada görürsün.
+        Kurulum genelde birkaç dakikada biter. Uzun sürerse ekranda <strong>&ldquo;Kurulumu yeniden başlat&rdquo;</strong> ve <strong>&ldquo;Panele git&rdquo;</strong> seçenekleri çıkar;
+        eksikleri panelde görürsün. Site, güvenlik duvarı ya da bot doğrulaması yüzünden okunamıyorsa nedeni ve çözüm yolu gösterilir.
       </Tip>
 
       <h2>Adım 3: İlk AI çıktısını al</h2>
-      <Step n={1} title="AI Görünürlük → 'Test Çalıştır'">
-        Sol menüde <strong>AI Görünürlük</strong> sekmesine git. <strong>Test Çalıştır</strong> bas — ChatGPT/Claude/Gemini/Perplexity'ye 5 soru sorulur, marka tanınırlığın ölçülür. 30-60 saniye sürer.
+      <Step n={1} title="AI Görünürlük sayfasına git">
+        Sol menüde <strong>AI Görünürlük</strong> sayfasını aç. Kurulumdaki site taraması AI testini de içerir ve bu haftanın ölçüm hakkını kullanmış olabilir;
+        otomatik akış açıksa bir başlangıç ölçümü de grafikte görünür. Hak kullanıldıysa butonların altında bir sonraki ölçümün açılacağı tarih yazar.
       </Step>
-      <Step n={2} title="GEO Roadmap → AI önerisi al">
-        Aynı sayfanın altındaki <strong>GEO Roadmap</strong> bölümünde <strong>"AI Önerisi Al"</strong> bas. 5 actionable öneri çıkar (örn. "FAQ schema markup ekle", "Wikipedia'da marka kaydı aç").
+      <Step n={2} title={'Haftalık ölçüm: "AI önerisi al"'}>
+        <strong>GEO yol haritası</strong> bölümündeki <strong>&ldquo;AI önerisi al&rdquo;</strong> butonuna bas: ChatGPT, Claude, Gemini, Perplexity, Grok ve
+        DeepSeek&apos;e en fazla 5 soru sorulur, markanın anılıp anılmadığı ve sitenin kaynak gösterilip gösterilmediği ölçülür ve sonuca göre
+        5 uygulanabilir öneri üretilir (örn. &ldquo;FAQ şeması ekle&rdquo;). Hesap başına haftada bir AI ölçümü yapılabilir: grafikteki
+        <strong> &ldquo;Yeniden Test&rdquo;</strong> de aynı hakkı kullanır, sonucu ölçüm geçmişine kaydeder. Aynı hafta ikisinden birini seç.
       </Step>
       <Step n={3} title="İlk makaleni üret">
-        İçerikler sekmesine git → <strong>"Yeni Makale"</strong> → AI önerilen topic listesinden seç → tek tık üretim başlar. 2-3 dakikada hazır.
+        <strong>İçerikler</strong> sayfasında AI&apos;ın önerdiği bir konunun yanındaki <strong>&ldquo;Üret&rdquo;</strong> butonuna bas. Makale 5 ajanlı
+        üretim hattından ve yayın öncesi kalite kapısından geçer.
       </Step>
 
       <Tip kind="success">
-        Bu noktada zaten ürünün gücünü gördün: AI senin siteni tarayıp eksikleri buldu, çözüm önerdi, ilk içeriği yazdı.
-        İlk 2 ücretsiz makale boyunca tüm modüllere erişimin var.
+        Bu noktada AI siteni taradı, eksikleri buldu, öneri çıkardı ve ilk içeriği yazdı. Denemede 2 ücretsiz makale hakkın var.
       </Tip>
 
       <h2>Sonraki adımlar</h2>
       <ul>
-        <li><a href="/help/ai-visibility">AI Görünürlük rehberi</a> — sentiment, share of voice, position tracking</li>
-        <li><a href="/help/aso">ASO rehberi</a> — App Store + Play Store keyword takibi</li>
+        <li><a href="/help/ai-visibility">AI Görünürlük rehberi</a> — duygu, ses payı, konum ve haftalık ölçüm</li>
+        <li><a href="/help/aso">ASO rehberi</a> — App Store + Play Store anahtar kelime takibi</li>
         <li><a href="/help/asa-asc">Apple Search Ads</a> — iOS reklam kurulumu</li>
-        <li><a href="/help/studio">AI Studio</a> — görsel + video + metin üretimi</li>
-        <li><a href="/help/auto-pilot">Auto-Pilot</a> — sen uyurken çalışır</li>
+        {/* /help/studio yok (Studio modulu kaldirildi, 404 veriyordu) — var olan sozluk sayfasi */}
+        <li><a href="/help/glossary">SEO &amp; GEO sözlüğü</a> — SEO, GEO, AEO, schema ve reklam terimleri</li>
+        <li><a href="/help/auto-pilot">Otomatik akış ve Auto-Pilot</a> — neler otomatik, neleri sen başlatırsın</li>
       </ul>
     </HelpArticle>
   );

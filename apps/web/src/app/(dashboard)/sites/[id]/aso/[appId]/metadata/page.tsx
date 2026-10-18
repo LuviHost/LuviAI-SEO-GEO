@@ -19,6 +19,8 @@ import { useAsoApp, useAudit } from '../../_components/app-context';
 import { FieldCompare } from '../../_components/field-compare';
 import { CREATIVE_FIELDS, FindingsAccordion } from '../../_components/findings';
 import { AscGate } from '../../_components/asc-gate';
+import { GuardIssues } from '../../_components/guard-issues';
+import { APP_STORE_LIMITS, GOOGLE_PLAY_LIMITS } from '../../_components/store-limits';
 import { STORE_LABEL, type OptimizeResult, type Store } from '../../_components/types';
 
 /**
@@ -104,7 +106,9 @@ export default function AsoMetadataPage() {
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h4 className="flex items-center gap-2 font-semibold">
               <Sparkles className="h-4 w-4 text-brand" aria-hidden /> AI ile yeni metin öner
-              <InfoTooltip text="Seçtiğin hedef kelimelerle Ad, Alt başlık, Anahtar kelimeler ve Açıklama için karakter sınırına uyan öneri üretir. Hiçbir şey mağazaya kendiliğinden yazılmaz." />
+              <InfoTooltip
+                text={`Seçtiğin hedef kelimelerle ${store === 'IOS' ? 'Ad, Alt başlık, Anahtar kelimeler ve Açıklama' : 'Ad, Kısa açıklama ve Açıklama'} için öneri üretir; sınırı aşan alan kırmızı görünür. Mağaza verisinde olmayan puan, kullanıcı sayısı ve ödül iddiaları ile fiyat ifadeleri çıkarılır. Hiçbir şey mağazaya kendiliğinden yazılmaz.`}
+              />
             </h4>
             <span className="text-label text-muted-foreground">{selectedInStore.length} kelime seçili · {STORE_LABEL[store]}</span>
           </div>
@@ -161,26 +165,35 @@ export default function AsoMetadataPage() {
           <ErrorState error={audit.error} onRetry={audit.reload} />
         ) : store === 'IOS' ? (
           <div className="space-y-3">
-            <FieldCompare label="Ad" current={ios?.title} suggested={result?.title} limit={30} />
-            <FieldCompare label="Alt başlık" current={ios?.subtitle} suggested={result?.subtitle} limit={30} />
+            <FieldCompare label="Ad" current={ios?.title} suggested={result?.title} limit={APP_STORE_LIMITS.name} />
+            <FieldCompare label="Alt başlık" current={ios?.subtitle} suggested={result?.subtitle} limit={APP_STORE_LIMITS.subtitle} />
             <FieldCompare
               label="Anahtar kelimeler"
               current={null}
               currentNote="Mağazada herkese açık değil — aşağıdaki denetime ASC'den yapıştırabilirsin."
               suggested={result?.keywordField}
-              limit={100}
+              limit={APP_STORE_LIMITS.keywords}
               hint="Virgülle ayır, boşluk bırakma"
             />
-            <FieldCompare label="Açıklama" current={ios?.description} suggested={result?.description} limit={4000} multiline />
-            <FieldCompare label="Yenilikler" current={ios?.releaseNotes} limit={4000} multiline hint="Sürüm notları — AI bu alanı yazmaz" />
+            <FieldCompare
+              label="Açıklama"
+              current={ios?.description}
+              suggested={result?.description}
+              limit={APP_STORE_LIMITS.description}
+              multiline
+              hint="App Store açıklamayı arama sıralamasında kullanmaz"
+            />
+            <FieldCompare label="Yenilikler" current={ios?.releaseNotes} limit={APP_STORE_LIMITS.whatsNew} multiline hint="Sürüm notları — AI bu alanı yazmaz" />
           </div>
         ) : (
           <div className="space-y-3">
-            <FieldCompare label="Ad" current={android?.title} suggested={result?.title} limit={50} />
-            <FieldCompare label="Kısa açıklama" current={android?.summary} suggested={result?.subtitle} limit={80} />
-            <FieldCompare label="Açıklama" current={android?.description} suggested={result?.description} limit={4000} multiline />
+            <FieldCompare label="Ad" current={android?.title} suggested={result?.title} limit={GOOGLE_PLAY_LIMITS.title} />
+            <FieldCompare label="Kısa açıklama" current={android?.summary} suggested={result?.subtitle} limit={GOOGLE_PLAY_LIMITS.shortDescription} />
+            <FieldCompare label="Açıklama" current={android?.description} suggested={result?.description} limit={GOOGLE_PLAY_LIMITS.fullDescription} multiline />
           </div>
         )}
+
+        <GuardIssues issues={result?.issues} store={store} />
 
         {Array.isArray(result?.suggestions) && result!.suggestions!.length > 0 && (
           <div className="rounded-lg border bg-muted/30 p-3">

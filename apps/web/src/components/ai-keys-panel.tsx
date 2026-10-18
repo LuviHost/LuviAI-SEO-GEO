@@ -35,14 +35,36 @@ type Status = {
   providers: ProviderInfo[];
 };
 
+// Saglayici ucret/kredi iddiasi yazilmaz. Eski xAI ipucu "data-sharing ACIK
+// ise $150/ay bedava" diyordu; xAI'nin faturalama belgelerinde (18.10.2026,
+// https://docs.x.ai/console/billing ve https://docs.x.ai/console/faq/billing)
+// boyle bir program yok, yalniz on odemeli kredi ve promosyon kodu var.
+// Gemini'deki "(ucretsiz)" da kaldirildi: kullanim Google'in kendi katman ve
+// faturalama kosullarina bagli, olcumun ucretsiz kalacagini biz bilemeyiz.
 const PROVIDER_HINTS: Record<string, { url: string; example: string; help: string }> = {
   anthropic:  { url: 'https://console.anthropic.com/settings/keys',           example: 'sk-ant-api03-...',  help: 'console.anthropic.com → API Keys' },
-  gemini:     { url: 'https://aistudio.google.com/apikey',                    example: 'AIza...',           help: 'aistudio.google.com → Get API key (ücretsiz)' },
+  gemini:     { url: 'https://aistudio.google.com/apikey',                    example: 'AIza...',           help: 'aistudio.google.com → Get API key' },
   openai:     { url: 'https://platform.openai.com/api-keys',                  example: 'sk-proj-...',       help: 'platform.openai.com → API keys' },
-  xai:        { url: 'https://console.x.ai',                                  example: 'xai-...',           help: 'console.x.ai → API Keys (data-sharing AÇIK ise $150/ay bedava)' },
+  xai:        { url: 'https://console.x.ai',                                  example: 'xai-...',           help: 'console.x.ai → API Keys' },
   deepseek:   { url: 'https://platform.deepseek.com/api_keys',                example: 'sk-...',            help: 'platform.deepseek.com → API keys' },
   perplexity: { url: 'https://www.perplexity.ai/settings/api',                example: 'pplx-...',          help: 'perplexity.ai → Settings → API' },
 };
+
+/**
+ * Plan adlari apps/api/src/billing/plans.ts name_tr ile ayni. Eskiden STARTER
+ * "Baslangic" yaziyordu; satilan planin adi "Buyume".
+ */
+const PLAN_LABELS: Record<string, string> = {
+  TRIAL: 'Ücretsiz Deneme', STARTER: 'Büyüme', PRO: 'Profesyonel', AGENCY: 'Ajans', ENTERPRISE: 'Kurumsal',
+};
+
+/**
+ * BYOK'un acildigi plan — plans.ts FEATURE_MIN_PLAN.byok (public-docs.spec.ts
+ * ikisinin ayni kaldigini denetler). Alt planda POST /sites/:id/ai-keys 403
+ * doner (SiteAiKeysService.upsertKey → enforcePlanFeature); "Anahtar Bagla"
+ * dugmesi gosterilip hata aldirilmaz.
+ */
+const BYOK_PLAN = 'ENTERPRISE';
 
 export function AiKeysPanel({ siteId }: { siteId: string }) {
   const [status, setStatus] = useState<Status | null>(null);
@@ -88,7 +110,17 @@ export function AiKeysPanel({ siteId }: { siteId: string }) {
   };
 
   const remove = async (provider: string) => {
-    if (!confirm(`${provider.toUpperCase()} anahtarı silinsin mi? Site bu sağlayıcı için artık RanksUp havuzuna düşecek (plana dahilse).`)) return;
+    // Silince ne olacagi durum ucunun poolKeyAvailable alanindan (sunucuda
+    // RanksUp anahtari tanimli mi) okunur; olcum motoru (ai-citation resolveKey)
+    // ayni kurali uygular. Eski metin "plana dahilse" diyordu: 6 asistan her
+    // planda dahil, belirleyici olan anahtarin tanimli olmasi. Havuz anahtariyla
+    // olcum aylik calistirma hakkindan duser; hak dolunca yalniz kendi anahtari
+    // olan saglayicilar olculur (runForSite).
+    const info = status?.providers.find((x) => x.provider === provider);
+    const sonrasi = info?.poolKeyAvailable
+      ? 'Ölçüm RanksUp anahtarıyla sürer; aylık çalıştırma hakkın dolunca bu sağlayıcı ölçülmez.'
+      : 'RanksUp anahtarı tanımlı olmadığı için bu sağlayıcı artık ölçülmez.';
+    if (!confirm(`${info?.label ?? provider} anahtarı silinsin mi? ${sonrasi}`)) return;
     try {
       await api.deleteAiKey(siteId, provider);
       toast.success('Anahtar silindi');
@@ -122,18 +154,23 @@ export function AiKeysPanel({ siteId }: { siteId: string }) {
 
   if (!status) return null;
 
-  const planLabel = ({
-    TRIAL: 'Deneme', STARTER: 'Başlangıç', PRO: 'Profesyonel', AGENCY: 'Ajans', ENTERPRISE: 'Kurumsal',
-  } as any)[status.plan] ?? status.plan;
+  const planLabel = PLAN_LABELS[status.plan] ?? status.plan;
+  const byokAllowed = status.plan === BYOK_PLAN;
 
   return (
     <div className="rounded-lg border p-4 space-y-3">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
           <p className="font-brand text-sm font-semibold">AI sağlayıcı anahtarları</p>
+          {/* Kota calistirma basina duser (ai-citation.service runForSite: havuz
+              anahtarli bir saglayici olctuyse +1). Kota dolunca yalniz kendi
+              anahtari olan saglayicilar kosar; haftalik olcum hakki ise BYOK'ta
+              da gecerli (billing/measurement-allowance.ts). */}
           <p className="text-xs text-muted-foreground mt-0.5">
-            <strong>{planLabel}</strong> planında ayda <strong>{status.quota.limit}</strong> AI görünürlük testi var; bu ay {status.quota.used} tanesini kullandın.
-            Bir sağlayıcıya kendi API anahtarını bağlarsan o sağlayıcıdaki testler kotandan düşmez.
+            <strong>{planLabel}</strong> planında ayda <strong>{status.quota.limit}</strong> AI görünürlük çalıştırması var; bu ay {status.quota.used} tanesini kullandın.{' '}
+            {byokAllowed
+              ? 'Bir sağlayıcıya kendi API anahtarını bağlarsan, havuz kotası dolduğunda o sağlayıcı kendi anahtarınla ölçülmeye devam eder; haftalık ölçüm hakkı yine geçerlidir.'
+              : `Kendi API anahtarını bağlama (BYOK) ${PLAN_LABELS[BYOK_PLAN]} planına dahildir.`}
           </p>
         </div>
       </div>
@@ -142,12 +179,16 @@ export function AiKeysPanel({ siteId }: { siteId: string }) {
         {status.providers.map((p) => {
           const isEditing = editing === p.provider;
           const hint = PROVIDER_HINTS[p.provider];
+          // effectiveSource olcum motoruyla ayni kural (SiteAiKeysService.getStatus =
+          // ai-citation resolveKey): BYOK > RanksUp env anahtari > yok. 'none' bu
+          // saglayicinin olculmedigi demek: ne musterinin anahtari ne RanksUp'in
+          // anahtari var (olcum sonucundaki neden de ayni sozu soyler).
           const sourceBadge =
             p.effectiveSource === 'byok'
               ? { text: p.byokVerified ? 'Senin anahtarınla çalışıyor' : 'Senin anahtarın — test başarısız', cls: p.byokVerified ? 'text-success' : 'text-warning' }
               : p.effectiveSource === 'pool'
-              ? { text: 'Planına dahil', cls: 'text-muted-foreground' }
-              : { text: 'Planına dahil değil — kendi anahtarını bağla', cls: 'text-muted-foreground' };
+              ? { text: 'Planına dahil · RanksUp anahtarıyla ölçülür', cls: 'text-muted-foreground' }
+              : { text: 'Ölçülmüyor — RanksUp anahtarı tanımlı değil', cls: 'text-muted-foreground' };
 
           return (
             <div key={p.provider} className="rounded-md border p-3 space-y-2">
@@ -197,11 +238,15 @@ export function AiKeysPanel({ siteId }: { siteId: string }) {
                 </div>
               ) : (
                 <div className="flex gap-2">
+                  {/* Eski (plan dusmeden kalmis) anahtar test edilip silinebilir;
+                      yeni anahtar kaydi yalniz BYOK planinda (upsertKey kapisi). */}
                   {p.hasByok ? (
                     <>
-                      <Button size="sm" variant="outline" onClick={() => startAdd(p.provider)}>
-                        Değiştir
-                      </Button>
+                      {byokAllowed && (
+                        <Button size="sm" variant="outline" onClick={() => startAdd(p.provider)}>
+                          Değiştir
+                        </Button>
+                      )}
                       <Button size="sm" variant="ghost" onClick={() => retest(p.provider)} disabled={retesting === p.provider}>
                         {retesting === p.provider ? 'Test…' : 'Yeniden Test'}
                       </Button>
@@ -209,11 +254,11 @@ export function AiKeysPanel({ siteId }: { siteId: string }) {
                         Sil
                       </Button>
                     </>
-                  ) : (
+                  ) : byokAllowed ? (
                     <Button size="sm" variant="outline" onClick={() => startAdd(p.provider)}>
                       + Anahtar Bağla
                     </Button>
-                  )}
+                  ) : null}
                 </div>
               )}
             </div>
@@ -223,7 +268,7 @@ export function AiKeysPanel({ siteId }: { siteId: string }) {
 
       <p className="text-label text-muted-foreground border-t pt-2">
         Anahtarın şifreli saklanır; panelde yalnız ilk 8 karakteri görünür.
-        Kendi anahtarınla yapılan testler kotandan düşmez — kullanım ücreti kendi sağlayıcı hesabına yansır.
+        Kendi anahtarınla yapılan sorguların ücreti kendi sağlayıcı hesabına yansır.
       </p>
     </div>
   );

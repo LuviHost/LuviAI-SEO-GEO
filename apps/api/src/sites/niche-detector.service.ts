@@ -3,7 +3,8 @@ import Anthropic from '@anthropic-ai/sdk';
 import { PageRendererService } from './page-renderer.service.js';
 import { SettingsService } from '../settings/settings.service.js';
 import { modelForAudience, type Audience } from '../llm/model-tier.js';
-import { readBodyCapped } from '../common/fetch-capped.js';
+import { safeFetchText, SafeFetchError } from '../common/safe-fetch.js';
+import { detectBlock } from '../common/block-detect.js';
 
 /**
  * URL'den site nişini AI ile tespit et.
@@ -18,12 +19,22 @@ import { readBodyCapped } from '../common/fetch-capped.js';
  * (henüz brain üretilmeden önce) niş önerisi sunmak için tasarlandı.
  */
 
-const NICHES = [
+export const NICHES = [
   'web hosting', 'e-ticaret', 'SaaS', 'eğitim', 'sağlık', 'finans',
   'gayrimenkul', 'turizm', 'restoran', 'ajans', 'haber/medya', 'otomotiv',
   'inşaat', 'spor/fitness', 'moda/giyim', 'teknoloji/yazılım', 'hukuk',
-  'danışmanlık', 'üretim/sanayi', 'diğer',
+  'danışmanlık', 'üretim/sanayi', 'güzellik/bakım', 'yerel hizmetler', 'diğer',
 ];
+
+/**
+ * Kapsami adindan anlasilmayan nisler — modele ne demek oldugu soylenir.
+ * Bu ikisi eklenmeden once kuafor, berber, tesisatci gibi KOBI'ler "diğer"e
+ * ya da yanlis kovaya (sağlık, spor/fitness) dusuyordu.
+ */
+const NICHE_SCOPE: Record<string, string> = {
+  'güzellik/bakım': 'kuaför, berber, güzellik salonu, tırnak (nail) stüdyosu, spa ve masaj, cilt bakımı',
+  'yerel hizmetler': 'belirli bir bölgede yerinde hizmet veren işletmeler: tesisatçı, elektrikçi, temizlik, nakliyat, çilingir, beyaz eşya servisi',
+};
 
 /**
  * Soru kategorileri — musteri yolculugunun farkli asamalari. Teaser'da
@@ -99,6 +110,8 @@ export class NicheDetectorService {
   /**
    * @param audience Cagriyi kim tetikledi. Landing'deki anonim checker 'anon'
    *   gecer (ucuz model); onboarding/dashboard varsayilan 'member'.
+   *   'anon' icin headless Chrome ASLA calistirilmaz: adres kimligi belirsiz
+   *   birinden geliyor ve tarayici saldirganin sayfasini calistirmis olur.
    */
   async detectFromUrl(url: string, audience: Audience = 'member'): Promise<NicheDetectionResult> {
     const fallback: NicheDetectionResult = {
@@ -111,36 +124,42 @@ export class NicheDetectorService {
       return { ...fallback, reasoning: 'ANTHROPIC_API_KEY yok' };
     }
 
-    // 1) Fetch (statik HTML)
+    // 1) Fetch (statik HTML) — SSRF korumali: ic adres, standart disi port ve
+    // ic adrese giden yonlendirme reddedilir (common/safe-fetch.ts).
     let html = '';
+    let pageUrl = url;
     try {
-      const controller = new AbortController();
-      const t = setTimeout(() => controller.abort(), 8000);
-      const res = await fetch(url, {
-        signal: controller.signal,
-        headers: { 'User-Agent': 'RanksUp-NicheDetector/1.0 (+https://ranksup.ai)' },
-      });
-      clearTimeout(t);
+      // 50 KB yetiyor; tavan okuma aninda uygulanir.
+      const res = await safeFetchText(url, { maxBytes: 512 * 1024, timeoutMs: 8000 });
+      const block = detectBlock(res);
+      if (block) {
+        // Engel/dogrulama sayfasi icerik sanilirsa nis "Just a moment..." basligindan uydurulur
+        return { ...fallback, contentReadable: false, reasoning: `Site erişimi engelledi: ${block.reason}` };
+      }
       if (!res.ok) return { ...fallback, reasoning: `HTTP ${res.status}` };
-      // 50 KB yetiyor — ama eski hali once govdenin tamamini indiriyordu.
-      html = ((await readBodyCapped(res, 512 * 1024))?.text ?? '').slice(0, 50_000);
+      if (res.binary) return { ...fallback, contentReadable: false, reasoning: 'Adres HTML sayfası döndürmedi' };
+      html = res.text.slice(0, 50_000);
+      pageUrl = res.url;
     } catch (err: any) {
-      this.log.warn(`URL fetch fail (${url}): ${err.message}`);
-      return { ...fallback, reasoning: `Fetch hatası: ${err.message}` };
+      const reason = err instanceof SafeFetchError ? err.code : 'network';
+      this.log.warn(`URL fetch fail (${url}): ${reason}`);
+      return { ...fallback, reasoning: `Site okunamadı (${reason})` };
     }
 
     // 2) Sinyalleri çıkar. İçerik ince ise (SPA kabuğu) → headless render dene.
+    // Yalnizca uye akisinda: anonim ucretsiz kontrol tarayici calistirmaz.
     let signals = this.extractSignals(html);
     let renderUsed = false;
-    if (this.isThin(signals)) {
-      this.log.log(`İnce içerik (muhtemel SPA): ${url} — headless render deneniyor`);
-      const rendered = await this.renderer.renderHtml(url);
+    const mayRender = audience === 'member';
+    if (this.isThin(signals) && mayRender) {
+      this.log.log(`İnce içerik (muhtemel SPA): ${pageUrl} — headless render deneniyor`);
+      const rendered = await this.renderer.renderHtml(pageUrl);
       if (rendered) {
         const renderedSignals = this.extractSignals(rendered.slice(0, 200_000));
         if (!this.isThin(renderedSignals)) {
           signals = renderedSignals;
           renderUsed = true;
-          this.log.log(`Render başarılı: ${url} (${rendered.length} byte DOM)`);
+          this.log.log(`Render başarılı: ${pageUrl} (${rendered.length} byte DOM)`);
         }
       }
     }
@@ -153,9 +172,11 @@ export class NicheDetectorService {
         confidence: 0,
         contentReadable: false,
         renderUsed,
-        reasoning: this.renderer.isAvailable()
-          ? 'Site JS ile render ediliyor; render edildi ama metinsel içerik bulunamadı'
-          : 'Site JS ile render ediliyor (SPA), sunucu HTML\'i boş — render için Chromium kurulu değil',
+        reasoning: !mayRender
+          ? 'Site JS ile render ediliyor (SPA), sunucu HTML\'i boş — ücretsiz kontrolde tarayıcı çalıştırılmaz'
+          : this.renderer.isAvailable()
+            ? 'Site JS ile render ediliyor; render edildi ama metinsel içerik bulunamadı'
+            : 'Site JS ile render ediliyor (SPA), sunucu HTML\'i boş — render için Chromium kurulu değil',
       };
     }
 
@@ -172,6 +193,9 @@ H1: ${h1 || '(yok)'}
 
 Mevcut niş seçenekleri:
 ${NICHES.join(', ')}
+
+Kapsamı açıklanan nişler:
+${Object.entries(NICHE_SCOPE).map(([n, scope]) => `- ${n}: ${scope}`).join('\n')}
 
 Kurallar:
 - SADECE yukarıdaki Title/Description/H1/İçerik özetine dayan. Sektörü site ADINDAN/DOMAIN'den TAHMİN ETME. (örn. "PlanIn" adından "planlama yazılımı" çıkarma — içeriğe bak: etkinlik mi, sosyal mi, e-ticaret mi?)

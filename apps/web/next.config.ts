@@ -38,6 +38,33 @@ const config: NextConfig = {
           { key: 'Cross-Origin-Opener-Policy', value: 'same-origin-allow-popups' },
         ],
       },
+      /**
+       * Ajan kesif belgeleri (public/.well-known). Uzantisiz dosyaya Next
+       * application/octet-stream verirdi; spesifikasyonlarin istedigi turler:
+       *  - RFC 9728 §3.2 korunan kaynak metadatasi: application/json
+       *    (https://www.rfc-editor.org/rfc/rfc9728.html#section-3.2). api.ranksup.ai'de
+       *    kok yollar bu uygulamaya geliyor; MCP kaynagi /api/mcp oldugu icin belge
+       *    /.well-known/oauth-protected-resource/api/mcp yolunda durur.
+       *  - AI Catalog: application/ai-catalog+json (SHOULD) — github.com/Agent-Card/ai-catalog
+       *    specification/ai-catalog.md "Media Type"
+       * Herkese acik, salt-okuma metadata: tarayici tabanli istemciler icin CORS acik.
+       */
+      {
+        source: '/.well-known/oauth-protected-resource/:path*',
+        headers: [
+          { key: 'Content-Type', value: 'application/json' },
+          { key: 'Access-Control-Allow-Origin', value: '*' },
+          { key: 'Cache-Control', value: 'public, max-age=3600' },
+        ],
+      },
+      {
+        source: '/.well-known/ai-catalog.json',
+        headers: [
+          { key: 'Content-Type', value: 'application/ai-catalog+json' },
+          { key: 'Access-Control-Allow-Origin', value: '*' },
+          { key: 'Cache-Control', value: 'public, max-age=3600' },
+        ],
+      },
     ];
   },
 };

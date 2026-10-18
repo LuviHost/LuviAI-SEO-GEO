@@ -115,8 +115,8 @@ Use WebFetch tool to:
 - Apple Title (30 chars): [specific placement]
 - Apple Subtitle (30 chars): [specific placement]
 - Apple Keyword Field (100 chars): [comma-separated list]
-- Google Title (50 chars): [specific placement]
-- Google Description: [keyword density targets]
+- Google Title (30 chars): [specific placement]
+- Google Description: [keyword density targets — Google Play indexes the full description; the App Store does not]
 ```
 
 ## 3. Competitor Intelligence
@@ -175,7 +175,7 @@ Your app can differentiate by:
 - [ ] Select primary keyword for App Store title (30 chars)
 - [ ] Select secondary keyword for App Store subtitle (30 chars)
 - [ ] Plan keyword field (100 chars, comma-separated)
-- [ ] Plan Google Play title (50 chars)
+- [ ] Plan Google Play title (30 chars)
 - [ ] Map keywords to description sections
 
 ## Phase 3: Competitive Differentiation (Est: 30 min)

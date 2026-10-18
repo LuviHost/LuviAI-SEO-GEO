@@ -19,8 +19,21 @@ import { escapeRegex } from '../common/text-normalize.js';
  * 3 = ChatGPT, Gemini ve Claude web aramali olculuyor (Ekim 2026); kaynak listesindeki
  *     alan adi da alinti sayilir. 2 ile 3 arasi karsilastirma "yontem degisti"
  *     olarak isaretlenir (citation-run-compare, ai-mention-alarm).
+ * 4 = Alan adindan turetilmis JENERIK markada (eticaret.com → "eticaret") yalin
+ *     kelime artik anilma/"soruda marka" sayilmaz; yalniz alan adi gecisi sayilir
+ *     (brand-in-query.ts brandMatcher). Ayrica .com.tr gibi iki etiketli
+ *     soneklerde yedek marka "com" yerine gercek kok (resolveSiteBrand). Bu surum
+ *     ANILMA olcumunu da etkiler — 3 ile 4 arasi anilma kiyasi da "yontem degisti".
+ *     Ayni surumun parcasi (v4 canliya cikmadan eklendi, ayrica surum yok):
+ *       - koruma yalniz TEK jenerik kelimelik koke uygulanir; "Yapı Kredi"
+ *         (yapikredi.com.tr) gibi bilesik kokler kelime modunda kalir
+ *         (brand-in-query.ts brandMatchMode)
+ *       - 'HATA:' satirlari skora/sayaclara girmez, tamami HATA olan saglayici
+ *         olculemedi sayilir (citation-score.ts) — kayitli skorlar
+ *         scripts/backfill-snapshot-unbranded.ts + backfill-citation-runs.ts ile
+ *         yeniden hesaplanir
  */
-export const CITATION_MATCH_VERSION = 3;
+export const CITATION_MATCH_VERSION = 4;
 
 /** Iki etiketli kayit edilebilir sonekler (kurate — PSL'nin bizi ilgilendiren kismi) */
 const MULTI_PART_SUFFIXES = new Set([
@@ -50,6 +63,13 @@ export function hostMentioned(text: string, host: string): boolean {
   return hostRegex(host).test(text);
 }
 
+/** hostMentioned ile ayni kural; ilk gecisin indeksi (yoksa null) — konum/ton penceresi icin */
+export function hostMentionIndex(text: string, host: string): number | null {
+  if (!text || !host) return null;
+  const m = hostRegex(host).exec(text);
+  return m ? m.index : null;
+}
+
 /** Bir alinti URL'i bu siteye mi ait (tam host ya da alt alan) */
 export function urlHostMatches(url: string, host: string): boolean {
   if (!url || !host) return false;
@@ -73,7 +93,7 @@ export function citedPathsFor(text: string, host: string, max = 50): string[] {
     // Sol sinir: eslesmenin hemen solu alan adi karakteri olmamali ("notranksup.ai/x")
     const before = m.index! > 0 ? text[m.index! - 1] : '';
     if (/[a-z0-9-]/i.test(before)) continue;
-    let path = (m[1] || '/').replace(/[.,;:)\]]+$/, '').split('#')[0].split('?')[0] || '/';
+    const path = (m[1] || '/').replace(/[.,;:)\]]+$/, '').split('#')[0].split('?')[0] || '/';
     if (path.length >= 200 || seen.has(path)) continue;
     seen.add(path);
     out.push(path);

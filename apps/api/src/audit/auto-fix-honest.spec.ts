@@ -2,6 +2,16 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { AutoFixService } from './auto-fix.service.js';
 import { StaticHtmlFixerService } from './static-html-fixer.service.js';
 
+// Statik duzeltici sayfayi global fetch ile degil SSRF korumali safeFetchText
+// ile okur. Varsayilan GERCEK uygulama (diger testler etkilenmez); kesik sayfa
+// testi tek seferlik yanit verir.
+const { safeFetchTextMock } = vi.hoisted(() => ({ safeFetchTextMock: vi.fn() }));
+vi.mock('../common/safe-fetch.js', async (orig) => {
+  const real: any = await orig();
+  safeFetchTextMock.mockImplementation(real.safeFetchText);
+  return { ...real, safeFetchText: (...a: any[]) => safeFetchTextMock(...a) };
+});
+
 /**
  * Durust duzeltme yolu:
  *  - auto-fix uretemedigi anahtari sessizce atlamaz, ACIKCA doner
@@ -54,11 +64,16 @@ describe('StaticHtmlFixerService — kesik sayfa korumasi', () => {
 
   it('2 MB okuma sinirini asan sayfanin uzerine YAZMAZ', async () => {
     const big = `<html><head><title>x</title></head><body>${'a'.repeat(2 * 1024 * 1024 + 100)}</body></html>`;
-    vi.stubGlobal('fetch', vi.fn(async () => new Response(big, { status: 200 })));
+    // safeFetchText 2 MB'ta keser ve truncated=true doner (tavan: safe-fetch.spec.ts)
+    safeFetchTextMock.mockResolvedValueOnce({
+      status: 200, ok: true, url: 'https://x.com/a.html', redirected: false, contentType: 'text/html',
+      headers: {}, text: big.slice(0, 2 * 1024 * 1024), truncated: true, binary: false,
+    });
     const prisma = {
       site: {
         findUniqueOrThrow: vi.fn(async () => ({
-          id: 's1', publishTargets: [{ type: 'SFTP', credentials: {}, config: {} }],
+          // url: yazim adresi sitenin kendi alan adinda olmali (kapsam denetimi)
+          id: 's1', url: 'https://x.com', publishTargets: [{ type: 'SFTP', credentials: {}, config: {} }],
         })),
       },
     };

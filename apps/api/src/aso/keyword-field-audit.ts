@@ -1,4 +1,5 @@
 import { foldForMatch } from '../common/text-normalize.js';
+import { APP_STORE_LIMITS } from './store-limits.js';
 
 /**
  * App Store anahtar kelime alani denetimi (saf).
@@ -26,7 +27,7 @@ import { foldForMatch } from '../common/text-normalize.js';
  * cogul eki (Apple'in Turkce davranisi belgelenmemis).
  */
 
-export const KEYWORD_FIELD_LIMIT = 100;
+export const KEYWORD_FIELD_LIMIT: number = APP_STORE_LIMITS.keywords;
 
 export type KwSeverity = 'error' | 'warning' | 'info';
 export type KwCode =

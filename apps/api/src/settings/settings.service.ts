@@ -9,6 +9,18 @@ import {
 
 const CACHE_TTL_MS = 30_000;
 
+/**
+ * Panelde gosterilen degerin nereden geldigi: DB satiri, ortam degiskeni ya da
+ * katalog/kod varsayilani. envOnly anahtarda yalniz 'env' | 'default' olur.
+ */
+export type SettingSource = 'db' | 'env' | 'default';
+
+/** envOnly anahtarin kodun gercekten kullandigi degeri: env, yoksa kodun varsayilani */
+function envOnlyValue(meta: SettingMeta): { value: string; source: SettingSource } {
+  const raw = process.env[meta.key];
+  return raw !== undefined ? { value: String(raw), source: 'env' } : { value: meta.default, source: 'default' };
+}
+
 @Injectable()
 export class SettingsService implements OnModuleInit {
   private readonly log = new Logger(SettingsService.name);
@@ -22,7 +34,9 @@ export class SettingsService implements OnModuleInit {
     try {
       const existing = await this.prisma.appSetting.findMany({ select: { key: true } });
       const have = new Set(existing.map((r) => r.key));
-      const missing = SETTINGS_CATALOG.filter((m) => !have.has(m.key));
+      // envOnly anahtarlar DB'ye yazilmaz: satir hicbir yerde okunmaz, yalniz
+      // "panelde degistirilebilir" yanilgisini geri getirirdi
+      const missing = SETTINGS_CATALOG.filter((m) => !m.envOnly && !have.has(m.key));
       if (missing.length === 0) {
         this.log.log(`Settings catalog senkron (${existing.length} kayit DB de)`);
         return;
@@ -55,6 +69,9 @@ export class SettingsService implements OnModuleInit {
   async getRaw(key: string): Promise<string> {
     const meta = SETTINGS_BY_KEY.get(key);
     if (!meta) throw new Error(`Bilinmeyen setting key: ${key}`);
+    // Kodun okudugu kaynak env; eski bir DB satiri (ilk acilista tohumlanmis
+    // olabilir) burada okunursa panel ile calisan deger yine ayrisirdi
+    if (meta.envOnly) return envOnlyValue(meta).value;
 
     const cached = this.cache.get(key);
     if (cached && cached.expiresAt > Date.now()) return cached.value;
@@ -102,17 +119,26 @@ export class SettingsService implements OnModuleInit {
     return this.getRaw(key);
   }
 
-  /** Tum catalog + güncel value lar (admin panelde liste icin). */
-  async listAll(): Promise<Array<SettingMeta & { value: string; updatedAt: Date | null; updatedBy: string | null }>> {
+  /**
+   * Tum catalog + güncel value lar (admin panelde liste icin).
+   * source: degerin geldigi yer — envOnly anahtarda DB satiri yok sayilir,
+   * deger kodun okudugu env (ya da kodun varsayilani) olur.
+   */
+  async listAll(): Promise<Array<SettingMeta & {
+    value: string; source: SettingSource; updatedAt: Date | null; updatedBy: string | null;
+  }>> {
     const rows = await this.prisma.appSetting.findMany();
     const byKey = new Map(rows.map((r) => [r.key, r]));
     return SETTINGS_CATALOG.map((m) => {
+      if (m.envOnly) {
+        return { ...m, ...envOnlyValue(m), updatedAt: null, updatedBy: null };
+      }
       const row = byKey.get(m.key);
+      const fromEnv = m.envFallback && process.env[m.key] !== undefined;
       return {
         ...m,
-        value:
-          row?.value ??
-          (m.envFallback && process.env[m.key] !== undefined ? String(process.env[m.key]) : m.default),
+        value: row?.value ?? (fromEnv ? String(process.env[m.key]) : m.default),
+        source: (row ? 'db' : fromEnv ? 'env' : 'default') as SettingSource,
         updatedAt: row?.updatedAt ?? null,
         updatedBy: row?.updatedBy ?? null,
       };
@@ -158,6 +184,14 @@ export class SettingsService implements OnModuleInit {
   ) {
     const meta = SETTINGS_BY_KEY.get(key);
     if (!meta) throw new BadRequestException(`Bilinmeyen ayar: ${key}`);
+    if (meta.envOnly) {
+      // Yazilan satir hicbir yerde okunmazdi; "kaydedildi" demek admini
+      // yaniltir (ornegin PayTR'yi test moduna aldigini sanmak)
+      throw new BadRequestException(
+        `${key} yalnız ortam değişkeninden (.env) okunur; panelden değiştirilemez. ` +
+        'Değiştirmek için sunucudaki .env dosyasını düzenleyip API ve worker\'ı yeniden başlatın.',
+      );
+    }
 
     const normalized = this.validateAndNormalize(meta, newValue);
 

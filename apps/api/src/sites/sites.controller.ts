@@ -1,7 +1,13 @@
-import { Body, Controller, Delete, ForbiddenException, Get, Param, Patch, Post, Put, Req, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, Put, Req, UnauthorizedException } from '@nestjs/common';
 import type { Request } from 'express';
-import { SitesService } from './sites.service.js';
-import { CreateSiteDto, UpdateSiteDto } from './sites.dto.js';
+import { assertResolvesPublic, assertPublicUrl } from '../common/safe-fetch.js';
+import { SessionOnly } from '../auth/session-only.decorator.js';
+import { SitesService, SITE_SECRET_FIELDS } from './sites.service.js';
+import { assertSiteUrlAllowed } from './site-url-policy.js';
+import {
+  CreateSiteDto, DetectNicheDto, GaPropertyDto, GscPropertyDto, SetCompetitorsDto, SiteAutopilotDto, SiteWebhookDto,
+  UpdateSiteDto,
+} from './sites.dto.js';
 import { GscOAuthService } from '../auth/gsc-oauth.service.js';
 import { GaOAuthService } from '../auth/ga-oauth.service.js';
 import { PlatformDetectorService } from './platform-detector.service.js';
@@ -13,6 +19,12 @@ function ensureUser(req: Request) {
   const user = (req as any).user;
   if (!user) throw new UnauthorizedException();
   return user as { id: string; role: 'USER' | 'ADMIN' | 'AGENCY_OWNER' };
+}
+
+/** Rakip ogesindeki dize listesi: yalniz dizeler, ogeler ve liste sinirli */
+function stringList(v: unknown): string[] | undefined {
+  if (!Array.isArray(v)) return undefined;
+  return v.filter((x): x is string => typeof x === 'string').map((x) => x.slice(0, 300)).slice(0, 20);
 }
 
 @Controller('sites')
@@ -27,11 +39,16 @@ export class SitesController {
     private readonly prisma: PrismaService,
   ) {}
 
-  /** POST /sites/detect-niche — URL'den AI ile niş tespit (onboarding'de kullanılır) */
+  /**
+   * POST /sites/detect-niche — URL'den AI ile niş tespit (onboarding'de kullanılır).
+   * Site kaydindaki ayni adres kurali: bu uc da sunucudan istek attirir (ve
+   * uye akisinda headless Chrome acabilir), ic ag adresi kabul edilmez.
+   */
   @Post('detect-niche')
-  detectNiche(@Body() body: { url: string }) {
+  async detectNiche(@Body() body: DetectNicheDto) {
     if (!body?.url) return { error: 'url required' };
-    return this.nicheDetector.detectFromUrl(body.url);
+    const checked = await assertSiteUrlAllowed(body.url, this.sites.urlResolver);
+    return this.nicheDetector.detectFromUrl(checked.toString(), 'member');
   }
 
   @Post()
@@ -53,9 +70,15 @@ export class SitesController {
     return this.sites.list(user);
   }
 
+  /**
+   * crawlAccess: son tarama denemesinde anasayfa okunamadiysa nedeni + cozumu
+   * (yoksa null). Panel "Erisim engellendi" durumunu buradan cizer — puan
+   * uretilmedigi icin bu bilgi Audit satirinda yok.
+   */
   @Get(':id')
-  get(@Req() req: Request, @Param('id') id: string) {
-    return this.sites.findOne(id, ensureUser(req));
+  async get(@Req() req: Request, @Param('id') id: string) {
+    const site = await this.sites.findOne(id, ensureUser(req));
+    return { ...site, crawlAccess: await this.sites.getCrawlAccess(id) };
   }
 
   @Patch(':id')
@@ -92,9 +115,17 @@ export class SitesController {
   setCompetitors(
     @Req() req: Request,
     @Param('id') id: string,
-    @Body() body: { competitors: Array<{ name: string; url: string; strengths?: string[]; weaknesses?: string[] }> },
+    @Body() body: SetCompetitorsDto,
   ) {
-    return this.sites.setCompetitors(id, body.competitors ?? [], ensureUser(req));
+    // Ogeler tek tek: yalniz dize alanlar servise gider (servis URL'yi site
+    // adresi kuralindan gecirir, ad ve listeleri keser)
+    const competitors = (Array.isArray(body?.competitors) ? body.competitors : []).map((c) => ({
+      name: typeof c?.name === 'string' ? c.name : '',
+      url: typeof c?.url === 'string' ? c.url : '',
+      strengths: stringList(c?.strengths),
+      weaknesses: stringList(c?.weaknesses),
+    }));
+    return this.sites.setCompetitors(id, competitors, ensureUser(req));
   }
 
   /** GET /sites/:id/gsc/properties — kullanicinin erisilebilir GSC property'leri */
@@ -109,7 +140,7 @@ export class SitesController {
   async setGscProperty(
     @Req() req: Request,
     @Param('id') id: string,
-    @Body() body: { propertyUrl: string },
+    @Body() body: GscPropertyDto,
   ) {
     await this.sites.findOne(id, ensureUser(req));
     return this.gsc.setProperty(id, body.propertyUrl);
@@ -127,7 +158,7 @@ export class SitesController {
   async setGaProperty(
     @Req() req: Request,
     @Param('id') id: string,
-    @Body() body: { propertyId: string },
+    @Body() body: GaPropertyDto,
   ) {
     await this.sites.findOne(id, ensureUser(req));
     return this.ga.setProperty(id, body.propertyId);
@@ -138,6 +169,9 @@ export class SitesController {
   async detectPlatform(@Req() req: Request, @Param('id') id: string) {
     const site = await this.sites.findOne(id, ensureUser(req));
     const detection = await this.platformDetector.detect(site.url);
+    // Site okunamadiysa (engel, zaman asimi) sonuc bir tahmin degil — onceki
+    // tespitin uzerine 'unknown' yazilmaz
+    if (detection.unreadable) return detection;
     await this.prisma.site.update({
       where: { id },
       data: {
@@ -154,12 +188,16 @@ export class SitesController {
   async setAutopilot(
     @Req() req: Request,
     @Param('id') id: string,
-    @Body() body: { enabled: boolean },
+    @Body() body: SiteAutopilotDto,
   ) {
     await this.sites.findOne(id, ensureUser(req));
+    // Sirlar cevapta yok. Liste sites.service SITE_SECRET_FIELDS'in kendisi:
+    // eskiden burada elle tutulan bir kopyasi vardi (SITE_RESPONSE_OMIT); yeni
+    // bir sir kolonu eklenip kopya unutulsaydi bu cevap o siri sizdirirdi.
     return this.prisma.site.update({
       where: { id },
-      data: { autopilot: !!body.enabled } as any,
+      data: { autopilot: body.enabled === true },
+      omit: SITE_SECRET_FIELDS,
     });
   }
 
@@ -169,20 +207,45 @@ export class SitesController {
     return this.sites.completeOnboarding(id, ensureUser(req));
   }
 
-  /** PATCH /sites/:id/webhook body { url, kind } */
+  /**
+   * PATCH /sites/:id/webhook body { url, kind }
+   *
+   * Yalniz panel oturumuyla: '/sites/:id/webhook' api-keys.service
+   * ROUTE_RESOURCE eslesmesinde yok ('webhook' bilinmeyen alt kaynak), AuthGuard
+   * bu durumda HERHANGI bir ':write' anahtarini yeterli sayiyordu. Bildirim
+   * adresini degistiren, sitenin bildirimlerini (tarayici hatasi, reklam ve
+   * takili sayfa olaylari...) kendi adresine akitabilirdi. API anahtari 403
+   * alir; SDK ve MCP bu ucu cagirmiyor. (Ingest sirrini yenileme bu dosyada
+   * degil, audit.controller live-crawler/rotate-secret'ta.)
+   */
+  @SessionOnly()
   @Patch(':id/webhook')
   async setWebhook(
     @Req() req: Request,
     @Param('id') id: string,
-    @Body() body: { url: string; kind?: 'slack' | 'discord' },
+    @Body() body: SiteWebhookDto,
   ) {
     await this.sites.findOne(id, ensureUser(req));
+    const raw = typeof body?.url === 'string' ? body.url.trim() : '';
+    if (raw) {
+      // Bildirim servisi bu adrese POST atar: ic ag / bulut metadata adresi
+      // kaydedilemez. Slack ve Discord webhook'lari https.
+      try {
+        const u = assertPublicUrl(raw);
+        if (u.protocol !== 'https:') throw new Error('https');
+        await assertResolvesPublic(raw);
+      } catch {
+        throw new BadRequestException('Webhook adresi herkese açık bir https:// adresi olmalı (ör. Slack veya Discord webhook bağlantısı).');
+      }
+    }
+    const kind = body?.kind === 'slack' || body?.kind === 'discord' ? body.kind : null;
     return this.prisma.site.update({
       where: { id },
       data: {
-        notifyWebhookUrl: body.url || null,
-        notifyWebhookKind: body.kind ?? null,
-      } as any,
+        notifyWebhookUrl: raw || null,
+        notifyWebhookKind: raw ? kind : null,
+      },
+      omit: SITE_SECRET_FIELDS,
     });
   }
 }

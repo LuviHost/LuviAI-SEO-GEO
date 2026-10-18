@@ -83,15 +83,22 @@ export class DemoSeederService {
           schema_markup: { id: 'schema_markup', name: 'Schema.org markup', found: true, valid: false, score: 60, issues: [] },
           meta_title: { id: 'meta_title', name: 'Meta Title', found: true, valid: true, score: 85, issues: [] },
           https: { id: 'https', name: 'HTTPS', found: true, valid: true, score: 100, issues: [] },
+          // Olculen 6 asistan (ai-citation.service.ts runForSite; Llama yalniz
+          // GROQ_LLAMA_MODEL ile). Eskiden ad 4 asistan sayiyordu ve ChatGPT /
+          // Perplexity satirlari musteriye "OPENAI_API_KEY env yok" gibi ic
+          // yapilandirma metni gosteriyordu. score = saglayici skorlarinin
+          // yuvarlanmis ortalamasi (250 / 6 → 42), gercek denetimle ayni kural.
           aiCitations: {
             id: 'ai_citations',
-            name: 'AI arama görünürlüğü (Claude · Gemini · ChatGPT · Perplexity)',
+            name: 'AI arama görünürlüğü (ChatGPT · Claude · Gemini · Perplexity · Grok · DeepSeek)',
             score: 42,
             providers: [
               { provider: 'anthropic', label: 'Anthropic Claude', available: true, score: 60, probes: [] },
               { provider: 'gemini', label: 'Google Gemini', available: true, score: 40, probes: [] },
-              { provider: 'openai', label: 'OpenAI ChatGPT', available: false, score: null, probes: [], reason: 'OPENAI_API_KEY env yok' },
-              { provider: 'perplexity', label: 'Perplexity', available: false, score: null, probes: [], reason: 'PERPLEXITY_API_KEY env yok' },
+              { provider: 'openai', label: 'OpenAI ChatGPT', available: true, score: 50, probes: [] },
+              { provider: 'perplexity', label: 'Perplexity', available: true, score: 55, probes: [] },
+              { provider: 'xai', label: 'xAI Grok', available: true, score: 25, probes: [] },
+              { provider: 'deepseek', label: 'DeepSeek', available: true, score: 20, probes: [] },
             ],
           },
         } as any,
@@ -164,12 +171,14 @@ export class DemoSeederService {
       }
     }
 
-    // 6. AI Citation snapshots (son 14 gün)
+    // 6. AI Citation snapshots (son 14 gün) — denetim kartindaki 6 asistanin
+    // hepsi; yalniz ikisi olsaydi grafik ile kart birbirini yalanlardi.
+    const DEMO_TABAN: Record<string, number> = { anthropic: 50, gemini: 35, openai: 45, perplexity: 50, xai: 20, deepseek: 15 };
     for (let d = 0; d < 14; d++) {
       const date = new Date(Date.now() - d * 86400000);
       date.setHours(0, 0, 0, 0);
-      for (const provider of ['anthropic', 'gemini']) {
-        const baseScore = provider === 'anthropic' ? 50 : 35;
+      for (const provider of Object.keys(DEMO_TABAN)) {
+        const baseScore = DEMO_TABAN[provider];
         const score = Math.max(0, Math.min(100, baseScore + Math.floor((Math.sin(d) * 15)) + Math.floor(Math.random() * 10)));
         try {
           await this.prisma.aiCitationSnapshot.create({
@@ -185,7 +194,7 @@ export class DemoSeederService {
               matchVersion: CITATION_MATCH_VERSION,
             },
           });
-        } catch {}
+        } catch { /* demo verisi: tek gunluk satir yazilamazsa demo yine olusur */ }
       }
     }
 

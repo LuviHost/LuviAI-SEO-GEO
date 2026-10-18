@@ -1,10 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { ArticleStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { JobQueueService } from '../jobs/job-queue.service.js';
 import { QuotaService } from '../billing/quota.service.js';
 import { GeoScoreCardService } from '../audit/geo-score-card.service.js';
 import { AgentReadinessService } from '../audit/agent-readiness.service.js';
-import { AiKpisService } from '../audit/ai-kpis.service.js';
+import { AiKpisService, isUnmeasuredReadinessStatus, latestReadinessKpi } from '../audit/ai-kpis.service.js';
+import { crawlAccessMessage, crawlAccessNewerThanAudit, readCrawlAccess } from '../sites/crawl-access.js';
 import { ContentOpportunityService } from '../audit/content-opportunity.service.js';
 import { ProductRadarService } from '../audit/product-radar.service.js';
 import { PromptLabService } from '../audit/prompt-lab.service.js';
@@ -13,6 +15,8 @@ import { ImageAltSuggestService, IMAGE_ALT_JOB_BATCH } from '../audit/image-alt/
 import { ActionPlansService } from '../action-plans/action-plans.service.js';
 import { planHasFeature, type PlanFeature, type PlanId } from '../billing/plans.js';
 import { MeasurementAllowanceService } from '../billing/measurement-allowance.service.js';
+import { SITE_NOT_FOUND_MESSAGE } from '../auth/site-access.guard.js';
+import { isCanonicalSiteId } from '../common/site-id.js';
 
 /**
  * RanksUp Tool Registry — MCP server VE uygulama ici Chat'in ORTAK tool seti.
@@ -68,13 +72,65 @@ export interface ToolDef {
    */
   requiresFeature?: PlanFeature;
   /**
-   * API anahtariyla cagrilirken gereken scope (orn. 'audit:write'). Verilmezse
-   * yalnizca kaba kural: mutating → herhangi bir :write. Eskiden TUM mutating
-   * araclar herhangi bir :write ile geciyordu — social:write anahtari audit
-   * isi baslatabiliyordu. Oturumla (sohbet) gelen cagrilarda uygulanmaz.
+   * API anahtariyla cagrilirken gereken kaynak scope'u (orn. 'audit:write').
+   * KURAL: REST ikizinin AuthGuard'da istedigi scope'un AYNISI
+   * (ApiKeysService.requiredScope(yontem, yol)); McpController okuma araclarinda
+   * da hasScopeForRoute ile dayatir (':write' ayni kaynagin ':read'ini kapsar).
+   * NEDEN: /api/mcp AuthGuard'in yol bazli scope denetiminden muaf (tek POST
+   * hem okuma hem yazma tasir). Araclarin cogunda scope yokken yalniz
+   * 'social:read' tasiyan bir anahtar MCP'den makale/denetim/analitik
+   * okuyabiliyor, 'social:write' anahtari run_audit, run_prompt ve
+   * create_article ile olcum hakki ve makale kotasi harcayabiliyordu; ayni
+   * anahtar REST'te 403 aliyordu (inceleme R21).
+   * Verilmezse kaba kural: mutating → herhangi bir :write, okuma serbest. Bu
+   * YALNIZ REST ikizi bir kaynaga eslesmeyen araclar icindir (aksiyon plani,
+   * ASO: requiredScope null doner, AuthGuard da ayni kaba kurali uygular).
+   * tool-scope.spec.ts her araci REST ikiziyle karsilastirir. Oturumla
+   * (sohbet) gelen cagrilarda uygulanmaz.
    */
   scope?: string;
+  /**
+   * MCP destructiveHint — yalnizca mutating araclarda anlamli. Verilmezse TRUE
+   * sayilir (MCP semasinin varsayilani da true): yeni bir yazma araci
+   * eklendiginde "yalnizca ekleme yapar" karari BILINCLI verilsin.
+   */
+  destructive?: boolean;
+  /**
+   * MCP openWorldHint — arac RanksUp disina (musteri sitesi, AI saglayicilari,
+   * magazalar) dokunuyor mu. Verilmezse mutating araclarda true, okuma
+   * araclarinda false (okuma araclari yalnizca kendi veritabanimizi okur).
+   */
+  openWorld?: boolean;
   handler: (user: ToolUser, args: Record<string, any>) => Promise<any>;
+}
+
+/**
+ * MCP arac ipuclari (ToolAnnotations) — tools/list'te her araca eklenir.
+ *
+ * NEDEN: Anthropic baglayici incelemesi her aractan title + readOnlyHint /
+ * destructiveHint ister; Claude salt-okuma araclarini onaysiz, destructive
+ * araclari her cagrida onayla calistirir
+ * (https://claude.com/docs/connectors/building/review-criteria). Alan adlari ve
+ * varsayilanlar MCP semasindan (2025-06-18, 2026-07-28'de degismedi):
+ * readOnlyHint=false, destructiveHint=true, idempotentHint=false, openWorldHint=true
+ * (https://modelcontextprotocol.io/specification/2025-06-18/schema#toolannotations).
+ *
+ * Ipuclari `mutating` bayragindan TURETILIR; turetmenin yanlis olacagi araclar
+ * tanimda `destructive` / `openWorld` ile acikca isaretlenir.
+ */
+export function toolAnnotations(t: Pick<ToolDef, 'title' | 'mutating' | 'destructive' | 'openWorld'>) {
+  const readOnly = !t.mutating;
+  return {
+    title: t.title,
+    readOnlyHint: readOnly,
+    // Salt-okumada spesifikasyona gore anlamsiz; yine de acik false yazilir ki
+    // istemci "belirtilmemis = true" varsayimina dusmesin.
+    destructiveHint: readOnly ? false : (t.destructive ?? true),
+    // Yazma araclarimizin hicbiri ayni argumanla ikinci cagrida etkisiz degil:
+    // yeni is kuyruga girer, kota/olcum hakki duser ya da zaman damgasi degisir.
+    idempotentHint: readOnly,
+    openWorldHint: t.openWorld ?? !readOnly,
+  };
 }
 
 const SITE_ID_PROP = {
@@ -83,6 +139,40 @@ const SITE_ID_PROP = {
     description: 'RanksUp site ID (list_sites ile bulunur)',
   },
 };
+
+const isoDay = (d: Date | string): string => {
+  const t = new Date(d);
+  return Number.isFinite(t.getTime()) ? t.toISOString().slice(0, 10) : String(d);
+};
+
+/** content-opportunity durumlari (schema.prisma ContentOpportunity.status yorumu) */
+const OPPORTUNITY_STATUSES = ['OPEN', 'PLANNED', 'GENERATED', 'PUBLISHED', 'REMEASURED', 'DISMISSED'] as const;
+const ARTICLE_STATUSES = Object.values(ArticleStatus) as string[];
+
+/**
+ * MCP argumanindan Prisma where'a giden durum suzgeci. Arguman JSON'dur:
+ * { "status": { "not": "PUBLISHED" } } gibi bir nesne eskiden dogrudan
+ * where'a yayiliyor ve Prisma filtresi olarak yorumlaniyordu; enum disi dize
+ * de Prisma dogrulama hatasi veriyordu. Yalniz izin listesindeki dize gecer;
+ * bos/verilmemis → suzgec yok, gecersiz → okunur hata (ajan duzeltebilsin).
+ */
+function statusFilter(value: unknown, allowed: readonly string[]): string | undefined {
+  if (value === undefined || value === null || value === '') return undefined;
+  const v = typeof value === 'string' ? value.trim().toUpperCase() : '';
+  if (!allowed.includes(v)) throw new Error(`Geçersiz status. Şunlardan biri olmalı: ${allowed.join(', ')}`);
+  return v;
+}
+
+/**
+ * AXO sonucu ajana: blocked/unreachable taramada overallScore yalniz olculebilen
+ * kontrolleri yansitir — skor diye sunulmasin diye null; neden `access` alaninda.
+ */
+function readinessForAgent<T extends { overallScore?: number | null; status?: string | null }>(
+  r: T,
+): Omit<T, 'overallScore'> & { overallScore: number | null; measured: boolean } {
+  const unmeasured = isUnmeasuredReadinessStatus(r.status);
+  return { ...r, overallScore: unmeasured ? null : r.overallScore ?? null, measured: !unmeasured };
+}
 
 @Injectable()
 export class McpToolsService {
@@ -139,6 +229,7 @@ export class McpToolsService {
       title: t.title,
       description: t.description,
       inputSchema: t.inputSchema,
+      annotations: toolAnnotations(t),
     }));
   }
 
@@ -180,11 +271,20 @@ export class McpToolsService {
 
   // ────────────────────────────────────────────────────────────
 
+  /**
+   * KANONIK KIMLIK (common/site-id.ts): sites tablosunun harmanlamasi
+   * 'CMSQ..' ya da sonu bosluklu yazimi ayni satira esler. Eskiden varyant
+   * kabul ediliyordu; ajan/sohbet ayni siteyi farkli yazimlarla cagirabiliyor,
+   * kimlige gore kurulan anahtarlar ve `===` karsilastirmalari tutmuyordu.
+   * SiteAccessGuard ile ayni iki kapi ve ayni metin: kurala uymayan kimlik
+   * DB'ye gitmeden, bulunan satir birebir ayni kimlikte degilse de "bulunamadi".
+   */
   private async resolveSite(user: ToolUser, siteId: unknown) {
     if (typeof siteId !== 'string' || !siteId) throw new Error('site_id zorunlu');
+    if (!isCanonicalSiteId(siteId)) throw new Error(SITE_NOT_FOUND_MESSAGE);
     const site = await this.prisma.site.findUnique({ where: { id: siteId } });
-    if (!site) throw new Error('Site bulunamadi');
-    if (user.role !== 'ADMIN' && site.userId !== user.id) throw new Error('Bu site sana ait degil');
+    if (!site || site.id !== siteId) throw new Error(SITE_NOT_FOUND_MESSAGE);
+    if (user.role !== 'ADMIN' && site.userId !== user.id) throw new Error('Bu site sana ait değil');
     return site;
   }
 
@@ -212,6 +312,7 @@ export class McpToolsService {
       // ── SITELER ──────────────────────────────────────────
       {
         name: 'list_sites',
+        scope: 'sites:read',
         title: 'Sitelerimi listele',
         description: 'Kullanicinin RanksUp\'taki tum sitelerini id, isim, url ve durumla listeler. Diger tool\'lar icin site_id buradan alinir.',
         inputSchema: this.schema({}),
@@ -227,24 +328,33 @@ export class McpToolsService {
       },
       {
         name: 'get_site_overview',
+        scope: 'sites:read',
         title: 'Site genel bakis',
-        description: 'Bir sitenin ozet durumu: son audit skoru, GEO skoru, agent readiness, yayinlanan makale sayisi, izlenen prompt sayisi.',
+        description: 'Bir sitenin ozet durumu: son audit skoru, GEO skoru, agent readiness, yayinlanan makale sayisi, izlenen prompt sayisi. auditAccess doluysa son tarama denemesi siteye erişemedi: auditScore/geoScore null döner (eldeki skor eski ve güncel değil; lastAuditAt son başarılı denetim). agentReadiness.measured false ise AXO skoru ölçülemedi (overallScore null, nedeni reason alanında).',
         inputSchema: this.schema(SITE_ID_PROP, ['site_id']),
         handler: async (user, args) => {
           const site = await this.resolveSite(user, args.site_id);
-          const [audit, readiness, articleCount, promptCount, appCount] = await Promise.all([
+          const [audit, readiness, articleCount, promptCount, appCount, access] = await Promise.all([
             this.prisma.audit.findFirst({ where: { siteId: site.id }, orderBy: { ranAt: 'desc' }, select: { overallScore: true, geoScore: true, ranAt: true } }),
-            this.prisma.agentReadinessScan.findFirst({ where: { siteId: site.id }, orderBy: { ranAt: 'desc' }, select: { overallScore: true, status: true } }),
+            latestReadinessKpi(this.prisma, site.id),
             this.prisma.article.count({ where: { siteId: site.id, status: 'PUBLISHED' as any } }),
             this.prisma.geoPrompt.count({ where: { siteId: site.id, isActive: true } }),
             this.prisma.trackedApp.count({ where: { siteId: site.id, isActive: true } }),
+            readCrawlAccess(this.prisma, site.id),
           ]);
+          // Son deneme siteye erisemediyse eldeki skor bayat — panel gibi gosterilmez.
+          // Kural tek yerde (crawl-access.ts): audit getLatest, GEO Score Card ve raporlarla ayni.
+          const blocked = crawlAccessNewerThanAudit(access, audit?.ranAt);
           return {
             site: { id: site.id, name: site.name, url: site.url, niche: site.niche, status: site.status },
-            auditScore: audit?.overallScore ?? null,
-            geoScore: audit?.geoScore ?? null,
+            auditScore: blocked ? null : audit?.overallScore ?? null,
+            geoScore: blocked ? null : audit?.geoScore ?? null,
             lastAuditAt: audit?.ranAt ?? null,
-            agentReadiness: readiness ?? null,
+            auditAccess: blocked ? { ...blocked, message: crawlAccessMessage(blocked) } : null,
+            // Eski alanlar (overallScore, status) korunur; olculemeyen taramada skor null
+            agentReadiness: readiness
+              ? { overallScore: readiness.score, status: readiness.status, measured: readiness.measured, reason: readiness.reason }
+              : null,
             publishedArticles: articleCount,
             trackedPrompts: promptCount,
             trackedApps: appCount,
@@ -255,13 +365,23 @@ export class McpToolsService {
       // ── AUDIT + SKORLAR ──────────────────────────────────
       {
         name: 'get_audit',
+        scope: 'audit:read',
         title: 'Site audit raporu',
-        description: 'Son site saglik taramasinin detayi: 14 teknik kontrol, sorun listesi ve otomatik duzeltilebilir maddeler.',
+        description: 'Son site saglik taramasinin detayi: 14 teknik kontrol, sorun listesi ve otomatik duzeltilebilir maddeler. current false ise bu denetimden sonraki tarama denemesi siteye erişemedi: skor ve sorunlar ranAt tarihli eski denetime ait, güncel skor diye sunma (neden ve çözüm accessBlocked alanında). checks.aiCitations.score null ise AI ölçümü yapılmadı (neden skipped alanında); bunu 0 puan diye sunma.',
         inputSchema: this.schema(SITE_ID_PROP, ['site_id']),
         handler: async (user, args) => {
           const site = await this.resolveSite(user, args.site_id);
-          const audit = await this.prisma.audit.findFirst({ where: { siteId: site.id }, orderBy: { ranAt: 'desc' } });
-          if (!audit) return { message: 'Henuz audit kosulmamis. run_audit ile baslatabilirsin.' };
+          const [audit, access] = await Promise.all([
+            this.prisma.audit.findFirst({ where: { siteId: site.id }, orderBy: { ranAt: 'desc' } }),
+            readCrawlAccess(this.prisma, site.id),
+          ]);
+          const blocked = crawlAccessNewerThanAudit(access, audit?.ranAt);
+          if (!audit) {
+            // Anasayfa okunamayan tarama puan URETMEZ (Audit satiri yok): "hic kosulmamis" demek yanlis olur
+            return blocked
+              ? { message: `Puanlanmış bir denetim yok: son tarama denemesi siteye erişemedi. ${crawlAccessMessage(blocked)}`, accessBlocked: blocked }
+              : { message: 'Henuz audit kosulmamis. run_audit ile baslatabilirsin.' };
+          }
           // fixRoute: auto_fix | snippet | manual — ajan "otomatik duzeltilir"
           // dedigi seyin gercekten auto-fix'te uretildigini bilsin.
           const annotated = annotateAuditFixRoutes(audit);
@@ -271,15 +391,24 @@ export class McpToolsService {
             checks: audit.checks,
             issues: annotated.issues,
             ranAt: audit.ranAt,
+            // Eklenen alanlar: bu denetimden SONRAKI deneme siteye erisemediyse skor guncel degil
+            current: !blocked,
+            accessBlocked: blocked,
+            ...(blocked
+              ? { note: `Bu skor güncel değil: ${isoDay(blocked.at)} tarihli tarama denemesi siteye erişemedi. ${crawlAccessMessage(blocked)} Skor ve sorunlar ${isoDay(audit.ranAt)} tarihli son başarılı denetime ait.` }
+              : {}),
           };
         },
       },
       {
         name: 'run_audit',
+        scope: 'audit:write',
         title: 'Audit baslat',
         description: 'Site saglik taramasini kuyruğa alir (asenkron — sonuc birkac dakika icinde get_audit ile okunur).',
         inputSchema: this.schema(SITE_ID_PROP, ['site_id']),
         mutating: true,
+        // Yeni bir Audit satiri ekler; onceki denetimler gecmiste kalir
+        destructive: false,
         handler: async (user, args) => {
           const site = await this.resolveSite(user, args.site_id);
           const job = await this.jobQueue.enqueue({
@@ -325,6 +454,8 @@ export class McpToolsService {
           max: { type: 'number', description: 'En fazla kac gorsel (1-25, varsayilan 10)' },
         }, ['site_id']),
         mutating: true,
+        // Yalnizca SiteImage.suggestedAlt doldurur; siteye yazma panelde onayla
+        destructive: false,
         scope: 'audit:write',
         handler: async (user, args) => {
           const site = await this.resolveSite(user, args.site_id);
@@ -355,6 +486,7 @@ export class McpToolsService {
       },
       {
         name: 'get_geo_score_card',
+        scope: 'audit:read',
         title: 'GEO Score Card',
         description: 'AI arama motorlarinda gorunurluk skoru — 6 pillar (crawler erisimi, yapisal veri, AI citation, otorite, tazelik, multi-modal) + harf notu + oneriler.',
         inputSchema: this.schema(SITE_ID_PROP, ['site_id']),
@@ -365,33 +497,42 @@ export class McpToolsService {
       },
       {
         name: 'get_agent_readiness',
+        scope: 'audit:read',
         requiresFeature: 'agentReadiness',
         title: 'Agent Readiness (AXO) skoru',
-        description: 'Domain\'in AI AJANLARINA hazirligi: robots AI stance, agent card, auth.md, API katalogu, markdown negotiation... 4 seviye + kacinilan ajan sayisi.',
+        // agentsAllowed: robots.txt'in ETKIN olarak izin verdigi bilinen AI ajani sayisi (agent-readiness.service)
+        description: 'Domain\'in AI AJANLARINA hazırlığı: robots.txt AI tutumu, agent card, auth.md, API kataloğu, markdown negotiation... 4 seviye + robots.txt\'in izin verdiği AI ajanı sayısı (agentsAllowed / agentsTotal). status \'blocked\' ya da \'unreachable\' ise tarama siteye erişemedi: skor ölçülemedi — overallScore null döner (measured false), neden ve çözüm access alanında; skor varmış gibi sunma.',
         inputSchema: this.schema(SITE_ID_PROP, ['site_id']),
         // audit.controller GET /agent-readiness ile ayni kapi
         handler: async (user, args) => {
           const site = await this.resolveSite(user, args.site_id);
           const latest = await this.agentReadiness.getLatest(site.id);
-          return latest ?? { message: 'Henuz tarama yok. run_agent_readiness_scan ile baslat.' };
+          return latest ? readinessForAgent(latest) : { message: 'Henuz tarama yok. run_agent_readiness_scan ile baslat.' };
         },
       },
       {
         name: 'run_agent_readiness_scan',
+        scope: 'audit:write',
         title: 'Agent Readiness taramasi kos',
-        description: 'AXO taramasini senkron calistirir ve guncel skoru dondurur (~15 sn).',
+        // Sure: agent-readiness.service FETCH_TIMEOUT_MS=10 sn, CONCURRENCY=4; ilk
+        // dalga 15-16 istek (4 tur), ardindan site haritasi adaylari SIRAYLA
+        // (en az 2) — yanit vermeyen sitede 40 + 20 sn'den fazla
+        description: 'AXO taramasını senkron çalıştırır ve sonucu döndürür. Süre sitenin yanıt hızına bağlı: istek başına en fazla 10 sn, aynı anda en fazla 4 istek; yavaş ya da yanıt vermeyen sitede 1 dakikayı geçebilir. status \'blocked\' ya da \'unreachable\' ise siteye erişilemedi: skor ölçülemedi (overallScore null, measured false; neden ve çözüm access alanında).',
         inputSchema: this.schema(SITE_ID_PROP, ['site_id']),
         mutating: true,
+        // Yeni tarama kaydi ekler; siteye bir sey yazmaz (oto-duzeltme ayri akis)
+        destructive: false,
         requiresFeature: 'agentReadiness',
         handler: async (user, args) => {
           const site = await this.resolveSite(user, args.site_id);
-          return this.agentReadiness.scan(site.id);
+          return readinessForAgent(await this.agentReadiness.scan(site.id));
         },
       },
       {
         name: 'get_ai_kpis',
+        scope: 'audit:read',
         title: 'AI KPI ozeti',
-        description: 'Mention rate, citation rate, sentiment, share of voice, AI crawler ziyaretleri — 7 gunluk degerler ve deltalar.',
+        description: 'Mention rate, citation rate, sentiment, share of voice, AI crawler ziyaretleri — 7 gunluk degerler ve deltalar. deltaPct null ise kıyas yapılamadı (önceki dönem verisi yok ya da comparability alanındaki gibi ölçülen sorular/ölçüm yöntemi değişti) — "değişim yok" anlamına gelmez. agentReadiness.measured false ise AXO skoru ölçülemedi (neden reason alanında).',
         inputSchema: this.schema(SITE_ID_PROP, ['site_id']),
         handler: async (user, args) => {
           const site = await this.resolveSite(user, args.site_id);
@@ -402,6 +543,7 @@ export class McpToolsService {
       // ── PROMPT LAB + FIRSATLAR ───────────────────────────
       {
         name: 'list_prompts',
+        scope: 'audit:read',
         title: 'Izlenen prompt\'lar',
         description: 'Prompt Lab\'de takip edilen sorular ve son citation skorlari. Dusuk skorlu prompt = icerik firsati.',
         inputSchema: this.schema(SITE_ID_PROP, ['site_id']),
@@ -412,6 +554,7 @@ export class McpToolsService {
       },
       {
         name: 'run_prompt',
+        scope: 'audit:write',
         title: 'Prompt olcumu kos',
         description: 'Tek bir izlenen soruyu gercek AI saglayicilarda test eder: marka gecti mi, site kaynak gosterildi mi, rakipler kimler. MALIYETLI islem — kullanici istemeden cagirma.',
         inputSchema: this.schema({
@@ -419,6 +562,8 @@ export class McpToolsService {
           prompt_id: { type: 'string', description: 'list_prompts\'tan gelen prompt id' },
         }, ['site_id', 'prompt_id']),
         mutating: true,
+        // Yeni olcum satirlari ekler (haftalik olcum hakki ve maliyet tuketir)
+        destructive: false,
         handler: async (user, args) => {
           const site = await this.resolveSite(user, args.site_id);
           // Haftalik AI olcum hakki — panel uclariyla ayni kural (measurement-allowance.ts)
@@ -427,6 +572,7 @@ export class McpToolsService {
       },
       {
         name: 'get_prompt_coverage',
+        scope: 'audit:read',
         title: 'Kapsama raporu',
         description: '"Hangi soru dallarinda kaybediyoruz" analizi — ana soru vs fan-out dallari citation karsilastirmasi (son 30 gun).',
         inputSchema: this.schema(SITE_ID_PROP, ['site_id']),
@@ -437,25 +583,32 @@ export class McpToolsService {
       },
       {
         name: 'list_content_opportunities',
+        scope: 'audit:read',
         requiresFeature: 'contentOpportunities',
         title: 'Icerik firsatlari',
         description: 'Kaybedilen AI sorgularindan turetilen icerik firsatlari (LOST/WEAK etiketli, kanit baglantili). Kapali dongunun giris noktasi.',
         inputSchema: this.schema({
           ...SITE_ID_PROP,
-          status: { type: 'string', description: 'OPEN | PLANNED | GENERATED | PUBLISHED | REMEASURED | DISMISSED (opsiyonel)' },
+          status: { type: 'string', enum: [...OPPORTUNITY_STATUSES], description: 'OPEN | PLANNED | GENERATED | PUBLISHED | REMEASURED | DISMISSED (opsiyonel)' },
         }, ['site_id']),
         // audit.controller GET /opportunities ile ayni kapi
         handler: async (user, args) => {
           const site = await this.resolveSite(user, args.site_id);
-          return { opportunities: await this.opportunities.list(site.id, { status: args.status }) };
+          const status = statusFilter(args.status, OPPORTUNITY_STATUSES);
+          return { opportunities: await this.opportunities.list(site.id, { status }) };
         },
       },
       {
         name: 'derive_content_opportunities',
+        scope: 'audit:write',
         title: 'Firsat taramasi',
-        description: 'Son 14 gunun prompt olcumlerinden yeni icerik firsatlari cikarir.',
+        description: 'Son 14 gunun prompt olcumlerinden yeni icerik firsatlari cikarir, acik firsatlarin skorunu tazeler.',
         inputSchema: this.schema(SITE_ID_PROP, ['site_id']),
         mutating: true,
+        // Yalnizca turetilmis alanlari tazeler; kullanicinin karari (PLANNED,
+        // DISMISSED, GENERATED) korunur. Kaynak kendi olcumlerimiz — dis dunya yok.
+        destructive: false,
+        openWorld: false,
         requiresFeature: 'contentOpportunities',
         handler: async (user, args) => {
           const site = await this.resolveSite(user, args.site_id);
@@ -464,13 +617,18 @@ export class McpToolsService {
       },
       {
         name: 'generate_article_from_opportunity',
+        scope: 'audit:write',
         title: 'Firsattan makale uret',
-        description: 'Bir icerik firsatindan 6-ajan pipeline ile makale uretimini baslatir (kota tuketir). Kullanici acikca istemeden cagirma.',
+        // "5 ajan": pipeline.service.ts akisi keyword → outline → writer → editor → visuals
+        description: 'Bir icerik firsatindan 5 ajanli uretim hattiyla makale uretimini baslatir (kota tuketir). Bu soruyu zaten cevaplayan yayimlanmis bir makale varsa yeni makale acmaz, o makalenin metnini yeniden yazar. Kullanici acikca istemeden cagirma.',
         inputSchema: this.schema({
           ...SITE_ID_PROP,
           opportunity_id: { type: 'string' },
         }, ['site_id', 'opportunity_id']),
         mutating: true,
+        // Eslesen yayimlanmis makale varsa onun govdesi yeniden yazilir
+        // (content-opportunity.service generateArticle, mode: 'update') — ustune yazma.
+        destructive: true,
         requiresFeature: 'contentOpportunities',
         handler: async (user, args) => {
           const site = await this.resolveSite(user, args.site_id);
@@ -481,29 +639,33 @@ export class McpToolsService {
       // ── MAKALELER ────────────────────────────────────────
       {
         name: 'list_articles',
+        scope: 'articles:read',
         title: 'Makaleleri listele',
         description: 'Sitenin makaleleri: baslik, durum (DRAFT/GENERATING/READY_TO_PUBLISH/PUBLISHED...), QA durumu, yayin tarihi.',
         inputSchema: this.schema({
           ...SITE_ID_PROP,
-          status: { type: 'string', description: 'Durum filtresi (opsiyonel)' },
+          status: { type: 'string', enum: ARTICLE_STATUSES, description: 'Durum filtresi (opsiyonel)' },
           limit: { type: 'number', description: 'Varsayilan 20, max 50' },
         }, ['site_id']),
         handler: async (user, args) => {
           const site = await this.resolveSite(user, args.site_id);
+          const status = statusFilter(args.status, ARTICLE_STATUSES) as ArticleStatus | undefined;
           const articles = await this.prisma.article.findMany({
-            where: { siteId: site.id, ...(args.status ? { status: args.status as any } : {}) },
+            where: { siteId: site.id, ...(status ? { status } : {}) },
             select: {
               id: true, title: true, slug: true, status: true, qaStatus: true,
               editorScore: true, wordCount: true, publishedAt: true, createdAt: true,
             },
             orderBy: { createdAt: 'desc' },
-            take: Math.min(Number(args.limit) || 20, 50),
+            // Negatif take Prisma'da listeyi tersten okur; 1-50 araligi
+            take: Math.min(Math.max(Math.trunc(Number(args.limit)) || 20, 1), 50),
           });
           return { articles };
         },
       },
       {
         name: 'get_article',
+        scope: 'articles:read',
         title: 'Makale detayi',
         description: 'Tek makalenin metadata + QA raporu + govde ozeti (ilk 2000 karakter).',
         inputSchema: this.schema({
@@ -535,13 +697,16 @@ export class McpToolsService {
       },
       {
         name: 'create_article',
+        scope: 'articles:write',
         title: 'Makale uret',
-        description: 'Verilen konu icin 6-ajan pipeline ile makale uretimini kuyruğa alir (kota tuketir). Kullanici acikca istemeden cagirma.',
+        description: 'Verilen konu icin 5 ajanli uretim hattiyla yeni bir makale uretimini kuyruğa alir (kota tuketir). Kullanici acikca istemeden cagirma.',
         inputSchema: this.schema({
           ...SITE_ID_PROP,
           topic: { type: 'string', description: 'Makale konusu / basligi' },
         }, ['site_id', 'topic']),
         mutating: true,
+        // Yeni makale kaydi acar, var olani degistirmez (job payload'inda autoPublish yok)
+        destructive: false,
         handler: async (user, args) => {
           const site = await this.resolveSite(user, args.site_id);
           const topic = String(args.topic ?? '').trim();
@@ -594,6 +759,9 @@ export class McpToolsService {
           effort: { type: 'string', description: 'easy | medium | hard' },
         }, ['site_id', 'title']),
         mutating: true,
+        // Yalnizca yeni madde ekler; yalnizca kendi veritabanimiz
+        destructive: false,
+        openWorld: false,
         handler: async (user, args) => {
           const site = await this.resolveSite(user, args.site_id);
           return this.actionPlans.create(site.id, {
@@ -615,6 +783,9 @@ export class McpToolsService {
           status: { type: 'string', description: 'todo | in_progress | done | dismissed' },
         }, ['site_id', 'item_id', 'status']),
         mutating: true,
+        // Mevcut maddenin durumunu (ve doneAt'i) ustune yazar — ekleme degil
+        destructive: true,
+        openWorld: false,
         handler: async (user, args) => {
           const site = await this.resolveSite(user, args.site_id);
           return this.actionPlans.update(site.id, String(args.item_id), { status: String(args.status) });
@@ -624,6 +795,7 @@ export class McpToolsService {
       // ── PRODUCT RADAR + COMMUNITY ────────────────────────
       {
         name: 'get_product_radar',
+        scope: 'audit:read',
         requiresFeature: 'productRadar',
         title: 'Product Radar',
         description: 'AI asistanlar kullanicinin kategorisinde hangi urunleri oneriyor — son tarama: urun siralamasi + markanin listede olup olmadigi.',
@@ -636,6 +808,7 @@ export class McpToolsService {
       },
       {
         name: 'get_community_opportunities',
+        scope: 'audit:read',
         title: 'Topluluk firsatlari',
         description: 'Reddit/Quora\'da markayla ilgili cevaplanabilir sorular + AI taslak cevaplar (insan onayi bekler).',
         inputSchema: this.schema({
@@ -656,6 +829,7 @@ export class McpToolsService {
       // ── ANALYTICS ────────────────────────────────────────
       {
         name: 'get_analytics_summary',
+        scope: 'analytics:read',
         title: 'GSC analytics ozeti',
         description: 'Son GSC gunluk snapshot\'lari: tiklama, gosterim, CTR, pozisyon (son 14 gun).',
         inputSchema: this.schema(SITE_ID_PROP, ['site_id']),
@@ -693,7 +867,9 @@ export class McpToolsService {
       {
         name: 'get_app_keywords',
         title: 'App keyword siralamalari',
-        description: 'Izlenen uygulamanin keyword\'leri: guncel sira, onceki sira, en iyi sira, populerlik/zorluk skorlari.',
+        // Skorlarin kaynagi aso/keyword.service.ts scoreKeyword (aso-v2): popularity =
+        // traffic.installs.score, difficulty = difficulty.score; 1-10 -> x10.
+        description: 'Izlenen uygulamanin keyword\'leri: guncel, onceki ve en iyi magaza sirasi. popularity Apple/Google arama hacmi veya populerligi DEGILDIR: RanksUp talep tahminidir — magaza aramasinda bu terimle ilk 10\'da cikan uygulamalarin ortalama buyuklugu (Google Play\'de yukleme, App Store\'da degerlendirme sayisi), 10-100 olcegi. difficulty: ayni ilk 10 uzerinden baslik eslesmesi, terimi hedefleyen rakip sayisi, uygulama buyuklugu, puan ve guncelligin agirlikli skoru (10-100). null ya da 0 = olculemedi.',
         inputSchema: this.schema({
           app_id: { type: 'string', description: 'list_tracked_apps\'tan gelen app id' },
         }, ['app_id']),

@@ -7,9 +7,16 @@ import type { LucideIcon } from 'lucide-react';
 import {
   Activity, AlertCircle, AlertTriangle, ArrowRight, Bot, CalendarClock, CheckCircle2, ClipboardList,
   Eye, FileText, Image as ImageIcon, Loader2, Pause, PenLine, Plug, PieChart, Power, Rocket,
-  ScanSearch, Send, ShieldCheck, Sparkles, Wand2, Wrench, XCircle,
+  ScanSearch, Send, ShieldAlert, ShieldCheck, Sparkles, Wand2, Wrench, XCircle,
 } from 'lucide-react';
-import { api } from '@/lib/api';
+import {
+  aiCitationOf, aiCitationSkipLabel, api, autoFixIssues, autoFixMessages, geoAccessOf, geoSampleNote, isRobotsFixKey,
+  isUnverifiedCheck, rootFileTarget,
+} from '@/lib/api';
+import { crawlAccessTitle, currentCrawlAccess, type CrawlAccess } from '@/lib/crawl-access';
+// robots.txt yalniz onizleme + acik onayla yazilir (API 'preview_required') — Ajan Hazirligi ile ayni diyalog
+import { AutoFixPreviewDialog } from '@/app/(dashboard)/sites/[id]/agent-readiness/auto-fix-preview-dialog';
+import { CrawlAccessNotice } from '@/components/crawl-access-notice';
 import { cn } from '@/lib/utils';
 import { siteHref, type SiteRoute } from '@/lib/site-routes';
 import { Card } from '@/components/ui/card';
@@ -49,11 +56,13 @@ export function SiteOverviewDashboard({
   const showTestimonial =
     published.length >= 1 ||
     (articles.length >= 3 && new Date(site.createdAt ?? 0).getTime() < Date.now() - 7 * 86400_000);
+  // Son tarama anasayfayi okuyamadiysa eldeki skor guncel degil (API yeni skor uretmez)
+  const access = currentCrawlAccess(site?.crawlAccess ?? audit?.accessBlocked, audit);
 
   return (
     <div className="space-y-6">
       <NextStepCard site={site} audit={audit} articles={articles} publishTargets={publishTargets ?? []} onRefresh={onRefresh} />
-      <KpiRow siteId={site.id} audit={audit} articles={articles} />
+      <KpiRow siteId={site.id} audit={audit} articles={articles} access={access} />
       <OverviewTabs site={site} audit={audit} articles={articles} />
       {showTestimonial && <TestimonialWidget siteId={site.id} />}
     </div>
@@ -87,7 +96,8 @@ type Step = {
 const FIX_LABEL: Record<string, string> = {
   sitemap_xml: 'Sitemap.xml',
   robots_txt: 'Robots.txt',
-  llms_txt: 'llms.txt (AI tarayıcı izni)',
+  // llms.txt bir izin dosyasi DEGIL (tarayici izni robots.txt'te); eski etiket yanlisti
+  llms_txt: 'llms.txt',
   faq_schema: 'FAQ şeması',
   article_schema: 'Article şeması',
   organization_schema: 'Organization şeması',
@@ -105,6 +115,8 @@ function NextStepCard({ site, audit, articles, publishTargets, onRefresh }: {
 }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [stuckCount, setStuckCount] = useState(0);
+  /** robots.txt onizleme diyalogu — acikken duzeltme anahtari ('robots_txt') */
+  const [robotsPreviewKey, setRobotsPreviewKey] = useState<string | null>(null);
 
   // Takili sayfalar (DETECTED) — plan disindaysa API reddeder, sessizce 0
   useEffect(() => {
@@ -116,7 +128,7 @@ function NextStepCard({ site, audit, articles, publishTargets, onRefresh }: {
   }, [site.id]);
 
   const steps = useMemo(
-    () => buildSteps({ site, audit, articles, publishTargets, stuckCount, onRefresh }),
+    () => buildSteps({ site, audit, articles, publishTargets, stuckCount, onRefresh, onPreviewRobots: setRobotsPreviewKey }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [site, audit, articles, publishTargets, stuckCount],
   );
@@ -128,6 +140,17 @@ function NextStepCard({ site, audit, articles, publishTargets, onRefresh }: {
   };
 
   const href = (route: SiteRoute) => siteHref(site.id, route);
+
+  const robotsDialog = (
+    <AutoFixPreviewDialog
+      siteId={site.id}
+      fixKey={robotsPreviewKey}
+      checkName="Robots.txt"
+      open={robotsPreviewKey !== null}
+      onOpenChange={(o) => { if (!o) setRobotsPreviewKey(null); }}
+      onApplied={onRefresh}
+    />
+  );
 
   if (steps.length === 0) {
     return (
@@ -194,6 +217,7 @@ function NextStepCard({ site, audit, articles, publishTargets, onRefresh }: {
           })}
         </ul>
       )}
+      {robotsDialog}
     </Card>
   );
 }
@@ -222,8 +246,10 @@ function StepAction({ step, busy, onRun, primary }: { step: Step; busy: boolean;
  * Adim listesi — ONCELIK SIRASIYLA. Ilk oge birincil kart olur.
  * Saf fonksiyon: ayni girdi ayni listeyi verir (tek kural kaynagi).
  */
-function buildSteps({ site, audit, articles, publishTargets, stuckCount, onRefresh }: {
+function buildSteps({ site, audit, articles, publishTargets, stuckCount, onRefresh, onPreviewRobots }: {
   site: any; audit: any; articles: any[]; publishTargets: any[]; stuckCount: number; onRefresh: () => void;
+  /** robots.txt onizleme diyalogunu acar (toplu duzeltmeye girmez) */
+  onPreviewRobots: (fixKey: string) => void;
 }): Step[] {
   const href = (route: SiteRoute) => siteHref(site.id, route);
   const steps: Step[] = [];
@@ -232,13 +258,25 @@ function buildSteps({ site, audit, articles, publishTargets, stuckCount, onRefre
   const activeTarget =
     publishTargets.find((t: any) => t?.isActive && t?.isDefault) ?? publishTargets.find((t: any) => t?.isActive);
   const hasPublishTarget = !!activeTarget;
+  // Kok dosyalari (sitemap.xml / robots.txt / llms.txt) yalniz FTP / SFTP / cPanel yazar;
+  // WordPress REST yazamaz — sunucudaki auto-fix ayni kurali uygular (lib/api.ts rootFileTarget)
+  const fileTarget = rootFileTarget(publishTargets);
 
-  const overallScore: number | null = audit?.overallScore ?? null;
-  const geoScore: number | null = audit?.geoScore ?? null;
-  const issues: any[] = Array.isArray(audit?.issues) ? audit.issues : [];
+  // Son tarama anasayfayi okuyamadiysa eldeki tarama guncel degil (engel
+  // sayfasindan uretilmis olabilir): ondan otomatik duzeltme / sorun adimi
+  // turetilmez — once erisim duzelmeli.
+  const access = currentCrawlAccess(site?.crawlAccess ?? audit?.accessBlocked, audit);
+  const overallScore: number | null = access ? null : (audit?.overallScore ?? null);
+  const geoScore: number | null = access ? null : (audit?.geoScore ?? null);
+  const issues: any[] = !access && Array.isArray(audit?.issues) ? audit.issues : [];
   // fixRoute (API /audit/latest ekler): auto_fix = kok dosya uretilip yuklenir;
-  // snippet = meta/sema sayfa sayfa; images = alt metni
-  const autoFixable = issues.filter((i: any) => i.fixRoute === 'auto_fix');
+  // snippet = meta/sema sayfa sayfa; images = alt metni. Dogrulanamayan kontrolun
+  // sorunu otomatik duzeltme almaz (lib/api.ts autoFixIssues).
+  const autoFixable = !access ? autoFixIssues(audit) : [];
+  // robots.txt toplu yazilmaz: mevcut dosyayla birlesir, onizleme + acik onay ister
+  const robotsFixable = autoFixable.filter((i: any) => isRobotsFixKey(i.checkId));
+  const bulkFixable = autoFixable.filter((i: any) => !isRobotsFixKey(i.checkId));
+  const geo = geoAccessOf(audit);
   const snippetFixable = issues.filter((i: any) => i.fixRoute === 'snippet');
   const imageAltIssues = issues.filter((i: any) => i.fixRoute === 'images');
   const scheduled = articles.filter((a) => a.status === 'SCHEDULED');
@@ -249,9 +287,35 @@ function buildSteps({ site, audit, articles, publishTargets, stuckCount, onRefre
 
   const aiProviders: any[] = audit?.checks?.aiCitations?.providers ?? [];
   const noAiSnapshot = aiProviders.length === 0 || aiProviders.every((p: any) => !p.available);
+  // Denetimin AI adımı haftalık ölçüm hakkı dolu olduğu için atlandıysa son 7 günde bir ölçüm
+  // yapılmış demektir ve yenisi şu an başlatılamaz — "AI görünürlüğünü ölç" çıkmaz yol olurdu.
+  const aiWeeklyLimitSkip = aiCitationOf(audit)?.skipped?.code === 'WEEKLY_MEASUREMENT_LIMIT';
+
+  // 0) Tarayicimiz siteyi okuyamiyor (WAF, robots.txt, DNS...) — skor uretilmedi.
+  // "Taramayi baslat" demek yaniltici olur: once erisime izin verilmeli.
+  if (access) {
+    steps.push({
+      id: 'crawl-access',
+      tone: access.state === 'blocked' ? 'warning' : 'danger',
+      icon: ShieldAlert,
+      title: crawlAccessTitle(access),
+      desc: `${access.reason} ${access.hint}`.trim(),
+      cta: 'Tekrar dene',
+      run: async () => {
+        try {
+          await api.runAuditNow(site.id);
+          toast.success('Erişim sağlandı, site skoru hesaplandı');
+        } catch (err: any) {
+          toast.error(err.message);
+        } finally {
+          onRefresh();
+        }
+      },
+    });
+  }
 
   // 1) Tarama yok
-  if (overallScore === null) {
+  if (overallScore === null && !access) {
     steps.push({
       id: 'audit',
       tone: onboarded ? 'warning' : 'brand',
@@ -277,8 +341,20 @@ function buildSteps({ site, audit, articles, publishTargets, stuckCount, onRefre
       icon: Plug,
       title: 'Yayın hedefi ekle',
       desc: autoFixable.length > 0
-        ? `${autoFixable.length} sorun otomatik düzeltilebilir ama bağlı bir yayın hedefi yok. WordPress, FTP ya da SFTP ekle; sitemap.xml, robots.txt gibi dosyalar yüklensin.`
+        ? `${autoFixable.length} sorun sitemap.xml, robots.txt ya da llms.txt yüklenerek düzeltilebilir ama bağlı bir yayın hedefi yok. Bu dosyalar için FTP, SFTP ya da cPanel ekle; yazılar için WordPress de olur.`
         : 'Üretilen yazıların nereye yayınlanacağı belli değil. WordPress, FTP ya da SFTP ekle.',
+      cta: 'Yayın hedefi ekle',
+      href: href('publishTargets'),
+    });
+  } else if (hasPublishTarget && !fileTarget && bulkFixable.length > 0) {
+    // Hedef var ama kok dosya yazamiyor (or. yalniz WordPress): "Simdi duzelt" sessizce
+    // 'no_file_target' hatasi alirdi — once dogru hedef
+    steps.push({
+      id: 'file-target',
+      tone: 'warning',
+      icon: Plug,
+      title: 'Kök dosyalar için FTP / SFTP hedefi ekle',
+      desc: `${bulkFixable.length} sorun sitemap.xml / llms.txt yüklenerek düzeltilebilir. Bunun için FTP, SFTP ya da cPanel bağlantısı gerekli; WordPress REST kök dosya yazamaz.`,
       cta: 'Yayın hedefi ekle',
       href: href('publishTargets'),
     });
@@ -297,38 +373,57 @@ function buildSteps({ site, audit, articles, publishTargets, stuckCount, onRefre
     });
   }
 
-  // 4) Otomatik duzeltme (aktif hedef VARSA)
-  if (autoFixable.length > 0 && hasPublishTarget) {
-    const labels = autoFixable.map((i: any) => fixLabel(i.checkId)).filter(Boolean);
+  // 4) Otomatik duzeltme — yalniz sitemap.xml / llms.txt ve kok dosya yazabilen hedef VARSA
+  if (bulkFixable.length > 0 && fileTarget) {
+    const fixIds: string[] = [...new Set<string>(bulkFixable.map((i: any) => i.checkId).filter(Boolean))];
+    const labels = fixIds.map(fixLabel);
     const labelList = labels.length <= 3 ? labels.join(', ') : `${labels.slice(0, 3).join(', ')} ve ${labels.length - 3} tane daha`;
     steps.push({
       id: 'autofix',
       tone: 'brand',
       icon: Wand2,
-      title: `${autoFixable.length} SEO sorununu otomatik düzelt`,
-      desc: `${activeTarget?.name || (activeTarget?.type ? String(activeTarget.type).toUpperCase() : 'Yayın hedefin')} üzerine yüklenecek: ${labelList}.`,
+      title: `${bulkFixable.length} SEO sorununu otomatik düzelt`,
+      // Yazimdan once kok klasor kaniti icin ranksup-verify.txt yuklenir ve sitede kalir
+      // (api audit/auto-fix.service.ts proveRootDir / ROOT_VERIFY_NOTE) — kullanici bilsin
+      desc: `${fileTarget.name || String(fileTarget.type ?? '').toUpperCase() || 'Yayın hedefin'} üzerine yüklenecek: ${labelList}. Dosya yoksa oluşturulur; senin dosyanın üzerine yazılmaz. Yazmadan önce küçük bir doğrulama dosyası (ranksup-verify.txt) yüklenip yayın hedefinin bu siteyi sunduğu kontrol edilir; bu dosya sitende kalır.`,
       cta: 'Şimdi düzelt',
       run: async () => {
         try {
-          const fixIds = autoFixable.map((i: any) => i.checkId).filter(Boolean);
           toast.message(`Uygulanıyor: ${labels.join(', ')}`, {
             description: 'Dosyalar üretilip yayın hedefine yükleniyor (10-20 sn).',
           });
-          const result: any = await api.applyAutoFix(site.id, fixIds);
+          const result = await api.applyAutoFix(site.id, fixIds);
           if (result?.reason === 'no-publish-target') {
-            toast.error('Aktif yayın hedefi yok — önce Yayın Hedefleri sayfasından WordPress, FTP ya da SFTP ekle.', { duration: 9000 });
+            toast.error('Aktif yayın hedefi yok — önce Yayın Hedefleri sayfasından FTP, SFTP ya da cPanel ekle.', { duration: 9000 });
             return;
           }
-          const applied: string[] = Array.isArray(result?.applied) ? result.applied : [];
-          const errors: Array<{ fix: string; error: string }> = Array.isArray(result?.errors) ? result.errors : [];
-          const unsupported: string[] = Array.isArray(result?.unsupported) ? result.unsupported : [];
-          if (applied.length > 0) toast.success(`${applied.length} düzeltme uygulandı: ${applied.map(fixLabel).join(', ')}`, { duration: 7000 });
-          if (errors.length > 0) toast.error(`${errors.length} düzeltme başarısız — ${errors.map((e) => `${fixLabel(e.fix)}: ${e.error}`).join(' · ')}`, { duration: 9000 });
-          if (unsupported.length > 0) toast.warning(`${unsupported.length} madde otomatik düzeltilemez: ${unsupported.map(fixLabel).join(', ')}`, { duration: 9000 });
-          if (applied.length === 0 && errors.length === 0 && unsupported.length === 0) toast.warning('Hiçbir değişiklik yapılmadı.');
+          // Hata ve "degisiklik gerekmedi" metinleri API'den, oldugu gibi. "Uygulandi"
+          // yalniz sitede dogrulanan dosya icin; yuklenip canli adreste gorunmeyen
+          // dosya uyari olarak (lib/api.ts autoFixMessages, onizleme diyalogu ile ayni kural)
+          const msg = autoFixMessages(result, fixLabel);
+          if (msg.verified.length > 0) toast.success(`${msg.verified.length} düzeltme uygulandı ve sitede doğrulandı: ${msg.verified.map(fixLabel).join(', ')}`, { duration: 7000 });
+          if (msg.unverifiedFixes.length > 0) toast.warning(`${msg.unverifiedFixes.map(fixLabel).join(', ')} yazıldı ama sitede doğrulanamadı`, { description: msg.unverified.join(' · '), duration: 10000 });
+          if (msg.errors.length > 0) toast.error(msg.errors.length === 1 ? 'Düzeltme uygulanmadı' : `${msg.errors.length} düzeltme uygulanmadı`, { description: msg.errors.join(' · '), duration: 10000 });
+          if (msg.unchanged.length > 0) toast.message('Değişiklik gerekmedi', { description: msg.unchanged.join(' · '), duration: 8000 });
+          if (msg.unsupported.length > 0) toast.warning(`${msg.unsupported.length} madde otomatik düzeltilemez: ${msg.unsupported.map(fixLabel).join(', ')}`, { duration: 9000 });
+          if (msg.applied.length === 0 && msg.errors.length === 0 && msg.unchanged.length === 0 && msg.unsupported.length === 0) toast.warning('Hiçbir değişiklik yapılmadı.');
           setTimeout(onRefresh, 3000);
         } catch (err: any) { toast.error(err.message); }
       },
+    });
+  }
+
+  // 4b) robots.txt — toplu yazilmaz; onizleme diyalogu (yayin hedefi olmadan da elle kopyalama sunar)
+  if (robotsFixable.length > 0) {
+    const key: string = robotsFixable[0]?.checkId ?? 'robots_txt';
+    steps.push({
+      id: 'robots-preview',
+      tone: 'brand',
+      icon: Eye,
+      title: 'robots.txt önerisini önizle',
+      desc: 'Eksik AI bot grupları mevcut kurallarına dokunulmadan eklenir; yazmadan önce farkı görüp onaylarsın. Engelleri kaldırmak senin kararın.',
+      cta: 'Önizle',
+      run: async () => { onPreviewRobots(key); },
     });
   }
 
@@ -388,14 +483,29 @@ function buildSteps({ site, audit, articles, publishTargets, stuckCount, onRefre
 
   // 9) GEO skoru dusuk ve otomatik duzeltme yok
   if (geoScore !== null && geoScore < 50 && autoFixable.length === 0) {
+    const note = geoSampleNote(geo.sample);
     steps.push({
       id: 'geo',
       tone: 'warning',
       icon: Sparkles,
       title: `AI görünürlük altyapısı zayıf (${geoScore}/100)`,
-      desc: 'Şema, SSS, llms.txt ve okunabilir içerik eksik. Sayfa SEO aracıyla sayfa sayfa iyileştir.',
+      desc: `Şema, SSS, llms.txt ve okunabilir içerik eksik. Sayfa SEO aracıyla sayfa sayfa iyileştir.${note ? ` ${note}` : ''}`,
       cta: 'İyileştir',
       href: href('snippet'),
+    });
+  }
+
+  // 9b) GEO orneklemi erisim engeline takildi — skor yok; "zayif" demek yalan olurdu.
+  // Anasayfa taramasi da engelliyse (access) 0. adim zaten nedeni soyluyor.
+  if (!access && audit && audit.geoScore == null && geo.blocked) {
+    steps.push({
+      id: 'geo-blocked',
+      tone: 'warning',
+      icon: ShieldAlert,
+      title: 'AI arama skoru ölçülemedi',
+      desc: `${geo.blocked.reason} ${geo.blocked.hint}`.trim(),
+      cta: 'Site skoruna git',
+      href: href('audit'),
     });
   }
 
@@ -413,13 +523,14 @@ function buildSteps({ site, audit, articles, publishTargets, stuckCount, onRefre
   }
 
   // 11) AI olcumu yok
-  if (noAiSnapshot && overallScore !== null) {
+  if (noAiSnapshot && !aiWeeklyLimitSkip && overallScore !== null) {
     steps.push({
       id: 'ai-citation',
       tone: 'info',
       icon: Bot,
       title: 'AI görünürlüğünü ölç',
-      desc: 'ChatGPT, Claude, Gemini ve Perplexity siteni biliyor mu? Ölç ve takibe al.',
+      // Ölçülen 6 asistan (ai-citation.service.ts runForSite)
+      desc: 'ChatGPT, Claude, Gemini, Perplexity, Grok ve DeepSeek siteni biliyor mu? Ölç ve takibe al.',
       cta: 'Ölçümü başlat',
       href: href('visibility'),
     });
@@ -471,7 +582,7 @@ function KpiTile({ href, loading, title, children }: { href: string; loading?: b
 
 const pct = (v: number | null | undefined) => (typeof v === 'number' ? v : null);
 
-function KpiRow({ siteId, audit, articles }: { siteId: string; audit: any; articles: any[] }) {
+function KpiRow({ siteId, audit, articles, access }: { siteId: string; audit: any; articles: any[]; access?: CrawlAccess | null }) {
   const [kpis, setKpis] = useState<any>(null);
   const [kpisLoading, setKpisLoading] = useState(true);
   const [headline, setHeadline] = useState<any>(null);
@@ -495,19 +606,32 @@ function KpiRow({ siteId, audit, articles }: { siteId: string; audit: any; artic
 
   const href = (route: SiteRoute) => siteHref(siteId, route);
 
-  // Site skoru — baglamdan
-  const overallScore: number | null = audit?.overallScore ?? null;
+  // Site skoru — baglamdan. Son deneme engellendiyse eski skor gosterilmez (guncel degil).
+  const overallScore: number | null = access ? null : (audit?.overallScore ?? null);
   const issues: any[] = Array.isArray(audit?.issues) ? audit.issues : [];
-  const autoFixable = issues.filter((i: any) => i.fixRoute === 'auto_fix').length;
+  const autoFixable = autoFixIssues(audit).length;
 
   // Icerik — baglamdan
   const published = articles.filter((a) => a.status === 'PUBLISHED').length;
   const scheduled = articles.filter((a) => a.status === 'SCHEDULED').length;
   const generating = articles.filter((a) => a.status === 'GENERATING' || a.status === 'EDITING').length;
 
-  // AI gorunurluk manseti — grafikle AYNI kaynak (7g ortalama); yoksa tarama anindaki skor
-  const aiScore: number | null = headline?.score ?? audit?.checks?.aiCitations?.score ?? null;
+  // AI gorunurluk manseti — grafikle AYNI kaynak (7g ortalama); yoksa tarama anindaki skor.
+  // Taramanin AI adimi atlandiysa (haftalik hak, kota) o skor bir olcum DEGIL: eski kayitlar
+  // bu durumda 0 yaziyordu, tile "0" gosteriyordu. Yalniz gercekten olculen skor yedek olur.
+  const auditAi = aiCitationOf(audit);
+  const aiScore: number | null = headline?.score ?? (auditAi?.measured ? auditAi.score : null);
   const aiHint = headline?.method === 'rolling' ? '7 günlük ortalama' : headline?.method === 'first-run' ? 'İlk ölçüm' : 'Atıf skoru';
+  // F10: atif olcum yontemi (CITATION_MATCH_VERSION) iki pencere arasinda degistiyse fark siteden
+  // degil olcuden — rozet gosterilmez, notr not yazilir. Alani tasimayan eski API'de false.
+  const aiMethodChanged = headline?.methodChanged === true;
+  const aiDelta = !aiMethodChanged && typeof headline?.deltaVsPrev === 'number' && headline.deltaVsPrev !== 0
+    ? headline.deltaVsPrev
+    : undefined;
+  // Kutu dar: yalniz en sik neden (haftalik hak, sonraki tarihle) yazilir; digerleri Site Skoru kartinda
+  const aiTileHint = aiScore === null
+    ? (auditAi?.skipped?.code === 'WEEKLY_MEASUREMENT_LIMIT' ? aiCitationSkipLabel(auditAi) : 'Henüz ölçülmedi')
+    : aiMethodChanged ? `${aiHint} · Kıyas yok: ölçüm yöntemi güncellendi` : aiHint;
 
   // Mansetteki anilma YALNIZ markasiz sorulardan: marka adi soruda gecince anilmasi totolojik
   const mention = pct(kpis?.mentionRate?.value);
@@ -545,7 +669,7 @@ function KpiRow({ siteId, audit, articles }: { siteId: string; audit: any; artic
             label="Site skoru"
             value={overallScore ?? '—'}
             suffix={overallScore !== null ? '/100' : undefined}
-            hint={overallScore === null ? 'Tarama bekleniyor' : autoFixable > 0 ? `${issues.length} sorun · ${autoFixable} otomatik` : `${issues.length} sorun`}
+            hint={access ? crawlAccessTitle(access) : overallScore === null ? 'Tarama bekleniyor' : autoFixable > 0 ? `${issues.length} sorun · ${autoFixable} otomatik` : `${issues.length} sorun`}
           />
         </KpiTile>
         <KpiTile href={href('visibility')} loading={headlineLoading}>
@@ -554,9 +678,9 @@ function KpiRow({ siteId, audit, articles }: { siteId: string; audit: any; artic
             icon={Sparkles}
             label="AI görünürlük"
             value={aiScore ?? '—'}
-            delta={typeof headline?.deltaVsPrev === 'number' && headline.deltaVsPrev !== 0 ? headline.deltaVsPrev : undefined}
+            delta={aiDelta}
             deltaSuffix=" puan"
-            hint={aiScore === null ? 'Henüz ölçülmedi' : aiHint}
+            hint={aiTileHint}
           />
         </KpiTile>
         {/* Aciklama title'da: link icine tiklanabilir ipucu koymak gezinmeyi tetikler */}
@@ -745,6 +869,10 @@ function UpcomingArticles({ siteId, articles }: { siteId: string; articles: any[
 
 /** Site skoru ozeti: ilk 3 sorun + tamamina baglanti */
 function AuditSummary({ site, audit }: { site: any; audit: any }) {
+  const access = currentCrawlAccess(site?.crawlAccess ?? audit?.accessBlocked, audit);
+  if (access) {
+    return <CrawlAccessNotice access={access} staleScoreAt={audit?.ranAt} compact />;
+  }
   if (!audit) {
     return (
       <div className="flex items-center gap-3 rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
@@ -802,7 +930,10 @@ function AuditSummary({ site, audit }: { site: any; audit: any }) {
           const isCritical = iss.severity === 'critical';
           const isWarning = iss.severity === 'warning' || iss.severity === 'major';
           const Icon = isCritical ? AlertCircle : isWarning ? AlertTriangle : CheckCircle2;
-          const route = iss.fixRoute === 'auto_fix' ? 'otomatik' : iss.fixRoute === 'snippet' ? 'sayfa SEO' : iss.fixRoute === 'images' ? 'görseller' : null;
+          // robots.txt onizlemeyle yazilir; dogrulanamayan kontrolun sorunu otomatik rota almaz
+          const route = iss.fixRoute === 'auto_fix'
+            ? (isUnverifiedCheck(audit, iss.checkId) ? null : isRobotsFixKey(iss.checkId) ? 'önizlemeli' : 'otomatik')
+            : iss.fixRoute === 'snippet' ? 'sayfa SEO' : iss.fixRoute === 'images' ? 'görseller' : null;
           return (
             <li key={`${iss.checkId ?? iss.type}-${i}`} className="flex items-start gap-2.5 py-2">
               <Icon className={cn('mt-0.5 h-4 w-4 shrink-0', isCritical ? 'text-danger' : isWarning ? 'text-warning' : 'text-muted-foreground')} aria-hidden />
@@ -887,7 +1018,8 @@ export function AutopilotControl({
       box: 'border-brand/30 bg-brand/5',
       chip: 'bg-brand/15 text-brand',
       text: 'text-brand',
-      desc: 'AI tüm akışı yönetir: üretim, görsel, şema, yayın ve sosyal paylaşım. Sen yalnızca haftalık raporu okursun.',
+      // Sosyal paylasim modulu yok (API'de modul/route yok) — vaat edilmez
+      desc: 'AI tüm akışı yönetir: üretim, görsel, şema ve yayın. Sen yalnızca haftalık raporu okursun.',
     },
   }[stateKey];
   const StateIcon = config.icon;

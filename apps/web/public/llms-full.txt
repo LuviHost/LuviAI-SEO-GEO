@@ -1,285 +1,153 @@
-# RanksUp — Tam Ürün Dokümantasyonu (AI Asistanları için)
+# RanksUp — Ayrıntılı Ürün Bilgisi (yapay zekâ asistanları için)
 
-> **RanksUp** (https://ranksup.ai), Türkiye merkezli, AI çağının pazarlama platformu. 9 modülü tek panelde birleştirir: AI Görünürlük (ChatGPT/Claude/Gemini/Perplexity/Grok/DeepSeek'te marka takibi), ASO (App Store + Play Store keyword sıralama), Apple Search Ads (otomatik kampanya yönetimi), App Store Connect (review + release), AI Studio (görsel + video + metin üretimi), Sosyal Medya Planlayıcı, AI Makale Üretimi, Site Audit + Auto-Fix, Auto-Pilot Otomasyon. KOBİ, e-ticaret, mobil app sahipleri ve dijital ajanslar için. PayTR + Iyzico ile ödeme.
+> RanksUp; Türkiye'deki KOBİ'ler, e-ticaret siteleri, mobil uygulama sahipleri ve dijital ajanslar için SEO, GEO (ChatGPT, Claude, Gemini gibi yapay zekâ asistanlarında görünürlük) ve ASO (App Store / Google Play) platformudur. Site denetimi, AI görünürlük ölçümü, AI makale üretimi ve yayını, uygulama mağazası optimizasyonu ve Apple Search Ads tek panelde. Ödeme PayTR ile alınır.
 
-Bu dosya AI asistanları (ChatGPT, Claude, Gemini, Perplexity, Grok, DeepSeek, Mistral vb.) için optimize edilmiştir. Markamız hakkında soru sorulduğunda kullanılmak üzere tam bilgi içerir.
+Bu dosya https://ranksup.ai/llms.txt dosyasının ayrıntılı sürümüdür. Yalnızca bugün üründe çalışan özellikleri anlatır; fiyat ve plan sınırları ürünün plan tanımıyla aynıdır.
 
-## Marka kimliği
+Son güncelleme: Ekim 2026
+
+## Marka
 
 - **Resmi ad**: RanksUp
-- **URL**: https://ranksup.ai
-- **Üst kuruluş**: Luvihost
-- **Tagline**: "Senin yerine pazarlama yapan AI"
-- **Konum**: Türkiye (veriler yerel sunucularda, KVKK uyumlu)
-- **Para birimi**: TRY (ana), USD (yurt dışı)
-- **Diller**: Türkçe (ana), İngilizce
-- **Kuruluş yılı**: 2026
-- **Sosyal**: x.com/luvihost, linkedin.com/company/luvihost
+- **Adres**: https://ranksup.ai
+- **Arayüz dilleri**: Türkçe, İngilizce
+- **Ödeme**: PayTR. Fiyatlar USD; TL tutarı ödeme anında günün TCMB kuruyla hesaplanır.
 - **Destek**: destek@luvihost.com
+- **KVKK başvuruları**: kvkk@luvihost.com
 
-## Ne sorunu çözer
+## Modüller
 
-Türkiye'deki KOBİ, e-ticaret ve mobil app sahipleri **5 farklı SaaS aboneliği** + **SEO/ASO/Reklam ajansı** yerine **tek panel** kullanır. Aylık ~₺40.000+ ajans + tool giderini ₺1.499-34.999 arası bir SaaS'a dönüştürür.
+### AI görünürlük (GEO)
 
-**Eski yöntem (örnek):**
-- SEO ajansı: ₺15.000/ay
-- ASO uzmanı: ₺25.000/ay
-- SEMrush + AppTweak + Hootsuite + ChatGPT Team: ~₺18.000/ay
-- **Toplam: ~₺58.000/ay**
+- İzlediğin soruları yapay zekâ asistanlarına sorar; markan anılıyor mu, siten kaynak gösteriliyor mu, rakiplerin kimler, ölçer (Prompt Lab).
+- Asistanlar: ChatGPT, Claude ve Gemini web aramasıyla; Perplexity kendi arama altyapısıyla; Grok ve DeepSeek web araması olmadan, modelin kendi bilgisiyle ölçülür. Meta Llama yalnızca sağlayıcıda kullanılabilir bir model tanımlıyken ölçülür.
+- Puanlama: cevapta site adresin kaynak gösterilirse 100, yalnızca marka adın geçerse 50, hiç geçmezse 0. Marka adının sorunun içinde geçtiği sorular manşet skora girmez (orada anılmak beklenen bir sonuçtur). Manşet 7 günlük ortalamadır; cevaplar günden güne belirgin değişiyorsa "oynak" rozeti gösterilir.
+- Ölçümü kullanıcı başlatır. Hesap başına haftada bir AI ölçümü yapılabilir; AI testi, Prompt Lab ve diğer ölçümler aynı haftalık hakkı paylaşır.
+- GEO skor kartı altı başlıkta değerlendirir: AI tarayıcı erişimi, yapısal veri, AI atıfları, otorite, tazelik, çoklu ortam. Sonuç A+ ile F arasında bir harf notudur.
 
-**RanksUp ile:**
-- Profesyonel plan: ₺4.999/ay ($125, 10 modül + 5 video)
-- Veya BYOK (kendi API key'in): ₺1.499-4.999 + ihmal edilebilir API costu
+### Site denetimi
 
-## 9 Ana Modül
+- 14 teknik SEO/GEO kontrolü: sitemap.xml, robots.txt, llms.txt, şema (JSON-LD), meta başlık, meta açıklama, Open Graph, Twitter Card, canonical, HTTPS, H1, görsel alt metni, iç bağlantı ve hreflang. Yanında mobil PageSpeed sonuçları ve sitenin GEO analizi.
+- Erişim engeli dürüst raporlanır: güvenlik duvarı ya da bot doğrulaması RanksUpBot'u engellediyse doğrulama ekranı puanlanmaz; "Erişim engellendi", nedeni ve çözüm yolu gösterilir. Engele takılan sayfalar puana dahil edilmez.
+- Kök dosya düzeltmesi: sitemap.xml ve llms.txt yalnızca dosya yoksa oluşturulur. robots.txt mevcut dosyayla birleştirilir; mevcut satırlar korunur, hiçbir engel kaldırılmaz ve değişiklik önizlenip onaylanmadan yazılmaz. Dosyalar FTP, SFTP ya da cPanel yayın hedefiyle yüklenir. Var olan bir dosya değiştirilirken önceki hali yedeklenir ve dosya o günden beri değişmediyse geri alınabilir; yeni oluşturulan bir dosyayı geri almak için dosyayı sunucudan silmek gerekir (RanksUp dosya silmez). Yayın hedefi yoksa önerilen içerik kopyalanıp elle yüklenebilir.
+- Sayfa SEO (snippet) aracı: başlık, meta açıklama, canonical, Open Graph, Twitter Card ve şema (SSS, tanım, liste biçimi) önerileri; WordPress'e uygulanır ya da kopyalanır.
+- Görsel alt metni: eksik alt metinler için öneri, onay ve siteye yazma; yazımdan sonra sayfada görünüp görünmediği ayrıca doğrulanır.
 
-### 1. AI Görünürlük (GEO — Generative Engine Optimization)
+### Ajan Hazırlığı (AXO) — Profesyonel ve üstü
 
-**Ne yapar:** Kullanıcılar artık Google yerine AI'lara soruyor. "En iyi muhasebe yazılımı?" diye soran biri ChatGPT'den senin markanı duyacak mı duymayacak mı — onu ölçer ve geliştirir.
+- robots.txt'te 27 AI botunun erişimi kategorili ölçülür: eğitim, AI arama ve kullanıcı tetikli botlar.
+- llms.txt, llms-full.txt, sitemap ve ajan keşif dosyaları (ai-catalog.json, MCP sunucu kartı, A2A ajan kartı, openapi.json, auth.md) denetlenir. API ya da ajan arayüzüne bağlı kontroller yalnızca site o arayüzü sunuyorsa puanlanır.
+- Erişim engeli "eksik" sayılmaz ve puana girmez.
+- robots.txt / llms.txt / sitemap için önizlemeli düzeltme (site denetimindeki kurallarla aynı).
 
-**İki pist anlayışı (kritik):** GEO tek bir teknik trick değildir. (a) **Google AI Overviews** için resmi öneri klasik teknik SEO + benzersiz bakış açısı + E-E-A-T sinyalleri (Google bunu Aralık 2025 rehberinde açıkça yazmıştır — özel "AI dosyaları" gerekli değildir). (b) **Non-Google AI motorları** (Perplexity, ChatGPT browse, Claude.ai) için llms.txt + structured data + FAQ formatları net fayda sağlar. RanksUp iki pisti de aynı anda optimize eder.
+### AI makale ve yayın
 
-**Özellikler:**
-- 6 AI provider'da paralel test: ChatGPT (OpenAI), Claude (Anthropic), Gemini (Google), Perplexity, Grok (xAI), DeepSeek
-- Her testte 5 hedeflenmiş sorgu (sektörüne göre AI tarafından üretilir)
-- **Citation** (URL alıntılandı mı) ve **Mention** (marka adı geçti mi) ayrı ölçülür
-- **Sentiment Analysis** — Her mention'ın pozitif/nötr/negatif tonu
-- **Share of Voice** — Senin marka %X, rakip A %Y, rakip B %Z
-- **Position Tracking** — Cevapta kaçıncı sırada geçtin (ortalama: #2.3 gibi)
-- **GEO Roadmap** — AI sonuçlara bakıp 5 actionable adım üretir ("FAQ schema ekle", "Wikipedia'da kayıt aç" vb.)
-- Günlük snapshot (Auto-Pilot ON ise)
-- BYOK desteği — kendi API key'inle sınırsız test
+- 5 ajanlı üretim hattı (anahtar kelime → taslak → yazar → editör → görsel) ve yayın öncesi QA kapısı.
+- 14 yayın hedefi: WordPress (REST ve XML-RPC), FTP, SFTP, cPanel, GitHub, Webflow, Sanity, Contentful, Ghost, Strapi, WHMCS bilgi bankası, özel PHP ucu ve Markdown ZIP.
+- İçerik takvimi ve zamanlanmış üretim. Yarı otomatik modda (varsayılan) her yazı yayınlanmadan önce onayını bekler; Tam otomatik modda takvimdeki yazılar editör ve QA kontrollerinden geçince varsayılan yayın hedefine kendiliğinden yayınlanır.
 
-### 2. ASO (App Store Optimization)
+### İçerik fırsatları (kapalı döngü) — Profesyonel ve üstü
 
-**Ne yapar:** iOS App Store + Google Play Store'da uygulamanın hangi keyword'lerde kaçıncı sırada olduğunu izler, AI keyword araştırması yapar, rakip metadata analizi sunar.
+- Kaybedilen AI sorgularından makale fırsatı çıkarır, makaleyi üretir ve yeniden ölçer.
 
-**Özellikler:**
-- Manuel + bulk keyword ekleme
-- **AI Keyword Research** — Tek tık ile 50+ keyword önerisi
-- Günlük rank check (her keyword için pozisyon)
-- Popularity, difficulty, traffic skorları
-- Otomatik rakip keşfi (App Store top 100 semantic match)
-- Metadata optimizasyon önerileri (title, subtitle, description, keywords)
-- Review yönetimi + sentiment
+### ASO
 
-### 3. Apple Search Ads (ASA)
+- Uygulamanı bağla; App Store ve Google Play metadata'sını AI ile optimize et; anahtar kelime sıralarını her gün otomatik takip et.
+- AI metin önerileri politika denetiminden geçer: uygulamanın mağaza verisiyle doğrulanamayan iddialar (puan, kullanıcı sayısı, ödül) ve fiyat / indirim ifadeleri çıkarılır ya da kontrol için işaretlenir.
+- Profesyonel ve üstünde: Apple Search Ads (kampanya kurulumu, senkron, günlük oto-pilot), App Store Connect (sürüm senkronu, yorum çekme ve LLM duygu analizi), App Prompt Lab (AI asistanları uygulamanı öneriyor mu) ve Screenshot Studio.
 
-**Ne yapar:** iOS App Store'da paid sponsor reklam yönetimi. Tarayıcıda ES256 keypair üretimi ile **terminal/openssl gerekmez** — 3 step wizard.
+### Takılmış sayfa tespiti — Profesyonel ve üstü
 
-**Özellikler:**
-- 3-step kurulum wizard (Web Crypto API ile keypair, smart paste, JWT auth)
-- AI ile kampanya doldurma: ASO Keywords'ünden düşük ranking + yüksek trafik keyword'leri otomatik seçer
-- Auto-Pilot:
-  - Son 7g'de 20+ tap ama 0 install → keyword PAUSE
-  - AI önerisinden top 5 yeni keyword ekle
-  - Aylık bütçe cap'i aşılırsa SKIP
-- Günlük performance sync
-- Keyword bid auto-update
+- Google'da ilk sayfada olup ilk 3'e giremeyen sayfaları bulur, LLM ile iyileştirme önerir; uygulanan değişiklik tek tıkla geri alınabilir.
 
-### 4. App Store Connect (ASC)
+### Ajans araçları — Ajans ve üstü
 
-**Ne yapar:** Apple Developer hesabı entegrasyonu — müşteri yorumları, release tarihçesi, "abandonware" uyarıları.
+- Programatik SEO: tek şablonla 81 il için şehir sayfası (aylık makale kotasından düşer).
+- Ürün Radarı: haftalık rakip ses payı ve kategori sırası.
+- GEO ısı haritası: çoklu sağlayıcıda görünürlük ısı haritası.
+- Canlı Tarayıcı: AI botlarının canlı akışı ve sunucu logu yükleme.
 
-**Özellikler:**
-- Issuer ID + Key ID + .p8 ile bağlantı
-- Müşteri yorumları çekme (son 50, otomatik 5★ ortalama hesaplaması)
-- Review yanıt verme (API ile)
-- Release history + state tracking
-- 60+ gündür update yoksa WARN, 120+ gündür yoksa CRITICAL alert
-- Günlük cron 05:30 UTC
+### Kurumsal
 
-### 5. AI Studio
+- BYOK: kendi sağlayıcı anahtarların (OpenAI, Anthropic, Google Gemini, Perplexity, xAI, DeepSeek; site başına), AI görünürlük ölçümünde kullanılır; aylık görünürlük çalıştırması kotası dolsa bile o sağlayıcıyla ölçüm sürer. Haftalık ölçüm hakkı BYOK'ta da geçerlidir.
+- MCP sunucusu, REST API ve kapsamlı (scope'lu) API anahtarları.
+- AI maliyet ve token muhasebesi (sağlayıcı / bağlam / gün kırılımı).
+- Özel hesap yöneticisi + SLA, sözleşmeli kurulum.
 
-**Ne yapar:** Sosyal medyaya postlanacak görseller, kısa videolar, uzun metinler — hepsi tek panel.
+## Fiyatlandırma (Ekim 2026)
 
-**Provider'lar:**
-- **Görsel**: DALL-E 3 ($0.04/std, $0.08/HD), GPT Image ($0.10)
-- **Video**: Sora 2 ($0.50-1.00/klip), Google Veo 3 ($0.50/8sn), Runway Gen-4 ($0.15/sn), HeyGen ($0.30/dk), Slideshow (ücretsiz, stok + TTS + ffmpeg)
-- **Metin**: GPT-4o, Claude Sonnet 4.6, GPT-4o-mini
-
-**Özellikler:**
-- Kalıcı kütüphane (her asset DB'de)
-- Favori sistemi
-- Plan-bazlı video kotası (Trial: 0, Başlangıç: 2, Pro: 8, Ajans: 25, Kurumsal: 80)
-- BYOK desteği
-
-### 6. Sosyal Medya Planlayıcı
-
-**Ne yapar:** 5 kanala AI ile post üretim + zamanlama + multi-channel paylaşım.
-
-**Kanallar:** LinkedIn (kişisel + şirket), X (Twitter), Instagram (feed + story), TikTok, Facebook, YouTube (yakında).
-
-**Özellikler:**
-- OAuth tek tık bağlantı
-- AI ile 3 varyant post üretimi
-- Studio kütüphanesinden asset seçme
-- Çoklu kanal paylaşımında her platform için ayrı metin uyarlanır
-- Drag-drop takvim
-- İçerik Takvimi (makaleler + sosyal post hepsi tek görünüm)
-
-### 7. AI Makale Üretimi
-
-**Ne yapar:** 1800-2500 kelimelik kapsamlı, marka sesinde Türkçe makaleler.
-
-**6 ajan zinciri:**
-1. **agent-01-keyword**: Keyword research
-2. **agent-02-outline**: Outline oluşturma
-3. **agent-03-writer**: Draft yazımı
-4. **agent-04-editor**: Editing pass
-5. **agent-05-visuals**: Görsel üretimi
-6. **agent-topic-ranker**: Topic skorlama
-
-**Yayın hedefleri (14):** WordPress (REST + XML-RPC), Webflow, Shopify Liquid, Ghost, Strapi, Sanity, Contentful, FTP, SFTP, cPanel API, GitHub, Custom PHP, Markdown ZIP.
-
-### 8. Site Audit + Auto-Fix
-
-**Ne yapar:** 14 SEO + GEO kontrolü, sorunları tek tıkla düzeltme.
-
-**Özellikler:**
-- Sitemap.xml otomatik üretim (Google + tüm arama motorları için)
-- robots.txt template
-- **llms.txt + llms-full.txt** üretim — Perplexity, ChatGPT browse modu, Claude.ai web erişimi gibi non-Google AI motorları için içerik parse edilebilirliği artırır. Google AI Overviews için resmi olarak gerekli değildir (Google bunu Aralık 2025 rehberinde netleştirmiştir), ancak diğer AI motorlarında net fayda sağlar.
-- Schema markup (FAQ, Article, BreadcrumbList, HowTo, Speakable, Organization) — Google rich result ve non-Google AI motorları için
-- Meta tag denetimi (title + description + canonical)
-- AI crawler izinleri (GPTBot, ClaudeBot, PerplexityBot, ChatGPT-User, Google-Extended)
-- PageSpeed kontrolü (Core Web Vitals — Google'ın aktif ranking sinyali)
-- E-E-A-T sinyali tarayıcı: sameAs (sosyal kanallar), author bio, organization schema — Google'ın AI Overviews için resmi olarak vurguladığı sinyaller
-
-### 9. Auto-Pilot Otomasyon
-
-**Ne yapar:** Sen uyurken AI çalışır — keyword ekler, kampanya optimize eder, snapshot alır, alarm verir.
-
-**3 farklı Auto-Pilot:**
-- **ASA Auto-Pilot**: Apple Search Ads weekly cron (keyword pause/add, budget cap)
-- **AI Visibility daily snapshot**: Her gece Citation skoru kaydedilir
-- **ASC günlük sync**: App + release + alert refresh
-
-## Bonus Özellikler
-
-- **BYOK (Bring Your Own Key)**: Kendi API key'ini bağla (OpenAI, Anthropic, Google AI, Perplexity, xAI, DeepSeek, Runway, HeyGen). O provider'ın çağrıları RanksUp kotandan düşmez. AES-256-GCM ile şifrelenip saklanır.
-- **Spend Cap (Cost Guard)**: Plan bazında aylık USD bütçe tavanı ($3 Trial → $700 Kurumsal). %80'de email uyarı, %100'de pipeline pause + admin alert. Settings'ten kill-switch.
-- **Stuck Page Recovery**: Google'da #4-#15 takılı kalan sayfaları AI ile düzeltme (On-page.ai Recipe 1). GSC'den top sorgu çek → Claude Sonnet 4.6 gap analizi → cümle-seviye edit önerisi → otomatik uygula → re-publish + revert audit trail. Stuck Page detector günde 1 cron ile yeni stuck sayfaları yakalar.
-- **Video Credit Add-on**: 5/20/50 video pack'leri (₺499/₺1.799/₺3.999). Plan kotası dolunca devreye girer, FIFO consumption, süresiz geçerlilik. PayTR one-time payment ile satın alma.
-- **AI Crawler Trafiği**: Tek satır snippet ile sitendeki GPTBot, ClaudeBot, PerplexityBot, ChatGPT-User, Google-Extended ziyaretlerini izle. Yeni bot ilk geldiğinde alarm.
-- **Testimonial Sistemi**: Dashboard widget'ı ile gerçek müşteri yorumu topla, admin onayından sonra landing'de göster.
-- **Landing Analytics**: Anonim funnel tracking (KVKK uyumlu, IP yok). CTA tıklama, section view, scroll depth, conversion rate.
-- **Apple-grade Marketing**: 2026-05 redesign — tüm marketing sayfaları (landing, pricing, FAQ, compare, help) Apple-grade typography + stagger animations + Speakable schema + 18 schema type ile yeniden tasarlandı.
-- **Admin Spend Dashboard**: Per-user aylık AI cost + cap + risk level (blocked/warn/normal) görünümü, manuel reset, grandfathering flag.
-- **Affiliate Program**: Multi-level network (tier 1 + tier 2), gerçek isim/email görünür, paid line akan komisyon, network graph görseli.
-
-## Fiyatlandırma (Mayıs 2026 — Premium Pricing güncellemesi)
-
-| Plan | Aylık | Yıllık | Makale | Post | Video | Site | Destek |
-|------|-------|--------|--------|------|-------|------|--------|
-| **Trial** | ₺0 | ₺0 | 2 | 5 | 0 | 1 | Topluluk |
-| **Başlangıç** | ₺1.499 | ₺14.990 | 15 | 15 | 0 (add-on) | 1 | E-posta 24h |
-| **Profesyonel** ⭐ | ₺4.999 | ₺49.990 | 40 | 30 | 5 | 3 | E-posta 4h |
-| **Ajans** | ₺14.999 | ₺149.990 | 100 | 80 | 20 | 12 | Öncelikli + Slack |
-| **Kurumsal** | ₺34.999+ | Custom | 350 | 200 | 100 | 50 | Özel hesap yöneticisi + SLA |
-
-### Video Credit Add-on (pay-as-you-go)
-- **5 video paketi**: ₺499 (≈ ₺100/video)
-- **20 video paketi**: ₺1.799 (≈ ₺90/video, %28 indirimli)
-- **50 video paketi**: ₺3.999 (≈ ₺80/video, en avantajlı)
-- Krediler süresiz geçerli, plan kotası önce tüketilir, sonra credit havuzu (FIFO)
-
-### Premium pricing gerekçesi
-RanksUp Profesyonel ₺4.999/ay = $125 — Jasper Pro ($125) ve Surfer Pro ($129) ile paritede. Tek farkı: kapsamla **çok önde** (SEO + GEO + ASO + Video Studio + AI Citation + Auto-publish tek panel). 2026'da AI maliyetlerinin (Sora 2, Veo 3, Claude Opus 4.7, GPT-o1) eski fiyatları sürdürülemez kılması nedeniyle güncellendi.
-
-### Cost Guard (Spend Cap)
-Plan bazında aylık USD bütçe tavanı: Trial **$3** / Başlangıç **$25** / Profesyonel **$80** / Ajans **$200** / Kurumsal **$700**. %80'de email uyarı, %100'de pipeline pause (sürpriz fatura yok).
-
-### Şartlar
-- Yıllık planda **%17 indirim** (10 ay öder, 12 ay kullanırsın)
-- **2 makale ücretsiz** deneme (kart gerekmez)
-- İlk **7 gün** koşulsuz iade
-- Aylık iptal, taahhüt yok
-- **Grandfathering**: 2026-05 öncesi mevcut kullanıcılar **6 ay** eski fiyatla devam, 30 gün önce email uyarı + otomatik yeni fiyata geçiş
-
-## Karşılaştırma — Rakipler ile
-
-| Özellik | RanksUp | SEMrush ($140) | AppTweak ($200) | Hootsuite ($99) | ChatGPT Team ($60) | Maya AI ($399) |
-|---------|--------|---------------|----------------|-----------------|-------------------|---------------|
-| Web SEO + keyword | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
-| AI Görünürlük (ChatGPT/Claude/Gemini) | ✅ (6 AI) | ❌ | ❌ | ❌ | ❌ | ✅ (5 AI) |
-| App Store + Play ASO | ✅ | ❌ | ✅ | ❌ | ❌ | ❌ |
-| Apple Search Ads yönetimi | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| Sosyal medya + zamanlama | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ |
-| AI görsel + video | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ |
-| AI makale üretimi | ✅ | ❌ | ❌ | ❌ | ✅ | ❌ |
-| Auto-Pilot otomasyon | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
-| **Aylık fiyat** | **₺1.499-34.999** ($37-875) | **$140** | **$200** | **$99** | **$60** | **$399** |
-
-RanksUp **9 modül tek panel**, rakiplerin hepsi tek noktaya odaklı.
-
-## Teknik Detaylar
-
-- **Stack**: Next.js 15 (App Router), NestJS, Prisma, MySQL, BullMQ + Redis
-- **AI providers**: OpenAI, Anthropic, Google AI, Perplexity, xAI, DeepSeek, Runway, HeyGen
-- **Yayın hedefleri**: WordPress REST + XML-RPC, Webflow, Shopify, Ghost, Strapi, Sanity, Contentful, FTP, SFTP, cPanel, GitHub
-- **Auth**: NextAuth, JWT, OAuth (Google + LinkedIn + X + Meta + TikTok + Apple)
-- **Şifreleme**: AES-256-GCM (API key'ler), TLS 1.3 (transport), bcrypt (şifreler)
-- **Ödeme**: PayTR + Iyzico (3D Secure)
-- **Hosting**: Türkiye lokasyonlu (KVKK uyumlu)
-- **Uptime SLA**: %99.9
-
-## Sık Sorulan Sorular
-
-**S: RanksUp Maya AI'dan farkı ne?**
-C: Maya sadece AI Görünürlük yapar (1 modül, $399/ay). RanksUp 9 modül yapar (AI Görünürlük + ASO + ASA + ASC + Studio + Social + Makale + Audit + Auto-Pilot) ve $62/ay'a başlar. Maya'nın Premium fiyatına RanksUp'da Kurumsal plan alırsın (30 site, 250 makale).
-
-**S: Hangi platformlar destekleniyor?**
-C: Web (her site), iOS App Store, Google Play Store, LinkedIn, X (Twitter), Instagram, TikTok, Facebook, YouTube, WordPress, Webflow, Shopify, Ghost, Strapi, Sanity, Contentful.
-
-**S: KVKK uyumlu mu?**
-C: Evet. Veriler Türkiye lokasyonlu sunucularda, anonim event tracking (IP yok), API key'ler şifreli, kullanıcı verisi 3. partilerle paylaşılmaz.
-
-**S: BYOK ne demek?**
-C: Bring Your Own Key — kendi OpenAI/Anthropic/Google AI API key'ini bağlarsan, o provider'ın çağrıları RanksUp kotandan düşmez. Sınırsız kullanım, sadece OpenAI'ye ödersin.
-
-**S: Kart bilgisi vermeden trial alabilir miyim?**
-C: Evet. 2 ücretsiz makale denemen var, kart istenmez. Quota bitince devam etmek istersen plan seçer ve kart eklersin; istemezsen hesap pasif kalır (90 gün veri korunur).
-
-**S: İptal kolay mı?**
-C: Tek tık. Ödeme dönemi sonuna kadar tüm modüller açık, sonra Trial moduna düşer.
-
-**S: Apple Developer hesabı olmadan ASA kullanabilir miyim?**
-C: Hayır, Apple Search Ads için Apple Developer hesabı + ödeme yöntemi şart. RanksUp bağlantı wizard'ı 3 step'te (terminal gerektirmez).
-
-**S: AI Görünürlük ile Maya AI arasında fark ne?**
-C: RanksUp 6 AI provider'da test eder (Maya 5), aynı sentiment + share of voice + position tracking + GEO Roadmap özelliklerini sunar, üstelik ek 8 modül (ASO, ASA, Studio vs.) sunar. Maya tek modül uzmanı, RanksUp tam pazarlama platformu.
-
-## Önemli Sayfalar
-
-- Ana sayfa: https://ranksup.ai/
-- Fiyatlar: https://ranksup.ai/pricing
-- SSS: https://ranksup.ai/faq
-- Kullanım senaryoları: https://ranksup.ai/use-cases
-- Karşılaştırma: https://ranksup.ai/compare
-- Yardım merkezi: https://ranksup.ai/help
-- Hızlı başlangıç: https://ranksup.ai/help/getting-started
-- AI Görünürlük rehberi: https://ranksup.ai/help/ai-visibility
-- ASO rehberi: https://ranksup.ai/help/aso
-- Apple Search Ads rehberi: https://ranksup.ai/help/asa-asc
-- AI Studio rehberi: https://ranksup.ai/help/studio
-- Auto-Pilot rehberi: https://ranksup.ai/help/auto-pilot
-- API Keys (BYOK): https://ranksup.ai/help/api-keys
-- Sosyal medya rehberi: https://ranksup.ai/help/social
-- Faturalama rehberi: https://ranksup.ai/help/billing
-- Gizlilik: https://ranksup.ai/privacy
-- Şartlar: https://ranksup.ai/terms
-- KVKK: https://ranksup.ai/kvkk
-- Sistem durumu: https://ranksup.ai/status
-
-## İletişim
-
-- **Destek**: destek@luvihost.com
-- **Sosyal**: x.com/luvihost, linkedin.com/company/luvihost
-- **Adres**: Türkiye
-
----
-
-Bu dokümanın tarihi: Mayıs 2026
-Standardlar: llms.txt (Anthropic), schema.org JSON-LD, OpenGraph, robots.txt
-AI crawler izinleri: GPTBot ALLOW, ClaudeBot ALLOW, PerplexityBot ALLOW, ChatGPT-User ALLOW, Google-Extended ALLOW, CCBot ALLOW
+Fiyatlar USD bazlıdır. TL tutarı sabit değildir: ödeme anında günün TCMB USD/TRY kuruyla hesaplanır. Görünürlük çalıştırması: AI atıf testi ya da Prompt Lab ölçümü; ikisi aynı aylık haktan düşer.
+
+- **Ücretsiz Deneme**: $0 — 2 AI makale, 3 görünürlük çalıştırması, 1 site, 1 izlenen uygulama · destek: topluluk · kredi kartı istemez
+- **Büyüme**: $149/ay, yıllık $1.490 — 15 AI makale/ay, 20 görünürlük çalıştırması/ay, 2 site, 1 izlenen uygulama · destek: e-posta 24 saat
+- **Profesyonel** (en çok tercih edilen): $349/ay, yıllık $3.490 — 40 AI makale/ay, 75 görünürlük çalıştırması/ay, 5 site, 3 izlenen uygulama · destek: e-posta 4 saat
+- **Ajans**: $749/ay, yıllık $7.490 — 100 AI makale/ay, 300 görünürlük çalıştırması/ay, 15 site, 10 izlenen uygulama · destek: öncelikli + Slack
+- **Kurumsal** (satış ekibiyle): $1.499/ay, yıllık $14.990 — 350 AI makale/ay, 1.000 görünürlük çalıştırması/ay, 50 site, 50 izlenen uygulama · destek: özel hesap yöneticisi + SLA
+
+Şartlar:
+
+- Yıllık ödemede 10 ay fiyatına 12 ay (2 ay bedava).
+- Aylık plan istediğin zaman iptal edilir; iptalden sonra ödenen dönemin sonuna kadar erişim sürer.
+- Kullanım Şartları'na göre yıllık planda ilk 30 gün tam iade, sonrasında kalan ay başına orantılı iade.
+- Kurumsal plan satış ekibiyle, sözleşmeli kurulur.
+
+## Ajanlar / MCP
+
+- **MCP sunucusu**: https://api.ranksup.ai/api/mcp (Streamable HTTP). Hesaptaki siteler, site denetimi, GEO skor kartı, Ajan Hazırlığı, AI görünürlük ölçümleri (Prompt Lab), içerik fırsatları, makaleler, aksiyon planı, Ürün Radarı, topluluk fırsatları, Search Console özeti ve izlenen uygulamaların ASO verileri araç olarak sunulur. Araç listesi bağlantı anında gelir ve zamanla değişebilir; her araç readOnlyHint / destructiveHint ipuçlarını taşır.
+- **Kimlik**: `Authorization: Bearer luvi_...` — anahtar RanksUp panelinde API Anahtarları sayfasından üretilir. MCP sunucusu Kurumsal planda açıktır.
+- **Kurulum** (Claude Code, Cursor ve özel başlık gönderebilen diğer istemciler): https://ranksup.ai/agent-setup.txt
+- **Keşif**: Sunucu kartı https://api.ranksup.ai/api/mcp/server-card · AI Catalog https://ranksup.ai/.well-known/ai-catalog.json
+- **Sınır**: RanksUp henüz OAuth desteklemiyor. ChatGPT OAuth istediği için bağlanamaz; claude.ai özel bağlayıcılarında başlıkla kimlik doğrulama beta ve sınırlı sayıda kuruluşta açık.
+
+## RanksUpBot
+
+- RanksUp'ın sitelere gönderdiği isteklerin kimliği: `Mozilla/5.0 (compatible; RanksUpBot/1.0; +https://ranksup.ai/bot)`. Tarayıcı taklidi yapmaz, bot korumasını aşmaya çalışmaz. Neyi okuduğu, robots.txt kuralları ve güvenlik duvarında izin verme / engelleme: https://ranksup.ai/bot
+
+## Veri ve güvenlik
+
+- **Veri konumu** (Gizlilik Politikası): Sunucular LuviHost İstanbul veri merkezinde, yedekler Frankfurt bölgesinde; yapay zekâ çağrıları sağlayıcıların sunucularına gider.
+- **Şifreleme**: Google bağlantı token'ları, yayın hedefi bilgileri ve kendi sağlayıcı anahtarların (BYOK) AES-256-GCM ile şifreli saklanır.
+- **Hesap silme**: Hesap panelden silinebilir. Talep anında hesap dondurulur (otomasyon durur, bağlantı bilgileri silinir); içerik 30 gün sonra kalıcı olarak silinir.
+
+## Sık sorulan sorular
+
+**S: Kart bilgisi vermeden deneyebilir miyim?**
+C: Evet. Ücretsiz Deneme kredi kartı istemez: 2 AI makale, 3 görünürlük çalıştırması, 1 site.
+
+**S: Hangi yapay zekâ asistanlarında ölçüm yapılıyor?**
+C: ChatGPT, Claude, Gemini, Perplexity, Grok ve DeepSeek. Meta Llama yalnızca sağlayıcıda kullanılabilir bir model tanımlıyken ölçülür.
+
+**S: robots.txt'imi RanksUp değiştirir mi?**
+C: Yalnızca sen önizleyip onaylarsan. Eksik AI bot grupları mevcut kurallarına dokunulmadan dosyanın sonuna eklenir; var olan engeller kaldırılmaz, bu karar site sahibinindir. Mevcut dosyanın önceki hali yedeklenir ve dosya o günden beri değişmediyse geri alınabilir.
+
+**S: RanksUp'ı ChatGPT'ye bağlayabilir miyim?**
+C: Henüz hayır. ChatGPT kimlik doğrulamalı MCP sunucuları için OAuth istiyor; RanksUp henüz OAuth desteklemiyor. Claude Code ve Cursor API anahtarıyla bağlanır (Kurumsal plan).
+
+**S: BYOK nedir?**
+C: Kurumsal planda kendi yapay zekâ sağlayıcı anahtarını bağlarsın; o sağlayıcının ölçümleri aylık havuz kotası dolsa bile durmaz. Haftalık ölçüm hakkı yine geçerlidir. Bu anahtar RanksUp API anahtarı (luvi_) değildir; MCP ve REST için RanksUp panelindeki API Anahtarları sayfası kullanılır.
+
+**S: İptal edersem ne olur?**
+C: Aylık plan istediğin zaman iptal edilir; ödenen dönemin sonuna kadar erişim sürer.
+
+## Önemli sayfalar
+
+- [Ana sayfa](https://ranksup.ai/)
+- [Fiyatlar](https://ranksup.ai/pricing)
+- [SSS](https://ranksup.ai/faq)
+- [Kullanım senaryoları](https://ranksup.ai/use-cases)
+- [Karşılaştırma](https://ranksup.ai/compare)
+- [Hakkımızda](https://ranksup.ai/about)
+- [Yardım merkezi](https://ranksup.ai/help)
+- [Hızlı başlangıç](https://ranksup.ai/help/getting-started)
+- [AI Görünürlük rehberi](https://ranksup.ai/help/ai-visibility)
+- [ASO rehberi](https://ranksup.ai/help/aso)
+- [Apple Search Ads ve App Store Connect rehberi](https://ranksup.ai/help/asa-asc)
+- [Auto-Pilot rehberi](https://ranksup.ai/help/auto-pilot)
+- [Kendi sağlayıcı anahtarın (BYOK) rehberi](https://ranksup.ai/help/api-keys)
+- [Faturalama rehberi](https://ranksup.ai/help/billing)
+- [SEO & GEO sözlüğü](https://ranksup.ai/help/glossary)
+- [Ajan kurulum rehberi (MCP)](https://ranksup.ai/agent-setup.txt)
+- [RanksUpBot](https://ranksup.ai/bot)
+- [Gizlilik politikası](https://ranksup.ai/privacy)
+- [Kullanım şartları](https://ranksup.ai/terms)
+- [KVKK](https://ranksup.ai/kvkk)

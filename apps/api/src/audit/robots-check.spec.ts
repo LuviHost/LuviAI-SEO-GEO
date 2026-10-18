@@ -35,3 +35,39 @@ describe('computeRobotsCheck (yontem v2)', () => {
     expect(r.details?.methodVersion).toBe(2);
   });
 });
+
+describe('robots_ai_search_blocked — otomatik duzeltilmez, karar sahibinin', () => {
+  const issue = (txt: string) => computeRobotsCheck(txt).issues.find((i) => i.type === 'robots_ai_search_blocked')!;
+
+  it('fixable:false — guvenli birlestirme mevcut Disallow\'u kaldirmaz; neden aciklamada', () => {
+    const i = issue('User-agent: OAI-SearchBot\nDisallow: /\n\nUser-agent: *\nAllow: /\nSitemap: https://x.com/s.xml');
+    expect(i.fixable).toBe(false);
+    expect(i.fixCommand).toBeUndefined();
+    expect(i.description).toContain('Otomatik düzeltilmez');
+    expect(i.description).toContain('karar senin');
+  });
+
+  it('bot kendi grubunda engelliyse o gruptaki "Disallow: /" satirinin kaldirilmasi soylenir', () => {
+    const i = issue('User-agent: OAI-SearchBot\nDisallow: /\n\nUser-agent: *\nAllow: /\nSitemap: https://x.com/s.xml');
+    expect(i.description).toContain('OAI-SearchBot için kendi "User-agent" grubundaki "Disallow: /" satırını kaldır');
+    expect(i.description).not.toContain('User-agent: *');
+  });
+
+  it('"*" grubuyla engelliyse bota ozel "Allow: /" grubu onerilir (RFC 9309: ozel grup "*"in yerine gecer)', () => {
+    const i = issue('User-agent: *\nDisallow: /');
+    expect(i.description).toContain('"User-agent: *" grubundaki "Disallow: /" kuralına uyuyor');
+    expect(i.description).toContain('"Allow: /" içeren ayrı bir "User-agent" grubu');
+    for (const bot of ['OAI-SearchBot', 'Claude-SearchBot', 'PerplexityBot']) expect(i.description).toContain(bot);
+  });
+
+  it('karisik durumda iki talimat birden', () => {
+    const i = issue('User-agent: PerplexityBot\nDisallow: /\n\nUser-agent: *\nDisallow: /');
+    expect(i.description).toContain('PerplexityBot için kendi "User-agent" grubundaki');
+    expect(i.description).toMatch(/OAI-SearchBot, Claude-SearchBot adıyla anılmadığı için/);
+  });
+
+  it('Sitemap satiri eksikligi otomatik duzeltilebilir kalir (birlestirme ekler)', () => {
+    const r = computeRobotsCheck('User-agent: *\nAllow: /');
+    expect(r.issues.find((x) => x.type === 'robots_no_sitemap')?.fixable).toBe(true);
+  });
+});

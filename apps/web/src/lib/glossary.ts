@@ -5,6 +5,50 @@
  *   <InfoTooltip term="ROAS">ROAS</InfoTooltip>
  *
  * Yeni terim eklemek icin: bu dosyaya bir entry ekle.
+ *
+ * DIKKAT: /help/glossary sayfasi TUM girdileri herkese acik yayinlar (ve
+ * DefinedTermSet JSON-LD olarak AI asistanlarina verir). Her tanim dogru ve
+ * dogrulanabilir olmali; RanksUp'a ait iddialar kodla ayni kalmali
+ * (public-docs.spec.ts bir kismini denetler).
+ *
+ * 18.10.2026 durust metin duzeltmesi — kaldirilan / duzeltilen iddialar:
+ *  - TTS ("makaleyi MP3'e cevirir, podcast feed'e ekler") ve Whitelabel
+ *    ("Powered by RanksUp yazisi kalkar") girdileri silindi: ses/podcast urunden
+ *    cikti (0db5a1c), white-label ayarlari kaydediliyor ama hicbir yerde
+ *    uygulanmiyor ve hicbir planda satilmiyor.
+ *  - TRIAL "1 makale" → plans.ts (2 makale, 3 calistirma, 1 site; yayin hedefi
+ *    Markdown ZIP + WordPress REST — QuotaService.LIMITS.TRIAL).
+ *  - Quota eski plan adlari/sayilari ("Baslangic 10 ... Kurumsal 100") → sayi
+ *    yazilmaz, fiyat sayfasina yonlendirilir; sifirlama kurali quota.service.ts.
+ *  - Editor Score "60 uzerinden, 48+" → pipeline.service.ts EDITOR_MAX_SCORE 90;
+ *    PASS yalniz engelleyici bulgu yokken ve GEO kapisi gecilince (aksi halde
+ *    REVIZE_NEEDED). 90 olcegi 16ab0d9 ile geldi (main'e 3 Agustos 2026 23:25
+ *    +03:00); oncesindeki hat 60 uzerinden puanliyordu ("xx/60" istemi). Makale
+ *    sayfasi paydayi yazi basina secer (articles/[articleId]/page.tsx
+ *    editorScoreMax); tanim bu yuzden eski yazilarin olcegini da soyler.
+ *  - AI Sitemap "200 kelimelik AI ozet" → ai-sitemap.service.ts meta aciklamanin
+ *    ilk 200 KARAKTERI.
+ *  - llms.txt "robots.txt'in AI versiyonu" ve llms-full.txt "AI'lar saniyeler
+ *    icinde sitenin tamamini ogrenir" → https://llmstxt.org/ (Jeremy Howard,
+ *    3 Eylul 2024): bir oneri; robots.txt ile amaci farkli.
+ *  - FAQ schema "arama sonuclarinda accordion gorunur" → Google SSS zengin
+ *    sonucunu 7 Mayis 2026'dan itibaren gostermiyor:
+ *    https://developers.google.com/search/docs/appearance/structured-data/faqpage
+ *  - Speakable "Siri/Alexa" → yalniz Google Asistan, ABD, Ingilizce haber, beta:
+ *    https://developers.google.com/search/docs/appearance/structured-data/speakable
+ *  - Canonical "duplicate content cezasini onler" → Google ceza demiyor; sinyal
+ *    birlestirme + tercih edilen URL:
+ *    https://developers.google.com/search/docs/crawling-indexing/consolidate-duplicate-urls
+ *  - Hreflang, Sitemap, Backlink, JSON-LD, Schema markup, Knowledge Graph
+ *    tanimlari Google belgeleriyle ayni dile cekildi:
+ *    https://developers.google.com/search/docs/specialty/international/localized-versions
+ *    https://developers.google.com/search/docs/crawling-indexing/sitemaps/overview
+ *    https://developers.google.com/search/docs/crawling-indexing/links-crawlable
+ *    https://developers.google.com/search/docs/appearance/structured-data/intro-structured-data
+ *    https://support.google.com/knowledgepanel/answer/9787176
+ *  - MCP "Google Ads, Meta Ads'e baglanir" (kaldirilan Ryze MCP) → Anthropic'in
+ *    acik standardi (25 Kasim 2024): https://www.anthropic.com/news/model-context-protocol
+ *    RanksUp MCP sunucusu ve API anahtari Kurumsal (plans.ts mcpAccess/apiAccess).
  */
 
 export interface GlossaryEntry {
@@ -16,240 +60,232 @@ export interface GlossaryEntry {
 export const GLOSSARY: Record<string, GlossaryEntry> = {
   // ──────────── Reklam Metrikleri ────────────
   CTA: {
-    short: 'Call To Action — kullaniciyi tiklamaya yonlendiren buton (orn: "Simdi al", "Ucretsiz dene").',
+    short: 'Call To Action — kullanıcıyı tıklamaya yönlendiren buton ya da metin (örn: "Şimdi al", "Ücretsiz dene").',
     level: 1,
   },
   CTR: {
-    short: 'Click-Through Rate — gosterimlerin yuzde kaci tiklandi (tiklama / gosterim x 100).',
+    short: 'Click-Through Rate — gösterimlerin yüzde kaçının tıklandığı (tıklama / gösterim × 100).',
     level: 1,
   },
   CPC: {
-    short: 'Cost Per Click — bir tiklama icin odedigin ortalama tutar.',
+    short: 'Cost Per Click — bir tıklama için ödediğin ortalama tutar.',
     level: 1,
   },
   CPL: {
-    short: 'Cost Per Lead — bir lead (potansiyel musteri) toplamak icin odedigin tutar.',
+    short: 'Cost Per Lead — bir potansiyel müşteri (lead) kazanmak için ödediğin tutar.',
     level: 1,
   },
   CPA: {
-    short: 'Cost Per Acquisition — bir gercek satin alma icin harcanan tutar.',
+    short: 'Cost Per Acquisition — bir satın alma ya da hedeflenen dönüşüm başına harcanan tutar.',
     level: 1,
   },
   ROAS: {
-    short: 'Return On Ad Spend — reklam harcamasinin kac katini geri kazandin. ROAS 3 = 1 TL\'ye 3 TL satis.',
+    short: 'Return On Ad Spend — reklam harcamasının kaç katını geri kazandığın. ROAS 3 = harcanan 1 TL\'ye 3 TL satış.',
     level: 2,
   },
   Impression: {
-    short: 'Reklamin/sayfan kac kez gosterildi (tiklanmadi, sadece goruntulendi).',
+    short: 'Reklamın ya da sayfanın kaç kez gösterildiği; tıklanması gerekmez, görüntülenmesi sayılır.',
     level: 1,
   },
   Conversion: {
-    short: 'Hedef aksiyon (satin alma, kayit, form doldurma vb.) sayisi.',
+    short: 'Hedef aksiyonların (satın alma, kayıt, form doldurma vb.) sayısı.',
     level: 1,
   },
   Lead: {
-    short: 'Potansiyel musteri — sana iletisim bilgisini birakmis kisi (form doldurmus, abone olmus).',
+    short: 'Potansiyel müşteri — sana iletişim bilgisini bırakmış kişi (form doldurmuş, abone olmuş).',
     level: 1,
   },
   'Bounce Rate': {
-    short: 'Sayfaya gelip hicbir sey yapmadan ayrilan kullanici yuzdesi.',
+    short: 'Sayfaya gelip hiçbir etkileşim olmadan ayrılan ziyaretçilerin yüzdesi.',
     level: 1,
   },
 
   // ──────────── SEO Temel ────────────
   SERP: {
-    short: 'Search Engine Results Page — Google/Bing arama sonuc sayfasi.',
+    short: 'Search Engine Results Page — Google ya da Bing arama sonuç sayfası.',
     level: 1,
   },
   SEO: {
-    short: 'Search Engine Optimization — Google\'da ust siralarda cikmak icin yapilan tum calismalar.',
+    short: 'Search Engine Optimization — sitenin arama sonuçlarında daha görünür olması için yapılan çalışmaların tümü.',
     level: 1,
   },
   Crawler: {
-    short: 'Web sitelerini gezip icerigi indeksleyen yazilim (Googlebot, GPTBot, ClaudeBot vb.).',
+    short: 'Web sitelerini gezip içeriği toplayan yazılım (Googlebot, GPTBot, ClaudeBot vb.).',
     level: 1,
   },
   Bot: {
-    short: 'Web sitelerini gezip icerigi indeksleyen yazilim (Googlebot, GPTBot, ClaudeBot vb.).',
+    short: 'Web sitelerini gezip içeriği toplayan yazılım (Googlebot, GPTBot, ClaudeBot vb.).',
     level: 1,
   },
   Sitemap: {
-    short: 'Sitendeki tum sayfalarin listesini iceren XML dosyasi. Google ve AI bunu okuyup sayfalari daha hizli kesfeder.',
+    short: 'Sitendeki sayfaların listesini içeren XML dosyası. Google gibi arama motorları siteyi daha verimli taramak için bu dosyayı okur.',
     level: 1,
   },
   Backlink: {
-    short: 'Baska bir siteden senin sitene gelen baglanti. Otorite sinyali — ne kadar cok kaliteli backlink, o kadar yuksek siralama.',
+    short: 'Başka bir siteden senin sitene verilen bağlantı. Google, sayfaların alakasını belirlerken ve yeni sayfaları keşfederken bağlantıları sinyal olarak kullanır.',
     level: 1,
   },
 
   // ──────────── GEO / AI Search ────────────
   GEO: {
-    short: 'Generative Engine Optimization — ChatGPT/Claude/Gemini gibi AI araclarinin cevap kutucugunda alintilanmak icin yapilan optimizasyon.',
+    short: 'Generative Engine Optimization — ChatGPT, Claude, Gemini gibi AI asistanlarının cevaplarında anılmak ve kaynak gösterilmek için yapılan optimizasyon.',
     level: 3,
     link: '/help/glossary#geo',
   },
   AEO: {
-    short: 'Answer Engine Optimization — Google\'in "Hizli cevap" kutucugunda gorunmek icin icerik yapilandirma.',
+    short: 'Answer Engine Optimization — arama motorlarının ve AI asistanlarının doğrudan cevap verdiği yerlerde (öne çıkan snippet, AI cevapları) görünmek için içeriği soru-cevap biçiminde yapılandırma.',
     level: 3,
   },
   Citation: {
-    short: 'AI cevap kutucugunda site URL\'inin gecmesi. ChatGPT "iste LuviHost\'tan al" diyorsa = sen alintilandin.',
+    short: 'AI cevabında sitenin adresinin kaynak olarak gösterilmesi. Cevapta yalnız marka adın geçiyorsa bu atıf değil, anılmadır (Brand Mention).',
     level: 2,
   },
   'Brand Mention': {
-    short: 'AI sadece marka adini soyledi ama URL vermedi. Citation\'dan yarisi degerli.',
+    short: 'AI cevabında marka adının geçmesi ama site adresinin kaynak gösterilmemesi. RanksUp skorunda atıfın yarısı kadar sayılır (atıf 100, anılma 50 puan).',
     level: 1,
   },
   Heatmap: {
-    short: 'Hangi sorgularda + hangi AI\'da kazandiginin renkli matrix gosterimi.',
+    short: 'Hangi soruda, hangi AI asistanında anıldığını renklerle gösteren tablo (GEO ısı haritası).',
     level: 1,
   },
 
   // ──────────── Schema / Yapısal Veri ────────────
   'Schema markup': {
-    short: 'Sayfana eklenen "AI\'a anlatan" yapisal veri (JSON-LD). Google/AI bu sayede "bu bir makale, bu yazar, bu tarih..." diye anlar. Rich snippet\'leri acar.',
+    short: 'Sayfanın içeriğini makinelere tanıtan yapısal veri (genellikle JSON-LD): "bu bir makale, yazarı şu, tarihi şu" gibi. Google sayfanın içeriğini anlamak için kullanır; bazı arama sonucu görünümleri de buna dayanır.',
     level: 3,
   },
   'JSON-LD': {
-    short: 'Schema markup\'un Google\'in onerdigi formati. Sayfanin <head> bolumune <script type="application/ld+json"> olarak gomulur.',
+    short: 'Yapısal veri biçimi; Google, sitenin altyapısı uygunsa JSON-LD kullanmayı önerir. Sayfaya <script type="application/ld+json"> etiketiyle eklenir.',
     level: 2,
   },
   'Speakable schema': {
-    short: 'Sayfan sesli okunsun diye isaretlenmis cumleler. Siri/Alexa/Google Assistant bu kismi sesli cevap verir.',
+    short: 'Sayfada sesli okunmaya uygun bölümleri işaretleyen yapısal veri. Google\'ın beta özelliğidir: Google Asistan bunu ABD\'de, İngilizce haber içeriği için akıllı hoparlörlerde kullanır.',
     level: 2,
   },
   'FAQ schema': {
-    short: 'Sikca Sorulan Sorular bolumunu Google\'a "iste burada" diye soyleyen kod. Arama sonuclarinda accordion gorunur.',
+    short: 'Sıkça sorulan sorular bölümünü işaretleyen yapısal veri (FAQPage). Google buna dayanan SSS zengin sonucunu 7 Mayıs 2026\'dan itibaren arama sonuçlarında göstermiyor; işaretleme soru-cevap yapısını makinelere yine açıkça tanımlar.',
     level: 2,
   },
   Canonical: {
-    short: 'Ayni icerik birden fazla URL\'de varsa Google\'a "asil olan budur" diyen tag. Duplicate content cezasini onler.',
+    short: 'Aynı içerik birden fazla adreste varsa arama motoruna hangisinin asıl (kanonik) adres olduğunu bildiren etiket. Sinyallerin tek adreste toplanmasına yardım eder; Google bunu güçlü bir sinyal sayar ama son kararı kendisi verir.',
     level: 2,
   },
   Hreflang: {
-    short: 'Ayni icerigin farkli dillerdeki versiyonlarini Google\'a tanitan tag. Turkce siteyi Ingilizce kullaniciya gostermez.',
+    short: 'Aynı sayfanın farklı dil ya da bölge sürümlerini Google\'a tanıtan işaret; Google\'ın kullanıcıya en uygun sürümü göstermesine yardım eder.',
     level: 2,
   },
 
   // ──────────── llms.txt + AI Sitemap ────────────
   'llms.txt': {
-    short: 'Sitenin AI search engine\'lere (ChatGPT/Claude/Perplexity) tanitim dosyasi. robots.txt\'in AI versiyonu.',
+    short: 'Sitenin AI araçlarına yönelik özetini sunmak için önerilmiş bir dosya standardı taslağı (llmstxt.org, 2024). robots.txt gibi erişim kuralı koymaz; hangi AI asistanının bu dosyayı okuduğu resmî olarak açıklanmış değil.',
     level: 3,
   },
   'llms-full.txt': {
-    short: 'Tum site iceriginin tek dosyada AI icin derlenmis hali. AI\'lar saniyeler icinde sitenin tamamini ogrenir.',
+    short: 'Sitenin içeriğinin AI araçları için tek dosyada derlenmiş hali; RanksUp her hafta yeniden oluşturur. llms.txt gibi bir öneridir, okunacağı garanti değildir.',
     level: 3,
   },
   'AI Sitemap': {
-    short: 'Standart sitemap.xml\'e ek olarak AI search engines icin optimize edilmis sitemap. Custom ai:summary namespace ile her URL icin 200 kelimelik AI ozet.',
+    short: 'Standart sitemap.xml\'e ek olarak RanksUp\'ın ürettiği sitemap-ai.xml: her makale adresi için meta açıklamanın ilk 200 karakteri ai:summary alanına yazılır. Standart dışı bir uzantıdır; hangi AI aracının okuduğu açıklanmış değil.',
     level: 3,
   },
 
   // ──────────── Reklam Hedefleme ────────────
   'Lookalike audience': {
-    short: 'Mevcut iyi musterilerine benzeyen yeni kisileri Meta otomatik bulur ve hedefler. "Musterilerime benzeyen 10.000 kisiyi goster" demek.',
+    short: 'Mevcut iyi müşterilerine benzeyen yeni kişileri Meta\'nın bulup hedeflemesi. "Müşterilerime benzeyen kişilere göster" demek.',
     level: 2,
   },
   'Negative keyword': {
-    short: 'Reklamin gosterilmemesi gereken kelimeler. "Hosting" kelimesinde reklam veriyorsan ama "ucretsiz hosting" aramalarda gorunmek istemiyorsan "ucretsiz" kelimesini negative ekle.',
+    short: 'Reklamının gösterilmemesi gereken aramaları belirleyen kelimeler. "Hosting" için reklam veriyor ama "ücretsiz hosting" aramalarında görünmek istemiyorsan "ücretsiz" kelimesini negatif eklersin.',
     level: 2,
   },
   'A/B Test': {
-    short: 'Ayni reklamin 2 farkli versiyonu, hangisi daha iyi performans gosteriyor diye karsilastirma.',
+    short: 'Aynı reklamın ya da sayfanın iki farklı sürümünü karşılaştırıp hangisinin daha iyi sonuç verdiğini ölçme.',
     level: 1,
   },
   Audience: {
-    short: 'Reklamin gosterilecegi kisilerin tanimi (yas, ilgi alani, lokasyon vb.).',
+    short: 'Reklamın gösterileceği kişilerin tanımı (yaş, ilgi alanı, konum vb.).',
     level: 1,
   },
   'Hedef Kitle': {
-    short: 'Reklamin gosterilecegi kisilerin tanimi (yas, ilgi alani, lokasyon vb.).',
+    short: 'Reklamın gösterileceği kişilerin tanımı (yaş, ilgi alanı, konum vb.).',
     level: 1,
   },
   Boost: {
-    short: 'Organik (ucretsiz) bir post\'un reklam butcesi koyularak daha fazla kisiye gosterilmesi. Meta\'nin "Boost Post" feature\'i.',
+    short: 'Organik (ücretsiz) bir gönderiye reklam bütçesi koyarak daha fazla kişiye gösterilmesi. Meta\'nın "Gönderiyi öne çıkar" (Boost Post) özelliği.',
     level: 1,
   },
 
   // ──────────── RanksUp Ozel Terimler ────────────
   Otopilot: {
-    short: 'RanksUp\'in senin yerine kararlar alip uygulamasi. Dusuk performans → pause, yuksek → butce artir, A/B winner sec, vs.',
+    short: 'RanksUp\'ın seçtiğin işleri senin yerine yürütmesi. Site otopilotu konuları takvime koyar ve makaleleri üretir; reklam otopilotu (varsayılan kapalı) düşük getirili kampanyayı durdurur, yüksek getirilinin bütçesini artırır.',
     level: 2,
   },
   Brain: {
-    short: 'RanksUp\'in senin sitenle ilgili tuttugu AI hafiza: marka tonu, hedef kitle, rakipler, SEO stratejisi.',
+    short: 'RanksUp\'ın sitenle ilgili tuttuğu AI hafızası: marka tonu, hedef kitle, rakipler, SEO stratejisi.',
     level: 2,
   },
   'Site Brain': {
-    short: 'RanksUp\'in senin sitenle ilgili tuttugu AI hafiza: marka tonu, hedef kitle, rakipler, SEO stratejisi.',
+    short: 'RanksUp\'ın sitenle ilgili tuttuğu AI hafızası: marka tonu, hedef kitle, rakipler, SEO stratejisi.',
     level: 2,
   },
   Persona: {
-    short: 'Tipik musterin (orn: 35 yas KOBI sahibi Mert). AI metinlerini ona gore yazar.',
+    short: 'Tipik müşterin (örn: 35 yaşında KOBİ sahibi Mert). AI metinleri ona göre yazar.',
     level: 1,
   },
   'Editor Score': {
-    short: 'Uretilen makalenin AI editorden aldigi kalite puani (60 uzerinden). 48+ olmadan yayina cikmaz.',
+    short: 'Üretilen makalenin AI editörden aldığı kalite puanı (9 kategori × 10 = 90 üzerinden). 3 Ağustos 2026\'dan önce üretilen yazılar eski ölçekle 60 üzerinden puanlandı; makale sayfası her yazının kendi ölçeğini gösterir. Editör onayı ve yayın öncesi kalite kapısı geçilmeden ya da engelleyici bir bulgu kaldıysa makale yayına hazır sayılmaz, revizyon bekler.',
     level: 2,
   },
   Tier: {
-    short: 'Ranker\'in oncelıklendırdığı konular: Tier 1 = hemen yaz, Tier 2 = bu hafta, Tier 3 = sonra.',
+    short: 'Konu motorunun önceliklendirdiği konular: Tier 1 = hemen yaz, Tier 2 = bu hafta, Tier 3 = planlı (sonra).',
     level: 2,
   },
   Pillar: {
-    short: 'Ana konu (orn: "hosting") + alt konular (cluster — "shared hosting nedir", "wordpress hosting" vb.). SEO mimarisi.',
+    short: 'Ana konu (örn: "hosting") ve altındaki ilgili alt konular (cluster: "paylaşımlı hosting nedir", "WordPress hosting" vb.). SEO mimarisinin temeli.',
     level: 2,
   },
   Cluster: {
-    short: 'Pillar\'in altindaki ilgili alt konular. Pillar = ana cati, cluster = yan kollar.',
+    short: 'Pillar\'ın altındaki ilgili alt konular. Pillar ana çatı, cluster yan kollardır.',
     level: 2,
   },
   'Knowledge Graph': {
-    short: 'Google\'in "sirket bilgi karti". Wikipedia/Wikidata kaynakli. Marka adinizi arattiginizda sagda cikan bilgi kutusu.',
+    short: 'Google\'ın kişi, kurum ve markalar hakkındaki bilgi tabanı; marka adını arattığında çıkan bilgi panelini besler. Bilgiler web\'deki herkese açık kaynaklardan, lisanslı verilerden ve içerik sahiplerinden derlenir.',
     level: 3,
   },
   'GEO Score': {
-    short: '6 pillar uzerinden agirlikli AI gorunurluk skoru: Crawler · Schema · Citation · Otorite · Tazelik · Multi-Modal. A+ → F harf notu.',
+    short: '6 başlık üzerinden ağırlıklı AI görünürlük skoru: tarayıcı erişimi · yapısal veri · AI atıfları · otorite · tazelik · çoklu ortam. A+ → F harf notu.',
     level: 2,
   },
 
   // ──────────── Teknik / Geliştirici ────────────
   MCP: {
-    short: 'Model Context Protocol — AI\'in gercek API\'lere (Google Ads, Meta Ads) baglanmasini saglayan standart. Anthropic gelistirdi.',
+    short: 'Model Context Protocol — AI asistanlarını verinin bulunduğu sistemlere bağlamak için açık standart (Anthropic, Kasım 2024). RanksUp\'ın MCP sunucusu Kurumsal planda; Claude Code, Cursor gibi ajanlardan bağlanılır.',
     level: 3,
   },
   Webhook: {
-    short: 'Bir olay oldugunda otomatik bildirim gonderilen URL. Slack/Discord\'a baglanir.',
+    short: 'Bir olay olduğunda otomatik bildirim gönderilen adres (URL). Örneğin Slack ya da Discord kanalına bildirim düşürmek için kullanılır.',
     level: 2,
   },
   'API Key': {
-    short: 'RanksUp\'a programatik erisim icin kisisel anahtar. Gelistiriciler kendi yazilimlarindan RanksUp\'i kullanabilir.',
+    short: 'RanksUp\'a programla erişim için kişisel anahtar (Kurumsal plan). Geliştiriciler kendi yazılımlarından RanksUp\'ı kullanabilir.',
     level: 1,
   },
   Scope: {
-    short: 'API key\'in hangi yetkilere sahip oldugu (orn: articles:read = sadece okuma, ads:write = reklam olusturma).',
+    short: 'API anahtarının hangi kaynaklara erişebildiği. Örn: articles:read makaleleri yalnız okur; articles:write makale uçlarında değişiklik yapmaya da izin verir. Kapsam seçilmezse anahtar yalnız okuma yetkisi alır.',
     level: 2,
-  },
-  TTS: {
-    short: 'Text-To-Speech — yazili metni sesli okutma. Makaleyi MP3\'e cevirir, podcast feed\'e ekler.',
-    level: 1,
   },
 
   // ──────────── Paket / İş ────────────
-  Whitelabel: {
-    short: 'RanksUp markasini gizleyip kendi marka adinla satma. "Powered by RanksUp" yazisi kalkar.',
-    level: 2,
-  },
   Affiliate: {
-    short: 'Bir baskasini RanksUp\'a yonlendirip kaydolduklarinda komisyon kazanma programi (%30, 3 ay).',
+    short: 'Birini RanksUp\'a yönlendirip, kayıt olan kişinin ödemelerinden komisyon kazanma programı (%30, kayıttan sonraki 3 ay).',
     level: 1,
   },
   TRIAL: {
-    short: 'Ucretsiz deneme plani — 1 makale uretebilirsin, paket secince tum yayin hedefleri acilir.',
+    short: 'Ücretsiz deneme planı — 2 makale, 3 AI görünürlük çalıştırması ve 1 site; makaleler Markdown ZIP olarak indirilir ya da WordPress\'e gönderilir. Ücretli plan seçince diğer yayın hedefleri de açılır.',
     level: 1,
   },
   Quota: {
-    short: 'Aylik makale uretim limitin. Plan basina degisir (Baslangic 10, Profesyonel 40, Kurumsal 100). Ay sonu sifirlanir.',
+    short: 'Aylık makale üretim limitin; plana göre değişir (güncel sayılar fiyatlandırma sayfasında). Sayaç her takvim ayının başında sıfırlanır; ücretsiz denemedeki 2 makale hakkı sıfırlanmaz.',
     level: 1,
   },
 };

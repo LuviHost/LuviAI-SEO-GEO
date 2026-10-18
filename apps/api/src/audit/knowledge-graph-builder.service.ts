@@ -1,12 +1,20 @@
 import { Injectable, Logger } from '@nestjs/common';
 import Anthropic from '@anthropic-ai/sdk';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { ORG_SAMEAS_MIN_SCAN_VERSION, sameAsCheck } from './geo-score-card.service.js';
 
 export interface WikidataDraft {
   format: 'wikibase-json';
   // Manuel onay sonrasi kullanici Wikidata create-item formuna yapistirir
   labels: { tr: { language: 'tr'; value: string }; en: { language: 'en'; value: string } };
-  descriptions: { tr: { language: 'tr'; value: string }; en: { language: 'en'; value: string } };
+  /**
+   * Yalniz Turkce aciklama. 'en' aciklamasi KALDIRILDI: translateBrief()
+   * ceviri yapmiyordu, Turkce metni 250 karakterde kesip descriptions.en'e
+   * yaziyordu — taslaktaki "Ingilizce aciklama" Turkce metindi. Gercek ceviri
+   * bir model cagrisi ister; bu uc model cagirmaz (KNOWLEDGE_DRAFT_THROTTLE).
+   * Wikidata'da her dilin aciklamasi ayri ve istege baglidir.
+   */
+  descriptions: { tr: { language: 'tr'; value: string }; en?: { language: 'en'; value: string } };
   aliases: Array<{ language: string; value: string }>;
   claims: Array<{
     property: string;       // P17, P31, P856 vs.
@@ -16,7 +24,13 @@ export interface WikidataDraft {
     note?: string;
   }>;
   sitelinks?: Array<{ site: string; title: string }>;
-  notabilityScore: number; // 0-100, Wikidata'nin "notable" kriterlerine uygun mu
+  /**
+   * RanksUp on kontrol puani (0..notabilityMax): yalniz RanksUp'in gorebildigi
+   * sinyaller. Wikidata'nin kayda degerlik olcutunu OLCMEZ (checkNotability).
+   */
+  notabilityScore: number;
+  /** Puanin ulasabilecegi en yuksek deger (NOTABILITY_MAX) — panel "35/50" gosterir */
+  notabilityMax: number;
   notabilityNotes: string[];
   createUrl: string; // Wikidata yeni item olusturma URL'i
 }
@@ -28,17 +42,42 @@ export interface WikipediaDraft {
   references: Array<{ title: string; url: string; date?: string }>;
   category: string[];
   notabilityScore: number;
+  notabilityMax: number;
   notabilityNotes: string[];
+  /** Turkce Vikipedi madde sihirbazi (taslak Turkce wikitext) — WIKIPEDIA_ARTICLE_WIZARD_URL */
   submitUrl: string;
 }
 
 /**
- * Knowledge Graph Builder — markanizin Wikidata + Wikipedia stub'larini hazirlar.
+ * Turkce Vikipedi "Madde sihirbazi" (yeni madde olusturma rehberi). Eski
+ * deger 'Vikipedi:Hızlı_silmeye_aday_göster' idi: adi "hizli silmeye aday
+ * goster" (hizli silme ADAYLIGI) anlamina gelen ve trwiki'de VAR OLMAYAN bir
+ * sayfa (18.10.2026'da HTTP 404). Sihirbaz sayfasi var; "Devam" adimi
+ * Vikipedi:Madde_sihirbazı/Kaynaklandırma ("Bir maddenin konusu, konudan
+ * bağımsız olan güvenilir kaynaklarda işlenmiş olmalıdır.") ile ilerler
+ * (18.10.2026'da dogrulandi). Taslak Turkce wikitext oldugu icin trwiki.
+ */
+export const WIKIPEDIA_ARTICLE_WIZARD_URL = 'https://tr.wikipedia.org/wiki/Vikipedi:Madde_sihirbaz%C4%B1';
+
+/**
+ * On kontrol puaninin tavani: site 10 + 3+ rakip 15 + SEO stratejisi 10 +
+ * kimlik baglantilari (sameAs) 15. Eskiden "site yasi" (aslinda RanksUp'a eklenme
+ * tarihi) 20 puan daha veriyordu ve olcek 100'du; o sinyal kaldirildi
+ * (checkNotability). Puan 100'e olceklenmez: kalan kisim (bagimsiz
+ * kaynaklar) RanksUp'in olcemedigi ve elle dogrulanmasi gereken kisimdir.
+ */
+export const NOTABILITY_MAX = 50;
+
+/**
+ * Knowledge Graph Builder — markanizin Wikidata + Wikipedia taslaklarini hazirlar.
  *
- * Wikidata = Google Knowledge Graph'in birincil kaynagi.
- * Wikipedia = AI'larin egitim verisi (LLM'lerin %30+'inin training data'si).
+ * Wikidata acik bir bilgi tabanidir; bilgi grafiklerinin kaynaklarindan
+ * yalnizca biridir. Wikipedia, egitim karisimini yayimlayan bazi modellerde
+ * birkac yuzdelik paydir (GPT-3 %3, LLaMA %4,5 — kaynaklar geo-lab-panel.tsx
+ * WikipediaTab yorumunda); eski "%30+" orani kaynaksizdi.
  *
- * Submit kullaniciya birakilir (Wikipedia/Wikidata manuel review'lu).
+ * Gonderim kullaniciya birakilir (RanksUp kimseye adina gondermez —
+ * knowledge-submitter.service.ts).
  */
 @Injectable()
 export class KnowledgeGraphBuilderService {
@@ -59,10 +98,14 @@ export class KnowledgeGraphBuilderService {
     const url = site.url.replace(/\/+$/, '');
     const niche = site.niche ?? 'company';
     const brandVoice: any = site.brain?.brandVoice ?? {};
-    const description = brandVoice.summary ?? brandVoice.description ?? `${brand} bir ${niche} sirketidir.`;
+    // Yedek aciklama eskiden `${brand} bir ${niche} sirketidir.` idi: nis yoksa
+    // "X bir company sirketidir." (Ingilizce + Turkce karisik) cikiyordu ve her
+    // markayi "sirket" ilan ediyordu. Wikidata aciklamasi kisa bir ifadedir.
+    const description: string = brandVoice.summary ?? brandVoice.description
+      ?? (site.niche ? `${site.niche} alanında faaliyet gösteren kuruluş` : '');
 
-    // Notability check (Wikidata kriterleri)
-    const notability = this.checkNotability(site);
+    // RanksUp on kontrolu (Wikidata kayda degerlik olcutu DEGIL — checkNotability)
+    const notability = this.checkNotability(site, await this.sameAsEvidence(siteId, site.socialProfiles));
 
     const claims: WikidataDraft['claims'] = [
       // P31 instance of
@@ -103,11 +146,11 @@ export class KnowledgeGraphBuilderService {
       },
       descriptions: {
         tr: { language: 'tr', value: description.slice(0, 250) },
-        en: { language: 'en', value: this.translateBrief(description, 'en') },
       },
       aliases: [],
       claims,
       notabilityScore: notability.score,
+      notabilityMax: NOTABILITY_MAX,
       notabilityNotes: notability.notes,
       createUrl: 'https://www.wikidata.org/wiki/Special:NewItem',
     };
@@ -134,7 +177,7 @@ export class KnowledgeGraphBuilderService {
           system: 'Sen Wikipedia editörüsün. Verilen marka için Wikipedia wikitext formatinda Türkçe makale taslagi yazarsin. Tarafsız (NPOV), 3.parti kaynaklarla doğrulanabilir, reklam içermemeli.',
           messages: [{
             role: 'user',
-            content: `Marka: ${brand}\nURL: ${url}\nSektor: ${niche}\nDil: ${site.language ?? 'tr'}\nMarka aciklamasi: ${brandVoice.summary ?? ''}\n\nWikipedia Türkçe makale taslagi olustur. Format:\n\n'''${brand}'''  ([URL])\n\n[Giris paragrafi — kim, ne, ne zaman, nerede, neden notable]\n\n== Tarihce ==\n[Kuruluş, ana kilometre taşları]\n\n== Hizmetler/Ürünler ==\n[Ne sunuyor]\n\n== Kaynaklar ==\n<references/>\n\n[[Kategori:${this.nicheToCategory(niche)}]]\n[[Kategori:Türkiye'nin internet şirketleri]]\n\nDikkat: Reklam ifadelerini kullanma. "lider", "en iyi", "öncü" gibi kelimeler YASAK.`
+            content: `Marka: ${brand}\nURL: ${url}\nSektor: ${niche}\nDil: ${site.language ?? 'tr'}\nMarka aciklamasi: ${brandVoice.summary ?? ''}\n\nWikipedia Türkçe makale taslagi olustur. Format:\n\n'''${brand}'''  ([URL])\n\n[Giris paragrafi — kim, ne, ne zaman, nerede, neden notable]\n\n== Tarihce ==\n[Kuruluş, ana kilometre taşları]\n\n== Hizmetler/Ürünler ==\n[Ne sunuyor]\n\n== Kaynaklar ==\n<references/>\n\n[[Kategori:${this.nicheToCategory(niche)}]]\n\nDikkat: Reklam ifadelerini kullanma. "lider", "en iyi", "öncü" gibi kelimeler YASAK.`
           }],
         });
         content = resp.content.filter((b: any) => b.type === 'text').map((b: any) => b.text).join('\n');
@@ -144,10 +187,10 @@ export class KnowledgeGraphBuilderService {
     }
 
     if (!content) {
-      content = this.fallbackWikipediaTemplate(brand, url, niche, brandVoice.summary ?? '');
+      content = this.fallbackWikipediaTemplate(brand, url, site.niche ?? null, brandVoice.summary ?? '');
     }
 
-    const notability = this.checkNotability(site);
+    const notability = this.checkNotability(site, await this.sameAsEvidence(siteId, site.socialProfiles));
 
     return {
       format: 'wikitext',
@@ -156,55 +199,100 @@ export class KnowledgeGraphBuilderService {
       references: [
         { title: `${brand} Resmi Web Sitesi`, url, date: new Date().toISOString().slice(0, 10) },
       ],
-      category: [this.nicheToCategory(niche), 'Türkiye\'nin internet şirketleri'],
+      // "Türkiye'nin internet şirketleri" kategorisi HER markaya ekleniyordu (bir
+      // kuafor ya da dis klinigi internet sirketi degil); yalniz sektor kategorisi.
+      category: [this.nicheToCategory(niche)],
       notabilityScore: notability.score,
+      notabilityMax: NOTABILITY_MAX,
       notabilityNotes: notability.notes,
-      submitUrl: 'https://tr.wikipedia.org/wiki/Vikipedi:Hızlı_silmeye_aday_göster',
+      submitUrl: WIKIPEDIA_ARTICLE_WIZARD_URL,
     };
   }
 
   // ────────────────────────────────────────────────────────────
   //  Yardimcilar
   // ────────────────────────────────────────────────────────────
-  private checkNotability(site: any): { score: number; notes: string[] } {
+  /**
+   * Kimlik (sameAs) kaniti — GEO kartinin Otorite kontrolu ile AYNI kaynak ve
+   * kural (geo-score-card.service.ts sameAsCheck): son v3+ Agent Readiness
+   * taramasinin ana sayfa Organization sameAs sonucu; yoksa eski
+   * socialProfiles verisi; ikisi de yoksa "henüz ölçülmedi". Tarama tablosu
+   * hatasi taslagi dusurmez (kanit yok sayilir).
+   */
+  private async sameAsEvidence(siteId: string, socialProfiles: unknown) {
+    const scan = await Promise.resolve()
+      .then(() => this.prisma.agentReadinessScan.findFirst({
+        where: { siteId, scoreVersion: { gte: ORG_SAMEAS_MIN_SCAN_VERSION } },
+        orderBy: { ranAt: 'desc' },
+        select: { ranAt: true, levels: true },
+      }))
+      .catch(() => null);
+    return sameAsCheck(scan, socialProfiles);
+  }
+
+  /**
+   * RanksUp on kontrol puani — yalniz RanksUp'in gorebildigi sinyaller; Wikidata
+   * ya da Vikipedi kayda degerlik olcutu DEGIL (panel bunu boyle anlatir).
+   * Notlardaki "notability sinyali / notability zayıf" ifadeleri kaldirildi:
+   * rakip sayisi ya da SEO stratejisi kayda degerligin gostergesi degildir.
+   */
+  private checkNotability(
+    site: any,
+    sameAs: { ok: boolean; detail: string },
+  ): { score: number; notes: string[] } {
     const notes: string[] = [];
     let score = 0;
 
-    if (site.url) { score += 10; notes.push('✓ Resmi web sitesi mevcut'); }
+    if (site.url) { score += 10; notes.push('✓ Resmî web sitesi mevcut'); }
     if (site.brain?.competitors && (site.brain.competitors as any[]).length >= 3) {
-      score += 15; notes.push('✓ Sektorde rekabet eden 3+ rakip tespit edildi (notability sinyali)');
+      score += 15; notes.push('✓ RanksUp\'ta 3 veya daha fazla rakip tanımlı');
     } else {
-      notes.push('⚠ Sektorde rakip bilgisi az — notability zayif');
+      notes.push('⚠ RanksUp\'ta 3\'ten az rakip tanımlı');
     }
     if (site.brain?.seoStrategy && Object.keys(site.brain.seoStrategy).length > 0) {
-      score += 10; notes.push('✓ SEO stratejisi tanimli');
+      score += 10; notes.push('✓ SEO stratejisi tanımlı');
     }
-    const socialProfiles: string[] = Array.isArray(site.socialProfiles) ? site.socialProfiles : [];
-    if (socialProfiles.length >= 2) {
-      score += 15; notes.push(`✓ ${socialProfiles.length} sosyal profil bagli (sameAs link\'leri olur)`);
-    } else {
-      notes.push('⚠ Sosyal profil eksik — Twitter/LinkedIn/Facebook ekle, sameAs ile dogrulanabilir');
-    }
-    // Yas
-    const ageDays = (Date.now() - new Date(site.createdAt).getTime()) / 86400000;
-    if (ageDays > 365) { score += 20; notes.push('✓ Site 1+ yıldır aktif'); }
-    else if (ageDays > 30) { score += 10; notes.push('✓ Site 30+ gündür aktif'); }
-    else { notes.push('⚠ Site çok yeni — Wikidata "notability" eşiği zor'); }
+    // Kimlik baglantilari: eskiden yalniz Site.socialProfiles okunuyordu; bu
+    // alani API'de ya da panelde YAZAN hicbir yol yok — yeni her sitede
+    // "Sosyal profil eksik — Twitter/LinkedIn/Facebook ekle" diye RanksUp'ta
+    // uygulanamayan bir oneri cikiyordu. Kanit artik sitenin ana sayfasi.
+    if (sameAs.ok) { score += 15; notes.push(`✓ Kimlik bağlantıları (sameAs): ${sameAs.detail}`); }
+    else notes.push(`⚠ Kimlik bağlantıları (sameAs): ${sameAs.detail}`);
+    // "Site 1+ yıldır aktif / 30+ gündür aktif / çok yeni" satiri KALDIRILDI:
+    // site.createdAt sitenin RanksUp'a EKLENDIGI tarih, sitenin ya da markanin
+    // yasi degil — 10 yillik bir marka ilk ay "çok yeni" gorunuyordu. RanksUp
+    // gercek yasi (alan adi kaydi, kurulus yili) olcmuyor; kayda degerlik
+    // olcutleri de yasa bakmaz: Wikidata "serious and publicly available
+    // references" ile tanimlanabilirlik (https://www.wikidata.org/wiki/Wikidata:Notability),
+    // Vikipedi bagimsiz, guvenilir ikincil kaynaklar ister (18.10.2026'da
+    // dogrulandi). Puan bu yuzden en fazla NOTABILITY_MAX (50).
 
     // 3.parti referans (manuel kontrol)
     notes.push('⚠ MANUEL KONTROL: 3.parti basın haberleri (Webrazzi, Hürriyet vb.) gerekli — en az 2 bağımsız kaynak');
 
-    return { score: Math.min(100, score), notes };
+    return { score: Math.min(NOTABILITY_MAX, score), notes };
   }
 
+  /**
+   * P31 (instance of) onerisi. Eski tablodaki kimliklerin cogu YANLISTI —
+   * Wikidata API'den (wbgetentities, 18.10.2026) okunan gercek etiketler:
+   * Q1142307 "cryptopine" (bir kimyasal; "software as a service" yazilmisti),
+   * Q791298 "Avon Wilderness Park" ("advertising agency" yazilmisti), Q484847
+   * "e-commerce" (bir faaliyet; "online shop" yazilmisti), Q4830453 "business"
+   * (hosting icin "web hosting service" yazilmisti). Musteri bu iddiayi
+   * Wikidata'ya kopyaliyor. Simdiki kimlikler ayni API ile dogrulandi:
+   * Q4830453 business, Q4382945 online shop, Q1058914 software company,
+   * Q216931 advertising agency, Q5341295 educational organization,
+   * Q4287745 medical organization.
+   */
   private nicheToInstanceOf(niche: string): string {
     const map: Record<string, string> = {
-      'web hosting': 'Q4830453 (web hosting service)',
-      'hosting': 'Q4830453 (web hosting service)',
-      'e-ticaret': 'Q484847 (online shop)',
-      'saas': 'Q1142307 (software as a service)',
-      'ajans': 'Q791298 (advertising agency)',
-      'eğitim': 'Q3914 (school)',
+      'web hosting': 'Q4830453 (business)',
+      'hosting': 'Q4830453 (business)',
+      'e-ticaret': 'Q4382945 (online shop)',
+      'saas': 'Q1058914 (software company)',
+      'ajans': 'Q216931 (advertising agency)',
+      'eğitim': 'Q5341295 (educational organization)',
       'sağlık': 'Q4287745 (medical organization)',
     };
     return map[niche.toLowerCase()] ?? 'Q4830453 (business)';
@@ -222,22 +310,24 @@ export class KnowledgeGraphBuilderService {
     return map[niche.toLowerCase()] ?? 'Türkiye\'deki şirketler';
   }
 
-  private translateBrief(text: string, target: 'en'): string {
-    // MVP: ASCII versiyonu — gercek translation ileride AI ile
-    return text.slice(0, 250);
-  }
+  /**
+   * Model cagrisi yoksa / basarisizsa sablon. Eskiden ilk cumle her markayi
+   * "Türkiye merkezli bir <nis> şirketidir." diye tanimliyordu (nis yoksa
+   * "bir sirket şirketidir"): dogrulanmamis konum ve tur iddiasi. Bilinmeyen
+   * bilgi, sablonun geri kalani gibi [koseli parantez] yer tutucusu olur.
+   */
+  private fallbackWikipediaTemplate(brand: string, url: string, niche: string | null, summary: string): string {
+    const alan = niche ? `${niche} alanında faaliyet gösteren` : '[alan] alanında faaliyet gösteren';
+    return `'''${brand}''' ([${url} resmî web sitesi]), [şehir] merkezli, ${alan} bir kuruluştur.
 
-  private fallbackWikipediaTemplate(brand: string, url: string, niche: string, summary: string): string {
-    return `'''${brand}''' ([${url} resmi web sitesi]), Türkiye merkezli bir ${niche} şirketidir.
-
-${summary || `${brand}, ${niche} alanında hizmet vermektedir.`}
+${summary || `${brand}, ${niche ?? '[alan]'} alanında hizmet vermektedir.`}
 
 == Tarihçe ==
 {{Kaynak gerekli|date=${new Date().toLocaleDateString('tr-TR', { month: 'long', year: 'numeric' })}}}
 ${brand}, [tarih] yılında kurulmuştur.
 
 == Hizmetler ==
-${brand}, ${niche} alanında çeşitli hizmetler sunmaktadır.
+${brand}, ${niche ?? '[alan]'} alanında çeşitli hizmetler sunmaktadır.
 
 == Ayrıca bakınız ==
 * [Sektör/ilgili konular]
@@ -246,10 +336,9 @@ ${brand}, ${niche} alanında çeşitli hizmetler sunmaktadır.
 <references/>
 
 == Dış bağlantılar ==
-* [${url} ${brand} Resmi Web Sitesi]
+* [${url} ${brand} Resmî Web Sitesi]
 
-[[Kategori:${this.nicheToCategory(niche)}]]
-[[Kategori:Türkiye'deki şirketler]]
+[[Kategori:${this.nicheToCategory(niche ?? '')}]]
 `;
   }
 }

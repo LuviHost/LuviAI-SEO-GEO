@@ -1,5 +1,6 @@
 import { PublishAdapter } from './base.js';
 import type { PublishPayload, PublishResult, OnPageMetaPayload, OnPageMetaResult } from './base.js';
+import { adapterFetch } from './transport.js';
 
 /**
  * Wix Headless API adapter — sınırlı.
@@ -21,7 +22,7 @@ export class WixAdapter extends PublishAdapter {
     const { apiKey, siteId } = this.credentials;
     if (!apiKey || !siteId) return false;
     try {
-      const r = await fetch(`https://www.wixapis.com/site-list/v2/sites/${siteId}`, {
+      const r = await adapterFetch(`https://www.wixapis.com/site-list/v2/sites/${siteId}`, {
         headers: { Authorization: apiKey, 'wix-site-id': siteId },
       });
       return r.ok;

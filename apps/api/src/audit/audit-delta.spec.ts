@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { AuditService, issueKey } from './audit.service.js';
+import { AuditService, aiCitationsOlculdu, compareAuditRows, issueKey } from './audit.service.js';
 
 /**
  * Audit delta raporu — compareAudits'in saf mantigi.
@@ -102,7 +102,7 @@ describe('compareAudits — tek tarama durumu', () => {
     expect(r.to?.id).toBe('tek');
     expect(r.scoreDelta).toBe(0);
     expect(r.checks).toEqual([]);
-    expect(r.ozet).toEqual({ cozulenSayisi: 0, yeniSayisi: 0, devamEdenSayisi: 0 });
+    expect(r.ozet).toEqual({ cozulenSayisi: 0, yeniSayisi: 0, devamEdenSayisi: 0, olculemeyenSayisi: 0 });
   });
 
   it('hic tarama yoksa da hata atmaz', async () => {
@@ -139,7 +139,7 @@ describe('compareAudits — issue eslestirme (type + page)', () => {
   it('cozulen / yeni cikan / devam eden dogru ayrisir', async () => {
     const r = await svc([yeni, eski]).compareAudits('s1');
 
-    expect(r.ozet).toEqual({ cozulenSayisi: 1, yeniSayisi: 1, devamEdenSayisi: 2 });
+    expect(r.ozet).toEqual({ cozulenSayisi: 1, yeniSayisi: 1, devamEdenSayisi: 2, olculemeyenSayisi: 0 });
     expect(r.issues.cozulen[0].page).toBe('/a');
     expect(r.issues.yeniCikan[0].type).toBe('h1_missing');
     expect(r.issues.devamEden.map((i) => i.type).sort()).toEqual([
@@ -160,7 +160,7 @@ describe('compareAudits — issue eslestirme (type + page)', () => {
     ]).compareAudits('s1');
 
     // page ayrimi yapilmasaydi ikisi eslesip "devam eden" gorunurdu
-    expect(r.ozet).toEqual({ cozulenSayisi: 1, yeniSayisi: 1, devamEdenSayisi: 0 });
+    expect(r.ozet).toEqual({ cozulenSayisi: 1, yeniSayisi: 1, devamEdenSayisi: 0, olculemeyenSayisi: 0 });
   });
 
   it('type/page yoksa description ilk 80 karaktere duser — kuyruktaki degisen sayi sorunu bolmez', () => {
@@ -313,5 +313,312 @@ describe('compareAudits — olcum yontemi degisimi', () => {
     expect(r.issues.yeniCikan).toEqual([]);
     expect(r.issues.devamEden.map((i) => i.type)).toEqual(['image_alt_suspicious']);
     expect(r.metodolojiDegisen).toEqual(['image_alt']);
+  });
+});
+
+/**
+ * F5 — olculemeyen kontrolun sorunu "Cozulen" DEGILDIR.
+ *
+ * NEDEN: compareAuditRows onceki taramadaki her sorunu, son taramada yoksa
+ * cozulmus sayiyordu. Ama son tarama bazi seyleri hic OLCMEMIS olabilir:
+ * llms.txt 403 (dogrulanamadi), GEO orneklemi bot korumasina takildi, AI
+ * adimi haftalik hak yuzunden atlandi, tarama 429 ile erken durdu. Rapor
+ * bunlari "donem icinde gercekten cozulen sorun" diye yaziyordu.
+ */
+describe('compareAuditRows — olculemeyen kontrol (F5)', () => {
+  const onceki = (over: Partial<any> = {}) => tarama({ id: 'eski', ranAt: new Date('2026-10-01'), ...over });
+  const sonraki = (over: Partial<any> = {}) => tarama({ id: 'yeni', ranAt: new Date('2026-10-18'), ...over });
+  const llmsYok = { type: 'llms_missing', checkId: 'llms_txt', severity: 'warning', description: 'llms.txt yok' };
+  const unverified = { score: 0, details: { unverified: true, unverifiedReason: 'llms.txt doğrulanamadı: HTTP 403' } };
+
+  it('llms_missing → llms dogrulanamadi: cozulen BOS, olculemedi = [llms_missing]', () => {
+    const r = compareAuditRows(
+      onceki({ checks: { llms_txt: { score: 30 } }, issues: [llmsYok] }),
+      sonraki({
+        checks: { llms_txt: unverified },
+        issues: [{ type: 'llms_txt_unverified', checkId: 'crawl_access', severity: 'info', description: 'llms.txt doğrulanamadı' }],
+      }),
+    );
+    expect(r.issues.cozulen).toEqual([]);
+    expect(r.issues.olculemedi).toEqual([llmsYok]);
+    expect(r.ozet).toEqual({ cozulenSayisi: 0, yeniSayisi: 0, devamEdenSayisi: 0, olculemeyenSayisi: 1 });
+    // Kapsam notu (crawl_access) "yeni cikan sorun" degildir
+    expect(r.issues.yeniCikan).toEqual([]);
+    expect(r.kismi).toMatchObject({ olculemeyenKontroller: ['llms_txt'], skorKapsamiFarkli: ['llms_txt'], sayfaKapsami: null });
+  });
+
+  it('GEO orneklemi engellendi: geo_* sorunlari olculemedi, cozulen degil', () => {
+    const faq = { type: 'faq_missing', checkId: 'geo_faq', severity: 'warning' };
+    const r = compareAuditRows(
+      onceki({ geoScore: 40, checks: { geo: { score: 40, details: { methodVersion: 2 } } }, issues: [faq] }),
+      sonraki({ geoScore: null, checks: { geo: { score: null, methods: [], blocked: { kind: 'challenge', reason: 'x' }, details: { methodVersion: 2 } } }, issues: [] }),
+    );
+    expect(r.issues.cozulen).toEqual([]);
+    expect(r.issues.olculemedi.map((i) => i.type)).toEqual(['faq_missing']);
+    expect(r.geoScoreDelta).toBe(0);
+    expect(r.kismi?.olculemeyenKontroller).toEqual(['geo']);
+  });
+
+  it('PageSpeed bu kez olculemedi (null): eski pagespeed_* onerileri cozulmus sayilmaz', () => {
+    const ps = { type: 'pagespeed_unused-javascript', checkId: 'pagespeed', description: 'JS kaldir — 1.2s' };
+    const r = compareAuditRows(
+      onceki({ checks: { pagespeed: { performanceScore: 40, opportunities: [] } }, issues: [ps] }),
+      sonraki({ checks: { pagespeed: null }, issues: [] }),
+    );
+    expect(r.issues.olculemedi).toEqual([ps]);
+    expect(r.kismi?.olculemeyenKontroller).toEqual(['pagespeed']);
+  });
+
+  it('ters yon: onceki taramada dogrulanamayan kontrolun sorunu "yeni cikan" degil, mevcut durum', () => {
+    const r = compareAuditRows(
+      onceki({ checks: { llms_txt: unverified }, issues: [] }),
+      sonraki({ checks: { llms_txt: { score: 30 } }, issues: [llmsYok] }),
+    );
+    expect(r.issues.yeniCikan).toEqual([]);
+    expect(r.issues.devamEden).toEqual([llmsYok]);
+    expect(r.issues.olculemedi).toEqual([]);
+    // Son taramada olculemeyen kontrol yok — yalniz genel skor kapsami farkli
+    expect(r.kismi).toMatchObject({ olculemeyenKontroller: [], skorKapsamiFarkli: ['llms_txt'] });
+  });
+
+  it('son taramada girdisi hic olmayan kontrolun sorunu olculemedi ve nedeni listede', () => {
+    const eskiKontrol = { type: 'x_missing', checkId: 'kaldirilan_kontrol' };
+    const r = compareAuditRows(
+      onceki({ checks: {}, issues: [eskiKontrol] }),
+      sonraki({ checks: {}, issues: [] }),
+    );
+    expect(r.issues.olculemedi).toEqual([eskiKontrol]);
+    expect(r.kismi?.olculemeyenKontroller).toEqual(['kaldirilan_kontrol']);
+  });
+
+  it('gercekten olculup kaybolan sorun hala COZULEN; tam karsilastirmada kismi alani yok', () => {
+    const r = compareAuditRows(
+      onceki({ checks: { llms_txt: { score: 30 } }, issues: [llmsYok] }),
+      sonraki({ checks: { llms_txt: { score: 100 } }, issues: [] }),
+    );
+    expect(r.issues.cozulen).toEqual([llmsYok]);
+    expect(r.issues.olculemedi).toEqual([]);
+    expect(r.kismi).toBeUndefined();
+  });
+
+  it('tarama bot korumasi yuzunden erken durdu: sayfa kontrolu sorunu olculemedi, site geneli sorun cozulebilir', () => {
+    const baslik = { type: 'meta_title_missing', checkId: 'meta_title', page: 'https://x.com/sayfa-60' };
+    const https = { type: 'no_https', checkId: 'https' };
+    const r = compareAuditRows(
+      onceki({ checks: { meta_title: { score: 70 }, https: { score: 0 } }, issues: [baslik, https] }),
+      sonraki({
+        checks: {
+          meta_title: { score: 90 }, https: { score: 100 },
+          crawlCoverage: { blockedCount: 1, blockedPages: [{ url: 'https://x.com/b' }], stoppedEarly: 'HTTP 429' },
+        },
+        issues: [],
+      }),
+    );
+    expect(r.issues.olculemedi).toEqual([baslik]);
+    expect(r.issues.cozulen).toEqual([https]);
+    expect(r.kismi?.sayfaKapsami).toEqual({ erkenDurdu: true, engellenenSayfa: 1 });
+  });
+
+  it('yeni engellenen sayfa varsa sayfa kontrolu sorunlari olculemedi', () => {
+    const og = { type: 'og_low_coverage', checkId: 'open_graph' };
+    const r = compareAuditRows(
+      onceki({ checks: { open_graph: { score: 50 } }, issues: [og] }),
+      sonraki({ checks: { open_graph: { score: 90 }, crawlCoverage: { blockedCount: 2, blockedPages: [{ url: 'https://x.com/a' }, { url: 'https://x.com/b' }], stoppedEarly: null } }, issues: [] }),
+    );
+    expect(r.issues.olculemedi).toEqual([og]);
+    expect(r.kismi?.sayfaKapsami).toEqual({ erkenDurdu: false, engellenenSayfa: 2 });
+  });
+
+  it('AYNI sayfalar iki taramada da engelliyse kapsam ayni: sayfa kontrolu sorunu cozulebilir (kalici engel susturmaz)', () => {
+    const og = { type: 'og_low_coverage', checkId: 'open_graph' };
+    const kapsam = { blockedCount: 1, blockedPages: [{ url: 'https://x.com/wp-admin' }], stoppedEarly: null };
+    const r = compareAuditRows(
+      onceki({ checks: { open_graph: { score: 50 }, crawlCoverage: kapsam }, issues: [og] }),
+      sonraki({ checks: { open_graph: { score: 90 }, crawlCoverage: kapsam }, issues: [] }),
+    );
+    expect(r.issues.cozulen).toEqual([og]);
+    expect(r.kismi).toBeUndefined();
+  });
+
+  it('onceki tarama erken durduysa sonraki taramada gorulen sayfa sorunu "yeni cikan" sayilmaz', () => {
+    const h1 = { type: 'h1_missing', checkId: 'h1_uniqueness' };
+    const r = compareAuditRows(
+      onceki({ checks: { h1_uniqueness: { score: 100 }, crawlCoverage: { blockedCount: 1, blockedPages: [{ url: 'https://x.com/a' }], stoppedEarly: 'WAF' } }, issues: [] }),
+      sonraki({ checks: { h1_uniqueness: { score: 80 } }, issues: [h1] }),
+    );
+    expect(r.issues.yeniCikan).toEqual([]);
+    expect(r.issues.devamEden).toEqual([h1]);
+  });
+});
+
+/**
+ * F6 — atlanan AI olcumu 0 DEGIL. Haftalik olcum hakki kullanildiktan sonra
+ * baslatilan her denetim AI adimini atliyor; eskiden `score: 0` yaziliyor ve
+ * karsilastirma "aiCitations 20 → 0 (−20)" + ai_citation_low "cozuldu" diyordu.
+ */
+describe('compareAuditRows — atlanan AI olcumu (F6)', () => {
+  const olculmus = { id: 'ai_citations', score: 20, providers: [{ provider: 'openai', available: true, score: 20 }] };
+  const aiDusuk = { type: 'ai_citation_low', checkId: 'ai_citation', severity: 'warning' };
+
+  it('yeni kayit (score null + skipped): durum kayboldu (dusus yok), ai_citation_low olculemedi', () => {
+    const r = compareAuditRows(
+      tarama({ id: 'a', ranAt: new Date('2026-10-13'), checks: { aiCitations: olculmus }, issues: [aiDusuk] }),
+      tarama({
+        id: 'b', ranAt: new Date('2026-10-15'),
+        checks: { aiCitations: { id: 'ai_citations', score: null, providers: [], skipped: { code: 'WEEKLY_MEASUREMENT_LIMIT', message: 'x', nextAvailableAt: '2026-10-20T08:00:00.000Z' } } },
+        issues: [],
+      }),
+    );
+    expect(r.checks.find((c) => c.id === 'aiCitations')).toMatchObject({ oncekiScore: 20, sonrakiScore: null, delta: 0, durum: 'kayboldu' });
+    expect(r.issues.cozulen).toEqual([]);
+    expect(r.issues.olculemedi).toEqual([aiDusuk]);
+    expect(r.kismi?.olculemeyenKontroller).toEqual(['aiCitations']);
+  });
+
+  it('ESKI kayit (score 0, providers []) okuma tarafinda da olcum sayilmaz', () => {
+    const r = compareAuditRows(
+      tarama({ id: 'a', ranAt: new Date('2026-10-01'), checks: { aiCitations: olculmus }, issues: [aiDusuk] }),
+      tarama({ id: 'b', ranAt: new Date('2026-10-05'), checks: { aiCitations: { score: 0, providers: [] } }, issues: [] }),
+    );
+    expect(r.checks.find((c) => c.id === 'aiCitations')).toMatchObject({ sonrakiScore: null, durum: 'kayboldu' });
+    expect(r.issues.olculemedi).toEqual([aiDusuk]);
+  });
+
+  it('hicbir saglayici available degilken yazilan skor da olcum degil', () => {
+    const r = compareAuditRows(
+      tarama({ id: 'a', ranAt: new Date('2026-10-01'), checks: { aiCitations: { score: 0, providers: [{ provider: 'openai', available: false, score: null }] } } }),
+      tarama({ id: 'b', ranAt: new Date('2026-10-05'), checks: { aiCitations: olculmus }, issues: [aiDusuk] }),
+    );
+    // Onceki taraf olculmedi: sonraki sorun "yeni cikan" degil, mevcut durum
+    expect(r.checks.find((c) => c.id === 'aiCitations')).toMatchObject({ oncekiScore: null, sonrakiScore: 20, durum: 'yeni' });
+    expect(r.issues.yeniCikan).toEqual([]);
+    expect(r.issues.devamEden).toEqual([aiDusuk]);
+  });
+
+  it('gercekten olculup 0 cikan AI skoru korunur (olcum sayilir)', () => {
+    const sifir = { score: 0, providers: [{ provider: 'openai', available: true, score: 0 }] };
+    const r = compareAuditRows(
+      tarama({ id: 'a', ranAt: new Date('2026-10-01'), checks: { aiCitations: olculmus } }),
+      tarama({ id: 'b', ranAt: new Date('2026-10-05'), checks: { aiCitations: sifir } }),
+    );
+    expect(r.checks.find((c) => c.id === 'aiCitations')).toMatchObject({ oncekiScore: 20, sonrakiScore: 0, delta: -20, durum: 'kotulesti' });
+  });
+});
+
+/**
+ * G6 — aiCitations bir asistan ORTALAMASI. Ayni yontemle olculmus iki
+ * denetimde olculen asistan kumesi farkliysa (biri 429/kota yuzunden
+ * olculemedi) ham fark bilesimden gelir: Claude 80 + ChatGPT 0 iken Claude
+ * olculemeyince 40 → 0 "kotulesti" ve ai_citation_low "yeni cikan" diyordu.
+ */
+describe('compareAuditRows — AI olcumunde asistan kapsami (G6)', () => {
+  const v4 = (providers: any[], score: number) => ({ id: 'ai_citations', score, providers, details: { methodVersion: 4 } });
+  const olc = (provider: string, score: number) => ({ provider, available: true, score });
+  const yok = (provider: string) => ({ provider, available: false, score: null });
+  const aiDusuk = { type: 'ai_citation_low', checkId: 'ai_citation', severity: 'warning' };
+
+  it('kume farkli: fark yalniz iki denetimde de olculen asistanlardan; ai_citation_low yeni/cozulen sayilmaz', () => {
+    const r = compareAuditRows(
+      tarama({ id: 'a', ranAt: new Date('2026-10-10'), checks: { aiCitations: v4([olc('openai', 0), olc('anthropic', 80)], 40) }, issues: [] }),
+      tarama({ id: 'b', ranAt: new Date('2026-10-17'), checks: { aiCitations: v4([olc('openai', 0), yok('anthropic')], 0) }, issues: [aiDusuk] }),
+    );
+    expect(r.checks.find((c) => c.id === 'aiCitations')).toMatchObject({ oncekiScore: 0, sonrakiScore: 0, delta: 0, durum: 'ayni' });
+    expect(r.aiSaglayiciKapsami).toEqual({ ortak: ['openai'], yalnizOnceki: ['anthropic'], yalnizSonraki: [] });
+    expect(r.issues.yeniCikan).toEqual([]);
+    expect(r.issues.devamEden).toEqual([aiDusuk]);
+    // Yontem degismedi: panelde "yontem guncellendi" notu cikmamali
+    expect(r.metodolojiDegisen).toBeUndefined();
+  });
+
+  it('ortak asistanlarda gercek degisim korunur', () => {
+    const r = compareAuditRows(
+      tarama({ id: 'a', ranAt: new Date('2026-10-10'), checks: { aiCitations: v4([olc('openai', 20), olc('gemini', 40)], 30) } }),
+      tarama({ id: 'b', ranAt: new Date('2026-10-17'), checks: { aiCitations: v4([olc('openai', 60), yok('gemini'), olc('xai', 0)], 30) } }),
+    );
+    // Ham skorlar 30 → 30 "ayni" derdi; ortak tek asistan (openai) 20 → 60
+    expect(r.checks.find((c) => c.id === 'aiCitations')).toMatchObject({ oncekiScore: 20, sonrakiScore: 60, delta: 40, durum: 'iyilesti' });
+    expect(r.aiSaglayiciKapsami).toEqual({ ortak: ['openai'], yalnizOnceki: ['gemini'], yalnizSonraki: ['xai'] });
+  });
+
+  it('ortak asistan yoksa aiCitations satiri uretilmez (kiyaslanacak bir sey yok)', () => {
+    const r = compareAuditRows(
+      tarama({ id: 'a', ranAt: new Date('2026-10-10'), checks: { aiCitations: v4([olc('openai', 40), yok('gemini')], 40) }, issues: [aiDusuk] }),
+      tarama({ id: 'b', ranAt: new Date('2026-10-17'), checks: { aiCitations: v4([yok('openai'), olc('gemini', 10)], 10) }, issues: [aiDusuk] }),
+    );
+    expect(r.checks.find((c) => c.id === 'aiCitations')).toBeUndefined();
+    expect(r.aiSaglayiciKapsami?.ortak).toEqual([]);
+    expect(r.issues.cozulen).toEqual([]);
+    expect(r.issues.devamEden).toEqual([aiDusuk]);
+  });
+
+  it('kume ayniysa alan yok, fark ham skorlardan', () => {
+    const r = compareAuditRows(
+      tarama({ id: 'a', ranAt: new Date('2026-10-10'), checks: { aiCitations: v4([olc('openai', 40), yok('meta')], 40) } }),
+      tarama({ id: 'b', ranAt: new Date('2026-10-17'), checks: { aiCitations: v4([olc('openai', 10), yok('meta')], 10) } }),
+    );
+    expect(r.checks.find((c) => c.id === 'aiCitations')).toMatchObject({ oncekiScore: 40, sonrakiScore: 10, delta: -30, durum: 'kotulesti' });
+    expect(r).not.toHaveProperty('aiSaglayiciKapsami');
+  });
+
+  it('surumsuz eski kayit ile v4 kaydi: kapsamdan once yontem farki — metodoloji_degisti', () => {
+    const r = compareAuditRows(
+      tarama({ id: 'a', ranAt: new Date('2026-10-01'), checks: { aiCitations: { score: 40, providers: [olc('openai', 40)] } } }),
+      tarama({ id: 'b', ranAt: new Date('2026-10-17'), checks: { aiCitations: v4([olc('openai', 0), olc('gemini', 0)], 0) }, issues: [aiDusuk] }),
+    );
+    expect(r.checks.find((c) => c.id === 'aiCitations')).toMatchObject({ delta: 0, durum: 'metodoloji_degisti' });
+    expect(r.metodolojiDegisen).toEqual(['aiCitations']);
+    expect(r.issues.yeniCikan).toEqual([]);
+  });
+});
+
+describe('aiCitationsOlculdu', () => {
+  it('atlama isareti, skor yoklugu ve olcumsuz saglayici listesi olcum degildir', () => {
+    expect(aiCitationsOlculdu(null)).toBe(false);
+    expect(aiCitationsOlculdu({ score: null, providers: [] })).toBe(false);
+    expect(aiCitationsOlculdu({ score: 0, providers: [] })).toBe(false);
+    expect(aiCitationsOlculdu({ score: 40, providers: [{ available: true, score: 40 }], skipped: { code: 'X' } })).toBe(false);
+    expect(aiCitationsOlculdu({ score: 30, providers: [{ available: true, score: null }] })).toBe(false);
+    expect(aiCitationsOlculdu({ score: 0, providers: [{ available: true, score: 0 }] })).toBe(true);
+    // Saglayici listesi tasimayan elle yazilmis kayit: skor oldugu gibi
+    expect(aiCitationsOlculdu({ score: 25 })).toBe(true);
+  });
+});
+
+/**
+ * F7 — GEO olcum yontemi (GEO_METHOD_VERSION) degisti: fark siteye yazilmaz.
+ */
+describe('compareAuditRows — GEO yontemi degisimi (F7)', () => {
+  const faq = { type: 'faq_missing', checkId: 'geo_faq' };
+
+  it('v1 (details yok) → v2: geoScoreDelta 0, metodolojiDegisen geo, geo_* sorunlari cozulen/yeni sayilmaz', () => {
+    const r = compareAuditRows(
+      tarama({ id: 'a', ranAt: new Date('2026-10-01'), geoScore: 60, checks: { geo: { score: 60, methods: [] } }, issues: [faq] }),
+      tarama({ id: 'b', ranAt: new Date('2026-10-18'), geoScore: 51, checks: { geo: { score: 51, methods: [], details: { methodVersion: 2 } } }, issues: [{ type: 'definition_missing', checkId: 'geo_definition' }] }),
+    );
+    expect(r.geoScoreDelta).toBe(0);
+    expect(r.metodolojiDegisen).toEqual(['geo']);
+    expect(r.checks.find((c) => c.id === 'geo')).toMatchObject({ durum: 'metodoloji_degisti', delta: 0 });
+    expect(r.issues.cozulen).toEqual([]);
+    expect(r.issues.yeniCikan).toEqual([]);
+    expect(r.issues.devamEden.map((i) => i.type)).toEqual(['definition_missing']);
+  });
+
+  it('ayni yontem: GEO farki aynen', () => {
+    const v2 = (score: number) => ({ score, methods: [], details: { methodVersion: 2 } });
+    const r = compareAuditRows(
+      tarama({ id: 'a', ranAt: new Date('2026-10-01'), geoScore: 51, checks: { geo: v2(51) } }),
+      tarama({ id: 'b', ranAt: new Date('2026-10-18'), geoScore: 58, checks: { geo: v2(58) } }),
+    );
+    expect(r.geoScoreDelta).toBe(7);
+    expect(r.metodolojiDegisen).toBeUndefined();
+  });
+
+  it('internal_linking v1 → v2 (www katlama): "+60 iyilesti" yerine metodoloji_degisti', () => {
+    const r = compareAuditRows(
+      tarama({ id: 'a', ranAt: new Date('2026-10-01'), checks: { internal_linking: { score: 20, details: { orphans: [] } } }, issues: [{ type: 'orphan_pages', checkId: 'internal_linking' }] }),
+      tarama({ id: 'b', ranAt: new Date('2026-10-18'), checks: { internal_linking: { score: 80, details: { methodVersion: 2, orphans: [] } } }, issues: [] }),
+    );
+    expect(r.checks.find((c) => c.id === 'internal_linking')).toMatchObject({ durum: 'metodoloji_degisti', delta: 0 });
+    expect(r.issues.cozulen).toEqual([]);
   });
 });

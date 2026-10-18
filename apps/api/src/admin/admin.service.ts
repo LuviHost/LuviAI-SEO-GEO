@@ -1,10 +1,18 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Optional } from '@nestjs/common';
 import { containsBrand } from '../audit/brand-in-query.js';
+import { withMeasuredCounts } from '../audit/public-citation.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { QuotaService } from '../billing/quota.service.js';
+import { articleQuotaView, resetAwareArticleLimit } from '../billing/article-quota-view.js';
 
 @Injectable()
 export class AdminService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    // BillingModule @Global: uygulamada her zaman var. Opsiyonel cunku testler
+    // servisi elle kurar; yoksa ozet kota alanini null doner.
+    @Optional() private readonly quota?: QuotaService,
+  ) {}
 
   async getOverview() {
     const now = new Date();
@@ -66,6 +74,7 @@ export class AdminService {
       take: 200,
     });
     // PayTR kart-saklama anahtari istemciye hicbir uctan donmez (admin dahil)
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars -- alan bilerek ayiklaniyor
     return rows.map(({ paytrUtoken: _gizli, ...u }) => u);
   }
 
@@ -136,19 +145,36 @@ export class AdminService {
     ]);
 
     const items = rows.map((r) => {
-      const res = (r.result ?? {}) as any;
-      const queries = Array.isArray(res?.queries) ? res.queries : [];
+      // Payda yalniz OLCULEN cevaplar (public getHistory ile ayni normalizasyon):
+      // calismayan saglayici satiri (eski kayitta Meta Llama) ve HATA satiri
+      // totalProviders'a girmez.
+      const res = withMeasuredCounts((r.result ?? {}) as any) as any;
+      const queries: any[] = Array.isArray(res?.queries) ? res.queries : [];
       // MARKASIZ sorularin toplami — public getHistory ile ayni tanim.
       // Karisik toplam kalsaydi ayni domain admin listesinde baska,
       // gecmis grafiginde baska skor gosterirdi. Eski kayitlarda alan yok;
-      // sorgu metninden ayni kuralla yeniden hesaplanir.
+      // sorgu metninden ayni kuralla yeniden hesaplanir. Host BILEREK
+      // verilmez — alani olmayan kayit CITATION_MATCH_VERSION 4 oncesi
+      // (yalin kelime kurali); gerekce public getHistory'deki notta.
       const isBranded = (q: any): boolean =>
         typeof q?.brandInQuery === 'boolean' ? q.brandInQuery : containsBrand(q?.query ?? '', r.brand ?? '');
-      const citedScore = queries
-        .filter((q: any) => !isBranded(q))
-        .reduce((a: number, q: any) => a + (q.citedCount ?? 0), 0);
-      const totalProviders = queries?.[0]?.totalProviders ?? 0;
-      const queriesCount = queries.length;
+      // Skora giren soru: kilitsiz (teaser'da kilitli soru hic SORULMADI) ve
+      // markasiz. Eskiden maxScore = tum sorular x ilk sorunun saglayici
+      // sayisiydi: 10 soruluk teaser'da (varsayilan 3 soru olculur) 7 kilitli
+      // soru da paydaya girip "3/70" gibi oransiz bir skor gosteriyordu.
+      const locked = queries.filter((q) => q?.locked === true);
+      const open = queries.filter((q) => q && q.locked !== true);
+      const counted = open.filter((q) => !isBranded(q));
+      const citedScore = counted.reduce((a: number, q: any) => a + (q.citedCount ?? 0), 0);
+      // Soru basina olculen cevap sayisi toplanir (HATA alan saglayici o soruda paydada yok)
+      const maxScore = counted.reduce((a: number, q: any) => a + (q.totalProviders ?? 0), 0);
+      // "N sorgu x M motor" etiketi: M = bu kontrolde calisan saglayici sayisi.
+      // HATA yoksa maxScore = N x M; varsa maxScore daha kucuktur (olculemeyen cevap).
+      const totalProviders = counted.reduce(
+        (m: number, q: any) => Math.max(m, Array.isArray(q.providers) ? q.providers.length : (q.totalProviders ?? 0)),
+        0,
+      );
+      const queriesCount = counted.length;
       return {
         id: r.id,
         domain: r.domain,
@@ -160,9 +186,12 @@ export class AdminService {
         costUsd: r.costUsd,
         createdAt: r.createdAt,
         citedScore,
-        maxScore: queriesCount * totalProviders,
+        maxScore,
         queriesCount,
         totalProviders,
+        /** Skora girmeyen sorular — kilitli (teaser'da sorulmadi) ve markali (anilma totolojik) */
+        lockedQueries: locked.length,
+        brandedQueries: open.length - counted.length,
       };
     });
 
@@ -171,6 +200,10 @@ export class AdminService {
 
   /** /api/me — kullanıcının dashboard özeti */
   async getMyDashboard(userId: string) {
+    // Kota kontrolu ONCE: ay basi sifirlamasi yalniz kota kontrolunde calisir
+    // (article-quota-view.ts). Satir ardindan okunur ki "Bu ay uretilen" gecen
+    // ayin sayacini gostermesin; eski mobil surumler de ayni alani okur.
+    const articleLimit = await resetAwareArticleLimit(this.quota, userId);
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     // ADMIN dashboard KPI'lari listede gorulen tum siteleri yansitir (sites.service list() ile ayni semantik)
     const siteWhere = user?.role === 'ADMIN' ? {} : { userId };
@@ -198,6 +231,8 @@ export class AdminService {
       articlesPublished,
       drafts: draftCount,
       articlesUsedThisMonth: user?.articlesUsedThisMonth ?? 0,
+      // { limit, remaining, used } — panel "Ucretsiz hak: 1/2 kaldi" bunu basar
+      articleQuota: articleQuotaView(articleLimit, user?.articlesUsedThisMonth),
       lastInvoice,
     };
   }

@@ -4,13 +4,14 @@
  * NEDEN: IRS.gov vakasi (Ağu 2026): site insanlara acikken Googlebot/AI
  * botlari sayfayi alamadi; bir ayda #1 oldugu her kelime gitti. AiCrawlerHit
  * gunluk bot basina 4xx/5xx sayiyor ama hicbir yerde OKUNMUYORDU. Bu modul
- * "bir bot hata aliyor ama baska botlar 2xx aliyor" durumunu yakalar —
+ * "bir bot hata aliyor ama baska botlar basarili yanit (2xx ya da 304)
+ * aliyor" durumunu yakalar —
  * yani sorun sitenin komple down olmasi degil, bot-ozel bir engel/UA katmani.
  *
  * FRENLER (ai-mention-alarm ile ayni ruh):
  *   - minHits altindaki bot atlanir (3 istekten 2'si 500 alarm degil)
  *   - errorRateThreshold: (4xx+5xx)/hits
- *   - saglikli bot yoksa (hicbiri 2xx almiyor) alarm URETME: site komple
+ *   - saglikli bot yoksa (hicbiri 2xx/304 almiyor) alarm URETME: site komple
  *     down demektir, bu farkli bir olay ve elimizde insan trafigi sinyali yok.
  */
 
@@ -29,7 +30,7 @@ export interface CrawlerErrorTrigger {
   errors: number;
   errorRate: number;
   kind: 'server_error' | 'client_error';
-  /** Ayni pencerede 2xx alan diger botlar — "site ayakta" kaniti */
+  /** Ayni pencerede basarili yanit (status2xx kovasi: 2xx + 304) alan diger botlar — "site ayakta" kaniti */
   healthyBots: string[];
 }
 

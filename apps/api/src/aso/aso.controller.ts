@@ -10,12 +10,19 @@ import { AsoLocalizationHelperService } from './aso-localization-helper.service.
 import { AsoAbTestPlannerService } from './aso-ab-test-planner.service.js';
 import { AsoLaunchChecklistService } from './aso-launch-checklist.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { AppStore, KeywordSource } from '@prisma/client';
 import { AsoPromptLabService } from './aso-prompt-lab.service.js';
 import { AsoReviewContentService } from './aso-review-content.service.js';
 import { RequiresPlan } from '../billing/plan-feature.decorator.js';
 import { MeasurementSession } from '../billing/measurement-session.interceptor.js';
 import { AsoResourceGuard } from './aso-resource.guard.js';
+import { ratingsInputFor, storeMetadataInputs } from './aso-score-inputs.js';
+import { guardText, type GuardIssue } from './metadata-guard.js';
+import { velocityCount } from './recent-reviews.js';
+import {
+  AddAppPromptDto, AddKeywordDto, AiKeywordResearchDto, CalculateScoreDto, CompareCompetitorsDto, ConnectAppBodyDto,
+  FetchReviewsDto, GenerateBackgroundDto, GenerateCaptionsDto, HandPhotoDto, KeywordAuditDto, LinkStoreDto,
+  MirrorKeywordsDto, OptimizeMetadataDto,
+} from './aso.dto.js';
 
 // AsoResourceGuard: :appId / :keywordId'nin :siteId'ye ait oldugunu dogrular
 // (SiteAccessGuard yalnizca site sahipligine bakar).
@@ -55,7 +62,7 @@ export class AsoController {
   addAppPrompt(
     @Param('siteId') siteId: string,
     @Param('appId') appId: string,
-    @Body() body: { text: string },
+    @Body() body: AddAppPromptDto,
   ) {
     return this.appPromptLab.add(siteId, appId, body?.text ?? '');
   }
@@ -67,7 +74,7 @@ export class AsoController {
     return this.appPromptLab.suggest(siteId, appId);
   }
 
-  /** POST /sites/:siteId/aso/apps/:appId/prompts/:promptId/run — 7 saglayicida olc */
+  /** POST /sites/:siteId/aso/apps/:appId/prompts/:promptId/run — yapilandirilmis asistanlarda olc */
   @MeasurementSession()
   @Post('apps/:appId/prompts/:promptId/run')
   @RequiresPlan('appPromptLab')
@@ -126,6 +133,14 @@ export class AsoController {
     return this.aso.searchApps({ term, store, country });
   }
 
+  // GUVENLIK KURALI: yoldan gelen ve AsoResourceGuard'in sahipligini
+  // denetledigi kimlik (siteId / trackedAppId) govde yayilimindan SONRA
+  // yazilir. Govdeler artik sinif DTO (aso.dto.ts) ve ValidationPipe
+  // bilinmeyen alani reddediyor; sira yine de korunur (pipe atlanan bir
+  // cagri ya da gevsetilen bir DTO kimligi ezemesin). Eskiden govde satir ici
+  // tipliydi, denetlenmiyordu ve kimligi once yazmak baska bir musterinin
+  // uygulamasi uzerinde islem yapilmasina izin veriyordu.
+
   // ─── Apps ───────────────────────────────────
 
   @Get('apps')
@@ -136,9 +151,9 @@ export class AsoController {
   @Post('apps')
   connectApp(
     @Param('siteId') siteId: string,
-    @Body() body: { appStoreId?: string; playStoreId?: string; country?: string },
+    @Body() body: ConnectAppBodyDto,
   ) {
-    return this.aso.connectApp({ siteId, ...body });
+    return this.aso.connectApp({ ...body, siteId });
   }
 
   @Get('apps/:appId')
@@ -164,9 +179,9 @@ export class AsoController {
   @Post('apps/:appId/link-store')
   linkStore(
     @Param('appId') appId: string,
-    @Body() body: { appStoreId?: string; playStoreId?: string },
+    @Body() body: LinkStoreDto,
   ) {
-    return this.aso.linkStore({ trackedAppId: appId, ...body });
+    return this.aso.linkStore({ ...body, trackedAppId: appId });
   }
 
   // ─── Keywords ───────────────────────────────
@@ -179,7 +194,7 @@ export class AsoController {
   @Post('apps/:appId/keywords/mirror')
   mirrorKeywords(
     @Param('appId') appId: string,
-    @Body() body: { from?: 'IOS' | 'ANDROID'; to?: 'IOS' | 'ANDROID' },
+    @Body() body: MirrorKeywordsDto,
   ) {
     return this.aso.mirrorKeywords({
       trackedAppId: appId,
@@ -191,7 +206,7 @@ export class AsoController {
   @Post('apps/:appId/keywords')
   addKeyword(
     @Param('appId') appId: string,
-    @Body() body: { keyword?: string; keywords?: string[]; store: AppStore; source?: KeywordSource },
+    @Body() body: AddKeywordDto,
   ) {
     if (Array.isArray(body.keywords) && body.keywords.length > 0) {
       return this.aso.addKeywordsBulk({
@@ -243,7 +258,7 @@ export class AsoController {
   @Post('apps/:appId/reviews/fetch')
   fetchReviews(
     @Param('appId') appId: string,
-    @Body() body?: { limit?: number; analyzeSentiment?: boolean },
+    @Body() body?: FetchReviewsDto,
   ) {
     return this.aso.fetchReviews(appId, body);
   }
@@ -263,17 +278,17 @@ export class AsoController {
   @Post('apps/:appId/ai-keyword-research')
   aiKeywordResearch(
     @Param('appId') appId: string,
-    @Body() body?: { competitorAppIds?: Array<{ appId: string; store: 'IOS' | 'ANDROID' }>; locale?: 'tr' | 'en' },
+    @Body() body?: AiKeywordResearchDto,
   ) {
-    return this.aso.aiKeywordResearch({ trackedAppId: appId, ...body });
+    return this.aso.aiKeywordResearch({ ...body, trackedAppId: appId });
   }
 
   @Post('apps/:appId/optimize-metadata')
   optimizeMetadata(
     @Param('appId') appId: string,
-    @Body() body: { targetKeywords: string[]; store: 'IOS' | 'ANDROID'; locale?: 'tr' | 'en' },
+    @Body() body: OptimizeMetadataDto,
   ) {
-    return this.aso.optimizeMetadata({ trackedAppId: appId, ...body });
+    return this.aso.optimizeMetadata({ ...body, trackedAppId: appId });
   }
 
   @Get('apps/:appId/audit')
@@ -289,7 +304,7 @@ export class AsoController {
   @Post('apps/:appId/keyword-audit')
   keywordAudit(
     @Param('appId') appId: string,
-    @Body() body: { keywords?: unknown; appName?: string; subtitle?: string; competitorNames?: string[]; checkCompetitors?: boolean },
+    @Body() body: KeywordAuditDto,
   ) {
     return this.aso.auditKeywordField(appId, body ?? {});
   }
@@ -304,15 +319,9 @@ export class AsoController {
   @RequiresPlan('screenshotStudio')
   generateBackground(
     @Param('appId') appId: string,
-    @Body() body: {
-      style?: 'minimalist' | 'bold' | 'illustrative' | 'gradient' | 'mesh';
-      brandColor?: string;
-      customPrompt?: string;
-      width?: number;
-      height?: number;
-    },
+    @Body() body: GenerateBackgroundDto,
   ) {
-    return this.screenshots.generateBackground({ trackedAppId: appId, ...body });
+    return this.screenshots.generateBackground({ ...body, trackedAppId: appId });
   }
 
   /** POST /aso/apps/:appId/screenshots/captions — AI caption text önerileri (10 slot) */
@@ -320,19 +329,9 @@ export class AsoController {
   @RequiresPlan('screenshotStudio')
   generateCaptions(
     @Param('appId') appId: string,
-    @Body() body: { targetKeywords?: string[]; locale?: 'tr' | 'en'; slotCount?: number },
+    @Body() body: GenerateCaptionsDto,
   ) {
-    return this.screenshots.generateCaptions({ trackedAppId: appId, ...body });
-  }
-
-  /** POST /aso/apps/:appId/screenshots/save — final PNG'i sunucuda sakla */
-  @Post('apps/:appId/screenshots/save')
-  @RequiresPlan('screenshotStudio')
-  saveScreenshot(
-    @Param('appId') appId: string,
-    @Body() body: { base64Png: string; slotIndex: number; store: 'IOS' | 'ANDROID' },
-  ) {
-    return this.screenshots.saveScreenshot({ trackedAppId: appId, ...body });
+    return this.screenshots.generateCaptions({ ...body, trackedAppId: appId });
   }
 
   /**
@@ -343,9 +342,9 @@ export class AsoController {
   @RequiresPlan('screenshotStudio')
   generateHandPhotoWithScreenshot(
     @Param('appId') appId: string,
-    @Body() body: { screenshotBase64: string; brandColor?: string; width?: number; height?: number },
+    @Body() body: HandPhotoDto,
   ) {
-    return this.screenshots.generateHandPhotoWithScreenshot({ trackedAppId: appId, ...body });
+    return this.screenshots.generateHandPhotoWithScreenshot({ ...body, trackedAppId: appId });
   }
 
   /** GET /aso/apps/:appId/screenshots/library — bu app için üretilmiş tüm AI background'lar */
@@ -370,42 +369,22 @@ export class AsoController {
   @Post('apps/:appId/score')
   async calculateScore(
     @Param('appId') appId: string,
-    @Body() body: {
-      targetKeywords?: string[];
-      keywordPerformance?: { top_10?: number; top_50?: number; top_100?: number; improving_keywords?: number };
-      conversion?: { impression_to_install?: number; downloads_last_30_days?: number; downloads_trend?: 'up' | 'stable' | 'down' };
-    } = {},
+    @Body() body: CalculateScoreDto = {},
   ) {
     const app = await this.prisma.trackedApp.findUniqueOrThrow({ where: { id: appId } });
     const md = (app.metadata as any) ?? {};
-    const ios = md.ios ?? {};
-    const android = md.android ?? {};
-    const title = ios.trackName ?? android.title ?? app.name;
-    const desc = ios.description ?? android.description ?? '';
-    const keywords = body.targetKeywords ?? [];
+    const keywords = Array.isArray(body.targetKeywords) ? body.targetKeywords.filter((k) => typeof k === 'string') : [];
 
-    // Title keyword count — case-insensitive substring
-    const titleLower = title.toLowerCase();
-    const titleKwCount = keywords.filter(k => titleLower.includes(k.toLowerCase())).length;
-    // Keyword density in description (%)
-    const descWords = desc.split(/\s+/).filter(Boolean).length;
-    const descLower = desc.toLowerCase();
-    const kwHits = keywords.reduce((s, k) => s + (descLower.match(new RegExp('\\b' + k.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'g'))?.length ?? 0), 0);
-    const density = descWords > 0 ? (kwHits / descWords) * 100 : 0;
+    // Magaza basina metadata girdisi (App Store'da aciklama yogunlugu skora girmez) — aso-score-inputs.ts
+    const storeInputs = storeMetadataInputs(md, { ios: !!app.appStoreId, android: !!app.playStoreId }, keywords);
+    // Son 30 gundeki yorum sayisi saklanan yorumlardan; bilinmiyorsa ya da
+    // yalniz alt siniri biliniyorsa ("en az N", bayat cekim) null → hiz
+    // bileseni skora katilmaz (eskiden sabit 0; sonra alt sinir kesin sayiliyordu)
+    const recentReviews = await this.aso.getRecentReviewSignal(appId);
 
     const result = this.scorer.calculateOverallScore(
-      {
-        title_keyword_count: titleKwCount,
-        title_length: title.length,
-        description_length: desc.length,
-        description_quality: desc.length > 1500 ? 0.8 : desc.length > 500 ? 0.5 : 0.3,
-        keyword_density: density,
-      },
-      {
-        average_rating: app.iosRating ?? app.androidRating ?? 0,
-        total_ratings: (app.iosReviewCount ?? 0) + (app.androidReviewCount ?? 0),
-        recent_ratings_30d: 0, // TODO: review timestamps'ten compute et
-      },
+      storeInputs.map((s) => s.input),
+      ratingsInputFor(app, md, velocityCount(recentReviews)),
       body.keywordPerformance ?? {},
       body.conversion ?? {},
     );
@@ -415,6 +394,14 @@ export class AsoController {
       appName: app.name,
       computedAt: new Date().toISOString(),
       ...result,
+      signals: {
+        recentReviews30d: recentReviews,
+        metadataStores: storeInputs.map((s) => ({
+          store: s.store,
+          keywordDensity: s.keywordDensity,
+          densityCounted: s.store === 'ANDROID',
+        })),
+      },
     };
   }
 
@@ -447,7 +434,7 @@ export class AsoController {
    */
   @Post('competitors/compare')
   async compareCompetitors(
-    @Body() body: { names: string[]; country?: string },
+    @Body() body: CompareCompetitorsDto,
   ) {
     if (!Array.isArray(body.names) || body.names.length === 0) {
       return { error: 'names array gerekli', results: [] };
@@ -458,6 +445,8 @@ export class AsoController {
   }
 
   // ─── 6 ASO skill port endpoints ────────────────────────────
+  // Bu uclar yalniz bellekte hesap yapar: govde veritabanina, dosya yoluna ya
+  // da dis bir istege gitmez (DTO sertlestirmesi bu yuzden yukaridaki uclarda).
 
   /** POST /aso/keywords/analyze — bir veya birden çok keyword'ı analiz et */
   @Post('keywords/analyze')
@@ -508,11 +497,21 @@ export class AsoController {
     const keywordField = body.platform === 'apple'
       ? this.metadataOpt.optimizeKeywordField(body.keywords, title.optimized_title.split(/[\s,:]+/))
       : null;
+    // Metin kullanicinin kendi girdisinden kuruluyor: dokunulmaz, politika
+    // riski (fiyat, "ucretsiz", eylem cagrisi...) yalniz isaretlenir.
+    const store = body.platform === 'apple' ? 'IOS' : 'ANDROID';
+    const ownText = [body.brand, body.intro, ...(Array.isArray(body.features) ? body.features : []), body.socialProof ?? ''].join('\n');
+    const issues: GuardIssue[] = [
+      ...guardText(title.optimized_title, { field: 'title', store, mode: 'flag', facts: { brand: body.brand } }).issues,
+      ...guardText(description.description, { field: 'description', store, mode: 'flag', facts: { sourceText: ownText } }).issues,
+      ...(keywordField ? guardText(keywordField.keyword_field, { field: 'keywords', store: 'IOS', mode: 'flag' }).issues : []),
+    ];
     return {
       platform: body.platform,
       title,
       description,
       keyword_field: keywordField,
+      issues,
     };
   }
 

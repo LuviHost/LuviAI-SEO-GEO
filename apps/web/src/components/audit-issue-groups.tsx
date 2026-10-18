@@ -1,11 +1,15 @@
 'use client';
 
 import { SEVERITY_LABEL, label } from '@/lib/labels';
-import { useState } from 'react';
+import { useContext, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import { Layers, Zap, ChevronDown, Puzzle, Image as ImageIcon } from 'lucide-react';
-import { api } from '@/lib/api';
+import { Layers, Zap, ChevronDown, Puzzle, Image as ImageIcon, Eye } from 'lucide-react';
+import { api, autoFixMessages, isRobotsFixKey, isUnverifiedCheck } from '@/lib/api';
+// Grup verisi ayni context'teki son taramadan gelir (audit/page.tsx); checks oradan okunur
+import { SiteContext } from '@/app/(dashboard)/sites/[id]/site-context';
+// robots.txt yalniz onizleme + acik onayla yazilir (API 'preview_required')
+import { AutoFixPreviewDialog } from '@/app/(dashboard)/sites/[id]/agent-readiness/auto-fix-preview-dialog';
 import { siteHref } from '@/lib/site-routes';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -26,23 +30,39 @@ const SEV_VARIANT: Record<string, 'danger' | 'warning' | 'secondary'> = {
 export function AuditIssueGroups({ siteId, groups, onRefresh }: { siteId: string; groups: any; onRefresh?: () => void }) {
   const [open, setOpen] = useState<string | null>(null);
   const [fixing, setFixing] = useState<string | null>(null);
+  const [robotsPreviewKey, setRobotsPreviewKey] = useState<string | null>(null);
+  // useContext (useSiteContext degil): bilesen site duzeni disinda da cizilebilsin
+  const audit = useContext(SiteContext)?.audit ?? null;
   const templates: any[] = Array.isArray(groups?.byTemplate) ? groups.byTemplate : [];
   const siteWide: any[] = Array.isArray(groups?.siteWide) ? groups.siteWide : [];
   if (templates.length === 0 && siteWide.length === 0) return null;
 
-  const fixGroup = async (g: any) => {
+  /**
+   * Sablon butonunun gonderecegi anahtarlar: robots.txt toplu yazilmaz (onizleme +
+   * onay), dogrulanamayan kontrolun (erisim engeli) dosyasina hic dokunulmaz.
+   */
+  const fixPlan = (g: any) => {
+    const ids: string[] = (Array.isArray(g.fixableCheckIds) ? g.fixableCheckIds : []).filter((id: string) => !isUnverifiedCheck(audit, id));
+    return { bulk: ids.filter((id) => !isRobotsFixKey(id)), robots: ids.find((id) => isRobotsFixKey(id)) ?? null };
+  };
+
+  const fixGroup = async (g: any, ids: string[]) => {
+    if (ids.length === 0) return;
     setFixing(g.template);
     try {
       // Sonucu GERÇEĞE göre söyle — eskiden auto-fix hiçbir şey yapmasa da
       // "uygulandı" deniyordu (snippet kontrolleri sessizce atlanıyordu).
-      const res: any = await api.applyAutoFix(siteId, g.fixableCheckIds);
-      const applied: string[] = Array.isArray(res?.applied) ? res.applied : [];
-      const errors: any[] = Array.isArray(res?.errors) ? res.errors : [];
-      const unsupported: string[] = Array.isArray(res?.unsupported) ? res.unsupported : [];
-      if (applied.length > 0) toast.success(`${g.template}: ${applied.join(', ')} uygulandı`);
-      if (errors.length > 0) toast.error(`${errors.length} düzeltme başarısız: ${errors.map((e) => e.error).join(' · ')}`);
-      if (unsupported.length > 0) toast.warning(`Otomatik düzeltilemez: ${unsupported.join(', ')} — snippet aracını kullan`);
-      if (applied.length === 0 && errors.length === 0 && unsupported.length === 0) toast.message('Uygulanacak otomatik düzeltme bulunmadı');
+      const res = await api.applyAutoFix(siteId, ids);
+      // Hata / "degisiklik gerekmedi" metinleri API'den, oldugu gibi. "Uygulandi" yalniz
+      // sitede dogrulanan dosya icin; yuklenip canli adreste gorunmeyen dosya uyari olarak
+      // (lib/api.ts autoFixMessages, onizleme diyalogu ile ayni kural)
+      const msg = autoFixMessages(res);
+      if (msg.verified.length > 0) toast.success(`${g.template}: ${msg.verified.join(', ')} uygulandı ve sitede doğrulandı`);
+      if (msg.unverifiedFixes.length > 0) toast.warning(`${g.template}: ${msg.unverifiedFixes.join(', ')} yazıldı ama sitede doğrulanamadı`, { description: msg.unverified.join(' · '), duration: 10000 });
+      if (msg.errors.length > 0) toast.error(msg.errors.length === 1 ? 'Düzeltme uygulanmadı' : `${msg.errors.length} düzeltme uygulanmadı`, { description: msg.errors.join(' · '), duration: 10000 });
+      if (msg.unchanged.length > 0) toast.message('Değişiklik gerekmedi', { description: msg.unchanged.join(' · ') });
+      if (msg.unsupported.length > 0) toast.warning(`Otomatik düzeltilemez: ${msg.unsupported.join(', ')} — snippet aracını kullan`);
+      if (msg.applied.length === 0 && msg.errors.length === 0 && msg.unchanged.length === 0 && msg.unsupported.length === 0) toast.message('Uygulanacak otomatik düzeltme bulunmadı');
       onRefresh?.();
     } catch (err: any) {
       toast.error(err.message);
@@ -67,6 +87,7 @@ export function AuditIssueGroups({ siteId, groups, onRefresh }: { siteId: string
         <div className="space-y-1.5">
           {templates.map((g) => {
             const isOpen = open === g.template;
+            const plan = fixPlan(g);
             return (
               <div key={g.template} className="rounded-lg border">
                 <button type="button" aria-expanded={isOpen} onClick={() => setOpen(isOpen ? null : g.template)} className="w-full flex items-center gap-3 px-3 py-2.5 text-left">
@@ -87,7 +108,9 @@ export function AuditIssueGroups({ siteId, groups, onRefresh }: { siteId: string
                           <Badge variant={SEV_VARIANT[i.severity] ?? 'secondary'} className="text-label">{label(SEVERITY_LABEL, i.severity)}</Badge>
                           <span className="font-medium">{i.description ?? label({}, i.type)}</span>
                           <span className="text-muted-foreground">· {i.count} sayfa</span>
-                          {i.fixRoute === 'auto_fix' && <span className="text-success text-label">otomatik düzeltilebilir</span>}
+                          {i.fixRoute === 'auto_fix' && !isUnverifiedCheck(audit, i.checkId) && (
+                            <span className="text-success text-label">{isRobotsFixKey(i.checkId) ? 'önizlemeyle düzeltilir' : 'otomatik düzeltilebilir'}</span>
+                          )}
                           {i.fixRoute === 'snippet' && <span className="text-brand text-label">snippet ile düzeltilir</span>}
                           {i.fixRoute === 'images' && <span className="text-brand text-label">görseller sayfasında düzeltilir</span>}
                         </div>
@@ -97,9 +120,18 @@ export function AuditIssueGroups({ siteId, groups, onRefresh }: { siteId: string
                       Örnek: {g.samplePages.map((p: string) => { try { return new URL(p).pathname; } catch { return p; } }).join(' · ')}
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      {g.fixableCheckIds.length > 0 && (
-                        <Button size="sm" variant="outline" onClick={() => fixGroup(g)} disabled={fixing !== null}>
-                          <Zap className="h-3.5 w-3.5 mr-1.5" /> {fixing === g.template ? 'Düzeltiliyor…' : `Bu şablonu düzelt (${g.fixableCheckIds.join(', ')})`}
+                      {plan.bulk.length > 0 && (
+                        <Button
+                          size="sm" variant="outline" onClick={() => fixGroup(g, plan.bulk)} disabled={fixing !== null}
+                          // Kok klasor kaniti dosyasi da yuklenir ve sitede kalir (api auto-fix.service.ts proveRootDir)
+                          title="Dosya yoksa oluşturulur; senin dosyanın üzerine yazılmaz. Yazmadan önce küçük bir doğrulama dosyası (ranksup-verify.txt) yüklenip yayın hedefinin bu siteyi sunduğu kontrol edilir; bu dosya sitende kalır."
+                        >
+                          <Zap className="h-3.5 w-3.5 mr-1.5" /> {fixing === g.template ? 'Düzeltiliyor…' : `Bu şablonu düzelt (${plan.bulk.join(', ')})`}
+                        </Button>
+                      )}
+                      {plan.robots && (
+                        <Button size="sm" variant="outline" onClick={() => setRobotsPreviewKey(plan.robots)} disabled={fixing !== null}>
+                          <Eye className="h-3.5 w-3.5 mr-1.5" /> robots.txt önerisini önizle
                         </Button>
                       )}
                       {g.issues.some((i: any) => i.fixRoute === 'images') && (
@@ -123,6 +155,15 @@ export function AuditIssueGroups({ siteId, groups, onRefresh }: { siteId: string
             );
           })}
         </div>
+
+        <AutoFixPreviewDialog
+          siteId={siteId}
+          fixKey={robotsPreviewKey}
+          checkName="Robots.txt"
+          open={robotsPreviewKey !== null}
+          onOpenChange={(o) => { if (!o) setRobotsPreviewKey(null); }}
+          onApplied={() => onRefresh?.()}
+        />
     </section>
   );
 }

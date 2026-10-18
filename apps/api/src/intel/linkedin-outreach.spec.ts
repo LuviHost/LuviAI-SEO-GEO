@@ -322,7 +322,9 @@ describe('sablonlar', () => {
     expect(m.split(/\s+/).length).toBeLessThan(110);
     const thy = renderMessage({ ad: 'Ali', soyad: 'Veli', firma: 'Türk Hava Yolları', sektor: 'turizm-havayolu-telekom-otomotiv' });
     expect(thy).toContain("Türk Hava Yolları'nın");
-    expect(thy).toContain('7 AI asistanında');
+    // Olculen asistan sayisi plans.ts ile ayni (Llama uretimde olculmuyor → 7 degil 6)
+    expect(thy).toContain('6 AI asistanında (ChatGPT, Claude, Gemini, Perplexity, Grok ve DeepSeek)');
+    expect(thy).not.toMatch(/\b7\s*(AI|asistan)/i);
   });
   it('genitive: buyuk unlu uyumu', () => {
     expect(genitive('Trendyol')).toBe("Trendyol'un");

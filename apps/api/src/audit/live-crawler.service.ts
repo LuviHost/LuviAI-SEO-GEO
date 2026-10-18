@@ -4,6 +4,8 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { WebhookNotifierService } from './webhook-notifier.service.js';
 import { acquireCronLock } from '../common/cron-lock.js';
+import { CRAWLER_EVENT_RETENTION_DAYS } from './crawler-event-retention.js';
+import { isSuccessfulCrawlStatus } from './crawler-analytics.service.js';
 import {
   generateIngestSecret,
   verifyIngestSignature,
@@ -28,7 +30,16 @@ import {
  * isCiteFetch=true isaretlenir, gunun ilkinde bildirim + webhook atilir.
  */
 
-/** UA deseni → kanonik bot adi. Middleware'dekiyle ayni cekirdek + on-demand UA'lar. */
+/**
+ * UA deseni → kanonik bot adi. Middleware'dekiyle ayni cekirdek + on-demand UA'lar.
+ *
+ * Google-Extended BILEREK YOK: Google'a gore ayri bir HTTP kullanici ajani
+ * yoktur, tarama mevcut Google UA'lariyla yapilir; ad yalniz robots.txt kontrol
+ * belirtecidir (https://developers.google.com/search/docs/crawling-indexing/google-common-crawlers,
+ * 2026-10-18'de dogrulandi). Kurulum snippet'lerindeki UA deseni de bu listeden
+ * uretildigi icin artik onu aramaz; edge ajaninin yolladigi 'Google-Extended'
+ * bot adi da normalizeBotName'de reddedilir.
+ */
 export const LIVE_BOT_REGISTRY: Array<{ name: string; re: RegExp }> = [
   // On-demand fetcher'lar ONCE — "ChatGPT-User" UA'si "GPTBot" desenine de uyabilir
   { name: 'ChatGPT-User', re: /ChatGPT-User/i },
@@ -43,7 +54,6 @@ export const LIVE_BOT_REGISTRY: Array<{ name: string; re: RegExp }> = [
   { name: 'GPTBot', re: /GPTBot/i },
   { name: 'ClaudeBot', re: /ClaudeBot/i },
   { name: 'PerplexityBot', re: /PerplexityBot/i },
-  { name: 'Google-Extended', re: /Google-Extended/i },
   { name: 'GoogleOther', re: /GoogleOther/i },
   { name: 'Googlebot', re: /Googlebot/i },
   { name: 'Bingbot', re: /bingbot/i },
@@ -73,7 +83,7 @@ const CITE_FETCH_BOTS = new Set([
 
 const MAX_BATCH = 500;
 const DAILY_EVENT_CAP = 50_000; // site basina/gun — kacak worker DB'yi doldurmasin
-const RETENTION_DAYS = 60;
+const RETENTION_DAYS = CRAWLER_EVENT_RETENTION_DAYS;
 
 export interface IngestEvent {
   ua?: string;
@@ -462,6 +472,14 @@ done`;
     return hit?.name ?? null;
   }
 
+  /**
+   * Gunluk AiCrawlerHit toplamlari. Kovalar log yuklemesiyle AYNI kuralla
+   * (isSuccessfulCrawlStatus): basarili = 2xx + 304; 301/302/307/308 yalniz
+   * hits'te kalir (ham durum koduyla crawlerHitEvent'te de durur). Eskiden
+   * `status < 300` idi: Worker'in ilettigi 304'ler hicbir kovaya girmiyordu
+   * (inceleme R16); 1xx ise "basarili" sayiliyordu (ingest 0 ya da negatif
+   * durumu 100'e sikistirir — yani durumu bilinmeyen istek basarili gorunurdu).
+   */
   private async updateDailyAggregates(siteId: string, rows: Array<{ bot: string; ts: Date; status: number; path: string }>) {
     const byDateBot = new Map<string, { date: Date; bot: string; hits: number; s2xx: number; s4xx: number; s5xx: number }>();
     for (const r of rows) {
@@ -469,7 +487,7 @@ done`;
       const key = `${dateKey}|${r.bot}`;
       const cur = byDateBot.get(key) ?? { date: new Date(dateKey), bot: r.bot, hits: 0, s2xx: 0, s4xx: 0, s5xx: 0 };
       cur.hits++;
-      if (r.status < 300) cur.s2xx++;
+      if (isSuccessfulCrawlStatus(r.status)) cur.s2xx++;
       else if (r.status >= 500) cur.s5xx++;
       else if (r.status >= 400) cur.s4xx++;
       byDateBot.set(key, cur);

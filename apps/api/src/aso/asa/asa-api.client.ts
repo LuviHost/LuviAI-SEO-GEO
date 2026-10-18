@@ -1,341 +1,420 @@
-import { createPrivateKey, createSign } from 'node:crypto';
+import {
+  AsaHttp,
+  fetchAppleAccessToken,
+  type AsaClientDeps,
+  type AsaCredentials,
+} from './asa-http.js';
+import {
+  AsaApiError,
+  normalizeKeywordStatus,
+  normalizeMetrics,
+  normalizeReportDate,
+  parseAmount,
+  toApiId,
+  toAppleDateTime,
+  toStr,
+  toStrArray,
+  type AsaAccessToken,
+  type AsaAccountInfo,
+  type AsaAdGroup,
+  type AsaAdsClient,
+  type AsaCampaign,
+  type AsaCampaignDailyRow,
+  type AsaCreateAdGroupInput,
+  type AsaCreateCampaignInput,
+  type AsaDateRange,
+  type AsaKeyword,
+  type AsaKeywordCreateResult,
+  type AsaKeywordInput,
+  type AsaKeywordReportRow,
+  type AsaKeywordUpdate,
+  type AsaSearchTermRow,
+  type AsaServingPrep,
+} from './asa-types.js';
+
+// Geri uyum: bu tipler eskiden bu dosyadan disari aciliyordu
+export type { AsaCredentials } from './asa-http.js';
+export type { AsaAccessToken } from './asa-types.js';
 
 /**
- * Apple Search Ads API Client
- * ===========================
+ * Apple Ads Campaign Management API v5 istemcisi (AsaAdsClient adaptoru)
+ * =====================================================================
  *
- * Apple'in Search Ads Campaign Management API'si için low-level REST wrapper.
+ * Apple bu API'yi 26 Ocak 2027'de kapatiyor; yerine Platform API geliyor
+ * (asa-platform.client.ts). Secim ASA_API_VERSION ile (asa-client.factory.ts).
+ *   https://developer.apple.com/documentation/apple_ads/apple-search-ads-campaign-management-api-5
  *
- * Auth: ES256 JWT (private key + Apple-issued IDs)
- *   - Client Secret = JWT (signed with .p8 private key, ES256)
- *   - JWT 'sub' = client_id (= Key ID), 'iss' = team_id (Org ID), 'aud' = 'https://appleid.apple.com'
- *   - JWT max exp = 180 gün
+ * Auth: asa-http.ts (client-credentials + ES256 client secret, scope searchadsorg)
+ * Cagrilar:
+ *   Authorization: Bearer {access_token}
+ *   X-AP-Context: orgId={sayisal orgId}   ← /acls'ten gelir, clientId DEGIL
  *
- * Token swap:
- *   POST https://appleid.apple.com/auth/oauth2/token
- *     grant_type=client_credentials
- *     client_id={KEY_ID}
- *     client_secret={JWT}
- *     scope=searchadsorg
- *   → access_token (1 saat geçerli)
- *
- * API calls:
- *   Header: Authorization: Bearer {access_token}
- *           X-AP-Context: orgId={ORG_ID}
- *
- * Doc: https://developer.apple.com/documentation/apple_search_ads
+ * Bu dosyada duzeltilen v5 hatalari (resmi dokumanla karsilastirildi):
+ *   - Tek anahtar kelime PUT ucu v5'te YOK; guncelleme yalnizca
+ *     PUT .../targetingkeywords/bulk (dizi govde) ile yapilir.
+ *     https://developer.apple.com/documentation/apple_ads/update-targeting-keywords
+ *   - API 5 ile rapor alanlari yeniden adlandirildi (installs→tapInstalls,
+ *     avgCPA→tapInstallCPI, conversionRate→tapInstallRate); eski adlar okununca
+ *     yukleme hep 0 geliyordu.  https://developer.apple.com/documentation/apple_ads/spendrow
+ *   - 5.6 (Haziran 2026) ile budgetAmount (omur boyu butce) API'den kaldirildi;
+ *     gunluk butce dailyBudgetAmount.
+ *   - Olmayan GET /adgroups/{id}/searchterms yerine gercek arama terimi raporu.
  */
 
-const APPLE_AUTH_URL = 'https://appleid.apple.com/auth/oauth2/token';
 const ASA_API_BASE = 'https://api.searchads.apple.com/api/v5';
+// v5 sayfa basina en fazla 1000 kayit kabul ediyor; kampanya listesinde onceki
+// kodun kullandigi (calistigi bilinen) 100 korunup sayfalanir.
+const CAMPAIGN_PAGE_SIZE = 100;
+const REPORT_PAGE_SIZE = 1000;
+const MAX_PAGES = 50;
 
-export interface AsaCredentials {
-  orgId: string;        // Apple Organization ID (used as JWT iss)
-  keyId: string;        // Apple Key ID (used as JWT sub + client_id)
-  privateKeyPem: string; // .p8 file content (PEM-encoded EC private key)
-  teamId?: string;      // Opsiyonel — multi-team setup
+/** v5 cevaplari { data, pagination, error } zarfiyla gelir; bazi orneklerde ciplak dizi. */
+function unwrapList(body: any): any[] {
+  if (Array.isArray(body)) return body;
+  if (Array.isArray(body?.data)) return body.data;
+  return [];
 }
 
-export interface AsaAccessToken {
-  accessToken: string;
-  expiresAt: Date; // UTC
-  tokenType: string; // 'Bearer'
+export function normalizeV5Campaign(c: any): AsaCampaign {
+  return {
+    id: String(c?.id),
+    name: c?.name ?? '',
+    status: c?.status ?? 'ENABLED',
+    displayStatus: toStr(c?.displayStatus),
+    dailyBudget: parseAmount(c?.dailyBudgetAmount),
+    totalBudget: parseAmount(c?.budgetAmount),
+    currency: toStr(c?.dailyBudgetAmount?.currency),
+    countriesOrRegions: toStrArray(c?.countriesOrRegions),
+    supplySources: toStrArray(c?.supplySources),
+    adamId: c?.adamId !== undefined && c?.adamId !== null ? String(c.adamId) : null,
+    deleted: c?.deleted === true || c?.displayStatus === 'DELETED',
+  };
 }
 
-export class AsaApiClient {
+export function normalizeV5Keyword(k: any): AsaKeyword {
+  return {
+    id: String(k?.id),
+    adGroupId: toStr(k?.adGroupId),
+    campaignId: toStr(k?.campaignId),
+    text: k?.text ?? '',
+    matchType: k?.matchType ?? 'EXACT',
+    bid: parseAmount(k?.bidAmount),
+    status: normalizeKeywordStatus(k?.status),
+    deleted: k?.deleted === true,
+  };
+}
+
+export class AsaApiClient implements AsaAdsClient {
+  readonly version = 'v5' as const;
   private cachedToken: AsaAccessToken | null = null;
   private cachedNumericOrgId: number | null = null;
+  private cachedAccount: AsaAccountInfo | null = null;
+  private readonly http: AsaHttp;
 
-  constructor(private readonly creds: AsaCredentials) {}
+  constructor(private readonly creds: AsaCredentials, private readonly deps: AsaClientDeps = {}) {
+    this.http = new AsaHttp('v5', deps);
+  }
+
+  /** Access token al + cache (1 saat gecerli, 1 dk pay). */
+  async getAccessToken(forceRefresh = false): Promise<AsaAccessToken> {
+    const now = (this.deps.now ?? Date.now)();
+    if (!forceRefresh && this.cachedToken && this.cachedToken.expiresAt.getTime() - now > 60_000) {
+      return this.cachedToken;
+    }
+    this.cachedToken = await fetchAppleAccessToken(this.creds, 'v5', this.deps);
+    return this.cachedToken;
+  }
+
+  private async token(force: boolean): Promise<string> {
+    return (await this.getAccessToken(force)).accessToken;
+  }
 
   /**
-   * Apple Search Ads API'nin X-AP-Context header'ı **numeric** orgId bekler
-   * (NOT clientId / "SEARCHADS.uuid"). Bu ID'yi /acls endpoint'i döner.
-   * /acls çağrısı X-AP-Context gerektirmez (yetkilendirme listesi).
+   * X-AP-Context **sayisal** orgId bekler; /acls (context istemez) doner.
+   * Birden fazla org varsa eskisi gibi ILK kayit — secimi degistirmek mevcut
+   * musterilerde baska org'a gecip DB'deki kampanyalari "silinmis" saydirirdi.
    */
-  private async getNumericOrgId(): Promise<number> {
-    if (this.cachedNumericOrgId) return this.cachedNumericOrgId;
-    const token = await this.getAccessToken();
-    const res = await fetch(`${ASA_API_BASE}/acls`, {
-      method: 'GET',
-      headers: { Authorization: `Bearer ${token.accessToken}` },
-    });
-    if (!res.ok) {
-      const errBody = await res.text().catch(() => '');
-      throw new Error(`ASA /acls → ${res.status}: ${errBody.slice(0, 300)}`);
-    }
-    const data = (await res.json()) as { data?: Array<{ orgId?: number; orgName?: string }> };
-    const first = data?.data?.[0];
+  async getAccountInfo(): Promise<AsaAccountInfo> {
+    if (this.cachedAccount) return this.cachedAccount;
+    const body = await this.http.send<any>(
+      { method: 'GET', url: `${ASA_API_BASE}/acls`, path: '/acls', idempotent: true },
+      (f) => this.token(f),
+    );
+    // Dokuman ornegi data'yi tek nesne gosteriyor, tip adi liste — ikisini de kabul et
+    const list = Array.isArray(body?.data) ? body.data : body?.data ? [body.data] : [];
+    const first = list[0];
     if (!first?.orgId) {
-      throw new Error('ASA /acls: numeric orgId bulunamadı (response: ' + JSON.stringify(data).slice(0, 200) + ')');
+      throw new AsaApiError(
+        'ASA /acls: numeric orgId bulunamadı (response: ' + JSON.stringify(body).slice(0, 200) + ')',
+        { kind: 'config', apiVersion: 'v5' },
+      );
     }
-    this.cachedNumericOrgId = first.orgId;
-    return first.orgId;
+    this.cachedNumericOrgId = Number(first.orgId);
+    this.cachedAccount = {
+      contextId: String(first.orgId),
+      name: toStr(first.orgName ?? first.displayName),
+      currency: toStr(first.currency),
+      orgId: String(first.orgId),
+    };
+    return this.cachedAccount;
   }
 
   /** Public: explicit numeric orgId fetch (initial setup için kullanılır) */
   async fetchNumericOrgId(): Promise<number> {
-    return this.getNumericOrgId();
+    if (this.cachedNumericOrgId) return this.cachedNumericOrgId;
+    await this.getAccountInfo();
+    return this.cachedNumericOrgId as number;
   }
 
   /**
-   * ES256 JWT oluştur (client_secret olarak kullanılır).
-   *
-   * Apple Search Ads "Open API" JWT spec (resmi doc):
-   *   Header:  { alg: ES256, kid: keyId }              ← keyId = UUID
-   *   Payload: { iss: clientId, sub: clientId,         ← Apple: iss=sub=clientId
-   *              aud: "https://appleid.apple.com",
-   *              iat: now, exp: now + N seconds }
-   *
-   * NOT: RanksUp form'unda "Organization ID" = clientId olarak kullanılıyor.
-   * "Key ID" = UUID formatlı keyId (NOT clientId).
+   * Dusuk seviye kimlikli REST cagrisi (geri uyum). Standart zarf: { data, pagination, error }.
+   * GET/PUT/DELETE idempotent sayilir; POST yalnizca 429'da tekrar edilir.
    */
-  private generateClientSecretJwt(expSeconds = 60 * 60): string {
-    const now = Math.floor(Date.now() / 1000);
-    const clientId = this.creds.orgId; // "Organization ID" form alanı clientId değerini taşır
-    const header = { alg: 'ES256', kid: this.creds.keyId };
-    const payload = {
-      iss: clientId,                             // Apple: iss = clientId
-      sub: clientId,                             // Apple: sub = clientId (iss ile aynı)
-      aud: 'https://appleid.apple.com',
-      iat: now,
-      exp: now + expSeconds,
-    };
-
-    const encodedHeader = base64UrlEncode(Buffer.from(JSON.stringify(header)));
-    const encodedPayload = base64UrlEncode(Buffer.from(JSON.stringify(payload)));
-    const signingInput = `${encodedHeader}.${encodedPayload}`;
-
-    // ES256 sign (private key PEM .p8)
-    const key = createPrivateKey({ key: this.creds.privateKeyPem, format: 'pem' });
-    const sign = createSign('SHA256');
-    sign.update(signingInput);
-    sign.end();
-    const derSignature = sign.sign(key);
-    // ES256: DER → raw R||S (64 bytes)
-    const rawSignature = derToRawEcdsa(derSignature, 32);
-    const encodedSignature = base64UrlEncode(rawSignature);
-
-    return `${signingInput}.${encodedSignature}`;
+  async request<T = any>(method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE', path: string, body?: any): Promise<T> {
+    return this.call<T>(method, path, body, method !== 'POST' && method !== 'PATCH');
   }
 
-  /**
-   * Access token al + cache. Apple'in dönüşü 1 saat geçerli.
-   */
-  async getAccessToken(forceRefresh = false): Promise<AsaAccessToken> {
-    const now = new Date();
-    if (
-      !forceRefresh &&
-      this.cachedToken &&
-      this.cachedToken.expiresAt.getTime() - now.getTime() > 60_000 // 1 dk margin
-    ) {
-      return this.cachedToken;
-    }
-
-    const clientSecret = this.generateClientSecretJwt();
-    const body = new URLSearchParams({
-      grant_type: 'client_credentials',
-      client_id: this.creds.orgId, // Apple Open API: client_id = clientId (orgId form alanında)
-      client_secret: clientSecret,
-      scope: 'searchadsorg',
-    });
-
-    const res = await fetch(APPLE_AUTH_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: body.toString(),
-    });
-    if (!res.ok) {
-      const errBody = await res.text().catch(() => '');
-      throw new Error(`Apple token swap failed: ${res.status} ${errBody.slice(0, 300)}`);
-    }
-    const data = (await res.json()) as { access_token: string; expires_in: number; token_type: string };
-    this.cachedToken = {
-      accessToken: data.access_token,
-      expiresAt: new Date(now.getTime() + (data.expires_in - 60) * 1000),
-      tokenType: data.token_type ?? 'Bearer',
-    };
-    return this.cachedToken;
-  }
-
-  /**
-   * Authenticated REST çağrısı. Apple'in standart cevap formu: { data: ..., pagination: ..., error: ... }
-   */
-  async request<T = any>(
-    method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
-    path: string,
-    body?: any,
-  ): Promise<T> {
-    const token = await this.getAccessToken();
+  private async call<T>(method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE', path: string, body: unknown, idempotent: boolean): Promise<T> {
     const url = path.startsWith('http') ? path : `${ASA_API_BASE}${path.startsWith('/') ? path : `/${path}`}`;
+    const orgId = await this.fetchNumericOrgId();
+    return this.http.send<T>(
+      { method, url, path, headers: { 'X-AP-Context': `orgId=${orgId}` }, body, idempotent },
+      (f) => this.token(f),
+    );
+  }
 
-    const numericOrgId = await this.getNumericOrgId();
-    const res = await fetch(url, {
-      method,
-      headers: {
-        Authorization: `Bearer ${token.accessToken}`,
-        'X-AP-Context': `orgId=${numericOrgId}`,
-        ...(body ? { 'Content-Type': 'application/json' } : {}),
-      },
-      body: body ? JSON.stringify(body) : undefined,
-    });
+  // ─── Kampanyalar ─────────────────────────────────────
 
-    if (!res.ok) {
-      const errBody = await res.text().catch(() => '');
-      throw new Error(`ASA ${method} ${path} → ${res.status}: ${errBody.slice(0, 400)}`);
+  /** Tum kampanyalar (sayfalanir; eski kod yalniz ilk 100'u aliyordu, kalanlar "silindi" sayiliyordu). */
+  async listCampaigns(): Promise<AsaCampaign[]> {
+    const out: AsaCampaign[] = [];
+    for (let page = 0; page < MAX_PAGES; page++) {
+      const offset = page * CAMPAIGN_PAGE_SIZE;
+      const body = await this.call<any>('GET', `/campaigns?limit=${CAMPAIGN_PAGE_SIZE}&offset=${offset}`, undefined, true);
+      const rows = unwrapList(body);
+      out.push(...rows.map(normalizeV5Campaign));
+      const total = Number(body?.pagination?.totalResults);
+      if (rows.length < CAMPAIGN_PAGE_SIZE || (Number.isFinite(total) && out.length >= total)) break;
     }
-
-    return (await res.json()) as T;
+    return out;
   }
 
-  // ─── Helper endpoint wrappers ─────────────────────────
-
-  /** Mevcut kampanyaları listele */
-  async listCampaigns(opts: { limit?: number; offset?: number } = {}) {
-    const qs = new URLSearchParams();
-    if (opts.limit) qs.set('limit', String(opts.limit));
-    if (opts.offset) qs.set('offset', String(opts.offset));
-    const tail = qs.toString() ? `?${qs.toString()}` : '';
-    return this.request<{ data: any[]; pagination: any }>('GET', `/campaigns${tail}`);
+  /**
+   * Kampanya olustur. Resmi ornekle ayni alanlar; budgetAmount (5.6'da kaldirildi)
+   * ve paymentModel (hesap ayari, ornekte yok) gonderilmez.
+   *   https://developer.apple.com/documentation/apple_ads/create-a-campaign
+   */
+  async createCampaign(input: AsaCreateCampaignInput): Promise<AsaCampaign> {
+    const body = {
+      name: input.name,
+      adamId: input.adamId,
+      countriesOrRegions: input.countriesOrRegions,
+      dailyBudgetAmount: input.dailyBudget,
+      supplySources: input.supplySources ?? ['APPSTORE_SEARCH_RESULTS'],
+      adChannelType: 'SEARCH',
+      billingEvent: 'TAPS',
+      status: 'ENABLED',
+    };
+    const res = await this.call<any>('POST', '/campaigns', body, false);
+    return normalizeV5Campaign(res?.data ?? res);
   }
 
-  /** Yeni kampanya oluştur */
-  async createCampaign(payload: {
-    name: string;
-    budgetAmount: { amount: string; currency: string };
-    dailyBudgetAmount?: { amount: string; currency: string };
-    countriesOrRegions: string[];
-    adamId: number;                // Apple App ID
-    supplySources?: string[];
-    paymentModel?: 'PAYG' | 'LOC';
-    adChannelType?: 'SEARCH' | 'DISPLAY';
-    billingEvent?: 'TAPS' | 'IMPRESSIONS';
-  }) {
-    // adChannelType + billingEvent Apple'da zorunlu.
-    // SEARCH ads için billingEvent = TAPS (cost per tap = en yaygın).
-    const body = { adChannelType: 'SEARCH' as const, billingEvent: 'TAPS' as const, ...payload };
-    return this.request<{ data: any }>('POST', '/campaigns', body);
+  /** Ad group: pricingModel CPC (v5 sozlugu), startTime zorunlu, 'Z'siz bicim. */
+  async createAdGroup(campaignId: string, input: AsaCreateAdGroupInput): Promise<AsaAdGroup> {
+    const body = {
+      name: input.name,
+      pricingModel: 'CPC',
+      defaultBidAmount: input.defaultBid,
+      startTime: toAppleDateTime(input.startTime ?? new Date((this.deps.now ?? Date.now)())),
+      automatedKeywordsOptIn: false,
+      status: 'ENABLED',
+    };
+    const res = await this.call<any>('POST', `/campaigns/${campaignId}/adgroups`, body, false);
+    const g = res?.data ?? res;
+    return {
+      id: String(g?.id),
+      campaignId: String(g?.campaignId ?? campaignId),
+      name: g?.name ?? input.name,
+      defaultBid: parseAmount(g?.defaultBidAmount),
+      status: g?.status ?? 'ENABLED',
+    };
   }
 
-  /** Adgroup ekle (kampanya altına) */
-  async createAdGroup(campaignId: string, payload: {
-    name: string;
-    defaultBidAmount: { amount: string; currency: string };
-    startTime: string; // ISO
-    endTime?: string;
-    targetingDimensions?: any;
-    pricingModel?: 'CPC' | 'CPM';
-    automatedKeywordsOptIn?: boolean;
-  }) {
-    // pricingModel Apple'da zorunlu. CPC = cost per click/tap (SEARCH ads default).
-    const body = { pricingModel: 'CPC' as const, automatedKeywordsOptIn: false, ...payload };
-    return this.request<{ data: any }>('POST', `/campaigns/${campaignId}/adgroups`, body);
+  // ─── Anahtar kelimeler ───────────────────────────────
+
+  /**
+   * Toplu ekleme. Apple: kopya kelimede cevap 200 doner ama govdede hata olur —
+   * id'siz kayitlar "olustu" sayilmaz (eskiden asaKeywordId="undefined" yaziliyordu).
+   */
+  async addTargetingKeywords(campaignId: string, adGroupId: string, keywords: AsaKeywordInput[]): Promise<AsaKeywordCreateResult> {
+    const payload = keywords.map((k) => ({ text: k.text, matchType: k.matchType, bidAmount: k.bid }));
+    const res = await this.call<any>('POST', `/campaigns/${campaignId}/adgroups/${adGroupId}/targetingkeywords/bulk`, payload, false);
+    const created = unwrapList(res)
+      .filter((k: any) => k?.id !== undefined && k?.id !== null)
+      .map(normalizeV5Keyword);
+    const createdTexts = new Set(created.map((k) => k.text.trim().toLowerCase()));
+    const errMessages = toStrArray(
+      (res?.error?.errors ?? []).map((e: any) => e?.message ?? e?.messageCode).filter(Boolean),
+    );
+    const reason = errMessages.length > 0 ? errMessages.join('; ').slice(0, 200) : 'Apple bu anahtar kelimeyi kabul etmedi';
+    const failed = keywords
+      .filter((k) => !createdTexts.has(k.text.trim().toLowerCase()))
+      .map((k) => ({ text: k.text, reason }));
+    return { created, failed };
   }
 
-  /** Adgroup'a keyword ekle (bid bazlı) */
-  async addTargetingKeywords(
-    campaignId: string,
-    adGroupId: string,
-    keywords: Array<{ text: string; matchType: 'EXACT' | 'BROAD'; bidAmount: { amount: string; currency: string } }>,
-  ) {
-    return this.request<{ data: any[] }>(
+  async listTargetingKeywords(campaignId: string, adGroupId: string): Promise<AsaKeyword[]> {
+    const out: AsaKeyword[] = [];
+    for (let page = 0; page < MAX_PAGES; page++) {
+      const offset = page * REPORT_PAGE_SIZE;
+      const body = await this.call<any>(
+        'GET',
+        `/campaigns/${campaignId}/adgroups/${adGroupId}/targetingkeywords?limit=${REPORT_PAGE_SIZE}&offset=${offset}`,
+        undefined,
+        true,
+      );
+      const rows = unwrapList(body);
+      out.push(...rows.map(normalizeV5Keyword));
+      if (rows.length < REPORT_PAGE_SIZE) break;
+    }
+    return out;
+  }
+
+  /** Teklif/durum guncelle — v5'te yalnizca toplu PUT ucu var (dizi govde). */
+  async updateTargetingKeyword(campaignId: string, adGroupId: string, keywordId: string, update: AsaKeywordUpdate): Promise<AsaKeyword | null> {
+    const item: Record<string, unknown> = { id: toApiId(keywordId) };
+    if (update.bid) item.bidAmount = update.bid;
+    if (update.status) item.status = update.status;
+    const res = await this.call<any>('PUT', `/campaigns/${campaignId}/adgroups/${adGroupId}/targetingkeywords/bulk`, [item], true);
+    const rows = unwrapList(res);
+    if (rows.length === 0 && Array.isArray(res?.error?.errors) && res.error.errors.length > 0) {
+      const msg = res.error.errors.map((e: any) => e?.message ?? e?.messageCode).join('; ');
+      throw new AsaApiError(`ASA PUT targetingkeywords/bulk → 200: ${String(msg).slice(0, 300)}`, {
+        kind: 'validation',
+        status: 200,
+        apiVersion: 'v5',
+      });
+    }
+    return rows[0] ? normalizeV5Keyword(rows[0]) : null;
+  }
+
+  /** v5'te arama sonucu ad group'lari ek reklam nesnesi olmadan yayina girer. */
+  async prepareAdGroupForServing(): Promise<AsaServingPrep> {
+    return { adId: null, created: false };
+  }
+
+  // ─── Raporlar ────────────────────────────────────────
+
+  /**
+   * Gunluk kampanya raporu. Apple selector'i zorunlu kilar (yoksa 400: "Selector is
+   * required"); orderBy bir metrik alani — groupBy eklenmez cunku campaignId_date
+   * tekil kisiti ulke kiriliminda carpisirdi.
+   */
+  async getCampaignDailyReport(range: AsaDateRange): Promise<AsaCampaignDailyRow[]> {
+    const out: AsaCampaignDailyRow[] = [];
+    for (let page = 0; page < 10; page++) {
+      const body = await this.call<any>(
+        'POST',
+        '/reports/campaigns',
+        {
+          startTime: range.startDate,
+          endTime: range.endDate,
+          granularity: 'DAILY',
+          timeZone: 'UTC',
+          returnRowTotals: false,
+          returnGrandTotals: false,
+          returnRecordsWithNoMetrics: false,
+          selector: {
+            orderBy: [{ field: 'impressions', sortOrder: 'DESCENDING' }],
+            pagination: { offset: page * REPORT_PAGE_SIZE, limit: REPORT_PAGE_SIZE },
+          },
+        },
+        true, // rapor POST'u salt okunur
+      );
+      const rows: any[] = body?.data?.reportingDataResponse?.row ?? [];
+      for (const r of rows) {
+        const campaignId = toStr(r?.metadata?.campaignId);
+        if (!campaignId) continue;
+        for (const g of r?.granularity ?? []) {
+          const date = normalizeReportDate(g?.date);
+          if (!date) continue;
+          out.push({ campaignId, date, ...normalizeMetrics(g) });
+        }
+      }
+      if (rows.length < REPORT_PAGE_SIZE) break;
+    }
+    return out;
+  }
+
+  /** Anahtar kelime raporu (donem toplami). Granularity yoksa returnRowTotals true olmali. */
+  async getKeywordReport(campaignId: string, range: AsaDateRange): Promise<AsaKeywordReportRow[]> {
+    const out: AsaKeywordReportRow[] = [];
+    for (let page = 0; page < 10; page++) {
+      const body = await this.call<any>(
+        'POST',
+        `/reports/campaigns/${campaignId}/keywords`,
+        {
+          startTime: range.startDate,
+          endTime: range.endDate,
+          timeZone: 'UTC',
+          returnRowTotals: true,
+          returnGrandTotals: false,
+          returnRecordsWithNoMetrics: false,
+          selector: {
+            orderBy: [{ field: 'localSpend', sortOrder: 'DESCENDING' }],
+            pagination: { offset: page * REPORT_PAGE_SIZE, limit: REPORT_PAGE_SIZE },
+          },
+        },
+        true,
+      );
+      const rows: any[] = body?.data?.reportingDataResponse?.row ?? [];
+      for (const r of rows) {
+        const keywordId = toStr(r?.metadata?.keywordId);
+        if (!keywordId) continue;
+        out.push({
+          keywordId,
+          adGroupId: toStr(r?.metadata?.adGroupId),
+          text: toStr(r?.metadata?.keyword),
+          matchType: toStr(r?.metadata?.matchType),
+          ...normalizeMetrics(r?.total),
+        });
+      }
+      if (rows.length < REPORT_PAGE_SIZE) break;
+    }
+    return out;
+  }
+
+  /** Arama terimi raporu — Apple yalnizca ORTZ saat dilimini kabul ediyor. */
+  async getSearchTermReport(campaignId: string, adGroupId: string | null, range: AsaDateRange): Promise<AsaSearchTermRow[]> {
+    const path = adGroupId
+      ? `/reports/campaigns/${campaignId}/adgroups/${adGroupId}/searchterms`
+      : `/reports/campaigns/${campaignId}/searchterms`;
+    const body = await this.call<any>(
       'POST',
-      `/campaigns/${campaignId}/adgroups/${adGroupId}/targetingkeywords/bulk`,
-      keywords,
+      path,
+      {
+        startTime: range.startDate,
+        endTime: range.endDate,
+        timeZone: 'ORTZ',
+        returnRowTotals: true,
+        returnGrandTotals: false,
+        returnRecordsWithNoMetrics: false,
+        selector: {
+          orderBy: [{ field: 'localSpend', sortOrder: 'DESCENDING' }],
+          pagination: { offset: 0, limit: REPORT_PAGE_SIZE },
+        },
+      },
+      true,
     );
+    const rows: any[] = body?.data?.reportingDataResponse?.row ?? [];
+    return rows.map((r) => ({
+      searchTerm: toStr(r?.metadata?.searchTermText),
+      keywordId: toStr(r?.metadata?.keywordId),
+      keyword: toStr(r?.metadata?.keyword),
+      matchType: toStr(r?.metadata?.matchType),
+      adGroupId: toStr(r?.metadata?.adGroupId),
+      source: toStr(r?.metadata?.searchTermSource),
+      ...normalizeMetrics(r?.total),
+    }));
   }
-
-  /** Adgroup keyword'lerini listele */
-  async listTargetingKeywords(campaignId: string, adGroupId: string) {
-    return this.request<{ data: any[] }>(
-      'GET',
-      `/campaigns/${campaignId}/adgroups/${adGroupId}/targetingkeywords`,
-    );
-  }
-
-  /** Bid güncelle */
-  async updateTargetingKeyword(
-    campaignId: string,
-    adGroupId: string,
-    keywordId: string,
-    payload: { bidAmount: { amount: string; currency: string }; status?: 'ACTIVE' | 'PAUSED' },
-  ) {
-    return this.request<{ data: any }>(
-      'PUT',
-      `/campaigns/${campaignId}/adgroups/${adGroupId}/targetingkeywords/${keywordId}`,
-      payload,
-    );
-  }
-
-  /** Performance raporu (campaigns) */
-  async getCampaignReport(payload: {
-    startTime: string; // 'YYYY-MM-DD'
-    endTime: string;
-    selector?: any;
-    groupBy?: string[];
-    timeZone?: 'UTC' | 'ORTZ';
-    returnRowTotals?: boolean;
-    returnRecordsWithNoMetrics?: boolean;
-    granularity?: 'HOURLY' | 'DAILY' | 'WEEKLY' | 'MONTHLY';
-  }) {
-    return this.request<{ data: { reportingDataResponse: { row: any[] } } }>(
-      'POST',
-      '/reports/campaigns',
-      payload,
-    );
-  }
-
-  /** Keyword search volume / suggestion (popularity index) — Apple internal */
-  async getKeywordSuggestions(adGroupId: string, payload: {
-    keywords?: string[];
-    locale?: string;
-  }) {
-    // Apple endpoint: GET /search-terms/{adgroupId} — opsiyonel, sadece bazı hesaplarda
-    return this.request<{ data: any[] }>('GET', `/adgroups/${adGroupId}/searchterms`);
-  }
-}
-
-// ─────────────────────────────────────────────────────
-//  Utilities — base64url + ECDSA DER→raw
-// ─────────────────────────────────────────────────────
-
-function base64UrlEncode(buf: Buffer): string {
-  return buf.toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-}
-
-/**
- * Node crypto.sign() ES256 sonucu DER-encoded (variable length).
- * JWT spec ise R||S formatında raw 64 byte ister.
- * Bu function DER'i parse edip raw 64-byte buffer döner.
- */
-function derToRawEcdsa(der: Buffer, byteLength: number): Buffer {
-  let offset = 0;
-  if (der[offset++] !== 0x30) throw new Error('Invalid DER signature: missing sequence');
-  // Length (short or long form)
-  if (der[offset] & 0x80) {
-    offset += 1 + (der[offset] & 0x7f); // skip long-form length bytes
-  } else {
-    offset += 1;
-  }
-  if (der[offset++] !== 0x02) throw new Error('Invalid DER signature: missing R INTEGER');
-  let rLen = der[offset++];
-  let r = der.subarray(offset, offset + rLen);
-  offset += rLen;
-  if (der[offset++] !== 0x02) throw new Error('Invalid DER signature: missing S INTEGER');
-  let sLen = der[offset++];
-  let s = der.subarray(offset, offset + sLen);
-
-  // Strip leading zeros + left-pad to byteLength
-  r = padOrTrim(r, byteLength);
-  s = padOrTrim(s, byteLength);
-
-  return Buffer.concat([r, s]);
-}
-
-function padOrTrim(buf: Buffer, len: number): Buffer {
-  if (buf.length === len) return buf;
-  if (buf.length > len) return buf.subarray(buf.length - len); // strip leading 0x00
-  const padded = Buffer.alloc(len);
-  buf.copy(padded, len - buf.length);
-  return padded;
 }

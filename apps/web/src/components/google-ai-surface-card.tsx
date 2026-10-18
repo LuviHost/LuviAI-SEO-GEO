@@ -21,7 +21,12 @@ import { Badge } from '@/components/ui/badge';
  * (sezgisel) ve Preferred Sources rehberi (enjeksiyon yok, kopyala-yapıştır).
  */
 
-const MAX_CSV_BYTES = 200_000; // Nest JSON body limiti (100 KB) + tarih tablosu birkaç KB — büyük dosya = yanlış tablo
+// Dogru dosya (tarih tablosu, Dates.csv) birkac KB; 200 KB ustu yanlis tablodur
+// ve sunucuya gitmeden uyarilir. API'nin JSON govde siniri 2 MiB
+// (apps/api/src/request-body.ts): 200 KB'lik CSV kacislarla bile rahat sigar.
+// Eski not siniri 100 KB yaziyordu (gercekten oyleydi) ve 100-200 KB arasi
+// dosyalar "yanlis tablo" uyarisi yerine sunucudan genel hata aliyordu.
+const MAX_CSV_BYTES = 200_000;
 
 const SIGNAL_LABEL: Record<string, string> = {
   'question': 'soru',

@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { TrendingUp, TrendingDown, Sparkles, Rocket, Bot, Search, PartyPopper } from 'lucide-react';
+import { TrendingUp, TrendingDown, Minus, Sparkles, Rocket, Bot, Search, PartyPopper, Info } from 'lucide-react';
 import { api } from '@/lib/api';
+import { geoImpact, formatTrDate } from '@/components/geo-impact';
 import { cn } from '@/lib/utils';
 import { Card } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -30,7 +31,8 @@ function pct(from: number, to: number): number | null {
 
 /**
  * "RanksUp Etkisi" — site Genel Bakış'ta bütünsel before-after değer kartı.
- * GEO (AI görünürlük) + SEO (Google trafiği/sıralaması) büyümesini birlikte gösterir.
+ * GEO (AI görünürlük) + SEO (Google trafiği/sıralaması) değişimini birlikte gösterir.
+ * GEO kıyası yalnız güncel ölçüm yöntemiyle yapılan ölçümler arasında (geo-impact.ts).
  */
 export function RanksUpImpactCard({ siteId, days = 90 }: { siteId: string; days?: number }) {
   const [geo, setGeo] = useState<any>(null);
@@ -56,25 +58,15 @@ export function RanksUpImpactCard({ siteId, days = 90 }: { siteId: string; days?
   }
 
   // ── GEO / AI ──────────────────────────────────────────────
-  const trends: any[] = geo?.trends ?? [];
-  const byProvider: Record<string, any[]> = geo?.byProvider ?? {};
-  let geoFirstDate: string | null = null, geoLastDate: string | null = null;
-  for (const series of Object.values(byProvider)) {
-    if (!series?.length) continue;
-    if (!geoFirstDate || series[0].date < geoFirstDate) geoFirstDate = series[0].date;
-    const ld = series[series.length - 1].date;
-    if (!geoLastDate || ld > geoLastDate) geoLastDate = ld;
-  }
-  const geoSpan = geoFirstDate && geoLastDate ? Math.round((+new Date(geoLastDate) - +new Date(geoFirstDate)) / 86400000) : 0;
-  const enginesStart = trends.filter((t) => (t.first ?? 0) > 0).length;
-  const enginesNow = trends.filter((t) => (t.last ?? 0) > 0).length;
-  const totalEngines = trends.length;
-  const geoFirstAvg = Math.round(avg(trends.map((t) => t.first).filter((v) => typeof v === 'number')));
-  const geoLastAvg = Math.round(avg(trends.map((t) => t.last).filter((v) => typeof v === 'number')));
-  const geoGrowth = pct(geoFirstAvg, geoLastAvg);
-  const newEngines = trends.filter((t) => (t.last ?? 0) > 0 && (t.first ?? 0) <= 0).map((t) => LABELS[t.provider] ?? t.provider);
-  const hasGeo = trends.length > 0;
-  const geoEarly = geoSpan < 2 && geoFirstAvg === geoLastAvg && enginesStart === enginesNow;
+  // Kiyas yalniz GUNCEL olcum yontemiyle yapilan olcumler arasinda (geo-impact.ts):
+  // yontem degistiyse eski ile yeni yontem kiyaslanmaz, notr "kiyas yok" gosterilir.
+  const g = geoImpact(geo);
+  const hasGeo = g.state !== 'none';
+  const geoFirstAvg = g.firstAvg ?? 0;
+  const geoLastAvg = g.lastAvg ?? 0;
+  const geoGrowth = g.growthPct;
+  const geoDirection = geoLastAvg > geoFirstAvg ? 'up' : geoLastAvg < geoFirstAvg ? 'down' : 'flat';
+  const newEngines = g.newEngines.map((p) => LABELS[p] ?? p);
 
   // ── SEO / Google ──────────────────────────────────────────
   const ts: any[] = seo?.timeSeries ?? [];
@@ -102,7 +94,7 @@ export function RanksUpImpactCard({ siteId, days = 90 }: { siteId: string; days?
         </span>
         <div>
           <h3 className="font-semibold text-sm leading-none">RanksUp etkisi</h3>
-          <p className="text-label text-muted-foreground mt-1">Markanın AI ve Google'da büyümesi · son {days} gün</p>
+          <p className="text-label text-muted-foreground mt-1">Markanın AI ve Google&apos;daki değişimi · son {days} gün</p>
         </div>
       </div>
 
@@ -114,25 +106,38 @@ export function RanksUpImpactCard({ siteId, days = 90 }: { siteId: string; days?
           </div>
           {!hasGeo ? (
             <p className="text-sm text-muted-foreground">Henüz AI ölçümü yok.</p>
-          ) : geoEarly ? (
+          ) : g.state === 'method-changed' ? (
+            <div className="flex items-start gap-2 text-sm">
+              <Info className="h-4 w-4 mt-0.5 text-muted-foreground shrink-0" aria-hidden />
+              <span>
+                Ölçüm yöntemi güncellendi — kıyas yok{g.methodChangedAt ? ` (${formatTrDate(g.methodChangedAt)})` : ''}.
+                Şu an <strong>{g.enginesNow}/{g.totalEngines}</strong> asistanda görünüyorsun{g.lastAvg !== null ? <> · skor <strong>{g.lastAvg}</strong></> : null}.
+              </span>
+            </div>
+          ) : g.state === 'baseline' ? (
             <div className="flex items-center gap-2 text-sm">
               <Rocket className="h-4 w-4 text-brand" aria-hidden />
-              <span>Başlangıç: <strong>{enginesNow}/{totalEngines}</strong> motor · skor <strong>{geoLastAvg}</strong>. Büyüme yakında.</span>
+              <span>Başlangıç: <strong>{g.enginesNow}/{g.totalEngines}</strong> asistanda görünüyorsun{g.lastAvg !== null ? <> · skor <strong>{g.lastAvg}</strong></> : null}. Değişim, sonraki ölçümden sonra görünür.</span>
             </div>
           ) : (
             <>
               <div className="flex items-baseline gap-2">
-                {(geoGrowth ?? 0) >= 0 ? <TrendingUp className={cn('h-5 w-5 self-center', up)} aria-hidden /> : <TrendingDown className={cn('h-5 w-5 self-center', down)} aria-hidden />}
-                <span className={cn('text-metric-lg tabular-nums', (geoGrowth ?? 1) >= 0 ? up : down)}>
-                  {geoGrowth === null ? `+${geoLastAvg}` : `${geoGrowth >= 0 ? '+' : ''}${geoGrowth}%`}
+                {geoDirection === 'up' ? <TrendingUp className={cn('h-5 w-5 self-center', up)} aria-hidden />
+                  : geoDirection === 'down' ? <TrendingDown className={cn('h-5 w-5 self-center', down)} aria-hidden />
+                  : <Minus className="h-5 w-5 self-center text-muted-foreground" aria-hidden />}
+                <span className={cn('text-metric-lg tabular-nums', geoDirection === 'up' ? up : geoDirection === 'down' ? down : 'text-muted-foreground')}>
+                  {geoGrowth === null ? `+${geoLastAvg}` : `${geoGrowth > 0 ? '+' : ''}${geoGrowth}%`}
                 </span>
               </div>
               <div className="text-sm text-muted-foreground mt-1.5 space-y-0.5">
-                <div>Tanıyan motor: <strong className="text-foreground">{enginesStart} → {enginesNow}</strong>/{totalEngines}</div>
-                <div>Ort. AI skoru: <strong className="text-foreground">{geoFirstAvg} → {geoLastAvg}</strong></div>
+                <div>Görünür olduğun asistan: <strong className="text-foreground">{g.enginesStart} → {g.enginesNow}</strong>/{g.totalEngines}</div>
+                <div>Ort. AI skoru: <strong className="text-foreground">{geoFirstAvg} → {geoLastAvg}</strong> <span className="text-label">({g.spanDays} günlük aralık)</span></div>
               </div>
               {newEngines.length > 0 && (
-                <p className="text-label text-success mt-1.5 inline-flex items-center gap-1"><PartyPopper className="h-3.5 w-3.5" aria-hidden /> {newEngines.join(', ')} artık tanıyor</p>
+                <p className="text-label text-success mt-1.5 inline-flex items-center gap-1"><PartyPopper className="h-3.5 w-3.5" aria-hidden /> {newEngines.join(', ')} cevaplarında artık görünüyorsun</p>
+              )}
+              {g.methodChanged && g.methodChangedAt && (
+                <p className="text-label text-muted-foreground mt-1.5">Ölçüm yöntemi {formatTrDate(g.methodChangedAt)} tarihinde güncellendi; kıyas bu tarihten sonraki ölçümlerle.</p>
               )}
             </>
           )}

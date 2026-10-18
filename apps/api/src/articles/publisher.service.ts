@@ -1,19 +1,146 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, type OnModuleInit } from '@nestjs/common';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { decryptCredentials, mdToHtml, parseFrontmatter } from '@luviai/shared';
-import { getAdapter } from '@luviai/adapters';
+import { getAdapter, type PublishPayload } from '@luviai/adapters';
 import { ImageGeneratorService } from './image-generator.service.js';
 import { AiIndexingPingerService } from '../audit/ai-indexing-pinger.service.js';
 import { LlmsFullBuilderService } from '../audit/llms-full-builder.service.js';
 import { LinkValidatorService } from './link-validator.service.js';
 import { SiteUrlInventoryService } from '../sites/site-url-inventory.service.js';
 import { resolveArticleUrl } from './article-url.util.js';
+// Yayindaki yazinin sitedeki adresi: site haritasi, llms-full ve JSON-LD ile ayni kural
+import { articlePublicUrl, parseSiteUrl } from '../audit/ai-sitemap.service.js';
+import { sectionPathOf } from './live-rewrite.js';
 import { QaGateService } from './qa-gate.service.js';
 import { stripHeroPlaceholder, applyHeroImageToJsonLd } from './hero-placeholder.js';
 import { describeHeroImage } from './hero-alt.js';
 import { LLMProviderService } from '../llm/llm-provider.service.js';
+// Adaptor istegi oncesi adres denetimi (reddedilirse Turkce neden, gecerse
+// null). Adaptorler duz fetch / FTP / SSH ile kullanicinin girdigi adrese
+// baglanir; kayittan sonra DNS ic aga cevrilmis olabilir. Bozuk hedef yalniz
+// KENDISINI atlar — toplu yayin digerleriyle surer, is cokmez.
+import { publishTargetBlockReason } from '../publish-targets/publish-target-url.js';
+// Silinmis gorunen kaydin herkese acik adres yoklamasi (S18): SSRF korumali, durust kimlik
+import { safeFetchText } from '../common/safe-fetch.js';
+// Yayindaki yazinin yeniden yayini: hedef basina guncelle / uzerine yaz / kopya acma
+import {
+  BLOCK_SKIP, agentOutputsWithLiveWriteBlocked, applyEntryObservations, articleContentHash, decideRepublish, liveCopyStale, liveEntries,
+  publishSkipText, publishedEntryFor, refreshManualUpdateFlags, republishModeForType, selectPublishTargets,
+  type LiveWriteBlockedReason, type PublishSkip, type PublishTargetRow, type RepublishDecision,
+} from './republish-policy.js';
+
+/**
+ * Yayini kim baslatti (paylasilan sozlesme D2)?
+ *  - 'user': kullanicinin acik yayin istegi — panel / API anahtari ile POST
+ *    .../publish → PUBLISH_ARTICLE isi (worker 'user' verir).
+ *  - 'automation': kullanicinin o an istemedigi yayin — worker'in uretim sonrasi
+ *    otomatik yayini (Tam otomatik, pivot yeniden yazimi) ve takili sayfa yeniden
+ *    yayini. Verilmezse bu sayilir: belirsizlikte guvenli yon (silinen yazi geri
+ *    getirilmez).
+ */
+export type PublishInitiator = 'user' | 'automation';
+
+/**
+ * Yeniden yazim hatti (pipeline) yayindaki yaziyi bu durumlara ceker; PUBLISHED
+ * yazinin metni en son yayinlanan metindir. Icerik izi (contentHash) olmayan
+ * eski yayin kayitlari icin "metin canliya ciktiktan sonra degisti mi" sorusunun
+ * cevabi buradan verilir (republish-policy.ts refreshManualUpdateFlags).
+ */
+const REWRITTEN_SINCE_LIVE_STATUSES: ReadonlySet<string> = new Set(['READY_TO_PUBLISH', 'REVIZE_NEEDED']);
+
+/**
+ * Yayin sonunda yaziya yazim: kosullu deneme sayisi (K10). Her denemede kayit
+ * yeniden okunur, bu yayinin sonucu GUNCEL publishedTo uzerine hedef bazinda
+ * birlestirilir ve yalniz okunan updatedAt hala gecerliyse yazilir. Hepsi
+ * yarisirsa son yazim en taze okumanin uzerine kosulsuz yapilir: yeni acilan
+ * kopyanin kaydi (kimlik, adres) kaybolursa sonraki yayin ikinci kopya acardi.
+ */
+const COMMIT_CONDITIONAL_ATTEMPTS = 3;
+
+/** Yayin sonunda yeniden okunan alanlar: kayit listesi, kilit ve metnin izi */
+const FRESH_STATE_SELECT = {
+  publishedTo: true, updatedAt: true, status: true, publishedAt: true,
+  title: true, metaTitle: true, metaDescription: true, bodyMd: true,
+} as const;
+
+interface FreshArticleState {
+  publishedTo: unknown;
+  updatedAt: Date;
+  status: unknown;
+  publishedAt: Date | null;
+  title: string | null;
+  metaTitle: string | null;
+  metaDescription: string | null;
+  bodyMd: string | null;
+  /** Yalniz istenince okunur (agir alan): otomatik yazim engeli kaydi icin */
+  agentOutputs?: unknown;
+}
+
+/**
+ * Bu yayinda hedeflerde GORULENLER (yazilmayan kayitlara islenir):
+ *  - trashed: yazi WordPress'te cop kutusunda → kayda trashedAt
+ *  - missing: yazi hedefte silinmis (kimlik VE adres 404/410) ve yeniden
+ *    olusturulmadi → kayda missingAt (D3)
+ *  - present: yazi duruyor, cop kutusunda degil (musterinin duzenlemesi korundu;
+ *    ya da kimlik cozulmese de adres hala aciliyor: live_entry_unresolvable, S18)
+ *  - unwritable: RanksUp bu kopyaya yazmadi — WordPress'te degismis, kimlik bu
+ *    yaziya ait degil ya da cozulmuyor ama adres aciliyor, ya da kullanici acik
+ *    listede o hedefi secmedi (D1) → metin farkliysa elle guncelleme isareti
+ * live_entry_unverified (kimlik bulunamadi, adres dogrulanamadi) hicbirine
+ * girmez: kopyanin durumu bilinmiyor, kayit oldugu gibi kalir.
+ */
+function entryObservations(results: PublishResult[]): { trashed: Set<string>; missing: Set<string>; present: Set<string>; unwritable: Set<string> } {
+  const ids = (skips: readonly PublishSkip[]) => new Set(results.filter((r) => !!r.skipped && skips.includes(r.skipped)).map((r) => r.targetId));
+  return {
+    trashed: ids(['live_entry_trashed']),
+    missing: ids(['live_entry_missing']),
+    present: ids(['live_entry_edited', 'live_entry_unresolvable']),
+    unwritable: ids(['live_entry_edited', 'live_entry_mismatch', 'live_entry_unresolvable', 'live_target_not_selected']),
+  };
+}
+
+/**
+ * Kayitli yazinin herkese acik adresinin durumu (S18). Yonlendirmeler izlenir,
+ * karari son yanit verir:
+ *  - 'gone': 404 / 410: yazi o adreste artik yok
+ *  - 'live': 2xx / 3xx: adres hala aciliyor (yazi orada duruyor ya da baska
+ *    bir adrese yonlendiriliyor)
+ *  - 'unknown': adres kayitli degil, baska durum (401/403/429/5xx) ya da ag /
+ *    adres hatasi (zaman asimi, ic adrese cozulme, cok fazla yonlendirme)
+ */
+export type EntryUrlState = 'gone' | 'live' | 'unknown';
+
+/** Kayitli adresi yoklayan islev (PublisherService; testte sahtesi verilir) */
+export type EntryUrlCheck = (url: string | undefined) => Promise<EntryUrlState>;
+
+/**
+ * Kayitli yazi adresini common/safe-fetch ile yoklar: yalniz http/https ve
+ * 80/443, ic aga baglanmaz, yonlendirmenin her adimi yeniden denetlenir, durust
+ * bot kimligi (RANKSUP_BOT_UA) gonderilir. Govde okunmaz (maxBytes 0), yalniz
+ * durum kodu. Hata firlatmaz: her belirsizlik 'unknown'.
+ *
+ * NEDEN: yerinde guncellemede WordPress'in 404'u (rest_post_invalid_id /
+ * XML-RPC "Invalid post ID.") yazinin silindigini KANITLAMAZ. Kimlik artik bir
+ * sayfaya aitse (yazi sayfaya donusturuldu) ya da WXR yeniden ice aktarimi
+ * kimlikleri degistirdiyse WordPress yine 404 der, kalici adres ise yaziyi
+ * sunmaya devam eder. Yalniz kimlige bakan yayinci canli yaziyi emekliye
+ * ayiriyordu: durum READY_TO_PUBLISH, site haritasi adresi dusuyor, takili
+ * sayfa dedektoru ve icerik pivotu yaziyi yok sayiyor, kullanicinin "WordPress
+ * hedefini secip yeniden yayinlayin" adimi da ayni adreste ikinci bir kopya
+ * aciyordu (inceleme S18'in yan etkisi).
+ */
+export async function checkEntryPublicUrl(url: string | undefined, fetchText: typeof safeFetchText = safeFetchText): Promise<EntryUrlState> {
+  if (typeof url !== 'string' || !url.trim()) return 'unknown';
+  try {
+    const r = await fetchText(url.trim(), { maxBytes: 0, errorBodyBytes: 0, maxRedirects: 3, timeoutMs: 10_000 });
+    if (r.status === 404 || r.status === 410) return 'gone';
+    return r.status >= 200 && r.status < 400 ? 'live' : 'unknown';
+  } catch {
+    return 'unknown';
+  }
+}
 
 /**
  * Markdown body'yi CMS gövdesine girecek HTML PARÇASI haline getirir.
@@ -213,24 +340,110 @@ function buildFaqPageLd(bodyMd: string): any | null {
   return { '@context': 'https://schema.org', '@type': 'FAQPage', mainEntity };
 }
 
+/**
+ * Basarili yazimda hedefte ne yapildi:
+ *  - created: ilk yayin (bu hedefte canli kayit yoktu)
+ *  - updated: mevcut kayit yerinde guncellendi (WordPress)
+ *  - overwritten: ayni yol/anahtar uzerine yazildi (FTP, SFTP, cPanel, GitHub, KobiPratik)
+ *  - exported: disa aktarim yeniden uretildi (Markdown ZIP)
+ *  - recreated: kayit hedefte silinmisti (404/410), yeniden olusturuldu
+ */
+export type PublishAction = 'created' | 'updated' | 'overwritten' | 'exported' | 'recreated';
+
 export interface PublishResult {
   targetId: string;
   targetType: string;
   ok: boolean;
   externalUrl?: string;
   externalId?: string;
+  /** Turkce neden (basarisiz ya da bilerek yapilmayan yayin) — panel aynen gosterir */
   error?: string;
+  /** Ek alan: basarili yazimda ne yapildi */
+  action?: PublishAction;
+  /** Ek alan: kopya acmamak icin bilerek YAPILMAYAN yayin (makine okunur neden; metin error'da) */
+  skipped?: PublishSkip;
+  /** publishedTo kaydi: bu hedefte ilk yayin zamani (ISO; panel "Yayın Geçmişi" bunu okur) */
+  publishedAt?: string;
+  /** publishedTo kaydi: bu hedefe son yazim zamani (ISO) */
+  updatedAt?: string;
+  /**
+   * publishedTo kaydi: bu hedefe yazilan metnin izi (republish-policy.ts
+   * articleContentHash). "Bu hedefte daha eski metin yayinda" karari buna bakar.
+   */
+  contentHash?: string;
+  /**
+   * publishedTo kaydi (paylasilan sozlesme C3): hedefin KENDI son degisiklik
+   * damgasi, RanksUp'in bu yaziminin hemen ardindan (WordPress modified_gmt,
+   * ISO). Sonraki yerinde guncelleme "yazi o zamandan beri WordPress'te
+   * degisti mi" sorusunu ayni saatle yanitlar.
+   */
+  remoteModifiedAt?: string;
+  /**
+   * publishedTo kaydi (C3): kopya WordPress cop kutusunda bulundu (ISO). Kopya
+   * canli sayilmaz (liveEntries, lastLiveWriteAt, adres secimi); kimlik ve
+   * adres korunur, hedefe sonraki basarili yazim isareti kaldirir.
+   */
+  trashedAt?: string;
+  /**
+   * publishedTo kaydi (D3): kayitli yazi hedefte silinmis bulundu ve yeniden
+   * olusturulmadi (ISO). Cop kutusu gibi canli sayilmaz; kimlik ve adres korunur,
+   * hedefe sonraki basarili yazim isareti kaldirir.
+   */
+  missingAt?: string;
+}
+
+/**
+ * Article.publishedTo birlestirmesi: bu yayinin basarili sonuclari ayni
+ * hedefin onceki kaydinin YERINE gecer; baska hedeflerdeki kayitlar korunur.
+ *
+ * NEDEN: kayit her yayinda tumden eziliyordu. Yazi tek hedefe yeniden
+ * yayinlaninca (takili sayfa kurtarmasi, hedef secerek yayin) diger
+ * hedeflerdeki canli kopyalarin izi (WordPress yazi kimligi, adres) kayboluyor;
+ * site haritasi / llms.txt adresi ve "yazi nerede yayinda" karari
+ * (stuck-page-autopilot.ts planArticleRepublish) eksik veriyle calisiyordu.
+ * Yeni sonuclar basta: "ilk sitedeki adres" okuyanlar (articlePublicUrl) en
+ * son yayini gorur.
+ */
+export function mergePublishedTo(previous: unknown, successful: PublishResult[]): unknown[] {
+  const ids = new Set(successful.map((r) => r.targetId));
+  const kept = (Array.isArray(previous) ? previous : []).filter((e) => {
+    if (!e || typeof e !== 'object') return false;
+    const id = (e as { targetId?: unknown }).targetId;
+    return !(typeof id === 'string' && ids.has(id));
+  });
+  return [...successful, ...kept];
 }
 
 /**
  * Article publish — bir veya daha fazla publish target'a aynı makaleyi yayınla.
  * Adapter framework üzerinden çalışır (WordPress, FTP, SFTP, Markdown ZIP, ...)
  *
+ * Yazi bir hedefte ZATEN yayindaysa (publishedTo'da o hedefin canli kaydi)
+ * ikinci kopya acilmaz (republish-policy.ts): WordPress yazisi yerinde
+ * guncellenir, dosya hedeflerinde ayni yolun uzerine yazilir, yalniz yeni
+ * kayit acan hedeflerde (Ghost, Strapi, Webflow, Sanity, Contentful, WHMCS,
+ * ozel PHP) yayin yapilmaz ve sonuc Turkce nedenle `skipped` doner.
+ *
  * Worker'dan PUBLISH_ARTICLE job'unda çağrılır.
  */
 @Injectable()
-export class PublisherService {
+export class PublisherService implements OnModuleInit {
   private readonly log = new Logger(PublisherService.name);
+
+  /**
+   * Silinmis gorunen kaydin herkese acik adres yoklamasi (S18, checkEntryPublicUrl).
+   * Nest yasam dongusu (onModuleInit) gercek yoklayiciyi kurar; API ve worker
+   * servisi Nest uzerinden alir (worker: createApplicationContext init'i
+   * cagirir). Dogrudan kurulan ornekte (birim testleri) test kendi sahtesini
+   * verir; verilmezse adaptorun 404/410'u tek basina yeterli sayilir. NEDEN:
+   * testlerin sahte WordPress'i herkese acik adresi sunmaz, gercek aga
+   * cikmalari yavas ve kararsiz olurdu.
+   */
+  private entryUrlCheck: EntryUrlCheck | null = null;
+
+  onModuleInit(): void {
+    this.entryUrlCheck ??= (url) => checkEntryPublicUrl(url);
+  }
 
   constructor(
     private readonly prisma: PrismaService,
@@ -243,19 +456,155 @@ export class PublisherService {
     private readonly llm: LLMProviderService,
   ) {}
 
-  async publishArticle(articleId: string, targetIds: string[], opts: { overrideQa?: boolean } = {}): Promise<PublishResult[]> {
+  /**
+   * opts.overwriteRemoteEdits (paylasilan sozlesme C1): YALNIZ kullanicinin
+   * panelden verdigi acik onay (POST .../publish govdesi → PUBLISH_ARTICLE is
+   * verisi). WordPress yazisi RanksUp'in son yaziminden sonra WordPress'te
+   * degismisse bile ustune yazilir (adapter.update force). Otomasyon (takili
+   * sayfa otopilotu, icerik pivotu, Tam otomatik yayin) bu secenegi HIC vermez:
+   * musterinin duzenlemesi kendiliginden ezilmez, yazi live_entry_edited ile
+   * atlanir ve kopya "elle guncelleme bekliyor" diye isaretlenir.
+   * Onayin KAPSAMI: yalniz targetIds ile ADI verilen hedefler zorlanir. Hedef
+   * listesi bos gelirse hicbir hedef zorlanmaz (panel uzerine yazmayi her zaman
+   * hedefleri acikca gondererek ister).
+   *
+   * HEDEF SECIMI (paylasilan sozlesme D1, selectPublishTargets): acik liste AYNEN
+   * uygulanir. Yazinin yayinda oldugu ama listede olmayan canli kopyaya yazilmaz;
+   * sonucta 'live_target_not_selected' (Turkce neden) doner ve metni farkliysa
+   * kayit "elle guncelleme bekliyor" diye isaretlenir. Bos liste: yazi sitede
+   * yayindaysa canli aktif hedefler, degilse varsayilan + aktif hedefler.
+   *
+   * opts.initiator (D2; varsayilan 'automation', PublishInitiator): yalniz
+   * kullanicinin acik yayin istegi (PUBLISH_ARTICLE) 'user' verir.
+   * opts.recreateMissing (varsayilan: initiator 'user' ise true): yerinde
+   * guncellenecek kayit hedefte artik yoksa (404/410, adaptor notFound) yeni kayit
+   * acilsin mi. Acilsa bile YALNIZ targetIds ile adi verilen hedefte acilir. NEDEN
+   * (S3): varsayilan herkes icin true'ydu; Tam otomatik yayin ve pivot, musterinin
+   * wp-admin'de kalici sildigi (ya da WordPress'in 30 gun sonra cop kutusundan
+   * bosalttigi) yaziyi sessizce yeniden aciyor, kimlik baska bir yaziya gecmisse
+   * (WXR aktarimi) ikinci bir kopya olusturuyordu. Acilmazsa hicbir sey yazilmaz,
+   * sonuc 'live_entry_missing' ve kayda missingAt yazilir (D3). Takili sayfa
+   * yeniden yayini ayrica false verir. Kimligin 404'u tek basina yetmez (S18):
+   * yazinin adresi hala aciliyorsa ne yeniden acilir ne emekliye ayrilir
+   * ('live_entry_unresolvable'); adres dogrulanamazsa otomasyon kaydi emekliye
+   * ayirmaz ('live_entry_unverified'), kullanicinin acik secimi yeniden acar.
+   */
+  async publishArticle(
+    articleId: string,
+    targetIds: string[],
+    opts: { overrideQa?: boolean; overwriteRemoteEdits?: boolean; recreateMissing?: boolean; initiator?: PublishInitiator } = {},
+  ): Promise<PublishResult[]> {
+    // Sitenin TUM hedefleri okunur (birkac satir); secim sorgudan sonra
+    // (selectPublishTargets): hedef verilmeyen otomasyon yayininda yazinin
+    // YAYINDA oldugu hedefler gerekir, bu da yazinin publishedTo'suna bagli.
     const article = await this.prisma.article.findUniqueOrThrow({
       where: { id: articleId },
-      include: {
-        site: {
-          include: {
-            publishTargets: {
-              where: targetIds.length > 0 ? { id: { in: targetIds } } : { isDefault: true, isActive: true },
-            },
-          },
-        },
-      },
+      include: { site: { include: { publishTargets: true } } },
     });
+    const initiator: PublishInitiator = opts.initiator === 'user' ? 'user' : 'automation';
+    const previousPublishedTo: unknown = (article as any).publishedTo;
+    const { targets: selectedTargets, unavailableLive, notSelectedLive } = selectPublishTargets(article.site.publishTargets, targetIds, previousPublishedTo);
+    // Yazinin yayinda oldugu ama silinmis / pasif hedefler: otomasyon baska
+    // hedefe kopya acmadi — is sonucunda nedeniyle gorunsun
+    const unavailableResults: PublishResult[] = unavailableLive.map((e) => ({
+      targetId: e.targetId,
+      targetType: String(e.targetType ?? ''),
+      ok: false,
+      skipped: 'live_target_inactive',
+      error: publishSkipText('live_target_inactive', e.targetType),
+    }));
+    // Hedefe giden metnin izi (basarili kayitlara yazilir) ve izsiz eski kayitlar
+    // icin "metin canliya ciktiktan sonra degisti mi" (refreshManualUpdateFlags)
+    const liveState = {
+      contentHash: articleContentHash(article),
+      legacyContentChanged: REWRITTEN_SINCE_LIVE_STATUSES.has(String((article as any).status ?? '')),
+    };
+    // Kullanicinin acik listesinde olmayan canli kopyalar (D1): yazilmaz, raporlanir.
+    // Metin, kopyanin eski metni gosterip gostermedigini ve RanksUp'in onu yerinde
+    // guncelleyip guncelleyemeyecegini dogru soyler.
+    const targetById = new Map(article.site.publishTargets.map((t) => [t.id, t]));
+    const notSelectedResults: PublishResult[] = notSelectedLive.map((e) => {
+      const target = targetById.get(e.targetId);
+      const type = String(target?.type ?? e.targetType ?? '');
+      const kind = decideRepublish({ entry: e, targetType: type, articleSlug: article.slug }).kind;
+      return {
+        targetId: e.targetId,
+        targetType: type,
+        ok: false,
+        skipped: 'live_target_not_selected',
+        error: publishSkipText('live_target_not_selected', type, {
+          stale: liveCopyStale(e, liveState),
+          inPlace: kind === 'update' || kind === 'overwrite',
+          verified: typeof e.contentHash === 'string' && e.contentHash !== '',
+        }),
+      };
+    });
+    if (notSelectedResults.length > 0) {
+      this.log.log(`[${articleId}] Yazının yayında olduğu ama bu yayında seçilmeyen hedef(ler)e yazılmıyor: ${notSelectedResults.map((r) => r.targetId).join(', ')}`);
+    }
+
+    // Yazilacak hedef yoksa ya da hepsi kopya acacaksa QA'dan ONCE donulur:
+    // hicbir sey yayinlanmayacakken QA (LLM) kosmak bosuna maliyet, QA_BLOCKED
+    // da kullaniciya asil nedeni ("kopya açılmadı") gizlerdi.
+    if (selectedTargets.length === 0) {
+      this.log.warn(`[${articleId}] Hiç publish target yok${unavailableResults.length > 0 ? ' (yazının yayında olduğu hedef silinmiş ya da pasif)' : ''}`);
+      const nothing = [...unavailableResults, ...notSelectedResults];
+      await this.recordUnwrittenLiveState(article, nothing, liveState, initiator);
+      return nothing;
+    }
+
+    // Hedef basina yeniden yayin karari (ag istegi yok): kayit yoksa yayin,
+    // varsa guncelle / uzerine yaz / kopya acma (republish-policy.ts). Kayit
+    // cop kutusundaysa da bulunur (publishedEntryFor): o yazi geri getirilmez,
+    // yanina yeni kopya da acilmaz; geri yuklenmisse yerinde guncellenir. Silinmis
+    // bulunan kayit (missingAt) da bulunur: yalniz kullanicinin bu hedefi acikca
+    // sectigi yayinda yeniden olusturulur, aksi halde yine yazilmaz.
+    // Cakisma denetiminin dayanagi: kayittaki remoteModifiedAt / updatedAt /
+    // publishedAt; hicbiri olmayan eski kayitta (bu dalgadan once yazilmis:
+    // { targetId, targetType, ok, externalUrl, externalId }) makalenin
+    // publishedAt'i. O surumde yayinci her yayinda publishedTo'yu tumden yazip
+    // publishedAt'i ileri aliyordu; yani publishedAt o kayitlara son yazimin
+    // anidir (yaziminin bitisinden hemen sonra).
+    const fallbackLastWriteAt = article.publishedAt instanceof Date ? article.publishedAt.toISOString() : undefined;
+    // Acik onay (C1) yalniz adi verilen hedeflere; bos listede hicbir hedef zorlanmaz
+    const forcedTargetIds: ReadonlySet<string> = new Set(opts.overwriteRemoteEdits === true ? targetIds : []);
+    if (opts.overwriteRemoteEdits === true) {
+      const unforced = selectedTargets.filter((t) => !forcedTargetIds.has(t.id)).map((t) => t.id);
+      if (unforced.length > 0) this.log.log(`[${articleId}] Üzerine yazma onayı yalnız seçilen hedef(ler) için; diğerleri değişiklik denetimiyle yazılıyor: ${unforced.join(', ')}`);
+    }
+    // Silinen kaydin yeniden olusturulmasi (D2): istek (acik secenek ya da
+    // kullanicinin yayini) VE hedefin adi listede verilmis olmali. Bos listede
+    // kullanici hedef secmedi: otomasyon gibi geri getirilmez.
+    const recreateRequested = opts.recreateMissing ?? initiator === 'user';
+    const namedTargetIds: ReadonlySet<string> = new Set(targetIds);
+    const plans = selectedTargets.map((target) => {
+      const live = publishedEntryFor(previousPublishedTo, target.id);
+      let decision = decideRepublish({ entry: live, targetType: target.type, articleSlug: article.slug });
+      if (decision.kind === 'update' && !decision.ref.lastWriteAt && fallbackLastWriteAt) {
+        decision = { ...decision, ref: { ...decision.ref, lastWriteAt: fallbackLastWriteAt } };
+      }
+      return { target, live, decision };
+    });
+    const blockedResult = (target: { id: string; type: string }, decision: Extract<RepublishDecision, { kind: 'blocked' }>): PublishResult => ({
+      targetId: target.id,
+      targetType: target.type,
+      ok: false,
+      skipped: BLOCK_SKIP[decision.reason],
+      error: publishSkipText(BLOCK_SKIP[decision.reason], target.type, { liveSlug: decision.liveSlug, slug: article.slug }),
+    });
+    if (plans.every((p) => p.decision.kind === 'blocked')) {
+      // Hicbir hedefe yazilmayacak: gorsel uretimi, govde / ilk yayin tarihi
+      // yazimi, llms yeniden uretimi YOK — canli kopya oldugu gibi kalir; yalniz
+      // durum gercegi ve elle guncelleme isareti kaydedilir (recordUnwrittenLiveState)
+      const skippedOnly = [
+        ...plans.map((p) => blockedResult(p.target, p.decision as Extract<RepublishDecision, { kind: 'blocked' }>)),
+        ...unavailableResults,
+        ...notSelectedResults,
+      ];
+      for (const r of skippedOnly) this.log.warn(`[${articleId}] ${r.targetType} yayinlanmadi (${r.skipped}): ${r.error}`);
+      await this.recordUnwrittenLiveState(article, skippedOnly, liveState, initiator);
+      return skippedOnly;
+    }
 
     // ── QA Gate — BLOCKED makale yayinlanmaz (kullanici bilerek override
     // edebilir; override da audit izine yazilir). qaStatus hic kosulmadiysa
@@ -281,11 +630,6 @@ export class PublisherService {
       this.log.warn(`[${articleId}] QA gate OVERRIDE ile atlandi (kullanici karari)`);
     }
 
-    if (article.site.publishTargets.length === 0) {
-      this.log.warn(`[${articleId}] Hiç publish target yok`);
-      return [];
-    }
-
     // Markdown → tam HTML sayfa (frontmatter strip + UTF-8 + meta + sade tema)
     //
     // canonical, JSON-LD'deki Article.url ile AYNI kaynaktan gelmek ZORUNDA.
@@ -298,6 +642,13 @@ export class PublisherService {
     // Hedef olarak sitenin VARSAYILAN aktif hedefi okunur; publishTargets bu
     // çağrıda targetIds ile daraltılmış olabilir ve canonical hangi hedefe
     // basıldığından bağımsız olarak tek/otoriter URL'i göstermelidir.
+    //
+    // YAYINDAKI yazida canonical, canli kopyanin sitedeki adresidir
+    // (ai-sitemap.service articlePublicUrl): uretim hatti yeniden yazimda
+    // JSON-LD url'ini ayni kuraldan uretir (pipeline.service liveArticleUrl),
+    // site haritasi ve llms-full da bu adresi ilan eder. Yazi yayindayken
+    // varsayilan hedef degistiyse varsayilanin yol kurali sayfanin gercek
+    // adresini degil baska bir yolu gosterirdi.
     const siteUrl = (article.site as any).url ? String((article.site as any).url) : '';
     let canonical: string | null = null;
     let sectionPath: string | null = null;
@@ -314,8 +665,17 @@ export class PublisherService {
         this.log.warn(`[${articleId}] Publish hedefi okunamadı, canonical varsayılana düştü: ${err.message}`);
       }
       const resolved = resolveArticleUrl(siteUrl, article.slug, defaultTarget);
-      canonical = resolved.url;
-      sectionPath = resolved.sectionPath;
+      const site = parseSiteUrl(siteUrl);
+      const liveUrl = site
+        ? articlePublicUrl(
+          site,
+          article.slug,
+          previousPublishedTo,
+          new Map(article.site.publishTargets.map((t) => [t.id, { type: String(t.type), config: t.config }])),
+        )
+        : null;
+      canonical = liveUrl ?? resolved.url;
+      sectionPath = liveUrl ? sectionPathOf(liveUrl) : resolved.sectionPath;
     }
     // GEO v7: schema JSON-LD + audio + tracker injection
     // KOPYA: asagida yayina ozel FAQPage eklenir ve hero image duzeltilir;
@@ -472,7 +832,15 @@ export class PublisherService {
 
     const results: PublishResult[] = [];
 
-    for (const target of article.site.publishTargets) {
+    for (const { target, live, decision } of plans) {
+      // Kopya acilacagi icin bilerek yapilmayan yayin: hedefe hic baglanilmaz
+      if (decision.kind === 'blocked') {
+        const skipped = blockedResult(target, decision);
+        results.push(skipped);
+        this.log.warn(`[${articleId}] ${target.type} yayinlanmadi (${skipped.skipped}): ${skipped.error}`);
+        continue;
+      }
+
       const Adapter = getAdapter(target.type) as any;
       if (!Adapter) {
         results.push({
@@ -485,10 +853,17 @@ export class PublisherService {
       }
 
       const credentials = decryptCredentials(target.credentials as Record<string, any>);
-      const adapter = new Adapter(credentials, target.config ?? {});
+      const unsafe = await publishTargetBlockReason(target.type, credentials, target.config);
+      if (unsafe) {
+        results.push({ targetId: target.id, targetType: target.type, ok: false, error: unsafe });
+        this.log.warn(`[${articleId}] ${target.type} atlandi: ${unsafe}`);
+        continue;
+      }
 
       try {
-        const result = await adapter.publish({
+        // Kurucu hata atarsa da yalniz bu hedef basarisiz sayilsin (eskiden try disindaydi)
+        const adapter = new Adapter(credentials, target.config ?? {});
+        const payload: PublishPayload = {
           slug: article.slug,
           title: article.title,
           bodyHtml: adapter.needsFullPage ? fullPageHtml : fragmentHtml,
@@ -501,24 +876,34 @@ export class PublisherService {
           heroImageBase64,
           heroImageFilename,
           heroImageMime,
+        };
+        const outcome = await this.writeToTarget(adapter, target.type, decision, payload, {
+          force: forcedTargetIds.has(target.id),
+          recreateMissing: recreateRequested && namedTargetIds.has(target.id),
         });
 
-        // Last used timestamp güncelle
+        // Last used timestamp güncelle — best-effort: yazilamazsa yayinlanmis
+        // makale "basarisiz" sayilmasin (catch blogu sonucu ok:false yapardi)
         await this.prisma.publishTarget.update({
           where: { id: target.id },
           data: { lastUsedAt: new Date() },
-        });
+        }).catch((err: any) => this.log.warn(`[${articleId}] ${target.type} lastUsedAt yazilamadi: ${err.message}`));
 
-        results.push({
-          targetId: target.id,
-          targetType: target.type,
-          ok: result.ok,
-          externalUrl: result.externalUrl,
-          externalId: result.externalId,
-          error: result.error,
-        });
+        const result: PublishResult = { targetId: target.id, targetType: target.type, ...outcome };
+        if (result.ok) {
+          // publishedTo kaydinin zamanlari: ilk yayin (yeni kayitta simdi, aksi halde
+          // onceki kayittan tasinir — panel "Yayın Geçmişi" bunu gosterir) ve son yazim
+          const now = new Date().toISOString();
+          const fresh = result.action === 'created' || result.action === 'recreated';
+          const firstAt = fresh ? now : typeof live?.publishedAt === 'string' ? live.publishedAt : undefined;
+          if (firstAt) result.publishedAt = firstAt;
+          result.updatedAt = now;
+          // Bu hedefe giden metnin izi: sonraki yayinlarda "hedefteki metin eski mi" buna bakilir
+          result.contentHash = liveState.contentHash;
+        }
+        results.push(result);
 
-        this.log.log(`[${articleId}] ${target.type} → ${result.ok ? '✓' : '✗'} ${result.externalUrl ?? result.error ?? ''}`);
+        this.log.log(`[${articleId}] ${target.type} → ${result.ok ? '✓' : '✗'}${result.action ? ` ${result.action}` : ''} ${result.externalUrl ?? result.error ?? ''}`);
       } catch (err: any) {
         results.push({
           targetId: target.id,
@@ -529,20 +914,82 @@ export class PublisherService {
         this.log.error(`[${articleId}] ${target.type} hata: ${err.message}`);
       }
     }
+    results.push(...unavailableResults, ...notSelectedResults);
 
     // Article status + publishedTo güncelle
     const successful = results.filter(r => r.ok);
     if (successful.length > 0) {
-      await this.prisma.article.update({
-        where: { id: articleId },
-        data: {
-          status: 'PUBLISHED',
-          publishedAt: new Date(),
-          // Panel onizlemesi bunu dogrudan DOM'a basiyor → tam sayfa degil parca sakla
-          bodyHtml: fragmentHtml,
-          publishedTo: successful as any,
-        },
+      // publishedAt = yazinin ILK yayin tarihi. Yalniz bu yayindan ONCE yazinin
+      // canli (disa aktarim olmayan) bir kopyasi yoksa ve bu yayin canli bir
+      // kopya actiysa yazilir: ilk gercek yayin, ya da tum canli kopyalar
+      // unutulduktan / cop kutusuna atildiktan sonraki yeniden yayin. Yayindaki
+      // yaziyi baska bir hedefe ilk kez yazmak (Markdown ZIP disa aktarimi, yeni
+      // eklenen FTP hedefi) ya da silinmis kopyayi yeniden olusturmak (recreated)
+      // yazinin ilk yayin tarihini DEGISTIRMEZ: icerik yeni degil. Silinmis kopya
+      // once bir yayinda missingAt alip (D3) sonraki yayinda yeniden olusturulsa da
+      // (o an "canli kopyasi yok" gorunur) ayni kural: yalniz 'created' sayilir.
+      // Okuyanlar (18.10.2026 tarandi):
+      //  - "donemde yayinlanan yazi" sayilari: reports.service overview,
+      //    site-report isDokumu, agency (son 30 gun), email.cron haftalik ozet,
+      //    geo-score-card tazelik (30/7 gun). Guncelleme / disa aktarim yeni yayin
+      //    sayilsaydi eski yazi bu donemin uretimi gibi raporlanirdi (yanlis musteri verisi).
+      //  - llms-full "Yayin:" tarihi, siralamalar (orderBy publishedAt) ve uretim
+      //    hattinin JSON-LD datePublished'i (pipeline: existing.publishedAt): ilk yayin dogru.
+      //  - ai-sitemap lastmod ve content-pivot "30 gunden eski" suzgeci SON yazimi
+      //    bekler: eskiden publishedAt her yeniden yayinda ileri aliniyordu ve
+      //    pivotun tek bekleme suresi buydu. Son yazim artik publishedTo
+      //    kayitlarinin updatedAt'inda; pivot lastLiveWriteAt'i
+      //    (republish-policy.ts), site haritasi adresi veren kaydin updatedAt'ini okur.
+      const typeById = new Map(article.site.publishTargets.map((t) => [t.id, String(t.type)]));
+      const hadLiveCopy = liveEntries(previousPublishedTo).some((e) => republishModeForType(typeById.get(e.targetId) ?? e.targetType) !== 'export');
+      const wroteLiveCopy = successful.some((r) => r.action === 'created' && republishModeForType(r.targetType) !== 'export');
+      const writtenTargetIds = new Set(successful.map((r) => r.targetId));
+      const freshEntries = successful.map((r) => ({ ...r }));
+      const observed = entryObservations(results);
+      const now = new Date().toISOString();
+      let pendingTargetIds: string[] = [];
+      // Hedef bazinda birlestir: diger hedeflerdeki canli kopyalarin kaydi
+      // kaybolmasin. Yeni metni alamayan canli kopyalar (yalniz yeni kayit acan
+      // hedef, pasif hedef, WordPress'te elle degismis yazi, acik listede
+      // secilmeyen hedef...) "elle guncelleme bekliyor" diye isaretlenir; bu
+      // yayinda yazilan hedeflerin kaydi taze, isaretsiz; cop kutusunda bulunan
+      // kopyaya trashedAt, silinmis bulunana missingAt yazilir.
+      // Birlestirme yayinin BASINDA okunan listeye degil, yazmadan hemen once
+      // yeniden okunan GUNCEL listeye yapilir (commitArticleState, K10): uzun
+      // bir yayin sirasinda musterinin "guncelledim" / "unut" demesi ezilmez.
+      await this.commitArticleState(articleId, (fresh) => {
+        const merged = applyEntryObservations(mergePublishedTo(fresh.publishedTo, freshEntries), { trashed: observed.trashed, missing: observed.missing, present: observed.present, now });
+        const flags = refreshManualUpdateFlags({
+          publishedTo: merged,
+          targets: article.site.publishTargets as PublishTargetRow[],
+          articleSlug: article.slug,
+          ...liveState,
+          writtenTargetIds,
+          trashedTargetIds: observed.trashed,
+          unwritableTargetIds: observed.unwritable,
+          now,
+        });
+        pendingTargetIds = flags.pendingTargetIds;
+        // Metin yayin sirasinda degistiyse (or. bir yeniden yazim bitti) kayit
+        // artik yayinlanan metni tasimiyor: durum ve onizleme ona dokunulmadan
+        // kalir (PUBLISHED, kayittaki metnin yayinda oldugu anlamina gelir)
+        const textUnchanged = articleContentHash(fresh) === liveState.contentHash;
+        const keepPublishedAt = fresh.publishedAt != null && (hadLiveCopy || !wroteLiveCopy);
+        return {
+          ...(textUnchanged
+            ? {
+              status: 'PUBLISHED',
+              // Panel onizlemesi bunu dogrudan DOM'a basiyor → tam sayfa degil parca sakla
+              bodyHtml: fragmentHtml,
+            }
+            : {}),
+          ...(keepPublishedAt ? {} : { publishedAt: new Date() }),
+          publishedTo: flags.publishedTo,
+        };
       });
+      if (pendingTargetIds.length > 0) {
+        this.log.warn(`[${articleId}] Güncel metni alamayan canlı kopyalar elle güncelleme bekliyor: ${pendingTargetIds.join(', ')}`);
+      }
 
       // Sosyal kanallara otomatik DRAFT post artık üretilmiyor — kullanıcı article
       // listesindeki "Sosyalde paylaş" butonundan modal ile kanal seçip elle ekler.
@@ -569,15 +1016,247 @@ export class PublisherService {
 
         // GEO: kendi llms.txt'sini üretmeyen hedeflere (kobipratik gibi) llms.txt +
         // llms-full.txt push et. Best-effort — desteklemeyen adapter no-op döner.
-        await this.pushLlmsToTargets(article.siteId, article.site.publishTargets).catch((err) => {
+        await this.pushLlmsToTargets(article.siteId, selectedTargets).catch((err) => {
           this.log.warn(`[${articleId}] llms push başarısız: ${err.message}`);
         });
       } catch (err: any) {
         this.log.warn(`[${articleId}] llms-full.txt rebuild başarısız: ${err.message}`);
       }
+    } else {
+      await this.recordUnwrittenLiveState(article, results, liveState, initiator);
     }
 
     return results;
+  }
+
+  /**
+   * Hicbir hedefe yazilmayan yayinin ardindan yazinin DURUM GERCEGI.
+   *
+   * Yazi yayindaysa (canli kopyasi duruyorsa) ve bu yayin yalniz BILEREK
+   * atlandiysa (kopya acilmadi, kayit adreslenemedi, slug degisti, hedef pasif)
+   * durum PUBLISHED'a doner: yazi gercekten yayinda, yalniz eski metinle.
+   * NEDEN: yeniden yazilan yazi READY_TO_PUBLISH'te kaliyordu; panel yayindaki
+   * yaziyi "yayına hazır" gosteriyor, PUBLISHED okuyan her yer (llms-full,
+   * site haritasi, KPI'lar, takili sayfa eslesmesi, raporlar) onu yok sayiyordu.
+   * publishedAt (ilk yayin) degismez. Yeni metni alamayan kopyalar "elle
+   * guncelleme bekliyor" diye isaretlenir (refreshManualUpdateFlags).
+   *
+   * Bir hedef HATA verdiyse (yetki, ag) durum DEGISMEZ: yazi onayda kalir,
+   * kullanici yeniden dener (worker "onayini bekliyor" e-postasini atar). DB
+   * hatasi yayin sonucunu degistirmez (hicbir hedefe zaten yazilmadi); uyari loglanir.
+   *
+   * Cop kutusu (R19): yerinde guncelleme kopyanin WordPress cop kutusunda
+   * oldugunu gorduyse kayda trashedAt yazilir (kopya artik canli sayilmaz:
+   * site haritasi, llms-full, pivot ve takili sayfa plani onu ilan etmez).
+   * RanksUp'in bildigi baska canli kopya kalmadiysa PUBLISHED yazi
+   * READY_TO_PUBLISH olur ve llms-full yeniden uretilir — musterinin "bu kaydi
+   * unut" demesiyle (articles.service forgetPublishedEntry) ayni kural ve
+   * gerekce: yazi bilinen hicbir yerde yayinda degil; PUBLISHED okuyan her yer
+   * (site haritasi, llms-full, KPI'lar, raporlar) olmayan bir sayfayi sayardi.
+   * READY_TO_PUBLISH metni bitmis, yayini musterinin kararina birakir; hicbir
+   * otomasyon onu kendiliginden yayinlamaz. publishedAt gecmis kaydi olarak kalir.
+   * Silinmis kopya (D3, live_entry_missing) ayni kural: kayda missingAt yazilir,
+   * kopya canli sayilmaz, son canli kopyaysa yazi READY_TO_PUBLISH olur.
+   *
+   * Otomatik yazim engeli (S4): yayini otomasyon baslattiysa (initiator
+   * 'automation') ve en az bir hedef bilerek atlandiysa agentOutputs.liveWriteBlocked
+   * { at, reasons } ayni kosullu yazimla kaydedilir. Icerik pivotu bu kayittan sonraki
+   * 30 gun yaziyi yeniden yazmaz: hicbir sey yazilmayinca son canli yazim ani
+   * ilerlemiyor, yazi her hafta LLM yeniden yazimina giriyordu. Kullanicinin
+   * yayini kaydetmez (pivotu, kopyanin "elle guncelleme bekliyor" isareti durdurur).
+   */
+  private async recordUnwrittenLiveState(
+    article: { id: string; siteId?: string; slug: string; status?: unknown; publishedTo?: unknown; site: { publishTargets: unknown[] } },
+    results: PublishResult[],
+    liveState: { contentHash: string; legacyContentChanged: boolean },
+    initiator: PublishInitiator,
+  ): Promise<void> {
+    const hasError = results.some((r) => !r.ok && !r.skipped);
+    // Hedefte artik durmayan kopya (cop kutusunda ya da silinmis: 'live_entry_missing')
+    // "eski metniyle yayinda" sayilmaz; durum ona bakarak PUBLISHED'a cekilmez
+    const stillLive = results.some((r) => !r.ok && !!r.skipped && r.skipped !== 'live_entry_trashed' && r.skipped !== 'live_entry_missing');
+    const observed = entryObservations(results);
+    const now = new Date().toISOString();
+    const blockedReasons: LiveWriteBlockedReason[] = initiator === 'automation'
+      ? results.filter((r) => !r.ok && !!r.skipped).map((r) => ({ targetId: r.targetId, targetType: r.targetType, skipped: String(r.skipped) }))
+      : [];
+    let outcome = { backToPublished: false, retired: false, pending: [] as string[] };
+    try {
+      const done = await this.commitArticleState(article.id, (fresh) => {
+        const flags = refreshManualUpdateFlags({
+          publishedTo: applyEntryObservations(fresh.publishedTo, { trashed: observed.trashed, missing: observed.missing, present: observed.present, now }),
+          targets: article.site.publishTargets as PublishTargetRow[],
+          articleSlug: article.slug,
+          ...liveState,
+          trashedTargetIds: observed.trashed,
+          unwritableTargetIds: observed.unwritable,
+          now,
+        });
+        const status = String(fresh.status ?? '');
+        const backToPublished = !hasError && stillLive && status !== 'PUBLISHED';
+        const retired = observed.trashed.size + observed.missing.size > 0
+          && (status === 'PUBLISHED' || backToPublished) && liveEntries(flags.publishedTo).length === 0;
+        const before = Array.isArray(fresh.publishedTo) ? fresh.publishedTo : [];
+        const entriesChanged = JSON.stringify(flags.publishedTo) !== JSON.stringify(before);
+        outcome = { backToPublished: backToPublished && !retired, retired, pending: flags.pendingTargetIds };
+        const blocked = blockedReasons.length > 0;
+        if (!entriesChanged && !outcome.backToPublished && !retired && !blocked) return null;
+        return {
+          ...(retired ? { status: 'READY_TO_PUBLISH' } : outcome.backToPublished ? { status: 'PUBLISHED' } : {}),
+          ...(entriesChanged ? { publishedTo: flags.publishedTo } : {}),
+          ...(blocked ? { agentOutputs: agentOutputsWithLiveWriteBlocked(fresh.agentOutputs, { at: now, reasons: blockedReasons }) } : {}),
+        };
+      }, blockedReasons.length > 0 ? { agentOutputs: true } : undefined);
+      if (!done) return;
+      this.log.warn(
+        `[${article.id}] Hiçbir hedefe yazılmadı${outcome.backToPublished ? '; yazı eski metniyle yayında, durum PUBLISHED' : ''}`
+        + `${outcome.retired ? '; bilinen son canlı kopya çöp kutusunda ya da silinmiş, durum READY_TO_PUBLISH' : ''}`
+        + `${outcome.pending.length > 0 ? `; elle güncelleme bekleyen: ${outcome.pending.join(', ')}` : ''}`
+        + `${blockedReasons.length > 0 ? '; otomatik yazım engellendi (içerik pivotu 30 gün yeniden yazmaz)' : ''}`,
+      );
+    } catch (err: any) {
+      this.log.warn(`[${article.id}] Yayın sonrası yazı durumu kaydedilemedi: ${err.message}`);
+      return;
+    }
+    if (outcome.retired && article.siteId) {
+      // Olu adres AI tarayicilarina haftalik yenilemeye kadar gosterilmesin (en iyi caba)
+      await this.llmsFullBuilder.build(article.siteId)
+        .catch((err: any) => this.log.warn(`[${article.id}] llms-full.txt yeniden üretilemedi: ${err?.message ?? err}`));
+    }
+  }
+
+  /**
+   * Yayin sonucunu yaziya yazar — GUNCEL kayit uzerine (K10).
+   *
+   * NEDEN: yayinci publishedTo'yu yayinin basinda okuyup sonunda kosulsuz
+   * yaziyordu. Uzun bir yayin (gorsel uretimi, QA, birkac hedef) sirasinda
+   * musterinin "guncelledim" (mark-updated) ya da "bu kaydi unut" (forget)
+   * istegi ya da baska bir yayin kaydi yazarsa, yayinin sonu eski listeyle
+   * onlari geri aliyordu. Simdi: kayit yeniden okunur, compute bu yayinin
+   * sonucunu o listeye hedef bazinda birlestirir ve yazim yalniz okunan
+   * updatedAt hala gecerliyse yapilir (tek SQL UPDATE; mark-updated / forget
+   * uclari ayni iyimser kilidi kullanir — articles.service writeEntries).
+   * Yarisirsa yeniden okunup yeniden birlestirilir; COMMIT_CONDITIONAL_ATTEMPTS
+   * denemeden sonra en taze okumanin uzerine kosulsuz yazilir (yeni acilan
+   * kopyanin kimligi kaybolursa sonraki yayin ikinci kopya acardi). updatedAt
+   * acikca yazilir: kilit Prisma'nin updateMany davranisina dayanmaz.
+   * compute null donerse yazilacak bir sey yok demektir. extraSelect: agir alanlar
+   * (agentOutputs) yalniz yazilacaklarsa okunur — birlestirme ayni taze okumadan yapilir.
+   */
+  private async commitArticleState(
+    articleId: string,
+    compute: (fresh: FreshArticleState) => Record<string, unknown> | null,
+    extraSelect?: { agentOutputs: true },
+  ): Promise<Record<string, unknown> | null> {
+    const select = extraSelect ? { ...FRESH_STATE_SELECT, ...extraSelect } : FRESH_STATE_SELECT;
+    for (let attempt = 1; ; attempt += 1) {
+      const fresh = (await this.prisma.article.findUnique({ where: { id: articleId }, select })) as FreshArticleState | null;
+      if (!fresh) {
+        this.log.warn(`[${articleId}] Yayın sonucu kaydedilemedi: yazı artık yok`);
+        return null;
+      }
+      const data = compute(fresh);
+      if (!data) return null;
+      if (attempt > COMMIT_CONDITIONAL_ATTEMPTS) {
+        await this.prisma.article.update({ where: { id: articleId }, data: data as any });
+        this.log.warn(`[${articleId}] Yayın kaydı ${COMMIT_CONDITIONAL_ATTEMPTS} kez yarıştı; en güncel kayıt üzerine yazıldı`);
+        return data;
+      }
+      const r = await this.prisma.article.updateMany({
+        where: { id: articleId, updatedAt: fresh.updatedAt },
+        data: { ...data, updatedAt: new Date() } as any,
+      });
+      if (r.count === 1) return data;
+      this.log.warn(`[${articleId}] Yayın kaydı yazılırken yazı değişti; güncel kayıt üzerine yeniden birleştiriliyor (${attempt}/${COMMIT_CONDITIONAL_ATTEMPTS})`);
+    }
+  }
+
+  /**
+   * Tek hedefe yazim — karar (decideRepublish) ve adaptor yetenegine gore.
+   *  - update: adaptor yerinde gunceller. Kayit hedefte bulunamazsa (notFound:
+   *    404/410) once yazinin herkese acik adresi yoklanir (S18): adres hala
+   *    aciliyorsa hicbir sey yazilmaz ve yeni kayit acilmaz
+   *    ('live_entry_unresolvable', kopya canli kalir). Aksi halde yalniz
+   *    opts.recreateMissing ACIKCA true ise yeni kayit acilir (kullanicinin bu
+   *    hedefi secerek yaptigi yayin, D2); acilmazsa hicbir sey yazilmaz: adres
+   *    404/410 verdiyse 'live_entry_missing' (emekli), dogrulanamadiysa
+   *    'live_entry_unverified' (kopya canli kalir). Cop kutusundaysa
+   *    yapilmaz: musteri bilerek kaldirmis, geri getirilmez. Kayitli kimlik bu
+   *    yaziya ait degilse (mismatch) hicbir sey yazilmaz, kopya acilmaz. Yazi
+   *    RanksUp'in son yaziminden sonra hedefte degismisse (edited) musterinin
+   *    duzenlemesi ezilmez; yalniz opts.force (kullanicinin acik onayi) ile
+   *    yazilir. Diger hata (yetki, ag, beklenmeyen yanit) yeni kayit ACMAZ —
+   *    yazi hala yayinda olabilir, yeni yayin ikinci kopya olurdu.
+   *  - overwrite / export / publish_new: bugunku gibi publish().
+   * Basarili yazimda adaptorun dondurdugu hedef damgasi (remoteModifiedAt)
+   * kayda gecer.
+   */
+  private async writeToTarget(
+    adapter: any,
+    targetType: string,
+    decision: Exclude<RepublishDecision, { kind: 'blocked' }>,
+    payload: PublishPayload,
+    opts: { force?: boolean; recreateMissing?: boolean } = {},
+  ): Promise<Omit<PublishResult, 'targetId' | 'targetType'>> {
+    const stamp = (r: any) => (typeof r?.remoteModifiedAt === 'string' && r.remoteModifiedAt ? { remoteModifiedAt: r.remoteModifiedAt as string } : {});
+    if (decision.kind === 'update') {
+      if (typeof adapter.update !== 'function') {
+        // Karar tablosu (UPDATE_TARGET_TYPES) ile adaptor ayrismis: kopya acma
+        return { ok: false, skipped: 'already_live_create_only', error: publishSkipText('already_live_create_only', targetType) };
+      }
+      const r = await adapter.update(decision.ref, payload, { force: opts.force === true });
+      if (r?.ok) {
+        return {
+          ok: true,
+          action: 'updated',
+          externalUrl: r.externalUrl ?? decision.ref.externalUrl,
+          externalId: r.externalId ?? decision.ref.externalId,
+          ...stamp(r),
+        };
+      }
+      if (r?.mismatch) {
+        return {
+          ok: false,
+          skipped: 'live_entry_mismatch',
+          error: publishSkipText('live_entry_mismatch', targetType, { postId: r.externalId ?? decision.ref.externalId ?? null, remoteSlug: r.remoteSlug ?? null, slug: payload.slug }),
+        };
+      }
+      if (r?.trashed) {
+        return { ok: false, skipped: 'live_entry_trashed', error: publishSkipText('live_entry_trashed', targetType) };
+      }
+      if (r?.edited) {
+        return { ok: false, skipped: 'live_entry_edited', error: publishSkipText('live_entry_edited', targetType, { remoteModifiedAt: r.remoteModifiedAt ?? null }) };
+      }
+      if (r?.notFound) {
+        // Kimligin 404'u yazinin silindigini kanitlamaz (S18, checkEntryPublicUrl):
+        // once yazinin herkese acik adresi yoklanir. Yoklayici yoksa (dogrudan
+        // kurulan ornek) adaptorun cevabi yeterli sayilir.
+        const postId = r.externalId ?? decision.ref.externalId ?? null;
+        const urlState: EntryUrlState = this.entryUrlCheck ? await this.entryUrlCheck(decision.ref.externalUrl) : 'gone';
+        if (urlState === 'live') {
+          // Adres hala aciliyor: emekliye ayirma da, yeniden olusturma da yanlis olurdu
+          // (kullanici hedefi acikca secse bile ayni adreste ikinci kopya acilirdi)
+          return { ok: false, skipped: 'live_entry_unresolvable', error: publishSkipText('live_entry_unresolvable', targetType, { postId }) };
+        }
+        // Silinen kaydi yeniden acmak istenmedi (otomasyon, bos liste, takili sayfa):
+        // hedefe hicbir sey yazilmaz, neden atlama metninde musteriye gider. Adres de
+        // 404/410 vermediyse (dogrulanamadi) kopya emekliye ayrilmaz.
+        if (opts.recreateMissing !== true) {
+          if (urlState === 'unknown') {
+            return { ok: false, skipped: 'live_entry_unverified', error: publishSkipText('live_entry_unverified', targetType, { postId }) };
+          }
+          return { ok: false, skipped: 'live_entry_missing', error: publishSkipText('live_entry_missing', targetType) };
+        }
+        // Kullanicinin acik secimi (D2): adres 404/410 ya da dogrulanamadi (WAF / site
+        // kapali): canli bir kopya gorulmedigi icin yazi eskisi gibi yeniden olusturulur
+        const p = await adapter.publish(payload);
+        return { ok: !!p?.ok, externalUrl: p?.externalUrl, externalId: p?.externalId, error: p?.error, ...(p?.ok ? { action: 'recreated' as const, ...stamp(p) } : {}) };
+      }
+      return { ok: false, error: `Mevcut yazı güncellenemedi; kopya açılmadı. ${r?.error ?? 'Hedef yanıt vermedi.'}` };
+    }
+    const p = await adapter.publish(payload);
+    const action: PublishAction = decision.kind === 'publish_new' ? 'created' : decision.kind === 'overwrite' ? 'overwritten' : 'exported';
+    return { ok: !!p?.ok, externalUrl: p?.externalUrl, externalId: p?.externalId, error: p?.error, ...(p?.ok ? { action, ...stamp(p) } : {}) };
   }
 
   /**
@@ -601,10 +1280,16 @@ export class PublisherService {
     for (const target of targets) {
       const Adapter = getAdapter(target.type) as any;
       if (!Adapter) continue;
-      const adapter = new Adapter(decryptCredentials(target.credentials as Record<string, any>), target.config ?? {});
-      if (typeof adapter.pushLlms !== 'function') continue;
+      const credentials = decryptCredentials(target.credentials as Record<string, any>);
+      const unsafe = await publishTargetBlockReason(target.type, credentials, target.config);
+      if (unsafe) {
+        this.log.warn(`[${siteId}] llms push → ${target.type} atlandi: ${unsafe}`);
+        continue;
+      }
 
       try {
+        const adapter = new Adapter(credentials, target.config ?? {});
+        if (typeof adapter.pushLlms !== 'function') continue;
         const r = await adapter.pushLlms({ llmsTxt: shortIndex, llmsFullTxt: full });
         if (r?.ok) {
           this.log.log(`[${siteId}] llms push → ${target.type}: ✓ ${r.externalUrl ?? ''}`);

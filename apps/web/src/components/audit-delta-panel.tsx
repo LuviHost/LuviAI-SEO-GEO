@@ -2,10 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import {
-  TrendingUp, TrendingDown, Minus, ChevronDown, CheckCircle2, AlertCircle, Clock, History,
+  TrendingUp, TrendingDown, Minus, ChevronDown, CheckCircle2, AlertCircle, Clock, History, HelpCircle,
 } from 'lucide-react';
 import { SEVERITY_LABEL, label } from '@/lib/labels';
 import { api, type AuditComparison, type AuditIssueRecord } from '@/lib/api';
+import { aiProviderScopeNote, methodChangeNote, overallDeltaComparable } from '@/lib/compare-notes';
+import { PROVIDER_LABELS } from '@/lib/chart-colors';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -68,6 +70,8 @@ export function AuditDeltaPanel({ siteId, collapsible = false }: { siteId: strin
 
   if (collapsible) {
     const delta = !loading && cmp && !cmp.yeterliVeriYok ? cmp.scoreDelta : null;
+    // Yontem / kapsam farkinda sayi gosterilir ama yesil-kirmizi hukum verilmez (compare-notes.ts)
+    const hukum = !!cmp && overallDeltaComparable(cmp);
     return (
       <Card>
         <details className="group">
@@ -75,7 +79,7 @@ export function AuditDeltaPanel({ siteId, collapsible = false }: { siteId: strin
             <History className="h-4 w-4 text-muted-foreground" aria-hidden />
             <span className="text-sm font-medium">Önceki taramaya göre değişim</span>
             {delta !== null && (
-              <Badge variant={delta > 0 ? 'success' : delta < 0 ? 'danger' : 'secondary'} className="ml-1">
+              <Badge variant={!hukum ? 'secondary' : delta > 0 ? 'success' : delta < 0 ? 'danger' : 'secondary'} className="ml-1">
                 {delta > 0 ? '+' : ''}{delta} puan
               </Badge>
             )}
@@ -127,8 +131,18 @@ export function AuditComparisonBody({
   }
 
   const { from, to, scoreDelta, geoScoreDelta, ozet, issues } = cmp;
-  const yon = scoreDelta > 0 ? 'up' : scoreDelta < 0 ? 'down' : 'flat';
-  const degisenCheckler = cmp.checks.filter((c) => c.durum === 'iyilesti' || c.durum === 'kotulesti');
+  // Genel skora giren bir kontrolun yontemi degistiyse ya da kontrol yalniz bir taramada
+  // olculduyse fark gosterilir ama "iyilesti/kotulesti" hukmu verilmez (compare-notes.ts)
+  const yon = !overallDeltaComparable(cmp) ? 'neutral' : scoreDelta > 0 ? 'up' : scoreDelta < 0 ? 'down' : 'flat';
+  // Yontemi degisen kontrol de listelenir ama hukumsuz (API: durum metodoloji_degisti, delta 0)
+  const degisenCheckler = cmp.checks.filter(
+    (c) => c.durum === 'iyilesti' || c.durum === 'kotulesti' || c.durum === 'metodoloji_degisti',
+  );
+  const aiKapsam = cmp.aiSaglayiciKapsami;
+  // Eski API / dondurulmus rapor bu alanlari tasimaz — yoksa 0 / bos
+  const olculemeyen = issues.olculemedi ?? [];
+  const olculemeyenSayisi = ozet.olculemeyenSayisi ?? olculemeyen.length;
+  const kismi = cmp.kismi;
 
   return (
     <div className="space-y-4">
@@ -143,10 +157,11 @@ export function AuditComparisonBody({
                   ? 'bg-danger/10 text-danger'
                   : 'bg-muted text-muted-foreground'
             }`}
+            title={yon === 'neutral' ? 'Ölçüm yöntemi ya da kapsamı iki taramada farklı; fark iyileşme veya kötüleşme sayılmaz.' : undefined}
           >
             {yon === 'up' ? <TrendingUp className="h-5 w-5" />
               : yon === 'down' ? <TrendingDown className="h-5 w-5" />
-                : <Minus className="h-5 w-5" />}
+                : yon === 'flat' ? <Minus className="h-5 w-5" /> : null}
             {scoreDelta > 0 ? '+' : ''}{scoreDelta} puan
           </div>
           <div>
@@ -167,11 +182,49 @@ export function AuditComparisonBody({
         )}
       </div>
 
+      {/* Yalniz GEO / AI gorunurluk yontemi degistiyse genel skor etkilenmez; not bunu ayirir */}
       {cmp.metodolojiDegisen && cmp.metodolojiDegisen.length > 0 && (
         <p className="text-xs text-muted-foreground rounded-md border border-dashed px-3 py-2">
-          Ölçüm yöntemi güncellendi: <span className="font-medium">{cmp.metodolojiDegisen.join(', ')}</span>.
-          Genel skor farkının bir kısmı sitedeki bir değişiklikten değil yöntemden kaynaklanıyor; bu kontrolün sorunları çözülen/yeni olarak sayılmadı.
+          {methodChangeNote(cmp.metodolojiDegisen, kontrolAdi)}
         </p>
+      )}
+
+      {/* AI gorunurlukte iki taramada olculen asistanlar farkli (429 / kota): fark yalniz ortak asistanlarla */}
+      {aiKapsam && (
+        <p className="text-xs text-muted-foreground rounded-md border border-dashed px-3 py-2">
+          {aiProviderScopeNote(aiKapsam, (p) => PROVIDER_LABELS[p] ?? p)}
+        </p>
+      )}
+
+      {/* Kısmi karşılaştırma: son tarama bazı şeyleri ölçemedi (erişim engeli, atlanan AI ölçümü,
+          erken duran tarama). Ölçülemeyen sorunun yokluğu "çözüldü" demek değildir (audit.service.ts). */}
+      {kismi && (
+        <div className="text-xs text-muted-foreground rounded-md border border-dashed px-3 py-2 space-y-1">
+          <p className="font-medium text-foreground">Kısmi karşılaştırma</p>
+          {kismi.olculemeyenKontroller.length > 0 && (
+            <p>
+              Son taramada ölçülemeyen kontroller: <span className="font-medium">{kontrolAdlari(kismi.olculemeyenKontroller)}</span>.
+              Bu kontrollerin önceki sorunları çözülmüş sayılmadı; &quot;Ölçülemedi&quot; grubunda.
+            </p>
+          )}
+          {kismi.sayfaKapsami && (
+            <p>
+              {kismi.sayfaKapsami.erkenDurdu
+                ? 'Son tarama bot koruması nedeniyle erken durdu'
+                : `Son taramada ${kismi.sayfaKapsami.engellenenSayfa} sayfa erişim engeli nedeniyle taranamadı`}
+              ; sayfa bazlı kontrollerin kaybolan sorunları çözülmüş sayılmadı.
+            </p>
+          )}
+          {kismi.skorKapsamiFarkli.length > 0 && (
+            <p>
+              Genel skor yalnız ölçülebilen kontrollerden hesaplanır; {kontrolAdlari(kismi.skorKapsamiFarkli)} iki taramadan yalnız birinde
+              ölçülebildiği için puan farkının bir kısmı bundan kaynaklanabilir.
+            </p>
+          )}
+          {kismi.olculemeyenKontroller.length === 0 && !kismi.sayfaKapsami && kismi.skorKapsamiFarkli.length === 0 && (
+            <p>Önceki taramadaki bazı sorunlar son taramada yeniden ölçülemedi; çözülmüş sayılmadı.</p>
+          )}
+        </div>
       )}
 
       {/* Trend — son N taramanin genel skoru */}
@@ -200,6 +253,16 @@ export function AuditComparisonBody({
           tonu="warning"
           icon={<Clock className="h-4 w-4" />}
         />
+        {/* Yalnız varsa: "Ölçülemedi 0" satırı ne olduğu bilinmeyen bir grup gibi okunurdu */}
+        {olculemeyenSayisi > 0 && (
+          <IssueGroup
+            baslik="Ölçülemedi"
+            sayi={olculemeyenSayisi}
+            issues={olculemeyen}
+            tonu="secondary"
+            icon={<HelpCircle className="h-4 w-4" />}
+          />
+        )}
       </div>
 
       {/* Degisen kontroller */}
@@ -218,13 +281,19 @@ export function AuditComparisonBody({
                 <span className="text-xs font-mono truncate">{c.id}</span>
                 <span className="text-xs text-muted-foreground shrink-0">
                   {c.oncekiScore} → {c.sonrakiScore}
-                  <span
-                    className={`ml-2 font-semibold ${
-                      c.delta > 0 ? 'text-success' : 'text-danger'
-                    }`}
-                  >
-                    {c.delta > 0 ? '+' : ''}{c.delta}
-                  </span>
+                  {/* aiCitations satiri kapsam farkinda ortak asistanlarin ortalamasi (audit.service.ts) */}
+                  {c.id === 'aiCitations' && aiKapsam && <span className="ml-1">(ortak asistanlar)</span>}
+                  {c.durum === 'metodoloji_degisti' ? (
+                    <span className="ml-2">yöntem değişti, kıyaslanmadı</span>
+                  ) : (
+                    <span
+                      className={`ml-2 font-semibold ${
+                        c.delta > 0 ? 'text-success' : 'text-danger'
+                      }`}
+                    >
+                      {c.delta > 0 ? '+' : ''}{c.delta}
+                    </span>
+                  )}
                 </span>
               </div>
             ))}
@@ -242,13 +311,14 @@ function IssueGroup({
   baslik: string;
   sayi: number;
   issues: AuditIssueRecord[];
-  tonu: 'success' | 'destructive' | 'warning';
+  tonu: 'success' | 'destructive' | 'warning' | 'secondary';
   icon: React.ReactNode;
 }) {
   const renk =
     tonu === 'success' ? 'text-success'
       : tonu === 'destructive' ? 'text-danger'
-        : 'text-warning';
+        : tonu === 'secondary' ? 'text-muted-foreground'
+          : 'text-warning';
 
   if (sayi === 0) {
     return (
@@ -335,6 +405,38 @@ function ScoreTrend({ history }: { history: Array<{ id: string; ranAt: string; o
       </div>
     </div>
   );
+}
+
+/**
+ * Karşılaştırma notlarındaki kontrol kimlikleri (checks anahtarları) → okunur ad.
+ * Bilinmeyen kimlik olduğu gibi gösterilir.
+ */
+const KONTROL_ADI: Record<string, string> = {
+  sitemap_xml: 'sitemap.xml',
+  robots_txt: 'robots.txt',
+  llms_txt: 'llms.txt',
+  schema_markup: 'Schema',
+  meta_title: 'Meta başlık',
+  meta_description: 'Meta açıklama',
+  open_graph: 'Open Graph',
+  twitter_card: 'Twitter Card',
+  canonical: 'Canonical',
+  https: 'HTTPS',
+  h1_uniqueness: 'H1',
+  image_alt: 'Görsel alt metni',
+  internal_linking: 'İç linkleme',
+  hreflang: 'Hreflang',
+  pagespeed: 'PageSpeed',
+  geo: 'AI arama (GEO)',
+  aiCitations: 'AI görünürlük ölçümü',
+};
+
+function kontrolAdi(id: string): string {
+  return KONTROL_ADI[id] ?? id;
+}
+
+function kontrolAdlari(ids: string[]): string {
+  return ids.map(kontrolAdi).join(', ');
 }
 
 function tarih(iso?: string) {

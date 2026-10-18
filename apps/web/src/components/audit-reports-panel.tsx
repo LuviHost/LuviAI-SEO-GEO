@@ -5,21 +5,18 @@ import { toast } from 'sonner';
 import {
   History, RefreshCw, TrendingUp, TrendingDown, Minus, AlertTriangle,
 } from 'lucide-react';
-import { api, type AuditComparison } from '@/lib/api';
+import { api, type AuditComparison, type AuditHistoryRow } from '@/lib/api';
+import {
+  FIRST_AUDIT_LABEL, NOT_COMPARABLE_LABEL, PREVIOUS_NOT_LISTED_LABEL, auditTriggerBadge, historyDeltaView, type HistoryDeltaView,
+} from '@/lib/audit-history';
 import { AuditComparisonBody } from '@/components/audit-delta-panel';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 
-type TaramaKaydi = {
-  id: string;
-  ranAt: string;
-  overallScore: number;
-  geoScore: number | null;
-  issueCount: number;
-  durationMs: number | null;
-};
+/** trigger / scoreComparableWithPrevious / scoreMethodNote dahil (lib/api.ts AuditHistoryRow) */
+type TaramaKaydi = AuditHistoryRow;
 
 /** Kac tarama listelenir — trend cizgisi icin yeterli, liste bogulmaz */
 const GECMIS_LIMIT = 20;
@@ -232,9 +229,10 @@ export function AuditReportsPanel({ siteId }: { siteId: string }) {
             <>
               <div className="rounded-lg border divide-y">
                 {history.map((h, i) => {
-                  // Liste yeni -> eski geldigi icin bir onceki tarama bir SONRAKI satir
-                  const onceki = history[i + 1];
-                  const delta = onceki ? h.overallScore - onceki.overallScore : null;
+                  // Liste yeni -> eski geldigi icin bir onceki tarama bir SONRAKI satir.
+                  // Yontem / kapsam degistiyse fark hukum degil (lib/audit-history.ts)
+                  const fark = historyDeltaView(history, i, GECMIS_LIMIT);
+                  const kaynak = auditTriggerBadge(h.trigger);
                   return (
                     <div key={h.id} className="flex items-center gap-3 px-3 py-2 flex-wrap">
                       <span className="text-xs text-muted-foreground w-[130px] shrink-0">
@@ -244,7 +242,13 @@ export function AuditReportsPanel({ siteId }: { siteId: string }) {
                         {h.overallScore}
                         <span className="text-xs text-muted-foreground font-normal">/100</span>
                       </span>
-                      <DeltaRozeti delta={delta} />
+                      <DeltaRozeti view={fark} />
+                      {/* Otomatik / dogrulama taramasi gizlenmez, rozetle ayrilir (audit.service getHistory) */}
+                      {kaynak && (
+                        <Badge variant="outline" className="px-1.5 py-0 text-label font-medium" title={kaynak.title}>
+                          {kaynak.label}
+                        </Badge>
+                      )}
                       <span className="ml-auto flex items-center gap-2">
                         <Badge variant="secondary">
                           GEO {h.geoScore ?? '—'}
@@ -253,6 +257,10 @@ export function AuditReportsPanel({ siteId }: { siteId: string }) {
                           {h.issueCount} sorun
                         </Badge>
                       </span>
+                      {/* Neden gorunur metin: dokunmatik ekranda title (hover) okunmaz */}
+                      {fark.kind === 'not_comparable' && (
+                        <p className="basis-full text-label font-normal text-muted-foreground">{fark.note}</p>
+                      )}
                     </div>
                   );
                 })}
@@ -354,38 +362,63 @@ function TaramaSecici({
         onChange={(e) => onChange(e.target.value)}
         className="mt-1 w-full h-9 px-2 rounded-md border border-input text-sm bg-background"
       >
-        {history.map((h) => (
-          <option key={h.id} value={h.id}>
-            {tarihSaat(h.ranAt)} · {h.overallScore}/100
-          </option>
-        ))}
+        {history.map((h) => {
+          const kaynak = auditTriggerBadge(h.trigger);
+          return (
+            <option key={h.id} value={h.id}>
+              {tarihSaat(h.ranAt)} · {h.overallScore}/100{kaynak ? ` · ${kaynak.label.toLocaleLowerCase('tr-TR')}` : ''}
+            </option>
+          );
+        })}
       </select>
     </label>
   );
 }
 
-/** Bir onceki taramaya gore skor farki — yesil/kirmizi/notr */
-function DeltaRozeti({ delta }: { delta: number | null }) {
-  if (delta === null) {
-    return <span className="text-[11px] text-muted-foreground">ilk tarama</span>;
+/**
+ * Bir onceki taramaya gore skor farki. Yesil/kirmizi hukum yalniz API iki taramanin
+ * ayni yontem ve kapsamla olculdugunu soylediginde; degilse sayi notr + "yontem/kapsam
+ * degisti", API bilgi vermediyse (eski API) sayi notr (lib/audit-history.ts).
+ */
+function DeltaRozeti({ view }: { view: HistoryDeltaView }) {
+  if (view.kind === 'first') {
+    return <span className="text-label text-muted-foreground">{FIRST_AUDIT_LABEL}</span>;
   }
-  if (delta === 0) {
+  // En eski satirin oncesinde liste disinda tarama olabilir: "ilk tarama" iddiasi yok,
+  // farkin neden gosterilmedigini notr metin soyler (lib/audit-history.ts)
+  if (view.kind === 'none') {
     return (
-      <span className="inline-flex items-center gap-0.5 text-[11px] font-medium text-slate-500 dark:text-slate-400">
-        <Minus className="h-3 w-3" />0
+      <span
+        className="text-label text-muted-foreground"
+        title="Bu, listedeki en eski tarama; daha önceki taramalar burada gösterilmiyor, bu yüzden fark hesaplanmadı."
+      >
+        {PREVIOUS_NOT_LISTED_LABEL}
       </span>
     );
   }
-  const artis = delta > 0;
+  const sayi = `${view.delta > 0 ? '+' : ''}${view.delta}`;
+  if (view.kind === 'not_comparable') {
+    return (
+      // Neden satirin altinda gorunur metin olarak yazilir (dokunmatikte title okunmaz)
+      <span className="inline-flex items-center gap-1 text-label text-muted-foreground">
+        <span className="tabular-nums">{sayi}</span>
+        <Badge variant="secondary" className="px-1.5 py-0 text-label font-medium">{NOT_COMPARABLE_LABEL}</Badge>
+      </span>
+    );
+  }
+  if (view.kind === 'unknown' || view.delta === 0) {
+    return (
+      <span className="inline-flex items-center gap-0.5 text-label text-muted-foreground tabular-nums">
+        {view.delta === 0 && <Minus className="h-3 w-3" aria-hidden />}
+        {sayi}
+      </span>
+    );
+  }
+  const artis = view.delta > 0;
   return (
-    <span
-      className={cn(
-        'inline-flex items-center gap-0.5 text-[11px] font-semibold',
-        artis ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400',
-      )}
-    >
-      {artis ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-      {artis ? '+' : ''}{delta}
+    <span className={cn('inline-flex items-center gap-0.5 text-label font-semibold tabular-nums', artis ? 'text-success' : 'text-danger')}>
+      {artis ? <TrendingUp className="h-3 w-3" aria-hidden /> : <TrendingDown className="h-3 w-3" aria-hidden />}
+      {sayi}
     </span>
   );
 }

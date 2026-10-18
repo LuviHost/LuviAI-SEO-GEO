@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AgentRunnerService } from './agent-runner.service.js';
 import { EmailService } from '../email/email.service.js';
@@ -23,6 +24,14 @@ import type { AgentContext, ExtractedFaq, GeoGateResult } from '@luviai/shared';
 import { safeParseJson } from '../common/safe-json.js';
 // Tek kaynak: canonical (publisher.service.ts) ile JSON-LD (burası) aynı URL'i üretsin.
 import { resolveArticleUrl as buildArticleUrl } from './article-url.util.js';
+// Yayindaki yazinin kamusal adresi: site haritasi ve llms-full ile AYNI kural
+import { articlePublicUrl, loadArticleTargets, parseSiteUrl } from '../audit/ai-sitemap.service.js';
+// Yayindaki yazinin yeniden yazimi: adres, ilk yayin tarihi, canli metnin goruntusu
+import {
+  EXISTING_ARTICLE_SELECT, agentOutputsWithLiveSnapshot, agentOutputsWithRejectedRewrite, isLiveArticle,
+  keepLiveFrontmatter, sectionPathOf, type ExistingArticleRow, type RejectedRewrite,
+} from './live-rewrite.js';
+import { liveEntries } from './republish-policy.js';
 
 export interface PipelineResult {
   articleId: string;
@@ -34,10 +43,34 @@ export interface PipelineResult {
   totalCostUsd: number;
   durationMs: number;
   agentOutputs: Record<string, any>;
+  /**
+   * Ek alan: otomatik yeniden yazimda (icerik pivotu) editor PASS vermedi ya
+   * da AI kapali (sahte metin); yayindaki kaydin metni ve durumu DEGISMEDI.
+   */
+  liveKept?: boolean;
+  /** Ek alan: reddedilen taslagin ozeti (kayitta agentOutputs.rejectedRewrite) */
+  rejectedRewrite?: RejectedRewrite;
 }
 
 /**
- * 6-ajan zinciri orkestratörü.
+ * Var olan kaydi ezen yazimda sifirlanan alanlar:
+ *  - qaStatus / qaReport / qaCheckedAt: onceki metnin QA sonucu yeni metne
+ *    tasinmasin. Kalirsa yayinci "QA zaten kosulmus" deyip yeni metni (async
+ *    QA bitmeden onaylanirsa) eski metnin PASS'iyle yayinlardi. Takili sayfa
+ *    duzenlemesiyle ayni kural (stuck-page-recovery: bodyMd degisince sifirlanir).
+ *  - bodyHtml: panel onizlemesi once bodyHtml'i gosterir; yayindaki yazida bu
+ *    ESKI metnin yayin parcasi. Onay bekleyen yeniden yazim panelde eski metinle
+ *    gorunuyordu. Bos kalinca panel yeni bodyMd'den uretir; yayinci yayinda yazar.
+ */
+const OVERWRITE_RESETS = {
+  qaStatus: null,
+  qaReport: Prisma.DbNull,
+  qaCheckedAt: null,
+  bodyHtml: null,
+} as const;
+
+/**
+ * 5 ajanli uretim hatti orkestratoru (yayin bir ajan degil).
  * LuviHost'taki generate-article.js'in NestJS service versiyonu.
  *
  * Akış:
@@ -68,25 +101,56 @@ export class PipelineService {
     siteId: string;
     topic: string;
     articleId?: string;
+    automatedRewrite?: boolean;
   }): Promise<PipelineResult> {
     this.log.warn(`[${opts.siteId}] MOCK pipeline (AI_GLOBAL_DISABLED=1) — topic: "${opts.topic}"`);
 
+    // Yeniden yazilan kayit yayindaysa gercek hattaki kurallar burada da gecerli
+    // (adres, ilk yayin tarihi, canli metnin goruntusu)
+    const existing = opts.articleId ? await this.readExistingRow(opts.articleId) : null;
+    const liveRewrite = !!existing && isLiveArticle(existing);
+    if (liveRewrite && opts.automatedRewrite === true) {
+      // Otomatik yeniden yazim (icerik pivotu) AI kapaliyken yayindaki yazinin
+      // metnini sahte "MOCK ARTICLE" metniyle EZMEZ: AI_GLOBAL_DISABLED kesinti /
+      // maliyet durdurma anahtari da olabilir; haftalik pivot o hafta canli
+      // yazilari sahte metne cevirip onaya dusururdu.
+      this.log.warn(`[${opts.siteId}] MOCK: otomatik yeniden yazım yayındaki yazıya uygulanmadı (article=${opts.articleId})`);
+      return {
+        articleId: opts.articleId!,
+        slug: existing!.slug,
+        title: existing!.title ?? opts.topic,
+        bodyMd: existing!.bodyMd ?? '',
+        editorScore: null,
+        editorVerdict: 'REVIZE',
+        totalCostUsd: 0,
+        durationMs: 0,
+        agentOutputs: { mock: true },
+        liveKept: true,
+        mock: true,
+      } as PipelineResult;
+    }
+
     // Realistik UX için kısa bir bekleme (kullanıcı "üretiliyor" UI'ında pipeline akışını görür)
+    // Yayindaki yazi uretim boyunca yayindan dusmez (gercek hat da durumunu
+    // degistirmez): GENERATING / EDITING yalniz yer tutucu ve takvim kaydinda.
     const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-    if (opts.articleId) {
+    if (opts.articleId && !liveRewrite) {
       await this.prisma.article.update({ where: { id: opts.articleId }, data: { status: 'GENERATING' as any } });
     }
     await sleep(8000);
-    if (opts.articleId) {
+    if (opts.articleId && !liveRewrite) {
       await this.prisma.article.update({ where: { id: opts.articleId }, data: { status: 'EDITING' as any } });
     }
     await sleep(6000);
 
-    const slug = opts.topic
-      .toLowerCase()
-      .replace(/[^a-z0-9çğıöşü]+/gi, '-')
-      .replace(/^-+|-+$/g, '')
-      .slice(0, 80);
+    const slug = liveRewrite
+      ? existing!.slug
+      : opts.topic
+        .toLowerCase()
+        .replace(/[^a-z0-9çğıöşü]+/gi, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 80);
+    const nowIso = new Date().toISOString();
 
     const bodyMd = [
       `# ${opts.topic}`,
@@ -124,6 +188,10 @@ export class PipelineService {
     ];
     const heroPrompt = `Mock hero image for "${opts.topic}"`;
 
+    // Yayindaki yazi: datePublished ilk yayin tarihi, dateModified bugun (schema.org
+    // datePublished "Date of first publication", dateModified "most recently modified")
+    const datePublished = liveRewrite && existing!.publishedAt instanceof Date ? existing!.publishedAt.toISOString() : nowIso;
+    const mockOutputs: Record<string, unknown> = { mock: true, generatedAt: nowIso, heroPrompt };
     const baseData: any = {
       slug,
       title: opts.topic,
@@ -134,15 +202,16 @@ export class PipelineService {
       wordCount,
       faqs,
       schemaMarkup: [
-        { '@context': 'https://schema.org', '@type': 'Article', headline: opts.topic, datePublished: new Date().toISOString() },
+        { '@context': 'https://schema.org', '@type': 'Article', headline: opts.topic, datePublished, dateModified: nowIso },
       ],
-      agentOutputs: { mock: true, generatedAt: new Date().toISOString(), heroPrompt },
+      agentOutputs: liveRewrite ? agentOutputsWithLiveSnapshot(mockOutputs, existing!, nowIso) : mockOutputs,
       status: 'READY_TO_PUBLISH' as any,
     };
 
     let articleId: string;
     if (opts.articleId) {
-      const updated = await this.prisma.article.update({ where: { id: opts.articleId }, data: baseData });
+      // QA sonucu eski metinden tasinmaz; govde parcasi (bodyHtml) sahte metnin kendisi
+      const updated = await this.prisma.article.update({ where: { id: opts.articleId }, data: { ...OVERWRITE_RESETS, ...baseData } });
       articleId = updated.id;
     } else {
       const created = await this.prisma.article.create({
@@ -175,10 +244,27 @@ export class PipelineService {
     articleId?: string;
     /** QA kapisini bekle (otomatik yayin oncesi — bkz. pipeline sonu) */
     awaitQa?: boolean;
+    /**
+     * PASS'te "makale hazir, onayini bekliyor" e-postasi gonderilsin mi
+     * (varsayilan: evet). E-posta "Henuz yayinda degil — inceleyip yayina alman
+     * gerekiyor" der; worker yaziyi uretimin hemen ardindan YAYINLAYACAKSA
+     * (Tam otomatik) false verir, yoksa musteriye yayindaki yazi icin yanlis
+     * bilgi gider. Yayin sonunda olmazsa worker notifyArticleReady'yi kendisi cagirir.
+     */
+    notifyReady?: boolean;
+    /**
+     * OTOMATIK yeniden yazim (yalniz icerik pivotu koyar; is verisindeki
+     * automatedRewrite). Yayindaki yazida editor PASS vermezse kayit EZILMEZ:
+     * metin ve durum (PUBLISHED) aynen kalir, taslagin ozeti
+     * agentOutputs.rejectedRewrite'a yazilir. Kullanicinin baslattigi
+     * guncelleme (kapali dongu "guncelle") bu bayragi koymaz; bugunku gibi
+     * REVIZE_NEEDED ile kaydi ezer.
+     */
+    automatedRewrite?: boolean;
   }): Promise<PipelineResult> {
     // AI_GLOBAL_DISABLED=1 → mock pipeline (dummy article üret, gerçek API çağrısı yapma)
     if (await this.settings.getBoolean('AI_GLOBAL_DISABLED')) {
-      return this.runMockPipeline({ siteId: opts.siteId, topic: opts.topic, articleId: opts.articleId });
+      return this.runMockPipeline({ siteId: opts.siteId, topic: opts.topic, articleId: opts.articleId, automatedRewrite: opts.automatedRewrite });
     }
 
     const t0 = Date.now();
@@ -268,6 +354,8 @@ export class PipelineService {
     // taslağa "baştan yaz" hükmü vermek için elimizde kanıt yok.
     let editorVerdict: 'PASS' | 'REVIZE' | 'FAIL' = 'REVIZE';
     let editorScore: number | null = null;
+    // Son editor turunun engelleyici bulgulari (reddedilen otomatik yeniden yazimin ozetine girer)
+    let lastBlockingIssues: string[] = [];
     // 1 → 2: deterministik kapı bulgularının kapatılabilmesi için ek bir tur.
     const maxRevize = opts.maxRevize ?? 2;
     const MAX_PARSE_RETRIES = 1;
@@ -316,6 +404,7 @@ export class PipelineService {
       }
 
       editorScore = verdict.score;
+      lastBlockingIssues = verdict.blockingIssues;
       if (verdict.article && verdict.article.length > 1000 && !this.hasPlaceholder(verdict.article)) {
         currentDraft = verdict.article;
       }
@@ -347,6 +436,29 @@ export class PipelineService {
       stats: geoGate.stats,
       issues: geoGate.issues.map((i) => ({ code: i.code, samples: i.samples ?? [] })),
     };
+
+    // Ezilecek kayit YAYINDA mi? Uretimin SONUNDA okunur (hat dakikalar surer;
+    // bu arada yayinlanmis / kaydi unutulmus olabilir). Yayindaysa adres (slug),
+    // ilk yayin tarihi ve canli metnin goruntusu korunur (live-rewrite.ts).
+    const existing = opts.articleId ? await this.readExistingRow(opts.articleId) : null;
+    const liveRewrite = !!existing && isLiveArticle(existing);
+
+    if (liveRewrite && opts.automatedRewrite === true && editorVerdict !== 'PASS') {
+      return this.keepLiveRow({
+        siteId: opts.siteId,
+        articleId: opts.articleId!,
+        topic: opts.topic,
+        existing: existing!,
+        draft: currentDraft,
+        editorVerdict,
+        editorScore,
+        blockingIssues: lastBlockingIssues,
+        geoGate,
+        agentOutputs,
+        totalCost,
+        t0,
+      });
+    }
 
     // 05 — Görselleştirici
     if (!opts.skipImages && editorVerdict === 'PASS') {
@@ -390,7 +502,10 @@ export class PipelineService {
     // Kayıtta kalırsa QA kapısı onu doldurulmamış görsel sanıyordu.
     cleaned = stripHeroPlaceholder(cleaned);
 
-    const { data: fm, content: body } = parseFrontmatter(cleaned);
+    // gray-matter sonucu onbellekli bir nesne: degistirilmez, kopyalanir
+    const parsedFm = parseFrontmatter(cleaned);
+    const body = parsedFm.content;
+    let fm: Record<string, unknown> = parsedFm.data;
 
     // frontmatter.internal_links de aynı envantere göre süzülür — makale
     // gövdesi temizlenip metadata kirli kalmasın.
@@ -401,7 +516,19 @@ export class PipelineService {
     // "...-krlilik-2026" gibi anahtar kelimesi kaybolmuş URL'ler sitemap'e giriyordu.
     // turkishSlug'daki TR_MAP zaten â→a eşlemesini içeriyor; sorun eşlemenin
     // atlanmasıydı.
-    const slug = this.normalizeSlug((fm.slug as string) || (fm.title as string) || opts.topic);
+    //
+    // YAYINDAKI yazida slug HIC degismez: adres ayni kalmali. WordPress
+    // guncellemesi slug gondermez (adres aynidir) ama govdedeki JSON-LD yeni,
+    // var olmayan adresi gosterirdi; dosya hedefleri (FTP/SFTP/cPanel/GitHub/
+    // KobiPratik) yeni slug'i yeni yol sayip slug_changed ile reddeder
+    // (republish-policy.ts). Ayrica (siteId, slug) tekil: baska yazinin slug'ina
+    // carpan yeni slug yazimi hata verirdi.
+    const slug = liveRewrite ? existing!.slug : this.normalizeSlug((fm.slug as string) || (fm.title as string) || opts.topic);
+    if (liveRewrite) {
+      const kept = keepLiveFrontmatter(cleaned, fm, { slug, publishedAt: existing!.publishedAt });
+      cleaned = kept.bodyMd;
+      fm = kept.frontmatter;
+    }
     const wordCount = body.split(/\s+/).length;
 
     // ── SSS teli ────────────────────────────────────────────────
@@ -430,11 +557,12 @@ export class PipelineService {
         // Sabit `/blog/<slug>.html` yanlıştı: bu yol hiçbir hedefte yok.
         // (kobipratik'te rehberler /pratik-kobi-rehberi/<slug>, uzantısız.)
         // Artık gerçek publish hedefinin path kuralından türetiliyor.
-        const { url: articleUrl, sectionPath } = await this.resolveArticleUrl(
-          opts.siteId,
-          baseUrl,
-          slug,
-        );
+        // Yayindaki yazida once CANLI adres (WordPress kalici baglantisi, dosya
+        // hedefinin kanonik adresi): site haritasi ve llms-full'un kullandigi kural.
+        const { url: articleUrl, sectionPath } = liveRewrite
+          ? await this.liveArticleUrl(opts.siteId, siteUrl, baseUrl, slug, existing!.publishedTo)
+          : await this.resolveArticleUrl(opts.siteId, baseUrl, slug);
+        const nowIso = new Date().toISOString();
         const sameAs = Array.isArray(siteAny.socialProfiles)
           ? (siteAny.socialProfiles as string[])
           : [];
@@ -446,8 +574,12 @@ export class PipelineService {
             url: articleUrl,
             slug,
             metaDescription: (fm.meta_description as string) ?? null,
-            datePublished: new Date().toISOString(),
-            dateModified: new Date().toISOString(),
+            // Yayindaki yazi: datePublished ILK yayin tarihi, dateModified bugun.
+            // schema.org: datePublished "Date of first publication", dateModified
+            // "most recently modified"; Google Article belgesi ayni tanimi verir
+            // ("first published" / "most recently modified").
+            datePublished: liveRewrite && existing!.publishedAt instanceof Date ? existing!.publishedAt.toISOString() : nowIso,
+            dateModified: nowIso,
             // Yer tutucu göreli "placeholder-hero.webp" şemaya YAZILMAZ (geçersiz
             // image); gerçek mutlak URL publisher'da hero üretilince eklenir.
             heroImage: isHeroPlaceholder((fm as any).hero_image) ? null : (((fm as any).hero_image as string) ?? null),
@@ -498,7 +630,9 @@ export class PipelineService {
       pillar: (fm.pillar as string) ?? null,
       bodyMd: cleaned,
       frontmatter: fm as any,
-      agentOutputs: agentOutputs as any,
+      // Yayindaki yazi eziliyorsa canli metnin goruntusu saklanir (agentOutputs.liveSnapshot):
+      // yeni metin onaya dusse ya da hic yayinlanmasa da canlidaki metin DB'de kaybolmaz
+      agentOutputs: (liveRewrite ? agentOutputsWithLiveSnapshot(agentOutputs, existing!, new Date().toISOString()) : agentOutputs) as any,
       schemaMarkup: schemaMarkup as any,
       faqs: faqs.length > 0 ? (faqs as any) : null,
       wordCount,
@@ -515,7 +649,7 @@ export class PipelineService {
     const article = opts.articleId
       ? await this.prisma.article.update({
           where: { id: opts.articleId },
-          data: articleData,
+          data: { ...articleData, ...OVERWRITE_RESETS },
         })
       : await this.prisma.article.create({
           data: articleData,
@@ -533,9 +667,10 @@ export class PipelineService {
     if (opts.awaitQa) await this.qaGate.checkSafe(article.id);
     else void this.qaGate.checkSafe(article.id);
 
-    // Site sahibine "makale hazir" maili (PASS olduysa).
+    // Site sahibine "makale hazir, onayini bekliyor" maili (PASS olduysa ve
+    // cagiran hemen yayinlamayacaksa — bkz. notifyReady).
     // Mail gonderimi pipeline'i blok etmez — fail olsa da makale kaydi tamam.
-    if (editorVerdict === 'PASS') {
+    if (editorVerdict === 'PASS' && opts.notifyReady !== false) {
       this.notifyArticleReady(opts.siteId, article.id).catch((err) => {
         this.log.warn(`[${opts.siteId}] Mail gonderilemedi: ${err.message}`);
       });
@@ -557,9 +692,15 @@ export class PipelineService {
   /**
    * Makale PASS aldiginda site sahibine mail gonder.
    * Kullanicinin daha onceki PUBLISHED makalesi yoksa "first_article_published",
-   * varsa daha basit bir bilgilendirme.
+   * varsa daha basit bir bilgilendirme. Iki sablon da "onayini bekliyor" der:
+   * yalniz yazi gercekten onay beklerken cagrilir. "Henüz yayında değil" yalniz
+   * yazinin canli kopyasi yoksa; varsa (yayindaki yazinin yeniden yazimi)
+   * article_ready "güncellenmiş hali onayını bekliyor; eski hali yayında kalır"
+   * der (liveUpdate). Worker,
+   * otomatik yayin planlanip yazi yayinlanamadiginda (mod degisti, QA engeli,
+   * hedef yazamadi) bunu kendisi cagirir — o yuzden public.
    */
-  private async notifyArticleReady(siteId: string, articleId: string): Promise<void> {
+  async notifyArticleReady(siteId: string, articleId: string): Promise<void> {
     const site = await this.prisma.site.findUnique({
       where: { id: siteId },
       include: { user: { select: { email: true, name: true, id: true } } },
@@ -582,7 +723,16 @@ export class PipelineService {
       },
     });
 
-    const template = earlierCount === 0 ? 'first_article_published' : 'article_ready';
+    // Daha once yayinlanmis yazinin yeniden yazimi (kapali dongu "guncelle",
+    // icerik pivotu) "İlk makalen hazır" degildir; sitede baska yazi olmasa da
+    // article_ready gider.
+    const wasPublished = article.publishedAt != null || liveEntries(article.publishedTo).length > 0;
+    const template = earlierCount === 0 && !wasPublished ? 'first_article_published' : 'article_ready';
+    // Yazinin hala canli bir kopyasi var mi: varsa e-posta "Henüz yayında değil"
+    // DEMEZ, "güncellenmiş hali onayını bekliyor; eski hali yayında kalır" der
+    // (email.service article_ready liveUpdate). liveEntries cop kutusunda
+    // bulunan kopyayi (publishedTo trashedAt, sozlesme C3) saymaz: o kopya canli degil.
+    const liveUpdate = liveEntries(article.publishedTo).length > 0;
     await this.email.send({
       userId: site.user.id,
       to: site.user.email,
@@ -595,9 +745,104 @@ export class PipelineService {
         faqs: ((article.frontmatter as any)?.faqs as any[])?.length ?? 0,
         editorScore: article.editorScore,
         articlesPublished: earlierCount + 1,
+        ...(liveUpdate ? { liveUpdate: true } : {}),
       },
     });
-    this.log.log(`[${siteId}] Mail gonderildi: ${site.user.email} (${template})`);
+    this.log.log(`[${siteId}] Mail gonderildi: ${site.user.email} (${template}${liveUpdate ? ', canli yazinin guncellemesi' : ''})`);
+  }
+
+  /** Yeniden yazilan kaydin (opts.articleId) mevcut hali; yoksa null */
+  private async readExistingRow(articleId: string): Promise<ExistingArticleRow | null> {
+    const row = await this.prisma.article.findUnique({ where: { id: articleId }, select: EXISTING_ARTICLE_SELECT });
+    return (row as ExistingArticleRow | null) ?? null;
+  }
+
+  /**
+   * Otomatik yeniden yazim (icerik pivotu) editorden gecmedi: yayindaki kayit
+   * EZILMEZ. Metin, slug, durum (PUBLISHED), editor skoru ve QA aynen kalir;
+   * yalniz agentOutputs'a reddedilen taslagin ozeti eklenir (seffaflik; pivot
+   * bu tarihten sonra 30 gun ayni yaziyi yeniden denemez). QA kosulmaz,
+   * e-posta gitmez — degisen bir sey yok.
+   * NEDEN: eskiden REVIZE / FAIL taslak canli yazinin metnini ve durumunu
+   * eziyordu; yazi REVIZE_NEEDED'e dusup PUBLISHED okuyan her yerden (llms-full,
+   * site haritasi, KPI'lar) cikiyor, musteri istemedigi bir duzeltme isi aliyordu.
+   */
+  private async keepLiveRow(args: {
+    siteId: string;
+    articleId: string;
+    topic: string;
+    existing: ExistingArticleRow;
+    draft: string;
+    editorVerdict: 'PASS' | 'REVIZE' | 'FAIL';
+    editorScore: number | null;
+    blockingIssues: string[];
+    geoGate: GeoGateResult;
+    agentOutputs: Record<string, any>;
+    totalCost: number;
+    t0: number;
+  }): Promise<PipelineResult> {
+    const cleaned = this.cleanCodeFences(args.draft);
+    const parsed = parseFrontmatter(cleaned);
+    const rejected: RejectedRewrite = {
+      at: new Date().toISOString(),
+      topic: args.topic,
+      verdict: args.editorVerdict,
+      score: args.editorScore,
+      maxScore: PipelineService.EDITOR_MAX_SCORE,
+      title: typeof parsed.data.title === 'string' ? parsed.data.title : null,
+      wordCount: parsed.content.split(/\s+/).filter(Boolean).length,
+      blockingIssues: args.blockingIssues.slice(0, 5),
+      geoGateIssues: args.geoGate.issues.map((i) => i.code),
+      totalCostUsd: args.totalCost,
+    };
+    await this.prisma.article.update({
+      where: { id: args.articleId },
+      data: { agentOutputs: agentOutputsWithRejectedRewrite(args.existing.agentOutputs, rejected) as any },
+    });
+    this.log.warn(
+      `[${args.siteId}] Otomatik yeniden yazım editörden geçmedi (${args.editorVerdict}, ${args.editorScore ?? '?'}/${PipelineService.EDITOR_MAX_SCORE}) — `
+        + `yayındaki metin ve durum korundu, taslak özeti agentOutputs.rejectedRewrite'a yazıldı (article=${args.articleId}, $${args.totalCost.toFixed(4)})`,
+    );
+    return {
+      articleId: args.articleId,
+      slug: args.existing.slug,
+      title: args.existing.title ?? args.topic,
+      bodyMd: cleaned,
+      editorScore: args.editorScore,
+      editorVerdict: args.editorVerdict,
+      totalCostUsd: args.totalCost,
+      durationMs: Date.now() - args.t0,
+      agentOutputs: args.agentOutputs,
+      liveKept: true,
+      rejectedRewrite: rejected,
+    };
+  }
+
+  /**
+   * Yayindaki yazinin JSON-LD adresi: canli kopyanin sitedeki adresi (yayin
+   * hedefinin bildirdigi kalici baglanti ya da dosya hedefinin kanonik adresi —
+   * ai-sitemap.service articlePublicUrl, site haritasi ve llms-full ile ayni
+   * kural). Bilinmiyorsa (or. baska alan adindaki Ghost) korunan slug ile
+   * varsayilan hedefin yol kurali — yayincinin canonical'i ile ayni kaynak.
+   */
+  private async liveArticleUrl(
+    siteId: string,
+    siteUrl: string,
+    baseUrl: string,
+    slug: string,
+    publishedTo: unknown,
+  ): Promise<{ url: string; sectionPath: string | null }> {
+    const site = parseSiteUrl(siteUrl);
+    if (site) {
+      try {
+        const targets = await loadArticleTargets(this.prisma, siteId, site, [{ publishedTo }]);
+        const url = articlePublicUrl(site, slug, publishedTo, targets);
+        if (url) return { url, sectionPath: sectionPathOf(url) };
+      } catch (err: any) {
+        this.log.warn(`[${siteId}] Canlı adres okunamadı, yol kuralına düşüldü: ${err.message}`);
+      }
+    }
+    return this.resolveArticleUrl(siteId, baseUrl, slug);
   }
 
   /** Editör skor tavanı — 04-editor prompt'undaki 9 kategori × 10 puan. */

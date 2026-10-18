@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { api } from '@/lib/api';
+import { api, type BulkScanPage, type BulkScanResult } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
@@ -13,33 +13,39 @@ import {
   Search,
   CheckCircle2,
   XCircle,
-  AlertTriangle,
   Sparkles,
-  ChevronRight,
   RefreshCw,
+  ShieldAlert,
+  FileX,
 } from 'lucide-react';
 
-type ScanRow = {
-  url: string;
-  title: string | null;
-  titleLength: number;
-  metaDescription: string | null;
-  metaDescriptionLength: number;
-  h1: string | null;
-  hasCanonical: boolean;
-  hasOG: boolean;
-  hasTwitter: boolean;
-  hasSchema: boolean;
-  hasFAQ: boolean;
-  score: number;
-  issues: string[];
-};
+/**
+ * Skoru olculmeyen satirlar ortalamaya ve "Sorunlu"ya girmez:
+ *   blocked → "Erisilemedi" (WAF / bot dogrulamasi)
+ *   failed  → "Okunamadi" (sayfa indirilemedi; neden failReason'da)
+ * Tipler lib/api.ts'te (snippet-generator.service.ts bulkScan ile ayni sekil).
+ */
+type ScanRow = BulkScanPage;
+type ScanResult = BulkScanResult;
 
-type ScanResult = {
-  pages: ScanRow[];
-  totalScanned: number;
-  averageScore: number;
-};
+/** Engel sayisi: yeni API blockedPages doner; eski cevapta satirlardan sayilir */
+function blockedCount(r: ScanResult): number {
+  return typeof r.blockedPages === 'number' ? r.blockedPages : r.pages.filter((p) => p.blocked).length;
+}
+
+/**
+ * Okunamayan sayfa sayisi SATIRLARDAN sayilir (failedPages'e bakilmaz): engelli bir satir
+ * ayrica failed tasisa bile yalniz "Erisilemedi" olarak bir kez sayilmali; tum satirlar
+ * cevapta oldugu icin bu sayim her zaman kesin. Eski API failed dondurmez → 0.
+ */
+function failedCount(r: ScanResult): number {
+  return r.pages.filter((p) => !p.blocked && p.failed === true).length;
+}
+
+/** Skoru olculmedi mi (engel ya da okuma hatasi) */
+function unmeasured(p: ScanRow): boolean {
+  return !!p.blocked || p.failed === true;
+}
 
 /**
  * Bulk scan UI — root URL gir → tüm alt sayfaları crawl et → SEO durumu tablosu.
@@ -64,9 +70,26 @@ export function BulkSnippetScan({
     try {
       const r = await api.bulkScanSnippets(siteId, rootUrl || undefined, maxPages);
       setResult(r);
-      toast.success(`${r.totalScanned} sayfa tarandı, ortalama skor ${r.averageScore}`);
+      const blocked = blockedCount(r);
+      const failed = failedCount(r);
+      const read = r.totalScanned - blocked - failed;
+      const skipped = [
+        blocked > 0 ? `${blocked} sayfa erişim engeline takıldı` : null,
+        failed > 0 ? `${failed} sayfa okunamadı` : null,
+      ].filter(Boolean).join(', ');
+      if (r.totalScanned > 0 && read <= 0) {
+        // Hicbir sayfa okunamadiysa ortalama yok — "ortalama 0" siteyi bozuk gosterirdi
+        toast.warning(`${r.totalScanned} sayfa tarandı ama hiçbiri okunamadı; ortalama skor hesaplanmadı.`, { duration: 10000 });
+      } else {
+        toast.success(
+          skipped
+            ? `${r.totalScanned} sayfa tarandı; ${skipped}. Okunan ${read} sayfanın ortalama skoru ${r.averageScore}.`
+            : `${r.totalScanned} sayfa tarandı, ortalama skor ${r.averageScore}`,
+        );
+      }
     } catch (err: any) {
-      toast.error(err.message || 'Tarama başarısız');
+      // Sayfalarin hepsi engelliyse API 400 + neden doner (ApiError.message = sunucu metni)
+      toast.error(err.message || 'Tarama başarısız', { duration: 10000 });
     } finally {
       setLoading(false);
     }
@@ -121,14 +144,43 @@ export function BulkSnippetScan({
           </div>
         )}
 
-        {/* Summary band */}
-        {result && (
-          <div className="grid grid-cols-3 gap-2">
-            <SummaryChip label="Taranan" value={result.totalScanned} accent="brand" />
-            <SummaryChip label="Ort. Skor" value={`${result.averageScore}/100`} accent={result.averageScore >= 70 ? 'emerald' : result.averageScore >= 40 ? 'amber' : 'rose'} />
-            <SummaryChip label="Sorunlu" value={result.pages.filter((p) => p.score < 60).length} accent="rose" />
-          </div>
-        )}
+        {/* Summary band — engelli / okunamayan sayfa ne ortalamaya ne "Sorunlu"ya girer (skoru olculmedi) */}
+        {result && (() => {
+          const blocked = blockedCount(result);
+          const failed = failedCount(result);
+          const read = Math.max(0, result.totalScanned - blocked - failed);
+          const chips = 3 + (blocked > 0 ? 1 : 0) + (failed > 0 ? 1 : 0);
+          const skipped = [
+            blocked > 0 ? `${blocked} sayfa erişim engeline takıldı (güvenlik duvarı, bot doğrulaması, hız sınırı gibi)` : null,
+            failed > 0 ? `${failed} sayfa okunamadı` : null,
+          ].filter(Boolean).join('; ');
+          return (
+            <div className="space-y-2">
+              <div className={cn('grid gap-2', chips === 3 ? 'grid-cols-3' : chips === 4 ? 'grid-cols-2 sm:grid-cols-4' : 'grid-cols-2 sm:grid-cols-5')}>
+                <SummaryChip label="Taranan" value={result.totalScanned} accent="brand" />
+                <SummaryChip
+                  label="Ort. Skor"
+                  // Okunan sayfa yoksa ortalama YOK: "0/100" siteyi bozuk gosterirdi
+                  value={read > 0 ? `${result.averageScore}/100` : '—'}
+                  accent={read === 0 ? 'muted' : result.averageScore >= 70 ? 'emerald' : result.averageScore >= 40 ? 'amber' : 'rose'}
+                  hint={read > 0 ? `okunan ${read} sayfa` : 'okunan sayfa yok'}
+                />
+                <SummaryChip label="Sorunlu" value={result.pages.filter((p) => !unmeasured(p) && p.score < 60).length} accent="rose" />
+                {blocked > 0 && <SummaryChip label="Erişilemedi" value={blocked} accent="muted" />}
+                {failed > 0 && <SummaryChip label="Okunamadı" value={failed} accent="muted" />}
+              </div>
+              {skipped && (
+                <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
+                  <ShieldAlert className="h-3.5 w-3.5 mt-px shrink-0" aria-hidden />
+                  <span>
+                    {skipped}; bu sayfaların skoru ölçülmedi.
+                    Ortalama yalnız okunan {read} sayfayı kapsar; ölçülmeyen sayfalar &quot;Sorunlu&quot; sayısına dahil değil.
+                  </span>
+                </p>
+              )}
+            </div>
+          );
+        })()}
 
         {/* Tablo */}
         {result && result.pages.length > 0 && (
@@ -149,9 +201,12 @@ export function BulkSnippetScan({
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {result.pages
-                    .sort((a, b) => a.score - b.score)
-                    .map((row) => (
+                  {[...result.pages]
+                    // Olculmeyen sayfa skoru 0 diye en uste cikmasin: engelli / okunamayan satirlar en sonda
+                    .sort((a, b) => Number(unmeasured(a)) - Number(unmeasured(b)) || a.score - b.score)
+                    .map((row) => unmeasured(row) ? (
+                      <UnmeasuredRow key={row.url} row={row} />
+                    ) : (
                       <tr key={row.url} className="hover:bg-muted/20 transition-colors">
                         <td className="px-3 py-2 font-mono text-[11px] truncate max-w-[260px]" title={row.url}>
                           {row.url.replace(/^https?:\/\//, '')}
@@ -197,9 +252,39 @@ export function BulkSnippetScan({
   );
 }
 
-function SummaryChip({ label, value, accent }: { label: string; value: string | number; accent: string }) {
+/**
+ * Skoru olculmeyen satir. Engel → "Erisilemedi" (nedeni issues[0]); okuma hatasi →
+ * "Okunamadi" (nedeni failReason, yoksa issues[0]). Snippet uretimi kapali: okunamayan
+ * sayfanin yerine uretilecek meta/SSS dayanaksiz olurdu.
+ */
+function UnmeasuredRow({ row }: { row: ScanRow }) {
+  const blocked = !!row.blocked;
+  const reason = blocked ? row.issues?.[0] : (row.failReason ?? row.issues?.[0]);
+  const Icon = blocked ? ShieldAlert : FileX;
+  return (
+    <tr className="bg-muted/10">
+      <td className="px-3 py-2 font-mono text-label truncate max-w-[260px]" title={row.url}>
+        {row.url.replace(/^https?:\/\//, '')}
+      </td>
+      <td className="px-3 py-2" colSpan={7}>
+        <span className="inline-flex items-center gap-1 text-label font-semibold text-muted-foreground" title={reason || undefined}>
+          <Icon className="h-3 w-3" aria-hidden /> {blocked ? 'Erişilemedi' : 'Okunamadı'}
+        </span>
+        {reason && <span className="ml-2 text-label text-muted-foreground">{reason}</span>}
+      </td>
+      <td className="px-3 py-2 text-right">
+        <Button size="sm" variant="outline" disabled className="h-7 text-label" title="Sayfa okunamadığı için snippet üretilemez">
+          <Sparkles className="h-3 w-3 mr-1 text-brand" /> Üret
+        </Button>
+      </td>
+    </tr>
+  );
+}
+
+function SummaryChip({ label, value, accent, hint }: { label: string; value: string | number; accent: string; hint?: string }) {
   const colors: Record<string, string> = {
     brand: 'border-brand/30 bg-brand/5 text-brand',
+    muted: 'border-border bg-muted/40 text-muted-foreground',
     emerald: 'border-emerald-500/30 bg-emerald-500/5 text-emerald-700 dark:text-emerald-400',
     amber: 'border-amber-500/30 bg-amber-500/5 text-amber-700 dark:text-amber-400',
     rose: 'border-rose-500/30 bg-rose-500/5 text-rose-700 dark:text-rose-400',
@@ -208,6 +293,7 @@ function SummaryChip({ label, value, accent }: { label: string; value: string | 
     <div className={cn('rounded-lg border px-3 py-2', colors[accent])}>
       <div className="text-label font-semibold opacity-80">{label}</div>
       <div className="text-xl font-bold tabular-nums leading-tight mt-0.5">{value}</div>
+      {hint && <div className="text-label opacity-80 mt-0.5">{hint}</div>}
     </div>
   );
 }

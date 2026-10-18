@@ -5,6 +5,7 @@ import { QuotaService } from '../../billing/quota.service.js';
 import { RequiresPlan } from '../../billing/plan-feature.decorator.js';
 import { SessionOnly } from '../../auth/session-only.decorator.js';
 import { AscReviewReplyService } from './asc-review-reply.service.js';
+import { ConnectAscDto, DraftReplyDto, ReplyReviewDto } from './asc.dto.js';
 
 interface AuthedRequest extends Request { user?: { id: string; role: 'USER' | 'ADMIN' | 'AGENCY_OWNER' } }
 function ensureUser(req: AuthedRequest) {
@@ -20,16 +21,22 @@ export class AscController {
     private readonly replies: AscReviewReplyService,
   ) {}
 
-  /** Plan kapisi yalnizca baglamada — bkz. AsaController.connect gerekcesi. */
+  /**
+   * Plan kapisi yalnizca baglamada — bkz. AsaController.connect gerekcesi.
+   * Yalniz panel oturumu: sitenin App Store Connect ozel anahtarini (.p8)
+   * degistirir. /aso scope haritasinda yok; isaretsizken herhangi bir ':write'
+   * anahtari (or. yalniz 'social:write') kayitli anahtari ezebiliyordu.
+   */
+  @SessionOnly()
   @Post('sites/:siteId/aso/asc/connect')
   async connect(
     @Req() req: AuthedRequest,
     @Param('siteId') siteId: string,
-    @Body() body: { issuerId: string; keyId: string; privateKeyPem: string },
+    @Body() body: ConnectAscDto,
   ) {
     const user = ensureUser(req);
     await this.quota.enforcePlanFeature(user.id, 'ascEnabled');
-    return this.asc.connectAccount({ siteId, ...body }, user);
+    return this.asc.connectAccount({ ...body, siteId }, user);
   }
 
   @Get('sites/:siteId/aso/asc/accounts')
@@ -37,6 +44,8 @@ export class AscController {
     return this.asc.listAccounts(siteId, ensureUser(req));
   }
 
+  /** Yalniz panel oturumu: baglantiyi siler, AscApp/AscRelease/alarmlar da cascade ile gider */
+  @SessionOnly()
   @Delete('aso/asc/accounts/:accountId')
   disconnect(@Req() req: AuthedRequest, @Param('accountId') accountId: string) {
     return this.asc.disconnectAccount(accountId, ensureUser(req));
@@ -67,7 +76,7 @@ export class AscController {
     @Req() req: AuthedRequest,
     @Param('appId') appId: string,
     @Param('reviewId') reviewId: string,
-    @Body() body: { notes?: string; supportContact?: string },
+    @Body() body: DraftReplyDto,
   ) {
     return this.replies.draft(appId, reviewId, ensureUser(req), body ?? {});
   }
@@ -80,7 +89,7 @@ export class AscController {
     @Req() req: AuthedRequest,
     @Param('appId') appId: string,
     @Param('reviewId') reviewId: string,
-    @Body() body: { body: string },
+    @Body() body: ReplyReviewDto,
   ) {
     return this.asc.replyToReview(appId, reviewId, body.body, ensureUser(req));
   }

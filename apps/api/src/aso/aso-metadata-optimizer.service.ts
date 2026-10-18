@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { foldForMatch, escapeRegex } from '../common/text-normalize.js';
 import { countCharacters, countBytes } from './keyword-field-audit.js';
+import { APP_STORE_LIMITS, GOOGLE_PLAY_LIMITS } from './store-limits.js';
 
 /**
  * Metadata optimizer — title/subtitle/description/keyword field için
@@ -21,9 +22,21 @@ export interface MetadataLimits {
   whats_new?: number;         // Apple: 4000 karakter (ASC referansi)
 }
 
+// Degerler tek kaynaktan (store-limits.ts — resmi belge baglantilari orada)
 const LIMITS: Record<Platform, MetadataLimits> = {
-  apple:  { title: 30, subtitle: 30, description: 4000, keyword_field: 100, promotional_text: 170, whats_new: 4000 },
-  google: { title: 30, short_description: 80, description: 4000 },
+  apple: {
+    title: APP_STORE_LIMITS.name,
+    subtitle: APP_STORE_LIMITS.subtitle,
+    description: APP_STORE_LIMITS.description,
+    keyword_field: APP_STORE_LIMITS.keywords,
+    promotional_text: APP_STORE_LIMITS.promotionalText,
+    whats_new: APP_STORE_LIMITS.whatsNew,
+  },
+  google: {
+    title: GOOGLE_PLAY_LIMITS.title,
+    short_description: GOOGLE_PLAY_LIMITS.shortDescription,
+    description: GOOGLE_PLAY_LIMITS.fullDescription,
+  },
 };
 
 /** Eslesme icin kelimeler — Turkce harf guvenli (\w ASCII'dir: "çiçek" → ["i","ek"]) */

@@ -1,12 +1,14 @@
 import type { Metadata } from 'next';
 
 export const metadata: Metadata = {
-  title: 'Karşılaştırma — RanksUp vs Jasper, Surfer, Frase, Writesonic',
-  description: "RanksUp ile diğer SEO + içerik üretim platformları (Jasper, Surfer SEO, Frase, Writesonic, Copy.ai, ContentPace, NeuronWriter) arasındaki farklar — özellik, fiyat, Türkçe destek, GEO optimizasyonu.",
+  // Sayfa yalniz Surfer, Jasper, Ahrefs ve Frase'i karsilastirir; metadata eskiden
+  // sayfada hic gecmeyen araclari (Writesonic, Copy.ai, ContentPace, NeuronWriter) sayiyordu.
+  title: 'Karşılaştırma — RanksUp vs Surfer, Jasper, Ahrefs, Frase',
+  description: 'RanksUp ile Surfer, Jasper, Ahrefs ve Frase arasındaki farklar — AI içerik, GEO / AI görünürlük ölçümü, site denetimi, yayın, Türkçe destek ve fiyat.',
   alternates: { canonical: 'https://ranksup.ai/compare' },
   openGraph: {
     title: 'RanksUp vs Diğer SEO Platformları',
-    description: 'Jasper, Surfer, Frase ve diğerleriyle karşılaştırma — özellik, fiyat, Türkçe destek.',
+    description: 'Surfer, Jasper, Ahrefs ve Frase ile karşılaştırma — özellik, fiyat, Türkçe destek.',
     url: 'https://ranksup.ai/compare',
   },
 };

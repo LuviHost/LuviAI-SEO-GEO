@@ -204,8 +204,17 @@ export function AiVisibilityChecker() {
         )}
       </div>
 
+      {/* Ayni gorunmez Turnstile parcacigi abonelik formuna da taze token verir
+          (token tek kullanimlik; testte harcanan yeniden gonderilemez). */}
       {(phase === 'loading' || phase === 'result') && (
-        <CheckerOverlay phase={phase} result={result} locale={locale} c={c} onReset={handleReset} />
+        <CheckerOverlay
+          phase={phase}
+          result={result}
+          locale={locale}
+          c={c}
+          onReset={handleReset}
+          getTurnstileToken={getTurnstileToken}
+        />
       )}
     </>
   );

@@ -1,11 +1,16 @@
-import { Injectable, Logger, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger, HttpException, HttpStatus } from '@nestjs/common';
 import { createHash } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AiCitationService, type CitationProbe } from './ai-citation.service.js';
-import { containsBrand } from './brand-in-query.js';
+import { brandHintFor, containsBrand } from './brand-in-query.js';
+import { CITATION_MATCH_VERSION } from './host-match.js';
+import { sanitizeProbeExcerpt } from './probe-retry.js';
+import { compareCells, type TrendRow } from './comparable-trend.js';
 import { NicheDetectorService } from '../sites/niche-detector.service.js';
 import type { Audience } from '../llm/model-tier.js';
-import { readBodyCapped } from '../common/fetch-capped.js';
+import { safeFetchText, SafeFetchError } from '../common/safe-fetch.js';
+import { detectBlock } from '../common/block-detect.js';
+import { assertPublicDomainResolves, normalizePublicDomainInput, type PublicResolver } from '../sites/site-url-policy.js';
 
 /**
  * Public AI Citation Check — landing page demo (anonim).
@@ -23,6 +28,11 @@ import { readBodyCapped } from '../common/fetch-capped.js';
  *   - IP rate-limit (PublicCitationService.checkRateLimit) → her IP gunde 3 farkli domain
  *   - Cloudflare Turnstile (controller'da, env-gated)
  *   - Bot UA bloklanir (controller)
+ *
+ * SSRF: kimlik dogrulamasiz uc — adres tamamen disaridan geliyor. Alan adi
+ * siki normalize edilir (IP, port, kimlik bilgisi, tek etiketli ad, ic aga
+ * cozulen ad reddedilir), sayfa safe-fetch ile okunur (her yonlendirme
+ * denetlenir) ve headless Chrome bu akista ASLA calismaz.
  */
 
 const TURKISH_NICHE_PROMPTS: Record<string, string[]> = {
@@ -121,6 +131,16 @@ const TURKISH_NICHE_PROMPTS: Record<string, string[]> = {
     'Uretici-tedarikci eslesme platformlari icinde en bilinenler nelerdir?',
     '{NICHE} dijital donusumu icin one cikan yerli cozumler hangileri?',
   ],
+  'güzellik/bakım': [
+    'Turkiye\'de {NICHE} alaninda en cok tercih edilen salonlar hangileri?',
+    'Iyi bir kuafor, berber veya guzellik salonu secerken nelere dikkat etmeli?',
+    '{BRAND_HINT} hakkinda yorumlar nasil, hizmetleri neler?',
+  ],
+  'yerel hizmetler': [
+    'Turkiye\'de {NICHE} icin guvenilir firma nasil bulunur?',
+    'Tesisat, elektrik veya temizlik icin eve gelen guvenilir ustalari nereden bulabilirim?',
+    '{NICHE} alaninda one cikan yerel isletmeler hangileri?',
+  ],
   'diğer': [
     '{BRAND_HINT} ne yapiyor? Kisaca aciklar misin?',
     'Turkiye\'de {NICHE} alaninda one cikan firmalar/platformlar hangileri?',
@@ -136,8 +156,8 @@ const TURKISH_NICHE_PROMPTS: Record<string, string[]> = {
  * yalnizca ilki(leri) OLCULUR.
  *
  * Kritik nokta: kilitli sorgular icin LLM cagrisi HIC YAPILMAZ. Bu yuzden
- *   - maliyet duser (eskiden 3 sorgu x 7 motor = 21 cagri; simdi de 3 x 7 = 21 ama
- *   toplam 10 sorunun 7'si icin hic cagri yapilmiyor),
+ *   - maliyet duser (acik sorgu sayisi x calisan saglayici kadar cagri; toplam
+ *   10 sorunun kilitli 7'si icin hic cagri yapilmiyor),
  *   - sizdirilacak veri yoktur (CSS blur olsa devtools'tan okunurdu).
  */
 const TEASER_TOTAL_QUERIES = 10;
@@ -145,6 +165,301 @@ const FREE_UNLOCKED_QUERIES = Math.max(
   1,
   parseInt(process.env.PUBLIC_CITATION_FREE_QUERIES ?? '3', 10) || 3,
 );
+
+/** niche-detector sorularina uygulanan uzunluk suzgeci — sabit soru setine de ayni kural. */
+const QUERY_MIN_LEN = 8;
+const QUERY_MAX_LEN = 160;
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Kayitli sonucun saglayici alintilarini guvenli bicime cevirir.
+ *
+ * NEDEN: hata satirlari eskiden 'HATA: HTTP 429: {...saglayici govdesi...}'
+ * olarak yaziliyordu (org/hesap kimligi, istek kimligi, istem yankisi). Yeni
+ * olcumler yalniz 'HATA: <kod>' uretiyor, ama 24 saatlik onbellekte eski
+ * bicimde kayit kalabilir ve bu uc anonim. Okuma aninda sanitizeProbeExcerpt
+ * uygulanir; HATA olmayan alinti ve zaten guvenli satir aynen kalir.
+ */
+/**
+ * matchVersion alani olmayan kayitlarin sayildigi olcum yontemi surumu.
+ *
+ * NEDEN 3: alan CITATION_MATCH_VERSION 4 ile birlikte eklendi; ondan once
+ * yazilan her public kayit 3 ya da daha eski yontemle olculdu. Hangisi oldugu
+ * bilinmiyor ama 4 olmadigi kesin: alansiz iki kayit eskisi gibi birbiriyle
+ * karsilastirilir, alansiz kayit ile v4 kaydi karsilastirilmaz.
+ */
+export const LEGACY_PUBLIC_MATCH_VERSION = 3;
+
+/** Kayitli public sonucun olcum yontemi surumu (alan yoksa LEGACY_PUBLIC_MATCH_VERSION). */
+export function publicResultMatchVersion(result: unknown): number {
+  const v = (result as { matchVersion?: unknown } | null | undefined)?.matchVersion;
+  return typeof v === 'number' && Number.isInteger(v) && v > 0 ? v : LEGACY_PUBLIC_MATCH_VERSION;
+}
+
+function withSafeExcerpts<T>(result: T): T {
+  const r = result as any;
+  if (!r || !Array.isArray(r.queries)) return result;
+  return {
+    ...r,
+    queries: r.queries.map((q: any) => (q && Array.isArray(q.providers)
+      ? {
+          ...q,
+          providers: q.providers.map((p: any) => (p && typeof p.excerpt === 'string'
+            ? { ...p, excerpt: sanitizeProbeExcerpt(p.excerpt) }
+            : p)),
+        }
+      : q)),
+  } as T;
+}
+
+/** Satir/probe saglayici hatasi mi ('HATA: ...') — olcum degil (ai-citation hasRealProbes ile ayni kural). */
+function isErrorExcerpt(excerpt: unknown): boolean {
+  return typeof excerpt === 'string' && excerpt.startsWith('HATA:');
+}
+
+/**
+ * measured alani eklenmeden yazilmis bir satir, saglayici HIC calismadan mi
+ * olustu? Eski kayitlarda anahtari olmayan / kullanilamayan saglayici (uretimde
+ * Meta Llama: GROQ_LLAMA_MODEL tanimsiz) her soruya alintisiz ve sonucsuz bir
+ * satir olarak yaziliyordu. Gercek cevaptan gelen probe her zaman alinti tasir
+ * (buildProbe: cevabin ilk 220 karakteri), bos cevap ise 'HATA:' satiridir.
+ */
+function legacyNeverRan(p: any): boolean {
+  return typeof p?.measured !== 'boolean' && !p?.excerpt && !p?.cited && !p?.brandMentioned;
+}
+
+function measuredRow(q: any): any {
+  const providers = (q.providers as any[])
+    .filter((p) => p && !legacyNeverRan(p))
+    .map((p) => (typeof p.measured === 'boolean' ? p : { ...p, measured: !isErrorExcerpt(p.excerpt) }));
+  const counted = providers.filter((p) => p.measured);
+  return {
+    ...q,
+    providers,
+    citedCount: counted.filter((p) => p.cited || p.brandMentioned).length,
+    totalProviders: counted.length,
+  };
+}
+
+const isOpenRow = (q: any): boolean => !!q && q.locked !== true && Array.isArray(q.providers);
+
+/**
+ * Sonucun satirlarini "yalniz olculen cevap sayilir" kuralina getirir.
+ *
+ * NEDEN: payda eskiden runPublicProbes'un dondurdugu TUM saglayicilardi —
+ * anahtari olmayan/kullanilamayan saglayici (uretimde Meta Llama) ve HATA
+ * probe'u da "anilmadi" sayiliyordu: 6 asistanin hepsinde anilan marka 6/7
+ * (skor 86) goruyordu, metin "6 AI motoru" derken. Kural:
+ *   - calismayan saglayicinin satiri yoktur (taze sonucta available=false
+ *     atlanir; eski kayitta legacyNeverRan),
+ *   - HATA satiri kalir ama measured=false — arayuz notr "olculemedi" cizer,
+ *   - citedCount / totalProviders yalniz measured satirlardan,
+ *   - kilitli satirin totalProviders'i calisan saglayici sayisidir.
+ * citedCount'un payi degismez (HATA ve calismayan satir zaten cited=false),
+ * yani gecmis kiyasi (getHistory toplami) bu normalizasyondan etkilenmez.
+ * 24 saatlik onbellekten ve gecmisten okunan eski kayitlar da bundan gecer;
+ * yeni kayitta islem degismez (idempotent).
+ */
+export function withMeasuredCounts<T>(result: T): T {
+  const r = result as any;
+  if (!r || !Array.isArray(r.queries)) return result;
+  const mapped: any[] = r.queries.map((q: any) => (isOpenRow(q) ? measuredRow(q) : q));
+  const ranCounts = mapped.filter(isOpenRow).map((q) => (q.providers as any[]).length);
+  if (ranCounts.length === 0) return { ...r, queries: mapped } as T;
+  const ran = Math.max(...ranCounts);
+  return { ...r, queries: mapped.map((q) => (q?.locked === true ? { ...q, totalProviders: ran } : q)) } as T;
+}
+
+/** Sonucun olculen (kilitsiz) sorulari, sirasiyla. locked alani olmayan eski kayitta tum sorular olculdu. */
+function openQueries(result: unknown): any[] {
+  const qs = (result as { queries?: unknown } | null | undefined)?.queries;
+  return Array.isArray(qs) ? qs.filter((q: any) => q && q.locked !== true && typeof q.query === 'string') : [];
+}
+
+/** Sonucun kademesi; alan yoksa 'anon' (onbellek kuraliyla ayni: teaser oncesi kayitlar anonimdi). */
+function resultTier(result: unknown): 'anon' | 'member' {
+  return (result as { access?: { tier?: unknown } } | null | undefined)?.access?.tier === 'member' ? 'member' : 'anon';
+}
+
+const queryKey = (q: string): string => q.trim().replace(/\s+/g, ' ').toLowerCase();
+
+/** Iki sonucun olculen soru kumesi ayni mi (sira onemsiz). */
+function sameQuestionSet(a: unknown, b: unknown): boolean {
+  const ka = openQueries(a).map((q) => queryKey(q.query)).sort();
+  const kb = openQueries(b).map((q) => queryKey(q.query)).sort();
+  return ka.length > 0 && ka.length === kb.length && ka.every((k, i) => k === kb[i]);
+}
+
+/**
+ * Karsilastirma hucreleri (comparable-trend.ts): hucre = saglayici x markasiz
+ * olculen soru, deger = cevapta marka anildi ya da alan adi kaynak gosterildi
+ * (citedCount ile ayni birim). HATA satiri ve calismayan saglayici hucre
+ * uretmez. Damgasiz eski kayitta markali soru, getHistory'deki gibi host'suz
+ * yeniden hesaplanir.
+ */
+function answerRows(result: unknown, brand: string, current: boolean, version: number): TrendRow[] {
+  const rows: TrendRow[] = [];
+  for (const q of openQueries(withMeasuredCounts(result))) {
+    const branded = typeof q.brandInQuery === 'boolean' ? q.brandInQuery : containsBrand(q.query, brand);
+    if (branded) continue;
+    for (const p of Array.isArray(q.providers) ? q.providers : []) {
+      if (!p?.measured) continue;
+      rows.push({ cell: `${p.provider}|${queryKey(q.query)}`, current, value: p.cited || p.brandMentioned ? 1 : 0, version });
+    }
+  }
+  return rows;
+}
+
+/** Retest kiyasi yapilmadiysa neden — e-posta notu buna gore secilir. */
+export type RetestMethodChangeReason =
+  /** Iki olcum farkli CITATION_MATCH_VERSION ile yapildi */
+  | 'match_version'
+  /** Biri anonim (3 soru), digeri uye (10 soru) kademesi */
+  | 'tier'
+  /** Olculen soru kumesi farkli */
+  | 'question_set'
+  /** Ayni sorular ama ortak (iki olcumde de yanit alinan) cevap orani esigin altinda */
+  | 'providers'
+  /** Abonelik tabani bulunamadi */
+  | 'no_baseline';
+
+/** Abone retest e-postasinin kiyasi — compareWithPast ile ayni temel alanlar. */
+export interface RetestComparison {
+  current?: { totalCited: number; total: number; createdAt: Date; matchVersion: number };
+  past?: { totalCited: number; total: number; createdAt: Date; matchVersion: number };
+  /** current - past (markanin anildigi cevap sayisi farki); methodChanged ise 0 */
+  delta: number;
+  /** delta / past.totalCited * 100; methodChanged ise 0 */
+  deltaPct: number;
+  /** true: iki olcum ayni kosulda degil — karsilastirilmadi */
+  methodChanged: boolean;
+  /** methodChanged ise neden; alan yoksa yontem surumu (compareWithPast) */
+  methodChangeReason?: RetestMethodChangeReason;
+  /** Kiyasa giren cevap sayisi (iki olcumde de yanit alinan saglayici x soru) */
+  comparedAnswers?: number;
+  /** true: bir olcumde yanit alinan ama otekinde alinamayan cevaplar kiyas disi kaldi */
+  partialCoverage?: boolean;
+}
+
+/** Retest'in olcecegi sabit soru seti — abonelik tabanindan (baselineQuestionSet). */
+export interface FixedQuestionSet {
+  brand: string;
+  niche: string;
+  customNiche?: string;
+  /** Olculecek sorular: tabanin olculen sorulari, ayni sirayla. */
+  measured: Array<{ query: string; category?: string }>;
+  /** Tabanda kilitli listelenen sorular — yine olculmez, yalniz listelenir. */
+  locked: Array<{ query: string; category?: string }>;
+}
+
+export interface PublicCheckOptions {
+  /**
+   * Abone retest'i: soru listesi, marka ve nis TABANDAN aynen alinir; nis
+   * tespiti ve soru uretimi calismaz, sayfa cekilmez. Yalniz ic cagiranlar
+   * (abone retest'i) verir — HTTP ucu bu secenegi hic gecirmez.
+   */
+  fixed?: FixedQuestionSet;
+  /**
+   * IP basina 24 saatlik farkli alan adi siniri bu istekte daha DAR olsun
+   * (yalniz 'manual'). Controller, Turnstile token'i olmadan gelen mobil
+   * uygulama istegi icin verir (public-citation.controller.ts check()).
+   * Genel sinirdan (PUBLIC_CITATION_IP_DAILY_LIMIT) buyuk deger yok sayilir:
+   * siki kademe hicbir ayarda normal kademeden genis olamaz.
+   */
+  ipDailyLimit?: number;
+}
+
+/** Kayitli bir public kontrol satiri — retest tabani ve kiyas girdisi. */
+export interface StoredPublicCheck {
+  id?: string;
+  createdAt: Date;
+  brand: string;
+  niche?: string | null;
+  customNiche?: string | null;
+  result: unknown;
+}
+
+/**
+ * Taban kaydinin soru seti. Sorgu metinleri AYNEN alinir (yeniden suzulmez):
+ * kume bir harf bile degisirse kiyas "soru seti degisti"ye duser.
+ */
+export function baselineQuestionSet(row: StoredPublicCheck): FixedQuestionSet | null {
+  const res = (row.result ?? {}) as { queries?: unknown; brand?: unknown; niche?: unknown; customNiche?: unknown };
+  const qs: any[] = Array.isArray(res.queries) ? res.queries : [];
+  const usable = (q: any) => q && typeof q.query === 'string' && q.query.trim().length > 0 && q.query.length <= 500;
+  const pick = (q: any) => ({ query: q.query as string, category: typeof q.category === 'string' ? q.category : undefined });
+  const measured = qs.filter((q) => usable(q) && q.locked !== true).map(pick).slice(0, TEASER_TOTAL_QUERIES);
+  const locked = qs.filter((q) => usable(q) && q.locked === true).map(pick).slice(0, Math.max(0, TEASER_TOTAL_QUERIES - measured.length));
+  const brand = String(row.brand || res.brand || '').trim().slice(0, 80);
+  if (measured.length === 0 || !brand) return null;
+  const niche = row.niche ?? (typeof res.niche === 'string' ? res.niche : null) ?? 'diğer';
+  const customNiche = row.customNiche ?? (typeof res.customNiche === 'string' ? res.customNiche : null) ?? undefined;
+  return { brand, niche, customNiche, measured, locked };
+}
+
+/**
+ * Abone retest kiyasi: taze olcum ile abonelik tabani.
+ *
+ * Kiyas yalniz AYNI KOSULDA yapilir — aksi halde fark gorunurluk degil
+ * kosul degisikligidir ve aboneye sahte dusus/artis e-postasi giderdi:
+ *   - ayni olcum yontemi surumu (CITATION_MATCH_VERSION),
+ *   - ayni kademe (anonim 3 soru ↔ uye 10 soru toplami kiyaslanmaz),
+ *   - ayni olculen soru kumesi (retest tabanin sorularini yeniden sorar;
+ *     eskiden her retest soru setini bastan uretiyordu),
+ *   - ortak hucre orani esigi (comparable-trend.ts DEFAULT_MIN_COVERAGE):
+ *     sayilar yalniz iki olcumde de yanit alinan saglayici x soru
+ *     hucrelerinden — bir olcumde rate limit yiyen saglayici fark yaratmaz.
+ * Sartlardan biri tutmazsa methodChanged=true, delta 0 ve neden kodu doner;
+ * e-posta fark yerine notr not tasir.
+ */
+export function compareRetest(
+  current: Pick<StoredPublicCheck, 'createdAt' | 'brand' | 'result'>,
+  baseline: Pick<StoredPublicCheck, 'createdAt' | 'brand' | 'result'> | null,
+): RetestComparison {
+  const curVersion = publicResultMatchVersion(current.result);
+  const curRows = answerRows(current.result, current.brand, true, curVersion);
+  const curInfo = {
+    totalCited: curRows.filter((r) => r.value > 0).length,
+    total: curRows.length,
+    createdAt: current.createdAt,
+    matchVersion: curVersion,
+  };
+  if (!baseline) {
+    return { current: curInfo, delta: 0, deltaPct: 0, methodChanged: true, methodChangeReason: 'no_baseline' };
+  }
+  const pastVersion = publicResultMatchVersion(baseline.result);
+  const pastRows = answerRows(baseline.result, baseline.brand, false, pastVersion);
+  const pastInfo = {
+    totalCited: pastRows.filter((r) => r.value > 0).length,
+    total: pastRows.length,
+    createdAt: baseline.createdAt,
+    matchVersion: pastVersion,
+  };
+  const notCompared = (reason: RetestMethodChangeReason): RetestComparison => ({
+    current: curInfo, past: pastInfo, delta: 0, deltaPct: 0, methodChanged: true, methodChangeReason: reason,
+  });
+  if (curVersion !== pastVersion) return notCompared('match_version');
+  if (resultTier(current.result) !== resultTier(baseline.result)) return notCompared('tier');
+  if (!sameQuestionSet(current.result, baseline.result)) return notCompared('question_set');
+
+  const trend = compareCells([...curRows, ...pastRows]);
+  if (trend.state !== 'comparable' || trend.current === null || trend.previous === null) return notCompared('providers');
+  // Her hucrede donem basina tek deger (0/1) var: ortalama x hucre = sayi
+  const matched = trend.matchedCells;
+  const curCount = Math.round(trend.current * matched);
+  const pastCount = Math.round(trend.previous * matched);
+  const delta = curCount - pastCount;
+  return {
+    current: { ...curInfo, totalCited: curCount, total: matched },
+    past: { ...pastInfo, totalCited: pastCount, total: matched },
+    delta,
+    deltaPct: pastCount > 0 ? Math.round((delta / pastCount) * 100) : 0,
+    methodChanged: false,
+    comparedAnswers: matched,
+    partialCoverage: matched < Math.max(curRows.length, pastRows.length),
+  };
+}
 
 export interface PublicCheckResult {
   domain: string;
@@ -160,15 +475,22 @@ export interface PublicCheckResult {
      * gizlemek yeterli DEGIL — devtools'tan okunurdu.
      */
     locked?: boolean;
+    /**
+     * Yalniz bu olcumde CALISAN saglayicilar (anahtari olmayan/kullanilamayan
+     * saglayici satir olarak gelmez). measured=false: saglayici bu soruda
+     * hata verdi ('HATA: ...') — sayilara girmez, arayuz notr gosterir.
+     */
     providers: Array<{
       provider: string;
       label: string;
+      measured: boolean;
       cited: boolean;          // host URL geçti
       brandMentioned: boolean; // brand adı geçti
       excerpt?: string;
     }>;
-    citedCount: number;     // kac motor cite etti
-    totalProviders: number; // kac motor sorgulandi (= 5-6)
+    citedCount: number;     // kac motor cite etti / andi (yalniz measured satirlar)
+    /** Bu soruda GERCEKTEN olculen saglayici sayisi; kilitli satirda calisan saglayici sayisi */
+    totalProviders: number;
     /**
      * Sorunun kendisinde marka adi geciyor mu (BRAND kategorisi ve
      * {BRAND_HINT} sablonlari). Bu sorularda asistanin markayi anmasi
@@ -192,6 +514,14 @@ export interface PublicCheckResult {
   totalLlmCalls: number;
   fromCache: boolean;
   cachedAt?: Date;
+  /**
+   * Olcum yontemi surumu (CITATION_MATCH_VERSION). Yeni sonucta daima dolu;
+   * bu alandan once yazilmis (onbellekten donen) kayitta yok = v3 ya da daha
+   * eski. Farkli surumlu iki sonuc karsilastirilmaz (compareWithPast).
+   */
+  matchVersion?: number;
+  /** Bu olcumun PublicCitationCheck kaydi (taze sonucta, yazildiysa) — retest e-posta kaydina gecer. */
+  checkId?: string;
 }
 
 @Injectable()
@@ -199,8 +529,15 @@ export class PublicCitationService {
   private readonly log = new Logger(PublicCitationService.name);
   private readonly CACHE_TTL_HOURS = 24;
 
-  // IP rate limit: IP basina son 24 saatte max N farkli domain
-  private readonly IP_DAILY_DOMAIN_LIMIT = parseInt(process.env.PUBLIC_CITATION_IP_DAILY_LIMIT ?? '3', 10);
+  // IP rate limit: IP basina son 24 saatte max N farkli domain. Gecersiz env
+  // (NaN) eskiden kalan hakki NaN yapip HER istegi reddederdi → varsayilan 3.
+  private readonly IP_DAILY_DOMAIN_LIMIT = (() => {
+    const n = parseInt(process.env.PUBLIC_CITATION_IP_DAILY_LIMIT ?? '3', 10);
+    return Number.isFinite(n) && n > 0 ? n : 3;
+  })();
+
+  /** Yalnizca test: gercek DNS yerine sahte cozumleyici. Uretimde bos → assertResolvesPublic. */
+  urlResolver?: PublicResolver;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -210,63 +547,62 @@ export class PublicCitationService {
 
   /**
    * IP basina rate-limit kontrol — son 24h icinde ayni IP'den kac farkli domain
-   * istek geldi say. PublicCitationCheck.ip alanindan turetilir.
+   * icin TAZE olcum yapildi (onbellekten donus kayit yazmaz, sayilmaz).
+   *
+   * KAYITTAKI IP HASH'LIDIR (check() → hashIp). Sorgu eskiden ham IP ile
+   * yapiliyordu: hicbir kayitla eslesmedigi icin "IP basina gunde 3 domain"
+   * limiti HIC devreye girmiyordu (sinirsiz ucretli probe). Yalniz anonim
+   * landing kayitlari (source 'manual') sayilir: uyenin tam rapor kilidi
+   * (signup_baseline) kendi kotasina tabidir, landing hakkini yemez.
    */
-  async checkRateLimit(ip: string): Promise<{ ok: boolean; remaining: number; resetIn?: string }> {
-    if (!ip) return { ok: false, remaining: 0, resetIn: 'IP yok' };
-    const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  async checkRateLimit(ip: string, limit?: number): Promise<{ ok: boolean; remaining: number; resetIn?: string }> {
+    if (!ip) return { ok: false, remaining: 0, resetIn: 'IP adresi okunamadı' };
+    const cap = this.effectiveIpLimit(limit);
+    const cutoff = new Date(Date.now() - DAY_MS);
     const distinctDomains = await this.prisma.publicCitationCheck.findMany({
-      where: { ip, createdAt: { gte: cutoff } },
+      where: { ip: this.hashIp(ip), source: 'manual', createdAt: { gte: cutoff } },
       select: { domain: true },
       distinct: ['domain'],
     });
     const used = distinctDomains.length;
-    const remaining = Math.max(0, this.IP_DAILY_DOMAIN_LIMIT - used);
+    const remaining = Math.max(0, cap - used);
     return {
       ok: remaining > 0,
       remaining,
-      resetIn: remaining === 0 ? '24 saat icinde sifirlanir' : undefined,
+      resetIn: remaining === 0 ? '24 saat içinde yenilenir' : undefined,
     };
   }
 
-  /** Domain'i normalize et — protocol yoksa https ekle, www. striple */
-  private normalizeDomain(input: string): { url: string; host: string } {
-    const trimmed = input.trim().toLowerCase();
-    if (!trimmed) throw new BadRequestException('Domain girilmedi');
-    // En basit form: protokol yoksa https ekle
-    const withProto = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
-    let host = '';
-    try {
-      const u = new URL(withProto);
-      host = u.hostname.replace(/^www\./, '');
-    } catch {
-      throw new BadRequestException('Gecersiz domain');
-    }
-    if (!host || !host.includes('.')) throw new BadRequestException('Gecersiz domain (TLD eksik)');
-    if (host.length > 200) throw new BadRequestException('Domain cok uzun');
-    return { url: withProto, host };
+  /** Istekteki IP siniri: verilen deger genel sinirdan buyukse genel sinir (siki kademe hep daha dar) */
+  private effectiveIpLimit(limit?: number): number {
+    if (typeof limit !== 'number' || !Number.isFinite(limit) || limit < 1) return this.IP_DAILY_DOMAIN_LIMIT;
+    return Math.min(this.IP_DAILY_DOMAIN_LIMIT, Math.floor(limit));
   }
 
-  /** HTML fetch + brand extract (NicheDetector pattern). */
+  /**
+   * Alan adini normalize et — sema yoksa https, www. atilir (onbellek anahtari).
+   * IP adresi, port, kimlik bilgisi, tek etiketli ad ve ozel adres REDDEDILIR
+   * (site-url-policy.ts). Yalnizca sekil: ag istegi yok (gecmis ucu da kullanir).
+   */
+  private normalizeDomain(input: string): { url: string; host: string } {
+    return normalizePublicDomainInput(input);
+  }
+
+  /**
+   * HTML fetch + brand extract (NicheDetector pattern).
+   * BURASI KIMLIK DOGRULAMASIZ PUBLIC UC — adres tamamen disaridan geliyor.
+   * safeFetchText: ic adres ve ic adrese giden yonlendirme reddedilir, govde
+   * okuma aninda 1 MB'ta kesilir (eskiden once indirilip sonra kirpiliyordu).
+   */
   private async extractBrandFromHtml(url: string, host: string): Promise<{ brand: string; title: string; description: string }> {
     let html = '';
     try {
-      const controller = new AbortController();
-      const t = setTimeout(() => controller.abort(), 8000);
-      const res = await fetch(url, {
-        signal: controller.signal,
-        redirect: 'follow',
-        headers: { 'User-Agent': 'RanksUp-PublicCitation/1.0 (+https://ranksup.ai)' },
-      });
-      clearTimeout(t);
-      if (res.ok) {
-        // BURASI KIMLIK DOGRULAMASIZ PUBLIC UC — adres tamamen disaridan geliyor.
-        // 100 KB'a kirpiliyordu ama INDIRDIKTEN sonra, yani biri devasa bir
-        // adres verirse bellek yine harcaniyordu. Tavan artik okuma aninda.
-        html = ((await readBodyCapped(res, 1024 * 1024))?.text ?? '').slice(0, 100_000);
-      }
+      const res = await safeFetchText(url, { maxBytes: 1024 * 1024, timeoutMs: 8000 });
+      // Engel / dogrulama sayfasinin basligi marka diye okunmasin
+      if (res.ok && !res.binary && !detectBlock(res)) html = res.text.slice(0, 100_000);
     } catch (err: any) {
-      this.log.warn(`Public HTML fetch fail (${url}): ${err.message}`);
+      // Ic adres/IP mesaja sizmasin: yalnizca hata kodu loglanir
+      this.log.warn(`Public HTML fetch fail (${host}): ${err instanceof SafeFetchError ? err.code : 'network'}`);
     }
 
     const title = (html.match(/<title[^>]*>([^<]+)</i)?.[1] ?? '').trim().slice(0, 200);
@@ -310,12 +646,20 @@ export class PublicCitationService {
     return { brand: brand.slice(0, 80), title, description };
   }
 
-  /** Niche'e gore 3 deterministic prompt uret. */
-  private buildQueries(niche: string, customNiche: string | undefined, brand: string): string[] {
+  /**
+   * Niche'e gore 3 deterministic prompt uret.
+   *
+   * {BRAND_HINT}: marka alan adindan turetilmis jenerik bir kelimeyse
+   * ("emlak" ← emlak.com) soruya yalin kelime yerine alan adi konur. Aksi
+   * halde "Emlak alternatifi..." sorusu olcumde markasiz sayilir (matcher bu
+   * markada yalniz alan adini arar) ve markali soru manset skora girer.
+   */
+  private buildQueries(niche: string, customNiche: string | undefined, brand: string, host: string): string[] {
     const template = TURKISH_NICHE_PROMPTS[niche] ?? TURKISH_NICHE_PROMPTS['diğer'];
     const nicheLabel = customNiche || niche;
+    const brandHint = brandHintFor(brand, host);
     return template.map((t) =>
-      t.replace(/\{NICHE\}/g, nicheLabel).replace(/\{BRAND_HINT\}/g, brand)
+      t.replace(/\{NICHE\}/g, nicheLabel).replace(/\{BRAND_HINT\}/g, brandHint)
     );
   }
 
@@ -358,8 +702,14 @@ export class PublicCitationService {
     return out;
   }
 
-  async check(domain: string, ip: string, source: 'manual' | 'retest_cron' | 'signup_baseline' = 'manual'): Promise<PublicCheckResult> {
+  async check(
+    domain: string,
+    ip: string,
+    source: 'manual' | 'retest_cron' | 'signup_baseline' = 'manual',
+    opts: PublicCheckOptions = {},
+  ): Promise<PublicCheckResult> {
     const { url, host } = this.normalizeDomain(domain);
+    const fixed = opts.fixed;
 
     // Model kademesi: landing'den gelen anonim istek ve email abonesinin cron
     // retest'i 'anon' (ucuz model); kayit sonrasi baseline uyeye ait → 'member'.
@@ -374,8 +724,8 @@ export class PublicCitationService {
     //   member'a anon snapshot'i verilirse → 2 sorguluk eksik rapor gelir,
     //     ustelik kotasindan dusulmus olur.
     //
-    // retest_cron haric tutulur: amaci zaten TAZE olcum almak.
-    if (source === 'manual' || source === 'signup_baseline') {
+    // retest_cron ve sabit soru seti haric tutulur: amaci zaten TAZE olcum almak.
+    if (!fixed && (source === 'manual' || source === 'signup_baseline')) {
       const cutoff = new Date(Date.now() - this.CACHE_TTL_HOURS * 60 * 60 * 1000);
       // En yeniyi alip kademesine bakmak YETMEZ: bir uye domaini actiginda en
       // yeni snapshot 'member' olur ve sonraki her anonim ziyaretci cache'i
@@ -388,85 +738,132 @@ export class PublicCitationService {
       });
       const cached = recent.find((c) => ((c.result as any)?.access?.tier ?? 'anon') === audience);
       if (cached) {
-        return { ...(cached.result as any), fromCache: true, cachedAt: cached.createdAt };
+        // Eski bicimli hata satiri (ham saglayici metni) anonim cevaba gitmesin;
+        // eski kayittaki calismayan saglayici satiri ve HATA paydasi da
+        // ayni olcum kuralina getirilir (withMeasuredCounts).
+        return { ...withMeasuredCounts(withSafeExcerpts(cached.result as any)), fromCache: true, cachedAt: cached.createdAt };
       }
     }
 
-    // 2) Rate limit (cache miss durumunda manuel istekler icin)
+    // 2) Rate limit (cache miss durumunda manuel istekler icin). Token'siz
+    // mobil istekte controller daha dar sinir verir (opts.ipDailyLimit).
     if (source === 'manual') {
-      const rl = await this.checkRateLimit(ip);
+      const limit = this.effectiveIpLimit(opts.ipDailyLimit);
+      const rl = await this.checkRateLimit(ip, limit);
       if (!rl.ok) {
-        throw new BadRequestException(`Gunluk hakkiniz doldu (${this.IP_DAILY_DOMAIN_LIMIT}/24h). ${rl.resetIn ?? ''}`);
+        throw new HttpException(
+          `Günlük ücretsiz test hakkınız doldu: aynı IP adresinden 24 saatte en fazla ${limit} farklı alan adı test edilebilir. Son 24 saatte test ettiğiniz alan adlarının sonuçlarını yeniden açabilirsiniz.`,
+          HttpStatus.TOO_MANY_REQUESTS,
+        );
       }
     }
 
-    // 3) HTML fetch + brand
-    const meta = await this.extractBrandFromHtml(url, host);
+    // 3) Alan adi SIMDI herkese acik bir adrese mi cozuluyor? Ilk ag
+    // isteginden once: ic aga cozulen ad anlasilir bir hatayla reddedilir.
+    // (Asil koruma yine safe-fetch'in baglanti anindaki denetimi.)
+    await assertPublicDomainResolves(url, this.urlResolver);
 
-    // 4) Niche detect — model kademesi cagiran kitleye gore
-    const detection = await this.niche.detectFromUrl(url, audience);
+    // 4-6) Marka, nis ve sorular
+    let brand: string;
+    let niche: string;
+    let customNiche: string | undefined;
+    let measured: Array<{ query: string; category?: string }>;
+    let lockedQueries: Array<{ query: string; category?: string }>;
+    if (fixed) {
+      // ABONE RETEST'I — tabanin soru listesi, markasi ve nisi AYNEN. Eskiden
+      // her retest nis tespitini yeniden calistirip soru setini bastan
+      // uretiyordu; abone e-postasi farkli sorularin toplamini kiyasliyordu.
+      // Sayfa cekilmez, nis tespiti (LLM) calismaz.
+      brand = fixed.brand;
+      niche = fixed.niche;
+      customNiche = fixed.customNiche;
+      measured = fixed.measured.slice(0, TEASER_TOTAL_QUERIES);
+      lockedQueries = fixed.locked.slice(0, Math.max(0, TEASER_TOTAL_QUERIES - measured.length));
+    } else {
+      // 4) HTML fetch + brand
+      const meta = await this.extractBrandFromHtml(url, host);
 
-    // 5) Sorular — niche-detector 10 soru uretir. Uretemezse niche template'ine dus.
-    const aiQueries = (detection.queries ?? [])
-      .map((q) => ({ query: q.query.trim(), category: q.category as string | undefined }))
-      .filter((q) => q.query.length >= 8 && q.query.length <= 160);
-    const allQueries: Array<{ query: string; category?: string }> =
-      aiQueries.length >= 3
-        ? aiQueries.slice(0, TEASER_TOTAL_QUERIES)
-        : this.buildQueries(detection.niche, detection.customNiche, meta.brand)
-            .map((q) => ({ query: q, category: undefined }));
+      // 5) Niche detect — model kademesi cagiran kitleye gore. 'anon' icin
+      // NicheDetector headless Chrome'u ASLA calistirmaz.
+      const detection = await this.niche.detectFromUrl(url, audience);
 
-    // TEASER KILIDI — anonim ziyaretci tum sorulari GORUR ama yalnizca ilk
-    // birkaci OLCULUR. Kilitli sorgular icin LLM cagrisi HIC yapilmaz: hem
-    // maliyet duser (3x7=21 → 2x7=14 cagri) hem de sizdirilacak veri olmaz.
-    const unlockedCount = audience === 'member'
-      ? allQueries.length
-      : Math.min(FREE_UNLOCKED_QUERIES, allQueries.length);
-    const measured = allQueries.slice(0, unlockedCount);
-    const lockedQueries = allQueries.slice(unlockedCount);
+      // 6) Sorular — niche-detector 10 soru uretir. Uretemezse niche template'ine dus.
+      const aiQueries = (detection.queries ?? [])
+        .map((q) => ({ query: q.query.trim(), category: q.category as string | undefined }))
+        .filter((q) => q.query.length >= QUERY_MIN_LEN && q.query.length <= QUERY_MAX_LEN);
+      const allQueries: Array<{ query: string; category?: string }> =
+        aiQueries.length >= 3
+          ? aiQueries.slice(0, TEASER_TOTAL_QUERIES)
+          : this.buildQueries(detection.niche, detection.customNiche, meta.brand, host)
+              .map((q) => ({ query: q, category: undefined }));
 
-    // 6) Probe 7 providers (paralel) — SADECE acik sorgular icin
+      // TEASER KILIDI — anonim ziyaretci tum sorulari GORUR ama yalnizca ilk
+      // birkaci OLCULUR. Kilitli sorgular icin LLM cagrisi HIC yapilmaz: hem
+      // maliyet duser hem de sizdirilacak veri olmaz.
+      const unlockedCount = audience === 'member'
+        ? allQueries.length
+        : Math.min(FREE_UNLOCKED_QUERIES, allQueries.length);
+      brand = meta.brand;
+      niche = detection.niche;
+      customNiche = detection.customNiche;
+      measured = allQueries.slice(0, unlockedCount);
+      lockedQueries = allQueries.slice(unlockedCount);
+    }
+
+    // 7) Probe providers (paralel) — SADECE acik sorgular icin
     const providerResults = await this.ai.runPublicProbes({
-      brand: meta.brand,
+      brand,
       host,
       queries: measured.map((q) => q.query),
       competitors: [],
     });
 
-    // 7) Per-query aggregate + share-of-voice
+    // 8) Per-query aggregate + share-of-voice
+    //
+    // PAYDA = OLCULEN CEVAP (bkz. withMeasuredCounts): calismayan saglayici
+    // (available=false — anahtar yok ya da model kaldirildi; uretimde Meta
+    // Llama) satir olarak HIC yazilmaz; HATA probe'u satir olarak kalir ama
+    // measured=false ve ne payda ne pay sayilir.
+    const ran = providerResults.filter((pr) => pr.available);
     const allProbes: CitationProbe[] = [];
-    const totalProviders = providerResults.length;
     const perQuery: PublicCheckResult['queries'] = measured.map((q) => {
-      const providers = providerResults.map((pr) => {
+      const providers = ran.map((pr) => {
         const probe = pr.probes.find((p) => p.query === q.query);
+        const isMeasured = !!probe && !isErrorExcerpt(probe.excerpt);
         return {
           provider: pr.provider,
           label: pr.label,
-          cited: !!probe?.cited,
-          brandMentioned: !!probe?.brandMentioned,
-          excerpt: probe?.excerpt,
+          measured: isMeasured,
+          cited: isMeasured && !!probe?.cited,
+          brandMentioned: isMeasured && !!probe?.brandMentioned,
+          // Onbellekten okunanla ayni kural (withSafeExcerpts) — anonim cikista tek suzgec
+          excerpt: sanitizeProbeExcerpt(probe?.excerpt) ?? undefined,
         };
       });
-      const citedCount = providers.filter((p) => p.cited || p.brandMentioned).length;
-      // Damga probe'dan okunur (buildProbe ayni meta.brand ile vurdu) —
-      // burada yeniden hesaplansaydi rozet ile skorun dislama kumesi iki
-      // ayri kod yolundan gecerdi ve bir kural degisikliginde sessizce
-      // ayrisirlardi. Probe bulunamazsa (teorik) metinden hesapla.
+      const counted = providers.filter((p) => p.measured);
+      // Damga probe'dan okunur (buildProbe ayni marka ile vurdu) — burada
+      // yeniden hesaplansaydi rozet ile skorun dislama kumesi iki ayri kod
+      // yolundan gecerdi ve bir kural degisikliginde sessizce ayrisirlardi.
+      // HATA probe'unda damga yoktur: damgali ilk probe aranir. Hic yoksa
+      // metinden hesapla — host ile: buildProbe'un matcher'i jenerik markada
+      // alan adini arar.
       const probeStamp = providerResults
         .flatMap((pr) => pr.probes)
-        .find((p) => p.query === q.query)?.brandInQuery;
+        .find((p) => p.query === q.query && typeof p.brandInQuery === 'boolean')?.brandInQuery;
       return {
         query: q.query,
         category: q.category,
         locked: false,
         providers,
-        citedCount,
-        totalProviders: providers.length,
-        brandInQuery: probeStamp ?? containsBrand(q.query, meta.brand),
+        citedCount: counted.filter((p) => p.cited || p.brandMentioned).length,
+        totalProviders: counted.length,
+        brandInQuery: probeStamp ?? containsBrand(q.query, brand, host),
       };
     });
     // Kilitli sorular: yalnizca METIN ve KATEGORI gider. providers bos —
     // istemciye sizacak bir sonuc verisi yok, cunku olcum hic yapilmadi.
+    // totalProviders = bu olcumde calisan saglayici sayisi (kilit acilinca
+    // soruyu kac asistanin olcecegi; arayuz yer tutucu sayisini buradan alir).
     for (const q of lockedQueries) {
       perQuery.push({
         query: q.query,
@@ -474,12 +871,12 @@ export class PublicCitationService {
         locked: true,
         providers: [],
         citedCount: 0,
-        totalProviders,
-        brandInQuery: containsBrand(q.query, meta.brand),
+        totalProviders: ran.length,
+        brandInQuery: containsBrand(q.query, brand, host),
       });
     }
     for (const pr of providerResults) allProbes.push(...pr.probes);
-    const agg = this.ai.publicAggregate(allProbes, meta.brand);
+    const agg = this.ai.publicAggregate(allProbes, brand);
 
     // IS MODELI FILTRESI — bkz. ai-citation.classifyRealCompetitors.
     // Kesfedilen adaylar arasindan SADECE gercek rakipleri (ayni is modeli)
@@ -488,35 +885,38 @@ export class PublicCitationService {
     // kalan set uzerinden yeniden hesaplanir.
     const competitorRanking = await this.filterCompetitors(
       agg.shareOfVoice ?? [],
-      { brand: meta.brand, host, niche: detection.niche, customNiche: detection.customNiche, audience },
+      { brand, host, niche, customNiche, audience },
     );
 
     const result: PublicCheckResult = {
       domain: host,
-      brand: meta.brand,
-      niche: detection.niche,
-      customNiche: detection.customNiche,
+      brand,
+      niche,
+      customNiche,
       queries: perQuery,
       competitorRanking,
-      totalLlmCalls: providerResults.filter((p) => p.available).length * measured.length,
+      totalLlmCalls: ran.length * measured.length,
       fromCache: false,
+      // JSON'a yazilir (sema degisikligi yok): abone retest'i ve gecmis kiyasi
+      // farkli yontemle olculmus iki kaydi bu damgadan ayirt eder.
+      matchVersion: CITATION_MATCH_VERSION,
       access: {
         tier: audience,
         unlockedQueries: measured.length,
-        totalQueries: allQueries.length,
+        totalQueries: measured.length + lockedQueries.length,
         lockedQueries: lockedQueries.length,
       },
     };
 
-    // 8) Snapshot yaz — her test ayri row (history korunur)
+    // 9) Snapshot yaz — her test ayri row (history korunur)
     const costUsd = providerResults.reduce((a, pr: any) => a + (pr.cost ?? 0), 0);
     try {
       const created = await this.prisma.publicCitationCheck.create({
         data: {
           domain: host,
-          brand: meta.brand,
-          niche: detection.niche,
-          customNiche: detection.customNiche,
+          brand,
+          niche,
+          customNiche,
           result: result as any,
           totalCalls: result.totalLlmCalls,
           costUsd,
@@ -524,7 +924,7 @@ export class PublicCitationService {
           source,
         },
       });
-      (result as any).checkId = created.id;
+      result.checkId = created.id;
     } catch (err: any) {
       this.log.warn(`Snapshot write fail for ${host}: ${err.message}`);
     }
@@ -532,7 +932,53 @@ export class PublicCitationService {
     return result;
   }
 
-  /** Domain icin son N snapshot'i don (eskiden yeniye). */
+  /**
+   * Abone retest'inin TABANI: abonelik anina en yakin ANONIM kademeli kayit.
+   *
+   * Ziyaretci sonucu gorup abone olur; gordugu sonuc (taze ya da 24 saatlik
+   * onbellek) abonelik anindan onceki en yeni anonim kayittir. Uye kaydi
+   * (10 soru olculmus) atlanir: retest anonim kademede olcer ve kademesi
+   * farkli iki sonuc karsilastirilmaz. Oncesinde anonim kayit yoksa abonelikten
+   * SONRAKI ilk anonim kayit (cogunlukla ilk retest) taban olur; kayitlar
+   * gecmise eklenmedigi icin sonraki retest'ler hep ayni tabani bulur.
+   */
+  async findRetestBaseline(domain: string, subscribedAt: Date): Promise<StoredPublicCheck | null> {
+    const { host } = this.normalizeDomain(domain);
+    const select = { id: true, createdAt: true, brand: true, niche: true, customNiche: true, result: true } as const;
+    const isAnon = (r: { result: unknown }) => resultTier(r.result) === 'anon';
+    const before = await this.prisma.publicCitationCheck.findMany({
+      where: { domain: host, createdAt: { lte: subscribedAt } },
+      orderBy: { createdAt: 'desc' },
+      take: 10,
+      select,
+    });
+    const hit = before.find(isAnon);
+    if (hit) return hit;
+    const after = await this.prisma.publicCitationCheck.findMany({
+      where: { domain: host, createdAt: { gt: subscribedAt } },
+      orderBy: { createdAt: 'asc' },
+      take: 10,
+      select,
+    });
+    return after.find(isAnon) ?? null;
+  }
+
+  /** Retest kiyasi — kurallar compareRetest'te (saf, test edilir). */
+  compareWithBaseline(
+    current: Pick<StoredPublicCheck, 'createdAt' | 'brand' | 'result'>,
+    baseline: Pick<StoredPublicCheck, 'createdAt' | 'brand' | 'result'> | null,
+  ): RetestComparison {
+    return compareRetest(current, baseline);
+  }
+
+  /**
+   * Domain icin son N snapshot'i don (en yeni basta).
+   *
+   * totalCitedScore = markasiz sorularda markanin anildigi ya da kaynak
+   * gosterildigi CEVAP sayisi (saglayici x soru); motor sayisi degil.
+   * matchVersion = kaydin olculdugu yontem surumu — farkli surumlu iki satir
+   * arasindaki fark gorunurluk degil yontem degisikligi olabilir.
+   */
   async getHistory(domain: string, limit = 12): Promise<Array<{
     id: string;
     createdAt: Date;
@@ -540,6 +986,7 @@ export class PublicCitationService {
     totalCitedScore: number;
     queriesCount: number;
     totalProviders: number;
+    matchVersion: number;
   }>> {
     const { host } = this.normalizeDomain(domain);
     const rows = await this.prisma.publicCitationCheck.findMany({
@@ -549,10 +996,16 @@ export class PublicCitationService {
       // brand de lazim: marka adi gecen sorular skordan ayrilir ve bu ayrim
       // ESKI kayitlar icin de yapilabilsin diye kaydin kendi markasindan
       // yeniden hesaplanir (JSON'da brandInQuery alani olmayabilir).
+      //
+      // Cevap yalniz toplamlari tasir (alinti/excerpt YOK) — saglayici metni
+      // bu uctan cikmaz, ayrica suzmek gerekmez.
       select: { id: true, createdAt: true, source: true, result: true, brand: true },
     });
     return rows.map((r) => {
-      const res = r.result as any;
+      // Payda olculen saglayicilar (withMeasuredCounts): eski kayittaki
+      // calismayan saglayici satiri totalProviders'a girmez. citedCount'un
+      // payi degismez — toplam skor eski kayitlarla karsilastirilabilir kalir.
+      const res = withMeasuredCounts(r.result as any);
       const queries: any[] = Array.isArray(res?.queries) ? res.queries : [];
 
       // MANSET: yalnizca markasiz sorular. Marka adi sorunun icinde geciyorsa
@@ -562,6 +1015,15 @@ export class PublicCitationService {
       // Kayitli alan varsa o kullanilir, yoksa sorgu metninden yeniden
       // hesaplanir — boylece bu degisiklikten ONCEKI kayitlar da ayni
       // olcutle degerlendirilir ve tarihsel karsilastirma bozulmaz.
+      //
+      // Yedek hesapta host BILEREK verilmez: alani olmayan kayit damgayi
+      // ekleyen surumden (c78a4cb, 2026-08-21) once yazildi, yani
+      // CITATION_MATCH_VERSION 4 oncesi — hem soru hem cevap tarafi
+      // (brandMentioned → citedCount) yalin kelimeyle olculdu; ayni donemin
+      // damgali kayitlari da oyle.
+      // Host'lu yedek, jenerik turetilmis markada "emlak" gecen sorulari eski
+      // (sisik) anilmayla markasiz havuza sokar ve gecmis skoru geriye donuk
+      // degistirirdi. v4 kayitlari damgayi buildProbe'dan host'lu tasir.
       const isBranded = (q: any): boolean =>
         typeof q?.brandInQuery === 'boolean' ? q.brandInQuery : containsBrand(q?.query ?? '', r.brand ?? '');
 
@@ -575,31 +1037,52 @@ export class PublicCitationService {
         totalCitedScore: totalCited,
         queriesCount: unbranded.length,
         totalProviders,
+        matchVersion: publicResultMatchVersion(res),
       };
     });
   }
 
-  /** Su anki sonucu ile N gun once arasinda delta uret (email/dashboard'da kullanilir). */
+  /**
+   * Su anki sonucu ile N gun once arasinda delta uret (alan adi gecmisi).
+   *
+   * ABONE RETEST'I BUNU KULLANMAZ: alan adinin en yeni iki kaydini kiyaslar,
+   * soru setine ve kademeye bakmaz. Retest, abonelik tabaninin soru setini
+   * yeniden sorar ve compareWithBaseline ile kiyaslar.
+   *
+   * YONTEM SURUMU: iki kayit farkli CITATION_MATCH_VERSION ile olculduyse
+   * (alansiz eski kayit = v3 ya da daha eski) fark "gorunurluk degisti" degil
+   * "olcum yontemi degisti"dir. v4 alan adindan turetilmis jenerik markada
+   * ("emlak" ← emlak.com) yalin kelimeyi artik anilma saymiyor; v3 tabanla
+   * kiyaslanan ilk v4 retest'i aboneye sahte "dusus" e-postasi gonderirdi.
+   * Bu durumda methodChanged=true, delta ve deltaPct 0 doner (fark
+   * hesaplanmaz); e-posta fark yerine yontem notu gosterir.
+   */
   async compareWithPast(domain: string, daysAgo: number): Promise<{
-    current?: { totalCited: number; total: number; createdAt: Date };
-    past?: { totalCited: number; total: number; createdAt: Date };
-    delta: number;          // +1 = motor sayisi artti
-    deltaPct: number;       // delta / past.total * 100
+    current?: { totalCited: number; total: number; createdAt: Date; matchVersion: number };
+    past?: { totalCited: number; total: number; createdAt: Date; matchVersion: number };
+    /** current - past totalCitedScore (markanin anildigi cevap sayisi farki); methodChanged ise 0 */
+    delta: number;
+    /** delta / past.totalCited * 100; methodChanged ise 0 */
+    deltaPct: number;
+    /** true: iki kayit farkli olcum yontemiyle olculdu — karsilastirilmadi */
+    methodChanged: boolean;
   }> {
     const history = await this.getHistory(domain, 50);
-    if (history.length === 0) return { delta: 0, deltaPct: 0 };
+    if (history.length === 0) return { delta: 0, deltaPct: 0, methodChanged: false };
     const current = history[0];
     const targetTime = Date.now() - daysAgo * 24 * 60 * 60 * 1000;
     // En yakin onceki snapshot (>= targetTime'dan eski)
     const past = history.slice(1).find((h) => h.createdAt.getTime() <= targetTime) || history[history.length - 1];
-    const totalProviders = current.totalProviders || 7;
-    const delta = current.totalCitedScore - past.totalCitedScore;
-    const deltaPct = past.totalCitedScore > 0 ? Math.round((delta / past.totalCitedScore) * 100) : 0;
+    const methodChanged = current.matchVersion !== past.matchVersion;
+    const delta = methodChanged ? 0 : current.totalCitedScore - past.totalCitedScore;
+    const deltaPct = !methodChanged && past.totalCitedScore > 0 ? Math.round((delta / past.totalCitedScore) * 100) : 0;
+    // total = kaydin olculen saglayici sayisi (eskiden bos ise sabit 7 yaziliyordu)
     return {
-      current: { totalCited: current.totalCitedScore, total: totalProviders, createdAt: current.createdAt },
-      past: { totalCited: past.totalCitedScore, total: totalProviders, createdAt: past.createdAt },
+      current: { totalCited: current.totalCitedScore, total: current.totalProviders, createdAt: current.createdAt, matchVersion: current.matchVersion },
+      past: { totalCited: past.totalCitedScore, total: past.totalProviders, createdAt: past.createdAt, matchVersion: past.matchVersion },
       delta,
       deltaPct,
+      methodChanged,
     };
   }
 

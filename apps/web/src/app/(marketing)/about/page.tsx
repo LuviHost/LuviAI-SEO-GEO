@@ -1,5 +1,4 @@
 import Link from 'next/link';
-import { Card, CardContent } from '@/components/ui/card';
 import { Breadcrumbs } from '@/components/breadcrumbs';
 import { ShieldCheck, Sparkles, Heart, Globe2, Users, Zap, Target, Award } from 'lucide-react';
 
@@ -115,7 +114,7 @@ export default function AboutPage() {
                   </p>
                   <p className="text-[15px] text-neutral-600 dark:text-neutral-400 leading-[1.6]">
                     Yapay zekanın içerik üretiminde sıradan, klişe ve marka kimliği zayıf çıktılar verdiğini gördük.
-                    6 ajanlı yazım zinciri, kalite kapısı ve marka beyni katmanı ile bu sorunları çözen ilk Türkçe platform haline geldik.
+                    Bu sorunları çözmek için 5 ajanlı üretim hattını, yayın öncesi kalite kapısını ve her site için ayrı marka beynini kurduk.
                   </p>
                 </div>
               </div>
@@ -131,11 +130,11 @@ export default function AboutPage() {
                   <h2 className="text-h4 font-medium mb-5 tracking-[-0.025em]">Neden bize güvenebilirsin</h2>
                   <ul className="space-y-3 text-[14px] text-neutral-600 dark:text-neutral-400">
                     {[
-                      ['Türkiye merkezli ve yerel', 'Veriler Türkiye lokasyonlu sunucularda, KVKK uyumlu, AES-256-GCM şifrelemeyle korunur.'],
+                      ['Türkiye merkezli ve yerel', 'Sunucular LuviHost İstanbul veri merkezinde, yedekler Frankfurt bölgesinde. Bağlantı bilgileri AES-256-GCM ile şifrelenir.'],
                       ['PayTR güvenli ödeme', "Türkiye'nin TCMB lisanslı ödeme sağlayıcısı. Aylık iptal hakkı, taahhüt yok."],
-                      ['Açık kaynaklı pattern\'ler', 'Anthropic Claude, Google Gemini, OpenAI ve LibreChat gibi açık ekosistemlerden ilham aldık.'],
-                      ['Kalite kapısı', 'Her makale yayına çıkmadan AI editör ajanından geçer. Klişe, yanlış bilgi, marka tutarsızlığı silinir.'],
-                      ['İlk makale ücretsiz', 'Beğenmezsen tek kuruş ödemen gerekmez. Önce dene, sonra karar ver.'],
+                      ['Güçlü modeller', 'Makaleler Anthropic Claude ile yazılır, görseller Google Gemini ile üretilir; AI görünürlük ChatGPT, Claude, Gemini, Perplexity, Grok ve DeepSeek’te ölçülür.'],
+                      ['Kalite kapısı', 'Her makale yayına çıkmadan AI editör ajanından ve kalite kapısından geçer: klişeler temizlenir, kaynaksız sayılar ve uydurma iç bağlantılar yakalanır. Yine de yayından önce gözden geçirmeni öneririz.'],
+                      ['İlk 2 makale ücretsiz', 'Kart bilgisi gerekmez; beğenmezsen ödeme yapmazsın. Önce dene, sonra karar ver.'],
                     ].map(([label, desc]) => (
                       <li key={label} className="flex gap-3">
                         <Sparkles className="h-3.5 w-3.5 text-brand-500 shrink-0 mt-1" strokeWidth={1.5} />
@@ -152,8 +151,9 @@ export default function AboutPage() {
           <div className="grid sm:grid-cols-2 gap-4 lg:gap-6 mb-20 mt-6">
             {[
               { icon: Globe2, color: 'text-brand-500', title: 'Türkçe öncelikli', body: 'Çoğu AI içerik aracı İngilizce için yapılır, sonra Türkçe\'ye uydurulur. Biz Türkçe ile başlayıp İngilizce\'yi ekliyoruz — gramer, ton ve sektör jargonu tutarlı.' },
-              { icon: Users, color: 'text-emerald-500', title: 'KOBİ-dostu', body: 'Saatler süren manuel SEO denetimi, içerik briefi yazma, sosyal medya planlama gibi işleri dakikalara indirir. Ekibinde uzman olmasa bile profesyonel sonuçlar alırsın.' },
-              { icon: Zap, color: 'text-amber-500', title: 'Gerçek otopilot', body: 'Plan + GSC + rakip + persona analizi → konu önerileri → otomatik üretim → otomatik yayın → 30 gün sonra performans takibi. Sen sadece onaylarsın.' },
+              { icon: Users, color: 'text-emerald-500', title: 'KOBİ-dostu', body: 'Saatler süren manuel SEO denetimi, içerik briefi yazma ve AI görünürlük takibi gibi işleri dakikalara indirir. Ekibinde uzman olmasa bile işin büyük kısmını panelden yürütürsün.' },
+              // Son adim content-pivot.service: Search Console verisi gerekir (bkz. faq/page.tsx madde 5 kaynaklari)
+              { icon: Zap, color: 'text-amber-500', title: 'Otomatik akış', body: 'Marka beyni + Search Console + rakip ve persona analizi → konu önerileri → otomatik üretim ve yayın → Search Console verisinde zayıf kalan yazıyı yayından 30 gün sonra yeniden yazma.' },
               { icon: Award, color: 'text-violet-500', title: 'AI search\'e hazır', body: 'ChatGPT, Claude, Gemini, Perplexity gibi AI asistanları cevap üretirken senin sitendeki içeriği kaynak göstersin diye GEO (Generative Engine Optimization) yapıyoruz.' },
             ].map(({ icon: Icon, color, title, body }) => (
               <div key={title} className="card-apple p-7 lg:p-8">

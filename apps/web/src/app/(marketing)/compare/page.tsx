@@ -9,17 +9,41 @@ import { useT } from '@/lib/i18n';
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 
+/**
+ * Hucre degeri: true = var, false = yok, metin = ayrinti, null = bu satirda
+ * rakip bilgisi DOGRULANMADI ("—" gosterilir, alt notta aciklanir).
+ *
+ * NEDEN null: rakip sutunlari 2026 basinda yazilmisti ve 18.10.2026'da
+ * ureticilerin kendi sayfalariyla karsilastirildiginda bircok "✗" yanlis
+ * cikti — Surfer (AI Search Analytics planı), Jasper (GEO Hub), Ahrefs (Brand
+ * Radar) ve Frase (AI Visibility) artik AI gorunurlugunu olcuyor; Jasper tek
+ * modele bagli degil; Frase WordPress/Webflow/Sanity/Wix'e yayinliyor; Surfer
+ * Search Console'a baglaniyor. Dogrulanmamis bir "yok" iddiasi yayimlamak
+ * yerine hucre bos birakilir. Dogrulanan hucrelerin kaynaklari:
+ *   https://surferseo.com/pricing/
+ *   https://docs.surferseo.com/en/articles/11394329-step-1-how-to-add-google-search-console-to-surfer
+ *   https://www.jasper.ai/pricing
+ *   https://help.jasper.ai/hc/en-us/articles/51579082265883-GEO-Hub
+ *   https://ahrefs.com/pricing , https://ahrefs.com/brand-radar
+ *   https://www.frase.io/pricing
+ * Turkiye ve reklam gruplarindaki "yok"lar (PayTR, KVKK/TR veri merkezi,
+ * Turkce arayuz, Google/Meta reklam hesabi yonetimi) bu araclarin urun
+ * kapsaminda olmadigi icin korundu.
+ */
+type CellValue = boolean | string | null;
+
 interface FeatureRow {
   name: string;
   luviai: boolean | string;
-  surfer: boolean | string;
-  jasper: boolean | string;
-  ahrefs: boolean | string;
-  frase: boolean | string;
+  surfer: CellValue;
+  jasper: CellValue;
+  ahrefs: CellValue;
+  frase: CellValue;
   hint?: string;
 }
 
 interface FeatureGroup {
+  id: 'content' | 'geo' | 'seo' | 'publish' | 'offpage' | 'ads' | 'turkey' | 'price';
   title: string;
   icon: React.ReactNode;
   badge?: string;
@@ -28,200 +52,202 @@ interface FeatureGroup {
 
 const FEATURE_GROUPS_TR: FeatureGroup[] = [
   {
+    id: 'content',
     title: 'AI İçerik Üretimi',
     icon: <Sparkles className="h-4 w-4" />,
     rows: [
-      { name: 'AI ile makale üretimi', luviai: true, surfer: true, jasper: true, ahrefs: 'kısmi', frase: true },
-      { name: 'Multi-LLM (Claude + GPT + Gemini + Grok + Perplexity + DeepSeek)', luviai: '6 sağlayıcı', surfer: 'sadece GPT', jasper: 'sadece GPT', ahrefs: false, frase: 'sadece GPT', hint: 'BYOK ile kendi anahtarınla sınırsız' },
-      { name: '6-ajan editör pipeline (kalite kapısı)', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false },
-      { name: 'Marka sesi (her site ayrı AI brain)', luviai: true, surfer: false, jasper: 'manuel', ahrefs: false, frase: false },
+      { name: 'AI ile makale üretimi', luviai: true, surfer: true, jasper: true, ahrefs: null, frase: true },
+      // Uretim hatti 5 ajan: apps/api/src/articles/pipeline.service.ts (yayin bir ajan degil)
+      { name: '5 ajanlı üretim hattı + yayın öncesi kalite kapısı', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null, hint: 'Anahtar kelime → taslak → yazar → editör → görsel; kaynaksız sayı, uydurma iç bağlantı ve yapı kontrolleri yayından önce yapılır.' },
+      { name: 'Marka sesi (her site için ayrı marka beyni)', luviai: true, surfer: 'Brand Knowledge', jasper: 'Brand Voice', ahrefs: null, frase: 'Brand Voice' },
       { name: 'Türkçe optimize', luviai: 'native', surfer: 'kısmi', jasper: 'kısmi', ahrefs: 'kısmi', frase: 'kısmi' },
-      { name: 'Otomatik görsel üretimi', luviai: true, surfer: false, jasper: 'add-on', ahrefs: false, frase: false },
-      { name: 'TTS / podcast / RSS', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false },
-      { name: 'Multi-language çeviri', luviai: 'TR + EN', surfer: false, jasper: 'add-on', ahrefs: false, frase: false },
+      { name: 'Otomatik görsel üretimi', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
     ],
   },
   {
+    id: 'geo',
     title: 'AI Search Optimization (GEO/AEO)',
     icon: <Globe className="h-4 w-4" />,
-    badge: 'Türkiye\'de bir ilk',
     rows: [
-      { name: 'AI Citation tracker (ChatGPT/Claude/Gemini/Perplexity)', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false },
-      { name: 'GEO Heatmap (rakip × AI matrix)', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false },
-      { name: 'GEO Score Card (6 pillar A+ → F)', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false },
-      { name: 'AI Mention Alarm (drop tespit + email)', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false },
-      { name: 'AI Crawler tracker (GPTBot, PerplexityBot vb.)', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false },
-      { name: 'llms.txt + llms-full.txt builder', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false },
-      { name: 'AI sitemap (LLM crawler için)', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false },
-      { name: 'Persona Chat (rakip simülasyonu)', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false },
-      { name: 'Kapalı döngü: kaybedilen soru → içerik → QA → yeniden ölçüm', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false, hint: 'Cloudflare\'in AEO / agent-readiness panosu sitenin AI\'a erişilebilirliğini ölçer ama içerik üretmez ve yeniden ölçmez; RanksUp erişimi (AXO), görünürlüğü ve üretimi tek döngüde kapatır.' },
+      { name: 'AI görünürlük takibi (asistan cevaplarında marka ve kaynak)', luviai: '6 asistan', surfer: 'AI Search Analytics planı', jasper: 'GEO Hub (Business)', ahrefs: 'Brand Radar', frase: 'AI Visibility', hint: 'RanksUp: ChatGPT, Claude, Gemini, Perplexity, Grok ve DeepSeek. Rakiplerde kapsam plana göre değişir; Google AI Overviews / AI Mode ve Copilot gibi motorları ölçenler var, RanksUp bunları ölçmez.' },
+      { name: 'GEO ısı haritası (rakip × AI asistanı)', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
+      { name: 'GEO Skor Kartı (6 başlık, A+ → F)', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
+      { name: 'AI görünürlük düşüş alarmı (e-posta)', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: 'uyarılar' },
+      { name: 'AI tarayıcı takibi (GPTBot, PerplexityBot vb.)', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
+      { name: 'llms.txt + llms-full.txt üretici', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: 'FraseCMS sayfalarında' },
+      { name: 'AI özetli site haritası (sitemap-ai.xml)', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
+      { name: 'Persona sohbeti (rakip simülasyonu)', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
+      { name: 'Kapalı döngü: kaybedilen soru → içerik → QA → yeniden ölçüm', luviai: true, surfer: null, jasper: 'GEO Agent (Business)', ahrefs: null, frase: null, hint: 'Kaybedilen sorudan makale fırsatı çıkar, makale kalite kapısından geçer, yayından sonra aynı soru yeniden ölçülür (Profesyonel ve üstü).' },
     ],
   },
   {
+    id: 'seo',
     title: 'SEO & Site Audit',
     icon: <Shield className="h-4 w-4" />,
     rows: [
-      { name: 'Otomatik site audit', luviai: '14 kontrol', surfer: 'kısmi', jasper: false, ahrefs: 'detaylı', frase: 'kısmi' },
-      { name: 'GSC entegrasyonu', luviai: true, surfer: false, jasper: false, ahrefs: true, frase: true },
-      { name: 'Organik trafik verisi: Search Console gerçeği vs. tahmin', luviai: 'GSC gerçek', surfer: false, jasper: false, ahrefs: 'tahmin', frase: 'kısmi', hint: 'Üçüncü taraf araçların "organik trafik" rakamı modelleme tahminidir (aynı site için Ahrefs 189/ay derken Search Console 2.000+ gösterebilir). RanksUp birinci-taraf GSC verisini ve markalı/markasız ayrımını kullanır.' },
-      { name: 'GA4 entegrasyonu', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false },
-      { name: 'Auto-fix (sitemap, robots, schema, snippet)', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false },
-      { name: 'Topic Engine (4 katman skoring)', luviai: true, surfer: 'kısmi', jasper: false, ahrefs: 'detaylı', frase: 'kısmi' },
-      { name: 'Keyword opportunity (near-miss, gap, low-CTR)', luviai: true, surfer: 'kısmi', jasper: false, ahrefs: true, frase: 'kısmi' },
-      { name: '15+ Schema tipi (FAQ, HowTo, Speakable vb.)', luviai: true, surfer: 'limited', jasper: false, ahrefs: false, frase: 'limited' },
-      { name: 'PageSpeed / Core Web Vitals', luviai: true, surfer: false, jasper: false, ahrefs: 'kısmi', frase: false },
-      { name: 'Cross-link önerileri', luviai: true, surfer: 'kısmi', jasper: false, ahrefs: true, frase: 'kısmi' },
-      { name: 'Knowledge Graph + Wikidata', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false },
+      { name: 'Otomatik site denetimi', luviai: '14 kontrol', surfer: null, jasper: false, ahrefs: 'Site Audit', frase: 'sayfa denetimi' },
+      { name: 'Search Console entegrasyonu', luviai: true, surfer: true, jasper: null, ahrefs: null, frase: null },
+      { name: 'Organik trafik verisi: Search Console gerçeği vs. tahmin', luviai: 'GSC gerçek', surfer: null, jasper: null, ahrefs: 'tahmin', frase: null, hint: 'Üçüncü taraf araçların "organik trafik" rakamı modelleme tahminidir. RanksUp birinci taraf Search Console verisini ve markalı/markasız ayrımını kullanır.' },
+      { name: 'GA4 entegrasyonu', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
+      { name: 'Kök dosya düzeltmesi (robots.txt, sitemap.xml, llms.txt) + şema/meta snippet', luviai: 'önizlemeli', surfer: null, jasper: null, ahrefs: null, frase: null, hint: 'robots.txt mevcut dosyayla birleştirilir ve farkı görüp onaylamadan yazılmaz; mevcut dosyanın önceki hali yedeklenir ve dosya o günden beri değişmediyse geri alınabilir. sitemap.xml / llms.txt yalnızca dosya yoksa oluşturulur; yeni oluşturulan dosyayı kaldırmak için sunucudan silmek gerekir.' },
+      { name: 'Konu motoru (4 katman puanlama)', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
+      { name: 'Anahtar kelime fırsatı (ilk sayfaya yakın, boşluk, düşük CTR)', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
+      { name: '15+ şema tipi (FAQ, HowTo, Speakable vb.)', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
+      { name: 'PageSpeed / Core Web Vitals', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
+      { name: 'İç bağlantı önerileri', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: 'Professional planında' },
+      { name: 'Knowledge Graph + Wikidata', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
     ],
   },
   {
+    id: 'publish',
     title: 'Yayın & Dağıtım',
     icon: <Zap className="h-4 w-4" />,
     rows: [
-      { name: 'Otomatik yayın hedefi', luviai: '14 platform', surfer: 'WP only', jasper: false, ahrefs: false, frase: false, hint: 'WordPress, Webflow, Ghost, Shopify, Sanity, FTP, SFTP, GitHub vb.' },
-      { name: 'Onay öncesi otomatik takvim', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false },
-      { name: 'Tek tıkla cross-post', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false },
+      { name: 'Otomatik yayın hedefi', luviai: '14 hedef', surfer: null, jasper: null, ahrefs: null, frase: 'WordPress, Webflow, Sanity, Wix', hint: 'RanksUp: WordPress, Webflow, Ghost, Sanity, Contentful, Strapi, FTP, SFTP, cPanel, GitHub, WHMCS bilgi bankası, özel PHP ucu ve Markdown ZIP.' },
+      { name: 'Konuları otomatik takvime yerleştirme', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
+      { name: 'Bir makaleyi birden çok yayın hedefine gönderme', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
     ],
   },
   {
+    id: 'offpage',
     title: 'Off-Page & Outreach',
     icon: <Network className="h-4 w-4" />,
     rows: [
-      { name: 'HARO entegrasyonu (gazeteci sorguları)', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false, hint: 'Türkiye\'de bu özelliği sunan tek platform' },
-      { name: 'Community outreach (Reddit, Quora draft)', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false },
-      { name: 'Knowledge submitter (Wikipedia, Wikidata)', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false },
-      { name: 'Author E-E-A-T profili', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false },
+      { name: 'HARO e-posta özetinden gazeteci sorgusu + yanıt taslağı', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
+      { name: 'Topluluk ajanı (Reddit, Quora yanıt taslağı)', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
+      { name: 'Wikidata / Wikipedia taslağı', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
+      { name: 'Yazar E-E-A-T profili (Person şeması)', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
     ],
   },
   {
-    title: 'Reklam & ROAS (Bonus)',
+    id: 'ads',
+    title: 'Reklam & ROAS',
     icon: <BarChart3 className="h-4 w-4" />,
-    badge: 'Hiçbir SEO platformunda yok',
     rows: [
-      { name: 'Google Ads OAuth + kampanya wizard', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false },
-      { name: 'Meta Ads OAuth + audience builder', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false },
-      { name: 'AI ad copy + creative üretimi', luviai: true, surfer: false, jasper: 'kısmi', ahrefs: false, frase: false },
-      { name: '6-saatlik ROAS auto-optimize', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false },
+      { name: 'Google Ads + Meta Ads hesap bağlantısı', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false },
+      { name: 'Kampanya Skoru (reklam hesabı denetimi)', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false },
+      { name: '6 saatlik ROAS otopilotu', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false, hint: 'Varsayılan kapalı. Açıkken düşük getirili kampanyayı durdurur, yüksek getirilinin bütçesini artırır, alakasız arama terimlerini negatif anahtar kelime yapar.' },
     ],
   },
   {
+    id: 'turkey',
     title: 'Türkiye Avantajları',
     icon: <Crown className="h-4 w-4" />,
     rows: [
       { name: 'Tam Türkçe arayüz + destek', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false },
-      { name: 'PayTR (TL kart, havale, kripto)', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false },
+      { name: 'PayTR ile Türk lirası ödeme', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false },
       { name: 'KVKK uyumlu + TR veri merkezi', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false },
-      { name: 'TL fatura (e-fatura/e-arşiv)', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false },
-      { name: 'Whitelabel (ajanslar için)', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false },
     ],
   },
   {
+    id: 'price',
     title: 'Fiyat',
     icon: <Award className="h-4 w-4" />,
     rows: [
-      { name: 'Yıllık ödeme indirimi', luviai: '%17', surfer: '%30', jasper: '%20', ahrefs: '%20', frase: '%10' },
-      { name: '2 ücretsiz makale', luviai: true, surfer: false, jasper: '5 gün trial', ahrefs: false, frase: '5 trial' },
-      { name: 'Aylık iptal — taahhüt yok', luviai: true, surfer: true, jasper: true, ahrefs: false, frase: true },
+      // Surfer SSS'si "up to 17%" diyor (surferseo.com/pricing, 18.10.2026); "~%17" degil
+      { name: 'Yıllık ödeme indirimi', luviai: '%17', surfer: '%17\'ye kadar', jasper: '~%20', ahrefs: '%17\'ye kadar', frase: '%20' },
+      { name: 'Ücretsiz deneme', luviai: '2 makale, kart yok', surfer: null, jasper: '7 gün', ahrefs: 'Ahrefs Free (sınırlı)', frase: '7 gün, kart yok' },
+      { name: 'Aylık plan — uzun taahhüt yok', luviai: true, surfer: true, jasper: true, ahrefs: 'Enterprise hariç', frase: true },
     ],
   },
 ];
 
 const FEATURE_GROUPS_EN: FeatureGroup[] = [
   {
+    id: 'content',
     title: 'AI Content Generation',
     icon: <Sparkles className="h-4 w-4" />,
     rows: [
-      { name: 'AI article generation', luviai: true, surfer: true, jasper: true, ahrefs: 'partial', frase: true },
-      { name: 'Multi-LLM (Claude + GPT + Gemini + Grok + Perplexity + DeepSeek)', luviai: '6 providers', surfer: 'GPT only', jasper: 'GPT only', ahrefs: false, frase: 'GPT only', hint: 'Unlimited with BYOK key' },
-      { name: '6-agent editor pipeline (quality gate)', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false },
-      { name: 'Brand voice (separate AI brain per site)', luviai: true, surfer: false, jasper: 'manual', ahrefs: false, frase: false },
+      { name: 'AI article generation', luviai: true, surfer: true, jasper: true, ahrefs: null, frase: true },
+      { name: '5-agent pipeline + pre-publish quality gate', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null, hint: 'Keyword → outline → writer → editor → visuals; unsourced numbers, made-up internal links and structure are checked before publishing.' },
+      { name: 'Brand voice (separate brand brain per site)', luviai: true, surfer: 'Brand Knowledge', jasper: 'Brand Voice', ahrefs: null, frase: 'Brand Voice' },
       { name: 'Turkish optimized', luviai: 'native', surfer: 'partial', jasper: 'partial', ahrefs: 'partial', frase: 'partial' },
-      { name: 'Auto image generation', luviai: true, surfer: false, jasper: 'add-on', ahrefs: false, frase: false },
-      { name: 'TTS / podcast / RSS', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false },
-      { name: 'Multi-language translation', luviai: 'TR + EN', surfer: false, jasper: 'add-on', ahrefs: false, frase: false },
+      { name: 'Auto image generation', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
     ],
   },
   {
+    id: 'geo',
     title: 'AI Search Optimization (GEO/AEO)',
     icon: <Globe className="h-4 w-4" />,
-    badge: 'First in Turkey',
     rows: [
-      { name: 'AI Citation tracker (ChatGPT/Claude/Gemini/Perplexity)', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false },
-      { name: 'GEO Heatmap (competitor × AI matrix)', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false },
-      { name: 'GEO Score Card (6 pillar A+ → F)', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false },
-      { name: 'AI Mention Alarm (drop detection + email)', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false },
-      { name: 'AI Crawler tracker (GPTBot, PerplexityBot etc.)', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false },
-      { name: 'llms.txt + llms-full.txt builder', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false },
-      { name: 'AI sitemap (for LLM crawlers)', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false },
-      { name: 'Persona Chat (competitor simulation)', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false },
-      { name: 'Closed loop: lost query → content → QA → re-measure', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false, hint: 'Cloudflare\'s AEO / agent-readiness dashboard measures whether AI can reach your site but produces no content and never re-measures; RanksUp closes access (AXO), visibility and production in one loop.' },
+      { name: 'AI visibility tracking (brand and source in assistant answers)', luviai: '6 assistants', surfer: 'AI Search Analytics plan', jasper: 'GEO Hub (Business)', ahrefs: 'Brand Radar', frase: 'AI Visibility', hint: 'RanksUp: ChatGPT, Claude, Gemini, Perplexity, Grok and DeepSeek. Competitor coverage depends on the plan; some track engines such as Google AI Overviews / AI Mode and Copilot, which RanksUp does not measure.' },
+      { name: 'GEO heatmap (competitor × AI assistant)', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
+      { name: 'GEO Score Card (6 pillars, A+ → F)', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
+      { name: 'AI visibility drop alert (email)', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: 'alerts' },
+      { name: 'AI crawler tracking (GPTBot, PerplexityBot etc.)', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
+      { name: 'llms.txt + llms-full.txt builder', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: 'on FraseCMS pages' },
+      { name: 'AI-summary sitemap (sitemap-ai.xml)', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
+      { name: 'Persona chat (competitor simulation)', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
+      { name: 'Closed loop: lost query → content → QA → re-measure', luviai: true, surfer: null, jasper: 'GEO Agent (Business)', ahrefs: null, frase: null, hint: 'A lost query becomes an article opportunity, the article passes the quality gate, and the same query is re-measured after publishing (Professional and up).' },
     ],
   },
   {
+    id: 'seo',
     title: 'SEO & Site Audit',
     icon: <Shield className="h-4 w-4" />,
     rows: [
-      { name: 'Automatic site audit', luviai: '14 checks', surfer: 'partial', jasper: false, ahrefs: 'detailed', frase: 'partial' },
-      { name: 'GSC integration', luviai: true, surfer: false, jasper: false, ahrefs: true, frase: true },
-      { name: 'Organic traffic data: Search Console truth vs. estimates', luviai: 'GSC actuals', surfer: false, jasper: false, ahrefs: 'estimate', frase: 'partial', hint: 'Third-party "organic traffic" numbers are modelled estimates (the same site can show 189/mo in Ahrefs and 2,000+ in Search Console). RanksUp uses first-party GSC data with a branded/non-branded split.' },
-      { name: 'GA4 integration', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false },
-      { name: 'Auto-fix (sitemap, robots, schema, snippet)', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false },
-      { name: 'Topic Engine (4-layer scoring)', luviai: true, surfer: 'partial', jasper: false, ahrefs: 'detailed', frase: 'partial' },
-      { name: 'Keyword opportunity (near-miss, gap, low-CTR)', luviai: true, surfer: 'partial', jasper: false, ahrefs: true, frase: 'partial' },
-      { name: '15+ schema types (FAQ, HowTo, Speakable etc.)', luviai: true, surfer: 'limited', jasper: false, ahrefs: false, frase: 'limited' },
-      { name: 'PageSpeed / Core Web Vitals', luviai: true, surfer: false, jasper: false, ahrefs: 'partial', frase: false },
-      { name: 'Cross-link suggestions', luviai: true, surfer: 'partial', jasper: false, ahrefs: true, frase: 'partial' },
-      { name: 'Knowledge Graph + Wikidata', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false },
+      { name: 'Automatic site audit', luviai: '14 checks', surfer: null, jasper: false, ahrefs: 'Site Audit', frase: 'page audits' },
+      { name: 'Search Console integration', luviai: true, surfer: true, jasper: null, ahrefs: null, frase: null },
+      { name: 'Organic traffic data: Search Console truth vs. estimates', luviai: 'GSC actuals', surfer: null, jasper: null, ahrefs: 'estimate', frase: null, hint: 'Third-party "organic traffic" numbers are modelled estimates. RanksUp uses first-party Search Console data with a branded/non-branded split.' },
+      { name: 'GA4 integration', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
+      { name: 'Root-file fixes (robots.txt, sitemap.xml, llms.txt) + schema/meta snippets', luviai: 'previewed', surfer: null, jasper: null, ahrefs: null, frase: null, hint: 'robots.txt is merged with your existing file and never written until you review the diff and confirm; the previous version of an existing file is backed up and can be restored if it hasn\'t changed since. sitemap.xml / llms.txt are only created when missing; to undo, delete the new file from your server.' },
+      { name: 'Topic engine (4-layer scoring)', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
+      { name: 'Keyword opportunities (near-miss, gap, low CTR)', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
+      { name: '15+ schema types (FAQ, HowTo, Speakable etc.)', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
+      { name: 'PageSpeed / Core Web Vitals', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
+      { name: 'Internal link suggestions', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: 'on Professional' },
+      { name: 'Knowledge Graph + Wikidata', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
     ],
   },
   {
+    id: 'publish',
     title: 'Publishing & Distribution',
     icon: <Zap className="h-4 w-4" />,
     rows: [
-      { name: 'Auto publish targets', luviai: '14 platforms', surfer: 'WP only', jasper: false, ahrefs: false, frase: false, hint: 'WordPress, Webflow, Ghost, Shopify, Sanity, FTP, SFTP, GitHub etc.' },
-      { name: 'Auto scheduling before approval', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false },
-      { name: 'One-click cross-post', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false },
+      { name: 'Auto publish targets', luviai: '14 targets', surfer: null, jasper: null, ahrefs: null, frase: 'WordPress, Webflow, Sanity, Wix', hint: 'RanksUp: WordPress, Webflow, Ghost, Sanity, Contentful, Strapi, FTP, SFTP, cPanel, GitHub, WHMCS knowledge base, custom PHP endpoint and Markdown ZIP.' },
+      { name: 'Automatic topic scheduling', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
+      { name: 'Publish one article to several targets', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
     ],
   },
   {
+    id: 'offpage',
     title: 'Off-Page & Outreach',
     icon: <Network className="h-4 w-4" />,
     rows: [
-      { name: 'HARO integration (journalist queries)', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false, hint: 'Only Turkish-supporting platform offering this' },
-      { name: 'Community outreach (Reddit, Quora draft)', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false },
-      { name: 'Knowledge submitter (Wikipedia, Wikidata)', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false },
-      { name: 'Author E-E-A-T profile', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false },
+      { name: 'Journalist queries from HARO email digests + reply drafts', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
+      { name: 'Community agent (Reddit, Quora reply drafts)', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
+      { name: 'Wikidata / Wikipedia drafts', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
+      { name: 'Author E-E-A-T profile (Person schema)', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
     ],
   },
   {
-    title: 'Ads & ROAS (Bonus)',
+    id: 'ads',
+    title: 'Ads & ROAS',
     icon: <BarChart3 className="h-4 w-4" />,
-    badge: 'Not in any other SEO platform',
     rows: [
-      { name: 'Google Ads OAuth + campaign wizard', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false },
-      { name: 'Meta Ads OAuth + audience builder', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false },
-      { name: 'AI ad copy + creative generation', luviai: true, surfer: false, jasper: 'partial', ahrefs: false, frase: false },
-      { name: '6-hour ROAS auto-optimize', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false },
+      { name: 'Google Ads + Meta Ads account connection', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false },
+      { name: 'Campaign Score (ad account audit)', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false },
+      { name: '6-hour ROAS autopilot', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false, hint: 'Off by default. When on, it pauses low-return campaigns, raises the budget of high-return ones and adds irrelevant search terms as negative keywords.' },
     ],
   },
   {
+    id: 'turkey',
     title: 'Turkey Advantages',
     icon: <Crown className="h-4 w-4" />,
     rows: [
       { name: 'Full Turkish UI + support', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false },
-      { name: 'PayTR (TRY card, transfer, crypto)', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false },
+      { name: 'Turkish lira payments via PayTR', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false },
       { name: 'KVKK-compliant + TR data center', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false },
-      { name: 'TRY invoice (e-invoice/e-archive)', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false },
-      { name: 'White-label (for agencies)', luviai: true, surfer: false, jasper: false, ahrefs: false, frase: false },
     ],
   },
   {
+    id: 'price',
     title: 'Price',
     icon: <Award className="h-4 w-4" />,
     rows: [
-      { name: 'Yearly discount', luviai: '17%', surfer: '30%', jasper: '20%', ahrefs: '20%', frase: '10%' },
-      { name: '2 free articles', luviai: true, surfer: false, jasper: '5-day trial', ahrefs: false, frase: '5 trial' },
-      { name: 'Monthly cancel — no commitment', luviai: true, surfer: true, jasper: true, ahrefs: false, frase: true },
+      { name: 'Yearly discount', luviai: '17%', surfer: 'up to 17%', jasper: '~20%', ahrefs: 'up to 17%', frase: '20%' },
+      { name: 'Free trial', luviai: '2 articles, no card', surfer: null, jasper: '7 days', ahrefs: 'Ahrefs Free (limited)', frase: '7 days, no card' },
+      { name: 'Monthly plan — no long commitment', luviai: true, surfer: true, jasper: true, ahrefs: 'except Enterprise', frase: true },
     ],
   },
 ];
@@ -231,20 +257,35 @@ const FEATURE_GROUPS_EN: FeatureGroup[] = [
  * Durumlar kod dogrulamasina dayanir (27.08.2026): auto = urun kendiliginden
  * yapar, partial = kismen/elle tetikli, none = henuz yok. Rakibin kendi
  * rehberi bizim kapali dongumuzun en iyi satis dokumani.
+ *
+ * 18.10.2026 guncellemesi (kodla yeniden dogrulandi):
+ *  - 1-2: Llama olculmuyor (Groq modeli kaldirdi, ai-citation.service.ts),
+ *    gunluk otomatik olcum kapali (worker AI_CITATION_DAILY_CRON) ve kullanici
+ *    tetikli olcum haftada bir (billing/measurement-allowance.ts) → partial.
+ *  - 3: robots.txt duzeltmesi engel KALDIRMAZ; eksik AI botlarini mevcut
+ *    kurallari koruyarak, onizleme + onayla ekler (robots-merge.ts,
+ *    auto-fix.service.ts). Bot sayisi known-ai-bots.ts (27).
+ *  - 12-15: uretim hatti 5 ajan (pipeline.service.ts), "6 ajan" degil.
+ *  - 17: sosyal medya modulu yok (API'de modul/route yok) → none.
+ *  - 11: otomatik yeniden yazim (content-pivot.service) yalniz Search Console
+ *    bagli sitede veri bulur (Article.performanceMetrics'i gunluk GSC senkronu
+ *    yazar) ve otopilot ister; kaybedilen soru → mevcut makale guncellemesi
+ *    elle (content-opportunity.service, plan 'contentOpportunities' = pro)
+ *    → partial.
  */
 const PLAYBOOK: Array<{ step: string; tr: string; en: string; status: 'auto' | 'partial' | 'none'; noteTr: string; noteEn: string }> = [
-  { step: '1-2', tr: 'AI görünürlüğünü ölç, hedef koy (share of voice, kaynak görünürlüğü, referral)', en: 'Measure AI visibility and set targets (share of voice, source visibility, referral)', status: 'auto', noteTr: '7 AI asistanda günlük ölçüm; markalı sorular manşetten ayrı; 7 günlük ortalama + oynaklık rozeti.', noteEn: 'Daily probes across 7 assistants; branded queries excluded from the headline; 7-day rolling average + volatility badge.' },
-  { step: '3', tr: 'robots.txt AI crawler engellerini kaldır', en: 'Unblock AI crawlers in robots.txt', status: 'auto', noteTr: 'AXO taraması 27 botu kategorili ölçer; tek tıkla düzeltir.', noteEn: 'AXO scan checks 27 bots by category; one-click fix.' },
+  { step: '1-2', tr: 'AI görünürlüğünü ölç, hedef koy (share of voice, kaynak görünürlüğü, referral)', en: 'Measure AI visibility and set targets (share of voice, source visibility, referral)', status: 'partial', noteTr: 'ChatGPT, Claude, Gemini, Perplexity, Grok ve DeepSeek’te ölçüm; ölçümü sen başlatırsın (haftada bir). Markalı sorular manşetten ayrı; 7 günlük ortalama + oynaklık rozeti.', noteEn: 'Measured on ChatGPT, Claude, Gemini, Perplexity, Grok and DeepSeek; you start each run (once a week). Branded queries excluded from the headline; 7-day rolling average + volatility badge.' },
+  { step: '3', tr: 'robots.txt AI crawler engellerini kaldır', en: 'Unblock AI crawlers in robots.txt', status: 'partial', noteTr: 'AXO taraması 27 botu kategorili ölçer; eksik AI bot gruplarını mevcut kuralları koruyarak önizlemeli ekler, mevcut engelleri kaldırmak site sahibinin kararıdır.', noteEn: 'AXO scan checks 27 bots by category; adds missing AI bot groups with a preview while keeping your existing rules — removing existing blocks is the site owner’s decision.' },
   { step: '4', tr: 'Site denetimi (kırık link, yönlendirme, orphan, tekrar içerik)', en: 'Site audit (broken links, redirects, orphans, duplicates)', status: 'partial', noteTr: '14 kontrol + PageSpeed; orphan var, kırık link ve tekrar title henüz yok.', noteEn: '14 checks + PageSpeed; orphans yes, broken links and duplicate titles not yet.' },
   { step: '5, 19', tr: 'Marka doğruluk taraması — AI markan hakkında yanlış ne söylüyor?', en: 'Brand accuracy scan — what does AI get wrong about you?', status: 'none', noteTr: 'Sentiment ölçülüyor; doğruluk taraması yol haritasında.', noteEn: 'Sentiment is measured; accuracy scanning is on the roadmap.' },
   { step: '6-7', tr: 'Atıf alan sayfalarını ve bahsedilmeleri analiz et', en: 'Analyse your cited pages and mentions', status: 'auto', noteTr: 'Sayfa bazlı atıf kırılımı, "atıf var · ad anılmadı" sayacı, canlı cite-fetch sinyali.', noteEn: 'Per-page citation breakdown, "cited but not mentioned" counter, live cite-fetch signal.' },
   { step: '8-9', tr: 'Sayfa optimizasyonu + Article/FAQ/HowTo/Product şeması', en: 'On-page optimisation + Article/FAQ/HowTo/Product schema', status: 'auto', noteTr: '15+ şema tipi üretim ve doğrulama; geo-gate 5 yapısal kural.', noteEn: '15+ schema types generated and validated; geo-gate with 5 structural rules.' },
   { step: '10', tr: 'Site mimarisi (2-3 tıkta erişilebilir hiyerarşi)', en: 'Site architecture (key pages within 2-3 clicks)', status: 'partial', noteTr: 'Orphan tespiti ve cross-link önerileri var; mimari planlama yok.', noteEn: 'Orphan detection and cross-link suggestions exist; no architecture planner.' },
-  { step: '11', tr: 'Eski içeriği güncelle (istatistik, örnek, tarih)', en: 'Refresh old content (stats, examples, dates)', status: 'auto', noteTr: '30 gün sonra performansa göre pivot; kaybedilen soru için mevcut makaleyi güncelleme köprüsü.', noteEn: 'Performance-based pivot after 30 days; lost-query → update-existing-article bridge.' },
-  { step: '12-15', tr: 'AI\'ın tercih ettiği formatlarda içerik: rehber, karşılaştırma, soru-cevap, tablo', en: 'Content in AI-preferred formats: guides, comparisons, Q&A, tables', status: 'auto', noteTr: 'Kaybedilen soru → 6 ajanlı üretim → QA kapısı → yayın → yeniden ölçüm.', noteEn: 'Lost query → 6-agent pipeline → QA gate → publish → re-measure.' },
+  { step: '11', tr: 'Eski içeriği güncelle (istatistik, örnek, tarih)', en: 'Refresh old content (stats, examples, dates)', status: 'partial', noteTr: 'Otomatik akış açık ve Search Console bağlıysa, yayından 30 gün sonra Search Console verisinde zayıf kalan makale haftalık taramada yeniden yazılır (Yarı otomatikte onayını bekler); kaybedilen soru için mevcut makaleyi güncelleme köprüsü (Profesyonel ve üstü).', noteEn: 'With automation on and Search Console connected, an article still weak in Search Console data 30 days after publishing is rewritten in a weekly scan (waits for your approval in semi-auto mode); lost-query → update-existing-article bridge (Professional and up).' },
+  { step: '12-15', tr: 'AI\'ın tercih ettiği formatlarda içerik: rehber, karşılaştırma, soru-cevap, tablo', en: 'Content in AI-preferred formats: guides, comparisons, Q&A, tables', status: 'auto', noteTr: 'Kaybedilen soru → 5 ajanlı üretim → QA kapısı → yayın → yeniden ölçüm.', noteEn: 'Lost query → 5-agent pipeline → QA gate → publish → re-measure.' },
   { step: '13', tr: 'İçerik hub\'ı (pillar + 5-10 cluster)', en: 'Content hubs (pillar + 5-10 clusters)', status: 'partial', noteTr: 'Brain\'de pillar/cluster modeli var; hub sayfası üretimi yol haritasında.', noteEn: 'Pillar/cluster model exists in the brain; hub page generation on the roadmap.' },
   { step: '16', tr: 'E-E-A-T: yazar biyografisi, kaynak atıfları', en: 'E-E-A-T: author bios, source citations', status: 'auto', noteTr: 'Person şeması + sameAs + imza bloğu; geo-gate kaynaklı sayı kuralı.', noteEn: 'Person schema + sameAs + byline; geo-gate sourced-number rule.' },
-  { step: '17', tr: 'İçeriği yeniden kullan (LinkedIn, X, YouTube)', en: 'Repurpose content (LinkedIn, X, YouTube)', status: 'auto', noteTr: 'Sosyal medya modülü: makaleden gönderi, onay akışı, gelen kutusu.', noteEn: 'Social module: posts from articles, approval flow, inbox.' },
+  { step: '17', tr: 'İçeriği yeniden kullan (LinkedIn, X, YouTube)', en: 'Repurpose content (LinkedIn, X, YouTube)', status: 'none', noteTr: 'Sosyal medya paylaşım modülü şu an üründe yok.', noteEn: 'There is no social publishing module in the product right now.' },
   { step: '18', tr: '"Best of" listelerine gir, digital PR', en: 'Get into "best of" lists, digital PR', status: 'partial', noteTr: 'Product Radar listelerde sırayı ölçer; HARO pitch taslağı; başvuru elle.', noteEn: 'Product Radar tracks list positions; HARO pitch drafts; outreach is manual.' },
   { step: '20', tr: 'Reddit / Quora katkıları', en: 'Reddit / Quora contributions', status: 'partial', noteTr: 'Topluluk ajanı taslak hazırlar, onayla gönderilir (otomatik post yok).', noteEn: 'Community agent drafts replies; you approve (no auto-posting).' },
   { step: '21-22', tr: 'Sonuçları gözden geçir, döngüyü tekrarla', en: 'Review results, repeat the loop', status: 'auto', noteTr: 'Haftalık plan, aksiyon planı, yeniden ölçüm hükmü ≥2 farklı günde.', noteEn: 'Weekly plan, action plan, re-measure verdict over ≥2 different days.' },
@@ -254,99 +295,98 @@ const COPY = {
   tr: {
     eyebrow: '⚖️ Detaylı karşılaştırma',
     titleA: 'RanksUp vs',
-    titleB: 'tüm rakipleri',
+    titleB: 'rakipleri',
     leadA: '+ özellik',
-    lead: ' tek panelde. GEO + SEO + ASO + Apple Search Ads — diğerleri tek bir alanda iyi, RanksUp hepsini birleştiren tek Türk platform.',
+    lead: ' tek panelde: GEO, SEO, ASO ve Apple Search Ads. Karşılaştırma tablosundaki rakip bilgileri üreticilerin kendi sayfalarından derlendi.',
     badge1: '✓ Türkçe destek',
-    badge2: '✓ KVKK + TR veri',
+    badge2: '✓ KVKK + TR veri merkezi',
     badge3: '✓ PayTR ödeme',
     badge4: '✓ 14 yayın hedefi',
-    hc1Title: 'Multi-LLM avantajı',
-    hc1Desc: 'Claude, GPT, Gemini, Grok, Perplexity, DeepSeek — 6 sağlayıcı. Rakipler sadece OpenAI\'ya bağımlı.',
-    hc2Num: '8',
-    hc2Title: 'GEO/AEO özelliği',
-    hc2Desc: 'AI citation, heatmap, score card, mention alarm, llms.txt, persona chat — rakiplerde 0.',
-    hc3Num: 'SEO + Ads',
+    hc1Num: '6',
+    hc1Title: 'AI asistanında ölçüm',
+    hc1Desc: 'ChatGPT, Claude, Gemini, Perplexity, Grok ve DeepSeek. Marka adı geçen sorular manşet skora girmez.',
+    hc2Title: 'GEO/AEO aracı',
+    hc2Desc: 'AI görünürlük takibi, ısı haritası, skor kartı, düşüş alarmı, llms.txt üretici, persona sohbeti ve kapalı döngü.',
+    hc3Num: 'SEO + Reklam',
     hc3Title: 'Tek panelde',
-    hc3Desc: 'Google Ads + Meta Ads + ROAS auto-optimize. SEO platformlarının hiçbirinde yok.',
+    hc3Desc: 'Google Ads ve Meta Ads bağlantısı, kampanya skoru ve 6 saatlik ROAS otopilotu; SEO ve içerikle aynı panelde.',
     tableHeaderFeature: 'Özellik',
-    sumLeftTitle: 'RanksUp\'nin tek başına kapsadığı 4 dikey',
+    legend: '— : Bu satırda rakip bilgisi doğrulanmadı. Rakip bilgileri üreticilerin herkese açık fiyat ve ürün sayfalarından derlenmiştir (Ekim 2026); değişmiş olabilir.',
+    sumLeftTitle: 'RanksUp’ın tek panelde birleştirdiği 4 alan',
     sumLeftItems: [
-      'SEO içerik üretimi (Surfer/Jasper\'a alternatif)',
-      'AI Search Optimization (Türkiye\'de ilk)',
-      'Reklam otopilot (Google + Meta + ROAS)',
+      'SEO içerik üretimi ve yayın (Surfer / Jasper alternatifi)',
+      'AI görünürlük ölçümü (6 asistan)',
+      'Reklam otopilotu (Google Ads + Meta Ads, ROAS)',
       'Agent Readiness (AXO) taraması',
     ],
-    sumLeftNote: 'Aynı işi rakip kombinasyonuyla almak: Surfer ($89) + Jasper ($49) + Ahrefs ($129) + Hootsuite ($99) = ',
-    sumLeftNotePrice: '$366/ay (≈ ₺14.640)',
-    sumLeftNote2: '. RanksUp ',
+    sumLeftNote: 'Bu işleri ayrı araçlarla karşılamak birden çok abonelik demektir; rakiplerin güncel fiyatları kendi sayfalarındadır.',
+    sumLeftNote2: ' RanksUp ',
     sumLeftNote3: ', ',
     sumLeftNoteEnd: '.',
     perMonth: 'ay',
-    sumRightTitle: 'RanksUp\'ye geçişte kazandıkların',
+    sumRightTitle: 'RanksUp’a geçişte kazandıkların',
     sumRightItems: [
-      'Tek subscription, tek dashboard',
-      'Türkçe destek + KVKK + TL fatura',
-      'AI Search\'te görünürlük (rakipler ortalama 6-12 ay geri)',
-      'BYOK ile kendi LLM anahtarın → maliyet kontrolü',
-      'Whitelabel — ajanslar kendi markası altında satabilir',
+      'Tek abonelik, tek panel',
+      'Türkçe destek, KVKK, Türk lirasıyla ödeme',
+      'AI asistanlarında görünürlük ölçümü (Grok ve DeepSeek dahil 6 asistan)',
+      'Kurumsal planda BYOK: kendi sağlayıcı anahtarınla ölçüm',
     ],
     ctaTitle: 'Saatler süren işi dakikaya indir',
-    ctaSub: 'İlk 2 makale ücretsiz, kart gerekmez. SEO + AI Search\'te bir arada görün — 6 ay sonra gelen değişimi şimdi yakala.',
+    ctaSub: 'İlk 2 makale ücretsiz, kart gerekmez. SEO ve AI aramadaki görünürlüğünü tek panelden ölç ve iyileştir.',
     ctaPrimary: 'İlk makaleni ücretsiz al →',
     ctaSecondary: 'Fiyatlandırmayı incele',
   },
   en: {
     eyebrow: '⚖️ Detailed comparison',
     titleA: 'RanksUp vs',
-    titleB: 'every competitor',
+    titleB: 'the competition',
     leadA: '+ features',
-    lead: ' in one dashboard. SEO + AI Search + Ads + Social publishing — others excel in one area, RanksUp is the only Turkey-built platform combining all.',
+    lead: ' in one dashboard: GEO, SEO, ASO and Apple Search Ads. Competitor details in the table were compiled from the vendors’ own pages.',
     badge1: '✓ Turkish support',
-    badge2: '✓ KVKK + TR data',
+    badge2: '✓ KVKK + TR data center',
     badge3: '✓ PayTR payment',
     badge4: '✓ 14 publish targets',
-    hc1Title: 'Multi-LLM advantage',
-    hc1Desc: 'Claude, GPT, Gemini, Grok, Perplexity, DeepSeek — 6 providers. Competitors lock you to OpenAI.',
-    hc2Num: '8',
-    hc2Title: 'GEO/AEO features',
-    hc2Desc: 'AI citation, heatmap, score card, mention alarm, llms.txt, persona chat — 0 in competitors.',
+    hc1Num: '6',
+    hc1Title: 'AI assistants measured',
+    hc1Desc: 'ChatGPT, Claude, Gemini, Perplexity, Grok and DeepSeek. Questions that contain your brand stay out of the headline score.',
+    hc2Title: 'GEO/AEO tools',
+    hc2Desc: 'AI visibility tracking, heatmap, score card, drop alert, llms.txt builder, persona chat and the closed loop.',
     hc3Num: 'SEO + Ads',
     hc3Title: 'In one panel',
-    hc3Desc: 'Google Ads + Meta Ads + ROAS auto-optimize. Not in any SEO platform.',
+    hc3Desc: 'Google Ads and Meta Ads connection, campaign score and a 6-hour ROAS autopilot, in the same panel as SEO and content.',
     tableHeaderFeature: 'Feature',
-    sumLeftTitle: '4 verticals only RanksUp covers alone',
+    legend: '— : Competitor information for this row was not verified. Competitor details were compiled from the vendors’ public pricing and product pages (October 2026) and may have changed.',
+    sumLeftTitle: '4 areas RanksUp brings into one dashboard',
     sumLeftItems: [
-      'SEO content generation (Surfer/Jasper alternative)',
-      'AI Search Optimization (first in Turkey)',
-      'Ad autopilot (Google + Meta + ROAS)',
-      'Social media publishing (IG + TikTok + LinkedIn + X)',
+      'SEO content generation and publishing (Surfer / Jasper alternative)',
+      'AI visibility measurement (6 assistants)',
+      'Ad autopilot (Google Ads + Meta Ads, ROAS)',
+      'Agent Readiness (AXO) scan',
     ],
-    sumLeftNote: 'Same job via competitors: Surfer ($89) + Jasper ($49) + Ahrefs ($129) + Hootsuite ($99) = ',
-    sumLeftNotePrice: '$366/mo (≈ ₺14,640)',
-    sumLeftNote2: '. RanksUp ',
+    sumLeftNote: 'Covering these jobs with separate tools means several subscriptions; see each vendor’s page for current prices.',
+    sumLeftNote2: ' RanksUp ',
     sumLeftNote3: ', ',
     sumLeftNoteEnd: '.',
     perMonth: 'mo',
     sumRightTitle: 'What you gain by switching to RanksUp',
     sumRightItems: [
       'One subscription, one dashboard',
-      'Turkish support + KVKK + TRY invoice',
-      'Visibility in AI Search (competitors avg 6-12 months behind)',
-      'BYOK with your own LLM key → cost control',
-      'White-label — agencies can resell under their brand',
+      'Turkish support, KVKK, payment in Turkish lira',
+      'AI visibility measurement on 6 assistants, Grok and DeepSeek included',
+      'BYOK on the Enterprise plan: measure with your own provider keys',
     ],
     ctaTitle: 'Cut hours-long work to minutes',
-    ctaSub: 'First 2 articles free, no card. Be visible in both SEO + AI Search — catch the shift coming in 6 months, now.',
+    ctaSub: 'First 2 articles free, no card. Measure and improve your visibility in SEO and AI search from one dashboard.',
     ctaPrimary: 'Get your first article free →',
     ctaSecondary: 'See pricing',
   },
 } as const;
 
-function makeCell(yesLabel: string, noLabel: string) {
-  return function Cell({ value }: { value: boolean | string }) {
+function makeCell(yesLabel: string, noLabel: string, unknownLabel: string) {
+  return function Cell({ value }: { value: CellValue }) {
     if (value === true) return <Check className="h-4 w-4 text-emerald-500 mx-auto" aria-label={yesLabel} />;
     if (value === false) return <X className="h-4 w-4 text-muted-foreground/30 mx-auto" aria-label={noLabel} />;
+    if (value === null) return <span className="text-xs text-center block text-muted-foreground/60" aria-label={unknownLabel} title={unknownLabel}>—</span>;
     return <span className="text-xs text-center block text-foreground/80 font-medium">{value}</span>;
   };
 }
@@ -376,8 +416,11 @@ export default function ComparePage() {
   }, [locale]);
   const c = COPY[locale];
   const FEATURE_GROUPS = locale === 'en' ? FEATURE_GROUPS_EN : FEATURE_GROUPS_TR;
-  const luviaiCount = FEATURE_GROUPS.flatMap((g) => g.rows).filter((r) => r.luviai === true || (typeof r.luviai === 'string' && r.luviai !== '')).length;
-  const Cell = makeCell(locale === 'en' ? 'Yes' : 'Var', locale === 'en' ? 'No' : 'Yok');
+  const hasFeature = (r: FeatureRow) => r.luviai === true || (typeof r.luviai === 'string' && r.luviai !== '');
+  const luviaiCount = FEATURE_GROUPS.flatMap((g) => g.rows).filter(hasFeature).length;
+  // GEO/AEO kartindaki sayi tablodan sayilir — elle yazilan "8" tabloyla uyusmuyordu
+  const geoCount = (FEATURE_GROUPS.find((g) => g.id === 'geo')?.rows ?? []).filter(hasFeature).length;
+  const Cell = makeCell(locale === 'en' ? 'Yes' : 'Var', locale === 'en' ? 'No' : 'Yok', locale === 'en' ? 'Not verified' : 'Doğrulanmadı');
   const LuviCell = makeLuviCell(locale === 'en' ? 'Yes' : 'Var', locale === 'en' ? 'No' : 'Yok');
 
   return (
@@ -389,7 +432,7 @@ export default function ComparePage() {
           '@context': 'https://schema.org',
           '@type': 'WebPage',
           name: 'RanksUp vs Surfer vs Jasper vs Ahrefs vs Frase Comparison',
-          description: 'Detailed feature comparison of AI SEO platforms — AI content, GEO/AEO, audit, publishing, ads.',
+          description: 'Feature comparison of AI SEO platforms — AI content, GEO/AEO, audit, publishing, ads.',
           mainEntity: {
             '@type': 'ItemList',
             numberOfItems: FEATURE_GROUPS.flatMap((g) => g.rows).length,
@@ -437,14 +480,14 @@ export default function ComparePage() {
         <div className="grid sm:grid-cols-3 gap-4 mb-12">
           <Card className="border-brand/20 bg-brand/5">
             <CardContent className="p-5">
-              <div className="text-2xl font-bold text-brand mb-1">6-1</div>
+              <div className="text-2xl font-bold text-brand mb-1">{c.hc1Num}</div>
               <div className="text-sm font-semibold mb-1">{c.hc1Title}</div>
               <p className="text-xs text-muted-foreground">{c.hc1Desc}</p>
             </CardContent>
           </Card>
           <Card className="border-emerald-500/20 bg-emerald-500/5">
             <CardContent className="p-5">
-              <div className="text-2xl font-bold text-emerald-600 mb-1">{c.hc2Num}</div>
+              <div className="text-2xl font-bold text-emerald-600 mb-1">{geoCount}</div>
               <div className="text-sm font-semibold mb-1">{c.hc2Title}</div>
               <p className="text-xs text-muted-foreground">{c.hc2Desc}</p>
             </CardContent>
@@ -504,6 +547,7 @@ export default function ComparePage() {
               </div>
             </Card>
           ))}
+          <p className="text-xs text-muted-foreground px-1">{c.legend}</p>
         </div>
 
         {/* SEMRUSH 6-AYLIK AI ARAMA PLAYBOOK'U — hangi adim RanksUp'ta otomatik? */}
@@ -537,8 +581,8 @@ export default function ComparePage() {
           </div>
           <div className="px-5 py-3 text-xs text-muted-foreground border-t">
             {locale === 'en'
-              ? 'Source: Semrush, "How to Rank in AI Search" (Tushar Pol, 4 May 2026). Statuses reflect RanksUp features as of Aug 2026.'
-              : 'Kaynak: Semrush, "How to Rank in AI Search" (Tushar Pol, 4 Mayıs 2026). Durumlar Ağustos 2026 itibarıyla RanksUp özelliklerini yansıtır.'}
+              ? 'Source: Semrush, "How to Rank in AI Search" (Tushar Pol, 4 May 2026). Statuses reflect RanksUp features as of Aug 2026; steps 1-2, 3, 12-15 and 17 updated in Oct 2026.'
+              : 'Kaynak: Semrush, "How to Rank in AI Search" (Tushar Pol, 4 Mayıs 2026). Durumlar Ağustos 2026 itibarıyla RanksUp özelliklerini yansıtır; 1-2, 3, 12-15 ve 17. adımlar Ekim 2026’da güncellendi.'}
           </div>
         </Card>
 
@@ -556,7 +600,12 @@ export default function ComparePage() {
                 ))}
               </ul>
               <p className="text-xs mt-4 text-muted-foreground/80">
-                {c.sumLeftNote}<strong className="text-foreground">{c.sumLeftNotePrice}</strong>
+                {/* Rakip fiyat toplami (Surfer $89 + Jasper $49 + Ahrefs $129 +
+                    Hootsuite $99 = $366, ≈ ₺14.640) kaldirildi: Hootsuite RanksUp'in
+                    artik sunmadigi sosyal yayin icindi, TL 40 TL/USD sabit kurla
+                    hesaplanmisti ve Surfer/Jasper fiyatlari 18.10.2026'da ureticinin
+                    sayfasindakiyle uyusmuyordu. Bayatlayan rakip fiyati yazilmaz. */}
+                {c.sumLeftNote}
                 {/* RanksUp fiyatlari ELLE YAZILMAZ. Burada '₺1.499 ($37)' ve
                     '₺4.999 ($125)' sabitleri duruyordu; gercek fiyatlar $149 ve
                     $349 oldugu icin sayfa dort kata varan yanlis fiyat
@@ -567,7 +616,7 @@ export default function ComparePage() {
                     {p.name}: <strong className="text-brand">${p.monthly.toLocaleString('en-US')}/{c.perMonth}</strong>
                   </span>
                 ))}
-                {c.sumLeftNoteEnd}
+                {planPrices.length > 0 && c.sumLeftNoteEnd}
               </p>
             </CardContent>
           </Card>

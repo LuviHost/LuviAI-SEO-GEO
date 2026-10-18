@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { load } from 'cheerio';
 import { createHash } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { safeFetchText, SafeFetchError, type SafeTextResult } from '../common/safe-fetch.js';
 import { XSearchService } from './x-search.service.js';
 import { OpenClawService } from './openclaw.service.js';
 import { XCurationService } from './x-curation.service.js';
@@ -20,8 +21,15 @@ import { INTEL_SOURCES, type SourceKind } from './source-registry.js';
  * edip iddia defterine cift kanit yazmayi engeller.
  */
 
-const UA = 'Mozilla/5.0 (compatible; RanksUpIntel/1.0; +https://ranksup.ai/bot)';
+const FEED_ACCEPT = 'application/rss+xml, application/atom+xml, application/xml, application/json, text/xml;q=0.9, */*;q=0.8';
 const FETCH_TIMEOUT_MS = 20_000;
+/**
+ * Feed/JSON govdesi tavani. Eskiden res.text() sinirsizdi; hedef panelden
+ * elle de girilebildigi (targetOverride) icin karsi taraf ne gonderirse
+ * bellege aliniyordu. Tam metinli feed'ler birkac MB'i bulabiliyor — 5 MB
+ * bol bir ust sinir; asilirsa yarim kalan son kayit atilir (cutToLastCompleteItem).
+ */
+const MAX_FEED_BYTES = 5 * 1024 * 1024;
 /** Ust uste bu kadar hatadan sonra kaynak otomatik devre disi kalir */
 const MAX_FAILS = 5;
 /** Bir cekimde tek kaynaktan alinacak azami yeni kayit */
@@ -262,7 +270,10 @@ export class IntelCollectorService {
   // ────────────────────────────────────────────────────────────
 
   private async fetchFeed(url: string): Promise<RawItem[]> {
-    const xml = await this.httpText(url);
+    const res = await this.httpText(url);
+    // Tavanda kesilen feed'in son kaydi yarim kalir (kesik link/baslik) —
+    // yarim kaydi yazmak yerine son tam kayitta dur.
+    const xml = res.truncated ? cutToLastCompleteItem(res.text) : res.text;
     const $ = load(xml, { xml: true });
     const out: RawItem[] = [];
 
@@ -360,7 +371,7 @@ export class IntelCollectorService {
       '&hitsPerPage=25' +
       `&numericFilters=points>=${HN_MIN_POINTS}`;
 
-    const json = JSON.parse(await this.httpText(url));
+    const json = JSON.parse((await this.httpText(url)).text);
     const hits: any[] = Array.isArray(json?.hits) ? json.hits : [];
 
     return hits
@@ -441,37 +452,36 @@ export class IntelCollectorService {
    * gecici baglanti reddi ve 429 gorulüyor; bu istekler saniyeler sonra
    * sorunsuz calisiyor. Tek retry, kaynagi bosuna "hatali" isaretleyip
    * MAX_FAILS sayacini sisirmemek icin.
+   *
+   * SSRF korumali (common/safe-fetch.ts): hedef panelden elle girilebiliyor.
    */
-  private async httpText(url: string, attempt = 0): Promise<string> {
+  private async httpText(url: string, attempt = 0): Promise<SafeTextResult> {
+    let res: SafeTextResult;
     try {
-      const res = await fetch(url, {
-        headers: {
-          'user-agent': UA,
-          accept: 'application/rss+xml, application/atom+xml, application/xml, application/json, text/xml;q=0.9, */*;q=0.8',
-        },
-        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-        redirect: 'follow',
+      res = await safeFetchText(url, {
+        accept: FEED_ACCEPT,
+        timeoutMs: FETCH_TIMEOUT_MS,
+        maxBytes: MAX_FEED_BYTES,
+        // Eski davranis: content-type'a bakmadan okunur — octet-stream ile
+        // sunulan feed'ler de var. Tavan zaten sinirliyor.
+        skipBinary: false,
       });
-
-      // 429/503 gecici; 404/403 kalici — kalicida retry zaman kaybi
-      if ((res.status === 429 || res.status === 503) && attempt === 0) {
-        // Reddit retry-after gondermez ama x-ratelimit-reset (saniye) verir
-        const retryAfter = parseInt(res.headers.get('retry-after') ?? '', 10);
-        const rlReset = parseInt(res.headers.get('x-ratelimit-reset') ?? '', 10);
-        const waitSec = Number.isFinite(retryAfter) ? retryAfter : Number.isFinite(rlReset) ? rlReset : 0;
-        await sleep(waitSec > 0 ? Math.min(waitSec * 1000 + 1000, 45_000) : RETRY_DELAY_MS);
-        return this.httpText(url, attempt + 1);
-      }
-      if (!res.ok) throw new Error(`HTTP ${res.status} — ${url}`);
-      return res.text();
-    } catch (err: any) {
-      // Ag katmani hatasi (fetch failed / timeout) — bir kez daha dene
-      if (attempt === 0 && !String(err.message).startsWith('HTTP ')) {
+    } catch (err) {
+      if (attempt === 0 && isRetryableFetchError(err)) {
         await sleep(RETRY_DELAY_MS);
         return this.httpText(url, attempt + 1);
       }
       throw err;
     }
+
+    // 429/503 gecici; 404/403 kalici — kalicida retry zaman kaybi
+    if ((res.status === 429 || res.status === 503) && attempt === 0) {
+      await sleep(retryDelayMs(res.headers));
+      return this.httpText(url, attempt + 1);
+    }
+    if (!res.ok) throw new Error(`HTTP ${res.status} — ${url}`);
+    if (res.truncated) this.log.warn(`${url} ${MAX_FEED_BYTES} bayt tavaninda kesildi`);
+    return res;
   }
 }
 
@@ -517,6 +527,38 @@ export function parseDate(input: string | undefined | null): Date | null {
   if (!input) return null;
   const d = new Date(input.trim());
   return Number.isNaN(d.getTime()) ? null : d;
+}
+
+/**
+ * Yeniden denemeye deger mi? Yalnizca gecici ag katmani hatalari: zaman
+ * asimi, baglanti reddi/kopmasi, DNS (EAI_AGAIN gecicidir). Ic/ozel adres,
+ * protokol, port ve yonlendirme dongusu KALICIDIR — tekrar denemek ayni
+ * sonucu verir, kaynagi bosuna bekletir.
+ */
+const RETRYABLE_FETCH_CODES = new Set(['timeout', 'network', 'dns']);
+export function isRetryableFetchError(err: unknown): boolean {
+  return err instanceof SafeFetchError && RETRYABLE_FETCH_CODES.has(err.code);
+}
+
+/**
+ * 429/503 sonrasi bekleme. Reddit retry-after gondermez ama
+ * x-ratelimit-reset (saniye) verir. Ust sinir 45 sn: tek kaynak tum turu
+ * bekletmesin; Reddit'te olculen reset (33 sn, bkz. THROTTLE_MS) altinda kalir.
+ */
+export function retryDelayMs(headers: Record<string, string>): number {
+  const retryAfter = parseInt(headers['retry-after'] ?? '', 10);
+  const rlReset = parseInt(headers['x-ratelimit-reset'] ?? '', 10);
+  const waitSec = Number.isFinite(retryAfter) ? retryAfter : Number.isFinite(rlReset) ? rlReset : 0;
+  return waitSec > 0 ? Math.min(waitSec * 1000 + 1000, 45_000) : RETRY_DELAY_MS;
+}
+
+/** Kesik feed metnini son TAM <item>/<entry> kaydinda bitir; hic tam kayit yoksa bos */
+export function cutToLastCompleteItem(xml: string): string {
+  const lower = xml.toLowerCase();
+  const item = lower.lastIndexOf('</item>');
+  const entry = lower.lastIndexOf('</entry>');
+  if (item < 0 && entry < 0) return '';
+  return item > entry ? xml.slice(0, item + '</item>'.length) : xml.slice(0, entry + '</entry>'.length);
 }
 
 /** Feed ozetleri HTML icerir — triage'a duz metin gitsin. */

@@ -62,7 +62,13 @@ export class KarneService {
 
   /**
    * Olcumu kos, karneyi uret ve DB'ye kaydet. Paylasim linki doner.
-   * Maliyet: 7 asistan x 10 soru ~ $0,32; `addCost` defterine yazilir (ai-citation.service).
+   *
+   * Maliyet: olculen asistanlar (6 — Claude, Gemini, ChatGPT, Perplexity, Grok,
+   * DeepSeek; Meta Llama yalniz GROQ_LLAMA_MODEL tanimliyken) x en fazla 10
+   * soru. Probe basina TAVAN audit/citation-providers.ts COST_PER_PROBE_USD'de;
+   * Ekim 2026 tablosuyla 10 soruda tavan ~2,7 USD (Claude 2 + Gemini 0,4 +
+   * ChatGPT 0,3 + digerleri ~0,015), gercek tutar genelde daha dusuk. Harcama
+   * `addCost` defterine yazilir (ai-citation.service).
    */
   async uret(girdi: KarneUretGirdi): Promise<KarneKayit> {
     const brand = girdi.brand.trim();
@@ -72,8 +78,16 @@ export class KarneService {
     const sektor = sektorDogrula(girdi.sektor);
     if (!sektor) throw new Error(`Bilinmeyen sektör: ${girdi.sektor}`);
 
-    const altAnahtar = girdi.altsektor ? altsektorAnahtari(girdi.altsektor) : null;
-    let sorular = sorulariGetir(sektor, altAnahtar ?? undefined);
+    // altsektorAnahtari(sektor, altsektor): eskiden tek arguman (alt sektor
+    // metni) veriliyordu; fonksiyon onu SEKTOR diye dogrulayip "Bilinmeyen
+    // sektör" hatasi atiyordu — panelden alt sektorlu her karne uretimi
+    // sessizce dusuyordu (intel.controller hatayi yalniz loglar).
+    const altAnahtar = girdi.altsektor ? altsektorAnahtari(sektor, girdi.altsektor) : null;
+    if (girdi.altsektor && !altAnahtar) {
+      // CLI ile ayni uyari: eslesmeyen alt sektor genel sorulara duser
+      this.log.warn(`Karne: alt sektör "${girdi.altsektor}" ${sektor} için eşleşmedi; genel sorular kullanılıyor.`);
+    }
+    let sorular = sorulariGetir(sektor, girdi.altsektor ?? null);
     if (girdi.limit && girdi.limit > 0) sorular = sorular.slice(0, girdi.limit);
 
     const rakipler = (girdi.rakipler ?? []).map((r) => normalizeDomain(r)).filter((r): r is string => !!r);

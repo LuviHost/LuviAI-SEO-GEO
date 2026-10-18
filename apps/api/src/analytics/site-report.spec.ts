@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { SiteReportService, olculemedi, type RaporGovdesi } from './site-report.service.js';
+import { SiteReportService, olculemedi } from './site-report.service.js';
 
 /**
  * Rapor bolumlerinin DURUSTLUGU.
@@ -53,7 +53,7 @@ describe('GEO bolumu', () => {
   it('hic snapshot yoksa OLCULEMEDI — sifir degil', async () => {
     const r = await cagir(servis({ aiCitationSnapshot: { findMany: async () => [] } }), 'geoBolumu', 's1', DONEM);
     expect(r.olculemedi).toBe(true);
-    expect(r.neden).toMatch(/olcum/i);
+    expect(r.neden).toMatch(/ölçüm/i);
     expect(r.sonSkor, 'olculemeyen bolum skor tasimamali').toBeUndefined();
   });
 
@@ -242,6 +242,52 @@ describe('ASA bolumu', () => {
     expect(r.yukleme).toBe(20);
     expect(r.cpi).toBe(2);
     expect(r.oncekiDonem.cpi).toBe(6);
+  });
+
+  it('silinmis (DELETED) kampanya sayilmaz ama donemdeki harcamasi toplamlara girer', async () => {
+    // asa.service: Apple'da silinen kampanya satiri harcama gecmisi icin tutulur
+    const veri = {
+      asaAccount: { findFirst: async () => ({ id: 'acc' }) },
+      asaCampaign: { findMany: async () => [{ id: 'c1', status: 'ENABLED' }, { id: 'c2', status: 'DELETED' }, { id: 'c3', status: 'PAUSED' }] },
+      asaPerformanceDaily: {
+        findMany: async ({ where }: any) =>
+          where.date.gte.getTime() === DONEM.rangeStart.getTime()
+            ? [
+                { campaignId: 'c1', impressions: 1000, taps: 100, installs: 20, spendUsd: 40 },
+                { campaignId: 'c2', impressions: 500, taps: 50, installs: 5, spendUsd: 35 },
+              ]
+            : [],
+      },
+    };
+    const r = await cagir(servis(veri), 'asaBolumu', 's1', DONEM);
+    expect(r.olculemedi).toBe(false);
+    expect(r.kampanya, 'silinen kampanya sayiya girmis').toBe(2);
+    expect(r.silinenKampanya).toBe(1);
+    expect(r.yukleme, 'silinen kampanyanin yuklemesi dusmus').toBe(25);
+    expect(r.harcamaUsd, 'silinen kampanyanin harcamasi dusmus').toBe(75);
+    expect(r.cpi).toBe(3);
+  });
+
+  it('kampanyalarin hepsi silinmis ve donemde kayit yoksa neden dogru soylenir', async () => {
+    const veri = {
+      asaAccount: { findFirst: async () => ({ id: 'acc' }) },
+      asaCampaign: { findMany: async () => [{ id: 'c2', status: 'DELETED' }] },
+      asaPerformanceDaily: { findMany: async () => [] },
+    };
+    const r = await cagir(servis(veri), 'asaBolumu', 's1', DONEM);
+    expect(r.olculemedi).toBe(true);
+    expect(r.neden).toMatch(/silinmis/);
+    expect(r.neden, '"senkron calismiyor" yanlis teshis').not.toMatch(/senkron/);
+  });
+
+  it('hepsi silinmis ama donemde harcama varsa rapor edilir (kampanya 0)', async () => {
+    const veri = {
+      asaAccount: { findFirst: async () => ({ id: 'acc' }) },
+      asaCampaign: { findMany: async () => [{ id: 'c2', status: 'DELETED' }] },
+      asaPerformanceDaily: { findMany: async () => [{ campaignId: 'c2', impressions: 10, taps: 2, installs: 1, spendUsd: 4 }] },
+    };
+    const r = await cagir(servis(veri), 'asaBolumu', 's1', DONEM);
+    expect(r).toMatchObject({ olculemedi: false, kampanya: 0, silinenKampanya: 1, yukleme: 1, harcamaUsd: 4 });
   });
 
   it('yukleme sifirken CPI null — sifira bolme yok', async () => {
@@ -457,5 +503,45 @@ describe('ASO — olculen derinlik', () => {
     };
     const r = await cagir(servis(veri), 'asoBolumu', 's1', DONEM);
     expect(r.uygulamalar[0].olculenDerinlik).toBeNull();
+  });
+});
+
+/**
+ * F7 — teknik GEO farki yalniz AYNI olcum yontemiyle yapilmis taramalar
+ * arasinda. GEO yontemi degisti (geo-runner GEO_METHOD_VERSION 2); surum
+ * damgasiz eski tarama ile yeni tarama arasindaki fark siteden degil
+ * olcuden gelebilir — dondurulmus rapor "Teknik GEO skoru −9" yazmamali.
+ */
+describe('GEO bolumu — teknik GEO yontemi', () => {
+  const veri = (checksById: Record<string, any>) => ({
+    aiCitationSnapshot: { findMany: async () => [snap('2026-05-01', 'anthropic', 40), snap('2026-08-01', 'anthropic', 50)] },
+    audit: {
+      findMany: async () => [{ id: 'ilk', geoScore: 60 }, { id: 'orta', geoScore: 55 }, { id: 'son', geoScore: 51 }],
+      findUnique: async ({ where }: any) => ({ checks: checksById[where.id] ?? {} }),
+    },
+    aiCrawlerHit: { count: async () => 0 },
+    aiReferrerHit: { count: async () => 0 },
+  });
+  const v2 = { geo: { score: 51, details: { methodVersion: 2 } } };
+
+  it('ilk tarama v1 (damgasiz), son tarama v2: fark null + method_changed', async () => {
+    const r = await cagir(servis(veri({ ilk: { geo: { score: 60 } }, son: v2 })), 'geoBolumu', 's1', DONEM);
+    expect(r.teknikGeoSkoru).toBe(51);
+    expect(r.teknikGeoDelta).toBeNull();
+    expect(r.teknikKarsilastirma).toBe('method_changed');
+  });
+
+  it('ayni yontem: fark aynen, isaret yok', async () => {
+    const r = await cagir(servis(veri({ ilk: { geo: { score: 60, details: { methodVersion: 2 } } }, son: v2 })), 'geoBolumu', 's1', DONEM);
+    expect(r.teknikGeoDelta).toBe(-9);
+    expect(r).not.toHaveProperty('teknikKarsilastirma');
+  });
+});
+
+describe('GEO bolumu — olculemedi metni (K9)', () => {
+  it('olcumu gercekte baslatan yolu soyler; kapali gunluk cron\'dan ya da snapshot yazmayan taramadan soz etmez', async () => {
+    const r = await cagir(servis({ aiCitationSnapshot: { findMany: async () => [] } }), 'geoBolumu', 's1', DONEM);
+    expect(r.neden).toContain('"Yeniden Test"');
+    expect(r.neden).not.toMatch(/cron|taraması/i);
   });
 });

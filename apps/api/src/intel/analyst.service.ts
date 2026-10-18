@@ -5,6 +5,8 @@ import { LLMProviderService } from '../llm/llm-provider.service.js';
 import { SettingsService } from '../settings/settings.service.js';
 import { ClaimLedgerService, type ExtractedClaim } from './claim-ledger.service.js';
 import { parseJsonFromLlm } from '../common/safe-json.js';
+import { safeFetchText } from '../common/safe-fetch.js';
+import { detectBlock } from '../common/block-detect.js';
 import { GRADE_SCORE, type EvidenceGrade, type EvidenceStance } from './evidence-grade.js';
 import type { IntelTopic } from './source-registry.js';
 
@@ -34,8 +36,13 @@ const MAX_TEXT_CHARS = 18_000;
 /** Esleme icin prompt'a konulacak mevcut iddia sayisi */
 const CLAIM_CONTEXT_LIMIT = 60;
 const FETCH_TIMEOUT_MS = 20_000;
+/**
+ * Makale HTML'i tavani. Eskiden res.text() sinirsizdi; adres feed'den gelir
+ * (karsi taraf ne gonderirse bellege aliniyordu). Modele zaten en fazla
+ * MAX_TEXT_CHARS gidiyor; 2 MB buyuk haber sayfalarina da yeter.
+ */
+const MAX_ARTICLE_BYTES = 2 * 1024 * 1024;
 const FALLBACK_MODEL = 'claude-opus-5';
-const UA = 'Mozilla/5.0 (compatible; RanksUpIntel/1.0; +https://ranksup.ai/bot)';
 
 /** RanksUp'in bulgudan etkilenebilecek yuzeyleri */
 export const PRODUCT_AREAS = [
@@ -236,20 +243,26 @@ export class IntelAnalystService {
    * degil: navigasyon/script/yorum blogunu atip <article>/<main>
    * tercih eden pratik bir sadelestirme — LLM'e temiz metin gitmesi
    * icin yeterli.
+   *
+   * Adres feed kaydindan gelir → SSRF korumali okuma (common/safe-fetch.ts).
    */
   private async fetchArticleText(url: string): Promise<string | null> {
-    const res = await fetch(url, {
-      headers: { 'user-agent': UA, accept: 'text/html,application/xhtml+xml' },
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-      redirect: 'follow',
+    const res = await safeFetchText(url, {
+      accept: 'text/html,application/xhtml+xml',
+      timeoutMs: FETCH_TIMEOUT_MS,
+      maxBytes: MAX_ARTICLE_BYTES,
     });
+    // Bot dogrulama ekrani (200 de donebilir) makale degildir; metni modele
+    // gitmesin — kayit ozete duser.
+    const block = detectBlock(res);
+    if (block) {
+      this.log.warn(`Makale okunamadi (${url}): ${block.reason}`);
+      return null;
+    }
     if (!res.ok) return null;
+    if (!res.contentType.includes('html')) return null;
 
-    const ctype = res.headers.get('content-type') ?? '';
-    if (!ctype.includes('html')) return null;
-
-    const html = await res.text();
-    const $ = load(html);
+    const $ = load(res.text);
     $('script, style, nav, header, footer, aside, form, noscript, iframe, .comments, #comments').remove();
 
     const root = $('article').first().length

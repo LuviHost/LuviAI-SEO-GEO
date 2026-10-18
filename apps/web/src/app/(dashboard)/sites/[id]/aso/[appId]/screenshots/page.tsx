@@ -24,6 +24,9 @@ import {
 import { PHONE_FRAMES, FRAME_STYLE_OPTIONS } from './phone-frames';
 import { TEMPLATES } from './templates';
 import { PANORAMA_THEMES, computeSlotDecorations, type Decoration } from './panorama-themes';
+import { GuardIssues } from '../../_components/guard-issues';
+import { APP_STORE_LIMITS, GOOGLE_PLAY_LIMITS } from '../../_components/store-limits';
+import type { GuardIssue } from '../../_components/types';
 import type Konva from 'konva';
 
 // Tüm Konva component'leri tek dynamic import ile (proper Next.js + react-konva pattern)
@@ -225,7 +228,8 @@ function SuggestionField({ label, value, limit, multiline }: {
   label: string; value: string; limit: number; multiline?: boolean;
 }) {
   const [copied, setCopied] = useState(false);
-  const len = value.length;
+  // Mağazalar karakter sayar: emoji gibi çift birimli karakter 2 sayılmasın
+  const len = [...value].length;
   const overLimit = len > limit;
   const handleCopy = () => {
     navigator.clipboard.writeText(value).then(() => {
@@ -457,7 +461,9 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
   const [audit, setAudit] = useState<{ findings: Array<{ severity: string; store: string; field: string; label: string; current: any; message?: string; recommendation?: string }>; score?: number } | null>(null);
   const [auditLoading, setAuditLoading] = useState(false);
   const [optimizing, setOptimizing] = useState(false);
-  const [aiSuggestion, setAiSuggestion] = useState<{ title?: string; subtitle?: string; description?: string; keywords?: string; promotionalText?: string } | null>(null);
+  // Öneri hangi mağaza için üretildiyse onunla saklanır: önizlemede mağaza değişince
+  // iOS önerisi Android alanlarında (ya da tersi) gösterilmesin.
+  const [aiSuggestion, setAiSuggestion] = useState<{ store: 'IOS' | 'ANDROID'; title?: string; subtitle?: string; description?: string; keywordField?: string; issues?: GuardIssue[] } | null>(null);
 
   // AI screenshot library — daha önce üretilmiş background'lar
   const [library, setLibrary] = useState<Array<{ filename: string; url: string; timestamp: number; type: 'standard' | 'hand' }>>([]);
@@ -652,7 +658,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
         `/sites/${siteId}/aso/apps/${appId}/optimize-metadata`,
         { method: 'POST', body: JSON.stringify({ targetKeywords: keywords, store: previewStore, locale: app?.country === 'tr' ? 'tr' : 'en' }) },
       );
-      setAiSuggestion(r?.optimized ?? r ?? null);
+      setAiSuggestion(r ? { ...r, store: previewStore } : null);
     } catch (err: any) {
       toast.error(err.message);
     } finally {
@@ -751,7 +757,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
   const generateCaptions = async () => {
     setGeneratingCaptions(true);
     try {
-      const result = await api.request<{ captions: Array<{ slot: number; hook: string; subtitle: string }> }>(
+      const result = await api.request<{ captions: Array<{ slot: number; hook: string; subtitle: string }>; issues?: GuardIssue[] }>(
         `/sites/${siteId}/aso/apps/${appId}/screenshots/captions`,
         { method: 'POST', body: JSON.stringify({ slotCount, locale: app?.country === 'tr' ? 'tr' : 'en' }) },
       );
@@ -759,6 +765,13 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
         const cap = result.captions.find(c => c.slot === i + 1);
         return cap ? { ...s, hook: cap.hook, subtitle: cap.subtitle } : s;
       }));
+      // API doğrulanamayan iddiaları ve politika dışı ifadeleri çıkarır; kullanıcı bunu bilmeli
+      const removed = (result.issues ?? []).filter((x) => x.action === 'removed').length;
+      if (removed > 0) {
+        toast.message(`AI metninden ${removed} ifade çıkarıldı`, {
+          description: 'Puan, kullanıcı sayısı, ödül, fiyat/indirim ve "hemen indir" gibi ifadeler mağaza kurallarına aykırı olduğu için görsellere konmadı. Boş kalan slotlarda önceki metin korunur.',
+        });
+      }
     } catch (err: any) {
       toast.error(err.message);
     } finally {
@@ -1720,8 +1733,10 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
               {(() => {
                 const meta: any = app?.metadata ?? {};
                 const storeMeta = previewStore === 'IOS' ? meta.ios : meta.android;
-                const displayTitle = aiSuggestion?.title ?? storeMeta?.title ?? app?.name ?? '—';
-                const displaySubtitle = aiSuggestion?.subtitle ?? storeMeta?.subtitle ?? '';
+                const suggestion = aiSuggestion?.store === previewStore ? aiSuggestion : null;
+                const displayTitle = suggestion?.title ?? storeMeta?.title ?? app?.name ?? '—';
+                // Android'de alt başlık yok: kısa açıklama (summary) gösterilir
+                const displaySubtitle = suggestion?.subtitle ?? (previewStore === 'IOS' ? storeMeta?.subtitle : storeMeta?.summary) ?? '';
                 const rating = storeMeta?.rating ?? app?.rating ?? null;
                 const ratingCount = storeMeta?.ratingCount ?? app?.ratingCount ?? null;
                 const category = app?.category ?? '—';
@@ -1821,7 +1836,7 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
               {(() => {
                 const meta: any = app?.metadata ?? {};
                 const storeMeta = previewStore === 'IOS' ? meta.ios : meta.android;
-                const displayDesc = aiSuggestion?.description ?? storeMeta?.description ?? '';
+                const displayDesc = (aiSuggestion?.store === previewStore ? aiSuggestion.description : undefined) ?? storeMeta?.description ?? '';
                 if (!displayDesc) return null;
                 return (
                   <div>
@@ -1887,8 +1902,23 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                   </div>
                 )}
 
-                {/* AI suggestion preview */}
-                {aiSuggestion && (
+                {/* AI suggestion preview — alanlar ve sınırlar önerinin mağazasına göre */}
+                {aiSuggestion && aiSuggestion.store === previewStore && (() => {
+                  const isIos = aiSuggestion.store === 'IOS';
+                  const fields: Array<{ label: string; value?: string; limit: number; multiline?: boolean }> = isIos
+                    ? [
+                        { label: 'Ad', value: aiSuggestion.title, limit: APP_STORE_LIMITS.name },
+                        { label: 'Alt başlık', value: aiSuggestion.subtitle, limit: APP_STORE_LIMITS.subtitle },
+                        { label: 'Anahtar kelimeler', value: aiSuggestion.keywordField, limit: APP_STORE_LIMITS.keywords },
+                        { label: 'Açıklama', value: aiSuggestion.description, limit: APP_STORE_LIMITS.description, multiline: true },
+                      ]
+                    : [
+                        { label: 'Ad', value: aiSuggestion.title, limit: GOOGLE_PLAY_LIMITS.title },
+                        { label: 'Kısa açıklama', value: aiSuggestion.subtitle, limit: GOOGLE_PLAY_LIMITS.shortDescription },
+                        { label: 'Açıklama', value: aiSuggestion.description, limit: GOOGLE_PLAY_LIMITS.fullDescription, multiline: true },
+                      ];
+                  const filled = fields.filter((f) => !!f.value);
+                  return (
                   <div className="mt-4 rounded-lg border-2 border-brand bg-brand/5 p-4">
                     <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
                       <div className="text-xs font-bold flex items-center gap-1.5">
@@ -1900,14 +1930,10 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                           variant="outline"
                           className="h-7 text-label"
                           onClick={() => {
-                            const fields = [
-                              aiSuggestion.title && `Ad (${aiSuggestion.title.length}/30):\n${aiSuggestion.title}`,
-                              aiSuggestion.subtitle && `Alt başlık (${aiSuggestion.subtitle.length}/30):\n${aiSuggestion.subtitle}`,
-                              aiSuggestion.keywords && `Anahtar kelimeler (${aiSuggestion.keywords.length}/100):\n${aiSuggestion.keywords}`,
-                              aiSuggestion.promotionalText && `Promosyon metni (${aiSuggestion.promotionalText.length}/170):\n${aiSuggestion.promotionalText}`,
-                              aiSuggestion.description && `Açıklama (${aiSuggestion.description.length}/4000):\n${aiSuggestion.description}`,
-                            ].filter(Boolean).join('\n\n');
-                            navigator.clipboard.writeText(fields).then(() => toast.success('Tüm öneriler panoya kopyalandı'));
+                            const text = filled
+                              .map((f) => `${f.label} (${[...(f.value ?? '')].length}/${f.limit}):\n${f.value}`)
+                              .join('\n\n');
+                            navigator.clipboard.writeText(text).then(() => toast.success('Tüm öneriler panoya kopyalandı'));
                           }}
                         >
                           <Copy className="h-3 w-3" /> Tümünü kopyala
@@ -1919,28 +1945,21 @@ export default function ScreenshotStudioPage({ params }: { params: Promise<{ id:
                     </div>
 
                     <div className="space-y-2 text-xs">
-                      {aiSuggestion.title && (
-                        <SuggestionField label="Ad" value={aiSuggestion.title} limit={30} />
-                      )}
-                      {aiSuggestion.subtitle && (
-                        <SuggestionField label="Alt başlık" value={aiSuggestion.subtitle} limit={30} />
-                      )}
-                      {aiSuggestion.keywords && (
-                        <SuggestionField label="Anahtar kelimeler" value={aiSuggestion.keywords} limit={100} />
-                      )}
-                      {aiSuggestion.promotionalText && (
-                        <SuggestionField label="Promosyon metni" value={aiSuggestion.promotionalText} limit={170} />
-                      )}
-                      {aiSuggestion.description && (
-                        <SuggestionField label="Açıklama" value={aiSuggestion.description} limit={4000} multiline />
-                      )}
+                      {filled.map((f) => (
+                        <SuggestionField key={f.label} label={f.label} value={f.value ?? ''} limit={f.limit} multiline={f.multiline} />
+                      ))}
+                    </div>
+
+                    <div className="mt-3">
+                      <GuardIssues issues={aiSuggestion.issues} store={aiSuggestion.store} />
                     </div>
 
                     <p className="text-label text-muted-foreground mt-3">
                       Kaydetmek için kopyala → App Store Connect / Play Console ya da uygulamanın Metadata sekmesindeki editöre yapıştır.
                     </p>
                   </div>
-                )}
+                  );
+                })()}
               </div>
             </div>
         </DialogContent>

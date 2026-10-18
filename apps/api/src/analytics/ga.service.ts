@@ -3,6 +3,25 @@ import { google } from 'googleapis';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { GaOAuthService } from '../auth/ga-oauth.service.js';
 import type { GaLandingRow } from './search-opportunity.js';
+import { buildConversionChecks, type ConversionCheck, type GaEventRow } from './ga-key-events.js';
+
+/** GA4 donusum (onemli etkinlik) kurulum kontrolu — panelde kontrol listesi */
+export type GaKeyEventSetup =
+  | { status: 'not_connected' }
+  | { status: 'error'; message: string }
+  | {
+      status: 'ok';
+      propertyId: string;
+      days: number;
+      checks: ConversionCheck[];
+      /** Mulkteki onemli etkinlik adlari */
+      keyEvents: string[];
+      /** admin = Admin API'deki tanimli liste; report = yalniz donemde tetiklenenler (Admin API okunamadi) */
+      keyEventsSource: 'admin' | 'report';
+      /** Admin API okunamadiysa kullaniciya gosterilecek neden */
+      adminNote: string | null;
+      fetchedAt: string;
+    };
 
 export interface GaPagePerf {
   pagePath: string;
@@ -162,6 +181,87 @@ export class GaService {
       this.log.warn(`[${siteId}] GA organik acilis sayfalari hata: ${err.message}`);
       return null;
     }
+  }
+
+  /**
+   * Telefon tiklamasi ve form/randevu gonderimi onemli etkinlik olarak
+   * olculuyor mu (ga-key-events.ts). Iki okuma:
+   *  1) Data API: son N gunde olay adlari + eventCount + keyEvents
+   *  2) Admin API properties.keyEvents.list: tanimli onemli etkinlikler —
+   *     "tanimli ama hic tetiklenmedi" durumunu yalniz bu gosterir. Okunamazsa
+   *     (API kapali, yetki) kontrol yine calisir, not dusulur.
+   * Ikisi de analytics.readonly kapsamiyla calisir (baglanti bu kapsamla kurulu).
+   */
+  async fetchKeyEventSetup(siteId: string, days = 28): Promise<GaKeyEventSetup> {
+    const span = Number.isFinite(days) ? Math.min(Math.max(Math.trunc(days), 7), 90) : 28;
+    const site = await this.prisma.site.findUnique({ where: { id: siteId } });
+    if (!site?.gaPropertyId || !site?.gaRefreshToken) return { status: 'not_connected' };
+    const client = await this.gaOAuth.getAuthenticatedClient(siteId);
+    if (!client) return { status: 'not_connected' };
+    const property = `properties/${site.gaPropertyId}`;
+
+    let rows: GaEventRow[];
+    try {
+      const data = google.analyticsdata({ version: 'v1beta', auth: client as any });
+      const res = await data.properties.runReport({
+        property,
+        requestBody: {
+          dateRanges: [{ startDate: `${span}daysAgo`, endDate: 'today' }],
+          dimensions: [{ name: 'eventName' }],
+          metrics: [{ name: 'eventCount' }, { name: 'keyEvents' }],
+          orderBys: [{ metric: { metricName: 'eventCount' }, desc: true }],
+          limit: '500',
+        },
+      } as any);
+      rows = (res.data.rows ?? []).map((r: any) => ({
+        eventName: String(r.dimensionValues?.[0]?.value ?? ''),
+        eventCount: Number(r.metricValues?.[0]?.value ?? 0),
+        keyEvents: Number(r.metricValues?.[1]?.value ?? 0),
+      }));
+    } catch (err: any) {
+      this.log.warn(`[${siteId}] GA olay raporu hata: ${String(err?.message ?? err).slice(0, 200)}`);
+      const msg = String(err?.message ?? '');
+      if (err?.code === 401 || /invalid_grant|unauthorized/i.test(msg)) {
+        return { status: 'error', message: 'Google Analytics bağlantısının yetkisi geçersiz. Bağlantıyı kesip yeniden bağlayın.' };
+      }
+      if (err?.code === 403 || /permission/i.test(msg)) {
+        return { status: 'error', message: 'Bağlı Google hesabının seçili GA4 mülkünü okuma yetkisi yok. Bağlantılar sayfasından mülkü kontrol edin.' };
+      }
+      return { status: 'error', message: 'GA4 olay verisi şu an okunamadı. Birazdan tekrar deneyin.' };
+    }
+
+    let configured: string[] | null = null;
+    let adminNote: string | null = null;
+    try {
+      const admin = google.analyticsadmin({ version: 'v1beta', auth: client as any });
+      const names: string[] = [];
+      let pageToken: string | undefined;
+      // Standart mulkte en fazla 30 onemli etkinlik var; sayfa siniri yalniz guvenlik icin
+      for (let page = 0; page < 5; page++) {
+        const r = await admin.properties.keyEvents.list({ parent: property, pageSize: 200, pageToken });
+        for (const k of r.data.keyEvents ?? []) if (k.eventName) names.push(k.eventName);
+        pageToken = r.data.nextPageToken ?? undefined;
+        if (!pageToken) break;
+      }
+      configured = names;
+    } catch (err: any) {
+      const msg = String(err?.message ?? '');
+      this.log.warn(`[${siteId}] GA onemli etkinlik listesi okunamadi: ${msg.slice(0, 200)}`);
+      adminNote = /has not been used|is disabled|SERVICE_DISABLED/i.test(msg)
+        ? 'Google Analytics Admin API sunucu projesinde kapalı olduğu için tanımlı önemli etkinlik listesi okunamadı; yalnız son dönemde tetiklenenler gösteriliyor.'
+        : 'Tanımlı önemli etkinlik listesi okunamadı; yalnız son dönemde tetiklenenler gösteriliyor.';
+    }
+
+    return {
+      status: 'ok',
+      propertyId: site.gaPropertyId,
+      days: span,
+      checks: buildConversionChecks({ rows, configuredKeyEvents: configured }),
+      keyEvents: configured ?? rows.filter((r) => r.keyEvents > 0).map((r) => r.eventName),
+      keyEventsSource: configured ? 'admin' : 'report',
+      adminNote,
+      fetchedAt: new Date().toISOString(),
+    };
   }
 
   /**

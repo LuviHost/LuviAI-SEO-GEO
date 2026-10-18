@@ -5,22 +5,88 @@ import { Public } from '../auth/public.decorator.js';
 import { PublicCitationService, type PublicCheckResult } from './public-citation.service.js';
 import { PublicCitationSubscriberService } from './public-citation-subscriber.service.js';
 import { QuotaService } from '../billing/quota.service.js';
+import { clientIp } from '../common/client-ip.js';
+import {
+  AttemptWindow,
+  isMobileAppClient,
+  SUBSCRIBE_IP_LIMIT,
+  SUBSCRIBE_IP_LIMIT_MESSAGE,
+  SUBSCRIBE_IP_LIMIT_STRICT,
+  SUBSCRIBE_WELCOME_PER_EMAIL,
+  SUBSCRIBE_WELCOME_PER_EMAIL_STRICT,
+} from './public-subscribe-limits.js';
 
 interface PublicCheckBody {
   domain: string;
-  /** Cloudflare Turnstile token (env-gated — TURNSTILE_SECRET set ise zorunlu) */
+  /**
+   * Cloudflare Turnstile token (env-gated — TURNSTILE_SECRET set ise zorunlu;
+   * mobil uygulama istisnasi siki sinirla: check() notu)
+   */
   turnstileToken?: string;
 }
 
 interface SubscribeBody {
   email: string;
   domain: string;
-  brand: string;
+  /**
+   * Istemcinin gordugu marka — en fazla 80 karakter. Kayda ve e-postaya
+   * YAZILMAZ: marka alan adinin son kontrol kaydindan okunur (servis).
+   */
+  brand?: string;
   niche?: string;
   customNiche?: string;
   locale?: string;
   consent: boolean;
+  /**
+   * Cloudflare Turnstile token — TURNSTILE_SECRET tanimliysa zorunlu (mobil
+   * uygulama istisnasi: subscribe() notu). Token tek kullanimliktir; check()
+   * icin alinan token burada yeniden kullanilamaz.
+   */
+  turnstileToken?: string;
 }
+
+/** Turnstile dogrulamasi tutmadiginda istemciye giden metin (check ve subscribe). */
+export const TURNSTILE_FAILED_MESSAGE = 'İnsan doğrulaması başarısız. Sayfayı yenileyip tekrar deneyin.';
+
+/**
+ * E-postadaki onay / abonelikten cikma linki basarisiz olunca web adresine
+ * giden SABIT kod. Eskiden err.message URL'e yaziliyordu: servisin Turkce
+ * metni, beklenmedik hatada Prisma/ag ayrintisi tarayici gecmisine, referer
+ * basliklarina ve analitige sizabiliyordu. Gercek hata yalniz loglanir.
+ *
+ *   invalid_token — link gecersiz ya da kullanilmis (servis 404)
+ *   inactive      — abonelik artik aktif degil (onay: iptal/bounce, servis 400)
+ *   unknown       — beklenmedik hata
+ *
+ * Tokenlar suresiz (public-citation-subscriber.service.ts); "expired" diye bir
+ * durum olmadigi icin kod da yok.
+ */
+export type SubscriptionLinkErrorCode = 'invalid_token' | 'inactive' | 'unknown';
+
+export function subscriptionLinkErrorCode(err: unknown): SubscriptionLinkErrorCode {
+  const status = Number((err as { status?: unknown } | null)?.status);
+  if (status === 404) return 'invalid_token';
+  if (status === 400) return 'inactive';
+  return 'unknown';
+}
+
+/**
+ * Beklenmedik (status'suz) hatada istemciye giden SABIT metin. Ic hata metni
+ * (Prisma, saglayici govdesi, ag/IP ayrintisi) cevaba yazilmaz, yalniz loglanir.
+ */
+export const PUBLIC_CHECK_FAILED_MESSAGE = 'Kontrol şu an tamamlanamadı, lütfen biraz sonra tekrar deneyin.';
+
+/**
+ * Turnstile token'i olmadan gelen MOBIL UYGULAMA kontrolunun IP basina 24
+ * saatlik farkli alan adi siniri (normal kademe PUBLIC_CITATION_IP_DAILY_LIMIT,
+ * varsayilan 3). Urun parametresi — olculmus bir esik degil: mesru kullanici
+ * kendi sitesini ve bir rakibini dener; taklitci daha az hak alir. Genel sinir
+ * daha dusuk ayarlanirsa o gecerlidir (public-citation.service.ts effectiveIpLimit).
+ */
+export const PUBLIC_CHECK_IP_LIMIT_STRICT = 2;
+
+/** Ayni IP'den token'siz mobil kontrol zaten surerken gelen ikinci istege giden metin (429). */
+export const PUBLIC_CHECK_IN_FLIGHT_MESSAGE = 'Bu ağdan başlatılan bir kontrol hâlâ sürüyor. Bitmesini bekleyip tekrar deneyin.';
 
 /**
  * Landing page — anonim AI citation checker
@@ -30,12 +96,23 @@ interface SubscribeBody {
  *
  * Abuse koruma katmanlari:
  *   1. UA bot blok (curl, python-requests, scrapy, bot/spider)
- *   2. Cloudflare Turnstile verify (env'de TURNSTILE_SECRET varsa)
+ *   2. Cloudflare Turnstile verify (env'de TURNSTILE_SECRET varsa) — mobil
+ *      uygulama istisnasi ve siki sinir: check() notu
  *   3. PublicCitationService icindeki IP rate limit + 24h cache
  */
 @Controller('public')
 export class PublicCitationController {
   private readonly log = new Logger(PublicCitationController.name);
+  /** Abonelik denemeleri — IP basina 24 saatlik kayan pencere (public-subscribe-limits.ts) */
+  private readonly subscribeAttempts = new AttemptWindow(24 * 60 * 60 * 1000);
+  /**
+   * Token'siz mobil kontrolu suren IP'ler (surec belleginde). IP siniri
+   * veritabanindaki kayitlardan sayilir ve kayit olcum BITINCE yazilir; ayni
+   * IP'den paralel gonderilen istekler hepsi "henuz 0 alan adi" gorup sinirdan
+   * gecerdi. Token'li istekte her istek ayri, tek kullanimlik Turnstile cozumu
+   * ister; token'siz yolda bu kilit ayni IP'yi bir anda tek kontrole indirir.
+   */
+  private readonly mobileChecksInFlight = new Set<string>();
 
   constructor(
     private readonly citation: PublicCitationService,
@@ -44,20 +121,43 @@ export class PublicCitationController {
     private readonly measurement: MeasurementAllowanceService,
   ) {}
 
+  /**
+   * MOBIL UYGULAMA YOLU (subscribe() ile ayni kural): TURNSTILE_SECRET
+   * tanimliyken token'siz istek 403 alir; uygulama Turnstile'i ancak bir
+   * WebView ile calistirabilir — Cloudflare: "For native mobile applications,
+   * Turnstile does not run natively. Instead, you use a WebView" (18.10.2026'da
+   * dogrulandi: https://developers.cloudflare.com/turnstile/get-started/mobile-implementation/).
+   * Bu yuzden User-Agent'inda `RanksUp-iOS/<rakam>` ya da `RanksUp-Android/<rakam>`
+   * olan ve token GONDERMEYEN istek kabul edilir AMA siki kademeyle: IP basina
+   * 24 saatte PUBLIC_CHECK_IP_LIMIT_STRICT farkli alan adi (normal 3).
+   *
+   * DIKKAT — User-Agent istemcinin kendi yazdigi basliktir, TAKLIT EDILEBILIR.
+   * Bu bir kimlik dogrulamasi ya da guvenlik siniri DEGIL; Turnstile
+   * calistiramayan uygulama icin hiz sinirli bir geri dusus. UA'yi taklit eden
+   * Turnstile'i atlar ama daha az hak alir (sayim veritabanindan, onbellekten
+   * donus sayilmaz). Ayni IP'den token'siz kontrol bir anda tek: paralel
+   * istekle sinir yarisi kazanilamaz (mobileChecksInFlight). Kalan risk: cok
+   * sayida IP'den dagitik kullanim — her IP siki kademeyle sinirli. Token
+   * gonderen her istemci (mobil dahil) dogrulanir ve normal kademeye girer;
+   * gecersiz token 403'tur.
+   */
   @Public()
   @Post('citation-check')
   async check(@Req() req: Request, @Body() body: PublicCheckBody): Promise<PublicCheckResult> {
     // 1) Bot UA blok
-    const ua = (req.headers['user-agent'] ?? '').toString().toLowerCase();
-    if (this.isObviousBot(ua)) {
+    const uaRaw = (req.headers['user-agent'] ?? '').toString();
+    if (this.isObviousBot(uaRaw.toLowerCase())) {
       throw new HttpException('Bot tespit edildi', HttpStatus.FORBIDDEN);
     }
 
-    // 2) Turnstile (env-gated)
+    // 2) Turnstile (env-gated); token'siz mobil uygulama siki kademeyle gecer
+    const ip = clientIp(req);
+    const token = typeof body?.turnstileToken === 'string' && body.turnstileToken.trim() ? body.turnstileToken : undefined;
     const turnstileSecret = process.env.TURNSTILE_SECRET;
-    if (turnstileSecret) {
-      const ok = await this.verifyTurnstile(body.turnstileToken, this.extractIp(req), turnstileSecret);
-      if (!ok) throw new HttpException('Insan dogrulamasi basarisiz', HttpStatus.FORBIDDEN);
+    const mobileWithoutToken = !!turnstileSecret && !token && isMobileAppClient(uaRaw);
+    if (turnstileSecret && !mobileWithoutToken) {
+      const ok = await this.verifyTurnstile(token, ip, turnstileSecret);
+      if (!ok) throw new HttpException(TURNSTILE_FAILED_MESSAGE, HttpStatus.FORBIDDEN);
     }
 
     // 3) Domain validate (servis kendi normalize eder)
@@ -65,20 +165,41 @@ export class PublicCitationController {
       throw new HttpException('domain alani gerekli', HttpStatus.BAD_REQUEST);
     }
 
-    const ip = this.extractIp(req);
+    const inFlightKey = ip || 'unknown';
+    if (mobileWithoutToken) {
+      if (this.mobileChecksInFlight.has(inFlightKey)) {
+        throw new HttpException(PUBLIC_CHECK_IN_FLIGHT_MESSAGE, HttpStatus.TOO_MANY_REQUESTS);
+      }
+      this.mobileChecksInFlight.add(inFlightKey);
+    }
     try {
-      return await this.citation.check(body.domain, ip);
+      return await this.citation.check(
+        body.domain,
+        ip,
+        'manual',
+        mobileWithoutToken ? { ipDailyLimit: PUBLIC_CHECK_IP_LIMIT_STRICT } : {},
+      );
     } catch (err: any) {
+      // Alan adi hatalari (IP, port, ic ag, cozulemeyen ad) servisten Turkce
+      // 400 olarak gelir ve oldugu gibi iletilir.
       if (err.status) throw err;
-      this.log.warn(`Public check fail (${body.domain}): ${err.message}`);
-      throw new HttpException(err.message || 'Beklenmedik hata', HttpStatus.INTERNAL_SERVER_ERROR);
+      // Kimlik dogrulamasiz uc: ic hata metni (Prisma, saglayici, ag) istemciye
+      // SIZMAZ — yalnizca loglanir.
+      this.log.warn(`Public check fail (${String(body.domain).slice(0, 200)}): ${err.message}`);
+      throw new HttpException(PUBLIC_CHECK_FAILED_MESSAGE, HttpStatus.INTERNAL_SERVER_ERROR);
+    } finally {
+      if (mobileWithoutToken) this.mobileChecksInFlight.delete(inFlightKey);
     }
   }
 
   @Public()
   @Post('citation-check/rate-limit')
   async rateLimit(@Req() req: Request): Promise<{ ok: boolean; remaining: number; resetIn?: string }> {
-    return this.citation.checkRateLimit(this.extractIp(req));
+    // Kalan hak, check()'in uygulayacagi kademeyle ayni olsun: Turnstile
+    // tanimliyken mobil uygulama (token gondermiyor) siki kademededir.
+    const ua = (req.headers['user-agent'] ?? '').toString();
+    const strict = !!process.env.TURNSTILE_SECRET && isMobileAppClient(ua);
+    return this.citation.checkRateLimit(clientIp(req), strict ? PUBLIC_CHECK_IP_LIMIT_STRICT : undefined);
   }
 
   /**
@@ -124,15 +245,18 @@ export class PublicCitationController {
       // Haftalik AI olcum hakki — odeme kapisindan SONRA: odememis kullanici
       // 402 (satin al) gormeli, 429 degil. Onbellekten donus olcum sayilmaz.
       const domain = body.domain;
-      const result = await this.measurement.run(user, () => this.citation.check(domain, this.extractIp(req), 'signup_baseline'));
+      const result = await this.measurement.run(user, () => this.citation.check(domain, clientIp(req), 'signup_baseline'));
       // Cache'ten donduyse yeni olcum YAPILMADI — kota dusulmez. Aksi halde
       // sayfayi yenilemek her seferinde hak yakardi.
       if (!result.fromCache) await this.quota.incrementCitationUsage(user.id);
       return result;
     } catch (err: any) {
-      if (err.status) throw err;
-      this.log.warn(`Unlock fail (${body.domain}): ${err.message}`);
-      throw new HttpException(err.message || 'Beklenmedik hata', HttpStatus.INTERNAL_SERVER_ERROR);
+      // Alan adi (400) ve haftalik olcum hakki (429) hatalari status'lu — oldugu gibi iletilir
+      if (err?.status) throw err;
+      // check() ile ayni kural: giris yapmis kullaniciya da ic hata metni
+      // (Prisma, saglayici, ag) gitmez — gercek hata yalniz loglanir.
+      this.log.warn(`Unlock fail (${String(body.domain).slice(0, 200)}): ${err?.message ?? err}`);
+      throw new HttpException(PUBLIC_CHECK_FAILED_MESSAGE, HttpStatus.INTERNAL_SERVER_ERROR);
     }
   }
 
@@ -141,24 +265,61 @@ export class PublicCitationController {
   @Get('citation-check/history')
   async history(@Query('domain') domain: string, @Query('limit') limit?: string) {
     if (!domain) throw new HttpException('domain query param gerekli', HttpStatus.BAD_REQUEST);
-    return this.citation.getHistory(domain, limit ? Math.min(50, parseInt(limit, 10)) : 12);
+    // Gecersiz limit (NaN) Prisma'ya take: NaN gidip 500 uretiyordu
+    const n = parseInt(limit ?? '', 10);
+    return this.citation.getHistory(domain, Number.isFinite(n) && n > 0 ? Math.min(50, n) : 12);
   }
 
-  /** Email-based retest abonelik baslat (double-opt-in) */
+  /**
+   * Email-based retest abonelik baslat (double-opt-in).
+   *
+   * KIMLIK DOGRULAMASIZ UC — eskiden herkes herhangi bir adrese bizim
+   * gondericimizden hos geldin e-postasi tetikleyebiliyordu. Katmanlar:
+   *   1. Bariz bot User-Agent'i reddedilir (check() ile ayni).
+   *   2. IP basina 24 saatte SUBSCRIBE_IP_LIMIT deneme (common/client-ip.ts IP'si).
+   *   3. Turnstile: TURNSTILE_SECRET tanimliysa token zorunlu, check() ile ayni
+   *      dogrulama. MOBIL ISTISNA: User-Agent'inda `RanksUp-iOS/` ya da
+   *      `RanksUp-Android/` olan ve token GONDERMEYEN istek kabul edilir ama
+   *      siki sinirla (IP basina 24 saatte SUBSCRIBE_IP_LIMIT_STRICT deneme,
+   *      adres basina 24 saatte SUBSCRIBE_WELCOME_PER_EMAIL_STRICT onay
+   *      e-postasi). Token gonderen her istemci (mobil dahil) dogrulanir.
+   *   4. Servis: e-posta bicimi, alan adi kurali, son 7 gunde o alan adi icin
+   *      kontrol kaydi sarti (marka/nis istemciden degil kayittan), adres basina
+   *      24 saatlik onay e-postasi siniri, cift onay (confirm) akisi.
+   */
   @Public()
   @Post('citation-check/subscribe')
-  async subscribe(@Body() body: SubscribeBody): Promise<{ ok: true; status: string; alreadyActive: boolean }> {
+  async subscribe(@Req() req: Request, @Body() body: SubscribeBody): Promise<{ ok: true; status: string; alreadyActive: boolean }> {
+    const ua = (req.headers['user-agent'] ?? '').toString();
+    if (this.isObviousBot(ua.toLowerCase())) {
+      throw new HttpException('Bot tespit edildi', HttpStatus.FORBIDDEN);
+    }
     if (!body?.consent) {
       throw new HttpException('Aboneligi onaylamak icin checkbox tikli olmali', HttpStatus.BAD_REQUEST);
     }
-    return this.subscribers.subscribe({
-      email: body.email,
-      domain: body.domain,
-      brand: body.brand,
-      niche: body.niche,
-      customNiche: body.customNiche,
-      locale: body.locale,
-    });
+
+    const ip = clientIp(req);
+    const token = typeof body.turnstileToken === 'string' && body.turnstileToken.trim() ? body.turnstileToken : undefined;
+    const turnstileSecret = process.env.TURNSTILE_SECRET;
+    const mobileWithoutToken = !!turnstileSecret && !token && isMobileAppClient(ua);
+
+    if (!this.subscribeAttempts.take(ip || 'unknown', mobileWithoutToken ? SUBSCRIBE_IP_LIMIT_STRICT : SUBSCRIBE_IP_LIMIT)) {
+      throw new HttpException(SUBSCRIBE_IP_LIMIT_MESSAGE, HttpStatus.TOO_MANY_REQUESTS);
+    }
+    if (turnstileSecret && !mobileWithoutToken) {
+      const ok = await this.verifyTurnstile(token, ip, turnstileSecret);
+      if (!ok) throw new HttpException(TURNSTILE_FAILED_MESSAGE, HttpStatus.FORBIDDEN);
+    }
+
+    return this.subscribers.subscribe(
+      {
+        email: body.email,
+        domain: body.domain,
+        brand: body.brand,
+        locale: body.locale,
+      },
+      { welcomePerEmail: mobileWithoutToken ? SUBSCRIBE_WELCOME_PER_EMAIL_STRICT : SUBSCRIBE_WELCOME_PER_EMAIL },
+    );
   }
 
   /** Double-opt-in confirm — welcome email'deki linkten gelir */
@@ -172,7 +333,10 @@ export class PublicCitationController {
       return res.redirect(`${webUrl}/?citation_confirmed=${encodeURIComponent(r.domain)}`);
     } catch (err: any) {
       const webUrl = process.env.WEB_URL ?? 'https://ranksup.ai';
-      return res.redirect(`${webUrl}/?citation_confirm_error=${encodeURIComponent(err.message ?? 'error')}`);
+      const code = subscriptionLinkErrorCode(err);
+      // Token loglanmaz (abonelik anahtari); yalniz kod + gercek hata metni
+      this.log.warn(`Abonelik onayi basarisiz (${code}): ${String(err?.message ?? err).slice(0, 300)}`);
+      return res.redirect(`${webUrl}/?citation_confirm_error=${code}`);
     }
   }
 
@@ -202,21 +366,18 @@ export class PublicCitationController {
       return res.redirect(`${webUrl}/?citation_unsubscribed=${encodeURIComponent(r.domain)}`);
     } catch (err: any) {
       const webUrl = process.env.WEB_URL ?? 'https://ranksup.ai';
-      return res.redirect(`${webUrl}/?citation_unsubscribe_error=${encodeURIComponent(err.message ?? 'error')}`);
+      const code = subscriptionLinkErrorCode(err);
+      this.log.warn(`Abonelikten cikma basarisiz (${code}): ${String(err?.message ?? err).slice(0, 300)}`);
+      return res.redirect(`${webUrl}/?citation_unsubscribe_error=${code}`);
     }
   }
 
   // ──────────────────────────────────────
   //  HELPERS
   // ──────────────────────────────────────
-  private extractIp(req: Request): string {
-    const xff = req.headers['x-forwarded-for'];
-    if (typeof xff === 'string' && xff.length > 0) return xff.split(',')[0].trim();
-    if (Array.isArray(xff) && xff.length > 0) return xff[0];
-    const cfIp = req.headers['cf-connecting-ip'];
-    if (typeof cfIp === 'string') return cfIp;
-    return req.socket?.remoteAddress ?? '';
-  }
+  // Istemci IP'si common/client-ip.ts'ten: eski extractIp X-Forwarded-For'un
+  // ILK adresini aliyordu — istemcinin kendi yazdigi deger; her istekte baska
+  // bir IP yazilip IP limiti sifirlanabiliyordu.
 
   private isObviousBot(ua: string): boolean {
     if (!ua || ua.length < 5) return true;

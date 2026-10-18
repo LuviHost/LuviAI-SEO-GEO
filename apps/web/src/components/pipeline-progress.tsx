@@ -166,13 +166,19 @@ export const PIPELINE_STEPS = {
     { label: 'AI ranker — skorlama ve tier ayırma', sublabel: 'Tier 1/2/3 önceliklendirme', durationMs: 8000 },
   ] as PipelineStep[],
 
+  // Uretim hatti (api articles/pipeline.service.ts): 01 anahtar kelime → 02 taslak
+  // → 03 yazar → 04 editor + GEO kapisi → 05 gorsel ajani → sema + kayit + QA.
+  // Model adi yazilmaz (modeller platform genelinde yonetilir); uzunluk sabit
+  // degil (yazar istemi: "konuyu kapsayacak kadar, dolgu yok"). Gorsel ajani
+  // yalniz gorsel istemi yazar; kapak gorseli YAYIN sirasinda uretilir
+  // (publisher.service), OG / canonical da yayinda eklenir.
   article: [
-    { label: 'Outline oluşturuluyor', sublabel: 'H2/H3 yapısı + AEO soruları', durationMs: 12000 },
-    { label: 'Yazar AI (Claude Sonnet 4.5)', sublabel: '1800-2500 kelime tam makale', durationMs: 50000 },
+    { label: 'Anahtar kelime ve taslak', sublabel: 'Arama niyeti, H2/H3 yapısı ve soru başlıkları', durationMs: 12000 },
+    { label: 'Yazar ajan', sublabel: 'Tam makale taslağı (uzunluk konuya göre)', durationMs: 50000 },
     { label: 'Editör kalite kontrolü', sublabel: 'AI klişeleri, fact-check, marka sesi', durationMs: 30000 },
-    { label: 'Görsel üretimi (Gemini)', sublabel: 'Hero + iç görseller', durationMs: 25000 },
-    { label: 'Schema markup + SEO meta', sublabel: 'JSON-LD, OG, canonical', durationMs: 8000 },
-    { label: 'Yayına hazırlanıyor', sublabel: 'Markdown → HTML, dosyaya kaydet', durationMs: 12000 },
+    { label: 'Görsel ajanı', sublabel: 'Görsel önerileri; kapak görseli yayında üretilir', durationMs: 25000 },
+    { label: 'Schema markup + SEO meta', sublabel: 'JSON-LD şeması, meta başlık ve açıklama', durationMs: 8000 },
+    { label: 'Yayına hazırlanıyor', sublabel: 'Bağlantı doğrulama, kayıt ve QA kapısı', durationMs: 12000 },
   ] as PipelineStep[],
 
   brain: [

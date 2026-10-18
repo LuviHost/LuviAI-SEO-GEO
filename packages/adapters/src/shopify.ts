@@ -1,5 +1,6 @@
 import { PublishAdapter } from './base.js';
 import type { PublishPayload, PublishResult, OnPageMetaPayload, OnPageMetaResult } from './base.js';
+import { adapterFetch, httpErrorText, sanitizeErrorText } from './transport.js';
 
 /**
  * Shopify adapter (Admin API 2024-10).
@@ -16,7 +17,7 @@ export class ShopifyAdapter extends PublishAdapter {
     const { blogId } = this.config;
     if (!blogId) return { ok: false, error: 'Shopify blogId yok (config.blogId)' };
 
-    const res = await fetch(`https://${storeDomain}/admin/api/2024-10/blogs/${blogId}/articles.json`, {
+    const res = await adapterFetch(`https://${storeDomain}/admin/api/2024-10/blogs/${blogId}/articles.json`, {
       method: 'POST',
       headers: { 'X-Shopify-Access-Token': accessToken, 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -30,7 +31,7 @@ export class ShopifyAdapter extends PublishAdapter {
       }),
     });
     if (!res.ok) {
-      return { ok: false, error: `Shopify ${res.status}: ${(await res.text()).slice(0, 180)}` };
+      return { ok: false, error: await httpErrorText('Shopify', res, 180) };
     }
     const data: any = await res.json();
     return {
@@ -42,13 +43,24 @@ export class ShopifyAdapter extends PublishAdapter {
 
   async test(): Promise<boolean> {
     const { storeDomain, accessToken } = this.credentials;
-    const r = await fetch(`https://${storeDomain}/admin/api/2024-10/shop.json`, {
+    const r = await adapterFetch(`https://${storeDomain}/admin/api/2024-10/shop.json`, {
       headers: { 'X-Shopify-Access-Token': accessToken },
     });
     return r.ok;
   }
 
   async applyOnPageMeta(payload: OnPageMetaPayload): Promise<OnPageMetaResult> {
+    try {
+      return await this.writeOnPageMeta(payload);
+    } catch (err: any) {
+      // Ag/adres hatasi (korumali fetch: ic adrese yonlendirme, cozulemeyen ad,
+      // baglanti hatasi) firlatilmaz: cagiran (snippet uygulayici) yapilandirilmis
+      // sonuc bekler ve basarisiz alani kaydeder.
+      return { ok: false, applied: [], skipped: [{ field: 'all', reason: sanitizeErrorText(err?.message ?? err) }] };
+    }
+  }
+
+  private async writeOnPageMeta(payload: OnPageMetaPayload): Promise<OnPageMetaResult> {
     const { storeDomain, accessToken } = this.credentials;
     if (!storeDomain || !accessToken) {
       return { ok: false, applied: [], skipped: [{ field: 'all', reason: 'Shopify storeDomain veya accessToken eksik' }] };
@@ -58,7 +70,7 @@ export class ShopifyAdapter extends PublishAdapter {
       return {
         ok: false,
         applied: [],
-        skipped: [{ field: 'all', reason: `Shopify\'da bu URL\'e karşılık page/product/article bulunamadı: ${payload.pageUrl}` }],
+        skipped: [{ field: 'all', reason: `Shopify'da bu URL'e karşılık page/product/article bulunamadı: ${payload.pageUrl}` }],
       };
     }
 
@@ -71,7 +83,7 @@ export class ShopifyAdapter extends PublishAdapter {
     if (payload.metaDescription) { updateBody.metafields_global_description_tag = payload.metaDescription; applied.push('metaDescription'); }
 
     if (Object.keys(updateBody).length > 0) {
-      const updateRes = await fetch(`https://${storeDomain}/admin/api/2024-10/${target.path}.json`, {
+      const updateRes = await adapterFetch(`https://${storeDomain}/admin/api/2024-10/${target.path}.json`, {
         method: 'PUT',
         headers: { 'X-Shopify-Access-Token': accessToken, 'Content-Type': 'application/json' },
         body: JSON.stringify({ [target.singular]: { id: target.id, ...updateBody } }),
@@ -80,7 +92,7 @@ export class ShopifyAdapter extends PublishAdapter {
         return {
           ok: false,
           applied: [],
-          skipped: [{ field: 'all', reason: `Shopify update ${updateRes.status}: ${(await updateRes.text()).slice(0, 150)}` }],
+          skipped: [{ field: 'all', reason: await httpErrorText('Shopify update', updateRes, 150) }],
         };
       }
     }
@@ -97,12 +109,12 @@ export class ShopifyAdapter extends PublishAdapter {
 
   private async resolveResource(domain: string, token: string, pageUrl: string): Promise<{ id: number; singular: string; path: string } | null> {
     let path = '/';
-    try { path = new URL(pageUrl).pathname; } catch {}
+    try { path = new URL(pageUrl).pathname; } catch { /* goreli/bozuk URL — kok yol */ }
 
     // /products/<handle>
     let m = path.match(/^\/products\/([^/]+)/);
     if (m) {
-      const r = await fetch(`https://${domain}/admin/api/2024-10/products.json?handle=${encodeURIComponent(m[1])}`, {
+      const r = await adapterFetch(`https://${domain}/admin/api/2024-10/products.json?handle=${encodeURIComponent(m[1])}`, {
         headers: { 'X-Shopify-Access-Token': token },
       });
       if (r.ok) {
@@ -113,7 +125,7 @@ export class ShopifyAdapter extends PublishAdapter {
     // /pages/<handle>
     m = path.match(/^\/pages\/([^/]+)/);
     if (m) {
-      const r = await fetch(`https://${domain}/admin/api/2024-10/pages.json?handle=${encodeURIComponent(m[1])}`, {
+      const r = await adapterFetch(`https://${domain}/admin/api/2024-10/pages.json?handle=${encodeURIComponent(m[1])}`, {
         headers: { 'X-Shopify-Access-Token': token },
       });
       if (r.ok) {
@@ -124,14 +136,14 @@ export class ShopifyAdapter extends PublishAdapter {
     // /blogs/<blog>/<handle>
     m = path.match(/^\/blogs\/([^/]+)\/([^/]+)/);
     if (m) {
-      const blogsRes = await fetch(`https://${domain}/admin/api/2024-10/blogs.json?handle=${encodeURIComponent(m[1])}`, {
+      const blogsRes = await adapterFetch(`https://${domain}/admin/api/2024-10/blogs.json?handle=${encodeURIComponent(m[1])}`, {
         headers: { 'X-Shopify-Access-Token': token },
       });
       if (blogsRes.ok) {
         const bd: any = await blogsRes.json();
         const blog = bd.blogs?.[0];
         if (blog) {
-          const ar = await fetch(`https://${domain}/admin/api/2024-10/blogs/${blog.id}/articles.json?handle=${encodeURIComponent(m[2])}`, {
+          const ar = await adapterFetch(`https://${domain}/admin/api/2024-10/blogs/${blog.id}/articles.json?handle=${encodeURIComponent(m[2])}`, {
             headers: { 'X-Shopify-Access-Token': token },
           });
           if (ar.ok) {

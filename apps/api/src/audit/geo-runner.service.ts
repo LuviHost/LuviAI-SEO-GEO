@@ -1,6 +1,7 @@
 import { Injectable, Logger } from "@nestjs/common";
 import * as cheerio from "cheerio";
-import { readBodyCapped, isBinaryContentType } from "../common/fetch-capped.js";
+import { unblockHint, type BlockKind, type BlockSignal } from "../common/block-detect.js";
+import { fetchCustomerPage, type CustomerPage } from "./customer-page-fetch.js";
 
 export interface GeoSignal {
   id: string;
@@ -10,11 +11,58 @@ export interface GeoSignal {
   detail?: string;
 }
 
+/** Erisimimiz engellendi — olculen sey site degil, bizim erisimimiz */
+export interface GeoAccessBlock {
+  kind: BlockKind;
+  vendor: string | null;
+  status: number;
+  /** Kullaniciya gosterilecek Turkce neden (block-detect.ts) */
+  reason: string;
+  /** Site sahibinin ne yapmasi gerektigi (RanksUpBot'a izin) */
+  hint: string;
+  url: string;
+}
+
+/**
+ * GEO olcum yontemi surumu — checks.geo.details.methodVersion olarak yazilir.
+ *
+ * v2 (Ekim 2026): HTML donen /llms.txt artik 0 puan (eskiden 200 karakterden
+ * uzun govde ve kucultulmus JS'teki `a[0](b)` markdown linki sayilip 30-60
+ * aliyordu); anasayfa ikinci kez orneklenmiyor; orneklem yonlendirme
+ * SONRASI kokenden (apex → www) seciliyor; engele takilan llms.txt ve sayfalar
+ * skora girmiyor. Ayni site degismeden farkli skor alabilir — karsilastirma
+ * (audit.service compareAuditRows, site-report teknikGeoDelta) surumler
+ * farkliysa farki siteye yazmaz. Alan tasimayan eski kayitlar v1 sayilir.
+ * Yontem degisirse bu sayi artirilir.
+ */
+export const GEO_METHOD_VERSION = 2;
+
 export interface GeoAuditResult {
   score: number | null;
   methods: GeoSignal[];
   queries: any[];
   rawOutput?: string;
+  /** Olcum yontemi (GEO_METHOD_VERSION) — HER donus yolunda dolu */
+  details?: { methodVersion: number };
+  /**
+   * Doluysa skor VERILMEDI: orneklenen sayfalar guvenlik duvari / bot
+   * dogrulamasina takildi. Dogrulama ekranini puanlamak siteyi oldugundan
+   * kotu gosterirdi (bkz. common/block-detect.ts — ofsayt.com vakasi).
+   */
+  blocked?: GeoAccessBlock | null;
+  /** Skorun dayandigi orneklem: olculen sayfa sayisi ve engel yuzunden disarida kalanlar */
+  sample?: { measured: number; blocked: number };
+}
+
+function toAccessBlock(signal: BlockSignal, url: string): GeoAccessBlock {
+  return {
+    kind: signal.kind,
+    vendor: signal.vendor,
+    status: signal.status,
+    reason: signal.reason,
+    hint: unblockHint(signal),
+    url,
+  };
 }
 
 /**
@@ -36,13 +84,41 @@ export class GeoRunnerService {
   }
 
   async runAudit(url: string): Promise<GeoAuditResult> {
+    // Surum damgasi tek noktada: engel, okunamayan anasayfa ve hata yollari
+    // dahil her sonuc hangi yontemle uretildigini tasir — biri unutulursa o
+    // kayit v1 sanilip "yontem degisti" yanlis yere duserdi.
+    const result = await this.measure(url);
+    return { ...result, details: { methodVersion: GEO_METHOD_VERSION } };
+  }
+
+  private async measure(url: string): Promise<GeoAuditResult> {
     try {
-      const origin = new URL(url).origin;
-      const homepage = await this.fetch(origin);
-      if (!homepage) {
+      const requested = new URL(url).origin;
+      const home = await this.fetchPage(requested);
+      if (home.kind === "blocked") {
+        // Anasayfa bot korumasina takildi: dogrulama ekrani sayfa sayilip
+        // puanlanmaz. Ic sayfalar ayni duvara carpar — denemek siteyi bosuna
+        // yorar, o yuzden skor yerine nedeni donuyoruz.
+        this.log.warn(`${requested} GEO: erisim engellendi — ${home.signal.reason}`);
+        return {
+          score: null,
+          methods: [],
+          queries: [],
+          blocked: toAccessBlock(home.signal, requested),
+          sample: { measured: 0, blocked: 1 },
+        };
+      }
+      if (home.kind !== "ok") {
         return { score: null, methods: [], queries: [] };
       }
-      const llmsTxt = await this.fetch(`${origin}/llms.txt`);
+      // Yonlendirme sonrasi gercek koken (http→https, apex→www). Ic linkler ve
+      // sitemap adresleri bu kokene gore suzulur; kayitli adres "example.com"
+      // site "www.example.com" iken eskiden hepsi elenip yalniz anasayfa
+      // olculuyordu.
+      const origin = new URL(home.url).origin;
+      const isHome = (u: string) => u === origin || u === `${origin}/`;
+      const homepage = home.text;
+      const llms = await this.fetchPage(`${origin}/llms.txt`);
 
       // Sample sayfa seti — GERÇEK içerik sayfalarını örnekle. Eskiden sadece
       // anasayfa + ilk 5 menü linki örnekleniyordu → blog postları (FAQ/schema
@@ -57,23 +133,39 @@ export class GeoRunnerService {
         if (!href) return;
         try {
           const abs = new URL(href, origin).href.split("#")[0];
-          if (abs.startsWith(origin) && abs !== origin && !homeLinks.includes(abs)) homeLinks.push(abs);
-        } catch {}
+          // Anasayfanin kendisi ("/") ikinci kez orneklenip ortalamayi kaydirmasin
+          if (abs.startsWith(origin) && !isHome(abs) && !homeLinks.includes(abs)) homeLinks.push(abs);
+        } catch { /* gecersiz href — atla */ }
       });
       const sitemapUrls = await this.collectContentUrls(origin);
       const navRe = /\/(category|categories|tag|tags|author|page|wp-[a-z]|feed|cdn-cgi|amp)\/|\/(hakkimizda|iletisim|contact|about|gizlilik|privacy|kvkk|cerez|cookie)\/?$/i;
-      const isContent = (u: string) => u.startsWith(origin) && u !== origin && !navRe.test(u);
+      const isContent = (u: string) => u.startsWith(origin) && !isHome(u) && !navRe.test(u);
       const datedFirst = (a: string, b: string) =>
         (/\/\d{4}\/\d{2}\//.test(b) ? 1 : 0) - (/\/\d{4}\/\d{2}\//.test(a) ? 1 : 0);
       const candidates = [...new Set([...sitemapUrls, ...homeLinks])].filter(isContent).sort(datedFirst);
       const chosen = (candidates.length ? candidates : homeLinks).slice(0, 8);
+      let blockedPages = 0;
       for (const c of chosen) {
-        const html = await this.fetch(c);
-        if (html) samplePages.push({ url: c, html });
+        const page = await this.fetchPage(c);
+        if (page.kind === "ok") {
+          samplePages.push({ url: c, html: page.text });
+        } else if (page.kind === "blocked") {
+          // Engelli sayfa skora GIRMEZ (ne icerik ne bozuk sayfa); sayilir.
+          blockedPages++;
+          // Hiz siniri: devam etmek ayni 429'u buyutur — orneklemi burada kes
+          if (page.signal.kind === "rate_limited") break;
+        }
       }
 
+      // llms.txt engele takildiysa "yok" DEGIL, "olculemedi": sinyal skordan
+      // cikarilir, 0 puanla siteyi cezalandirmaz.
+      const llmsSignal = llms.kind === "blocked"
+        ? null
+        : this.checkLlmsTxt(llms.kind === "ok" ? llms.text : null);
+      if (!llmsSignal) this.log.warn(`${origin}/llms.txt GEO: erisim engellendi — sinyal skora katilmadi`);
+
       const signals: GeoSignal[] = [
-        this.checkLlmsTxt(llmsTxt),
+        ...(llmsSignal ? [llmsSignal] : []),
         ...this.checkPagesAggregate(samplePages),
       ];
 
@@ -85,6 +177,8 @@ export class GeoRunnerService {
         score,
         methods: signals,
         queries: [],
+        blocked: null,
+        sample: { measured: samplePages.length, blocked: blockedPages },
       };
     } catch (err: any) {
       this.log.warn(`GEO heuristic hata: ${err.message}`);
@@ -93,7 +187,10 @@ export class GeoRunnerService {
   }
 
   private checkLlmsTxt(content: string | null): GeoSignal {
-    if (!content) {
+    // Bircok site olmayan yola 200 + HTML (ozel 404 / anasayfa) doner. llms.txt
+    // markdown'dir ve "<" ile baslamaz; eskiden bu HTML "200 karakterden uzun
+    // ozet" sayilip olmayan dosyaya 30 puan veriyordu.
+    if (!content || /^\s*</.test(content)) {
       return { id: "llms_txt", label: "llms.txt mevcudiyeti", weight: 15, score: 0, detail: "Bulunamadi" };
     }
     const hasH1 = /^#\s+\S/m.test(content);
@@ -198,7 +295,7 @@ export class GeoRunnerService {
     const out: string[] = [];
     let xml: string | null = null;
     for (const c of [`${origin}/sitemap_index.xml`, `${origin}/sitemap.xml`, `${origin}/wp-sitemap.xml`]) {
-      const x = await this.fetch(c);
+      const x = await this.fetchText(c);
       if (x && /<(sitemapindex|urlset)/i.test(x)) { xml = x; break; }
     }
     if (!xml) return out;
@@ -208,7 +305,7 @@ export class GeoRunnerService {
       const postSubs = subs.filter((s) => /post/i.test(s));
       const chosen = (postSubs.length ? postSubs : subs).slice(0, 2);
       for (const sub of chosen) {
-        const sx = await this.fetch(sub);
+        const sx = await this.fetchText(sub);
         if (sx) out.push(...locs(sx));
       }
     } else {
@@ -224,32 +321,31 @@ export class GeoRunnerService {
    * en fazla 9 sayfanin govdesini AYNI ANDA samplePages icinde tutuyor.
    * Tavansiz surumde uretimde olculdu — GEO asamasi worker RSS'ini tek basina
    * 260 MB'tan 748 MB'a cikariyordu (ofsayt.com sayfalari ~2.7 MB HTML).
-   * Ayni hata site-crawler'da da vardi; ucuncu bir kopya cikmasin diye okuma
-   * mantigi common/fetch-capped.ts'te tek yerde duruyor.
+   * Ayni hata site-crawler'da da vardi; tavanli okuma artik
+   * common/safe-fetch.ts'te (safeFetchText) tek yerde duruyor.
    */
   private static readonly MAX_PAGE_BYTES = 2 * 1024 * 1024;
 
-  private async fetch(url: string): Promise<string | null> {
-    try {
-      const res = await fetch(url, {
-        headers: { "User-Agent": "RanksUp-GEO/1.0", "Cache-Control": "no-cache", "Pragma": "no-cache" },
-        signal: AbortSignal.timeout(12000),
-      });
-      if (!res.ok) {
-        await res.body?.cancel().catch(() => {});
-        return null;
-      }
-      // PDF/zip/video govdesini hic indirme — ayristirilacak bir sey yok.
-      if (isBinaryContentType(res)) {
-        await res.body?.cancel().catch(() => {});
-        return null;
-      }
-      const okundu = await readBodyCapped(res, GeoRunnerService.MAX_PAGE_BYTES);
-      if (!okundu) return null;
-      if (okundu.truncated) {
-        this.log.warn(`${url} 2.0MB tavanda kirpildi — GEO sinyalleri <head> ve ilk govdeden okundu`);
-      }
-      return okundu.text;
-    } catch { return null; }
+  /**
+   * Sayfa — SSRF korumali (adres musteri sitesinden ve sitemap'ten gelir),
+   * PDF/zip/video govdesi indirilmez, engel sayfasi "blocked" doner.
+   */
+  private async fetchPage(url: string): Promise<CustomerPage> {
+    const page = await fetchCustomerPage(url, {
+      timeoutMs: 12_000,
+      maxBytes: GeoRunnerService.MAX_PAGE_BYTES,
+      // Onbellekteki bayat kopya degil, sitenin su anki hali olculsun
+      headers: { "cache-control": "no-cache", pragma: "no-cache" },
+    });
+    if (page.kind === "ok" && page.truncated) {
+      this.log.warn(`${url} 2.0MB tavanda kirpildi — GEO sinyalleri <head> ve ilk govdeden okundu`);
+    }
+    return page;
+  }
+
+  /** Yalnizca okunabilen govde (sitemap gibi yardimci kaynaklar icin) */
+  private async fetchText(url: string): Promise<string | null> {
+    const page = await this.fetchPage(url);
+    return page.kind === "ok" ? page.text : null;
   }
 }

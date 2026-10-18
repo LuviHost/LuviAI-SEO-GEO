@@ -62,12 +62,19 @@ export class AiMentionAlarmService {
   async scanAndAlert(): Promise<{ scanned: number; alerts: AlarmTrigger[] }> {
     const sites = await this.prisma.site.findMany({
       where: { status: { in: ['ACTIVE', 'AUDIT_COMPLETE'] as any[] } },
-      include: { user: { select: { id: true, email: true } } },
+      include: { user: { select: { id: true, email: true, deletionRequestedAt: true } } },
     });
 
     const alerts: AlarmTrigger[] = [];
 
     for (const site of sites) {
+      // Silme talebi olan hesap 30 gunluk bekleme suresinde alarm e-postasi
+      // almaz (erisim kapandi). Talepte siteler PAUSED'a alinir, bu yuzden
+      // normalde buraya gelmez; sendRaw kontrol etmedigi icin yine de burada.
+      if (site.user?.deletionRequestedAt) {
+        this.log.debug(`[${site.id}] Alarm taraması atlandı — hesap için silme talebi var (${site.user.id})`);
+        continue;
+      }
       try {
         const triggers = await this.checkSite(site);
         alerts.push(...triggers);
@@ -185,6 +192,10 @@ export class AiMentionAlarmService {
 
   private renderAlertEmail(alerts: AlarmTrigger[]): string {
     const first = alerts[0];
+    // Altbilgi yalniz koddan dogrulanabileni soyler: alarm son 7 gunu onceki 7
+    // gunle kiyaslar (checkSite). Eski "her gun 04:00 UTC'de kontrol edilir"
+    // yanlisti — alarm isi 05:00 UTC'de kosar, gunluk olcum cron'u ise
+    // AI_CITATION_DAILY_CRON ile kapatilabilir (apps/worker/src/index.ts).
     return `
 <!DOCTYPE html>
 <html><body style="font-family: -apple-system, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px;">
@@ -210,7 +221,7 @@ export class AiMentionAlarmService {
   </p>
   <hr style="margin: 24px 0; border: none; border-top: 1px solid #eee;">
   <p style="font-size: 12px; color: #999;">
-    RanksUp · AI görünürlük takibi otomatiktir, her gün 04:00 UTC'de kontrol edilir.
+    RanksUp · Bu uyarı, son 7 günün AI görünürlük ölçümleri önceki 7 günle karşılaştırılarak otomatik hazırlanır.
   </p>
 </body></html>
     `;

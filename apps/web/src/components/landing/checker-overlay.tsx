@@ -9,7 +9,7 @@ import { api, ApiError } from '@/lib/api';
 import { trackCta } from '@/lib/landing-track';
 import type { Locale } from '@/lib/i18n';
 import { VendorLogo, type VendorName } from '@/components/vendor-logo';
-import { QueryCard, UnlockCta } from '@/components/citation/query-card';
+import { QueryCard, UnlockCta, isMeasuredRow, type ProviderRow } from '@/components/citation/query-card';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { openExplainer } from './explainer-dialog';
 import type { CheckerCopy } from './checker-copy';
@@ -30,7 +30,10 @@ const AiScanPlayer = dynamic(() => import('./ai-scan-player'), {
   loading: () => <div className="aspect-video w-full rounded-xl bg-muted/40 animate-pulse" />,
 });
 
-const LOADING_ENGINES: VendorName[] = ['chatgpt', 'claude-ai', 'gemini', 'perplexity', 'grok', 'deepseek', 'meta-ai'];
+// Olculen 6 asistan (checker-copy.ts notu): Meta Llama yalniz GROQ_LLAMA_MODEL
+// tanimliyken olculur; yukleme ekrani kosulsuz cizmez. Sonuc ekrani saglayicilari
+// API cevabindan listeler.
+const LOADING_ENGINES: VendorName[] = ['chatgpt', 'claude-ai', 'gemini', 'perplexity', 'grok', 'deepseek'];
 
 export interface CheckerOverlayProps {
   phase: 'loading' | 'result';
@@ -38,9 +41,15 @@ export interface CheckerOverlayProps {
   locale: Locale;
   c: CheckerCopy;
   onReset: () => void;
+  /**
+   * Taze Cloudflare Turnstile token'i (site anahtari yoksa null). Abonelik ucu
+   * TURNSTILE_SECRET tanimliyken token ister; token tek kullanimlik oldugu icin
+   * testte kullanilan token yeniden gonderilemez.
+   */
+  getTurnstileToken?: () => Promise<string | null>;
 }
 
-export default function CheckerOverlay({ phase, result, locale, c, onReset }: CheckerOverlayProps) {
+export default function CheckerOverlay({ phase, result, locale, c, onReset, getTurnstileToken }: CheckerOverlayProps) {
   const [loadingIdx, setLoadingIdx] = useState(0);
   const [expandedQueries, setExpandedQueries] = useState<Set<number>>(new Set());
 
@@ -177,7 +186,7 @@ export default function CheckerOverlay({ phase, result, locale, c, onReset }: Ch
                   )}
                 </div>
 
-                <OptinCard result={result} locale={locale} c={c} />
+                <OptinCard result={result} locale={locale} c={c} getTurnstileToken={getTurnstileToken} />
 
                 <div className="space-y-2">
                   <Link
@@ -211,7 +220,17 @@ export default function CheckerOverlay({ phase, result, locale, c, onReset }: Ch
 }
 
 /** 90 gunluk e-posta takibi (birincil CTA) */
-function OptinCard({ result, locale, c }: { result: CheckResult; locale: Locale; c: CheckerCopy }) {
+function OptinCard({
+  result,
+  locale,
+  c,
+  getTurnstileToken,
+}: {
+  result: CheckResult;
+  locale: Locale;
+  c: CheckerCopy;
+  getTurnstileToken?: () => Promise<string | null>;
+}) {
   const [email, setEmail] = useState('');
   const [consent, setConsent] = useState(false);
   const [status, setStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
@@ -227,16 +246,18 @@ function OptinCard({ result, locale, c }: { result: CheckResult; locale: Locale;
     setStatus('sending');
     setError(null);
     try {
+      // Sunucu marka/nisi alan adinin kontrol kaydindan okur; marka yalniz
+      // uzunluk denetimi icin gider. Turnstile token'i her istekte tazelenir.
+      const turnstileToken = (await getTurnstileToken?.()) ?? undefined;
       await api.request<{ ok: true }>('/public/citation-check/subscribe', {
         method: 'POST',
         body: JSON.stringify({
           email: email.trim(),
           domain: result.domain,
           brand: result.brand,
-          niche: result.niche,
-          customNiche: result.customNiche,
           locale,
           consent,
+          turnstileToken,
         }),
       });
       setStatus('sent');
@@ -294,7 +315,13 @@ function OptinCard({ result, locale, c }: { result: CheckResult; locale: Locale;
 /**
  * Gercek sonuctan video ozeti: skor = olculen (kilitsiz, marka adi gecmeyen)
  * sorularda motor cevaplarinin yuzde kaci markayi andi; motor "anildi" = bu
- * sorulardan en az birinde anildi.
+ * sorulardan en az birinde anildi ya da kaynak gosterdi (skordaki citedCount ile
+ * ayni birim; eskiden yalniz alan adi atfi sayiliyordu ve markayi anan motor
+ * videoda "Anılmadı" gorunuyordu).
+ *
+ * Payda sunucudan: totalProviders yalniz o soruda gercekten olculen asistanlar.
+ * Hata veren saglayici (measured=false) motor listesine girmez — videodaki
+ * "N motor" sayisi olculen motorlardir.
  */
 function summarize(result: CheckResult) {
   const open = result.queries.filter((q) => !q.locked);
@@ -304,9 +331,10 @@ function summarize(result: CheckResult) {
   const cited = base.reduce((s, q) => s + q.citedCount, 0);
   const engines = new Map<string, { label: string; cited: boolean }>();
   for (const q of base) {
-    for (const p of q.providers) {
+    for (const p of q.providers as ProviderRow[]) {
+      if (!isMeasuredRow(p)) continue;
       const e = engines.get(p.provider) ?? { label: p.label, cited: false };
-      e.cited = e.cited || p.cited;
+      e.cited = e.cited || p.cited || p.brandMentioned;
       engines.set(p.provider, e);
     }
   }

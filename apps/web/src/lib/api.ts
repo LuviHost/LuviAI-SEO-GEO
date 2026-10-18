@@ -3,6 +3,10 @@
  * NextAuth session cookie otomatik include edilir (credentials: 'include').
  */
 
+import type {
+  GaKeyEventSetup, LocalPromptDraft, LocalPromptInput, LocalPromptMeta, LocalRunSummary, SiteNapView,
+} from './local-visibility';
+
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
 export class ApiError extends Error {
@@ -149,10 +153,233 @@ export interface AuditComparison {
     cozulen: AuditIssueRecord[];
     yeniCikan: AuditIssueRecord[];
     devamEden: AuditIssueRecord[];
+    /**
+     * Önceki taramadaki sorun son taramada YENİDEN ÖLÇÜLEMEDİ (erişim engeli, atlanan AI
+     * ölçümü, dar sayfa kapsamı) — çözülen sayılmaz. Eski API/dondurulmuş raporda yok.
+     */
+    olculemedi?: AuditIssueRecord[];
   };
-  ozet: { cozulenSayisi: number; yeniSayisi: number; devamEdenSayisi: number };
+  ozet: { cozulenSayisi: number; yeniSayisi: number; devamEdenSayisi: number; olculemeyenSayisi?: number };
   /** Tek tarama varsa true — karsilastirilacak referans yok */
   yeterliVeriYok?: boolean;
+  /** Karşılaştırma kısmiyse nedenleri (audit.service.ts KismiKarsilastirma); tam karşılaştırmada yok */
+  kismi?: {
+    /** Önceki taramada ölçülüp son taramada ölçülemeyen kontroller */
+    olculemeyenKontroller: string[];
+    /** Genel skora giren ve iki taramadan yalnız birinde ölçülebilen kontroller */
+    skorKapsamiFarkli: string[];
+    /** Son taramanın sayfa kapsamı öncekinden dar (erken durma / yeni engellenen sayfa) */
+    sayfaKapsami: { erkenDurdu: boolean; engellenenSayfa: number } | null;
+  };
+  /**
+   * AI gorunurluk olcumunde iki taramada olculen asistan kumesi farkli (biri 429 /
+   * kota / anahtar yuzunden olculemedi). aiCitations farki yalniz `ortak` asistanlar
+   * uzerinden hesaplandi (checks satirindaki skorlar o ortalama); ortak yoksa satir
+   * yok. Kume ayniysa ya da eski API'de alan yok (audit.service.ts compareAuditRows).
+   */
+  aiSaglayiciKapsami?: { ortak: string[]; yalnizOnceki: string[]; yalnizSonraki: string[] };
+}
+
+/** Kiyas sonucu soru x saglayici cifti icin: atif > anilma > yok; 'n/a' olculmedi (hata / yok) */
+export type CitationQueryOutcome = 'cited' | 'mentioned' | 'none' | 'n/a';
+
+/** Anilma / atif sayaclari — iki kosumda da hatasiz olculen ayni ciftler uzerinden */
+export interface CitationMentionCounts {
+  mentioned: number;
+  cited: number;
+  /** Atif var ama marka adi anilmadi; eski API'de yok */
+  citedNotMentioned?: number;
+  /** Sayilan cift (payda) */
+  measured: number;
+}
+
+/**
+ * GET /sites/:id/audit/citation-runs/compare — api audit/citation-run-compare.ts RunComparison.
+ *
+ * GOSTEREN ICIN KURAL: methodChanged (iki kosumun matchVersion'i farkli) iken
+ * farklar HESAPLANMAZ: headlineDelta ve providers[].delta null, gained/lost 0,
+ * queries[].delta 0 ve comparable false. null/0 "degismedi" diye degil
+ * "karsilastirilamaz (yontem degisti)" diye gosterilmeli. Ortak saglayici yoksa da
+ * headlineDelta null. Manset farki yalniz headlineBasis.providers (iki kosumda da
+ * olculen asistanlar) uzerinden; a/b.headlineScore kendi kosumunun tum asistanlarinin
+ * ortalamasidir, farki bunlardan hesaplamak yanlis olur.
+ */
+export interface CitationRunComparison {
+  a: { id: string; runAt: string; headlineScore: number | null; trigger?: string };
+  b: { id: string; runAt: string; headlineScore: number | null; trigger?: string };
+  /** headlineBasis.after - headlineBasis.before; ortak saglayici yoksa ya da yontem degistiyse null */
+  headlineDelta: number | null;
+  /** Manset farkinin dayanagi; eski API'de yok */
+  headlineBasis?: {
+    /** Iki kosumda da sayisal skor donen asistanlar */
+    providers: string[];
+    before: number | null;
+    after: number | null;
+    /** a / b manset skoruna giren asistan sayisi */
+    aProviders: number;
+    bProviders: number;
+  };
+  /** delta: iki kosumda da skor varsa ve yontem ayniysa after - before, yoksa null */
+  providers: Array<{ provider: string; label?: string; before: number | null; after: number | null; delta: number | null }>;
+  /** Yalniz degisen soru x saglayici ciftleri (markasiz); direction 0 = kiyaslanamaz */
+  changed: Array<{ provider: string; query: string; before: CitationQueryOutcome; after: CitationQueryOutcome; direction: 1 | -1 | 0 }>;
+  /** Yontem degistiyse 0 */
+  gained: number;
+  lost: number;
+  unchanged: number;
+  /** Yalniz bir kosumda olculen ciftler — kazanc / kayip degil */
+  added: number;
+  removed: number;
+  methodChanged: boolean;
+  /** Iki kosumun olcum yontemi surumleri; eski API'de yok */
+  matchVersions?: { a: number; b: number };
+  queries: Array<{
+    query: string;
+    before: number;
+    after: number;
+    /** comparable false ise 0 — kazanc / kayip degil */
+    delta: number;
+    beforeMeasured: boolean;
+    afterMeasured: boolean;
+    /** Ayni saglayicilar ve ayni yontemle mi; alan yoksa (eski API) kiyaslanabilir */
+    comparable?: boolean;
+    providers: string[];
+  }>;
+  mentions: { before: CitationMentionCounts; after: CitationMentionCounts };
+  daysBetween: number;
+}
+
+/**
+ * GET /sites/:id/audit/history satiri — api audit/audit.service.ts getHistory.
+ * Liste yeni → eski gelir.
+ */
+export interface AuditHistoryRow {
+  id: string;
+  ranAt: string;
+  overallScore: number;
+  geoScore: number | null;
+  issueCount: number;
+  durationMs: number | null;
+  /**
+   * Taramayi kim baslatti: 'user' (panelden elle), 'system' (haftalik otomatik
+   * tarama ya da site kurulumu), 'test' (dogrulama kosumu). Eski API'de yok.
+   */
+  trigger?: string;
+  /**
+   * Genel skor bir onceki satirla (listede bir sonraki) ayni yontem ve kapsamla mi
+   * olculdu. false: fark iyilesme / kotulesme diye okunmaz. Listenin en eski
+   * satirinda null; eski API'de alan yok (lib/audit-history.ts).
+   */
+  scoreComparableWithPrevious?: boolean | null;
+  /** Karsilastirilamazsa Turkce neden; aksi halde null. Eski API'de yok. */
+  scoreMethodNote?: string | null;
+}
+
+/**
+ * Article.publishedTo kaydi — api articles/publisher.service.ts PublishResult
+ * (mergePublishedTo hedef basina tek kayit tutar). Eski kayitlarda targetName / url olabilir.
+ */
+export interface PublishedEntry {
+  targetId: string;
+  targetType?: string;
+  ok?: boolean;
+  externalUrl?: string;
+  externalId?: string | number;
+  /** Hedefte ne yapildi: created | updated | overwritten | exported | recreated */
+  action?: string;
+  /** Bu hedefte ilk yayin (ISO) */
+  publishedAt?: string;
+  /** Bu hedefe son yazim (ISO) */
+  updatedAt?: string;
+  /**
+   * true: yazi bu hedefte ESKI metinle yayinda; hedef yaziyi yerinde guncelleyemedigi
+   * icin RanksUp kopya acmadi. Musteri guncel metni hedefin kendi paneline yapistirmali
+   * (sonra "Elle güncelledim": markPublishedEntryUpdated).
+   */
+  manualUpdatePending?: boolean;
+  /** manualUpdatePending'in basladigi an (ISO) */
+  manualUpdatePendingSince?: string;
+  /**
+   * WordPress'in modified_gmt degeri (ISO), RanksUp'in bu hedefe son yaziminin ardindan
+   * (paylasilan sozlesme C3). Yayinci sonraki yazimdan once wp-admin'de duzenleme var mi
+   * diye buna bakar ('live_entry_edited').
+   */
+  remoteModifiedAt?: string;
+  /**
+   * Kopya WordPress cop kutusunda bulundu (ISO, sozlesme C3): kayit artik canli degil;
+   * panel onu yayinda saymaz (lib/publish-targets.ts isLivePublishedEntry).
+   */
+  trashedAt?: string;
+  /**
+   * Kopya hedefte artik yok (404/410) ve yeniden olusturulmadi (ISO, sozlesme D3): canli
+   * degil; musteri hedefi secip yayinlarsa yazi orada yeniden olusturulur (D2).
+   */
+  missingAt?: string;
+  targetName?: string;
+  url?: string;
+}
+
+/** published-to/:targetId/mark-updated ve /forget cevabi */
+export interface PublishedEntryMutation {
+  ok: true;
+  /** Yazinin guncel durumu (ARTICLE_STATUS) */
+  status: string;
+  /** Yazinin guncel publishedTo listesi */
+  publishedTo: PublishedEntry[];
+}
+
+/** Toplu takili sayfa onariminin satiri — api audit/stuck-batch-result.ts StuckBatchResult */
+export interface StuckBatchRow {
+  id: string;
+  /** true yalniz duzeltme gercekten uygulandiysa (tekil uctaki success) */
+  ok: boolean;
+  recoveryId?: string;
+  editsCount?: number;
+  /** Basarisizligin nedeni (atilan hata ve islenmeyen satir dahil) */
+  error?: string;
+  /** true = oneri kaydedildi, siteye yazilmadi (ok false kalir); elle uygulanir */
+  manual?: boolean;
+  /** recover()'in Turkce nedeni (oneride ve basarisizlikta) */
+  reason?: string;
+  /** Tek istek sinirini astigi icin hic denenmedi */
+  notProcessed?: boolean;
+}
+
+/** Toplu onarim ozeti — api audit/stuck-batch-result.ts stuckBatchSummary; eski API'de yok */
+export interface StuckBatchSummary {
+  succeeded: number;
+  proposals: number;
+  failed: number;
+  notProcessed: number;
+}
+
+/**
+ * Toplu onarimin KUYRUGA ALMA satiri (paylasilan sozlesme C4/D4): uc her uygun sayfa icin
+ * bir STUCK_PAGE_RECOVER isi acar ve hemen doner; duzeltme arka planda calisir. Sonuc
+ * sayfa basina is kaydindan (getJob(jobId): Job.result, atlamada { skipped, reason }) ve
+ * sayfa durumundan okunur (lib/stuck-recovery.ts pollStuckBatch).
+ */
+export interface StuckBatchQueueRow {
+  stuckPageId: string;
+  /** true: is kuyruga alindi */
+  queued: boolean;
+  /** DB is kimligi — GET /jobs/:id (sahiplik denetimli) */
+  jobId?: string;
+  /**
+   * Hic denenmedi: tek istek siniri, sayfa zaten sirada / isleniyor ya da is kosarken
+   * atlanacagi belli (D4: onay bekleyen surum, cop kutusu...); neden reason / error'da
+   */
+  notProcessed?: boolean;
+  /** API'nin Turkce nedeni (panel oldugu gibi gosterir) */
+  reason?: string;
+  error?: string;
+}
+
+/** Kuyruga alma ozeti (sozlesme C4) */
+export interface StuckBatchQueueSummary {
+  queued: number;
+  notProcessed: number;
+  failed: number;
 }
 
 export interface AuditIssueRecord {
@@ -162,6 +389,34 @@ export interface AuditIssueRecord {
   description?: string;
   fixable?: boolean;
   checkId?: string;
+}
+
+/**
+ * Makale kotasi — api billing/article-quota-view.ts. GET /me/dashboard ve
+ * GET /billing/users/:userId/current doner; servis okuyamazsa null (sayi uydurulmaz).
+ */
+export interface ArticleQuota {
+  /** Plan limiti: ucretli planda aylik, denemede omur boyu (2, aylik sifirlanmaz) */
+  limit: number;
+  /** max(0, limit - used) */
+  remaining: number;
+  /** Ay basi sifirlamasi uygulanmis sayac */
+  used: number;
+}
+
+/** GET /me/dashboard — api admin.service.ts getMyDashboard */
+export interface MyDashboard {
+  plan?: string | null;
+  subscriptionStatus?: string | null;
+  trialEndsAt?: string | null;
+  sitesCount: number;
+  articlesPublished: number;
+  drafts: number;
+  /** Sifirlamayi dikkate alan sayac (eski istemciler bunu okur) */
+  articlesUsedThisMonth: number;
+  /** Eski API'de alan yok; kota okunamazsa null */
+  articleQuota?: ArticleQuota | null;
+  lastInvoice?: { paidAt: string | null; amount: unknown; description: string | null } | null;
 }
 
 /**
@@ -401,18 +656,17 @@ export const api = {
       error: string | null;
       result: unknown;
       finishedAt: string | null;
+      /**
+       * Basarisiz deneme sayisi. Worker her basarisiz denemede FAILED yazar ve
+       * artirir; yeniden deneme baslayinca durum PROCESSING'e doner (is 3 deneme,
+       * job-queue.service.ts) — FAILED + attempts < 3 kesin sonuc degil.
+       */
+      attempts?: number;
     }>(`/jobs/${jobId}`),
 
   // Tarama geçmişi + iki tarama arası fark
   getAuditHistory: (siteId: string, limit = 20) =>
-    request<Array<{
-      id: string;
-      ranAt: string;
-      overallScore: number;
-      geoScore: number | null;
-      issueCount: number;
-      durationMs: number | null;
-    }>>(`/sites/${siteId}/audit/history?limit=${limit}`),
+    request<AuditHistoryRow[]>(`/sites/${siteId}/audit/history?limit=${limit}`),
 
   compareAudits: (siteId: string, opts: { fromId?: string; toId?: string } = {}) => {
     const qs = new URLSearchParams();
@@ -433,25 +687,7 @@ export const api = {
 
   // Toplu snippet tarama — root URL'den alt sayfaları tara, SEO durumlarını çıkar (AI çağrısı yok)
   bulkScanSnippets: (siteId: string, rootUrl?: string, maxPages = 30) =>
-    request<{
-      pages: Array<{
-        url: string;
-        title: string | null;
-        titleLength: number;
-        metaDescription: string | null;
-        metaDescriptionLength: number;
-        h1: string | null;
-        hasCanonical: boolean;
-        hasOG: boolean;
-        hasTwitter: boolean;
-        hasSchema: boolean;
-        hasFAQ: boolean;
-        score: number;
-        issues: string[];
-      }>;
-      totalScanned: number;
-      averageScore: number;
-    }>(`/sites/${siteId}/audit/snippets/bulk-scan?${rootUrl ? `rootUrl=${encodeURIComponent(rootUrl)}&` : ''}maxPages=${maxPages}`),
+    request<BulkScanResult>(`/sites/${siteId}/audit/snippets/bulk-scan?${rootUrl ? `rootUrl=${encodeURIComponent(rootUrl)}&` : ''}maxPages=${maxPages}`),
 
   getSnippets: (siteId: string, pageUrl?: string) =>
     request<any>(`/sites/${siteId}/audit/snippets${pageUrl ? `?pageUrl=${encodeURIComponent(pageUrl)}` : ""}`),
@@ -466,6 +702,10 @@ export const api = {
       tags: unknown; isActive: boolean; fanoutCount: number;
       lastRunAt: string | null; lastCitedCount: number; lastTotalCount: number;
       lastScore: number | null; createdAt: string;
+      /** Yerel soru: il/ilce/hizmet (yerel degilse null) */
+      local?: LocalPromptMeta | null;
+      /** Yerel sorunun son olcumundeki marka + telefon/adres sonucu */
+      lastLocal?: LocalRunSummary | null;
     }>>(`/sites/${siteId}/audit/prompts${includeInactive ? '?includeInactive=1' : ''}`),
 
   createPrompt: (siteId: string, body: { text: string; intent?: string; locale?: string; tags?: string[] }) =>
@@ -487,11 +727,34 @@ export const api = {
       fanout: { cited: number; mentioned: number; total: number; score: number } | null;
       providers: Array<{ provider: string; label: string; available: boolean; reason?: string; probes: any[] }>;
       weakestBranches: Array<{ id: string; text: string; kind: string; citedCount: number; total: number }>;
+      /** Yalniz yerel sorularda */
+      local?: LocalRunSummary | null;
       runAt: string;
     }>(`/sites/${siteId}/audit/prompts/${promptId}/run`, { method: 'POST', body: JSON.stringify(body) }),
 
-  runAllPrompts: (siteId: string, body: { withFanout?: boolean; limit?: number } = {}) =>
+  /** scope 'local': yalniz yerel sorular (ayni haftalik olcum hakki) */
+  runAllPrompts: (siteId: string, body: { withFanout?: boolean; limit?: number; scope?: 'all' | 'local' } = {}) =>
     request<any>(`/sites/${siteId}/audit/prompts/run-all`, { method: 'POST', body: JSON.stringify(body) }),
+
+  // ── Prompt Lab yerel mod — il/ilce + hizmet sorulari (AI cagrisi yok, olcum hakki harcamaz) ──
+  previewLocalPrompts: (siteId: string, body: LocalPromptInput) =>
+    request<{ spec: LocalPromptInput; drafts: LocalPromptDraft[] }>(
+      `/sites/${siteId}/audit/prompts/local/preview`, { method: 'POST', body: JSON.stringify(body) },
+    ),
+
+  /** texts: onizlemeden secilen soru metinleri (metinler sunucuda yeniden uretilir) */
+  createLocalPrompts: (siteId: string, body: LocalPromptInput & { texts: string[] }) =>
+    request<{ created: number; skipped: number; limitReached: boolean }>(
+      `/sites/${siteId}/audit/prompts/local`, { method: 'POST', body: JSON.stringify(body) },
+    ),
+
+  /** Sitede bulunan telefon/adres — kayitli veri, siteye istek atmaz (null = henuz okunmadi) */
+  getLocalSiteNap: (siteId: string) =>
+    request<SiteNapView | null>(`/sites/${siteId}/audit/prompts/local/site-nap`),
+
+  /** Sitenin ana sayfasini yeniden okur (10 dakikada bir) */
+  refreshLocalSiteNap: (siteId: string) =>
+    request<SiteNapView>(`/sites/${siteId}/audit/prompts/local/site-nap/refresh`, { method: 'POST' }),
 
   promptCoverage: (siteId: string, days = 30) =>
     request<{
@@ -700,11 +963,16 @@ export const api = {
       status: string;
       topQueries: string[] | null;
       detectedAt: string;
+      /**
+       * Yalniz son kayit (stuck-page-detector list take 1). Kayit oneri mi uygulanmis
+       * duzeltme mi oldugunu tasimaz; anlam sayfa durumundan (lib/stuck-recovery.ts).
+       */
       recoveries: Array<{
         id: string;
         appliedAt: string;
         entitiesAdded: string[];
         edits: any[];
+        paragraphAdded?: string | null;
         revertedAt: string | null;
       }>;
     }>>(
@@ -720,21 +988,59 @@ export const api = {
   getStuckPage: (siteId: string, id: string) =>
     request<any>(`/sites/${siteId}/audit/stuck-pages/${id}`),
 
+  // triggeredBy govdede GONDERILMEZ: sunucu varsayilani zaten 'manual' ve
+  // denetim izindeki aktor istemciden alinmamali (govdeden aktor ezme acigi);
+  // uc DTO'ya gecip fazla alani reddettiginde (forbidNonWhitelisted) istek
+  // 400 almasin.
   recoverStuckPage: (siteId: string, id: string) =>
     request<{
+      /**
+       * true: makalede degisiklik yaziya uygulandi ve yerinde yeniden yayin kuyrukta
+       * (sayfa RECOVERING; yayin basarilinca RECOVERED). RanksUp disi sayfada dosya
+       * yazildi (RECOVERED).
+       */
       success: boolean;
       recoveryId?: string;
       editsCount?: number;
       reason?: string;
+      /**
+       * true = oneri kaydedildi, sitede hicbir sey degismedi; elle uygulanir. RanksUp
+       * disi sayfa otomatik yazilamadi (stuck-page-external-recovery.service.ts) ya da
+       * makalenin yayin hedefi yaziyi yerinde guncelleyemiyor (stuck-page-recovery.service.ts).
+       * success false gelir, sayfa "Tespit edildi"de kalir; reason Turkce neden.
+       */
+      manual?: boolean;
+      /**
+       * true = sayfa bu istekte islenmedi, hicbir sey degismedi (or. zaten isleniyor ya da
+       * duzeltildi; otopilot kurali). reason API'nin Turkce metni — panel oldugu gibi
+       * gosterir (paylasilan sozlesme C5), "basarisiz" demez.
+       */
+      skipped?: boolean;
+      /** Makale: yeniden yayin ikinci asamada (STUCK_PAGE_RECOVER phase 'republish') */
+      needsRepublish?: boolean;
+      articleId?: string;
     }>(`/sites/${siteId}/audit/stuck-pages/${id}/recover`, {
       method: 'POST',
-      body: JSON.stringify({ triggeredBy: 'manual' }),
+      body: JSON.stringify({}),
     }),
 
+  /**
+   * Toplu onarim — KUYRUGA ALIR (sozlesme C4): her uygun sayfa icin bir
+   * STUCK_PAGE_RECOVER isi, hemen doner. Eskiden tum LLM onarimlari tek istekte
+   * siralaniyordu; Cloudflare'in ~100 sn siniri istegi 524 ile kesiyor, sunucu
+   * duzenlemeye devam ederken panel "tekrar dene" diyordu.
+   * Satir dizisi results (ya da rows) altinda gelir; eski (senkron) API'nin
+   * StuckBatchRow satirlari da okunur — lib/stuck-recovery.ts readQueuedBatch.
+   */
   recoverStuckPagesBatch: (siteId: string, stuckPageIds: string[]) =>
-    request<{ siteId: string; results: Array<{ id: string; ok: boolean; recoveryId?: string; error?: string }> }>(
+    request<{
+      siteId?: string;
+      results?: Array<StuckBatchQueueRow | StuckBatchRow>;
+      rows?: StuckBatchQueueRow[];
+      summary?: StuckBatchQueueSummary | StuckBatchSummary;
+    }>(
       `/sites/${siteId}/audit/stuck-pages/recover-batch`,
-      { method: 'POST', body: JSON.stringify({ stuckPageIds, triggeredBy: 'manual' }) },
+      { method: 'POST', body: JSON.stringify({ stuckPageIds }) },
     ),
 
   revertStuckPageRecovery: (siteId: string, recoveryId: string) =>
@@ -789,11 +1095,32 @@ export const api = {
   getSiteImageSnippets: (siteId: string) =>
     request<Array<{ id: string; src: string; firstPageUrl: string; approvedAlt: string | null; html: string }>>(`/sites/${siteId}/audit/images/snippets`),
 
-  applyAutoFix: (siteId: string, fixes: string[]) =>
-    request<any>(`/sites/${siteId}/audit/auto-fix-now`, {
+  /**
+   * Kök dosya düzeltmelerini uygular. confirm: { [fix]: previewToken } —
+   * robots.txt her zaman önizleme onayı ister (previewAutoFix); sitemap/llms
+   * onaysız yalnız dosya YOKKEN oluşturulur.
+   */
+  applyAutoFix: (siteId: string, fixes: string[], confirm?: Record<string, string>) =>
+    request<AutoFixNowResult>(`/sites/${siteId}/audit/auto-fix-now`, {
       method: 'POST',
-      body: JSON.stringify({ fixes }),
+      body: JSON.stringify(confirm ? { fixes, confirm } : { fixes }),
     }),
+
+  /** Yazmadan önizleme: mevcut içerik, önerilen içerik, satır farkı, previewToken */
+  previewAutoFix: (siteId: string, fix: string, options?: { aiTrain?: 'yes' | 'no' }) =>
+    request<AutoFixPreview>(`/sites/${siteId}/audit/auto-fix/preview`, {
+      method: 'POST',
+      body: JSON.stringify({ fix, ...(options ? { options } : {}) }),
+    }),
+
+  getAutoFixHistory: (siteId: string) =>
+    request<AutoFixHistoryItem[]>(`/sites/${siteId}/audit/auto-fix/history`),
+
+  revertAutoFix: (siteId: string, fixId: string) =>
+    request<{ ok: boolean; code?: string; error?: string; verified?: boolean; note?: string }>(
+      `/sites/${siteId}/audit/auto-fix/${fixId}/revert`,
+      { method: 'POST' },
+    ),
 
   // Topics
   getTopicQueue: (siteId: string) =>
@@ -815,11 +1142,8 @@ export const api = {
   listScheduledArticles: (siteId: string) =>
     request<any[]>(`/sites/${siteId}/articles/scheduled`),
 
-  scheduleArticleBatch: (siteId: string, count = 5) =>
-    request<any>(`/sites/${siteId}/articles/schedule-batch`, {
-      method: 'POST',
-      body: JSON.stringify({ count }),
-    }),
+  // scheduleArticleBatch silindi: POST schedule-batch API'den kaldirildi
+  // (articles.controller.ts KALDIRILAN UCLAR) ve hicbir bilesen cagirmiyordu.
 
   scheduleTopicToCalendar: (siteId: string, payload: { topic: string; scheduledAt: string; slug?: string; pillar?: string }) =>
     request<any>(`/sites/${siteId}/articles/schedule-topic`, {
@@ -877,8 +1201,9 @@ export const api = {
     request<any[]>(`/sites/${siteId}/audit/citation-runs?limit=${limit}`),
   getCitationRun: (siteId: string, id: string) =>
     request<any>(`/sites/${siteId}/audit/citation-runs/${id}`),
+  /** Iki AI gorunurluk testinin kiyasi — panelde tuketen bilesen yok (rapor HTML'i API'de uretilir) */
   compareCitationRuns: (siteId: string, a: string, b: string) =>
-    request<any>(`/sites/${siteId}/audit/citation-runs/compare?a=${encodeURIComponent(a)}&b=${encodeURIComponent(b)}`),
+    request<CitationRunComparison>(`/sites/${siteId}/audit/citation-runs/compare?a=${encodeURIComponent(a)}&b=${encodeURIComponent(b)}`),
   triggerCitationSnapshot: (siteId: string) =>
     request<any>(`/sites/${siteId}/audit/citation-snapshot`, { method: 'POST' }),
 
@@ -889,12 +1214,6 @@ export const api = {
     const apiBase = process.env.NEXT_PUBLIC_API_URL ?? '';
     return `${apiBase}/api/sites/${siteId}/audit/llms-full.txt`;
   },
-
-  pingIndex: (siteId: string, url: string) =>
-    request<any>(`/sites/${siteId}/audit/index-ping`, {
-      method: 'POST',
-      body: JSON.stringify({ url }),
-    }),
 
   runGeoHeatmap: (siteId: string, maxQueries = 10) =>
     request<any>(`/sites/${siteId}/audit/geo-heatmap`, {
@@ -908,13 +1227,27 @@ export const api = {
   getWikipediaDraft: (siteId: string) =>
     request<any>(`/sites/${siteId}/audit/knowledge/wikipedia`),
 
-  generateArticleAudio: (siteId: string, articleId: string) =>
-    request<any>(`/sites/${siteId}/articles/${articleId}/audio`, { method: 'POST' }),
+  // generateArticleAudio silindi: TTS ses uretimi 0db5a1c'de urunden cikti,
+  // articles/:id/audio ucu yok ve cagiran yoktu.
 
-  submitKnowledge: (siteId: string, target: 'wikidata' | 'wikipedia', draft: any, lang?: 'tr' | 'en') =>
-    request<any>(`/sites/${siteId}/audit/knowledge/submit`, {
+  // RanksUp Wikidata/Wikipedia'ya otomatik gonderim YAPMAZ: uc her zaman
+  // { ok: false, manual: true, warning, createUrl } doner (wikidata'da sunucunun
+  // urettigi taslak da). Taslak govdede GONDERILMEZ — sunucu kendi verisinden
+  // uretir; SubmitKnowledgeDto fazla alani (draft) 400 ile reddeder.
+  submitKnowledge: (siteId: string, target: 'wikidata' | 'wikipedia', lang?: 'tr' | 'en') =>
+    request<{
+      ok: boolean;
+      /** true: gonderim yapilmadi, elle ekleme yonergesi */
+      manual?: boolean;
+      warning?: string;
+      /** Elle ekleme sayfasi (Wikidata Special:NewItem / Vikipedi rehberi) */
+      createUrl?: string;
+      /** Yalniz wikidata: sunucuda sitenin verisinden uretilen taslak */
+      draft?: Record<string, unknown>;
+      error?: string;
+    }>(`/sites/${siteId}/audit/knowledge/submit`, {
       method: 'POST',
-      body: JSON.stringify({ target, draft, lang }),
+      body: JSON.stringify({ target, lang }),
     }),
 
   findCommunity: (siteId: string, limit = 10) =>
@@ -1000,17 +1333,10 @@ export const api = {
   listAdCampaigns: (siteId: string, status?: string) =>
     request<any[]>(`/sites/${siteId}/ads/campaigns${status ? `?status=${status}` : ''}`),
 
-  buildAudience: (siteId: string, payload: { objective: string; productOrService: string; budget: number }) =>
-    request<any>(`/sites/${siteId}/ads/audience`, { method: 'POST', body: JSON.stringify(payload) }),
-
-  buildAdCopy: (siteId: string, payload: any) =>
-    request<any>(`/sites/${siteId}/ads/copy`, { method: 'POST', body: JSON.stringify(payload) }),
-
-  buildAdImages: (siteId: string, payload: { prompt: string; brandColor?: string; formats?: any[] }) =>
-    request<any[]>(`/sites/${siteId}/ads/images`, { method: 'POST', body: JSON.stringify(payload) }),
-
-  buildCampaign: (siteId: string, payload: any) =>
-    request<any>(`/sites/${siteId}/ads/build`, { method: 'POST', body: JSON.stringify(payload) }),
+  // buildAudience / buildAdCopy / buildAdImages / buildCampaign silindi:
+  // ads/audience, ads/copy, ads/images ve ads/build uclari 0db5a1c'de API'den
+  // kalkti (ads.controller.ts); kampanya sihirbazi da panelden kaldirildi,
+  // cagiran yok.
 
   launchCampaign: (siteId: string, campaignId: string) =>
     request<any>(`/sites/${siteId}/ads/${campaignId}/launch`, { method: 'POST' }),
@@ -1101,11 +1427,46 @@ export const api = {
       body: JSON.stringify({ topic }),
     }),
 
-  publishArticle: (siteId: string, articleId: string, targetIds: string[], overrideQa?: boolean) =>
-    request<any>(`/sites/${siteId}/articles/${articleId}/publish`, {
+  /**
+   * Yayini KUYRUGA atar (articles.service queuePublish → JobQueueService.enqueue).
+   * Sonuc is kaydinda: getJob(dbJobId).result = hedef bazinda PublishResult[]
+   * (lib/publish-result.ts); yayin dugmeleri bunu yoklayip gosterir.
+   *
+   * targetIds (sozlesme D1): bos olmayan liste AYNEN uygulanir — yazinin yayinda oldugu
+   * ama listede olmayan hedefe yazilmaz (sonucta 'live_target_not_selected'). Bos liste:
+   * yazi sitede yayindaysa yazinin YAYINDA oldugu aktif hedefler, degilse varsayilan +
+   * aktif hedef (lib/publish-targets.ts).
+   * overwriteRemoteEdits (paylasilan sozlesme C1): yalniz kullanici, yayincinin
+   * 'live_entry_edited' dedigi WordPress yazisi icin onay penceresinde "Uzerine yaz"
+   * dediginde true. Govdeye yalniz true iken eklenir: alan DTO'da yokken (eski API,
+   * forbidNonWhitelisted) siradan yayinlar 400 almasin. Otomasyon bunu hic gondermez.
+   */
+  publishArticle: (siteId: string, articleId: string, targetIds: string[], overrideQa?: boolean, overwriteRemoteEdits?: boolean) =>
+    request<{ dbJobId: string; bullJobId?: string | number }>(`/sites/${siteId}/articles/${articleId}/publish`, {
       method: 'POST',
-      body: JSON.stringify({ targetIds, overrideQa }),
+      body: JSON.stringify({ targetIds, overrideQa, ...(overwriteRemoteEdits === true ? { overwriteRemoteEdits: true } : {}) }),
     }),
+
+  /**
+   * Musteri guncel metni hedefin kendi paneline elle yapistirdi: kaydin
+   * manualUpdatePending isareti kalkar. Kayit yoksa 404.
+   */
+  markPublishedEntryUpdated: (siteId: string, articleId: string, targetId: string) =>
+    request<PublishedEntryMutation>(
+      `/sites/${siteId}/articles/${articleId}/published-to/${encodeURIComponent(targetId)}/mark-updated`,
+      { method: 'POST' },
+    ),
+
+  /**
+   * Musteri yaziyi o hedefte sildi: kayit publishedTo'dan cikar, o hedefe sonraki
+   * yayin YENI kayit acar. Eski yazi hedefte duruyorsa kopya olusur; panel bunu
+   * onay penceresinde soyler. Kayit yoksa 404.
+   */
+  forgetPublishedEntry: (siteId: string, articleId: string, targetId: string) =>
+    request<PublishedEntryMutation>(
+      `/sites/${siteId}/articles/${articleId}/published-to/${encodeURIComponent(targetId)}/forget`,
+      { method: 'POST' },
+    ),
 
   runArticleQaCheck: (siteId: string, articleId: string) =>
     request<{
@@ -1210,8 +1571,13 @@ export const api = {
   // Intel -> LinkedIn outreach (admin). Uclar apps/api/src/intel altinda;
   // tick'i normalde worker atar, buradaki tick elle tetikleme icindir.
   getLinkedinOverview: () => request<LinkedinOverview>('/intel/linkedin/overview'),
+  /**
+   * Tek istekte en fazla ~400 satir gonderin (lib/linkedin-import.ts runImportBatches):
+   * API JSON govdesini 100 KB ve 10.000 oge ile sinirlar; butun liste tek istekte ~575
+   * satirdan sonra 413 alir. Sunucu profileUrl ile upsert eder (yeniden deneme guvenli).
+   */
   importLinkedinProspects: (rows: LinkedinImportRow[]) =>
-    request<{ upserted: number }>('/intel/linkedin/import', {
+    request<{ upserted: number; skipped?: number }>('/intel/linkedin/import', {
       method: 'POST',
       body: JSON.stringify({ rows }),
     }),
@@ -1282,7 +1648,7 @@ export const api = {
 
   // Me (login olmuş kullanıcı)
   getMe: () => request<any>('/me'),
-  getMyDashboard: () => request<any>('/me/dashboard'),
+  getMyDashboard: () => request<MyDashboard>('/me/dashboard'),
 
   // Billing
   /**
@@ -1307,9 +1673,9 @@ export const api = {
       }>;
       fx: { rate: number; fetchedAt: string; source: 'TCMB' | 'fallback'; stale: boolean };
     }>(`/billing/plans${locale ? '?locale=' + locale : ''}`),
-  enterpriseInquiry: (body: { name: string; email: string; company?: string; phone?: string; message?: string; source?: string }) =>
-    request<{ ok: true }>('/billing/enterprise-inquiry', { method: 'POST', body: JSON.stringify(body) }),
-  getCurrentFxRate: () => request<{ usdToTry: number; source: string; cachedFor: string }>('/billing/fx-rate'),
+  // enterpriseInquiry / getCurrentFxRate silindi: billing/enterprise-inquiry ve
+  // billing/fx-rate uclari API'de yok (Kurumsal iletisim mailto; kur /billing/plans
+  // yanitindaki fx alaninda), cagiran yoktu.
 
   // Analytics
   getAnalyticsOverview: (siteId: string, days = 30) =>
@@ -1339,6 +1705,10 @@ export const api = {
 
   getGaSummary: (siteId: string, days = 30) =>
     request<any>(`/sites/${siteId}/analytics/ga-summary?days=${days}`),
+
+  /** Telefon tiklamasi ve form/randevu gonderimi GA4'te onemli etkinlik olarak olculuyor mu */
+  getGaKeyEvents: (siteId: string, days = 28) =>
+    request<GaKeyEventSetup>(`/sites/${siteId}/analytics/ga-key-events?days=${days}`),
 
   /** GSC 4–20. sira × GA4 organik acilis sayfalari — skor yok, bilesen kolonlu siralama */
   getSearchOpportunities: (siteId: string, limit = 50) =>
@@ -1404,104 +1774,9 @@ export const api = {
       body: JSON.stringify({ competitors }),
     }),
 
-
-
-
-
-
-  listLinkedInPages: (channelId: string) =>
-    request<Array<{ organizationUrn: string; organizationId: string; name: string; vanityName?: string; logoUrl?: string }>>(
-      `/social/channels/${channelId}/linkedin/pages`,
-    ),
-
-  setLinkedInPage: (channelId: string, body: { organizationUrn: string; organizationName: string }) =>
-    request<any>(`/social/channels/${channelId}/linkedin/page`, {
-      method: 'PATCH',
-      body: JSON.stringify(body),
-    }),
-
-
-
-
-
-
-
-
-  // Social — media generation + approval
-  socialMediaPolicy: () =>
-    request<Record<string, { default: 'text' | 'image' | 'video'; options: Array<'text' | 'image' | 'video'>; editable: boolean }>>(`/social/media-policy`),
-
-
-
-
-
-
-
-
-
-
-
-  // ──────────────────────────────────────────────────────────────────
-  // Brightbean parity — Approval workflow + Inbox + Media Library + Ideas
-  // ──────────────────────────────────────────────────────────────────
-
-  submitPostForApproval: (postId: string) =>
-    request<any>(`/social/posts/${postId}/submit-for-approval`, { method: 'POST' }),
-
-  rejectPost: (postId: string, reason?: string) =>
-    request<any>(`/social/posts/${postId}/reject`, { method: 'POST', body: JSON.stringify({ reason }) }),
-
-  // Inbox
-  listInbox: (siteId: string, params: { status?: string; type?: string; channelId?: string; limit?: number; cursor?: string } = {}) => {
-    const q = new URLSearchParams();
-    if (params.status) q.set('status', params.status);
-    if (params.type) q.set('type', params.type);
-    if (params.channelId) q.set('channelId', params.channelId);
-    if (params.limit) q.set('limit', String(params.limit));
-    if (params.cursor) q.set('cursor', params.cursor);
-    const tail = q.toString() ? `?${q.toString()}` : '';
-    return request<Array<any>>(`/sites/${siteId}/social/inbox${tail}`);
-  },
-  inboxUnreadCount: (siteId: string) => request<number>(`/sites/${siteId}/social/inbox/unread-count`),
-  inboxMarkRead: (messageId: string) => request<any>(`/social/inbox/${messageId}/read`, { method: 'PATCH' }),
-  inboxReply: (messageId: string, reply: string) =>
-    request<any>(`/social/inbox/${messageId}/reply`, { method: 'POST', body: JSON.stringify({ reply }) }),
-  inboxArchive: (messageId: string) => request<any>(`/social/inbox/${messageId}/archive`, { method: 'POST' }),
-  inboxResolve: (messageId: string) => request<any>(`/social/inbox/${messageId}/resolve`, { method: 'POST' }),
-
-  // Media Library
-  listMediaLibrary: (params: { siteId?: string; folder?: string; source?: string; limit?: number; cursor?: string } = {}) => {
-    const q = new URLSearchParams();
-    if (params.siteId) q.set('siteId', params.siteId);
-    if (params.folder) q.set('folder', params.folder);
-    if (params.source) q.set('source', params.source);
-    if (params.limit) q.set('limit', String(params.limit));
-    if (params.cursor) q.set('cursor', params.cursor);
-    const tail = q.toString() ? `?${q.toString()}` : '';
-    return request<Array<any>>(`/social/media-library${tail}`);
-  },
-  listMediaFolders: (siteId?: string) =>
-    request<string[]>(`/social/media-library/folders${siteId ? `?siteId=${siteId}` : ''}`),
-  createMediaAsset: (body: any) =>
-    request<any>('/social/media-library', { method: 'POST', body: JSON.stringify(body) }),
-  updateMediaAsset: (assetId: string, body: any) =>
-    request<any>(`/social/media-library/${assetId}`, { method: 'PATCH', body: JSON.stringify(body) }),
-  deleteMediaAsset: (assetId: string) =>
-    request<{ ok: boolean }>(`/social/media-library/${assetId}`, { method: 'DELETE' }),
-
-  // Idea Board (kanban)
-  ideaBoard: (siteId?: string) =>
-    request<Record<'UNASSIGNED' | 'TODO' | 'IN_PROGRESS' | 'DONE', any[]>>(`/social/ideas/board${siteId ? `?siteId=${siteId}` : ''}`),
-  createIdea: (body: { title: string; notes?: string; siteId?: string; column?: 'UNASSIGNED' | 'TODO' | 'IN_PROGRESS' | 'DONE'; hashtags?: string[]; refUrls?: string[]; dueAt?: string }) =>
-    request<any>('/social/ideas', { method: 'POST', body: JSON.stringify(body) }),
-  updateIdea: (ideaId: string, body: any) =>
-    request<any>(`/social/ideas/${ideaId}`, { method: 'PATCH', body: JSON.stringify(body) }),
-  moveIdea: (ideaId: string, column: 'UNASSIGNED' | 'TODO' | 'IN_PROGRESS' | 'DONE', position: number) =>
-    request<any>(`/social/ideas/${ideaId}/move`, { method: 'POST', body: JSON.stringify({ column, position }) }),
-  convertIdeaToPost: (ideaId: string, channelId: string) =>
-    request<any>(`/social/ideas/${ideaId}/convert`, { method: 'POST', body: JSON.stringify({ channelId }) }),
-  deleteIdea: (ideaId: string) =>
-    request<{ ok: boolean }>(`/social/ideas/${ideaId}`, { method: 'DELETE' }),
+  // Sosyal modul istemcisi (LinkedIn sayfasi, medya politikasi, onay akisi,
+  // gelen kutusu, medya kutuphanesi, fikir panosu) silindi: API'de 'social'
+  // denetleyicisi yok (modul 0db5a1c'de kalkti), hicbir bilesen cagirmiyordu.
 
   // Notifications
   listNotifications: (params: { unreadOnly?: boolean; type?: string; limit?: number; cursor?: string } = {}) => {
@@ -1547,10 +1822,12 @@ export const api = {
       computedAt: string;
       overall_score: number;
       grade: 'A' | 'B' | 'C' | 'D' | 'F';
-      breakdown: Record<string, { score: number; weight: number; weighted_contribution: number }>;
+      breakdown: Record<string, { score: number; weight: number; weighted_contribution: number; notes?: string[] }>;
       recommendations: Array<{ category: string; priority: 'high' | 'medium' | 'low'; action: string; details: string; expected_impact: string }>;
       strengths: string[];
       weaknesses: string[];
+      /** Skorun dayandigi sinyaller (apps/api aso.controller.ts calculateScore). Eski API'de yok. */
+      signals?: AsoScoreSignals;
     }>(`/sites/${siteId}/aso/apps/${appId}/score`, {
       method: 'POST',
       body: JSON.stringify(body),
@@ -1660,7 +1937,8 @@ export const api = {
     appleAppId: number;
     keywords?: Array<{ text: string; bidUsd: number; matchType?: 'EXACT' | 'BROAD' }>;
   }) =>
-    request<{ campaignId: string; asaCampaignId: string }>(`/aso/asa/campaigns`, {
+    // warnings: eklenemeyen anahtar kelimeler / reklam adimi (asa.service.ts) — kampanya yine olusur
+    request<{ campaignId: string; asaCampaignId: string; warnings?: string[] }>(`/aso/asa/campaigns`, {
       method: 'POST',
       body: JSON.stringify(body),
     }),
@@ -1694,8 +1972,9 @@ export const api = {
   runAgentReadiness: (siteId: string) =>
     request<any>(`/sites/${siteId}/audit/agent-readiness/run`, { method: 'POST' }),
 
+  /** score: erişim engelli/ulaşılamaz taramada null; scoreVersion metodoloji değişimini işaretler */
   getAgentReadinessHistory: (siteId: string, days = 90) =>
-    request<Array<{ date: string; score: number; agentsAllowed: number | null; agentsTotal: number | null }>>(
+    request<Array<{ date: string; score: number | null; status?: string; scoreVersion?: number; agentsAllowed: number | null; agentsTotal: number | null }>>(
       `/sites/${siteId}/audit/agent-readiness/history?days=${days}`,
     ),
 
@@ -1870,6 +2149,10 @@ export const api = {
       appId: string; appName: string;
       basedOn: { negativeCount: number; themes: Array<{ theme: string; count: number }> };
       whatsNew: string;
+      /** What's New taslaktir: hangi duzeltmenin yayinlandigini yalniz gelistirici bilir */
+      whatsNewNote: string;
+      /** Politika bekcisinin What's New metninden cikardigi / isaretledigi ifadeler (metadata-guard.ts) */
+      whatsNewIssues: Array<{ field: string; code: string; action: 'removed' | 'flagged'; excerpt: string; message: string; source: string }>;
       faqs: Array<{ q: string; a: string }>;
       blogTopics: Array<{ title: string; opportunityId: string | null }>;
     }>(`/sites/${siteId}/aso/apps/${appId}/review-content-pack`, { method: 'POST' }),
@@ -1891,10 +2174,18 @@ export const api = {
         providers: Array<{
           provider: string;
           label: string;
+          /**
+           * false = saglayici bu soruda hata verdi ('HATA: ...'); citedCount ve
+           * totalProviders'a girmez, arayuz notr "olculemedi" cizer. Calismayan
+           * saglayici hic satir olarak gelmez (public-citation.service.ts).
+           * Bu alandan once yazilmis yanitta yok.
+           */
+          measured?: boolean;
           cited: boolean;
           brandMentioned: boolean;
           excerpt?: string;
         }>;
+        /** Yalniz measured satirlardan */
         citedCount: number;
         totalProviders: number;
         /** Sorunun kendisinde marka adi geciyor — anilma totolojik, skor disi */
@@ -1910,6 +2201,13 @@ export const api = {
         totalQueries: number;
         lockedQueries: number;
       };
+      /** Bu olcumun PublicCitationCheck kaydi (taze sonucta, yazildiysa) */
+      checkId?: string;
+      /**
+       * Olcum yontemi surumu (CITATION_MATCH_VERSION). Onbellekten donen eski
+       * kayitta yok (v3 ya da daha eski); farkli surumlu iki sonuc kiyaslanmaz.
+       */
+      matchVersion?: number;
     }>('/public/citation-check', {
       method: 'POST',
       body: JSON.stringify({ domain, turnstileToken }),
@@ -1930,3 +2228,402 @@ export const api = {
       method: 'POST',
     }),
 };
+
+// ──────────────────────────────────────────────────────────
+//  KÖK DOSYA DÜZELTMELERİ (önizlemeli) — robots.txt / sitemap.xml / llms.txt
+// ──────────────────────────────────────────────────────────
+export type AutoFixAction = 'merge' | 'create' | 'regenerate' | 'none' | 'refuse';
+
+export interface AutoFixPreview {
+  fix: string;
+  canonical: 'robots' | 'sitemap' | 'llms';
+  filename: string;
+  url: string;
+  action: AutoFixAction;
+  canApply: boolean;
+  reason: string;
+  notes: string[];
+  current: { exists: boolean; status: number | null; content: string | null };
+  proposed: string | null;
+  diff: Array<{ op: 'same' | 'add' | 'del'; text: string }>;
+  stats: { added: number; removed: number };
+  previewToken: string | null;
+  target: { name: string | null; type: string } | null;
+}
+
+export interface AutoFixHistoryItem {
+  id: string;
+  fix: string;
+  filename: string;
+  status: 'APPLIED' | 'FAILED' | 'REVERTED' | string;
+  action: AutoFixAction | null;
+  verified: boolean | null;
+  error: string | null;
+  url: string | null;
+  appliedAt: string;
+  revertedAt: string | null;
+  revertible: boolean;
+  revertNote: string | null;
+}
+
+/**
+ * auto-fix-now hata kodlari (apps/api audit/auto-fix.service.ts runAutoFix):
+ *  preview_required — robots.txt onizleme + acik onay olmadan yazilmaz
+ *  preview_stale    — dosya ya da oneri onizlemeden sonra degisti
+ *  preview_expired  — onizleme anahtarinin suresi doldu / bulunamadi
+ *  refused          — canli dosya guvenle okunamadi ya da uzerine yazilmaz
+ *  wrong_root       — kok klasor kaniti: dogrulama dosyasi (ranksup-verify.txt)
+ *                     yuklendi ama sitenin adresinde gorunmedi; yayin hedefinin
+ *                     klasoru bu siteyi sunmuyor (eklenti alan adi vb.). HICBIR
+ *                     kok dosya yazilmadi (baska sitenin dosyasi ezilmesin diye)
+ *  root_unverified  — dogrulama dosyasinin adresi okunamadi (engel / zaman asimi);
+ *                     klasor kanitlanamadi, kok dosya yazilmadi
+ *  write_failed     — yayin hedefine yukleme basarisiz (dogrulama dosyasi dahil)
+ *  no_file_target   — dosya yazabilen hedef (SFTP / FTP / cPanel) yok
+ *  error            — beklenmeyen hata
+ */
+export type AutoFixErrorCode =
+  | 'preview_required' | 'preview_stale' | 'preview_expired'
+  | 'refused' | 'wrong_root' | 'root_unverified' | 'write_failed' | 'no_file_target' | 'error';
+
+/**
+ * Hata kodunun Turkce karsiligi — YALNIZ API metin dondurmediginde (bos ya da
+ * yer tutucu 'unknown': runAutoFix `error: w.error ?? 'unknown'`). API metni
+ * varsa o, oldugu gibi gosterilir (daha ayrintili: adres, denenen klasorler).
+ */
+export const AUTO_FIX_ERROR_TEXT: Record<AutoFixErrorCode, string> = {
+  preview_required: 'robots.txt yalnız önizleme ve açık onayla yazılır.',
+  preview_stale: 'Dosya önizlemeden sonra değişti; yeniden önizleyin.',
+  preview_expired: 'Önizlemenin süresi doldu ya da bulunamadı; yeniden önizleyin.',
+  refused: 'Sitedeki dosya güvenle okunamadı ya da üzerine yazılmaz; dosya yazılmadı.',
+  wrong_root: 'Yayın hedefinin yazdığı klasör bu siteyi sunmuyor: doğrulama dosyası sitenin adresinde görünmedi. Başka bir sitenin dosyasının üzerine yazmamak için kök dosya yazılmadı.',
+  root_unverified: 'Yayın hedefinin bu siteyi sunduğu doğrulanamadı: doğrulama dosyasının adresi okunamadı. Kök dosya yazılmadı.',
+  write_failed: 'Dosya yayın hedefine yüklenemedi.',
+  no_file_target: 'Dosya yazabilen bir yayın hedefi yok (SFTP / FTP / cPanel).',
+  error: 'Beklenmeyen bir hata oluştu; dosya yazılmadı.',
+};
+
+/** Hatanin gosterilecek metni: API'ninki, yoksa kodun karsiligi */
+export function autoFixErrorText(e: { error?: string | null; code?: string | null }): string {
+  const t = typeof e.error === 'string' ? e.error.trim() : '';
+  if (t && t !== 'unknown') return t;
+  return (e.code && (AUTO_FIX_ERROR_TEXT as Record<string, string>)[e.code]) || 'Düzeltme uygulanmadı (ayrıntı dönmedi).';
+}
+
+/** POST /sites/:id/audit/auto-fix-now cevabi — eski API surumlerinde bazi alanlar yok */
+export interface AutoFixNowResult {
+  /**
+   * Yayin hedefine YUKLENEN duzeltmeler — canli adreste dogrulanamayanlar dahil.
+   * Sitede gorundugu kesin olanlar: files[].verified === true (autoFixMessages verified).
+   */
+  applied?: string[];
+  errors?: Array<{ fix: string; error: string; code?: AutoFixErrorCode | (string & {}) }>;
+  /** Degisiklik gerekmedi (dosya zaten uygun) — hata degil */
+  unchanged?: Array<{ fix: string; reason: string }>;
+  /** Otomatik uretilemeyen anahtarlar (snippet / elle duzeltilenler) */
+  unsupported?: string[];
+  skipped?: string[];
+  /** verified: yazimdan sonra canli adres yeniden okundu ve icerik birebir ayni */
+  files?: Array<{ fix: string; filename: string; content: string; externalUrl?: string; verified?: boolean; action?: AutoFixAction }>;
+  /** Yuklendi ama canli adreste henuz gorunmuyor (onbellek / CDN) — duz basari degil; reason Turkce */
+  unverified?: Array<{ fix: string; filename: string; url: string; reason: string }>;
+  reason?: 'nothing-auto-fixable' | 'no-publish-target' | 'no-file-target' | (string & {});
+}
+
+// ──────────────────────────────────────────────────────────
+//  KOK DOSYA DUZELTMESI — panel kurallari (saf yardimcilar)
+// ──────────────────────────────────────────────────────────
+
+/**
+ * robots.txt toplu "otomatik duzelt"e girmez: API yalniz onizleme + acik onayla
+ * yazar (aksi halde 'preview_required'). Panel bunun yerine AutoFixPreviewDialog acar.
+ */
+export function isRobotsFixKey(key: string | null | undefined): boolean {
+  return key === 'robots' || key === 'robots_txt';
+}
+
+/**
+ * Kok dosya (robots.txt / sitemap.xml / llms.txt) yazabilen yayin hedefi turleri:
+ * packages/adapters'ta supportsRootFiles=true olanlar (ftp.ts, sftp.ts,
+ * cpanel-api.ts). WordPress REST kok dosya yazamaz; auto-fix bu durumda
+ * 'no_file_target' doner (auto-fix.service.ts pickRootFileTarget).
+ */
+export const ROOT_FILE_TARGET_TYPES: ReadonlySet<string> = new Set(['FTP', 'SFTP', 'CPANEL_API']);
+
+/** Aktif ve kok dosya yazabilen hedef — varsayilan once (sunucudaki secimle ayni kural) */
+export function rootFileTarget<T extends { type?: string | null; isActive?: boolean | null; isDefault?: boolean | null }>(
+  targets: T[] | null | undefined,
+): T | null {
+  const capable = (targets ?? []).filter((t) => !!t?.isActive && ROOT_FILE_TARGET_TYPES.has(String(t.type)));
+  return capable.find((t) => !!t.isDefault) ?? capable[0] ?? null;
+}
+
+/** Kontrol dogrulanamadi mi (checks[id].details.unverified — dosyaya erisim engellendi / sunucu hatasi) */
+export function isUnverifiedCheck(audit: any, checkId: string | null | undefined): boolean {
+  return !!checkId && audit?.checks?.[checkId]?.details?.unverified === true;
+}
+
+/**
+ * Otomatik kok dosya duzeltmesi onerilebilecek sorunlar (fixRoute 'auto_fix').
+ * Dogrulanamayan kontrolde oneri YOK: okuyamadigimiz bir dosyanin yerine
+ * uretilmis dosya yazmak musterinin kendi dosyasini silmek olurdu. Yeni
+ * taramalarda API bu sorunlari zaten uretmiyor; eski kayitlar icin panel de suzer.
+ */
+export function autoFixIssues(audit: any): any[] {
+  const issues: any[] = Array.isArray(audit?.issues) ? audit.issues : [];
+  return issues.filter((i) => i?.fixRoute === 'auto_fix' && !isUnverifiedCheck(audit, i?.checkId));
+}
+
+/**
+ * auto-fix-now sonucunu gosterilecek satirlara cevirir — GERCEK hata metinleriyle
+ * (eskiden yalniz "N duzeltme basarisiz" deniyordu). Ayni metni tasiyan
+ * duzeltmeler tek satirda birlesir (or. no_file_target her dosya icin ayni).
+ *
+ * DOGRULAMA: `applied` yayin hedefine yuklenen her duzeltmedir. API yazimdan
+ * sonra canli adresi yeniden okur; icerik gorunmuyorsa (onbellek / CDN) dosya
+ * files[].verified=false ve unverified listesinde doner (auto-fix.service.ts
+ * runAutoFix). Toplu bildirimler eskiden bunu okumuyor, dogrulanmamis yazimi
+ * duz "uygulandi" diye gosteriyordu. Artik:
+ *  - verified: yalniz files[].verified === true olanlar (kanit yoksa iddia yok)
+ *  - unverified: yuklendi ama sitede dogrulanamadi — API'nin Turkce nedeniyle
+ * Onizleme diyalogu (auto-fix-preview-dialog.tsx) ayni kurali files[0].verified ile uygular.
+ */
+export function autoFixMessages(result: AutoFixNowResult | null | undefined, label: (fix: string) => string = (f) => f) {
+  const group = (items: Array<{ fix: string; text: string }>) => {
+    const byText = new Map<string, string[]>();
+    for (const it of items) {
+      const name = label(it.fix);
+      const prev = byText.get(it.text) ?? [];
+      if (!prev.includes(name)) prev.push(name);
+      byText.set(it.text, prev);
+    }
+    return [...byText].map(([text, names]) => `${names.join(', ')}: ${text}`);
+  };
+  const errors = Array.isArray(result?.errors) ? result!.errors : [];
+  const unchanged = Array.isArray(result?.unchanged) ? result!.unchanged : [];
+  const applied = Array.isArray(result?.applied) ? result!.applied : [];
+  const files = Array.isArray(result?.files) ? result!.files : [];
+  const unverifiedList = Array.isArray(result?.unverified) ? result!.unverified : [];
+  const verified = applied.filter(
+    (fix) => files.some((f) => f?.fix === fix && f.verified === true) && !unverifiedList.some((u) => u?.fix === fix),
+  );
+  const unverifiedFixes = applied.filter((fix) => !verified.includes(fix));
+  // API nedeni dosya adini ve adresi zaten soyler; yoksa dosya adiyla genel metin
+  const unverified = [...new Set(unverifiedFixes.map((fix) => {
+    const reason = unverifiedList.find((u) => u?.fix === fix)?.reason?.trim();
+    const filename = files.find((f) => f?.fix === fix)?.filename ?? label(fix);
+    return reason || `${filename} yüklendi ama sitede görünüp görünmediği doğrulanamadı.`;
+  }))];
+  return {
+    /** Yuklenen tum duzeltmeler (dogrulanmayanlar dahil) — eski alan */
+    applied,
+    /** Yuklenip canli adreste birebir okunan duzeltmeler */
+    verified,
+    /** Yuklendi ama sitede dogrulanamadi */
+    unverifiedFixes,
+    /** unverifiedFixes'in Turkce nedenleri (tekil) */
+    unverified,
+    errors: group(errors.map((e) => ({ fix: e.fix, text: autoFixErrorText(e) }))),
+    unchanged: group(unchanged.map((u) => ({ fix: u.fix, text: u.reason }))),
+    unsupported: Array.isArray(result?.unsupported) ? result!.unsupported : [],
+    previewRequired: errors.some((e) => e.code === 'preview_required'),
+  };
+}
+
+// ──────────────────────────────────────────────────────────
+//  GEO TARAMASI ERISIM ENGELI — audit.checks.geo (geo-runner.service.ts)
+// ──────────────────────────────────────────────────────────
+
+/** GEO orneklemi guvenlik duvarina / bot dogrulamasina takildi: skor VERILMEDI */
+export interface GeoAccessBlock {
+  kind: string;
+  vendor: string | null;
+  status: number;
+  /** Kullaniciya gosterilecek Turkce neden (block-detect.ts) */
+  reason: string;
+  /** Site sahibinin yapmasi gereken (RanksUpBot'a izin) */
+  hint: string;
+  url: string;
+}
+
+/** GEO skorunun dayandigi orneklem: olculen sayfa sayisi ve engel yuzunden disarida kalanlar */
+export interface GeoSample {
+  measured: number;
+  blocked: number;
+}
+
+/** audit.checks.geo → erisim engeli + orneklem. Eski taramalarda ikisi de null. */
+export function geoAccessOf(audit: any): { blocked: GeoAccessBlock | null; sample: GeoSample | null } {
+  const geo = audit?.checks?.geo;
+  const b = geo?.blocked;
+  const s = geo?.sample;
+  return {
+    blocked: b && typeof b.reason === 'string' ? (b as GeoAccessBlock) : null,
+    sample: s && Number.isFinite(s.measured) && Number.isFinite(s.blocked) ? { measured: s.measured, blocked: s.blocked } : null,
+  };
+}
+
+/** Orneklemin bir kismi engele takildiysa skorun yanina not; takilmadiysa (ya da skor hic yoksa) null */
+export function geoSampleNote(sample: GeoSample | null | undefined): string | null {
+  if (!sample || !(sample.blocked > 0) || !(sample.measured > 0)) return null;
+  return `${sample.blocked} sayfa erişim engeline takıldı; skor ${sample.measured} sayfadan hesaplandı.`;
+}
+
+/**
+ * Rapor govdesindeki GEO erisim alanlari: canli rapor (getReport) `audit` ve dondurulmus
+ * raporun `seo.audit` bolumu — reports.service.ts bunlari raporun kendi son taramasindan
+ * (lastAudit.checks.geo) doldurur. Eski API'de alanlar HIC yoktur (undefined); yeni API'de
+ * engel / orneklem yoksa null. undefined'da panel son taramaya (site context) duser.
+ */
+export interface ReportAuditGeo {
+  geoScore?: number | null;
+  geoBlocked?: GeoAccessBlock | null;
+  geoSample?: GeoSample | null;
+}
+
+/**
+ * Rapor gövdesindeki tarama erişimi (reports.service.ts overview → audit). Bu taramadan
+ * SONRAKİ deneme siteye erişemediyse API skorları null döner; eski değer yalnız tarihiyle
+ * `sonBasarili`da. Bu alanlardan önce dondurulmuş raporlarda hiçbiri yok (undefined).
+ */
+export interface ReportAuditAccess {
+  overallScore?: number | null;
+  /** Son başarılı taramanın zamanı (ISO) */
+  ranAt?: string | null;
+  /** web lib/crawl-access.ts CrawlAccess ile aynı şekil — currentCrawlAccess(x, null) ile doğrula */
+  accessBlocked?: unknown;
+  sonBasarili?: { ranAt: string; overallScore: number; geoScore: number | null } | null;
+  olculemeyenSayisi?: number;
+}
+
+// ──────────────────────────────────────────────────────────
+//  TARAMADAKİ AI ÖLÇÜMÜ — audit.checks.aiCitations (audit.service.ts runAudit)
+// ──────────────────────────────────────────────────────────
+
+/** AI adımı atlandıysa nedeni (haftalık ölçüm hakkı, kota, sağlayıcı yok) */
+export interface AiCitationSkip {
+  code: string;
+  /** Kullanıcıya gösterilecek Türkçe açıklama (API) */
+  message: string;
+  /** Haftalık hak doluysa bir sonraki ölçümün açılacağı an (ISO) */
+  nextAvailableAt: string | null;
+}
+
+export interface AiCitationState {
+  /** true = en az bir asistan sayısal skor döndürdü; skor gerçek bir ölçüm */
+  measured: boolean;
+  score: number | null;
+  /** Skor döndüren (available + sayısal skor) asistan sayısı */
+  measuredProviders: number;
+  skipped: AiCitationSkip | null;
+}
+
+/**
+ * audit.checks.aiCitations → ölçüm durumu. API kuralı (audit.service.ts aiCitationsOlculdu) ile
+ * aynı: atlanmış (`skipped`) ya da hiçbir asistanın skor döndürmediği kayıt ölçüm DEĞİLDİR.
+ * Eski taramalar bu durumda `score: 0, providers: []` yazıyordu — 0/100 diye gösterilmez.
+ * Girdi yoksa null.
+ */
+export function aiCitationOf(audit: any): AiCitationState | null {
+  const e = audit?.checks?.aiCitations;
+  if (!e || typeof e !== 'object') return null;
+  const providers: any[] = Array.isArray(e.providers) ? e.providers : [];
+  const measuredProviders = providers.filter((p) => p?.available === true && typeof p?.score === 'number').length;
+  const s = e.skipped;
+  const skipped: AiCitationSkip | null = s && typeof s === 'object' && typeof s.message === 'string'
+    ? { code: String(s.code ?? ''), message: s.message, nextAvailableAt: typeof s.nextAvailableAt === 'string' ? s.nextAvailableAt : null }
+    : null;
+  const scoreOk = typeof e.score === 'number' && Number.isFinite(e.score);
+  const measured = !skipped && scoreOk && measuredProviders > 0;
+  return { measured, score: measured ? e.score : null, measuredProviders, skipped };
+}
+
+const AI_SKIP_DATE_FMT = new Intl.DateTimeFormat('tr-TR', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' });
+
+/**
+ * Ölçülmeyen AI adımının kısa açıklaması — "Ölçülmedi: haftalık ölçüm hakkı kullanıldı
+ * (sonraki: 25 Ekim 14:05)". Neden bilinmiyorsa (eski kayıt) genel cümle.
+ */
+export function aiCitationSkipLabel(state: AiCitationState | null | undefined): string {
+  const skip = state?.skipped;
+  if (skip?.code === 'WEEKLY_MEASUREMENT_LIMIT') {
+    const next = skip.nextAvailableAt ? Date.parse(skip.nextAvailableAt) : NaN;
+    return `Ölçülmedi: haftalık ölçüm hakkı kullanıldı${Number.isFinite(next) ? ` (sonraki: ${AI_SKIP_DATE_FMT.format(new Date(next))})` : ''}`;
+  }
+  if (skip?.message) return `Ölçülmedi: ${skip.message}`;
+  return 'Ölçülmedi: bu taramada hiçbir AI asistanından skor alınamadı.';
+}
+
+// ──────────────────────────────────────────────────────────
+//  TOPLU SNIPPET TARAMASI — snippet-generator.service.ts bulkScan
+// ──────────────────────────────────────────────────────────
+
+/** Toplu taramada tek sayfanin SEO durumu */
+export interface BulkScanPage {
+  url: string;
+  title: string | null;
+  titleLength: number;
+  metaDescription: string | null;
+  metaDescriptionLength: number;
+  h1: string | null;
+  hasCanonical: boolean;
+  hasOG: boolean;
+  hasTwitter: boolean;
+  hasSchema: boolean;
+  hasFAQ: boolean;
+  score: number;
+  issues: string[];
+  /** Erisim engeli (WAF / bot dogrulamasi): skor olculmedi, ortalamaya girmez. Eski API'de yok. */
+  blocked?: boolean;
+  /** Sayfa okunamadi (indirilemedi): skor olculmedi, ortalamaya ve "Sorunlu"ya girmez. Eski API'de yok. */
+  failed?: boolean;
+  /** failed ise kullaniciya gosterilecek neden */
+  failReason?: string;
+}
+
+export interface BulkScanResult {
+  pages: BulkScanPage[];
+  totalScanned: number;
+  /** Yalniz gercekten okunan sayfalarin ortalamasi (engelli ve okunamayan sayfalar haric) */
+  averageScore: number;
+  /** Engel yuzunden olculemeyen sayfa sayisi. Eski API'de yok. */
+  blockedPages?: number;
+  /** Okunamayan sayfa sayisi. Eski API'de yok. */
+  failedPages?: number;
+}
+
+// ──────────────────────────────────────────────────────────
+//  ASO SKOR SINYALLERI (apps/api aso.controller.ts calculateScore)
+// ──────────────────────────────────────────────────────────
+export type AsoStoreId = 'IOS' | 'ANDROID';
+
+/**
+ * Son 30 gundeki yorum sayisi (apps/api aso/recent-reviews.ts RecentReviewSignal).
+ * Bilinmiyorsa API bu alt bileseni skora katmaz, sifir saymaz. Ayrimli birlesim
+ * (status) bilerek: aso/_components/score.ts HealthResult bu tipi kabul eder.
+ */
+export type AsoRecentReviewSignal =
+  | {
+      status: 'known';
+      count: number;
+      /** true → gercek sayi bundan fazla olabilir ("en az N") */
+      lowerBound: boolean;
+      windowDays: number;
+      stores: AsoStoreId[];
+      /** Bagli ama verisi bilinmeyen magazalar (sayiya dahil degil) */
+      missingStores: AsoStoreId[];
+      /**
+       * Son cekimi RECENT_REVIEW_FRESH_HOURS'tan eski magazalar: sayilari alt
+       * sinir (apps/api aso/recent-reviews.ts). Eski API yanitinda yok.
+       */
+      staleStores?: AsoStoreId[];
+      lastFetchAt: string;
+      label: string;
+    }
+  | { status: 'unknown'; windowDays: number; reason: string; label: string };
+
+export interface AsoScoreSignals {
+  recentReviews30d: AsoRecentReviewSignal;
+  /** App Store'da aciklama yogunlugu skora girmez (densityCounted=false) */
+  metadataStores: Array<{ store: AsoStoreId; keywordDensity: number | null; densityCounted: boolean }>;
+}

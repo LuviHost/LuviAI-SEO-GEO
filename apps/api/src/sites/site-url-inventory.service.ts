@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { readBodyCapped, isBinaryContentType } from '../common/fetch-capped.js';
+import { safeFetchText } from '../common/safe-fetch.js';
+import { detectBlock } from '../common/block-detect.js';
+import { isAllowedForRanksUpBot, parseRanksUpBotGroup, ROBOTS_PARSE_LIMIT, type RanksUpRobotsPolicy } from './ranksup-robots.js';
 
 export interface SitePageRef {
   url: string;    // mutlak URL
@@ -196,7 +198,28 @@ export class SiteUrlInventoryService {
   // ── sitemap ────────────────────────────────────────────────
 
   private async fetchSitemapUrls(baseUrl: string): Promise<string[]> {
-    const origin = new URL(baseUrl).origin;
+    const site = new URL(baseUrl);
+    const origin = site.origin;
+
+    // RanksUpBot grubu varsa ona uyulur ("*" grubu bilerek uygulanmaz —
+    // gerekce ranksup-robots.ts'te). robots.txt'in kendisi her zaman serbest.
+    const robotsTxt = await this.fetchText(`${origin}/robots.txt`, ROBOTS_PARSE_LIMIT, false);
+    const policy: RanksUpRobotsPolicy | null = robotsTxt ? parseRanksUpBotGroup(robotsTxt) : null;
+    const allowed = (u: string) => isAllowedForRanksUpBot(policy, u);
+
+    // Yalnizca bu sitenin (www'li/www'suz) sayfalari: baska alan adinin
+    // yollari bu sitenin envanterine girerse ic link dogrulamasi yanilir.
+    const siteKey = (h: string) => h.toLowerCase().replace(/^www\./, '');
+    const own = (list: string[]) => list.filter((u) => {
+      try {
+        const p = new URL(u);
+        return (p.protocol === 'http:' || p.protocol === 'https:') && siteKey(p.hostname) === siteKey(site.hostname);
+      } catch {
+        return false;
+      }
+    });
+    const locs = (xml: string) => [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1].trim().replace(/&amp;/g, '&'));
+
     const candidates = [
       `${origin}/sitemap.xml`,
       `${origin}/wp-sitemap.xml`,
@@ -204,47 +227,42 @@ export class SiteUrlInventoryService {
     ];
 
     for (const candidate of candidates) {
+      if (!allowed(candidate)) continue;
       const xml = await this.fetchText(candidate);
       if (!xml) continue;
       if (xml.includes('<sitemapindex')) {
-        const children = [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1].trim());
         const all: string[] = [];
-        for (const child of children.slice(0, 8)) {
+        for (const child of locs(xml).slice(0, 8)) {
+          if (own([child]).length && !allowed(child)) continue;
           const childXml = await this.fetchText(child);
-          if (childXml) {
-            all.push(...[...childXml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((m) => m[1].trim()));
-          }
+          if (childXml) all.push(...locs(childXml));
         }
-        if (all.length) return all.filter((u) => u.startsWith('http'));
+        const pages = own(all);
+        if (pages.length) return pages;
       }
       if (xml.includes('<urlset')) {
-        return [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)]
-          .map((m) => m[1].trim())
-          .filter((u) => u.startsWith('http'));
+        return own(locs(xml));
       }
     }
     return [];
   }
 
-  private async fetchText(url: string): Promise<string | null> {
+  /**
+   * SSRF korumali okuma (common/safe-fetch.ts) — RanksUpBot kimligiyle.
+   * Tavan: burasi sitemap de okuyabiliyor; sitemap'ler duz metin ve buyuk
+   * olabildigi icin 8 MB, asilinca kesilir. Engel sayfasi icerik sayilmaz.
+   */
+  private async fetchText(url: string, maxBytes = 8 * 1024 * 1024, skipBinary = true): Promise<string | null> {
     try {
-      const res = await fetch(url, {
-        headers: { 'User-Agent': 'RanksUp-Crawler/1.0 (+https://ranksup.ai)' },
-        signal: AbortSignal.timeout(12000),
-        redirect: 'follow',
-      });
-      if (!res.ok) {
-        await res.body?.cancel().catch(() => {});
+      // robots.txt bazen application/octet-stream ile sunulur — metin olarak okunur
+      const res = await safeFetchText(url, { maxBytes, timeoutMs: 12_000, skipBinary });
+      const block = detectBlock(res);
+      if (block) {
+        this.log.warn(`Envanter okunamadi (${url}): ${block.reason}`);
         return null;
       }
-      if (isBinaryContentType(res)) {
-        await res.body?.cancel().catch(() => {});
-        return null;
-      }
-      // Tavan: burasi sitemap de HTML de okuyabiliyor. Sitemap'ler duz metin ve
-      // buyuk olabildigi icin 8 MB; yine de sinirsiz degil. Bkz. fetch-capped.ts
-      const okundu = await readBodyCapped(res, 8 * 1024 * 1024);
-      return okundu?.text ?? null;
+      if (!res.ok || res.binary) return null;
+      return res.text;
     } catch {
       return null;
     }

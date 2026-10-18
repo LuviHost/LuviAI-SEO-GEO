@@ -1,26 +1,17 @@
 import { PublishAdapter } from './base.js';
 import type { PublishPayload, PublishResult } from './base.js';
+import { adapterFetch, httpErrorDetail, httpErrorText, sanitizeErrorText } from './transport.js';
 
-// undici.fetch + Agent({ rejectUnauthorized: false })
-// Node'un native fetch'i (Web Fetch standardina sadik) `dispatcher` option'i
-// kabul ETMIYOR -> ayar sessizce ignore ediliyordu, TLS dogrulamasi devam ediyordu.
-// Bu yuzden undici'yi DOGRUDAN import edip onun fetch'ini kullaniyoruz —
-// dispatcher option'i sadece undici.fetch'te calisir.
-let undiciCache: { fetch: any; agent: any } | null = null;
-async function getUndiciFetch() {
-  if (undiciCache) return undiciCache;
-  try {
-    // @ts-ignore — undici Node 18+ built-in modul, @types/node tip tanimi vermiyor
-    const undici: any = await import('undici');
-    undiciCache = {
-      fetch: undici.fetch,
-      agent: new undici.Agent({ connect: { rejectUnauthorized: false, checkServerIdentity: () => undefined } }),
-    };
-  } catch {
-    undiciCache = null;
-  }
-  return undiciCache;
-}
+/*
+ * TLS DOGRULAMASI ACIK. Eski kod undici'yi dinamik import edip
+ * rejectUnauthorized:false bir Agent kurmak istiyordu; ama undici bu paketin
+ * bagimliligi degil ve packages/adapters'tan cozulemiyor (pnpm hoist etmiyor):
+ * import her seferinde sessizce dusup global fetch'e geciliyordu, yani uretimde
+ * dogrulama hep acikti. O olu yol kaldirildi. Kimlik bilgisi (API token)
+ * tasiyan istekte dogrulamayi kapatmak araya giren birine token'i verir;
+ * bilerek kapatilmadi. Istekler adapterFetch'ten gecer — API kayitliyken
+ * yonlendirme ve ic adres denetimi oradadir (transport.ts).
+ */
 
 /**
  * cPanel API Token + File Manager API ile static HTML upload.
@@ -70,29 +61,25 @@ export class CpanelApiAdapter extends PublishAdapter {
     ].join('\r\n');
 
     try {
-      const undici = await getUndiciFetch();
-      const fetchFn = undici?.fetch ?? fetch;
-      const fetchOpts: any = {
+      const res = await adapterFetch(url, {
         method: 'POST',
         headers: {
           'Authorization': `cpanel ${username}:${apiToken}`,
           'Content-Type': `multipart/form-data; boundary=${boundary}`,
         },
         body,
-      };
-      if (undici?.agent) fetchOpts.dispatcher = undici.agent;
-      const res = await fetchFn(url, fetchOpts);
+      });
 
       if (!res.ok) {
-        const txt = await res.text().catch(() => '');
+        const detail = await httpErrorDetail(res);
         return {
           ok: false,
-          error: `cPanel HTTP ${res.status} (${url}): ${txt.slice(0, 200)}`,
+          error: `cPanel HTTP ${res.status} (${url})${detail ? `: ${detail}` : ''}`,
         };
       }
       const data: any = await res.json();
       if (data.status !== 1) {
-        return { ok: false, error: `cPanel API hata: ${data.errors?.[0] ?? JSON.stringify(data).slice(0, 200)}` };
+        return { ok: false, error: `cPanel API hata: ${sanitizeErrorText(data.errors?.[0] ?? JSON.stringify(data))}` };
       }
 
       // Public URL: configurable publicBaseUrl varsa onu kullan; yoksa host'tan tahmin et.
@@ -107,7 +94,8 @@ export class CpanelApiAdapter extends PublishAdapter {
       // undici 'fetch failed' altinda gercek sebep err.cause'da
       const cause = err?.cause;
       const causeMsg = cause?.code ? `${cause.code}: ${cause.message ?? ''}` : (cause?.message ?? '');
-      const detail = [err.message, causeMsg].filter(Boolean).join(' | ');
+      // Baglanti hatasi adresi tasiyabilir (ECONNREFUSED a.b.c.d:2083) — maskelenir
+      const detail = sanitizeErrorText([err.message, causeMsg].filter(Boolean).join(' | '), 300);
       return {
         ok: false,
         error: `cPanel baglanti hatasi (${url}): ${detail}. Kontrol et: host URL https:// + port 2083 ile mi? SSL gecerli mi? cPanel servisine ulasilabiliyor mu?`,
@@ -155,24 +143,20 @@ export class CpanelApiAdapter extends PublishAdapter {
     ].join('\r\n');
 
     try {
-      const undici = await getUndiciFetch();
-      const fetchFn = undici?.fetch ?? fetch;
-      const fetchOpts: any = {
+      const res = await adapterFetch(url, {
         method: 'POST',
         headers: {
           'Authorization': `cpanel ${username}:${apiToken}`,
           'Content-Type': `multipart/form-data; boundary=${boundary}`,
         },
         body,
-      };
-      if (undici?.agent) fetchOpts.dispatcher = undici.agent;
-      const res = await fetchFn(url, fetchOpts);
+      });
       if (!res.ok) {
-        return { ok: false, error: `cPanel HTTP ${res.status}: ${(await res.text().catch(() => '')).slice(0, 200)}` };
+        return { ok: false, error: await httpErrorText('cPanel HTTP', res) };
       }
       const data: any = await res.json();
       if (data.status !== 1) {
-        return { ok: false, error: `cPanel API hata: ${data.errors?.[0] ?? JSON.stringify(data).slice(0, 200)}` };
+        return { ok: false, error: `cPanel API hata: ${sanitizeErrorText(data.errors?.[0] ?? JSON.stringify(data))}` };
       }
       const publicBase = String(this.config.publicBaseUrl ?? '').trim().replace(/\/+$/, '')
         || `https://${new URL(host).hostname.replace(':2083', '').replace(/^cpanel\./, '')}`;
@@ -180,7 +164,7 @@ export class CpanelApiAdapter extends PublishAdapter {
     } catch (err: any) {
       const cause = err?.cause;
       const causeMsg = cause?.code ? `${cause.code}: ${cause.message ?? ''}` : (cause?.message ?? '');
-      return { ok: false, error: `cPanel bağlantı hatası: ${[err.message, causeMsg].filter(Boolean).join(' | ')}` };
+      return { ok: false, error: `cPanel bağlantı hatası: ${sanitizeErrorText([err.message, causeMsg].filter(Boolean).join(' | '), 300)}` };
     }
   }
 
@@ -188,13 +172,9 @@ export class CpanelApiAdapter extends PublishAdapter {
     const host = this.credentials.host ?? this.credentials.cpanelUrl;
     const { username, apiToken } = this.credentials;
     if (!host || !username || !apiToken) return false;
-    const undici = await getUndiciFetch();
-    const fetchFn = undici?.fetch ?? fetch;
-    const opts: any = { headers: { 'Authorization': `cpanel ${username}:${apiToken}` } };
-    if (undici?.agent) opts.dispatcher = undici.agent;
-    const res = await fetchFn(
+    const res = await adapterFetch(
       `${host.replace(/\/$/, '')}/execute/Variables/get_user_information`,
-      opts,
+      { headers: { 'Authorization': `cpanel ${username}:${apiToken}` } },
     ).catch(() => null);
     return !!res?.ok;
   }

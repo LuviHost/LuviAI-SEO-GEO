@@ -1,25 +1,28 @@
 import * as crypto from 'node:crypto';
 import { PublishAdapter } from './base.js';
 import type { PublishPayload, PublishResult } from './base.js';
+import { adapterFetch, httpErrorText } from './transport.js';
+import { pickString, trimTrailingSlash } from './credential-keys.js';
 
 /**
  * Ghost Admin API adapter.
- * credentials: { siteUrl, adminApiKey }
+ * credentials: { apiUrl (panel katalogu) | siteUrl (eski kayitlar), adminApiKey }
  * config: { status: 'published' | 'draft', tags?: string[] }
  *
- * adminApiKey format: "id:secret" (Ghost Admin → Integrations → New)
- * JWT auth ile self-signed token.
+ * adminApiKey format: "id:secret" — Ghost Admin → Integrations ekraninda
+ * yeni bir Custom Integration ile uretilir; secret hex kodludur ve imzadan
+ * once ham bayta cevrilir (https://docs.ghost.org/admin-api, Token
+ * Authentication). JWT auth ile self-signed token.
  */
 export class GhostAdapter extends PublishAdapter {
   async publish(payload: PublishPayload): Promise<PublishResult> {
-    const { siteUrl, adminApiKey } = this.credentials;
     const { status = 'published', tags = [] } = this.config;
 
     try {
-      const token = this.makeJWT(adminApiKey);
-      const apiUrl = `${siteUrl.replace(/\/$/, '')}/ghost/api/admin/posts/?source=html`;
+      const token = this.makeJWT(this.adminApiKey());
+      const apiUrl = `${this.adminBase()}/ghost/api/admin/posts/?source=html`;
 
-      const res = await fetch(apiUrl, {
+      const res = await adapterFetch(apiUrl, {
         method: 'POST',
         headers: {
           'Authorization': `Ghost ${token}`,
@@ -43,8 +46,7 @@ export class GhostAdapter extends PublishAdapter {
       });
 
       if (!res.ok) {
-        const error = await res.text();
-        return { ok: false, error: `Ghost ${res.status}: ${error.slice(0, 200)}` };
+        return { ok: false, error: await httpErrorText('Ghost', res) };
       }
 
       const data: any = await res.json();
@@ -59,22 +61,48 @@ export class GhostAdapter extends PublishAdapter {
     }
   }
 
+  /**
+   * Anahtari GERCEKTEN dogrular. Eskiden /ghost/api/admin/site/ okunuyordu;
+   * o uc herkese acik (Ghost core routes.js: router.get('/site',
+   * mw.publicAdminApi, ...)) — yanlis anahtarla da 200 donup "baglanti
+   * basarili" dedirtirdi. /posts/ kimlik ister (mw.authAdminApi); limit=1 ile
+   * yanit kucuk kalir. Kaynak (18.10.2026):
+   * https://github.com/TryGhost/Ghost/blob/main/ghost/core/server/web/api/endpoints/admin/routes.js
+   */
   async test(): Promise<boolean> {
-    const { siteUrl, adminApiKey } = this.credentials;
     try {
-      const token = this.makeJWT(adminApiKey);
-      const res = await fetch(`${siteUrl}/ghost/api/admin/site/`, {
+      const token = this.makeJWT(this.adminApiKey());
+      const res = await adapterFetch(`${this.adminBase()}/ghost/api/admin/posts/?limit=1`, {
         headers: { 'Authorization': `Ghost ${token}`, 'Accept-Version': 'v5.0' },
       });
+      // Govde okunmaz; baglanti havuzda asili kalmasin
+      await res.body?.cancel().catch(() => {});
       return res.ok;
     } catch {
       return false;
     }
   }
 
+  /** Panel katalogu 'apiUrl' yazar; eski kayitlar 'siteUrl' (bkz. credential-keys.ts) */
+  private adminBase(): string {
+    const url = pickString(this.credentials, 'apiUrl', 'siteUrl');
+    if (!url) throw new Error('Ghost API URL eksik — yayın hedefini düzenleyip adresi girin.');
+    return trimTrailingSlash(url);
+  }
+
+  private adminApiKey(): string {
+    const key = pickString(this.credentials, 'adminApiKey');
+    if (!key) throw new Error('Ghost Admin API Key eksik — yayın hedefini düzenleyip anahtarı girin.');
+    return key;
+  }
+
   private makeJWT(adminApiKey: string): string {
     const [id, secret] = adminApiKey.split(':');
-    if (!id || !secret) throw new Error('Ghost adminApiKey format: id:secret');
+    // Buffer.from(_, 'hex') gecersiz karakterde sessizce kisaltir: yanlis imza
+    // "401" diye donerdi, asil neden (bicim) gorunmezdi
+    if (!id || !secret || !/^[0-9a-f]+$/i.test(secret) || secret.length % 2 !== 0) {
+      throw new Error("Ghost Admin API Key 'id:secret' biçiminde olmalı (secret onaltılık).");
+    }
 
     const header = Buffer.from(JSON.stringify({ alg: 'HS256', typ: 'JWT', kid: id })).toString('base64url');
     const now = Math.floor(Date.now() / 1000);

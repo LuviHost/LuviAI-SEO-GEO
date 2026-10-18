@@ -117,7 +117,7 @@ export default function AsoAppOverviewPage() {
             <CardHeader className="pb-2">
               <h3 className="flex items-center gap-2 text-sm font-semibold">
                 <Gauge className="h-4 w-4 text-brand" aria-hidden /> ASO skoru
-                <InfoTooltip text="Eldeki boyutların ortalaması: mağaza sayfası denetimi, puan ve yorumlar, izlenen anahtar kelimelerin gerçek sıraları. Dönüşüm verisi olmadığı için skora katılmaz." />
+                <InfoTooltip text="Eldeki boyutların ortalaması: mağaza sayfası denetimi, puan ve yorumlar, izlenen anahtar kelimelerin gerçek sıraları. Dönüşüm verisi olmadığı için skora katılmaz; son 30 günün yorum sayısı kesin bilinmiyorsa (yorum çekilmediyse, son çekim 48 saatten eskiyse ya da tek çekimin sınırına dayandıysa) sıfır ya da eksik sayılmaz, hesaba katılmaz." />
               </h3>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -145,6 +145,7 @@ export default function AsoAppOverviewPage() {
                           <div className="h-1.5 overflow-hidden rounded-full bg-muted" aria-hidden>
                             <div className={cn('h-full rounded-full', t.bar)} style={{ width: `${p.score ?? 0}%` }} />
                           </div>
+                          {p.detail && <p className="mt-1 text-label text-muted-foreground">{p.detail}</p>}
                         </li>
                       );
                     })}

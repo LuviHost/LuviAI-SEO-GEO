@@ -21,6 +21,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { EmptyState } from '@/components/empty-state';
 import { GoogleAiSurfaceCard } from '@/components/google-ai-surface-card';
 import { SearchOpportunitiesCard } from '@/components/search-opportunities-card';
+import { GaConversionChecklist } from '@/components/ga-conversion-checklist';
 
 export function AnalyticsTab({ siteId, site }: { siteId: string; site?: any }) {
   const [overview, setOverview] = useState<any>(null);
@@ -76,7 +77,7 @@ export function AnalyticsTab({ siteId, site }: { siteId: string; site?: any }) {
       try {
         await api.triggerSnapshotNow(siteId);
         await refresh();
-      } catch (_err) {
+      } catch {
         // Sessizce yut — empty state'te kullanıcıya 'veri ~24 saat sonra' mesajı gösterilir
       } finally {
         setRefreshing(false);
@@ -108,7 +109,13 @@ export function AnalyticsTab({ siteId, site }: { siteId: string; site?: any }) {
   }
 
   if (!site?.gscPropertyUrl || !overview || overview.timeSeries?.length === 0) {
-    return <AnalyticsEmptyState site={site} siteId={siteId} refreshing={refreshing} onTriggerSnapshot={triggerSnapshot} />;
+    // GSC'siz ama GA4'u bagli yerel isletme donusum kontrolunu yine gorsun
+    return (
+      <div className="space-y-4">
+        <AnalyticsEmptyState site={site} siteId={siteId} refreshing={refreshing} onTriggerSnapshot={triggerSnapshot} />
+        {site?.gaPropertyId && <GaConversionChecklist siteId={siteId} />}
+      </div>
+    );
   }
 
   const totals = overview.totals;
@@ -272,6 +279,9 @@ export function AnalyticsTab({ siteId, site }: { siteId: string; site?: any }) {
               <MetricCard icon={LogOut} label="Hemen çıkma oranı" value={formatPct(gaSummary.avgBounceRate)} accent="muted" />
             </div>
 
+            {/* Telefon / form-randevu onemli etkinlik olarak olculuyor mu — "Donusum" sayisinin neyi saydigini aciklar */}
+            <GaConversionChecklist siteId={siteId} />
+
             {gaSummary.topPages?.length > 0 && (
               <Card>
                 <CardHeader>
@@ -363,7 +373,7 @@ export function AnalyticsTab({ siteId, site }: { siteId: string; site?: any }) {
  *   - GSC bağlı, property seçilmedi → "Property seç" mesajı + Ayarlar linkine yönlendirir
  */
 function AnalyticsEmptyState({
-  site, siteId, refreshing, onTriggerSnapshot,
+  site, siteId, refreshing,
 }: {
   site?: any;
   siteId: string;

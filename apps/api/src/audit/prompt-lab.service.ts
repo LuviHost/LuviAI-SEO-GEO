@@ -1,9 +1,21 @@
-import { Injectable, Logger, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException, NotFoundException, HttpException, HttpStatus } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { safeFetchText } from '../common/safe-fetch.js';
 import { CITATION_MATCH_VERSION } from './host-match.js';
-import { AiCitationService, type CitationProbe, type Provider } from './ai-citation.service.js';
+import { AiCitationService, type CitationProbe, type CitationResult, type Provider } from './ai-citation.service.js';
 import { FanoutService } from './fanout.service.js';
 import { unbrandedOnly } from './brand-in-query.js';
+import { compareAddress, comparePhone, type AddressCheck, type AnswerNapSignal, type PhoneCheck } from './local-nap.js';
+import {
+  buildLocalPrompts, isLocalPrompt, localTags, parseLocalPromptSpec, readLocalTags,
+  LOCAL_PROMPT_SOURCE, type LocalPromptMeta,
+} from './local-prompts.js';
+import {
+  readSiteNap, resolveSiteNap, SITE_NAP_REFRESH_COOLDOWN_MS,
+  type SiteNapFetcher, type SiteNapStatus, type StoredSiteNap,
+} from './site-nap.js';
+import { formatTrPhone } from './tr-phone.js';
+import { PROMPT_LOCAL_KEY_PREFIX, promptLocalKey } from './prompt-local-key.js';
 
 /**
  * Prompt Lab — kullanicinin takip ettigi sorulari yonetir ve calistirir.
@@ -40,19 +52,103 @@ export interface PromptRunSummary {
   }>;
   /** En zayif dallar — aksiyon icin (hic olculemeyenler haric) */
   weakestBranches: Array<{ id: string; text: string; kind: string; citedCount: number; total: number }>;
+  /** Yalniz yerel sorularda: marka + NAP dogrulugu (saglayici bazinda) */
+  local?: LocalRunSummary | null;
+  runAt: string;
+}
+
+/** Sitede bulunan NAP — panelde gosterim icin (telefon okunur bicimde) */
+export interface SiteNapView {
+  status: SiteNapStatus;
+  phones: string[];
+  addresses: Array<{ street: string | null; district: string | null; city: string | null }>;
+  sources: string[];
+  businessTypes: string[];
+  pages: string[];
+  reason: string | null;
+  collectedAt: string | null;
+  /** Son okuma denemesi basarisizsa (eski kayit gosteriliyorsa) nedeni */
+  lastError: string | null;
+}
+
+export interface LocalProviderResult {
+  provider: string;
+  label: string;
+  /** Bu saglayici gecerli bir cevap verdi mi (hata/kullanilamaz degil) */
+  measured: boolean;
+  /** Marka cevapta gecti mi (brandMentioned) */
+  mentioned: boolean;
+  /** Site baglantisi verildi mi (cited) */
+  cited: boolean;
+  /** found: okunur bicimde numaralar */
+  phone: PhoneCheck;
+  address: AddressCheck;
+}
+
+export interface LocalRunSummary {
+  location: LocalPromptMeta | null;
+  /** null = site NAP'i okunamadi (hata) */
+  siteNap: SiteNapView | null;
+  providers: LocalProviderResult[];
+  /** false = bu olcumde cevap metinleri telefon/adres icin incelenemedi */
+  napChecked: boolean;
   runAt: string;
 }
 
 const MAX_PROMPTS_PER_SITE = 200;
+/**
+ * Son yerel sonucun kv_store omru — liste ekraninda gosterilir; GeoPromptRun'da
+ * NAP kolonu yok (sema degismez). Anahtar bicimi prompt-local-key.ts'te TEK
+ * yerde: hesap ve site silme planlari ayni anahtari o dosyadan uretip siler;
+ * servis ayri bir onek tutsaydi ikisi sessizce ayrisabilirdi.
+ */
+const LOCAL_RESULT_TTL_MS = 120 * 24 * 60 * 60 * 1000;
 const MAX_TEXT_LEN = 500;
 const MIN_TEXT_LEN = 5;
 /** Tek calistirmada islenecek azami dal — manuel dal eklemede ust sinir yoksa maliyet patlar */
 const MAX_BRANCHES_PER_RUN = 12;
 const MAX_RUN_ALL = 50;
 
+/**
+ * Yerel soru konum etiketleri (local-prompts.ts localTags): 'yerel', 'il:..',
+ * 'ilce:..', 'hizmet:..'. audit.dto.ts RESERVED_PROMPT_TAG ile ayni kural
+ * (buyuk/kucuk harf duyarsiz).
+ */
+const RESERVED_LOCAL_TAG = /^(?:yerel$|il:|ilce:|hizmet:)/i;
+
+/**
+ * PATCH prompts/:id etiketleri.
+ *
+ * NEDEN: etiketler TAMAMEN degistiriliyordu. Yerel sorunun il/ilce/hizmet
+ * bilgisi de etiketlerde durdugu icin (sema degisikligi yok) etiket
+ * guncellemesi konumu siliyor, panel konumu bos gosteriyordu. Kurallar:
+ *  - yerel sorunun mevcut konum etiketleri KORUNUR (basta, eski sirasiyla);
+ *  - istemciden gelen ayrilmis etiket yok sayilir: DTO zaten reddediyor, bu
+ *    dogrudan cagiranlar (MCP, test) icin ikinci kat — elle 'yerel' eklemek
+ *    yerel soru dogrulamasini (POST prompts/local) atlatirdi;
+ *  - dizi degilse undefined (alan degismez) — eski davranis.
+ */
+export function mergePromptTags(
+  prompt: { source?: string | null; tags?: unknown },
+  next: unknown,
+): string[] | undefined {
+  if (!Array.isArray(next)) return undefined;
+  const kept = isLocalPrompt(prompt) && Array.isArray(prompt.tags)
+    ? prompt.tags.filter((t): t is string => typeof t === 'string' && RESERVED_LOCAL_TAG.test(t))
+    : [];
+  const user = next.filter((t): t is string => typeof t === 'string' && !RESERVED_LOCAL_TAG.test(t));
+  return [...new Set([...kept, ...user])];
+}
+
 @Injectable()
 export class PromptLabService {
   private readonly log = new Logger(PromptLabService.name);
+
+  /**
+   * Site NAP okumasinda kullanilan istemci. Yapici parametresi DEGIL: DI
+   * imzasi degismesin; testler yerel sunucuya baglanan fetcher'i buradan verir.
+   */
+  siteNapFetcher: SiteNapFetcher = safeFetchText;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -96,6 +192,9 @@ export class PromptLabService {
       orderBy: [{ createdAt: 'desc' }],
       include: { _count: { select: { fanouts: true } } },
     });
+    // Yerel sorularin son NAP sonucu — TEK sorguda (soru basina ayri okuma yok)
+    const localIds = prompts.filter((p) => isLocalPrompt(p)).map((p) => p.id);
+    const lastLocal = await this.readLocalResults(localIds);
     return prompts.map((p) => ({
       id: p.id,
       text: p.text,
@@ -112,6 +211,10 @@ export class PromptLabService {
       lastScore: p.lastTotalCount > 0
         ? Math.round((p.lastCitedCount / p.lastTotalCount) * 100)
         : null,
+      /** Yerel soru: il / ilce / hizmet (yerel degilse null) */
+      local: isLocalPrompt(p) ? (readLocalTags(p.tags) ?? { il: null, ilce: null, hizmet: null }) : null,
+      /** Yerel sorunun son olcumundeki marka + NAP sonucu */
+      lastLocal: lastLocal.get(p.id) ?? null,
       createdAt: p.createdAt,
     }));
   }
@@ -158,14 +261,14 @@ export class PromptLabService {
     tags?: string[];
     isActive?: boolean;
   }) {
-    await this.requirePrompt(siteId, promptId);
+    const prompt = await this.requirePrompt(siteId, promptId);
 
     const data: any = {};
     // create() ile AYNI dogrulama — eskiden update ust siniri uygulamiyordu,
     // create'in reddettigi 10 KB'lik metin PATCH ile iceri giriyordu.
     if (input.text !== undefined) data.text = this.validateText(input.text);
     if (input.intent !== undefined) data.intent = String(input.intent).slice(0, 40);
-    if (input.tags !== undefined) data.tags = Array.isArray(input.tags) ? input.tags : undefined;
+    if (input.tags !== undefined) data.tags = mergePromptTags(prompt, input.tags);
     if (input.isActive !== undefined) data.isActive = !!input.isActive;
 
     return this.prisma.geoPrompt.update({ where: { id: promptId }, data });
@@ -175,6 +278,8 @@ export class PromptLabService {
     await this.requirePrompt(siteId, promptId);
     // fanouts + runs cascade ile gider (schema'da onDelete: Cascade)
     await this.prisma.geoPrompt.delete({ where: { id: promptId } });
+    // Yerel sonuc kv_store'da — cascade disinda kaldigi icin elle silinir
+    await this.prisma.kvStore.deleteMany({ where: { key: promptLocalKey(promptId) } }).catch(() => undefined);
     return { ok: true };
   }
 
@@ -223,6 +328,97 @@ export class PromptLabService {
       await this.prisma.geoPrompt.createMany({ data: toCreate });
     }
     return { imported: toCreate.length, skipped };
+  }
+
+  // ────────────────────────────────────────────────────────────
+  //  YEREL MOD — il/ilce + hizmet sorulari (local-prompts.ts)
+  // ────────────────────────────────────────────────────────────
+  /**
+   * Taslaklari dondurur; KAYIT YAPMAZ ve AI cagirmaz (sablonlar sabit).
+   * Zaten takipte olanlar `exists` ile isaretlenir.
+   */
+  async previewLocal(siteId: string, body: unknown) {
+    const parsed = parseLocalPromptSpec(body);
+    if (!parsed.ok) throw new BadRequestException(parsed.error);
+    const drafts = buildLocalPrompts(parsed.spec);
+    const existing = await this.prisma.geoPrompt.findMany({
+      where: { siteId, trackedAppId: null },
+      select: { text: true },
+    });
+    const seen = new Set(existing.map((e) => this.normalize(e.text)));
+    return {
+      spec: parsed.spec,
+      drafts: drafts.map((d) => ({ ...d, exists: seen.has(this.normalize(d.text)) })),
+    };
+  }
+
+  /**
+   * Secilen taslaklari yerel soru olarak kaydeder. Metinler istemciden
+   * ALINMAZ: girdi yeniden dogrulanir, taslaklar sunucuda yeniden uretilir ve
+   * `texts` yalniz secim icin kullanilir — etiketler (il/ilce/hizmet) her
+   * zaman metinle tutarli kalir.
+   *
+   * Isaret: source='local' + tags ['yerel', 'il:..', 'ilce:..', 'hizmet:..'].
+   * intent 'commercial': "X'te kuafor" sorusu ticari arastirmadir.
+   */
+  async createLocal(siteId: string, body: unknown): Promise<{ created: number; skipped: number; limitReached: boolean }> {
+    const parsed = parseLocalPromptSpec(body);
+    if (!parsed.ok) throw new BadRequestException(parsed.error);
+    const rawTexts = (body as { texts?: unknown } | null)?.texts;
+    const wanted = Array.isArray(rawTexts)
+      ? new Set(rawTexts.filter((t): t is string => typeof t === 'string').map((t) => this.normalize(t)))
+      : null;
+    const drafts = buildLocalPrompts(parsed.spec).filter((d) => !wanted || wanted.has(this.normalize(d.text)));
+    if (!drafts.length) throw new BadRequestException('Kaydedilecek soru seçilmedi.');
+
+    const existing = await this.prisma.geoPrompt.findMany({
+      where: { siteId, trackedAppId: null },
+      select: { text: true },
+    });
+    const seen = new Set(existing.map((e) => this.normalize(e.text)));
+    let capacity = MAX_PROMPTS_PER_SITE - existing.length;
+    const toCreate: Array<{ siteId: string; text: string; intent: string; locale: string; source: string; tags: string[] }> = [];
+    let limitReached = false;
+    for (const d of drafts) {
+      const norm = this.normalize(d.text);
+      if (seen.has(norm)) continue;
+      if (capacity <= 0) { limitReached = true; break; }
+      seen.add(norm);
+      capacity--;
+      toCreate.push({ siteId, text: d.text, intent: 'commercial', locale: 'tr', source: LOCAL_PROMPT_SOURCE, tags: localTags(d) });
+    }
+    if (toCreate.length) await this.prisma.geoPrompt.createMany({ data: toCreate });
+    if (!toCreate.length && limitReached) {
+      throw new BadRequestException(`Site başına en fazla ${MAX_PROMPTS_PER_SITE} soru takip edilebilir`);
+    }
+    return { created: toCreate.length, skipped: drafts.length - toCreate.length, limitReached };
+  }
+
+  /** Kayitli site NAP'i — siteye istek ATMAZ (yalniz kv_store). null = henuz okunmadi */
+  async siteNapStatus(siteId: string): Promise<SiteNapView | null> {
+    const nap = await readSiteNap(this.prisma, siteId);
+    return nap ? this.siteNapView(nap) : null;
+  }
+
+  /**
+   * Kullanici "yeniden oku" dedi: sitenin anasayfasi (gerekirse iletisim
+   * sayfasi) okunur. Siteye yuk olmasin diye iki okuma arasi en az 10 dk.
+   */
+  async refreshSiteNap(siteId: string): Promise<SiteNapView> {
+    const site = await this.prisma.site.findUnique({ where: { id: siteId }, select: { id: true, url: true } });
+    if (!site) throw new NotFoundException('Site bulunamadı');
+    const cached = await readSiteNap(this.prisma, siteId);
+    if (cached) {
+      const since = Date.now() - Date.parse(cached.attemptedAt || cached.collectedAt);
+      if (since >= 0 && since < SITE_NAP_REFRESH_COOLDOWN_MS) {
+        throw new HttpException(
+          { statusCode: HttpStatus.TOO_MANY_REQUESTS, message: 'Site bilgisi az önce okundu. Birkaç dakika sonra tekrar deneyin.' },
+          HttpStatus.TOO_MANY_REQUESTS,
+        );
+      }
+    }
+    const nap = await resolveSiteNap(this.prisma, site, { fetcher: this.siteNapFetcher, force: true });
+    return this.siteNapView(nap);
   }
 
   // ────────────────────────────────────────────────────────────
@@ -327,6 +523,18 @@ export class PromptLabService {
       .sort((a, b) => (a.citedCount / a.total) - (b.citedCount / b.total))
       .slice(0, 5);
 
+    // ── 4) Yerel soru: ayni cevaplardan marka + NAP dogrulugu. Ek AI cagrisi
+    // YOK — olcum yolu ve haftalik hak aynen gecerli; yalnizca elde olan
+    // cevaplar sitenin kendi telefon/adresiyle karsilastirilir. Hata olcumu
+    // dusurmez.
+    let local: LocalRunSummary | null = null;
+    if (isLocalPrompt(prompt)) {
+      local = await this.buildLocalSummary(siteId, prompt, mainResults).catch((err: any) => {
+        this.log.warn(`[${promptId}] Yerel NAP ozeti uretilemedi: ${err?.message ?? err}`);
+        return null;
+      });
+    }
+
     return {
       promptId,
       text: prompt.text,
@@ -340,6 +548,7 @@ export class PromptLabService {
         probes: r.probes,
       })),
       weakestBranches,
+      local,
       runAt: new Date().toISOString(),
     };
   }
@@ -350,7 +559,7 @@ export class PromptLabService {
    * SIRALAMA: en uzun suredir olculmeyen once (lastRunAt asc, null'lar basta).
    * Eskiden createdAt asc idi ve limit 25 oldugundan 26. prompt HIC olculmuyordu.
    */
-  async runAll(siteId: string, opts: { withFanout?: boolean; limit?: number } = {}) {
+  async runAll(siteId: string, opts: { withFanout?: boolean; limit?: number; scope?: string } = {}) {
     const rawLimit = typeof opts.limit === 'number' ? opts.limit : parseInt(String(opts.limit ?? ''), 10);
     const limit = Number.isFinite(rawLimit)
       ? Math.min(Math.max(Math.trunc(rawLimit), 1), MAX_RUN_ALL)
@@ -358,8 +567,9 @@ export class PromptLabService {
 
     const prompts = await this.prisma.geoPrompt.findMany({
       // App sorulari haric — aksi halde lastRunAt=null olduklarindan siralamada
-      // one gecip site butcesini tuketir ve app skorlarini site semantigiyle ezerdi
-      where: { siteId, isActive: true, trackedAppId: null },
+      // one gecip site butcesini tuketir ve app skorlarini site semantigiyle ezerdi.
+      // scope 'local': yalniz yerel sorular (ayni olcum yolu, ayni haftalik hak)
+      where: { siteId, isActive: true, trackedAppId: null, ...(opts.scope === 'local' ? { source: LOCAL_PROMPT_SOURCE } : {}) },
       orderBy: [{ lastRunAt: { sort: 'asc', nulls: 'first' } }, { createdAt: 'asc' }],
       take: limit,
       select: { id: true },
@@ -510,6 +720,109 @@ export class PromptLabService {
         fanout: { ...v.fanout, score: pct(v.fanout.cited, v.fanout.total) },
       }))
       .sort((a, b) => a.date.localeCompare(b.date));
+  }
+
+  // ────────────────────────────────────────────────────────────
+  //  YEREL SONUC — NAP karsilastirmasi
+  // ────────────────────────────────────────────────────────────
+  /**
+   * Saglayici cevaplarini sitenin kendi NAP'iyle karsilastirir.
+   *
+   * Cevap tarafi probe.nap'ten gelir (buildProbe cevabin TAMAMINI inceler;
+   * probe.excerpt yalniz ilk 220 karakter oldugundan yetmez). Alan hic yoksa
+   * cevap NAP icin incelenmemistir → "olculmedi"; null ise incelendi, bulunmadi.
+   */
+  private async buildLocalSummary(siteId: string, prompt: { id: string; tags?: unknown }, results: CitationResult[]): Promise<LocalRunSummary> {
+    const site = await this.prisma.site.findUnique({ where: { id: siteId }, select: { id: true, url: true } });
+    let nap: StoredSiteNap | null = null;
+    if (site) {
+      nap = await resolveSiteNap(this.prisma, site, { fetcher: this.siteNapFetcher }).catch((err: any) => {
+        this.log.warn(`[${siteId}] Site NAP okunamadi: ${err?.message ?? err}`);
+        return null;
+      });
+    }
+    // Okunamayan site: karsilastirma "bilinmiyor"a duser (bos liste)
+    const sitePhones = nap?.status === 'ok' ? nap.phones : [];
+    const siteAddresses = nap?.status === 'ok' ? nap.addresses : [];
+
+    let napChecked = false;
+    const providers = results.map((r): LocalProviderResult => {
+      const probe = r.probes[0];
+      if (!r.available || !probe || this.isErrorProbe(probe)) {
+        return {
+          provider: r.provider, label: r.label, measured: false, mentioned: false, cited: false,
+          phone: { status: 'olculmedi', found: [] }, address: { status: 'olculmedi', snippet: null, matched: [], otherCity: null },
+        };
+      }
+      const inspected = Object.prototype.hasOwnProperty.call(probe, 'nap');
+      if (inspected) napChecked = true;
+      const signal = inspected ? ((probe as CitationProbe & { nap?: AnswerNapSignal | null }).nap ?? null) : null;
+      const phone: PhoneCheck = inspected ? comparePhone(sitePhones, signal) : { status: 'olculmedi', found: [] };
+      const address: AddressCheck = inspected ? compareAddress(siteAddresses, signal) : { status: 'olculmedi', snippet: null, matched: [], otherCity: null };
+      return {
+        provider: r.provider,
+        label: r.label,
+        measured: true,
+        mentioned: !!probe.brandMentioned,
+        cited: !!probe.cited,
+        phone: { ...phone, found: phone.found.map(formatTrPhone) },
+        address,
+      };
+    });
+
+    const summary: LocalRunSummary = {
+      location: readLocalTags(prompt.tags),
+      siteNap: nap ? this.siteNapView(nap) : null,
+      providers,
+      napChecked,
+      runAt: new Date().toISOString(),
+    };
+    // Hic gecerli cevap yoksa son bilinen sonuc EZILMEZ (skordaki 0/0 kuraliyla ayni)
+    if (providers.some((p) => p.measured)) await this.saveLocalResult(prompt.id, summary);
+    return summary;
+  }
+
+  private siteNapView(nap: StoredSiteNap): SiteNapView {
+    return {
+      status: nap.status,
+      phones: nap.phones.map(formatTrPhone),
+      addresses: nap.addresses.map((a) => ({ street: a.street, district: a.district, city: a.city })),
+      sources: nap.sources,
+      businessTypes: nap.businessTypes ?? [],
+      pages: nap.pages,
+      reason: nap.reason,
+      collectedAt: nap.status === 'unavailable' ? null : nap.collectedAt,
+      lastError: nap.status !== 'unavailable' ? nap.attemptError : null,
+    };
+  }
+
+  private async saveLocalResult(promptId: string, summary: LocalRunSummary): Promise<void> {
+    const key = promptLocalKey(promptId);
+    const value = JSON.stringify(summary);
+    const expiresAt = new Date(Date.now() + LOCAL_RESULT_TTL_MS);
+    try {
+      await this.prisma.kvStore.upsert({ where: { key }, create: { key, value, expiresAt }, update: { value, expiresAt } });
+    } catch (err: any) {
+      // Yanit bellekten dondugu icin dogru kalir; yalniz listedeki "son sonuc" eksik olur
+      this.log.warn(`Yerel sonuc yazilamadi (${promptId}): ${err?.message ?? err}`);
+    }
+  }
+
+  private async readLocalResults(promptIds: string[]): Promise<Map<string, LocalRunSummary>> {
+    const out = new Map<string, LocalRunSummary>();
+    if (!promptIds.length) return out;
+    try {
+      const rows = await this.prisma.kvStore.findMany({
+        where: { key: { in: promptIds.map(promptLocalKey) } },
+        select: { key: true, value: true },
+      });
+      for (const row of rows) {
+        try { out.set(row.key.slice(PROMPT_LOCAL_KEY_PREFIX.length), JSON.parse(row.value)); } catch { /* bozuk kayit atlanir */ }
+      }
+    } catch (err: any) {
+      this.log.warn(`Yerel sonuclar okunamadi: ${err?.message ?? err}`);
+    }
+    return out;
   }
 
   // ────────────────────────────────────────────────────────────

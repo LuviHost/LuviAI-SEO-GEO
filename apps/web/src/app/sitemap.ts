@@ -14,21 +14,21 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${SITE_URL}/compare`,     lastModified: now, changeFrequency: 'monthly', priority: 0.7 },
     { url: `${SITE_URL}/about`,       lastModified: now, changeFrequency: 'monthly', priority: 0.7 },
     { url: `${SITE_URL}/help`,        lastModified: now, changeFrequency: 'monthly', priority: 0.5 },
-    // Help center alt sayfaları — SEO + AI cite için kritik (her biri detaylı modül rehberi)
+    // Help center alt sayfaları — SEO + AI cite için kritik (her biri detaylı modül rehberi).
+    // Yalniz VAR OLAN rotalar: /help/studio ve /help/social (modulleri kalkti) 404 veriyordu;
+    // /status uydurma uptime gosteriyordu ve kaldirildi (saglik ucu yok).
     { url: `${SITE_URL}/help/getting-started`, lastModified: now, changeFrequency: 'monthly', priority: 0.6 },
     { url: `${SITE_URL}/help/ai-visibility`,   lastModified: now, changeFrequency: 'monthly', priority: 0.6 },
     { url: `${SITE_URL}/help/aso`,             lastModified: now, changeFrequency: 'monthly', priority: 0.6 },
     { url: `${SITE_URL}/help/asa-asc`,         lastModified: now, changeFrequency: 'monthly', priority: 0.6 },
-    { url: `${SITE_URL}/help/studio`,          lastModified: now, changeFrequency: 'monthly', priority: 0.6 },
     { url: `${SITE_URL}/help/auto-pilot`,      lastModified: now, changeFrequency: 'monthly', priority: 0.6 },
     { url: `${SITE_URL}/help/api-keys`,        lastModified: now, changeFrequency: 'monthly', priority: 0.6 },
-    { url: `${SITE_URL}/help/social`,          lastModified: now, changeFrequency: 'monthly', priority: 0.6 },
     { url: `${SITE_URL}/help/billing`,         lastModified: now, changeFrequency: 'monthly', priority: 0.6 },
     { url: `${SITE_URL}/help/glossary`,        lastModified: now, changeFrequency: 'monthly', priority: 0.6 },
     { url: `${SITE_URL}/privacy`,     lastModified: now, changeFrequency: 'yearly',  priority: 0.3 },
     { url: `${SITE_URL}/terms`,       lastModified: now, changeFrequency: 'yearly',  priority: 0.3 },
     { url: `${SITE_URL}/kvkk`,        lastModified: now, changeFrequency: 'yearly',  priority: 0.3 },
-    { url: `${SITE_URL}/status`,      lastModified: now, changeFrequency: 'daily',   priority: 0.4 },
+    { url: `${SITE_URL}/bot`,         lastModified: now, changeFrequency: 'yearly',  priority: 0.3 },
   ];
 
   return staticPages;

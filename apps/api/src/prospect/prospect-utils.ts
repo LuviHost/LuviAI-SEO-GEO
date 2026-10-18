@@ -12,9 +12,10 @@
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import fs from 'node:fs';
-
-export const DESKTOP_UA =
-  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36';
+import {
+  RANKSUP_BOT_UA, SafeFetchError, safeFetchText, type SafeTextResult,
+} from '../common/safe-fetch.js';
+import { detectBlock } from '../common/block-detect.js';
 
 export const SEKTORLER = ['finans', 'eticaret-perakende-teknoloji', 'turizm-havayolu-telekom-otomotiv'] as const;
 export type Sektor = (typeof SEKTORLER)[number];
@@ -250,7 +251,7 @@ export function parseCsv(text: string): Record<string, string>[] {
   let cur: string[] = [];
   let field = '';
   let inQ = false;
-  const src = text.replace(/^﻿/, '');
+  const src = text.replace(/^\uFEFF/, '');
   for (let i = 0; i < src.length; i++) {
     const c = src[i];
     if (inQ) {
@@ -294,30 +295,99 @@ export function writeCsv(file: string, rows: Array<Record<string, unknown>>, col
 
 // ─── Ag / yardimci ──────────────────────────────────────────────────────────
 
+/**
+ * Tek yanit icin govde tavani. KAP/Wikipedia JSON listeleri birkac MB olabilir.
+ * Tavani asan yanit YARIM veriyle donmez: yarim JSON parse hatasi, yarim HTML
+ * ise sessizce eksik liste demek.
+ */
+export const FETCH_MAX_BYTES = 10 * 1024 * 1024;
+
+const VARSAYILAN_BASLIKLAR: Record<string, string> = {
+  'accept-language': 'tr-TR,tr;q=0.9,en;q=0.7',
+  accept: 'text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8',
+};
+
+/**
+ * Metin ceker; 2xx disinda `HTTP <kod> <url>` hatasi atar.
+ *
+ * KIMLIK: durust bot kimligi (RANKSUP_BOT_UA). Eskiden masaustu Chrome taklidi
+ * yapiliyordu, yani sitenin bot kurali bizi tanimasin diye tarayici gibi
+ * gorunuyorduk. Artik adimizi soyleriz; engellenirsek asmaya calismayiz
+ * (https://ranksup.ai/bot). Cagiranin verdigi user-agent yok sayilir.
+ *
+ * GUVENLIK: GET istekleri safeFetchText ile. Aday sitelerin adresleri
+ * disaridan (listelerden, alan adi tahmininden) geliyor; ozel/ic adrese ve
+ * 80/443 disi porta gidilmez, her yonlendirme yeniden denetlenir.
+ *
+ * HATA SOZLESMESI: scripts/prospect/* gecici hatalari mesaj/ad deseninden
+ * taniyor (GECICI_HATA_RE: abort | fetch failed | HTTP 5xx/429/408;
+ * hataKodu: AbortError). safeFetchText hatalari bu desenlere cevrilir ki
+ * yeniden deneme davranisi degismesin.
+ */
 export async function fetchText(
   url: string,
   opts: { timeoutMs?: number; headers?: Record<string, string>; method?: 'GET' | 'POST'; body?: string } = {},
 ): Promise<string> {
-  const ctrl = new AbortController();
-  const t = setTimeout(() => ctrl.abort(), opts.timeoutMs ?? 20_000);
-  try {
-    const res = await fetch(url, {
-      method: opts.method ?? 'GET',
-      body: opts.body,
-      signal: ctrl.signal,
-      headers: {
-        'user-agent': DESKTOP_UA,
-        'accept-language': 'tr-TR,tr;q=0.9,en;q=0.7',
-        accept: 'text/html,application/xhtml+xml,application/json;q=0.9,*/*;q=0.8',
-        ...(opts.headers ?? {}),
-      },
-      redirect: 'follow',
-    });
-    if (!res.ok) throw new Error(`HTTP ${res.status} ${url}`);
-    return await res.text();
-  } finally {
-    clearTimeout(t);
+  const headers: Record<string, string> = { ...VARSAYILAN_BASLIKLAR };
+  for (const [k, v] of Object.entries(opts.headers ?? {})) {
+    if (k.toLowerCase() === 'user-agent') continue; // kimlik degistirilemez
+    headers[k.toLowerCase()] = v;
   }
+  const timeoutMs = opts.timeoutMs ?? 20_000;
+  if (opts.method === 'POST') return postText(url, opts.body, headers, timeoutMs);
+
+  let res: SafeTextResult;
+  try {
+    res = await safeFetchText(url, { userAgent: RANKSUP_BOT_UA, headers, timeoutMs, maxBytes: FETCH_MAX_BYTES });
+  } catch (err) {
+    throw scriptHatasi(err, url);
+  }
+  const engel = detectBlock({ status: res.status, headers: res.headers, text: res.text });
+  if (!res.ok) throw new Error(`HTTP ${res.status} ${url}${engel ? ` (engel: ${engel.vendor ?? engel.kind})` : ''}`);
+  // 200 donup icerik yerine bot dogrulama ekrani gelebilir — onu sayfa sanip ayristirmayiz
+  if (engel) throw new Error(`Engel: bot dogrulamasi (${engel.vendor ?? 'bilinmiyor'}) ${url}`);
+  if (res.binary) throw new Error(`Metin olmayan icerik (${res.contentType || 'bilinmiyor'}) ${url}`);
+  if (res.truncated) throw new Error(`Yanit ${FETCH_MAX_BYTES} bayt sinirini asti ${url}`);
+  return res.text;
+}
+
+/**
+ * POST yalnizca script'lerdeki SABIT kaynak adresleri icin (Fortune 500 arama
+ * formu gibi). safeFetchText POST'ta da ayni korumayi verir (baglanti anindaki
+ * DNS denetimi dahil — once cozup sonra global fetch ile baglanmak DNS
+ * rebinding boslugu birakiyordu) ve yonlendirme IZLEMEZ: izlenseydi govdeli
+ * istek denetlenmemis bir adrese tasinabilirdi.
+ */
+async function postText(url: string, body: string | undefined, headers: Record<string, string>, timeoutMs: number): Promise<string> {
+  let res: SafeTextResult;
+  try {
+    res = await safeFetchText(url, {
+      method: 'POST', body, headers, userAgent: RANKSUP_BOT_UA, timeoutMs,
+      maxBytes: FETCH_MAX_BYTES, skipBinary: false,
+    });
+  } catch (err) {
+    throw scriptHatasi(err, url);
+  }
+  if (res.status >= 300 && res.status < 400) throw new Error(`HTTP ${res.status} ${url} (POST yonlendirmesi izlenmez)`);
+  if (!res.ok) throw new Error(`HTTP ${res.status} ${url}`);
+  if (res.truncated) throw new Error(`Yanit ${FETCH_MAX_BYTES} bayt sinirini asti ${url}`);
+  return res.text;
+}
+
+/** safeFetchText hatasini script'lerin tanidigi bicime cevir (bkz. fetchText HATA SOZLESMESI) */
+function scriptHatasi(err: unknown, url: string): unknown {
+  if (!(err instanceof SafeFetchError)) return err;
+  if (err.code === 'timeout') {
+    // Eski AbortController davranisiyla ayni ad ve 'abort' kelimesi → gecici sayilir
+    const e = new Error(`Zaman asimi, istek iptal edildi (aborted) ${url}`);
+    e.name = 'AbortError';
+    return e;
+  }
+  if (err.code === 'network' || err.code === 'dns') {
+    // Eski global fetch burada 'fetch failed' atiyordu → gecici sayilir
+    return new Error(`fetch failed (${err.code}: ${err.message}) ${url}`);
+  }
+  return err; // protocol / port / blocked_address / redirect: kalici, oldugu gibi
 }
 
 export function dedupeBy<T>(rows: T[], keyFn: (r: T) => string | null | undefined): T[] {

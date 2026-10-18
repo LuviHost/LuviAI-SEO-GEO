@@ -1,33 +1,57 @@
-import { Body, Controller, Delete, Get, Header, Param, Patch, Post, Put, Query, Res } from '@nestjs/common';
-import type { Response } from 'express';
+import { Body, Controller, Delete, Get, NotFoundException, Param, Patch, Post, Put, Query, UseGuards } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
+import { SiteUserThrottlerGuard, SITE_USER_THROTTLE } from '../audit/site-user-throttler.guard.js';
 import { ArticlesService } from './articles.service.js';
 import { ArticleSchedulerService } from './article-scheduler.service.js';
 import { ProgrammaticSeoService } from './programmatic-seo.service.js';
-import { TiktokPublisherService } from './tiktok-publisher.service.js';
-import { InstagramPublisherService } from './instagram-publisher.service.js';
 import { TranslatorService } from './translator.service.js';
 import { QaGateService } from './qa-gate.service.js';
 import { RequiresPlan } from '../billing/plan-feature.decorator.js';
+import {
+  GenerateArticleDto, ProgrammaticCitiesDto, PublishArticleDto, PublishedEntryParamsDto, RescheduleArticleDto, RunPipelineNowDto,
+  ScheduleTopicDto, SocialPrePlanDto, TranslateArticleDto, TranslateBulkDto,
+} from './articles.dto.js';
 
 // PLAN KAPILARI — bu dosyada yalnizca EYLEM uclari plana baglidir.
 // Programmatic SEO fiyat kartinda Ajans plani maddesi olarak satiliyor, o yuzden
 // toplu sehir uretimi ucu kapali. Duz listeleme ve gecmis GET uclari bilerek
 // ACIK birakildi; plani dusen kullanici gecmis verisini gorebilmeli.
+//
+// SAHIPLIK: SiteAccessGuard yalniz `:siteId`'yi dogrular. `:id` (makale) ayri
+// bir parametre — servis onu siteId'siz okuyorsa (reschedule, unschedule,
+// translate) makale once BU siteye ait mi diye bakilir (requireArticle).
+//
+// KALDIRILAN UCLAR (istemcisi yoktu; web/mobil/worker cagirmiyor):
+//  - POST schedule-batch: ilk makaleyi kota denetimi OLMADAN hemen uretime
+//    aliyordu; her cagri bedava bir makale (5 ajanlik LLM zinciri) demekti.
+//    Onboarding ayni servisi worker'da (5/5 adimi) dogrudan cagiriyor.
+//  - POST :id/video/tiktok: govdedeki `videoPath` sunucuda fs.readFile ile
+//    okunuyordu (rastgele dosya okuma) ve RanksUp'in KENDI TikTok hesabina
+//    (TIKTOK_ACCESS_TOKEN) yukleniyordu.
+//  - POST :id/video/instagram: herhangi bir musteri, RanksUp'in KENDI
+//    Instagram hesabinda (INSTAGRAM_ACCESS_TOKEN) istedigi video ve metinle
+//    Reels yayinlatabiliyordu.
 @Controller('sites/:siteId/articles')
 export class ArticlesController {
   constructor(
     private readonly articles: ArticlesService,
     private readonly scheduler: ArticleSchedulerService,
     private readonly programmatic: ProgrammaticSeoService,
-    private readonly tiktok: TiktokPublisherService,
-    private readonly instagram: InstagramPublisherService,
     private readonly translator: TranslatorService,
     private readonly qaGate: QaGateService,
   ) {}
 
+  /** Makale bu siteye ait degilse 404 (baska sitenin makalesinin varligi sizmaz) */
+  private async requireArticle(siteId: string, id: string): Promise<void> {
+    if (!siteId || !id) throw new NotFoundException('Makale bulunamadı');
+    const article = await this.articles.findOne(id, siteId);
+    if (!article) throw new NotFoundException('Makale bulunamadı');
+  }
+
   @Get()
   list(@Param('siteId') siteId: string, @Query('status') status?: string) {
-    return this.articles.list(siteId, status);
+    // Yalniz dize suzgec (?status[not]=x nesne olur, Prisma'da filtreye donusurdu)
+    return this.articles.list(siteId, typeof status === 'string' && status ? status : undefined);
   }
 
   /** GET /sites/:siteId/articles/scheduled — takvim icin bekleyen makaleler */
@@ -36,34 +60,39 @@ export class ArticlesController {
     return this.scheduler.listScheduledForSite(siteId);
   }
 
-  /** POST /sites/:siteId/articles/schedule-batch — onboarding sonrasi tier-1'den N makale schedule et */
-  @Post('schedule-batch')
-  scheduleBatch(@Param('siteId') siteId: string, @Body() body: { count?: number }) {
-    return this.scheduler.scheduleInitialBatch(siteId, { count: body?.count });
-  }
-
   /** POST /sites/:siteId/articles/schedule-topic — drag-drop: bir tier-1 konuyu takvime ekle */
   @Post('schedule-topic')
   scheduleTopic(
     @Param('siteId') siteId: string,
-    @Body() body: { topic: string; scheduledAt: string; slug?: string; pillar?: string },
+    @Body() body: ScheduleTopicDto,
   ) {
-    return this.scheduler.scheduleTopic(siteId, body);
+    return this.scheduler.scheduleTopic(siteId, {
+      topic: body.topic,
+      scheduledAt: body.scheduledAt,
+      slug: body.slug,
+      pillar: body.pillar,
+    });
   }
 
   /** PUT /sites/:siteId/articles/:id/reschedule — drag-drop: takvimde mevcut makaleyi tasi */
   @Put(':id/reschedule')
-  reschedule(
+  async reschedule(
+    @Param('siteId') siteId: string,
     @Param('id') id: string,
-    @Body() body: { scheduledAt: string },
+    @Body() body: RescheduleArticleDto,
   ) {
-    return this.scheduler.rescheduleArticle(id, body.scheduledAt);
+    // Servis makaleyi yalniz id ile okuyor: baska sitenin makalesi tasinabiliyor
+    // (DRAFT → SCHEDULED, kurbanin kotasindan uretim) ve tam satiri donuyordu
+    await this.requireArticle(siteId, id);
+    return this.scheduler.rescheduleArticle(siteId, id, body.scheduledAt);
   }
 
   /** DELETE /sites/:siteId/articles/scheduled/:id — takvimden kaldir */
   @Delete('scheduled/:id')
-  unschedule(@Param('id') id: string) {
-    return this.scheduler.unscheduleArticle(id);
+  async unschedule(@Param('siteId') siteId: string, @Param('id') id: string) {
+    // Servis yalniz id ile siliyordu — baska sitenin takvimdeki makalesi silinebiliyordu
+    await this.requireArticle(siteId, id);
+    return this.scheduler.unscheduleArticle(siteId, id);
   }
 
   /**
@@ -78,7 +107,7 @@ export class ArticlesController {
   setSocialPrePlan(
     @Param('siteId') siteId: string,
     @Param('id') id: string,
-    @Body() body: { channelIds: string[] | null },
+    @Body() body: SocialPrePlanDto,
   ) {
     return this.articles.setSocialPrePlan(siteId, id, body?.channelIds ?? null);
   }
@@ -90,13 +119,13 @@ export class ArticlesController {
 
   /** POST /sites/:siteId/articles/generate — queue */
   @Post('generate')
-  generate(@Param('siteId') siteId: string, @Body() body: { topic: string; targetIds?: string[] }) {
+  generate(@Param('siteId') siteId: string, @Body() body: GenerateArticleDto) {
     return this.articles.queueGeneration(siteId, body.topic, body.targetIds);
   }
 
   /** POST /sites/:siteId/articles/run-now — senkron pipeline (quota'li) */
   @Post('run-now')
-  runNow(@Param('siteId') siteId: string, @Body() body: { topic: string; skipImages?: boolean; maxRevize?: number }) {
+  runNow(@Param('siteId') siteId: string, @Body() body: RunPipelineNowDto) {
     return this.articles.runPipelineNow({
       siteId,
       topic: body.topic,
@@ -105,14 +134,48 @@ export class ArticlesController {
     });
   }
 
-  /** POST /sites/:siteId/articles/:id/publish */
+  /**
+   * POST /sites/:siteId/articles/:id/publish
+   * Govde: { targetIds?, overrideQa?, overwriteRemoteEdits? }. overwriteRemoteEdits
+   * (C1) yalniz kullanicinin acik onayidir: WordPress'te RanksUp disinda
+   * degismis yazinin ustune yazilir; verilmezse o yazi atlanir (live_entry_edited).
+   * targetIds doluysa aynen uygulanir (D1: secilmeyen canli kopya yazilmaz,
+   * 'live_target_not_selected'); is kullanicinin yayini olarak kuyruga girer
+   * (initiator 'user', D2: silinen yazi yalniz adi verilen hedefte yeniden olusturulur).
+   */
   @Post(':id/publish')
   publish(
     @Param('siteId') siteId: string,
     @Param('id') id: string,
-    @Body() body: { targetIds: string[]; overrideQa?: boolean },
+    @Body() body: PublishArticleDto,
   ) {
-    return this.articles.queuePublish(siteId, id, body.targetIds, { overrideQa: body.overrideQa });
+    return this.articles.queuePublish(siteId, id, body.targetIds ?? [], {
+      overrideQa: body.overrideQa === true,
+      overwriteRemoteEdits: body.overwriteRemoteEdits === true,
+    });
+  }
+
+  /**
+   * POST /sites/:siteId/articles/:articleId/published-to/:targetId/mark-updated
+   * Musteri, RanksUp'in guncelleyemedigi canli kopyayi kendi panelinden
+   * guncelledi → kaydin "elle guncelleme bekliyor" isareti kalkar. Kayit yoksa 404.
+   * Donus: { ok, status, publishedTo }. Sahiplik: SiteAccessGuard (:siteId) +
+   * makale bu siteye ait (serviste) + kimlikler kanonik (DTO).
+   */
+  @Post(':articleId/published-to/:targetId/mark-updated')
+  markPublishedEntryUpdated(@Param() params: PublishedEntryParamsDto) {
+    return this.articles.markPublishedEntryUpdated(params.siteId, params.articleId, params.targetId);
+  }
+
+  /**
+   * POST /sites/:siteId/articles/:articleId/published-to/:targetId/forget
+   * Musteri yazinin o hedefteki kopyasini sildi → kayit kaldirilir; o hedefe
+   * sonraki yayin yeni kayit acar. Canli kayit kalmazsa yazi READY_TO_PUBLISH.
+   * Kayit yoksa 404. Donus: { ok, status, publishedTo }.
+   */
+  @Post(':articleId/published-to/:targetId/forget')
+  forgetPublishedEntry(@Param() params: PublishedEntryParamsDto) {
+    return this.articles.forgetPublishedEntry(params.siteId, params.articleId, params.targetId);
   }
 
   /** POST /sites/:siteId/articles/:id/qa-check — yayin oncesi QA gate'i (yeniden) kos */
@@ -127,27 +190,25 @@ export class ArticlesController {
     return this.articles.triggerNow(siteId, id);
   }
 
-  /** POST /sites/:siteId/articles/:id/video/tiktok — TikTok upload */
-  @Post(':id/video/tiktok')
-  uploadTikTok(@Param('id') id: string, @Body() body: { videoPath: string }) {
-    return this.tiktok.uploadVideo(id, body.videoPath);
-  }
-
-  /** POST /sites/:siteId/articles/:id/video/instagram — Instagram Reels upload */
-  @Post(':id/video/instagram')
-  uploadInstagram(@Param('id') id: string, @Body() body: { publicVideoUrl: string; caption?: string }) {
-    return this.instagram.uploadReel(id, body.publicVideoUrl, body.caption);
-  }
-
   /** POST /sites/:siteId/articles/:id/translate — makaleyi farkli dile cevir */
+  // Her ceviri 32k cikti tavanli bir Sonnet cagrisi; plan kapisi yok, bu yuzden
+  // site+kullanici basina saatlik tavan (diger model cagiran rotalarla ayni koruma)
+  @UseGuards(SiteUserThrottlerGuard)
+  @Throttle({ [SITE_USER_THROTTLE]: { limit: 10, ttl: 60 * 60_000 } })
   @Post(':id/translate')
-  translate(@Param('id') id: string, @Body() body: { toLanguage: string }) {
-    return this.translator.translate(id, body.toLanguage);
+  async translate(@Param('siteId') siteId: string, @Param('id') id: string, @Body() body: TranslateArticleDto) {
+    // Servis makaleyi yalniz id ile okuyor: baska sitenin makalesi o sitede
+    // yeni bir ceviri kaydi olarak (LLM maliyetiyle) uretilebiliyordu
+    await this.requireArticle(siteId, id);
+    return this.translator.translate(id, body.toLanguage, siteId);
   }
 
   /** POST /sites/:siteId/articles/translate-bulk — site icin bulk cevir */
+  // Tek istek 20 makale x N dil Sonnet cagrisi uretebilir
+  @UseGuards(SiteUserThrottlerGuard)
+  @Throttle({ [SITE_USER_THROTTLE]: { limit: 2, ttl: 60 * 60_000 } })
   @Post('translate-bulk')
-  translateBulk(@Param('siteId') siteId: string, @Body() body: { languages: string[] }) {
+  translateBulk(@Param('siteId') siteId: string, @Body() body: TranslateBulkDto) {
     return this.translator.bulkTranslateSite(siteId, body.languages ?? ['en']);
   }
 
@@ -156,8 +217,13 @@ export class ArticlesController {
   @Post('programmatic/cities')
   programmaticCities(
     @Param('siteId') siteId: string,
-    @Body() body: { template: string; cities?: string[]; spreadDays?: number; maxQuota?: number },
+    @Body() body: ProgrammaticCitiesDto,
   ) {
-    return this.programmatic.generateCityPages(siteId, body);
+    return this.programmatic.generateCityPages(siteId, {
+      template: body.template,
+      cities: body.cities,
+      spreadDays: body.spreadDays,
+      maxQuota: body.maxQuota,
+    });
   }
 }

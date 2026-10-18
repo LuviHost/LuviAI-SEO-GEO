@@ -35,7 +35,11 @@ export function parseRobotsAiStance(robotsTxt: string, bots: readonly KnownAiBot
   let currentAgents: string[] = [];
   let rulesOpen = false;
 
-  for (const rawLine of robotsTxt.split(/\r?\n/)) {
+  // RFC 9309 2.2: CRLF, LF ve tek CR satir sonudur (robots-merge.ts ile ayni).
+  // Yalniz /\r?\n/ ile bolunce yalniz-CR dosya tek satira cokuyor ve tum
+  // botlar "izinli" gorunuyordu. Bastaki UTF-8 BOM ilk User-agent satirini
+  // gizlemesin diye atilir (parseRobots da atar).
+  for (const rawLine of robotsTxt.replace(/^\uFEFF/, '').split(/\r\n|\r|\n/)) {
     const line = rawLine.replace(/#.*$/, '').trim();
     if (!line) continue;
     const [keyRaw, ...rest] = line.split(':');

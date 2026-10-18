@@ -11,6 +11,8 @@ import {
 } from '@nestjs/common';
 import type { Request } from 'express';
 import { SettingsService } from './settings.service.js';
+import { clientIp } from '../common/client-ip.js';
+import { SessionOnly } from '../auth/session-only.decorator.js';
 
 function assertAdmin(req: Request) {
   const user = (req as any).user;
@@ -48,7 +50,16 @@ export class SettingsController {
     return this.settings.getAuditLog(key);
   }
 
-  /** PUT /admin/settings/:key  body: { value } */
+  /**
+   * PUT /admin/settings/:key  body: { value }
+   *
+   * Yalniz panel oturumuyla: '/admin' api-keys.service ROUTE_RESOURCE
+   * eslesmesinde yok, AuthGuard bilinmeyen kaynakta HERHANGI bir ':write'
+   * anahtarini yeterli sayiyordu. ADMIN hesabinin anahtari (orn. MCP icin
+   * uretilmis) sizarsa AI_GLOBAL_DISABLED gibi platform geneli ayarlar
+   * degistirilebilirdi. Okuma uclari degismedi.
+   */
+  @SessionOnly()
   @Put(':key')
   async update(
     @Req() req: Request,
@@ -59,7 +70,9 @@ export class SettingsController {
     if (body?.value === undefined || body?.value === null) {
       throw new BadRequestException('value alani zorunlu');
     }
-    const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip;
+    // Denetim kaydindaki IP istemcinin yazdigi XFF'ten degil, ortak kuraldan
+    // (CF-Connecting-IP / nginx'in ekledigi adres) gelir — bkz. common/client-ip.ts
+    const ip = clientIp(req) || undefined;
     const ua = req.headers['user-agent'];
     return this.settings.set(key, String(body.value), user.id, {
       ipAddress: ip,

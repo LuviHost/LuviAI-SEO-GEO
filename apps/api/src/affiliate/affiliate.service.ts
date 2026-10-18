@@ -1,4 +1,4 @@
-import { Injectable, Logger, ConflictException } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 
 @Injectable()
@@ -42,7 +42,7 @@ export class AffiliateService {
     const tier1UserIds = tier1.map((r) => r.referredUserId).filter((id): id is string => !!id);
 
     // Tier 2 — tier 1'deki kullanicilarin kendi affiliate hesaplarinin referrals'i
-    let tier2: any[] = [];
+    const tier2: any[] = [];
     if (tier1UserIds.length > 0) {
       const subAffiliates = await this.prisma.affiliate.findMany({
         where: { userId: { in: tier1UserIds } },

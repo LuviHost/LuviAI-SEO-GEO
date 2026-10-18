@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UnauthorizedException } from '@nestjs/common';
+import { Controller, Delete, Get, Param, Patch, Post, Query, Req, UnauthorizedException } from '@nestjs/common';
 import type { Request } from 'express';
 import { NotificationsService } from './notifications.service.js';
 
@@ -14,11 +14,13 @@ export class NotificationsController {
 
   @Get()
   list(@Req() req: Request, @Query('unread') unread?: string, @Query('type') type?: string, @Query('limit') limit?: string, @Query('cursor') cursor?: string) {
+    // Sorgu ayristirici ?type[not]=x'i nesneye cevirir; Prisma'ya yalniz dize gitsin
+    const n = limit ? parseInt(limit, 10) : NaN;
     return this.notifications.list(ensureUser(req), {
       unreadOnly: unread === '1' || unread === 'true',
-      type,
-      limit: limit ? parseInt(limit, 10) : undefined,
-      cursor,
+      type: typeof type === 'string' && type ? type : undefined,
+      limit: Number.isFinite(n) ? n : undefined,
+      cursor: typeof cursor === 'string' && cursor ? cursor : undefined,
     });
   }
 

@@ -148,7 +148,7 @@ describe('citationDegerlendir — 0 ile "olcum yok" ayrimi', () => {
   it('hic olcum yapilmamis site icin aciklama veriyor', () => {
     const r = citationDegerlendir(null);
     expect(r.skor).toBeNull();
-    expect(r.olcumYok).toMatch(/olcum/i);
+    expect(r.olcumYok).toMatch(/ölçüm/i);
   });
 });
 

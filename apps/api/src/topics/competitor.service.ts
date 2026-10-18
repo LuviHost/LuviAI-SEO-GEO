@@ -1,5 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { safeFetchText } from '../common/safe-fetch.js';
+import { detectBlock } from '../common/block-detect.js';
 
 export interface CompetitorMove {
   competitor: string;
@@ -63,23 +65,29 @@ export class CompetitorService {
       `${competitorUrl}/blog/feed/`, `${competitorUrl}/atom.xml`,
     ];
     for (const url of rssCandidates) {
-      try {
-        const res = await fetch(url, { signal: AbortSignal.timeout(8000) });
-        if (!res.ok) continue;
-        const xml = await res.text();
-        if (!xml.includes('<item') && !xml.includes('<entry')) continue;
-        return this.parseRss(xml);
-      } catch {}
+      const xml = await this.fetchText(url);
+      if (!xml) continue;
+      if (!xml.includes('<item') && !xml.includes('<entry')) continue;
+      return this.parseRss(xml);
     }
 
     // HTML fallback — blog sayfasından article başlıkları
+    const html = await this.fetchText(competitorUrl);
+    return html ? this.parseHtmlForArticles(html, competitorUrl) : [];
+  }
+
+  /**
+   * Rakip sitesinden metin. Adres Brain'deki rakip listesinden (kullanici /
+   * LLM) gelir → SSRF korumali, tavanli okuma; eskiden res.text() sinirsizdi.
+   * Engel/dogrulama sayfasi icerik sayilmaz (basliklari "yazi" sanilirdi).
+   */
+  private async fetchText(url: string): Promise<string | null> {
     try {
-      const res = await fetch(competitorUrl, { signal: AbortSignal.timeout(8000) });
-      if (!res.ok) return [];
-      const html = await res.text();
-      return this.parseHtmlForArticles(html, competitorUrl);
+      const res = await safeFetchText(url, { timeoutMs: 8000 });
+      if (!res.ok || res.binary || detectBlock(res)) return null;
+      return res.text;
     } catch {
-      return [];
+      return null;
     }
   }
 
@@ -103,7 +111,7 @@ export class CompetitorService {
         const link = new URL(m[1], baseUrl).href;
         const title = m[2].replace(/<[^>]+>/g, '').trim();
         if (title.length > 15 && !items.find(i => i.link === link)) items.push({ title, link });
-      } catch {}
+      } catch { /* gecersiz href — atla */ }
       if (items.length >= 10) break;
     }
     return items;

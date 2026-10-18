@@ -1,14 +1,18 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
+import { overwriteRemoteEditsConfirm, pollJob, publishJobOutcome, publishOutcomeView } from '@/lib/publish-result';
+import { tablePublishDescription, tablePublishPlan, targetDisplayName } from '@/lib/publish-targets';
+import { manualUpdateBadge } from '@/lib/manual-update';
+import { showNotice } from '@/lib/notice';
 import { cn } from '@/lib/utils';
+import { useConfirm } from '@/components/ui/confirm-dialog';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
 import { Lightbulb, Loader2, Calendar, FileCheck2, Send, Sparkles, RefreshCw, Eye} from 'lucide-react';
 import { PipelineProgress, PIPELINE_STEPS } from '@/components/pipeline-progress';
 
@@ -40,6 +44,8 @@ type Row = {
   publishedAt?: string | null;
   publicUrl?: string | null;
   hasBody?: boolean; // gerçek içerik üretildi mi (Detay butonu için)
+  /** Yazinin eski surumu yerinde guncellenemeyen bir hedefte yayinda (lib/manual-update.ts) */
+  manualUpdate?: { label: string; title: string } | null;
 };
 
 export type ContentRowState = Row['state'];
@@ -75,7 +81,14 @@ export function ContentFlowTable({
   const [running, setRunning] = useState(false);
   // Birden fazla bağımsız üretim için Set
   const [generatingTopics, setGeneratingTopics] = useState<Set<string>>(new Set());
-  const [publishing, setPublishing] = useState<string | null>(null);
+  // Yayin sonucu yoklanirken satir mesgul kalir; birden fazla satir ayni anda yayinlanabilir
+  const [publishing, setPublishing] = useState<Set<string>>(new Set());
+  const confirm = useConfirm();
+  const alive = useRef(true);
+  useEffect(() => {
+    alive.current = true;
+    return () => { alive.current = false; };
+  }, []);
   const [triggeringSet, setTriggeringSet] = useState<Set<string>>(new Set());
   // Tarih atama modali (Sırada-tarihsiz article'ları takvime al)
   const [scheduleTarget, setScheduleTarget] = useState<{ articleId: string; title: string } | null>(null);
@@ -138,24 +151,84 @@ export function ContentFlowTable({
     }
   };
 
-  const publish = async (articleId: string) => {
-    setPublishing(articleId);
+  /**
+   * Hedef listesi (lib/publish-targets.ts tablePublishPlan, sozlesme D1):
+   *  - yazi SITEDE yayindaysa BOS: API yazinin yayinda oldugu aktif hedefleri secer. Eskiden
+   *    varsayilan acikca gonderiliyordu ([def.id]); varsayilan sonradan degistiyse onaylanan
+   *    yeniden yayin varsayilanda ikinci bir kopya aciyordu (R10/R17).
+   *  - sitede yayinda degilse (hic yayinlanmamis ya da yalniz Markdown ZIP disa aktarimi var)
+   *    etkin varsayilan hedef ACIKCA: API acik listeyi aynen uygular. 11. turda her zaman
+   *    bos liste gidiyordu; yalniz ZIP disa aktarimi olan yazi yeniden disa aktariliyor,
+   *    varsayilan WordPress hedefine hic yazilmiyordu (S25).
+   * Karar tiklama anindaki yazidan verilir (tablonun listesi eski olabilir: yazi bu arada
+   * baska sekmede yayinlanmis olabilir); okunamazsa tablodaki kayit kullanilir.
+   * overwrite: yalniz yayincinin az once 'live_entry_edited' dedigi hedef(ler), onay
+   * penceresinden sonra (sozlesme C1/C2) — o zaman hedefler acikca gonderilir.
+   */
+  const publish = async (articleId: string, overwrite?: { targetIds: string[] }) => {
+    setPublishing((prev) => new Set(prev).add(articleId));
     try {
-      // Default publish target ile yayınla — frontend target seçimi yok burada
-      const targets = await api.listPublishTargets(siteId);
-      const def = targets.find((t: any) => t?.isDefault && t?.isActive);
-      if (!def) {
-        toast.error('Yayın hedefi yok — Yayın Hedefleri kartından ekle');
+      const [targets, fresh] = await Promise.all([
+        api.listPublishTargets(siteId) as Promise<any[]>,
+        api.getArticle(siteId, articleId).catch(() => null),
+      ]);
+      const article = fresh ?? (articles ?? []).find((a) => a?.id === articleId);
+      const plan = tablePublishPlan(article?.publishedTo, targets);
+      if (!overwrite && plan.kind === 'no_target') {
+        toast.error(plan.message);
         return;
       }
-      await api.publishArticle(siteId, articleId, [def.id]);
-      toast.success('Yayın başlatıldı');
+      const job = overwrite
+        ? await api.publishArticle(siteId, articleId, overwrite.targetIds, undefined, true)
+        : await api.publishArticle(siteId, articleId, plan.kind === 'publish' ? plan.targetIds : []);
+      toast.message(overwrite ? 'Üzerine yazma kuyruğa alındı' : 'Yayın kuyruğa alındı', {
+        description: overwrite || plan.kind !== 'publish'
+          ? 'Sonucu burada göstereceğiz.'
+          : tablePublishDescription(plan),
+      });
+      onRefresh();
+      // Sonuc is kaydindan: yayinlandi / atlandi (kopya acilmadi) / hata — hata metni
+      // API'den, oldugu gibi (lib/publish-result.ts). Eskiden yalniz "Yayin baslatildi" deniyordu.
+      const snap = job?.dbJobId ? await pollJob(() => api.getJob(job.dbJobId), { isAlive: () => alive.current }) : null;
+      if (!alive.current) return;
+      // Ad sonucun kendi hedefinden: eskiden yalniz varsayilan hedefin adi biliniyordu
+      const nameOf = (r: { targetId: string; targetType?: string }) => targetDisplayName(targets, r.targetId, r.targetType);
+      const view = publishOutcomeView(publishJobOutcome(snap), nameOf);
+      for (const n of view.notices) showNotice(n);
+      if (view.remoteEdited) {
+        const edited = view.remoteEdited.results;
+        const { notice } = view.remoteEdited;
+        // Yazi WordPress'te elle duzenlenmis, RanksUp uzerine yazmadi: musteri isterse
+        // onay penceresinden sonra uzerine yazar (onaysiz hicbir sey ezilmez)
+        toast.warning(notice.title, {
+          description: notice.description,
+          duration: 30_000,
+          action: overwrite ? undefined : {
+            label: 'Üzerine yaz…',
+            onClick: () => { void overwriteRemote(articleId, edited.map((r) => r.targetId), edited.map(nameOf)); },
+          },
+        });
+      }
       onRefresh();
     } catch (err: any) {
       toast.error(err.message);
     } finally {
-      setPublishing(null);
+      if (alive.current) {
+        setPublishing((prev) => {
+          const next = new Set(prev);
+          next.delete(articleId);
+          return next;
+        });
+      }
     }
+  };
+
+  /** "WordPress'teki degisikliklerin uzerine yaz" — musterinin kendi duzenlemeleri gider; once onay */
+  const overwriteRemote = async (articleId: string, targetIds: string[], names: string[]) => {
+    if (targetIds.length === 0) return;
+    const c = overwriteRemoteEditsConfirm(names);
+    if (!(await confirm({ ...c, danger: true }))) return;
+    await publish(articleId, { targetIds });
   };
 
   // Articles[]'tan halihazırda makaleye dönüşmüş topic'leri çıkart
@@ -227,6 +300,8 @@ export function ContentFlowTable({
         publishedAt: a.publishedAt,
         publicUrl: a.publicUrl ?? a.url ?? null,
         hasBody,
+        // Durumdan bagimsiz: yeniden yazilip onay bekleyen (Hazir) yazi da eski surumle yayinda olabilir
+        manualUpdate: manualUpdateBadge(a.publishedTo),
       });
     });
 
@@ -482,6 +557,11 @@ export function ContentFlowTable({
                             <Icon className={cn('h-3 w-3', isInflight && 'animate-spin')} />
                             {cfg.label}
                           </span>
+                          {row.manualUpdate && (
+                            <Badge variant="warning" className="mt-1 flex w-fit text-label" title={row.manualUpdate.title}>
+                              {row.manualUpdate.label}
+                            </Badge>
+                          )}
                         </td>
                         <td className="px-4 py-3 align-top text-right">
                           {row.state === 'suggested' && (
@@ -504,7 +584,7 @@ export function ContentFlowTable({
                                         title: row.topic,
                                       })
                                     }
-                                    title="Takvime ekle (yayın saati gelince üret + yayınla)"
+                                    title="Takvime ekle (yayın saati gelince üretilir; Yarı otomatikte yayından önce onayını bekler)"
                                   >
                                     <Calendar className="h-3.5 w-3.5 mr-1" /> Takvime
                                   </Button>
@@ -591,9 +671,9 @@ export function ContentFlowTable({
                               <Button
                                 size="sm"
                                 onClick={() => row.articleId && publish(row.articleId)}
-                                disabled={publishing === row.articleId}
+                                disabled={!!row.articleId && publishing.has(row.articleId)}
                               >
-                                {publishing === row.articleId ? '…' : 'Yayınla →'}
+                                {row.articleId && publishing.has(row.articleId) ? '…' : 'Yayınla →'}
                               </Button>
                             </div>
                           )}

@@ -33,6 +33,7 @@ export default function RootLayout() {
             >
               <Stack.Screen name="analyze" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
               <Stack.Screen name="connect" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+              <Stack.Screen name="delete-account" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
             </Stack>
           </AnalysisProvider>
         </AuthProvider>

@@ -1,6 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { SiteUrlInventoryService, type SitePageRef } from '../sites/site-url-inventory.service.js';
+import { SiteUrlInventoryService } from '../sites/site-url-inventory.service.js';
+import { safeFetchText } from '../common/safe-fetch.js';
+import { detectBlock } from '../common/block-detect.js';
 
 export interface LinkIssue {
   anchor: string;
@@ -35,7 +37,9 @@ const MD_LINK = /(!?)\[([^\]]*)\]\(\s*<?([^)\s>]+)>?(?:\s+"[^"]*")?\s*\)/g;
  *   - Eslesme yok               → link kaldirilir, anchor duz metne doner
  *
  * Harici linkler icin (isteyen cagirir) canli HTTP kontrolu yapilir; 404/410
- * donenler duz metne cevrilir. Gecici hatalar (timeout, 5xx) linki BOZMAZ.
+ * donenler duz metne cevrilir. Gecici hatalar (timeout, 5xx) linki BOZMAZ;
+ * bot korumasi (WAF 403, dogrulama ekrani), hiz siniri (429) ve ic/ozel adres
+ * de "hukum yok" sayilir — siteye erisemememiz linkin olu oldugunu gostermez.
  */
 @Injectable()
 export class LinkValidatorService {
@@ -176,31 +180,25 @@ export class LinkValidatorService {
     return result;
   }
 
+  /**
+   * Linkin durum kodu; hukum verilemiyorsa null. Adres makaleden (yazar
+   * ajani / kullanici) gelir → SSRF korumali okuma (common/safe-fetch.ts).
+   */
   private async headOrGet(url: string): Promise<number | null> {
-    const headers = {
-      'User-Agent':
-        'Mozilla/5.0 (compatible; RanksUp-LinkCheck/1.0; +https://ranksup.ai)',
-    };
     try {
-      const head = await fetch(url, {
-        method: 'HEAD',
-        headers,
-        signal: AbortSignal.timeout(10000),
-        redirect: 'follow',
-      });
-      // Bazi sunucular HEAD'i desteklemez → GET ile teyit et
-      if (head.status === 405 || head.status === 501) {
-        const get = await fetch(url, {
-          method: 'GET',
-          headers,
-          signal: AbortSignal.timeout(12000),
-          redirect: 'follow',
-        });
-        return get.status;
+      const head = await safeFetchText(url, { method: 'HEAD', timeoutMs: 10_000 });
+      if (detectBlock(head)) return null;
+      // Bazi sunucular HEAD'i desteklemez (405/501), bazilari HEAD'e yanlislikla
+      // 404 doner. Link silmek geri donusu zor bir islem: 404/410 da GET ile
+      // teyit edilir; GET govdesi engel sayfasini tanimayi da saglar.
+      if ([405, 501, 404, 410].includes(head.status)) {
+        // Govde yalnizca engel tespiti icin — 64 KB yeter
+        const get = await safeFetchText(url, { timeoutMs: 12_000, maxBytes: 64 * 1024 });
+        return detectBlock(get) ? null : get.status;
       }
       return head.status;
     } catch {
-      return null; // ag hatasi — link hakkinda hukum verme
+      return null; // ag hatasi, zaman asimi, ic/ozel adres — link hakkinda hukum verme
     }
   }
 }

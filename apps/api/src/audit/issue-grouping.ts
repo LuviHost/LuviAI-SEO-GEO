@@ -11,7 +11,7 @@
  *   /                              → /
  */
 
-import { fixRouteFor } from './fix-routes.js';
+import { fixRouteForIssue } from './fix-routes.js';
 
 export type IssueSeverity = 'critical' | 'warning' | 'info';
 
@@ -131,7 +131,9 @@ export function groupIssues(issues: GroupableIssue[], checks: Record<string, Che
       else g.infoCount += 1;
       // Sablon butonu auto-fix'i cagirir → yalnizca GERCEKTEN uretilebilen
       // anahtarlar (snippet kontrolleri auto-fix'te sessizce atlaniyordu).
-      if (fixRouteFor(checkId) === 'auto_fix' && !g.fixableCheckIds.includes(checkId)) g.fixableCheckIds.push(checkId);
+      // Rota sorun satiriyla AYNI kuraldan (tip istisnasi dahil): robots_txt
+      // altindaki "AI arama botu engelli" auto-fix'e gitmez (fix-routes.ts).
+      if (fixRouteForIssue({ checkId, type: issue.type }) === 'auto_fix' && !g.fixableCheckIds.includes(checkId)) g.fixableCheckIds.push(checkId);
       byTemplate.set(template, g);
     }
   }

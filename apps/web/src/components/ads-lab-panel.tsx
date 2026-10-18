@@ -3,24 +3,32 @@
 import { siteHref } from '@/lib/site-routes';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
-import { Megaphone, Play, Pause, Plus, Target, Activity, Zap, Link2, Check, X, Loader2 } from 'lucide-react';
+import { Megaphone, Play, Pause, Target, Zap, Link2, Check, X, Loader2, TrendingUp, Trophy, Ban } from 'lucide-react';
 import { api } from '@/lib/api';
-import { Card, CardContent } from '@/components/ui/card';
+import { abPausedAdsText, abTestDetail, abWinnerRateLabel, historyReasonLabel } from '@/lib/ads-history';
+import { finishOAuthConnect } from '@/lib/oauth-connect';
 import { SectionHeader } from '@/components/ui/section-header';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { InfoTooltip } from '@/components/info-tooltip';
 
 /**
- * Ads Lab — Faz 11.2. Google Ads + Meta Marketing API (direkt entegrasyon).
- * 4 sekme: Yeni Kampanya / Aktifler / Performans / Otopilot Geçmişi
+ * Reklam paneli — Google Ads + Meta Marketing API (direkt entegrasyon).
+ * 3 sekme: Yayındakiler / Performans / Otopilot geçmişi.
  *
- * Reklam Hesapları (Google + Meta OAuth bağlama) artık burada DEĞIL —
- * Ayarlar > Entegrasyonlar altına taşındı (Faz 11.6 UX birleşik hub).
+ * "Yeni kampanya" sihirbazi KALDIRILDI: cagirdigi POST /sites/:id/ads/build
+ * (ve audience / copy / images) 0db5a1c'de API'den silindi, sihirbaz her
+ * kullaniciya 404 donduruyordu. Liste yalniz RanksUp'ta kayitli (eskiden
+ * sihirbazla olusturulmus) kampanyalari gosterir: Google Ads / Meta'da elle
+ * kurulan kampanyalari ice aktaran bir uc yok (ads.controller.ts).
+ *
+ * Reklam Hesapları (Google + Meta OAuth bağlama) burada DEĞIL —
+ * Ayarlar > Entegrasyonlar altında (Faz 11.6 UX birleşik hub).
  */
 export function AdsLabPanel({ site }: { site: any }) {
-  const [tab, setTab] = useState<'builder' | 'active' | 'performance' | 'autopilot'>('builder');
-  const [conn, setConn] = useState<{ google: boolean; meta: boolean } | null>(null);
+  const [tab, setTab] = useState<'active' | 'performance' | 'autopilot'>('active');
+  // autopilotRules: API (ads.controller connections) env'deki emniyet sinirlarini doner
+  const [conn, setConn] = useState<{ google: boolean; meta: boolean; autopilotRules?: AdsAutopilotRules } | null>(null);
 
   useEffect(() => {
     api.getAdsConnections(site.id).then(setConn).catch(() => setConn({ google: false, meta: false }));
@@ -33,9 +41,21 @@ export function AdsLabPanel({ site }: { site: any }) {
       <SectionHeader
         as="h3"
         icon={Megaphone}
-        title="Kampanya oluştur"
-        description="Hedef kitleyi, reklam metnini, görseli ve bütçeyi AI hazırlar; Google Ads ve Meta hesabına doğrudan gönderilir."
+        title="Kampanyalar"
+        description="RanksUp'ta kayıtlı Google Ads ve Meta kampanyalarının durumu, performansı ve otopilot geçmişi."
       />
+
+      <p className="text-xs text-muted-foreground">
+        RanksUp'tan yeni kampanya oluşturulamıyor. Google Ads ya da Meta'da kendin kurduğun kampanyalar bu listeye
+        gelmez; onları kendi panellerinden yönetirsin. Reklam hesabını{' '}
+        <a
+          href={siteHref(site.id, 'adsHealth')}
+          className="font-medium text-foreground underline decoration-brand underline-offset-4 hover:text-brand"
+        >
+          Kampanya Skoru
+        </a>{' '}
+        ile denetleyebilirsin.
+      </p>
 
       {noAccounts && (
         <div className="rounded-lg border border-warning/30 bg-warning/5 p-3 flex items-start gap-3">
@@ -43,7 +63,7 @@ export function AdsLabPanel({ site }: { site: any }) {
           <div className="flex-1 text-sm">
             <p className="font-medium">Önce reklam hesabı bağla</p>
             <p className="text-muted-foreground mt-0.5">
-              Kampanya kurmak için en az bir Google Ads veya Meta Ads hesabına ihtiyacın var.
+              Kampanyaları yayına almak, duraklatmak ve performanslarını almak için en az bir Google Ads veya Meta Ads hesabı bağlı olmalı.
             </p>
             <a
               href={siteHref(site.id, 'connections')}
@@ -57,7 +77,6 @@ export function AdsLabPanel({ site }: { site: any }) {
 
       <div className="inline-flex flex-wrap gap-1 rounded-lg bg-muted p-1" role="tablist">
         {([
-          ['builder', 'Yeni kampanya', <Plus key="b" className="h-3.5 w-3.5" />],
           ['active', 'Yayındakiler', <Play key="a" className="h-3.5 w-3.5" />],
           ['performance', 'Performans', <Target key="p" className="h-3.5 w-3.5" />],
           ['autopilot', 'Otopilot geçmişi', <Zap key="ap" className="h-3.5 w-3.5" />],
@@ -66,7 +85,7 @@ export function AdsLabPanel({ site }: { site: any }) {
             key={id}
             role="tab"
             aria-selected={tab === id}
-            onClick={() => setTab(id as any)}
+            onClick={() => setTab(id)}
             className={`inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${tab === id ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
           >
             {icon} {label}
@@ -74,21 +93,87 @@ export function AdsLabPanel({ site }: { site: any }) {
         ))}
       </div>
 
-      {tab === 'builder' && <BuilderTab site={site} />}
       {tab === 'active' && <ActiveTab siteId={site.id} />}
       {tab === 'performance' && <PerformanceTab siteId={site.id} />}
       {tab === 'autopilot' && <AutopilotHistoryTab siteId={site.id} />}
 
       {!noAccounts && conn && (
-        <AutopilotToggle site={site} disabled={!conn.google && !conn.meta} />
+        <AutopilotToggle site={site} disabled={!conn.google && !conn.meta} rules={conn.autopilotRules ?? DEFAULT_AUTOPILOT_RULES} />
       )}
     </div>
   );
 }
 
-function AutopilotToggle({ site, disabled }: { site: any; disabled: boolean }) {
+/** api ads/budget-guard.ts AdsAutopilotRules ile ayni sekil */
+interface AdsAutopilotRules {
+  increasePercent: number;
+  shiftPercent: number;
+  cooldownHours: number;
+  maxIncreasesPerWeek: number;
+  maxMultiplier: number;
+}
+
+/** API kurallari donmezse (eski surum) budget-guard.ts varsayilanlari */
+const DEFAULT_AUTOPILOT_RULES: AdsAutopilotRules = {
+  increasePercent: 20,
+  shiftPercent: 20,
+  cooldownHours: 24,
+  maxIncreasesPerWeek: 2,
+  maxMultiplier: 2,
+};
+
+const trNum = (n: number) => n.toLocaleString('tr-TR', { maximumFractionDigits: 2 });
+
+/**
+ * Otopilotun OTOMATIK yaptiklari — metin koda bakilarak yazildi; davranis
+ * degisirse burasi da degismeli. Worker ADS_AUTOPILOT 6 saatte bir sirayla
+ * calistirir (apps/worker/src/index.ts):
+ *  - performance-sync: etkin + platform kimligi olan kampanyalarin metrikleri (son 30 gun),
+ *    canli gunluk butcesi ve kalici durumu (platformda kaldirilmis/arsivlenmis → ENDED).
+ *    Butce adimlari tutari bu kayittan degil platformdaki canli butceden hesaplar.
+ *  - campaign-orchestrator.optimizeAutopilotCampaigns: ROAS < 1,5 ve harcama
+ *    > 100 → duraklat; CTR > %3 ve ROAS > 5 → gunluk butce x1,2, YALNIZ
+ *    budget-guard izin verirse: kampanya basina cooldownHours'ta 1, 7 gunde
+ *    maxIncreasesPerWeek artis, tavan = otopilotun ilk degisiklik yaptigi
+ *    andaki butce x maxMultiplier (sayilar env'den; API connections cevabi
+ *    autopilotRules ile verir). Toplam (omur boyu) butceye dokunulmaz.
+ *  - ab-test-manager.pickWinners (S10): 7+ gun once baslamis ve platformda
+ *    yayinda olan kampanyada reklamlar YALNIZ kendi reklam grubunda (Meta'da
+ *    reklam setinde) karsilastirilir. Uygun reklam: Google'da arama
+ *    kampanyasinin metin reklami, reklam grubu etkin, birincil durumu ELIGIBLE;
+ *    Meta'da reklam ve reklam seti ACTIVE, takvimi suruyor, hedefi LINK_CLICKS
+ *    (karsilastirma baglanti tiklamasiyla). Gruptaki uygun ve >= 1.000
+ *    gosterimli reklamlardan en iyisi tiklama oraninda hem 0,3 puandan fazla
+ *    hem %99 guvenle (iki oran z-testi) ondeyse geride kalan duraklatilir;
+ *    gosterim basina daha cok donusum ya da donusum degeri getirene (Google
+ *    metrics.conversions, Meta satin alma + potansiyel musteri) dokunulmaz.
+ *    Kazanan hic duraklatilmaz; RanksUp'in duraklattigi reklami musteri
+ *    yeniden acarsa bir daha duraklatilmaz (KvStore defteri).
+ *  - keyword-optimizer: Google'da son 30 gunun arama terimlerinden AI'in
+ *    sectikleri negatif anahtar kelime olur.
+ *  - budget-shifter: ayni hedefli Google + Meta cifti, ikisi de >= 100
+ *    harcama, ROAS orani >= 1,5 → zayifin butcesinin %20'si gucluye; gucluye
+ *    eklenen ayni emniyetten gecer, iki hesap ayni para biriminde degilse
+ *    kaydirma yok.
+ *  - Her degisiklik platform onayladiktan sonra kayda ve otopilot gecmisine
+ *    (once → sonra) yazilir.
+ *  - auto-boost: RanksUp'in paylastigi Facebook gonderisi (socialPost, kanal
+ *    FACEBOOK_PAGE) son 7 gunde ortalamanin 2 katindan fazla etkilesim aldiysa
+ *    gunluk 50, 7 gunluk yeni Meta kampanyasi (TR, 18-65; auto-boost.service.ts
+ *    AUTO_BOOST_*). daily_budget hesabin para biriminin en kucuk biriminde gider
+ *    (Meta: "at ad account currencies minimum denomination level",
+ *    https://developers.facebook.com/documentation/ads-commerce/marketing-api/bidding/overview/budgets)
+ *    — USD hesapta 50 USD olur. Bu kampanya adCampaign'e yazilmaz (listede
+ *    gorunmez). Sosyal paylasim 0db5a1c'de kaldirildi, socialPost yazan kod
+ *    yok → su an aday cikmaz.
+ * Esik ve butceler hesabin para biriminde: metrikler platformdan oldugu gibi gelir.
+ */
+function AutopilotToggle({ site, disabled, rules }: { site: any; disabled: boolean; rules: AdsAutopilotRules }) {
   const [autopilot, setAutopilot] = useState(!!site.adsAutopilot);
   const [saving, setSaving] = useState(false);
+  // Sahip env ile artisi kapatabilir (haftalik sinir 0): metin bunu soylemeli. Carpan 1
+  // artisi tamamen kapatmaz (azaltilmis kampanya ilk butcesine donebilir), normal metin dogru.
+  const increaseOff = rules.maxIncreasesPerWeek <= 0;
 
   const save = async (next: boolean) => {
     setSaving(true);
@@ -101,24 +186,105 @@ function AutopilotToggle({ site, disabled }: { site: any; disabled: boolean }) {
   };
 
   return (
-    <label className="flex items-center gap-2 text-xs cursor-pointer p-3 rounded-md border bg-brand-500/5">
-      <input
-        type="checkbox"
-        checked={autopilot}
-        disabled={disabled || saving}
-        onChange={(e) => save(e.target.checked)}
-      />
-      <span>
-        <strong>Ads Otopilot</strong> — Her 6 saatte bir aktif kampanyaları analiz eder.
-        ROAS &lt; 1.5 → pause, ROAS &gt; 5 + CTR &gt; 3% → bütçe %20 artır.
-      </span>
-    </label>
+    <div className="space-y-2 rounded-md border bg-brand-500/5 p-3 text-xs">
+      <label className="flex items-start gap-2 cursor-pointer">
+        <input
+          type="checkbox"
+          className="mt-0.5"
+          checked={autopilot}
+          disabled={disabled || saving}
+          onChange={(e) => save(e.target.checked)}
+        />
+        <span>
+          <strong>Ads Otopilot</strong> — açıkken her 6 saatte bir, onay sormadan reklam hesabında aşağıdaki
+          değişiklikleri yapar. Bu değişiklikler harcamanı doğrudan etkiler.
+        </span>
+      </label>
+      <ul className="list-disc space-y-1 pl-9 text-muted-foreground">
+        <li>ROAS'ı 1,5'in altında kalan ve son 30 günde harcaması 100'ü geçen kampanyayı duraklatır.</li>
+        {increaseOff ? (
+          <li>Bütçe artışı emniyet ayarıyla kapalı: otopilot kampanya bütçesini artırmaz ve kampanyalar arasında bütçe kaydırmaz.</li>
+        ) : (
+          <>
+            <li>
+              Tıklama oranı %3'ün, ROAS'ı 5'in üstündeki kampanyanın günlük bütçesini %{rules.increasePercent} artırır.
+              Emniyet sınırları: aynı kampanyada {trNum(rules.cooldownHours)} saatte en fazla bir, 7 günde en fazla{' '}
+              {rules.maxIncreasesPerWeek} artış yapılır; bütçe, otopilotun o kampanyada ilk değişiklik yaptığı andaki
+              bütçenin {trNum(rules.maxMultiplier)} katını geçmez (son artış bu sınıra göre küçültülür). Toplam (ömür
+              boyu) bütçeli kampanyanın bütçesine dokunmaz.
+            </li>
+            <li>
+              Aynı hedefli bir Google ve bir Meta kampanyasının ikisi de son 30 günde en az 100 harcadıysa ve birinin
+              ROAS'ı diğerinin en az 1,5 katıysa, zayıf olanın günlük bütçesini %{rules.shiftPercent} azaltıp aynı
+              tutarı güçlü olana ekler; ikisinin toplam bütçesi değişmez. Güçlü kampanyaya eklenen tutar yukarıdaki
+              emniyet sınırlarına tabidir; iki reklam hesabının para birimi farklıysa ya da okunamıyorsa kaydırma
+              yapılmaz.
+            </li>
+          </>
+        )}
+        <li>
+          A/B testi: en az 7 gün önce başlamış ve yayında olan kampanyada, reklamları yalnız aynı reklam grubunun
+          (Meta'da aynı reklam setinin) içinde karşılaştırır. Google Ads'te arama kampanyalarının yayında
+          olan metin reklamlarına, Meta'da bağlantı tıklaması için optimize edilen reklam setlerinin yayında
+          olan reklamlarına bakar. Son 7 günde her biri en az 1.000 gösterim almışsa ve en iyisi tıklama oranında
+          (Meta'da bağlantı tıklama oranında) 0,3 puandan fazla ve %99 güvenle öndeyse geride kalanı duraklatır.
+          Gösterim başına daha çok dönüşüm ya da dönüşüm değeri getiren reklama (Google'da Google Ads'teki
+          Dönüşümler sütunu, Meta'da satın alma ve potansiyel müşteri) dokunmaz. Kazanan reklamı ve
+          tek reklamı olan grupları duraklatmaz; otopilotun duraklattığı bir reklamı yeniden açarsan onu bir daha
+          duraklatmaz.
+        </li>
+        <li>Google kampanyalarında son 30 günün arama terimlerinden AI'ın alakasız bulduklarını negatif anahtar kelime olarak ekler.</li>
+        <li>
+          Auto-Boost: RanksUp'ın Facebook sayfanda paylaştığı bir gönderi son 7 günde ortalamanın 2 katından
+          fazla etkileşim alırsa, onu öne çıkarmak için Meta reklam hesabında 7 gün süren, günlük bütçesi 50 olan
+          yeni bir kampanya açar (Türkiye, 18-65 yaş). Bu kampanya buradaki listede görünmez. RanksUp artık sosyal
+          medyada paylaşım yapmadığı için şu an aday gönderi oluşmuyor.
+        </li>
+      </ul>
+      <p className="text-muted-foreground">
+        Bu kurallar yalnız RanksUp'ta kayıtlı kampanyalara uygulanır; Auto-Boost ise yeni kampanya açar. Tutarlar
+        reklam hesabının para birimindedir: TL hesapta 50 = 50 TL, USD hesapta 50 = 50 USD. Bir değişiklik ancak
+        reklam platformu onayladıktan sonra RanksUp'a yazılır; duraklatmalar ve bütçe değişiklikleri (önceki →
+        yeni bütçe) Otopilot geçmişi sekmesinde görünür.
+      </p>
+    </div>
   );
 }
 
 // ──────────────────────────────────────────────────────────────────
-// Otopilot Geçmişi (Faz 11.1) — autopilotActions JSON akışı
+// Otopilot Geçmişi — AdCampaign.autopilotActions akışı
 // ──────────────────────────────────────────────────────────────────
+
+/**
+ * Gecmise yazan adimlar: optimizeAutopilotCampaigns ({ actions: [...] } duraklatma,
+ * { action: 'budget-up', budgetBefore, budgetAfter, ceiling, clamped }),
+ * budget-shifter ({ action: 'budget-shift-in' | 'budget-shift-out', budgetBefore,
+ * budgetAfter, counterpart, currency, completed, uncertain }), ab-test-manager
+ * (reklam grubu / reklam seti basina { action: 'ab-test-winner', groupId,
+ * groupName?, pausedCount, failedCount, uncertainCount?, pausedAdIds?, reason? }
+ * ya da hicbir duraklatma onaylanmadiysa 'ab-test-pause-failed') ve
+ * keyword-optimizer ({ action }). 'budget-up-20%' emniyet rayindan onceki
+ * kayitlar. Tutarlar reklam platformundaki canli butceden (api live-budget.ts).
+ * A/B ayrinti metni lib/ads-history.ts: eski surum pausedCount'u onaysiz
+ * yaziyordu; failedCount'suz kayitta "duraklatildi" denmez. groupId'siz A/B
+ * kaydi S10 oncesinden (grup gozetilmiyordu); grup adi uydurulmaz. Istisna:
+ * gecmise sigmayan gruplarin ozet kaydi (groupCount, toplam sayilar); kesilen
+ * kimlik listesi "ilk N" diye gosterilir (pausedAdIdsTotal).
+ * Auto-Boost kayit YAZMAZ — metin bunu soyler.
+ */
+const ACTION_META: Record<string, { label: string; icon: typeof Pause; tone: string }> = {
+  'pause-low-roas': { label: 'Düşük ROAS — kampanya duraklatıldı', icon: Pause, tone: 'border-danger/30 bg-danger/5' },
+  'budget-up-20%': { label: 'Bütçe %20 artırıldı', icon: TrendingUp, tone: 'border-success/30 bg-success/5' },
+  'budget-up': { label: 'Günlük bütçe artırıldı', icon: TrendingUp, tone: 'border-success/30 bg-success/5' },
+  'budget-shift-in': { label: 'Bütçe kaydırma — bu kampanyaya eklendi', icon: TrendingUp, tone: 'border-success/30 bg-success/5' },
+  'budget-shift-out': { label: 'Bütçe kaydırma — bu kampanyadan alındı', icon: Target, tone: 'border-warning/30 bg-warning/5' },
+  // Kac varyantin duraklatildigi ayrintida (pausedCount): etiket "hepsi duraklatildi" demez
+  'ab-test-winner': { label: 'A/B kazananı seçildi', icon: Trophy, tone: 'border-info/30 bg-info/5' },
+  // Eski kayitlarda reklam kimligi eksik varyant da sayilir (platforma hic sorulmadi): "platform reddetti" denmez
+  'ab-test-pause-failed': { label: 'A/B kazananı seçildi ama diğer varyantlar duraklatılamadı', icon: Trophy, tone: 'border-danger/30 bg-danger/5' },
+  'add-negative-keywords': { label: 'Negatif anahtar kelime eklendi', icon: Ban, tone: 'border-warning/30 bg-warning/5' },
+};
+
 function AutopilotHistoryTab({ siteId }: { siteId: string }) {
   const [campaigns, setCampaigns] = useState<any[]>([]);
 
@@ -133,60 +299,66 @@ function AutopilotHistoryTab({ siteId }: { siteId: string }) {
     }))
   ).sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime());
 
-  const ICONS: Record<string, string> = {
-    'pause-low-roas': '⏸',
-    'budget-up-20%': '🚀',
-    'ab-test-winner': '🏆',
-    'add-negative-keywords': '🚫',
-  };
-
-  const COLORS: Record<string, string> = {
-    'pause-low-roas': 'border-red-500/30 bg-red-500/5',
-    'budget-up-20%': 'border-green-500/30 bg-green-500/5',
-    'ab-test-winner': 'border-blue-500/30 bg-blue-500/5',
-    'add-negative-keywords': 'border-yellow-500/30 bg-yellow-500/5',
-  };
-
   return (
     <div className="space-y-3">
-      <div className="rounded-md border bg-muted/20 p-3 text-xs">
-        <p className="font-semibold mb-1">🤖 Otopilot her 6 saatte bir 6 kontrol çalıştırır:</p>
-        <ul className="space-y-0.5 text-muted-foreground">
-          <li>1. <strong>Performans Sync</strong> — gerçek metrikler resmi API'den DB'ye akar</li>
-          <li>2. <strong>ROAS Pause</strong> — ROAS &lt; 1.5 + 100 TL+ harcama → otomatik pause</li>
-          <li>3. <strong>Budget Up</strong> — CTR &gt; 3% + ROAS &gt; 5 → bütçe %20 artır</li>
-          <li>4. <strong>A/B Winner</strong> — 7+ gün eski varyantların kazananını seç</li>
-          <li>5. <strong>Negative Keywords</strong> — search terms'den alakasız kelimeleri sil</li>
-          <li>6. <strong>Budget Shift</strong> — Google ↔ Meta arasında ROAS'a göre kaydır</li>
-          <li>7. <strong>Auto-Boost</strong> — viral organik post'u Meta'da $50 ile boost</li>
-          <li>8. <strong>GA4 Cross-Validate</strong> — fraud/sahte tıklama tespit</li>
-        </ul>
-      </div>
+      <p className="text-xs text-muted-foreground">
+        Otopilotun bu listedeki kampanyalarda yaptığı duraklatma, bütçe artışı ve bütçe kaydırma (önceki → yeni
+        bütçeyle), A/B kazananı ve negatif anahtar kelime değişiklikleri burada görünür. Auto-Boost'un açtığı
+        kampanyalar bu geçmişe yazılmaz. Otopilotun ne yaptığının tam listesi, reklam hesabı bağlıyken aşağıdaki Ads
+        Otopilot kutusunda yer alır.
+      </p>
 
       {allActions.length === 0 ? (
-        <p className="text-sm text-muted-foreground p-6 text-center">Henüz otopilot aksiyonu yok. Otopilot aktif olunca buraya 6 saatte bir karar geçmişi gelecek.</p>
+        <p className="text-sm text-muted-foreground p-6 text-center">Henüz otopilot değişikliği yok.</p>
       ) : (
         <div className="space-y-2">
           {allActions.slice(0, 30).map((a, i) => {
             const action = a.action ?? a.actions?.[0] ?? 'unknown';
+            const meta = ACTION_META[action];
+            const Icon = meta?.icon ?? Zap;
+            const abDetail = abTestDetail(a, a.platform);
+            const abPausedAds = abPausedAdsText(a);
+            const reasonLabel = historyReasonLabel(action);
             return (
-              <div key={i} className={`rounded-md border p-2.5 ${COLORS[action] ?? ''}`}>
+              <div key={i} className={`rounded-md border p-2.5 ${meta?.tone ?? ''}`}>
                 <div className="flex items-start gap-2">
-                  <span className="text-lg shrink-0">{ICONS[action] ?? '•'}</span>
+                  <Icon className="h-4 w-4 shrink-0 mt-0.5 text-muted-foreground" aria-hidden />
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-semibold truncate">{a.campaignName}</p>
-                    <p className="text-[11px] text-muted-foreground mt-0.5">
-                      {action} · {new Date(a.time).toLocaleString('tr-TR')}
+                    <p className="text-label text-muted-foreground mt-0.5">
+                      {meta?.label ?? action} · {new Date(a.time).toLocaleString('tr-TR')}
                     </p>
-                    {a.reason && <p className="text-[11px] mt-1 italic">"{a.reason}"</p>}
-                    {a.winnerCtr && (
-                      <p className="text-[11px] mt-1">Winner CTR: {(a.winnerCtr * 100).toFixed(2)}% · {a.pausedCount} loser pause</p>
+                    {a.reason && (
+                      <p className="text-label mt-1 italic">{reasonLabel ? `${reasonLabel}: ` : ''}"{a.reason}"</p>
                     )}
-                    {a.keywords && (
-                      <p className="text-[11px] mt-1">{a.keywords.length} negatif: {a.keywords.slice(0, 5).join(', ')}…</p>
+                    {a.budgetBefore !== undefined && a.budgetAfter !== undefined && (
+                      <p className="text-label mt-1 font-mono">
+                        Günlük bütçe {trNum(Number(a.budgetBefore))} → {trNum(Number(a.budgetAfter))}
+                        {a.currency ? ` ${a.currency}` : ' (hesap para birimi)'}
+                        {a.clamped ? ' · üst sınıra göre küçültüldü' : ''}
+                        {a.counterpart ? ` · karşı kampanya: ${a.counterpart}` : ''}
+                      </p>
+                    )}
+                    {a.completed === false && (
+                      <p className="text-label mt-1 text-danger">
+                        {a.uncertain
+                          ? 'Karşı kampanyanın artışı platformda doğrulanamadı; toplam bütçe artmasın diye bu azaltma geri alınmadı. Reklam hesabındaki bütçeleri kontrol et.'
+                          : 'Karşı kampanyanın artışı platformda onaylanmadı ve bu azaltma geri alınamadı; toplam bütçe düştü.'}
+                      </p>
+                    )}
+                    {(a.winnerCtr !== undefined || abDetail) && (
+                      <p className="text-label mt-1">
+                        {a.winnerCtr !== undefined ? `${abWinnerRateLabel(a, a.platform)} %${(a.winnerCtr * 100).toFixed(2)}` : ''}
+                        {a.winnerCtr !== undefined && abDetail ? ' · ' : ''}
+                        {abDetail ?? ''}
+                      </p>
+                    )}
+                    {abPausedAds && <p className="text-label mt-1 font-mono">{abPausedAds}</p>}
+                    {Array.isArray(a.keywords) && (
+                      <p className="text-label mt-1">{a.keywords.length} negatif: {a.keywords.slice(0, 5).join(', ')}{a.keywords.length > 5 ? '…' : ''}</p>
                     )}
                     {a.ctr !== undefined && a.roas !== undefined && (
-                      <p className="text-[11px] mt-1 font-mono">CTR: {(a.ctr * 100).toFixed(2)}% · ROAS: {a.roas.toFixed(2)}x</p>
+                      <p className="text-label mt-1 font-mono">Tıklama oranı %{(a.ctr * 100).toFixed(2)} · ROAS {Number(a.roas).toFixed(2)}x</p>
                     )}
                   </div>
                 </div>
@@ -200,197 +372,21 @@ function AutopilotHistoryTab({ siteId }: { siteId: string }) {
 }
 
 // ──────────────────────────────────────────────────────────────────
-// Yeni Kampanya — Wizard
-// ──────────────────────────────────────────────────────────────────
-function BuilderTab({ site }: { site: any }) {
-  const [step, setStep] = useState(1);
-  const [form, setForm] = useState({
-    platform: 'both' as 'google_ads' | 'meta_ads' | 'both',
-    objective: 'leads' as 'traffic' | 'leads' | 'conversions' | 'brand_awareness' | 'sales',
-    productOrService: '',
-    keyBenefit: '',
-    landingUrl: site.url ?? '',
-    budgetType: 'daily' as 'daily' | 'lifetime',
-    budgetAmount: 100,
-    autoLaunch: false,
-  });
-  const [building, setBuilding] = useState(false);
-  const [result, setResult] = useState<any>(null);
-
-  const build = async () => {
-    if (!form.productOrService) { toast.error('Ürün/hizmet bilgisi gerekli'); return; }
-    if (!form.landingUrl.startsWith('http')) { toast.error('Landing URL geçersiz'); return; }
-    setBuilding(true);
-    try {
-      const res = await api.buildCampaign(site.id, form);
-      setResult(res);
-      toast.success(`Kampanya hazır: ${res.campaigns.length} platform · $${res.estimatedCostUsd.toFixed(2)} maliyet`);
-    } catch (err: any) { toast.error(err.message); }
-    finally { setBuilding(false); }
-  };
-
-  if (result) {
-    return (
-      <div className="space-y-3">
-        <div className="rounded-md border border-green-500/30 bg-green-500/5 p-3">
-          <p className="text-sm font-semibold text-green-700 dark:text-green-400">
-            ✓ {result.campaigns.length} kampanya DRAFT olarak hazırlandı
-          </p>
-          <p className="text-xs text-muted-foreground mt-1">
-            AI maliyeti: ${result.estimatedCostUsd.toFixed(2)} · Görsel: {result.images?.length ?? 0} · Hedef kitle: {Object.keys(result.audience ?? {}).length}
-          </p>
-        </div>
-
-        {/* Audience preview */}
-        {result.audience && (
-          <details className="rounded-md border">
-            <summary className="px-3 py-2 cursor-pointer text-xs font-semibold bg-muted/30">
-              📍 Hedef Kitle Önerileri
-            </summary>
-            <div className="p-3 text-xs space-y-2">
-              {result.audience.google && (
-                <div>
-                  <p className="font-semibold mb-1">Google Anahtar Kelimeler:</p>
-                  <div className="flex flex-wrap gap-1">
-                    {(result.audience.google.keywords ?? []).slice(0, 12).map((k: any, i: number) => (
-                      <Badge key={i} variant="outline" className="text-[10px]">{k.text}</Badge>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {result.audience.meta && (
-                <div>
-                  <p className="font-semibold mb-1 mt-2">Meta Interest'ler:</p>
-                  <div className="flex flex-wrap gap-1">
-                    {(result.audience.meta.interests ?? []).slice(0, 10).map((i: any, idx: number) => (
-                      <Badge key={idx} variant="outline" className="text-[10px]">{i.name}</Badge>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-          </details>
-        )}
-
-        {/* Ad copy preview */}
-        {result.adCopy && (
-          <details className="rounded-md border" open>
-            <summary className="px-3 py-2 cursor-pointer text-xs font-semibold bg-muted/30">
-              ✍️ Reklam Metinleri
-            </summary>
-            <div className="p-3 text-xs space-y-3">
-              <div>
-                <p className="font-semibold mb-1">Google Headlines (15 adet):</p>
-                <div className="grid grid-cols-2 gap-1">
-                  {(result.adCopy.google?.headlines ?? []).slice(0, 6).map((h: any, i: number) => (
-                    <div key={i} className="border rounded px-2 py-1 truncate">"{h.text}" <span className="text-muted-foreground">({h.length})</span></div>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <p className="font-semibold mb-1">Meta Primary Text (5):</p>
-                {(result.adCopy.meta?.primaryTexts ?? []).slice(0, 3).map((t: string, i: number) => (
-                  <p key={i} className="border rounded px-2 py-1 mb-1">{t}</p>
-                ))}
-              </div>
-            </div>
-          </details>
-        )}
-
-        {/* Image preview */}
-        {result.images?.length > 0 && (
-          <details className="rounded-md border" open>
-            <summary className="px-3 py-2 cursor-pointer text-xs font-semibold bg-muted/30">
-              🖼️ Reklam Görselleri ({result.images.length} format)
-            </summary>
-            <div className="p-3 grid grid-cols-3 gap-2">
-              {result.images.map((img: any, i: number) => (
-                <div key={i} className="border rounded overflow-hidden">
-                  <img src={img.publicUrl} alt={img.format} className="w-full h-auto" />
-                  <p className="text-[10px] text-center py-1 bg-muted/30">{img.format}</p>
-                </div>
-              ))}
-            </div>
-          </details>
-        )}
-
-        <div className="flex items-center gap-2">
-          <Button onClick={() => { setResult(null); setStep(1); }}>Yeni Kampanya</Button>
-          <Button variant="outline" onClick={() => window.location.reload()}>Aktiflere Git</Button>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-3">
-      <p className="text-xs text-muted-foreground">3 dakikada AI tüm kampanyayı hazırlar — hedef kitle + reklam metni + görsel + bütçe.</p>
-
-      <div className="grid grid-cols-2 gap-2">
-        <label className="block">
-          <span className="text-xs font-medium">Platform</span>
-          <select value={form.platform} onChange={(e) => setForm({ ...form, platform: e.target.value as any })} className="mt-1 flex h-10 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2">
-            <option value="both">Google + Meta</option>
-            <option value="google_ads">Sadece Google</option>
-            <option value="meta_ads">Sadece Meta</option>
-          </select>
-        </label>
-        <label className="block">
-          <span className="text-xs font-medium">Hedef</span>
-          <select value={form.objective} onChange={(e) => setForm({ ...form, objective: e.target.value as any })} className="mt-1 flex h-10 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2">
-            <option value="traffic">Trafik</option>
-            <option value="leads">Lead toplama</option>
-            <option value="conversions">Dönüşüm</option>
-            <option value="brand_awareness">Marka bilinirliği</option>
-            <option value="sales">Satış</option>
-          </select>
-        </label>
-      </div>
-
-      <label className="block">
-        <span className="text-xs font-medium">Ürün / Hizmet</span>
-        <input value={form.productOrService} onChange={(e) => setForm({ ...form, productOrService: e.target.value })} className="mt-1 flex h-10 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2" placeholder="Örn: Shared hosting paketleri 49 TL'den" />
-      </label>
-
-      <label className="block">
-        <span className="text-xs font-medium">Ana Fayda (opsiyonel)</span>
-        <input value={form.keyBenefit} onChange={(e) => setForm({ ...form, keyBenefit: e.target.value })} className="mt-1 flex h-10 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2" placeholder="Örn: 7/24 Türkçe destek + ücretsiz SSL" />
-      </label>
-
-      <label className="block">
-        <span className="text-xs font-medium">Landing URL</span>
-        <input type="url" value={form.landingUrl} onChange={(e) => setForm({ ...form, landingUrl: e.target.value })} className="mt-1 flex h-10 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2" />
-      </label>
-
-      <div className="grid grid-cols-2 gap-2">
-        <label className="block">
-          <span className="text-xs font-medium">Bütçe Tipi</span>
-          <select value={form.budgetType} onChange={(e) => setForm({ ...form, budgetType: e.target.value as any })} className="mt-1 flex h-10 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2">
-            <option value="daily">Günlük</option>
-            <option value="lifetime">Toplam</option>
-          </select>
-        </label>
-        <label className="block">
-          <span className="text-xs font-medium">Bütçe (TL)</span>
-          <input type="number" min={50} value={form.budgetAmount} onChange={(e) => setForm({ ...form, budgetAmount: parseFloat(e.target.value) || 0 })} className="mt-1 flex h-10 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand focus-visible:ring-offset-2" />
-        </label>
-      </div>
-
-      <label className="flex items-center gap-2 text-xs cursor-pointer">
-        <input type="checkbox" checked={form.autoLaunch} onChange={(e) => setForm({ ...form, autoLaunch: e.target.checked })} />
-        <span><strong>Hazır olunca otomatik yayına al.</strong> Reklam hesabı bağlı olmalı. Kapalı bırakırsan kampanya taslak olarak kalır, yayını sen başlatırsın.</span>
-      </label>
-
-      <Button onClick={build} disabled={building} size="lg">
-        {building ? 'Hazırlanıyor (yaklaşık 1 dk)…' : 'Kampanyayı hazırla'}
-      </Button>
-    </div>
-  );
-}
-
-// ──────────────────────────────────────────────────────────────────
 // Aktif Kampanyalar
 // ──────────────────────────────────────────────────────────────────
+
+// "Etkin": RanksUp kaydindaki durum; platform kampanyayi yine de inceleme / odeme gibi nedenlerle durdurmus olabilir.
+// "Sona erdi": performance-sync platformda kaldirilmis (Google) ya da arsivlenmis/silinmis (Meta) kampanyayi isaretler.
+const STATUS_LABEL: Record<string, string> = { ACTIVE: 'Etkin', PAUSED: 'Duraklatıldı', DRAFT: 'Taslak', ENDED: 'Sona erdi' };
+const PLATFORM_LABEL: Record<string, string> = { google_ads: 'Google Ads', meta_ads: 'Meta' };
+const OBJECTIVE_LABEL: Record<string, string> = {
+  traffic: 'Trafik',
+  leads: 'Potansiyel müşteri',
+  conversions: 'Dönüşüm',
+  brand_awareness: 'Marka bilinirliği',
+  sales: 'Satış',
+};
+
 function ActiveTab({ siteId }: { siteId: string }) {
   const [campaigns, setCampaigns] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -411,34 +407,48 @@ function ActiveTab({ siteId }: { siteId: string }) {
     catch (err: any) { toast.error(err.message); }
   };
 
+  // API duraklatmayi yalniz platform onaylarsa kaydeder; onaylanmadiysa { ok:false, error } doner
   const pause = async (id: string) => {
-    try { await api.pauseCampaign(siteId, id); toast.success('Pause edildi'); load(); }
+    try {
+      const r = await api.pauseCampaign(siteId, id);
+      if (r?.ok === false) toast.error(r.error ?? 'Reklam platformu duraklatmayı onaylamadı');
+      else toast.success('Kampanya duraklatıldı');
+      load();
+    }
     catch (err: any) { toast.error(err.message); }
   };
 
   if (loading) return <div className="text-sm text-muted-foreground p-6 text-center">Yükleniyor…</div>;
-  if (campaigns.length === 0) return <div className="text-sm text-muted-foreground p-6 text-center">Henüz kampanya yok. "Yeni Kampanya" sekmesinden oluştur.</div>;
+  if (campaigns.length === 0) {
+    return <div className="text-sm text-muted-foreground p-6 text-center">RanksUp'ta kayıtlı kampanya yok.</div>;
+  }
 
   return (
     <div className="space-y-2">
+      {/* Butce RanksUp'a girilen sayi; platform onu reklam hesabinin para biriminde uygular */}
+      <p className="text-label text-muted-foreground">Tutarlar reklam hesabının para birimindedir.</p>
       {campaigns.map((c) => (
         <div key={c.id} className="rounded-md border p-3">
           <div className="flex items-start justify-between gap-2 mb-2">
             <div>
               <p className="font-semibold text-sm">{c.name}</p>
-              <p className="text-[11px] text-muted-foreground">{c.platform} · {c.objective} · {c.budgetAmount} TL/{c.budgetType}</p>
+              <p className="text-label text-muted-foreground">
+                {PLATFORM_LABEL[c.platform] ?? c.platform} · {OBJECTIVE_LABEL[c.objective] ?? c.objective} · bütçe {c.budgetAmount} ({c.budgetType === 'lifetime' ? 'toplam' : 'günlük'})
+              </p>
             </div>
-            <Badge variant={c.status === 'ACTIVE' ? 'default' : c.status === 'PAUSED' ? 'outline' : 'secondary'}>{c.status}</Badge>
+            <Badge variant={c.status === 'ACTIVE' ? 'default' : c.status === 'PAUSED' ? 'outline' : 'secondary'}>
+              {STATUS_LABEL[c.status] ?? c.status}
+            </Badge>
           </div>
           <div className="grid grid-cols-4 gap-2 text-xs mb-2">
             <div>
               <p className="text-muted-foreground">
-                <InfoTooltip term="Impression">İmpr</InfoTooltip>
+                <InfoTooltip term="Impression">Gösterim</InfoTooltip>
               </p>
               <p className="font-mono font-bold">{c.impressions}</p>
             </div>
             <div>
-              <p className="text-muted-foreground">Tıkl</p>
+              <p className="text-muted-foreground">Tıklama</p>
               <p className="font-mono font-bold">{c.clicks}</p>
             </div>
             <div>
@@ -454,10 +464,14 @@ function ActiveTab({ siteId }: { siteId: string }) {
               <p className={`font-mono font-bold ${c.roas >= 2 ? 'text-green-500' : c.roas > 0 ? 'text-yellow-500' : ''}`}>{c.roas.toFixed(1)}x</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            {c.status === 'DRAFT' && <Button size="sm" onClick={() => launch(c.id)}><Play className="h-3 w-3 mr-1" /> Yayına Al</Button>}
-            {c.status === 'ACTIVE' && <Button size="sm" variant="outline" onClick={() => pause(c.id)}><Pause className="h-3 w-3 mr-1" /> Pause</Button>}
-            {c.externalId && <span className="text-[10px] text-muted-foreground">ID: {c.externalId}</span>}
+          <div className="flex items-center gap-2 flex-wrap">
+            {/* externalId'siz taslak platformda hic olusturulmadi: launch her zaman reddeder (ads.controller) */}
+            {c.status === 'DRAFT' && c.externalId && <Button size="sm" onClick={() => launch(c.id)}><Play className="h-3 w-3 mr-1" /> Yayına al</Button>}
+            {c.status === 'DRAFT' && !c.externalId && (
+              <span className="text-label text-muted-foreground">Bu taslak reklam platformunda oluşturulmadı; RanksUp'tan yayına alınamaz.</span>
+            )}
+            {c.status === 'ACTIVE' && <Button size="sm" variant="outline" onClick={() => pause(c.id)}><Pause className="h-3 w-3 mr-1" /> Duraklat</Button>}
+            {c.externalId && <span className="text-label text-muted-foreground">ID: {c.externalId}</span>}
           </div>
         </div>
       ))}
@@ -473,6 +487,8 @@ function PerformanceTab({ siteId }: { siteId: string }) {
 
   useEffect(() => { api.listAdCampaigns(siteId).then(setCampaigns).catch(() => {}); }, [siteId]);
 
+  // Harcama platformdan oldugu gibi gelir (Google cost_micros / 1e6, Meta spend):
+  // reklam hesabinin para birimi. "₺" yalniz TL hesapta dogru olurdu.
   const totalSpend = campaigns.reduce((a, c) => a + Number(c.spend ?? 0), 0);
   const totalConv = campaigns.reduce((a, c) => a + (c.conversions ?? 0), 0);
   const avgRoas = campaigns.length > 0 ? campaigns.reduce((a, c) => a + (c.roas ?? 0), 0) / campaigns.length : 0;
@@ -481,25 +497,25 @@ function PerformanceTab({ siteId }: { siteId: string }) {
     <div className="space-y-3">
       <div className="grid grid-cols-3 gap-2">
         <div className="rounded-md border p-3 text-center">
-          <p className="text-2xl font-bold">{totalSpend.toFixed(0)} ₺</p>
-          <p className="text-[11px] text-muted-foreground">Toplam Harcama</p>
+          <p className="text-2xl font-bold">{totalSpend.toFixed(0)}</p>
+          <p className="text-label text-muted-foreground">Toplam harcama (hesap para birimi)</p>
         </div>
         <div className="rounded-md border p-3 text-center">
           <p className="text-2xl font-bold">{totalConv}</p>
-          <p className="text-[11px] text-muted-foreground">Dönüşüm</p>
+          <p className="text-label text-muted-foreground">Dönüşüm</p>
         </div>
         <div className="rounded-md border p-3 text-center">
           <p className={`text-2xl font-bold ${avgRoas >= 2 ? 'text-green-500' : avgRoas > 0 ? 'text-yellow-500' : ''}`}>{avgRoas.toFixed(1)}x</p>
-          <p className="text-[11px] text-muted-foreground">Ort. ROAS</p>
+          <p className="text-label text-muted-foreground">Ort. ROAS</p>
         </div>
       </div>
       <p className="text-xs text-muted-foreground italic">
-        Performans verileri her 6 saatte bir resmi Google Ads API + Meta Marketing API üzerinden senkronize edilir. Otopilot ROAS-bazlı optimize eder.
+        Etkin ve reklam platformunda kimliği olan kampanyaların verileri her 6 saatte bir Google Ads API ve Meta
+        Marketing API'den alınır.
       </p>
     </div>
   );
 }
-
 
 // ──────────────────────────────────────────────────────────────────
 //  OAuth popup-based connection cards (Faz 11.5)
@@ -524,8 +540,21 @@ function useOAuthPopup(provider: 'google-ads' | 'meta-ads', siteId: string) {
 
       let resolved = false;
       const handler = (e: MessageEvent) => {
-        if (e.origin !== window.location.origin) return;
         const msg = e.data;
+        // 'oauth-pending': API oturumu goremedi, kodu park etti → oturumlu istekle tamamla.
+        // Yalniz actigimiz popup'tan kabul edilir; callback API alan adinda olabilecegi
+        // icin koken esitligi aranmaz. Anahtar tek basina ise yaramaz: sunucu, akisi
+        // baslatan kullaniciyla bu oturum eslesmezse reddeder.
+        if (msg?.type === 'oauth-pending' && msg.provider === provider && e.source === popup && typeof msg.key === 'string') {
+          resolved = true;
+          window.removeEventListener('message', handler);
+          finishOAuthConnect(provider, msg.key)
+            .then((data) => { if (data) onResult(data); })
+            .catch((err: any) => toast.error(err.message))
+            .finally(() => setBusy(false));
+          return;
+        }
+        if (e.origin !== window.location.origin) return;
         if (!msg || (msg.type !== 'oauth-success' && msg.type !== 'oauth-error')) return;
         if (msg.provider !== provider) return;
         resolved = true;
@@ -572,7 +601,10 @@ export function GoogleAdsOAuthCard({ site, connected, onChanged }: { site: any; 
         setPicker(data.customers);
         toast.message('Birden fazla hesap bulundu — birini seç');
       } else if (!data.customers?.length) {
-        toast.warning('Google Ads hesabı bulunamadı — bu Google hesabında reklam hesabı yok mu?');
+        // customersError: liste alinamadi (erisim/surum) — "hesap yok" ile karistirma
+        toast.warning(data.customersError
+          ? `Google Ads hesapları okunamadı: ${data.customersError}`
+          : 'Google Ads hesabı bulunamadı — bu Google hesabında reklam hesabı yok mu?');
       }
     });
   };

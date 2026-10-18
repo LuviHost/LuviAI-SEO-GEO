@@ -1,5 +1,6 @@
 import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { snapshotTrend } from '../audit/ai-mention-alarm.service.js';
+import { checkMethodVersion } from '../audit/audit.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { ReportsService, donemHesapla, type ReportOpts, type ReportOverview } from './reports.service.js';
 import { AppliedFixService } from '../audit/applied-fix.service.js';
@@ -36,7 +37,14 @@ export interface GeoBolumu {
   saglayicilar: Array<{ provider: string; ilk: number | null; son: number | null; delta: number | null }>;
   /** Audit'ten gelen teknik GEO skoru (llms.txt, schema, FAQ...) */
   teknikGeoSkoru: number | null;
+  /** Donemin ilk ve son skorlu taramasi arasindaki fark; GEO yontemi degistiyse null */
   teknikGeoDelta: number | null;
+  /**
+   * 'method_changed': donemin ilk ve son taramasi farkli GEO olcum yontemiyle
+   * (geo-runner GEO_METHOD_VERSION) yapildi — fark siteden degil olcuden
+   * gelebilecegi icin teknikGeoDelta null. Kiyas yapilabiliyorsa alan yok.
+   */
+  teknikKarsilastirma?: 'method_changed';
   /** Donem boyunca kac probe'ta site kaynak olarak ALINTILANDI (ham sayim) */
   alintilanan: number;
   /** Kac probe'ta marka adi anildi (alinti olmadan da olabilir) */
@@ -91,7 +99,13 @@ export interface AsoBolumu {
 }
 
 export interface AsaBolumu {
+  /** Apple'da silinmemis (status != DELETED) kampanya sayisi */
   kampanya: number;
+  /**
+   * Silinmis ama bu donemde harcamasi olan kampanya sayisi — performans
+   * toplamlarina dahil, `kampanya` sayisina degil. Eski raporlarda yok.
+   */
+  silinenKampanya?: number;
   gosterim: number;
   dokunma: number;
   yukleme: number;
@@ -266,8 +280,12 @@ export class SiteReportService {
     });
 
     if (snapshots.length === 0) {
+      // Bu bolum AiCitationSnapshot okur. O satirlari yalniz "Yeniden Test"
+      // (POST citation-snapshot → ai-citation-tracker snapshotSite) ve ilk
+      // kurulumdaki baz olcum yazar; site taramasinin AI adimi snapshot
+      // YAZMAZ, gunluk otomatik olcum de uretimde kapali (AI_CITATION_DAILY_CRON).
       return olculemedi(
-        'Bu donemde AI gorunurluk olcumu yapilmamis. Olcum, site taramasi calistirildiginda veya gunluk citation cron\'u ile olusur.',
+        'Bu dönemde AI görünürlük ölçümü yapılmamış. Ölçüm, AI Görünürlük sayfasında "Yeniden Test" düğmesine basıldığında yapılır.',
       );
     }
 
@@ -321,10 +339,15 @@ export class SiteReportService {
     const auditler = await this.prisma.audit.findMany({
       where: { siteId, ranAt: { gte: d.rangeStart, lte: d.rangeEnd }, geoScore: { not: null } },
       orderBy: { ranAt: 'asc' },
-      select: { geoScore: true },
+      select: { id: true, geoScore: true },
     });
     const teknikIlk = auditler[0]?.geoScore ?? null;
     const teknikSon = auditler[auditler.length - 1]?.geoScore ?? null;
+    // Yontem farkliysa fark siteden degil olcuden (F7: ayni site degismeden
+    // "Teknik GEO skoru −9" goruyordu). Yalniz ilk ve son taramanin checks'i
+    // okunur: checks tarama basina yuzlerce KB, tum donemi cekmeye gerek yok.
+    const teknikYontemFarkli =
+      auditler.length >= 2 && (await this.geoYontemi(auditler[0].id)) !== (await this.geoYontemi(auditler[auditler.length - 1].id));
 
     const [aiBotZiyareti, aiReferrer] = await Promise.all([
       this.prisma.aiCrawlerHit.count({ where: { siteId, date: { gte: d.rangeStart, lte: d.rangeEnd } } }),
@@ -340,12 +363,22 @@ export class SiteReportService {
       olcumGunu: gunler.size,
       saglayicilar,
       teknikGeoSkoru: teknikSon,
-      teknikGeoDelta: teknikIlk === null || teknikSon === null ? null : teknikSon - teknikIlk,
+      teknikGeoDelta: teknikIlk === null || teknikSon === null || teknikYontemFarkli ? null : teknikSon - teknikIlk,
+      ...(teknikYontemFarkli ? { teknikKarsilastirma: 'method_changed' as const } : {}),
       alintilanan,
       anilan,
       aiBotZiyareti,
       aiReferrer,
     };
+  }
+
+  /**
+   * Taramanin GEO olcum yontemi (checks.geo.details.methodVersion). Kural
+   * karsilastirmayla ayni (audit.service checkMethodVersion): alan yoksa 1.
+   */
+  private async geoYontemi(auditId: string): Promise<number> {
+    const row = await this.prisma.audit.findUnique({ where: { id: auditId }, select: { checks: true } });
+    return checkMethodVersion((row?.checks as { geo?: unknown } | null | undefined)?.geo);
   }
 
   // ────────────────────────────────────────────────────────────────
@@ -468,13 +501,20 @@ export class SiteReportService {
       return olculemedi('Bu siteye bagli Apple Search Ads hesabi yok.');
     }
 
+    // Apple'da silinen kampanya satiri harcama gecmisi icin TUTULUYOR
+    // (status 'DELETED', asa.service). Kampanya SAYISINA girmez; donemde
+    // harcamasi varsa performans toplamlarina girer — yoksa harcanan para
+    // rapordan sessizce duserdi.
     const kampanyalar = await this.prisma.asaCampaign.findMany({
       where: { accountId: hesap.id },
-      select: { id: true },
+      select: { id: true, status: true },
     });
     if (kampanyalar.length === 0) {
       return olculemedi('ASA hesabi bagli ama kampanya bulunamadi.');
     }
+    // MySQL karsilastirmasi (status: { not: 'DELETED' }) buyuk/kucuk harf duyarsiz — burada da
+    const silinenIds = new Set(kampanyalar.filter((k) => String(k.status ?? '').toUpperCase() === 'DELETED').map((k) => k.id));
+    const mevcutKampanya = kampanyalar.length - silinenIds.size;
 
     const ids = kampanyalar.map((k) => k.id);
     const gunluk = await this.prisma.asaPerformanceDaily.findMany({
@@ -482,6 +522,10 @@ export class SiteReportService {
     });
 
     if (gunluk.length === 0) {
+      if (mevcutKampanya === 0) {
+        // Hepsi silinmis ve donemde harcama yok: "senkron calismiyor" demek yanlis olur
+        return olculemedi('ASA hesabindaki kampanyalarin hepsi silinmis; bu donemde performans kaydi yok.');
+      }
       // Uretimde bu tablo BOS: kampanya kurulmus ama performans cron'u hic
       // veri yazmamis. Sifir gostermek "hic yukleme olmadi" demek olurdu;
       // dogrusu "olcum akmiyor".
@@ -489,6 +533,8 @@ export class SiteReportService {
         'ASA performans verisi bu donemde kaydedilmemis. Gunluk performans senkronu calismiyor olabilir.',
       );
     }
+    // Donemde harcamasi toplamlara giren silinmis kampanya sayisi (seffaflik)
+    const silinenKampanya = new Set(gunluk.filter((g) => silinenIds.has(g.campaignId)).map((g) => g.campaignId)).size;
 
     const topla = (liste: any[], alan: string) => liste.reduce((a, x) => a + (Number(x[alan]) || 0), 0);
     const gosterim = topla(gunluk, 'impressions');
@@ -504,7 +550,8 @@ export class SiteReportService {
 
     return {
       olculemedi: false,
-      kampanya: kampanyalar.length,
+      kampanya: mevcutKampanya,
+      silinenKampanya,
       gosterim,
       dokunma,
       yukleme,

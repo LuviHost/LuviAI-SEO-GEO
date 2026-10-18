@@ -222,8 +222,8 @@ export default async function LandingPage() {
               <thead>
                 <tr className="border-b border-border text-left">
                   <th scope="col" className="sticky left-0 z-10 bg-background py-3 pr-4 font-medium text-muted-foreground"><T k="land.cmp.col_feature" /></th>
-                  {['SEMrush', 'AppTweak', 'Hootsuite', 'ChatGPT Team'].map((n) => (
-                    <th key={n} scope="col" className="px-4 py-3 text-center font-medium text-muted-foreground">{n}</th>
+                  {COMPETITORS.map((c) => (
+                    <th key={c.name} scope="col" className="px-4 py-3 text-center font-medium text-muted-foreground">{c.name}</th>
                   ))}
                   <th scope="col" className="border-t-2 border-brand px-4 py-3 text-center font-semibold">RanksUp</th>
                 </tr>
@@ -234,8 +234,8 @@ export default async function LandingPage() {
                 ))}
                 <tr>
                   <th scope="row" className="sticky left-0 z-10 bg-background py-4 pr-4 text-left font-semibold"><T k="land.cmp.row_price" /></th>
-                  {['$140', '$200', '$99', '$60'].map((p) => (
-                    <td key={p} className="px-4 py-4 text-center tabular-nums text-muted-foreground">{p}</td>
+                  {COMPETITORS.map((c) => (
+                    <td key={c.name} className="px-4 py-4 text-center tabular-nums text-muted-foreground">{c.price}</td>
                   ))}
                   {/* Fiyat ELLE YAZILMAZ — /billing/plans ile ayni kaynak (sunucuda cekildi) */}
                   <td className="bg-brand/5 px-4 py-4 text-center font-semibold tabular-nums">
@@ -300,7 +300,7 @@ export default async function LandingPage() {
             <p className="mt-3 text-xs leading-relaxed"><T k="land.footer.tagline" /></p>
           </div>
           <FooterCol title="land.footer.product" links={[['land.nav.pricing', '/pricing'], ['land.footer.use_cases', '/use-cases'], ['land.footer.compare', '/compare']]} />
-          <FooterCol title="land.footer.company" links={[['land.footer.about', '/about'], ['land.footer.help', '/help'], ['land.nav.faq', '/faq'], ['land.footer.status', '/status']]} />
+          <FooterCol title="land.footer.company" links={[['land.footer.about', '/about'], ['land.footer.help', '/help'], ['land.nav.faq', '/faq']]} />
           <FooterCol title="land.footer.legal" links={[['land.footer.privacy', '/privacy'], ['land.footer.terms', '/terms'], ['land.footer.kvkk', '/kvkk']]} />
         </div>
         <div className="mx-auto mt-10 flex max-w-7xl flex-wrap justify-between gap-3 border-t border-border px-4 pt-6 text-xs sm:px-6 lg:px-8">
@@ -313,20 +313,55 @@ export default async function LandingPage() {
 }
 
 /**
- * Karsilastirma — sutun sirasi: SEMrush, AppTweak, Hootsuite, ChatGPT Team, RanksUp.
- * Rakip hakkinda YANLIS "var/yok" iddiasi hukuki risk: satir etiketleri degisip
- * tikler eski yerinde kalmisti (Hootsuite "Agent Readiness", ChatGPT Team "rakip
- * AI payi" tikliydi). SEMrush AI Toolkit eklentisi AI gorunurlugu olcuyor → tikli.
+ * Karsilastirma — sutunlar /compare ile ayni rakipler (Surfer, Jasper, Ahrefs,
+ * Frase), sonra RanksUp. Eski set (SEMrush, AppTweak, Hootsuite, ChatGPT Team;
+ * "Mayis 2026") dogrulanmamisti ve Hootsuite RanksUp'in artik sunmadigi sosyal
+ * yayin icindi.
+ *
+ * Hucre: true = var, false = yok (urun kapsami disi), null = DOGRULANMADI ("—").
+ * Rakip hakkinda yanlis "yok" iddiasi hukuki risk; ureticinin sayfasinda
+ * gorulmeyen her hucre null. ASO ve Apple Search Ads satirlarindaki "yok":
+ * dort aracin da fiyat/urun sayfalarinda uygulama magazasi ozelligi yok,
+ * urun kapsamlari web SEO/icerik (/compare'deki reklam ve Turkiye satirlari gibi).
+ *
+ * Kaynaklar (hepsi 18.10.2026'da ureticinin kendi sayfasindan):
+ *  - Surfer https://surferseo.com/pricing/ — Discovery 49 USD/ay yillik
+ *    faturali (sayfada aylik faturali fiyat yok, yillik "up to 17%" ucuz);
+ *    AI Tracker / "AI Search Analytics" plani; SSS "competitor share of voice".
+ *    Tam makale: https://docs.surferseo.com/en/articles/7869670-surfer-ai
+ *  - Jasper https://www.jasper.ai/pricing — Pro "$69/month billed monthly"
+ *    ($59 yillik), kullanici basina; GEO ajanlari Business planda.
+ *    AI gorunurluk: https://www.jasper.ai/solutions/seo-aeo-geo ("Measure how
+ *    your brand performs across every major AI answer engine").
+ *    Tam taslak: https://www.jasper.ai/agents/blog-post ("full draft", Pro).
+ *  - Ahrefs https://ahrefs.com/pricing — en dusuk ucretli plan Starter $29/ay
+ *    (ayri bolumde, ozellik listesi yok: "See what people search and spy on
+ *    competitors"); Lite $129/ay ve ustunde Rank Tracker, Site Audit ve Brand
+ *    Radar istemleri (Lite 5) dahil → tikler Lite+ (alt not "ust planlarda"
+ *    diyor). AI yazim (Content Kit, "Soon") eklenti → null.
+ *    AI Share of Voice: https://ahrefs.com/brand-radar
+ *  - Frase https://www.frase.io/pricing — Starter "$49/mo month to month"
+ *    ($39 yillik); AI Visibility (ChatGPT + Google AI, ust planda Claude/Gemini),
+ *    her planda makale uretimi; share of voice ve anahtar kelime takibi yazmiyor.
+ * Yeniden dogrulanirken tarih i18n.ts land.cmp.note ile birlikte guncellenir.
  */
-const COMPARE: boolean[][] = [
-  [true, false, false, false, true],   // Web SEO + anahtar kelime takibi
-  [true, false, false, false, true],   // AI gorunurluk (SEMrush AI Toolkit eklentisi)
-  [false, true, false, false, true],   // App Store + Play ASO
-  [false, false, false, false, true],  // Apple Search Ads yonetimi
-  [false, false, false, false, true],  // Agent Readiness (AXO)
-  [false, false, false, false, true],  // Rakip AI payi
-  [false, false, false, true, true],   // AI makale uretimi
-  [false, false, false, false, true],  // Otomatik akis
+const COMPETITORS: Array<{ name: string; price: string }> = [
+  { name: 'Surfer', price: '$49' },
+  { name: 'Jasper', price: '$69' },
+  { name: 'Ahrefs', price: '$29' },
+  { name: 'Frase', price: '$49' },
+];
+
+/** Sira: Surfer, Jasper, Ahrefs, Frase, RanksUp */
+const COMPARE: Array<Array<boolean | null>> = [
+  [null, null, true, null, true],     // Web SEO + anahtar kelime takibi (Ahrefs Rank Tracker)
+  [true, true, true, true, true],     // AI gorunurluk takibi (rakiplerde plana gore)
+  [false, false, false, false, true], // App Store + Play ASO
+  [false, false, false, false, true], // Apple Search Ads yonetimi
+  [null, null, null, null, true],     // Agent Readiness (AXO)
+  [true, null, true, null, true],     // Rakip AI payi (Surfer AI Tracker, Ahrefs Brand Radar)
+  [true, true, null, true, true],     // AI makale uretimi
+  [null, null, null, null, true],     // Otomatik akis
 ];
 
 // ─────────────────────────────────────────────────────────────
@@ -364,14 +399,20 @@ function Surface({ title, body, first, children }: { title: Key; body: Key; firs
   );
 }
 
-function CompareRow({ label, vals }: { label: Key; vals: boolean[] }) {
+function CompareRow({ label, vals }: { label: Key; vals: Array<boolean | null> }) {
   return (
     <tr>
       <th scope="row" className="sticky left-0 z-10 bg-background py-4 pr-4 text-left font-normal"><T k={label} /></th>
       {vals.map((v, i) => (
         <td key={i} className={`px-4 py-4 text-center ${i === vals.length - 1 ? 'bg-brand/5' : ''}`}>
-          {v ? <Check className={`inline h-4 w-4 ${i === vals.length - 1 ? 'text-brand-700 dark:text-brand-300' : 'text-foreground/70'}`} aria-hidden /> : <XIcon className="inline h-4 w-4 text-muted-foreground/40" aria-hidden />}
-          <span className="sr-only"><T k={v ? 'land.cmp.yes' : 'land.cmp.no'} /></span>
+          {v === null ? (
+            <span className="text-muted-foreground/60" aria-hidden>—</span>
+          ) : v ? (
+            <Check className={`inline h-4 w-4 ${i === vals.length - 1 ? 'text-brand-700 dark:text-brand-300' : 'text-foreground/70'}`} aria-hidden />
+          ) : (
+            <XIcon className="inline h-4 w-4 text-muted-foreground/40" aria-hidden />
+          )}
+          <span className="sr-only"><T k={v === null ? 'land.cmp.unknown' : v ? 'land.cmp.yes' : 'land.cmp.no'} /></span>
         </td>
       ))}
     </tr>

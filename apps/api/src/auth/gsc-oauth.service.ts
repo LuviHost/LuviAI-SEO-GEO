@@ -1,10 +1,12 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { OAuth2Client } from 'google-auth-library';
 import { google } from 'googleapis';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { encrypt, decrypt } from '@luviai/shared';
 import * as https from 'node:https';
 import { URLSearchParams } from 'node:url';
+import { OAuthFlowError } from './oauth-state.js';
+import { DEFAULT_GSC_SCOPES, GSC_DATA_SCOPES, hasGrantedScope, scopesFromEnv } from './oauth-scopes.js';
 
 /**
  * Native https.request ile POST/GET — googleapis library'nin gaxios fetch'i bu sunucuda
@@ -51,16 +53,18 @@ function nativeHttpsJson(opts: {
 /**
  * Multi-tenant GSC OAuth.
  *
- * Akış:
- *  1) Kullanıcı dashboard'da "GSC bağla" butonuna basar
- *  2) /api/auth/gsc/start?siteId=xxx → Google consent URL döner
- *  3) Kullanıcı izin verir, Google /api/auth/gsc/callback?code=...&state=... gelir
- *  4) Code → access_token + refresh_token swap edilir
- *  5) refresh_token şifrelenip Site.gscRefreshToken'a kaydedilir
- *  6) Sonradan her GSC çağrısında refresh_token ile yeni access_token alınır
+ * Akis:
+ *  1) Kullanici dashboard'da "GSC bagla" butonuna basar
+ *  2) /api/auth/gsc/start?siteId=xxx → sahiplik + tek kullanimlik state (oauth-state.ts) → Google consent URL
+ *  3) Kullanici izin verir, Google /api/auth/gsc/callback?code=...&state=... gelir
+ *  4) siteId YALNIZCA sunucudaki state kaydindan alinir; code → token swap edilir
+ *  5) Verilen kapsam dogrulanir; refresh_token sifrelenip Site.gscRefreshToken'a kaydedilir
+ *  6) Sonradan her GSC cagrisinda refresh_token ile yeni access_token alinir
  */
 @Injectable()
 export class GscOAuthService {
+  private readonly log = new Logger(GscOAuthService.name);
+
   constructor(private readonly prisma: PrismaService) {}
 
   private getClient(): OAuth2Client {
@@ -71,27 +75,39 @@ export class GscOAuthService {
     );
   }
 
-  /** Site sahibinin GSC izinlemek için tıklayacağı URL */
-  async buildAuthorizationUrl(siteId: string): Promise<string> {
+  /** Istenen kapsamlar — callback'teki kapsam kontrolu de ayni listeyi kullanir */
+  requestedScopes(): string[] {
+    // Yazma scope'u (webmasters) — readonly'nin üst kümesi. searchanalytics okumayı
+    // da kapsar + sitemaps.submit (sitemap gönderimi) için gereklidir. Eski readonly
+    // ile bağlanmış siteler sitemap submit'te 403 alır → yeniden yetkilendirme gerekir.
+    return scopesFromEnv(process.env.GSC_SCOPES, DEFAULT_GSC_SCOPES);
+  }
+
+  /**
+   * Site sahibinin GSC izinlemek icin tiklayacagi URL.
+   * `state` ham siteId DEGIL: issueOAuthState'in urettigi tek kullanimlik nonce.
+   */
+  buildAuthorizationUrl(state: string): string {
     const client = this.getClient();
     return client.generateAuthUrl({
       access_type: 'offline',
       prompt: 'consent',
-      // Yazma scope'u (webmasters) — readonly'nin üst kümesi. searchanalytics okumayı
-      // da kapsar + sitemaps.submit (sitemap gönderimi) için gereklidir. Eski readonly
-      // ile bağlanmış siteler sitemap submit'te 403 alır → yeniden yetkilendirme gerekir.
-      scope: process.env.GSC_SCOPES?.split(',') ?? ['https://www.googleapis.com/auth/webmasters'],
-      state: siteId,
+      scope: this.requestedScopes(),
+      state,
     });
   }
 
-  /** Callback: code → token, encrypted refresh_token DB'ye yaz */
-  async handleCallback(code: string, state: string) {
+  /**
+   * Code → token, kapsam kontrolu, sifreli refresh_token'i DB'ye yaz.
+   * siteId'yi cagiran sunucudaki state kaydindan verir (istemci girdisi degil).
+   * Hatalar OAuthFlowError kodudur; Google'in ham cevabi yalniz loga gider.
+   */
+  async completeConnection(siteId: string, code: string) {
     const site = await this.prisma.site.findUnique({
-      where: { id: state },
+      where: { id: siteId },
       select: { id: true, gscRefreshToken: true, gscPropertyUrl: true },
     });
-    if (!site) throw new NotFoundException('Site bulunamadı');
+    if (!site) throw new OAuthFlowError('site_access_denied', undefined, 'site yok');
 
     // ─── Token exchange — native https.request (gaxios bypass) ───
     const tokenBody = new URLSearchParams({
@@ -112,11 +128,15 @@ export class GscOAuthService {
       },
       body: tokenBody,
       timeoutMs: 15_000,
+    }).catch((err: any) => {
+      this.log.warn(`GSC token exchange request failed (${siteId}): ${String(err?.message ?? err).slice(0, 200)}`);
+      throw new OAuthFlowError('token_exchange_failed');
     });
 
     if (tokenRes.status >= 400) {
       const detail = tokenRes.body?.error_description ?? tokenRes.body?.error ?? `HTTP ${tokenRes.status}`;
-      throw new BadRequestException(`Google token exchange failed: ${detail}`);
+      this.log.warn(`GSC token exchange failed (${siteId}): ${String(detail).slice(0, 200)}`);
+      throw new OAuthFlowError('token_exchange_failed');
     }
 
     const tokens = tokenRes.body as {
@@ -127,13 +147,19 @@ export class GscOAuthService {
       token_type?: string;
     };
 
+    // Kapsam verilmediyse "bagli" gosterip veri getirmemek yerine reddet (oauth-scopes.ts)
+    if (!hasGrantedScope(tokens.scope, this.requestedScopes(), GSC_DATA_SCOPES)) {
+      this.log.warn(`GSC scope verilmedi (${siteId}): ${String(tokens.scope ?? '').slice(0, 200)}`);
+      throw new OAuthFlowError('scope_not_granted');
+    }
+
     // Google her callback'te refresh_token dönmeyebilir.
     const resolvedRefreshToken =
       tokens.refresh_token ??
       (site.gscRefreshToken ? decrypt(site.gscRefreshToken) : null);
 
     if (!resolvedRefreshToken) {
-      throw new BadRequestException('Google refresh token döndürmedi. Google hesabında erişimi kaldırıp tekrar dene.');
+      throw new OAuthFlowError('no_refresh_token');
     }
 
     // ─── GSC sites list — native https.request ───
@@ -169,7 +195,7 @@ export class GscOAuthService {
         : (properties[0] ?? null);
 
     await this.prisma.site.update({
-      where: { id: state },
+      where: { id: siteId },
       data: {
         gscRefreshToken: encrypted,
         gscConnectedAt: new Date(),
@@ -177,7 +203,7 @@ export class GscOAuthService {
       },
     });
 
-    return { siteId: state, properties };
+    return { siteId, properties };
   }
 
   /** GSC API çağrısı için authenticated client al */

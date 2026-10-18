@@ -7,6 +7,7 @@ import { useSession } from 'next-auth/react';
 import { Plus, Trash2, Edit2, CheckCircle2, XCircle, Star, Power, Loader2, BarChart3, Link2, Unlink, Activity } from 'lucide-react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
+import { finishOAuthConnect, oauthCallbackErrorText } from '@/lib/oauth-connect';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -66,6 +67,8 @@ export function PublishTargetsManager({
   const [editing, setEditing] = useState<Target | null>(null);
   const [adding, setAdding] = useState<CatalogItem | null>(null);
   const [showCatalog, setShowCatalog] = useState(false);
+  // Ayni anda tek baglanti testi: FTP/SFTP'de ust uste oturum acilmasin
+  const [testingId, setTestingId] = useState<string | null>(null);
 
   const refresh = async () => {
     try {
@@ -129,12 +132,26 @@ export function PublishTargetsManager({
   };
 
   const test = async (target: Target) => {
-    toast.message(`"${target.name}" bağlantısı test ediliyor…`);
+    if (testingId) return;
+    setTestingId(target.id);
+    // Test 30 sn'ye kadar surebilir: sonuc gelene kadar bekleme bildirimi acik kalir
+    const pending = toast.loading(`"${target.name}" bağlantısı test ediliyor…`);
     try {
       const res = await api.testPublishTarget(target.id);
-      if (res.ok) toast.success(res.message ?? 'Bağlantı başarılı');
-      else toast.error(res.message ?? 'Bağlantı başarısız');
-    } catch (err: any) { toast.error(err.message); }
+      toast.dismiss(pending);
+      const message = res?.message ?? (res?.ok ? 'Bağlantı başarılı' : 'Bağlantı başarısız');
+      // tested:false + ok:true → istek atilmadi (or. Markdown ZIP'in uzak sunucusu
+      // yok): yesil "basarili" degil, notr bilgi. ok:false (adres reddi, okunamayan
+      // kimlik) tested:false olsa da gercek sorundur — hata gosterilir.
+      if (res?.ok && res?.tested === false) toast.message(message, { duration: 8000 });
+      else if (res?.ok) toast.success(message, { duration: 8000 });
+      else toast.error(message, { duration: 12000 });
+    } catch (err: any) {
+      toast.dismiss(pending);
+      toast.error(err.message);
+    } finally {
+      setTestingId(null);
+    }
   };
 
   const catalogByType = useMemo(() => {
@@ -205,7 +222,10 @@ export function PublishTargetsManager({
                     </div>
                   </div>
                   <div className="flex gap-1.5 flex-wrap">
-                    <Button size="sm" variant="outline" onClick={() => test(t)}>Test Et</Button>
+                    <Button size="sm" variant="outline" onClick={() => test(t)} disabled={testingId !== null}>
+                      {testingId === t.id && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+                      Test Et
+                    </Button>
                     {!t.isDefault && (
                       <Button size="sm" variant="outline" onClick={() => setDefault(t.id)} title="Varsayılan yap">
                         <Star className="h-4 w-4" />
@@ -285,27 +305,16 @@ export function PublishTargetsManager({
   );
 }
 
-export function SettingsTab({ siteId, onRefresh }: { siteId: string; onRefresh?: () => void }) {
+// onRefresh imzada kalir (cagiranlar geciyor); kartlar kendi verisini tazeler
+export function SettingsTab({ siteId }: { siteId: string; onRefresh?: () => void }) {
   return (
     <div className="space-y-6">
       <GscConnectionCard siteId={siteId} />
       <Ga4ConnectionCard siteId={siteId} />
       <AdsAccountsCard siteId={siteId} />
       <AiKeysPanel siteId={siteId} />
-
-      <Card id="social-channels">
-        <CardHeader>
-          <h2 className="font-semibold">Sosyal Kanallar</h2>
-          <p className="text-xs text-muted-foreground mt-1">
-            LinkedIn / X (Twitter) hesaplarını bağla — makaleler yayınlandığında
-            seçili kanallarda otomatik paylaşılır. Her makale için ayrı kanal
-            seçimi takvim sayfasında yapılır.
-          </p>
-        </CardHeader>
-        <CardContent>
-        </CardContent>
-      </Card>
-
+      {/* "Sosyal Kanallar" karti kaldirildi: icerigi bostu ve sosyal modul olmadigi halde
+          "makaleler secili kanallarda otomatik paylasilir" vaadi veriyordu. */}
     </div>
   );
 }
@@ -322,16 +331,21 @@ const TARGET_GUIDES: Record<string, { title: string; steps: string[]; tip?: stri
       'Çıkan xxxx xxxx xxxx xxxx formatlı parolayı kopyala (boşluklarla beraber)',
       'Bu pencerede: Site URL = sadece domain (örn https://ranksup.ai — /wp-admin veya /wp-json EKLEME, backend otomatik ekler. Bağlandığın site varsa otomatik gelir) · Kullanıcı adı = SENİN WP login\'in (admin/email vb., "RanksUp" DEĞİL) · App Password = az önce kopyaladığın 24 haneli parola',
       '"Yayın durumu": Taslak → sen WP\'de inceleyip yayınlarsın · Yayında → otomatik canlıya çıkar',
+      'Kaydettikten sonra "Test Et" kullanıcı adı ve uygulama şifresini doğrular',
     ],
     tip: '"RanksUp" sadece şifrenin etiketi — gerçek WP kullanıcısı oluşturmaz. Kullanıcı adı alanına kendi WP login\'ini yaz.',
   },
   WORDPRESS_XMLRPC: {
     title: 'WordPress (XML-RPC) Kurulumu',
     steps: [
-      'Sadece WP 4.7 öncesi sürümler için — güncel WP\'de REST API kullan',
-      'XML-RPC\'nin açık olduğunu doğrula: wp-admin > Settings > Writing veya plugin gerekebilir',
+      // Uygulama sifresi WordPress 5.6+ ve XML-RPC'de de gecer (make.wordpress.org/core/2020/11/05/
+      // application-passwords-integration-guide); XML-RPC 3.5'ten beri varsayilan acik, ayar ekrani
+      // yok — yalniz xmlrpc_enabled filtresiyle kapanir (class-wp-xmlrpc-server.php set_is_enabled)
+      'Uygulama şifresi (Application Password) olmayan eski WordPress sürümleri (5.6 öncesi) için — WordPress 5.6 ve sonrasında REST API hedefini kullan',
+      'XML-RPC WordPress 3.5\'ten beri varsayılan olarak açıktır; bir güvenlik eklentisiyle kapattıysan o eklentinin ayarından aç',
       'Site URL = WP site adresin (xmlrpc.php otomatik eklenir)',
-      'Kullanıcı + Şifre = WP login bilgilerin (App Password değil!)',
+      'Kullanıcı + Şifre = WordPress kullanıcı adın ve şifren (WordPress 5.6 ve sonrasında uygulama şifresi de kullanılabilir)',
+      'Kaydettikten sonra "Test Et" kullanıcı adı ve şifreni XML-RPC ile doğrular',
     ],
     tip: 'Güvenlik için modern WP\'de REST API tercih edilir.',
   },
@@ -434,6 +448,10 @@ function TargetForm({
     setShowGuide(false);
   };
   const [credentials, setCredentials] = useState<Record<string, string>>({});
+  // Duzenlemede istege bagli alanin kayitli degerini silmek: sunucuya null gider.
+  // Bos birakilan alan "degistirme" demektir (sunucuda kayitli degerle birlesir —
+  // publish-target-credentials.ts sozlesmesi); silmenin tek yolu bu kutu.
+  const [cleared, setCleared] = useState<Record<string, boolean>>({});
 
   // siteUrl alanını parent site'tan otomatik doldur (yeni hedef için)
   useEffect(() => {
@@ -470,6 +488,10 @@ function TargetForm({
     setCredentials((p) => ({ ...p, [key]: value }));
   const updateConfig = (key: string, value: string) =>
     setConfig((p) => ({ ...p, [key]: value }));
+  const toggleCleared = (key: string, on: boolean) => {
+    setCleared((p) => ({ ...p, [key]: on }));
+    if (on) updateField(key, '');
+  };
 
   const save = async () => {
     if (!name.trim()) {
@@ -496,11 +518,17 @@ function TargetForm({
 
     setSaving(true);
     try {
-      // Boş credentials field'larını gönderme (edit modda)
-      const credsToSend: Record<string, string> = {};
+      // Bos alan gonderilmez: duzenlemede sunucu yalniz gonderilen alanlari
+      // kayitli bilgilerle birlestirir. "Kayıtlı değeri sil" isaretli alan null gider.
+      const credsToSend: Record<string, string | null> = {};
       Object.entries(credentials).forEach(([k, v]) => {
         if (v) credsToSend[k] = v;
       });
+      if (existing) {
+        Object.entries(cleared).forEach(([k, on]) => {
+          if (on) credsToSend[k] = null;
+        });
+      }
 
       if (existing) {
         await api.updatePublishTarget(existing.id, {
@@ -638,18 +666,32 @@ function TargetForm({
               </h4>
               {existing && (
                 <p className="text-[11px] text-muted-foreground mb-2">
-                  Mevcut giriş bilgilerini değiştirmek istemiyorsan boş bırak.
+                  Mevcut giriş bilgilerini değiştirmek istemiyorsan boş bırak; yalnız doldurduğun alanlar güncellenir.
                 </p>
               )}
               <div className="space-y-3">
                 {catalog.fields.map((f) => (
-                  <FormField
-                    key={f.key}
-                    field={f}
-                    value={credentials[f.key] ?? ''}
-                    onChange={(v) => updateField(f.key, v)}
-                    placeholder={existing ? '••••••••• (değişmeyecek)' : f.placeholder}
-                  />
+                  <div key={f.key}>
+                    <FormField
+                      field={f}
+                      value={cleared[f.key] ? '' : (credentials[f.key] ?? '')}
+                      onChange={(v) => updateField(f.key, v)}
+                      placeholder={existing ? (cleared[f.key] ? 'Kayıtlı değer silinecek' : '••••••••• (değişmeyecek)') : f.placeholder}
+                      disabled={!!cleared[f.key]}
+                    />
+                    {/* Zorunlu alan silinemez: hedef baglanamaz hale gelirdi */}
+                    {existing && !f.required && (
+                      <label className="mt-1 inline-flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={!!cleared[f.key]}
+                          onChange={(e) => toggleCleared(f.key, e.target.checked)}
+                          className="h-3.5 w-3.5"
+                        />
+                        Kayıtlı değeri sil
+                      </label>
+                    )}
+                  </div>
                 ))}
               </div>
             </div>
@@ -705,11 +747,13 @@ function FormField({
   value,
   onChange,
   placeholder,
+  disabled,
 }: {
   field: CatalogField;
   value: string;
   onChange: (v: string) => void;
   placeholder?: string;
+  disabled?: boolean;
 }) {
   return (
     <div>
@@ -720,7 +764,8 @@ function FormField({
         <select
           value={value}
           onChange={(e) => onChange(e.target.value)}
-          className="w-full h-9 px-3 rounded-md border bg-card text-sm"
+          disabled={disabled}
+          className="w-full h-9 px-3 rounded-md border bg-card text-sm disabled:opacity-50"
         >
           {(field.options ?? []).map((opt) => (
             <option key={opt.value} value={opt.value}>
@@ -733,8 +778,9 @@ function FormField({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder ?? field.placeholder}
+          disabled={disabled}
           rows={4}
-          className="w-full px-3 py-2 rounded-md border bg-card text-sm font-mono"
+          className="w-full px-3 py-2 rounded-md border bg-card text-sm font-mono disabled:opacity-50"
         />
       ) : (
         <Input
@@ -742,6 +788,7 @@ function FormField({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder ?? field.placeholder}
+          disabled={disabled}
         />
       )}
       {field.hint && (
@@ -816,14 +863,22 @@ function GscConnectionCard({ siteId }: { siteId: string }) {
     }
   };
 
-  // Callback'ten dönüldüyse kullanıcıya bilgi ver, URL'i temizle
+  // Callback'ten dönüldüyse kullanıcıya bilgi ver, URL'i temizle.
+  // 'finish': API oturumu goremedi, kodu park etti — oturumlu istekle tamamla (lib/oauth-connect.ts)
   useEffect(() => {
-    if (search.get('gsc') === 'connected') {
+    const state = search.get('gsc');
+    if (state === 'connected') {
       toast.success('Google Search Console bağlandı');
       window.history.replaceState({}, '', siteHref(siteId, 'connections'));
       refresh();
-    } else if (search.get('gsc') === 'error') {
-      toast.error('GSC bağlantısı tamamlanamadı, tekrar dene.');
+    } else if (state === 'finish') {
+      const key = search.get('k') ?? '';
+      window.history.replaceState({}, '', siteHref(siteId, 'connections'));
+      finishOAuthConnect('gsc', key)
+        .then((r) => { if (r) { toast.success('Google Search Console bağlandı'); refresh(); } })
+        .catch((err: any) => toast.error(err.message));
+    } else if (state === 'error') {
+      toast.error(oauthCallbackErrorText('gsc', search.get('gscerror')));
       window.history.replaceState({}, '', siteHref(siteId, 'connections'));
     }
   }, [search, siteId]);
@@ -865,7 +920,7 @@ function GscConnectionCard({ siteId }: { siteId: string }) {
               <h2 className="font-semibold">Google Search Console</h2>
               <p className="text-xs text-muted-foreground mt-1">
                 Konu önerilerine gerçek arama verisini katar ve Performans sekmesini açar. İsteğe bağlı; bağlamasan da RanksUp çalışır.
-                Not: Search Console AI cevaplarında görünüp görünmediğini ve tıklamayı nerede kaybettiğini söyleyemez — RanksUp bunu 7 AI asistanına doğrudan sorarak ölçer; GSC bunun yanına Google'daki gerçek tıklamayı koyar (markalı/markasız ayrımıyla).
+                Not: Search Console AI cevaplarında görünüp görünmediğini ve tıklamayı nerede kaybettiğini söyleyemez — RanksUp bunu 6 AI asistanına (ChatGPT, Claude, Gemini, Perplexity, Grok, DeepSeek) doğrudan sorarak ölçer; GSC bunun yanına Google'daki gerçek tıklamayı koyar (markalı/markasız ayrımıyla).
               </p>
             </div>
           </div>
@@ -1001,12 +1056,19 @@ function Ga4ConnectionCard({ siteId }: { siteId: string }) {
   };
 
   useEffect(() => {
-    if (search.get('ga') === 'connected') {
+    const state = search.get('ga');
+    if (state === 'connected') {
       toast.success('Google Analytics bağlandı');
       window.history.replaceState({}, '', siteHref(siteId, 'connections'));
       refresh();
-    } else if (search.get('ga') === 'error') {
-      toast.error('GA bağlantısı tamamlanamadı, tekrar dene.');
+    } else if (state === 'finish') {
+      const key = search.get('k') ?? '';
+      window.history.replaceState({}, '', siteHref(siteId, 'connections'));
+      finishOAuthConnect('ga', key)
+        .then((r) => { if (r) { toast.success('Google Analytics bağlandı'); refresh(); } })
+        .catch((err: any) => toast.error(err.message));
+    } else if (state === 'error') {
+      toast.error(oauthCallbackErrorText('ga', search.get('gaerror')));
       window.history.replaceState({}, '', siteHref(siteId, 'connections'));
     }
   }, [search, siteId]);
@@ -1174,76 +1236,3 @@ function AdsAccountsCard({ siteId }: { siteId: string }) {
   );
 }
 
-
-// ──────────────────────────────────────────────────────────────────────
-//  Yayin Onay Modu — manuel onay vs tam otomatik
-// ──────────────────────────────────────────────────────────────────────
-function ApprovalModeCard({ siteId, onRefresh }: { siteId: string; onRefresh?: () => void }) {
-  const [mode, setMode] = useState<'manual_approve' | 'auto_publish' | null>(null);
-  const [autopilot, setAutopilot] = useState<boolean | null>(null);
-  const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    api.getSite(siteId).then((s: any) => {
-      setMode(s.publishApprovalMode ?? 'manual_approve');
-      setAutopilot(s.autopilot ?? true);
-    }).catch(() => { /* noop */ });
-  }, [siteId]);
-
-  const change = async (newMode: 'manual_approve' | 'auto_publish') => {
-    if (mode === newMode) return;
-    setSaving(true);
-    try {
-      await api.updateSite(siteId, { publishApprovalMode: newMode });
-      setMode(newMode);
-      toast.success(newMode === 'auto_publish' ? 'Tam otomatik moda alindi' : 'Manuel onay moduna alindi');
-      onRefresh?.();
-    } catch (err: any) {
-      toast.error(err.message);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  if (mode === null) return null;
-
-  return (
-    <Card>
-      <CardHeader>
-        <h2 className="font-semibold">Otomatik Yayin Modu</h2>
-        <p className="text-xs text-muted-foreground mt-1">
-          AI yazdiktan sonra yayinlama davranisi. Istediginde degistirebilirsin.
-        </p>
-      </CardHeader>
-      <CardContent className="space-y-2">
-        <button
-          type="button"
-          onClick={() => change('manual_approve')}
-          disabled={saving}
-          className={`w-full rounded-lg border-2 p-3 text-left transition-colors ${
-            mode === 'manual_approve' ? 'border-blue-500 bg-blue-500/5' : 'hover:border-blue-500/40'
-          }`}
-        >
-          <p className="font-medium text-sm">Yarı otomatik (önerilen)</p>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            AI yazsin → DRAFT olarak dursun → sen onaylayinca yayinlansin. Email/dashboard'dan haber alirsin.
-          </p>
-        </button>
-
-        <button
-          type="button"
-          onClick={() => change('auto_publish')}
-          disabled={saving}
-          className={`w-full rounded-lg border-2 p-3 text-left transition-colors ${
-            mode === 'auto_publish' ? 'border-brand bg-brand/5' : 'hover:border-brand/40'
-          }`}
-        >
-          <p className="font-medium text-sm">Tam otomatik</p>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            AI yazsin ve direkt yayinlansin. Hizli icin ideal — sen sadece haftalik raporu okursun.
-          </p>
-        </button>
-      </CardContent>
-    </Card>
-  );
-}

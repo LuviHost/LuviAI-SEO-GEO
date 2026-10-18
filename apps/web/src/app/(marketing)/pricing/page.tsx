@@ -2,18 +2,13 @@
 
 import { CHECKOUT_STORAGE_KEY } from '@/components/direct-checkout-form';
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { useT } from '@/lib/i18n';
-import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { ThemeToggle } from '@/components/theme-toggle';
-import { LocaleSwitch } from '@/components/locale-switch';
-import { CheckCircle2, Sparkles, ShieldCheck, ArrowRight, Clock, Star } from 'lucide-react';
+import { CheckCircle2, Sparkles, ShieldCheck, ArrowRight, Star } from 'lucide-react';
 
 type GrandfatheringInfo = { isGrandfathered: boolean; grandfatheredUntil?: string; legacyMonthlyPriceTry?: number };
 
@@ -87,7 +82,7 @@ export default function PricingPage() {
       const data = await res.json();
       // Otomatik yenileme açık: imzalı kart formu → kendi ödeme sayfamız
       if (data.mode === 'direct') {
-        try { sessionStorage.setItem(CHECKOUT_STORAGE_KEY, JSON.stringify(data)); } catch (_e) { /* noop */ }
+        try { sessionStorage.setItem(CHECKOUT_STORAGE_KEY, JSON.stringify(data)); } catch { /* noop */ }
         router.push('/billing/checkout');
         return;
       }
@@ -95,7 +90,7 @@ export default function PricingPage() {
         // Test mode dev-confirm için merchantOid'i sakla; success sayfası bunu okuyup
         // PayTR webhook gelmeden invoice'ı PAID + plan'ı upgrade eder.
         if (data.merchantOid) {
-          try { localStorage.setItem('luviai-pending-merchantOid', data.merchantOid); } catch (_e) { /* noop */ }
+          try { localStorage.setItem('luviai-pending-merchantOid', data.merchantOid); } catch { /* noop */ }
         }
         toast.success('Yönlendiriliyor...');
         window.location.href = data.iframeUrl;
@@ -182,7 +177,9 @@ export default function PricingPage() {
               }`}
             >
               {t('pricing.annual')}
-              <span className="text-[10px] bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 px-1.5 py-0.5 rounded-full font-bold">-20%</span>
+              {/* Yillik = 10 ay fiyatina 12 ay (plans.ts annual_usd = monthly_usd * 10) →
+                  indirim %16,7. Eskiden "-20%" yaziyordu. */}
+              <span className="text-[10px] bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 px-1.5 py-0.5 rounded-full font-bold">{locale === 'en' ? '2 months free' : '2 ay bedava'}</span>
             </button>
           </div>
         </div>

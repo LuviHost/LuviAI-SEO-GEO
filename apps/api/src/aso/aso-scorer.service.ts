@@ -22,12 +22,28 @@ export interface MetadataInput {
   description_length?: number;
   description_quality?: number;      // 0..1 (AI ile değerlendirilmiş)
   keyword_density?: number;          // % (örn: 3.5 → 3.5%)
+  /**
+   * 'ios': App Store aciklamayi arama siralamasinda kullanmaz → aciklamadaki
+   * anahtar kelime yogunlugu skora KATILMAZ (uzunluk/okunabilirlik kalir).
+   * Apple: metin eslesmesi "title, subtitle, keywords, and primary category"
+   * (https://developer.apple.com/app-store/search/); urun sayfasi rehberi:
+   * "Don't add unnecessary keywords to your description in an attempt to
+   * improve search results" (https://developer.apple.com/app-store/product-page/).
+   * Google Play tam aciklamayi indeksler; orada yogunluk kalir.
+   */
+  platform?: 'ios' | 'android';
 }
 
 export interface RatingsInput {
   average_rating?: number;           // 0..5
   total_ratings?: number;
-  recent_ratings_30d?: number;
+  /**
+   * Son 30 gundeki YORUM sayisi (cekilip saklanan yorumlardan). null/undefined
+   * = bilinmiyor: hiz bileseni skordan cikarilir, sifir SAYILMAZ.
+   */
+  recent_reviews_30d?: number | null;
+  /** @deprecated recent_reviews_30d kullan; geriye uyum icin okunur */
+  recent_ratings_30d?: number | null;
 }
 
 export interface KeywordPerformanceInput {
@@ -47,6 +63,8 @@ export interface ScoreBreakdownEntry {
   score: number;
   weight: number;
   weighted_contribution: number;
+  /** Skora katilmayan alt bilesenlerin acik nedeni (ör. veri yok, magaza kullanmiyor) */
+  notes?: string[];
 }
 
 export interface ASORecommendation {
@@ -86,14 +104,20 @@ export class ASOScorerService {
     conversion_rate:     { min: 0.02, target: 0.10 },
   };
 
+  /**
+   * `metadata` dizi olabilir: magaza basina bir girdi (iOS + Android); boyut
+   * skoru magazalarin ortalamasidir. Eskiden tek girdi vardi ve Android adi
+   * iOS aciklamasiyla karisik hesaplaniyordu.
+   */
   calculateOverallScore(
-    metadata: MetadataInput,
+    metadata: MetadataInput | MetadataInput[],
     ratings: RatingsInput,
     keywordPerformance: KeywordPerformanceInput,
     conversion: ConversionInput,
   ): ASOScoreResult {
     const W = ASOScorerService.WEIGHTS;
-    const metadataScore   = this.scoreMetadataQuality(metadata);
+    const metaInputs = Array.isArray(metadata) ? (metadata.length ? metadata : [{}]) : [metadata];
+    const metadataScore   = round1(metaInputs.reduce((s, m) => s + this.scoreMetadataQuality(m), 0) / metaInputs.length);
     const ratingsScore    = this.scoreRatingsReviews(ratings);
     const keywordScore    = this.scoreKeywordPerformance(keywordPerformance);
     const conversionScore = this.scoreConversionMetrics(conversion);
@@ -105,9 +129,16 @@ export class ASOScorerService {
       conversionScore * (W.conversion_metrics  / 100)
     );
 
+    const metadataNotes = metaInputs.some((m) => m.platform === 'ios')
+      ? ['App Store açıklamasındaki anahtar kelime yoğunluğu skora katılmadı: Apple açıklamayı arama sıralamasında kullanmaz (ad, alt başlık, anahtar kelime alanı ve kategori kullanılır).']
+      : undefined;
+    const ratingsNotes = recentReviewsOf(ratings) == null
+      ? ['Son 30 gündeki yorum sayısı bilinmiyor ya da yalnız alt sınırı biliniyor (yorum verisi yok, son çekim eski ya da tek çekimin tavanına dayandı) — bu alt bileşen skora katılmadı, sıfır sayılmadı.']
+      : undefined;
+
     const breakdown: Record<string, ScoreBreakdownEntry> = {
-      metadata_quality:    { score: metadataScore,   weight: W.metadata_quality,    weighted_contribution: round1(metadataScore   * W.metadata_quality    / 100) },
-      ratings_reviews:     { score: ratingsScore,    weight: W.ratings_reviews,     weighted_contribution: round1(ratingsScore    * W.ratings_reviews     / 100) },
+      metadata_quality:    { score: metadataScore,   weight: W.metadata_quality,    weighted_contribution: round1(metadataScore   * W.metadata_quality    / 100), ...(metadataNotes ? { notes: metadataNotes } : {}) },
+      ratings_reviews:     { score: ratingsScore,    weight: W.ratings_reviews,     weighted_contribution: round1(ratingsScore    * W.ratings_reviews     / 100), ...(ratingsNotes ? { notes: ratingsNotes } : {}) },
       keyword_performance: { score: keywordScore,    weight: W.keyword_performance, weighted_contribution: round1(keywordScore    * W.keyword_performance / 100) },
       conversion_metrics:  { score: conversionScore, weight: W.conversion_metrics,  weighted_contribution: round1(conversionScore * W.conversion_metrics  / 100) },
     };
@@ -116,7 +147,7 @@ export class ASOScorerService {
       overall_score: round1(overallScore),
       grade: this.grade(overallScore),
       breakdown,
-      recommendations: this.generateRecommendations(metadataScore, ratingsScore, keywordScore, conversionScore),
+      recommendations: this.generateRecommendations(metadataScore, ratingsScore, keywordScore, conversionScore, metaInputs),
       strengths:  this.identifyStrengths(breakdown),
       weaknesses: this.identifyWeaknesses(breakdown),
     };
@@ -143,6 +174,12 @@ export class ASOScorerService {
     descScore += descQuality * 10;
     descScore = Math.min(descScore, 35);
 
+    // App Store: aciklama aramada kullanilmaz → yogunluk 0 sayilmaz, DISARIDA
+    // birakilir; baslik + aciklama (70 puan) 100'e olceklenir.
+    if (m.platform === 'ios') {
+      return round1(((titleScore + descScore) / 70) * 100);
+    }
+
     // Keyword density score (0-30)
     const density = m.keyword_density ?? 0;
     let densityScore: number;
@@ -162,7 +199,7 @@ export class ASOScorerService {
     const B = ASOScorerService.BENCHMARKS;
     const avg = r.average_rating ?? 0;
     const total = r.total_ratings ?? 0;
-    const recent = r.recent_ratings_30d ?? 0;
+    const recent = recentReviewsOf(r);
 
     // Quality (0-50)
     let qualityScore: number;
@@ -180,6 +217,14 @@ export class ASOScorerService {
       const p = (total - B.ratings_count.min) / (B.ratings_count.target - B.ratings_count.min);
       volumeScore = 15 + p * 15;
     } else volumeScore = (total / B.ratings_count.min) * 15;
+
+    // Hiz bilinmiyorsa (yorum verisi yok/bayat) 5 puanlik taban VERILMEZ ve
+    // 0 da sayilmaz: kalite + hacim (80 puan) 100'e olceklenir. Eskiden bu
+    // deger sabit 0 gonderiliyordu ve her uygulamanin bu boyutu 85'te tavan
+    // yapiyordu.
+    if (recent == null) {
+      return round1(Math.min(((qualityScore + volumeScore) / 80) * 100, 100));
+    }
 
     // Velocity (0-20)
     const velocityScore = recent > 100 ? 20 : recent > 50 ? 15 : recent > 10 ? 10 : 5;
@@ -245,14 +290,25 @@ export class ASOScorerService {
   private generateRecommendations(
     metadataScore: number, ratingsScore: number,
     keywordScore: number, conversionScore: number,
+    metaInputs: MetadataInput[] = [],
   ): ASORecommendation[] {
     const recs: ASORecommendation[] = [];
+    // Yogunluk tavsiyesi yalniz Google Play icin anlamli (App Store aciklamayi indekslemez)
+    const hasAndroid = metaInputs.length === 0 || metaInputs.some((m) => m.platform !== 'ios');
+    const hasIos = metaInputs.some((m) => m.platform === 'ios');
 
     if (metadataScore < 60) {
+      const details = [
+        'Title\'a daha fazla anahtar kelime ekle',
+        hasIos ? 'App Store\'da hedef kelimeleri alt başlık ve anahtar kelime alanına taşı (açıklama aramada kullanılmaz)' : null,
+        'description\'ı 1500-2000 karaktere çıkar',
+        // Esik skorlama benchmark'iyla ayni: %2-5 tam puan (BENCHMARKS.keyword_density)
+        hasAndroid ? 'Google Play açıklamasında keyword density\'yi %2-5 aralığına çek' : null,
+      ].filter(Boolean).join(', ');
       recs.push({
         category: 'metadata_quality', priority: 'high',
         action: 'App title ve description\'ı optimize et',
-        details: 'Title\'a daha fazla anahtar kelime ekle, description\'ı 1500-2000 karaktere çıkar, keyword density %3-5 aralığına çek',
+        details,
         expected_impact: 'Discoverability ve ranking potansiyeli artar',
       });
     } else if (metadataScore < 80) {
@@ -285,7 +341,8 @@ export class ASOScorerService {
         category: 'keyword_performance', priority: 'high',
         action: 'Keyword stratejini revize et',
         details: 'Düşük rekabetli long-tail keyword\'lere odaklan, top 50\'deki keyword\'leri top 10\'a taşımak için ek metadata optimizasyonu yap',
-        expected_impact: '+5-10 top 10 ranking, organik trafik artışı',
+        // Sayisal vaat yok: kac kelimenin ilk 10'a girecegi olculmeden bilinemez
+        expected_impact: 'Daha fazla kelimede ilk 10 sıralama potansiyeli, organik trafik artışı',
       });
     } else if (keywordScore < 80) {
       recs.push({
@@ -310,13 +367,13 @@ export class ASOScorerService {
 
   private identifyStrengths(breakdown: Record<string, ScoreBreakdownEntry>): string[] {
     return Object.entries(breakdown)
-      .filter(([_, v]) => v.score >= 80)
+      .filter(([, v]) => v.score >= 80)
       .map(([k, v]) => `${k.replace(/_/g, ' ')}: ${v.score}/100`);
   }
 
   private identifyWeaknesses(breakdown: Record<string, ScoreBreakdownEntry>): string[] {
     return Object.entries(breakdown)
-      .filter(([_, v]) => v.score < 60)
+      .filter(([, v]) => v.score < 60)
       .map(([k, v]) => `${k.replace(/_/g, ' ')}: ${v.score}/100`);
   }
 
@@ -331,4 +388,10 @@ export class ASOScorerService {
 
 function round1(n: number): number {
   return Math.round(n * 10) / 10;
+}
+
+/** null = bilinmiyor. Yeni alan oncelikli; eski cagiran recent_ratings_30d ile gelebilir. */
+function recentReviewsOf(r: RatingsInput): number | null {
+  const v = r.recent_reviews_30d ?? r.recent_ratings_30d;
+  return typeof v === 'number' && Number.isFinite(v) ? v : null;
 }

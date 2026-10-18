@@ -11,7 +11,7 @@ import React, { createContext, useCallback, useContext, useEffect, useState } fr
 import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import * as Crypto from 'expo-crypto';
-import { mobileGoogleLogin, mobileAppleLogin, listSites, type Site } from './api';
+import { mobileGoogleLogin, mobileAppleLogin, listSites, getMe, type AccountMe, type Site } from './api';
 import { GOOGLE_IOS_CLIENT_ID, GOOGLE_WEB_CLIENT_ID, GOOGLE_CONFIGURED } from './authConfig';
 
 function bytesToHex(bytes: Uint8Array): string {
@@ -27,6 +27,12 @@ type Result = { ok: true } | { ok: false; error: string };
 
 interface AuthState {
   token: string | null;
+  /**
+   * Oturumun ait oldugu hesap (GET /me) — profil rozetindeki bas harfler ve
+   * "bagli hesap" satiri icin. En iyi caba: alinamazsa null, baglanti bozulmaz.
+   * Hesap silme ekrani bunu kullanmaz; silmeden once /me'yi kendisi taze ceker.
+   */
+  me: AccountMe | null;
   sites: Site[];
   activeSite: Site | null;
   connected: boolean;
@@ -37,12 +43,19 @@ interface AuthState {
   signInWithApple: () => Promise<Result>;
   disconnect: () => Promise<void>;
   setActiveSite: (siteId: string) => void;
+  /** Bağlantı türü: `luvi_` API anahtarı mı, Google/Apple oturumu mu (hesap silme yalnız oturumla) */
+  connectedVia: 'apiKey' | 'session' | null;
+  /** Hesap silme öncesi Apple'dan taze yetki kodu (sunucu token'ı iptal eder). İptal edilirse canceled. */
+  freshAppleAuthorizationCode: () => Promise<{ code: string | null; canceled: boolean }>;
+  /** Hesap silindikten sonra: cihazdaki Google oturumunu/iznini kaldır, token'ı sil */
+  forgetAfterAccountDeletion: (opts: { google: boolean }) => Promise<void>;
 }
 
 const Ctx = createContext<AuthState | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
+  const [me, setMe] = useState<AccountMe | null>(null);
   const [sites, setSites] = useState<Site[]>([]);
   const [activeSite, setActiveSiteState] = useState<Site | null>(null);
   const [loading, setLoading] = useState(true);
@@ -65,6 +78,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     })();
   }, []);
+
+  // Hesap kimligi token'i izler: baglaninca cekilir, cikista temizlenir. Bekletmez —
+  // acilis ve baglanma /me'yi beklemeden tamamlanir; gec gelen cevap eski token'a yazilmaz.
+  useEffect(() => {
+    if (!token) {
+      setMe(null);
+      return;
+    }
+    let alive = true;
+    getMe(token)
+      .then((m) => { if (alive) setMe(m); })
+      .catch(() => { if (alive) setMe(null); });
+    return () => { alive = false; };
+  }, [token]);
 
   const connect = useCallback(async (raw: string): Promise<Result> => {
     const t = raw.trim();
@@ -128,6 +155,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         identityToken: cred.identityToken,
         rawNonce,
         fullName,
+        // Sunucu bununla Apple refresh token'ı alır; hesap silmede Apple bağlantısı iptal edilir
+        authorizationCode: cred.authorizationCode ?? undefined,
       });
       return await connect(jwt);
     } catch (e: any) {
@@ -137,6 +166,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [connect]);
 
   const disconnect = useCallback(async () => {
+    await SecureStore.deleteItemAsync(TOKEN_KEY);
+    await SecureStore.deleteItemAsync(SITE_KEY);
+    setToken(null);
+    setSites([]);
+    setActiveSiteState(null);
+  }, []);
+
+  const freshAppleAuthorizationCode = useCallback(async (): Promise<{ code: string | null; canceled: boolean }> => {
+    if (Platform.OS !== 'ios') return { code: null, canceled: false };
+    let Apple: any;
+    try {
+      Apple = require('expo-apple-authentication');
+    } catch {
+      return { code: null, canceled: false }; // Expo Go: modül yok — silme kodsuz sürer
+    }
+    try {
+      const cred = await Apple.signInAsync({ requestedScopes: [] });
+      return { code: cred?.authorizationCode ?? null, canceled: false };
+    } catch (e: any) {
+      if (e?.code === 'ERR_REQUEST_CANCELED') return { code: null, canceled: true };
+      return { code: null, canceled: false };
+    }
+  }, []);
+
+  const forgetAfterAccountDeletion = useCallback(async (opts: { google: boolean }) => {
+    if (opts.google && GOOGLE_CONFIGURED) {
+      // En iyi çaba: Google hesabındaki RanksUp iznini kaldır ve cihazdaki Google oturumunu kapat
+      try {
+        const { GoogleSignin } = require('@react-native-google-signin/google-signin');
+        GoogleSignin.configure({ iosClientId: GOOGLE_IOS_CLIENT_ID, webClientId: GOOGLE_WEB_CLIENT_ID });
+        await GoogleSignin.revokeAccess().catch(() => null);
+        await GoogleSignin.signOut().catch(() => null);
+      } catch {
+        /* Expo Go ya da oturum yok — sorun değil */
+      }
+    }
     await SecureStore.deleteItemAsync(TOKEN_KEY);
     await SecureStore.deleteItemAsync(SITE_KEY);
     setToken(null);
@@ -160,6 +225,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     {
       value: {
         token,
+        me,
         sites,
         activeSite,
         connected: !!token,
@@ -170,6 +236,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         signInWithApple,
         disconnect,
         setActiveSite,
+        connectedVia: token ? (token.startsWith('luvi_') ? 'apiKey' : 'session') : null,
+        freshAppleAuthorizationCode,
+        forgetAfterAccountDeletion,
       },
     },
     children,

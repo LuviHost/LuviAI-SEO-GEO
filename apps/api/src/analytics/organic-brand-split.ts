@@ -14,6 +14,12 @@ import { containsBrand } from '../audit/brand-in-query.js';
  *
  * SINIR: AnalyticsSnapshot.queryDetails gun basina ilk 100 sorgu (tiklama
  * sirali). Pay bir ORNEKLEM uzerinden hesaplanir; UI bunu soyler.
+ *
+ * HOST: marka alan adindan turetilmis jenerik bir kelimeyse ("emlak" ←
+ * emlak.com) yalin kelime sayilmaz, yalniz alan adi gecisi markali sayilir
+ * (brand-in-query.ts JENERIK MARKA KORUMASI). Host verilmezse "emlak
+ * ilanlari" gibi her sektor aramasi markali kovaya duser ve markasiz pay
+ * sistematik olarak dusuk cikar.
  */
 
 export interface OrganicQueryRow {
@@ -39,6 +45,18 @@ export interface OrganicBrandSplit {
 
 const EMPTY: BrandBucket = { clicks: 0, impressions: 0, queries: 0 };
 
+/**
+ * containsBrand'in `host` argumani icin site adresinden host. AI olcumunun
+ * damgasiyla (AiCitationService.extractHost → buildProbe) AYNI normalizasyon:
+ * www'suz, kucuk harf; adres ayristirilamazsa ham metin. Ayrisirsa ayni sorgu
+ * GSC ayriminda bir turlu, AI olcumunde baska turlu siniflanir.
+ */
+export function brandHostFromUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  try { return new URL(url).hostname.replace(/^www\./, '').toLowerCase(); }
+  catch { return url.toLowerCase(); }
+}
+
 /** Ayni sorgu birden fazla gunde/sayfada gecer — sorgu bazinda topla */
 export function aggregateQueries(rows: OrganicQueryRow[]): OrganicQueryRow[] {
   const map = new Map<string, OrganicQueryRow>();
@@ -53,12 +71,16 @@ export function aggregateQueries(rows: OrganicQueryRow[]): OrganicQueryRow[] {
   return [...map.values()];
 }
 
-export function splitQueriesByBrand(rows: OrganicQueryRow[], brand: string): OrganicBrandSplit {
+/**
+ * @param host sitenin host'u (brandHostFromUrl) — verilirse jenerik marka
+ *   korumasi uygulanir; AI tarafiyla ayni karar icin her zaman verilmeli.
+ */
+export function splitQueriesByBrand(rows: OrganicQueryRow[], brand: string, host?: string | null): OrganicBrandSplit {
   const agg = aggregateQueries(rows);
   const branded = { ...EMPTY };
   const unbranded = { ...EMPTY };
   for (const r of agg) {
-    const b = containsBrand(r.query, brand) ? branded : unbranded;
+    const b = containsBrand(r.query, brand, host) ? branded : unbranded;
     b.clicks += r.clicks;
     b.impressions += r.impressions;
     b.queries += 1;
@@ -79,12 +101,13 @@ export function splitQueriesByBrand(rows: OrganicQueryRow[], brand: string): Org
 export function dailyUnbrandedShare(
   snapshots: Array<{ date: Date; queryDetails: unknown }>,
   brand: string,
+  host?: string | null,
 ): Array<{ date: string; unbrandedSharePct: number | null; sampledQueries: number }> {
   const out: Array<{ date: string; unbrandedSharePct: number | null; sampledQueries: number }> = [];
   for (const s of snapshots) {
     const rows = Array.isArray(s.queryDetails) ? (s.queryDetails as OrganicQueryRow[]) : [];
     if (rows.length === 0) continue;
-    const split = splitQueriesByBrand(rows, brand);
+    const split = splitQueriesByBrand(rows, brand, host);
     out.push({ date: s.date.toISOString().slice(0, 10), unbrandedSharePct: split.unbrandedClickSharePct, sampledQueries: split.sampledQueries });
   }
   return out.sort((a, b) => a.date.localeCompare(b.date));

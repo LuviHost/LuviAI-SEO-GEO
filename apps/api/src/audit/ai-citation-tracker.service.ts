@@ -1,7 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { citationCounts } from './citation-score.js';
-import { buildHeadline, providerHeadline } from './citation-headline.js';
+import { providerTrend, versionedHeadline, type VersionedPoint } from './citation-history-trend.js';
 import { assessStability } from './visibility-variance.js';
 import { compareCitationRuns, headlineOfProviders, type RunProvider, type RunSummary } from './citation-run-compare.js';
 import { AiCitationService } from './ai-citation.service.js';
@@ -192,6 +192,12 @@ export class AiCitationTrackerService {
   /**
    * Frontend icin: bir site icin son N gun trend.
    *
+   * YONTEM SURUMU: fark, baslangic ve manset yalniz her saglayicinin GUNCEL
+   * olcum yontemi (matchVersion) kesitinden hesaplanir (citation-history-trend.ts).
+   * Pencerede eski yontemli olcum varsa trends[].methodChanged /
+   * headline.methodChanged true doner ve kesit disina tasan kiyas yapilmaz;
+   * byProvider noktalari matchVersion tasir (grafik kirilma gununu isaretler).
+   *
    * @param headlineOnly true ise probe JSON'lari cekilmez ve byProvider /
    *   latestResults donmez — overview kartlari gibi yalnizca manset sayiya
    *   ihtiyac duyan yuzeyler icin (30 gun x 7 saglayici x 5 probe excerpt
@@ -206,13 +212,13 @@ export class AiCitationTrackerService {
       orderBy: { date: 'asc' },
       select: {
         provider: true, date: true, score: true, citedCount: true, mentionedCount: true,
-        available: true, createdAt: true,
+        available: true, createdAt: true, matchVersion: true,
         probes: !headlineOnly,
       },
     });
 
     // Group by provider
-    const byProvider: Record<string, Array<{ date: string; score: number | null; cited: number; mentioned: number }>> = {};
+    const byProvider: Record<string, VersionedPoint[]> = {};
     for (const s of snapshots) {
       const key = s.provider;
       if (!byProvider[key]) byProvider[key] = [];
@@ -221,30 +227,22 @@ export class AiCitationTrackerService {
         score: s.score,
         cited: s.citedCount,
         mentioned: s.mentionedCount,
+        matchVersion: s.matchVersion ?? 1,
       });
     }
 
-    // Trend: ilk vs son (drop tespit) + 7g ortalama (manset — bkz. citation-headline.ts)
-    const trends: Array<{
-      provider: string; first: number | null; last: number | null; delta: number | null;
-      last7Avg: number | null; runCount: number;
-    }> = [];
-    for (const [provider, series] of Object.entries(byProvider)) {
-      const first = series[0]?.score ?? null;
-      const last = series[series.length - 1]?.score ?? null;
-      const delta = (first !== null && last !== null) ? last - first : null;
-      const h = providerHeadline(series);
-      trends.push({ provider, first, last, delta, last7Avg: h.last7Avg, runCount: h.runCount });
-    }
+    // Trend: ilk vs son (drop tespit) + 7g ortalama — yalniz guncel yontem kesitinden
+    const trends = Object.entries(byProvider).map(([provider, series]) => providerTrend(provider, series));
     // Manset: chart, overview ve analytics-row AYNI sayiyi soylemeli — tek kaynak burasi.
-    const headline = buildHeadline(byProvider);
+    const { headline, segments } = versionedHeadline(byProvider);
 
     // Oynaklik: gunluk saglayicilar-arasi ortalama + o gun skora giren probe
     // sayisi (saglayici x SNAPSHOT_PROBES). Beklenen orneklem gurultusune
     // oranlanir — bkz. visibility-variance.ts. Son 14 gunle sinirli: daha
-    // uzun pencere gercek trendi "oynaklik" diye okur.
+    // uzun pencere gercek trendi "oynaklik" diye okur. Mansetle ayni
+    // (guncel yontem) kesitler: yontem degisimi oynaklik diye okunmasin.
     const providersByDay = new Map<string, number>();
-    for (const series of Object.values(byProvider)) {
+    for (const series of Object.values(segments)) {
       for (const pt of series) {
         if (typeof pt.score !== 'number') continue;
         providersByDay.set(pt.date, (providersByDay.get(pt.date) ?? 0) + 1);

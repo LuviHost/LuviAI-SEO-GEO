@@ -26,6 +26,12 @@ declare module 'next-auth' {
   }
 }
 
+/**
+ * Silme talebi olan hesabin web girisi reddedilince /signin?error=<bu kod>.
+ * Giris sayfasi kodu sabit bir metne cevirir (URL'deki metin ekrana basilmaz).
+ */
+export const ACCOUNT_DELETED_SIGNIN_ERROR = 'AccountDeleted';
+
 const globalForPrisma = globalThis as unknown as { prisma?: PrismaClient };
 const prisma =
   globalForPrisma.prisma ??
@@ -68,6 +74,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     async signIn({ user }) {
       if (!user.email) return false;
       const existing = await prisma.user.findUnique({ where: { email: user.email } });
+      // Silme talebi olan hesap (30 gunluk kalici silme beklemesi) web'e giremez;
+      // API tarafinda ayni kural AuthGuard'da. String donunce Auth.js hesap
+      // baglamadan ve oturum cerezi yazmadan bu adrese yonlendirir
+      // (@auth/core 0.41.2 lib/actions/callback/index.js handleAuthorized).
+      if (existing?.deletionRequestedAt) return `/signin?error=${ACCOUNT_DELETED_SIGNIN_ERROR}`;
       if (!existing) {
         const created = await prisma.user.create({
           data: {
@@ -78,7 +89,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             role: 'USER',
             plan: 'TRIAL',
             subscriptionStatus: 'TRIAL',
-            // 1 makale ömür boyu ücretsiz — süre kapısı yok.
+            // Deneme hakki 2 makale, omur boyu (ay basi sifirlanmaz) — sure kapisi yok.
+            // Kaynak: api billing/quota.service.ts LIMITS.TRIAL.articles ve plans.ts trial.articlesPerMonth.
           },
         });
 
@@ -134,6 +146,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       // İlk login: user object dolu — email ile DB'den oku.
       if (user?.email) {
         const dbUser = await prisma.user.findUnique({ where: { email: user.email } });
+        // signIn zaten reddeder; ikisi arasinda talep gelirse oturum yine acilmaz
+        if (dbUser?.deletionRequestedAt) return null;
         if (dbUser) {
           token.sub = dbUser.id;
           (token as any).role = dbUser.role;
@@ -147,13 +161,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (token.sub) {
         const dbUser = await prisma.user.findUnique({
           where: { id: token.sub as string },
-          select: { role: true, plan: true, subscriptionStatus: true },
+          select: { role: true, plan: true, subscriptionStatus: true, deletionRequestedAt: true },
         });
-        if (dbUser) {
-          (token as any).role = dbUser.role;
-          (token as any).plan = dbUser.plan;
-          (token as any).subscriptionStatus = dbUser.subscriptionStatus;
-        }
+        // Hesap silindi ya da silme talebi var: null donmek oturumu bitirir ve
+        // cerezi temizler (@auth/core 0.41.2 lib/actions/session.js) — talepten
+        // once acilmis oturumlar da bir sonraki istekte kapanir.
+        if (!dbUser || dbUser.deletionRequestedAt) return null;
+        (token as any).role = dbUser.role;
+        (token as any).plan = dbUser.plan;
+        (token as any).subscriptionStatus = dbUser.subscriptionStatus;
       }
       return token;
     },

@@ -1,4 +1,5 @@
 import { Injectable, Logger, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import type { Prisma } from '@prisma/client';
 import { encrypt, decrypt } from '@luviai/shared';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { AscApiClient, type AscCredentials } from './asc-api.client.js';
@@ -32,6 +33,17 @@ export interface RequestingUser {
   id: string;
   role: 'USER' | 'ADMIN' | 'AGENCY_OWNER';
 }
+
+/**
+ * AscAccount satirindaki sirlar — API cevabina ASLA cikmamali.
+ * encryptedKey: musterinin App Store Connect .p8 ozel anahtari (sifreli);
+ * tokenCacheValue: imzali API JWT onbellegi. connectAccount eskiden tam
+ * satiri donuyordu. Tip acik yazili: yanlis alan adi derlemede yakalanir.
+ */
+export const ASC_ACCOUNT_SECRET_FIELDS: Prisma.AscAccountOmit = {
+  encryptedKey: true,
+  tokenCacheValue: true,
+};
 
 @Injectable()
 export class AscService {
@@ -100,6 +112,7 @@ export class AscService {
           isActive: true,
           lastError: null,
         },
+        omit: ASC_ACCOUNT_SECRET_FIELDS,
       });
       this.clientCache.delete(updated.id);
       return updated;
@@ -111,6 +124,7 @@ export class AscService {
         keyId: args.keyId,
         encryptedKey,
       },
+      omit: ASC_ACCOUNT_SECRET_FIELDS,
     });
   }
 

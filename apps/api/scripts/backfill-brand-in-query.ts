@@ -22,25 +22,44 @@
  * NEDEN SQL DEGIL: eslesme Turkce katlama gerektirir ("İddaa" LOWER() ile
  * eslesmez). Kural TS'te tek yerde: src/audit/brand-in-query.ts.
  *
+ * HOST: site havuzunu canli yazici buildProbe damgalar ve marka matcher'ina
+ * sitenin host'unu verir — jenerik turetilmis markada ("emlak" ← emlak.com)
+ * yalin kelime markali SAYILMAZ. Script de ayni host'u vermezse her kosum
+ * "en iyi emlak siteleri" gibi sorulari yeniden markali damgalar. App havuzu
+ * host'suz kalir: aso-prompt-lab containsBrand(prompt, app.name) ile yaziyor.
+ *
+ * SURUM: host'lu kural CITATION_MATCH_VERSION 4 ile geldi (host-match.ts).
+ * Daha eski satirlar yalin kelimeyle olculdu — cevaptaki anilma (brandMentioned)
+ * de oyle. Onlara host'lu damga vurulursa "emlak" gecen sorular markasiz
+ * havuza girer ama cevaplarindaki anilma eski (sisik) kuralla kalir; manset
+ * oran yapay yukselir. Bu yuzden her satir OLCULDUGU kuralla damgalanir:
+ * matchVersion >= 4 host'lu, oncesi host'suz.
+ *
  * CALISTIRMA (apps/api icinden):
  *   npx tsx scripts/backfill-brand-in-query.ts           # kuru calisma
  *   npx tsx scripts/backfill-brand-in-query.ts --apply   # yaz
  */
 import { PrismaClient } from '@prisma/client';
 import { containsBrand, resolveSiteBrand, MIN_BRAND_LEN } from '../src/audit/brand-in-query.js';
+import { brandHostFromUrl } from '../src/analytics/organic-brand-split.js';
 
 const APPLY = process.argv.includes('--apply');
 const prisma = new PrismaClient();
+
+/** Jenerik marka korumasinin (host'lu eslesme) geldigi olcum surumu — host-match.ts */
+const GENERIC_GUARD_VERSION = 4;
 
 /** Sinifla ve (apply modunda) kume kume yaz. Dondurulen sayi: etkilenen satir. */
 async function stampPool(opts: {
   siteId: string;
   brand: string;
+  /** Canli yazicinin matcher'a verdigi host — site havuzu: site host'u; app havuzu: null */
+  host: string | null;
   /** null = site havuzu; string = o app'in havuzu */
   trackedAppId: string | null;
   label: string;
 }): Promise<{ rows: number; branded: number; prompts: number }> {
-  const { siteId, brand, trackedAppId, label } = opts;
+  const { siteId, brand, host, trackedAppId, label } = opts;
 
   const prompts = await prisma.geoPrompt.findMany({
     where: { siteId, trackedAppId },
@@ -54,18 +73,33 @@ async function stampPool(opts: {
     select: { id: true, text: true },
   });
 
-  const brandedPromptIds = prompts.filter((p) => containsBrand(p.text, brand)).map((p) => p.id);
-  const cleanPromptIds = promptIds.filter((id) => !brandedPromptIds.includes(id));
-  const brandedFanoutIds = fanouts.filter((f) => containsBrand(f.text, brand)).map((f) => f.id);
-  const cleanFanoutIds = fanouts.map((f) => f.id).filter((id) => !brandedFanoutIds.includes(id));
+  // Her satir olculdugu kuralla (dosya basindaki SURUM notu). Host yoksa iki
+  // kural ayni sonucu verir — tek grup, surum filtresi gereksiz.
+  const groups: Array<{ matchVersion?: { lt: number } | { gte: number }; host: string | null }> = host
+    ? [
+        { matchVersion: { lt: GENERIC_GUARD_VERSION }, host: null },
+        { matchVersion: { gte: GENERIC_GUARD_VERSION }, host },
+      ]
+    : [{ host: null }];
 
   // Yalnizca YANLIS olan satirlar sayilir/yazilir — script gercekten idempotent.
-  const sets: Array<{ where: any; value: boolean }> = [
-    { where: { siteId, fanoutId: null, promptId: { in: brandedPromptIds }, brandInQuery: false }, value: true },
-    { where: { siteId, fanoutId: null, promptId: { in: cleanPromptIds }, brandInQuery: true }, value: false },
-    { where: { siteId, fanoutId: { in: brandedFanoutIds }, brandInQuery: false }, value: true },
-    { where: { siteId, fanoutId: { in: cleanFanoutIds }, brandInQuery: true }, value: false },
-  ];
+  const sets: Array<{ where: any; value: boolean }> = [];
+  let branded = 0;
+  for (const g of groups) {
+    const brandedPromptIds = prompts.filter((p) => containsBrand(p.text, brand, g.host)).map((p) => p.id);
+    const cleanPromptIds = promptIds.filter((id) => !brandedPromptIds.includes(id));
+    const brandedFanoutIds = fanouts.filter((f) => containsBrand(f.text, brand, g.host)).map((f) => f.id);
+    const cleanFanoutIds = fanouts.map((f) => f.id).filter((id) => !brandedFanoutIds.includes(id));
+    const mv = g.matchVersion ? { matchVersion: g.matchVersion } : {};
+    sets.push(
+      { where: { siteId, fanoutId: null, promptId: { in: brandedPromptIds }, brandInQuery: false, ...mv }, value: true },
+      { where: { siteId, fanoutId: null, promptId: { in: cleanPromptIds }, brandInQuery: true, ...mv }, value: false },
+      { where: { siteId, fanoutId: { in: brandedFanoutIds }, brandInQuery: false, ...mv }, value: true },
+      { where: { siteId, fanoutId: { in: cleanFanoutIds }, brandInQuery: true, ...mv }, value: false },
+    );
+    // Rapordaki oran GUNCEL kuralla (son grup) — yeni olcumler buna gore damgalanir
+    branded = brandedPromptIds.length + brandedFanoutIds.length;
+  }
 
   let rows = 0;
   for (const s of sets) {
@@ -79,7 +113,6 @@ async function stampPool(opts: {
     }
   }
 
-  const branded = brandedPromptIds.length + brandedFanoutIds.length;
   const total = promptIds.length + fanouts.length;
   console.log(`    ${label} — ${total} metin (%${total ? Math.round((branded / total) * 100) : 0} markali), ${rows} satir duzeltilecek`);
   return { rows, branded, prompts: total };
@@ -101,7 +134,9 @@ async function main(): Promise<void> {
       console.log('    UYARI: bu sitenin gecmisi eski (karisik) yontemde kalacak; yeni olcumlerle');
       console.log('    kiyaslanan grafiklerde degisim gunu yapay bir kirilma gorulebilir.');
     } else {
-      const r = await stampPool({ siteId: site.id, brand: siteBrand, trackedAppId: null, label: `site havuzu ("${siteBrand}")` });
+      const r = await stampPool({
+        siteId: site.id, brand: siteBrand, host: brandHostFromUrl(site.url), trackedAppId: null, label: `site havuzu ("${siteBrand}")`,
+      });
       totalRows += r.rows;
     }
 
@@ -115,7 +150,8 @@ async function main(): Promise<void> {
         console.log(`    app "${app.name}" ATLANDI — ad ${MIN_BRAND_LEN} karakterden kisa`);
         continue;
       }
-      const r = await stampPool({ siteId: site.id, brand: app.name, trackedAppId: app.id, label: `app havuzu ("${app.name}")` });
+      // host: null — canli yazici (aso-prompt-lab) uygulama adini host'suz esliyor
+      const r = await stampPool({ siteId: site.id, brand: app.name, host: null, trackedAppId: app.id, label: `app havuzu ("${app.name}")` });
       totalRows += r.rows;
     }
   }

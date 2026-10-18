@@ -1,6 +1,8 @@
 import { Body, Controller, Delete, Get, Param, Post, Put, Req, UnauthorizedException } from '@nestjs/common';
 import type { Request } from 'express';
+import { SessionOnly } from '../auth/session-only.decorator.js';
 import { PublishTargetsService } from './publish-targets.service.js';
+import { CreatePublishTargetDto, UpdatePublishTargetDto } from './publish-targets.dto.js';
 
 function ensureUser(req: Request) {
   const user = (req as any).user;
@@ -28,46 +30,60 @@ export class PublishTargetsController {
     return this.service.list(siteId, ensureUser(req));
   }
 
+  // ─── Hedef olusturma/duzenleme/silme/test yalniz panel oturumuyla ───
+  // 'publish-targets' api-keys.service ROUTE_RESOURCE eslesmesinde yok:
+  // AuthGuard bilinmeyen kaynakta HERHANGI bir ':write' anahtarini yeterli
+  // sayiyordu. Hedefe yazilan kimlik (FTP/WordPress/GitHub...) musterinin
+  // makalelerinin nereye yayinlanacagini belirler; sizmis bir anahtarla
+  // hedef degistirilirse icerik baskasina akar, test ucu da sunucudan disari
+  // istek attirir. Anahtar 403 alir; liste ve katalog okunabilir.
+  // SDK ve MCP bu uclari cagirmiyor (yayin articles:write ile ayri uctan).
+
   /** POST /api/sites/:siteId/publish-targets */
+  @SessionOnly()
   @Post('sites/:siteId/publish-targets')
   create(
     @Req() req: Request,
     @Param('siteId') siteId: string,
-    @Body() body: {
-      type: any;
-      name: string;
-      credentials: Record<string, unknown>;
-      config?: Record<string, unknown>;
-      isDefault?: boolean;
-      isActive?: boolean;
-    },
+    @Body() body: CreatePublishTargetDto,
   ) {
-    return this.service.create(siteId, body, ensureUser(req));
+    // Alanlar tek tek — siteId yalniz yoldan
+    return this.service.create(siteId, {
+      type: body.type as any,
+      name: body.name,
+      credentials: body.credentials ?? {},
+      config: body.config,
+      isDefault: body.isDefault,
+      isActive: body.isActive,
+    }, ensureUser(req));
   }
 
   /** PUT /api/publish-targets/:id */
+  @SessionOnly()
   @Put('publish-targets/:id')
   update(
     @Req() req: Request,
     @Param('id') id: string,
-    @Body() body: {
-      name?: string;
-      credentials?: Record<string, unknown>;
-      config?: Record<string, unknown>;
-      isDefault?: boolean;
-      isActive?: boolean;
-    },
+    @Body() body: UpdatePublishTargetDto,
   ) {
-    return this.service.update(id, body, ensureUser(req));
+    return this.service.update(id, {
+      name: body.name,
+      credentials: body.credentials,
+      config: body.config,
+      isDefault: body.isDefault,
+      isActive: body.isActive,
+    }, ensureUser(req));
   }
 
   /** DELETE /api/publish-targets/:id */
+  @SessionOnly()
   @Delete('publish-targets/:id')
   remove(@Req() req: Request, @Param('id') id: string) {
     return this.service.remove(id, ensureUser(req));
   }
 
   /** POST /api/publish-targets/:id/test */
+  @SessionOnly()
   @Post('publish-targets/:id/test')
   test(@Req() req: Request, @Param('id') id: string) {
     return this.service.testConnection(id, ensureUser(req));

@@ -9,6 +9,23 @@ import { acquireCronLock } from '../common/cron-lock.js';
 import { periodEndFromInvoice, shouldDowngrade } from './subscription-period.js';
 
 /**
+ * Her planda RanksUp anahtariyla (havuz) olculen asistanlar — plans.ts kart
+ * maddesi "ChatGPT · Claude · Gemini · Perplexity · Grok · DeepSeek" ve
+ * aiProviders: 6 ile ayni liste (plan-pool.spec.ts denetler).
+ *
+ * NEDEN: eskiden LIMITS[plan].pool plana gore 1-6 saglayici listeliyordu
+ * (TRIAL yalniz gemini, STARTER gemini+anthropic...). Fiyat karti her planda
+ * 6 asistan satiyor, olcum motoru da (ai-citation.service resolveKey) env
+ * anahtari olan saglayiciyi her planda olcuyordu; liste yalniz panel rozetini
+ * ve hata metnini yaniltiyordu. Kota sayilarina (citationTests) dokunulmadi.
+ * Llama (meta) burada yok: yalniz GROQ_LLAMA_MODEL tanimliyken olculur
+ * (audit/citation-providers.ts llamaModelConfigured).
+ */
+export const PLAN_POOL_PROVIDERS: readonly string[] = Object.freeze([
+  'anthropic', 'gemini', 'openai', 'perplexity', 'xai', 'deepseek',
+]);
+
+/**
  * Plan-based quota enforcer.
  *
  * 4 limit:
@@ -24,7 +41,9 @@ export class QuotaService {
   /**
    * 2026-05 Premium pricing update — bkz. billing.service.ts BASE_PLANS.
    * Spend cap (USD/ay): TRIAL=$3, STARTER=$25, PRO=$80, AGENCY=$200, ENTERPRISE=$700.
-   * settings.constants'tan dinamik okunur — burada sadece kota.
+   * Tavanlar asagidaki SPEND_CAP_USD sabitinden okunur; admin ayarlarinda
+   * karsiligi yok (SPEND_CAP_* katalog kayitlari hicbir yere bagli degildi,
+   * 2026-10'da katalogdan cikarildi).
    */
   /**
    * SITES: plans.ts ile AYNI olmali. Onceden burada 1/1/3/12/50 yaziyordu ama
@@ -34,16 +53,19 @@ export class QuotaService {
    *
    * CITATIONTESTS: plans.ts aiRunsPerMonth ile AYNI olmali. AI Citation testi
    * ve Prompt Lab calistirmasi ayni kovadan duser.
+   *
+   * Eski `pool` alani (plana gore saglayici listesi) kaldirildi — bkz.
+   * PLAN_POOL_PROVIDERS. Kota sayilari aynen korundu.
    */
   private readonly LIMITS = {
-    TRIAL:      { articles: 2,    sites: 1,  publishTargets: ['MARKDOWN_ZIP', 'WORDPRESS_REST'] as string[], citationTests: 3,   pool: ['gemini'] as string[] },
-    STARTER:    { articles: 15,   sites: 2,  publishTargets: 'all' as const,                                  citationTests: 20,  pool: ['gemini', 'anthropic'] },
-    PRO:        { articles: 40,   sites: 5,  publishTargets: 'all' as const,                                  citationTests: 75,  pool: ['gemini', 'anthropic', 'xai'] },
-    AGENCY:     { articles: 100,  sites: 15, publishTargets: 'all' as const,                                  citationTests: 300, pool: ['gemini', 'anthropic', 'xai', 'openai', 'deepseek', 'perplexity'] },
-    ENTERPRISE: { articles: 350,  sites: 50, publishTargets: 'all' as const,                                  citationTests: 1000, pool: ['gemini', 'anthropic', 'xai', 'openai', 'deepseek', 'perplexity'] },
+    TRIAL:      { articles: 2,    sites: 1,  publishTargets: ['MARKDOWN_ZIP', 'WORDPRESS_REST'] as string[], citationTests: 3 },
+    STARTER:    { articles: 15,   sites: 2,  publishTargets: 'all' as const,                                  citationTests: 20 },
+    PRO:        { articles: 40,   sites: 5,  publishTargets: 'all' as const,                                  citationTests: 75 },
+    AGENCY:     { articles: 100,  sites: 15, publishTargets: 'all' as const,                                  citationTests: 300 },
+    ENTERPRISE: { articles: 350,  sites: 50, publishTargets: 'all' as const,                                  citationTests: 1000 },
   };
 
-  /** Plan başına aylık USD spend cap. settings.constants ile senkron tutulmalı. */
+  /** Plan başına aylık USD spend cap — tek kaynak (admin.controller da buradan okur). */
   private readonly SPEND_CAP_USD: Record<string, number> = {
     TRIAL: 3,
     STARTER: 25,
@@ -58,12 +80,17 @@ export class QuotaService {
   //  Article quota
   // ────────────────────────────────────────────
   async checkArticleQuota(userId: string): Promise<{ allowed: boolean; remaining: number; limit: number }> {
-    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    const before = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
 
     // Ay sonu otomatik reset (basit: bir önceki ay'a bakınca sıfırla)
-    await this.maybeResetMonthlyQuota(user);
+    await this.maybeResetMonthlyQuota(before);
+    // Sifirlama sonrasi satir YENIDEN okunur: eski nesneyle yanit verilince yeni
+    // ayin ilk cagrisi gecen ayin sayacini donuyor ve hakki dolan ucretli
+    // musterinin ayin ilk uretimi bir kez yanlislikla reddediliyordu
+    // (checkCitationQuota ayni kalibi zaten kullaniyor).
+    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
 
-    // 1 makale ücretsiz modeli: TRIAL'da süre kontrolü yok, sadece kota.
+    // Deneme modeli: TRIAL'da sure kontrolu yok, yalniz omur boyu kota (LIMITS.TRIAL).
 
     const limit = this.LIMITS[user.plan].articles;
     return {
@@ -78,7 +105,7 @@ export class QuotaService {
     const { allowed, remaining, limit } = await this.checkArticleQuota(userId);
     if (!allowed) {
       if (user.plan === 'TRIAL') {
-        throw new ForbiddenException('Ücretsiz 1 makale hakkını kullandın. Devam etmek için plan seç.');
+        throw new ForbiddenException(`Deneme hesabındaki ${limit} ücretsiz makale hakkını kullandın. Devam etmek için plan seç.`);
       }
       throw new ForbiddenException(`Aylık ${limit} makale kotan doldu. Plan yükseltebilir veya ayın sonunu bekleyebilirsin.`);
     }
@@ -138,9 +165,14 @@ export class QuotaService {
    *  - %80'i geçince warn: dashboard banner + email
    *  - %100'ü geçince hardBlock: pipeline pause + admin alert
    *
-   * Cap'ler settings.constants'tan dinamik okunabilir (SPEND_CAP_*_USD), burada sabit fallback.
+   * Cap'ler SPEND_CAP_USD sabitinden gelir; panelden degistirilemez.
    */
   async checkAiCostBudget(userId: string): Promise<{ used: number; cap: number; pct: number; warn: boolean; hardBlock: boolean }> {
+    const before = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    // Ay basi sifirlamasi burada da calismali: yalniz checkArticleQuota'da
+    // calistigi icin gecen ay butceye takilan ucretli kullanici, makale kotasina
+    // bakan bir islem olana kadar yeni ayda da engelli kaliyordu.
+    await this.maybeResetMonthlyQuota(before);
     const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
     const cap = this.SPEND_CAP_USD[user.plan] ?? this.SPEND_CAP_USD.STARTER;
     const used = (user as any).aiCostThisMonthUsd ?? 0;
@@ -161,9 +193,12 @@ export class QuotaService {
   async enforceAiCostBudget(userId: string): Promise<void> {
     const { hardBlock, used, cap } = await this.checkAiCostBudget(userId);
     if (hardBlock) {
+      // "Yeni ayi bekle" yalniz ucretli planlarda dogru: maybeResetMonthlyQuota
+      // TRIAL'da donmeden cikar, deneme hesabinin butcesi hic sifirlanmaz.
+      // Ust planin tavani daha yuksek (SPEND_CAP_USD), yukseltme gercek cozum.
       throw new ForbiddenException(
         `Aylık AI kullanım bütçen doldu ($${used.toFixed(2)} / $${cap}). ` +
-        `Yeni ay başlangıcını bekleyebilir veya plan yükseltebilirsin.`,
+        `Ücretli planlarda bütçe yeni ayda sıfırlanır; plan yükselterek sınırı artırabilirsin.`,
       );
     }
   }
@@ -343,8 +378,15 @@ export class QuotaService {
   async enforceCitationQuota(userId: string): Promise<{ remaining: number; limit: number }> {
     const { allowed, remaining, limit, used } = await this.checkCitationQuota(userId);
     if (!allowed) {
+      // Eski metin "BYOK ile sinirsiz" diyordu; iki yanlis: BYOK yalniz Kurumsal
+      // planda (plans.ts FEATURE_MIN_PLAN.byok) ve kendi anahtarla olcum de
+      // haftalik olcum hakkina tabi (billing/measurement-allowance.ts). Kota
+      // dolunca BYOK saglayicilari kosmaya devam eder (ai-citation.service.ts),
+      // sinirsiz olmaz. Hak her takvim ayinda sifirlanir (maybeResetCitationQuota).
+      const byokPlan = findPlan(FEATURE_MIN_PLAN.byok)?.name_tr ?? 'Kurumsal';
       throw new ForbiddenException(
-        `Aylık ${limit} AI Citation testi hakkın doldu (${used}/${limit}). Plan yükseltebilir veya kendi API key'lerini bağlayıp BYOK ile sınırsız kullanabilirsin.`,
+        `Aylık ${limit} AI görünürlük çalıştırması hakkın doldu (${used}/${limit}). Hak yeni ayda yenilenir; daha fazlası için planını yükseltebilirsin. ` +
+        `${byokPlan} planda kendi API anahtarlarını (BYOK) bağlarsan havuz kotası dolduğunda da ölçüm bu anahtarlarla sürer; haftalık ölçüm hakkı yine geçerlidir.`,
       );
     }
     return { remaining, limit };
@@ -357,9 +399,13 @@ export class QuotaService {
     });
   }
 
-  /** Plan'in havuzdan saglayicilari (kullanicinin BYOK gerekmeden testleyebilecegi) */
+  /**
+   * Planin havuzdan (RanksUp anahtariyla) olculen saglayicilari — her bilinen
+   * planda ayni 6 asistan (PLAN_POOL_PROVIDERS); bilinmeyen plan bos liste.
+   * Gercekten olculup olculmeyecegini env anahtari belirler (resolveKey).
+   */
   getPlanPool(plan: string): string[] {
-    return (this.LIMITS as any)[plan]?.pool ?? [];
+    return Object.prototype.hasOwnProperty.call(this.LIMITS, plan) ? [...PLAN_POOL_PROVIDERS] : [];
   }
 
   getPlanCitationLimit(plan: string): number {

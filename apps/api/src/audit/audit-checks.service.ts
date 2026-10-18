@@ -1,8 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import * as cheerio from 'cheerio';
-import type { CrawlResult, CrawledPage } from '../sites/site-crawler.service.js';
+import type { CrawlResourceStatus, CrawlResult } from '../sites/site-crawler.service.js';
 import { computeImageAltCheck } from './image-alt-check.js';
-import { computeRobotsCheck } from './robots-check.js';
+import { computeRobotsCheck, ROBOTS_METHOD_VERSION } from './robots-check.js';
 
 export type Severity = 'critical' | 'warning' | 'info';
 
@@ -23,6 +22,93 @@ export interface CheckResult {
   score: number; // 0-100
   issues: AuditIssue[];
   details?: Record<string, any>;
+}
+
+/**
+ * llms.txt kontrolunun olcum yontemi (details.methodVersion).
+ * v2: tarayici /llms.txt'ten 200 + HTML donen govdeyi (ozel 404 / anasayfa)
+ * artik "dosya var" saymiyor (site-crawler looksLikeHtmlDocument). Eskiden
+ * boyle siteler 100 aliyordu; site degismeden 30'a iner — karsilastirma bunu
+ * "kotulesti" diye siteye yazmasin.
+ */
+export const LLMS_METHOD_VERSION = 2;
+
+/**
+ * Ic linkleme kontrolunun olcum yontemi (details.methodVersion).
+ * v2: tarayici www'li / www'suz adresi ve yonlendirme sonrasi kokeni tek site
+ * sayiyor. Eskiden kayitli adres "ornek.com", site "www.ornek.com" iken
+ * www'li ic linkler dis link sayilip sayfalar orphan gorunuyordu; site
+ * degismeden "+60 iyilesti" cikabilir.
+ */
+export const INTERNAL_LINKING_METHOD_VERSION = 2;
+
+/**
+ * Genel skor agirliklari — computeOverallScore ve karsilastirmadaki "skor
+ * kapsami" notu (audit.service compareAuditRows) AYNI listeyi kullanir.
+ * Listede olmayan kontrol 1 agirlik alir.
+ */
+export const OVERALL_SCORE_WEIGHTS: Readonly<Record<string, number>> = {
+  sitemap_xml: 1.5,
+  robots_txt: 1.5,
+  llms_txt: 1.0,
+  schema_markup: 1.5,
+  meta_title: 1.5,
+  meta_description: 1.5,
+  open_graph: 1.0,
+  twitter_card: 0.5,
+  canonical: 1.0,
+  https: 2.0,
+  h1_uniqueness: 1.0,
+  image_alt: 0.5,
+  internal_linking: 1.0,
+  hreflang: 0.5,
+};
+
+/**
+ * Kontrol olculemedi mi? (details.unverified) — dosyaya erisimimiz engellendi
+ * ya da sunucu hata verdi. Bu durumda score bir olcum DEGILDIR: genel skora
+ * girmez, karsilastirmada skor sayilmaz.
+ */
+export function isUnverifiedCheck(entry: unknown): boolean {
+  return (entry as { details?: { unverified?: unknown } } | null)?.details?.unverified === true;
+}
+
+/**
+ * Engelli / hatali kok dosya: "YOK" demek yalan olur — dosya var olabilir,
+ * biz okuyamadik. Sorun (issue) URETILMEZ: robots_txt / llms_txt / sitemap_xml
+ * kontrol id'li her sorun otomatik duzeltme rotasina duser (fix-routes.ts) ve
+ * okuyamadigimiz bir dosyanin uzerine uretilmis dosya yazmak musterinin kendi
+ * dosyasini silmek olurdu. Aciklama details'te; panel "DOGRULANAMADI" der.
+ */
+function unverifiedCheck(
+  id: string,
+  name: string,
+  label: string,
+  res: CrawlResourceStatus,
+  extra: Record<string, unknown> = {},
+): CheckResult {
+  const reason = res.reason ?? 'Erişilemedi.';
+  return {
+    id,
+    name,
+    found: false,
+    valid: false,
+    score: 0,
+    issues: [],
+    details: {
+      ...extra,
+      unverified: true,
+      unverifiedReason: res.state === 'disallowed' ? `${label} okunmadı: ${reason}` : `${label} doğrulanamadı: ${reason}`,
+      unverifiedHint: res.access?.hint ?? null,
+      accessState: res.state,
+      httpStatus: res.status,
+    },
+  };
+}
+
+/** Bu durumlarda kaynak hakkinda hukum verilemez */
+function isUnreadable(res: CrawlResourceStatus | undefined): res is CrawlResourceStatus {
+  return !!res && (res.state === 'blocked' || res.state === 'error' || res.state === 'disallowed');
 }
 
 /**
@@ -56,6 +142,9 @@ export class AuditChecksService {
   // ───────────────────────────────────────────────────────────
   private checkSitemap(c: CrawlResult): CheckResult {
     const found = !!c.sitemapUrl;
+    if (!found && isUnreadable(c.resources?.sitemap)) {
+      return unverifiedCheck('sitemap_xml', 'Sitemap XML', 'sitemap.xml', c.resources!.sitemap, { url: null, totalPages: c.totalPages });
+    }
     const issues: AuditIssue[] = [];
     if (!found) {
       issues.push({
@@ -82,6 +171,18 @@ export class AuditChecksService {
   // ───────────────────────────────────────────────────────────
   // Yontem v2 — RFC 9309 etkin erisim + bot kategorisi; bkz. robots-check.ts
   private checkRobotsTxt(c: CrawlResult): CheckResult {
+    const res = c.resources?.robots;
+    if (!c.robotsTxt && isUnreadable(res)) {
+      const r = unverifiedCheck('robots_txt', 'Robots.txt', 'robots.txt', res, { methodVersion: ROBOTS_METHOD_VERSION });
+      // 5xx kalici ise yalnizca bizi degil arama motorlarini da etkiler:
+      // RFC 9309 2.3.1.4 ulasilamayan robots.txt'te "tam yasak" varsayar;
+      // Google ilk 12 saat taramayi durdurur
+      // (https://developers.google.com/search/docs/crawling-indexing/robots/robots_txt).
+      if (res.state === 'error' && typeof res.status === 'number' && res.status >= 500) {
+        r.details!.unverifiedReason += ' Hata kalıcıysa arama motorları da etkilenir: Google, robots.txt sunucu hatası verdiğinde siteyi taramayı geçici olarak durdurur.';
+      }
+      return r;
+    }
     return computeRobotsCheck(c.robotsTxt);
   }
 
@@ -90,6 +191,9 @@ export class AuditChecksService {
   // ───────────────────────────────────────────────────────────
   private checkLlmsTxt(c: CrawlResult): CheckResult {
     const found = !!c.llmsTxt;
+    if (!found && isUnreadable(c.resources?.llms)) {
+      return unverifiedCheck('llms_txt', 'LLMs.txt (AI search)', 'llms.txt', c.resources!.llms, { methodVersion: LLMS_METHOD_VERSION });
+    }
     const issues: AuditIssue[] = [];
     if (!found) {
       issues.push({
@@ -105,6 +209,7 @@ export class AuditChecksService {
       found, valid: found,
       score: found ? 100 : 30, // partial — yokluğu kritik değil ama önerilir
       issues,
+      details: { methodVersion: LLMS_METHOD_VERSION },
     };
   }
 
@@ -116,7 +221,6 @@ export class AuditChecksService {
     let pagesWithSchema = 0;
     let pagesWithArticle = 0;
     let pagesWithBreadcrumb = 0;
-    const samples: any[] = [];
 
     for (const page of c.pages) {
       // Crawler her sayfa için JSON-LD bloklarını parse edip schemaTypes[] olarak saklıyor
@@ -433,7 +537,7 @@ export class AuditChecksService {
         description: `${orphans.length} orphan sayfa (hiçbir yerden link yok)`,
         fixable: false,
       }] : [],
-      details: { orphans: orphans.slice(0, 5).map(([u]) => u) },
+      details: { methodVersion: INTERNAL_LINKING_METHOD_VERSION, orphans: orphans.slice(0, 5).map(([u]) => u) },
     };
   }
 
@@ -465,26 +569,12 @@ export class AuditChecksService {
   //  Genel skor hesaplama
   // ───────────────────────────────────────────────────────────
   computeOverallScore(results: CheckResult[]): number {
-    // Weight'li ortalama
-    const weights: Record<string, number> = {
-      sitemap_xml: 1.5,
-      robots_txt: 1.5,
-      llms_txt: 1.0,
-      schema_markup: 1.5,
-      meta_title: 1.5,
-      meta_description: 1.5,
-      open_graph: 1.0,
-      twitter_card: 0.5,
-      canonical: 1.0,
-      https: 2.0,
-      h1_uniqueness: 1.0,
-      image_alt: 0.5,
-      internal_linking: 1.0,
-      hreflang: 0.5,
-    };
+    // Weight'li ortalama (OVERALL_SCORE_WEIGHTS)
     let sum = 0, totalWeight = 0;
     for (const r of results) {
-      const w = weights[r.id] ?? 1;
+      // Olculemeyen kontrol 0 sayilmaz — erisim engeli sitenin kusuru degil
+      if (isUnverifiedCheck(r)) continue;
+      const w = OVERALL_SCORE_WEIGHTS[r.id] ?? 1;
       sum += r.score * w;
       totalWeight += w;
     }

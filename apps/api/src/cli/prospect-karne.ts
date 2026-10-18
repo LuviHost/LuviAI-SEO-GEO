@@ -64,50 +64,33 @@ import readline from 'node:readline';
 import { execFileSync } from 'node:child_process';
 import { parseArgs, normalizeDomain, DATA_DIR, SEKTORLER } from '../prospect/prospect-utils.js';
 import { sorulariGetir, altsektorAnahtari, sektorDogrula, sektorAltAnahtarlari, ALT_SEKTOR_ANAHTARLARI } from '../prospect/karne-sorular.js';
-import { karneOzeti, karneHtml } from '../prospect/karne-html.js';
-import { containsBrand, MIN_BRAND_LEN } from '../audit/brand-in-query.js';
+import { karneOzeti, karneHtml, markaGecenSorular } from '../prospect/karne-html.js';
+import { MIN_BRAND_LEN } from '../audit/brand-in-query.js';
+// Saf modul (Nest/Prisma yok): servisin KULLANDIGI tablolarin kendisi — dry-run'da da guvenli.
+import { COST_PER_PROBE_USD, POOL_ENV_KEY, isUnconfiguredProvider, llamaModelConfigured } from '../audit/citation-providers.js';
 // Yalniz TIP — calisma zamaninda silinir; servis modulu dry-run'da yuklenmez.
 import type { Provider } from '../audit/ai-citation.service.js';
 
 // main.ts ile ayni: sunucuda IPv6 yokken happy-eyeballs zaman asimi veriyor.
 dns.setDefaultResultOrder('ipv4first');
 
+/**
+ * Havuz anahtari env adlari (POOL_ENV_KEY), probe basina maliyet TAVANI
+ * (COST_PER_PROBE_USD) ve "saglayici yapilandirilmis mi" kurali
+ * (isUnconfiguredProvider) audit/citation-providers.ts'ten — servisin
+ * kullandigi tablolarin KENDISI. Eskiden burada kopyalari vardi ve kopya
+ * bayatlamisti: Claude tavani 0.03 (servis 0.2), Gemini 0.00013 (0.04),
+ * ChatGPT 0.0004 (0.03) — kosum oncesi tavan Claude'u ~6.7 kat dusuk
+ * gosteriyordu. --only, disarida kalanlarin anahtarini surec ortamindan
+ * silerek calisir (servis anahtari cagri aninda okur).
+ *
+ * Meta Llama yalniz GROQ_LLAMA_MODEL tanimliyken olculur: servisin varsayilan
+ * modeli (llama-3.3-70b-versatile) Groq'tan kaldirildi. Tanimsizken servis
+ * Llama'yi hic cagirmaz ('NO_KEY'); karneye girmez.
+ */
 const SAGLAYICILAR: Provider[] = ['anthropic', 'gemini', 'openai', 'perplexity', 'xai', 'deepseek', 'meta'];
 
-/**
- * Havuz anahtari env adlari — ai-citation.service.ts POOL_ENV_KEY ile ayni
- * (o tablo export edilmiyor; export etmek servise dokunmak demek). NEDEN burada:
- * maliyet tahmini servis yuklenmeden yapilir ve --only, digerlerinin
- * anahtarini surec ortamindan silerek calisir.
- */
-const ENV_ANAHTARI: Record<Provider, string> = {
-  anthropic: 'ANTHROPIC_API_KEY',
-  gemini: 'GOOGLE_AI_API_KEY',
-  openai: 'OPENAI_API_KEY',
-  perplexity: 'PERPLEXITY_API_KEY',
-  xai: 'XAI_API_KEY',
-  deepseek: 'DEEPSEEK_API_KEY',
-  meta: 'GROQ_API_KEY',
-};
-
-/**
- * Probe basina tavan maliyet (USD) — servisin private COST_PER_PROBE_USD
- * tablosunun kopyasi; yalnizca ON tahmin icin. Gercek defter servisin kendi
- * tablosuyla tutulur, kosum sonunda gercek toplam basilir. Sapma riski:
- * servis kurulunca tablo karsilastirilir ve farkliysa UYARI basilir
- * (bkz. tahminSapmasi) — sessiz yanlis tahmin olmaz.
- */
-const TAHMINI_MALIYET_USD: Record<Provider, number> = {
-  anthropic: 0.03,
-  gemini: 0.00013,
-  openai: 0.0004,
-  perplexity: 0.0006,
-  xai: 0.0003,
-  deepseek: 0.0006,
-  meta: 0.0002,
-};
-
-const KULLANIM = `Kurum karnesi — 7 AI asistanina 10 markasiz soru, tek dosya HTML (+JSON/PDF)
+const KULLANIM = `Kurum karnesi — olculen AI asistanlarina (6; Meta Llama yalniz GROQ_LLAMA_MODEL tanimliyken) 10 markasiz soru, tek dosya HTML (+JSON/PDF)
 
   node dist/cli/prospect-karne.js --brand "Acme Bank" --host acmebank.com.tr --sektor finans [secenekler]
 
@@ -180,19 +163,6 @@ async function onayAl(soru: string): Promise<boolean> {
   return /^(y|e|yes|evet)$/i.test(cevap.trim());
 }
 
-/**
- * On tahmin tablosu servisin private tablosundan sapmis mi? Servis tablosunu
- * export etmek ai-citation.service.ts'e dokunmak demek; burada yalniz sapma
- * yakalanir ki model/max_tokens degisince tahmin sessizce yanlis kalmasin.
- */
-function tahminSapmasi(svc: unknown, aktif: Provider[]): string[] {
-  const tablo = (svc as { COST_PER_PROBE_USD?: Record<string, number> })?.COST_PER_PROBE_USD;
-  if (!tablo || typeof tablo !== 'object') return [];
-  return aktif
-    .filter((p) => typeof tablo[p] === 'number' && tablo[p] !== TAHMINI_MALIYET_USD[p])
-    .map((p) => `${p}: tahmin ${TAHMINI_MALIYET_USD[p]} ≠ servis ${tablo[p]}`);
-}
-
 async function main() {
   const args = parseArgs(process.argv.slice(2));
   if (args.help || process.argv.length <= 2) {
@@ -249,8 +219,10 @@ async function main() {
   }
   let sorular = sorulariGetir(sektor, altsektor);
   // Guvenlik: marka adi bir soruya denk gelirse (ornek "Garanti") o soru
-  // sorulmaz — skora girmeyecek bir cagri icin para harcanmaz.
-  const markali = sorular.filter((q) => containsBrand(q, brand));
+  // sorulmaz — skora girmeyecek bir cagri icin para harcanmaz. host ile:
+  // runPublicProbes'un damgasiyla ayni (v4) kural; jenerik turetilmis markada
+  // yalin kelime gecen soru markali sayilip bosuna elenmez.
+  const markali = markaGecenSorular(sorular, brand, host);
   if (markali.length) {
     console.warn(`UYARI: ${markali.length} soruda kurum adı geçiyor, sorulmayacak:\n  - ${markali.join('\n  - ')}`);
     sorular = sorular.filter((q) => !markali.includes(q));
@@ -263,8 +235,9 @@ async function main() {
   }
 
   // ── Maliyet tahmini (servis yuklenmeden) ──
-  const aktif = SAGLAYICILAR.filter((p) => !!process.env[ENV_ANAHTARI[p]] && (!only || only.includes(p)));
-  const tahmin = aktif.reduce((n, p) => n + TAHMINI_MALIYET_USD[p] * sorular.length, 0);
+  const llamaAcik = llamaModelConfigured();
+  const aktif = SAGLAYICILAR.filter((p) => !isUnconfiguredProvider(p) && (!only || only.includes(p)));
+  const tahmin = aktif.reduce((n, p) => n + COST_PER_PROBE_USD[p] * sorular.length, 0);
   const cagri = aktif.length * sorular.length;
   const tarih = new Date();
   const cikti = path.join(DATA_DIR, 'karne');
@@ -279,9 +252,12 @@ async function main() {
   if (rakipler.length) console.log(`Rakipler   : ${rakipler.join(', ')} (cevapta aranır, rakip payına girer)`);
   console.log(`Sorular    : ${sorular.length} markasız`);
   for (const [i, q] of sorular.entries()) console.log(`  ${String(i + 1).padStart(2)}. ${q}`);
-  console.log(`Asistanlar : ${aktif.length}/${SAGLAYICILAR.length} anahtar var (${aktif.join(', ') || 'YOK'})${only ? ` · --only ${only.join(',')}` : ''}`);
-  const anahtarsiz = SAGLAYICILAR.filter((p) => !process.env[ENV_ANAHTARI[p]]);
-  if (anahtarsiz.length) console.log(`             anahtar yok: ${anahtarsiz.join(', ')} — karnede "ölçülemedi" görünür`);
+  console.log(`Asistanlar : ${aktif.length} asistan ölçülecek (${aktif.join(', ') || 'YOK'})${only ? ` · --only ${only.join(',')}` : ''}`);
+  const anahtarsiz = SAGLAYICILAR.filter((p) => !process.env[POOL_ENV_KEY[p]]);
+  if (anahtarsiz.length) console.log(`             anahtar yok: ${anahtarsiz.join(', ')} — çağrılmaz, karneye girmez`);
+  if (!llamaAcik && !!process.env[POOL_ENV_KEY.meta] && (!only || only.includes('meta'))) {
+    console.log('             meta: GROQ_LLAMA_MODEL tanımlı değil — Llama ölçülmez, karneye girmez');
+  }
   console.log(`MALİYET    : ~${cagri} çağrı, tavan ≈ $${tahmin.toFixed(3)} (probe başına tavan; ölçülen ortalama genelde daha düşük)`);
   console.log(`Çıktı      : ${jsonYolu}\n             ${htmlYolu}${args.pdf ? `\n             ${pdfYolu}` : ''}`);
   if (mevcut.length) console.log(`             MEVCUT (${args.force ? '--force: üzerine yazılacak' : 'üzerine yazmak için --force'}): ${mevcut.map((y) => path.basename(y)).join(', ')}`);
@@ -327,13 +303,10 @@ async function main() {
   }
   try {
     const svc = new AiCitationService(prisma, new QuotaService(prisma), new SettingsService(prisma), new MeasurementAllowanceService(prisma));
-    const sapma = tahminSapmasi(svc, aktif);
-    if (sapma.length) console.warn(`UYARI: ön tahmin tablosu servisten sapmış — ${sapma.join('; ')} (TAHMINI_MALIYET_USD güncellenmeli).`);
-    if (only) {
-      // runPublicProbes anahtari cagri aninda process.env'den okur; disarida
-      // birakilanlarin anahtari silinince o saglayici "NO_KEY" olur, cagri yapilmaz.
-      for (const p of SAGLAYICILAR) if (!only.includes(p)) delete process.env[ENV_ANAHTARI[p]];
-    }
+    // runPublicProbes anahtari cagri aninda process.env'den okur; disarida
+    // birakilanlarin anahtari silinince o saglayici "NO_KEY" olur, cagri
+    // yapilmaz ve karneye girmez (karne-html: kapsamda=false).
+    for (const p of SAGLAYICILAR) if (!aktif.includes(p)) delete process.env[POOL_ENV_KEY[p]];
 
     const basladi = Date.now();
     console.log(`\nÖlçüm başladı (${aktif.length} asistan × ${sorular.length} soru)...`);
@@ -353,13 +326,13 @@ async function main() {
 
     const t = ozet.toplam;
     console.log(`Bitti (${sure} sn) · ${ozet.cagriSayisi} çağrı · gerçek maliyet $${ozet.maliyetUsd.toFixed(4)}`);
-    console.log(`Anıldı     : ${t.anilanSaglayici}/${t.saglayici} asistan · ${t.anilanCevap}/${t.olculenCevap} cevap`);
-    console.log(`Atıf       : ${t.atifSaglayici}/${t.saglayici} asistan · ${t.atifCevap}/${t.olculenCevap} cevap`);
+    console.log(`Anıldı     : ${t.anilanSaglayici}/${t.olculenSaglayici} asistan · ${t.anilanCevap}/${t.olculenCevap} cevap`);
+    console.log(`Atıf       : ${t.atifSaglayici}/${t.olculenSaglayici} asistan · ${t.atifCevap}/${t.olculenCevap} cevap`);
     console.log(`Boşluk     : ${ozet.bosluklar.length} soru`);
     if (t.hataliCevap) console.warn(`Hatalı     : ${t.hataliCevap} cevap sağlayıcı hatası/reddi (sayıma girmedi; ayrıntı JSON'da)`);
     const rakipUst = ozet.rakipPayi.filter((r) => !r.isBrand).slice(0, 5).map((r) => `${r.name} %${r.pct}`);
     if (rakipUst.length) console.log(`Rakipler   : ${rakipUst.join(' · ')}`);
-    for (const s of sonuc.filter((x) => !x.available)) console.warn(`  ölçülemedi: ${s.label} — ${s.reason ?? '?'}`);
+    for (const s of sonuc.filter((x) => !x.available && x.reason !== 'NO_KEY')) console.warn(`  ölçülemedi: ${s.label} — ${s.reason ?? '?'}`);
     console.log(`JSON       : ${jsonYolu}\nHTML       : ${htmlYolu}`);
 
     if (args.pdf) {

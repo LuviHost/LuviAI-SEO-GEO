@@ -3,13 +3,24 @@ import { HelpArticle, Step, Tip } from '@/components/help-article';
 
 export const metadata = { title: 'Faturalama — RanksUp Help' };
 
+// Kodla dogrulandi (Ekim 2026):
+//  - Iade kurali Kullanim Sartlari md. 4 ile ayni (terms/page.tsx); eski
+//    "ilk 7 gun kosulsuz iade" vaadi hicbir yerde gecmiyordu. Iade otomatik
+//    degil (billing/page.tsx notu).
+//  - Plan satin alininca hemen etkinlesir (paytr.service activateSubscription);
+//    "downgrade ay sonu" diye bir zamanlama yok.
+//  - Fatura gecmisi: tarih, aciklama, TL tutar, durum (billing/page.tsx). PDF
+//    indirme ve TCKN/VKN alani yok — eski metin bunlari vaat ediyordu.
+//  - Kota sayaclari takvim ayi basinda sifirlanir (quota.service
+//    maybeReset*); deneme hesabinin 2 makalesi sifirlanmaz.
+//  - Gunluk otomatik AI olcumu KAPALI; olcum kullanici tetikli, haftada bir.
 export default function Page() {
   return (
     <HelpArticle slug="billing"
       icon={CreditCard}
       badge="Faturalama"
       title="Plan, fatura, iptal, kotalar"
-      intro="Tüm ödeme ve plan işlemlerini buradan yönetirsin. Otomatik fatura, kart değişikliği, plan upgrade/downgrade, iptal — hepsi self-service."
+      intro="Plan seçimi, ödeme geçmişi, iptal ve kotalar — hepsi panelindeki Abonelik sayfasından yönetilir."
     >
       {/* Fiyat YAZILMAZ — TL karsiligi gunun TCMB kuruyla hesaplandigi icin
           bu sayfada sabit tutmak kacinilmaz olarak bayatliyordu (₺1.499 /
@@ -20,71 +31,80 @@ export default function Page() {
       <ul>
         <li><strong>Ücretsiz Deneme</strong> — 2 makale + 3 AI görünürlük çalıştırması + 1 site (kart gerekmez)</li>
         <li><strong>Büyüme</strong> — 15 makale + 20 çalıştırma + 2 site</li>
-        <li><strong>Profesyonel ⭐</strong> — 40 makale + 75 çalıştırma + 5 site, Apple Search Ads ve App Store Connect dahil</li>
+        <li><strong>Profesyonel</strong> (en çok tercih edilen) — 40 makale + 75 çalıştırma + 5 site, Apple Search Ads ve App Store Connect dahil</li>
         <li><strong>Ajans</strong> — 100 makale + 300 çalıştırma + 15 site, Programmatic SEO ve Product Radar dahil</li>
         <li><strong>Kurumsal</strong> — 350 makale + 1.000 çalıştırma + 50 site, BYOK, MCP, REST API, özel hesap yöneticisi + SLA</li>
       </ul>
       <p>
         Güncel fiyatlar için <a href="/pricing">fiyatlandırma sayfasına</a> bakın. Fiyatlar ABD doları
-        üzerinden belirlenir; Türk lirası karşılığı ödeme anındaki TCMB kuruyla hesaplanır.
+        üzerinden belirlenir; tahsilat Türk lirasıyla, ödeme anındaki TCMB kuruyla yapılır.
       </p>
       <p>Yıllık planda <strong>%17 indirim</strong> (10 ay öder, 12 ay kullanırsın).</p>
 
       <h2>Plan değiştirme</h2>
-      <Step n={1} title="Sağ üst → Ayarlar → Plan">
-        Hesap menüsünden Ayarlar → Plan & Faturalama sekmesi.
+      <Step n={1} title="Abonelik sayfasını aç">
+        Hesap menüsünden <strong>Abonelik</strong> sayfasına git ve <strong>&ldquo;Planları karşılaştır&rdquo;</strong> butonuna bas.
       </Step>
       <Step n={2} title="Yeni planı seç">
-        Upgrade veya downgrade. Upgrade anlık aktif, downgrade ay sonu efektif.
+        Fiyatlandırma sayfasında Büyüme, Profesyonel ya da Ajans planını seç. Kurumsal plan satış ekibiyle, sözleşmeli kurulur.
       </Step>
-      <Step n={3} title="Ödeme onayı">
-        PayTR ile güvenli ödeme. 3D Secure aktif.
+      <Step n={3} title="Ödemeyi tamamla">
+        Ödeme PayTR ile alınır. Ödeme onaylanınca yeni plan hemen etkinleşir.
       </Step>
 
-      <h2>Fatura indirme</h2>
-      <p>Settings → Faturalama → Faturalar tab. Her aylık fatura PDF olarak indirilebilir. KDV dahil + TCKN/VKN ile düzenlenir.</p>
+      <h2>Ödeme geçmişi</h2>
+      <p>
+        Abonelik sayfasındaki <strong>Fatura geçmişi</strong> bölümünde her ödemenin tarihi, açıklaması, Türk lirası tutarı ve durumu listelenir.
+        Sorular için <a href="mailto:destek@luvihost.com">destek@luvihost.com</a>.
+      </p>
 
       <h2>İptal</h2>
-      <Step n={1} title="Settings → Plan & Faturalama">
-        <strong>"Aboneliği İptal Et"</strong> butonu (kırmızı, en altta).
+      <Step n={1} title="Abonelik sayfası">
+        <strong>&ldquo;Aboneliği iptal et&rdquo;</strong> butonuna bas.
       </Step>
-      <Step n={2} title="Ay sonuna kadar kullanırsın">
-        Ödeme dönemi sonuna kadar tüm modüller açık kalır. Sonra Trial moduna düşer (veriler 90 gün korunur).
+      <Step n={2} title="Ödenen dönemin sonuna kadar kullanırsın">
+        Ödeme döneminin sonuna kadar tüm özelliklerin açık kalır; sonra hesabın deneme düzeyine geçer.
+        Sitelerin ve içeriklerin bu yüzden silinmez. Hesabını tamamen silmek istersen aynı sayfadaki hesap silme bölümünü kullanırsın.
       </Step>
 
       <Tip kind="info">
-        İlk 7 gün içinde iptal edersen <strong>koşulsuz iade</strong>. Mail at: <a href="mailto:destek@luvihost.com">destek@luvihost.com</a>
+        <strong>İade (Kullanım Şartları md. 4):</strong> aylık plan istediğin zaman iptal edilir ve ödenen dönemin sonuna kadar erişim sürer.
+        Yıllık planda ilk 30 gün tam iade, sonrasında kalan ay başına orantılı iade yapılır. İade otomatik değildir; talebini{' '}
+        <a href="mailto:destek@luvihost.com">destek@luvihost.com</a> adresine yaz.
       </Tip>
 
       <Tip kind="success">
-        <strong>Grandfathering:</strong> 2026-05 öncesi mevcut müşterilerimiz eski fiyatlarla 6 ay devam eder. 30 gün önce hatırlatma maili gönderilir.
+        <strong>Eski fiyat koruması:</strong> Mayıs 2026 fiyat güncellemesinden önce abone olanlar eski fiyatlarıyla 6 ay devam eder. Süre bitmeden 30 gün önce hatırlatma e-postası gönderilir.
       </Tip>
 
-      <h2>Kotalar — aylık reset</h2>
+      <h2>Kotalar — aylık sıfırlama</h2>
       <p>
-        Her ayın 1'inde kotalar sıfırlanır (makale ve AI görünürlük çalıştırması).
+        Makale ve AI görünürlük çalıştırması sayaçları her takvim ayının başında sıfırlanır. Deneme hesabındaki 2 ücretsiz makale hakkı sıfırlanmaz.
         Site kotası sabittir — plan limitini aşan yeni site eklenemez.
+      </p>
+      <p>
+        Aylık kotalardan ayrı olarak hesap başına 7 günde bir AI ölçümü yapılabilir. AI testi, yol haritası, Prompt Lab ve diğer ölçümler bu haftalık hakkı paylaşır.
       </p>
 
       <h3>Aşımda ne olur?</h3>
       <ul>
-        <li><strong>Makale</strong> — yeni makale üretemez, plan upgrade promosu çıkar</li>
-        <li><strong>AI görünürlük çalıştırması</strong> — yeni ölçüm başlatılamaz; platformun günlük otomatik izlemesi kotadan düşmediği için grafiklerin akmaya devam eder</li>
-        <li><strong>AI bütçe %80</strong> — sarı uyarı banner</li>
-        <li><strong>AI bütçe %100</strong> — hard block: yeni AI istekleri durdurulur</li>
+        <li><strong>Makale</strong> — yeni makale üretilmez; ay başını bekleyebilir ya da planını yükseltebilirsin</li>
+        <li><strong>AI görünürlük çalıştırması</strong> — havuzdaki sağlayıcılarla yeni ölçüm başlatılamaz. Otomatik günlük ölçüm olmadığı için grafikler de yeni bir ölçüm yapılana kadar güncellenmez</li>
+        <li><strong>AI bütçesi %80</strong> — panelde uyarı görünür</li>
+        <li><strong>AI bütçesi %100</strong> — görsel alt metni önerisi ve App Store yorum yanıtı taslağı gibi işlemler durur</li>
       </ul>
 
       <Tip kind="warn">
-        BYOK (kendi sağlayıcı anahtarınla) kullanırsan havuz kotası dolsa bile ölçümün durmaz. Kurumsal plana dahildir — <a href="/help/api-keys">API Keys rehberi</a>.
+        BYOK (kendi sağlayıcı anahtarınla) kullanırsan aylık çalıştırma kotası dolsa bile o sağlayıcıyla ölçüm sürer; haftalık ölçüm hakkı yine geçerlidir. Kurumsal plana dahildir — <a href="/help/api-keys">BYOK rehberi</a>.
       </Tip>
 
-      <h2>Vergi + KVKK</h2>
+      <h2>Ödeme + KVKK</h2>
       <p>
-        Faturalar Türk vergi mevzuatına uygun. Şirket için VKN, bireysel için TCKN ile düzenlenir.
-        Yurt dışı için USD faturalandırma mevcut (locale=en).
+        Ödeme PayTR ile alınır; kart numaran RanksUp&apos;ta saklanmaz.
       </p>
       <p>
-        KVKK uyumlu: anonim event tracking (IP yok), key'ler şifreli, veri merkezi Türkiye'de.
+        Google bağlantı token&apos;ları ve yayın hedefi bilgileri AES-256-GCM ile şifreli saklanır. Sunucular LuviHost İstanbul veri merkezinde,
+        yedekler Frankfurt bölgesindedir (<a href="/privacy">Gizlilik Politikası</a>).
       </p>
     </HelpArticle>
   );

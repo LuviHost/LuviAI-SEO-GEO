@@ -71,7 +71,10 @@ Each ported file also names its source in a header comment.
 - Source: https://github.com/appeeky/aso-skills
 - Copyright (c) 2026 Erencan
 - Rules adopted, code rewritten: `apps/api/src/aso/keyword-field-audit.ts`
-  (spaces after commas, singular forms, no "app"/category names).
+  (spaces after commas, singular forms, no "app"/category names);
+  `apps/api/src/aso/asc/review-reply.ts` (review-management skill: HEAR reply
+  structure — acknowledge, empathize, act, resolve; do not ask users to change
+  their rating, offer no incentives, do not be defensive).
 
 ## Expo app template (650 Industries) — MIT
 

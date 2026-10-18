@@ -82,7 +82,7 @@ export default function VisibilityPage() {
         title="AI Görünürlük"
         description={
           <>
-            <span className="block">7 AI asistanında marka takibi, duygu, ses payı ve rakip analizi.</span>
+            <span className="block">6 AI asistanında marka takibi, duygu, ses payı ve rakip analizi.</span>
             <EngineStrip className="mt-2.5" />
           </>
         }

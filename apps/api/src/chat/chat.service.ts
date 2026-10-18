@@ -143,6 +143,10 @@ export class ChatService {
     const site = await this.prisma.site.findUniqueOrThrow({ where: { id: siteId } });
 
     // ── Konusma cozumle/olustur
+    // Yalniz dize kimlik: nesne ({ not: '' }) Prisma where'inde filtre olurdu
+    if (input.conversationId !== undefined && input.conversationId !== null && typeof input.conversationId !== 'string') {
+      throw new BadRequestException('conversationId geçersiz');
+    }
     let conversation = input.conversationId
       ? await this.prisma.chatConversation.findFirst({
           where: { id: input.conversationId, siteId, userId: user.id },

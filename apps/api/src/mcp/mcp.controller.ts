@@ -1,8 +1,18 @@
-import { Body, Controller, Delete, Get, Logger, Post, Req, Res } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Logger, Post, Req, Res, UseFilters } from '@nestjs/common';
 import type { Request, Response } from 'express';
 import { McpToolsService } from './mcp-tools.service.js';
 import { QuotaService } from '../billing/quota.service.js';
 import { ApiKeysService } from '../api-keys/api-keys.service.js';
+import { Public } from '../auth/public.decorator.js';
+import { McpAuthChallengeFilter } from './mcp-auth-challenge.filter.js';
+import {
+  MCP_PROTOCOL_VERSIONS,
+  MCP_SERVER_INFO,
+  SERVER_CARD_MEDIA_TYPE,
+  bearerPresented,
+  buildServerCard,
+  mcpAuthChallenge,
+} from './mcp-discovery.js';
 
 /**
  * RanksUp MCP Server — Streamable HTTP transport, STATELESS mod.
@@ -12,21 +22,28 @@ import { ApiKeysService } from '../api-keys/api-keys.service.js';
  *   initialize / notifications-* / ping / tools/list / tools/call
  *
  * AUTH: global AuthGuard `Authorization: Bearer luvi_...` API anahtarini
- * zaten dogruluyor (req.user doldurulur). MCP istemcileri (Claude, ChatGPT,
- * Cursor...) custom header destekledigi icin ek OAuth katmani gerekmez.
+ * dogruluyor (req.user doldurulur). Bu yalnizca istemci OZEL BASLIK
+ * gonderebiliyorsa calisir: Claude Code ve Cursor gonderir. ChatGPT
+ * gonderemez — kimlik dogrulamali sunucular icin OAuth 2.1 ister
+ * (https://developers.openai.com/apps-sdk/build/auth). claude.ai ozel
+ * baglayicilarinda baslikla kimlik dogrulama beta ve yalnizca sinirli sayida
+ * kurulusta acik (https://claude.com/docs/connectors/custom/remote-mcp).
+ * 401'ler WWW-Authenticate + RFC 9728 korunan kaynak metadatasi adresini
+ * tasir (McpAuthChallengeFilter, mcp-discovery.ts); metadata yetkilendirme
+ * sunucusu YAZMAZ, cunku yok.
+ * TODO(MCP OAuth 2.1): ChatGPT ve claude.ai icin OAuth yetkilendirme sunucusu
+ * — sahibin urun karari bekleniyor; kurulunca metadataya authorization_servers
+ * eklenir.
  *
- * Kurulum (kullaniciya gosterilen):
- *   claude mcp add ranksup https://api.ranksup.ai/api/mcp \
- *     --transport http --header "Authorization: Bearer luvi_XXX"
+ * Kurulum rehberi: https://ranksup.ai/agent-setup.txt
+ *   claude mcp add --transport http ranksup https://api.ranksup.ai/api/mcp \
+ *     --header "Authorization: Bearer luvi_XXX"
  *
  * STATELESS: session id uretmiyoruz; her istek bagimsiz. SSE stream
  * ACILMAZ (GET → 405) — tum yanitlar tek JSON govdesi. Spec buna izin verir
  * (server MAY return application/json). Batching: 2025-03-26 istemcileri
  * icin dizi kabul edilir, dizi olarak yanitlanir.
  */
-
-const PROTOCOL_VERSIONS = ['2025-06-18', '2025-03-26', '2024-11-05'];
-const SERVER_INFO = { name: 'ranksup', title: 'RanksUp — SEO + GEO + ASO', version: '1.0.0' };
 
 type JsonRpcMsg = {
   jsonrpc?: string;
@@ -36,6 +53,7 @@ type JsonRpcMsg = {
 };
 
 @Controller('mcp')
+@UseFilters(McpAuthChallengeFilter)
 export class McpController {
   private readonly log = new Logger(McpController.name);
 
@@ -50,6 +68,7 @@ export class McpController {
     const user = (req as any).user as { id: string; role: string; plan?: string } | undefined;
     if (!user) {
       // AuthGuard normalde 401 atar; bu dal savunma amacli
+      res.setHeader('WWW-Authenticate', mcpAuthChallenge({ tokenPresented: bearerPresented(req.headers?.authorization) }));
       res.status(401).json(this.rpcError(null, -32001, 'Kimlik dogrulanamadi'));
       return;
     }
@@ -62,8 +81,9 @@ export class McpController {
       res.status(403).json(this.rpcError(null, -32003, err?.message ?? 'Plan yetersiz'));
       return;
     }
-    // API anahtarinin scope'lari — mutating tool'lar :write ister (guard /mcp'yi
-    // metod bazinda denetlemez cunku POST hem okuma hem yazma tasir).
+    // API anahtarinin scope'lari — guard /mcp'yi yol/metod bazinda denetlemez
+    // (POST hem okuma hem yazma tasir); denetim arac bazinda dispatch'te:
+    // kaynak scope'u olan arac onu, olmayan mutating arac herhangi bir :write ister.
     const apiKey = (req as any).apiKey as { scopes: string[] } | undefined;
     const canWrite = !apiKey
       || apiKey.scopes.includes('*')
@@ -92,6 +112,27 @@ export class McpController {
     res.status(405).json({ error: 'SSE stream desteklenmiyor — POST ile JSON-RPC kullanin' });
   }
 
+  /**
+   * MCP Server Card (SEP-2127) — <streamable-http-url>/server-card.
+   * Herkese acik, salt-okuma metadata; CORS basliklari docs/discovery.md'de
+   * MUST. ETag ve If-None-Match -> 304'u Express res.send kendisi yapar.
+   */
+  @Public()
+  @Get('server-card')
+  serverCard(@Res() res: Response) {
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Allow-Methods', 'GET');
+    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, If-None-Match');
+    res.setHeader('Access-Control-Expose-Headers', 'ETag');
+    // Global CORS izinli kokenlere credentials basligi ekliyor; '*' ile birlikte
+    // tarayici yaniti reddeder ve herkese acik belgede zaten anlamsiz.
+    res.removeHeader('Access-Control-Allow-Credentials');
+    res.setHeader('Cache-Control', 'public, max-age=3600');
+    res.type(SERVER_CARD_MEDIA_TYPE);
+    // Buffer gonderilir: string'e Express charset ekler, Buffer'a eklemez.
+    res.send(Buffer.from(JSON.stringify(buildServerCard(), null, 2)));
+  }
+
   @Delete()
   deleteSession(@Res() res: Response) {
     // Stateless: silinecek oturum yok
@@ -111,11 +152,11 @@ export class McpController {
       switch (msg.method) {
         case 'initialize': {
           const requested = msg.params?.protocolVersion;
-          const version = PROTOCOL_VERSIONS.includes(requested) ? requested : PROTOCOL_VERSIONS[0];
+          const version = MCP_PROTOCOL_VERSIONS.includes(requested) ? requested : MCP_PROTOCOL_VERSIONS[0];
           return this.rpcResult(msg.id!, {
             protocolVersion: version,
             capabilities: { tools: { listChanged: false } },
-            serverInfo: SERVER_INFO,
+            serverInfo: MCP_SERVER_INFO,
             instructions: [
               'RanksUp — SEO + GEO + ASO otomasyon platformunun MCP sunucusu.',
               'Once list_sites ile site_id al; site kapsamli tum tool\'lar bu id\'yi ister.',
@@ -134,19 +175,27 @@ export class McpController {
         case 'tools/call': {
           const name = msg.params?.name;
           const args = msg.params?.arguments ?? {};
-          // Salt-okunur anahtar mutating tool cagiramaz (kota/maliyet tuketir)
           const def = this.tools.list().find((t) => t.name === String(name));
-          if (def?.mutating && !canWrite) {
+          // API anahtariyla gelindiyse REST ile AYNI kural: aracin kaynak
+          // scope'u (ToolDef.scope = REST ikizinin scope'u) okuma araclarinda
+          // da aranir; ':write' ayni kaynagin ':read'ini kapsar. Eskiden
+          // araclarin cogunda scope yoktu: yalniz 'social:read' tasiyan anahtar
+          // makale/denetim okuyabiliyor, 'social:write' anahtari run_audit ve
+          // create_article ile olcum hakki ve kota harcayabiliyordu (inceleme R21).
+          if (def?.scope && keyScopes && !this.apiKeys.hasScopeForRoute(keyScopes, def.scope)) {
             return this.rpcResult(msg.id!, {
-              content: [{ type: 'text', text: 'Hata: bu API anahtari salt-okunur — ' + String(name) + ' icin :write scope\'lu anahtar gerekli.' }],
+              content: [{ type: 'text', text: `Hata: bu API anahtarında "${def.scope}" yetkisi yok. Bu aracı kullanmak için anahtarı bu yetkiyle yeniden üret.` }],
               isError: true,
             });
           }
-          // Arac bazinda scope (API anahtari ile gelindiyse): ornek suggest_image_alts
-          // audit:write ister — social:write anahtari gecemez.
-          if (def?.scope && keyScopes && !this.apiKeys.hasScopeForRoute(keyScopes, def.scope)) {
+          // Kaynaga eslesmeyen arac (aksiyon plani, ASO) icin REST'in kaba
+          // kurali: mutating -> herhangi bir ':write' (kota/maliyet tuketir).
+          // Scope'lu yazma araclarinda yukaridaki denetim bunu zaten kapsar;
+          // yine de burada kalir ki yanlislikla ':read' scope'u verilmis bir
+          // yazma araci salt-okuma anahtarina acilmasin.
+          if (def?.mutating && !canWrite) {
             return this.rpcResult(msg.id!, {
-              content: [{ type: 'text', text: `Hata: bu API anahtarinda "${def.scope}" scope'u yok.` }],
+              content: [{ type: 'text', text: `Hata: bu API anahtarı salt okunur; ${String(name)} için en az bir yazma (:write) yetkisi olan anahtar gerekli.` }],
               isError: true,
             });
           }

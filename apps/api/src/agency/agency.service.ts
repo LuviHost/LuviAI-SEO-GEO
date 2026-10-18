@@ -1,6 +1,32 @@
-import { Injectable, Logger, ForbiddenException } from '@nestjs/common';
+import { Injectable, Logger, ForbiddenException, ConflictException } from '@nestjs/common';
 import { randomBytes } from 'node:crypto';
+import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
+
+const NOT_AGENCY = 'Bu işlem yalnızca ajans hesapları için.';
+
+/**
+ * Whitelabel guncelleme cevabi: yalniz markali panel alanlari. Eskiden tum
+ * User satiri donuyordu — paytrUtoken gibi "istemciye ASLA donmez" alanlar dahil.
+ */
+const WHITELABEL_SELECT = {
+  id: true,
+  whitelabelEnabled: true,
+  whitelabelBrandName: true,
+  whitelabelLogoUrl: true,
+  whitelabelPrimaryColor: true,
+  whitelabelDomain: true,
+  whitelabelEmailFrom: true,
+} satisfies Prisma.UserSelect;
+
+/** '' / bosluk → null (temizle); dize degilse dokunma (undefined) */
+function cleanText(v: unknown, max: number): string | null | undefined {
+  if (v === undefined) return undefined;
+  if (v === null) return null;
+  if (typeof v !== 'string') return undefined;
+  const t = v.trim().slice(0, max);
+  return t || null;
+}
 
 export interface AgencyOverview {
   agencyId: string;
@@ -41,7 +67,7 @@ export class AgencyService {
   async getOverview(agencyOwnerId: string): Promise<AgencyOverview> {
     const owner: any = await this.prisma.user.findUniqueOrThrow({ where: { id: agencyOwnerId } });
     if (owner.role !== 'AGENCY_OWNER' && owner.role !== 'ADMIN') {
-      throw new ForbiddenException('Agency owner degilsiniz');
+      throw new ForbiddenException(NOT_AGENCY);
     }
 
     const clients = await this.prisma.user.findMany({
@@ -125,10 +151,10 @@ export class AgencyService {
    * Agency owner yeni client davet eder. Email gonderiminde ozel
    * onboarding linki olusturulur, signup sonrasi parentAgencyId set edilir.
    */
-  async inviteClient(agencyOwnerId: string, clientEmail: string, clientName?: string): Promise<{ inviteUrl: string }> {
+  async inviteClient(agencyOwnerId: string, clientEmail: string): Promise<{ inviteUrl: string }> {
     const owner: any = await this.prisma.user.findUniqueOrThrow({ where: { id: agencyOwnerId } });
     if (owner.role !== 'AGENCY_OWNER' && owner.role !== 'ADMIN') {
-      throw new ForbiddenException('Agency owner degilsiniz');
+      throw new ForbiddenException(NOT_AGENCY);
     }
 
     const token = randomBytes(20).toString('hex');
@@ -161,16 +187,45 @@ export class AgencyService {
     domain?: string;
     emailFrom?: string;
   }) {
+    // Rol kapisi overview/invite ile ayni. Eskiden YOKTU: her kullanici kendi
+    // kaydina markali panel alan adi yazabiliyordu — baska bir ajansin alan
+    // adini da (resolve-domain ilk eslesen kaydi dondurur).
+    const owner = await this.prisma.user.findUniqueOrThrow({ where: { id: agencyOwnerId }, select: { role: true } });
+    if (owner.role !== 'AGENCY_OWNER' && owner.role !== 'ADMIN') {
+      throw new ForbiddenException(NOT_AGENCY);
+    }
+
+    const data: Prisma.UserUpdateInput = {};
+    if (typeof settings.enabled === 'boolean') data.whitelabelEnabled = settings.enabled;
+    const brandName = cleanText(settings.brandName, 80);
+    if (brandName !== undefined) data.whitelabelBrandName = brandName;
+    const logoUrl = cleanText(settings.logoUrl, 191);
+    if (logoUrl !== undefined) data.whitelabelLogoUrl = logoUrl;
+    const primaryColor = cleanText(settings.primaryColor, 7);
+    if (primaryColor !== undefined) data.whitelabelPrimaryColor = primaryColor;
+    const emailFrom = cleanText(settings.emailFrom, 191);
+    if (emailFrom !== undefined) data.whitelabelEmailFrom = emailFrom;
+
+    // Alan adi kucuk harfe indirilir ve tek sahipli olmali (semada unique yok)
+    const domain = cleanText(settings.domain, 191);
+    if (domain !== undefined) {
+      const normalized = domain ? domain.toLowerCase() : null;
+      if (normalized) {
+        const taken = await this.prisma.user.findFirst({
+          // Duzeltme oncesi rol denetimi yoktu; ajans olmayan eski kayitlar
+          // alan adini bloklamasin (onlar resolveDomain'de de yok sayilir)
+          where: { whitelabelDomain: normalized, NOT: { id: agencyOwnerId }, role: { in: ['AGENCY_OWNER', 'ADMIN'] } },
+          select: { id: true },
+        });
+        if (taken) throw new ConflictException('Bu alan adı başka bir hesapta kayıtlı.');
+      }
+      data.whitelabelDomain = normalized;
+    }
+
     return this.prisma.user.update({
       where: { id: agencyOwnerId },
-      data: {
-        whitelabelEnabled: settings.enabled,
-        whitelabelBrandName: settings.brandName,
-        whitelabelLogoUrl: settings.logoUrl,
-        whitelabelPrimaryColor: settings.primaryColor,
-        whitelabelDomain: settings.domain,
-        whitelabelEmailFrom: settings.emailFrom,
-      } as any,
+      data,
+      select: WHITELABEL_SELECT,
     });
   }
 
@@ -179,8 +234,20 @@ export class AgencyService {
    * ayarlarini geri don. Frontend bu data ile sayfayi rebrand eder.
    */
   async resolveDomain(domain: string) {
+    // Herkese acik uc: ?host[not]=x sorgu ayristiricida nesneye donusur ve
+    // Prisma'da filtre olur (herhangi bir ajansin markasi donerdi). Yalniz dize.
+    if (typeof domain !== 'string' || !domain.trim()) return null;
     const agency: any = await this.prisma.user.findFirst({
-      where: { whitelabelDomain: domain, whitelabelEnabled: true } as any,
+      // Yalniz ajans/yonetici kayitlari: rol kapisi gelmeden once herhangi bir
+      // kullanicinin yazdigi alan adi kaydi markayi ele gecirmesin
+      where: { whitelabelDomain: domain.trim().toLowerCase(), whitelabelEnabled: true, role: { in: ['AGENCY_OWNER', 'ADMIN'] } },
+      orderBy: { createdAt: 'asc' },
+      select: {
+        whitelabelBrandName: true,
+        whitelabelLogoUrl: true,
+        whitelabelPrimaryColor: true,
+        whitelabelEmailFrom: true,
+      },
     });
     if (!agency) return null;
     return {

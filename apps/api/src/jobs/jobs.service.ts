@@ -23,10 +23,6 @@ export class JobsService {
     return job;
   }
 
-  async retry(id: string) {
-    return this.prisma.job.update({
-      where: { id },
-      data: { status: 'QUEUED', attempts: 0, error: null },
-    });
-  }
+  // retry(id) kaldirildi — sahipliksiz ve yalniz DB durumunu degistiriyordu;
+  // gerekce jobs.controller.ts'te. Yeniden deneme: JobQueueService.retryJob.
 }

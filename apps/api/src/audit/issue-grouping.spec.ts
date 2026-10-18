@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { urlTemplate, groupIssues } from './issue-grouping.js';
+import { withFixRoutes } from './fix-routes.js';
 
 describe('urlTemplate', () => {
   it('slug, rakam ve tarih segmentleri * olur; ilk 3 segment; kok /', () => {
@@ -45,6 +46,19 @@ describe('groupIssues', () => {
     const g = groupIssues(issues, checks);
     expect(g.byCheck[0].worstSeverity).toBe('critical');
     expect(g.byCheck.map((c) => c.checkId)).toContain('internal_linking');
+  });
+
+  it('sablon butonu sorun satiriyla ayni rota kurali: "AI arama botu engelli" auto-fix\'e GITMEZ', () => {
+    // audit.service ile ayni akis: once withFixRoutes, sonra gruplama
+    const routed = withFixRoutes([
+      { type: 'robots_ai_search_blocked', severity: 'warning' as const, checkId: 'robots_txt', fixable: false, page: 'https://x.com/blog/a-1' },
+      { type: 'robots_no_sitemap', severity: 'warning' as const, checkId: 'robots_txt', fixable: true, page: 'https://x.com/urunler/p-9/detay' },
+      { type: 'robots_ai_search_blocked', severity: 'warning' as const, checkId: 'robots_txt', fixable: false },
+    ]);
+    const g = groupIssues(routed, { robots_txt: { id: 'robots_txt', name: 'Robots.txt' } });
+    expect(g.byTemplate.find((t) => t.template === '/blog/*')!.fixableCheckIds).toEqual([]);
+    expect(g.byTemplate.find((t) => t.template === '/urunler/*/detay')!.fixableCheckIds).toEqual(['robots_txt']);
+    expect(g.siteWide).toEqual([expect.objectContaining({ type: 'robots_ai_search_blocked', fixable: false })]);
   });
 
   it('en cok sayfali sablon once; ornek sayfa 5 ile sinirli', () => {

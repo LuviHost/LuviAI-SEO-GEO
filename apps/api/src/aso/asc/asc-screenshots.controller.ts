@@ -6,6 +6,7 @@ import { SessionOnly } from '../../auth/session-only.decorator.js';
 import { AscScreenshotsService, type UploadedImage } from './asc-screenshots.service.js';
 import { MAX_FILE_BYTES } from './asc-screenshots.js';
 import type { RequestingUser } from './asc.service.js';
+import { CheckScreenshotDto, ClearScreenshotsDto, DeleteScreenshotDto, UploadScreenshotDto } from './asc.dto.js';
 
 interface AuthedRequest extends Request { user?: RequestingUser }
 function ensureUser(req: AuthedRequest) {
@@ -39,7 +40,7 @@ export class AscScreenshotsController {
     @Param('siteId') siteId: string,
     @Param('ascAppId') ascAppId: string,
     @UploadedFile() file: UploadedImage,
-    @Body() body: { displayType?: string },
+    @Body() body: CheckScreenshotDto,
   ) {
     return this.shots.check(siteId, ascAppId, ensureUser(req), file, body?.displayType);
   }
@@ -51,7 +52,7 @@ export class AscScreenshotsController {
     @Param('siteId') siteId: string,
     @Param('ascAppId') ascAppId: string,
     @UploadedFile() file: UploadedImage,
-    @Body() body: { locale?: string; displayType?: string; confirm?: string },
+    @Body() body: UploadScreenshotDto,
   ) {
     return this.shots.upload(siteId, ascAppId, ensureUser(req), file, body ?? {});
   }
@@ -62,7 +63,7 @@ export class AscScreenshotsController {
     @Req() req: AuthedRequest,
     @Param('siteId') siteId: string,
     @Param('ascAppId') ascAppId: string,
-    @Body() body: { locale?: string; displayType?: string; confirm?: boolean },
+    @Body() body: ClearScreenshotsDto,
   ) {
     return this.shots.clear(siteId, ascAppId, ensureUser(req), body ?? {});
   }
@@ -73,7 +74,7 @@ export class AscScreenshotsController {
     @Param('siteId') siteId: string,
     @Param('ascAppId') ascAppId: string,
     @Param('screenshotId') screenshotId: string,
-    @Body() body: { confirm?: boolean },
+    @Body() body: DeleteScreenshotDto,
   ) {
     return this.shots.remove(siteId, ascAppId, ensureUser(req), screenshotId, body ?? {});
   }
