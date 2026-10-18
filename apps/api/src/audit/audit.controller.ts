@@ -1,6 +1,8 @@
 import { Body, Controller, Delete, ForbiddenException, Get, Header, NotFoundException, Param, Patch, Post, Query, Req, Res, BadRequestException } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 import { AuditService } from './audit.service.js';
+import { sanitizePersonaHistory } from './persona-chat-input.js';
 import { AutoFixService } from './auto-fix.service.js';
 import { AiCitationService } from './ai-citation.service.js';
 import { AiCitationTrackerService } from './ai-citation-tracker.service.js';
@@ -26,6 +28,7 @@ import { PersonaChatService } from './persona-chat.service.js';
 import { SnippetOptimizerService } from './snippet-optimizer.service.js';
 import { WebhookNotifierService } from './webhook-notifier.service.js';
 import { Public } from '../auth/public.decorator.js';
+import { SessionOnly } from '../auth/session-only.decorator.js';
 import { SnippetGeneratorService } from './snippet-generator.service.js';
 import { SnippetApplierService } from './snippet-applier.service.js';
 import { StaticHtmlFixerService } from './static-html-fixer.service.js';
@@ -48,6 +51,28 @@ import { MeasurementSession } from '../billing/measurement-session.interceptor.j
 // calistirma/uretme/uygulama gibi pahali POST'lar. Duz listeleme ve gecmis
 // GET uclari bilerek ACIK birakildi; plani dusen kullanici gecmis verisini
 // gorebilmeli ve disari alabilmeli.
+
+/**
+ * Herkese acik persona sohbet ucunun IP basina siniri (global
+ * ProxyThrottlerGuard; sayac bu rotaya ozel). Kimliksiz her istek RanksUp'in
+ * anahtariyla ucretli bir model cagrisi — genel 60/dk siniri burada IP basina
+ * dakikada 60 cagri demekti. Bir ziyaretci 10 dakikada 20 soruyu nadiren gecer.
+ */
+export const PERSONA_CHAT_THROTTLE = { limit: 20, ttl: 10 * 60_000 };
+
+/** runPrompt govdesinde kabul edilen saglayici kimlikleri (ai-citation Provider) */
+const PROMPT_PROVIDERS: readonly Provider[] = ['anthropic', 'gemini', 'openai', 'perplexity', 'xai', 'deepseek', 'meta'];
+
+/** Govdedeki saglayici listesi: yalniz bilinen kimlikler, tekil; yoksa undefined (servis varsayilani) */
+function pickProviders(v: unknown, field: string): Provider[] | undefined {
+  if (v === undefined || v === null) return undefined;
+  if (!Array.isArray(v) || v.some((p) => typeof p !== 'string' || !(PROMPT_PROVIDERS as readonly string[]).includes(p))) {
+    throw new BadRequestException(`${field} yalnızca şunları içerebilir: ${PROMPT_PROVIDERS.join(', ')}`);
+  }
+  const list = [...new Set(v as Provider[])];
+  return list.length ? list : undefined;
+}
+
 @Controller('sites/:siteId/audit')
 export class AuditController {
   constructor(
@@ -114,6 +139,9 @@ export class AuditController {
    * GET /sites/:siteId/audit/live-crawler/snippets — Worker/WP/nginx kurulum kodlari.
    * Snippet'ler ingest sirrini icerir; sir yoksa burada uretilir.
    */
+  // Yanit duz metin ingest sirrini tasir: varsayilan (audit:read) bir API
+  // anahtariyla okunursa sahte bot ziyareti imzalanabilir. Yalniz panel oturumu.
+  @SessionOnly()
   @Get('live-crawler/snippets')
   liveCrawlerSnippets(@Param('siteId') siteId: string) {
     return this.liveCrawler.snippets(siteId);
@@ -124,6 +152,7 @@ export class AuditController {
    * Sir sizdiysa tek care budur: eski anahtarla imzalanan istekler aninda
    * reddedilir, bu yuzden cevapta snippet'i yeniden kurma uyarisi doner.
    */
+  @SessionOnly()
   @Post('live-crawler/rotate-secret')
   liveCrawlerRotateSecret(@Param('siteId') siteId: string) {
     return this.liveCrawler.rotateIngestSecret(siteId);
@@ -364,31 +393,37 @@ export class AuditController {
   async recoverStuckPage(
     @Param('siteId') siteId: string,
     @Param('id') id: string,
-    @Body() body: { triggeredBy?: string } = {},
+    @Req() req: Request,
   ) {
+    // Kim tetikledi bilgisi OTURUMDAN (revert ile ayni kural). Govdedeki
+    // triggeredBy denetim kaydina (StuckPageRecovery.appliedBy) istenen
+    // kimligi yazdiriyordu; panelin gonderdigi alan artik yok sayilir.
+    const actor = (req as any).user?.id ?? 'manual';
     // articleId varsa Article-based recovery, yoksa external (URL fetch)
     const sp = await this.stuckDetector.getDetail(siteId, id);
     if (!sp) throw new NotFoundException('Stuck page bulunamadi');
     if (sp.articleId) {
-      return this.stuckRecovery.recover(id, {
-        triggeredBy: body.triggeredBy || 'manual',
-      });
+      return this.stuckRecovery.recover(id, { triggeredBy: actor });
     }
-    return this.stuckExternalRecovery.recover(id, {
-      triggeredBy: body.triggeredBy || 'manual',
-    });
+    return this.stuckExternalRecovery.recover(id, { triggeredBy: actor });
   }
 
   @RequiresPlan('stuckPages')
   @Post('stuck-pages/recover-batch')
   async recoverBatch(
     @Param('siteId') siteId: string,
-    @Body() body: { stuckPageIds: string[]; triggeredBy?: string },
+    @Body() body: { stuckPageIds: string[] },
+    @Req() req: Request,
   ) {
+    // Denetim kaydindaki kimlik oturumdan — govdedeki triggeredBy yok sayilir
+    const actor = (req as any).user?.id ?? 'manual';
+    const ids = Array.isArray(body?.stuckPageIds)
+      ? body.stuckPageIds.filter((x): x is string => typeof x === 'string').slice(0, 50)
+      : [];
     const results: Array<{ id: string; ok: boolean; error?: string; recoveryId?: string }> = [];
     // Toplu istekte de her id ayri ayri siteId ile dogrulanir — govdeden gelen
     // liste kullanicinin kendi sitesine ait olmayan id icerebilir.
-    for (const id of (body.stuckPageIds ?? []).slice(0, 50)) {
+    for (const id of ids) {
       try {
         const sp = await this.stuckDetector.getDetail(siteId, id);
         if (!sp) {
@@ -396,8 +431,8 @@ export class AuditController {
           continue;
         }
         const r = sp.articleId
-          ? await this.stuckRecovery.recover(id, { triggeredBy: body.triggeredBy || 'manual' })
-          : await this.stuckExternalRecovery.recover(id, { triggeredBy: body.triggeredBy || 'manual' });
+          ? await this.stuckRecovery.recover(id, { triggeredBy: actor })
+          : await this.stuckExternalRecovery.recover(id, { triggeredBy: actor });
         results.push({ id, ok: r.success, recoveryId: r.recoveryId });
       } catch (err: any) {
         results.push({ id, ok: false, error: err.message });
@@ -494,12 +529,20 @@ export class AuditController {
   /** POST /sites/:siteId/audit/prompts/:promptId/run — tek prompt calistir */
   @MeasurementSession()
   @Post('prompts/:promptId/run')
-  runPrompt(
+  async runPrompt(
     @Param('siteId') siteId: string,
     @Param('promptId') promptId: string,
     @Body() body: { withFanout?: boolean; providers?: Provider[]; fanoutProviders?: Provider[] } = {},
   ) {
-    return this.promptLab.runPrompt(siteId, promptId, body);
+    // Govde servise YAYILMAZ: servis opts'u `trigger: 'system'` de kabul ediyor
+    // (platform otomasyonu — aylik citation kotasi ne denetlenir ne sayilir).
+    // Govdeden {"trigger":"system"} gelince olcum kotayi atlayip havuz
+    // anahtarlariyla sinirsiz calisiyordu. trigger asla istekten alinmaz.
+    return this.promptLab.runPrompt(siteId, promptId, {
+      withFanout: body?.withFanout === true,
+      providers: pickProviders(body?.providers, 'providers'),
+      fanoutProviders: pickProviders(body?.fanoutProviders, 'fanoutProviders'),
+    });
   }
 
   /** GET /sites/:siteId/audit/prompts/:promptId/history?days=30 */
@@ -666,11 +709,9 @@ export class AuditController {
     res.send(text);
   }
 
-  /** POST /sites/:siteId/audit/index-ping — bir URL'i tum AI/search engine kanallarina bildir */
-  @Post('index-ping')
-  indexPing(@Param('siteId') siteId: string, @Body() body: { url: string }) {
-    return this.pinger.pingUrl(siteId, body.url);
-  }
+  // index-ping kaldirildi: hicbir istemci cagirmiyordu ve site.url dogrulanmadigi
+  // icin kullanici baska bir alan adini site olarak ekleyip RanksUp'in IndexNow /
+  // Google Indexing anahtarlariyla o alan adini bildirebiliyordu (paylasilan kota).
 
   /** POST /sites/:siteId/audit/geo-heatmap — sektor sorularini AI'lara test et + rakiplerle karsilastir */
   @RequiresPlan('geoHeatmap')
@@ -692,14 +733,16 @@ export class AuditController {
     return this.knowledge.buildWikipedia(siteId);
   }
 
-  /** POST /sites/:siteId/audit/knowledge/submit — Wikidata/Wikipedia auto-submit */
+  /**
+   * POST /sites/:siteId/audit/knowledge/submit — otomatik gonderim KAPALI.
+   * Govdedeki taslak artik hicbir yere gonderilmez: eskiden RanksUp'in kendi
+   * Wikidata bot hesabiyla istemcinin yazdigi oge olusturuluyordu (gerekce ve
+   * kaynak: knowledge-submitter.service.ts). Cevap sekli ayni ({ ok, warning }).
+   */
   @Post('knowledge/submit')
-  async submitKnowledge(
-    @Param('siteId') siteId: string,
-    @Body() body: { target: 'wikidata' | 'wikipedia'; draft: any; lang?: 'tr' | 'en' },
-  ) {
-    if (body.target === 'wikidata') return this.knowledgeSubmitter.submitWikidata(body.draft);
-    return this.knowledgeSubmitter.submitWikipedia(body.draft, body.lang);
+  async submitKnowledge(@Body() body: { target?: string } = {}) {
+    if (body?.target === 'wikipedia') return this.knowledgeSubmitter.submitWikipedia();
+    return this.knowledgeSubmitter.submitWikidata();
   }
 
   /** POST /sites/:siteId/audit/community/find — Reddit/Quora/HARO firsatlari */
@@ -710,13 +753,17 @@ export class AuditController {
 
   /** POST /sites/:siteId/audit/cross-link/suggest — bir makale icin cross-link onerileri */
   @Post('cross-link/suggest')
-  crossLinkSuggest(@Param('siteId') siteId: string, @Body() body: { articleId: string; limit?: number }) {
-    return this.crossLink.suggestForArticle(body.articleId, { limit: body?.limit });
+  async crossLinkSuggest(@Param('siteId') siteId: string, @Body() body: { articleId: string; limit?: number }) {
+    const articleId = await this.assertArticleInSite(siteId, body?.articleId);
+    // Oneri basina bir model cagrisi (aiRefine): govdeden sinirsiz limit gelmesin
+    const limit = Math.min(Math.max(Math.trunc(Number(body?.limit)) || 5, 1), 10);
+    return this.crossLink.suggestForArticle(articleId, { limit });
   }
 
-  /** POST /sites/:siteId/audit/cross-link/apply — onaylanan oneriyi uygula */
+  /** POST /sites/:siteId/audit/cross-link/apply — onaylanan oneriyi uygula (yalniz bu sitenin makalesine) */
   @Post('cross-link/apply')
-  crossLinkApply(@Param('siteId') siteId: string, @Body() body: { suggestion: any }) {
+  async crossLinkApply(@Param('siteId') siteId: string, @Body() body: { suggestion: any }) {
+    await this.assertArticleInSite(siteId, body?.suggestion?.fromArticleId);
     return this.crossLink.applyLinkSuggestion(body.suggestion);
   }
 
@@ -811,19 +858,21 @@ export class AuditController {
     return this.aiReferrer.getHistory(siteId, days ? parseInt(days, 10) : 30);
   }
 
-  /** POST /sites/:siteId/audit/snippet/optimize — AI cevap kutucugu icin meta+snippet refine */
+  /** POST /sites/:siteId/audit/snippet/optimize — AI cevap kutucugu icin meta+snippet refine (yalniz bu sitenin makalesi) */
   @Post('snippet/optimize')
-  snippetOptimize(@Param('siteId') siteId: string, @Body() body: { articleId: string }) {
-    return this.snippetOpt.optimize(body.articleId);
+  async snippetOptimize(@Param('siteId') siteId: string, @Body() body: { articleId: string }) {
+    return this.snippetOpt.optimize(await this.assertArticleInSite(siteId, body?.articleId));
   }
 
-  /** POST /sites/:siteId/audit/snippet/optimize/apply — onerileri uygula */
+  /** POST /sites/:siteId/audit/snippet/optimize/apply — onerileri uygula (yalniz bu sitenin makalesine) */
   @Post('snippet/optimize/apply')
-  snippetOptimizeApply(
+  async snippetOptimizeApply(
     @Param('siteId') siteId: string,
     @Body() body: { articleId: string; optimized: any },
   ) {
-    return this.snippetOpt.apply(body.articleId, body.optimized);
+    const articleId = await this.assertArticleInSite(siteId, body?.articleId);
+    if (!body?.optimized || typeof body.optimized !== 'object') throw new BadRequestException('Uygulanacak öneri (optimized) gerekli.');
+    return this.snippetOpt.apply(articleId, body.optimized);
   }
 
   /** POST /sites/:siteId/audit/webhook/test — Slack/Discord webhook testi */
@@ -832,14 +881,19 @@ export class AuditController {
     return this.webhook.test(siteId);
   }
 
-  /** POST /sites/:siteId/audit/persona/chat — Public widget endpoint */
+  /**
+   * POST /sites/:siteId/audit/persona/chat — Public widget endpoint.
+   * IP basina sinirli (PERSONA_CHAT_THROTTLE) ve girdi dogrulanir
+   * (sanitizePersonaHistory: dizi, gecerli roller, son soru en fazla 1000 karakter).
+   */
   @Public()
+  @Throttle({ default: PERSONA_CHAT_THROTTLE })
   @Post('persona/chat')
-  personaChatAsk(
+  async personaChatAsk(
     @Param('siteId') siteId: string,
     @Body() body: { history: { role: 'user' | 'assistant'; content: string }[] },
   ) {
-    return this.personaChat.ask(siteId, body.history ?? []);
+    return this.personaChat.ask(siteId, sanitizePersonaHistory(body?.history));
   }
 
   @Get('snippets')
@@ -898,4 +952,21 @@ export class AuditController {
   ) {
     return this.staticFixer.write(siteId, body.pageUrl, body.snippets ?? []);
   }
+
+  /**
+   * Govdeden gelen makale kimligi BU siteye mi ait. SiteAccessGuard yalniz
+   * URL'deki :siteId'nin sahipligini dogrular, govdedeki articleId'ye bakmaz;
+   * servisler de kimligi siteyle sinirlamadan okuyup yaziyordu. Kapsam
+   * olmadan bir kullanici kendi sitesinin adresi altinda baska bir musterinin
+   * makalesini okuyabilir (meta, AI onerisi) ve degistirebilirdi
+   * (metaTitle / metaDescription / bodyMd). Bulunamazsa 404: kimligin baska
+   * bir sitede var olup olmadigi da sizmaz.
+   */
+  private async assertArticleInSite(siteId: string, articleId: unknown): Promise<string> {
+    if (typeof articleId !== 'string' || !articleId.trim()) throw new BadRequestException('Makale kimliği (articleId) gerekli.');
+    const article = await this.prisma.article.findFirst({ where: { id: articleId, siteId }, select: { id: true } });
+    if (!article) throw new NotFoundException('Makale bulunamadı.');
+    return article.id;
+  }
+
 }

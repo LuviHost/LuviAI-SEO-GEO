@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 
 export interface SubmitResult {
   ok: boolean;
@@ -9,112 +9,40 @@ export interface SubmitResult {
 }
 
 /**
- * Knowledge Submitter — Wikidata/Wikipedia'ya manuel onay sonrasi otomatik
- * submit eder.
+ * Knowledge Submitter — Wikidata/Wikipedia'ya OTOMATIK GONDERIM YAPMAZ.
  *
- * Wikidata: oauth2 + MediaWiki API (https://www.wikidata.org/w/api.php)
- *   - Yeni item: action=wbeditentity new=item
- *   - Claims: action=wbcreateclaim
+ * NEDEN KALDIRILDI: submitWikidata eskiden RanksUp'in KENDI bot hesabiyla
+ * (WIKIDATA_BOT_USER / WIKIDATA_BOT_PASS) oturum acip istemcinin gonderdigi
+ * etiket ve aciklamalarla yeni oge olusturuyordu (wbeditentity new=item):
+ * herhangi bir site sahibi RanksUp adina istedigi ogeyi acabiliyordu.
+ * Taslagi sunucuda uretmek de yetmez — etiket sitenin adidir (kullanici
+ * girdisi) ve her cagri yeni bir oge demekti. Wikidata bot politikasi her
+ * otomatik gorev icin onay ister ("a request must be made at
+ * Wikidata:Requests for permissions/Bot"), bot hesabini onayli gorevlerle
+ * sinirlar ("Bot accounts should not be used for contributions that do not
+ * fall within the scope of the bot's designated tasks") ve zarar halinde
+ * engellenebilecegini yazar ("Depending on the scale of the damage, an
+ * administrator may block the bot") — https://www.wikidata.org/wiki/Wikidata:Bots
+ * (18.10.2026). Musteri taslagi panelden kopyalayip kendi hesabiyla ekler;
+ * panel "Elle: Wikidata'da yeni öğe oluştur" baglantisini zaten veriyor.
  *
- * Wikipedia: ayni MediaWiki API (https://tr.wikipedia.org/w/api.php)
- *   - Page create: action=edit createonly=1
- *
- * NOT: Bot account gerekli (env: WIKIDATA_BOT_USER + WIKIDATA_BOT_PASS).
- *      Yoksa endpoint warning doner, kullanici manuel kopyalar.
+ * WIKIDATA_BOT_USER / WIKIDATA_BOT_PASS artik hicbir kod yolunda okunmuyor.
  */
 @Injectable()
 export class KnowledgeSubmitterService {
-  private readonly log = new Logger(KnowledgeSubmitterService.name);
-
-  async submitWikidata(draft: any): Promise<SubmitResult> {
-    const user = process.env.WIKIDATA_BOT_USER;
-    const pass = process.env.WIKIDATA_BOT_PASS;
-    if (!user || !pass) {
-      return {
-        ok: false,
-        warning: 'WIKIDATA_BOT_USER/PASS env yok. Manuel olarak Special:NewItem sayfasina kopyalayin.',
-      };
-    }
-
-    try {
-      // 1. Login token al
-      const tokenRes = await fetch('https://www.wikidata.org/w/api.php?action=query&meta=tokens&type=login&format=json', {
-        signal: AbortSignal.timeout(10000),
-      });
-      const tokenData = await tokenRes.json() as any;
-      const loginToken = tokenData?.query?.tokens?.logintoken;
-      if (!loginToken) throw new Error('Login token alinamadi');
-
-      // 2. Login
-      const cookies: string[] = [];
-      const loginRes = await fetch('https://www.wikidata.org/w/api.php', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({
-          action: 'login',
-          lgname: user,
-          lgpassword: pass,
-          lgtoken: loginToken,
-          format: 'json',
-        }),
-      });
-      const setCookie = loginRes.headers.get('set-cookie');
-      if (setCookie) cookies.push(setCookie);
-      const loginData = await loginRes.json() as any;
-      if (loginData?.login?.result !== 'Success') {
-        return { ok: false, error: `Login fail: ${loginData?.login?.reason ?? 'unknown'}` };
-      }
-
-      // 3. CSRF token
-      const csrfRes = await fetch('https://www.wikidata.org/w/api.php?action=query&meta=tokens&format=json', {
-        headers: { 'Cookie': cookies.join('; ') },
-      });
-      const csrfData = await csrfRes.json() as any;
-      const csrfToken = csrfData?.query?.tokens?.csrftoken;
-      if (!csrfToken) throw new Error('CSRF token alinamadi');
-
-      // 4. Item olustur
-      const data = {
-        labels: draft.labels,
-        descriptions: draft.descriptions,
-        aliases: {},
-      };
-      const createRes = await fetch('https://www.wikidata.org/w/api.php', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-          'Cookie': cookies.join('; '),
-        },
-        body: new URLSearchParams({
-          action: 'wbeditentity',
-          new: 'item',
-          token: csrfToken,
-          data: JSON.stringify(data),
-          format: 'json',
-        }),
-      });
-      const createData = await createRes.json() as any;
-      if (createData?.error) throw new Error(createData.error.info ?? 'create fail');
-      const itemId = createData?.entity?.id;
-
-      // Claims ekle (best-effort)
-      // Production'da her claim icin ayri call gerekiyor; MVP'de skip + manuel onay
-
-      return {
-        ok: true,
-        itemId,
-        url: `https://www.wikidata.org/wiki/${itemId}`,
-        warning: 'Item olusturuldu. Claim\'leri manuel ekleyin (P31, P856 vs.) — bot bunu desteklemiyor.',
-      };
-    } catch (err: any) {
-      return { ok: false, error: err.message };
-    }
-  }
-
-  async submitWikipedia(draft: any, lang: 'tr' | 'en' = 'tr'): Promise<SubmitResult> {
+  async submitWikidata(): Promise<SubmitResult> {
     return {
       ok: false,
-      warning: 'Wikipedia auto-submit suanda destek dısı — yeni makaleler manuel onay gerektirir, otomatik bot reddedilir. "Wikipedia\'da Olustur" butonuna manuel tiklayin.',
+      warning:
+        "Wikidata'ya RanksUp hesabıyla otomatik gönderim kapalı. Taslaktaki etiket, açıklama ve özellikleri kopyalayıp \"Elle: Wikidata'da yeni öğe oluştur\" bağlantısından kendi Wikidata hesabınla ekleyebilirsin.",
+    };
+  }
+
+  /** Wikipedia'ya hicbir surumde gonderim yapilmadi; davranis ayni, metin duzeltildi. */
+  async submitWikipedia(): Promise<SubmitResult> {
+    return {
+      ok: false,
+      warning: "RanksUp Wikipedia'ya otomatik gönderim yapmıyor. Taslağı kopyalayıp kendi Wikipedia hesabınla ekleyebilirsin.",
     };
   }
 }

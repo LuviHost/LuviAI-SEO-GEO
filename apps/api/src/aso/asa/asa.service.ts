@@ -1,4 +1,5 @@
 import { Injectable, Logger, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import type { Prisma } from '@prisma/client';
 import { encrypt, decrypt } from '@luviai/shared';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { AsaApiClient, type AsaCredentials } from './asa-api.client.js';
@@ -7,6 +8,30 @@ interface RequestingUser {
   id: string;
   role: 'USER' | 'ADMIN' | 'AGENCY_OWNER';
 }
+
+/**
+ * Hesap satirini istemciye donduren cevaplarin alan listesi. encryptedKey
+ * (.p8 ozel anahtarin sifreli hali) ve tokenCacheValue (istemci JWT onbellegi)
+ * YOK: setAutoPilot eskiden tam satiri donuyordu, sifreli anahtar sunucudan
+ * disari cikiyordu. Allowlist — yeni bir sir kolonu buraya yazilmadikca
+ * cevaba cikmaz.
+ */
+export const ASA_ACCOUNT_PUBLIC_SELECT = {
+  id: true,
+  siteId: true,
+  orgId: true,
+  keyId: true,
+  teamId: true,
+  isActive: true,
+  lastSyncAt: true,
+  lastError: true,
+  autoPilotEnabled: true,
+  autoPilotBudgetCap: true,
+  autoPilotLastRunAt: true,
+  autoPilotLastResult: true,
+  createdAt: true,
+  updatedAt: true,
+} satisfies Prisma.AsaAccountSelect;
 
 @Injectable()
 export class AsaService {
@@ -442,6 +467,7 @@ export class AsaService {
         autoPilotEnabled: args.enabled,
         autoPilotBudgetCap: args.budgetCapUsd ?? acc.autoPilotBudgetCap,
       },
+      select: ASA_ACCOUNT_PUBLIC_SELECT,
     });
   }
 

@@ -15,9 +15,21 @@ export class TestimonialsService {
     company?: string;
     metric?: string;
   }) {
-    if (!args.body || args.body.length < 10) throw new BadRequestException('Yorum en az 10 karakter olmalı');
+    if (typeof args.body !== 'string' || args.body.trim().length < 10) throw new BadRequestException('Yorum en az 10 karakter olmalı');
     if (args.body.length > 500) throw new BadRequestException('Yorum 500 karakteri geçemez');
-    if (args.rating < 1 || args.rating > 5) throw new BadRequestException('Rating 1-5 arası olmalı');
+    if (!Number.isInteger(args.rating) || args.rating < 1 || args.rating > 5) throw new BadRequestException('Puan 1-5 arası olmalı');
+
+    // siteId govdeden gelir: baska kullanicinin sitesine yorum baglanmasin.
+    // Siteye ait degilse kayit reddedilir (sessizce dusurmek yorumu yanlis
+    // siteyle ya da sitesiz yayinlardi).
+    let siteId: string | undefined;
+    if (args.siteId !== undefined && args.siteId !== null && args.siteId !== '') {
+      const own = typeof args.siteId === 'string'
+        ? await this.prisma.site.findFirst({ where: { id: args.siteId, userId: args.userId }, select: { id: true } })
+        : null;
+      if (!own) throw new ForbiddenException('Bu site sana ait değil');
+      siteId = own.id;
+    }
 
     // Aynı user'ın son 24 saat içinde 3'ten fazla yorum atmasını engelle (spam)
     const recent = await this.prisma.testimonial.count({
@@ -28,12 +40,12 @@ export class TestimonialsService {
     return this.prisma.testimonial.create({
       data: {
         userId: args.userId,
-        siteId: args.siteId,
+        siteId,
         rating: args.rating,
         body: args.body.trim(),
-        role: args.role?.trim().slice(0, 80),
-        company: args.company?.trim().slice(0, 120),
-        metric: args.metric?.trim().slice(0, 120),
+        role: typeof args.role === 'string' ? args.role.trim().slice(0, 80) : undefined,
+        company: typeof args.company === 'string' ? args.company.trim().slice(0, 120) : undefined,
+        metric: typeof args.metric === 'string' ? args.metric.trim().slice(0, 120) : undefined,
       },
     });
   }

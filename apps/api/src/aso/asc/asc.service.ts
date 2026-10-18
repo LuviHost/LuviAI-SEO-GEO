@@ -1,4 +1,5 @@
 import { Injectable, Logger, NotFoundException, BadRequestException, ForbiddenException } from '@nestjs/common';
+import type { Prisma } from '@prisma/client';
 import { encrypt, decrypt } from '@luviai/shared';
 import { PrismaService } from '../../prisma/prisma.service.js';
 import { AscApiClient, type AscCredentials } from './asc-api.client.js';
@@ -32,6 +33,24 @@ export interface RequestingUser {
   id: string;
   role: 'USER' | 'ADMIN' | 'AGENCY_OWNER';
 }
+
+/**
+ * connectAccount cevabinin alan listesi. encryptedKey (.p8 ozel anahtarin
+ * sifreli hali) ve tokenCacheValue YOK: eskiden tam satir donuyordu, sifreli
+ * anahtar sunucudan disari cikiyordu. Allowlist — yeni bir sir kolonu buraya
+ * yazilmadikca cevaba cikmaz.
+ */
+export const ASC_ACCOUNT_PUBLIC_SELECT = {
+  id: true,
+  siteId: true,
+  issuerId: true,
+  keyId: true,
+  isActive: true,
+  lastSyncAt: true,
+  lastError: true,
+  createdAt: true,
+  updatedAt: true,
+} satisfies Prisma.AscAccountSelect;
 
 @Injectable()
 export class AscService {
@@ -100,6 +119,7 @@ export class AscService {
           isActive: true,
           lastError: null,
         },
+        select: ASC_ACCOUNT_PUBLIC_SELECT,
       });
       this.clientCache.delete(updated.id);
       return updated;
@@ -111,6 +131,7 @@ export class AscService {
         keyId: args.keyId,
         encryptedKey,
       },
+      select: ASC_ACCOUNT_PUBLIC_SELECT,
     });
   }
 

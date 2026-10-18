@@ -1,7 +1,8 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, Req, UnauthorizedException } from '@nestjs/common';
+import { Body, Controller, Get, Patch, Post, Query, Req, UnauthorizedException } from '@nestjs/common';
 import type { Request } from 'express';
 import { AgencyService } from './agency.service.js';
 import { Public } from '../auth/public.decorator.js';
+import { InviteClientDto, WhitelabelDto } from './agency.dto.js';
 
 function ensureUser(req: Request) {
   const user = (req as any).user;
@@ -21,14 +22,23 @@ export class AgencyController {
 
   /** POST /agency/invite — yeni client davet (email + invite URL) */
   @Post('invite')
-  invite(@Req() req: Request, @Body() body: { email: string; name?: string }) {
-    return this.agency.inviteClient(ensureUser(req).id, body.email, body.name);
+  invite(@Req() req: Request, @Body() body: InviteClientDto) {
+    // `name` panel formundan gelir ve kabul edilir; davet kaydi yalniz e-postayi tutar
+    return this.agency.inviteClient(ensureUser(req).id, body.email.trim());
   }
 
   /** PATCH /agency/whitelabel */
   @Patch('whitelabel')
-  whitelabel(@Req() req: Request, @Body() body: any) {
-    return this.agency.updateWhitelabel(ensureUser(req).id, body);
+  whitelabel(@Req() req: Request, @Body() body: WhitelabelDto) {
+    // Alanlar tek tek — govde servise yayilmaz
+    return this.agency.updateWhitelabel(ensureUser(req).id, {
+      enabled: body.enabled,
+      brandName: body.brandName,
+      logoUrl: body.logoUrl,
+      primaryColor: body.primaryColor,
+      domain: body.domain,
+      emailFrom: body.emailFrom,
+    });
   }
 
   /** GET /agency/resolve-domain?host=... — Public (frontend rebrand) */

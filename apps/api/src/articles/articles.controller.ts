@@ -1,29 +1,47 @@
-import { Body, Controller, Delete, Get, Header, Param, Patch, Post, Put, Query, Res } from '@nestjs/common';
-import type { Response } from 'express';
+import { Body, Controller, Delete, Get, NotFoundException, Param, Patch, Post, Put, Query } from '@nestjs/common';
 import { ArticlesService } from './articles.service.js';
 import { ArticleSchedulerService } from './article-scheduler.service.js';
 import { ProgrammaticSeoService } from './programmatic-seo.service.js';
-import { TiktokPublisherService } from './tiktok-publisher.service.js';
-import { InstagramPublisherService } from './instagram-publisher.service.js';
 import { TranslatorService } from './translator.service.js';
 import { QaGateService } from './qa-gate.service.js';
 import { RequiresPlan } from '../billing/plan-feature.decorator.js';
+import { TranslateArticleDto, TranslateBulkDto } from './articles.dto.js';
 
 // PLAN KAPILARI — bu dosyada yalnizca EYLEM uclari plana baglidir.
 // Programmatic SEO fiyat kartinda Ajans plani maddesi olarak satiliyor, o yuzden
 // toplu sehir uretimi ucu kapali. Duz listeleme ve gecmis GET uclari bilerek
 // ACIK birakildi; plani dusen kullanici gecmis verisini gorebilmeli.
+//
+// SAHIPLIK: SiteAccessGuard yalniz `:siteId`'yi dogrular. `:id` (makale) ayri
+// bir parametre — servis onu siteId'siz okuyorsa (reschedule, unschedule,
+// translate) makale once BU siteye ait mi diye bakilir (requireArticle).
+//
+// KALDIRILAN UCLAR (istemcisi yoktu; web/mobil/worker cagirmiyor):
+//  - POST schedule-batch: ilk makaleyi kota denetimi OLMADAN hemen uretime
+//    aliyordu; her cagri bedava bir makale (5 ajanlik LLM zinciri) demekti.
+//    Onboarding ayni servisi worker'da (5/5 adimi) dogrudan cagiriyor.
+//  - POST :id/video/tiktok: govdedeki `videoPath` sunucuda fs.readFile ile
+//    okunuyordu (rastgele dosya okuma) ve RanksUp'in KENDI TikTok hesabina
+//    (TIKTOK_ACCESS_TOKEN) yukleniyordu.
+//  - POST :id/video/instagram: herhangi bir musteri, RanksUp'in KENDI
+//    Instagram hesabinda (INSTAGRAM_ACCESS_TOKEN) istedigi video ve metinle
+//    Reels yayinlatabiliyordu.
 @Controller('sites/:siteId/articles')
 export class ArticlesController {
   constructor(
     private readonly articles: ArticlesService,
     private readonly scheduler: ArticleSchedulerService,
     private readonly programmatic: ProgrammaticSeoService,
-    private readonly tiktok: TiktokPublisherService,
-    private readonly instagram: InstagramPublisherService,
     private readonly translator: TranslatorService,
     private readonly qaGate: QaGateService,
   ) {}
+
+  /** Makale bu siteye ait degilse 404 (baska sitenin makalesinin varligi sizmaz) */
+  private async requireArticle(siteId: string, id: string): Promise<void> {
+    if (!siteId || !id) throw new NotFoundException('Makale bulunamadı');
+    const article = await this.articles.findOne(id, siteId);
+    if (!article) throw new NotFoundException('Makale bulunamadı');
+  }
 
   @Get()
   list(@Param('siteId') siteId: string, @Query('status') status?: string) {
@@ -34,12 +52,6 @@ export class ArticlesController {
   @Get('scheduled')
   scheduled(@Param('siteId') siteId: string) {
     return this.scheduler.listScheduledForSite(siteId);
-  }
-
-  /** POST /sites/:siteId/articles/schedule-batch — onboarding sonrasi tier-1'den N makale schedule et */
-  @Post('schedule-batch')
-  scheduleBatch(@Param('siteId') siteId: string, @Body() body: { count?: number }) {
-    return this.scheduler.scheduleInitialBatch(siteId, { count: body?.count });
   }
 
   /** POST /sites/:siteId/articles/schedule-topic — drag-drop: bir tier-1 konuyu takvime ekle */
@@ -53,16 +65,22 @@ export class ArticlesController {
 
   /** PUT /sites/:siteId/articles/:id/reschedule — drag-drop: takvimde mevcut makaleyi tasi */
   @Put(':id/reschedule')
-  reschedule(
+  async reschedule(
+    @Param('siteId') siteId: string,
     @Param('id') id: string,
     @Body() body: { scheduledAt: string },
   ) {
+    // Servis makaleyi yalniz id ile okuyor: baska sitenin makalesi tasinabiliyor
+    // (DRAFT → SCHEDULED, kurbanin kotasindan uretim) ve tam satiri donuyordu
+    await this.requireArticle(siteId, id);
     return this.scheduler.rescheduleArticle(id, body.scheduledAt);
   }
 
   /** DELETE /sites/:siteId/articles/scheduled/:id — takvimden kaldir */
   @Delete('scheduled/:id')
-  unschedule(@Param('id') id: string) {
+  async unschedule(@Param('siteId') siteId: string, @Param('id') id: string) {
+    // Servis yalniz id ile siliyordu — baska sitenin takvimdeki makalesi silinebiliyordu
+    await this.requireArticle(siteId, id);
     return this.scheduler.unscheduleArticle(id);
   }
 
@@ -127,27 +145,18 @@ export class ArticlesController {
     return this.articles.triggerNow(siteId, id);
   }
 
-  /** POST /sites/:siteId/articles/:id/video/tiktok — TikTok upload */
-  @Post(':id/video/tiktok')
-  uploadTikTok(@Param('id') id: string, @Body() body: { videoPath: string }) {
-    return this.tiktok.uploadVideo(id, body.videoPath);
-  }
-
-  /** POST /sites/:siteId/articles/:id/video/instagram — Instagram Reels upload */
-  @Post(':id/video/instagram')
-  uploadInstagram(@Param('id') id: string, @Body() body: { publicVideoUrl: string; caption?: string }) {
-    return this.instagram.uploadReel(id, body.publicVideoUrl, body.caption);
-  }
-
   /** POST /sites/:siteId/articles/:id/translate — makaleyi farkli dile cevir */
   @Post(':id/translate')
-  translate(@Param('id') id: string, @Body() body: { toLanguage: string }) {
+  async translate(@Param('siteId') siteId: string, @Param('id') id: string, @Body() body: TranslateArticleDto) {
+    // Servis makaleyi yalniz id ile okuyor: baska sitenin makalesi o sitede
+    // yeni bir ceviri kaydi olarak (LLM maliyetiyle) uretilebiliyordu
+    await this.requireArticle(siteId, id);
     return this.translator.translate(id, body.toLanguage);
   }
 
   /** POST /sites/:siteId/articles/translate-bulk — site icin bulk cevir */
   @Post('translate-bulk')
-  translateBulk(@Param('siteId') siteId: string, @Body() body: { languages: string[] }) {
+  translateBulk(@Param('siteId') siteId: string, @Body() body: TranslateBulkDto) {
     return this.translator.bulkTranslateSite(siteId, body.languages ?? ['en']);
   }
 

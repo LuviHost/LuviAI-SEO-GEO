@@ -1,4 +1,5 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { PERSONA_CHAT_MAX_QUESTION_CHARS } from './persona-chat-input.js';
 import Anthropic from '@anthropic-ai/sdk';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { SettingsService } from '../settings/settings.service.js';
@@ -51,10 +52,23 @@ export class PersonaChatService {
       return { reply: 'AI cevap servisi devre disi.', sources: [], cited: false };
     }
 
-    const site: any = await this.prisma.site.findUniqueOrThrow({
+    const site: any = await this.prisma.site.findUnique({
       where: { id: siteId },
       include: { brain: true },
     });
+    if (!site) throw new NotFoundException('Site bulunamadi');
+
+    // MALIYET TAVANI: bu uc kimliksiz ve her cagri RanksUp anahtariyla ucretli
+    // bir model istegi. IP sinirlamasi tek basina yetmez (origin'e dogrudan
+    // gelen istemci CF-Connecting-IP'yi kendisi yazabilir, IPv6 adresi
+    // degistirilebilir); site basina ve toplam gunluk butce bunu sinirlar.
+    if (!(await this.withinDailyBudget(siteId))) {
+      return {
+        reply: 'Bu sitenin sohbet asistani bugunluk yanit sinirina ulasti. Lutfen daha sonra tekrar deneyin.',
+        sources: [],
+        cited: false,
+      };
+    }
 
     // En guncel 30 makale title + slug + meta
     const articles = await this.prisma.article.findMany({
@@ -95,7 +109,7 @@ Cevabin sonunda kullandigin makale URL'lerini parantez icinde belirt: (kaynak: $
       // Widget ziyaretcisi anonim → 'anon' kademesi (admin panelden MODEL_ANON).
       const resp = await this.anthropic.messages.create({
         model: await modelForAudience(this.settings, 'anon'),
-        max_tokens: 4000,
+        max_tokens: 1024,
         system,
         messages: history
           .slice(-this.MAX_HISTORY_MESSAGES)
@@ -120,6 +134,36 @@ Cevabin sonunda kullandigin makale URL'lerini parantez icinde belirt: (kaynak: $
     } catch (err: any) {
       this.log.warn(`Persona chat fail: ${err.message}`);
       return { reply: 'Bir hata olustu, biraz sonra tekrar deneyin.', sources: [], cited: false };
+    }
+  }
+
+  /**
+   * Site ve tum sistem icin gunluk sayaci atomik artirir; tavan asildiysa false.
+   * Sayaclar kv_store'da gun anahtariyla tutulur ve 2 gun sonra suresi dolar.
+   */
+  private async withinDailyBudget(siteId: string): Promise<boolean> {
+    const day = new Date().toISOString().slice(0, 10);
+    const siteLimit = positiveInt(process.env.PERSONA_CHAT_SITE_DAILY_LIMIT, 300);
+    const globalLimit = positiveInt(process.env.PERSONA_CHAT_GLOBAL_DAILY_LIMIT, 3000);
+    const expiresAt = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000);
+    const bump = async (key: string): Promise<number> => {
+      await this.prisma.$executeRawUnsafe(
+        'INSERT INTO `kv_store` (`key`, `value`, `expiresAt`, `updatedAt`) VALUES (?, ?, ?, NOW(3)) ' +
+        'ON DUPLICATE KEY UPDATE `value` = CAST(CAST(`value` AS UNSIGNED) + 1 AS CHAR)',
+        key, '1', expiresAt,
+      );
+      const row = await this.prisma.kvStore.findUnique({ where: { key } });
+      return Number.parseInt(row?.value ?? '0', 10) || 0;
+    };
+    try {
+      const siteCount = await bump(`persona-chat:${day}:site:${siteId}`);
+      if (siteCount > siteLimit) return false;
+      const total = await bump(`persona-chat:${day}:all`);
+      return total <= globalLimit;
+    } catch (err: any) {
+      // Sayac yazilamazsa (DB sorunu) ucretli cagriyi yapma — guvenli taraf
+      this.log.warn(`Persona chat butce sayaci yazilamadi: ${err.message}`);
+      return false;
     }
   }
 
@@ -158,6 +202,7 @@ Cevabin sonunda kullandigin makale URL'lerini parantez icinde belirt: (kaynak: $
   inputWrap.style.cssText = 'display:flex;gap:8px;padding:12px;border-top:1px solid #e5e7eb';
   var input = document.createElement('input');
   input.placeholder = 'Sorunuzu yazin...';
+  input.maxLength = ${PERSONA_CHAT_MAX_QUESTION_CHARS};
   input.style.cssText = 'flex:1;border:1px solid #d1d5db;border-radius:8px;padding:8px 12px;font-size:14px';
   var send = document.createElement('button');
   send.innerText = 'Gonder';
@@ -190,9 +235,16 @@ Cevabin sonunda kullandigin makale URL'lerini parantez icinde belirt: (kaynak: $
       headers: {'Content-Type':'application/json'},
       body: JSON.stringify({history: history})
     })
-    .then(function(r){return r.json();})
-    .then(function(data){
+    .then(function(r){return r.json().then(function(d){return {ok:r.ok,data:d};});})
+    .then(function(res){
       msgs.removeChild(loadBubble);
+      var data = res.data || {};
+      if (!res.ok) {
+        var m = Array.isArray(data.message) ? data.message[0] : data.message;
+        history.pop();
+        append('assistant', m || 'Soru gonderilemedi, biraz sonra tekrar deneyin.');
+        return;
+      }
       append('assistant', data.reply || 'Cevap alinmadi.');
       history.push({role:'assistant',content:data.reply || ''});
     })
@@ -221,4 +273,10 @@ Cevabin sonunda kullandigin makale URL'lerini parantez icinde belirt: (kaynak: $
 })();
     `;
   }
+}
+
+/** Env'den pozitif tamsayi; gecersizse varsayilan */
+function positiveInt(raw: string | undefined, fallback: number): number {
+  const n = Number.parseInt(raw ?? '', 10);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
 }

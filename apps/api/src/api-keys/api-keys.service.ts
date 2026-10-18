@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { createHash, randomBytes } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service.js';
 
@@ -22,6 +22,11 @@ export type Scope = typeof ALL_SCOPES[number];
  * seyi yazma" olarak netlestirildi.
  */
 export const DEFAULT_SCOPES: Scope[] = ALL_SCOPES.filter((s) => s.endsWith(':read'));
+
+/** Anahtar basina dakikalik istek tavani (varsayilan ve ust sinir). */
+export const DEFAULT_RATE_LIMIT = 60;
+/** expiresInDays ust siniri (~10 yil) — daha buyugu gecersiz tarih uretir. */
+export const MAX_KEY_LIFETIME_DAYS = 3650;
 
 /**
  * Rota yolundaki segment -> scope kaynagi eslesmesi.
@@ -72,15 +77,28 @@ export class ApiKeysService {
       }
     }
 
+    // Ad, sure ve tavan istemciden geldigi gibi yazilmaz (DTO kenarda da
+    // denetler; ic cagri pipe'i atlarsa burasi son kapi).
+    const name = typeof opts.name === 'string' ? opts.name.trim().slice(0, 100) : '';
+    if (!name) throw new BadRequestException('Anahtar adı zorunlu');
+    const days = opts.expiresInDays;
+    if (days !== undefined && days !== null && (!Number.isInteger(days) || days < 1 || days > MAX_KEY_LIFETIME_DAYS)) {
+      throw new BadRequestException(`Geçerlilik süresi 1-${MAX_KEY_LIFETIME_DAYS} gün arası bir tam sayı olmalı`);
+    }
+    // Istemci tavani gevsetemez: varsayilanin ustu kirpilir, gecersiz deger varsayilana duser
+    const rateLimit = Number.isInteger(opts.rateLimit) && (opts.rateLimit as number) >= 1
+      ? Math.min(opts.rateLimit as number, DEFAULT_RATE_LIMIT)
+      : DEFAULT_RATE_LIMIT;
+
     const apiKey = await this.prisma.apiKey.create({
       data: {
         userId,
-        name: opts.name,
+        name,
         scopes: (requested ?? DEFAULT_SCOPES) as any,
         keyHash,
         prefix,
-        rateLimit: opts.rateLimit ?? 60,
-        expiresAt: opts.expiresInDays ? new Date(Date.now() + opts.expiresInDays * 86400000) : null,
+        rateLimit,
+        expiresAt: days ? new Date(Date.now() + days * 86400000) : null,
       },
     });
 
@@ -109,14 +127,18 @@ export class ApiKeysService {
   }
 
   async revoke(userId: string, keyId: string) {
-    // Ensure ownership
-    const key = await this.prisma.apiKey.findUnique({ where: { id: keyId } });
+    // Ensure ownership — baskasinin anahtari da "yok" (404; varligi sizmaz)
+    const key = typeof keyId === 'string' && keyId
+      ? await this.prisma.apiKey.findUnique({ where: { id: keyId }, select: { id: true, userId: true } })
+      : null;
     if (!key || key.userId !== userId) {
-      throw new Error('API key bulunamadi');
+      throw new NotFoundException('API anahtarı bulunamadı');
     }
+    // Cevapta keyHash/userId yok — listeyle ayni alanlar + revokedAt
     return this.prisma.apiKey.update({
       where: { id: keyId },
       data: { revokedAt: new Date() },
+      select: { id: true, name: true, prefix: true, scopes: true, rateLimit: true, lastUsedAt: true, expiresAt: true, createdAt: true, revokedAt: true },
     });
   }
 

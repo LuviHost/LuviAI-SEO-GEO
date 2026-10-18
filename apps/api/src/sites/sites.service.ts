@@ -17,13 +17,19 @@ import { CreateSiteDto, UpdateSiteDto } from './sites.dto.js';
  * hatasi atti, site listesi 500 dondu ve panel "Henuz site eklenmemis" gosterdi
  * (sayac baska bir uctan geldigi icin 11 yaziyordu — hata bu yuzden sessiz kaldi).
  * Tip yazili oldugunda yanlis alan adi DERLEME hatasi verir.
+ *
+ * Disa acik: site satirini dogrudan donduren controller uclari (autopilot,
+ * webhook) da ayni listeyi kullanir — ikinci bir kopya eksik kalirdi.
  */
-const SITE_SECRET_FIELDS: Prisma.SiteOmit = {
+export const SITE_SECRET_FIELDS: Prisma.SiteOmit = {
   ingestSecret: true,
   gscRefreshToken: true,
   gaRefreshToken: true,
   googleAdsRefreshToken: true,
   metaAdsAccessToken: true,
+  // Slack/Discord gelen webhook adresi tasiyici bir sirdir: adresi bilen o
+  // kanala RanksUp adina mesaj atabilir. Panel bu alani okumuyor.
+  notifyWebhookUrl: true,
 };
 
 type RequestingUser = { id: string; role: 'USER' | 'ADMIN' | 'AGENCY_OWNER' };
@@ -127,12 +133,15 @@ export class SitesService {
 
   async update(id: string, dto: UpdateSiteDto, user: RequestingUser) {
     await this.assertOwnership(id, user);
-    return this.prisma.site.update({ where: { id }, data: dto });
+    // Guncelleme cevabi tam satirdi: ingestSecret (duz metin HMAC siri) ve
+    // sifreli saglayici token'lari dahil. 'sites:write' anahtari sirri okuyup
+    // sahte ingest imzalayabiliyordu.
+    return this.prisma.site.update({ where: { id }, data: dto, omit: SITE_SECRET_FIELDS });
   }
 
   async remove(id: string, user: RequestingUser) {
     await this.assertOwnership(id, user);
-    return this.prisma.site.delete({ where: { id } });
+    return this.prisma.site.delete({ where: { id }, omit: SITE_SECRET_FIELDS });
   }
 
   // ──────────────────────────────────────────────────────────
@@ -178,6 +187,7 @@ export class SitesService {
         autopilot: targetCount > 0, // yayın hedefi yoksa otopilot baslamasin
         status: 'ACTIVE' as any,
       },
+      omit: SITE_SECRET_FIELDS,
     });
   }
 

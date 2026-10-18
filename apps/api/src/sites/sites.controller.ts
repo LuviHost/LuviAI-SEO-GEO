@@ -1,6 +1,6 @@
-import { Body, Controller, Delete, ForbiddenException, Get, Param, Patch, Post, Put, Req, UnauthorizedException } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Req, UnauthorizedException } from '@nestjs/common';
 import type { Request } from 'express';
-import { SitesService } from './sites.service.js';
+import { SitesService, SITE_SECRET_FIELDS } from './sites.service.js';
 import { CreateSiteDto, UpdateSiteDto } from './sites.dto.js';
 import { GscOAuthService } from '../auth/gsc-oauth.service.js';
 import { GaOAuthService } from '../auth/ga-oauth.service.js';
@@ -157,9 +157,11 @@ export class SitesController {
     @Body() body: { enabled: boolean },
   ) {
     await this.sites.findOne(id, ensureUser(req));
+    // Cevapta sirlar yok (ingestSecret, sifreli token'lar) — eskiden tam satirdi
     return this.prisma.site.update({
       where: { id },
       data: { autopilot: !!body.enabled } as any,
+      omit: SITE_SECRET_FIELDS,
     });
   }
 
@@ -183,6 +185,7 @@ export class SitesController {
         notifyWebhookUrl: body.url || null,
         notifyWebhookKind: body.kind ?? null,
       } as any,
+      omit: SITE_SECRET_FIELDS,
     });
   }
 }
