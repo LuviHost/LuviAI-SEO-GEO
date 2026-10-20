@@ -19,10 +19,14 @@ export const metadata = { title: 'Auto-Pilot — RanksUp Help' };
 //      Tier 1'i en fazla 6 konuyla sinirliyor, bu yuzden "en fazla". Ilk yazi
 //      hemen kuyruga girer, kalanlar SCHEDULED.
 //    * Kalanlari saatlik tarama (PROCESS_SCHEDULED, 60 dk) yalniz akis acikken
-//      ve articlesUsedThisMonth < plans.ts articlesPerMonth ise alir. Sayaci
-//      yalniz kullanicinin kendi baslattigi uretimler artirir (Uret, Simdi uret,
-//      MCP create_article, icerik firsati); takvim uretimi artirmaz. Eski
-//      "deneme hesabinda plan secilene kadar bekler" kodda yoktu.
+//      alir; her yazi uretime alinirken aylik makale hakkindan bir kez duser
+//      (chargeArticle, 20.10.2026). Hak doluysa yazi bekler. Deneme hesabi
+//      toplam 2 makale uretir, onboarding'in ilk yazisi dahil (ucretli planda
+//      ilk yazi ucretsiz); hakki asan takvim yazilari panelde kilitli gorunur
+//      (articles/plan-lock.ts lockedByPlan) ve plan yukseltilince uretilir
+//      (paytr activateSubscription → scheduled-kick.ts kullanici taramasi).
+//      Eski "takvim uretimi hakka sayilmaz" artik yanlis.
+//    * Yeniden yazim (icerik pivotu) ve ceviri deneme hesabinda calismaz.
 //    * "15 dk once" yalniz gecikmeli iste dogru: scheduleTopic (Takvime ekle)
 //      ve rescheduleArticle (tarih ata / tasi) LEAD_TIME_MS ile is kurar.
 //      Ilk takvim ve programatik SEO yazilari icin is kurulmaz; tarama esigi
@@ -73,10 +77,10 @@ export default function Page() {
         Site menüsündeki <strong>Otomatik Akış</strong> sayfasından açıp durdurursun. Site eklediğinde açık başlar.
       </p>
       <ul>
-        <li>Site eklenince konu motorunun öncelikli konuları takvime yerleşir (otomatik akış açıkken en fazla 8, kapalıyken en fazla 3) ve ilk makale hemen üretilir. Bu ilk takvimin diğer makaleleri otomatik akış açıkken zamanı gelince üretilir, akış durdurulmuşsa bekler; kendi başlattığın üretimler makale hakkını doldurduysa (deneme hesabında toplam 2 makale) onlar da bekler</li>
+        <li>Site eklenince konu motorunun öncelikli konuları takvime yerleşir (otomatik akış açıkken en fazla 8, kapalıyken en fazla 3) ve ilk makale hemen üretilir. Bu ilk takvimin diğer makaleleri otomatik akış açıkken zamanı gelince üretilir, akış durdurulmuşsa bekler. Her makale üretime alınırken makale hakkından bir kez düşer; hakkın dolduysa takvimdeki makaleler hakkın yenilenene ya da planını yükseltene kadar bekler. Ücretsiz denemede ilk makale dahil toplam 2 makale yazılır; takvimin geri kalanı panelde kilitli görünür ve planını yükselttiğinde yazılır</li>
         <li>Site eklenirken FTP, SFTP ya da cPanel yayın hedefi tanımlıysa eksik sitemap.xml ve llms.txt oluşturulup yüklenir; hedefi sonradan eklersen düzeltmeyi Site Skoru sayfasından başlatırsın. robots.txt değişikliği yalnızca sen önizleyip onayladığında yazılır</li>
         <li>Akış açıkken takvime kendin eklediğin, tarih atadığın ya da başka güne taşıdığın makaleler planlanan saatten 15 dakika önce üretime alınır; site eklenirken takvime yerleşenleri saatlik tarama alır (planlanan saatin en fazla 15 dakika öncesinden yaklaşık 45 dakika sonrasına kadar). Akış durdurulmuşsa takvim bekler; üretim birkaç dakika sürer</li>
-        <li>Otomatik akış açık ve Search Console bağlıysa, yayından en az 30 gün geçmiş ve Search Console verisinde gösterim alıp tıklaması ya da sırası zayıf kalan makaleler haftalık taramada yeniden yazılabilir; Yarı otomatikte yeni hali onayını bekler</li>
+        <li>Ücretli planlarda, otomatik akış açık ve Search Console bağlıysa, yayından en az 30 gün geçmiş ve Search Console verisinde gösterim alıp tıklaması ya da sırası zayıf kalan makaleler haftalık taramada yeniden yazılabilir; Yarı otomatikte yeni hali onayını bekler</li>
         <li>Profesyonel ve üstü planlarda, Search Console bağlı, akış açık ve Tam otomatik moddaysan Google&apos;da 4-15. sırada takılı kalan RanksUp makaleleri her hafta (site başına en fazla 5) iyileştirilip yeniden yayınlanır; Yarı otomatikte bunları Takılı Sayfalar ekranından sen başlatırsın</li>
       </ul>
 

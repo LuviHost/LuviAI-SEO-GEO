@@ -1,5 +1,6 @@
 import { Injectable, Logger, BadRequestException, NotFoundException } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
+import type { ContentOpportunity } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { JobQueueService } from '../jobs/job-queue.service.js';
 import { QuotaService } from '../billing/quota.service.js';
@@ -244,8 +245,23 @@ export class ContentOpportunityService {
     }
 
     const site = await this.prisma.site.findUniqueOrThrow({ where: { id: siteId } });
-    await this.quota.enforceArticleQuota(site.userId);
+    // Hak uretim baslamadan tek kosullu UPDATE ile duser (QuotaService
+    // consumeArticleAllowance); is kuyruga girmezse asagida geri verilir
+    await this.quota.consumeArticleAllowance(site.userId);
+    try {
+      return await this.queueOpportunityGeneration(item, site);
+    } catch (err) {
+      await this.quota.refundArticleAllowance(site.userId);
+      throw err;
+    }
+  }
 
+  /** generateArticle'in uretimi baslatan kismi — hak cagiran tarafindan dusuldu */
+  private async queueOpportunityGeneration(
+    item: ContentOpportunity,
+    site: { id: string; userId: string; language: string | null },
+  ) {
+    const siteId = site.id;
     const topic = item.title || item.query;
 
     // ONCE MEVCUT MAKALE: bu soruyu zaten cevaplayan yayimlanmis bir makale
@@ -280,7 +296,6 @@ export class ContentOpportunityService {
           lostQuery: item.query,
         } as any,
       });
-      await this.quota.incrementArticleUsage(site.userId);
       const now = new Date();
       await this.prisma.contentOpportunity.update({
         where: { id: item.id },
@@ -323,7 +338,6 @@ export class ContentOpportunityService {
       siteId,
       payload: { siteId, topic, articleId: article.id },
     });
-    await this.quota.incrementArticleUsage(site.userId);
 
     await this.prisma.contentOpportunity.update({
       where: { id: item.id },

@@ -711,25 +711,31 @@ export class McpToolsService {
           const site = await this.resolveSite(user, args.site_id);
           const topic = String(args.topic ?? '').trim();
           if (topic.length < 5) throw new Error('Konu en az 5 karakter olmali');
-          await this.quota.enforceArticleQuota(site.userId);
-          const article = await this.prisma.article.create({
-            data: {
+          // Hak uretim baslamadan tek kosullu UPDATE ile duser; baslatilamazsa geri
+          // verilir (QuotaService consumeArticleAllowance — ArticlesService ile ayni)
+          await this.quota.consumeArticleAllowance(site.userId);
+          try {
+            const article = await this.prisma.article.create({
+              data: {
+                siteId: site.id,
+                topic,
+                slug: `generating-${Date.now().toString(36)}`,
+                title: topic,
+                status: 'GENERATING' as any,
+                language: site.language ?? 'tr',
+              },
+            });
+            const job = await this.jobQueue.enqueue({
+              type: 'GENERATE_ARTICLE',
+              userId: site.userId,
               siteId: site.id,
-              topic,
-              slug: `generating-${Date.now().toString(36)}`,
-              title: topic,
-              status: 'GENERATING' as any,
-              language: site.language ?? 'tr',
-            },
-          });
-          const job = await this.jobQueue.enqueue({
-            type: 'GENERATE_ARTICLE',
-            userId: site.userId,
-            siteId: site.id,
-            payload: { siteId: site.id, topic, articleId: article.id },
-          });
-          await this.quota.incrementArticleUsage(site.userId);
-          return { queued: true, articleId: article.id, jobId: job.dbJobId };
+              payload: { siteId: site.id, topic, articleId: article.id },
+            });
+            return { queued: true, articleId: article.id, jobId: job.dbJobId };
+          } catch (err) {
+            await this.quota.refundArticleAllowance(site.userId);
+            throw err;
+          }
         },
       },
 

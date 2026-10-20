@@ -1,10 +1,12 @@
-import { Injectable, Logger, BadRequestException, ForbiddenException } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException, ForbiddenException, Optional } from '@nestjs/common';
 import { createHmac } from 'node:crypto';
 import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AffiliateService } from '../affiliate/affiliate.service.js';
 import { EmailService } from '../email/email.service.js';
 import { FxService } from './fx.service.js';
+import { JobQueueService } from '../jobs/job-queue.service.js';
+import { kickScheduledAfterUpgrade } from '../articles/scheduled-kick.js';
 import { findPlan, PURCHASABLE_PLAN_IDS } from './plans.js';
 import { cycleFromDescription, periodEndFromInvoice } from './subscription-period.js';
 import { RENEWAL_MAX_ATTEMPTS } from './renewal-policy.js';
@@ -200,6 +202,9 @@ export class PaytrService {
     private readonly affiliate: AffiliateService,
     private readonly email: EmailService,
     private readonly fx: FxService,
+    // Plan yukseltme sonrasi takvim taramasi (scheduled-kick.ts). Opsiyonel: kuyruk
+    // olmadan da plan acilir (saatlik tarama bekleyen yazilari yine alir)
+    @Optional() private readonly jobs?: JobQueueService,
   ) {}
 
   /**
@@ -917,6 +922,11 @@ export class PaytrService {
         renewalNoticeAt: null,
       },
     });
+
+    // Plan degisti, hak yenilendi: deneme hesabinin kilitli takvim yazilari (plan-lock.ts)
+    // artik uretilebilir. Vadesi gecmisler icin kullanicinin taramasi hemen kuyruga
+    // atilir, digerleri kendi saatinde. Hata plani etkinlestirmeyi bozmaz.
+    if (planChanged) await kickScheduledAfterUpgrade(this.jobs, user.id, this.log);
   }
 
   /**

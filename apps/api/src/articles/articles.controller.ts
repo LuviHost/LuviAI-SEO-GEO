@@ -114,7 +114,8 @@ export class ArticlesController {
 
   @Get(':id')
   get(@Param('siteId') siteId: string, @Param('id') id: string) {
-    return this.articles.findOne(id, siteId);
+    // lockedByPlan dahil: deneme hesabinin kilitli takvim yazisi (plan-lock.ts)
+    return this.articles.findOneForPanel(id, siteId);
   }
 
   /** POST /sites/:siteId/articles/generate — queue */

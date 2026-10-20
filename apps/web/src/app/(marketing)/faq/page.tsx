@@ -35,14 +35,15 @@ import { useT } from '@/lib/i18n';
  *    gecikmeli iste: scheduleTopic ve rescheduleArticle. Ilk takvim ve
  *    programatik SEO yazilarini saatlik tarama (PROCESS_SCHEDULED, 60 dk,
  *    esik simdi + 15 dk) alir: slottan 15 dk once ile ~45 dk sonra arasi.
- *  - "Makale kotami asarsam" (20.10.2026): eski cevap "Sistem makale uretmeyi
- *    durdurur" diyordu; kodda durmayan uretim var (takvime elle eklenen yazinin
- *    gecikmeli isi dispatchScheduledArticle hakka bakmaz, onboarding'in ilk
- *    makalesi hak kontrolsuz). Hak dolunca gercekte: kullanicinin baslattigi
- *    uretim (QuotaService.enforceArticleQuota: deneme "plan sec", ucretli "plan
- *    yukselt") ve takvime yeni konu ekleme (scheduleTopic) 403; saatlik tarama
- *    (processDueArticles, checkArticleQuota) ilk takvimin yazilarini bekletir.
- *    Cevap yalniz bunlari soyler, "tum uretim durur" demez.
+ *  - "Makale kotami asarsam" (20.10.2026, sahip karari): her yazi uretime
+ *    alinirken aylik makale hakkindan bir kez duser — kullanicinin baslattigi
+ *    uretim (QuotaService.consumeArticleAllowance: deneme "plan sec", ucretli
+ *    "plan yukselt") ve takvim yazisi (article-scheduler chargeArticle: tarama,
+ *    gecikmeli takvim isi, uretim isi). Hak dolunca hicbir yeni makale
+ *    uretilmez; takvime yeni konu eklenemez (scheduleTopic 403). Deneme hesabi
+ *    toplam 2 makale (onboarding'in ilki dahil; ucretli planda ilk yazi
+ *    ucretsiz); hakki asan takvim yazilari panelde kilitli (plan-lock.ts) ve
+ *    plan yukseltilince uretilir. Yeniden yazim ve ceviri denemede calismaz.
  *  - Madde (6) takili sayfa otopilotu (audit/stuck-page-autopilot.ts):
  *    Profesyonel+ (FEATURE_MIN_PLAN.stuckPages), GSC bagli, akis acik + Tam
  *    otomatik, yalniz RanksUp makaleleri, site basina en fazla 5, haftalik
@@ -85,7 +86,7 @@ const FAQS_TR = [
   },
   {
     q: 'Ücretsiz olarak ne kadar kullanabilirim?',
-    a: 'Kayıt olunca 2 makale ücretsiz üretilir (süre sınırı yok, kart bilgisi gerekmez); ayrıca 3 AI görünürlük çalıştırması (haftada en fazla 1 ölçüm) ve 1 site hakkın olur. Denemede makaleleri Markdown ZIP olarak indirebilir ya da WordPress (REST) sitene gönderebilirsin. Ücretli bir plan seçince FTP/SFTP, cPanel, GitHub gibi diğer yayın hedefleri de açılır.',
+    a: 'Kayıt olunca 2 makale ücretsiz üretilir (süre sınırı yok, kart bilgisi gerekmez): ilki siten eklenince hemen yazılır; ikinci hakkı takvimdeki sıradaki konu zamanı gelince ya da senin hemen ürettiğin bir konu kullanır. Takvimin geri kalanı panelde kilitli görünür ve planını yükselttiğinde yazılır. Ayrıca 3 AI görünürlük çalıştırması (haftada en fazla 1 ölçüm) ve 1 site hakkın olur. Denemede makaleleri Markdown ZIP olarak indirebilir ya da WordPress (REST) sitene gönderebilirsin. Ücretli bir plan seçince FTP/SFTP, cPanel, GitHub gibi diğer yayın hedefleri de açılır.',
   },
   {
     q: 'AI içeriği Google\'da cezalandırılır mı?',
@@ -117,7 +118,7 @@ const FAQS_TR = [
   },
   {
     q: 'Aylık makale kotamı aşarsam ne olur?',
-    a: 'Kendi başlattığın yeni makale üretimleri durur, takvime yeni konu eklenemez ve plan yükseltmen önerilir; site eklenirken takvime yerleşen makaleler de hakkın yenilenene ya da planını yükseltene kadar bekler. Sayaç her takvim ayının başında sıfırlanır (deneme hesabındaki 2 ücretsiz makale hakkı sıfırlanmaz). Büyüme, Profesyonel ve Ajans planlarını panelden satın alırsın; Kurumsal plan satış ekibiyle, sözleşmeli kurulur.',
+    a: 'Yeni makale üretilmez: kendi başlattığın üretimler durur, takvime yeni konu eklenemez ve plan yükseltmen önerilir; takvimde bekleyen makaleler de hakkın yenilenene ya da planını yükseltene kadar bekler. Her makale, üretime alındığı anda hakkından bir kez düşer. Sayaç her takvim ayının başında sıfırlanır. Ücretsiz denemedeki 2 makale hakkı sıfırlanmaz; site eklenirken takvime yerleşen diğer konular panelde kilitli görünür ve planını yükselttiğinde yazılır. Büyüme, Profesyonel ve Ajans planlarını panelden satın alırsın; Kurumsal plan satış ekibiyle, sözleşmeli kurulur.',
   },
   {
     q: 'Ayda kaç AI görünürlük ölçümü yapabilirim?',
@@ -145,7 +146,7 @@ const FAQS_TR = [
   },
   {
     q: 'Otopilot tam olarak ne yapıyor?',
-    a: 'Site eklediğinde otomatik akış (otopilot) açık başlar; Otomatik Akış sayfasından durdurabilirsin. Açıkken: (1) Site eklenirken FTP/SFTP/cPanel yayın hedefi tanımlıysa eksik sitemap.xml ve llms.txt oluşturulup yüklenir; robots.txt değişikliği yalnızca sen önizleyip onayladığında yazılır, (2) konu motorunun öncelikli konularından en fazla 8\'i takvime yerleşir ve ilk makale hemen üretilir, (3) takvime kendin eklediğin ya da tarihini değiştirdiğin makaleler planlanan saatten 15 dakika önce, site eklenirken takvime yerleşenler saatlik taramayla (planlanan saatin en fazla 15 dakika öncesinden yaklaşık 45 dakika sonrasına kadar) üretime alınır, (4) bir başlangıç AI görünürlük ölçümü alınır; sonraki ölçümleri "Yeniden Test" ile sen başlatırsın (hesap başına haftada bir), (5) Search Console bağlıysa, yayından en az 30 gün geçmiş makaleler haftalık taramada Search Console verisine göre değerlendirilir; gösterim alıp tıklaması ya da sırası zayıf kalan makale yeniden yazılabilir, Yarı otomatikte yeni hali onayını bekler, (6) Profesyonel ve üstü planlarda, Search Console bağlıysa ve Tam otomatik moddaysan Google\'da 4-15. sırada takılı kalan RanksUp makaleleri her hafta (site başına en fazla 5) iyileştirilip yeniden yayınlanır; Yarı otomatikte bunları Takılı Sayfalar ekranından sen başlatırsın. Reklam otopilotu ayrı bir ayardır ve varsayılan olarak kapalıdır.',
+    a: 'Site eklediğinde otomatik akış (otopilot) açık başlar; Otomatik Akış sayfasından durdurabilirsin. Açıkken: (1) Site eklenirken FTP/SFTP/cPanel yayın hedefi tanımlıysa eksik sitemap.xml ve llms.txt oluşturulup yüklenir; robots.txt değişikliği yalnızca sen önizleyip onayladığında yazılır, (2) konu motorunun öncelikli konularından en fazla 8\'i takvime yerleşir ve ilk makale hemen üretilir; her makale üretime alınırken makale hakkından düşer (ücretsiz denemede toplam 2 makale yazılır, takvimin geri kalanı planını yükselttiğinde), (3) takvime kendin eklediğin ya da tarihini değiştirdiğin makaleler planlanan saatten 15 dakika önce, site eklenirken takvime yerleşenler saatlik taramayla (planlanan saatin en fazla 15 dakika öncesinden yaklaşık 45 dakika sonrasına kadar) üretime alınır, (4) bir başlangıç AI görünürlük ölçümü alınır; sonraki ölçümleri "Yeniden Test" ile sen başlatırsın (hesap başına haftada bir), (5) ücretli planlarda ve Search Console bağlıysa, yayından en az 30 gün geçmiş makaleler haftalık taramada Search Console verisine göre değerlendirilir; gösterim alıp tıklaması ya da sırası zayıf kalan makale yeniden yazılabilir, Yarı otomatikte yeni hali onayını bekler, (6) Profesyonel ve üstü planlarda, Search Console bağlıysa ve Tam otomatik moddaysan Google\'da 4-15. sırada takılı kalan RanksUp makaleleri her hafta (site başına en fazla 5) iyileştirilip yeniden yayınlanır; Yarı otomatikte bunları Takılı Sayfalar ekranından sen başlatırsın. Reklam otopilotu ayrı bir ayardır ve varsayılan olarak kapalıdır.',
   },
   {
     q: 'Bir SEO uzmanıyla çalışmak yerine RanksUp kullanmak mantıklı mı?',
@@ -172,7 +173,7 @@ const FAQS_EN = [
   },
   {
     q: 'How much can I use for free?',
-    a: 'On signup you get 2 free articles (no time limit, no credit card), plus 3 AI visibility runs (at most 1 measurement per week) and 1 site. On the trial you can download articles as a Markdown ZIP or send them to your WordPress (REST) site. A paid plan unlocks the other publish targets such as FTP/SFTP, cPanel and GitHub.',
+    a: 'On signup you get 2 free articles (no time limit, no credit card): the first is written as soon as your site is added; the second goes to the next scheduled topic when its time comes, or to a topic you generate yourself. The rest of the calendar appears locked in the dashboard and is written when you upgrade. You also get 3 AI visibility runs (at most 1 measurement per week) and 1 site. On the trial you can download articles as a Markdown ZIP or send them to your WordPress (REST) site. A paid plan unlocks the other publish targets such as FTP/SFTP, cPanel and GitHub.',
   },
   {
     q: 'Will Google penalize AI content?',
@@ -204,7 +205,7 @@ const FAQS_EN = [
   },
   {
     q: 'What happens if I exceed my monthly article quota?',
-    a: 'New article generations you start yourself stop, you cannot add new topics to the calendar and you are offered a plan upgrade; the articles scheduled when your site was added also wait until your allowance renews or you upgrade. The counter resets at the start of each calendar month (the 2 free trial articles do not reset). You buy the Growth, Professional and Agency plans from the dashboard; the Enterprise plan is set up under contract with our sales team.',
+    a: 'No new articles are generated: generations you start yourself stop, you cannot add new topics to the calendar and you are offered a plan upgrade; scheduled articles also wait until your allowance renews or you upgrade. Each article uses your allowance once, when it enters generation. The counter resets at the start of each calendar month. The 2 free trial articles do not reset; the other topics scheduled when your site was added appear locked in the dashboard and are written when you upgrade your plan. You buy the Growth, Professional and Agency plans from the dashboard; the Enterprise plan is set up under contract with our sales team.',
   },
   {
     q: 'How many AI visibility measurements can I run per month?',
@@ -232,7 +233,7 @@ const FAQS_EN = [
   },
   {
     q: 'What exactly does Autopilot do?',
-    a: 'Automation (autopilot) is on by default when you add a site; you can pause it on the "Otomatik Akış" (automation) page. When on: (1) when the site is added, if an FTP/SFTP/cPanel publish target exists, missing sitemap.xml and llms.txt are created and uploaded; a robots.txt change is written only after you preview and confirm it, (2) up to 8 of the topic engine\'s priority topics are scheduled and the first article is generated immediately, (3) articles you add to the calendar or reschedule yourself enter generation 15 minutes before their scheduled time, while those scheduled when the site was added are picked up by an hourly scan (from up to 15 minutes before to about 45 minutes after their scheduled time), (4) a baseline AI visibility measurement is taken; you start later measurements with "Yeniden Test" (re-test; one per account per week), (5) if Search Console is connected, articles published at least 30 days ago are checked against Search Console data in a weekly scan; an article that gets impressions but has a weak click-through rate or position can be rewritten, and in "Yarı otomatik" (semi-auto) mode the new version waits for your approval, (6) on Professional and higher plans, if Search Console is connected and you use "Tam otomatik" (full auto) mode, RanksUp articles stuck at positions 4-15 on Google are improved and republished every week (up to 5 per site); in "Yarı otomatik" you start these yourself from the "Takılı Sayfalar" (stuck pages) screen. The ads autopilot is a separate setting and is off by default.',
+    a: 'Automation (autopilot) is on by default when you add a site; you can pause it on the "Otomatik Akış" (automation) page. When on: (1) when the site is added, if an FTP/SFTP/cPanel publish target exists, missing sitemap.xml and llms.txt are created and uploaded; a robots.txt change is written only after you preview and confirm it, (2) up to 8 of the topic engine\'s priority topics are scheduled and the first article is generated immediately; each article uses your article allowance when it enters generation (on the free trial 2 articles are written in total, the rest of the calendar when you upgrade), (3) articles you add to the calendar or reschedule yourself enter generation 15 minutes before their scheduled time, while those scheduled when the site was added are picked up by an hourly scan (from up to 15 minutes before to about 45 minutes after their scheduled time), (4) a baseline AI visibility measurement is taken; you start later measurements with "Yeniden Test" (re-test; one per account per week), (5) on paid plans, if Search Console is connected, articles published at least 30 days ago are checked against Search Console data in a weekly scan; an article that gets impressions but has a weak click-through rate or position can be rewritten, and in "Yarı otomatik" (semi-auto) mode the new version waits for your approval, (6) on Professional and higher plans, if Search Console is connected and you use "Tam otomatik" (full auto) mode, RanksUp articles stuck at positions 4-15 on Google are improved and republished every week (up to 5 per site); in "Yarı otomatik" you start these yourself from the "Takılı Sayfalar" (stuck pages) screen. The ads autopilot is a separate setting and is off by default.',
   },
   {
     q: 'Does RanksUp make sense instead of working with an SEO specialist?',

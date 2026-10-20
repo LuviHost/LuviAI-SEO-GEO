@@ -6,7 +6,7 @@ import { toast } from 'sonner';
 import type { LucideIcon } from 'lucide-react';
 import {
   Activity, AlertCircle, AlertTriangle, ArrowRight, Bot, CalendarClock, CheckCircle2, ClipboardList,
-  Eye, FileText, Image as ImageIcon, Loader2, Pause, PenLine, Plug, PieChart, Power, Rocket,
+  Eye, FileText, Image as ImageIcon, Loader2, Lock, Pause, PenLine, Plug, PieChart, Power, Rocket,
   ScanSearch, Send, ShieldAlert, ShieldCheck, Sparkles, Wand2, Wrench, XCircle,
 } from 'lucide-react';
 import {
@@ -14,6 +14,8 @@ import {
   isUnverifiedCheck, rootFileTarget,
 } from '@/lib/api';
 import { crawlAccessTitle, currentCrawlAccess, type CrawlAccess } from '@/lib/crawl-access';
+import { PLAN_LOCK_COPY, UPGRADE_HREF, isPlanLocked, scheduledCounts, splitScheduled } from '@/lib/plan-lock';
+import { PlanLockBadge } from '@/components/locked-article';
 // robots.txt yalniz onizleme + acik onayla yazilir (API 'preview_required') — Ajan Hazirligi ile ayni diyalog
 import { AutoFixPreviewDialog } from '@/app/(dashboard)/sites/[id]/agent-readiness/auto-fix-preview-dialog';
 import { CrawlAccessNotice } from '@/components/crawl-access-notice';
@@ -549,8 +551,22 @@ function buildSteps({ site, audit, articles, publishTargets, stuckCount, onRefre
     });
   }
 
-  // 13) Baska is yoksa siradaki yazi bilgisi
-  const next = [...scheduled].sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime())[0];
+  // 13) Baska is yoksa siradaki yazi bilgisi. Plana kilitli yazi (deneme hakki doldu,
+  // lib/plan-lock.ts) "otomatik uretilecek" denemez: siradaki yazi kilitsizlerden secilir,
+  // yalniz kilitli yazi kaldiysa yukseltme adimi gosterilir.
+  const { open: openScheduled, locked: lockedScheduled } = splitScheduled(scheduled);
+  const next = openScheduled[0];
+  if (!next && lockedScheduled.length > 0 && steps.length === 0) {
+    steps.push({
+      id: 'plan-locked',
+      tone: 'brand',
+      icon: Lock,
+      title: `Takviminde ${lockedScheduled.length} makale kilitli`,
+      desc: PLAN_LOCK_COPY.body,
+      cta: PLAN_LOCK_COPY.cta,
+      href: UPGRADE_HREF,
+    });
+  }
   if (next && steps.length === 0) {
     const dt = new Date(next.scheduledAt);
     steps.push({
@@ -613,7 +629,9 @@ function KpiRow({ siteId, audit, articles, access }: { siteId: string; audit: an
 
   // Icerik — baglamdan
   const published = articles.filter((a) => a.status === 'PUBLISHED').length;
-  const scheduled = articles.filter((a) => a.status === 'SCHEDULED').length;
+  // Kilitli takvim yazilari (deneme hakki doldu) ayrica soylenir: "takvimde" sayisi onlarin da yazilacagini ima etmesin
+  const { scheduled, locked } = scheduledCounts(articles);
+  const takvimNotu = locked > 0 ? `${scheduled} takvimde (${locked} kilitli)` : `${scheduled} takvimde`;
   const generating = articles.filter((a) => a.status === 'GENERATING' || a.status === 'EDITING').length;
 
   // AI gorunurluk manseti — grafikle AYNI kaynak (7g ortalama); yoksa tarama anindaki skor.
@@ -725,7 +743,7 @@ function KpiRow({ siteId, audit, articles, access }: { siteId: string; audit: an
             icon={Send}
             label="Yayında"
             value={published}
-            hint={generating > 0 ? `${scheduled} takvimde · ${generating} üretiliyor` : `${scheduled} takvimde`}
+            hint={generating > 0 ? `${takvimNotu} · ${generating} üretiliyor` : takvimNotu}
           />
         </KpiTile>
       </div>
@@ -829,10 +847,9 @@ function PipelineStatus({ siteId, articles }: { siteId: string; articles: any[] 
 
 /** Takvimdeki ilk 3 yazi */
 function UpcomingArticles({ siteId, articles }: { siteId: string; articles: any[] }) {
-  const next = articles
-    .filter((a) => a.status === 'SCHEDULED')
-    .sort((a, b) => new Date(a.scheduledAt).getTime() - new Date(b.scheduledAt).getTime())
-    .slice(0, 3);
+  // Once yazilacaklar (vade sirasiyla), sonra plana kilitliler (lib/plan-lock.ts)
+  const { open, locked } = splitScheduled(articles);
+  const next = [...open, ...locked].slice(0, 3);
   if (next.length === 0) return null;
   return (
     <Card className="p-4">
@@ -847,6 +864,18 @@ function UpcomingArticles({ siteId, articles }: { siteId: string; articles: any[
       <ul className="space-y-2">
         {next.map((a) => {
           const d = new Date(a.scheduledAt);
+          // Kilitli yazi tarihinde yazilmaz (deneme hakki doldu): tarih yerine kilit
+          if (isPlanLocked(a)) {
+            return (
+              <li key={a.id} className="flex items-center gap-3 rounded-md border p-2.5">
+                <PlanLockBadge className="shrink-0" />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-medium">{a.title || a.topic}</span>
+                  <span className="block text-label text-muted-foreground">{PLAN_LOCK_COPY.rowHint}</span>
+                </span>
+              </li>
+            );
+          }
           return (
             <li key={a.id} className="flex items-center gap-3 rounded-md border p-2.5">
               <span className="min-w-[68px] rounded-md bg-brand/10 px-2 py-1.5 text-center text-brand-700 dark:text-brand-300">

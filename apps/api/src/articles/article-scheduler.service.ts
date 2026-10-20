@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { JobQueueService } from '../jobs/job-queue.service.js';
 import { QuotaService } from '../billing/quota.service.js';
 import { automationPublishFields, type PublishApprovalSite } from './publish-approval.js';
+import { loadPlanLockedIds, withPlanLock } from './plan-lock.js';
 
 /**
  * Takvimin gecikmeli uretim isinin BullMQ kimligi: makale basina tekil, ayni
@@ -76,8 +77,12 @@ export const DUE_SCAN_LIMITS = {
  *  - Takvim yazisi, takvim onu uretime alirken (SCHEDULED → GENERATING; saatlik tarama,
  *    gecikmeli takvim isi ya da kuyruga atani sahiplenmemis uretim isi): claimAndQueue /
  *    claimForGeneration → chargeArticle.
- *  - Dusmeyenler: onboarding'in ilk yazisi (her planda hemen ve ucretsiz, isaretli:
- *    'onboarding_free'), otomatik yeniden yazim (icerik pivotu), ceviri.
+ *  - Onboarding'in ilk yazisi: ucretli planda hemen ve ucretsiz (isaretli:
+ *    'onboarding_free'); deneme hesabinda ucretsiz DEGIL, olusturulurken duser
+ *    (isaretli: 'calendar'), hak doluysa uretilmez.
+ *  - Dusmeyenler: otomatik yeniden yazim (icerik pivotu) ve ceviri — ikisi de deneme
+ *    hesabinda hic calismaz (content-pivot.service, translator.service): deneme
+ *    hesabi yapay zekayla toplam 2 makale uretir, fazlasi icin LLM harcanmaz.
  *
  * Durumlara gore:
  *  - SCHEDULED: henuz dusulmedi; kalan haktan AYRILIR (scheduleTopic'te sayilir).
@@ -151,8 +156,13 @@ function unchargedPendingWhere(userId: string) {
 /** agentOutputs'taki isaretin anahtari (yeni veri yalniz mevcut JSON alaninda) */
 export const ALLOWANCE_CHARGE_KEY = 'allowanceCharge';
 
-/** Isaretin kaynagi: takvim uretiminde dusuldu ya da onboarding'in ucretsiz ilk yazisi */
-export type AllowanceChargeSource = 'calendar' | 'onboarding_free';
+/**
+ * Isaretin kaynagi: takvim uretiminde dusuldu ('calendar'; deneme hesabinda
+ * onboarding'in ilk yazisi da), kullanicinin "Simdi uret"inde dusuldu
+ * ('trigger_now') ya da ucretli planda onboarding'in ucretsiz ilk yazisi
+ * ('onboarding_free')
+ */
+export type AllowanceChargeSource = 'calendar' | 'trigger_now' | 'onboarding_free';
 
 function asRecord(v: unknown): Record<string, unknown> {
   return v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
@@ -197,6 +207,17 @@ export type ScheduledDispatchResult =
 export type GenerationClaim = 'proceed' | 'already_claimed' | 'article_missing' | 'quota_exhausted';
 
 /**
+ * Uretim isinin atlama nedeni (worker is sonucuna yazar), sahiplik kararina gore.
+ * NEDEN tek tablo: worker 'quota_exhausted'i 'ALREADY_CLAIMED' diye yaziyordu;
+ * hakki dolu oldugu icin uretilmeyen yazi is kaydinda "baskasi aldi" gorunuyordu.
+ */
+export const GENERATION_CLAIM_SKIP_REASON: Readonly<Record<Exclude<GenerationClaim, 'proceed'>, 'ARTICLE_MISSING' | 'ALREADY_CLAIMED' | 'QUOTA_EXHAUSTED'>> = Object.freeze({
+  article_missing: 'ARTICLE_MISSING',
+  already_claimed: 'ALREADY_CLAIMED',
+  quota_exhausted: 'QUOTA_EXHAUSTED',
+});
+
+/**
  * Article scheduler — icerik takvimi: onboarding'in tier-1 konulari
  * (scheduleInitialBatch), elle takvime eklenen konular (scheduleTopic) ve
  * takvim yazilarinin uretime alinmasi (processDueArticles, gecikmeli is).
@@ -207,8 +228,10 @@ export type GenerationClaim = 'proceed' | 'already_claimed' | 'article_missing' 
  * yenilenince — yeni ay ya da plan yukseltme — saatlik tarama alir). Deneme
  * hesabinda hak omur boyu 2 makale, ucretli planlarda her ay sifirlanir
  * (QuotaService.checkArticleQuota). Akisi durdurulmus sitenin yazisi uretilmez.
- * Onboarding'in ilk makalesi her planda hemen ve ucretsiz uretilir. Takvime
- * eklenen konu kalan haktan eklerken ayrilir (scheduleTopic).
+ * Onboarding'in ilk makalesi hemen uretilir: ucretli planda ucretsiz, deneme
+ * hesabinda haktan duser. Takvime eklenen konu kalan haktan eklerken ayrilir
+ * (scheduleTopic). Deneme hesabinin hakki asan takvim yazilari panelde kilitli
+ * gorunur (plan-lock.ts lockedByPlan) ve plan yukseltilince uretilir.
  *
  * Slot algoritmasi (buildSlots, haftada iki yazi):
  *   #1 = simdi
@@ -283,9 +306,11 @@ export class ArticleSchedulerService {
    * Onboarding sonrasi cagrilir (worker ONBOARDING_CHAIN). Tier-1'in ilk
    * `count` konusunu (varsayilan 5) takvime yazar: ilki GENERATING olarak
    * hemen kuyruga girer, digerleri SCHEDULED kalir ve zamani gelince saatlik
-   * tarama uretir (bu yazilar icin gecikmeli is kurulmaz). Ilk yazi ucretsizdir
-   * (allowanceCharge 'onboarding_free'); digerleri tarama onlari uretime alirken
-   * makale hakkindan duser, hak doluysa SCHEDULED bekler.
+   * tarama uretir (bu yazilar icin gecikmeli is kurulmaz). Ucretli planda ilk
+   * yazi ucretsizdir (allowanceCharge 'onboarding_free'); deneme hesabinda ilk
+   * yazi da makale hakkindan duser (toplam 2), hak doluysa uretilmez. Digerleri
+   * tarama onlari uretime alirken makale hakkindan duser, hak doluysa SCHEDULED
+   * bekler (deneme hesabinda panelde kilitli: plan-lock.ts).
    */
   async scheduleInitialBatch(siteId: string, opts: { count?: number } = {}) {
     const count = opts.count ?? 5;
@@ -323,25 +348,59 @@ export class ArticleSchedulerService {
       const slug = `scheduled-${Date.now().toString(36)}-${i}`;
       const slot = slots[i];
 
-      try {
-        const article = await this.prisma.article.create({
-          data: {
-            siteId,
-            topic,
-            slug,
-            title: topic,
-            language: site.language ?? 'tr',
-            status: i === 0 ? ('GENERATING' as any) : ('SCHEDULED' as any),
-            scheduledAt: slot,
-            // Ilk yazi ucretsiz: takili uretim supurucusu onu takvime geri koyarsa
-            // (scheduledAt dolu) tarama yeniden alirken haktan DUSMESIN diye isaretli
-            ...(i === 0 ? { agentOutputs: withAllowanceCharge(null, 'onboarding_free', new Date()) as any } : {}),
-          },
-        });
+      // Ilk yazi hemen uretilir. Ucretli planda ucretsiz (urun karari, 'onboarding_free').
+      // Deneme hesabinda ucretsiz DEGIL: toplam 2 makalelik hakkin ilkidir ve tek
+      // kosullu UPDATE ile once duser (chargeArticle). Hak doluysa (ornegin siteyi
+      // silip yeniden ekleyen deneme hesabi) ilk yazi da uretilmez, takvimde kilitli
+      // bekler (plan-lock.ts). NEDEN: eskiden ilk yazi her planda hak kontrolsuz
+      // uretiliyordu; deneme hesabi 1 ucretsiz + 2 makale aliyor, siteyi silip
+      // yeniden ekleyerek sinirsiz ucretsiz makale uretebiliyordu.
+      let generateNow = false;
+      let firstMark: AllowanceChargeSource | null = null;
+      if (i === 0) {
+        if (!isTrial) {
+          generateNow = true;
+          firstMark = 'onboarding_free';
+        } else {
+          let charged = false;
+          try {
+            charged = await this.chargeArticle(site.userId);
+          } catch (err: any) {
+            // Hak okunamadi: yazi takvimde bekler (vadesi simdi), saatlik tarama
+            // hakki yeniden okuyup alir; zincir dusmez
+            this.log.warn(`[${siteId}] Ilk yazinin makale hakki okunamadi, takvimde bekliyor: ${err?.message ?? err}`);
+          }
+          if (charged) {
+            generateNow = true;
+            firstMark = 'calendar';
+          }
+        }
+      }
 
-        if (i === 0) {
-          // Ilk makale her planda hemen uretilir: hak kontrolu yok, sayac da
-          // artmaz (urun karari; diger takvim yazilari uretime alinirken duser)
+      try {
+        let article: { id: string };
+        try {
+          article = await this.prisma.article.create({
+            data: {
+              siteId,
+              topic,
+              slug,
+              title: topic,
+              language: site.language ?? 'tr',
+              status: generateNow ? ('GENERATING' as any) : ('SCHEDULED' as any),
+              scheduledAt: slot,
+              // Isaret: takili uretim supurucusu ilk yaziyi takvime geri koyarsa
+              // (scheduledAt dolu) tarama yeniden alirken haktan DUSMESIN
+              ...(firstMark ? { agentOutputs: withAllowanceCharge(null, firstMark, new Date()) as any } : {}),
+            },
+          });
+        } catch (err) {
+          // Yazi acilamadi: deneme hesabinin dusulen hakki geri verilir
+          if (firstMark === 'calendar') await this.refundArticle(site.userId, `${siteId}:onboarding`);
+          throw err;
+        }
+
+        if (generateNow) {
           await this.jobQueue.enqueue({
             type: 'GENERATE_ARTICLE',
             userId: site.userId,
@@ -355,7 +414,9 @@ export class ArticleSchedulerService {
             },
           });
           immediateArticleId = article.id;
-          this.log.log(`[${siteId}] [1/${picks.length}] '${topic}' — hemen uretime alindi`);
+          this.log.log(`[${siteId}] [1/${picks.length}] '${topic}' — hemen uretime alindi${firstMark === 'calendar' ? ' (deneme hakkindan dustu)' : ''}`);
+        } else if (i === 0) {
+          this.log.log(`[${siteId}] [1/${picks.length}] '${topic}' — deneme hesabinin makale hakki yok ya da okunamadi; uretilmedi, takvimde bekliyor (hak yoksa plan yukseltilene kadar kilitli)`);
         } else {
           this.log.log(`[${siteId}] [${i + 1}/${picks.length}] '${topic}' — ${slot.toISOString()} icin planlandi (saatlik tarama uretir; uretime alinirken makale hakkindan duser)`);
         }
@@ -601,7 +662,10 @@ export class ArticleSchedulerService {
    * sorgularina girmez, boylece engelli satirlar diger musterilerin yazilarini
    * bekletemez. skippedQuota yalniz bu turda GORULEN engelli satirlari sayar.
    */
-  async processDueArticles(): Promise<{ processed: number; skippedQuota: number; alreadyClaimed: number; failed: number }> {
+  async processDueArticles(opts: { userId?: string } = {}): Promise<{ processed: number; skippedQuota: number; alreadyClaimed: number; failed: number }> {
+    // Yalniz bu kullanicinin yazilari (plan yukseltme sonrasi tarama: scheduled-kick.ts);
+    // verilmezse tum kullanicilar (saatlik is)
+    const onlyUserId = typeof opts.userId === 'string' && opts.userId ? opts.userId : undefined;
     const now = new Date();
     // 15 dk onceden uret ki tam saat geldiginde yayina hazir olsun
     const threshold = new Date(now.getTime() + 15 * 60 * 1000);
@@ -630,9 +694,11 @@ export class ArticleSchedulerService {
         budgetHit = 'batches';
         break;
       }
+      // Tek kullanicili taramada kullanicinin hakki doldu / okunamadi: baska satir yok
+      if (onlyUserId && skipUsers.has(onlyUserId)) break;
       batches++;
       const due = await this.prisma.article.findMany({
-        where: this.dueArticlesWhere(threshold, skipUsers, cursor),
+        where: this.dueArticlesWhere(threshold, skipUsers, cursor, onlyUserId),
         include: {
           site: {
             include: {
@@ -719,7 +785,7 @@ export class ArticleSchedulerService {
    * Saatlik taramanin sorgu kosulu. Engelli kullanici listesi ve imlec yalniz
    * doluyken eklenir (ilk sorgu eskisiyle ayni kosulu tasir).
    */
-  private dueArticlesWhere(threshold: Date, skipUsers: Set<string>, cursor: { scheduledAt: Date; id: string } | null) {
+  private dueArticlesWhere(threshold: Date, skipUsers: Set<string>, cursor: { scheduledAt: Date; id: string } | null, onlyUserId?: string) {
     return {
       status: 'SCHEDULED' as any,
       scheduledAt: { lte: threshold },
@@ -729,7 +795,9 @@ export class ArticleSchedulerService {
       site: {
         autopilot: true,
         url: { not: DEMO_SITE_URL },
-        ...(skipUsers.size > 0 ? { userId: { notIn: [...skipUsers] } } : {}),
+        ...(onlyUserId
+          ? { userId: onlyUserId }
+          : skipUsers.size > 0 ? { userId: { notIn: [...skipUsers] } } : {}),
       },
       // (scheduledAt, id) > imlec — okunan satira ayni turda donulmez
       ...(cursor
@@ -897,7 +965,7 @@ export class ArticleSchedulerService {
    * de cikaramazdi.
    */
   async listScheduledForSite(siteId: string) {
-    return this.prisma.article.findMany({
+    const rows = await this.prisma.article.findMany({
       where: pendingNewArticleWhere(siteId),
       orderBy: { scheduledAt: 'asc' },
       select: {
@@ -913,6 +981,11 @@ export class ArticleSchedulerService {
       },
       take: 30,
     });
+    // lockedByPlan: deneme hesabinin plan yukseltilene kadar uretilmeyecek yazisi (plan-lock.ts)
+    if (!rows.some((r) => String(r.status) === 'SCHEDULED')) return rows.map((r) => withPlanLock(r, new Set()));
+    const site = await this.prisma.site.findUnique({ where: { id: siteId }, select: { userId: true } }).catch(() => null);
+    const locked = site ? await loadPlanLockedIds(this.prisma, this.quota, site.userId) : new Set<string>();
+    return rows.map((r) => withPlanLock(r, locked));
   }
 
   // ────────────────────────────────────────────────────────

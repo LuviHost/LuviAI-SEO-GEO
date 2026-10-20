@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { BadRequestException, ForbiddenException, Logger, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import {
-  ArticleSchedulerService, DEMO_SITE_URL, DUE_SCAN_LIMITS, SCHEDULED_GENERATION_JOB_PREFIX, isScheduledGenerationJobId, scheduledGenerationJobId,
+  ArticleSchedulerService, DEMO_SITE_URL, DUE_SCAN_LIMITS, GENERATION_CLAIM_SKIP_REASON, SCHEDULED_GENERATION_JOB_PREFIX, isScheduledGenerationJobId, scheduledGenerationJobId,
 } from './article-scheduler.service.js';
 import { findPlan } from '../billing/plans.js';
 import { QuotaService } from '../billing/quota.service.js';
@@ -157,13 +157,15 @@ function realQuota(users: Record<string, UserRow>) {
         return { id: where.id, ...row };
       }),
       update: vi.fn(async ({ where, data }: any) => {
-        // incrementArticleUsage { increment: 1 } yazar; digerleri duz deger
+        // { increment: 1 } bicimi de desteklenir; digerleri duz deger
         for (const [k, v] of Object.entries(data ?? {})) {
           const row = users[where.id] as any;
           row[k] = v && typeof v === 'object' && 'increment' in (v as any) ? (row[k] ?? 0) + (v as any).increment : v;
         }
         return { id: where.id, ...users[where.id] };
       }),
+      // consumeArticleAllowance / refundArticleAllowance: ayni tablonun kosullu UPDATE'i
+      updateMany: userTable(users as any).updateMany,
     },
   };
   const quota = new QuotaService(prisma as any);
@@ -648,7 +650,7 @@ describe('worker kablolamasi (apps/worker/src/index.ts) — takvim sahiplenmesi'
   });
 
   it('gecikmeli takvim isi uretmeden once sahiplenip kuyruga atar; diger isler SCHEDULED yaziyi sahiplenir', () => {
-    expect(src).toMatch(/import \{ ArticleSchedulerService, isScheduledGenerationJobId \} from '\.\.\/\.\.\/api\/dist\/articles\/article-scheduler\.service\.js'/);
+    expect(src).toMatch(/import \{ ArticleSchedulerService, GENERATION_CLAIM_SKIP_REASON, isScheduledGenerationJobId \} from '\.\.\/\.\.\/api\/dist\/articles\/article-scheduler\.service\.js'/);
     expect(handler).toMatch(/if \(isScheduledGenerationJobId\(job\?\.id\)\) \{[\s\S]*?services\.scheduler\.dispatchScheduledArticle\(articleId\)[\s\S]*?return dispatch;/);
     expect(handler).toContain('services.scheduler.claimForGeneration(articleId)');
     const pipelineAt = handler.indexOf('runPipeline(');
@@ -661,6 +663,18 @@ describe('worker kablolamasi (apps/worker/src/index.ts) — takvim sahiplenmesi'
     expect(handler).toMatch(/if \(!willRetry\) \{[\s\S]*?status: \{ in: \['GENERATING', 'EDITING'\]/);
     // Eski kosulsuz FAILED / SCHEDULED yazimi geri gelmesin
     expect(handler).not.toMatch(/article\.update\(\{\s*where: \{ id: articleId \},\s*data: \{ status: '(FAILED|SCHEDULED)'/);
+  });
+
+  it('sahiplik reddinin nedeni is sonucuna dogru yazilir: hak dolu → QUOTA_EXHAUSTED (eskiden ALREADY_CLAIMED)', () => {
+    expect(handler).toContain('return { skipped: true, reason: GENERATION_CLAIM_SKIP_REASON[claim] };');
+    expect(handler).not.toMatch(/claim === 'article_missing' \? 'ARTICLE_MISSING' : 'ALREADY_CLAIMED'/);
+    expect(GENERATION_CLAIM_SKIP_REASON).toEqual({ article_missing: 'ARTICLE_MISSING', already_claimed: 'ALREADY_CLAIMED', quota_exhausted: 'QUOTA_EXHAUSTED' });
+  });
+
+  it('PROCESS_SCHEDULED is verisindeki userId ile yalniz o kullaniciyi tarar (plan yukseltme sonrasi)', () => {
+    const scan = src.slice(src.indexOf('PROCESS_SCHEDULED: async'), src.indexOf('SWEEP_STUCK_GENERATING: async'));
+    expect(scan).toMatch(/^PROCESS_SCHEDULED: async \(data\) =>/);
+    expect(scan).toContain('services.scheduler.processDueArticles(userId ? { userId } : {})');
   });
 
   it('ARTICLE_GENERATION_DISABLED yalniz uretim sahipligini birakir (yayindaki yazi takvime donmez)', () => {
@@ -760,24 +774,62 @@ describe('takvim metinleri — eski "deneme hesabi paket bekler" iddiasi', () =>
     }
   });
 
-  it('onboarding: ilk makale her planda hemen ve ucretsiz uretilir (sayac artmaz, isaretli); digerleri isaretsiz bekler', async () => {
-    const site = { ...SITE(), user: { plan: 'TRIAL' } };
-    const quota = { checkArticleQuota: vi.fn(), incrementArticleUsage: vi.fn() };
-    const ctx = build({ site: site as any, quota });
+  const onboarding = (plan: string, users: Record<string, Counter>, limit: number) => {
+    const site = { ...SITE(), user: { plan } };
+    const quota = { checkArticleQuota: vi.fn(async () => ({ allowed: users.u1.articlesUsedThisMonth < limit, remaining: Math.max(0, limit - users.u1.articlesUsedThisMonth), limit })) };
+    const ctx = build({ site: site as any, quota, users });
     (ctx.prisma as any).topicQueue = { findFirst: vi.fn(async () => ({ tier1Topics: [{ topic: 'A' }, { topic: 'B' }, { topic: 'C' }] })) };
+    return { ...ctx, quota, created: () => ctx.prisma.article.create.mock.calls.map((c: any) => c[0].data) };
+  };
+
+  it('onboarding (ucretli plan): ilk makale hemen ve ucretsiz uretilir (sayac artmaz, isaretli); digerleri isaretsiz bekler', async () => {
+    const users = { u1: { articlesUsedThisMonth: 0 } };
+    const ctx = onboarding('PRO', users, 40);
     const r = await ctx.svc.scheduleInitialBatch('s1', { count: 3 });
-    expect(r).toMatchObject({ scheduled: 3, isTrial: true });
+    expect(r).toMatchObject({ scheduled: 3, isTrial: false, immediate: 'a-new' });
     expect(ctx.jobQueue.enqueue).toHaveBeenCalledTimes(1);
     expect((ctx.jobQueue.enqueue.mock.calls[0][0] as any).payload).toMatchObject({ topic: 'A', autoPublish: false });
-    const created = ctx.prisma.article.create.mock.calls.map((c: any) => c[0].data);
+    const created = ctx.created();
     expect(created.map((d: any) => d.status)).toEqual(['GENERATING', 'SCHEDULED', 'SCHEDULED']);
     // Supurucu ilk yaziyi takvime geri koyarsa tarama onu ucretsiz yazi olarak tanir (yeniden dusmez)
     expect(created[0].agentOutputs).toEqual({ allowanceCharge: { at: expect.any(String), source: 'onboarding_free' } });
     expect(created[1].agentOutputs).toBeUndefined();
     expect(created[2].agentOutputs).toBeUndefined();
-    expect(quota.checkArticleQuota).not.toHaveBeenCalled();
-    expect(quota.incrementArticleUsage).not.toHaveBeenCalled();
-    expect(Object.keys(ctx.users)).toEqual([]);
+    expect(ctx.quota.checkArticleQuota).not.toHaveBeenCalled();
+    expect(users.u1.articlesUsedThisMonth).toBe(0);
+  });
+
+  it('onboarding (deneme): ilk makale ucretsiz DEGIL — toplam 2 hakkin ilkinden duser, isaretli (calendar)', async () => {
+    const users = { u1: { articlesUsedThisMonth: 0 } };
+    const ctx = onboarding('TRIAL', users, 2);
+    const r = await ctx.svc.scheduleInitialBatch('s1', { count: 3 });
+    expect(r).toMatchObject({ scheduled: 3, isTrial: true, immediate: 'a-new' });
+    expect(ctx.jobQueue.enqueue).toHaveBeenCalledTimes(1);
+    const created = ctx.created();
+    expect(created.map((d: any) => d.status)).toEqual(['GENERATING', 'SCHEDULED', 'SCHEDULED']);
+    expect(created[0].agentOutputs).toEqual({ allowanceCharge: { at: expect.any(String), source: 'calendar' } });
+    expect(users.u1.articlesUsedThisMonth).toBe(1);
+  });
+
+  it('onboarding (deneme, hak dolu — siteyi silip yeniden ekleyen hesap): ilk makale de uretilmez, takvimde bekler', async () => {
+    const users = { u1: { articlesUsedThisMonth: 2 } };
+    const ctx = onboarding('TRIAL', users, 2);
+    const r = await ctx.svc.scheduleInitialBatch('s1', { count: 3 });
+    expect(r).toMatchObject({ scheduled: 3, isTrial: true, immediate: null });
+    expect(ctx.jobQueue.enqueue).not.toHaveBeenCalled();
+    const created = ctx.created();
+    expect(created.map((d: any) => d.status)).toEqual(['SCHEDULED', 'SCHEDULED', 'SCHEDULED']);
+    expect(created.every((d: any) => d.agentOutputs === undefined)).toBe(true);
+    expect(users.u1.articlesUsedThisMonth).toBe(2);
+  });
+
+  it('onboarding (deneme): ilk yazi acilamazsa dusulen hak geri verilir', async () => {
+    const users = { u1: { articlesUsedThisMonth: 0 } };
+    const ctx = onboarding('TRIAL', users, 2);
+    ctx.prisma.article.create.mockRejectedValueOnce(new Error('db yok'));
+    await ctx.svc.scheduleInitialBatch('s1', { count: 1 });
+    expect(users.u1.articlesUsedThisMonth).toBe(0);
+    expect(ctx.jobQueue.enqueue).not.toHaveBeenCalled();
   });
 });
 
@@ -827,7 +879,9 @@ describe('rv18 F5 — daha once yayinlanmis yazi kalan hakki tuketmez ve takvimd
 
   const kur = (rows: Row[], remaining: number) => {
     const prisma = {
-      site: { findUniqueOrThrow: vi.fn(async () => SITE()) },
+      site: { findUniqueOrThrow: vi.fn(async () => SITE()), findUnique: vi.fn(async () => ({ userId: 'u1' })) },
+      // Ucretli plan: takvim yazisi plana kilitli degil (plan-lock.ts)
+      user: { findUnique: vi.fn(async () => ({ plan: 'PRO', articlesUsedThisMonth: 0 })) },
       article: {
         count: vi.fn(async ({ where }: { where: Record<string, any> }) => rows.filter((r) => matches(r, where)).length),
         findMany: vi.fn(async ({ where, select, take }: { where: Record<string, any>; select?: Record<string, boolean>; take?: number }) => {
@@ -906,6 +960,7 @@ describe('rv18 F5 — daha once yayinlanmis yazi kalan hakki tuketmez ve takvimd
     const t = kur(rows, 10);
     const list = await t.svc.listScheduledForSite('s1');
     expect(list.map((a: any) => a.id)).toEqual(['n1', 'n2']);
+    expect(list.map((a: any) => a.lockedByPlan)).toEqual([false, false]);
   });
 });
 
@@ -922,7 +977,7 @@ describe('rv18 F5 — daha once yayinlanmis yazi kalan hakki tuketmez ve takvimd
  * ("Uret") + GERCEK QuotaService ayni yazi ve kullanici tablosunda calisir. Sorgu kosullari
  * gercek anlamiyla degerlendirilir (queryDue: taninmayan kosul hata verir); sayacin kosullu
  * UPDATE'i userTable'da. MCP create_article ve icerik firsatinin yeni yazisi "Uret" ile ayni
- * kalibi izler (enforceArticleQuota → scheduledAt'siz GENERATING kayit → incrementArticleUsage).
+ * kalibi izler (consumeArticleAllowance → scheduledAt'siz GENERATING kayit → is; baslamazsa geri ver).
  */
 describe('C2 makale hakki muhasebesi — her yazi bir kez duser, ayin toplami hakki asamaz', () => {
   type Art = Record<string, any>;
@@ -948,8 +1003,15 @@ describe('C2 makale hakki muhasebesi — her yazi bir kez duser, ayin toplami ha
     const counter = userTable(users);
     let seq = 0;
     const prisma: any = {
-      user: { updateMany: counter.updateMany },
-      site: { findUniqueOrThrow: vi.fn(async ({ where }: any) => sites[where.id]) },
+      user: {
+        updateMany: counter.updateMany,
+        // Kilit hesabi (plan-lock.ts) plan ve sayaci okur
+        findUnique: vi.fn(async ({ where }: any) => (users[where.id] ? { ...users[where.id] } : null)),
+      },
+      site: {
+        findUniqueOrThrow: vi.fn(async ({ where }: any) => sites[where.id]),
+        findUnique: vi.fn(async ({ where }: any) => sites[where.id] ?? null),
+      },
       article: {
         create: vi.fn(async ({ data }: any) => {
           const row = { id: `n${String(++seq).padStart(3, '0')}`, publishedAt: null, agentOutputs: null, scheduledAt: null, ...data, site: sites[data.siteId] };
@@ -1062,21 +1124,90 @@ describe('C2 makale hakki muhasebesi — her yazi bir kez duser, ayin toplami ha
     expect((await w.schedule()).message).toBe('Makale hakkın doldu (15 makale). Yeni yazıyı takvime eklemek için planını yükseltebilirsin.');
   });
 
-  it('deneme hesabi: onboarding\'in ilk yazisi ucretsiz, takvimden en fazla 2 yazi daha uretilir (eskiden 7 takvim yazisinin hepsi uretiliyordu)', async () => {
-    const w = ledger('TRIAL', 0);
+  /** Onboarding: akis acikken 8 konu (worker ONBOARDING_CHAIN) */
+  async function onboardTrial(w: ReturnType<typeof ledger>) {
     w.prisma.topicQueue = { findFirst: vi.fn(async () => ({ tier1Topics: Array.from({ length: 8 }, (_, i) => ({ topic: `Konu ${i}` })) })) };
     await w.scheduler.scheduleInitialBatch('s1', { count: 8 });
+  }
+  const lockedOf = async (w: ReturnType<typeof ledger>) =>
+    (await w.scheduler.listScheduledForSite('s1')).filter((a: any) => a.lockedByPlan).map((a: any) => a.id);
+
+  it('deneme hesabi TOPLAM 2 makale (sahip karari): onboarding\'in ilki dahil; tarama, gecikmeli is, uretim isi, Simdi uret, Uret ve takvime ekleme fazlasini uretmez (eskiden 1 ucretsiz + 2, daha once 8)', async () => {
+    const w = ledger('TRIAL', 0);
+    await onboardTrial(w);
     expect(w.generationJobs()).toBe(1);
+    expect(w.users.u1.articlesUsedThisMonth).toBe(1);
     for (let week = 0; week < 5; week++) {
       w.makeDue();
       await w.scheduler.processDueArticles();
+      for (const r of w.rows.filter((x) => x.status === 'SCHEDULED')) {
+        // Takvimin gecikmeli isi ve kuyruktaki sahiplenmemis uretim isi
+        await w.scheduler.dispatchScheduledArticle(r.id);
+        await w.scheduler.claimForGeneration(r.id);
+        // "Simdi uret": hak dolu → 403
+        await w.articles.triggerNow(r.siteId, r.id).catch(() => undefined);
+      }
+      await w.articles.queueGeneration('s1', 'Elle konu').catch(() => undefined);
       w.finishGeneration();
       w.publishAll();
     }
-    expect(w.generationJobs()).toBe(3);
+    expect(w.generationJobs()).toBe(2);
     expect(w.users.u1.articlesUsedThisMonth).toBe(2);
-    expect(w.rows.filter((r) => r.status === 'SCHEDULED')).toHaveLength(5);
+    expect(w.rows.filter((r) => r.status === 'PUBLISHED')).toHaveLength(2);
+    expect(w.rows.filter((r) => r.status === 'SCHEDULED')).toHaveLength(6);
     expect((await w.schedule()).message).toBe('Makale hakkın doldu (2 makale). Yeni yazıyı takvime eklemek için planını yükseltebilirsin.');
+    await expect(w.articles.queueGeneration('s1', 'Bir konu daha')).rejects.toThrow('Deneme hesabındaki 2 ücretsiz makale hakkını kullandın. Devam etmek için plan seç.');
+  });
+
+  it('kilit (lockedByPlan): onboarding sonrasi kalan 1 hak en erken takvim yazisina; digerleri kilitli. 2. yazi uretilince kalan 6 yazi kilitli', async () => {
+    const w = ledger('TRIAL', 0);
+    await onboardTrial(w);
+    const scheduled = w.rows.filter((r) => r.status === 'SCHEDULED').sort((a, b) => a.scheduledAt - b.scheduledAt);
+    expect(scheduled).toHaveLength(7);
+    const locked = await lockedOf(w);
+    expect(locked).toHaveLength(6);
+    expect(locked).not.toContain(scheduled[0].id);
+    // Paneldeki liste ve yazi sayfasi da ayni alani tasir (ArticlesService)
+    const list = await w.articles.list('s1');
+    expect(list.filter((a: any) => a.lockedByPlan).map((a: any) => a.id).sort()).toEqual([...locked].sort());
+    expect(list.find((a: any) => a.status === 'GENERATING')!.lockedByPlan).toBe(false);
+    expect((await w.articles.findOneForPanel(locked[0], 's1'))!.lockedByPlan).toBe(true);
+    w.makeDue((r) => r.id === scheduled[0].id);
+    await w.scheduler.processDueArticles();
+    expect(w.users.u1.articlesUsedThisMonth).toBe(2);
+    expect(await lockedOf(w)).toHaveLength(6);
+    // Demo sitesinin ornek takvim yazisi ve baska kullanicinin yazisi kilit hesabina girmez
+    w.rows.push({ id: 'demo1', siteId: 'demo', status: 'SCHEDULED', publishedAt: null, agentOutputs: null, scheduledAt: new Date(), site: { url: DEMO_SITE_URL, userId: 'u1' } });
+    expect(await lockedOf(w)).toHaveLength(6);
+  });
+
+  it('ucretli planda takvim yazisi kilitli gorunmez (hak her ay yenilenir)', async () => {
+    const seed = Array.from({ length: 3 }, (_, i) => ({ id: `p${i}`, siteId: 's1', topic: `Konu ${i}`, status: 'SCHEDULED', scheduledAt: new Date(Date.now() + (i + 1) * 86400000) }));
+    const w = ledger('STARTER', 15, seed);
+    expect(await lockedOf(w)).toEqual([]);
+  });
+
+  it('plan yukseltme: kullanicinin taramasi vadesi gecmis kilitli yazilari yeni hakla hemen uretir, gelecektekiler bekler; kilit kalkar; baska kullanicinin yazisina dokunulmaz', async () => {
+    const w = ledger('TRIAL', 0, [{ id: 'z1', siteId: 'x1', topic: 'Baska', status: 'SCHEDULED', scheduledAt: new Date(Date.now() - 3600_000) }]);
+    await onboardTrial(w);
+    // Onboarding sonrasi 1 hafta + 1 gun gecti: 3 yazinin vadesi geldi, deneme hakki 2'de doldu
+    let n = 0;
+    w.makeDue((r) => r.siteId === 's1' && n++ < 3);
+    await w.scheduler.processDueArticles({ userId: 'u1' });
+    expect(w.users.u1.articlesUsedThisMonth).toBe(2);
+    const generatedBefore = w.generationJobs();
+    expect(generatedBefore).toBe(2);
+    expect(await lockedOf(w)).toHaveLength(6);
+    // Odeme: paytr activateSubscription plani acar ve sayaci sifirlar
+    Object.assign(w.users.u1, { plan: 'PRO', articlesUsedThisMonth: 0 });
+    expect(await lockedOf(w)).toEqual([]);
+    const r = await w.scheduler.processDueArticles({ userId: 'u1' });
+    // Vadesi gecmis 2 kilitli yazi uretime alindi; gelecek 4 yazi saatinde
+    expect(r).toEqual({ processed: 2, skippedQuota: 0, alreadyClaimed: 0, failed: 0 });
+    expect(w.users.u1.articlesUsedThisMonth).toBe(2);
+    expect(w.rows.filter((x) => x.siteId === 's1' && x.status === 'SCHEDULED')).toHaveLength(4);
+    // Kullanici taramasi baska musterinin vadesi gecmis yazisina dokunmaz
+    expect(w.rows.find((x) => x.id === 'z1')!.status).toBe('SCHEDULED');
   });
 
   it('tek turda kullanicinin kalan hakkindan fazla takvim yazisi uretime alinmaz', async () => {

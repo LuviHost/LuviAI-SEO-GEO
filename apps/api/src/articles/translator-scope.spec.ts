@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { TranslatorService } from './translator.service.js';
+import { TRIAL_TRANSLATION_REFUSED, TranslatorService } from './translator.service.js';
 
 /**
  * TranslatorService — kapsam, dil izin listesi ve gereksiz model cagrisi.
@@ -12,8 +12,9 @@ import { TranslatorService } from './translator.service.js';
 
 const ART = { id: 'a1', siteId: 's1', slug: 'sac-bakimi', language: 'tr', title: 'Saç', bodyMd: '# Saç', frontmatter: {} };
 
-function build(opts: { existing?: boolean; slugTaken?: boolean; article?: any } = {}) {
+function build(opts: { existing?: boolean; slugTaken?: boolean; article?: any; plan?: string } = {}) {
   const prisma = {
+    site: { findUnique: vi.fn(async () => ({ user: { plan: opts.plan ?? 'STARTER' } })) },
     article: {
       findFirst: vi.fn(async ({ where }: any) => {
         if (where.frontmatter) return opts.existing ? { id: 'tr-old' } : null;
@@ -85,5 +86,18 @@ describe('TranslatorService.bulkTranslateSite', () => {
     expect(create).toHaveBeenCalledTimes(1);
     const paths = prisma.article.findFirst.mock.calls.map((c: any[]) => c[0].where?.frontmatter?.path).filter(Boolean);
     expect(paths.every((p: unknown) => p === '$.translated_from')).toBe(true);
+  });
+});
+
+describe('TranslatorService — deneme hesabi (toplam 2 AI makale)', () => {
+  it('deneme hesabi (suresi dolan ve dusurulen dahil, plan TRIAL) ceviri yapamaz: model cagrisi ve yeni kayit yok', async () => {
+    const { svc, prisma, create } = build({ plan: 'TRIAL' });
+    const r = await svc.translate('a1', 'en', 's1');
+    expect(r).toMatchObject({ ok: false, error: TRIAL_TRANSLATION_REFUSED });
+    expect(create).not.toHaveBeenCalled();
+    expect(prisma.article.create).not.toHaveBeenCalled();
+    const bulk = await svc.bulkTranslateSite('s1', ['en', 'de']);
+    expect(bulk.scheduled).toBe(0);
+    expect(create).not.toHaveBeenCalled();
   });
 });

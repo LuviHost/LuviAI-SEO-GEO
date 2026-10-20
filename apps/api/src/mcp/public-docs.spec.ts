@@ -955,11 +955,12 @@ describe('Otomatik akış metinleri = zamanlayıcı (article-scheduler, worker)'
     expect(makale).toContain('Tam otomatik modda');
   });
 
-  // SSS "makale kotami asarsam" cevabi "Sistem makale uretmeyi durdurur" diyordu; hak dolunca
-  // duran uretim yalniz kullanicinin baslattigi uretim, takvime yeni konu ekleme ve saatlik
-  // taramanin ilk takvim yazilari (gecikmeli takvim isi ve onboarding'in ilk makalesi hakka
-  // bakmaz). Cevap bu uc olguyu soyler; dayandigi kod kapilari degisirse test kirilir.
-  it('SSS "makale kotamı aşarsam": yalnız kodda duran üretimleri söylüyor, "sistem üretimi durdurur" demiyor (TR + EN)', () => {
+  // SSS "makale kotami asarsam" cevabi (sahip karari 20.10.2026): her yazi uretime alinirken
+  // makale hakkindan bir kez duser — kullanicinin baslattigi uretim de, takvim yazisi da
+  // (tarama, gecikmeli takvim isi, uretim isi). Hak dolunca hicbir yeni makale uretilmez;
+  // deneme hesabi toplam 2 makale, onboarding'in ilki dahil, takvimin geri kalani panelde
+  // kilitli ve plan yukseltilince uretilir. Dayandigi kod kapilari degisirse test kirilir.
+  it('SSS "makale kotamı aşarsam": hak dolunca yeni makale üretilmez, her makale bir kez düşer, denemede takvimin geri kalanı kilitli (TR + EN)', () => {
     const cevap = (q: string) => {
       const i = faq.indexOf(q);
       expect(i, q).toBeGreaterThan(-1);
@@ -968,19 +969,31 @@ describe('Otomatik akış metinleri = zamanlayıcı (article-scheduler, worker)'
     };
     const tr = cevap("q: 'Aylık makale kotamı aşarsam ne olur?'");
     const en = cevap("q: 'What happens if I exceed my monthly article quota?'");
-    expect(tr).not.toContain('Sistem makale üretmeyi durdurur');
-    expect(en).not.toContain('The system stops generation');
-    expect(tr).toContain('Kendi başlattığın yeni makale üretimleri durur, takvime yeni konu eklenemez ve plan yükseltmen önerilir; site eklenirken takvime yerleşen makaleler de hakkın yenilenene ya da planını yükseltene kadar bekler.');
-    expect(en).toContain('New article generations you start yourself stop, you cannot add new topics to the calendar and you are offered a plan upgrade; the articles scheduled when your site was added also wait until your allowance renews or you upgrade.');
-    // Kod kapilari: elle uretim hak dolunca 403; takvime ekleme hak dolunca 403; saatlik tarama hakka bakar
+    expect(tr).toContain('Yeni makale üretilmez: kendi başlattığın üretimler durur, takvime yeni konu eklenemez ve plan yükseltmen önerilir; takvimde bekleyen makaleler de hakkın yenilenene ya da planını yükseltene kadar bekler.');
+    expect(tr).toContain('Her makale, üretime alındığı anda hakkından bir kez düşer.');
+    expect(tr).toContain('Ücretsiz denemedeki 2 makale hakkı sıfırlanmaz; site eklenirken takvime yerleşen diğer konular panelde kilitli görünür ve planını yükselttiğinde yazılır.');
+    expect(en).toContain('No new articles are generated: generations you start yourself stop, you cannot add new topics to the calendar and you are offered a plan upgrade; scheduled articles also wait until your allowance renews or you upgrade.');
+    expect(en).toContain('Each article uses your allowance once, when it enters generation.');
+    expect(en).toContain('the other topics scheduled when your site was added appear locked in the dashboard and are written when you upgrade your plan.');
+    // Eski iddialar geri gelmesin: takvim uretimi hakka sayilmaz / onboarding'in ilki herkese ucretsiz
+    for (const metin of [faq, autoPilot]) expect(metin).not.toMatch(/makale hakkından düşmez|kendi başlattığın üretimler makale hakkını doldurduysa/);
+    // Kod kapilari: elle uretim hak dolunca 403 (tek kosullu UPDATE); takvime ekleme 403;
+    // takvim yazisi uretime alinirken duser (tarama, gecikmeli is, uretim isi)
     const quota = read(path.resolve(HERE, '../billing/quota.service.ts'));
-    const enforce = quota.slice(quota.indexOf('async enforceArticleQuota('), quota.indexOf('async incrementArticleUsage('));
-    expect(enforce).toMatch(/if \(!allowed\) \{[\s\S]*throw new ForbiddenException[\s\S]*plan seç[\s\S]*throw new ForbiddenException[\s\S]*Plan yükseltebilir/);
+    const consume = quota.slice(quota.indexOf('async consumeArticleAllowance('), quota.indexOf('async refundArticleAllowance('));
+    expect(consume).toContain('where: { id: userId, articlesUsedThisMonth: { lt: limit } }');
+    expect(consume).toContain('throw this.articleQuotaError(user.plan, limit);');
+    const hata = quota.slice(quota.indexOf('private articleQuotaError('), quota.indexOf('async consumeArticleAllowance('));
+    expect(hata).toMatch(/plan === 'TRIAL'[\s\S]*plan seç[\s\S]*Plan yükseltebilir/);
     const ekle = scheduler.slice(scheduler.indexOf('async scheduleTopic('), scheduler.indexOf('const slug =', scheduler.indexOf('async scheduleTopic(')));
     expect(ekle).toMatch(/if \(!allowed\) \{\s*[\s\S]*?throw new ForbiddenException/);
     const tarama = scheduler.slice(scheduler.indexOf('async processDueArticles('), scheduler.indexOf('private dueArticlesWhere('));
-    expect(tarama).toContain('allowed = await this.scanQuotaAllowed(u.id, quotaByUser);');
-    expect(tarama).toMatch(/if \(!allowed\) \{\s*skippedQuota\+\+;/);
+    expect(tarama).toContain('limit = await this.scanUserLimit(u.id, limitByUser);');
+    expect(tarama).toMatch(/if \(limit === null\) \{\s*skippedQuota\+\+;/);
+    const sahiplen = scheduler.slice(scheduler.indexOf('private async claimAndQueue('), scheduler.indexOf('private async chargeArticle('));
+    expect(sahiplen).toContain("return { outcome: 'quota_exhausted' };");
+    const ilk = scheduler.slice(scheduler.indexOf('async scheduleInitialBatch('), scheduler.indexOf('private async claimAndQueue('));
+    expect(ilk, 'deneme hesabinda onboarding\'in ilk yazisi haktan duser').toContain('charged = await this.chargeArticle(site.userId);');
   });
 
   it('sözlük: editör skoru bugünkü ölçeği (pipeline EDITOR_MAX_SCORE) ve eski 60 ölçeğini söylüyor', () => {

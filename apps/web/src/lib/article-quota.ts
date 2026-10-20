@@ -127,7 +127,7 @@ export function billingArticleUsage(current: { plan?: unknown; articleQuota?: un
       pct,
       ariaLabel: 'Ücretsiz içerik hakkı kullanımı',
       note: quota.remaining === 0
-        ? { tone: 'warning', text: 'Ücretsiz içerik hakkının tamamını kullandın; deneme hakkı aylık yenilenmez. Devam etmek için bir plan seçebilirsin.' }
+        ? { tone: 'warning', text: 'Ücretsiz içerik hakkının tamamını kullandın; deneme hakkı aylık yenilenmez. Takvimindeki diğer konular, bir plan seçtiğinde yazılır.' }
         : { tone: 'muted', text: 'Deneme hakkı aylık yenilenmez; plan seçtiğinde aylık kotan başlar.' },
     };
   }

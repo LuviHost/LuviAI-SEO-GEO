@@ -6,6 +6,7 @@ import { Activity, FileText, Send, ShieldCheck, Sparkles, Wand2 } from 'lucide-r
 import { fadeUp, staggerContainer } from '@/lib/motion-presets';
 import { siteHref } from '@/lib/site-routes';
 import { cn } from '@/lib/utils';
+import { isPlanLocked } from '@/lib/plan-lock';
 
 /**
  * Son aktivite — yazi uretimi/yayini, tarama ve otomatik duzeltmelerden son 6 olay.
@@ -59,7 +60,8 @@ export function RecentActivity({ articles, audit, siteId }: { articles: any[]; a
       events.push({
         type: 'article_generated',
         title: a.title || a.topic,
-        meta: a.status === 'GENERATING' ? 'üretiliyor' : a.status === 'SCHEDULED' ? 'takvime alındı' : 'oluşturuldu',
+        // Kilitli takvim yazisi (deneme hakki doldu) "takvime alindi" diye yazilacakmis gibi gorunmesin
+        meta: a.status === 'GENERATING' ? 'üretiliyor' : isPlanLocked(a) ? 'kilitli · plan yükseltilince yazılır' : a.status === 'SCHEDULED' ? 'takvime alındı' : 'oluşturuldu',
         timestamp: new Date(a.createdAt).getTime(),
         href: `${siteHref(siteId, 'articles')}/${a.id}`,
       });

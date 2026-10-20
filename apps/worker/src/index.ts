@@ -14,7 +14,7 @@ import { AutoFixService } from '../../api/dist/audit/auto-fix.service.js';
 import { TopicsService } from '../../api/dist/topics/topics.service.js';
 import { PipelineService } from '../../api/dist/articles/pipeline.service.js';
 import { PublisherService } from '../../api/dist/articles/publisher.service.js';
-import { ArticleSchedulerService, isScheduledGenerationJobId } from '../../api/dist/articles/article-scheduler.service.js';
+import { ArticleSchedulerService, GENERATION_CLAIM_SKIP_REASON, isScheduledGenerationJobId } from '../../api/dist/articles/article-scheduler.service.js';
 import { runGeneratingSweep, bullmqQueueInspector } from '../../api/dist/articles/generating-sweeper.js';
 import { PrismaService } from '../../api/dist/prisma/prisma.service.js';
 import { PlatformDetectorService } from '../../api/dist/sites/platform-detector.service.js';
@@ -237,11 +237,13 @@ async function bootstrap() {
         return dispatch;
       }
       // Yazi hala SCHEDULED ise (kuyruga atan sahiplenmemis) once sahiplen;
-      // baskasi aldiysa ya da yazi silindiyse uretme (LLM maliyeti harcanmaz)
+      // baskasi aldiysa ya da yazi silindiyse uretme (LLM maliyeti harcanmaz).
+      // Sahiplenme makale hakkindan duser: hak doluysa yazi SCHEDULED kalir
+      // (QUOTA_EXHAUSTED; deneme hesabinda plan yukseltilene kadar kilitli).
       const claim = await services.scheduler.claimForGeneration(articleId);
       if (claim !== 'proceed') {
         log.log(`[${siteId}] GENERATE_ARTICLE atlandı (${claim}) article=${articleId}`);
-        return { skipped: true, reason: claim === 'article_missing' ? 'ARTICLE_MISSING' : 'ALREADY_CLAIMED' };
+        return { skipped: true, reason: GENERATION_CLAIM_SKIP_REASON[claim] };
       }
       // OTOMATIK yeniden yazim (yalniz icerik pivotu koyar): tarama ile is
       // arasinda yazi yayindan kalkmis ya da canli kopyasinin hedefi silinmis /
@@ -388,9 +390,12 @@ async function bootstrap() {
     /**
      * ONBOARDING_CHAIN — brain + denetim + platform tespiti (paralel) → konu
      * motoru → tier-1 takvim (api article-scheduler.service scheduleInitialBatch).
-     * Akis acikken 8, kapaliyken 3 konu takvime yazilir; ilki her durumda hemen
-     * uretilir, digerlerini akis acikken saatlik tarama (PROCESS_SCHEDULED)
-     * zamani gelince uretir. Takvim uretimi makale hakkindan dusmez.
+     * Akis acikken 8, kapaliyken 3 konu takvime yazilir; ilki hemen uretilir
+     * (ucretli planda ucretsiz; deneme hesabinda toplam 2 makalelik haktan duser,
+     * hak yoksa uretilmez), digerlerini akis acikken saatlik tarama
+     * (PROCESS_SCHEDULED) zamani gelince uretir ve her biri uretime alinirken
+     * makale hakkindan duser. Deneme hesabinda hakki asan konular uretilmez,
+     * plan yukseltilene kadar panelde kilitli bekler (api articles/plan-lock.ts).
      * Akis acikken ayrica auto-fix (sitemap + llms; robots onay ister) ve ilk AI
      * gorunurluk olcumu (sistem modu, kotadan dusmez) kosar.
      */
@@ -556,12 +561,11 @@ async function bootstrap() {
         data: { status: 'ACTIVE' },
       });
 
-      // Eski log deneme hesabinda takvimin plan satin alinmasini bekledigini
-      // yaziyordu; takvim uretimi hakka sayilmaz, deneme hesabi da ucretli plan
-      // gibi yalniz kendi uretimleri hakki doldurursa bekler (api
-      // article-scheduler.service processDueArticles)
+      // Takvim yazilari uretime alinirken makale hakkindan duser; hak yetmezse
+      // bekler (deneme hesabinda toplam 2 makale, fazlasi plan yukseltilene kadar
+      // kilitli: api article-scheduler.service processDueArticles, plan-lock.ts)
       const takvimNotu = scheduleResult.scheduled > 0
-        ? ` (${scheduleResult.immediate ? 'ilki hemen uretimde; ' : ''}digerleri ${autopilot ? 'zamani gelince saatlik taramayla uretilir' : 'akis acilana kadar bekler'}; makale hakkindan dusmez)`
+        ? ` (${scheduleResult.immediate ? 'ilki hemen uretimde; ' : ''}digerleri ${autopilot ? 'zamani gelince saatlik taramayla uretilir' : 'akis acilana kadar bekler'}; her biri uretime alinirken makale hakkindan duser, hak yetmezse bekler)`
         : '';
       log.log(`[${siteId}] ✅ Onboarding tamamlandi — audit, ${tier1Count} tier-1, ${scheduleResult.scheduled} makale takvimde${takvimNotu}${autopilot ? ' [OTOPILOT]' : ''}`);
       return {
@@ -578,16 +582,21 @@ async function bootstrap() {
 
     /**
      * PROCESS_SCHEDULED — saatlik: yayin saatine 15 dk ya da daha az kalan,
-     * akisi acik sitelerin SCHEDULED yazilarini uretime alir. Kullanicinin
-     * kendi uretimleri makale hakkini doldurduysa yazi bekler; takvim uretimi
-     * hakka sayilmaz (api article-scheduler.service processDueArticles).
+     * akisi acik sitelerin SCHEDULED yazilarini uretime alir. Her yazi uretime
+     * alinirken aylik makale hakkindan bir kez duser; hak doluysa yazi bekler
+     * (deneme hesabinda plan yukseltilene kadar kilitli; api
+     * article-scheduler.service processDueArticles, articles/plan-lock.ts).
+     * Is verisinde userId varsa yalniz o kullanicinin yazilari taranir: plan
+     * yukseltme sonrasi bekleyen yazilar saatlik turu beklemesin (api
+     * articles/scheduled-kick.ts). Saatlik tekrar isinin verisi bos: herkes.
      */
-    PROCESS_SCHEDULED: async () => {
+    PROCESS_SCHEDULED: async (data) => {
       if (await services.settings.getBoolean('ARTICLE_GENERATION_DISABLED')) {
         log.warn('PROCESS_SCHEDULED atlandı (ARTICLE_GENERATION_DISABLED=1)');
         return { processed: 0, skippedQuota: 0, disabled: true };
       }
-      return services.scheduler.processDueArticles();
+      const userId = typeof data?.userId === 'string' && data.userId ? data.userId : undefined;
+      return services.scheduler.processDueArticles(userId ? { userId } : {});
     },
 
     /**
