@@ -163,18 +163,18 @@ describe('GeoRunnerService — engelli sayfa skora girmez', () => {
   // F7: yontem degisti (HTML llms.txt 0 puan, anasayfa tek ornek, yonlendirme
   // sonrasi koken). Surum damgasi olmazsa karsilastirma farki siteye yazar.
   it('her donus yolu olcum yontemi surumunu tasir (basarili, engelli, okunamayan, hata)', async () => {
-    expect(GEO_METHOD_VERSION).toBe(2);
+    expect(GEO_METHOD_VERSION).toBe(3);
     const svc = new GeoRunnerService();
     const surum = async (map: Record<string, Reply | Error>) => {
       serve(map);
       return (await svc.runAudit('https://site.com')).details;
     };
-    expect(await surum({ 'https://site.com': { status: 200, text: RICH } })).toEqual({ methodVersion: 2 });
-    expect(await surum({ 'https://site.com': CF_WAF })).toEqual({ methodVersion: 2 });
-    expect(await surum({ 'https://site.com': { status: 500, text: 'hata' } })).toEqual({ methodVersion: 2 });
-    expect(await surum({ 'https://site.com': new Error('ag koptu') })).toEqual({ methodVersion: 2 });
+    expect(await surum({ 'https://site.com': { status: 200, text: RICH } })).toEqual({ methodVersion: 3 });
+    expect(await surum({ 'https://site.com': CF_WAF })).toEqual({ methodVersion: 3 });
+    expect(await surum({ 'https://site.com': { status: 500, text: 'hata' } })).toEqual({ methodVersion: 3 });
+    expect(await surum({ 'https://site.com': new Error('ag koptu') })).toEqual({ methodVersion: 3 });
     // Gecersiz adres catch yoluna duser — o da damgali
-    expect((await svc.runAudit('gecersiz adres')).details).toEqual({ methodVersion: 2 });
+    expect((await svc.runAudit('gecersiz adres')).details).toEqual({ methodVersion: 3 });
   });
 
   it('istekler durust bot kimligi ve onbellek atlatma basliklariyla gider (UA ezilmez)', async () => {
@@ -228,5 +228,38 @@ describe('GeoRunnerService — 2 MB tavan gercek baglantida', () => {
     expect(r.score, 'GEO skoru uretilemedi — kirpma analizi bozmus').not.toBeNull();
     // 20 MB = 320 parca; tavanli istemci ~32 parcada keser (soket tamponu payi ile)
     expect(sent.chunks, `${sent.chunks} parca gonderildi — tavan uygulanmiyor`).toBeLessThan(160);
+  });
+});
+
+/**
+ * Tarih sinyali (v3). v2 `meta[article:modified_time], time[datetime]` secicisinden
+ * attr("datetime") okuyordu: cheerio yalniz ilk elemana bakar (head'deki meta) ve
+ * meta'nin degeri `content`'tedir — modified_time hic okunmuyordu.
+ */
+describe('GeoRunnerService — tarih sinyali', () => {
+  const fresh = (head: string, body = '') => {
+    const svc = new GeoRunnerService() as unknown as { scorePage(html: string): { freshScore: number } };
+    return svc.scorePage(`<html><head>${head}</head><body><h1>x</h1>${body}</body></html>`).freshScore;
+  };
+  const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString();
+
+  it('article:modified_time meta okunur (v2 bunu hic goremiyordu)', () => {
+    expect(fresh(`<meta property="article:modified_time" content="${daysAgo(10)}">`)).toBe(100);
+  });
+
+  it('modified_time varken body\'deki <time datetime> de gorulur; modified once gelir', () => {
+    expect(fresh('', `<time datetime="${daysAgo(30)}">gecen ay</time>`)).toBe(100);
+    expect(fresh(`<meta property="article:modified_time" content="${daysAgo(900)}">`, `<time datetime="${daysAgo(5)}">x</time>`)).toBe(30);
+  });
+
+  it('meta yoksa JSON-LD dateModified, o da yoksa datePublished okunur', () => {
+    const ld = (o: object) => `<script type="application/ld+json">${JSON.stringify(o)}</script>`;
+    expect(fresh(ld({ '@type': 'BlogPosting', datePublished: daysAgo(800), dateModified: daysAgo(20) }))).toBe(100);
+    expect(fresh(ld({ '@type': 'BlogPosting', datePublished: daysAgo(500) }))).toBe(60);
+  });
+
+  it('okunamayan tarih 50 alir (v2\'de NaN sessizce 30 oluyordu); tarih yoksa 0', () => {
+    expect(fresh('<meta property="article:modified_time" content="gecen sali">')).toBe(50);
+    expect(fresh('')).toBe(0);
   });
 });
