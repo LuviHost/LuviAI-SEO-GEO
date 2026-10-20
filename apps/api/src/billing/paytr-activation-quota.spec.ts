@@ -27,7 +27,7 @@ function apply(row: Row, data: Row) {
 }
 
 let seq = 0;
-function world(userInit: Row) {
+function world(userInit: Row, opts: { jobs?: any } = {}) {
   const user: Row = {
     id: 'u1', email: 'a@b.co', name: 'A', deletionRequestedAt: null, renewalFailCount: 0,
     videosUsedThisMonth: 0, aiCostThisMonthUsd: 0,
@@ -49,10 +49,19 @@ function world(userInit: Row) {
       findUnique: vi.fn(async () => ({ ...user })),
       findUniqueOrThrow: vi.fn(async () => ({ ...user })),
       update: vi.fn(async ({ data }: any) => { apply(user, data); return { ...user }; }),
+      // QuotaService consumeArticleAllowance: tek kosullu UPDATE (articlesUsedThisMonth < hak)
+      updateMany: vi.fn(async ({ where, data }: any) => {
+        const c = where.articlesUsedThisMonth ?? {};
+        if (c.lt !== undefined && !(user.articlesUsedThisMonth < c.lt)) return { count: 0 };
+        if (c.gt !== undefined && !(user.articlesUsedThisMonth > c.gt)) return { count: 0 };
+        const d = data.articlesUsedThisMonth;
+        user.articlesUsedThisMonth += typeof d?.increment === 'number' ? d.increment : -(d?.decrement ?? 0);
+        return { count: 1 };
+      }),
     },
   };
   const email: any = { send: vi.fn(async () => ({ ok: true })) };
-  const paytr = new PaytrService(prisma, { recordCommission: vi.fn(async () => {}) } as any, email, {} as any);
+  const paytr = new PaytrService(prisma, { recordCommission: vi.fn(async () => {}) } as any, email, {} as any, opts.jobs);
   const quota = new QuotaService(prisma);
 
   /** Odenmis fatura (plan kodu: STA | PRO | AGE) */
@@ -65,15 +74,14 @@ function world(userInit: Row) {
     expect(await paytr.markInvoicePaid(id)).toBe(true);
   }
 
-  /** ArticlesService ile ayni sira: once kota kapisi, sonra sayac; engellenene kadar uretir */
+  /** ArticlesService ile ayni kapi (consumeArticleAllowance); engellenene kadar uretir */
   async function generateUntilBlocked(max = 100): Promise<number> {
     let n = 0;
     for (; n < max; n++) {
-      try { await quota.enforceArticleQuota('u1'); } catch (err) {
+      try { await quota.consumeArticleAllowance('u1'); } catch (err) {
         if (err instanceof ForbiddenException) break;
         throw err;
       }
-      await quota.incrementArticleUsage('u1');
     }
     return n;
   }
@@ -217,5 +225,40 @@ describe('plan_upgraded e-postasi gercek kotayi soyler', () => {
     const w = world({ plan: 'PRO', subscriptionStatus: 'ACTIVE', articlesUsedThisMonth: 3, articlesQuotaResetAt: new Date() });
     await w.pay('PRO', true);
     expect(w.email.send).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Plan yukseltme sonrasi takvim (sahip karari 20.10.2026): deneme hesabinin hakki asan
+ * takvim yazilari SCHEDULED bekler (panelde kilitli). Plan acilinca o kullanicinin
+ * taramasi hemen kuyruga atilir ki vadesi gecmis yazilar yeni hak yettigince uretilsin;
+ * kuyruk hatasi plan etkinlestirmesini bozmaz.
+ */
+describe('plan yukseltme → bekleyen takvim yazilari icin kullanici taramasi', () => {
+  const jobsFake = () => ({ enqueue: vi.fn<(o: any) => Promise<{ dbJobId: string; bullJobId: string }>>(async () => ({ dbJobId: 'j1', bullJobId: '1' })) });
+
+  it('denemeden ucretli plana gecis: PROCESS_SCHEDULED yalniz bu kullanici icin kuyruga girer', async () => {
+    const jobs = jobsFake();
+    const w = world({ plan: 'TRIAL', subscriptionStatus: 'TRIAL', articlesUsedThisMonth: 2, articlesQuotaResetAt: new Date() }, { jobs });
+    await w.pay('PRO', false);
+    expect(w.user.plan).toBe('PRO');
+    expect(jobs.enqueue).toHaveBeenCalledTimes(1);
+    expect(jobs.enqueue.mock.calls[0][0]).toEqual({ type: 'PROCESS_SCHEDULED', userId: 'u1', payload: { userId: 'u1', reason: 'plan_upgrade' } });
+  });
+
+  it('kuyruk hata verse de plan acilir ve odeme bildirimi basarili doner', async () => {
+    const jobs = jobsFake();
+    jobs.enqueue.mockRejectedValueOnce(new Error('redis yok'));
+    const w = world({ plan: 'TRIAL', subscriptionStatus: 'EXPIRED', articlesUsedThisMonth: 2, articlesQuotaResetAt: new Date() }, { jobs });
+    await w.pay('STA', false);
+    expect(w.user.plan).toBe('STARTER');
+    expect(w.user.subscriptionStatus).toBe('ACTIVE');
+  });
+
+  it('ayni planin yenilemesi tarama atmaz (hak degismedi)', async () => {
+    const jobs = jobsFake();
+    const w = world({ plan: 'PRO', subscriptionStatus: 'ACTIVE', articlesUsedThisMonth: 3, articlesQuotaResetAt: new Date() }, { jobs });
+    await w.pay('PRO', true);
+    expect(jobs.enqueue).not.toHaveBeenCalled();
   });
 });

@@ -13,7 +13,9 @@ import { useConfirm } from '@/components/ui/confirm-dialog';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Lightbulb, Loader2, Calendar, FileCheck2, Send, Sparkles, RefreshCw, Eye} from 'lucide-react';
+import { Lightbulb, Loader2, Calendar, FileCheck2, Send, Sparkles, RefreshCw, Eye, Lock } from 'lucide-react';
+import { isPlanLocked } from '@/lib/plan-lock';
+import { LockedRowPreview, PlanUpgradeButton } from '@/components/locked-article';
 import { PipelineProgress, PIPELINE_STEPS } from '@/components/pipeline-progress';
 
 /*
@@ -23,6 +25,8 @@ import { PipelineProgress, PIPELINE_STEPS } from '@/components/pipeline-progress
  *   - Önerilen (queue.tier1Topics — henüz makaleye dönüşmemiş)
  *   - Üretiliyor / Editör (article.status: GENERATING, EDITING)
  *   - Takvimde (article.status: SCHEDULED)
+ *   - Kilitli (SCHEDULED + sunucunun lockedByPlan'i: deneme hakki doldu, plan
+ *     yukseltilince yazilir; lib/plan-lock.ts) — uretim dugmesi yok, yukseltme var
  *   - Hazır (article.status: READY_TO_PUBLISH)
  *   - Yayınlandı (article.status: PUBLISHED)
  *
@@ -38,7 +42,7 @@ type Row = {
   pillar?: string | null;
   score?: number | null;
   persona?: string | null;
-  state: 'suggested' | 'generating' | 'editing' | 'scheduled' | 'queued' | 'ready' | 'published' | 'failed';
+  state: 'suggested' | 'generating' | 'editing' | 'scheduled' | 'queued' | 'locked' | 'ready' | 'published' | 'failed';
   articleId?: string | null;
   scheduledAt?: string | null;
   publishedAt?: string | null;
@@ -57,6 +61,7 @@ const STATE_CONFIG: Record<Row['state'], { label: string; color: string; bg: str
   editing: { label: 'Editörde', color: 'text-brand', bg: 'bg-brand/10', border: 'border-brand/30', Icon: Loader2 },
   scheduled: { label: 'Takvimde', color: 'text-info', bg: 'bg-info/10', border: 'border-info/30', Icon: Calendar },
   queued: { label: 'Sırada (tarihsiz)', color: 'text-warning', bg: 'bg-warning/10', border: 'border-warning/30', Icon: Calendar },
+  locked: { label: 'Kilitli', color: 'text-muted-foreground', bg: 'bg-muted', border: 'border-border', Icon: Lock },
   ready: { label: 'Hazır (onay)', color: 'text-success', bg: 'bg-success/10', border: 'border-success/30', Icon: FileCheck2 },
   published: { label: 'Yayında', color: 'text-success', bg: 'bg-success/10', border: 'border-success/30', Icon: Send },
   failed: { label: 'Başarısız', color: 'text-danger', bg: 'bg-danger/10', border: 'border-danger/30', Icon: Lightbulb },
@@ -276,6 +281,10 @@ export function ContentFlowTable({
       let state: Row['state'] = 'failed';
       if (a.status === 'GENERATING') state = 'generating';
       else if (a.status === 'EDITING') state = 'editing';
+      else if (a.status === 'SCHEDULED' && isPlanLocked(a)) {
+        // Deneme hakki doldu: plan yukseltilene kadar uretilmez (karar sunucudan, lib/plan-lock.ts)
+        state = 'locked';
+      }
       else if (a.status === 'SCHEDULED') {
         // scheduledAt yoksa veya geçersizse 'queued' (sırada-tarihsiz) olarak göster
         const sa = a.scheduledAt ? new Date(a.scheduledAt) : null;
@@ -324,8 +333,9 @@ export function ContentFlowTable({
     //   3) Hazır (onay bekliyor)
     //   4) Sırada (tarihsiz)
     //   5) Yayında (geçmiş)
-    //   6) Takvimde (gelecek - en altta)
-    //   7) Başarısız
+    //   6) Takvimde (gelecek)
+    //   7) Kilitli (plan yükseltilince yazılır)
+    //   8) Başarısız
     const order: Record<Row['state'], number> = {
       suggested: 0,
       generating: 1,
@@ -334,7 +344,8 @@ export function ContentFlowTable({
       queued: 4,
       published: 5,
       scheduled: 6,
-      failed: 7,
+      locked: 7,
+      failed: 8,
     };
     return all.sort((a, b) => order[a.state] - order[b.state]);
   }, [articles, tier1]);
@@ -448,6 +459,8 @@ export function ContentFlowTable({
                           ? 'border-l-4 border-l-success/70'
                           : row.state === 'scheduled'
                             ? 'border-l-4 border-l-info/50'
+                            : row.state === 'locked'
+                              ? 'border-l-4 border-l-border'
                             : row.state === 'ready'
                               ? 'border-l-4 border-l-success/70'
                               : 'border-l-4 border-l-transparent';
@@ -508,6 +521,12 @@ export function ContentFlowTable({
                                 aria-hidden
                               >⠿</span>
                               <span className="font-medium leading-snug">{row.topic}</span>
+                            </div>
+                          ) : row.state === 'locked' ? (
+                            // Gercek baslik gorunur; govde yerine bulanik yer tutucu + "yukseltince yazilir"
+                            <div>
+                              <div className="font-medium leading-snug">{row.topic}</div>
+                              <LockedRowPreview seed={row.articleId ?? row.key} />
                             </div>
                           ) : (
                             <div className="font-medium leading-snug">{row.topic}</div>
@@ -649,6 +668,20 @@ export function ContentFlowTable({
                               </div>
                             );
                           })()}
+                          {row.state === 'locked' && (
+                            // Uretim dugmesi YOK ("Simdi uret" deneme hakki dolu oldugu icin 403 donerdi):
+                            // yukseltme ve kilitli yazinin sayfasi
+                            <div className="flex items-center justify-end gap-1.5">
+                              <PlanUpgradeButton />
+                              {row.articleId && (
+                                <Link href={`/sites/${siteId}/articles/${row.articleId}`}>
+                                  <Button size="sm" variant="outline" title="Kilitli yazıyı aç">
+                                    <Eye className="h-3.5 w-3.5" />
+                                  </Button>
+                                </Link>
+                              )}
+                            </div>
+                          )}
                           {row.state === 'queued' && (
                             <Button
                               size="sm"

@@ -217,7 +217,7 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
 
   // ──────────── RanksUp Ozel Terimler ────────────
   Otopilot: {
-    short: 'RanksUp\'ın seçtiğin işleri senin yerine yürütmesi. Site otopilotu konuları takvime koyar ve makaleleri üretir; reklam otopilotu (varsayılan kapalı) düşük getirili kampanyayı durdurur, yüksek getirilinin bütçesini artırır.',
+    short: 'RanksUp\'ın seçtiğin işleri senin yerine yürütmesi. Site otopilotu konuları takvime koyar ve makale hakkın yettikçe makaleleri üretir; reklam otopilotu (varsayılan kapalı) düşük getirili kampanyayı durdurur, yüksek getirilinin bütçesini artırır.',
     level: 2,
   },
   Brain: {
@@ -283,11 +283,11 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
   // Haftalik sinir: denemede de hesap basina 7 gunde 1 olcum (billing/measurement-allowance);
   // "3 calistirma" tek basina "3 olcum" diye okunuyordu. Fiyat karti ve SSS ile ayni ifade.
   TRIAL: {
-    short: 'Ücretsiz deneme planı — 2 makale, 3 AI görünürlük çalıştırması (haftada en fazla 1 ölçüm) ve 1 site; makaleler Markdown ZIP olarak indirilir ya da WordPress\'e gönderilir. Ücretli plan seçince diğer yayın hedefleri de açılır.',
+    short: 'Ücretsiz deneme planı — 2 makale (site eklenince yazılan ilk makale dahil), 3 AI görünürlük çalıştırması (haftada en fazla 1 ölçüm) ve 1 site; makaleler Markdown ZIP olarak indirilir ya da WordPress\'e gönderilir. Takvimin geri kalanı kilitli görünür ve ücretli plan seçince yazılır; diğer yayın hedefleri de o zaman açılır.',
     level: 1,
   },
   Quota: {
-    short: 'Aylık makale üretim limitin; plana göre değişir (güncel sayılar fiyatlandırma sayfasında). Sayaç her takvim ayının başında sıfırlanır; ücretsiz denemedeki 2 makale hakkı sıfırlanmaz.',
+    short: 'Aylık makale üretim limitin; plana göre değişir (güncel sayılar fiyatlandırma sayfasında). Her makale, kendin başlatsan da takvimden gelse de, üretime alındığı anda bir kez düşer. Sayaç her takvim ayının başında sıfırlanır; ücretsiz denemedeki 2 makale hakkı sıfırlanmaz.',
     level: 1,
   },
 };

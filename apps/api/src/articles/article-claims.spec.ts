@@ -25,8 +25,9 @@ describe('icerik yenileme (content-pivot) iddialari Search Console kosuluyla', (
   it('SSS madde 5 (TR + EN): kosulsuz "30 gun sonra performansi dusuk" vaadi yok, Search Console kosulu var', () => {
     expect(faq).not.toContain('yayından 30 gün sonra performansı düşük kalan makaleler');
     expect(faq).not.toContain('articles that still perform poorly 30 days after publishing');
-    expect(faq).toContain('(5) Search Console bağlıysa, yayından en az 30 gün geçmiş makaleler');
-    expect(faq).toContain('(5) if Search Console is connected, articles published at least 30 days ago');
+    // Ucretli plan kosulu: deneme hesabinin sitesi pivot taramasina girmez (content-pivot scanAllSites, 20.10.2026)
+    expect(faq).toContain('(5) ücretli planlarda ve Search Console bağlıysa, yayından en az 30 gün geçmiş makaleler');
+    expect(faq).toContain('(5) on paid plans, if Search Console is connected, articles published at least 30 days ago');
     // Yari otomatikte yeniden yazilan yazi onay bekler (content-pivot autoPublishEnabled)
     expect(faq).toContain('Yarı otomatikte yeni hali onayını bekler');
   });

@@ -4,7 +4,8 @@ import { JobQueueService } from '../jobs/job-queue.service.js';
 import { QuotaService } from '../billing/quota.service.js';
 import { PipelineService } from './pipeline.service.js';
 import { automationPublishFields } from './publish-approval.js';
-import { scheduledGenerationJobId } from './article-scheduler.service.js';
+import { loadPlanLockedIds, withPlanLock } from './plan-lock.js';
+import { hasAllowanceCharge, scheduledGenerationJobId, withAllowanceCharge } from './article-scheduler.service.js';
 import {
   agentOutputsWithoutLiveWriteBlocked, articleContentHash, liveEntryFor, siteLiveEntries, statusAfterRetirement, withoutManualUpdateFlag,
 } from './republish-policy.js';
@@ -54,11 +55,20 @@ export class ArticlesService {
     private readonly pipeline: PipelineService,
   ) {}
 
-  list(siteId: string, status?: string) {
-    return this.prisma.article.findMany({
+  /**
+   * Panel listesi. Her yazida lockedByPlan: deneme hesabinin hakki yetmedigi icin
+   * plan yukseltilene kadar uretilmeyecek takvim yazisi (plan-lock.ts). Panel
+   * kilidi bu alandan okur, kendisi hesaplamaz.
+   */
+  async list(siteId: string, status?: string) {
+    const rows = await this.prisma.article.findMany({
       where: { siteId, ...(status ? { status: status as any } : {}) },
       orderBy: { createdAt: 'desc' },
     });
+    const locked = rows.some((r) => String(r.status) === 'SCHEDULED')
+      ? await this.planLocksForSite(siteId)
+      : new Set<string>();
+    return rows.map((r) => withPlanLock(r, locked));
   }
 
   findOne(id: string, siteId?: string) {
@@ -67,50 +77,70 @@ export class ArticlesService {
     });
   }
 
+  /** Panelin yazi sayfasi: findOne + lockedByPlan (plan-lock.ts) */
+  async findOneForPanel(id: string, siteId: string) {
+    const row = await this.findOne(id, siteId);
+    if (!row) return row;
+    const locked = String(row.status) === 'SCHEDULED' ? await this.planLocksForSite(siteId) : new Set<string>();
+    return withPlanLock(row, locked);
+  }
+
+  /** Sitenin sahibinin kilitli takvim yazilari (hak hesap basina: tum siteleri birlikte) */
+  private async planLocksForSite(siteId: string): Promise<Set<string>> {
+    const site = await this.prisma.site.findUnique({ where: { id: siteId }, select: { userId: true } }).catch(() => null);
+    return site ? loadPlanLockedIds(this.prisma, this.quota, site.userId) : new Set();
+  }
+
   async queueGeneration(siteId: string, topic: string, targetIds?: string[]) {
     const site = await this.prisma.site.findUniqueOrThrow({ where: { id: siteId } });
 
-    // Quota check (yetersizse 403 fırlatır)
-    await this.quota.enforceArticleQuota(site.userId);
+    // Makale hakki uretim baslamadan ONCE, tek kosullu UPDATE ile duser (hak doluysa
+    // 403, hicbir kayit acilmaz). Eskiden "oku → kuyruga at → kosulsuz artir" idi:
+    // es zamanli iki istek son hakki iki kez kullanabiliyordu (QuotaService
+    // consumeArticleAllowance). Uretim baslatilamazsa hak geri verilir.
+    await this.quota.consumeArticleAllowance(site.userId);
 
-    // Placeholder Article (GENERATING) — pipeline tamamlandiginda bu kayit doldurulur.
-    // Boylece "Uret" tiklanir tiklanmaz makale "Hazirlaniyor" rozetiyle listede gorunur.
-    const placeholderSlug = `generating-${Date.now().toString(36)}`;
-    const article = await this.prisma.article.create({
-      data: {
+    try {
+      // Placeholder Article (GENERATING) — pipeline tamamlandiginda bu kayit doldurulur.
+      // Boylece "Uret" tiklanir tiklanmaz makale "Hazirlaniyor" rozetiyle listede gorunur.
+      const placeholderSlug = `generating-${Date.now().toString(36)}`;
+      const article = await this.prisma.article.create({
+        data: {
+          siteId,
+          topic,
+          slug: placeholderSlug,
+          title: topic,
+          status: 'GENERATING' as any,
+          language: site.language ?? 'tr',
+        },
+      });
+
+      const explicitPublish = !!targetIds?.length;
+      const job = await this.jobQueue.enqueue({
+        type: 'GENERATE_ARTICLE',
+        userId: site.userId,
         siteId,
-        topic,
-        slug: placeholderSlug,
-        title: topic,
-        status: 'GENERATING' as any,
-        language: site.language ?? 'tr',
-      },
-    });
-
-    const explicitPublish = !!targetIds?.length;
-    const job = await this.jobQueue.enqueue({
-      type: 'GENERATE_ARTICLE',
-      userId: site.userId,
-      siteId,
-      payload: {
-        siteId,
-        topic,
-        articleId: article.id,
-        targetIds,
-        autoPublish: explicitPublish,
-        // Hedef secip "uret ve yayinla" diyen ACIK istek onayin kendisidir.
-        // Worker autoPublish'i tek basina otomasyon istegi sayar ve Yari
-        // otomatikte (varsayilan) onaya birakir (publish-approval.ts); bu bayrak
-        // olmadan acik istek de onay bekliyordu. Panel ve MCP hedef gondermez
-        // (web api.generateArticle yalniz konu, MCP create_article hedefsiz).
-        ...(explicitPublish ? { publishApproved: true } : {}),
-      },
-    });
-
-    // Quota'yı artır (job kuyruğa girdi sayılır)
-    await this.quota.incrementArticleUsage(site.userId);
-
-    return { ...job, articleId: article.id };
+        payload: {
+          siteId,
+          topic,
+          articleId: article.id,
+          targetIds,
+          autoPublish: explicitPublish,
+          // Hedef secip "uret ve yayinla" diyen ACIK istek onayin kendisidir.
+          // Worker autoPublish'i tek basina otomasyon istegi sayar ve Yari
+          // otomatikte (varsayilan) onaya birakir (publish-approval.ts); bu bayrak
+          // olmadan acik istek de onay bekliyordu. Panel ve MCP hedef gondermez
+          // (web api.generateArticle yalniz konu, MCP create_article hedefsiz).
+          ...(explicitPublish ? { publishApproved: true } : {}),
+        },
+      });
+      return { ...job, articleId: article.id };
+    } catch (err) {
+      // Uretim baslamadi: hak geri verilir. Yer tutucu acildiysa takili uretim
+      // supurucusu onu FAILED yapar (generating-sweeper.ts); kullanici yeniden dener.
+      await this.quota.refundArticleAllowance(site.userId);
+      throw err;
+    }
   }
 
   /**
@@ -120,21 +150,23 @@ export class ArticlesService {
   async runPipelineNow(args: { siteId: string; topic: string; skipImages?: boolean; maxRevize?: number }) {
     const site = await this.prisma.site.findUniqueOrThrow({ where: { id: args.siteId } });
 
-    // 1) Quota guard — yetersizse 403
-    await this.quota.enforceArticleQuota(site.userId);
+    // 1) Makale hakki hat baslamadan duser (tek kosullu UPDATE, hak doluysa 403).
+    //    Eskiden hat bittikten sonra artiyordu: hat surerken gelen ikinci istek de
+    //    "hak var" okuyup ayni son hakla ikinci bir hat baslatabiliyordu.
+    await this.quota.consumeArticleAllowance(site.userId);
 
-    // 2) Pipeline çalıştır
-    const result = await this.pipeline.runPipeline({
-      siteId: args.siteId,
-      topic: args.topic,
-      skipImages: args.skipImages ?? true,
-      maxRevize: args.maxRevize ?? 1,
-    });
-
-    // 3) Başarılı tamamlandıysa sayacı artır
-    await this.quota.incrementArticleUsage(site.userId);
-
-    return result;
+    // 2) Pipeline çalıştır; hata verirse hak geri verilir (eskiden de yalniz basarida sayiliyordu)
+    try {
+      return await this.pipeline.runPipeline({
+        siteId: args.siteId,
+        topic: args.topic,
+        skipImages: args.skipImages ?? true,
+        maxRevize: args.maxRevize ?? 1,
+      });
+    } catch (err) {
+      await this.quota.refundArticleAllowance(site.userId);
+      throw err;
+    }
   }
 
   /**
@@ -172,15 +204,36 @@ export class ArticlesService {
       throw new BadRequestException(TRIGGER_NOW_LIVE_REFUSED);
     }
 
-    // Quota guard
-    await this.quota.enforceArticleQuota(article.site.user.id);
+    // Makale hakki sahiplenmeden ONCE, tek kosullu UPDATE ile duser (hak doluysa 403;
+    // deneme hesabinin kilitli takvim yazisi boylece uretilmez). Takvime geri donmus,
+    // hakki zaten dusulmus yazi (agentOutputs.allowanceCharge) ikinci kez dusmez —
+    // takvimin taramasiyla ayni kural (article-scheduler.service hasAllowanceCharge).
+    const userId = article.site.user.id;
+    const prepaid = previousStatus === 'SCHEDULED' && hasAllowanceCharge((article as { agentOutputs?: unknown }).agentOutputs);
+    if (!prepaid) await this.quota.consumeArticleAllowance(userId);
+    const refund = async () => { if (!prepaid) await this.quota.refundArticleAllowance(userId); };
 
     // Okuma ile yazma arasinda saatlik tarama / takvim isi yaziyi almis olabilir
-    const claim = await this.prisma.article.updateMany({
-      where: { id: article.id, siteId, status: previousStatus as any },
-      data: { status: 'GENERATING' as any },
-    });
-    if (claim.count !== 1) throw new BadRequestException('Bu yazı az önce üretime alındı.');
+    let claimed: boolean;
+    try {
+      const claim = await this.prisma.article.updateMany({
+        where: { id: article.id, siteId, status: previousStatus as any },
+        data: {
+          status: 'GENERATING' as any,
+          // Hak isareti: takili uretim supurucusu yaziyi takvime geri koyarsa
+          // (scheduledAt dolu) tarama onu yeniden alirken ikinci kez dusmesin
+          ...(prepaid ? {} : { agentOutputs: withAllowanceCharge((article as { agentOutputs?: unknown }).agentOutputs, 'trigger_now', new Date()) as any }),
+        },
+      });
+      claimed = claim.count === 1;
+    } catch (err) {
+      await refund();
+      throw err;
+    }
+    if (!claimed) {
+      await refund();
+      throw new BadRequestException('Bu yazı az önce üretime alındı.');
+    }
 
     const defaultTargetIds: string[] = (article.site as any).publishTargets?.map((t: any) => t.id) ?? [];
     // Takvim isiyle ayni kural: yalniz Tam otomatik + akis acikken yayin istenir;
@@ -203,18 +256,17 @@ export class ArticlesService {
         },
       });
     } catch (err) {
-      // Kuyruga girmedi: sahiplik birakilir, yazi eski durumuna doner (kota dusulmez)
+      // Kuyruga girmedi: sahiplik birakilir, yazi eski durumuna doner, hak geri verilir
       await this.prisma.article
         .updateMany({ where: { id: article.id, status: 'GENERATING' as any }, data: { status: previousStatus as any } })
         .catch(() => undefined);
+      await refund();
       throw err;
     }
 
     // Takvimin gecikmeli isi artik gereksiz: ateslense de yazi SCHEDULED olmadigi
     // icin sahiplenemez ve bos doner; kuyrugu temiz tutmak icin silinir (en iyi caba)
     await this.jobQueue.removeJob(scheduledGenerationJobId(article.id)).catch(() => false);
-
-    await this.quota.incrementArticleUsage(article.site.user.id);
 
     return { ...job, articleId: article.id };
   }

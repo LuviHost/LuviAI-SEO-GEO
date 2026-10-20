@@ -4,6 +4,9 @@ import { useSiteContext } from '../site-context';
 import { EmptyState, RelatedLinks } from '@/components/empty-state';
 import { ContentFlowTable, type ContentRowState } from '@/components/content-flow-table';
 import { FileText, Sparkles, Lightbulb, Send } from 'lucide-react';
+import { StatusBanner } from '@/components/ui/status-banner';
+import { PlanUpgradeButton } from '@/components/locked-article';
+import { PLAN_LOCK_COPY, scheduledCounts } from '@/lib/plan-lock';
 import { FilterChip } from '@/components/ui/filter-chip';
 import { SectionHeader } from '@/components/ui/section-header';
 import { api } from '@/lib/api';
@@ -17,7 +20,7 @@ type FilterKey = 'suggested' | 'pipeline' | 'scheduled' | 'published';
 const FILTER_STATES: Record<FilterKey, ContentRowState[]> = {
   suggested: ['suggested'],
   pipeline: ['generating', 'editing', 'ready'],
-  scheduled: ['scheduled', 'queued'],
+  scheduled: ['scheduled', 'queued', 'locked'],
   published: ['published'],
 };
 
@@ -55,6 +58,8 @@ export default function ArticlesPage() {
     suggested: freshTier1.length,
     pipeline: (articles ?? []).filter((a: any) => ['GENERATING', 'EDITING', 'READY_TO_PUBLISH'].includes(a.status)).length,
     scheduled: (articles ?? []).filter((a: any) => a.status === 'SCHEDULED').length,
+    // Deneme hakki doldugu icin plan yukseltilene kadar yazilmayacak takvim yazilari (sunucu: lockedByPlan)
+    locked: scheduledCounts(articles).locked,
     published: (articles ?? []).filter((a: any) => a.status === 'PUBLISHED').length,
   };
 
@@ -90,6 +95,16 @@ export default function ArticlesPage() {
             </FilterChip>
           ))}
         </div>
+      )}
+
+      {counts.locked > 0 && (
+        <StatusBanner
+          tone="info"
+          title={`Takviminde ${formatNum(counts.locked)} makale kilitli; planını yükselttiğinde yazılır.`}
+          action={<PlanUpgradeButton />}
+        >
+          {PLAN_LOCK_COPY.body}
+        </StatusBanner>
       )}
 
       {isFullyEmpty ? (

@@ -40,6 +40,10 @@ function isTranslationLanguage(v: unknown): v is TranslationLanguage {
  */
 const TRANSLATED_FROM_PATH = '$.translated_from';
 
+/** Deneme hesabinda ceviri reddi (kullaniciya gider) */
+export const TRIAL_TRANSLATION_REFUSED =
+  'Makale çevirisi ücretli planlarda kullanılabilir: ücretsiz denemede yapay zekâ toplam 2 makale üretir. Planını yükselttiğinde çeviri açılır.';
+
 /**
  * Translator — bir makaleyi farkli dile cevirir, yeni Article kaydi olusturur.
  *
@@ -86,6 +90,18 @@ export class TranslatorService {
     }
     const article: any = articleRaw;
     const fromLanguage = article.language ?? 'tr';
+
+    // Deneme hesabi ceviri yapamaz: her ceviri yeni bir makale kaydi acan Sonnet
+    // cagrisidir (32k cikti tavani) ve makale hakkindan dusmez. Deneme hesabi yapay
+    // zekayla toplam 2 makale uretir (QuotaService LIMITS.TRIAL); fazlasina LLM
+    // harcanmaz. Eskiden plan kapisi yoktu.
+    const owner = await this.prisma.site.findUnique({
+      where: { id: article.siteId },
+      select: { user: { select: { plan: true } } },
+    });
+    if (String(owner?.user?.plan ?? '') === 'TRIAL') {
+      return { ok: false, fromLanguage, toLanguage, error: TRIAL_TRANSLATION_REFUSED };
+    }
 
     if (fromLanguage === toLanguage) {
       return { ok: false, fromLanguage, toLanguage, error: 'Makale zaten bu dilde.' };

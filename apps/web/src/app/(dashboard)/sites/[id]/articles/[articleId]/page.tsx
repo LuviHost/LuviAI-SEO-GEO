@@ -14,6 +14,8 @@ import {
   targetDisplayName, targetTypeLabel,
 } from '@/lib/publish-targets';
 import { showNotice } from '@/lib/notice';
+import { isPlanLocked } from '@/lib/plan-lock';
+import { LockedArticleBody, PlanLockBadge } from '@/components/locked-article';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
@@ -557,6 +559,33 @@ ${body}
           </Button>
         </CardContent>
       </Card>
+    );
+  }
+
+  // Deneme hakki doldugu icin plan yukseltilene kadar yazilmayacak takvim yazisi (karar
+  // sunucudan: lockedByPlan, lib/plan-lock.ts). Gercek baslik + bulanik yer tutucu + kilit;
+  // yayin, indirme ve uretim eylemleri yok (yazilacak bir metin yok).
+  if (isPlanLocked(article)) {
+    return (
+      <div className="space-y-5 sm:space-y-6 max-w-5xl mx-auto">
+        <div>
+          <Link
+            href={siteHref(siteId, 'articles') as any}
+            className="text-sm text-muted-foreground hover:text-foreground inline-flex items-center gap-1"
+          >
+            <ArrowLeft className="h-4 w-4" aria-hidden />
+            İçerikler
+          </Link>
+          <div className="mt-3">
+            <h2 className="text-h6 font-semibold leading-snug">{article.title || article.topic}</h2>
+            <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground flex-wrap">
+              <PlanLockBadge />
+              {article.pillar && <span>{article.pillar}</span>}
+            </div>
+          </div>
+        </div>
+        <LockedArticleBody seed={String(article.id)} />
+      </div>
     );
   }
 

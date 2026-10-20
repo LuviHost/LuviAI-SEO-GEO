@@ -23,14 +23,14 @@ function build() {
     },
   };
   const jobQueue = { enqueue: vi.fn<(opts: any) => Promise<any>>(async () => ({ dbJobId: 'j1', bullJobId: '1' })) };
-  const quota = { enforceArticleQuota: vi.fn(async () => undefined), incrementArticleUsage: vi.fn(async () => undefined) };
+  const quota = { consumeArticleAllowance: vi.fn(async () => ({ remaining: 1 })), refundArticleAllowance: vi.fn(async () => undefined) };
   const svc = new ContentOpportunityService(prisma as any, jobQueue as any, quota as any, {} as any, {} as any);
-  return { svc, prisma, jobQueue };
+  return { svc, prisma, jobQueue, quota };
 }
 
 describe('ContentOpportunityService.generateArticle — guncelleme modu (yayindaki yazi)', () => {
   it('yayindaki yaziyi yeniden yazar: otomatik yeniden yazim bayragi ve onaysiz yayin YOK', async () => {
-    const { svc, jobQueue, prisma } = build();
+    const { svc, jobQueue, prisma, quota } = build();
     const r = await svc.generateArticle('s1', 'o1');
     expect(r).toMatchObject({ mode: 'update', articleId: 'a-live' });
     expect(prisma.article.create).not.toHaveBeenCalled();
@@ -39,6 +39,16 @@ describe('ContentOpportunityService.generateArticle — guncelleme modu (yayinda
     expect(job.payload).toMatchObject({ articleId: 'a-live', skipImages: true, lostQuery: 'kira artışı nasıl hesaplanır' });
     expect(job.payload).not.toHaveProperty('automatedRewrite');
     expect(job.payload).not.toHaveProperty('autoPublish');
+    // Kullanicinin baslattigi guncelleme makale hakkindan bir kez duser, uretim baslamadan
+    expect(quota.consumeArticleAllowance).toHaveBeenCalledTimes(1);
+    expect(quota.refundArticleAllowance).not.toHaveBeenCalled();
+  });
+
+  it('is kuyruga girmezse dusulen hak geri verilir', async () => {
+    const { svc, jobQueue, quota } = build();
+    jobQueue.enqueue.mockRejectedValueOnce(new Error('redis yok'));
+    await expect(svc.generateArticle('s1', 'o1')).rejects.toThrow('redis yok');
+    expect(quota.refundArticleAllowance).toHaveBeenCalledTimes(1);
   });
 
   it('is aciklamasi dogru: adres ve ilk yayin tarihi korunur (eski metin "tarih tazelendi" diyordu)', async () => {

@@ -28,7 +28,7 @@ const FLAGGED_ARTICLE = { id: 'a1', slug: 'yazi', topic: 'Konu', title: 'Yazı',
 type Row = Record<string, any>;
 
 /** article.findMany: aday sorgusu satirlari, ajan ciktisi sorgusu (select.agentOutputs) ayri */
-function prismaFor(opts: { articles: Row[]; targets?: Row[]; agentOutputs?: Record<string, unknown>; snapshots?: Row[]; status?: string }) {
+function prismaFor(opts: { articles: Row[]; targets?: Row[]; agentOutputs?: Record<string, unknown>; snapshots?: Row[]; status?: string; plan?: string }) {
   return {
     site: { findMany: vi.fn<(args: any) => Promise<any[]>>(async () => []) },
     article: {
@@ -37,7 +37,7 @@ function prismaFor(opts: { articles: Row[]; targets?: Row[]; agentOutputs?: Reco
         : opts.articles)),
       findUnique: vi.fn(async ({ where }: any) => {
         const a = opts.articles.find((x) => x.id === where.id);
-        return a ? { siteId: 's1', slug: a.slug, status: opts.status ?? 'PUBLISHED', publishedTo: a.publishedTo, agentOutputs: opts.agentOutputs?.[a.id] ?? null } : null;
+        return a ? { siteId: 's1', slug: a.slug, status: opts.status ?? 'PUBLISHED', publishedTo: a.publishedTo, agentOutputs: opts.agentOutputs?.[a.id] ?? null, site: { user: { plan: opts.plan ?? 'PRO' } } } : null;
       }),
     },
     publishTarget: { findMany: vi.fn(async () => opts.targets ?? [WP_TARGET]) },
@@ -310,5 +310,24 @@ describe('S4 — atlanan yayin her hafta yeniden yazima yol acmaz', () => {
     expect((prisma.article.findUnique.mock.calls[0] as any)[0].select).toMatchObject({ publishedTo: true, agentOutputs: true });
     const fresh = prismaFor({ articles: [FLAGGED_ARTICLE], agentOutputs: { a1: blockedOutputs(31) } });
     expect(await new ContentPivotService(fresh as any, {} as any).automatedRewriteBlock('a1')).toBeNull();
+  });
+});
+
+/**
+ * Deneme hesabi (sahip karari 20.10.2026): yapay zeka toplam 2 makale uretir. Otomatik
+ * yeniden yazim 5 ajanli LLM hattidir ve makale hakkindan dusmez: deneme hesabinin
+ * sitesi taranmaz, kuyruga onceden girmis is de LLM harcamadan doner.
+ */
+describe('ContentPivotService — deneme hesabinda otomatik yeniden yazim yok', () => {
+  it('tarama deneme hesaplarinin sitelerini sorguda eler', async () => {
+    const { svc, prisma } = build([]);
+    await svc.scanAllSites();
+    expect((prisma.site.findMany.mock.calls[0][0] as any).where).toMatchObject({ user: { plan: { not: 'TRIAL' } } });
+  });
+
+  it('kuyruktaki is calisirken plan deneme hesabiysa (iptal / odeme alinamadi): trial_plan, uretim baslamaz', async () => {
+    const prisma = prismaFor({ articles: [FLAGGED_ARTICLE], plan: 'TRIAL' });
+    expect(await new ContentPivotService(prisma as any, {} as any).automatedRewriteBlock('a1'))
+      .toEqual({ block: 'trial_plan', blockReason: expect.stringContaining('toplam 2 makale') });
   });
 });

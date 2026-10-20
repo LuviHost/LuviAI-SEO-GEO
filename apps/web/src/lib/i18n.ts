@@ -99,7 +99,9 @@ const dictionary = {
     // "Istemezsen hesap pasif kalir" yanlisti: hesap pasiflestiren kod yok. Deneme suresi de
     // uygulanmiyor (trialEndsAt yazan startTrial hic cagrilmiyor, expireOldTrials kimseyi
     // bulmuyor, EXPIRED durumuna bakan kapi yok); deneme yalniz haklarla sinirli (plans.ts trial).
-    'land.faq.a2': 'Hayır. Ücretsiz deneme için kart istenmez; denemede 2 makale hakkın var. Devam etmek istersen plan seçip ödemeyi o zaman yaparsın. Plan seçmezsen hesabın kapanmaz, ücretsiz deneme planında ve onun sınırlarıyla kalır.',
+    // Deneme toplam 2 makale, onboarding'in ilki dahil; hakki asan takvim yazilari panelde
+    // kilitli, plan yukseltilince uretilir (api articles/plan-lock.ts, 20.10.2026).
+    'land.faq.a2': 'Hayır. Ücretsiz deneme için kart istenmez; denemede 2 makale hakkın var (ilki siteni eklediğinde yazılır; takvimin geri kalanı panelde kilitli görünür ve planını yükselttiğinde yazılır). Devam etmek istersen plan seçip ödemeyi o zaman yaparsın. Plan seçmezsen hesabın kapanmaz, ücretsiz deneme planında ve onun sınırlarıyla kalır.',
     'land.faq.q3': 'AI sektörümü gerçekten anlayabilir mi?',
     // "%95+ dogruluk" olculmus bir oran degildi; sektor site ayarlarindan degisir
     'land.faq.a3': 'Onboarding sırasında siteni tarayıp sektörünü tahmin eder; marka sesini ve rakiplerini çıkarır. Tahmin yanlışsa site ayarlarından düzeltebilirsin; sonraki içerikler buna göre üretilir.',
@@ -130,7 +132,7 @@ const dictionary = {
     'land.how.s2.title': 'AI analiz',
     'land.how.s2.body': 'Site denetimi yapılır, ilk AI görünürlük ölçümü alınır ve konu takvimi hazırlanır.',
     'land.how.s3.title': 'Yayında',
-    'land.how.s3.body': 'İlk makale hemen üretilir, takvimdeki konular sırayla hazırlanır. Sonraki AI görünürlük ölçümlerini haftada bir sen başlatırsın.',
+    'land.how.s3.body': 'İlk makale hemen üretilir, takvimdeki konular makale hakkın yettikçe sırayla hazırlanır (ücretsiz denemede toplam 2 makale). Sonraki AI görünürlük ölçümlerini haftada bir sen başlatırsın.',
 
     // ─── Landing — Results (3 KPI) ──────────────────────────────
     'land.res.eyebrow': 'Sonuçlar',
@@ -374,7 +376,7 @@ const dictionary = {
     'land.faq.q1': 'Which websites does it work on?',
     'land.faq.a1': 'Any website: paste the address to run the audit and the AI visibility measurement. To publish, you connect one of 14 publishing targets such as WordPress, Webflow, Ghost, FTP/SFTP, cPanel or GitHub. For a mobile app you add its App Store or Google Play listing.',
     'land.faq.q2': 'Do I need to enter a credit card?',
-    'land.faq.a2': 'No. No card is needed for the free trial; it includes 2 articles. If you want to continue, you choose a plan and pay at that point. If you don’t, your account is not closed; it stays on the free trial plan with its limits.',
+    'land.faq.a2': 'No. No card is needed for the free trial; it includes 2 articles (the first is written when you add your site; the rest of the calendar appears locked in the dashboard and is written when you upgrade). If you want to continue, you choose a plan and pay at that point. If you don’t, your account is not closed; it stays on the free trial plan with its limits.',
     'land.faq.q3': 'Can AI really understand my industry?',
     'land.faq.a3': 'During onboarding it scans your site, predicts your industry and maps your brand voice and competitors. If the guess is wrong you can fix it in site settings, and subsequent content follows it.',
     'land.faq.q4': 'What do I need to connect Apple Search Ads?',
@@ -395,7 +397,7 @@ const dictionary = {
     'land.how.s2.title': 'AI analysis',
     'land.how.s2.body': 'A site audit runs, a first AI visibility measurement is taken and a topic calendar is prepared.',
     'land.how.s3.title': 'Live',
-    'land.how.s3.body': 'Your first article is generated right away and scheduled topics follow in order. You start later AI visibility measurements once a week.',
+    'land.how.s3.body': 'Your first article is generated right away and scheduled topics follow in order as your article allowance permits (2 articles in total on the free trial). You start later AI visibility measurements once a week.',
 
     // ─── Landing — Results (3 KPI) ──────────────────────────────
     'land.res.eyebrow': 'Results',

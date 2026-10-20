@@ -73,7 +73,7 @@ export default function Page() {
       </Step>
 
       <Tip kind="success">
-        Bu noktada AI siteni taradı, eksikleri buldu, öneri çıkardı ve ilk içeriği yazdı. Denemede 2 ücretsiz makale hakkın var.
+        Bu noktada AI siteni taradı, eksikleri buldu, öneri çıkardı ve ilk içeriği yazdı. Denemede toplam 2 ücretsiz makale hakkın var; site eklenince yazılan ilk makale bunlardan biridir. Takvimdeki diğer konular panelde kilitli görünür ve planını yükselttiğinde yazılır.
       </Tip>
 
       <h2>Sonraki adımlar</h2>

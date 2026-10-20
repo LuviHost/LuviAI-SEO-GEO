@@ -102,7 +102,7 @@ export const PIVOT_SCAN_LIMIT = 50;
 /** scanAllSites sonucunda tasinan engelli yazi ayrintisi tavani (is sonucu kucuk kalsin) */
 const BLOCKED_DETAIL_CAP = 100;
 
-export type PivotBlock = PivotPlanBlock | 'recent_rejected_rewrite' | 'recent_live_write_blocked' | 'not_published';
+export type PivotBlock = PivotPlanBlock | 'recent_rejected_rewrite' | 'recent_live_write_blocked' | 'not_published' | 'trial_plan';
 
 /** Otomatik yazim engelinin bekleme suresinde mi (yoksa null); kaydin ani ve atlanan hedeflerin adlari */
 function recentLiveWriteBlock(agentOutputs: unknown, publishedTo: unknown, cutoff: Date): { at: Date; labels: string[] } | null {
@@ -150,6 +150,8 @@ export function pivotBlockText(block: PivotBlock, labels: string[] = [], at?: Da
       return `Son otomatik yayın${at ? ` (${at.toISOString().slice(0, 10)})` : ''} yazının canlı kopyalarına (${where}) yazılamadı ve o zamandan beri bir kopyaya yazılmadı; engel sürerken yeni bir yeniden yazım da yayına ulaşmayacağı için otomatik yeniden yazım ${PIVOT_COOLDOWN_DAYS} gün denenmez.`;
     case 'not_published':
       return 'Yazı artık yayında değil; otomatik yeniden yazım başlatılmadı.';
+    case 'trial_plan':
+      return 'Ücretsiz deneme hesabında otomatik yeniden yazım yapılmaz (denemede yapay zekâ toplam 2 makale üretir); planını yükselttiğinde başlar.';
   }
 }
 
@@ -171,7 +173,14 @@ export class ContentPivotService {
     blockedDetails: Array<PivotBlocked & { siteId: string }>;
   }> {
     const sites = await this.prisma.site.findMany({
-      where: { status: { in: ['ACTIVE', 'AUDIT_COMPLETE'] as any[] } },
+      where: {
+        status: { in: ['ACTIVE', 'AUDIT_COMPLETE'] as any[] },
+        // Deneme hesabi taranmaz: yeniden yazim 5 ajanli LLM hattidir ve makale
+        // hakkindan dusmez; deneme hesabi yapay zekayla toplam 2 makale uretir
+        // (QuotaService LIMITS.TRIAL), fazlasina LLM harcanmaz. Eskiden 30 gunluk
+        // deneme yazilari her hafta yeniden yazilabiliyordu.
+        user: { plan: { not: 'TRIAL' as any } },
+      },
       select: { id: true, userId: true, autopilot: true, publishApprovalMode: true },
     });
 
@@ -404,9 +413,14 @@ export class ContentPivotService {
   async automatedRewriteBlock(articleId: string): Promise<{ block: PivotBlock; blockReason: string } | null> {
     const a = await this.prisma.article.findUnique({
       where: { id: articleId },
-      select: { siteId: true, slug: true, status: true, publishedTo: true, agentOutputs: true },
+      select: { siteId: true, slug: true, status: true, publishedTo: true, agentOutputs: true, site: { select: { user: { select: { plan: true } } } } },
     });
     if (!a || String(a.status) !== 'PUBLISHED') return { block: 'not_published', blockReason: pivotBlockText('not_published') };
+    // Is kuyruga girdikten sonra plan deneme hesabina dusmus olabilir (iptal, odeme
+    // alinamadi): tarama artik almaz, kuyruktaki is de LLM harcamaz
+    if (String((a as { site?: { user?: { plan?: unknown } | null } | null }).site?.user?.plan ?? '') === 'TRIAL') {
+      return { block: 'trial_plan', blockReason: pivotBlockText('trial_plan') };
+    }
     const targets = await this.prisma.publishTarget.findMany({ where: { siteId: a.siteId }, select: { id: true, type: true, isActive: true } });
     const plan = pivotRewritePlan({ publishedTo: a.publishedTo, targets, slug: a.slug });
     if (plan.kind !== 'republish') return { block: plan.block, blockReason: pivotBlockText(plan.block, plan.labels) };

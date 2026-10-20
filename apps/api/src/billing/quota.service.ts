@@ -103,20 +103,68 @@ export class QuotaService {
   async enforceArticleQuota(userId: string) {
     const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { plan: true } });
     const { allowed, remaining, limit } = await this.checkArticleQuota(userId);
-    if (!allowed) {
-      if (user.plan === 'TRIAL') {
-        throw new ForbiddenException(`Deneme hesabındaki ${limit} ücretsiz makale hakkını kullandın. Devam etmek için plan seç.`);
-      }
-      throw new ForbiddenException(`Aylık ${limit} makale kotan doldu. Plan yükseltebilir veya ayın sonunu bekleyebilirsin.`);
-    }
+    if (!allowed) throw this.articleQuotaError(user.plan, limit);
     return { remaining };
   }
 
-  async incrementArticleUsage(userId: string) {
-    return this.prisma.user.update({
-      where: { id: userId },
-      data: { articlesUsedThisMonth: { increment: 1 } },
-    });
+  /** Makale hakki dolu 403'u — deneme "plan sec", ucretli plan "plan yukselt" */
+  private articleQuotaError(plan: string, limit: number): ForbiddenException {
+    if (plan === 'TRIAL') {
+      return new ForbiddenException(`Deneme hesabındaki ${limit} ücretsiz makale hakkını kullandın. Devam etmek için plan seç.`);
+    }
+    return new ForbiddenException(`Aylık ${limit} makale kotan doldu. Plan yükseltebilir veya ayın sonunu bekleyebilirsin.`);
+  }
+
+  /**
+   * Kullanicinin baslattigi uretim icin makale hakkindan BIR yazi dus — uretim
+   * baslamadan (kuyruga atmadan / hatti calistirmadan) ONCE. Hak doluysa
+   * enforceArticleQuota'nin 403'u (ayni metin), sayac degismez.
+   *
+   * NEDEN tek kosullu UPDATE (`articlesUsedThisMonth < hak`): eski sira "once
+   * enforceArticleQuota oku, kuyruga at, sonra kosulsuz artir" idi. Ayni anda gelen
+   * iki istek (cift tiklama, iki sekme, Uret + Simdi uret) ikisi de "hak var" okuyup
+   * son hakki iki kez kullanabiliyordu: deneme hesabi 2 yerine 3 makale uretebilirdi.
+   * Kosul ve artis tek SQL'de calisir; es zamanli iki cagridan yalniz biri son hakki
+   * alir (takvimin chargeArticle'i ile ayni iyimser eszamanlilik kalibi). Uretim
+   * baslatilamazsa cagiran refundArticleAllowance ile hakki geri verir.
+   */
+  async consumeArticleAllowance(userId: string): Promise<{ remaining: number }> {
+    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { plan: true } });
+    // Ay basi sifirlamasi + plan hakki: enforceArticleQuota ile ayni okuma
+    const { allowed, remaining, limit } = await this.checkArticleQuota(userId);
+    const r = allowed
+      ? await this.prisma.user.updateMany({
+        where: { id: userId, articlesUsedThisMonth: { lt: limit } },
+        data: { articlesUsedThisMonth: { increment: 1 } },
+      })
+      : { count: 0 };
+    // Hak dolu ya da okuma ile yazma arasinda son hakki baska bir istek aldi
+    if (r.count !== 1) throw this.articleQuotaError(user.plan, limit);
+    return { remaining: Math.max(0, remaining - 1) };
+  }
+
+  /**
+   * consumeArticleAllowance'in dustugu hakki geri ver (uretim baslatilamadi: kayit
+   * acilamadi, is kuyruga girmedi, senkron hat hata verdi). Sayac 0'in altina inmez
+   * (arada ay basi sifirlamasi olduysa yeni ayin sayaci eksiye dusmesin). Hata
+   * loglanir ve yutulur: cagiranin asil hatasi kaybolmasin.
+   */
+  async refundArticleAllowance(userId: string): Promise<void> {
+    try {
+      await this.prisma.user.updateMany({
+        where: { id: userId, articlesUsedThisMonth: { gt: 0 } },
+        data: { articlesUsedThisMonth: { decrement: 1 } },
+      });
+    } catch (err: any) {
+      this.log.warn(`[${userId}] Baslatilamayan uretimin makale hakki geri verilemedi: ${err?.message ?? err}`);
+    }
+  }
+
+  /** Planin makale hakki (TRIAL omur boyu, digerleri aylik); bilinmeyen plan 0 */
+  articleLimitFor(plan: string): number {
+    return Object.prototype.hasOwnProperty.call(this.LIMITS, plan)
+      ? this.LIMITS[plan as keyof typeof this.LIMITS].articles
+      : 0;
   }
 
   // ────────────────────────────────────────────
