@@ -34,8 +34,16 @@ export interface GeoAccessBlock {
  * (audit.service compareAuditRows, site-report teknikGeoDelta) surumler
  * farkliysa farki siteye yazmaz. Alan tasimayan eski kayitlar v1 sayilir.
  * Yontem degisirse bu sayi artirilir.
+ *
+ * v3: tarih sinyali duzeltildi. v2 `meta[article:modified_time], time[datetime]`
+ * secicisinden `.attr("datetime")` okuyordu; cheerio attr() yalniz ILK elemana
+ * bakar, o da <head>'deki meta'dir ve meta'nin degeri `content`'tedir —
+ * modified_time hic okunmuyor, sayfadaki <time datetime> da gorulmuyordu.
+ * Simdi sirasiyla article:modified_time, JSON-LD dateModified, <time datetime>,
+ * article:published_time, JSON-LD datePublished okunur; ayristirilamayan tarih
+ * (v2'de NaN → sessizce 30) 50 alir.
  */
-export const GEO_METHOD_VERSION = 2;
+export const GEO_METHOD_VERSION = 3;
 
 export interface GeoAuditResult {
   score: number | null;
@@ -265,17 +273,31 @@ export class GeoRunnerService {
     if (ogCount >= 3) metaScore += 30;
     if (twCount >= 2) metaScore += 30;
 
-    // 6) Freshness
-    const dateModified = $("meta[property=\"article:modified_time\"], time[datetime]").attr("datetime")
-      ?? $("meta[property=\"article:published_time\"]").attr("content");
+    // 6) Freshness — en guncel "degistirildi" sinyali once, yayin tarihi son care
+    const ldDate = (key: "dateModified" | "datePublished") => {
+      for (const block of ldBlocks) {
+        const m = block.match(new RegExp(`"${key}"\\s*:\\s*"([^"]+)"`));
+        if (m) return m[1];
+      }
+      return undefined;
+    };
+    const dateSignal = [
+      $("meta[property=\"article:modified_time\"]").attr("content"),
+      ldDate("dateModified"),
+      $("time[datetime]").first().attr("datetime"),
+      $("meta[property=\"article:published_time\"]").attr("content"),
+      ldDate("datePublished"),
+    ].map((v) => v?.trim()).find((v) => !!v);
     let freshScore = 0;
-    if (dateModified) {
-      try {
-        const ageMonths = (Date.now() - new Date(dateModified).getTime()) / (1000 * 60 * 60 * 24 * 30);
+    if (dateSignal) {
+      const time = new Date(dateSignal).getTime();
+      if (Number.isNaN(time)) freshScore = 50; // tarih var ama okunamiyor
+      else {
+        const ageMonths = (Date.now() - time) / (1000 * 60 * 60 * 24 * 30);
         if (ageMonths < 12) freshScore = 100;
         else if (ageMonths < 24) freshScore = 60;
         else freshScore = 30;
-      } catch { freshScore = 50; }
+      }
     }
 
     // 7) Citation/list/table format
