@@ -226,6 +226,18 @@ describe('ArticlesService.forgetPublishedEntry', () => {
     expect((await svc.forgetPublishedEntry(S, A, T)).status).toBe('READY_TO_PUBLISH');
   });
 
+  it('kalan tek canli kayit Markdown ZIP disa aktarimiysa yazi READY_TO_PUBLISH: ZIP sitede kopya sayilmaz (yayinci ve canlilik denetimiyle ayni kural, statusAfterRetirement); ZIP kaydi korunur', async () => {
+    // Eskiden ZIP canli kopya sayiliyordu: sitedeki son kopyasi unutulan yazi PUBLISHED kaliyordu
+    const zip = { targetId: 'cmziptarget001abcdefghij', targetType: 'MARKDOWN_ZIP', ok: true, externalUrl: '/tmp/yazi.zip' };
+    const { svc, db } = service(articleRow({ publishedTo: [ghost(), zip] }));
+    const r = await svc.forgetPublishedEntry(S, A, T);
+    expect(r).toEqual({ ok: true, status: 'READY_TO_PUBLISH', publishedTo: [zip] });
+    expect(db()!.status).toBe('READY_TO_PUBLISH');
+    // Sitede baska canli kopya kalirsa (ZIP'in yaninda WordPress) durum degismez
+    const kept = service(articleRow({ publishedTo: [ghost(), zip, wp()] }));
+    expect((await kept.svc.forgetPublishedEntry(S, A, T)).status).toBe('PUBLISHED');
+  });
+
   it('PUBLISHED olmayan yazinin durumu degismez (onaydaki ya da revizyondaki yeniden yazim)', async () => {
     for (const status of ['READY_TO_PUBLISH', 'REVIZE_NEEDED', 'GENERATING']) {
       const { svc, db } = service(articleRow({ status, publishedTo: [ghost()] }));

@@ -155,6 +155,29 @@ export function liveEntryFor(publishedTo: unknown, targetId: string): LiveEntry 
   return liveEntries(publishedTo).find((e) => e.targetId === targetId) ?? null;
 }
 
+/**
+ * Yazinin SITEDEKI canli kopyalari: canli kayitlar (liveEntries) icinden disa aktarim
+ * (Markdown ZIP) olmayanlar. "Yazi sitede yayinda mi / sitedeki son canli kopya gitti mi"
+ * sorusunu yanitlayan HER karar bunu kullanir: hedef secimi (selectPublishTargets), ilk
+ * yayin tarihi (yayincinin hadLiveCopy olcutu) ve kopya emekliye ayrilinca yazinin durumu
+ * (statusAfterRetirement: yayincinin cop kutusu / silinmis kopya yolu, "bu kaydi unut",
+ * canlilik denetimi).
+ *
+ * NEDEN: Markdown ZIP canli siteye dokunmayan bir disa aktarim dosyasidir; sitede adresi
+ * yoktur, site haritasi ve llms-full onu ilan etmez. Yalniz ZIP kaydi kalan yazi sitede
+ * yayinda degildir. Kural eskiden her yerde ayri yaziliydi; yayincinin cop kutusu /
+ * silinmis kopya yolu ve "bu kaydi unut" ZIP'i canli kopya sayiyordu: sitedeki son kopyasi
+ * kaldirilan yazi yalniz ZIP'i kaldigi icin PUBLISHED kaliyor, panel ve PUBLISHED okuyan
+ * her yer (KPI'lar, raporlar) sitede olmayan yaziyi sayiyordu.
+ *
+ * typeOf: hedef satirindaki tip (hedef silinmisse undefined); yoksa kaydin yazildigi
+ * andaki targetType. Hedefin tipi olusturulduktan sonra degistirilemez
+ * (publish-targets.service update tip almaz), kayittaki tip bu yuzden guvenilirdir.
+ */
+export function siteLiveEntries(publishedTo: unknown, typeOf: (targetId: string) => unknown = () => undefined): LiveEntry[] {
+  return liveEntries(publishedTo).filter((e) => republishModeForType(typeOf(e.targetId) ?? e.targetType) !== 'export');
+}
+
 /** ISO tarih dizesi ise aynen, degilse undefined */
 function isoOrUndefined(v: unknown): string | undefined {
   return typeof v === 'string' && Number.isFinite(Date.parse(v)) ? v : undefined;
@@ -265,7 +288,8 @@ export function decideRepublish(input: { entry: LiveEntry | null; targetType: un
  *    pivot, takili sayfa) ve bos listeli yayin musterinin sildigi yaziyi geri
  *    getirmez. Hicbir sey yazilmadi; kayda missingAt yazilir (D3), kopya artik
  *    canli sayilmaz. Yalniz yazinin herkese acik adresi de 404/410 verirse
- *    (publisher.service checkEntryPublicUrl, S18).
+ *    (publisher.service checkEntryPublicUrl, S18) ve yanit bir engel / bot
+ *    dogrulama sayfasi degilse (public-url-probe.ts, common/block-detect.ts).
  *  - live_entry_unresolvable: kayitli kimlik hedefte bulunamadi (404/410) ama
  *    yazinin adresi hala aciliyor (2xx/3xx): yazi sayfaya donusturulmus, site
  *    yeniden ice aktarilirken kimlikler degismis ya da adres onbellekten
@@ -426,7 +450,7 @@ export function selectPublishTargets<T extends { id: string; type?: unknown; isD
   const byId = new Map(all.map((t) => [t.id, t]));
   const live = liveEntries(publishedTo);
   // Sitedeki canli kopyalar: disa aktarim (Markdown ZIP) canli siteye dokunmaz
-  const siteLive = live.filter((e) => republishModeForType(byId.get(e.targetId)?.type ?? e.targetType) !== 'export');
+  const siteLive = siteLiveEntries(publishedTo, (id) => byId.get(id)?.type);
   // Ayni hedefe ait birden fazla kayit (eski yayincidan kalma) tek sonuc uretir
   const oncePerTarget = (list: LiveEntry[]) => {
     const seen = new Set<string>();
@@ -610,7 +634,7 @@ export function withoutManualUpdateFlag(entry: LiveEntry): LiveEntry {
  *  - trashed: yazi WordPress'te cop kutusunda → kayda trashedAt (ilk gorulen an
  *    korunur). Elle guncelleme isareti kalkar: cop kutusundaki kopyaya
  *    yapistirilacak bir sey yok; geri yuklenirse sonraki yayin yeniden karar verir.
- *    Yazi cop kutusunda DURUYOR: varsa missingAt kalkar.
+ *    Yazi cop kutusunda DURUYOR: varsa missingAt (ve nedeni) kalkar.
  *  - missing (sozlesme D3): yazi hedefte silinmis (404/410) ve yeniden
  *    olusturulmadi → kayda missingAt (ilk gorulen an korunur), elle guncelleme
  *    isareti kalkar (silinmis kopyaya yapistirilacak bir sey yok). trashedAt
@@ -619,39 +643,396 @@ export function withoutManualUpdateFlag(entry: LiveEntry): LiveEntry {
  *    musterinin duzenlemesi korundu ya da kimlik cozulmese de adres hala
  *    aciliyor) → trashedAt / missingAt varsa kalkar (musteri geri yuklemis, yazi
  *    yedekten donmus ya da kayit yalniz kimlik 404'uyle emekliye ayrilmisti).
+ *    presentStatus: kopya yalniz KIMLIGIYLE goruldu (WordPress live_entry_edited) ve
+ *    adaptorun bildirdigi yazi durumu (bilinmiyorsa null). Boyle gorulen emekli kopya
+ *    yalniz durum 'publish' ise canli sayilir ve durum kayda (remoteStatus) yazilir;
+ *    durum bilinen baska bir deger (taslak, ozel, bekleyen...) ise ya da bilinmiyor ve
+ *    kopya canlilik denetimiyle emekliye ayrilmissa (missingReason) kayit emekli kalir.
+ *    Adresi canli goren gozlem (live_entry_unresolvable: presentStatus'ta yok) her
+ *    zaman canli sayar.
+ *    NEDEN: musteri yaziyi WordPress'te taslaga alinca canlilik denetimi kopyayi
+ *    emekliye ayiriyordu (adres 404); kullanicinin yeniden yayini yaziyi "duzenlenmis"
+ *    bulup (taslaga alma modified_gmt'yi ilerletir) kopyayi canli sayiyordu: kayitta
+ *    bayat remoteStatus 'publish' kaliyor, yazi PUBLISHED oluyor, 404 veren adres site
+ *    haritasinda yeniden ilan ediliyor, iki gun sonra yeniden emekliye ayrilip ikinci
+ *    bildirim gidiyordu (dongu). Yalniz 'publish' herkese aciktir
+ *    (wordpress.org/documentation/article/post-status, asagida WORDPRESS TASLAK KOPYASI
+ *    bolumundeki kaynaklar): kimlikle gorulmek kopyanin yayinda oldugunu kanitlamaz.
  * Kimlik ve adres hic silinmez: kopya geri gelirse ayni yazi bulunur.
+ * Canlilik denetiminin bekleyen isareti (goneSince + goneUrl) kopya emekliye ayrilinca ya da
+ * geri gelince kalkar. NEDEN: isaret "son basarili denetimden beri ilk 404" demektir;
+ * geri gelen kopyada kalsaydi sonraki tek bir 404 onu iki denetim beklemeden
+ * emekliye ayirirdi (published-liveness.service.ts).
  */
 export function applyEntryObservations(
   publishedTo: unknown,
-  obs: { trashed?: ReadonlySet<string>; missing?: ReadonlySet<string>; present?: ReadonlySet<string>; now: string },
+  obs: {
+    trashed?: ReadonlySet<string>;
+    missing?: ReadonlySet<string>;
+    present?: ReadonlySet<string>;
+    presentStatus?: ReadonlyMap<string, string | null>;
+    now: string;
+  },
 ): unknown[] {
   const list = Array.isArray(publishedTo) ? publishedTo : [];
   const known = new Set(publishedEntries(list));
   const flagged = (e: LiveEntry) => e.manualUpdatePending !== undefined || e.manualUpdatePendingSince !== undefined;
+  const gonePending = (e: LiveEntry) => e.goneSince !== undefined || e.goneUrl !== undefined;
+  const withoutGonePending = (copy: LiveEntry) => {
+    delete copy.goneSince;
+    delete copy.goneUrl;
+  };
   return list.map((raw) => {
     if (!known.has(raw as LiveEntry)) return raw;
     const e = raw as LiveEntry;
     if (obs.trashed?.has(e.targetId)) {
-      if (entryTrashed(e) && !entryMissing(e) && !flagged(e)) return e;
+      if (entryTrashed(e) && !entryMissing(e) && !flagged(e) && !gonePending(e)) return e;
       const copy = withoutManualUpdateFlag(e);
       copy.trashedAt = entryTrashed(e) ? e.trashedAt : obs.now;
       delete copy.missingAt;
+      delete copy.missingReason;
+      withoutGonePending(copy);
       return copy;
     }
     if (obs.missing?.has(e.targetId)) {
-      if (entryMissing(e) && !flagged(e)) return e;
+      if (entryMissing(e) && !flagged(e) && !gonePending(e)) return e;
       const copy = withoutManualUpdateFlag(e);
-      copy.missingAt = entryMissing(e) ? e.missingAt : obs.now;
+      withoutGonePending(copy);
+      if (!entryMissing(e)) {
+        // Yeni emeklilik yayincinin gozlemi (adaptor 404 + adres yoklamasi); onceki
+        // bir canlilik emekliliginin nedeni bu kayda tasinmaz
+        copy.missingAt = obs.now;
+        delete copy.missingReason;
+      }
       return copy;
     }
     if (obs.present?.has(e.targetId) && entryRetired(e)) {
+      const byIdOnly = obs.presentStatus?.has(e.targetId) === true;
+      const status = byIdOnly ? obs.presentStatus?.get(e.targetId) : null;
+      const reported = typeof status === 'string' && status.trim() !== '' ? status.trim().toLowerCase() : null;
+      // Kimlikle gorulen kopya yalniz herkese aciksa canli (yukaridaki NEDEN)
+      if (byIdOnly && reported !== 'publish' && (reported !== null || e.missingReason === LIVENESS_MISSING_REASON)) return e;
       const copy: LiveEntry = { ...e };
+      if (reported) copy.remoteStatus = reported;
       delete copy.trashedAt;
       delete copy.missingAt;
+      delete copy.missingReason;
+      withoutGonePending(copy);
       return copy;
     }
     return e;
   });
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+//  CANLILIK DENETIMI (published-liveness.service.ts) — sozlesme D3'e ek
+//
+//  NEDEN: musteri yaziyi kendi sitesinden kaldirdiginda (WordPress'te silme,
+//  taslaga alma; sunucudan dosyayi silme) RanksUp bunu ancak bir sonraki yayin
+//  denemesinde goruyordu. O zamana kadar yazi "yayinda" sayiliyor; site haritasi
+//  (sitemap-ai.xml) ve llms-full olu adresi AI tarayicilarina ilan ediyor, KPI'lar
+//  ve raporlar olmayan sayfayi sayiyordu (uretim, 18.10.2026: isgetkinlikleri.com
+//  uzerindeki 5 yayindaki yazinin adresi 404, panel hala "yayında").
+//
+//  publishedTo kaydinda ek alanlar:
+//   - goneSince?: string (ISO) + goneUrl?: string — kopyanin herkese acik adresi
+//     (goneUrl: yoklanan adres) bir denetimde 404/410 verdi ve o zamandan beri canli
+//     gorulmedi (ilk basarisiz denetim). Canli goren denetim ikisini siler; emekliye
+//     ayirma (her yoldan) siler.
+//   - liveSeenAt?: string (ISO) + liveSeenUrl?: string — denetim liveSeenUrl adresini
+//     bir kez canli gordu. Adresi RanksUp'in tahmini olan ya da herkese acik oldugu
+//     bilinmeyen kopyada (dosya hedefleri, KobiPratik, GitHub, WordPress'in herkese acik
+//     olmayan ya da durumu bilinmeyen duz ?p= kopyasi) emekliye ayirmanin on kosulu.
+//   - missingReason?: 'public_url_gone' — kopya canlilik denetimiyle emekliye
+//     ayrildi; missingAt ile birlikte yazilir ve birlikte kalkar (applyEntryObservations).
+//   - remoteStatus?: string — yayincinin yazdigi: WordPress'in RanksUp'in son yaziminda
+//     bildirdigi yazi durumu (publish, draft, pending, private...). Eski kayitta yoktur.
+//     Asagidaki "WORDPRESS TASLAK KOPYASI" kurallari buna bakar.
+//
+//  NEDEN ADRESLER (goneUrl / liveSeenUrl): dosya hedeflerinde (FTP / SFTP) yoklanan
+//  adres eskiden hedefin BUGUNKU klasor ayarindan kuruluyordu. Musteri yeni yazilar icin
+//  klasoru degistirince eski sayfa eski adreste yayinda kalirken denetim yeni adresi
+//  yokluyor, 404 aliyordu; eski adreste yazilmis liveSeenAt bu 404'u kanit sayiyor, iki
+//  gun sonra yayindaki sayfa emekliye ayrilip musteriye "artik yayinda gorunmuyor"
+//  deniyordu. Kanit artik goruldugu adrese bagli: 404 yalniz daha once canli gorulen
+//  adres icinse sayilir, ilk basarisizlik da yalniz ayni adresin ikinci 404'uyle onaylanir.
+// ─────────────────────────────────────────────────────────────────────────
+
+/** missingReason: kopyanin adresi iki denetimde 404/410 verdi (panel metnini buna gore secer) */
+export const LIVENESS_MISSING_REASON = 'public_url_gone';
+
+/**
+ * Iki basarisiz denetim arasindaki en kisa sure. Gunluk denetim ayni saatte kosar
+ * (~24 saat); 20 saat, gecikmeli bir tur ile ertesi gunun erken turu arasinda da
+ * ikinci denetimi saglar. Kisa sureli bozulma (site yeniden kurulumu, WordPress
+ * kalici baglanti ayarinin gecici bozulmasi, CDN onbellek hatasi) bir gunden uzun
+ * surmedikce kopya emekliye ayrilmaz. Tek 404 yetmez: "A 404 status code does not
+ * indicate whether this lack of representation is temporary or permanent" (RFC 9110
+ * 15.5.5; MDN HTTP 404 ayni seyi soyler, 2026-10-18'de okundu).
+ */
+export const LIVENESS_CONFIRM_MS = 20 * 60 * 60 * 1000;
+
+/** Adresin bu denetimdeki durumu (public-url-probe.ts classifyLivenessResponse; canlilik denetimi ve yayinci) */
+export type LivenessOutcome = 'live' | 'gone' | 'unknown';
+
+/** Tek kopyanin denetim sonucu — publishedTo'ya applyLivenessObservations ile islenir */
+export interface LivenessObservation {
+  targetId: string;
+  /** Kaydin kayitli adresi (liveEntryRef externalUrl; yoksa ''): gozlem yalniz ayni hedef + ayni adresli kayda islenir */
+  address: string;
+  outcome: LivenessOutcome;
+  /** Istegin basladigi an (ISO) */
+  checkedAt: string;
+  /**
+   * Adres yalniz bir kez canli goruldukten sonra kanit sayilir (liveSeenAt + liveSeenUrl):
+   * adres RanksUp'in tahmini (dosya hedefleri) ya da kopyanin herkese acik oldugu
+   * bilinmiyor (WordPress'in herkese acik olmayan ya da durumu bilinmeyen duz ?p= kopyasi).
+   */
+  needsSighting: boolean;
+  /**
+   * Gercekten yoklanan adres: kanit (liveSeenUrl, goneUrl) bu adrese baglanir. Verilmezse
+   * kayitli adres (address) sayilir.
+   */
+  url?: string;
+}
+
+/** Gozlemin kayda eslenme anahtari: hedef + kayitli adres */
+export function livenessEntryKey(e: LiveEntry): string {
+  return `${e.targetId}\n${liveEntryRef(e).externalUrl ?? ''}`;
+}
+
+/** Kayda islenen degisiklik turu */
+export type LivenessChange = 'gone_marked' | 'retired' | 'cleared' | 'seen_live';
+
+/**
+ * Tek kaydin denetimden sonraki hali (degisiklik yoksa null). Kanit yoklanan adrese
+ * baglidir (o.url, yoksa kayitli adres). Kurallar:
+ *  - live: goneSince / goneUrl silinir (son basarili denetimden beri sayilir); gerekiyorsa
+ *    canli gorulme (liveSeenAt + liveSeenUrl) yazilir. Daha once BASKA bir adreste
+ *    gorulmus kopya bu adreste yeniden gorulmus sayilir (ikisi birlikte guncellenir).
+ *  - gone: emekliye ayirma YALNIZ ayni adresin ikinci basarisiz denetiminde ve ilki en az
+ *    LIVENESS_CONFIRM_MS onceyse. Ilk basarisiz denetim goneSince + goneUrl'e yazilir;
+ *    kayittaki ilk basarisizlik baska bir adres icinse (ya da adresi kayitli degilse)
+ *    sayim bu denetimle yeniden baslar: baska adresin 404'u bu adresi kanitlamaz.
+ *    Adresi kanit sayilmayan kopya (needsSighting) icin 404 yalniz BU adres daha once
+ *    canli gorulduyse (liveSeenUrl) sayilir; aksi halde hicbir sey degismez. Kopyaya
+ *    denetimden SONRA yazildiysa (yeniden yayin, musterinin "guncelledim"i) 404 bayat
+ *    olabilir: islenmez; ilk basarisizliktan sonra yazildiysa sayim yeniden baslar.
+ *  - unknown (401/403/429/5xx, zaman asimi, engel / dogrulama sayfasi): degisiklik
+ *    yok; goneSince da kalir — belirsiz yanit kopyanin geri geldigini gostermez.
+ * Emekliye ayirma sozlesme D3 ile ayni kayit: missingAt (onaylayan denetimin ani),
+ * elle guncelleme isareti kalkar (silinmis kopyaya yapistirilacak bir sey yok),
+ * kimlik ve adres korunur; ek olarak missingReason. liveSeenAt / liveSeenUrl gecmis
+ * bilgisi olarak kalir.
+ */
+function livenessNext(e: LiveEntry, o: LivenessObservation): { entry: LiveEntry; change: LivenessChange[] } | null {
+  const checked = Date.parse(o.checkedAt);
+  if (!Number.isFinite(checked)) return null;
+  const url = o.url ?? o.address;
+  // Canli gorulme yalniz goruldugu adres icin kanittir (adresi olmayan eski liveSeenAt da degil)
+  const seenHere = isoOrUndefined(e.liveSeenAt) !== undefined && e.liveSeenUrl === url;
+  if (o.outcome === 'live') {
+    const change: LivenessChange[] = [];
+    let copy: LiveEntry | null = null;
+    if (e.goneSince !== undefined || e.goneUrl !== undefined) {
+      copy = { ...e };
+      delete copy.goneSince;
+      delete copy.goneUrl;
+      change.push('cleared');
+    }
+    if (o.needsSighting && !seenHere) {
+      copy = { ...(copy ?? e), liveSeenAt: o.checkedAt, liveSeenUrl: url };
+      change.push('seen_live');
+    }
+    return copy ? { entry: copy, change } : null;
+  }
+  if (o.outcome !== 'gone') return null;
+  if (o.needsSighting && !seenHere) return null;
+  const lastWrite = Date.parse(liveEntryRef(e).lastWriteAt ?? '');
+  if (Number.isFinite(lastWrite) && lastWrite > checked) return null;
+  // Ilk basarisizlik yalniz AYNI adres icin kayitliysa sayilir
+  const since = e.goneUrl === url ? isoOrUndefined(e.goneSince) : undefined;
+  // Ilk basarisizliktan SONRA kopyaya yazildiysa (yerinde yeniden yayin, "Elle güncelledim")
+  // o 404 bugunku sayfa hakkinda bir sey soylemez: sayim bu denetimle yeniden baslar
+  if (!since || (Number.isFinite(lastWrite) && lastWrite > Date.parse(since))) {
+    return { entry: { ...e, goneSince: o.checkedAt, goneUrl: url }, change: ['gone_marked'] };
+  }
+  if (checked - Date.parse(since) < LIVENESS_CONFIRM_MS) return null;
+  const copy = withoutManualUpdateFlag(e);
+  delete copy.goneSince;
+  delete copy.goneUrl;
+  copy.missingAt = o.checkedAt;
+  copy.missingReason = LIVENESS_MISSING_REASON;
+  return { entry: copy, change: ['retired'] };
+}
+
+/**
+ * Canlilik denetiminin gozlemlerini publishedTo'ya isler (saf; girdi degismez).
+ * Yalniz CANLI kayitlara (liveEntries) bakilir: cop kutusundaki / silinmis kopya
+ * denetlenmez. Eslesme hedef + kayitli adresle: arada kopya baska adrese yeniden
+ * yayinlandiysa eski gozlem ona islenmez. Karar, cagiranin yazmadan hemen once
+ * yeniden okudugu GUNCEL listeye gore verilir (iyimser kilit; publisher.service
+ * commitArticleState ile ayni yaklasim).
+ */
+export function applyLivenessObservations(
+  publishedTo: unknown,
+  observations: readonly LivenessObservation[],
+): { publishedTo: unknown[]; changed: boolean; retired: LiveEntry[]; marked: LiveEntry[]; cleared: number; seen: number } {
+  const list = Array.isArray(publishedTo) ? publishedTo : [];
+  const byKey = new Map(observations.map((o) => [`${o.targetId}\n${o.address}`, o]));
+  const live = new Set(liveEntries(list));
+  const retired: LiveEntry[] = [];
+  const marked: LiveEntry[] = [];
+  let cleared = 0;
+  let seen = 0;
+  const out = list.map((raw) => {
+    if (!live.has(raw as LiveEntry)) return raw;
+    const e = raw as LiveEntry;
+    const o = byKey.get(livenessEntryKey(e));
+    const next = o ? livenessNext(e, o) : null;
+    if (!next) return raw;
+    if (next.change.includes('retired')) retired.push(next.entry);
+    if (next.change.includes('gone_marked')) marked.push(next.entry);
+    if (next.change.includes('cleared')) cleared += 1;
+    if (next.change.includes('seen_live')) seen += 1;
+    return next.entry;
+  });
+  return { publishedTo: out, changed: retired.length + marked.length + cleared + seen > 0, retired, marked, cleared, seen };
+}
+
+/**
+ * Kopya emekliye ayrildiktan (ya da kaydi unutulduktan) sonra yazinin durumu (saf) — "son
+ * canli kopya" kuralinin TEK kaynagi. Cagiranlar: yayinci (recordUnwrittenLiveState ve
+ * basarili yayin yolu: cop kutusu / silinmis kopya), articles.service
+ * forgetPublishedEntry ("bu kaydi unut") ve canlilik denetimi.
+ *
+ * PUBLISHED yazinin SITEDE canli kopyasi kalmadiysa (siteLiveEntries: Markdown ZIP
+ * disa aktarimi sitede kopya SAYILMAZ) READY_TO_PUBLISH; diger durumlar degismez (onay
+ * bekleyen yeniden yazim REVIZE_NEEDED / READY_TO_PUBLISH'te kalir). NEDEN: yazi sitede
+ * hicbir yerde yayinda degil; PUBLISHED okuyan her yer (site haritasi, llms-full,
+ * KPI'lar, raporlar) olmayan sayfayi sayardi. READY_TO_PUBLISH metni bitmis, yayini
+ * musterinin kararina birakir ve hicbir otomasyon onu kendiliginden yayinlamaz.
+ * publishedAt gecmis kaydi olarak kalir (cagiran dokunmaz).
+ */
+export function statusAfterRetirement(
+  status: unknown,
+  publishedTo: unknown,
+  typeOf: (targetId: string) => unknown = () => undefined,
+): string {
+  const s = String(status ?? '');
+  if (s !== 'PUBLISHED') return s;
+  return siteLiveEntries(publishedTo, typeOf).length === 0 ? 'READY_TO_PUBLISH' : s;
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+//  WORDPRESS TASLAK KOPYASI — herkese acik oldugu kanitlanmamis WordPress kopyasi
+//
+//  Ayni kavrami iki yer kullanir: canlilik denetimi (published-liveness.service.ts:
+//  boyle bir kopya bir kez canli gorulmeden 404'le emekliye ayrilmaz) ve site haritasi /
+//  llms-full (ai-sitemap.service.ts advertisedArticleEntry: adresi ilan edilmez).
+//  ai-sitemap.service canlilik servisinden ice aktaramaz (canlilik servisi site haritasinin
+//  secim kurallarini ice aktariyor; dongu olurdu), kural bu yuzden burada.
+//
+//  KARAR KAYITTAKI DURUMDAN (remoteStatus), hedefin BUGUNKU ayarindan degil. NEDEN: kural
+//  eskiden hedefin bugunku config.postStatus'una bakiyordu. Formun varsayilani 'draft'
+//  oldugu icin RanksUp'in "yayinladigi" yazilar WordPress'te taslak duruyor, kayitli ?p=
+//  adresleri anonim ziyaretciye 404 veriyordu. Musteri sonradan "Yayın durumu"nu
+//  "Yayında"ya alinca eski yazilar WordPress'te yine taslakti (yerinde guncelleme durumu
+//  degistirmez), ama kural onlari herkese acik sayip iki gun sonra emekliye ayiriyor,
+//  "yazinin sayfasindan yeniden yayinla" diyordu. O yayin da taslagi taslak birakiyor,
+//  ayni ?p= geri geliyor ve dongu her yeniden yayinda tekrarlaniyordu.
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * WordPress'in duz baglantisi mi (?p=<id>)? WordPress 5.7+ herkese acik olmayan yaziya
+ * (taslak, bekleyen, zamanlanmis) duz baglanti verir, kalici (guzel) baglantiyi yalniz
+ * herkese acik ya da okuyabilen kullanici icin ozel yaziya verir. Kaynaklar (2026-10-18'de
+ * okundu): developer.wordpress.org/reference/functions/wp_force_plain_post_permalink (5.7+:
+ * herkese acik olmayan durumda duz baglanti; get_permalink → `home_url( '?p=' . $post->ID )`);
+ * wpshout.com/quick-guides/selectively-share-draft-wordpress (taslak baglantisini acan
+ * giris yapmamis kisi "your site's 404 page" gorur). XML-RPC adaptoru wp.getPost okunamazsa
+ * (ve 21. turdan onceki eski kayitlarda her zaman) duz baglanti kaydeder, "Plain" kalici
+ * baglanti ayarli sitede de her baglanti duzdur. Yani
+ * kayitli GUZEL baglanti, RanksUp'in son yaziminda yazinin herkese acik oldugunun kanitidir
+ * (durumu kayitli olmayan eski kayitta tek ipucu); duz baglanti ise taslak da olabilir.
+ */
+export function wordPressPlainLink(url: string): boolean {
+  try {
+    return /^\d+$/.test(new URL(url).searchParams.get('p') ?? '');
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Kayitta RanksUp'in son yaziminda WordPress'in bildirdigi yazi durumu (remoteStatus); eski
+ * kayitta ya da okunamadiysa null. Yayinci adaptorun publish() / update() sonucundaki
+ * status'u yazar:
+ *  - REST: olusturma ve guncelleme yaniti yazinin kayittaki durumudur — create_item yaziyi
+ *    get_post ile yeniden okuyup prepare_item_for_response'tan 201 ile doner ve
+ *    "$data['status'] = $post->post_status;" (wordpress-develop class-wp-rest-posts-controller.php);
+ *    developer.wordpress.org/rest-api/reference/posts "status: A named status for the post
+ *    ... One of: publish, future, draft, pending, private". Istenen durum farkli olabilir
+ *    (bilinmeyen durum 'draft' olur — handle_status_param).
+ *  - XML-RPC: metaWeblog.newPost yalniz kimlik doner; durum yazimdan sonra wp.getPost'un
+ *    post_status alanindan okunur (_prepare_post: "'post_status' => $post['post_status']").
+ * Kaynaklar 2026-10-18'de okundu.
+ */
+export function recordedWordPressStatus(entry: LiveEntry): string | null {
+  const s = entry.remoteStatus;
+  return typeof s === 'string' && s.trim() !== '' ? s.trim().toLowerCase() : null;
+}
+
+/**
+ * RanksUp bu kopyayi herkese acik OLMAYAN bir WordPress yazisi olarak mi yazdi (kayitli durum
+ * 'publish' disinda: draft, pending, private, future...)? Yalniz 'publish' herkese aciktir:
+ * "Posts that are published and visible to everyone (including users who are logged out) are
+ * given the publish status" (wordpress.org/documentation/article/post-status, 2026-10-18).
+ * RanksUp yerinde guncellemede durumu degistirmez (adaptor update(): "taslak taslak kalir"):
+ * boyle bir kopyayi RanksUp'tan yeniden yayinlamak onu yayina almaz, musteri WordPress'te
+ * yayina almalidir (canlilik bildirimi bunu soyler).
+ */
+export function wordPressNonPublicCopy(entry: LiveEntry): boolean {
+  const s = recordedWordPressStatus(entry);
+  return s !== null && s !== 'publish';
+}
+
+/**
+ * Bu WordPress kopyasinin adresi herkese acik oldugu kanitlanmadan kullanilamaz mi (canlilik
+ * denetiminin needsSighting kosulu)? Karar kayittaki durumdan:
+ *  - 'publish': WordPress yaziyi RanksUp'in son yaziminda herkese acik bildirdi; adres
+ *    (guzel ya da duz) dogrudan kanit.
+ *  - baska bir durum (taslak, bekleyen, ozel, zamanlanmis): yazi herkese acik degildi; adres
+ *    once bir kez canli gorulmeli (musteri WordPress'te yayina aldiysa gorulur).
+ *  - bilinmiyor (eski kayit): duz ?p= baglantisi taslak olabilir, once canli gorulmeli; guzel
+ *    kalici baglanti WordPress'in "herkese acik" dedigi yazidir (wordPressPlainLink).
+ * Hedefin bugunku ayari hic kullanilmaz (bolum basindaki NEDEN).
+ */
+export function wordPressLinkNeedsSighting(entry: LiveEntry, url: string): boolean {
+  const s = recordedWordPressStatus(entry);
+  if (s === 'publish') return false;
+  if (s !== null) return true;
+  return wordPressPlainLink(url);
+}
+
+/**
+ * Kopya, adresi henuz hic canli gorulmemis ve herkese acik oldugu bilinmeyen bir WordPress
+ * kopyasi mi? (WordPress hedefi + wordPressLinkNeedsSighting + kayitta liveSeenAt yok.)
+ *
+ * NEDEN (site haritasi / llms-full): formun varsayilani 'draft' oldugu icin bu hedeflere
+ * "yayinlanan" yazilar WordPress'te taslak olarak duruyor; kayitli ?p= adresi giris
+ * yapmamis ziyaretciye ve AI tarayicisina 404 verir. Sitemap-ai ve llms-full bu adresi
+ * ilan ediyordu. Canlilik denetimi adresi bir kez canli gorunce (musteri yaziyi
+ * WordPress'te yayina aldi; ?p= kalici baglantiya yonlenir) kayda liveSeenAt yazar ve
+ * adres yeniden ilan edilir.
+ * targetType: kaydin hedef satirindaki tip (hedef silinmisse undefined: kayittaki targetType).
+ * Hedef satirinin ayari (config) bilerek ALINMAZ: karar ayardan verilmez (bolum basi).
+ */
+export function unseenWordPressDraftCopy(entry: LiveEntry, targetType?: string | null): boolean {
+  if (!UPDATE_TARGET_TYPES.has(String(targetType ?? entry.targetType ?? ''))) return false;
+  const url = liveEntryRef(entry).externalUrl;
+  if (!url || !wordPressLinkNeedsSighting(entry, url)) return false;
+  return !isoOrUndefined(entry.liveSeenAt);
 }
 
 /** Atlanan hedefin is sonucundaki ozeti (worker loga / is sonucuna yazar) */

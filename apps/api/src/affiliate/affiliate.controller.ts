@@ -27,7 +27,10 @@ export class AffiliateController {
   @Get('users/:userId/stats')
   stats(@Req() req: Request, @Param('userId') userId: string) {
     ensureSelf(req, userId);
-    return this.affiliate.getStats(userId);
+    // Davetlilerin tam adi ve e-postasi yalniz yoneticiye (destek, elle komisyon odemesi);
+    // ortak kisaltilmis etiketi gorur (affiliate.service getStats, referral-label.ts)
+    const revealContacts = (req as any).user?.role === 'ADMIN';
+    return this.affiliate.getStats(userId, { revealContacts });
   }
 
   /** Public — landing page'de referral kodu doğrulama (cookie'ye yazmak için) */

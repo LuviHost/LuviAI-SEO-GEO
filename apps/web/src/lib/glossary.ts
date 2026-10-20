@@ -280,8 +280,10 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
     short: 'Birini RanksUp\'a yönlendirip, kayıt olan kişinin ödemelerinden komisyon kazanma programı (%30, kayıttan sonraki 3 ay).',
     level: 1,
   },
+  // Haftalik sinir: denemede de hesap basina 7 gunde 1 olcum (billing/measurement-allowance);
+  // "3 calistirma" tek basina "3 olcum" diye okunuyordu. Fiyat karti ve SSS ile ayni ifade.
   TRIAL: {
-    short: 'Ücretsiz deneme planı — 2 makale, 3 AI görünürlük çalıştırması ve 1 site; makaleler Markdown ZIP olarak indirilir ya da WordPress\'e gönderilir. Ücretli plan seçince diğer yayın hedefleri de açılır.',
+    short: 'Ücretsiz deneme planı — 2 makale, 3 AI görünürlük çalıştırması (haftada en fazla 1 ölçüm) ve 1 site; makaleler Markdown ZIP olarak indirilir ya da WordPress\'e gönderilir. Ücretli plan seçince diğer yayın hedefleri de açılır.',
     level: 1,
   },
   Quota: {

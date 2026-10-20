@@ -261,6 +261,21 @@ describe('publishSelectionWarnings', () => {
     expect(publishSelectionWarnings(['F', 'L'], karisik, [L, F], { targetsKnown: true }).join(' ')).not.toContain('henüz yok');
   });
 
+  it('canlilik denetiminin dusurdugu WordPress kopyasi: silindiyse yeniden olusturur, taslak / cop kutusundaysa yayina almaz — ikisi de soylenir', () => {
+    // api published-liveness.service: adres iki denetimde 404 verdi (missingReason). WordPress
+    // yazisi silinmemis olabilir; yayinci onu yerinde gunceller ama durumunu degistirmez
+    const denetim = [{ ...canli[0], missingAt: '2026-10-20T02:20:00.000Z', missingReason: 'public_url_gone' }];
+    expect(publishSelectionWarnings(['L'], denetim, [L, D], { targetsKnown: true })).toEqual([
+      'Yazının Blog hedefindeki adresi 404 veriyordu. Yazı WordPress’ten silindiyse bu yayın onu orada yeniden oluşturur; '
+        + 'taslakta ya da çöp kutusunda duruyorsa RanksUp onu yayına almaz: önce WordPress’te yayına al ya da çöp kutusundan geri yükle.',
+    ]);
+    // Dosya hedefinde yayin sayfayi yeniden yazar: genel metin dogru
+    const dosya = [{ targetId: 'F', targetType: 'FTP', ok: true, externalUrl: 'ftp://h/yazi.html', missingAt: '2026-10-20T02:20:00.000Z', missingReason: 'public_url_gone' }];
+    expect(publishSelectionWarnings(['F'], dosya, [F], { targetsKnown: true })).toEqual([
+      'Yazı Sunucu hedefinde artık bulunamıyor (silinmiş olabilir); bu yayın yazıyı orada yeniden oluşturur.',
+    ]);
+  });
+
   it('S11 yan etkisi: cop kutusu bosaltildiktan sonra yayin yaziyi yeniden olusturur — uyari "oraya yazmaz" diye kesin konusmaz', () => {
     // rv15 s11-trash-warning senaryosu: kayit 40 gun once cop kutusunda goruldu, WordPress
     // cop kutusunu bosaltti (EMPTY_TRASH_DAYS=30); yazi FTP'de yayinda, kullanici WP'yi de secti

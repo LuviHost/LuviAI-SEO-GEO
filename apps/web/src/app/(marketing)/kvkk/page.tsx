@@ -14,7 +14,17 @@ export default function KvkkPage() {
           </span>{' '}
           Aydınlatma Metni
         </h1>
-        <p className="text-sm text-muted-foreground mb-8">Yürürlük: 27 Nisan 2026</p>
+        {/* Icerik degisti (Aktarilan Taraflar: yalniz cerez onayiyla yuklenen Google ve Microsoft
+            araclari) ama sayfada yalniz yururluk tarihi vardi; okuyan metnin degistigini goremezdi.
+            Gizlilik sayfasindaki duzen: yururluk tarihi korunur, son guncelleme ve degisiklik notu
+            ayrica yazilir (okuyan neyin degistigini de gorsun). Tarih bu icerigin yayin gunu
+            (20 Ekim 2026), gizlilik sayfasiyla ayni gun. */}
+        <p className="text-sm text-muted-foreground mb-1">Yürürlük: 27 Nisan 2026</p>
+        <p className="text-sm text-muted-foreground mb-1">Son güncelleme: 20 Ekim 2026</p>
+        <p className="text-sm text-muted-foreground mb-8">
+          Değişiklik: Aktarılan Taraflar bölümüne yalnız çerez onayınızla yüklenen Google ve Microsoft araçları ile sizi
+          davet eden iş ortağının ortaklık panelinde gördüğü bilgiler eklendi.
+        </p>
 
         <div className="space-y-6 text-sm leading-relaxed">
           <section>
@@ -48,6 +58,31 @@ export default function KvkkPage() {
             <p className="text-muted-foreground">
               Anthropic (AI içerik), Google (Gemini, GSC API), PayTR (ödeme), Resend (email), Mailjet (kurumsal e-posta gönderimi), Cloudflare (CDN).
               Hiçbir veri pazarlama amaçlı 3. taraflara satılmaz.
+            </p>
+            {/* Analitik ve pazarlama araclari bu listede yoktu; layout bunlari yalniz cerez
+                onayindan sonra yukler (lib/consent.ts). Ifade gizlilik sayfasinin cerez
+                bolumuyle ayni. Yurt disina aktarimin hukuki dayanagi (KVKK m.9) icin bir iddia
+                YAZILMAZ, yalniz olgu: dayanak sahip/hukuk karari. */}
+            <p className="text-muted-foreground mt-2">
+              Yalnız çerez bandında “Kabul et” derseniz: Google (Google Tag Manager ve Google Analytics 4 ile ziyaret
+              istatistikleri, Google Ads ile dönüşüm ölçümü ve yeniden pazarlama) ve Microsoft (Microsoft Clarity ile
+              oturum kaydı ve ısı haritası). “Reddet” derseniz ya da seçim yapmazsanız bu araçlar hiç yüklenmez. Bu
+              araçların topladığı veriler yurt dışında yerleşik Google ve Microsoft’a aktarılır. Ayrıntılar ve onayı geri
+              alma yolu{' '}
+              <Link href="/privacy#cerezler" className="text-brand-600">Gizlilik Politikası’nın çerezler bölümünde</Link>.
+            </p>
+            {/* Ortaklik paneli de bir alicidir: ortak davetlisinin kisaltilmis etiketini ve davet
+                olgularini gorur (affiliate.service getStats, referral-label.ts). Ifade gizlilik
+                sayfasinin luvi_ref maddesiyle ayni; biri degisirse digeri ayni committe. */}
+            <p className="text-muted-foreground mt-2">
+              Bir iş ortağının davet bağlantısıyla kaydolduysanız: sizi davet eden ortak, ortaklık panelinde adınızı (14
+              karakterden uzunsa yalnız ilk 12 karakterini; adınız kayıtlı değilse e-posta adresinizin @ işaretinden önceki
+              kısmını aynı kuralla), kayıt ve ilk
+              ödeme tarihinizi, ödeme durumunuzu, komisyon süresinin bitiş tarihini ve ödemelerinizden kazandığı komisyon
+              tutarını görür; e-posta adresinizi görmez. Sizi davet eden kişi de başka bir ortağın davetlisiyse, o ortak da
+              aynı adı, kayıt ve ilk ödeme tarihinizi ve ödeme durumunuzu görür; bu ikinci seviyeden komisyon ödenmez. Ayrıntılar{' '}
+              <Link href="/privacy#cerezler" className="text-brand-600">Gizlilik Politikası’nın çerezler bölümünde</Link>{' '}
+              (luvi_ref).
             </p>
           </section>
 

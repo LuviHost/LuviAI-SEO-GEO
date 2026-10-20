@@ -280,3 +280,99 @@ describe('GeoScoreCardService — Otorite sameAs (ana sayfa Organization)', () =
     expect(p.checks[0]).toMatchObject({ ok: true, detail: '2 sosyal profil kayıtlı' });
   });
 });
+
+/**
+ * rv18 F4 — Tazelik sutununun 'Eskimiş içerik' satiri Article.updatedAt'e bakiyordu. Satirin
+ * her yazimi onu ilerletir: canlilik denetiminin defter yazimlari (liveSeenAt, goneSince),
+ * iyimser kilitler, isaretler. Denetim dagitimdan sonraki ilk turunda her canli dosya
+ * kopyasina liveSeenAt yazar; 5 aydir dokunulmamis yazi 90 gun "taze" gorunur, kart
+ * 'Eskimiş içerik yok' derdi. Kural artik icerik yazimi: lastLiveWriteAt(publishedTo) ??
+ * publishedAt (icerik pivotunun bekleme suresiyle ayni). Sorgu kosullari bellek ici tabloda
+ * GERCEK anlamiyla calistirilir; bilinmeyen suzgec hata verir (sahte gecis olmasin).
+ */
+describe('GeoScoreCardService — Tazelik: eskimis icerik son icerik yazimina gore (rv18 F4)', () => {
+  const DAY = 86400000;
+  const ago = (d: number) => new Date(Date.now() - d * DAY);
+  const iso = (d: number) => ago(d).toISOString();
+  type Row = { siteId: string; status: string; publishedAt: Date | null; updatedAt: Date; publishedTo: unknown };
+
+  // Tarih kosulu { gte?, lte? }: SQL'deki gibi NULL hicbir karsilastirmayi gecmez
+  const dateOk = (v: Date | null, cond: unknown): boolean => {
+    if (!cond || typeof cond !== 'object') throw new Error(`testin desteklemedigi tarih kosulu: ${JSON.stringify(cond)}`);
+    return Object.entries(cond).every(([op, bound]) => {
+      if (!(bound instanceof Date) || (op !== 'gte' && op !== 'lte')) throw new Error(`testin desteklemedigi tarih kosulu: ${op}`);
+      if (v === null) return false;
+      return op === 'gte' ? v.getTime() >= bound.getTime() : v.getTime() <= bound.getTime();
+    });
+  };
+  const matches = (r: Row, where: Record<string, unknown>): boolean => Object.entries(where).every(([key, cond]) => {
+    if (key === 'siteId') return r.siteId === cond;
+    if (key === 'status') return r.status === cond;
+    if (key === 'publishedAt') return dateOk(r.publishedAt, cond);
+    if (key === 'updatedAt') return dateOk(r.updatedAt, cond);
+    throw new Error(`testin desteklemedigi suzgec: ${key}`);
+  });
+  const tazelik = (rows: Row[]) => {
+    const prisma = {
+      article: {
+        count: vi.fn(async ({ where }: any) => rows.filter((r) => matches(r, where)).length),
+        // select uygulanir: servis secmedigi bir alana (or. updatedAt) dayanamasin
+        findMany: vi.fn(async ({ where, select }: any) => rows.filter((r) => matches(r, where)).map((r) => (select
+          ? Object.fromEntries(Object.keys(select).filter((k) => select[k]).map((k) => [k, (r as any)[k]]))
+          : r))),
+      },
+    };
+    return (new GeoScoreCardService(prisma as any) as any).checkFreshness('s1');
+  };
+  const eskimis = async (rows: Row[]) => (await tazelik(rows)).checks.find((c: any) => c.id === 'stale-content');
+
+  // 170 gun once FTP'ye yayinlanan ve o gunden beri metnine dokunulmayan yazi
+  const ftpCopy = (extra: Record<string, unknown> = {}) => ({
+    targetId: 'ftp', targetType: 'FTP', ok: true, externalUrl: 'ftp://ftp.ornek.com.tr/public_html/blog/eski.html',
+    publishedAt: iso(170), updatedAt: iso(170), ...extra,
+  });
+  const oldRow = (over: Partial<Row> = {}): Row => ({
+    siteId: 's1', status: 'PUBLISHED', publishedAt: ago(170), updatedAt: ago(170), publishedTo: [ftpCopy()], ...over,
+  });
+  const ONE_STALE = '1 makale 90+ gündür güncellenmedi (content pivot çalıştır)';
+
+  it('canlilik denetiminin ilk canli gorulme yazimi (liveSeenAt, Article.updatedAt = simdi) eski yaziyi taze gostermez', async () => {
+    expect(await eskimis([oldRow()])).toMatchObject({ ok: true, detail: ONE_STALE });
+    // Denetimin yazdigi: kayda liveSeenAt, satira updatedAt = simdi; metne dokunulmadi
+    const now = new Date();
+    const afterSighting = oldRow({ updatedAt: now, publishedTo: [ftpCopy({ liveSeenAt: now.toISOString() })] });
+    expect(await eskimis([afterSighting])).toMatchObject({ ok: true, detail: ONE_STALE });
+  });
+
+  it('defter yazimlari (liveSeenAt, goneSince, iyimser kilit) 10 eski yaziyi kartta eskimis birakir: satir basarisiz kalir', async () => {
+    const rows = Array.from({ length: 10 }, (_, i) => oldRow({
+      updatedAt: ago(i % 3),
+      publishedTo: [ftpCopy(i % 2 === 0 ? { liveSeenAt: iso(i % 3) } : { goneSince: iso(i % 3) })],
+    }));
+    expect(await eskimis(rows)).toMatchObject({ ok: false, detail: '10 makale 90+ gündür güncellenmedi (content pivot çalıştır)' });
+  });
+
+  it('gercek icerik yazimi (yerinde guncelleme, ayni yolun uzerine yazma, "güncelledim") yaziyi taze yapar', async () => {
+    const rewritten = oldRow({ updatedAt: ago(10), publishedTo: [ftpCopy({ updatedAt: iso(10) })] });
+    expect(await eskimis([rewritten])).toMatchObject({ ok: true, detail: 'Eskimiş içerik yok' });
+  });
+
+  it('son yazimi tasimayan eski kayitta ilk yayin tarihi; emekli kopyanin yazimi sayilmaz; yayinda olmayan, yeni ve baska sitenin yazisi sayilmaz', async () => {
+    const legacy = oldRow({
+      publishedAt: ago(120), updatedAt: new Date(),
+      publishedTo: [{ targetId: 'wp', targetType: 'WORDPRESS_REST', ok: true, externalUrl: 'https://ornek.com.tr/eski/' }],
+    });
+    const retiredRecentWrite = oldRow({
+      updatedAt: new Date(),
+      publishedTo: [ftpCopy(), {
+        targetId: 'wp', targetType: 'WORDPRESS_REST', ok: true, externalUrl: 'https://ornek.com.tr/kaldirilan/',
+        updatedAt: iso(5), missingAt: iso(1), missingReason: 'public_url_gone',
+      }],
+    });
+    const notPublished = oldRow({ status: 'READY_TO_PUBLISH' });
+    const recent = oldRow({ publishedAt: ago(20), updatedAt: ago(20), publishedTo: [ftpCopy({ publishedAt: iso(20), updatedAt: iso(20) })] });
+    const otherSite = oldRow({ siteId: 's2' });
+    expect((await eskimis([legacy, retiredRecentWrite, notPublished, recent, otherSite])).detail)
+      .toBe('2 makale 90+ gündür güncellenmedi (content pivot çalıştır)');
+  });
+});

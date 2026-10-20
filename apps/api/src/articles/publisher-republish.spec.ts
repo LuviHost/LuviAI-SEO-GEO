@@ -59,6 +59,7 @@ vi.mock('../llm/llm-provider.service.js', () => ({ LLMProviderService: class {} 
 vi.mock('./hero-alt.js', () => ({ describeHeroImage: vi.fn(async () => null) }));
 
 const { PublisherService } = await import('./publisher.service.js');
+const { SchemaClassifierService } = await import('./schema-classifier.service.js');
 
 // Adresler IP — adres denetimi DNS'e gitmez
 const IP = '93.184.216.34';
@@ -76,12 +77,12 @@ const FIRST_AT = new Date('2026-01-05T10:00:00.000Z');
 const wpLive = { targetId: 't-wp', targetType: 'WORDPRESS_REST', ok: true, externalUrl: 'https://site.example/yazi/', externalId: '41', publishedAt: FIRST_AT.toISOString() };
 const ftpLive = { targetId: 't-ftp', targetType: 'FTP', ok: true, externalUrl: `ftp://${IP}/public_html/blog/yazi.html` };
 
-function build(opts: { targets: any[]; publishedTo?: unknown; publishedAt?: Date | null; slug?: string; qa?: 'PASS' | 'BLOCKED'; status?: string }) {
+function build(opts: { targets: any[]; publishedTo?: unknown; publishedAt?: Date | null; slug?: string; qa?: 'PASS' | 'BLOCKED'; status?: string; schemaMarkup?: unknown }) {
   const articleUpdates: any[] = [];
   const article: any = {
     id: 'a1', siteId: 's1', slug: opts.slug ?? 'yazi', title: 'Yazı', bodyMd: '# Yazı\n\nYeni metin.',
     heroImageUrl: 'https://cdn.example/hero.jpg', metaTitle: null, metaDescription: 'Özet', category: null,
-    schemaMarkup: null, frontmatter: {}, inlineImages: [], status: opts.status ?? 'READY_TO_PUBLISH', qaStatus: null,
+    schemaMarkup: opts.schemaMarkup ?? null, frontmatter: {}, inlineImages: [], status: opts.status ?? 'READY_TO_PUBLISH', qaStatus: null,
     qaReport: { blockers: [{ detail: 'kaynaksız istatistik' }] },
     publishedAt: opts.publishedAt === undefined ? FIRST_AT : opts.publishedAt,
     publishedTo: opts.publishedTo ?? null,
@@ -523,9 +524,295 @@ describe('canonical: yayindaki yazida canli kopyanin adresi (JSON-LD url ile ayn
     expect(canonicalOf(calls[0].payload.bodyHtml)).toBe('https://site.example/blog/yazi.html');
   });
 
-  it('ilk yayin: varsayilan hedefin yol kurali (eski davranis)', async () => {
+  it('ilk yayin: canonical yazilan kopyanin KENDI adresi — varsayilan hedefin yolu degil (o hedefe yazilmadi, adres 404)', async () => {
     const c = build({ targets: [ftpDefault, ftpLiveTarget], publishedTo: null, publishedAt: null });
     await run(c, ['t-ftp']);
-    expect(canonicalOf(calls[0].payload.bodyHtml)).toBe('https://site.example/rehber/yazi.html');
+    // Eskiden varsayilan hedefin yolu (/rehber/yazi.html) yaziliyordu: o adreste sayfa yok
+    expect(canonicalOf(calls[0].payload.bodyHtml)).toBe('https://site.example/blog/yazi.html');
+    expect(calls[0].payload.bodyHtml).toContain('<meta property="og:url" content="https://site.example/blog/yazi.html">');
+  });
+});
+
+/**
+ * C1 madde 4 — canonical ILAN kuralina gecti (ai-sitemap.service fullPageCanonicalUrl:
+ * advertisedArticleEntry; yoksa yazilan kopyanin kendi adresi; o da yoksa canonical yok).
+ * NEDEN: articlePublicUrl hic canli gorulmemis WordPress taslaginin ?p= baglantisini (anonim
+ * ziyaretciye ve tarayiciya 404) dosya sayfasinin kanonik adresi yapiyordu; 404'e isaret eden
+ * canonical sayfanin dizine alinmasina zarar verir.
+ */
+describe('canonical: ilan edilen adres; yoksa yazilan kopyanin kendi adresi (self-canonical)', () => {
+  const ftpT = target('t-ftp', 'FTP', { config: { remotePath: '/public_html/blog' } });
+  const sftpT = target('t-sftp', 'SFTP', { config: { remotePath: '/var/www/html/rehber' } });
+  const wpT = target('t-wp', 'WORDPRESS_REST', { config: { postStatus: 'draft' } });
+  const zipT = target('t-zip', 'MARKDOWN_ZIP', { isDefault: true });
+  const canonicalOf = (html: string) => html.match(/<link rel="canonical" href="([^"]+)">/)?.[1];
+  const htmlOf = (type: string) => calls.find((x) => x.type === type)!.payload.bodyHtml as string;
+  const wpTaslak = (over: Record<string, unknown> = {}) => ({
+    targetId: 't-wp', targetType: 'WORDPRESS_REST', ok: true, externalId: '41', externalUrl: 'https://site.example/?p=41', ...over,
+  });
+
+  it('hic canli gorulmemis WordPress taslagi (?p=) canonical olmaz: dosya sayfasi kendi adresini gosterir', async () => {
+    const c = build({ targets: [wpT, ftpT], publishedTo: [wpTaslak()] });
+    await run(c, ['t-ftp']);
+    const html = htmlOf('FTP');
+    expect(canonicalOf(html)).toBe('https://site.example/blog/yazi.html');
+    expect(html).not.toContain('?p=41');
+  });
+
+  it('canlilik denetimi ?p= adresini bir kez canli gorduyse (ilan ediliyor) canonical o adres', async () => {
+    const c = build({ targets: [wpT, ftpT], publishedTo: [wpTaslak({ liveSeenAt: '2026-10-19T02:20:00.000Z', liveSeenUrl: 'https://site.example/?p=41' })] });
+    await run(c, ['t-ftp']);
+    expect(canonicalOf(htmlOf('FTP'))).toBe('https://site.example/?p=41');
+  });
+
+  it('klasoru sonradan degisen dosya hedefine yeniden yayin: canonical yeni klasordeki (yazilan) sayfa — kayittaki eski adres degil', async () => {
+    const tasindi = target('t-ftp', 'FTP', { config: { remotePath: '/public_html/makaleler' } });
+    const c = build({ targets: [tasindi], publishedTo: [{ targetId: 't-ftp', targetType: 'FTP', ok: true, externalUrl: `ftp://${IP}/public_html/blog/yazi.html` }] });
+    const [r] = await run(c, ['t-ftp']);
+    expect(r).toMatchObject({ ok: true, action: 'overwritten' });
+    expect(canonicalOf(htmlOf('FTP'))).toBe('https://site.example/makaleler/yazi.html');
+  });
+
+  it('yazilmayan canli dosya kopyasi eski klasorde duruyorsa yeni hedefin sayfasi onu gosterir (kayittaki konum, bugunku ayar degil)', async () => {
+    const tasindi = target('t-ftp', 'FTP', { config: { remotePath: '/public_html/makaleler' } });
+    const c = build({ targets: [tasindi, sftpT], publishedTo: [{ targetId: 't-ftp', targetType: 'FTP', ok: true, externalUrl: `ftp://${IP}/public_html/blog/yazi.html` }] });
+    await run(c, ['t-sftp']);
+    expect(canonicalOf(htmlOf('SFTP'))).toBe('https://site.example/blog/yazi.html');
+  });
+
+  it('ilan edilecek adres yokken iki dosya hedefine ilk yayin: her sayfa kendi adresini gosterir', async () => {
+    const c = build({ targets: [ftpT, sftpT], publishedTo: null, publishedAt: null });
+    await run(c, ['t-ftp', 't-sftp']);
+    expect(canonicalOf(htmlOf('FTP'))).toBe('https://site.example/blog/yazi.html');
+    expect(canonicalOf(htmlOf('SFTP'))).toBe('https://site.example/rehber/yazi.html');
+  });
+
+  it('adresi bilinmeyen tam sayfa (Markdown ZIP) ve ilan edilecek adres yok: canonical yazilmaz (tahmini adres yerine)', async () => {
+    const c = build({ targets: [zipT], publishedTo: null, publishedAt: null });
+    await run(c, ['t-zip']);
+    const html = htmlOf('MARKDOWN_ZIP');
+    expect(canonicalOf(html)).toBeUndefined();
+    expect(html).not.toContain('og:url');
+  });
+
+  it('ilan edilen canli kopya varsa ZIP sayfasi da onu gosterir', async () => {
+    const c = build({ targets: [wpT, zipT], publishedTo: [wpTaslak({ externalUrl: 'https://site.example/yazi/', remoteStatus: 'publish' })] });
+    await run(c, ['t-zip']);
+    expect(canonicalOf(htmlOf('MARKDOWN_ZIP'))).toBe('https://site.example/yazi/');
+  });
+});
+
+/**
+ * D1 madde 2 — tam sayfanin JSON-LD'si sayfanin canonical'iyla ayni adresi bildirir.
+ * NEDEN: JSON-LD uretim aninda (pipeline) kurulur; yayinci sayfaya baska bir canonical yazabilir
+ * (yeni hedefe ilk yayin, klasoru degisen dosya hedefi, varsayilan hedefin yol kuralindan tahmin
+ * edilen adres). Ayni sayfada canonical bir adresi, JSON-LD 404 veren baska bir adresi
+ * bildiriyordu. Canonical yoksa (Markdown ZIP) JSON-LD'ye adres yazilmaz. JSON-LD gercek
+ * schema-classifier buildJsonLd ciktisi (AI cagrisi yok).
+ */
+describe('tam sayfa JSON-LD: yazi adresi alanlari canonical ile ayni (yoksa yazilmaz)', () => {
+  const ftpT = target('t-ftp', 'FTP', { config: { remotePath: '/public_html/blog' } });
+  const sftpT = target('t-sftp', 'SFTP', { isDefault: true, config: { remotePath: '/var/www/html/rehber' } });
+  const zipT = target('t-zip', 'MARKDOWN_ZIP');
+  const BASE = 'https://site.example';
+  const htmlOf = (type: string) => calls.find((x) => x.type === type)!.payload.bodyHtml as string;
+  const canonicalOf = (html: string) => html.match(/<link rel="canonical" href="([^"]+)">/)?.[1];
+  const ldOf = (html: string): any[] => [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)].map((m) => JSON.parse(m[1]));
+  const byType = (ld: any[], type: string) => ld.find((n) => n['@type'] === type);
+  /** Uretim hattinin kurdugu JSON-LD (pipeline.service: Anasayfa + yazi kirintisi) */
+  const schemaFor = (articleUrl: string) => {
+    const types = ['BlogPosting', 'BreadcrumbList', 'Speakable', 'HowTo', 'Organization'] as any[];
+    const jsonLd = new SchemaClassifierService().buildJsonLd({
+      types,
+      article: {
+        title: 'Yazı', url: articleUrl, slug: 'yazi', metaDescription: 'Özet', datePublished: FIRST_AT.toISOString(), dateModified: FIRST_AT.toISOString(),
+        heroImage: null, faqs: [], author: null,
+        breadcrumbs: [{ name: 'Anasayfa', url: BASE }, { name: 'Yazı', url: articleUrl }],
+      },
+      site: { name: 'Site', url: BASE, sameAs: ['https://x.com/site'] },
+    });
+    return { types, reasoning: 'test', jsonLd };
+  };
+  /** Yazi adresi alanlari: Article url + mainEntityOfPage, son kirinti, Speakable url, HowTo adimi */
+  const articleUrlFields = (ld: any[]) => {
+    const post = byType(ld, 'BlogPosting');
+    const crumbs = byType(ld, 'BreadcrumbList').itemListElement;
+    return {
+      url: post.url,
+      mainEntityOfPage: post.mainEntityOfPage?.['@id'],
+      lastCrumb: crumbs[crumbs.length - 1].item,
+      speakable: byType(ld, 'WebPage').url,
+      howToStep: byType(ld, 'HowTo').step[0].url,
+    };
+  };
+
+  it('hic yayinlanmamis yazi: JSON-LD varsayilan hedefin (SFTP /rehber) yolundan tahmin edilmisti, FTP\'ye ilk yayin — JSON-LD adresi canonical (yazilan sayfa)', async () => {
+    const schemaMarkup = schemaFor(`${BASE}/rehber/yazi.html`);
+    const c = build({ targets: [sftpT, ftpT], publishedTo: null, publishedAt: null, schemaMarkup });
+    await run(c, ['t-ftp']);
+    const html = htmlOf('FTP');
+    const canonical = `${BASE}/blog/yazi.html`;
+    expect(canonicalOf(html)).toBe(canonical);
+    const ld = ldOf(html);
+    expect(articleUrlFields(ld)).toEqual({ url: canonical, mainEntityOfPage: canonical, lastCrumb: canonical, speakable: canonical, howToStep: canonical });
+    expect(html).not.toContain('/rehber/yazi.html');
+    // Site adresleri (yayinci, kurulus, ilk kirinti) degismez
+    expect(byType(ld, 'BlogPosting').publisher.url).toBe(BASE);
+    expect(byType(ld, 'Organization').url).toBe(BASE);
+    expect(byType(ld, 'BreadcrumbList').itemListElement[0].item).toBe(BASE);
+    // Kayittaki JSON-LD'nin adresi degismez (yalniz yayinlanan sayfa hizalanir; yayinci kayda
+    // yalniz hero gorselini yazar)
+    expect(articleUrlFields((c.article.schemaMarkup as any).jsonLd).url).toBe(`${BASE}/rehber/yazi.html`);
+  });
+
+  it('klasoru sonradan degisen dosya hedefine yeniden yayin: JSON-LD eski klasordeki adresi degil yeni (yazilan) adresi bildirir', async () => {
+    const tasindi = target('t-ftp', 'FTP', { config: { remotePath: '/public_html/makaleler' } });
+    const c = build({
+      targets: [tasindi],
+      publishedTo: [{ targetId: 't-ftp', targetType: 'FTP', ok: true, externalUrl: `ftp://${IP}/public_html/blog/yazi.html` }],
+      schemaMarkup: schemaFor(`${BASE}/blog/yazi.html`),
+    });
+    await run(c, ['t-ftp']);
+    const html = htmlOf('FTP');
+    const canonical = `${BASE}/makaleler/yazi.html`;
+    expect(canonicalOf(html)).toBe(canonical);
+    expect(articleUrlFields(ldOf(html))).toEqual({ url: canonical, mainEntityOfPage: canonical, lastCrumb: canonical, speakable: canonical, howToStep: canonical });
+  });
+
+  // canli-oncesi-21 madde 2: CMS govde parcasi (WordPress) da ayni kuralla hizalanir; adres
+  // ilan edilen adrestir (advertisedArticleEntry), bilinmiyorsa adres alanlari yazilmaz
+  it('hic yayinlanmamis yazi WordPress\'e ilk kez: govde parcasinin JSON-LD\'si tahmin edilen adresi (varsayilan SFTP yolu) bildirmez; sema gecerli', async () => {
+    const c = build({ targets: [sftpT, WP], publishedTo: null, publishedAt: null, schemaMarkup: schemaFor(`${BASE}/rehber/yazi.html`) });
+    await run(c, ['t-wp']);
+    const html = htmlOf('WORDPRESS_REST');
+    expect(html).not.toContain('<!DOCTYPE html>');
+    expect(html).not.toContain('/rehber/yazi.html');
+    const ld = ldOf(html);
+    const post = byType(ld, 'BlogPosting');
+    expect(post).not.toHaveProperty('url');
+    expect(post).not.toHaveProperty('mainEntityOfPage');
+    expect(byType(ld, 'BreadcrumbList').itemListElement[1]).toEqual({ '@type': 'ListItem', position: 2, name: 'Yazı' });
+    expect(byType(ld, 'WebPage')).not.toHaveProperty('url');
+    expect(JSON.stringify(ld)).not.toContain('"@id"');
+    // Site adresleri degismez; panel onizlemesi (bodyHtml) ayni parca
+    expect(post.publisher.url).toBe(BASE);
+    expect(c.article.bodyHtml).toBe(html);
+  });
+
+  it('WordPress\'te yayindaki yazinin yerinde guncellemesi: govde parcasinin JSON-LD\'si yazinin gercek (ilan edilen) adresini bildirir', async () => {
+    const wpYayinda = { ...wpLive, remoteStatus: 'publish' };
+    const c = build({ targets: [sftpT, WP], publishedTo: [wpYayinda], schemaMarkup: schemaFor(`${BASE}/rehber/yazi.html`) });
+    await run(c, ['t-wp']);
+    expect(calls[0]).toMatchObject({ type: 'WORDPRESS_REST', method: 'update' });
+    const html = htmlOf('WORDPRESS_REST');
+    expect(html).not.toContain('/rehber/yazi.html');
+    const real = 'https://site.example/yazi/';
+    expect(articleUrlFields(ldOf(html))).toEqual({ url: real, mainEntityOfPage: real, lastCrumb: real, speakable: real, howToStep: real });
+  });
+
+  it('iki dosya hedefine ilk yayin: her sayfanin JSON-LD\'si kendi canonical\'ini bildirir', async () => {
+    const c = build({ targets: [sftpT, ftpT], publishedTo: null, publishedAt: null, schemaMarkup: schemaFor(`${BASE}/rehber/yazi.html`) });
+    await run(c, ['t-ftp', 't-sftp']);
+    expect(articleUrlFields(ldOf(htmlOf('FTP'))).url).toBe(`${BASE}/blog/yazi.html`);
+    expect(articleUrlFields(ldOf(htmlOf('SFTP'))).url).toBe(`${BASE}/rehber/yazi.html`);
+  });
+
+  it('canonical yok (Markdown ZIP, ilan edilen adres yok): JSON-LD\'ye adres yazilmaz; sema gecerli kalir (kopuk @id yok)', async () => {
+    const c = build({ targets: [zipT], publishedTo: null, publishedAt: null, schemaMarkup: schemaFor(`${BASE}/rehber/yazi.html`) });
+    await run(c, ['t-zip']);
+    const html = htmlOf('MARKDOWN_ZIP');
+    expect(canonicalOf(html)).toBeUndefined();
+    expect(html).not.toContain('/rehber/yazi.html');
+    const ld = ldOf(html);
+    const post = byType(ld, 'BlogPosting');
+    expect(post).toMatchObject({ '@type': 'BlogPosting', headline: 'Yazı', publisher: { url: BASE } });
+    expect(post).not.toHaveProperty('url');
+    expect(post).not.toHaveProperty('mainEntityOfPage');
+    const crumbs = byType(ld, 'BreadcrumbList').itemListElement;
+    expect(crumbs.map((x: any) => x.position)).toEqual([1, 2]);
+    expect(crumbs[0].item).toBe(BASE);
+    expect(crumbs[1]).toEqual({ '@type': 'ListItem', position: 2, name: 'Yazı' });
+    expect(byType(ld, 'WebPage')).not.toHaveProperty('url');
+    expect(byType(ld, 'WebPage').speakable).toBeTruthy();
+    expect(byType(ld, 'HowTo').step[0]).not.toHaveProperty('url');
+    // Hicbir dugum baska bir dugume @id ile baglanmiyor: silinen mainEntityOfPage kopuk referans birakmaz
+    expect(JSON.stringify(ld)).not.toContain('"@id"');
+  });
+
+  it('JSON-LD zaten canonical\'i bildiriyorsa sayfa aynen kalir; adressiz uretilmis JSON-LD\'ye adres eklenmez', async () => {
+    // Yayinci JSON-LD'ye yalniz hero gorselini ekler (applyHeroImageToJsonLd); karsilastirmada atilir
+    const withoutImage = (ld: any[]) => ld.map((n) => {
+      const rest = { ...n };
+      delete rest.image;
+      return rest;
+    });
+    const ayni = schemaFor(`${BASE}/blog/yazi.html`);
+    const c = build({ targets: [ftpT], publishedTo: null, publishedAt: null, schemaMarkup: structuredClone(ayni) });
+    await run(c, ['t-ftp']);
+    expect(withoutImage(ldOf(htmlOf('FTP')))).toEqual(ayni.jsonLd);
+
+    calls.length = 0;
+    // Uretim hatti ilan edilecek adres bulamadi: JSON-LD adressiz kaydedildi (omitJsonLdArticleUrl)
+    const { omitJsonLdArticleUrl } = await import('./pipeline.service.js');
+    const adressiz = { ...ayni, jsonLd: omitJsonLdArticleUrl(ayni.jsonLd, `${BASE}/blog/yazi.html`) };
+    const d = build({ targets: [ftpT], publishedTo: null, publishedAt: null, schemaMarkup: structuredClone(adressiz) });
+    await run(d, ['t-ftp']);
+    expect(canonicalOf(htmlOf('FTP'))).toBe(`${BASE}/blog/yazi.html`);
+    expect(withoutImage(ldOf(htmlOf('FTP')))).toEqual(adressiz.jsonLd);
+  });
+});
+
+/**
+ * canli-oncesi-21 madde 3 — tam sayfa kopyasinin canonical'i yazinin ilan edilen BASKA bir
+ * kopyasini (WordPress) gosterebilir. O kopya emekliye ayrilinca (cop kutusu, silinmis) site
+ * haritasi dosya kopyasini ilan etmeye baslar, dosya sayfasi ise hala 404 veren adresi kanonik
+ * bildirir. Yayinci sayfaya yazdigi canonical'i kayda gecirir (canonicalUrl) ve boyle kopyayi
+ * "elle guncelleme bekliyor" diye isaretler (hedefe yeniden yayin sayfayi duzeltir).
+ */
+describe('canli-oncesi-21 — emekli kopyanin adresini canonical bildiren dosya kopyasi isaretlenir', () => {
+  const ftpT = target('t-ftp', 'FTP', { config: { remotePath: '/public_html/blog' } });
+  const WP_URL = 'https://site.example/yazi/';
+  const FTP_URL = 'https://site.example/blog/yazi.html';
+  const FTP_REMOTE = `ftp://${IP}/public_html/blog/yazi.html`;
+  const HASH_NOW = articleContentHash({ title: 'Yazı', metaTitle: null, metaDescription: 'Özet', bodyMd: '# Yazı\n\nYeni metin.' });
+  const wpYayinda = { ...wpLive, remoteStatus: 'publish', contentHash: 'eski' };
+  const ftpOf = (c: ReturnType<typeof build>) => (c.article.publishedTo as any[]).find((e) => e.targetId === 't-ftp');
+  const canonicalOf = (html: string) => html.match(/<link rel="canonical" href="([^"]+)">/)?.[1];
+
+  it('tam sayfa yazimi sayfaya yazilan canonical\'i kayda gecirir; CMS hedefi gecirmez', async () => {
+    behavior.FTP = { publish: () => ({ ok: true, externalUrl: FTP_REMOTE }) };
+    const c = build({ targets: [ftpT, WP], publishedTo: [wpYayinda] });
+    await run(c, ['t-ftp', 't-wp']);
+    expect(canonicalOf(calls.find((x) => x.type === 'FTP')!.payload.bodyHtml)).toBe(WP_URL);
+    expect(ftpOf(c)).toMatchObject({ canonicalUrl: WP_URL });
+    expect((c.article.publishedTo as any[]).find((e) => e.targetId === 't-wp')).not.toHaveProperty('canonicalUrl');
+  });
+
+  it('WordPress kopyasi cop kutusunda bulundu, hicbir sey yazilmadi: canonical\'i ona isaret eden FTP kopyasi isaretlenir, yazi PUBLISHED kalir', async () => {
+    behavior.WORDPRESS_REST = { update: () => ({ ok: false, trashed: true, status: 'trash' }) };
+    const ftp = { ...ftpLive, externalUrl: FTP_REMOTE, contentHash: HASH_NOW, canonicalUrl: WP_URL };
+    const c = build({ targets: [ftpT, WP], publishedTo: [wpYayinda, ftp], status: 'PUBLISHED' });
+    const res = await run(c, ['t-wp']);
+    expect(res.map((r: any) => [r.targetId, r.skipped])).toEqual([['t-wp', 'live_entry_trashed'], ['t-ftp', 'live_target_not_selected']]);
+    expect(ftpOf(c)).toMatchObject({ manualUpdatePending: true, canonicalUrl: WP_URL });
+    expect(c.article.status).toBe('PUBLISHED');
+  });
+
+  it('kendi adresini canonical bildiren FTP kopyasi isaretlenmez (metni guncel)', async () => {
+    behavior.WORDPRESS_REST = { update: () => ({ ok: false, trashed: true, status: 'trash' }) };
+    const ftp = { ...ftpLive, externalUrl: FTP_REMOTE, contentHash: HASH_NOW, canonicalUrl: FTP_URL };
+    const c = build({ targets: [ftpT, WP], publishedTo: [wpYayinda, ftp], status: 'PUBLISHED' });
+    await run(c, ['t-wp']);
+    expect(ftpOf(c)).not.toHaveProperty('manualUpdatePending');
+  });
+
+  it('ayni yayinda FTP\'ye de yazildi: sayfasi yayindan onceki listeyle (WordPress canonical\'iyla) kuruldugu icin o da isaretlenir', async () => {
+    behavior.WORDPRESS_REST = { update: () => ({ ok: false, trashed: true, status: 'trash' }) };
+    behavior.FTP = { publish: () => ({ ok: true, externalUrl: FTP_REMOTE }) };
+    const ftp = { ...ftpLive, externalUrl: FTP_REMOTE, contentHash: 'eski', canonicalUrl: FTP_URL };
+    const c = build({ targets: [ftpT, WP], publishedTo: [wpYayinda, ftp], status: 'PUBLISHED' });
+    await run(c, ['t-wp', 't-ftp']);
+    expect(canonicalOf(calls.find((x) => x.type === 'FTP')!.payload.bodyHtml)).toBe(WP_URL);
+    expect(ftpOf(c)).toMatchObject({ canonicalUrl: WP_URL, manualUpdatePending: true, contentHash: HASH_NOW });
   });
 });

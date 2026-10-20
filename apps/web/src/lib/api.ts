@@ -404,6 +404,21 @@ export interface ArticleQuota {
   used: number;
 }
 
+/**
+ * Satin alma durumu — api billing/paytr.service.ts checkoutStatus.
+ * GET /billing/plans (herkese acik: anonim ziyaretci karari) ve
+ * GET /billing/users/:userId/current (o hesaba gore: PayTR test modunda yalniz
+ * yonetici acik) `checkout` alaninda doner. Eski API'de alan yok.
+ */
+export interface CheckoutAvailability {
+  /** Bu hesap (ya da anonim ziyaretci) odeme baslatabilir mi */
+  open: boolean;
+  /** PayTR test modunda mi — odemeler gercek tahsilat degil */
+  testMode: boolean;
+  /** Kapaliyken gosterilecek metin (API'nin 403 metniyle ayni); acikken null */
+  message: string | null;
+}
+
 /** GET /me/dashboard — api admin.service.ts getMyDashboard */
 export interface MyDashboard {
   plan?: string | null;
@@ -1672,6 +1687,8 @@ export const api = {
         popular?: boolean; contactSales?: boolean;
       }>;
       fx: { rate: number; fetchedAt: string; source: 'TCMB' | 'fallback'; stale: boolean };
+      /** Satin alma acik mi (test modunda kapali; metin locale'e gore). Eski API'de yok */
+      checkout?: CheckoutAvailability;
     }>(`/billing/plans${locale ? '?locale=' + locale : ''}`),
   // enterpriseInquiry / getCurrentFxRate silindi: billing/enterprise-inquiry ve
   // billing/fx-rate uclari API'de yok (Kurumsal iletisim mailto; kur /billing/plans

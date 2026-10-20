@@ -178,6 +178,40 @@ describe('triggerNow — "Simdi uret" atomik sahiplenir', () => {
       expect(ctx.jobQueue.enqueue).toHaveBeenCalledTimes(1);
     }
   });
+
+  /**
+   * Markdown ZIP canli siteye dokunmayan bir disa aktarim dosyasidir (republish-policy
+   * siteLiveEntries). Karar eskiden liveEntries'le veriliyordu: yalniz ZIP kaydi olan yazi
+   * "Bu yazının önceki hâli sitende yayında" metniyle reddediliyordu (sitede olmayan bir
+   * sayfa icin yanlis iddia) ve yeniden uretilemiyordu.
+   */
+  const zipExport = {
+    targetId: 'z1', targetType: 'MARKDOWN_ZIP', ok: true, externalUrl: '/tmp/luviai-exports/yazi.zip',
+    publishedAt: '2026-09-01T08:00:00.000Z', updatedAt: '2026-09-01T08:00:00.000Z',
+  };
+  const wpOnSite = { targetId: 't1', targetType: 'WORDPRESS_REST', ok: true, externalId: '41', externalUrl: 'https://s.example/yazi/' };
+
+  it('yalniz Markdown ZIP disa aktarimi olan yazi sitede yayinda sayilmaz: "önceki hâli sitende yayında" denmez, uretime alinir', async () => {
+    for (const status of ['REVIZE_NEEDED', 'FAILED', 'DRAFT']) {
+      const ctx = build({ rows: [{ ...row(status), publishedTo: [zipExport] } as Row] });
+      await expect(ctx.svc.triggerNow('s1', 'a1'), status).resolves.toMatchObject({ articleId: 'a1' });
+      expect(ctx.rows[0].status, status).toBe('GENERATING');
+      expect(ctx.quota.enforceArticleQuota, status).toHaveBeenCalledTimes(1);
+      expect(ctx.jobQueue.enqueue, status).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  it('ZIP yaninda sitede canli kopya varsa reddedilir; sitedeki kopya emekliye ayrildiysa ZIP tek basina yayinda saydirmaz', async () => {
+    const live = build({ rows: [{ ...row('REVIZE_NEEDED'), publishedTo: [zipExport, wpOnSite] } as Row] });
+    await expect(live.svc.triggerNow('s1', 'a1')).rejects.toThrow(TRIGGER_NOW_LIVE_REFUSED);
+    expect(live.jobQueue.enqueue).not.toHaveBeenCalled();
+
+    const retiredWp = { ...wpOnSite, missingAt: '2026-10-20T02:20:00.000Z', missingReason: 'public_url_gone' };
+    const gone = build({ rows: [{ ...row('REVIZE_NEEDED'), publishedTo: [zipExport, retiredWp] } as Row] });
+    await gone.svc.triggerNow('s1', 'a1');
+    expect(gone.rows[0].status).toBe('GENERATING');
+    expect(gone.jobQueue.enqueue).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('queuePublish — acik ustune yazma onayi (C1) ve yayini baslatan (D2)', () => {

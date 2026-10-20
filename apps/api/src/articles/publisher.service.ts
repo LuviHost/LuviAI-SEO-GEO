@@ -9,10 +9,11 @@ import { AiIndexingPingerService } from '../audit/ai-indexing-pinger.service.js'
 import { LlmsFullBuilderService } from '../audit/llms-full-builder.service.js';
 import { LinkValidatorService } from './link-validator.service.js';
 import { SiteUrlInventoryService } from '../sites/site-url-inventory.service.js';
-import { resolveArticleUrl } from './article-url.util.js';
-// Yayindaki yazinin sitedeki adresi: site haritasi, llms-full ve JSON-LD ile ayni kural
-import { articlePublicUrl, parseSiteUrl } from '../audit/ai-sitemap.service.js';
+// Tam sayfanin kanonik adresi: site haritasi, llms-full ve JSON-LD'nin ilan ettigi adresle ayni kural
+import { advertisedArticleEntry, flagRetiredCanonicalCopies, fullPageCanonicalUrl, parseSiteUrl } from '../audit/ai-sitemap.service.js';
 import { sectionPathOf } from './live-rewrite.js';
+// Adresi bilinmeyen tam sayfada JSON-LD'nin yazi adresi alanlari uretim hattinin kuraliyla silinir
+import { omitJsonLdArticleUrl } from './pipeline.service.js';
 import { QaGateService } from './qa-gate.service.js';
 import { stripHeroPlaceholder, applyHeroImageToJsonLd } from './hero-placeholder.js';
 import { describeHeroImage } from './hero-alt.js';
@@ -24,10 +25,12 @@ import { LLMProviderService } from '../llm/llm-provider.service.js';
 import { publishTargetBlockReason } from '../publish-targets/publish-target-url.js';
 // Silinmis gorunen kaydin herkese acik adres yoklamasi (S18): SSRF korumali, durust kimlik
 import { safeFetchText } from '../common/safe-fetch.js';
+// Yaniti canlilik denetimiyle AYNI kural okur: engel / bot dogrulama sayfasi 404 dese de belirsiz
+import { classifyLivenessResponse, publicUrlFetchOptions, siteHomepage } from './public-url-probe.js';
 // Yayindaki yazinin yeniden yayini: hedef basina guncelle / uzerine yaz / kopya acma
 import {
-  BLOCK_SKIP, agentOutputsWithLiveWriteBlocked, applyEntryObservations, articleContentHash, decideRepublish, liveCopyStale, liveEntries,
-  publishSkipText, publishedEntryFor, refreshManualUpdateFlags, republishModeForType, selectPublishTargets,
+  BLOCK_SKIP, agentOutputsWithLiveWriteBlocked, applyEntryObservations, articleContentHash, decideRepublish, liveCopyStale,
+  publishSkipText, publishedEntryFor, refreshManualUpdateFlags, republishModeForType, selectPublishTargets, siteLiveEntries, statusAfterRetirement,
   type LiveWriteBlockedReason, type PublishSkip, type PublishTargetRow, type RepublishDecision,
 } from './republish-policy.js';
 
@@ -84,42 +87,80 @@ interface FreshArticleState {
  *  - missing: yazi hedefte silinmis (kimlik VE adres 404/410) ve yeniden
  *    olusturulmadi → kayda missingAt (D3)
  *  - present: yazi duruyor, cop kutusunda degil (musterinin duzenlemesi korundu;
- *    ya da kimlik cozulmese de adres hala aciliyor: live_entry_unresolvable, S18)
+ *    ya da kimlik cozulmese de adres hala aciliyor: live_entry_unresolvable, S18).
+ *    presentStatus: yalniz kimligiyle gorulenlerin (live_entry_edited) WordPress durumu;
+ *    emekli kopya yalniz 'publish' ise geri gelir (taslaga alinan yazi yayinda degil)
  *  - unwritable: RanksUp bu kopyaya yazmadi — WordPress'te degismis, kimlik bu
  *    yaziya ait degil ya da cozulmuyor ama adres aciliyor, ya da kullanici acik
  *    listede o hedefi secmedi (D1) → metin farkliysa elle guncelleme isareti
  * live_entry_unverified (kimlik bulunamadi, adres dogrulanamadi) hicbirine
  * girmez: kopyanin durumu bilinmiyor, kayit oldugu gibi kalir.
  */
-function entryObservations(results: PublishResult[]): { trashed: Set<string>; missing: Set<string>; present: Set<string>; unwritable: Set<string> } {
+function entryObservations(results: PublishResult[]): {
+  trashed: Set<string>; missing: Set<string>; present: Set<string>; presentStatus: Map<string, string | null>; unwritable: Set<string>;
+} {
   const ids = (skips: readonly PublishSkip[]) => new Set(results.filter((r) => !!r.skipped && skips.includes(r.skipped)).map((r) => r.targetId));
   return {
     trashed: ids(['live_entry_trashed']),
     missing: ids(['live_entry_missing']),
     present: ids(['live_entry_edited', 'live_entry_unresolvable']),
+    // Yalniz kimligiyle gorulen kopya (live_entry_edited) ve WordPress'in bildirdigi durumu:
+    // emekli kopya yalniz 'publish' ise canli sayilir (republish-policy applyEntryObservations)
+    presentStatus: new Map(results.filter((r) => r.skipped === 'live_entry_edited').map((r) => [r.targetId, r.remoteStatus ?? null])),
     unwritable: ids(['live_entry_edited', 'live_entry_mismatch', 'live_entry_unresolvable', 'live_target_not_selected']),
   };
 }
 
 /**
+ * refreshManualUpdateFlags sonucuna emekli canonical isaretlerini (ai-sitemap.service
+ * flagRetiredCanonicalCopies) ekler: liste isaretli haliyle, bekleyen hedefler birlesik.
+ */
+function withRetiredCanonicalFlags(
+  refreshed: { publishedTo: unknown[]; changed: boolean; pendingTargetIds: string[] },
+  canonical: { publishedTo: unknown[]; flagged: string[] },
+): { publishedTo: unknown[]; changed: boolean; pendingTargetIds: string[] } {
+  if (canonical.flagged.length === 0) return refreshed;
+  return {
+    publishedTo: canonical.publishedTo,
+    changed: true,
+    pendingTargetIds: [...new Set([...refreshed.pendingTargetIds, ...canonical.flagged])],
+  };
+}
+
+/**
  * Kayitli yazinin herkese acik adresinin durumu (S18). Yonlendirmeler izlenir,
- * karari son yanit verir:
- *  - 'gone': 404 / 410: yazi o adreste artik yok
+ * karari son yanit verir (public-url-probe.ts classifyLivenessResponse — canlilik
+ * denetimiyle ayni kural):
+ *  - 'gone': 404 / 410 ve yanit bir engel / bot dogrulama sayfasi degil: yazi o
+ *    adreste artik yok
  *  - 'live': 2xx / 3xx: adres hala aciliyor (yazi orada duruyor ya da baska
  *    bir adrese yonlendiriliyor)
- *  - 'unknown': adres kayitli degil, baska durum (401/403/429/5xx) ya da ag /
- *    adres hatasi (zaman asimi, ic adrese cozulme, cok fazla yonlendirme)
+ *  - 'unknown': adres kayitli degil, baska durum (401/403/429/5xx), guvenlik
+ *    duvari / bot dogrulama sayfasi (durum 404 olsa da), sitenin ana sayfasina
+ *    yonlendirme ya da ag / adres hatasi (zaman asimi, ic adrese cozulme, cok
+ *    fazla yonlendirme)
  */
 export type EntryUrlState = 'gone' | 'live' | 'unknown';
 
-/** Kayitli adresi yoklayan islev (PublisherService; testte sahtesi verilir) */
-export type EntryUrlCheck = (url: string | undefined) => Promise<EntryUrlState>;
+/**
+ * Kayitli adresi yoklayan islev (PublisherService; testte sahtesi verilir).
+ * opts.homepage: sitenin ana sayfasi — silinen yaziyi ana sayfaya yonlendiren site
+ * "adres aciliyor" sayilmasin diye (classifyLivenessResponse).
+ */
+export type EntryUrlCheck = (url: string | undefined, opts?: { homepage?: string | null }) => Promise<EntryUrlState>;
 
 /**
  * Kayitli yazi adresini common/safe-fetch ile yoklar: yalniz http/https ve
  * 80/443, ic aga baglanmaz, yonlendirmenin her adimi yeniden denetlenir, durust
- * bot kimligi (RANKSUP_BOT_UA) gonderilir. Govde okunmaz (maxBytes 0), yalniz
- * durum kodu. Hata firlatmaz: her belirsizlik 'unknown'.
+ * bot kimligi (RANKSUP_BOT_UA) gonderilir. Govdenin yalniz basi okunur
+ * (publicUrlFetchOptions: 32 KB, sorgulu adreste 256 KB): engel / bot dogrulama
+ * sayfasini ve sorgulu adreste sayfanin kanonik baglantisini tanimak icin. Hata
+ * firlatmaz: her belirsizlik 'unknown'.
+ *
+ * NEDEN publicUrlFetchOptions: ortak siniflandirici sorgulu adreste (WordPress ?p=)
+ * ana sayfayi kanonik bildiren sayfayi 'unknown' sayar. <link rel=canonical> <head>'de
+ * satir ici CSS / betiklerden sonra 32 KB'i asabilir; sabit 32 KB tavanla bu yoklama
+ * kanonigi goremiyor, canlilik denetimiyle ayni yaniti 'live' okuyordu.
  *
  * NEDEN: yerinde guncellemede WordPress'in 404'u (rest_post_invalid_id /
  * XML-RPC "Invalid post ID.") yazinin silindigini KANITLAMAZ. Kimlik artik bir
@@ -130,13 +171,23 @@ export type EntryUrlCheck = (url: string | undefined) => Promise<EntryUrlState>;
  * sayfa dedektoru ve icerik pivotu yaziyi yok sayiyor, kullanicinin "WordPress
  * hedefini secip yeniden yayinlayin" adimi da ayni adreste ikinci bir kopya
  * aciyordu (inceleme S18'in yan etkisi).
+ *
+ * Siniflandirma eskiden yalniz durum koduna bakiyordu (govde okunmuyordu): 404
+ * durumuyla donen bir guvenlik duvari / bot dogrulama sayfasi (Cloudflare
+ * challenge, DataDome captcha) "yazi silinmis" sayiliyor, otomasyon musterinin
+ * yayindaki kopyasini emekliye ayiriyordu. Artik canlilik denetiminin kurali
+ * (common/block-detect.ts) uygulanir: boyle yanit 'unknown'dir.
  */
-export async function checkEntryPublicUrl(url: string | undefined, fetchText: typeof safeFetchText = safeFetchText): Promise<EntryUrlState> {
+export async function checkEntryPublicUrl(
+  url: string | undefined,
+  fetchText: typeof safeFetchText = safeFetchText,
+  opts: { homepage?: string | null } = {},
+): Promise<EntryUrlState> {
   if (typeof url !== 'string' || !url.trim()) return 'unknown';
+  const requested = url.trim();
   try {
-    const r = await fetchText(url.trim(), { maxBytes: 0, errorBodyBytes: 0, maxRedirects: 3, timeoutMs: 10_000 });
-    if (r.status === 404 || r.status === 410) return 'gone';
-    return r.status >= 200 && r.status < 400 ? 'live' : 'unknown';
+    const r = await fetchText(requested, publicUrlFetchOptions(requested));
+    return classifyLivenessResponse(r, { requested, homepage: opts.homepage ?? null });
   } catch {
     return 'unknown';
   }
@@ -340,6 +391,84 @@ function buildFaqPageLd(bodyMd: string): any | null {
   return { '@context': 'https://schema.org', '@type': 'FAQPage', mainEntity };
 }
 
+/** JSON-LD dugumunun @type'i bu tiplerden biri mi (dizi tipi de olabilir) */
+function jsonLdTypeIs(node: Record<string, unknown>, types: ReadonlySet<string>): boolean {
+  const t = node['@type'];
+  return Array.isArray(t) ? t.some((x) => types.has(String(x))) : types.has(String(t));
+}
+
+const JSON_LD_ARTICLE_TYPES: ReadonlySet<string> = new Set(['Article', 'BlogPosting', 'NewsArticle', 'TechArticle']);
+const JSON_LD_PAGE_TYPES: ReadonlySet<string> = new Set(['WebPage']);
+const JSON_LD_BREADCRUMB_TYPES: ReadonlySet<string> = new Set(['BreadcrumbList']);
+
+/**
+ * Kayitli JSON-LD'nin yazi adresi olarak tasidigi degerler (saf): Article / BlogPosting url'i ve
+ * mainEntityOfPage @id'si, WebPage (Speakable) url'i, kirinti listesinin SON ogesinin item'i.
+ * Uretim hattinda (pipeline.service, schema-classifier buildJsonLd) bunlarin hepsi ayni adrestir;
+ * eski / elle duzenlenmis kayitta farkli olabilirler, hepsi toplanir. Sitenin kok adresi yazi
+ * adresi sayilmaz: yayinci / kurulus url'i ezilmesin.
+ */
+function jsonLdArticleUrls(jsonLd: readonly unknown[], siteRoot: string | null): Set<string> {
+  const urls = new Set<string>();
+  const add = (v: unknown) => { if (typeof v === 'string' && v.trim()) urls.add(v); };
+  for (const raw of jsonLd) {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) continue;
+    const node = raw as Record<string, unknown>;
+    if (jsonLdTypeIs(node, JSON_LD_ARTICLE_TYPES)) {
+      add(node.url);
+      const page = node.mainEntityOfPage;
+      if (typeof page === 'string') add(page);
+      else if (page && typeof page === 'object' && !Array.isArray(page)) add((page as Record<string, unknown>)['@id']);
+    }
+    if (jsonLdTypeIs(node, JSON_LD_PAGE_TYPES)) add(node.url);
+    if (jsonLdTypeIs(node, JSON_LD_BREADCRUMB_TYPES) && Array.isArray(node.itemListElement) && node.itemListElement.length > 0) {
+      const last = node.itemListElement[node.itemListElement.length - 1] as Record<string, unknown> | null;
+      const item = last && typeof last === 'object' ? last.item : undefined;
+      if (typeof item === 'string') add(item);
+      else if (item && typeof item === 'object' && !Array.isArray(item)) add((item as Record<string, unknown>)['@id']);
+    }
+  }
+  const root = siteRoot ? siteRoot.replace(/\/+$/, '') : null;
+  if (root) for (const u of [...urls]) if (u.replace(/\/+$/, '') === root) urls.delete(u);
+  return urls;
+}
+
+/** Degeri `from` kumesinde olan her dizeyi `to` ile degistirir (saf; girdi degismez) */
+function replaceJsonLdStrings<T>(node: T, from: ReadonlySet<string>, to: string): T {
+  if (typeof node === 'string') return (from.has(node) ? to : node) as T;
+  if (Array.isArray(node)) return node.map((n) => replaceJsonLdStrings(n, from, to)) as T;
+  if (!node || typeof node !== 'object') return node;
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(node as Record<string, unknown>)) out[key] = replaceJsonLdStrings(value, from, to);
+  return out as T;
+}
+
+/**
+ * Tam sayfanin JSON-LD'sindeki yazi adresi alanlarini sayfanin canonical'iyla hizalar (saf; girdi
+ * degismez): Article url'i, mainEntityOfPage @id'si, son kirintinin item'i, Speakable url'i ve
+ * ayni adresi tasiyan diger alanlar (HowTo adimi, Course / Product / Service / DefinedTerm url'i,
+ * VideoObject contentUrl) canonical olur. Canonical yoksa (GitHub, Markdown ZIP: adres bilinmiyor)
+ * bu alanlar silinir (pipeline.service omitJsonLdArticleUrl — uretim hattinin adressiz JSON-LD
+ * kurali); mainEntityOfPage nesnesi butunuyle duser, baska dugum @id ile ona baglanmadigi icin
+ * kopuk referans kalmaz. Kayitli JSON-LD'de yazi adresi yoksa (uretim hatti adressiz yazdi)
+ * dokunulmaz.
+ *
+ * NEDEN: JSON-LD uretim aninda (pipeline) kurulur; o anki adres yayinci bu sayfaya canonical
+ * olarak yazdigi adresten (ai-sitemap.service fullPageCanonicalUrl) farkli olabilir: yeni bir
+ * hedefe ilk yayin, klasoru sonradan degisen dosya hedefi, varsayilan hedefin yol kuralindan
+ * tahmin edilen adresle uretilip baska hedefe yayinlanan yazi. Ayni sayfada canonical bir adresi,
+ * JSON-LD baska (cogu zaman 404 veren) bir adresi bildiriyordu; arama motoru ve AI tarayicisi
+ * hangisinin dogru oldugunu bilemez.
+ */
+export function alignJsonLdArticleUrl(jsonLd: readonly unknown[], canonical: string | null, siteRoot: string | null): unknown[] {
+  const urls = jsonLdArticleUrls(jsonLd, siteRoot);
+  if (urls.size === 0) return [...jsonLd];
+  if (canonical) return replaceJsonLdStrings([...jsonLd], urls, canonical);
+  let out: unknown[] = [...jsonLd];
+  for (const u of urls) out = omitJsonLdArticleUrl(out, u);
+  return out;
+}
+
 /**
  * Basarili yazimda hedefte ne yapildi:
  *  - created: ilk yayin (bu hedefte canli kayit yoktu)
@@ -379,6 +508,25 @@ export interface PublishResult {
    */
   remoteModifiedAt?: string;
   /**
+   * publishedTo kaydi: WordPress'in BU yazimin yanitinda bildirdigi yazi durumu (publish,
+   * draft, pending, private...; adaptorun publish() / update() sonucundaki status). Yalniz
+   * WordPress hedeflerinde yazilir. Canlilik denetimi ve site haritasi "bu ?p= adresi herkese
+   * acik mi" kararini bundan verir (republish-policy recordedWordPressStatus). NEDEN: karar
+   * eskiden hedefin BUGUNKU "Yayın durumu" ayarina bakiyordu; ayar "Taslak"tan "Yayında"ya
+   * alininca WordPress'te taslak kalan eski yazilar emekliye ayriliyordu.
+   * Yazilmayan 'live_entry_edited' sonucunda da tasinir (kayda yazilmaz): yazinin o an
+   * WordPress'teki durumu; emekli kopya yalniz 'publish' ise yeniden canli sayilir.
+   */
+  remoteStatus?: string;
+  /**
+   * publishedTo kaydi: TAM SAYFA yazan hedefte (FTP / SFTP / cPanel / GitHub / Markdown ZIP)
+   * sayfaya yazilan <link rel="canonical"> adresi; null: canonical yazilmadi. NEDEN: canonical
+   * yazinin ilan edilen BASKA bir kopyasini (or. WordPress) gosterebilir; o kopya emekliye
+   * ayrilinca bu sayfa 404 veren adresi kanonik bildirir. Kayit, hangi kopyanin yeniden yazilmasi
+   * gerektigini bilmek icin tutulur (ai-sitemap.service flagRetiredCanonicalCopies).
+   */
+  canonicalUrl?: string | null;
+  /**
    * publishedTo kaydi (C3): kopya WordPress cop kutusunda bulundu (ISO). Kopya
    * canli sayilmaz (liveEntries, lastLiveWriteAt, adres secimi); kimlik ve
    * adres korunur, hedefe sonraki basarili yazim isareti kaldirir.
@@ -401,8 +549,9 @@ export interface PublishResult {
  * hedeflerdeki canli kopyalarin izi (WordPress yazi kimligi, adres) kayboluyor;
  * site haritasi / llms.txt adresi ve "yazi nerede yayinda" karari
  * (stuck-page-autopilot.ts planArticleRepublish) eksik veriyle calisiyordu.
- * Yeni sonuclar basta: "ilk sitedeki adres" okuyanlar (articlePublicUrl) en
- * son yayini gorur.
+ * Yeni sonuclar basta: kaydi sirayla okuyup ilk sitedeki adresi alanlar
+ * (ai-sitemap.service advertisedArticleEntry — site haritasi, llms-full,
+ * canonical, JSON-LD) en son yayini gorur.
  */
 export function mergePublishedTo(previous: unknown, successful: PublishResult[]): unknown[] {
   const ids = new Set(successful.map((r) => r.targetId));
@@ -442,7 +591,7 @@ export class PublisherService implements OnModuleInit {
   private entryUrlCheck: EntryUrlCheck | null = null;
 
   onModuleInit(): void {
-    this.entryUrlCheck ??= (url) => checkEntryPublicUrl(url);
+    this.entryUrlCheck ??= (url, opts) => checkEntryPublicUrl(url, safeFetchText, opts);
   }
 
   constructor(
@@ -577,6 +726,10 @@ export class PublisherService implements OnModuleInit {
     // kullanici hedef secmedi: otomasyon gibi geri getirilmez.
     const recreateRequested = opts.recreateMissing ?? initiator === 'user';
     const namedTargetIds: ReadonlySet<string> = new Set(targetIds);
+    // Sitenin ana sayfasi: silinmis gorunen kaydin adres yoklamasinda (checkEntryPublicUrl)
+    // silinen yaziyi ana sayfaya yonlendiren site "adres hala aciliyor" sayilmasin
+    const probeSite = parseSiteUrl((article.site as any).url);
+    const homepage = probeSite ? siteHomepage(probeSite) : null;
     const plans = selectedTargets.map((target) => {
       const live = publishedEntryFor(previousPublishedTo, target.id);
       let decision = decideRepublish({ entry: live, targetType: target.type, articleSlug: article.slug });
@@ -630,53 +783,6 @@ export class PublisherService implements OnModuleInit {
       this.log.warn(`[${articleId}] QA gate OVERRIDE ile atlandi (kullanici karari)`);
     }
 
-    // Markdown → tam HTML sayfa (frontmatter strip + UTF-8 + meta + sade tema)
-    //
-    // canonical, JSON-LD'deki Article.url ile AYNI kaynaktan gelmek ZORUNDA.
-    // Eski hâli sabit `${base}/blog/${slug}` üretiyordu; pipeline şemayı gerçek
-    // yola (ör. /pratik-kobi-rehberi/<slug>) taşıyınca sayfa kendi kendisiyle
-    // çelişti: şema bir URL, canonical başka bir URL (üstelik var olmayan /blog)
-    // gösteriyordu. Google için tutarsız canonical, tutarlı-yanlış canonical'dan
-    // daha kötüdür (self-referencing canonical bozulur, sayfa indekslenmeyebilir).
-    //
-    // Hedef olarak sitenin VARSAYILAN aktif hedefi okunur; publishTargets bu
-    // çağrıda targetIds ile daraltılmış olabilir ve canonical hangi hedefe
-    // basıldığından bağımsız olarak tek/otoriter URL'i göstermelidir.
-    //
-    // YAYINDAKI yazida canonical, canli kopyanin sitedeki adresidir
-    // (ai-sitemap.service articlePublicUrl): uretim hatti yeniden yazimda
-    // JSON-LD url'ini ayni kuraldan uretir (pipeline.service liveArticleUrl),
-    // site haritasi ve llms-full da bu adresi ilan eder. Yazi yayindayken
-    // varsayilan hedef degistiyse varsayilanin yol kurali sayfanin gercek
-    // adresini degil baska bir yolu gosterirdi.
-    const siteUrl = (article.site as any).url ? String((article.site as any).url) : '';
-    let canonical: string | null = null;
-    let sectionPath: string | null = null;
-    if (siteUrl) {
-      let defaultTarget: { type?: string | null; config?: unknown } | null = null;
-      try {
-        const targets = await this.prisma.publishTarget.findMany({
-          where: { siteId: article.siteId, isActive: true },
-          orderBy: [{ isDefault: 'desc' }, { createdAt: 'asc' }],
-          take: 1,
-        });
-        defaultTarget = targets[0] ?? null;
-      } catch (err: any) {
-        this.log.warn(`[${articleId}] Publish hedefi okunamadı, canonical varsayılana düştü: ${err.message}`);
-      }
-      const resolved = resolveArticleUrl(siteUrl, article.slug, defaultTarget);
-      const site = parseSiteUrl(siteUrl);
-      const liveUrl = site
-        ? articlePublicUrl(
-          site,
-          article.slug,
-          previousPublishedTo,
-          new Map(article.site.publishTargets.map((t) => [t.id, { type: String(t.type), config: t.config }])),
-        )
-        : null;
-      canonical = liveUrl ?? resolved.url;
-      sectionPath = liveUrl ? sectionPathOf(liveUrl) : resolved.sectionPath;
-    }
     // GEO v7: schema JSON-LD + audio + tracker injection
     // KOPYA: asagida yayina ozel FAQPage eklenir ve hero image duzeltilir;
     // kayittaki schemaMarkup nesnesi bunlardan etkilenmemeli.
@@ -804,28 +910,66 @@ export class PublisherService implements OnModuleInit {
       this.log.warn(`[${articleId}] yayın öncesi link doğrulama atlandı: ${err.message}`);
     }
 
-    // Dosya-tabanli hedefler (FTP/SFTP/cPanel/ZIP) icin tam HTML sayfasi
-    const fullPageHtml = renderArticleHtml({
-      bodyMd: cleanBodyMd,
-      title: article.title,
-      metaTitle: article.metaTitle,
-      metaDescription: article.metaDescription,
-      canonical,
-      heroImageUrl,
-      heroImageAlt,
-      siteName: article.site.name,
-      sectionPath,
-      schemaJsonLd,
-      audioUrl,
-      trackerSiteId: article.siteId,
-    });
+    // Markdown → tam HTML sayfa (frontmatter strip + UTF-8 + meta + sade tema): dosya-tabanli
+    // hedefler (FTP/SFTP/cPanel/GitHub/ZIP) icin, hedef basina kanonik adresiyle.
+    //
+    // Tarihce: eski hali sabit `${base}/blog/${slug}` uretiyordu; sayfa kendi kendisiyle
+    // celisiyordu (sema bir adres, canonical var olmayan /blog). Yol kurali artik tek yerde
+    // (article-url.util.ts resolveArticleUrl; dosya kopyasinin adresi ai-sitemap.service
+    // fileCopyPublicUrl).
+    //
+    // canonical (ai-sitemap.service fullPageCanonicalUrl): yazinin ILAN edilen adresi
+    // (advertisedArticleEntry — site haritasi, llms-full ve uretim hattinin JSON-LD url'i ile
+    // ayni kural; yazilan kopyanin kaydi, bugunku klasore yazilacagi icin yazimdan sonraki
+    // konumuyla); ilan edilecek adres yoksa yazilan kopyanin KENDI adresi (self-canonical);
+    // o da bilinmiyorsa (GitHub, Markdown ZIP) canonical yazilmaz.
+    // NEDEN: canonical eskiden articlePublicUrl'den ya da sitenin varsayilan hedefinin yol
+    // kuralindan geliyordu. Hic canli gorulmemis WordPress taslaginin ?p= baglantisi (anonim
+    // ziyaretciye 404) ya da bu yayinda yazilmayan varsayilan hedefin yolu sayfanin kanonik
+    // adresi oluyordu: 404'e isaret eden canonical sayfanin dizine alinmasina zarar verir.
+    // Self-canonical yalniz yazilan sayfanin kendisini gosterir, var olmayan bir adresi degil.
+    const canonicalTargets = new Map(article.site.publishTargets.map((t) => [t.id, { type: String(t.type), config: t.config }]));
+    const fullPages = new Map<string, string>();
+    const canonicalFor = (target: { id: string; type: string; config?: unknown }): string | null => (probeSite
+      ? fullPageCanonicalUrl(probeSite, article.slug, previousPublishedTo, canonicalTargets, { id: target.id, type: String(target.type), config: target.config })
+      : null);
+    const fullPageHtmlFor = (target: { id: string; type: string; config?: unknown }): string => {
+      const canonical = canonicalFor(target);
+      const cached = fullPages.get(canonical ?? '');
+      if (cached !== undefined) return cached;
+      const html = renderArticleHtml({
+        bodyMd: cleanBodyMd,
+        title: article.title,
+        metaTitle: article.metaTitle,
+        metaDescription: article.metaDescription,
+        canonical,
+        heroImageUrl,
+        heroImageAlt,
+        siteName: article.site.name,
+        // Bolum baglantisi kanonik adresin yolundan; adres bilinmiyorsa basilmaz
+        sectionPath: canonical ? sectionPathOf(canonical) : null,
+        // JSON-LD'nin yazi adresi sayfanin canonical'i; canonical yoksa adres alanlari yok
+        schemaJsonLd: alignJsonLdArticleUrl(schemaJsonLd, canonical, probeSite ? siteHomepage(probeSite) : null),
+        audioUrl,
+        trackerSiteId: article.siteId,
+      });
+      fullPages.set(canonical ?? '', html);
+      return html;
+    };
 
-    // CMS hedefleri (WordPress/Ghost/Shopify/...) icin sadece govde parcasi
+    // CMS hedefleri (WordPress/Ghost/Shopify/...) icin sadece govde parcasi.
+    // JSON-LD'nin yazi adresi alanlari (url, mainEntityOfPage, son kirinti, Speakable) yazinin
+    // ILAN edilen adresiyle hizalanir (advertisedArticleEntry: site haritasi, llms-full ve tam
+    // sayfa canonical'i ile ayni kural); adres henuz bilinmiyorsa (ilk yayin) bu alanlar yazilmaz.
+    // NEDEN: parca eskiden uretim anindaki JSON-LD'yi aynen tasiyordu. Hic yayinlanmamis yazinin
+    // adresi varsayilan hedefin yol kuralindan TAHMIN ediliyordu; WordPress yazisinin gercek
+    // adresiyle uyusmuyor, her yerinde guncellemede o yanlis adres yeniden yaziliyordu.
+    const fragmentUrl = probeSite ? advertisedArticleEntry(probeSite, article.slug, previousPublishedTo, canonicalTargets)?.url ?? null : null;
     const fragmentHtml = renderArticleFragment({
       bodyMd: cleanBodyMd,
       heroImageUrl,
       heroImageAlt,
-      schemaJsonLd,
+      schemaJsonLd: alignJsonLdArticleUrl(schemaJsonLd, fragmentUrl, probeSite ? siteHomepage(probeSite) : null),
       audioUrl,
       trackerSiteId: article.siteId,
     });
@@ -866,7 +1010,7 @@ export class PublisherService implements OnModuleInit {
         const payload: PublishPayload = {
           slug: article.slug,
           title: article.title,
-          bodyHtml: adapter.needsFullPage ? fullPageHtml : fragmentHtml,
+          bodyHtml: adapter.needsFullPage ? fullPageHtmlFor(target) : fragmentHtml,
           bodyMd: article.bodyMd ?? '',
           metaTitle: article.metaTitle ?? undefined,
           metaDescription: article.metaDescription ?? undefined,
@@ -880,6 +1024,7 @@ export class PublisherService implements OnModuleInit {
         const outcome = await this.writeToTarget(adapter, target.type, decision, payload, {
           force: forcedTargetIds.has(target.id),
           recreateMissing: recreateRequested && namedTargetIds.has(target.id),
+          homepage,
         });
 
         // Last used timestamp güncelle — best-effort: yazilamazsa yayinlanmis
@@ -890,6 +1035,8 @@ export class PublisherService implements OnModuleInit {
         }).catch((err: any) => this.log.warn(`[${articleId}] ${target.type} lastUsedAt yazilamadi: ${err.message}`));
 
         const result: PublishResult = { targetId: target.id, targetType: target.type, ...outcome };
+        // Sayfaya yazilan canonical kayda gecer (PublishResult.canonicalUrl)
+        if (result.ok && adapter.needsFullPage) result.canonicalUrl = canonicalFor(target);
         if (result.ok) {
           // publishedTo kaydinin zamanlari: ilk yayin (yeni kayitta simdi, aksi halde
           // onceki kayittan tasinir — panel "Yayın Geçmişi" bunu gosterir) ve son yazim
@@ -941,13 +1088,17 @@ export class PublisherService implements OnModuleInit {
       //    kayitlarinin updatedAt'inda; pivot lastLiveWriteAt'i
       //    (republish-policy.ts), site haritasi adresi veren kaydin updatedAt'ini okur.
       const typeById = new Map(article.site.publishTargets.map((t) => [t.id, String(t.type)]));
-      const hadLiveCopy = liveEntries(previousPublishedTo).some((e) => republishModeForType(typeById.get(e.targetId) ?? e.targetType) !== 'export');
+      const typeOf = (targetId: string) => typeById.get(targetId);
+      const hadLiveCopy = siteLiveEntries(previousPublishedTo, typeOf).length > 0;
       const wroteLiveCopy = successful.some((r) => r.action === 'created' && republishModeForType(r.targetType) !== 'export');
       const writtenTargetIds = new Set(successful.map((r) => r.targetId));
       const freshEntries = successful.map((r) => ({ ...r }));
       const observed = entryObservations(results);
+      // Bu yayinda bir kopya cop kutusunda ya da silinmis bulundu (kayda trashedAt / missingAt)
+      const retiredNow = observed.trashed.size + observed.missing.size > 0;
       const now = new Date().toISOString();
       let pendingTargetIds: string[] = [];
+      let siteCopyGone = false;
       // Hedef bazinda birlestir: diger hedeflerdeki canli kopyalarin kaydi
       // kaybolmasin. Yeni metni alamayan canli kopyalar (yalniz yeni kayit acan
       // hedef, pasif hedef, WordPress'te elle degismis yazi, acik listede
@@ -958,8 +1109,9 @@ export class PublisherService implements OnModuleInit {
       // yeniden okunan GUNCEL listeye yapilir (commitArticleState, K10): uzun
       // bir yayin sirasinda musterinin "guncelledim" / "unut" demesi ezilmez.
       await this.commitArticleState(articleId, (fresh) => {
-        const merged = applyEntryObservations(mergePublishedTo(fresh.publishedTo, freshEntries), { trashed: observed.trashed, missing: observed.missing, present: observed.present, now });
-        const flags = refreshManualUpdateFlags({
+        const unobserved = mergePublishedTo(fresh.publishedTo, freshEntries);
+        const merged = applyEntryObservations(unobserved, { trashed: observed.trashed, missing: observed.missing, present: observed.present, presentStatus: observed.presentStatus, now });
+        const refreshed = refreshManualUpdateFlags({
           publishedTo: merged,
           targets: article.site.publishTargets as PublishTargetRow[],
           articleSlug: article.slug,
@@ -969,26 +1121,43 @@ export class PublisherService implements OnModuleInit {
           unwritableTargetIds: observed.unwritable,
           now,
         });
+        // Emekliye ayrilan kopyanin adresini canonical bildiren tam sayfa kopyalari (bu yayinda
+        // yazilan dahil: sayfasi yayindan onceki listeyle kuruldu) elle guncelleme bekler
+        const flags = retiredNow && probeSite
+          ? withRetiredCanonicalFlags(refreshed, flagRetiredCanonicalCopies({ site: probeSite, slug: article.slug, before: unobserved, after: refreshed.publishedTo, targets: canonicalTargets, now }))
+          : refreshed;
         pendingTargetIds = flags.pendingTargetIds;
         // Metin yayin sirasinda degistiyse (or. bir yeniden yazim bitti) kayit
         // artik yayinlanan metni tasimiyor: durum ve onizleme ona dokunulmadan
         // kalir (PUBLISHED, kayittaki metnin yayinda oldugu anlamina gelir)
         const textUnchanged = articleContentHash(fresh) === liveState.contentHash;
         const keepPublishedAt = fresh.publishedAt != null && (hadLiveCopy || !wroteLiveCopy);
+        // "Son canli kopya" kurali (statusAfterRetirement, recordUnwrittenLiveState ile ayni):
+        // bu yayinda kopya cop kutusunda / silinmis bulunduysa ve yazilan hedefler yalniz
+        // disa aktarimsa (Markdown ZIP) yazinin sitede canli kopyasi kalmamistir; PUBLISHED
+        // denmez, READY_TO_PUBLISH olur. NEDEN: ZIP yeniden uretildi diye yazi sitede yayinda
+        // sayiliyordu (panel, KPI'lar ve raporlar sitede olmayan yaziyi sayiyordu). Kopya
+        // emekliye ayrilmayan yayinda (ilk disa aktarim dahil) davranis aynen kalir.
+        const baseStatus = textUnchanged ? 'PUBLISHED' : String(fresh.status ?? '');
+        const status = retiredNow ? statusAfterRetirement(baseStatus, flags.publishedTo, typeOf) : baseStatus;
+        siteCopyGone = status !== baseStatus;
         return {
           ...(textUnchanged
             ? {
-              status: 'PUBLISHED',
+              status,
               // Panel onizlemesi bunu dogrudan DOM'a basiyor → tam sayfa degil parca sakla
               bodyHtml: fragmentHtml,
             }
-            : {}),
+            : status !== String(fresh.status ?? '') ? { status } : {}),
           ...(keepPublishedAt ? {} : { publishedAt: new Date() }),
           publishedTo: flags.publishedTo,
         };
       });
       if (pendingTargetIds.length > 0) {
         this.log.warn(`[${articleId}] Güncel metni alamayan canlı kopyalar elle güncelleme bekliyor: ${pendingTargetIds.join(', ')}`);
+      }
+      if (siteCopyGone) {
+        this.log.warn(`[${articleId}] Sitedeki son canlı kopya çöp kutusunda ya da silinmiş; yalnız dışa aktarım (Markdown ZIP) yazıldı, durum READY_TO_PUBLISH`);
       }
 
       // Sosyal kanallara otomatik DRAFT post artık üretilmiyor — kullanıcı article
@@ -1048,15 +1217,18 @@ export class PublisherService implements OnModuleInit {
    * Cop kutusu (R19): yerinde guncelleme kopyanin WordPress cop kutusunda
    * oldugunu gorduyse kayda trashedAt yazilir (kopya artik canli sayilmaz:
    * site haritasi, llms-full, pivot ve takili sayfa plani onu ilan etmez).
-   * RanksUp'in bildigi baska canli kopya kalmadiysa PUBLISHED yazi
-   * READY_TO_PUBLISH olur ve llms-full yeniden uretilir — musterinin "bu kaydi
-   * unut" demesiyle (articles.service forgetPublishedEntry) ayni kural ve
-   * gerekce: yazi bilinen hicbir yerde yayinda degil; PUBLISHED okuyan her yer
-   * (site haritasi, llms-full, KPI'lar, raporlar) olmayan bir sayfayi sayardi.
-   * READY_TO_PUBLISH metni bitmis, yayini musterinin kararina birakir; hicbir
-   * otomasyon onu kendiliginden yayinlamaz. publishedAt gecmis kaydi olarak kalir.
+   * Yazinin SITEDE baska canli kopyasi kalmadiysa PUBLISHED yazi
+   * READY_TO_PUBLISH olur ve llms-full yeniden uretilir. Kural tek yerde
+   * (republish-policy statusAfterRetirement): musterinin "bu kaydi unut" demesi
+   * (articles.service forgetPublishedEntry) ve canlilik denetimi de onu kullanir.
+   * Markdown ZIP disa aktarimi sitede kopya SAYILMAZ (siteLiveEntries): eskiden
+   * yalniz ZIP kaydi kalan yazi PUBLISHED kaliyordu. Gerekce: yazi sitede hicbir
+   * yerde yayinda degil; PUBLISHED okuyan her yer (site haritasi, llms-full,
+   * KPI'lar, raporlar) olmayan bir sayfayi sayardi. READY_TO_PUBLISH metni bitmis,
+   * yayini musterinin kararina birakir; hicbir otomasyon onu kendiliginden
+   * yayinlamaz. publishedAt gecmis kaydi olarak kalir.
    * Silinmis kopya (D3, live_entry_missing) ayni kural: kayda missingAt yazilir,
-   * kopya canli sayilmaz, son canli kopyaysa yazi READY_TO_PUBLISH olur.
+   * kopya canli sayilmaz, sitedeki son canli kopyaysa yazi READY_TO_PUBLISH olur.
    *
    * Otomatik yazim engeli (S4): yayini otomasyon baslattiysa (initiator
    * 'automation') ve en az bir hedef bilerek atlandiysa agentOutputs.liveWriteBlocked
@@ -1066,7 +1238,7 @@ export class PublisherService implements OnModuleInit {
    * yayini kaydetmez (pivotu, kopyanin "elle guncelleme bekliyor" isareti durdurur).
    */
   private async recordUnwrittenLiveState(
-    article: { id: string; siteId?: string; slug: string; status?: unknown; publishedTo?: unknown; site: { publishTargets: unknown[] } },
+    article: { id: string; siteId?: string; slug: string; status?: unknown; publishedTo?: unknown; site: { url?: unknown; publishTargets: unknown[] } },
     results: PublishResult[],
     liveState: { contentHash: string; legacyContentChanged: boolean },
     initiator: PublishInitiator,
@@ -1076,15 +1248,20 @@ export class PublisherService implements OnModuleInit {
     // "eski metniyle yayinda" sayilmaz; durum ona bakarak PUBLISHED'a cekilmez
     const stillLive = results.some((r) => !r.ok && !!r.skipped && r.skipped !== 'live_entry_trashed' && r.skipped !== 'live_entry_missing');
     const observed = entryObservations(results);
+    const typeById = new Map((article.site.publishTargets as PublishTargetRow[]).map((t) => [t.id, t.type]));
+    const typeOf = (targetId: string) => typeById.get(targetId);
     const now = new Date().toISOString();
+    const site = parseSiteUrl(typeof article.site.url === 'string' ? article.site.url : '');
+    const targetRefs = new Map((article.site.publishTargets as Array<{ id: string; type: unknown; config?: unknown }>)
+      .map((t) => [t.id, { type: String(t.type), config: t.config }]));
     const blockedReasons: LiveWriteBlockedReason[] = initiator === 'automation'
       ? results.filter((r) => !r.ok && !!r.skipped).map((r) => ({ targetId: r.targetId, targetType: r.targetType, skipped: String(r.skipped) }))
       : [];
     let outcome = { backToPublished: false, retired: false, pending: [] as string[] };
     try {
       const done = await this.commitArticleState(article.id, (fresh) => {
-        const flags = refreshManualUpdateFlags({
-          publishedTo: applyEntryObservations(fresh.publishedTo, { trashed: observed.trashed, missing: observed.missing, present: observed.present, now }),
+        const refreshed = refreshManualUpdateFlags({
+          publishedTo: applyEntryObservations(fresh.publishedTo, { trashed: observed.trashed, missing: observed.missing, present: observed.present, presentStatus: observed.presentStatus, now }),
           targets: article.site.publishTargets as PublishTargetRow[],
           articleSlug: article.slug,
           ...liveState,
@@ -1092,10 +1269,22 @@ export class PublisherService implements OnModuleInit {
           unwritableTargetIds: observed.unwritable,
           now,
         });
+        // Emekliye ayrilan kopyanin adresini canonical bildiren tam sayfa kopyalari (flagRetiredCanonicalCopies)
+        const flags = observed.trashed.size + observed.missing.size > 0 && site
+          ? withRetiredCanonicalFlags(refreshed, flagRetiredCanonicalCopies({ site, slug: article.slug, before: fresh.publishedTo, after: refreshed.publishedTo, targets: targetRefs, now }))
+          : refreshed;
         const status = String(fresh.status ?? '');
-        const backToPublished = !hasError && stillLive && status !== 'PUBLISHED';
+        // Yalniz gozlemlerden SONRA sitede gercekten canli bir kopya kaldiysa. NEDEN: emekli kopyaya
+        // yazilmayan yayin (slug'i degismis dosya kopyasi 'slug_changed', adresi dogrulanamayan
+        // kayit 'live_entry_unverified', taslaga alinmis WordPress yazisi 'live_entry_edited')
+        // "eski metniyle yayinda" sayiliyordu: yazi sitede hic canli kopyasi yokken PUBLISHED oluyordu.
+        const backToPublished = !hasError && stillLive && status !== 'PUBLISHED'
+          && siteLiveEntries(flags.publishedTo, typeOf).length > 0;
+        // Sitedeki son canli kopya emekliye ayrildi mi: "son canli kopya" kurali durumu
+        // degistiriyorsa (yalniz PUBLISHED yazi, sitede canli kopya kalmadi; Markdown ZIP sayilmaz)
+        const effective = backToPublished ? 'PUBLISHED' : status;
         const retired = observed.trashed.size + observed.missing.size > 0
-          && (status === 'PUBLISHED' || backToPublished) && liveEntries(flags.publishedTo).length === 0;
+          && statusAfterRetirement(effective, flags.publishedTo, typeOf) !== effective;
         const before = Array.isArray(fresh.publishedTo) ? fresh.publishedTo : [];
         const entriesChanged = JSON.stringify(flags.publishedTo) !== JSON.stringify(before);
         outcome = { backToPublished: backToPublished && !retired, retired, pending: flags.pendingTargetIds };
@@ -1110,7 +1299,7 @@ export class PublisherService implements OnModuleInit {
       if (!done) return;
       this.log.warn(
         `[${article.id}] Hiçbir hedefe yazılmadı${outcome.backToPublished ? '; yazı eski metniyle yayında, durum PUBLISHED' : ''}`
-        + `${outcome.retired ? '; bilinen son canlı kopya çöp kutusunda ya da silinmiş, durum READY_TO_PUBLISH' : ''}`
+        + `${outcome.retired ? '; sitedeki son canlı kopya çöp kutusunda ya da silinmiş (Markdown ZIP sitede kopya sayılmaz), durum READY_TO_PUBLISH' : ''}`
         + `${outcome.pending.length > 0 ? `; elle güncelleme bekleyen: ${outcome.pending.join(', ')}` : ''}`
         + `${blockedReasons.length > 0 ? '; otomatik yazım engellendi (içerik pivotu 30 gün yeniden yazmaz)' : ''}`,
       );
@@ -1188,17 +1377,22 @@ export class PublisherService implements OnModuleInit {
    *    yazilir. Diger hata (yetki, ag, beklenmeyen yanit) yeni kayit ACMAZ —
    *    yazi hala yayinda olabilir, yeni yayin ikinci kopya olurdu.
    *  - overwrite / export / publish_new: bugunku gibi publish().
-   * Basarili yazimda adaptorun dondurdugu hedef damgasi (remoteModifiedAt)
-   * kayda gecer.
+   * Basarili yazimda adaptorun dondurdugu hedef damgasi (remoteModifiedAt) ve WordPress
+   * hedefinde yazinin durumu (remoteStatus) kayda gecer.
    */
   private async writeToTarget(
     adapter: any,
     targetType: string,
     decision: Exclude<RepublishDecision, { kind: 'blocked' }>,
     payload: PublishPayload,
-    opts: { force?: boolean; recreateMissing?: boolean } = {},
+    opts: { force?: boolean; recreateMissing?: boolean; homepage?: string | null } = {},
   ): Promise<Omit<PublishResult, 'targetId' | 'targetType'>> {
     const stamp = (r: any) => (typeof r?.remoteModifiedAt === 'string' && r.remoteModifiedAt ? { remoteModifiedAt: r.remoteModifiedAt as string } : {});
+    // WordPress'in bu yazimda bildirdigi yazi durumu (istenen degil, WordPress'in kaydettigi):
+    // "?p= adresi herkese acik mi" karari yazim anindaki bu bilgiden verilir (PublishResult.remoteStatus)
+    const wpStatus = (r: any) => (republishModeForType(targetType) === 'update' && typeof r?.status === 'string' && r.status.trim()
+      ? { remoteStatus: r.status.trim() as string }
+      : {});
     if (decision.kind === 'update') {
       if (typeof adapter.update !== 'function') {
         // Karar tablosu (UPDATE_TARGET_TYPES) ile adaptor ayrismis: kopya acma
@@ -1212,6 +1406,7 @@ export class PublisherService implements OnModuleInit {
           externalUrl: r.externalUrl ?? decision.ref.externalUrl,
           externalId: r.externalId ?? decision.ref.externalId,
           ...stamp(r),
+          ...wpStatus(r),
         };
       }
       if (r?.mismatch) {
@@ -1225,14 +1420,17 @@ export class PublisherService implements OnModuleInit {
         return { ok: false, skipped: 'live_entry_trashed', error: publishSkipText('live_entry_trashed', targetType) };
       }
       if (r?.edited) {
-        return { ok: false, skipped: 'live_entry_edited', error: publishSkipText('live_entry_edited', targetType, { remoteModifiedAt: r.remoteModifiedAt ?? null }) };
+        // Durum (remoteStatus): emekli kopya yalniz WordPress 'publish' diyorsa geri gelir (entryObservations)
+        return { ok: false, skipped: 'live_entry_edited', error: publishSkipText('live_entry_edited', targetType, { remoteModifiedAt: r.remoteModifiedAt ?? null }), ...wpStatus(r) };
       }
       if (r?.notFound) {
         // Kimligin 404'u yazinin silindigini kanitlamaz (S18, checkEntryPublicUrl):
         // once yazinin herkese acik adresi yoklanir. Yoklayici yoksa (dogrudan
         // kurulan ornek) adaptorun cevabi yeterli sayilir.
         const postId = r.externalId ?? decision.ref.externalId ?? null;
-        const urlState: EntryUrlState = this.entryUrlCheck ? await this.entryUrlCheck(decision.ref.externalUrl) : 'gone';
+        const urlState: EntryUrlState = this.entryUrlCheck
+          ? await this.entryUrlCheck(decision.ref.externalUrl, { homepage: opts.homepage ?? null })
+          : 'gone';
         if (urlState === 'live') {
           // Adres hala aciliyor: emekliye ayirma da, yeniden olusturma da yanlis olurdu
           // (kullanici hedefi acikca secse bile ayni adreste ikinci kopya acilirdi)
@@ -1250,13 +1448,13 @@ export class PublisherService implements OnModuleInit {
         // Kullanicinin acik secimi (D2): adres 404/410 ya da dogrulanamadi (WAF / site
         // kapali): canli bir kopya gorulmedigi icin yazi eskisi gibi yeniden olusturulur
         const p = await adapter.publish(payload);
-        return { ok: !!p?.ok, externalUrl: p?.externalUrl, externalId: p?.externalId, error: p?.error, ...(p?.ok ? { action: 'recreated' as const, ...stamp(p) } : {}) };
+        return { ok: !!p?.ok, externalUrl: p?.externalUrl, externalId: p?.externalId, error: p?.error, ...(p?.ok ? { action: 'recreated' as const, ...stamp(p), ...wpStatus(p) } : {}) };
       }
       return { ok: false, error: `Mevcut yazı güncellenemedi; kopya açılmadı. ${r?.error ?? 'Hedef yanıt vermedi.'}` };
     }
     const p = await adapter.publish(payload);
     const action: PublishAction = decision.kind === 'publish_new' ? 'created' : decision.kind === 'overwrite' ? 'overwritten' : 'exported';
-    return { ok: !!p?.ok, externalUrl: p?.externalUrl, externalId: p?.externalId, error: p?.error, ...(p?.ok ? { action, ...stamp(p) } : {}) };
+    return { ok: !!p?.ok, externalUrl: p?.externalUrl, externalId: p?.externalId, error: p?.error, ...(p?.ok ? { action, ...stamp(p), ...wpStatus(p) } : {}) };
   }
 
   /**

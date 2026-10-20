@@ -1040,7 +1040,8 @@ export class AuditController {
    * Panel musteriye bu adresi robots.txt'e `Sitemap:` satiri olarak eklemesini
    * soyluyor; arama motoru botlari kimliksiz okur. Eskiden uc global
    * AuthGuard'in arkasindaydi ve botlar 401 aliyordu. Icerik yalniz sitenin
-   * kendi kamusal adresleri (ai-sitemap.service articlePublicUrl). Site yoksa
+   * kendi ilan edilen kamusal adresleri (ai-sitemap.service advertisedArticleEntry:
+   * llms-full, persona sohbeti, canonical ve JSON-LD ile ayni kural). Site yoksa
    * ya da sahibinin hesap silme talebi varsa 404. Uretilen XML site basina
    * PUBLIC_SITEMAP_TTL_MS onbellekte; Cache-Control ayni sureyi soyler.
    * Hiz siniri: IP + site basina (ai-sitemap-throttler.guard.ts) + global IP.

@@ -4,7 +4,9 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { safeFetchText } from '../common/safe-fetch.js';
 import { isCanonicalSiteId } from '../common/site-id.js';
 import { resolveArticleUrl } from '../articles/article-url.util.js';
-import { articleContentHash, entryRetired } from '../articles/republish-policy.js';
+import {
+  articleContentHash, entryRetired, liveEntries, liveEntryRef, liveEntrySlug, unseenWordPressDraftCopy, wordPressPlainLink, type LiveEntry,
+} from '../articles/republish-policy.js';
 
 /** ai:summary tavani — makale ozetleriyle ayni (meta aciklamanin ilk 200 karakteri) */
 const SUMMARY_MAX_CHARS = 200;
@@ -36,11 +38,12 @@ const PUBLIC_SITEMAP_MAX_ENTRIES = 500;
 const EDITOR_SCALE_90_SINCE_MS = Date.parse('2026-08-03T20:25:08Z');
 
 /**
- * Yalniz bu hedefler gercek .html dosyasi yazar ve kamusal adresi hedef
- * ayarindan bellidir (articles/article-url.util.ts FILE_BASED_TARGETS ile
- * ayni liste). Adaptorleri adres dondurmez ya da ftp:// / sunucu yolu dondurur.
+ * Yalniz bu hedefler gercek .html dosyasi yazar ve kamusal adresi yazilan
+ * dosyanin klasorunden cikar (articles/article-url.util.ts FILE_BASED_TARGETS
+ * ile ayni liste). Adaptorleri ftp:// adresi, sunucu yolu ya da (cPanel) tahmini
+ * bir genel adres dondurur — fileCopyPublicUrl.
  */
-const FILE_TARGET_TYPES = new Set(['FTP', 'SFTP', 'CPANEL_API']);
+export const FILE_TARGET_TYPES: ReadonlySet<string> = new Set(['FTP', 'SFTP', 'CPANEL_API']);
 
 /**
  * XML 1.0'in izin verdigi karakter mi (Char uretimi: sekme, satir sonu, CR,
@@ -118,6 +121,153 @@ export function sameSiteUrl(site: URL, raw: unknown): string | null {
   return `${site.protocol}//${site.host}${u.pathname}${u.search}`;
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+//  DOSYA HEDEFINDEKI KOPYANIN HERKESE ACIK ADRESI (tek kaynak)
+//
+//  FTP / SFTP / cPanel yayini dosyayi `${remotePath}/${slug}.html` olarak yazar
+//  (packages/adapters ftp.ts, sftp.ts, cpanel-api.ts); sayfanin adresi o klasorden ve o
+//  dosya adindan cikar (articles/article-url.util.ts resolveArticleUrl — yayinci sayfaya
+//  ayni kuralla <link rel="canonical"> yazar). Adres, yayin kaydinda YAZIM ANINDA
+//  kaydedilen konumdan kurulur; hedefin BUGUNKU klasor ayarindan ve yazinin BUGUNKU
+//  slug'indan degil.
+//
+//  NEDEN: site haritasi, llms-full ve persona sohbeti adresi bugunku ayardan kuruyordu.
+//  Musteri yeni yazilar icin klasoru degistirince (ya da yazinin slug'i degisince) eski
+//  sayfa eski adreste yayinda kaliyor, ilan edilen adres ise 404 veriyordu; canlilik
+//  denetimi ise kayitli yolu yokluyordu — ayni kopya icin iki ayri adres. Simdi canlilik
+//  denetimi, sitemap-ai, llms-full / llms.txt, persona sohbeti (advertisedArticleEntry),
+//  yayincinin canonical'i ve uretim hattinin JSON-LD'si bu islevleri kullanir.
+// ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * Dosya hedefinin kayitli uzak dosya yolunun klasoru (saf): FTP `ftp://host/yol/<slug>.html`,
+ * SFTP `/yol/<slug>.html` (adaptorler `${remotePath}/${slug}.html` yazar — packages/adapters
+ * ftp.ts, sftp.ts). http(s) adresi (cPanel'in genel adresi) dosya yolu degildir: null.
+ */
+export function recordedRemoteDir(recorded: string | undefined): string | null {
+  if (!recorded) return null;
+  let path: string;
+  try {
+    const u = new URL(recorded);
+    if (u.protocol !== 'ftp:' && u.protocol !== 'ftps:' && u.protocol !== 'sftp:') return null;
+    try { path = decodeURIComponent(u.pathname); } catch { path = u.pathname; }
+  } catch {
+    // Sema yok: SFTP'nin kaydettigi duz dosya yolu
+    path = recorded.split(/[?#]/)[0];
+  }
+  const i = path.lastIndexOf('/');
+  return i < 0 ? null : path.slice(0, i) || '/';
+}
+
+const configObject = (config: unknown): Record<string, unknown> =>
+  config && typeof config === 'object' && !Array.isArray(config) ? (config as Record<string, unknown>) : {};
+
+/**
+ * Kopya hedefin BUGUNKU klasorunde mi (saf): adaptor bugunku ayarla kayitli dosya adini
+ * yazsaydi kayda AYNI konumu yazardi. Karsilastirma ham dizeyle ve adaptorun kendi kuraliyla:
+ *  - FTP (ftp.ts): `ftp://${host}${remotePath}/${ad}.html`, remotePath yoksa '/'; sunucu adi
+ *    egik cizgi icermez. NEDEN dize: remotePath '/' ile baslamiyorsa ('blog') eski kayitlarda
+ *    sunucu adi yola yapisiktir (`ftp://ftp.site.comblog/x.html`) ve adres ayristirmasi klasoru
+ *    eksik okur. Bugunku adaptor bu durumda araya egik cizgi koyar (`ftp://ftp.site.com/blog/x.html`,
+ *    yalniz kayit dizesi; yukleme yolu goreli kalir): iki bicim de bu klasorde sayilir.
+ *  - SFTP (sftp.ts): `${remotePath}/${ad}.html`, remotePath yoksa '/'.
+ *  - cPanel (cpanel-api.ts): `${genel adres}${/klasor}/${ad}` — klasorun bas/son egik
+ *    cizgileri ve bastaki public_html atilir (bossa 'public_html/blog'), uzanti yazilmaz;
+ *    genel adres ayardaki publicBaseUrl ya da cPanel sunucu adindan kurulan yolsuz adres.
+ * Ayar degismediyse adres eskisi gibi bugunku ayardan kurulur (birebir ayni sonuc). Kayitli
+ * konum yoksa (eski kayit) true: adres zaten bugunku ayardan kurulur.
+ */
+export function fileCopyAtConfiguredPath(type: unknown, recorded: string | undefined, config: unknown): boolean {
+  if (!recorded) return true;
+  const cfg = configObject(config);
+  const file = recorded.slice(recorded.lastIndexOf('/') + 1);
+  if (!file) return false;
+  const t = String(type ?? '');
+  if (t === 'FTP' || t === 'SFTP') {
+    const remotePath = cfg.remotePath === undefined ? '/' : String(cfg.remotePath);
+    const suffix = `${remotePath}/${file}`;
+    if (t === 'SFTP') return recorded === suffix;
+    if (!recorded.startsWith('ftp://')) return false;
+    const hostBefore = (tail: string): boolean => {
+      if (!recorded.endsWith(tail)) return false;
+      const host = recorded.slice('ftp://'.length, recorded.length - tail.length);
+      return host !== '' && !host.includes('/');
+    };
+    // Eski (yapisik) bicim ve egik cizgiyle baslayan remotePath; goreli remotePath'te bugunku
+    // adaptorun normallestirilmis kaydi (packages/adapters ftp.ts recordedFtpUrl)
+    return hostBefore(suffix) || (!suffix.startsWith('/') && hostBefore(`/${suffix}`));
+  }
+  if (t === 'CPANEL_API') {
+    let dir = String(cfg.remotePath ?? 'public_html/blog').replace(/^\/+/, '').replace(/\/+$/, '');
+    if (!dir) dir = 'public_html/blog';
+    const clean = dir.replace(/^public_html\/?/, '').replace(/\/+$/, '');
+    const suffix = `${clean ? `/${clean}` : ''}/${file}`;
+    if (!recorded.endsWith(suffix)) return false;
+    const base = recorded.slice(0, recorded.length - suffix.length);
+    const configured = String(cfg.publicBaseUrl ?? '').trim().replace(/\/+$/, '');
+    return configured ? base === configured : /^https?:\/\/[^/?#]+$/i.test(base);
+  }
+  return false;
+}
+
+/**
+ * Kayitli konumdan klasor (saf; bulunamazsa null). FTP / SFTP: dosya yolunun klasoru
+ * (recordedRemoteDir). cPanel: genel adresin yolu — dosyanin public_html'e gore yeri; ayardaki
+ * publicBaseUrl'in kendi yolu varsa o atilir.
+ */
+function recordedFileDir(type: string, recorded: string, config: unknown): string | null {
+  if (type !== 'CPANEL_API') return recordedRemoteDir(recorded);
+  let u: URL;
+  try {
+    u = new URL(recorded);
+  } catch {
+    return recordedRemoteDir(recorded);
+  }
+  if (u.protocol !== 'https:' && u.protocol !== 'http:') return recordedRemoteDir(recorded);
+  let encoded = u.pathname;
+  const base = parseSiteUrl(String(configObject(config).publicBaseUrl ?? ''));
+  const basePath = base ? base.pathname.replace(/\/+$/, '') : '';
+  if (basePath && (encoded === basePath || encoded.startsWith(`${basePath}/`))) encoded = encoded.slice(basePath.length);
+  let path: string;
+  try { path = decodeURIComponent(encoded); } catch { path = encoded; }
+  const i = path.lastIndexOf('/');
+  return i < 0 ? null : path.slice(0, i) || '/';
+}
+
+/**
+ * Dosya hedefindeki kopyanin herkese acik adresi (saf; sitede degilse ya da hedef dosya
+ * hedefi degilse null):
+ *  - kayitli adres sitenin kendi host'undaysa (cPanel'in genel adresi) o;
+ *  - degilse yazilan dosyanin adresi: dosya adi KAYITTAKI konumdan (yazim anindaki slug),
+ *    klasor kopya hedefin bugunku klasorundeyse (fileCopyAtConfiguredPath) bugunku ayardan,
+ *    degilse kayitli konumun klasorunden;
+ *  - kayitli konumu olmayan eski kayitta (ve entry verilmezse: yayinci bu yayinda YAZACAGI
+ *    kopyanin adresini sorar) bugunku ayar + yazinin slug'i — eski davranis.
+ * Bilinen sinir: remotePath'i '/' ile baslamayan FTP hedefinin klasoru sonradan degistiyse
+ * eski (adaptor normallestirmesinden onceki) kayitta sunucu adi yola yapismistir; klasorun ilk
+ * parcasi okunamaz (adres yine canlilik denetiminin yokladigi adrestir). Yeni kayitlarda
+ * (packages/adapters ftp.ts recordedFtpUrl) sunucu adi ile yol arasinda egik cizgi vardir.
+ */
+export function fileCopyPublicUrl(
+  site: URL,
+  entry: { externalUrl?: unknown; url?: unknown } | null | undefined,
+  target: { type?: unknown; config?: unknown },
+  articleSlug: string,
+): string | null {
+  const type = String(target.type ?? '');
+  if (!FILE_TARGET_TYPES.has(type)) return null;
+  const recorded = entry ? liveEntryRef({ ...entry, targetId: '' }).externalUrl : undefined;
+  const onSite = sameSiteUrl(site, recorded);
+  if (onSite) return onSite;
+  const name = recorded ? liveEntrySlug({ targetId: '', externalUrl: recorded }) : null;
+  const dir = recorded && name && !fileCopyAtConfiguredPath(type, recorded, target.config)
+    ? recordedFileDir(type, recorded, target.config)
+    : null;
+  const config = dir !== null ? { remotePath: dir } : target.config;
+  const base = `${site.protocol}//${site.host}${site.pathname}`;
+  return sameSiteUrl(site, resolveArticleUrl(base, name ?? articleSlug, { type, config }).url);
+}
+
 type PublishedEntry = {
   targetId?: unknown;
   targetType?: unknown;
@@ -131,6 +281,10 @@ type PublishedEntry = {
   manualUpdatePending?: unknown;
   /** Bu hedefe en son giden metnin izi (republish-policy articleContentHash) */
   contentHash?: unknown;
+  /** Canlilik denetimi adresi bir kez canli gordu (republish-policy unseenWordPressDraftCopy) */
+  liveSeenAt?: unknown;
+  /** RanksUp'in son yaziminda WordPress'in bildirdigi yazi durumu (republish-policy recordedWordPressStatus) */
+  remoteStatus?: unknown;
 };
 type TargetRef = { type: string; config: unknown };
 
@@ -151,9 +305,9 @@ function entryNotLive(e: PublishedEntry): boolean {
  *
  *  1. Yayin hedefinin bildirdigi adres (publishedTo[].externalUrl) sitenin
  *     host'undaysa: WordPress kalici baglantisi, Ghost, cPanel genel adresi vb.
- *  2. Dosya yazan hedeflerde (FTP/SFTP/cPanel) yayinin kanonik adresi —
- *     yayinci sayfaya ayni kuralla <link rel="canonical"> yazar
- *     (article-url.util.ts resolveArticleUrl).
+ *  2. Dosya yazan hedeflerde (FTP/SFTP/cPanel) yazilan dosyanin adresi — klasor ve
+ *     dosya adi yazim aninda KAYDEDILEN konumdan (fileCopyPublicUrl); yayinci sayfaya
+ *     ayni kuralla <link rel="canonical"> yazar (article-url.util.ts resolveArticleUrl).
  *  Digerleri (Contentful/Sanity/Strapi yonetim adresi, GitHub dosyasi,
  *  markdown zip, baska alan adi) listelenmez.
  *
@@ -170,15 +324,26 @@ export function articlePublicUrl(site: URL, slug: string, publishedTo: unknown, 
  * articlePublicUrl ile ayni kural; adresi veren yayin kaydini da dondurur
  * (lastmod ve ozet metni o kayittan). Cop kutusundaki (trashedAt) ya da
  * silinmis (missingAt) kopya adres vermez: adres 404.
+ *
+ * opts.excludeUnseenDrafts: adresi henuz hic canli gorulmemis ve herkese acik oldugu
+ * bilinmeyen WordPress kopyasi (republish-policy unseenWordPressDraftCopy) da adres
+ * vermez. Adresi DISARIYA bildiren her yer kullanir (advertisedArticleEntry: site haritasi,
+ * llms-full, persona sohbeti, yayincinin canonical'i, uretim hattinin JSON-LD'si); hedef
+ * satirindan WordPress karari icin yalniz tip okunur (yoksa kayittaki targetType).
  */
 export function articlePublicEntry(
   site: URL,
   slug: string,
   publishedTo: unknown,
   targets: Map<string, TargetRef>,
+  opts: { excludeUnseenDrafts?: boolean } = {},
 ): { url: string; entry: PublishedEntry } | null {
+  // Karar kayittaki WordPress durumundan (remoteStatus); hedef satirindan yalniz tip okunur
+  const unseenDraft = (e: PublishedEntry) =>
+    unseenWordPressDraftCopy(e as LiveEntry, typeof e.targetId === 'string' ? targets.get(e.targetId)?.type : undefined);
   const entries = (Array.isArray(publishedTo) ? publishedTo : []).filter(
-    (e): e is PublishedEntry => !!e && typeof e === 'object' && (e as PublishedEntry).ok !== false && !entryNotLive(e as PublishedEntry),
+    (e): e is PublishedEntry => !!e && typeof e === 'object' && (e as PublishedEntry).ok !== false && !entryNotLive(e as PublishedEntry)
+      && !(opts.excludeUnseenDrafts === true && unseenDraft(e as PublishedEntry)),
   );
   for (const e of entries) {
     const onSite = sameSiteUrl(site, e.externalUrl) ?? sameSiteUrl(site, e.url);
@@ -187,11 +352,140 @@ export function articlePublicEntry(
   for (const e of entries) {
     const target = typeof e.targetId === 'string' ? targets.get(e.targetId) : undefined;
     if (!target || !FILE_TARGET_TYPES.has(target.type)) continue;
-    const base = `${site.protocol}//${site.host}${site.pathname}`;
-    const onSite = sameSiteUrl(site, resolveArticleUrl(base, slug, target).url);
+    // Kayittaki konumdan (klasor + dosya adi); bugunku klasor ayari ve slug yalniz eski kayitta
+    const onSite = fileCopyPublicUrl(site, e, target, slug);
     if (onSite) return { url: onSite, entry: e };
   }
   return null;
+}
+
+/**
+ * Site haritasinin (sitemap-ai.xml) ve llms-full / llms.txt'nin ILAN ettigi adres:
+ * articlePublicEntry + WordPress taslak kopyasi kurali (excludeUnseenDrafts). Persona sohbeti,
+ * yayincinin canonical'i (fullPageCanonicalUrl), uretim hattinin JSON-LD url'i ve canlilik
+ * denetiminin "yeni ilan edilen adres" karari da bunu kullanir.
+ *
+ * NEDEN: WordPress hedef formunun varsayilani 'draft'; bu hedefe "yayinlanan" yazi
+ * WordPress'te taslak olarak durur ve kayitli duz ?p=<id> adresi giris yapmamis
+ * ziyaretciye 404 verir. Iki dosya bu olu adresi AI tarayicilarina ilan ediyordu. Kural
+ * canlilik denetimiyle ayni (republish-policy unseenWordPressDraftCopy) ve KAYITTAKI
+ * yazi durumuna (remoteStatus: RanksUp'in son yaziminda WordPress'in bildirdigi) bakar,
+ * hedefin bugunku ayarina degil: durum 'publish' ise adres ilan edilir; taslak / bekleyen
+ * / ozel yazi ya da durumu bilinmeyen eski kaydin duz ?p= adresi, adres bir kez canli
+ * gorulene (liveSeenAt) kadar ilan edilmez. Durumu bilinmeyen eski kaydin guzel kalici
+ * baglantisi eskisi gibi ilan edilir. Yazinin sitede baska bir adresi varsa (or. dosya
+ * hedefi) o ilan edilir; yoksa site haritasi yaziyi listelemez, llms-full yayindaki
+ * (PUBLISHED) yaziyi adressiz listeler (adresi cozulemeyen yazinin eski kurali).
+ */
+export function advertisedArticleEntry(
+  site: URL,
+  slug: string,
+  publishedTo: unknown,
+  targets: Map<string, TargetRef>,
+): { url: string; entry: PublishedEntry } | null {
+  return articlePublicEntry(site, slug, publishedTo, targets, { excludeUnseenDrafts: true });
+}
+
+/**
+ * Bu yayinda `writing` hedefine yazilan TAM SAYFANIN (FTP / SFTP / cPanel / GitHub / Markdown
+ * ZIP) <link rel="canonical"> adresi (saf; yazilmayacaksa null):
+ *  1. Yazinin ilan edilen adresi (advertisedArticleEntry: site haritasi ve llms-full ile ayni
+ *     kural). Yazilan kopyanin KENDI kaydi, adaptor bugunku klasore yazacagi icin yazimdan
+ *     sonraki konumuyla sayilir: kayit baska klasoru gosteriyorsa (musteri klasoru degistirdi)
+ *     o eski adres bu kopyanin adresi olmaz, yerine bugunku klasorden kurulan adres gelir.
+ *  2. Ilan edilecek adres yoksa yazilan kopyanin KENDI adresi (self-canonical,
+ *     fileCopyPublicUrl).
+ *  3. O da bilinmiyorsa (GitHub, Markdown ZIP: sayfanin nerede sunulacagi bilinmez) null:
+ *     kanonik baglanti yazilmaz.
+ * NEDEN: canonical eskiden articlePublicUrl'den ya da varsayilan hedefin yol kuralindan
+ * geliyordu. Hic canli gorulmemis WordPress taslaginin ?p= baglantisi (anonim ziyaretciye ve
+ * tarayiciya 404) ya da kopyasi olmayan varsayilan hedefin yolu sayfanin kanonik adresi
+ * oluyordu; 404'e isaret eden canonical sayfanin dizine alinmasina zarar verir. Kanonik
+ * baglanti bildirmemek, var olmayan bir adresi bildirmekten iyidir.
+ */
+export function fullPageCanonicalUrl(
+  site: URL,
+  slug: string,
+  publishedTo: unknown,
+  targets: Map<string, TargetRef>,
+  writing: { id: string; type: string; config?: unknown },
+): string | null {
+  const list = Array.isArray(publishedTo) ? publishedTo : [];
+  const afterWrite = !FILE_TARGET_TYPES.has(writing.type) ? list : list.map((raw) => {
+    if (!raw || typeof raw !== 'object' || (raw as PublishedEntry).targetId !== writing.id) return raw;
+    const e = raw as PublishedEntry;
+    const recorded = liveEntryRef({ ...e, targetId: writing.id }).externalUrl;
+    // Konumu dusen kayit bugunku ayardan + yazinin slug'indan kurulur (fileCopyPublicUrl eski kayit kurali)
+    return fileCopyAtConfiguredPath(writing.type, recorded, writing.config) ? raw : { ...e, externalUrl: undefined, url: undefined };
+  });
+  return advertisedArticleEntry(site, slug, afterWrite, targets)?.url ?? fileCopyPublicUrl(site, null, writing, slug);
+}
+
+/**
+ * Kendi <link rel="canonical">'ini tasiyan TAM SAYFA yazan ve sitede canli sayilan hedefler
+ * (fullPageCanonicalUrl'in yazildigi sayfalar): dosya hedefleri ve GitHub. Markdown ZIP disa
+ * aktarimdir, sitede kopya sayilmaz.
+ */
+const FULL_PAGE_SITE_TYPES: ReadonlySet<string> = new Set([...FILE_TARGET_TYPES, 'GITHUB']);
+
+/**
+ * Bir kopyanin emekliye ayrilmasi (canlilik denetimi, yayincinin cop kutusu / silinmis
+ * gozlemi) yazinin ILAN edilen adresini degistirdiyse, sayfasina canonical olarak o emekli
+ * adresi yazmis canli tam sayfa kopyalarini (FTP / SFTP / cPanel / GitHub) "elle guncelleme
+ * bekliyor" diye isaretler (saf; girdi degismez). before: emeklilikten onceki liste, after:
+ * sonraki (yazilacak) liste.
+ *
+ * Kopyanin sayfasindaki canonical: yayincinin yazim aninda kayda gecirdigi canonicalUrl
+ * (null: canonical yazilmadi). Alan olmayan eski kayitta bilinmez; emeklilikten onceki listeyle
+ * bugun yazilacak canonical (fullPageCanonicalUrl) sayilir — sayfa o kopya ilan edilmeden once
+ * yazildiysa gereksiz bir isaret cikabilir, zarari "bu hedefe yeniden yayinla" onerisidir.
+ *
+ * NEDEN: dosya kopyasinin canonical'i yazinin ilan edilen adresidir (or. WordPress kopyasi).
+ * O kopya emekliye ayrilinca (adres 404) site haritasi ve llms-full dosya kopyasinin adresini
+ * ilan etmeye baslar, dosya sayfasi ise hala 404 veren adresi kanonik bildirir: arama motoru
+ * sayfayi o olu adresin kopyasi sayar. Sayfayi yalniz yeniden yazmak duzeltir; RanksUp dosya
+ * hedefine kendiliginden yazmaz (musterinin karari), panel bu isaretle o hedefe yeniden yayini
+ * onerir (manual-update.ts 'republishable'). Isaret mevcut "elle guncelleme" mekanizmasidir:
+ * hedefe sonraki yazim ya da "Elle güncelledim" onu kaldirir. Kopyanin metni guncelse
+ * (contentHash) site haritasi / llms-full metni yine ilan eder (publicArticleText kural 1).
+ */
+export function flagRetiredCanonicalCopies(input: {
+  site: URL;
+  slug: string;
+  before: unknown;
+  after: unknown;
+  targets: Map<string, TargetRef>;
+  now: string;
+}): { publishedTo: unknown[]; flagged: string[] } {
+  const list = Array.isArray(input.after) ? input.after : [];
+  const unchanged = { publishedTo: list, flagged: [] as string[] };
+  const old = advertisedArticleEntry(input.site, input.slug, input.before, input.targets);
+  if (!old) return unchanged;
+  const oldTargetId = typeof old.entry.targetId === 'string' ? old.entry.targetId : null;
+  // Yalniz ilan edilen kopya artik canli degilse (emekliye ayrildi) ve ilan edilen adres degistiyse
+  if (oldTargetId === null || liveEntries(list).some((e) => e.targetId === oldTargetId)) return unchanged;
+  if (advertisedArticleEntry(input.site, input.slug, list, input.targets)?.url === old.url) return unchanged;
+  const live = new Set(liveEntries(list));
+  const flagged: string[] = [];
+  const out = list.map((raw) => {
+    if (!live.has(raw as LiveEntry)) return raw;
+    const e = raw as LiveEntry;
+    if (e.targetId === oldTargetId || e.manualUpdatePending === true) return raw;
+    const target = input.targets.get(e.targetId);
+    const type = String(target?.type ?? e.targetType ?? '');
+    if (!FULL_PAGE_SITE_TYPES.has(type)) return raw;
+    const canonical = Object.prototype.hasOwnProperty.call(e, 'canonicalUrl')
+      ? (typeof e.canonicalUrl === 'string' ? e.canonicalUrl : null)
+      : fullPageCanonicalUrl(input.site, input.slug, input.before, input.targets, { id: e.targetId, type, config: target?.config });
+    if (canonical !== old.url) return raw;
+    flagged.push(e.targetId);
+    return {
+      ...e,
+      manualUpdatePending: true,
+      manualUpdatePendingSince: typeof e.manualUpdatePendingSince === 'string' ? e.manualUpdatePendingSince : input.now,
+    };
+  });
+  return flagged.length > 0 ? { publishedTo: out, flagged } : unchanged;
 }
 
 /**
@@ -255,13 +549,76 @@ export function entryShowsOlderText(entry: PublishedEntry | null | undefined): b
   return entry?.manualUpdatePending === true;
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+//  ONAY BEKLEYEN YENIDEN YAZIM (site haritasi + llms-full secimi)
+//
+//  NEDEN: yari otomatik modda yayindaki yazi yeniden yazilinca uretim hatti kaydi
+//  READY_TO_PUBLISH / REVIZE_NEEDED'e ceker (pipeline.service), yeni metin onay
+//  bekler; sitede ise ESKI metin yayinda kalir. Iki uretici yalniz PUBLISHED
+//  okudugu icin yazi onaylanana kadar sitemap-ai.xml ve llms-full'dan
+//  dusuyordu: sitede duran sayfa AI tarayicilarina hic ilan edilmiyordu. Artik
+//  bu iki durumdaki yazi da listelenir — YALNIZ sitede canli (emekli olmayan)
+//  bir adresi varsa ve metin o adresteki sayfanin metniyse (publicArticleText:
+//  yeniden yazimdan onceki goruntu agentOutputs.liveSnapshot; bilinmiyorsa
+//  metin ilan edilmez). Onaydaki yeni metin hicbir zaman ilan edilmez.
+// ─────────────────────────────────────────────────────────────────────────
+
+/** Yayindaki yazinin onay bekleyen yeniden yazimi bu durumlarda durur (pipeline.service, publisher REWRITTEN_SINCE_LIVE_STATUSES) */
+export const PENDING_REVISION_STATUSES: ReadonlySet<string> = new Set(['READY_TO_PUBLISH', 'REVIZE_NEEDED']);
+
+/** Yazi onay bekleyen bir yeniden yazimda mi (durum alani yoksa: hayir — eski cagiranlar yalniz PUBLISHED okur) */
+export function isPendingRevision(status: unknown): boolean {
+  return typeof status === 'string' && PENDING_REVISION_STATUSES.has(status);
+}
+
+/**
+ * Site haritasi, llms-full ve canlilik denetiminin (articles/published-liveness.service.ts)
+ * okudugu yazilar: PUBLISHED ve onay bekleyen yeniden yazimi olan, daha once yayinlanmis
+ * (publishedAt dolu) yazi. Hic yayinlanmamis READY_TO_PUBLISH yazilar sorguya girmez;
+ * onay bekleyenler yine de yalniz sitede canli adresi varsa listelenir (includePublicArticle).
+ */
+export function publicArticleFilter() {
+  return {
+    OR: [
+      { status: 'PUBLISHED' as any },
+      { status: { in: [...PENDING_REVISION_STATUSES] as any }, publishedAt: { not: null } },
+    ],
+  };
+}
+
+/** publicArticleFilter, tek site icin */
+export function publicArticleWhere(siteId: string) {
+  return { siteId, ...publicArticleFilter() };
+}
+
+/**
+ * Sorgudan gelen yazi listelenir mi: PUBLISHED her zaman (adresi cozulemese de llms-full
+ * onu linksiz listeler — eski davranis); onay bekleyen yeniden yazim yalniz sitede canli
+ * bir adresi varsa (found): adresi olmayan yazinin ilan edilecek dogrulanmis bir metni yok.
+ */
+export function includePublicArticle(status: unknown, found: unknown): boolean {
+  return !isPendingRevision(status) || !!found;
+}
+
+/**
+ * Bu yazinin adresteki metni icin agir alanlar (govde, ajan ciktilari) gerekir mi:
+ * adresi veren kopya eski metni gosteriyor ya da yazi onay bekleyen yeniden yazimda.
+ */
+export function needsOlderText(found: { entry: PublishedEntry } | null | undefined, status: unknown): boolean {
+  return !!found && (entryShowsOlderText(found.entry) || isPendingRevision(status));
+}
+
 /**
  * Adresteki sayfanin metni. NEDEN: site haritasi ozeti ve llms-full her zaman
  * kayit metnini kullaniyordu; adresi veren kopya elle guncelleme bekliyorsa
  * o adresteki sayfa hala ESKI metni gosterir — AI'lara adresle birlikte
  * sayfada olmayan bir baslik/ozet/metin ilan ediliyordu.
  *
- * Isaretli kopyada sira:
+ * opts.pendingRevision: yazi onay bekleyen bir yeniden yazimda (READY_TO_PUBLISH /
+ * REVIZE_NEEDED). Kayit metni onaydaki YENI metindir; adresteki sayfa onceki metni
+ * gosterir. Kopya isaretli olmasa da ayni sira uygulanir.
+ *
+ * Isaretli kopyada (ya da onay bekleyen yeniden yazimda) sira:
  *  1. Kopyanin icerik izi (contentHash) kayit metninin iziyle ayniysa isaret
  *     bayattir: kayit metni.
  *  2. agentOutputs.liveSnapshot varsa ve kopyanin izi yoksa (eski kayit) ya da
@@ -270,7 +627,7 @@ export function entryShowsOlderText(entry: PublishedEntry | null | undefined): b
  *     ust uste iki yeniden yazim): unknown. Yanlis metin ilan etmektense hic
  *     metin ilan edilmez.
  */
-export function publicArticleText(row: ArticleTextFields, entry: PublishedEntry): PublicArticleText {
+export function publicArticleText(row: ArticleTextFields, entry: PublishedEntry, opts: { pendingRevision?: boolean } = {}): PublicArticleText {
   const rowText: PublicArticleText = {
     source: 'row',
     title: row.title ?? null,
@@ -278,7 +635,7 @@ export function publicArticleText(row: ArticleTextFields, entry: PublishedEntry)
     bodyMd: row.bodyMd ?? null,
     faqs: row.faqs ?? null,
   };
-  if (!entryShowsOlderText(entry)) return rowText;
+  if (!entryShowsOlderText(entry) && opts.pendingRevision !== true) return rowText;
   const hash = typeof entry.contentHash === 'string' && entry.contentHash !== '' ? entry.contentHash : null;
   if (hash && hash === articleContentHash(row)) return rowText;
   const ao = row.agentOutputs;
@@ -320,9 +677,22 @@ export async function loadOlderTextFields(
 }
 
 /**
- * Dosya yazan hedeflerin kanonik adresi icin gereken yayin hedefi ayarlarini
- * yukler — yalniz bir yayin kaydinin sitedeki adresi yoksa (kimlik bilgisi
- * okunmaz). Site haritasi ve llms-full AYNI adres kuralini kullansin diye ortak.
+ * Kayitli adres hic canli gorulmemis duz ?p=<id> baglantisi mi? Oyleyse hedef satiri
+ * okunur: kopyanin WordPress kopyasi olup olmadigi (advertisedArticleEntry) hedef
+ * satirindaki tipten bilinir, kayitta targetType olmayan eski kayitta da.
+ */
+function plainLinkAwaitingSighting(e: PublishedEntry): boolean {
+  const url = typeof e.externalUrl === 'string' && e.externalUrl ? e.externalUrl : typeof e.url === 'string' ? e.url : '';
+  const seen = typeof e.liveSeenAt === 'string' && Number.isFinite(Date.parse(e.liveSeenAt));
+  return !!url && !seen && wordPressPlainLink(url);
+}
+
+/**
+ * Yayin hedefi ayarlarini yukler (kimlik bilgisi okunmaz) — yalniz gerekiyorsa: bir
+ * yayin kaydinin sitedeki adresi yoksa (dosya yazan hedefin kanonik adresi icin) ya da
+ * kayitli adres hic canli gorulmemis duz ?p= baglantisiysa (kopya WordPress kopyasi mi:
+ * hedef tipi, advertisedArticleEntry). Site haritasi ve llms-full AYNI adres kuralini
+ * kullansin diye ortak.
  */
 export async function loadArticleTargets(
   prisma: { publishTarget: { findMany: (args: any) => Promise<Array<{ id: string; type: unknown; config: unknown }>> } },
@@ -332,7 +702,7 @@ export async function loadArticleTargets(
 ): Promise<Map<string, TargetRef>> {
   const needsTargets = articles.some((a) => Array.isArray(a.publishedTo) && (a.publishedTo as PublishedEntry[])
     .some((e) => !!e && typeof e === 'object' && typeof e.targetId === 'string'
-      && !sameSiteUrl(site, e.externalUrl) && !sameSiteUrl(site, e.url)));
+      && ((!sameSiteUrl(site, e.externalUrl) && !sameSiteUrl(site, e.url)) || plainLinkAwaitingSighting(e))));
   const targets = new Map<string, TargetRef>();
   if (needsTargets) {
     const rows = await prisma.publishTarget.findMany({ where: { siteId }, select: { id: true, type: true, config: true } });
@@ -357,7 +727,10 @@ export function articlePriority(editorScore: number | null, createdAt: Date): st
  * Icerik:
  *   - Ana sayfa: <ai:summary> sitenin KENDI meta aciklamasi (okunamazsa yok)
  *   - Yayindaki makaleler: yalniz kamusal adresi bu sitede bilinenler
- *     (articlePublicUrl; cop kutusundaki kopya adres vermez); <ai:summary>
+ *     (advertisedArticleEntry; cop kutusundaki / silinmis kopya ve hic canli gorulmemis
+ *     WordPress taslak baglantisi adres vermez). Yeniden yazimi onay
+ *     bekleyen yayindaki yazi da (READY_TO_PUBLISH / REVIZE_NEEDED, sitede canli
+ *     adresi var) listelenir; metni adresteki eski metindir (publicArticleWhere); <ai:summary>
  *     ADRESTEKI sayfanin meta aciklamasinin ilk 200 karakteri (publicArticleText:
  *     kopya eski metni gosteriyorsa onceki goruntu, bilinmiyorsa yok),
  *     <ai:topics> AEO sorulari (yalniz kayit metni adresteyse), <priority> editor skoruna gore
@@ -436,24 +809,28 @@ export class AiSitemapService {
 
   private async buildForSite(siteId: string, rawUrl: string, site: URL): Promise<{ xml: string; bytes: number; urls: number }> {
     const articles = await this.prisma.article.findMany({
-      where: { siteId, status: 'PUBLISHED' as any },
+      // PUBLISHED + sitede eski metniyle duran, yeniden yazimi onay bekleyen yazi (publicArticleWhere)
+      where: publicArticleWhere(siteId),
       orderBy: { publishedAt: 'desc' },
       take: 1000,
       // Govde (bodyMd/bodyHtml) ve ajan ciktilari okunmaz: 1000 makalede onlarca MB
       // (adresi veren kopyasi eski metni gosteren makaleler icin ayrica — loadOlderTextFields)
       select: {
         id: true, slug: true, title: true, metaDescription: true, frontmatter: true, editorScore: true,
-        publishedAt: true, createdAt: true, publishedTo: true, heroImageUrl: true,
+        publishedAt: true, createdAt: true, publishedTo: true, heroImageUrl: true, status: true,
       },
     });
 
-    // Hedef ayari yalniz bir yayin kaydinin sitedeki adresi yoksa okunur (dosya
-    // yazan hedefin kanonik adresi icin); kimlik bilgisi (credentials) okunmaz
+    // Hedef ayari yalniz gerekiyorsa okunur (dosya yazan hedefin kanonik adresi, duz ?p=
+    // kopyasinin hedef tipi); kimlik bilgisi (credentials) okunmaz
     const targets = await loadArticleTargets(this.prisma, siteId, site, articles);
-    const resolved = articles.map((a) => ({ a, found: articlePublicEntry(site, a.slug, a.publishedTo, targets) }));
+    // Hic canli gorulmemis WordPress taslak baglantisi (?p=) ilan edilmez: adresi 404 verir
+    const resolved = articles
+      .map((a) => ({ a, found: advertisedArticleEntry(site, a.slug, a.publishedTo, targets) }))
+      .filter((r) => includePublicArticle(r.a.status, r.found));
     const olderText = await loadOlderTextFields(
       this.prisma,
-      resolved.filter((r) => r.found && entryShowsOlderText(r.found.entry)).map((r) => r.a.id),
+      resolved.filter((r) => needsOlderText(r.found, r.a.status)).map((r) => r.a.id),
     );
 
     let xml = `<?xml version="1.0" encoding="UTF-8"?>
@@ -483,9 +860,14 @@ ${homeSummary ? `    <ai:summary>${xmlText(homeSummary)}</ai:summary>\n` : ''}  
       const url = found.url;
       seen.add(url);
       const lastmod = articleLastmod(found.entry, a.publishedAt, a.createdAt).toISOString().slice(0, 10);
-      // Ozet adresteki sayfanin metninden (K6): kopya eski metni gosteriyorsa
-      // yeniden yazimdan onceki goruntu, o da bilinmiyorsa ozet yazilmaz
-      const text = publicArticleText({ title: a.title, metaDescription: a.metaDescription, ...olderText.get(a.id) }, found.entry);
+      // Ozet adresteki sayfanin metninden (K6): kopya eski metni gosteriyorsa ya da
+      // yeniden yazim onay bekliyorsa yeniden yazimdan onceki goruntu, o da
+      // bilinmiyorsa ozet yazilmaz
+      const text = publicArticleText(
+        { title: a.title, metaDescription: a.metaDescription, ...olderText.get(a.id) },
+        found.entry,
+        { pendingRevision: isPendingRevision(a.status) },
+      );
       const summary = (text.metaDescription ?? '').slice(0, SUMMARY_MAX_CHARS).trim();
       const fm: any = a.frontmatter ?? {};
       // AEO sorulari kayit metninden uretildi: adresteki sayfa baska (eski)
@@ -508,7 +890,9 @@ ${homeSummary ? `    <ai:summary>${xmlText(homeSummary)}</ai:summary>\n` : ''}  
       }
       const image = sameSiteUrl(site, a.heroImageUrl);
       if (image) {
-        xml += `    <image:image><image:loc>${xmlText(image)}</image:loc><image:title>${xmlText(text.title ?? a.title)}</image:title></image:image>\n`;
+        // Onaydaki yeni baslik ilan edilmez: adresteki metin bilinmiyorsa gorsel basligi yazilmaz
+        const imageTitle = text.title ?? (isPendingRevision(a.status) ? null : a.title);
+        xml += `    <image:image><image:loc>${xmlText(image)}</image:loc>${imageTitle ? `<image:title>${xmlText(imageTitle)}</image:title>` : ''}</image:image>\n`;
       }
       xml += `  </url>\n`;
     }

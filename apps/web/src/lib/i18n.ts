@@ -85,7 +85,8 @@ const dictionary = {
     'land.pricing.support_em4': 'Destek: e-posta 4 saat',
     'land.pricing.support_priority': 'Destek: öncelikli + Slack',
     'land.pricing.support_dedicated': 'Destek: özel hesap yöneticisi + SLA',
-    'land.pricing.footer_note': 'Her planda: 14 yayın hedefi · 6 AI asistanında ölçüm · TR + EN arayüz · kurulum 10 dakika',
+    // Olcum sikligi her planda ayni: hesap basina 7 gunde 1 (billing/measurement-allowance.ts)
+    'land.pricing.footer_note': 'Her planda: 14 yayın hedefi · haftada 1 AI görünürlük ölçümü, 6 AI asistanında · TR + EN arayüz · kurulum 10 dakika',
 
     // ─── Landing — FAQ ──────────────────────────────────────────
     'land.faq.eyebrow': 'Sıkça sorulanlar',
@@ -95,7 +96,10 @@ const dictionary = {
     // Shopify/Wix yayin hedefi yok (PublishTargetType); denetim ve olcum her sitede calisir
     'land.faq.a1': 'Herhangi bir web sitesinde: denetim ve AI görünürlük ölçümü için adresi yapıştırman yeterli. Yayın için WordPress, Webflow, Ghost, FTP/SFTP, cPanel ya da GitHub gibi 14 yayın hedefinden birini bağlarsın. Mobil uygulaman için App Store ya da Google Play kaydını eklersin.',
     'land.faq.q2': 'Kredi kartı vermem gerekiyor mu?',
-    'land.faq.a2': 'Hayır. Ücretsiz deneme için kart istenmez. 2 ücretsiz makale hakkını kullandıktan sonra devam etmek istersen plan seçer ve kart eklersin, istemezsen hesap pasif kalır.',
+    // "Istemezsen hesap pasif kalir" yanlisti: hesap pasiflestiren kod yok. Deneme suresi de
+    // uygulanmiyor (trialEndsAt yazan startTrial hic cagrilmiyor, expireOldTrials kimseyi
+    // bulmuyor, EXPIRED durumuna bakan kapi yok); deneme yalniz haklarla sinirli (plans.ts trial).
+    'land.faq.a2': 'Hayır. Ücretsiz deneme için kart istenmez; denemede 2 makale hakkın var. Devam etmek istersen plan seçip ödemeyi o zaman yaparsın. Plan seçmezsen hesabın kapanmaz, ücretsiz deneme planında ve onun sınırlarıyla kalır.',
     'land.faq.q3': 'AI sektörümü gerçekten anlayabilir mi?',
     // "%95+ dogruluk" olculmus bir oran degildi; sektor site ayarlarindan degisir
     'land.faq.a3': 'Onboarding sırasında siteni tarayıp sektörünü tahmin eder; marka sesini ve rakiplerini çıkarır. Tahmin yanlışsa site ayarlarından düzeltebilirsin; sonraki içerikler buna göre üretilir.',
@@ -183,7 +187,8 @@ const dictionary = {
     'land.pric.cta_contact': 'Bizimle iletişime geç',
     // Ayni sayfada "5 dakikada kurulum" (land.cta.subtitle, land2.how.title) varken burada
     // "kurulum 10 dakika" yaziyordu; olculmus bir sure degil, celiski kaldirildi.
-    'land.pric.footer_note': 'Her planda: 14 yayın hedefi · 6 AI asistanında ölçüm · TR + EN arayüz',
+    // Kartlardaki "ayda en fazla N calistirma" bir tavan; olcum sikligi her planda haftada 1
+    'land.pric.footer_note': 'Her planda: 14 yayın hedefi · haftada 1 AI görünürlük ölçümü, 6 AI asistanında · TR + EN arayüz',
     // Plan adlari burada TUTULMAZ — tek kaynak apps/api/src/billing/plans.ts.
     'land.pric.enterprise_label': 'Özel',
 
@@ -360,7 +365,7 @@ const dictionary = {
     'land.pricing.support_em4': 'Support: email 4h',
     'land.pricing.support_priority': 'Support: priority + Slack',
     'land.pricing.support_dedicated': 'Support: dedicated account manager + SLA',
-    'land.pricing.footer_note': 'In every plan: 14 publishing targets · measurement across 6 AI assistants · TR + EN interface · 10-minute setup',
+    'land.pricing.footer_note': 'In every plan: 14 publishing targets · 1 AI visibility measurement per week across 6 AI assistants · TR + EN interface · 10-minute setup',
 
     // ─── Landing — FAQ ──────────────────────────────────────────
     'land.faq.eyebrow': 'Frequently asked',
@@ -369,7 +374,7 @@ const dictionary = {
     'land.faq.q1': 'Which websites does it work on?',
     'land.faq.a1': 'Any website: paste the address to run the audit and the AI visibility measurement. To publish, you connect one of 14 publishing targets such as WordPress, Webflow, Ghost, FTP/SFTP, cPanel or GitHub. For a mobile app you add its App Store or Google Play listing.',
     'land.faq.q2': 'Do I need to enter a credit card?',
-    'land.faq.a2': 'No. No card needed for the free trial. After you use your 2 free article quota, if you want to continue you choose a plan and add a card; otherwise your account stays passive.',
+    'land.faq.a2': 'No. No card is needed for the free trial; it includes 2 articles. If you want to continue, you choose a plan and pay at that point. If you don’t, your account is not closed; it stays on the free trial plan with its limits.',
     'land.faq.q3': 'Can AI really understand my industry?',
     'land.faq.a3': 'During onboarding it scans your site, predicts your industry and maps your brand voice and competitors. If the guess is wrong you can fix it in site settings, and subsequent content follows it.',
     'land.faq.q4': 'What do I need to connect Apple Search Ads?',
@@ -438,7 +443,7 @@ const dictionary = {
     // Bullet text comes from plans.ts — do not keep a second copy here.
     'land.pric.cta_free': 'Choose plan',
     'land.pric.cta_contact': 'Contact us',
-    'land.pric.footer_note': 'In every plan: 14 publishing targets · measurement across 6 AI assistants · TR + EN interface',
+    'land.pric.footer_note': 'In every plan: 14 publishing targets · 1 AI visibility measurement per week across 6 AI assistants · TR + EN interface',
     // Plan names are NOT kept here — single source is apps/api/src/billing/plans.ts.
     'land.pric.enterprise_label': 'Custom',
 

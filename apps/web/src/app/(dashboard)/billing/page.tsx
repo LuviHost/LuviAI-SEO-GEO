@@ -17,6 +17,7 @@ import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, Dia
 import { EmptyState } from '@/components/empty-state';
 import { cn } from '@/lib/utils';
 import { billingArticleUsage } from '@/lib/article-quota';
+import { PURCHASE_CONTACT_EMAIL, purchaseState } from '@/lib/checkout-availability';
 import { DeleteAccountSection } from './delete-account-section';
 
 /**
@@ -136,6 +137,8 @@ export default function BillingPage() {
     ? periodEnd!.toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', year: 'numeric' })
     : null;
   const usd = Number(plan?.monthly ?? 0);
+  // Satin alma acik mi — /current checkout alani (PayTR test modunda yalniz yonetici acik)
+  const purchase = purchaseState({ account: current.checkout });
 
   return (
     <div className="space-y-6">
@@ -249,6 +252,17 @@ export default function BillingPage() {
             </Button>
           )}
         </div>
+
+        {/* Satin alma kapali (PayTR test modu): plan karsilastirma acik kalir, fiyat
+            sayfasindaki satin alma butonlari ayni metinle kilitli. Asil kapi API'de. */}
+        {!purchase.open && (
+          <p role="status" className="mt-4 rounded-lg border border-warning/30 bg-warning/5 px-4 py-3 text-sm">
+            {purchase.message}{' '}
+            <a href={`mailto:${PURCHASE_CONTACT_EMAIL}`} className="font-medium underline underline-offset-2">
+              {PURCHASE_CONTACT_EMAIL}
+            </a>
+          </p>
+        )}
       </Card>
 
       {/* Faturalar */}

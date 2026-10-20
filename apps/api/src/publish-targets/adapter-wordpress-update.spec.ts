@@ -346,12 +346,25 @@ describe('WordPress REST — update() cakisma denetimi (R3/R6/R8): musterinin Wo
   });
 });
 
-describe('WordPress REST — publish() olusturma damgasi', () => {
-  it('olusturma yanitindaki modified_gmt remoteModifiedAt olarak doner (sonraki cakisma denetiminin dayanagi)', async () => {
+describe('WordPress REST — publish() olusturma damgasi ve durumu', () => {
+  it('olusturma yanitindaki modified_gmt remoteModifiedAt, status WordPress\'in kaydettigi durum olarak doner (rv18 F2: yayinci kayda yazar)', async () => {
     handler = (r) => (r.method === 'POST' && r.path === '/wp-json/wp/v2/posts'
       ? json(201, { id: 42, link: `${SITE}/?p=42`, status: 'draft', modified_gmt: '2026-10-18T08:00:00' })
       : json(404, { code: 'rest_no_route' }));
-    expect(await rest().publish(payload)).toEqual({ ok: true, externalId: '42', externalUrl: `${SITE}/?p=42`, remoteModifiedAt: '2026-10-18T08:00:00.000Z' });
+    expect(await rest().publish(payload)).toEqual({ ok: true, externalId: '42', externalUrl: `${SITE}/?p=42`, remoteModifiedAt: '2026-10-18T08:00:00.000Z', status: 'draft' });
+  });
+
+  it('durum istenenden farkliysa WordPress\'in yanitindaki durum doner; yanitta durum yoksa alan hic yazilmaz (tahmin edilmez)', async () => {
+    // Istenen 'publish' (hedef ayari) ama WordPress yaziyi 'pending' kaydetti (or. bir eklentinin onay akisi)
+    handler = (r) => (r.method === 'POST' && r.path === '/wp-json/wp/v2/posts'
+      ? json(201, { id: 43, link: `${SITE}/?p=43`, status: 'pending' })
+      : json(404, { code: 'rest_no_route' }));
+    expect(await rest({ postStatus: 'publish' }).publish(payload)).toEqual({ ok: true, externalId: '43', externalUrl: `${SITE}/?p=43`, status: 'pending' });
+    expect(JSON.parse(reqs[reqs.length - 1].body).status).toBe('publish');
+    handler = (r) => (r.method === 'POST' && r.path === '/wp-json/wp/v2/posts'
+      ? json(201, { id: 44, link: `${SITE}/?p=44`, status: '' })
+      : json(404, { code: 'rest_no_route' }));
+    expect(await rest().publish(payload)).toEqual({ ok: true, externalId: '44', externalUrl: `${SITE}/?p=44` });
   });
 });
 
@@ -524,16 +537,35 @@ describe('WordPress XML-RPC — update()', () => {
   });
 });
 
-describe('WordPress XML-RPC — publish() olusturma damgasi', () => {
-  it('metaWeblog.newPost kimlik doner; olusturma damgasi wp.getPost ile okunur (en iyi caba)', async () => {
+describe('WordPress XML-RPC — publish() olusturma damgasi ve durumu', () => {
+  it('metaWeblog.newPost kimlik doner; olusturma damgasi ve yazinin durumu (post_status) wp.getPost ile okunur (en iyi caba)', async () => {
     handler = (r) => {
       const method = methodOf(r);
       if (method === 'metaWeblog.newPost') return xml(ixrOk('<string>41</string>'));
       if (method === 'wp.getPost') return xml(getPostOk('draft', { modified: '20261018T08:00:00', link: `${SITE}/?p=41` }));
       return xml(ixrFault(-32601, 'yok'));
     };
-    expect(await xmlrpc().publish(payload)).toEqual({ ok: true, externalId: '41', externalUrl: `${SITE}/?p=41`, remoteModifiedAt: '2026-10-18T08:00:00.000Z' });
+    // Hedef ayari 'publish' olsa da WordPress'in kaydettigi durum doner (rv18 F2: yayinci kayda yazar)
+    expect(await xmlrpc().publish(payload)).toEqual({ ok: true, externalId: '41', externalUrl: `${SITE}/?p=41`, remoteModifiedAt: '2026-10-18T08:00:00.000Z', status: 'draft' });
     expect(reqs.map(methodOf)).toEqual(['metaWeblog.newPost', 'wp.getPost']);
+    expect(reqs[1].body).toContain('<string>post_status</string>');
+  });
+
+  it('yayindaki yazinin adresi WordPress\'in bildirdigi kalici baglanti (update() ile ayni kural); duz ?p= degil', async () => {
+    // NEDEN: ilan edilen adres (site haritasi, llms, canonical) kalici baglantiya yonlenen ?p=
+    // oluyordu. Taslak yine guvende: ilan karari kayittaki durumdan (status) verilir.
+    handler = (r) => {
+      const method = methodOf(r);
+      if (method === 'metaWeblog.newPost') return xml(ixrOk('<string>41</string>'));
+      if (method === 'wp.getPost') return xml(getPostOk('publish', { modified: '20261018T08:00:00', link: `${SITE}/sac-bakimi/` }));
+      return xml(ixrFault(-32601, 'yok'));
+    };
+    expect(await xmlrpc().publish(payload)).toEqual({ ok: true, externalId: '41', externalUrl: `${SITE}/sac-bakimi/`, remoteModifiedAt: '2026-10-18T08:00:00.000Z', status: 'publish' });
+  });
+
+  it('wp.getPost okunamazsa yayin yine basarili; durum bilinmiyor sayilir ve alan hic yazilmaz (tahmin edilmez)', async () => {
+    handler = (r) => (methodOf(r) === 'metaWeblog.newPost' ? xml(ixrOk('<string>41</string>')) : xml(ixrFault(-32601, 'yok')));
+    expect(await xmlrpc().publish(payload)).toEqual({ ok: true, externalId: '41', externalUrl: `${SITE}/?p=41` });
   });
 });
 

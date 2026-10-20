@@ -39,17 +39,30 @@ export class BillingController {
    * GET /api/billing/plans — herkes plan listesini görebilir.
    * Fiyat USD kanonik; `monthlyTry`/`annualTry` gunun TCMB kuruyla hesaplanir.
    * `fx` alani UI dipnotu icin kur + cekilme zamani + bayat mi bilgisini tasir.
+   * `checkout`: satin alma acik mi (PayTR test modunda kapali) — fiyat sayfasi
+   * butonlari bununla kilitlenir. Herkese acik uc oturumu tanimaz, bu yuzden
+   * anonim ziyaretci karari; hesaba ozel karar (test modunda yonetici acik) /current'ta.
    */
   @Public()
   @Get('plans')
-  plans(@Query('locale') locale?: string) {
-    return this.billing.getPlansWithFx(locale === 'en' ? 'en' : 'tr');
+  async plans(@Query('locale') locale?: string) {
+    const lang = locale === 'en' ? 'en' : 'tr';
+    const [list, checkout] = await Promise.all([
+      this.billing.getPlansWithFx(lang),
+      this.paytr.checkoutStatus(null, lang),
+    ]);
+    return { ...list, checkout };
   }
 
   @Get('users/:userId/current')
-  current(@Req() req: Request, @Param('userId') userId: string) {
+  async current(@Req() req: Request, @Param('userId') userId: string) {
     ensureSelf(req, userId);
-    return this.billing.getCurrentPlan(userId);
+    // checkout: istenen HESABA gore (odeme kapisi da fatura sahibine bakar)
+    const [plan, checkout] = await Promise.all([
+      this.billing.getCurrentPlan(userId),
+      this.paytr.checkoutStatus(userId),
+    ]);
+    return { ...plan, checkout };
   }
 
   @Get('users/:userId/invoices')
@@ -83,6 +96,8 @@ export class BillingController {
   /**
    * POST /api/billing/subscribe
    * Body'de userId varsa session.user.id ile eşleşmeli (cross-user koruması).
+   * PayTR test modunda yalniz yonetici hesabina odeme baslatilir; digerleri
+   * 403 + panelde gosterilen metni alir (PaytrService.assertCheckoutOpen).
    */
   @SessionOnly()
   @Post('subscribe')
@@ -114,7 +129,7 @@ export class BillingController {
     return this.paytr.cancelSubscription(userId);
   }
 
-  /** DEV/TEST mode: PayTR webhook gelmiyorsa user kendi tetikler */
+  /** DEV/TEST mode: PayTR webhook gelmiyorsa yonetici kendi tetikler (digerleri 403) */
   @SessionOnly()
   @Post('dev-confirm/:merchantOid')
   async devConfirm(@Req() req: Request, @Param('merchantOid') merchantOid: string) {

@@ -7,7 +7,7 @@ import {
   type PublishTargetResult, type RemoteSkipMemo,
 } from '@/lib/publish-result';
 import {
-  canForgetEntry, currentArticleMarkdown, forgetEntryConfirm, manualUpdateNote, manualUpdateReason,
+  canForgetEntry, currentArticleMarkdown, forgetEntryConfirm, manualUpdateNote, manualUpdateReason, missingCopyNote,
 } from '@/lib/manual-update';
 import {
   articleContentHash, initialPublishSelection, leftOutLiveConfirm, leftOutLiveCopies, liveSiteEntries, publishSelectionWarnings,
@@ -855,10 +855,15 @@ ${body}
                       </p>
                     )}
                     {/* Sozlesme D3: yazi hedefte artik yok (404/410) ve otomasyon onu yeniden acmadi;
-                        musteri bu hedefi secip yayinlarsa yazi orada yeniden olusturulur (D2) */}
+                        musteri bu hedefi secip yayinlarsa yazi orada yeniden olusturulur (D2). Kopyayi
+                        gunluk canlilik denetimi dusurduyse not bunu ve WordPress'te taslak / cop kutusu
+                        ihtimalini soyler (lib/manual-update.ts missingCopyNote) */}
                     {p.missingAt && (
                       <p className="text-xs text-muted-foreground">
-                        Bu kopya {new Date(p.missingAt).toLocaleString('tr-TR')} tarihinde yayın hedefinde bulunamadı (silinmiş olabilir); RanksUp onu yayında saymıyor ve kendiliğinden yeniden oluşturmaz. Yazıyı orada yeniden yayınlamak istersen bu hedefi seçip yayınla.
+                        {missingCopyNote(entry, {
+                          when: new Date(p.missingAt).toLocaleString('tr-TR'),
+                          targetType: target?.type ?? (entry as { targetType?: string })?.targetType,
+                        })}
                       </p>
                     )}
                     {/* Yeni metin bu hedefe yazilmadi: eski metin yayinda. Not ve eylemler nedene

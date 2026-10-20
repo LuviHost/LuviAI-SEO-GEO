@@ -33,6 +33,7 @@ vi.mock('../common/safe-fetch.js', async (orig) => {
 
 const safeFetch = await import('../common/safe-fetch.js');
 const { PublisherService, checkEntryPublicUrl } = await import('./publisher.service.js');
+const { PUBLIC_URL_FETCH, QUERY_URL_MAX_BYTES } = await import('./public-url-probe.js');
 
 /** Yerel sunucuya baglanabilen test ornegi (uretimde ic adres ve 80/443 disi port yasak) */
 const yerelFetch = safeFetch.makeSafeTextFetch({ isBlocked: () => false, allowAnyPort: true, ipv4Only: true });
@@ -48,7 +49,27 @@ beforeAll(async () => {
       res.writeHead(status, { 'content-type': 'text/html; charset=utf-8', ...(location ? { location } : {}) });
       res.end(status === 200 ? `<html><body>${'Yazı metni. '.repeat(20_000)}</body></html>` : '<html>yok</html>');
     };
+    const yaz = (status: number, body: string, headers: Record<string, string> = {}) => {
+      res.writeHead(status, { 'content-type': 'text/html; charset=utf-8', ...headers });
+      res.end(body);
+    };
+    // <head>'i 32 KB'tan uzun sayfa: kanonik baglanti satir ici CSS'ten SONRA (tema / eklenti)
+    const uzunBasli = (canonical: string) => `<html><head><style>${'.x{color:red}'.repeat(4_000)}</style><link rel="canonical" href="${canonical}"></head><body>Metin</body></html>`;
     switch (req.url) {
+      case '/': return yaz(200, '<html><title>Ana sayfa</title></html>');
+      // Sorguyu yok sayan onbellek / CDN ?p= istegine ana sayfayi sundu (kanonik: ana sayfa)
+      case '/?p=42': return yaz(200, uzunBasli(`${kok}/`));
+      // Yayindaki yazi ?p= adresinde kendi kalici baglantisini kanonik bildirir
+      case '/?p=43': return yaz(200, uzunBasli(`${kok}/yazi-43/`));
+      // Guvenlik duvari / bot dogrulama sayfasi 404 durumuyla (yazi orada olabilir)
+      case '/cf-dogrulama-404/': return yaz(404, '<html><title>Just a moment...</title></html>', { 'cf-mitigated': 'challenge', server: 'cloudflare' });
+      // Basliksiz: yalniz govdeden taninir (govde okunmasaydi 'gone' sayilirdi)
+      case '/js-dogrulama-404/': return yaz(404, `<html><head><title>Kontrol</title></head><body>${'<!-- dolgu -->'.repeat(50)}<script>window._cf_chl_opt={cvId:'3'};</script></body></html>`);
+      case '/datadome-404/': return yaz(404, '<html><body><iframe src="https://geo.captcha-delivery.com/captcha/?initialCid=x"></iframe></body></html>');
+      // Siradan 404: sayfadaki iletisim formunun reCAPTCHA'si engel sayilmaz
+      case '/formlu-404/': return yaz(404, '<html><body>Sayfa bulunamadı<form><div class="g-recaptcha" data-sitekey="x"></div></form></body></html>');
+      // Silinen yaziyi ana sayfaya yonlendiren site (404-to-homepage eklentileri)
+      case '/anasayfaya/': return git(301, '/');
       case '/canli/': return git(200);
       case '/silinmis/': return git(404);
       case '/kaldirildi/': return git(410);
@@ -66,6 +87,9 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+  // Govdenin yalniz basi okunan (32 KB tavan) buyuk yanitlarin baglantisi sunucu tarafinda
+  // yazim surerken acik kalir; close() onlari beklemesin
+  sunucu.closeAllConnections();
   await new Promise<void>((resolve) => sunucu.close(() => resolve()));
 });
 
@@ -100,6 +124,34 @@ describe('checkEntryPublicUrl — gercek safe-fetch tasimasiyla', () => {
     expect(await checkEntryPublicUrl(`http://127.0.0.1:${port}/x/`, yerelFetch)).toBe('unknown');
   });
 
+  it('404 durumuyla donen guvenlik duvari / bot dogrulama sayfasi: unknown — yazinin silindigi kanitlanmadi (canlilik denetimiyle ayni kural, block-detect)', async () => {
+    // Eskiden yalniz durum koduna bakiliyordu: bu yanitlar 'gone' sayilip otomasyon
+    // musterinin yayindaki kopyasini emekliye ayiriyordu (live_entry_missing)
+    for (const yol of ['/cf-dogrulama-404/', '/js-dogrulama-404/', '/datadome-404/']) {
+      expect(await checkEntryPublicUrl(`${kok}${yol}`, yerelFetch), yol).toBe('unknown');
+    }
+    // Siradan 404 sayfasindaki form reCAPTCHA'si engel degil: yazi gercekten yok
+    expect(await checkEntryPublicUrl(`${kok}/formlu-404/`, yerelFetch)).toBe('gone');
+  });
+
+  it('silinen yaziyi ana sayfaya yonlendiren site: ana sayfa verilince unknown (adres "hala aciliyor" sayilmaz); ana sayfa verilmezse eski davranis', async () => {
+    const homepage = `${kok}/`;
+    expect(await checkEntryPublicUrl(`${kok}/anasayfaya/`, yerelFetch, { homepage })).toBe('unknown');
+    expect(await checkEntryPublicUrl(`${kok}/anasayfaya/`, yerelFetch)).toBe('live');
+    // Yazinin kendi adresi ana sayfa olsa (statik on sayfa) yonlendirmesiz 200 yine live
+    expect(await checkEntryPublicUrl(homepage, yerelFetch, { homepage })).toBe('live');
+    expect(await checkEntryPublicUrl(`${kok}/tasindi/`, yerelFetch, { homepage })).toBe('live');
+  });
+
+  it('sorgulu adres (?p=): kanonik baglanti 32 KB\'tan sonra da okunur — ana sayfayi kanonik bildiren yanit unknown, yazinin kendi kanonigi live (canlilik denetimiyle ayni secenek)', async () => {
+    // Eskiden sabit 32 KB okunuyordu: kanonik baglanti okunan kismin disinda kaliyor, onbellegin
+    // sundugu ana sayfa 'live' sayiliyordu (canlilik denetimi ayni yaniti 'unknown' okur)
+    const homepage = `${kok}/`;
+    expect(await checkEntryPublicUrl(`${kok}/?p=42`, yerelFetch, { homepage })).toBe('unknown');
+    expect(await checkEntryPublicUrl(`${kok}/?p=42`, yerelFetch)).toBe('unknown');
+    expect(await checkEntryPublicUrl(`${kok}/?p=43`, yerelFetch, { homepage })).toBe('live');
+  });
+
   it('durust bot kimligi (RanksUpBot) ile tek GET; adres yoksa hic istek atilmaz', async () => {
     await checkEntryPublicUrl(`${kok}/canli/`, yerelFetch);
     expect(gelen).toEqual([{ method: 'GET', path: '/canli/', ua: safeFetch.RANKSUP_BOT_UA }]);
@@ -122,13 +174,38 @@ describe('checkEntryPublicUrl — gercek safe-fetch tasimasiyla', () => {
 describe('PublisherService — yoklayici Nest yasam dongusunde kurulur', () => {
   const yayinci = () => new PublisherService({} as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any, {} as any);
 
-  it('onModuleInit gercek yoklayiciyi uretim safeFetchText ile baglar: govde okunmaz, en fazla 3 yonlendirme, 10 sn', async () => {
+  it('onModuleInit gercek yoklayiciyi uretim safeFetchText ile baglar: canlilik denetimiyle ayni secenekler (govdenin basi 32 KB, en fazla 3 yonlendirme, 10 sn)', async () => {
     const svc = yayinci() as any;
     expect(svc.entryUrlCheck).toBeNull();
     svc.onModuleInit();
     vi.mocked(safeFetch.safeFetchText).mockResolvedValueOnce({ status: 410 } as any);
     expect(await svc.entryUrlCheck('https://site.example/yazi/')).toBe('gone');
-    expect(safeFetch.safeFetchText).toHaveBeenCalledWith('https://site.example/yazi/', { maxBytes: 0, errorBodyBytes: 0, maxRedirects: 3, timeoutMs: 10_000 });
+    expect(safeFetch.safeFetchText).toHaveBeenCalledWith('https://site.example/yazi/', PUBLIC_URL_FETCH);
+    expect(PUBLIC_URL_FETCH).toEqual({ method: 'GET', maxBytes: 32 * 1024, errorBodyBytes: 32 * 1024, maxRedirects: 3, timeoutMs: 10_000 });
+  });
+
+  it('sorgulu adreste uretim yoklayicisi govdenin ilk 256 KB\'ini okur (publicUrlFetchOptions); guzel kalici baglanti 32 KB', async () => {
+    const svc = yayinci() as any;
+    svc.onModuleInit();
+    vi.mocked(safeFetch.safeFetchText).mockResolvedValueOnce({ status: 410 } as any).mockResolvedValueOnce({ status: 410 } as any);
+    await svc.entryUrlCheck('https://site.example/?p=42');
+    await svc.entryUrlCheck('https://site.example/yazi/');
+    expect(safeFetch.safeFetchText).toHaveBeenNthCalledWith(1, 'https://site.example/?p=42', { ...PUBLIC_URL_FETCH, maxBytes: QUERY_URL_MAX_BYTES });
+    expect(safeFetch.safeFetchText).toHaveBeenNthCalledWith(2, 'https://site.example/yazi/', PUBLIC_URL_FETCH);
+    expect(QUERY_URL_MAX_BYTES).toBe(256 * 1024);
+  });
+
+  it('uretim yoklayicisi ana sayfayi siniflandirmaya iletir; 404 + bot dogrulama basligi gone sayilmaz', async () => {
+    const svc = yayinci() as any;
+    svc.onModuleInit();
+    vi.mocked(safeFetch.safeFetchText).mockResolvedValueOnce({
+      status: 200, ok: true, redirected: true, url: 'https://site.example/', headers: {}, text: '<html>Ana sayfa</html>',
+    } as any);
+    expect(await svc.entryUrlCheck('https://site.example/yazi/', { homepage: 'https://site.example/' })).toBe('unknown');
+    vi.mocked(safeFetch.safeFetchText).mockResolvedValueOnce({
+      status: 404, ok: false, redirected: false, url: 'https://site.example/yazi/', headers: { 'cf-mitigated': 'challenge' }, text: '',
+    } as any);
+    expect(await svc.entryUrlCheck('https://site.example/yazi/', { homepage: 'https://site.example/' })).toBe('unknown');
   });
 
   it('onceden verilmis yoklayici (test) ezilmez', () => {
