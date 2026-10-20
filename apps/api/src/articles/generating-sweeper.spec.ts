@@ -21,7 +21,8 @@ const hoursAgo = (h: number) => new Date(NOW.getTime() - h * 3_600_000);
 
 type ArticleRow = {
   id: string; siteId: string; status: string; scheduledAt: Date | null; updatedAt: Date;
-  site: { url: string; user: { deletionRequestedAt: Date | null } };
+  agentOutputs?: any;
+  site: { url: string; userId?: string; user: { deletionRequestedAt: Date | null; plan?: string; articlesQuotaResetAt?: Date } };
 };
 type JobRow = { type: string; bullJobId: string | null; queuedAt: Date; payload: Record<string, unknown> };
 
@@ -35,13 +36,27 @@ const job = (over: Partial<JobRow> & { articleId?: string } = {}): JobRow => ({
 });
 
 /** Prisma'nin kullanilan yuzeyi — kosullar gercek sorgu gibi uygulanir */
-function fakePrisma(opts: { articles?: ArticleRow[]; jobs?: JobRow[]; kv?: Record<string, { value: string; expiresAt: Date | null }> } = {}) {
+function fakePrisma(opts: { articles?: ArticleRow[]; jobs?: JobRow[]; kv?: Record<string, { value: string; expiresAt: Date | null }>; used?: number } = {}) {
   const articles = opts.articles ?? [];
   const jobs = opts.jobs ?? [];
   const kv = opts.kv ?? {};
-  return {
-    articles, kv,
+  // Makale hakki sayaci (iade yolu): 0'in altina inmez
+  const counter = { used: opts.used ?? 0 };
+  const prisma: any = {
+    articles, kv, counter,
+    user: {
+      updateMany: vi.fn(async ({ where, data }: any) => {
+        if (!(counter.used > where.articlesUsedThisMonth.gt)) return { count: 0 };
+        counter.used -= data.articlesUsedThisMonth.decrement;
+        return { count: 1 };
+      }),
+    },
+    $transaction: vi.fn(async (fn: any) => fn(prisma)),
     article: {
+      findUnique: vi.fn(async ({ where }: any) => {
+        const a = articles.find((r) => r.id === where.id);
+        return a ? { agentOutputs: a.agentOutputs ?? null, site: { userId: a.site.userId ?? 'u1', user: { plan: a.site.user.plan ?? 'PRO', articlesQuotaResetAt: a.site.user.articlesQuotaResetAt ?? new Date(0) } } } : null;
+      }),
       findMany: vi.fn(async ({ where, take }: any) => articles
         .filter((a) => a.status === where.status
           && a.updatedAt.getTime() < where.updatedAt.lt.getTime()
@@ -52,9 +67,11 @@ function fakePrisma(opts: { articles?: ArticleRow[]; jobs?: JobRow[]; kv?: Recor
         .map(({ id, siteId, scheduledAt, updatedAt }) => ({ id, siteId, scheduledAt, updatedAt }))),
       // Tek SQL UPDATE gibi: yalniz kosullar hala gecerliyse yazar
       updateMany: vi.fn<(args: any) => Promise<{ count: number }>>(async ({ where, data }: any) => {
-        const row = articles.find((a) => a.id === where.id && a.status === where.status && a.updatedAt.getTime() < where.updatedAt.lt.getTime());
+        const row = articles.find((a) => a.id === where.id && a.status === where.status && a.updatedAt.getTime() < where.updatedAt.lt.getTime()
+          && (!where.agentOutputs || a.agentOutputs?.allowanceCharge?.at === where.agentOutputs.equals));
         if (!row) return { count: 0 };
         row.status = data.status;
+        if (data.agentOutputs !== undefined) row.agentOutputs = data.agentOutputs;
         row.updatedAt = NOW;
         return { count: 1 };
       }),
@@ -79,6 +96,7 @@ function fakePrisma(opts: { articles?: ArticleRow[]; jobs?: JobRow[]; kv?: Recor
       }),
     },
   };
+  return prisma;
 }
 
 function fakeInspector(opts: { states?: Record<string, string>; live?: string[] | null } = {}) {
@@ -102,7 +120,7 @@ describe('sweepStuckGenerating — canli isi olmayan bayat GENERATING', () => {
     const inspector = fakeInspector({ states: { b1: 'failed' } });
     const log = quietLog();
     const r = await sweep(prisma, inspector, log);
-    expect(r).toEqual({ candidates: 1, requeued: 1, failed: 0, live: 0, unverified: 0, raced: 0 });
+    expect(r).toEqual({ candidates: 1, requeued: 1, failed: 0, refunded: 0, live: 0, unverified: 0, raced: 0 });
     expect(prisma.articles[0].status).toBe('SCHEDULED');
     expect(prisma.kv['generating-sweep:a1'].value).toBe('1');
     // Kayit 7 gun sonra temizlenir (KvSweepCron)
@@ -184,7 +202,7 @@ describe('sweepStuckGenerating — guvenlik kosulu: canli is varken DOKUNULMAZ',
     ]) {
       const prisma = fakePrisma({ articles: [article(), article({ id: 'a2' })] });
       const r = await sweep(prisma, inspector);
-      expect(r).toEqual({ candidates: 2, requeued: 0, failed: 0, live: 0, unverified: 2, raced: 0 });
+      expect(r).toEqual({ candidates: 2, requeued: 0, failed: 0, refunded: 0, live: 0, unverified: 2, raced: 0 });
       expect(prisma.article.updateMany).not.toHaveBeenCalled();
       expect(prisma.job.findMany).not.toHaveBeenCalled();
     }
@@ -262,7 +280,7 @@ describe('sweepStuckGenerating — aday secimi ve yaris', () => {
 
   it('aday yoksa kuyruga hic sorulmaz', async () => {
     const inspector = fakeInspector();
-    expect(await sweep(fakePrisma(), inspector)).toEqual({ candidates: 0, requeued: 0, failed: 0, live: 0, unverified: 0, raced: 0 });
+    expect(await sweep(fakePrisma(), inspector)).toEqual({ candidates: 0, requeued: 0, failed: 0, refunded: 0, live: 0, unverified: 0, raced: 0 });
     expect(inspector.liveArticleIds).not.toHaveBeenCalled();
   });
 });
@@ -329,5 +347,59 @@ describe('worker kablolamasi (apps/worker/src/index.ts) — supurucu', () => {
     expect(src).toMatch(/'PROCESS_SCHEDULED',\s*\{ trigger: 'cron' \},\s*\{\s*repeat: \{ every: 60 \* 60 \* 1000 \}/);
     expect(src).toContain('PROCESS_SCHEDULED 60dk');
     expect(src).not.toContain('PROCESS_SCHEDULED 30dk');
+  });
+});
+
+/**
+ * Basarisiz uretimin makale hakki iadesi (sahip karari 20.10.2026; allowance-refund.ts).
+ * Supurucunun FAILED karari uretimin makale cikmadan bittigi anlamina gelir: hakki dusulen
+ * deneme TAM BIR KEZ iade edilir. Takvime geri konan yazi iade almaz (yeniden uretilirken
+ * ikinci kez dusmez).
+ */
+describe('sweepStuckGenerating — FAILED kararinda makale hakki iadesi', () => {
+  const CHARGE = { allowanceCharge: { at: '2026-10-18T06:00:00.000Z', source: 'user_start' } };
+
+  it('takvim disi yazi FAILED olurken hakki iade edilir; isaret iade izine doner', async () => {
+    const prisma = fakePrisma({ articles: [article({ scheduledAt: null, agentOutputs: { ...CHARGE } })], jobs: [job()], used: 5 });
+    const r = await sweep(prisma, fakeInspector({ states: { b1: 'failed' } }));
+    expect(r).toMatchObject({ failed: 1, refunded: 1 });
+    expect(prisma.counter.used).toBe(4);
+    expect(prisma.articles[0].status).toBe('FAILED');
+    expect(prisma.articles[0].agentOutputs.allowanceCharge).toBeUndefined();
+    expect(prisma.articles[0].agentOutputs.allowanceRefund).toEqual({ at: NOW.toISOString(), chargeAt: CHARGE.allowanceCharge.at, source: 'user_start' });
+  });
+
+  it('takvime geri konan yazi iade almaz (isaret yazida kalir, yeniden uretimde ikinci kez dusmez)', async () => {
+    const prisma = fakePrisma({ articles: [article({ agentOutputs: { allowanceCharge: { ...CHARGE.allowanceCharge, source: 'calendar' } } })], jobs: [job()], used: 5 });
+    const r = await sweep(prisma, fakeInspector({ states: { b1: 'failed' } }));
+    expect(r).toMatchObject({ requeued: 1, refunded: 0 });
+    expect(prisma.counter.used).toBe(5);
+    expect(prisma.articles[0].agentOutputs.allowanceCharge.source).toBe('calendar');
+  });
+
+  it('yeniden deneme hakki biten takvim yazisi FAILED olur ve hakki iade edilir', async () => {
+    const prisma = fakePrisma({
+      articles: [article({ agentOutputs: { allowanceCharge: { ...CHARGE.allowanceCharge, source: 'calendar' } } })],
+      jobs: [job()],
+      kv: { 'generating-sweep:a1': { value: String(GENERATING_SWEEP_MAX_REQUEUES), expiresAt: null } },
+      used: 1,
+    });
+    const r = await sweep(prisma, fakeInspector({ states: { b1: 'failed' } }));
+    expect(r).toMatchObject({ failed: 1, refunded: 1 });
+    expect(prisma.counter.used).toBe(0);
+  });
+
+  it('isaretsiz (hakki hic dusmemis) ya da ucretsiz onboarding yazisi: FAILED olur, iade yok', async () => {
+    const prisma = fakePrisma({
+      articles: [
+        article({ id: 'a1', scheduledAt: null }),
+        article({ id: 'a2', scheduledAt: null, agentOutputs: { allowanceCharge: { ...CHARGE.allowanceCharge, source: 'onboarding_free' } } }),
+      ],
+      jobs: [job({ articleId: 'a1', bullJobId: 'b1' }), job({ articleId: 'a2', bullJobId: 'b2' })],
+      used: 3,
+    });
+    const r = await sweep(prisma, fakeInspector({ states: { b1: 'failed', b2: 'failed' } }));
+    expect(r).toMatchObject({ failed: 2, refunded: 0 });
+    expect(prisma.counter.used).toBe(3);
   });
 });

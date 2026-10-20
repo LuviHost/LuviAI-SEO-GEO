@@ -17,6 +17,8 @@ import { planHasFeature, type PlanFeature, type PlanId } from '../billing/plans.
 import { MeasurementAllowanceService } from '../billing/measurement-allowance.service.js';
 import { SITE_NOT_FOUND_MESSAGE } from '../auth/site-access.guard.js';
 import { isCanonicalSiteId } from '../common/site-id.js';
+import { withAllowanceCharge } from '../articles/article-scheduler.service.js';
+import { settleUnstartedGeneration } from '../articles/allowance-refund.js';
 
 /**
  * RanksUp Tool Registry — MCP server VE uygulama ici Chat'in ORTAK tool seti.
@@ -699,7 +701,7 @@ export class McpToolsService {
         name: 'create_article',
         scope: 'articles:write',
         title: 'Makale uret',
-        description: 'Verilen konu icin 5 ajanli uretim hattiyla yeni bir makale uretimini kuyruğa alir (kota tuketir). Kullanici acikca istemeden cagirma.',
+        description: 'Verilen konu icin 5 ajanli uretim hattiyla yeni bir makale uretimini kuyruğa alir (makale hakkindan bir kez duser; uretim makale cikmadan basarisiz olursa hak geri verilir). Kullanici acikca istemeden cagirma.',
         inputSchema: this.schema({
           ...SITE_ID_PROP,
           topic: { type: 'string', description: 'Makale konusu / basligi' },
@@ -714,6 +716,7 @@ export class McpToolsService {
           // Hak uretim baslamadan tek kosullu UPDATE ile duser; baslatilamazsa geri
           // verilir (QuotaService consumeArticleAllowance — ArticlesService ile ayni)
           await this.quota.consumeArticleAllowance(site.userId);
+          let placeholderId: string | null = null;
           try {
             const article = await this.prisma.article.create({
               data: {
@@ -723,8 +726,12 @@ export class McpToolsService {
                 title: topic,
                 status: 'GENERATING' as any,
                 language: site.language ?? 'tr',
+                // Hak isareti: uretim makale cikmadan biterse hak bir kez iade edilir
+                // (articles/allowance-refund.ts; panelin "Uret"i ile ayni kural)
+                agentOutputs: withAllowanceCharge(null, 'user_start', new Date()) as any,
               },
             });
+            placeholderId = article.id;
             const job = await this.jobQueue.enqueue({
               type: 'GENERATE_ARTICLE',
               userId: site.userId,
@@ -733,7 +740,8 @@ export class McpToolsService {
             });
             return { queued: true, articleId: article.id, jobId: job.dbJobId };
           } catch (err) {
-            await this.quota.refundArticleAllowance(site.userId);
+            // Yer tutucu acildiysa iade onun isaretiyle (supurucu ikinci kez iade etmesin)
+            await settleUnstartedGeneration(this.prisma, this.quota, { userId: site.userId, articleId: placeholderId });
             throw err;
           }
         },

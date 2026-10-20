@@ -12,6 +12,8 @@ import {
   remeasureVerdict, afterWindowStart, REMEASURE_FOLLOW_UPS, REMEASURE_WINDOW_DAYS,
 } from './remeasure-verdict.js';
 import { matchArticleForQuery } from './opportunity-article-match.js';
+import { withAllowanceCharge } from '../articles/article-scheduler.service.js';
+import { settleUnstartedGeneration } from '../articles/allowance-refund.js';
 
 /**
  * Content Opportunity — kapali dongu:
@@ -248,10 +250,17 @@ export class ContentOpportunityService {
     // Hak uretim baslamadan tek kosullu UPDATE ile duser (QuotaService
     // consumeArticleAllowance); is kuyruga girmezse asagida geri verilir
     await this.quota.consumeArticleAllowance(site.userId);
+    // Yeni yazi yolunda acilan yer tutucu: baslatilamazsa iade onun hak isaretiyle
+    // yapilir (takili uretim supurucusu ayni hakki ikinci kez iade etmesin). Is kuyruga
+    // girdiyse (sonraki firsat kaydi hata verse de) uretim baslamistir: burada iade
+    // yok, uretim basarisiz biterse kendi isaretiyle iade edilir (cift iade olmasin).
+    const started: { placeholderId: string | null; enqueued: boolean } = { placeholderId: null, enqueued: false };
     try {
-      return await this.queueOpportunityGeneration(item, site);
+      return await this.queueOpportunityGeneration(item, site, started);
     } catch (err) {
-      await this.quota.refundArticleAllowance(site.userId);
+      if (!started.enqueued) {
+        await settleUnstartedGeneration(this.prisma, this.quota, { userId: site.userId, articleId: started.placeholderId });
+      }
       throw err;
     }
   }
@@ -260,7 +269,13 @@ export class ContentOpportunityService {
   private async queueOpportunityGeneration(
     item: ContentOpportunity,
     site: { id: string; userId: string; language: string | null },
+    started: { placeholderId: string | null; enqueued: boolean },
   ) {
+    // Hakkin dusus izi (articles/allowance-refund.ts): uretim makale cikmadan biterse
+    // hak bu iz uzerinden TAM BIR KEZ iade edilir. Yeni yazida iz yer tutucunun
+    // agentOutputs'unda; kapali dongu guncellemesinde yayindaki yazi GENERATING olmadigi
+    // ve basarisizlikta FAILED yapilmadigi icin iz is verisinde (Job.payload).
+    const charge = withAllowanceCharge(null, 'user_start', new Date());
     const siteId = site.id;
     const topic = item.title || item.query;
 
@@ -294,8 +309,10 @@ export class ContentOpportunityService {
           skipImages: true,
           pivotReason: `Kapalı döngü: "${item.query}" sorusunda görünmüyoruz — mevcut makale yeniden yazılıyor (adres ve ilk yayın tarihi korunur, son güncelleme tarihi yenilenir)`,
           lostQuery: item.query,
+          ...charge,
         } as any,
       });
+      started.enqueued = true;
       const now = new Date();
       await this.prisma.contentOpportunity.update({
         where: { id: item.id },
@@ -329,8 +346,10 @@ export class ContentOpportunityService {
         title: topic,
         status: 'GENERATING' as any,
         language: site.language ?? 'tr',
+        agentOutputs: charge as any,
       },
     });
+    started.placeholderId = article.id;
 
     const job = await this.jobQueue.enqueue({
       type: 'GENERATE_ARTICLE',
@@ -338,6 +357,7 @@ export class ContentOpportunityService {
       siteId,
       payload: { siteId, topic, articleId: article.id },
     });
+    started.enqueued = true;
 
     await this.prisma.contentOpportunity.update({
       where: { id: item.id },

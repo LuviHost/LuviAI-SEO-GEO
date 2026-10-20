@@ -16,6 +16,7 @@ import { PipelineService } from '../../api/dist/articles/pipeline.service.js';
 import { PublisherService } from '../../api/dist/articles/publisher.service.js';
 import { ArticleSchedulerService, GENERATION_CLAIM_SKIP_REASON, isScheduledGenerationJobId } from '../../api/dist/articles/article-scheduler.service.js';
 import { runGeneratingSweep, bullmqQueueInspector } from '../../api/dist/articles/generating-sweeper.js';
+import { failGenerationWithRefund, refundJobAllowanceCharge } from '../../api/dist/articles/allowance-refund.js';
 import { PrismaService } from '../../api/dist/prisma/prisma.service.js';
 import { PlatformDetectorService } from '../../api/dist/sites/platform-detector.service.js';
 import { LlmsFullBuilderService } from '../../api/dist/audit/llms-full-builder.service.js';
@@ -352,13 +353,24 @@ async function bootstrap() {
         // ikinci kez uretime sokabiliyordu. Yalniz uretimdeki (GENERATING /
         // EDITING) yazi: yeniden yazilan YAYINDAKI makale (pivot, kapali dongu)
         // basarisiz yeniden yazimla FAILED olmaz, canli kalir.
-        if (articleId) {
-          const willRetry = !!job && job.attemptsMade + 1 < (job.opts?.attempts ?? 1) && !isPermanentCrawlBlock(err);
-          if (!willRetry) {
-            await services.prisma.article.updateMany({
+        //
+        // Son denemede makale hakki da iade edilir (api articles/allowance-refund.ts): yazi
+        // FAILED olurken bu denemenin hak isareti AYNI islemde iade izine cevrilir ve sayac
+        // bir azalir; supurucu ya da tekrarlanan olay ayni hakki ikinci kez iade edemez.
+        // Kapali dongu guncellemesi (yayindaki yazi GENERATING degil) FAILED olmaz; onun
+        // dusus izi is verisinde, iade is satiri uzerinden.
+        const willRetry = !!job && job.attemptsMade + 1 < (job.opts?.attempts ?? 1) && !isPermanentCrawlBlock(err);
+        if (!willRetry) {
+          let failedNow = false;
+          if (articleId) {
+            const r = await failGenerationWithRefund(services.prisma, {
+              articleId,
               where: { id: articleId, status: { in: ['GENERATING', 'EDITING'] as any } },
-              data: { status: 'FAILED' as any },
-            }).catch(() => {});
+            }).catch(() => null);
+            failedNow = !!r?.failed;
+          }
+          if (!failedNow && job?.id && (job.data as { allowanceCharge?: unknown } | undefined)?.allowanceCharge) {
+            await refundJobAllowanceCharge(services.prisma, { bullJobId: String(job.id) }).catch(() => null);
           }
         }
         throw err;

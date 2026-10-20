@@ -51,6 +51,19 @@ describe('ContentOpportunityService.generateArticle — guncelleme modu (yayinda
     expect(quota.refundArticleAllowance).toHaveBeenCalledTimes(1);
   });
 
+  it('dusus izi is verisinde (yayindaki yazi FAILED olmaz): son denemede hata verirse hak bu izle iade edilir', async () => {
+    const { svc, jobQueue } = build();
+    await svc.generateArticle('s1', 'o1');
+    expect(jobQueue.enqueue.mock.calls[0][0].payload.allowanceCharge).toEqual({ at: expect.any(String), source: 'user_start' });
+  });
+
+  it('is kuyruga girdi ama firsat kaydi yazilamadi: iade YOK (uretim basladi; basarisiz biterse kendi iziyle iade)', async () => {
+    const { svc, prisma, quota } = build();
+    prisma.contentOpportunity.update.mockRejectedValueOnce(new Error('db hatasi'));
+    await expect(svc.generateArticle('s1', 'o1')).rejects.toThrow('db hatasi');
+    expect(quota.refundArticleAllowance).not.toHaveBeenCalled();
+  });
+
   it('is aciklamasi dogru: adres ve ilk yayin tarihi korunur (eski metin "tarih tazelendi" diyordu)', async () => {
     const { svc, jobQueue } = build();
     await svc.generateArticle('s1', 'o1');

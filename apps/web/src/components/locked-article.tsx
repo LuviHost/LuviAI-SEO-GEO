@@ -6,6 +6,7 @@ import { Lock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { PLAN_LOCK_COPY, UPGRADE_HREF, placeholderParagraphs } from '@/lib/plan-lock';
+import type { GenerationLock } from '@/lib/article-allowance';
 import { cn } from '@/lib/utils';
 
 /*
@@ -37,6 +38,34 @@ export function PlanUpgradeButton({ size = 'sm', className }: { size?: 'sm' | 'd
       <Link href={UPGRADE_HREF}>
         <Lock className="h-3.5 w-3.5 mr-1.5" aria-hidden />
         {PLAN_LOCK_COPY.cta}
+      </Link>
+    </Button>
+  );
+}
+
+/**
+ * Makale hakki bitince uretim dugmesinin yerine gecen kilitli dugme (karar:
+ * lib/article-allowance.ts generationLock). Ozgun dugmenin boyutu ve turu korunur,
+ * satir/kart duzeni kaymaz. Tiklaninca istek atilmaz (eskiden 403 donuyordu),
+ * fiyatlandirmaya gider. Neden kilitli oldugu title'da ve ekran okuyucuda.
+ */
+export function LockedGenerateButton({
+  lock,
+  size = 'sm',
+  variant,
+  className,
+}: {
+  lock: Pick<GenerationLock, 'label' | 'href' | 'hint'>;
+  size?: 'sm' | 'default';
+  variant?: 'default' | 'outline';
+  className?: string;
+}) {
+  return (
+    <Button asChild size={size} variant={variant} className={className}>
+      <Link href={lock.href} title={lock.hint ?? undefined}>
+        <Lock className="h-3.5 w-3.5 mr-1.5" aria-hidden />
+        {lock.label}
+        {lock.hint && <span className="sr-only"> — {lock.hint}</span>}
       </Link>
     </Button>
   );

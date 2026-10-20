@@ -97,6 +97,13 @@ export const DUE_SCAN_LIMITS = {
  * scheduleTopic kapasitesi = hak - dusulen (articlesUsedThisMonth) - isaretsiz SCHEDULED
  * yazilar (kullanicinin demo disi TUM sitelerinde; hak hesap basina).
  *
+ * IADE (sahip karari 20.10.2026, allowance-refund.ts): uretim makale cikmadan biterse
+ * (worker'in son denemesi ya da takili uretim supurucusu yaziyi FAILED yapar, uretim hic
+ * baslatilamaz) o denemenin hakki TAM BIR KEZ geri verilir. Bunun icin kullanicinin
+ * baslattigi yeni uretimler de yer tutucuya isaret yazar ('user_start'); iade isareti
+ * siler, yerine agentOutputs.allowanceRefund izini birakir. REVIZE_NEEDED (makale uretildi)
+ * ve takvime geri konan yazi iade almaz. Yeniden deneme ("Simdi uret") hakki yeniden dusurur.
+ *
  * NEDEN (eski kural): takvim uretimi haktan hic dusmuyordu; scheduleTopic takvimde,
  * uretimde ya da onayda bekleyen yazilari kalan hakla karsilastiriyordu. Iki yanlis:
  *  1. Kullanicinin baslattigi ve henuz yayinlanmamis uretim hem sayactan dusmus hem de
@@ -157,26 +164,65 @@ function unchargedPendingWhere(userId: string) {
 export const ALLOWANCE_CHARGE_KEY = 'allowanceCharge';
 
 /**
+ * Iadenin izi: basarisiz uretimin dusulen hakki geri verildiginde hak isareti
+ * (allowanceCharge) SILINIR ve yerine bu anahtar yazilir: { at, chargeAt, source }.
+ * NEDEN tasima (isareti silip iz birakmak): iade kosullu UPDATE'i "isaretin at degeri
+ * hala bu" kosuluna baglidir (allowance-refund.ts); isaret silindigi icin ayni iade
+ * ikinci kez eslesemez ve hasAllowanceCharge iadeden sonra kendiliginden false olur.
+ */
+export const ALLOWANCE_REFUND_KEY = 'allowanceRefund';
+
+/**
  * Isaretin kaynagi: takvim uretiminde dusuldu ('calendar'; deneme hesabinda
  * onboarding'in ilk yazisi da), kullanicinin "Simdi uret"inde dusuldu
- * ('trigger_now') ya da ucretli planda onboarding'in ucretsiz ilk yazisi
- * ('onboarding_free')
+ * ('trigger_now'), kullanicinin baslattigi yeni uretimde dusuldu ('user_start':
+ * Uret, MCP create_article, icerik firsati; kapali dongu guncellemesinde isaret is
+ * verisindedir) ya da ucretli planda onboarding'in ucretsiz ilk yazisi
+ * ('onboarding_free'; hak dusmedigi icin iadesi de yoktur)
  */
-export type AllowanceChargeSource = 'calendar' | 'trigger_now' | 'onboarding_free';
+export type AllowanceChargeSource = 'calendar' | 'trigger_now' | 'user_start' | 'onboarding_free';
 
 function asRecord(v: unknown): Record<string, unknown> {
   return v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
 }
 
+/** Isaretin okunmus hali; yoksa ya da bicim disiysa null */
+export interface AllowanceChargeMark {
+  at: string;
+  source: string;
+}
+
+export function readAllowanceCharge(carrier: unknown): AllowanceChargeMark | null {
+  const mark = asRecord(asRecord(carrier)[ALLOWANCE_CHARGE_KEY]);
+  if (typeof mark.at !== 'string' || mark.at.length === 0) return null;
+  return { at: mark.at, source: typeof mark.source === 'string' ? mark.source : '' };
+}
+
 /** Bu yazinin uretimi makale hakkindan dusuldu mu (ya da hic dusmeyecek mi) */
 export function hasAllowanceCharge(agentOutputs: unknown): boolean {
-  const mark = asRecord(asRecord(agentOutputs)[ALLOWANCE_CHARGE_KEY]);
-  return typeof mark.at === 'string' && mark.at.length > 0;
+  return readAllowanceCharge(agentOutputs) !== null;
 }
 
 /** agentOutputs'a isaret eklenmis kopyasi (diger anahtarlar korunur) */
 export function withAllowanceCharge(agentOutputs: unknown, source: AllowanceChargeSource, at: Date): Record<string, unknown> {
   return { ...asRecord(agentOutputs), [ALLOWANCE_CHARGE_KEY]: { at: at.toISOString(), source } };
+}
+
+/** Iade sonrasi tasiyicinin kopyasi: hak isareti silinir, iade izi yazilir */
+export function withAllowanceRefund(carrier: unknown, at: Date): Record<string, unknown> {
+  const rest = { ...asRecord(carrier) };
+  delete rest[ALLOWANCE_CHARGE_KEY];
+  const charge = readAllowanceCharge(carrier);
+  return {
+    ...rest,
+    [ALLOWANCE_REFUND_KEY]: { at: at.toISOString(), chargeAt: charge?.at ?? null, source: charge?.source ?? null },
+  };
+}
+
+/** Bu tasiyicinin (yazi ya da is verisi) son hakki iade edildi mi */
+export function hasAllowanceRefund(carrier: unknown): boolean {
+  const mark = asRecord(asRecord(carrier)[ALLOWANCE_REFUND_KEY]);
+  return typeof mark.at === 'string' && mark.at.length > 0;
 }
 
 /** Sahiplenip kuyruga atmak icin okunan makale alanlari */
@@ -203,18 +249,21 @@ export type ScheduledDispatchResult =
 /**
  * Uretim isi baslarken sahiplik karari (claimForGeneration). 'quota_exhausted': yazi
  * SCHEDULED idi ve makale hakki dolu; uretilmez, SCHEDULED kalir (tarama hak yenilenince alir).
+ * 'attempt_refunded': yazi FAILED ve bu denemenin hakki iade edildi (allowance-refund.ts);
+ * uretilmez.
  */
-export type GenerationClaim = 'proceed' | 'already_claimed' | 'article_missing' | 'quota_exhausted';
+export type GenerationClaim = 'proceed' | 'already_claimed' | 'article_missing' | 'quota_exhausted' | 'attempt_refunded';
 
 /**
  * Uretim isinin atlama nedeni (worker is sonucuna yazar), sahiplik kararina gore.
  * NEDEN tek tablo: worker 'quota_exhausted'i 'ALREADY_CLAIMED' diye yaziyordu;
  * hakki dolu oldugu icin uretilmeyen yazi is kaydinda "baskasi aldi" gorunuyordu.
  */
-export const GENERATION_CLAIM_SKIP_REASON: Readonly<Record<Exclude<GenerationClaim, 'proceed'>, 'ARTICLE_MISSING' | 'ALREADY_CLAIMED' | 'QUOTA_EXHAUSTED'>> = Object.freeze({
+export const GENERATION_CLAIM_SKIP_REASON: Readonly<Record<Exclude<GenerationClaim, 'proceed'>, 'ARTICLE_MISSING' | 'ALREADY_CLAIMED' | 'QUOTA_EXHAUSTED' | 'ATTEMPT_REFUNDED'>> = Object.freeze({
   article_missing: 'ARTICLE_MISSING',
   already_claimed: 'ALREADY_CLAIMED',
   quota_exhausted: 'QUOTA_EXHAUSTED',
+  attempt_refunded: 'ATTEMPT_REFUNDED',
 });
 
 /**
@@ -609,6 +658,14 @@ export class ArticleSchedulerService {
    * dusmedi; "Simdi uret" hakki is kuyruga girdikten sonra dusurur). Hak doluysa
    * uretilmez, yazi SCHEDULED kalir ('quota_exhausted'). Isaretli yazi
    * (allowanceCharge) ikinci kez dusulmez.
+   *
+   * FAILED ve hakki iade edilmis yazi (agentOutputs.allowanceRefund, hak isareti yok)
+   * URETILMEZ ('attempt_refunded'). NEDEN: iade "bu deneme bitti, uretim olmadi" kaydidir.
+   * Normalde bitmis denemenin isi kalmaz; ama is kuyruga girdigi halde kuyruk cagrisi hata
+   * dondurduyse (enqueue Redis'e ekleyip DB yazamadi) baslatan taraf yer tutucuyu FAILED
+   * yapip hakki iade eder ve is yine de calisir. O is uretirse musteri hem hakkini geri
+   * almis hem makaleyi almis olurdu. Yeniden denemek isteyen "Simdi uret"i kullanir: yazi
+   * GENERATING olur ve hak yeniden duser.
    */
   async claimForGeneration(articleId: unknown): Promise<GenerationClaim> {
     // Yer tutucusuz is: pipeline yeni kayit acar
@@ -620,6 +677,7 @@ export class ArticleSchedulerService {
     // Silinmis yaziya uretim: LLM maliyeti harcanir, sonunda kayit yok diye
     // hata verir ve is iki kez daha denenirdi
     if (!a) return 'article_missing';
+    if (a.status === 'FAILED' && hasAllowanceRefund(a.agentOutputs) && !hasAllowanceCharge(a.agentOutputs)) return 'attempt_refunded';
     if (a.status !== 'SCHEDULED') return 'proceed';
     const userId = a.site?.userId;
     if (!userId) return 'article_missing';

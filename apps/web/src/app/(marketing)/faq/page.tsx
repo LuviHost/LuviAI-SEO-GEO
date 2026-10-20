@@ -44,6 +44,10 @@ import { useT } from '@/lib/i18n';
  *    toplam 2 makale (onboarding'in ilki dahil; ucretli planda ilk yazi
  *    ucretsiz); hakki asan takvim yazilari panelde kilitli (plan-lock.ts) ve
  *    plan yukseltilince uretilir. Yeniden yazim ve ceviri denemede calismaz.
+ *    Makale cikmadan basarisiz biten uretimin hakki TAM BIR KEZ geri verilir
+ *    (articles/allowance-refund.ts: worker'in son denemesi, takili uretim
+ *    supurucusunun FAILED karari, baslatilamayan uretim; ayni hak donemi).
+ *    REVIZE_NEEDED makale uretildigi icin iade almaz; yeniden deneme yeniden duser.
  *  - Madde (6) takili sayfa otopilotu (audit/stuck-page-autopilot.ts):
  *    Profesyonel+ (FEATURE_MIN_PLAN.stuckPages), GSC bagli, akis acik + Tam
  *    otomatik, yalniz RanksUp makaleleri, site basina en fazla 5, haftalik
@@ -118,7 +122,7 @@ const FAQS_TR = [
   },
   {
     q: 'Aylık makale kotamı aşarsam ne olur?',
-    a: 'Yeni makale üretilmez: kendi başlattığın üretimler durur, takvime yeni konu eklenemez ve plan yükseltmen önerilir; takvimde bekleyen makaleler de hakkın yenilenene ya da planını yükseltene kadar bekler. Her makale, üretime alındığı anda hakkından bir kez düşer. Sayaç her takvim ayının başında sıfırlanır. Ücretsiz denemedeki 2 makale hakkı sıfırlanmaz; site eklenirken takvime yerleşen diğer konular panelde kilitli görünür ve planını yükselttiğinde yazılır. Büyüme, Profesyonel ve Ajans planlarını panelden satın alırsın; Kurumsal plan satış ekibiyle, sözleşmeli kurulur.',
+    a: 'Yeni makale üretilmez: kendi başlattığın üretimler durur, takvime yeni konu eklenemez ve plan yükseltmen önerilir; takvimde bekleyen makaleler de hakkın yenilenene ya da planını yükseltene kadar bekler. Her makale, üretime alındığı anda hakkından bir kez düşer; üretim makale çıkmadan başarısız olursa o hak geri verilir (yeniden denediğinde yeniden düşer). Editör onayından geçmeyip revizyon bekleyen makale üretilmiş sayılır. Sayaç her takvim ayının başında sıfırlanır. Ücretsiz denemedeki 2 makale hakkı sıfırlanmaz; site eklenirken takvime yerleşen diğer konular panelde kilitli görünür ve planını yükselttiğinde yazılır. Büyüme, Profesyonel ve Ajans planlarını panelden satın alırsın; Kurumsal plan satış ekibiyle, sözleşmeli kurulur.',
   },
   {
     q: 'Ayda kaç AI görünürlük ölçümü yapabilirim?',
@@ -205,7 +209,7 @@ const FAQS_EN = [
   },
   {
     q: 'What happens if I exceed my monthly article quota?',
-    a: 'No new articles are generated: generations you start yourself stop, you cannot add new topics to the calendar and you are offered a plan upgrade; scheduled articles also wait until your allowance renews or you upgrade. Each article uses your allowance once, when it enters generation. The counter resets at the start of each calendar month. The 2 free trial articles do not reset; the other topics scheduled when your site was added appear locked in the dashboard and are written when you upgrade your plan. You buy the Growth, Professional and Agency plans from the dashboard; the Enterprise plan is set up under contract with our sales team.',
+    a: 'No new articles are generated: generations you start yourself stop, you cannot add new topics to the calendar and you are offered a plan upgrade; scheduled articles also wait until your allowance renews or you upgrade. Each article uses your allowance once, when it enters generation; if the generation fails without producing an article, that allowance is given back (a retry uses it again). An article that was written but awaits revision counts as generated. The counter resets at the start of each calendar month. The 2 free trial articles do not reset; the other topics scheduled when your site was added appear locked in the dashboard and are written when you upgrade your plan. You buy the Growth, Professional and Agency plans from the dashboard; the Enterprise plan is set up under contract with our sales team.',
   },
   {
     q: 'How many AI visibility measurements can I run per month?',

@@ -665,10 +665,18 @@ describe('worker kablolamasi (apps/worker/src/index.ts) — takvim sahiplenmesi'
     expect(handler).not.toMatch(/article\.update\(\{\s*where: \{ id: articleId \},\s*data: \{ status: '(FAILED|SCHEDULED)'/);
   });
 
+  it('son denemede FAILED + makale hakki iadesi tek islemde (allowance-refund); kapali dongu izi is verisinden iade edilir', () => {
+    expect(src).toMatch(/import \{ failGenerationWithRefund, refundJobAllowanceCharge \} from '\.\.\/\.\.\/api\/dist\/articles\/allowance-refund\.js'/);
+    expect(handler).toMatch(/if \(!willRetry\) \{[\s\S]*?failGenerationWithRefund\(services\.prisma, \{[\s\S]*?where: \{ id: articleId, status: \{ in: \['GENERATING', 'EDITING'\]/);
+    expect(handler).toMatch(/if \(!failedNow && job\?\.id && [\s\S]*?allowanceCharge\) \{\s*await refundJobAllowanceCharge\(services\.prisma, \{ bullJobId: String\(job\.id\) \}\)/);
+    // FAILED yazimi iadesiz ayri bir updateMany ile yapilmasin (cift yol = cift ya da kayip iade)
+    expect(handler).not.toMatch(/data: \{ status: 'FAILED' as any \}/);
+  });
+
   it('sahiplik reddinin nedeni is sonucuna dogru yazilir: hak dolu → QUOTA_EXHAUSTED (eskiden ALREADY_CLAIMED)', () => {
     expect(handler).toContain('return { skipped: true, reason: GENERATION_CLAIM_SKIP_REASON[claim] };');
     expect(handler).not.toMatch(/claim === 'article_missing' \? 'ARTICLE_MISSING' : 'ALREADY_CLAIMED'/);
-    expect(GENERATION_CLAIM_SKIP_REASON).toEqual({ article_missing: 'ARTICLE_MISSING', already_claimed: 'ALREADY_CLAIMED', quota_exhausted: 'QUOTA_EXHAUSTED' });
+    expect(GENERATION_CLAIM_SKIP_REASON).toEqual({ article_missing: 'ARTICLE_MISSING', already_claimed: 'ALREADY_CLAIMED', quota_exhausted: 'QUOTA_EXHAUSTED', attempt_refunded: 'ATTEMPT_REFUNDED' });
   });
 
   it('PROCESS_SCHEDULED is verisindeki userId ile yalniz o kullaniciyi tarar (plan yukseltme sonrasi)', () => {

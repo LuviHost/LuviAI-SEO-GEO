@@ -18,7 +18,7 @@ export default function GeoLabPage() {
       {/* Ozet ustte: GEO skoru → takip edilen sorular → arac kutusu */}
       <GeoScoreCard siteId={site.id} />
       <PromptLabPanel siteId={site.id} />
-      <GeoLabPanel siteId={site.id} />
+      <GeoLabPanel siteId={site.id} ownerId={site?.userId} />
     </div>
   );
 }

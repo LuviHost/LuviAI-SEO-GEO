@@ -7,6 +7,7 @@ import { FileText, Sparkles, Lightbulb, Send } from 'lucide-react';
 import { StatusBanner } from '@/components/ui/status-banner';
 import { PlanUpgradeButton } from '@/components/locked-article';
 import { PLAN_LOCK_COPY, scheduledCounts } from '@/lib/plan-lock';
+import { useArticleAllowance } from '@/lib/use-article-allowance';
 import { FilterChip } from '@/components/ui/filter-chip';
 import { SectionHeader } from '@/components/ui/section-header';
 import { api } from '@/lib/api';
@@ -28,6 +29,8 @@ export default function ArticlesPage() {
   const { site, queue, articles, refresh, onboardingMode } = useSiteContext();
   const [running, setRunning] = useState(false);
   const [filter, setFilter] = useState<FilterKey | null>(null);
+  // Hak sitenin sahibinden duser (sunucu site.userId); tablo ayni onbellegi okur
+  const allowance = useArticleAllowance(site?.userId);
 
   const runEngine = async () => {
     setRunning(true);
@@ -107,6 +110,18 @@ export default function ArticlesPage() {
         </StatusBanner>
       )}
 
+      {/* Makale hakki bitti: uretim dugmeleri kilitli. Kilitli takvim yazisi bandi zaten
+          ayni seyi soyluyorsa ikinci bant yok. */}
+      {allowance.locked && counts.locked === 0 && (
+        <StatusBanner
+          tone="info"
+          title="Makale hakkın doldu; yeni üretim için planını yükselt."
+          action={<PlanUpgradeButton />}
+        >
+          {allowance.hint}
+        </StatusBanner>
+      )}
+
       {isFullyEmpty ? (
         <EmptyState
           icon={Sparkles}
@@ -128,6 +143,7 @@ export default function ArticlesPage() {
           queue={queue}
           articles={articles}
           siteId={site.id}
+          ownerId={site?.userId}
           onRefresh={refresh}
           onboardingMode={onboardingMode}
           stateFilter={filter ? FILTER_STATES[filter] : null}

@@ -1,4 +1,5 @@
 import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { JobQueueService } from '../jobs/job-queue.service.js';
 import { QuotaService } from '../billing/quota.service.js';
@@ -6,6 +7,7 @@ import { PipelineService } from './pipeline.service.js';
 import { automationPublishFields } from './publish-approval.js';
 import { loadPlanLockedIds, withPlanLock } from './plan-lock.js';
 import { hasAllowanceCharge, scheduledGenerationJobId, withAllowanceCharge } from './article-scheduler.service.js';
+import { settleUnstartedGeneration } from './allowance-refund.js';
 import {
   agentOutputsWithoutLiveWriteBlocked, articleContentHash, liveEntryFor, siteLiveEntries, statusAfterRetirement, withoutManualUpdateFlag,
 } from './republish-policy.js';
@@ -100,9 +102,13 @@ export class ArticlesService {
     // consumeArticleAllowance). Uretim baslatilamazsa hak geri verilir.
     await this.quota.consumeArticleAllowance(site.userId);
 
+    let placeholderId: string | null = null;
     try {
       // Placeholder Article (GENERATING) — pipeline tamamlandiginda bu kayit doldurulur.
       // Boylece "Uret" tiklanir tiklanmaz makale "Hazirlaniyor" rozetiyle listede gorunur.
+      // Hak isareti ('user_start'): uretim makale cikmadan biterse hak bu isaret
+      // uzerinden TAM BIR KEZ iade edilir (allowance-refund.ts); isaretsiz yazinin
+      // hakki iade edilmez.
       const placeholderSlug = `generating-${Date.now().toString(36)}`;
       const article = await this.prisma.article.create({
         data: {
@@ -112,8 +118,10 @@ export class ArticlesService {
           title: topic,
           status: 'GENERATING' as any,
           language: site.language ?? 'tr',
+          agentOutputs: withAllowanceCharge(null, 'user_start', new Date()) as any,
         },
       });
+      placeholderId = article.id;
 
       const explicitPublish = !!targetIds?.length;
       const job = await this.jobQueue.enqueue({
@@ -136,9 +144,10 @@ export class ArticlesService {
       });
       return { ...job, articleId: article.id };
     } catch (err) {
-      // Uretim baslamadi: hak geri verilir. Yer tutucu acildiysa takili uretim
-      // supurucusu onu FAILED yapar (generating-sweeper.ts); kullanici yeniden dener.
-      await this.quota.refundArticleAllowance(site.userId);
+      // Uretim baslamadi: hak geri verilir. Yer tutucu acildiysa FAILED olur ve iade onun
+      // isaretiyle yapilir (supurucu ayni hakki ikinci kez iade etmesin); kullanici
+      // "Simdi uret" ile yeniden dener.
+      await settleUnstartedGeneration(this.prisma, this.quota, { userId: site.userId, articleId: placeholderId });
       throw err;
     }
   }
@@ -209,7 +218,8 @@ export class ArticlesService {
     // hakki zaten dusulmus yazi (agentOutputs.allowanceCharge) ikinci kez dusmez —
     // takvimin taramasiyla ayni kural (article-scheduler.service hasAllowanceCharge).
     const userId = article.site.user.id;
-    const prepaid = previousStatus === 'SCHEDULED' && hasAllowanceCharge((article as { agentOutputs?: unknown }).agentOutputs);
+    const originalOutputs = (article as { agentOutputs?: unknown }).agentOutputs ?? null;
+    const prepaid = previousStatus === 'SCHEDULED' && hasAllowanceCharge(originalOutputs);
     if (!prepaid) await this.quota.consumeArticleAllowance(userId);
     const refund = async () => { if (!prepaid) await this.quota.refundArticleAllowance(userId); };
 
@@ -256,9 +266,15 @@ export class ArticlesService {
         },
       });
     } catch (err) {
-      // Kuyruga girmedi: sahiplik birakilir, yazi eski durumuna doner, hak geri verilir
+      // Kuyruga girmedi: sahiplik birakilir, yazi eski durumuna doner, hak geri verilir.
+      // Bu cagrinin yazdigi hak isareti de geri alinir (agentOutputs eski hali). NEDEN:
+      // isaret kalirsa hakki geri verilmis SCHEDULED yazi "hakki dusulmus" sayilir ve
+      // tarama onu haktan dusmeden uretirdi (bedava makale).
+      const restore = prepaid
+        ? {}
+        : { agentOutputs: originalOutputs == null ? Prisma.DbNull : (originalOutputs as any) };
       await this.prisma.article
-        .updateMany({ where: { id: article.id, status: 'GENERATING' as any }, data: { status: previousStatus as any } })
+        .updateMany({ where: { id: article.id, status: 'GENERATING' as any }, data: { status: previousStatus as any, ...restore } })
         .catch(() => undefined);
       await refund();
       throw err;
