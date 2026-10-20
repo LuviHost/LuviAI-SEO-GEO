@@ -4,10 +4,13 @@ import { CHECKOUT_STORAGE_KEY } from '@/components/direct-checkout-form';
 import { useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import { toast } from 'sonner';
+import { AlertCircle } from 'lucide-react';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { invalidateEntitlements } from '@/lib/entitlements';
+import { PURCHASE_CONTACT_EMAIL, purchaseState } from '@/lib/checkout-availability';
+import { PENDING_MERCHANT_OID_KEY } from '@/lib/payment-status';
 
 /**
  * Plan verisi ELLE YAZILMAZ — /billing/plans'tan gelir.
@@ -51,15 +54,40 @@ export function UpgradePlanModal({
   const [polling, setPolling] = useState(false);
   const [originalPlan, setOriginalPlan] = useState<string | null>(null);
   const [plans, setPlans] = useState<Plan[]>([]);
+  /**
+   * Satin alma acik mi — PayTR test modunda kapali (lib/checkout-availability.ts).
+   * Eskiden butonlar her durumda acikti; tiklayan musteri API'nin 403 metnini hata
+   * bildirimi olarak goruyordu. pageCheckout: /plans (anonim karar); accountCheckout:
+   * /current (bu hesap; test modunda yonetici acik). Asil kapi API'de (assertCheckoutOpen).
+   */
+  const [pageCheckout, setPageCheckout] = useState<unknown>(null);
+  const [accountCheckout, setAccountCheckout] = useState<unknown>(null);
 
   // Fiyat kartlariyla AYNI kaynak. contactSales planlari (Kurumsal) modalda
   // gosterilmez: kart ile satin alinamiyorlar, satis ekibinden geciyorlar.
   useEffect(() => {
     if (!open) return;
     api.getPlans('tr')
-      .then((r) => setPlans(((r?.plans ?? []) as Plan[]).filter((p) => p.id !== 'trial' && !p.contactSales)))
+      .then((r) => {
+        setPlans(((r?.plans ?? []) as Plan[]).filter((p) => p.id !== 'trial' && !p.contactSales));
+        setPageCheckout(r?.checkout ?? null);
+      })
       .catch(() => { /* fiyat gosterilmez, modal yine acilir */ });
   }, [open]);
+
+  // Hesaba ozel satin alma durumu (fiyat sayfasi ve panel abonelik sayfasiyla ayni uc)
+  const sessionUserId = session?.user?.id;
+  useEffect(() => {
+    if (!open) return;
+    if (!sessionUserId) { setAccountCheckout(null); return; }
+    const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
+    fetch(`${apiBase}/api/billing/users/${sessionUserId}/current`, { credentials: 'include' })
+      .then((r) => r.json())
+      .then((d) => setAccountCheckout(d?.checkout ?? null))
+      .catch(() => setAccountCheckout(null));
+  }, [open, sessionUserId]);
+
+  const purchase = purchaseState({ page: pageCheckout, account: accountCheckout });
 
   // Modal açılınca user'ın mevcut plan'ını cek (degisim algılama icin)
   useEffect(() => {
@@ -85,7 +113,7 @@ export function UpgradePlanModal({
           // Plan degisti → odeme tamamlandi
           clearInterval(interval);
           setPolling(false);
-          toast.success(`Plan yukseltildi! Aylık ${q.articles.limit} makale hakkın oldu.`);
+          toast.success(`Plan yükseltildi! Aylık ${q.articles.limit} makale hakkın oldu.`);
           setIframeUrl(null);
           // Ozellik haklari onbellekte tutuluyor; yukseltmeden sonra
           // temizlenmezse kullanici sert yenileme (F5) yapana kadar odedigi
@@ -94,12 +122,13 @@ export function UpgradePlanModal({
           onSuccess?.();
           onClose();
         }
-      } catch (_e) { /* noop */ }
+      } catch { /* noop */ }
     }, 4000);
     return () => clearInterval(interval);
   }, [iframeUrl, originalPlan, session]);
 
   const subscribe = async (planId: string) => {
+    if (!purchase.open) return; // butonlar zaten kilitli; API de 403 verir
     if (!session?.user?.id) {
       toast.error('Oturum süresi dolmuş, lütfen tekrar giriş yap');
       return;
@@ -122,15 +151,15 @@ export function UpgradePlanModal({
       const data = await res.json();
       // Otomatik yenileme açık: imzalı kart formu → kendi ödeme sayfamız
       if (data.mode === 'direct') {
-        try { sessionStorage.setItem(CHECKOUT_STORAGE_KEY, JSON.stringify(data)); } catch (_e) { /* noop */ }
+        try { sessionStorage.setItem(CHECKOUT_STORAGE_KEY, JSON.stringify(data)); } catch { /* noop */ }
         window.location.href = '/billing/checkout';
         return;
       }
       if (data.iframeUrl) {
         setIframeUrl(data.iframeUrl);
-        // Test mode dev-confirm icin merchantOid'i sakla
+        // Basari sayfasi bu odemenin faturasini siparis numarasiyla bulur (lib/payment-status.ts)
         if (data.merchantOid) {
-          try { localStorage.setItem('luviai-pending-merchantOid', data.merchantOid); } catch (_e) { /* noop */ }
+          try { localStorage.setItem(PENDING_MERCHANT_OID_KEY, data.merchantOid); } catch { /* noop */ }
         }
         toast.info('Ödeme penceresi açıldı');
       } else {
@@ -203,10 +232,30 @@ export function UpgradePlanModal({
                     cycle === 'annual' ? 'bg-brand text-white' : 'text-muted-foreground',
                   )}
                 >
-                  Yıllık <span className="text-[10px] bg-green-500/20 text-green-600 rounded-full px-1.5 py-0.5">-20%</span>
+                  {/* Yillik = 10 ay fiyati (plans.ts annual_usd = monthly_usd * 10), indirim ~%17:
+                      eski "-20%" yanlisti; fiyat sayfasi ve Kullanim Sartlari ile ayni ifade */}
+                  Yıllık <span className="text-[10px] bg-green-500/20 text-green-600 rounded-full px-1.5 py-0.5">2 ay bedava</span>
                 </button>
               </div>
             </div>
+
+            {/* Satin alma kapali (PayTR test modu): planlar gorunur, butonlar kilitli, nedeni
+                API'nin metniyle burada (fiyat sayfasi ve abonelik sayfasiyla ayni) */}
+            {!purchase.open && (
+              <div
+                id="upgrade-purchase-closed"
+                role="status"
+                className="mb-4 flex items-start gap-3 rounded-lg border border-warning/30 bg-warning/5 p-4 text-sm"
+              >
+                <AlertCircle className="h-5 w-5 mt-0.5 shrink-0 text-warning" aria-hidden />
+                <p>
+                  {purchase.message}{' '}
+                  <a href={`mailto:${PURCHASE_CONTACT_EMAIL}`} className="font-medium underline underline-offset-2">
+                    {PURCHASE_CONTACT_EMAIL}
+                  </a>
+                </p>
+              </div>
+            )}
 
             {/* Plans grid */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -245,7 +294,8 @@ export function UpgradePlanModal({
                     <Button
                       className="mt-4 w-full"
                       onClick={() => subscribe(p.id)}
-                      disabled={loadingPlan === p.id}
+                      disabled={loadingPlan === p.id || !purchase.open}
+                      aria-describedby={purchase.open ? undefined : 'upgrade-purchase-closed'}
                       variant={p.popular ? 'default' : 'outline'}
                     >
                       {loadingPlan === p.id ? 'Hazırlanıyor…' : 'Bu Plana Geç'}

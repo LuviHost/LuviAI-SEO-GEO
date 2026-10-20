@@ -7,6 +7,23 @@ import type { PublishPayload, PublishResult } from './base.js';
 import { hasAdapterHostResolver, resolveAdapterHost, socketPort } from './transport.js';
 
 /**
+ * Yayin kaydina yazilan konum: `ftp://${host}/${yol}`. Yalniz KAYIT dizesi normallestirilir;
+ * yukleme yolu (remoteFile) degismez.
+ *
+ * NEDEN: remotePath '/' ile baslamiyorsa ('public_html/blog') adres eskiden
+ * `ftp://${host}${remoteFile}` ile kuruluyordu ve sunucu adi yola yapisiyordu
+ * (`ftp://ftp.site.compublic_html/blog/x.html`): adres ayristirmasi sunucu adini
+ * 'ftp.site.compublic_html' okuyor, klasorun ilk parcasini kaybediyordu (ai-sitemap.service
+ * recordedRemoteDir / fileCopyPublicUrl). Goreli FTP yolu oturumun acildigi dizine goredir;
+ * yukleme yolunun anlami bu yuzden degistirilmez. Kayitta egik cizgiyle baslayan yol zaten
+ * oldugu gibi kalir (`ftp://host/public_html/x.html`); eski yapisik kayitlar ai-sitemap.service
+ * tarafinda eskisi gibi okunur.
+ */
+function recordedFtpUrl(host: unknown, remoteFile: string): string {
+  return `ftp://${host}${remoteFile.startsWith('/') ? '' : '/'}${remoteFile}`;
+}
+
+/**
  * FTP/FTPS — static HTML upload
  * credentials: { host, port?, user, password, secure? }
  * config: { remotePath: '/public_html/blog' }
@@ -22,7 +39,7 @@ export class FtpAdapter extends PublishAdapter {
       const remoteFile = `${remotePath}/${payload.slug}.html`;
       const stream = Readable.from([payload.bodyHtml]);
       await client.uploadFrom(stream, remoteFile);
-      return { ok: true, externalUrl: `ftp://${host}${remoteFile}` };
+      return { ok: true, externalUrl: recordedFtpUrl(host, remoteFile) };
     } catch (err: any) {
       return { ok: false, error: err.message };
     } finally {

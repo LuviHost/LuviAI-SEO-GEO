@@ -250,8 +250,9 @@ Worker SOCIAL_PUBLISH job → SocialPostsService.runPublish
    ↓
 6. AffiliateReferral kaydı oluşur (status: signed_up)
    ↓
-7. User ödeme yapınca PaytrService.recordCommission:
-   - Doğru affiliate'a komisyon yazılır (T1 ve T2 için)
+7. User ödeme yapınca PaytrService.markInvoicePaid → AffiliateService.recordCommission:
+   - Komisyon yalnız doğrudan (T1) davet edenin hesabına yazılır (davet kaydının
+     commissionUntil süresi dolmadıysa); T2 için komisyon yok
    - AffiliateReferral.firstPaidAt set + status: paid
    - Affiliates.totalRevenue + totalCommission update
 ```
@@ -260,8 +261,8 @@ Worker SOCIAL_PUBLISH job → SocialPostsService.runPublish
 
 `/affiliate` sayfası **dark gradient** + **SVG network** + **stagger animasyon**:
 - Merkez 🟠 siz (turuncu, rocket ikonu)
-- T1 düğümler 🔵 (saat 12'den dağılır, gerçek isimle: User.name veya email local)
-- T2 düğümler 🟢 (her biri parentUserId üzerinden T1'e bağlanır)
+- T1 düğümler 🔵 (saat 12'den dağılır; etiket API'nin maskelediği referredLabel: ad, ad yoksa e-postanın @ öncesi; 14 karakterden uzunsa ilk 12 + …; e-posta alan adı hiç gitmez — affiliate/referral-label.ts)
+- T2 düğümler 🟢 (aynı maskeli etiket; her biri parentReferralId — T1 davet kaydının kimliği — üzerinden T1'e bağlanır; yönetici yanıtında parentUserId)
 - **Paid line akan parçacıklar**: sarı, T2 → T1 → siz yönünde
 - Polling 30sn (aktif referans varsa)
 - Background: yıldız particle + floating 💰 emoji
@@ -274,12 +275,19 @@ Worker SOCIAL_PUBLISH job → SocialPostsService.runPublish
 
 ```
 1. Pricing veya Upgrade Modal → POST /api/billing/subscribe
-2. PaytrService.subscribe → Invoice oluşturur (PENDING) + PayTR token
+2. PaytrService.createPaymentToken (BillingController.subscribe çağırır) → Invoice oluşturur (PENDING) + PayTR token
+   (otomatik yenileme açıksa token yerine Direkt API formu: createDirectCheckout)
 3. window.location.href = iframeUrl + localStorage.luviai-pending-merchantOid set
 4. PayTR ödeme tamamlanır
-5. PRODUCTION: PayTR → POST webhook → handleWebhook → invoice PAID + activateSubscription + recordCommission
-6. TEST: Cloudflare webhook bloklayabilir → /billing/success page localStorage'dan merchantOid okuyup
-   POST /api/billing/dev-confirm/:merchantOid çağırır → aynı işi yapar (parite)
+5. PRODUCTION: PayTR → POST /api/billing/webhooks/paytr → handleWebhook → invoice PAID + activateSubscription + recordCommission
+   (bildirim adresi PayTR Mağaza Paneli > Destek & Kurulum > Ayarlar > Bildirim URL Ayarları'nda
+   tanımlıdır; kod bu adresi hiçbir PayTR isteğine koymaz, bunun için ortam değişkeni de yoktur)
+6. TEST MODU (PAYTR_TEST_MODE=1): satın alma ve dev-confirm yalnız yöneticiye açık. Bildirim
+   gelmezse (ör. Cloudflare engeli) /billing/success sayfası, yalnız test modunda satın alması
+   açık olan yönetici hesabında ve fatura PENDING iken, merchantOid ile
+   POST /api/billing/dev-confirm/:merchantOid çağırır → aynı işi yapar (parite). Yönetici
+   olmayan hesap bu uçtan 403 alır; test ödemesinin bildirimi de onun planını açmaz
+   (fatura FAILED, TEST_MODE).
 ```
 
 ### Plan Quota
@@ -382,7 +390,7 @@ pm2 logs --lines 50
 | **DB** | DATABASE_URL (mysql://...) |
 | **Redis** | REDIS_URL |
 | **Auth** | NEXTAUTH_SECRET, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET |
-| **PayTR** | PAYTR_MERCHANT_ID, PAYTR_MERCHANT_KEY, PAYTR_MERCHANT_SALT, PAYTR_TEST_MODE, PAYTR_NOTIFICATION_URL=`/api/billing/webhooks/paytr` |
+| **PayTR** | PAYTR_MERCHANT_ID, PAYTR_MERCHANT_KEY, PAYTR_MERCHANT_SALT, PAYTR_TEST_MODE, PAYTR_OK_URL, PAYTR_FAIL_URL, PAYTR_RECURRING_ENABLED, PAYTR_SERVER_IP. Bildirim adresi için değişken yok: PayTR Mağaza Paneli > Destek & Kurulum > Ayarlar > Bildirim URL Ayarları'nda `https://api.ranksup.ai/api/billing/webhooks/paytr` tanımlanır |
 | **AI Pool** | ANTHROPIC_API_KEY, OPENAI_API_KEY, GOOGLE_AI_API_KEY, XAI_API_KEY, DEEPSEEK_API_KEY |
 | **Video** | PEXELS_API_KEY (Slideshow), VEO/RUNWAY/HEYGEN/SORA opsiyonel |
 | **Sosyal** | LINKEDIN_*, TWITTER_*, YOUTUBE_* (alias Google), TIKTOK_*, TIKTOK_DEFAULT_PRIVACY |

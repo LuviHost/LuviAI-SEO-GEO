@@ -10,9 +10,18 @@ import { fontVariables } from '@/lib/fonts';
 
 // Microsoft Clarity project ID — heatmap + session recording.
 // Default to RanksUp production project; .env'den override edilebilir (staging için ayrı ID).
+// Bos dize Clarity'yi kapatir.
 const CLARITY_PROJECT_ID = process.env.NEXT_PUBLIC_CLARITY_PROJECT_ID ?? 'x8l5as16yd';
 
 // Google Tag Manager container ID — analytics + remarketing + conversion tracking.
+// Bos dize GTM'i kapatir.
+//
+// NEDEN burada yuklenmiyor: GTM ve Clarity eskiden her sayfa goruntulemesinde
+// onaysiz yukleniyordu; cerez bandindaki "Reddet" hicbir seyi degistirmiyordu.
+// Artik ikisi de YALNIZ ziyaretci banttan "Kabul et" dediginde CookieConsent
+// tarafindan yuklenir (lib/consent.ts: KVKK cerez rehberi 7 ve 7.3, e-Gizlilik
+// 2002/58/EC m. 5(3), Google Consent Mode temel kip). Kimlikler yalniz bu
+// bilesene gecer.
 const GTM_ID = process.env.NEXT_PUBLIC_GTM_ID ?? 'GTM-TSH8KWCC';
 
 const SITE_URL = 'https://ranksup.ai';
@@ -216,17 +225,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="tr" suppressHydrationWarning className={fontVariables}>
       <head>
-        {/* Google Tag Manager — GA4, conversion, remarketing. En üst konumda (head). */}
-        {GTM_ID && (
-          <Script id="gtm-head" strategy="afterInteractive">
-            {`(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
-              new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
-              j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
-              'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
-              })(window,document,'script','dataLayer','${GTM_ID}');`}
-          </Script>
-        )}
-        {/* RanksUp AI Crawler Tracker — kendi sitemizi izle (GPTBot, ClaudeBot, PerplexityBot, vs.) */}
+        {/* RanksUp AI tarayici sayaci — kendi sitemizi izler (GPTBot, ClaudeBot, PerplexityBot, vs.).
+            Onaydan bagimsiz yuklenir cunku cerez yazmaz, tarayicida bir sey saklamaz ve kisisel
+            veri tutmaz: betik (apps/api/src/audit/tracker.controller.ts buildTrackerJs) yalniz
+            kullanici ajani AI botu ya da yonlendiren bir AI asistani ise 1x1 beacon atar; sunucu
+            gunluk toplam (bot) ve asistan basina en cok acilan 10 sayfa adresini yazar, IP
+            yalniz bellekte hiz siniri icindir (crawler-tracking.middleware.ts, ai-referrer.service.ts).
+            Gizlilik sayfasi (privacy/page.tsx) bunu boyle anlatir. */}
         <Script
           id="luviai-tracker"
           src="https://ranksup.ai/api/tracker.js?site=cmp6036790001artdfumwec57"
@@ -238,32 +243,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body className="font-sans antialiased min-h-screen bg-background text-foreground">
-        {/* GTM noscript fallback — body açılışının hemen sonrası (resmi öneri) */}
-        {GTM_ID && (
-          <noscript>
-            <iframe
-              src={`https://www.googletagmanager.com/ns.html?id=${GTM_ID}`}
-              height="0"
-              width="0"
-              style={{ display: 'none', visibility: 'hidden' }}
-            />
-          </noscript>
-        )}
-        {/* Microsoft Clarity — session replay + heatmap. afterInteractive: ana içerikten sonra. */}
-        {CLARITY_PROJECT_ID && (
-          <Script id="ms-clarity" strategy="afterInteractive">
-            {`(function(c,l,a,r,i,t,y){
-              c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};
-              t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;
-              y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);
-            })(window, document, "clarity", "script", "${CLARITY_PROJECT_ID}");`}
-          </Script>
-        )}
+        {/* GTM noscript iframe'i BILEREK yok: JavaScript kapaliyken bant calismaz, yani onay
+            alinamaz; ns.html iframe'i ise container'in noscript etiketlerini onaysiz atardi. */}
         <RefTracker />
         <AppSessionProvider>
           <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
             {children}
-            <CookieConsent />
+            <CookieConsent gtmId={GTM_ID} clarityId={CLARITY_PROJECT_ID} />
             <Toaster position="top-right" richColors closeButton />
           </ThemeProvider>
         </AppSessionProvider>

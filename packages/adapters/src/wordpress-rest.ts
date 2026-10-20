@@ -137,7 +137,20 @@ export class WordPressRestAdapter extends PublishAdapter {
     return { content, featuredMediaId };
   }
 
-  async publish(payload: PublishPayload): Promise<PublishResult> {
+  /**
+   * Yeni yazi olusturur (POST /wp/v2/posts). Sonucta `status`: WordPress'in KAYDETTIGI
+   * durum (istenen config.postStatus degil). Yayinci bunu yayin kaydina yazar; "kayitli ?p=
+   * adresi herkese acik mi" karari (canlilik denetimi, site haritasi) hedefin sonradan
+   * degisebilen ayarina degil bu bilgiye bakar. Iki kaynak (2026-10-18'de okundu):
+   *  - developer.wordpress.org/rest-api/reference/posts — "status: A named status for the
+   *    post ... Context: view, edit ... One of: publish, future, draft, pending, private".
+   *  - wordpress-develop class-wp-rest-posts-controller.php create_item: yazi eklendikten
+   *    sonra "$post = get_post( $post_id );", "$request->set_param( 'context', 'edit' );",
+   *    prepare_item_for_response ve 201; prepare_item_for_response
+   *    "$data['status'] = $post->post_status;". Istenen durum degisebilir: bilinmeyen durum
+   *    'draft' olur (handle_status_param), gelecek tarihli 'publish' wp_insert_post'ta 'future' olur.
+   */
+  async publish(payload: PublishPayload): Promise<PublishResult & Pick<UpdateResult, 'status'>> {
     const { username, appPassword } = this.credentials;
     const siteUrl = this.baseUrl;
     if (!siteUrl || !username || !appPassword) {
@@ -175,7 +188,15 @@ export class WordPressRestAdapter extends PublishAdapter {
     // Olusturma yanitindaki modified_gmt: sonraki yerinde guncelleme "yazi o
     // zamandan beri WordPress'te degisti mi" diye bununla karsilastirir
     const remoteModifiedAt = wordPressGmtToIso(data?.modified_gmt);
-    return { ok: true, externalUrl: data.link, externalId: String(data.id), ...(remoteModifiedAt ? { remoteModifiedAt } : {}) };
+    // Olusan yazinin WordPress'teki durumu (yanitta yoksa bilinmiyor: alan hic yazilmaz)
+    const status = typeof data?.status === 'string' && data.status ? data.status : undefined;
+    return {
+      ok: true,
+      externalUrl: data.link,
+      externalId: String(data.id),
+      ...(remoteModifiedAt ? { remoteModifiedAt } : {}),
+      ...(status ? { status } : {}),
+    };
   }
 
   /**

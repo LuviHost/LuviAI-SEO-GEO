@@ -27,6 +27,12 @@ import { cn } from '@/lib/utils';
  *  - Davet cerezi 60 gun (ref-tracker.tsx).
  *  - Otomatik odeme altyapisi YOK → "aylik otomatik IBAN/Papara" vaadi kaldirildi.
  *  - Sabit "₺1.169 / Pro davet" kaldirildi: fiyat USD bazli, TL tutari kura gore degisir.
+ *
+ * KVKK (veri minimizasyonu): API ortaga davetlinin tam adini ve e-postasini GONDERMEZ;
+ * yalniz kisaltilmis etiketi (referredLabel, api affiliate/referral-label.ts) ve 2. seviye
+ * icin ust dugumun davet kaydi kimligini (parentReferralId) yollar. refLabel'in kisaltmasi
+ * API'ninkiyle ayni ve idempotent: etiket ikinci kez bozulmaz. Tam ad / e-posta / kullanici
+ * kimligi alanlari yalniz yoneticinin yanitinda gelir (eski bicim); asagidaki yedek yollar onun icin.
  */
 
 const W = 900;
@@ -38,6 +44,11 @@ const TIER2_R = 250;
 
 type Referral = {
   id: string;
+  /** API'nin maskeledigi etiket (ortagin yaniti) */
+  referredLabel?: string | null;
+  /** 2. seviye: ust dugumun (1. seviye) davet kaydi kimligi */
+  parentReferralId?: string | null;
+  // Yalniz yoneticinin yanitinda (eski bicim)
   referredUserId?: string | null;
   referredName?: string | null;
   referredEmail?: string | null;
@@ -321,11 +332,13 @@ function NetworkGraph({ tier1, tier2 }: { tier1: Referral[]; tier2: Referral[] }
     return { x: CX + Math.cos(a) * TIER1_R, y: CY + Math.sin(a) * TIER1_R, ref: r };
   }), [tier1]);
 
-  // 2. seviye: parentUserId ile 1. seviyedeki dugume baglanir
+  // 2. seviye: parentReferralId ile 1. seviyedeki dugume baglanir (yonetici yanitinda parentUserId)
   const tier2Pos = useMemo(() => {
     if (tier1Pos.length === 0) return [];
     return tier2.map((r, i) => {
-      const idx = tier1Pos.findIndex((p) => p.ref.referredUserId === r.parentUserId);
+      const idx = tier1Pos.findIndex((p) => (r.parentReferralId
+        ? p.ref.id === r.parentReferralId
+        : !!r.parentUserId && p.ref.referredUserId === r.parentUserId));
       const parentIdx = idx >= 0 ? idx : i % tier1Pos.length;
       const parent = tier1Pos[parentIdx];
       const a = Math.atan2(parent.y - CY, parent.x - CX) + ((i % 3) - 1) * 0.35;
@@ -392,7 +405,9 @@ function NetworkGraph({ tier1, tier2 }: { tier1: Referral[]; tier2: Referral[] }
 }
 
 function refLabel(r: Referral, idx: number): string {
+  // api affiliate/referral-label.ts shortenReferralLabel ile ayni kural; idempotent
   const kisalt = (s: string) => (s.length > 14 ? s.slice(0, 12) + '…' : s);
+  if (r.referredLabel?.trim()) return kisalt(r.referredLabel.trim());
   if (r.referredName?.trim()) return kisalt(r.referredName.trim());
   if (r.referredEmail) {
     const at = r.referredEmail.indexOf('@');

@@ -7,8 +7,9 @@ import { useSession } from 'next-auth/react';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { useT } from '@/lib/i18n';
+import { PURCHASE_CONTACT_EMAIL, purchaseState } from '@/lib/checkout-availability';
 import { Button } from '@/components/ui/button';
-import { CheckCircle2, Sparkles, ShieldCheck, ArrowRight, Star } from 'lucide-react';
+import { CheckCircle2, Sparkles, ShieldCheck, ArrowRight, Star, AlertCircle } from 'lucide-react';
 
 type GrandfatheringInfo = { isGrandfathered: boolean; grandfatheredUntil?: string; legacyMonthlyPriceTry?: number };
 
@@ -22,6 +23,13 @@ export default function PricingPage() {
   const [cycle, setCycle] = useState<'monthly' | 'annual'>('monthly');
   const [loading, setLoading] = useState<string | null>(null);
   const [grandfathering, setGrandfathering] = useState<GrandfatheringInfo | null>(null);
+  /**
+   * Satin alma acik mi — PayTR test modunda kapali (lib/checkout-availability.ts).
+   * pageCheckout: /plans (anonim karar, metin sayfanin dilinde); accountCheckout:
+   * /current (oturumdaki hesap; test modunda yonetici acik). Asil kapi API'de.
+   */
+  const [pageCheckout, setPageCheckout] = useState<unknown>(null);
+  const [accountCheckout, setAccountCheckout] = useState<unknown>(null);
 
   // Plan listesi + gunun kuru.
   // NOT: bu fetch 0db5a1c'de video kredi paketi cagrisiyla ayni useEffect'te
@@ -31,18 +39,20 @@ export default function PricingPage() {
       .then((res) => {
         setPlans(res.plans);
         setFx(res.fx);
+        setPageCheckout(res.checkout ?? null);
       })
       .catch(() => toast.error(t('common.error')));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [locale]);
 
-  // Grandfathering durumunu cek (sadece logged-in user icin)
+  // Grandfathering + hesaba ozel satin alma durumu (sadece logged-in user icin)
   useEffect(() => {
-    if (!session?.user?.id) return;
+    if (!session?.user?.id) { setAccountCheckout(null); return; }
     const apiBase = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
     fetch(`${apiBase}/api/billing/users/${session.user.id}/current`, { credentials: 'include' })
       .then((r) => r.json())
       .then((d) => {
+        setAccountCheckout(d?.checkout ?? null);
         if (d?.grandfatheredUntil) {
           setGrandfathering({
             isGrandfathered: true,
@@ -55,8 +65,11 @@ export default function PricingPage() {
   }, [session?.user?.id]);
 
 
+  const purchase = purchaseState({ page: pageCheckout, account: accountCheckout });
+
   const subscribe = async (planId: string) => {
     if (status === 'loading') return;
+    if (!purchase.open) return; // butonlar zaten kilitli; API de 403 verir
 
     if (!session?.user?.id) {
       toast.message('Devam etmek için giriş yapın');
@@ -87,8 +100,11 @@ export default function PricingPage() {
         return;
       }
       if (data.iframeUrl) {
-        // Test mode dev-confirm için merchantOid'i sakla; success sayfası bunu okuyup
-        // PayTR webhook gelmeden invoice'ı PAID + plan'ı upgrade eder.
+        // merchantOid success sayfasi icin saklanir: sayfa bu odemenin faturasini bulup
+        // gercek durumu (dogrulaniyor / aktif / tamamlanmadi) gosterir (lib/payment-status.ts).
+        // PayTR bildirimi gelmeden faturayi PAID yapan dev-confirm YALNIZ test modundaki
+        // yoneticide cagrilir (mayDevConfirm: checkout {open, testMode} + PENDING fatura);
+        // sunucu da yalniz ona izin verir (api paytr.service assertCheckoutOpen).
         if (data.merchantOid) {
           try { localStorage.setItem('luviai-pending-merchantOid', data.merchantOid); } catch { /* noop */ }
         }
@@ -202,6 +218,24 @@ export default function PricingPage() {
           </p>
         )}
 
+        {/* Satin alma kapali (PayTR test modu): butonlar kilitli, nedeni burada.
+            Metin API'den (dile gore); Kurumsal'in iletisim butonu etkilenmez. */}
+        {!purchase.open && (
+          <div
+            id="purchase-closed"
+            role="status"
+            className="mb-8 max-w-3xl mx-auto flex items-start gap-3 rounded-xl border border-warning/30 bg-warning/5 p-4 text-sm"
+          >
+            <AlertCircle className="h-5 w-5 mt-0.5 shrink-0 text-warning" aria-hidden />
+            <p>
+              {purchase.message}{' '}
+              <a href={`mailto:${PURCHASE_CONTACT_EMAIL}`} className="font-medium underline underline-offset-2">
+                {PURCHASE_CONTACT_EMAIL}
+              </a>
+            </p>
+          </div>
+        )}
+
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
           {realPlans.map((p) => {
             // Fiyat USD kanonik; TL karsiligi backend'de gunun TCMB kuruyla hesaplandi
@@ -276,7 +310,8 @@ export default function PricingPage() {
                 ) : (
                   <Button
                     onClick={() => subscribe(p.id)}
-                    disabled={loading === p.id}
+                    disabled={loading === p.id || !purchase.open}
+                    aria-describedby={purchase.open ? undefined : 'purchase-closed'}
                     className={`w-full ${
                       highlighted
                         ? 'bg-gradient-to-br from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white shadow-md'

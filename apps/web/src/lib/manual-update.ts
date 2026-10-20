@@ -41,6 +41,49 @@ function emekliKopya(entry: unknown): boolean {
   return (typeof e.trashedAt === 'string' && e.trashedAt.trim() !== '') || (typeof e.missingAt === 'string' && e.missingAt.trim() !== '');
 }
 
+/**
+ * Canlilik denetiminin emekliye ayirdigi kopyanin nedeni (kayitta missingReason) — api
+ * articles/republish-policy.ts LIVENESS_MISSING_REASON ile ayni (spec kaynak metinle
+ * karsilastirir). Denetim (api articles/published-liveness.service.ts) kopyanin herkese
+ * acik adresini gunde bir yoklar; adres yaklasik bir gun arayla iki kez 404/410 verirse
+ * ve o sirada sitenin ana sayfasi aciliyorsa kopyayi yayinda saymaz.
+ */
+export const LIVENESS_MISSING_REASON = 'public_url_gone';
+
+/** Kopya canlilik denetimiyle mi emekliye ayrildi (cop kutusunda gorulen kopya degil) */
+export function missingByLivenessCheck(entry: unknown): boolean {
+  if (!entry || typeof entry !== 'object') return false;
+  const e = entry as { missingAt?: unknown; missingReason?: unknown; trashedAt?: unknown };
+  const dolu = (v: unknown) => typeof v === 'string' && v.trim() !== '';
+  return dolu(e.missingAt) && !dolu(e.trashedAt) && e.missingReason === LIVENESS_MISSING_REASON;
+}
+
+/**
+ * Hedefte artik bulunmayan kopyanin (missingAt, sozlesme D3) Yayin Gecmisi notu. when:
+ * missingAt'in panelde gosterilen hali. Iki kaynak:
+ *  - yayinci: yerinde guncelleme kayitli yaziyi bulamadi ve adresi de 404/410 verdi;
+ *  - canlilik denetimi (missingByLivenessCheck): adres iki denetimde 404/410 verdi.
+ *    WordPress'te bu, yazinin silindigi kadar taslaga alindigi ya da cop kutusuna
+ *    tasindigi anlamina da gelebilir: yalniz 'publish' durumundaki yazi herkese aciktir,
+ *    taslak giris yapmamis ziyaretciye 404 verir (kaynaklar, 2026-10-18'de okundu:
+ *    wordpress.org/documentation/article/post-status "Publish: Viewable by everyone";
+ *    wpshout.com/quick-guides/selectively-share-draft-wordpress "your site's 404 page").
+ *    RanksUp WordPress yazisini yerinde gunceller ve durumunu degistirmez (adaptor update:
+ *    "adres, durum, yazar, tarih, kategori degismez"); cop kutusundaki yaziya hic yazmaz.
+ *    Taslaktaki yaziyi "bu hedefi secip yayinla" yayina almaz — metin bunu soyler,
+ *    musteri bos yere yeniden yayinlamasin.
+ */
+export function missingCopyNote(entry: unknown, opts: { when: string; targetType?: string | null }): string {
+  if (!missingByLivenessCheck(entry)) {
+    return `Bu kopya ${opts.when} tarihinde yayın hedefinde bulunamadı (silinmiş olabilir); RanksUp onu yayında saymıyor ve kendiliğinden yeniden oluşturmaz. Yazıyı orada yeniden yayınlamak istersen bu hedefi seçip yayınla.`;
+  }
+  const base = `Bu kopyanın adresi yaklaşık bir gün arayla yapılan iki kontrolde de 404 verdi (sitenin ana sayfası açılırken); sayfa sitenden kaldırılmış görünüyor. RanksUp bu kopyayı ${opts.when} tarihinden beri yayında saymıyor ve kendiliğinden yeniden oluşturmaz. Yazıyı orada yeniden yayınlamak istersen bu hedefi seçip yayınla.`;
+  const type = typeof opts.targetType === 'string' ? opts.targetType : '';
+  return UPDATE_TARGET_TYPES.has(type)
+    ? `${base} Yazıyı WordPress’te taslağa aldıysan ya da çöp kutusuna taşıdıysan önce orada yayına al ya da geri yükle: RanksUp WordPress’teki yazıyı yerinde günceller, durumunu değiştirmez.`
+    : base;
+}
+
 /** publishedTo'da elle guncelleme bekleyen (emekli olmayan) kayit sayisi (gecersiz girdi 0) */
 export function pendingManualUpdateCount(publishedTo: unknown): number {
   return Array.isArray(publishedTo) ? publishedTo.filter((e) => isManualUpdatePending(e) && !emekliKopya(e)).length : 0;

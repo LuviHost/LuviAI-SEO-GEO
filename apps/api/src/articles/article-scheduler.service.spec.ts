@@ -6,6 +6,7 @@ import {
 } from './article-scheduler.service.js';
 import { findPlan } from '../billing/plans.js';
 import { QuotaService } from '../billing/quota.service.js';
+import { statusAfterRetirement } from './republish-policy.js';
 
 /**
  * Takvim — yayin onayi modu, akis durdurma ve kiraci izolasyonu.
@@ -664,5 +665,112 @@ describe('takvim metinleri — eski "deneme hesabi paket bekler" iddiasi', () =>
     expect(ctx.prisma.article.create.mock.calls.map((c: any) => c[0].data.status)).toEqual(['GENERATING', 'SCHEDULED', 'SCHEDULED']);
     expect(quota.checkArticleQuota).not.toHaveBeenCalled();
     expect(quota.incrementArticleUsage).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * rv18 F5 — sitedeki son kopyasi kaldirilan yazi (canlilik denetimi, cop kutusu / silinmis
+ * kopya, "bu kaydi unut") statusAfterRetirement ile READY_TO_PUBLISH olur, publishedAt'i
+ * kalir. Eskiden scheduleTopic her READY_TO_PUBLISH'i "onayda bekleyen" sayip kalan hakla
+ * karsilastiriyordu: musterinin kaldirdigi yazilar takvime yeni konu eklemeyi 403'le kesiyor,
+ * takvimden de cikarilamiyor (unscheduleArticle yalniz SCHEDULED alir) ve takvim listesinde
+ * gorunuyordu. Yayindaki yazinin onay bekleyen yeniden yazimi da yeni yazi degil.
+ * Sorgu kosulu bellek ici tabloda GERCEK anlamiyla calistirilir (publishedAt dahil); taninmayan
+ * suzgec anahtari hata verir, sessizce yok sayilip sahte sonuc uretmez.
+ */
+describe('rv18 F5 — daha once yayinlanmis yazi kalan hakki tuketmez ve takvimde listelenmez', () => {
+  type Row = { id: string; siteId: string; status: string; publishedAt: Date | null; scheduledAt: Date | null; publishedTo?: unknown };
+
+  // where degerlendirici: siteId, status (dize ya da { in }), publishedAt (null ya da { not: null })
+  const matches = (r: Row, where: Record<string, any>): boolean => Object.entries(where).every(([key, cond]) => {
+    if (key === 'siteId') return r.siteId === cond;
+    if (key === 'status') {
+      if (typeof cond === 'string') return r.status === cond;
+      if (Array.isArray(cond?.in)) return cond.in.includes(r.status);
+    }
+    if (key === 'publishedAt') {
+      if (cond === null) return r.publishedAt === null;
+      if (cond && typeof cond === 'object' && 'not' in cond && cond.not === null) return r.publishedAt !== null;
+    }
+    throw new Error(`testin desteklemedigi suzgec: ${key}=${JSON.stringify(cond)}`);
+  });
+
+  const kur = (rows: Row[], remaining: number) => {
+    const prisma = {
+      site: { findUniqueOrThrow: vi.fn(async () => SITE()) },
+      article: {
+        count: vi.fn(async ({ where }: { where: Record<string, any> }) => rows.filter((r) => matches(r, where)).length),
+        findMany: vi.fn(async ({ where, select, take }: { where: Record<string, any>; select?: Record<string, boolean>; take?: number }) => {
+          const hit = rows.filter((r) => matches(r, where))
+            .sort((a, b) => (a.scheduledAt?.getTime() ?? 0) - (b.scheduledAt?.getTime() ?? 0));
+          const picked = select
+            ? hit.map((r) => Object.fromEntries(Object.keys(select).filter((k) => select[k]).map((k) => [k, (r as any)[k]])))
+            : hit;
+          return typeof take === 'number' ? picked.slice(0, take) : picked;
+        }),
+        create: vi.fn(async ({ data }: any) => ({ id: 'a-new', ...data })),
+      },
+    };
+    const jobQueue = { enqueue: vi.fn(async () => ({ dbJobId: 'j1', bullJobId: 'b1' })), removeJob: vi.fn(async () => true) };
+    const quota = { checkArticleQuota: vi.fn(async () => ({ allowed: true, remaining, limit: 15 })) };
+    return { svc: new ArticleSchedulerService(prisma as any, jobQueue as any, quota as any), prisma };
+  };
+
+  // Canlilik denetiminin emekliye ayirdigi son site kopyasi (paylasilan sozlesme D3: missingAt + missingReason)
+  const retired = (n: number): Row => {
+    const publishedTo = [{
+      targetId: 'wp', targetType: 'WORDPRESS_REST', ok: true, externalId: String(40 + n), externalUrl: `https://isgetkinlikleri.com/yazi-${n}/`,
+      publishedAt: '2026-09-01T08:00:00.000Z', updatedAt: '2026-09-01T08:00:00.000Z',
+      missingAt: '2026-10-20T02:20:00.000Z', missingReason: 'public_url_gone',
+    }];
+    // Durum GERCEK kuraldan: yayinci, "bu kaydi unut" ve canlilik denetimi ayni yardimciyi kullanir
+    const status = statusAfterRetirement('PUBLISHED', publishedTo, () => 'WORDPRESS_REST');
+    return { id: `r${n}`, siteId: 's1', status, publishedAt: new Date('2026-09-01T08:00:00Z'), scheduledAt: null, publishedTo };
+  };
+  // Yayindaki yazinin onay bekleyen yeniden yazimi: sitede eski metin canli, yeni metin onayda
+  const liveRewrite: Row = {
+    id: 'lr', siteId: 's1', status: 'READY_TO_PUBLISH', publishedAt: new Date('2026-08-01T08:00:00Z'), scheduledAt: null,
+    publishedTo: [{ targetId: 'wp', targetType: 'WORDPRESS_REST', ok: true, externalId: '7', externalUrl: 'https://isgetkinlikleri.com/canli/', updatedAt: '2026-08-01T08:00:00.000Z' }],
+  };
+  const fresh = (id: string, status: string, day: number, siteId = 's1'): Row => ({
+    id, siteId, status, publishedAt: null, scheduledAt: new Date(Date.UTC(2026, 10, day, 10)),
+  });
+
+  it('kaldirilan yazilar READY_TO_PUBLISH olur ama "onayda bekleyen" sayilmaz: kalan hakki 5 olan musteri yeni konu ekleyebilir', async () => {
+    const rows = [1, 2, 3, 4, 5].map(retired);
+    expect(rows.map((r) => r.status)).toEqual(Array(5).fill('READY_TO_PUBLISH'));
+    const t = kur(rows, 5);
+    await expect(t.svc.scheduleTopic('s1', { topic: 'Yeni konu', scheduledAt: AT }))
+      .resolves.toMatchObject({ id: 'a-new', status: 'SCHEDULED', topic: 'Yeni konu' });
+    expect(t.prisma.article.create).toHaveBeenCalledTimes(1);
+  });
+
+  it('yeniden yazimi onay bekleyen yayindaki yazi da yeni yazi degil: son kalan hak takvime gider', async () => {
+    const t = kur([liveRewrite, retired(1)], 1);
+    await expect(t.svc.scheduleTopic('s1', { topic: 'Yeni konu', scheduledAt: AT })).resolves.toMatchObject({ id: 'a-new' });
+    expect(t.prisma.article.create).toHaveBeenCalledTimes(1);
+  });
+
+  it('hic yayinlanmamis bekleyen yazilar eskisi gibi sayilir (baska sitenin yazisi sayilmaz); metin yalniz onlari sayar', async () => {
+    const rows = [
+      ...[1, 2, 3].map(retired), liveRewrite,
+      fresh('n1', 'SCHEDULED', 3), fresh('n2', 'GENERATING', 4), fresh('n3', 'EDITING', 5), fresh('n4', 'READY_TO_PUBLISH', 6),
+      fresh('x1', 'SCHEDULED', 7, 's2'),
+    ];
+    const t = kur(rows, 4);
+    const err = await t.svc.scheduleTopic('s1', { topic: 'Yeni konu', scheduledAt: AT }).catch((e) => e);
+    expect(err).toBeInstanceOf(ForbiddenException);
+    expect(err.message).toBe(
+      'Kalan makale hakkın 4; takvimde, üretimde ya da onayda bekleyen 4 yazı var. '
+      + 'Yeni yazı eklemek için bekleyen yazıları yayınla ya da takvimden çıkar; daha fazlası için planını yükseltebilirsin.',
+    );
+    expect(t.prisma.article.create).not.toHaveBeenCalled();
+  });
+
+  it('takvim listesi kaldirilan yaziyi ve onay bekleyen yeniden yazimi gostermez; hic yayinlanmamislar vade sirasiyla kalir', async () => {
+    const rows = [retired(1), liveRewrite, fresh('n2', 'READY_TO_PUBLISH', 9), fresh('n1', 'SCHEDULED', 2), fresh('x1', 'SCHEDULED', 1, 's2')];
+    const t = kur(rows, 10);
+    const list = await t.svc.listScheduledForSite('s1');
+    expect(list.map((a: any) => a.id)).toEqual(['n1', 'n2']);
   });
 });

@@ -1,4 +1,4 @@
-import { Injectable, Logger, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException, ForbiddenException } from '@nestjs/common';
 import { createHmac } from 'node:crypto';
 import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -11,15 +11,80 @@ import { RENEWAL_MAX_ATTEMPTS } from './renewal-policy.js';
 import { capInvoiceDescription, failedInvoiceDescription } from './invoice-description.js';
 
 /**
- * PayTR iframe API + webhook entegrasyonu.
+ * PayTR TEST MODU — satin alma yalniz yoneticiye acik.
+ *
+ * NEDEN: uretim PAYTR_TEST_MODE=1 ile calisiyordu. Test modunda PayTR odeme
+ * sayfasi herkesce bilinen test kartini kendisi doldurur ve basarili bildirim
+ * gonderir; markInvoicePaid de plani aciyordu. Yani deneme kullanicisi tek
+ * kurus odemeden ucretli plan alabiliyordu. Dogrulanan PayTR davranisi
+ * (dev.paytr.com, 18.10.2026):
+ *  - iframe-api/iframe-api-1-adim: test_mode "Mağaza canlı modda iken test
+ *    işlem yapmak için 1 olarak gönderilebilir" (0 veya 1).
+ *  - direkt-api/test-kart-bilgileri: "iFrame API ödeme yönteminde test kart
+ *    bilgileri otomatik olarak gelmektedir"; Direkt API icin test kartlari
+ *    (4355 0843 5508 4358 vb.) sayfada acikca yayinli.
+ *  - home/iframe-api-entegrasyon-sureci: iFrame test odemesinde "test kart
+ *    bilgisinin tarafınızdan değiştirilmesine veya girilmesine ihtiyaç
+ *    bulunmamaktadır" — yalniz "Ödeme Yap" ve 3D test sayfasinda "Gönder".
+ *  - home/iframe-api-entegrasyon-sureci ve home/direkt-api-entegrasyon-sureci:
+ *    gercek tahsilat ancak PayTR canli moda gecis talebini onaylayip SMS +
+ *    e-postayla bildirdikten sonra baslar ("Alacağınız bildirimin ardından
+ *    gerçek ödeme tahsilatına başlayabilirsiniz"). Test islemi para toplamaz.
+ *  - iframe-api/iframe-api-2-adim: bildirimdeki test_mode "Mağazanız test
+ *    modunda iken veya canlı modda yapılan test işlemlerde 1 olarak gönderilir".
+ *    Yani PAYTR_TEST_MODE=0 olsa bile magaza henuz canliya alinmadiysa islem
+ *    yine testtir; bildirim bunu kendisi soyler.
+ *
+ * Yonetici satin alabilir: PayTR canliya gecis icin basarili bir test odemesi
+ * ister (ayni entegrasyon sureci sayfalari) — akisi uctan uca deneyen odur.
+ */
+export const CHECKOUT_TEST_MODE_MESSAGE =
+  'Ödeme altyapısı şu an test modunda; satın alma henüz açık değil. Bilgi için bizimle iletişime geç.';
+/** Fiyat sayfasinin Ingilizce surumu icin ayni metin */
+export const CHECKOUT_TEST_MODE_MESSAGE_EN =
+  'Our payment system is in test mode right now, so purchases are not open yet. Contact us for details.';
+/** Reddedilen test odemesinin fatura aciklamasina eklenen neden (musteri fatura listesinde gorur) */
+export const TEST_PAYMENT_FAILURE_CODE = 'TEST_MODE';
+export const TEST_PAYMENT_FAILURE_REASON = 'Test modunda yapılan ödeme gerçek tahsilat değil; plan açılmadı';
+
+/**
+ * Satin alma durumu — GET /billing/plans (hesaptan bagimsiz) ve
+ * GET /billing/users/:id/current (o hesaba gore) `checkout` alani. Gizli bilgi
+ * tasimaz: yalniz acik/kapali, test modu bayragi ve gosterilecek metin.
+ */
+export interface CheckoutStatus {
+  /** Bu hesap (ya da anonim ziyaretci) odeme baslatabilir mi */
+  open: boolean;
+  /** PayTR test modunda mi — odemeler gercek tahsilat degil */
+  testMode: boolean;
+  /** Kapaliyken gosterilecek metin (403 ile ayni); acikken null */
+  message: string | null;
+}
+
+/**
+ * PayTR iframe API + bildirim (webhook) entegrasyonu.
  * Docs: https://dev.paytr.com/iframe-api
  *
- * Akış:
- *  1. Kullanıcı plan seçer → POST /billing/subscribe → token üret
- *  2. Frontend iframe URL'iyle PayTR ödeme sayfasını açar
- *  3. Kullanıcı ödeme yapar
- *  4. PayTR → POST /webhooks/paytr/notification (status callback)
- *  5. Webhook'ta subscription state güncellenir
+ * Akis:
+ *  1. Kullanici plan secer → POST /api/billing/subscribe → createPaymentToken (test
+ *     modunda yalniz yonetici; digerleri 403, assertCheckoutOpen)
+ *  2. Frontend iframe adresiyle PayTR odeme sayfasini acar (otomatik yenileme acikken
+ *     yerine Direkt API formu dogrudan PayTR'ye gider: createDirectCheckout)
+ *  3. Kullanici odeme yapar; PayTR onu merchant_ok_url / merchant_fail_url'e yonlendirir
+ *  4. PayTR → POST /api/billing/webhooks/paytr (billing.controller webhook → handleWebhook)
+ *  5. Bildirimde fatura ve abonelik guncellenir (markInvoicePaid / markInvoiceFailed)
+ *
+ * Bildirim adresi PayTR'ye istekle GITMEZ: token isteginin parametreleri arasinda yok
+ * (dev.paytr.com/iframe-api/iframe-api-1-adim); PayTR onu Magaza Paneli > Destek & Kurulum >
+ * Ayarlar > Bildirim URL Ayarlari'ndan alir (iframe-api-2-adim; ikisi 2026-10-18'de okundu;
+ * ayni yol bagimsiz bir PayTR modul kilavuzunda da yaziyor: docs.wisecp.com paytr-module,
+ * 2026-10-19). Panelde tanimli olmasi gereken adres
+ * https://api.ranksup.ai/api/billing/webhooks/paytr (@Controller('billing') +
+ * @Post('webhooks/paytr'), main.ts 'api' oneki). Kod bildirim adresini hicbir PayTR istegine
+ * koymaz ve PAYTR_NOTIFICATION_URL degiskenini okumaz: hic okunmayan notifyUrl alani
+ * kaldirildi (sunucu .env'lerinde kalan eski deger zararsiz). Bu aciklamanin eskiden
+ * yazdigi '/webhooks/paytr/notification' yolu hic var olmadi: uc ilk committen (8e31269)
+ * beri billing denetleyicisinde 'webhooks/paytr'.
  */
 @Injectable()
 export class PaytrService {
@@ -39,8 +104,92 @@ export class PaytrService {
     return process.env.PAYTR_RECURRING_ENABLED === '1';
   }
 
-  private readonly notifyUrl = process.env.PAYTR_NOTIFICATION_URL
-    ?? 'https://api.ranksup.ai/api/billing/webhooks/paytr';
+  /**
+   * Satin alma kapisi icin test modu. PayTR test_mode yalniz "0 veya 1" alir
+   * (iframe-api-1-adim); '0' DISINDAKI her deger test sayilir: bos dize,
+   * satir ici yorumlu "1  # 1=test" (.env.example ustundeki uyari) vb.
+   * Belirsiz ayarda ucretli plan dagitmaktansa satin almayi kapatmak daha
+   * ucuz hata (kapali basarisizlik). PayTR'ye giden deger DEGISMEZ (ham hali).
+   */
+  get testModeOn(): boolean {
+    return this.testMode.trim() !== '0';
+  }
+
+  /** Hesap yonetici mi — yalniz test modu kararlarinda okunur (canli modda ek sorgu yok) */
+  private async isAdminUser(userId: string | null | undefined): Promise<boolean> {
+    if (!userId) return false;
+    const u = await this.prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
+    return u?.role === 'ADMIN';
+  }
+
+  /**
+   * Satin alma acik mi? userId verilirse o hesaba gore (test modunda yalniz
+   * ADMIN acik); null = anonim ziyaretci (herkese acik fiyat sayfasi).
+   * Canli modda (PAYTR_TEST_MODE=0) her zaman acik ve veritabanina gitmez.
+   */
+  async checkoutStatus(userId: string | null, locale: 'tr' | 'en' = 'tr'): Promise<CheckoutStatus> {
+    if (!this.testModeOn) return { open: true, testMode: false, message: null };
+    if (await this.isAdminUser(userId)) return { open: true, testMode: true, message: null };
+    return { open: false, testMode: true, message: locale === 'en' ? CHECKOUT_TEST_MODE_MESSAGE_EN : CHECKOUT_TEST_MODE_MESSAGE };
+  }
+
+  /**
+   * Odeme baslatma kapisi (iFrame jetonu, Direkt API formu, test onayi).
+   * Kontrol FATURA SAHIBINE (userId) yapilir: ensureSelf admin olmayanin
+   * yalniz kendi hesabiyla odeme baslatmasina izin verir, yani sahip admin
+   * ise baslatan da admindir. Admin'in bir musteri adina baslattigi test
+   * odemesi de reddedilir — o fatura zaten plan acamazdi (markInvoicePaid).
+   * 403: rol kaynakli bir ret; metin panelde aynen gosterilir.
+   */
+  async assertCheckoutOpen(userId: string): Promise<void> {
+    const status = await this.checkoutStatus(userId);
+    if (status.open) return;
+    this.log.warn(`[checkout] PayTR test modunda: ${userId} yönetici değil, ödeme başlatılmadı`);
+    throw new ForbiddenException({ statusCode: 403, message: CHECKOUT_TEST_MODE_MESSAGE, code: 'PAYTR_TEST_MODE' });
+  }
+
+  /**
+   * Basarili bildirim bir TEST odemesi mi ve sahibi yonetici degil mi?
+   * Test sayilir: bizim test bayragimiz acik ya da PayTR bildirimde
+   * test_mode=1 gondermis (magaza henuz canliya alinmamis olabilir).
+   * Ikisi de yoksa (canli odeme) veritabanina gitmeden false.
+   */
+  private async isRefusedTestPayment(invoice: { userId: string | null }, providerTestMode: boolean): Promise<boolean> {
+    if (!this.testModeOn && !providerTestMode) return false;
+    return !(await this.isAdminUser(invoice.userId));
+  }
+
+  /**
+   * Reddedilen test odemesi: fatura PENDING → FAILED (atomik), neden aciklamada.
+   *
+   * NEDEN FAILED (PENDING ya da PAID degil):
+   *  - PAID yalan olurdu: test islemi para toplamaz (gercek tahsilat canliya
+   *    gecis onayindan sonra baslar — dev.paytr.com entegrasyon sureci).
+   *  - PENDING "odeme bekleniyor" demek ve fatura ACIK kalir: markInvoicePaid'in
+   *    PENDING → PAID gecisi onu sonradan kabul edebilirdi. PayTR ayni bildirimi
+   *    birden fazla gonderebilir ("aynı ödeme işlemi için birden fazla bildirim
+   *    ulaşabilir", iframe-api-2-adim; direkt-api-2-adim: OK alamazsa islem
+   *    "Devam Ediyor" kalir). Ortam canliya cevrildikten sonra gelen gecikmis
+   *    bir tekrar, test odemesini ucretli plana cevirebilirdi. FAILED kalicidir.
+   *  - E-posta yok, yenileme sayaci artmaz: musterinin karti reddedilmedi, bu
+   *    bizim yapilandirmamiz. Operator log'da gorur.
+   */
+  private async failTestPayment(invoice: { id: string; userId: string | null; paytrTransactionId: string | null; description: string | null }): Promise<void> {
+    const moved = await this.prisma.invoice.updateMany({
+      where: { id: invoice.id, status: 'PENDING' },
+      data: {
+        status: 'FAILED',
+        failedAt: new Date(),
+        description: failedInvoiceDescription(invoice.description, TEST_PAYMENT_FAILURE_CODE, TEST_PAYMENT_FAILURE_REASON),
+      },
+    });
+    if (moved.count > 0) {
+      this.log.error(`[${invoice.paytrTransactionId}] Test modunda ödeme bildirimi: hesap yönetici değil (${invoice.userId ?? 'silinmiş hesap'}) — plan AÇILMADI, fatura FAILED (gerçek tahsilat yok)`);
+    }
+  }
+
+  // Yalniz musterinin tarayicisinin donecegi sayfalar; bildirim (webhook) adresi PayTR
+  // panelinde tanimli (sinif aciklamasi), hicbir istekte gonderilmez
   private readonly okUrl = process.env.PAYTR_OK_URL
     ?? 'https://ranksup.ai/billing/success';
   private readonly failUrl = process.env.PAYTR_FAIL_URL
@@ -70,6 +219,9 @@ export class PaytrService {
     | { mode: 'iframe'; token: string; iframeUrl: string; merchantOid: string }
     | DirectCheckout
   > {
+    // Test modunda yalniz yonetici (iFrame ve Direkt API ayni kapidan gecer);
+    // PayTR'ye istek gitmez, fatura acilmaz.
+    await this.assertCheckoutOpen(opts.userId);
     if (!this.merchantId) {
       throw new BadRequestException('PayTR Merchant credentials .env\'de tanımlı değil');
     }
@@ -273,6 +425,16 @@ export class PaytrService {
    * deneme sayilmaz).
    */
   async chargeStoredCard(userId: string): Promise<{ result: 'success' | 'failed' | 'pending' | 'skipped'; reason?: string }> {
+    // Test modunda kayitli karttan cekim de test islemi olur: para toplanmaz
+    // ama PayTR "success" doner. Eskiden markInvoicePaid plani bir donem daha
+    // uzatiyordu; artik o fatura reddedilir (failTestPayment) ve burada
+    // 'success' denirdi. Hic denenmez: 'skipped' deneme sayilmaz, musteriye
+    // "odeme alinamadi" e-postasi gitmez; canliya donulunce cron yeniden dener.
+    // Yonetici hesaplari zaten yenileme turune girmez (renewal-policy isAdmin).
+    if (this.testModeOn) {
+      this.log.error(`[yenileme] PayTR test modunda: ${userId} için kayıtlı karttan çekim yapılmadı (gerçek tahsilat olmazdı)`);
+      return { result: 'skipped', reason: 'PayTR test modunda; gerçek tahsilat yapılamaz' };
+    }
     const user = await this.prisma.user.findUniqueOrThrow({
       where: { id: userId },
       select: { id: true, email: true, name: true, plan: true, paytrUtoken: true },
@@ -324,7 +486,7 @@ export class PaytrService {
 
     const fields: Record<string, string> = {
       merchant_id: this.merchantId,
-      user_ip: process.env.PAYTR_SERVER_IP ?? '127.0.0.1',
+      user_ip: process.env.PAYTR_SERVER_IP || '127.0.0.1',
       merchant_oid: merchantOid,
       email: user.email,
       payment_amount: paymentAmount,
@@ -375,11 +537,18 @@ export class PaytrService {
   /**
    * DEV / TEST mode kisayolu: PayTR webhook gelmeden invoice'i PAID yap +
    * plani aktive et. Sadece testMode=1 iken calisir.
+   *
+   * Yalniz YONETICI: bu uc PayTR'ye hic ugramadan faturayi odenmis sayar.
+   * Eskiden her hesaba acikti; /billing/subscribe ile acilan PENDING fatura
+   * buradan onaylanip (basari sayfasi bunu kendiliginden cagiriyordu) deneme
+   * kullanicisina odemesiz ucretli plan veriliyordu. Kontrol markInvoicePaid'de
+   * ikinci kez yapilir (isRefusedTestPayment).
    */
   async devConfirmPayment(userId: string, merchantOid: string) {
     if (this.testMode !== '1') {
       throw new BadRequestException('Bu endpoint sadece test modunda kullanilabilir');
     }
+    await this.assertCheckoutOpen(userId);
     const invoice = await this.prisma.invoice.findUnique({
       where: { paytrTransactionId: merchantOid },
     });
@@ -455,6 +624,18 @@ export class PaytrService {
       return 'OK';
     }
 
+    // Test odemesi (bizim bayragimiz ya da PayTR'nin test_mode=1 isareti) yonetici
+    // olmayan hesapta plan ACMAZ ve kart da SAKLANMAZ: test karti icin gelen
+    // utoken ile otomatik yenileme acilmasin. Fatura durumundan bagimsiz kontrol
+    // edilir — reddedilmis faturanin tekrar bildirimi de utoken yazdirmasin.
+    // test_mode imzaya dahil degil (hash = merchant_oid+tuz+status+total_amount);
+    // yalniz daha SIKI karar icin okunur, hicbir seyi acmaz.
+    const providerTestMode = String(payload.test_mode ?? '').trim() === '1';
+    if (status === 'success' && await this.isRefusedTestPayment(invoice, providerTestMode)) {
+      await this.failTestPayment(invoice);
+      return 'OK';
+    }
+
     // Kart saklandiysa PayTR kullaniciya ozel utoken'i bildirimde iletir
     // (dev.paytr.com kart-saklama: "post-payment notification"). Onay verilmis
     // odemede kaydedilir; otomatik yenileme bu anahtarla yapilir.
@@ -468,7 +649,7 @@ export class PaytrService {
     }
 
     if (status === 'success') {
-      await this.markInvoicePaid(invoice.id);
+      await this.markInvoicePaid(invoice.id, { providerTestMode });
     } else {
       await this.markInvoiceFailed(invoice.id, failed_reason_code, failed_reason_msg);
     }
@@ -482,8 +663,21 @@ export class PaytrService {
    * NEDEN: PayTR "OK" alamazsa ayni bildirimi yeniden gonderir (dev.paytr.com
    * direkt-api-2-adim). Eskiden her tekrar plani yeniden etkinlestiriyor ve
    * ortaklik komisyonunu bir kez daha yaziyordu.
+   *
+   * TEST MODU (savunma derinligi): bildirim, test onayi (dev-confirm) ve
+   * yenileme cekimi buradan gecer. Test odemesi yonetici olmayan hesapta plani
+   * acmaz; fatura FAILED olur (failTestPayment) ve false doner. Canli modda
+   * (PAYTR_TEST_MODE=0, bildirimde test_mode=1 yok) ek sorgu yapilmaz.
    */
-  async markInvoicePaid(invoiceId: string): Promise<boolean> {
+  async markInvoicePaid(invoiceId: string, opts: { providerTestMode?: boolean } = {}): Promise<boolean> {
+    const providerTestMode = opts.providerTestMode === true;
+    if (this.testModeOn || providerTestMode) {
+      const pending = await this.prisma.invoice.findUnique({ where: { id: invoiceId } });
+      if (pending?.status === 'PENDING' && await this.isRefusedTestPayment(pending, providerTestMode)) {
+        await this.failTestPayment(pending);
+        return false;
+      }
+    }
     const moved = await this.prisma.invoice.updateMany({
       where: { id: invoiceId, status: 'PENDING' },
       data: { status: 'PAID', paidAt: new Date() },

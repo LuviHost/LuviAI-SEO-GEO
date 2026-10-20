@@ -1,11 +1,19 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { PaytrService } from './paytr.service.js';
 
 /**
  * Bildirim tekrari guvenligi. PayTR "OK" alamazsa ayni bildirimi yeniden
  * gonderir; eskiden her tekrar plani yeniden etkinlestirip ortaklik
  * komisyonunu bir kez daha yaziyordu.
+ *
+ * CANLI mod (PAYTR_TEST_MODE=0) davranisi: degisken tanimsizken servis test
+ * modunda kurulur ('1' varsayilan) ve test odemesi yonetici olmayan hesapta
+ * plan acmaz (paytr-test-mode.spec.ts). Servis env'i kurulurken okur; bu
+ * yuzden stub, makeService'ten ONCE calisan ust duzey beforeEach'te.
  */
+beforeEach(() => { vi.stubEnv('PAYTR_TEST_MODE', '0'); });
+afterEach(() => { vi.unstubAllEnvs(); });
+
 function makeService() {
   const invoices: Record<string, any> = {
     inv1: { id: 'inv1', userId: 'u1', status: 'PENDING', amount: 1000, isRenewal: false, storeCard: false, paytrTransactionId: 'LUVIabcdefghPRO1700000000000', description: 'RanksUp Pro — monthly' },

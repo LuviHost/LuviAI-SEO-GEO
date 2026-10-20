@@ -25,7 +25,7 @@
  *    Yalniz Markdown ZIP disa aktarimi olan yazi sitede yayinda SAYILMAZ: bos liste onu
  *    yeniden disa aktarip varsayilan hedefe hic yazmiyordu (inceleme S25).
  */
-import { OVERWRITE_TARGET_TYPES, UPDATE_TARGET_TYPES } from './manual-update';
+import { OVERWRITE_TARGET_TYPES, UPDATE_TARGET_TYPES, missingByLivenessCheck } from './manual-update';
 
 /** Sitenin yayin hedefi satiri (GET /sites/:siteId/publish-targets) — kullanilan alanlar */
 export interface PublishTargetLike {
@@ -322,6 +322,24 @@ function emekliKayit(publishedTo: unknown, targetId: string): 'trashed' | 'missi
 }
 
 /**
+ * Hedefteki emekli kayit canlilik denetiminden mi (adresi iki denetimde 404/410 verdi;
+ * api articles/published-liveness.service.ts). Yayincinin kendi gozleminden farki:
+ * WordPress yazisi silinmemis, yalniz taslaga alinmis / cop kutusuna tasinmis olabilir.
+ */
+function denetimleKayip(publishedTo: unknown, targetId: string): boolean {
+  return Array.isArray(publishedTo) && publishedTo.some((raw) => {
+    if (!raw || typeof raw !== 'object') return false;
+    const e = raw as Record<string, unknown>;
+    return e.targetId === targetId && e.ok !== false && missingByLivenessCheck(e);
+  });
+}
+
+/** "X hedefindeki adresi" / "X, Y hedeflerindeki adresleri" */
+function hedeftekiAdres(names: string[]): string {
+  return names.length === 1 ? `${names[0]} hedefindeki adresi` : `${names.join(', ')} hedeflerindeki adresleri`;
+}
+
+/**
  * Makale sayfasinda secimin sonucu — yayindan ONCE gosterilen uyarilar:
  *  - secili hedefteki kopya cop kutusunda GORULMUSTU (trashedAt, ilk goruldugu an):
  *    yayinci kaydi yine yerinde guncelleme yolundan dener (publishedEntryFor +
@@ -335,7 +353,11 @@ function emekliKayit(publishedTo: unknown, targetId: string): 'trashed' | 'missi
  *    30)). Sonra yapilan yayin yaziyi yeniden aciyordu, uyari tersini soyluyordu (S11
  *    yan etkisi). Panel cop kutusunun simdiki halini bilemez: ikisini de soyler.
  *  - secili hedefteki kopya artik bulunamiyor (missingAt): kullanicinin acikca sectigi
- *    hedefte yayin yaziyi yeniden olusturur (D2)
+ *    hedefte yayin yaziyi yeniden olusturur (D2). Istisna: kopyayi canlilik denetimi
+ *    dusurduyse (adresi iki denetimde 404/410; missingReason) ve hedef WordPress ise yazi
+ *    silinmemis, taslaga alinmis ya da cop kutusuna tasinmis olabilir — yayinci onu
+ *    yerinde gunceller ama durumunu degistirmez (cop kutusundakine hic yazmaz); metin
+ *    iki ihtimali de soyler
  * Yalniz yazi SITEDE yayindaysa (yalniz Markdown ZIP disa aktarimi olan yazi icin
  * "kopya" uyarisi yok):
  *  - secili hedefte hic kayit yok: yeni bir yazi acilir (ayni siteye bagliysa kopya);
@@ -368,7 +390,18 @@ export function publishSelectionWarnings(
       + 'Çöp kutusu boşaltıldıysa (WordPress bunu varsayılan olarak 30 gün sonra yapar) ya da yazı kalıcı olarak silindiyse bu yayın yazıyı orada yeniden oluşturur.',
     );
   }
-  const kayip = seciliKayitsiz.filter((t) => emekliKayit(publishedTo, t.id) === 'missing');
+  const kayipHepsi = seciliKayitsiz.filter((t) => emekliKayit(publishedTo, t.id) === 'missing');
+  // Canlilik denetiminin dusurdugu WordPress kopyasi silinmemis de olabilir (taslak, cop
+  // kutusu): yayin onu yerinde gunceller ama durumunu degistirmez, cop kutusundakine yazmaz.
+  // "Yeniden olusturur" demek o durumda yanlis olurdu.
+  const kayipWp = kayipHepsi.filter((t) => typeof t.type === 'string' && UPDATE_TARGET_TYPES.has(t.type) && denetimleKayip(publishedTo, t.id));
+  const kayip = kayipHepsi.filter((t) => !kayipWp.includes(t));
+  if (kayipWp.length > 0) {
+    out.push(
+      `Yazının ${hedeftekiAdres(kayipWp.map(ad))} 404 veriyordu. Yazı WordPress’ten silindiyse bu yayın onu orada yeniden oluşturur; `
+      + 'taslakta ya da çöp kutusunda duruyorsa RanksUp onu yayına almaz: önce WordPress’te yayına al ya da çöp kutusundan geri yükle.',
+    );
+  }
   if (kayip.length > 0) {
     out.push(`Yazı ${hedefte(kayip.map(ad))} artık bulunamıyor (silinmiş olabilir); bu yayın yazıyı orada yeniden oluşturur.`);
   }

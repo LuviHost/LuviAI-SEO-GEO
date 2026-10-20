@@ -4,7 +4,10 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { SettingsService } from '../settings/settings.service.js';
 import { modelForAudience } from '../llm/model-tier.js';
 import { PERSONA_MESSAGE_MAX } from './audit.dto.js';
-import { articlePublicUrl, loadArticleTargets } from './ai-sitemap.service.js';
+import {
+  advertisedArticleEntry, includePublicArticle, isPendingRevision, loadArticleTargets, loadOlderTextFields, needsOlderText,
+  publicArticleText, publicArticleWhere,
+} from './ai-sitemap.service.js';
 
 export interface ChatMessage {
   role: 'user' | 'assistant';
@@ -131,29 +134,57 @@ export class PersonaChatService {
       return { reply: PERSONA_BUDGET_REPLY, sources: [], cited: false };
     }
 
-    // En guncel 30 makale title + slug + meta + yayin kayitlari
+    // En guncel 30 makale: site haritasi ve llms-full ile AYNI secim (publicArticleWhere).
+    // NEDEN: yalniz PUBLISHED okunuyordu; yeniden yazimi onay bekleyen (READY_TO_PUBLISH /
+    // REVIZE_NEEDED) ama sitede eski metniyle canli duran yazi sohbette hic yoktu.
     const articles = await this.prisma.article.findMany({
-      where: { siteId, status: 'PUBLISHED' as any },
+      where: publicArticleWhere(siteId),
       orderBy: { publishedAt: 'desc' },
       take: 30,
-      select: { title: true, slug: true, metaDescription: true, topic: true, publishedTo: true } as any,
+      select: { id: true, title: true, slug: true, metaDescription: true, topic: true, publishedTo: true, status: true } as any,
     });
 
-    // Makale adresi yazinin GERCEK yayin adresidir (site haritasi ve llms-full
-    // ile ayni kural: articlePublicUrl). Eskiden her makale icin
-    // `${site}/blog/${slug}.html` veriliyordu: bu yol yalniz bazi statik
-    // sitelerde var, WordPress ve digerlerinde ziyaretciye 404 baglanti
-    // gidiyordu. Adresi bilinmeyen yazi bagsiz listelenir; model adres uydurmaz.
+    // Makale adresi yazinin GERCEK ve herkese acik yayin adresidir: site haritasi
+    // ve llms-full'un ILAN ettigi adresle ayni kural (advertisedArticleEntry).
+    // Eskiden her makale icin `${site}/blog/${slug}.html` veriliyordu: bu yol
+    // yalniz bazi statik sitelerde var, WordPress ve digerlerinde ziyaretciye 404
+    // baglanti gidiyordu. articlePublicUrl de yetmez: WordPress hedef formunun
+    // varsayilani 'Taslak'; bu hedefe "yayinlanan" yazi WordPress'te taslak durur ve
+    // kayitli duz ?p=<id> adresi giris yapmamis ziyaretciye 404 verir. Herkese acik
+    // oldugu bilinmeyen boyle bir kopyanin adresi, canlilik denetimi onu bir kez canli
+    // gorene kadar (liveSeenAt) baglanti olarak verilmez.
+    // Adresi bilinmeyen yazi bagsiz listelenir; model adres uydurmaz.
     let siteUrl: URL | null = null;
     try { siteUrl = new URL(String(site.url)); } catch { siteUrl = null; }
+    // Hedef satirlari site haritasiyla ayni yukleyiciden: ilan kurali ayni girdiyle calisir
     const targets = siteUrl ? await loadArticleTargets(this.prisma as any, siteId, siteUrl, articles as any[]) : new Map();
-    const withUrls = (articles as any[]).map((a) => ({
-      ...a,
-      url: siteUrl ? articlePublicUrl(siteUrl, String(a.slug ?? ''), a.publishedTo, targets) : null,
-    }));
+    // Liste kurali llms-full ile ayni (llms-full-builder.service listedArticles): onay bekleyen
+    // yeniden yazim yalniz sitede canli adresi varsa listelenir; baslik ve ozet ADRESTEKI sayfanin
+    // metninden (publicArticleText). NEDEN: kayit metni onaydaki ya da elle guncelleme bekleyen
+    // YENI metindir; adresteki sayfa eski basligi gosterirken sohbet yeni basligi veriyordu.
+    // Adresteki metin bilinmiyorsa (unknown) onay bekleyen yazi listelenmez, yayindaki yazinin
+    // ozeti verilmez.
+    const resolved = (articles as any[])
+      .map((a) => ({ a, found: siteUrl ? advertisedArticleEntry(siteUrl, String(a.slug ?? ''), a.publishedTo, targets) : null }))
+      .filter((r) => includePublicArticle(r.a.status, r.found));
+    const olderText = await loadOlderTextFields(
+      this.prisma as any,
+      resolved.filter((r) => needsOlderText(r.found, r.a.status)).map((r) => String(r.a.id)),
+    );
+    const withUrls = resolved
+      .map(({ a, found }) => {
+        const text = found
+          ? publicArticleText({ ...a, ...olderText.get(String(a.id)) }, found.entry, { pendingRevision: isPendingRevision(a.status) })
+          : null;
+        const summary = text?.source === 'unknown'
+          ? 'bu adresteki sayfa yazının daha eski bir sürümünü gösteriyor; özet yok'
+          : ((text ? text.metaDescription : a.metaDescription) ?? a.topic ?? '');
+        return { a, text, url: found?.url ?? null, title: String(text?.title ?? a.title), summary };
+      })
+      .filter((r) => !(isPendingRevision(r.a.status) && r.text?.source === 'unknown'));
 
-    const articleList = withUrls.map((a: any, i: number) =>
-      `${i + 1}. "${a.title}" — ${a.metaDescription ?? a.topic}${a.url ? ` (${a.url})` : ' (adres yok — bağlantı verme)'}`
+    const articleList = withUrls.map((a, i: number) =>
+      `${i + 1}. "${a.title}" — ${a.summary}${a.url ? ` (${a.url})` : ' (adres yok — bağlantı verme)'}`
     ).join('\n');
 
     const brand = site.name;

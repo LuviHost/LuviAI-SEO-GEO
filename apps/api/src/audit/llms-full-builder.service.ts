@@ -1,9 +1,29 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
-  articlePublicEntry, entryShowsOlderText, loadArticleTargets, loadOlderTextFields, publicArticleText,
-  type PublicArticleText,
+  advertisedArticleEntry, includePublicArticle, isPendingRevision, loadArticleTargets, loadOlderTextFields, needsOlderText,
+  publicArticleText, publicArticleWhere, type PublicArticleText,
 } from './ai-sitemap.service.js';
+
+/**
+ * Listelenecek yazilar ve adresteki metinleri — build ve kisa dizin AYNI kurali kullanir
+ * (site haritasiyla da ayni: ai-sitemap.service publicArticleWhere / includePublicArticle).
+ * Onay bekleyen yeniden yazimda adresteki eski metin bilinmiyorsa (unknown) yazi bu iki
+ * dosyada LISTELENMEZ: baslik olarak onaydaki yeni baslik ilan edilirdi. Adresi site
+ * haritasinda yine yer alir (orada metin olmadan da dogru bir bilgi).
+ */
+function listedArticles<A extends { id: string; title: string; metaDescription: string | null; status?: unknown; bodyMd?: string | null; faqs?: unknown }>(
+  resolved: Array<{ a: A; found: ReturnType<typeof advertisedArticleEntry> }>,
+  olderText: Map<string, { metaTitle?: string | null; bodyMd?: string | null; agentOutputs?: unknown }>,
+): Array<{ a: A; url: string | null; text: PublicArticleText | null }> {
+  return resolved
+    .map(({ a, found }) => ({
+      a,
+      url: found?.url ?? null,
+      text: found ? publicArticleText({ ...a, ...olderText.get(a.id) }, found.entry, { pendingRevision: isPendingRevision(a.status) }) : null,
+    }))
+    .filter((r) => !(isPendingRevision(r.a.status) && r.text?.source === 'unknown'));
+}
 
 /**
  * llms-full.txt — tum sitenin temizlenmis icerigi tek dosyada.
@@ -15,11 +35,14 @@ import {
  *  - Site bilgisi (niche, language, brand voice)
  *  - Her published makale: H2 baslik + URL + ozet + 1500 karakter content excerpt
  *    (metin ADRESTEKI sayfanin metni: ai-sitemap.service publicArticleText;
- *    cop kutusundaki kopya adres vermez)
+ *    cop kutusundaki kopya ve hic canli gorulmemis WordPress taslak baglantisi adres
+ *    vermez — advertisedArticleEntry). Yeniden yazimi onay bekleyen yayindaki
+ *    yazi da sitede canli adresi varsa listelenir, metni adresteki eski metindir.
  *  - Sonunda meta footer
  *
  * Yayinlanma: GET /sites/:id/llms-full.txt
- * Build: weekly cron (LLMS_FULL_BUILD job)
+ * Build: weekly cron (LLMS_FULL_BUILD job); ayrica yayin, canlilik denetiminin emekliye
+ * ayirmasi ve ilk kez canli gorulup ilan edilir olan adres (published-liveness.service)
  */
 @Injectable()
 export class LlmsFullBuilderService {
@@ -34,7 +57,8 @@ export class LlmsFullBuilderService {
     });
 
     const articles = await this.prisma.article.findMany({
-      where: { siteId, status: 'PUBLISHED' as any },
+      // PUBLISHED + sitede eski metniyle duran, yeniden yazimi onay bekleyen yazi (publicArticleWhere)
+      where: publicArticleWhere(siteId),
       orderBy: { publishedAt: 'desc' },
       select: {
         id: true,
@@ -49,6 +73,7 @@ export class LlmsFullBuilderService {
         category: true,
         faqs: true,
         publishedTo: true,
+        status: true,
       },
       take: 200,
     });
@@ -56,17 +81,24 @@ export class LlmsFullBuilderService {
     const lines: string[] = [];
     // Makale adresi UYDURULMAZ: eskiden her makale icin ${baseUrl}/blog/<slug>.html
     // yaziliyordu; WordPress gibi hedeflerde bu adres yok (404), yani AI'lara
-    // olu link veriliyordu. Site haritasiyla ayni kural: yayin kaydindaki
-    // gercek adres ya da dosya hedefinin kanonik adresi; cozulemezse URL yok.
+    // olu link veriliyordu. Site haritasiyla ayni kural (advertisedArticleEntry):
+    // yayin kaydindaki gercek adres ya da dosya hedefindeki kopyanin yazim aninda kaydedilen
+    // konumdan adresi (fileCopyPublicUrl: klasor / slug sonradan degisse de sayfanin durdugu
+    // yer); hic canli gorulmemis WordPress taslak baglantisi (?p=, 404) ilan edilmez;
+    // cozulemezse URL yok. Canlilik denetimi bir kopyayi ilk kez canli gorup adresini ilan
+    // edilir yaptiginda bu dosyayi o turda yeniden uretir (published-liveness.service).
     const siteUrl = safeUrl(site.url);
     const targets = siteUrl ? await loadArticleTargets(this.prisma, siteId, siteUrl, articles) : new Map();
-    const resolved = articles.map((a) => ({ a, found: siteUrl ? articlePublicEntry(siteUrl, a.slug, a.publishedTo, targets) : null }));
-    // Adresi veren kopya eski metni gosteriyorsa yeniden yazimdan onceki goruntu
-    // (agentOutputs.liveSnapshot) yalniz o makaleler icin okunur
+    const resolved = articles
+      .map((a) => ({ a, found: siteUrl ? advertisedArticleEntry(siteUrl, a.slug, a.publishedTo, targets) : null }))
+      .filter((r) => includePublicArticle(r.a.status, r.found));
+    // Adresi veren kopya eski metni gosteriyorsa ya da yeniden yazim onay bekliyorsa
+    // yeniden yazimdan onceki goruntu (agentOutputs.liveSnapshot) yalniz o makaleler icin okunur
     const olderText = await loadOlderTextFields(
       this.prisma,
-      resolved.filter((r) => r.found && entryShowsOlderText(r.found.entry)).map((r) => r.a.id),
+      resolved.filter((r) => needsOlderText(r.found, r.a.status)).map((r) => r.a.id),
     );
+    const listed = listedArticles(resolved, olderText);
 
     // ── Header ────────────────────────────────────────────────
     lines.push(`# ${site.name}`);
@@ -100,19 +132,18 @@ export class LlmsFullBuilderService {
     }
 
     // ── Published makaleler ────────────────────────────────────
-    if (articles.length > 0) {
-      lines.push(`## Makaleler (${articles.length})`);
+    if (listed.length > 0) {
+      lines.push(`## Makaleler (${listed.length})`);
       lines.push('');
 
-      for (const { a, found } of resolved) {
-        const url = found?.url ?? null;
+      for (const { a, url, text: publicText } of listed) {
         // Baslik, ozet, metin ve SSS ADRESTEKI sayfanin metninden (K6): adresi
-        // veren kopya elle guncelleme bekliyorsa o sayfa hala eski metni
-        // gosterir; eskiden adresle birlikte sayfada olmayan yeni metin ilan
-        // ediliyordu. Eski metin bilinmiyorsa (unknown) metin ilan edilmez.
-        const text: PublicArticleText = found
-          ? publicArticleText({ ...a, ...olderText.get(a.id) }, found.entry)
-          : { source: 'row', title: a.title, metaDescription: a.metaDescription, bodyMd: a.bodyMd, faqs: a.faqs };
+        // veren kopya elle guncelleme bekliyorsa (ya da yeniden yazim onay
+        // bekliyorsa) o sayfa hala eski metni gosterir; eskiden adresle birlikte
+        // sayfada olmayan yeni metin ilan ediliyordu. Eski metin bilinmiyorsa
+        // (unknown) metin ilan edilmez.
+        const text: PublicArticleText = publicText
+          ?? { source: 'row', title: a.title, metaDescription: a.metaDescription, bodyMd: a.bodyMd, faqs: a.faqs };
         lines.push(`### ${text.title ?? a.title}`);
         lines.push('');
         if (url) lines.push(`**URL:** ${url}`);
@@ -172,8 +203,8 @@ export class LlmsFullBuilderService {
       } as any,
     });
 
-    this.log.log(`[${siteId}] llms-full.txt build: ${articles.length} makale, ${(text.length / 1024).toFixed(1)} KB`);
-    return { siteId, bytes: text.length, articles: articles.length };
+    this.log.log(`[${siteId}] llms-full.txt build: ${listed.length} makale, ${(text.length / 1024).toFixed(1)} KB`);
+    return { siteId, bytes: text.length, articles: listed.length };
   }
 
   /**
@@ -186,20 +217,25 @@ export class LlmsFullBuilderService {
       select: { name: true, url: true, niche: true, language: true } as any,
     });
     const articles = await this.prisma.article.findMany({
-      where: { siteId, status: 'PUBLISHED' as any },
+      // build ile ayni secim (publicArticleWhere): kisa dizin ve llms-full ayni yazilari listeler
+      where: publicArticleWhere(siteId),
       orderBy: { publishedAt: 'desc' },
-      select: { id: true, title: true, slug: true, metaDescription: true, publishedTo: true },
+      select: { id: true, title: true, slug: true, metaDescription: true, publishedTo: true, status: true },
       take: 200,
     });
 
     const baseUrl = (site as any).url.replace(/\/+$/, '');
     const siteUrl = safeUrl((site as any).url);
     const targets = siteUrl ? await loadArticleTargets(this.prisma, siteId, siteUrl, articles) : new Map();
-    const resolved = articles.map((a) => ({ a, found: siteUrl ? articlePublicEntry(siteUrl, a.slug, a.publishedTo, targets) : null }));
+    // build ile ayni adres kurali: hic canli gorulmemis WordPress taslak baglantisi ilan edilmez
+    const resolved = articles
+      .map((a) => ({ a, found: siteUrl ? advertisedArticleEntry(siteUrl, a.slug, a.publishedTo, targets) : null }))
+      .filter((r) => includePublicArticle(r.a.status, r.found));
     const olderText = await loadOlderTextFields(
       this.prisma,
-      resolved.filter((r) => r.found && entryShowsOlderText(r.found.entry)).map((r) => r.a.id),
+      resolved.filter((r) => needsOlderText(r.found, r.a.status)).map((r) => r.a.id),
     );
+    const listed = listedArticles(resolved, olderText);
     const lines: string[] = [];
     lines.push(`# ${(site as any).name}`);
     lines.push('');
@@ -208,13 +244,11 @@ export class LlmsFullBuilderService {
     lines.push(`> Dil: ${(site as any).language ?? 'tr'}`);
     lines.push(`> Tam icerik: ${baseUrl}/llms-full.txt`);
     lines.push('');
-    if (articles.length > 0) {
+    if (listed.length > 0) {
       lines.push(`## Makaleler`);
       lines.push('');
-      for (const { a, found } of resolved) {
-        const url = found?.url ?? null;
+      for (const { a, url, text } of listed) {
         // Baslik ve aciklama adresteki sayfanin metninden (build ile ayni kural, K6)
-        const text = found ? publicArticleText({ ...a, ...olderText.get(a.id) }, found.entry) : null;
         const title = text?.title ?? a.title;
         const description = text ? text.metaDescription : a.metaDescription;
         const desc = description ? `: ${description}` : '';

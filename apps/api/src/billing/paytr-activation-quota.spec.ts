@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { ForbiddenException } from '@nestjs/common';
 import { PaytrService } from './paytr.service.js';
 import { QuotaService } from './quota.service.js';
@@ -88,7 +88,11 @@ function activationData(prisma: any): Row {
   return call[0].data;
 }
 
-afterEach(() => { vi.useRealTimers(); });
+// CANLI mod (PAYTR_TEST_MODE=0): degisken tanimsizken servis test modunda
+// kurulur ve test odemesi yonetici olmayan hesapta plan acmaz
+// (paytr-test-mode.spec.ts). Servis env'i kurulurken okur — world() test icinde.
+beforeEach(() => { vi.stubEnv('PAYTR_TEST_MODE', '0'); });
+afterEach(() => { vi.useRealTimers(); vi.unstubAllEnvs(); });
 
 describe('activateSubscription — sayac yalniz gercek plan degisiminde sifirlanir', () => {
   const thisMonth = () => new Date(Date.now() - 60_000);

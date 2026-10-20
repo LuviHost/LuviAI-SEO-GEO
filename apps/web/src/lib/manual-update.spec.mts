@@ -9,10 +9,11 @@ import { describe, expect, it } from 'vitest';
 import { decideRepublish, liveCopyNeedsManualUpdate, liveEntryRef } from '../../../api/src/articles/republish-policy';
 import { wordPressEntryAddressable as adaptorAdreslenebilir } from '../../../../packages/adapters/src/wordpress-post-ref';
 import {
-  MANUAL_UPDATE_NOTE, OVERWRITE_TARGET_TYPES, SELF_HEALING_TARGET_TYPES, UPDATE_TARGET_TYPES, canForgetEntry, currentArticleMarkdown,
-  fileEntrySlugChanged, forgetEntryConfirm, isManualUpdatePending, manualUpdateBadge, manualUpdateNote, manualUpdateReason,
-  pendingManualUpdateCount, wordPressEntryAddressable, type ManualUpdateReason,
+  LIVENESS_MISSING_REASON, MANUAL_UPDATE_NOTE, OVERWRITE_TARGET_TYPES, SELF_HEALING_TARGET_TYPES, UPDATE_TARGET_TYPES, canForgetEntry,
+  currentArticleMarkdown, fileEntrySlugChanged, forgetEntryConfirm, isManualUpdatePending, manualUpdateBadge, manualUpdateNote,
+  manualUpdateReason, missingByLivenessCheck, missingCopyNote, pendingManualUpdateCount, wordPressEntryAddressable, type ManualUpdateReason,
 } from './manual-update';
+import { LIVENESS_MISSING_REASON as API_LIVENESS_MISSING_REASON, applyLivenessObservations } from '../../../api/src/articles/republish-policy';
 import { publishedEntryView } from './publish-result';
 
 /** API'deki tip kumesi (kaynak metinden) */
@@ -257,6 +258,41 @@ describe('currentArticleMarkdown', () => {
   it('metin yoksa bos', () => {
     expect(currentArticleMarkdown(undefined)).toBe('');
     expect(currentArticleMarkdown(null)).toBe('');
+  });
+});
+
+describe('missingCopyNote — hedefte artik bulunmayan kopya (D3)', () => {
+  const when = '20.10.2026 05:20:00';
+  const wpKopya = { targetId: 't2', targetType: 'WORDPRESS_REST', ok: true, externalId: '7', externalUrl: 'https://ornek.com/yazi/' };
+
+  it('neden degeri API ile ayni; API\'nin canlilik denetimiyle emekliye ayirdigi kayit panelde oyle taninir', () => {
+    expect(LIVENESS_MISSING_REASON).toBe(API_LIVENESS_MISSING_REASON);
+    // API kuraliyla uretilmis gercek kayit: iki 404, 20+ saat arayla
+    const ilk = applyLivenessObservations([wpKopya], [{ targetId: 't2', address: wpKopya.externalUrl, outcome: 'gone', checkedAt: '2026-10-19T02:20:00.000Z', needsSighting: false }]);
+    const ikinci = applyLivenessObservations(ilk.publishedTo, [{ targetId: 't2', address: wpKopya.externalUrl, outcome: 'gone', checkedAt: '2026-10-20T02:20:00.000Z', needsSighting: false }]);
+    expect(missingByLivenessCheck(ilk.publishedTo[0])).toBe(false);
+    expect(missingByLivenessCheck(ikinci.publishedTo[0])).toBe(true);
+  });
+
+  it('canlilik denetimi: iki kontrolde 404 ve WordPress\'te taslak / cop kutusu ihtimali soylenir', () => {
+    const kayit = { ...wpKopya, missingAt: '2026-10-20T02:20:00.000Z', missingReason: LIVENESS_MISSING_REASON };
+    expect(missingCopyNote(kayit, { when, targetType: 'WORDPRESS_REST' })).toBe(
+      'Bu kopyanın adresi yaklaşık bir gün arayla yapılan iki kontrolde de 404 verdi (sitenin ana sayfası açılırken); sayfa sitenden kaldırılmış görünüyor. '
+      + `RanksUp bu kopyayı ${when} tarihinden beri yayında saymıyor ve kendiliğinden yeniden oluşturmaz. Yazıyı orada yeniden yayınlamak istersen bu hedefi seçip yayınla. `
+      + 'Yazıyı WordPress’te taslağa aldıysan ya da çöp kutusuna taşıdıysan önce orada yayına al ya da geri yükle: RanksUp WordPress’teki yazıyı yerinde günceller, durumunu değiştirmez.',
+    );
+    // Dosya hedefi: WordPress cumlesi yok
+    const ftp = missingCopyNote({ targetId: 'f', targetType: 'FTP', missingAt: '2026-10-20T02:20:00.000Z', missingReason: LIVENESS_MISSING_REASON }, { when, targetType: 'FTP' });
+    expect(ftp).toContain('iki kontrolde de 404 verdi');
+    expect(ftp).not.toContain('WordPress');
+  });
+
+  it('yayincinin gozlemi (neden yok) ya da cop kutusu: eski genel metin', () => {
+    const genel = `Bu kopya ${when} tarihinde yayın hedefinde bulunamadı (silinmiş olabilir); RanksUp onu yayında saymıyor ve kendiliğinden yeniden oluşturmaz. Yazıyı orada yeniden yayınlamak istersen bu hedefi seçip yayınla.`;
+    expect(missingCopyNote({ ...wpKopya, missingAt: '2026-10-20T02:20:00.000Z' }, { when, targetType: 'WORDPRESS_REST' })).toBe(genel);
+    expect(missingByLivenessCheck({ ...wpKopya, missingAt: '2026-10-20T02:20:00.000Z', missingReason: LIVENESS_MISSING_REASON, trashedAt: '2026-10-21T00:00:00.000Z' })).toBe(false);
+    expect(missingByLivenessCheck({ ...wpKopya, missingReason: LIVENESS_MISSING_REASON })).toBe(false);
+    expect(missingByLivenessCheck(null)).toBe(false);
   });
 });
 

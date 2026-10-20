@@ -290,12 +290,19 @@ export class EmailService {
       // donemin bitis gunu ve plan secince verilerin oldugu gibi kalmasi.
       // Deneme bitisi uygulanacaksa (urun karari) bu metinler de guncellenmeli;
       // email-links.spec.ts "pasif" / "30 gun saklanir" iddiasini engeller.
+      // Plan ne kazandirir: ucretli plan AI olcum SIKLIGINI artirmaz — her hesap
+      // kayan 7 gunde 1 AI olcumu yapar (billing/measurement-allowance.ts
+      // MEASUREMENT_WINDOW_MS, plana bakmaz). Planlar makale, site ve AYLIK AI
+      // gorunurluk calistirmasi tavaninda ayrisir (plans.ts deneme 2 / 1 / 3;
+      // Buyume 15 / 2 / 20 ...). Eski metin "daha fazla ... AI gorunurluk olcumu"
+      // diyerek plana gecen musteriye daha sik olcum vaat ediyordu.
+      // trial-expiry-wording.spec.ts metni plans.ts sayilarina baglar.
       case 'trial_expiry_d11':
         return yap(
           'Deneme dönemine 3 gün kaldı',
-          'Daha fazla makale, site ve AI görünürlük ölçümü için planlara göz atabilirsin.',
+          'Daha fazla makale, site ve aylık AI görünürlük çalıştırması için planlara göz atabilirsin.',
           h(`${name}, deneme dönemine 3 gün kaldı`) +
-            p('14 günlük deneme döneminin 11 günü doldu. Daha fazla makale, site ve AI görünürlük ölçümü için bir plan seçebilirsin; plan seçtiğinde sitelerin, içeriklerin ve ölçüm geçmişin olduğu gibi kalır.') +
+            p('14 günlük deneme döneminin 11 günü doldu. Daha fazla makale, site ve aylık AI görünürlük çalıştırması için bir plan seçebilirsin; plan seçtiğinde sitelerin, içeriklerin ve ölçüm geçmişin olduğu gibi kalır.') +
             dugme('Planları gör', `${baseUrl}/pricing`),
         );
 
@@ -304,7 +311,7 @@ export class EmailService {
           'Deneme dönemin yarın bitiyor',
           'Plan seçtiğinde sitelerin, içeriklerin ve ölçüm geçmişin olduğu gibi kalır.',
           h(`${name}, deneme dönemin yarın bitiyor`) +
-            p('Daha fazla makale, site ve AI görünürlük ölçümü için bir plan seçebilirsin. Plan seçtiğinde sitelerin, içeriklerin ve ölçüm geçmişin olduğu gibi kalır; kaldığın yerden devam edersin.') +
+            p('Daha fazla makale, site ve aylık AI görünürlük çalıştırması için bir plan seçebilirsin. Plan seçtiğinde sitelerin, içeriklerin ve ölçüm geçmişin olduğu gibi kalır; kaldığın yerden devam edersin.') +
             dugme('Planları gör', `${baseUrl}/pricing`),
         );
 
@@ -313,7 +320,7 @@ export class EmailService {
           'Deneme dönemin doldu',
           'Sitelerin, içeriklerin ve ölçüm geçmişin hesabında duruyor.',
           h(`${name}, deneme dönemin doldu`) +
-            p('Sitelerin, içeriklerin ve ölçüm geçmişin hesabında duruyor. Daha fazla makale, site ve AI görünürlük ölçümü için bir plan seçebilirsin; plan seçtiğinde kaldığın yerden devam edersin.') +
+            p('Sitelerin, içeriklerin ve ölçüm geçmişin hesabında duruyor. Daha fazla makale, site ve aylık AI görünürlük çalıştırması için bir plan seçebilirsin; plan seçtiğinde kaldığın yerden devam edersin.') +
             dugme('Planları gör', `${baseUrl}/pricing`),
         );
 

@@ -64,6 +64,35 @@ export const DUE_SCAN_LIMITS = {
   maxBatches: 40,
 } as const;
 
+/**
+ * Takvimde, uretimde ya da onayda bekleyen YENI yazilar. scheduleTopic'in kalan hakla
+ * karsilastirdigi sayi ve takvim listesi (listScheduledForSite) ayni kosulu kullanir.
+ *
+ * Daha once yayinlanmis yazi (publishedAt dolu) sayilmaz. NEDEN: READY_TO_PUBLISH'te iki
+ * tur yayinlanmis yazi durur ve ikisi de yeni makale hakki tuketmez:
+ *  - Sitedeki son kopyasi kaldirilan yazi. Canlilik denetimi, yayincinin cop kutusu /
+ *    silinmis kopya yolu ve "bu kaydi unut" PUBLISHED'i READY_TO_PUBLISH'e ceker
+ *    (republish-policy statusAfterRetirement); publishedAt gecmis kaydi olarak kalir.
+ *    Musterinin sitesinden bilerek kaldirdigi yazilar "onayda bekleyen" sayiliyor ve
+ *    takvime yeni konu eklemeyi 403'le kesiyordu. Takvimden de cikarilamiyorlardi
+ *    (unscheduleArticle yalniz SCHEDULED alir) ve kendiliginden geri gelmedikleri icin
+ *    biriktikce deneme (omur boyu 2) ya da Buyume (ayda 15) hesabinin takvimini
+ *    tamamen kilitliyorlardi.
+ *  - Yayindaki yazinin onay bekleyen yeniden yazimi (sitede eski metin durur). Yeni bir
+ *    yazi degil, var olan sayfanin guncellemesi. Otomatik yeniden yazim (icerik pivotu)
+ *    makale hakkindan hic dusmez; kullanicinin baslattigi kapali dongu guncellemesi
+ *    hakkini baslatirken zaten dusurdu (content-opportunity incrementArticleUsage),
+ *    bir de bekleyen sayilsa iki kez sayilirdi.
+ * Hic yayinlanmamis yazilarin kosulu degismedi.
+ */
+function pendingNewArticleWhere(siteId: string) {
+  return {
+    siteId,
+    status: { in: ['SCHEDULED', 'GENERATING', 'EDITING', 'READY_TO_PUBLISH'] as any },
+    publishedAt: null,
+  };
+}
+
 /** Sahiplenip kuyruga atmak icin okunan makale alanlari */
 interface ClaimableArticle {
   id: string;
@@ -534,13 +563,9 @@ export class ArticleSchedulerService {
     // uretimleri sayar, takvim uretimi saymaz (eski yorum tersini soyluyordu).
     // Bu yuzden takvimde, uretimde ya da onayda bekleyen yazilar ayrica sayilip
     // kalan hakla karsilastirilir; yayinlanan ya da takvimden cikan yazi yer acar.
+    // Daha once yayinlanmis yazi bekleyen YENI yazi sayilmaz (pendingNewArticleWhere).
     const { allowed, remaining, limit } = await this.quota.checkArticleQuota(site.userId);
-    const pendingCount = await this.prisma.article.count({
-      where: {
-        siteId,
-        status: { in: ['SCHEDULED', 'GENERATING', 'EDITING', 'READY_TO_PUBLISH'] as any },
-      },
-    });
+    const pendingCount = await this.prisma.article.count({ where: pendingNewArticleWhere(siteId) });
     if (!allowed) {
       // Eski metin her planda "makale/ay" diyordu; deneme hesabinin hakki ay
       // basi sifirlanmaz (QuotaService.maybeResetMonthlyQuota)
@@ -632,14 +657,15 @@ export class ArticleSchedulerService {
   }
 
   /**
-   * Site icin scheduled article'leri liste — frontend takvimi besler.
+   * Site icin takvimde, uretimde ya da onayda bekleyen yeni yazilari listeler —
+   * frontend takvimi besler. Kosul scheduleTopic'in bekleyen sayisiyla ayni
+   * (pendingNewArticleWhere): sitedeki kopyasi kaldirilan ya da yeniden yazimi onay
+   * bekleyen yayinlanmis yazi takvim ogesi degildir, takvimde gorunurse musteri onu
+   * takvimden de cikaramazdi.
    */
   async listScheduledForSite(siteId: string) {
     return this.prisma.article.findMany({
-      where: {
-        siteId,
-        status: { in: ['SCHEDULED', 'GENERATING', 'EDITING', 'READY_TO_PUBLISH'] as any },
-      },
+      where: pendingNewArticleWhere(siteId),
       orderBy: { scheduledAt: 'asc' },
       select: {
         id: true,

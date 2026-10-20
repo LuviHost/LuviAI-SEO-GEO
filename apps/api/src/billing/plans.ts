@@ -146,6 +146,16 @@ export interface BasePlan {
  * vaat edilmez: Groq Llama sohbet modelini kaldirdi, saglayici ozel env
  * olmadan olculmuyor. public-docs.spec.ts ikisini de denetler.
  *
+ * OLCUM MADDESI (18.10.2026): 16.10.2026'dan beri her hesap kayan 7 gunde 1
+ * AI olcumu yapabilir (billing/measurement-allowance.ts; tum olcum araclari
+ * ayni hakki paylasir, ADMIN ve platform otomasyonu sayilmaz). "20 AI
+ * gorunurluk calistirmasi / ay" maddesi bunu "ayda 20 olcum" diye satiyordu;
+ * kural ayda en fazla 5 olcume izin verir. aiRunsPerMonth bir olcum hakki
+ * degil, aylik calistirma TAVANIDIR (QuotaService citationTests): AI testi 1,
+ * Prompt Lab'de her soru ve her dal 1 sayilir, tek haftalik olcum birden cok
+ * calistirma harcayabilir. Kartlar ikisini birlikte ve tavani "en fazla" diye
+ * yazar; public-docs.spec.ts sayilari ve kalibi denetler.
+ *
  * Mevcut aboneler: User.grandfatheredUntil / legacyMonthlyPriceTry alanlariyla
  * korunur — bkz. PaytrService.getPlanPriceForUser().
  */
@@ -165,12 +175,12 @@ export const BASE_PLANS: BasePlan[] = [
     support_tr: 'topluluk',
     support_en: 'community',
     features_tr: [
-      '2 AI makale · 3 görünürlük çalıştırması',
+      '2 AI makale · 3 görünürlük çalıştırması (haftada en fazla 1 ölçüm)',
       '1 site',
       'Kredi kartı istemez',
     ],
     features_en: [
-      '2 AI articles · 3 visibility runs',
+      '2 AI articles · 3 visibility runs (at most 1 measurement per week)',
       '1 site',
       'No credit card required',
     ],
@@ -191,7 +201,8 @@ export const BASE_PLANS: BasePlan[] = [
     support_en: 'email 24h',
     features_tr: [
       '15 AI makale / ay — 5 ajanlı üretim hattı, yayın öncesi QA kapısı',
-      '20 AI görünürlük çalıştırması / ay — her çalıştırma 6 AI asistanını birden sorgular',
+      'Hesap başına haftada 1 AI görünürlük ölçümü — AI testi, Prompt Lab ve diğer ölçümler bu hakkı paylaşır',
+      'AI testi ve Prompt Lab soruları 6 AI asistanına birden sorulur; ölçümlerde ayda en fazla 20 çalıştırma (AI testi 1, Prompt Lab’de her soru ve her dal 1 çalıştırma)',
       'ChatGPT · Claude · Gemini · Perplexity · Grok · DeepSeek',
       '2 site',
       'Site SEO/GEO denetimi — 14 teknik kontrol + PageSpeed + harf notu',
@@ -203,7 +214,8 @@ export const BASE_PLANS: BasePlan[] = [
     ],
     features_en: [
       '15 AI articles/mo — 5-agent pipeline with a pre-publish QA gate',
-      '20 AI visibility runs/mo — every run queries 6 AI assistants at once',
+      '1 AI visibility measurement per account per week — the AI test, Prompt Lab and other measurements share it',
+      'The AI test and Prompt Lab questions go to 6 AI assistants at once; up to 20 runs/mo across measurements (an AI test is 1 run, each Prompt Lab question or branch is 1)',
       'ChatGPT · Claude · Gemini · Perplexity · Grok · DeepSeek',
       '2 sites',
       'Site SEO/GEO audit — 14 technical checks + PageSpeed + letter grade',
@@ -230,7 +242,7 @@ export const BASE_PLANS: BasePlan[] = [
     support_en: 'email 4h',
     inheritsFrom: 'starter',
     features_tr: [
-      '40 AI makale / ay · 75 görünürlük çalıştırması · 5 site',
+      '40 AI makale / ay · ayda en fazla 75 çalıştırma (ölçüm yine haftada 1) · 5 site',
       'Apple Search Ads — kampanya kurulumu, senkron ve günlük oto-pilot',
       'App Store Connect — sürüm senkronu, yorum çekme + LLM duygu analizi',
       'App Prompt Lab — AI asistanları uygulamanı öneriyor mu, ölç',
@@ -240,7 +252,7 @@ export const BASE_PLANS: BasePlan[] = [
       'İçerik fırsatları — kaybettiğin promptlardan makale üretip yeniden ölçen kapalı döngü',
     ],
     features_en: [
-      '40 AI articles/mo · 75 visibility runs · 5 sites',
+      '40 AI articles/mo · up to 75 runs/mo (still 1 measurement a week) · 5 sites',
       'Apple Search Ads — campaign setup, sync and daily auto-pilot',
       'App Store Connect — release sync, review ingest + LLM sentiment analysis',
       'App Prompt Lab — measure whether AI assistants recommend your app',
@@ -267,7 +279,7 @@ export const BASE_PLANS: BasePlan[] = [
     support_en: 'priority + Slack',
     inheritsFrom: 'pro',
     features_tr: [
-      '100 AI makale / ay · 300 görünürlük çalıştırması · 15 site',
+      '100 AI makale / ay · ayda en fazla 300 çalıştırma (ölçüm yine haftada 1) · 15 site',
       'Programmatic SEO — tek şablonla 81 ilin tamamına şehir sayfası (aylık makale kotasından düşer)',
       'Product Radar — haftalık rakip ses payı ve kategori sırası',
       'GEO Heatmap — çoklu sağlayıcıda görünürlük ısı haritası',
@@ -275,7 +287,7 @@ export const BASE_PLANS: BasePlan[] = [
       'Öncelikli destek + Slack kanalı',
     ],
     features_en: [
-      '100 AI articles/mo · 300 visibility runs · 15 sites',
+      '100 AI articles/mo · up to 300 runs/mo (still 1 measurement a week) · 15 sites',
       'Programmatic SEO — one template, city pages for all 81 provinces (counts toward your monthly article quota)',
       'Product Radar — weekly competitor share-of-voice and category rank',
       'GEO Heatmap — multi-provider visibility heatmap',
@@ -299,16 +311,16 @@ export const BASE_PLANS: BasePlan[] = [
     support_en: 'dedicated account manager + SLA',
     inheritsFrom: 'agency',
     features_tr: [
-      '350 AI makale / ay · 1.000 görünürlük çalıştırması · 50 site',
-      'BYOK — kendi sağlayıcı anahtarların; havuz kotası dolsa bile ölçüm durmaz',
+      '350 AI makale / ay · ayda en fazla 1.000 çalıştırma (ölçüm yine haftada 1) · 50 site',
+      'BYOK — kendi sağlayıcı anahtarların; aylık çalıştırma tavanı dolsa da ölçüm bu anahtarlarla sürer (haftada 1 ölçüm kuralı geçerli)',
       'MCP sunucusu — Claude Code, Cursor ya da özel başlık gönderebilen kendi ajanından bağlan',
       'REST API + scope’lu API anahtarları',
       'AI maliyet ve token muhasebesi — sağlayıcı / bağlam / gün kırılımı',
       'Özel hesap yöneticisi + SLA, sözleşmeli kurulum',
     ],
     features_en: [
-      '350 AI articles/mo · 1,000 visibility runs · 50 sites',
-      'BYOK — your own provider keys; measurement continues past pool quota',
+      '350 AI articles/mo · up to 1,000 runs/mo (still 1 measurement a week) · 50 sites',
+      'BYOK — your own provider keys; measurement continues on them past the monthly run cap (the weekly measurement rule still applies)',
       'MCP server — connect from Claude Code, Cursor or your own agent that can send a custom header',
       'REST API + scoped API keys',
       'AI cost and token accounting — by provider / context / day',

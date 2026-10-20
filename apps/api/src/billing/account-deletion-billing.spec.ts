@@ -23,6 +23,10 @@ function sign(payload: Record<string, string>, key = KEY, salt = SALT): string {
 beforeEach(() => {
   vi.stubEnv('PAYTR_MERCHANT_KEY', KEY);
   vi.stubEnv('PAYTR_MERCHANT_SALT', SALT);
+  // CANLI mod: tanimsizken servis test modunda kurulur ve test odemesi
+  // yonetici olmayan hesapta PAID olmaz (paytr-test-mode.spec.ts). Buradaki
+  // "para tahsil edildi → PAID" kurallari canli odemeye aittir.
+  vi.stubEnv('PAYTR_TEST_MODE', '0');
 });
 afterEach(() => { vi.unstubAllEnvs(); });
 

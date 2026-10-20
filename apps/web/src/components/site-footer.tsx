@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { Mail, ShieldCheck } from 'lucide-react';
 import { BrandWordmark } from '@/components/brand-logo';
 import { useT } from '@/lib/i18n';
+import { openCookiePreferences } from '@/lib/consent';
 
 const X_HANDLE = 'luvihost';
 const LINKEDIN_HANDLE = 'luvihost';
@@ -14,7 +15,7 @@ const SUPPORT_EMAIL = 'destek@luvihost.com';
  * 12-col grid, italic accent on tagline, refined social icons, generous padding.
  */
 export function SiteFooter() {
-  const { t } = useT();
+  const { t, locale } = useT();
   const year = new Date().getFullYear();
 
   return (
@@ -90,6 +91,19 @@ export function SiteFooter() {
                 <li><Link href="/privacy" className="text-neutral-600 dark:text-neutral-400 hover:text-foreground transition-colors duration-300 ease-apple">Gizlilik</Link></li>
                 <li><Link href="/terms" className="text-neutral-600 dark:text-neutral-400 hover:text-foreground transition-colors duration-300 ease-apple">Şartlar</Link></li>
                 <li><Link href="/kvkk" className="text-neutral-600 dark:text-neutral-400 hover:text-foreground transition-colors duration-300 ease-apple">KVKK</Link></li>
+                {/* Riza geri alinabilir olmali ve tercih paneline erisim saglanmali (KVKK cerez
+                    rehberi 7.3; kaynak listesi lib/consent.ts): yalniz gizlilik sayfasindaki dugme
+                    yetmiyordu, cerez bandi artik her pazarlama sayfasinin altindan yeniden acilir
+                    (CONSENT_REOPEN_EVENT). Bant EN arayuzde Ingilizce acildigi icin etiket de dile gore. */}
+                <li>
+                  <button
+                    type="button"
+                    onClick={() => openCookiePreferences()}
+                    className="text-left text-neutral-600 dark:text-neutral-400 hover:text-foreground transition-colors duration-300 ease-apple"
+                  >
+                    {locale === 'en' ? 'Cookie preferences' : 'Çerez tercihleri'}
+                  </button>
+                </li>
               </ul>
             </div>
           </div>

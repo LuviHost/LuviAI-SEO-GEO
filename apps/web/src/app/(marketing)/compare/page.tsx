@@ -69,7 +69,7 @@ const FEATURE_GROUPS_TR: FeatureGroup[] = [
     title: 'AI Search Optimization (GEO/AEO)',
     icon: <Globe className="h-4 w-4" />,
     rows: [
-      { name: 'AI görünürlük takibi (asistan cevaplarında marka ve kaynak)', luviai: '6 asistan', surfer: 'AI Search Analytics planı', jasper: 'GEO Hub (Business)', ahrefs: 'Brand Radar', frase: 'AI Visibility', hint: 'RanksUp: ChatGPT, Claude, Gemini, Perplexity, Grok ve DeepSeek. Rakiplerde kapsam plana göre değişir; Google AI Overviews / AI Mode ve Copilot gibi motorları ölçenler var, RanksUp bunları ölçmez.' },
+      { name: 'AI görünürlük takibi (asistan cevaplarında marka ve kaynak)', luviai: '6 asistan', surfer: 'AI Search Analytics planı', jasper: 'GEO Hub (Business)', ahrefs: 'Brand Radar', frase: 'AI Visibility', hint: 'RanksUp: ChatGPT, Claude, Gemini, Perplexity, Grok ve DeepSeek; ölçümü sen başlatırsın, hesap başına 7 günde 1. Rakiplerde kapsam plana göre değişir; Google AI Overviews / AI Mode ve Copilot gibi motorları ölçenler var, RanksUp bunları ölçmez.' },
       { name: 'GEO ısı haritası (rakip × AI asistanı)', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
       { name: 'GEO Skor Kartı (6 başlık, A+ → F)', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
       { name: 'AI görünürlük düşüş alarmı (e-posta)', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: 'uyarılar' },
@@ -170,7 +170,7 @@ const FEATURE_GROUPS_EN: FeatureGroup[] = [
     title: 'AI Search Optimization (GEO/AEO)',
     icon: <Globe className="h-4 w-4" />,
     rows: [
-      { name: 'AI visibility tracking (brand and source in assistant answers)', luviai: '6 assistants', surfer: 'AI Search Analytics plan', jasper: 'GEO Hub (Business)', ahrefs: 'Brand Radar', frase: 'AI Visibility', hint: 'RanksUp: ChatGPT, Claude, Gemini, Perplexity, Grok and DeepSeek. Competitor coverage depends on the plan; some track engines such as Google AI Overviews / AI Mode and Copilot, which RanksUp does not measure.' },
+      { name: 'AI visibility tracking (brand and source in assistant answers)', luviai: '6 assistants', surfer: 'AI Search Analytics plan', jasper: 'GEO Hub (Business)', ahrefs: 'Brand Radar', frase: 'AI Visibility', hint: 'RanksUp: ChatGPT, Claude, Gemini, Perplexity, Grok and DeepSeek; you start each measurement, once every 7 days per account. Competitor coverage depends on the plan; some track engines such as Google AI Overviews / AI Mode and Copilot, which RanksUp does not measure.' },
       { name: 'GEO heatmap (competitor × AI assistant)', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
       { name: 'GEO Score Card (6 pillars, A+ → F)', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: null },
       { name: 'AI visibility drop alert (email)', luviai: true, surfer: null, jasper: null, ahrefs: null, frase: 'alerts' },
@@ -262,6 +262,9 @@ const FEATURE_GROUPS_EN: FeatureGroup[] = [
  *  - 1-2: Llama olculmuyor (Groq modeli kaldirdi, ai-citation.service.ts),
  *    gunluk otomatik olcum kapali (worker AI_CITATION_DAILY_CRON) ve kullanici
  *    tetikli olcum haftada bir (billing/measurement-allowance.ts) → partial.
+ *    Hak hesap basina (tum siteler ortak); tablo ipucu da bunu soyler. EN
+ *    metinde olcum eylemine "run" denmez: fiyat kartinda "run" aylik
+ *    calistirma tavaninin birimi (plans.ts), ikisi karisiyordu.
  *  - 3: robots.txt duzeltmesi engel KALDIRMAZ; eksik AI botlarini mevcut
  *    kurallari koruyarak, onizleme + onayla ekler (robots-merge.ts,
  *    auto-fix.service.ts). Bot sayisi known-ai-bots.ts (27).
@@ -274,7 +277,7 @@ const FEATURE_GROUPS_EN: FeatureGroup[] = [
  *    → partial.
  */
 const PLAYBOOK: Array<{ step: string; tr: string; en: string; status: 'auto' | 'partial' | 'none'; noteTr: string; noteEn: string }> = [
-  { step: '1-2', tr: 'AI görünürlüğünü ölç, hedef koy (share of voice, kaynak görünürlüğü, referral)', en: 'Measure AI visibility and set targets (share of voice, source visibility, referral)', status: 'partial', noteTr: 'ChatGPT, Claude, Gemini, Perplexity, Grok ve DeepSeek’te ölçüm; ölçümü sen başlatırsın (haftada bir). Markalı sorular manşetten ayrı; 7 günlük ortalama + oynaklık rozeti.', noteEn: 'Measured on ChatGPT, Claude, Gemini, Perplexity, Grok and DeepSeek; you start each run (once a week). Branded queries excluded from the headline; 7-day rolling average + volatility badge.' },
+  { step: '1-2', tr: 'AI görünürlüğünü ölç, hedef koy (share of voice, kaynak görünürlüğü, referral)', en: 'Measure AI visibility and set targets (share of voice, source visibility, referral)', status: 'partial', noteTr: 'ChatGPT, Claude, Gemini, Perplexity, Grok ve DeepSeek’te ölçüm; ölçümü sen başlatırsın (hesap başına haftada bir). Markalı sorular manşetten ayrı; 7 günlük ortalama + oynaklık rozeti.', noteEn: 'Measured on ChatGPT, Claude, Gemini, Perplexity, Grok and DeepSeek; you start each measurement (once a week per account). Branded queries excluded from the headline; 7-day rolling average + volatility badge.' },
   { step: '3', tr: 'robots.txt AI crawler engellerini kaldır', en: 'Unblock AI crawlers in robots.txt', status: 'partial', noteTr: 'AXO taraması 27 botu kategorili ölçer; eksik AI bot gruplarını mevcut kuralları koruyarak önizlemeli ekler, mevcut engelleri kaldırmak site sahibinin kararıdır.', noteEn: 'AXO scan checks 27 bots by category; adds missing AI bot groups with a preview while keeping your existing rules — removing existing blocks is the site owner’s decision.' },
   { step: '4', tr: 'Site denetimi (kırık link, yönlendirme, orphan, tekrar içerik)', en: 'Site audit (broken links, redirects, orphans, duplicates)', status: 'partial', noteTr: '14 kontrol + PageSpeed; orphan var, kırık link ve tekrar title henüz yok.', noteEn: '14 checks + PageSpeed; orphans yes, broken links and duplicate titles not yet.' },
   { step: '5, 19', tr: 'Marka doğruluk taraması — AI markan hakkında yanlış ne söylüyor?', en: 'Brand accuracy scan — what does AI get wrong about you?', status: 'none', noteTr: 'Sentiment ölçülüyor; doğruluk taraması yol haritasında.', noteEn: 'Sentiment is measured; accuracy scanning is on the roadmap.' },

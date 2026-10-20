@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { PersonaChatService, normalizePersonaHistory, PERSONA_HISTORY_MAX } from './persona-chat.service.js';
+import { advertisedArticleEntry, publicArticleWhere } from './ai-sitemap.service.js';
 
 /**
  * Persona sohbeti (herkese acik widget):
@@ -95,6 +96,126 @@ describe('PersonaChatService.ask', () => {
     expect(args.system).toContain('"Boya rehberi" — b (adres yok — bağlantı verme)');
     expect(r.cited).toBe(true);
     expect(r.sources).toEqual([{ url: 'https://ornek.com/sac-bakimi/', title: 'Saç bakımı' }]);
+  });
+
+  /**
+   * WordPress hedef formunun varsayilani 'Taslak': bu hedefe "yayinlanan" yazi WordPress'te
+   * taslak durur, kayitli duz ?p=<id> adresi giris yapmamis ziyaretciye 404 verir. Sohbet
+   * articlePublicUrl kullaniyordu ve bu adresi ziyaretciye baglanti olarak veriyordu. Artik
+   * site haritasi ve llms-full'un ILAN ettigi adres kurali (advertisedArticleEntry) gecerli.
+   */
+  describe('baglanti yalniz gercek, herkese acik sayfaya (site haritasiyla ayni kural)', () => {
+    const SITE_URL = 'https://ornek.com/';
+    const TARGET_ROWS = [
+      { id: 'wpd', type: 'WORDPRESS_REST', config: { postStatus: 'draft' } },
+      { id: 'wpp', type: 'WORDPRESS_XMLRPC', config: { postStatus: 'publish' } },
+    ];
+    const wp = (targetId: string, externalUrl: string, extra: Record<string, unknown> = {}) => (
+      [{ targetId, targetType: targetId === 'wpp' ? 'WORDPRESS_XMLRPC' : 'WORDPRESS_REST', ok: true, externalUrl, ...extra }]
+    );
+    const ARTICLES = [
+      // Taslak modundaki hedef, hic canli gorulmemis duz baglanti: ziyaretciye 404
+      { title: 'Taslak yazı', slug: 'taslak-yazi', metaDescription: 'm1', topic: 't1', publishedTo: wp('wpd', 'https://ornek.com/?p=42', { externalId: '42' }) },
+      // Ayni hedefte guzel kalici baglanti: WordPress yaziyi son yazimda herkese acik bildirdi
+      { title: 'Açık yazı', slug: 'acik-yazi', metaDescription: 'm2', topic: 't2', publishedTo: wp('wpd', 'https://ornek.com/acik-yazi/', { externalId: '43' }) },
+      // Canlilik denetiminin bir kez canli gordugu duz baglanti
+      { title: 'Görülmüş yazı', slug: 'gorulmus-yazi', metaDescription: 'm3', topic: 't3', publishedTo: wp('wpd', 'https://ornek.com/?p=44', { externalId: '44', liveSeenAt: '2026-10-19T02:20:00.000Z' }) },
+      // Yayin modundaki XML-RPC hedefi, durumu bilinmeyen eski kayit (duz baglanti)
+      { title: 'XML-RPC yazısı', slug: 'xmlrpc-yazisi', metaDescription: 'm4', topic: 't4', publishedTo: wp('wpp', 'https://ornek.com/?p=45', { externalId: '45' }) },
+    ];
+    const sor = async (replyText: string) => {
+      const prisma = {
+        site: { findUnique: vi.fn(async () => ({ id: 's1', name: 'Örnek', url: SITE_URL, niche: 'kuafor', brain: null })) },
+        article: { findMany: vi.fn(async () => ARTICLES) },
+        publishTarget: { findMany: vi.fn(async () => TARGET_ROWS) },
+        $executeRawUnsafe: vi.fn(async () => 1),
+        kvStore: { findUnique: vi.fn(async () => ({ value: '1' })) },
+      };
+      const create = vi.fn(async () => ({ content: [{ type: 'text', text: replyText }] }));
+      const svc = new PersonaChatService(prisma as any, { getString: vi.fn(async () => null) } as any);
+      (svc as any).anthropic = { messages: { create } };
+      const r = await svc.ask('s1', [{ role: 'user', content: 'Ne önerirsin?' }]);
+      return { r, system: String(((create.mock.calls[0] as any[])[0]).system) };
+    };
+
+    it('hic canli gorulmemis WordPress taslak ?p= adresi verilmez; cevapta gecse de kaynak sayilmaz', async () => {
+      const { r, system } = await sor('Bkz. https://ornek.com/?p=42 ve https://ornek.com/acik-yazi/');
+      expect(system).toContain('"Taslak yazı" — m1 (adres yok — bağlantı verme)');
+      expect(system).not.toContain('?p=42');
+      expect(system).toContain('"Açık yazı" — m2 (https://ornek.com/acik-yazi/)');
+      expect(r.sources).toEqual([{ url: 'https://ornek.com/acik-yazi/', title: 'Açık yazı' }]);
+    });
+
+    it('her yazinin adresi site haritasi / llms-full kuraliyla birebir ayni (advertisedArticleEntry)', async () => {
+      const { system } = await sor('Merhaba');
+      const site = new URL(SITE_URL);
+      const targets = new Map(TARGET_ROWS.map((t) => [t.id, { type: t.type, config: t.config }]));
+      for (const a of ARTICLES) {
+        const want = advertisedArticleEntry(site, a.slug, a.publishedTo, targets)?.url ?? null;
+        expect(system, a.title).toContain(`"${a.title}" — ${a.metaDescription} (${want ?? 'adres yok — bağlantı verme'})`);
+      }
+    });
+  });
+
+  /**
+   * Liste kurali llms-full ile ayni (publicArticleWhere + includePublicArticle + publicArticleText).
+   * NEDEN: yalniz PUBLISHED okunuyordu ve kaydin kendi basligi veriliyordu: yeniden yazimi onay
+   * bekleyen ama sitede canli duran yazi sohbette yoktu; eski metni gosteren kopyaya yeni baslik
+   * veriliyordu.
+   */
+  describe('liste ve metin llms-full ile ayni kural (adresteki sayfanin metni)', () => {
+    const SITE_URL = 'https://ornek.com/';
+    const live = (url: string, extra: Record<string, unknown> = {}) => [{ targetId: 'wp', targetType: 'WORDPRESS_REST', ok: true, externalUrl: url, remoteStatus: 'publish', ...extra }];
+    const snapshot = (title: string, metaDescription: string) => ({ liveSnapshot: { title, metaTitle: null, metaDescription, bodyMd: 'eski govde' } });
+    const ROWS = [
+      // Yeniden yazimi onay bekliyor; sitede eski metniyle canli
+      { id: 'a1', title: 'Yeni başlık 1', slug: 'yazi-1', metaDescription: 'yeni özet 1', topic: 't1', status: 'READY_TO_PUBLISH', publishedTo: live('https://ornek.com/yazi-1/') },
+      // Onay bekliyor ama sitede canli adresi yok: listelenmez
+      { id: 'a2', title: 'Yeni başlık 2', slug: 'yazi-2', metaDescription: 'yeni özet 2', topic: 't2', status: 'REVIZE_NEEDED', publishedTo: [] },
+      // Yayinda; adresteki kopya elle guncelleme bekliyor (eski metin)
+      { id: 'a3', title: 'Yeni başlık 3', slug: 'yazi-3', metaDescription: 'yeni özet 3', topic: 't3', status: 'PUBLISHED', publishedTo: live('https://ornek.com/yazi-3/', { manualUpdatePending: true }) },
+      // Yayinda, guncel
+      { id: 'a4', title: 'Başlık 4', slug: 'yazi-4', metaDescription: 'özet 4', topic: 't4', status: 'PUBLISHED', publishedTo: live('https://ornek.com/yazi-4/') },
+    ];
+    const OLDER: Record<string, unknown> = {
+      a1: { id: 'a1', metaTitle: null, bodyMd: 'yeni govde', agentOutputs: snapshot('Eski başlık 1', 'eski özet 1') },
+      a3: { id: 'a3', metaTitle: null, bodyMd: 'yeni govde', agentOutputs: snapshot('Eski başlık 3', 'eski özet 3') },
+    };
+    const sor = async (replyText: string) => {
+      const findMany = vi.fn(async (args: any) => (args?.where?.id?.in ? args.where.id.in.map((id: string) => OLDER[id]).filter(Boolean) : ROWS));
+      const prisma = {
+        site: { findUnique: vi.fn(async () => ({ id: 's1', name: 'Örnek', url: SITE_URL, niche: 'kuafor', brain: null })) },
+        article: { findMany },
+        publishTarget: { findMany: vi.fn(async () => [{ id: 'wp', type: 'WORDPRESS_REST', config: {} }]) },
+        $executeRawUnsafe: vi.fn(async () => 1),
+        kvStore: { findUnique: vi.fn(async () => ({ value: '1' })) },
+      };
+      const create = vi.fn(async () => ({ content: [{ type: 'text', text: replyText }] }));
+      const svc = new PersonaChatService(prisma as any, { getString: vi.fn(async () => null) } as any);
+      (svc as any).anthropic = { messages: { create } };
+      const r = await svc.ask('s1', [{ role: 'user', content: 'Ne önerirsin?' }]);
+      return { r, findMany, system: String(((create.mock.calls[0] as any[])[0]).system) };
+    };
+
+    it('yazilar site haritasi / llms-full secimiyle okunur (publicArticleWhere)', async () => {
+      const { findMany } = await sor('Merhaba');
+      expect((findMany.mock.calls[0] as any[])[0].where).toEqual(publicArticleWhere('s1'));
+    });
+
+    it('onay bekleyen canli yazi adresteki ESKI metniyle listelenir; adresi olmayan listelenmez', async () => {
+      const { system } = await sor('Merhaba');
+      expect(system).toContain('"Eski başlık 1" — eski özet 1 (https://ornek.com/yazi-1/)');
+      expect(system).not.toContain('Yeni başlık 1');
+      expect(system).not.toContain('Yeni başlık 2');
+    });
+
+    it('eski metni gosteren kopyaya yeni baslik verilmez; kaynak basligi da adresteki baslik', async () => {
+      const { r, system } = await sor('Bkz. https://ornek.com/yazi-3/');
+      expect(system).toContain('"Eski başlık 3" — eski özet 3 (https://ornek.com/yazi-3/)');
+      expect(system).not.toContain('Yeni başlık 3');
+      expect(system).toContain('"Başlık 4" — özet 4 (https://ornek.com/yazi-4/)');
+      expect(r.sources).toEqual([{ url: 'https://ornek.com/yazi-3/', title: 'Eski başlık 3' }]);
+    });
   });
 });
 

@@ -1,5 +1,15 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { referralLabel } from './referral-label.js';
+
+/**
+ * getStats secenekleri. revealContacts yalniz YONETICI icin (denetleyici rol bakar):
+ * destek ve elle yapilan komisyon odemesinde davetlinin kim oldugu dogrulanir. Ortagin
+ * kendisi davetlinin yalniz kisaltilmis etiketini gorur (referral-label.ts).
+ */
+export interface AffiliateStatsOptions {
+  revealContacts?: boolean;
+}
 
 @Injectable()
 export class AffiliateService {
@@ -25,7 +35,18 @@ export class AffiliateService {
     return { refCode };
   }
 
-  async getStats(userId: string) {
+  /**
+   * Ortaklik paneli verisi.
+   *
+   * KVKK veri minimizasyonu (referral-label.ts): ortaga (revealContacts yok) davetlilerin
+   * tam adi, e-postasi ve baska kullanicilarin ic kimlikleri (referredUserId, 2. seviyede
+   * affiliateId / parentUserId) GITMEZ; her satirda yalniz panelin gosterdigi kisaltilmis
+   * etiket (referredLabel) ve davet olgulari durur. 2. seviyede komisyon yok: o satirlardaki
+   * totalCommissionEarned / commissionUntil 1. seviyedeki kisinin kendi kazancidir, ortaga
+   * gitmez. Ag grafigi 2. seviyeyi ust dugume parentReferralId (1. seviye davet kaydinin
+   * kimligi) ile baglar. Yonetici (revealContacts) eski bicimi aynen alir.
+   */
+  async getStats(userId: string, opts: AffiliateStatsOptions = {}) {
     const affiliate = await this.prisma.affiliate.findUnique({
       where: { userId },
       include: {
@@ -57,8 +78,8 @@ export class AffiliateService {
       }
     }
 
-    // Tier 1 + tier 2'deki tüm referredUserId'ler için tek batch query —
-    // her referral entry'sine name/email ekle (UI label için)
+    // Tier 1 + tier 2'deki tum referredUserId'ler icin tek toplu sorgu: ad / e-posta yalniz
+    // etiketi uretmek icin okunur (yoneticiye aynen gider, ortaga gitmez)
     const allRefUserIds = [
       ...tier1.map((r) => r.referredUserId),
       ...tier2.map((r) => r.referredUserId),
@@ -71,16 +92,51 @@ export class AffiliateService {
       });
       userMap = Object.fromEntries(users.map((u) => [u.id, { name: u.name, email: u.email }]));
     }
-    const enrich = (arr: any[]) => arr.map((r) => {
-      const u = r.referredUserId ? userMap[r.referredUserId] : null;
-      return {
-        ...r,
-        referredName: u?.name ?? null,
-        referredEmail: u?.email ?? null,
+    let tier1Enriched: unknown[];
+    let tier2Enriched: unknown[];
+    if (opts.revealContacts === true) {
+      // Yonetici: eski bicim aynen (tam ad, e-posta, ic kimlikler)
+      const enrich = (arr: any[]) => arr.map((r) => {
+        const u = r.referredUserId ? userMap[r.referredUserId] : null;
+        return {
+          ...r,
+          referredName: u?.name ?? null,
+          referredEmail: u?.email ?? null,
+        };
+      });
+      tier1Enriched = enrich(tier1.map((r) => ({ ...r, tier: 1 })));
+      tier2Enriched = enrich(tier2);
+    } else {
+      const labelOf = (referredUserId: string | null | undefined) => {
+        const u = referredUserId ? userMap[referredUserId] : null;
+        return referralLabel(u?.name, u?.email);
       };
-    });
-    const tier1Enriched = enrich(tier1.map((r) => ({ ...r, tier: 1 })));
-    const tier2Enriched = enrich(tier2);
+      // 2. seviye satirinin ust dugumu: 1. seviyedeki davet kaydinin kimligi (kullanici kimligi degil)
+      const parentReferralOf = new Map<string, string>();
+      for (const r of tier1) if (r.referredUserId) parentReferralOf.set(r.referredUserId, r.id);
+      // Acik alan listesi: Prisma'ya yeni bir alan eklense de ortaga kendiliginden gitmez
+      tier1Enriched = tier1.map((r) => ({
+        id: r.id,
+        tier: 1 as const,
+        referredLabel: labelOf(r.referredUserId),
+        status: r.status,
+        clickedAt: r.clickedAt,
+        signedUpAt: r.signedUpAt,
+        firstPaidAt: r.firstPaidAt,
+        commissionUntil: r.commissionUntil,
+        totalCommissionEarned: r.totalCommissionEarned,
+      }));
+      tier2Enriched = tier2.map((r) => ({
+        id: r.id,
+        tier: 2 as const,
+        parentReferralId: parentReferralOf.get(r.parentUserId) ?? null,
+        referredLabel: labelOf(r.referredUserId),
+        status: r.status,
+        clickedAt: r.clickedAt,
+        signedUpAt: r.signedUpAt,
+        firstPaidAt: r.firstPaidAt,
+      }));
+    }
 
     return {
       enrolled: true,

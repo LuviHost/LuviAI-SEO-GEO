@@ -193,7 +193,15 @@ export const SETTINGS_CATALOG: SettingMeta[] = [
     // canlı modda iken test işlem yapmak için 1 olarak gönderilebilir".
     // paytr.service degeri ham haliyle test_mode'a koyar; devConfirmPayment
     // yalniz '1' iken calisir.
-    description: 'PayTR ödeme isteğindeki test_mode değeri: 1 = test işlemi (mağaza canlı moddayken bile), 0 = mağazanın kendi modu (canlı mağazada gerçek ödeme). paytr.service değeri yalnız ortam değişkeninden okur; .env\'de yoksa 1. Test onayı ucu (dev-confirm) yalnız 1 iken çalışır.',
+    // Satin alma kapisi (paytr.service testModeOn / assertCheckoutOpen /
+    // isRefusedTestPayment / chargeStoredCard): '0' disindaki her deger test
+    // sayilir, yalniz ADMIN odeme baslatir, test odemesi yonetici olmayan hesapta
+    // plan acmaz (fatura FAILED), kayitli karttan yenileme denenmez; PayTR
+    // bildirimindeki test_mode=1 da ayni karari verdirir. NEDEN BURADA: panel bu
+    // metni gosteriyor; admin "test modu acik" gorunce yalniz deneme odemesi
+    // olacagini degil, musterilerin satin alamadigini da bilmeli.
+    // paytr-test-mode-description.spec.ts metni bu kod kosullarina baglar.
+    description: 'PayTR ödeme isteğindeki test_mode değeri: 1 = test işlemi (mağaza canlı moddayken bile), 0 = mağazanın kendi modu (canlı mağazada gerçek ödeme). paytr.service değeri yalnız ortam değişkeninden okur; .env\'de yoksa 1. Test modu açıkken (0 dışındaki her değer) yalnız yönetici hesapları satın alma başlatabilir; test ödemeleri yönetici olmayan hiçbir hesapta plan açmaz (fatura başarısız sayılır) ve kayıtlı karttan otomatik yenileme denenmez. PayTR bildirimi işlemi test olarak işaretlerse (mağaza henüz canlıya alınmadıysa) değer 0 olsa da test ödemesi yönetici olmayan hesapta plan açmaz. Test onayı ucu (dev-confirm) yalnız değer tam olarak 1 iken ve yalnız yönetici hesaplarında çalışır.',
     envFallback: false,
     envOnly: true,
   },

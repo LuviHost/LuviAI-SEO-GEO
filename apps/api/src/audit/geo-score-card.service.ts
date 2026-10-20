@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { isHeroPlaceholder } from '../articles/hero-placeholder.js';
+import { lastLiveWriteAt } from '../articles/republish-policy.js';
 import { isUnverifiedCheck } from './audit-checks.service.js';
 import { crawlAccessMessage, crawlAccessNewerThanAudit, readCrawlAccess } from '../sites/crawl-access.js';
 
@@ -454,10 +455,38 @@ export class GeoScoreCardService {
       detail: `${lastWeek} makale`,
     });
 
+    // Eskimis icerik: yazinin sitedeki metnine son yazim 90 gunden eski mi. Son yazim
+    // yayin kayitlarinin updatedAt'i (republish-policy lastLiveWriteAt: yerinde guncelleme,
+    // ayni yolun uzerine yazma, musterinin "guncelledim" bildirimi); kayit tasimiyorsa ilk
+    // yayin tarihi. Icerik pivotunun bekleme suresiyle ayni kural (content-pivot.service:
+    // lastLiveWriteAt ?? publishedAt): kart "content pivot çalıştır" dediginde pivot da ayni
+    // yazilari eski sayar.
+    // NEDEN Article.updatedAt DEGIL: satirin her yazimi onu ilerletir (Prisma @updatedAt);
+    // canlilik denetiminin defter yazimlari (liveSeenAt, goneSince), iyimser kilitler ve
+    // isaretler de. Gunluk canlilik denetimi dagitimdan sonraki ilk turunda her canli dosya
+    // kopyasina liveSeenAt yazar: eski kuralla 5 aydir dokunulmamis yazi 90 gun taze
+    // gorunur, kart 'Eskimiş içerik yok' derdi.
+    // publishedAt <= 90 gun ON SUZGEC: son canli yazim ilk yayindan eski olamaz, ilk yayini
+    // daha yeni yazi zaten taze. Son yazim JSON icinde oldugu icin sorguda suzulemiyor.
+    // Kart her sayfa acilisinda hesaplanir: buyuk sitede binlerce publishedTo JSON'unu
+    // tek seferde bellege almamak icin 500'luk parcalarla okunur; sayim yine tam.
     const last90 = new Date(Date.now() - 90 * 86400000);
-    const stale = await this.prisma.article.count({
-      where: { siteId, status: 'PUBLISHED' as any, publishedAt: { lte: last90 }, updatedAt: { lte: last90 } },
-    });
+    let stale = 0;
+    for (let cursor: string | undefined; ;) {
+      const batch = await this.prisma.article.findMany({
+        where: { siteId, status: 'PUBLISHED' as any, publishedAt: { lte: last90 } },
+        select: { id: true, publishedAt: true, publishedTo: true },
+        orderBy: { id: 'asc' },
+        take: 500,
+        ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      });
+      for (const a of batch) {
+        const lastWrite = lastLiveWriteAt(a.publishedTo) ?? a.publishedAt;
+        if (lastWrite && lastWrite.getTime() <= last90.getTime()) stale++;
+      }
+      if (batch.length < 500) break;
+      cursor = batch[batch.length - 1].id;
+    }
     checks.push({
       id: 'stale-content', name: 'Eskimiş içerik',
       ok: stale < 10,

@@ -12,6 +12,10 @@ export const metadata = { title: 'AI Görünürlük — RanksUp Help' };
 //    citation-roadmap, ikisi de @MeasurementSession).
 //  - BYOK yalniz Kurumsal (plans.ts FEATURE_MIN_PLAN.byok); haftalik hak
 //    BYOK'ta da gecerli. Eski metin "Pro ve ustu, sinirsiz test" diyordu.
+//  - Hak hesap basina (kv ai-olcum:<userId>), siteler ortak. Panelden baslatilan
+//    site taramasi (audit run, trigger 'user') AI adiminda ayni hakki kullanir;
+//    hak yoksa AI adimi atlanir, tarama tamamlanir (audit.service aiSkip).
+//    Calistirma aylik tavan: runForSite 1, Prompt Lab sorusu / dali 1.
 export default function Page() {
   return (
     <HelpArticle slug="ai-visibility"
@@ -36,6 +40,11 @@ export default function Page() {
       <p>
         Ölçümü sen başlatırsın. Hesap başına 7 günde bir AI ölçümü yapılabilir; AI testi, yol haritası, Prompt Lab ve diğer ölçümler
         bu haftalık hakkı paylaşır. Hak kullanıldıysa butonun altında bir sonraki ölçümün açılacağı tarih yazar.
+      </p>
+      <p>
+        Hak hesap başınadır: tüm sitelerin aynı haftalık hakkı paylaşır. Panelden yeniden başlattığın site taramasındaki AI testi de bu hakka
+        sayılır; hak o hafta kullanıldıysa tarama AI adımı olmadan tamamlanır. Planına göre ayrıca aylık bir görünürlük çalıştırması tavanı
+        vardır: AI testi 1, Prompt Lab&apos;de her soru ve her dal 1 çalıştırma sayılır (<a href="/help/billing">Faturalama</a>).
       </p>
 
       <h2>Skor sistemi</h2>

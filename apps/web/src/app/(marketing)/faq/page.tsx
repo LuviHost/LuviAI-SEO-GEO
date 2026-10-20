@@ -24,12 +24,25 @@ import { useT } from '@/lib/i18n';
  *  - Otopilot varsayilan acik (schema.prisma Site.autopilot @default(true));
  *    gunluk AI olcumu yok, haftada bir kullanici tetikli
  *    (billing/measurement-allowance.ts).
+ *  - Olcum hakki hesap basina (kv ai-olcum:<userId>, tum siteler ortak), kayan
+ *    7 gun: ayda en fazla 5. "Calistirma" ayri aylik tavan (QuotaService
+ *    citationTests): runForSite 1, runQueries (Prompt Lab sorusu / dali) 1.
+ *    Kurulum taramasi ve baslangic olcumu worker'da trigger 'system': hakka
+ *    sayilmaz. Plan sayilari SSS'de yazilmaz, fiyat sayfasina yonlendirilir.
  *  - Madde (2)-(3) takvim (article-scheduler.service.ts): ilk takvim Tier 1
  *    listesinden en fazla 8 konu (worker ONBOARDING_CHAIN count 8; ranker
  *    istemi Tier 1'i 6 konuyla sinirlar). "15 dk once" (LEAD_TIME_MS) yalniz
  *    gecikmeli iste: scheduleTopic ve rescheduleArticle. Ilk takvim ve
  *    programatik SEO yazilarini saatlik tarama (PROCESS_SCHEDULED, 60 dk,
  *    esik simdi + 15 dk) alir: slottan 15 dk once ile ~45 dk sonra arasi.
+ *  - "Makale kotami asarsam" (20.10.2026): eski cevap "Sistem makale uretmeyi
+ *    durdurur" diyordu; kodda durmayan uretim var (takvime elle eklenen yazinin
+ *    gecikmeli isi dispatchScheduledArticle hakka bakmaz, onboarding'in ilk
+ *    makalesi hak kontrolsuz). Hak dolunca gercekte: kullanicinin baslattigi
+ *    uretim (QuotaService.enforceArticleQuota: deneme "plan sec", ucretli "plan
+ *    yukselt") ve takvime yeni konu ekleme (scheduleTopic) 403; saatlik tarama
+ *    (processDueArticles, checkArticleQuota) ilk takvimin yazilarini bekletir.
+ *    Cevap yalniz bunlari soyler, "tum uretim durur" demez.
  *  - Madde (6) takili sayfa otopilotu (audit/stuck-page-autopilot.ts):
  *    Profesyonel+ (FEATURE_MIN_PLAN.stuckPages), GSC bagli, akis acik + Tam
  *    otomatik, yalniz RanksUp makaleleri, site basina en fazla 5, haftalik
@@ -72,7 +85,7 @@ const FAQS_TR = [
   },
   {
     q: 'Ücretsiz olarak ne kadar kullanabilirim?',
-    a: 'Kayıt olunca 2 makale ücretsiz üretilir (süre sınırı yok, kart bilgisi gerekmez); ayrıca 3 AI görünürlük çalıştırması ve 1 site hakkın olur. Denemede makaleleri Markdown ZIP olarak indirebilir ya da WordPress (REST) sitene gönderebilirsin. Ücretli bir plan seçince FTP/SFTP, cPanel, GitHub gibi diğer yayın hedefleri de açılır.',
+    a: 'Kayıt olunca 2 makale ücretsiz üretilir (süre sınırı yok, kart bilgisi gerekmez); ayrıca 3 AI görünürlük çalıştırması (haftada en fazla 1 ölçüm) ve 1 site hakkın olur. Denemede makaleleri Markdown ZIP olarak indirebilir ya da WordPress (REST) sitene gönderebilirsin. Ücretli bir plan seçince FTP/SFTP, cPanel, GitHub gibi diğer yayın hedefleri de açılır.',
   },
   {
     q: 'AI içeriği Google\'da cezalandırılır mı?',
@@ -104,7 +117,11 @@ const FAQS_TR = [
   },
   {
     q: 'Aylık makale kotamı aşarsam ne olur?',
-    a: 'Sistem makale üretmeyi durdurur ve plan yükseltme önerir. Sayaç her takvim ayının başında sıfırlanır (deneme hesabındaki 2 ücretsiz makale hakkı sıfırlanmaz). Büyüme, Profesyonel ve Ajans planlarını panelden satın alırsın; Kurumsal plan satış ekibiyle, sözleşmeli kurulur.',
+    a: 'Kendi başlattığın yeni makale üretimleri durur, takvime yeni konu eklenemez ve plan yükseltmen önerilir; site eklenirken takvime yerleşen makaleler de hakkın yenilenene ya da planını yükseltene kadar bekler. Sayaç her takvim ayının başında sıfırlanır (deneme hesabındaki 2 ücretsiz makale hakkı sıfırlanmaz). Büyüme, Profesyonel ve Ajans planlarını panelden satın alırsın; Kurumsal plan satış ekibiyle, sözleşmeli kurulur.',
+  },
+  {
+    q: 'Ayda kaç AI görünürlük ölçümü yapabilirim?',
+    a: 'Her planda hesap başına 7 günde 1 AI görünürlük ölçümü yapılır, yani ayda en fazla 5; tüm sitelerin aynı hakkı paylaşır. AI testi ("Yeniden Test"), "AI önerisi al", Prompt Lab, panelden başlattığın site taramasındaki AI testi ve diğer ölçümler bu hakka sayılır; sonuç vermeyen ölçüm hakkı yakmaz. Site kurulumundaki ilk tarama ve otomatik akışın başlangıç ölçümü bu hakka sayılmaz. Planlar ölçüm sıklığında değil, aylık görünürlük çalıştırması tavanında ayrışır (güncel sayılar fiyatlandırma sayfasında): AI testi 1, Prompt Lab\'de her soru ve her dal 1 çalıştırma sayılır; bu yüzden tek bir haftalık ölçüm, örneğin Prompt Lab\'de tüm soruları çalıştırmak, birden çok çalıştırma kullanır. Çalıştırma sayacı her takvim ayının başında sıfırlanır.',
   },
   {
     q: 'Ortaklık (affiliate) programı nasıl çalışır?',
@@ -155,7 +172,7 @@ const FAQS_EN = [
   },
   {
     q: 'How much can I use for free?',
-    a: 'On signup you get 2 free articles (no time limit, no credit card), plus 3 AI visibility runs and 1 site. On the trial you can download articles as a Markdown ZIP or send them to your WordPress (REST) site. A paid plan unlocks the other publish targets such as FTP/SFTP, cPanel and GitHub.',
+    a: 'On signup you get 2 free articles (no time limit, no credit card), plus 3 AI visibility runs (at most 1 measurement per week) and 1 site. On the trial you can download articles as a Markdown ZIP or send them to your WordPress (REST) site. A paid plan unlocks the other publish targets such as FTP/SFTP, cPanel and GitHub.',
   },
   {
     q: 'Will Google penalize AI content?',
@@ -187,7 +204,11 @@ const FAQS_EN = [
   },
   {
     q: 'What happens if I exceed my monthly article quota?',
-    a: 'The system stops generation and suggests a plan upgrade. The counter resets at the start of each calendar month (the 2 free trial articles do not reset). You buy the Growth, Professional and Agency plans from the dashboard; the Enterprise plan is set up under contract with our sales team.',
+    a: 'New article generations you start yourself stop, you cannot add new topics to the calendar and you are offered a plan upgrade; the articles scheduled when your site was added also wait until your allowance renews or you upgrade. The counter resets at the start of each calendar month (the 2 free trial articles do not reset). You buy the Growth, Professional and Agency plans from the dashboard; the Enterprise plan is set up under contract with our sales team.',
+  },
+  {
+    q: 'How many AI visibility measurements can I run per month?',
+    a: 'Every plan includes 1 AI visibility measurement every 7 days per account, so at most 5 a month, shared by all your sites. The AI test ("Yeniden Test", re-test), "AI önerisi al" (get AI recommendations), Prompt Lab, the AI test inside a site scan you start from the dashboard and the other measurements count against it; a measurement that returns no result does not use it up. The first scan during site setup and the automation\'s baseline measurement do not count. Plans differ not in how often you can measure but in their monthly visibility run cap (current numbers on the pricing page): an AI test counts as 1 run and each Prompt Lab question or branch as 1, so a single weekly measurement, such as running all Prompt Lab questions, uses several runs. The run counter resets at the start of each calendar month.',
   },
   {
     q: 'How does the affiliate program work?',
@@ -203,7 +224,7 @@ const FAQS_EN = [
   },
   {
     q: 'What exactly does the AI Citation test measure?',
-    a: 'It asks up to 5 questions from your brand brain to 6 AI assistants: ChatGPT · Claude · Gemini · Perplexity · Grok · DeepSeek. You trigger the measurement ("Yeniden Test", re-test); one AI measurement per account per week. Every run is stored permanently and any two runs can be compared side by side. Questions that already contain your brand are excluded from the score (that is recognition, not visibility). URL cited = 100, brand name only = 50, absent = 0; the headline is a 7-day rolling average. If the last 7 days\' average drops 30% or more against the previous 7 days, you get an automatic email.',
+    a: 'It asks up to 5 questions from your brand brain to 6 AI assistants: ChatGPT · Claude · Gemini · Perplexity · Grok · DeepSeek. You trigger the measurement ("Yeniden Test", re-test); one AI measurement per account per week. Every measurement is stored permanently and any two measurements can be compared side by side. Questions that already contain your brand are excluded from the score (that is recognition, not visibility). URL cited = 100, brand name only = 50, absent = 0; the headline is a 7-day rolling average. If the last 7 days\' average drops 30% or more against the previous 7 days, you get an automatic email.',
   },
   {
     q: 'What is GEO Score, how is it calculated?',

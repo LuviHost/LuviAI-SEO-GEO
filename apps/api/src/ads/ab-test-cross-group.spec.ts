@@ -98,8 +98,12 @@ function googleHarness(ads: GAd[], opts: { servingStatus?: string } = {}) {
     return json(404, {});
   });
 
+  // Yalniz Date.now'u taklit etmek yetmez: performance-sync startDate'i
+  // new Date() ile yaziyor; gercek saat sabit tarihi gecince (20.10.2026
+  // 06:00 UTC) kampanya 7 gun kuralina takiliyordu. Date tamamen sahte saatte.
   let now = Date.UTC(2026, 9, 20, 6, 0, 0);
-  vi.spyOn(Date, 'now').mockImplementation(() => now);
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(now);
   const site = { id: 's1', name: 'Site', adsAutopilot: true, googleAdsRefreshToken: 'rt', googleAdsCustomerId: '123-456-7890' };
   const row: any = { id: 'c1', siteId: 's1', platform: 'google_ads', externalId: '111', name: 'G', objective: 'sales', status: 'ACTIVE', budgetType: 'daily', budgetAmount: 500, startDate: null, autopilotActions: null };
   const sqlLte = (val: any, bound: Date) => val != null && new Date(val).getTime() <= bound.getTime();
@@ -121,7 +125,7 @@ function googleHarness(ads: GAd[], opts: { servingStatus?: string } = {}) {
   const sync = new PerformanceSyncService(prisma, adsClient);
   const ab = new AbTestManagerService(prisma, adsClient);
   const enabledPerGroup = (groups: number[]) => groups.map((g) => state.filter((a) => a.group === g && a.status === 'ENABLED').length);
-  return { state, mutations, gaql, row, kv, sync, ab, enabledPerGroup, advance: (ms: number) => { now += ms; } };
+  return { state, mutations, gaql, row, kv, sync, ab, enabledPerGroup, advance: (ms: number) => { now += ms; vi.setSystemTime(now); } };
 }
 
 beforeEach(() => {
@@ -133,6 +137,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.restoreAllMocks();
   vi.unstubAllEnvs();
 });

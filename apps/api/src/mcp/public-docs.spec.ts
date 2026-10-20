@@ -2,10 +2,12 @@ import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { BASE_PLANS, FEATURE_MIN_PLAN, PLAN_FEATURE_LABELS, findPlan } from '../billing/plans.js';
+import { BASE_PLANS, FEATURE_MIN_PLAN, PLAN_FEATURE_LABELS, findPlan, type BasePlan } from '../billing/plans.js';
+import { MEASUREMENT_WINDOW_MS } from '../billing/measurement-allowance.js';
 import { RANKSUP_BOT_UA } from '../common/safe-fetch.js';
 import { McpToolsService } from './mcp-tools.service.js';
 import { QuotaService } from '../billing/quota.service.js';
+import { REFERRAL_LABEL_KEEP, REFERRAL_LABEL_MAX, referralLabel } from '../affiliate/referral-label.js';
 import {
   AGENT_SETUP_URL,
   DEFAULT_API_ORIGIN,
@@ -50,16 +52,19 @@ function fiyatBolumu(md: string): string {
 }
 
 interface FiyatSatiri {
-  ad: string; aylik: number; yillik: number | null; makale: number; calistirma: number;
+  ad: string; aylik: number; yillik: number | null; makale: number; enFazla: boolean; calistirma: number;
   site: number; uygulama: number; destek: string; satir: string;
 }
 
-const SATIR = /^- \*\*(.+?)\*\*[^:\n]*: \$([\d.]+)(?:\/ay, yıllık \$([\d.]+))? — ([\d.]+) AI makale(?:\/ay)?, ([\d.]+) görünürlük çalıştırması(?:\/ay)?, (\d+) site, (\d+) izlenen uygulama · destek: ([^·\n]+)/gm;
+// Her satir haftalik olcum hakkini ("haftada 1 AI olcumu") tasimak ZORUNDA: eski
+// satir yalniz "20 gorunurluk calistirmasi/ay" diyordu ve AI asistanlari bunu
+// "ayda 20 olcum" diye aktariyordu (measurement-allowance.ts: 7 gunde 1).
+const SATIR = /^- \*\*(.+?)\*\*[^:\n]*: \$([\d.]+)(?:\/ay, yıllık \$([\d.]+))? — ([\d.]+) AI makale(?:\/ay)?, haftada 1 AI ölçümü, (en fazla )?([\d.]+) görünürlük çalıştırması(?:\/ay)?, (\d+) site, (\d+) izlenen uygulama · destek: ([^·\n]+)/gm;
 
 function fiyatSatirlari(bolum: string): FiyatSatiri[] {
   return [...bolum.matchAll(SATIR)].map((m) => ({
-    ad: m[1], aylik: sayi(m[2]), yillik: m[3] ? sayi(m[3]) : null, makale: sayi(m[4]),
-    calistirma: sayi(m[5]), site: Number(m[6]), uygulama: Number(m[7]), destek: m[8].trim(), satir: m[0],
+    ad: m[1], aylik: sayi(m[2]), yillik: m[3] ? sayi(m[3]) : null, makale: sayi(m[4]), enFazla: !!m[5],
+    calistirma: sayi(m[6]), site: Number(m[7]), uygulama: Number(m[8]), destek: m[9].trim(), satir: m[0],
   }));
 }
 
@@ -83,6 +88,9 @@ describe.each([
       expect(s.yillik, `${p.id} yillik`).toBe(p.monthly_usd === 0 ? null : p.annual_usd);
       expect(s.makale, `${p.id} makale`).toBe(p.articlesPerMonth);
       expect(s.calistirma, `${p.id} calistirma`).toBe(p.aiRunsPerMonth);
+      // Ucretli planda sayi bir TAVAN (QuotaService citationTests); haftalik hak
+      // ayrica gecerli oldugu icin "ayda 75 olcum" gibi okunmamali.
+      expect(s.enFazla, `${p.id} "en fazla"`).toBe(p.id !== 'trial');
       expect(s.site, `${p.id} site`).toBe(p.sites);
       expect(s.uygulama, `${p.id} uygulama`).toBe(p.trackedApps);
       expect(s.destek, `${p.id} destek`).toBe(p.support_tr);
@@ -101,6 +109,18 @@ describe.each([
     for (const p of BASE_PLANS.filter((x) => x.monthly_usd > 0)) {
       expect(p.annual_usd, p.id).toBe(p.monthly_usd * 10);
     }
+  });
+
+  it('haftalik olcum kurali ve calistirma birimi fiyat bolumunde (hesap basina, siteler ortak)', () => {
+    // Eski aciklama "Gorunurluk calistirmasi: AI atif testi ya da Prompt Lab
+    // olcumu; ikisi ayni aylik haktan duser" idi: haftalik kural yoktu ve tek
+    // Prompt Lab olcumunun soru basina calistirma harcadigi yazmiyordu.
+    expect(MEASUREMENT_WINDOW_MS).toBe(7 * 24 * 60 * 60 * 1000);
+    expect(bolum).toContain('hesap başına 7 günde 1');
+    expect(bolum).toContain('tüm siteler bu hakkı paylaşır');
+    expect(bolum).toContain("AI testi 1, Prompt Lab'de her soru ve her dal 1 çalıştırma");
+    expect(bolum).toContain('sonuç vermeyen ölçüm hakkı yakmaz');
+    expect(bolum).not.toContain('ikisi aynı aylık haktan düşer');
   });
 });
 
@@ -561,6 +581,202 @@ describe('Pazarlama sayfaları = ürün', () => {
     expect((pv.match(/changeNote: '/g) ?? []).length).toBe(2);
   });
 
+  // Gizlilik bolum 5 kaldirilmis sosyal medya modulunu (OAuth baglantilari, TikTok
+  // yayini, "Sosyal Kanallar" ayari) hala varmis gibi anlatiyordu; bolum 6 HeyGen,
+  // Runway, ElevenLabs sayiyordu. Uc 0db5a1c'de kaldirildi. Kod geri gelirse ya da
+  // metnin silme iddialarinin dayandigi adimlar degisirse bu test kirilir.
+  it('privacy: kaldırılan sosyal medya bağlantıları ve video/ses sağlayıcıları kullanılıyormuş gibi anlatılmıyor; silme iddiaları kodla aynı', () => {
+    const apiSrc = path.resolve(HERE, '..');
+    const workerSrc = path.resolve(HERE, '../../../worker/src');
+    const kod: Source[] = [...walk(apiSrc, /\.ts$/), ...walk(workerSrc, /\.ts$/)]
+      .filter((f) => !f.endsWith('.spec.ts'))
+      .map((f) => ({ rel: path.relative(apiSrc, f), text: stripComments(read(f)) }));
+    expect(fs.existsSync(path.join(apiSrc, 'social')), 'sosyal modul geri geldi: privacy bolum 5 metnini guncelle').toBe(false);
+    expect(offenders(kod, /heygen|elevenlabs|runwayml|RUNWAY_API_KEY/i), 'video/ses saglayicisi geri geldi: privacy bolum 6 metnini guncelle').toEqual([]);
+    // "Erisim bilgileri artik hicbir islemde kullanilmaz": sosyal kanal tablosuna yalniz silme yollari dokunuyor
+    const kanalOkuyan = kod.filter((s) => /\.socialChannel\./.test(s.text)).map((s) => s.rel.split(path.sep).join('/')).sort();
+    expect(kanalOkuyan, 'sosyal kanal kaydini okuyan yeni kod: privacy bolum 5 metnini guncelle').toEqual([
+      'me/account-deletion.service.ts', 'me/account-purge.plan.ts', 'sites/sites.service.ts',
+    ]);
+    // Site silme kanallari siler; hesap silme erisim bilgisini, adi ve gorseli hemen bosaltir, satirlari purge siler
+    expect(read(path.join(apiSrc, 'sites/sites.service.ts'))).toContain("{ model: 'SocialChannel', kind: 'delete'");
+    expect(read(path.join(apiSrc, 'me/account-deletion.service.ts'))).toContain("data: { isActive: false, credentials: '', externalName: null, externalAvatar: null }");
+    expect(read(path.join(apiSrc, 'me/account-purge.plan.ts'))).toContain("{ model: 'SocialChannel', kind: 'delete'");
+
+    const pv = stripComments(read(path.join(MARKETING, 'privacy/page.tsx')));
+    const bolumler = [...pv.matchAll(/\n\s*s5: [\s\S]*?\n\s*s7: /g)].map((x) => x[0]);
+    expect(bolumler, 'TR + EN bolum 5-6').toHaveLength(2);
+    for (const b of bolumler) {
+      // Eski vaatler (OAuth ile baglanir, panelden baglanti kesilir, TikTok Login Kit / video yayini) ve kaldirilan saglayicilar
+      expect(b).not.toMatch(/Login Kit|video\.(publish|upload)|OAuth 2\.0 protokolü ile bağlanır|connects to social platforms|Settings →|Sosyal Kanallar|Social Channels|bağlantıyı koparabilir|disconnect at any time|HeyGen|Runway|ElevenLabs/);
+      // "Sosyal medya hesabina hic baglanmaz" da yanlis olurdu: Meta Ads Facebook Login ile Sayfa izni istiyor
+      expect(b).not.toMatch(/hesaplarına bağlanmıyor|no longer connects to social media/);
+    }
+    expect(read(path.join(apiSrc, 'oauth/meta-permissions.ts')), 'Meta Ads Facebook Login kalktiysa bolum 5 reklam hesabi cumlesini guncelle').toContain("'pages_show_list'");
+    expect(bolumler[0]).toContain('sosyal medya paylaşım özelliği');
+    expect(bolumler[0]).toContain('kaldırıldı; RanksUp artık bu hesaplarda paylaşım yapmıyor');
+    expect(bolumler[0]).toContain('ilgili siteyi sildiğinizde hemen silinir');
+    expect(bolumler[0]).toContain('reklam hesabı bağlantıları ayrı bir özelliktir');
+    expect(bolumler[1]).toContain('social media posting feature');
+    expect(bolumler[1]).toContain('has been removed; RanksUp no longer posts to these accounts');
+    expect(bolumler[1]).toContain('deleted immediately when you delete the related site');
+    expect(bolumler[1]).toContain('ad account connections made for ad management are a separate feature');
+  });
+
+  // Bolum 2 (veri kullanimi) "pazarlama amacli paylasilmaz" diyordu; onay verende Google Ads
+  // donusum olcumu + yeniden pazarlama etiketleri yukleniyor, metin bunu soyleyecek sekilde
+  // duzeltildi. Sayfa duzeni her icerik degisikligini changeNote'ta yazar; onceki metnin tersini
+  // soyleyen bir iddia degistigi icin not bunu da anmali (TR + EN).
+  it('privacy: değişiklik notu bölüm 2 düzeltmesini (pazarlama paylaşımı yalnız onaylı Google reklam etiketleriyle) TR + EN anıyor', () => {
+    const pv = stripComments(read(path.join(MARKETING, 'privacy/page.tsx')));
+    const notlar = [...pv.matchAll(/changeNote: '([^']*)',/g)].map((x) => x[1]);
+    expect(notlar, 'TR + EN changeNote').toHaveLength(2);
+    const [tr, en] = notlar;
+    // Notun andigi olgu bolum 2'de duruyor (ayrintisi web lib consent.spec.mts'te)
+    const s2 = [...pv.matchAll(/\n\s*s2p: '([^']*)',/g)].map((x) => x[1]);
+    expect(s2, 'TR + EN bolum 2').toHaveLength(2);
+    expect(s2[0]).toContain('veri paylaşımı yalnız çerez bandında “Kabul et” derseniz yüklenen Google etiketleriyle olur');
+    expect(s2[1]).toContain('shared for marketing and remarketing only through the Google tags that load if you click “Accept”');
+    expect(tr).toContain('veri kullanımı bölümü (2)');
+    expect(tr).toContain('pazarlama amaçlı veri paylaşımının yalnız onayınızla yüklenen Google reklam etiketleriyle (dönüşüm ölçümü ve yeniden pazarlama) yapıldığını');
+    expect(en).toContain('data use section (2)');
+    expect(en).toContain('data is shared for marketing only through the Google ad tags that load with your consent (conversion measurement and remarketing)');
+  });
+
+  // KVKK sayfasinin icerigi degisti (Aktarilan Taraflar: yalniz cerez onayiyla yuklenen Google ve
+  // Microsoft araclari) ama sayfada yalniz yururluk tarihi vardi; okuyan metnin degistigini
+  // goremiyordu. Gizlilik sayfasindaki duzen: yururluk tarihi korunur, son guncelleme ayrica yazilir.
+  it('kvkk: yürürlük tarihi korunur; içerik değiştiği için son güncelleme tarihi ayrıca yazılı', () => {
+    const kv = stripComments(read(path.join(MARKETING, 'kvkk/page.tsx')));
+    expect(kv).toContain('>Yürürlük: 27 Nisan 2026</p>');
+    expect(kv).toMatch(/>Son güncelleme: \d{1,2} \S+ 20\d\d<\/p>/);
+    // Degisen icerik gercekten sayfada (tarih bos yere ilerletilmedi)
+    expect(kv).toContain('Yalnız çerez bandında “Kabul et” derseniz: Google');
+  });
+
+  // Ortaklik paneli davetlinin kisisel verisini ortaga gosterir (round 20: yalniz kisaltilmis
+  // etiket + davet olgulari). Gizlilik bolum 4 luvi_ref maddesi ve KVKK Aktarilan Taraflar bunu
+  // soylemiyordu. Metin = getStats'in ortaga (revealContacts yok) dondurdugu acik alan listesi ve
+  // referral-label.ts kurali; biri degisirse bu test kirilir, metin ayni committe guncellenir.
+  it('privacy luvi_ref + KVKK: ortağın panelde gördüğü bilgiler getStats alanları ve etiket kuralıyla aynı (TR + EN)', () => {
+    const svc = stripComments(read(path.resolve(HERE, '../affiliate/affiliate.service.ts')));
+    const alanlar = (bas: string) => {
+      const i = svc.indexOf(bas);
+      expect(i, bas).toBeGreaterThan(-1);
+      const govde = svc.slice(i + bas.length, svc.indexOf('}));', i));
+      return [...govde.matchAll(/^\s*(\w+):/gm)].map((x) => x[1]).sort();
+    };
+    expect(alanlar('tier1Enriched = tier1.map((r) => ({'), 'ortaga giden 1. seviye alanlar degisti: privacy luvi_ref (TR + EN) ve KVKK metnini guncelle').toEqual(
+      ['clickedAt', 'commissionUntil', 'firstPaidAt', 'id', 'referredLabel', 'signedUpAt', 'status', 'tier', 'totalCommissionEarned'],
+    );
+    expect(alanlar('tier2Enriched = tier2.map((r) => ({'), 'ortaga giden 2. seviye alanlar degisti: privacy luvi_ref (TR + EN) ve KVKK metnini guncelle').toEqual(
+      ['clickedAt', 'firstPaidAt', 'id', 'parentReferralId', 'referredLabel', 'signedUpAt', 'status', 'tier'],
+    );
+    // Etiket kurali: ad; yoksa e-postanin @ oncesi; uzunsa kisaltilir; alan adi hic yok
+    expect(referralLabel('Abcdefghijklmnopq', 'x@ornek.com')).toBe(`${'Abcdefghijklmnopq'.slice(0, REFERRAL_LABEL_KEEP)}…`);
+    expect(referralLabel(null, 'ayse.yilmaz@ornek.com')).toBe('ayse.yilmaz');
+    expect(referralLabel('  ', 'ayse@ornek.com')).not.toContain('ornek');
+
+    const pv = stripComments(read(path.join(MARKETING, 'privacy/page.tsx')));
+    const madde = pv.split('\n').map((l) => l.trim()).filter((l) => /^'(Ortaklık bağlantısı|Partner link): luvi_ref/.test(l));
+    expect(madde, 'TR + EN luvi_ref maddesi').toHaveLength(2);
+    const [tr, en] = madde;
+    expect(tr).toContain(`adınızı (${REFERRAL_LABEL_MAX} karakterden uzunsa yalnız ilk ${REFERRAL_LABEL_KEEP} karakterini; adınız kayıtlı değilse e-posta adresinizin @ işaretinden önceki kısmını aynı kuralla)`);
+    expect(tr).toContain('kayıt ve ilk ödeme tarihinizi, ödeme durumunuzu, komisyon süresinin bitiş tarihini ve ödemelerinizden kazandığı komisyon tutarını görür; e-posta adresinizi görmez');
+    expect(tr).toContain('o ortak adınızı aynı kuralla, kayıt ve ilk ödeme tarihinizi ve ödeme durumunuzu görür; bu ikinci seviye davetten komisyon ödenmez');
+    expect(en).toContain(`your name (only its first ${REFERRAL_LABEL_KEEP} characters if it is longer than ${REFERRAL_LABEL_MAX}; if no name is saved, the part of your e-mail address before the @ sign, under the same rule)`);
+    expect(en).toContain('your sign-up and first payment dates, your payment status, the end date of their commission period and the commission they earned from your payments; they do not see your e-mail address');
+    expect(en).toContain('that partner sees your name under the same rule, your sign-up and first payment dates and your payment status; no commission is paid on this second-level referral');
+    const notlar = [...pv.matchAll(/changeNote: '([^']*)',/g)].map((x) => x[1]);
+    expect(notlar, 'TR + EN changeNote').toHaveLength(2);
+    expect(notlar[0]).toContain('ortaklık bağlantısı (luvi_ref) maddesine, sizi davet eden iş ortağının ortaklık panelinde hakkınızda neleri gördüğü eklendi');
+    expect(notlar[1]).toContain('added to the partner link (luvi_ref) item in the cookie section what the partner who invited you sees about you in their partner dashboard');
+
+    const kv = stripComments(read(path.join(MARKETING, 'kvkk/page.tsx'))).replace(/\s+/g, ' ');
+    // Kural referral-label.ts ile ayni: yalniz 14 karakterden uzun ad kisaltilir;
+    // 'kisaltilmis ad' demek cogu adin tam gorundugunu saklardi.
+    expect(kv).toContain('sizi davet eden ortak, ortaklık panelinde adınızı (14 karakterden uzunsa yalnız ilk 12 karakterini; adınız kayıtlı değilse e-posta adresinizin @ işaretinden önceki kısmını aynı kuralla)');
+    expect(kv).not.toContain('kısaltılmış');
+    expect(kv).toContain('ödemelerinizden kazandığı komisyon tutarını görür; e-posta adresinizi görmez');
+    expect(kv).toContain('bu ikinci seviyeden komisyon ödenmez');
+    expect(kv).toContain('Değişiklik: Aktarılan Taraflar bölümüne yalnız çerez onayınızla yüklenen Google ve Microsoft araçları ile sizi davet eden iş ortağının ortaklık panelinde gördüğü bilgiler eklendi.');
+  });
+
+  // Iki sayfa ayni icerik dalgasinda yayinlaniyor; gosterilen son guncelleme tarihleri (gizlilik TR,
+  // gizlilik EN, KVKK) birbirini tutmali, biri eski tarihte unutulmasin.
+  it('privacy (TR + EN) ve KVKK son güncelleme tarihi aynı gün', () => {
+    const AYLAR: Record<string, string> = {
+      Ocak: 'January', Şubat: 'February', Mart: 'March', Nisan: 'April', Mayıs: 'May', Haziran: 'June',
+      Temmuz: 'July', Ağustos: 'August', Eylül: 'September', Ekim: 'October', Kasım: 'November', Aralık: 'December',
+    };
+    const pv = read(path.join(MARKETING, 'privacy/page.tsx'));
+    const kv = stripComments(read(path.join(MARKETING, 'kvkk/page.tsx')));
+    const tr = pv.match(/updated: 'Son güncelleme: (\d{1,2}) (\S+) (20\d\d)'/);
+    const en = pv.match(/updated: 'Last updated: (\S+) (\d{1,2}), (20\d\d)'/);
+    const k = kv.match(/>Son güncelleme: (\d{1,2}) (\S+) (20\d\d)<\/p>/);
+    expect(tr && en && k).toBeTruthy();
+    expect(`${k![1]} ${k![2]} ${k![3]}`, 'KVKK = gizlilik').toBe(`${tr![1]} ${tr![2]} ${tr![3]}`);
+    expect(`${en![1]} ${en![2]}, ${en![3]}`, 'EN = TR').toBe(`${AYLAR[tr![2]]} ${tr![1]}, ${tr![3]}`);
+  });
+
+  // Bolum 4 geri alma metni = lib/consent.ts + components/cookie-consent.tsx. Baska sekmede geri
+  // alinan onay ('sync', storage olayi) etiketleri yuklemis bu sekmeyi de yeniler; bu sekmenin
+  // sayfasinda bir form alanina yazildiysa yenileme bir sonraki sayfa gecisine kalir (kaydedilmemis
+  // metin silinmesin). Metin yalniz tiklanan sayfanin yenilendigini soyluyordu. Kod bu davranistan
+  // donerse test kirilir; metin ayni committe guncellenmeli.
+  it('privacy bölüm 4: geri alma diğer açık sekmeleri de yeniler, forma yazılmış sekme bir sonraki sayfa geçişinde — kodla aynı (TR + EN)', () => {
+    const pv = stripComments(read(path.join(MARKETING, 'privacy/page.tsx')));
+    const metin = [...pv.matchAll(/\n\s*s4manageP: '([^']*)',/g)].map((x) => x[1]);
+    expect(metin, 'TR + EN s4manageP').toHaveLength(2);
+    const [tr, en] = metin;
+    expect(tr).toContain('sayfa yenilenir ve bu araçlar bir daha yüklenmez');
+    expect(tr).toContain('Aynı tarayıcıda bu araçların yüklendiği diğer açık sekmeler de yenilenir');
+    expect(tr).toContain('bir form alanına yazdıysanız, yazdıklarınız kaybolmasın diye o sekme bir sonraki sayfa geçişinde yenilenir');
+    expect(en).toContain('the page reloads and these tools are not loaded again');
+    expect(en).toContain('Other open tabs in the same browser that loaded these tools also reload');
+    expect(en).toContain('if you typed into a form field in such a tab, that tab reloads at its next page change');
+    // "Her sekme hemen yenilenir" denmez: erteleme gercek
+    for (const s of [tr, en]) expect(s).not.toMatch(/hemen yenilenir|reload immediately/i);
+
+    // Kod: geri alinan onay ('choice' ya da 'sync') etiket yuklu sekmeyi yeniler; 'sync'te ve
+    // yazilmissa yenileme sayfa gecisine ertelenir; bekleyen yenileme sayfa gecisinde yapilir
+    const lib = stripComments(read(path.join(WEB_SRC, 'lib/consent.ts')));
+    expect(lib).toContain('const revoke = !granted && trackersLoaded;');
+    expect(lib).toContain("const defer = revoke && trigger === 'sync' && ctx.typedInput === true;");
+    expect(lib).toContain('reload: revoke && !defer,');
+    expect(lib).toContain('reloadOnNavigate: defer,');
+    expect(lib).toMatch(/routeChanged\(\) \{\s*typed = false;\s*if \(!pending\) return;\s*pending = false;\s*env\.reload\(\);/);
+    // Bilesen: baska sekmedeki karar 'sync' uygular; form yazimi ve sayfa gecisi denetleyiciye gider
+    const cc = stripComments(read(path.join(WEB_SRC, 'components/cookie-consent.tsx')));
+    expect(cc).toMatch(/apply\(readConsent\(browserConsentStorage, Date\.now\(\)\), 'sync'\);[\s\S]*?window\.addEventListener\('storage', onStorage\)/);
+    expect(cc).toContain("document.addEventListener('input', onInput, true)");
+    expect(cc).toContain('controller().routeChanged()');
+  });
+
+  // Deneme suresi uygulanmiyor: trialEndsAt'i yalniz QuotaService.startTrial yaziyor, onu
+  // cagiran AuthService.ensureTrialStarted hicbir yerden cagrilmiyor; expireOldTrials
+  // trialEndsAt'i bos kullaniciyi bulmaz ve EXPIRED durumuna bakan kapi yok. Landing SSS
+  // "istemezsen hesap pasif kalir" diyordu. Deneme suresi baglanirsa bu test kirilir.
+  it('landing SSS "kart gerekiyor mu" cevabı: hesap pasifleşmez, süre iddiası yok; deneme hakkı plans.ts ile aynı', () => {
+    const apiSrc = path.resolve(HERE, '..');
+    const workerSrc = path.resolve(HERE, '../../../worker/src');
+    const cagiranlar = [...walk(apiSrc, /\.ts$/), ...walk(workerSrc, /\.ts$/)]
+      .filter((f) => !f.endsWith('.spec.ts') && /\.(ensureTrialStarted|startTrial)\(/.test(stripComments(read(f))))
+      .map((f) => path.relative(apiSrc, f).split(path.sep).join('/'));
+    // Tek eslesme ensureTrialStarted'in kendi govdesindeki startTrial cagrisi
+    expect(cagiranlar, 'deneme suresi baglandi: land.faq.a2 (TR + EN) ve deneme e-postalarini guncelle').toEqual(['auth/auth.service.ts']);
+
+    const trial = findPlan('trial')!;
+    const [tr, en] = read(path.join(WEB_SRC, 'lib/i18n.ts')).split('\n').filter((l) => l.includes("'land.faq.a2':"));
+    expect(tr).not.toMatch(/pasif/i);
+    expect(en).not.toMatch(/passive|deactivat|suspend/i);
+    expect(tr).toContain('hesabın kapanmaz');
+    expect(en).toContain('your account is not closed');
+    expect(tr).toContain(`${trial.articlesPerMonth} makale`);
+    expect(en).toContain(`${trial.articlesPerMonth} articles`);
+    for (const l of [tr, en]) expect(l).not.toMatch(/\d+\s*(gün|günlük|day)/i);
+  });
+
   it('kök layout: kaldırılan sosyal modül, Shopify ve bayat TL fiyat yok; fiyat aralığı plans.ts ile aynı', () => {
     // Yorumlar neyin neden kaldirildigini anlatir; yalniz kod taranir
     const lay = stripComments(read(path.join(WEB_SRC, 'app/layout.tsx')));
@@ -577,6 +793,22 @@ describe('Pazarlama sayfaları = ürün', () => {
     expect(pr).not.toContain('-20%');
     expect(pr).toContain('2 ay bedava');
     for (const p of BASE_PLANS.filter((x) => x.monthly_usd > 0)) expect(p.annual_usd).toBe(p.monthly_usd * 10);
+  });
+
+  // /billing/failure (PayTR merchant_fail_url, herkese acik donus sayfasi) karanlik temada
+  // okunmuyordu: kart bg-white, baslik govdeden text-foreground (karanlik temada acik renk)
+  // aliyordu; "Ödeme Başarısız" beyaz zeminde kayboluyordu. Success sayfasiyla ayni tema
+  // token'lari kullanilir; sabit acik renk geri gelirse test kirilir.
+  it('/billing/failure karanlık temada okunur: sabit açık zemin ve gri ton yok, success sayfasıyla aynı tema token sınıfları', () => {
+    const basarisiz = m('billing/failure/page.tsx');
+    const basarili = m('billing/success/page.tsx');
+    expect(basarisiz).toContain('Ödeme Başarısız');
+    expect(basarisiz).not.toMatch(/\bbg-white\b|\b(?:text|bg|border)-(?:slate|gray)-\d+|\bfrom-red-50\b|\bto-brand-50\b/);
+    for (const [ad, src] of [['failure', basarisiz], ['success', basarili]] as const) {
+      expect(src, ad).toContain('bg-gradient-to-br from-muted/40 to-brand/5');
+      expect(src, ad).toContain('text-center bg-card border');
+      expect(src, ad).toContain('text-muted-foreground');
+    }
   });
 });
 
@@ -723,6 +955,34 @@ describe('Otomatik akış metinleri = zamanlayıcı (article-scheduler, worker)'
     expect(makale).toContain('Tam otomatik modda');
   });
 
+  // SSS "makale kotami asarsam" cevabi "Sistem makale uretmeyi durdurur" diyordu; hak dolunca
+  // duran uretim yalniz kullanicinin baslattigi uretim, takvime yeni konu ekleme ve saatlik
+  // taramanin ilk takvim yazilari (gecikmeli takvim isi ve onboarding'in ilk makalesi hakka
+  // bakmaz). Cevap bu uc olguyu soyler; dayandigi kod kapilari degisirse test kirilir.
+  it('SSS "makale kotamı aşarsam": yalnız kodda duran üretimleri söylüyor, "sistem üretimi durdurur" demiyor (TR + EN)', () => {
+    const cevap = (q: string) => {
+      const i = faq.indexOf(q);
+      expect(i, q).toBeGreaterThan(-1);
+      const rest = faq.slice(i);
+      return rest.slice(0, rest.indexOf('},'));
+    };
+    const tr = cevap("q: 'Aylık makale kotamı aşarsam ne olur?'");
+    const en = cevap("q: 'What happens if I exceed my monthly article quota?'");
+    expect(tr).not.toContain('Sistem makale üretmeyi durdurur');
+    expect(en).not.toContain('The system stops generation');
+    expect(tr).toContain('Kendi başlattığın yeni makale üretimleri durur, takvime yeni konu eklenemez ve plan yükseltmen önerilir; site eklenirken takvime yerleşen makaleler de hakkın yenilenene ya da planını yükseltene kadar bekler.');
+    expect(en).toContain('New article generations you start yourself stop, you cannot add new topics to the calendar and you are offered a plan upgrade; the articles scheduled when your site was added also wait until your allowance renews or you upgrade.');
+    // Kod kapilari: elle uretim hak dolunca 403; takvime ekleme hak dolunca 403; saatlik tarama hakka bakar
+    const quota = read(path.resolve(HERE, '../billing/quota.service.ts'));
+    const enforce = quota.slice(quota.indexOf('async enforceArticleQuota('), quota.indexOf('async incrementArticleUsage('));
+    expect(enforce).toMatch(/if \(!allowed\) \{[\s\S]*throw new ForbiddenException[\s\S]*plan seç[\s\S]*throw new ForbiddenException[\s\S]*Plan yükseltebilir/);
+    const ekle = scheduler.slice(scheduler.indexOf('async scheduleTopic('), scheduler.indexOf('const slug =', scheduler.indexOf('async scheduleTopic(')));
+    expect(ekle).toMatch(/if \(!allowed\) \{\s*[\s\S]*?throw new ForbiddenException/);
+    const tarama = scheduler.slice(scheduler.indexOf('async processDueArticles('), scheduler.indexOf('private dueArticlesWhere('));
+    expect(tarama).toContain('allowed = await this.scanQuotaAllowed(u.id, quotaByUser);');
+    expect(tarama).toMatch(/if \(!allowed\) \{\s*skippedQuota\+\+;/);
+  });
+
   it('sözlük: editör skoru bugünkü ölçeği (pipeline EDITOR_MAX_SCORE) ve eski 60 ölçeğini söylüyor', () => {
     const pipeline = read(path.resolve(HERE, '../articles/pipeline.service.ts'));
     const max = pipeline.match(/EDITOR_MAX_SCORE = (\d+);/)![1];
@@ -730,5 +990,199 @@ describe('Otomatik akış metinleri = zamanlayıcı (article-scheduler, worker)'
     const satir = g.split('\n').find((l) => l.includes('AI editörden aldığı kalite puanı'))!;
     expect(satir).toContain(`= ${max} üzerinden`);
     expect(satir).toContain('60 üzerinden');
+  });
+});
+
+// ─── Olcum hakki metinleri = measurement-allowance.ts (18.10.2026) ───────────
+//
+// NEDEN: 16.10.2026'dan beri ADMIN disindaki her hesap kayan 7 gunde 1 AI
+// gorunurluk olcumu yapabiliyor; AI testi, yol haritasi, Prompt Lab, site
+// taramasindaki AI testi, Urun Radari, GEO isi haritasi ve digerleri ayni hakki
+// paylasiyor (billing/measurement-allowance.ts). Fiyat kartlari ise hala
+// "20 / 75 / 300 / 1.000 AI gorunurluk calistirmasi / ay" diyordu: musteri bunu
+// "ayda 20 olcum" diye okuyordu, oysa kural ayda en fazla 5 olcume izin verir.
+// "Calistirma" ayri ve gercek bir birim: QuotaService citationTests aylik tavani;
+// AI testi 1, Prompt Lab'de her soru ve her dal 1 sayilir (ai-citation.service
+// runForSite / runQueries -> incrementCitationUsage). Bu yuzden tek haftalik
+// olcum ("Tumunu calistir") birden cok calistirma harcar. Metinler iki kurali
+// birlikte ve koddaki sayilarla soyler; kod degisirse bu blok kirilir.
+
+describe('Olcum hakki metinleri = measurement-allowance.ts', () => {
+  const allowanceSvc = read(path.resolve(HERE, '../billing/measurement-allowance.service.ts'));
+  const worker = read(path.resolve(HERE, '../../../worker/src/index.ts'));
+  const panel = read(path.join(WEB_SRC, 'components/prompt-lab-panel.tsx'));
+  const i18n = read(path.join(WEB_SRC, 'lib/i18n.ts'));
+  /** JSX ve tek tirnakli kaynak kacislarini duz metne cevirir (&apos;, \', &ldquo;) */
+  const metin = (s: string) => s.replace(/&apos;/g, "'").replace(/\\'/g, "'").replace(/&[lr]dquo;/g, '"');
+  const sayfa = (rel: string) => metin(stripComments(read(path.join(MARKETING, rel))));
+  const fmtTr = (n: number) => n.toLocaleString('tr-TR');
+  const fmtEn = (n: number) => n.toLocaleString('en-US');
+  /** 31 gunluk ayda kayan 7 gunluk pencereyle en fazla kac olcum yapilabilir */
+  const ayEnFazla = Math.ceil((31 * 24 * 60 * 60 * 1000) / MEASUREMENT_WINDOW_MS);
+  /** Paneldeki "Tumunu calistir" tek olcumde en fazla kac soru calistirir */
+  const tumuLimit = Number(panel.match(/runAllPrompts\(siteId, \{ withFanout: false, limit: (\d+) \}\)/)?.[1]);
+  const trial = findPlan('trial')!;
+  const ucretli = BASE_PLANS.filter((p) => p.id !== 'trial');
+  /** Kartta gorunen maddeler: planin kendi maddeleri + "X'teki her sey, arti:" zinciri */
+  const zincir = (p: BasePlan, dil: 'features_tr' | 'features_en'): string[] =>
+    [...p[dil], ...(p.inheritsFrom ? zincir(findPlan(p.inheritsFrom)!, dil) : [])];
+  const HAFTALIK_TR = 'Hesap başına haftada 1 AI görünürlük ölçümü';
+  const HAFTALIK_EN = '1 AI visibility measurement per account per week';
+
+  it('kod sabitleri: pencere 7 gun, hak hesap basina, paneldeki "Tümünü çalıştır" limiti bulunuyor', () => {
+    expect(MEASUREMENT_WINDOW_MS, 'pencere degisti: "haftada 1" / "7 günde 1" metinlerini guncelle').toBe(7 * 24 * 60 * 60 * 1000);
+    expect(allowanceSvc, 'hak anahtari artik kullanici basina degil: "hesap başına" metinlerini guncelle').toMatch(/return `ai-olcum:\$\{userId\}`;/);
+    expect(ayEnFazla).toBe(5);
+    expect(Number.isInteger(tumuLimit) && tumuLimit > 0, 'prompt-lab-panel runAllPrompts limiti bulunamadi').toBe(true);
+  });
+
+  it('çalıştırma birimi kodla aynı (AI testi 1, Prompt Lab sorusu / dalı 1, Ürün Radarı sorusu 1, ısı haritası 0) ve llms-full.txt bunu yazıyor', () => {
+    const citation = read(path.resolve(HERE, '../audit/ai-citation.service.ts'));
+    const promptLab = read(path.resolve(HERE, '../audit/prompt-lab.service.ts'));
+    const radar = read(path.resolve(HERE, '../audit/product-radar.service.ts'));
+    const heatmap = read(path.resolve(HERE, '../audit/geo-heatmap.service.ts'));
+    // runForSite ve runQueries cagri basina en fazla 1 calistirma sayar
+    expect(citation.match(/this\.quota\.incrementCitationUsage\(/g)?.length, 'calistirma sayan yerler degisti: birim metinlerini guncelle').toBe(2);
+    expect(promptLab).toContain('this.citation.runQueries(siteId, [prompt.text]');
+    expect(promptLab).toContain('this.citation.runQueries(siteId, [branch.text]');
+    expect(radar).toContain('this.citation.runQueries(siteId, [query]');
+    // Haftalik otomatik radar taramasi sistem kosumu: hakka da tavana da sayilmaz
+    expect(radar).toMatch(/this\.run\(s\.id, \{ trigger: 'system' \}\)/);
+    // Isi haritasi haftalik hakki kullanir ama aylik calistirma saymaz
+    expect(heatmap).toContain('noteMeasured()');
+    expect(heatmap).not.toMatch(/incrementCitationUsage|enforceCitationQuota/);
+    expect(llmsFull).toContain("AI testi 1, Prompt Lab'de her soru ve her dal 1, Ürün Radarı'nda her kategori sorusu 1 çalıştırma sayılır; GEO ısı haritası çalıştırma saymaz");
+    expect(llmsFull).toContain(`"Tümünü çalıştır" tek ölçümde en fazla ${tumuLimit} soruyu`);
+    expect(llmsFull).toContain(`hesap başına 7 günde 1 ölçüm, yani ayda en fazla ${ayEnFazla}`);
+    expect(llmsFull).toContain("Ürün Radarı'nın haftalık otomatik taraması bu hakka sayılmaz");
+  });
+
+  it('fiyat kartı: haftalık ölçüm her ücretli planda görünüyor (miras zinciriyle), denemede "haftada en fazla 1"', () => {
+    for (const p of ucretli) {
+      expect(zincir(p, 'features_tr').some((m) => m.startsWith(HAFTALIK_TR)), `${p.id} TR`).toBe(true);
+      expect(zincir(p, 'features_en').some((m) => m.startsWith(HAFTALIK_EN)), `${p.id} EN`).toBe(true);
+    }
+    expect(trial.features_tr.join('\n')).toContain(`${trial.aiRunsPerMonth} görünürlük çalıştırması (haftada en fazla 1 ölçüm)`);
+    expect(trial.features_en.join('\n')).toContain(`${trial.aiRunsPerMonth} visibility runs (at most 1 measurement per week)`);
+  });
+
+  it('fiyat kartı: çalıştırma sayısı plans.ts ile aynı ve tavan olarak yazılıyor; birim tanımlı', () => {
+    for (const p of ucretli) {
+      expect(p.features_tr.join('\n'), `${p.id} TR`).toContain(`ayda en fazla ${fmtTr(p.aiRunsPerMonth)} çalıştırma`);
+      expect(p.features_en.join('\n'), `${p.id} EN`).toContain(`up to ${fmtEn(p.aiRunsPerMonth)} runs/mo`);
+      // Ust plan alicisi yukseltmenin olcum sikligini artirdigini sanmasin
+      if (p.inheritsFrom) {
+        expect(p.features_tr.join('\n'), `${p.id} TR`).toContain('ölçüm yine haftada 1');
+        expect(p.features_en.join('\n'), `${p.id} EN`).toContain('still 1 measurement a week');
+      }
+    }
+    const tr = BASE_PLANS.flatMap((p) => p.features_tr);
+    const en = BASE_PLANS.flatMap((p) => p.features_en);
+    expect(tr.some((m) => m.includes('AI testi 1, Prompt Lab’de her soru ve her dal 1 çalıştırma'))).toBe(true);
+    expect(en.some((m) => m.includes('an AI test is 1 run, each Prompt Lab question or branch is 1'))).toBe(true);
+    for (const m of tr) expect(m, m).not.toMatch(/görünürlük çalıştırması\s*\/\s*ay|her çalıştırma \d+ AI/);
+    for (const m of en) expect(m, m).not.toMatch(/visibility runs\/mo|every run queries/);
+  });
+
+  it('fiyat kartı: BYOK maddesi haftalık kuralı söylüyor (sınırsız ölçüm gibi okunmuyor)', () => {
+    const byokTr = BASE_PLANS.flatMap((p) => p.features_tr).find((m) => m.startsWith('BYOK'))!;
+    const byokEn = BASE_PLANS.flatMap((p) => p.features_en).find((m) => m.startsWith('BYOK'))!;
+    expect(byokTr).toContain('haftada 1 ölçüm kuralı geçerli');
+    expect(byokEn).toContain('the weekly measurement rule still applies');
+    expect(byokTr).not.toMatch(/ölçüm durmaz/);
+    expect(byokEn).not.toMatch(/measurement continues past pool quota$/);
+  });
+
+  it('sözlük (/help/glossary): deneme girişi haftalık sınırı söylüyor', () => {
+    const g = stripComments(read(path.join(WEB_SRC, 'lib/glossary.ts')));
+    const satir = g.split('\n').find((l) => l.includes('Ücretsiz deneme planı'))!;
+    expect(satir).toContain(`${trial.aiRunsPerMonth} AI görünürlük çalıştırması (haftada en fazla 1 ölçüm)`);
+  });
+
+  it('llms.txt: AI görünürlük modülü haftalık kuralı söylüyor', () => {
+    const geo = llms.split('\n').find((l) => l.startsWith('- **AI görünürlük (GEO)**'));
+    expect(geo, 'llms.txt GEO satiri').toBeDefined();
+    expect(geo!).toContain('hesap başına 7 günde 1');
+  });
+
+  it('SSS: deneme cevabı haftalık sınırı, "ayda kaç ölçüm" sorusu kuralı kodla aynı yazıyor', () => {
+    const faq = sayfa('faq/page.tsx');
+    const cevap = (q: string) => {
+      const i = faq.indexOf(q);
+      expect(i, q).toBeGreaterThan(-1);
+      const rest = faq.slice(i);
+      return rest.slice(0, rest.indexOf('},'));
+    };
+    expect(cevap("q: 'Ücretsiz olarak ne kadar kullanabilirim?'")).toContain(`${trial.aiRunsPerMonth} AI görünürlük çalıştırması (haftada en fazla 1 ölçüm)`);
+    expect(cevap("q: 'How much can I use for free?'")).toContain(`${trial.aiRunsPerMonth} AI visibility runs (at most 1 measurement per week)`);
+    const tr = cevap("q: 'Ayda kaç AI görünürlük ölçümü yapabilirim?'");
+    const en = cevap("q: 'How many AI visibility measurements can I run per month?'");
+    expect(tr).toContain('hesap başına 7 günde 1');
+    expect(tr).toContain(`ayda en fazla ${ayEnFazla}`);
+    expect(tr).toContain("AI testi 1, Prompt Lab'de her soru ve her dal 1 çalıştırma");
+    expect(tr).toContain('sonuç vermeyen ölçüm hakkı yakmaz');
+    expect(en).toContain('every 7 days per account');
+    expect(en).toContain(`at most ${ayEnFazla} a month`);
+    expect(en).toContain('an AI test counts as 1 run and each Prompt Lab question or branch as 1');
+    // Plan sayilari SSS'de yazilmaz (bayatliyordu): cevap fiyat sayfasina yonlendirir
+    for (const p of BASE_PLANS) {
+      expect(tr, p.id).not.toContain(`${fmtTr(p.aiRunsPerMonth)} çalıştırma`);
+      expect(en, p.id).not.toContain(`${fmtEn(p.aiRunsPerMonth)} runs`);
+    }
+  });
+
+  it('kurulum taraması ve başlangıç ölçümü haftalık haktan düşmez (worker trigger system); metin bunu söylüyor', () => {
+    expect(worker, 'kurulum taramasi kullanici tetikli oldu: getting-started ve SSS metnini guncelle').toMatch(/services\.audit\.runAudit\(siteId, \{ trigger: 'system' \}\)/);
+    expect(worker, 'baslangic olcumu kullanici tetikli oldu: metni guncelle').toMatch(/citationTracker\.snapshotSite\(siteId, \{ trigger: 'system' \}\)/);
+    const gs = sayfa('help/getting-started/page.tsx');
+    expect(gs).not.toMatch(/ölçüm hakkını kullanmış olabilir/);
+    expect(gs).toContain('haftalık hakkından düşmez');
+    expect(gs).toContain(`${trial.aiRunsPerMonth} AI görünürlük çalıştırması (haftada en fazla 1 ölçüm)`);
+    expect(sayfa('faq/page.tsx')).toContain('Site kurulumundaki ilk tarama ve otomatik akışın başlangıç ölçümü bu hakka sayılmaz');
+  });
+
+  it('yardım: plan listesi plans.ts ile aynı; haftalık kural ve "Tümünü çalıştır" örneği panelle aynı', () => {
+    const bill = sayfa('help/billing/page.tsx');
+    for (const p of BASE_PLANS) {
+      const li = bill.split('\n').find((l) => l.includes(`<li><strong>${p.name_tr}</strong>`));
+      expect(li, `${p.id} satiri`).toBeDefined();
+      expect(li!).toContain(`${p.articlesPerMonth} makale`);
+      expect(li!).toContain(`${p.sites} site`);
+      expect(li!).toContain(p.id === 'trial'
+        ? `${p.aiRunsPerMonth} AI görünürlük çalıştırması (haftada en fazla 1 ölçüm)`
+        : `ayda en fazla ${fmtTr(p.aiRunsPerMonth)} çalıştırma`);
+    }
+    expect(bill).toContain('hesap başına 7 günde 1');
+    expect(bill).toContain('tüm sitelerin');
+    expect(bill).toContain(`tek ölçümde en fazla ${tumuLimit} soruyu`);
+    const ai = sayfa('help/ai-visibility/page.tsx');
+    expect(ai).toContain('tüm sitelerin');
+    expect(ai).toContain('site taramasındaki AI testi');
+    expect(ai).toContain("AI testi 1, Prompt Lab'de her soru ve her dal 1 çalıştırma");
+  });
+
+  it('landing fiyat dipnotu ve /compare haftalık kuralı söylüyor; EN metin ölçümü "run" diye anmıyor', () => {
+    const satirlar = (k: string) => i18n.split('\n').filter((l) => l.includes(`'${k}':`));
+    for (const k of ['land.pric.footer_note', 'land.pricing.footer_note']) {
+      const [tr, en] = satirlar(k);
+      expect(tr, k).toContain('haftada 1 AI görünürlük ölçümü');
+      expect(en, k).toContain('1 AI visibility measurement per week');
+    }
+    const cmp = sayfa('compare/page.tsx');
+    expect(cmp).toContain('ölçümü sen başlatırsın, hesap başına 7 günde 1');
+    expect(cmp).toContain('you start each measurement, once every 7 days per account');
+    // EN kartlarda "run" aylik calistirma birimi; olcum eylemine "run" denmez
+    expect(cmp).not.toMatch(/you start each run\b/);
+    expect(sayfa('faq/page.tsx')).not.toMatch(/Every run is stored|any two runs can be compared/);
+  });
+
+  it('hiçbir müşteri metni aylık çalıştırmayı "en fazla"sız, ölçüm hakkı gibi satmıyor', () => {
+    // (?<![\d.,]) "1.000" icindeki "000"den yeniden eslesmeyi engeller
+    const tr = /(?<!en fazla )(?<![\d.,])\d[\d.]*\s+(?:AI\s+)?görünürlük çalıştırması\s*\/\s*ay\b/;
+    const en = /(?<!up to )(?<![\d.,])\d[\d,]*\s+(?:AI\s+)?visibility runs?\s*(?:\/\s*mo|per month)\b/i;
+    const kart: Source[] = [{ rel: 'plans.ts', text: BASE_PLANS.flatMap((p) => [...p.features_tr, ...p.features_en]).join('\n') }];
+    const kaynaklar = [...webSources, ...docSources, ...kart];
+    expect(offenders(kaynaklar, tr)).toEqual([]);
+    expect(offenders(kaynaklar, en)).toEqual([]);
   });
 });

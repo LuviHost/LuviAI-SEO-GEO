@@ -6,7 +6,7 @@ import { PipelineService } from './pipeline.service.js';
 import { automationPublishFields } from './publish-approval.js';
 import { scheduledGenerationJobId } from './article-scheduler.service.js';
 import {
-  agentOutputsWithoutLiveWriteBlocked, articleContentHash, liveEntries, liveEntryFor, withoutManualUpdateFlag,
+  agentOutputsWithoutLiveWriteBlocked, articleContentHash, liveEntryFor, siteLiveEntries, statusAfterRetirement, withoutManualUpdateFlag,
 } from './republish-policy.js';
 
 /** Yayin kaydi uclarinin dondugu bicim (paylasilan sozlesme) */
@@ -29,7 +29,7 @@ export const PUBLISHED_ENTRY_CONFLICT = 'Yazı az önce değişti (örneğin bir
 const TRIGGERABLE_STATUSES = new Set(['SCHEDULED', 'DRAFT', 'FAILED', 'REVIZE_NEEDED']);
 
 /**
- * "Simdi uret" yayindaki yaziyi (bilinen canli kopyasi olan) yeniden uretmez.
+ * "Simdi uret" yayindaki yaziyi (sitede bilinen canli kopyasi olan) yeniden uretmez.
  *
  * NEDEN (K11): sahiplenme yaziyi GENERATING yapar ve uretim isi hata verirse
  * worker GENERATING / EDITING yaziyi FAILED'a ceker; GENERATING'de takili
@@ -160,9 +160,15 @@ export class ArticlesService {
           : 'Bu yazı zaten üretildi. "Şimdi üret" yalnız takvimde bekleyen ya da başarısız yazılar içindir.',
       );
     }
-    // Yayindaki yazi (cop kutusundakiler haric bilinen canli kopyasi var): sahiplenme
-    // yok, kota denetlenmez, is kuyruga atilmaz (TRIGGER_NOW_LIVE_REFUSED)
-    if (liveEntries((article as { publishedTo?: unknown }).publishedTo).length > 0) {
+    // Yazinin SITEDE canli kopyasi var: sahiplenme yok, kota denetlenmez, is kuyruga
+    // atilmaz (TRIGGER_NOW_LIVE_REFUSED). Karar "son canli kopya" kuraliyla ayni
+    // (republish-policy siteLiveEntries): cop kutusundaki / silinmis kopya ve Markdown
+    // ZIP disa aktarimi sitede kopya sayilmaz. NEDEN: ZIP canli siteye dokunmaz;
+    // liveEntries onu da sayiyordu ve yalniz ZIP kaydi olan yazida ret metni sitede
+    // olmayan bir sayfa icin "önceki hâli sitende yayında" diyordu, yazi da yeniden
+    // uretilemiyordu. Kayit tipi kayittaki targetType'tan okunur (hedef tipi sonradan
+    // degismez); tipi olmayan eski kayit sitede kopya sayilir (ret: guvenli taraf).
+    if (siteLiveEntries((article as { publishedTo?: unknown }).publishedTo).length > 0) {
       throw new BadRequestException(TRIGGER_NOW_LIVE_REFUSED);
     }
 
@@ -317,10 +323,14 @@ export class ArticlesService {
    * yaziyi elle silen musteri, kayit "yayinda" dedigi icin yeniden
    * yayinlayamiyordu.
    *
-   * Baska canli kayit kalmazsa ve yazi PUBLISHED ise durum READY_TO_PUBLISH olur.
-   * NEDEN: RanksUp'in bildigi hicbir yerde yayinda degil — PUBLISHED yanlis
-   * olurdu ve PUBLISHED okuyan her yer (site haritasi, llms-full, KPI'lar,
-   * raporlar, icerik pivotu) olmayan bir sayfayi saymaya devam ederdi.
+   * Yazinin SITEDE baska canli kaydi kalmazsa ve yazi PUBLISHED ise durum
+   * READY_TO_PUBLISH olur (republish-policy statusAfterRetirement: yayincinin cop
+   * kutusu / silinmis kopya yolu ve canlilik denetimiyle ayni kural). Markdown ZIP
+   * disa aktarimi sitede kopya SAYILMAZ: eskiden yalniz ZIP kaydi kalan yazi
+   * PUBLISHED kaliyordu. NEDEN: yazi sitede hicbir yerde yayinda degil — PUBLISHED
+   * yanlis olurdu ve PUBLISHED okuyan her yer (site haritasi, llms-full, KPI'lar,
+   * raporlar, icerik pivotu) olmayan bir sayfayi saymaya devam ederdi. Kalan
+   * kayitlarin tipi kayittaki targetType'tan okunur (hedef tipi sonradan degismez).
    * READY_TO_PUBLISH metni bitmis, yayini musterinin kararina birakan durumdur:
    * panel yayinlamayi sunar, "onayini bekliyor" adiminda gorunur ve hicbir
    * otomasyon onu kendiliginden yayinlamaz (otomatik yayin yalniz uretim isinin
@@ -342,7 +352,7 @@ export class ArticlesService {
     if (remaining.length === entries.length) throw new NotFoundException(PUBLISHED_ENTRY_NOT_FOUND);
 
     const previousStatus = String(article.status);
-    const status = previousStatus === 'PUBLISHED' && liveEntries(remaining).length === 0 ? 'READY_TO_PUBLISH' : previousStatus;
+    const status = statusAfterRetirement(previousStatus, remaining);
     await this.writeEntries(article, {
       publishedTo: remaining,
       ...(status !== previousStatus ? { status } : {}),

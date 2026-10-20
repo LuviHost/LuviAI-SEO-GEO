@@ -27,7 +27,8 @@ vi.mock('@luviai/shared', async (importOriginal) => {
   };
 });
 
-const { PipelineService } = await import('./pipeline.service.js');
+const { PipelineService, NO_PUBLIC_ARTICLE_URL, omitJsonLdArticleUrl } = await import('./pipeline.service.js');
+const { SchemaClassifierService } = await import('./schema-classifier.service.js');
 
 vi.spyOn(Logger.prototype, 'log').mockImplementation(() => undefined);
 vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined);
@@ -119,6 +120,16 @@ function build(opts: { existing?: Record<string, unknown> | null; editor?: strin
 
 const run = (c: ReturnType<typeof build>, extra: Record<string, unknown> = {}) =>
   c.svc.runPipeline({ siteId: 's1', topic: 'Kira', articleId: 'a1', skipImages: true, ...extra });
+
+/**
+ * Gercek sema uretimi (schema-classifier buildJsonLd; AI cagrisi yok): adres alanlarinin
+ * kayda gercekte ne yazildigi gorulsun. Kirinti ve Speakable dahil.
+ */
+function echoJsonLd(c: ReturnType<typeof build>) {
+  const real = new SchemaClassifierService();
+  c.schemaClassifier.classify.mockImplementation(async () => ({ primary: ['BlogPosting', 'BreadcrumbList', 'Speakable'], reasoning: 'test' }));
+  c.schemaClassifier.buildJsonLd.mockImplementation((args: any) => real.buildJsonLd(args));
+}
 
 afterEach(() => { vi.useRealTimers(); });
 
@@ -235,10 +246,86 @@ describe('canli metin goruntusu yalniz GERCEKTEN canli olan metinden alinir', ()
     expect(c.lastWrite().slug).toBe('eski-adres');
   });
 
-  it('canli adres sitede bilinmiyorsa (baska alan adindaki Ghost) JSON-LD korunan slug ile yol kuralindan', async () => {
+  it('canli adres sitede bilinmiyorsa (baska alan adindaki Ghost) JSON-LD\'ye adres yazilmaz — varsayilan hedefin yolundan tahmin edilmez', async () => {
     const c = build({ existing: liveRow({ publishedTo: [{ targetId: 't-ghost', targetType: 'GHOST', ok: true, externalId: 'g1', externalUrl: 'https://blog.baska.com/eski-adres/' }] }) });
+    echoJsonLd(c);
     await run(c);
-    expect(c.jsonLdArgs().article.url).toBe('https://ornek.com/eski-adres');
+    // Eskiden https://ornek.com/eski-adres yaziliyordu: o adreste sayfa olup olmadigi bilinmiyor
+    const ld = c.lastWrite().schemaMarkup.jsonLd as any[];
+    expect(JSON.stringify(ld)).not.toContain('ornek.com/eski-adres');
+    expect(JSON.stringify(ld)).not.toContain(NO_PUBLIC_ARTICLE_URL);
+    expect(ld.find((s) => s['@type'] === 'BlogPosting')).not.toHaveProperty('url');
+  });
+});
+
+/**
+ * C1 madde 4 — JSON-LD url ILAN kuralina gecti (ai-sitemap.service advertisedArticleEntry):
+ * site haritasi, llms-full ve yayincinin canonical'i ile ayni adres. Ilan edilecek adres yoksa
+ * JSON-LD'ye adres yazilmaz (url, mainEntityOfPage, son kirintinin item'i silinir).
+ * NEDEN: articlePublicUrl hic canli gorulmemis WordPress taslaginin ?p= baglantisini (anonim
+ * ziyaretciye ve tarayiciya 404) JSON-LD url'i yapiyordu.
+ */
+describe('JSON-LD url: yazinin ilan edilen adresi; yoksa adres yazilmaz', () => {
+  const WP_TARGETS = [{ id: 't-wp', type: 'WORDPRESS_REST', config: { postStatus: 'draft' } }];
+  const taslak = (over: Record<string, unknown> = {}) => ({
+    targetId: 't-wp', targetType: 'WORDPRESS_REST', ok: true, externalId: '41', externalUrl: 'https://ornek.com/?p=41', ...over,
+  });
+
+  it('tek canli kopya hic canli gorulmemis WordPress taslagi (?p=): JSON-LD\'de ?p= adresi yok; sema adressiz', async () => {
+    const c = build({ existing: liveRow({ publishedTo: [taslak()] }), targets: WP_TARGETS });
+    echoJsonLd(c);
+    await run(c);
+    const ld = c.lastWrite().schemaMarkup.jsonLd as any[];
+    const text = JSON.stringify(ld);
+    expect(text).not.toContain('?p=41');
+    expect(text).not.toContain(NO_PUBLIC_ARTICLE_URL);
+    const post = ld.find((s) => s['@type'] === 'BlogPosting');
+    expect(post).toMatchObject({ headline: 'Kira Artış Oranı Nasıl Hesaplanır?', datePublished: FIRST_AT.toISOString() });
+    expect(post).not.toHaveProperty('url');
+    expect(post).not.toHaveProperty('mainEntityOfPage');
+    const crumbs = ld.find((s) => s['@type'] === 'BreadcrumbList').itemListElement;
+    expect(crumbs[0]).toMatchObject({ name: 'Anasayfa', item: 'https://ornek.com' });
+    // Son kirinti adsiz degil, yalniz adressiz (Google son ogede item'i zorunlu tutmaz)
+    expect(crumbs.at(-1)).toEqual({ '@type': 'ListItem', position: crumbs.length, name: 'Kira Artış Oranı Nasıl Hesaplanır?' });
+    expect(ld.find((s) => s['@type'] === 'WebPage')).not.toHaveProperty('url');
+  });
+
+  it('canlilik denetimi ?p= adresini bir kez canli gorduyse adres ilan edilir ve JSON-LD url\'i olur', async () => {
+    const c = build({ existing: liveRow({ publishedTo: [taslak({ liveSeenAt: '2026-10-19T02:20:00.000Z', liveSeenUrl: 'https://ornek.com/?p=41' })] }), targets: WP_TARGETS });
+    echoJsonLd(c);
+    await run(c);
+    const post = (c.lastWrite().schemaMarkup.jsonLd as any[]).find((s) => s['@type'] === 'BlogPosting');
+    expect(post).toMatchObject({ url: 'https://ornek.com/?p=41', mainEntityOfPage: { '@type': 'WebPage', '@id': 'https://ornek.com/?p=41' } });
+  });
+
+  it('WordPress yazim aninda "publish" bildirdiyse ?p= adresi dogrudan ilan edilir', async () => {
+    const c = build({ existing: liveRow({ publishedTo: [taslak({ remoteStatus: 'publish' })] }), targets: WP_TARGETS });
+    await run(c);
+    expect(c.jsonLdArgs().article.url).toBe('https://ornek.com/?p=41');
+  });
+
+  it('dosya hedefindeki kopyanin adresi site haritasinin ilan ettigi adres: kayittaki konum (klasor sonradan degisse de)', async () => {
+    const c = build({
+      existing: liveRow({ publishedTo: [{ targetId: 't-ftp', targetType: 'FTP', ok: true, externalUrl: 'ftp://ftp.ornek.com/public_html/blog/eski-adres.html' }] }),
+      targets: [{ id: 't-ftp', type: 'FTP', config: { remotePath: '/public_html/makaleler' } }],
+    });
+    await run(c);
+    expect(c.jsonLdArgs().article.url).toBe('https://ornek.com/blog/eski-adres.html');
+  });
+
+  it('omitJsonLdArticleUrl: yalniz yer tutucuyu tasiyan alanlar silinir, girdi degismez', () => {
+    const girdi = [
+      { '@type': 'Article', url: NO_PUBLIC_ARTICLE_URL, mainEntityOfPage: { '@type': 'WebPage', '@id': NO_PUBLIC_ARTICLE_URL }, publisher: { '@type': 'Organization', url: 'https://ornek.com' }, description: '' },
+      { '@type': 'BreadcrumbList', itemListElement: [{ '@type': 'ListItem', position: 1, name: 'Anasayfa', item: 'https://ornek.com' }, { '@type': 'ListItem', position: 2, name: 'Yazı', item: NO_PUBLIC_ARTICLE_URL }] },
+      { '@type': 'VideoObject', contentUrl: NO_PUBLIC_ARTICLE_URL, thumbnailUrl: 'https://ornek.com/t.png' },
+    ];
+    const kopya = structuredClone(girdi);
+    expect(omitJsonLdArticleUrl(girdi)).toEqual([
+      { '@type': 'Article', publisher: { '@type': 'Organization', url: 'https://ornek.com' }, description: '' },
+      { '@type': 'BreadcrumbList', itemListElement: [{ '@type': 'ListItem', position: 1, name: 'Anasayfa', item: 'https://ornek.com' }, { '@type': 'ListItem', position: 2, name: 'Yazı' }] },
+      { '@type': 'VideoObject', thumbnailUrl: 'https://ornek.com/t.png' },
+    ]);
+    expect(girdi).toEqual(kopya);
   });
 });
 

@@ -24,8 +24,8 @@ import type { AgentContext, ExtractedFaq, GeoGateResult } from '@luviai/shared';
 import { safeParseJson } from '../common/safe-json.js';
 // Tek kaynak: canonical (publisher.service.ts) ile JSON-LD (burası) aynı URL'i üretsin.
 import { resolveArticleUrl as buildArticleUrl } from './article-url.util.js';
-// Yayindaki yazinin kamusal adresi: site haritasi ve llms-full ile AYNI kural
-import { articlePublicUrl, loadArticleTargets, parseSiteUrl } from '../audit/ai-sitemap.service.js';
+// Yayindaki yazinin kamusal adresi: site haritasi ve llms-full'un ILAN ettigi adresle AYNI kural
+import { advertisedArticleEntry, loadArticleTargets, parseSiteUrl } from '../audit/ai-sitemap.service.js';
 // Yayindaki yazinin yeniden yazimi: adres, ilk yayin tarihi, canli metnin goruntusu
 import {
   EXISTING_ARTICLE_SELECT, agentOutputsWithLiveSnapshot, agentOutputsWithRejectedRewrite, isLiveArticle,
@@ -68,6 +68,32 @@ const OVERWRITE_RESETS = {
   qaCheckedAt: null,
   bodyHtml: null,
 } as const;
+
+/**
+ * Yayindaki yazinin ilan edilecek adresi yokken JSON-LD uretimine verilen yer tutucu:
+ * schema-classifier buildJsonLd her semada bir adres bekler. Yer tutucu ve onu tasiyan alanlar
+ * kayda yazilmadan once silinir (omitJsonLdArticleUrl); gercek bir adresle karismaz.
+ */
+export const NO_PUBLIC_ARTICLE_URL = 'urn:ranksup:ilan-edilen-adres-yok';
+
+/**
+ * JSON-LD'den yer tutucu adresi tasiyan alanlari siler (saf; girdi degismez): degeri yer tutucu
+ * olan her alan (Article url, Speakable / Course / Product url, VideoObject contentUrl, son
+ * kirintinin item'i...) ve '@id'si yer tutucu olan nesne (mainEntityOfPage). Google kirinti
+ * listesinin SON ogesinde item'i zorunlu tutmaz (sayfanin kendi adresi kullanilir); sema
+ * adresi olmadan da bulundugu sayfayi anlatir.
+ */
+export function omitJsonLdArticleUrl<T>(node: T, placeholder: string = NO_PUBLIC_ARTICLE_URL): T {
+  if (Array.isArray(node)) return node.map((n) => omitJsonLdArticleUrl(n, placeholder)) as T;
+  if (!node || typeof node !== 'object') return node;
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
+    if (value === placeholder) continue;
+    if (value && typeof value === 'object' && !Array.isArray(value) && (value as Record<string, unknown>)['@id'] === placeholder) continue;
+    out[key] = omitJsonLdArticleUrl(value, placeholder);
+  }
+  return out as T;
+}
 
 /**
  * 5 ajanli uretim hatti orkestratoru (yayin bir ajan degil).
@@ -557,17 +583,18 @@ export class PipelineService {
         // Sabit `/blog/<slug>.html` yanlıştı: bu yol hiçbir hedefte yok.
         // (kobipratik'te rehberler /pratik-kobi-rehberi/<slug>, uzantısız.)
         // Artık gerçek publish hedefinin path kuralından türetiliyor.
-        // Yayindaki yazida once CANLI adres (WordPress kalici baglantisi, dosya
-        // hedefinin kanonik adresi): site haritasi ve llms-full'un kullandigi kural.
-        const { url: articleUrl, sectionPath } = liveRewrite
-          ? await this.liveArticleUrl(opts.siteId, siteUrl, baseUrl, slug, existing!.publishedTo)
+        // Yayindaki yazida yazinin ILAN edilen adresi (site haritasi ve llms-full ile ayni
+        // kural); ilan edilecek adres yoksa JSON-LD'ye adres yazilmaz (omitJsonLdArticleUrl).
+        const { url: liveOrPlannedUrl, sectionPath }: { url: string | null; sectionPath: string | null } = liveRewrite
+          ? await this.liveArticleUrl(opts.siteId, siteUrl, slug, existing!.publishedTo)
           : await this.resolveArticleUrl(opts.siteId, baseUrl, slug);
+        const articleUrl = liveOrPlannedUrl ?? NO_PUBLIC_ARTICLE_URL;
         const nowIso = new Date().toISOString();
         const sameAs = Array.isArray(siteAny.socialProfiles)
           ? (siteAny.socialProfiles as string[])
           : [];
 
-        const jsonLd = this.schemaClassifier.buildJsonLd({
+        const builtJsonLd = this.schemaClassifier.buildJsonLd({
           types: classification.primary,
           article: {
             title: (fm.title as string) ?? opts.topic,
@@ -605,6 +632,9 @@ export class PipelineService {
             sameAs,
           },
         });
+        // Ilan edilecek adres yoksa yer tutucu ve onu tasiyan alanlar (url, mainEntityOfPage,
+        // son kirintinin item'i...) JSON-LD'den silinir: sema icinde bulundugu sayfayi anlatir
+        const jsonLd = liveOrPlannedUrl ? builtJsonLd : omitJsonLdArticleUrl(builtJsonLd);
 
         schemaMarkup = { types: classification.primary, reasoning: classification.reasoning, jsonLd };
         agentOutputs.schema = { types: classification.primary, count: jsonLd.length, reasoning: classification.reasoning };
@@ -819,30 +849,35 @@ export class PipelineService {
   }
 
   /**
-   * Yayindaki yazinin JSON-LD adresi: canli kopyanin sitedeki adresi (yayin
-   * hedefinin bildirdigi kalici baglanti ya da dosya hedefinin kanonik adresi —
-   * ai-sitemap.service articlePublicUrl, site haritasi ve llms-full ile ayni
-   * kural). Bilinmiyorsa (or. baska alan adindaki Ghost) korunan slug ile
-   * varsayilan hedefin yol kurali — yayincinin canonical'i ile ayni kaynak.
+   * Yayindaki yazinin JSON-LD adresi: yazinin ILAN edilen adresi (ai-sitemap.service
+   * advertisedArticleEntry — site haritasi, llms-full, persona sohbeti ve yayincinin
+   * canonical'i ile ayni kural: canli WordPress kalici baglantisi ya da dosya hedefindeki
+   * kopyanin kayitli konumundan adresi). Ilan edilecek adres yoksa null: JSON-LD'ye adres
+   * yazilmaz.
+   *
+   * NEDEN: eskiden articlePublicUrl kullaniliyordu; hic canli gorulmemis WordPress taslaginin
+   * ?p= baglantisi (anonim ziyaretciye ve tarayiciya 404) JSON-LD url'i oluyordu. Adres
+   * bulunamayinca (or. baska alan adindaki Ghost) varsayilan hedefin yol kuralindan tahmini bir
+   * adres yaziliyordu; o adreste sayfa olmayabilir. Adres bildirmemek, var olmayan bir adresi
+   * bildirmekten iyidir: sema bulundugu sayfayi anlatir.
    */
   private async liveArticleUrl(
     siteId: string,
     siteUrl: string,
-    baseUrl: string,
     slug: string,
     publishedTo: unknown,
-  ): Promise<{ url: string; sectionPath: string | null }> {
+  ): Promise<{ url: string | null; sectionPath: string | null }> {
     const site = parseSiteUrl(siteUrl);
-    if (site) {
-      try {
-        const targets = await loadArticleTargets(this.prisma, siteId, site, [{ publishedTo }]);
-        const url = articlePublicUrl(site, slug, publishedTo, targets);
-        if (url) return { url, sectionPath: sectionPathOf(url) };
-      } catch (err: any) {
-        this.log.warn(`[${siteId}] Canlı adres okunamadı, yol kuralına düşüldü: ${err.message}`);
-      }
+    if (!site) return { url: null, sectionPath: null };
+    try {
+      const targets = await loadArticleTargets(this.prisma, siteId, site, [{ publishedTo }]);
+      const url = advertisedArticleEntry(site, slug, publishedTo, targets)?.url ?? null;
+      return { url, sectionPath: url ? sectionPathOf(url) : null };
+    } catch (err: any) {
+      // Ilan edilen adres dogrulanamadi: tahmini adres yerine adressiz
+      this.log.warn(`[${siteId}] Canlı adres okunamadı, JSON-LD'ye adres yazılmadı: ${err.message}`);
+      return { url: null, sectionPath: null };
     }
-    return this.resolveArticleUrl(siteId, baseUrl, slug);
   }
 
   /** Editör skor tavanı — 04-editor prompt'undaki 9 kategori × 10 puan. */
@@ -986,7 +1021,9 @@ export class PipelineService {
     siteId: string,
     baseUrl: string,
     slug: string,
-  ): Promise<{ url: string; sectionPath: string | null }> {
+  ): Promise<{ url: string | null; sectionPath: string | null }> {
+    // url null: dosya hedefinin klasorunden sitedeki adres cikarilamadi (article-url.util.ts);
+    // JSON-LD'ye adres yazilmaz (omitJsonLdArticleUrl), tahmin edilmez.
     let target: { type?: string | null; config?: unknown } | null = null;
     try {
       const targets = await this.prisma.publishTarget.findMany({

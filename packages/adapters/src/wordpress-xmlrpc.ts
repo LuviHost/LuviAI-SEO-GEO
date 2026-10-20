@@ -90,7 +90,22 @@ export class WordPressXmlrpcAdapter extends PublishAdapter {
     return trimTrailingSlash(String(this.credentials.siteUrl ?? '').trim());
   }
 
-  async publish(payload: PublishPayload): Promise<PublishResult> {
+  /**
+   * Yeni yazi olusturur (metaWeblog.newPost). metaWeblog.newPost yalniz yazi kimligini doner;
+   * olusan yazinin durumu (sonuctaki `status`) ve hedef damgasi yazimdan sonra wp.getPost ile
+   * okunur. Durum, istenenden farkli olabilir: mw_newPost content_struct'taki post_status'u
+   * yalniz 'draft' / 'pending' / 'private' / 'publish' ise kullanir, degilse publish bayragina
+   * duser ("$post_status = $publish ? 'publish' : 'draft';"). Yayinci durumu yayin kaydina
+   * yazar ("?p= adresi herkese acik mi" karari ona bakar). Okunamazsa durum bilinmiyor
+   * sayilir ve hic yazilmaz (tahmin edilmez). Iki kaynak (2026-10-18'de okundu):
+   *  - developer.wordpress.org/reference/classes/wp_xmlrpc_server/mw_newpost ("post_status |
+   *    page_status – can be 'draft', 'private', 'publish', or 'pending'"; donus: kimlik) ve
+   *    .../wp_getpost (donen alanlar arasinda 'post_status').
+   *  - wordpress-develop class-wp-xmlrpc-server.php mw_newPost (yukaridaki switch) ve
+   *    _prepare_post: "'post_status' => $post['post_status']" (zamanlanmis 'future' yazi
+   *    burada 'publish' bildirilir; RanksUp tarih gondermedigi icin bu yoldan 'future' olusmaz).
+   */
+  async publish(payload: PublishPayload): Promise<PublishResult & Pick<UpdateResult, 'status'>> {
     const { username, password } = this.credentials;
     const base = this.baseUrl;
     if (!base || !username || !password) {
@@ -131,14 +146,21 @@ export class WordPressXmlrpcAdapter extends PublishAdapter {
       }
       // metaWeblog.newPost yalniz kimlik doner; sonraki yerinde guncellemenin
       // cakisma denetimi icin olusturma aninin hedef damgasi (post_modified_gmt)
-      // wp.getPost ile okunur. Okunamazsa yayin yine basarilidir: denetim
-      // RanksUp'in yazim anina saat payiyla duser.
+      // ve olusan yazinin durumu (post_status) wp.getPost ile okunur. Okunamazsa
+      // yayin yine basarilidir: denetim RanksUp'in yazim anina saat payiyla duser,
+      // durum bilinmiyor sayilir.
       const after = await this.readAfterWrite(base, username, password, Number(postId));
       return {
         ok: true,
-        externalUrl: `${base}/?p=${postId}`,
+        // Adres WordPress'in bildirdigi kalici baglanti (wp.getPost link = get_permalink), update()
+        // ile ayni kural. NEDEN: kayit duz ?p= adresini tutuyordu; site haritasi, llms, persona ve
+        // canonical yazinin kanonik adresi yerine kalici baglantiya YONLENEN ?p= adresini ilan
+        // ediyordu. Taslak yine guvende: ilan karari kayittaki durumdan (status → remoteStatus)
+        // verilir; WordPress 5.7+ taslaga zaten duz baglanti verir. Okunamazsa eskisi gibi ?p=.
+        externalUrl: after.link || `${base}/?p=${postId}`,
         externalId: postId,
         ...(after.remoteModifiedAt ? { remoteModifiedAt: after.remoteModifiedAt } : {}),
+        ...(after.status ? { status: after.status } : {}),
       };
     } catch (err: any) {
       return { ok: false, error: err.message };
@@ -259,16 +281,25 @@ export class WordPressXmlrpcAdapter extends PublishAdapter {
   }
 
   /**
-   * Yazimdan sonra yazinin hedef damgasi ve adresi (wp.getPost). En iyi caba:
+   * Yazimdan sonra yazinin hedef damgasi, adresi ve durumu (wp.getPost). En iyi caba:
    * hata yaziminin sonucunu degistirmez (yazi zaten yazildi).
    */
-  private async readAfterWrite(base: string, username: unknown, password: unknown, id: number): Promise<{ remoteModifiedAt: string | null; link: string | null }> {
+  private async readAfterWrite(
+    base: string,
+    username: unknown,
+    password: unknown,
+    id: number,
+  ): Promise<{ remoteModifiedAt: string | null; link: string | null; status: string | null }> {
     try {
-      const got = await this.rpc(base, this.buildGetPostXml(username, password, id, ['post_modified_gmt', 'link']));
-      if (got.kind !== 'ok') return { remoteModifiedAt: null, link: null };
-      return { remoteModifiedAt: wordPressGmtToIso(xmlrpcDateMember(got.body, 'post_modified_gmt')), link: xmlrpcMember(got.body, 'link') || null };
+      const got = await this.rpc(base, this.buildGetPostXml(username, password, id, ['post_modified_gmt', 'link', 'post_status']));
+      if (got.kind !== 'ok') return { remoteModifiedAt: null, link: null, status: null };
+      return {
+        remoteModifiedAt: wordPressGmtToIso(xmlrpcDateMember(got.body, 'post_modified_gmt')),
+        link: xmlrpcMember(got.body, 'link') || null,
+        status: xmlrpcMember(got.body, 'post_status') || null,
+      };
     } catch {
-      return { remoteModifiedAt: null, link: null };
+      return { remoteModifiedAt: null, link: null, status: null };
     }
   }
 

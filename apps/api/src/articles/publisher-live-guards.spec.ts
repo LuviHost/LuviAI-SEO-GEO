@@ -938,6 +938,120 @@ describe('S18 yan etkisi — kimligin 404\'u tek basina yaziyi emekliye ayirmaz:
     expect(r).toMatchObject({ ok: true, action: 'updated' });
     expect(frontReqs).toEqual([]);
   });
+
+  /** Sahte on yuz yaniti: durum, basliklar, govde ve son adres elle verilir */
+  const frontReply = (over: { status: number; headers?: Record<string, string>; text?: string; url?: string; redirected?: boolean }) =>
+    async (url: string) => ({
+      status: over.status, ok: over.status >= 200 && over.status < 300, url: over.url ?? url, redirected: over.redirected ?? false,
+      contentType: 'text/html', headers: over.headers ?? {}, text: over.text ?? '', truncated: false, binary: false,
+    });
+
+  it('kimlik 404, adres de 404 ama yanit bot dogrulama sayfasi (Cloudflare challenge): otomasyon emekliye AYIRMAZ (live_entry_unverified), yazi PUBLISHED kalir', async () => {
+    // Eskiden yalniz durum koduna bakiliyordu: 404 → gone → live_entry_missing, missingAt,
+    // READY_TO_PUBLISH; yazi site haritasindan dusuyordu (canlilik denetimi ayni yaniti belirsiz sayiyor)
+    posts = new Map();
+    const c = build({ targets: [WP_T], publishedTo: [wpEntry()], status: 'PUBLISHED' });
+    const challenge = frontReply({ status: 404, headers: { server: 'cloudflare', 'cf-mitigated': 'challenge' }, text: '<html><title>Just a moment...</title></html>' });
+    (c.svc as any).entryUrlCheck = (url: string | undefined, opts?: { homepage?: string | null }) => checkEntryPublicUrl(url, challenge as any, opts);
+    const [r] = await c.svc.publishArticle('a1', []);
+    expect(r).toMatchObject({ ok: false, skipped: 'live_entry_unverified' });
+    expect(c.row.status).toBe('PUBLISHED');
+    expect(c.row.publishedTo[0]).not.toHaveProperty('missingAt');
+    expect(liveEntries(c.row.publishedTo).map((e) => e.targetId)).toEqual(['t-wp']);
+    expect(c.llmsFullBuilder.build).not.toHaveBeenCalled();
+    // Ayni yanit DataDome captcha'si olsa da (yalniz govdeden taninir)
+    const d = build({ targets: [WP_T], publishedTo: [wpEntry()], status: 'PUBLISHED' });
+    const captcha = frontReply({ status: 404, text: '<iframe src="https://geo.captcha-delivery.com/captcha/"></iframe>' });
+    (d.svc as any).entryUrlCheck = (url: string | undefined, opts?: { homepage?: string | null }) => checkEntryPublicUrl(url, captcha as any, opts);
+    const [s] = await d.svc.publishArticle('a1', []);
+    expect(s).toMatchObject({ ok: false, skipped: 'live_entry_unverified' });
+    expect(d.row.status).toBe('PUBLISHED');
+  });
+
+  it('yazi silinmis ve site silinen yaziyi ana sayfaya yonlendiriyor: yayinci sitenin ana sayfasini iletir; otomasyon emekliye ayirmaz, kullanicinin acik secimi yeniden olusturur (eskiden live_entry_unresolvable: yazi hic geri getirilemiyordu)', async () => {
+    posts = new Map();
+    const c = build({ targets: [WP_T], publishedTo: [wpEntry()], status: 'PUBLISHED' });
+    const seen: unknown[] = [];
+    const toHome = frontReply({ status: 200, url: `${SITE}/`, redirected: true, text: '<html>Ana sayfa</html>' });
+    (c.svc as any).entryUrlCheck = (url: string | undefined, opts?: { homepage?: string | null }) => {
+      seen.push(opts);
+      return checkEntryPublicUrl(url, toHome as any, opts);
+    };
+    const [r] = await c.svc.publishArticle('a1', []);
+    expect(seen).toEqual([{ homepage: `${SITE}/` }]);
+    expect(r).toMatchObject({ ok: false, skipped: 'live_entry_unverified' });
+    expect(c.row.status).toBe('PUBLISHED');
+    const [u] = await c.svc.publishArticle('a1', ['t-wp'], { overrideQa: true, initiator: 'user' });
+    expect(u).toMatchObject({ ok: true, action: 'recreated' });
+    expect(reqs.filter((x) => x.method === 'POST').map((x) => x.path)).toEqual(['/wp-json/wp/v2/posts']);
+  });
+});
+
+describe('Son canli kopya kurali — yalniz Markdown ZIP disa aktarimi kalan yazi sitede yayinda sayilmaz (republish-policy statusAfterRetirement)', () => {
+  /**
+   * NEDEN VAR: canlilik denetiminin kurali (statusAfterRetirement) ZIP'i sitede kopya
+   * saymiyordu; yayincinin cop kutusu / silinmis kopya yolu ise sayiyordu. Sitedeki son
+   * WordPress kopyasi kaldirilan yazi yalniz ZIP kaydi kaldigi icin PUBLISHED kaliyor,
+   * panel ve PUBLISHED okuyan her yer sitede olmayan yaziyi sayiyordu.
+   */
+  const zipLive = { targetId: 't-zip', targetType: 'MARKDOWN_ZIP', ok: true, action: 'exported', externalUrl: '/tmp/eski.zip', publishedAt: '2026-09-01T10:00:05.000Z', updatedAt: '2026-09-01T10:00:05.000Z' };
+
+  it('hicbir hedefe yazilmayan yayin: WordPress kopyasi silinmis, geriye yalniz ZIP kaldi → READY_TO_PUBLISH, llms-full yenilenir, ZIP kaydi korunur', async () => {
+    posts = new Map();
+    const c = build({ targets: [WP_T, ZIP_T], publishedTo: [wpEntry(), zipLive], status: 'PUBLISHED' });
+    const [r] = await c.svc.publishArticle('a1', ['t-wp'], { recreateMissing: false });
+    expect(r).toMatchObject({ targetId: 't-wp', ok: false, skipped: 'live_entry_missing' });
+    expect(c.row.status).toBe('READY_TO_PUBLISH');
+    expect(c.row.publishedTo.find((e: any) => e.targetId === 't-wp')).toMatchObject({ missingAt: expect.any(String) });
+    expect(c.row.publishedTo.find((e: any) => e.targetId === 't-zip')).toEqual(zipLive);
+    expect(c.row.publishedAt).toEqual(FIRST_AT);
+    expect(c.llmsFullBuilder.build).toHaveBeenCalledWith('s1');
+  });
+
+  it('hicbir hedefe yazilmayan yayin: WordPress kopyasi cop kutusunda, geriye yalniz ZIP kaldi → READY_TO_PUBLISH', async () => {
+    posts = posts1(wpPost({ status: 'trash', slug: 'kdv-beyani-rehberi__trashed' }));
+    const c = build({ targets: [WP_T, ZIP_T], publishedTo: [wpEntry(), zipLive], status: 'PUBLISHED' });
+    const [r] = await c.svc.publishArticle('a1', ['t-wp'], { overrideQa: true });
+    expect(r).toMatchObject({ ok: false, skipped: 'live_entry_trashed' });
+    expect(c.row.status).toBe('READY_TO_PUBLISH');
+    expect(c.llmsFullBuilder.build).toHaveBeenCalledWith('s1');
+  });
+
+  it('ayni yayinda ZIP yeniden uretildi ama WordPress kopyasi silinmis bulundu → READY_TO_PUBLISH (ZIP yazimi yaziyi sitede yayinda yapmaz); ilk yayin tarihi kalir', async () => {
+    posts = new Map();
+    const c = build({ targets: [WP_T, ZIP_T], publishedTo: [wpEntry(), zipLive], status: 'PUBLISHED' });
+    const adapters = await import('@luviai/adapters');
+    const spy = vi.spyOn(adapters.MarkdownZipAdapter.prototype, 'publish').mockImplementation((async () => ({ ok: true, externalUrl: '/tmp/yeni.zip' })) as any);
+    try {
+      const results = await c.svc.publishArticle('a1', []);
+      expect(results.map((r) => [r.targetId, r.ok, r.action ?? r.skipped])).toEqual([['t-wp', false, 'live_entry_missing'], ['t-zip', true, 'exported']]);
+      expect(c.row.status).toBe('READY_TO_PUBLISH');
+      expect(c.row.publishedAt).toEqual(FIRST_AT);
+      expect(c.row.publishedTo.find((e: any) => e.targetId === 't-zip')).toMatchObject({ externalUrl: '/tmp/yeni.zip' });
+      expect(c.row.publishedTo.find((e: any) => e.targetId === 't-wp')).toMatchObject({ missingAt: expect.any(String) });
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('kopya emekliye ayrilmayan yayinda davranis aynen: ilk ZIP disa aktarimi yaziyi PUBLISHED yapar; sitede baska canli kopya kalirsa PUBLISHED kalir', async () => {
+    const adapters = await import('@luviai/adapters');
+    const spy = vi.spyOn(adapters.MarkdownZipAdapter.prototype, 'publish').mockImplementation((async () => ({ ok: true, externalUrl: '/tmp/x.zip' })) as any);
+    try {
+      const first = build({ targets: [ZIP_T], publishedTo: [], status: 'READY_TO_PUBLISH' });
+      await first.svc.publishArticle('a1', ['t-zip'], { overrideQa: true, initiator: 'user' });
+      expect(first.row.status).toBe('PUBLISHED');
+
+      posts = new Map();
+      const ftpLive = { targetId: 't-ftp', targetType: 'FTP', ok: true, externalUrl: `ftp://${IP}/public_html/kdv-beyani-rehberi.html`, contentHash: HASH };
+      const kept = build({ targets: [WP_T, ZIP_T, FTP_T], publishedTo: [wpEntry(), zipLive, ftpLive], status: 'PUBLISHED' });
+      await kept.svc.publishArticle('a1', ['t-wp'], { recreateMissing: false });
+      expect(kept.row.status).toBe('PUBLISHED');
+      expect(kept.llmsFullBuilder.build).not.toHaveBeenCalled();
+    } finally {
+      spy.mockRestore();
+    }
+  });
 });
 
 describe('M-1 — "Elle güncelledim" sonrasi musterinin yapistirmasi sonraki guncellemeyi kilitlemez (mark-updated remoteModifiedAt)', () => {
@@ -975,5 +1089,85 @@ describe('M-1 — "Elle güncelledim" sonrasi musterinin yapistirmasi sonraki gu
     const [r] = await c.svc.publishArticle('a1', [], { overrideQa: true });
     expect(r).toMatchObject({ ok: false, skipped: 'live_entry_edited' });
     expect(posts.get(123)?.content).toBe('<p>Müşterinin yeni eki</p>');
+  });
+});
+
+/**
+ * canli-oncesi-21 madde 1 — hicbir sey yazmayan yayin canlilik denetiminin emekliye ayirdigi
+ * kopyayi CANLI SAYMAZ ve yaziyi sitede canli kopyasi yokken PUBLISHED yapmaz.
+ * NEDEN: musteri yaziyi WordPress'te taslaga alinca canlilik denetimi kopyayi emekliye ayiriyordu
+ * (adres 404). Kullanicinin "bu hedefi secip yayinla"si yaziyi "duzenlenmis" buluyordu (taslaga
+ * alma modified_gmt'yi ilerletir); kopya bayat remoteStatus 'publish' ile canli sayiliyor, yazi
+ * PUBLISHED oluyor, 404 veren adres site haritasinda yeniden ilan ediliyor ve iki gun sonra
+ * ikinci bildirimle yeniden emekliye ayriliyordu (dongu). Emekli dosya kopyasinin slug'i
+ * degistiyse ('slug_changed') ya da adres dogrulanamadiysa ('live_entry_unverified') yazi hic
+ * canli kopyasi yokken PUBLISHED oluyordu.
+ */
+const { advertisedArticleEntry } = await import('../audit/ai-sitemap.service.js');
+const { siteLiveEntries } = await import('./republish-policy.js');
+
+describe('canli-oncesi-21 — yazilmayan yayin emekli kopyayi geri getirmez', () => {
+  const refs = new Map([['t-wp', { type: 'WORDPRESS_REST', config: {} }]]);
+  const retiredWp = (over: Record<string, unknown> = {}) => wpEntry({
+    remoteStatus: 'publish', missingAt: '2026-10-12T02:20:00.000Z', missingReason: 'public_url_gone', liveSeenAt: '2026-10-01T02:20:00.000Z', ...over,
+  });
+
+  it('yazi WordPress\'te taslaga alindi (canlilik emekliye ayirdi): yeniden yayin kopyayi canli saymaz, durum READY_TO_PUBLISH, adres ilan edilmez', async () => {
+    posts = posts1(wpPost({ status: 'draft', modified_gmt: '2026-10-10T08:00:00' }));
+    const c = build({ targets: [WP_T], publishedTo: [retiredWp()], status: 'READY_TO_PUBLISH' });
+    const [r] = await c.svc.publishArticle('a1', ['t-wp'], { overrideQa: true, initiator: 'user' });
+    expect(r).toMatchObject({ ok: false, skipped: 'live_entry_edited', remoteStatus: 'draft' });
+    // WordPress'e yazilmadi; kopya emekli kalir (neden ve tarih korunur)
+    expect(reqs.filter((x) => x.method === 'POST')).toEqual([]);
+    expect(c.row.publishedTo[0]).toMatchObject({ missingAt: '2026-10-12T02:20:00.000Z', missingReason: 'public_url_gone' });
+    expect(c.row.status).toBe('READY_TO_PUBLISH');
+    expect(advertisedArticleEntry(new URL(SITE), 'kdv-beyani-rehberi', c.row.publishedTo, refs)).toBeNull();
+  });
+
+  it('XML-RPC: ayni durum (wp.getPost post_status draft) — kopya emekli kalir', async () => {
+    posts = posts1(wpPost({ status: 'draft', modified_gmt: '2026-10-10T08:00:00' }));
+    const entry = retiredWp({ targetId: 't-wpx', targetType: 'WORDPRESS_XMLRPC' });
+    const c = build({ targets: [WPX_T], publishedTo: [entry], status: 'READY_TO_PUBLISH' });
+    const [r] = await c.svc.publishArticle('a1', ['t-wpx'], { overrideQa: true, initiator: 'user' });
+    expect(r).toMatchObject({ ok: false, skipped: 'live_entry_edited', remoteStatus: 'draft' });
+    expect(c.row.publishedTo[0]).toMatchObject({ missingReason: 'public_url_gone' });
+    expect(c.row.status).toBe('READY_TO_PUBLISH');
+  });
+
+  it('musteri yaziyi WordPress\'te yeniden yayina aldi (durum publish): kopya canli sayilir, WordPress\'in bildirdigi durum kayda gecer, yazi PUBLISHED', async () => {
+    posts = posts1(wpPost({ status: 'publish', modified_gmt: '2026-10-14T08:00:00' }));
+    // Durumu kayitli olmayan eski kayit: geri gelen kopyanin durumu WordPress'in bugunku yanitindan
+    const entry = retiredWp();
+    delete (entry as any).remoteStatus;
+    const c = build({ targets: [WP_T], publishedTo: [entry], status: 'READY_TO_PUBLISH' });
+    const [r] = await c.svc.publishArticle('a1', ['t-wp'], { overrideQa: true, initiator: 'user' });
+    expect(r).toMatchObject({ ok: false, skipped: 'live_entry_edited', remoteStatus: 'publish' });
+    expect(c.row.publishedTo[0]).not.toHaveProperty('missingAt');
+    expect(c.row.publishedTo[0]).not.toHaveProperty('missingReason');
+    expect(c.row.publishedTo[0]).toMatchObject({ remoteStatus: 'publish', manualUpdatePending: true });
+    expect(c.row.status).toBe('PUBLISHED');
+  });
+
+  it('emekli dosya kopyasinin slug\'i degisti (slug_changed): sitede canli kopya yok, yazi PUBLISHED olmaz', async () => {
+    const retired = {
+      targetId: 't-ftp', targetType: 'FTP', ok: true, action: 'created', externalUrl: `ftp://${IP}//eski-slug.html`,
+      publishedAt: '2026-09-01T10:00:05.000Z', updatedAt: '2026-09-01T10:00:05.000Z', liveSeenAt: '2026-10-01T02:20:00.000Z',
+      liveSeenUrl: `${SITE}/eski-slug.html`, missingAt: '2026-10-12T02:20:00.000Z', missingReason: 'public_url_gone',
+    };
+    const c = build({ targets: [FTP_T], publishedTo: [retired], status: 'READY_TO_PUBLISH' });
+    const [r] = await c.svc.publishArticle('a1', ['t-ftp'], { overrideQa: true, initiator: 'user' });
+    expect(r).toMatchObject({ ok: false, skipped: 'slug_changed' });
+    expect(siteLiveEntries(c.row.publishedTo)).toHaveLength(0);
+    expect(c.row.status).toBe('READY_TO_PUBLISH');
+  });
+
+  it('emekli WordPress kopyasi, yazi silinmis, adres dogrulanamiyor (live_entry_unverified, bos liste): yazi PUBLISHED olmaz', async () => {
+    posts = posts1();
+    const c = build({ targets: [{ ...WP_T, isDefault: true }], publishedTo: [retiredWp()], status: 'READY_TO_PUBLISH' });
+    (c.svc as any).entryUrlCheck = async () => 'unknown';
+    const res = await c.svc.publishArticle('a1', [], { overrideQa: true, initiator: 'user' });
+    expect(res.map((r: any) => [r.targetId, r.ok, r.skipped])).toEqual([['t-wp', false, 'live_entry_unverified']]);
+    expect(siteLiveEntries(c.row.publishedTo)).toHaveLength(0);
+    expect(c.row.status).toBe('READY_TO_PUBLISH');
   });
 });
