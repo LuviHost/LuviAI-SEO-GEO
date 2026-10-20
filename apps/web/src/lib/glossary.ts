@@ -287,7 +287,7 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
     level: 1,
   },
   Quota: {
-    short: 'Aylık makale üretim limitin; plana göre değişir (güncel sayılar fiyatlandırma sayfasında). Her makale, kendin başlatsan da takvimden gelse de, üretime alındığı anda bir kez düşer. Sayaç her takvim ayının başında sıfırlanır; ücretsiz denemedeki 2 makale hakkı sıfırlanmaz.',
+    short: 'Aylık makale üretim limitin; plana göre değişir (güncel sayılar fiyatlandırma sayfasında). Her makale, kendin başlatsan da takvimden gelse de, üretime alındığı anda bir kez düşer; makale çıkmadan başarısız olan üretimin hakkı geri verilir. Sayaç her takvim ayının başında sıfırlanır; ücretsiz denemedeki 2 makale hakkı sıfırlanmaz.',
     level: 1,
   },
 };

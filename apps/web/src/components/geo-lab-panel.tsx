@@ -12,6 +12,8 @@ import { SectionHeader } from '@/components/ui/section-header';
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatNum } from '@/lib/format';
 import { api } from '@/lib/api';
+import { LockedGenerateButton } from '@/components/locked-article';
+import { refreshArticleAllowance, useArticleAllowance } from '@/lib/use-article-allowance';
 import { MeasurementLimitNote } from '@/components/measurement-limit-note';
 import { isWeeklyMeasurementLimitError, refreshMeasurementAllowance, useMeasurementAllowance } from '@/lib/measurement-allowance';
 import { displayProbeText } from '@/lib/probe-error-text';
@@ -78,7 +80,7 @@ const CATEGORIES: Array<{ id: string; label: string; icon: React.ComponentType<{
   },
 ];
 
-function ToolBody({ id, siteId }: { id: ToolId; siteId: string }) {
+function ToolBody({ id, siteId, ownerId }: { id: ToolId; siteId: string; ownerId?: string | null }) {
   switch (id) {
     case 'heatmap': return <HeatmapTab siteId={siteId} />;
     case 'wikidata': return <WikidataTab siteId={siteId} />;
@@ -90,7 +92,7 @@ function ToolBody({ id, siteId }: { id: ToolId; siteId: string }) {
     case 'tracker': return <TrackerEmbedTab siteId={siteId} />;
     case 'sitemap-ai': return <AiSitemapTab siteId={siteId} />;
     case 'haro': return <HaroTab siteId={siteId} />;
-    case 'programmatic': return <ProgrammaticTab siteId={siteId} />;
+    case 'programmatic': return <ProgrammaticTab siteId={siteId} ownerId={ownerId} />;
     case 'ai-console': return <AiSearchConsoleTab siteId={siteId} />;
     case 'chat-widget': return <ChatWidgetTab siteId={siteId} />;
   }
@@ -100,7 +102,7 @@ function ToolBody({ id, siteId }: { id: ToolId; siteId: string }) {
  * GEO Lab — gelismis GEO arac kutusu. ui/tabs (Radix: klavye + ARIA), iki seviye:
  * kategori → arac. Sekme listeleri yatay kayar; telefonda satir kirilmaz.
  */
-export function GeoLabPanel({ siteId }: { siteId: string }) {
+export function GeoLabPanel({ siteId, ownerId }: { siteId: string; /** Sitenin sahibi (site.userId): makale hakki onun */ ownerId?: string | null }) {
   const [category, setCategory] = useState(CATEGORIES[0].id);
   // Her kategoride son secilen arac hatirlanir
   const [toolByCat, setToolByCat] = useState<Record<string, ToolId>>(
@@ -156,7 +158,7 @@ export function GeoLabPanel({ siteId }: { siteId: string }) {
                 </div>
                 {c.tools.map((t) => (
                   <TabsContent key={t.id} value={t.id} className="mt-3">
-                    <ToolBody id={t.id} siteId={siteId} />
+                    <ToolBody id={t.id} siteId={siteId} ownerId={ownerId} />
                   </TabsContent>
                 ))}
               </Tabs>
@@ -444,7 +446,10 @@ function HaroTab({ siteId }: { siteId: string }) {
 // ──────────────────────────────────────────────────────────────────
 // Programmatic SEO (81 İl)
 // ──────────────────────────────────────────────────────────────────
-function ProgrammaticTab({ siteId }: { siteId: string }) {
+function ProgrammaticTab({ siteId, ownerId }: { siteId: string; ownerId?: string | null }) {
+  // Hak bitince sunucu hic sehir eklemez (programmatic-seo.service kalan hakka gore
+  // keser): dugme bos sonuc yerine kilidi gosterir
+  const allowance = useArticleAllowance(ownerId);
   const [template, setTemplate] = useState('{location} için {niche} öneri rehberi');
   const [spreadDays, setSpreadDays] = useState(30);
   const [maxQuota, setMaxQuota] = useState(20);
@@ -464,6 +469,7 @@ function ProgrammaticTab({ siteId }: { siteId: string }) {
     } catch (err: any) {
       toast.error(err.message);
     } finally {
+      refreshArticleAllowance(ownerId);
       setLoading(false);
     }
   };
@@ -511,9 +517,13 @@ function ProgrammaticTab({ siteId }: { siteId: string }) {
         </div>
       </div>
 
+      {allowance.locked ? (
+        <LockedGenerateButton lock={allowance} />
+      ) : (
       <Button size="sm" onClick={generate} disabled={loading}>
         {loading ? 'Şehirler ekleniyor…' : <><MapIcon className="h-3.5 w-3.5 mr-1.5" aria-hidden />{maxQuota} şehri takvime ekle</>}
       </Button>
+      )}
 
       {result && (
         <div className="rounded-md border p-3 bg-success/5 space-y-2">

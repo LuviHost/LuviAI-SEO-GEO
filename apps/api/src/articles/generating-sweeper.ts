@@ -3,6 +3,7 @@ import type { JobType, Queue } from 'bullmq';
 import type { PrismaService } from '../prisma/prisma.service.js';
 import { acquireCronLock } from '../common/cron-lock.js';
 import { DEMO_SITE_URL, isScheduledGenerationJobId } from './article-scheduler.service.js';
+import { failGenerationWithRefund } from './allowance-refund.js';
 
 /**
  * GENERATING'de takili kalan yazilarin supurucusu.
@@ -26,7 +27,10 @@ import { DEMO_SITE_URL, isScheduledGenerationJobId } from './article-scheduler.s
  *    surekli coken bir uretim LLM maliyetini sonsuza kadar tekrarlamasin.
  *  - takvim disi yazi (Uret, MCP, icerik firsati) ve hakki biten takvim yazisi
  *    FAILED olur: panel "başarısız" gosterir, kullanici "Şimdi üret" ile
- *    yeniden baslatir (triggerNow FAILED'i kabul eder).
+ *    yeniden baslatir (triggerNow FAILED'i kabul eder). FAILED yapilan yazinin
+ *    dusulen makale hakki AYNI islemde iade edilir (allowance-refund.ts): uretim
+ *    makale cikmadan bitti. Takvime geri konan yazinin hakki iade edilmez; isareti
+ *    yazida kalir ve yeniden uretilirken ikinci kez dusmez.
  *
  * "Canli is" GUVENLIK KOSULUDUR: bekleyen bir is varken yazi SCHEDULED
  * yapilirsa tarama onu ikinci kez sahiplenip ayri bir is kuyruga atar; eski is
@@ -121,6 +125,8 @@ export interface GeneratingSweepResult {
   requeued: number;
   /** FAILED yapilan */
   failed: number;
+  /** FAILED yapilanlardan makale hakki iade edilen */
+  refunded: number;
   /** Canli isi oldugu icin dokunulmayan */
   live: number;
   /** Is durumu dogrulanamadigi icin dokunulmayan */
@@ -225,7 +231,7 @@ export async function sweepStuckGenerating(deps: GeneratingSweepDeps): Promise<G
   const log = deps.log ?? defaultLog;
   const now = deps.now ?? new Date();
   const cutoff = new Date(now.getTime() - GENERATING_STALE_MS);
-  const result: GeneratingSweepResult = { candidates: 0, requeued: 0, failed: 0, live: 0, unverified: 0, raced: 0 };
+  const result: GeneratingSweepResult = { candidates: 0, requeued: 0, failed: 0, refunded: 0, live: 0, unverified: 0, raced: 0 };
 
   const stale = await prisma.article.findMany({
     where: {
@@ -269,12 +275,18 @@ export async function sweepStuckGenerating(deps: GeneratingSweepDeps): Promise<G
       if (target === 'SCHEDULED') await writeRequeues(prisma, a.id, requeues + 1, now);
 
       // Kosullu: okuma ile yazma arasinda uretim bittiyse ya da yazi baska
-      // yoldan degistiyse dokunulmaz
-      const updated = await prisma.article.updateMany({
-        where: { id: a.id, status: 'GENERATING' as any, updatedAt: { lt: cutoff } },
-        data: { status: target as any },
-      });
-      if (updated.count !== 1) { result.raced++; continue; }
+      // yoldan degistiyse dokunulmaz. FAILED karari hakki da iade eder (ayni kosulla,
+      // tek islemde; worker'in son denemesiyle yarisirsa yalniz biri iade eder).
+      const where = { id: a.id, status: 'GENERATING' as any, updatedAt: { lt: cutoff } };
+      let moved: boolean;
+      if (target === 'SCHEDULED') {
+        moved = (await prisma.article.updateMany({ where, data: { status: target as any } })).count === 1;
+      } else {
+        const r = await failGenerationWithRefund(prisma, { articleId: a.id, where, now });
+        moved = r.failed;
+        if (r.refunded) result.refunded++;
+      }
+      if (!moved) { result.raced++; continue; }
 
       const hours = Math.round((now.getTime() - a.updatedAt.getTime()) / 3_600_000);
       if (target === 'SCHEDULED') {
@@ -312,7 +324,7 @@ export async function runGeneratingSweep(
   }
   const r = await sweepStuckGenerating({ ...deps, now });
   if (r.requeued > 0 || r.failed > 0 || r.unverified > 0 || r.raced > 0) {
-    log.log(`[generating-sweep] ${r.candidates} aday: ${r.requeued} takvime geri, ${r.failed} FAILED, ${r.live} canlı işli, ${r.unverified} doğrulanamadı, ${r.raced} yarışta değişti`);
+    log.log(`[generating-sweep] ${r.candidates} aday: ${r.requeued} takvime geri, ${r.failed} FAILED (${r.refunded} hak iadesi), ${r.live} canlı işli, ${r.unverified} doğrulanamadı, ${r.raced} yarışta değişti`);
   }
   return r;
 }

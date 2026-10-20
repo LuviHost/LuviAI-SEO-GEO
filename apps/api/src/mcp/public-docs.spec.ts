@@ -970,11 +970,15 @@ describe('Otomatik akış metinleri = zamanlayıcı (article-scheduler, worker)'
     const tr = cevap("q: 'Aylık makale kotamı aşarsam ne olur?'");
     const en = cevap("q: 'What happens if I exceed my monthly article quota?'");
     expect(tr).toContain('Yeni makale üretilmez: kendi başlattığın üretimler durur, takvime yeni konu eklenemez ve plan yükseltmen önerilir; takvimde bekleyen makaleler de hakkın yenilenene ya da planını yükseltene kadar bekler.');
-    expect(tr).toContain('Her makale, üretime alındığı anda hakkından bir kez düşer.');
+    expect(tr).toContain('Her makale, üretime alındığı anda hakkından bir kez düşer;');
     expect(tr).toContain('Ücretsiz denemedeki 2 makale hakkı sıfırlanmaz; site eklenirken takvime yerleşen diğer konular panelde kilitli görünür ve planını yükselttiğinde yazılır.');
     expect(en).toContain('No new articles are generated: generations you start yourself stop, you cannot add new topics to the calendar and you are offered a plan upgrade; scheduled articles also wait until your allowance renews or you upgrade.');
-    expect(en).toContain('Each article uses your allowance once, when it enters generation.');
+    expect(en).toContain('Each article uses your allowance once, when it enters generation;');
     expect(en).toContain('the other topics scheduled when your site was added appear locked in the dashboard and are written when you upgrade your plan.');
+    // Basarisiz uretimin hakki iade edilir (articles/allowance-refund.ts, sahip karari 20.10.2026)
+    expect(tr).toContain('üretim makale çıkmadan başarısız olursa o hak geri verilir (yeniden denediğinde yeniden düşer)');
+    expect(en).toContain('if the generation fails without producing an article, that allowance is given back (a retry uses it again)');
+    expect(autoPilot).toContain('üretim makale çıkmadan başarısız olursa o hak geri verilir');
     // Eski iddialar geri gelmesin: takvim uretimi hakka sayilmaz / onboarding'in ilki herkese ucretsiz
     for (const metin of [faq, autoPilot]) expect(metin).not.toMatch(/makale hakkından düşmez|kendi başlattığın üretimler makale hakkını doldurduysa/);
     // Kod kapilari: elle uretim hak dolunca 403 (tek kosullu UPDATE); takvime ekleme 403;

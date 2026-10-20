@@ -12,6 +12,8 @@ import { MeasurementLimitNote } from '@/components/measurement-limit-note';
 import { isWeeklyMeasurementLimitError, refreshMeasurementAllowance, useMeasurementAllowance } from '@/lib/measurement-allowance';
 import { useEntitlements } from '@/lib/entitlements';
 import { PlanLockedCard } from '@/components/plan-locked-card';
+import { LockedGenerateButton } from '@/components/locked-article';
+import { refreshArticleAllowance, useArticleAllowance } from '@/lib/use-article-allowance';
 import { cn } from '@/lib/utils';
 import { SectionHeader } from '@/components/ui/section-header';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -64,6 +66,8 @@ export default function OpportunitiesPage() {
   const [deriving, setDeriving] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const { blocked: measurementBlocked } = useMeasurementAllowance();
+  // Makale hakki bitince "Makale uret" 403 donerdi; hak sitenin sahibinden duser
+  const articleAllowance = useArticleAllowance(site?.userId);
   const [showDismissed, setShowDismissed] = useState(false);
 
   const allowed = can('contentOpportunities');
@@ -113,6 +117,8 @@ export default function OpportunitiesPage() {
     } catch (err: any) {
       toast.error(err.message);
     } finally {
+      // Basarida da 403'te de hak tazelenir (son hak kullanildiysa dugmeler kilitlenir)
+      refreshArticleAllowance(site?.userId);
       setBusy(null);
     }
   };
@@ -291,7 +297,10 @@ export default function OpportunitiesPage() {
                     </div>
 
                     <div className="flex flex-col gap-1.5 shrink-0">
-                      {(item.status === 'OPEN' || item.status === 'PLANNED') && !item.articleId && (
+                      {(item.status === 'OPEN' || item.status === 'PLANNED') && !item.articleId && articleAllowance.locked && (
+                        <LockedGenerateButton lock={articleAllowance} />
+                      )}
+                      {(item.status === 'OPEN' || item.status === 'PLANNED') && !item.articleId && !articleAllowance.locked && (
                         <Button size="sm" onClick={() => generate(item)} disabled={busy !== null}>
                           {busy === item.id ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <FileText className="h-3.5 w-3.5 mr-1.5" />}
                           Makale üret

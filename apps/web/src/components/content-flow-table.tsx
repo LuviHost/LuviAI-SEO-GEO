@@ -15,7 +15,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Lightbulb, Loader2, Calendar, FileCheck2, Send, Sparkles, RefreshCw, Eye, Lock } from 'lucide-react';
 import { isPlanLocked } from '@/lib/plan-lock';
-import { LockedRowPreview, PlanUpgradeButton } from '@/components/locked-article';
+import { LockedGenerateButton, LockedRowPreview, PlanUpgradeButton } from '@/components/locked-article';
+import { refreshArticleAllowance, useArticleAllowance } from '@/lib/use-article-allowance';
 import { PipelineProgress, PIPELINE_STEPS } from '@/components/pipeline-progress';
 
 /*
@@ -33,6 +34,10 @@ import { PipelineProgress, PIPELINE_STEPS } from '@/components/pipeline-progress
  * "Hemen üret" → konu satırı "Üretiliyor" durumuna geçer (aynı satır kalır, persistant)
  * Bitince → "Hazır" / "Yayınlandı" durumuna düşer
  * Topic engine yenilenir → boş slot'lara yeni öneriler gelir
+ *
+ * Makale hakki bitince (sitenin sahibinin hesabi; lib/article-allowance.ts) "Uret",
+ * "Takvime" ve "Simdi uret" yerine kilitli "Planini yukselt" dugmesi durur: o istekler
+ * sunucudan 403 donerdi. Kapi yine sunucuda; hak okunamazsa dugmeler acik kalir.
  */
 
 type Row = {
@@ -74,10 +79,13 @@ export function ContentFlowTable({
   onRefresh,
   onboardingMode,
   stateFilter,
+  ownerId,
 }: {
   queue: any;
   articles?: any[];
   siteId: string;
+  /** Sitenin sahibi (site.userId): makale hakki onun hesabindan duser */
+  ownerId?: string | null;
   onRefresh: () => void;
   onboardingMode?: boolean;
   /** Verilirse yalnizca bu durumlardaki satirlar gosterilir (sayfa ustundeki filtre cipleri) */
@@ -89,6 +97,7 @@ export function ContentFlowTable({
   // Yayin sonucu yoklanirken satir mesgul kalir; birden fazla satir ayni anda yayinlanabilir
   const [publishing, setPublishing] = useState<Set<string>>(new Set());
   const confirm = useConfirm();
+  const allowance = useArticleAllowance(ownerId);
   const alive = useRef(true);
   useEffect(() => {
     alive.current = true;
@@ -120,6 +129,14 @@ export function ContentFlowTable({
       });
     }
   }, [articles, triggeringSet]);
+  // Uretim bitince (yazi hazir ya da basarisiz → hak iadesi) hak yeniden okunur:
+  // iade edilen hakla dugme kilitli kalmasin, son hakki kullanan uretim de kilitlesin
+  const inflightCount = (articles ?? []).filter((a) => a?.status === 'GENERATING' || a?.status === 'EDITING').length;
+  const prevInflight = useRef(inflightCount);
+  useEffect(() => {
+    if (inflightCount < prevInflight.current) refreshArticleAllowance(ownerId);
+    prevInflight.current = inflightCount;
+  }, [inflightCount, ownerId]);
   const inflightTopic: string | null = inflightArticle
     ? String(inflightArticle.topic ?? inflightArticle.title ?? '')
     : null;
@@ -146,6 +163,8 @@ export function ContentFlowTable({
     } catch (err: any) {
       toast.error(err.message);
     } finally {
+      // Basarida da 403'te de hak tazelenir (son hak kullanildiysa dugmeler kilitlenir)
+      refreshArticleAllowance(ownerId);
       // Backend placeholder Article oluşturuyor — inflight liste güncellenince satır
       // 'generating' state'ine geçer, butı buradan da temizleyelim.
       setGeneratingTopics((prev) => {
@@ -590,6 +609,9 @@ export function ContentFlowTable({
                                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
                                   Üretiliyor…
                                 </span>
+                              ) : allowance.locked ? (
+                                // Hak bitti: "Takvime" de "Uret" de 403 donerdi — tek kilitli dugme
+                                <LockedGenerateButton lock={allowance} />
                               ) : (
                                 <>
                                   <Button
@@ -634,6 +656,11 @@ export function ContentFlowTable({
                                     <Loader2 className="h-3.5 w-3.5 animate-spin" />
                                     Üretiliyor…
                                   </span>
+                                ) : allowance.locked ? (
+                                  // Hak bitti. Bilinen kucuk yanlis kilit: hakki daha once dusulmus,
+                                  // takvime geri donmus yazi sunucuda yeniden dusulmez ama panelde
+                                  // bu bilgi yok; yazi saati gelince yine de uretilir.
+                                  <LockedGenerateButton lock={allowance} />
                                 ) : (
                                   <Button
                                     size="sm"
@@ -652,6 +679,8 @@ export function ContentFlowTable({
                                           n.delete(aid);
                                           return n;
                                         });
+                                      } finally {
+                                        refreshArticleAllowance(ownerId);
                                       }
                                     }}
                                   >
@@ -787,6 +816,8 @@ export function ContentFlowTable({
               onRefresh();
             } catch (err: any) {
               toast.error(err.message || 'Takvime eklenemedi');
+              // 403 (hak doldu) geldiyse dugmeler kilitlensin
+              refreshArticleAllowance(ownerId);
             } finally {
               setScheduleSubmitting(false);
             }

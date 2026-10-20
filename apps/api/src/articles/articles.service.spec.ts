@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { ArticlesService, TRIGGER_NOW_LIVE_REFUSED } from './articles.service.js';
 import { decideGeneratedArticlePublish } from './publish-approval.js';
 
@@ -17,19 +18,37 @@ type Row = { id: string; siteId: string; topic: string; status: string; site: an
 function build(opts: { rows?: Row[]; site?: any; limit?: number } = {}) {
   const rows = opts.rows ?? [];
   const site = opts.site ?? { id: 's1', userId: 'u1', language: 'tr' };
-  const prisma = {
+  // Kosullu guncelleme: yalniz where.status (ve varsa hak isaretinin JSON yolu) hala
+  // gecerliyse yazar (tek SQL UPDATE gibi)
+  const statusOk = (r: Row, c: any) => (typeof c === 'string' ? r.status === c : Array.isArray(c?.in) ? c.in.includes(r.status) : true);
+  const pathOk = (r: Row, c: any) => !c || ((r.agentOutputs as any)?.allowanceCharge?.at === c.equals && c.path === '$.allowanceCharge.at');
+  const prisma: any = {
     site: { findUniqueOrThrow: vi.fn(async () => site) },
     article: {
-      create: vi.fn(async ({ data }: any) => ({ id: 'a-new', ...data })),
+      // Yer tutucu tabloya girer (iade yolu onu okur ve gunceller)
+      create: vi.fn(async ({ data }: any) => {
+        const created = { id: 'a-new', ...data, site: { userId: site.userId, user: { plan: 'TRIAL', articlesQuotaResetAt: new Date(0) } } };
+        rows.push(created);
+        return created;
+      }),
       findFirst: vi.fn(async ({ where }: any) => rows.find((r) => r.id === where.id && r.siteId === where.siteId) ?? null),
-      // Kosullu guncelleme: yalniz where.status hala gecerliyse yazar (tek SQL UPDATE gibi)
+      findUnique: vi.fn(async ({ where }: any) => rows.find((r) => r.id === where.id) ?? null),
       updateMany: vi.fn<(args: any) => Promise<{ count: number }>>(async ({ where, data }: any) => {
-        const row = rows.find((r) => r.id === where.id && (where.siteId === undefined || r.siteId === where.siteId) && r.status === where.status);
+        const row = rows.find((r) => r.id === where.id && (where.siteId === undefined || r.siteId === where.siteId) && statusOk(r, where.status) && pathOk(r, where.agentOutputs));
         if (!row) return { count: 0 };
         Object.assign(row, data);
         return { count: 1 };
       }),
     },
+    // Iade sayaci azaltmasi quota.used uzerinde (0'in altina inmez)
+    user: {
+      updateMany: vi.fn(async () => {
+        if (quota.used <= 0) return { count: 0 };
+        quota.used--;
+        return { count: 1 };
+      }),
+    },
+    $transaction: vi.fn(async (fn: any) => fn(prisma)),
   };
   const jobQueue = {
     enqueue: vi.fn<(opts: any) => Promise<{ dbJobId: string; bullJobId: string }>>(async () => ({ dbJobId: 'j1', bullJobId: '7' })),
@@ -147,7 +166,8 @@ describe('triggerNow — "Simdi uret" atomik sahiplenir', () => {
     const ctx = build({ rows: [row('FAILED')] });
     ctx.jobQueue.enqueue.mockRejectedValueOnce(new Error('redis yok'));
     await expect(ctx.svc.triggerNow('s1', 'a1')).rejects.toThrow('redis yok');
-    expect(ctx.prisma.article.updateMany).toHaveBeenLastCalledWith({ where: { id: 'a1', status: 'GENERATING' }, data: { status: 'FAILED' } });
+    // Sahiplenmede yazilan hak isareti de geri alinir (agentOutputs eski hali: bos)
+    expect(ctx.prisma.article.updateMany).toHaveBeenLastCalledWith({ where: { id: 'a1', status: 'GENERATING' }, data: { status: 'FAILED', agentOutputs: Prisma.DbNull } });
     expect(ctx.rows[0].status).toBe('FAILED');
     expect(ctx.quota.used).toBe(0);
     expect(ctx.jobQueue.removeJob).not.toHaveBeenCalled();
@@ -277,12 +297,40 @@ describe('makale hakki — kullanicinin baslattigi uretim (deneme: toplam 2)', (
     expect(ctx.quota.used).toBe(2);
   });
 
-  it('Uret: is kuyruga girmezse hak geri verilir', async () => {
+  it('Uret: is kuyruga girmezse hak geri verilir — yer tutucunun isaretiyle, tek kez (yer tutucu FAILED)', async () => {
     const ctx = build({ limit: 2 });
     ctx.jobQueue.enqueue.mockRejectedValueOnce(new Error('redis yok'));
     await expect(ctx.svc.queueGeneration('s1', 'Konu')).rejects.toThrow('redis yok');
     expect(ctx.quota.used).toBe(0);
+    // Duz iade yok: yer tutucu GENERATING kalsaydi supurucu ayni hakki ikinci kez iade ederdi
+    expect(ctx.quota.refundArticleAllowance).not.toHaveBeenCalled();
+    const placeholder = ctx.rows.find((r) => r.id === 'a-new') as any;
+    expect(placeholder.status).toBe('FAILED');
+    expect(placeholder.agentOutputs.allowanceCharge).toBeUndefined();
+    expect(placeholder.agentOutputs.allowanceRefund).toMatchObject({ source: 'user_start', chargeAt: expect.any(String) });
+  });
+
+  it('Uret: yer tutucu acilamadiysa duz iade', async () => {
+    const ctx = build({ limit: 2 });
+    ctx.prisma.article.create.mockRejectedValueOnce(new Error('db yok'));
+    await expect(ctx.svc.queueGeneration('s1', 'Konu')).rejects.toThrow('db yok');
+    expect(ctx.quota.used).toBe(0);
     expect(ctx.quota.refundArticleAllowance).toHaveBeenCalledTimes(1);
+  });
+
+  it('Uret: yer tutucu hak isaretiyle acilir (user_start) — basarisiz uretimin iadesi buna dayanir', async () => {
+    const ctx = build({ limit: 2 });
+    await ctx.svc.queueGeneration('s1', 'Konu');
+    expect(ctx.prisma.article.create.mock.calls[0][0].data.agentOutputs).toEqual({ allowanceCharge: { at: expect.any(String), source: 'user_start' } });
+  });
+
+  it('Simdi uret (takvim yazisi) kuyruga girmezse hak isareti de geri alinir: tarama onu bedava uretmez', async () => {
+    const ctx = build({ rows: [row('SCHEDULED')], limit: 2 });
+    ctx.jobQueue.enqueue.mockRejectedValueOnce(new Error('redis yok'));
+    await expect(ctx.svc.triggerNow('s1', 'a1')).rejects.toThrow('redis yok');
+    expect(ctx.rows[0].status).toBe('SCHEDULED');
+    expect(ctx.rows[0].agentOutputs).toBe(Prisma.DbNull);
+    expect(ctx.quota.used).toBe(0);
   });
 
   it('run-now: hak hat baslamadan duser; hat hata verirse geri verilir, hak doluysa hat hic calismaz', async () => {
