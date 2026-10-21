@@ -16,6 +16,7 @@ ile tüketilir).
 | `ArticleShort` | 1080×1920 @30 | 15 sn, parametrik | **RanksUp Video** (ürün): müşterinin yayındaki makalesinden markalı kısa video — sunucuda `apps/api/public/videos/<siteId>/`; CLI denemesi `out/article-shorts/` |
 | `SiteIntro` / `SiteIntroWide` | 1080×1920 / 1920×1080 @30 | 15 sn / 24 sn, parametrik | **RanksUp Video** site tanıtımı: müşterinin anasayfası + marka profili; marka rengi zemin, logo, 3 hizmet kartı |
 | `ProductShort` / `ProductWide` | 1080×1920 / 1920×1080 @30 | 15 sn, parametrik | **RanksUp Video** ürün tanıtımı: müşterinin kendi sayfası; ürün görseli (yavaş yakınlaşma), özellik listesi, yalnız doğrulanmış fiyat etiketi |
+| `VideoLaunch` / `VideoLaunchVertical` | 1920×1080 / 1080×1920 @30 | 32 sn / 15 sn, müzik + efekt | RanksUp Video **duyurusu**: kanca → 3 kaynak (gerçek şablonlar telefon çerçevesinde) → 3 adım → plan satırı → CTA — `out/launch/` |
 
 ## Komutlar
 
@@ -82,6 +83,21 @@ Kodlama ayarları (`crf`, ölçek, poster karesi) `scripts/render.mjs` içinde.
   robots.txt yalnız onayla yazılır, puanlama 100/50/0. Sıralama/trafik vaadi yok.
 - **Güvenli alan (SocialAd):** metin ve arayüz x 90–950, y 250–1500 içinde (sağdaki beğeni sütunu ve
   alttaki açıklama alanı boş kalır).
+
+## RanksUp Video duyurusu (VideoLaunch · VideoLaunchVertical)
+
+```bash
+pnpm --filter @luviai/video render:marketing VideoLaunch           # → out/launch/ranksup-video-duyuru-yatay.*
+pnpm --filter @luviai/video render:marketing VideoLaunchVertical   # → out/launch/ranksup-video-duyuru-dikey.*
+```
+
+- Örnek videolar ekran görüntüsü değil: `ArticleShort`, `SiteIntro`/`SiteIntroWide`, `ProductShort` bileşenleri telefon/ekran
+  çerçevesinde yeniden çizilir; zaman eşlemesi `<Freeze>` ile kare kare (`src/launch/parts.tsx`).
+- Props `src/launch/examples.ts`: kobipratik.com (RanksUp'ın referans sitesi) için sunucu hattının 21.10.2026 çıktısı
+  (makale, anasayfa, `/pos/sorgulama` hizmet sayfası); logo `public/launch/kobipratik-logo.png` (logo.svg → 256 px PNG,
+  sunucudaki gibi). Ekranda "Örnek çıktı · kobipratik.com" etiketi. Üçüncü taraf marka yok.
+- Plan satırı `apps/api/src/billing/plans.ts` `VIDEOS_PER_MONTH` ile aynı (Profesyonel 20 · Ajans 60 · Kurumsal 200);
+  sayılar değişirse `VideoLaunch.tsx` `PLAN_LINE` ve dikey kapanış satırını güncelle.
 
 ## Makaleden otomatik kısa video (ArticleShort — CLI denemesi)
 

@@ -1,8 +1,9 @@
 #!/usr/bin/env node
 /**
  * Pazarlama videolarini render eder → apps/video/out/marketing/ (git'e girmez; out/ yok sayilir).
+ * RanksUp Video duyurusu (VideoLaunch, VideoLaunchVertical) → apps/video/out/launch/.
  *
- *   pnpm --filter @luviai/video render:marketing                    # ucu de, sesli
+ *   pnpm --filter @luviai/video render:marketing                    # hepsi, sesli
  *   pnpm --filter @luviai/video render:marketing SocialAd           # yalniz biri
  *   pnpm --filter @luviai/video render:marketing -- --muted         # ek olarak sessiz varyant (*-muted.mp4)
  *   pnpm --filter @luviai/video render:marketing -- --skip-audio    # muzigi yeniden sentezleme
@@ -18,13 +19,16 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-const OUT = join(ROOT, 'out', 'marketing');
+const OUT_ROOT = join(ROOT, 'out');
 const ENTRY = 'src/index.ts';
 
 const JOBS = [
   { id: 'ProductIntro', name: 'product-intro', posterFrame: 100, sheet: { width: 480, cols: 6 } },
   { id: 'SocialAd', name: 'social-ad-vertical', posterFrame: 58, sheet: { width: 270, cols: 8 } },
   { id: 'FeatureExplainer', name: 'feature-explainer', posterFrame: 1500, sheet: { width: 400, cols: 8 } },
+  // RanksUp Video duyurusu (src/launch/) — ornek videolar kobipratik.com sablon ciktisi
+  { id: 'VideoLaunch', name: 'ranksup-video-duyuru-yatay', dir: 'launch', posterFrame: 76, sheet: { width: 400, cols: 8 } },
+  { id: 'VideoLaunchVertical', name: 'ranksup-video-duyuru-dikey', dir: 'launch', posterFrame: 60, sheet: { width: 270, cols: 8 } },
 ];
 
 const args = process.argv.slice(2);
@@ -79,11 +83,12 @@ function blackFrames(file) {
   return r.stderr.split('\n').filter((l) => l.includes('black_start'));
 }
 
-mkdirSync(OUT, { recursive: true });
 if (!flags.has('--skip-audio')) run('node', ['scripts/audio/synth.mjs']);
 
 const summary = [];
 for (const j of jobs) {
+  const OUT = join(OUT_ROOT, j.dir ?? 'marketing');
+  mkdirSync(OUT, { recursive: true });
   const mp4 = join(OUT, `${j.name}.mp4`);
   const poster = join(OUT, `${j.name}.jpg`);
   const sheet = join(OUT, `${j.name}-contact.png`);

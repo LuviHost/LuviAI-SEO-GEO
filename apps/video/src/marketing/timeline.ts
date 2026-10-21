@@ -5,7 +5,16 @@
  */
 import raw from './timeline.json';
 
-export type MarketingId = 'ProductIntro' | 'SocialAd' | 'FeatureExplainer' | 'ArticleShort' | 'SiteIntro' | 'SiteIntroWide' | 'ProductShort';
+export type MarketingId =
+  | 'ProductIntro'
+  | 'SocialAd'
+  | 'FeatureExplainer'
+  | 'ArticleShort'
+  | 'SiteIntro'
+  | 'SiteIntroWide'
+  | 'ProductShort'
+  | 'VideoLaunch'
+  | 'VideoLaunchVertical';
 
 type TimelineEvent = { id: string; at: number; sfx?: string; n?: number; every?: number; dur?: number };
 type CompDef = {

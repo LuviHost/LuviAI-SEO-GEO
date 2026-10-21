@@ -10,6 +10,8 @@ import { FPS as MARKETING_FPS } from './marketing/timeline';
 import { ArticleShort, ARTICLE_SHORT_DURATION, articleShortDefaults } from './article-short/ArticleShort';
 import { SiteIntro, SiteIntroWide, SITE_INTRO_DURATION, SITE_INTRO_WIDE_DURATION, siteIntroDefaults } from './promo/SiteIntro';
 import { ProductShort, ProductWide, PRODUCT_SHORT_DURATION, productShortDefaults } from './promo/ProductShort';
+import { VideoLaunch, VIDEO_LAUNCH_DURATION } from './launch/VideoLaunch';
+import { VideoLaunchVertical, VIDEO_LAUNCH_VERTICAL_DURATION } from './launch/VideoLaunchVertical';
 
 export const RemotionRoot: React.FC = () => {
   return (
@@ -92,6 +94,9 @@ export const RemotionRoot: React.FC = () => {
       <Composition id="SiteIntroWide" component={SiteIntroWide} durationInFrames={SITE_INTRO_WIDE_DURATION} fps={MARKETING_FPS} width={1920} height={1080} defaultProps={siteIntroDefaults} />
       <Composition id="ProductShort" component={ProductShort} durationInFrames={PRODUCT_SHORT_DURATION} fps={MARKETING_FPS} width={1080} height={1920} defaultProps={productShortDefaults} />
       <Composition id="ProductWide" component={ProductWide} durationInFrames={PRODUCT_SHORT_DURATION} fps={MARKETING_FPS} width={1920} height={1080} defaultProps={productShortDefaults} />
+      {/* RanksUp Video duyurusu — ornek videolar kobipratik.com icin gercek sablon ciktisi (launch/examples.ts) */}
+      <Composition id="VideoLaunch" component={VideoLaunch} durationInFrames={VIDEO_LAUNCH_DURATION} fps={MARKETING_FPS} width={1920} height={1080} defaultProps={{ muted: false } satisfies MarketingProps} />
+      <Composition id="VideoLaunchVertical" component={VideoLaunchVertical} durationInFrames={VIDEO_LAUNCH_VERTICAL_DURATION} fps={MARKETING_FPS} width={1080} height={1920} defaultProps={{ muted: false } satisfies MarketingProps} />
     </>
   );
 };
