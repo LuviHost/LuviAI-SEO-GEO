@@ -51,17 +51,38 @@ describe('planlayici', () => {
     for (const byFormat of Object.values(VIDEO_COMPOSITION)) for (const id of Object.values(byFormat)) if (id) expect(plan.PLAN_TEMPLATE[id], id).toBeTruthy();
   });
 
-  it('fast eski izgarayla BIREBIR (15 sn dikey, 24 sn yatay site; sahne ve olay kareleri)', async () => {
+  it('fast eski izgarayla BIREBIR (15 sn dikey, 24 sn yatay site; sahne ve olay kareleri); muzik hizli uslubun tek dosyasi', async () => {
     const { createPlanner } = await load('src/tempo/plan.mjs');
     const tl = timeline();
     const P = createPlanner(tl);
+    const files = new Set(P.stemJobs().map((j: any) => `audio/tempo/${j.file}`));
     for (const [id, beats] of [['ArticleShort', 30], ['SiteIntro', 30], ['SiteIntroWide', 48], ['ProductShort', 30], ['ProductWide', 30]] as const) {
       const p = P.plan(id, 'fast', { hook: 'x '.repeat(40), points: [] });
       expect(p.durationInFrames, id).toBe(beats * 15);
       const def = tl.compositions[p.template];
       for (const e of def.events) expect(p.events[e.id], `${id} ${e.id}`).toBe(Math.round(e.at * 15));
-      expect(p.audio).toEqual([{ src: `audio/${def.audio}`, from: 0, durationInFrames: beats * 15, trimBefore: 0, fadeIn: 0, fadeOut: 0 }]);
+      // Ses: pazarlama izi (public/audio/<ad>.wav) DEGIL, hizli tempoya ozgu uslup (synth.mjs 'full' isi)
+      const src = `audio/tempo/${tl.tempo.templates[p.template].audio}-fast.wav`;
+      expect(files.has(src), src).toBe(true);
+      expect(p.audio).toEqual([{ src, from: 0, durationInFrames: beats * 15, trimBefore: 0, fadeIn: 0, fadeOut: 0 }]);
     }
+  });
+
+  it('her tempo kendi uslubu: ton, akor yurusu, enstrumanlar farkli; BPM uslup araliginda (ayni muzigin yavaslatilmisi degil)', async () => {
+    const { STYLES } = await load('scripts/audio/styles.mjs');
+    const tl = timeline();
+    const bpm: Record<string, number> = { fast: tl.bpm, normal: tl.tempo.presets.normal.bpm, slow: tl.tempo.presets.slow.bpm };
+    const infos = ['fast', 'normal', 'slow'].map((t) => STYLES[t].info);
+    for (const k of ['key', 'progression', 'instruments', 'genre'] as const) expect(new Set(infos.map((i: any) => i[k])).size, k).toBe(3);
+    for (const t of ['fast', 'normal', 'slow']) {
+      const [lo, hi] = STYLES[t].info.bpmRange;
+      expect(bpm[t], t).toBeGreaterThanOrEqual(lo);
+      expect(bpm[t], t).toBeLessThanOrEqual(hi);
+      // timeline.json'daki her muzik seviyesi uslupte tanimli
+      for (const level of ['pulse', 'L1', 'L2', 'L3', 'L4']) expect(STYLES[t].levels[level], `${t}/${level}`).toBeTruthy();
+    }
+    expect(STYLES.normal.info.swing).toBeGreaterThanOrEqual(0.58);
+    expect(STYLES.normal.info.swing).toBeLessThanOrEqual(0.62);
   });
 
   it('sure metinden: uzun metin daha uzun video; slow tipik metinde normalin 1,4-1,6 kati; hepsi <= 60 sn', async () => {

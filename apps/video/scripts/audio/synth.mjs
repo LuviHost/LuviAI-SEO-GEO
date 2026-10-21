@@ -12,24 +12,30 @@
  * sinus/gurultu osilatorlerinden, zarflardan ve basit filtrelerden uretilir. Rastgelelik
  * tohumlu (mulberry32) — ayni girdi her calistirmada ayni dosyayi uretir.
  *
- * Duzen: Fa majorde 4 akorluk dongu (Fmaj7 · Am7 · Dm7 · Bbmaj7), her akor 1 olcu (4 vurus).
- * Bolum seviyeleri (timeline "music"): silence · pulse · L1 · L2 · L3 · L4 · outro.
- * Istege bagli "bpm" kompozisyona kendi temposunu verir; yoksa ust duzey bpm (120 — eski izler birebir ayni).
+ * Pazarlama kompozisyonlari (public/audio/<ad>.wav) — DEGISMEZ: Fa majorde 4 akorluk dongu
+ * (Fmaj7 · Am7 · Dm7 · Bbmaj7), her akor 1 olcu (4 vurus). Bolum seviyeleri (timeline "music"):
+ * silence · pulse · L1 · L2 · L3 · L4 · outro. Istege bagli "bpm" kompozisyona kendi temposunu verir.
  *
- * RanksUp Video tempo kokleri (timeline.json "tempo", src/tempo/plan.mjs):
+ * RanksUp Video tempo kokleri (timeline.json "tempo", src/tempo/plan.mjs) — ayri modul styles.mjs:
  *   node scripts/audio/synth.mjs --tempo         # yalniz kokler -> public/audio/tempo/*.wav
- * normal / slow videolarin suresi metne gore degistigi icin tek parca muzik yerine sablon x tempo
- * basina uc kok uretilir — giris ve govde DONGUSU (loopBeats; kararli durumdan kesilir, dongu
- * siniri kesintisiz), kapanis (riser + vurus + son akor) — ve tempo basina efekt dosyalari
- * (vurustan bir vurus once baslar). Remotion bunlari plan.audio'daki karelere yerlestirir.
- * Kokler loudnorm'dan GECMEZ: hepsi ayni sabit kazancla (eski ArticleShort karisiminin tepe
- * kazanci) yazilir ki birbirlerine gore dengeleri korunsun; son ses seviyesini render hattinin
- * loudnorm'u (-14 LUFS) kurar.
+ * Her tempo KENDI usluplu bestesini calar (21.10.2026 sahip geri bildirimi: ayni muzigi yavaslatmak
+ * kalitesiz): hizli = enerjik elektronik pop (120 BPM), normal = chill-hop / lo-fi (90 BPM, swing),
+ * yavas = sinematik ambient (72 BPM). Ayrintilar ve akor yuruyusleri styles.mjs basliginda.
+ *   fast    sablon basina TEK dosya (<sablon>-fast.wav): eski sabit izgaranin (compositions)
+ *           bolumleri ve efekt anlari aynen, yeni uslupte — video zamanlamasi birebir ayni.
+ *   normal / slow  videonun suresi metne gore degistigi icin sablon basina uc kok — giris ve govde
+ *           DONGUSU (loopBeats; uc dongu calinip ortadaki kesilir, dongu siniri kesintisiz),
+ *           kapanis (riser + vurus + son akor; son vurus solar) — ve tempo basina efekt dosyalari
+ *           (vurustan bir vurus once baslar). Remotion bunlari plan.audio'daki karelere yerlestirir.
+ * Kokler loudnorm'dan GECMEZ: bir uslubun tum kokleri ve efektleri ayni sabit kazancla yazilir
+ * (styleGain) ki birbirlerine gore dengeleri korunsun; son seviyeyi render hattinin loudnorm'u
+ * (-14 LUFS) kurar. Denetim: node scripts/audio/check-music.mjs
  */
 import { mkdirSync, readFileSync, renameSync, writeFileSync, unlinkSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runFfSync } from '../ffmpeg.mjs';
+import { LOOP_BEATS, renderStyle } from './styles.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const TIMELINE = JSON.parse(readFileSync(join(ROOT, 'src', 'marketing', 'timeline.json'), 'utf8'));
@@ -445,60 +451,83 @@ function loudnorm(src, dst) {
   return json.input_i;
 }
 
-/* ───────────── tempo kokleri ───────────── */
+/* ───────────── tempo kokleri (uslup basina ayri beste: styles.mjs) ───────────── */
 
-let stemGain = null;
-/** Tum kokler icin TEK kazanc: eski (120 BPM) ArticleShort karisiminin tepe normallestirmesi */
-function referenceGain() {
-  if (stemGain === null) {
-    const out = mix('ArticleShort', TIMELINE.compositions.ArticleShort);
-    const n = Math.round(TIMELINE.compositions.ArticleShort.beats * SPB * SR);
+/**
+ * Uslup basina TEK kazanc: o uslubun makale govde dongusu (en yogun bolum) tepe 0,8'e oturur; ayni
+ * uslubun giris / govde / kapanis kokleri ve efektleri bu kazancla yazilir ki birbirlerine gore
+ * dengeleri korunsun (son seviyeyi render hattinin loudnorm'u, -14 LUFS, kurar). Kazanc ham
+ * karisimdan hesaplanir; tanh yalniz guvenlik (tepe 0,8'de neredeyse dogrusal).
+ */
+const styleGains = {};
+const refMix = new Map();
+const loopDef = (bpm, LB, level, energy) => ({ bpm, beats: 3 * LB, energy, music: [[0, 3 * LB, level]], events: [] });
+const bpmOf = (tempo, T) => (tempo === 'fast' ? TIMELINE.bpm : T.presets[tempo].bpm);
+
+function styleGain(style, T) {
+  if (styleGains[style] === undefined) {
+    const cfg = T.templates.ArticleShort;
+    const bpm = bpmOf(style, T);
+    const out = renderStyle(style, loopDef(bpm, T.loopBeats, cfg.body, cfg.energy));
+    const spb = 60 / bpm;
+    const i0 = Math.round(T.loopBeats * spb * SR);
+    const i1 = Math.round(2 * T.loopBeats * spb * SR);
     let peak = 0;
-    for (let i = 0; i < n; i++) peak = Math.max(peak, Math.abs(out.L[i]), Math.abs(out.R[i]));
-    stemGain = 0.89 / (peak || 1);
+    for (let i = i0; i < i1; i++) peak = Math.max(peak, Math.abs(out.L[i]), Math.abs(out.R[i]));
+    styleGains[style] = 0.8 / (peak || 1);
+    refMix.set(`ArticleShort-${style}-body`, out);
   }
-  return stemGain;
+  return styleGains[style];
 }
 
-/** [from, to) saniye penceresini sabit kazancla 16 bit PCM'e yazar */
-function windowPcm(out, fromSec, toSec, g) {
+/** [from, to) saniye penceresini sabit kazancla 16 bit PCM'e yazar; fadeSec > 0 ise son kisim solar */
+function windowPcm(out, fromSec, toSec, g, fadeSec = 0) {
   const i0 = Math.round(fromSec * SR);
   const n = Math.round((toSec - fromSec) * SR);
+  const fade = Math.round(fadeSec * SR);
   const pcm = Buffer.alloc(n * 4);
   for (let i = 0; i < n; i++) {
-    pcm.writeInt16LE(Math.round(Math.tanh((out.L[i0 + i] ?? 0) * g) * 32767), i * 4);
-    pcm.writeInt16LE(Math.round(Math.tanh((out.R[i0 + i] ?? 0) * g) * 32767), i * 4 + 2);
+    const f = fade > 0 && i > n - fade ? (n - i) / fade : 1;
+    pcm.writeInt16LE(Math.round(Math.tanh((out.L[i0 + i] ?? 0) * g) * f * 32767), i * 4);
+    pcm.writeInt16LE(Math.round(Math.tanh((out.R[i0 + i] ?? 0) * g) * f * 32767), i * 4 + 2);
   }
   return pcm;
 }
 
 /** Tek kok (plan.mjs stemJobs satiri) */
 function stem(job, T) {
-  const g = referenceGain();
-  const id = `${job.template ?? 'sfx'}-${job.tempo}-${job.kind}-${job.name ?? ''}`;
+  const g = styleGain(job.tempo, T);
+  const LB = T.loopBeats;
+  if (job.kind === 'full') {
+    // Hizli: eski sabit izgara (compositions) — ayni bolumler ve efekt anlari, enerjik pop uslubu
+    const def = TIMELINE.compositions[job.template];
+    const bpm = def.bpm ?? TIMELINE.bpm;
+    const out = renderStyle('fast', { ...def, bpm });
+    return windowPcm(out, 0, (def.beats * 60) / bpm, g, 0.08);
+  }
+  const spb = 60 / job.bpm;
   if (job.kind === 'intro' || job.kind === 'body') {
     // Uc dongu boyu cal, ortadakini al: onceki turun yanki/kuyrugu pencerede (dongu tekrarinda da oyle)
-    const LB = T.loopBeats;
-    const def = { bpm: job.bpm, beats: 3 * LB, energy: job.cfg.energy, music: [[0, 3 * LB, job.cfg[job.kind]]], events: [] };
-    const out = mix(id, def);
-    return windowPcm(out, LB * SPB, 2 * LB * SPB, g);
+    const key = `${job.template}-${job.tempo}-${job.kind}`;
+    const out = refMix.get(key) ?? renderStyle(job.tempo, loopDef(job.bpm, LB, job.cfg[job.kind], job.cfg.energy));
+    refMix.delete(key);
+    return windowPcm(out, LB * spb, 2 * LB * spb, g);
   }
   if (job.kind === 'outro') {
-    // Kesmeden bir vurus once baslar: riser vurusa tirmanir, vurusta 'hit' + son akor
+    // Kesmeden bir vurus once baslar: riser vurusa tirmanir, vurusta 'hit' + son akor; son vurus solar
     const beats = 1 + T.outroBeats;
     const def = { bpm: job.bpm, beats, energy: job.cfg.energy, music: [[1, beats, 'outro']], events: [{ id: 'end.riser', at: 1, sfx: 'riser', dur: 1 }, { id: 'end.hit', at: 1, sfx: 'hit' }] };
-    const out = mix(id, def);
-    return windowPcm(out, 0, beats * SPB, g);
+    return windowPcm(renderStyle(job.tempo, def), 0, beats * spb, g, spb);
   }
   // efekt: vurus 1. vurusta (dosya bir vurus once baslar)
   const def = { bpm: job.bpm, beats: T.sfxBeats, music: [], events: [{ id: job.name, at: 1, sfx: job.name }] };
-  const out = mix(id, def);
-  return windowPcm(out, 0, T.sfxBeats * SPB, g);
+  return windowPcm(renderStyle(job.tempo, def), 0, T.sfxBeats * spb, g);
 }
 
 async function synthStems() {
   const { createPlanner } = await import('../../src/tempo/plan.mjs');
   const T = TIMELINE.tempo;
+  if (T.loopBeats !== LOOP_BEATS) throw new Error(`timeline.json tempo.loopBeats (${T.loopBeats}) styles.mjs LOOP_BEATS (${LOOP_BEATS}) ile ayni olmali`);
   const dir = join(OUT_DIR, 'tempo');
   mkdirSync(dir, { recursive: true });
   const t = Date.now();

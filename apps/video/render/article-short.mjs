@@ -2,8 +2,9 @@
  * ArticleShort render hatti — TEK KAYNAK. Hem CLI prototipi (scripts/article-short.mjs) hem
  * sunucu (api videos/video-render.service.ts, worker'daki 'video-render' kuyrugu) bunu kullanir.
  *
- *   ensureArticleShortAudio()  timeline.json'dan sentez muzik: 'fast' icin sablon basina tek dosya,
- *                              normal / slow icin tempo kokleri (public/audio/tempo/; yoksa uretilir)
+ *   ensureArticleShortAudio()  timeline.json'dan sentez muzik (tempo basina ayri uslup): 'fast' icin
+ *                              sablon basina tek dosya, normal / slow icin kokler (public/audio/tempo/;
+ *                              yoksa ya da timeline / sentez kodu daha yeniyse uretilir)
  *   getArticleShortServeUrl()  Remotion webpack paketi — kaynak ozeti degismediyse diskteki paket
  *                              (deploy'da `pnpm --filter @luviai/video prepare:article-short` bir kez kurar);
  *                              surec icinde de bellege alinir, her videoda yeniden paketlenmez
@@ -32,17 +33,17 @@ export const POSTER_SECONDS = 2.6;
 /**
  * RanksUp Video'nun render edebildigi kompozisyonlar (src/Root.tsx) ve poster karesi (kanca tam
  * gorunurken). Liste disindaki kimlik reddedilir: istekten gelen bir deger baska bir kompozisyonu
- * (pazarlama videolari) render ettiremez. audio: timeline.json kompozisyonu (yatay urun videosu
- * dikeyle ayni izgarayi ve ses dosyasini kullanir).
+ * (pazarlama videolari) render ettiremez. Ses dosyalari tempo planindan gelir (src/tempo/plan.mjs;
+ * yatay urun videosu dikeyle ayni izgarayi ve sesi kullanir).
  */
 export const VIDEO_COMPOSITIONS = {
-  ArticleShort: { audio: 'ArticleShort', posterSeconds: POSTER_SECONDS },
+  ArticleShort: { posterSeconds: POSTER_SECONDS },
   // Kanca sahnesi 120 BPM'de 6 vurus = 3 sn (yatay site 10 vurus = 5 sn); poster kanca tam
   // gorunurken, cikis animasyonu baslamadan (ozellikler degil, ad + ne yaptigi gorunsun)
-  SiteIntro: { audio: 'SiteIntro', posterSeconds: 2.4 },
-  SiteIntroWide: { audio: 'SiteIntroWide', posterSeconds: 4.2 },
-  ProductShort: { audio: 'ProductShort', posterSeconds: 2.45 },
-  ProductWide: { audio: 'ProductShort', posterSeconds: 2.45 },
+  SiteIntro: { posterSeconds: 2.4 },
+  SiteIntroWide: { posterSeconds: 4.2 },
+  ProductShort: { posterSeconds: 2.45 },
+  ProductWide: { posterSeconds: 2.45 },
 };
 const AUDIO_DIR = join(VIDEO_ROOT, 'public', 'audio');
 const TIMELINE_FILE = join(VIDEO_ROOT, 'src', 'marketing', 'timeline.json');
@@ -60,31 +61,22 @@ export function renderConcurrency(env = process.env, cores = os.availableParalle
 }
 
 /**
- * Her RanksUp Video sablonunun ses izi: yoksa ya da timeline.json'dan eskiyse sentezle
- * (deterministik; sablon basina tek dosya). Paketten ONCE cagrilir: Remotion public/ klasorunu
+ * RanksUp Video ses dosyalari (hizli tek dosyalar + normal / slow kokleri + efektler): biri yoksa ya
+ * da timeline.json veya sentez kodu (synth.mjs, styles.mjs) daha yeniyse hepsini sentezle
+ * (deterministik). Kod karsilastirmasi deploy'da onemli: git pull yalniz sentez kodunu degistirirse
+ * eski uslupteki dosyalar sunucuda kalmasin. Paketten ONCE cagrilir: Remotion public/ klasorunu
  * paketleme aninda kopyalar, sonradan uretilen ses pakete girmez.
  */
 export function ensureArticleShortAudio() {
   const timeline = JSON.parse(readFileSync(TIMELINE_FILE, 'utf8'));
-  const tl = statSync(TIMELINE_FILE).mtimeMs;
-  const fresh = (file) => existsSync(file) && statSync(file).mtimeMs > tl;
-  const synth = (arg) => {
-    // ffmpeg cozumu synth.mjs icinde de ayni kuraldir (scripts/ffmpeg.mjs)
-    const r = spawnSync(process.execPath, [join(VIDEO_ROOT, 'scripts', 'audio', 'synth.mjs'), arg], { cwd: VIDEO_ROOT, encoding: 'utf8' });
-    if (r.status !== 0) throw new Error(`Ses sentezi basarisiz (${arg}): ${String(r.stderr ?? '').slice(-400)}`);
-  };
-  let cached = true;
-  for (const id of new Set(Object.values(VIDEO_COMPOSITIONS).map((c) => c.audio))) {
-    if (fresh(join(AUDIO_DIR, timeline.compositions[id].audio))) continue;
-    cached = false;
-    synth(id);
-  }
-  // normal / slow kokleri (tek seferde hepsi; ~1,5 dk — deploy'da prepare:article-short uretir)
-  if (!createPlanner(timeline).stemJobs().every((j) => fresh(join(AUDIO_DIR, 'tempo', j.file)))) {
-    cached = false;
-    synth('--tempo');
-  }
-  return { cached };
+  const sources = [TIMELINE_FILE, join(VIDEO_ROOT, 'scripts', 'audio', 'synth.mjs'), join(VIDEO_ROOT, 'scripts', 'audio', 'styles.mjs')];
+  const newest = Math.max(...sources.map((f) => statSync(f).mtimeMs));
+  const fresh = (file) => existsSync(file) && statSync(file).mtimeMs > newest;
+  if (createPlanner(timeline).stemJobs().every((j) => fresh(join(AUDIO_DIR, 'tempo', j.file)))) return { cached: true };
+  // tek seferde hepsi (~1-2 dk — deploy'da prepare:article-short uretir); ffmpeg gerekmez
+  const r = spawnSync(process.execPath, [join(VIDEO_ROOT, 'scripts', 'audio', 'synth.mjs'), '--tempo'], { cwd: VIDEO_ROOT, encoding: 'utf8' });
+  if (r.status !== 0) throw new Error(`Ses sentezi basarisiz (--tempo): ${String(r.stderr ?? '').slice(-400)}`);
+  return { cached: false };
 }
 
 /** Render edilecek props: tempo her zaman acik (Remotion defaultProps 'normal'; eksik tempo = eski 'fast') */

@@ -1,14 +1,15 @@
 import { createContext, useContext } from 'react';
 import { Html5Audio, Sequence, interpolate, spring, staticFile } from 'remotion';
 import raw from '../marketing/timeline.json';
-import { Soundtrack, snap as kitSnap, soft as kitSoft } from '../marketing/kit';
+import { snap as kitSnap, soft as kitSoft } from '../marketing/kit';
 import { timeline, type Timeline } from '../marketing/timeline';
 import { MOTION, createPlanner, normalizeTempo, type Plan, type PlanComposition, type Tempo } from './plan.mjs';
 
 /**
  * RanksUp Video sablonlarinin (ArticleShort, SiteIntro, ProductShort) zaman cizelgesi — tempoya gore.
  *
- *   fast          timeline.json compositions (bugunku sabit izgara) + kit snap(): eski video BIREBIR
+ *   fast          timeline.json compositions (bugunku sabit izgara) + kit snap(): goruntu eski video
+ *                 ile BIREBIR; muzik hizli uslubun tek dosyasi (audio/tempo/<sablon>-fast.wav)
  *   normal / slow plan.mjs: sahne sureleri metinden, kendi BPM'i, sakin giris yayi, kok ses dosyalari
  *
  * Sablonlar modul duzeyinde sabit TL tutmaz; sure props'a bagli oldugu icin TL baglamdan gelir
@@ -74,13 +75,12 @@ export function useTL(): TempoTimeline {
 }
 
 /**
- * Ses: fast'ta tek dosya (eskisi gibi). normal/slow'da plan.audio — giris / govde dongusu / kapanis
- * kokleri ve efektler, her biri kendi karesinde (Sequence). Dongu sinirlari kesintisiz (synth.mjs
- * donguyu kararli durumdan keser); kesmelerde kisa solma tik sesini onler.
+ * Ses: plan.audio — fast'ta hizli uslubun tek dosyasi (0. kareden sona); normal/slow'da giris /
+ * govde dongusu / kapanis kokleri ve efektler, her biri kendi karesinde (Sequence). Dongu sinirlari
+ * kesintisiz (synth.mjs donguyu kararli durumdan keser); kesmelerde kisa solma tik sesini onler.
  */
 export function TempoSoundtrack({ tl, muted }: { tl: TempoTimeline; muted: boolean }) {
   if (muted) return null;
-  if (tl.tempo === 'fast') return <Soundtrack tl={tl} muted={false} />;
   return (
     <>
       {tl.plan.audio.map((a, i) => (

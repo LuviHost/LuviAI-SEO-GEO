@@ -9,11 +9,13 @@
  * NEDEN: 21.10.2026 sahip geri bildirimi — sabit 15 sn (120 BPM) videolar okunamayacak kadar hizli.
  * Uc tempo:
  *   fast    bugunku izgara (timeline.json compositions; 15 sn dikey, 24 sn yatay site). Geriye uyum:
- *           tempo alani olmayan eski istekler ve kuyruktaki isler BIREBIR eskisi gibi render edilir.
+ *           tempo alani olmayan eski istekler ve kuyruktaki isler ayni zamanlamayla render edilir
+ *           (sahne / olay kareleri BIREBIR; muzik hizli tempoya ozgu enerjik pop uslubu).
  *   normal  okunur: her metin max(2,0 sn; 0,3 sn x kelime + 1,0 sn) tam gorunur kalir.
  *   slow    rahat: okuma payi 1,7 kat, daha yavas izgara (72 BPM); tipik metinde normalin ~1,5 kati.
  * normal / slow'da sahne sureleri METINDEN hesaplanir (kelime sayisi), vurusa yuvarlanir (kesmeler
  * muzigin vurusuna oturur) ve toplam MAX_SECONDS'i (Reels siniri) asmaz.
+ * Muzik: her tempo kendi usluplu bestesi (scripts/audio/styles.mjs) — ayni parcanin yavaslatilmisi degil.
  */
 
 export const TEMPOS = ['fast', 'normal', 'slow'];
@@ -149,13 +151,16 @@ export function createPlanner(timeline) {
   const FPS = timeline.fps;
   const T = timeline.tempo;
 
+  /** hizli uslubun sablon basina tek dosyasi (eski izgara, synth.mjs 'full' isi) */
+  const fastFile = (template) => `${T.templates[template].audio}-fast.wav`;
+
   function presetOf(tempo) {
     const p = T.presets[tempo];
     if (!p) throw new Error(`Bilinmeyen tempo: ${String(tempo).slice(0, 20)}`);
     return p;
   }
 
-  /** Bugunku sabit izgara (fast) — timeline.json compositions, 120 BPM */
+  /** Bugunku sabit izgara (fast) — timeline.json compositions, 120 BPM; ses: hizli uslubun tek dosyasi */
   function legacyPlan(template) {
     const def = timeline.compositions[template];
     const fpb = (FPS * 60) / (def.bpm ?? timeline.bpm);
@@ -166,7 +171,7 @@ export function createPlanner(timeline) {
     return {
       template, tempo: 'fast', bpm: def.bpm ?? timeline.bpm, fpb, fps: FPS, read: null, compressed: false,
       durationInFrames: total, scenes, events,
-      audio: [{ src: `audio/${def.audio}`, from: 0, durationInFrames: total, trimBefore: 0, fadeIn: 0, fadeOut: 0 }],
+      audio: [{ src: `audio/tempo/${fastFile(template)}`, from: 0, durationInFrames: total, trimBefore: 0, fadeIn: 0, fadeOut: 0 }],
       posterFrame: null,
     };
   }
@@ -285,9 +290,12 @@ export function createPlanner(timeline) {
     return out;
   }
 
-  /** synth.mjs icin: uretilecek kok dosyalari (sablon x tempo) ve efektler (tempo) */
+  /** synth.mjs icin: hizli tek dosyalar (sablon), kok dosyalari (sablon x tempo) ve efektler (tempo) */
   function stemJobs() {
     const jobs = [];
+    for (const [template, cfg] of Object.entries(T.templates)) {
+      jobs.push({ kind: 'full', template, tempo: 'fast', bpm: timeline.compositions[template].bpm ?? timeline.bpm, cfg, file: fastFile(template) });
+    }
     for (const tempo of Object.keys(T.presets)) {
       const { bpm } = presetOf(tempo);
       for (const [template, cfg] of Object.entries(T.templates)) {
