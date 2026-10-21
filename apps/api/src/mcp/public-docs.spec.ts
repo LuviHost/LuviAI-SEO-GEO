@@ -305,6 +305,9 @@ interface Source { rel: string; text: string }
 const webSources: Source[] = walk(WEB_SRC, /\.tsx?$/).map((f) => ({ rel: path.relative(WEB_SRC, f), text: stripComments(read(f)) }));
 const mobileSources: Source[] = walkSkipping(MOBILE, /\.(tsx?|md|txt)$|^app\.json$/, MOBILE_SKIP)
   .map((f) => ({ rel: path.relative(MOBILE, f), text: stripComments(read(f)) }));
+/** Landing'de oynatilan Remotion videolari (Explainer altyazisi "7 AI asistani" diyordu) */
+const videoSources: Source[] = walk(path.resolve(HERE, '../../../video/src'), /\.tsx?$/)
+  .map((f) => ({ rel: path.join('video/src', path.relative(path.resolve(HERE, '../../../video/src'), f)), text: stripComments(read(f)) }));
 const docSources: Source[] = [
   { rel: 'public/llms.txt', text: llms },
   { rel: 'public/llms-full.txt', text: llmsFull },
@@ -337,7 +340,8 @@ describe('Musteriye gorunen metinler = kod', () => {
 
   it('"7 AI asistanı / motoru" iddiası yok — ölçülen 6 asistan (Llama üretimde ölçülmüyor)', () => {
     const re = /\b(7|yedi|seven)\s*(farklı\s*|different\s*)?(AI|yapay|motor|asistan|assistant|engine)/i;
-    expect(offenders([...webSources, ...mobileSources, ...docSources], re)).toEqual([]);
+    expect(videoSources.some((s) => s.rel.endsWith('Explainer.tsx')), 'Explainer taraniyor').toBe(true);
+    expect(offenders([...webSources, ...mobileSources, ...docSources, ...videoSources], re)).toEqual([]);
   });
 
   it('"X, Y, Z ve N asistan daha" toplamı ölçülen asistan sayısını aşmıyor', () => {
@@ -379,7 +383,9 @@ describe('Musteriye gorunen metinler = kod', () => {
 
   it('Llama / Meta AI ölçülen asistanlar listesine koşulsuz eklenmiyor', () => {
     const list = /(ChatGPT|Claude|Gemini|Perplexity|Grok|DeepSeek)\s*([,·/+|&]|\bve\b|\band\b)\s*(Meta\s*AI\s*\(?\s*)?(Meta\s+)?(Llama|Meta\b)/i;
-    expect(offenders([...webSources, ...mobileSources, ...docSources], list, (l) => LLAMA_CONDITIONAL.test(l))).toEqual([]);
+    expect(offenders([...webSources, ...mobileSources, ...docSources, ...videoSources], list, (l) => LLAMA_CONDITIONAL.test(l))).toEqual([]);
+    // Videolarda asistanlar dizi olarak yazilir ('DeepSeek', 'Meta AI'): ayri kontrol
+    expect(offenders(videoSources, /['"]Meta AI['"]|['"]Llama['"]/)).toEqual([]);
   });
 
   it('belgelerdeki her Llama anışı koşullu', () => {
@@ -621,6 +627,52 @@ describe('Pazarlama sayfaları = ürün', () => {
     expect(bolumler[1]).toContain('has been removed; RanksUp no longer posts to these accounts');
     expect(bolumler[1]).toContain('deleted immediately when you delete the related site');
     expect(bolumler[1]).toContain('ad account connections made for ad management are a separate feature');
+  });
+
+  // Kullanim Sartlari 7. madde ayni kaldirilmis modulu (9 platforma OAuth ile baglanir,
+  // panelden baglanti koparilir, onaylanan icerik kullanici adina yayinlanir) hala varmis
+  // gibi anlatiyordu; 9. madde "sosyal OAuth token'lari 30 gun icinde silinir" diyordu.
+  // Madde SILINMEDI, yeniden yazildi: numaralar kaymasin (yardim sayfalari md. 4 ve md. 8'e
+  // atif yapiyor).
+  it('terms: 7. madde kaldırılan sosyal paylaşımı varmış gibi anlatmıyor; 9. madde silme iddiası kodla aynı; numaralar sıralı (TR + EN)', () => {
+    const apiSrc = path.resolve(HERE, '..');
+    const t = stripComments(read(path.join(MARKETING, 'terms/page.tsx')));
+    for (const dil of ['tr', 'en'] as const) {
+      const blok = dil === 'tr' ? t.split('\n  en: {')[0] : t.split('\n  en: {')[1];
+      const basliklar = [...blok.matchAll(/h: '(\d+)\. /g)].map((m) => Number(m[1]));
+      expect(basliklar, `${dil} madde numaralari`).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+    }
+    expect(t).toContain("h: '7. Sosyal Medya Paylaşımı ve Yayın Hedefleri'");
+    expect(t).toContain("h: '7. Social Media Posting and Publish Targets'");
+    // Eski vaatler: OAuth ile baglanir, panelden baglanti koparilir, sosyal token'lar 30 gunde silinir
+    expect(t).not.toMatch(/OAuth 2\.0 ile bağlanır|via OAuth 2\.0|bağlantıyı koparıp|disconnect and revoke access|Sosyal medya OAuth token|Social media OAuth tokens|Sosyal Medya Entegrasyonları|Social Media Integrations/);
+    // "Sosyal medya hesabina hic baglanmaz" yanlis olurdu (Meta Ads Facebook Login, Sayfa izni)
+    expect(t).not.toMatch(/hesaplarına bağlanmaz|hesaplarına bağlanmıyor|does not connect to social media|no longer connects to social media/);
+    expect(t).toContain('kaldırıldı; RanksUp sizin adınıza sosyal medya hesaplarında paylaşım yapmaz');
+    expect(t).toContain('has been removed; RanksUp does not post to social media accounts on your behalf');
+    // Dayanak: sosyal modul ve yeni kanal baglama ucu yok (privacy testi sosyal kanal okuyanlari ayrica kilitler)
+    expect(fs.existsSync(path.join(apiSrc, 'social'))).toBe(false);
+    // Atif yapilan gizlilik bolumu gercekten 5. bolum
+    const pv = read(path.join(MARKETING, 'privacy/page.tsx'));
+    expect(t).toContain('Gizlilik Politikası’nın 5. bölümünde');
+    expect(t).toContain('section 5 of the Privacy Policy');
+    expect(pv).toContain("s5: '5. Sosyal Medya Bağlantıları'");
+    expect(pv).toContain("s5: '5. Social Media Connections'");
+    // "Yari otomatik varsayilan": yeni sitenin yayin modu onay bekler
+    expect(read(path.resolve(HERE, '../../prisma/schema.prisma'))).toMatch(/publishApprovalMode\s+String\s+@default\("manual_approve"\)/);
+    expect(t).toContain('Yarı otomatik modda (varsayılan) her yazı yayınlanmadan önce onayınızı bekler');
+    // 9. madde: silme talebinde baglanti bilgileri hemen silinir (freezeAccountData)
+    expect(t).toContain('30 günü beklemeden hemen silinir');
+    expect(t).toContain('are deleted immediately, without waiting 30 days');
+    const freeze = read(path.join(apiSrc, 'me/account-deletion.service.ts'));
+    for (const adim of [
+      'db.publishTarget.deleteMany', 'gscRefreshToken: null', 'gaRefreshToken: null', 'googleAdsRefreshToken: null',
+      'metaAdsAccessToken: null', 'db.siteAiProviderKey.deleteMany', "credentials: ''",
+    ]) expect(freeze, adim).toContain(adim);
+    expect(freeze.match(/encryptedKey: ''/g)?.length, 'ASA + ASC anahtarlari').toBe(2);
+    // Degisiklik notu (TR + EN) 7. ve 9. maddeyi aniyor
+    expect(t).toMatch(/updated: 'Son güncelleme: 21 Ekim 2026[^']*7\. madde[^']*9\. madde/);
+    expect(t).toMatch(/updated: 'Last updated: October 21, 2026[^']*Section 7[^']*Section 9/);
   });
 
   // Bolum 2 (veri kullanimi) "pazarlama amacli paylasilmaz" diyordu; onay verende Google Ads

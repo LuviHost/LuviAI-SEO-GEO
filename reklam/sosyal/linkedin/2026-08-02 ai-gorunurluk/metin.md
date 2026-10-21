@@ -19,7 +19,7 @@ Bu soruların cevabı hiçbir aylık raporda yok.
 
 RanksUp'ı tam olarak bunun için kurduk:
 
-→ Markanı 7 AI motorunda test ediyor — ChatGPT, Claude, Gemini, Perplexity, Grok, DeepSeek, Meta AI
+→ Markanı 6 AI motorunda test ediyor — ChatGPT, Claude, Gemini, Perplexity, Grok, DeepSeek
 → Hangi sorularda görünmediğini tek tek çıkarıyor
 → O boşluğu kapatacak içeriği üretiyor ve yayınlıyor
 → Web SEO, App Store ASO ve Apple Search Ads tarafını da aynı panelden yönetiyor

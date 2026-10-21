@@ -15,7 +15,7 @@ paylaşıyorsun; rapor hem lead magnet hem canlı ürün demosu oluyor.
 ## ⚠️ GÖNDERMEDEN ÖNCE — bu üçü şart
 
 **1. Raporu gerçekten çalıştır.**
-Davet "ölçtük" diyor. Göndermeden önce RanksUp ile 40+ kurumu 7 motorda taramış olman gerekiyor.
+Davet "ölçtük" diyor. Göndermeden önce RanksUp ile 40+ kurumu 6 motorda taramış olman gerekiyor.
 Bir banka "karnemi gönderin" dediğinde 2 iş günü içinde elinde bir şey olmalı.
 
 **2. Görsellerdeki sayıları gerçek kapsamınla eşitle.**
@@ -51,7 +51,7 @@ Biz de bir sektör araştırması başlattık:
 
 TÜRKİYE FİNANS SEKTÖRÜ AI GÖRÜNÜRLÜK RAPORU
 
-→ 7 AI motoru — ChatGPT, Claude, Gemini, Perplexity, Grok, DeepSeek, Meta AI
+→ 6 AI motoru — ChatGPT, Claude, Gemini, Perplexity, Grok, DeepSeek
 → 40+ banka ve ödeme kuruluşu
 → 100+ gerçek müşteri sorusu
 
@@ -90,11 +90,11 @@ RanksUp olarak Türkiye finans sektörü için bir AI görünürlük araştırma
 
 Kısaca durum şu: müşteriler artık "en iyi dijital banka" diye Google'da aramak yerine
 ChatGPT, Gemini ve Perplexity'ye "bana bir banka öner" diye soruyor. Bu yanıtlarda hangi
-kurumların geçtiğini 7 AI motorunda, 100+ gerçek müşteri sorusuyla ölçüyoruz.
+kurumların geçtiğini 6 AI motorunda, 100+ gerçek müşteri sorusuyla ölçüyoruz.
 
 [Kurum Adı] da araştırma kapsamında. Kurumunuza ait bölümü ücretsiz paylaşmak istiyorum:
 
-1. Görünürlük karnesi — 7 AI motorunda anılma oranınız
+1. Görünürlük karnesi — 6 AI motorunda anılma oranınız
 2. Rakip karşılaştırması — aynı sorularda kimin önerildiği ve sizin kaçıncı sırada geçtiğiniz
 3. Boşluk analizi — hiç görünmediğiniz sorular ve kapatma planı
 4. Sektör ortalamasına göre konumunuz
@@ -132,7 +132,7 @@ ChatGPT'ye "bana bir banka öner" diyor. 3 isim duyuyor.
 
 Peki o 3 isim kim?
 
-7 AI motorunda 40+ banka ve ödeme kuruluşunu ölçtük.
+6 AI motorunda 40+ banka ve ödeme kuruluşunu ölçtük.
 Kurumunuzun karnesi ücretsiz 👇
 
 ranksup.ai
@@ -148,7 +148,7 @@ Toplantıya girerken ilk slayt ya da tek sayfalık tanıtım kapağı olarak kul
 Arkasına gelmesi gereken slaytlar (öneri):
 1. Kapak
 2. Problem — arama davranışının değişimi, tek grafik
-3. Ölçüm metodolojisi — 7 motor, kaç soru, nasıl skorlanıyor
+3. Ölçüm metodolojisi — 6 motor, kaç soru, nasıl skorlanıyor
 4. Sektör geneli bulgular (kurum adı yok)
 5. **Kurumun kendi karnesi** — toplantıya özel hazırlanır, asıl etki burada
 6. Boşluk analizi ve 90 günlük kapatma planı

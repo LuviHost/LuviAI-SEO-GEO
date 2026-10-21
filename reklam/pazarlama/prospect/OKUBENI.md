@@ -459,7 +459,7 @@ tespit riski taşıyor.
 
 | Kampanya | Bağlantı notu (≤300 karakter) | Kabul sonrası mesaj |
 | --- | --- | --- |
-| **Müşteri adayı** (varsayılan) | Sektör araştırması + kuruma özel ücretsiz karne daveti | 7 asistanda markasız sorularla ölçüm, "Evet" yeterli |
+| **Müşteri adayı** (varsayılan) | Sektör araştırması + kuruma özel ücretsiz karne daveti | 6 asistanda markasız sorularla ölçüm, "Evet" yeterli |
 | **Yatırımcı** | "RanksUp'ın kurucusuyum… kısa bir tanışma görüşmesi" | Ürün ne yapıyor + pazar tezi + 20 dk demo daveti; **rakam/traction şablonda YOK** (görüşmede, kaynağıyla) |
 | **İş birliği** | Ajans / çözüm ortaklığı önerisi | Ölçüm bizde, müşteri ilişkisi sizde; örnek kurum için ücretsiz karne |
 

@@ -9,9 +9,10 @@ const CONTENT = {
     titleA: 'Kullanım',
     titleB: 'Koşulları',
     effective: 'Yürürlük: 27 Nisan 2026',
-    // Icerik degisti (8. madde eklendi); yururluk tarihi korunur, okuyan degisikligi gorsun diye
-    // son guncelleme ve not ayrica yazilir (gizlilik sayfasindaki duzen)
-    updated: 'Son güncelleme: 21 Ekim 2026 — 8. madde (RanksUp Video ve marka öğeleri) eklendi; sonraki maddelerin numarası bir arttı.',
+    // Icerik degisti (8. madde eklendi; 7. ve 9. madde kaldirilan sosyal paylasima gore
+    // duzeltildi); yururluk tarihi korunur, okuyan degisikligi gorsun diye son guncelleme ve
+    // not ayrica yazilir (gizlilik sayfasindaki duzen)
+    updated: 'Son güncelleme: 21 Ekim 2026 — 8. madde (RanksUp Video ve marka öğeleri) eklendi; sonraki maddelerin numarası bir arttı. 7. madde, kaldırılan sosyal medya paylaşım özelliğini hâlâ varmış gibi anlatıyordu; yeniden yazıldı. 9. maddeye hesabınızı sildiğinizde bağlı hizmetlerin erişim bilgilerinin hemen silindiği eklendi.',
     sections: [
       {
         h: '1. Hizmet Tanımı',
@@ -44,8 +45,12 @@ const CONTENT = {
         ],
       },
       {
-        h: '7. Sosyal Medya Entegrasyonları',
-        p: "RanksUp; LinkedIn, X (Twitter), Bluesky, TikTok, YouTube, Facebook, Instagram, Threads ve Pinterest gibi platformlara OAuth 2.0 ile bağlanır. Her bağlantı kullanıcının açık rızasıyla yapılır; kullanıcı her zaman dashboard'dan bağlantıyı koparıp yetkiyi geri alabilir. RanksUp yalnızca kullanıcının onayladığı içerikleri kullanıcı adına yayınlar; otomatik yayın seçeneği bile kullanıcının önceden tanımladığı kurallar çerçevesinde çalışır. Yayınlanan tüm içeriğin sorumluluğu kullanıcıya aittir; ilgili platformların topluluk kurallarına uyum kullanıcının yükümlülüğüdür. Bir platformla yapılan entegrasyon, o platformun geliştirici politikalarına ve kullanım koşullarına tabidir.",
+        // Sosyal paylasim 0db5a1c'de kaldirildi (api social/ modulu yok, SocialPost yazan kod yok,
+        // yeni kanal baglama ucu yok). "Sosyal medya hesabina hic baglanmaz" DENMEZ: Meta Ads
+        // baglantisi Facebook Login ile Sayfa izni istiyor (oauth/meta-permissions.ts).
+        // Yayin modu: Site.publishApprovalMode varsayilani manual_approve (= Yari otomatik).
+        h: '7. Sosyal Medya Paylaşımı ve Yayın Hedefleri',
+        p: 'RanksUp’ın sosyal medya paylaşım özelliği (LinkedIn, X, Bluesky, TikTok, YouTube, Facebook, Instagram, Threads ve Pinterest hesaplarını bağlayıp gönderi yayımlama) kaldırıldı; RanksUp sizin adınıza sosyal medya hesaplarında paylaşım yapmaz ve panelden yeni bir sosyal medya hesabı bağlanamaz. Özellik kaldırılmadan önce bağlanan hesapların erişim bilgileri hiçbir işlemde kullanılmaz; bu kayıtların ne zaman silindiği Gizlilik Politikası’nın 5. bölümünde yazar. RanksUp’ın sizin adınıza içerik yayınladığı tek yer, panelden bağladığınız yayın hedefleridir (ör. WordPress, FTP/SFTP, GitHub, Ghost, Webflow). Yarı otomatik modda (varsayılan) her yazı yayınlanmadan önce onayınızı bekler; Tam otomatik modu seçerseniz takvimdeki yazılar editör ve kalite kontrollerinden geçtikten sonra varsayılan yayın hedefinize kendiliğinden yayınlanır. Yayınlanan içeriğin sorumluluğu ve yayın yaptığınız platformun kurallarına uyum size aittir. Reklam yönetimi için bağlanan Google Ads ve Meta (Facebook) reklam hesabı bağlantıları ayrı bir özelliktir; bu madde onları kapsamaz.',
       },
       {
         // Sahip karari 21.10.2026: musteri logo/marka kullanimina izin verir, yayindan kendisi sorumlu.
@@ -58,7 +63,8 @@ const CONTENT = {
       },
       {
         h: '9. Hesap Sonlandırma',
-        p: "Yasak kullanım tespit edilirse hesap askıya alınabilir. Veriler 30 gün saklanır, sonra silinir. Sosyal medya OAuth token'ları hesap sonlandırılmasından sonra 30 gün içinde geri dönüşsüz silinir.",
+        // Dayanak: me/account-deletion.service.ts freezeAccountData (silme talebi aninda calisir)
+        p: 'Yasak kullanım tespit edilirse hesap askıya alınabilir. Veriler 30 gün saklanır, sonra silinir. Hesabınızı sildiğinizde bağlı hizmetlerin erişim bilgileri (yayın hedefi girişleri, Google Search Console, Google Analytics, Google Ads ve Meta reklam bağlantıları, kendi AI sağlayıcı anahtarlarınız, App Store Connect ve Apple Search Ads anahtarları, kaldırılan sosyal medya özelliğinden kalan erişim bilgileri) 30 günü beklemeden hemen silinir.',
       },
       {
         h: '10. Yetkili Mahkeme',
@@ -71,7 +77,7 @@ const CONTENT = {
     titleA: 'Terms of',
     titleB: 'Service',
     effective: 'Effective: April 27, 2026',
-    updated: 'Last updated: October 21, 2026 — added section 8 (RanksUp Video and brand assets); the following sections were renumbered.',
+    updated: 'Last updated: October 21, 2026 — added section 8 (RanksUp Video and brand assets); the following sections were renumbered. Section 7 still described the removed social media posting feature as if it were available; it has been rewritten. Section 9 now states that the access credentials of connected services are deleted immediately when you delete your account.',
     sections: [
       {
         h: '1. Service Definition',
@@ -104,8 +110,8 @@ const CONTENT = {
         ],
       },
       {
-        h: '7. Social Media Integrations',
-        p: "RanksUp connects to LinkedIn, X (Twitter), Bluesky, TikTok, YouTube, Facebook, Instagram, Threads and Pinterest via OAuth 2.0. Every connection requires the user's explicit consent; users can disconnect and revoke access at any time from the dashboard. RanksUp only publishes content the user approves on their behalf; even auto-publish operates within rules the user pre-defined. The user is responsible for all published content and for compliance with each platform's community guidelines. Each integration is subject to that platform's developer policies and terms of service.",
+        h: '7. Social Media Posting and Publish Targets',
+        p: 'RanksUp’s social media posting feature (connecting LinkedIn, X, Bluesky, TikTok, YouTube, Facebook, Instagram, Threads and Pinterest accounts to publish posts) has been removed; RanksUp does not post to social media accounts on your behalf, and new social media accounts cannot be connected in the dashboard. The access credentials of accounts connected before the feature was removed are not used for anything; section 5 of the Privacy Policy explains when these records are deleted. The only places RanksUp publishes content on your behalf are the publish targets you connect in the dashboard (e.g. WordPress, FTP/SFTP, GitHub, Ghost, Webflow). In "Yarı otomatik" (semi-auto) mode, the default, every article waits for your approval before it is published; if you choose "Tam otomatik" (full auto) mode, scheduled articles are published to your default publish target on their own once they pass the editor and quality checks. You are responsible for published content and for complying with the rules of the platform you publish on. Google Ads and Meta (Facebook) ad account connections made for ad management are a separate feature and are not covered by this section.',
       },
       {
         h: '8. RanksUp Video and Brand Assets',
@@ -113,7 +119,7 @@ const CONTENT = {
       },
       {
         h: '9. Account Termination',
-        p: 'Accounts may be suspended if prohibited use is detected. Data is retained for 30 days then deleted. Social media OAuth tokens are permanently deleted within 30 days of account termination.',
+        p: 'Accounts may be suspended if prohibited use is detected. Data is retained for 30 days then deleted. When you delete your account, the access credentials of connected services (publish target logins, Google Search Console, Google Analytics, Google Ads and Meta ad connections, your own AI provider keys, App Store Connect and Apple Search Ads keys, and credentials left over from the removed social media feature) are deleted immediately, without waiting 30 days.',
       },
       {
         h: '10. Jurisdiction',

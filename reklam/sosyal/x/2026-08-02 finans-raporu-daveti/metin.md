@@ -9,7 +9,7 @@ ChatGPT'ye "bana bir banka öner" diyor. 3 isim duyuyor.
 
 Peki o 3 isim kim?
 
-7 AI motorunda 40+ banka ve ödeme kuruluşunu ölçtük.
+6 AI motorunda 40+ banka ve ödeme kuruluşunu ölçtük.
 Kurumunuzun karnesi ücretsiz 👇
 
 ranksup.ai

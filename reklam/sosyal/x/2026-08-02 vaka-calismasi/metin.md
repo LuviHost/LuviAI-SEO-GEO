@@ -56,7 +56,7 @@ Nisan → Ağustos sonucu (Ahrefs):
 ```
 Aynısını kendi siten için deneyebilirsin.
 
-Markanın Google'da ve 7 AI motorunda nerede durduğunu 30 saniyede gösteriyor. Üyelik yok, kart yok.
+Markanın Google'da ve 6 AI motorunda nerede durduğunu 30 saniyede gösteriyor. Üyelik yok, kart yok.
 
 ranksup.ai
 ```

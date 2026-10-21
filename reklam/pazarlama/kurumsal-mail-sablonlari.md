@@ -13,7 +13,8 @@ Ton (kurucunun LinkedIn mesajlarına verdiği geri bildirim): "çok hazır / bot
 **reddedildi**. İstenen: doğal, tek fikir, gözlem dili, yumuşak kapanış ("Uygun değilse de
 anlayışla karşılarım."). Ölçülmemiş sayı ("cevapta 3 isim geçiyor"), buton CTA ve "bu maile
 kısa bir yanıt yazın" tipi talimat **yok**; konu satırı ≤ 60 karakter, büyük harf/ünlem yok.
-Kaynaksız sayı YOK — "yedi AI asistanı" kodda doğrulanmış tek sayıdır.
+Kaynaksız sayı YOK — "altı AI asistanı" kodda doğrulanmış tek sayıdır (plans.ts fiyat kartı:
+ChatGPT · Claude · Gemini · Perplexity · Grok · DeepSeek; Meta AI / Llama üretimde ölçülmüyor).
 
 KOBİ hunisi (`mail-sablonlari.md`) ile **karıştırma**: oradaki "bankaları çıkar" kuralı o
 huniye özeldir; bu kampanya bankaları hedefler.
@@ -74,7 +75,7 @@ Ben {{gonderen_ad}}, RanksUp'ın kurucusuyum. Markaların ChatGPT, Gemini, Perpl
 
 Bir gözlemi paylaşmak istedim: insanlar "{{sektor_sorusu}}" gibi soruları artık arama motoruna değil bir AI asistanına soruyor. Asistanın cevabında birkaç kurum adı geçiyor; o listede olmayan kurum, o müşterinin gündemine hiç girmiyor. Bunun yeni bir görünürlük kanalı olduğunu ve çoğu kurumun burada nerede durduğunu bilmediğini görüyoruz.
 
-{{firma}} için bunu somut olarak gösterebiliriz: yedi AI asistanına marka adı geçmeyen gerçek müşteri soruları sorup hangi asistanın sizi önerdiğini, yanınızda kimin öne çıktığını ve hangi sorularda hiç görünmediğinizi tek bir raporda ortaya koyuyoruz. Çalışma ücretsiz; sonucu yalnız sizinle paylaşıyoruz.
+{{firma}} için bunu somut olarak gösterebiliriz: altı AI asistanına marka adı geçmeyen gerçek müşteri soruları sorup hangi asistanın sizi önerdiğini, yanınızda kimin öne çıktığını ve hangi sorularda hiç görünmediğinizi tek bir raporda ortaya koyuyoruz. Çalışma ücretsiz; sonucu yalnız sizinle paylaşıyoruz.
 
 İlgilenirseniz kısa bir görüşmede nasıl ölçtüğümüzü ve {{firma}} için neler görebileceğimizi anlatmak isterim. Uygun değilse de anlayışla karşılarım.
 
@@ -101,7 +102,7 @@ Ben {{gonderen_ad}}, RanksUp'ın kurucusuyum. Markaların ChatGPT, Gemini, Perpl
 
 Bir gözlemi paylaşmak istedim: insanlar "{{sektor_sorusu}}" gibi alışveriş sorularını artık arama motoruna değil bir AI asistanına soruyor. Asistanın cevabında birkaç marka adı geçiyor; o listede olmayan marka, o müşterinin gündemine hiç girmiyor. Reklamla o cevaba girilmiyor; içerik ve yapısal sinyallerle giriliyor. Bunun yeni bir görünürlük kanalı olduğunu ve çoğu markanın burada nerede durduğunu bilmediğini görüyoruz.
 
-{{firma}} için bunu somut olarak gösterebiliriz: yedi AI asistanına marka adı geçmeyen gerçek alışveriş soruları sorup hangi asistanın sizi önerdiğini, yanınızda kimin öne çıktığını ve hangi sorularda hiç görünmediğinizi tek bir raporda ortaya koyuyoruz. Çalışma ücretsiz; sonucu yalnız sizinle paylaşıyoruz.
+{{firma}} için bunu somut olarak gösterebiliriz: altı AI asistanına marka adı geçmeyen gerçek alışveriş soruları sorup hangi asistanın sizi önerdiğini, yanınızda kimin öne çıktığını ve hangi sorularda hiç görünmediğinizi tek bir raporda ortaya koyuyoruz. Çalışma ücretsiz; sonucu yalnız sizinle paylaşıyoruz.
 
 İlgilenirseniz kısa bir görüşmede nasıl ölçtüğümüzü ve {{firma}} için neler görebileceğimizi anlatmak isterim. Uygun değilse de anlayışla karşılarım.
 
@@ -127,7 +128,7 @@ Ben {{gonderen_ad}}, RanksUp'ın kurucusuyum. Markaların ChatGPT, Gemini, Perpl
 
 Bir gözlemi paylaşmak istedim: insanlar "{{sektor_sorusu}}" gibi soruları artık karşılaştırma sitesi gezmek yerine bir AI asistanına soruyor. Asistanın cevabında birkaç marka adı geçiyor; o listede olmayan marka, o müşterinin gündemine hiç girmiyor. Bunun yeni bir görünürlük kanalı olduğunu ve çoğu markanın burada nerede durduğunu bilmediğini görüyoruz.
 
-{{firma}} için bunu somut olarak gösterebiliriz: yedi AI asistanına marka adı geçmeyen gerçek müşteri soruları sorup hangi asistanın sizi önerdiğini, yanınızda kimin öne çıktığını ve hangi senaryolarda hiç görünmediğinizi tek bir raporda ortaya koyuyoruz. Çalışma ücretsiz; sonucu yalnız sizinle paylaşıyoruz.
+{{firma}} için bunu somut olarak gösterebiliriz: altı AI asistanına marka adı geçmeyen gerçek müşteri soruları sorup hangi asistanın sizi önerdiğini, yanınızda kimin öne çıktığını ve hangi senaryolarda hiç görünmediğinizi tek bir raporda ortaya koyuyoruz. Çalışma ücretsiz; sonucu yalnız sizinle paylaşıyoruz.
 
 İlgilenirseniz kısa bir görüşmede nasıl ölçtüğümüzü ve {{firma}} için neler görebileceğimizi anlatmak isterim. Uygun değilse de anlayışla karşılarım.
 
@@ -195,7 +196,7 @@ Merhaba {{ad}} {{soyad}}, bağlantı için teşekkürler.
 
 Bir gözlemi paylaşmak istedim: insanlar "{{sektor_sorusu}}" gibi soruları artık arama
 motoruna değil bir AI asistanına soruyor; cevapta birkaç kurum adı geçiyor, o listede
-olmayan kurum o müşterinin gündemine hiç girmiyor. {{firma}} için yedi AI asistanına
+olmayan kurum o müşterinin gündemine hiç girmiyor. {{firma}} için altı AI asistanına
 marka adı geçmeyen gerçek sorular sorup nerede göründüğünüzü tek raporda gösterebiliriz;
 ücretsiz, sonucu yalnız sizinle paylaşıyoruz.
 
