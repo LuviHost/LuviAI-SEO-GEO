@@ -119,6 +119,11 @@ pnpm --filter @luviai/video render:marketing KobiPratikIntroVertical   # → out
   ("KobiPratik kredi veren bir kurum değildir…"). Site metni değişirse `src/kobipratik/` metinlerini güncelle.
 - Ses: timeline.json `KobiPratikReels` (Sol majör, `transpose: 2`) ve `KobiPratikIntro` (Mi♭ majör, `transpose: -2`);
   dikey tanıtım yatayla aynı ızgarayı ve aynı ses dosyasını kullanır (yerleşim en/boy oranından seçilir).
+  İkisi de kendi temposunda: `"bpm": 90` (1 vuruş = 20 kare); diğer kompozisyonlar üst düzey 120 BPM'de kalır.
+- **Okunurluk:** reels ~31,5 sn, tanıtım ~53 sn. Her metin bloğu girişi bittikten sonra en az
+  max(2 sn, 0,3 sn × kelime + 1 sn) ekranda kalır (kartla birlikte okunan başlığa +1 sn, küçük/yasal not ≥ 3 sn,
+  listeler son öğeden sonra ≥ 2,5 sn). Zamanlamayı değiştirdikten sonra denetle:
+  `node scripts/check-kobipratik-readability.mjs` (ihlalde çıkış kodu 1).
 
 ## Makaleden otomatik kısa video (ArticleShort — CLI denemesi)
 

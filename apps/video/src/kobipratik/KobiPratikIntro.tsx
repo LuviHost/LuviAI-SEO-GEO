@@ -31,9 +31,10 @@ import {
 } from './kit';
 
 /**
- * KobiPratikIntro — KobiPratik tanitim filmi, 1920×1080 @30, 36 sn; KobiPratikIntroVertical ayni
+ * KobiPratikIntro — KobiPratik tanitim filmi, 1920×1080 @30, ~53 sn (90 BPM); KobiPratikIntroVertical ayni
  * zaman cizelgesi ve ayni sesle 1080×1920 kesim (guvenli alan x 90–950, y 250–1500).
  * Sahneler: kanca → marka → kimin icin → urunler → araclar + rehber → 3 adim → neden KobiPratik → kapanis.
+ * Her metin okunacak kadar ekranda kalir (scripts/check-kobipratik-readability.mjs ile denetlenir).
  * Iddialar yalniz kobipratik.com'da birebir gecenler (SSS: ucretsiz; "Neden KobiPratik?" listesi;
  * "KobiPratik Nedir?" yasal notu). Teklif kartlari "Örnek" etiketli ve yer tutuculu.
  */
@@ -94,7 +95,7 @@ const card: React.CSSProperties = {
   boxShadow: `0 22px 54px ${alpha(K.navy, 0.08)}`,
 };
 
-/* ───────────── 0-4 sn: kanca — her teklif ayri sekmede ───────────── */
+/* ───────────── kanca — her teklif ayri sekmede ───────────── */
 
 const TABS = ['Banka sitesi', 'Kredi kampanyası', 'POS başvurusu', 'Kart avantajları', 'Komisyon tablosu', 'Başka bir banka', 'Kampanya koşulları', 'Başvuru formu'];
 
@@ -195,14 +196,14 @@ function Hook({ frame, L }: { frame: number; L: L }) {
   );
 }
 
-/* ───────────── 4-6 sn: marka ───────────── */
+/* ───────────── marka ───────────── */
 
 function Brand({ frame, L }: { frame: number; L: L }) {
   const { s, e, on } = inScene(frame, 'brand');
   if (!on || frame < s) return null;
   const tile = snap(frame, s);
   const word = snap(frame, s + 3);
-  const tag = appear(frame, s + 8);
+  const tag = appear(frame, TL.at('brand.name'));
   const sub = appear(frame, TL.at('brand.tag'));
   const out = exitOf(frame, e);
   return (
@@ -223,7 +224,7 @@ function Brand({ frame, L }: { frame: number; L: L }) {
   );
 }
 
-/* ───────────── 6-9 sn: kimin icin ───────────── */
+/* ───────────── kimin icin ───────────── */
 
 const PERSONAS: Array<{ ev: string; title: string; sub: string; Icon: typeof Store }> = [
   { ev: 'who.p1', title: 'Esnaf', sub: 'Tahsilat için POS, harcama için ticari kart', Icon: Store },
@@ -278,7 +279,7 @@ function Who({ frame, L }: { frame: number; L: L }) {
   );
 }
 
-/* ───────────── 9-14 sn: urunler ───────────── */
+/* ───────────── urunler ───────────── */
 
 const ORDER: ProductKind[] = ['credit', 'card', 'pos'];
 const PARTNERS: Record<ProductKind, string> = { credit: 'Örnek Banka A', card: 'Örnek Banka B', pos: 'Örnek Ödeme Kuruluşu' };
@@ -370,7 +371,7 @@ function Products({ frame, L }: { frame: number; L: L }) {
   );
 }
 
-/* ───────────── 14-18 sn: araclar + rehber ───────────── */
+/* ───────────── araclar + rehber ───────────── */
 
 const QUERY = 'KDV hes';
 const RESULTS = ['KDV Hesaplama', 'KDV Tevkifatı Hesaplama'];
@@ -387,13 +388,17 @@ function Tools({ frame, L }: { frame: number; L: L }) {
   if (!on) return null;
   const typed = typedCount(frame, TL, 'tools.type', QUERY.length);
   const calc = TL.at('tools.calc');
-  const showRes = frame >= TL.at('tools.type') + 10;
+  // sonuclar "KDV" yazilinca (3. harf) gelir, birer ceyrek vurus arayla
+  const resAt = (i: number) => TL.at('tools.type') + Math.round((0.75 + 0.25 * i) * TL.fpb);
+  const showRes = frame >= resAt(0) - 6;
   const hl = ramp(frame, calc, calc + 6);
   const left: Box = L.v ? { x: 90, y: 440, w: 860, h: 470 } : { x: 140, y: 280, w: 790, h: 620 };
   const right: Box = L.v ? { x: 90, y: 945, w: 860, h: 545 } : { x: 990, y: 280, w: 790, h: 620 };
+  // once sol kart (arama + kategoriler), sonra sag kart (rehberler) — ayni anda tek yeni oge
+  const cAts = ['tools.c1', 'tools.c2', 'tools.c3'].map((id) => TL.at(id));
   const gAts = ['tools.g1', 'tools.g2', 'tools.g3'].map((id) => TL.at(id));
-  const leftIn = appear(frame, s + 2);
-  const rightIn = appear(frame, s + 6);
+  const leftIn = appear(frame, TL.at('tools.left'));
+  const rightIn = appear(frame, TL.at('tools.right'));
   return (
     <SceneWrap frame={frame} s={s} e={e}>
       <div style={{ position: 'absolute', left: L.safe.x, top: L.v ? 280 : 120 }}>
@@ -415,7 +420,7 @@ function Tools({ frame, L }: { frame: number; L: L }) {
         </div>
         <div style={{ marginTop: 14 }}>
           {RESULTS.map((r, i) => {
-            const a = appear(frame, TL.at('tools.type') + 10 + i * 3);
+            const a = appear(frame, resAt(i));
             const active = i === 0;
             return showRes ? (
               <div
@@ -443,7 +448,7 @@ function Tools({ frame, L }: { frame: number; L: L }) {
         </div>
         <div style={{ marginTop: L.v ? 16 : 26, display: 'flex', flexWrap: 'wrap', gap: 12 }}>
           {CATEGORIES.map((c, i) => {
-            const a = appear(frame, gAts[i]);
+            const a = appear(frame, cAts[i]);
             return (
               <Pill key={c} size={L.v ? 24 : 25} color={K.steel} style={{ opacity: a.opacity, transform: `scale(${0.8 + 0.2 * a.p})` }}>
                 {c}
@@ -487,7 +492,7 @@ function Tools({ frame, L }: { frame: number; L: L }) {
   );
 }
 
-/* ───────────── 18-25 sn: 3 adim ───────────── */
+/* ───────────── 3 adim ───────────── */
 
 function How({ frame, L }: { frame: number; L: L }) {
   const { s, e, on } = inScene(frame, 'how');
@@ -530,7 +535,7 @@ function How({ frame, L }: { frame: number; L: L }) {
       </div>
       {steps.map((st, i) => {
         const b = box(i);
-        const a = appear(frame, s + 4 + i * 4);
+        const a = appear(frame, TL.at(`how.c${i + 1}`));
         const active = frame >= st.at - 2;
         const isDone = i === 2 ? frame >= done - 2 : frame >= [s2, s3, done][i];
         return (
@@ -675,7 +680,7 @@ function StepApply({ frame, at, done }: { frame: number; at: number; done: numbe
   );
 }
 
-/* ───────────── 25-30 sn: neden KobiPratik ───────────── */
+/* ───────────── neden KobiPratik ───────────── */
 
 // "Neden KobiPratik?" listesi + SSS (kobipratik.com, ana sayfa ve /kobipratik-nedir)
 const REASONS: Array<{ ev: string; title: string; sub: string }> = [
@@ -751,7 +756,7 @@ function Trust({ frame, L }: { frame: number; L: L }) {
   );
 }
 
-/* ───────────── 30-36 sn: kapanis ───────────── */
+/* ───────────── kapanis ───────────── */
 
 function End({ frame, L }: { frame: number; L: L }) {
   const [s] = TL.scene('end');

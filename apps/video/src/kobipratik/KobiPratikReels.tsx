@@ -31,8 +31,9 @@ import {
 } from './kit';
 
 /**
- * KobiPratikReels — KobiPratik dikey reklami, 1080×1920 @30, 17 sn (Reels / TikTok / Shorts).
- * Her kesme vurusta (timeline.json 'KobiPratikReels'). Guvenli alan: metin ve arayuz
+ * KobiPratikReels — KobiPratik dikey reklami, 1080×1920 @30, ~31.5 sn (Reels / TikTok / Shorts).
+ * Her kesme vurusta (timeline.json 'KobiPratikReels', 90 BPM). Her metin okunacak kadar ekranda kalir:
+ * scripts/check-kobipratik-readability.mjs. Guvenli alan: metin ve arayuz
  * x 90–950, y 250–1500 (sagdaki dugme sutunu ve alttaki aciklama alani bos kalir).
  */
 
@@ -59,7 +60,7 @@ export const KobiPratikReels: React.FC<MarketingProps> = ({ muted = false }) => 
   );
 };
 
-/* ───────────── 0-3 sn: kanca ───────────── */
+/* ───────────── kanca ───────────── */
 
 const ASKS: Array<{ word: string; ev: string; Icon: typeof CreditCard }> = [
   { word: 'Ticari kredi?', ev: 'hook.w1', Icon: Percent },
@@ -74,16 +75,17 @@ function Hook({ frame }: { frame: number }) {
   const line = TL.at('hook.line');
   const strike = TL.at('hook.strike');
   const strikeP = ramp(frame, strike - 2, strike + 8);
-  // banka karolari: yuruyen nokta sirayla dolasir (kullanicinin derdi)
+  // banka karolari: yuruyen nokta sirayla dolasir (kullanicinin derdi); anahtarlar vurus cinsinden
   const banks = [215, 540, 865];
+  const b = (beats: number) => beats * TL.fpb;
   const dotX = interpolateKeys(frame, [
     [0, banks[0]],
-    [14, banks[0]],
-    [24, banks[1]],
-    [30, banks[1]],
-    [40, banks[2]],
-    [46, banks[2]],
-    [56, banks[0]],
+    [b(0.93), banks[0]],
+    [b(1.6), banks[1]],
+    [b(2), banks[1]],
+    [b(2.67), banks[2]],
+    [b(3.07), banks[2]],
+    [b(3.73), banks[0]],
   ]);
   return (
     <AbsoluteFill style={{ opacity: 1 - out, transform: `translateY(${-out * 70}px)` }}>
@@ -173,7 +175,7 @@ function interpolateKeys(frame: number, keys: Array<[number, number]>) {
   return keys[keys.length - 1][1];
 }
 
-/* ───────────── 3-4 sn: marka ───────────── */
+/* ───────────── marka ───────────── */
 
 function BrandLock({ frame }: { frame: number }) {
   const [s, e] = TL.scene('brand');
@@ -197,7 +199,7 @@ function BrandLock({ frame }: { frame: number }) {
   );
 }
 
-/* ───────────── 4-10 sn: uc urun ───────────── */
+/* ───────────── uc urun ───────────── */
 
 const SCENE_META: Record<ProductKind, { n: string; title: string; sub: string; partners: [string, string, string]; overrides?: Array<Partial<Record<number, string>>> }> = {
   card: { n: '1/3', title: 'Ticari kredi kartı', sub: 'Teklifleri yan yana gör', partners: ['Örnek Banka A', 'Örnek Banka B', 'Örnek Banka C'] },
@@ -244,7 +246,7 @@ function ProductScene({ frame, kind }: { frame: number; kind: ProductKind }) {
         {kind === 'pos' ? (
           <div style={{ marginTop: 18, display: 'flex', gap: 12 }}>
             {POS_TYPES.map((t, i) => {
-              const p = appear(frame, s + 3 + i * 2);
+              const p = appear(frame, s + 4 + i * 3);
               return (
                 <Pill key={t} size={27} color={K.steel} bg={K.paper} style={{ opacity: p.opacity, transform: `translateY(${(1 - p.p) * 16}px)`, boxShadow: `0 6px 16px ${alpha(K.navy, 0.06)}` }}>
                   {t}
@@ -288,7 +290,7 @@ function ProductScene({ frame, kind }: { frame: number; kind: ProductKind }) {
   );
 }
 
-/* ───────────── 10-13 sn: karsilastir → basvur ───────────── */
+/* ───────────── karsilastir → basvur ───────────── */
 
 const STEPS: Array<{ ev: string; title: string; sub: string }> = [
   { ev: 'flow.s1', title: 'İhtiyacını seç', sub: 'Kredi, kart ya da POS' },
@@ -358,7 +360,7 @@ function Flow({ frame }: { frame: number }) {
   );
 }
 
-/* ───────────── 13-17 sn: kapanis ───────────── */
+/* ───────────── kapanis ───────────── */
 
 function End({ frame }: { frame: number }) {
   const [s] = TL.scene('end');

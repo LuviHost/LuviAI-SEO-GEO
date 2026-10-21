@@ -15,6 +15,7 @@
  * Duzen: Fa majorde 4 akorluk dongu (Fmaj7 · Am7 · Dm7 · Bbmaj7), her akor 1 olcu (4 vurus).
  * Bolum seviyeleri (timeline "music"): silence · pulse · L1 · L2 · L3 · L4 · outro.
  * Istege bagli "transpose" (yarim ton) duzeni baska tona tasir; yoksa Fa major (eski izler birebir ayni).
+ * Istege bagli "bpm" kompozisyona kendi temposunu verir (KobiPratik: 90); yoksa ust duzey bpm (120).
  */
 import { mkdirSync, readFileSync, renameSync, writeFileSync, unlinkSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -25,7 +26,8 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const TIMELINE = JSON.parse(readFileSync(join(ROOT, 'src', 'marketing', 'timeline.json'), 'utf8'));
 const OUT_DIR = join(ROOT, 'public', 'audio');
 const SR = 48000;
-const SPB = 60 / TIMELINE.bpm; // saniye / vurus
+/** saniye / vurus — arrange() her kompozisyon icin kendi bpm'ine gore ayarlar (yoksa ust duzey bpm) */
+let SPB = 60 / TIMELINE.bpm;
 const TAU = Math.PI * 2;
 
 /* ───────────── yardimcilar ───────────── */
@@ -316,6 +318,7 @@ const LEVELS = {
 };
 
 function arrange(id, def) {
+  SPB = 60 / (def.bpm ?? TIMELINE.bpm);
   const seconds = def.beats * SPB + 2.5;
   const dry = new Bus(seconds);
   const send = new Bus(seconds);

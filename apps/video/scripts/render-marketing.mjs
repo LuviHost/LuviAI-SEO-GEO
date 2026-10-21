@@ -31,9 +31,9 @@ const JOBS = [
   { id: 'VideoLaunch', name: 'ranksup-video-duyuru-yatay', dir: 'launch', posterFrame: 76, sheet: { width: 400, cols: 8 } },
   { id: 'VideoLaunchVertical', name: 'ranksup-video-duyuru-dikey', dir: 'launch', posterFrame: 60, sheet: { width: 270, cols: 8 } },
   // KobiPratik'in kendi reklamlari (src/kobipratik/) — KobiPratik markasi; teklif kartlari "Örnek" + yer tutucu
-  { id: 'KobiPratikReels', name: 'kobipratik-reels-dikey', dir: 'kobipratik', posterFrame: 175, sheet: { width: 270, cols: 9 } },
-  { id: 'KobiPratikIntro', name: 'kobipratik-tanitim-yatay', dir: 'kobipratik', posterFrame: 165, sheet: { width: 400, cols: 8 } },
-  { id: 'KobiPratikIntroVertical', name: 'kobipratik-tanitim-dikey', dir: 'kobipratik', posterFrame: 165, sheet: { width: 220, cols: 10 } },
+  { id: 'KobiPratikReels', name: 'kobipratik-reels-dikey', dir: 'kobipratik', posterFrame: 285, sheet: { width: 270, cols: 9 } },
+  { id: 'KobiPratikIntro', name: 'kobipratik-tanitim-yatay', dir: 'kobipratik', posterFrame: 260, sheet: { width: 400, cols: 8 } },
+  { id: 'KobiPratikIntroVertical', name: 'kobipratik-tanitim-dikey', dir: 'kobipratik', posterFrame: 260, sheet: { width: 220, cols: 10 } },
 ];
 
 const args = process.argv.slice(2);

@@ -68,9 +68,17 @@ export function ramp(frame: number, start: number, end: number, ease: (t: number
   return interpolate(frame, [start, end], [0, 1], { extrapolateLeft: 'clamp', extrapolateRight: 'clamp', easing: ease });
 }
 
-/** vurusa oturan giris (vurustan ~4 kare once baslar, kucuk asma) */
-export function snap(frame: number, at: number, lead = 4) {
-  return spring({ frame: frame - (at - lead), fps: 30, config: { damping: 15, stiffness: 210, mass: 0.7 } });
+/**
+ * Okunurluk ayarlari (scripts/check-kobipratik-readability.mjs ayni degerleri kullanir — degisirse orayi da guncelle).
+ * Giris yumusak ve asmasiz (~9 karede %95), vurustan SNAP_LEAD kare once baslar; cikis EXIT_FRAMES karede.
+ */
+export const SNAP_LEAD = 6;
+export const SNAP_CONFIG = { damping: 18, stiffness: 140, mass: 0.8 } as const;
+export const EXIT_FRAMES = 10;
+
+/** vurusa oturan sakin giris (vurustan SNAP_LEAD kare once baslar, asma yok denecek kadar az) */
+export function snap(frame: number, at: number, lead = SNAP_LEAD) {
+  return spring({ frame: frame - (at - lead), fps: 30, config: SNAP_CONFIG });
 }
 
 export function soft(frame: number, at: number) {
@@ -92,9 +100,9 @@ export function keyed(frame: number, keys: Array<[number, number]>, ease = Easin
   return keys[keys.length - 1][1];
 }
 
-/** sahne cikisi: son 7 karede kaybolma orani */
+/** sahne cikisi: son EXIT_FRAMES karede kaybolma orani */
 export function exitOf(frame: number, end: number) {
-  return ramp(frame, end - 7, end - 1, Easing.in(Easing.cubic));
+  return ramp(frame, end - EXIT_FRAMES, end - 1, Easing.inOut(Easing.cubic));
 }
 
 /* ───────────── zemin ───────────── */
