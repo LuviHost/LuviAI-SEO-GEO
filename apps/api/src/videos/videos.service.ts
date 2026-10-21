@@ -2,7 +2,10 @@ import { createHash } from 'node:crypto';
 import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { QuotaService } from '../billing/quota.service.js';
-import { ARTICLE_SHORT_ENGINE, ASPECT_OF, removeVideoFiles, VIDEO_COMPOSITION, VIDEO_REQUEST_LOCK_MS, type VideoFormat, type VideoType } from './article-video.config.js';
+import {
+  ARTICLE_SHORT_ENGINE, ASPECT_OF, DEFAULT_VIDEO_TEMPO, removeVideoFiles, VIDEO_COMPOSITION, VIDEO_REQUEST_LOCK_MS, VIDEO_TEMPOS,
+  type VideoFormat, type VideoTempo, type VideoType,
+} from './article-video.config.js';
 import { assertOwnSitePageUrl, PromoSourceError } from './promo-video-source.js';
 import { extractSiteBrand, FALLBACK_BRAND_PRIMARY, normalizeHexColor } from './article-video-brand.js';
 import { loadBrandKit } from './article-short-kit.js';
@@ -19,6 +22,8 @@ export interface VideoRequestInput {
   pageUrl?: string;
   /** 'vertical' (varsayilan) | 'horizontal' (site ve urun) */
   format?: VideoFormat;
+  /** 'normal' (varsayilan) | 'fast' (eski 15 sn) | 'slow' */
+  tempo?: VideoTempo;
   /** #rrggbb; null = sablon rengi (RanksUp turuncusu); verilmezse sitenin rengi */
   primaryColor?: string | null;
   /** false = logo kullanma (bas harf monogrami) */
@@ -150,6 +155,8 @@ export class VideosService {
   private async resolveSource(site: { id: string; url: string; name: string }, input: VideoRequestInput) {
     const type: VideoType = input.type ?? 'article';
     const format: VideoFormat = input.format ?? 'vertical';
+    // DTO dogrular; servis dogrudan cagrilirsa (testler, ileride MCP) da ayni kural
+    if (input.tempo !== undefined && !(VIDEO_TEMPOS as readonly string[]).includes(input.tempo)) throw new BadRequestException("tempo 'fast', 'normal' ya da 'slow' olmalı.");
     const template = VIDEO_COMPOSITION[type]?.[format];
     if (!template) throw new BadRequestException('Makale videosu yalnız dikey (9:16) biçimde üretilir.');
 
@@ -264,6 +271,8 @@ export class VideosService {
               template: src.template,
               videoType: src.type,
               format: src.format,
+              // Tempo kayitta durur: worker ayni tempoyla render eder (eski kayitta yok -> 'fast')
+              tempo: input.tempo ?? DEFAULT_VIDEO_TEMPO,
               ...(src.sourceUrl ? { sourceUrl: src.sourceUrl } : {}),
               sourceKey: src.sourceKey,
               request,

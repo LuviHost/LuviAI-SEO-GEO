@@ -25,7 +25,8 @@
 export const SCRIPT_VERSION = 1;
 export const LLM_MODEL = 'claude-haiku-5-5';
 
-const LIMITS = { hook: 110, hookSub: 140, kicker: 40, title: 90, detail: 110 };
+/** Metin koruyucusunun karakter sinirlari (validateScript; okunurluk denetimi en uzun metni bunlardan kurar) */
+export const LIMITS = { hook: 110, hookSub: 140, kicker: 40, title: 90, detail: 110 };
 /** Kapanis dugmesi makalenin dilinde (bilinmeyen dil -> Turkce) */
 const CTA_LABELS = { tr: 'Tamamını oku', en: 'Read the full article' };
 export const ctaLabel = (lang) => CTA_LABELS[String(lang ?? 'tr').slice(0, 2).toLowerCase()] ?? CTA_LABELS.tr;

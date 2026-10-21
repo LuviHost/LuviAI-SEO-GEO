@@ -4,6 +4,7 @@ import { ArrowRight } from 'lucide-react';
 import { clamp01, fontDisplay, fontUI } from '../marketing/kit';
 import { fitText, type Fit, type FitOptions } from '../article-short/fit';
 import { contrast, mix, rgba, type BrandPalette } from '../article-short/palette';
+import type { Tempo } from '../tempo/plan.mjs';
 
 /**
  * Site ve urun tanitim videolarinin (SiteIntro, ProductShort) ortak parcalari. Marka paleti,
@@ -26,6 +27,8 @@ export type PromoBaseProps = {
   brand: PromoBrand;
   muted?: boolean;
   watermark?: boolean;
+  /** 'fast' = eski sabit izgara; 'normal' / 'slow' = sure metinden (src/tempo/plan.mjs). Yoksa 'fast' */
+  tempo?: Tempo;
 };
 
 export const WATERMARK_TEXT = 'ranksup.ai ile üretildi';

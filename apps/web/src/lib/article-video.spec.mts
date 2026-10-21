@@ -7,8 +7,9 @@
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
-  ARTICLE_VIDEO_COPY, MULTI_PART_SUFFIXES, VIDEO_FORMAT_OPTIONS, VIDEO_STATUS_LABEL, VIDEO_TYPE_LABEL, activePromoVideo, activeVideoFor,
-  canRequestVideo, formatVideoSize, hasActiveVideos, normalizeHex, productUrlProblem, quotaLine, videoFileName, videoRequestBody, videoTypeOf,
+  ARTICLE_VIDEO_COPY, DEFAULT_VIDEO_TEMPO, MULTI_PART_SUFFIXES, VIDEO_FORMAT_OPTIONS, VIDEO_STATUS_LABEL, VIDEO_TEMPOS, VIDEO_TEMPO_LABEL,
+  VIDEO_TEMPO_SECONDS, VIDEO_TYPE_LABEL, activePromoVideo, activeVideoFor, canRequestVideo, formatVideoSize, hasActiveVideos, normalizeHex,
+  productUrlProblem, quotaLine, tempoDurationLabel, videoFileName, videoRequestBody, videoTempoOf, videoTypeOf,
 } from './article-video';
 
 describe('canRequestVideo — yalniz yayindaki makale', () => {
@@ -73,7 +74,8 @@ describe('kota satiri ve dosya', () => {
 
   it('kilitli onizleme metni dogru plani ve dogru iddiayi soyler', () => {
     expect(ARTICLE_VIDEO_COPY.lockedTitle).toContain('Profesyonel');
-    expect(ARTICLE_VIDEO_COPY.lockedBody).toContain('15 saniyelik');
+    expect(ARTICLE_VIDEO_COPY.lockedBody).toContain('15–60 saniye, tempo seçilebilir');
+    expect(ARTICLE_VIDEO_COPY.lockedBody).not.toContain('15 saniyelik');
     expect(ARTICLE_VIDEO_COPY.lockedNote).toMatch(/yer tutucu/);
   });
 
@@ -90,7 +92,8 @@ describe('site ve urun tanitim videolari', () => {
     expect(VIDEO_TYPE_LABEL).toEqual({ article: 'Makaleden', site: 'Site tanıtımı', product: 'Ürün tanıtımı' });
     expect(videoTypeOf({})).toBe('article');
     expect(videoTypeOf({ type: 'product' })).toBe('product');
-    expect(VIDEO_FORMAT_OPTIONS.site.map((o) => o.label)).toEqual(['Dikey 9:16 · 15 sn', 'Yatay 16:9 · 24 sn']);
+    // Sure bicimde yazmaz: tempoya bagli (tempoDurationLabel)
+    expect(VIDEO_FORMAT_OPTIONS.site.map((o) => o.label)).toEqual(['Dikey 9:16', 'Yatay 16:9']);
     expect(VIDEO_FORMAT_OPTIONS.product.map((o) => o.format)).toEqual(['vertical', 'horizontal']);
   });
 
@@ -141,5 +144,51 @@ describe('site ve urun tanitim videolari', () => {
   it('kilitli onizleme uc turu ve sitenin kendi metni kuralini soyler', () => {
     expect(ARTICLE_VIDEO_COPY.lockedBody).toMatch(/ürün\/hizmet sayfasından/);
     expect(ARTICLE_VIDEO_COPY.lockedBody).toMatch(/yatay 16:9/);
+  });
+});
+
+describe('tempo (Hizli / Normal / Yavas)', () => {
+  it('uc tempo, Turkce etiketler; yeni isteklerde varsayilan normal', () => {
+    expect([...VIDEO_TEMPOS]).toEqual(['fast', 'normal', 'slow']);
+    expect(VIDEO_TEMPO_LABEL).toEqual({ fast: 'Hızlı', normal: 'Normal', slow: 'Yavaş' });
+    expect(DEFAULT_VIDEO_TEMPO).toBe('normal');
+  });
+
+  it('yaklasik sure tur + bicim + tempoya gore; makale her zaman dikey', () => {
+    expect(tempoDurationLabel('article', 'vertical', 'fast')).toBe('15 sn');
+    expect(tempoDurationLabel('site', 'horizontal', 'fast')).toBe('24 sn');
+    expect(tempoDurationLabel('article', 'horizontal', 'normal')).toBe(tempoDurationLabel('article', 'vertical', 'normal'));
+    expect(tempoDurationLabel('product', 'vertical', 'normal')).toMatch(/^\d+–\d+ sn$/);
+    // Tablo: hizli sabit sure; yavas normalden uzun baslar; hicbiri 60 sn'yi gecmez
+    for (const [key, row] of Object.entries(VIDEO_TEMPO_SECONDS)) {
+      expect(row.fast[0], key).toBe(row.fast[1]);
+      expect(row.slow[0], key).toBeGreaterThan(row.normal[0]);
+      expect(row.slow[1], key).toBeGreaterThanOrEqual(row.normal[1]);
+      for (const t of VIDEO_TEMPOS) expect(row[t][1], `${key}.${t}`).toBeLessThanOrEqual(60);
+    }
+    expect(Object.keys(VIDEO_TEMPO_SECONDS).sort()).toEqual(['article.vertical', 'product.horizontal', 'product.vertical', 'site.horizontal', 'site.vertical']);
+  });
+
+  it('eski yanit / kayit (tempo yok) hizli sayilir (eski 15 sn izgarayla uretildi)', () => {
+    expect(videoTempoOf({})).toBe('fast');
+    expect(videoTempoOf({ tempo: 'slow' })).toBe('slow');
+    expect(videoTempoOf({ tempo: 'turbo' } as unknown as Parameters<typeof videoTempoOf>[0])).toBe('fast');
+  });
+
+  it('istek govdesi secilen tempoyu tasir; verilmezse alan yok (sunucu varsayilani normal)', () => {
+    const brand = { name: 'Örnek', primary: '#2563eb' };
+    expect(videoRequestBody({ target: { type: 'article', articleId: 'a1' }, brand, color: '#2563eb', useTemplateColor: false, useLogo: true, name: 'Örnek', tempo: 'slow' }))
+      .toEqual({ articleId: 'a1', useLogo: true, tempo: 'slow' });
+    expect(videoRequestBody({ target: { type: 'site', format: 'vertical' }, brand, color: '#2563eb', useTemplateColor: false, useLogo: true, name: 'Örnek', tempo: 'fast' }))
+      .toEqual({ type: 'site', format: 'vertical', useLogo: true, tempo: 'fast' });
+    expect(videoRequestBody({ target: { type: 'article', articleId: 'a1' }, brand, color: '#2563eb', useTemplateColor: false, useLogo: true, name: 'Örnek' }))
+      .toEqual({ articleId: 'a1', useLogo: true });
+  });
+
+  it('tempo listesi sunucuyla AYNI (api article-video.config.ts VIDEO_TEMPOS, DEFAULT_VIDEO_TEMPO)', () => {
+    const src = readFileSync(new URL('../../../api/src/videos/article-video.config.ts', import.meta.url), 'utf8');
+    const list = /VIDEO_TEMPOS = \[([^\]]*)\]/.exec(src)?.[1] ?? '';
+    expect([...list.matchAll(/'([a-z]+)'/g)].map((m) => m[1])).toEqual([...VIDEO_TEMPOS]);
+    expect(src).toContain(`DEFAULT_VIDEO_TEMPO: VideoTempo = '${DEFAULT_VIDEO_TEMPO}'`);
   });
 });

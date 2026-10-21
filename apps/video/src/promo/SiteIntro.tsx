@@ -1,7 +1,8 @@
 import React, { useMemo } from 'react';
 import { AbsoluteFill, Easing, useCurrentFrame } from 'remotion';
-import { Soundtrack, clamp01, fontDisplay, fontUI, ramp, snap, soft, useBrandFonts } from '../marketing/kit';
-import { timeline, type Timeline } from '../marketing/timeline';
+import { clamp01, fontDisplay, fontUI, ramp, useBrandFonts } from '../marketing/kit';
+import { timeline } from '../marketing/timeline';
+import { TempoProvider, TempoSoundtrack, tempoTimeline, useTL, type TempoTimeline } from '../tempo/TempoTimeline';
 import { fitText, type Fit } from '../article-short/fit';
 import { brandPalette, rgba, type BrandPalette } from '../article-short/palette';
 import { LogoTile } from '../article-short/ArticleShort';
@@ -9,22 +10,22 @@ import { CtaPill, DISPLAY, FitLines, BrandField, UI, WatermarkLine, fitK, linesH
 
 /**
  * SiteIntro — musterinin kendi sitesinden "site tanitim videosu".
- *   SiteIntro     1080×1920, 15 sn (Reels / Shorts / TikTok)
- *   SiteIntroWide 1920×1080, 24 sn (web sitesi, video platformlari)
+ *   SiteIntro     1080×1920 (Reels / Shorts / TikTok)        'fast' 15 sn
+ *   SiteIntroWide 1920×1080 (web sitesi, video platformlari) 'fast' 24 sn
+ * normal / slow tempoda sure metinden (src/tempo/plan.mjs, en fazla 60 sn).
  *
  * Gorsel dil MARKA ONDE: tum zemin marka rengi (palette.ts kontrasta gore yazi rengini secer —
  * sari, acik mavi ya da lacivert ayni okunurlukta), acilista buyuk logo karosu + ad + isletmenin
  * ne yaptigi; uc hizmet karti ust uste (yatayda yan yana) birikir; kapanista acik zemin, alan adi.
  * Logo yoksa bas harf monogrami (LogoTile). Metinler fit.ts ile olculup sigdirilir.
- * Zamanlama timeline.json 'SiteIntro' / 'SiteIntroWide' (ses ayni izgarada).
+ * Zamanlama baglamdaki tempo cizelgesinden (useTL; fast'ta timeline.json 'SiteIntro' / 'SiteIntroWide').
  */
 
 export type SiteIntroProps = PromoBaseProps;
 
-const TLV = timeline('SiteIntro');
-const TLW = timeline('SiteIntroWide');
-export const SITE_INTRO_DURATION = TLV.durationInFrames;
-export const SITE_INTRO_WIDE_DURATION = TLW.durationInFrames;
+/** 'fast' tempodaki sabit sureler (Root.tsx varsayilani; asil sure calculateMetadata'dan) */
+export const SITE_INTRO_DURATION = timeline('SiteIntro').durationInFrames;
+export const SITE_INTRO_WIDE_DURATION = timeline('SiteIntroWide').durationInFrames;
 
 export const siteIntroDefaults: SiteIntroProps = {
   hook: 'Örnek işletme ne yapar?',
@@ -35,6 +36,7 @@ export const siteIntroDefaults: SiteIntroProps = {
   brand: { name: 'Örnek Klinik', domain: 'ornekklinik.com' },
   muted: false,
   watermark: true,
+  tempo: 'normal',
 };
 
 /* ═════════════ dikey ═════════════ */
@@ -51,6 +53,7 @@ function vHookHeight(tile: number, name: Fit, hook: Fit, sub: Fit | null) {
 export const SiteIntro: React.FC<SiteIntroProps> = (props) => {
   const ready = useBrandFonts();
   const frame = useCurrentFrame();
+  const TL = useMemo(() => tempoTimeline('SiteIntro', props), [props]);
   const pal = useMemo(() => brandPalette(props.brand.primary), [props.brand.primary]);
   const points = useMemo(() => props.points.slice(0, 3), [props.points]);
 
@@ -94,31 +97,34 @@ export const SiteIntro: React.FC<SiteIntroProps> = (props) => {
   }, [ready, props.brand.name, props.hook, props.hookSub, props.cta.domain, points]);
 
   return (
-    <AbsoluteFill style={{ fontFamily: fontUI, color: pal.onPrimary, overflow: 'hidden' }}>
-      <Soundtrack tl={TLV} muted={props.muted ?? false} />
-      <BrandField pal={pal} />
-      {fits ? (
-        <>
-          <VHook frame={frame} pal={pal} fits={fits} brand={props.brand} />
-          <VHeader frame={frame} pal={pal} fits={fits} brand={props.brand} />
-          <VCards frame={frame} pal={pal} fits={fits} />
-          {props.watermark !== false ? <BrandWatermark frame={frame} pal={pal} tl={TLV} top={1452} /> : null}
-          <EndCard frame={frame} pal={pal} tl={TLV} brand={props.brand} label={props.cta.label} name={fits.endName} domain={fits.domain} watermark={props.watermark !== false} wide={false} />
-        </>
-      ) : null}
-    </AbsoluteFill>
+    <TempoProvider value={TL}>
+      <AbsoluteFill style={{ fontFamily: fontUI, color: pal.onPrimary, overflow: 'hidden' }}>
+        <TempoSoundtrack tl={TL} muted={props.muted ?? false} />
+        <BrandField pal={pal} />
+        {fits ? (
+          <>
+            <VHook frame={frame} pal={pal} fits={fits} brand={props.brand} />
+            <VHeader frame={frame} pal={pal} fits={fits} brand={props.brand} />
+            <VCards frame={frame} pal={pal} fits={fits} />
+            {props.watermark !== false ? <BrandWatermark frame={frame} pal={pal} tl={TL} top={1452} /> : null}
+            <EndCard frame={frame} pal={pal} tl={TL} brand={props.brand} label={props.cta.label} name={fits.endName} domain={fits.domain} watermark={props.watermark !== false} wide={false} />
+          </>
+        ) : null}
+      </AbsoluteFill>
+    </TempoProvider>
   );
 };
 
 function VHook({ frame, pal, fits, brand }: { frame: number; pal: BrandPalette; fits: VFits; brand: PromoBaseProps['brand'] }) {
-  const [, e] = TLV.scene('hook');
+  const TL = useTL();
+  const [, e] = TL.scene('hook');
   if (frame >= e + 2) return null;
   const out = ramp(frame, e - 10, e - 2, Easing.in(Easing.cubic));
-  const logo = snap(frame, TLV.at('hook.logo') + 4);
-  const name = snap(frame, TLV.at('hook.name'));
-  const bar = ramp(frame, TLV.at('hook.name') + 2, TLV.at('hook.title'));
-  const title = snap(frame, TLV.at('hook.title'));
-  const sub = soft(frame, TLV.at('hook.sub'));
+  const logo = TL.snap(frame, TL.at('hook.logo') + 4);
+  const name = TL.snap(frame, TL.at('hook.name'));
+  const bar = ramp(frame, TL.at('hook.name') + 2, TL.at('hook.title'));
+  const title = TL.snap(frame, TL.at('hook.title'));
+  const sub = TL.soft(frame, TL.at('hook.sub'));
   return (
     <div
       style={{
@@ -165,10 +171,11 @@ function VHook({ frame, pal, fits, brand }: { frame: number; pal: BrandPalette; 
 }
 
 function VHeader({ frame, pal, fits, brand }: { frame: number; pal: BrandPalette; fits: VFits; brand: PromoBaseProps['brand'] }) {
-  const [s] = TLV.scene('p1');
-  const [endS] = TLV.scene('end');
+  const TL = useTL();
+  const [s] = TL.scene('p1');
+  const [endS] = TL.scene('end');
   if (frame < s - 8 || frame >= endS + 6) return null;
-  const p = snap(frame, s);
+  const p = TL.snap(frame, s);
   const out = ramp(frame, endS - 6, endS, Easing.in(Easing.cubic));
   return (
     <div style={{ position: 'absolute', left: V.left, top: 262, display: 'flex', alignItems: 'center', gap: 24, opacity: clamp01(p * 1.5) * (1 - out), transform: `translateY(${(1 - p) * -30}px)` }}>
@@ -222,8 +229,9 @@ function CardBody({ pal, index, fit, active, badge = 84, pad = 40, column = fals
 }
 
 function VCards({ frame, pal, fits }: { frame: number; pal: BrandPalette; fits: VFits }) {
-  const [endS] = TLV.scene('end');
-  const [p1s] = TLV.scene('p1');
+  const TL = useTL();
+  const [endS] = TL.scene('end');
+  const [p1s] = TL.scene('p1');
   if (frame < p1s - 8 || frame >= endS + 4) return null;
   const total = fits.cards.reduce((a, c) => a + c.h, 0) + fits.gap * (fits.cards.length - 1);
   let y = V.bandTop + Math.max(0, (V.bandBottom - V.bandTop - total) / 2);
@@ -232,11 +240,11 @@ function VCards({ frame, pal, fits }: { frame: number; pal: BrandPalette; fits: 
     <>
       {fits.cards.map((c, i) => {
         const id = `p${i + 1}`;
-        const [s, e] = TLV.scene(id);
+        const [s, e] = TL.scene(id);
         const top = y;
         y += c.h + fits.gap;
         if (frame < s - 6) return null;
-        const inP = snap(frame, s, 30, 5);
+        const inP = TL.snap(frame, s, 30, 5);
         const active = frame < e;
         const dim = active ? 0 : ramp(frame, e, e + 8);
         return (
@@ -261,27 +269,27 @@ function VCards({ frame, pal, fits }: { frame: number; pal: BrandPalette; fits: 
   );
 }
 
-function BrandWatermark({ frame, pal, tl, top, size = 24 }: { frame: number; pal: BrandPalette; tl: Timeline; top: number; size?: number }) {
+function BrandWatermark({ frame, pal, tl, top, size = 24 }: { frame: number; pal: BrandPalette; tl: TempoTimeline; top: number; size?: number }) {
   const [endS] = tl.scene('end');
   if (frame >= endS + 2) return null;
-  const vis = soft(frame, 8) * (1 - ramp(frame, endS - 6, endS));
+  const vis = tl.soft(frame, 8) * (1 - ramp(frame, endS - 6, endS));
   return <WatermarkLine top={top} color={pal.onPrimary} opacity={0.62 * vis} size={size} />;
 }
 
 /** Kapanis: acik zemin ortadan acilir; logo, ad, CTA metni ve alan adi hapi (marka renginde) */
 function EndCard({
   frame, pal, tl, brand, label, name, domain, watermark, wide,
-}: { frame: number; pal: BrandPalette; tl: Timeline; brand: PromoBaseProps['brand']; label: string; name: Fit; domain: Fit; watermark: boolean; wide: boolean }) {
+}: { frame: number; pal: BrandPalette; tl: TempoTimeline; brand: PromoBaseProps['brand']; label: string; name: Fit; domain: Fit; watermark: boolean; wide: boolean }) {
   const [s] = tl.scene('end');
   if (frame < s - 8) return null;
   const grow = ramp(frame, s - 7, s + 6, Easing.bezier(0.45, 0, 0.15, 1));
   const cx = wide ? 960 : 540;
   const cy = wide ? 540 : 960;
-  const tile = snap(frame, s + 1);
-  const nm = snap(frame, s + 5);
-  const lab = soft(frame, tl.at('end.cta') - 4);
-  const cta = snap(frame, tl.at('end.cta'));
-  const mark = soft(frame, tl.at('end.url') + 4);
+  const tile = tl.snap(frame, s + 1);
+  const nm = tl.snap(frame, s + 5);
+  const lab = tl.soft(frame, tl.at('end.cta') - 4);
+  const cta = tl.snap(frame, tl.at('end.cta'));
+  const mark = tl.soft(frame, tl.at('end.url') + 4);
   return (
     <AbsoluteFill>
       <AbsoluteFill style={{ background: pal.bg, clipPath: `circle(${grow * 2400}px at ${cx}px ${cy}px)` }} />
@@ -328,6 +336,7 @@ type WFits = { name: Fit; hook: Fit; sub: Fit | null; headName: Fit; cards: Card
 export const SiteIntroWide: React.FC<SiteIntroProps> = (props) => {
   const ready = useBrandFonts();
   const frame = useCurrentFrame();
+  const TL = useMemo(() => tempoTimeline('SiteIntroWide', props), [props]);
   const pal = useMemo(() => brandPalette(props.brand.primary), [props.brand.primary]);
   const points = useMemo(() => props.points.slice(0, 3), [props.points]);
   const cardW = (H.width - 2 * 40) / 3;
@@ -367,29 +376,32 @@ export const SiteIntroWide: React.FC<SiteIntroProps> = (props) => {
   }, [ready, props.brand.name, props.hook, props.hookSub, props.cta.domain, points, cardW]);
 
   return (
-    <AbsoluteFill style={{ fontFamily: fontUI, color: pal.onPrimary, overflow: 'hidden' }}>
-      <Soundtrack tl={TLW} muted={props.muted ?? false} />
-      <BrandField pal={pal} />
-      {fits ? (
-        <>
-          <WHook frame={frame} pal={pal} fits={fits} brand={props.brand} />
-          <WCards frame={frame} pal={pal} fits={fits} brand={props.brand} cardW={cardW} />
-          {props.watermark !== false ? <BrandWatermark frame={frame} pal={pal} tl={TLW} top={1010} size={22} /> : null}
-          <EndCard frame={frame} pal={pal} tl={TLW} brand={props.brand} label={props.cta.label} name={fits.endName} domain={fits.domain} watermark={props.watermark !== false} wide />
-        </>
-      ) : null}
-    </AbsoluteFill>
+    <TempoProvider value={TL}>
+      <AbsoluteFill style={{ fontFamily: fontUI, color: pal.onPrimary, overflow: 'hidden' }}>
+        <TempoSoundtrack tl={TL} muted={props.muted ?? false} />
+        <BrandField pal={pal} />
+        {fits ? (
+          <>
+            <WHook frame={frame} pal={pal} fits={fits} brand={props.brand} />
+            <WCards frame={frame} pal={pal} fits={fits} brand={props.brand} cardW={cardW} />
+            {props.watermark !== false ? <BrandWatermark frame={frame} pal={pal} tl={TL} top={1010} size={22} /> : null}
+            <EndCard frame={frame} pal={pal} tl={TL} brand={props.brand} label={props.cta.label} name={fits.endName} domain={fits.domain} watermark={props.watermark !== false} wide />
+          </>
+        ) : null}
+      </AbsoluteFill>
+    </TempoProvider>
   );
 };
 
 function WHook({ frame, pal, fits, brand }: { frame: number; pal: BrandPalette; fits: WFits; brand: PromoBaseProps['brand'] }) {
-  const [, e] = TLW.scene('hook');
+  const TL = useTL();
+  const [, e] = TL.scene('hook');
   if (frame >= e + 2) return null;
   const out = ramp(frame, e - 10, e - 2, Easing.in(Easing.cubic));
-  const logo = snap(frame, TLW.at('hook.logo') + 4);
-  const name = snap(frame, TLW.at('hook.name'));
-  const title = snap(frame, TLW.at('hook.title'));
-  const sub = soft(frame, TLW.at('hook.sub'));
+  const logo = TL.snap(frame, TL.at('hook.logo') + 4);
+  const name = TL.snap(frame, TL.at('hook.name'));
+  const title = TL.snap(frame, TL.at('hook.title'));
+  const sub = TL.soft(frame, TL.at('hook.sub'));
   // Sagdaki buyuk logo karosu yavasca suzulur (kare kare deterministik)
   const float = Math.sin(frame / 38) * 12;
   return (
@@ -418,10 +430,11 @@ function WHook({ frame, pal, fits, brand }: { frame: number; pal: BrandPalette; 
 }
 
 function WCards({ frame, pal, fits, brand, cardW }: { frame: number; pal: BrandPalette; fits: WFits; brand: PromoBaseProps['brand']; cardW: number }) {
-  const [endS] = TLW.scene('end');
-  const [p1s] = TLW.scene('p1');
+  const TL = useTL();
+  const [endS] = TL.scene('end');
+  const [p1s] = TL.scene('p1');
   if (frame < p1s - 8 || frame >= endS + 4) return null;
-  const head = snap(frame, p1s);
+  const head = TL.snap(frame, p1s);
   const out = ramp(frame, endS - 6, endS, Easing.in(Easing.cubic));
   const top = 200 + Math.max(0, (760 - fits.cardH) / 2);
   return (
@@ -431,9 +444,9 @@ function WCards({ frame, pal, fits, brand, cardW }: { frame: number; pal: BrandP
         <span style={{ fontFamily: fontUI, fontWeight: 800, fontSize: fits.headName.size, whiteSpace: 'nowrap' }}>{fits.headName.lines[0]}</span>
       </div>
       {fits.cards.map((c, i) => {
-        const [s, e] = TLW.scene(`p${i + 1}`);
+        const [s, e] = TL.scene(`p${i + 1}`);
         if (frame < s - 6) return null;
-        const inP = snap(frame, s, 30, 5);
+        const inP = TL.snap(frame, s, 30, 5);
         const active = frame < e;
         const dim = active ? 0 : ramp(frame, e, e + 8);
         return (

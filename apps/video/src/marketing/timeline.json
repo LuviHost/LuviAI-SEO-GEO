@@ -2,6 +2,59 @@
   "$comment": "Pazarlama videolarinin TEK zaman cizelgesi. Birim: vurus (120 BPM, 30 fps -> 1 vurus = 15 kare = 0.5 sn). Hem Remotion sahneleri (src/marketing/*.tsx) hem muzik/efekt sentezi (scripts/audio/synth.mjs) buradan okur; bir kesmeyi kaydirmak icin yalniz burayi degistir, sonra 'pnpm --filter @luviai/video audio' calistir.",
   "bpm": 120,
   "fps": 30,
+  "tempo": {
+    "$comment": "RanksUp Video tempo secenekleri (normal / slow). minBeats: sahnenin en kisa hali (kisa metinde bile); site / urun kartlari ust uste biriktigi icin kart sahnesi daha kisa olabilir. 'fast' = asagidaki compositions izgarasi (120 BPM, bugunku sabit sureler; geriye uyum). normal/slow'da sahne sureleri metinden hesaplanir (src/tempo/plan.mjs), vurusa yuvarlanir; toplam maxSeconds'i asmaz. Olay satiri: [olay, sahne basindan vurus, efekt]. Ses: sablon x tempo basina giris / govde dongusu (loopBeats) / kapanis (outroBeats) koku + tempo basina efekt dosyalari (sfxBeats, vurustan 1 vurus once baslar) — scripts/audio/synth.mjs --tempo uretir (prepare:article-short).",
+    "maxSeconds": 60,
+    "loopBeats": 16,
+    "outroBeats": 12,
+    "sfxBeats": 4,
+    "presets": {
+      "normal": { "bpm": 90, "read": 1.0 },
+      "slow": { "bpm": 72, "read": 1.7 }
+    },
+    "templates": {
+      "ArticleShort": {
+        "audio": "article-short",
+        "energy": 0.9,
+        "intro": "pulse",
+        "body": "L3",
+        "minBeats": { "hook": 6, "point": 6, "end": 6 },
+        "hook": [["hook.brand", 0, "pop"], ["hook.title", 1, "thock"], ["hook.sub", 2.5, "tick"], ["hook.source", 3.5, "tickLow"]],
+        "point": [["in", 0, "whoosh"], ["title", 0.5, "thock"], ["detail", 1.5, "tick"]],
+        "end": [["end.riser", 0, null], ["end.hit", 0, null], ["end.cta", 1.5, "pop"], ["end.url", 2.5, "tick"]]
+      },
+      "SiteIntro": {
+        "audio": "site-intro",
+        "energy": 0.85,
+        "intro": "L2",
+        "body": "L3",
+        "minBeats": { "hook": 6, "point": 4, "end": 6 },
+        "hook": [["hook.logo", 0, "pop"], ["hook.name", 1, "thock"], ["hook.title", 2, "tick"], ["hook.sub", 3, "tickLow"]],
+        "point": [["in", 0, "whoosh"], ["title", 0.5, "thock"], ["detail", 1.5, "tick"]],
+        "end": [["end.riser", 0, null], ["end.hit", 0, null], ["end.cta", 1.5, "pop"], ["end.url", 2.5, "tick"]]
+      },
+      "SiteIntroWide": {
+        "audio": "site-intro-wide",
+        "energy": 0.8,
+        "intro": "L2",
+        "body": "L3",
+        "minBeats": { "hook": 8, "point": 4, "end": 8 },
+        "hook": [["hook.logo", 0, "pop"], ["hook.name", 1, "thock"], ["hook.title", 2, "tick"], ["hook.sub", 3.5, "tickLow"]],
+        "point": [["in", 0, "whoosh"], ["title", 0.5, "thock"], ["detail", 1.5, "tick"]],
+        "end": [["end.riser", 0, null], ["end.hit", 0, null], ["end.cta", 1.5, "pop"], ["end.url", 2.5, "tick"]]
+      },
+      "ProductShort": {
+        "audio": "product-short",
+        "energy": 0.85,
+        "intro": "pulse",
+        "body": "L4",
+        "minBeats": { "hook": 6, "point": 4, "end": 6 },
+        "hook": [["hook.image", 0, "pop"], ["hook.title", 1, "thock"], ["hook.sub", 2, "tick"], ["hook.price", 3, "tickLow"]],
+        "point": [["in", 0, "whoosh"], ["title", 0.5, "thock"], ["detail", 1.5, "tick"]],
+        "end": [["end.riser", 0, null], ["end.hit", 0, null], ["end.cta", 1.5, "pop"], ["end.url", 2.5, "tick"]]
+      }
+    }
+  },
   "compositions": {
     "ProductIntro": {
       "audio": "product-intro.wav",
@@ -241,7 +294,7 @@
       ]
     },
     "ArticleShort": {
-      "$comment": "Makaleden otomatik 15 sn dikey video (src/article-short). Metin uzunlugu degisse de izgara sabit: ses her video icin ayni dosya (bir kez sentezlenir, onbellekte durur).",
+      "$comment": "Makaleden otomatik dikey video (src/article-short) — 'fast' tempo: 15 sn sabit izgara, ses her video icin ayni dosya. normal / slow tempo yukaridaki 'tempo' bolumunden (sure metinden).",
       "audio": "article-short.wav",
       "beats": 30,
       "energy": 0.9,
@@ -273,7 +326,7 @@
       ]
     },
     "SiteIntro": {
-      "$comment": "Site tanitim videosu, 15 sn dikey (src/promo/SiteIntro). Markayi one cikarir: logo + isletmenin ne yaptigi, uc hizmet karti ust uste birikir, kapanis alan adi.",
+      "$comment": "Site tanitim videosu, 'fast' tempo 15 sn dikey (src/promo/SiteIntro). Markayi one cikarir: logo + isletmenin ne yaptigi, uc hizmet karti ust uste birikir, kapanis alan adi.",
       "audio": "site-intro.wav",
       "beats": 30,
       "energy": 0.85,
@@ -305,7 +358,7 @@
       ]
     },
     "SiteIntroWide": {
-      "$comment": "Site tanitim videosu, 24 sn yatay 16:9 (web sitesi / video platformlari). SiteIntro ile ayni sahneler, daha uzun soluk.",
+      "$comment": "Site tanitim videosu, 'fast' tempo 24 sn yatay 16:9 (web sitesi / video platformlari). SiteIntro ile ayni sahneler, daha uzun soluk.",
       "audio": "site-intro-wide.wav",
       "beats": 48,
       "energy": 0.8,
@@ -337,7 +390,7 @@
       ]
     },
     "ProductShort": {
-      "$comment": "Urun/hizmet tanitim videosu, 15 sn (src/promo/ProductShort; dikey ve yatay ayni izgara). Urun gorseli one cikar (yavas yakinlasma), fiyat etiketi yalniz dogrulanmissa.",
+      "$comment": "Urun/hizmet tanitim videosu, 'fast' tempo 15 sn (src/promo/ProductShort; dikey ve yatay ayni izgara). Urun gorseli one cikar (yavas yakinlasma), fiyat etiketi yalniz dogrulanmissa.",
       "audio": "product-short.wav",
       "beats": 30,
       "energy": 0.85,

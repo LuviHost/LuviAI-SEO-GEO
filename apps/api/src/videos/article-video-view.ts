@@ -1,3 +1,5 @@
+import { videoTempoOf, type VideoTempo } from './article-video.config.js';
+
 /**
  * RanksUp Video — durum yasam dongusu ve panel gorunumu (saf; test edilir).
  *
@@ -55,6 +57,8 @@ export interface ArticleVideoView {
   type: 'article' | 'site' | 'product';
   /** 'vertical' (9:16) | 'horizontal' (16:9) */
   format: 'vertical' | 'horizontal';
+  /** 'fast' | 'normal' | 'slow' — eski satirlarda (alan yok) 'fast' (o video eski 15 sn izgarayla uretildi) */
+  tempo: VideoTempo;
   /** site / urun tanitiminin kaynak adresi (makalede null) */
   sourceUrl: string | null;
   articleId: string | null;
@@ -84,6 +88,7 @@ export function toVideoView(row: VideoRowLike): ArticleVideoView {
     id: row.id,
     type,
     format: raw.format === 'horizontal' ? 'horizontal' : 'vertical',
+    tempo: videoTempoOf(raw),
     sourceUrl: type !== 'article' && typeof raw.sourceUrl === 'string' ? raw.sourceUrl : null,
     articleId: row.articleId,
     title: row.title,
@@ -91,6 +96,7 @@ export function toVideoView(row: VideoRowLike): ArticleVideoView {
     // Hazir olmayan videonun adresi gosterilmez (dosya yok ya da yarim)
     videoUrl: status === 'ready' ? row.videoUrl : null,
     posterUrl: status === 'ready' ? row.thumbnailUrl : null,
+    // Gercek sure (render'in kare sayisindan; normal / slow'da metne gore degisir)
     durationSec: row.durationSec,
     fileSize: row.fileSize,
     error: status === 'failed' ? row.errorMsg ?? 'Video üretilemedi.' : null,

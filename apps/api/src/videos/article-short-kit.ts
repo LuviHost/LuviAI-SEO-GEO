@@ -163,6 +163,8 @@ export interface PromoVideoProps {
   price?: string;
   muted?: boolean;
   watermark?: boolean;
+  /** apps/video src/tempo/plan.mjs: 'fast' eski sabit izgara; 'normal' / 'slow' sure metinden */
+  tempo?: 'fast' | 'normal' | 'slow';
 }
 
 export interface ArticleShortProps {
@@ -175,6 +177,7 @@ export interface ArticleShortProps {
   sourcePath?: string;
   muted?: boolean;
   watermark?: boolean;
+  tempo?: 'fast' | 'normal' | 'slow';
 }
 
 export interface RenderResult {
@@ -189,6 +192,8 @@ export interface RenderResult {
   inputLufs: number | null;
   timings: Record<string, number>;
   compositionId?: string;
+  /** render edilen tempo (render hatti eksik tempoyu 'fast' sayar) */
+  tempo?: 'fast' | 'normal' | 'slow';
 }
 export interface RenderKit {
   renderConcurrency(env?: NodeJS.ProcessEnv, cores?: number): number;

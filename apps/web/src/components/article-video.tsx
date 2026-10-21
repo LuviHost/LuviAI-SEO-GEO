@@ -9,10 +9,11 @@ import { useEntitlements } from '@/lib/entitlements';
 import { siteHref } from '@/lib/site-routes';
 import { placeholderParagraphs } from '@/lib/plan-lock';
 import {
-  ARTICLE_VIDEO_COPY, canRequestVideo, normalizeHex, quotaLine, videoRequestBody,
-  type ArticleVideo, type VideoBrandPreview, type VideoQuota, type VideoTarget,
+  ARTICLE_VIDEO_COPY, DEFAULT_VIDEO_TEMPO, VIDEO_TEMPOS, VIDEO_TEMPO_HINT, VIDEO_TEMPO_LABEL, canRequestVideo, normalizeHex, quotaLine, tempoDurationLabel,
+  videoRequestBody, type ArticleVideo, type VideoBrandPreview, type VideoQuota, type VideoTarget, type VideoTempo,
 } from '@/lib/article-video';
 import { Button } from '@/components/ui/button';
+import { FilterChip } from '@/components/ui/filter-chip';
 import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -82,7 +83,7 @@ export function ArticleVideoButton({
   if (!canRequestVideo(article)) return null;
   return (
     <>
-      <Button size={size} variant={variant} onClick={() => setOpen(true)} title={locked ? ARTICLE_VIDEO_COPY.lockedTitle : `${ARTICLE_VIDEO_COPY.product} — 15 sn dikey video`}>
+      <Button size={size} variant={variant} onClick={() => setOpen(true)} title={locked ? ARTICLE_VIDEO_COPY.lockedTitle : `${ARTICLE_VIDEO_COPY.product} — dikey video`}>
         {locked ? <Lock className="mr-1.5 h-3.5 w-3.5" aria-hidden /> : <Clapperboard className="mr-1.5 h-3.5 w-3.5" aria-hidden />}
         {label}
       </Button>
@@ -110,7 +111,7 @@ export function ArticleVideoDialog({
       siteId={siteId}
       target={{ type: 'article', articleId: article.id }}
       seed={article.id}
-      description={`“${title}” makalesinden 15 saniyelik dikey video (1080×1920). Metin makalenin kendi başlık, cümle ve sayılarından oluşur; makalede olmayan bilgi eklenmez.`}
+      description={articleDialogDescription(title)}
       open={open}
       onOpenChange={onOpenChange}
       onRequested={onRequested}
@@ -118,14 +119,42 @@ export function ArticleVideoDialog({
   );
 }
 
-/** Tanitim videolarinin diyalog aciklamasi (tur + bicim) */
+/** Makale videosunun diyalog aciklamasi (sure tempoya bagli: diyalogdaki tempo secimi) */
+export function articleDialogDescription(title: string): string {
+  return `“${title}” makalesinden dikey video (1080×1920). Metin makalenin kendi başlık, cümle ve sayılarından oluşur; makalede olmayan bilgi eklenmez.`;
+}
+
+/** Tanitim videolarinin diyalog aciklamasi (tur + bicim; sure tempoya bagli) */
 export function promoDialogDescription(target: Exclude<VideoTarget, { type: 'article' }>): string {
   const size = target.format === 'horizontal' ? 'yatay (1920×1080)' : 'dikey (1080×1920)';
   if (target.type === 'site') {
-    const sec = target.format === 'horizontal' ? '24' : '15';
-    return `Sitenin ana sayfasından ve marka profilinden ${sec} saniyelik ${size} tanıtım videosu. Metin sitenin kendi başlık ve cümlelerinden oluşur; sitede olmayan bilgi ya da sayı eklenmez.`;
+    return `Sitenin ana sayfasından ve marka profilinden ${size} tanıtım videosu. Metin sitenin kendi başlık ve cümlelerinden oluşur; sitede olmayan bilgi ya da sayı eklenmez.`;
   }
-  return `Ürün/hizmet sayfasından 15 saniyelik ${size} tanıtım videosu. Ad, özellikler ve görsel sayfanın kendisinden alınır; fiyat yalnız sayfada açıkça yazıyor ve doğrulanabiliyorsa gösterilir.`;
+  return `Ürün/hizmet sayfasından ${size} tanıtım videosu. Ad, özellikler ve görsel sayfanın kendisinden alınır; fiyat yalnız sayfada açıkça yazıyor ve doğrulanabiliyorsa gösterilir.`;
+}
+
+/**
+ * Tempo secimi (Hizli / Normal / Yavas) — her secenekte bu tur ve bicimin yaklasik suresi.
+ * Sure tablosu lib/article-video.ts VIDEO_TEMPO_SECONDS (apps/video okunurluk denetimi dogrular).
+ */
+function TempoPicker({ target, value, onChange }: { target: VideoTarget; value: VideoTempo; onChange: (t: VideoTempo) => void }) {
+  const format = target.type === 'article' ? 'vertical' : target.format;
+  return (
+    <div className="space-y-2">
+      <span id="video-tempo-label" className="text-sm font-medium">Tempo</span>
+      <div role="radiogroup" aria-labelledby="video-tempo-label" className="flex flex-wrap gap-2">
+        {VIDEO_TEMPOS.map((t) => (
+          <FilterChip key={t} role="radio" aria-checked={value === t} aria-pressed={undefined} selected={value === t} onClick={() => onChange(t)}>
+            {VIDEO_TEMPO_LABEL[t]}
+            <span className="text-muted-foreground">· {tempoDurationLabel(target.type, format, t)}</span>
+          </FilterChip>
+        ))}
+      </div>
+      <p className="text-label text-muted-foreground">
+        {VIDEO_TEMPO_HINT[value]} Normal ve yavaşta süre metnin uzunluğuna göre belirlenir; her tempo bir video hakkı kullanır.
+      </p>
+    </div>
+  );
 }
 
 /**
@@ -160,6 +189,7 @@ export function VideoRequestDialog({
   const [color, setColor] = useState('');
   const [useTemplateColor, setUseTemplateColor] = useState(false);
   const [useLogo, setUseLogo] = useState(true);
+  const [tempo, setTempo] = useState<VideoTempo>(DEFAULT_VIDEO_TEMPO);
   const [submitting, setSubmitting] = useState(false);
 
   // Haklar kesin "acik" degilse hicbir istek atilmaz (kilitli planda marka indirmesi yok)
@@ -198,7 +228,7 @@ export function VideoRequestDialog({
   const submit = async () => {
     setSubmitting(true);
     try {
-      const body = videoRequestBody({ target, brand, color, useTemplateColor, useLogo: useLogo && !!brand?.logoDataUri, name });
+      const body = videoRequestBody({ target, brand, color, useTemplateColor, useLogo: useLogo && !!brand?.logoDataUri, name, tempo });
       const r = await api.requestVideo(siteId, body);
       toast.success('Video sıraya alındı', {
         description: `Genellikle 1-3 dakikada hazır olur; Videolar sayfasında görünür. Bu ay ${r.remaining} video hakkın kaldı.`,
@@ -240,6 +270,8 @@ export function VideoRequestDialog({
                 <p role="alert" className="text-sm text-danger">{loadError}</p>
               ) : (
                 <>
+                  <TempoPicker target={target} value={tempo} onChange={setTempo} />
+
                   <div className="space-y-1.5">
                     <label htmlFor="video-brand-name" className="text-sm font-medium">Marka adı</label>
                     <Input id="video-brand-name" value={name} maxLength={60} onChange={(e) => setName(e.target.value)} />

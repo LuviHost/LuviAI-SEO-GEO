@@ -72,6 +72,25 @@ export const VIDEO_COMPOSITION: Record<VideoType, Record<VideoFormat, string | n
   product: { vertical: 'ProductShort', horizontal: 'ProductWide' },
 };
 
+/**
+ * Tempo (21.10.2026 sahip istegi: 15 sn videolar okunamayacak kadar hizli). apps/video
+ * src/tempo/plan.mjs TEMPOS ile AYNI liste (video-tempo.spec.ts karsilastirir):
+ *   fast   eski sabit izgara (15 sn dikey, 24 sn yatay site) — "kisa metinler icin"
+ *   normal okunur: her metin max(2 sn; 0,3 sn x kelime + 1 sn) ekranda; sure metinden (~15-50 sn)
+ *   slow   rahat (~1,5 kat normal; en fazla 60 sn)
+ * Yeni istekte verilmezse 'normal'. providerRaw.tempo'da durur; alani olmayan eski satir / is 'fast'
+ * sayilir (o video eski izgarayla istendi ve oyle render edilir). Uc tempo da tek video hakki.
+ */
+export const VIDEO_TEMPOS = ['fast', 'normal', 'slow'] as const;
+export type VideoTempo = (typeof VIDEO_TEMPOS)[number];
+export const DEFAULT_VIDEO_TEMPO: VideoTempo = 'normal';
+/** providerRaw.tempo yoksa (bu ozellikten onceki kayit / kuyruktaki is) */
+export const LEGACY_VIDEO_TEMPO: VideoTempo = 'fast';
+export function videoTempoOf(raw: unknown): VideoTempo {
+  const t = raw && typeof raw === 'object' ? (raw as Record<string, unknown>).tempo : undefined;
+  return (VIDEO_TEMPOS as readonly unknown[]).includes(t) ? (t as VideoTempo) : LEGACY_VIDEO_TEMPO;
+}
+
 /** Video satirinin en-boy orani (videos.aspectRatio sutunu) */
 export const ASPECT_OF: Record<VideoFormat, string> = { vertical: '9:16', horizontal: '16:9' };
 

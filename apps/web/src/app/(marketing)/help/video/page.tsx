@@ -11,11 +11,15 @@ export const metadata = { title: 'RanksUp Video — RanksUp Help' };
 //    urun) AYNI hakki kullanir; her video (her bicim) bir hak.
 //  - Makale: yalniz PUBLISHED makale (videos.service request). Metin DB'deki makaleden; Claude
 //    Haiku 5.5 + koruyucu (sayi birebir, yenilik orani), olmazsa makalenin kendi cumleleri.
-//  - Site tanitimi: anasayfa + DB marka profili (Brain); sablon SiteIntro (15 sn dikey) /
-//    SiteIntroWide (24 sn yatay). Urun tanitimi: yalniz sitenin kayitli alan adindaki sayfa
+//  - Site tanitimi: anasayfa + DB marka profili (Brain); sablon SiteIntro (dikey) /
+//    SiteIntroWide (yatay). Urun tanitimi: yalniz sitenin kayitli alan adindaki sayfa
 //    (promo-video-source.ts assertOwnSitePageUrl; yonlendirme de alan adinin disina cikamaz),
 //    gorsel safe-fetch + sharp, fiyat yalniz iki kaynakla (JSON-LD/meta + gorunur metin)
-//    dogrulanmissa (apps/video page.mjs verifyPrice); ProductShort / ProductWide 15 sn.
+//    dogrulanmissa (apps/video page.mjs verifyPrice); ProductShort / ProductWide.
+//  - Tempo (videos.dto tempo, varsayilan normal): hizli = eski sabit 15 sn (yatay site 24 sn);
+//    normal / yavas sure metinden (apps/video src/tempo/plan.mjs), her metin
+//    max(2 sn; 0,3 sn x kelime + 1 sn) ekranda, en fazla 60 sn (check-video-readability.mjs).
+//    Araliklar panelle ayni tablodan: web lib/article-video.ts VIDEO_TEMPO_SECONDS.
 //  - Marka: sitenin anasayfasi (ad, logo, tema rengi), SSRF korumali indirme; diyalogda renk,
 //    logo ve ad duzeltilir. Logo yoksa bas harf.
 //  - Cikti: H.264 + AAC, -14 LUFS, "ranksup.ai ile uretildi" ibaresi; nginx /videos/ altinda
@@ -30,14 +34,15 @@ export default function Page() {
       steps={[
         { name: 'Video türünü seç', text: 'Videolar sayfasında Yeni video kartından Makaleden, Site tanıtımı ya da Ürün tanıtımı seç. Makale videosunu makale sayfasındaki Video üret düğmesiyle de başlatabilirsin.' },
         { name: 'Kaynağı ve biçimi belirle', text: 'Makaleyi seç, ürün tanıtımında sitendeki sayfanın adresini yapıştır; site ve ürün tanıtımında dikey ya da yatay biçimi seç.' },
-        { name: 'Markayı kontrol et, üret ve indir', text: 'Sitenden okunan adı, logoyu ve rengi kontrol et, Video üret’e bas. Video hazır olunca Videolar sayfasında izleyip MP4 olarak indirirsin.' },
+        { name: 'Tempoyu seç, markayı kontrol et, üret ve indir', text: 'Tempoyu (Hızlı, Normal ya da Yavaş) seç, sitenden okunan adı, logoyu ve rengi kontrol et, Video üret’e bas. Video hazır olunca Videolar sayfasında izleyip MP4 olarak indirirsin.' },
       ]}
     >
       <h2>Ne üretir?</h2>
       <ul>
-        <li><strong>Makaleden:</strong> 1080×1920 dikey, 15 saniye. Makalenin başlığından bir kanca, makalenin üç ana bölümünden üç madde ve sitenin alan adıyla &ldquo;Tamamını oku&rdquo; kapanışı.</li>
-        <li><strong>Site tanıtımı:</strong> 1080×1920 dikey 15 saniye ya da 1920×1080 yatay 24 saniye. Logon ve adınla açılır; işletmenin ne yaptığı, sitendeki üç hizmet ya da değer ve alan adınla kapanış. Kaynak sitenin ana sayfası ve RanksUp’taki marka profilin.</li>
-        <li><strong>Ürün tanıtımı:</strong> 1080×1920 dikey ya da 1920×1080 yatay, 15 saniye. Ürünün görseli yavaşça yakınlaşarak öne çıkar; ürün adı, sayfadaki ana fayda, üç özellik ve sayfanın kısa adresiyle kapanış.</li>
+        <li><strong>Makaleden:</strong> 1080×1920 dikey. Makalenin başlığından bir kanca, makalenin üç ana bölümünden üç madde ve sitenin alan adıyla &ldquo;Tamamını oku&rdquo; kapanışı.</li>
+        <li><strong>Site tanıtımı:</strong> 1080×1920 dikey ya da 1920×1080 yatay. Logon ve adınla açılır; işletmenin ne yaptığı, sitendeki üç hizmet ya da değer ve alan adınla kapanış. Kaynak sitenin ana sayfası ve RanksUp’taki marka profilin.</li>
+        <li><strong>Ürün tanıtımı:</strong> 1080×1920 dikey ya da 1920×1080 yatay. Ürünün görseli yavaşça yakınlaşarak öne çıkar; ürün adı, sayfadaki ana fayda, üç özellik ve sayfanın kısa adresiyle kapanış.</li>
+        <li><strong>Tempo:</strong> <strong>Normal</strong> (varsayılan) her metni okunacak kadar ekranda tutar; süre metnin uzunluğuna göre yaklaşık 15–50 saniyedir. <strong>Yavaş</strong> daha sakin geçişler ve daha uzun okuma süresi verir (yaklaşık 25–60 saniye). <strong>Hızlı</strong> 15 saniyedir (yatay site tanıtımında 24 saniye) ve kısa metinler içindir; uzun cümleler hızlı geçer. Video hiçbir tempoda 60 saniyeyi geçmez; her tempo bir video hakkı kullanır.</li>
         <li><strong>Marka:</strong> sitenin adı, logosu ve tema rengi. Yazı renkleri okunurluğa göre otomatik ayarlanır; renk bulunamazsa RanksUp turuncusu, logo bulunamazsa marka adının baş harfi, ürün görseli bulunamazsa logolu bir marka kartı kullanılır.</li>
         <li>Müzikli (ses -14 LUFS’a dengelenir), MP4. Videoda küçük bir &ldquo;ranksup.ai ile üretildi&rdquo; ibaresi bulunur.</li>
       </ul>
@@ -68,8 +73,9 @@ export default function Page() {
         Ürün tanıtımında sitendeki ürün ya da hizmet sayfasının adresini yapıştır; adres sitenin alan adında değilse alan hemen uyarır. Site ve
         ürün tanıtımında dikey (Reels, Shorts, TikTok) ya da yatay (web sitesi, YouTube) biçimi seç.
       </Step>
-      <Step n={3} title="Markayı kontrol et">
-        Açılan pencerede sitenin herkese açık sayfasından okunan ad, logo ve renk görünür. Rengi değiştirebilir, RanksUp turuncusunu seçebilir,
+      <Step n={3} title="Tempoyu seç, markayı kontrol et">
+        Açılan pencerede tempoyu seç: Hızlı, Normal ya da Yavaş; her seçeneğin yanında bu türün yaklaşık süresi yazar. Aynı pencerede sitenin
+        herkese açık sayfasından okunan ad, logo ve renk görünür. Rengi değiştirebilir, RanksUp turuncusunu seçebilir,
         logoyu kaldırabilir ve marka adını düzeltebilirsin.
       </Step>
       <Step n={4} title="Üret, izle, indir">

@@ -54,10 +54,11 @@ Son güncelleme: Ekim 2026
 ### RanksUp Video — Profesyonel ve üstü
 
 - Üç tür video, sitenin adı, logosu ve tema rengiyle, MP4 olarak indirilir. RanksUp videoyu hiçbir platformda yayınlamaz.
-  - Makaleden: yayındaki makaleden 15 saniyelik dikey video (1080×1920; Reels, Shorts, TikTok biçimi).
-  - Site tanıtımı: sitenin ana sayfası ve RanksUp'taki marka profilinden; 15 sn dikey ya da 24 sn yatay (1920×1080; web sitesi, YouTube).
-  - Ürün tanıtımı: yalnız sitenin kendi alan adındaki bir ürün/hizmet sayfasından (başka alan adı, IP ya da dışarı yönlendiren sayfa kabul edilmez); 15 sn dikey ya da yatay. Ürün görseli sayfadan alınır; fiyat yalnız sayfanın yapısal ürün bilgisinde ve görünen metninde aynı tutar olarak geçiyorsa gösterilir.
+  - Makaleden: yayındaki makaleden dikey video (1080×1920; Reels, Shorts, TikTok biçimi).
+  - Site tanıtımı: sitenin ana sayfası ve RanksUp'taki marka profilinden; dikey ya da yatay (1920×1080; web sitesi, YouTube).
+  - Ürün tanıtımı: yalnız sitenin kendi alan adındaki bir ürün/hizmet sayfasından (başka alan adı, IP ya da dışarı yönlendiren sayfa kabul edilmez); dikey ya da yatay. Ürün görseli sayfadan alınır; fiyat yalnız sayfanın yapısal ürün bilgisinde ve görünen metninde aynı tutar olarak geçiyorsa gösterilir.
 - Metin makalenin kendi başlık, cümle ve sayılarından derlenir; yapay zekâ ile kısaltılan metin, makalede birebir geçmeyen sayıları ve makalede olmayan kelime oranı yüksek metni reddeden bir denetimden geçer, geçemezse makalenin kendi cümleleri kullanılır. Site ve ürün tanıtımında aynı denetim sitenin kendi sayfasına uygulanır; marka profili yalnız bağlamdır, sayı kaynağı değildir.
+- Süre 15–60 sn, tempo seçilebilir: Hızlı 15 sn (yatay site tanıtımında 24 sn; kısa metinler için); Normal (varsayılan) yaklaşık 15–50 sn ve Yavaş yaklaşık 25–60 sn — ikisinde de süre metnin uzunluğundan hesaplanır, her metin en az 2 saniye ve kelime başına 0,3 saniye + 1 saniye ekranda kalır; hiçbir video 60 saniyeyi geçmez. Her tempo bir video hakkı.
 - Logo ve renk sitenin herkese açık sayfasından okunur; video üretilmeden önce renk, logo ve marka adı düzeltilebilir.
 - Aylık hak: Profesyonel 20, Ajans 60, Kurumsal 200 video; her takvim ayı yenilenir, üretilemeyen videonun hakkı iade edilir. Makale, site ve ürün videoları aynı haktan düşer (her biçim ayrı bir video).
 

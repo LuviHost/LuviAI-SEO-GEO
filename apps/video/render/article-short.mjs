@@ -2,13 +2,15 @@
  * ArticleShort render hatti — TEK KAYNAK. Hem CLI prototipi (scripts/article-short.mjs) hem
  * sunucu (api videos/video-render.service.ts, worker'daki 'video-render' kuyrugu) bunu kullanir.
  *
- *   ensureArticleShortAudio()  timeline.json'dan sentez muzik (her sablon icin tek dosya; yoksa uretilir)
+ *   ensureArticleShortAudio()  timeline.json'dan sentez muzik: 'fast' icin sablon basina tek dosya,
+ *                              normal / slow icin tempo kokleri (public/audio/tempo/; yoksa uretilir)
  *   getArticleShortServeUrl()  Remotion webpack paketi — kaynak ozeti degismediyse diskteki paket
  *                              (deploy'da `pnpm --filter @luviai/video prepare:article-short` bir kez kurar);
  *                              surec icinde de bellege alinir, her videoda yeniden paketlenmez
  *   renderArticleShortMp4()    renderMedia: VIDEO_COMPOSITIONS'tan biri (makale, site, urun), H.264 + AAC
  *   loudnormInPlace()          ffmpeg iki gecis (-14 LUFS, -1.5 dBTP; goruntu kopyalanir)
- *   extractPoster()            ffmpeg tek kare JPG (kanca tam gorunur: 2.6 sn)
+ *   extractPoster()            ffmpeg tek kare JPG (kanca tam gorunur: fast'ta sabit saniye, normal /
+ *                              slow'da tempo planinin kanca karesi)
  *   renderArticleShort()       hepsi sirayla; ciktilar once gecici adla yazilip sonra yerine tasinir
  *                              (nginx /videos/ yarim dosya sunmasin)
  *
@@ -22,6 +24,7 @@ import os from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { remotionRequire, runFfAsync } from '../scripts/ffmpeg.mjs';
+import { createPlanner, normalizeTempo } from '../src/tempo/plan.mjs';
 
 export const VIDEO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 export const COMPOSITION_ID = 'ArticleShort';
@@ -64,16 +67,40 @@ export function renderConcurrency(env = process.env, cores = os.availableParalle
 export function ensureArticleShortAudio() {
   const timeline = JSON.parse(readFileSync(TIMELINE_FILE, 'utf8'));
   const tl = statSync(TIMELINE_FILE).mtimeMs;
+  const fresh = (file) => existsSync(file) && statSync(file).mtimeMs > tl;
+  const synth = (arg) => {
+    // ffmpeg cozumu synth.mjs icinde de ayni kuraldir (scripts/ffmpeg.mjs)
+    const r = spawnSync(process.execPath, [join(VIDEO_ROOT, 'scripts', 'audio', 'synth.mjs'), arg], { cwd: VIDEO_ROOT, encoding: 'utf8' });
+    if (r.status !== 0) throw new Error(`Ses sentezi basarisiz (${arg}): ${String(r.stderr ?? '').slice(-400)}`);
+  };
   let cached = true;
   for (const id of new Set(Object.values(VIDEO_COMPOSITIONS).map((c) => c.audio))) {
-    const file = join(AUDIO_DIR, timeline.compositions[id].audio);
-    if (existsSync(file) && statSync(file).mtimeMs > tl) continue;
+    if (fresh(join(AUDIO_DIR, timeline.compositions[id].audio))) continue;
     cached = false;
-    // ffmpeg cozumu synth.mjs icinde de ayni kuraldir (scripts/ffmpeg.mjs)
-    const r = spawnSync(process.execPath, [join(VIDEO_ROOT, 'scripts', 'audio', 'synth.mjs'), id], { cwd: VIDEO_ROOT, encoding: 'utf8' });
-    if (r.status !== 0) throw new Error(`Ses sentezi basarisiz (${id}): ${String(r.stderr ?? '').slice(-400)}`);
+    synth(id);
+  }
+  // normal / slow kokleri (tek seferde hepsi; ~1,5 dk — deploy'da prepare:article-short uretir)
+  if (!createPlanner(timeline).stemJobs().every((j) => fresh(join(AUDIO_DIR, 'tempo', j.file)))) {
+    cached = false;
+    synth('--tempo');
   }
   return { cached };
+}
+
+/** Render edilecek props: tempo her zaman acik (Remotion defaultProps 'normal'; eksik tempo = eski 'fast') */
+export function withTempo(props) {
+  return { ...props, tempo: normalizeTempo(props?.tempo) };
+}
+
+let planner = null;
+/** Poster saniyesi: fast'ta sablonun sabit degeri, normal / slow'da planin kanca karesi */
+export function posterSecondsFor(compositionId, props) {
+  const comp = assertComposition(compositionId);
+  const tempo = normalizeTempo(props?.tempo);
+  if (tempo === 'fast') return comp.posterSeconds;
+  planner ??= createPlanner(JSON.parse(readFileSync(TIMELINE_FILE, 'utf8')));
+  const p = planner.plan(compositionId, tempo, props);
+  return Number((p.posterFrame / p.fps).toFixed(2));
 }
 
 /** Bilinen kompozisyon mu (VIDEO_COMPOSITIONS) — degilse hata */
@@ -146,9 +173,10 @@ export async function getArticleShortServeUrl() {
  * signal kesilince Remotion'in cancelSignal'i tetiklenir: Remotion kendi actigi Chrome'u ve
  * ffmpeg kodlayicisini kapatir (zaman asimina ugrayan render arkada CPU yemeye devam etmesin).
  */
-export async function renderArticleShortMp4({ serveUrl, props, outFile, concurrency = renderConcurrency(), onProgress, signal = null, compositionId = COMPOSITION_ID }) {
+export async function renderArticleShortMp4({ serveUrl, props: rawProps, outFile, concurrency = renderConcurrency(), onProgress, signal = null, compositionId = COMPOSITION_ID }) {
   const { renderMedia, selectComposition, makeCancelSignal } = remotionRequire()('@remotion/renderer');
   assertComposition(compositionId);
+  const props = withTempo(rawProps);
   signal?.throwIfAborted();
   const composition = await selectComposition({ serveUrl, id: compositionId, inputProps: props, logLevel: 'error' });
   signal?.throwIfAborted();
@@ -210,7 +238,8 @@ export async function extractPoster(mp4, jpg, seconds = POSTER_SECONDS, { signal
  *   posterBytes: number, concurrency: number, bundle: string | false, inputLufs: number | null, timings: Record<string, number> }>}
  */
 export async function renderArticleShort({ props, outFile, posterFile, concurrency = renderConcurrency(), onProgress, signal = null, compositionId = COMPOSITION_ID }) {
-  const comp0 = assertComposition(compositionId);
+  assertComposition(compositionId);
+  props = withTempo(props);
   const t = {};
   const time = async (k, fn) => {
     const s = performance.now();
@@ -227,7 +256,7 @@ export async function renderArticleShort({ props, outFile, posterFile, concurren
     signal?.throwIfAborted();
     const comp = await time('render', () => renderArticleShortMp4({ serveUrl, props, outFile: partMp4, concurrency, onProgress, signal, compositionId }));
     const ln = props.muted ? null : await time('loudnorm', () => loudnormInPlace(partMp4, { signal }));
-    await time('poster', () => extractPoster(partMp4, partJpg, comp0.posterSeconds, { signal }));
+    await time('poster', () => extractPoster(partMp4, partJpg, posterSecondsFor(compositionId, props), { signal }));
     signal?.throwIfAborted();
     renameSync(partMp4, outFile);
     renameSync(partJpg, posterFile);
@@ -242,6 +271,7 @@ export async function renderArticleShort({ props, outFile, posterFile, concurren
       bundle: cached,
       inputLufs: ln?.inputLufs ?? null,
       compositionId,
+      tempo: props.tempo,
       timings: t,
     };
   } finally {
