@@ -15,6 +15,7 @@ import {
   Award,
   BarChart3,
   Bot,
+  Clapperboard,
   ClipboardList,
   CreditCard,
   FileBarChart,
@@ -98,6 +99,7 @@ export const SITE_NAV_ITEMS: SiteNavItem[] = [
   // ── Icerik ──
   { route: 'opportunities', label: 'İçerik Fırsatları', icon: Lightbulb, group: 'content', feature: 'contentOpportunities', hint: 'Kaybedilen sorgu → içerik → yeniden ölçüm', keywords: ['fırsat', 'opportunity', 'kayıp', 'lost', 'içerik'] },
   { route: 'articles', label: 'İçerikler', icon: FileText, group: 'content', hint: 'Önerilen konular + üretilen yazılar', keywords: ['article', 'makale', 'yazı', 'topic', 'konu', 'takvim', 'içerik'] },
+  { route: 'videos', label: 'Videolar', icon: Clapperboard, group: 'content', feature: 'articleVideo', hint: 'RanksUp Video — makaleden 15 sn dikey video', keywords: ['video', 'reels', 'shorts', 'tiktok', 'dikey', 'ranksup video', 'kısa video'] },
   { route: 'communities', label: 'Topluluk Ajanı', icon: MessagesSquare, group: 'content', hint: 'Reddit/Quora fırsatları + AI taslaklar', keywords: ['reddit', 'quora', 'topluluk', 'community', 'forum'] },
   { route: 'publishTargets', label: 'Yayın Hedefleri', icon: Send, group: 'content', hint: 'WordPress, FTP, SFTP', keywords: ['wordpress', 'ftp', 'sftp', 'wp', 'publish', 'yayın', 'hedef'] },
 

@@ -39,6 +39,7 @@ import { McpModule } from './mcp/mcp.module.js';
 import { ChatModule } from './chat/chat.module.js';
 import { IntelModule } from './intel/intel.module.js';
 import { ProspectModule } from './prospect/prospect.module.js';
+import { VideosModule } from './videos/videos.module.js';
 
 @Module({
   imports: [
@@ -78,6 +79,7 @@ import { ProspectModule } from './prospect/prospect.module.js';
     ChatModule,
     IntelModule,
     ProspectModule,
+    VideosModule,
   ],
   // Guard SIRASI onemli — kayit sirasinda calisirlar.
   //

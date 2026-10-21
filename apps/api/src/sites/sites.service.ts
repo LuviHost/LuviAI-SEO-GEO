@@ -7,6 +7,7 @@ import { CreateSiteDto, UpdateSiteDto } from './sites.dto.js';
 import { assertSiteUrlAllowed, parseSiteUrlInput, type PublicResolver } from './site-url-policy.js';
 import { crawlAccessKey, readCrawlAccess, type CrawlAccessRecord } from './crawl-access.js';
 import { asaStateKeys, promptLocalKeys } from '../me/unscoped-kv-keys.js';
+import { removeSiteVideoFiles } from '../videos/article-video.config.js';
 
 /**
  * Site satirindaki sirlar — API cevabina ASLA cikmamali.
@@ -178,6 +179,9 @@ export class SitesService {
       });
     // Kuyruk karsiliklari commit sonrasi, en iyi caba: kalan olursa worker iptal edilmis isi calistirmaz
     for (const jobId of queuedBullJobIds) await this.jobQueue.removeJob(jobId).catch(() => false);
+    // RanksUp Video dosyalari (apps/api/public/videos/<siteId>/) — satirlar yukarida silindi;
+    // dosyalar kalirsa herkese acik adreste durmaya devam ederdi
+    await removeSiteVideoFiles(id);
     this.log.log(`[${id}] Site ve bağlı veriler silindi (${user.id}); ${queuedBullJobIds.length} kuyruk işi iptal edildi`);
     return deleted;
   }

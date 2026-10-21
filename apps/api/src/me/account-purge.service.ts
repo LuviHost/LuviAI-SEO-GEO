@@ -4,6 +4,7 @@ import { EmailService } from '../email/email.service.js';
 import { isPurgeDue, purgeCutoff } from './account-deletion.policy.js';
 import { collectPurgeIds, purgePlanProblems, purgeSteps } from './account-purge.plan.js';
 import { deletionCompletedEmail } from './account-deletion.emails.js';
+import { removeSiteVideoFiles } from '../videos/article-video.config.js';
 
 export interface PurgeUserResult {
   purged: boolean;
@@ -95,6 +96,8 @@ export class AccountPurgeService {
       if (step.model === 'Invoice') retainedInvoices = r.count;
       if (step.model === 'VideoCreditPurchase') retainedCreditPurchases = r.count;
     }
+    // RanksUp Video dosyalari diskte ve herkese acik adreste kalmasin (satirlar plan adimlarinda silindi)
+    for (const siteId of ids.siteIds) await removeSiteVideoFiles(siteId);
     this.log.log(`Hesap kalici silindi: ${userId} (${ids.siteIds.length} site; ${retainedInvoices} fatura + ${retainedCreditPurchases} ödeme kaydı anonim saklandı)`);
 
     await this.sendCompletedEmail(user.email, user.name);

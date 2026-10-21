@@ -24,6 +24,7 @@ export const SITE_ROUTES = {
   stuckPages: '/stuck-pages',
   opportunities: '/opportunities',
   articles: '/articles',
+  videos: '/videos',
   communities: '/communities',
   publishTargets: '/publish-targets',
   analytics: '/analytics',

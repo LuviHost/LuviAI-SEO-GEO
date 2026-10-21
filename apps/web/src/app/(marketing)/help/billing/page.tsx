@@ -89,7 +89,7 @@ export default function Page() {
 
       <h2 id="kotalar" className="scroll-mt-20">Kotalar — aylık sıfırlama</h2>
       <p>
-        Makale ve AI görünürlük çalıştırması sayaçları her takvim ayının başında sıfırlanır. Deneme hesabındaki 2 ücretsiz makale hakkı sıfırlanmaz.
+        Makale, AI görünürlük çalıştırması ve RanksUp Video sayaçları her takvim ayının başında sıfırlanır. Deneme hesabındaki 2 ücretsiz makale hakkı sıfırlanmaz.
         Site kotası sabittir — plan limitini aşan yeni site eklenemez.
       </p>
       <p>
@@ -106,6 +106,7 @@ export default function Page() {
       <ul>
         <li><strong>Makale</strong> — kendi başlattığın yeni üretimler durur ve takvime yeni konu eklenemez; site eklenirken takvime yerleşen makaleler de bekler. Hakkın dolmadan takvime eklediğin konular zamanı gelince yine üretilir. Ay başını bekleyebilir ya da planını yükseltebilirsin</li>
         <li><strong>AI görünürlük çalıştırması</strong> — havuzdaki sağlayıcılarla yeni ölçüm başlatılamaz. Otomatik günlük ölçüm olmadığı için grafikler de yeni bir ölçüm yapılana kadar güncellenmez</li>
+        <li><strong>RanksUp Video</strong> (Profesyonel ve üstü) — yeni video istenemez; ay başını bekleyebilir ya da planını yükseltebilirsin. Üretilemeyen videonun ve sırada beklerken sildiğin videonun hakkı iade edilir (<a href="/help/video">RanksUp Video rehberi</a>)</li>
         <li><strong>AI bütçesi %80</strong> — panelde uyarı görünür</li>
         <li><strong>AI bütçesi %100</strong> — görsel alt metni önerisi ve App Store yorum yanıtı taslağı gibi işlemler durur</li>
       </ul>

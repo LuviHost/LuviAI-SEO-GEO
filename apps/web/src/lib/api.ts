@@ -6,6 +6,7 @@
 import type {
   GaKeyEventSetup, LocalPromptDraft, LocalPromptInput, LocalPromptMeta, LocalRunSummary, SiteNapView,
 } from './local-visibility';
+import type { ArticleVideo, VideoBrandPreview, VideoQuota } from './article-video';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
@@ -1433,6 +1434,19 @@ export const api = {
 
   getArticle: (siteId: string, articleId: string) =>
     request<any>(`/sites/${siteId}/articles/${articleId}`),
+
+  // ── RanksUp Video (makaleden 15 sn dikey video; api videos/videos.controller.ts) ──
+  listVideos: (siteId: string) => request<ArticleVideo[]>(`/sites/${siteId}/videos`),
+  getVideoQuota: (siteId: string) => request<VideoQuota>(`/sites/${siteId}/videos/quota`),
+  /** Ad / renk / logo onizlemesi — Profesyonel ve ustu (alt planda 403; panel cagirmaz) */
+  getVideoBrand: (siteId: string) => request<VideoBrandPreview>(`/sites/${siteId}/videos/brand`),
+  requestVideo: (siteId: string, body: { articleId: string; primaryColor?: string | null; useLogo?: boolean; brandName?: string }) =>
+    request<{ video: ArticleVideo; remaining: number; limit: number }>(`/sites/${siteId}/videos`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  deleteVideo: (siteId: string, videoId: string) =>
+    request<{ ok: true; refunded: boolean }>(`/sites/${siteId}/videos/${videoId}`, { method: 'DELETE' }),
 
   // Async queue (placeholder Article = GENERATING + worker job).
   // F5 yenilense bile Article DB'de inflight kalır → progress UI persist eder.

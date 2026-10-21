@@ -16,6 +16,7 @@ import {
 import { showNotice } from '@/lib/notice';
 import { isPlanLocked } from '@/lib/plan-lock';
 import { LockedArticleBody, PlanLockBadge } from '@/components/locked-article';
+import { ArticleVideoButton } from '@/components/article-video';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
@@ -771,6 +772,8 @@ ${body}
               <Button variant="outline" onClick={downloadHtml} disabled={!renderedHtml}>
                 <Download className="h-4 w-4 mr-2" /> HTML
               </Button>
+              {/* RanksUp Video — yalniz yayindaki yazida gorunur; alt planda kilitli onizleme acar */}
+              <ArticleVideoButton siteId={siteId} article={article} size="default" />
               {targets.length === 0 ? (
                 <Button asChild>
                   <Link href={siteHref(siteId, 'publishTargets') as any}>+ Yayın Hedefi Ekle</Link>

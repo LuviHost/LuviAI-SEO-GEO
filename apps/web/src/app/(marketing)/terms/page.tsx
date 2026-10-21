@@ -9,6 +9,9 @@ const CONTENT = {
     titleA: 'Kullanım',
     titleB: 'Koşulları',
     effective: 'Yürürlük: 27 Nisan 2026',
+    // Icerik degisti (8. madde eklendi); yururluk tarihi korunur, okuyan degisikligi gorsun diye
+    // son guncelleme ve not ayrica yazilir (gizlilik sayfasindaki duzen)
+    updated: 'Son güncelleme: 21 Ekim 2026 — 8. madde (RanksUp Video ve marka öğeleri) eklendi; sonraki maddelerin numarası bir arttı.',
     sections: [
       {
         h: '1. Hizmet Tanımı',
@@ -45,11 +48,20 @@ const CONTENT = {
         p: "RanksUp; LinkedIn, X (Twitter), Bluesky, TikTok, YouTube, Facebook, Instagram, Threads ve Pinterest gibi platformlara OAuth 2.0 ile bağlanır. Her bağlantı kullanıcının açık rızasıyla yapılır; kullanıcı her zaman dashboard'dan bağlantıyı koparıp yetkiyi geri alabilir. RanksUp yalnızca kullanıcının onayladığı içerikleri kullanıcı adına yayınlar; otomatik yayın seçeneği bile kullanıcının önceden tanımladığı kurallar çerçevesinde çalışır. Yayınlanan tüm içeriğin sorumluluğu kullanıcıya aittir; ilgili platformların topluluk kurallarına uyum kullanıcının yükümlülüğüdür. Bir platformla yapılan entegrasyon, o platformun geliştirici politikalarına ve kullanım koşullarına tabidir.",
       },
       {
-        h: '8. Hesap Sonlandırma',
+        // Sahip karari 21.10.2026: musteri logo/marka kullanimina izin verir, yayindan kendisi sorumlu.
+        // Iddialar kodla ayni: marka sitenin herkese acik sayfalarindan okunur (api videos/
+        // article-video-brand.ts), metin makalenin kendi cumlelerinden + sayi koruyucusu
+        // (apps/video copy.mjs validateScript), RanksUp hicbir platformda yayin yapmaz, dosya
+        // tahmin edilmesi guc herkese acik adreste (nginx /videos/), silinince dosya gider.
+        h: '8. RanksUp Video ve Marka Öğeleri',
+        p: 'RanksUp Video, yayındaki makalenizden kısa dikey video üretmek için sitenizin herkese açık sayfalarından adınızı, logonuzu ve tema renginizi okur; bunları yalnızca sizin başlattığınız videoyu üretmek için kullanır. Video üretimini başlatarak sitenizin adı, logosu, renkleri ve makale içeriği üzerinde gerekli haklara sahip olduğunuzu ve RanksUp’ın bunları bu amaçla işlemesine izin verdiğinizi kabul edersiniz. Video metni makalenizin kendi başlık, cümle ve sayılarından derlenir; yapay zekâ kullanıldığında da çıktı, makalede geçmeyen sayıları reddeden bir denetimden geçer. Buna rağmen videoyu yayınlamadan önce kontrol etmek sizin sorumluluğunuzdadır. RanksUp videoları sizin adınıza hiçbir platformda yayınlamaz; videoyu nerede ve nasıl yayınlayacağınıza siz karar verirsiniz ve yayınlanan videonun içeriği ile ilgili platformların kurallarına uyum sizin sorumluluğunuzdadır. Videolarda küçük bir “ranksup.ai ile üretildi” ibaresi bulunur. Video dosyaları tahmin edilmesi güç bir bağlantıyla sunucularımızda saklanır; bağlantıyı bilen herkes videoyu açabilir. Videoyu panelden sildiğinizde dosya da silinir.',
+      },
+      {
+        h: '9. Hesap Sonlandırma',
         p: "Yasak kullanım tespit edilirse hesap askıya alınabilir. Veriler 30 gün saklanır, sonra silinir. Sosyal medya OAuth token'ları hesap sonlandırılmasından sonra 30 gün içinde geri dönüşsüz silinir.",
       },
       {
-        h: '9. Yetkili Mahkeme',
+        h: '10. Yetkili Mahkeme',
         p: 'Türkiye Cumhuriyeti hukuku geçerlidir. İstanbul Mahkemeleri yetkilidir.',
       },
     ],
@@ -59,6 +71,7 @@ const CONTENT = {
     titleA: 'Terms of',
     titleB: 'Service',
     effective: 'Effective: April 27, 2026',
+    updated: 'Last updated: October 21, 2026 — added section 8 (RanksUp Video and brand assets); the following sections were renumbered.',
     sections: [
       {
         h: '1. Service Definition',
@@ -95,11 +108,15 @@ const CONTENT = {
         p: "RanksUp connects to LinkedIn, X (Twitter), Bluesky, TikTok, YouTube, Facebook, Instagram, Threads and Pinterest via OAuth 2.0. Every connection requires the user's explicit consent; users can disconnect and revoke access at any time from the dashboard. RanksUp only publishes content the user approves on their behalf; even auto-publish operates within rules the user pre-defined. The user is responsible for all published content and for compliance with each platform's community guidelines. Each integration is subject to that platform's developer policies and terms of service.",
       },
       {
-        h: '8. Account Termination',
+        h: '8. RanksUp Video and Brand Assets',
+        p: 'To create a short vertical video from your published article, RanksUp Video reads your name, logo and theme colour from the public pages of your site and uses them only to produce the video you started. By starting a video you confirm that you hold the necessary rights to your site name, logo, colours and article content and that you allow RanksUp to process them for this purpose. The video text is assembled from your article’s own headings, sentences and numbers; when AI is used, the output also passes a check that rejects numbers that do not appear in the article. Even so, reviewing the video before you publish it is your responsibility. RanksUp does not publish videos on any platform on your behalf; you decide where and how to publish a video, and you are responsible for its content and for complying with each platform’s rules. Videos carry a small “ranksup.ai ile üretildi” (made with ranksup.ai) caption. Video files are stored on our servers under a hard-to-guess link; anyone who has the link can open the video. When you delete a video in the dashboard, the file is deleted too.',
+      },
+      {
+        h: '9. Account Termination',
         p: 'Accounts may be suspended if prohibited use is detected. Data is retained for 30 days then deleted. Social media OAuth tokens are permanently deleted within 30 days of account termination.',
       },
       {
-        h: '9. Jurisdiction',
+        h: '10. Jurisdiction',
         p: 'Turkish Republic law applies. Istanbul Courts have jurisdiction.',
       },
     ],
@@ -123,7 +140,8 @@ export default function TermsPage() {
           </span>{' '}
           {data.titleB}
         </h1>
-        <p className="text-sm text-muted-foreground mb-8">{data.effective}</p>
+        <p className="text-sm text-muted-foreground mb-1">{data.effective}</p>
+        <p className="text-sm text-muted-foreground mb-8">{data.updated}</p>
 
         <div className="space-y-6 text-sm leading-relaxed">
           {data.sections.map((s) => {

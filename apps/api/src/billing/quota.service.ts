@@ -2,7 +2,7 @@ import { Injectable, ForbiddenException, Logger } from '@nestjs/common';
 import { Cron } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service.js';
 import {
-  findPlan, planHasFeature, FEATURE_MIN_PLAN, PLAN_FEATURE_LABELS,
+  findPlan, planHasFeature, FEATURE_MIN_PLAN, PLAN_FEATURE_LABELS, VIDEOS_PER_MONTH,
   type PlanFeature, type PlanId,
 } from './plans.js';
 import { acquireCronLock } from '../common/cron-lock.js';
@@ -165,6 +165,90 @@ export class QuotaService {
     return Object.prototype.hasOwnProperty.call(this.LIMITS, plan)
       ? this.LIMITS[plan as keyof typeof this.LIMITS].articles
       : 0;
+  }
+
+  // ────────────────────────────────────────────
+  //  RanksUp Video — aylik video hakki
+  // ────────────────────────────────────────────
+
+  /** Planin aylik video hakki (plans.ts VIDEOS_PER_MONTH tek kaynak); bilinmeyen plan 0 */
+  videoLimitFor(plan: string): number {
+    const id = String(plan ?? '').toLowerCase();
+    return Object.prototype.hasOwnProperty.call(VIDEOS_PER_MONTH, id) ? VIDEOS_PER_MONTH[id as PlanId] : 0;
+  }
+
+  /** Panel icin: bu ayki kullanim, hak, kalan (ay basi sifirlamasi once uygulanir) */
+  async checkVideoQuota(userId: string): Promise<{ used: number; limit: number; remaining: number; unlimited: boolean }> {
+    const before = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    await this.maybeResetMonthlyQuota(before);
+    const user = await this.prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+      select: { plan: true, role: true, videosUsedThisMonth: true },
+    });
+    const limit = this.videoLimitFor(user.plan);
+    const used = user.videosUsedThisMonth ?? 0;
+    // ADMIN (platform sahibi/ekip) hakka takilmaz — site/uygulama kotasiyla ayni gerekce
+    const unlimited = user.role === 'ADMIN';
+    return { used, limit, remaining: Math.max(0, limit - used), unlimited };
+  }
+
+  /**
+   * Bir video icin hak dus — kuyruga atmadan ONCE. Tek kosullu UPDATE
+   * (`videosUsedThisMonth < hak`): ayni anda gelen iki istek son hakki iki kez alamaz
+   * (consumeArticleAllowance ile ayni kalip). Hak 0 ise (Deneme/Buyume) ozellik yok mesaji;
+   * hak dolduysa aylik doldu mesaji. ADMIN sayac artirmadan gecer (charged=false) — iade
+   * de yapilmaz.
+   */
+  async consumeVideoAllowance(userId: string): Promise<{ charged: boolean; remaining: number; limit: number }> {
+    const q = await this.checkVideoQuota(userId);
+    if (q.unlimited) return { charged: false, remaining: q.remaining, limit: q.limit };
+    if (q.limit <= 0) {
+      this.assertPlanFeature((await this.planOf(userId)), 'articleVideo');
+      // Plan ozelligi acik ama hak 0 (ileride boyle bir plan olursa): yine net bir 403
+      throw new ForbiddenException('Planında RanksUp Video hakkı yok. Planını yükselterek kullanabilirsin.');
+    }
+    const r = q.remaining > 0
+      ? await this.prisma.user.updateMany({
+        where: { id: userId, videosUsedThisMonth: { lt: q.limit } },
+        data: { videosUsedThisMonth: { increment: 1 } },
+      })
+      : { count: 0 };
+    if (r.count !== 1) {
+      throw new ForbiddenException(`Bu ayki ${q.limit} video hakkını kullandın. Hak yeni ayda yenilenir; daha fazlası için planını yükseltebilirsin.`);
+    }
+    return { charged: true, remaining: Math.max(0, q.remaining - 1), limit: q.limit };
+  }
+
+  /**
+   * consumeVideoAllowance'in dustugu hakki geri ver (render basarisiz, is kuyruga girmedi,
+   * kuyruktaki video silindi). Cagiran bunu YALNIZ BIR KEZ cagirmali (videonun durum gecisi
+   * kosullu UPDATE ile korunur, bkz. video-render.service markFailed).
+   *
+   * chargedAt: hakkin dusuldugu an (Video.createdAt). Hak gecen ay dusulduyse iade EDILMEZ:
+   * sayac yeni ayda sifirlanir (ya da ilk kota okumasinda sifirlanacak), eski ayin hakki yeni
+   * ayin sayacindan dusulmemeli. Ay tanimi maybeResetMonthlyQuota ile ayni (sunucu saati, yil +
+   * ay). articlesQuotaResetAt'e bakilmaz: ay ortasi plan degisimi o damgayi yeniler ama video
+   * sayacini sifirlamaz (paytr.service activateSubscription).
+   * Sayac 0'in altina inmez. Hata loglanir ve yutulur: asil hata kaybolmasin.
+   */
+  async refundVideoAllowance(userId: string, chargedAt: Date, now: Date = new Date()): Promise<boolean> {
+    const at = new Date(chargedAt);
+    if (at.getFullYear() !== now.getFullYear() || at.getMonth() !== now.getMonth()) return false;
+    try {
+      const r = await this.prisma.user.updateMany({
+        where: { id: userId, videosUsedThisMonth: { gt: 0 } },
+        data: { videosUsedThisMonth: { decrement: 1 } },
+      });
+      return r.count === 1;
+    } catch (err: any) {
+      this.log.warn(`[${userId}] Video hakki geri verilemedi: ${err?.message ?? err}`);
+      return false;
+    }
+  }
+
+  private async planOf(userId: string): Promise<string> {
+    const u = await this.prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { plan: true } });
+    return u.plan;
   }
 
   // ────────────────────────────────────────────

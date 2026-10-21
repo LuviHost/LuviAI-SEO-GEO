@@ -61,6 +61,14 @@ export interface ChatRequest {
 
   /** Anthropic için ephemeral cache control desteği */
   cacheSystemPrompt?: boolean;
+
+  /**
+   * Yapisal cikti (structured outputs) — yanit bu JSON Schema'ya uyan TEK bir JSON metnidir.
+   * Yalniz Anthropic saglayicisi uygular (`output_config.format`); diger saglayicilar acik hata
+   * verir (sessizce serbest metin donup cagiranin JSON.parse'ina dusmesin).
+   * Semada maxLength / minItems / maxItems gibi desteklenmeyen kisitlar OLMAMALI.
+   */
+  outputSchema?: Record<string, unknown>;
 }
 
 export interface UsageMetadata {

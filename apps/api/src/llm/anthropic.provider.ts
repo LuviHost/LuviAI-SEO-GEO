@@ -21,6 +21,9 @@ const PRICING: Record<string, ModelPricing> = {
   // yaziliyor — maliyeti eksik degil fazla gostermek daha guvenli.
   'claude-sonnet-5':            { input: 3,  output: 15, cacheRead: 0.3,  cacheWrite: 3.75 },
   'claude-sonnet-4-6':          { input: 3,  output: 15, cacheRead: 0.3,  cacheWrite: 3.75 },
+  // Haiku 5.5: 100K token'a kadar istem 0.10 / 0.50 (daha uzun istemde 0.50 / 2.50 — RanksUp
+  // Video istemleri 100K'nin cok altinda). claude-api skill tablosu, 2026-10-06.
+  'claude-haiku-5-5':           { input: 0.1, output: 0.5, cacheRead: 0.01, cacheWrite: 0.125 },
   'claude-haiku-4-5':           { input: 1,  output: 5,  cacheRead: 0.1,  cacheWrite: 1.25 },
   'claude-haiku-4-5-20251001':  { input: 1,  output: 5,  cacheRead: 0.1,  cacheWrite: 1.25 },
   // Fallbacks (legacy model isimleri)
@@ -34,7 +37,8 @@ const PRICING: Record<string, ModelPricing> = {
  * (Claude Opus 5 / 4.8 / 4.7, Sonnet 5, Fable 5)
  */
 function rejectsSamplingParams(model: string): boolean {
-  return /^claude-(opus-(5|4-8|4-7)|sonnet-5|fable-5|mythos-5)/.test(model);
+  // Haiku 5.5: varsayilan disi sampling degeri 400 (claude-api thinking tablosu)
+  return /^claude-(opus-(5|4-8|4-7)|sonnet-5|fable-5|mythos-5|haiku-5)/.test(model);
 }
 
 /**
@@ -53,7 +57,8 @@ function supportsAdaptiveThinking(model: string): boolean {
  * secildiginde tum yazar/editor ajani cagrilari 400 ile duserdi.
  */
 function supportsEffort(model: string): boolean {
-  return /^claude-(opus-(5|4-8|4-7|4-6|4-5)|sonnet-(5|4-6)|fable-5|mythos-5)/.test(model);
+  // Haiku 5.5 effort destekler (varsayilan medium); Haiku 4.5 desteklemez
+  return /^claude-(opus-(5|4-8|4-7|4-6|4-5)|sonnet-(5|4-6)|fable-5|mythos-5|haiku-5)/.test(model);
 }
 
 /**
@@ -127,8 +132,11 @@ export class AnthropicProvider implements ILLMProvider {
 
     // effort thinking derinligini ve toplam token harcamasini ayarlar.
     // Model gate'i SART: Haiku 4.5 / Sonnet 4.5 effort kabul etmez (400).
-    const outputConfig = req.effort && supportsEffort(req.model)
-      ? { output_config: { effort: clampEffort(req.model, req.effort) } }
+    // Yapisal cikti (output_config.format) effort ile ayni nesnede gider
+    const effort = req.effort && supportsEffort(req.model) ? { effort: clampEffort(req.model, req.effort) } : {};
+    const format = req.outputSchema ? { format: { type: 'json_schema' as const, schema: req.outputSchema } } : {};
+    const outputConfig = Object.keys(effort).length || Object.keys(format).length
+      ? { output_config: { ...effort, ...format } }
       : {};
 
     const messages = req.messages.filter(m => m.role !== 'system').map(m => ({

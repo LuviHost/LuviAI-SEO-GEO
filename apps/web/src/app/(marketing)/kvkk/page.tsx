@@ -18,12 +18,13 @@ export default function KvkkPage() {
             araclari) ama sayfada yalniz yururluk tarihi vardi; okuyan metnin degistigini goremezdi.
             Gizlilik sayfasindaki duzen: yururluk tarihi korunur, son guncelleme ve degisiklik notu
             ayrica yazilir (okuyan neyin degistigini de gorsun). Tarih bu icerigin yayin gunu
-            (20 Ekim 2026), gizlilik sayfasiyla ayni gun. */}
+            (21 Ekim 2026: RanksUp Video eklendi), gizlilik sayfasiyla ayni gun. */}
         <p className="text-sm text-muted-foreground mb-1">Yürürlük: 27 Nisan 2026</p>
-        <p className="text-sm text-muted-foreground mb-1">Son güncelleme: 20 Ekim 2026</p>
+        <p className="text-sm text-muted-foreground mb-1">Son güncelleme: 21 Ekim 2026</p>
         <p className="text-sm text-muted-foreground mb-8">
           Değişiklik: Aktarılan Taraflar bölümüne yalnız çerez onayınızla yüklenen Google ve Microsoft araçları ile sizi
-          davet eden iş ortağının ortaklık panelinde gördüğü bilgiler eklendi.
+          davet eden iş ortağının ortaklık panelinde gördüğü bilgiler eklendi. İşlenen Kişisel Veriler bölümüne RanksUp
+          Video için sitenizden okunan marka bilgileri ve üretilen video dosyaları eklendi (21 Ekim 2026).
         </p>
 
         <div className="space-y-6 text-sm leading-relaxed">
@@ -39,7 +40,9 @@ export default function KvkkPage() {
             <h2 className="text-xl font-bold mb-2">İşlenen Kişisel Veriler</h2>
             <p className="text-muted-foreground">
               Hesap bilgileri (email, ad), site bilgileri (URL, marka), GSC OAuth tokens (şifreli), publish
-              credentials (şifreli), ödeme bilgileri (PayTR aracılığıyla, biz tutmayız).
+              credentials (şifreli), ödeme bilgileri (PayTR aracılığıyla, biz tutmayız). RanksUp Video kullanırsanız
+              sitenizin herkese açık sayfalarından okunan ad, logo ve tema rengi ile üretilen video dosyaları; video metni
+              için yalnızca makale metni Anthropic’e gönderilir (Gizlilik Politikası 1. ve 6. bölüm).
             </p>
           </section>
 

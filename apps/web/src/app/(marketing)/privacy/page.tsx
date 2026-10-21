@@ -49,9 +49,10 @@ const CONTENT = {
     // gorsun diye son guncelleme ve not ayrica yazilir. Bolum 2 duzeltmesi de notta: okuyan,
     // onceki metnin tersini soyledigi bir iddianin degistigini gormeli. luvi_ref maddesine eklenen
     // ortaklik paneli cumlesi de notta: ortaga hangi verinin gittigi yeni bir bilgi.
-    // Tarih bu icerigin yayin gunu (20 Ekim 2026); KVKK sayfasindaki tarih de ayni gun.
-    updated: 'Son güncelleme: 20 Ekim 2026',
-    changeNote: 'Değişiklik: çerezler bölümü yeniden yazıldı (kullanılan araçlar, amaçları, süreleri ve onayın nasıl geri alınacağı); hesap silme yolları (mobil uygulama ve web paneli) ile silme sonrası fatura ve ödeme kayıtlarının saklanması eklendi; kaldırılan sosyal medya bağlantıları bölümü güncellendi ve artık kullanılmayan yapay zekâ sağlayıcıları (HeyGen, Runway, ElevenLabs) listeden çıkarıldı; veri kullanımı bölümü (2), pazarlama amaçlı veri paylaşımının yalnız onayınızla yüklenen Google reklam etiketleriyle (dönüşüm ölçümü ve yeniden pazarlama) yapıldığını belirtecek şekilde düzeltildi; çerezler bölümündeki ortaklık bağlantısı (luvi_ref) maddesine, sizi davet eden iş ortağının ortaklık panelinde hakkınızda neleri gördüğü eklendi.',
+    // 21 Ekim 2026: RanksUp Video (bolum 1 maddesi + bolum 6 cumlesi) eklendi, notun sonunda.
+    // Tarih bu icerigin yayin gunu (21 Ekim 2026); KVKK sayfasindaki tarih de ayni gun.
+    updated: 'Son güncelleme: 21 Ekim 2026',
+    changeNote: 'Değişiklik: çerezler bölümü yeniden yazıldı (kullanılan araçlar, amaçları, süreleri ve onayın nasıl geri alınacağı); hesap silme yolları (mobil uygulama ve web paneli) ile silme sonrası fatura ve ödeme kayıtlarının saklanması eklendi; kaldırılan sosyal medya bağlantıları bölümü güncellendi ve artık kullanılmayan yapay zekâ sağlayıcıları (HeyGen, Runway, ElevenLabs) listeden çıkarıldı; veri kullanımı bölümü (2), pazarlama amaçlı veri paylaşımının yalnız onayınızla yüklenen Google reklam etiketleriyle (dönüşüm ölçümü ve yeniden pazarlama) yapıldığını belirtecek şekilde düzeltildi; çerezler bölümündeki ortaklık bağlantısı (luvi_ref) maddesine, sizi davet eden iş ortağının ortaklık panelinde hakkınızda neleri gördüğü eklendi; RanksUp Video için sitenizden okunan marka bilgileri ve üretilen video dosyaları (1. bölüm) ile video metni için yapay zekâ kullanımı (6. bölüm) eklendi.',
     s1: '1. Toplanan Veriler',
     s1items: [
       'Hesap bilgileri: email, ad, varsa profil fotoğrafı',
@@ -59,6 +60,11 @@ const CONTENT = {
       'GSC OAuth tokens (AES-256-GCM şifreli)',
       'Publish hedefi credentials (FTP/SFTP/WP, AES-256-GCM şifreli)',
       "Ödeme bilgileri PayTR'de saklanır, biz kart numarası tutmayız",
+      // RanksUp Video (api videos/): marka sitenin herkese acik sayfasindan okunur, dosyalar
+      // apps/api/public/videos/<siteId>/ altinda (nginx /videos/); video silinince, site silinince
+      // ve hesap kalici silinince dosyalar da silinir (videos.service remove, sites.service remove,
+      // account-purge.service). Davranis degisirse bu madde (TR + EN) ayni committe.
+      'RanksUp Video: video istediğinizde sitenizin herkese açık sayfalarından okunan ad, logo ve tema rengi; üretilen video dosyası ve kapak görseli. Video dosyaları tahmin edilmesi güç bir bağlantıyla sunucularımızda saklanır, bağlantıyı bilen herkes açabilir; videoyu ya da siteyi sildiğinizde ve hesabınız kalıcı olarak silindiğinde dosyalar da silinir',
     ],
     s2: '2. Veri Kullanımı',
     // Bolum 2 NEDEN degisti: eski metin "sadece hizmet sunumu" ve "pazarlama amacli
@@ -130,7 +136,7 @@ const CONTENT = {
     ],
     s5p2: 'Bu kayıtlar ilgili siteyi sildiğinizde hemen silinir. Hesabınızı sildiğinizde erişim bilgileri, hesap adı ve profil görseli hemen silinir; kalan kayıtlar 30 gün sonra kalıcı olarak silinir. Daha erken silinmesini isterseniz kvkk@luvihost.com adresine yazabilirsiniz. Bağlantıyı ilgili platformun hesap ayarlarındaki bağlı uygulamalar bölümünden de kaldırabilirsiniz. Reklam yönetimi için bağlanan Google Ads ve Meta (Facebook) reklam hesabı bağlantıları ayrı bir özelliktir; bu bölüm onları kapsamaz.',
     s6: '6. Yapay Zeka Üretim Sistemleri',
-    s6p: 'İçerik üretimi için Anthropic Claude, Google Gemini ve OpenAI ile iletişim kurulur. Kullanıcı içeriği yalnızca o üretim için gönderilir, model eğitiminde kullanılmaz (her sağlayıcının "no-train" politikalarına uygun çağrı yapılır).',
+    s6p: 'İçerik üretimi için Anthropic Claude, Google Gemini ve OpenAI ile iletişim kurulur. Kullanıcı içeriği yalnızca o üretim için gönderilir, model eğitiminde kullanılmaz (her sağlayıcının "no-train" politikalarına uygun çağrı yapılır). RanksUp Video’da yalnızca makalenizin metni, video metnini çıkarmak için Anthropic Claude’a gönderilir; logonuz ve marka renginiz yapay zekâ sağlayıcısına gönderilmez, videonun kendisi sunucularımızda üretilir.',
     s7: '7. Haklarınız (KVKK)',
     s7items: [
       'Verilerinize erişim talep etme',
@@ -146,8 +152,8 @@ const CONTENT = {
     titleA: 'Privacy',
     titleB: 'Policy',
     effective: 'Effective: April 27, 2026',
-    updated: 'Last updated: October 20, 2026',
-    changeNote: 'Change: rewrote the cookie section (the tools we use, their purposes and durations, and how to withdraw consent); added the account deletion paths (mobile app and web dashboard) and how invoices and payment records are kept after deletion; updated the section on the removed social media connections and removed AI providers we no longer use (HeyGen, Runway, ElevenLabs) from the list; corrected the data use section (2) to state that data is shared for marketing only through the Google ad tags that load with your consent (conversion measurement and remarketing); added to the partner link (luvi_ref) item in the cookie section what the partner who invited you sees about you in their partner dashboard.',
+    updated: 'Last updated: October 21, 2026',
+    changeNote: 'Change: rewrote the cookie section (the tools we use, their purposes and durations, and how to withdraw consent); added the account deletion paths (mobile app and web dashboard) and how invoices and payment records are kept after deletion; updated the section on the removed social media connections and removed AI providers we no longer use (HeyGen, Runway, ElevenLabs) from the list; corrected the data use section (2) to state that data is shared for marketing only through the Google ad tags that load with your consent (conversion measurement and remarketing); added to the partner link (luvi_ref) item in the cookie section what the partner who invited you sees about you in their partner dashboard; added the brand details read from your site and the video files produced for RanksUp Video (section 1) and the use of AI for the video text (section 6).',
     s1: '1. Data Collected',
     s1items: [
       'Account info: email, name, profile photo if any',
@@ -155,6 +161,7 @@ const CONTENT = {
       'GSC OAuth tokens (AES-256-GCM encrypted)',
       'Publish target credentials (FTP/SFTP/WP, AES-256-GCM encrypted)',
       'Payment data is stored at PayTR; we do not hold card numbers',
+      'RanksUp Video: when you request a video, the name, logo and theme colour read from the public pages of your site, plus the produced video file and cover image. Video files are stored on our servers under a hard-to-guess link that anyone with the link can open; they are deleted when you delete the video or the site, and when your account is permanently deleted',
     ],
     s2: '2. Data Use',
     s2p: 'Your account, site, connection and payment details (section 1) are used to provide the service: AI content generation, SEO audits, GSC analysis and publish automation. Your data is not sold to third parties. Data is shared for marketing and remarketing only through the Google tags that load if you click “Accept” in the cookie banner: Google Ads conversion measurement and remarketing measure whether our ads lead to sign-ups and purchases and let Google show our ads to people who visited our site. The analytics tools (Google Analytics 4, Microsoft Clarity) also load only with this consent; if you do not accept, none of them load. Section 4 lists these tools, their cookies and how to withdraw your consent.',
@@ -208,7 +215,7 @@ const CONTENT = {
     ],
     s5p2: 'These records are deleted immediately when you delete the related site. When you delete your account, the access credentials, account name and profile image are deleted immediately, and the remaining records are permanently deleted 30 days later. To have them deleted sooner, write to kvkk@luvihost.com. You can also remove the connection in the connected apps section of the platform’s account settings. Google Ads and Meta (Facebook) ad account connections made for ad management are a separate feature and are not covered by this section.',
     s6: '6. AI Generation Systems',
-    s6p: 'Content generation uses Anthropic Claude, Google Gemini and OpenAI. User content is sent only for that generation request and is not used for model training (each provider is called following its "no-train" policy).',
+    s6p: 'Content generation uses Anthropic Claude, Google Gemini and OpenAI. User content is sent only for that generation request and is not used for model training (each provider is called following its "no-train" policy). For RanksUp Video only your article text is sent to Anthropic Claude to extract the video text; your logo and brand colour are not sent to any AI provider, and the video itself is produced on our servers.',
     s7: '7. Your Rights (GDPR/KVKK)',
     s7items: [
       'Request access to your data',

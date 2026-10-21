@@ -18,6 +18,7 @@ import { isPlanLocked } from '@/lib/plan-lock';
 import { LockedGenerateButton, LockedRowPreview, PlanUpgradeButton } from '@/components/locked-article';
 import { refreshArticleAllowance, useArticleAllowance } from '@/lib/use-article-allowance';
 import { PipelineProgress, PIPELINE_STEPS } from '@/components/pipeline-progress';
+import { ArticleVideoButton } from '@/components/article-video';
 
 /*
  * ContentFlowTable — TopicsStepBody + ArticlesStepBody'nin birleşik tablo karşılığı.
@@ -750,6 +751,9 @@ export function ContentFlowTable({
                                 >
                                   🔗 Aç
                                 </a>
+                              )}
+                              {row.articleId && (
+                                <ArticleVideoButton siteId={siteId} article={{ id: row.articleId, title: row.topic, status: 'PUBLISHED' }} label="Video" />
                               )}
                               <Link href={`/sites/${siteId}/articles/${row.articleId}`}>
                                 <Button size="sm" variant="outline">

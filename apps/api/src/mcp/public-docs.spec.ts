@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { BASE_PLANS, FEATURE_MIN_PLAN, PLAN_FEATURE_LABELS, findPlan, type BasePlan } from '../billing/plans.js';
+import { BASE_PLANS, FEATURE_MIN_PLAN, PLAN_FEATURE_LABELS, VIDEOS_PER_MONTH, findPlan, type BasePlan } from '../billing/plans.js';
 import { MEASUREMENT_WINDOW_MS } from '../billing/measurement-allowance.js';
 import { RANKSUP_BOT_UA } from '../common/safe-fetch.js';
 import { McpToolsService } from './mcp-tools.service.js';
@@ -1201,5 +1201,86 @@ describe('Olcum hakki metinleri = measurement-allowance.ts', () => {
     const kaynaklar = [...webSources, ...docSources, ...kart];
     expect(offenders(kaynaklar, tr)).toEqual([]);
     expect(offenders(kaynaklar, en)).toEqual([]);
+  });
+});
+
+// RanksUp Video (21.10.2026): belgeler, kullanim sartlari, gizlilik ve SSS koddaki plan kapisi
+// (FEATURE_MIN_PLAN.articleVideo), aylik hak (VIDEOS_PER_MONTH) ve davranisla (metin koruyucusu,
+// filigran, platformda yayin YOK) ayni kalmali. Sayi ya da kapi degisirse bu test kirilir; metin
+// ayni committe guncellenir.
+describe('RanksUp Video belgeleri = kod', () => {
+  const minPlan = findPlan(FEATURE_MIN_PLAN.articleVideo)!.name_tr;
+  const sayilar = `Profesyonel ${VIDEOS_PER_MONTH.pro}, Ajans ${VIDEOS_PER_MONTH.agency}, Kurumsal ${VIDEOS_PER_MONTH.enterprise} video`;
+  const videoSrc = path.resolve(HERE, '../videos');
+
+  it('plan kapisi Profesyonel; llms.txt ve llms-full.txt aylik haklari plans.ts ile ayni yaziyor', () => {
+    expect(minPlan).toBe('Profesyonel');
+    for (const [ad, doc] of [['llms.txt', llms], ['llms-full.txt', llmsFull]] as const) {
+      expect(doc, ad).toContain(`aylık hak: ${sayilar}`.replace('aylık hak', ad === 'llms.txt' ? 'aylık hak' : 'Aylık hak'));
+      expect(doc, ad).toContain('https://ranksup.ai/help/video');
+      expect(doc, ad).toContain('RanksUp videoyu hiçbir platformda yayınlamaz');
+    }
+    expect(llms).toContain(`RanksUp Video (ayda ${VIDEOS_PER_MONTH.pro} video)`);
+    expect(llmsFull).toContain(`### RanksUp Video — ${minPlan} ve üstü`);
+  });
+
+  it('kullanim sartlari 8. madde (TR + EN): marka izni, yayin sorumlulugu musteride, platformda yayin yok', () => {
+    const t = read(path.join(MARKETING, 'terms/page.tsx'));
+    expect(t).toContain("h: '8. RanksUp Video ve Marka Öğeleri'");
+    expect(t).toContain("h: '8. RanksUp Video and Brand Assets'");
+    expect(t).toContain('RanksUp’ın bunları bu amaçla işlemesine izin verdiğinizi kabul edersiniz');
+    expect(t).toContain('yayınlanan videonun içeriği ile ilgili platformların kurallarına uyum sizin sorumluluğunuzdadır');
+    expect(t).toContain('RanksUp videoları sizin adınıza hiçbir platformda yayınlamaz');
+    expect(t).toContain('you allow RanksUp to process them for this purpose');
+    expect(t).toContain('RanksUp does not publish videos on any platform on your behalf');
+    // Madde numaralari kaymadi: iade hala 4. madde (yardim sayfasi md. 4'e atif yapiyor)
+    expect(t).toContain("h: '4. İptal & İade'");
+    expect(t).toMatch(/updated: 'Son güncelleme: 21 Ekim 2026/);
+  });
+
+  it('gizlilik (TR + EN): marka okuma, herkese acik ama tahmin edilmesi guc baglanti, silinince dosya gider; yalniz makale metni Anthropic e', () => {
+    const pv = stripComments(read(path.join(MARKETING, 'privacy/page.tsx')));
+    expect(pv).toContain("'RanksUp Video: video istediğinizde sitenizin herkese açık sayfalarından okunan ad, logo ve tema rengi");
+    expect(pv).toContain("'RanksUp Video: when you request a video, the name, logo and theme colour read from the public pages of your site");
+    expect(pv).toContain('RanksUp Video’da yalnızca makalenizin metni, video metnini çıkarmak için Anthropic Claude’a gönderilir');
+    expect(pv).toContain('For RanksUp Video only your article text is sent to Anthropic Claude');
+    const notlar = [...pv.matchAll(/changeNote: '([^']*)',/g)].map((x) => x[1]);
+    expect(notlar[0]).toContain('RanksUp Video için sitenizden okunan marka bilgileri');
+    expect(notlar[1]).toContain('produced for RanksUp Video');
+    // Iddialarin dayanagi: video ve site silme dosyalari da siler; LLM'e yalniz makale metni gider
+    // Silme: mp4 + poster + yarim render dosyalari (<id>.mp4.part*) tek yardimciyla
+    expect(read(path.join(videoSrc, 'videos.service.ts'))).toContain('await removeVideoFiles(siteId, row.id)');
+    expect(read(path.join(videoSrc, 'article-video.config.ts'))).toMatch(/\[f\.mp4, f\.poster, \.\.\.parts\]/);
+    expect(read(path.resolve(HERE, '../sites/sites.service.ts'))).toContain('await removeSiteVideoFiles(id)');
+    expect(read(path.resolve(HERE, '../me/account-purge.service.ts'))).toContain('removeSiteVideoFiles(siteId)');
+    const copy = stripComments(read(path.join(videoSrc, 'article-video-copy.ts')));
+    expect(copy).not.toMatch(/images:|logoDataUri/);
+  });
+
+  it('SSS ve yardim sayfasi plan adini koddan; sayi yazmaz (fiyat sayfasina yonlendirir); filigran ve yayin iddiasi kodla ayni', () => {
+    const faq = read(path.join(MARKETING, 'faq/page.tsx'));
+    expect(faq).toContain(`${minPlan} ve üstü planlarda açıktır`);
+    expect(faq).toContain('Professional and higher plans');
+    const help = read(path.join(MARKETING, 'help/video/page.tsx'));
+    expect(help).toContain(`<strong>${minPlan} ve üstü</strong> planlarda açıktır`);
+    expect(help).toContain('RanksUp videoyu senin adına hiçbir platformda yayınlamaz');
+    expect(help).toContain('ranksup.ai ile üretildi');
+    // Filigran gercekten sablonda ve acik
+    expect(read(path.resolve(HERE, '../../../video/src/article-short/ArticleShort.tsx'))).toContain('ranksup.ai ile üretildi');
+    expect(read(path.join(videoSrc, 'article-video.config.ts'))).toContain('export const VIDEO_WATERMARK = true;');
+    // "Hicbir platformda yayinlamaz": video modulunde platform yukleme kodu yok
+    const kod = fs.readdirSync(videoSrc).filter((f) => f.endsWith('.ts') && !f.endsWith('.spec.ts')).map((f) => stripComments(read(path.join(videoSrc, f)))).join('\n');
+    expect(kod).not.toMatch(/tiktok|instagram|youtube|graph\.facebook|upload/i);
+  });
+
+  it('"makalede (birebir) gecmeyen sayi reddedilir" iddiasi (Sartlar md.8, SSS, /help/video, llms.txt) = tam uyelik koruyucusu', () => {
+    expect(llms).toContain('makalede birebir geçmeyen sayıları reddeden bir denetimden geçer');
+    expect(read(path.join(MARKETING, 'terms/page.tsx'))).toContain('makalede geçmeyen sayıları reddeden bir denetimden geçer');
+    expect(read(path.join(MARKETING, 'help/video/page.tsx'))).toContain('makalede birebir geçmeyen bir sayı');
+    expect(read(path.join(MARKETING, 'faq/page.tsx'))).toContain('makalede geçmeyen bir sayı');
+    // Dayanak: alt-dize aramasi DEGIL ("2025" iceren makale uydurma "20"yi hakli cikarmasin)
+    const copy = stripComments(read(path.resolve(HERE, '../../../video/scripts/article-short/copy.mjs')));
+    expect(copy).toContain('if (!srcNums.has(n.key)) errors.push(');
+    expect(copy).not.toMatch(/src\.includes\(n\)/);
   });
 });

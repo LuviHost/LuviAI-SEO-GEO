@@ -4,7 +4,7 @@ import { SettingsService } from '../settings/settings.service.js';
 import { AnthropicProvider } from './anthropic.provider.js';
 import { OpenAIProvider } from './openai.provider.js';
 import { GeminiProvider } from './gemini.provider.js';
-import type { ChatRequest, ChatResponse, ILLMProvider, ProviderName } from './llm.types.js';
+import type { ChatRequest, ChatResponse, ILLMProvider } from './llm.types.js';
 
 /**
  * LLMProviderService — multi-provider router + token usage recorder.
@@ -32,7 +32,8 @@ import type { ChatRequest, ChatResponse, ILLMProvider, ProviderName } from './ll
  * eski cagrilarin cogu 60-500 token ile yaziliydi.
  */
 function thinksByDefault(model: string): boolean {
-  return /^claude-(opus-5|sonnet-5|fable-5|mythos-5)/.test(model);
+  // Haiku 5.5 de adaptive thinking'i varsayilan acik calistirir (claude-api thinking tablosu)
+  return /^claude-(opus-5|sonnet-5|fable-5|mythos-5|haiku-5)/.test(model);
 }
 
 /** Thinking'li modellerde guvenli alt sinir — thinking + JSON cikti icin yeterli pay */
@@ -97,6 +98,11 @@ export class LLMProviderService {
     }
 
     const provider = this.resolveProvider(effectiveReq.model);
+    // Yapisal cikti yalniz Anthropic saglayicisinda uygulanir; digerinde serbest metin donup
+    // cagiranin JSON beklentisini sessizce bozmasin
+    if (effectiveReq.outputSchema && provider.name !== 'anthropic') {
+      throw new Error(`"${effectiveReq.model}" (${provider.name}) yapisal cikti (outputSchema) desteklemiyor`);
+    }
     // Gorsel girdi yalnizca destekleyen saglayiciya — OpenAI/Gemini saglayicilari
     // images alanini tanimiyor; sessizce yok sayilsa model gorseli gormeden
     // "alt metni" uydururdu.
