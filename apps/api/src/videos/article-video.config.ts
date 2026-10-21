@@ -49,8 +49,49 @@ export const VIDEO_RENDER_TIMEOUT_MS = 15 * 60_000;
 /** Kuyruk (Redis) islemlerinin ust siniri: Redis yokken add() sonsuza dek beklemesin */
 export const VIDEO_QUEUE_OP_TIMEOUT_MS = 10_000;
 
-/** Ayni makale icin es zamanli iki istegi (cift tiklama) engelleyen kilidin omru */
+/** Ayni kaynak (makale / site / urun sayfasi) icin es zamanli iki istegi (cift tiklama) engelleyen kilidin omru */
 export const VIDEO_REQUEST_LOCK_MS = 60_000;
+
+/**
+ * Video turleri (21.10.2026 sahip istegi: "site tanitimi" ve "urun tanitimi"). Uc tur de AYNI
+ * aylik hakki (users.videosUsedThisMonth) ve ayni 'video-render' kuyrugunu kullanir; tur ve bicim
+ * Video satirinda providerRaw.videoType / providerRaw.format olarak durur (migration yok).
+ */
+export const VIDEO_TYPES = ['article', 'site', 'product'] as const;
+export type VideoType = (typeof VIDEO_TYPES)[number];
+export const VIDEO_FORMATS = ['vertical', 'horizontal'] as const;
+export type VideoFormat = (typeof VIDEO_FORMATS)[number];
+
+/**
+ * Tur + bicim -> Remotion kompozisyonu (apps/video src/Root.tsx; render/article-short.mjs
+ * VIDEO_COMPOSITIONS ayni listeyi tutar ve liste disini reddeder). null = bu turde o bicim yok.
+ */
+export const VIDEO_COMPOSITION: Record<VideoType, Record<VideoFormat, string | null>> = {
+  article: { vertical: 'ArticleShort', horizontal: null },
+  site: { vertical: 'SiteIntro', horizontal: 'SiteIntroWide' },
+  product: { vertical: 'ProductShort', horizontal: 'ProductWide' },
+};
+
+/** Video satirinin en-boy orani (videos.aspectRatio sutunu) */
+export const ASPECT_OF: Record<VideoFormat, string> = { vertical: '9:16', horizontal: '16:9' };
+
+/** Tanitim videolarinin kaynak sayfasi (anasayfa / urun sayfasi) indirme tavani */
+export const PROMO_PAGE_MAX_BYTES = 2 * 1024 * 1024;
+/** Kullanicinin girdigi urun sayfasi adresinin en fazla uzunlugu */
+export const PROMO_PAGE_URL_MAX = 2000;
+
+/**
+ * Urun gorseli: GUVENILMEYEN ikili. safe-fetch ile en fazla PRODUCT_IMAGE_MAX_BYTES indirilir,
+ * sharp piksel tavaniyla (decompression bomb) cozer, en fazla PRODUCT_IMAGE_MAX_PX kenara kucultup
+ * JPEG/PNG'ye cevirir; SVG hic kabul edilmez. Cikti tavani asilirsa gorselsiz devam edilir.
+ */
+export const PRODUCT_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
+export const PRODUCT_IMAGE_MAX_INPUT_PIXELS = 40_000_000;
+export const PRODUCT_IMAGE_MIN_PX = 200;
+export const PRODUCT_IMAGE_MAX_PX = 1280;
+export const PRODUCT_IMAGE_MAX_OUTPUT_BYTES = 900_000;
+/** Denenecek en fazla gorsel adayi (Product image, og:image ...) */
+export const PRODUCT_IMAGE_MAX_CANDIDATES = 3;
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 

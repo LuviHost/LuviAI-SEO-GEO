@@ -6,13 +6,20 @@ import { QuotaService } from '../billing/quota.service.js';
 import { LLMProviderService } from '../llm/llm-provider.service.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { acquireCronLock } from '../common/cron-lock.js';
-import { ARTICLE_SHORT_ENGINE, removeVideoFiles, VIDEO_RENDER_TIMEOUT_MS, VIDEO_STUCK_HARD_MS, VIDEO_STUCK_MS, VIDEO_WATERMARK, videoFiles } from './article-video.config.js';
+import {
+  ARTICLE_SHORT_ENGINE, removeVideoFiles, VIDEO_COMPOSITION, VIDEO_RENDER_TIMEOUT_MS, VIDEO_STUCK_HARD_MS, VIDEO_STUCK_MS, VIDEO_WATERMARK, videoFiles,
+  type VideoFormat, type VideoType,
+} from './article-video.config.js';
 import { applyBrandOverrides, extractSiteBrand, raceSignal, type SiteBrand } from './article-video-brand.js';
-import { buildVideoCopy, VideoCopyError, type CopyResult } from './article-video-copy.js';
+import { buildPromoCopy, buildVideoCopy, VideoCopyError, type CopyResult, type PromoCopyResult } from './article-video-copy.js';
 import { publishedArticleUrl, shortArticleFromRow, sourcePathOf } from './article-video-source.js';
 import {
-  loadBrandKit, loadCopyKit, loadExtractKit, loadRenderKit,
-  type ArticleShortProps, type RenderKit, type ShortArticle,
+  assertOwnSitePageUrl, buildPromoSource, extractPromoPage, fetchOwnPage, fetchProductImage, profileFromBrain, PromoSourceError,
+  type PromoFetchDeps,
+} from './promo-video-source.js';
+import {
+  loadBrandKit, loadCopyKit, loadExtractKit, loadPromoCopyKit, loadRenderKit,
+  type ArticleShortProps, type PromoSource, type PromoType, type PromoVideoProps, type RenderKit, type ShortArticle,
 } from './article-short-kit.js';
 import { QueueTimeoutError, VideoRenderQueue } from './video-render.queue.js';
 
@@ -30,7 +37,7 @@ const ABORT_GRACE_MS = 20_000;
 
 /** Hata -> kullanici metni. Bilinmeyen hatanin ic ayrintisi (yol, yigin) kullaniciya gosterilmez. */
 export function userMessageOf(err: unknown): string {
-  if (err instanceof VideoRenderError || err instanceof VideoCopyError) return err.userMessage;
+  if (err instanceof VideoRenderError || err instanceof VideoCopyError || err instanceof PromoSourceError) return err.userMessage;
   const msg = String((err as any)?.message ?? '');
   if (/Failed to launch|shared librar|libnss3|libgbm|Could not find Chrome|browser/i.test(msg)) {
     return 'Video sunucusunda tarayıcı başlatılamadı; video hakkın iade edildi. Ekibimiz bilgilendirildi, daha sonra tekrar dene.';
@@ -62,6 +69,31 @@ export function buildArticleShortProps(copy: CopyResult, brand: SiteBrand, artic
   };
 }
 
+/**
+ * Tanitim videosu props'u: metin + marka (+ urunde gorsel ve YALNIZ dogrulanmis fiyat). Istege
+ * bagli alanlar bos dizeyle gonderilir (Remotion defaultProps birlestirmesi ornek metni sizdirmasin).
+ */
+export function buildPromoProps(copy: PromoCopyResult, brand: SiteBrand, source: PromoSource, extra: { image?: string | null; price?: string | null } = {}): PromoVideoProps {
+  const s = copy.script;
+  return {
+    hook: s.hook,
+    hookSub: s.hookSub ?? '',
+    kicker: s.kicker ?? '',
+    points: s.points.map((p) => (p.detail ? { title: p.title, detail: p.detail } : { title: p.title })),
+    cta: { label: s.cta.label, domain: s.cta.domain, ...(s.cta.url ? { url: s.cta.url } : {}) },
+    brand: {
+      name: brand.name,
+      domain: brand.domain || source.domain,
+      ...(brand.primary ? { primary: brand.primary } : {}),
+      ...(brand.logoDataUri ? { logoUrl: brand.logoDataUri } : {}),
+    },
+    image: extra.image ?? '',
+    price: extra.price ?? '',
+    muted: false,
+    watermark: VIDEO_WATERMARK,
+  };
+}
+
 export interface RenderDeps {
   renderKit: () => Promise<RenderKit>;
   brand: typeof extractSiteBrand;
@@ -74,8 +106,10 @@ export interface RenderDeps {
  * process(videoId):
  *  1) Sahiplen: PENDING|GENERATING -> GENERATING (kosullu UPDATE). Satir yoksa (silinmis) ya
  *     da READY/FAILED ise is atlanir — ayni video iki kez islenmez.
- *  2) Makale DB'den (yayinda olmali), marka sitenin anasayfasindan (SSRF korumali), metin
- *     Haiku 5.5 + zorunlu koruyucu, olmazsa cikarimsal.
+ *  2) Makale DB'den (yayinda olmali) YA DA tanitimda sitenin kendi sayfasi (anasayfa / urun
+ *     sayfasi; alan adi disina yonlendirme yok, ayristirma is parcaciginda), marka sitenin
+ *     anasayfasindan (SSRF korumali), metin Haiku 5.5 + zorunlu koruyucu, olmazsa cikarimsal.
+ *     Urunde gorsel safe-fetch + sharp, fiyat yalniz iki kaynakla dogrulanmissa.
  *  3) Remotion render (paket bir kez kurulur, surecte yeniden kullanilir), loudnorm, poster ->
  *     apps/api/public/videos/<siteId>/<videoId>.{mp4,jpg} (nginx /videos/).
  *  4) READY + boyut/sure; bildirim. Herhangi bir hata -> markFailed: FAILED + Turkce hata +
@@ -86,6 +120,8 @@ export class VideoRenderService {
   private readonly log = new Logger(VideoRenderService.name);
   /** Testte sahte render / marka verilir; uretimde apps/video modulleri */
   deps: RenderDeps = { renderKit: loadRenderKit, brand: extractSiteBrand };
+  /** Tanitim videolarinin indirme / ayristirma kancalari (testte sahte; uretimde safe-fetch + is parcacigi) */
+  promoDeps: PromoFetchDeps = {};
   /** Tek isin toplam suresi (testte kisaltilir) */
   timeoutMs = VIDEO_RENDER_TIMEOUT_MS;
   abortGraceMs = ABORT_GRACE_MS;
@@ -109,7 +145,7 @@ export class VideoRenderService {
       where: { id: videoId },
       include: {
         article: { select: { id: true, title: true, status: true, language: true, category: true, metaDescription: true, bodyMd: true, bodyHtml: true, publishedTo: true } },
-        site: { select: { id: true, url: true, name: true, userId: true, user: { select: { id: true, deletionRequestedAt: true } } } },
+        site: { select: { id: true, url: true, name: true, language: true, niche: true, customNiche: true, userId: true, user: { select: { id: true, deletionRequestedAt: true } } } },
       },
     });
     if (!video) return { status: 'skipped', reason: 'video silindi' };
@@ -152,6 +188,60 @@ export class VideoRenderService {
   ): Promise<{ status: 'ready' | 'skipped'; reason?: string }> {
     const videoId = video.id as string;
     if (video.site.user?.deletionRequestedAt) throw new VideoRenderError('Hesap için silme talebi var; video üretilmedi.');
+    const type: VideoType = raw.videoType === 'site' || raw.videoType === 'product' ? raw.videoType : 'article';
+    const format: VideoFormat = raw.format === 'horizontal' ? 'horizontal' : 'vertical';
+    const compositionId = VIDEO_COMPOSITION[type][format];
+    if (!compositionId) throw new VideoRenderError(GENERIC_FAILURE, `gecersiz tur/bicim: ${type}/${format}`);
+
+    const job = type === 'article' ? await this.prepareArticle(video, raw, signal) : await this.preparePromo(video, raw, type, signal);
+    signal.throwIfAborted();
+
+    await mkdir(files.dir, { recursive: true });
+    const kit = await this.deps.renderKit();
+    const result = await kit.renderArticleShort({ props: job.props, compositionId, outFile: files.mp4, posterFile: files.poster, concurrency: kit.renderConcurrency(), signal });
+    // Sure tam bu anda dolduysa READY yazilmaz (markFailed zaten yazmis / yazacak)
+    signal.throwIfAborted();
+
+    const p = job.props;
+    const brand = job.brand;
+    const copy = job.copy;
+    const done = await this.prisma.video.updateMany({
+      where: { id: videoId, status: 'GENERATING' },
+      data: {
+        status: 'READY',
+        ...(job.title ? { title: job.title.slice(0, 180) } : {}),
+        videoUrl: files.videoUrl,
+        thumbnailUrl: files.posterUrl,
+        fileSize: result.bytes,
+        durationSec: Math.round(result.durationSec),
+        scriptText: JSON.stringify({ hook: p.hook, hookSub: p.hookSub || null, kicker: p.kicker || null, points: p.points, cta: p.cta, ...('price' in p && p.price ? { price: p.price } : {}) }),
+        costUsd: copy.costUsd,
+        completedAt: new Date(),
+        errorMsg: null,
+        providerRaw: {
+          ...raw,
+          engine: ARTICLE_SHORT_ENGINE,
+          template: compositionId,
+          brand: { name: brand.name, domain: brand.domain, primary: brand.primary, colorSource: brand.colorSource, hasLogo: !!brand.logoDataUri, logoSource: brand.logoSource, notes: brand.notes },
+          copy: { strategy: copy.strategy, llmRejected: copy.llmRejected ?? null, warnings: copy.check.warnings, novelRatio: copy.check.novelRatio, evidence: copy.script.evidence.slice(0, 12) },
+          render: { ...result, totalSec: Number(((Date.now() - t0) / 1000).toFixed(1)) },
+          pageUrl: job.pageUrl,
+          ...(job.source ? { source: job.source } : {}),
+        } as any,
+      },
+    });
+    if (done.count !== 1) {
+      // Video render sirasinda silindi (ya da FAILED yazildi): dosya sahipsiz kalmasin
+      await removeVideoFiles(video.siteId, videoId);
+      return { status: 'skipped', reason: 'render sirasinda silindi' };
+    }
+    this.log.log(`[${video.siteId}] video ${videoId} hazir — ${type}/${format}, ${copy.strategy}, ${(result.bytes / 1048576).toFixed(1)} MB, ${((Date.now() - t0) / 1000).toFixed(1)} sn`);
+    await this.notify(video.site.userId, video.siteId, 'Videon hazır', job.readyText);
+    return { status: 'ready' };
+  }
+
+  /** Makale videosu: makale DB'den, marka anasayfadan, metin Haiku + koruyucu (degismedi) */
+  private async prepareArticle(video: any, raw: Record<string, any>, signal: AbortSignal) {
     const a = video.article;
     if (!a) throw new VideoRenderError('Makale silinmiş; video üretilemedi. Video hakkın iade edildi.');
     if (a.status !== 'PUBLISHED') throw new VideoRenderError('Makale artık yayında değil; video üretilemedi. Video hakkın iade edildi.');
@@ -164,50 +254,90 @@ export class VideoRenderService {
     signal.throwIfAborted();
 
     const userId = video.site.userId;
-    const copy = await buildVideoCopy(article, { userId, siteId: video.siteId, videoId }, {
+    const copy: CopyResult = await buildVideoCopy(article, { userId, siteId: video.siteId, videoId: video.id }, {
       kit: await loadCopyKit(),
+      chat: (req) => this.llm.chat(req),
+      budgetBlocked: async () => (await this.quota.checkAiCostBudget(userId)).hardBlock,
+    });
+    return {
+      props: buildArticleShortProps(copy, brand, article) as ArticleShortProps | PromoVideoProps,
+      brand,
+      copy: copy as CopyResult | PromoCopyResult,
+      pageUrl,
+      title: null as string | null,
+      source: null as Record<string, unknown> | null,
+      readyText: `“${video.title}” makalesinin 15 saniyelik videosu hazır.`,
+    };
+  }
+
+  /**
+   * Site / urun tanitim videosu. Kaynak sitenin KENDI sayfasi (urun adresi alan adi disina,
+   * yonlendirmeyle bile, cikamaz), ayristirma is parcaciginda, marka profili DB'den (Brain),
+   * metin Haiku + koruyucu (sayi kumesi yalniz sitenin metni), urun gorseli safe-fetch + sharp,
+   * fiyat yalniz iki kaynakla dogrulanmissa ve sayi korumasindan gecerse.
+   */
+  private async preparePromo(video: any, raw: Record<string, any>, type: PromoType, signal: AbortSignal) {
+    const siteUrl = String(video.site.url);
+    let pageUrl: string;
+    try {
+      // Istekte denetlendi; kayit sonradan degismis olabilir (site adresi duzenlendi) — yeniden
+      pageUrl = type === 'site' ? new URL(siteUrl).toString() : assertOwnSitePageUrl(raw.sourceUrl, siteUrl);
+    } catch (err) {
+      if (err instanceof PromoSourceError) throw new VideoRenderError(`${err.userMessage} Video hakkın iade edildi.`, err.message);
+      throw new VideoRenderError('Sitenin adresi okunamadı; video üretilemedi. Video hakkın iade edildi.');
+    }
+    const deps = this.promoDeps;
+    const page = await raceSignal(fetchOwnPage(pageUrl, siteUrl, deps), signal);
+    const extracted = await raceSignal(extractPromoPage(page.text, page.url, type, deps), signal);
+    signal.throwIfAborted();
+
+    // Marka: site tanitiminda anasayfa zaten elde — ikinci kez indirilmez
+    const brand = applyBrandOverrides(
+      await this.deps.brand(video.site, { kit: await loadBrandKit(), signal, ...(type === 'site' ? { page } : {}) }),
+      raw.request,
+    );
+    signal.throwIfAborted();
+
+    const brain = type === 'site'
+      ? await this.prisma.brain.findUnique({ where: { siteId: video.siteId }, select: { brandVoice: true, sitePages: true } }).catch(() => null)
+      : null;
+    const source = buildPromoSource(extracted, { type, siteUrl, siteLanguage: video.site.language, profile: profileFromBrain(video.site, brain) });
+
+    const userId = video.site.userId;
+    const copyKit = await loadPromoCopyKit();
+    const copy = await buildPromoCopy(source, { userId, siteId: video.siteId, videoId: video.id }, {
+      kit: copyKit,
       chat: (req) => this.llm.chat(req),
       budgetBlocked: async () => (await this.quota.checkAiCostBudget(userId)).hardBlock,
     });
     signal.throwIfAborted();
 
-    const props = buildArticleShortProps(copy, brand, article);
-    await mkdir(files.dir, { recursive: true });
-    const kit = await this.deps.renderKit();
-    const result = await kit.renderArticleShort({ props, outFile: files.mp4, posterFile: files.poster, concurrency: kit.renderConcurrency(), signal });
-    // Sure tam bu anda dolduysa READY yazilmaz (markFailed zaten yazmis / yazacak)
-    signal.throwIfAborted();
+    const notes: string[] = [];
+    const image = type === 'product' ? await raceSignal(fetchProductImage(extracted.images, deps, notes), signal) : null;
+    if (type === 'product' && !image) notes.push('urun gorseli yok — marka karosu kullanildi');
+    // Fiyat: iki kaynak (page.mjs verifyPrice) + gosterilecek yazim sayi korumasindan gecer
+    const priceOk = type === 'product' && extracted.price.verified && copyKit.verifyPriceText(extracted.price.display, source);
+    const price = priceOk ? extracted.price.display! : null;
 
-    const done = await this.prisma.video.updateMany({
-      where: { id: videoId, status: 'GENERATING' },
-      data: {
-        status: 'READY',
-        videoUrl: files.videoUrl,
-        thumbnailUrl: files.posterUrl,
-        fileSize: result.bytes,
-        durationSec: Math.round(result.durationSec),
-        scriptText: JSON.stringify({ hook: props.hook, hookSub: props.hookSub ?? null, kicker: props.kicker ?? null, points: props.points, cta: props.cta }),
-        costUsd: copy.costUsd,
-        completedAt: new Date(),
-        errorMsg: null,
-        providerRaw: {
-          ...raw,
-          engine: ARTICLE_SHORT_ENGINE,
-          brand: { name: brand.name, domain: brand.domain, primary: brand.primary, colorSource: brand.colorSource, hasLogo: !!brand.logoDataUri, logoSource: brand.logoSource, notes: brand.notes },
-          copy: { strategy: copy.strategy, llmRejected: copy.llmRejected ?? null, warnings: copy.check.warnings, novelRatio: copy.check.novelRatio, evidence: copy.script.evidence.slice(0, 12) },
-          render: { ...result, totalSec: Number(((Date.now() - t0) / 1000).toFixed(1)) },
-          pageUrl,
-        } as any,
-      },
-    });
-    if (done.count !== 1) {
-      // Video render sirasinda silindi (ya da FAILED yazildi): dosya sahipsiz kalmasin
-      await removeVideoFiles(video.siteId, videoId);
-      return { status: 'skipped', reason: 'render sirasinda silindi' };
-    }
-    this.log.log(`[${video.siteId}] video ${videoId} hazir — ${copy.strategy}, ${(result.bytes / 1048576).toFixed(1)} MB, ${((Date.now() - t0) / 1000).toFixed(1)} sn`);
-    await this.notify(userId, video.siteId, 'Videon hazır', `“${video.title}” makalesinin 15 saniyelik videosu hazır.`);
-    return { status: 'ready' };
+    const name = type === 'product' ? (extracted.product?.name || copy.script.hook).replace(/\s+/g, ' ').trim() : null;
+    return {
+      props: buildPromoProps(copy, brand, source, { image: image?.dataUri ?? null, price }) as ArticleShortProps | PromoVideoProps,
+      brand,
+      copy: copy as CopyResult | PromoCopyResult,
+      pageUrl: page.url,
+      title: type === 'product' && name ? name : null,
+      source: {
+        url: page.url,
+        lang: source.lang,
+        price: { shown: !!price, verified: extracted.price.verified, sources: extracted.price.sources, reason: extracted.price.reason ?? null },
+        image: image ? { source: image.source.slice(0, 500), width: image.width, height: image.height } : null,
+        profile: source.profile ? { niche: source.profile.niche, pages: source.profile.pages.length } : null,
+        notes: notes.slice(0, 8),
+      } as Record<string, unknown>,
+      readyText: type === 'site'
+        ? `${brand.name} site tanıtım videosu hazır.`
+        : `“${(name ?? video.title).slice(0, 120)}” ürün tanıtım videosu hazır.`,
+    };
   }
 
   /**

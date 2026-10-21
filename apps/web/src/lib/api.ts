@@ -6,7 +6,7 @@
 import type {
   GaKeyEventSetup, LocalPromptDraft, LocalPromptInput, LocalPromptMeta, LocalRunSummary, SiteNapView,
 } from './local-visibility';
-import type { ArticleVideo, VideoBrandPreview, VideoQuota } from './article-video';
+import type { ArticleVideo, VideoBrandPreview, VideoQuota, VideoRequestBody } from './article-video';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
@@ -1435,12 +1435,12 @@ export const api = {
   getArticle: (siteId: string, articleId: string) =>
     request<any>(`/sites/${siteId}/articles/${articleId}`),
 
-  // ── RanksUp Video (makaleden 15 sn dikey video; api videos/videos.controller.ts) ──
+  // ── RanksUp Video (makale, site ve urun tanitim videolari; api videos/videos.controller.ts) ──
   listVideos: (siteId: string) => request<ArticleVideo[]>(`/sites/${siteId}/videos`),
   getVideoQuota: (siteId: string) => request<VideoQuota>(`/sites/${siteId}/videos/quota`),
   /** Ad / renk / logo onizlemesi — Profesyonel ve ustu (alt planda 403; panel cagirmaz) */
   getVideoBrand: (siteId: string) => request<VideoBrandPreview>(`/sites/${siteId}/videos/brand`),
-  requestVideo: (siteId: string, body: { articleId: string; primaryColor?: string | null; useLogo?: boolean; brandName?: string }) =>
+  requestVideo: (siteId: string, body: VideoRequestBody) =>
     request<{ video: ArticleVideo; remaining: number; limit: number }>(`/sites/${siteId}/videos`, {
       method: 'POST',
       body: JSON.stringify(body),

@@ -2,11 +2,11 @@
  * ArticleShort render hatti — TEK KAYNAK. Hem CLI prototipi (scripts/article-short.mjs) hem
  * sunucu (api videos/video-render.service.ts, worker'daki 'video-render' kuyrugu) bunu kullanir.
  *
- *   ensureArticleShortAudio()  timeline.json'dan sentez muzik (her video icin ayni dosya; yoksa uretilir)
+ *   ensureArticleShortAudio()  timeline.json'dan sentez muzik (her sablon icin tek dosya; yoksa uretilir)
  *   getArticleShortServeUrl()  Remotion webpack paketi — kaynak ozeti degismediyse diskteki paket
  *                              (deploy'da `pnpm --filter @luviai/video prepare:article-short` bir kez kurar);
  *                              surec icinde de bellege alinir, her videoda yeniden paketlenmez
- *   renderArticleShortMp4()    renderMedia: ArticleShort, H.264 + AAC
+ *   renderArticleShortMp4()    renderMedia: VIDEO_COMPOSITIONS'tan biri (makale, site, urun), H.264 + AAC
  *   loudnormInPlace()          ffmpeg iki gecis (-14 LUFS, -1.5 dBTP; goruntu kopyalanir)
  *   extractPoster()            ffmpeg tek kare JPG (kanca tam gorunur: 2.6 sn)
  *   renderArticleShort()       hepsi sirayla; ciktilar once gecici adla yazilip sonra yerine tasinir
@@ -17,7 +17,7 @@
  */
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync } from 'node:fs';
 import os from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -26,7 +26,22 @@ import { remotionRequire, runFfAsync } from '../scripts/ffmpeg.mjs';
 export const VIDEO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 export const COMPOSITION_ID = 'ArticleShort';
 export const POSTER_SECONDS = 2.6;
-const AUDIO_FILE = join(VIDEO_ROOT, 'public', 'audio', 'article-short.wav');
+/**
+ * RanksUp Video'nun render edebildigi kompozisyonlar (src/Root.tsx) ve poster karesi (kanca tam
+ * gorunurken). Liste disindaki kimlik reddedilir: istekten gelen bir deger baska bir kompozisyonu
+ * (pazarlama videolari) render ettiremez. audio: timeline.json kompozisyonu (yatay urun videosu
+ * dikeyle ayni izgarayi ve ses dosyasini kullanir).
+ */
+export const VIDEO_COMPOSITIONS = {
+  ArticleShort: { audio: 'ArticleShort', posterSeconds: POSTER_SECONDS },
+  // Kanca sahnesi 120 BPM'de 6 vurus = 3 sn (yatay site 10 vurus = 5 sn); poster kanca tam
+  // gorunurken, cikis animasyonu baslamadan (ozellikler degil, ad + ne yaptigi gorunsun)
+  SiteIntro: { audio: 'SiteIntro', posterSeconds: 2.4 },
+  SiteIntroWide: { audio: 'SiteIntroWide', posterSeconds: 4.2 },
+  ProductShort: { audio: 'ProductShort', posterSeconds: 2.45 },
+  ProductWide: { audio: 'ProductShort', posterSeconds: 2.45 },
+};
+const AUDIO_DIR = join(VIDEO_ROOT, 'public', 'audio');
 const TIMELINE_FILE = join(VIDEO_ROOT, 'src', 'marketing', 'timeline.json');
 const BUNDLE_CACHE = join(VIDEO_ROOT, 'node_modules', '.cache', 'article-short');
 
@@ -41,14 +56,30 @@ export function renderConcurrency(env = process.env, cores = os.availableParalle
   return Math.max(1, Math.min(4, Math.floor(cores / 2)));
 }
 
-/** Ses izi yoksa ya da timeline.json'dan eskiyse sentezle (deterministik; tek dosya) */
+/**
+ * Her RanksUp Video sablonunun ses izi: yoksa ya da timeline.json'dan eskiyse sentezle
+ * (deterministik; sablon basina tek dosya). Paketten ONCE cagrilir: Remotion public/ klasorunu
+ * paketleme aninda kopyalar, sonradan uretilen ses pakete girmez.
+ */
 export function ensureArticleShortAudio() {
+  const timeline = JSON.parse(readFileSync(TIMELINE_FILE, 'utf8'));
   const tl = statSync(TIMELINE_FILE).mtimeMs;
-  if (existsSync(AUDIO_FILE) && statSync(AUDIO_FILE).mtimeMs > tl) return { cached: true };
-  // ffmpeg cozumu synth.mjs icinde de ayni kuraldir (scripts/ffmpeg.mjs)
-  const r = spawnSync(process.execPath, [join(VIDEO_ROOT, 'scripts', 'audio', 'synth.mjs'), COMPOSITION_ID], { cwd: VIDEO_ROOT, encoding: 'utf8' });
-  if (r.status !== 0) throw new Error(`Ses sentezi basarisiz: ${String(r.stderr ?? '').slice(-400)}`);
-  return { cached: false };
+  let cached = true;
+  for (const id of new Set(Object.values(VIDEO_COMPOSITIONS).map((c) => c.audio))) {
+    const file = join(AUDIO_DIR, timeline.compositions[id].audio);
+    if (existsSync(file) && statSync(file).mtimeMs > tl) continue;
+    cached = false;
+    // ffmpeg cozumu synth.mjs icinde de ayni kuraldir (scripts/ffmpeg.mjs)
+    const r = spawnSync(process.execPath, [join(VIDEO_ROOT, 'scripts', 'audio', 'synth.mjs'), id], { cwd: VIDEO_ROOT, encoding: 'utf8' });
+    if (r.status !== 0) throw new Error(`Ses sentezi basarisiz (${id}): ${String(r.stderr ?? '').slice(-400)}`);
+  }
+  return { cached };
+}
+
+/** Bilinen kompozisyon mu (VIDEO_COMPOSITIONS) — degilse hata */
+export function assertComposition(id) {
+  if (!Object.prototype.hasOwnProperty.call(VIDEO_COMPOSITIONS, id)) throw new Error(`Bilinmeyen video sablonu: ${String(id).slice(0, 40)}`);
+  return VIDEO_COMPOSITIONS[id];
 }
 
 /** Paket kaynak ozeti: src/ + public/ (yol, boyut, mtime) — degismediyse eski paket gecerli */
@@ -115,10 +146,11 @@ export async function getArticleShortServeUrl() {
  * signal kesilince Remotion'in cancelSignal'i tetiklenir: Remotion kendi actigi Chrome'u ve
  * ffmpeg kodlayicisini kapatir (zaman asimina ugrayan render arkada CPU yemeye devam etmesin).
  */
-export async function renderArticleShortMp4({ serveUrl, props, outFile, concurrency = renderConcurrency(), onProgress, signal = null }) {
+export async function renderArticleShortMp4({ serveUrl, props, outFile, concurrency = renderConcurrency(), onProgress, signal = null, compositionId = COMPOSITION_ID }) {
   const { renderMedia, selectComposition, makeCancelSignal } = remotionRequire()('@remotion/renderer');
+  assertComposition(compositionId);
   signal?.throwIfAborted();
-  const composition = await selectComposition({ serveUrl, id: COMPOSITION_ID, inputProps: props, logLevel: 'error' });
+  const composition = await selectComposition({ serveUrl, id: compositionId, inputProps: props, logLevel: 'error' });
   signal?.throwIfAborted();
   const { cancelSignal, cancel } = makeCancelSignal();
   const onAbort = () => cancel();
@@ -177,7 +209,8 @@ export async function extractPoster(mp4, jpg, seconds = POSTER_SECONDS, { signal
  * @returns {Promise<{ durationSec: number, width: number, height: number, fps: number, bytes: number,
  *   posterBytes: number, concurrency: number, bundle: string | false, inputLufs: number | null, timings: Record<string, number> }>}
  */
-export async function renderArticleShort({ props, outFile, posterFile, concurrency = renderConcurrency(), onProgress, signal = null }) {
+export async function renderArticleShort({ props, outFile, posterFile, concurrency = renderConcurrency(), onProgress, signal = null, compositionId = COMPOSITION_ID }) {
+  const comp0 = assertComposition(compositionId);
   const t = {};
   const time = async (k, fn) => {
     const s = performance.now();
@@ -192,9 +225,9 @@ export async function renderArticleShort({ props, outFile, posterFile, concurren
     signal?.throwIfAborted();
     const { serveUrl, cached } = await time('bundle', () => getArticleShortServeUrl());
     signal?.throwIfAborted();
-    const comp = await time('render', () => renderArticleShortMp4({ serveUrl, props, outFile: partMp4, concurrency, onProgress, signal }));
+    const comp = await time('render', () => renderArticleShortMp4({ serveUrl, props, outFile: partMp4, concurrency, onProgress, signal, compositionId }));
     const ln = props.muted ? null : await time('loudnorm', () => loudnormInPlace(partMp4, { signal }));
-    await time('poster', () => extractPoster(partMp4, partJpg, POSTER_SECONDS, { signal }));
+    await time('poster', () => extractPoster(partMp4, partJpg, comp0.posterSeconds, { signal }));
     signal?.throwIfAborted();
     renameSync(partMp4, outFile);
     renameSync(partJpg, posterFile);
@@ -208,6 +241,7 @@ export async function renderArticleShort({ props, outFile, posterFile, concurren
       concurrency,
       bundle: cached,
       inputLufs: ln?.inputLufs ?? null,
+      compositionId,
       timings: t,
     };
   } finally {

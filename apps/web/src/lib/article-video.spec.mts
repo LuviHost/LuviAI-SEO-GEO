@@ -1,13 +1,14 @@
 /**
  * RanksUp Video panel kurallari: yalniz yayindaki makale, durum metinleri, renk dogrulamasi,
- * istek govdesi (degismeyen duzeltme gonderilmez), kota satiri, dosya adi.
+ * istek govdesi (degismeyen duzeltme gonderilmez; makale govdesi eskisiyle ayni), kota satiri,
+ * dosya adi, tanitim videolari (tur etiketi, urun adresi alan adi ipucu, suren kaynak kilidi).
  * Calistirma: cd apps/web && ../api/node_modules/.bin/vitest run --root . src/lib
  */
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import {
-  ARTICLE_VIDEO_COPY, VIDEO_STATUS_LABEL, activeVideoFor, canRequestVideo, formatVideoSize, hasActiveVideos, normalizeHex,
-  quotaLine, videoFileName, videoRequestBody,
+  ARTICLE_VIDEO_COPY, MULTI_PART_SUFFIXES, VIDEO_FORMAT_OPTIONS, VIDEO_STATUS_LABEL, VIDEO_TYPE_LABEL, activePromoVideo, activeVideoFor,
+  canRequestVideo, formatVideoSize, hasActiveVideos, normalizeHex, productUrlProblem, quotaLine, videoFileName, videoRequestBody, videoTypeOf,
 } from './article-video';
 
 describe('canRequestVideo — yalniz yayindaki makale', () => {
@@ -79,5 +80,66 @@ describe('kota satiri ve dosya', () => {
   it('panelde sabit renk yok: varsayilan renk sunucudan (fallbackPrimary) gelir', () => {
     const src = readFileSync(new URL('./article-video.ts', import.meta.url), 'utf8');
     expect(src).not.toMatch(/#[0-9a-fA-F]{6}\b/);
+  });
+});
+
+describe('site ve urun tanitim videolari', () => {
+  const SITE = 'https://www.ornekdukkan.com.tr';
+
+  it('tur etiketleri; eski yanit (type yok) makale sayilir; bicim secenekleri sure ile', () => {
+    expect(VIDEO_TYPE_LABEL).toEqual({ article: 'Makaleden', site: 'Site tanıtımı', product: 'Ürün tanıtımı' });
+    expect(videoTypeOf({})).toBe('article');
+    expect(videoTypeOf({ type: 'product' })).toBe('product');
+    expect(VIDEO_FORMAT_OPTIONS.site.map((o) => o.label)).toEqual(['Dikey 9:16 · 15 sn', 'Yatay 16:9 · 24 sn']);
+    expect(VIDEO_FORMAT_OPTIONS.product.map((o) => o.format)).toEqual(['vertical', 'horizontal']);
+  });
+
+  it('urun adresi ipucu: kendi alan adi (www, alt alan) gecer; baska alan adi, IP, kimlik, sema reddedilir', () => {
+    expect(productUrlProblem('', SITE)).toBeNull();
+    expect(productUrlProblem('https://www.ornekdukkan.com.tr/urun/kupa', SITE)).toBeNull();
+    expect(productUrlProblem('ornekdukkan.com.tr/urun/kupa', SITE)).toBeNull();
+    expect(productUrlProblem('https://magaza.ornekdukkan.com.tr/p/1', SITE)).toBeNull();
+    expect(productUrlProblem('https://rakip.com/urun', SITE)).toMatch(/ornekdukkan\.com\.tr/);
+    expect(productUrlProblem('https://kotu-ornekdukkan.com.tr/u', SITE)).toMatch(/kendi alan adında/);
+    expect(productUrlProblem('https://ornekdukkan.com.tr.evil.com/u', SITE)).toMatch(/kendi alan adında/);
+    expect(productUrlProblem('http://93.184.216.34/u', SITE)).toMatch(/IP/);
+    expect(productUrlProblem('https://a:b@www.ornekdukkan.com.tr/u', SITE)).toMatch(/şifre/);
+    expect(productUrlProblem('ftp://www.ornekdukkan.com.tr/u', SITE)).toMatch(/http/);
+  });
+
+  it('kayitli alan adi soneki listesi sunucuyla AYNI (api audit/host-match.ts)', () => {
+    const src = readFileSync(new URL('../../../api/src/audit/host-match.ts', import.meta.url), 'utf8');
+    const block = /MULTI_PART_SUFFIXES = new Set\(\[([\s\S]*?)\]\)/.exec(src)?.[1] ?? '';
+    const server = [...block.matchAll(/'([a-z0-9.]+)'/g)].map((m) => m[1]);
+    expect(server.length).toBeGreaterThan(10);
+    expect([...MULTI_PART_SUFFIXES].sort()).toEqual([...server].sort());
+  });
+
+  it('istek govdesi: makale eskisiyle birebir (type yok); site ve urun tur + bicim tasir', () => {
+    const brand = { name: 'Örnek', primary: '#2563eb' };
+    expect(videoRequestBody({ target: { type: 'article', articleId: 'a1' }, brand, color: '#2563eb', useTemplateColor: false, useLogo: true, name: 'Örnek' }))
+      .toEqual({ articleId: 'a1', useLogo: true });
+    expect(videoRequestBody({ target: { type: 'site', format: 'horizontal' }, brand, color: '#2563eb', useTemplateColor: false, useLogo: false, name: 'Örnek' }))
+      .toEqual({ type: 'site', format: 'horizontal', useLogo: false });
+    expect(videoRequestBody({ target: { type: 'product', pageUrl: '  https://www.ornekdukkan.com.tr/urun/kupa ', format: 'vertical' }, brand, color: '#dc2626', useTemplateColor: false, useLogo: true, name: 'Örnek' }))
+      .toEqual({ type: 'product', pageUrl: 'https://www.ornekdukkan.com.tr/urun/kupa', format: 'vertical', useLogo: true, primaryColor: '#dc2626' });
+  });
+
+  it('suren tanitim videosu: ayni tur + bicim (+ urunde ayni adres, # ve www farki yok sayilir) kilitler', () => {
+    const vids = [
+      { status: 'rendering' as const, type: 'site' as const, format: 'vertical' as const, sourceUrl: SITE },
+      { status: 'queued' as const, type: 'product' as const, format: 'vertical' as const, sourceUrl: `${SITE}/urun/kupa` },
+      { status: 'ready' as const, type: 'product' as const, format: 'horizontal' as const, sourceUrl: `${SITE}/urun/kupa` },
+    ];
+    expect(activePromoVideo(vids, 'site', 'vertical')).toBe(true);
+    expect(activePromoVideo(vids, 'site', 'horizontal')).toBe(false);
+    expect(activePromoVideo(vids, 'product', 'vertical', 'https://ornekdukkan.com.tr/urun/kupa#yorum')).toBe(true);
+    expect(activePromoVideo(vids, 'product', 'horizontal', `${SITE}/urun/kupa`)).toBe(false);
+    expect(activePromoVideo(vids, 'product', 'vertical', `${SITE}/urun/tabak`)).toBe(false);
+  });
+
+  it('kilitli onizleme uc turu ve sitenin kendi metni kuralini soyler', () => {
+    expect(ARTICLE_VIDEO_COPY.lockedBody).toMatch(/ürün\/hizmet sayfasından/);
+    expect(ARTICLE_VIDEO_COPY.lockedBody).toMatch(/yatay 16:9/);
   });
 });

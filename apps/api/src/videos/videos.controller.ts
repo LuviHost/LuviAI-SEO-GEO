@@ -39,7 +39,11 @@ export class VideosController {
     return this.videos.brandPreview(siteId);
   }
 
-  /** POST — yayindaki makaleden video iste: { articleId, primaryColor?, useLogo?, brandName? } */
+  /**
+   * POST — video iste. Makale (eski govde, type yok): { articleId, ... }; site tanitimi:
+   * { type: 'site', format? }; urun tanitimi: { type: 'product', pageUrl, format? } (sitenin kendi
+   * alan adi). Ortak: primaryColor?, useLogo?, brandName?. Uc tur ayni aylik haktan duser.
+   */
   @RequiresPlan('articleVideo')
   @UseGuards(SiteUserThrottlerGuard)
   @Throttle({ [SITE_USER_THROTTLE]: { limit: 30, ttl: 60 * 60_000 } })

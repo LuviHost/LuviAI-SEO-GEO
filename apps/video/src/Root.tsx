@@ -8,6 +8,8 @@ import { SocialAd, SOCIAL_AD_DURATION } from './marketing/SocialAd';
 import { FeatureExplainer, FEATURE_EXPLAINER_DURATION } from './marketing/FeatureExplainer';
 import { FPS as MARKETING_FPS } from './marketing/timeline';
 import { ArticleShort, ARTICLE_SHORT_DURATION, articleShortDefaults } from './article-short/ArticleShort';
+import { SiteIntro, SiteIntroWide, SITE_INTRO_DURATION, SITE_INTRO_WIDE_DURATION, siteIntroDefaults } from './promo/SiteIntro';
+import { ProductShort, ProductWide, PRODUCT_SHORT_DURATION, productShortDefaults } from './promo/ProductShort';
 
 export const RemotionRoot: React.FC = () => {
   return (
@@ -85,6 +87,11 @@ export const RemotionRoot: React.FC = () => {
         height={1920}
         defaultProps={articleShortDefaults}
       />
+      {/* RanksUp Video tanitim sablonlari — props: api videos/video-render.service.ts (site / urun) */}
+      <Composition id="SiteIntro" component={SiteIntro} durationInFrames={SITE_INTRO_DURATION} fps={MARKETING_FPS} width={1080} height={1920} defaultProps={siteIntroDefaults} />
+      <Composition id="SiteIntroWide" component={SiteIntroWide} durationInFrames={SITE_INTRO_WIDE_DURATION} fps={MARKETING_FPS} width={1920} height={1080} defaultProps={siteIntroDefaults} />
+      <Composition id="ProductShort" component={ProductShort} durationInFrames={PRODUCT_SHORT_DURATION} fps={MARKETING_FPS} width={1080} height={1920} defaultProps={productShortDefaults} />
+      <Composition id="ProductWide" component={ProductWide} durationInFrames={PRODUCT_SHORT_DURATION} fps={MARKETING_FPS} width={1920} height={1080} defaultProps={productShortDefaults} />
     </>
   );
 };

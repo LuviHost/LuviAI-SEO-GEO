@@ -7,7 +7,7 @@ import { VideoRenderService } from './video-render.service.js';
 import { VideoRenderQueue } from './video-render.queue.js';
 
 /**
- * RanksUp Video (makaleden 15 sn dikey video). API: istek/liste/silme; worker: render
+ * RanksUp Video (makale, site ve urun tanitim videolari). API: istek/liste/silme; worker: render
  * (apps/worker 'video-render' kuyrugu VideoRenderService.process'i cagirir).
  */
 @Module({

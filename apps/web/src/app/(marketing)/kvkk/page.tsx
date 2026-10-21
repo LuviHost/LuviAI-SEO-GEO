@@ -41,8 +41,10 @@ export default function KvkkPage() {
             <p className="text-muted-foreground">
               Hesap bilgileri (email, ad), site bilgileri (URL, marka), GSC OAuth tokens (şifreli), publish
               credentials (şifreli), ödeme bilgileri (PayTR aracılığıyla, biz tutmayız). RanksUp Video kullanırsanız
-              sitenizin herkese açık sayfalarından okunan ad, logo ve tema rengi ile üretilen video dosyaları; video metni
-              için yalnızca makale metni Anthropic’e gönderilir (Gizlilik Politikası 1. ve 6. bölüm).
+              sitenizin herkese açık sayfalarından okunan ad, logo ve tema rengi, site ya da ürün tanıtım videosunda ayrıca
+              ana sayfanızın ya da belirttiğiniz ürün/hizmet sayfasının metni ve ürün görseli ile üretilen video dosyaları;
+              video metni için yalnızca makale metni ya da sitenizin kendi sayfasının metni Anthropic’e gönderilir, görseller
+              gönderilmez (Gizlilik Politikası 1. ve 6. bölüm).
             </p>
           </section>
 
