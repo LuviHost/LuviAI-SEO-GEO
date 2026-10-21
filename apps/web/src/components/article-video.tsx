@@ -10,7 +10,7 @@ import { siteHref } from '@/lib/site-routes';
 import { placeholderParagraphs } from '@/lib/plan-lock';
 import {
   ARTICLE_VIDEO_COPY, canRequestVideo, normalizeHex, quotaLine, videoRequestBody,
-  type ArticleVideo, type VideoBrandPreview, type VideoQuota,
+  type ArticleVideo, type VideoBrandPreview, type VideoQuota, type VideoTarget,
 } from '@/lib/article-video';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,7 +20,8 @@ import { PlanUpgradeButton } from '@/components/locked-article';
 import { cn } from '@/lib/utils';
 
 /*
- * RanksUp Video — "Video üret" dugmesi, marka diyalogu ve kilitli onizleme.
+ * RanksUp Video — "Video üret" dugmesi, marka diyalogu (makale, site ve urun tanitimi icin ortak)
+ * ve kilitli onizleme.
  *
  * Plan kapisi sunucuda (@RequiresPlan('articleVideo') + site sahibinin hakki). Panel
  * entitlements'tan "kapali" ogrenirse (Deneme / Buyume) diyalog yalniz kilitli onizlemeyi
@@ -103,9 +104,53 @@ export function ArticleVideoDialog({
   onOpenChange: (open: boolean) => void;
   onRequested?: (video: ArticleVideo) => void;
 }) {
+  const title = article.title || article.topic || 'Makale';
+  return (
+    <VideoRequestDialog
+      siteId={siteId}
+      target={{ type: 'article', articleId: article.id }}
+      seed={article.id}
+      description={`“${title}” makalesinden 15 saniyelik dikey video (1080×1920). Metin makalenin kendi başlık, cümle ve sayılarından oluşur; makalede olmayan bilgi eklenmez.`}
+      open={open}
+      onOpenChange={onOpenChange}
+      onRequested={onRequested}
+    />
+  );
+}
+
+/** Tanitim videolarinin diyalog aciklamasi (tur + bicim) */
+export function promoDialogDescription(target: Exclude<VideoTarget, { type: 'article' }>): string {
+  const size = target.format === 'horizontal' ? 'yatay (1920×1080)' : 'dikey (1080×1920)';
+  if (target.type === 'site') {
+    const sec = target.format === 'horizontal' ? '24' : '15';
+    return `Sitenin ana sayfasından ve marka profilinden ${sec} saniyelik ${size} tanıtım videosu. Metin sitenin kendi başlık ve cümlelerinden oluşur; sitede olmayan bilgi ya da sayı eklenmez.`;
+  }
+  return `Ürün/hizmet sayfasından 15 saniyelik ${size} tanıtım videosu. Ad, özellikler ve görsel sayfanın kendisinden alınır; fiyat yalnız sayfada açıkça yazıyor ve doğrulanabiliyorsa gösterilir.`;
+}
+
+/**
+ * Ortak marka diyalogu: ad, renk, logo onayi + istek. Haklar kesin acik degilse (Deneme / Buyume)
+ * hicbir istek atilmaz; kilitli onizleme gosterilir.
+ */
+export function VideoRequestDialog({
+  siteId,
+  target,
+  seed,
+  description,
+  open,
+  onOpenChange,
+  onRequested,
+}: {
+  siteId: string;
+  target: VideoTarget;
+  seed: string;
+  description: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  onRequested?: (video: ArticleVideo) => void;
+}) {
   const { can } = useEntitlements();
   const feature = can('articleVideo');
-  const title = article.title || article.topic || 'Makale';
 
   const [quota, setQuota] = useState<VideoQuota | null>(null);
   const [brand, setBrand] = useState<VideoBrandPreview | null>(null);
@@ -153,7 +198,7 @@ export function ArticleVideoDialog({
   const submit = async () => {
     setSubmitting(true);
     try {
-      const body = videoRequestBody({ articleId: article.id, brand, color, useTemplateColor, useLogo: useLogo && !!brand?.logoDataUri, name });
+      const body = videoRequestBody({ target, brand, color, useTemplateColor, useLogo: useLogo && !!brand?.logoDataUri, name });
       const r = await api.requestVideo(siteId, body);
       toast.success('Video sıraya alındı', {
         description: `Genellikle 1-3 dakikada hazır olur; Videolar sayfasında görünür. Bu ay ${r.remaining} video hakkın kaldı.`,
@@ -175,14 +220,12 @@ export function ArticleVideoDialog({
             <Clapperboard className="h-4 w-4 text-brand" aria-hidden />
             {ARTICLE_VIDEO_COPY.product}
           </DialogTitle>
-          <DialogDescription>
-            “{title}” makalesinden 15 saniyelik dikey video (1080×1920). Metin makalenin kendi başlık, cümle ve sayılarından oluşur; makalede olmayan bilgi eklenmez.
-          </DialogDescription>
+          <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
 
         {locked ? (
           <DialogBody>
-            <LockedVideoPreview seed={article.id} compact />
+            <LockedVideoPreview seed={seed} compact />
           </DialogBody>
         ) : (
           <>
@@ -253,7 +296,9 @@ export function ArticleVideoDialog({
                   </div>
 
                   <p className="text-label text-muted-foreground">
-                    Logo ve marka öğeleri yalnızca bu videoyu üretmek için kullanılır. Videoyu nerede yayınlayacağın senin kararın ve sorumluluğundadır (
+                    Logo ve marka öğeleri yalnızca bu videoyu üretmek için kullanılır.
+                    {target.type === 'product' ? ' Ürün görseli ve sayfa içeriği sitenin kendi sayfasından alınır; bunları kullanma hakkın olduğunu onaylarsın.' : ''}
+                    {' '}Videoyu nerede yayınlayacağın senin kararın ve sorumluluğundadır (
                     <Link href="/terms" className="underline">Kullanım Şartları</Link>).
                   </p>
                 </>

@@ -47,6 +47,11 @@ export interface BrandDeps {
   signal?: AbortSignal | null;
   /** Tum cikarimin (anasayfa haric) son tarihi; varsayilan brand.mjs BRAND_DEADLINE_MS */
   deadlineMs?: number;
+  /**
+   * Anasayfa zaten indirildiyse (site tanitim videosu ayni sayfayi kaynak olarak da okur) yeniden
+   * indirilmez: ayni sayfa iki kez cekilmesin, iki indirme arasinda farkli icerik gelmesin.
+   */
+  page?: SafeTextResult;
 }
 
 /** Kullanicinin girdigi / sayfadan gelen renk: yalniz #rrggbb (kucuk harf); degilse null */
@@ -126,7 +131,7 @@ export async function extractSiteBrand(site: { url: string; name?: string | null
   const fetchText = deps.fetchText ?? safeFetchText;
   let page: SafeTextResult;
   try {
-    page = await raceSignal(fetchText(site.url, { maxBytes: HOMEPAGE_MAX_BYTES, timeoutMs: 15_000, maxRedirects: 5 }), deps.signal);
+    page = deps.page ?? await raceSignal(fetchText(site.url, { maxBytes: HOMEPAGE_MAX_BYTES, timeoutMs: 15_000, maxRedirects: 5 }), deps.signal);
   } catch (err: any) {
     return { ...base, notes: [`anasayfa okunamadi: ${err instanceof SafeFetchError ? err.code : 'ag'} — ${String(err?.message ?? err).slice(0, 160)}`] };
   }

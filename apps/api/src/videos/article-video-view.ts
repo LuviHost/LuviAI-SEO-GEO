@@ -51,6 +51,12 @@ export interface VideoRowLike {
 
 export interface ArticleVideoView {
   id: string;
+  /** 'article' | 'site' | 'product' — eski satirlarda (alan yok) 'article' */
+  type: 'article' | 'site' | 'product';
+  /** 'vertical' (9:16) | 'horizontal' (16:9) */
+  format: 'vertical' | 'horizontal';
+  /** site / urun tanitiminin kaynak adresi (makalede null) */
+  sourceUrl: string | null;
   articleId: string | null;
   title: string;
   status: ArticleVideoStatus;
@@ -73,8 +79,12 @@ export function toVideoView(row: VideoRowLike): ArticleVideoView {
   const brand = raw.brand && typeof raw.brand === 'object'
     ? { name: String(raw.brand.name ?? ''), primary: typeof raw.brand.primary === 'string' ? raw.brand.primary : null, hasLogo: raw.brand.hasLogo === true }
     : null;
+  const type = raw.videoType === 'site' || raw.videoType === 'product' ? raw.videoType : 'article';
   return {
     id: row.id,
+    type,
+    format: raw.format === 'horizontal' ? 'horizontal' : 'vertical',
+    sourceUrl: type !== 'article' && typeof raw.sourceUrl === 'string' ? raw.sourceUrl : null,
     articleId: row.articleId,
     title: row.title,
     status,

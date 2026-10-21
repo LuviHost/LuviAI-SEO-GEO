@@ -53,10 +53,13 @@ Son güncelleme: Ekim 2026
 
 ### RanksUp Video — Profesyonel ve üstü
 
-- Yayındaki makaleden sitenin adı, logosu ve tema rengiyle 15 saniyelik dikey video (1080×1920; Reels, Shorts, TikTok biçimi), MP4 olarak indirilir. RanksUp videoyu hiçbir platformda yayınlamaz.
-- Metin makalenin kendi başlık, cümle ve sayılarından derlenir; yapay zekâ ile kısaltılan metin, makalede birebir geçmeyen sayıları ve makalede olmayan kelime oranı yüksek metni reddeden bir denetimden geçer, geçemezse makalenin kendi cümleleri kullanılır.
+- Üç tür video, sitenin adı, logosu ve tema rengiyle, MP4 olarak indirilir. RanksUp videoyu hiçbir platformda yayınlamaz.
+  - Makaleden: yayındaki makaleden 15 saniyelik dikey video (1080×1920; Reels, Shorts, TikTok biçimi).
+  - Site tanıtımı: sitenin ana sayfası ve RanksUp'taki marka profilinden; 15 sn dikey ya da 24 sn yatay (1920×1080; web sitesi, YouTube).
+  - Ürün tanıtımı: yalnız sitenin kendi alan adındaki bir ürün/hizmet sayfasından (başka alan adı, IP ya da dışarı yönlendiren sayfa kabul edilmez); 15 sn dikey ya da yatay. Ürün görseli sayfadan alınır; fiyat yalnız sayfanın yapısal ürün bilgisinde ve görünen metninde aynı tutar olarak geçiyorsa gösterilir.
+- Metin makalenin kendi başlık, cümle ve sayılarından derlenir; yapay zekâ ile kısaltılan metin, makalede birebir geçmeyen sayıları ve makalede olmayan kelime oranı yüksek metni reddeden bir denetimden geçer, geçemezse makalenin kendi cümleleri kullanılır. Site ve ürün tanıtımında aynı denetim sitenin kendi sayfasına uygulanır; marka profili yalnız bağlamdır, sayı kaynağı değildir.
 - Logo ve renk sitenin herkese açık sayfasından okunur; video üretilmeden önce renk, logo ve marka adı düzeltilebilir.
-- Aylık hak: Profesyonel 20, Ajans 60, Kurumsal 200 video; her takvim ayı yenilenir, üretilemeyen videonun hakkı iade edilir.
+- Aylık hak: Profesyonel 20, Ajans 60, Kurumsal 200 video; her takvim ayı yenilenir, üretilemeyen videonun hakkı iade edilir. Makale, site ve ürün videoları aynı haktan düşer (her biçim ayrı bir video).
 
 ### ASO
 

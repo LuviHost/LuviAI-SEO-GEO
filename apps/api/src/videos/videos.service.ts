@@ -1,7 +1,9 @@
-import { ConflictException, Injectable, Logger, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import { createHash } from 'node:crypto';
+import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { QuotaService } from '../billing/quota.service.js';
-import { ARTICLE_SHORT_ENGINE, removeVideoFiles, VIDEO_REQUEST_LOCK_MS } from './article-video.config.js';
+import { ARTICLE_SHORT_ENGINE, ASPECT_OF, removeVideoFiles, VIDEO_COMPOSITION, VIDEO_REQUEST_LOCK_MS, type VideoFormat, type VideoType } from './article-video.config.js';
+import { assertOwnSitePageUrl, PromoSourceError } from './promo-video-source.js';
 import { extractSiteBrand, FALLBACK_BRAND_PRIMARY, normalizeHexColor } from './article-video-brand.js';
 import { loadBrandKit } from './article-short-kit.js';
 import { toVideoView, type ArticleVideoView } from './article-video-view.js';
@@ -9,7 +11,14 @@ import { VideoRenderQueue } from './video-render.queue.js';
 
 export interface VideoRequester { id: string; role?: string }
 export interface VideoRequestInput {
-  articleId: string;
+  /** verilmezse 'article' (eski istemciler) */
+  type?: VideoType;
+  /** type 'article' */
+  articleId?: string;
+  /** type 'product': sitenin kendi alan adindaki sayfa */
+  pageUrl?: string;
+  /** 'vertical' (varsayilan) | 'horizontal' (site ve urun) */
+  format?: VideoFormat;
   /** #rrggbb; null = sablon rengi (RanksUp turuncusu); verilmezse sitenin rengi */
   primaryColor?: string | null;
   /** false = logo kullanma (bas harf monogrami) */
@@ -21,10 +30,14 @@ export interface VideoRequestInput {
  * RanksUp Video — istek, listeleme, silme (API sureci). Render worker'da
  * (video-render.service.ts, 'video-render' kuyrugu).
  *
+ * Uc tur: makale (yayindaki makaleden), site tanitimi (sitenin anasayfasi + marka profili), urun
+ * tanitimi (sitenin KENDI alan adindaki bir sayfa). Hepsi ayni plan kapisi, ayni aylik hak, ayni
+ * kuyruk ve ayni iade kurali.
+ *
  * KAPI SIRASI (istekte): kimlik (AuthGuard) -> site sahipligi (SiteAccessGuard) -> plan
- * (@RequiresPlan('articleVideo'), istek sahibinin plani) -> burada: makale bu sitenin ve
- * YAYINDA -> ayni makale icin suren video yok -> site SAHIBININ aylik hakki (kosullu UPDATE)
- * -> Video satiri -> kuyruk. Kuyruga eklenemezse satir FAILED olur ve hak geri verilir.
+ * (@RequiresPlan('articleVideo'), istek sahibinin plani) -> burada: kaynak gecerli (makale bu
+ * sitenin ve YAYINDA / urun adresi sitenin alan adinda) -> ayni kaynak icin suren video yok ->
+ * site SAHIBININ aylik hakki (kosullu UPDATE) -> Video satiri -> kuyruk. Kuyruga eklenemezse satir FAILED olur ve hak geri verilir.
  * Deneme / Buyume planinda hicbir indirme, model cagrisi ya da render yapilmaz.
  */
 @Injectable()
@@ -43,7 +56,7 @@ export class VideosService {
   private async siteOwner(siteId: string) {
     const site = await this.prisma.site.findUnique({
       where: { id: siteId },
-      select: { id: true, url: true, name: true, userId: true, user: { select: { id: true, plan: true, role: true } } },
+      select: { id: true, url: true, name: true, language: true, userId: true, user: { select: { id: true, plan: true, role: true } } },
     });
     if (!site) throw new NotFoundException('Site bulunamadı');
     return site;
@@ -104,12 +117,12 @@ export class VideosService {
   }
 
   /**
-   * Ayni makale icin es zamanli iki istegi (cift tiklama, iki sekme) tek SQL'le ayiran kisa
+   * Ayni kaynak icin es zamanli iki istegi (cift tiklama, iki sekme) tek SQL'le ayiran kisa
    * omurlu kilit. KvStore.key birincil anahtar: ikinci create unique hatasiyla duser. Suresi
-   * gecmis kilit (surec cokmus) silinip bir kez daha denenir.
+   * gecmis kilit (surec cokmus) silinip bir kez daha denenir. Anahtar (site, tur, kaynak) basina;
+   * makalede eskisiyle ayni (`video-istek:<makale>`).
    */
-  private async acquireRequestLock(articleId: string): Promise<string | null> {
-    const key = `video-istek:${articleId}`;
+  private async acquireRequestLock(key: string): Promise<string | null> {
     const create = () => this.prisma.kvStore.create({
       data: { key, value: String(process.pid), expiresAt: new Date(Date.now() + VIDEO_REQUEST_LOCK_MS) },
     });
@@ -128,29 +141,106 @@ export class VideosService {
     }
   }
 
+  /**
+   * Istegin kaynagi: tur, bicim, Remotion sablonu, baslik, kilit anahtari, ayni kaynagin suren
+   * videosunu bulan kural. Girdi hatasi -> 400 (Turkce), makale yok -> 404, yayinda degil -> 409.
+   * Hicbir ag istegi yok: urun adresinin alan adi denetimi yalniz metin uzerinde (asil indirme
+   * worker'da, yonlendirmeler dahil yeniden denetlenir).
+   */
+  private async resolveSource(site: { id: string; url: string; name: string }, input: VideoRequestInput) {
+    const type: VideoType = input.type ?? 'article';
+    const format: VideoFormat = input.format ?? 'vertical';
+    const template = VIDEO_COMPOSITION[type]?.[format];
+    if (!template) throw new BadRequestException('Makale videosu yalnız dikey (9:16) biçimde üretilir.');
+
+    if (type === 'article') {
+      if (input.pageUrl !== undefined) throw new BadRequestException('Makale videosunda sayfa adresi verilmez.');
+      if (!input.articleId) throw new BadRequestException('Makale seçilmedi.');
+      const article = await this.prisma.article.findFirst({
+        where: { id: input.articleId, siteId: site.id },
+        select: { id: true, title: true, status: true, language: true },
+      });
+      if (!article) throw new NotFoundException('Makale bulunamadı');
+      if (article.status !== 'PUBLISHED') {
+        throw new ConflictException('Yalnız yayındaki makaleden video üretilebilir. Makaleyi yayınladıktan sonra tekrar dene.');
+      }
+      return {
+        type, format, template,
+        articleId: article.id as string | null,
+        title: String(article.title ?? 'Makale videosu').slice(0, 180),
+        language: String(article.language ?? 'tr').slice(0, 8),
+        sourceUrl: null as string | null,
+        sourceKey: `article:${article.id}`,
+        lockKey: `video-istek:${article.id}`,
+        busy: 'Bu makale için video isteği zaten işleniyor. Birkaç saniye sonra listeyi yenile.',
+        running: 'Bu makalenin videosu zaten hazırlanıyor. Hazır olunca Videolar sayfasında görünür.',
+      };
+    }
+
+    if (input.articleId !== undefined) throw new BadRequestException('Tanıtım videosunda makale seçilmez.');
+    if (type === 'site') {
+      if (input.pageUrl !== undefined) throw new BadRequestException('Site tanıtımı sitenin ana sayfasından üretilir; sayfa adresi verilmez.');
+      return {
+        type, format, template,
+        articleId: null,
+        title: `${site.name || hostLabel(site.url)} — site tanıtımı`.slice(0, 180),
+        language: null as string | null,
+        sourceUrl: site.url,
+        sourceKey: `site:${format}`,
+        lockKey: `video-istek:${site.id}:site`,
+        busy: 'Site tanıtım videosu isteği zaten işleniyor. Birkaç saniye sonra listeyi yenile.',
+        running: 'Bu biçimde bir site tanıtım videosu zaten hazırlanıyor. Hazır olunca Videolar sayfasında görünür.',
+      };
+    }
+
+    let pageUrl: string;
+    try {
+      pageUrl = assertOwnSitePageUrl(input.pageUrl, site.url);
+    } catch (err) {
+      if (err instanceof PromoSourceError) throw new BadRequestException(err.userMessage);
+      throw err;
+    }
+    const digest = createHash('sha256').update(pageUrl).digest('hex').slice(0, 24);
+    return {
+      type, format, template,
+      articleId: null,
+      title: `Ürün tanıtımı — ${hostLabel(pageUrl, true)}`.slice(0, 180),
+      language: null as string | null,
+      sourceUrl: pageUrl,
+      sourceKey: `product:${format}:${digest}`,
+      lockKey: `video-istek:${site.id}:product:${digest}`,
+      busy: 'Bu sayfa için video isteği zaten işleniyor. Birkaç saniye sonra listeyi yenile.',
+      running: 'Bu sayfanın bu biçimdeki videosu zaten hazırlanıyor. Hazır olunca Videolar sayfasında görünür.',
+    };
+  }
+
   async request(siteId: string, requester: VideoRequester, input: VideoRequestInput): Promise<{ video: ArticleVideoView; remaining: number; limit: number }> {
     const site = await this.siteOwner(siteId);
     this.assertOwnerPlan(site.user);
+    const src = await this.resolveSource(site, input);
 
-    const article = await this.prisma.article.findFirst({
-      where: { id: input.articleId, siteId },
-      select: { id: true, title: true, status: true, language: true },
-    });
-    if (!article) throw new NotFoundException('Makale bulunamadı');
-    if (article.status !== 'PUBLISHED') {
-      throw new ConflictException('Yalnız yayındaki makaleden video üretilebilir. Makaleyi yayınladıktan sonra tekrar dene.');
-    }
-
-    const lock = await this.acquireRequestLock(article.id);
-    if (!lock) throw new ConflictException('Bu makale için video isteği zaten işleniyor. Birkaç saniye sonra listeyi yenile.');
+    const lock = await this.acquireRequestLock(src.lockKey);
+    if (!lock) throw new ConflictException(src.busy);
     try {
-      const running = await this.prisma.video.findFirst({
-        where: { articleId: article.id, status: { in: ['PENDING', 'GENERATING'] }, ...this.engineWhere },
-        select: { id: true },
-      });
-      if (running) throw new ConflictException('Bu makalenin videosu zaten hazırlanıyor. Hazır olunca Videolar sayfasında görünür.');
+      if (src.articleId) {
+        const running = await this.prisma.video.findFirst({
+          where: { articleId: src.articleId, status: { in: ['PENDING', 'GENERATING'] }, ...this.engineWhere },
+          select: { id: true },
+        });
+        if (running) throw new ConflictException(src.running);
+      } else {
+        // Ayni kaynak + bicim icin suren tanitim videosu (JSON alanini JS'te karsilastir: sitenin
+        // suren videolari bir avuc; providerRaw yolunda ikinci JSON filtresi gerekmez)
+        const rows = await this.prisma.video.findMany({
+          where: { siteId, status: { in: ['PENDING', 'GENERATING'] }, ...this.engineWhere },
+          select: { id: true, status: true, providerRaw: true },
+          take: 50,
+        });
+        const running = rows.some((r: any) => ['PENDING', 'GENERATING'].includes(r.status) && (r.providerRaw as any)?.sourceKey === src.sourceKey);
+        if (running) throw new ConflictException(src.running);
+      }
 
-      // Hak dus (kosullu UPDATE) — dolu ise 403, sayac degismez
+      // Hak dus (kosullu UPDATE) — dolu ise 403, sayac degismez. Uc tur ayni aylik haktan duser.
       const charge = await this.quota.consumeVideoAllowance(site.userId);
 
       const request = {
@@ -163,15 +253,19 @@ export class VideosService {
         video = await this.prisma.video.create({
           data: {
             siteId,
-            articleId: article.id,
-            title: String(article.title ?? 'Makale videosu').slice(0, 180),
+            articleId: src.articleId,
+            title: src.title,
             provider: 'SLIDESHOW',
             status: 'PENDING',
-            aspectRatio: '9:16',
-            language: String(article.language ?? 'tr').slice(0, 8),
+            aspectRatio: ASPECT_OF[src.format],
+            language: String(src.language ?? site.language ?? 'tr').slice(0, 8),
             providerRaw: {
               engine: ARTICLE_SHORT_ENGINE,
-              template: 'ArticleShort',
+              template: src.template,
+              videoType: src.type,
+              format: src.format,
+              ...(src.sourceUrl ? { sourceUrl: src.sourceUrl } : {}),
+              sourceKey: src.sourceKey,
               request,
               charged: charge.charged,
               chargedUserId: site.userId,
@@ -229,5 +323,16 @@ export class VideosService {
     await removeVideoFiles(siteId, row.id);
     await this.prisma.video.deleteMany({ where: { id: row.id } });
     return { ok: true, refunded };
+  }
+}
+
+/** Basliklar icin okunur adres: alan adi (+ yol) */
+function hostLabel(url: string, withPath = false): string {
+  try {
+    const u = new URL(url);
+    const host = u.hostname.replace(/^www\./, '');
+    return withPath ? `${host}${u.pathname === '/' ? '' : u.pathname}`.slice(0, 140) : host;
+  } catch {
+    return String(url).slice(0, 140);
   }
 }

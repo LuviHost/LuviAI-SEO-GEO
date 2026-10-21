@@ -372,6 +372,12 @@ export interface SafeTextOptions {
   maxRedirects?: number;
   /** Metin disi icerikte govdeyi indirme (binary=true doner). Varsayilan true. */
   skipBinary?: boolean;
+  /**
+   * Her yonlendirme hedefi icin ek kural (SSRF denetimine EK; onun yerine gecmez). false donerse
+   * istek o hedefe GIDILMEDEN 'redirect' hatasiyla biter. Ornek: RanksUp Video urun sayfasi
+   * yalniz musterinin kendi alan adinda kalabilir (videos/promo-video-source.ts).
+   */
+  allowRedirect?: (next: URL) => boolean;
 }
 
 export interface SafeTextResult {
@@ -579,7 +585,9 @@ async function fetchTextGuarded(agent: Agent, isBlocked: IsBlocked, allowAnyPort
       await res.body.dump().catch(() => {});
       if (hop === maxRedirects) throw new SafeFetchError('redirect', 'Cok fazla yonlendirme');
       // Her adim bastan denetlenir: genel bir adres ic adrese yonlendiremez.
-      current = assertUrl(new URL(resHeaders.location, current).toString(), isBlocked, allowAnyPort);
+      const next = assertUrl(new URL(resHeaders.location, current).toString(), isBlocked, allowAnyPort);
+      if (opts.allowRedirect && !opts.allowRedirect(next)) throw new SafeFetchError('redirect', `Izin verilmeyen yonlendirme hedefi: ${next.hostname}`);
+      current = next;
       continue;
     }
 

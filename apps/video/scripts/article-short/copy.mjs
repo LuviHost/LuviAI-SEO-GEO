@@ -31,12 +31,12 @@ const CTA_LABELS = { tr: 'Tamamını oku', en: 'Read the full article' };
 export const ctaLabel = (lang) => CTA_LABELS[String(lang ?? 'tr').slice(0, 2).toLowerCase()] ?? CTA_LABELS.tr;
 /** Makalede gecmeyen (4+ harfli) kelime orani bu degeri asarsa: CLI'da uyari, LLM yolunda (strict) RET */
 export const MAX_NOVEL_RATIO = 0.25;
-const SKIP_HEADING = /^(sık(ça)? sorulan|sss|faq|kaynak|ilgili|içindekiler|okumaya devam|paylaş|yorum)/iu;
+export const SKIP_HEADING = /^(sık(ça)? sorulan|sss|faq|kaynak|ilgili|içindekiler|okumaya devam|paylaş|yorum)/iu;
 
-const norm = (s) => s.toLocaleLowerCase('tr-TR').replace(/[^\p{L}\p{N} ]/gu, ' ').replace(/\s+/g, ' ').trim();
-const words = (s) => s.split(/\s+/).filter(Boolean).length;
-const sentences = (t) => t.split(/(?<=[.!?…])\s+(?=[\p{Lu}\d"“])/u).map((s) => s.trim()).filter(Boolean);
-const startsUpper = (s) => /^[\p{Lu}\d"“]/u.test(s);
+export const norm = (s) => s.toLocaleLowerCase('tr-TR').replace(/[^\p{L}\p{N} ]/gu, ' ').replace(/\s+/g, ' ').trim();
+export const words = (s) => s.split(/\s+/).filter(Boolean).length;
+export const sentences = (t) => t.split(/(?<=[.!?…])\s+(?=[\p{Lu}\d"“])/u).map((s) => s.trim()).filter(Boolean);
+export const startsUpper = (s) => /^[\p{Lu}\d"“]/u.test(s);
 
 /**
  * SAYI JETONLARI — sayi korumasinin tek kurali (kaynak ve video metni AYNI fonksiyonla).
@@ -97,7 +97,7 @@ export function sourceNumberSet(text) {
   return set;
 }
 
-function similar(a, b) {
+export function similar(a, b) {
   const x = norm(a);
   const y = norm(b);
   if (!x || !y) return false;
@@ -107,7 +107,7 @@ function similar(a, b) {
 }
 
 /** Bolumden tek satirlik destek cumlesi — oncelik: tam cumle > kendi basina anlamli madde > alt baslik */
-function sectionDetail(sec) {
+export function sectionDetail(sec) {
   const items = sec.items;
   const firstSub = items.findIndex((b) => b.type === 'heading');
   const direct = firstSub < 0 ? items : items.slice(0, firstSub);

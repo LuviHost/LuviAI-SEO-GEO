@@ -14,6 +14,8 @@ ile tüketilir).
 | `SocialAd` | 1080×1920 @30 | 15 sn, vurusa kilitli | Reels / TikTok / Shorts — `out/marketing/` |
 | `FeatureExplainer` | 1920×1080 @30 | 72 sn, Türkçe altyazı + müzik | Panel turu (canlı ekran kaydı üslubu) — `out/marketing/` |
 | `ArticleShort` | 1080×1920 @30 | 15 sn, parametrik | **RanksUp Video** (ürün): müşterinin yayındaki makalesinden markalı kısa video — sunucuda `apps/api/public/videos/<siteId>/`; CLI denemesi `out/article-shorts/` |
+| `SiteIntro` / `SiteIntroWide` | 1080×1920 / 1920×1080 @30 | 15 sn / 24 sn, parametrik | **RanksUp Video** site tanıtımı: müşterinin anasayfası + marka profili; marka rengi zemin, logo, 3 hizmet kartı |
+| `ProductShort` / `ProductWide` | 1080×1920 / 1920×1080 @30 | 15 sn, parametrik | **RanksUp Video** ürün tanıtımı: müşterinin kendi sayfası; ürün görseli (yavaş yakınlaşma), özellik listesi, yalnız doğrulanmış fiyat etiketi |
 
 ## Komutlar
 
@@ -105,14 +107,37 @@ pnpm --filter @luviai/video article-short https://www.kobipratik.com/pratik-kobi
 - İndirilen her şey `out/article-shorts/<slug>/downloads/` altında, güvenilmeyen veri: yalnız okunur.
 - Ses: `timeline.json` → `ArticleShort` ızgarası; her video için aynı dosya (bir kez sentezlenir).
 
+## Site ve ürün tanıtım videoları (SiteIntro · ProductShort)
+
+- **Kaynak** (`scripts/article-short/page.mjs`, saf, worker_thread'de): sayfanın JSON-LD'si (Organization,
+  Product/Service, Offer, BreadcrumbList), başlık/H1/açıklama, gövde blokları (`extract.mjs` blocksOf; menü,
+  alt bilgi, form atılır), görünür metin satırları ve "Etiket: değer" özellik satırları. Tüm desenler doğrusal,
+  belge 600 KB'ta kırpılır (dev girdide < 200 ms; `apps/api/src/videos/promo-video.spec.ts`).
+- **Fiyat — iki kaynak:** yapısal veride (JSON-LD Offer / product:price meta / itemprop=price) TEK değer ve aynı
+  tutar aynı para birimiyle sayfanın görünür metninde → gösterilir (sayfadaki yazımıyla); aksi halde hiç
+  gösterilmez. Gösterilen yazım ayrıca sayı korumasından geçer (`promo-copy.mjs verifyPriceText`).
+- **Metin** (`scripts/article-short/promo-copy.mjs`): makaleyle aynı şema ve aynı koruyucu (sayı jetonları
+  `copy.mjs`'ten). Site: kanca H1/slogan, alt satır kurum açıklaması, 3 hizmet (aynı seviyede art arda ≥3 başlık
+  = hizmet ızgarası). Ürün: ad, fayda cümlesi, marka/kategori, 3 özellik (ürün açıklaması → özellik listesi →
+  başlık ızgarası → "Etiket: değer"). Marka profili (DB Brain) yalnız kelime bağlamı; sayı kaynağı değildir.
+- **Şablon** (`src/promo/`): `fit.ts`, `palette.ts`, `LogoTile` ArticleShort'tan; site tanıtımı marka renkli zemin,
+  ürün tanıtımı ürün görseli önde. Görsel/logo yoksa marka kartı + baş harf. Fiyat etiketi yalnız `price` props'u
+  doluysa (sunucu doğrulamadıysa alan boş gelir).
+- **Render:** aynı paket ve hat (`render/article-short.mjs renderArticleShort({ compositionId })`); izinli
+  kompozisyonlar `VIDEO_COMPOSITIONS` (liste dışı kimlik reddedilir). Ses: timeline.json `SiteIntro`,
+  `SiteIntroWide`, `ProductShort` (yatay ürün dikeyle aynı ızgara ve ses).
+
 ## RanksUp Video (ürün) — sunucu hattı
 
-Müşterinin **yayındaki** makalesinden sitenin adı, logosu ve rengiyle 15 sn dikey video. Profesyonel ve
+Müşterinin **yayındaki** makalesinden, anasayfasından (site tanıtımı) ya da kendi alan adındaki bir ürün/hizmet
+sayfasından (ürün tanıtımı) sitenin adı, logosu ve rengiyle kısa video. Üç tür aynı aylık hakkı, aynı kuyruğu ve
+aynı iade kuralını kullanır; tür/biçim `providerRaw.videoType` / `providerRaw.format` (migration yok). Profesyonel ve
 üstü planlarda (`apps/api/src/billing/plans.ts` → `FEATURE_MIN_PLAN.articleVideo`, aylık hak
 `VIDEOS_PER_MONTH`: Pro 20, Ajans 60, Kurumsal 200).
 
 ```
 panel "Video üret" ─▶ POST /api/sites/:siteId/videos  (auth + site sahipliği + plan + hak: koşullu UPDATE)
+                       { articleId } | { type:'site', format? } | { type:'product', pageUrl, format? }
                        Video satırı PENDING, providerRaw.engine='article-short'
                     ─▶ BullMQ 'video-render' (iş kimliği = video kimliği, 1 deneme)
 worker (eşzamanlılık 1) ─▶ VideoRenderService.process (apps/api/src/videos/video-render.service.ts)

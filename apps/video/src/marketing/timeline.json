@@ -271,6 +271,102 @@
         { "id": "end.cta", "at": 25.5, "sfx": "pop" },
         { "id": "end.url", "at": 26.5, "sfx": "tick" }
       ]
+    },
+    "SiteIntro": {
+      "$comment": "Site tanitim videosu, 15 sn dikey (src/promo/SiteIntro). Markayi one cikarir: logo + isletmenin ne yaptigi, uc hizmet karti ust uste birikir, kapanis alan adi.",
+      "audio": "site-intro.wav",
+      "beats": 30,
+      "energy": 0.85,
+      "scenes": { "hook": [0, 6], "p1": [6, 12], "p2": [12, 18], "p3": [18, 24], "end": [24, 30] },
+      "music": [
+        [0, 5.5, "L2"],
+        [5.5, 6, "silence"],
+        [6, 24, "L3"],
+        [24, 30, "outro"]
+      ],
+      "events": [
+        { "id": "hook.logo", "at": 0, "sfx": "pop" },
+        { "id": "hook.name", "at": 1, "sfx": "thock" },
+        { "id": "hook.title", "at": 2, "sfx": "tick" },
+        { "id": "hook.sub", "at": 3.5, "sfx": "tickLow" },
+        { "id": "p1.in", "at": 6, "sfx": "whoosh" },
+        { "id": "p1.title", "at": 6.5, "sfx": "thock" },
+        { "id": "p1.detail", "at": 8, "sfx": "tick" },
+        { "id": "p2.in", "at": 12, "sfx": "whoosh" },
+        { "id": "p2.title", "at": 12.5, "sfx": "thock" },
+        { "id": "p2.detail", "at": 14, "sfx": "tick" },
+        { "id": "p3.in", "at": 18, "sfx": "whoosh" },
+        { "id": "p3.title", "at": 18.5, "sfx": "thock" },
+        { "id": "p3.detail", "at": 20, "sfx": "tick" },
+        { "id": "end.riser", "at": 24, "sfx": "riser", "dur": 1 },
+        { "id": "end.hit", "at": 24, "sfx": "hit" },
+        { "id": "end.cta", "at": 25.5, "sfx": "pop" },
+        { "id": "end.url", "at": 26.5, "sfx": "tick" }
+      ]
+    },
+    "SiteIntroWide": {
+      "$comment": "Site tanitim videosu, 24 sn yatay 16:9 (web sitesi / video platformlari). SiteIntro ile ayni sahneler, daha uzun soluk.",
+      "audio": "site-intro-wide.wav",
+      "beats": 48,
+      "energy": 0.8,
+      "scenes": { "hook": [0, 10], "p1": [10, 20], "p2": [20, 30], "p3": [30, 40], "end": [40, 48] },
+      "music": [
+        [0, 9.5, "L2"],
+        [9.5, 10, "silence"],
+        [10, 40, "L3"],
+        [40, 48, "outro"]
+      ],
+      "events": [
+        { "id": "hook.logo", "at": 0, "sfx": "pop" },
+        { "id": "hook.name", "at": 1.5, "sfx": "thock" },
+        { "id": "hook.title", "at": 3, "sfx": "tick" },
+        { "id": "hook.sub", "at": 5, "sfx": "tickLow" },
+        { "id": "p1.in", "at": 10, "sfx": "whoosh" },
+        { "id": "p1.title", "at": 10.5, "sfx": "thock" },
+        { "id": "p1.detail", "at": 12, "sfx": "tick" },
+        { "id": "p2.in", "at": 20, "sfx": "whoosh" },
+        { "id": "p2.title", "at": 20.5, "sfx": "thock" },
+        { "id": "p2.detail", "at": 22, "sfx": "tick" },
+        { "id": "p3.in", "at": 30, "sfx": "whoosh" },
+        { "id": "p3.title", "at": 30.5, "sfx": "thock" },
+        { "id": "p3.detail", "at": 32, "sfx": "tick" },
+        { "id": "end.riser", "at": 40, "sfx": "riser", "dur": 1 },
+        { "id": "end.hit", "at": 40, "sfx": "hit" },
+        { "id": "end.cta", "at": 41.5, "sfx": "pop" },
+        { "id": "end.url", "at": 42.5, "sfx": "tick" }
+      ]
+    },
+    "ProductShort": {
+      "$comment": "Urun/hizmet tanitim videosu, 15 sn (src/promo/ProductShort; dikey ve yatay ayni izgara). Urun gorseli one cikar (yavas yakinlasma), fiyat etiketi yalniz dogrulanmissa.",
+      "audio": "product-short.wav",
+      "beats": 30,
+      "energy": 0.85,
+      "scenes": { "hook": [0, 6], "p1": [6, 12], "p2": [12, 18], "p3": [18, 24], "end": [24, 30] },
+      "music": [
+        [0, 5.5, "pulse"],
+        [5.5, 6, "silence"],
+        [6, 24, "L4"],
+        [24, 30, "outro"]
+      ],
+      "events": [
+        { "id": "hook.image", "at": 0, "sfx": "pop" },
+        { "id": "hook.title", "at": 1.5, "sfx": "thock" },
+        { "id": "hook.sub", "at": 3, "sfx": "tick" },
+        { "id": "hook.price", "at": 4, "sfx": "tickLow" },
+        { "id": "p1.in", "at": 6, "sfx": "whoosh" },
+        { "id": "p1.title", "at": 6.5, "sfx": "thock" },
+        { "id": "p1.detail", "at": 8, "sfx": "tick" },
+        { "id": "p2.in", "at": 12, "sfx": "whoosh" },
+        { "id": "p2.title", "at": 12.5, "sfx": "thock" },
+        { "id": "p2.detail", "at": 14, "sfx": "tick" },
+        { "id": "p3.in", "at": 18, "sfx": "whoosh" },
+        { "id": "p3.title", "at": 18.5, "sfx": "thock" },
+        { "id": "p3.detail", "at": 20, "sfx": "tick" },
+        { "id": "end.riser", "at": 24, "sfx": "riser", "dur": 1 },
+        { "id": "end.hit", "at": 24, "sfx": "hit" },
+        { "id": "end.cta", "at": 25.5, "sfx": "pop" },
+        { "id": "end.url", "at": 26.5, "sfx": "tick" }
+      ]
     }
   }
 }

@@ -47,7 +47,7 @@ function findBody(html) {
   return { el: clean, score: 0, via: 'document' };
 }
 
-function blocksOf(bodyHtml) {
+export function blocksOf(bodyHtml) {
   const html = removeElements(bodyHtml, 'figure|nav|aside|form|table|button');
   const blocks = [];
   for (const { name: tag, inner } of elements(html, 'h[1-6]|p|li|blockquote')) {
@@ -99,7 +99,7 @@ function isAllBold(core) {
   return any && !core.slice(pos).trim();
 }
 
-function sectionsOf(blocks) {
+export function sectionsOf(blocks) {
   const sections = [];
   let cur = { heading: null, items: [] };
   for (const b of blocks) {

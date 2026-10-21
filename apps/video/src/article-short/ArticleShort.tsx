@@ -72,7 +72,7 @@ const DISPLAY: Omit<FitOptions, 'maxWidth' | 'maxLines' | 'maxSize' | 'minSize'>
 const UI: Omit<FitOptions, 'maxWidth' | 'maxLines' | 'maxSize' | 'minSize'> = { family: fontUI, weight: 650, letterSpacing: -0.01 };
 
 /** Turkce buyuk harf (i -> İ) */
-const upperTr = (s: string) => s.toLocaleUpperCase('tr-TR');
+export const upperTr = (s: string) => s.toLocaleUpperCase('tr-TR');
 
 type Fits = {
   hook: Fit;
@@ -163,7 +163,7 @@ function Backdrop({ pal }: { pal: BrandPalette }) {
 
 /* ───────────── marka karosu (musteri logosu) ───────────── */
 
-function LogoTile({ brand, size, pal }: { brand: ArticleShortProps['brand']; size: number; pal: BrandPalette }) {
+export function LogoTile({ brand, size, pal }: { brand: ArticleShortProps['brand']; size: number; pal: BrandPalette }) {
   const [failed, setFailed] = useState(false);
   const showImg = brand.logoUrl && !failed;
   return (

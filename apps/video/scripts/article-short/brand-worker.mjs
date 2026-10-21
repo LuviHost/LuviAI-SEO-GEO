@@ -1,5 +1,6 @@
 /**
- * worker_thread girisi — marka ayristirmasinin SAF kismi (analyzeBrandPage, colorFromCss).
+ * worker_thread girisi — marka ayristirmasinin SAF kismi (analyzeBrandPage, colorFromCss) ve
+ * tanitim videolarinin sayfa ayristirmasi (extractPage).
  *
  * NEDEN ayri is parcacigi: API sureci (GET /sites/:id/videos/brand) guvenilmeyen HTML/CSS'i
  * ayristiriyor. Desenler dogrusal ve girdi kirpili olsa da, gozden kacan tek bir desen API'nin
@@ -9,8 +10,10 @@
  */
 import { parentPort, workerData } from 'node:worker_threads';
 import { analyzeBrandPage, colorFromCss } from './brand.mjs';
+import { extractPage } from './page.mjs';
 
-const OPS = { analyze: analyzeBrandPage, cssColor: colorFromCss };
+// page: site / urun tanitim videosunun kaynagi (page.mjs) — ayni guvenilmeyen HTML, ayni sure siniri
+const OPS = { analyze: analyzeBrandPage, cssColor: colorFromCss, page: extractPage };
 
 try {
   const fn = OPS[workerData?.op];

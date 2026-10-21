@@ -1325,6 +1325,44 @@ describe('RanksUp Video belgeleri = kod', () => {
     expect(kod).not.toMatch(/tiktok|instagram|youtube|graph\.facebook|upload/i);
   });
 
+  // Site ve urun tanitim videolari (21.10.2026): sartlar md.8, gizlilik, KVKK, SSS, yardim, llms ve
+  // fiyat karti ayni davranisi soyler; dayanaklari kodda (alan adi kurali, iki kaynakli fiyat,
+  // ortak hak, modele gorsel gitmez).
+  it('site/urun tanitimi: belgeler ve kod ayni (kendi alan adi, dogrulanmis fiyat, gorsel haklari, ortak hak)', () => {
+    const t = read(path.join(MARKETING, 'terms/page.tsx'));
+    expect(t).toContain('ürün görselleri üzerinde gerekli haklara sahip olduğunuzu');
+    expect(t).toContain('yalnızca sizin sitenizin kendi sayfalarından alınır; başka alan adlarındaki sayfalardan video üretilmez');
+    expect(t).toContain('product images and that you allow RanksUp to process them for this purpose');
+    expect(t).toContain('taken only from your own site’s pages; pages on other domains are not used');
+    const pv = stripComments(read(path.join(MARKETING, 'privacy/page.tsx')));
+    expect(pv).toContain('site ve ürün tanıtım videolarında bunun yerine sitenizin kendi sayfasının metni');
+    expect(pv).toContain('for site and product promo videos the text of your own site’s page');
+    expect(pv).toContain('Logonuz, ürün görselleriniz ve marka renginiz yapay zekâ sağlayıcısına gönderilmez');
+    expect(read(path.join(MARKETING, 'kvkk/page.tsx'))).toContain('ana sayfanızın ya da belirttiğiniz ürün/hizmet sayfasının metni ve ürün görseli');
+    const faq = read(path.join(MARKETING, 'faq/page.tsx'));
+    expect(faq).toContain('Ürün videosu yalnız sitenin kendi alan adındaki sayfadan üretilir');
+    expect(faq).toContain('Product videos are made only from pages on your own domain');
+    const help = read(path.join(MARKETING, 'help/video/page.tsx'));
+    expect(help).toContain('Sayfa yalnızca <strong>sitenin kendi alan adında</strong> olabilir');
+    expect(help).toContain('Makale, site ve ürün videoları aynı aylık haktan düşer');
+    expect(llms).toContain('sitenin kendi alan adındaki bir ürün/hizmet sayfasından ürün tanıtımı');
+    expect(llmsFull).toContain('Makale, site ve ürün videoları aynı haktan düşer');
+    const kart = BASE_PLANS.find((p) => p.id === 'pro')!;
+    expect(kart.features_tr.join('\n')).toContain('RanksUp Video — makale, site ve ürün tanıtım videoları');
+    expect(kart.features_en.join('\n')).toContain('RanksUp Video — article, site and product promo videos');
+    // Dayanaklar: alan adi kurali (yonlendirme dahil), iki kaynakli fiyat, ortak hak, modele gorsel gitmez
+    const src = stripComments(read(path.join(videoSrc, 'promo-video-source.ts')));
+    expect(src).toContain('allowRedirect: (next) => sameSiteHost(next.hostname, siteUrl)');
+    expect(src).toMatch(/if \(\/svg\|icon\/\.test\(t\)\) return null;/);
+    const page = stripComments(read(path.resolve(HERE, '../../../video/scripts/article-short/page.mjs')));
+    expect(page).toContain("if (!hit) return { verified: false, sources: structured.via, reason: 'yapisal fiyat sayfanin gorunur metninde yok — gosterilmez' };");
+    const svc = stripComments(read(path.join(videoSrc, 'videos.service.ts')));
+    expect(svc.match(/consumeVideoAllowance\(/g)).toHaveLength(1); // uc tur tek hak cagrisi
+    const copy = stripComments(read(path.join(videoSrc, 'article-video-copy.ts')));
+    expect(copy).toContain('promoUserContent(source)');
+    expect(copy).not.toMatch(/image|logoDataUri/);
+  });
+
   it('"makalede (birebir) gecmeyen sayi reddedilir" iddiasi (Sartlar md.8, SSS, /help/video, llms.txt) = tam uyelik koruyucusu', () => {
     expect(llms).toContain('makalede birebir geçmeyen sayıları reddeden bir denetimden geçer');
     expect(read(path.join(MARKETING, 'terms/page.tsx'))).toContain('makalede geçmeyen sayıları reddeden bir denetimden geçer');

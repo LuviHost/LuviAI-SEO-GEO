@@ -52,7 +52,7 @@ export const FEATURE_MIN_PLAN: Record<PlanFeature, PlanId> = {
   agentReadiness: 'pro',
   stuckPages: 'pro',
   contentOpportunities: 'pro',
-  // RanksUp Video (makaleden 15 sn dikey video) — sahip karari 21.10.2026: Profesyonel ve ustu.
+  // RanksUp Video (makale, site ve urun tanitim videolari; ortak aylik hak) — sahip karari 21.10.2026: Profesyonel ve ustu.
   // Alt planlar kilitli onizleme gorur; render ve LLM maliyeti olusmaz (videos/videos.service.ts).
   articleVideo: 'pro',
   // Ajans — portfoy olcegi
@@ -284,7 +284,7 @@ export const BASE_PLANS: BasePlan[] = [
       'Agent Readiness (AXO) — AI bot ve ajan keşif dosyaları taraması; robots.txt / llms.txt / sitemap için önizlemeli düzeltme',
       'Takılmış sayfa tespiti — LLM ile kurtarma, tek tıkla geri alma',
       'İçerik fırsatları — kaybettiğin promptlardan makale üretip yeniden ölçen kapalı döngü',
-      `RanksUp Video — yayındaki makalenden sitenin markasıyla 15 sn dikey video (ayda ${VIDEOS_PER_MONTH.pro} video)`,
+      `RanksUp Video — makale, site ve ürün tanıtım videoları, sitenin markasıyla (ayda ${VIDEOS_PER_MONTH.pro} video)`,
     ],
     features_en: [
       '40 AI articles/mo · up to 75 runs/mo (still 1 measurement a week) · 5 sites',
@@ -295,7 +295,7 @@ export const BASE_PLANS: BasePlan[] = [
       'Agent Readiness (AXO) — AI bot and agent discovery scan; previewed robots.txt / llms.txt / sitemap fixes',
       'Stuck page detection — LLM-driven recovery, one-click revert',
       'Content opportunities — closed loop that writes for lost prompts and re-measures',
-      `RanksUp Video — a 15-second vertical video from your published article in your site's branding (${VIDEOS_PER_MONTH.pro} videos/mo)`,
+      `RanksUp Video — article, site and product promo videos in your site's branding (${VIDEOS_PER_MONTH.pro} videos/mo)`,
     ],
     popular: true,
   },
