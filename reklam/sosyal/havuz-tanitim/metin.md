@@ -10,7 +10,7 @@ Tarihsiz havuz: LinkedIn, Instagram ve Facebook'ta AYNI dosya kullanılır
 | # | Kart | Eksen | Kısa metin önerisi |
 |---|---|---|---|
 | 1 | `ranksup-tanitim-1.png` | Ne yapıyoruz | GEO, SEO, ASO ve Apple Search Ads dört ayrı iş oldu. Dört uzman ve beş abonelik yerine: tek panel. ranksup.ai |
-| 2 | `ranksup-tanitim-2.png` | Ne yapıyoruz | Markanı tek motora sorup rapor yazan çok. RanksUp her çalıştırmada 7 AI motoruna birden sorar — cevapları okur, anılmayı sayar. |
+| 2 | `ranksup-tanitim-2.png` | Ne yapıyoruz | Markanı tek motora sorup rapor yazan çok. RanksUp her çalıştırmada 6 AI motoruna birden sorar — cevapları okur, anılmayı sayar. |
 | 3 | `ranksup-tanitim-3.png` | Farkımız | Ölç → boşluğu bul → içerik üret → yeniden ölç. Ürettiğinin işe yarayıp yaramadığını aynı soruları tekrar sorarak kanıtlayan tek platform. |
 | 4 | `ranksup-tanitim-4.png` | Farkımız | AI cevaplarında görünmediğin her soru bir fırsat kartına dönüşür: tek tıkla makale, otomatik yayın, önce/sonra kanıtı. |
 | 5 | `ranksup-tanitim-5.png` | Farkımız | Kaynaksız sayı, uydurma atıf, yapısız sayfa — üçü de yayına çıkamaz. Her içerik yapı ve doğruluk kapısından geçer. |

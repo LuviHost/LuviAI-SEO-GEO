@@ -12,7 +12,7 @@ ChatGPT 3 isim sayıyor. Sen yoksun.
 
 O müşteri sana hiç ulaşmadı.
 
-Markan 7 AI motorunda çıkıyor mu? 30 saniyede test et 👇
+Markan 6 AI motorunda çıkıyor mu? 30 saniyede test et 👇
 ranksup.ai
 ```
 
@@ -53,7 +53,7 @@ ChatGPT'nin, Claude'un, Gemini'nin senin hakkında ne söylediğini gösteren bi
 ```
 RanksUp bunu yapıyor:
 
-• 7 AI motorunda markanı tarıyor
+• 6 AI motorunda markanı tarıyor
 • Görünmediğin soruları çıkarıyor
 • O boşluğu kapatacak içeriği üretip yayınlıyor
 • Web SEO + App Store ASO + Apple Search Ads da aynı panelde

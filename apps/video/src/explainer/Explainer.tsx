@@ -320,12 +320,14 @@ function ActConnect({ theme }: { theme: Theme }) {
 
 const ACT2_CAPTIONS: Cap[] = [
   { from: 15, to: 200, text: 'AI; rakiplerini, sıralamalarını ve eksik kaldığın konuları analiz eder.' },
-  { from: 210, to: 400, text: 'Markanın 7 AI asistanının cevaplarında geçip geçmediğini ölçer.' },
+  { from: 210, to: 400, text: 'Markanın 6 AI asistanının cevaplarında geçip geçmediğini ölçer.' },
   { from: 410, to: 590, text: 'Sonuçlar dakikalar içinde tek panelde.' },
 ];
 
 const CHECKS = ["Rakiplerin metadata'sı", 'Arama sıralamaları', 'Eksik anahtar kelimeler', 'AI görünürlük ölçümü'];
-const ENGINES = ['ChatGPT', 'Claude', 'Gemini', 'Perplexity', 'Grok', 'DeepSeek', 'Meta AI'];
+// Olculen 6 asistan = plans.ts fiyat karti maddesi. Meta AI (Llama) yalniz
+// sunucuda GROQ_LLAMA_MODEL tanimliyken olculur; uretimde olculmuyor.
+const ENGINES = ['ChatGPT', 'Claude', 'Gemini', 'Perplexity', 'Grok', 'DeepSeek'];
 
 function ActAnalyze({ theme }: { theme: Theme }) {
   const frame = useCurrentFrame();
@@ -486,7 +488,6 @@ const REPORT = [
   { label: 'Perplexity', cited: true },
   { label: 'Grok', cited: false },
   { label: 'DeepSeek', cited: false },
-  { label: 'Meta AI', cited: true },
 ];
 
 function ActPublish({ theme }: { theme: Theme }) {

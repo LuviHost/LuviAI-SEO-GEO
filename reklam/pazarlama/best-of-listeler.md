@@ -18,7 +18,7 @@ Semrush'ın 6 aylık AI arama playbook'unun 18. maddesi ("best of" listelerine d
 
 ## Pitch şablonu (kısa)
 
-> RanksUp, bir sitenin 7 AI asistanda (ChatGPT, Claude, Gemini, Perplexity, Grok, DeepSeek, Meta) **markasız sorularda** görünüp görünmediğini her gün ölçen ve kaybedilen soru için içerik üretip yeniden ölçen kapalı döngü bir araç. Farkımız: marka adı geçen soruları skordan çıkarıyoruz (o tanınırlık, görünürlük değil) ve tek koşumla "kazandık" demiyoruz — hüküm ≥2 farklı günde. [Ölçüm metodolojisi linki] · [Ücretsiz test: ranksup.ai]
+> RanksUp, bir sitenin 6 AI asistanda (ChatGPT, Claude, Gemini, Perplexity, Grok, DeepSeek) **markasız sorularda** görünüp görünmediğini haftada bir ölçen ve kaybedilen soru için içerik üretip yeniden ölçen kapalı döngü bir araç. Farkımız: marka adı geçen soruları skordan çıkarıyoruz (o tanınırlık, görünürlük değil) ve tek koşumla "kazandık" demiyoruz — hüküm ≥2 farklı günde. [Ölçüm metodolojisi linki] · [Ücretsiz test: ranksup.ai]
 
 ## Kural
 - Tek kaynaklı sayı (33×, %68,9, %34,5) pitch'te kullanılmaz; yön ifadesi kullanılır.

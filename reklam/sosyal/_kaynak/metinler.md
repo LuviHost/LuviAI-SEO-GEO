@@ -107,7 +107,7 @@ Nisan → Ağustos sonucu (Ahrefs):
 ```
 Aynısını kendi siten için deneyebilirsin.
 
-Markanın Google'da ve 7 AI motorunda nerede durduğunu 30 saniyede gösteriyor. Üyelik yok, kart yok.
+Markanın Google'da ve 6 AI motorunda nerede durduğunu 30 saniyede gösteriyor. Üyelik yok, kart yok.
 
 ranksup.ai
 ```
@@ -143,7 +143,7 @@ Bu soruların cevabı hiçbir aylık raporda yok.
 
 RanksUp'ı tam olarak bunun için kurduk:
 
-→ Markanı 7 AI motorunda test ediyor — ChatGPT, Claude, Gemini, Perplexity, Grok, DeepSeek, Meta AI
+→ Markanı 6 AI motorunda test ediyor — ChatGPT, Claude, Gemini, Perplexity, Grok, DeepSeek
 → Hangi sorularda görünmediğini tek tek çıkarıyor
 → O boşluğu kapatacak içeriği üretiyor ve yayınlıyor
 → Web SEO, App Store ASO ve Apple Search Ads tarafını da aynı panelden yönetiyor
@@ -171,7 +171,7 @@ ChatGPT 3 isim sayıyor. Sen yoksun.
 
 O müşteri sana hiç ulaşmadı.
 
-Markan 7 AI motorunda çıkıyor mu? 30 saniyede test et 👇
+Markan 6 AI motorunda çıkıyor mu? 30 saniyede test et 👇
 ranksup.ai
 ```
 
@@ -212,7 +212,7 @@ ChatGPT'nin, Claude'un, Gemini'nin senin hakkında ne söylediğini gösteren bi
 ```
 RanksUp bunu yapıyor:
 
-• 7 AI motorunda markanı tarıyor
+• 6 AI motorunda markanı tarıyor
 • Görünmediğin soruları çıkarıyor
 • O boşluğu kapatacak içeriği üretip yayınlıyor
 • Web SEO + App Store ASO + Apple Search Ads da aynı panelde
