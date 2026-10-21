@@ -1,0 +1,123 @@
+import { readdir, rm } from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { isCanonicalSiteId } from '../common/site-id.js';
+
+/**
+ * RanksUp Video — sabitler ve yollar (tek yer).
+ *
+ * Aylik video hakki burada DEGIL: billing/plans.ts VIDEOS_PER_MONTH (fiyat karti ve kota ayni
+ * tablodan okur).
+ */
+
+/** BullMQ kuyrugu — luviai-jobs'tan AYRI: render uzun ve CPU agir, diger isleri bekletmesin */
+export const VIDEO_RENDER_QUEUE = 'video-render';
+
+/**
+ * Worker'da bu kuyrugun is eszamanliligi. 1 = ayni anda tek video; bir videonun icindeki kare
+ * eszamanliligi ayrica VIDEO_RENDER_CONCURRENCY (apps/video render/article-short.mjs
+ * renderConcurrency: cekirdek/2, en cok 4). Ikisi carpilmasin diye is eszamanliligi sabit 1.
+ */
+export const VIDEO_RENDER_JOB_CONCURRENCY = 1;
+
+/** Video metni modeli — sahip karari: Claude Haiku 5.5 (ucuz, kisa yapisal cikti) */
+export const VIDEO_COPY_MODEL = 'claude-haiku-5-5';
+export const VIDEO_COPY_CONTEXT = 'article-video-copy';
+
+/** providerRaw.engine — bu ozelligin Video satirlarini eski Video Factory satirlarindan ayirir */
+export const ARTICLE_SHORT_ENGINE = 'article-short';
+
+/** Videonun sonunda ve kancada kucuk "ranksup.ai ile uretildi" yazisi (ArticleShort watermark) */
+export const VIDEO_WATERMARK = true;
+
+/**
+ * Takili video supurucusu: bu sureden uzun PENDING/GENERATING kalan ve BullMQ'da canli isi
+ * olmayan video FAILED olur, hakki iade edilir. Kuyrukta bekleyen (waiting/delayed/active) is
+ * VIDEO_STUCK_HARD_MS'e kadar beklenir (uzun kuyruk mesru olabilir).
+ */
+export const VIDEO_STUCK_MS = 45 * 60_000;
+export const VIDEO_STUCK_HARD_MS = 6 * 60 * 60_000;
+
+/**
+ * Tek render isinin (marka + metin + render + loudnorm + poster) toplam suresi. Asilirsa is
+ * FAILED + tek iade olur, Chrome/ffmpeg alt surecleri oldurulur, gecici dosyalar silinir.
+ * NEDEN: kuyruk eszamanliligi 1; takilan tek is (yavas logo sunuculari, kilitlenen Chrome)
+ * herkesin videosunu saatlerce bekletiyordu. Olculen normal render 1-3 dk.
+ */
+export const VIDEO_RENDER_TIMEOUT_MS = 15 * 60_000;
+
+/** Kuyruk (Redis) islemlerinin ust siniri: Redis yokken add() sonsuza dek beklemesin */
+export const VIDEO_QUEUE_OP_TIMEOUT_MS = 10_000;
+
+/** Ayni makale icin es zamanli iki istegi (cift tiklama) engelleyen kilidin omru */
+export const VIDEO_REQUEST_LOCK_MS = 60_000;
+
+const HERE = path.dirname(fileURLToPath(import.meta.url));
+
+/**
+ * Cikti dizini: nginx /videos/ yolunu apps/api/public/videos/'a alias'lar (eski Video Factory
+ * ile ayni; .gitignore'da). Dosyalar <dizin>/<siteId>/<videoId>.mp4 + .jpg.
+ * src/videos (vitest) ve dist/videos (uretim) ikisinden de ../../public/videos = apps/api/public/videos.
+ */
+export function videoOutputDir(env: NodeJS.ProcessEnv = process.env): string {
+  return env.VIDEO_OUTPUT_DIR || path.resolve(HERE, '../../public/videos');
+}
+
+/** Herkese acik adres koku (eski Video Factory ile ayni degisken ve varsayilan) */
+export function videoPublicBase(env: NodeJS.ProcessEnv = process.env): string {
+  return (env.VIDEO_PUBLIC_BASE || 'https://ranksup.ai/videos').replace(/\/+$/, '');
+}
+
+/** Dosya yollari ve adresler — kimlikler kanonik cuid (yol enjeksiyonu yok; yine de suzulur) */
+export function videoFiles(siteId: string, videoId: string, env: NodeJS.ProcessEnv = process.env) {
+  // Site kimligi kanonik alfabede (common/site-id.ts; tohum sitesi 'demo-luvihost' dahil),
+  // video kimligi cuid: ikisi de yol ayiraci / '..' tasiyamaz
+  if (!isCanonicalSiteId(siteId)) throw new Error(`Gecersiz site kimligi: ${String(siteId).slice(0, 40)}`);
+  const safe = (s: string) => {
+    if (!/^[a-z0-9]{8,40}$/.test(s)) throw new Error(`Gecersiz video kimligi: ${String(s).slice(0, 40)}`);
+    return s;
+  };
+  const dir = path.join(videoOutputDir(env), siteId);
+  const base = videoPublicBase(env);
+  return {
+    dir,
+    mp4: path.join(dir, `${safe(videoId)}.mp4`),
+    poster: path.join(dir, `${videoId}.jpg`),
+    videoUrl: `${base}/${siteId}/${videoId}.mp4`,
+    posterUrl: `${base}/${siteId}/${videoId}.jpg`,
+  };
+}
+
+/**
+ * Bir videonun TUM dosyalari: mp4, poster ve render hattinin gecici dosyalari
+ * (<id>.mp4.part.mp4, <id>.mp4.part.ln.mp4, <id>.jpg.part.jpg). Gecici dosyalar normalde
+ * render/article-short.mjs finally'sinde silinir; surec cokerse (OOM, SIGKILL) herkese acik
+ * dizinde kalirdi. Silme, basarisiz sayma ve supurucu bu yardimciyi kullanir. En iyi caba.
+ */
+export async function removeVideoFiles(siteId: string, videoId: string, env: NodeJS.ProcessEnv = process.env): Promise<void> {
+  let f: ReturnType<typeof videoFiles>;
+  try {
+    f = videoFiles(siteId, videoId, env);
+  } catch {
+    return;
+  }
+  const prefixes = [`${path.basename(f.mp4)}.part`, `${path.basename(f.poster)}.part`];
+  const names = await readdir(f.dir).catch(() => [] as string[]);
+  const parts = names.filter((n) => prefixes.some((p) => n.startsWith(p))).map((n) => path.join(f.dir, n));
+  await Promise.all([f.mp4, f.poster, ...parts].map((p) => rm(p, { force: true }).catch(() => undefined)));
+}
+
+/**
+ * Sitenin tum video dosyalarini sil (site silme / hesabin kalici silinmesi). Video satirlari
+ * silme planlarinda (sites.service siteRemovalSteps, account-purge.plan) DB'den gider ama
+ * dosyalar diskte ve herkese acik adreste kalirdi. En iyi caba: hata loglanir, silme durmaz.
+ */
+export async function removeSiteVideoFiles(siteId: string, env: NodeJS.ProcessEnv = process.env): Promise<boolean> {
+  if (!isCanonicalSiteId(siteId)) return false;
+  try {
+    await rm(path.join(videoOutputDir(env), siteId), { recursive: true, force: true });
+    return true;
+  } catch {
+    return false;
+  }
+}

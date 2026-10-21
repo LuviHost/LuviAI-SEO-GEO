@@ -44,6 +44,8 @@ import { decideGeneratedArticlePublish, PUBLISH_SKIP_TEXT, scheduledGenerationPa
 import { autoPublishFollowUp } from '../../api/dist/articles/republish-policy.js';
 import { isStuckRepublishJob, runStuckPageSweep, stuckRecoverSkip, stuckRecoveryRoute } from '../../api/dist/audit/stuck-page-autopilot.js';
 import { pinProcessToIpv4 } from '../../api/dist/ipv4-pin.js';
+import { VideoRenderService } from '../../api/dist/videos/video-render.service.js';
+import { VIDEO_RENDER_JOB_CONCURRENCY, VIDEO_RENDER_QUEUE } from '../../api/dist/videos/article-video.config.js';
 
 // IPv4'e sabitle: uretimde calisan IPv6 yolu yok, happy-eyeballs IPv6'ya
 // gecince istekler ETIMEDOUT ile duser (gerekce ve kaynaklar: api ipv4-pin.ts).
@@ -147,6 +149,7 @@ async function bootstrap() {
     linkedin: app.get(LinkedinOutreachService),
     imageAltSuggest: app.get(ImageAltSuggestService),
     imageAltApply: app.get(ImageAltApplyService),
+    videoRender: app.get(VideoRenderService),
   };
 
   log.log('🔧 Worker DI hazır, BullMQ bağlanıyor');
@@ -1057,11 +1060,52 @@ async function bootstrap() {
     log.warn(`Cron kurulumu basarisiz: ${err.message}`);
   }
 
+  // RanksUp Video — ayri kuyruk, is eszamanliligi 1 (render CPU agir; bir videonun kare
+  // eszamanliligi ayrica VIDEO_RENDER_CONCURRENCY ile sinirli, apps/video render/article-short.mjs).
+  // VIDEO_RENDER_WORKER=0 bu surecte tuketiciyi kapatir (ayri bir makinede/surecte calistirmak icin);
+  // o durumda kuyruktaki videolar bekler, supurucu 6 saat sonra FAILED + iade yapar.
+  let videoWorker: Worker | null = null;
+  if (process.env.VIDEO_RENDER_WORKER !== '0') {
+    videoWorker = new Worker(
+      VIDEO_RENDER_QUEUE,
+      async (job) => {
+        const videoId = String(job.data?.videoId ?? '');
+        if (!videoId) throw new UnrecoverableError('videoId yok');
+        const t0 = Date.now();
+        const r = await services.videoRender.process(videoId);
+        log.log(`🎬 video ${videoId} — ${r.status}${r.reason ? ` (${r.reason})` : ''} · ${((Date.now() - t0) / 1000).toFixed(1)}s`);
+        return r;
+      },
+      {
+        connection,
+        concurrency: VIDEO_RENDER_JOB_CONCURRENCY,
+        // Render 1-3 dk; kilit genis tutulur. Takilan is bir kez yeniden alinir (process
+        // GENERATING'i yeniden sahiplenebilir), sonra failed -> asagidaki olay FAILED + iade yapar.
+        lockDuration: 10 * 60_000,
+        stalledInterval: 60_000,
+        maxStalledCount: 1,
+      },
+    );
+    // process() hatalari kendisi yakalar; buraya yalniz beklenmeyen (DB kopmasi, stalled limiti)
+    // duser. markFailed kosullu oldugu icin cift iade olmaz.
+    videoWorker.on('failed', async (job, err) => {
+      const videoId = String(job?.data?.videoId ?? '');
+      if (!videoId) return;
+      await services.videoRender
+        .markFailed(videoId, 'Video oluşturulurken beklenmeyen bir sorun oldu; video hakkın iade edildi. Tekrar deneyebilirsin.', `worker: ${err?.message ?? err}`)
+        .catch((e: any) => log.warn(`video ${videoId} FAILED yazilamadi: ${e?.message ?? e}`));
+    });
+    log.log(`🎬 Video render kuyrugu dinleniyor (${VIDEO_RENDER_QUEUE}, eszamanlilik ${VIDEO_RENDER_JOB_CONCURRENCY})`);
+  } else {
+    log.warn(`Video render tuketicisi kapali (VIDEO_RENDER_WORKER=0) — ${VIDEO_RENDER_QUEUE} kuyrugu bu surecte islenmez`);
+  }
+
   log.log('🔧 RanksUp Worker dinliyor (queue: luviai-jobs)');
 
   const shutdown = async () => {
     log.log('Shutting down...');
     await worker.close();
+    await videoWorker?.close();
     await app.close();
     process.exit(0);
   };

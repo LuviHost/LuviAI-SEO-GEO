@@ -31,7 +31,7 @@ export const PLAN_RANK: Record<PlanId, number> = {
  */
 export type PlanFeature =
   | 'asaEnabled' | 'ascEnabled' | 'appPromptLab' | 'screenshotStudio'
-  | 'agentReadiness' | 'stuckPages' | 'contentOpportunities'
+  | 'agentReadiness' | 'stuckPages' | 'contentOpportunities' | 'articleVideo'
   | 'programmaticSeo' | 'productRadar' | 'geoHeatmap' | 'liveCrawler'
   | 'costAnalytics' | 'mcpAccess' | 'apiAccess' | 'byok';
 
@@ -52,6 +52,9 @@ export const FEATURE_MIN_PLAN: Record<PlanFeature, PlanId> = {
   agentReadiness: 'pro',
   stuckPages: 'pro',
   contentOpportunities: 'pro',
+  // RanksUp Video (makaleden 15 sn dikey video) — sahip karari 21.10.2026: Profesyonel ve ustu.
+  // Alt planlar kilitli onizleme gorur; render ve LLM maliyeti olusmaz (videos/videos.service.ts).
+  articleVideo: 'pro',
   // Ajans — portfoy olcegi
   programmaticSeo: 'agency',
   productRadar: 'agency',
@@ -73,6 +76,7 @@ export const PLAN_FEATURE_LABELS: Record<PlanFeature, string> = {
   agentReadiness: 'Ajan Hazırlığı',
   stuckPages: 'Takılmış sayfa tespiti',
   contentOpportunities: 'İçerik fırsatları',
+  articleVideo: 'RanksUp Video',
   programmaticSeo: 'Şehir sayfaları (programatik SEO)',
   productRadar: 'Ürün Radarı',
   geoHeatmap: 'GEO ısı haritası',
@@ -87,6 +91,27 @@ export const PLAN_FEATURE_LABELS: Record<PlanFeature, string> = {
 export function planHasFeature(plan: PlanId, feature: PlanFeature): boolean {
   return PLAN_RANK[plan] >= PLAN_RANK[FEATURE_MIN_PLAN[feature]];
 }
+
+/**
+ * RanksUp Video — plan basina AYLIK video hakki. TEK YER: sahip sayilari buradan degistirir;
+ * fiyat karti maddeleri, QuotaService (videoLimitFor) ve panel ayni degeri okur.
+ *
+ * Dayatma: User.videosUsedThisMonth kosullu UPDATE ile artar (ayni anda gelen iki istek son
+ * hakki iki kez alamaz), render basarisiz olursa geri verilir; sayac makale sayaciyla birlikte
+ * takvim ayi basinda sifirlanir (quota.service maybeResetMonthlyQuota). 0 = ozellik yok.
+ *
+ * Neden bu sayilar (21.10.2026 onerisi): video basina maliyet bir Haiku 5.5 cagrisi (~3 bin
+ * token girdi; $0.10 / $0.50 MTok fiyatla yaklasik $0.001) + sunucuda ~1-2 dk CPU render'i; kisit maliyet degil, tek kuyrukta
+ * sira (eszamanlilik 1). Profesyonel makale hakkinin (40) yarisi, Ajans/Kurumsal site
+ * sayisiyla orantili.
+ */
+export const VIDEOS_PER_MONTH: Record<PlanId, number> = {
+  trial: 0,
+  starter: 0,
+  pro: 20,
+  agency: 60,
+  enterprise: 200,
+};
 
 export interface BasePlan {
   id: PlanId;
@@ -115,6 +140,8 @@ export interface BasePlan {
   publishTargets: 'limited' | 'all';
   /** ASO: takip edilebilir uygulama sayisi — AsoService.connectApp dayatir */
   trackedApps: number;
+  /** RanksUp Video aylik hakki — VIDEOS_PER_MONTH'tan; QuotaService.consumeVideoAllowance dayatir */
+  videosPerMonth: number;
   support_tr: string;
   support_en: string;
   /** Kart bu planin maddelerini "X'teki her sey, arti:" diye gosterir */
@@ -172,6 +199,7 @@ export const BASE_PLANS: BasePlan[] = [
     aiProviders: 6,
     publishTargets: 'limited',
     trackedApps: 1,
+    videosPerMonth: VIDEOS_PER_MONTH.trial,
     support_tr: 'topluluk',
     support_en: 'community',
     // 2 makale TOPLAM (onboarding'in ilki dahil, ay basi sifirlanmaz); takvimin
@@ -201,6 +229,7 @@ export const BASE_PLANS: BasePlan[] = [
     aiProviders: 6,
     publishTargets: 'all',
     trackedApps: 1,
+    videosPerMonth: VIDEOS_PER_MONTH.starter,
     support_tr: 'e-posta 24 saat',
     support_en: 'email 24h',
     features_tr: [
@@ -242,6 +271,7 @@ export const BASE_PLANS: BasePlan[] = [
     aiProviders: 6,
     publishTargets: 'all',
     trackedApps: 3,
+    videosPerMonth: VIDEOS_PER_MONTH.pro,
     support_tr: 'e-posta 4 saat',
     support_en: 'email 4h',
     inheritsFrom: 'starter',
@@ -254,6 +284,7 @@ export const BASE_PLANS: BasePlan[] = [
       'Agent Readiness (AXO) — AI bot ve ajan keşif dosyaları taraması; robots.txt / llms.txt / sitemap için önizlemeli düzeltme',
       'Takılmış sayfa tespiti — LLM ile kurtarma, tek tıkla geri alma',
       'İçerik fırsatları — kaybettiğin promptlardan makale üretip yeniden ölçen kapalı döngü',
+      `RanksUp Video — yayındaki makalenden sitenin markasıyla 15 sn dikey video (ayda ${VIDEOS_PER_MONTH.pro} video)`,
     ],
     features_en: [
       '40 AI articles/mo · up to 75 runs/mo (still 1 measurement a week) · 5 sites',
@@ -264,6 +295,7 @@ export const BASE_PLANS: BasePlan[] = [
       'Agent Readiness (AXO) — AI bot and agent discovery scan; previewed robots.txt / llms.txt / sitemap fixes',
       'Stuck page detection — LLM-driven recovery, one-click revert',
       'Content opportunities — closed loop that writes for lost prompts and re-measures',
+      `RanksUp Video — a 15-second vertical video from your published article in your site's branding (${VIDEOS_PER_MONTH.pro} videos/mo)`,
     ],
     popular: true,
   },
@@ -279,6 +311,7 @@ export const BASE_PLANS: BasePlan[] = [
     aiProviders: 6,
     publishTargets: 'all',
     trackedApps: 10,
+    videosPerMonth: VIDEOS_PER_MONTH.agency,
     support_tr: 'öncelikli + Slack',
     support_en: 'priority + Slack',
     inheritsFrom: 'pro',
@@ -289,6 +322,7 @@ export const BASE_PLANS: BasePlan[] = [
       'GEO Heatmap — çoklu sağlayıcıda görünürlük ısı haritası',
       'Live Crawler — AI botlarının canlı akışı + sunucu logu yutma',
       'Öncelikli destek + Slack kanalı',
+      `RanksUp Video — ayda ${VIDEOS_PER_MONTH.agency} video`,
     ],
     features_en: [
       '100 AI articles/mo · up to 300 runs/mo (still 1 measurement a week) · 15 sites',
@@ -297,6 +331,7 @@ export const BASE_PLANS: BasePlan[] = [
       'GEO Heatmap — multi-provider visibility heatmap',
       'Live Crawler — live AI bot stream + server log ingestion',
       'Priority support + Slack channel',
+      `RanksUp Video — ${VIDEOS_PER_MONTH.agency} videos/mo`,
     ],
   },
   {
@@ -311,6 +346,7 @@ export const BASE_PLANS: BasePlan[] = [
     aiProviders: 6,
     publishTargets: 'all',
     trackedApps: 50,
+    videosPerMonth: VIDEOS_PER_MONTH.enterprise,
     support_tr: 'özel hesap yöneticisi + SLA',
     support_en: 'dedicated account manager + SLA',
     inheritsFrom: 'agency',
@@ -321,6 +357,7 @@ export const BASE_PLANS: BasePlan[] = [
       'REST API + scope’lu API anahtarları',
       'AI maliyet ve token muhasebesi — sağlayıcı / bağlam / gün kırılımı',
       'Özel hesap yöneticisi + SLA, sözleşmeli kurulum',
+      `RanksUp Video — ayda ${VIDEOS_PER_MONTH.enterprise} video`,
     ],
     features_en: [
       '350 AI articles/mo · up to 1,000 runs/mo (still 1 measurement a week) · 50 sites',
@@ -329,6 +366,7 @@ export const BASE_PLANS: BasePlan[] = [
       'REST API + scoped API keys',
       'AI cost and token accounting — by provider / context / day',
       'Dedicated account manager + SLA, contracted onboarding',
+      `RanksUp Video — ${VIDEOS_PER_MONTH.enterprise} videos/mo`,
     ],
     contactSales: true,
   },

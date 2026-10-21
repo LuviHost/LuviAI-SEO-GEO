@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import {
   Rocket, Search, Smartphone, Bot, Sparkles,
-  CreditCard, Plug, BarChart3, BookOpen,
+  CreditCard, Plug, BarChart3, BookOpen, Clapperboard,
 } from 'lucide-react';
 import { useT } from '@/lib/i18n';
 
@@ -15,6 +15,7 @@ const TOPICS_BASE = [
   { id: 'aso', icon: Search, color: 'blue' as Color, href: '/help/aso' },
   { id: 'asa-asc', icon: Smartphone, color: 'amber' as Color, href: '/help/asa-asc' },
   { id: 'auto-pilot', icon: Bot, color: 'emerald' as Color, href: '/help/auto-pilot' },
+  { id: 'video', icon: Clapperboard, color: 'rose' as Color, href: '/help/video' },
   { id: 'api-keys', icon: Plug, color: 'cyan' as Color, href: '/help/api-keys' },
   { id: 'billing', icon: CreditCard, color: 'slate' as Color, href: '/help/billing' },
   { id: 'glossary', icon: BookOpen, color: 'purple' as Color, href: '/help/glossary' },
@@ -42,6 +43,7 @@ const COPY = {
       'aso': { title: 'ASO — Mobil App SEO', desc: 'App Store + Play Store anahtar kelime sıralaması + rakip analizi.' },
       'asa-asc': { title: 'Apple Search Ads + ASC', desc: 'iOS reklam kampanyası kurulumu, Auto-Pilot, yorum ve sürüm takibi.' },
       'auto-pilot': { title: 'Otomatik akış ve Auto-Pilot', desc: 'Neler otomatik çalışır, neleri sen başlatırsın.' },
+      'video': { title: 'RanksUp Video', desc: 'Yayındaki makalenden markanla 15 saniyelik dikey video (Profesyonel ve üstü).' },
       'api-keys': { title: 'Kendi sağlayıcı anahtarın (BYOK)', desc: 'Kurumsal planda kendi AI sağlayıcı anahtarınla ölç.' },
       'billing': { title: 'Faturalama', desc: 'Plan değiştirme, iptal, iade, ödeme geçmişi, kota.' },
       'glossary': { title: 'SEO & GEO Sözlüğü', desc: 'SEO, GEO, AEO, schema ve reklam terimleri — sade Türkçe.' },
@@ -64,6 +66,7 @@ const COPY = {
       'aso': { title: 'ASO — Mobile App SEO', desc: 'App Store + Play Store keyword ranking + competitor analysis.' },
       'asa-asc': { title: 'Apple Search Ads + ASC', desc: 'iOS ad campaign setup, Auto-Pilot, review and release tracking.' },
       'auto-pilot': { title: 'Automation and Auto-Pilot', desc: 'What runs automatically and what you start yourself.' },
+      'video': { title: 'RanksUp Video', desc: 'A branded 15-second vertical video from your published article (Professional and up).' },
       'api-keys': { title: 'Bring your own key (BYOK)', desc: 'Measure with your own AI provider keys on the Enterprise plan.' },
       'billing': { title: 'Billing', desc: 'Change plan, cancel, refunds, payment history, quota.' },
       'glossary': { title: 'SEO & GEO Glossary', desc: 'SEO, GEO, AEO, schema and ad terms — plain definitions.' },

@@ -11,13 +11,14 @@ export const USER_AGENT = 'RanksUpBot/1.0 (+https://ranksup.ai/bot)';
 
 export class FetchError extends Error {}
 
-export async function fetchLimited(url, { maxBytes = 3_000_000, timeoutMs = 20_000, accept = '*/*' } = {}) {
+export async function fetchLimited(url, { maxBytes = 3_000_000, timeoutMs = 20_000, accept = '*/*', signal = null } = {}) {
   const u = new URL(url);
   if (u.protocol !== 'https:' && u.protocol !== 'http:') throw new FetchError(`Desteklenmeyen sema: ${u.protocol}`);
   const res = await fetch(u, {
     headers: { 'user-agent': USER_AGENT, accept, 'accept-language': 'tr-TR,tr;q=0.9,en;q=0.5' },
     redirect: 'follow',
-    signal: AbortSignal.timeout(timeoutMs),
+    // Cagiranin sinyali (marka cikariminin toplam son tarihi) da istegi keser
+    signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)]) : AbortSignal.timeout(timeoutMs),
   });
   if (!res.ok) throw new FetchError(`${url} -> HTTP ${res.status}`);
   const len = Number(res.headers.get('content-length') ?? 0);

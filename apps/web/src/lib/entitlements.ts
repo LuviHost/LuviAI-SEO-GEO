@@ -16,7 +16,7 @@ import { api } from '@/lib/api';
  */
 export type PlanFeature =
   | 'asaEnabled' | 'ascEnabled' | 'appPromptLab' | 'screenshotStudio'
-  | 'agentReadiness' | 'stuckPages' | 'contentOpportunities'
+  | 'agentReadiness' | 'stuckPages' | 'contentOpportunities' | 'articleVideo'
   | 'programmaticSeo' | 'productRadar' | 'geoHeatmap' | 'liveCrawler'
   | 'costAnalytics' | 'mcpAccess' | 'apiAccess' | 'byok';
 

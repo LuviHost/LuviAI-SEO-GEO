@@ -39,6 +39,10 @@ export const MAX_KEY_LIFETIME_DAYS = 3650;
 const ROUTE_RESOURCE: Record<string, string> = {
   sites: 'sites',
   articles: 'articles',
+  // RanksUp Video makaleden uretilir ve aylik hak harcar: makale kaynagina baglanir
+  // (GET -> articles:read, POST/DELETE -> articles:write). Haritada yokken eski kaba kurala
+  // dusuyordu: yalniz 'social:write' tasiyan anahtar POST /sites/:id/videos ile video hakki harcayabiliyordu.
+  videos: 'articles',
   audit: 'audit',
   ads: 'ads',
   analytics: 'analytics',

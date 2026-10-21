@@ -15,10 +15,10 @@
  * Duzen: Fa majorde 4 akorluk dongu (Fmaj7 · Am7 · Dm7 · Bbmaj7), her akor 1 olcu (4 vurus).
  * Bolum seviyeleri (timeline "music"): silence · pulse · L1 · L2 · L3 · L4 · outro.
  */
-import { spawnSync } from 'node:child_process';
 import { mkdirSync, readFileSync, renameSync, writeFileSync, unlinkSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { runFfSync } from '../ffmpeg.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const TIMELINE = JSON.parse(readFileSync(join(ROOT, 'src', 'marketing', 'timeline.json'), 'utf8'));
@@ -418,11 +418,11 @@ function wav(pcm) {
 /** iki gecisli loudnorm: -14 LUFS, -1.5 dBTP */
 function loudnorm(src, dst) {
   const target = 'I=-14:TP=-1.5:LRA=11';
-  const m = spawnSync('ffmpeg', ['-hide_banner', '-nostats', '-i', src, '-af', `loudnorm=${target}:print_format=json`, '-f', 'null', '-'], { encoding: 'utf8' });
+  // ffmpeg cozumu scripts/ffmpeg.mjs: sistemde yoksa Remotion'in kendi ffmpeg'i (uretim sunucusu)
+  const m = runFfSync('ffmpeg', ['-hide_banner', '-nostats', '-i', src, '-af', `loudnorm=${target}:print_format=json`, '-f', 'null', '-']);
   const json = JSON.parse(m.stderr.slice(m.stderr.lastIndexOf('{'), m.stderr.lastIndexOf('}') + 1));
   const af = `loudnorm=${target}:measured_I=${json.input_i}:measured_TP=${json.input_tp}:measured_LRA=${json.input_lra}:measured_thresh=${json.input_thresh}:offset=${json.target_offset}:linear=true`;
-  const r = spawnSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', '-i', src, '-af', af, '-ar', String(SR), '-c:a', 'pcm_s16le', dst], { stdio: 'inherit' });
-  if (r.status !== 0) throw new Error('ffmpeg loudnorm basarisiz');
+  runFfSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', '-i', src, '-af', af, '-ar', String(SR), '-c:a', 'pcm_s16le', dst], { inherit: true });
   return json.input_i;
 }
 

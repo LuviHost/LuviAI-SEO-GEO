@@ -19,10 +19,7 @@
  * Cikti: out/article-shorts/<slug>/{video.mp4, poster.jpg, contact.png, props.json, script.json,
  *        article.json, timings.json, downloads/}
  */
-import { spawnSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
-import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs';
-import { createRequire } from 'node:module';
+import { mkdirSync, statSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -30,6 +27,8 @@ import { extractBrand } from './article-short/brand.mjs';
 import { buildLlmRequest, buildScript } from './article-short/copy.mjs';
 import { extractArticle } from './article-short/extract.mjs';
 import { USER_AGENT, fetchLimited, robotsAllows } from './article-short/net.mjs';
+import { runFfSync } from './ffmpeg.mjs';
+import { ensureArticleShortAudio, extractPoster, getArticleShortServeUrl, loudnormInPlace, renderArticleShortMp4 } from '../render/article-short.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
@@ -60,12 +59,6 @@ async function step(name, fn) {
   console.log(`✓ ${name.padEnd(9)} ${(ms / 1000).toFixed(2).padStart(7)} sn${r?.__note ? `  (${r.__note})` : ''}`);
   return r;
 }
-const run = (cmd, a, capture = true) => {
-  const r = spawnSync(cmd, a, { cwd: ROOT, encoding: 'utf8', stdio: capture ? 'pipe' : 'inherit' });
-  if (r.status !== 0) throw new Error(`${cmd} basarisiz: ${r.stderr?.slice(-800)}`);
-  return r;
-};
-
 const T0 = performance.now();
 console.log(`RanksUp ArticleShort · ${articleUrl}\nCikti: ${relative(process.cwd(), OUT) || OUT} · ${cores} cekirdek, render eszamanliligi ${concurrency}\n`);
 
@@ -115,7 +108,8 @@ const llm = buildLlmRequest(article).estimate;
 const props = {
   hook: script.hook,
   ...(script.hookSub ? { hookSub: script.hookSub } : {}),
-  ...(script.kicker ? { kicker: script.kicker } : {}),
+  // bos dize bilerek: alan yoksa Remotion defaultProps'taki ornek ust etiket ("Örnek içerik") sizar
+  kicker: script.kicker ?? '',
   points: script.points,
   cta: script.cta,
   brand: { name: brand.name, domain: brand.domain, ...(brand.primary ? { primary: brand.primary } : {}), ...(brand.logoDataUri ? { logoUrl: brand.logoDataUri } : {}) },
@@ -126,60 +120,25 @@ const props = {
 const propsFile = join(OUT, 'props.json');
 writeFileSync(propsFile, JSON.stringify(props, null, 2));
 
-/* 5 — audio (izgara sabit: tek dosya, onbellek) */
-await step('audio', async () => {
-  const wav = join(ROOT, 'public', 'audio', 'article-short.wav');
-  const tl = statSync(join(ROOT, 'src', 'marketing', 'timeline.json')).mtimeMs;
-  if (existsSync(wav) && statSync(wav).mtimeMs > tl) return { __note: 'onbellekte' };
-  run('node', ['scripts/audio/synth.mjs', 'ArticleShort']);
-  return { __note: 'sentezlendi' };
-});
+/* 5-9 — ses, paket, render, loudnorm, poster: sunucuyla AYNI kod (render/article-short.mjs) */
+await step('audio', async () => ({ __note: ensureArticleShortAudio().cached ? 'onbellekte' : 'sentezlendi' }));
 
-/* Remotion paketleri @remotion/cli uzerinden cozulur (pnpm: dogrudan bagimlilik degiller) */
-const req = createRequire(createRequire(import.meta.url).resolve('@remotion/cli/package.json'));
-const { bundle } = req('@remotion/bundler');
-const { renderMedia, selectComposition } = req('@remotion/renderer');
-
-/* 6 — bundle */
 const serveUrl = await step('bundle', async () => {
-  const h = createHash('sha256');
-  const walk = (d) => {
-    for (const f of readdirSync(d, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
-      const p = join(d, f.name);
-      if (f.isDirectory()) walk(p);
-      else h.update(p).update(String(statSync(p).size)).update(String(statSync(p).mtimeMs));
-    }
-  };
-  walk(join(ROOT, 'src'));
-  walk(join(ROOT, 'public'));
-  const dir = join(ROOT, 'node_modules', '.cache', 'article-short', `bundle-${h.digest('hex').slice(0, 16)}`);
-  if (existsSync(join(dir, 'index.html'))) return Object.assign(new String(dir), { __note: 'onbellekten (uretimde deploy basina bir kez)' });
-  const out = await bundle({ entryPoint: join(ROOT, 'src', 'index.ts'), outDir: dir, publicDir: join(ROOT, 'public') });
-  return Object.assign(new String(out), { __note: 'yeni paket' });
+  const b = await getArticleShortServeUrl();
+  return Object.assign(new String(b.serveUrl), { __note: b.cached ? 'onbellekten (uretimde deploy basina bir kez)' : 'yeni paket' });
 });
 
-/* 7 — render */
 const mp4 = join(OUT, 'video.mp4');
 let peakRssMb = 0;
 await step('render', async () => {
-  const composition = await selectComposition({ serveUrl: String(serveUrl), id: 'ArticleShort', inputProps: props, logLevel: 'error' });
   let lastPct = -1;
   const timer = setInterval(() => (peakRssMb = Math.max(peakRssMb, process.memoryUsage().rss / 1048576)), 500);
-  await renderMedia({
-    composition,
+  const comp = await renderArticleShortMp4({
     serveUrl: String(serveUrl),
-    codec: 'h264',
-    outputLocation: mp4,
-    inputProps: props,
+    props,
+    outFile: mp4,
     concurrency,
-    crf: 20,
-    pixelFormat: 'yuv420p',
-    imageFormat: 'jpeg',
-    jpegQuality: 92,
-    audioCodec: 'aac',
-    audioBitrate: '192k',
-    logLevel: 'error',
-    onProgress: ({ progress }) => {
+    onProgress: (progress) => {
       const pct = Math.floor(progress * 10) * 10;
       if (pct !== lastPct) {
         lastPct = pct;
@@ -188,39 +147,28 @@ await step('render', async () => {
     },
   });
   clearInterval(timer);
-  return { __note: `${composition.durationInFrames} kare, ${composition.width}x${composition.height}@${composition.fps}, eszamanlilik ${concurrency}` };
+  return { __note: `${comp.durationInFrames} kare, ${comp.width}x${comp.height}@${comp.fps}, eszamanlilik ${concurrency}` };
 });
 
-/* 8 — loudnorm */
 await step('loudnorm', async () => {
   if (props.muted) return { __note: 'sessiz varyant — atlandi' };
-  const target = 'I=-14:TP=-1.5:LRA=11';
-  const m = run('ffmpeg', ['-hide_banner', '-nostats', '-i', mp4, '-af', `loudnorm=${target}:print_format=json`, '-f', 'null', '-']);
-  const j = JSON.parse(m.stderr.slice(m.stderr.lastIndexOf('{'), m.stderr.lastIndexOf('}') + 1));
-  const af = `loudnorm=${target}:measured_I=${j.input_i}:measured_TP=${j.input_tp}:measured_LRA=${j.input_lra}:measured_thresh=${j.input_thresh}:offset=${j.target_offset}:linear=true`;
-  const tmp = mp4.replace(/\.mp4$/, '.ln.mp4');
-  run('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', '-i', mp4, '-c:v', 'copy', '-af', af, '-ar', '48000', '-c:a', 'aac', '-b:a', '192k', '-shortest', '-movflags', '+faststart', tmp]);
-  unlinkSync(mp4);
-  renameSync(tmp, mp4);
-  return { __note: `giris ${j.input_i} LUFS -> -14` };
+  const r = await loudnormInPlace(mp4);
+  return { __note: `giris ${r.inputLufs} LUFS -> -14` };
 });
 
-/* 9 — poster (kanca tam gorunur: 2.6 sn) */
 const poster = join(OUT, 'poster.jpg');
-await step('poster', async () => {
-  run('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', '-ss', '2.6', '-i', mp4, '-frames:v', '1', '-q:v', '3', poster]);
-});
+await step('poster', () => extractPoster(mp4, poster));
 
 /* 10 — temas sayfasi */
 const sheet = join(OUT, 'contact.png');
 if (!flag('no-sheet')) {
   await step('sheet', async () => {
-    run('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', '-i', mp4, '-vf', 'fps=1,scale=270:-1,tile=8x2:padding=6:margin=6:color=white', '-frames:v', '1', sheet]);
+    runFfSync('ffmpeg', ['-hide_banner', '-loglevel', 'error', '-y', '-i', mp4, '-vf', 'fps=1,scale=270:-1,tile=8x2:padding=6:margin=6:color=white', '-frames:v', '1', sheet]);
   });
 }
 
 const total = (performance.now() - T0) / 1000;
-const probe = spawnSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration,bit_rate', '-of', 'json', mp4], { encoding: 'utf8' });
+const probe = runFfSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration,bit_rate', '-of', 'json', mp4]);
 const fmt = JSON.parse(probe.stdout).format;
 const summary = {
   url: articleUrl,

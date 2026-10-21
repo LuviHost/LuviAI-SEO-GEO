@@ -51,6 +51,13 @@ Son güncelleme: Ekim 2026
 
 - Kaybedilen AI sorgularından makale fırsatı çıkarır, makaleyi üretir ve yeniden ölçer.
 
+### RanksUp Video — Profesyonel ve üstü
+
+- Yayındaki makaleden sitenin adı, logosu ve tema rengiyle 15 saniyelik dikey video (1080×1920; Reels, Shorts, TikTok biçimi), MP4 olarak indirilir. RanksUp videoyu hiçbir platformda yayınlamaz.
+- Metin makalenin kendi başlık, cümle ve sayılarından derlenir; yapay zekâ ile kısaltılan metin, makalede birebir geçmeyen sayıları ve makalede olmayan kelime oranı yüksek metni reddeden bir denetimden geçer, geçemezse makalenin kendi cümleleri kullanılır.
+- Logo ve renk sitenin herkese açık sayfasından okunur; video üretilmeden önce renk, logo ve marka adı düzeltilebilir.
+- Aylık hak: Profesyonel 20, Ajans 60, Kurumsal 200 video; her takvim ayı yenilenir, üretilemeyen videonun hakkı iade edilir.
+
 ### ASO
 
 - Uygulamanı bağla; App Store ve Google Play metadata'sını AI ile optimize et; anahtar kelime sıralarını her gün otomatik takip et.
@@ -151,6 +158,7 @@ C: Aylık plan istediğin zaman iptal edilir; ödenen dönemin sonuna kadar eri�
 - [Auto-Pilot rehberi](https://ranksup.ai/help/auto-pilot)
 - [Kendi sağlayıcı anahtarın (BYOK) rehberi](https://ranksup.ai/help/api-keys)
 - [Faturalama rehberi](https://ranksup.ai/help/billing)
+- [RanksUp Video rehberi](https://ranksup.ai/help/video)
 - [SEO & GEO sözlüğü](https://ranksup.ai/help/glossary)
 - [Ajan kurulum rehberi (MCP)](https://ranksup.ai/agent-setup.txt)
 - [RanksUpBot](https://ranksup.ai/bot)

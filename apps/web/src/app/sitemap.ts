@@ -24,6 +24,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     { url: `${SITE_URL}/help/auto-pilot`,      lastModified: now, changeFrequency: 'monthly', priority: 0.6 },
     { url: `${SITE_URL}/help/api-keys`,        lastModified: now, changeFrequency: 'monthly', priority: 0.6 },
     { url: `${SITE_URL}/help/billing`,         lastModified: now, changeFrequency: 'monthly', priority: 0.6 },
+    { url: `${SITE_URL}/help/video`,           lastModified: now, changeFrequency: 'monthly', priority: 0.6 },
     { url: `${SITE_URL}/help/glossary`,        lastModified: now, changeFrequency: 'monthly', priority: 0.6 },
     { url: `${SITE_URL}/privacy`,     lastModified: now, changeFrequency: 'yearly',  priority: 0.3 },
     { url: `${SITE_URL}/terms`,       lastModified: now, changeFrequency: 'yearly',  priority: 0.3 },

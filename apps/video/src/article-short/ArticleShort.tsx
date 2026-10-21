@@ -48,6 +48,11 @@ function pointHeight(title: Fit, detail: Fit | null) {
   return 150 + 34 + linesH(title, 1.08 * 1.04) + (detail ? 48 + 68 + linesH(detail, 1.3) : 0);
 }
 
+/**
+ * Studio onizlemesi icin ornek. DIKKAT: Remotion inputProps'u bu nesneyle birlestirir; render'da
+ * verilmeyen istege bagli alan (or. kicker) buradan gelir. Cagiranlar istege bagli alanlari bos
+ * dizeyle acikca gonderir (api videos/video-render.service.ts, scripts/article-short.mjs).
+ */
 export const articleShortDefaults: ArticleShortProps = {
   hook: 'Diş taşı temizliği ne sıklıkla yapılmalı?',
   kicker: 'Örnek içerik',

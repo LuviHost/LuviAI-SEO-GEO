@@ -13,7 +13,7 @@ ile tüketilir).
 | `ProductIntro` | 1920×1080 @30 | 38 sn, müzik + efekt | Tanıtım filmi (kanca → 4 adım → CTA) — `out/marketing/` |
 | `SocialAd` | 1080×1920 @30 | 15 sn, vurusa kilitli | Reels / TikTok / Shorts — `out/marketing/` |
 | `FeatureExplainer` | 1920×1080 @30 | 72 sn, Türkçe altyazı + müzik | Panel turu (canlı ekran kaydı üslubu) — `out/marketing/` |
-| `ArticleShort` | 1080×1920 @30 | 15 sn, parametrik (PROTOTİP) | Müşteri makalesinden otomatik kısa video — `out/article-shorts/` |
+| `ArticleShort` | 1080×1920 @30 | 15 sn, parametrik | **RanksUp Video** (ürün): müşterinin yayındaki makalesinden markalı kısa video — sunucuda `apps/api/public/videos/<siteId>/`; CLI denemesi `out/article-shorts/` |
 
 ## Komutlar
 
@@ -81,7 +81,7 @@ Kodlama ayarları (`crf`, ölçek, poster karesi) `scripts/render.mjs` içinde.
 - **Güvenli alan (SocialAd):** metin ve arayüz x 90–950, y 250–1500 içinde (sağdaki beğeni sütunu ve
   alttaki açıklama alanı boş kalır).
 
-## Makaleden otomatik kısa video (ArticleShort — prototip)
+## Makaleden otomatik kısa video (ArticleShort — CLI denemesi)
 
 ```bash
 pnpm --filter @luviai/video article-short https://www.kobipratik.com/pratik-kobi-rehberi/fatura-finansmani-nedir
@@ -92,15 +92,78 @@ pnpm --filter @luviai/video article-short https://www.kobipratik.com/pratik-kobi
 - Akış: fetch (robots.txt, `RanksUpBot/1.0` UA, boyut/süre sınırı) → brand (ad, logo, tema rengi) →
   extract (JSON-LD + başlıklar/maddeler) → script → audio → bundle → render → loudnorm → poster → temas
   sayfası. Her adım zamanlanır; özet `out/article-shorts/<slug>/timings.json`.
-- **Metin adımı** (`scripts/article-short/copy.mjs`): bugün *çıkarımsal* — makalenin kendi başlık ve
-  cümlelerini seçer, yalnız süsleme siler (emoji, numara rozeti). Üretimde aynı JSON şemasını Claude
+- **Metin adımı** (`scripts/article-short/copy.mjs`): CLI'da *çıkarımsal* — makalenin kendi başlık ve
+  cümlelerini seçer, yalnız süsleme siler (emoji, numara rozeti). Üründe aynı JSON şemasını Claude
   Haiku 5.5 üretir (worker'da, structured output); `validateScript()` her iki yolda da zorunlu kapı:
-  metindeki her sayı makalede birebir geçmeli, uzunluk sınırları, yenilik oranı.
+  metindeki her sayı makalede birebir geçmeli, uzunluk sınırları, yenilik oranı (LLM yolunda aşım = ret).
+- `copy.mjs`, `extract.mjs`, `brand.mjs` ve `render/article-short.mjs` **CLI ile sunucunun ortak
+  kaynağıdır**; API bunları çalışma anında `import()` ile yükler (`apps/api/src/videos/article-short-kit.ts`).
+  Birini değiştirirsen API testleri (`apps/api/src/videos/*.spec.ts`) aynı kodu sınar.
 - **Şablon** (`src/article-short/`): metin kutuları canvas ölçümüyle sığdırılır (genişlik + yükseklik,
   taşma yok); renkler `palette.ts`'te WCAG kontrastına göre türetilir (renk yoksa RanksUp turuncusu).
   Müşteri logosu yalnız `<img>` (data: URI) olarak çizilir; çözülemezse baş harf monogramı.
 - İndirilen her şey `out/article-shorts/<slug>/downloads/` altında, güvenilmeyen veri: yalnız okunur.
 - Ses: `timeline.json` → `ArticleShort` ızgarası; her video için aynı dosya (bir kez sentezlenir).
+
+## RanksUp Video (ürün) — sunucu hattı
+
+Müşterinin **yayındaki** makalesinden sitenin adı, logosu ve rengiyle 15 sn dikey video. Profesyonel ve
+üstü planlarda (`apps/api/src/billing/plans.ts` → `FEATURE_MIN_PLAN.articleVideo`, aylık hak
+`VIDEOS_PER_MONTH`: Pro 20, Ajans 60, Kurumsal 200).
+
+```
+panel "Video üret" ─▶ POST /api/sites/:siteId/videos  (auth + site sahipliği + plan + hak: koşullu UPDATE)
+                       Video satırı PENDING, providerRaw.engine='article-short'
+                    ─▶ BullMQ 'video-render' (iş kimliği = video kimliği, 1 deneme)
+worker (eşzamanlılık 1) ─▶ VideoRenderService.process (apps/api/src/videos/video-render.service.ts)
+   GENERATING → makale DB'den (bodyMd → yayıncıyla aynı mdToHtml) → marka: anasayfa, SSRF korumalı
+   safe-fetch + sharp (logo ≤256 px PNG) → metin: Haiku 5.5 + validateScript(strict), olmazsa çıkarımsal
+   → render/article-short.mjs (paket bir kez, renderMedia, loudnorm, poster)
+   → apps/api/public/videos/<siteId>/<videoId>.{mp4,jpg} (nginx /videos/) → READY + bildirim
+   hata → FAILED + Türkçe mesaj + hak iadesi (tek kez); saatlik süpürücü takılı videoları kapatır
+```
+
+- **Paket bir kez:** `render/article-short.mjs` kaynak özeti (src/ + public/) aynıysa diskteki paketi
+  kullanır (`node_modules/.cache/article-short/bundle-<özet>`); süreç içinde de bellekte tutar.
+- **Eşzamanlılık:** kuyruk işi 1 (aynı anda tek video); bir videonun kare eşzamanlılığı
+  `VIDEO_RENDER_CONCURRENCY` (varsayılan çekirdek/2, en az 1, en çok 4). API ayrı süreçte kalır.
+- **ffmpeg:** `FFMPEG_PATH` > sistem `ffmpeg` > Remotion'ın kendi ffmpeg'i (`scripts/ffmpeg.mjs`). Remotion
+  derlemesinde loudnorm/aac/mjpeg var; sistemde ffmpeg olmasa da loudnorm ve poster çalışır.
+  (Eski API Video Factory'si 0db5a1c'de kaldırıldı; sunucuda sistem ffmpeg'i olup olmadığı repodan
+  doğrulanamıyor — gerekmez.)
+- **Ortam değişkenleri (hepsi isteğe bağlı):** `VIDEO_RENDER_CONCURRENCY`, `VIDEO_RENDER_WORKER=0`
+  (bu worker'da tüketiciyi kapatır), `VIDEO_OUTPUT_DIR` (varsayılan `apps/api/public/videos`),
+  `VIDEO_PUBLIC_BASE` (varsayılan `https://ranksup.ai/videos`), `FFMPEG_PATH`, `VIDEO_APP_DIR`
+  (varsayılan `apps/video`). Mevcut `ANTHROPIC_API_KEY` ve `REDIS_URL` kullanılır.
+- **Veri:** yeni tablo/migration yok — eski `videos` tablosu (`provider=SLIDESHOW`, `providerRaw.engine`)
+  ve `users.videosUsedThisMonth` sayacı (makale sayacıyla aynı ay başı sıfırlaması).
+
+### Üretim sunucusu (bir kez + her deploy)
+
+```bash
+# 1) Chrome Headless Shell'in Linux kütüphaneleri (Remotion "Linux dependencies", Ubuntu 24.04):
+sudo apt install -y libnss3 libdbus-1-3 libatk1.0-0 libasound2t64 libxrandr2 libxkbcommon-dev \
+  libxfixes3 libxcomposite1 libxdamage1 libgbm-dev libcups2 libcairo2 libpango-1.0-0 libatk-bridge2.0-0
+#    (Ubuntu 22.04 / Debian'da libasound2t64 yoksa yerine libasound2)
+
+# 2) Kod + bağımlılıklar (lockfile değişmedi; apps/video devDependency'si @remotion/cli
+#    bundler + renderer'ı getirir — --prod KULLANMA)
+cd /var/www/luviai && pnpm install --frozen-lockfile
+
+# 3) Chrome indir + ses izi + Remotion paketi + ffmpeg kaynağını yaz (ağ gerekir; her deploy'da güvenli)
+pnpm --filter @luviai/video prepare:article-short
+
+# 4) Derle ve yeniden başlat
+pnpm --filter @luviai/api build && pnpm --filter @luviai/worker build
+pm2 restart luviai-api luviai-worker
+
+# 5) Çıktı dizini ve nginx (eski Video Factory alias'ı yerinde mi?)
+mkdir -p /var/www/luviai/apps/api/public/videos
+grep -rn "location /videos" /etc/nginx/sites-enabled/ || echo "nginx: /videos/ -> /var/www/luviai/apps/api/public/videos/ alias'ını ekle"
+```
+
+Worker belleği: render sırasında Chrome sekmeleri worker'ın alt süreçleri olarak çalışır (yerel ölçüm:
+eşzamanlılık 4'te 15 sn video ~12-25 sn). Bellek sıkışırsa önce `VIDEO_RENDER_CONCURRENCY`'yi düşür.
 
 ## Lisans notu
 
