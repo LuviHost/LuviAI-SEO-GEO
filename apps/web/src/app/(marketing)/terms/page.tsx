@@ -12,7 +12,7 @@ const CONTENT = {
     // Icerik degisti (8. madde eklendi; 7. ve 9. madde kaldirilan sosyal paylasima gore
     // duzeltildi); yururluk tarihi korunur, okuyan degisikligi gorsun diye son guncelleme ve
     // not ayrica yazilir (gizlilik sayfasindaki duzen)
-    updated: 'Son güncelleme: 21 Ekim 2026 — 8. madde (RanksUp Video ve marka öğeleri) eklendi; sonraki maddelerin numarası bir arttı. 7. madde, kaldırılan sosyal medya paylaşım özelliğini hâlâ varmış gibi anlatıyordu; yeniden yazıldı. 9. maddeye hesabınızı sildiğinizde bağlı hizmetlerin erişim bilgilerinin hemen silindiği eklendi.',
+    updated: 'Son güncelleme: 21 Ekim 2026 — 8. madde (RanksUp Video ve marka öğeleri) eklendi; sonraki maddelerin numarası bir arttı. 7. madde, kaldırılan sosyal medya paylaşım özelliğini hâlâ varmış gibi anlatıyordu; yeniden yazıldı. 9. maddeye hesabınızı sildiğinizde bağlı hizmetlerin erişim bilgilerinin hemen silindiği eklendi. 8. maddeye site ve ürün tanıtım videoları eklendi: sayfa içeriği, ürün görselleri ve fiyat yalnız sizin sitenizden alınır.',
     sections: [
       {
         h: '1. Hizmet Tanımı',
@@ -77,7 +77,7 @@ const CONTENT = {
     titleA: 'Terms of',
     titleB: 'Service',
     effective: 'Effective: April 27, 2026',
-    updated: 'Last updated: October 21, 2026 — added section 8 (RanksUp Video and brand assets); the following sections were renumbered. Section 7 still described the removed social media posting feature as if it were available; it has been rewritten. Section 9 now states that the access credentials of connected services are deleted immediately when you delete your account.',
+    updated: 'Last updated: October 21, 2026 — added section 8 (RanksUp Video and brand assets); the following sections were renumbered. Section 7 still described the removed social media posting feature as if it were available; it has been rewritten. Section 9 now states that the access credentials of connected services are deleted immediately when you delete your account. Section 8 now covers site and product intro videos: page content, product images and prices are taken only from your own site.',
     sections: [
       {
         h: '1. Service Definition',
