@@ -14,6 +14,7 @@
  *
  * Duzen: Fa majorde 4 akorluk dongu (Fmaj7 · Am7 · Dm7 · Bbmaj7), her akor 1 olcu (4 vurus).
  * Bolum seviyeleri (timeline "music"): silence · pulse · L1 · L2 · L3 · L4 · outro.
+ * Istege bagli "transpose" (yarim ton) duzeni baska tona tasir; yoksa Fa major (eski izler birebir ayni).
  */
 import { mkdirSync, readFileSync, renameSync, writeFileSync, unlinkSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -108,6 +109,9 @@ const CHORDS = [
   { pad: [53, 58, 62, 65], bass: 46 },
 ];
 const chordAt = (beat) => CHORDS[Math.floor(beat / 4) % 4];
+/** timeline "transpose" (yarim ton, varsayilan 0): ayni duzen baska tonda — kompozisyona kendi rengi */
+let TRANSPOSE = 0;
+const tr = (m) => m + TRANSPOSE;
 
 function pad(bus, send, t0, dur, notes, gain) {
   const att = 0.35;
@@ -317,6 +321,7 @@ function arrange(id, def) {
   const send = new Bus(seconds);
   const rand = mulberry32(id.split('').reduce((a, c) => a * 31 + c.charCodeAt(0), 7));
   const energy = def.energy ?? 1;
+  TRANSPOSE = def.transpose ?? 0;
 
   for (const [from, to, name] of def.music) {
     const L = LEVELS[name];
@@ -325,9 +330,9 @@ function arrange(id, def) {
       // son akor: tonik (Fmaj9), tek zil + uzun pad; son 2 vurusta sona dogru biter
       const t0 = from * SPB;
       const dur = (to - from) * SPB - 1.0;
-      pad(dry, send, t0, dur, [53, 57, 60, 64, 67], 0.05);
-      bassNote(dry, t0, 1.5, 41, 0.09);
-      [77, 81, 84, 88].forEach((m, k) => mallet(dry, send, t0 + k * SPB * 0.5, m, 0.1, (k - 1.5) * 0.25));
+      pad(dry, send, t0, dur, [53, 57, 60, 64, 67].map(tr), 0.05);
+      bassNote(dry, t0, 1.5, tr(41), 0.09);
+      [77, 81, 84, 88].forEach((m, k) => mallet(dry, send, t0 + k * SPB * 0.5, tr(m), 0.1, (k - 1.5) * 0.25));
       continue;
     }
     // olcu olcu pad
@@ -336,7 +341,7 @@ function arrange(id, def) {
       const e = Math.min(bar + 4, to);
       if (e <= s) continue;
       const ch = chordAt(bar);
-      if (L.pad) pad(dry, send, s * SPB, (e - s) * SPB, ch.pad, L.pad);
+      if (L.pad) pad(dry, send, s * SPB, (e - s) * SPB, ch.pad.map(tr), L.pad);
     }
     // vurus vurus ritim
     for (let q = Math.ceil(from * 4) / 4; q < to - 1e-6; q += 0.25) {
@@ -344,18 +349,18 @@ function arrange(id, def) {
       const inBeat = q % 1;
       const beatInBar = Math.floor(q) % 4;
       const ch = chordAt(q);
-      if (L.pulse && inBeat === 0) mallet(dry, send, t, ch.pad[0] + 24, 0.07, 0.1);
+      if (L.pulse && inBeat === 0) mallet(dry, send, t, tr(ch.pad[0] + 24), 0.07, 0.1);
       if (L.kick === 'four' && inBeat === 0) kick(dry, t, (L.kickGain ?? 0.24) * energy);
       if (L.kick === 'half' && inBeat === 0 && beatInBar % 2 === 0) kick(dry, t, 0.22 * energy);
       if (L.hat === 'off8' && inBeat === 0.5) hat(dry, rand, t, 0.17 * energy);
       if (L.hat16 && (inBeat === 0.25 || inBeat === 0.75)) hat(dry, rand, t, 0.075 * energy, -0.25);
       if (L.clap && inBeat === 0 && beatInBar % 2 === 1) clap(dry, send, rand, t, 0.13 * energy);
       if (L.mallet === 'quarter' && inBeat === 0) {
-        const notes = ch.pad.map((m) => m + 12);
+        const notes = ch.pad.map((m) => tr(m + 12));
         mallet(dry, send, t, notes[(beatInBar * 2) % notes.length], 0.085, (beatInBar - 1.5) * 0.2);
       }
       if (L.mallet === 'arp8' && (inBeat === 0 || inBeat === 0.5)) {
-        const notes = ch.pad.map((m) => m + 12);
+        const notes = ch.pad.map((m) => tr(m + 12));
         const pattern = [0, 2, 1, 3, 2, 0, 3, 1];
         const step = beatInBar * 2 + (inBeat === 0.5 ? 1 : 0);
         const accent = inBeat === 0 ? 1 : 0.7;
@@ -364,7 +369,7 @@ function arrange(id, def) {
       if (L.bass) {
         const bp = { 0: 1.2, 1.5: 0.4, 2: 0.9, 3.5: 0.4 };
         const pos = (Math.floor(q) % 4) + inBeat;
-        if (bp[pos] !== undefined) bassNote(dry, t, bp[pos] * SPB, ch.bass, L.bass);
+        if (bp[pos] !== undefined) bassNote(dry, t, bp[pos] * SPB, tr(ch.bass), L.bass);
       }
     }
   }

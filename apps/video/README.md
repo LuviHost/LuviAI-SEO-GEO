@@ -17,6 +17,8 @@ ile tüketilir).
 | `SiteIntro` / `SiteIntroWide` | 1080×1920 / 1920×1080 @30 | 15 sn / 24 sn, parametrik | **RanksUp Video** site tanıtımı: müşterinin anasayfası + marka profili; marka rengi zemin, logo, 3 hizmet kartı |
 | `ProductShort` / `ProductWide` | 1080×1920 / 1920×1080 @30 | 15 sn, parametrik | **RanksUp Video** ürün tanıtımı: müşterinin kendi sayfası; ürün görseli (yavaş yakınlaşma), özellik listesi, yalnız doğrulanmış fiyat etiketi |
 | `VideoLaunch` / `VideoLaunchVertical` | 1920×1080 / 1080×1920 @30 | 32 sn / 15 sn, müzik + efekt | RanksUp Video **duyurusu**: kanca → 3 kaynak (gerçek şablonlar telefon çerçevesinde) → 3 adım → plan satırı → CTA — `out/launch/` |
+| `KobiPratikReels` | 1080×1920 @30 | 17 sn, vuruşa kilitli | **KobiPratik'in kendi reklamı** (RanksUp markası yok): kanca → kart / POS / kredi örnek teklifleri → karşılaştır → başvur → CTA — `out/kobipratik/` |
+| `KobiPratikIntro` / `KobiPratikIntroVertical` | 1920×1080 / 1080×1920 @30 | 36 sn, aynı ızgara + aynı ses | KobiPratik tanıtım filmi: kimin için → ürünler → araçlar + rehber → 3 adım → neden KobiPratik → kapanış — `out/kobipratik/` |
 
 ## Komutlar
 
@@ -98,6 +100,25 @@ pnpm --filter @luviai/video render:marketing VideoLaunchVertical   # → out/lau
   sunucudaki gibi). Ekranda "Örnek çıktı · kobipratik.com" etiketi. Üçüncü taraf marka yok.
 - Plan satırı `apps/api/src/billing/plans.ts` `VIDEOS_PER_MONTH` ile aynı (Profesyonel 20 · Ajans 60 · Kurumsal 200);
   sayılar değişirse `VideoLaunch.tsx` `PLAN_LINE` ve dikey kapanış satırını güncelle.
+
+## KobiPratik reklamları (KobiPratikReels · KobiPratikIntro · KobiPratikIntroVertical)
+
+```bash
+pnpm --filter @luviai/video render:marketing KobiPratikReels           # → out/kobipratik/kobipratik-reels-dikey.*
+pnpm --filter @luviai/video render:marketing KobiPratikIntro           # → out/kobipratik/kobipratik-tanitim-yatay.*
+pnpm --filter @luviai/video render:marketing KobiPratikIntroVertical   # → out/kobipratik/kobipratik-tanitim-dikey.*
+```
+
+- KobiPratik'in **kendi** reklamları: KobiPratik logosu (Frontend-v2 `Logo.svg` / `LogoDark.svg` / `public/logo.svg` → 
+  `public/kobipratik/*.png`), renkler (#069093 teal, #15132C lacivert, #F4F8F8 zemin), font Rethink Sans
+  (`public/fonts/RethinkSans.ttf`, OFL 1.1 — `public/fonts/OFL-RethinkSans.txt`). RanksUp markası ve "ile üretildi" satırı yok.
+- **Finansal reklam kuralları:** teklif kartları "Örnek" rozetli, kurum adı "Örnek Banka A" gibi, oran/tutar yerine
+  yer tutucu (`%X,XX`, `X.XXX TL`); üçüncü taraf logo yok; onay vaadi yok; "en düşük faiz" yok. Alan etiketleri sitedeki
+  kartlarla aynı (Faiz Oranı, Yıllık Ücret, Komisyon Oranı…). İddialar yalnız kobipratik.com'da birebir geçenler:
+  "Kullanmak ücretsiz" (SSS), "Neden KobiPratik?" listesi, "100+ ücretsiz hesaplama aracı" (Pratik Araçlar), yasal not
+  ("KobiPratik kredi veren bir kurum değildir…"). Site metni değişirse `src/kobipratik/` metinlerini güncelle.
+- Ses: timeline.json `KobiPratikReels` (Sol majör, `transpose: 2`) ve `KobiPratikIntro` (Mi♭ majör, `transpose: -2`);
+  dikey tanıtım yatayla aynı ızgarayı ve aynı ses dosyasını kullanır (yerleşim en/boy oranından seçilir).
 
 ## Makaleden otomatik kısa video (ArticleShort — CLI denemesi)
 

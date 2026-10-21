@@ -14,7 +14,9 @@ export type MarketingId =
   | 'SiteIntroWide'
   | 'ProductShort'
   | 'VideoLaunch'
-  | 'VideoLaunchVertical';
+  | 'VideoLaunchVertical'
+  | 'KobiPratikReels'
+  | 'KobiPratikIntro';
 
 type TimelineEvent = { id: string; at: number; sfx?: string; n?: number; every?: number; dur?: number };
 type CompDef = {
