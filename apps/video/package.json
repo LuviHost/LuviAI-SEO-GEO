@@ -2,7 +2,7 @@
   "name": "@luviai/video",
   "version": "0.1.0",
   "private": true,
-  "description": "RanksUp urun videolari (Remotion) — HeroLoop, Explainer, AiScan",
+  "description": "RanksUp urun videolari (Remotion) — HeroLoop, Explainer, AiScan, pazarlama videolari",
   "exports": {
     "./ai-scan": "./src/ai-scan/AiScan.tsx",
     "./tokens": "./src/tokens.ts"
@@ -12,7 +12,10 @@
     "render": "node scripts/render.mjs",
     "render:hero": "node scripts/render.mjs HeroLoop",
     "render:explainer": "node scripts/render.mjs Explainer",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "audio": "node scripts/audio/synth.mjs",
+    "render:marketing": "node scripts/render-marketing.mjs",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "article-short": "node scripts/article-short.mjs"
   },
   "dependencies": {
     "lucide-react": "^0.469.0",
