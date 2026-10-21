@@ -17,7 +17,9 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "article-short": "node scripts/article-short.mjs",
     "prepare:article-short": "node scripts/prepare-article-short.mjs",
-    "check:readability": "node scripts/check-video-readability.mjs"
+    "check:readability": "node scripts/check-video-readability.mjs",
+    "check:pillars": "node scripts/check-pillars-readability.mjs",
+    "audio:pillars": "node scripts/audio/synth-pillars.mjs"
   },
   "dependencies": {
     "lucide-react": "^0.469.0",

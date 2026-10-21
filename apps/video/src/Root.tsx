@@ -11,6 +11,7 @@ import { ArticleShort, ARTICLE_SHORT_DURATION, articleShortDefaults } from './ar
 import { SiteIntro, SiteIntroWide, SITE_INTRO_DURATION, SITE_INTRO_WIDE_DURATION, siteIntroDefaults } from './promo/SiteIntro';
 import { ProductShort, ProductWide, PRODUCT_SHORT_DURATION, productShortDefaults } from './promo/ProductShort';
 import { tempoMetadata } from './tempo/TempoTimeline';
+import { PILLAR_COMPOSITIONS } from './pillars/PillarVideo';
 
 export const RemotionRoot: React.FC = () => {
   return (
@@ -98,6 +99,10 @@ export const RemotionRoot: React.FC = () => {
       <Composition id="SiteIntroWide" component={SiteIntroWide} calculateMetadata={tempoMetadata('SiteIntroWide')} durationInFrames={SITE_INTRO_WIDE_DURATION} fps={MARKETING_FPS} width={1920} height={1080} defaultProps={siteIntroDefaults} />
       <Composition id="ProductShort" component={ProductShort} calculateMetadata={tempoMetadata('ProductShort')} durationInFrames={PRODUCT_SHORT_DURATION} fps={MARKETING_FPS} width={1080} height={1920} defaultProps={productShortDefaults} />
       <Composition id="ProductWide" component={ProductWide} calculateMetadata={tempoMetadata('ProductWide')} durationInFrames={PRODUCT_SHORT_DURATION} fps={MARKETING_FPS} width={1920} height={1080} defaultProps={productShortDefaults} />
+      {/* RanksUp tanitim videolari — 5 sutun × dikey/yatay (src/pillars; metin script.json, ses audio/pillars/<id>.wav) */}
+      {PILLAR_COMPOSITIONS.map((c) => (
+        <Composition key={c.id} id={c.id} component={c.component} durationInFrames={c.durationInFrames} fps={MARKETING_FPS} width={c.width} height={c.height} defaultProps={{ muted: false }} />
+      ))}
     </>
   );
 };

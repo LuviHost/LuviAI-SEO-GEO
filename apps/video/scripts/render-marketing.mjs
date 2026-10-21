@@ -6,6 +6,8 @@
  *   pnpm --filter @luviai/video render:marketing SocialAd           # yalniz biri
  *   pnpm --filter @luviai/video render:marketing -- --muted         # ek olarak sessiz varyant (*-muted.mp4)
  *   pnpm --filter @luviai/video render:marketing -- --skip-audio    # muzigi yeniden sentezleme
+ *   pnpm --filter @luviai/video render:marketing pillars            # 5 sutun tanitim videosu × dikey/yatay → out/ranksup-5/
+ *   pnpm --filter @luviai/video render:marketing 1-geo-dikey        # yalniz biri (ad ya da Pillar-geo-dikey)
  *
  * Adimlar: 1) scripts/audio/synth.mjs (timeline.json → public/audio/*.wav, -14 LUFS)
  *          2) Remotion → H.264 MP4 (yuv420p, AAC 192k)  3) ffmpeg iki gecisli loudnorm (-14 LUFS,
@@ -13,12 +15,13 @@
  *          6) kontrol: sure, loudness, siyah kare taramasi.
  */
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, renameSync, statSync, unlinkSync } from 'node:fs';
+import { mkdirSync, readFileSync, renameSync, statSync, unlinkSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const OUT = join(ROOT, 'out', 'marketing');
+const PILLAR_OUT = join(ROOT, 'out', 'ranksup-5');
 const ENTRY = 'src/index.ts';
 
 const JOBS = [
@@ -27,10 +30,25 @@ const JOBS = [
   { id: 'FeatureExplainer', name: 'feature-explainer', posterFrame: 1500, sheet: { width: 400, cols: 8 } },
 ];
 
+// 5 sutun tanitim videolari (src/pillars): sure ve poster karesi schedule.mjs planindan; ses synth-pillars.mjs
+const { planVideo } = await import('../src/pillars/schedule.mjs');
+const PILLAR_SCRIPT = JSON.parse(readFileSync(join(ROOT, 'src', 'pillars', 'script.json'), 'utf8'));
+const PILLAR_JOBS = PILLAR_SCRIPT.videos.flatMap((v) => {
+  const plan = planVideo(PILLAR_SCRIPT, v.id);
+  return ['dikey', 'yatay'].map((fmt) => ({
+    id: `Pillar-${v.id}-${fmt}`,
+    name: `${plan.slug}-${fmt}`,
+    out: PILLAR_OUT,
+    pillar: true,
+    posterFrame: plan.posterFrame,
+    sheet: fmt === 'dikey' ? { width: 270, cols: 10 } : { width: 480, cols: 6 },
+  }));
+});
+
 const args = process.argv.slice(2);
 const flags = new Set(args.filter((a) => a.startsWith('--')));
 const only = args.find((a) => !a.startsWith('--'));
-const jobs = only ? JOBS.filter((j) => j.id === only || j.name === only) : JOBS;
+const jobs = only === 'pillars' ? PILLAR_JOBS : only ? [...JOBS, ...PILLAR_JOBS].filter((j) => j.id === only || j.name === only) : JOBS;
 if (jobs.length === 0) {
   console.error(`Bilinmeyen kompozisyon: ${only}. Secenekler: ${JOBS.map((j) => j.id).join(', ')}`);
   process.exit(1);
@@ -80,13 +98,18 @@ function blackFrames(file) {
 }
 
 mkdirSync(OUT, { recursive: true });
-if (!flags.has('--skip-audio')) run('node', ['scripts/audio/synth.mjs']);
+mkdirSync(PILLAR_OUT, { recursive: true });
+if (!flags.has('--skip-audio')) {
+  if (jobs.some((j) => !j.pillar)) run('node', ['scripts/audio/synth.mjs']);
+  if (jobs.some((j) => j.pillar)) run('node', ['scripts/audio/synth-pillars.mjs']);
+}
 
 const summary = [];
 for (const j of jobs) {
-  const mp4 = join(OUT, `${j.name}.mp4`);
-  const poster = join(OUT, `${j.name}.jpg`);
-  const sheet = join(OUT, `${j.name}-contact.png`);
+  const dir = j.out ?? OUT;
+  const mp4 = join(dir, `${j.name}.mp4`);
+  const poster = join(dir, `${j.name}.jpg`);
+  const sheet = join(dir, `${j.name}-contact.png`);
   remotion([
     'render', ENTRY, j.id, mp4,
     '--codec=h264', '--crf=18', '--pixel-format=yuv420p', '--x264-preset=slow',
@@ -96,7 +119,7 @@ for (const j of jobs) {
   ]);
   loudnorm(mp4);
   if (flags.has('--muted')) {
-    const mutedMp4 = join(OUT, `${j.name}-muted.mp4`);
+    const mutedMp4 = join(dir, `${j.name}-muted.mp4`);
     ffmpeg(['-loglevel', 'error', '-y', '-i', mp4, '-c:v', 'copy', '-an', '-movflags', '+faststart', mutedMp4]);
   }
   remotion(['still', ENTRY, j.id, poster, `--frame=${j.posterFrame}`, '--image-format=jpeg', '--jpeg-quality=88', `--props=${JSON.stringify({ muted: true })}`]);

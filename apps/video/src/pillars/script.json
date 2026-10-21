@@ -1,0 +1,1513 @@
+{
+  "_": "RanksUp 5 sutun tanitim videolari — TUM ekran metinleri burada (schedule.mjs zamanlar, check-pillars-readability.mjs denetler). at = sahne basindan vurus. kind: text (varsayilan) | note (≥3 sn) | ui (yalniz liste kurali). Iddialarin kaynagi: apps/video/README.md 'Tanitim videolari (5 sutun)'.",
+  "site": "ornekklinik.com",
+  "videos": [
+    {
+      "id": "geo",
+      "slug": "1-geo",
+      "title": "GEO / AI görünürlük",
+      "style": "normal",
+      "bpm": 90,
+      "energy": 0.9,
+      "scenes": [
+        {
+          "id": "hook",
+          "type": "hookChat",
+          "music": "pulse",
+          "items": [
+            {
+              "id": "h",
+              "text": "Müşterin artık AI'a soruyor.",
+              "at": 0
+            },
+            {
+              "id": "q",
+              "text": "Kadıköy'de iyi bir diş kliniği önerir misin?",
+              "at": 1.5,
+              "sfx": "pop"
+            },
+            {
+              "id": "tag",
+              "text": "Örnek soru",
+              "at": 1.5,
+              "kind": "note"
+            },
+            {
+              "id": "h2",
+              "text": "Cevapta senin markan var mı?",
+              "at": 4,
+              "sfx": "thock"
+            }
+          ]
+        },
+        {
+          "id": "measure",
+          "type": "page",
+          "content": "engines",
+          "nav": "visibility",
+          "music": "L2",
+          "sfx": "whoosh",
+          "items": [
+            {
+              "id": "h",
+              "text": "RanksUp, markanı 6 AI asistanında ölçer.",
+              "at": 0
+            },
+            {
+              "id": "title",
+              "text": "AI Görünürlük",
+              "at": 1.5
+            },
+            {
+              "id": "hint",
+              "text": "AI asistanlarda atıf takibi",
+              "at": 1.5
+            },
+            {
+              "id": "tag",
+              "text": "Örnek ölçüm",
+              "at": 1.5,
+              "kind": "note"
+            },
+            {
+              "id": "chip",
+              "text": "Haftada 1 ölçüm",
+              "at": 1.5
+            },
+            {
+              "id": "e1",
+              "text": "ChatGPT — URL alıntılandı",
+              "label": "ChatGPT",
+              "value": "URL alıntılandı",
+              "score": 100,
+              "tone": "ok",
+              "at": 3,
+              "kind": "ui",
+              "list": "engines",
+              "sfx": "tick"
+            },
+            {
+              "id": "e2",
+              "text": "Gemini — Anılmadı",
+              "label": "Gemini",
+              "value": "Anılmadı",
+              "score": 0,
+              "tone": "none",
+              "at": 3.8,
+              "kind": "ui",
+              "list": "engines",
+              "sfx": "tick"
+            },
+            {
+              "id": "e3",
+              "text": "Claude — Marka anıldı",
+              "label": "Claude",
+              "value": "Marka anıldı",
+              "score": 50,
+              "tone": "brand",
+              "at": 4.6,
+              "kind": "ui",
+              "list": "engines",
+              "sfx": "tick"
+            },
+            {
+              "id": "e4",
+              "text": "Perplexity — URL alıntılandı",
+              "label": "Perplexity",
+              "value": "URL alıntılandı",
+              "score": 100,
+              "tone": "ok",
+              "at": 5.4,
+              "kind": "ui",
+              "list": "engines",
+              "sfx": "tick"
+            },
+            {
+              "id": "e5",
+              "text": "Grok — Anılmadı",
+              "label": "Grok",
+              "value": "Anılmadı",
+              "score": 0,
+              "tone": "none",
+              "at": 6.2,
+              "kind": "ui",
+              "list": "engines",
+              "sfx": "tick"
+            },
+            {
+              "id": "e6",
+              "text": "DeepSeek — Anılmadı",
+              "label": "DeepSeek",
+              "value": "Anılmadı",
+              "score": 0,
+              "tone": "none",
+              "at": 7,
+              "kind": "ui",
+              "list": "engines",
+              "sfx": "tick"
+            },
+            {
+              "id": "callout",
+              "text": "URL alıntısı 100 · Marka adı 50 · Geçmezse 0",
+              "at": 8.5
+            }
+          ]
+        },
+        {
+          "id": "signals",
+          "type": "page",
+          "content": "scores",
+          "nav": "audit",
+          "music": "L3",
+          "items": [
+            {
+              "id": "h",
+              "text": "Site Skoru'nda AI arama skorunu gör.",
+              "at": 0
+            },
+            {
+              "id": "title",
+              "text": "Site Skoru",
+              "at": 1.0
+            },
+            {
+              "id": "hint",
+              "text": "14 SEO + GEO kontrol noktası",
+              "at": 1.0
+            },
+            {
+              "id": "tag",
+              "text": "Örnek rapor",
+              "at": 1.0,
+              "kind": "note"
+            },
+            {
+              "id": "s1",
+              "text": "AI arama / 100",
+              "value": "58",
+              "at": 1.0
+            },
+            {
+              "id": "r1",
+              "text": "llms.txt — YOK",
+              "label": "llms.txt",
+              "value": "YOK",
+              "tone": "bad",
+              "mono": true,
+              "at": 3,
+              "kind": "ui",
+              "list": "rows",
+              "sfx": "tick"
+            },
+            {
+              "id": "r2",
+              "text": "Schema — VAR",
+              "label": "Schema",
+              "value": "VAR",
+              "tone": "ok",
+              "at": 4,
+              "kind": "ui",
+              "list": "rows",
+              "sfx": "tick"
+            },
+            {
+              "id": "r3",
+              "text": "robots.txt — VAR",
+              "label": "robots.txt",
+              "value": "VAR",
+              "tone": "ok",
+              "mono": true,
+              "at": 5,
+              "kind": "ui",
+              "list": "rows",
+              "sfx": "tick"
+            },
+            {
+              "id": "r4",
+              "text": "sitemap.xml — EKSİK",
+              "label": "sitemap.xml",
+              "value": "EKSİK",
+              "tone": "warn",
+              "mono": true,
+              "at": 6,
+              "kind": "ui",
+              "list": "rows",
+              "sfx": "tick"
+            },
+            {
+              "id": "callout",
+              "text": "robots.txt, sitemap.xml ve llms.txt için önizlemeli düzeltme.",
+              "icon": "lock",
+              "at": 8
+            }
+          ]
+        },
+        {
+          "id": "opps",
+          "type": "page",
+          "content": "steps",
+          "nav": "opportunities",
+          "music": "L3",
+          "items": [
+            {
+              "id": "h",
+              "text": "Eksik kaldığın konular için makale yazar.",
+              "at": 0
+            },
+            {
+              "id": "title",
+              "text": "İçerik Fırsatları",
+              "at": 1.0
+            },
+            {
+              "id": "hint",
+              "text": "Kaybedilen sorgu → içerik → yeniden ölçüm",
+              "at": 1.0
+            },
+            {
+              "id": "plan",
+              "text": "Profesyonel ve üstü planlarda",
+              "at": 1.0,
+              "kind": "note"
+            },
+            {
+              "id": "query",
+              "text": "“Diş taşı temizliği ne sıklıkla yapılmalı?”",
+              "at": 3
+            },
+            {
+              "id": "s1",
+              "text": "Makale üret",
+              "at": 1.0,
+              "kind": "ui",
+              "list": "steps",
+              "sfx": "tick"
+            },
+            {
+              "id": "s2",
+              "text": "Yayınla",
+              "at": 5.5,
+              "kind": "ui",
+              "list": "steps",
+              "sfx": "tick"
+            },
+            {
+              "id": "s3",
+              "text": "Yeniden ölç",
+              "at": 6.5,
+              "kind": "ui",
+              "list": "steps",
+              "sfx": "tick"
+            }
+          ]
+        },
+        {
+          "id": "message",
+          "type": "message",
+          "music": "L4",
+          "items": [
+            {
+              "id": "h",
+              "text": "AI'daki görünürlüğünü tahmin etme.",
+              "at": 0
+            },
+            {
+              "id": "h2",
+              "text": "Ölç, düzelt, yeniden ölç.",
+              "at": 2,
+              "accent": true,
+              "sfx": "pop"
+            }
+          ]
+        },
+        {
+          "id": "end",
+          "type": "end",
+          "holdSec": 1.0,
+          "items": [
+            {
+              "id": "logo",
+              "text": "RanksUp",
+              "at": 0
+            },
+            {
+              "id": "url",
+              "text": "ranksup.ai",
+              "at": 0.75
+            },
+            {
+              "id": "cta",
+              "text": "2 makale ücretsiz dene",
+              "at": 1.5
+            },
+            {
+              "id": "note",
+              "text": "Kart gerekmez",
+              "at": 2,
+              "kind": "note"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "seo",
+      "slug": "2-seo",
+      "title": "SEO",
+      "style": "normal",
+      "bpm": 90,
+      "energy": 1,
+      "scenes": [
+        {
+          "id": "hook",
+          "type": "hookSerp",
+          "music": "L1",
+          "items": [
+            {
+              "id": "h",
+              "text": "Sayfan Google'da ilk sayfada.",
+              "at": 0
+            },
+            {
+              "id": "serp",
+              "text": "Google · arama sonuçları",
+              "at": 1.5,
+              "kind": "ui",
+              "sfx": "pop",
+              "query": "diş taşı temizliği"
+            },
+            {
+              "id": "tag",
+              "text": "Örnek",
+              "at": 1.5,
+              "kind": "note"
+            },
+            {
+              "id": "h2",
+              "text": "Ama neden ilk 3'te değil?",
+              "at": 4,
+              "sfx": "thock"
+            }
+          ]
+        },
+        {
+          "id": "audit",
+          "type": "page",
+          "content": "scores",
+          "nav": "audit",
+          "music": "L2",
+          "sfx": "whoosh",
+          "items": [
+            {
+              "id": "h",
+              "text": "Site Skoru: 14 SEO + GEO kontrol noktası.",
+              "at": 0
+            },
+            {
+              "id": "title",
+              "text": "Site Skoru",
+              "at": 1.5
+            },
+            {
+              "id": "hint",
+              "text": "Otomatik düzeltilebilenler tek tıkla.",
+              "at": 1.5
+            },
+            {
+              "id": "tag",
+              "text": "Örnek rapor",
+              "at": 1.5,
+              "kind": "note"
+            },
+            {
+              "id": "s1",
+              "text": "Site skoru / 100",
+              "value": "72",
+              "at": 1.5
+            },
+            {
+              "id": "r1",
+              "text": "sitemap.xml — VAR",
+              "label": "sitemap.xml",
+              "value": "VAR",
+              "tone": "ok",
+              "mono": true,
+              "at": 3,
+              "kind": "ui",
+              "list": "rows",
+              "sfx": "tick"
+            },
+            {
+              "id": "r2",
+              "text": "Meta açıklama — EKSİK otomatik",
+              "label": "Meta açıklama",
+              "value": "EKSİK",
+              "tone": "warn",
+              "auto": true,
+              "at": 4,
+              "kind": "ui",
+              "list": "rows",
+              "sfx": "tick"
+            },
+            {
+              "id": "r3",
+              "text": "Canonical — VAR",
+              "label": "Canonical",
+              "value": "VAR",
+              "tone": "ok",
+              "at": 5,
+              "kind": "ui",
+              "list": "rows",
+              "sfx": "tick"
+            },
+            {
+              "id": "r4",
+              "text": "Görsel alt metni — EKSİK",
+              "label": "Görsel alt metni",
+              "value": "EKSİK",
+              "tone": "warn",
+              "at": 6,
+              "kind": "ui",
+              "list": "rows",
+              "sfx": "tick"
+            },
+            {
+              "id": "callout",
+              "text": "Otomatik düzelt",
+              "icon": "wand",
+              "button": true,
+              "at": 8
+            }
+          ]
+        },
+        {
+          "id": "rank",
+          "type": "page",
+          "content": "ranks",
+          "nav": "rankTracking",
+          "music": "L3",
+          "items": [
+            {
+              "id": "h",
+              "text": "Search Console'u bağla, sorgularının sırasını izle.",
+              "at": 0
+            },
+            {
+              "id": "title",
+              "text": "Sıralama Takibi",
+              "at": 1.0
+            },
+            {
+              "id": "hint",
+              "text": "Search Console verisi, her gün",
+              "at": 1.0
+            },
+            {
+              "id": "tag",
+              "text": "Örnek ekran",
+              "at": 1.0,
+              "kind": "note"
+            },
+            {
+              "id": "k1",
+              "text": "diş taşı temizliği — 6",
+              "label": "diş taşı temizliği",
+              "value": "6",
+              "trend": "up",
+              "at": 3,
+              "kind": "ui",
+              "list": "ranks",
+              "sfx": "tick"
+            },
+            {
+              "id": "k2",
+              "text": "implant tedavisi — 9",
+              "label": "implant tedavisi",
+              "value": "9",
+              "trend": "flat",
+              "at": 4,
+              "kind": "ui",
+              "list": "ranks",
+              "sfx": "tick"
+            },
+            {
+              "id": "k3",
+              "text": "diş beyazlatma — 12",
+              "label": "diş beyazlatma",
+              "value": "12",
+              "trend": "down",
+              "at": 5,
+              "kind": "ui",
+              "list": "ranks",
+              "sfx": "tick"
+            },
+            {
+              "id": "k4",
+              "text": "kanal tedavisi — 4",
+              "label": "kanal tedavisi",
+              "value": "4",
+              "trend": "up",
+              "at": 6,
+              "kind": "ui",
+              "list": "ranks",
+              "sfx": "tick"
+            }
+          ]
+        },
+        {
+          "id": "stuck",
+          "type": "page",
+          "content": "stuck",
+          "nav": "stuckPages",
+          "music": "L3",
+          "items": [
+            {
+              "id": "h",
+              "text": "İlk sayfada takılı kalan sayfaları bul.",
+              "at": 0
+            },
+            {
+              "id": "title",
+              "text": "Takılı Sayfalar",
+              "at": 1.0
+            },
+            {
+              "id": "hint",
+              "text": "Google'da ilk sayfada (sıra 4-15) ama ilk 3'te değil",
+              "at": 1.0
+            },
+            {
+              "id": "plan",
+              "text": "Profesyonel ve üstü planlarda",
+              "at": 1.0,
+              "kind": "note"
+            },
+            {
+              "id": "p1",
+              "text": "/dis-tasi-temizligi — 7. sıra",
+              "label": "/dis-tasi-temizligi",
+              "value": "7. sıra",
+              "at": 3,
+              "kind": "ui",
+              "list": "pages",
+              "sfx": "tick"
+            },
+            {
+              "id": "p2",
+              "text": "/implant-rehberi — 11. sıra",
+              "label": "/implant-rehberi",
+              "value": "11. sıra",
+              "at": 4,
+              "kind": "ui",
+              "list": "pages",
+              "sfx": "tick"
+            },
+            {
+              "id": "p3",
+              "text": "/dis-beyazlatma — 5. sıra",
+              "label": "/dis-beyazlatma",
+              "value": "5. sıra",
+              "at": 5,
+              "kind": "ui",
+              "list": "pages",
+              "sfx": "tick"
+            },
+            {
+              "id": "callout",
+              "text": "AI cümle düzeyinde onarır; başlık ve yapı korunur.",
+              "icon": "wand",
+              "at": 7
+            }
+          ]
+        },
+        {
+          "id": "message",
+          "type": "message",
+          "music": "L4",
+          "items": [
+            {
+              "id": "h",
+              "text": "Tahmin değil, veri.",
+              "at": 0
+            },
+            {
+              "id": "h2",
+              "text": "Tüm modüllerden tek iş listesi: Aksiyon Planı.",
+              "at": 2,
+              "accent": true,
+              "sfx": "pop"
+            }
+          ]
+        },
+        {
+          "id": "end",
+          "type": "end",
+          "holdSec": 1.0,
+          "items": [
+            {
+              "id": "logo",
+              "text": "RanksUp",
+              "at": 0
+            },
+            {
+              "id": "url",
+              "text": "ranksup.ai",
+              "at": 0.75
+            },
+            {
+              "id": "cta",
+              "text": "2 makale ücretsiz dene",
+              "at": 1.5
+            },
+            {
+              "id": "note",
+              "text": "Kart gerekmez",
+              "at": 2,
+              "kind": "note"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "aso",
+      "slug": "3-aso",
+      "title": "ASO",
+      "style": "fast",
+      "bpm": 120,
+      "energy": 0.85,
+      "scenes": [
+        {
+          "id": "hook",
+          "type": "hookStore",
+          "music": "pulse",
+          "items": [
+            {
+              "id": "h",
+              "text": "Uygulaman aramada görünmüyor mu?",
+              "at": 0
+            },
+            {
+              "id": "store",
+              "text": "App Store · arama",
+              "query": "diş randevusu",
+              "at": 2,
+              "kind": "ui",
+              "sfx": "pop"
+            },
+            {
+              "id": "tag",
+              "text": "Örnek",
+              "at": 2,
+              "kind": "note"
+            },
+            {
+              "id": "h2",
+              "text": "Her karakter önemli.",
+              "at": 5,
+              "sfx": "thock"
+            }
+          ]
+        },
+        {
+          "id": "metadata",
+          "type": "page",
+          "content": "compare",
+          "nav": "aso",
+          "crumb": "Metadata",
+          "music": "L2",
+          "sfx": "whoosh",
+          "items": [
+            {
+              "id": "h",
+              "text": "Ad, alt başlık ve anahtar kelimeler için AI önerisi.",
+              "at": 0
+            },
+            {
+              "id": "title",
+              "text": "Metadata",
+              "at": 2
+            },
+            {
+              "id": "hint",
+              "text": "Mevcut hali ile AI önerisi yan yana",
+              "at": 2
+            },
+            {
+              "id": "tag",
+              "text": "Örnek ekran",
+              "at": 2,
+              "kind": "note"
+            },
+            {
+              "id": "m1",
+              "text": "Ad — Örnek Klinik: Diş Randevusu",
+              "label": "Ad",
+              "from": "Örnek Klinik",
+              "value": "Örnek Klinik: Diş Randevusu",
+              "limit": 30,
+              "at": 4,
+              "kind": "ui",
+              "list": "fields",
+              "sfx": "tick"
+            },
+            {
+              "id": "m2",
+              "text": "Alt başlık — Randevu, hatırlatma, kayıt",
+              "label": "Alt başlık",
+              "from": "Klinik uygulaması",
+              "value": "Randevu, hatırlatma, kayıt",
+              "limit": 30,
+              "at": 5.5,
+              "kind": "ui",
+              "list": "fields",
+              "sfx": "tick"
+            },
+            {
+              "id": "m3",
+              "text": "Anahtar kelimeler — diş,hekim,randevu,implant",
+              "label": "Anahtar kelimeler",
+              "from": "klinik,sağlık",
+              "value": "diş,hekim,randevu,implant,ağız",
+              "limit": 100,
+              "mono": true,
+              "at": 7,
+              "kind": "ui",
+              "list": "fields",
+              "sfx": "tick"
+            },
+            {
+              "id": "callout",
+              "text": "Hiçbir şey mağazaya kendiliğinden yazılmaz.",
+              "icon": "lock",
+              "at": 9
+            }
+          ]
+        },
+        {
+          "id": "keywords",
+          "type": "page",
+          "content": "ranks",
+          "nav": "aso",
+          "crumb": "Anahtar kelimeler",
+          "music": "L3",
+          "items": [
+            {
+              "id": "h",
+              "text": "Anahtar kelime sıranı her gün takip et.",
+              "at": 0
+            },
+            {
+              "id": "title",
+              "text": "Anahtar kelimeler",
+              "at": 1.5
+            },
+            {
+              "id": "hint",
+              "text": "App Store ve Google Play ayrı ayrı",
+              "at": 1.5
+            },
+            {
+              "id": "tag",
+              "text": "Örnek ekran",
+              "at": 1.5,
+              "kind": "note"
+            },
+            {
+              "id": "k1",
+              "text": "diş randevusu — 14",
+              "label": "diş randevusu",
+              "value": "14",
+              "trend": "up",
+              "at": 4,
+              "kind": "ui",
+              "list": "ranks",
+              "sfx": "tick"
+            },
+            {
+              "id": "k2",
+              "text": "diş hekimi — 38",
+              "label": "diş hekimi",
+              "value": "38",
+              "trend": "up",
+              "at": 5.5,
+              "kind": "ui",
+              "list": "ranks",
+              "sfx": "tick"
+            },
+            {
+              "id": "k3",
+              "text": "ağız sağlığı — 52",
+              "label": "ağız sağlığı",
+              "value": "52",
+              "trend": "down",
+              "at": 7,
+              "kind": "ui",
+              "list": "ranks",
+              "sfx": "tick"
+            }
+          ]
+        },
+        {
+          "id": "reviews",
+          "type": "page",
+          "content": "review",
+          "nav": "aso",
+          "crumb": "Yorumlar",
+          "music": "L3",
+          "items": [
+            {
+              "id": "h",
+              "text": "Yorumlara AI taslağıyla yanıt ver.",
+              "at": 0
+            },
+            {
+              "id": "title",
+              "text": "Yorumlar",
+              "at": 1.5
+            },
+            {
+              "id": "hint",
+              "text": "Son 50 yorum · duygu ve konu analizi",
+              "at": 1.5
+            },
+            {
+              "id": "tag",
+              "text": "Örnek yorum",
+              "at": 1.5,
+              "kind": "note"
+            },
+            {
+              "id": "review",
+              "text": "“Randevu almak kolay ama bildirim gelmedi.”",
+              "at": 4,
+              "sfx": "pop"
+            },
+            {
+              "id": "draft",
+              "text": "AI taslak: “Teşekkürler! Bildirim sorununu inceliyoruz.”",
+              "at": 6.5,
+              "sfx": "tick"
+            },
+            {
+              "id": "callout",
+              "text": "Metni okuyup onaylayınca App Store Connect'ten gönderilir.",
+              "icon": "check",
+              "at": 9
+            }
+          ]
+        },
+        {
+          "id": "more",
+          "type": "message",
+          "variant": "list",
+          "music": "L4",
+          "items": [
+            {
+              "id": "h",
+              "text": "ASO'nun tamamı tek panelde.",
+              "at": 0
+            },
+            {
+              "id": "l1",
+              "text": "Screenshot Studio — AI arka plan ve başlık",
+              "at": 2.5,
+              "list": "more",
+              "sfx": "tick"
+            },
+            {
+              "id": "l2",
+              "text": "Apple Search Ads — günlük otopilot",
+              "at": 4,
+              "list": "more",
+              "sfx": "tick"
+            },
+            {
+              "id": "plan",
+              "text": "App Store Connect ve Apple Search Ads Profesyonel ve üstü planlarda",
+              "at": 5.5,
+              "kind": "note"
+            }
+          ]
+        },
+        {
+          "id": "end",
+          "type": "end",
+          "holdSec": 1.0,
+          "items": [
+            {
+              "id": "logo",
+              "text": "RanksUp",
+              "at": 0
+            },
+            {
+              "id": "url",
+              "text": "ranksup.ai",
+              "at": 1
+            },
+            {
+              "id": "cta",
+              "text": "2 makale ücretsiz dene",
+              "at": 2
+            },
+            {
+              "id": "note",
+              "text": "Kart gerekmez",
+              "at": 2.5,
+              "kind": "note"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "icerik",
+      "slug": "4-icerik",
+      "title": "İçerik otopilotu",
+      "style": "slow",
+      "bpm": 72,
+      "energy": 1,
+      "scenes": [
+        {
+          "id": "hook",
+          "type": "hookCalendar",
+          "music": "L1",
+          "items": [
+            {
+              "id": "h",
+              "text": "Blog yazmaya vakit yok mu?",
+              "at": 0
+            },
+            {
+              "id": "cal",
+              "text": "Bu ay planlı yazı yok",
+              "at": 1.5,
+              "sfx": "pop"
+            },
+            {
+              "id": "tag",
+              "text": "Örnek",
+              "at": 1.5,
+              "kind": "note"
+            },
+            {
+              "id": "h2",
+              "text": "Takvimi otomatik akış doldursun.",
+              "at": 4,
+              "sfx": "thock"
+            }
+          ]
+        },
+        {
+          "id": "brain",
+          "type": "page",
+          "content": "rows",
+          "nav": "settings",
+          "music": "L2",
+          "sfx": "whoosh",
+          "items": [
+            {
+              "id": "h",
+              "text": "Yazılar senin marka sesinle.",
+              "at": 0
+            },
+            {
+              "id": "title",
+              "text": "Marka beyni",
+              "at": 1.5
+            },
+            {
+              "id": "hint",
+              "text": "Her site için ayrı",
+              "at": 1.5
+            },
+            {
+              "id": "tag",
+              "text": "Örnek ekran",
+              "at": 1.5,
+              "kind": "note"
+            },
+            {
+              "id": "r1",
+              "text": "Marka sesi — Sıcak, açıklayıcı",
+              "label": "Marka sesi",
+              "value": "Sıcak, açıklayıcı",
+              "tone": "brand",
+              "at": 3,
+              "kind": "ui",
+              "list": "rows",
+              "sfx": "tick"
+            },
+            {
+              "id": "r2",
+              "text": "Persona — Kadıköy'de yaşayan yetişkinler",
+              "label": "Persona",
+              "value": "Kadıköy'de yaşayan yetişkinler",
+              "tone": "brand",
+              "at": 4,
+              "kind": "ui",
+              "list": "rows",
+              "sfx": "tick"
+            },
+            {
+              "id": "r3",
+              "text": "Rakip analizi — Hazır",
+              "label": "Rakip analizi",
+              "value": "Hazır",
+              "tone": "ok",
+              "at": 5,
+              "kind": "ui",
+              "list": "rows",
+              "sfx": "tick"
+            }
+          ]
+        },
+        {
+          "id": "pipeline",
+          "type": "page",
+          "content": "pipeline",
+          "nav": "articles",
+          "tabs": [
+            "Önerilen",
+            "Üretimde",
+            "Takvimde",
+            "Yayında"
+          ],
+          "activeTab": 1,
+          "music": "L3",
+          "items": [
+            {
+              "id": "h",
+              "text": "5 ajanlı üretim hattı, yayın öncesi kalite kapısı.",
+              "at": 0
+            },
+            {
+              "id": "title",
+              "text": "İçerikler",
+              "at": 1.0
+            },
+            {
+              "id": "hint",
+              "text": "Önerileri takvime al ya da hemen üret.",
+              "at": 1.0
+            },
+            {
+              "id": "tag",
+              "text": "Örnek ekran",
+              "at": 1.0,
+              "kind": "note"
+            },
+            {
+              "id": "p1",
+              "text": "Anahtar kelime ve taslak",
+              "at": 3,
+              "kind": "ui",
+              "list": "pipe",
+              "sfx": "tick"
+            },
+            {
+              "id": "p2",
+              "text": "Yazar ajan",
+              "at": 3.6,
+              "kind": "ui",
+              "list": "pipe",
+              "sfx": "tick"
+            },
+            {
+              "id": "p3",
+              "text": "Editör kalite kontrolü",
+              "at": 4.2,
+              "kind": "ui",
+              "list": "pipe",
+              "sfx": "tick"
+            },
+            {
+              "id": "p4",
+              "text": "Görsel ajanı",
+              "at": 4.8,
+              "kind": "ui",
+              "list": "pipe",
+              "sfx": "tick"
+            },
+            {
+              "id": "p5",
+              "text": "Schema markup + SEO meta",
+              "at": 5.4,
+              "kind": "ui",
+              "list": "pipe",
+              "sfx": "tick"
+            },
+            {
+              "id": "callout",
+              "text": "Kalite kapısı: geçti",
+              "icon": "shield",
+              "at": 6.5,
+              "sfx": "pop"
+            }
+          ]
+        },
+        {
+          "id": "publish",
+          "type": "page",
+          "content": "modes",
+          "nav": "autopilot",
+          "music": "L3",
+          "items": [
+            {
+              "id": "h",
+              "text": "14 yayın hedefi. Onaylı ya da tam otomatik.",
+              "at": 0
+            },
+            {
+              "id": "title",
+              "text": "Otomatik Akış",
+              "at": 1.0
+            },
+            {
+              "id": "hint",
+              "text": "Yarı otomatik ya da tam otomatik",
+              "at": 1.0
+            },
+            {
+              "id": "tag",
+              "text": "Örnek ekran",
+              "at": 1.0,
+              "kind": "note"
+            },
+            {
+              "id": "m1",
+              "text": "Yarı otomatik — Her yazı yayınlanmadan önce onayını bekler.",
+              "label": "Yarı otomatik",
+              "value": "Her yazı yayınlanmadan önce onayını bekler.",
+              "at": 3,
+              "kind": "ui",
+              "list": "modes",
+              "sfx": "tick"
+            },
+            {
+              "id": "m2",
+              "text": "Tam otomatik — Üretim, görsel, şema ve yayın.",
+              "label": "Tam otomatik",
+              "value": "Üretim, görsel, şema ve yayın.",
+              "at": 4.25,
+              "kind": "ui",
+              "list": "modes",
+              "sfx": "tick"
+            },
+            {
+              "id": "targets",
+              "text": "WordPress · Webflow · Ghost · FTP · SFTP · cPanel · GitHub · …",
+              "at": 5.5,
+              "kind": "ui",
+              "list": "modes"
+            },
+            {
+              "id": "callout",
+              "text": "Yayındaki yazıların adresi her gün kontrol edilir.",
+              "icon": "check",
+              "at": 6.75
+            }
+          ]
+        },
+        {
+          "id": "message",
+          "type": "message",
+          "music": "L4",
+          "items": [
+            {
+              "id": "h",
+              "text": "Sen işine odaklan.",
+              "at": 0
+            },
+            {
+              "id": "h2",
+              "text": "İçerik takvimin kendi kendine işlesin.",
+              "at": 2,
+              "accent": true,
+              "sfx": "pop"
+            }
+          ]
+        },
+        {
+          "id": "end",
+          "type": "end",
+          "holdSec": 1.0,
+          "items": [
+            {
+              "id": "logo",
+              "text": "RanksUp",
+              "at": 0
+            },
+            {
+              "id": "url",
+              "text": "ranksup.ai",
+              "at": 0.75
+            },
+            {
+              "id": "cta",
+              "text": "2 makale ücretsiz dene",
+              "at": 1.5
+            },
+            {
+              "id": "note",
+              "text": "Kart gerekmez",
+              "at": 2,
+              "kind": "note"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "video",
+      "slug": "5-video",
+      "title": "RanksUp Video",
+      "style": "fast",
+      "bpm": 120,
+      "energy": 1,
+      "scenes": [
+        {
+          "id": "hook",
+          "type": "hookArticle",
+          "music": "pulse",
+          "items": [
+            {
+              "id": "h",
+              "text": "Yazın yayında. Videosu nerede?",
+              "at": 0
+            },
+            {
+              "id": "art",
+              "text": "Diş taşı temizliği ne sıklıkla yapılmalı?",
+              "at": 2,
+              "sfx": "pop"
+            },
+            {
+              "id": "tag",
+              "text": "Örnek makale",
+              "at": 2,
+              "kind": "note"
+            },
+            {
+              "id": "h2",
+              "text": "Reels için baştan uğraşma.",
+              "at": 6,
+              "sfx": "thock"
+            }
+          ]
+        },
+        {
+          "id": "source",
+          "type": "page",
+          "content": "sources",
+          "nav": "videos",
+          "music": "L2",
+          "sfx": "whoosh",
+          "items": [
+            {
+              "id": "h",
+              "text": "Makalenden, ana sayfandan ya da ürün sayfandan.",
+              "at": 0
+            },
+            {
+              "id": "title",
+              "text": "Videolar",
+              "at": 2
+            },
+            {
+              "id": "hint",
+              "text": "RanksUp Video",
+              "at": 2
+            },
+            {
+              "id": "tag",
+              "text": "Örnek ekran",
+              "at": 2,
+              "kind": "note"
+            },
+            {
+              "id": "c1",
+              "text": "Makale",
+              "sub": "Yayındaki yazından",
+              "at": 4,
+              "kind": "ui",
+              "list": "src",
+              "sfx": "tick"
+            },
+            {
+              "id": "c2",
+              "text": "Site tanıtımı",
+              "sub": "Ana sayfandan",
+              "at": 5.5,
+              "kind": "ui",
+              "list": "src",
+              "sfx": "tick"
+            },
+            {
+              "id": "c3",
+              "text": "Ürün tanıtımı",
+              "sub": "Ürün / hizmet sayfandan",
+              "at": 7,
+              "kind": "ui",
+              "list": "src",
+              "sfx": "tick"
+            },
+            {
+              "id": "callout",
+              "text": "Video genellikle 1-3 dakikada hazır olur.",
+              "icon": "clock",
+              "at": 9.5
+            }
+          ]
+        },
+        {
+          "id": "brand",
+          "type": "formats",
+          "music": "L3",
+          "sfx": "whoosh",
+          "items": [
+            {
+              "id": "h",
+              "text": "Sitenin adı, logosu ve rengiyle.",
+              "at": 0
+            },
+            {
+              "id": "tag",
+              "text": "Örnek video",
+              "at": 2,
+              "kind": "note"
+            },
+            {
+              "id": "v",
+              "text": "Dikey: Reels, Shorts, TikTok",
+              "at": 2,
+              "list": "fmt",
+              "sfx": "pop"
+            },
+            {
+              "id": "sample",
+              "text": "Diş taşı temizliği ne sıklıkla yapılmalı?",
+              "at": 2,
+              "kind": "ui"
+            },
+            {
+              "id": "w",
+              "text": "Yatay: site ve ürün tanıtımında",
+              "at": 5,
+              "list": "fmt",
+              "sfx": "pop"
+            },
+            {
+              "id": "claim",
+              "text": "Metin yalnız sitenin kendi cümlelerinden ve sayılarından oluşur.",
+              "at": 8,
+              "icon": "check"
+            }
+          ]
+        },
+        {
+          "id": "plans",
+          "type": "page",
+          "content": "quota",
+          "nav": "videos",
+          "music": "L3",
+          "sfx": "whoosh",
+          "items": [
+            {
+              "id": "h",
+              "text": "Profesyonel planda ayda 20 video.",
+              "at": 0
+            },
+            {
+              "id": "title",
+              "text": "Aylık video hakkı",
+              "at": 2
+            },
+            {
+              "id": "hint",
+              "text": "Plan başına",
+              "at": 2
+            },
+            {
+              "id": "q1",
+              "text": "Profesyonel — ayda 20 video",
+              "label": "Profesyonel",
+              "value": "20",
+              "at": 4,
+              "kind": "ui",
+              "list": "plans",
+              "sfx": "tick"
+            },
+            {
+              "id": "q2",
+              "text": "Ajans — ayda 60 video",
+              "label": "Ajans",
+              "value": "60",
+              "at": 5.5,
+              "kind": "ui",
+              "list": "plans",
+              "sfx": "tick"
+            },
+            {
+              "id": "q3",
+              "text": "Kurumsal — ayda 200 video",
+              "label": "Kurumsal",
+              "value": "200",
+              "at": 7,
+              "kind": "ui",
+              "list": "plans",
+              "sfx": "tick"
+            }
+          ]
+        },
+        {
+          "id": "message",
+          "type": "message",
+          "music": "L4",
+          "items": [
+            {
+              "id": "h",
+              "text": "Yayındaki yazın, sitenin ve ürünlerin",
+              "at": 0
+            },
+            {
+              "id": "h2",
+              "text": "markalı kısa videoya dönüşsün.",
+              "at": 2.5,
+              "accent": true,
+              "sfx": "pop"
+            }
+          ]
+        },
+        {
+          "id": "end",
+          "type": "end",
+          "holdSec": 1.0,
+          "items": [
+            {
+              "id": "logo",
+              "text": "RanksUp",
+              "at": 0
+            },
+            {
+              "id": "url",
+              "text": "ranksup.ai",
+              "at": 1
+            },
+            {
+              "id": "cta",
+              "text": "2 makale ücretsiz dene",
+              "at": 2
+            },
+            {
+              "id": "note",
+              "text": "Kart gerekmez",
+              "at": 2.5,
+              "kind": "note"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

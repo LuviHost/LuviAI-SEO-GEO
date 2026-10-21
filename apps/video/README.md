@@ -15,6 +15,7 @@ ile tüketilir).
 | `FeatureExplainer` | 1920×1080 @30 | 72 sn, Türkçe altyazı + müzik | Panel turu (canlı ekran kaydı üslubu) — `out/marketing/` |
 | `ArticleShort` | 1080×1920 @30 | tempo: hızlı 15 sn · normal 20–50 sn · yavaş 25–60 sn (metne göre), parametrik | **RanksUp Video** (ürün): müşterinin yayındaki makalesinden markalı kısa video — sunucuda `apps/api/public/videos/<siteId>/`; CLI denemesi `out/article-shorts/` |
 | `SiteIntro` / `SiteIntroWide` | 1080×1920 / 1920×1080 @30 | hızlı 15 sn / 24 sn · normal 15–45 sn · yavaş 25–60 sn, parametrik | **RanksUp Video** site tanıtımı: müşterinin anasayfası + marka profili; marka rengi zemin, logo, 3 hizmet kartı |
+| `Pillar-<geo\|seo\|aso\|icerik\|video>-<dikey\|yatay>` | 1080×1920 / 1920×1080 @30 | 40–47 sn, müzik (videoya özgü üslup ve BPM) | RanksUp tanıtım videoları — 5 sütun × 2 biçim — `out/ranksup-5/` |
 | `ProductShort` / `ProductWide` | 1080×1920 / 1920×1080 @30 | hızlı 15 sn · normal 15–50 sn · yavaş 25–60 sn, parametrik | **RanksUp Video** ürün tanıtımı: müşterinin kendi sayfası; ürün görseli (yavaş yakınlaşma), özellik listesi, yalnız doğrulanmış fiyat etiketi |
 
 ## Komutlar
@@ -82,6 +83,40 @@ Kodlama ayarları (`crf`, ölçek, poster karesi) `scripts/render.mjs` içinde.
   robots.txt yalnız onayla yazılır, puanlama 100/50/0. Sıralama/trafik vaadi yok.
 - **Güvenli alan (SocialAd):** metin ve arayüz x 90–950, y 250–1500 içinde (sağdaki beğeni sütunu ve
   alttaki açıklama alanı boş kalır).
+
+## Tanıtım videoları — 5 sütun (`src/pillars/`)
+
+```bash
+pnpm --filter @luviai/video render:marketing pillars        # 10 render → out/ranksup-5/<n>-<konu>-<dikey|yatay>.{mp4,jpg} + temas sayfası
+pnpm --filter @luviai/video check:pillars                   # okunurluk denetimi (10 render); --videos out/ranksup-5 kare sayısını da sınar
+pnpm --filter @luviai/video audio:pillars                   # yalnız müzik → public/audio/pillars/<id>.wav
+```
+
+- **Tek kaynak:** ekrandaki her metin `src/pillars/script.json`'da (kanca, panel başlıkları, örnek satırlar, notlar).
+  `schedule.mjs` sahne sürelerini **metinden** hesaplar (her metin `max(2,0 sn; 0,3 sn × kelime + 1,0 sn)`, not ≥ 3 sn,
+  liste son öğeden sonra ≥ 2,5 sn; sakin giriş yayı, vuruşa yuvarlanan kesmeler). Remotion sahneleri, müzik sentezi ve
+  `scripts/check-pillars-readability.mjs` aynı planı kullanır; denetim giriş yayını `spring()` ile bağımsız yeniden
+  hesaplar ve aynı karede birden fazla yeni öğe girmesini de ihlal sayar.
+- **Kurgu:** kanca (sütuna özgü sorun) → gerçek panelin yeniden çizimi (kenar çubuğu `site-nav.ts` birebir; dikeyde mobil
+  kırıntı çubuğu) → tek mesaj → kapanış (logo, ranksup.ai, "2 makale ücretsiz dene", "Kart gerekmez"). Dikey ve yatay
+  aynı zaman planı ve aynı ses dosyası.
+- **Müzik:** `styles.mjs` üslupları videonun kendi BPM'inde, baştan sona tek parça (sahne başına seviye, liste öğesinde
+  tık, panelde swish, kapanışta riser + vuruş): GEO ve SEO normal (chill-hop, 90), ASO ve RanksUp Video hızlı
+  (elektronik pop, 120), İçerik yavaş (sinematik, 72). `public/audio/pillars/` — mevcut izlere dokunmaz.
+- **İddiaların kaynağı** (videoda yalnız bunlar): 6 AI asistanı + haftada 1 ölçüm + 100/50/0 (`faq/page.tsx`,
+  `measurement-allowance.service.ts`, `citation-score.ts`); Site Skoru "14 SEO + GEO kontrol noktası", VAR/EKSİK/YOK,
+  "AI arama / 100", "Otomatik düzelt" (`sites/[id]/audit/page.tsx`, `site-flow-stepper.tsx`); robots.txt / sitemap.xml /
+  llms.txt önizlemeli düzeltme (`faq/page.tsx`, `auto-fix.service.ts`); İçerik Fırsatları ve Takılı Sayfalar
+  Profesyonel+ (`plans.ts FEATURE_MIN_PLAN`), "sıra 4-15", "AI cümle düzeyinde onarır…" (`stuck-pages/page.tsx`);
+  Sıralama Takibi = Search Console verisi (`rank-tracking/page.tsx`); Aksiyon Planı (`site-nav.ts`); ASO metadata
+  30/30/100 ve "Hiçbir şey mağazaya kendiliğinden yazılmaz" (`aso/_components/store-limits.ts`, `metadata/page.tsx`),
+  günlük sıra takibi (`aso/tracker.service.ts`), son 50 yorum + onaylı App Store Connect yanıtı (`reviews/page.tsx`,
+  `asc-review-reply.tsx`), Screenshot Studio ve Apple Search Ads günlük otopilot (`plans.ts`, `asa-tab.tsx`); marka beyni
+  (`onboarding/page.tsx`), 5 ajanlı hat + kalite kapısı (`pipeline-progress.tsx`, `qa-gate.service.ts`), 14 yayın hedefi
+  (`publish-target-catalog.ts`), Yarı / Tam otomatik (`site-overview-dashboard.tsx`), günlük canlılık denetimi
+  (`published-liveness.service.ts`); RanksUp Video kaynakları, biçimleri, "1-3 dakikada", "Metin yalnız sitenin kendi
+  cümlelerinden ve sayılarından oluşur", aylık 20 / 60 / 200 (`videos/page.tsx`, `article-video.ts`, `plans.ts`).
+  **Kullanılmayanlar:** white-label, ekip üyeleri, 7. asistan, sıralama/trafik vaadi.
 
 ## Makaleden otomatik kısa video (ArticleShort — CLI denemesi)
 
