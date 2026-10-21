@@ -12,19 +12,37 @@
  * sinus/gurultu osilatorlerinden, zarflardan ve basit filtrelerden uretilir. Rastgelelik
  * tohumlu (mulberry32) — ayni girdi her calistirmada ayni dosyayi uretir.
  *
- * Duzen: Fa majorde 4 akorluk dongu (Fmaj7 · Am7 · Dm7 · Bbmaj7), her akor 1 olcu (4 vurus).
- * Bolum seviyeleri (timeline "music"): silence · pulse · L1 · L2 · L3 · L4 · outro.
+ * Pazarlama kompozisyonlari (public/audio/<ad>.wav) — DEGISMEZ: Fa majorde 4 akorluk dongu
+ * (Fmaj7 · Am7 · Dm7 · Bbmaj7), her akor 1 olcu (4 vurus). Bolum seviyeleri (timeline "music"):
+ * silence · pulse · L1 · L2 · L3 · L4 · outro. Istege bagli "bpm" kompozisyona kendi temposunu verir.
+ *
+ * RanksUp Video tempo kokleri (timeline.json "tempo", src/tempo/plan.mjs) — ayri modul styles.mjs:
+ *   node scripts/audio/synth.mjs --tempo         # yalniz kokler -> public/audio/tempo/*.wav
+ * Her tempo KENDI usluplu bestesini calar (21.10.2026 sahip geri bildirimi: ayni muzigi yavaslatmak
+ * kalitesiz): hizli = enerjik elektronik pop (120 BPM), normal = chill-hop / lo-fi (90 BPM, swing),
+ * yavas = sinematik ambient (72 BPM). Ayrintilar ve akor yuruyusleri styles.mjs basliginda.
+ *   fast    sablon basina TEK dosya (<sablon>-fast.wav): eski sabit izgaranin (compositions)
+ *           bolumleri ve efekt anlari aynen, yeni uslupte — video zamanlamasi birebir ayni.
+ *   normal / slow  videonun suresi metne gore degistigi icin sablon basina uc kok — giris ve govde
+ *           DONGUSU (loopBeats; uc dongu calinip ortadaki kesilir, dongu siniri kesintisiz),
+ *           kapanis (riser + vurus + son akor; son vurus solar) — ve tempo basina efekt dosyalari
+ *           (vurustan bir vurus once baslar). Remotion bunlari plan.audio'daki karelere yerlestirir.
+ * Kokler loudnorm'dan GECMEZ: bir uslubun tum kokleri ve efektleri ayni sabit kazancla yazilir
+ * (styleGain) ki birbirlerine gore dengeleri korunsun; son seviyeyi render hattinin loudnorm'u
+ * (-14 LUFS) kurar. Denetim: node scripts/audio/check-music.mjs
  */
 import { mkdirSync, readFileSync, renameSync, writeFileSync, unlinkSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runFfSync } from '../ffmpeg.mjs';
+import { LOOP_BEATS, renderStyle } from './styles.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const TIMELINE = JSON.parse(readFileSync(join(ROOT, 'src', 'marketing', 'timeline.json'), 'utf8'));
 const OUT_DIR = join(ROOT, 'public', 'audio');
 const SR = 48000;
-const SPB = 60 / TIMELINE.bpm; // saniye / vurus
+/** saniye / vurus — mix() her kompozisyon / kok icin kendi bpm'ine gore ayarlar (yoksa ust duzey bpm) */
+let SPB = 60 / TIMELINE.bpm;
 const TAU = Math.PI * 2;
 
 /* ───────────── yardimcilar ───────────── */
@@ -311,7 +329,9 @@ const LEVELS = {
   outro: { outro: true },
 };
 
-function arrange(id, def) {
+/** ham (normallestirilmemis) stereo karisim */
+function mix(id, def) {
+  SPB = 60 / (def.bpm ?? TIMELINE.bpm);
   const seconds = def.beats * SPB + 2.5;
   const dry = new Bus(seconds);
   const send = new Bus(seconds);
@@ -382,6 +402,11 @@ function arrange(id, def) {
     out.L[i] = dry.L[i] + wet.L[i] * 0.9;
     out.R[i] = dry.R[i] + wet.R[i] * 0.9;
   }
+  return out;
+}
+
+function arrange(id, def) {
+  const out = mix(id, def);
   // tam vurus sayisinda kes (video ile ayni uzunluk), son 80 ms'de yumusak kapanis
   const n = Math.round(def.beats * SPB * SR);
   const fade = Math.round(0.08 * SR);
@@ -426,8 +451,101 @@ function loudnorm(src, dst) {
   return json.input_i;
 }
 
+/* ───────────── tempo kokleri (uslup basina ayri beste: styles.mjs) ───────────── */
+
+/**
+ * Uslup basina TEK kazanc: o uslubun makale govde dongusu (en yogun bolum) tepe 0,8'e oturur; ayni
+ * uslubun giris / govde / kapanis kokleri ve efektleri bu kazancla yazilir ki birbirlerine gore
+ * dengeleri korunsun (son seviyeyi render hattinin loudnorm'u, -14 LUFS, kurar). Kazanc ham
+ * karisimdan hesaplanir; tanh yalniz guvenlik (tepe 0,8'de neredeyse dogrusal).
+ */
+const styleGains = {};
+const refMix = new Map();
+const loopDef = (bpm, LB, level, energy) => ({ bpm, beats: 3 * LB, energy, music: [[0, 3 * LB, level]], events: [] });
+const bpmOf = (tempo, T) => (tempo === 'fast' ? TIMELINE.bpm : T.presets[tempo].bpm);
+
+function styleGain(style, T) {
+  if (styleGains[style] === undefined) {
+    const cfg = T.templates.ArticleShort;
+    const bpm = bpmOf(style, T);
+    const out = renderStyle(style, loopDef(bpm, T.loopBeats, cfg.body, cfg.energy));
+    const spb = 60 / bpm;
+    const i0 = Math.round(T.loopBeats * spb * SR);
+    const i1 = Math.round(2 * T.loopBeats * spb * SR);
+    let peak = 0;
+    for (let i = i0; i < i1; i++) peak = Math.max(peak, Math.abs(out.L[i]), Math.abs(out.R[i]));
+    styleGains[style] = 0.8 / (peak || 1);
+    refMix.set(`ArticleShort-${style}-body`, out);
+  }
+  return styleGains[style];
+}
+
+/** [from, to) saniye penceresini sabit kazancla 16 bit PCM'e yazar; fadeSec > 0 ise son kisim solar */
+function windowPcm(out, fromSec, toSec, g, fadeSec = 0) {
+  const i0 = Math.round(fromSec * SR);
+  const n = Math.round((toSec - fromSec) * SR);
+  const fade = Math.round(fadeSec * SR);
+  const pcm = Buffer.alloc(n * 4);
+  for (let i = 0; i < n; i++) {
+    const f = fade > 0 && i > n - fade ? (n - i) / fade : 1;
+    pcm.writeInt16LE(Math.round(Math.tanh((out.L[i0 + i] ?? 0) * g) * f * 32767), i * 4);
+    pcm.writeInt16LE(Math.round(Math.tanh((out.R[i0 + i] ?? 0) * g) * f * 32767), i * 4 + 2);
+  }
+  return pcm;
+}
+
+/** Tek kok (plan.mjs stemJobs satiri) */
+function stem(job, T) {
+  const g = styleGain(job.tempo, T);
+  const LB = T.loopBeats;
+  if (job.kind === 'full') {
+    // Hizli: eski sabit izgara (compositions) — ayni bolumler ve efekt anlari, enerjik pop uslubu
+    const def = TIMELINE.compositions[job.template];
+    const bpm = def.bpm ?? TIMELINE.bpm;
+    const out = renderStyle('fast', { ...def, bpm });
+    return windowPcm(out, 0, (def.beats * 60) / bpm, g, 0.08);
+  }
+  const spb = 60 / job.bpm;
+  if (job.kind === 'intro' || job.kind === 'body') {
+    // Uc dongu boyu cal, ortadakini al: onceki turun yanki/kuyrugu pencerede (dongu tekrarinda da oyle)
+    const key = `${job.template}-${job.tempo}-${job.kind}`;
+    const out = refMix.get(key) ?? renderStyle(job.tempo, loopDef(job.bpm, LB, job.cfg[job.kind], job.cfg.energy));
+    refMix.delete(key);
+    return windowPcm(out, LB * spb, 2 * LB * spb, g);
+  }
+  if (job.kind === 'outro') {
+    // Kesmeden bir vurus once baslar: riser vurusa tirmanir, vurusta 'hit' + son akor; son vurus solar
+    const beats = 1 + T.outroBeats;
+    const def = { bpm: job.bpm, beats, energy: job.cfg.energy, music: [[1, beats, 'outro']], events: [{ id: 'end.riser', at: 1, sfx: 'riser', dur: 1 }, { id: 'end.hit', at: 1, sfx: 'hit' }] };
+    return windowPcm(renderStyle(job.tempo, def), 0, beats * spb, g, spb);
+  }
+  // efekt: vurus 1. vurusta (dosya bir vurus once baslar)
+  const def = { bpm: job.bpm, beats: T.sfxBeats, music: [], events: [{ id: job.name, at: 1, sfx: job.name }] };
+  return windowPcm(renderStyle(job.tempo, def), 0, T.sfxBeats * spb, g);
+}
+
+async function synthStems() {
+  const { createPlanner } = await import('../../src/tempo/plan.mjs');
+  const T = TIMELINE.tempo;
+  if (T.loopBeats !== LOOP_BEATS) throw new Error(`timeline.json tempo.loopBeats (${T.loopBeats}) styles.mjs LOOP_BEATS (${LOOP_BEATS}) ile ayni olmali`);
+  const dir = join(OUT_DIR, 'tempo');
+  mkdirSync(dir, { recursive: true });
+  const t = Date.now();
+  const jobs = createPlanner(TIMELINE).stemJobs();
+  for (const job of jobs) {
+    const dst = join(dir, job.file);
+    writeFileSync(`${dst}.tmp`, wav(stem(job, T)));
+    renameSync(`${dst}.tmp`, dst);
+  }
+  console.log(`tempo kokleri: ${jobs.length} dosya -> public/audio/tempo/ · ${((Date.now() - t) / 1000).toFixed(1)} sn`);
+}
+
 const only = process.argv[2];
 mkdirSync(OUT_DIR, { recursive: true });
+if (only === '--tempo') {
+  await synthStems();
+  process.exit(0);
+}
 for (const [id, def] of Object.entries(TIMELINE.compositions)) {
   if (only && id !== only) continue;
   const t = Date.now();
@@ -439,3 +557,5 @@ for (const [id, def] of Object.entries(TIMELINE.compositions)) {
   unlinkSync(raw);
   console.log(`${id}: ${def.audio} · ${(def.beats * SPB).toFixed(1)} sn · ham ${before} LUFS → -14 LUFS · ${((Date.now() - t) / 1000).toFixed(1)} sn`);
 }
+// Argumansiz cagri (pnpm audio) tempo koklerini de uretir
+if (!only) await synthStems();

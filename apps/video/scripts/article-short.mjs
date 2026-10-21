@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 /**
- * Makale URL'si -> 15 sn dikey video. TEK KOMUT, insansiz:
+ * Makale URL'si -> kisa dikey video. TEK KOMUT, insansiz:
  *
- *   node scripts/article-short.mjs <makaleUrl> [--concurrency=N] [--out=dizin] [--muted] [--no-sheet]
+ *   node scripts/article-short.mjs <makaleUrl> [--tempo=normal|slow|fast] [--concurrency=N] [--out=dizin] [--muted] [--no-sheet]
+ *
+ * --tempo: normal (varsayilan; okunur, sure metinden), slow (rahat), fast (eski sabit 15 sn).
  *
  * Adimlar (her biri zamanlanir):
  *   1 fetch    robots.txt denetimi + makale HTML'i (RanksUpBot UA, boyut/sure siniri)
@@ -28,7 +30,8 @@ import { buildLlmRequest, buildScript } from './article-short/copy.mjs';
 import { extractArticle } from './article-short/extract.mjs';
 import { USER_AGENT, fetchLimited, robotsAllows } from './article-short/net.mjs';
 import { runFfSync } from './ffmpeg.mjs';
-import { ensureArticleShortAudio, extractPoster, getArticleShortServeUrl, loudnormInPlace, renderArticleShortMp4 } from '../render/article-short.mjs';
+import { ensureArticleShortAudio, extractPoster, getArticleShortServeUrl, loudnormInPlace, posterSecondsFor, renderArticleShortMp4 } from '../render/article-short.mjs';
+import { DEFAULT_REQUEST_TEMPO, TEMPOS } from '../src/tempo/plan.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
@@ -39,7 +42,12 @@ const opt = (k, d) => {
 const flag = (k) => args.includes(`--${k}`);
 const articleUrl = args.find((a) => !a.startsWith('--'));
 if (!articleUrl) {
-  console.error('Kullanim: node scripts/article-short.mjs <makaleUrl> [--concurrency=N] [--out=dizin] [--muted]');
+  console.error('Kullanim: node scripts/article-short.mjs <makaleUrl> [--tempo=normal|slow|fast] [--concurrency=N] [--out=dizin] [--muted]');
+  process.exit(1);
+}
+const tempo = opt('tempo', DEFAULT_REQUEST_TEMPO);
+if (!TEMPOS.includes(tempo)) {
+  console.error(`--tempo ${TEMPOS.join(' | ')} olmali`);
   process.exit(1);
 }
 
@@ -116,6 +124,7 @@ const props = {
   sourcePath: `${article.domain}${new URL(article.url).pathname.split('/').slice(0, -1).join('/')}`,
   muted: flag('muted'),
   watermark: true,
+  tempo,
 };
 const propsFile = join(OUT, 'props.json');
 writeFileSync(propsFile, JSON.stringify(props, null, 2));
@@ -157,7 +166,7 @@ await step('loudnorm', async () => {
 });
 
 const poster = join(OUT, 'poster.jpg');
-await step('poster', () => extractPoster(mp4, poster));
+await step('poster', () => extractPoster(mp4, poster, posterSecondsFor('ArticleShort', props)));
 
 /* 10 — temas sayfasi */
 const sheet = join(OUT, 'contact.png');

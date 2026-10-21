@@ -7,8 +7,8 @@ import { LLMProviderService } from '../llm/llm-provider.service.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { acquireCronLock } from '../common/cron-lock.js';
 import {
-  ARTICLE_SHORT_ENGINE, removeVideoFiles, VIDEO_COMPOSITION, VIDEO_RENDER_TIMEOUT_MS, VIDEO_STUCK_HARD_MS, VIDEO_STUCK_MS, VIDEO_WATERMARK, videoFiles,
-  type VideoFormat, type VideoType,
+  ARTICLE_SHORT_ENGINE, removeVideoFiles, VIDEO_COMPOSITION, VIDEO_RENDER_TIMEOUT_MS, VIDEO_STUCK_HARD_MS, VIDEO_STUCK_MS, VIDEO_WATERMARK, videoFiles, videoTempoOf,
+  type VideoFormat, type VideoTempo, type VideoType,
 } from './article-video.config.js';
 import { applyBrandOverrides, extractSiteBrand, raceSignal, type SiteBrand } from './article-video-brand.js';
 import { buildPromoCopy, buildVideoCopy, VideoCopyError, type CopyResult, type PromoCopyResult } from './article-video-copy.js';
@@ -46,8 +46,11 @@ export function userMessageOf(err: unknown): string {
   return GENERIC_FAILURE;
 }
 
-/** Render oncesi sablon props'u: metin + marka + kaynak yolu */
-export function buildArticleShortProps(copy: CopyResult, brand: SiteBrand, article: ShortArticle): ArticleShortProps {
+/**
+ * Render oncesi sablon props'u: metin + marka + kaynak yolu + tempo. tempo HER ZAMAN acik
+ * gonderilir: Remotion defaultProps'u 'normal'; alan eksik kalsa eski kayit yanlis tempoyla cikardi.
+ */
+export function buildArticleShortProps(copy: CopyResult, brand: SiteBrand, article: ShortArticle, tempo: VideoTempo = 'fast'): ArticleShortProps {
   const s = copy.script;
   return {
     hook: s.hook,
@@ -66,6 +69,7 @@ export function buildArticleShortProps(copy: CopyResult, brand: SiteBrand, artic
     sourcePath: sourcePathOf(article.url, article.domain),
     muted: false,
     watermark: VIDEO_WATERMARK,
+    tempo,
   };
 }
 
@@ -73,7 +77,12 @@ export function buildArticleShortProps(copy: CopyResult, brand: SiteBrand, artic
  * Tanitim videosu props'u: metin + marka (+ urunde gorsel ve YALNIZ dogrulanmis fiyat). Istege
  * bagli alanlar bos dizeyle gonderilir (Remotion defaultProps birlestirmesi ornek metni sizdirmasin).
  */
-export function buildPromoProps(copy: PromoCopyResult, brand: SiteBrand, source: PromoSource, extra: { image?: string | null; price?: string | null } = {}): PromoVideoProps {
+export function buildPromoProps(
+  copy: PromoCopyResult,
+  brand: SiteBrand,
+  source: PromoSource,
+  extra: { image?: string | null; price?: string | null; tempo?: VideoTempo } = {},
+): PromoVideoProps {
   const s = copy.script;
   return {
     hook: s.hook,
@@ -91,6 +100,7 @@ export function buildPromoProps(copy: PromoCopyResult, brand: SiteBrand, source:
     price: extra.price ?? '',
     muted: false,
     watermark: VIDEO_WATERMARK,
+    tempo: extra.tempo ?? 'fast',
   };
 }
 
@@ -192,8 +202,10 @@ export class VideoRenderService {
     const format: VideoFormat = raw.format === 'horizontal' ? 'horizontal' : 'vertical';
     const compositionId = VIDEO_COMPOSITION[type][format];
     if (!compositionId) throw new VideoRenderError(GENERIC_FAILURE, `gecersiz tur/bicim: ${type}/${format}`);
+    // Istekte kaydedilen tempo; alan yoksa (bu ozellikten onceki is) eski sabit izgara
+    const tempo = videoTempoOf(raw);
 
-    const job = type === 'article' ? await this.prepareArticle(video, raw, signal) : await this.preparePromo(video, raw, type, signal);
+    const job = type === 'article' ? await this.prepareArticle(video, raw, tempo, signal) : await this.preparePromo(video, raw, type, tempo, signal);
     signal.throwIfAborted();
 
     await mkdir(files.dir, { recursive: true });
@@ -235,13 +247,13 @@ export class VideoRenderService {
       await removeVideoFiles(video.siteId, videoId);
       return { status: 'skipped', reason: 'render sirasinda silindi' };
     }
-    this.log.log(`[${video.siteId}] video ${videoId} hazir — ${type}/${format}, ${copy.strategy}, ${(result.bytes / 1048576).toFixed(1)} MB, ${((Date.now() - t0) / 1000).toFixed(1)} sn`);
-    await this.notify(video.site.userId, video.siteId, 'Videon hazır', job.readyText);
+    this.log.log(`[${video.siteId}] video ${videoId} hazir — ${type}/${format}/${tempo}, ${copy.strategy}, ${Math.round(result.durationSec)} sn video, ${(result.bytes / 1048576).toFixed(1)} MB, ${((Date.now() - t0) / 1000).toFixed(1)} sn`);
+    await this.notify(video.site.userId, video.siteId, 'Videon hazır', job.readyText(Math.round(result.durationSec)));
     return { status: 'ready' };
   }
 
   /** Makale videosu: makale DB'den, marka anasayfadan, metin Haiku + koruyucu (degismedi) */
-  private async prepareArticle(video: any, raw: Record<string, any>, signal: AbortSignal) {
+  private async prepareArticle(video: any, raw: Record<string, any>, tempo: VideoTempo, signal: AbortSignal) {
     const a = video.article;
     if (!a) throw new VideoRenderError('Makale silinmiş; video üretilemedi. Video hakkın iade edildi.');
     if (a.status !== 'PUBLISHED') throw new VideoRenderError('Makale artık yayında değil; video üretilemedi. Video hakkın iade edildi.');
@@ -260,13 +272,13 @@ export class VideoRenderService {
       budgetBlocked: async () => (await this.quota.checkAiCostBudget(userId)).hardBlock,
     });
     return {
-      props: buildArticleShortProps(copy, brand, article) as ArticleShortProps | PromoVideoProps,
+      props: buildArticleShortProps(copy, brand, article, tempo) as ArticleShortProps | PromoVideoProps,
       brand,
       copy: copy as CopyResult | PromoCopyResult,
       pageUrl,
       title: null as string | null,
       source: null as Record<string, unknown> | null,
-      readyText: `“${video.title}” makalesinin 15 saniyelik videosu hazır.`,
+      readyText: (sec: number) => `“${video.title}” makalesinin ${sec} saniyelik videosu hazır.`,
     };
   }
 
@@ -276,7 +288,7 @@ export class VideoRenderService {
    * metin Haiku + koruyucu (sayi kumesi yalniz sitenin metni), urun gorseli safe-fetch + sharp,
    * fiyat yalniz iki kaynakla dogrulanmissa ve sayi korumasindan gecerse.
    */
-  private async preparePromo(video: any, raw: Record<string, any>, type: PromoType, signal: AbortSignal) {
+  private async preparePromo(video: any, raw: Record<string, any>, type: PromoType, tempo: VideoTempo, signal: AbortSignal) {
     const siteUrl = String(video.site.url);
     let pageUrl: string;
     try {
@@ -321,7 +333,7 @@ export class VideoRenderService {
 
     const name = type === 'product' ? (extracted.product?.name || copy.script.hook).replace(/\s+/g, ' ').trim() : null;
     return {
-      props: buildPromoProps(copy, brand, source, { image: image?.dataUri ?? null, price }) as ArticleShortProps | PromoVideoProps,
+      props: buildPromoProps(copy, brand, source, { image: image?.dataUri ?? null, price, tempo }) as ArticleShortProps | PromoVideoProps,
       brand,
       copy: copy as CopyResult | PromoCopyResult,
       pageUrl: page.url,
@@ -334,9 +346,9 @@ export class VideoRenderService {
         profile: source.profile ? { niche: source.profile.niche, pages: source.profile.pages.length } : null,
         notes: notes.slice(0, 8),
       } as Record<string, unknown>,
-      readyText: type === 'site'
-        ? `${brand.name} site tanıtım videosu hazır.`
-        : `“${(name ?? video.title).slice(0, 120)}” ürün tanıtım videosu hazır.`,
+      readyText: (sec: number) => (type === 'site'
+        ? `${brand.name} site tanıtım videosu (${sec} sn) hazır.`
+        : `“${(name ?? video.title).slice(0, 120)}” ürün tanıtım videosu (${sec} sn) hazır.`),
     };
   }
 

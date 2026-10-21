@@ -6,7 +6,9 @@
  *
  *  1) Chrome Headless Shell'i indirir (node_modules/.remotion/; ag gerekir). Linux'ta eksik
  *     paylasimli kutuphane varsa burada hata verir — README "Uretim sunucusu" bolumu.
- *  2) ArticleShort ses izini sentezler (public/audio/article-short.wav; git'e girmez).
+ *  2) Ses: tempo basina ayri uslupte muzik (scripts/audio/styles.mjs) — hizli icin sablon basina tek
+ *     dosya, normal / slow kokleri ve efektler (public/audio/tempo/, 38 dosya, ilk seferde ~30 sn; git'e
+ *     girmez). timeline.json ve sentez kodu degismediyse onbellekte.
  *  3) Remotion paketini (webpack) kurar ve kaynak ozetiyle onbellege yazar; worker ilk videoda
  *     paketlemez, dogrudan bu paketi kullanir.
  *  4) ffmpeg'in nereden cozuldugunu yazar (env / sistem / Remotion'in kendi ikilisi).

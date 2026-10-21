@@ -1,13 +1,13 @@
 import { IsBoolean, IsIn, IsOptional, IsString, Matches, MaxLength, ValidateIf } from 'class-validator';
 import { IsCanonicalId } from '../articles/articles.dto.js';
-import { PROMO_PAGE_URL_MAX, VIDEO_FORMATS, VIDEO_TYPES, type VideoFormat, type VideoType } from './article-video.config.js';
+import { PROMO_PAGE_URL_MAX, VIDEO_FORMATS, VIDEO_TEMPOS, VIDEO_TYPES, type VideoFormat, type VideoTempo, type VideoType } from './article-video.config.js';
 
 /**
  * RanksUp Video govde / parametre DTO'lari. Global ValidationPipe (whitelist +
  * forbidNonWhitelisted): bilinmeyen alan 400, kimlikler kanonik alfabede (common/site-id.ts).
  *
  * GERIYE UYUM: eski istemciler yalniz { articleId, primaryColor?, useLogo?, brandName? } gonderir;
- * type verilmezse 'article' sayilir ve articleId zorunludur. Site tanitiminda kaynak sitenin
+ * type verilmezse 'article' sayilir ve articleId zorunludur; tempo verilmezse 'normal'. Site tanitiminda kaynak sitenin
  * kendisi (alan yok), urun tanitiminda pageUrl zorunlu (alan adi denetimi serviste:
  * promo-video-source.ts assertOwnSitePageUrl — sitenin adresini bilen tek yer orasi).
  */
@@ -31,6 +31,11 @@ export class RequestVideoDto {
   @IsOptional()
   @IsIn(VIDEO_FORMATS as unknown as string[], { message: "format 'vertical' ya da 'horizontal' olmalı." })
   format?: VideoFormat;
+
+  /** fast (eski 15 sn) | normal (okunur, varsayilan) | slow — uc tur ve iki bicimde de */
+  @IsOptional()
+  @IsIn(VIDEO_TEMPOS as unknown as string[], { message: "tempo 'fast', 'normal' ya da 'slow' olmalı." })
+  tempo?: VideoTempo;
 
   /** #rrggbb; null = sablonun kendi rengi; verilmezse sitenin rengi */
   @IsOptional()

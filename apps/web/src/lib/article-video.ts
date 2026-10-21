@@ -9,12 +9,16 @@
 export type ArticleVideoStatus = 'queued' | 'rendering' | 'ready' | 'failed';
 export type VideoType = 'article' | 'site' | 'product';
 export type VideoFormat = 'vertical' | 'horizontal';
+/** api article-video.config.ts VIDEO_TEMPOS (= apps/video src/tempo/plan.mjs TEMPOS) */
+export type VideoTempo = 'fast' | 'normal' | 'slow';
 
 export interface ArticleVideo {
   id: string;
   /** Eski API yanitlarinda yok -> 'article' sayilir (videoTypeOf) */
   type?: VideoType;
   format?: VideoFormat;
+  /** Eski API yanitlarinda / eski kayitlarda yok -> 'fast' (videoTempoOf) */
+  tempo?: VideoTempo;
   sourceUrl?: string | null;
   articleId: string | null;
   title: string;
@@ -54,7 +58,7 @@ export const ARTICLE_VIDEO_COPY = {
   product: 'RanksUp Video',
   action: 'Video üret',
   lockedTitle: 'RanksUp Video Profesyonel planda',
-  lockedBody: 'Yayındaki makalenden, sitenin ana sayfasından ya da sitendeki bir ürün/hizmet sayfasından; sitenin adı, logosu ve rengiyle 15 saniyelik dikey video (Reels, Shorts, TikTok biçimi) üretir. Site ve ürün tanıtımında yatay 16:9 biçim de seçilebilir. Metin yalnız sitenin kendi cümlelerinden ve sayılarından oluşur.',
+  lockedBody: 'Yayındaki makalenden, sitenin ana sayfasından ya da sitendeki bir ürün/hizmet sayfasından; sitenin adı, logosu ve rengiyle kısa dikey video (Reels, Shorts, TikTok biçimi; 15–60 saniye, tempo seçilebilir) üretir. Site ve ürün tanıtımında yatay 16:9 biçim de seçilebilir. Metin yalnız sitenin kendi cümlelerinden ve sayılarından oluşur.',
   lockedNote: 'Aşağıdaki bulanık görsel yalnızca yer tutucudur; video üretilmedi.',
   notPublished: 'Video yalnız yayındaki makaleden üretilir.',
 } as const;
@@ -80,17 +84,57 @@ export const VIDEO_TYPE_LABEL: Record<VideoType, string> = {
   product: 'Ürün tanıtımı',
 };
 
-/** Bicim secenekleri: tur basina sure (apps/video timeline.json ile ayni) */
+/** Bicim secenekleri (sure tempoya bagli: VIDEO_TEMPO_SECONDS) */
 export const VIDEO_FORMAT_OPTIONS: Record<Exclude<VideoType, 'article'>, Array<{ format: VideoFormat; label: string; hint: string }>> = {
   site: [
-    { format: 'vertical', label: 'Dikey 9:16 · 15 sn', hint: 'Reels, Shorts, TikTok' },
-    { format: 'horizontal', label: 'Yatay 16:9 · 24 sn', hint: 'Web sitesi ve YouTube' },
+    { format: 'vertical', label: 'Dikey 9:16', hint: 'Reels, Shorts, TikTok' },
+    { format: 'horizontal', label: 'Yatay 16:9', hint: 'Web sitesi ve YouTube' },
   ],
   product: [
-    { format: 'vertical', label: 'Dikey 9:16 · 15 sn', hint: 'Reels, Shorts, TikTok' },
-    { format: 'horizontal', label: 'Yatay 16:9 · 15 sn', hint: 'Web sitesi ve YouTube' },
+    { format: 'vertical', label: 'Dikey 9:16', hint: 'Reels, Shorts, TikTok' },
+    { format: 'horizontal', label: 'Yatay 16:9', hint: 'Web sitesi ve YouTube' },
   ],
 };
+
+/**
+ * Tempo (21.10.2026): musteri videonun hizini secer; yeni isteklerde varsayilan 'normal'.
+ * Hizli = eski sabit izgara (kisa metinler icin); normal ve yavasta sure metnin uzunlugundan
+ * hesaplanir, her metin okunacak kadar ekranda kalir. Uc tempo da tek video hakki.
+ */
+export const VIDEO_TEMPOS: readonly VideoTempo[] = ['fast', 'normal', 'slow'];
+export const DEFAULT_VIDEO_TEMPO: VideoTempo = 'normal';
+export const VIDEO_TEMPO_LABEL: Record<VideoTempo, string> = { fast: 'Hızlı', normal: 'Normal', slow: 'Yavaş' };
+export const VIDEO_TEMPO_HINT: Record<VideoTempo, string> = {
+  fast: 'Kısa metinler için; uzun cümleler hızlı geçer.',
+  normal: 'Her metin rahatça okunacak kadar ekranda kalır.',
+  slow: 'Daha sakin geçişler ve en uzun okuma süresi.',
+};
+
+/**
+ * Yaklasik sure (sn) — tur.bicim x tempo, [en kisa, en uzun]. ELLE YAZILMAZ: apps/video
+ * `node scripts/check-video-readability.mjs` en kisa / en uzun / rastgele metinlerle hesaplar ve bu
+ * tabloyu dogrular (fast tam; normal ve yavas 5 sn'ye yuvarlanmis). Tempo ya da sablon degisirse
+ * denetim kirilir; degerleri denetimin yazdigi hesapla guncelle.
+ */
+export const VIDEO_TEMPO_SECONDS: Record<string, Record<VideoTempo, [number, number]>> = {
+  'article.vertical': { fast: [15, 15], normal: [20, 50], slow: [25, 60] },
+  'site.vertical': { fast: [15, 15], normal: [15, 45], slow: [25, 60] },
+  'site.horizontal': { fast: [24, 24], normal: [15, 45], slow: [25, 60] },
+  'product.vertical': { fast: [15, 15], normal: [15, 50], slow: [25, 60] },
+  'product.horizontal': { fast: [15, 15], normal: [15, 50], slow: [25, 60] },
+};
+
+/** "15 sn" ya da "20–50 sn" (tur + bicim + tempo) */
+export function tempoDurationLabel(type: VideoType, format: VideoFormat, tempo: VideoTempo): string {
+  const row = VIDEO_TEMPO_SECONDS[`${type}.${type === 'article' ? 'vertical' : format}`] ?? VIDEO_TEMPO_SECONDS['article.vertical'];
+  const [lo, hi] = row[tempo];
+  return lo === hi ? `${lo} sn` : `${lo}–${hi} sn`;
+}
+
+/** Eski yanit / kayit (tempo yok) eski sabit izgarayla uretildi: 'fast' */
+export function videoTempoOf(v: Pick<ArticleVideo, 'tempo'> | null | undefined): VideoTempo {
+  return v?.tempo === 'normal' || v?.tempo === 'slow' || v?.tempo === 'fast' ? v.tempo : 'fast';
+}
 
 /** Eski yanitlar (type alani yok) makale videosudur */
 export function videoTypeOf(v: Pick<ArticleVideo, 'type'> | null | undefined): VideoType {
@@ -201,6 +245,7 @@ export interface VideoRequestBody {
   articleId?: string;
   pageUrl?: string;
   format?: VideoFormat;
+  tempo?: VideoTempo;
   primaryColor?: string | null;
   useLogo: boolean;
   brandName?: string;
@@ -215,6 +260,8 @@ export function videoRequestBody(input: {
   useTemplateColor: boolean;
   useLogo: boolean;
   name: string;
+  /** secilen tempo; verilmezse alan gonderilmez (sunucu varsayilani 'normal') */
+  tempo?: VideoTempo;
 }): VideoRequestBody {
   const target: VideoTarget = input.target ?? { type: 'article', articleId: input.articleId ?? '' };
   // Makale govdesi eskisiyle birebir ({ articleId, ... } — type alani yok): eski API surumleriyle uyumlu
@@ -223,6 +270,7 @@ export function videoRequestBody(input: {
     : target.type === 'site'
       ? { type: 'site', format: target.format, useLogo: input.useLogo }
       : { type: 'product', pageUrl: target.pageUrl.trim(), format: target.format, useLogo: input.useLogo };
+  if (input.tempo && VIDEO_TEMPOS.includes(input.tempo)) body.tempo = input.tempo;
   if (input.useTemplateColor) body.primaryColor = null;
   else {
     const c = normalizeHex(input.color);

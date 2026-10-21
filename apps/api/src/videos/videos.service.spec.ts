@@ -227,6 +227,50 @@ describe('controller kapilari', () => {
 });
 
 /**
+ * Tempo (21.10.2026): yeni istekte varsayilan 'normal'; secilen tempo providerRaw.tempo'da durur;
+ * her tempo tek video hakki; gecersiz tempo 400. Liste tempoyu ve gercek sureyi doner; tempo alani
+ * olmayan eski satir 'fast' (eski 15 sn izgarayla uretildi).
+ */
+describe('tempo', () => {
+  const pipe = new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true });
+  const body = (v: unknown) => pipe.transform(v, { type: 'body', metatype: RequestVideoDto, data: '' });
+
+  it('verilmezse normal; secilen tempo kayitta; her tempo TEK hak', async () => {
+    const w = world({ used: 0 });
+    const a = await w.svc.request(SITE, me, { articleId: ART });
+    expect(w.videos[0].providerRaw.tempo).toBe('normal');
+    expect(a.video.tempo).toBe('normal');
+    expect(w.user.videosUsedThisMonth).toBe(1);
+    const s = await w.svc.request(SITE, me, { type: 'site', format: 'horizontal', tempo: 'slow' });
+    expect(w.videos[1].providerRaw).toMatchObject({ videoType: 'site', format: 'horizontal', tempo: 'slow' });
+    expect(s.video.tempo).toBe('slow');
+    expect(w.user.videosUsedThisMonth).toBe(2);
+    await w.svc.request(SITE, me, { type: 'site', format: 'vertical', tempo: 'fast' });
+    expect(w.videos[2].providerRaw.tempo).toBe('fast');
+    expect(w.user.videosUsedThisMonth).toBe(3);
+  });
+
+  it('gecersiz tempo: DTO 400; servis dogrudan cagrilsa da 400 ve hak dusmez', async () => {
+    await expect(body({ articleId: ART, tempo: 'turbo' })).rejects.toBeTruthy();
+    await expect(body({ type: 'site', tempo: 'SLOW' })).rejects.toBeTruthy();
+    await expect(body({ articleId: ART, tempo: 'slow' })).resolves.toMatchObject({ tempo: 'slow' });
+    await expect(body({ type: 'product', pageUrl: 'https://ornek.com/u', tempo: 'fast' })).resolves.toMatchObject({ tempo: 'fast' });
+    const w = world();
+    await expect(w.svc.request(SITE, me, { articleId: ART, tempo: 'turbo' as any })).rejects.toThrow(/tempo 'fast', 'normal' ya da 'slow'/);
+    expect(w.user.videosUsedThisMonth).toBe(0);
+    expect(w.videos).toHaveLength(0);
+  });
+
+  it('liste tempoyu ve gercek sureyi doner; tempo alani olmayan eski satir fast', async () => {
+    const w = world();
+    w.videos.push({ id: 'cmeski00000000000000001', siteId: SITE, articleId: ART, title: 'Eski', status: 'READY', durationSec: 15, providerRaw: { engine: ARTICLE_SHORT_ENGINE }, createdAt: new Date(), completedAt: new Date() });
+    w.videos.push({ id: 'cmyeni00000000000000001', siteId: SITE, articleId: ART, title: 'Yeni', status: 'READY', durationSec: 38, providerRaw: { engine: ARTICLE_SHORT_ENGINE, tempo: 'slow' }, createdAt: new Date(), completedAt: new Date() });
+    const list = await w.svc.list(SITE);
+    expect(list.map((v) => [v.title, v.tempo, v.durationSec])).toEqual([['Eski', 'fast', 15], ['Yeni', 'slow', 38]]);
+  });
+});
+
+/**
  * Redis kesintisi (inceleme bulgusu): baglanti maxRetriesPerRequest:null ile acik; Redis yokken
  * queue.add SONSUZA DEK bekliyordu -> "kuyruga eklenemedi -> FAILED + iade" dali hic calismiyor,
  * istek asili kaliyor, hak dusmus kaliyordu. Artik her kuyruk islemi sure sinirli.

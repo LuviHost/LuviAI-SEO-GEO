@@ -10,6 +10,7 @@ import { FPS as MARKETING_FPS } from './marketing/timeline';
 import { ArticleShort, ARTICLE_SHORT_DURATION, articleShortDefaults } from './article-short/ArticleShort';
 import { SiteIntro, SiteIntroWide, SITE_INTRO_DURATION, SITE_INTRO_WIDE_DURATION, siteIntroDefaults } from './promo/SiteIntro';
 import { ProductShort, ProductWide, PRODUCT_SHORT_DURATION, productShortDefaults } from './promo/ProductShort';
+import { tempoMetadata } from './tempo/TempoTimeline';
 
 export const RemotionRoot: React.FC = () => {
   return (
@@ -77,10 +78,15 @@ export const RemotionRoot: React.FC = () => {
         height={1080}
         defaultProps={{ muted: false } satisfies MarketingProps}
       />
-      {/* Makaleden otomatik kisa video — props: scripts/article-short.mjs'in urettigi props.json */}
+      {/*
+        Makaleden otomatik kisa video — props: scripts/article-short.mjs'in urettigi props.json.
+        RanksUp Video sablonlarinin suresi props'a bagli (tempo + metin uzunlugu, src/tempo/plan.mjs):
+        calculateMetadata kurar; durationInFrames yalniz 'fast' varsayilani.
+      */}
       <Composition
         id="ArticleShort"
         component={ArticleShort}
+        calculateMetadata={tempoMetadata('ArticleShort')}
         durationInFrames={ARTICLE_SHORT_DURATION}
         fps={MARKETING_FPS}
         width={1080}
@@ -88,10 +94,10 @@ export const RemotionRoot: React.FC = () => {
         defaultProps={articleShortDefaults}
       />
       {/* RanksUp Video tanitim sablonlari — props: api videos/video-render.service.ts (site / urun) */}
-      <Composition id="SiteIntro" component={SiteIntro} durationInFrames={SITE_INTRO_DURATION} fps={MARKETING_FPS} width={1080} height={1920} defaultProps={siteIntroDefaults} />
-      <Composition id="SiteIntroWide" component={SiteIntroWide} durationInFrames={SITE_INTRO_WIDE_DURATION} fps={MARKETING_FPS} width={1920} height={1080} defaultProps={siteIntroDefaults} />
-      <Composition id="ProductShort" component={ProductShort} durationInFrames={PRODUCT_SHORT_DURATION} fps={MARKETING_FPS} width={1080} height={1920} defaultProps={productShortDefaults} />
-      <Composition id="ProductWide" component={ProductWide} durationInFrames={PRODUCT_SHORT_DURATION} fps={MARKETING_FPS} width={1920} height={1080} defaultProps={productShortDefaults} />
+      <Composition id="SiteIntro" component={SiteIntro} calculateMetadata={tempoMetadata('SiteIntro')} durationInFrames={SITE_INTRO_DURATION} fps={MARKETING_FPS} width={1080} height={1920} defaultProps={siteIntroDefaults} />
+      <Composition id="SiteIntroWide" component={SiteIntroWide} calculateMetadata={tempoMetadata('SiteIntroWide')} durationInFrames={SITE_INTRO_WIDE_DURATION} fps={MARKETING_FPS} width={1920} height={1080} defaultProps={siteIntroDefaults} />
+      <Composition id="ProductShort" component={ProductShort} calculateMetadata={tempoMetadata('ProductShort')} durationInFrames={PRODUCT_SHORT_DURATION} fps={MARKETING_FPS} width={1080} height={1920} defaultProps={productShortDefaults} />
+      <Composition id="ProductWide" component={ProductWide} calculateMetadata={tempoMetadata('ProductWide')} durationInFrames={PRODUCT_SHORT_DURATION} fps={MARKETING_FPS} width={1920} height={1080} defaultProps={productShortDefaults} />
     </>
   );
 };

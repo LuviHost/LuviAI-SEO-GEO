@@ -398,3 +398,43 @@ describe('toplam sure siniri ve yarim dosyalar', () => {
     expect(db.video.status).toBe('FAILED');
   });
 });
+
+/**
+ * Tempo (21.10.2026): istekte secilen tempo providerRaw.tempo'da durur ve render props'una AYNEN
+ * gider; tempo alani olmayan eski is (deploy oncesi kuyrukta bekleyen) eski sabit izgarayla
+ * ('fast') render edilir. Bildirim ve kayit gercek sureyi (render'in kare sayisi) yazar.
+ */
+describe('tempo', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('istekteki tempo render props una gider; sure ve bildirim gercek sureden', async () => {
+    const db = makeDb({ providerRaw: { engine: ARTICLE_SHORT_ENGINE, tempo: 'slow', request: { useLogo: true }, charged: true, chargedUserId: USER_ID } });
+    const render = makeRenderKit(async (o) => {
+      writeFileSync(o.outFile, Buffer.alloc(2048, 1));
+      writeFileSync(o.posterFile, Buffer.alloc(256, 2));
+      return { durationSec: 41.33, width: 1080, height: 1920, fps: 30, bytes: 2048, posterBytes: 256, concurrency: 2, bundle: 'disk', inputLufs: -20, tempo: 'slow', timings: {} };
+    });
+    const { svc, notifications } = makeService(db, { render });
+    await expect(svc.process(VIDEO_ID)).resolves.toEqual({ status: 'ready' });
+    expect(render.calls[0].props.tempo).toBe('slow');
+    expect(db.video.durationSec).toBe(41);
+    expect(db.video.providerRaw.tempo).toBe('slow');
+    expect(notifications.create).toHaveBeenCalledWith(expect.objectContaining({ body: expect.stringContaining('41 saniyelik videosu hazır') }));
+    expect(toVideoView(db.video)).toMatchObject({ tempo: 'slow', durationSec: 41 });
+  });
+
+  it('tempo alani olmayan eski is: fast (eski 15 sn izgara) ile render edilir, gorunumde fast', async () => {
+    const db = makeDb();
+    const { svc, render } = makeService(db);
+    await svc.process(VIDEO_ID);
+    expect(render.calls[0].props.tempo).toBe('fast');
+    expect(toVideoView(db.video).tempo).toBe('fast');
+  });
+
+  it('gecersiz tempo degeri (elle bozulmus kayit) eski izgaraya duser, render cokmez', async () => {
+    const db = makeDb({ providerRaw: { engine: ARTICLE_SHORT_ENGINE, tempo: 'turbo', request: {}, charged: true, chargedUserId: USER_ID } });
+    const { svc, render } = makeService(db);
+    await expect(svc.process(VIDEO_ID)).resolves.toEqual({ status: 'ready' });
+    expect(render.calls[0].props.tempo).toBe('fast');
+  });
+});

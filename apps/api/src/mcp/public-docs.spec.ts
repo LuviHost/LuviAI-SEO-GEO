@@ -1373,4 +1373,35 @@ describe('RanksUp Video belgeleri = kod', () => {
     expect(copy).toContain('if (!srcNums.has(n.key)) errors.push(');
     expect(copy).not.toMatch(/src\.includes\(n\)/);
   });
+
+  // Tempo (21.10.2026): videolar artik sabit 15 sn degil. Belgelerdeki sure araliklari panelin sure
+  // tablosundan (web lib/article-video.ts VIDEO_TEMPO_SECONDS; apps/video okunurluk denetimi o
+  // tabloyu hesapla dogrular) okunur; "15 saniyelik" sabit iddiasi hicbir yerde kalmamali.
+  it('tempo: belgeler sure araligini panel tablosuyla ayni soyler; sabit "15 saniyelik" iddiasi yok', () => {
+    const lib = read(path.join(WEB_SRC, 'lib/article-video.ts'));
+    const rows = [...lib.matchAll(/'[a-z]+\.[a-z]+': \{ fast: \[(\d+), (\d+)\], normal: \[(\d+), (\d+)\], slow: \[(\d+), (\d+)\] \}/g)].map((m) => m.slice(1).map(Number));
+    expect(rows).toHaveLength(5);
+    const normal = [Math.min(...rows.map((r) => r[2])), Math.max(...rows.map((r) => r[3]))];
+    const slow = [Math.min(...rows.map((r) => r[4])), Math.max(...rows.map((r) => r[5]))];
+    const help = read(path.join(MARKETING, 'help/video/page.tsx'));
+    expect(help).toContain(`süre metnin uzunluğuna göre yaklaşık ${normal[0]}–${normal[1]} saniyedir`);
+    expect(help).toContain(`(yaklaşık ${slow[0]}–${slow[1]} saniye)`);
+    expect(help).toContain('Video hiçbir tempoda 60 saniyeyi geçmez; her tempo bir video hakkı kullanır.');
+    expect(llmsFull).toContain(`Normal (varsayılan) yaklaşık ${normal[0]}–${normal[1]} sn ve Yavaş yaklaşık ${slow[0]}–${slow[1]} sn`);
+    expect(llms).toContain(`Süre 15–${slow[1]} sn, tempo seçilebilir`);
+    const faq = read(path.join(MARKETING, 'faq/page.tsx'));
+    expect(faq).toContain(`Normal ve Yavaş’ta metnin uzunluğuna göre ${normal[0]}–${slow[1]} sn`);
+    expect(faq).toContain(`Normal and Slow take ${normal[0]}–${slow[1]} s depending on how long the text is`);
+    const panel = [lib, read(path.join(WEB_SRC, 'components/article-video.tsx')), read(path.join(WEB_SRC, 'app/(dashboard)/sites/[id]/videos/page.tsx'))];
+    for (const [ad, doc] of [['help', help], ['faq', faq], ['llms', llms], ['llms-full', llmsFull], ['panel', panel.join('\n')]] as const) {
+      expect(doc, ad).not.toMatch(/15 saniyelik|15-second|15 sn dikey|24 sn yatay|· 15 sn'|· 24 sn'/);
+    }
+    // Dayanaklar: 60 sn tavani, yeni istekte varsayilan 'normal', tempo kayitta ve render'a gider
+    const tl = JSON.parse(read(path.resolve(HERE, '../../../video/src/marketing/timeline.json')));
+    expect(tl.tempo.maxSeconds).toBe(60);
+    expect(slow[1]).toBeLessThanOrEqual(tl.tempo.maxSeconds);
+    expect(read(path.join(videoSrc, 'article-video.config.ts'))).toContain("export const DEFAULT_VIDEO_TEMPO: VideoTempo = 'normal';");
+    expect(stripComments(read(path.join(videoSrc, 'videos.service.ts')))).toContain('tempo: input.tempo ?? DEFAULT_VIDEO_TEMPO');
+    expect(stripComments(read(path.join(videoSrc, 'video-render.service.ts')))).toContain('const tempo = videoTempoOf(raw);');
+  });
 });

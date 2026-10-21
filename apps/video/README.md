@@ -13,9 +13,9 @@ ile tüketilir).
 | `ProductIntro` | 1920×1080 @30 | 38 sn, müzik + efekt | Tanıtım filmi (kanca → 4 adım → CTA) — `out/marketing/` |
 | `SocialAd` | 1080×1920 @30 | 15 sn, vurusa kilitli | Reels / TikTok / Shorts — `out/marketing/` |
 | `FeatureExplainer` | 1920×1080 @30 | 72 sn, Türkçe altyazı + müzik | Panel turu (canlı ekran kaydı üslubu) — `out/marketing/` |
-| `ArticleShort` | 1080×1920 @30 | 15 sn, parametrik | **RanksUp Video** (ürün): müşterinin yayındaki makalesinden markalı kısa video — sunucuda `apps/api/public/videos/<siteId>/`; CLI denemesi `out/article-shorts/` |
-| `SiteIntro` / `SiteIntroWide` | 1080×1920 / 1920×1080 @30 | 15 sn / 24 sn, parametrik | **RanksUp Video** site tanıtımı: müşterinin anasayfası + marka profili; marka rengi zemin, logo, 3 hizmet kartı |
-| `ProductShort` / `ProductWide` | 1080×1920 / 1920×1080 @30 | 15 sn, parametrik | **RanksUp Video** ürün tanıtımı: müşterinin kendi sayfası; ürün görseli (yavaş yakınlaşma), özellik listesi, yalnız doğrulanmış fiyat etiketi |
+| `ArticleShort` | 1080×1920 @30 | tempo: hızlı 15 sn · normal 20–50 sn · yavaş 25–60 sn (metne göre), parametrik | **RanksUp Video** (ürün): müşterinin yayındaki makalesinden markalı kısa video — sunucuda `apps/api/public/videos/<siteId>/`; CLI denemesi `out/article-shorts/` |
+| `SiteIntro` / `SiteIntroWide` | 1080×1920 / 1920×1080 @30 | hızlı 15 sn / 24 sn · normal 15–45 sn · yavaş 25–60 sn, parametrik | **RanksUp Video** site tanıtımı: müşterinin anasayfası + marka profili; marka rengi zemin, logo, 3 hizmet kartı |
+| `ProductShort` / `ProductWide` | 1080×1920 / 1920×1080 @30 | hızlı 15 sn · normal 15–50 sn · yavaş 25–60 sn, parametrik | **RanksUp Video** ürün tanıtımı: müşterinin kendi sayfası; ürün görseli (yavaş yakınlaşma), özellik listesi, yalnız doğrulanmış fiyat etiketi |
 
 ## Komutlar
 
@@ -127,6 +127,45 @@ pnpm --filter @luviai/video article-short https://www.kobipratik.com/pratik-kobi
   kompozisyonlar `VIDEO_COMPOSITIONS` (liste dışı kimlik reddedilir). Ses: timeline.json `SiteIntro`,
   `SiteIntroWide`, `ProductShort` (yatay ürün dikeyle aynı ızgara ve ses).
 
+## RanksUp Video tempoları (hızlı · normal · yavaş)
+
+Müşteri her videoda tempoyu seçer (`POST /api/sites/:siteId/videos` `tempo`; varsayılan `normal`).
+Tek kaynak `src/tempo/plan.mjs` + `timeline.json` `tempo` bölümü:
+
+- **fast (Hızlı)** — bugünkü sabit ızgara (`compositions`, 120 BPM): 15 sn dikey, 24 sn yatay site. Tempo
+  alanı olmayan eski kayıtlar/işler de böyle render edilir (sahne ve olay kareleri birebir aynı; müzik hızlı
+  tempoya özgü üslup). "Hızlı — kısa metinler için": uzun metinde okunurluk kuralını sağlamaz (denetim yalnız raporlar).
+- **normal** (90 BPM) — sahne süreleri **metinden** hesaplanır: her metin
+  `max(2,0 sn; 0,3 sn × kelime + 1,0 sn)` tam görünür; üst üste biriken kart/özellik listesi son öğeden sonra
+  ≥ 2,5 sn; sahneler vuruşa yuvarlanır (kesmeler müziğin vuruşuna oturur).
+- **slow (Yavaş)** (72 BPM) — okuma payı 1,7 kat (tipik metinde normalin ~1,5 katı). Toplam 60 sn'yi (Reels
+  sınırı) aşacaksa pay 0,05 adımlarla küçülür; en uzun metinde bile 1,0'ın altına inmez (denetim doğrular).
+- Süre Remotion `calculateMetadata` ile props'tan kurulur (`Root.tsx`); render hattı tempo eksikse `fast` sayar
+  ve poster karesini plandan alır (kanca tam görünürken).
+- **Müzik — her tempo kendi üslubu** (`scripts/audio/styles.mjs`; aynı parçanın yavaşlatılmışı değil):
+  - Hızlı (120 BPM, Sol majör, I–V–vi–IV): enerjik elektronik pop — four-on-the-floor kick + sidechain pompa,
+    2/4 clap, 16'lık hi-hat, pluck arpej, punchy bas, parlak stab'lar, kısa yankı.
+  - Normal (90 BPM, Mi♭ majör, ii–V–I–vi): sıcak chill-hop / lo-fi — %60 swing'li hi-hat, yumuşak kick + rim,
+    FM elektrik piyano (7/9'lu akorlar), yuvarlak sub bas, çok düşük plak hışırtısı, orta yankı.
+  - Yavaş (72 BPM, Re majör): sakin sinematik / ambient — yavaş filtre hareketli pad'ler, keçe piyano ve çan
+    arpejleri, davul yok (ölçü başında yumuşak alçak tom), uzun yankı kuyruğu, hava kabarmaları.
+  Efektler de üsluba göre: hızlıda keskin whoosh / vuruş, normalde yumuşak swish / tık, yavaşta havadar kabarma
+  (sert vuruş yok). Pazarlama kompozisyonlarının izleri (`public/audio/<ad>.wav`) değişmez.
+- **Ses dosyaları:** hızlı için şablon başına tek dosya (eski ızgaranın bölümleri ve efekt anları); normal/yavaş
+  videonun süresi değiştiği için şablon × tempo başına giriş ve gövde **döngüsü** (16 vuruş; kararlı durumdan
+  kesilir, döngü sınırı kesintisiz) + kapanış kökü (riser, vuruş, son akor) ve tempo başına efekt dosyaları —
+  `public/audio/tempo/` (38 dosya, ~70 MB, git'e girmez; `node scripts/audio/synth.mjs --tempo`, deterministik,
+  ~30 sn). `prepare:article-short` üretir; `timeline.json` ya da sentez kodu (`synth.mjs`, `styles.mjs`)
+  dosyalardan yeniyse yeniden üretilir.
+- **Müzik denetimi:** `node scripts/audio/check-music.mjs [--videos <klasör>] [--md5 <dosya>]` — kırpılma, DC,
+  stereo, döngü dikişi (örnek sıçraması, yüksek frekans patlaması, RMS), üslup başına BPM / ses kümesi / swing /
+  onset'lerin ızgaraya oturması / spektral denge, üslupların farklılığı; isteğe bağlı videoların loudness'ı
+  (-14 LUFS, ≤ -1 dBTP) ve pazarlama izlerinin md5'i.
+- **Okunurluk denetimi:** `node scripts/check-video-readability.mjs` — 5 biçim × 3 tempo; en uzun (koruyucu
+  sınırları, kelime başına 5 karakter), en kısa, tipik ve 300 rastgele metin. normal/slow'da her metin ve liste
+  kuralı, ≤ 60 sn ve paneldeki süre tablosu (`apps/web/src/lib/article-video.ts VIDEO_TEMPO_SECONDS`)
+  doğrulanır; api `videos/video-tempo.spec.ts` aynı denetimi testte çalıştırır.
+
 ## RanksUp Video (ürün) — sunucu hattı
 
 Müşterinin **yayındaki** makalesinden, anasayfasından (site tanıtımı) ya da kendi alan adındaki bir ürün/hizmet
@@ -175,7 +214,8 @@ sudo apt install -y libnss3 libdbus-1-3 libatk1.0-0 libasound2t64 libxrandr2 lib
 #    bundler + renderer'ı getirir — --prod KULLANMA)
 cd /var/www/luviai && pnpm install --frozen-lockfile
 
-# 3) Chrome indir + ses izi + Remotion paketi + ffmpeg kaynağını yaz (ağ gerekir; her deploy'da güvenli)
+# 3) Chrome indir + tempo müzikleri (hızlı / normal / yavaş, ilk seferde ~30 sn) + Remotion paketi +
+#    ffmpeg kaynağını yaz (ağ gerekir; her deploy'da güvenli — timeline.json ve sentez kodu değişmediyse ses önbellekte)
 pnpm --filter @luviai/video prepare:article-short
 
 # 4) Derle ve yeniden başlat
@@ -188,7 +228,7 @@ grep -rn "location /videos" /etc/nginx/sites-enabled/ || echo "nginx: /videos/ -
 ```
 
 Worker belleği: render sırasında Chrome sekmeleri worker'ın alt süreçleri olarak çalışır (yerel ölçüm:
-eşzamanlılık 4'te 15 sn video ~12-25 sn). Bellek sıkışırsa önce `VIDEO_RENDER_CONCURRENCY`'yi düşür.
+eşzamanlılık 4'te 15 sn video ~12-25 sn; normal/yavaş videonun render süresi uzunluğuyla orantılı, 30 sn video ~35-45 sn). Bellek sıkışırsa önce `VIDEO_RENDER_CONCURRENCY`'yi düşür.
 
 ## Lisans notu
 

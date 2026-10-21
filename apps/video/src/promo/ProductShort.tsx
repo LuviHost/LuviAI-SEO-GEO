@@ -1,8 +1,9 @@
 import React, { useMemo } from 'react';
 import { AbsoluteFill, Easing, interpolate, useCurrentFrame } from 'remotion';
 import { Check } from 'lucide-react';
-import { Soundtrack, clamp01, fontDisplay, fontUI, ramp, snap, soft, useBrandFonts } from '../marketing/kit';
+import { clamp01, fontDisplay, fontUI, ramp, useBrandFonts } from '../marketing/kit';
 import { timeline } from '../marketing/timeline';
+import { TempoProvider, TempoSoundtrack, tempoTimeline, useTL } from '../tempo/TempoTimeline';
 import { fitText, type Fit } from '../article-short/fit';
 import { brandPalette, rgba, type BrandPalette } from '../article-short/palette';
 import { LogoTile, upperTr } from '../article-short/ArticleShort';
@@ -10,8 +11,9 @@ import { CtaPill, DISPLAY, FitLines, ImageGlow, LightField, PriceTag, ProductIma
 
 /**
  * ProductShort — musterinin kendi sitesindeki urun / hizmet sayfasindan tanitim videosu.
- *   ProductShort 1080×1920, 15 sn (dikey)     ProductWide 1920×1080, 15 sn (yatay)
- * Ikisi ayni izgara ve ses (timeline.json 'ProductShort').
+ *   ProductShort 1080×1920 (dikey)     ProductWide 1920×1080 (yatay)
+ * Ikisi ayni izgara ve ses: 'fast' timeline.json 'ProductShort' (15 sn), normal / slow tempo plani
+ * (src/tempo/plan.mjs; sure metinden, en fazla 60 sn).
  *
  * Gorsel dil GORSEL ONDE: urun fotografi beyaz kartta 'contain' (paket gorseli kirpilmaz), tum
  * video boyunca yavas yakinlasma; arkasinda ayni gorselin bulanik renk alani. Ozellikler isaretli
@@ -27,8 +29,8 @@ export type ProductShortProps = PromoBaseProps & {
   price?: string;
 };
 
-const TL = timeline('ProductShort');
-export const PRODUCT_SHORT_DURATION = TL.durationInFrames;
+/** 'fast' tempodaki sabit sure (Root.tsx varsayilani; asil sure calculateMetadata'dan) */
+export const PRODUCT_SHORT_DURATION = timeline('ProductShort').durationInFrames;
 
 export const productShortDefaults: ProductShortProps = {
   hook: 'Örnek ürün adı',
@@ -42,6 +44,7 @@ export const productShortDefaults: ProductShortProps = {
   price: '',
   muted: false,
   watermark: true,
+  tempo: 'normal',
 };
 
 type Row = { title: Fit; detail: Fit | null; h: number };
@@ -62,6 +65,7 @@ function rowFits(points: PromoBaseProps['points'], textW: number, avail: number)
 }
 
 function FeatureRows({ frame, pal, rows, gap, left, top, width }: { frame: number; pal: BrandPalette; rows: Row[]; gap: number; left: number; top: number; width: number }) {
+  const TL = useTL();
   let y = top;
   return (
     <>
@@ -70,8 +74,8 @@ function FeatureRows({ frame, pal, rows, gap, left, top, width }: { frame: numbe
         const rowTop = y;
         y += r.h + gap;
         if (frame < s - 6) return null;
-        const inP = snap(frame, s, 30, 5);
-        const det = snap(frame, TL.at(`p${i + 1}.detail`));
+        const inP = TL.snap(frame, s, 30, 5);
+        const det = TL.snap(frame, TL.at(`p${i + 1}.detail`));
         const active = frame < e;
         const dim = active ? 0 : ramp(frame, e, e + 8);
         return (
@@ -135,6 +139,7 @@ function Kicker({ text, pal, p }: { text: string; pal: BrandPalette; p: number }
 
 /** Marka renkli kapanis zemini (alttan/sagdan buyuyen daire) */
 function EndWipe({ frame, pal, at }: { frame: number; pal: BrandPalette; at: string }) {
+  const TL = useTL();
   const [s] = TL.scene('end');
   if (frame < s - 8) return null;
   const grow = ramp(frame, s - 7, s + 5, Easing.bezier(0.45, 0, 0.15, 1));
@@ -149,6 +154,7 @@ const VX = { left: 90, width: 860 } as const;
 export const ProductShort: React.FC<ProductShortProps> = (props) => {
   const ready = useBrandFonts();
   const frame = useCurrentFrame();
+  const TL = useMemo(() => tempoTimeline('ProductShort', props), [props]);
   const pal = useMemo(() => brandPalette(props.brand.primary), [props.brand.primary]);
   const points = useMemo(() => props.points.slice(0, 3), [props.points]);
   const kicker = props.kicker?.trim() || '';
@@ -183,51 +189,54 @@ export const ProductShort: React.FC<ProductShortProps> = (props) => {
   const size = interpolate(shrink, [0, 1], [680, 560]) + (420 - 560) * endP;
   const cardX = (1080 - size) / 2;
   const cardY = 250 + 40 * endP;
-  const imgIn = snap(frame, TL.at('hook.image') + 4);
-  const priceP = snap(frame, TL.at('hook.price'));
-  const logoP = snap(frame, TL.at('hook.title'));
+  const imgIn = TL.snap(frame, TL.at('hook.image') + 4);
+  const priceP = TL.snap(frame, TL.at('hook.price'));
+  const logoP = TL.snap(frame, TL.at('hook.title'));
 
   return (
-    <AbsoluteFill style={{ fontFamily: fontUI, color: pal.ink, overflow: 'hidden' }}>
-      <Soundtrack tl={TL} muted={props.muted ?? false} />
-      <LightField pal={pal} />
-      <ImageGlow src={props.image} opacity={0.32 * imgIn} style={{ left: 0, top: 0, width: 1080, height: 1250, maskImage: 'radial-gradient(ellipse 60% 50% at 50% 42%, black 30%, transparent 100%)' }} />
-      {fits ? (
-        <>
-          {/* kanca metni */}
-          <VHookText frame={frame} pal={pal} fits={fits} kicker={kicker} />
-          <FeatureRowsWindow frame={frame} pal={pal} rows={fits.rows} gap={fits.gap} left={VX.left} top={860} width={VX.width} />
-          {props.watermark !== false && frame < endS + 2 ? <WatermarkLine top={1468} color={pal.muted} opacity={0.75 * soft(frame, 8) * (1 - ramp(frame, endS - 6, endS))} /> : null}
-          <EndWipe frame={frame} pal={pal} at="540px 1920px" />
-          <VEnd frame={frame} pal={pal} fits={fits} label={props.cta.label} watermark={props.watermark !== false} />
-          {/* gorsel karti kapanis zemininin USTUNDE kalir */}
-          <div style={{ position: 'absolute', left: cardX, top: cardY, opacity: clamp01(imgIn * 1.4), transform: `scale(${0.85 + 0.15 * imgIn})` }}>
-            <ProductImageCard src={props.image} size={size} frame={frame} total={TL.durationInFrames} pal={pal} brandTile={<LogoTile brand={props.brand} size={size * 0.42} pal={pal} />} />
-            {props.image ? (
-              <div style={{ position: 'absolute', left: -size * 0.06, bottom: -size * 0.06, opacity: clamp01(logoP * 1.5), transform: `scale(${0.6 + 0.4 * logoP})` }}>
-                <LogoTile brand={props.brand} size={Math.round(size * 0.2)} pal={pal} />
-              </div>
-            ) : null}
-            {props.price && fits.price ? (
-              <div style={{ position: 'absolute', right: -size * 0.05, top: size * 0.04 }}>
-                <PriceTag text={props.price} size={fits.price * (size / 680)} pal={pal} p={priceP} />
-              </div>
-            ) : null}
-          </div>
-        </>
-      ) : null}
-    </AbsoluteFill>
+    <TempoProvider value={TL}>
+      <AbsoluteFill style={{ fontFamily: fontUI, color: pal.ink, overflow: 'hidden' }}>
+        <TempoSoundtrack tl={TL} muted={props.muted ?? false} />
+        <LightField pal={pal} />
+        <ImageGlow src={props.image} opacity={0.32 * imgIn} style={{ left: 0, top: 0, width: 1080, height: 1250, maskImage: 'radial-gradient(ellipse 60% 50% at 50% 42%, black 30%, transparent 100%)' }} />
+        {fits ? (
+          <>
+            {/* kanca metni */}
+            <VHookText frame={frame} pal={pal} fits={fits} kicker={kicker} />
+            <FeatureRowsWindow frame={frame} pal={pal} rows={fits.rows} gap={fits.gap} left={VX.left} top={860} width={VX.width} />
+            {props.watermark !== false && frame < endS + 2 ? <WatermarkLine top={1468} color={pal.muted} opacity={0.75 * TL.soft(frame, 8) * (1 - ramp(frame, endS - 6, endS))} /> : null}
+            <EndWipe frame={frame} pal={pal} at="540px 1920px" />
+            <VEnd frame={frame} pal={pal} fits={fits} label={props.cta.label} watermark={props.watermark !== false} />
+            {/* gorsel karti kapanis zemininin USTUNDE kalir */}
+            <div style={{ position: 'absolute', left: cardX, top: cardY, opacity: clamp01(imgIn * 1.4), transform: `scale(${0.85 + 0.15 * imgIn})` }}>
+              <ProductImageCard src={props.image} size={size} frame={frame} total={TL.durationInFrames} pal={pal} brandTile={<LogoTile brand={props.brand} size={size * 0.42} pal={pal} />} />
+              {props.image ? (
+                <div style={{ position: 'absolute', left: -size * 0.06, bottom: -size * 0.06, opacity: clamp01(logoP * 1.5), transform: `scale(${0.6 + 0.4 * logoP})` }}>
+                  <LogoTile brand={props.brand} size={Math.round(size * 0.2)} pal={pal} />
+                </div>
+              ) : null}
+              {props.price && fits.price ? (
+                <div style={{ position: 'absolute', right: -size * 0.05, top: size * 0.04 }}>
+                  <PriceTag text={props.price} size={fits.price * (size / 680)} pal={pal} p={priceP} />
+                </div>
+              ) : null}
+            </div>
+          </>
+        ) : null}
+      </AbsoluteFill>
+    </TempoProvider>
   );
 };
 
 function VHookText({ frame, pal, fits, kicker }: { frame: number; pal: BrandPalette; fits: VFits; kicker: string }) {
+  const TL = useTL();
   const [, e] = TL.scene('hook');
   if (frame >= e + 2) return null;
   // Kanca, ozellik satirlari girmeden (s - 5) tamamen kaybolur: iki katman ust uste binmesin
   const out = ramp(frame, e - 12, e - 5, Easing.in(Easing.cubic));
-  const k = snap(frame, TL.at('hook.title') - 4);
-  const t = snap(frame, TL.at('hook.title'));
-  const sub = soft(frame, TL.at('hook.sub'));
+  const k = TL.snap(frame, TL.at('hook.title') - 4);
+  const t = TL.snap(frame, TL.at('hook.title'));
+  const sub = TL.soft(frame, TL.at('hook.sub'));
   return (
     <div style={{ position: 'absolute', left: VX.left, width: VX.width, top: 980, height: 480, display: 'flex', flexDirection: 'column', justifyContent: 'center', opacity: 1 - out, transform: `translateY(${out * 60}px)` }}>
       {kicker ? <Kicker text={kicker} pal={pal} p={k} /> : null}
@@ -238,6 +247,7 @@ function VHookText({ frame, pal, fits, kicker }: { frame: number; pal: BrandPale
 }
 
 function FeatureRowsWindow(props: { frame: number; pal: BrandPalette; rows: Row[]; gap: number; left: number; top: number; width: number }) {
+  const TL = useTL();
   const [endS] = TL.scene('end');
   const [p1s] = TL.scene('p1');
   if (props.frame < p1s - 8 || props.frame >= endS + 4) return null;
@@ -251,12 +261,13 @@ function FeatureRowsWindow(props: { frame: number; pal: BrandPalette; rows: Row[
 }
 
 function VEnd({ frame, pal, fits, label, watermark }: { frame: number; pal: BrandPalette; fits: VFits; label: string; watermark: boolean }) {
+  const TL = useTL();
   const [s] = TL.scene('end');
   if (frame < s - 2) return null;
-  const nm = snap(frame, s + 5);
-  const lab = soft(frame, TL.at('end.cta') - 4);
-  const cta = snap(frame, TL.at('end.cta'));
-  const mark = soft(frame, TL.at('end.url') + 4);
+  const nm = TL.snap(frame, s + 5);
+  const lab = TL.soft(frame, TL.at('end.cta') - 4);
+  const cta = TL.snap(frame, TL.at('end.cta'));
+  const mark = TL.soft(frame, TL.at('end.url') + 4);
   const pill = pillOnBrand(pal);
   return (
     <>
@@ -280,6 +291,7 @@ type WFits = { name: Fit; sub: Fit | null; head: Fit; rows: Row[]; gap: number; 
 export const ProductWide: React.FC<ProductShortProps> = (props) => {
   const ready = useBrandFonts();
   const frame = useCurrentFrame();
+  const TL = useMemo(() => tempoTimeline('ProductWide', props), [props]);
   const pal = useMemo(() => brandPalette(props.brand.primary), [props.brand.primary]);
   const points = useMemo(() => props.points.slice(0, 3), [props.points]);
   const kicker = props.kicker?.trim() || '';
@@ -307,67 +319,69 @@ export const ProductWide: React.FC<ProductShortProps> = (props) => {
   }, [ready, props.hook, props.hookSub, props.cta.domain, props.price, points, kicker]);
 
   const size = 760;
-  const imgIn = snap(frame, TL.at('hook.image') + 4);
-  const priceP = snap(frame, TL.at('hook.price'));
-  const logoP = snap(frame, TL.at('hook.title'));
+  const imgIn = TL.snap(frame, TL.at('hook.image') + 4);
+  const priceP = TL.snap(frame, TL.at('hook.price'));
+  const logoP = TL.snap(frame, TL.at('hook.title'));
   const [, hookE] = TL.scene('hook');
   const [p1s] = TL.scene('p1');
   const [endS] = TL.scene('end');
 
   return (
-    <AbsoluteFill style={{ fontFamily: fontUI, color: pal.ink, overflow: 'hidden' }}>
-      <Soundtrack tl={TL} muted={props.muted ?? false} />
-      <LightField pal={pal} />
-      <ImageGlow src={props.image} opacity={0.32 * imgIn} style={{ left: 0, top: 0, width: 1100, height: 1080, maskImage: 'radial-gradient(ellipse 55% 60% at 47% 50%, black 30%, transparent 100%)' }} />
-      {fits ? (
-        <>
-          {frame < hookE + 2 ? (
-            <div
-              style={{
-                position: 'absolute', left: WX.left, width: WX.width, top: 160, height: 760, display: 'flex', flexDirection: 'column', justifyContent: 'center',
-                opacity: 1 - ramp(frame, hookE - 12, hookE - 5, Easing.in(Easing.cubic)),
-              }}
-            >
-              {kicker ? <Kicker text={kicker} pal={pal} p={snap(frame, TL.at('hook.title') - 4)} /> : null}
-              <FitLines fit={fits.name} lineHeight={1.06} style={{ marginTop: kicker ? 26 : 0, fontFamily: fontDisplay, fontWeight: 800, letterSpacing: '-0.035em', opacity: clamp01(snap(frame, TL.at('hook.title')) * 1.5) }} />
-              {fits.sub ? <FitLines fit={fits.sub} lineHeight={1.28} style={{ marginTop: 24, fontWeight: 600, color: pal.body, opacity: soft(frame, TL.at('hook.sub')) }} /> : null}
-            </div>
-          ) : null}
-          {frame >= p1s - 8 && frame < endS + 4 ? (
-            <div style={{ position: 'absolute', inset: 0, opacity: 1 - ramp(frame, endS - 6, endS, Easing.in(Easing.cubic)) }}>
-              <FitLines fit={fits.head} lineHeight={1.1} style={{ position: 'absolute', left: WX.left, top: 110, fontFamily: fontDisplay, fontWeight: 800, letterSpacing: '-0.03em', opacity: clamp01(snap(frame, p1s) * 1.5) }} />
-              <FeatureRows frame={frame} pal={pal} rows={fits.rows} gap={fits.gap} left={WX.left} top={200 + Math.max(0, (720 - (fits.rows.reduce((a, r) => a + r.h, 0) + fits.gap * 2)) / 2)} width={WX.width} />
-            </div>
-          ) : null}
-          {props.watermark !== false && frame < endS + 2 ? <WatermarkLine top={1012} color={pal.muted} opacity={0.75 * soft(frame, 8) * (1 - ramp(frame, endS - 6, endS))} size={22} /> : null}
-          <EndWipe frame={frame} pal={pal} at="1920px 540px" />
-          {frame >= endS - 2 ? (
-            <>
-              <div style={{ position: 'absolute', left: WX.left, width: WX.width, top: 200, height: 680, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-start', color: pal.onPrimary }}>
-                <FitLines fit={fits.endName} lineHeight={1.06} style={{ fontFamily: fontDisplay, fontWeight: 800, letterSpacing: '-0.035em', opacity: clamp01(snap(frame, endS + 5) * 1.5) }} />
-                <div style={{ marginTop: 56, fontFamily: fontUI, fontWeight: 700, fontSize: 42, opacity: 0.9 * soft(frame, TL.at('end.cta') - 4) }}>{props.cta.label}</div>
-                <div style={{ marginTop: 26, transformOrigin: 'left center' }}>
-                  <CtaPill fit={fits.domain} bg={pillOnBrand(pal).bg} color={pillOnBrand(pal).text} scale={snap(frame, TL.at('end.cta'))} />
+    <TempoProvider value={TL}>
+      <AbsoluteFill style={{ fontFamily: fontUI, color: pal.ink, overflow: 'hidden' }}>
+        <TempoSoundtrack tl={TL} muted={props.muted ?? false} />
+        <LightField pal={pal} />
+        <ImageGlow src={props.image} opacity={0.32 * imgIn} style={{ left: 0, top: 0, width: 1100, height: 1080, maskImage: 'radial-gradient(ellipse 55% 60% at 47% 50%, black 30%, transparent 100%)' }} />
+        {fits ? (
+          <>
+            {frame < hookE + 2 ? (
+              <div
+                style={{
+                  position: 'absolute', left: WX.left, width: WX.width, top: 160, height: 760, display: 'flex', flexDirection: 'column', justifyContent: 'center',
+                  opacity: 1 - ramp(frame, hookE - 12, hookE - 5, Easing.in(Easing.cubic)),
+                }}
+              >
+                {kicker ? <Kicker text={kicker} pal={pal} p={TL.snap(frame, TL.at('hook.title') - 4)} /> : null}
+                <FitLines fit={fits.name} lineHeight={1.06} style={{ marginTop: kicker ? 26 : 0, fontFamily: fontDisplay, fontWeight: 800, letterSpacing: '-0.035em', opacity: clamp01(TL.snap(frame, TL.at('hook.title')) * 1.5) }} />
+                {fits.sub ? <FitLines fit={fits.sub} lineHeight={1.28} style={{ marginTop: 24, fontWeight: 600, color: pal.body, opacity: TL.soft(frame, TL.at('hook.sub')) }} /> : null}
+              </div>
+            ) : null}
+            {frame >= p1s - 8 && frame < endS + 4 ? (
+              <div style={{ position: 'absolute', inset: 0, opacity: 1 - ramp(frame, endS - 6, endS, Easing.in(Easing.cubic)) }}>
+                <FitLines fit={fits.head} lineHeight={1.1} style={{ position: 'absolute', left: WX.left, top: 110, fontFamily: fontDisplay, fontWeight: 800, letterSpacing: '-0.03em', opacity: clamp01(TL.snap(frame, p1s) * 1.5) }} />
+                <FeatureRows frame={frame} pal={pal} rows={fits.rows} gap={fits.gap} left={WX.left} top={200 + Math.max(0, (720 - (fits.rows.reduce((a, r) => a + r.h, 0) + fits.gap * 2)) / 2)} width={WX.width} />
+              </div>
+            ) : null}
+            {props.watermark !== false && frame < endS + 2 ? <WatermarkLine top={1012} color={pal.muted} opacity={0.75 * TL.soft(frame, 8) * (1 - ramp(frame, endS - 6, endS))} size={22} /> : null}
+            <EndWipe frame={frame} pal={pal} at="1920px 540px" />
+            {frame >= endS - 2 ? (
+              <>
+                <div style={{ position: 'absolute', left: WX.left, width: WX.width, top: 200, height: 680, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'flex-start', color: pal.onPrimary }}>
+                  <FitLines fit={fits.endName} lineHeight={1.06} style={{ fontFamily: fontDisplay, fontWeight: 800, letterSpacing: '-0.035em', opacity: clamp01(TL.snap(frame, endS + 5) * 1.5) }} />
+                  <div style={{ marginTop: 56, fontFamily: fontUI, fontWeight: 700, fontSize: 42, opacity: 0.9 * TL.soft(frame, TL.at('end.cta') - 4) }}>{props.cta.label}</div>
+                  <div style={{ marginTop: 26, transformOrigin: 'left center' }}>
+                    <CtaPill fit={fits.domain} bg={pillOnBrand(pal).bg} color={pillOnBrand(pal).text} scale={TL.snap(frame, TL.at('end.cta'))} />
+                  </div>
                 </div>
-              </div>
-              {props.watermark !== false ? <WatermarkLine top={1012} color={pal.onPrimary} opacity={0.62 * soft(frame, TL.at('end.url') + 4)} size={22} /> : null}
-            </>
-          ) : null}
-          <div style={{ position: 'absolute', left: 130, top: 160, opacity: clamp01(imgIn * 1.4), transform: `scale(${0.85 + 0.15 * imgIn})` }}>
-            <ProductImageCard src={props.image} size={size} frame={frame} total={TL.durationInFrames} pal={pal} brandTile={<LogoTile brand={props.brand} size={size * 0.42} pal={pal} />} />
-            {props.image ? (
-              <div style={{ position: 'absolute', left: -28, bottom: -28, opacity: clamp01(logoP * 1.5), transform: `scale(${0.6 + 0.4 * logoP})` }}>
-                <LogoTile brand={props.brand} size={140} pal={pal} />
-              </div>
+                {props.watermark !== false ? <WatermarkLine top={1012} color={pal.onPrimary} opacity={0.62 * TL.soft(frame, TL.at('end.url') + 4)} size={22} /> : null}
+              </>
             ) : null}
-            {props.price && fits.price ? (
-              <div style={{ position: 'absolute', right: -40, top: 30 }}>
-                <PriceTag text={props.price} size={fits.price} pal={pal} p={priceP} />
-              </div>
-            ) : null}
-          </div>
-        </>
-      ) : null}
-    </AbsoluteFill>
+            <div style={{ position: 'absolute', left: 130, top: 160, opacity: clamp01(imgIn * 1.4), transform: `scale(${0.85 + 0.15 * imgIn})` }}>
+              <ProductImageCard src={props.image} size={size} frame={frame} total={TL.durationInFrames} pal={pal} brandTile={<LogoTile brand={props.brand} size={size * 0.42} pal={pal} />} />
+              {props.image ? (
+                <div style={{ position: 'absolute', left: -28, bottom: -28, opacity: clamp01(logoP * 1.5), transform: `scale(${0.6 + 0.4 * logoP})` }}>
+                  <LogoTile brand={props.brand} size={140} pal={pal} />
+                </div>
+              ) : null}
+              {props.price && fits.price ? (
+                <div style={{ position: 'absolute', right: -40, top: 30 }}>
+                  <PriceTag text={props.price} size={fits.price} pal={pal} p={priceP} />
+                </div>
+              ) : null}
+            </div>
+          </>
+        ) : null}
+      </AbsoluteFill>
+    </TempoProvider>
   );
 };
