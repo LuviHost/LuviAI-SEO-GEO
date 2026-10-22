@@ -8,6 +8,7 @@ import { assertSiteUrlAllowed, parseSiteUrlInput, type PublicResolver } from './
 import { crawlAccessKey, readCrawlAccess, type CrawlAccessRecord } from './crawl-access.js';
 import { asaStateKeys, promptLocalKeys } from '../me/unscoped-kv-keys.js';
 import { removeSiteVideoFiles } from '../videos/article-video.config.js';
+import { DEFAULT_PUBLISH_APPROVAL_MODE } from '../articles/publish-approval.js';
 
 /**
  * Site satirindaki sirlar — API cevabina ASLA cikmamali.
@@ -95,7 +96,9 @@ export class SitesService {
     try {
       // Yeni satirda sir alanlari bos; yine de cevap ayni kuralla doner
       site = await this.prisma.site.create({
-        data: { ...dto, url: normalizedUrl, userId },
+        // Yari otomatik varsayilan (publish-approval.ts DEFAULT_PUBLISH_APPROVAL_MODE);
+        // CreateSiteDto modu tasimaz, Tam otomatige yalniz kullanici gecer
+        data: { ...dto, url: normalizedUrl, userId, publishApprovalMode: DEFAULT_PUBLISH_APPROVAL_MODE },
         omit: SITE_SECRET_FIELDS,
       });
     } catch (err: any) {

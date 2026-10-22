@@ -12,7 +12,7 @@ const CONTENT = {
     // Icerik degisti (8. madde eklendi; 7. ve 9. madde kaldirilan sosyal paylasima gore
     // duzeltildi); yururluk tarihi korunur, okuyan degisikligi gorsun diye son guncelleme ve
     // not ayrica yazilir (gizlilik sayfasindaki duzen)
-    updated: 'Son güncelleme: 21 Ekim 2026 — 8. madde (RanksUp Video ve marka öğeleri) eklendi; sonraki maddelerin numarası bir arttı. 7. madde, kaldırılan sosyal medya paylaşım özelliğini hâlâ varmış gibi anlatıyordu; yeniden yazıldı. 9. maddeye hesabınızı sildiğinizde bağlı hizmetlerin erişim bilgilerinin hemen silindiği eklendi. 8. maddeye site ve ürün tanıtım videoları eklendi: sayfa içeriği, ürün görselleri ve fiyat yalnız sizin sitenizden alınır.',
+    updated: 'Son güncelleme: 22 Ekim 2026 — 2. madde: ücretsiz deneme artık 14 gün sürer; süre bitince bir plan seçilene kadar hesap salt okunur olur, veriler saklanır; denemede makaleler kullanıcının başlatmasıyla ve yayın hedefi bağlandıktan sonra üretilir. 21 Ekim 2026 — 8. madde (RanksUp Video ve marka öğeleri) eklendi; sonraki maddelerin numarası bir arttı. 7. madde, kaldırılan sosyal medya paylaşım özelliğini hâlâ varmış gibi anlatıyordu; yeniden yazıldı. 9. maddeye hesabınızı sildiğinizde bağlı hizmetlerin erişim bilgilerinin hemen silindiği eklendi. 8. maddeye site ve ürün tanıtım videoları eklendi: sayfa içeriği, ürün görselleri ve fiyat yalnız sizin sitenizden alınır.',
     sections: [
       {
         h: '1. Hizmet Tanımı',
@@ -20,8 +20,8 @@ const CONTENT = {
       },
       {
         h: '2. Üyelik & Trial',
-        p: 'Kayıt olan herkes 2 makaleyi ücretsiz üretebilir. Süre sınırı yoktur, kart bilgisi gerekmez. Kota bittiğinde devam etmek için ücretli bir plan seçilmesi gerekir. Güncel plan adları, kapsamları ve fiyatları için fiyatlandırma sayfasına bakınız; fiyatlar ABD doları üzerinden belirlenir ve Türk lirası karşılığı ödeme anındaki TCMB kuruyla hesaplanır.',
-        strong: '2 makaleyi ücretsiz',
+        p: 'Kayıt olan herkes 14 gün süren ücretsiz denemeden yararlanır; kart bilgisi gerekmez. Denemede yapay zekâ konu başlıklarını hazırlar; makale yalnızca kullanıcının başlatmasıyla ve sitesine bir yayın hedefi bağladıktan sonra üretilir, toplam 2 makaleyle sınırlıdır. Deneme süresi bittiğinde, bir plan seçilene kadar hesap salt okunur olur: mevcut veriler görüntülenebilir ve indirilebilir, hesap silinebilir; yapay zekâ ile yeni üretim, ölçüm ve analiz yapılmaz. Veriler bu sürede silinmez. Satın alma geçici olarak kapalıysa (örneğin ödeme altyapısı test aşamasındayken) hesap salt okunur yapılmaz, deneme haklarıyla kullanılmaya devam eder. Makale hakkı bittiğinde ya da deneme süresi dolduğunda devam etmek için ücretli bir plan seçilmesi gerekir. Güncel plan adları, kapsamları ve fiyatları için fiyatlandırma sayfasına bakınız; fiyatlar ABD doları üzerinden belirlenir ve Türk lirası karşılığı ödeme anındaki TCMB kuruyla hesaplanır.',
+        strong: '14 gün süren ücretsiz denemeden',
       },
       {
         h: '3. Ücretler',
@@ -77,7 +77,7 @@ const CONTENT = {
     titleA: 'Terms of',
     titleB: 'Service',
     effective: 'Effective: April 27, 2026',
-    updated: 'Last updated: October 21, 2026 — added section 8 (RanksUp Video and brand assets); the following sections were renumbered. Section 7 still described the removed social media posting feature as if it were available; it has been rewritten. Section 9 now states that the access credentials of connected services are deleted immediately when you delete your account. Section 8 now covers site and product intro videos: page content, product images and prices are taken only from your own site.',
+    updated: 'Last updated: October 22, 2026 — section 2: the free trial now lasts 14 days; when it ends the account becomes read-only until a plan is chosen and data is kept; on the trial articles are generated only when the user starts them, after connecting a publish target. October 21, 2026 — added section 8 (RanksUp Video and brand assets); the following sections were renumbered. Section 7 still described the removed social media posting feature as if it were available; it has been rewritten. Section 9 now states that the access credentials of connected services are deleted immediately when you delete your account. Section 8 now covers site and product intro videos: page content, product images and prices are taken only from your own site.',
     sections: [
       {
         h: '1. Service Definition',
@@ -85,8 +85,8 @@ const CONTENT = {
       },
       {
         h: '2. Membership & Trial',
-        p: 'Every signup can generate 2 free articles. No time limit, no credit card required. Once the quota is used, continuing requires a paid plan. See the pricing page for current plan names, scope and prices; prices are set in US dollars and the Turkish lira amount is calculated at the central-bank rate at the time of payment.',
-        strong: '2 free articles',
+        p: 'Every signup gets a free trial that lasts 14 days; no credit card required. On the trial the AI prepares topic titles; an article is generated only when the user starts it, after connecting a publish target to their site, and the trial is limited to 2 articles in total. When the trial period ends, the account becomes read-only until a plan is chosen: existing data can be viewed and downloaded and the account can be deleted; no new AI generation, measurement or analysis runs. Data is not deleted during this time. If purchasing is temporarily unavailable (for example while the payment system is in test mode), the account is not made read-only and can still be used within the trial allowances. Continuing after the article allowance is used or the trial period ends requires a paid plan. See the pricing page for current plan names, scope and prices; prices are set in US dollars and the Turkish lira amount is calculated at the central-bank rate at the time of payment.',
+        strong: 'free trial that lasts 14 days',
       },
       {
         h: '3. Pricing',

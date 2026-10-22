@@ -100,7 +100,7 @@ export class ArticlesService {
     // 403, hicbir kayit acilmaz). Eskiden "oku → kuyruga at → kosulsuz artir" idi:
     // es zamanli iki istek son hakki iki kez kullanabiliyordu (QuotaService
     // consumeArticleAllowance). Uretim baslatilamazsa hak geri verilir.
-    await this.quota.consumeArticleAllowance(site.userId);
+    await this.quota.consumeArticleAllowance(site.userId, site.id);
 
     let placeholderId: string | null = null;
     try {
@@ -162,7 +162,7 @@ export class ArticlesService {
     // 1) Makale hakki hat baslamadan duser (tek kosullu UPDATE, hak doluysa 403).
     //    Eskiden hat bittikten sonra artiyordu: hat surerken gelen ikinci istek de
     //    "hak var" okuyup ayni son hakla ikinci bir hat baslatabiliyordu.
-    await this.quota.consumeArticleAllowance(site.userId);
+    await this.quota.consumeArticleAllowance(site.userId, site.id);
 
     // 2) Pipeline çalıştır; hata verirse hak geri verilir (eskiden de yalniz basarida sayiliyordu)
     try {
@@ -220,7 +220,9 @@ export class ArticlesService {
     const userId = article.site.user.id;
     const originalOutputs = (article as { agentOutputs?: unknown }).agentOutputs ?? null;
     const prepaid = previousStatus === 'SCHEDULED' && hasAllowanceCharge(originalOutputs);
-    if (!prepaid) await this.quota.consumeArticleAllowance(userId);
+    // Deneme: kaynak (yayin hedefi) sarti hakki once dusulmus yazida da gecerli (trial-policy.ts)
+    if (prepaid) await this.quota.assertGenerationSource(userId, siteId);
+    else await this.quota.consumeArticleAllowance(userId, siteId);
     const refund = async () => { if (!prepaid) await this.quota.refundArticleAllowance(userId); };
 
     // Okuma ile yazma arasinda saatlik tarama / takvim isi yaziyi almis olabilir

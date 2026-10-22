@@ -8,6 +8,7 @@ import { PaytrService } from './paytr.service.js';
 import { QuotaService } from './quota.service.js';
 import { MeasurementAllowanceService } from './measurement-allowance.service.js';
 import { clientIp } from '../common/client-ip.js';
+import { TrialReadOnlyExempt } from './trial-read-only.decorator.js';
 
 function ensureSelf(req: Request, requestedUserId: string) {
   const user = (req as any).user;
@@ -17,6 +18,8 @@ function ensureSelf(req: Request, requestedUserId: string) {
   return user;
 }
 
+// Suresi dolan deneme (salt okunur, TrialExpiryGuard): odeme ve plan secimi suresi dolan denemede de acik kalmali (cikis yolu)
+@TrialReadOnlyExempt()
 @Controller('billing')
 export class BillingController {
   constructor(
@@ -57,11 +60,10 @@ export class BillingController {
   @Get('users/:userId/current')
   async current(@Req() req: Request, @Param('userId') userId: string) {
     ensureSelf(req, userId);
-    // checkout: istenen HESABA gore (odeme kapisi da fatura sahibine bakar)
-    const [plan, checkout] = await Promise.all([
-      this.billing.getCurrentPlan(userId),
-      this.paytr.checkoutStatus(userId),
-    ]);
+    // checkout: istenen HESABA gore (odeme kapisi da fatura sahibine bakar). Once okunur:
+    // deneme durumunun salt okunur karari satin almanin acik olmasina bagli (trial-policy.ts).
+    const checkout = await this.paytr.checkoutStatus(userId);
+    const plan = await this.billing.getCurrentPlan(userId, { checkoutOpen: checkout.open });
     return { ...plan, checkout };
   }
 

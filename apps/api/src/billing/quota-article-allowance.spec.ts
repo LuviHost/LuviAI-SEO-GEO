@@ -16,6 +16,8 @@ function db(user: { plan: string; articlesUsedThisMonth: number }) {
   const tick = () => new Promise((r) => setTimeout(r, 0));
   return {
     row,
+    // Deneme: uretim icin sitede aktif yayin hedefi sarti (trial-policy.ts); burada bagli
+    publishTarget: { findMany: vi.fn(async () => [{ type: 'WORDPRESS_REST', isActive: true }]) },
     user: {
       findUniqueOrThrow: vi.fn(async () => { await tick(); return { ...row }; }),
       update: vi.fn(async ({ data }: any) => { Object.assign(row, data); return { ...row }; }),
@@ -35,7 +37,7 @@ describe('QuotaService.consumeArticleAllowance — deneme hesabi toplam 2', () =
   it('son hak icin es zamanli iki istek: yalniz biri alir, digeri 403 (deneme metni); sayac 2', async () => {
     const prisma: any = db({ plan: 'TRIAL', articlesUsedThisMonth: 1 });
     const q = new QuotaService(prisma);
-    const results = await Promise.allSettled([q.consumeArticleAllowance('u1'), q.consumeArticleAllowance('u1')]);
+    const results = await Promise.allSettled([q.consumeArticleAllowance('u1', 's1'), q.consumeArticleAllowance('u1', 's1')]);
     expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1);
     const rejected = results.find((r) => r.status === 'rejected') as PromiseRejectedResult;
     expect(rejected.reason).toBeInstanceOf(ForbiddenException);
@@ -46,16 +48,16 @@ describe('QuotaService.consumeArticleAllowance — deneme hesabi toplam 2', () =
   it('deneme hesabi ust uste: 2 kez alir, ucuncude 403 ve sayac 2de kalir', async () => {
     const prisma: any = db({ plan: 'TRIAL', articlesUsedThisMonth: 0 });
     const q = new QuotaService(prisma);
-    await expect(q.consumeArticleAllowance('u1')).resolves.toEqual({ remaining: 1 });
-    await expect(q.consumeArticleAllowance('u1')).resolves.toEqual({ remaining: 0 });
-    await expect(q.consumeArticleAllowance('u1')).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(q.consumeArticleAllowance('u1', 's1')).resolves.toEqual({ remaining: 1 });
+    await expect(q.consumeArticleAllowance('u1', 's1')).resolves.toEqual({ remaining: 0 });
+    await expect(q.consumeArticleAllowance('u1', 's1')).rejects.toBeInstanceOf(ForbiddenException);
     expect(prisma.row.articlesUsedThisMonth).toBe(2);
   });
 
   it('ucretli plan hak dolunca aylik metin', async () => {
     const prisma: any = db({ plan: 'STARTER', articlesUsedThisMonth: 15 });
     const q = new QuotaService(prisma);
-    await expect(q.consumeArticleAllowance('u1')).rejects.toThrow('Aylık 15 makale kotan doldu.');
+    await expect(q.consumeArticleAllowance('u1', 's1')).rejects.toThrow('Aylık 15 makale kotan doldu.');
   });
 
   it('geri verme sayaci 0in altina indirmez', async () => {

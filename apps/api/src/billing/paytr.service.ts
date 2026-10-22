@@ -10,6 +10,7 @@ import { kickScheduledAfterUpgrade } from '../articles/scheduled-kick.js';
 import { findPlan, PURCHASABLE_PLAN_IDS } from './plans.js';
 import { cycleFromDescription, periodEndFromInvoice } from './subscription-period.js';
 import { RENEWAL_MAX_ATTEMPTS } from './renewal-policy.js';
+import { checkoutTestModeOn } from './checkout-mode.js';
 import { capInvoiceDescription, failedInvoiceDescription } from './invoice-description.js';
 
 /**
@@ -114,7 +115,7 @@ export class PaytrService {
    * ucuz hata (kapali basarisizlik). PayTR'ye giden deger DEGISMEZ (ham hali).
    */
   get testModeOn(): boolean {
-    return this.testMode.trim() !== '0';
+    return checkoutTestModeOn(this.testMode);
   }
 
   /** Hesap yonetici mi — yalniz test modu kararlarinda okunur (canli modda ek sorgu yok) */

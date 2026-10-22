@@ -2,6 +2,7 @@ import NextAuth, { type DefaultSession } from 'next-auth';
 import Google from 'next-auth/providers/google';
 import { PrismaAdapter } from '@auth/prisma-adapter';
 import { PrismaClient } from '@prisma/client';
+import { trialEndsAtFrom } from './lib/trial-access';
 
 // Bazı sunucular (örn. public IPv6'sız VM'ler) Node 20 fetch IPv6'ya
 // timeout veriyor (ETIMEDOUT). undici (Node built-in) global dispatcher'ı
@@ -89,8 +90,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
             role: 'USER',
             plan: 'TRIAL',
             subscriptionStatus: 'TRIAL',
-            // Deneme hakki 2 makale, omur boyu (ay basi sifirlanmaz) — sure kapisi yok.
-            // Kaynak: api billing/quota.service.ts LIMITS.TRIAL.articles ve plans.ts trial.articlesPerMonth.
+            // 14 gunluk deneme kayit aninda baslar (sahip karari 21.10.2026; api
+            // billing/trial-policy.ts). Hak 2 makale, omur boyu (api quota.service LIMITS.TRIAL).
+            // API welcome-hook ayrica ensureTrialStarted cagirir (emniyet agi, idempotent).
+            trialEndsAt: trialEndsAtFrom(new Date()),
           },
         });
 

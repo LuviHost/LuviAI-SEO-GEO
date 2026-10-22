@@ -134,7 +134,7 @@ export default function PricingPage() {
         <div className="max-w-3xl mx-auto text-center mb-12">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-500/10 border border-brand-500/20 text-brand-600 text-xs font-semibold mb-5">
             <Sparkles className="h-3 w-3" />
-            <span>2 makale ücretsiz · Kredi kartı yok</span>
+            <span>14 gün ücretsiz, 2 makale · Kredi kartı yok</span>
           </div>
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight leading-tight">
             Şeffaf fiyat,{' '}

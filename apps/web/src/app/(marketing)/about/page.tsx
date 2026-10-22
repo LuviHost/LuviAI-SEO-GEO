@@ -134,7 +134,7 @@ export default function AboutPage() {
                       ['PayTR güvenli ödeme', "Türkiye'nin TCMB lisanslı ödeme sağlayıcısı. Aylık iptal hakkı, taahhüt yok."],
                       ['Güçlü modeller', 'Makaleler Anthropic Claude ile yazılır, görseller Google Gemini ile üretilir; AI görünürlük ChatGPT, Claude, Gemini, Perplexity, Grok ve DeepSeek’te ölçülür.'],
                       ['Kalite kapısı', 'Her makale yayına çıkmadan AI editör ajanından ve kalite kapısından geçer: klişeler temizlenir, kaynaksız sayılar ve uydurma iç bağlantılar yakalanır. Yine de yayından önce gözden geçirmeni öneririz.'],
-                      ['İlk 2 makale ücretsiz', 'Kart bilgisi gerekmez; beğenmezsen ödeme yapmazsın. Önce dene, sonra karar ver.'],
+                      ['14 gün ücretsiz deneme', 'Kart bilgisi gerekmez; denemede 2 makale üretirsin, beğenmezsen ödeme yapmazsın. Önce dene, sonra karar ver.'],
                     ].map(([label, desc]) => (
                       <li key={label} className="flex gap-3">
                         <Sparkles className="h-3.5 w-3.5 text-brand-500 shrink-0 mt-1" strokeWidth={1.5} />

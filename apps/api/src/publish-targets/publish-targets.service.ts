@@ -73,6 +73,13 @@ export class PublishTargetsService {
     }
   }
 
+  /** Sitenin sahibinin planina gore uretim kaynagi durumu (QuotaService.generationReadiness) */
+  async generationReadiness(siteId: string, requestingUser: { id: string; role: string }) {
+    await this.ensureSiteOwner(siteId, requestingUser);
+    const site = await this.prisma.site.findUniqueOrThrow({ where: { id: siteId }, select: { userId: true } });
+    return this.quota.generationReadiness(site.userId, siteId);
+  }
+
   async list(siteId: string, requestingUser: { id: string; role: string }) {
     await this.ensureSiteOwner(siteId, requestingUser);
     const targets = await this.prisma.publishTarget.findMany({

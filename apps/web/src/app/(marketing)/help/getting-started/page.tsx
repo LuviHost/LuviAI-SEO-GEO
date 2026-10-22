@@ -23,7 +23,7 @@ export default function Page() {
       title="5 dakikada başla"
       intro="RanksUp'ta hesap aç, ilk siteni ekle, ilk AI bulgularını gör."
       steps={[
-        { name: 'Hesap aç', text: 'Landing\'de "Ücretsiz başla" ya da "Ücretsiz hesap aç" → "Google ile devam et". Web\'de kayıt Google hesabıyla yapılır; mobil uygulamada Google ya da iPhone\'da Apple ile giriş yapılır. Kart istenmez; ilk 2 makale ücretsiz.' },
+        { name: 'Hesap aç', text: 'Landing\'de "Ücretsiz başla" ya da "Ücretsiz hesap aç" → "Google ile devam et". Web\'de kayıt Google hesabıyla yapılır; mobil uygulamada Google ya da iPhone\'da Apple ile giriş yapılır. Kart istenmez; ilk 14 gün ücretsiz, 2 makale.' },
         { name: 'Siteni ekle', text: 'Panelde "Site ekle" (sonradan sol menüde "Yeni site ekle") → alan adını yaz → "Analizi başlat". AI sitenin sektörünü tahmin eder; gerekirse site ayarlarından değiştirirsin.' },
         { name: 'İlk bulguları gör', text: 'Kurulum ekranında aşamalar bittikçe ilk bulgular görünür: platform, hedef persona, rakipler, site skoru, ilk düzeltilecek madde ve ilk yazılacak içerik.' },
         { name: 'AI görünürlük ölçümü ve yol haritası', text: 'Sol menü → AI Görünürlük → "AI önerisi al": ChatGPT, Claude, Gemini, Perplexity, Grok ve DeepSeek\'e en fazla 5 soru sorulur ve sonuca göre 5 uygulanabilir öneri üretilir. Hesap başına haftada bir AI ölçümü yapılabilir; kurulum sırasında alınan ilk ölçüm haftalık hakkından düşmez.' },
@@ -73,7 +73,7 @@ export default function Page() {
       </Step>
 
       <Tip kind="success">
-        Bu noktada AI siteni taradı, eksikleri buldu, öneri çıkardı ve ilk içeriği yazdı. Denemede toplam 2 ücretsiz makale hakkın var; site eklenince yazılan ilk makale bunlardan biridir. Takvimdeki diğer konular panelde kilitli görünür ve planını yükselttiğinde yazılır.
+        Bu noktada AI siteni taradı, eksikleri buldu ve konu önerilerini çıkardı. Ücretsiz deneme 14 gün sürer ve toplam 2 makale hakkın var: denemede makale kendiliğinden yazılmaz, sitene bir yayın hedefi bağladıktan sonra &ldquo;Üret&rdquo; ile sen başlatırsın. Takvimdeki diğer konular panelde kilitli görünür ve planını yükselttiğinde yazılır. 14 gün dolunca plan seçene kadar hesabın salt okunur olur; verilerin silinmez.
       </Tip>
 
       <h2>Sonraki adımlar</h2>

@@ -19,6 +19,7 @@ import {
   issueOAuthState, resolveOAuthCallback, resolveParkedFinish, oauthErrorCode, oauthHttpError,
   OAuthFlowError, type OAuthStateRecord,
 } from './oauth-state.js';
+import { TrialReadOnlyExempt } from '../billing/trial-read-only.decorator.js';
 
 // AuthGuard Bearer branch ile aynı → üretilen token doğrudan Authorization: Bearer olarak geçerli
 const SESSION_SALT = 'authjs.session-token';
@@ -46,6 +47,8 @@ export function assertNotDeletionRequested(user: { deletionRequestedAt?: Date | 
   if (user.deletionRequestedAt) throw new ForbiddenException(deletedAccountMessage(user.deletionRequestedAt));
 }
 
+// Suresi dolan deneme (salt okunur, TrialExpiryGuard): giris ve Google baglantisini kesme suresi dolan denemede de acik
+@TrialReadOnlyExempt()
 @Controller('auth')
 export class AuthController {
   private readonly logger = new Logger(AuthController.name);
@@ -103,6 +106,9 @@ export class AuthController {
       user = await this.prisma.user.create({
         data: { email, name: input.name ?? null, image: input.image ?? null, emailVerified: new Date() },
       });
+      // Yeni hesap: 14 gunluk deneme kayit aninda baslar (trial-policy.ts). Eskiden hicbir
+      // kayit yolu cagirmiyordu; trialEndsAt bos kaliyor, deneme hic bitmiyordu.
+      user = await this.auth.ensureTrialStarted(user.id);
     }
     await this.prisma.account.upsert({
       where: { provider_providerAccountId: { provider, providerAccountId: sub } },
@@ -223,6 +229,10 @@ export class AuthController {
 
     const user = await this.prisma.user.findUnique({ where: { email } });
     if (!user) throw new BadRequestException('Kullanici bulunamadi');
+
+    // Emniyet agi: web kaydi trialEndsAt'i kendisi yazar (apps/web/src/auth.ts); yazilmamis
+    // eski/eksik kayitta deneme burada baslar. Idempotent, plan ve sayaca dokunmaz.
+    await this.auth.ensureTrialStarted(user.id);
 
     // Daha onceki welcome_day0 maili gonderildi mi? (idempotent)
     const earlier = await this.prisma.emailLog.findFirst({

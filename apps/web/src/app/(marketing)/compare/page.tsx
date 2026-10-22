@@ -335,8 +335,8 @@ const COPY = {
       'Kurumsal planda BYOK: kendi sağlayıcı anahtarınla ölçüm',
     ],
     ctaTitle: 'Saatler süren işi dakikaya indir',
-    ctaSub: 'İlk 2 makale ücretsiz, kart gerekmez. SEO ve AI aramadaki görünürlüğünü tek panelden ölç ve iyileştir.',
-    ctaPrimary: 'İlk makaleni ücretsiz al →',
+    ctaSub: '14 gün ücretsiz deneme, 2 makale, kart gerekmez. SEO ve AI aramadaki görünürlüğünü tek panelden ölç ve iyileştir.',
+    ctaPrimary: '14 günlük ücretsiz denemeyi başlat →',
     ctaSecondary: 'Fiyatlandırmayı incele',
   },
   en: {
@@ -379,8 +379,8 @@ const COPY = {
       'BYOK on the Enterprise plan: measure with your own provider keys',
     ],
     ctaTitle: 'Cut hours-long work to minutes',
-    ctaSub: 'First 2 articles free, no card. Measure and improve your visibility in SEO and AI search from one dashboard.',
-    ctaPrimary: 'Get your first article free →',
+    ctaSub: '14-day free trial with 2 articles, no card. Measure and improve your visibility in SEO and AI search from one dashboard.',
+    ctaPrimary: 'Start your 14-day free trial →',
     ctaSecondary: 'See pricing',
   },
 } as const;

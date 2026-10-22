@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { EmailService } from './email.service.js';
+import { checkoutTestModeOn } from '../billing/checkout-mode.js';
 
 /**
  * Email otomasyon cron'ları:
@@ -48,14 +49,17 @@ export class EmailCron {
           sent++;
         }
 
-        // Trial expiry
+        // Trial expiry. Metin "deneme bitince ne olur"u dogru soylemeli: hesap ancak satin
+        // alma ACIKKEN salt okunur olur (billing/trial-policy.ts trialAccess). PayTR test
+        // modunda yalniz yonetici odeyebilir; o zaman kilit yok, metin de kilit demez.
         if (u.trialEndsAt) {
           const daysLeft = Math.ceil((u.trialEndsAt.getTime() - now) / day);
+          const readOnlyAtEnd = !checkoutTestModeOn() || u.role === 'ADMIN';
           if (daysLeft === 3) {
-            await this.email.send({ userId: u.id, to: u.email, template: 'trial_expiry_d11', data: { name: u.name } });
+            await this.email.send({ userId: u.id, to: u.email, template: 'trial_expiry_d11', data: { name: u.name, readOnlyAtEnd } });
             sent++;
           } else if (daysLeft === 1) {
-            await this.email.send({ userId: u.id, to: u.email, template: 'trial_expiry_d13', data: { name: u.name } });
+            await this.email.send({ userId: u.id, to: u.email, template: 'trial_expiry_d13', data: { name: u.name, readOnlyAtEnd } });
             sent++;
           }
         }

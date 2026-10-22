@@ -118,10 +118,11 @@ describe('e-posta baglantilari web uygulamasinda bir sayfaya gidiyor', () => {
 });
 
 describe('yasam dongusu e-postalari kodda karsiligi olmayan iddia tasimiyor', () => {
-  it('deneme bitisi: "hesap pasiflesir" / "30 gun saklanir" yok (kod deneme bitisinde yalniz durum etiketini degistiriyor)', () => {
-    // Dayanak: expireOldTrials yalniz subscriptionStatus'u EXPIRED yapar; erisimi
-    // kapatan ya da veri silen bir adim yok. Biri eklenirse bu test kirilir ve
-    // deneme e-postalari yeni davranisa gore yeniden yazilir.
+  it('deneme bitisi: "hesap pasiflesir" / "30 gun saklanir" yok (deneme bitince hesap kapanmaz, veri silinmez)', () => {
+    // Dayanak: expireOldTrials yalniz subscriptionStatus'u EXPIRED yapar; veri silen ya da
+    // hesabi kapatan bir adim yok. Sahip karari 21.10.2026'dan beri suresi dolan hesap
+    // salt okunur (billing/trial-expiry.guard.ts, yalniz satin alma acikken); bunu
+    // e-postalar denemeSonu ile soyler (trial-expiry-end.spec.ts).
     const quota = read(path.resolve(HERE, '../billing/quota.service.ts'));
     const govde = quota.slice(quota.indexOf('async expireOldTrials('), quota.indexOf('async expireOldTrials(') + 600);
     expect(govde).toContain("data: { subscriptionStatus: 'EXPIRED' }");

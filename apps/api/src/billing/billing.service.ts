@@ -5,6 +5,7 @@ import { BASE_PLANS, type BasePlan, type PlanId } from './plans.js';
 import { periodEndFromInvoice } from './subscription-period.js';
 import { QuotaService } from './quota.service.js';
 import { articleQuotaView, resetAwareArticleLimit } from './article-quota-view.js';
+import { trialAccess } from './trial-policy.js';
 
 export interface PlanDefinition {
   id: PlanId;
@@ -123,7 +124,7 @@ export class BillingService {
     return { plans, fx };
   }
 
-  async getCurrentPlan(userId: string) {
+  async getCurrentPlan(userId: string, opts: { checkoutOpen?: boolean } = {}) {
     // Ay basi sifirlamasi once uygulanir, sayac sonra okunur (article-quota-view.ts):
     // eskiden yeni ayda gecen ayin articlesUsedThisMonth degeri donuyordu.
     const articleLimit = await resetAwareArticleLimit(this.quota, userId);
@@ -146,6 +147,10 @@ export class BillingService {
       // Yenileme kuralindan muaf (admin) — panel "duşecek" uyarisi gostermesin
       renewalExempt: user.role === 'ADMIN',
       trialEndsAt: user.trialEndsAt,
+      // Deneme durumu (14 gun, kalan gun, salt okunur mu) — panel bandi ve modali bunu
+      // okur, kendisi hesaplamaz. Karar trial-policy.ts trialAccess (sunucu kapisiyla ayni).
+      // Satin alma durumu verilmediyse kapali sayilir: kilit asla tahminle acilmaz.
+      trialAccess: trialAccess(user, { checkoutOpen: opts.checkoutOpen === true }),
       articlesUsedThisMonth: user.articlesUsedThisMonth,
       articlesQuotaResetAt: user.articlesQuotaResetAt,
       articleQuota: articleQuotaView(articleLimit, user.articlesUsedThisMonth),

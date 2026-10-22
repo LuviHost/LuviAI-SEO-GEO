@@ -202,17 +202,19 @@ export const BASE_PLANS: BasePlan[] = [
     videosPerMonth: VIDEOS_PER_MONTH.trial,
     support_tr: 'topluluk',
     support_en: 'community',
-    // 2 makale TOPLAM (onboarding'in ilki dahil, ay basi sifirlanmaz); takvimin
-    // hakki asan konulari kilitli bekler, plan secilince yazilir (articles/plan-lock.ts)
+    // Sahip karari 21.10.2026: deneme 14 gun (billing/trial-policy.ts), 2 makale TOPLAM (ay basi
+    // sifirlanmaz) ve makaleyi kullanici baslatir (yayin hedefi sarti); takvimin hakki asan
+    // konulari kilitli bekler, plan secilince yazilir (articles/plan-lock.ts). Sure dolunca
+    // hesap salt okunur (satin alma acikken; trial-expiry.guard.ts).
     features_tr: [
-      '2 AI makale · 3 görünürlük çalıştırması (haftada en fazla 1 ölçüm)',
-      'Takvimin geri kalanı plan seçince yazılır',
+      '14 gün · 2 AI makale · 3 görünürlük çalıştırması (haftada en fazla 1 ölçüm)',
+      'Makaleleri yayın hedefini bağlayıp sen başlatırsın; takvimin geri kalanı plan seçince yazılır',
       '1 site',
       'Kredi kartı istemez',
     ],
     features_en: [
-      '2 AI articles · 3 visibility runs (at most 1 measurement per week)',
-      'The rest of your calendar is written when you choose a plan',
+      '14 days · 2 AI articles · 3 visibility runs (at most 1 measurement per week)',
+      'You start articles yourself after connecting a publish target; the rest of your calendar is written when you choose a plan',
       '1 site',
       'No credit card required',
     ],

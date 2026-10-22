@@ -42,6 +42,17 @@ export type EmailTemplate =
  */
 export const EDITOR_SCORE_MAX = 90;
 
+/**
+ * Deneme bittiginde ne olur — e-postadaki tek cumle. readOnlyAtEnd true: satin alma
+ * acik, hesap salt okunur olur (trial-expiry.guard.ts). false/yok: satin alma kapali
+ * (PayTR test modu); kilit yok, plan secimi istenecek.
+ */
+export function denemeSonu(readOnlyAtEnd: unknown): string {
+  return readOnlyAtEnd === true
+    ? 'Deneme bittiğinde hesabın salt okunur olur: sitelerini, makalelerini ve raporlarını görmeye ve indirmeye devam edersin; yapay zekâ ile yeni üretim, ölçüm ve analiz için bir plan seçmen gerekir. Verilerin hesabında kalır.'
+    : 'Deneme bittiğinde yapay zekâ ile yeni üretim ve ölçüm için bir plan seçmen istenecek. Ödeme altyapımız şu an test aşamasında; satın alma açılana kadar kalan deneme haklarınla devam edebilirsin. Verilerin hesabında kalır.';
+}
+
 @Injectable()
 export class EmailService {
   private readonly log = new Logger(EmailService.name);
@@ -282,45 +293,44 @@ export class EmailService {
         );
 
       // Deneme bitis e-postalari (d11 ve d13'u email.cron.ts her gun trialEndsAt'e
-      // gore gonderir). Eski metin "plan secilmezse hesap pasiflesir, verilerin
-      // 30 gun saklanir / yarin hesabin pasiflesecek" diyordu; kodda boyle bir
-      // sey yok: quota.service expireOldTrials yalniz subscriptionStatus'u
-      // EXPIRED yapar, hicbir kapi bu duruma bakmaz, deneme haklari (plans.ts
-      // trial) aynen surer, silme isi yok. Metin yalniz dogru olani soyler:
-      // donemin bitis gunu ve plan secince verilerin oldugu gibi kalmasi.
-      // Deneme bitisi uygulanacaksa (urun karari) bu metinler de guncellenmeli;
-      // email-links.spec.ts "pasif" / "30 gun saklanir" iddiasini engeller.
+      // gore gonderir). Sahip karari (21.10.2026): deneme 14 gun; bitince hesap SALT
+      // OKUNUR olur (yapay zeka ile uretim / olcum / analiz yok; goruntuleme, indirme,
+      // hesap silme ve odeme acik; veri silinmez) — ama yalniz satin alma acikken
+      // (billing/trial-policy.ts trialAccess, trial-expiry.guard.ts). PayTR test
+      // modunda kullanici plan secemez: kilit yok, metin de kilit demez (data.readOnlyAtEnd,
+      // email.cron checkoutTestModeOn). Verilmezse (eski cagiran) kilit iddiasi yazilmaz.
       // Plan ne kazandirir: ucretli plan AI olcum SIKLIGINI artirmaz — her hesap
       // kayan 7 gunde 1 AI olcumu yapar (billing/measurement-allowance.ts
       // MEASUREMENT_WINDOW_MS, plana bakmaz). Planlar makale, site ve AYLIK AI
-      // gorunurluk calistirmasi tavaninda ayrisir (plans.ts deneme 2 / 1 / 3;
-      // Buyume 15 / 2 / 20 ...). Eski metin "daha fazla ... AI gorunurluk olcumu"
-      // diyerek plana gecen musteriye daha sik olcum vaat ediyordu.
-      // trial-expiry-wording.spec.ts metni plans.ts sayilarina baglar.
+      // gorunurluk calistirmasi tavaninda ayrisir (plans.ts). trial-expiry-wording.spec.ts
+      // metni plans.ts sayilarina baglar.
       case 'trial_expiry_d11':
         return yap(
-          'Deneme dönemine 3 gün kaldı',
+          'Deneme süreni bitmesine 3 gün kaldı',
           'Daha fazla makale, site ve aylık AI görünürlük çalıştırması için planlara göz atabilirsin.',
-          h(`${name}, deneme dönemine 3 gün kaldı`) +
-            p('14 günlük deneme döneminin 11 günü doldu. Daha fazla makale, site ve aylık AI görünürlük çalıştırması için bir plan seçebilirsin; plan seçtiğinde sitelerin, içeriklerin ve ölçüm geçmişin olduğu gibi kalır.') +
+          h(`${name}, deneme süreni bitmesine 3 gün kaldı`) +
+            p('14 günlük ücretsiz denemenin 11 günü doldu. Daha fazla makale, site ve aylık AI görünürlük çalıştırması için bir plan seçebilirsin; plan seçtiğinde sitelerin, içeriklerin ve ölçüm geçmişin olduğu gibi kalır.') +
+            p(denemeSonu(data.readOnlyAtEnd)) +
             dugme('Planları gör', `${baseUrl}/pricing`),
         );
 
       case 'trial_expiry_d13':
         return yap(
-          'Deneme dönemin yarın bitiyor',
+          'Deneme süren yarın bitiyor',
           'Plan seçtiğinde sitelerin, içeriklerin ve ölçüm geçmişin olduğu gibi kalır.',
-          h(`${name}, deneme dönemin yarın bitiyor`) +
+          h(`${name}, deneme süren yarın bitiyor`) +
             p('Daha fazla makale, site ve aylık AI görünürlük çalıştırması için bir plan seçebilirsin. Plan seçtiğinde sitelerin, içeriklerin ve ölçüm geçmişin olduğu gibi kalır; kaldığın yerden devam edersin.') +
+            p(denemeSonu(data.readOnlyAtEnd)) +
             dugme('Planları gör', `${baseUrl}/pricing`),
         );
 
       case 'trial_expired':
         return yap(
-          'Deneme dönemin doldu',
+          'Deneme süren doldu',
           'Sitelerin, içeriklerin ve ölçüm geçmişin hesabında duruyor.',
-          h(`${name}, deneme dönemin doldu`) +
+          h(`${name}, deneme süren doldu`) +
             p('Sitelerin, içeriklerin ve ölçüm geçmişin hesabında duruyor. Daha fazla makale, site ve aylık AI görünürlük çalıştırması için bir plan seçebilirsin; plan seçtiğinde kaldığın yerden devam edersin.') +
+            p(denemeSonu(data.readOnlyAtEnd)) +
             dugme('Planları gör', `${baseUrl}/pricing`),
         );
 

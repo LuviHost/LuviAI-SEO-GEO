@@ -5,7 +5,7 @@ import { EmptyState, RelatedLinks } from '@/components/empty-state';
 import { ContentFlowTable, type ContentRowState } from '@/components/content-flow-table';
 import { FileText, Sparkles, Lightbulb, Send } from 'lucide-react';
 import { StatusBanner } from '@/components/ui/status-banner';
-import { PlanUpgradeButton } from '@/components/locked-article';
+import { LockedGenerateButton, PlanUpgradeButton } from '@/components/locked-article';
 import { PLAN_LOCK_COPY, scheduledCounts } from '@/lib/plan-lock';
 import { useArticleAllowance } from '@/lib/use-article-allowance';
 import { FilterChip } from '@/components/ui/filter-chip';
@@ -30,7 +30,7 @@ export default function ArticlesPage() {
   const [running, setRunning] = useState(false);
   const [filter, setFilter] = useState<FilterKey | null>(null);
   // Hak sitenin sahibinden duser (sunucu site.userId); tablo ayni onbellegi okur
-  const allowance = useArticleAllowance(site?.userId);
+  const allowance = useArticleAllowance(site?.userId, site?.id);
 
   const runEngine = async () => {
     setRunning(true);
@@ -112,7 +112,18 @@ export default function ArticlesPage() {
 
       {/* Makale hakki bitti: uretim dugmeleri kilitli. Kilitli takvim yazisi bandi zaten
           ayni seyi soyluyorsa ikinci bant yok. */}
-      {allowance.locked && counts.locked === 0 && (
+      {/* Deneme: makaleyi kullanici baslatir ve once yayin hedefi baglanmali (api trial-policy.ts) */}
+      {allowance.reason === 'source_required' && (
+        <StatusBanner
+          tone="info"
+          title="Ücretsiz denemede makaleyi sen başlatırsın; önce yayın hedefini bağla."
+          action={<LockedGenerateButton lock={allowance} variant="outline" />}
+        >
+          Denemede yapay zekâ konu başlıklarını hazırlar ama makaleyi kendiliğinden yazmaz. Sitene bir yayın hedefi (WordPress, FTP vb.) bağladıktan sonra istediğin konuda “Üret” ya da “Şimdi üret” ile en fazla 2 makale üretebilirsin.
+        </StatusBanner>
+      )}
+
+      {allowance.locked && allowance.reason !== 'source_required' && counts.locked === 0 && (
         <StatusBanner
           tone="info"
           title="Makale hakkın doldu; yeni üretim için planını yükselt."

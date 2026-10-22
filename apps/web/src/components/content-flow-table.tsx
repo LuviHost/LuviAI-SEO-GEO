@@ -98,7 +98,10 @@ export function ContentFlowTable({
   // Yayin sonucu yoklanirken satir mesgul kalir; birden fazla satir ayni anda yayinlanabilir
   const [publishing, setPublishing] = useState<Set<string>>(new Set());
   const confirm = useConfirm();
-  const allowance = useArticleAllowance(ownerId);
+  // siteId: denemede "Uret" sitede yayin hedefi bagliyken acilir (kilit "Önce yayın hedefini bağla")
+  const allowance = useArticleAllowance(ownerId, siteId);
+  // Kaynak eksikligi takvime eklemeyi engellemez (konu basligi denemede serbest); yalniz uretimi
+  const generationOnlyLock = allowance.locked && allowance.reason === 'source_required';
   const alive = useRef(true);
   useEffect(() => {
     alive.current = true;
@@ -610,7 +613,7 @@ export function ContentFlowTable({
                                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
                                   Üretiliyor…
                                 </span>
-                              ) : allowance.locked ? (
+                              ) : allowance.locked && !generationOnlyLock ? (
                                 // Hak bitti: "Takvime" de "Uret" de 403 donerdi — tek kilitli dugme
                                 <LockedGenerateButton lock={allowance} />
                               ) : (
@@ -626,18 +629,22 @@ export function ContentFlowTable({
                                         title: row.topic,
                                       })
                                     }
-                                    title="Takvime ekle (yayın saati gelince üretilir; Yarı otomatikte yayından önce onayını bekler)"
+                                    title="Takvime ekle (ücretli planlarda yayın saati gelince üretilir, ücretsiz denemede “Şimdi üret” ile sen başlatırsın; Yarı otomatikte yayından önce onayını bekler)"
                                   >
                                     <Calendar className="h-3.5 w-3.5 mr-1" /> Takvime
                                   </Button>
-                                  <Button
-                                    size="sm"
-                                    onClick={() => generate(row.topic)}
-                                    disabled={isThisGenerating}
-                                    title="Şimdi üret (anında pipeline)"
-                                  >
-                                    Üret →
-                                  </Button>
+                                  {generationOnlyLock ? (
+                                    <LockedGenerateButton lock={allowance} />
+                                  ) : (
+                                    <Button
+                                      size="sm"
+                                      onClick={() => generate(row.topic)}
+                                      disabled={isThisGenerating}
+                                      title="Şimdi üret (anında pipeline)"
+                                    >
+                                      Üret →
+                                    </Button>
+                                  )}
                                 </>
                               )}
                             </div>

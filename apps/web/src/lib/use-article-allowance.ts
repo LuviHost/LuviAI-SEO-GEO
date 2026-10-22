@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import { generationLock, type GenerationLock } from '@/lib/article-allowance';
+import { siteHref } from '@/lib/site-routes';
 
 /**
  * Makale hakki — WEB TARAFI SADECE GOSTERIR (karar: lib/article-allowance.ts).
@@ -56,8 +57,40 @@ export function refreshArticleAllowance(ownerId?: string | null): void {
   for (const id of ids) void load(id, true);
 }
 
-/** Sitenin sahibinin makale hakkina gore uretim dugmesi kilidi; sahip bilinmiyorsa acik */
-export function useArticleAllowance(ownerId: string | null | undefined): GenerationLock {
+// ── Uretim kaynagi (denemede yayin hedefi sarti) — site basina ──
+// Kisa omurlu onbellek: yayin hedefi eklenip panele donulunce kilit hemen kalksin.
+const READINESS_STALE_MS = 5_000;
+const readinessCache = new Map<string, { at: number; promise: Promise<unknown> }>();
+const readinessLatest = new Map<string, unknown>();
+const readinessListeners = new Set<(siteId: string, r: unknown) => void>();
+
+function loadReadiness(siteId: string, force = false): Promise<unknown> {
+  const hit = readinessCache.get(siteId);
+  if (hit && !force && Date.now() - hit.at < READINESS_STALE_MS) return hit.promise;
+  const promise = api
+    .request<unknown>(`/sites/${encodeURIComponent(siteId)}/generation-readiness`)
+    // Okunamazsa kilit gosterilmez; sunucu yine korur (consumeArticleAllowance 403)
+    .catch(() => null)
+    .then((r) => {
+      readinessLatest.set(siteId, r);
+      readinessListeners.forEach((fn) => fn(siteId, r));
+      return r;
+    });
+  readinessCache.set(siteId, { at: Date.now(), promise });
+  return promise;
+}
+
+/** Yayin hedefi eklendi / silindi: sitenin uretim kaynagi durumunu tazele */
+export function refreshGenerationReadiness(siteId?: string | null): void {
+  const ids = siteId ? [siteId] : Array.from(readinessCache.keys());
+  for (const id of ids) void loadReadiness(id, true);
+}
+
+/**
+ * Sitenin sahibinin makale hakkina (ve siteId verilirse denemedeki yayin hedefi
+ * sartina) gore uretim dugmesi kilidi; sahip bilinmiyorsa acik.
+ */
+export function useArticleAllowance(ownerId: string | null | undefined, siteId?: string | null): GenerationLock {
   const id = typeof ownerId === 'string' && ownerId ? ownerId : null;
   // Deger sahibiyle birlikte tutulur: sahip degisirse eski hesabin degeri kullanilmaz
   const [state, setState] = useState<{ owner: string; snap: Snapshot | null } | null>(() =>
@@ -80,6 +113,27 @@ export function useArticleAllowance(ownerId: string | null | undefined): Generat
     };
   }, [id]);
 
+  const sid = typeof siteId === 'string' && siteId ? siteId : null;
+  const [ready, setReady] = useState<{ site: string; value: unknown } | null>(() =>
+    sid && readinessLatest.has(sid) ? { site: sid, value: readinessLatest.get(sid) } : null,
+  );
+  useEffect(() => {
+    if (!sid) return;
+    let alive = true;
+    const onChange = (site: string, value: unknown) => {
+      if (alive && site === sid) setReady({ site, value });
+    };
+    readinessListeners.add(onChange);
+    void loadReadiness(sid).then((value) => {
+      if (alive) setReady({ site: sid, value });
+    });
+    return () => {
+      alive = false;
+      readinessListeners.delete(onChange);
+    };
+  }, [sid]);
+
   const snap = id && state?.owner === id ? state.snap : null;
-  return generationLock(snap?.quota, snap?.plan);
+  const readiness = sid && ready?.site === sid ? ready.value : null;
+  return generationLock(snap?.quota, snap?.plan, sid ? { readiness, publishTargetsHref: siteHref(sid, 'publishTargets') } : undefined);
 }

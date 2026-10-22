@@ -65,6 +65,8 @@ function build(opts: { rows?: Row[]; site?: any; limit?: number } = {}) {
       return { remaining: quota.limit - quota.used };
     }),
     refundArticleAllowance: vi.fn(async () => { if (quota.used > 0) quota.used--; }),
+    // Hakki once dusulmus yazinin yeniden uretimi de kaynak kuralindan gecer (trial-policy.ts)
+    assertGenerationSource: vi.fn(async () => undefined),
   };
   const svc = new ArticlesService(prisma as any, jobQueue as any, quota as any, {} as any);
   return { svc, prisma, jobQueue, quota, rows };
@@ -283,6 +285,7 @@ describe('makale hakki — kullanicinin baslattigi uretim (deneme: toplam 2)', (
     ctx.quota.used = 2;
     await expect(ctx.svc.triggerNow('s1', 'a1')).resolves.toMatchObject({ articleId: 'a1' });
     expect(ctx.quota.consumeArticleAllowance).not.toHaveBeenCalled();
+    expect(ctx.quota.assertGenerationSource).toHaveBeenCalledWith('u1', 's1');
     expect(ctx.prisma.article.updateMany).toHaveBeenCalledWith({ where: { id: 'a1', siteId: 's1', status: 'SCHEDULED' }, data: { status: 'GENERATING' } });
     expect(ctx.quota.used).toBe(2);
   });

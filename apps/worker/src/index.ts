@@ -243,7 +243,8 @@ async function bootstrap() {
       // Yazi hala SCHEDULED ise (kuyruga atan sahiplenmemis) once sahiplen;
       // baskasi aldiysa ya da yazi silindiyse uretme (LLM maliyeti harcanmaz).
       // Sahiplenme makale hakkindan duser: hak doluysa yazi SCHEDULED kalir
-      // (QUOTA_EXHAUSTED; deneme hesabinda plan yukseltilene kadar kilitli).
+      // (QUOTA_EXHAUSTED). Deneme hesabinin SCHEDULED yazisini otomasyon almaz
+      // (TRIAL_MANUAL_ONLY; api billing/trial-policy.ts) — LLM harcanmaz.
       const claim = await services.scheduler.claimForGeneration(articleId);
       if (claim !== 'proceed') {
         log.log(`[${siteId}] GENERATE_ARTICLE atlandı (${claim}) article=${articleId}`);
@@ -405,12 +406,14 @@ async function bootstrap() {
     /**
      * ONBOARDING_CHAIN — brain + denetim + platform tespiti (paralel) → konu
      * motoru → tier-1 takvim (api article-scheduler.service scheduleInitialBatch).
-     * Akis acikken 8, kapaliyken 3 konu takvime yazilir; ilki hemen uretilir
-     * (ucretli planda ucretsiz; deneme hesabinda toplam 2 makalelik haktan duser,
-     * hak yoksa uretilmez), digerlerini akis acikken saatlik tarama
+     * Akis acikken 8, kapaliyken 3 konu takvime yazilir. Ucretli planda ilki hemen
+     * ve ucretsiz uretilir, digerlerini akis acikken saatlik tarama
      * (PROCESS_SCHEDULED) zamani gelince uretir ve her biri uretime alinirken
-     * makale hakkindan duser. Deneme hesabinda hakki asan konular uretilmez,
-     * plan yukseltilene kadar panelde kilitli bekler (api articles/plan-lock.ts).
+     * makale hakkindan duser. DENEME HESABINDA HICBIR MAKALE KENDILIGINDEN URETILMEZ
+     * (sahip karari 21.10.2026, api billing/trial-policy.ts): takvime yalniz konu
+     * basliklari yazilir; kullanici yayin hedefi baglayip "Simdi uret" ile en fazla 2
+     * makale baslatir, hakki asan konular plan yukseltilene kadar kilitli bekler
+     * (api articles/plan-lock.ts).
      * Akis acikken ayrica auto-fix (sitemap + llms; robots onay ister) ve ilk AI
      * gorunurluk olcumu (sistem modu, kotadan dusmez) kosar.
      */
@@ -577,11 +580,13 @@ async function bootstrap() {
       });
 
       // Takvim yazilari uretime alinirken makale hakkindan duser; hak yetmezse
-      // bekler (deneme hesabinda toplam 2 makale, fazlasi plan yukseltilene kadar
-      // kilitli: api article-scheduler.service processDueArticles, plan-lock.ts)
-      const takvimNotu = scheduleResult.scheduled > 0
-        ? ` (${scheduleResult.immediate ? 'ilki hemen uretimde; ' : ''}digerleri ${autopilot ? 'zamani gelince saatlik taramayla uretilir' : 'akis acilana kadar bekler'}; her biri uretime alinirken makale hakkindan duser, hak yetmezse bekler)`
-        : '';
+      // bekler. Deneme hesabinda otomasyon uretmez: yalniz konu basliklari, makaleyi
+      // kullanici baslatir (api article-scheduler.service, billing/trial-policy.ts)
+      const takvimNotu = scheduleResult.scheduled === 0
+        ? ''
+        : scheduleResult.isTrial
+          ? ' (deneme hesabi: yalniz konu basliklari; makaleyi kullanici "Şimdi üret" ile baslatir)'
+          : ` (${scheduleResult.immediate ? 'ilki hemen uretimde; ' : ''}digerleri ${autopilot ? 'zamani gelince saatlik taramayla uretilir' : 'akis acilana kadar bekler'}; her biri uretime alinirken makale hakkindan duser, hak yetmezse bekler)`;
       log.log(`[${siteId}] ✅ Onboarding tamamlandi — audit, ${tier1Count} tier-1, ${scheduleResult.scheduled} makale takvimde${takvimNotu}${autopilot ? ' [OTOPILOT]' : ''}`);
       return {
         onboarded: true,
@@ -598,8 +603,8 @@ async function bootstrap() {
     /**
      * PROCESS_SCHEDULED — saatlik: yayin saatine 15 dk ya da daha az kalan,
      * akisi acik sitelerin SCHEDULED yazilarini uretime alir. Her yazi uretime
-     * alinirken aylik makale hakkindan bir kez duser; hak doluysa yazi bekler
-     * (deneme hesabinda plan yukseltilene kadar kilitli; api
+     * alinirken aylik makale hakkindan bir kez duser; hak doluysa yazi bekler.
+     * Deneme hesaplarinin yazilari taranmaz (otomatik uretim yok; api
      * article-scheduler.service processDueArticles, articles/plan-lock.ts).
      * Is verisinde userId varsa yalniz o kullanicinin yazilari taranir: plan
      * yukseltme sonrasi bekleyen yazilar saatlik turu beklemesin (api

@@ -715,7 +715,7 @@ export class McpToolsService {
           if (topic.length < 5) throw new Error('Konu en az 5 karakter olmali');
           // Hak uretim baslamadan tek kosullu UPDATE ile duser; baslatilamazsa geri
           // verilir (QuotaService consumeArticleAllowance — ArticlesService ile ayni)
-          await this.quota.consumeArticleAllowance(site.userId);
+          await this.quota.consumeArticleAllowance(site.userId, site.id);
           let placeholderId: string | null = null;
           try {
             const article = await this.prisma.article.create({

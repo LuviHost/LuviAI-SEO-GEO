@@ -19,15 +19,15 @@ import { PLAN_LOCK_COPY, UPGRADE_HREF } from './plan-lock';
  * takvim ayi basinda sifirlanir (quota.service maybeResetMonthlyQuota).
  */
 
-export type GenerationLockReason = 'trial_used' | 'monthly_used' | 'allowance_used';
+export type GenerationLockReason = 'trial_used' | 'monthly_used' | 'allowance_used' | 'source_required';
 
 export interface GenerationLock {
   locked: boolean;
   reason: GenerationLockReason | null;
   /** Kilitli dugmenin etiketi */
   label: string;
-  /** Kilitli dugmenin gittigi yer (fiyatlandirma) */
-  href: typeof UPGRADE_HREF;
+  /** Kilitli dugmenin gittigi yer: fiyatlandirma ya da (kaynak yoksa) sitenin yayin hedefleri */
+  href: string;
   /** Neden kilitli — dugmenin title'i / ekran okuyucu metni; acikken null */
   hint: string | null;
 }
@@ -43,6 +43,24 @@ export const GENERATION_LOCK_COPY = {
     `${limit} makale hakkının tamamını kullandın. Yeni makale üretmek için planını yükselt.`,
 } as const;
 
+/**
+ * Denemede "Uret" icin kaynak sarti (sahip karari 21.10.2026): sitede en az bir yayin
+ * hedefi. Karar sunucuda (api billing/trial-policy.ts hasGenerationSource; GET
+ * /sites/:siteId/generation-readiness); panel yalniz gosterir.
+ */
+export const SOURCE_REQUIRED_COPY = {
+  label: 'Önce yayın hedefini bağla',
+  hint: 'Ücretsiz denemede makale üretmek için önce sitene bir yayın hedefi bağla (WordPress, FTP vb.).',
+} as const;
+
+/** Sunucunun generation-readiness cevabi; bicim disiysa null (kilit gosterilmez) */
+export function readGenerationReadiness(raw: unknown): { requiresSource: boolean; ready: boolean; message: string | null } | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const r = raw as Record<string, unknown>;
+  if (typeof r.ready !== 'boolean' || typeof r.requiresSource !== 'boolean') return null;
+  return { requiresSource: r.requiresSource, ready: r.ready, message: typeof r.message === 'string' && r.message.trim() ? r.message : null };
+}
+
 const OPEN: GenerationLock = { locked: false, reason: null, label: PLAN_LOCK_COPY.cta, href: UPGRADE_HREF, hint: null };
 
 /** Plan bilinmiyor mu? (null/bos) — deneme mi ucretli mi ayirt edilemez */
@@ -55,8 +73,24 @@ function planKnown(plan: unknown): boolean {
  * quota: API'nin articleQuota alani ({ limit, remaining, used }); plan: /me/dashboard
  * enum'u ('TRIAL') ya da /billing/users/:id/current plan tanimi ({ id: 'trial' }).
  */
-export function generationLock(quota: unknown, plan: unknown): GenerationLock {
+export function generationLock(
+  quota: unknown,
+  plan: unknown,
+  source?: { readiness?: unknown; publishTargetsHref?: string | null },
+): GenerationLock {
   const q = readArticleQuota(quota);
+  const hakBitti = !!q && q.limit > 0 && q.remaining === 0 && q.used >= q.limit;
+  // Kaynak sarti: hak bitmediyse once bu soylenir (hak bittiyse yukseltme daha dogru yol)
+  const r = readGenerationReadiness(source?.readiness);
+  if (!hakBitti && r && r.requiresSource && !r.ready && source?.publishTargetsHref) {
+    return {
+      locked: true,
+      reason: 'source_required',
+      label: SOURCE_REQUIRED_COPY.label,
+      href: source.publishTargetsHref,
+      hint: r.message ?? SOURCE_REQUIRED_COPY.hint,
+    };
+  }
   if (!q) return OPEN;
   // Kilit yalniz sayilar birbirini tutuyorsa: limit > 0 (sunucuda limit 0 olan plan
   // yok; 0 bozuk/bilinmeyen veri demek), kalan 0 ve kullanilan limite ulasmis.
