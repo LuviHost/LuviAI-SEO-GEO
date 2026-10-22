@@ -24,10 +24,12 @@ const rapor = {
 } as unknown as MusteriRaporu;
 
 describe('raporBolumleri — ekran ve kagit ayni sira', () => {
-  it('kapak, ozet, SEO, GEO, AI, aksiyon, yontem; kapak disindaki her bolum yeni sayfa', () => {
+  it('kapak, ozet, SEO, GEO, AI, aksiyon, yontem; kapak ve ozet kendi sayfasinda, sonrakiler kaldigi sayfada devam', () => {
     const b = raporBolumleri(rapor);
     expect(b.map((x) => x.id)).toEqual(['kapak', 'ozet', 'seo', 'geo', 'ai', 'aksiyon', 'yontem']);
-    expect(b.filter((x) => x.yeniSayfa).map((x) => x.id)).toEqual(['ozet', 'seo', 'geo', 'ai', 'aksiyon', 'yontem']);
+    // ozet yeni sayfa → kapak tek basina; SEO yeni sayfa → ozet tek basina.
+    // Digerleri her biri yeni sayfadan baslarsa kisa bolum sonlari bos sayfa birakir.
+    expect(b.filter((x) => x.yeniSayfa).map((x) => x.id)).toEqual(['ozet', 'seo']);
     expect(b.map((x) => x.baslik)).toContain('Yönetici özeti');
   });
 
@@ -44,6 +46,17 @@ describe('baski kurallari (globals.css)', () => {
     expect(css).toContain('body:has(> .rapor-baski) > *:not(.rapor-baski)');
     expect(css).toMatch(/\.rapor-baski \.rapor-yeni-sayfa\s*\{\s*break-before: page;/);
     expect(css).toMatch(/@page rapor\s*\{\s*size: A4;/);
+  });
+  it('sayfa sonu kurallari: kart/satir bolunmez, bolum basligi ilk blogundan ayrilmaz, tek satir sayfada kalmaz', () => {
+    const baski = css.slice(css.indexOf('MUSTERI RAPORU'));
+    expect(baski).toMatch(/\.rapor-baski \.rapor-blok,\s*\.rapor-baski li,\s*\.rapor-baski tr\s*\{\s*break-inside: avoid;/);
+    expect(baski).toMatch(/\.rapor-baski \.rapor-bolum-baslik\s*\{[^}]*break-after: avoid;/);
+    expect(baski).toMatch(/\.rapor-baski h2,\s*\.rapor-baski h3\s*\{\s*break-after: avoid;/);
+    expect(baski).toMatch(/\.rapor-baski p\s*\{\s*orphans: 3;\s*widows: 3;/);
+    // Devam eden bolum sayfa kirmaz (yalniz bosluk)
+    const devam = baski.match(/\.rapor-baski \.rapor-devam\s*\{([^}]*)\}/);
+    expect(devam?.[1]).toBeDefined();
+    expect(devam![1]).not.toContain('break-before');
   });
   it('belge acik tema token larini tasir (koyu temada da beyaz kagit)', () => {
     expect(css).toMatch(/:root,\s*\.rapor-kagit\s*\{\s*--background: 0 0% 100%;/);

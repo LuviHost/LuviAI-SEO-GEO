@@ -292,6 +292,55 @@ describe('aksiyonlar', () => {
   });
 });
 
+/**
+ * NEDEN: taramanin "AI arama gorunurlugu dusuk (20/100)" bulgusu taramanin
+ * kendi AI adiminin skorunu tasir. Taramadan sonra daha yeni AI olcumu varsa
+ * manset baska sayi (17/100) yazar ve ayni belgede iki AI skoru celisir
+ * (mukellef.co uretim raporu, 22.10.2026). Aksiyon sayisi mansetten gelmeli.
+ */
+describe('aksiyonlar — AI gorunurluk sayisi mansetle celismez', () => {
+  const aiBulgusu = (skor: number) => ({
+    severity: 'warning', type: 'ai_citation_low', checkId: 'ai_citation', fixable: true,
+    description: `AI arama görünürlüğü düşük (${skor}/100): AI asistanlarının marka adı geçmeyen sorulara verdiği yanıtlarda siten nadiren kaynak gösteriliyor ya da anılıyor.`,
+  });
+  const aiAksiyonu = (r: MusteriRaporu) => r.aksiyonlar.find((a) => a.baslik === 'AI asistanlarının alıntılayacağı soru-cevap içerikleri yayınlayın');
+  const girdi = (bulguSkoru: number) => {
+    const g = mukellefGirdisi();
+    // Aksiyon siniri (10) AI maddesini kesmesin: yalniz kritikler + AI bulgusu
+    g.audit!.issues = [...(g.audit!.issues as Array<{ severity: string }>).filter((i) => i.severity === 'critical'), aiBulgusu(bulguSkoru)];
+    return g;
+  };
+
+  it('tarama bulgusu 20/100, daha yeni olcum (manset) 17/100 → aksiyon 17 der, 20 demez', () => {
+    const r = build(girdi(20));
+    expect(r.ai.olcum).toMatchObject({ olculemedi: false, skor: 17 });
+    const a = aiAksiyonu(r);
+    expect(a).toBeDefined();
+    expect(a!.aciklama).toContain('17/100');
+    expect(a!.aciklama).not.toContain('20/100');
+    // Belgenin hicbir yerinde mansetten farkli bir AI skoru gecmez
+    expect(JSON.stringify(r)).not.toContain('20/100');
+  });
+
+  it('manset artik dusuk degilse (>= 30) eskimis "dusuk" aksiyonu cikmaz', () => {
+    const g = girdi(20);
+    g.aiManset = { score: 45, method: 'rolling' };
+    expect(aiAksiyonu(build(g))).toBeUndefined();
+  });
+
+  it('AI olcumu yoksa aksiyon sayi yazmaz', () => {
+    const g = girdi(20);
+    g.aiManset = null;
+    g.aiKosum = null;
+    delete (g.audit!.checks as Record<string, unknown>).aiCitations;
+    const r = build(g);
+    expect(r.ai.olcum.olculemedi).toBe(true);
+    const a = aiAksiyonu(r);
+    expect(a).toBeDefined();
+    expect(a!.aciklama).not.toMatch(/\d+\/100/);
+  });
+});
+
 describe('kucuk yardimcilar', () => {
   it('trTarih Istanbul saatine gore (UTC 22:30 → ertesi gun)', () => {
     expect(trTarih('2026-10-21T22:30:00Z')).toBe('22 Ekim 2026');
