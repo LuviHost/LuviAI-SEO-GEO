@@ -19,7 +19,7 @@ import { isErrorProbe } from '../audit/citation-score.js';
 import { unbrandedOnly } from '../audit/brand-in-query.js';
 import { fixRouteFor } from '../audit/fix-routes.js';
 import {
-  AI_SKOR_YONTEMI, AKSIYON_METINLERI, GEO_SINYAL_ADI, OLCULMEDI, SAYFA_SORUNU_METINLERI, kontrolMetni,
+  AI_DUSUK_ESIGI, AI_SKOR_YONTEMI, AKSIYON_METINLERI, aiGorunurlukAksiyonAciklamasi, GEO_SINYAL_ADI, OLCULMEDI, SAYFA_SORUNU_METINLERI, kontrolMetni,
 } from './client-report-texts.js';
 import {
   MUSTERI_RAPORU_SURUM,
@@ -505,7 +505,7 @@ function aksiyonAnahtari(issue: Issue): string | null {
 
 export const AKSIYON_SINIRI = 10;
 
-function aksiyonlariDerle(g: RaporGirdisi): RaporAksiyon[] {
+function aksiyonlariDerle(g: RaporGirdisi, ai: RaporAi): RaporAksiyon[] {
   const plan: RaporAksiyon[] = g.aksiyonPlani
     .filter((i) => i.status === 'todo' || i.status === 'in_progress')
     .map((i) => ({
@@ -529,10 +529,18 @@ function aksiyonlariDerle(g: RaporGirdisi): RaporAksiyon[] {
     const anahtar = aksiyonAnahtari(issue);
     if (!anahtar || gorulen.has(anahtar) || plandakiler.has(anahtar)) continue;
     gorulen.add(anahtar);
+    let aciklama = typeof issue.description === 'string' ? issue.description : null;
+    if (anahtar === 'ai_citation') {
+      // AI sayisi yalniz raporun AI olcumunden: bulgu metnindeki tarama skoru
+      // mansetten farkli olabilir. Manset artik dusuk degilse bulgu eskimistir.
+      const manset = ai.olcum.olculemedi ? null : ai.olcum.skor;
+      if (typeof manset === 'number' && manset >= AI_DUSUK_ESIGI) continue;
+      aciklama = aiGorunurlukAksiyonAciklamasi(manset);
+    }
     const metin = AKSIYON_METINLERI[anahtar];
     turetilen.push({
       baslik: metin.baslik,
-      aciklama: typeof issue.description === 'string' ? issue.description : null,
+      aciklama,
       etki: metin.etki ?? (issue.severity === 'critical' ? 'yuksek' : 'orta'),
       efor: metin.efor,
       kaynak: 'tarama',
@@ -709,7 +717,7 @@ export function buildClientReport(g: RaporGirdisi, now: Date): MusteriRaporu {
   const botlar: MusteriRaporu['botlar'] = g.botlar.takipVar
     ? { olculemedi: false, son7: g.botlar.son7, son30: g.botlar.son30, botlar: g.botlar.botlar }
     : olculemedi('AI bot ziyaretleri ölçülmüyor: siteye RanksUp takip kodu kurulmamış.');
-  const aksiyonlar = aksiyonlariDerle(g);
+  const aksiyonlar = aksiyonlariDerle(g, ai);
 
   const yontem = [
     'Bu rapor RanksUp’ta kayıtlı en son ölçümlerden derlendi; rapor için yeni bir tarama ya da AI sorgusu çalıştırılmadı. Her bölümün dayandığı verinin tarihi bölüm başlığında yazar.',

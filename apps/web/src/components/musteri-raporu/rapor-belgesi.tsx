@@ -22,7 +22,8 @@ import {
  *
  * Kagit: `.rapor-kagit` acik tema token'larini yeniden tanimlar (globals.css) —
  * koyu temali panelde de belge beyaz kagit gibi gorunur ve oyle basilir.
- * Her ana bolum kagitta yeni sayfadan baslar (raporBolumleri.yeniSayfa).
+ * Kapak ve ozet kagitta kendi sayfalarinda; sonraki bolumler kaldigi
+ * sayfada devam eder (raporBolumleri.yeniSayfa, globals.css baski kurallari).
  * Grafikler yalniz veri varsa cizilir; renkler chart-colors token'larindan.
  * Rozetler ui/badge DEGIL yerel `Rozet`: badge'in secondary/outline
  * varyantlari `dark:` sinifi tasiyor ve koyu temada `.rapor-kagit` icinde
@@ -49,7 +50,7 @@ export function RaporBelgesi({
         <section
           key={b.id}
           aria-labelledby={b.id === 'kapak' ? undefined : `${kimlikOneki}-${b.id}`}
-          className={cn('rapor-bolum', b.yeniSayfa && 'rapor-yeni-sayfa', b.id === 'kapak' && 'rapor-kapak')}
+          className={cn('rapor-bolum', b.yeniSayfa && 'rapor-yeni-sayfa', !b.yeniSayfa && b.id !== 'kapak' && 'rapor-devam', b.id === 'kapak' && 'rapor-kapak')}
         >
           {b.id === 'kapak' ? (
             <Kapak rapor={rapor} paylasimSonu={paylasimSonu ?? null} />
@@ -94,7 +95,7 @@ function Rozet({ ton, children, className }: { ton: RozetTonu; children: ReactNo
 
 function BolumBasligi({ id, no, baslik, veriTarihi }: { id: string; no: number; baslik: string; veriTarihi: string | null }) {
   return (
-    <div className="mb-5 flex items-end justify-between gap-4 border-b border-border pb-3">
+    <div className="rapor-bolum-baslik mb-5 flex items-end justify-between gap-4 border-b border-border pb-3">
       <h2 id={id} className="font-brand text-h6 font-semibold tracking-tight">
         <span className="mr-2 tabular-nums text-brand">{String(no).padStart(2, '0')}</span>
         {baslik}
@@ -627,41 +628,44 @@ function AiBolumu({ rapor }: { rapor: MusteriRaporu }) {
           {o.sorgular.length > 0 && (
             <>
               <AltBaslik>Sorulan sorular</AltBaslik>
-              <table className="w-full border-collapse text-sm">
-                <thead>
-                  <tr className="border-b border-border text-label text-muted-foreground">
-                    <th className="py-2 pr-3 text-left font-medium">Soru</th>
-                    {o.asistanlar.map((a) => (
-                      <th key={a.saglayici} className="px-1 py-2 text-center font-medium" title={a.ad}>
-                        <span className="inline-flex flex-col items-center gap-0.5">
-                          <EngineLogo provider={a.saglayici} size={14} />
-                          <span className="text-label">{asistanAdi(a.saglayici, a.ad)}</span>
-                        </span>
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {o.sorgular.map((q) => (
-                    <tr key={q.soru} className="border-b border-border last:border-0">
-                      <td className="py-2 pr-3 leading-snug">
-                        {q.soru}
-                        {q.markali && <span className="ml-1 text-label text-muted-foreground">(markalı soru, skora girmez)</span>}
-                      </td>
-                      {q.sonuclar.map((s, i) => (
-                        <td key={o.asistanlar[i]?.saglayici ?? i} className={cn('px-1 py-2 text-center text-base', SONUC_ISARETI[s].sinif)} aria-label={AI_SONUC_ETIKETI[s]}>
-                          {SONUC_ISARETI[s].isaret}
-                        </td>
+              {/* Tablo ve lejanti tek blok: lejant kagitta tablodan ayri sayfaya dusmez */}
+              <div className="rapor-blok">
+                <table className="w-full border-collapse text-sm">
+                  <thead>
+                    <tr className="border-b border-border text-label text-muted-foreground">
+                      <th className="py-2 pr-3 text-left font-medium">Soru</th>
+                      {o.asistanlar.map((a) => (
+                        <th key={a.saglayici} className="px-1 py-2 text-center font-medium" title={a.ad}>
+                          <span className="inline-flex flex-col items-center gap-0.5">
+                            <EngineLogo provider={a.saglayici} size={14} />
+                            <span className="text-label">{asistanAdi(a.saglayici, a.ad)}</span>
+                          </span>
+                        </th>
                       ))}
                     </tr>
+                  </thead>
+                  <tbody>
+                    {o.sorgular.map((q) => (
+                      <tr key={q.soru} className="border-b border-border last:border-0">
+                        <td className="py-2 pr-3 leading-snug">
+                          {q.soru}
+                          {q.markali && <span className="ml-1 text-label text-muted-foreground">(markalı soru, skora girmez)</span>}
+                        </td>
+                        {q.sonuclar.map((s, i) => (
+                          <td key={o.asistanlar[i]?.saglayici ?? i} className={cn('px-1 py-2 text-center text-base', SONUC_ISARETI[s].sinif)} aria-label={AI_SONUC_ETIKETI[s]}>
+                            {SONUC_ISARETI[s].isaret}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-label text-muted-foreground">
+                  {(['alinti', 'anilma', 'yok', 'olculemedi'] as AiSonuc[]).map((s) => (
+                    <span key={s}><span className={SONUC_ISARETI[s].sinif}>{SONUC_ISARETI[s].isaret}</span> {AI_SONUC_ETIKETI[s]}</span>
                   ))}
-                </tbody>
-              </table>
-              <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-label text-muted-foreground">
-                {(['alinti', 'anilma', 'yok', 'olculemedi'] as AiSonuc[]).map((s) => (
-                  <span key={s}><span className={SONUC_ISARETI[s].sinif}>{SONUC_ISARETI[s].isaret}</span> {AI_SONUC_ETIKETI[s]}</span>
-                ))}
-              </p>
+                </p>
+              </div>
             </>
           )}
         </>
@@ -669,7 +673,7 @@ function AiBolumu({ rapor }: { rapor: MusteriRaporu }) {
 
       <AltBaslik>Rakipler</AltBaslik>
       {ai.rakipler.sesPayiListesi.olculemedi ? (
-        <div className="space-y-2">
+        <div className="rapor-blok space-y-2">
           <OlculmediKutusu olcum={ai.rakipler.sesPayiListesi} baslik="Rakiplerle birlikte anılma" />
           {ai.rakipler.tanimli.length > 0 && (
             <p className="text-sm text-muted-foreground">Takip edilen rakipler: {ai.rakipler.tanimli.join(', ')}.</p>
@@ -729,23 +733,26 @@ function YontemBolumu({ rapor, paylasimSonu }: { rapor: MusteriRaporu; paylasimS
       <ul className="list-disc space-y-1.5 pl-5 text-sm leading-relaxed">
         {rapor.yontem.map((y) => <li key={y}>{y}</li>)}
       </ul>
-      <dl className="grid grid-cols-1 gap-2 border-t border-border pt-3 text-sm sm:grid-cols-2 print:grid-cols-2">
-        <div><dt className="text-label text-muted-foreground">Rapor oluşturma</dt><dd>{trTarih(rapor.generatedAt)}</dd></div>
-        <div><dt className="text-label text-muted-foreground">Site taraması</dt><dd>{rapor.kaynaklar.tarama ? trTarih(rapor.kaynaklar.tarama) : 'Henüz yapılmadı'}</dd></div>
-        <div><dt className="text-label text-muted-foreground">AI görünürlük ölçümü</dt><dd>{rapor.kaynaklar.aiOlcum ? trTarih(rapor.kaynaklar.aiOlcum) : 'Henüz ölçülmedi'}</dd></div>
-        <div>
-          <dt className="text-label text-muted-foreground">Anılma oranı ve ses payı penceresi</dt>
-          <dd>{trTarih(rapor.kaynaklar.aiOranlari.baslangic)} – {trTarih(rapor.kaynaklar.aiOranlari.bitis)}</dd>
+      {/* Tarihler ve imza tek blok: kagitta imza satiri tek basina sayfaya dusmez */}
+      <div className="rapor-blok space-y-4">
+        <dl className="grid grid-cols-1 gap-2 border-t border-border pt-3 text-sm sm:grid-cols-2 print:grid-cols-2">
+          <div><dt className="text-label text-muted-foreground">Rapor oluşturma</dt><dd>{trTarih(rapor.generatedAt)}</dd></div>
+          <div><dt className="text-label text-muted-foreground">Site taraması</dt><dd>{rapor.kaynaklar.tarama ? trTarih(rapor.kaynaklar.tarama) : 'Henüz yapılmadı'}</dd></div>
+          <div><dt className="text-label text-muted-foreground">AI görünürlük ölçümü</dt><dd>{rapor.kaynaklar.aiOlcum ? trTarih(rapor.kaynaklar.aiOlcum) : 'Henüz ölçülmedi'}</dd></div>
+          <div>
+            <dt className="text-label text-muted-foreground">Anılma oranı ve ses payı penceresi</dt>
+            <dd>{trTarih(rapor.kaynaklar.aiOranlari.baslangic)} – {trTarih(rapor.kaynaklar.aiOranlari.bitis)}</dd>
+          </div>
+          <div>
+            <dt className="text-label text-muted-foreground">AI bot ziyaret penceresi</dt>
+            <dd>{trTarih(rapor.kaynaklar.botZiyaret.baslangic)} – {trTarih(rapor.kaynaklar.botZiyaret.bitis)}</dd>
+          </div>
+          {paylasimSonu && <div><dt className="text-label text-muted-foreground">Bağlantı geçerliliği</dt><dd>{trTarih(paylasimSonu)}</dd></div>}
+        </dl>
+        <div className="flex items-center justify-between gap-3 border-t border-border pt-3">
+          <BrandWordmark size={16} />
+          <p className="text-label text-muted-foreground">Bu rapor RanksUp ile hazırlandı.</p>
         </div>
-        <div>
-          <dt className="text-label text-muted-foreground">AI bot ziyaret penceresi</dt>
-          <dd>{trTarih(rapor.kaynaklar.botZiyaret.baslangic)} – {trTarih(rapor.kaynaklar.botZiyaret.bitis)}</dd>
-        </div>
-        {paylasimSonu && <div><dt className="text-label text-muted-foreground">Bağlantı geçerliliği</dt><dd>{trTarih(paylasimSonu)}</dd></div>}
-      </dl>
-      <div className="flex items-center justify-between gap-3 border-t border-border pt-3">
-        <BrandWordmark size={16} />
-        <p className="text-label text-muted-foreground">Bu rapor RanksUp ile hazırlandı.</p>
       </div>
     </div>
   );

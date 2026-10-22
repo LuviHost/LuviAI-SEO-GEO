@@ -171,17 +171,22 @@ export interface RaporBolumu {
  * Raporun bolumleri — ekran ve kagit AYNI sirayi kullanir. Olculmeyen bolum
  * de listelenir (icinde "Henüz ölçülmedi" yazar): musteri eksik olcumu
  * gormeli, bolumun sessizce kaybolmasi "sorun yok" diye okunur.
- * Kapak ilk sayfadir; sonraki her ana bolum yeni sayfadan baslar.
+ * Kagitta kapak ve yonetici ozeti kendi sayfalarindadir (ozet ve SEO yeni
+ * sayfadan baslar). Sonraki bolumler onceki bolumun kaldigi sayfada devam
+ * eder: hepsi yeni sayfadan baslayinca kisa bolum sonlari (tek rakip satiri,
+ * son aksiyon) neredeyse bos sayfalar birakiyordu (mukellef.co, 22.10.2026).
+ * Bolumlerin bolunmesini baski kurallari yonetir (globals.css: kart/satir
+ * bolunmez, baslik ilk blogundan ayrilmaz).
  */
 export function raporBolumleri(r: MusteriRaporu): RaporBolumu[] {
   return [
     { id: 'kapak', baslik: 'Kapak', veriTarihi: null, yeniSayfa: false },
     { id: 'ozet', baslik: 'Yönetici özeti', veriTarihi: r.generatedAt, yeniSayfa: true },
     { id: 'seo', baslik: 'SEO bulguları', veriTarihi: r.kaynaklar.tarama, yeniSayfa: true },
-    { id: 'geo', baslik: 'GEO ve AI hazırlığı', veriTarihi: r.kaynaklar.tarama, yeniSayfa: true },
-    { id: 'ai', baslik: 'AI görünürlük', veriTarihi: r.kaynaklar.aiOlcum, yeniSayfa: true },
-    { id: 'aksiyon', baslik: 'Öncelikli aksiyonlar', veriTarihi: r.generatedAt, yeniSayfa: true },
-    { id: 'yontem', baslik: 'Yöntem ve notlar', veriTarihi: null, yeniSayfa: true },
+    { id: 'geo', baslik: 'GEO ve AI hazırlığı', veriTarihi: r.kaynaklar.tarama, yeniSayfa: false },
+    { id: 'ai', baslik: 'AI görünürlük', veriTarihi: r.kaynaklar.aiOlcum, yeniSayfa: false },
+    { id: 'aksiyon', baslik: 'Öncelikli aksiyonlar', veriTarihi: r.generatedAt, yeniSayfa: false },
+    { id: 'yontem', baslik: 'Yöntem ve notlar', veriTarihi: null, yeniSayfa: false },
   ];
 }
 

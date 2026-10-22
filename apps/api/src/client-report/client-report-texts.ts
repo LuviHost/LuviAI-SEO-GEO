@@ -187,3 +187,24 @@ export const AKSIYON_METINLERI: Readonly<Record<string, AksiyonMetni>> = {
   ai_citation: { baslik: 'AI asistanlarının alıntılayacağı soru-cevap içerikleri yayınlayın', efor: 'orta' },
   pagespeed: { baslik: 'Sayfa hızını iyileştirin', efor: 'orta' },
 };
+
+/**
+ * audit.service ai_citation_low esigi: tarama kendi AI ortalamasi bunun
+ * altindaysa "AI arama gorunurlugu dusuk" bulgusu uretir. Rapor ayni esigi
+ * raporun KENDI AI olcumune uygular.
+ */
+export const AI_DUSUK_ESIGI = 30;
+
+/**
+ * "AI gorunurlugu dusuk" aksiyonunun aciklamasi — sayi HER ZAMAN raporun
+ * AI gorunurluk mansetinden gelir (ya da hic yazilmaz).
+ *
+ * NEDEN: tarama bulgusunun metni taramanin kendi AI adiminin skorunu tasir
+ * ("(20/100)"). Taramadan sonra daha yeni bir AI olcumu varsa rapor
+ * mansette o skoru (17/100) yazar; ayni belgede iki farkli AI skoru musteriye
+ * celiski gibi okunur (mukellef.co, 22.10.2026).
+ */
+export function aiGorunurlukAksiyonAciklamasi(skor: number | null): string {
+  const bas = typeof skor === 'number' ? `AI görünürlük skoru ${skor}/100` : 'AI görünürlüğü düşük';
+  return `${bas}: AI asistanları marka adı geçmeyen sorulara verdikleri yanıtlarda siteyi nadiren kaynak gösteriyor ya da markayı nadiren anıyor. Soru-cevap biçiminde GEO içeriği ve schema işaretlemesi önerilir; llms.txt düşük maliyetli, opsiyonel bir adımdır.`;
+}

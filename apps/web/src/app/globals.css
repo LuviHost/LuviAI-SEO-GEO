@@ -429,8 +429,11 @@
    Belge: components/musteri-raporu/rapor-belgesi.tsx. Baskida yalniz
    body'nin dogrudan cocugu olan `.rapor-baski` kopyasi kagida girer
    (rapor-baski.tsx); panel kabugu (kenar cubugu, mobil ust cubuk, deneme
-   bandi, site basligi) tek kuralla cikar. Ana bolumler yeni sayfadan baslar,
-   kart/satir bolunmez, renkli cubuklar murekkepte de gorunur. */
+   bandi, site basligi) tek kuralla cikar. Kapak ve yonetici ozeti kendi
+   sayfalarinda (.rapor-yeni-sayfa); sonraki bolumler kaldigi sayfada devam
+   eder (.rapor-devam) — her bolum yeni sayfadan baslayinca kisa bolum
+   sonlari neredeyse bos sayfalar birakiyordu. Kart/satir bolunmez, baslik
+   ilk blogundan ayrilmaz, renkli cubuklar murekkepte de gorunur. */
 
 .rapor-kagit {
   background-color: hsl(var(--background));
@@ -443,7 +446,8 @@
 
 @media screen {
   /* Ekranda bolumler arasi "sayfa" ayraci */
-  .rapor-kagit .rapor-yeni-sayfa {
+  .rapor-kagit .rapor-yeni-sayfa,
+  .rapor-kagit .rapor-devam {
     margin-top: 3rem;
     padding-top: 2.5rem;
     border-top: 1px dashed hsl(var(--border));
@@ -463,6 +467,21 @@
 
   .rapor-baski .rapor-yeni-sayfa {
     break-before: page;
+  }
+
+  /* Ayni sayfada devam eden bolum: ayrac bosluk; baslik sayfa sonunda yalniz kalmaz */
+  .rapor-baski .rapor-devam {
+    margin-top: 2.25rem;
+  }
+
+  .rapor-baski .rapor-bolum-baslik {
+    break-inside: avoid;
+    break-after: avoid;
+  }
+
+  .rapor-baski p {
+    orphans: 3;
+    widows: 3;
   }
 
   .rapor-baski .rapor-blok,
