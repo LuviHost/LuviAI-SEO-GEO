@@ -6,7 +6,7 @@
  *   pnpm --filter @luviai/video render:marketing SocialAd           # yalniz biri
  *   pnpm --filter @luviai/video render:marketing -- --muted         # ek olarak sessiz varyant (*-muted.mp4)
  *   pnpm --filter @luviai/video render:marketing -- --skip-audio    # muzigi yeniden sentezleme
- *   pnpm --filter @luviai/video render:marketing pillars            # 5 sutun tanitim videosu × dikey/yatay → out/ranksup-5/
+ *   pnpm --filter @luviai/video render:marketing pillars            # 5 sutun + Canli Tarayici × dikey/yatay → out/ranksup-5/
  *   pnpm --filter @luviai/video render:marketing 1-geo-dikey        # yalniz biri (ad ya da Pillar-geo-dikey)
  *
  * Adimlar: 1) scripts/audio/synth.mjs (timeline.json → public/audio/*.wav, -14 LUFS)
@@ -30,7 +30,7 @@ const JOBS = [
   { id: 'FeatureExplainer', name: 'feature-explainer', posterFrame: 1500, sheet: { width: 400, cols: 8 } },
 ];
 
-// 5 sutun tanitim videolari (src/pillars): sure ve poster karesi schedule.mjs planindan; ses synth-pillars.mjs
+// sutun tanitim videolari (src/pillars; 5 sutun + Canli Tarayici): sure ve poster karesi schedule.mjs planindan; ses synth-pillars.mjs
 const { planVideo } = await import('../src/pillars/schedule.mjs');
 const PILLAR_SCRIPT = JSON.parse(readFileSync(join(ROOT, 'src', 'pillars', 'script.json'), 'utf8'));
 const PILLAR_JOBS = PILLAR_SCRIPT.videos.flatMap((v) => {

@@ -4,7 +4,7 @@
  */
 import React from 'react';
 import { AbsoluteFill } from 'remotion';
-import { ArrowRight, Bot, CalendarDays, Check, Play, Search, ShieldCheck, Smartphone, Sparkles, User } from 'lucide-react';
+import { Activity, ArrowRight, BarChart3, Bot, CalendarDays, Check, EyeOff, Lock, Play, Search, ShieldCheck, Smartphone, Sparkles, User } from 'lucide-react';
 import { alpha, brand } from '../tokens';
 import { LogoMark, Wordmark } from '../ui';
 import { CtaButton, M, clamp01, fontDisplay, fontMono, fontUI } from '../marketing/kit';
@@ -190,12 +190,100 @@ function HookArticle({ g }: { g: Get }) {
   );
 }
 
+/** Canlı Tarayıcı kancasi: ornek site + uzerinde "?" ile bekleyen AI botlari */
+const HOOK_BOTS = ['GPTBot', 'ChatGPT-User', 'ClaudeBot', 'PerplexityBot'];
+function HookBots({ g, frame }: { g: Get; frame: number }) {
+  const s = g('site');
+  const tag = g('tag');
+  return (
+    <Card style={{ left: 0, top: 0, width: VIS.w, height: VIS.h, ...fade(s) }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14, height: 88, padding: '0 26px', borderBottom: `1px solid ${M.hair}`, background: M.cream }}>
+        <div style={{ display: 'flex', gap: 8 }}>
+          {[0, 1, 2].map((i) => (
+            <span key={i} style={{ width: 14, height: 14, borderRadius: 99, background: alpha(M.ink, 0.14) }} />
+          ))}
+        </div>
+        <div style={{ flex: 1, height: 52, borderRadius: 99, background: M.paper, border: `1.5px solid ${M.hair}`, display: 'flex', alignItems: 'center', gap: 10, padding: '0 20px', fontFamily: fontMono, fontWeight: 600, fontSize: 24, color: M.ink }}>
+          <Lock size={20} color={M.muted} /> {s.text}
+        </div>
+        <Tag a={tag} size={20} />
+      </div>
+      <div style={{ position: 'absolute', left: 30, top: 118, width: 440 }}>
+        <div style={{ height: 190, borderRadius: 20, background: `linear-gradient(135deg, ${alpha(brand[300], 0.45)}, ${alpha(brand[100], 0.7)})` }} />
+        <div style={{ marginTop: 24, display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {[0.92, 0.78, 0.86, 0.64, 0.8].map((w, i) => (
+            <Bar key={i} w={`${w * 100}%`} h={14} />
+          ))}
+        </div>
+      </div>
+      <div style={{ position: 'absolute', left: 496, top: 118, width: 374, display: 'flex', flexDirection: 'column', gap: 18 }}>
+        {HOOK_BOTS.map((b, i) => {
+          const o = clamp01((frame - s.it.appear - 10 - i * 6) / 8);
+          return (
+            <div key={b} style={{ display: 'flex', alignItems: 'center', gap: 14, height: 100, padding: '0 20px', borderRadius: 22, border: `2.5px dashed ${alpha(M.ink, 0.22)}`, background: M.paper, opacity: o, transform: `translateX(${(1 - o) * 20}px)` }}>
+              <span style={{ width: 52, height: 52, flexShrink: 0, borderRadius: 16, background: alpha(M.ink, 0.07), display: 'grid', placeItems: 'center' }}>
+                <Bot size={30} color={M.inkSoft} />
+              </span>
+              <span style={{ fontFamily: fontUI, fontWeight: 800, fontSize: 27, color: M.ink, whiteSpace: 'nowrap' }}>{b}</span>
+              <span style={{ marginLeft: 'auto', fontFamily: fontDisplay, fontWeight: 800, fontSize: 40, color: brand[600] }}>?</span>
+            </div>
+          );
+        })}
+      </div>
+    </Card>
+  );
+}
+
+/** JavaScript ile olcen web analitigi: insan ziyaretcisi var, AI botlari yok (temsili) */
+function HookAnalytics({ g, frame }: { g: Get; frame: number }) {
+  const a = g('an');
+  const tag = g('tag');
+  const pts = [0.42, 0.55, 0.48, 0.62, 0.58, 0.7, 0.66, 0.78, 0.72, 0.84];
+  const cw = 840;
+  const chH = 200;
+  const draw = clamp01((frame - a.it.appear) / 24);
+  const path = pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${(i / (pts.length - 1)) * cw} ${chH - p * chH}`).join(' ');
+  const rows: Array<[string, string, boolean]> = [
+    ['Ziyaretçiler', 'ölçülüyor', true],
+    ['GPTBot', 'görünmüyor', false],
+    ['ClaudeBot', 'görünmüyor', false],
+  ];
+  return (
+    <Card style={{ left: 0, top: 0, width: VIS.w, height: VIS.h, ...fade(a) }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, height: 84, padding: '0 28px', borderBottom: `1px solid ${M.hair}`, background: M.cream }}>
+        <BarChart3 size={28} color={M.inkSoft} />
+        <span style={{ fontFamily: fontUI, fontWeight: 800, fontSize: 28 }}>{a.text}</span>
+        <Tag a={tag} size={20} style={{ marginLeft: 'auto' }} />
+      </div>
+      <svg width={cw} height={chH + 10} style={{ position: 'absolute', left: 30, top: 108 }}>
+        <path d={path} fill="none" stroke={brand[500]} strokeWidth={5} strokeLinecap="round" strokeLinejoin="round" pathLength={1} strokeDasharray={1} strokeDashoffset={1 - draw} />
+      </svg>
+      <div style={{ position: 'absolute', left: 30, right: 30, top: 340, display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {rows.map(([l, v, ok], i) => {
+          const o = clamp01((frame - a.it.appear - 14 - i * 6) / 8);
+          return (
+            <div key={l} style={{ display: 'flex', alignItems: 'center', gap: 16, height: 76, padding: '0 22px', borderRadius: 16, border: `1.5px solid ${M.hair}`, background: ok ? M.paper : M.fill, opacity: o }}>
+              <span style={{ width: 40, height: 40, borderRadius: 99, display: 'grid', placeItems: 'center', background: ok ? alpha(M.success, 0.12) : alpha(M.ink, 0.07), color: ok ? M.success : M.muted }}>
+                {ok ? <Check size={22} strokeWidth={3} /> : <EyeOff size={22} />}
+              </span>
+              <span style={{ fontFamily: fontUI, fontWeight: 800, fontSize: 28, color: ok ? M.ink : M.body }}>{l}</span>
+              <span style={{ marginLeft: 'auto', fontFamily: fontUI, fontWeight: 700, fontSize: 24, color: ok ? M.success : M.muted }}>{v}</span>
+            </div>
+          );
+        })}
+      </div>
+    </Card>
+  );
+}
+
 const HOOKS: Record<string, React.FC<{ g: Get; frame: number }>> = {
   hookChat: HookChat,
   hookSerp: HookSerp,
   hookStore: HookStore,
   hookCalendar: HookCalendar,
   hookArticle: HookArticle,
+  hookBots: HookBots,
+  hookAnalytics: HookAnalytics,
 };
 
 export function HookScene({ g, scene, frame, format }: { g: Get; scene: PlannedScene; frame: number; format: Format }) {
@@ -360,7 +448,7 @@ function Claim({ a, style }: { a: A; style?: React.CSSProperties }) {
 
 /* ───────────── kapanis ───────────── */
 
-export function EndScene({ g, format }: { g: Get; format: Format }) {
+export function EndScene({ g, scene, format }: { g: Get; scene: PlannedScene; format: Format }) {
   const v = format === 'v';
   const logo = g('logo');
   const url = g('url');
@@ -382,6 +470,11 @@ export function EndScene({ g, format }: { g: Get; format: Format }) {
       <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10, fontFamily: fontUI, fontWeight: 700, fontSize: v ? 36 : 30, color: M.body, ...fade(note) }}>
         <ShieldCheck size={v ? 34 : 28} color={M.success} /> {note.text}
       </div>
+      {has(scene, 'plan') ? (
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 10, marginTop: v ? -16 : -12, fontFamily: fontUI, fontWeight: 700, fontSize: v ? 32 : 28, color: M.body, ...fade(g('plan')) }}>
+          <Activity size={v ? 30 : 26} color={brand[600]} /> {g('plan').text}
+        </div>
+      ) : null}
     </AbsoluteFill>
   );
 }

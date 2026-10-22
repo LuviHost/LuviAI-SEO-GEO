@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * 5 sutun tanitim videolarinin muzigi — her video TEK parca, kendi BPM'inde ve sectigi uslupte
+ * Sutun tanitim videolarinin (5 sutun + Canli Tarayici) muzigi — her video TEK parca, kendi BPM'inde ve sectigi uslupte
  * (styles.mjs: fast = enerjik elektronik pop, normal = chill-hop / lo-fi, slow = sinematik ambient).
  *
  *   node scripts/audio/synth-pillars.mjs            # hepsi → public/audio/pillars/<id>.wav

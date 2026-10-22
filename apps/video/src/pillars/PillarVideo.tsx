@@ -1,5 +1,5 @@
 /**
- * RanksUp tanitim videolari — 5 sutun (GEO, SEO, ASO, Icerik otopilotu, RanksUp Video), her biri
+ * RanksUp tanitim videolari — 5 sutun (GEO, SEO, ASO, Icerik otopilotu, RanksUp Video) + Canli Tarayici, her biri
  * dikey 1080×1920 (Reels) ve yatay 1920×1080 (web / YouTube / LinkedIn), ayni hikaye ve ayni ses.
  *
  * Kurgu: 3 sn'lik kanca (sutuna ozgu sorun) → gercek panelin yeniden cizilmis 3-4 ekrani (menu adlari
@@ -17,7 +17,7 @@ import { Headline, PanelWindow, getter, ramp, type Format, type Rect } from './p
 import { EndScene, FormatsScene, HookScene, MessageScene } from './scenes';
 import { ENTER, EXIT_FRAMES, FPS, LEAD } from './schedule.mjs';
 
-export const PILLAR_IDS = ['geo', 'seo', 'aso', 'icerik', 'video'] as const;
+export const PILLAR_IDS = ['geo', 'seo', 'aso', 'icerik', 'video', 'tarayici'] as const;
 export type PillarId = (typeof PILLAR_IDS)[number];
 
 export const PILLAR_PLANS: Record<PillarId, PillarPlan> = Object.fromEntries(PILLAR_IDS.map((id) => [id, planVideo(script, id)])) as Record<PillarId, PillarPlan>;
@@ -70,7 +70,7 @@ function SceneView({ plan, scene, frame, format }: { plan: PillarPlan; scene: Pl
   if (scene.type.startsWith('hook')) return <HookScene g={g} scene={scene} frame={frame} format={format} />;
   if (scene.type === 'message') return <MessageScene g={g} scene={scene} format={format} />;
   if (scene.type === 'formats') return <FormatsScene g={g} format={format} />;
-  if (scene.type === 'end') return <EndScene g={g} format={format} />;
+  if (scene.type === 'end') return <EndScene g={g} scene={scene} format={format} />;
   throw new Error(`Bilinmeyen sahne turu: ${scene.type}`);
 }
 
@@ -90,7 +90,7 @@ function PillarVideo({ id, format, muted = false }: { id: PillarId; format: Form
   );
 }
 
-/** Root.tsx icin: 10 kompozisyon (5 sutun × dikey/yatay) */
+/** Root.tsx icin: 12 kompozisyon (6 video × dikey/yatay) */
 export const PILLAR_COMPOSITIONS = PILLAR_IDS.flatMap((id) =>
   (['v', 'w'] as const).map((format) => ({
     id: `Pillar-${id}-${format === 'v' ? 'dikey' : 'yatay'}`,

@@ -87,8 +87,8 @@ Kodlama ayarları (`crf`, ölçek, poster karesi) `scripts/render.mjs` içinde.
 ## Tanıtım videoları — 5 sütun (`src/pillars/`)
 
 ```bash
-pnpm --filter @luviai/video render:marketing pillars        # 10 render → out/ranksup-5/<n>-<konu>-<dikey|yatay>.{mp4,jpg} + temas sayfası
-pnpm --filter @luviai/video check:pillars                   # okunurluk denetimi (10 render); --videos out/ranksup-5 kare sayısını da sınar
+pnpm --filter @luviai/video render:marketing pillars        # 12 render (5 sütun + Canlı Tarayıcı) → out/ranksup-5/<n>-<konu>-<dikey|yatay>.{mp4,jpg} + temas sayfası
+pnpm --filter @luviai/video check:pillars                   # okunurluk + gizli anahtar denetimi (12 render); --videos out/ranksup-5 kare sayısını da sınar
 pnpm --filter @luviai/video audio:pillars                   # yalnız müzik → public/audio/pillars/<id>.wav
 ```
 
@@ -117,6 +117,24 @@ pnpm --filter @luviai/video audio:pillars                   # yalnız müzik →
   (`published-liveness.service.ts`); RanksUp Video kaynakları, biçimleri, "1-3 dakikada", "Metin yalnız sitenin kendi
   cümlelerinden ve sayılarından oluşur", aylık 20 / 60 / 200 (`videos/page.tsx`, `article-video.ts`, `plans.ts`).
   **Kullanılmayanlar:** white-label, ekip üyeleri, 7. asistan, sıralama/trafik vaadi.
+
+### Canlı Tarayıcı videosu (`tarayici`, `6-tarayici-*`)
+
+Aynı çatı; hızlı üslup (120 BPM), 44,5 sn. Kanca → "Google Analytics bu ziyaretleri göstermez" → Canlı Tarayıcı akışı →
+Kaynak Bağla (3 adım) → Genel Bakış KPI + müşteri raporu → kapanış. **İddiaların kaynağı:** bot adları
+`LIVE_BOT_REGISTRY` (`audit/live-crawler.service.ts`); 10 dk pencere ve 5 sn yenileme (`recent()` + `crawler-live/page.tsx`
+`setInterval(load, 5000)`); "JavaScript gerekmez", sekmeler Cloudflare Worker (önerilen) / WordPress eklentisi / nginx
+ajanı, "Kaynak bağlı (…) — gerçek zamanlı AI bot tespiti aktif", "yanıtı geciktirmez (non-blocking)" (`crawler-live/page.tsx`);
+GPTBot/ClaudeBot JS çalıştırmaz (`live-crawler.service.ts` başlık yorumu, `crawler-tracking.middleware.ts`); HMAC-SHA256 site
+sırrı (`ingest-auth.ts`, `tracker.controller.ts`); Worker'da `fetch` önce, bildirim `ctx.waitUntil` ile, WP'de
+`blocking => false` (`snippets()`); ChatGPT-User = canlı cite sinyali (`CITE_FETCH_BOTS`, sayfadaki "gerçek bir kullanıcının AI
+sohbetinde sayfan canlı çekildi"); veri `AiCrawlerHit` günlük toplamına yazılır → Genel Bakış "AI bot ziyareti · Son 7 gün"
+(`ai-kpis.service.ts`, `site-overview-dashboard.tsx`) ve müşteri raporu "AI bot ziyareti · Son 7 gün"
+(`client-report/client-report-build.ts`); plan satırı: canlı akış, kurulum kodları ve `/api/tracker/events` plana bağlı değil
+(`audit.controller.ts` "bilerek ACIK" yorumu; `site-nav.ts`'te `feature` yok) — yalnız log yükleme ucu `crawler/ingest`
+`@RequiresPlan('liveCrawler')` (Ajans+). Fiyat kartı ise "Live Crawler"ı Ajans maddesi olarak listeliyor: sahip kararı
+değişirse `script.json` → `tarayici/end/plan` satırını güncelle. Kurulum kodundaki anahtar **daima maskeli**
+(`luvi_ing_••••••••`); `check:pillars` gerçek biçimli anahtarı ihlal sayar. Örnek akış, kod ve KPI değeri "Örnek …" etiketli.
 
 ## Makaleden otomatik kısa video (ArticleShort — CLI denemesi)
 

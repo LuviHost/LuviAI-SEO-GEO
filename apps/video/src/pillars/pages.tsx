@@ -11,24 +11,31 @@ import {
   Check,
   CheckSquare,
   CircleAlert,
+  Activity,
   Clock,
+  Cloud,
+  FileBarChart,
   FileText,
+  Flame,
   Gauge,
   Globe,
+  KeyRound,
   Loader2,
   Lock,
   Minus,
   Package,
   Send,
+  Server,
   ShieldCheck,
   Sparkles,
   Star,
   WandSparkles,
+  Wifi,
   X,
 } from 'lucide-react';
 import { alpha, brand } from '../tokens';
 import { M, clamp01, fontDisplay, fontMono, fontUI } from '../marketing/kit';
-import type { PlannedScene } from './schedule.mjs';
+import { FPS, LEAD, type PlannedScene } from './schedule.mjs';
 import { PageWidth, TONE, Tag, fade, has, type A, type Get } from './parts';
 
 const ICONS: Record<string, React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>> = {
@@ -38,6 +45,9 @@ const ICONS: Record<string, React.ComponentType<{ size?: number; color?: string;
   check: Check,
   shield: ShieldCheck,
   clock: Clock,
+  flame: Flame,
+  key: KeyRound,
+  report: FileBarChart,
 };
 
 /* ───────────── ust bilgi ───────────── */
@@ -53,6 +63,7 @@ function Header({ g, scene }: { g: Get; scene: PlannedScene }) {
     <div style={{ position: 'absolute', left: 0, top: 0, width: W, ...fade(t) }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
         <div style={{ fontFamily: fontDisplay, fontWeight: 700, fontSize: 44, letterSpacing: '-0.025em', lineHeight: 1.1 }}>{t.text}</div>
+        {t.it.label ? <LiveBadge text={t.it.label} /> : null}
         {tag ? <Tag a={tag} size={19} style={{ marginLeft: 'auto' }} /> : null}
       </div>
       <div style={{ fontFamily: fontUI, fontWeight: 500, fontSize: 24, color: M.body, marginTop: 8, lineHeight: 1.3 }}>{hint.text}</div>
@@ -83,6 +94,16 @@ function Header({ g, scene }: { g: Get; scene: PlannedScene }) {
         </div>
       ) : null}
     </div>
+  );
+}
+
+/** panelin "Canlı" rozeti (crawler-live/page.tsx Badge success + nabiz noktasi) */
+function LiveBadge({ text }: { text: string }) {
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '5px 14px', borderRadius: 999, background: alpha(M.success, 0.12), color: M.success, fontFamily: fontUI, fontWeight: 800, fontSize: 19 }}>
+      <span style={{ width: 9, height: 9, borderRadius: 99, background: M.success }} />
+      {text}
+    </span>
   );
 }
 
@@ -497,6 +518,180 @@ function Quota({ g, scene }: { g: Get; scene: PlannedScene }) {
   );
 }
 
+/* ───────────── Canlı Tarayıcı (crawler-live/page.tsx) ───────────── */
+
+/** panelin BOT_COLOR'u (tailwind tonlari) */
+const BOT_HEX: Record<string, string> = {
+  GPTBot: '#10B981',
+  'ChatGPT-User': '#34D399',
+  'OAI-SearchBot': '#6EE7B7',
+  ClaudeBot: brand[500],
+  PerplexityBot: '#06B6D4',
+  Googlebot: '#3B82F6',
+  Bingbot: '#0EA5E9',
+};
+const RED = '#EF4444';
+
+/** "Son ziyaretler" akisi: en yeni satir ustte girer, eskiler kayarak asagi iner (panel 5 sn'de bir yeniler) */
+function Feed({ g, scene, frame }: { g: Get; scene: PlannedScene; frame: number }) {
+  const W = React.useContext(PageWidth);
+  const top = headerH(scene);
+  const rows = listOf(scene, g, 'f');
+  const ROW = 70;
+  const GAP = 8;
+  const listTop = top + 42;
+  const shown = rows.filter((a) => frame >= a.it.appear - LEAD).length;
+  return (
+    <>
+      <div style={{ position: 'absolute', left: 0, top, width: W, fontFamily: fontUI, fontWeight: 800, fontSize: 21, color: M.inkSoft, opacity: g('title').o }}>
+        Son ziyaretler <span style={{ fontWeight: 600, color: M.muted }}>({shown})</span>
+      </div>
+      {rows.map((a) => {
+        // kendisinden SONRA giren her satir bunu bir sira asagi iter (yeninin giris yayiyla)
+        const push = rows.filter((b) => b.it.appear > a.it.appear).reduce((acc, b) => acc + clamp01(b.p), 0);
+        const secs = Math.max(0, Math.floor((frame - a.it.visibleFrom) / FPS)) + 2;
+        const st = Number(a.it.value);
+        const stCol = st < 300 ? M.success : st < 500 ? M.warn : RED;
+        const cite = Boolean(a.it.accent);
+        return (
+          <div
+            key={a.it.id}
+            style={{
+              position: 'absolute',
+              left: 0,
+              top: listTop + push * (ROW + GAP),
+              width: W,
+              height: ROW,
+              display: 'flex',
+              alignItems: 'center',
+              gap: 16,
+              padding: '0 20px',
+              borderRadius: 16,
+              boxSizing: 'border-box',
+              border: `1.5px solid ${cite ? alpha(RED, 0.3) : M.hair}`,
+              background: cite ? alpha(RED, 0.05) : M.paper,
+              opacity: a.o,
+              transform: `translateY(${(1 - a.p) * -22}px)`,
+            }}
+          >
+            <span style={{ width: 12, height: 12, flexShrink: 0, borderRadius: 99, background: BOT_HEX[a.it.label ?? ''] ?? M.muted }} />
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 2, minWidth: 0, flex: 1 }}>
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: fontUI, fontWeight: 800, fontSize: 25, color: M.ink, whiteSpace: 'nowrap' }}>
+                {cite ? <Flame size={22} color={RED} /> : null}
+                {a.it.label}
+              </span>
+              <span style={{ fontFamily: fontMono, fontWeight: 600, fontSize: 20, color: M.body, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.it.sub}</span>
+            </div>
+            <span style={{ padding: '5px 12px', borderRadius: 10, background: alpha(stCol, 0.12), color: stCol, fontFamily: fontMono, fontWeight: 700, fontSize: 22 }}>{a.it.value}</span>
+            <span style={{ width: 120, textAlign: 'right', fontFamily: fontUI, fontWeight: 600, fontSize: 19, color: M.muted, whiteSpace: 'nowrap' }}>{secs}sn önce</span>
+          </div>
+        );
+      })}
+      {has(scene, 'callout') ? <Callout a={g('callout')} top={listTop + rows.length * (ROW + GAP) + 10} /> : null}
+    </>
+  );
+}
+
+/** Kaynak Bagla: 1 kaynak sekmeleri · 2 kod (anahtar MASKELI) · 3 baglanti seridi; altta imza + gecikme notu */
+const MASKED_KEY = 'luvi_ing_••••••••';
+const CODE_LINES: Array<[string, string?]> = [
+  ['// RanksUp Live Crawler — Cloudflare Worker'],
+  [`const RANKSUP_SECRET = '${MASKED_KEY}';`],
+  ['const response = await fetch(request);', ' // sıfır gecikme'],
+  ['ctx.waitUntil(bildir(request, response));', ' // arka planda'],
+];
+function Setup({ g, scene }: { g: Get; scene: PlannedScene }) {
+  const W = React.useContext(PageWidth);
+  const top = headerH(scene);
+  const steps = listOf(scene, g, 'st');
+  const [s1, s2, s3] = steps;
+  const label = (a: A, n: number) => (
+    <div style={{ display: 'flex', alignItems: 'baseline', gap: 12, marginBottom: 10 }}>
+      <span style={{ width: 34, height: 34, borderRadius: 99, background: alpha(brand[500], 0.14), color: brand[700], display: 'grid', placeItems: 'center', fontFamily: fontDisplay, fontWeight: 800, fontSize: 19, alignSelf: 'center' }}>{n}</span>
+      <span style={{ fontFamily: fontUI, fontWeight: 800, fontSize: 25, color: M.ink }}>{a.text}</span>
+      <span style={{ fontFamily: fontUI, fontWeight: 600, fontSize: 19, color: M.muted }}>{a.it.sub}</span>
+    </div>
+  );
+  const tabs = [
+    { t: 'Cloudflare Worker', h: 'önerilen', icon: Cloud },
+    { t: 'WordPress', h: 'eklenti', icon: Server },
+    { t: 'nginx', h: 'log ajanı', icon: Server },
+  ];
+  const y1 = top;
+  const y2 = y1 + 106;
+  const y3 = y2 + 196;
+  const y4 = y3 + 112;
+  return (
+    <>
+      <div style={{ position: 'absolute', left: 0, top: y1, width: W, ...fade(s1) }}>
+        {label(s1, 1)}
+        <div style={{ display: 'flex', gap: 8 }}>
+          {tabs.map((tb, i) => (
+            <span key={tb.t} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '8px 14px', borderRadius: 10, border: `1.5px solid ${i === 0 ? brand[600] : M.hair}`, background: i === 0 ? brand[600] : M.paper, color: i === 0 ? 'white' : M.inkSoft, fontFamily: fontUI, fontWeight: 700, fontSize: 18, whiteSpace: 'nowrap' }}>
+              <tb.icon size={17} /> {tb.t}
+              <span style={{ fontSize: 14, fontWeight: 600, opacity: 0.75 }}>{tb.h}</span>
+            </span>
+          ))}
+        </div>
+      </div>
+      <div style={{ position: 'absolute', left: 0, top: y2, width: W, ...fade(s2) }}>
+        {label(s2, 2)}
+        <div style={{ borderRadius: 14, border: `1px solid ${M.hair}`, background: M.fill, padding: '14px 18px', display: 'flex', flexDirection: 'column', gap: 6, fontFamily: fontMono, fontWeight: 600, fontSize: 17.5, color: M.inkSoft, whiteSpace: 'nowrap', overflow: 'hidden' }}>
+          {CODE_LINES.map(([code, comment], i) => (
+            <div key={i} style={{ color: i === 0 ? M.muted : M.inkSoft }}>
+              {code}
+              {comment ? <span style={{ color: M.success }}>{comment}</span> : null}
+            </div>
+          ))}
+        </div>
+      </div>
+      <div style={{ position: 'absolute', left: 0, top: y3, width: W, ...fade(s3) }}>
+        {label(s3, 3)}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, borderRadius: 14, border: `1.5px solid ${alpha(M.success, 0.35)}`, background: alpha(M.success, 0.06), padding: '12px 18px', fontFamily: fontUI, fontWeight: 700, fontSize: 19, color: M.inkSoft }}>
+          <Wifi size={22} color={M.success} />
+          Kaynak bağlı (Cloudflare Worker) — gerçek zamanlı AI bot tespiti aktif
+        </div>
+      </div>
+      {has(scene, 'callout') ? <Callout a={g('callout')} top={y4 + 8} /> : null}
+      {has(scene, 'note') ? (
+        <div style={{ position: 'absolute', left: 0, top: y4 + 96, width: W, display: 'flex', alignItems: 'center', gap: 12, fontFamily: fontUI, fontWeight: 700, fontSize: 23, color: M.inkSoft, ...fade(g('note')) }}>
+          <Gauge size={26} color={M.success} style={{ flexShrink: 0 }} /> {g('note').text}
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+/** Genel Bakis: "AI bot ziyareti" KPI karti (site-overview-dashboard.tsx MetricCard) + diger kartlar iskelet */
+function Kpi({ g, scene }: { g: Get; scene: PlannedScene }) {
+  const W = React.useContext(PageWidth);
+  const top = headerH(scene);
+  const k = g('kpi');
+  const t = g('title');
+  const cw = (W - 16) / 2;
+  const ch = 200;
+  const cell = (i: number): React.CSSProperties => ({ position: 'absolute', left: (i % 2) * (cw + 16), top: top + Math.floor(i / 2) * (ch + 16), width: cw, height: ch, borderRadius: 20, boxSizing: 'border-box' });
+  return (
+    <>
+      {[0, 1, 2].map((i) => (
+        <div key={i} style={{ ...cell(i), border: `1.5px solid ${M.hair}`, background: M.paper, padding: 22, display: 'flex', flexDirection: 'column', gap: 16, opacity: t.o * 0.9 }}>
+          <div style={{ width: 150, height: 14, borderRadius: 99, background: alpha(M.ink, 0.1) }} />
+          <div style={{ width: 90, height: 34, borderRadius: 10, background: alpha(M.ink, 0.07) }} />
+          <div style={{ width: 120, height: 11, borderRadius: 99, background: alpha(M.ink, 0.05) }} />
+        </div>
+      ))}
+      <div style={{ ...cell(3), border: `2px solid ${alpha(brand[500], 0.55)}`, background: alpha(brand[500], 0.06), padding: '26px 24px', boxShadow: `0 18px 40px ${alpha(brand[700], 0.14)}`, opacity: k.o, transform: `scale(${0.94 + 0.06 * k.p})` }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, fontFamily: fontUI, fontWeight: 800, fontSize: 22, color: M.inkSoft }}>
+          <Activity size={22} color={brand[600]} /> {k.it.label}
+        </div>
+        <div style={{ marginTop: 8, fontFamily: fontDisplay, fontWeight: 800, fontSize: 68, letterSpacing: '-0.03em', color: M.ink, lineHeight: 1.05 }}>{k.it.value}</div>
+        <div style={{ marginTop: 4, fontFamily: fontUI, fontWeight: 600, fontSize: 19, color: M.muted }}>{k.it.sub}</div>
+      </div>
+      {has(scene, 'callout') ? <Callout a={g('callout')} top={top + 2 * (ch + 16) + 12} /> : null}
+    </>
+  );
+}
+
 export function PageContent({ g, scene, frame }: { g: Get; scene: PlannedScene; frame: number }) {
   const c = scene.content;
   return (
@@ -514,6 +709,9 @@ export function PageContent({ g, scene, frame }: { g: Get; scene: PlannedScene; 
       {c === 'modes' ? <Modes g={g} scene={scene} /> : null}
       {c === 'sources' ? <Sources g={g} scene={scene} /> : null}
       {c === 'quota' ? <Quota g={g} scene={scene} /> : null}
+      {c === 'feed' ? <Feed g={g} scene={scene} frame={frame} /> : null}
+      {c === 'setup' ? <Setup g={g} scene={scene} /> : null}
+      {c === 'kpi' ? <Kpi g={g} scene={scene} /> : null}
     </div>
   );
 }

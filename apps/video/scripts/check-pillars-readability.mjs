@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * 5 sutun tanitim videolarinin (src/pillars) okunurluk denetimi — 10 render (5 video × dikey / yatay;
- * iki bicim AYNI zaman planini kullanir, her biri ayri raporlanir).
+ * Sutun tanitim videolarinin (src/pillars; 5 sutun + Canli Tarayici) okunurluk denetimi — her video × dikey /
+ * yatay (iki bicim AYNI zaman planini kullanir, her biri ayri raporlanir).
  *
  *   metin   ≥ max(2,0 sn; 0,3 sn × kelime + 1,0 sn) tam gorunur
  *   not     ≥ 3,0 sn ("Örnek …" etiketleri, plan kosulu, "Kart gerekmez")
@@ -9,6 +9,8 @@
  *   giris   ayni karede birden fazla YENI oge girmez (panel basligi + ipucu + etiket gibi tek
  *           blok olarak gelen eslikciler haric)
  *   sure    ≤ 60 sn (Reels), hedef 30-45 sn (uyari)
+ *   gizli   ekrandaki hicbir metinde gercek bicimli ingest anahtari yok (luvi_ing_ + onaltilik; yalniz
+ *           maskeli 'luvi_ing_••••••••' gecerli) — script.json ve sahne kaynaklari (src/pillars/*.tsx) taranir
  *
  * "Tam gorunur" BAGIMSIZ hesaplanir: giris yayi Remotion spring() ile kare kare yeniden calistirilir
  * (yay %95 ve opaklik 1), cikis sahne sonundan EXIT_FRAMES once baslar (son sahnede video sonu).
@@ -19,7 +21,7 @@
  *   node scripts/check-pillars-readability.mjs --videos out/ranksup-5   # + mp4 sureleri plana esit mi
  */
 import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spring } from 'remotion';
@@ -59,6 +61,16 @@ const short = (t, n = 44) => (t.length > n ? `${t.slice(0, n - 1)}…` : t);
 
 let failures = 0;
 const summary = [];
+
+// gizli anahtar korumasi: Canli Tarayici videosu kurulum kodunu gosterir; anahtar YALNIZ maskeli olabilir
+const SECRET_RE = /luvi_ing_[0-9a-f]{6,}/i;
+const leakSources = [['script.json', JSON.stringify(SCRIPT)], ...readdirSync(join(ROOT, 'src', 'pillars')).filter((f) => f.endsWith('.tsx')).map((f) => [f, readFileSync(join(ROOT, 'src', 'pillars', f), 'utf8')])];
+for (const [name, text] of leakSources) {
+  if (SECRET_RE.test(text)) {
+    console.error(`GIZLI ANAHTAR: ${name} gercek bicimli bir ingest anahtari iceriyor (yalniz maskeli 'luvi_ing_••••••••' kullan)`);
+    failures++;
+  }
+}
 for (const v of SCRIPT.videos) {
   const plan = planVideo(SCRIPT, v.id);
   for (const fmt of ['dikey', 'yatay']) {
@@ -146,4 +158,4 @@ if (failures) {
   console.error(`\n${failures} okunurluk ihlali`);
   process.exit(1);
 }
-console.log('\nTum metinler okunurluk kuralini sagliyor (10 render).');
+console.log(`\nTum metinler okunurluk kuralini sagliyor (${summary.length} render); gizli anahtar taramasi temiz.`);

@@ -1,5 +1,5 @@
 {
-  "_": "RanksUp 5 sutun tanitim videolari — TUM ekran metinleri burada (schedule.mjs zamanlar, check-pillars-readability.mjs denetler). at = sahne basindan vurus. kind: text (varsayilan) | note (≥3 sn) | ui (yalniz liste kurali). Iddialarin kaynagi: apps/video/README.md 'Tanitim videolari (5 sutun)'.",
+  "_": "RanksUp sutun tanitim videolari (5 sutun + Canli Tarayici) — TUM ekran metinleri burada (schedule.mjs zamanlar, check-pillars-readability.mjs denetler). at = sahne basindan vurus. kind: text (varsayilan) | note (≥3 sn) | ui (yalniz liste kurali). Iddialarin kaynagi: apps/video/README.md 'Tanitim videolari (5 sutun)' ve 'Canli Tarayici videosu'.",
   "site": "ornekklinik.com",
   "videos": [
     {
@@ -1503,6 +1503,328 @@
               "id": "note",
               "text": "Kart gerekmez",
               "at": 2.5,
+              "kind": "note"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "tarayici",
+      "slug": "6-tarayici",
+      "title": "Canlı Tarayıcı",
+      "style": "fast",
+      "bpm": 120,
+      "energy": 0.85,
+      "scenes": [
+        {
+          "id": "hook",
+          "type": "hookBots",
+          "music": "pulse",
+          "items": [
+            {
+              "id": "h",
+              "text": "ChatGPT siteni okuyor mu?",
+              "at": 0
+            },
+            {
+              "id": "site",
+              "text": "ornekklinik.com",
+              "at": 2,
+              "kind": "ui",
+              "sfx": "pop"
+            },
+            {
+              "id": "tag",
+              "text": "Örnek site",
+              "at": 2,
+              "kind": "note"
+            },
+            {
+              "id": "h2",
+              "text": "Artık tahmin etme, gör.",
+              "at": 4.5,
+              "sfx": "thock"
+            }
+          ]
+        },
+        {
+          "id": "pain",
+          "type": "hookAnalytics",
+          "music": "L1",
+          "items": [
+            {
+              "id": "h",
+              "text": "Google Analytics bu ziyaretleri göstermez.",
+              "at": 0
+            },
+            {
+              "id": "an",
+              "text": "Web analitiği",
+              "at": 2,
+              "kind": "ui",
+              "sfx": "pop"
+            },
+            {
+              "id": "tag",
+              "text": "Temsili",
+              "at": 2,
+              "kind": "note"
+            },
+            {
+              "id": "h2",
+              "text": "GPTBot ve ClaudeBot JavaScript çalıştırmaz.",
+              "at": 4.5,
+              "sfx": "thock"
+            }
+          ]
+        },
+        {
+          "id": "feed",
+          "type": "page",
+          "content": "feed",
+          "nav": "crawler",
+          "music": "L2",
+          "sfx": "whoosh",
+          "items": [
+            {
+              "id": "h",
+              "text": "Hangi bot hangi sayfayı okudu, canlı gör.",
+              "at": 0
+            },
+            {
+              "id": "title",
+              "text": "Canlı Tarayıcı",
+              "label": "Canlı",
+              "at": 2
+            },
+            {
+              "id": "hint",
+              "text": "AI botlarının sitene son 10 dakikadaki ziyaretleri",
+              "at": 2
+            },
+            {
+              "id": "tag",
+              "text": "Örnek akış",
+              "at": 2,
+              "kind": "note"
+            },
+            {
+              "id": "chip",
+              "text": "5 sn'de bir yenilenir",
+              "at": 2
+            },
+            {
+              "id": "f1",
+              "text": "GPTBot 200 /blog/dis-tasi",
+              "label": "GPTBot",
+              "value": "200",
+              "sub": "/blog/dis-tasi",
+              "at": 4,
+              "kind": "ui",
+              "list": "feed",
+              "sfx": "tick"
+            },
+            {
+              "id": "f2",
+              "text": "ClaudeBot 200 /implant",
+              "label": "ClaudeBot",
+              "value": "200",
+              "sub": "/implant",
+              "at": 5,
+              "kind": "ui",
+              "list": "feed",
+              "sfx": "tick"
+            },
+            {
+              "id": "f3",
+              "text": "PerplexityBot 304 /fiyatlar",
+              "label": "PerplexityBot",
+              "value": "304",
+              "sub": "/fiyatlar",
+              "at": 6,
+              "kind": "ui",
+              "list": "feed",
+              "sfx": "tick"
+            },
+            {
+              "id": "f4",
+              "text": "Googlebot 200 /iletisim",
+              "label": "Googlebot",
+              "value": "200",
+              "sub": "/iletisim",
+              "at": 7,
+              "kind": "ui",
+              "list": "feed",
+              "sfx": "tick"
+            },
+            {
+              "id": "f5",
+              "text": "ChatGPT-User 200 /blog/beyazlatma",
+              "label": "ChatGPT-User",
+              "value": "200",
+              "sub": "/blog/beyazlatma",
+              "accent": true,
+              "at": 8,
+              "kind": "ui",
+              "list": "feed",
+              "sfx": "tick"
+            },
+            {
+              "id": "callout",
+              "text": "ChatGPT-User: sayfan bir kullanıcının AI sohbetinde canlı çekildi.",
+              "icon": "flame",
+              "at": 10
+            }
+          ]
+        },
+        {
+          "id": "setup",
+          "type": "page",
+          "content": "setup",
+          "nav": "crawler",
+          "crumb": "Kaynak Bağla",
+          "music": "L3",
+          "items": [
+            {
+              "id": "h",
+              "text": "3 adımda kur. Sayfana JavaScript eklemen gerekmez.",
+              "at": 0
+            },
+            {
+              "id": "title",
+              "text": "Kaynak Bağla",
+              "at": 2
+            },
+            {
+              "id": "hint",
+              "text": "Cloudflare Worker (önerilen), WordPress eklentisi veya nginx ajanı",
+              "at": 2
+            },
+            {
+              "id": "tag",
+              "text": "Örnek kod",
+              "at": 2,
+              "kind": "note"
+            },
+            {
+              "id": "st1",
+              "text": "Kaynak seç",
+              "sub": "Worker · WordPress · nginx",
+              "at": 4,
+              "kind": "ui",
+              "list": "steps",
+              "sfx": "tick"
+            },
+            {
+              "id": "st2",
+              "text": "Kodu yapıştır",
+              "sub": "Kopyala → yapıştır → yayınla",
+              "at": 5,
+              "kind": "ui",
+              "list": "steps",
+              "sfx": "tick"
+            },
+            {
+              "id": "st3",
+              "text": "Canlı akış başlar",
+              "sub": "Bot isteği panele düşer",
+              "at": 6,
+              "kind": "ui",
+              "list": "steps",
+              "sfx": "tick"
+            },
+            {
+              "id": "callout",
+              "text": "İstekler sitene özel gizli anahtarla imzalanır.",
+              "icon": "key",
+              "at": 7.5
+            },
+            {
+              "id": "note",
+              "text": "Bildirim arka planda gider, yanıtı geciktirmez.",
+              "icon": "gauge",
+              "at": 9.5,
+              "kind": "note"
+            }
+          ]
+        },
+        {
+          "id": "data",
+          "type": "page",
+          "content": "kpi",
+          "nav": "overview",
+          "music": "L3",
+          "sfx": "whoosh",
+          "items": [
+            {
+              "id": "h",
+              "text": "Veriler Genel Bakış'a ve müşteri raporuna akar.",
+              "at": 0
+            },
+            {
+              "id": "title",
+              "text": "Genel Bakış",
+              "at": 2
+            },
+            {
+              "id": "hint",
+              "text": "Sıradaki adım ve özet",
+              "at": 2
+            },
+            {
+              "id": "tag",
+              "text": "Örnek veri",
+              "at": 2,
+              "kind": "note"
+            },
+            {
+              "id": "kpi",
+              "text": "AI bot ziyareti",
+              "label": "AI bot ziyareti",
+              "value": "412",
+              "sub": "Son 7 gün",
+              "at": 4,
+              "sfx": "pop"
+            },
+            {
+              "id": "callout",
+              "text": "Müşteri raporunda da: AI bot ziyareti, son 7 gün.",
+              "icon": "report",
+              "at": 6
+            }
+          ]
+        },
+        {
+          "id": "end",
+          "type": "end",
+          "holdSec": 1,
+          "items": [
+            {
+              "id": "logo",
+              "text": "RanksUp",
+              "at": 0
+            },
+            {
+              "id": "url",
+              "text": "ranksup.ai",
+              "at": 1
+            },
+            {
+              "id": "cta",
+              "text": "2 makale ücretsiz dene",
+              "at": 2
+            },
+            {
+              "id": "note",
+              "text": "14 gün ücretsiz · kart gerekmez",
+              "at": 3,
+              "kind": "note"
+            },
+            {
+              "id": "plan",
+              "text": "Canlı Tarayıcı deneme dahil tüm planlarda açık",
+              "at": 4,
               "kind": "note"
             }
           ]
