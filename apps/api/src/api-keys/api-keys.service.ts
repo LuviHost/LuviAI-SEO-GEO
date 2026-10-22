@@ -46,6 +46,9 @@ const ROUTE_RESOURCE: Record<string, string> = {
   audit: 'audit',
   ads: 'ads',
   analytics: 'analytics',
+  // Musteri raporu analitik okumadir (GET -> analytics:read). Paylasim uclari
+  // @SessionOnly: anahtar zaten giremez, scope burada yalniz okumayi daraltir.
+  'client-report': 'analytics',
   social: 'social',
 };
 

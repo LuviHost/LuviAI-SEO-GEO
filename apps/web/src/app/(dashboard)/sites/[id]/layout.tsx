@@ -1,17 +1,21 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
-import { ExternalLink } from 'lucide-react';
+import Link from 'next/link';
+import { useParams, usePathname } from 'next/navigation';
+import { ExternalLink, FileText } from 'lucide-react';
 import { api } from '@/lib/api';
 import { Skeleton } from '@/components/ui/skeleton';
 import { SiteContext } from './site-context';
 import { PageHeader } from '@/components/ui/page-header';
 import { SiteFavicon } from '@/components/site-favicon';
+import { Button } from '@/components/ui/button';
+import { siteHref } from '@/lib/site-routes';
 
 export default function SiteLayout({ children }: { children: React.ReactNode }) {
   const params = useParams();
   const id = params?.id as string;
+  const pathname = usePathname();
 
   const [site, setSite] = useState<any>(null);
   const [audit, setAudit] = useState<any>(null);
@@ -100,6 +104,16 @@ export default function SiteLayout({ children }: { children: React.ReactNode }) 
           backHref="/dashboard"
           backLabel="Dashboard"
           title={site.name}
+          actions={
+            // Yalniz Genel Bakis'ta: musteriye verilecek rapora tek tikla gecis
+            pathname === siteHref(site.id, 'overview') ? (
+              <Button size="sm" variant="outline" asChild>
+                <Link href={siteHref(site.id, 'clientReport')}>
+                  <FileText className="h-4 w-4" aria-hidden /> Rapor oluştur
+                </Link>
+              </Button>
+            ) : undefined
+          }
           leading={<SiteFavicon url={site.url} name={site.name} size="lg" />}
           meta={
             <a

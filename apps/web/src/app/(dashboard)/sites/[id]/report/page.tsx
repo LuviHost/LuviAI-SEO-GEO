@@ -5,7 +5,10 @@ import { AuditReportsPanel } from '@/components/audit-reports-panel';
 import { RaporGecmisiPanel } from '@/components/rapor-gecmisi-panel';
 import { SectionHeader } from '@/components/ui/section-header';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Activity, CalendarRange, FileBarChart, ScanSearch } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { siteHref } from '@/lib/site-routes';
+import Link from 'next/link';
+import { Activity, CalendarRange, FileBarChart, ScanSearch, UserRound } from 'lucide-react';
 
 /*
   Uc uzun panel alt alta yigiliydi → sekmeler. Kalici donem raporu ILK sekme:
@@ -26,6 +29,14 @@ export default function ReportPage() {
           icon={FileBarChart}
           title="Raporlar"
           description="Dönem raporu, canlı performans ve tarama geçmişi — trafik, içerik, AI görünürlüğü ve site skorunun değişimi."
+          actions={
+            // Musteriye verilecek tek belge ayri sayfada (A4 PDF + paylasim baglantisi)
+            <Button size="sm" asChild>
+              <Link href={siteHref(site.id, 'clientReport')}>
+                <UserRound className="h-4 w-4" aria-hidden /> Müşteri raporu
+              </Link>
+            </Button>
+          }
         />
       </div>
 

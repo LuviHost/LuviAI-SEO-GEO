@@ -107,7 +107,7 @@ export const SITE_NAV_ITEMS: SiteNavItem[] = [
   { route: 'analytics', label: 'Analitik', icon: BarChart3, group: 'growth', hint: 'Search Console + GA4', keywords: ['analytics', 'analitik', 'gsc', 'ga4', 'trafik'] },
   { route: 'ads', label: 'Reklam', icon: TrendingUp, group: 'growth', hint: 'Google + Meta reklam yönetimi', keywords: ['ads', 'reklam', 'google', 'meta', 'roas'] },
   { route: 'adsHealth', label: 'Kampanya Skoru', icon: Target, group: 'growth', hint: 'Reklam hesabı sağlık kontrolü', keywords: ['ads', 'health', 'kampanya', 'skor', 'reklam'] },
-  { route: 'report', label: 'Rapor', icon: FileBarChart, group: 'growth', hint: 'Performans özeti', keywords: ['report', 'rapor', 'pdf'] },
+  { route: 'report', label: 'Rapor', icon: FileBarChart, group: 'growth', hint: 'Performans özeti ve müşteri raporu', keywords: ['report', 'rapor', 'pdf', 'müşteri raporu', 'site raporu', 'paylaş'] },
 
   // ── Mobil ──
   { route: 'aso', label: 'ASO', icon: Smartphone, group: 'mobile', hint: 'App Store optimizasyonu', keywords: ['aso', 'app', 'uygulama', 'mobil', 'app store', 'play'] },

@@ -31,6 +31,8 @@ export const SITE_ROUTES = {
   ads: '/ads',
   adsHealth: '/ads-health',
   report: '/report',
+  // Musteri raporu Rapor'un alt sayfasi: kenar cubugunda "Rapor" etkin kalir
+  clientReport: '/report/musteri',
   autopilot: '/autopilot',
   connections: '/connections',
   settings: '/settings',

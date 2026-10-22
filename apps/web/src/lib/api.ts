@@ -7,6 +7,7 @@ import type {
   GaKeyEventSetup, LocalPromptDraft, LocalPromptInput, LocalPromptMeta, LocalRunSummary, SiteNapView,
 } from './local-visibility';
 import type { ArticleVideo, VideoBrandPreview, VideoQuota, VideoRequestBody } from './article-video';
+import type { MusteriRaporu, PaylasilanRapor, PaylasimOzeti } from './musteri-raporu';
 import { readApiErrorCode, trialErrorAction, TRIAL_ERROR_EVENT } from './trial-errors';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
@@ -1452,6 +1453,26 @@ export const api = {
   /** Tek rapor — dondurulmus tam govde ile */
   getReportById: (siteId: string, reportId: string) =>
     request<RaporKaydi & { data: any }>(`/sites/${siteId}/analytics/reports/${reportId}`),
+
+  // ── Musteri raporu (Site Raporu) ─────────────────────────────────
+  // Kayitli son olcumlerden tek govde — yeni tarama / AI sorgusu KOSMAZ.
+
+  getClientReport: (siteId: string) =>
+    request<MusteriRaporu>(`/sites/${siteId}/client-report`),
+
+  listClientReportShares: (siteId: string) =>
+    request<PaylasimOzeti[]>(`/sites/${siteId}/client-report/shares`),
+
+  /** Raporun o anki halini dondurur ve herkese acik baglanti uretir (gun: 1-90) */
+  createClientReportShare: (siteId: string, gun: number) =>
+    request<PaylasimOzeti>(`/sites/${siteId}/client-report/shares`, { method: 'POST', body: JSON.stringify({ gun }) }),
+
+  revokeClientReportShare: (siteId: string, token: string) =>
+    request<{ ok: true }>(`/sites/${siteId}/client-report/shares/${encodeURIComponent(token)}`, { method: 'DELETE' }),
+
+  /** Herkese acik paylasim — oturum gerekmez; TARAYICIDAN cagrilir (hiz siniri ziyaretci IP'sine) */
+  getSharedClientReport: (token: string) =>
+    request<PaylasilanRapor>(`/public/rapor/${encodeURIComponent(token)}`),
 
   deleteReport: (siteId: string, reportId: string) =>
     request<{ id: string }>(`/sites/${siteId}/analytics/reports/${reportId}`, { method: 'DELETE' }),
