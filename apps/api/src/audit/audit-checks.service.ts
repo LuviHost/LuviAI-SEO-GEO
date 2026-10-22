@@ -455,8 +455,17 @@ export class AuditChecksService {
     const shells = c.pages.filter((p) => p.jsShell);
     const pages = c.pages.filter((p) => !p.jsShell);
 
+    // Eksik H1'li sayfa adresleri (en fazla 50) — musteri raporu ornek adres
+    // gosterir; eskiden yalniz sayi tutuluyordu. Alan adi bilerek
+    // `missingPages` DEGIL: issue-grouping.ts pagesFromDetails o adi okur ve
+    // kontrolun TUM sorunlarini (h1_duplicate dahil) bu sayfalara yazardi.
+    const missingH1Pages: string[] = [];
     for (const p of pages) {
-      if (!p.h1) { missing++; continue; }
+      if (!p.h1) {
+        missing++;
+        if (missingH1Pages.length < 50) missingH1Pages.push(p.url);
+        continue;
+      }
       seen.set(p.h1, (seen.get(p.h1) ?? 0) + 1);
       valid++;
     }
@@ -493,6 +502,7 @@ export class AuditChecksService {
       details: {
         methodVersion: 2,
         valid, missing, duplicates: duplicates.length,
+        missingH1Pages,
         jsShellCount: shells.length,
         jsShellPages: shells.slice(0, 50).map((p) => p.url),
       },

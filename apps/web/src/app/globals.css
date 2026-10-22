@@ -3,7 +3,11 @@
 @tailwind utilities;
 
 @layer base {
-  :root {
+  /* .rapor-kagit: musteri raporu belgesi koyu temali panelde de ACIK tema
+     token'lariyla cizilir ve basilir (kagit belge). Ayni bildirim blogu: acik
+     degerler tek yerde kalir, html.dark'in degerlerini belgenin alt agacinda ezer. */
+  :root,
+  .rapor-kagit {
     --background: 0 0% 100%;
     --foreground: 222 47% 11%;
 
@@ -415,6 +419,85 @@
 
   @page {
     margin: 14mm 12mm;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   MUSTERI RAPORU (Site Raporu) — ekran kagidi + A4 baski
+   ═══════════════════════════════════════════════════════════════
+
+   Belge: components/musteri-raporu/rapor-belgesi.tsx. Baskida yalniz
+   body'nin dogrudan cocugu olan `.rapor-baski` kopyasi kagida girer
+   (rapor-baski.tsx); panel kabugu (kenar cubugu, mobil ust cubuk, deneme
+   bandi, site basligi) tek kuralla cikar. Ana bolumler yeni sayfadan baslar,
+   kart/satir bolunmez, renkli cubuklar murekkepte de gorunur. */
+
+.rapor-kagit {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+}
+
+.rapor-baski {
+  display: none;
+}
+
+@media screen {
+  /* Ekranda bolumler arasi "sayfa" ayraci */
+  .rapor-kagit .rapor-yeni-sayfa {
+    margin-top: 3rem;
+    padding-top: 2.5rem;
+    border-top: 1px dashed hsl(var(--border));
+  }
+}
+
+@media print {
+  body:has(> .rapor-baski) > *:not(.rapor-baski) {
+    display: none !important;
+  }
+
+  .rapor-baski {
+    display: block;
+    page: rapor;
+    font-size: 10.5pt;
+  }
+
+  .rapor-baski .rapor-yeni-sayfa {
+    break-before: page;
+  }
+
+  .rapor-baski .rapor-blok,
+  .rapor-baski li,
+  .rapor-baski tr {
+    break-inside: avoid;
+  }
+
+  .rapor-baski h2,
+  .rapor-baski h3 {
+    break-after: avoid;
+  }
+
+  .rapor-baski .rapor-cubuk,
+  .rapor-baski .rapor-cubuk *,
+  .rapor-baski [class*='bg-'] {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}
+
+@page rapor {
+  size: A4;
+  margin: 16mm 14mm 18mm;
+
+  @bottom-left {
+    content: 'RanksUp · Site Raporu';
+    font-size: 8pt;
+    color: hsl(215 16% 47%);
+  }
+
+  @bottom-right {
+    content: counter(page) ' / ' counter(pages);
+    font-size: 8pt;
+    color: hsl(215 16% 47%);
   }
 }
 
