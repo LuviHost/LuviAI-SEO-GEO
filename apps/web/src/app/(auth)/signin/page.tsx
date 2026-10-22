@@ -46,7 +46,7 @@ function signInErrorText(code: string | undefined): string | null {
 
 export const metadata = {
   title: 'Giriş yap veya hesap oluştur — RanksUp panele eriş',
-  description: 'RanksUp hesabınla giriş yap veya yeni hesap aç. İlk makale ücretsiz, kredi kartı gerekmez. PayTR güvenli ödeme, aylık iptal hakkı.',
+  description: 'RanksUp hesabınla giriş yap veya yeni hesap aç. 14 gün ücretsiz deneme, 2 makale, kredi kartı gerekmez. PayTR güvenli ödeme, aylık iptal hakkı.',
 };
 
 export default async function SignInPage({ searchParams }: SignInPageProps) {
@@ -85,7 +85,7 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
           <div className="text-center">
             <h1 className="text-2xl font-bold">Giriş yap veya kayıt ol</h1>
             <p className="text-sm text-muted-foreground mt-1">
-              2 makale ücretsiz — kart bilgisi gerekmez
+              14 gün ücretsiz deneme · 2 makale — kart bilgisi gerekmez
             </p>
           </div>
 

@@ -41,6 +41,8 @@ function db(opts: { user?: Partial<UserRow>; articles?: ArticleRow[]; jobs?: Job
   const jsonOk = (v: any, c: any) => !c || (c.path === '$.allowanceCharge.at' && chargeAtOf(v) === c.equals);
   const prisma: any = {
     state,
+    // Deneme: uretim icin sitede aktif yayin hedefi sarti (trial-policy.ts); burada bagli
+    publishTarget: { findMany: vi.fn(async () => [{ type: 'WORDPRESS_REST', isActive: true }]) },
     user: {
       findUniqueOrThrow: vi.fn(async () => { await tick(); return { ...state.user }; }),
       update: vi.fn(async ({ data }: any) => { Object.assign(state.user, data); return { ...state.user }; }),
@@ -194,7 +196,7 @@ describe('failGenerationWithRefund — basarisiz uretimin hakki tek kez iade edi
     expect(prisma.state.user.articlesUsedThisMonth).toBe(1);
     // Geri gelen hakla yeni uretim baslar
     const quota = new QuotaService(prisma);
-    await expect(quota.consumeArticleAllowance('u1')).resolves.toEqual({ remaining: 0 });
+    await expect(quota.consumeArticleAllowance('u1', 's1')).resolves.toEqual({ remaining: 0 });
   });
 
   it('veritabani hatasi: iade yok ama yazi yine FAILED (eski davranis; takili kalmaz)', async () => {

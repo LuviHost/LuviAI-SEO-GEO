@@ -105,3 +105,27 @@ describe('generationLock — acik kalir', () => {
     expect(l).toEqual({ locked: false, reason: null, label: 'Planını yükselt', href: '/pricing', hint: null });
   });
 });
+
+describe('generationLock — denemede "Uret" icin yayin hedefi (sunucu generation-readiness)', () => {
+  const href = '/sites/s1/publish-targets';
+  const notReady = { requiresSource: true, ready: false, message: 'Önce bağla (sunucu metni)' };
+
+  it('hedef yok: "Önce yayın hedefini bağla" → yayin hedefleri sayfasi, sunucunun metniyle', () => {
+    const l = generationLock({ limit: 2, remaining: 2, used: 0 }, 'TRIAL', { readiness: notReady, publishTargetsHref: href });
+    expect(l).toEqual({ locked: true, reason: 'source_required', label: 'Önce yayın hedefini bağla', href, hint: 'Önce bağla (sunucu metni)' });
+  });
+
+  it('hedef bagli ya da ucretli plan (sart yok): acik', () => {
+    expect(generationLock({ limit: 2, remaining: 2, used: 0 }, 'TRIAL', { readiness: { requiresSource: true, ready: true, message: null }, publishTargetsHref: href }).locked).toBe(false);
+    expect(generationLock({ limit: 15, remaining: 15, used: 0 }, 'STARTER', { readiness: { requiresSource: false, ready: true, message: null }, publishTargetsHref: href }).locked).toBe(false);
+  });
+
+  it('hak bittiyse once yukseltme kilidi (hedef baglamak bitmis hakki geri getirmez)', () => {
+    expect(generationLock({ limit: 2, remaining: 0, used: 2 }, 'TRIAL', { readiness: notReady, publishTargetsHref: href }).reason).toBe('trial_used');
+  });
+
+  it('readiness okunamadi (eski API / ag hatasi) ya da site bilinmiyor: kilit gosterilmez, sunucu korur', () => {
+    expect(generationLock({ limit: 2, remaining: 2, used: 0 }, 'TRIAL', { readiness: null, publishTargetsHref: href }).locked).toBe(false);
+    expect(generationLock({ limit: 2, remaining: 2, used: 0 }, 'TRIAL', { readiness: notReady, publishTargetsHref: null }).locked).toBe(false);
+  });
+});

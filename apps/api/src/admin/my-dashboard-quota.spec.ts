@@ -81,3 +81,26 @@ describe('getCurrentPlan — ayni kural', () => {
     expect(new Date(r.articlesQuotaResetAt).getMonth()).toBe(new Date().getMonth());
   });
 });
+
+describe('getCurrentPlan — deneme durumu (trialAccess, panel bandi/modali bunu okur)', () => {
+  const svcFor = (user: Record<string, unknown>) => {
+    const prisma = db({ articlesUsedThisMonth: 0, articlesQuotaResetAt: new Date(), autoRenew: false, paytrUtoken: null, renewalFailCount: 0, ...user });
+    return new BillingService(prisma as never, { getRate: async () => ({ rate: 1 }) } as never, new QuotaService(prisma as never));
+  };
+  it('suresi dolan deneme: satin alma acikken salt okunur, kapaliyken (ya da bilinmiyorsa) degil', async () => {
+    const expired = { plan: 'TRIAL', subscriptionStatus: 'EXPIRED', trialEndsAt: new Date(Date.now() - 86_400_000) };
+    expect((await svcFor(expired).getCurrentPlan('u1', { checkoutOpen: true })).trialAccess).toMatchObject({ phase: 'expired', readOnly: true });
+    expect((await svcFor(expired).getCurrentPlan('u1', { checkoutOpen: false })).trialAccess).toMatchObject({ phase: 'expired', readOnly: false });
+    expect((await svcFor(expired).getCurrentPlan('u1')).trialAccess).toMatchObject({ readOnly: false });
+  });
+  it('suren deneme: kalan gun', async () => {
+    const r = await svcFor({ plan: 'TRIAL', subscriptionStatus: 'TRIAL', trialEndsAt: new Date(Date.now() + 3.5 * 86_400_000) }).getCurrentPlan('u1', { checkoutOpen: false });
+    expect(r.trialAccess).toMatchObject({ phase: 'trial', daysLeft: 4, readOnly: false });
+  });
+  it('inceleme: plani dusen eski musteri (PAID faturasi var): lapsed, kilit ve "deneme doldu" modali yok', async () => {
+    const prisma = db({ articlesUsedThisMonth: 0, articlesQuotaResetAt: new Date(), autoRenew: false, paytrUtoken: null, renewalFailCount: 0, plan: 'TRIAL', subscriptionStatus: 'EXPIRED', trialEndsAt: null });
+    prisma.invoice.findFirst = vi.fn(async () => ({ paidAt: new Date('2026-08-01'), createdAt: new Date('2026-08-01'), description: 'RanksUp Pro — monthly' })) as any;
+    const svc = new BillingService(prisma as never, { getRate: async () => ({ rate: 1 }) } as never, new QuotaService(prisma as never));
+    expect((await svc.getCurrentPlan('u1', { checkoutOpen: true })).trialAccess).toEqual({ phase: 'lapsed', endsAt: null, daysLeft: null, checkoutOpen: true, readOnly: false });
+  });
+});

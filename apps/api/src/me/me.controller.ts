@@ -4,11 +4,14 @@ import { AdminService } from '../admin/admin.service.js';
 import { entitlementsFor } from '../billing/entitlements.js';
 import { SessionOnly } from '../auth/session-only.decorator.js';
 import { AccountDeletionService } from './account-deletion.service.js';
+import { TrialReadOnlyExempt } from '../billing/trial-read-only.decorator.js';
 
 /**
  * /api/me/* — login olmuş kullanıcının kendi datası.
  * AuthGuard global olduğu için req.user dolu.
  */
+// Suresi dolan deneme (salt okunur, TrialExpiryGuard): hesap silme ve ajanstan ayrilma suresi dolan denemede de acik (KVKK)
+@TrialReadOnlyExempt()
 @Controller('me')
 export class MeController {
   constructor(

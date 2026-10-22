@@ -67,7 +67,7 @@ export default function OpportunitiesPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const { blocked: measurementBlocked } = useMeasurementAllowance();
   // Makale hakki bitince "Makale uret" 403 donerdi; hak sitenin sahibinden duser
-  const articleAllowance = useArticleAllowance(site?.userId);
+  const articleAllowance = useArticleAllowance(site?.userId, site?.id);
   const [showDismissed, setShowDismissed] = useState(false);
 
   const allowed = can('contentOpportunities');

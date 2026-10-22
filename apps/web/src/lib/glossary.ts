@@ -283,7 +283,7 @@ export const GLOSSARY: Record<string, GlossaryEntry> = {
   // Haftalik sinir: denemede de hesap basina 7 gunde 1 olcum (billing/measurement-allowance);
   // "3 calistirma" tek basina "3 olcum" diye okunuyordu. Fiyat karti ve SSS ile ayni ifade.
   TRIAL: {
-    short: 'Ücretsiz deneme planı — 2 makale (site eklenince yazılan ilk makale dahil), 3 AI görünürlük çalıştırması (haftada en fazla 1 ölçüm) ve 1 site; makaleler Markdown ZIP olarak indirilir ya da WordPress\'e gönderilir. Takvimin geri kalanı kilitli görünür ve ücretli plan seçince yazılır; diğer yayın hedefleri de o zaman açılır.',
+    short: 'Ücretsiz deneme planı — 14 gün, 2 makale, 3 AI görünürlük çalıştırması (haftada en fazla 1 ölçüm) ve 1 site. Yapay zekâ konu başlıklarını hazırlar; makaleleri yayın hedefini bağladıktan sonra sen başlatırsın, Markdown ZIP olarak indirir ya da WordPress\'e gönderirsin. Takvimin geri kalanı kilitli görünür ve ücretli plan seçince yazılır; diğer yayın hedefleri de o zaman açılır. 14 gün dolunca plan seçene kadar hesap salt okunur olur, veriler saklanır.',
     level: 1,
   },
   Quota: {

@@ -16,6 +16,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { GoogleAdsOAuthCard, MetaAdsOAuthCard } from '@/components/ads-lab-panel';
 import { AiKeysPanel } from '@/components/ai-keys-panel';
 import { BrandIcon } from '@/components/brand-icon';
+import { refreshGenerationReadiness } from '@/lib/use-article-allowance';
 
 type CatalogField = {
   key: string;
@@ -81,6 +82,8 @@ export function PublishTargetsManager({
       const filtered = isAdmin ? c : (c as CatalogItem[]).filter((item) => !item.adminOnly);
       setCatalog(filtered);
       setTargets(t);
+      // Hedef eklendi/silindi/pasiflesti: denemedeki "Önce yayın hedefini bağla" kilidi tazelensin
+      refreshGenerationReadiness(siteId);
     } catch (err: any) {
       toast.error(err.message);
     } finally {

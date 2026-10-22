@@ -48,8 +48,13 @@ function queryDue(rows: any[], args: any): any[] {
   };
   const s = where.site ?? {};
   for (const k of Object.keys(s)) {
-    if (!['autopilot', 'url', 'userId'].includes(k)) throw new Error(`queryDue: desteklenmeyen site kosulu ${k}`);
+    if (!['autopilot', 'url', 'userId', 'user'].includes(k)) throw new Error(`queryDue: desteklenmeyen site kosulu ${k}`);
   }
+  // Deneme hesabi suzgeci (site.user.plan.not): satirin planinin kaynagi site.user.plan
+  if (s.user !== undefined && (Object.keys(s.user).join() !== 'plan' || Object.keys(s.user.plan ?? {}).join() !== 'not')) {
+    throw new Error(`queryDue: desteklenmeyen kullanici kosulu ${JSON.stringify(s.user)}`);
+  }
+  const planNot = s.user?.plan?.not;
   const notIn = Array.isArray(s.userId?.notIn) ? new Set(s.userId.notIn) : null;
   let out = rows.filter((r) => {
     if (typeof where.status === 'string' && r.status !== where.status) return false;
@@ -62,6 +67,7 @@ function queryDue(rows: any[], args: any): any[] {
     if (s.url?.not !== undefined && r.site?.url === s.url.not) return false;
     if (typeof s.userId === 'string' && userOf(r) !== s.userId) return false;
     if (notIn && notIn.has(userOf(r))) return false;
+    if (planNot !== undefined && r.site?.user?.plan === planNot) return false;
     if (Array.isArray(where.OR) && !where.OR.some((c: any) => keyset(r, c))) return false;
     return true;
   });
@@ -148,8 +154,10 @@ type UserRow = { plan: string; articlesUsedThisMonth: number; articlesQuotaReset
  * tablosu. Okuma kopya doner: servis, gercek Prisma'daki gibi okudugu eski
  * satiri elinde tutar (sifirlamadan sonra yeniden okumaz).
  */
-function realQuota(users: Record<string, UserRow>) {
+function realQuota(users: Record<string, UserRow>, opts: { targets?: Array<{ type: string; isActive: boolean }> } = {}) {
   const prisma = {
+    // Deneme: uretim icin sitede aktif yayin hedefi sarti (QuotaService generationReadiness)
+    publishTarget: { findMany: vi.fn(async () => opts.targets ?? [{ type: 'WORDPRESS_REST', isActive: true }]) },
     user: {
       findUniqueOrThrow: vi.fn(async ({ where }: any) => {
         const row = users[where.id];
@@ -225,7 +233,7 @@ describe('processDueArticles — saatlik tarama', () => {
     const { svc, prisma } = build({ due: [] });
     await svc.processDueArticles();
     const where = (prisma.article.findMany.mock.calls[0][0] as any).where;
-    expect(where.site).toEqual({ autopilot: true, url: { not: DEMO_SITE_URL } });
+    expect(where.site).toEqual({ autopilot: true, url: { not: DEMO_SITE_URL }, user: { plan: { not: 'TRIAL' } } });
     // Tek kaynak: demo kurucusu ayni adresi yaziyor
     const seeder = readFileSync(new URL('../sites/demo-seeder.service.ts', import.meta.url), 'utf8');
     expect(seeder).toContain(`url: '${DEMO_SITE_URL}'`);
@@ -676,7 +684,7 @@ describe('worker kablolamasi (apps/worker/src/index.ts) — takvim sahiplenmesi'
   it('sahiplik reddinin nedeni is sonucuna dogru yazilir: hak dolu → QUOTA_EXHAUSTED (eskiden ALREADY_CLAIMED)', () => {
     expect(handler).toContain('return { skipped: true, reason: GENERATION_CLAIM_SKIP_REASON[claim] };');
     expect(handler).not.toMatch(/claim === 'article_missing' \? 'ARTICLE_MISSING' : 'ALREADY_CLAIMED'/);
-    expect(GENERATION_CLAIM_SKIP_REASON).toEqual({ article_missing: 'ARTICLE_MISSING', already_claimed: 'ALREADY_CLAIMED', quota_exhausted: 'QUOTA_EXHAUSTED', attempt_refunded: 'ATTEMPT_REFUNDED' });
+    expect(GENERATION_CLAIM_SKIP_REASON).toEqual({ article_missing: 'ARTICLE_MISSING', already_claimed: 'ALREADY_CLAIMED', quota_exhausted: 'QUOTA_EXHAUSTED', attempt_refunded: 'ATTEMPT_REFUNDED', trial_manual_only: 'TRIAL_MANUAL_ONLY' });
   });
 
   it('PROCESS_SCHEDULED is verisindeki userId ile yalniz o kullaniciyi tarar (plan yukseltme sonrasi)', () => {
@@ -770,6 +778,21 @@ describe('scheduleTopic — hak mesaji ve tarih dogrulamasi', () => {
     expect(err.message).not.toMatch(/yayınla/);
     expect(ctx.prisma.article.create).not.toHaveBeenCalled();
   });
+
+  it('inceleme: deneme hesabinda bekleyen konular kalan haktan AYRILMAZ (otomasyon denemede uretmez; onboarding 5-8 konu, hak 2)', async () => {
+    const quota = { checkArticleQuota: vi.fn(async () => ({ allowed: true, remaining: 2, limit: 2 })) };
+    const waiting = (id: string) => ({ id, siteId: 's1', status: 'SCHEDULED', publishedAt: null, agentOutputs: null, site: { userId: 'u1', url: 'https://ornek.com.tr' } });
+    const onboardingTopics = ['w1', 'w2', 'w3', 'w4', 'w5', 'w6'].map(waiting);
+    const trial = build({ quota, articles: onboardingTopics, site: { ...SITE(), user: { plan: 'TRIAL' } } as any });
+    await expect(trial.svc.scheduleTopic('s1', { topic: 'Konu', scheduledAt: AT })).resolves.toMatchObject({ status: 'SCHEDULED', topic: 'Konu' });
+    expect(trial.prisma.article.create).toHaveBeenCalledTimes(1);
+    // Ucretli plan ayni durumda ayirmayi korur (otomasyon uretir)
+    const paid = build({ quota, articles: onboardingTopics, site: { ...SITE(), user: { plan: 'STARTER' } } as any });
+    await expect(paid.svc.scheduleTopic('s1', { topic: 'Konu', scheduledAt: AT })).rejects.toBeInstanceOf(ForbiddenException);
+    // Hak bittiyse denemede de 403 (panelde tek kilitli dugme)
+    const used = build({ quota: { checkArticleQuota: vi.fn(async () => ({ allowed: false, remaining: 0, limit: 2 })) }, site: { ...SITE(), user: { plan: 'TRIAL' } } as any });
+    await expect(used.svc.scheduleTopic('s1', { topic: 'Konu', scheduledAt: AT })).rejects.toBeInstanceOf(ForbiddenException);
+  });
 });
 
 describe('takvim metinleri — eski "deneme hesabi paket bekler" iddiasi', () => {
@@ -807,16 +830,18 @@ describe('takvim metinleri — eski "deneme hesabi paket bekler" iddiasi', () =>
     expect(users.u1.articlesUsedThisMonth).toBe(0);
   });
 
-  it('onboarding (deneme): ilk makale ucretsiz DEGIL — toplam 2 hakkin ilkinden duser, isaretli (calendar)', async () => {
+  it('onboarding (deneme, sahip karari 21.10.2026): HICBIR makale uretilmez — yalniz konu basliklari takvimde; hak dusmez, uretim isi kuyruga girmez', async () => {
     const users = { u1: { articlesUsedThisMonth: 0 } };
     const ctx = onboarding('TRIAL', users, 2);
     const r = await ctx.svc.scheduleInitialBatch('s1', { count: 3 });
-    expect(r).toMatchObject({ scheduled: 3, isTrial: true, immediate: 'a-new' });
-    expect(ctx.jobQueue.enqueue).toHaveBeenCalledTimes(1);
+    expect(r).toMatchObject({ scheduled: 3, isTrial: true, immediate: null });
+    expect(ctx.jobQueue.enqueue).not.toHaveBeenCalled();
     const created = ctx.created();
-    expect(created.map((d: any) => d.status)).toEqual(['GENERATING', 'SCHEDULED', 'SCHEDULED']);
-    expect(created[0].agentOutputs).toEqual({ allowanceCharge: { at: expect.any(String), source: 'calendar' } });
-    expect(users.u1.articlesUsedThisMonth).toBe(1);
+    expect(created.map((d: any) => d.status)).toEqual(['SCHEDULED', 'SCHEDULED', 'SCHEDULED']);
+    expect(created.map((d: any) => d.topic)).toEqual(['A', 'B', 'C']);
+    expect(created.every((d: any) => d.agentOutputs === undefined)).toBe(true);
+    expect(ctx.quota.checkArticleQuota).not.toHaveBeenCalled();
+    expect(users.u1.articlesUsedThisMonth).toBe(0);
   });
 
   it('onboarding (deneme, hak dolu — siteyi silip yeniden ekleyen hesap): ilk makale de uretilmez, takvimde bekler', async () => {
@@ -831,7 +856,7 @@ describe('takvim metinleri — eski "deneme hesabi paket bekler" iddiasi', () =>
     expect(users.u1.articlesUsedThisMonth).toBe(2);
   });
 
-  it('onboarding (deneme): ilk yazi acilamazsa dusulen hak geri verilir', async () => {
+  it('onboarding (deneme): yazi acilamazsa da hak degismez, is kuyruga girmez', async () => {
     const users = { u1: { articlesUsedThisMonth: 0 } };
     const ctx = onboarding('TRIAL', users, 2);
     ctx.prisma.article.create.mockRejectedValueOnce(new Error('db yok'));
@@ -1140,49 +1165,62 @@ describe('C2 makale hakki muhasebesi — her yazi bir kez duser, ayin toplami ha
   const lockedOf = async (w: ReturnType<typeof ledger>) =>
     (await w.scheduler.listScheduledForSite('s1')).filter((a: any) => a.lockedByPlan).map((a: any) => a.id);
 
-  it('deneme hesabi TOPLAM 2 makale (sahip karari): onboarding\'in ilki dahil; tarama, gecikmeli is, uretim isi, Simdi uret, Uret ve takvime ekleme fazlasini uretmez (eskiden 1 ucretsiz + 2, daha once 8)', async () => {
+  it('deneme hesabi TOPLAM 2 makale ve YALNIZ KULLANICININ TIKLAMASIYLA (sahip karari 21.10.2026): onboarding, tarama, gecikmeli is, sahiplenmemis uretim isi hicbir sey uretmez; Simdi uret 2 kez alir, ucuncusu ve Uret 403', async () => {
     const w = ledger('TRIAL', 0);
     await onboardTrial(w);
-    expect(w.generationJobs()).toBe(1);
-    expect(w.users.u1.articlesUsedThisMonth).toBe(1);
+    expect(w.generationJobs()).toBe(0);
+    expect(w.users.u1.articlesUsedThisMonth).toBe(0);
     for (let week = 0; week < 5; week++) {
       w.makeDue();
-      await w.scheduler.processDueArticles();
+      expect(await w.scheduler.processDueArticles()).toEqual({ processed: 0, skippedQuota: 0, alreadyClaimed: 0, failed: 0 });
       for (const r of w.rows.filter((x) => x.status === 'SCHEDULED')) {
-        // Takvimin gecikmeli isi ve kuyruktaki sahiplenmemis uretim isi
-        await w.scheduler.dispatchScheduledArticle(r.id);
-        await w.scheduler.claimForGeneration(r.id);
-        // "Simdi uret": hak dolu → 403
-        await w.articles.triggerNow(r.siteId, r.id).catch(() => undefined);
+        expect(await w.scheduler.dispatchScheduledArticle(r.id)).toEqual({ skipped: true, reason: 'TRIAL_MANUAL_ONLY' });
+        expect(await w.scheduler.claimForGeneration(r.id)).toBe('trial_manual_only');
       }
-      await w.articles.queueGeneration('s1', 'Elle konu').catch(() => undefined);
-      w.finishGeneration();
-      w.publishAll();
     }
+    // Otomasyon 5 haftada tek makale uretmedi, hak hic dusmedi
+    expect(w.generationJobs()).toBe(0);
+    expect(w.users.u1.articlesUsedThisMonth).toBe(0);
+    expect(w.rows.filter((r) => r.status === 'SCHEDULED')).toHaveLength(8);
+    // Kullanici iki konuyu kendisi baslatir
+    const [first, second, third] = w.rows.filter((r) => r.status === 'SCHEDULED');
+    await w.articles.triggerNow('s1', first.id);
+    await w.articles.triggerNow('s1', second.id);
     expect(w.generationJobs()).toBe(2);
     expect(w.users.u1.articlesUsedThisMonth).toBe(2);
-    expect(w.rows.filter((r) => r.status === 'PUBLISHED')).toHaveLength(2);
-    expect(w.rows.filter((r) => r.status === 'SCHEDULED')).toHaveLength(6);
-    expect((await w.schedule()).message).toBe('Makale hakkın doldu (2 makale). Yeni yazıyı takvime eklemek için planını yükseltebilirsin.');
+    await expect(w.articles.triggerNow('s1', third.id)).rejects.toThrow('Deneme hesabındaki 2 ücretsiz makale hakkını kullandın. Devam etmek için plan seç.');
     await expect(w.articles.queueGeneration('s1', 'Bir konu daha')).rejects.toThrow('Deneme hesabındaki 2 ücretsiz makale hakkını kullandın. Devam etmek için plan seç.');
+    expect(w.generationJobs()).toBe(2);
+    expect((await w.schedule()).message).toBe('Makale hakkın doldu (2 makale). Yeni yazıyı takvime eklemek için planını yükseltebilirsin.');
   });
 
-  it('kilit (lockedByPlan): onboarding sonrasi kalan 1 hak en erken takvim yazisina; digerleri kilitli. 2. yazi uretilince kalan 6 yazi kilitli', async () => {
+  it('deneme hesabinin takvime ekledigi konu icin gecikmeli uretim isi kurulmaz (ucretli planda kurulur)', async () => {
+    const trial = ledger('TRIAL', 0);
+    expect(await trial.schedule()).toBe('ok');
+    expect(trial.prisma.article.create).toHaveBeenCalledTimes(1);
+    expect(trial.generationJobs()).toBe(0);
+    const delayed = (w: ReturnType<typeof ledger>) => (w.scheduler as any).jobQueue.enqueue.mock.calls.filter((c: any[]) => typeof c[0].jobId === 'string');
+    expect(delayed(trial)).toHaveLength(0);
+    const paid = ledger('PRO', 0);
+    expect(await paid.schedule()).toBe('ok');
+    expect(delayed(paid)).toHaveLength(1);
+  });
+
+  it('kilit (lockedByPlan): onboarding sonrasi 2 hak en erken 2 takvim yazisina; digerleri kilitli. Kullanici birini uretince kalan 7 yazidan 6si kilitli', async () => {
     const w = ledger('TRIAL', 0);
     await onboardTrial(w);
     const scheduled = w.rows.filter((r) => r.status === 'SCHEDULED').sort((a, b) => a.scheduledAt - b.scheduledAt);
-    expect(scheduled).toHaveLength(7);
+    expect(scheduled).toHaveLength(8);
     const locked = await lockedOf(w);
     expect(locked).toHaveLength(6);
     expect(locked).not.toContain(scheduled[0].id);
+    expect(locked).not.toContain(scheduled[1].id);
     // Paneldeki liste ve yazi sayfasi da ayni alani tasir (ArticlesService)
     const list = await w.articles.list('s1');
     expect(list.filter((a: any) => a.lockedByPlan).map((a: any) => a.id).sort()).toEqual([...locked].sort());
-    expect(list.find((a: any) => a.status === 'GENERATING')!.lockedByPlan).toBe(false);
     expect((await w.articles.findOneForPanel(locked[0], 's1'))!.lockedByPlan).toBe(true);
-    w.makeDue((r) => r.id === scheduled[0].id);
-    await w.scheduler.processDueArticles();
-    expect(w.users.u1.articlesUsedThisMonth).toBe(2);
+    await w.articles.triggerNow('s1', scheduled[0].id);
+    expect(w.users.u1.articlesUsedThisMonth).toBe(1);
     expect(await lockedOf(w)).toHaveLength(6);
     // Demo sitesinin ornek takvim yazisi ve baska kullanicinin yazisi kilit hesabina girmez
     w.rows.push({ id: 'demo1', siteId: 'demo', status: 'SCHEDULED', publishedAt: null, agentOutputs: null, scheduledAt: new Date(), site: { url: DEMO_SITE_URL, userId: 'u1' } });
@@ -1195,25 +1233,26 @@ describe('C2 makale hakki muhasebesi — her yazi bir kez duser, ayin toplami ha
     expect(await lockedOf(w)).toEqual([]);
   });
 
-  it('plan yukseltme: kullanicinin taramasi vadesi gecmis kilitli yazilari yeni hakla hemen uretir, gelecektekiler bekler; kilit kalkar; baska kullanicinin yazisina dokunulmaz', async () => {
+  it('plan yukseltme: denemede tarama hicbir sey uretmez; yukseltince kullanicinin taramasi vadesi gecmis yazilari hemen uretir, gelecektekiler bekler; kilit kalkar; baska kullanicinin yazisina dokunulmaz', async () => {
     const w = ledger('TRIAL', 0, [{ id: 'z1', siteId: 'x1', topic: 'Baska', status: 'SCHEDULED', scheduledAt: new Date(Date.now() - 3600_000) }]);
     await onboardTrial(w);
-    // Onboarding sonrasi 1 hafta + 1 gun gecti: 3 yazinin vadesi geldi, deneme hakki 2'de doldu
+    // Onboarding sonrasi 1 hafta + 1 gun gecti: 3 yazinin vadesi geldi; deneme hesabi oldugu icin uretilmez
     let n = 0;
     w.makeDue((r) => r.siteId === 's1' && n++ < 3);
-    await w.scheduler.processDueArticles({ userId: 'u1' });
-    expect(w.users.u1.articlesUsedThisMonth).toBe(2);
-    const generatedBefore = w.generationJobs();
-    expect(generatedBefore).toBe(2);
+    expect(await w.scheduler.processDueArticles({ userId: 'u1' })).toEqual({ processed: 0, skippedQuota: 0, alreadyClaimed: 0, failed: 0 });
+    expect(w.users.u1.articlesUsedThisMonth).toBe(0);
+    expect(w.generationJobs()).toBe(0);
     expect(await lockedOf(w)).toHaveLength(6);
     // Odeme: paytr activateSubscription plani acar ve sayaci sifirlar
     Object.assign(w.users.u1, { plan: 'PRO', articlesUsedThisMonth: 0 });
+    w.prisma.site.findUniqueOrThrow.mockImplementation(async ({ where }: any) => ({ ...(w.rows.find((r) => r.siteId === where.id)?.site ?? {}), user: { id: 'u1', plan: 'PRO' } }));
+    for (const r of w.rows) if (r.site?.userId === 'u1') r.site = { ...r.site, user: { id: 'u1', plan: 'PRO' } };
     expect(await lockedOf(w)).toEqual([]);
     const r = await w.scheduler.processDueArticles({ userId: 'u1' });
-    // Vadesi gecmis 2 kilitli yazi uretime alindi; gelecek 4 yazi saatinde
-    expect(r).toEqual({ processed: 2, skippedQuota: 0, alreadyClaimed: 0, failed: 0 });
-    expect(w.users.u1.articlesUsedThisMonth).toBe(2);
-    expect(w.rows.filter((x) => x.siteId === 's1' && x.status === 'SCHEDULED')).toHaveLength(4);
+    // Vadesi gecmis 3 yazi uretime alindi; gelecek 5 yazi saatinde
+    expect(r).toEqual({ processed: 3, skippedQuota: 0, alreadyClaimed: 0, failed: 0 });
+    expect(w.users.u1.articlesUsedThisMonth).toBe(3);
+    expect(w.rows.filter((x) => x.siteId === 's1' && x.status === 'SCHEDULED')).toHaveLength(5);
     // Kullanici taramasi baska musterinin vadesi gecmis yazisina dokunmaz
     expect(w.rows.find((x) => x.id === 'z1')!.status).toBe('SCHEDULED');
   });

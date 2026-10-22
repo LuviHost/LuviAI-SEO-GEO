@@ -20,7 +20,7 @@ Fiyatlar USD bazlıdır. TL tutarı sabit değildir: ödeme anında günün TCMB
 
 AI görünürlük ölçümü her planda hesap başına 7 günde 1'dir ve tüm siteler bu hakkı paylaşır: AI testi, yol haritası, Prompt Lab, panelden başlatılan site taramasındaki AI testi ve diğer ölçümler aynı haftalık hakka sayılır; sonuç vermeyen ölçüm hakkı yakmaz. Ölçümlerde ayrıca plana göre aylık bir görünürlük çalıştırması tavanı vardır: AI testi 1, Prompt Lab'de her soru ve her dal 1 çalıştırma sayılır; tek bir haftalık ölçüm (örneğin Prompt Lab'de tüm soruları çalıştırmak) birden çok çalıştırma kullanır. Çalıştırma sayacı her takvim ayının başında sıfırlanır.
 
-- **Ücretsiz Deneme**: $0 — 2 AI makale, haftada 1 AI ölçümü, 3 görünürlük çalıştırması, 1 site, 1 izlenen uygulama · destek: topluluk · kredi kartı istemez
+- **Ücretsiz Deneme**: $0 — 2 AI makale, haftada 1 AI ölçümü, 3 görünürlük çalıştırması, 1 site, 1 izlenen uygulama · destek: topluluk · 14 gün · kredi kartı istemez
 - **Büyüme**: $149/ay, yıllık $1.490 — 15 AI makale/ay, haftada 1 AI ölçümü, en fazla 20 görünürlük çalıştırması/ay, 2 site, 1 izlenen uygulama · destek: e-posta 24 saat
 - **Profesyonel** (en çok tercih edilen): $349/ay, yıllık $3.490 — 40 AI makale/ay, haftada 1 AI ölçümü, en fazla 75 görünürlük çalıştırması/ay, 5 site, 3 izlenen uygulama · destek: e-posta 4 saat
 - **Ajans**: $749/ay, yıllık $7.490 — 100 AI makale/ay, haftada 1 AI ölçümü, en fazla 300 görünürlük çalıştırması/ay, 15 site, 10 izlenen uygulama · destek: öncelikli + Slack

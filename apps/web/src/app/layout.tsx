@@ -32,7 +32,7 @@ const TITLE = 'RanksUp — AI çağının pazarlama platformu';
 const DESCRIPTION = 'AI çağının görünürlük platformu. GEO, SEO, ASO ve Apple Search Ads tek panelde — markanı ChatGPT, Claude ve Gemini cevaplarında ölç, App Store sıralamanı takip et.';
 // WhatsApp / Telegram / Discord unfurl için kısa versiyon (max 90 char, sosyal görseli güzelleştirir)
 const OG_TITLE = 'RanksUp — Senin yerine pazarlama yapan AI';
-const OG_DESCRIPTION = 'GEO · SEO · ASO · Apple Search Ads — hepsi tek panel. 2 makale ücretsiz, kart gerekmez.';
+const OG_DESCRIPTION = 'GEO · SEO · ASO · Apple Search Ads — hepsi tek panel. 14 gün ücretsiz, 2 makale, kart gerekmez.';
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),

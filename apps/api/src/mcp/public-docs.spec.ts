@@ -671,8 +671,8 @@ describe('Pazarlama sayfaları = ürün', () => {
     ]) expect(freeze, adim).toContain(adim);
     expect(freeze.match(/encryptedKey: ''/g)?.length, 'ASA + ASC anahtarlari').toBe(2);
     // Degisiklik notu (TR + EN) 7. ve 9. maddeyi aniyor
-    expect(t).toMatch(/updated: 'Son güncelleme: 21 Ekim 2026[^']*7\. madde[^']*9\. madde/);
-    expect(t).toMatch(/updated: 'Last updated: October 21, 2026[^']*Section 7[^']*Section 9/);
+    expect(t).toMatch(/updated: 'Son güncelleme: [^']*21 Ekim 2026[^']*7\. madde[^']*9\. madde/);
+    expect(t).toMatch(/updated: 'Last updated: [^']*October 21, 2026[^']*Section 7[^']*Section 9/);
   });
 
   // Bolum 2 (veri kullanimi) "pazarlama amacli paylasilmaz" diyordu; onay verende Google Ads
@@ -805,28 +805,31 @@ describe('Pazarlama sayfaları = ürün', () => {
     expect(cc).toContain('controller().routeChanged()');
   });
 
-  // Deneme suresi uygulanmiyor: trialEndsAt'i yalniz QuotaService.startTrial yaziyor, onu
-  // cagiran AuthService.ensureTrialStarted hicbir yerden cagrilmiyor; expireOldTrials
-  // trialEndsAt'i bos kullaniciyi bulmaz ve EXPIRED durumuna bakan kapi yok. Landing SSS
-  // "istemezsen hesap pasif kalir" diyordu. Deneme suresi baglanirsa bu test kirilir.
-  it('landing SSS "kart gerekiyor mu" cevabı: hesap pasifleşmez, süre iddiası yok; deneme hakkı plans.ts ile aynı', () => {
+  // Sahip karari 21.10.2026: deneme 14 gun, kayitta baslar (ensureTrialStarted mobil kayit ve
+  // welcome-hook'ta; web kaydi trialEndsAt'i kendisi yazar), sure dolunca hesap salt okunur
+  // (yalniz satin alma acikken; billing/trial-expiry.guard.ts). Hesap kapanmaz, veri silinmez.
+  // Kayit yollari ya da metin degisirse bu test kirilir.
+  it('landing SSS "kart gerekiyor mu" cevabı: 14 gün, sonra salt okunur, hesap kapanmaz; deneme hakkı plans.ts ile aynı; deneme kayıtta başlar', () => {
     const apiSrc = path.resolve(HERE, '..');
     const workerSrc = path.resolve(HERE, '../../../worker/src');
     const cagiranlar = [...walk(apiSrc, /\.ts$/), ...walk(workerSrc, /\.ts$/)]
-      .filter((f) => !f.endsWith('.spec.ts') && /\.(ensureTrialStarted|startTrial)\(/.test(stripComments(read(f))))
+      .filter((f) => !f.endsWith('.spec.ts') && /\.ensureTrialStarted\(/.test(stripComments(read(f))))
       .map((f) => path.relative(apiSrc, f).split(path.sep).join('/'));
-    // Tek eslesme ensureTrialStarted'in kendi govdesindeki startTrial cagrisi
-    expect(cagiranlar, 'deneme suresi baglandi: land.faq.a2 (TR + EN) ve deneme e-postalarini guncelle').toEqual(['auth/auth.service.ts']);
+    expect(cagiranlar).toEqual(['auth/auth.controller.ts']);
+    expect(stripComments(read(path.join(WEB_SRC, 'auth.ts')))).toContain('trialEndsAt: trialEndsAtFrom(new Date()),');
 
     const trial = findPlan('trial')!;
     const [tr, en] = read(path.join(WEB_SRC, 'lib/i18n.ts')).split('\n').filter((l) => l.includes("'land.faq.a2':"));
     expect(tr).not.toMatch(/pasif/i);
     expect(en).not.toMatch(/passive|deactivat|suspend/i);
-    expect(tr).toContain('hesabın kapanmaz');
-    expect(en).toContain('your account is not closed');
+    expect(tr).toContain('hesabın kapanmaz ve verilerin silinmez');
+    expect(en).toContain('your account is not closed and your data is not deleted');
     expect(tr).toContain(`${trial.articlesPerMonth} makale`);
     expect(en).toContain(`${trial.articlesPerMonth} articles`);
-    for (const l of [tr, en]) expect(l).not.toMatch(/\d+\s*(gün|günlük|day)/i);
+    expect(tr).toContain('14 gün');
+    expect(tr).toContain('salt okunur');
+    expect(en).toContain('14 days');
+    expect(en).toContain('read-only');
   });
 
   it('kök layout: kaldırılan sosyal modül, Shopify ve bayat TL fiyat yok; fiyat aralığı plans.ts ile aynı', () => {
@@ -1023,7 +1026,7 @@ describe('Otomatik akış metinleri = zamanlayıcı (article-scheduler, worker)'
     const en = cevap("q: 'What happens if I exceed my monthly article quota?'");
     expect(tr).toContain('Yeni makale üretilmez: kendi başlattığın üretimler durur, takvime yeni konu eklenemez ve plan yükseltmen önerilir; takvimde bekleyen makaleler de hakkın yenilenene ya da planını yükseltene kadar bekler.');
     expect(tr).toContain('Her makale, üretime alındığı anda hakkından bir kez düşer;');
-    expect(tr).toContain('Ücretsiz denemedeki 2 makale hakkı sıfırlanmaz; site eklenirken takvime yerleşen diğer konular panelde kilitli görünür ve planını yükselttiğinde yazılır.');
+    expect(tr).toContain('Ücretsiz denemedeki 2 makale hakkı sıfırlanmaz; denemede makaleleri sen başlatırsın, site eklenirken takvime yerleşen diğer konular panelde kilitli görünür ve planını yükselttiğinde yazılır.');
     expect(en).toContain('No new articles are generated: generations you start yourself stop, you cannot add new topics to the calendar and you are offered a plan upgrade; scheduled articles also wait until your allowance renews or you upgrade.');
     expect(en).toContain('Each article uses your allowance once, when it enters generation;');
     expect(en).toContain('the other topics scheduled when your site was added appear locked in the dashboard and are written when you upgrade your plan.');
@@ -1049,7 +1052,11 @@ describe('Otomatik akış metinleri = zamanlayıcı (article-scheduler, worker)'
     const sahiplen = scheduler.slice(scheduler.indexOf('private async claimAndQueue('), scheduler.indexOf('private async chargeArticle('));
     expect(sahiplen).toContain("return { outcome: 'quota_exhausted' };");
     const ilk = scheduler.slice(scheduler.indexOf('async scheduleInitialBatch('), scheduler.indexOf('private async claimAndQueue('));
-    expect(ilk, 'deneme hesabinda onboarding\'in ilk yazisi haktan duser').toContain('charged = await this.chargeArticle(site.userId);');
+    // Sahip karari 21.10.2026: deneme hesabinda onboarding hic makale uretmez (yalniz konu basligi)
+    expect(ilk, 'deneme hesabinda onboarding makale uretmez').toContain('const generateNow = i === 0 && autoGenerate;');
+    expect(ilk).toContain('const autoGenerate = automaticGenerationAllowed(site.user.plan);');
+    expect(tr).toContain('denemede makaleleri sen başlatırsın');
+    expect(en).toContain('on the trial you start articles yourself');
   });
 
   it('sözlük: editör skoru bugünkü ölçeği (pipeline EDITOR_MAX_SCORE) ve eski 60 ölçeğini söylüyor', () => {
@@ -1287,7 +1294,7 @@ describe('RanksUp Video belgeleri = kod', () => {
     expect(t).toContain('RanksUp does not publish videos on any platform on your behalf');
     // Madde numaralari kaymadi: iade hala 4. madde (yardim sayfasi md. 4'e atif yapiyor)
     expect(t).toContain("h: '4. İptal & İade'");
-    expect(t).toMatch(/updated: 'Son güncelleme: 21 Ekim 2026/);
+    expect(t).toMatch(/updated: 'Son güncelleme: [^']*21 Ekim 2026 — 8\. madde/);
   });
 
   it('gizlilik (TR + EN): marka okuma, herkese acik ama tahmin edilmesi guc baglanti, silinince dosya gider; yalniz makale metni Anthropic e', () => {

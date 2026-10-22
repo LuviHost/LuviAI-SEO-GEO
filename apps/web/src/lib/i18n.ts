@@ -41,7 +41,7 @@ const dictionary = {
 
     // Pricing
     'pricing.title': 'Plan Seçenekleri',
-    'pricing.subtitle': '2 makale ücretsiz, kart gerekmez, dilediğin zaman iptal.',
+    'pricing.subtitle': '14 gün ücretsiz, 2 makale, kart gerekmez, dilediğin zaman iptal.',
     'pricing.monthly': 'Aylık',
     'pricing.annual': 'Yıllık',
     'pricing.save': 'kazan',
@@ -55,7 +55,7 @@ const dictionary = {
     'pricing.annual_save_badge': '-%17',
     'pricing.contact_sales': 'Bizimle iletişime geç',
     'pricing.free_start': 'Ücretsiz başla',
-    'pricing.note_free_trial': '2 makale ücretsiz · Kredi kartı yok',
+    'pricing.note_free_trial': '14 gün ücretsiz · 2 makale · Kredi kartı yok',
 
     // ─── Landing — Nav ──────────────────────────────────────────
     'land.nav.solution': 'Çözüm',
@@ -73,7 +73,7 @@ const dictionary = {
     // ─── Landing — Pricing section ──────────────────────────────
     'land.pricing.eyebrow': 'Şeffaf fiyat',
     'land.pricing.title': 'Bugün başla, kart sonra.',
-    'land.pricing.subtitle': '2 makale ücretsiz · İstediğin zaman iptal · Gizli ücret yok',
+    'land.pricing.subtitle': '14 gün ücretsiz, 2 makale · İstediğin zaman iptal · Gizli ücret yok',
     'land.pricing.most_popular': 'En çok tercih edilen',
     'land.pricing.per_month': '/ay',
     'land.pricing.per_year': '/yıl',
@@ -96,12 +96,10 @@ const dictionary = {
     // Shopify/Wix yayin hedefi yok (PublishTargetType); denetim ve olcum her sitede calisir
     'land.faq.a1': 'Herhangi bir web sitesinde: denetim ve AI görünürlük ölçümü için adresi yapıştırman yeterli. Yayın için WordPress, Webflow, Ghost, FTP/SFTP, cPanel ya da GitHub gibi 14 yayın hedefinden birini bağlarsın. Mobil uygulaman için App Store ya da Google Play kaydını eklersin.',
     'land.faq.q2': 'Kredi kartı vermem gerekiyor mu?',
-    // "Istemezsen hesap pasif kalir" yanlisti: hesap pasiflestiren kod yok. Deneme suresi de
-    // uygulanmiyor (trialEndsAt yazan startTrial hic cagrilmiyor, expireOldTrials kimseyi
-    // bulmuyor, EXPIRED durumuna bakan kapi yok); deneme yalniz haklarla sinirli (plans.ts trial).
-    // Deneme toplam 2 makale, onboarding'in ilki dahil; hakki asan takvim yazilari panelde
-    // kilitli, plan yukseltilince uretilir (api articles/plan-lock.ts, 20.10.2026).
-    'land.faq.a2': 'Hayır. Ücretsiz deneme için kart istenmez; denemede 2 makale hakkın var (ilki siteni eklediğinde yazılır; takvimin geri kalanı panelde kilitli görünür ve planını yükselttiğinde yazılır). Devam etmek istersen plan seçip ödemeyi o zaman yaparsın. Plan seçmezsen hesabın kapanmaz, ücretsiz deneme planında ve onun sınırlarıyla kalır.',
+    // Sahip karari 21.10.2026: deneme 14 gun (kayitta trialEndsAt); bitince hesap salt okunur
+    // (api billing/trial-policy.ts, trial-expiry.guard.ts) — yalniz satin alma acikken. Hesap
+    // kapanmaz, veri silinmez. Denemede makaleyi kullanici baslatir (yayin hedefi sarti), toplam 2.
+    'land.faq.a2': 'Hayır. Ücretsiz deneme için kart istenmez; deneme 14 gün sürer ve 2 makale hakkın var (makaleleri sitene yayın hedefi bağladıktan sonra sen başlatırsın; takvimin geri kalanı panelde kilitli görünür ve planını yükselttiğinde yazılır). Devam etmek istersen plan seçip ödemeyi o zaman yaparsın. Plan seçmezsen hesabın kapanmaz ve verilerin silinmez; 14 gün dolunca hesabın salt okunur olur, verilerini görür ve indirirsin.',
     'land.faq.q3': 'AI sektörümü gerçekten anlayabilir mi?',
     // "%95+ dogruluk" olculmus bir oran degildi; sektor site ayarlarindan degisir
     'land.faq.a3': 'Onboarding sırasında siteni tarayıp sektörünü tahmin eder; marka sesini ve rakiplerini çıkarır. Tahmin yanlışsa site ayarlarından düzeltebilirsin; sonraki içerikler buna göre üretilir.',
@@ -132,7 +130,7 @@ const dictionary = {
     'land.how.s2.title': 'AI analiz',
     'land.how.s2.body': 'Site denetimi yapılır, ilk AI görünürlük ölçümü alınır ve konu takvimi hazırlanır.',
     'land.how.s3.title': 'Yayında',
-    'land.how.s3.body': 'İlk makale hemen üretilir, takvimdeki konular makale hakkın yettikçe sırayla hazırlanır (ücretsiz denemede toplam 2 makale). Sonraki AI görünürlük ölçümlerini haftada bir sen başlatırsın.',
+    'land.how.s3.body': 'Ücretli planlarda ilk makale hemen üretilir, takvimdeki konular makale hakkın yettikçe sırayla hazırlanır. Ücretsiz denemede makaleleri (toplam 2) yayın hedefini bağladıktan sonra sen başlatırsın. Sonraki AI görünürlük ölçümlerini haftada bir sen başlatırsın.',
 
     // ─── Landing — Results (3 KPI) ──────────────────────────────
     'land.res.eyebrow': 'Sonuçlar',
@@ -176,7 +174,7 @@ const dictionary = {
     // ─── Landing — Pricing extras ───────────────────────────────
     'land.pric.eyebrow': 'Şeffaf Fiyat',
     'land.pric.title': 'Bugün başla, kart sonra.',
-    'land.pric.subtitle': '2 makale ücretsiz · İstediğin zaman iptal · Gizli ücret yok',
+    'land.pric.subtitle': '14 gün ücretsiz, 2 makale · İstediğin zaman iptal · Gizli ücret yok',
     'land.pric.monthly': 'Aylık',
     'land.pric.annual': 'Yıllık',
     'land.pric.discount_badge': '%17 indirim',
@@ -196,7 +194,7 @@ const dictionary = {
 
     // ─── Landing — Final CTA ────────────────────────────────────
     'land.cta.title': 'AI çağının pazarlamasına başla',
-    'land.cta.subtitle': 'İlk 2 makale ücretsiz, kart gerekmez. 5 dakikada kurulum.',
+    'land.cta.subtitle': '14 gün ücretsiz deneme, 2 makale, kart gerekmez. 5 dakikada kurulum.',
     'land.cta.button': 'Ücretsiz başla',
     'land.cta.secondary': 'Önce videoyu izle',
 
@@ -327,7 +325,7 @@ const dictionary = {
 
     // Pricing
     'pricing.title': 'Plans & Pricing',
-    'pricing.subtitle': '2 free articles, no card required, cancel anytime.',
+    'pricing.subtitle': '14 days free, 2 articles, no card required, cancel anytime.',
     'pricing.monthly': 'Monthly',
     'pricing.annual': 'Annual',
     'pricing.save': 'save',
@@ -341,7 +339,7 @@ const dictionary = {
     'pricing.annual_save_badge': '-17%',
     'pricing.contact_sales': 'Contact sales',
     'pricing.free_start': 'Start free',
-    'pricing.note_free_trial': '2 free articles · No credit card',
+    'pricing.note_free_trial': '14 days free · 2 articles · No credit card',
 
     // ─── Landing — Nav ──────────────────────────────────────────
     'land.nav.solution': 'Solution',
@@ -355,7 +353,7 @@ const dictionary = {
     // ─── Landing — Pricing section ──────────────────────────────
     'land.pricing.eyebrow': 'Transparent pricing',
     'land.pricing.title': 'Start today, pay later.',
-    'land.pricing.subtitle': '2 free articles · Cancel anytime · No hidden fees',
+    'land.pricing.subtitle': '14 days free, 2 articles · Cancel anytime · No hidden fees',
     'land.pricing.most_popular': 'Most popular',
     'land.pricing.per_month': '/mo',
     'land.pricing.per_year': '/yr',
@@ -376,7 +374,7 @@ const dictionary = {
     'land.faq.q1': 'Which websites does it work on?',
     'land.faq.a1': 'Any website: paste the address to run the audit and the AI visibility measurement. To publish, you connect one of 14 publishing targets such as WordPress, Webflow, Ghost, FTP/SFTP, cPanel or GitHub. For a mobile app you add its App Store or Google Play listing.',
     'land.faq.q2': 'Do I need to enter a credit card?',
-    'land.faq.a2': 'No. No card is needed for the free trial; it includes 2 articles (the first is written when you add your site; the rest of the calendar appears locked in the dashboard and is written when you upgrade). If you want to continue, you choose a plan and pay at that point. If you don’t, your account is not closed; it stays on the free trial plan with its limits.',
+    'land.faq.a2': 'No. No card is needed for the free trial; it lasts 14 days and includes 2 articles (you start them yourself after connecting a publish target to your site; the rest of the calendar appears locked in the dashboard and is written when you upgrade). If you want to continue, you choose a plan and pay at that point. If you don’t, your account is not closed and your data is not deleted; after 14 days it becomes read-only, so you can still view and download your data.',
     'land.faq.q3': 'Can AI really understand my industry?',
     'land.faq.a3': 'During onboarding it scans your site, predicts your industry and maps your brand voice and competitors. If the guess is wrong you can fix it in site settings, and subsequent content follows it.',
     'land.faq.q4': 'What do I need to connect Apple Search Ads?',
@@ -397,7 +395,7 @@ const dictionary = {
     'land.how.s2.title': 'AI analysis',
     'land.how.s2.body': 'A site audit runs, a first AI visibility measurement is taken and a topic calendar is prepared.',
     'land.how.s3.title': 'Live',
-    'land.how.s3.body': 'Your first article is generated right away and scheduled topics follow in order as your article allowance permits (2 articles in total on the free trial). You start later AI visibility measurements once a week.',
+    'land.how.s3.body': 'On paid plans your first article is generated right away and scheduled topics follow in order as your article allowance permits. On the free trial you start your articles (2 in total) yourself after connecting a publish target. You start later AI visibility measurements once a week.',
 
     // ─── Landing — Results (3 KPI) ──────────────────────────────
     'land.res.eyebrow': 'Results',
@@ -434,7 +432,7 @@ const dictionary = {
     // ─── Landing — Pricing extras ───────────────────────────────
     'land.pric.eyebrow': 'Transparent Pricing',
     'land.pric.title': 'Start today, pay later.',
-    'land.pric.subtitle': '2 free articles · Cancel anytime · No hidden fees',
+    'land.pric.subtitle': '14 days free, 2 articles · Cancel anytime · No hidden fees',
     'land.pric.monthly': 'Monthly',
     'land.pric.annual': 'Annual',
     'land.pric.discount_badge': '17% off',
@@ -451,7 +449,7 @@ const dictionary = {
 
     // ─── Landing — Final CTA ────────────────────────────────────
     'land.cta.title': 'Start your AI-era marketing',
-    'land.cta.subtitle': 'First 2 articles free, no card required. Setup in 5 minutes.',
+    'land.cta.subtitle': '14-day free trial with 2 articles, no card required. Setup in 5 minutes.',
     'land.cta.button': 'Start free',
     'land.cta.secondary': 'Watch the video first',
 

@@ -1,6 +1,7 @@
 import { Controller, Delete, Get, Param, Patch, Post, Query, Req, UnauthorizedException } from '@nestjs/common';
 import type { Request } from 'express';
 import { NotificationsService } from './notifications.service.js';
+import { TrialReadOnlyExempt } from '../billing/trial-read-only.decorator.js';
 
 function ensureUser(req: Request) {
   const user = (req as any).user;
@@ -8,6 +9,8 @@ function ensureUser(req: Request) {
   return user as { id: string; role: 'USER' | 'ADMIN' | 'AGENCY_OWNER' };
 }
 
+// Suresi dolan deneme (salt okunur, TrialExpiryGuard): okundu isareti yapay zeka eylemi degil; salt okunur hesapta da calisir
+@TrialReadOnlyExempt()
 @Controller('notifications')
 export class NotificationsController {
   constructor(private readonly notifications: NotificationsService) {}

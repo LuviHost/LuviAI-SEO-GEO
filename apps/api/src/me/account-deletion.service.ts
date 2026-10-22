@@ -171,7 +171,7 @@ export class AccountDeletionService {
 
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, email: true, name: true, role: true, subscriptionStatus: true, deletionRequestedAt: true },
+      select: { id: true, email: true, name: true, role: true, plan: true, subscriptionStatus: true, deletionRequestedAt: true },
     });
     if (!user) throw new NotFoundException('Hesap bulunamadı');
     if (user.deletionRequestedAt) {
@@ -200,7 +200,9 @@ export class AccountDeletionService {
       });
       if (claimed.count === 0) return null;
 
-      const subscriptionCanceled = shouldCancelSubscription(user.subscriptionStatus);
+      // Plan TRIAL'da iptal edilecek ucretli abonelik yok (cancelSubscription 400 atar ve
+      // transaction'i dusururdu; tutarsiz eski satir: plan TRIAL + durum ACTIVE/PAST_DUE)
+      const subscriptionCanceled = shouldCancelSubscription(user.subscriptionStatus) && user.plan !== 'TRIAL';
       if (subscriptionCanceled) {
         // Tek iptal tanimi billing'de; "donem sonuna kadar acik" e-postasi silmede yanlis olurdu
         await this.paytr.cancelSubscription(userId, { notify: false, db: tx });

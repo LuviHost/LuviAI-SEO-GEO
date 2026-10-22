@@ -172,7 +172,10 @@ describe('cancelSubscription secenekleri', () => {
   it('silme akisi: verilen transaction istemcisini kullanir, e-posta gondermez', async () => {
     const t = make();
     const tx: any = {
-      user: { update: vi.fn(async ({ data }: any) => ({ id: 'u1', email: 'a@b.co', name: 'A', plan: 'PRO', ...data })) },
+      user: {
+        findUnique: vi.fn(async () => ({ plan: 'PRO' })),
+        update: vi.fn(async ({ data }: any) => ({ id: 'u1', email: 'a@b.co', name: 'A', plan: 'PRO', ...data })),
+      },
       invoice: { findFirst: vi.fn(async () => null) },
     };
     const r = await t.svc.cancelSubscription('u1', { notify: false, db: tx });

@@ -4,12 +4,12 @@ const SITE_URL = 'https://ranksup.ai';
 
 export const metadata: Metadata = {
   title: 'Fiyatlandırma — Büyüme $149 / Profesyonel $349 / Ajans $749',
-  description: 'Büyüme $149, Profesyonel $349, Ajans $749, Kurumsal $1.499 — aylık iptal, taahhüt yok. 2 makale ücretsiz dene (kart gerekmez), PayTR ile güvenli ödeme. Her planda: 6 AI asistanında görünürlük ölçümü, ASO, 14 yayın hedefi. Türk lirası karşılığı ödeme anındaki TCMB kuruyla hesaplanır.',
+  description: 'Büyüme $149, Profesyonel $349, Ajans $749, Kurumsal $1.499 — aylık iptal, taahhüt yok. 14 gün ücretsiz dene, 2 makale üret (kart gerekmez), PayTR ile güvenli ödeme. Her planda: 6 AI asistanında görünürlük ölçümü, ASO, 14 yayın hedefi. Türk lirası karşılığı ödeme anındaki TCMB kuruyla hesaplanır.',
   alternates: { canonical: `${SITE_URL}/pricing` },
   openGraph: {
     title: 'RanksUp Fiyatlandırma — $149 / $349 / $749 / $1.499',
     // Ozellikler plana gore kademeli (plans.ts FEATURE_MIN_PLAN); "tüm özellikler dahil" yanlisti
-    description: '2 makale ücretsiz, kart gerekmez. 4 ücretli plan; özellikler plana göre artar.',
+    description: '14 gün ücretsiz, 2 makale, kart gerekmez. 4 ücretli plan; özellikler plana göre artar.',
     url: `${SITE_URL}/pricing`,
   },
 };

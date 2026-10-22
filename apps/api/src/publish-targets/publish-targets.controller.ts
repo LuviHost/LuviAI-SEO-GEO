@@ -24,6 +24,17 @@ export class PublishTargetsController {
     return PublishTargetsService.getTypeCatalog({ isAdmin: user.role === 'ADMIN' });
   }
 
+  /**
+   * GET /api/sites/:siteId/generation-readiness — bu sitede "Uret" icin kaynak sarti
+   * saglaniyor mu (denemede en az bir aktif yayin hedefi; trial-policy.ts). Panel
+   * dugmeyi buna gore kilitler; asil kapi QuotaService.consumeArticleAllowance.
+   * Hak SITENIN SAHIBININ planina gore: yonetici baskasinin sitesine bakinca da sahibe gore.
+   */
+  @Get('sites/:siteId/generation-readiness')
+  generationReadiness(@Req() req: Request, @Param('siteId') siteId: string) {
+    return this.service.generationReadiness(siteId, ensureUser(req));
+  }
+
   /** GET /api/sites/:siteId/publish-targets */
   @Get('sites/:siteId/publish-targets')
   list(@Req() req: Request, @Param('siteId') siteId: string) {

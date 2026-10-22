@@ -249,7 +249,7 @@ export class ContentOpportunityService {
     const site = await this.prisma.site.findUniqueOrThrow({ where: { id: siteId } });
     // Hak uretim baslamadan tek kosullu UPDATE ile duser (QuotaService
     // consumeArticleAllowance); is kuyruga girmezse asagida geri verilir
-    await this.quota.consumeArticleAllowance(site.userId);
+    await this.quota.consumeArticleAllowance(site.userId, site.id);
     // Yeni yazi yolunda acilan yer tutucu: baslatilamazsa iade onun hak isaretiyle
     // yapilir (takili uretim supurucusu ayni hakki ikinci kez iade etmesin). Is kuyruga
     // girdiyse (sonraki firsat kaydi hata verse de) uretim baslamistir: burada iade

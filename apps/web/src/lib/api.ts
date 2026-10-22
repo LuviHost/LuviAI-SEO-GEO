@@ -7,10 +7,14 @@ import type {
   GaKeyEventSetup, LocalPromptDraft, LocalPromptInput, LocalPromptMeta, LocalRunSummary, SiteNapView,
 } from './local-visibility';
 import type { ArticleVideo, VideoBrandPreview, VideoQuota, VideoRequestBody } from './article-video';
+import { readApiErrorCode, trialErrorAction, TRIAL_ERROR_EVENT } from './trial-errors';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001';
 
 export class ApiError extends Error {
+  /** Sunucunun makine kodu (örn. TRIAL_EXPIRED, TRIAL_SOURCE_REQUIRED); yoksa null */
+  public readonly code: string | null;
+
   constructor(
     public readonly status: number,
     /** Kullanıcıya gösterilebilir Türkçe mesaj */
@@ -20,6 +24,23 @@ export class ApiError extends Error {
   ) {
     super(userMessage);
     this.name = 'ApiError';
+    this.code = readApiErrorCode(rawBody);
+  }
+}
+
+/**
+ * Deneme hatasi (403 TRIAL_EXPIRED / TRIAL_SOURCE_REQUIRED) panele duyurulur:
+ * components/trial-upgrade.tsx modali acar ya da yayin hedefi baglantili bildirim
+ * gosterir (lib/trial-errors.ts). Hata yine firlatilir; cagiranin akisi degismez.
+ */
+function announceTrialError(status: number, body: unknown, path: string): void {
+  if (typeof window === 'undefined') return;
+  const action = trialErrorAction(status, body, path, window.location?.pathname);
+  if (!action) return;
+  try {
+    window.dispatchEvent(new CustomEvent(TRIAL_ERROR_EVENT, { detail: action }));
+  } catch {
+    // Olay kurulamadiysa (eski tarayici) cagiranin kendi bildirimi yeter
   }
 }
 
@@ -120,6 +141,7 @@ async function parseResponse<T>(res: Response, path: string): Promise<T> {
     if (process.env.NODE_ENV !== 'production') {
       console.error(`[API ${res.status}] ${path}`, body);
     }
+    announceTrialError(res.status, body, path);
     throw new ApiError(res.status, toUserMessage(res.status, body), body);
   }
 
@@ -1369,6 +1391,13 @@ export const api = {
 
   connectMetaAds: (siteId: string, payload: { accountId?: string; accessToken?: string; pageId?: string; instagramActorId?: string }) =>
     request<any>(`/sites/${siteId}/ads/meta-ads`, { method: 'PATCH', body: JSON.stringify(payload) }),
+
+  // Baglanti kesme DELETE ile: suresi dolan deneme (salt okunur) de kesebilsin (api trial-expiry.guard.ts)
+  disconnectGoogleAds: (siteId: string) =>
+    request<any>(`/sites/${siteId}/ads/google-ads`, { method: 'DELETE' }),
+
+  disconnectMetaAds: (siteId: string) =>
+    request<any>(`/sites/${siteId}/ads/meta-ads`, { method: 'DELETE' }),
 
   updateAdsSettings: (siteId: string, payload: { adsAutopilot?: boolean }) =>
     request<any>(`/sites/${siteId}/ads/settings`, { method: 'PATCH', body: JSON.stringify(payload) }),

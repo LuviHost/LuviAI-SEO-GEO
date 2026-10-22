@@ -39,7 +39,9 @@ describe('PAYTR_TEST_MODE aciklamasi — test modunda kimin satin alabildigini s
 
   it('dayanak kod kosullari paytr.service.ts\'te duruyor', () => {
     // '0' disindaki her deger test modu (kapali basarisizlik)
-    expect(paytr).toMatch(/get testModeOn\(\): boolean \{\s*return this\.testMode\.trim\(\) !== '0';/);
+    // Kural tek yerde (billing/checkout-mode.ts; deneme bitis e-postasi da ayni kurali okur)
+    expect(paytr).toMatch(/get testModeOn\(\): boolean \{\s*return checkoutTestModeOn\(this\.testMode\);/);
+    expect(fs.readFileSync(path.resolve(HERE, '../billing/checkout-mode.ts'), 'utf8')).toContain("return (raw ?? '1').trim() !== '0';");
     // Test modunda yalniz ADMIN acik
     expect(paytr).toContain("return u?.role === 'ADMIN';");
     expect(method('checkoutStatus')).toMatch(/if \(!this\.testModeOn\) return \{ open: true[\s\S]*?if \(await this\.isAdminUser\(userId\)\) return \{ open: true/);

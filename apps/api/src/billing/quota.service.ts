@@ -7,6 +7,9 @@ import {
 } from './plans.js';
 import { acquireCronLock } from '../common/cron-lock.js';
 import { periodEndFromInvoice, shouldDowngrade } from './subscription-period.js';
+import {
+  hasGenerationSource, requiresGenerationSource, TRIAL_SOURCE_REQUIRED_CODE, TRIAL_SOURCE_REQUIRED_MESSAGE, type GenerationReadiness,
+} from './trial-policy.js';
 
 /**
  * Her planda RanksUp anahtariyla (havuz) olculen asistanlar — plans.ts kart
@@ -32,7 +35,7 @@ export const PLAN_POOL_PROVIDERS: readonly string[] = Object.freeze([
  *  1. articlesPerMonth — ay sonu reset
  *  2. sites — toplam site sayısı
  *  3. publishTargets — TRIAL'da sadece markdown_zip
- *  4. trial expiry — 14 gün sonra plan zorunlu
+ *  4. trial expiry — 14 gun sonra hesap salt okunur (trial-policy.ts, trial-expiry.guard.ts)
  */
 @Injectable()
 export class QuotaService {
@@ -90,7 +93,8 @@ export class QuotaService {
     // (checkCitationQuota ayni kalibi zaten kullaniyor).
     const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
 
-    // Deneme modeli: TRIAL'da sure kontrolu yok, yalniz omur boyu kota (LIMITS.TRIAL).
+    // Deneme modeli: omur boyu kota (LIMITS.TRIAL). 14 gunluk sure burada denetlenmez:
+    // suresi dolan hesabi global TrialExpiryGuard salt okunur yapar (satin alma acikken).
 
     const limit = this.LIMITS[user.plan].articles;
     return {
@@ -128,19 +132,56 @@ export class QuotaService {
    * alir (takvimin chargeArticle'i ile ayni iyimser eszamanlilik kalibi). Uretim
    * baslatilamazsa cagiran refundArticleAllowance ile hakki geri verir.
    */
-  async consumeArticleAllowance(userId: string): Promise<{ remaining: number }> {
+  async consumeArticleAllowance(userId: string, siteId: string): Promise<{ remaining: number }> {
     const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { plan: true } });
     // Ay basi sifirlamasi + plan hakki: enforceArticleQuota ile ayni okuma
     const { allowed, remaining, limit } = await this.checkArticleQuota(userId);
-    const r = allowed
-      ? await this.prisma.user.updateMany({
-        where: { id: userId, articlesUsedThisMonth: { lt: limit } },
-        data: { articlesUsedThisMonth: { increment: 1 } },
-      })
-      : { count: 0 };
+    // Hak bittiyse once o soylenir: kaynak baglamak bitmis hakki geri getirmez
+    if (!allowed) throw this.articleQuotaError(user.plan, limit);
+    // Deneme: uretim yalniz sitede kaynak (yayin hedefi) bagliyken (trial-policy.ts).
+    // siteId ZORUNLU parametre: yeni bir uretim yolu bu kapiyi atlayamasin.
+    const readiness = await this.generationReadinessFor(user.plan, siteId);
+    if (!readiness.ready) {
+      throw new ForbiddenException({ statusCode: 403, message: readiness.message, code: TRIAL_SOURCE_REQUIRED_CODE });
+    }
+    const r = await this.prisma.user.updateMany({
+      where: { id: userId, articlesUsedThisMonth: { lt: limit } },
+      data: { articlesUsedThisMonth: { increment: 1 } },
+    });
     // Hak dolu ya da okuma ile yazma arasinda son hakki baska bir istek aldi
     if (r.count !== 1) throw this.articleQuotaError(user.plan, limit);
     return { remaining: Math.max(0, remaining - 1) };
+  }
+
+  /**
+   * Bu sitede uretim icin kaynak sarti saglaniyor mu (panel "Uret" dugmesi ve
+   * consumeArticleAllowance ayni karari okur). Sart yalniz denemede
+   * (requiresGenerationSource); ucretli planda sorgu yapilmaz.
+   */
+  async generationReadiness(userId: string, siteId: string): Promise<GenerationReadiness> {
+    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { plan: true } });
+    return this.generationReadinessFor(user.plan, siteId);
+  }
+
+  /**
+   * Hakki daha once dusulmus yazinin yeniden uretimi (consumeArticleAllowance
+   * cagrilmaz) de ayni kaynak kuralina tabi: 403 metni ve kodu ayni.
+   */
+  async assertGenerationSource(userId: string, siteId: string): Promise<void> {
+    const readiness = await this.generationReadiness(userId, siteId);
+    if (!readiness.ready) {
+      throw new ForbiddenException({ statusCode: 403, message: readiness.message, code: TRIAL_SOURCE_REQUIRED_CODE });
+    }
+  }
+
+  private async generationReadinessFor(plan: string, siteId: string): Promise<GenerationReadiness> {
+    if (!requiresGenerationSource(plan)) return { requiresSource: false, ready: true, message: null };
+    const targets = await this.prisma.publishTarget.findMany({
+      where: { siteId, isActive: true },
+      select: { type: true, isActive: true },
+    });
+    const ready = hasGenerationSource(targets);
+    return { requiresSource: true, ready, message: ready ? null : TRIAL_SOURCE_REQUIRED_MESSAGE };
   }
 
   /**

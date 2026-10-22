@@ -11,6 +11,7 @@ import { McpWellKnownController, MCP_WELL_KNOWN_PREFIX_EXCLUDE } from './mcp-wel
 import { McpToolsService } from './mcp-tools.service.js';
 import { QuotaService } from '../billing/quota.service.js';
 import { ApiKeysService } from '../api-keys/api-keys.service.js';
+import { PaytrService } from '../billing/paytr.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AuthGuard } from '../auth/auth.guard.js';
 import {
@@ -38,7 +39,7 @@ function shimParamTypes(target: unknown, deps: unknown[]): void {
     Reflect.defineMetadata('design:paramtypes', deps, target as object);
   }
 }
-shimParamTypes(McpController, [McpToolsService, QuotaService, ApiKeysService]);
+shimParamTypes(McpController, [McpToolsService, QuotaService, ApiKeysService, PaytrService]);
 shimParamTypes(AuthGuard, [PrismaService, Reflector, ApiKeysService]);
 
 /** main.ts SentryExceptionFilter ile ayni yanit bicimi: @Catch() — her seyi yakalar */
@@ -86,6 +87,7 @@ describe('MCP kesif + 401 (HTTP)', () => {
         { provide: McpToolsService, useValue: tools },
         { provide: QuotaService, useValue: { enforcePlanFeature: vi.fn(async () => {}) } },
         { provide: ApiKeysService, useValue: apiKeys },
+        { provide: PaytrService, useValue: { checkoutStatus: vi.fn(async () => ({ open: true })), hasEverPaid: vi.fn(async () => false) } },
         { provide: PrismaService, useValue: prisma },
         { provide: APP_GUARD, useClass: AuthGuard },
       ],

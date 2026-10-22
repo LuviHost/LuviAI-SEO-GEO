@@ -24,6 +24,13 @@
 
 export const AUTO_PUBLISH_MODE = 'auto_publish';
 
+/**
+ * Yeni sitenin varsayilan modu: Yari otomatik (her yazi onayini bekler). Sahip karari
+ * (21.10.2026) her plan icin. Sema varsayilani da bu; SitesService.create yine de acikca
+ * yazar ki sema varsayilani degisse bile yeni siteler onaysiz yayinla baslamasin.
+ */
+export const DEFAULT_PUBLISH_APPROVAL_MODE = 'manual_approve';
+
 /** Kararin okudugu site alanlari (Prisma Site satirinin alt kumesi) */
 export interface PublishApprovalSite {
   publishApprovalMode?: string | null;

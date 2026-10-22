@@ -36,6 +36,8 @@ function world(userInit: Row, opts: { jobs?: any } = {}) {
   };
   const invoices = new Map<string, Row>();
   const prisma: any = {
+    // Deneme: uretim icin sitede aktif yayin hedefi sarti (trial-policy.ts); burada bagli
+    publishTarget: { findMany: async () => [{ type: 'WORDPRESS_REST', isActive: true }] },
     invoice: {
       updateMany: vi.fn(async ({ where, data }: any) => {
         const inv = invoices.get(where.id);
@@ -78,7 +80,7 @@ function world(userInit: Row, opts: { jobs?: any } = {}) {
   async function generateUntilBlocked(max = 100): Promise<number> {
     let n = 0;
     for (; n < max; n++) {
-      try { await quota.consumeArticleAllowance('u1'); } catch (err) {
+      try { await quota.consumeArticleAllowance('u1', 's1'); } catch (err) {
         if (err instanceof ForbiddenException) break;
         throw err;
       }

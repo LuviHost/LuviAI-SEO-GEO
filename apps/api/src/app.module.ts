@@ -10,6 +10,7 @@ import { AuthModule } from './auth/auth.module.js';
 import { AuthGuard } from './auth/auth.guard.js';
 import { SiteAccessGuard } from './auth/site-access.guard.js';
 import { PlanFeatureGuard } from './billing/plan-feature.guard.js';
+import { TrialExpiryGuard } from './billing/trial-expiry.guard.js';
 import { SitesModule } from './sites/sites.module.js';
 import { AuditModule } from './audit/audit.module.js';
 import { TopicsModule } from './topics/topics.module.js';
@@ -99,6 +100,9 @@ import { VideosModule } from './videos/videos.module.js';
     // Plan kapilari EN SONDA: kimlik (AuthGuard) ve sahiplik (SiteAccessGuard)
     // dogrulandiktan sonra "bu plan bu ozelligi aldi mi" sorusu sorulur.
     { provide: APP_GUARD, useClass: PlanFeatureGuard },
+    // Suresi dolan deneme: salt okunur (yalniz satin alma acikken; trial-policy.ts).
+    // Plan kapisindan sonra: kimlik ve sahiplik once dogrulanir.
+    { provide: APP_GUARD, useClass: TrialExpiryGuard },
   ],
 })
 export class AppModule implements NestModule {

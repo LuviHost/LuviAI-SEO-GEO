@@ -612,7 +612,7 @@ export function GoogleAdsOAuthCard({ site, connected, onChanged }: { site: any; 
   const disconnect = async () => {
     if (!confirm('Google Ads bağlantısı kaldırılacak. Emin misin?')) return;
     try {
-      await api.connectGoogleAds(site.id, { customerId: undefined, refreshToken: undefined });
+      await api.disconnectGoogleAds(site.id);
       toast.success('Bağlantı kaldırıldı');
       onChanged();
     } catch (err: any) { toast.error(err.message); }
@@ -716,7 +716,7 @@ export function MetaAdsOAuthCard({ site, connected, onChanged }: { site: any; co
   const disconnect = async () => {
     if (!confirm('Meta Ads bağlantısı kaldırılacak. Emin misin?')) return;
     try {
-      await api.connectMetaAds(site.id, { accountId: undefined, accessToken: undefined, pageId: undefined, instagramActorId: undefined });
+      await api.disconnectMetaAds(site.id);
       toast.success('Bağlantı kaldırıldı');
       onChanged();
     } catch (err: any) { toast.error(err.message); }

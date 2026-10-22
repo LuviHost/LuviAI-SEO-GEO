@@ -14,6 +14,7 @@ import { SiteSidebar } from '@/components/site-sidebar';
 import { CommandPalette, openCommandPalette } from '@/components/command-palette';
 import { NotificationBell } from '@/components/notification-bell';
 import { BrandWordmark } from '@/components/brand-logo';
+import { TrialUpgrade } from '@/components/trial-upgrade';
 
 /** md kirilimi (768px) — tailwind.config ile ayni */
 const DESKTOP_QUERY = '(min-width: 768px)';
@@ -121,7 +122,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       <main className="flex-1 overflow-x-hidden p-4 pt-16 sm:p-6 sm:pt-16 md:p-10">
         {/* 1440px sinir: genis ekranda icerik duvara yapismasin (analitik UI sozlesmesi) */}
-        <div className="mx-auto w-full max-w-[1440px]"><ConfirmProvider>{children}</ConfirmProvider></div>
+        <div className="mx-auto w-full max-w-[1440px]">
+          {/* Ucretsiz deneme: geri sayim bandi, hatirlatmalar, sure dolunca modal (lib/trial-access.ts) */}
+          <TrialUpgrade />
+          <ConfirmProvider>{children}</ConfirmProvider>
+        </div>
       </main>
 
       {/* ⌘K komut paleti */}

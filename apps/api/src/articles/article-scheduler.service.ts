@@ -5,6 +5,7 @@ import { JobQueueService } from '../jobs/job-queue.service.js';
 import { QuotaService } from '../billing/quota.service.js';
 import { automationPublishFields, type PublishApprovalSite } from './publish-approval.js';
 import { loadPlanLockedIds, withPlanLock } from './plan-lock.js';
+import { automaticGenerationAllowed } from '../billing/trial-policy.js';
 
 /**
  * Takvimin gecikmeli uretim isinin BullMQ kimligi: makale basina tekil, ayni
@@ -78,8 +79,9 @@ export const DUE_SCAN_LIMITS = {
  *    gecikmeli takvim isi ya da kuyruga atani sahiplenmemis uretim isi): claimAndQueue /
  *    claimForGeneration → chargeArticle.
  *  - Onboarding'in ilk yazisi: ucretli planda hemen ve ucretsiz (isaretli:
- *    'onboarding_free'); deneme hesabinda ucretsiz DEGIL, olusturulurken duser
- *    (isaretli: 'calendar'), hak doluysa uretilmez.
+ *    'onboarding_free'); deneme hesabinda HIC uretilmez (sahip karari 21.10.2026:
+ *    denemede otomasyon yalniz konu basligi uretir; makaleyi kullanici "Uret" /
+ *    "Simdi uret" ile baslatir ve hak o an duser).
  *  - Dusmeyenler: otomatik yeniden yazim (icerik pivotu) ve ceviri — ikisi de deneme
  *    hesabinda hic calismaz (content-pivot.service, translator.service): deneme
  *    hesabi yapay zekayla toplam 2 makale uretir, fazlasi icin LLM harcanmaz.
@@ -173,8 +175,8 @@ export const ALLOWANCE_CHARGE_KEY = 'allowanceCharge';
 export const ALLOWANCE_REFUND_KEY = 'allowanceRefund';
 
 /**
- * Isaretin kaynagi: takvim uretiminde dusuldu ('calendar'; deneme hesabinda
- * onboarding'in ilk yazisi da), kullanicinin "Simdi uret"inde dusuldu
+ * Isaretin kaynagi: takvim uretiminde dusuldu ('calendar'; eski kuralda deneme
+ * hesabinin onboarding ilk yazisi da — o yazilar hala bu isareti tasir), kullanicinin "Simdi uret"inde dusuldu
  * ('trigger_now'), kullanicinin baslattigi yeni uretimde dusuldu ('user_start':
  * Uret, MCP create_article, icerik firsati; kapali dongu guncellemesinde isaret is
  * verisindedir) ya da ucretli planda onboarding'in ucretsiz ilk yazisi
@@ -244,26 +246,28 @@ type ClaimResult =
 /** Takvim isinin sonucu (worker is kaydina yazilir) */
 export type ScheduledDispatchResult =
   | { dispatched: true; articleId: string; generateJobId: string }
-  | { skipped: true; reason: 'ARTICLE_MISSING' | 'ALREADY_CLAIMED' | 'AUTOPILOT_PAUSED' | 'QUOTA_EXHAUSTED'; status?: string };
+  | { skipped: true; reason: 'ARTICLE_MISSING' | 'ALREADY_CLAIMED' | 'AUTOPILOT_PAUSED' | 'QUOTA_EXHAUSTED' | 'TRIAL_MANUAL_ONLY'; status?: string };
 
 /**
  * Uretim isi baslarken sahiplik karari (claimForGeneration). 'quota_exhausted': yazi
  * SCHEDULED idi ve makale hakki dolu; uretilmez, SCHEDULED kalir (tarama hak yenilenince alir).
  * 'attempt_refunded': yazi FAILED ve bu denemenin hakki iade edildi (allowance-refund.ts);
- * uretilmez.
+ * uretilmez. 'trial_manual_only': yazi SCHEDULED ve hesap denemede; otomasyon deneme
+ * hesabinda uretmez (trial-policy.ts), yazi takvimde kullanicinin "Simdi uret"ini bekler.
  */
-export type GenerationClaim = 'proceed' | 'already_claimed' | 'article_missing' | 'quota_exhausted' | 'attempt_refunded';
+export type GenerationClaim = 'proceed' | 'already_claimed' | 'article_missing' | 'quota_exhausted' | 'attempt_refunded' | 'trial_manual_only';
 
 /**
  * Uretim isinin atlama nedeni (worker is sonucuna yazar), sahiplik kararina gore.
  * NEDEN tek tablo: worker 'quota_exhausted'i 'ALREADY_CLAIMED' diye yaziyordu;
  * hakki dolu oldugu icin uretilmeyen yazi is kaydinda "baskasi aldi" gorunuyordu.
  */
-export const GENERATION_CLAIM_SKIP_REASON: Readonly<Record<Exclude<GenerationClaim, 'proceed'>, 'ARTICLE_MISSING' | 'ALREADY_CLAIMED' | 'QUOTA_EXHAUSTED' | 'ATTEMPT_REFUNDED'>> = Object.freeze({
+export const GENERATION_CLAIM_SKIP_REASON: Readonly<Record<Exclude<GenerationClaim, 'proceed'>, 'ARTICLE_MISSING' | 'ALREADY_CLAIMED' | 'QUOTA_EXHAUSTED' | 'ATTEMPT_REFUNDED' | 'TRIAL_MANUAL_ONLY'>> = Object.freeze({
   article_missing: 'ARTICLE_MISSING',
   already_claimed: 'ALREADY_CLAIMED',
   quota_exhausted: 'QUOTA_EXHAUSTED',
   attempt_refunded: 'ATTEMPT_REFUNDED',
+  trial_manual_only: 'TRIAL_MANUAL_ONLY',
 });
 
 /**
@@ -277,10 +281,14 @@ export const GENERATION_CLAIM_SKIP_REASON: Readonly<Record<Exclude<GenerationCla
  * yenilenince — yeni ay ya da plan yukseltme — saatlik tarama alir). Deneme
  * hesabinda hak omur boyu 2 makale, ucretli planlarda her ay sifirlanir
  * (QuotaService.checkArticleQuota). Akisi durdurulmus sitenin yazisi uretilmez.
- * Onboarding'in ilk makalesi hemen uretilir: ucretli planda ucretsiz, deneme
- * hesabinda haktan duser. Takvime eklenen konu kalan haktan eklerken ayrilir
+ * Onboarding'in ilk makalesi ucretli planda hemen ve ucretsiz uretilir.
+ * DENEME HESABINDA OTOMASYON MAKALE URETMEZ (trial-policy.ts automaticGenerationAllowed):
+ * onboarding ve takvim yalniz konu basligi yazar; tarama, gecikmeli takvim isi ve
+ * sahiplenmemis uretim isi deneme hesabinin yazisini almaz. Kullanici "Simdi uret" /
+ * "Uret" ile baslatir (hak o an duser, sitede yayin hedefi sarti: QuotaService
+ * consumeArticleAllowance). Takvime eklenen konu kalan haktan eklerken ayrilir
  * (scheduleTopic). Deneme hesabinin hakki asan takvim yazilari panelde kilitli
- * gorunur (plan-lock.ts lockedByPlan) ve plan yukseltilince uretilir.
+ * gorunur (plan-lock.ts lockedByPlan) ve plan yukseltilince tarama onlari uretir.
  *
  * Slot algoritmasi (buildSlots, haftada iki yazi):
  *   #1 = simdi
@@ -320,8 +328,18 @@ export class ArticleSchedulerService {
     if (!article.scheduledAt) return;
     const site = await this.prisma.site.findUniqueOrThrow({
       where: { id: article.siteId },
-      include: { publishTargets: { where: { isActive: true, isDefault: true }, select: { id: true } } },
+      include: {
+        publishTargets: { where: { isActive: true, isDefault: true }, select: { id: true } },
+        user: { select: { plan: true } },
+      },
     });
+    // Deneme: otomasyon uretmez, gecikmeli is hic kurulmaz (ateslense de
+    // dispatchScheduledArticle reddederdi; kuyrugu bosuna doldurmasin). Plan
+    // yukseltilince saatlik tarama vadesi gelen yaziyi alir.
+    if (!automaticGenerationAllowed(site.user?.plan)) {
+      this.log.log(`[${article.siteId}] Article ${article.id} takvimde; deneme hesabi — otomatik uretim yok, kullanici "Şimdi üret" ile baslatir`);
+      return;
+    }
     const triggerAt = article.scheduledAt.getTime() - ArticleSchedulerService.LEAD_TIME_MS;
     const delay = Math.max(0, triggerAt - Date.now());
     // Yalniz Tam otomatik + akis acikken onaysiz yayin (publish-approval.ts).
@@ -353,13 +371,14 @@ export class ArticleSchedulerService {
 
   /**
    * Onboarding sonrasi cagrilir (worker ONBOARDING_CHAIN). Tier-1'in ilk
-   * `count` konusunu (varsayilan 5) takvime yazar: ilki GENERATING olarak
-   * hemen kuyruga girer, digerleri SCHEDULED kalir ve zamani gelince saatlik
-   * tarama uretir (bu yazilar icin gecikmeli is kurulmaz). Ucretli planda ilk
-   * yazi ucretsizdir (allowanceCharge 'onboarding_free'); deneme hesabinda ilk
-   * yazi da makale hakkindan duser (toplam 2), hak doluysa uretilmez. Digerleri
-   * tarama onlari uretime alirken makale hakkindan duser, hak doluysa SCHEDULED
-   * bekler (deneme hesabinda panelde kilitli: plan-lock.ts).
+   * `count` konusunu (varsayilan 5) takvime yazar. Ucretli planda ilki GENERATING
+   * olarak hemen ve ucretsiz kuyruga girer (allowanceCharge 'onboarding_free'),
+   * digerleri SCHEDULED kalir ve zamani gelince saatlik tarama uretir (bu yazilar
+   * icin gecikmeli is kurulmaz); her biri uretime alinirken haktan duser.
+   * DENEME HESABINDA HICBIRI URETILMEZ (sahip karari 21.10.2026): hepsi SCHEDULED
+   * konu basligi olarak kalir, LLM harcanmaz. Kullanici sitesine yayin hedefi
+   * baglayip "Simdi uret" ile en fazla 2 makale baslatir; hakki asanlar panelde
+   * kilitli (plan-lock.ts) ve plan yukseltilince tarama onlari uretir.
    */
   async scheduleInitialBatch(siteId: string, opts: { count?: number } = {}) {
     const count = opts.count ?? 5;
@@ -387,6 +406,8 @@ export class ArticleSchedulerService {
     const picks = tier1.slice(0, count);
     const slots = this.buildSlots(picks.length);
     const isTrial = site.user.plan === 'TRIAL';
+    // Denemede otomasyon makale uretmez (trial-policy.ts); yalniz konu basliklari
+    const autoGenerate = automaticGenerationAllowed(site.user.plan);
 
     let immediateArticleId: string | null = null;
     let scheduledCount = 0;
@@ -397,57 +418,28 @@ export class ArticleSchedulerService {
       const slug = `scheduled-${Date.now().toString(36)}-${i}`;
       const slot = slots[i];
 
-      // Ilk yazi hemen uretilir. Ucretli planda ucretsiz (urun karari, 'onboarding_free').
-      // Deneme hesabinda ucretsiz DEGIL: toplam 2 makalelik hakkin ilkidir ve tek
-      // kosullu UPDATE ile once duser (chargeArticle). Hak doluysa (ornegin siteyi
-      // silip yeniden ekleyen deneme hesabi) ilk yazi da uretilmez, takvimde kilitli
-      // bekler (plan-lock.ts). NEDEN: eskiden ilk yazi her planda hak kontrolsuz
-      // uretiliyordu; deneme hesabi 1 ucretsiz + 2 makale aliyor, siteyi silip
-      // yeniden ekleyerek sinirsiz ucretsiz makale uretebiliyordu.
-      let generateNow = false;
-      let firstMark: AllowanceChargeSource | null = null;
-      if (i === 0) {
-        if (!isTrial) {
-          generateNow = true;
-          firstMark = 'onboarding_free';
-        } else {
-          let charged = false;
-          try {
-            charged = await this.chargeArticle(site.userId);
-          } catch (err: any) {
-            // Hak okunamadi: yazi takvimde bekler (vadesi simdi), saatlik tarama
-            // hakki yeniden okuyup alir; zincir dusmez
-            this.log.warn(`[${siteId}] Ilk yazinin makale hakki okunamadi, takvimde bekliyor: ${err?.message ?? err}`);
-          }
-          if (charged) {
-            generateNow = true;
-            firstMark = 'calendar';
-          }
-        }
-      }
+      // Ilk yazi hemen uretilir — YALNIZ ucretli planda ve ucretsiz (urun karari,
+      // 'onboarding_free'). Deneme hesabinda hic uretilmez: eskiden ilk yazi deneme
+      // hakkindan dusup hemen uretiliyordu; sahip karari (21.10.2026) denemede
+      // kullanici tiklamadan makale icin LLM harcanmamasi.
+      const generateNow = i === 0 && autoGenerate;
+      const firstMark: AllowanceChargeSource | null = generateNow ? 'onboarding_free' : null;
 
       try {
-        let article: { id: string };
-        try {
-          article = await this.prisma.article.create({
-            data: {
-              siteId,
-              topic,
-              slug,
-              title: topic,
-              language: site.language ?? 'tr',
-              status: generateNow ? ('GENERATING' as any) : ('SCHEDULED' as any),
-              scheduledAt: slot,
-              // Isaret: takili uretim supurucusu ilk yaziyi takvime geri koyarsa
-              // (scheduledAt dolu) tarama yeniden alirken haktan DUSMESIN
-              ...(firstMark ? { agentOutputs: withAllowanceCharge(null, firstMark, new Date()) as any } : {}),
-            },
-          });
-        } catch (err) {
-          // Yazi acilamadi: deneme hesabinin dusulen hakki geri verilir
-          if (firstMark === 'calendar') await this.refundArticle(site.userId, `${siteId}:onboarding`);
-          throw err;
-        }
+        const article = await this.prisma.article.create({
+          data: {
+            siteId,
+            topic,
+            slug,
+            title: topic,
+            language: site.language ?? 'tr',
+            status: generateNow ? ('GENERATING' as any) : ('SCHEDULED' as any),
+            scheduledAt: slot,
+            // Isaret: takili uretim supurucusu ilk yaziyi takvime geri koyarsa
+            // (scheduledAt dolu) tarama yeniden alirken haktan DUSMESIN
+            ...(firstMark ? { agentOutputs: withAllowanceCharge(null, firstMark, new Date()) as any } : {}),
+          },
+        });
 
         if (generateNow) {
           await this.jobQueue.enqueue({
@@ -463,9 +455,9 @@ export class ArticleSchedulerService {
             },
           });
           immediateArticleId = article.id;
-          this.log.log(`[${siteId}] [1/${picks.length}] '${topic}' — hemen uretime alindi${firstMark === 'calendar' ? ' (deneme hakkindan dustu)' : ''}`);
-        } else if (i === 0) {
-          this.log.log(`[${siteId}] [1/${picks.length}] '${topic}' — deneme hesabinin makale hakki yok ya da okunamadi; uretilmedi, takvimde bekliyor (hak yoksa plan yukseltilene kadar kilitli)`);
+          this.log.log(`[${siteId}] [1/${picks.length}] '${topic}' — hemen uretime alindi (ucretsiz ilk yazi)`);
+        } else if (!autoGenerate) {
+          this.log.log(`[${siteId}] [${i + 1}/${picks.length}] '${topic}' — deneme hesabi: yalniz konu basligi takvimde; makaleyi kullanici "Şimdi üret" ile baslatir`);
         } else {
           this.log.log(`[${siteId}] [${i + 1}/${picks.length}] '${topic}' — ${slot.toISOString()} icin planlandi (saatlik tarama uretir; uretime alinirken makale hakkindan duser)`);
         }
@@ -626,12 +618,22 @@ export class ArticleSchedulerService {
     const a = await this.prisma.article.findUnique({
       where: { id: articleId },
       include: {
-        site: { include: { publishTargets: { where: { isActive: true, isDefault: true }, select: { id: true } } } },
+        site: {
+          include: {
+            publishTargets: { where: { isActive: true, isDefault: true }, select: { id: true } },
+            user: { select: { plan: true } },
+          },
+        },
       },
     });
     if (!a) return { skipped: true, reason: 'ARTICLE_MISSING' };
     // Saatlik tarama ya da "Simdi uret" once aldiysa yazma bile yapilmaz
     if (a.status !== 'SCHEDULED') return { skipped: true, reason: 'ALREADY_CLAIMED', status: String(a.status) };
+    // Deneme: otomasyon uretmez (trial-policy.ts). Bu duzeltmeden once kurulmus
+    // gecikmeli isler de buraya duser; yazi SCHEDULED kalir, kullaniciyi bekler.
+    if (!automaticGenerationAllowed((a.site as { user?: { plan?: string | null } | null }).user?.plan)) {
+      return { skipped: true, reason: 'TRIAL_MANUAL_ONLY' };
+    }
     // Durduruldu: yazi SCHEDULED kalir, akis acilinca saatlik tarama alir
     if (a.site.autopilot === false) return { skipped: true, reason: 'AUTOPILOT_PAUSED' };
     const r = await this.claimAndQueue(a, a.site.userId);
@@ -672,7 +674,7 @@ export class ArticleSchedulerService {
     if (typeof articleId !== 'string' || !articleId) return 'proceed';
     const a = await this.prisma.article.findUnique({
       where: { id: articleId },
-      select: { status: true, agentOutputs: true, site: { select: { userId: true } } },
+      select: { status: true, agentOutputs: true, site: { select: { userId: true, user: { select: { plan: true } } } } },
     });
     // Silinmis yaziya uretim: LLM maliyeti harcanir, sonunda kayit yok diye
     // hata verir ve is iki kez daha denenirdi
@@ -681,6 +683,10 @@ export class ArticleSchedulerService {
     if (a.status !== 'SCHEDULED') return 'proceed';
     const userId = a.site?.userId;
     if (!userId) return 'article_missing';
+    // SCHEDULED yaziyi burada almak OTOMASYONDUR (kullanicinin uretimleri yaziyi
+    // kuyruga atmadan once GENERATING yapar). Deneme hesabinda otomasyon uretmez:
+    // yazi takvimde kalir, LLM harcanmaz (trial-policy.ts).
+    if (!automaticGenerationAllowed((a.site as { user?: { plan?: string | null } | null }).user?.plan)) return 'trial_manual_only';
     const prepaid = hasAllowanceCharge(a.agentOutputs);
     if (!prepaid && !(await this.chargeArticle(userId))) return 'quota_exhausted';
     let claimed: boolean;
@@ -760,7 +766,7 @@ export class ArticleSchedulerService {
         include: {
           site: {
             include: {
-              user: { select: { id: true } },
+              user: { select: { id: true, plan: true } },
               publishTargets: { where: { isActive: true, isDefault: true }, select: { id: true } },
             },
           },
@@ -774,6 +780,9 @@ export class ArticleSchedulerService {
 
       for (const a of due) {
         const u = a.site.user;
+        // Sorgu deneme hesaplarini zaten disarida birakir; ikinci kat (plan sorgu ile
+        // okuma arasinda TRIAL'a dusmus olabilir: iptal edilen abonelik)
+        if (!automaticGenerationAllowed((u as { plan?: string | null }).plan)) continue;
         // Hakki dustukten sonra takvime geri donmus yazi (isaretli): hak okunmaz,
         // yeniden dusmez — kullanicinin hakki simdi dolu olsa da uretilir
         const prepaid = hasAllowanceCharge(a.agentOutputs);
@@ -850,9 +859,12 @@ export class ArticleSchedulerService {
       // Durdurulmus akista takvim uretilmez (panel: "Yeni yazı üretilmiyor");
       // yazi SCHEDULED kalir, akis acilinca bir sonraki taramada alinir.
       // Demo sitesinin ornek takvim yazilari gostermelik (DEMO_SITE_URL).
+      // Deneme hesabinin takvimi yalniz konu basligidir; otomasyon uretmez
+      // (trial-policy.ts). SQL'de elenir ki satirlari tarama penceresini doldurmasin.
       site: {
         autopilot: true,
         url: { not: DEMO_SITE_URL },
+        user: { plan: { not: 'TRIAL' as any } },
         ...(onlyUserId
           ? { userId: onlyUserId }
           : skipUsers.size > 0 ? { userId: { notIn: [...skipUsers] } } : {}),
@@ -897,7 +909,7 @@ export class ArticleSchedulerService {
    * Frontend'den scheduledAt + topic + slug + pillar gelir.
    */
   async scheduleTopic(siteId: string, args: { topic: string; scheduledAt: string; slug?: string; pillar?: string }) {
-    const site = await this.prisma.site.findUniqueOrThrow({ where: { id: siteId } });
+    const site = await this.prisma.site.findUniqueOrThrow({ where: { id: siteId }, include: { user: { select: { plan: true } } } });
     const at = new Date(args.scheduledAt);
     // Eskiden duz Error → 500 (rescheduleArticle ile ayni 400)
     if (isNaN(at.getTime())) throw new BadRequestException('Geçersiz tarih (scheduledAt).');
@@ -916,8 +928,15 @@ export class ArticleSchedulerService {
         `Makale hakkın doldu (${limit} makale). Yeni yazıyı takvime eklemek için planını yükseltebilirsin.`,
       );
     }
-    const waiting = await this.countUnchargedPending(site.userId);
-    if (waiting >= remaining) {
+    // Deneme hesabinda bekleyen ayirmasi YOK. NEDEN: ayirma, otomasyonun kalan haktan
+    // fazlasini uretime almasini onler; denemede otomasyon hic makale uretmez
+    // (automaticGenerationAllowed) ve her makale kullanicinin tikladigi anda kosullu
+    // UPDATE ile duser (consumeArticleAllowance). Onboarding denemede 5-8 isaretsiz konu
+    // birakiyor, hak 2: ayirma "Takvime"yi kalici 403'e ceviriyordu. Plan yukseltilince
+    // tarama bu yazilari alir; chargeArticle tavani asmaz (dosya basi).
+    const reservesAllowance = automaticGenerationAllowed(site.user?.plan);
+    const waiting = reservesAllowance ? await this.countUnchargedPending(site.userId) : 0;
+    if (reservesAllowance && waiting >= remaining) {
       throw new ForbiddenException(
         `Kalan makale hakkın ${remaining}; hesabındaki tüm sitelerin takviminde üretime alınmayı bekleyen ${waiting} yazı var ve her biri üretime alınırken bu haktan düşecek. ` +
         'Yeni yazı eklemek için takvimden yazı çıkarabilir ya da planını yükseltebilirsin.',
