@@ -8,6 +8,8 @@
  *   pnpm --filter @luviai/video render:marketing -- --skip-audio    # muzigi yeniden sentezleme
  *   pnpm --filter @luviai/video render:marketing pillars            # 5 sutun + Canli Tarayici × dikey/yatay → out/ranksup-5/
  *   pnpm --filter @luviai/video render:marketing 1-geo-dikey        # yalniz biri (ad ya da Pillar-geo-dikey)
+ *   pnpm --filter @luviai/video render:marketing hibrit             # hibrit tanitim (stok goruntu + panel) dikey + yatay → out/ranksup-hibrit/
+ *                                                                   # (once public/stock/ klipleri gerekir: src/hybrid/CREDITS.md)
  *
  * Adimlar: 1) scripts/audio/synth.mjs (timeline.json → public/audio/*.wav, -14 LUFS)
  *          2) Remotion → H.264 MP4 (yuv420p, AAC 192k)  3) ffmpeg iki gecisli loudnorm (-14 LUFS,
@@ -45,10 +47,23 @@ const PILLAR_JOBS = PILLAR_SCRIPT.videos.flatMap((v) => {
   }));
 });
 
+// hibrit tanitim (src/hybrid): ayni planlayici; metinler resolve.mjs ile sutun betiginden; ses audio/pillars/hibrit.wav
+const { resolveHybrid } = await import('../src/hybrid/resolve.mjs');
+const HYBRID_OUT = join(ROOT, 'out', 'ranksup-hibrit');
+const HYBRID_PLAN = planVideo(resolveHybrid(PILLAR_SCRIPT, JSON.parse(readFileSync(join(ROOT, 'src', 'hybrid', 'script.json'), 'utf8'))), 'hibrit');
+const HYBRID_JOBS = ['dikey', 'yatay'].map((fmt) => ({
+  id: `Hybrid-${fmt}`,
+  name: `${HYBRID_PLAN.slug}-${fmt}`,
+  out: HYBRID_OUT,
+  pillar: true,
+  posterFrame: HYBRID_PLAN.posterFrame,
+  sheet: fmt === 'dikey' ? { width: 270, cols: 10 } : { width: 480, cols: 6 },
+}));
+
 const args = process.argv.slice(2);
 const flags = new Set(args.filter((a) => a.startsWith('--')));
 const only = args.find((a) => !a.startsWith('--'));
-const jobs = only === 'pillars' ? PILLAR_JOBS : only ? [...JOBS, ...PILLAR_JOBS].filter((j) => j.id === only || j.name === only) : JOBS;
+const jobs = only === 'pillars' ? PILLAR_JOBS : only === 'hibrit' ? HYBRID_JOBS : only ? [...JOBS, ...PILLAR_JOBS, ...HYBRID_JOBS].filter((j) => j.id === only || j.name === only) : JOBS;
 if (jobs.length === 0) {
   console.error(`Bilinmeyen kompozisyon: ${only}. Secenekler: ${JOBS.map((j) => j.id).join(', ')}`);
   process.exit(1);
@@ -99,6 +114,7 @@ function blackFrames(file) {
 
 mkdirSync(OUT, { recursive: true });
 mkdirSync(PILLAR_OUT, { recursive: true });
+mkdirSync(HYBRID_OUT, { recursive: true });
 if (!flags.has('--skip-audio')) {
   if (jobs.some((j) => !j.pillar)) run('node', ['scripts/audio/synth.mjs']);
   if (jobs.some((j) => j.pillar)) run('node', ['scripts/audio/synth-pillars.mjs']);

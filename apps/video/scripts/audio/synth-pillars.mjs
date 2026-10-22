@@ -4,7 +4,7 @@
  * (styles.mjs: fast = enerjik elektronik pop, normal = chill-hop / lo-fi, slow = sinematik ambient).
  *
  *   node scripts/audio/synth-pillars.mjs            # hepsi → public/audio/pillars/<id>.wav
- *   node scripts/audio/synth-pillars.mjs geo        # yalniz biri
+ *   node scripts/audio/synth-pillars.mjs geo        # yalniz biri (hibrit: src/hybrid tanitim videosu)
  *
  * Girdi: src/pillars/script.json → schedule.mjs planVideo(): sahne sinirlari (vurus), sahne basina muzik
  * seviyesi (pulse · L1 · L2 · L3 · L4; son sahne outro), efekt anlari (liste ogesi 'tick', panel girisi
@@ -19,9 +19,12 @@ import { fileURLToPath } from 'node:url';
 import { runFfSync } from '../ffmpeg.mjs';
 import { SR, renderStyle } from './styles.mjs';
 import { planVideo } from '../../src/pillars/schedule.mjs';
+import { resolveHybrid } from '../../src/hybrid/resolve.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const SCRIPT = JSON.parse(readFileSync(join(ROOT, 'src', 'pillars', 'script.json'), 'utf8'));
+// hibrit tanitim videosu (src/hybrid) ayni planlayici + ayni uslup kutuphanesi → audio/pillars/hibrit.wav
+const HYBRID = resolveHybrid(SCRIPT, JSON.parse(readFileSync(join(ROOT, 'src', 'hybrid', 'script.json'), 'utf8')));
 const OUT = join(ROOT, 'public', 'audio', 'pillars');
 
 function wav(pcm) {
@@ -53,10 +56,10 @@ function loudnorm(src, dst) {
 
 const only = process.argv[2];
 mkdirSync(OUT, { recursive: true });
-for (const v of SCRIPT.videos) {
+for (const [script, v] of [...SCRIPT.videos.map((x) => [SCRIPT, x]), ...HYBRID.videos.map((x) => [HYBRID, x])]) {
   if (only && v.id !== only) continue;
   const t = Date.now();
-  const plan = planVideo(SCRIPT, v.id);
+  const plan = planVideo(script, v.id);
   const beats = plan.durationInFrames / plan.fpb;
   const out = renderStyle(plan.style, { bpm: plan.bpm, beats, energy: plan.energy, music: plan.music, events: plan.events });
   const n = Math.round((plan.durationInFrames / 30) * SR);

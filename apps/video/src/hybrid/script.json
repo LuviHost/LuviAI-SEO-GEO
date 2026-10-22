@@ -1,0 +1,56 @@
+{
+  "_": "RanksUp hibrit tanitim videosu — gercek goruntu kancasi (Mixkit, CREDITS.md) + panel sahneleri + kapanis. Panel ve kapanis sahneleri 'ref' ile src/pillars/script.json'dan GELIR (metin burada tekrar yazilmaz; resolve.mjs kopyalar, 'pick' yalniz hangi ogelerin hangi vurusta girdigini secer). Goruntu sahnelerindeki metin burada; 'ref'li oge metnini kaynaktan alir. Klipler public/stock/ (git'e girmez). clip.pos = object-position, clip.from = klipte baslangic (sn).",
+  "videos": [
+    {
+      "id": "hibrit",
+      "slug": "ranksup-hibrit",
+      "title": "RanksUp hibrit tanıtım",
+      "bpm": 90,
+      "style": "normal",
+      "scenes": [
+        {
+          "id": "ask",
+          "type": "footage",
+          "layout": "ask",
+          "music": "pulse",
+          "clip": {
+            "v": { "file": "stock/woman-typing-on-her-cell-phone-43270.mp4", "from": 0, "pos": "50% 30%" },
+            "w": { "file": "stock/hands-of-a-person-typing-on-a-cell-phone-4915.mp4", "from": 1, "pos": "50% 50%" }
+          },
+          "items": [
+            { "id": "h", "text": "Müşterin telefondan soruyor:", "at": 0 },
+            { "id": "q", "ref": "geo/hook/q", "at": 2, "sfx": "pop" },
+            { "id": "tag", "ref": "geo/hook/tag", "at": 2, "kind": "note" }
+          ]
+        },
+        {
+          "id": "you",
+          "type": "footage",
+          "layout": "line",
+          "music": "L1",
+          "clip": {
+            "v": { "file": "stock/entrepreneur-woman-typing-on-her-laptop-42652.mp4", "from": 7.2, "pos": "30% 35%" },
+            "w": { "file": "stock/thoughtful-woman-working-in-her-office-42656.mp4", "from": 0, "pos": "50% 50%" }
+          },
+          "items": [{ "id": "h", "text": "Cevapta sen var mısın?", "at": 0.25, "sfx": "thock", "accent": true }]
+        },
+        { "id": "measure", "ref": "geo/measure", "music": "L2", "pick": { "h": 0, "title": 1.5, "hint": 1.5, "tag": 1.5, "chip": 1.5, "e1": 2.5, "e2": 2.95, "e3": 3.4, "e4": 3.85, "e5": 4.3, "e6": 4.75 } },
+        { "id": "signals", "ref": "geo/signals", "music": "L3", "pick": { "h": 0, "title": 1, "hint": 1, "tag": 1, "s1": 1, "r1": 2.5, "r2": 3, "r3": 3.5, "r4": 4 } },
+        { "id": "publish", "ref": "icerik/publish", "music": "L3", "pick": { "h": 0, "title": 1.25, "hint": 1.25, "tag": 1.25, "m1": 2.75, "m2": 3.5, "targets": 4.25 } },
+        {
+          "id": "smile",
+          "type": "footage",
+          "layout": "line",
+          "music": "L4",
+          "sfx": "whoosh",
+          "clip": {
+            "v": { "file": "stock/portrait-of-female-entrepreneur-in-her-office-21217.mp4", "from": 0.5, "pos": "50% 50%" },
+            "w": { "file": "stock/portrait-of-female-entrepreneur-in-her-office-21217.mp4", "from": 0.5, "pos": "50% 50%" }
+          },
+          "items": [{ "id": "h", "text": "Görünürlüğünü ölç, eksikleri gör, içeriği RanksUp yazsın.", "at": 0.5 }]
+        },
+        { "id": "end", "ref": "geo/end", "pick": { "logo": 0, "url": 0.75, "cta": 1.25, "note": 1.7 } }
+      ]
+    }
+  ]
+}

@@ -16,6 +16,7 @@ ile tüketilir).
 | `ArticleShort` | 1080×1920 @30 | tempo: hızlı 15 sn · normal 20–50 sn · yavaş 25–60 sn (metne göre), parametrik | **RanksUp Video** (ürün): müşterinin yayındaki makalesinden markalı kısa video — sunucuda `apps/api/public/videos/<siteId>/`; CLI denemesi `out/article-shorts/` |
 | `SiteIntro` / `SiteIntroWide` | 1080×1920 / 1920×1080 @30 | hızlı 15 sn / 24 sn · normal 15–45 sn · yavaş 25–60 sn, parametrik | **RanksUp Video** site tanıtımı: müşterinin anasayfası + marka profili; marka rengi zemin, logo, 3 hizmet kartı |
 | `Pillar-<geo\|seo\|aso\|icerik\|video>-<dikey\|yatay>` | 1080×1920 / 1920×1080 @30 | 40–47 sn, müzik (videoya özgü üslup ve BPM) | RanksUp tanıtım videoları — 5 sütun × 2 biçim — `out/ranksup-5/` |
+| `Hybrid-dikey` / `Hybrid-yatay` | 1080×1920 / 1920×1080 @30 | 39,3 sn, müzik, seslendirme yok | Hibrit tanıtım: stok görüntü kancası + panel sahneleri + kapanış — `out/ranksup-hibrit/` |
 | `ProductShort` / `ProductWide` | 1080×1920 / 1920×1080 @30 | hızlı 15 sn · normal 15–50 sn · yavaş 25–60 sn, parametrik | **RanksUp Video** ürün tanıtımı: müşterinin kendi sayfası; ürün görseli (yavaş yakınlaşma), özellik listesi, yalnız doğrulanmış fiyat etiketi |
 
 ## Komutlar
@@ -135,6 +136,21 @@ sohbetinde sayfan canlı çekildi"); veri `AiCrawlerHit` günlük toplamına yaz
 `@RequiresPlan('liveCrawler')` (Ajans+). Fiyat kartı ise "Live Crawler"ı Ajans maddesi olarak listeliyor: sahip kararı
 değişirse `script.json` → `tarayici/end/plan` satırını güncelle. Kurulum kodundaki anahtar **daima maskeli**
 (`luvi_ing_••••••••`); `check:pillars` gerçek biçimli anahtarı ihlal sayar. Örnek akış, kod ve KPI değeri "Örnek …" etiketli.
+
+### Hibrit tanıtım videosu (`src/hybrid/`, `Hybrid-dikey|yatay`)
+
+```bash
+pnpm --filter @luviai/video render:marketing hibrit          # → out/ranksup-hibrit/ranksup-hibrit-{dikey,yatay}.{mp4,jpg} + temas sayfası
+```
+
+- Kurgu: gerçek görüntü kancası (telefonda soran müşteri → "Cevapta sen var mısın?") → üç panel sahnesi (AI Görünürlük,
+  Site Skoru, Otomatik Akış) → gerçek görüntü özet satırı → kapanış. Seslendirme yok; müzik `synth-pillars.mjs hibrit`.
+- **Metin:** panel ve kapanış sahneleri `script.json`'da `ref` ile sütun betiğinden gelir (`resolve.mjs`; yalnız giriş
+  vuruşu seçilir, metin kopyalanmaz) — yeni iddia yazılamaz. Görüntü sahnelerindeki metin `src/hybrid/script.json`'da.
+  Aynı planlayıcı ve `check:pillars` denetimi (14 render) geçerli.
+- **Stok klipler** `public/stock/` (Mixkit, git'e girmez — lisans tek başına yeniden dağıtıma izin vermez); dosya adları,
+  kaynak sayfaları ve lisans `src/hybrid/CREDITS.md`'de. Klip `<OffthreadVideo>` ile, `clip.from` (sn) ve `clip.pos`
+  (object-position) script.json'da; dikeyde yüz kadrajda kalacak şekilde seçildi, metin y 250–1500 içinde.
 
 ## Makaleden otomatik kısa video (ArticleShort — CLI denemesi)
 

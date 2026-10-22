@@ -12,6 +12,7 @@ import { SiteIntro, SiteIntroWide, SITE_INTRO_DURATION, SITE_INTRO_WIDE_DURATION
 import { ProductShort, ProductWide, PRODUCT_SHORT_DURATION, productShortDefaults } from './promo/ProductShort';
 import { tempoMetadata } from './tempo/TempoTimeline';
 import { PILLAR_COMPOSITIONS } from './pillars/PillarVideo';
+import { HYBRID_COMPOSITIONS } from './hybrid/HybridVideo';
 
 export const RemotionRoot: React.FC = () => {
   return (
@@ -101,6 +102,10 @@ export const RemotionRoot: React.FC = () => {
       <Composition id="ProductWide" component={ProductWide} calculateMetadata={tempoMetadata('ProductWide')} durationInFrames={PRODUCT_SHORT_DURATION} fps={MARKETING_FPS} width={1920} height={1080} defaultProps={productShortDefaults} />
       {/* RanksUp tanitim videolari — 5 sutun + Canli Tarayici × dikey/yatay (src/pillars; metin script.json, ses audio/pillars/<id>.wav) */}
       {PILLAR_COMPOSITIONS.map((c) => (
+        <Composition key={c.id} id={c.id} component={c.component} durationInFrames={c.durationInFrames} fps={MARKETING_FPS} width={c.width} height={c.height} defaultProps={{ muted: false }} />
+      ))}
+      {/* Hibrit tanitim: stok goruntu kancasi (public/stock, git disi) + panel sahneleri + kapanis (src/hybrid; ses audio/pillars/hibrit.wav) */}
+      {HYBRID_COMPOSITIONS.map((c) => (
         <Composition key={c.id} id={c.id} component={c.component} durationInFrames={c.durationInFrames} fps={MARKETING_FPS} width={c.width} height={c.height} defaultProps={{ muted: false }} />
       ))}
     </>

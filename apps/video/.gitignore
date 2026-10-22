@@ -1,2 +1,5 @@
 # Sentezlenen muzik/efekt izi (scripts/audio/synth.mjs uretir; render:marketing once calistirir)
 public/audio/
+
+# Stok goruntu (Mixkit; lisans tek basina yeniden dagitima izin vermez) — kaynaklar src/hybrid/CREDITS.md
+public/stock/

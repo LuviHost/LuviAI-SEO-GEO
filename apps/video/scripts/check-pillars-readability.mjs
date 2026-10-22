@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * Sutun tanitim videolarinin (src/pillars; 5 sutun + Canli Tarayici) okunurluk denetimi — her video × dikey /
- * yatay (iki bicim AYNI zaman planini kullanir, her biri ayri raporlanir).
+ * Sutun tanitim videolarinin (src/pillars; 5 sutun + Canli Tarayici) ve hibrit tanitimin (src/hybrid; stok goruntu +
+ * panel) okunurluk denetimi — her video × dikey / yatay (iki bicim AYNI zaman planini kullanir, her biri ayri raporlanir).
  *
  *   metin   ≥ max(2,0 sn; 0,3 sn × kelime + 1,0 sn) tam gorunur
  *   not     ≥ 3,0 sn ("Örnek …" etiketleri, plan kosulu, "Kart gerekmez")
@@ -19,6 +19,7 @@
  *   node scripts/check-pillars-readability.mjs                  # tablo + ozet; ihlalde cikis kodu 1
  *   node scripts/check-pillars-readability.mjs --brief          # yalniz ozet
  *   node scripts/check-pillars-readability.mjs --videos out/ranksup-5   # + mp4 sureleri plana esit mi
+ *                                                                      (hibrit: out/ranksup-hibrit de aranir)
  */
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
@@ -27,12 +28,17 @@ import { fileURLToPath } from 'node:url';
 import { spring } from 'remotion';
 import { countWords } from '../src/tempo/plan.mjs';
 import { ENTER, EXIT_FRAMES, FPS, LEAD, RULES, planVideo } from '../src/pillars/schedule.mjs';
+import { resolveHybrid } from '../src/hybrid/resolve.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SCRIPT = JSON.parse(readFileSync(join(ROOT, 'src', 'pillars', 'script.json'), 'utf8'));
 const args = process.argv.slice(2);
 const brief = args.includes('--brief');
 const videosDir = args.includes('--videos') ? join(ROOT, args[args.indexOf('--videos') + 1]) : null;
+// hibrit tanitim: panel/kapanis metinleri sutun betiginden kopyalanir (resolve.mjs), goruntu sahnesi metinleri kendi betiginde
+const HYBRID = resolveHybrid(SCRIPT, JSON.parse(readFileSync(join(ROOT, 'src', 'hybrid', 'script.json'), 'utf8')));
+const SOURCES = [...SCRIPT.videos.map((v) => [SCRIPT, v]), ...HYBRID.videos.map((v) => [HYBRID, v])];
+const videoDirs = videosDir ? [videosDir, join(ROOT, 'out', 'ranksup-hibrit')] : [];
 
 /** panel / gorselle ayni anda gelen eslikci ogeler (tek blok) */
 const COMPANIONS = new Set(['hint', 'tag', 'chip', 'plan', 's1', 'sample']);
@@ -64,15 +70,19 @@ const summary = [];
 
 // gizli anahtar korumasi: Canli Tarayici videosu kurulum kodunu gosterir; anahtar YALNIZ maskeli olabilir
 const SECRET_RE = /luvi_ing_[0-9a-f]{6,}/i;
-const leakSources = [['script.json', JSON.stringify(SCRIPT)], ...readdirSync(join(ROOT, 'src', 'pillars')).filter((f) => f.endsWith('.tsx')).map((f) => [f, readFileSync(join(ROOT, 'src', 'pillars', f), 'utf8')])];
+const leakSources = [
+  ['script.json', JSON.stringify(SCRIPT)],
+  ['hybrid/script.json', JSON.stringify(HYBRID)],
+  ...['pillars', 'hybrid'].flatMap((d) => readdirSync(join(ROOT, 'src', d)).filter((f) => f.endsWith('.tsx')).map((f) => [`${d}/${f}`, readFileSync(join(ROOT, 'src', d, f), 'utf8')])),
+];
 for (const [name, text] of leakSources) {
   if (SECRET_RE.test(text)) {
     console.error(`GIZLI ANAHTAR: ${name} gercek bicimli bir ingest anahtari iceriyor (yalniz maskeli 'luvi_ing_••••••••' kullan)`);
     failures++;
   }
 }
-for (const v of SCRIPT.videos) {
-  const plan = planVideo(SCRIPT, v.id);
+for (const [script, v] of SOURCES) {
+  const plan = planVideo(script, v.id);
   for (const fmt of ['dikey', 'yatay']) {
     const rows = [];
     const listRows = [];
@@ -119,8 +129,8 @@ for (const v of SCRIPT.videos) {
     if (dur > 60) bad++;
     let fileDur = '-';
     if (videosDir) {
-      const file = join(videosDir, `${plan.slug}-${fmt}.mp4`);
-      if (!existsSync(file)) {
+      const file = videoDirs.map((d) => join(d, `${plan.slug}-${fmt}.mp4`)).find((f) => existsSync(f));
+      if (!file) {
         fileDur = 'YOK';
         bad++;
       } else {

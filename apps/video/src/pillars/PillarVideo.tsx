@@ -30,7 +30,7 @@ const WINDOW: Record<Format, Rect> = {
 };
 
 /** ardisik panel sahneleri tek pencerede: pencere ilk panel sahnesinde girer, son panel sahnesinde cikar */
-function windowState(plan: PillarPlan, scene: PlannedScene, frame: number) {
+export function windowState(plan: PillarPlan, scene: PlannedScene, frame: number) {
   const scenes = plan.scenes;
   const isPage = (s?: PlannedScene) => s?.type === 'page';
   let first = scene.index;
