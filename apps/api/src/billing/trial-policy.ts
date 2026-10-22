@@ -15,6 +15,11 @@
  *     kapaliyken (PayTR test modu: yalniz yonetici odeyebilir) kullanici plan
  *     SECEMEZ; o zaman sert kilit uygulanmaz, panel kapatilabilir uyari gosterir ve
  *     yalniz 2 makale hakki kurali gecerli kalir (trialAccess).
+ *  5. Kilit YALNIZ gercek deneme hesabina: hic odenmis faturasi olmayan hesap. Plani
+ *     biten eski musteri (iptal edip donemi biten ya da odemesi alinamayan; plan
+ *     TRIAL'a duser) deneme duzeyindeki haklarla devam eder, kilitlenmez
+ *     (LAPSED_CUSTOMER_READ_ONLY; e-posta ve abonelik sayfasi "hesabin deneme
+ *     duzeyine gecer" diyor).
  */
 
 /** Deneme suresi (gun) */
@@ -42,23 +47,44 @@ function endsAtMs(v: Date | string | null | undefined): number | null {
 }
 
 /**
- * Deneme suresi doldu mu? Plan TRIAL ve durum EXPIRED (gunluk 04:00 isi
- * expireOldTrials ya da iptal edilip donemi biten abonelik), YA DA durum hala
- * TRIAL ama bitis gecmis. NEDEN ikincisi: is gunde bir kez calisir; bitis ile is
- * arasindaki saatlerde hesap tam yetkili kalmasin.
+ * Deneme suresi doldu mu? Yalniz plan TRIAL (ucretli plan ASLA). Iki yol:
+ *  - durum EXPIRED (gunluk 04:00 isi expireOldTrials, iptal edilip donemi biten ya da
+ *    odemesi alinamayan abonelik);
+ *  - durum ne olursa olsun (TRIAL, CANCELED, ACTIVE, PAST_DUE, bos) bitis gecmis.
+ * NEDEN ikincisi her durumda: is gunde bir kez calisir ve yalniz durum TRIAL olani
+ * EXPIRED yapar. Plan TRIAL iken durumu CANCELED/ACTIVE/PAST_DUE olan satir tutarsizdir
+ * (eskiden denemedeki hesap "aboneligi iptal et" ile CANCELED olabiliyordu; artik
+ * cancelSubscription reddeder, eski satirlari trial-backfill.ts duzeltir). Durumu
+ * okuyup bitise bakmamak o hesabi sonsuza dek tam yetkili birakiyordu.
  */
 export function isTrialExpired(u: TrialSubject, now: Date = new Date()): boolean {
   if (u.plan !== 'TRIAL') return false;
   if (u.subscriptionStatus === 'EXPIRED') return true;
   const end = endsAtMs(u.trialEndsAt);
-  return u.subscriptionStatus === 'TRIAL' && end !== null && end <= now.getTime();
+  return end !== null && end <= now.getTime();
 }
 
-export type TrialPhase = 'paid' | 'trial' | 'expired';
+/**
+ * SAHIP KARARI BEKLIYOR — plani biten eski musteri (en az bir PAID faturasi olan, plani
+ * TRIAL'a dusmus hesap) de salt okunur kilide girsin mi?
+ *
+ * false (guvenli varsayilan): girmez. Deneme duzeyindeki haklarla devam eder (kayitli
+ * metinler boyle: plan_canceled / subscription_expired e-postalari ve abonelik sayfasi
+ * "hesabin deneme duzeyine gecer" diyor); panel "Deneme süren doldu" modali yerine
+ * kapatilabilir "Planın sona erdi — yeniden abone ol" bandi gosterir (phase 'lapsed').
+ * true: gercek deneme gibi davranir (phase 'expired', satin alma acikken salt okunur).
+ * Cevirmeden once e-posta ve abonelik sayfasi metinleri de degismeli.
+ */
+export const LAPSED_CUSTOMER_READ_ONLY = false;
+
+export type TrialPhase = 'paid' | 'trial' | 'expired' | 'lapsed';
 
 /** Panelin ve sunucu kapisinin okudugu deneme durumu */
 export interface TrialAccess {
-  /** paid: ucretli plan ya da yonetici; trial: deneme suruyor; expired: deneme doldu */
+  /**
+   * paid: ucretli plan ya da yonetici; trial: deneme suruyor; expired: deneme doldu;
+   * lapsed: plani biten eski musteri (deneme duzeyi, kilit yok — LAPSED_CUSTOMER_READ_ONLY)
+   */
   phase: TrialPhase;
   /** Denemenin bitis ani (ISO); bilinmiyorsa null */
   endsAt: string | null;
@@ -78,8 +104,11 @@ export interface TrialAccess {
  * TEK KARAR NOKTASI: deneme durumu + salt okunur kilidi. Sunucu kapisi
  * (trial-expiry.guard.ts) ve panel (GET /billing/users/:id/current trialAccess)
  * ayni sonucu kullanir.
+ *
+ * everPaid: hesabin en az bir PAID faturasi var mi (hasEverPaid). Zorunlu: kilidin
+ * eski musteriye uygulanip uygulanmayacagi buna bagli; tahminle verilmesin.
  */
-export function trialAccess(u: TrialSubject, opts: { checkoutOpen: boolean; now?: Date }): TrialAccess {
+export function trialAccess(u: TrialSubject, opts: { checkoutOpen: boolean; everPaid: boolean; now?: Date }): TrialAccess {
   const now = opts.now ?? new Date();
   const end = endsAtMs(u.trialEndsAt);
   const endsAt = end === null ? null : new Date(end).toISOString();
@@ -87,12 +116,20 @@ export function trialAccess(u: TrialSubject, opts: { checkoutOpen: boolean; now?
   if (u.role === 'ADMIN' || u.plan !== 'TRIAL') {
     return { phase: 'paid', endsAt: u.plan === 'TRIAL' ? endsAt : null, daysLeft: null, checkoutOpen: opts.checkoutOpen, readOnly: false };
   }
+  // Plani biten eski musteri bir deneme hesabi degil: geri sayim da kilit de yok
+  if (opts.everPaid && !LAPSED_CUSTOMER_READ_ONLY) {
+    return { phase: 'lapsed', endsAt: null, daysLeft: null, checkoutOpen: opts.checkoutOpen, readOnly: false };
+  }
   if (isTrialExpired(u, now)) {
     return { phase: 'expired', endsAt, daysLeft: 0, checkoutOpen: opts.checkoutOpen, readOnly: opts.checkoutOpen };
   }
   const daysLeft = end === null ? null : Math.max(0, Math.ceil((end - now.getTime()) / DAY_MS));
   return { phase: 'trial', endsAt, daysLeft, checkoutOpen: opts.checkoutOpen, readOnly: false };
 }
+
+/** Deneme hesabinda "aboneligi iptal et": iptal edilecek ucretli abonelik yok (400) */
+export const TRIAL_CANCEL_NOT_ALLOWED_MESSAGE =
+  'Ücretsiz denemede iptal edilecek bir abonelik yok; deneme süresi dolunca senden ücret alınmaz. Hesabını kapatmak istersen Abonelik sayfasındaki “Hesabı sil” bölümünü kullanabilirsin.';
 
 /** Sure dolmus ve satin alma acik hesabin yapay zeka eylemine 403 metni */
 export const TRIAL_EXPIRED_READ_ONLY_MESSAGE =
@@ -137,7 +174,7 @@ export function requiresGenerationSource(plan: string | null | undefined): boole
 
 /** Kaynak yokken "Uret"in 403 metni (panel ayni metni dugmede gosterir) */
 export const TRIAL_SOURCE_REQUIRED_MESSAGE =
-  'Ücretsiz denemede makale üretmek için önce sitene bir yayın hedefi bağla (WordPress, FTP vb.). Yayın Hedefleri sayfasından birkaç adımda ekleyebilirsin.';
+  'Ücretsiz denemede makale üretmek için önce sitene bir yayın hedefi bağla (WordPress ya da Markdown ZIP). Yayın Hedefleri sayfasından birkaç adımda ekleyebilirsin.';
 
 /** 403 govdesindeki makine kodu */
 export const TRIAL_SOURCE_REQUIRED_CODE = 'TRIAL_SOURCE_REQUIRED';

@@ -4,6 +4,10 @@ import { McpToolsService } from './mcp-tools.service.js';
 import { QuotaService } from '../billing/quota.service.js';
 import { ApiKeysService } from '../api-keys/api-keys.service.js';
 import { Public } from '../auth/public.decorator.js';
+import { PaytrService } from '../billing/paytr.service.js';
+import { trialReadOnlyNow } from '../billing/trial-expiry.guard.js';
+import { TRIAL_EXPIRED_READ_ONLY_MESSAGE } from '../billing/trial-policy.js';
+import { TrialReadOnlyExempt } from '../billing/trial-read-only.decorator.js';
 import { McpAuthChallengeFilter } from './mcp-auth-challenge.filter.js';
 import {
   MCP_PROTOCOL_VERSIONS,
@@ -61,8 +65,13 @@ export class McpController {
     private readonly tools: McpToolsService,
     private readonly quota: QuotaService,
     private readonly apiKeys: ApiKeysService,
+    private readonly paytr: PaytrService,
   ) {}
 
+  // Suresi dolan deneme (salt okunur): tasima ucu acik — initialize, ping, tools/list ve
+  // okuma araclari calisir; yapay zeka harcayan / icerik yazan (mutating) arac
+  // tools/call'da reddedilir (TrialExpiryGuard POST'u toptan kesiyordu)
+  @TrialReadOnlyExempt()
   @Post()
   async handle(@Req() req: Request, @Res() res: Response, @Body() body: JsonRpcMsg | JsonRpcMsg[]) {
     const user = (req as any).user as { id: string; role: string; plan?: string } | undefined;
@@ -196,6 +205,15 @@ export class McpController {
           if (def?.mutating && !canWrite) {
             return this.rpcResult(msg.id!, {
               content: [{ type: 'text', text: `Hata: bu API anahtarı salt okunur; ${String(name)} için en az bir yazma (:write) yetkisi olan anahtar gerekli.` }],
+              isError: true,
+            });
+          }
+          // Deneme suresi dolmus hesap salt okunur (billing/trial-expiry.guard.ts ile ayni
+          // karar): kota/maliyet tuketen ya da icerik yazan arac calismaz, okuma araclari acik.
+          // Bilinmeyen arac adi burada elenmez; tools.call kendi hatasini doner.
+          if (def?.mutating && (await trialReadOnlyNow(user, this.paytr))) {
+            return this.rpcResult(msg.id!, {
+              content: [{ type: 'text', text: `Hata: ${TRIAL_EXPIRED_READ_ONLY_MESSAGE}` }],
               isError: true,
             });
           }

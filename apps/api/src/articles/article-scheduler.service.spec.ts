@@ -778,6 +778,21 @@ describe('scheduleTopic — hak mesaji ve tarih dogrulamasi', () => {
     expect(err.message).not.toMatch(/yayınla/);
     expect(ctx.prisma.article.create).not.toHaveBeenCalled();
   });
+
+  it('inceleme: deneme hesabinda bekleyen konular kalan haktan AYRILMAZ (otomasyon denemede uretmez; onboarding 5-8 konu, hak 2)', async () => {
+    const quota = { checkArticleQuota: vi.fn(async () => ({ allowed: true, remaining: 2, limit: 2 })) };
+    const waiting = (id: string) => ({ id, siteId: 's1', status: 'SCHEDULED', publishedAt: null, agentOutputs: null, site: { userId: 'u1', url: 'https://ornek.com.tr' } });
+    const onboardingTopics = ['w1', 'w2', 'w3', 'w4', 'w5', 'w6'].map(waiting);
+    const trial = build({ quota, articles: onboardingTopics, site: { ...SITE(), user: { plan: 'TRIAL' } } as any });
+    await expect(trial.svc.scheduleTopic('s1', { topic: 'Konu', scheduledAt: AT })).resolves.toMatchObject({ status: 'SCHEDULED', topic: 'Konu' });
+    expect(trial.prisma.article.create).toHaveBeenCalledTimes(1);
+    // Ucretli plan ayni durumda ayirmayi korur (otomasyon uretir)
+    const paid = build({ quota, articles: onboardingTopics, site: { ...SITE(), user: { plan: 'STARTER' } } as any });
+    await expect(paid.svc.scheduleTopic('s1', { topic: 'Konu', scheduledAt: AT })).rejects.toBeInstanceOf(ForbiddenException);
+    // Hak bittiyse denemede de 403 (panelde tek kilitli dugme)
+    const used = build({ quota: { checkArticleQuota: vi.fn(async () => ({ allowed: false, remaining: 0, limit: 2 })) }, site: { ...SITE(), user: { plan: 'TRIAL' } } as any });
+    await expect(used.svc.scheduleTopic('s1', { topic: 'Konu', scheduledAt: AT })).rejects.toBeInstanceOf(ForbiddenException);
+  });
 });
 
 describe('takvim metinleri — eski "deneme hesabi paket bekler" iddiasi', () => {

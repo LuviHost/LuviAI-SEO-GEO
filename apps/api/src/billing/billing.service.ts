@@ -150,7 +150,9 @@ export class BillingService {
       // Deneme durumu (14 gun, kalan gun, salt okunur mu) — panel bandi ve modali bunu
       // okur, kendisi hesaplamaz. Karar trial-policy.ts trialAccess (sunucu kapisiyla ayni).
       // Satin alma durumu verilmediyse kapali sayilir: kilit asla tahminle acilmaz.
-      trialAccess: trialAccess(user, { checkoutOpen: opts.checkoutOpen === true }),
+      // everPaid: son PAID fatura varsa hesap eski musteridir (ever-paid.ts ile ayni
+      // tanim: en az bir PAID fatura); kilit ve "deneme doldu" modali yerine 'lapsed'.
+      trialAccess: trialAccess(user, { checkoutOpen: opts.checkoutOpen === true, everPaid: lastPaid !== null }),
       articlesUsedThisMonth: user.articlesUsedThisMonth,
       articlesQuotaResetAt: user.articlesQuotaResetAt,
       articleQuota: articleQuotaView(articleLimit, user.articlesUsedThisMonth),

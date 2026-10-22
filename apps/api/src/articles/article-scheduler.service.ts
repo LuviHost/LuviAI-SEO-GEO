@@ -909,7 +909,7 @@ export class ArticleSchedulerService {
    * Frontend'den scheduledAt + topic + slug + pillar gelir.
    */
   async scheduleTopic(siteId: string, args: { topic: string; scheduledAt: string; slug?: string; pillar?: string }) {
-    const site = await this.prisma.site.findUniqueOrThrow({ where: { id: siteId } });
+    const site = await this.prisma.site.findUniqueOrThrow({ where: { id: siteId }, include: { user: { select: { plan: true } } } });
     const at = new Date(args.scheduledAt);
     // Eskiden duz Error → 500 (rescheduleArticle ile ayni 400)
     if (isNaN(at.getTime())) throw new BadRequestException('Geçersiz tarih (scheduledAt).');
@@ -928,8 +928,15 @@ export class ArticleSchedulerService {
         `Makale hakkın doldu (${limit} makale). Yeni yazıyı takvime eklemek için planını yükseltebilirsin.`,
       );
     }
-    const waiting = await this.countUnchargedPending(site.userId);
-    if (waiting >= remaining) {
+    // Deneme hesabinda bekleyen ayirmasi YOK. NEDEN: ayirma, otomasyonun kalan haktan
+    // fazlasini uretime almasini onler; denemede otomasyon hic makale uretmez
+    // (automaticGenerationAllowed) ve her makale kullanicinin tikladigi anda kosullu
+    // UPDATE ile duser (consumeArticleAllowance). Onboarding denemede 5-8 isaretsiz konu
+    // birakiyor, hak 2: ayirma "Takvime"yi kalici 403'e ceviriyordu. Plan yukseltilince
+    // tarama bu yazilari alir; chargeArticle tavani asmaz (dosya basi).
+    const reservesAllowance = automaticGenerationAllowed(site.user?.plan);
+    const waiting = reservesAllowance ? await this.countUnchargedPending(site.userId) : 0;
+    if (reservesAllowance && waiting >= remaining) {
       throw new ForbiddenException(
         `Kalan makale hakkın ${remaining}; hesabındaki tüm sitelerin takviminde üretime alınmayı bekleyen ${waiting} yazı var ve her biri üretime alınırken bu haktan düşecek. ` +
         'Yeni yazı eklemek için takvimden yazı çıkarabilir ya da planını yükseltebilirsin.',

@@ -52,9 +52,11 @@ export class EmailCron {
         // Trial expiry. Metin "deneme bitince ne olur"u dogru soylemeli: hesap ancak satin
         // alma ACIKKEN salt okunur olur (billing/trial-policy.ts trialAccess). PayTR test
         // modunda yalniz yonetici odeyebilir; o zaman kilit yok, metin de kilit demez.
+        // Yonetici hicbir modda salt okunur olmaz (trialAccess ve kapi yoneticiyi muaf
+        // tutar): eskiden test modunda yoneticiye "salt okunur olur" yaziliyordu.
         if (u.trialEndsAt) {
           const daysLeft = Math.ceil((u.trialEndsAt.getTime() - now) / day);
-          const readOnlyAtEnd = !checkoutTestModeOn() || u.role === 'ADMIN';
+          const readOnlyAtEnd = u.role !== 'ADMIN' && !checkoutTestModeOn();
           if (daysLeft === 3) {
             await this.email.send({ userId: u.id, to: u.email, template: 'trial_expiry_d11', data: { name: u.name, readOnlyAtEnd } });
             sent++;

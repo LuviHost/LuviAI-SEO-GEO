@@ -629,7 +629,9 @@ export function ContentFlowTable({
                                         title: row.topic,
                                       })
                                     }
-                                    title="Takvime ekle (ücretli planlarda yayın saati gelince üretilir, ücretsiz denemede “Şimdi üret” ile sen başlatırsın; Yarı otomatikte yayından önce onayını bekler)"
+                                    // Denemede de calisir: sunucu deneme hesabinda bekleyen konulari kalan haktan
+                                    // ayirmaz (otomasyon denemede uretmez; api article-scheduler scheduleTopic)
+                                    title="Takvime ekle. Ücretli planlarda yayın saati gelince kendiliğinden üretilir (Yarı otomatikte yayından önce onayını bekler). Ücretsiz denemede kendiliğinden üretilmez; takvimdeki konuyu “Şimdi üret” ile sen başlatırsın."
                                   >
                                     <Calendar className="h-3.5 w-3.5 mr-1" /> Takvime
                                   </Button>

@@ -2,21 +2,26 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useSession } from 'next-auth/react';
-import { Clock, Sparkles } from 'lucide-react';
+import { toast } from 'sonner';
+import { Clock, Sparkles, X } from 'lucide-react';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { readCheckout } from '@/lib/checkout-availability';
 import {
-  TRIAL_BILLING_HREF, TRIAL_COPY, TRIAL_UPGRADE_HREF, expiredModal, parseDismissed, readTrialAccess, trialBanner, trialPopup,
+  TRIAL_BILLING_HREF, TRIAL_COPY, TRIAL_UPGRADE_HREF, expiredModal, lapsedNotice, parseDismissed, readTrialAccess, trialBanner, trialPopup,
   trialPopupStorageKey, type TrialAccessView,
 } from '@/lib/trial-access';
+import { TRIAL_ERROR_COPY, TRIAL_ERROR_EVENT, isRawTrialToast, type TrialErrorAction } from '@/lib/trial-errors';
 import { cn } from '@/lib/utils';
 
 /*
- * Ucretsiz deneme: geri sayim bandi + hatirlatma penceresi + sure dolunca modal.
+ * Ucretsiz deneme: geri sayim bandi + hatirlatma penceresi + sure dolunca modal +
+ * plani biten eski musteriye kapatilabilir "Planın sona erdi" bandi + sunucunun deneme
+ * hata kodlarina tepki (lib/trial-errors.ts: TRIAL_EXPIRED modali acar,
+ * TRIAL_SOURCE_REQUIRED yayin hedefi baglantili bildirim gosterir).
  * Kararlar lib/trial-access.ts'te (saf, test edilir); veri GET
  * /billing/users/:id/current (trialAccess, checkout, articleQuota). Okunamazsa
  * hicbir sey gosterilmez: asil kapi sunucuda (api trial-expiry.guard.ts).
@@ -29,6 +34,20 @@ const REFRESH_MS = 60_000;
 
 /** Bu oturumda kapatilan "sure doldu" modali (yeni oturumda / sekmede yeniden acilir) */
 const EXPIRED_SEEN_KEY = 'ranksup.trialExpiredSeen';
+
+/** Bu oturumda kapatilan "Planın sona erdi" bandi */
+const LAPSED_DISMISSED_KEY = 'ranksup.lapsedNoticeDismissed';
+
+/**
+ * Cagiranin ham "toast.error(err.message)" kopyasini kapatir. Olay hata firlatilmadan
+ * once yayinlanir; cagiranin catch'i sonraki mikro gorevde bildirimi acar, bu yuzden
+ * bir sonraki gorevde (setTimeout 0) aranir.
+ */
+function dismissRawToasts(message: string): void {
+  for (const t of toast.getToasts()) {
+    if ('title' in t && isRawTrialToast(t.title, message)) toast.dismiss(t.id);
+  }
+}
 
 function readStore(fn: () => string | null): string | null {
   try {
@@ -50,10 +69,42 @@ export function TrialUpgrade() {
   const { data: session } = useSession();
   const userId = session?.user?.id ?? null;
   const pathname = usePathname();
+  const router = useRouter();
   const [snap, setSnap] = useState<Snapshot | null>(null);
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   const [expiredSeen, setExpiredSeen] = useState(false);
+  const [lapsedDismissed, setLapsedDismissed] = useState(false);
+  // Sunucu TRIAL_EXPIRED dondugunde durum hemen yeniden okunur (dakikalik sinir beklenmez)
+  const [reloadKey, setReloadKey] = useState(0);
   const lastLoad = useRef<{ userId: string; at: number } | null>(null);
+
+  useEffect(() => {
+    const onTrialError = (e: Event) => {
+      const action = (e as CustomEvent<TrialErrorAction>).detail;
+      if (!action) return;
+      if (action.kind === 'expired') {
+        // Modal ham hata bildiriminin yerine gecer; "salt okunur devam" denmis olsa da
+        // yapay zeka eylemi denendiginde yeniden acilir
+        lastLoad.current = null;
+        setExpiredSeen(false);
+        writeStore(() => window.sessionStorage.removeItem(EXPIRED_SEEN_KEY));
+        setReloadKey((k) => k + 1);
+        window.setTimeout(() => dismissRawToasts(action.message), 0);
+        return;
+      }
+      window.setTimeout(() => {
+        dismissRawToasts(action.message);
+        // Sabit kimlik: art arda tiklamada tek bildirim
+        toast.error(action.message, {
+          id: 'trial-source-required',
+          duration: 10000,
+          action: { label: TRIAL_ERROR_COPY.sourceAction, onClick: () => router.push(action.href) },
+        });
+      }, 0);
+    };
+    window.addEventListener(TRIAL_ERROR_EVENT, onTrialError);
+    return () => window.removeEventListener(TRIAL_ERROR_EVENT, onTrialError);
+  }, [router]);
 
   useEffect(() => {
     if (!userId) return;
@@ -63,6 +114,7 @@ export function TrialUpgrade() {
     let alive = true;
     setDismissed(parseDismissed(readStore(() => window.localStorage.getItem(trialPopupStorageKey(userId)))));
     setExpiredSeen(readStore(() => window.sessionStorage.getItem(EXPIRED_SEEN_KEY)) === '1');
+    setLapsedDismissed(readStore(() => window.sessionStorage.getItem(LAPSED_DISMISSED_KEY)) === '1');
     api
       .request<{ trialAccess?: unknown; articleQuota?: unknown; checkout?: unknown }>(`/billing/users/${encodeURIComponent(userId)}/current`)
       .then((r) => {
@@ -75,12 +127,13 @@ export function TrialUpgrade() {
     };
     // Sayfa degisince (en fazla dakikada bir) yeniden okunur: uretim sonrasi hak bitti
     // penceresi ve kalan gun tazelenir
-  }, [userId, pathname]);
+  }, [userId, pathname, reloadKey]);
 
   if (!userId || !snap?.access) return null;
   const banner = trialBanner(snap.access);
   const popup = trialPopup(snap.access, { quota: snap.quota, dismissed });
   const modal = expiredModal(snap.access, { pathname, checkoutMessage: snap.checkoutMessage });
+  const lapsed = lapsedDismissed ? null : lapsedNotice(snap.access, { pathname });
 
   const dismissPopup = (key: string) => {
     const next = new Set(dismissed).add(key);
@@ -90,6 +143,10 @@ export function TrialUpgrade() {
   const closeExpired = () => {
     setExpiredSeen(true);
     writeStore(() => window.sessionStorage.setItem(EXPIRED_SEEN_KEY, '1'));
+  };
+  const closeLapsed = () => {
+    setLapsedDismissed(true);
+    writeStore(() => window.sessionStorage.setItem(LAPSED_DISMISSED_KEY, '1'));
   };
 
   return (
@@ -109,6 +166,24 @@ export function TrialUpgrade() {
           <Button asChild size="sm" variant="outline">
             <Link href={TRIAL_UPGRADE_HREF}>{TRIAL_COPY.seePlans}</Link>
           </Button>
+        </div>
+      )}
+
+      {/* Plani biten eski musteri: kilit yok, kapatilabilir bant (bu oturumda bir daha gosterilmez) */}
+      {lapsed && (
+        <div role="status" className="mb-4 flex flex-wrap items-start justify-between gap-2 rounded-lg border border-warning/30 bg-warning/5 px-4 py-2.5 text-sm">
+          <div className="min-w-0 flex-1">
+            <p className="font-medium">{lapsed.title}</p>
+            <p className="mt-0.5 text-muted-foreground">{lapsed.body}</p>
+          </div>
+          <div className="flex items-center gap-1">
+            <Button asChild size="sm">
+              <Link href={TRIAL_UPGRADE_HREF}>{lapsed.cta}</Link>
+            </Button>
+            <Button size="sm" variant="ghost" onClick={closeLapsed} aria-label="Bandı kapat" title="Kapat">
+              <X className="h-4 w-4" aria-hidden />
+            </Button>
+          </div>
         </div>
       )}
 

@@ -50,7 +50,7 @@ export const GENERATION_LOCK_COPY = {
  */
 export const SOURCE_REQUIRED_COPY = {
   label: 'Önce yayın hedefini bağla',
-  hint: 'Ücretsiz denemede makale üretmek için önce sitene bir yayın hedefi bağla (WordPress, FTP vb.).',
+  hint: 'Ücretsiz denemede makale üretmek için önce sitene bir yayın hedefi bağla (WordPress ya da Markdown ZIP).',
 } as const;
 
 /** Sunucunun generation-readiness cevabi; bicim disiysa null (kilit gosterilmez) */

@@ -11,6 +11,9 @@ import { PURCHASE_CLOSED_FALLBACK } from './checkout-availability';
  * (api billing/trial-expiry.guard.ts): sure dolmus VE satin alma acikken yapay zeka
  * eylemleri 403 doner. Satin alma kapaliyken (PayTR test modu) modal kapatilabilir
  * ve test modu metnini gosterir; kilit yok.
+ *
+ * Plani biten eski musteri (phase 'lapsed', api LAPSED_CUSTOMER_READ_ONLY kapali):
+ * kilit ve "Deneme süren doldu" modali yok; kapatilabilir "Planın sona erdi" bandi.
  */
 
 /** Deneme suresi (gun) — api trial-policy.ts TRIAL_DAYS ile ayni; web kaydi (auth.ts) bitisi bununla yazar */
@@ -21,7 +24,7 @@ export function trialEndsAtFrom(start: Date): Date {
   return new Date(start.getTime() + TRIAL_DAYS * 86_400_000);
 }
 
-export type TrialPhase = 'paid' | 'trial' | 'expired';
+export type TrialPhase = 'paid' | 'trial' | 'expired' | 'lapsed';
 
 export interface TrialAccessView {
   phase: TrialPhase;
@@ -35,7 +38,7 @@ export interface TrialAccessView {
 export function readTrialAccess(raw: unknown): TrialAccessView | null {
   if (!raw || typeof raw !== 'object') return null;
   const r = raw as Record<string, unknown>;
-  if (r.phase !== 'paid' && r.phase !== 'trial' && r.phase !== 'expired') return null;
+  if (r.phase !== 'paid' && r.phase !== 'trial' && r.phase !== 'expired' && r.phase !== 'lapsed') return null;
   const daysLeft = typeof r.daysLeft === 'number' && Number.isFinite(r.daysLeft) && r.daysLeft >= 0 ? Math.floor(r.daysLeft) : null;
   return {
     phase: r.phase,
@@ -160,6 +163,28 @@ export function expiredModal(
     dismissible: true,
     checkoutMessage: opts.checkoutMessage?.trim() || PURCHASE_CLOSED_FALLBACK,
   };
+}
+
+export interface LapsedNotice {
+  title: string;
+  body: string;
+  cta: string;
+}
+
+export const LAPSED_COPY: LapsedNotice = {
+  title: 'Planın sona erdi — yeniden abone ol',
+  body: 'Hesabın deneme düzeyine geçti. Sitelerin, içeriklerin ve raporların hesabında duruyor; yeni üretim deneme düzeyindeki haklarla sınırlı. Kaldığın yerden devam etmek için bir plan seç.',
+  cta: 'Planları gör',
+};
+
+/**
+ * Plani biten eski musteri icin kapatilabilir bant (kilit yok, sunucu da kilitlemez).
+ * Abonelik sayfasinda gosterilmez (plan orada secilir; sayfa durumu kendisi soyler).
+ */
+export function lapsedNotice(access: TrialAccessView | null, opts: { pathname?: string | null }): LapsedNotice | null {
+  if (!access || access.phase !== 'lapsed') return null;
+  if ((opts.pathname ?? '').startsWith(TRIAL_BILLING_HREF)) return null;
+  return LAPSED_COPY;
 }
 
 /** Kapatilan hatirlatmalarin tarayici anahtari (hesap basina) */

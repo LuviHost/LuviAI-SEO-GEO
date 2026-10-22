@@ -30,7 +30,8 @@ function build(defs?: ToolDef[]) {
     call: vi.fn(async () => ({ ok: true })),
   };
   const quota = { enforcePlanFeature: vi.fn(async () => {}) };
-  const ctrl = new McpController(tools as any, quota as any, new ApiKeysService(null as any));
+  const paytr = { checkoutStatus: vi.fn(async () => ({ open: true })), hasEverPaid: vi.fn(async () => false) };
+  const ctrl = new McpController(tools as any, quota as any, new ApiKeysService(null as any), paytr as any);
   return { ctrl, tools };
 }
 

@@ -12,6 +12,8 @@ import { cycleFromDescription, periodEndFromInvoice } from './subscription-perio
 import { RENEWAL_MAX_ATTEMPTS } from './renewal-policy.js';
 import { checkoutTestModeOn } from './checkout-mode.js';
 import { capInvoiceDescription, failedInvoiceDescription } from './invoice-description.js';
+import { hasEverPaid } from './ever-paid.js';
+import { TRIAL_CANCEL_NOT_ALLOWED_MESSAGE } from './trial-policy.js';
 
 /**
  * PayTR TEST MODU — satin alma yalniz yoneticiye acik.
@@ -123,6 +125,11 @@ export class PaytrService {
     if (!userId) return false;
     const u = await this.prisma.user.findUnique({ where: { id: userId }, select: { role: true } });
     return u?.role === 'ADMIN';
+  }
+
+  /** Hesabin en az bir PAID faturasi var mi (deneme kilidi yalniz hic odememis hesaba: ever-paid.ts) */
+  hasEverPaid(userId: string): Promise<boolean> {
+    return hasEverPaid(this.prisma, userId);
   }
 
   /**
@@ -830,17 +837,30 @@ export class PaytrService {
    * Hesap silme de BU iptali kullanir (tek iptal tanimi): `db` ile silme
    * transaction'i icinde calisir, `notify:false` ile "donem sonuna kadar acik"
    * e-postasi gitmez — silmede erisim hemen kapanir, o metin yanlis olurdu.
+   *
+   * Plan TRIAL (deneme ya da plani zaten dusmus eski musteri): iptal edilecek abonelik
+   * yok → 400. NEDEN: eskiden durum CANCELED yaziliyordu; deneme kurali durumu EXPIRED
+   * ya da TRIAL bekledigi icin hesap suresi dolsa da salt okunur olmuyordu ve hicbir
+   * gunluk is plan TRIAL + CANCELED satiri yakalamiyordu (inceleme). Yazma da ayni
+   * kosulu tasir: okuma ile yazma arasinda gunluk is plani dusurduyse CANCELED yazilmaz
+   * (P2025 → 400).
    */
   async cancelSubscription(
     userId: string,
     opts: { notify?: boolean; db?: Prisma.TransactionClient } = {},
   ) {
     const db = opts.db ?? this.prisma;
+    const current = await db.user.findUnique({ where: { id: userId }, select: { plan: true } });
+    if (!current || current.plan === 'TRIAL') throw new BadRequestException(TRIAL_CANCEL_NOT_ALLOWED_MESSAGE);
     const user = await db.user.update({
-      where: { id: userId },
+      where: { id: userId, plan: { not: 'TRIAL' } },
       // Iptal: otomatik yenileme de kapanir (kart PayTR'de kayitli kalir, cekim yapilmaz)
       data: { subscriptionStatus: 'CANCELED', autoRenew: false },
       select: { id: true, email: true, name: true, plan: true, subscriptionStatus: true },
+    }).catch((err: { code?: string }) => {
+      // Kosul tutmadi (arada plan dustu): iptal edilecek abonelik kalmadi
+      if (err?.code === 'P2025') throw new BadRequestException(TRIAL_CANCEL_NOT_ALLOWED_MESSAGE);
+      throw err;
     });
     const lastPaid = await db.invoice.findFirst({
       where: { userId, status: 'PAID' },

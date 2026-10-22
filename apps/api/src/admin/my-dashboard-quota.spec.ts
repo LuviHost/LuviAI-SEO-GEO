@@ -97,4 +97,10 @@ describe('getCurrentPlan — deneme durumu (trialAccess, panel bandi/modali bunu
     const r = await svcFor({ plan: 'TRIAL', subscriptionStatus: 'TRIAL', trialEndsAt: new Date(Date.now() + 3.5 * 86_400_000) }).getCurrentPlan('u1', { checkoutOpen: false });
     expect(r.trialAccess).toMatchObject({ phase: 'trial', daysLeft: 4, readOnly: false });
   });
+  it('inceleme: plani dusen eski musteri (PAID faturasi var): lapsed, kilit ve "deneme doldu" modali yok', async () => {
+    const prisma = db({ articlesUsedThisMonth: 0, articlesQuotaResetAt: new Date(), autoRenew: false, paytrUtoken: null, renewalFailCount: 0, plan: 'TRIAL', subscriptionStatus: 'EXPIRED', trialEndsAt: null });
+    prisma.invoice.findFirst = vi.fn(async () => ({ paidAt: new Date('2026-08-01'), createdAt: new Date('2026-08-01'), description: 'RanksUp Pro — monthly' })) as any;
+    const svc = new BillingService(prisma as never, { getRate: async () => ({ rate: 1 }) } as never, new QuotaService(prisma as never));
+    expect((await svc.getCurrentPlan('u1', { checkoutOpen: true })).trialAccess).toEqual({ phase: 'lapsed', endsAt: null, daysLeft: null, checkoutOpen: true, readOnly: false });
+  });
 });

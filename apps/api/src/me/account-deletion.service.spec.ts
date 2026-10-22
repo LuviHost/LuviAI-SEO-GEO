@@ -151,6 +151,15 @@ describe('hesap silme talebi', () => {
     expect(find(b.calls, 'user', 'updateMany')[0].args.data.autoRenew).toBe(false);
   });
 
+  it('inceleme: tutarsiz eski satir (plan TRIAL + durum ACTIVE) silinebilir; billing iptali cagrilmaz (400 transaction\'i dusururdu)', async () => {
+    const b = makeDb({ ...ACTIVE_USER, plan: 'TRIAL', subscriptionStatus: 'ACTIVE' });
+    const { svc, cancelSpy } = makeService(b);
+    const r = await svc.requestDeletion('u1', { confirm: DELETE_ACCOUNT_CONFIRMATION });
+    expect(r.alreadyRequested).toBe(false);
+    expect(cancelSpy).not.toHaveBeenCalled();
+    expect(find(b.calls, 'user', 'update')).toEqual([]);
+  });
+
   it('ajans sahibinin bagli musterisi varken silme 409 ile engellenir, hicbir sey yazilmaz', async () => {
     const b = makeDb({ ...ACTIVE_USER, role: 'AGENCY_OWNER' }, { clientCount: 2 });
     const { svc } = makeService(b);

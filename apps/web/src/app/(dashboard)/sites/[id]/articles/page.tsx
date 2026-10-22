@@ -119,7 +119,7 @@ export default function ArticlesPage() {
           title="Ücretsiz denemede makaleyi sen başlatırsın; önce yayın hedefini bağla."
           action={<LockedGenerateButton lock={allowance} variant="outline" />}
         >
-          Denemede yapay zekâ konu başlıklarını hazırlar ama makaleyi kendiliğinden yazmaz. Sitene bir yayın hedefi (WordPress, FTP vb.) bağladıktan sonra istediğin konuda “Üret” ya da “Şimdi üret” ile en fazla 2 makale üretebilirsin.
+          Denemede yapay zekâ konu başlıklarını hazırlar ama makaleyi kendiliğinden yazmaz. Sitene bir yayın hedefi (WordPress ya da Markdown ZIP) bağladıktan sonra istediğin konuda “Üret” ya da “Şimdi üret” ile en fazla 2 makale üretebilirsin.
         </StatusBanner>
       )}
 

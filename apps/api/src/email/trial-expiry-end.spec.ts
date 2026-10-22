@@ -33,10 +33,10 @@ describe('EmailCron — d11/d13 metnine satin alma durumunu verir', () => {
   const env = { ...process.env };
   afterEach(() => { process.env = { ...env }; vi.useRealTimers(); });
 
-  async function run(testMode: string) {
+  async function run(testMode: string, role = 'USER') {
     process.env.PAYTR_TEST_MODE = testMode;
     const now = Date.now();
-    const users = [{ id: 'u1', email: 'a@ornek.com', name: 'A', role: 'USER', createdAt: new Date(now - 11 * 86_400_000), trialEndsAt: new Date(now + 2.5 * 86_400_000) }];
+    const users = [{ id: 'u1', email: 'a@ornek.com', name: 'A', role, createdAt: new Date(now - 11 * 86_400_000), trialEndsAt: new Date(now + 2.5 * 86_400_000) }];
     const email = { send: vi.fn(async () => ({ ok: true })) };
     const cron = new EmailCron({ user: { findMany: vi.fn(async () => users) } } as any, email as any);
     await cron.dailyEmails();
@@ -46,5 +46,11 @@ describe('EmailCron — d11/d13 metnine satin alma durumunu verir', () => {
   it('canli mod: readOnlyAtEnd true; test modu: false', async () => {
     expect((await run('0')).find((m: any) => m.template === 'trial_expiry_d11')?.data).toMatchObject({ readOnlyAtEnd: true });
     expect((await run('1')).find((m: any) => m.template === 'trial_expiry_d11')?.data).toMatchObject({ readOnlyAtEnd: false });
+  });
+
+  it('inceleme: yonetici hicbir modda salt okunur olmaz, metin de kilit demez', async () => {
+    for (const mode of ['0', '1']) {
+      expect((await run(mode, 'ADMIN')).find((m: any) => m.template === 'trial_expiry_d11')?.data, mode).toMatchObject({ readOnlyAtEnd: false });
+    }
   });
 });

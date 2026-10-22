@@ -6,8 +6,9 @@ export const AI_ACTION_KEY = 'trialAiAction';
 /**
  * Deneme suresi dolmus (salt okunur) hesapta da calismasi GEREKEN degistirici
  * uclar: odeme / plan secimi, hesap silme, oturum ve baglanti kesme, bildirim
- * okundu. TrialExpiryGuard bu isareti tasimayan her POST/PUT/PATCH/DELETE'i
- * reddeder.
+ * okundu, MCP tasima ucu (arac bazinda denetlenir). TrialExpiryGuard bu isareti
+ * tasimayan her POST/PUT/PATCH'i reddeder. DELETE isaretsiz de aciktir (silme ve
+ * iptal yapay zeka harcamaz); yalniz @AiAction() isaretli DELETE reddedilir.
  *
  * NEDEN izin listesi (yasak listesi degil): yeni eklenen bir yapay zeka ucu
  * isaretlenmeyi unutulsa da suresi dolan hesapta LLM harcamaz. Unutulan izin ise
@@ -17,8 +18,9 @@ export const AI_ACTION_KEY = 'trialAiAction';
 export const TrialReadOnlyExempt = () => SetMetadata(TRIAL_READ_ONLY_EXEMPT_KEY, true);
 
 /**
- * Yapay zeka maliyeti olan GET ucu (ornegin AI kampanya onerisi). GET normalde
- * salt okunur hesapta aciktir (goruntuleme, indirme); bu isaretli GET'ler
- * suresi dolan hesapta reddedilir.
+ * Yapay zeka maliyeti olan GET ya da DELETE ucu (LLM cagiran okuma). GET ve DELETE
+ * normalde salt okunur hesapta aciktir (goruntuleme, indirme, silme); bu isaretli
+ * olanlar suresi dolan hesapta reddedilir. Yalniz gercekten LLM cagiran uca konur
+ * (ASA kampanya onerisi kural tabanli; isaretli degil).
  */
 export const AiAction = () => SetMetadata(AI_ACTION_KEY, true);

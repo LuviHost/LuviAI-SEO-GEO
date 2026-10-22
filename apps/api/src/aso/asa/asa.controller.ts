@@ -4,7 +4,6 @@ import { AsaService } from './asa.service.js';
 import { QuotaService } from '../../billing/quota.service.js';
 import { SessionOnly } from '../../auth/session-only.decorator.js';
 import { ConnectAsaDto, CreateAsaCampaignDto, SetAsaAutoPilotDto, UpdateAsaBidDto } from './asa.dto.js';
-import { AiAction } from '../../billing/trial-read-only.decorator.js';
 
 function ensureUser(req: Request) {
   const user = (req as any).user;
@@ -78,9 +77,9 @@ export class AsaController {
     return this.asa.listCampaigns(siteId, ensureUser(req));
   }
 
-  /** GET /api/sites/:siteId/aso/asa/suggest — AI kampanya önerisi */
-  // Yapay zeka maliyeti olan GET: suresi dolan denemede reddedilir (TrialExpiryGuard)
-  @AiAction()
+  /** GET /api/sites/:siteId/aso/asa/suggest — kampanya önerisi */
+  // @AiAction() YOK: oneri kural tabanli (anahtar kelime sirasi + trafik skoru,
+  // asa.service suggestCampaign), LLM cagirmaz; salt okunur hesapta da acik okuma
   @Get('sites/:siteId/aso/asa/suggest')
   suggestCampaign(@Req() req: Request, @Param('siteId') siteId: string) {
     return this.asa.suggestCampaign(siteId, ensureUser(req));

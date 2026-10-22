@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Logger, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Logger, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { AdsClientService } from './ads-client.service.js';
@@ -193,6 +193,31 @@ export class AdsController {
         metaPageId: body.pageId ?? null,
         metaInstagramActorId: body.instagramActorId ?? null,
       },
+      select: ADS_STATE_SELECT,
+    });
+  }
+
+  /**
+   * DELETE /sites/:siteId/ads/google-ads — Google Ads baglantisini kaldirir (token silinir).
+   * PATCH'in token'siz govdesiyle ayni sonuc; ayri DELETE NEDEN: suresi dolan deneme
+   * (salt okunur, TrialExpiryGuard) PATCH'i reddeder ama DELETE'i gecirir — hesap
+   * baglanti kesemeyip reklam hesabina erisimi acik birakmasin.
+   */
+  @Delete('google-ads')
+  async disconnectGoogleAds(@Param('siteId') siteId: string) {
+    return this.prisma.site.update({
+      where: { id: siteId },
+      data: { googleAdsCustomerId: null, googleAdsRefreshToken: null, googleAdsConnectedAt: null },
+      select: ADS_STATE_SELECT,
+    });
+  }
+
+  /** DELETE /sites/:siteId/ads/meta-ads — Meta Ads baglantisini kaldirir (disconnectGoogleAds ile ayni gerekce) */
+  @Delete('meta-ads')
+  async disconnectMetaAds(@Param('siteId') siteId: string) {
+    return this.prisma.site.update({
+      where: { id: siteId },
+      data: { metaAdsAccountId: null, metaAdsAccessToken: null, metaAdsConnectedAt: null, metaPageId: null, metaInstagramActorId: null },
       select: ADS_STATE_SELECT,
     });
   }
