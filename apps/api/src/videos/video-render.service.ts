@@ -211,12 +211,15 @@ export class VideoRenderService {
     const tempo = videoTempoOf(raw);
     // Istekte kaydedilen stil; alan yoksa / liste disiysa bugunku tasarim (render hatti ayrica izin listesiyle dogrular)
     const style = videoStyleOf(raw);
+    // Stilin dosyalari (footage stok klipleri) EN BASTA: eksikse metin modeli ve marka indirmesi hic calismaz,
+    // is FAILED + iade (LLM maliyeti yok). Render hatti render'dan once ayrica denetler.
+    const kit = await this.deps.renderKit();
+    kit.assertStyleAssets?.(style);
 
     const job = type === 'article' ? await this.prepareArticle(video, raw, tempo, style, signal) : await this.preparePromo(video, raw, type, tempo, style, signal);
     signal.throwIfAborted();
 
     await mkdir(files.dir, { recursive: true });
-    const kit = await this.deps.renderKit();
     const result = await kit.renderArticleShort({ props: job.props, compositionId, outFile: files.mp4, posterFile: files.poster, concurrency: kit.renderConcurrency(), signal });
     // Sure tam bu anda dolduysa READY yazilmaz (markFailed zaten yazmis / yazacak)
     signal.throwIfAborted();

@@ -3,3 +3,5 @@ public/audio/
 # 'footage' video stilinin stok klipleri (Mixkit lisansi: tek basina yeniden dagitilamaz) —
 # prepare:article-short indirir ve dogrular (scripts/stock.mjs, src/styles/registry.mjs STOCK_CLIPS)
 public/stock/
+# stok klip indirmesinin yarim dosyalari (scripts/stock.mjs; public/ disinda)
+.stock-part/

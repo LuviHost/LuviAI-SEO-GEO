@@ -88,7 +88,7 @@ Each ported file also names its source in a header comment.
 
 - Source: https://github.com/Vincentwei1021/video-shotcraft
 - Copyright 2026 Wei Yihao
-- Used in: `apps/video/src/styles/kit.tsx` (`bezier`, `EASE`, `velocity`, `SpeedBlur`, adapted from `fx/Polish.tsx`;
+- Used in: `apps/video/src/styles/kit.tsx` (`bezier`, `EASE`, `velocity`, `SpeedBlur`, adapted from `demos/_fixtures/Polish.tsx`;
   changes listed in `apps/video/src/styles/CREDITS.md`). Full license text:
   `apps/video/src/styles/LICENSE-Apache-2.0-video-shotcraft.txt`.
 

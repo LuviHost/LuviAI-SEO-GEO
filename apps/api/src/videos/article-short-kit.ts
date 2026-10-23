@@ -204,6 +204,8 @@ export interface RenderResult {
 }
 export interface RenderKit {
   renderConcurrency(env?: NodeJS.ProcessEnv, cores?: number): number;
+  /** stilin dosyalari (font, 'footage' stok klipleri) yerinde mi; degilse StyleAssetError (kod VIDEO_STYLE_ASSETS_MISSING) */
+  assertStyleAssets?(style: unknown): string;
   renderArticleShort(opts: {
     props: ArticleShortProps | PromoVideoProps;
     /** VIDEO_COMPOSITIONS kimligi; varsayilan 'ArticleShort' */

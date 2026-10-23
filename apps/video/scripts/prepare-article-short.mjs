@@ -11,8 +11,10 @@
  *     girmez). timeline.json ve sentez kodu degismediyse onbellekte.
  *  3) 'footage' video stilinin stok klipleri (scripts/stock.mjs): Mixkit'ten indirir, boyut + sha256
  *     dogrular (~110 MB, ilk seferde; sonra yerinde). Ag yoksa / dosya tutmazsa diger adimlar yine
- *     tamamlanir, sonda acik hata ve cikis kodu 1 — o sunucuda 'footage' stiliyle istenen video render
- *     baslamadan StyleAssetError ile duser (api: FAILED + hak iadesi).
+ *     tamamlanir, sonda acik uyari ve cikis kodu 3 (YUMUSAK hata: yalniz 'footage' kullanilamaz; o stille
+ *     istenen video metin modeli calismadan StyleAssetError ile duser — api: FAILED + hak iadesi).
+ *  Cikis kodlari: 0 tamam · 3 yalniz stok klipleri eksik (diger stiller hazir) · baska her kod gercek hata
+ *  (tarayici / ses / paket kurulamadi — deploy durmali).
  *  4) Remotion paketini (webpack) kurar ve kaynak ozetiyle onbellege yazar; worker ilk videoda
  *     paketlemez, dogrudan bu paketi kullanir. Stok kliplerden SONRA (Remotion public/'i paketler).
  *  5) ffmpeg'in nereden cozuldugunu yazar (env / sistem / Remotion'in kendi ikilisi).
@@ -42,5 +44,6 @@ console.log(`✓ esz.       VIDEO_RENDER_CONCURRENCY=${process.env.VIDEO_RENDER_
 console.log(`Hazir (${((performance.now() - t0) / 1000).toFixed(1)} sn)`);
 if (stockError) {
   console.error("'footage' stili bu sunucuda KULLANILAMAZ: stok klipleri eksik. Ag erisimini (assets.mixkit.co) kontrol edip bu komutu tekrar calistir.");
-  process.exitCode = 1;
+  // 3 = yumusak hata (yalniz stok); tarayici / ses / paket hatalari yakalanmadan firlar (cikis kodu 1)
+  process.exitCode = 3;
 }

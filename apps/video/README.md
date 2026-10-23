@@ -188,8 +188,13 @@ Müşteri her videoda görsel stili seçer (`POST /api/sites/:siteId/videos` `st
   (`public/fonts/OFL.txt`), FontFace ile yerel yüklenir (Google Fonts `latin` alt kümesi Türkçe glifleri düşürür).
 - **Gerçek görüntü:** Mixkit stok klipleri (`STOCK_CLIPS`, lisans: tek başına yeniden dağıtılamaz → git'e girmez,
   `public/stock/`). `prepare:article-short` indirir ve boyut + sha256 doğrular (`scripts/stock.mjs`, idempotent; ~110 MB,
-  ilk seferde). Render hattı `assertStyleAssets` ile klipleri render'dan önce denetler; eksikse `StyleAssetError`
-  (`code: VIDEO_STYLE_ASSETS_MISSING`) → api işi FAILED + tek iade, Türkçe mesaj. Render süresi diğer stillerin ~3,5
+  ilk seferde; yalnız `https://assets.mixkit.co`, yönlendirme sonrası da; bildirilen / akan boyut beklenenden büyükse
+  indirme reddedilir; yarım dosya `public/` dışında `.stock-part/`). İndirilemezse çıkış kodu 3 (yumuşak hata, aşağıda).
+  Worker işin EN BAŞINDA `assertStyleAssets` çağırır (metin modeli ve marka indirmesinden önce); eksikse
+  `StyleAssetError` (`code: VIDEO_STYLE_ASSETS_MISSING`) → FAILED + tek iade, Türkçe mesaj, LLM maliyeti yok. Kota ucu
+  `unavailableStyles` döner, panel o kartı pasif gösterir (ipucu; asıl kapı worker). Klip zaman aralıkları yüzsüz
+  aralıklarla sınırlı (`registry.mjs use/formats`, plan `src/styles/footage-plan.mjs`; api testi her biçim × tempo ×
+  metin uzunluğunda denetler). Render süresi diğer stillerin ~3,5
   katı (buzlu cam `backdrop-filter` + 1080p çözme; yerel ölçüm: 300 kare, eşzamanlılık 4'te 18 sn — classic 4,7 sn).
 - **Panel:** `apps/web` "Video stili" kartları (`StylePicker`), önizlemeler `apps/web/public/video-styles/<stil>.jpg`
   (örnek render'lardan, mavi örnek marka). Liste her videonun stilini rozetle gösterir.
@@ -244,9 +249,14 @@ cd /var/www/luviai && pnpm install --frozen-lockfile
 
 # 3) Chrome indir + tempo müzikleri (hızlı / normal / yavaş, ilk seferde ~30 sn) + 'footage' stilinin Mixkit stok
 #    klipleri (~110 MB, assets.mixkit.co'ya erişim gerekir; boyut + sha256 doğrulanır, sonra önbellekte) + Remotion
-#    paketi + ffmpeg kaynağını yaz (her deploy'da güvenli). Stok indirilemezse komut sonda çıkış kodu 1 verir
-#    (diğer adımlar tamamlanır); o sunucuda 'Gerçek görüntü' stili isteği FAILED + iade olur.
-pnpm --filter @luviai/video prepare:article-short
+#    paketi + ffmpeg kaynağını yaz (her deploy'da güvenli).
+#    Çıkış kodu: 0 tamam · 3 = YALNIZ stok klipleri indirilemedi (yumuşak hata: diğer adımlar tamamlandı,
+#    diğer stiller hazır; panel 'Gerçek görüntü' kartını pasif gösterir, istenirse iş metin modeli çalışmadan
+#    FAILED + iade olur) · başka her kod gerçek hata (tarayıcı / ses / paket) → deploy durmalı.
+#    Bu yüzden zinciri körlemesine `prepare && restart` diye kurma; 3'ü ayrıca ele al:
+pnpm --filter @luviai/video prepare:article-short; rc=$?
+if [ "$rc" -ne 0 ] && [ "$rc" -ne 3 ]; then echo "prepare:article-short başarısız ($rc) — deploy durdu"; exit "$rc"; fi
+[ "$rc" -eq 3 ] && echo "UYARI: stok klipleri yok; 'Gerçek görüntü' bu sunucuda kapalı (assets.mixkit.co erişimini kontrol et)"
 
 # 4) Derle ve yeniden başlat
 pnpm --filter @luviai/api build && pnpm --filter @luviai/worker build

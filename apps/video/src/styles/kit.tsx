@@ -7,10 +7,17 @@ import { rgba, type BrandPalette } from '../article-short/palette';
 /**
  * Stillerin ortak gorsel yardimcilari. Hepsi kare / props'un saf fonksiyonu (Math.random, Date yok).
  *
- * bezier, EASE, velocity, SpeedBlur: video-shotcraft (Apache-2.0) fx/Polish.tsx'teki cekirdeklerin
+ * bezier, EASE, velocity, SpeedBlur: video-shotcraft (Apache-2.0) demos/_fixtures/Polish.tsx'teki cekirdeklerin
  * TypeScript uyarlamasi — src/styles/CREDITS.md + NOTICE. Degisiklik: Turkce yorumlar, adlandirma,
  * SpeedBlur'da kimlik useId'den.
  */
+
+/**
+ * Dikey (1080x1920) calisma alani: icerik alt siniri ve filigran. 23.10 inceleme: alt yarim bos kalmasin —
+ * Reels / Shorts / TikTok arayuzunun kapattigi en alt seridi (~ son 300 px) bos birakip alani kullan.
+ */
+export const V_BOTTOM = 1580;
+export const V_WM = 1604;
 
 /* ───────────── egriler (shotcraft Polish: cubic-bezier, CSS ile ayni) ───────────── */
 

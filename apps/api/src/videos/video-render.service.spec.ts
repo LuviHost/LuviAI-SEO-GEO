@@ -473,6 +473,23 @@ describe('stil', () => {
     expect(buildArticleShortProps(copy, brand, art, 'slow', 'swiss')).toMatchObject({ style: 'swiss', tempo: 'slow' });
   });
 
+  it('stil dosyalari eksik: is EN BASTA durur — metin modeli, marka indirmesi ve render hic calismaz; FAILED + iade', async () => {
+    const db = makeDb({ providerRaw: { engine: ARTICLE_SHORT_ENGINE, style: 'footage', request: {}, charged: true, chargedUserId: USER_ID } });
+    const render = makeRenderKit();
+    (render as any).assertStyleAssets = vi.fn((style: string) => {
+      if (style === 'footage') throw Object.assign(new Error("'footage' stili icin dosya eksik"), { code: 'VIDEO_STYLE_ASSETS_MISSING' });
+      return style;
+    });
+    const chat = vi.fn(async () => { throw new Error('cagrilmamali'); });
+    const { svc, quota } = makeService(db, { render, chat });
+    await expect(svc.process(VIDEO_ID)).resolves.toEqual({ status: 'failed', reason: STYLE_ASSETS_FAILURE });
+    expect((render as any).assertStyleAssets).toHaveBeenCalledWith('footage');
+    expect(render.calls).toHaveLength(0);
+    expect(chat).not.toHaveBeenCalled();
+    expect(svc.deps.brand).not.toHaveBeenCalled();
+    expect(quota.refundVideoAllowance).toHaveBeenCalledTimes(1);
+  });
+
   it('stil dosyalari eksik (StyleAssetError): FAILED + Turkce mesaj + TEK iade', async () => {
     const db = makeDb({ providerRaw: { engine: ARTICLE_SHORT_ENGINE, style: 'footage', request: {}, charged: true, chargedUserId: USER_ID } });
     const render = makeRenderKit(async () => {

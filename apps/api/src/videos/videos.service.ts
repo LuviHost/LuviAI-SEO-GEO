@@ -8,7 +8,7 @@ import {
 } from './article-video.config.js';
 import { assertOwnSitePageUrl, PromoSourceError } from './promo-video-source.js';
 import { extractSiteBrand, FALLBACK_BRAND_PRIMARY, normalizeHexColor } from './article-video-brand.js';
-import { loadBrandKit } from './article-short-kit.js';
+import { loadBrandKit, loadRenderKit } from './article-short-kit.js';
 import { toVideoView, type ArticleVideoView } from './article-video-view.js';
 import { VideoRenderQueue } from './video-render.queue.js';
 
@@ -99,7 +99,32 @@ export class VideosService {
     const site = await this.siteOwner(siteId);
     const q = await this.quota.checkVideoQuota(site.userId);
     const allowed = site.user.role === 'ADMIN' || q.limit > 0;
-    return { allowed, used: q.used, limit: q.limit, remaining: q.remaining, unlimited: q.unlimited };
+    return { allowed, used: q.used, limit: q.limit, remaining: q.remaining, unlimited: q.unlimited, unavailableStyles: await this.unavailableStyles() };
+  }
+
+  /** Render kiti (testte sahte) */
+  renderKit: () => Promise<{ assertStyleAssets?(style: unknown): string }> = loadRenderKit;
+
+  /**
+   * Bu sunucuda dosyalari eksik stiller (or. stok klipleri indirilmemis 'footage') — panel karti pasif gosterir.
+   * YALNIZ ipucu: asil kapi worker'da (video-render.service run() basinda; eksikse FAILED + iade). Kit
+   * yuklenemezse bos liste (kota ucu bozulmaz).
+   */
+  private async unavailableStyles(): Promise<VideoStyle[]> {
+    try {
+      const kit = await this.renderKit();
+      if (!kit.assertStyleAssets) return [];
+      return VIDEO_STYLES.filter((s) => {
+        try {
+          kit.assertStyleAssets!(s);
+          return false;
+        } catch {
+          return true;
+        }
+      });
+    } catch {
+      return [];
+    }
   }
 
   /**

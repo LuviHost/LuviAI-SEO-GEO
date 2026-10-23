@@ -305,6 +305,14 @@ describe('stil', () => {
     expect(w.videos).toHaveLength(0);
   });
 
+  it('kota ucu bu sunucuda dosyasi eksik stilleri bildirir (ipucu); kit yuklenemezse bos liste', async () => {
+    const w = world();
+    w.svc.renderKit = async () => ({ assertStyleAssets: (s: unknown) => { if (s === 'footage') throw new Error('eksik'); return String(s); } });
+    await expect(w.svc.quotaFor(SITE)).resolves.toMatchObject({ allowed: true, unavailableStyles: ['footage'] });
+    w.svc.renderKit = async () => { throw new Error('yuklenemedi'); };
+    await expect(w.svc.quotaFor(SITE)).resolves.toMatchObject({ unavailableStyles: [] });
+  });
+
   it('liste stili doner; stil alani olmayan eski satir ve bozuk deger classic', async () => {
     const w = world();
     w.videos.push({ id: 'cmeski00000000000000002', siteId: SITE, articleId: ART, title: 'Eski', status: 'READY', durationSec: 15, providerRaw: { engine: ARTICLE_SHORT_ENGINE }, createdAt: new Date(), completedAt: new Date() });
