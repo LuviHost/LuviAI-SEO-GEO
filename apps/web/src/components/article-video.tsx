@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
 import { toast } from 'sonner';
@@ -186,10 +186,12 @@ function TempoPicker({ target, value, onChange }: { target: VideoTarget; value: 
  */
 export function StylePicker({ value, onChange, unavailable = [] }: { value: VideoStyle; onChange: (s: VideoStyle) => void; unavailable?: readonly VideoStyle[] }) {
   const keys = useRadioKeys(VIDEO_STYLES, value, onChange, unavailable);
+  // Sayfada ve diyalogda ayni anda bulunabilir: etiket kimligi benzersiz olmali
+  const labelId = useId();
   return (
     <div className="space-y-2">
-      <span id="video-style-label" className="text-sm font-medium">Video stili</span>
-      <div role="radiogroup" aria-labelledby="video-style-label" className="grid grid-cols-2 gap-2 sm:grid-cols-4" onKeyDown={keys.onKeyDown}>
+      <span id={labelId} className="text-sm font-medium">Video stili</span>
+      <div role="radiogroup" aria-labelledby={labelId} className="grid grid-cols-2 gap-2 sm:grid-cols-4" onKeyDown={keys.onKeyDown}>
         {VIDEO_STYLES.map((s) => {
           const selected = value === s;
           const off = unavailable.includes(s);
@@ -238,6 +240,7 @@ export function VideoRequestDialog({
   open,
   onOpenChange,
   onRequested,
+  initialStyle,
 }: {
   siteId: string;
   target: VideoTarget;
@@ -246,6 +249,8 @@ export function VideoRequestDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onRequested?: (video: ArticleVideo) => void;
+  /** Videolar sayfasinda kartlardan secilen stil; diyalog acilinca bununla baslar (yine degistirilebilir) */
+  initialStyle?: VideoStyle;
 }) {
   const { can } = useEntitlements();
   const feature = can('articleVideo');
@@ -261,6 +266,10 @@ export function VideoRequestDialog({
   const [tempo, setTempo] = useState<VideoTempo>(DEFAULT_VIDEO_TEMPO);
   const [style, setStyle] = useState<VideoStyle>(DEFAULT_VIDEO_STYLE);
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (open) setStyle(initialStyle ?? DEFAULT_VIDEO_STYLE);
+  }, [open, initialStyle]);
 
   // Haklar kesin "acik" degilse hicbir istek atilmaz (kilitli planda marka indirmesi yok)
   useEffect(() => {

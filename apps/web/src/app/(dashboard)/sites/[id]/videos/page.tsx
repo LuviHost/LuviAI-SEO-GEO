@@ -11,7 +11,7 @@ import { siteHref } from '@/lib/site-routes';
 import {
   ARTICLE_VIDEO_COPY, VIDEO_FORMAT_OPTIONS, VIDEO_STATUS_LABEL, VIDEO_STATUS_TONE, VIDEO_STYLE_LABEL, VIDEO_TEMPO_LABEL, VIDEO_TYPE_LABEL, activePromoVideo,
   activeVideoFor, canRequestVideo, formatVideoSize, hasActiveVideos, productUrlProblem, quotaLine, videoFileName, videoStyleOf, videoTempoOf, videoTypeOf,
-  type ArticleVideo, type VideoFormat, type VideoQuota, type VideoTarget, type VideoType,
+  DEFAULT_VIDEO_STYLE, type ArticleVideo, type VideoFormat, type VideoQuota, type VideoStyle, type VideoTarget, type VideoType,
 } from '@/lib/article-video';
 import { SectionHeader } from '@/components/ui/section-header';
 import { Card, CardContent } from '@/components/ui/card';
@@ -22,7 +22,7 @@ import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { EmptyState } from '@/components/empty-state';
 import { useConfirm } from '@/components/ui/confirm-dialog';
-import { LockedVideoPreview, VideoRequestDialog, articleDialogDescription, promoDialogDescription } from '@/components/article-video';
+import { LockedVideoPreview, StylePicker, VideoRequestDialog, articleDialogDescription, promoDialogDescription } from '@/components/article-video';
 import { cn } from '@/lib/utils';
 
 /**
@@ -52,6 +52,7 @@ export default function VideosPage() {
   const [type, setType] = useState<VideoType>('article');
   const [format, setFormat] = useState<VideoFormat>('vertical');
   const [pageUrl, setPageUrl] = useState('');
+  const [style, setStyle] = useState<VideoStyle>(DEFAULT_VIDEO_STYLE);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
 
@@ -202,10 +203,12 @@ export default function VideosPage() {
                       </FilterChip>
                     ))}
                   </div>
-                  <p className="text-label text-muted-foreground">Her video (her biçim ayrı) bir video hakkı kullanır. Video stilini ve tempoyu (hızlı, normal, yavaş) bir sonraki adımda seçersin.</p>
+                  <p className="text-label text-muted-foreground">Her video (her biçim ayrı) bir video hakkı kullanır. Tempoyu (hızlı, normal, yavaş) ve marka rengini bir sonraki adımda seçersin.</p>
                 </div>
               </>
             )}
+
+            <StylePicker value={style} onChange={setStyle} unavailable={quota?.unavailableStyles ?? []} />
 
             <div className="flex flex-wrap items-center justify-between gap-3">
               <p className="text-label text-muted-foreground">
@@ -228,6 +231,7 @@ export default function VideosPage() {
           description={target.type === 'article' ? articleDialogDescription(picked?.title || picked?.topic || 'Makale') : promoDialogDescription(target)}
           open={dialogOpen}
           onOpenChange={setDialogOpen}
+          initialStyle={style}
           onRequested={() => {
             setPick('');
             setPageUrl('');
