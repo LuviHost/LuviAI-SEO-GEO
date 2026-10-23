@@ -9,7 +9,7 @@ import { WatermarkLine } from '../promo/shared';
 import type { KitProps } from './StyledVideo';
 import type { Story, Win } from './story';
 import { fontInter, fontSora } from './fonts';
-import { EASE, KineticText, Lines, ProductImage, brandGrad, fitK, linesH, splitLast, type FitBase } from './kit';
+import { EASE, V_BOTTOM, V_WM, KineticText, Lines, ProductImage, brandGrad, fitK, linesH, splitLast, type FitBase } from './kit';
 
 /**
  * DIYAGRAM — Manim denemesinin (15-manim/src/promo.py; Manim CE MIT, sahne bizim) teknigi Remotion'da
@@ -30,7 +30,7 @@ const F_HEAD: FitBase = { family: fontSora, weight: 700, letterSpacing: -0.03 };
 const F_BODY: FitBase = { family: fontInter, weight: 500, letterSpacing: -0.01 };
 
 type Geo = { W: number; H: number; x: number; w: number; top: number; bottom: number; wmTop: number; wmSize: number };
-const TALL: Geo = { W: 1080, H: 1920, x: 90, w: 900, top: 360, bottom: 1430, wmTop: 1456, wmSize: 24 };
+const TALL: Geo = { W: 1080, H: 1920, x: 90, w: 900, top: 360, bottom: V_BOTTOM, wmTop: V_WM, wmSize: 24 };
 const WIDE: Geo = { W: 1920, H: 1080, x: 140, w: 1640, top: 120, bottom: 960, wmTop: 1012, wmSize: 22 };
 
 type Row = { title: Fit; detail: Fit | null; h: number };
@@ -71,7 +71,7 @@ function computeFits(story: Story, G: Geo): Fits {
         img = 640;
         if (h <= 780) break;
       } else {
-        img = Math.round(Math.min(520, 1440 - 290 - 120 - h));
+        img = Math.round(Math.min(620, V_BOTTOM - 290 - 120 - h));
         if (img >= 360) break;
         img = Math.max(340, img);
       }
@@ -94,11 +94,11 @@ function computeFits(story: Story, G: Geo): Fits {
     const wideSite = wide && story.kind === 'site';
     // dugum ic genisligi: dolgu 2x34 (yatay site 2x36), rozet 58 + bosluk 28 (yatay sitede rozet ustte)
     const textW = wideSite ? 480 - 72 - 4 : (story.kind === 'product' ? (wide ? 760 : 800) : 860) - 68 - 86 - 4;
-    const avail = wideSite ? 560 : story.kind === 'product' ? (wide ? 760 : 1440 - 290 - 380 - 40) : G.bottom - G.top - 40;
+    const avail = wideSite ? 560 : story.kind === 'product' ? (wide ? 760 : V_BOTTOM - 290 - 480 - 40) : G.bottom - G.top - 40;
     for (let k = 1; k >= 0.5; k -= 0.05) {
       rows = story.points.map((p) => {
-        const title = fitK(p.title, F_HEAD, k, { maxWidth: textW, maxLines: 3, maxSize: wideSite ? 50 : 56, minSize: 32 });
-        const detail = p.detail ? fitK(p.detail, F_BODY, k, { maxWidth: textW, maxLines: wideSite ? 4 : 3, maxSize: 34, minSize: 24 }) : null;
+        const title = fitK(p.title, F_HEAD, k, { maxWidth: textW, maxLines: 3, maxSize: wideSite ? 50 : (wide ? 56 : 66), minSize: 32 });
+        const detail = p.detail ? fitK(p.detail, F_BODY, k, { maxWidth: textW, maxLines: wideSite ? 4 : 3, maxSize: wide ? 34 : 42, minSize: 24 }) : null;
         // yatay sitede numara rozeti basligin USTUNDE (58 + 18 bosluk)
         return { title, detail, h: Math.round((wideSite ? 68 + 76 : 60) + linesH(title, 1.1) + (detail ? 12 + linesH(detail, 1.3) : 0)) };
       });
@@ -251,7 +251,7 @@ function Hook({ story, pal, win, frame, fits, G }: P) {
   const colX = product && story.wide ? 960 : site && story.wide ? 310 : G.x;
   const colW = product ? (story.wide ? 820 : 860) : site && story.wide ? 1300 : G.w;
   const top = product ? (story.wide ? 140 : 290 + fits.img + 100) : G.top;
-  const bottom = product ? (story.wide ? 940 : 1440) : G.bottom;
+  const bottom = product ? (story.wide ? 940 : V_BOTTOM) : G.bottom;
   const align: 'left' | 'center' = product && story.wide ? 'left' : 'center';
   const nodeIn = Math.max(sub, kick, src);
   const hasNode = !!(fits.sub || fits.kicker || fits.source);
@@ -349,8 +349,8 @@ function Flow({ story, pal, win, frame, fits, G }: P) {
   const product = story.kind === 'product';
   const x0 = product ? (story.wide ? 960 : (1080 - 800) / 2) : G.x;
   const w = product ? (story.wide ? 760 : 800) : 860;
-  const top = product ? (story.wide ? 140 : 290 + 380 + 40) : G.top;
-  const avail = product ? (story.wide ? 800 : 1440 - top) : G.bottom - G.top;
+  const top = product ? (story.wide ? 140 : 290 + 480 + 40) : G.top;
+  const avail = product ? (story.wide ? 800 : V_BOTTOM - top) : G.bottom - G.top;
   const gap = 70;
   const full = wideSite ? Math.max(...fits.rows.map((r) => r.h)) : fits.rows.reduce((a, r) => a + r.h, 0) + gap * (fits.rows.length - 1);
   let y = top + Math.max(0, (avail - full) / 2);
@@ -405,7 +405,7 @@ function ImageNode({ story, pal, win, frame, fits }: P) {
     x = 170;
     y = 220;
   } else {
-    size = fits.img + (380 - fits.img) * shrink + 40 * endP;
+    size = fits.img + (480 - fits.img) * shrink + 40 * endP;
     x = (1080 - size) / 2;
     y = 290 + 10 * endP;
   }
@@ -463,13 +463,13 @@ function End({ story, pal, win, frame, fits, G, push }: P & { push: number }) {
   const beat = frame > win.tl.at('end.cta') + 10 ? Math.sin(Math.PI * clamp01(since / 14)) : 0;
   const ind = Math.sin(Math.PI * ramp(frame, s + 6, s + 20, (t) => t));
   const box: React.CSSProperties = product
-    ? story.wide ? { left: 960, width: 820, top: 260, alignItems: 'flex-start', textAlign: 'left' } : { left: G.x, width: G.w, top: 760, alignItems: 'center', textAlign: 'center' }
-    : story.wide ? { left: 160, width: 1600, top: 440, alignItems: 'center', textAlign: 'center' } : { left: G.x, width: G.w, top: 820, alignItems: 'center', textAlign: 'center' };
+    ? story.wide ? { left: 960, width: 820, top: 260, alignItems: 'flex-start', textAlign: 'left' } : { left: G.x, width: G.w, top: 900, alignItems: 'center', textAlign: 'center' }
+    : story.wide ? { left: 160, width: 1600, top: 440, alignItems: 'center', textAlign: 'center' } : { left: G.x, width: G.w, top: 900, alignItems: 'center', textAlign: 'center' };
   const align = box.textAlign as 'left' | 'center';
   return (
     <AbsoluteFill style={{ transform: `translateY(${G.H * (1 - push)}px)` }}>
       {!product ? (
-        <div style={{ position: 'absolute', left: (G.W - 220) / 2, top: story.wide ? 160 : 520, transform: `scale(${(0.8 + 0.2 * clamp01(tile)) * (1 + 0.08 * ind)})` }}>
+        <div style={{ position: 'absolute', left: (G.W - 220) / 2, top: story.wide ? 160 : 600, transform: `scale(${(0.8 + 0.2 * clamp01(tile)) * (1 + 0.08 * ind)})` }}>
           <LogoTile brand={story.brand} size={220} pal={pal} />
         </div>
       ) : null}

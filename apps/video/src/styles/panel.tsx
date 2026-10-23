@@ -9,7 +9,7 @@ import { WatermarkLine } from '../promo/shared';
 import type { KitProps } from './StyledVideo';
 import type { Story, Win } from './story';
 import { fontJakarta, fontSora } from './fonts';
-import { EASE, KineticText, Lines, ProductImage, SpeedBlur, brandGrad, fitK, linesH, pulse, softShadow, splitLast, velocity, type FitBase } from './kit';
+import { EASE, V_BOTTOM, V_WM, KineticText, Lines, ProductImage, SpeedBlur, brandGrad, fitK, linesH, pulse, softShadow, splitLast, velocity, type FitBase } from './kit';
 
 /**
  * PANEL — acik Apple-yumusak arayuz dili (deneme 17-remotion 8,5/10 + video-shotcraft Film.tsx +
@@ -38,7 +38,7 @@ type Geo = {
   wmTop: number;
   wmSize: number;
 };
-const TALL: Geo = { W: 1080, H: 1920, x: 90, w: 900, bandTop: 430, bandBottom: 1420, headerTop: 258, wmTop: 1452, wmSize: 24 };
+const TALL: Geo = { W: 1080, H: 1920, x: 90, w: 900, bandTop: 420, bandBottom: V_BOTTOM, headerTop: 258, wmTop: V_WM, wmSize: 24 };
 const WIDE: Geo = { W: 1920, H: 1080, x: 140, w: 1640, bandTop: 190, bandBottom: 960, headerTop: 64, wmTop: 1010, wmSize: 22 };
 
 type Row = { title: Fit; detail: Fit | null; h: number };
@@ -65,8 +65,8 @@ function rowFits(story: Story, textW: number, avail: number, wide: boolean) {
   let gap = 18;
   for (let k = 1; k >= 0.55; k -= 0.05) {
     rows = story.points.map((p) => {
-      const title = fitK(p.title, F_HEAD, k, { maxWidth: textW, maxLines: wide ? 4 : 3, maxSize: wide ? 54 : 62, minSize: 34 });
-      const detail = p.detail ? fitK(p.detail, F_BODY, k, { maxWidth: textW, maxLines: wide ? 5 : 3, maxSize: wide ? 34 : 40, minSize: 26 }) : null;
+      const title = fitK(p.title, F_HEAD, k, { maxWidth: textW, maxLines: wide ? 4 : 3, maxSize: wide ? 54 : 70, minSize: 34 });
+      const detail = p.detail ? fitK(p.detail, F_BODY, k, { maxWidth: textW, maxLines: wide ? 5 : 3, maxSize: wide ? 34 : 46, minSize: 26 }) : null;
       return { title, detail, h: Math.round(56 + Math.max(64, linesH(title, 1.1) + (detail ? 12 + linesH(detail, 1.3) : 0))) };
     });
     gap = Math.round(18 * k);
@@ -96,7 +96,7 @@ function computeFits(story: Story, G: Geo): Fits {
         img = 760;
         if (textH <= 760) break;
       } else {
-        img = Math.round(Math.min(620, 1440 - 270 - 50 - 30 - textH));
+        img = Math.round(Math.min(680, V_BOTTOM - 270 - 50 - 30 - textH));
         if (img >= 400) break;
         img = Math.max(380, img);
       }
@@ -128,7 +128,7 @@ function computeFits(story: Story, G: Geo): Fits {
       return { title, detail };
     })
     : [];
-  const listAvail = story.kind === 'product' ? (wide ? 700 : 1440 - 720 - 56) : wide ? 680 : G.bandBottom - G.bandTop - 56;
+  const listAvail = story.kind === 'product' ? (wide ? 700 : V_BOTTOM - 820 - 56) : wide ? 680 : G.bandBottom - G.bandTop - 56;
   // satir ic genisligi: panel (2x28) + satir (2x28) dolgulari, rozet 64, bosluk 24
   const rowTextW = wide ? (story.kind === 'site' ? (1640 - 80) / 3 - 2 * 40 : 790 - 56 - 56 - 64 - 24) : 920 - 56 - 56 - 64 - 24;
   const { rows, gap } = story.list ? rowFits(story, rowTextW, listAvail, wide && story.kind === 'site') : { rows: [], gap: 0 };
@@ -307,7 +307,7 @@ function HookScene({ story, pal, win, frame, fits, G }: P) {
     body = (
       <div style={story.wide
         ? { position: 'absolute', left: 1010, width: 790, top: 160, height: 760, display: 'flex', flexDirection: 'column', justifyContent: 'center' }
-        : { position: 'absolute', left: G.x, width: 860, top: 270 + fits.img + 50, height: 1440 - (270 + fits.img + 50), display: 'flex', flexDirection: 'column', justifyContent: 'center' }}
+        : { position: 'absolute', left: G.x, width: 860, top: 270 + fits.img + 50, height: V_BOTTOM - (270 + fits.img + 50), display: 'flex', flexDirection: 'column', justifyContent: 'center' }}
       >
         {kicker}
         <Headline fit={fits.head} p={titleP} pal={pal} frame={frame} underlineAt={uAt} style={{ marginTop: kicker ? 26 : 0 }} />
@@ -424,8 +424,8 @@ function ListScene({ story, pal, win, frame, fits, G }: P) {
   } else {
     const x = story.wide ? 1010 : 80;
     const w = story.wide ? 790 : 920;
-    const top = story.kind === 'product' ? (story.wide ? 210 : 720) : G.bandTop;
-    const maxH = story.kind === 'product' ? (story.wide ? 720 : 1440 - 720) : G.bandBottom - G.bandTop;
+    const top = story.kind === 'product' ? (story.wide ? 210 : 820) : G.bandTop;
+    const maxH = story.kind === 'product' ? (story.wide ? 720 : V_BOTTOM - 820) : G.bandBottom - G.bandTop;
     const full = fits.rows.reduce((a, r) => a + r.h, 0) + fits.rowGap * (fits.rows.length - 1) + 56;
     const y0 = top + Math.max(0, (maxH - full) / 2);
     panel = { left: x, top: y0, width: w, height: 28 + Math.max(0, shown - fits.rowGap) + 28 };
@@ -492,7 +492,7 @@ function ProductCard({ story, pal, win, frame, fits }: Omit<P, 'G'>) {
     x = 130 + (760 - size) / 2;
     y = 160 + (760 - size) / 2;
   } else {
-    size = interpolate(shrink, [0, 1], [fits.img, 400]) + (420 - 400) * endP;
+    size = interpolate(shrink, [0, 1], [fits.img, 500]) + (540 - 500) * endP;
     x = (1080 - size) / 2;
     y = interpolate(shrink, [0, 1], [270, 280]) + 20 * endP;
   }
@@ -544,7 +544,7 @@ function EndScene({ story, pal, win, frame, fits, G }: P) {
   // urun: gorsel karti kalir; marka karosu yerine urun adi + CTA saga / alta
   const tile = isProduct ? null : (() => {
     const from = story.wide ? { x: 640, y: 210, w: 640, h: 660, r: 48 } : { x: 80, y: 560, w: 920, h: 760, r: 48 };
-    const to = story.wide ? { x: (1920 - tileSize) / 2, y: 130, w: tileSize, h: tileSize, r: tileSize * 0.27 } : { x: (1080 - tileSize) / 2, y: 520, w: tileSize, h: tileSize, r: tileSize * 0.27 };
+    const to = story.wide ? { x: (1920 - tileSize) / 2, y: 130, w: tileSize, h: tileSize, r: tileSize * 0.27 } : { x: (1080 - tileSize) / 2, y: 600, w: tileSize, h: tileSize, r: tileSize * 0.27 };
     const L = (a: number, b: number) => a + (b - a) * m;
     return { x: L(from.x, to.x), y: L(from.y, to.y), w: L(from.w, to.w), h: L(from.h, to.h), r: L(from.r, to.r), to };
   })();
@@ -557,10 +557,10 @@ function EndScene({ story, pal, win, frame, fits, G }: P) {
   const textBox: React.CSSProperties = isProduct
     ? story.wide
       ? { left: 1010, width: 790, top: 160, height: 760, alignItems: 'flex-start', textAlign: 'left' }
-      : { left: G.x, width: 860, top: 760, height: 640, alignItems: 'center', textAlign: 'center' }
+      : { left: G.x, width: 860, top: 900, height: 640, alignItems: 'center', textAlign: 'center' }
     : story.wide
       ? { left: 140, width: 1640, top: 360, height: 620, alignItems: 'center', textAlign: 'center' }
-      : { left: G.x, width: 860, top: 810, height: 640, alignItems: 'center', textAlign: 'center' };
+      : { left: G.x, width: 860, top: 890, height: 640, alignItems: 'center', textAlign: 'center' };
   return (
     <AbsoluteFill>
       {tile ? (

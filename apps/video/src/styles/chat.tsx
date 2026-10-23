@@ -9,7 +9,7 @@ import { WatermarkLine } from '../promo/shared';
 import type { KitProps } from './StyledVideo';
 import type { Story, Win } from './story';
 import { fontJakarta, fontSora } from './fonts';
-import { Lines, ProductImage, SpeedBlur, brandGrad, linesH, velocity, type FitBase } from './kit';
+import { V_BOTTOM, V_WM, Lines, ProductImage, SpeedBlur, brandGrad, linesH, velocity, type FitBase } from './kit';
 import { STYLE_EXITS } from './registry.mjs';
 
 /**
@@ -38,7 +38,8 @@ const power4InOut = (p: number) => (p < 0.5 ? 8 * p ** 4 : 1 - Math.pow(-2 * p +
 const power3Out = (p: number) => 1 - Math.pow(1 - clamp01(p), 3);
 
 type Geo = { W: number; H: number; win: { x: number; y: number; w: number; h: number }; compact: { y: number; h: number }; pad: number; wmTop: number; wmSize: number };
-const TALL: Geo = { W: 1080, H: 1920, win: { x: 60, y: 262, w: 960, h: 1178 }, compact: { y: 960, h: 300 }, pad: 36, wmTop: 1462, wmSize: 24 };
+// Dikey pencere guvenli alanin tamami: ust 230 .. alt V_BOTTOM (23.10 inceleme: alt yari bos kalmasin)
+const TALL: Geo = { W: 1080, H: 1920, win: { x: 50, y: 230, w: 980, h: V_BOTTOM - 230 }, compact: { y: 1100, h: 300 }, pad: 36, wmTop: V_WM, wmSize: 24 };
 const WIDE: Geo = { W: 1920, H: 1080, win: { x: 300, y: 56, w: 1320, h: 944 }, compact: { y: 600, h: 290 }, pad: 40, wmTop: 1016, wmSize: 22 };
 /** Yatay urun: solda kalici urun karti (gorsel + fiyat, tum video), pencere sagda */
 const WIDE_PRODUCT: Geo = { ...WIDE, win: { x: 780, y: 56, w: 1040, h: 944 } };
@@ -83,13 +84,14 @@ function measure(t: string, b: FitBase, size: number) {
 function computeFits(story: Story, G: Geo): Fits {
   const inner = G.win.w - 2 * G.pad;
   const roomH = G.win.h - BAR - COMPOSER - 2 * G.pad;
-  const imgH = story.kind === 'product' && !story.wide ? Math.round(Math.min(roomH * 0.4, 440)) : 0;
+  const imgH = story.kind === 'product' && !story.wide ? Math.round(Math.min(roomH * 0.4, 500)) : 0;
   let user!: Bubble;
   let bot: Bubble | null = null;
   let k = 1;
   for (; k >= 0.55; k -= 0.05) {
-    user = bubble(story.hook, F_USER, Math.round(inner * 0.88), 5, Math.round(78 * k), Math.min(40, Math.round(78 * k)), 40, 28, 1.14);
-    bot = story.hookSub ? bubble(story.hookSub, F_BOT, Math.round(inner * 0.86) - 76, 4, Math.round(50 * Math.max(0.85, k)), 32, 34, 26, 1.32) : null;
+    user = bubble(story.hook, F_USER, Math.round(inner * 0.9), 5, Math.round(84 * k), Math.min(48, Math.round(84 * k)), 40, 28, 1.14);
+    // destek metni 1080 genislikte >= 44 px (yalniz asiri uzun metinde daha kucuk)
+    bot = story.hookSub ? bubble(story.hookSub, F_BOT, Math.round(inner * 0.9) - 76, 4, Math.round(54 * Math.max(0.82, k)), 40, 34, 26, 1.32) : null;
     const h = (story.kicker ? 70 : 0) + imgH + (imgH ? 30 : 0) + user.h + 30 + 60 + (bot ? 30 + bot.h : 0) + (story.source ? 70 : 0);
     if (h <= roomH) break;
   }
@@ -98,8 +100,8 @@ function computeFits(story: Story, G: Geo): Fits {
   let points: Item[] = [];
   for (let q = 1; q >= 0.5; q -= 0.05) {
     points = story.points.map((p) => {
-      const title = fitText(p.title, { ...F_TITLE, maxWidth: ptW - 68, maxLines: listMode ? 2 : 4, maxSize: Math.round((listMode ? 58 : 72) * q), minSize: Math.min(listMode ? 34 : 44, Math.round((listMode ? 58 : 72) * q)) });
-      const detail = p.detail ? fitText(p.detail, { ...F_BOT, maxWidth: ptW - 68, maxLines: listMode ? 3 : 4, maxSize: Math.round((listMode ? 40 : 46) * Math.max(0.8, q)), minSize: listMode ? 28 : 34 }) : null;
+      const title = fitText(p.title, { ...F_TITLE, maxWidth: ptW - 68, maxLines: listMode ? 2 : 4, maxSize: Math.round((listMode ? 64 : 80) * q), minSize: Math.min(listMode ? 38 : 48, Math.round((listMode ? 64 : 80) * q)) });
+      const detail = p.detail ? fitText(p.detail, { ...F_BOT, maxWidth: ptW - 68, maxLines: 4, maxSize: Math.round((listMode ? 48 : 52) * Math.max(0.72, q)), minSize: listMode ? 34 : 44 }) : null;
       const w = Math.min(ptW, Math.ceil(Math.max(...title.lines.map((l) => measure(l, F_TITLE, title.size)), ...(detail ? detail.lines.map((l) => measure(l, F_BOT, detail.size)) : [0])) + 68 + 4));
       return { title, detail, w, h: Math.ceil(56 + linesH(title, 1.12) + (detail ? 16 + linesH(detail, 1.32) : 0)) };
     });
@@ -408,8 +410,8 @@ function End({ story, pal, win, frame, fits, G }: P) {
   const product = story.kind === 'product';
   const TS = story.wide ? 200 : 240;
   const tile = product
-    ? story.wide ? { ...SIDE, r: 48 } : { x: (1080 - 480) / 2, y: 300, w: 480, h: 480, r: 48 }
-    : story.wide ? { x: (1920 - TS) / 2, y: 140, w: TS, h: TS, r: TS * 0.29 } : { x: (1080 - TS) / 2, y: 480, w: TS, h: TS, r: TS * 0.29 };
+    ? story.wide ? { ...SIDE, r: 48 } : { x: (1080 - 520) / 2, y: 320, w: 520, h: 520, r: 48 }
+    : story.wide ? { x: (1920 - TS) / 2, y: 140, w: TS, h: TS, r: TS * 0.29 } : { x: (1080 - TS) / 2, y: 580, w: TS, h: TS, r: TS * 0.29 };
   const k = (lag: number) => power4InOut(ramp(frame, s - 6 + lag, s + 12 + lag, (t) => t));
   const rect = (p: number) => ({ x: G.win.x + (tile.x - G.win.x) * p, y: G.win.y + (tile.y - G.win.y) * p, w: G.win.w + (tile.w - G.win.w) * p, h: G.win.h + (tile.h - G.win.h) * p, r: 44 + (tile.r - 44) * p });
   const R = rect(k(0));
@@ -420,8 +422,8 @@ function End({ story, pal, win, frame, fits, G }: P) {
   const cta = win.ctaIn(frame);
   const mark = win.markIn(frame);
   const textBox: React.CSSProperties = product
-    ? story.wide ? { left: 820, width: 900, top: 250, alignItems: 'flex-start', textAlign: 'left' } : { left: 90, width: 900, top: 840, alignItems: 'center', textAlign: 'center' }
-    : story.wide ? { left: 160, width: 1600, top: 400, alignItems: 'center', textAlign: 'center' } : { left: 90, width: 900, top: 780, alignItems: 'center', textAlign: 'center' };
+    ? story.wide ? { left: 820, width: 900, top: 250, alignItems: 'flex-start', textAlign: 'left' } : { left: 90, width: 900, top: 920, alignItems: 'center', textAlign: 'center' }
+    : story.wide ? { left: 160, width: 1600, top: 400, alignItems: 'center', textAlign: 'center' } : { left: 90, width: 900, top: 880, alignItems: 'center', textAlign: 'center' };
   return (
     <AbsoluteFill>
       {[0.07, 0.14].map((lag, i) => {

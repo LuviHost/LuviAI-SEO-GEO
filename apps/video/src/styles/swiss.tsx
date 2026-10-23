@@ -8,7 +8,7 @@ import { WatermarkLine } from '../promo/shared';
 import type { KitProps } from './StyledVideo';
 import type { Story, Win } from './story';
 import { fontInter } from './fonts';
-import { Lines, ProductImage, bezier, fitK, linesH, stagger, type FitBase } from './kit';
+import { V_BOTTOM, V_WM, Lines, ProductImage, bezier, fitK, linesH, stagger, type FitBase } from './kit';
 
 /**
  * ISVICRE — lemo-opuscar "swiss-motion" stili (MIT; films/ranksup-swiss, kaynaklar src/styles/CREDITS.md):
@@ -30,7 +30,7 @@ const F_BODY: FitBase = { family: fontInter, weight: 500, letterSpacing: -0.005 
 
 type Geo = { W: number; H: number; M: number; GUT: number; COL: number; top: number; bottom: number; capY: number; wmTop: number; wmSize: number; textW: number };
 const mk = (W: number, H: number, M: number, top: number, bottom: number, capY: number, wmTop: number, wmSize: number, textW: number): Geo => ({ W, H, M, GUT: 24, COL: (W - 2 * M - 5 * 24) / 6, top, bottom, capY, wmTop, wmSize, textW });
-const TALL = mk(1080, 1920, 72, 420, 1430, 330, 1452, 24, 870);
+const TALL = mk(1080, 1920, 72, 420, V_BOTTOM, 330, V_WM, 24, 870);
 const WIDE = mk(1920, 1080, 96, 200, 960, 120, 1012, 22, 1000);
 const colX = (G: Geo, i: number) => G.M + i * (G.COL + G.GUT);
 
@@ -55,7 +55,7 @@ function computeFits(story: Story, G: Geo): Fits {
         img = 760;
         if (h <= 700) break;
       } else {
-        img = Math.round(Math.min(616, 1440 - 280 - 110 - 30 - h));
+        img = Math.round(Math.min(700, V_BOTTOM - 280 - 110 - 30 - h));
         if (img >= 400) break;
         img = Math.max(380, img);
       }
@@ -79,11 +79,11 @@ function computeFits(story: Story, G: Geo): Fits {
   if (story.list) {
     const wideSite = wide && story.kind === 'site';
     const textW = wideSite ? 2 * G.COL + G.GUT - 64 : (story.kind === 'product' ? (wide ? 780 : 936) : 936) - 64 - 80;
-    const avail = wideSite ? 600 : story.kind === 'product' ? (wide ? 720 : 1440 - 740) : G.bottom - G.top - 60;
+    const avail = wideSite ? 600 : story.kind === 'product' ? (wide ? 720 : V_BOTTOM - 860) : G.bottom - G.top - 60;
     for (let k = 1; k >= 0.5; k -= 0.05) {
       rows = story.points.map((p) => {
-        const title = fitK(p.title, F_HEAD, k, { maxWidth: textW, maxLines: wideSite ? 4 : 3, maxSize: wideSite ? 56 : 62, minSize: 32 });
-        const detail = p.detail ? fitK(p.detail, F_BODY, k, { maxWidth: textW, maxLines: wideSite ? 5 : 3, maxSize: 36, minSize: 24 }) : null;
+        const title = fitK(p.title, F_HEAD, k, { maxWidth: textW, maxLines: wideSite ? 4 : 3, maxSize: wideSite ? 56 : (wide ? 62 : 70), minSize: 32 });
+        const detail = p.detail ? fitK(p.detail, F_BODY, k, { maxWidth: textW, maxLines: wideSite ? 5 : 3, maxSize: wide ? 36 : 42, minSize: 24 }) : null;
         return { title, detail, h: Math.round(64 + linesH(title, 1.06) + (detail ? 16 + linesH(detail, 1.3) : 0)) };
       });
       rowGap = G.GUT;
@@ -264,7 +264,7 @@ function Hook({ story, pal, win, frame, fits, G }: P) {
   const product = story.kind === 'product';
   const x = product && story.wide ? 1010 : G.M;
   const top = product ? (story.wide ? 200 : 280 + fits.img + 110) : G.top;
-  const bottom = product ? (story.wide ? 940 : 1440) : G.bottom;
+  const bottom = product ? (story.wide ? 940 : V_BOTTOM) : G.bottom;
   const colW = product ? (story.wide ? 780 : 870) : G.textW;
   const subH = fits.sub || story.source ? 64 + linesH(fits.sub, 1.3) + (story.source ? 50 : 0) : 0;
   return (
@@ -337,8 +337,8 @@ function List({ story, win, frame, fits, G }: P) {
   const product = story.kind === 'product';
   const x0 = product && story.wide ? 1010 : G.M;
   const w = product && story.wide ? 780 : 936;
-  const top = product ? (story.wide ? 200 : 740) : G.top;
-  const avail = product ? (story.wide ? 740 : 1440 - 740) : G.bottom - G.top;
+  const top = product ? (story.wide ? 200 : 860) : G.top;
+  const avail = product ? (story.wide ? 740 : V_BOTTOM - 860) : G.bottom - G.top;
   const full = wideSite ? Math.max(...fits.rows.map((r) => r.h)) : fits.rows.reduce((a, r) => a + r.h, 0) + fits.rowGap * (fits.rows.length - 1);
   let y = top + Math.max(0, (avail - full) / 2);
   const capP = ramp(frame, p1s - 5, p1s - 5 + win.fpb, (t) => t);
@@ -386,7 +386,7 @@ function ProductModule({ story, pal, win, frame, fits, G }: P) {
     x = G.M + 40;
     y = 200 + (760 - size) / 2;
   } else {
-    size = fits.img + (400 - fits.img) * shrink + 20 * endP;
+    size = fits.img + (520 - fits.img) * shrink + 20 * endP;
     x = G.M;
     y = 280 + 20 * endP;
   }
@@ -482,7 +482,7 @@ function End({ story, pal, win, frame, fits, G }: P) {
   const product = story.kind === 'product';
   const k = E(ramp(frame, s, s + win.fpb, (t) => t));
   const TS = story.wide ? 200 : 232;
-  const T0 = story.wide ? { x: G.M, y: 230 } : { x: G.M, y: 520 };
+  const T0 = story.wide ? { x: G.M, y: 230 } : { x: G.M, y: 600 };
   const x = 0 + (T0.x - 0) * k;
   const y = 0 + (T0.y - 0) * k;
   const w = G.W + (TS - G.W) * k;
@@ -492,7 +492,7 @@ function End({ story, pal, win, frame, fits, G }: P) {
   const cta = win.ctaIn(frame);
   const mark = win.markIn(frame);
   const textX = product && story.wide ? 1010 : G.M;
-  const textTop = product ? (story.wide ? 300 : 800) : story.wide ? 520 : 860;
+  const textTop = product ? (story.wide ? 300 : 960) : story.wide ? 520 : 940;
   const ruleP = ramp(frame, s + 4, s + 4 + win.fpb, (t) => t);
   const play = ramp(frame, win.tl.at('end.url'), win.total, (t) => t);
   const bar = ramp(frame, win.tl.at('end.cta') - 6, win.tl.at('end.cta') + 2, (t) => t);
@@ -527,8 +527,8 @@ function End({ story, pal, win, frame, fits, G }: P) {
       </div>
       {!story.wide ? (
         <>
-          <div style={{ position: 'absolute', left: G.M, top: 1600, width: G.W - 2 * G.M, height: 2, background: C.grid }} />
-          <div style={{ position: 'absolute', left: G.M, top: 1600, width: (G.W - 2 * G.M) * play, height: 2, background: C.ink }} />
+          <div style={{ position: 'absolute', left: G.M, top: 1660, width: G.W - 2 * G.M, height: 2, background: C.grid }} />
+          <div style={{ position: 'absolute', left: G.M, top: 1660, width: (G.W - 2 * G.M) * play, height: 2, background: C.ink }} />
         </>
       ) : null}
       {story.watermark ? <WatermarkLine top={G.wmTop - (story.wide ? 0 : 12)} color={C.mute} opacity={0.85 * mark} size={story.wide ? 22 : 26} /> : null}

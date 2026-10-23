@@ -8,7 +8,7 @@ import { WatermarkLine } from '../promo/shared';
 import type { KitProps } from './StyledVideo';
 import type { Story, Win } from './story';
 import { fontAnton, fontCaveat, fontJakarta, fontSora } from './fonts';
-import { DrawPath, EASE, KineticText, Lines, ProductImage, fitK, linesH, measureWidth, splitLast, type FitBase } from './kit';
+import { DrawPath, EASE, V_BOTTOM, V_WM, KineticText, Lines, ProductImage, fitK, linesH, measureWidth, splitLast, type FitBase } from './kit';
 
 /**
  * KAGIT — HyperFrames denemesi 1'in (ranksup1/index.html, Apache-2.0 araci; kompozisyon bizim) teknigi:
@@ -34,7 +34,7 @@ const LH = 1.17;
 const SAFETY = 80;
 
 type Geo = { W: number; H: number; x: number; w: number; top: number; bottom: number; wmTop: number; wmSize: number };
-const TALL: Geo = { W: 1080, H: 1920, x: 90, w: 880, top: 400, bottom: 1430, wmTop: 1452, wmSize: 24 };
+const TALL: Geo = { W: 1080, H: 1920, x: 90, w: 880, top: 400, bottom: V_BOTTOM, wmTop: V_WM, wmSize: 24 };
 const WIDE: Geo = { W: 1920, H: 1080, x: 140, w: 1640, top: 150, bottom: 960, wmTop: 1010, wmSize: 22 };
 
 type Row = { title: Fit; detail: Fit | null; h: number };
@@ -81,7 +81,7 @@ function computeFits(story: Story, G: Geo): Fits {
         img = 700;
         if (textH <= 760) break;
       } else {
-        img = Math.round(Math.min(600, 1440 - 280 - 70 - textH - SAFETY));
+        img = Math.round(Math.min(660, V_BOTTOM - 280 - 70 - textH - SAFETY));
         if (img >= 400) break;
         img = Math.max(380, img);
       }
@@ -115,7 +115,7 @@ function computeFits(story: Story, G: Geo): Fits {
   if (story.list) {
     const wideSite = wide && story.kind === 'site';
     const textW = wideSite ? 440 : story.kind === 'product' ? (wide ? 820 - 90 : 880 - 90) : 880 - 90;
-    const avail = wideSite ? 640 : story.kind === 'product' ? (wide ? 700 : 1440 - 740) : G.bottom - G.top - 40;
+    const avail = wideSite ? 640 : story.kind === 'product' ? (wide ? 700 : V_BOTTOM - 920 - 40) : G.bottom - G.top - 40;
     for (let k = 1; k >= 0.5; k -= 0.05) {
       rows = story.points.map((p) => {
         const title = fitK(up(p.title), F_KIN, k, { maxWidth: textW, maxLines: wideSite ? 4 : 3, maxSize: wideSite ? 88 : 84, minSize: 44 });
@@ -292,7 +292,7 @@ function Hook({ story, pal, win, frame, fits, G, acc }: P) {
   const box: React.CSSProperties = story.kind === 'product'
     ? story.wide
       ? { left: 960, width: 820, top: 150, height: 800 }
-      : { left: G.x, width: 880, top: 280 + fits.img + 70, height: 1440 - (280 + fits.img + 70) }
+      : { left: G.x, width: 880, top: 280 + fits.img + 70, height: V_BOTTOM - (280 + fits.img + 70) }
     : { left: G.x, width: 880, top: G.top, height: G.bottom - G.top };
   return (
     <div style={{ position: 'absolute', ...box, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
@@ -364,8 +364,8 @@ function List({ story, win, frame, fits, G, acc }: P) {
   const color = dark ? '#ffffff' : INK;
   const wideSite = story.wide && story.kind === 'site';
   const x0 = story.kind === 'product' ? (story.wide ? 960 : G.x) : G.x;
-  const top = story.kind === 'product' ? (story.wide ? 170 : 740) : G.top;
-  const avail = story.kind === 'product' ? (story.wide ? 760 : 1440 - 740) : G.bottom - G.top;
+  const top = story.kind === 'product' ? (story.wide ? 170 : 920) : G.top;
+  const avail = story.kind === 'product' ? (story.wide ? 760 : V_BOTTOM - 920) : G.bottom - G.top;
   const full = wideSite ? Math.max(...fits.rows.map((r) => r.h)) : fits.rows.reduce((a, r) => a + r.h, 0) + fits.rowGap * (fits.rows.length - 1);
   let y = top + Math.max(0, (avail - full) / 2);
   return (
@@ -411,7 +411,7 @@ function Polaroid({ story, pal, win, frame, fits, acc }: Omit<P, 'G'>) {
     x = 140 + (700 - size) / 2;
     y = 170 + (700 - size) / 2;
   } else {
-    size = interpolate(shrink, [0, 1], [fits.img, 400]) + 20 * endP;
+    size = interpolate(shrink, [0, 1], [fits.img, 520]) + 20 * endP;
     x = (1080 - size) / 2;
     y = 280 + 20 * endP;
   }
@@ -464,7 +464,7 @@ function Header({ story, pal, win, frame, fits, G, dark }: P & { dark: boolean }
 function Ball({ pal, win, frame, G, story }: { pal: BrandPalette; win: Win; frame: number; G: Geo; story: Story }) {
   if (frame >= win.endS + 14) return null;
   const size = 72;
-  const home = story.wide ? { x: 1830, y: 1000 } : { x: 900, y: 1560 };
+  const home = story.wide ? { x: 1830, y: 1000 } : { x: 960, y: 1700 };
   let x = home.x;
   let y = home.y;
   let scale = 1;
@@ -497,7 +497,7 @@ function Ball({ pal, win, frame, G, story }: { pal: BrandPalette; win: Win; fram
   }
   const toEnd = ramp(frame, win.endS - 6, win.endS + 2, EASE.out);
   const grow = ramp(frame, win.endS + 2, win.endS + 12, EASE.exit);
-  const center = story.wide ? { x: 960, y: 250 } : { x: 540, y: 600 };
+  const center = story.wide ? { x: 960, y: 250 } : { x: 540, y: 680 };
   x = x + (center.x - x) * toEnd;
   y = y + (center.y - y) * toEnd;
   scale = 1 + 3.2 * grow;
@@ -520,15 +520,15 @@ function End({ story, pal, win, frame, fits, G, acc }: P) {
   const box: React.CSSProperties = isProduct
     ? story.wide
       ? { left: 960, width: 820, top: 170, height: 760, alignItems: 'flex-start', textAlign: 'left' }
-      : { left: G.x, width: 880, top: 780, height: 620, alignItems: 'center', textAlign: 'center' }
+      : { left: G.x, width: 880, top: 960, height: 620, alignItems: 'center', textAlign: 'center' }
     : story.wide
       ? { left: 140, width: 1640, top: 420, height: 560, alignItems: 'center', textAlign: 'center' }
-      : { left: G.x, width: 880, top: 820, height: 620, alignItems: 'center', textAlign: 'center' };
+      : { left: G.x, width: 880, top: 900, height: 620, alignItems: 'center', textAlign: 'center' };
   const align = (box.textAlign as 'left' | 'center') ?? 'center';
   return (
     <AbsoluteFill>
       {!isProduct ? (
-        <div style={{ position: 'absolute', left: (story.wide ? 960 : 540) - 110, top: (story.wide ? 250 : 600) - 110, transform: `scale(${0.86 + 0.14 * Math.min(1.1, tile)}) rotate(${(1 - Math.min(1, tile)) * -8}deg)`, opacity: clamp01(tile * 2) }}>
+        <div style={{ position: 'absolute', left: (story.wide ? 960 : 540) - 110, top: (story.wide ? 250 : 680) - 110, transform: `scale(${0.86 + 0.14 * Math.min(1.1, tile)}) rotate(${(1 - Math.min(1, tile)) * -8}deg)`, opacity: clamp01(tile * 2) }}>
           <LogoTile brand={story.brand} size={220} pal={pal} />
         </div>
       ) : null}
